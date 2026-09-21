@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
   // Invitation/recovery links carry one-use credentials, including in local dev.
   logging: {
-    incomingRequests: { ignore: [/^\/auth\/(?:staff|callback)(?:[/?]|$)/] },
+    incomingRequests: { ignore: [/^\/auth\/(?:staff|callback|signup-confirmation)(?:[/?]|$)/] },
   },
   turbopack: {
     root: projectRoot,

@@ -1,5 +1,8 @@
 import "server-only";
 
+import { SIGNUP_CONFIRMATION_FLOW_HEADER, SIGNUP_CONFIRMATION_FLOW_VERSION, type NativeSignupPending, type NativeSignupResendResult, type SignupFailure } from "../student-signup-confirmation-state.ts";
+import { isStudentSignupConfirmationEnvelope } from "../student-signup-confirmation-contract.ts";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { validateStudentApplicationDraft, type StudentApplicationDraft } from "../student-application-contract.ts";
@@ -16,7 +19,7 @@ import { studentPortalDocumentRouteTransport } from "./platform-document-storage
  * functions the web wizard uses — no business rule lives here:
  *
  * - POST /api/portal/registration (anonymous) wraps
- *   `createPublicStudentAccount` — the single анкета step a client key
+ *   `beginStudentSignup` — the single анкета step a client key
  *   cannot reproduce (`auth.admin.createUser` + the service-role signup
  *   rate-limit RPC). The web form's Origin/CSRF gate protects the COOKIE
  *   duality of `registerStudentAction` (its signed-in branch); this endpoint
@@ -45,40 +48,23 @@ const MAX_QUESTIONNAIRE_JSON_CHARS = 12000;
 const REGISTRATION_KEYS = "email,password,questionnaire";
 const BODY_READ_DEADLINE_MS = 5000;
 
-type RegistrationStatus =
-  | "created"
-  | "invalid"
-  | "password"
-  | "password_too_long"
-  | "rate_limit"
-  | "conflict"
-  | "unavailable";
-
-type CreateAccount = (
-  email: string,
-  password: string,
-  draft: StudentApplicationDraft,
-) => Promise<{ status: RegistrationStatus }>;
-
-// The dynamic import mirrors the PORT-8a default-dependency pattern: the
-// shared registration chain loads only when the default is actually used, so
-// route units exercise the adapter with injected dependencies.
+type RegistrationStatus = SignupFailure["status"];
+type CreateAccount = (email: string, password: string, draft: StudentApplicationDraft) => Promise<NativeSignupPending | SignupFailure>;
 const defaultCreateAccount: CreateAccount = async (email, password, draft) => {
-  const { createPublicStudentAccount } = await import(
-    "./student-public-registration.ts"
-  );
-  return createPublicStudentAccount(email, password, draft);
+  const { beginStudentSignup } = await import("./student-signup-confirmation-runtime.ts");
+  return beginStudentSignup(email, password, draft);
 };
-
 const REGISTRATION_HTTP_STATUS: Readonly<Record<RegistrationStatus, number>> = {
-  created: 201,
-  invalid: 400,
-  password: 400,
-  password_too_long: 400,
-  conflict: 409,
-  rate_limit: 429,
-  unavailable: 503,
+  invalid: 400, password: 400, password_too_long: 400, conflict: 409,
+  rate_limit: 429, unavailable: 503, create_unknown: 503,
 };
+function pendingResponse(pending: NativeSignupPending): Response {
+  // Explicit projection: never expose internal identity, session or creation receipt fields.
+  return Response.json({ status: pending.status, maskedEmail: pending.maskedEmail,
+    expiresAt: pending.expiresAt, retryAfterSeconds: pending.retryAfterSeconds,
+    dispatch: pending.dispatch, resendCapability: pending.resendCapability },
+  { status: 202, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+}
 
 function statusResponse(httpStatus: number, status: string): Response {
   return Response.json(
@@ -94,7 +80,7 @@ function statusResponse(httpStatus: number, status: string): Response {
 }
 
 /** Bounded, deadline-guarded body read (website-lead-intake.ts pattern). */
-async function readBoundedJsonBody(request: Request): Promise<unknown> {
+async function readBoundedJsonBody(request: Request, capOnly = false): Promise<unknown> {
   const declared = request.headers.get("content-length");
   if (
     declared !== null &&
@@ -127,7 +113,11 @@ async function readBoundedJsonBody(request: Request): Promise<unknown> {
       }
       chunks.push(part.value);
     }
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+    // This endpoint accepts one canonical ASCII bearer field: reject duplicate/escaped keys
+    // before JSON.parse could discard them. No general JSON parser is introduced.
+    if (capOnly && !/^\s*\{\s*"cap"\s*:\s*"[A-Za-z0-9_.-]+"\s*\}\s*$/u.test(text)) throw new Error("json");
+    return JSON.parse(text);
   } finally {
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
@@ -135,7 +125,7 @@ async function readBoundedJsonBody(request: Request): Promise<unknown> {
 }
 
 export type StudentPortalRegistrationDependencies = Readonly<{
-  /** Defaults to the exact web-wizard account creation function. */
+  /** Defaults to the shared confirmation-aware registration runtime. */
   createAccount: CreateAccount;
 }>;
 
@@ -144,6 +134,9 @@ export function createStudentPortalRegistrationHandler(
 ): (request: Request) => Promise<Response> {
   const createAccount = dependencies?.createAccount ?? defaultCreateAccount;
   return async (request: Request): Promise<Response> => {
+    if (request.headers.get(SIGNUP_CONFIRMATION_FLOW_HEADER) !== SIGNUP_CONFIRMATION_FLOW_VERSION) {
+      return statusResponse(426, "upgrade_required");
+    }
     const contentType = request.headers.get("content-type") ?? "";
     if (!/^application\/json\s*(;|$)/i.test(contentType)) {
       return statusResponse(415, "invalid");
@@ -178,7 +171,7 @@ export function createStudentPortalRegistrationHandler(
     // The same normalization the web action applies before the shared
     // account-creation function; every further rule (draft revalidation,
     // email/password bounds, signup rate limit, duplicate rejection) runs
-    // INSIDE createPublicStudentAccount unchanged.
+    // INSIDE the shared registration runtime.
     const draft = validateStudentApplicationDraft(questionnaire);
     if (!draft) return statusResponse(400, "invalid");
     const created = await createAccount(
@@ -186,7 +179,35 @@ export function createStudentPortalRegistrationHandler(
       password,
       draft,
     );
-    return statusResponse(REGISTRATION_HTTP_STATUS[created.status], created.status);
+    return created.status === "pending_confirmation" ? pendingResponse(created)
+      : statusResponse(REGISTRATION_HTTP_STATUS[created.status], created.status);
+  };
+}
+
+export type StudentPortalRegistrationResendDependencies = Readonly<{
+  resend: (cap: string) => Promise<NativeSignupResendResult>;
+}>;
+export function createStudentPortalRegistrationResendHandler(
+  dependencies?: Partial<StudentPortalRegistrationResendDependencies>,
+): (request: Request) => Promise<Response> {
+  const resend = dependencies?.resend ?? (async (cap: string) => {
+    const { resendStudentSignup } = await import("./student-signup-confirmation-runtime.ts");
+    return resendStudentSignup(cap);
+  });
+  return async (request) => {
+    if (request.headers.get(SIGNUP_CONFIRMATION_FLOW_HEADER) !== SIGNUP_CONFIRMATION_FLOW_VERSION) return statusResponse(426, "upgrade_required");
+    if (!/^application\/json\s*(;|$)/i.test(request.headers.get("content-type") ?? "")) return statusResponse(415, "invalid");
+    let body: unknown;
+    try { body = await readBoundedJsonBody(request, true); }
+    catch { return statusResponse(400, "invalid"); }
+    if (typeof body !== "object" || body === null || Array.isArray(body)
+      || Object.keys(body).join(",") !== "cap" || !isStudentSignupConfirmationEnvelope((body as Record<string, unknown>).cap)) return statusResponse(400, "invalid");
+    let result: NativeSignupResendResult;
+    try { result = await resend((body as { cap: string }).cap); }
+    catch { return statusResponse(503, "unavailable"); }
+    if (result.status === "pending_confirmation") return pendingResponse(result);
+    const codes = { confirmed: 200, expired: 410, rate_limit: 429, account_conflict: 409, unavailable: 503 } as const;
+    return statusResponse(codes[result.status], result.status);
   };
 }
 

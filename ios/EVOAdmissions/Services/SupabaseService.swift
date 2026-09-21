@@ -732,8 +732,16 @@ extension SupabaseService {
             )
         )
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard response is HTTPURLResponse else { return .unavailable }
-        return StudentRegistrationOutcome.decode(from: data)
+        guard let http = response as? HTTPURLResponse else { return .createUnknown }
+        return StudentRegistrationOutcome.decode(from: data, statusCode: http.statusCode)
+    }
+
+    func resendStudentRegistration(capability: String) async throws -> StudentRegistrationOutcome {
+        let request = try ApplicationIntakeTransfer.registrationResendRequest(
+            baseURL: AppConfig.portalWebBaseURL, capability: capability)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { return .unavailable }
+        return StudentRegistrationOutcome.decode(from: data, statusCode: http.statusCode, resend: true)
     }
 
     /// POST {web}/api/portal/invite-acceptance — bearer; marks the caller's

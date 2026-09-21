@@ -13,6 +13,8 @@ import {
 } from "@/lib/student-application-contract";
 import { ENGLISH_EXAMS, localizedCountryLabel, NATIONALITY_COUNTRIES, STUDY_FIELD_OPTIONS } from "@/lib/student-application-presentation";
 import { registerStudentAction } from "@/lib/student-signup-actions";
+import { SignupConfirmationPending } from "./SignupConfirmationPending";
+import { getSignupConfirmationStrings } from "@/lib/portal/signup-confirmation-i18n";
 import { ApplyLangSwitcher } from "./ApplyLangSwitcher";
 
 const STORAGE_KEY = "evo-application-draft-v1";
@@ -159,6 +161,14 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
     const password = event.currentTarget.elements.namedItem("password");
     if (password instanceof HTMLInputElement) password.value = "";
   }
+  useEffect(() => {
+    if (result.status === "pending_confirmation" || result.status === "create_unknown") {
+      const password = form.current?.elements.namedItem("password");
+      if (password instanceof HTMLInputElement) password.value = "";
+      setShowPassword(false);
+      if (result.status === "create_unknown") heading.current?.focus();
+    }
+  }, [result]);
   const exam = ENGLISH_EXAMS[values.englishExam as keyof typeof ENGLISH_EXAMS] ?? ENGLISH_EXAMS.ielts;
   const years = Array.from({ length: 7 }, (_, i) => year + i);
   const searchLocale = locale === "ky" ? "ky" : "ru";
@@ -180,6 +190,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
       </div>
     </header>
     <div className="mx-auto max-w-4xl px-4 pb-10 pt-3 sm:px-8 sm:pt-8">
+      {result.status === "pending_confirmation" ? <SignupConfirmationPending initial={result} locale={locale} /> : result.status === "create_unknown" ? <section role="alert" className="rounded-card border border-border bg-surface p-5"><h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold text-fg">{getSignupConfirmationStrings(locale).recoveryTitle}</h1><p className="mt-4">{getSignupConfirmationStrings(locale).create_unknown}</p><div className="mt-4 flex flex-wrap gap-6"><Link href="/login" className="inline-flex min-h-11 items-center text-accent-text underline">{getSignupConfirmationStrings(locale).login}</Link><a href="mailto:evo@evoadmissions.com" className="inline-flex min-h-11 items-center text-accent-text underline">{getSignupConfirmationStrings(locale).support}</a></div></section> : <>
       <div className="mb-6 flex items-center justify-between gap-4 text-sm"><span className="font-medium text-fg-2">{strings[`step.${STEP_KEYS[step]}`]}</span><span aria-live="polite" className="text-fg-2">{formatPortalString(strings.stepOf, { step: String(step + 1) })}</span></div>
       <div role="progressbar" aria-label={strings.progressAria} aria-valuemin={0} aria-valuemax={9} aria-valuenow={step + 1} className="mb-8 flex gap-1.5">{STEP_KEYS.map((key, i) => <span key={key} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-accent" : "bg-border"}`} />)}</div>
       <form ref={form} action={action} onSubmit={submit} onReset={preserveAnswers} className="rounded-card border border-border bg-surface px-5 pb-5 pt-7 sm:px-10 sm:pb-8 sm:pt-10">
@@ -207,6 +218,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
           <button type="submit" disabled={pending || !loaded} className="min-h-12 rounded-ctl bg-accent px-6 font-semibold text-on-accent transition-colors hover:bg-accent-2 disabled:opacity-60">{pending ? strings.saving : step === 8 ? signedInEmail ? strings.submitApplication : strings.createAccount : strings.continueButton}</button>
         </footer>
       </form>
+      </>}
     </div>
   </main>;
 }

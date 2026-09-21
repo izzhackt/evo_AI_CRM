@@ -176,7 +176,11 @@ enum ApplicationWizardPolicy {
     /// wizard maps (ApplicationWizard.tsx:168-173, ключи server.* словаря).
     static func registrationErrorKey(_ outcome: StudentRegistrationOutcome) -> String? {
         switch outcome {
-        case .created: return nil
+        case .pending: return nil
+        case .confirmed: return "signup_confirmation_confirmed"
+        case .expired, .createUnknown: return "signup_confirmation_support"
+        case .upgradeRequired: return "signup_confirmation_upgrade"
+        case .accountConflict: return "signup_confirmation_conflict"
         case .invalid: return "apply_server_invalid"
         case .password: return "apply_server_password"
         case .passwordTooLong: return "apply_server_password_too_long"

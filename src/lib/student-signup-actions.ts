@@ -4,15 +4,17 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exactActionStringFields } from "./server/action-form-fields";
-import { logStudentSignupFailure, resumeStudentApplication, studentApplicationEntryRedirect } from "./server/student-signup-runtime";
-import { createPublicStudentAccount } from "./server/student-public-registration";
+import { logStudentSignupFailure, studentApplicationEntryRedirect } from "./server/student-signup-runtime";
+import { beginStudentSignup } from "./server/student-signup-confirmation-runtime";
+import { readPendingStudentSignup, rememberStudentSignup } from "./server/student-signup-confirmation-web";
+import type { SignupFailure, SignupPending } from "./student-signup-confirmation-state";
 import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "./student-application-contract";
 import { studentInviteCallbackUrl } from "./student-invite-callback-contract";
 import { createSupabaseServerClient } from "./supabase/server";
 import { readVerifiedStudentPortalAuthority } from "./supabase/student-portal-authority";
 import { readOwnStudentApplication, submitStudentApplication } from "./v3/student-application-source";
 
-export type StudentSignupState = { status: "idle" | "invalid" | "password" | "password_too_long" | "unavailable" | "rate_limit" | "conflict" };
+export type StudentSignupState = { status: "idle" } | SignupFailure | SignupPending;
 
 async function validStudentOrigin(): Promise<boolean> {
   const h = await headers();
@@ -62,23 +64,14 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
         saved = true;
       }
     } else {
-      const created = await createPublicStudentAccount(email, password, draft);
-      if (created.status !== "created") return { status: created.status };
-      stage = "sign_in";
-      const { data, error } = await client.auth.signInWithPassword({ email, password });
-      if (error) {
-        logStudentSignupFailure(stage, error);
-        if (error.status === 429) return { status: "rate_limit" };
-        return { status: "unavailable" };
-      }
-      if (!data.session || data.user?.id !== created.authUserId) {
-        logStudentSignupFailure("sign_in_identity");
-        return { status: "unavailable" };
-      }
-      stage = "resume_application";
-      saved = await resumeStudentApplication(client, created.authUserId) === "saved";
+      // A retained attempt survives refresh and must never create a second identity.
+      const pending = await readPendingStudentSignup();
+      if (pending) return pending.status === "pending_confirmation" ? pending : { status: "create_unknown" };
+      stage = "create_confirmation";
+      const created = await beginStudentSignup(email, password, draft);
+      return created.status === "pending_confirmation" ? await rememberStudentSignup(created) : created;
     }
-  } catch (error) { logStudentSignupFailure(stage, error); return { status: "unavailable" }; }
+  } catch (error) { logStudentSignupFailure(stage, error); return { status: stage === "create_confirmation" ? "create_unknown" : "unavailable" }; }
   if (destination) redirect(destination);
   if (saved) redirect("/apply/status");
   return { status: "unavailable" };

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "@fontsource-variable/golos-text/wght.css";
 import "@fontsource-variable/jetbrains-mono/wght.css";
 import "./globals.css";
@@ -21,6 +22,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = await getLocale();
+  // Only the confirmation proxy sets this nonce and its enforced CSP.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang={locale}
@@ -28,7 +31,7 @@ export default async function RootLayout({
       className="h-full antialiased"
     >
       <body className="min-h-full">
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         {children}
       </body>
     </html>

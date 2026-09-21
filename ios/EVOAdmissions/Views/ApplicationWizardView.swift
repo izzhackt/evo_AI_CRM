@@ -4,7 +4,7 @@ import Supabase
 /// PORT-9a: нативная анкета — те же 9 шагов, тот же порядок валидации и тот
 /// же канон значений, что у веб-мастера (ApplicationWizard.tsx). Анонимный
 /// режим создаёт аккаунт на последнем шаге через POST /api/portal/registration
-/// и входит; signed-in режим (приглашённый, resume, resubmit) отправляет
+/// и ожидает подтверждения почты; signed-in режим (приглашённый, resume, resubmit) отправляет
 /// анкету той же RPC, что и веб (submit_student_application_v1).
 @MainActor
 final class ApplicationWizardViewModel: ObservableObject {
@@ -23,6 +23,9 @@ final class ApplicationWizardViewModel: ObservableObject {
     @Published var email = ""
     @Published var password = ""
     @Published var showPassword = false
+    @Published var confirmation: StudentSignupPending?
+    @Published var confirmationTerminal = false
+    @Published var resendNotBefore: Date?
 
     let mode: Mode
     /// Свежий requestId на сессию мастера — как randomUUID() на рендер
@@ -164,10 +167,10 @@ final class ApplicationWizardViewModel: ObservableObject {
         }
     }
 
-    /// Анонимный финал: те же проверки и статусы, что у веб-финала
-    /// (registerStudentAction), затем вход — router-resume отправит draft из
-    /// user_metadata тем же идемпотентным путём, что веб-resume.
+    /// Anonymous registration preserves the questionnaire while email confirmation
+    /// is pending. Login is a separate explicit action after confirmation.
     private func registerAndSignIn(draft: StudentApplicationDraft, router: SessionRouter) async {
+        defer { password = "" }
         let normalizedEmail = email.trimmingCharacters(in: .whitespaces).lowercased()
         guard ApplicationWizardPolicy.isValidEmail(normalizedEmail) else {
             errorKey = "apply_email_invalid"
@@ -178,7 +181,7 @@ final class ApplicationWizardViewModel: ObservableObject {
             return
         }
         isSubmitting = true
-        defer { isSubmitting = false }
+        defer { isSubmitting = false; password = "" }
         do {
             let outcome = try await service.registerStudentAccount(
                 draft: draft, email: normalizedEmail, password: password
@@ -186,15 +189,51 @@ final class ApplicationWizardViewModel: ObservableObject {
             if let failure = ApplicationWizardPolicy.registrationErrorKey(outcome) {
                 errorKey = failure
                 conflictHint = outcome == .conflict
+                if outcome == .createUnknown { confirmationTerminal = true }
                 return
             }
-            clearDraft()
-            // Дальше маршрутизирует router: .signedIn → resolveAccess →
-            // resume-отправка из metadata → экран статуса.
-            await router.signIn(email: normalizedEmail, password: password)
+            if case let .pending(value) = outcome {
+                confirmation = value
+                resendNotBefore = value.retryAfterSeconds.map { Date().addingTimeInterval(TimeInterval($0)) }
+                errorKey = nil
+            }
+
         } catch {
-            errorKey = "apply_server_unavailable"
+            // A lost registration response may follow a successful Auth creation.
+            confirmationTerminal = true
+            errorKey = "signup_confirmation_support"
         }
+    }
+
+    func resendConfirmation() async {
+        guard let current = confirmation, !isSubmitting, !confirmationTerminal else { return }
+        guard current.expiresAt > Date() else {
+            confirmationTerminal = true
+            confirmation = nil
+            errorKey = "signup_confirmation_support"
+            return
+        }
+        guard resendNotBefore.map({ $0 <= Date() }) ?? true else { return }
+        isSubmitting = true
+        defer { isSubmitting = false; password = "" }
+        do {
+            let outcome = try await service.resendStudentRegistration(capability: current.resendCapability)
+            if case let .pending(value) = outcome {
+                guard value.resendCapability == current.resendCapability else {
+                    errorKey = "apply_server_unavailable"
+                    return
+                }
+                confirmation = value
+                resendNotBefore = value.retryAfterSeconds.map { Date().addingTimeInterval(TimeInterval($0)) }
+                errorKey = nil
+            } else {
+                errorKey = ApplicationWizardPolicy.registrationErrorKey(outcome)
+                if outcome == .confirmed || outcome == .expired || outcome == .accountConflict {
+                    confirmationTerminal = true
+                    confirmation = nil
+                }
+            }
+        } catch { errorKey = "apply_server_unavailable" }
     }
 
     private func submitSignedIn(draft: StudentApplicationDraft, router: SessionRouter) async {
@@ -282,8 +321,12 @@ struct ApplicationWizardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header
-                stepContent
+                if model.confirmation != nil || model.confirmationTerminal {
+                    confirmationContent
+                } else {
+                    header
+                    stepContent
+                }
                 if let errorText {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(errorText)
@@ -298,12 +341,36 @@ struct ApplicationWizardView: View {
                     }
                     .accessibilityElement(children: .combine)
                 }
-                footer
+                if model.confirmation == nil && !model.confirmationTerminal { footer }
             }
             .padding(20)
         }
         .scrollDismissesKeyboard(.interactively)
         .onChange(of: model.values) { model.persistDraft() }
+    }
+
+    private var confirmationContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("signup_confirmation_title").font(.title2.bold())
+            if let pending = model.confirmation {
+                Text(pending.maskedEmail).font(.body).textSelection(.enabled)
+                Text(applyString(pending.dispatch == "accepted" ? "signup_confirmation_check_email" : "signup_confirmation_send_uncertain"))
+                    .foregroundStyle(.secondary)
+                Text("signup_confirmation_latest").font(.footnote).foregroundStyle(.secondary)
+                if !model.confirmationTerminal {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Button("signup_confirmation_resend") { Task { await model.resendConfirmation() } }
+                            .frame(minHeight: 44)
+                            .disabled(model.isSubmitting || (model.resendNotBefore.map { $0 > context.date } ?? false))
+                    }
+                }
+            }
+            Button("signup_confirmation_sign_in") { Task { await router.signOut() } }
+                .frame(minHeight: 44).disabled(model.isSubmitting)
+            Text("signup_confirmation_sign_in_hint").font(.footnote).foregroundStyle(.secondary)
+            Link("evo@evoadmissions.com", destination: URL(string: "mailto:evo@evoadmissions.com")!)
+                .frame(minHeight: 44)
+        }
     }
 
     private var header: some View {

@@ -58,6 +58,7 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
 
 const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
   "/auth/callback",
+  "/auth/signup-confirmation",
   "/auth/set-password",
   "/auth/account-pending",
   "/apply/status",
@@ -194,7 +195,7 @@ export function isPublicStudentRegistrationApi(
   path: string,
   method: string,
 ): boolean {
-  return method === "POST" && path === STUDENT_REGISTRATION_API_PATH;
+  return method === "POST" && (path === STUDENT_REGISTRATION_API_PATH || path === "/api/portal/registration/resend");
 }
 
 /**

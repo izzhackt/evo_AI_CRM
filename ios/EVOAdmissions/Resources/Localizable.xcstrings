@@ -1,6 +1,182 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "signup_confirmation_title" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подтвердите почту"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почтаңызды ырастаңыз"
+          }
+        }
+      }
+    },
+    "signup_confirmation_check_email" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте почту и подтвердите регистрацию по ссылке в письме."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почтаңызды текшерип, каттагы шилтеме аркылуу каттоону ырастаңыз."
+          }
+        }
+      }
+    },
+    "signup_confirmation_send_uncertain" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправку письма подтвердить не удалось. Можно повторить отправку."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каттын жөнөтүлгөнүн ырастоо мүмкүн болгон жок. Кайра жөнөтсөңүз болот."
+          }
+        }
+      }
+    },
+    "signup_confirmation_latest" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Используйте последнее письмо. Ответы анкеты сохранены."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Акыркы катты колдонуңуз. Анкетанын жооптору сакталды."
+          }
+        }
+      }
+    },
+    "signup_confirmation_resend" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить ещё раз"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кайра жөнөтүү"
+          }
+        }
+      }
+    },
+    "signup_confirmation_sign_in" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перейти ко входу"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кирүүгө өтүү"
+          }
+        }
+      }
+    },
+    "signup_confirmation_sign_in_hint" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "После подтверждения почты войдите с паролем ещё раз."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почта ырасталгандан кийин сырсөз менен кайра кириңиз."
+          }
+        }
+      }
+    },
+    "signup_confirmation_support" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Регистрацию сейчас подтвердить не удалось. Напишите evo@evoadmissions.com."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каттоону азыр ырастоо мүмкүн болгон жок. evo@evoadmissions.com дарегине жазыңыз."
+          }
+        }
+      }
+    },
+    "signup_confirmation_confirmed" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почта подтверждена. Теперь войдите с паролем."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почта ырасталды. Эми сырсөз менен кириңиз."
+          }
+        }
+      }
+    },
+    "signup_confirmation_upgrade" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновите приложение, чтобы продолжить регистрацию. Ответы сохранены."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каттоону улантуу үчүн колдонмону жаңыртыңыз. Жооптор сакталды."
+          }
+        }
+      }
+    },
+    "signup_confirmation_conflict" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продолжить эту попытку нельзя. Обратитесь в EVO."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул аракетти улантуу мүмкүн эмес. EVO менен байланышыңыз."
+          }
+        }
+      }
+    },
     "prep_starting" : {
       "localizations" : {
         "ru" : {

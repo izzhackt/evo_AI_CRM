@@ -151,26 +151,61 @@ final class ApplicationIntakeDecodingTests: XCTestCase {
     }
 
     func testRegistrationOutcomeDecodesStatusVocabulary() {
-        // The endpoint's {status} bodies (PLAN_CHANGES PORT-9a решение 2).
-        for (raw, expected) in [
-            ("created", StudentRegistrationOutcome.created),
-            ("invalid", .invalid),
-            ("password", .password),
-            ("password_too_long", .passwordTooLong),
-            ("conflict", .conflict),
-            ("rate_limit", .rateLimit),
-            ("unavailable", .unavailable),
+        for (code, raw, expected) in [
+            (400, "invalid", StudentRegistrationOutcome.invalid),
+            (400, "password", .password), (400, "password_too_long", .passwordTooLong),
+            (409, "conflict", .conflict), (429, "rate_limit", .rateLimit),
+            (503, "create_unknown", .createUnknown), (426, "upgrade_required", .upgradeRequired)
         ] {
-            XCTAssertEqual(
-                StudentRegistrationOutcome.decode(from: Data(#"{"status":"\#(raw)"}"#.utf8)),
-                expected, raw
-            )
+            let data = Data("{\"status\":\"\(raw)\"}".utf8)
+            XCTAssertEqual(StudentRegistrationOutcome.decode(from: data, statusCode: code), expected)
+            XCTAssertEqual(StudentRegistrationOutcome.decode(from: data, statusCode: 200), .createUnknown)
         }
-        XCTAssertEqual(StudentRegistrationOutcome.decode(from: Data("{}".utf8)), .unavailable)
-        XCTAssertEqual(
-            StudentRegistrationOutcome.decode(from: Data(#"{"status":"surprise"}"#.utf8)),
-            .unavailable
-        )
+        XCTAssertEqual(StudentRegistrationOutcome.decode(from: Data(#"{"status":"created"}"#.utf8), statusCode: 201), .createUnknown)
+    }
+
+    func testAmbiguousRegistrationCannotOfferBlindRecreate() {
+        for (status, body) in [(502, "<html>Bad gateway</html>"), (202, "{\"status\":"), (202, "{}"), (503, "{\"status\":\"other\"}")] {
+            XCTAssertEqual(StudentRegistrationOutcome.decode(from: Data(body.utf8), statusCode: status), .createUnknown)
+            XCTAssertEqual(StudentRegistrationOutcome.decode(from: Data(body.utf8), statusCode: status, resend: true), .unavailable)
+        }
+        let unavailable = Data(#"{"status":"unavailable"}"#.utf8)
+        XCTAssertEqual(StudentRegistrationOutcome.decode(from: unavailable, statusCode: 503), .unavailable)
+        XCTAssertEqual(StudentRegistrationOutcome.decode(from: unavailable, statusCode: 502), .createUnknown)
+    }
+
+    func testPendingConfirmationStrictShapeAndResendTransport() throws {
+        let cap = "v1." + String(repeating: "a", count: 16) + ".abc." + String(repeating: "b", count: 22)
+        var body: [String: Any] = ["status": "pending_confirmation", "maskedEmail": "a***@example.com",
+            "expiresAt": "2026-09-22T00:00:00.000Z", "dispatch": "unknown",
+            "retryAfterSeconds": NSNull(), "resendCapability": cap]
+        func decode(_ code: Int = 202) throws -> StudentRegistrationOutcome {
+            StudentRegistrationOutcome.decode(from: try JSONSerialization.data(withJSONObject: body), statusCode: code)
+        }
+        guard case let .pending(value) = try decode() else { return XCTFail("Expected pending") }
+        XCTAssertEqual(value.resendCapability, cap)
+        XCTAssertEqual(value.dispatch, "unknown")
+        XCTAssertNil(value.retryAfterSeconds)
+        XCTAssertEqual(try decode(201), .createUnknown)
+        body["maskedEmail"] = "unmasked@example.com"
+        XCTAssertEqual(try decode(), .createUnknown)
+        body["maskedEmail"] = "a***@example.com"
+        body["expiresAt"] = "invalid"
+        XCTAssertEqual(try decode(), .createUnknown)
+        body["expiresAt"] = "2026-09-22T00:00:00.000Z"
+        body["retryAfterSeconds"] = true
+        XCTAssertEqual(try decode(), .createUnknown)
+        body["retryAfterSeconds"] = -1
+        XCTAssertEqual(try decode(), .createUnknown)
+        body["retryAfterSeconds"] = NSNull()
+        body["password"] = "unexpected"
+        XCTAssertEqual(try decode(), .createUnknown)
+        let request = try ApplicationIntakeTransfer.registrationResendRequest(baseURL: URL(string: "https://example.com")!, capability: cap)
+        XCTAssertEqual(request.url?.path, "/api/portal/registration/resend")
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: request.httpBody!) as? [String: String], ["cap": cap])
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-EVO-Registration-Flow"), "email-confirmation-v1")
+        XCTAssertEqual(StudentRegistrationOutcome.decode(from: Data(#"{"status":"confirmed"}"#.utf8), statusCode: 200, resend: true), .confirmed)
+        XCTAssertEqual(StudentRegistrationOutcome.decode(from: Data(#"{"status":"confirmed"}"#.utf8), statusCode: 200), .createUnknown)
     }
 
     func testInviteAcceptanceOutcomeMapsStatusCodes() {

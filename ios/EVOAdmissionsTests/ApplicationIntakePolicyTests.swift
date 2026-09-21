@@ -177,7 +177,8 @@ final class ApplicationIntakePolicyTests: XCTestCase {
 
     func testRegistrationOutcomeMessagesMatchTheWebMapping() {
         // ApplicationWizard.tsx:168-173.
-        XCTAssertNil(ApplicationWizardPolicy.registrationErrorKey(.created))
+        XCTAssertEqual(ApplicationWizardPolicy.registrationErrorKey(.createUnknown), "signup_confirmation_support")
+        XCTAssertEqual(ApplicationWizardPolicy.registrationErrorKey(.upgradeRequired), "signup_confirmation_upgrade")
         XCTAssertEqual(ApplicationWizardPolicy.registrationErrorKey(.password), "apply_server_password")
         XCTAssertEqual(ApplicationWizardPolicy.registrationErrorKey(.passwordTooLong), "apply_server_password_too_long")
         XCTAssertEqual(ApplicationWizardPolicy.registrationErrorKey(.rateLimit), "apply_server_rate_limit")

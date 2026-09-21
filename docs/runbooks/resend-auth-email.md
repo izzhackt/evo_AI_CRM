@@ -91,6 +91,26 @@ SMTP не меняет этот путь. Сохранить закрытый pu
 signup confirmation → отдельный callback с явным действием пользователя →
 сохранение анкеты. Это предложение, не реализованный и не проверенный путь.
 
+## Кандидат item27b — 21.09.2026, не активирован
+
+Прежний раздел выше описывает выпущенный путь. Подготовлен отдельный
+[согласованный web/native кандидат](../qa/signup-confirmation-integration-2026-09-21.md):
+create unconfirmed, явное подтверждение email и затем resume анкеты. Пока это
+не приёмка SMTP, не изменение managed Auth и не production release.
+
+Перед включением обязательны точный template/config packet и его фактическая
+локальная проверка. `EVO_STUDENT_SIGNUP_OTP_LENGTH` в application environment
+должен точно совпасть с независимо проверенным Auth OTP length; default нет.
+Отсутствие или неправильная форма значения останавливает новую регистрацию
+перед quota/create. Одного заполнения env недостаточно для готовности.
+
+Новый Confirm template должен использовать fixed signup callback с fragment
+capability: `{{ .RedirectTo }}&amp;otp={{ .Token }}`. Старый Confirm template с
+`ConfirmationURL` не совместим с этим кандидатом. Invite/recovery templates
+изменять нельзя. Само наличие шаблона в репозитории не устанавливает его в Auth.
+До одновременной готовности web/native, шаблона и конфигурации кандидат держится
+в draft. Managed SMTP/template операции и production требуют своей authority.
+
 ## Короткая приёмка — PENDING
 
 19 сентября отправлено одно обычное проверочное письмо на `evo@evoadmissions.com`

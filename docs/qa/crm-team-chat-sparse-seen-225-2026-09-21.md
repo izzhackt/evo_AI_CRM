@@ -65,3 +65,11 @@ apply/release, UI-cutover и завершение всего пункта15 не
 | `src/lib/platform-team-chat-seen-actions.ts` | `f43900524da393dd8d045031ccf4a29db491dcf0af0c15b45a6a8ce1fc393bae` |
 | `src/lib/server/platform-team-chat-seen-repository.ts` | `ec00dcc276f71fa8fbe51e5005e45b5c7d076090d323864c2103279d43159dfb` |
 | `tests/team-chat-seen.test.mjs` | `4350e11d235bf239b0bfe699865c22ac34ef8256e16cf618a8212755516ac168` |
+
+
+## Следующий контрольный шаг
+
+Source63dfdb00 независимо одобрен; CI35552439001 прошёл, включая migration
+boundary. [Предложение реальной локальной QA](crm-team-chat-sparse-seen-225-packet-2026-09-21.md)
+подготовлено offline; это ещё не разрешение или выполненная проверка. Runtime
+fb12146e и его хеши остаются прежними.

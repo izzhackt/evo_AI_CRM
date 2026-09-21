@@ -12572,3 +12572,17 @@ it, and ROOT currently owns shared Auth/DB/browser. Other-author unread proof
 requires positive ordinary existing-observer Auth and a separately reviewed QA
 packet/window; no staff provisioning or retry of unavailable salesOther.
 See docs/qa/crm-team-chat-sparse-seen-225-2026-09-21.md for hashes and limits.
+
+
+### A15d source review accepted; bounded225 QA proposal remains offline
+
+PR#983 exact63dfdb00 independently approved; CI35552439001 passes, including
+migration boundary. Runtimefb12146e is unchanged. The separate QA proposal
+uses existing Admin/Sales/Student only after positive ordinary Auth/authority,
+15negative mark_seen cases,10positive acknowledgements, exactly5retained seen
+rows and one legacy read plus its replay. No history/provider/identity writes.
+
+QA-only executable is syntax checked but not run; its manifest deliberately
+has no future225 apply/release bindings.224 source/release, fresh baseline,
+separate apply driver/packet review and ROOT window GO still precede execution.
+See docs/qa/crm-team-chat-sparse-seen-225-packet-2026-09-21.md.

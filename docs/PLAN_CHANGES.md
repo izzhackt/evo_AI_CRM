@@ -36956,3 +36956,8 @@ Final exact-head documentation review and protected CI still gate #1010 merge.
 ## 2026-09-21 — ROOT14 country facet implementation contract
 
 After #1010 merged at59a726b5, implement the bounded [staff country facet](platform/staff-catalog-country-facet.md). ROOT reserves236 after fresh source inventory001–235. The current static ISO menu will use the complete authorized published-country projection for staff only; Student controls, six-country admissions scope, compact rows and existing readers stay intact. One additive staff-only RPC, strict DTO, explicit failure and preserved absent-country deep links. Precode review08c1a108 approved; Impeccable Operate applies. A1014 retains sole shared-QA ownership until strict release; this contract authorizes source work, not concurrent runtime or production. Source/actual/final review and protected CI remain required; known single-country data cannot prove multi-country/pagination positives.
+
+
+## 2026-09-21 — ROOT14 published-country source implementation
+
+[Source evidence](qa/staff-catalog-country-facet-source-2026-09-21.md) records productf8622d86: additive236 staff-only scoped country RPC, strict complete-facet DTO and staff select wiring. Seven pure tests, scoped lint/typecheck and SQL/PLpgSQL syntax checks passed. The selected missing country remains explicit; no static-list/empty-success fallback masks errors. Existing Student rendering, data and other readers are preserved. Exact-head source review, CI and coordinated local migration/ordinary Auth/UI remain pending; no runtime or production acceptance is inferred.

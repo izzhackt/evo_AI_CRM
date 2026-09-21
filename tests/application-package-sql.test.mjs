@@ -127,6 +127,21 @@ test('current228 permissions and scope are reused without curator-assignment or 
   assert.doesNotMatch(queue, /curator|assigned_to|SET\s+.*membership/);
 });
 
+test('nullable155 staff roles use the two-valued Student classification required by228', () => {
+  const roles = migration('155_');
+  const identity = body(roles, 'platform_private.staff_membership_identity');
+  assert.match(identity, /WHEN m\."current_role"='admin' THEN NULL::platform\.business_role/);
+  assert.match(body(roles, 'platform.current_actor_authority'), /i\.coarse_role/);
+  // Derive the required argument from the existing callee guard, rather than
+  // testing a local equality expression that would itself preserve the bug.
+  const inheritedView = body(prior, 'platform_private.application_documents_view');
+  const classification = inheritedView.match(/p_student IS DISTINCT FROM \((a\.platform_role IS NOT DISTINCT FROM 'student')\)/)?.[1];
+  assert.ok(classification, '228 requires a non-null boolean even for configurable staff');
+  const readiness = body(sql, 'platform.application_package_readiness_v1');
+  assert.ok(readiness.includes(`application_documents_view(p_student_case_id,p_application_id,${classification})`));
+  assert.doesNotMatch(readiness, /application_documents_view\([^;]*a\.platform_role='student'/);
+});
+
 test('cross-revision approval proves every material/definition edge and cannot override a current negative', () => {
   const proof = body(sql, 'platform_private.application_package_reuse_proof');
   for (const token of ['current_submission.student_case_id', 'source_submission.application_id', 'current_submission.document_slot_id', 'source_submission.document_version_id', 'revision.previous_revision_id', 'previous_revision.revision_version>=revision.revision_version', 'requirements_editor_definition(item) IS DISTINCT FROM platform_private.requirements_editor_definition(previous)', 'current_material IS DISTINCT FROM previous_material', "current_review.decision<>'approved'", 'source_review.id IS DISTINCT FROM p_source_review']) assert.ok(proof.includes(token), token);

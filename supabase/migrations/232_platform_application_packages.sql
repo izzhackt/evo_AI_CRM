@@ -229,7 +229,7 @@ DECLARE a RECORD; docs JSONB; requirements JSONB; revision UUID; latest UUID; x 
 BEGIN
   IF NOT platform_private.application_package_selections_valid(p_selections,TRUE) THEN RAISE EXCEPTION 'application_package_invalid_intent' USING ERRCODE='22023'; END IF;
   SELECT * INTO a FROM platform_private.application_package_actor(p_student_case_id,p_application_id,'document.read.full');
-  docs:=platform_private.application_documents_view(p_student_case_id,p_application_id,a.platform_role='student');
+  docs:=platform_private.application_documents_view(p_student_case_id,p_application_id,a.platform_role IS NOT DISTINCT FROM 'student');
   requirements:=docs->'requirements'; revision:=(requirements->>'revisionId')::UUID;
   BEGIN PERFORM 1 FROM platform_private.application_package_actor(p_student_case_id,p_application_id,'document.upload'); may_submit:=TRUE;
   EXCEPTION WHEN insufficient_privilege THEN may_submit:=FALSE; END;

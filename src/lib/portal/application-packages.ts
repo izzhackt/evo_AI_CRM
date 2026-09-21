@@ -147,7 +147,7 @@ function reuseApproval(value: unknown): ApplicationPackageReuseApproval | null {
 }
 function decisionFields(row: Record<string, unknown>): boolean {
   return row.decision === "approved" ? row.reason === null && Array.isArray(row.affectedItemIds) && row.affectedItemIds.length === 0
-    : row.decision === "correction_required" && scalarText(row.reason, 5000);
+    : row.decision === "correction_required" && scalarText(row.reason, 5000) && !row.reason.includes("\u0000");
 }
 export function parseApplicationPackageReviewIntent(value: unknown): ApplicationPackageReviewIntent | null {
   const row = record(value);

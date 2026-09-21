@@ -71,6 +71,8 @@ test('package review distinguishes complete approved evidence from correction', 
   assert.equal(c.parseApplicationPackageReviewIntent({ ...correction, reason: ' '.repeat(10) }), null);
   assert.ok(c.parseApplicationPackageReviewIntent({ ...correction, reason: '😀'.repeat(5000) }));
   assert.equal(c.parseApplicationPackageReviewIntent({ ...correction, reason: '😀'.repeat(5001) }), null);
+  assert.equal(c.parseApplicationPackageReviewIntent({ ...correction, reason: 'Fix\u0000page' }), null);
+  assert.ok(c.parseApplicationPackageReviewIntent({ ...correction, reason: 'Fix\npage\t2\u0001' }));
   const wrongVector = copy(fixture.reviewReceipt); wrongVector.packageReview.documentReviews.reverse();
   assert.equal(c.parseApplicationPackageReviewReceipt(wrongVector, fixture.reviewIntent), null);
 });
@@ -166,6 +168,19 @@ function storage() {
     getItem(key) { reads.push(key); return values.get(key) ?? null; }, setItem(key, value) { values.set(key, value); }, removeItem(key) { values.delete(key); } };
 }
 const pendingTarget = fixture.submitIntent.requirementsRevisionId;
+
+test('JSONB-incompatible correction reason cannot enter pending or replace an existing request', () => {
+  const port = storage();
+  const invalid = { ...copy(fixture.reviewIntent), decision: 'correction_required', reason: 'Fix\u0000page' };
+  assert.throws(() => p.persistApplicationPackagePending(fixture.scope, 'review', packageId, invalid, port));
+  assert.equal(port.length, 0);
+  const valid = { ...invalid, reason: 'Fix\npage\t2\u0001' };
+  p.persistApplicationPackagePending(fixture.scope, 'review', packageId, valid, port);
+  const saved = [...port.values.entries()];
+  assert.throws(() => p.persistApplicationPackagePending(fixture.scope, 'review', packageId, invalid, port));
+  assert.deepEqual([...port.values.entries()], saved);
+  assert.equal(p.readApplicationPackagePending(fixture.scope, 'review', packageId, port).intent.reason, valid.reason);
+});
 
 test('pending survives reload and revision replacement without overwriting an unknown intent', () => {
   const port = storage(), value = copy(fixture.submitIntent);

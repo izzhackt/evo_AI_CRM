@@ -35897,3 +35897,22 @@ and 19 PL/pgSQL bodies with pglast. These are source/codec checks only; SQL obje
 resolution, real ordinary-Auth transactions, Storage effects, UI and native screen
 behavior remain unverified until a separately coordinated runtime packet. The
 source block now goes to independent exact-head review; it does not complete B3g.
+
+
+B3g.1 independent review at `071dd526` requested two bounded corrections:
+use the inherited two-valued Student classification for configurable staff whose
+coarse platform role is NULL, and reject U+0000 in package correction reasons
+before TypeScript/Swift pending persistence. PostgreSQL JSONB cannot represent
+U+0000, so both mutation and recovery would fail before entering the RPC
+([PostgreSQL 17](https://www.postgresql.org/docs/17/datatype-json.html)). Other
+supported controls and the 5000-scalar limit remain unchanged. Swift also aligns
+with TypeScript by rejecting reuse from the same submission. Pending retention,
+authorization and request correlation are preserved; these fixes require fresh
+scoped checks and exact-head delta review, not new runtime claims.
+
+Bounded-fix validation: 43 TypeScript codec/pending/action checks and 22 SQL
+source checks passed; the Swift author ran 101 checks successfully. TypeScript
+noEmit, scoped ESLint and diff-check passed; SQL parsing still covers 96 statements
+and 19 PL/pgSQL bodies. These fresh checks cover the changed boundaries; the
+unchanged 228 document-codec evidence remains from `071dd526`. Actual runtime
+validation is still pending coordination.

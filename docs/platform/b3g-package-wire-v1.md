@@ -30,8 +30,12 @@ ReviewIntent = Target + {packageId, expectedPreviousReviewId: UUID?,
 ```
 
 Approved reason is null and affectedItemIds is empty. Correction requires a
-nonblank reason of at most 5000 Unicode scalars; affected items may be empty for
-a whole-composition issue. Reuse is explicit and only for approval. Expectations
+nonblank reason of at most 5000 Unicode scalars, excluding U+0000. Both clients
+reject U+0000 before persisting an intent because PostgreSQL JSONB rejects it
+before review or recovery can execute ([PostgreSQL 17 JSON types](https://www.postgresql.org/docs/17/datatype-json.html)).
+Other supported control characters remain permitted. Affected items may be empty
+for a whole-composition issue. Reuse is explicit and only for approval; its source
+submission must differ from the current submission. Expectations
 cover the complete package in its stored order. Reuse entries must be an exact
 subset of that vector; the server proves predecessor lineage and all invariants.
 

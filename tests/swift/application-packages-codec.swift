@@ -58,6 +58,12 @@ import Foundation
         for reason in ["", " ", String(repeating: "я", count: 5001)] {
             var bad = negative; bad["reason"] = reason; try rejects("invalid correction reason") { _ = try ApplicationPackageReviewIntent(raw(bad)) }
         }
+        var nulReason = negative; nulReason["reason"] = "Исправьте\u{0000}страницу"
+        try rejects("JSONB-incompatible U+0000 reason") { _ = try ApplicationPackageReviewIntent(raw(nulReason)) }
+        for reason in ["Paragraph\n\r\t\u{0001}\u{000B}\u{0085}text", String(repeating: "🙂", count: 5000)] {
+            var supported = negative; supported["reason"] = reason
+            try check(try ApplicationPackageReviewIntent(raw(supported)).reason == reason, "supported controls and 5000 scalar reason preserved")
+        }
         var badAffected = negative; badAffected["affectedItemIds"] = [id(99)]
         try rejects("affected item outside vector") { _ = try ApplicationPackageReviewIntent(raw(badAffected)) }
         var duplicateExpectations = review; duplicateExpectations["documentReviews"] = [expectation, expectation]
@@ -66,6 +72,10 @@ import Foundation
         var reuse = expectation; reuse["sourceSubmissionId"] = id(24); reuse["sourceReviewId"] = id(23)
         var withReuse = review; withReuse["reuseApprovals"] = [reuse]
         let reuseIntent = try ApplicationPackageReviewIntent(raw(withReuse))
+        var selfReuse = reuse; selfReuse["sourceSubmissionId"] = expectation["submissionId"]
+        var selfReuseIntent = withReuse; selfReuseIntent["reuseApprovals"] = [selfReuse]
+        try rejects("source cannot be current submission") { _ = try ApplicationPackageReuseApproval(raw(selfReuse)) }
+        try rejects("self-reuse review intent matches TS and SQL rejection") { _ = try ApplicationPackageReviewIntent(raw(selfReuseIntent)) }
         var reusedEvidence = evidence; reusedEvidence["reusedFromSubmissionId"] = id(24); reusedEvidence["reusedFromReview"] = sourceReview
         var reusedReview = packageReview; reusedReview["documentReviews"] = [reusedEvidence]
         var negativeReuse = negative; negativeReuse["reuseApprovals"] = [reuse]
@@ -165,6 +175,10 @@ import Foundation
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = try ApplicationPackagePendingStore(directory: directory)
         let owner = ApplicationPackageOwner(actorId: UUID(uuidString: id(40))!, membershipId: UUID(uuidString: id(41))!, organizationId: UUID(uuidString: id(42))!)
+        try rejects("U+0000 cannot enter pending freeze") { _ = try store.freeze(owner: owner, intent: ApplicationPackageReviewIntent(raw(nulReason))) }
+        try check(try store.list(owner: owner, as: ApplicationPackageReviewIntent.self).isEmpty, "invalid reason persists no pending record")
+        try rejects("self-reuse cannot enter pending freeze") { _ = try store.freeze(owner: owner, intent: ApplicationPackageReviewIntent(raw(selfReuseIntent))) }
+        try check(try store.list(owner: owner, as: ApplicationPackageReviewIntent.self).isEmpty, "self-reuse persists no pending record")
         let first = try store.freeze(owner: owner, intent: submitIntent)
         let reopened = try ApplicationPackagePendingStore(directory: directory)
         try check(try reopened.freeze(owner: owner, intent: submitIntent) == first, "durable exact request after restart")

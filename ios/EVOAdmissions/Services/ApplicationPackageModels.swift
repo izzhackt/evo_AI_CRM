@@ -53,6 +53,7 @@ enum ApplicationPackageWire {
     }
     static func reason(_ raw: ApplicationDocumentJSON, decision: ApplicationPackageDecision, affected: [String]) throws -> String? {
         let value = try raw.optional { try $0.text(5000) }
+        try require(value.map { !$0.contains("\u{0000}") } ?? true)
         try require(decision == .approved ? value == nil && affected.isEmpty : value != nil)
         return value
     }
@@ -129,7 +130,8 @@ struct ApplicationPackageReuseApproval: Codable, Equatable, ApplicationPackageRa
                       sourceSubmissionId: r[p: "sourceSubmissionId"].uuid(), sourceReviewId: r[p: "sourceReviewId"].uuid())
     }
     func validate() throws {
-        try expectation.validate(); try ApplicationPackageWire.require([sourceSubmissionId, sourceReviewId].allSatisfy(ApplicationDocumentWire.uuid))
+        try expectation.validate(); try ApplicationPackageWire.require([sourceSubmissionId, sourceReviewId].allSatisfy(ApplicationDocumentWire.uuid)
+            && sourceSubmissionId != expectation.submissionId)
     }
     var raw: ApplicationDocumentJSON {
         .object(["requirementItemId": .string(expectation.requirementItemId), "submissionId": .string(expectation.submissionId),

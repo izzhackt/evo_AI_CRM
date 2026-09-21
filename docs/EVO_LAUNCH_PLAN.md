@@ -13505,3 +13505,15 @@ URL-owned filter context, fresh authorized history reads and shrinking mobile
 layout, retaining draft/attachment and commands/rights. SQL/apply234 unchanged;
 three permitted await commands restored none. Independent correction review,
 then at most one read-only confirmation batch and full finite-effects closure.
+
+#### A11 / CRM-07 actual local234 result — 2026-09-21
+
+[Actual report](qa/case-chat-queues-actual-2026-09-21.md): SQL234 applied once on
+999040d0; ordinary staff/Student boundaries and three await transitions passed.
+Actual history/320px defects were corrected and one confirmation batch passed
+on37f3d9860. Draft/document card persisted; no messages/file bytes/new actors.
+Full290-table/33-Auth-Storage reconciliation passed with exactly one thread,
+three await receipts/audits, finalnone; incoming224sessions/239refresh preserved.
+Own Auth/browser/server closed. Independent actual/closure review approved;
+window released B1003, which waits for merge1002. Final-head review/merge remain
+gates; production, broad E2E and unsupported positive QA states unclaimed.

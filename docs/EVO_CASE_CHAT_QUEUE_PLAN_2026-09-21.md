@@ -109,3 +109,12 @@ SQL234 и apply receipt остаются неизменными. Сохрани�
 новый source/runtime binding требует независимого delta-review. Один общий
 confirmation pass desktop/390/320, только чтение и local draft actions: новых
 await-записей/сообщений не делать. Исходные фактические доказательства не менять.
+
+## Фактическое завершение локальной части — 2026-09-21
+
+[Actual report](qa/case-chat-queues-actual-2026-09-21.md): apply234 на999040d0,
+подтверждённый UI37f3d9860, обычные staff/Student и три await-команды проверены.
+Обе найденные UI-ошибки исправлены; final290-table/33-Auth-Storage сверка прошла,
+свои runtime/session закрыты. Положительные ограничения выборки явно сохранены.
+Независимая actual/closure сверка одобрена; окно released B1003, который ждёт
+merge #1002. Final-head review/merge ещё ожидаются; production не менялся. Все1–36 и вся UX-программа не объявляются завершёнными.

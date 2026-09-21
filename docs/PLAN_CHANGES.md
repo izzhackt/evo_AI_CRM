@@ -36334,3 +36334,13 @@ source authorization, SQL234 and immutable apply evidence. Three permitted await
 commands already ended at none; confirmation must not add commands/messages.
 One UI batch and one confirmation batch, same staff session, independent source
 and private runtime-binding delta review before resuming. No extra product scope.
+
+### A11 / CRM-07 actual evidence recorded — 2026-09-21
+
+Local234 actual execution and bounded history/mobile correction are recorded in
+[QA evidence](qa/case-chat-queues-actual-2026-09-21.md). Apply999040d0 and confirmed
+UI37f3d9860 remain distinct, immutable evidence sources; docs-only completion
+must not relabel them as fresh runs. Exactly three permitted await commands
+restored none, no posts/read receipts. One final UI batch passed; full finite
+reconciliation and own runtime closure passed. Preserve dataset/physical-device
+limitations and all other item1–36 states. No further implementation scope added.

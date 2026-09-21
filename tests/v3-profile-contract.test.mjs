@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { tabsFor, resolveTab, buildV3ProfileHref } from "../src/components/v3/profile/types.ts";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -14,12 +15,8 @@ test("V3 Student 360 owns the complete canonical BW6 workspace", () => {
   const bridge = source("src/components/v3/profile/ProfileContractWorkspace.tsx");
   const workspace = source("src/components/v3/profile/ContractDraftReportWorkspace.tsx");
 
-  assert.match(types, /\{ key: "contract", title: "Договор" \}/u);
-  assert.match(
-    types,
-    /tab\.key === "contract"\) return student && access.contract/u,
-  );
-  assert.match(profile, /current === "contract" && draft\.contract/u);
+  assert.match(types, /\{ key: "money", title: "Договор и оплата" \}/u);
+  assert.match(profile, /contractWorkspace=\{draft\.access\.contract && draft\.contract/u);
   assert.match(profile, /<ProfileContractWorkspace/u);
   assert.match(page, /PLATFORM_CONTRACT_MUTATION_OUTCOMES/u);
   assert.match(page, /PLATFORM_CONTRACT_RETRY_OPERATIONS/u);
@@ -60,6 +57,26 @@ test("V3 Student 360 owns the complete canonical BW6 workspace", () => {
   assert.match(bridge, /buildRequestIdFactory\(retry\)/u);
   assert.match(bridge, /return retry\.requestId/u);
   assert.doesNotMatch(page + profile + adapter + bridge, /\/clients\//u);
+});
+
+test("unified section preserves independent finance and contract access and old links", () => {
+  for (const finance of [false, true]) {
+    for (const contract of [false, true]) {
+      const access = { documents: false, studentProfile: false, finance, contract };
+      const tabs = tabsFor(true, access, true);
+      assert.equal(tabs.some((tab) => tab.key === "money"), finance || contract);
+      assert.equal(tabs.some((tab) => tab.key === "contract"), false);
+      assert.equal(resolveTab("money", true, access, true), finance || contract ? "money" : "overview");
+      assert.equal(resolveTab("contract", true, access, true), contract ? "money" : "overview");
+      assert.equal(resolveTab("contract", false, access, false), "overview");
+      assert.equal(resolveTab("money", false, access, false), "money");
+      assert.equal(resolveTab("unrecognized", true, access, true), "overview");
+    }
+  }
+  const target = { leadId: "lead", studentCaseId: "case" };
+  const href = new URL(buildV3ProfileHref(target, "money"), "https://evo.example");
+  assert.equal(href.searchParams.get("id"), "lead");
+  assert.equal(href.searchParams.get("case"), "case");
 });
 
 test("V3 contract context preserves handoff override and fail-closed amoCRM state", () => {

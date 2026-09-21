@@ -78,7 +78,7 @@ export function CaseAgreementUploadContract({
         name="file"
         accept="application/pdf,image/jpeg,image/png"
         required
-        className="text-sm text-fg-2"
+        className="min-w-0 max-w-full text-sm text-fg-2"
       />
       <button type="submit" disabled={status === "uploading"} className={btnCls}>
         {status === "uploading" ? "Загружаем…" : "Загрузить договор"}

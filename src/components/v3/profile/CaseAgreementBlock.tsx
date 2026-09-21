@@ -15,37 +15,37 @@ import {
  * «Договор и оплата» — the single unified block (OTH-3,
  * docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Деньги и договоры»). Renders on
  * the Money tab FIRST, replacing the old «Договор» card (tabs.tsx). Renders
- * nothing when there is no case yet, or the read RPC refuses (42501) — no
- * fake empty state; visibility follows the same card access every other
- * block already uses.
+ * no financial content when its read RPC refuses (42501). The independently
+ * authorized contract slot remains available; it does not widen finance access.
  */
 export async function CaseAgreementBlock({
   actor,
   studentCaseId,
   saleConditionsHref,
-  contractPreparationHref,
+  contractWorkspace,
 }: Readonly<{
   actor: ActivePlatformActor;
   studentCaseId: string | null;
   saleConditionsHref: string | null;
-  contractPreparationHref: string | null;
+  contractWorkspace: React.ReactNode;
 }>) {
-  if (!studentCaseId) return null;
+  if (!studentCaseId) return contractWorkspace;
   const result = await readCaseAgreement(actor, studentCaseId);
   // FIX 6 (adversarial review): "forbidden" (42501) is a legitimate access
-  // refusal — render nothing, same as before. "unavailable" means something
+  // refusal — omit financial content. "unavailable" means something
   // actually broke (an outage, a malformed payload) and must say so instead
   // of silently vanishing — same alert-card pattern FinanceEntryWorkspace.tsx
   // uses.
-  if (result.status === "forbidden") return null;
+  if (result.status === "forbidden") return contractWorkspace;
   if (result.status === "unavailable") {
     return (
-      <div data-testid="v3-case-agreement">
+      <div className="space-y-4" data-testid="v3-case-agreement">
         <Card title="Договор и оплата">
           <p role="alert" className="px-4 py-3 text-sm text-fg-2">
-            Информация о договоре и оплате сейчас недоступна. Обновите страницу; новые операции пока остановлены.
+            Финансовые данные сейчас недоступны. Обновите страницу; новые финансовые операции пока остановлены.
           </p>
         </Card>
+        {contractWorkspace}
       </div>
     );
   }
@@ -159,12 +159,9 @@ export async function CaseAgreementBlock({
             {canWrite ? (
               <div className="mt-3"><CaseAgreementUploadContract studentCaseId={studentCaseId} /></div>
             ) : null}
-            {contractPreparationHref ? (
-              <a className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" href={contractPreparationHref}>
-                Подготовка договора и отчёты
-              </a>
-            ) : null}
           </section>
+
+          {contractWorkspace}
 
           <section className="border-t border-border pt-4" data-testid="v3-case-agreement-tranches">
             <h3 className="mb-2 text-base font-semibold text-fg">Транши</h3>

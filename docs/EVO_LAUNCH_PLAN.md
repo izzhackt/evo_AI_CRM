@@ -12542,3 +12542,17 @@ See docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md and its actual QA receipt.
 This append is precode only, awaiting independent exact-head review.224 remains
 B-reserved; A has no new migration number or apply/Auth-write window. Production
 release and new QA identities are not authorized by this planning slice.
+
+
+### A15d precode accepted;225 reserved before implementation
+
+PR#981 exact54fb718c passed independent review and CI35551960705 and merged
+at67934327d. ROOT reserved225 exclusively for A15d (224 belongs to B) and
+authorized offline implementation of the accepted sparse-seen contract.
+
+Implement private per-actor seen IDs, an additive idempotent mark_seen RPC with
+bounded batch acknowledgement, compatible channel unread counts, strict
+types/decoder/repository/action and scoped checks. Keep current UI, read command,
+message history, root/quote semantics, drafts and legacy read_sequence unchanged.
+No local apply/Auth/browser window or new QA identity authority is included.
+Other-author unread coverage requires an independently reviewed real-actor packet.

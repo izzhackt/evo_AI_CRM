@@ -228,3 +228,12 @@ focused tests, этим планом и append-only launch/PLAN_CHANGES. Сущ�
 
 Сопоставление этих правил с конкретным кодом EVO — архитектурный вывод этого
 плана; документация PostgreSQL не доказывает runtime-поведение ещё не написанного RPC.
+
+
+## Implementation status — source only, 21 September
+
+PR986 precode merged418521f5. Runtime7a54f4e3 implements the additive contract;
+16 pure tests, scoped lint/TypeScript and SQL/PLpgSQL parsing passed.
+[Evidence and actual-QA boundary](qa/crm-team-chat-direct-quotes-227-2026-09-21.md).
+227 has not been applied; actual Auth/RPC/concurrency and UI remain unverified.
+No whole-item15 or product acceptance is claimed.

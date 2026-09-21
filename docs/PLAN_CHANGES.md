@@ -35548,3 +35548,25 @@ scroll и раскрытие file actions пройдены без бизнес-�
 diff-check PASS, independent source review APPROVED. Full282/Storage/Auth
 равны завершённому content snapshot. Download-byte proof остаётся BLOCKED;
 не весь32 и не1–36 complete. Production и clientAI не публиковались.
+
+
+### A15e offline implementation227 prepared; actual database/UI work pending
+
+Accepted precode PR986 merged418521f5. Runtime7a54f4e3 from main d02d15b7
+adds one closed direct-quote map, post_v2 and STABLE timeline_v2, strict pure
+DTOs plus ordinary SSR repositories/actions. Existing171/223/225 and V1 UI,
+commands, decoder, parent roots, drafts, messages, read/seen state stay intact.
+Direct-target identity is retained in the existing receipts; current quote text
+is projected from originals. No cloned body or V2→V1 fallback.
+
+Source checks:16 pure decoder tests PASS (7 new+9 existing), scoped lint and
+TypeScript PASS, outer SQL and both PL/pgSQL bodies parse. Fresh-worktree PNG
+type-reference setup is documented in the QA note, not a product fix. Current
+implementation has not been applied or exercised through Auth/DB/UI. Independent
+exact-head review, protected CI and actual226 source/release integration remain.
+
+ROOT retains shared-window authority.227 apply/QA needs a fresh post226 baseline
+and separately reviewed bounded packet/GO. Four new posts plus edit/delete of
+its own new reply remain the six-command budget; empty mentions on all post/edit
+inputs preserve the zero-notification budget. Full catalog deltas/table count
+will be enumerated after226. See docs/qa/crm-team-chat-direct-quotes-227-2026-09-21.md.

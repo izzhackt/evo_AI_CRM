@@ -48,3 +48,11 @@ Product bytes для review:
 
 - `src/components/v3/team-chat/TeamChat.tsx`: `0b476bda215f650322a0e44c3f8aa7f449474388425b31b139cdf8c6fde0e2bf`.
 - `src/components/v3/team-chat/team-chat.module.css`: `2907f9dc96524b85ec85ad4c76c23e08a7a850bdab55a3e92c0b4c2194215a9a`.
+
+
+## Последующее фактическое подтверждение
+
+Описанная выше source-only стадия сохранена как историческое evidence.
+На неизменном bab531ae затем выполнена [ограниченная actual UI-проверка](team-chat-channel-rail-actual-2026-09-22.md),
+независимо принятая вместе с closure (2de97c08). Она отдельно перечисляет
+reused partial proof, исходные STOP, последующее завершение и границы интеграции main.

@@ -37320,3 +37320,22 @@ One ordinary Admin header batch at1440/390/320/focus on e999 accepted with indep
 ## 2026-09-22 — KB31: источники существующих утверждений и карта остатка
 
 После merge #1022 вb983a45e KB157/158 получили только источник и дату к существующим фразам об e-Visa и проверке признания образования. [Квитанции и карта остатка](qa/knowledge-source-reconciliation-2026-09-21.md): independent reviews687d6d62/f17b7f87, applied receiptscfc377cb/954a7aa7. Другие утверждения/status/publication сохранены; статьи целиком не одобрены. Содержательное уточнение159 подтверждено официальным источником и независимо проверено, но ожидает решения владельца и не применено. Остаток разделён на дополнительные коммерческие правила, применимые официальные источники и допуск публикации. Решения владельца141/144/145 не пересматриваются.
+
+
+## 2026-09-22 — A15 rail actual evidence and post-closure integration
+
+Product scope не изменён. [Actual receipt](qa/team-chat-channel-rail-actual-2026-09-22.md)
+фиксирует независимое acceptance2de97c08 на bab531ae, reused partial proof
+и отдельно выполненные недостающие UI шаги. Ошибка global alert assertion
+устранена только в reviewed test harness: Next route announcer не менялся.
+Исходные UI/cleanup STOP сохранены; последующее фактическое закрытие не
+переименовывает их в PASS. Полные290/33 сравнения, own-resource closure и
+независимое review допускают передачу QA B1018; original summary/final неизменны.
+
+После closure main e8fc98dc интегрирован в e4c74b52. Конфликты двух журналов
+были только append-only: общий префикс и обе полные стороны сохранены.
+43-file paritycd75ebe6 подтверждает неизменный chat source; AppShell #1021
+учтён как отдельно принятая mobile spacing правка. Исторические снимки имеют
+точный bab source, а не новый combined-head статус. ROOT разрешил не повторять
+UI. Source final-head review и короткий CI обязательны перед ROOT merge.
+Новых миграций, permissions, runtime действий или полного item15 acceptance нет.

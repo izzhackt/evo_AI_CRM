@@ -1,4 +1,4 @@
-# A15 — превью в списке каналов: второй блок, precode
+# A15 — превью в списке каналов: второй блок
 
 Статус: precode9eb9f51f независимо APPROVED (430b613f), logic-only source
 2c442162 независимо APPROVED_SOURCE_ONLY (1718a510). Formatter/metadata tickets
@@ -8,7 +8,14 @@ UI этап в том же плане. Прежний gap мобильного �
 [Исходная UI-проверка](qa/team-chat-channel-rail-incumbent-2026-09-22.md)
 независимо принята (review5113321d), resource передан ROOT (5902ec18). UI source реализован и прошёл
 [typecheck/lint и scoped parity](qa/team-chat-channel-rail-ui-source-2026-09-22.md).
-Независимый source review и будущий runtime требуют следующих отдельных шагов.
+Независимый source review bab531ae принят (4df3007e). Ограниченная
+[фактическая UI-проверка](qa/team-chat-channel-rail-actual-2026-09-22.md) завершена:
+390/320/1440, search/context/draft, offline background/retry/recovery;
+independent actual review2de97c08 принял UI и закрытие ресурсов. Первый UI STOP
+и cleanup STOP сохранены с отдельным продолжением и подтверждённым закрытием.
+QA передана B1018 по решению ROOT. Main e8fc98dc интегрирован после закрытия;
+chat source побайтно равен проверенному bab. Итоговые exact-head review/CI и
+merge остаются следующими шагами; production и весь item15 не закрыты.
 [Logic source-проверки](qa/team-chat-channel-rail-logic-source-2026-09-21.md)
 31/31 на2c остаются proof своих неизменённых контрактов, не нового JSX.
 База `c675d4b4d735ccbcc51dc162265e31d64e193990`: #1017 смержен после final review
@@ -17,8 +24,9 @@ UI этап в том же плане. Прежний gap мобильного �
 остаются основой. Это продолжение пункта15, не новый дизайн всего чата.
 
 Worktree `evo-team-chat-channel-preview-rail/evo_AI_CRM`, branch
-`izzhackt/team-chat-channel-preview-rail`. QA координирует ROOT. Разрешённый incumbent завершён в отдельном чистом c675
-checkout; сейчас только source/files. Новый runtime не начинается.
+`izzhackt/team-chat-channel-preview-rail`. QA координирует ROOT. Incumbent и
+postchange actual завершены; сейчас только интеграция, документация и review.
+Новый runtime в этом блоке не начинается.
 
 ## Короткий Impeccable brief
 

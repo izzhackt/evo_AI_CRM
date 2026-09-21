@@ -14494,3 +14494,22 @@ One ordinary Admin header batch at1440/390/320/focus on e999 accepted with indep
 ## 2026-09-22 — KB31: источники существующих утверждений и карта остатка
 
 После merge #1022 вb983a45e KB157/158 получили только источник и дату к существующим фразам об e-Visa и проверке признания образования. [Квитанции и карта остатка](qa/knowledge-source-reconciliation-2026-09-21.md): independent reviews687d6d62/f17b7f87, applied receiptscfc377cb/954a7aa7. Другие утверждения/status/publication сохранены; статьи целиком не одобрены. Содержательное уточнение159 подтверждено официальным источником и независимо проверено, но ожидает решения владельца и не применено. Остаток разделён на дополнительные коммерческие правила, применимые официальные источники и допуск публикации. Решения владельца141/144/145 не пересматриваются.
+
+
+### A15 rail — bounded actual accepted and main integration, 22.09
+
+[Фактическая проверка](qa/team-chat-channel-rail-actual-2026-09-22.md) на bab531ae
+принята независимым review2de97c08:390/320/1440, search/context/draft, реальный
+offline background failure, один same-cursor retry с pending и online recovery.
+Первый UI STOP на global alert assertion сохранён; scoped продолжение выполнило
+только недостающее.290 business tables неизменны/seen0; inherited Auth restored,
+own logout204/browser/server closed/cookie removed. Cleanup helper STOP
+сохранён вместе с последующей отдельной closure receipt. QA передана B1018
+по решению ROOT (handoff75bfdaa6), новый UI replay не разрешался и не выполнялся.
+
+После закрытия интегрирован main e8fc98dc, merge e4c74b52. Append-only журналы
+сохранены с обеих сторон.43-file paritycd75ebe6: chat source/tests/SQL, package
+и globals CSS точные bab; отдельно принятая AppShell spacing правка #1021
+имеет собственную actual receipt. Старые PNG не названы новым combined UI run.
+Final exact-head review/CI остаются merge gate; merge owner ROOT. Полный15,
+production и следующие command feedback/time блоки здесь не закрываются.

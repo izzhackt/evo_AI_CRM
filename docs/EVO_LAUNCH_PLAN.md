@@ -12161,3 +12161,15 @@ only on edit/delete/moderation authority. Keep the current menu and Link action,
 plus unchanged edit/delete/moderation conditions and focus refs. Actual UI
 verification includes another author's menu where existing history allows it.
 No conditional-menu rewrite is added to the three-file scope.
+
+
+### A15a execution and evidence boundary
+
+Runtime10aa2617 implements the approved three-file removal; scoped13 tests,
+lint/types and diffcheck passed. Actual ordinary staff empty-history SSR/action
+reads and desktop/mobile channel navigation passed. Full281/Auth/schema parity
+held before/after both coordinated read-only windows. Local history is globally
+empty, so populated menu/manual-link/task-link acceptance remains unverified;
+no fake messages or mutations were introduced to fill that gap. Exact widths
+and evidence limits are in docs/qa/crm-team-chat-task-actions-2026-09-21.md.
+Final reviews/CI and merge remain separate; broader item15 is unfinished.

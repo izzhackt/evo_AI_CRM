@@ -36344,6 +36344,37 @@ Remaining item7 work is department-target visibility and import placement, not
 an already-correct cash-summary permission rewrite.
 
 
+### CRM-02f / item7a: atomic management state —2026-09-21 precode
+
+After #1001 mergece0ef573, ROOT implements only the confirmed department-target
+state/authority mismatch. New read-only RPC235 returns scoped target/import flags
+and the selected department target in one STABLE snapshot. Keep existing
+organization grant pairs and the current TS/UI report-read entry requirement;
+add that requirement to this new endpoint, without rewriting oldv1/v2 SQL.
+No extra finance rights, role changes, writes or target-history repairs.
+
+Target summary/form use the same authoritative result: confirmed denial hides;
+unknown stops submission and preserves mounted drafts; allowed empty alone means
+“Не задан”. Preserve version/reason/request conflict handling and selected import
+File across transient reader failure; existing save/import commands unchanged.
+All-year/archive fetch rights only; preview/invalid/record/editor skip this read.
+Cash already has correct scoped authority and is not part of this fix. Moving
+the import form remains the later7b block. Impeccable Operate applies within
+current EVO; inspect historical233 baseline, reread craft-floor beforeUIediting.
+
+Contract: docs/EVO_SALES_MANAGEMENT_STATE_PLAN_2026-09-21.md, independentprecode
+approveded9a5f93. Reserve235 behindA234; actualexisting-actor/read-onlyQA after
+B1003 releases sharedruntime. No production/fixtures/targetwrites/importsubmit
+or newAuthactors. Missing actor/data combinations remain explicitly unclaimed.
+
+
+CRM-02f source implementation: additive RPC235 and strict management DTO,
+new authoritative View gates, preserved disabled target/import drafts on unknown
+read. Existing commands, v1/v2 and cash remain unchanged. Eight DTO tests,
+scoped lint, typecheck, whitespace and staticSQL parse PASS. Actual local235
+and browser acceptance pending shared-window release; no database/Auth or
+production use here. See docs/qa/crm-sales-management-source-2026-09-21.md.
+
 ### A11 / CRM-07 case-chat queues — decisions before code, 2026-09-21
 
 A15f is merged in #992 / ca7c98ec2. Implement the bounded contract in
@@ -36447,3 +36478,38 @@ its admitted window and permits only a real owned-Next outage with zero business
 writes. No positive deletion request, fixtures, new actors or status reset.
 Native refresh findings and current KY Home evidence remain separate; no broad
 E2E/accessibility/native/production completion claim.
+
+## 2026-09-21 — ROOT item7a local235 closure
+
+[Actual management report](qa/crm-sales-management-actual-2026-09-21.md):
+source3616ea179b91b54d000c5cba5284a6cbb77ccb3a integrates main7f444455
+without changing the reviewed product files. One local235 apply added two
+read-only functions; 290 business and 33 Auth/Storage tables unchanged at apply.
+Ordinary Sales/Admin RPC and UI1440/390/320 confirm scoped management visibility,
+allowed-empty target, rights-only annual/archive state, invalid date rejection,
+and old-v2 body parity. Student/anon/service-role authority denials are actual.
+The initial Student QA binding mismatch stopped after one login before RPC;
+immutable evidence retained, independently reviewed metadata correction reused
+the same captured session for one denial and own logout, without a new login.
+Final business/catalog/Storage equality and all224 incoming sessions/239 refresh
+rows are exact. Only ordinary Auth metadata/audits changed; three owned logouts
+204 and own browser/server closure completed. No target/import writes or fixtures.
+Populated target/other-org/custom-grant combinations and refresh/unavailable/revoke
+retention remain unverified; no acceptance claim is made for those branches.
+The next7b UI block preserves forms and will retain these proof gaps explicitly.
+Final-head review/CI/merge are still required; local235 transfers next to A1005.
+Production authority and delivery are separate.
+
+## 2026-09-21 — B1006 integrates ROOT235 source only
+
+Merge main `d68ce58711b413f8366c80615456cfbbf22a0772` after #1004 into
+reviewed B1006 `a917f332e6410ca6bb3442aeb385a8e7981ee826`. Resolve only
+additive launch/decision-log tails, preserving both histories and product code.
+ROOT235 release `6d04fe14e3993ee49a7f1635b6f0db3cc5bb57d0a170e8219d154ff81a8172b8`
+is assigned to A1005, not a B admission. Prepare only inert file-based observer
+inputs while A owns the runtime; future B baseline must be the direct A1005
+release with fresh source/config/Docker/query pins. Resolve configured Student
+identity against pre-existing users from that admitted state; never copy an
+older B actor ID or create a login/actor to force a match. No SQL reapply,
+Auth/browser/server call, business write or positive deletion request now.
+Independent integration review and current CI precede future B runtime admission.

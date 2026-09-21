@@ -7,10 +7,20 @@ import type { ApplicationRequirementItemV2, ApplicationRequirementsV2 } from "@/
 import { readStaffPreparationRequirementsAction, type StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
 import { continueStaffRequirements, useStaffPending, type StaffPreparationScope } from "./staff-preparation-client";
 import { StaffRequirementsEditor } from "./StaffRequirementsEditor";
+import { EDITOR_PENDING_EVENT, readEditorPending } from "@/lib/portal/application-requirements-editor-pending";
 
 function subscribeHash(callback: () => void) {
   window.addEventListener("hashchange", callback);
   return () => window.removeEventListener("hashchange", callback);
+}
+
+function subscribeEditorPending(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(EDITOR_PENDING_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(EDITOR_PENDING_EVENT, callback);
+  };
 }
 
 const associations = new Set(["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"]);
@@ -43,6 +53,11 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState(false);
   const { intent: retained, blocked: storageBlocked } = useStaffPending(scope, "requirements", preparation.applicationId);
+  // A known pending intent must remain reachable after a lifecycle change.
+  // The editor's fresh context governs new saves; the server authorizes replay.
+  const hasEditorPending = useSyncExternalStore(subscribeEditorPending,
+    () => !!readEditorPending({ ...scope, applicationId: preparation.applicationId }).intent,
+    () => false);
   const [message, setMessage] = useState<string | null>(null);
   const busy = useRef(false);
   const epoch = useRef(0);
@@ -130,7 +145,7 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
         {storageBlocked ? <p role="alert" className="text-sm text-danger">Не удалось прочитать сохранённый запрос. Новое действие не отправляется.</p> : null}
         {canInitialize && (retained || requirements?.state === "uninitialized") ? <button type="button" disabled={pending || loading || storageBlocked} className={btnCls} onClick={() => void initialize()}>{pending ? "Подготавливаем…" : retained ? "Повторить сохранённый запрос" : "Продолжить подготовку"}</button> : null}
         <div className="flex flex-wrap gap-2"><button type="button" className={btnGhostCls} disabled={loading || pending} onClick={() => void load()}>Обновить документы</button><a href={docsHref} className={btnGhostCls}>Все документы дела</a></div>
-        {canInitialize ? <button ref={editorButton} type="button" className={`${btnGhostCls} h-auto min-h-11 whitespace-normal py-2`} disabled={pending || !!retained || storageBlocked} onClick={() => setEditorOpen(true)}>Настроить список документов</button> : null}
+        {canInitialize || hasEditorPending ? <button ref={editorButton} type="button" className={`${btnGhostCls} h-auto min-h-11 whitespace-normal py-2`} disabled={pending || !!retained || storageBlocked} onClick={() => setEditorOpen(true)}>{hasEditorPending ? "Проверить сохранение списка" : "Настроить список документов"}</button> : null}
         <p className="text-sm text-fg-3">Загрузка в разделе документов сразу отправляет файл на проверку сотруднику.</p>
       </>}
       {message ? <p role="alert" className="text-sm text-danger">{message}</p> : null}

@@ -14,7 +14,12 @@ null, не отсутствует. UUID, timestamps, decimal BIGINT и Unicode s
 `protocolVersion` — JSON number1. `contextHash` —64 lowercase hex characters.
 
 Items≤100, candidates≤1000, sources≤2000; превышение — editor_limit, без усечения.
-Лимит1MiB относится к save payload. Legacy display-текст не обрезается и не
+Лимит1MiB относится к UTF-8 байтам `payload::jsonb::text`, включая пробелы после
+разделителей JSONB; compact JSON на проводе не задаёт этот размер. NUL запрещён:
+PostgreSQL JSONB/text не может его представить. Для нового custom material
+label/group также действует существующий108 запрет Unicode control characters
+(категория Cc). Это ограничения формата хранения, не изменение v2 reader.
+Legacy display-текст не обрезается и не
 превращается автоматически в новый item: исторические043 label/instructions
 не имели v2 maxima. При сохранении новый item обязан пройти500/200/4000 limits;
 сотрудник исправляет текст явно. Source display strings проверяются по типу,

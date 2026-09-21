@@ -35524,3 +35524,18 @@ Impeccable Operate сохраняет EVO/Атлас и функции, макс
 Source work разрешён; DB/Auth/UI queue A225→root32, B226 window ещё не выдан.
 Перед реализацией independent exact precode review; перед apply/QA отдельный
 reviewed effects packet. Production и публикация старым native clients отдельно.
+
+### B3e-2 implementation review and local QA proposal
+
+Source implemented at3fcac02d and reconciled with main418521f5 at e41390ae.
+246 targeted protocol/pending/draft tests, full TypeScript and scoped lint passed;
+SQL grammar passed, lazy PL/pgSQL name resolution remains unexecuted. Independent
+source review found pending recovery hidden after lifecycle change. The entry
+now remains visible for retained226 intents under existing read access; new saves
+still require fresh context.canSave. Legacy218 initialization remains unchanged.
+Wire clarifies JSONB serialized byte count, NUL and existing108 custom-label Cc
+constraints. These storage-format rules add no business capability or permission.
+[Proposed QA](platform/b3e2-requirements-editor-qa-plan.md) bounds three ordinary
+saves and a separately reviewed rollback-only engine preflight. ROOT09d owns the
+shared runtime; its future final release/fresh baseline is required before226.
+No226 DB/Auth/UI execution, production action or full feature acceptance yet.

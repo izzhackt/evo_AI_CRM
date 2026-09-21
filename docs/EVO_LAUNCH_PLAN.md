@@ -13744,3 +13744,25 @@ independent exact-byte closure48434643/38d705ab. Raw originals and forbidden mat
 bodies were excluded. Update the knowledge execution/report and1–36 ledger, dating
 old operational snapshots and distinguishing local #985 materials from pending
 company-download proof. Prose-only validation: diff review and git diff --check.
+
+
+## 2026-09-21 — ROOT22: sidebar state on client navigation (precode)
+
+Bounded item22 refinement after accepted KB checkpoint #1009 (`06bec2b2`).
+Impeccable Operate guidance: preserve the user's navigation context in the existing
+EVO shell. Sidebar disclosure state currently resets for every query change because
+its React key includes the whole URL. Key it by the already-authorized active
+navigation destination, with pathname fallback for an unknown/hidden destination;
+retain presentation role and access version as reset boundaries. Keep links, route
+guards, groups, mobile onNavigate/onBlur/Escape and visual styling unchanged.
+
+Acceptance covers client Next Link/router transitions within the same destination:
+calendar Next month and Back/Forward; sales reset link after the initial native GET
+has loaded. A different destination or role/access version retains its reset.
+Ordinary GET-form submission, reload/new document and persistent session state are
+outside this fix; no localStorage or form interception. Pure navigation tests cover
+identity/permission boundaries; scoped lint/typecheck, independent exact-head review
+and one bounded ordinary local UI batch at1440/390/320 follow. Actual QA waits B32
+then A1008 resource release, using an existing authorized staff account without
+business writes or role changes. This slice does not finish all item22 typography,
+header or density work and does not authorize production delivery.

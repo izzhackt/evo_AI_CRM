@@ -36572,3 +36572,25 @@ independent exact-byte closure48434643/38d705ab. Raw originals and forbidden mat
 bodies were excluded. Update the knowledge execution/report and1–36 ledger, dating
 old operational snapshots and distinguishing local #985 materials from pending
 company-download proof. Prose-only validation: diff review and git diff --check.
+
+
+## 2026-09-21 — ROOT22 sidebar disclosure identity and acceptance boundary
+
+Before coding, narrow the navigation fix to the existing authorized destination
+identity. Current query-based Sidebar remount loses disclosure choices even for
+calendar Next Link period changes. Replace only destinationKey in navigation.ts;
+retain role/access-version resets and all allowed-link computation. Unknown or
+hidden routes use a separately tagged pathname fallback, never an unauthorized
+candidate. Existing AppShell and form/mobile handlers stay unchanged.
+
+The original planning example mentioned report filters. Source inspection showed
+sales and catalogue search forms perform native GET document navigation, so a key
+change cannot preserve their React state across submission. The real acceptance
+path is calendar Next month and client Back/Forward; report reset is tested only
+after its initial GET has loaded and disclosures are set. No promise across reload,
+new tabs or native GET. Impeccable refinement preserves EVO's current visual and
+interaction vocabulary; one inspection batch plus at most one confirmation.
+Meaningful key/authorization tests, scoped checks and actual ordinary UI are kept
+separate. B32/A1008 own the earlier local windows; no runtime or data mutation is
+part of this precode entry. Public planning follows private approved plan8125ecd2
+and source-path correction927dd0e4; the complete item22 remains open.

@@ -1,20 +1,23 @@
 # A15 — превью в списке каналов: второй блок, precode
 
-Статус: precode9eb9f51f независимо APPROVED, review SHA256
-`430b613f45dae2ce0b0b7d375e61ab57b6e9a596e50f7dff14df408a5ef0120e`.
-ROOT разрешил первый source-only этап: общие tickets/metadata acceptance и pure
-formatter с tests; разметка/CSS и нынешнее отображение пока остаются прежними.
-Мобильная композиция ждёт отсутствующий incumbent batch. Это не UI/actual GO.
-Первый logic-only этап реализован: [source-проверки](qa/team-chat-channel-rail-logic-source-2026-09-21.md)
-прошли; независимый source review впереди. Formatter пока не подключён к JSX.
+Статус: precode9eb9f51f независимо APPROVED (430b613f), logic-only source
+2c442162 независимо APPROVED_SOURCE_ONLY (1718a510). Formatter/metadata tickets
+приняты; JSX/CSS до нынешнего этапа оставались прежними. На22.09 ROOT просмотрел
+один actual incumbent batch c675:390/320/1440 и разрешил следующий source-only
+UI этап в том же плане. Прежний gap мобильного списка каналов заполнен.
+[Исходная UI-проверка](qa/team-chat-channel-rail-incumbent-2026-09-22.md)
+независимо принята (review5113321d), resource передан ROOT (5902ec18). Новая композиция
+ещё не реализована/проверена; её будущий runtime требует отдельного окна.
+[Logic source-проверки](qa/team-chat-channel-rail-logic-source-2026-09-21.md)
+31/31 на2c остаются proof своих неизменённых контрактов, не нового JSX.
 База `c675d4b4d735ccbcc51dc162265e31d64e193990`: #1017 смержен после final review
 `f36fec39` и CI35645855198. [Первый контракт](EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md)
 и [узкая actual-проверка reader/DTO](qa/team-chat-channel-previews-actual-2026-09-21.md)
 остаются основой. Это продолжение пункта15, не новый дизайн всего чата.
 
 Worktree `evo-team-chat-channel-preview-rail/evo_AI_CRM`, branch
-`izzhackt/team-chat-channel-preview-rail`. QA принадлежит ROOT; здесь только
-файлы и сохранённые доказательства, без runtime/Auth/DB/browser/server.
+`izzhackt/team-chat-channel-preview-rail`. QA координирует ROOT. Разрешённый incumbent завершён в отдельном чистом c675
+checkout; сейчас только source/files. Новый runtime не начинается.
 
 ## Короткий Impeccable brief
 
@@ -59,6 +62,35 @@ conversation с скрытым nav: **они не являются mobile rail b
 Полная tree, Auth, catalog и UI-доставка нового reader равными не объявляются.
 Evidence `/private/tmp/evo-team-chat-channel-preview-rail-precode-20260921/incumbent-source-evidence.json`,
 SHA256 `b28b4823f1341418610334373aee80810f4556acf50608a4dc1d08ef3024ff67`.
+
+## Actual incumbent critique перед UI edit — 22.09
+
+Один Admin batch на c675, schema237:390/320/1440. Все три PNG просмотрены
+вместе агентом A и ROOT. На390/320 nav виден, conversation скрыта; переход
+к выбранному каналу и «Каналы» обратно по Enter на320 прошёл. Горизонтального
+переполнения нет, ширина ссылок366/296/263px, высота68–69.6px. Desktop rail288px,
+preview13px; существующие EVO/Golos/цвета/аватары/selected подходят задаче.
+
+Реальная проблема: preview есть только у выбранного «Общий». У «Продаж» есть
+unread1, но нет строки последнего сообщения; пустой канал «Поступление» никак
+не объясняет отсутствие preview. Поэтому добавляем второй текст ко всем
+каналам из уже принятого latestPreview и mobile feedback прежних read tickets.
+Новых timestamps, фильтров, шрифтов, цветов или общей переделки чата нет.
+
+Состояния: live → автор/«Вы» и plain bodyPreview; подтверждённый null →
+«Пока нет сообщений»; tombstone → «Сообщение удалено» без старого текста.
+Unknown/невалидные metadata — failed read, а не пустой канал: decoder/acceptor
+сохраняют прежний snapshot и сообщают unavailable; mobile background alert
+показывает проблему и ручной retry. Forbidden очищает snapshot и показывает
+повторный вход. Foreground ошибки остаются в своей conversation, не запускаются
+скрытые поисковые повторы из nav. Дубли alert исключает display:none панелей.
+
+Actual summary3db207bf, before26b81636, after783f482f, final2d7889b8,
+strict final6936f53d. Все290 business tables неизменны, новых seen0;
+сохранены224 sessions/239 refresh/224 AMR. Свои logout204/browser/server закрыты,
+cookie capture удалён. Это исходный интерфейс, не приёмка новой реализации.
+Craft-floor перечитан непосредственно перед этим UI этапом; context launcher
+не повторялся. Исходный checkout c675 и raw proof остаются неизменными.
 
 ## Точное подключение
 

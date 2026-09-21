@@ -14420,3 +14420,26 @@ cases. Весь JSX/CSS и decoder/acceptor prefix побайтно прежни
 tests, typecheck и targeted lint PASS; parity9173d669. No actual/UI/runtime,
 исторические screenshot ограничения остаются. Независимый source review впереди;
 это стадия одного rail блока, не отдельный завершённый UI или merge.
+
+
+### A15 rail — actual incumbent получен, UI source этап разрешён — 22.09
+
+ROOT просмотрел один c675 Admin batch390/320/1440 и разрешил следующий UI этап
+[того же плана](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md). Mobile rail gap
+закрыт: links68–69.6px/no overflow/Enter-back на320; desktop288px, preview13px.
+Короткий Impeccable critique записан до product edit: selected-only preview
+скрывает последнее сообщение «Продаж» (unread1), пустое «Поступление» не объяснено.
+Сохраняем принятую композицию; подключаем latestPreview ко всем строкам,
+mobile background error/retry и forbidden. Unknown остаётся failed read,
+не empty; foreground ownership, feed/seen/Composer и обязательный latestId
+сохраняются. Craft-floor перечитан, launcher не повторялся.
+
+[Actual evidence](qa/team-chat-channel-rail-incumbent-2026-09-22.md): summary3db207bf,
+final2d7889b8/strict6936f53d,290 business exact/seen0, inherited Auth rows exact,
+own logout204/browser/server closed/cookie removed. Независимое actual closure
+review у ROOT. Новый runtime/postchange UI batch отдельно по общей очереди;
+здесь только source. Ни238, ни production, ни весь15/1–36 не закрываются.
+
+Независимое incumbent actual/closure review5113321d принято ROOT; normalized
+release5902ec18 передал общий runtime ROOT238. Raw proof/verifier неизменны.
+Следующий этап A — только согласованные UI source edits и source проверки.

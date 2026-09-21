@@ -162,3 +162,24 @@ Config переходит224→225 только после проверки. Л�
 Окончательный QA manifest привязывается к реальным будущим apply/release
 receipts; несуществующие hashes не подставляются. Текущий approved QA helper
 `cf82809e…` и его business scope не изменены.
+
+## Окончательная интеграция source224 и review apply driver
+
+PR#982 вошёл в main `2b23285d5127b2e8d633c733bf102c25b093baa6` и интегрирован
+в ветку225. Все пять runtime hashes A15d сохранены; SQL224 совпадает с реально
+проверенным B source `1fa3ef0e…`. Общие журналы объединены с сохранением обеих
+веток. CI35553683632 ранее прошёл на `81348bdc`; новый интеграционный head
+требует собственных protected checks.
+
+Независимое offline review apply driver — **APPROVED**, без разрешения считать
+миграцию применённой. Приватный отчёт `independent-driver-review.md` имеет
+SHA256 `8b227644d8cca6e7318c1bfea9c6b1d850ae0efdb3b512ec1b03aa2956f863b9`.
+Принятые файлы пакета:
+
+- `apply.py`: `f68bc2bb00fb398302f8b898057d8cab19c351f5aa402032343a91120ea799df`.
+- `observe.py`: `ea5a52df8e12c357a68c36c7f4b900c35ed6b9c5c073df230bf1180953122c54`.
+- `catalog.sql`: `2520542a025be9607eebaf745d8b21a99ff50a59fe4e59ff9154634349e4f685`.
+
+Окончательный apply manifest фиксирует точный integration head и эти hashes.
+Его короткое независимое review precedes once apply. QA manifest получает
+только фактические будущие225 apply/release bindings после успешного применения.

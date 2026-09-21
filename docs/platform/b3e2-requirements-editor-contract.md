@@ -3,6 +3,7 @@
 До реализации. Source `2b23285d5127b2e8d633c733bf102c25b093baa6`, #982 merged;
 v2 readers действуют, но full backend ещё отсутствует. Основание — принятый
 [полный B3e](b3e-full-requirements-and-mapping-plan.md) и [v2 wire](b3e1-requirements-v2-read-contract.md).
+Вложенный editor DTO и закрытые SQL errors — [точный wire226](b3e2-requirements-editor-wire.md).
 Root резервирует226 после A225. Работа с исходниками разрешена; общей DB/Auth/UI
 пока владеет очередь A225 → root32. Применение226 и QA записи требуют точного
 reviewed effects packet и нового root window, production сюда не входит.
@@ -73,10 +74,11 @@ gate. Конфликт требует отдельной штатной137 ко�
 
 ## RPC и замороженная форма намерения
 
-Новые public `STABLE SECURITY DEFINER SET search_path=''`
-`staff_application_requirements_editor_v1(p_student_case_id,p_application_id)`
-и command `staff_save_application_requirements_v1(p_student_case_id,
-p_application_id,p_request_id,p_payload JSONB)`. Обычная authenticated сессия;
+Новый public read `staff_application_requirements_editor_v1(p_student_case_id,
+p_application_id)` — `STABLE SECURITY DEFINER SET search_path=''`.
+Command `staff_save_application_requirements_v1(p_student_case_id,
+p_application_id,p_request_id,p_payload JSONB)` — `VOLATILE SECURITY DEFINER
+SET search_path=''`. Обычная authenticated сессия;
 actor/org исключительно из current authority. Editor read требует scoped
 document.read.full; canSave отдельно от document.manage и lifecycle. Preview
 запрещён; application.manage/case.read.full не подменяют document permission.
@@ -124,7 +126,13 @@ Source decision — ровно `{sourceKey,disposition,requirementKey,reason}`:
 included требует существующий key, excluded — null key и непустую reason;
 required→optional требует непустую reason. Для включения без понижения reason
 может быть null. На каждый server source ровно одно решение, extra/duplicate
-source keys отклоняются. Multiple origins могут указывать на один item.
+source keys отклоняются. Сервер проверяет корреляцию: prior source включается
+только в пункт с тем же requirementKey (явная смена его материала допустима);
+link/application source — только в пункт с тем же documentSlotId; country —
+только в материал точного bound requirement. Несколько origins могут указывать
+на один item только при доказанной общей material identity. Два прежних пункта
+с разными ключами нельзя скрыто слить в один. Источник, который фактически не
+перенесён, требует excluded с причиной, даже при совпадении названий.
 
 Лимиты:1–100 items, до1000 candidates и2000 source facts, payload≤1MiB, basis/
 reason/changeReason≤2000 Unicode scalars, sourceKey≤200ASCII. Text/deadline/UUID/
@@ -192,7 +200,17 @@ mapping; один primary «Сохранить список». После receip
 payload+requestUUID до отправки, повторяет ровно его, не генерирует новый UUID.
 Отдельный storage namespace editor; fail-closed при недоступном сохранении
 pending. Owner scope org/member/case/application, защита от другой вкладки и
-переключения account. После reload unknown intent восстанавливается; выход из
+переключения account. Для same-origin вкладок — отдельный scoped localStorage
+envelope и exclusive Web Lock только на critical section persist/send/clear;
+ifAvailable не ждёт чужой запрос, не делает force-steal. Отсутствие storage/locks
+блокирует отправку. Compare-before-clear защищает другой retained intent.
+Server action сверяет org/member owner и на read, и на save; при смене owner
+старое состояние скрывается, async ответы инвалидируются. Pending не содержит
+токенов/Storage paths/файлов, только точный запрос этой операции.
+Forbidden после неизвестного исхода может означать отозванные права после commit:
+не удалять pending как «не сохранено». Сбои readback/revalidation после valid
+receipt также не отменяют известный успех. После reload unknown intent
+восстанавливается без автоматической отправки; выход из
 изменённой формы предупреждает, ошибки привязаны к полю, focus возвращается.
 
 Desktop компактный, mobile одноколоночный без широкой таблицы. Existing fonts,
@@ -224,3 +242,7 @@ context/detector повторно не запускать. Максимум дв
 и [Supabase functions](https://supabase.com/docs/guides/database/functions) —
 узкие EXECUTE grants и явно ограниченный search_path для SECURITY DEFINER.
 Проверены21.09.2026; это архитектурные основания, не runtime evidence.
+Между вкладками [Web Locks](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)
+сериализует участок одного origin; [localStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)
+удерживает запрос после закрытия вкладки. Недоступность любого механизма — явная
+ошибка до RPC. Это техническая координация вкладок, SQL остаётся authority.

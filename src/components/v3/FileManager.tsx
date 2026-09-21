@@ -779,9 +779,9 @@ export function FileManager({
         </nav>}
 
         <div className={embedded ? "min-w-0" : "min-w-0 p-4 sm:p-5"}>
-          <div className="flex flex-wrap items-center gap-3 border-b border-border pb-4">
-            <nav aria-label="Путь к папке" className="min-w-0 flex-1">
-              <ol className="flex min-w-0 items-center gap-1 text-sm text-fg-2">
+          <div className="flex flex-col items-stretch gap-3 border-b border-border pb-4 sm:flex-row sm:flex-wrap sm:items-center">
+            <nav aria-label="Путь к папке" className="w-full min-w-0 sm:w-auto sm:flex-1">
+              <ol className="flex min-w-0 flex-wrap items-center gap-1 text-sm text-fg-2">
                 <li>
                   <button
                     type="button"
@@ -792,7 +792,7 @@ export function FileManager({
                   </button>
                 </li>
                 {breadcrumbs.map((folder) => (
-                  <li key={folder.id} className="flex min-w-0 items-center gap-1">
+                  <li key={folder.id} className="flex min-w-0 max-w-full items-center gap-1">
                     <Icon name="chevron-right" size={13} className="shrink-0 text-fg-3" />
                     <button
                       type="button"
@@ -805,15 +805,16 @@ export function FileManager({
                 ))}
               </ol>
             </nav>
-            <label className="flex min-h-11 min-w-0 basis-60 items-center gap-2 rounded-ctl border border-control-edge bg-surface px-3">
+            <label className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 sm:w-auto sm:basis-60">
               <Icon name="search" size={15} className="shrink-0 text-fg-3" />
               <span className="sr-only">Поиск документов</span>
               <input
                 type="search"
+                data-company-file-search
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Поиск документов"
-                className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-3"
+                className="min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-sm text-fg outline-none placeholder:text-fg-3"
               />
             </label>
           </div>

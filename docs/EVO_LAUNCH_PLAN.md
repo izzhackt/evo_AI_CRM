@@ -13732,3 +13732,19 @@ bounded transport-failure checks. Preserve after-UI observations, then reconcile
 strict full state only after ordinary own logout and closure. No positive account
 request, SQL, fixtures, provider or production changes. Next shared QA owner is
 ROOT7b; item32 remains a separate later admission.
+
+## 2026-09-21 — B1006 actual route STOP; QA closure released to ROOT7b
+
+[Actual report](qa/portal-profile-request-feedback-actual-2026-09-21.md): ordinary
+configured Student login on reviewed source08b90ed1 reached /apply/status rather
+than /portal. No profile/deletion activation, outage or visual pass was performed;
+PR1006 stays draft. Keep source CI35611174459 and its scope separate from actual.
+Reviewed narrow cleanup used the same owned session's real application-status
+logout, then closed only owned browser/Next and removed own Auth files. Unchanged
+strict final0548bab0 plus independent closure review43166e99 prove all290/catalog/
+effects and33AuthStorage preserved except own allowed Auth metadata+two audits;
+incoming224 sessions/239refresh/224AMR restored. Immutable resource release0f78c26c
+hands off to ROOT7b with testOutcomeSTOP and productAcceptancefalse. Preserve
+initial guard/closure-probe failures; no fixture/auth/backend edits or new login
+are authorized by this outcome. Investigate dispatcher eligibility from existing
+captured metadata/source only before proposing the smallest remedy.

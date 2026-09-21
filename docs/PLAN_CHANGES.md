@@ -36433,3 +36433,17 @@ unchanged, exact own profile/draft/two receipts, full catalog/ledger unchanged,
 two Auth audits added. Own browser/Auth/server closed. Transfer schema001–234
 and immutable private receipts to ROOT235; final-head review/CI and normal PR1003
 merge remain required before ROOT integrates main for235. Item25 stays partial.
+
+## 2026-09-21 — B items24/25 profile request feedback precode
+
+ROOT accepted the next bounded web slice after merged1003/main7f444455:
+[Profile request feedback](platform/portal-profile-request-feedback.md). Catch
+client-side action rejection and use truthful RU/KY unknown-result copy, keeping
+the same requestId, pending behavior, confirmed success focus and server/RPC196
+contract. Only one component and two dictionary values; no SQL/native/provider.
+Independent precode review precedes implementation; source-only work may proceed
+while ROOT235 then A1005 own the shared runtime. Actual B validation waits for
+its admitted window and permits only a real owned-Next outage with zero business
+writes. No positive deletion request, fixtures, new actors or status reset.
+Native refresh findings and current KY Home evidence remain separate; no broad
+E2E/accessibility/native/production completion claim.

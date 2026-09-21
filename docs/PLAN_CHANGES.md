@@ -35396,3 +35396,19 @@ types/decoder/repository/action and scoped checks. Keep current UI, read command
 message history, root/quote semantics, drafts and legacy read_sequence unchanged.
 No local apply/Auth/browser window or new QA identity authority is included.
 Other-author unread coverage requires an independently reviewed real-actor packet.
+
+
+### A15d offline implementation; real225 QA still pending
+
+Runtimefb12146e implements225 private sparse seen, additive mark_seen with
+strict complete-set acknowledgement and existing channel unread exclusions.
+Current command/UI/parent links/drafts/timeline223 remain unchanged. Published
+custom-staff authority is retained; own/deleted/legacy-read IDs are no-ops,
+unknown/cross-scope IDs reject the whole batch. No seen cursor compaction.
+
+Seven pure contract tests, scoped ESLint, TypeScript and SQL parser checks pass;
+these do not prove actual SQL/Auth behavior.225 is not applied,224 must precede
+it, and ROOT currently owns shared Auth/DB/browser. Other-author unread proof
+requires positive ordinary existing-observer Auth and a separately reviewed QA
+packet/window; no staff provisioning or retry of unavailable salesOther.
+See docs/qa/crm-team-chat-sparse-seen-225-2026-09-21.md for hashes and limits.

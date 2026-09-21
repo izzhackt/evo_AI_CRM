@@ -2,8 +2,8 @@
 
 Текущий статус: source и ограниченная локальная SQL/Auth/RPC-проверка приняты
 независимым review. [Actual и закрытие сессий](team-chat-channel-previews-actual-2026-09-21.md)
-относятся к `bb24f35f6d44ed227021368acbc41f9c0f8e7278`; final integration/CI/review
-ещё впереди. Подключение UI остаётся отдельным следующим блоком.
+относятся к `bb24f35f6d44ed227021368acbc41f9c0f8e7278`; main436865af интегрирован,
+final-head CI/review ещё впереди. Подключение UI остаётся отдельным следующим блоком.
 Это первый блок [принятого плана](../EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md).
 Plan/journals commit `eac7a504` предшествует source commit
 `8104e106ab4da839e99a49007f180cbdad83a9ed`, base main `24e78024`.
@@ -90,7 +90,7 @@ product tests не повторялись. Diff/whitespace/parity провере
 protected CI и exact-head integration review; actual237 всё ещё ждёт B1015
 release и принятого observer/apply/RPC packet. SOURCE_ONLY не означает merge GO.
 
-## Последующая actual-проверка и текущий остаток
+## Actual и остаток перед интеграцией main436865af
 
 На неизменном sourcebb24f35f один локальный apply237 и четыре ordinary
 Auth/PostgREST probes завершены. Независимые DDL reviewe133a066 и RPC/closure
@@ -99,7 +99,20 @@ review97acb1ae приняты. Исходные source-only ограничени
 ROOT выпустил handoff07d28083 после полного final3610d43f; ресурс QA снова у
 ROOT_COORDINATOR, повторных runtime-вызовов A не требуется и не планируется.
 
-Нужно интегрировать актуальный main после #1015, сохранив пять A237 source/test/SQL
-файлов, пройти protected CI и независимый final-head review. Старый CI35639431195
+После actual оставалось интегрировать main после #1015, сохранив пять A237
+source/test/SQL файлов, пройти protected CI и независимый final-head review. Старый CI35639431195
 наbb24f35f успешен, но не подменяет проверку нового integration head. Следующий
 rail UI блок начинается после merge #1017; весь item15/1–36 и production не закрыты.
+
+## Интеграция после actual — main436865af
+
+Merge0a1cdeb11533d408b56e99bdc1431ea1549dfab1 включает #1015 — отдельные формы
+feedback портальных уведомлений. Все пять A237 source/test/SQL файлов равны
+actual sourcebb24f35f. Шесть входящих product/test файлов и две B-документации
+равны main436865af; ведомость сохраняет все входящие строки, с отдельным
+обновлением текущего среза и пункта15. Оба append-only журнала сохраняют полные
+ordered nonblank истории обоих родителей41810d1b и436865af. Изменившиеся пути
+портала не входят в проверенный staff chat reader; whole tree неизменной не
+объявляется. Локальные source tests и runtime не повторялись: их exact bytes
+прежние. Whitespace/diff/parity проверяются отдельно; protected CI и независимый
+final-head review нового коммита остаются merge gate.

@@ -4,7 +4,8 @@
 [плана A15](../EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md), PR #1017,
 source `bb24f35f6d44ed227021368acbc41f9c0f8e7278`. Это локальная проверка
 существующего Auth/PostgREST-пути и строгого decoder. Rail UI ещё не подключён;
-final integration/CI/review и merge оформляются отдельно. Production не менялся.
+main436865af интегрирован в0a1cdeb1 с сохранением A237 source bytes. Final-head
+CI/review и merge оформляются отдельно. Production не менялся.
 
 ## Применение237
 

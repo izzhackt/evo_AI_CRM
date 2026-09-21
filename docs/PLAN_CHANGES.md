@@ -37184,3 +37184,16 @@ ordered истории обоих journals сохранены. Строки14/15
 сохранены изmain; строка24 дополнена узким actual и gaps. Повторного QA или
 тестов не было; прежний CI35635859635 относится кfa4ad8e8. Интегрированному
 final head ещё нужны независимое review и protected CI перед merge.
+
+
+### A237 — main436865af интегрирован после actual, final-head gate
+
+Merge0a1cdeb11533d408b56e99bdc1431ea1549dfab1 сохраняет обе полные ordered
+nonblank истории родителей41810d1b/436865af. Пять A237 source/test/SQL files
+побайтно равны actualbb24; шесть входящих B product/test и две B-документации
+равны main. Ведомость обновляет только текущий срез/local237/пункт15, сохраняя
+остальные строки main. [Source/integration](qa/team-chat-channel-previews-source-2026-09-21.md)
+и [actual](qa/team-chat-channel-previews-actual-2026-09-21.md) различают прежние
+source-only этапы и принятое узкое RPC доказательство. Runtime не повторялся.
+Fresh protected CI и независимый exact-head review впереди; #1017 пока draft,
+rail UI ждёт merge. Production и whole15/1–36 не закрыты.

@@ -6,6 +6,7 @@ import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";
 import type { ApplicationRequirementItemV2, ApplicationRequirementsV2 } from "@/lib/portal/application-requirements-v2";
 import { readStaffPreparationRequirementsAction, type StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
 import { continueStaffRequirements, useStaffPending, type StaffPreparationScope } from "./staff-preparation-client";
+import { StaffRequirementsEditor } from "./StaffRequirementsEditor";
 
 function subscribeHash(callback: () => void) {
   window.addEventListener("hashchange", callback);
@@ -36,6 +37,8 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
   canInitialize: boolean;
 }) {
   const [explicitOpen, setOpened] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const editorButton = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<StaffPreparationRead<ApplicationRequirementsV2> | null>(null);
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState(false);
@@ -88,7 +91,7 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
   return <section id={id} className="mt-4 scroll-mt-6 border-t border-border pt-3" aria-label="Подготовка по выбранной программе">
     <p className="text-sm text-fg-2">Набор: {intake.label}</p>
     <p className="mt-1 text-sm text-fg-3">{preparation.deadlineStateAtSelection === "needs_confirmation" ? "Срок набора нужно подтвердить" : "Срок сохранён при выборе"}{intake.applicationDeadline ? ` · ${intake.applicationDeadline}` : ""}</p>
-    <button type="button" className={`${btnGhostCls} mt-3`} aria-expanded={opened} aria-controls={`${id}-documents`} onClick={() => {
+    <button type="button" className={`${btnGhostCls} mt-3`} disabled={editorOpen} aria-expanded={opened} aria-controls={`${id}-documents`} onClick={() => {
       setOpened(!opened);
       if (!opened) void load();
       else if (anchorOpen) {
@@ -99,6 +102,7 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
       {opened ? "Скрыть подготовку" : "Открыть подготовку"}
     </button>
     {opened ? <div id={`${id}-documents`} className="mt-4 space-y-3" aria-busy={loading || pending}>
+      {editorOpen ? <StaffRequirementsEditor key={`${scope.organizationId}:${scope.membershipId}:${scope.studentCaseId}:${preparation.applicationId}`} scope={{ ...scope, applicationId: preparation.applicationId }} onSaved={() => { void load(); }} onClose={() => { setEditorOpen(false); requestAnimationFrame(() => editorButton.current?.focus()); }} /> : <>
       <h4 className="font-semibold text-fg">Документы программы</h4>
       {requirements?.origin === "evo_starter" ? <p className="max-w-2xl text-sm leading-6 text-fg-2">Фото и паспорт — стартовые документы. Полный список для программы ещё нужно уточнить.</p> : null}
       {requirements?.configurationState === "confirmed" ? <p className="max-w-2xl text-sm leading-6 text-fg-2">Состав требований подтверждён сотрудником EVO. Файлы проверяются отдельно.</p> : null}
@@ -126,9 +130,11 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
         {storageBlocked ? <p role="alert" className="text-sm text-danger">Не удалось прочитать сохранённый запрос. Новое действие не отправляется.</p> : null}
         {canInitialize && (retained || requirements?.state === "uninitialized") ? <button type="button" disabled={pending || loading || storageBlocked} className={btnCls} onClick={() => void initialize()}>{pending ? "Подготавливаем…" : retained ? "Повторить сохранённый запрос" : "Продолжить подготовку"}</button> : null}
         <div className="flex flex-wrap gap-2"><button type="button" className={btnGhostCls} disabled={loading || pending} onClick={() => void load()}>Обновить документы</button><a href={docsHref} className={btnGhostCls}>Все документы дела</a></div>
+        {canInitialize ? <button ref={editorButton} type="button" className={`${btnGhostCls} h-auto min-h-11 whitespace-normal py-2`} disabled={pending || !!retained || storageBlocked} onClick={() => setEditorOpen(true)}>Настроить список документов</button> : null}
         <p className="text-sm text-fg-3">Загрузка в разделе документов сразу отправляет файл на проверку сотруднику.</p>
       </>}
       {message ? <p role="alert" className="text-sm text-danger">{message}</p> : null}
+      </>}
     </div> : null}
   </section>;
 }

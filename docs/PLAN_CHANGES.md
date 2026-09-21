@@ -37339,3 +37339,49 @@ Product scope не изменён. [Actual receipt](qa/team-chat-channel-rail-ac
 точный bab source, а не новый combined-head статус. ROOT разрешил не повторять
 UI. Source final-head review и короткий CI обязательны перед ROOT merge.
 Новых миграций, permissions, runtime действий или полного item15 acceptance нет.
+
+
+### B24 — принятый precode: повтор операции урока
+
+После merge #1015 (main436865af) source-разбор обнаружил конкретную ошибку:
+после conflict → reloadDraft → unavailable кнопка «Повторить» выбирает
+start/save/complete по состоянию экрана, никогда reload. Принят
+[узкий контракт](platform/portal-lesson-retry-operation.md) и независимое
+precode review6f458939: явная идентичность отказавшей операции, сохранение
+существующих request IDs/snapshots, busy guard, draft и всего оформления.
+Actions/RPC/SQL и другие runners не меняются. Восемь incumbent-файлов и
+lesson320/1440 база сверены с acceptedf77a457b; это не actual ошибки reload.
+
+Контракт записан до UI-кода. Реальный Student-путь ждёт отдельного admission
+и восстановления локальной среды (отсутствующий OrbStack socket); Docker не
+перезапускаем, конфликт fixtures не создаём. Следующий PR остаётся draft с
+QA pending. Этот блок не закрывает весь пункт24, native или production.
+
+### B24 — source checkpoint: повтор операции урока
+
+Precode-контракт `0eea93dc` предшествует реализации `0f5fca638f195967d0601427e228b264ef43bd90`.
+Объём принятого контракта не изменён: только владение ошибкой и выбор retry в
+LessonRunner, адресный тест и документация. Regression воспроизведена до правки;
+после неё 20 адресных unit-проверок, scoped lint, TypeScript и diff check PASS.
+[Контракт](platform/portal-lesson-retry-operation.md#source-checkpoint--2026-09-21)
+фиксирует точные команды, spans и ограничения. Независимое source review,
+protected CI и реальный Student conflict/reload/retry пока pending; draft PR
+не является закрытием всего пункта24. Никаких новых runtime/QA/DB действий.
+
+
+### 2026-09-22 — B24: actual повтора урока и интеграция #1018
+
+[Узкая квитанция](qa/portal-lesson-retry-actual-2026-09-22.md): на frozen
+c59e93cf существующий Student сохранил один ответ, получил конфликт во второй
+вкладке, отказ загрузки при browser-offline и успешный ручной retry той же
+read-команды. Strict final290/33 и independent actual/closure review752f71b0
+приняты ROOT. Исходный closure OSError STOP сохранён, причина unknown;
+последующая отдельная проверка закрытия разрешена после новых PID/port данных
+и завершилась CLOSED. Повтора бизнес-сценария не было.
+
+Среда передана ROOT_COORDINATOR по handofff1126aac. После этого выполнена
+files-only интеграция main eec9c548, уже включающего #1020. Входящие изменения
+main и полные собственные дополнения журналов сохранены; LessonRunner/test
+побайтно равны c59. Контракт и архитектура не расширяются. Прежние source checks
+и actual используются со своим SHA и пределами; итоговому head требуются
+независимое exact-head review и protected CI. Пункт24 и production не закрыты.

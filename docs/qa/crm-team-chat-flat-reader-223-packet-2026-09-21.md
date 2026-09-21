@@ -1,6 +1,6 @@
 # A15c / migration223 — proposed local QA packet
 
-**223 applied once locally; first QA attempt stopped before commands. Revised
+**223 applied once locally; both QA attempts stopped before commands. Revised
 two-actor QA packet review and a fresh ROOT exclusive writer GO remain required.**
 This document specifies the bounded operations for review; it is not an apply
 receipt or positive reader acceptance. No production/provider action is included.
@@ -167,3 +167,20 @@ QA commands/messages. Ordinary Sales/Student sign-in changed Auth session state;
 session equality is not claimed. Preserve the failed attempt and all original
 packet artifacts. Revised QA must use a fresh artifact directory, exact reviewed
 script/source hashes and a new coordinator GO. It must never reapply223.
+
+The two-actor v3 attempt also stopped before commands: its hardcoded legacy
+`platform_role = sales` expectation was stale. Read-only metadata preflight
+(`a95a4f1c72ba0faa171afc14cfb8f90f6c30302a34f6b9622a4153aaa3bc59ff`)
+confirmed the existing Sales account is active, in the exact QA organization,
+with `systemRole = staff`, nullable coarse role, and two active assignments
+including the configured Sales Manager role. Current scoped checks allow general
+and sales, and deny admissions. Student has its active published Student bundle.
+The app resolves staff through `staff_access_snapshot`; migration155 intentionally
+projects a nullable coarse role in `current_actor_authority`, while156 authorizes
+chat by scoped permission. This is a harness assumption correction, not a product
+access change. Revised v4 must bind actual login user/profile/membership IDs to
+the pinned preflight, verify the ordinary staff snapshot and exact assignments,
+and keep the distinct positive Student branch. It must not broaden roles or
+substitute privileged SQL for ordinary Auth proof. V3 postfailure release
+`6382b25ac08bd40e99f415aa34191af4109b72a3c5dbb758ae469e93ea91a961`
+confirmed full parity and zero commands/messages; preserve this failure too.

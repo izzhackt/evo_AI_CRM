@@ -120,26 +120,43 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         <p>{searchQuery === null ? "Введите поисковый запрос до 200 символов без переносов строк." : valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
         <Link href="/v3/main?view=sales" className={`${btnGhostCls} min-h-11`}>Открыть текущий месяц</Link>
       </div> : <>
-        <section aria-labelledby="sales-period-totals" className="mt-8 border-b border-border pb-6">
-          <h2 id="sales-period-totals" className="text-base font-semibold text-fg">Итоги периода</h2>
-          <div className="mt-4 grid min-w-0 gap-6 @3xl:grid-cols-[minmax(180px,0.7fr)_minmax(0,1.3fr)]">
-            <dl className="flex flex-wrap content-start gap-x-10 gap-y-4">
-              <div><dt className="text-sm text-fg-2">{query.archived === "true" ? "Записей в архиве" : "Записей продаж"}</dt><dd className="mt-1 font-mono text-3xl tabular-nums text-fg">{workspace.totalCount}</dd></div>
-              {checkFinanceAccess && month && query.archived !== "true" ? <div><dt className="text-sm text-fg-2">План месяца</dt><dd className="mt-1 font-mono text-3xl tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</dd></div> : null}
-            </dl>
-            {workspace.totals.length > 0 ? <div className="min-w-0">
-              <div role="region" aria-label="Денежные итоги по валютам" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-                <table className="w-full min-w-[400px] text-sm tabular-nums">
-                  <caption className="sr-only">Стоимость и накопленная оплата за выбранный период, отдельно по валютам</caption>
-                  <thead className="border-b border-border text-xs text-fg-2"><tr><th scope="col" className="pb-3 pe-4 text-left font-medium">Валюта</th><th scope="col" className="pb-3 px-3 text-right font-medium">Стоимость</th><th scope="col" className="pb-3 ps-3 text-right font-medium">Оплачено по записям</th></tr></thead>
-                  <tbody className="divide-y divide-border">{workspace.totals.map(t => <tr key={t.currency}><th scope="row" className="py-3 pe-4 text-left font-medium">{t.currency}</th><td className="py-3 px-3 text-right font-mono">{number.format(t.costMinor / 100)}</td><td className="py-3 ps-3 text-right font-mono">{number.format(t.paidMinor / 100)}</td></tr>)}</tbody>
-                </table>
-              </div>
-              <p className="mt-3 text-xs leading-relaxed text-fg-2">Накопленные суммы по записям, не поступления за месяц. Валюты не пересчитываются.</p>
-            </div> : null}
-          </div>
-          {workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0 ? <p className="mt-5 border-s-2 border-border ps-3 text-sm leading-relaxed text-fg-2">В денежные итоги не включены неуточнённые значения: стоимость — {workspace.unresolvedCostCount}, оплата — {workspace.unresolvedPaidCount}.</p> : null}
-        </section>
+        <div className="@container/sales-summary mt-5 min-w-0 border-b border-border pb-4">
+          <section aria-labelledby="sales-period-totals">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 id="sales-period-totals" className="text-sm font-semibold text-fg">Найдено по фильтрам</h2>
+              <dl className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <dt className={query.archived === "true" ? "text-fg-2" : "sr-only"}>{query.archived === "true" ? "Записей в архиве" : "Записей продаж"}</dt>
+                <dd className="font-mono text-base tabular-nums text-fg">{workspace.totalCount}</dd>
+              </dl>
+            </div>
+            {workspace.totals.length > 0 ? <>
+              <ul aria-label="Денежные итоги по валютам" className="mt-3 divide-y divide-border">
+                {workspace.totals.map(t => <li key={t.currency} className="grid min-w-0 gap-x-4 gap-y-1.5 py-2 @min-[36rem]/sales-summary:grid-cols-[4rem_minmax(0,1fr)]">
+                  <h3 className="text-sm font-medium text-fg">{t.currency}</h3>
+                  <dl className="grid min-w-0 gap-x-6 gap-y-1 @min-[36rem]/sales-summary:grid-cols-2">
+                    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                      <dt className="text-sm text-fg-2">Стоимость</dt>
+                      <dd className="min-w-0 max-w-full font-mono text-sm tabular-nums text-fg [overflow-wrap:anywhere]">{number.format(t.costMinor / 100)}</dd>
+                    </div>
+                    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                      <dt className="text-sm text-fg-2">Оплачено по записям</dt>
+                      <dd className="min-w-0 max-w-full font-mono text-sm tabular-nums text-fg [overflow-wrap:anywhere]">{number.format(t.paidMinor / 100)}</dd>
+                    </div>
+                  </dl>
+                </li>)}
+              </ul>
+              <p className="mt-2 text-xs leading-relaxed text-fg-2">Накопленные суммы по записям, не поступления за месяц. Валюты не пересчитываются.</p>
+            </> : null}
+            {workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0 ? <p className="mt-3 border-s border-border ps-3 text-sm leading-relaxed text-fg-2">В денежные итоги не включены неуточнённые значения: стоимость — {workspace.unresolvedCostCount}, оплата — {workspace.unresolvedPaidCount}.</p> : null}
+          </section>
+          {checkFinanceAccess && month && query.archived !== "true" ? <section aria-labelledby="sales-department-target" className="mt-3 border-t border-border pt-3">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 id="sales-department-target" className="text-sm font-medium text-fg">План отдела</h2>
+              <p className="font-mono text-sm tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</p>
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-fg-2">На выбранный месяц. Фильтры записей не меняют план.</p>
+          </section> : null}
+        </div>
         {cash && cash.status !== "not_allowed" && month ? <section aria-labelledby="sales-cash-totals" className="border-b border-border py-6">
           <h2 id="sales-cash-totals" className="text-base font-semibold text-fg">Поступления и возвраты за месяц</h2>
           <p className="mt-2 text-xs leading-relaxed text-fg-2">Подтверждённые финансовые события всей организации по дате операции, время Бишкека. Фильтры строк продаж на этот блок не влияют. Расходы третьих сторон не являются выручкой EVO.</p>

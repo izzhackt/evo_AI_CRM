@@ -186,15 +186,63 @@ test("each visible destination marks exactly one link and only its own disclosur
   }
 });
 
-test("destination key changes on route, query or preview changes and stays stable on a rerender", () => {
-  const current = navigation("admin", "/v3/profile");
-  assert.equal(navigation("admin", "/v3/profile").destinationKey, current.destinationKey);
-  for (const next of [
-    navigation("admin", "/v3/profile?section=summary"),
-    navigation("admin", "/v3/profile?query=updated"),
-    navigation("admin", "/v3/pipeline"),
-    navigation("sales", "/v3/profile"),
-  ]) {
+test("destination keys preserve disclosure identity through filters and client detail transitions", () => {
+  const destinations = [
+    ["sales-report", ["/v3/main?view=sales", "/v3/main?view=sales&year=2026&month=9&q=Name&offset=30&review=true", "/v3/main?archived=true&month=10&view=sales&year=2026"]],
+    ["calendar", ["/v3/calendar", "/v3/calendar?view=month&date=2026-09-01", "/v3/calendar?date=2026-10-01&view=week"]],
+    ["admissions-worklist", ["/v3/profile", "/v3/profile?case=record&tab=route", "/v3/profile?id=record&query=updated", "/v3/profile?section=summary&case=", "/v3/profile?section=summary&id="]],
+    ["evo-docs", ["/v3/profile?section=docs", "/v3/profile?case=record&section=docs&tab=anketa"]],
+    ["universities", ["/v3/universities", "/v3/universities?country=MY&level=bachelor", "/v3/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b"]],
+  ];
+  for (const [activeId, hrefs] of destinations) {
+    const first = navigation("admin", hrefs[0]);
+    for (const href of hrefs) {
+      const current = navigation("admin", href);
+      assert.equal(current.activeId, activeId, href);
+      assert.equal(current.destinationKey, first.destinationKey, href);
+    }
+  }
+});
+
+test("different authorized destinations reset identity and malformed queries retain existing classification", () => {
+  const destinations = ["/v3/main", "/v3/main?view=sales", "/v3/profile", "/v3/profile?section=summary", "/v3/profile?section=docs", "/v3/pipeline"];
+  assert.equal(new Set(destinations.map((href) => navigation("admin", href).destinationKey)).size, destinations.length);
+  for (const href of ["/v3/main?view=unknown", "/v3/main?view=sales&view=sales"]) {
+    assert.equal(navigation("admin", href).destinationKey, navigation("admin", "/v3/main").destinationKey);
+  }
+  assert.equal(navigation("admin", "/v3/profile?section=docs&section=docs").destinationKey, navigation("admin", "/v3/profile").destinationKey);
+});
+
+test("unknown destinations keep pathname identity without activating an unavailable link", () => {
+  const first = navigation("admin", "/v3/unknown");
+  assert.equal(first.activeId, null);
+  assert.equal(navigation("admin", "/v3/unknown?q=changed").destinationKey, first.destinationKey);
+  assert.notEqual(navigation("admin", "/v3/another-unknown").destinationKey, first.destinationKey);
+
+  const actor = { systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: ["sales.register.read"] };
+  const staffNavigation = (href) => {
+    const url = new URL(href, "https://navigation.test");
+    return buildV3Navigation(actor, url.pathname, url.searchParams);
+  };
+  const report = staffNavigation("/v3/main?view=sales");
+  assert.equal(report.activeId, "sales-report");
+  assert.equal(staffNavigation("/v3/main?view=sales&month=9").destinationKey, report.destinationKey);
+  assert.deepEqual(links(report).map((link) => link.id), ["home", "sales-report"]);
+  const denied = staffNavigation("/v3/profile?section=summary");
+  assert.equal(denied.activeId, null);
+  assert.equal(staffNavigation("/v3/profile?section=docs").destinationKey, denied.destinationKey);
+  assert.notEqual(staffNavigation("/v3/universities").destinationKey, denied.destinationKey);
+  assert.notEqual(denied.destinationKey, report.destinationKey);
+});
+
+test("presentation role and access version changes reset the same destination", () => {
+  const actor = { systemRole: "admin", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: [] };
+  const query = new URLSearchParams("view=sales");
+  const current = buildV3Navigation(actor, "/v3/main", query);
+  for (const changed of [{ ...actor, presentationRole: "sales" }, { ...actor, platformAccessVersion: 2 }]) {
+    const next = buildV3Navigation(changed, "/v3/main", query);
+    assert.equal(next.activeId, current.activeId);
     assert.notEqual(next.destinationKey, current.destinationKey);
   }
+  assert.equal(buildV3Navigation(actor, "/v3/main", query).destinationKey, current.destinationKey);
 });

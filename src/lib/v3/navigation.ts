@@ -170,9 +170,13 @@ export function buildV3Navigation(
     common,
     settings,
     activeId,
-    // Used as a React key: new destinations open their active section, while
-    // collapsing a disclosure on the current destination stays user-controlled.
-    destinationKey: `${actor.presentationRole ?? "actual"}:${actor.platformAccessVersion}:${pathname}?${query.toString()}`,
+    // Client transitions within one authorized destination preserve disclosures;
+    // changing destinations or access context still opens the active section.
+    destinationKey: JSON.stringify([
+      actor.presentationRole ?? "actual",
+      actor.platformAccessVersion,
+      activeId ? ["destination", activeId] : ["path", pathname],
+    ]),
   };
 }
 

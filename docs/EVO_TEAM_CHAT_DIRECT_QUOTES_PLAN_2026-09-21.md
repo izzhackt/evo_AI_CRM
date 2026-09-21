@@ -152,7 +152,9 @@ channel permission и запрет staff preview. Их пока не вызыв�
 
 Сначала focused pure validator/ack/page tests, scoped lint/typecheck и protected
 migration checks. Проверить Unicode, строгие nullable поля, подмену root/quote,
-неполный/чужой quote set, context bounds и V1/V2 response rejection. Не подменять
+неполный/чужой quote set, context bounds и отказ V2 decoder на V1/mixed response.
+Не требовать, чтобы неизменённый223 decoder отвергал любой объект с extra fields:
+его endpoint остаётся V1, а V2 consumer обязан проверить schemaVersion2. Не подменять
 реальный RPC fake-клиентом ради приёмки. Старые функциональные поля не удалять.
 
 Далее после actual226 release, свежей baseline, отдельного reviewed packet и

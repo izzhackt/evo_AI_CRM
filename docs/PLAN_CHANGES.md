@@ -35169,3 +35169,18 @@ from the unconfirmed empty-menu concern.
 финансовые записи не создавались, full snapshot совпал. Единственная существующая
 source-проверка currencyMismatch привязана к aside: разрешено обновить её locator
 на новую ветку с обязательным nonempty guard, сохранив проверяемую денежную защиту.
+
+## 2026-09-21 — CRM-09c: единая оболочка не объединяет права
+
+Разбор item12 после #971 выявил разные contract/finance capabilities. Простое
+удаление contract tab потеряло бы contract-only доступ и retry/results; вставка
+внутрь прежней финансовой ветви скрыла бы договор при отказе/ошибке finance RPC.
+До реализации принят отдельный slot с независимыми gates, совместимый alias и
+новый redirect destination без изменения команд/reader/DTO/SQL. Page resolver
+должен учитывать тот же существующий Sales finance-confirm entry, что Profile.
+
+План: docs/design/v3/contract-payment-workspace-2026-09-21.md, базаea3cb758.
+Существующие assertions старой contract navigation заменяются содержательной
+capability/alias/redirect проверкой; девять actions, identity/retry, provider
+границы и preview safeguards остаются. Incumbent UI #971 используется с точной
+ревизией и лимитами, а не объявляется новым прогоном. Весь item12 этим не закрыт.

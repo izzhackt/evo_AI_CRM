@@ -12314,3 +12314,14 @@ Actual existing Admin Money/Contract,1280/390/320px; явные денежные
 48scoped tests/lint/typecheck PASS;281business/schema/functions/ledger/Authcounts
 без изменений. См. [QA](qa/crm-finance-hierarchy-2026-09-21.md) для runtime/proof
 и отсутствующих финансовых datasets. Полный item12 и managed delivery открыты.
+
+## 2026-09-21 — CRM-09c / item12: перенос договорного workflow (до кода)
+
+После #971/#972 выполняется [контракт](design/v3/contract-payment-workspace-2026-09-21.md):
+единая вкладка «Договор и оплата», старый contract alias, независимые finance/contract
+gates, все девять договорных actions и amoCRM section сохранены. Техническая
+вкладка снимается только вместе с переносом полного workflow. SQL/readers/actions
+не меняются. Impeccable Operate и существующее visual proof #971 задают компоновку;
+новый actual read-only UI после освобождения окна B211. Ограничения populated
+данных и managed delivery остаются явными. Scope-local checks, independent
+exact-head review и protected CI обязательны; contract-only не получает finance RPC.

@@ -20,15 +20,16 @@ function withCurrentAuthority(definition, signature, expectedPatches) {
   return definition;
 }
 
-test("chat removes mute and permanent explanatory copy while retaining real recovery and mark-read", () => {
+test("chat removes mute and permanent explanatory copy while retaining recovery and sparse seen", () => {
   const chat = source("src/components/v3/team-chat/TeamChat.tsx");
   assert.doesNotMatch(chat, /Сообщения появляются автоматически|Внутренняя переписка сотрудников EVO|Приглушить|Включить уведомления|item\.muted/u);
-  assert.match(chat, /transportLabel \? <div className=\{styles\.transport\} role="status"/u);
-  assert.match(chat, /transport === "live" \? error \? "Соединение установлено" : null/u);
+  assert.match(chat, /transportLabel \|\| error \? <div className=\{styles\.transport\} role="status"/u);
+  assert.match(chat, /transport === "live" \? null/u);
   assert.match(chat, /Обновить историю/u);
   assert.match(chat, /Подключить снова/u);
-  assert.match(chat, /JSON\.stringify\(\{ operation: "read", messageId \}\)/u);
-  assert.match(chat, /void markRead\(page\.latestMessageId\)/u);
+  assert.match(chat, /useTeamChatSeen/u);
+  assert.doesNotMatch(chat, /operation: "read"|markRead\(/u);
+  assert.match(source("src/components/v3/team-chat/useTeamChatSeen.ts"), /markTeamChatSeenAction\(batch\)/u);
 });
 
 test("chat action rejects mute before reaching authentication or RPC", () => {

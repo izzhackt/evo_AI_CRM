@@ -35510,6 +35510,45 @@ four new labelled messages plus edit/delete of its own new reply, with no old
 message/seen/preference changes. Future apply waits226 release and a fresh
 coordinated packet. No runtime, Auth, DB, browser or production action here.
 
+## 2026-09-21 — KB32: ограниченная локальная запись approved материалов
+
+После merged #975 продолжается существующий независимый KB-поток: два
+дословных snippets и две company file versions через обычный Admin UI,
+реальный ClamAV и private Storage. Owner content approvals сохраняются;
+новой фактической политики и AI-публикации нет. Новый runtime-код не нужен.
+Перед записью — fresh baseline/dedup после B224→A225, после — exact readback,
+два download hashes и scoped data reconciliation. Production не разрешён.
+Пакет: `docs/qa/knowledge-approved-materials-local-2026-09-21.md`.
+Подготовка scanner завершена; actual canonical write ещё не выполнен.
+
+## 2026-09-21 — KB32 actual local evidence и ограниченная UX-коррекция
+
+На frozen63e8ef9a реально сохранены2 approved snippets и2 scanned private files.
+Первый audited download307 остановлен Chrome ERR_BLOCKED_BY_CLIENT; второго
+не было, byte-download proof остаётся открытым. Actual budget8 receipts/10audit,
+1grant/consume;184 прежних audit,271 посторонняя таблица и схема сохранены.
+Student RPC403 и staff API401 проверены с тем же cookie positive /portal200.
+См. docs/qa/knowledge-approved-materials-local-2026-09-21.md. Не full32 complete.
+
+До следующей UI-правки принят малый scope по actual screenshots/computed style
+и Impeccable clarify/harden: устранить override primary bg/text в KnowledgeLibrary
+и столкновение breadcrumb/search на320px в FileManager. Сохранить EVO/Golos,
+подписи, все actions/forms/rights и внутреннюю прокрутку таблицы. Только local CSS
+и responsive layout; без новых бизнес-записей/миграций/provider/production.
+Проверка одной общей партией desktop+390/320, включая create/update contrast,
+поиск/очистку, breadcrumb и table actions; максимум одно подтверждение после
+правки. Первоначальный content proof остаётся привязан к63e8ef9a, UI proof
+получит отдельный новый SHA. Это исправление наблюдённых дефектов, не redesign.
+
+### KB32 — локальная UX-коррекция проверена
+
+Source547f7897 исправляет только подтверждённые primary contrast и mobile
+breadcrumb/search. Actual desktop1440+390/320, search/clear, внутренний table
+scroll и раскрытие file actions пройдены без бизнес-записей. Scoped lint/tsc/
+diff-check PASS, independent source review APPROVED. Full282/Storage/Auth
+равны завершённому content snapshot. Download-byte proof остаётся BLOCKED;
+не весь32 и не1–36 complete. Production и clientAI не публиковались.
+
 ## 2026-09-21 — CRM-09d: ошибка календарной даты в оплате из карточки
 
 Source67934327: `financeDateTime` возвращает UTC ISO; `recordCasePaymentAction`

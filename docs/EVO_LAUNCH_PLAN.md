@@ -13517,3 +13517,13 @@ three await receipts/audits, finalnone; incoming224sessions/239refresh preserved
 Own Auth/browser/server closed. Independent actual/closure review approved;
 window released B1003, which waits for merge1002. Final-head review/merge remain
 gates; production, broad E2E and unsupported positive QA states unclaimed.
+
+### A15g-1 / item15 — read errors and exact retry, precode 2026-09-21
+
+A11/#1002 merged479dd6788. The next accepted minimum is
+[read retry contract](EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md): operation-owned
+read errors, frozen search/cursor retry, separate background failure ownership,
+and terminal late forbidden without changing write protocol or permissions.
+A owns TeamChat.tsx, a small client-safe helper and behavior tests. No SQL,
+fixtures, density/preview scope or shared runtime until B1003→ROOT235 handoff.
+Correct stale current front of A15f plan; retain historical evidence/limits.

@@ -36344,3 +36344,14 @@ must not relabel them as fresh runs. Exactly three permitted await commands
 restored none, no posts/read receipts. One final UI batch passed; full finite
 reconciliation and own runtime closure passed. Preserve dataset/physical-device
 limitations and all other item1–36 states. No further implementation scope added.
+
+### A15g-1 read failure ownership before code — 2026-09-21
+
+After A11/#1002 merge479dd6788, repeated source inspection confirms that team-chat
+search/history share write-oriented failure text and background success clears
+foreground search failure. Bind the accepted minimum to the
+[read retry plan](EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md): frozen operation
+arguments, separate foreground/background ownership, stale-result guards and
+terminal forbidden. Composer recovery retains its own handshake; no new write
+semantics, permissions, migrations, channel previews or visual redesign. Actual
+UI/seen-effect budget awaits a separate coordinated local QA window.

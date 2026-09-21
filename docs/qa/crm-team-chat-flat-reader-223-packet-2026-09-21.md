@@ -1,6 +1,7 @@
 # A15c / migration223 — proposed local QA packet
 
-**Not executed. Awaiting independent source/packet review and ROOT's writer GO.**
+**Not executed. Source and proposed scope independently approved; executable
+packet review and ROOT's exclusive writer GO remain required.**
 This document specifies the bounded operations for review; it is not an apply
 receipt or positive reader acceptance. No production/provider action is included.
 
@@ -67,15 +68,16 @@ Exactly these intended mutations through the existing real team_chat_command:
    input; expect the existing receipt and **zero** additional mutation.
 
 That is **58 effective commands**:56 posts,1 edit,1 delete; plus1 replay.
-No read/mark-seen command, moderation, reaction, task, mention, notification,
+No read/mark-seen command, moderation, reaction, task, mention, staff notification,
 Auth settings or permission mutation. If a command outcome is uncertain, retain
 its exact frozen input/request ID and stop for reconciliation; never invent a new
 request ID as a retry. No automatic reset or cleanup runs after a failure.
 
-The proposed default is to **retain these clearly identified local QA rows**.
-This requires ROOT's explicit acceptance of the bounded retained data before GO;
-no deletion of rows/receipts/audit or schema rollback is implied. ROOT may instead
-choose another isolated QA target, requiring a revised packet before execution.
+ROOT accepted **retaining these clearly identified local QA rows** on2026-09-21.
+No deletion of rows/receipts/audit or schema rollback is implied. Existing private
+Realtime invalidation broadcasts occur normally with commands; they are distinct
+from provider messages and staff notifications. Empty mentions must leave
+`platform.staff_notifications` unchanged.
 
 ## Actual reader and access checks
 
@@ -121,8 +123,13 @@ the fresh post-B baseline, the only proposed business changes are:
 
 Every prior row must remain unchanged; for these4 tables, compare the original
 rows after excluding exactly the recorded owned IDs/request IDs. Other business
-tables stay equal. Preferences/unread state and notification tables must remain
-unchanged. Auth user/identity counts unchanged; normal sign-in/session changes
+tables stay equal. Preferences and stored `read_sequence` remain unchanged;
+derived unread counts follow the actual reader, which excludes the current
+author's own posts. With the checked zero-read baseline, the Sales author stays
+at0, while the existing distinct authorized Sales observer sees54 general and1
+sales unread after the tombstone. Both identities use ordinary Auth; no new
+identity or role is introduced. Staff notification tables remain unchanged.
+Auth user/identity counts unchanged; normal sign-in/session changes
 are disclosed separately. Schema delta is only the new index/function/ACL and
 ledger223; preserve all old function definitions, owners, grants, policies and
 triggers. If an expected trigger makes another delta, stop and reconcile it;

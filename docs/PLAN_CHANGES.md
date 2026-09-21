@@ -36611,3 +36611,36 @@ subsequent immutable release. Inert templatev3 corrections02caf8a0 are approved
 only as offline preparation; all runtime pins remain null, no actual UI/resources
 are used, and no further iteration is planned before a concrete binding/failure.
 Country facet, management, full item14 and production remain outside this slice.
+
+## 2026-09-21 — KB31 bounded provenance checkpoint
+
+Record already completed offline candidate reconciliation; no new product code,
+runtime, content approval or publication. The admitted31-candidate queue now has
+11 with narrow provenance appendices,9 previously reviewed with unresolved claims,
+and11 derivatives still pending. These are work groups, not approved articles;
+appended candidates can also retain unresolved claims. Original text/frontmatter/
+status and source chains were preserved; last batches148/150/152 and151/326 had
+independent exact-byte closure48434643/38d705ab. Raw originals and forbidden material
+bodies were excluded. Update the knowledge execution/report and1–36 ledger, dating
+old operational snapshots and distinguishing local #985 materials from pending
+company-download proof. Prose-only validation: diff review and git diff --check.
+
+
+## 2026-09-21 — A14a / PR1008: реальный каталог и закрытие local QA
+
+Product b8497ad44cd020f0abf112b92a5b4a7c7d459651 прошёл existing Admin ordinary
+Auth и scoped catalogue UI: поиск/страна/уровень/combined/reset/detail/back,
+loaded compact photo/caption/author/source/license/focus и1440/390/320 без
+horizontal overflow. [Actual-квитанция](qa/staff-catalog-compact-actual-2026-09-21.md).
+Первый STOP exact-label select сохранён, одна reviewed confirmation с четырьмя
+select[name] заменами прошла; product не менялся. Набор из пяти опубликованных
+вузов не покрывает positive future deadline или Next: это открытые data gaps.
+
+Strict final: все290 business tables, catalogue/effects неизменны;33 Auth/Storage
+сверены, incoming sessions/refresh/AMR сохранены. Только собственные Auth metadata
+и2 login/logout audit. Own logout204, browser/PID77446+77465/group77417/33252
+закрыты, собственный captured tokenfile удалён. Release047b2e0c передал QA ROOT22;
+B32 STOP не считается product acceptance. Source10/10+types/lint и прежние35/37
+baseline результаты переиспользованы. Docs-only main06bec2b2 сохранён вместе с
+KB row31 и полными append-only журналами; product retests не требуются.
+Финальные independent exact-head review/CI/merge ещё нужны; production не запускался.

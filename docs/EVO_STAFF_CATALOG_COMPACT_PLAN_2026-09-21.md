@@ -1,14 +1,15 @@
 # Item14 / A14a — компактный каталог сотрудников и опубликованные даты
 
-Статус: независимый precode APPROVED, source030d7c2e реализован;
-[source-проверки и два прежних падения](qa/staff-catalog-compact-source-2026-09-21.md).
-Независимые source review8b620d9e и CI35611424947 пройдены на3d21b54d.
-Main e0276ecd (#1007) интегрируется без изменения product patch; отдельные
-integration review/CI и actual UI после B32 ещё требуются.
-База29e0fb46a8067a6a4f5a9bedce81971aba2f56ff после #1005. Целевые каталог,
-photo, staff route, DTO, reader и существующие tests byte-identical исходной
-оценке33966da19b401c88dff92f840a28b22d7a0429c9. Общая QA после принятого ROOT7b передана B32;
-Auth/DB/browser/server A1008 не запускать до её immutable release и передачи координатором.
+Статус: независимые precode/source/integration review и CI пройдены.
+Source030d7c2e/head3d21b54d, integration/actual b8497ad4.
+[Source-проверки и два прежних падения](qa/staff-catalog-compact-source-2026-09-21.md),
+[обычный Admin и реальный каталог](qa/staff-catalog-compact-actual-2026-09-21.md).
+Actual: поиск/страна/уровень/reset/detail/back, фото/атрибуция,1440/390/320 PASS;
+нет следующей страницы/подходящей будущей даты на пяти реальных карточках.
+Strict final290/33 пройден, logout204/браузер/сервер закрыты, среда ROOT22.
+Docs-only main06bec2b2 интегрируется с неизменным product patch; финальные
+head review/CI/merge #1008 ещё требуются. База29e0fb46 после #1005;
+исходная оценка33966da1 и контракт ниже сохранены. Весь item14 не закрыт.
 
 Ниже принят план SHA-256
 `8f081b632ca2930bafdcfd77abb93d8c4e1a777f794f31d3346472b2d089467e`.

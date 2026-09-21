@@ -12325,3 +12325,13 @@ gates, все девять договорных actions и amoCRM section сох
 новый actual read-only UI после освобождения окна B211. Ограничения populated
 данных и managed delivery остаются явными. Scope-local checks, independent
 exact-head review и protected CI обязательны; contract-only не получает finance RPC.
+
+### CRM-09c — локальная проверка общего раздела
+
+Runtime5b49a9c7: actual ordinary Admin old contract link/new money tab, сохранность
+несохранённой формы и её фактического request UUID, secondary/service controls,
+keyboard focus и1280/390/320 без переполнения после одной коррекции.281business,
+schema/ledger/Authcounts без изменений; см. [receipt](qa/crm-contract-payment-workspace-2026-09-21.md).
+Lint/types PASS; scoped92/93 и40/41 содержат одно подтверждённое прежнее
+source-assertion падение. Full item12/managed delivery и отсутствующие populated
+сценарии не объявляются завершёнными. Финальное review/CI остаются merge gates.

@@ -12738,3 +12738,17 @@ obligation. Все прежние строки, условия/cases/schema/Stor
 Auth login/logout отдельно. Новые identities/права/активации/receipt files,
 refund для cleanup и production не разрешены этим сценарием. Actual result
 фиксируется отдельно; parser tests и предложение QA не означают выполнение.
+
+
+### CRM-09d — локальная запись оплаты и Student readback выполнены
+
+Frozen source `2c0755c1` после #985 прошёл обычный Admin UI → action → RPC →
+Student UI: один QA-транш 1,00 KGS, оплата 0,50, одинаковый остаток 0,50 и
+статус частичной оплаты. Actual form time21Sep09:40 сохранён как местный DATE;
+ночная граница отдельно проверена pure tests, не фактическим UI.
+Ровно +1 obligation/+1 event/+1 evidence/+2 audit; прежние194 audit,
+остальные278 таблиц, схема225 и Storage сохранены. Independent effects review
+APPROVED a0747bd3, final a2df3c2f. Own sessions/runtime завершены; full282
+handoff cce0f273 передан B226 для fresh baseline. Подробности и пределы:
+`docs/qa/payment-calendar-date-2026-09-21.md`. Это ограниченная локальная
+проверка оплаты, не весь12/1–36 и не production release.

@@ -35578,3 +35578,21 @@ obligation. Все прежние строки, условия/cases/schema/Stor
 Auth login/logout отдельно. Новые identities/права/активации/receipt files,
 refund для cleanup и production не разрешены этим сценарием. Actual result
 фиксируется отдельно; parser tests и предложение QA не означают выполнение.
+
+
+## 2026-09-21 — CRM-09d: фактическая форма и завершение local QA
+
+На frozen2c0755c1 настоящий payment form имел hidden empty note без видимого
+редактора. Перед submit сохранено это значение; QA-маркер оставлен в названии
+собственного транша, вместо предположенного текстового комментария. Hidden
+at/request UUID не менялись; scope остаётся one tranche100minor + payment50KGS,
+без receipt/refund/provider. Actual09:40 подтверждает ordinary action/RPC/date
+путь и общий баланс CRM/Student; ночные границы покрывает отдельный pure test.
+
+Фактический бюджет +1 obligation/+1 payment/+1 evidence/+2audit соблюдён;
+остальные278 таблиц/схема/Storage и все194 старых audit сохранены. После normal
+Admin logout/Student login/logout final sessions сравниваются отдельно:
+Auth users/identities8/8, не blanket equality всех Auth rows. Тестовые строки
+не удалялись. Window released→B226, receipt cce0f273; PR984 source/runtime
+не менялись после reviewed72d. Детальная квитанция —
+`docs/qa/payment-calendar-date-2026-09-21.md`. Production не затронут.

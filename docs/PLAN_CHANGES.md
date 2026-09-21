@@ -37121,3 +37121,14 @@ lesson320/1440 база сверены с acceptedf77a457b; это не actual �
 и восстановления локальной среды (отсутствующий OrbStack socket); Docker не
 перезапускаем, конфликт fixtures не создаём. Следующий PR остаётся draft с
 QA pending. Этот блок не закрывает весь пункт24, native или production.
+
+### B24 — source checkpoint: повтор операции урока
+
+Precode-контракт `0eea93dc` предшествует реализации `0f5fca638f195967d0601427e228b264ef43bd90`.
+Объём принятого контракта не изменён: только владение ошибкой и выбор retry в
+LessonRunner, адресный тест и документация. Regression воспроизведена до правки;
+после неё 20 адресных unit-проверок, scoped lint, TypeScript и diff check PASS.
+[Контракт](platform/portal-lesson-retry-operation.md#source-checkpoint--2026-09-21)
+фиксирует точные команды, spans и ограничения. Независимое source review,
+protected CI и реальный Student conflict/reload/retry пока pending; draft PR
+не является закрытием всего пункта24. Никаких новых runtime/QA/DB действий.

@@ -2,7 +2,8 @@
 
 Дата: 2026-09-21. Узкий блок B24 после merged #1015.
 База `436865af5d5453b7136856d67ed1d9562260b27c`.
-Статус: **APPROVED_PRECODE, реализация ещё не начата**.
+Статус: **реализация подготовлена; независимое source review и actual pending**.
+Precode-контракт записан до кода в `0eea93dcf64074e06a8a75f1a753e9f5cb2805dd`.
 
 ## Дефект и ожидаемый результат
 
@@ -77,3 +78,36 @@ Shell побайтно совпадают с проверенным `f77a457b`; 
 [Responding to Events](https://react.dev/learn/responding-to-events) — действия
 выполняются обработчиками событий. Соответствие повтора прежнему намерению —
 требование нашего UX-контракта, а не новое правило сервера.
+
+## Source checkpoint — 2026-09-21
+
+Исходники зафиксированы в `0f5fca638f195967d0601427e228b264ef43bd90`.
+`failedOperation` хранит только имя операции. Returned failure и throw каждой
+из четырёх команд записывают это имя до показа ошибки. Начало допущенной команды
+сбрасывает прежнее имя; retry с busyRef ничего не запускает. Payload или старое
+замыкание не сохраняются. Все остальные байты компонента совпадают с precode
+после исключения этих точечных изменений; параметры actions, request IDs,
+pendingSave, success/focus и оформление сохранены.
+
+Проверки выполнены Node `22.23.1`, затем повторно не запускались:
+
+- Две regression-проверки на исходном компоненте дали ожидаемый FAIL: вместо
+  reload выбирались answer и complete. Raw CFW span `01a0c55676b076d398f1eceb332e9957`.
+- `node --test --experimental-strip-types tests/portal-lesson-retry.test.mjs tests/portal-learning.test.mjs tests/portal-i18n.test.mjs` — **20/20 PASS**:
+  пять новых проверок выбора операции, семь learning и восемь i18n.
+  Raw CFW span `01a0c5577dcf7060b78cf341d704bdad`.
+- `node node_modules/eslint/bin/eslint.js src/components/portal/english/LessonRunner.tsx tests/portal-lesson-retry.test.mjs`
+  — PASS, exit0; span `01a0c55784177df0919b60eb8eb2949f`.
+- `node node_modules/typescript/bin/tsc --noEmit --incremental false` — PASS,
+  exit0; span `01a0c557a0d17f71b2c29dc157545bdf`.
+- `git diff --check` — PASS. Дополнительная побайтная сверка неизменённой части
+  компонента — PASS; span `01a0c55a765f71529c3099b7e3f57626`.
+
+Новый тест исполняет настоящий локальный onClick и reportFailure; счётчики
+проверяют только выбор команды. Обе reload-failure ветки сверены по AST;
+сетевой throw или RPC response в браузере этим не исполняются. React render,
+Student/Auth/DB путь и сохранение после retry остаются непроверенными.
+Новых зависимостей, build, сервиса или QA-записей этот блок не создавал.
+Существующее предупреждение Node о MODULE_TYPELESS_PACKAGE_JSON не меняли.
+Source review, protected CI и согласованный реальный сценарий ещё нужны;
+PR остаётся draft, весь пункт24 и production не закрыты.

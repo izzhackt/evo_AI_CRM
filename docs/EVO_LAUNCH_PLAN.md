@@ -14268,3 +14268,28 @@ A237 source/test/SQL файлов побайтно сохранены, импо�
 из-за одной интеграции независимого staff country reader. Проверяем diff,
 parity и fresh protected CI. Exact-head review впереди. Shared QA остаётсяB1015;
 apply/RPC237 и второй rail UI блок не запускались.
+
+
+### A237 — local reader/DTO actual принят, ресурс возвращён ROOT
+
+На sourcebb24f35f выполнены один canonical local apply237 и четыре ordinary
+Auth/PostgREST probes. Ledger001–236→001–237; изменено только тело существующего
+channels(uuid),1191 identities/OID/owner/ACL сохранены. DDL reviewe133a066 принято.
+Admin200 дал3 канала,2 latest/1 empty, exact production decoder и независимая
+canonical projection совпали. Admin nil-org403, Student403, anonymous401 —
+реальные42501 отказы. [Actual-квитанция](qa/team-chat-channel-previews-actual-2026-09-21.md)
+сохраняет неподтверждённые custom/inactive/no-scope/foreign-tenant и latest
+own-author/reply/tombstone/long-body варианты; UI/native/races не заявлены.
+
+Полный final3610d43f/closure3d267de8 сохранил290 business/33AuthStorage; отличия
+только timestamps двух existing users и4 own login/logout audits, zero seen.
+Входящие224/239/224 sessions/refresh/AMR сохранены; own logout204 оба, два своих
+private Auth captures удалены. Independent RPC/strict-closure review97acb1ae
+принято; отдельный ROOT handoff07d28083 передал ресурс ROOT_COORDINATOR. A больше
+не выполняет runtime. Старые STOP и подтверждённая ROOT recovery сохранены.
+
+Следующий шаг — интеграция main436865af после #1015 с сохранением обоих журналов
+и всех пяти A237 source/test/SQL bytesbb24. Неизменные scoped source/actual
+результаты переиспользуются; diff/parity, fresh protected CI и независимый
+final-head review обязательны. CI35639431195 наbb24 принят ранее и не заменяет
+новый CI. Rail UI начинается после merge #1017; whole15/1–36/production не закрыты.

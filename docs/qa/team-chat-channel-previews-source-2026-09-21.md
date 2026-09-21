@@ -1,6 +1,9 @@
 # A237: source-проверка reader/DTO, 2026-09-21
 
-Статус: source готов; actual SQL/Auth/RPC и приёмка ещё не выполнены.
+Текущий статус: source и ограниченная локальная SQL/Auth/RPC-проверка приняты
+независимым review. [Actual и закрытие сессий](team-chat-channel-previews-actual-2026-09-21.md)
+относятся к `bb24f35f6d44ed227021368acbc41f9c0f8e7278`; final integration/CI/review
+ещё впереди. Подключение UI остаётся отдельным следующим блоком.
 Это первый блок [принятого плана](../EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md).
 Plan/journals commit `eac7a504` предшествует source commit
 `8104e106ab4da839e99a49007f180cbdad83a9ed`, base main `24e78024`.
@@ -54,7 +57,9 @@ spans`); пустые attempted-export файлы не являются лога
 cases запущены после изменения decoder/test и записаны напрямую. Стандартное
 Node MODULE_TYPELESS_PACKAGE_JSON warning осталось; проваленных tests нет.
 
-## Что ещё требуется
+## Исторический остаток на момент source8104e106
+
+Ниже сохранено состояние до интеграции236 и последующей actual-проверки237.
 
 ROOT236 / PR#1016 пока отсутствует в sourcebase main24e78024: в базе001–235,
 наш237 не делает её непрерывной до237.236 не копировалась/не создавалась здесь.
@@ -84,3 +89,17 @@ country reader/страницу каталога: полная продукто�
 product tests не повторялись. Diff/whitespace/parity проверены. Требуются fresh
 protected CI и exact-head integration review; actual237 всё ещё ждёт B1015
 release и принятого observer/apply/RPC packet. SOURCE_ONLY не означает merge GO.
+
+## Последующая actual-проверка и текущий остаток
+
+На неизменном sourcebb24f35f один локальный apply237 и четыре ordinary
+Auth/PostgREST probes завершены. Независимые DDL reviewe133a066 и RPC/closure
+review97acb1ae приняты. Исходные source-only ограничения выше являются историей,
+а результаты и непокрытые варианты перечислены в отдельной actual-квитанции.
+ROOT выпустил handoff07d28083 после полного final3610d43f; ресурс QA снова у
+ROOT_COORDINATOR, повторных runtime-вызовов A не требуется и не планируется.
+
+Нужно интегрировать актуальный main после #1015, сохранив пять A237 source/test/SQL
+файлов, пройти protected CI и независимый final-head review. Старый CI35639431195
+наbb24f35f успешен, но не подменяет проверку нового integration head. Следующий
+rail UI блок начинается после merge #1017; весь item15/1–36 и production не закрыты.

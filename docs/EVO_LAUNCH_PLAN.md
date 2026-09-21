@@ -13717,3 +13717,17 @@ scoped links. Safe internal Back retains the report context; explicit editor/row
 destinations retain precedence. Forms/actions/SQL/readers are unchanged. Seven
 navigation tests, scoped lint and typecheck passed; ordinary UI/Auth/refresh
 acceptance remains pending after A1005 and B1006. No import or production write.
+
+## 2026-09-21 — ROOT7b / PR1007 actual local235 closure
+
+[Import placement acceptance](qa/crm-sales-import-placement-actual-2026-09-21.md)
+on clean3035e912 confirms scoped Admin/custom-staff entry/denial, context-preserving
+Back, annual/archive/invalid contexts, existing record/editor precedence and Admin
+Settings entry.1440/390/320 inspected; original importer/actions/SQL unchanged.
+No file selection or submission. Two driver STOPs remain; an independently reviewed
+finite functional continuation completed remaining branches without another visual
+round or login. Sales passed its first batch. Final6fd1ecbd/verifierf2bdbb91 prove
+all290 business/catalog/effects and33 Auth/Storage preservation, with only owned
+sign-in metadata/four Auth audits. Both logouts204, browsers and owned Next closed.
+The launch-binding stop guard and exact-owned-process cleanup are retained.
+Final docs review/CI/merge and release to B32 remain; no production authority.

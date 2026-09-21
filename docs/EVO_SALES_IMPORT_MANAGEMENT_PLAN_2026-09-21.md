@@ -36,3 +36,12 @@ Settings: добавить маленький server-derived `salesImportHref?: 
 Owned будущие файлы: main/page, SalesRegisterView query/link, новый ImportView, небольшой navigation helper при указанном переносе, settings/page → Settings → sections prop; точечные pure tests. Не менять SalesRegisterForms.tsx, platform-sales-register-actions.ts,235SQL/reader/DTO, finance, existing v1/v2. Формат2…900000 bytes,250 sales/120 targets, SHA/request/replay/strict receipt/без overwrite сохраняется (`platform-sales-register-actions.ts:200–239`).
 
 Проверки: pure URL/precedence/invalid-array/own-path/period-offset preservation; scoped lint/typecheck; source parity неизменных forms/actions. Actual local QA — существующий обычный Admin и доступный custom staff, если такой actor реально есть: Settings/report → import → Back, preview/denied/unavailable доступными реальными путями, refresh с выбранным существующим разрешённым файлом без submit и проверка сохранения File/request, один mount. Если подходящего файла/actor нет — explicit gap, не создавать фикстуру. Никакого import submit, receipt/audit или target write ради перемещения. Actual business/Storage unchanged, own Auth sessions учесть; desktop390/320/keyboard, максимум два visual batches. Старые233 captures — только incumbent. Нет нового permission question или runtime authority в этом плане.
+
+## Actual local follow-up, 2026-09-21
+
+The unchanged placement implementation was exercised on clean3035e912 with ordinary
+Admin/custom staff Auth and1440/390/320 captures. Report/Settings entries, scoped
+denial, safe Back and explicit record/editor precedence were confirmed. No import
+was submitted. Strict final effect reconciliation passed after both own logouts.
+See [actual acceptance](qa/crm-sales-import-placement-actual-2026-09-21.md) for preserved driver STOPs, the finite functional continuation and limits.
+Final docs-head review/CI/merge remain; no production acceptance is implied.

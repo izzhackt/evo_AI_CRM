@@ -34,3 +34,12 @@ ESLint семиTS/TSX-файлов и обычный `npm run typecheck` PASS н
 QA-окно после A1005 и B1006. Ordinary Settings/report→import→Back, denied/invalid,
 один mount, keyboard/1440/390/320; доступный настоящий файл и refresh без submit.
 Отсутствующие actor/file/state не создавать ради матрицы. Production не затронут.
+
+## Actual local follow-up, 2026-09-21
+
+The unchanged placement implementation was exercised on clean3035e912 with ordinary
+Admin/custom staff Auth and1440/390/320 captures. Report/Settings entries, scoped
+denial, safe Back and explicit record/editor precedence were confirmed. No import
+was submitted. Strict final effect reconciliation passed after both own logouts.
+See [actual acceptance](crm-sales-import-placement-actual-2026-09-21.md) for preserved driver STOPs, the finite functional continuation and limits.
+Final docs-head review/CI/merge remain; no production acceptance is implied.

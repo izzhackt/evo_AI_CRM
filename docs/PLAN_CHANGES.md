@@ -36701,6 +36701,38 @@ old operational snapshots and distinguishing local #985 materials from pending
 company-download proof. Prose-only validation: diff review and git diff --check.
 
 
+## 2026-09-21 — ROOT22 sidebar disclosure identity and acceptance boundary
+
+Before coding, narrow the navigation fix to the existing authorized destination
+identity. Current query-based Sidebar remount loses disclosure choices even for
+calendar Next Link period changes. Replace only destinationKey in navigation.ts;
+retain role/access-version resets and all allowed-link computation. Unknown or
+hidden routes use a separately tagged pathname fallback, never an unauthorized
+candidate. Existing AppShell and form/mobile handlers stay unchanged.
+
+The original planning example mentioned report filters. Source inspection showed
+sales and catalogue search forms perform native GET document navigation, so a key
+change cannot preserve their React state across submission. The real acceptance
+path is calendar Next month and client Back/Forward; report reset is tested only
+after its initial GET has loaded and disclosures are set. No promise across reload,
+new tabs or native GET. Impeccable refinement preserves EVO's current visual and
+interaction vocabulary; one inspection batch plus at most one confirmation.
+Meaningful key/authorization tests, scoped checks and actual ordinary UI are kept
+separate. B32/A1008 own the earlier local windows; no runtime or data mutation is
+part of this precode entry. Public planning follows private approved plan8125ecd2
+and source-path correction927dd0e4; the complete item22 remains open.
+
+
+## 2026-09-21 — ROOT22 sidebar destination source implementation
+
+[Source proof](qa/crm-sidebar-destination-state-source-2026-09-21.md) records
+product d4c7dcdf: key now follows authorized activeId (tagged pathname fallback),
+with unchanged role/access-version boundaries. AppShell, visibility/guards,
+forms and visual styles are untouched.19 real navigation-builder tests, scoped
+lint, typecheck and diff-check passed. This establishes source behavior only;
+ordinary calendar Next Link/Back/Forward and1440/390/320 acceptance await the
+coordinated window after B32/A1008. Native GET/reload remain outside the guarantee.
+
 ## 2026-09-21 — A14a / PR1008: реальный каталог и закрытие local QA
 
 Product b8497ad44cd020f0abf112b92a5b4a7c7d459651 прошёл existing Admin ordinary
@@ -36744,6 +36776,28 @@ Main7be6461de23fe9c8e8a0cd378010d8be03637757 включён с сохранен�
 (16/15/0), пяти входящих docs и всех append-only записей. Runtime/source/test
 дерево остаётся byte-identical actual b8497ad4; новых product checks не запускали.
 
+## 2026-09-21 — ROOT22 partial UI, strict closure and functional remainder
+
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) records
+source32f50df4: first1440 assertions and390 month transitions completed before
+the script's open-menu pointer obstruction. One corrected confirmation stopped
+on document navigation; its cause remains unknown. Preserve both STOPs and
+keep #1010 draft. No product change or third visual/polish round is justified.
+Strict final290/33 passed with only own Auth metadata/two audits; own204/browser/
+server/port/token closure completed, resource6f6ff7ed passed to B32.
+
+Independent prepared plan93841526/reviewaee13ab1 fills only missing390/320
+FUNCTIONAL branches after B32/B1006, without screenshots or1440 repetition.
+Observe real Link interception together with URL/period/epoch/document requests;
+aria-busy is not hydration proof. No forced/prevented event or native fallback.
+Record each stage, one attempt, stop on unexpected outcome. Existing real data
+and source guards remain; no fixtures/tasks/roles/providers/production. This
+changes the method after observed automation stops, not the acceptance standard:
+full relevant UI proof, independent review and CI remain required for merge.
+
+Integrate accepted main d6add883 (#1008) and KB #1011. Both journal conflict
+blocks are retained; the two ROOT product files remain byte-identical to32f50df4,
+and incoming catalogue product files match main. Reuse unchanged scope checks.
 
 ### A15g-2 — последовательности одного автора, precode 2026-09-21
 
@@ -36851,6 +36905,53 @@ remain required before ordinary merge; no new QA window or deployment implied.
 Independent actual+closure review27e335dd is APPROVED_SCOPED_NEGATIVE_UI_AND_CLOSURE;
 this does not claim server-command execution or positive request acceptance.
 
+## 2026-09-21 — ROOT22F partial functional result and main1013 integration
+
+Preserve both main c42f3963 Company-download checkpoint and ROOT22 history.
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) adds the
+single 34b6bd0b functional attempt: 390 Week/Back/Escape passed; same-sidebar's
+10-second waiter stopped because it defaulted month while the bare route defaults
+week. This is a proven harness/source mismatch, not a product bug or completed
+same-sidebar acceptance. Different destination and 320 were not run; no 1440 repeat,
+screenshots or retry. Any corrected inert proposal remains unexecuted preparation.
+Strict final 290/33/catalogue/effects and old sessions/refresh/AMR reconciliation
+passed; only own Auth metadata/two audits changed. Own API logout 204, browser/token/
+process/port closure and actual Ctrl-C exit 1 are retained. Release 11e05efb passed
+the environment to A15; product acceptance=false and #1010 remains draft.
+Only documentation changes; both product/test files retain 34b6bd0b bytes. Preserve
+current main rows 14/32 and update only the sidebar row 22/intro. Diff/marker review
+and git diff --check only; exact-head independent review/CI still gate merge.
+
+Corrected remainder script04f53dc1 / independent inert review9f334e2a is prepared
+only: bare Calendar expects week;320 selects the real «Месяц» Link before monthly
+checks. Passed390 Week/Back/Escape and1440 are excluded. It remains UNBOUND and
+unexecuted, queued after A15 and B1006 with fresh source/release/actor binding;
+no runtime admission or full item22 acceptance follows from this preparation.
+
+
+## 2026-09-21 — ROOT22G scoped functional acceptance and main integration
+
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) appends the
+single remaining functional pass at f5f8fef2: 390 same/different-destination and 320
+Month/next/Back/Forward/Week/Escape/focus/menu passed with trusted client Link,
+correct URL/period and unchanged document. No 1440 repeat or new screenshots.
+Independent actual/closure review 799f96ff accepts the bounded remainder; earlier
+STOPs and their precise limits remain historical, not relabelled successes.
+Strict final 290/33/catalogue/effects, original sessions/refresh/AMR and own cleanup
+passed; only own Auth sign-in metadata/two audits differ. Logout API 204, closed
+browser/server/33254, removed captured Auth and actual Ctrl-C exit 1 are retained.
+Release 77a63714 passed to A1014; its pre-review productAcceptance=false is immutable.
+The narrow client-navigation function is locally accepted, not the whole item 22,
+native GET/reload persistence, other roles, a new visual cycle or production.
+
+Integrate main 8b6259ec (#1012 at 7faa4748; #1006 at 8b6259ec), preserving both journal
+histories and current catalogue/KB/download rows. Align current rows 15/24 to those
+verified merges without widening grouping or negative-profile evidence; row 22
+records this actual result. Four shell/navigation files retain 32f50df4 bytes;
+other incoming product files retain main bytes. Documentation diff/marker/parity
+review and git diff --check only; no product tests, runtime or production action.
+Final exact-head documentation review and protected CI still gate #1010 merge.
+
 
 ## 2026-09-21 — B24 notification feedback: предложение до реализации
 
@@ -36874,3 +36975,15 @@ body, без перехвата другого выбранного контро
 RPC, SQL и styling не менялись. Source проверки/четыре подтверждённых прежних
 UI-contract failures описаны в [checkpoint](platform/portal-notification-read-feedback.md).
 Реальный browser/Auth/DB actual не выполнялся и остаётся отдельным gate.
+
+
+### B1015 — source approval и интеграция main59a726b
+
+Независимое APPROVED_SOURCE_ONLYff585096 для1c296e85 принято координатором.
+Интегрирован свежий main59a726b (#1010): обе ordered journal histories сохранены,
+актуальные строки ведомости приняты без изменений. Все6 B product/test files
+побайтно сохраняют sourcefd7f0900; другие incoming main files сохранены.
+Никаких новых product edits, тестовых повторов или runtime-действий. Прежние
+source checks сохраняют свои ограничения, включая4 baseline UI-contract failures.
+Draft #1015 ждёт CI интеграционного head; прежний DIRTY/zero-CI не считается
+проверкой. Actual B только после handoff ROOT_COUNTRY236 и отдельного admission.

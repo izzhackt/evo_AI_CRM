@@ -165,3 +165,21 @@ Draft PR/source review и CI — следующие gates. Shared QA остаё�
 ROOT планирует свой следующий country-facet блок. Нового QA-окна для B нет.
 Single/bulk/detail UI, реальная запись, retry/partial failure, session-expiry
 redirect, focus и responsive/RU-KY остаются неподтверждёнными.
+
+## Source review и интеграция main
+
+Независимое `APPROVED_SOURCE_ONLY` для exact head
+`1c296e85c45ec0743ba8849cb23f3e540706c6cc` принято координатором; review SHA256
+`ff5850969e23541af85a5689a9d2808f35b6bea4d6ee96293bd7fcd7327182b5`.
+Интегрирован свежий main `59a726b53217d816a40e1653fe57b544368e7134` (#1010).
+Обе истории Launch/PLAN_CHANGES сохранены в исходном порядке, актуальная ведомость
+взята из main без изменений. Все четыре продуктовых и два тестовых файла B
+побайтно совпадают с проверенным fd7f0900; все остальные входящие файлы main
+сохранены. Изменений сверх merge и документации нет. Прежние source checks
+используются в своих границах, не выдаются за новый прогон.
+
+До интеграции GitHub показывал DIRTY и отсутствие CI для draft #1015; это не
+прошедшая проверка. После push интеграционного head нужны его CI и отдельная
+приёмка. A1014 передал среду ROOT_COUNTRY236; actual B возможен только после
+его handoff и отдельного admission. Single/bulk/detail, положительная запись,
+ручной повтор, частичный bulk, redirect и focus по-прежнему не подтверждены UI.

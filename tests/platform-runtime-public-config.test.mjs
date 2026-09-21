@@ -120,6 +120,59 @@ test("chat connects with supplied public config in an env-free browser and keeps
   for (const cleanup of cleanups) cleanup?.();
 });
 
+test("revocation remains terminal when an earlier context request rejects afterwards", async () => {
+  const cells = [], effects = [];
+  let cursor = 0, connections = 0, rejectContext;
+  const contextResponse = new Promise((_resolve, reject) => { rejectContext = reject; });
+  const hooks = {
+    useState(initial) {
+      const index = cursor++;
+      if (!(index in cells)) cells[index] = { value: typeof initial === "function" ? initial() : initial };
+      return [cells[index].value, (next) => { cells[index].value = typeof next === "function" ? next(cells[index].value) : next; }];
+    },
+    useRef(initial) { const index = cursor++; return cells[index] ??= { current: initial }; },
+    useCallback: (callback) => callback,
+    useEffect: (effect) => effects.push(effect), useLayoutEffect: (effect) => effects.push(effect),
+  };
+  const jsx = (type, props) => ({ type, props });
+  const seenHook = loadSource("src/components/v3/team-chat/useTeamChatSeen.ts", {
+    react: hooks, "@/lib/platform-team-chat-seen-actions": {},
+    "@/lib/platform-team-chat-seen": chatSeen, "@/lib/team-chat-feed": chatFeed,
+  });
+  const { TeamChat } = loadSource("src/components/v3/team-chat/TeamChat.tsx", {
+    react: hooks, "react/jsx-runtime": { jsx, jsxs: jsx }, "next/link": { default: "Link" },
+    "@supabase/ssr": { createBrowserClient() { connections++; throw new Error("must not reconnect after revocation"); } },
+    "@/lib/platform-team-chat-actions": {},
+    "@/lib/platform-team-chat-v2-actions": { readTeamChatTimelineV2Action: () => contextResponse },
+    "@/lib/platform-team-chat": loadSource("src/lib/platform-team-chat.ts"),
+    "@/lib/team-chat-feed": chatFeed,
+    "@/lib/platform-organization-time": loadSource("src/lib/platform-organization-time.ts"),
+    "@/components/icons": loadSource("src/components/icons.tsx", { "react/jsx-runtime": jsxRuntime }),
+    "./TeamChatComposer": { TeamChatComposer: "Composer" },
+    "./TeamChatMessageRow": { TeamChatMessageRow: "MessageRow" }, "./useTeamChatSeen": seenHook,
+    "./team-chat.module.css": { default: {} },
+  }, { setInterval: () => 0, clearInterval() {}, clearTimeout() {},
+    document: { addEventListener() {}, removeEventListener() {} },
+    window: { addEventListener() {}, removeEventListener() {} } });
+  const props = { initial: { page: { schemaVersion: 2, messages: [], quotes: [], watermark: "0", beforeCursor: "0", afterCursor: "0", hasBefore: false, hasAfter: false, latestMessageId: null, focusMessageId: null }, channels: [], participants: [] },
+    channel: "general", organizationId: "test-org", membershipId: "test-member", canModerate: true,
+    realtimeConfig: { url: "https://evo-test.supabase.co", publishableKey: "sb_publishable_runtime_test" } };
+  const render = () => { cursor = 0; effects.length = 0; return TeamChat(props); };
+  const findComposer = (node) => !node || typeof node !== "object" ? null : Array.isArray(node)
+    ? node.map(findComposer).find(Boolean) : node.type === "Composer" ? node : findComposer(node.props?.children);
+  const composer = findComposer(render());
+  assert.ok(composer);
+  const pendingContext = composer.props.onResumeEdit("00000000-0000-4000-8000-000000000111");
+  composer.props.onFailure("forbidden");
+  assert.equal(Boolean(findComposer(render())), false);
+  rejectContext(new Error("late transport failure"));
+  await pendingContext;
+  assert.equal(Boolean(findComposer(render())), false, "A late failed read must not recover the draft/editor after revocation");
+  const cleanups = effects.map((effect) => effect());
+  assert.equal(connections, 0, "Revocation must keep the private realtime effect stopped");
+  for (const cleanup of cleanups) cleanup?.();
+});
+
 test("the successor env template exposes only publishable Supabase values to the browser", () => {
   for (const path of ["deploy/env.production.example"]) {
     const source = readFileSync(path, "utf8");

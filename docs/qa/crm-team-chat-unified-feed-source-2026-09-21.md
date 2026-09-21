@@ -74,3 +74,14 @@ light/dark desktop and320/390px in one batched Impeccable round, then one fix ba
 and at most one confirmation. No native iPhone or screen-reader success claimed.
 
 A15g grouping/density and full channel preview/time projection remain separate.
+
+## Independent source review correction
+
+Review of6914fc67 requested one P2 correction: a late transport rejection could
+replace the terminal forbidden state and remount the editor. Failure reporting
+now ignores responses after revocation, and cache commits also stop. The ordering
+regression invokes the actual component callbacks with an isolated deferred
+transport: it fails before the fix, then proves the editor stays absent and the
+private realtime effect does not reconnect. This is unit evidence, not browser
+or database authorization proof. The focused set now passes19/19; delta ESLint,
+TypeScript and diff check pass. Independent delta review and actual UI remain.

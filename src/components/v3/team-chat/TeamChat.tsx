@@ -86,10 +86,12 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     if (!scroll.current) scroll.current = { kind: "anchor", anchor: captureAnchor(viewport.current) };
   }, []);
   const commit = useCallback((next: Feed) => {
+    if (!alive.current || revoked.current) return;
     preserveScroll(); current.current = next; setFeed(next);
   }, [preserveScroll]);
   const reportFailure = useCallback((status: TeamChatFailure) => {
-    if (!alive.current) return;
+    // Revocation is terminal for this actor/channel instance, including late failures.
+    if (!alive.current || revoked.current) return;
     setError(status);
     if (status === "forbidden") {
       revoked.current = true; contextRequest.current += 1;

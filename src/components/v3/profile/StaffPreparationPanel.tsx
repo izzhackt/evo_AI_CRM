@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { btnCls, btnGhostCls } from "@/components/ui";
 import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";
-import type { ApplicationRequirementItemV2, ApplicationRequirementsV2 } from "@/lib/portal/application-requirements-v2";
-import { readStaffPreparationRequirementsAction, type StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
+import type { ApplicationDocuments } from "@/lib/portal/application-documents";
+import { readStaffApplicationDocumentsAction } from "@/lib/portal/application-documents-actions";
+import { getPortalStrings } from "@/lib/portal/i18n";
+import { ProgramDocumentItem } from "@/components/portal/admissionPreparations/ProgramDocumentItem";
+import { ProgramDocumentHistory } from "@/components/portal/admissionPreparations/ProgramDocumentHistory";
+import { ProgramDocumentRecovery } from "@/components/portal/admissionPreparations/ProgramDocumentRecovery";
+import type { StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
 import { continueStaffRequirements, useStaffPending, type StaffPreparationScope } from "./staff-preparation-client";
 import { StaffRequirementsEditor } from "./StaffRequirementsEditor";
 import { EDITOR_PENDING_EVENT, readEditorPending } from "@/lib/portal/application-requirements-editor-pending";
@@ -23,33 +28,24 @@ function subscribeEditorPending(callback: () => void) {
   };
 }
 
-const associations = new Set(["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"]);
-function fileState(item: ApplicationRequirementItemV2): string {
-  if (item.unavailableReasons.some((reason) => associations.has(reason))) return "Связь с документом требует проверки";
-  if (item.unavailableReasons.includes("file_missing")) return "Файл ещё не загружен";
-  if (item.technicalAvailability === "available") return "Файл доступен";
-  if (item.unavailableReasons.includes("malware_infected")) return "Файл заблокирован проверкой безопасности";
-  if (item.unavailableReasons.some((reason) => ["integrity_failed", "malware_error"].includes(reason))) return "Не удалось подтвердить безопасность файла";
-  return "Файл проходит техническую проверку";
-}
-function reviewState(item: ApplicationRequirementItemV2): string {
-  if (item.unavailableReasons.some((reason) => associations.has(reason))) return "Состояние проверки версии файла недоступно";
-  if (item.reviewDecision === "approved") return "Проверка версии файла: принят";
-  if (item.reviewDecision === "correction_required") return "Проверка версии файла: нужны исправления";
-  if (item.reviewDecision === "rejected") return "Проверка версии файла: отклонён";
-  return item.currentVersionId ? "Решение сотрудника по текущей версии файла ещё не получено" : "Проверка версии файла: файла пока нет";
+async function readProgramDocuments(scope: StaffPreparationScope, applicationId: string): Promise<StaffPreparationRead<ApplicationDocuments>> {
+  const result = await readStaffApplicationDocumentsAction(scope, { studentCaseId: scope.studentCaseId, applicationId });
+  return result.ok ? { status: "ready", value: result.documents }
+    : { status: result.reason === "forbidden" ? "forbidden" : "unavailable" };
 }
 
-export function StaffPreparationPanel({ preparation, scope, canRead, canInitialize }: {
+export function StaffPreparationPanel({ preparation, scope, canRead, canInitialize, canReview = false }: {
   preparation: CatalogPreparation;
   scope: StaffPreparationScope;
   canRead: boolean;
   canInitialize: boolean;
+  canReview?: boolean;
 }) {
   const [explicitOpen, setOpened] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const editorButton = useRef<HTMLButtonElement>(null);
-  const [view, setView] = useState<StaffPreparationRead<ApplicationRequirementsV2> | null>(null);
+  const [view, setView] = useState<StaffPreparationRead<ApplicationDocuments> | null>(null);
+  const [historyEpoch, setHistoryEpoch] = useState(0);
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState(false);
   const { intent: retained, blocked: storageBlocked } = useStaffPending(scope, "requirements", preparation.applicationId);
@@ -71,26 +67,29 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
   const load = useCallback(async () => {
     if (!canRead) return;
     const request = ++epoch.current;
+    setHistoryEpoch(value => value + 1);
     setLoading(true);
     try {
-      const result = await readStaffPreparationRequirementsAction({ studentCaseId: scope.studentCaseId, applicationId: preparation.applicationId });
+      const result = await readProgramDocuments({ organizationId: scope.organizationId, membershipId: scope.membershipId,
+        studentCaseId: scope.studentCaseId }, preparation.applicationId);
       if (request === epoch.current) setView(result);
     } catch {
       if (request === epoch.current) setView({ status: "unavailable" });
     } finally {
       if (request === epoch.current) setLoading(false);
     }
-  }, [canRead, scope.studentCaseId, preparation.applicationId]);
+  }, [canRead, scope.organizationId, scope.membershipId, scope.studentCaseId, preparation.applicationId]);
   useEffect(() => {
     // Opening an anchor only reads. No initialization or replay happens on mount.
     if (!anchorOpen || !canRead) return;
     let active = true;
     const request = ++epoch.current;
-    void readStaffPreparationRequirementsAction({ studentCaseId: scope.studentCaseId, applicationId: preparation.applicationId })
+    void readProgramDocuments({ organizationId: scope.organizationId, membershipId: scope.membershipId,
+      studentCaseId: scope.studentCaseId }, preparation.applicationId)
       .then((result) => { if (active && request === epoch.current) setView(result); })
       .catch(() => { if (active && request === epoch.current) setView({ status: "unavailable" }); });
     return () => { active = false; };
-  }, [anchorOpen, canRead, preparation.applicationId, scope.studentCaseId]);
+  }, [anchorOpen, canRead, preparation.applicationId, scope.organizationId, scope.membershipId, scope.studentCaseId]);
 
   async function initialize() {
     if (busy.current || !canInitialize || !canRead || storageBlocked) return;
@@ -102,7 +101,10 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
       setMessage("Результат не подтверждён. Если запрос сохранён, повтор будет отправлен с тем же номером.");
     } finally { busy.current = false; setPending(false); }
   }
-  const requirements = view?.status === "ready" ? view.value : null;
+  const documents = view?.status === "ready" ? view.value : null;
+  const requirements = documents?.requirements ?? null;
+  const documentScope = { ...scope, applicationId: preparation.applicationId };
+  const documentStrings = getPortalStrings("programDocuments", "ru");
   return <section id={id} className="mt-4 scroll-mt-6 border-t border-border pt-3" aria-label="Подготовка по выбранной программе">
     <p className="text-sm text-fg-2">Набор: {intake.label}</p>
     <p className="mt-1 text-sm text-fg-3">{preparation.deadlineStateAtSelection === "needs_confirmation" ? "Срок набора нужно подтвердить" : "Срок сохранён при выборе"}{intake.applicationDeadline ? ` · ${intake.applicationDeadline}` : ""}</p>
@@ -126,10 +128,9 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
         {view && view.status !== "ready" ? <p role="alert" className="text-sm text-danger">Не удалось прочитать документы. Сохранённая подготовка остаётся доступной.</p> : null}
         {requirements?.state === "needs_configuration" ? <p role="status" className="text-sm leading-6 text-fg-2">Перечень или связи документов требуют настройки сотрудником. Существующий список не заменён.</p> : null}
         {requirements?.state === "uninitialized" ? <p className="text-sm text-fg-2">Стартовый список ещё не открыт.{!canInitialize ? " Для продолжения нужно право на подготовку документов и активное дело." : ""}</p> : null}
-        {requirements?.items.length ? <ul className="divide-y divide-border">{requirements.items.map((item) => <li key={item.requirementItemId} className="py-3">
+        {requirements?.items.length && requirements.revisionId && documents ? <ul className="divide-y divide-border">{requirements.items.map((item, index) => <li key={item.requirementItemId} className="py-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <p className="min-w-0 break-words font-medium text-fg">{item.label} <span className="text-sm font-normal text-fg-3">{item.required ? "Обязательно" : "Необязательно"}</span></p>
-            {!item.unavailableReasons.some((reason) => associations.has(reason)) ? <a className={btnGhostCls} href={`${docsHref}#document-${item.documentSlotId}`}>Открыть в документах</a> : null}
           </div>
           {item.definitionImpact === "changed" ? <p className="mt-2 max-w-2xl text-sm leading-6 text-fg-2">Требование изменилось. Проверьте, подходит ли текущий файл под новую инструкцию; прежнее решение по файлу не подтверждает это автоматически.</p> : null}
           {item.deadline ? <div className="mt-2 text-sm leading-6 text-fg-2">
@@ -137,16 +138,23 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
             <p>Срок проверен: <time dateTime={item.deadline.verifiedOn}>{item.deadline.verifiedOn.split("-").reverse().join(".")}</time></p>
             {item.deadline.sourceUrl ? <a className="inline-flex min-h-11 items-center underline underline-offset-4" href={item.deadline.sourceUrl} target="_blank" rel="noopener noreferrer">Источник срока (откроется в новой вкладке)</a> : null}
           </div> : null}
-          <p className="mt-1 text-sm text-fg-2">{fileState(item)}</p>
-          <p className="mt-1 text-sm text-fg-3">{reviewState(item)}</p>
-          {item.reviewReason ? <p className="mt-1 text-sm text-fg-2">{item.reviewReason}</p> : null}
           {item.instructions ? <p className="mt-2 max-w-2xl text-sm text-fg-3">{item.instructions}</p> : null}
+          <ProgramDocumentItem item={documents.items[index]} scope={documentScope} target={{ studentCaseId: scope.studentCaseId,
+            applicationId: preparation.applicationId, requirementsRevisionId: requirements.revisionId!,
+            requirementItemId: item.requirementItemId, documentSlotId: item.documentSlotId }}
+            audience="staff" strings={documentStrings} canReview={canReview} onSaved={() => void load()} historyEpoch={historyEpoch} />
         </li>)}</ul> : null}
+        <ProgramDocumentRecovery scope={documentScope} audience="staff" strings={documentStrings}
+          currentItemIds={documents?.items.map(item => item.requirementItemId) ?? []}
+          currentSubmissionIds={documents?.items.flatMap(item => item.submission ? [item.submission.submissionId] : []) ?? []}
+          onSaved={() => void load()} />
+        <ProgramDocumentHistory key={historyEpoch} scope={documentScope} target={{ studentCaseId: scope.studentCaseId, applicationId: preparation.applicationId }}
+          requirementItemId={null} audience="staff" strings={documentStrings} canReview={canReview} onSaved={() => void load()} />
         {storageBlocked ? <p role="alert" className="text-sm text-danger">Не удалось прочитать сохранённый запрос. Новое действие не отправляется.</p> : null}
         {canInitialize && (retained || requirements?.state === "uninitialized") ? <button type="button" disabled={pending || loading || storageBlocked} className={btnCls} onClick={() => void initialize()}>{pending ? "Подготавливаем…" : retained ? "Повторить сохранённый запрос" : "Продолжить подготовку"}</button> : null}
         <div className="flex flex-wrap gap-2"><button type="button" className={btnGhostCls} disabled={loading || pending} onClick={() => void load()}>Обновить документы</button><a href={docsHref} className={btnGhostCls}>Все документы дела</a></div>
         {canInitialize || hasEditorPending ? <button ref={editorButton} type="button" className={`${btnGhostCls} h-auto min-h-11 whitespace-normal py-2`} disabled={pending || !!retained || storageBlocked} onClick={() => setEditorOpen(true)}>{hasEditorPending ? "Проверить сохранение списка" : "Настроить список документов"}</button> : null}
-        <p className="text-sm text-fg-3">Загрузка в разделе документов сразу отправляет файл на проверку сотруднику.</p>
+        <p className="text-sm text-fg-3">{documentStrings.saveHint}</p>
       </>}
       {message ? <p role="alert" className="text-sm text-danger">{message}</p> : null}
       </>}

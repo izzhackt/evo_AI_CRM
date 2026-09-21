@@ -35737,3 +35737,89 @@ Contract: `docs/platform/payment-receipt-authority-contract-2026-09-21.md`. Actu
 Implemented authenticated receipt upload/download target RPCs and a closed scalar decoder; handlers no longer directly SELECT payment_events/payment_receipt_files for receipt operations. Delegated metadata admission locks organization then existing155 profile/membership order and case; explicit156/189 read+write policy precedes historical replay, with full stored principal/metadata comparison. Contract-file handler/functions remain unchanged. Missing/malformed target and infrastructure errors503; explicit42501 becomes403. No UI edits.
 
 Node22 targeted decoder plus existing case-agreement checks41/41 PASS, scoped ESLint/typecheck/diff-check PASS. These are pure/source checks, not SQL/RLS or actual upload acceptance. Existing configured migration boundary invokes Docker/Postgres and was not run under source-only scope; SQL compile/role/revocation/concurrency/replay execution remains pending independent review and coordinated post228 local QA. Zero successful upload claim remains unchanged.
+
+
+## 2026-09-21 — CRM-02c: mobile sales presentation, precode
+
+Принятое требование пункта7 реализуется локальной адаптацией существующей
+таблицы `SalesRegisterView.tsx`, а не сменой модели продаж. Impeccable
+Operate/adapt рекомендует один DOM/anchor и вертикальный mobile layout с
+сохранением desktop и всех исходных полей/ссылок/прав. ROOT отдельно владеет
+этой presentation; A/B файлы не пересекаются. Пользователь разрешил параллельную
+работу: source-подготовка идёт независимо от #990, общий runtime остаётся у
+текущего владельца, actual проверка следует после передачи окна. Остальные
+остатки7 (полный direction facet, сводка, import) не включены. Критерии и пределы
+приёмки записаны в CRM-02c launch appendix до изменения UI.
+
+## 2026-09-21 — CRM-02c: actual UI принятие, без изменения runtime
+
+Source `26c8b4c268b628563b5dd5b3226bea47c0866631`: existing ordinary Sales,
+пять сохранённых QA-строк, desktop 1440 и mobile 390/320 PASS; ширина списка
+совпадает со scrollWidth 346/286 px. Значения/ссылки, browser AX table/headers/rows,
+видимый keyboard focus и поиск → preview → возврат к той же строке сохранены.
+Full 283/schema, Storage objects/buckets без изменений, собственная Auth-сессия
+восстановлена; runtime закрыт. Actual receipt SHA256 `0c6cd413884449f4ecfca3d3ab41208d3cf9e30f5193d19e491c7f4c086e4626`,
+release SHA256 `16ece6aa4a6e6ef84cfae0fae9e0e1caf5a119b0c261b41f96e9607e2cd105c4`
+в `/private/tmp/evo-sales-mobile-actual-20260921/`; CI 35566545192: 5 PASS / 3 SKIP.
+Это локальная приёмка списка без новых fixtures/financial writes. Отдельная
+сводка 400 px, остатки пункта 7, native VoiceOver и production не покрыты.
+Текущий follow-up только фиксирует evidence; UI/SQL/API не меняются.
+
+
+## 2026-09-21 — item36: checkpoint после #987/#988/#991
+
+Docs-only на main `82260fdc`: обновлены current fronts execution/A/B и refinement.
+#987 direct quotes227, #988 editor226, #991 mobile sale records приняты в source
+и пределах локальных receipts; история и ограничения не переписаны. #990/229,
+#992 unified feed и #993/228 остаются непринятыми actual блоками. Пункты27/28/31/32
+сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
+DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
+Проверка: diff review и git diff --check; независимое exact-head review до merge.
+## 2026-09-21 — B3f / 228: отдельные загрузка, отправка и проверка документа
+
+#988 MERGED `28613990d`: bounded editor226 QA/CI/review завершены; полныйRAW
+release `bcb7ed6d` передан A227, B больше не использует общий runtime.
+Root резервирует228 только для следующего single-document B3f; очередь
+A227→ROOT990→ROOT991 сохраняется, apply не разрешён.
+
+Source inventory055/043/116/128/226 показал, что общий current/status и прежний
+review автоматически связали бы A/B. Принято направление отдельных immutable
+program upload/submission/review/download contexts при тех же canonical bytes
+и scan/Storage transport. Старые Docs/manual/visa и approved ZIP guards сохраняются.
+[Precode228](platform/b3f-program-document-submission-contract.md) фиксирует
+approved-current replacement, exact historical-version download, fail-closed
+old readers и узкий SQL context-exclusion на legacy replay-входах. Последнее —
+явное compatibility amendment для review, не глобальное изменение legacy-процесса.
+До кода — независимое exact precode review; следующий полный package B3g отдельно.
+Impeccable Operate сохраняет EVO и функции, уточняя реальные saved/submit/review
+состояния. Runtime/новые файлы/production/native acceptance не заявлены.
+
+Независимый precode review64d4324e потребовал два уточнения до реализации:
+история следует server-proven predecessor-цепочке226 и доступна также для
+удалённых требований; прежнее решение не переносится в новую definition.
+Old-reader PT409 ограничен публичными entrypoints; общий v2 helper сохраняет
+внутреннюю projection для свежего editor/save226 и authorized pending recovery.
+Добавлен узкий changed-requirements сценарий; это исправление полноты контракта,
+не исполненное runtime-доказательство.
+
+B3f wire уточнён перед соответствующим кодом: exact upload metadata/hash входят
+в admission до multipart; terminal replay проверяет реальные bytes и актуальный
+доступ в новом bounded body lease, без повторного scan/Storage. Canonical header
+и тонкие contextual routes не меняют legacy wire. Повторное использование файлов
+показывает первую страницу20 и scoped keyset nextCursor (max50), вместо загрузки
+всего архива или лимита, выключающего программу при большом числе версий.
+
+Прямую зависимость уведомлений сверили по актуальному153v2: его старые источники
+не разрешают программный review.228 добавляет scoped projection через existing
+notifications/events и exact review, UNION в неизменный восьмипольный feed и тот
+же guard при mark-read. Owner-only notification detail RPC даёт точную программу/
+версию для web/iPhone ссылки; нет fake legacy review, новой общей очереди или
+пятой companion таблицы. Это реализация уже принятого notification/deep-link
+контракта, не завершённая пользовательская проверка.
+
+Source-проверка B3f выявила прямую совместимость service-only metadata043/156:
+его `current_version_no + 1` конфликтует с новой draft-версией, которая специально
+не публикуется в current. До реализации уточняем228: source-checked замена одной
+формулы на MAX(version_no)+1 под прежней блокировкой slot, без изменения прав,
+legacy receipt и публикации. Contextual request запрещён до replay также в этом
+entrypoint и прежнем staff preflight; общий manual workflow сохраняется.

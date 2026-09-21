@@ -7,9 +7,10 @@
 
 ## Текущий checkpoint — 21 сентября 2026
 
-Срез исходников: main `684f7f31b644d98759482af099056a9b976cb8bc` после #984.
+Срез исходников: main `82260fdc2df3b6d370092633cf1ac1c350fe9af6` после #991.
 Прежние принятые блоки сохраняются; #967, #975–#979 и #981–#986 — MERGED.
-#980, #987 и #988 остаются DRAFT. MERGED означает исходники, LOCAL — ограниченную
+#987/#988/#991 также MERGED; #980/#990/#992/#993 остаются DRAFT на этом срезе.
+MERGED означает исходники, LOCAL — ограниченную
 фактическую проверку. Managed DB/production apply и release этим checkpoint не
 подтверждаются. Весь объём 1–36 не завершён; 37–50 исключены. Исторические
 квитанции ниже сохраняют свои ревизии и пределы проверки.
@@ -32,8 +33,10 @@
   #976/LOCAL223 добавил flat-history reader; #981 — план, #983/LOCAL225 —
   sparse seen без потери непрочитанных промежутков. Это реальные локальные
   Auth/RPC-проверки, не переключение UI на плоскую ленту. #986 — precode
-  direct quotes; #987 с реализацией227 остаётся DRAFT, actual apply/QA ещё не
-  приняты. Quotes/search/read/scroll и весь пункт15 не завершены.
+  direct quotes; #987/LOCAL227 принят: четыре сообщения, две direct-quote связи,
+  шесть эффектов, 43 отказа и три конфликта. Это Auth/RPC proof; переключение
+  на единую ленту #992 — source-only, actual UI ещё не принят. Search/read/scroll
+  и весь пункт15 не завершены; [227](qa/crm-team-chat-direct-quotes-227-2026-09-21.md).
   [223](qa/crm-team-chat-flat-reader-223-2026-09-21.md),
   [225](qa/crm-team-chat-sparse-seen-225-2026-09-21.md).
 - **Договор и оплата / пункт 12:** #971/#973 объединили договорный workflow
@@ -62,9 +65,23 @@ receipt `44c0f7`; факты/порядок/прежние IDs сохранен�
 #979 задаёт полный requirements-контракт; #982/LOCAL224 принял v2 readers:
 12 ordinary Auth reads, фактические TS/Swift decoders и CRM/Student desktop390
 на существующем starter, release `a6e53f58`. Это не positive full requirements.
-#988 (редактор226) — DRAFT; upload отдельно от submit, versioned packages/review
-и полный web/iPhone путь остаются открытыми.
+#988/LOCAL226 принят: обычный Admin сохранил три immutable revisions,
+существующий Student получил обновлённые требования. Replay проверен в rollback
+probe; stale/rebase/unknown/concurrency и native UI не приняты этой серией.
+[226](platform/b3e2-requirements-editor-qa.md). #993/228 — DRAFT/source-only:
+CI guard исправляется, actual apply/QA не приняты. Upload отдельно от submit,
+versioned packages/review и полный web/iPhone путь остаются открытыми.
 [224](platform/b3e1-requirements-v2-read-qa.md).
+
+#991/CRM-02c принят: actual source `26c8b4c2`, final `13d375a4`, merge `82260fdc`.
+Пять существующих строк и ссылки сохранены; desktop1440/mobile390/320,
+browser AX и поиск→preview→возврат проверены. CI35567157624; full283/Storage
+неизменны, собственные Auth sessions восстановлены. Summary400px, VoiceOver,
+остальные требования7 и production не покрыты.
+#990 — DRAFT: три попытки завершились без receipt/business/Storage effects.
+Последний blocker — service SELECT42501, ошибочно показанный как404; dependency229
+имеет исправленный source `8bcd` (ещё не main), actual ждёт B228. Успешные
+receipt upload/download и полный пункт12 не приняты.
 
 Root27/28: #978 — MERGED inactive primitives; #980 — DRAFT с локальным
 web/API/Mailpit confirmation/resend/denial/replay и восстановленной Auth-конфигурацией.
@@ -93,17 +110,17 @@ service scope и по123 применимость конфликтующих б�
 | Этап 0: контракт, worktree, координация | Изолированный worktree; исходный план сохранён без изменений; launch/decisions обновлены | MERGED #931, `8ef2aef01` |
 | CRM-06: загрузка admissions board | Продолжен #913: unset GET args, сброс видимых фильтров, retry/Students; реальные чтения и desktop/390px UI пройдены, см. квитанцию ниже | MERGED #913, `fc13ed96d`; production не обновлён |
 | CRM-08: правильный куратор, портал-доступ | Источник куратора и роли исправлены (#932); единый portal-access блок реализован, см. CRM-08b | MERGED #932, `819cd17d9`; #934, `dc3c246d4`; production не обновлён |
-| CRM-02: права, продавец, дата/месяц, поиск/финансы/UX | #935/#956/#958: права и preview/edit/filter/reset/back; #960: pending-case handoff; #962: literal search до count/totals/page, LOCAL216 Auth/UI320/390 | MERGED; phone/contract positive, >50 и salesOther остаются недоказанными; direction facet/layout ещё открыты; [search receipt](qa/crm-sales-search-2026-09-21.md); production отдельно |
+| CRM-02: права, продавец, дата/месяц, поиск/финансы/UX | #935/#956/#958: права и preview/edit/filter/reset/back; #960: pending-case handoff; #962: literal search до count/totals/page, LOCAL216 Auth/UI320/390 | MERGED; phone/contract positive, >50 и salesOther остаются недоказанными; mobile list #991 принят локально; direction facet/summary ещё открыты; [search receipt](qa/crm-sales-search-2026-09-21.md); production отдельно |
 | CRM-09: стоимость → договор → платежи | #933/#971/#973 workflow; #984 исправил DATE, actual Admin QA-транш1,00KGS/оплата0,50 → тот же Student остаток0,50 | MERGED; scoped local proof принят; contract-only/populated artifacts, refunds/receipt/mixed-currency, весь12 и managed отдельно |
 | CRM-03: заявки, источники и пагинация | #968: LOCAL221, 35 Auth reads и actual UI1280/390/320, server filter/cursor/return/history | MERGED; другие источники/pending positive отсутствовали, managed отдельно |
 | CRM-01: текущие количества в воронке продаж | Обычные Auth/RPC/UI на прежних локальных QA-входах проверены; [квитанция](qa/crm-01-current-funnel-2026-09-20.md) | MERGED #943 `1795bf23`; SQL210 применена только локально, production не изменён этим блоком |
 | CRM-05: операционная воронка | Подтверждённый handoff, owner-filter и mobile stage tabs проверены локально на320/390 и desktop | MERGED #945/#953/#959; реальные stage mutations не выполнялись этим UI-срезом |
 | CRM-04/07: inbox и сообщения | Inbox empty/filter/channel states и поиск Student messages с loading/empty/error/retry защищены от устаревшего ответа; actual local read/UI desktop/390px проверены. Очереди и остальные сценарии остаются | MERGED #952 `f97122e8`, #955 `fe26526c`; [Inbox](qa/crm-inbox-states-2026-09-21.md), [messages](qa/case-chat-search-2026-09-21.md); без send/mark-read/provider actions |
 | Сохранение отдельных блоков карточки / пункт 30 | LOCAL213: actual UPDATE двух блоков, sibling draft, replay/conflict/stale и restore26 полей; B sale INSERT отдельно | MERGED #948; не UI-приёмка всех групп, managed/production delivery отдельно |
-| CRM-10: EVO Docs и университеты | #964 association; #967 actual web-selection214→218/reopen/Docs и Chrome390 dark; #982 v2 readers с real starter Auth/CRM/Student UI | MERGED; #988 editor226 DRAFT; полные requirements/upload→submit/packages/review и native UI не завершены |
-| Командный чат | #970/#974 task removal/autosize; #976 reader223 и #983 sparse-seen225 приняты локально; #981/#986 — планы | MERGED узкие срезы; #987 direct-quotes227 DRAFT; flat UI/search/read/scroll и весь15 открыты |
+| CRM-10: EVO Docs и университеты | #964 association; #967 actual web-selection214→218/reopen/Docs и Chrome390 dark; #982 v2 readers с real starter Auth/CRM/Student UI | MERGED #988/LOCAL226; полные requirements/upload→submit/packages/review и native UI не завершены |
+| Командный чат | #970/#974 task removal/autosize; #976 reader223 и #983 sparse-seen225 приняты локально; #981/#986 — планы | MERGED узкие срезы; #987/LOCAL227 принят; #992 flat UI/search/read/scroll и весь15 открыты |
 | Личный календарь | #954 explicit case choice; #963 личные case/staff задачи, exact count/keyset и own target; LOCAL217 Auth/denials + UI320/390/desktop | MERGED #963 `401069a4`; dated/staff positive, >100 UI и concurrent reassignment не доказаны; [receipt](qa/personal-calendar-2026-09-21.md) |
-| §11: общие программы, требования, версии, пакеты и review | #944/#946 selection; #964 association; #967 actual web-selection; #979 план полных требований; #982 LOCAL224 v2 readers/decoders и starter UI | MERGED; #988 editor226 DRAFT, full requirements/package/review и managed delivery не приняты |
+| §11: общие программы, требования, версии, пакеты и review | #944/#946 selection; #964 association; #967 actual web-selection; #979 план полных требований; #982 LOCAL224 v2 readers/decoders и starter UI | MERGED; #988/LOCAL226 editor принят; полный package/review и managed delivery не приняты |
 | Web и iPhone полного нового admissions-пути | Один #967 web-selection214→218, Chrome390 dark и #982 starter readers/UI проверены; Swift decode отдельно | Не завершён: actual native UI, full requirements/upload→submit/packages/review остаются; decode ≠ device acceptance |
 | CRM shell / пункт 22 | #961 keyboard skip-navigation MERGED | Узкий срез, остальная оболочка и полная a11y-приёмка открыты |
 | Legacy optional application fields / пункт 29 | #966 MERGED: исходный failed219 сохранён; forward220 function QA, actual Admin UI четырёх пустых полей и exact Auth replay PASS | Pinned219/nonemptyHTTPS UI positive отсутствует; managed отдельно |

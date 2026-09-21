@@ -12869,3 +12869,99 @@ Contract: `docs/platform/payment-receipt-authority-contract-2026-09-21.md`. Actu
 Implemented authenticated receipt upload/download target RPCs and a closed scalar decoder; handlers no longer directly SELECT payment_events/payment_receipt_files for receipt operations. Delegated metadata admission locks organization then existing155 profile/membership order and case; explicit156/189 read+write policy precedes historical replay, with full stored principal/metadata comparison. Contract-file handler/functions remain unchanged. Missing/malformed target and infrastructure errors503; explicit42501 becomes403. No UI edits.
 
 Node22 targeted decoder plus existing case-agreement checks41/41 PASS, scoped ESLint/typecheck/diff-check PASS. These are pure/source checks, not SQL/RLS or actual upload acceptance. Existing configured migration boundary invokes Docker/Postgres and was not run under source-only scope; SQL compile/role/revocation/concurrency/replay execution remains pending independent review and coordinated post228 local QA. Zero successful upload claim remains unchanged.
+
+
+## CRM-02c — вертикальные записи продаж на телефоне (2026-09-21)
+
+Принятый пункт7 и UX-план требуют показывать человека и его суммы вместе на
+узком экране. Текущая единственная таблица имеет min-width960px; этот срез
+меняет только её presentation в `SalesRegisterView.tsx`. ROOT владеет файлом;
+A продолжает chat, B — requirements. Независимую реализацию готовим параллельно
+с проверкой #990, без доступа к занятому общему runtime; actual UI и merge
+следуют после получения ROOT локального окна. SQL, DTO, формы, права,
+фильтры, direction facet, сводка и импорт в этот срез не входят.
+
+Impeccable Operate/adapt: сохранить EVO/Golos и одну SSR-таблицу с единственным
+sale-ID для возврата к строке. На узком контейнере строки вертикальны, на широком
+сохраняются колонки. Имя, программа, менеджер, дата, годовой месяц, обе суммы с
+их независимыми валютами/unknown, уточнение/архив и preview остаются доступными.
+Мобильные подписи — настоящий текст; семантику таблицы и focus проверяем в AX.
+Без второй копии данных, viewport-JS, новой палитры или финансовых вычислений.
+
+Проверка: scoped lint/typecheck, independent exact-head review и protected CI;
+после передачи runtime — ordinary existing Sales read-only desktop/320/390,
+контекст фильтра → preview → возврат/anchor, отсутствие нового list overflow.
+Использовать реальные имеющиеся строки; недостающие варианты отметить, не
+создавать финансовые данные. Один общий visual pass и максимум один fix/confirm.
+Merge/source, local UI и managed delivery явно различаются; весь пункт7 этим
+срезом не закрывается. Production/providers/финансовые writes не выполняются.
+
+## CRM-02c — локальная приёмка мобильного списка продаж (2026-09-21)
+
+На source `26c8b4c268b628563b5dd5b3226bea47c0866631` ordinary existing Sales
+проверил пять сохранённых локальных QA-записей; новых записей и sales writes нет.
+При baseline 115 список оставался шириной 960 px на телефоне; candidate сохраняет
+таблицу 1120 px при viewport 1440 и вертикальные строки без list overflow:
+390→346/346px, 320→286/286px (region/scrollWidth). Все значения и ссылки пяти
+строк совпали с baseline; browser AX сохранил таблицу, заголовки и пять строк,
+keyboard focus видим. Сентябрьский поиск → preview → «Назад» сохранил query,
+year/month, единственный sale-anchor и видимую строку. Impeccable Operate/adapt
+подтверждён на этом реальном read-only UI пути; native VoiceOver не запускался.
+
+Все 283 бизнес-таблицы/schema и Storage objects/buckets неизменны; собственная
+Auth-сессия восстановлена, сервер/вкладка закрыты. CI source 26c8:
+[35566545192](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35566545192),
+5 PASS / 3 SKIP. Private evidence: `/private/tmp/evo-sales-mobile-actual-20260921/`
+`actual-receipt.json` SHA256 `0c6cd413884449f4ecfca3d3ab41208d3cf9e30f5193d19e491c7f4c086e4626`;
+`release-receipt.json` SHA256 `16ece6aa4a6e6ef84cfae0fae9e0e1caf5a119b0c261b41f96e9607e2cd105c4`.
+Отдельная таблица сводки с min-width400px не менялась; эти замеры доказывают
+ширину списка продаж. Весь пункт 7 и production не объявляются завершёнными.
+После этой приёмки добавлена только документация; runtime-файл сохранён побайтно.
+
+
+## 2026-09-21 — item36: checkpoint после #987/#988/#991
+
+Docs-only на main `82260fdc`: обновлены current fronts execution/A/B и refinement.
+#987 direct quotes227, #988 editor226, #991 mobile sale records приняты в source
+и пределах локальных receipts; история и ограничения не переписаны. #990/229,
+#992 unified feed и #993/228 остаются непринятыми actual блоками. Пункты27/28/31/32
+сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
+DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
+Проверка: diff review и git diff --check; независимое exact-head review до merge.
+## 2026-09-21 — B3f / 228: отдельные загрузка, отправка и проверка документа
+
+#988 MERGED `28613990d`: bounded editor226 QA/CI/review завершены; полныйRAW
+release `bcb7ed6d` передан A227, B больше не использует общий runtime.
+Root резервирует228 только для следующего single-document B3f; очередь
+A227→ROOT990→ROOT991 сохраняется, apply не разрешён.
+
+Source inventory055/043/116/128/226 показал, что общий current/status и прежний
+review автоматически связали бы A/B. Принято направление отдельных immutable
+program upload/submission/review/download contexts при тех же canonical bytes
+и scan/Storage transport. Старые Docs/manual/visa и approved ZIP guards сохраняются.
+[Precode228](platform/b3f-program-document-submission-contract.md) фиксирует
+approved-current replacement, exact historical-version download, fail-closed
+old readers и узкий SQL context-exclusion на legacy replay-входах. Последнее —
+явное compatibility amendment для review, не глобальное изменение legacy-процесса.
+До кода — независимое exact precode review; следующий полный package B3g отдельно.
+Impeccable Operate сохраняет EVO и функции, уточняя реальные saved/submit/review
+состояния. Runtime/новые файлы/production/native acceptance не заявлены.
+
+Независимый precode review64d4324e потребовал два уточнения до реализации:
+история следует server-proven predecessor-цепочке226 и доступна также для
+удалённых требований; прежнее решение не переносится в новую definition.
+Old-reader PT409 ограничен публичными entrypoints; общий v2 helper сохраняет
+внутреннюю projection для свежего editor/save226 и authorized pending recovery.
+Добавлен узкий changed-requirements сценарий; это исправление полноты контракта,
+не исполненное runtime-доказательство.
+
+### B3f — исходники и независимое source review
+
+Precode `b81c338c` APPROVED. Реализованы SQL228, web/CRM и iPhone save/submit/
+review/history/notification flow. Source reviews проверили отдельно transport,
+SQL, native и web/UX; конкретные найденные ошибки исправляются до immutable
+integration review. [Отчёт](platform/b3f-program-document-submission-qa.md)
+содержит офлайн-проверки, прежние несвязанные source-test failures и предложенные
+actual changed-path сценарии. Это не применённая228 и не готовый production flow.
+Root сохраняет228 за B, резервирует229 для receipt-пути; актуальное runtime окно
+после ROOT990: ROOT991 → B228 → ROOT229. Разрешение на запуск B ещё не передано.

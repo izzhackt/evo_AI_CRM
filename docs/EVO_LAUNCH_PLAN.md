@@ -12553,3 +12553,18 @@ initializer/receipt/pending v1, добавляет строгую flat v2 про
 Новые private/public functions без business writes; apply/QA только после
 проверки точного пакета и отдельного root writer window. Старые slots/files/review,
 214 publication/intake/deadline и последующие §11 submit/packages сохранены.
+
+
+## 2026-09-21 — B3e-2 / 226: редактор требований (до реализации)
+
+#982 merged2b23285d: v2 readers уже в main, полный backend ещё не реализован.
+Root резервирует226 после A225 для полного staff editor/immutable revisions/
+explicit legacy mapping. [Точный контракт](platform/b3e2-requirements-editor-contract.md)
+закрепляет scoped document права, стабильные IDs, полный inventory113/137/179,
+точное idempotent intent и совместимость v1; не ослабляет mandatory gates.
+Новый согласованный editor-read и один atomic save расширяют таблицы218 без
+backfill старых строк, upload/submit/package процесса или правки214 binding.
+Impeccable Operate сохраняет EVO/Атлас и функции, максимум две visual rounds.
+Source work разрешён; DB/Auth/UI queue A225→root32, B226 window ещё не выдан.
+Перед реализацией independent exact precode review; перед apply/QA отдельный
+reviewed effects packet. Production и публикация старым native clients отдельно.

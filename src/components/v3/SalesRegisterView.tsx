@@ -4,7 +4,7 @@ import Link from "next/link";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { SalesRegisterWorkspace, SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
-import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess, readSalesRegisterDirections } from "@/lib/v3/sales-register-source";
+import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess, readSalesRegisterDirections, readSalesRegisterManagement } from "@/lib/v3/sales-register-source";
 import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
 import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
@@ -13,6 +13,7 @@ import { SalesRegisterForm, SalesRegisterImport, SalesTargetForm } from "./Sales
 import { SalesRecordPreview } from "./SalesRecordPreview";
 import { parseSalesRegisterSearchQuery } from "@/lib/sales-register-search";
 import { parseSalesRegisterDirection, salesDirectionControl } from "@/lib/sales-register-directions";
+import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 
 export type SalesReportQuery = Readonly<{
   year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
@@ -42,8 +43,10 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   const editing = (query.new === "true" && !viewingRecord) || (viewingRecord && query.edit === "true");
   const directionsPromise = !viewingRecord && !(editing && canManage)
     ? readSalesRegisterDirections(actor).catch(() => null) : Promise.resolve(null);
-  const canTarget = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.target.manage");
-  const canImport = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.import");
+  const reportMonth = `${year}-${String(month ?? Number(now.find(p => p.type === "month")!.value)).padStart(2, "0")}-01`;
+  const managementPromise: Promise<SalesRegisterManagementRead> = valid && !viewingRecord && !(editing && canManage)
+    ? readSalesRegisterManagement(actor, month && query.archived !== "true" ? reportMonth : null)
+    : Promise.resolve({ status: "denied" });
   const checkFinanceAccess = staffHasPermission(actor, "finance.read.full") && !isStaffPreview(actor);
   let workspace: SalesRegisterWorkspace | null = null;
   let intakeOptions: SalesRegisterIntakeOptions | null = null;
@@ -58,6 +61,13 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
       query.new === "true" && !query.record && canManage ? readSalesRegisterIntakeOptions(actor).catch(() => null) : Promise.resolve(null),
     ]);
   }
+  const management = await managementPromise;
+  const canTarget = management.status === "ready" && management.data.canManageTarget;
+  const canImport = management.status === "ready" && management.data.canImport;
+  const managementUnavailable = management.status === "unavailable";
+  // Hints only retain disabled drafts on a failed read; they never grant a write.
+  const showTargetForm = canTarget || (managementUnavailable && !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.target.manage"));
+  const showImportForm = canImport || (managementUnavailable && !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.import"));
   const directionControl = salesDirectionControl(await directionsPromise, query.direction);
   const directionHelp = directionControl.kind === "input"
     ? directionControl.reason === "invalid"
@@ -78,9 +88,8 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
     for (const [key, value] of Object.entries(extra)) next.set(key, value);
     return `/v3/main?${next.toString()}`;
   };
-  const reportMonth = `${year}-${String(month ?? Number(now.find(p => p.type === "month")!.value)).padStart(2, "0")}-01`;
   const saved = !editing && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
-  const target = workspace?.targets.find(t => t.reportMonth === reportMonth && t.managerLabel === null) ?? null;
+  const target = management.status === "ready" ? management.data.target : null;
   const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
 
   return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
@@ -165,7 +174,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
             </> : null}
             {workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0 ? <p className="mt-3 border-s border-border ps-3 text-sm leading-relaxed text-fg-2">В денежные итоги не включены неуточнённые значения: стоимость — {workspace.unresolvedCostCount}, оплата — {workspace.unresolvedPaidCount}.</p> : null}
           </section>
-          {checkFinanceAccess && month && query.archived !== "true" ? <section aria-labelledby="sales-department-target" className="mt-3 border-t border-border pt-3">
+          {canTarget && month && query.archived !== "true" ? <section aria-labelledby="sales-department-target" className="mt-3 border-t border-border pt-3">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <h2 id="sales-department-target" className="text-sm font-medium text-fg">План отдела</h2>
               <p className="font-mono text-sm tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</p>
@@ -210,9 +219,10 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           {workspace.hasMore ? <Link href={href({ offset: String(offset + 50) })} className={`${btnGhostCls} min-h-11`}>Далее</Link> : <span />}
         </nav>
       </>}
-      {canTarget || canImport ? <div className="mt-8 space-y-5 border-t border-border pt-5">
-        {canTarget && month && query.archived !== "true" ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Изменить план месяца</summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace} /></details> : null}
-        {canImport ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Начальный перенос данных</summary><SalesRegisterImport requestId={randomUUID()} /></details> : null}
+      {(showTargetForm && month && query.archived !== "true") || showImportForm ? <div className="mt-8 space-y-5 border-t border-border pt-5">
+        {managementUnavailable ? <p role="alert" className="text-sm text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null}
+        {showTargetForm && month && query.archived !== "true" ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Изменить план месяца</summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace || managementUnavailable} /></details> : null}
+        {showImportForm ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Начальный перенос данных</summary><SalesRegisterImport requestId={randomUUID()} readUnavailable={managementUnavailable} /></details> : null}
       </div> : null}
     </>}
   </main>;

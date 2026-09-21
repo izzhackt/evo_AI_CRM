@@ -35259,3 +35259,22 @@ visual проверка; дальнейшая декоративная поли�
 schema, source originals и статусы допуска этим срезом не меняются. Canonical
 список/дубликаты сначала проверяются обычным actor; дальнейшие реальные записи
 нуждаются в конкретном packet и свободном QA-окне, managed не затрагивается.
+
+
+## 2026-09-21 — item27: общий signup требует согласованного изменения iPhone
+
+Source main078b51c3: shared createPublicStudentAccount обслуживает web и native;
+native HTTP201 сейчас очищает draft и входит. Отдельный email_confirm:false
+сломал бы этот путь. Контракт записан до кода в
+`docs/design/signup-email-confirmation-2026-09-21.md`:27a неактивные pure
+security primitives;27b совместные consumers;27c реальные Auth/mail/config QA.
+
+Supabase Auth2.196 использует общий confirmation token lookup для signup/invite:
+независимый token_hash недостаточен для expected identity. Выбран email-bound
+OTP из письма и opaque AES-GCM capability во fragment, явный POST/CSRF,
+изолированная Auth session до identity/authority checks. Срок capability24ч
+не равен OTP TTL; resend не продлевает его. Initial create+одна отправка —
+одна quota177 попытка, каждый resend — следующая. Нет выдуманного countdown
+или автоматического recovery неизвестного create; используется честный
+существующий support contact. Invite и public-signup запрет сохраняются.
+Неактивный27a не означает функциональную готовность или разрешение provider writes.

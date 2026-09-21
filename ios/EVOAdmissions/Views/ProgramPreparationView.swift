@@ -115,6 +115,7 @@ struct ProgramPreparationView: View {
     let applicationId: UUID
     var initialSavedNotice = false
     @EnvironmentObject private var session: ProgramPreparationSession
+    @Environment(\.locale) private var locale
     @StateObject private var model = ProgramPreparationDetailModel()
 
     private struct ReadTarget: Hashable {
@@ -192,7 +193,7 @@ struct ProgramPreparationView: View {
     }
 
     @ViewBuilder
-    private func requirementsSection(_ requirements: ApplicationRequirementsView) -> some View {
+    private func requirementsSection(_ requirements: ApplicationRequirementsV2View) -> some View {
         Section {
             if requirements.state == .needsConfiguration {
                 Text("prep_needs_configuration")
@@ -205,8 +206,25 @@ struct ProgramPreparationView: View {
             ForEach(requirements.items) { item in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(item.label).font(.headline).accessibilityAddTraits(.isHeader)
-                    Text("prep_required").font(.caption).foregroundStyle(.secondary)
+                    Text(LocalizedStringKey(item.required ? "prep_required" : "prep_optional"))
+                        .font(.caption).foregroundStyle(.secondary)
                     Text(item.instructions).font(.subheadline)
+                    if let deadline = item.deadline {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("prep_requirement_deadline").font(.subheadline)
+                            Text(deadlineLabel(deadline)).font(.subheadline)
+                            if let source = deadline.sourceUrl, let url = URL(string: source) {
+                                Link("prep_deadline_source", destination: url)
+                                    .font(.footnote).frame(minHeight: 44, alignment: .leading)
+                            }
+                            Text(String(localized: "prep_deadline_verified", locale: locale) + " "
+                                 + (CatalogDate.dayLabel(from: deadline.verifiedOn, locale: locale) ?? deadline.verifiedOn))
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                    if item.definitionImpact == .changed {
+                        Text("prep_definition_changed").font(.footnote)
+                    }
                     if let status = item.slotStatus {
                         Text(LocalizedStringKey("prep_slot_\(status.rawValue)"))
                             .font(.subheadline)
@@ -234,9 +252,17 @@ struct ProgramPreparationView: View {
                 }.padding(.vertical, 4)
             }
         } header: {
-            Text(LocalizedStringKey(requirements.revision == nil ? "prep_requirements_title" : "prep_starter_title"))
+            Text(LocalizedStringKey(requirements.revision?.origin == .evoStarter ? "prep_starter_title" : "prep_requirements_title"))
         } footer: {
-            if requirements.revision != nil { Text("prep_starter_note") }
+            if requirements.revision?.origin == .evoStarter { Text("prep_starter_note") }
+            else if requirements.revision?.origin == .staffConfirmed { Text("prep_confirmed_note") }
         }
+    }
+
+    private func deadlineLabel(_ deadline: ApplicationRequirementDeadline) -> String {
+        let day = CatalogDate.dayLabel(from: deadline.date, locale: locale) ?? deadline.date
+        let time = deadline.time.map { ", \($0)" } ?? ""
+        let timezone = deadline.timezone.map { " (\($0))" } ?? ""
+        return day + time + timezone
     }
 }

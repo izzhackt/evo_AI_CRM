@@ -2,19 +2,26 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import type { ApplicationRequirementItem, ApplicationRequirements } from "@/lib/portal/application-requirements";
+import type { ApplicationRequirementItemV2, ApplicationRequirementsV2 } from "@/lib/portal/application-requirements-v2";
 import type { PortalStrings } from "@/lib/portal/i18n";
 import { clearPreparationIntent, persistPreparationIntent, readPendingRequirements, type StudentPreparationScope } from "@/lib/portal/student-preparation-pending";
 import { initializeStudentPreparationUIAction, readStudentPreparationUIAction } from "@/lib/portal/student-preparation-ui-actions";
 
-function Requirement({ item, strings }: { item: ApplicationRequirementItem; strings: PortalStrings<"preparations"> }) {
+function Requirement({ item, strings }: { item: ApplicationRequirementItemV2; strings: PortalStrings<"preparations"> }) {
   const associationUnavailable = item.unavailableReasons.some((reason) =>
     ["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"].includes(reason));
   return <li className="pt-prep-requirement">
-    <div className="pt-prep-row-heading"><h3>{item.label}</h3>{item.required ? <span className="pt-prep-tag">{strings.required}</span> : null}</div>
+    <div className="pt-prep-row-heading"><h3>{item.label}</h3><span className="pt-prep-tag">{item.required ? strings.required : strings.optional}</span></div>
     <p className="pt-prep-note">{item.groupLabel}</p>
     <p className="pt-prep-instructions">{item.instructions}</p>
+    {item.definitionImpact === "changed" ? <p className="pt-prep-note">{strings.definitionChanged}</p> : null}
     <dl className="pt-prep-state-list">
+      {item.deadline ? <div><dt>{strings.materialDeadline}</dt><dd>
+        <time dateTime={item.deadline.date}>{item.deadline.date.split("-").reverse().join(".")}</time>
+        {item.deadline.time ? `, ${item.deadline.time}` : ""}{item.deadline.timezone ? ` (${item.deadline.timezone})` : ""}
+        <p className="pt-prep-note">{strings.deadlineVerified} <time dateTime={item.deadline.verifiedOn}>{item.deadline.verifiedOn.split("-").reverse().join(".")}</time></p>
+        {item.deadline.sourceUrl ? <a href={item.deadline.sourceUrl} target="_blank" rel="noopener noreferrer" className="pt-link">{strings.deadlineSource}</a> : null}
+      </dd></div> : null}
       <div><dt>{strings.file}</dt><dd>{item.technicalAvailability === "available" ? strings.fileAvailable :
         <ul>{item.unavailableReasons.map((reason) => <li key={reason}>{strings[`technical.${reason}`]}</li>)}</ul>}</dd></div>
       {!associationUnavailable ? <div><dt>{strings.review}</dt><dd>{strings[`review.${item.reviewDecision ?? "none"}`]}</dd></div> : null}
@@ -29,7 +36,7 @@ function Requirement({ item, strings }: { item: ApplicationRequirementItem; stri
 export function ApplicationRequirementsUI({ scope, applicationId, initial, canInitialize, strings }: {
   scope: StudentPreparationScope;
   applicationId: string;
-  initial: ApplicationRequirements | null;
+  initial: ApplicationRequirementsV2 | null;
   canInitialize: boolean;
   strings: PortalStrings<"preparations">;
 }) {
@@ -89,6 +96,7 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
       <button type="button" className="pt-btn-ghost" disabled={busy !== null} onClick={() => update(false)}>{busy === "read" ? strings.checking : strings.check}</button>
     </div>
     {current?.origin === "evo_starter" || (current?.state === "uninitialized" && eligible) ? <p className="pt-prep-note">{strings.starter}</p> : null}
+    {current?.configurationState === "confirmed" ? <p className="pt-prep-note">{strings.confirmed}</p> : null}
     {current === null ? <p className="pt-prep-error" role="status">{strings.requirementsUnavailable}</p> : null}
     {current?.state === "uninitialized" ? <div className="pt-prep-notice"><p>{eligible ? strings.uninitialized : strings.initializationIneligible}</p>
       {eligible ? <button type="button" className="pt-btn" disabled={busy !== null} onClick={() => update(true)}>{busy === "initialize" ? strings.initializing : strings.continue}</button> : null}

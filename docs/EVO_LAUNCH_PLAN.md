@@ -12436,3 +12436,21 @@ panel, понятные accepted/confirmed/saved состояния, RU/KY, focu
 320/390/desktop. Новый дизайн и provider-доставка из pure tests не выводятся.
 Для27a достаточно actual crypto/parser tests, types/lint, independent exact-head
 review и protected CI; UI/Auth ещё не включены. Полный item27 остаётся открыт.
+
+## 2026-09-21 — B3e: полный список требований и явное сопоставление (pre-code)
+
+После merge #967 (`17c60966`) следующий срез §11 — требования конкретной
+подготовки214 и явное принятие подходящих113/137/179 документов дела.
+[План B3e](platform/b3e-full-requirements-and-mapping-plan.md) сохраняет immutable
+program/publication/intake/deadline, прежние файлы/решения и отсутствие approve
+gate для самого выбора. Новый staff-save создаёт редакцию, не отправляет пакет.
+Строгие starter-only218 DTO требуют v2-first перехода web/CRM/iPhone: старый v1
+не выдаёт прежние два пункта как текущий полный список; historical receipt replay
+сохраняется после проверки текущей authority. Полные upload/submit/packages/review
+остаются следующими обязательными блоками, не отменены этим ограничением.
+
+Это docs-only pre-code: root принял направление, runtime ещё не реализован,
+номер SQL не зарезервирован, DB/Auth/UI/production действий нет. A подтвердил
+отсутствие пересечения с каталогом в текущем team-chat223; root27b signup sections
+и shared i18n/Swift keys согласуются перед runtime-правками. Независимое review
+и CI этого плана фиксируются в отдельном PR, без заявления функциональной приёмки.

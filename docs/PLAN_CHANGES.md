@@ -35278,3 +35278,21 @@ OTP из письма и opaque AES-GCM capability во fragment, явный POS
 или автоматического recovery неизвестного create; используется честный
 существующий support contact. Invite и public-signup запрет сохраняются.
 Неактивный27a не означает функциональную готовность или разрешение provider writes.
+
+## 2026-09-21 — B3e: полный список требований и явное сопоставление (pre-code)
+
+После merge #967 (`17c60966`) следующий срез §11 — требования конкретной
+подготовки214 и явное принятие подходящих113/137/179 документов дела.
+[План B3e](platform/b3e-full-requirements-and-mapping-plan.md) сохраняет immutable
+program/publication/intake/deadline, прежние файлы/решения и отсутствие approve
+gate для самого выбора. Новый staff-save создаёт редакцию, не отправляет пакет.
+Строгие starter-only218 DTO требуют v2-first перехода web/CRM/iPhone: старый v1
+не выдаёт прежние два пункта как текущий полный список; historical receipt replay
+сохраняется после проверки текущей authority. Полные upload/submit/packages/review
+остаются следующими обязательными блоками, не отменены этим ограничением.
+
+Это docs-only pre-code: root принял направление, runtime ещё не реализован,
+номер SQL не зарезервирован, DB/Auth/UI/production действий нет. A подтвердил
+отсутствие пересечения с каталогом в текущем team-chat223; root27b signup sections
+и shared i18n/Swift keys согласуются перед runtime-правками. Независимое review
+и CI этого плана фиксируются в отдельном PR, без заявления функциональной приёмки.

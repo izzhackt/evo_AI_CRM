@@ -13460,6 +13460,42 @@ submissions, add actors/fixtures, rerun unchanged DB flows, or claim native UI o
 production acceptance. Existing actual receipts remain the evidence for writes.
 
 
+## 2026-09-21 — B item25: portal pending focus, result status and RU/KY metadata
+
+Fresh main c47a8137 contains merged PR1000 and prior PR896 success-focus fixes.
+Revalidation confirms three remaining source patterns: LanguageForm and the two
+learning answer buttons become natively disabled while pending; ExplainPanel
+mounts a populated status region only after the server answer; nine English,
+assessment, profession and message routes still export static Russian metadata.
+This source-only block preserves the existing EVO layout/typography and uses
+Impeccable Operate/harden with craft-floor. Existing success focus stays intact.
+
+Scope: keep pending submit buttons focusable via aria-disabled with synchronous
+activation guards; retain native invalid-input disabling and existing attempt,
+revision, request-ID and retry semantics. Add a pending guard and error handling
+to LanguageForm without changing its guarded language RPC/cookie flow. Mount
+one empty polite/atomic result status before each exercise response, announce
+only the confirmed short verdict after the existing heading-focus transition,
+and leave detailed explanation semantic/non-live. Clear the verdict on the next
+exercise; do not announce complete explanation text. Use existing locale/portal
+strings for the nine route titles, adding only generic Lesson/Profession RU/KY
+labels; retain brand suffix and avoid private-data fetches for metadata.
+
+The current backend, SQL, grading, attempts, profile authorization and native
+iPhone code are outside this change. No shared QA/Auth/Storage/browser/Simulator
+or production action is authorized by this source block. ROOT owns the shared
+window (233 then A234). Scoped existing tests, type/lint and independent exact-
+head source review precede a coordinated actual Student keyboard/language/
+learning check. Actual screen-reader speech remains unclaimed until exercised;
+DOM or source checks do not prove VoiceOver output. Do not reopen PR896 as missing
+work or change assessment autosave without a reproduced defect.
+
+Primary behavior references checked 2026-09-21:
+- MDN aria-disabled: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-disabled — preserves focusability, requires explicit activation prevention.
+- MDN aria-live: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-live — pre-existing polite regions expose later short updates.
+- W3C status messages: https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html — expose action outcomes without unnecessary focus changes.
+- Next generateMetadata: https://nextjs.org/docs/app/api-reference/functions/generate-metadata — use the existing server metadata API with request locale.
+
 ### CRM-02e local233 acceptance and integration —2026-09-21
 
 Local apply233 at35499c33 passed exact functions/ledger/ACL preservation. Ordinary
@@ -13480,6 +13516,37 @@ B1000 web/CRM package acceptance and prepared A1002/B1003, preserving native gap
 Remaining item7 work is department-target visibility and import placement, not
 an already-correct cash-summary permission rewrite.
 
+
+### CRM-02f / item7a: atomic management state —2026-09-21 precode
+
+After #1001 mergece0ef573, ROOT implements only the confirmed department-target
+state/authority mismatch. New read-only RPC235 returns scoped target/import flags
+and the selected department target in one STABLE snapshot. Keep existing
+organization grant pairs and the current TS/UI report-read entry requirement;
+add that requirement to this new endpoint, without rewriting oldv1/v2 SQL.
+No extra finance rights, role changes, writes or target-history repairs.
+
+Target summary/form use the same authoritative result: confirmed denial hides;
+unknown stops submission and preserves mounted drafts; allowed empty alone means
+“Не задан”. Preserve version/reason/request conflict handling and selected import
+File across transient reader failure; existing save/import commands unchanged.
+All-year/archive fetch rights only; preview/invalid/record/editor skip this read.
+Cash already has correct scoped authority and is not part of this fix. Moving
+the import form remains the later7b block. Impeccable Operate applies within
+current EVO; inspect historical233 baseline, reread craft-floor beforeUIediting.
+
+Contract: docs/EVO_SALES_MANAGEMENT_STATE_PLAN_2026-09-21.md, independentprecode
+approveded9a5f93. Reserve235 behindA234; actualexisting-actor/read-onlyQA after
+B1003 releases sharedruntime. No production/fixtures/targetwrites/importsubmit
+or newAuthactors. Missing actor/data combinations remain explicitly unclaimed.
+
+
+CRM-02f source implementation: additive RPC235 and strict management DTO,
+new authoritative View gates, preserved disabled target/import drafts on unknown
+read. Existing commands, v1/v2 and cash remain unchanged. Eight DTO tests,
+scoped lint, typecheck, whitespace and staticSQL parse PASS. Actual local235
+and browser acceptance pending shared-window release; no database/Auth or
+production use here. See docs/qa/crm-sales-management-source-2026-09-21.md.
 
 ### A11 / CRM-07 case-chat queues — decisions before code, 2026-09-21
 
@@ -13527,3 +13594,77 @@ and terminal late forbidden without changing write protocol or permissions.
 A owns TeamChat.tsx, a small client-safe helper and behavior tests. No SQL,
 fixtures, density/preview scope or shared runtime until B1003→ROOT235 handoff.
 Correct stale current front of A15f plan; retain historical evidence/limits.
+
+## 2026-09-21 — B item25 integration and admitted local234 UI window
+
+After merged PR1002/main `479dd6788b87fc14d4d9e3e809c16e9efff1badd`,
+merge that main once into reviewed PR1003/source `622e40e209e8b3ead33ddb0c04d849654110f7a2`.
+Resolve only additive plan conflicts, preserving both parents and all product
+code. A234 release `bb97645c266ea2fedcfb8ce97d28560313bdf74ff324989421953b1d4050bf90`
+transfers the existing local schema001–234 to B1003; do not reapply SQL234.
+Independent integration review precedes the finite UI check: existing ordinary
+Student, own language RU→KY→RU, affected route titles, pending focus/repeated
+activation, at most one existing available lesson draft/start and one answer,
+and an existing review item only if present. No completed lessons or fixtures
+are created to populate the review bank. Preserve incoming business/Auth/Storage
+state except exact ordinary owned effects; capture complete before/final state
+and close own browser/Auth/server. Desktop/320px observations are actual visual
+evidence; speech is unclaimed unless a screen reader is actually exercised.
+No native unlock, production action, installs or full builds. Release the window
+with raw state/schema001–234 and exact runtime/config/observer pins to ROOT235.
+
+## 2026-09-21 — B item25 first actual UI correction
+
+The first local234 pass at875ec495 confirmed RU→KY and settled KY→RU:
+each double Enter sent one server action, with focus preserved while pending
+and after success; nine changed titles matched KY and mobile320 did not overflow.
+A fast initial restore before hydration also exposed a real local regression:
+the enabled aria-disabled submit button could issue native GET without saving.
+A later overlapping test navigation invalidated that attempt's timeout evidence,
+but the preceding native GET was preserved and independently reviewed as P2.
+Replace only LanguageForm's submit form with a non-submitting container and
+type=button/onClick, retaining the same pending ref/transition/error/RPC logic
+and named native radio group. Keep normal Enter/Space activation of the button;
+do not claim implicit Enter from arbitrary controls. No general hydration layer.
+Preserve first-pass evidence, keep the same owned Student session, review the
+source delta, then one confirmation batch: before-JS activation cannot navigate,
+one ordinary additional RU→KY→RU cycle (profile revision3→7 across both batches),
+and at most one lesson start/answer overall. No lesson completion, new login,
+fixtures, SQL, providers or native actions. ROOT235 remains next after closure.
+
+## 2026-09-21 — B item25 actual local234 closure
+
+[Actual report](qa/portal-learning-feedback-2026-09-21.md): final source
+`f77a457b80d73b3516a0c6018d7899eb1d9635f8` confirms ordinary Enter/Space language
+saves, pending focus and one existing lesson start/answer. Four language saves
+restore RU; no completed lesson or populated review bank was created. The first
+prehydration GET was fixed; the overlapping-driver timeout and failed fully-no-JS
+probe remain recorded as limitations. Nine KY route titles were checked on the
+byte-identical pre-correction route sources; speech/native/production unclaimed.
+Independent offline reconciliation passed 70 checks: 287/290 business tables
+unchanged, exact own profile/draft/two receipts, full catalog/ledger unchanged,
+224 incoming sessions/239 refresh rows preserved, only own login metadata and
+two Auth audits added. Own browser/Auth/server closed. Transfer schema001–234
+and immutable private receipts to ROOT235; final-head review/CI and normal PR1003
+merge remain required before ROOT integrates main for235. Item25 stays partial.
+
+## 2026-09-21 — ROOT item7a local235 closure
+
+[Actual management report](qa/crm-sales-management-actual-2026-09-21.md):
+source3616ea179b91b54d000c5cba5284a6cbb77ccb3a integrates main7f444455
+without changing the reviewed product files. One local235 apply added two
+read-only functions; 290 business and 33 Auth/Storage tables unchanged at apply.
+Ordinary Sales/Admin RPC and UI1440/390/320 confirm scoped management visibility,
+allowed-empty target, rights-only annual/archive state, invalid date rejection,
+and old-v2 body parity. Student/anon/service-role authority denials are actual.
+The initial Student QA binding mismatch stopped after one login before RPC;
+immutable evidence retained, independently reviewed metadata correction reused
+the same captured session for one denial and own logout, without a new login.
+Final business/catalog/Storage equality and all224 incoming sessions/239 refresh
+rows are exact. Only ordinary Auth metadata/audits changed; three owned logouts
+204 and own browser/server closure completed. No target/import writes or fixtures.
+Populated target/other-org/custom-grant combinations and refresh/unavailable/revoke
+retention remain unverified; no acceptance claim is made for those branches.
+The next7b UI block preserves forms and will retain these proof gaps explicitly.
+Final-head review/CI/merge are still required; local235 transfers next to A1005.
+Production authority and delivery are separate.

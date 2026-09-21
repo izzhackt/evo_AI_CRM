@@ -40,6 +40,7 @@ export function ReviewRunner({
   const [value, setValue] = useState<ExerciseValue | null>(null);
   const [checks, setChecks] = useState<Record<string, { check: LearningReviewCheck; answer: unknown }>>({});
   const [busy, setBusy] = useState(false);
+  const [resultAnnouncement, setResultAnnouncement] = useState("");
   const [error, setError] = useState<LearningActionError["code"] | null>(null);
   const busyRef = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -48,13 +49,14 @@ export function ReviewRunner({
   const checkedCount = Object.keys(checks).length;
 
   async function submit() {
-    if (busyRef.current || !current) return;
+    if (busy || busyRef.current || !current || checks[current.exerciseId]) return;
     const currentValue = value ?? emptyExerciseValue(current);
     const answer = exerciseValueToAnswer(currentValue);
     if (!answer) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
+    setResultAnnouncement("");
     try {
       const response = await checkLearningReviewAction({
         exerciseId: current.exerciseId,
@@ -73,7 +75,10 @@ export function ReviewRunner({
       // A11y (PORT-6a): успешная проверка заменяет кнопку «Ответить»
       // разбором — переносим фокус на заголовок шага, как уже делает
       // кнопка «Далее», иначе фокус молча падает на <body>.
-      requestAnimationFrame(() => heading.current?.focus());
+      requestAnimationFrame(() => {
+        heading.current?.focus();
+        setResultAnnouncement(response.check.verdict.correct ? strings.verdictCorrect : strings.verdictWrong);
+      });
     } catch {
       setError("unavailable");
     } finally {
@@ -116,6 +121,9 @@ export function ReviewRunner({
         })}
         {" · "}
         {formatPortalString(strings.reviewItemFrom, { n: String(current.lessonOrderIndex) })}
+        <span role="status" aria-live="polite" aria-atomic="true">
+          {busy ? ` · ${strings.saving}` : resultAnnouncement ? ` · ${resultAnnouncement}` : ""}
+        </span>
       </p>
       <section className="pt-lesson-card">
         <h2 ref={heading} tabIndex={-1} className="pt-sr-only">
@@ -168,6 +176,7 @@ export function ReviewRunner({
               onClick={() => {
                 setIndex(index + 1);
                 setValue(null);
+                setResultAnnouncement("");
                 requestAnimationFrame(() => heading.current?.focus());
               }}
             >
@@ -177,7 +186,8 @@ export function ReviewRunner({
             <button
               type="button"
               className="pt-btn"
-              disabled={busy || !submittable}
+              disabled={!submittable}
+              aria-disabled={busy || !submittable}
               onClick={() => void submit()}
             >
               {busy ? strings.saving : strings.answerButton}

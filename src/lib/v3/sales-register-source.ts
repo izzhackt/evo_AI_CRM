@@ -2,9 +2,23 @@ import "server-only";
 import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
 import type { ActivePlatformActor, PlatformActor } from "../platform-auth";
 import { createSupabaseServerClient } from "../supabase/server";
-import { parseSalesInteger, parseSalesUuid, parseSalesRegisterIntakeOptions, type SalesRegisterWorkspace, type SalesRegisterIntakeOptions } from "../platform-sales-register-contract";
+import { parseSalesDate, parseSalesInteger, parseSalesUuid, parseSalesRegisterIntakeOptions, type SalesRegisterWorkspace, type SalesRegisterIntakeOptions } from "../platform-sales-register-contract";
 import { parseSalesRegisterSearchQuery, parseSalesRegisterSearchWorkspace } from "../sales-register-search";
 import { parseSalesRegisterDirection, parseSalesRegisterDirections } from "../sales-register-directions";
+import { parseSalesRegisterManagement, type SalesRegisterManagementRead } from "../sales-register-management";
+
+/** Authority and the selected department target come from the same snapshot. */
+export async function readSalesRegisterManagement(actor: ActivePlatformActor, reportMonth: string | null): Promise<SalesRegisterManagementRead> {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "sales.register.read")) return { status: "denied" };
+  if (reportMonth !== null && (parseSalesDate(reportMonth) !== reportMonth || !reportMonth.endsWith("-01"))) return { status: "unavailable" };
+  try {
+    const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("read_sales_register_management_v1", {
+      p_organization_id: actor.organizationId, p_report_month: reportMonth,
+    });
+    if (error) return { status: error.code === "42501" ? "denied" : "unavailable" };
+    return { status: "ready", data: parseSalesRegisterManagement(data, actor.organizationId, reportMonth) };
+  } catch { return { status: "unavailable" }; }
+}
 
 export async function readSalesRegisterDirections(actor: PlatformActor): Promise<readonly string[]> {
   const unavailable = () => new Error("Sales directions are unavailable.");

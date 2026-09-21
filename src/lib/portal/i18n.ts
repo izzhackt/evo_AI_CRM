@@ -359,6 +359,7 @@ const consultationKy: Readonly<Record<ConsultationKey, string>> = {
 const englishRu = {
   kicker: "Обучение",
   title: "Английский",
+  lessonTitle: "Урок",
   lead: "Модуль уроков с нуля: теория, задания и разбор каждого ответа.",
   unavailable: "Не удалось загрузить уроки. Обновите страницу. Ваш прогресс не потерян.",
   emptyTitle: "Уроки готовятся",
@@ -422,6 +423,7 @@ type EnglishKey = keyof typeof englishRu;
 const englishKy: Readonly<Record<EnglishKey, string>> = {
   kicker: "Окуу",
   title: "Англис тили",
+  lessonTitle: "Сабак",
   lead: "Нөлдөн баштаган сабактар модулу: теория, тапшырмалар жана ар бир жооптун разбору.",
   unavailable: "Сабактар жүктөлгөн жок. Баракты жаңыртыңыз. Прогрессиңиз жоголгон жок.",
   emptyTitle: "Сабактар даярдалып жатат",
@@ -707,6 +709,7 @@ const testsKy: Readonly<Record<TestsKey, string>> = {
 const professionsRu = {
   kicker: "Исследование",
   title: "Профессии",
+  cardTitle: "Профессия",
   lead: "Как устроен рабочий день, что придётся уметь и куда за этим поступать.",
   unavailable: "Не удалось загрузить профессии. Обновите страницу.",
   emptyTitle: "По этому интересу пока нет карточек",
@@ -749,6 +752,7 @@ type ProfessionsKey = keyof typeof professionsRu;
 const professionsKy: Readonly<Record<ProfessionsKey, string>> = {
   kicker: "Изилдөө",
   title: "Кесиптер",
+  cardTitle: "Кесип",
   lead: "Жумуш күнү кандай өтөт, эмнени билүү керек жана ал үчүн кайда тапшыруу керек.",
   unavailable: "Кесиптер жүктөлгөн жок. Баракты жаңыртыңыз.",
   emptyTitle: "Бул кызыгуу боюнча карточкалар азырынча жок",

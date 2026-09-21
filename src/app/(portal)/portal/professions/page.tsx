@@ -14,7 +14,10 @@ import { readOwnOrvisTopScales, readProfessionCards } from "@/lib/portal/profess
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Профессии — EVO Admissions" };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("professions", await getLocale());
+  return { title: `${strings.title} — EVO Admissions` };
+}
 
 /**
  * Раздел «Профессии» (PORT-4c): сетка карточек с фильтром по шкалам ORVIS и

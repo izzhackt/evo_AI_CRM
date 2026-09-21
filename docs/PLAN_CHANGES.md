@@ -36721,3 +36721,25 @@ Release50fe4292 передал среду B1006; независимое review2a
 ведомости и addendum KB execution; весь пункт32/клиентский AI/production не закрыт.
 Никаких runtime/KB/publication изменений в этом срезе. Prose-only: diff review,
 git diff --check; отдельные exact-head review и protected CI перед merge.
+
+
+### A15g-2 / PR1012 — один actual batch и закрытие QA
+
+На source6e401f9c ordinary scoped staff прошёл один existing-data UI batch:
+пара15/16, полный первый/header target,3deleted rows, keyboard reply/menu/link,
+quote/remove, search/context/Back anchor, prependanchor, unsent draft и
+permalink.1440/390/320: nooverflow/onecomposer/body16/timevisible;3снимка
+просмотрены вместе, без коррекционного раунда. [Actual receipt](qa/team-chat-message-grouping-actual-2026-09-21.md)
+сохраняет foreign/unread/variants gaps и отсутствие numeric old/new density
+claim. Это ограниченная technical QA, не весьitem15 или production.
+
+AFTER RAW без intermediateAuthPASS → ownlogout204/browser/33256 closure →
+FINAL5f59a5dc/strict verifier9a2e964c PASS: все290business/33AuthStorage,
+zero new seen, original sessions/refresh/AMR restored, only2ownAuthaudits.
+OwncapturedAuth удалён после finalproof. Release27b0b2d2 передан ROOT для
+следующего B1006 admission; автоматический запуск не разрешается.
+
+Mainc42f3963/#1013 интегрирован только в docs с сохранением B32/KB истории;
+обе append-only истории сохранены построчно в прежнем порядке. Продукт
+побайтно совпадает с actual6e401f9c, старые tests не запускались заново.
+Независимое actual/final-head review, CI финального head и merge ещё впереди.

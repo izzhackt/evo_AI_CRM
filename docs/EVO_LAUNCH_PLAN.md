@@ -14208,3 +14208,15 @@ valid copy. Add a meaningful protocol case for this invariant; no SQL/UI scope
 change. The first15 protocol cases passed before this addition. Initial local
 SQL-parity extractor selected225's earlier seen function; scoping extraction to
 team_chat_channels confirms unchanged actor/unread/ACL source. No DB ran.
+
+
+### A237 — reader/DTO source готов, actual ожидает окна
+
+Source8104e106 реализует bounded latestPreview в237 и strict decode единственного
+channels RPC; pure acceptance helper подготовлен для следующего rail UI блока.
+[Source evidence](qa/team-chat-channel-previews-source-2026-09-21.md):16/16 protocol
+cases, typecheck и targeted lint PASS; exact actor/unread/ACL source225 preserved.
+Никакой SQL/Auth/RPC/UI/runtime проверки ещё нет; helper в UI не подключён.
+ROOT236/#1016 ещё не в базе main24e78024:001–235,236 не дублируется. До finalCI/
+actual237 — интеграция ROOT236 после merge и отдельный handoff послеB1015.
+Draft PR/source review впереди; actual/review/protectedCI остаются merge gate.

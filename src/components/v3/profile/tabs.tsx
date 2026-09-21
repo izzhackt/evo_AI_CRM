@@ -416,12 +416,14 @@ export function Money({
   actor,
   salesCaseId,
   saleConditionsHref,
+  contractPreparationHref,
 }: {
   profile: PersonProfile;
   draft: ProfileDraft;
   actor: ActivePlatformActor;
   salesCaseId?: string | null;
   saleConditionsHref: string | null;
+  contractPreparationHref: string | null;
 }) {
   const financeCaseId = draft.admissions?.studentCaseId ?? salesCaseId;
   return (
@@ -438,6 +440,7 @@ export function Money({
           actor={actor}
           studentCaseId={financeCaseId}
           saleConditionsHref={saleConditionsHref}
+          contractPreparationHref={contractPreparationHref}
         />
       ) : null}
 
@@ -448,61 +451,49 @@ export function Money({
         </p>
       ) : null}
 
-      <Card eyebrow title="Бюджет">
-        {draft.budget ? (
-          <div className="px-4 py-3">
-            <p className="flex flex-wrap items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-[-0.02em] text-fg">
-                {draft.budget}
-              </span>
-              {draft.currency ? <span className="text-2xs text-fg-3">{draft.currency}</span> : null}
-            </p>
-            {draft.paidPercent !== null ? (
-              <>
-                {/* Полоса — украшение поверх чисел, которые и так написаны
-                    рядом, поэтому она aria-hidden. */}
-                <span
-                  aria-hidden="true"
-                  className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-surface-3"
-                >
-                  <span
-                    className="block h-full bg-accent"
-                    style={{ width: `${draft.paidPercent}%` }}
-                  />
+      <details className="rounded-card border border-border bg-surface">
+        <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          Все обязательства по делу
+        </summary>
+        <div className="border-t border-border px-4 py-3">
+          <p className="mb-3 text-sm text-fg-2">Услуги EVO и другие расходы по делу.</p>
+          {draft.budget ? (
+            <div className="mb-3">
+              <p className="flex flex-wrap items-baseline gap-2">
+                <span className="text-sm text-fg-2">Всего по обязательствам</span>
+                <span className="font-semibold tabular-nums text-fg">
+                  {draft.budget}
                 </span>
-                <p className="mt-1.5 text-2xs text-fg-3">
-                  оплачено <span className="text-sm text-fg">{draft.paid}</span>
-                  {draft.remaining ? ` · остаток ${draft.remaining}` : ""}
-                </p>
-              </>
-            ) : null}
-          </div>
-        ) : (
-          <p className="px-4 py-3 text-sm text-fg-3">Бюджет не указан.</p>
-        )}
-      </Card>
-
-      <Card eyebrow title="План платежей">
-        <ul>
-          {draft.payments.map((payment) => (
-            <li
-              key={payment.name}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 last:border-b-0"
-            >
-              <span className="min-w-0 flex-1 text-sm text-fg">
-                {payment.name}
-              </span>
-              <span className="shrink-0 font-mono text-sm tabular-nums text-fg">
-                {payment.amount}
-              </span>
-              <Pill tone={PAY_TONE[payment.state]}>{payment.at}</Pill>
-            </li>
-          ))}
-          {draft.payments.length === 0 ? (
-            <li className="px-4 py-3 text-sm text-fg-3">Плана платежей нет.</li>
+              </p>
+              {draft.paidPercent !== null ? (
+                  <p className="mt-1 text-sm text-fg-2">
+                    оплачено <span className="text-sm text-fg">{draft.paid}</span>
+                    {draft.remaining ? ` · остаток ${draft.remaining}` : ""}
+                  </p>
+              ) : null}
+            </div>
           ) : null}
-        </ul>
-      </Card>
+          <ul>
+            {draft.payments.map((payment) => (
+              <li
+                key={payment.name}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border py-2.5 last:border-b-0"
+              >
+                <span className="min-w-0 flex-1 break-words text-sm text-fg">
+                  {payment.name}
+                </span>
+                <span className="shrink-0 font-mono text-sm tabular-nums text-fg">
+                  {payment.amount}
+                </span>
+                <Pill tone={PAY_TONE[payment.state]}>{payment.at}</Pill>
+              </li>
+            ))}
+            {draft.payments.length === 0 ? (
+              <li className="py-2 text-sm text-fg-2">Обязательств пока нет.</li>
+            ) : null}
+          </ul>
+        </div>
+      </details>
 
       <ProfileFinanceControls actor={actor} workspace={draft.admissions} />
       {financeCaseId && (staffPresentationCan(actor, "admissions.read") || staffHasPermission(actor, "finance.event.confirm"))

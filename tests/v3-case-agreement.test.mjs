@@ -493,10 +493,12 @@ test("FIX 7: CaseAgreementStatus/MESSAGES carry the tranche_paid status and its 
 // FIX 8: currency-mismatch header honesty.
 // ---------------------------------------------------------------------------
 
-test("FIX 8: the currency-mismatch aside is explicitly labeled and never renders Оплачено/Остаток numbers", () => {
+test("FIX 8: the currency-mismatch branch is explicitly labeled and never renders Оплачено/Остаток numbers", () => {
   assert.match(blockSource, /Транши по валютам: \{perCurrency\.map/u);
-  const mismatchStart = blockSource.indexOf("agreement.currencyMismatch ? (", blockSource.indexOf("aside={"));
-  const mismatchEnd = blockSource.indexOf(") : (", mismatchStart);
+  const mismatchStart = blockSource.indexOf("agreement.currencyMismatch ? (");
+  assert.ok(mismatchStart >= 0, "mixed currency branch must exist");
+  const mismatchEnd = blockSource.indexOf(") : agreement.costMismatch", mismatchStart);
+  assert.ok(mismatchEnd > mismatchStart, "mixed currency branch must be nonempty");
   const mismatchBranch = blockSource.slice(mismatchStart, mismatchEnd);
   assert.doesNotMatch(mismatchBranch, /paidMinor/u);
   assert.doesNotMatch(mismatchBranch, /remainingMinor/u);

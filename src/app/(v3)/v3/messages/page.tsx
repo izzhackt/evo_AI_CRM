@@ -66,13 +66,10 @@ export default async function MessagesPage({ searchParams }: {
         membershipId={actor.membershipId}
         realtimeConfig={realtimeConfig}
         initialThreads={threads}
-        initialQuery={query ?? ""}
-        initialQueue={queue}
         initialStudentDisplayName={studentDisplayName}
         selectedCaseId={rawCase}
         initialPage={initialPage}
         initialPageFailure={pageFailure}
-        pendingAttachment={parseCaseChatAttachParam(attach)}
       />
     </main>
   );

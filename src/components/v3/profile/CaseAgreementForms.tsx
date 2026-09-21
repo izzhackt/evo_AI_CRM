@@ -152,8 +152,9 @@ function TrancheEditor({
 
   return (
     <details className="border-t border-border py-2">
-      <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-accent-text">
-        {tranche ? "⋯" : "Разбить на транши"}
+      <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-accent-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        aria-label={tranche ? `Изменить транш: ${tranche.label}` : undefined}>
+        {tranche ? "Изменить транш" : "Разбить на транши"}
       </summary>
       <form action={action} className="mt-2 space-y-3">
         <input type="hidden" name="request_id" value={currentRequestId} />

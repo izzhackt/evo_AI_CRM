@@ -12282,3 +12282,35 @@ empty, so populated menu/manual-link/task-link acceptance remains unverified;
 no fake messages or mutations were introduced to fill that gap. Exact widths
 and evidence limits are in docs/qa/crm-team-chat-task-actions-2026-09-21.md.
 Final reviews/CI and merge remain separate; broader item15 is unfinished.
+
+
+## 2026-09-21 — CRM-09b / item12: иерархия договора и оплаты (до кода)
+
+После объединения #969 (`d3ceed4078`) root выполняет узкий presentation-срез
+[контракта](design/v3/finance-hierarchy-slice-2026-09-21.md): стоимость услуг EVO →
+договор → транши → оплаты/чеки → остаток. Вторичные общие обязательства и
+дополнительные операции остаются доступными с прежними формами и правами.
+
+Пять owned-файлов: Profile.tsx (только Money props), profile/tabs.tsx (только Money),
+CaseAgreementBlock.tsx, CaseAgreementForms.tsx (только summary),
+FinanceEntryWorkspace.tsx. Reader/DTO/SQL/команды/финансовые значения не меняются.
+Не переносить весь contract workflow и не удалять вкладку: полный item12 остаётся
+открытым. Доступный переход «Подготовка договора и отчёты» ведёт в существующий
+workflow только при разрешённой вкладке. Preview не показывает write controls.
+
+Impeccable Operate: существующие Golos/токены/компоненты, короткие предметные
+подписи, раскрываемые вторичные разделы без unmount форм, минимум44px для действий.
+До UI-правок — actual ordinary QA baseline и craft-floor; затем bounded
+desktop/320/390 проверка, доступность и сохранность несохранённого ввода.
+Сохранения финансовых операций/загрузки/production не нужны и сюда не входят.
+Недоступные реальные финансовые варианты фиксируются как непройденные.
+Scoped checks и independent exact-head review перед merge; managed delivery отдельно.
+
+
+### CRM-09b: UI-срез проверен локально
+
+Actual existing Admin Money/Contract,1280/390/320px; явные денежные подписи,
+разделы и secondary disclosures, сохранность draft fields и правильные ссылки.
+48scoped tests/lint/typecheck PASS;281business/schema/functions/ledger/Authcounts
+без изменений. См. [QA](qa/crm-finance-hierarchy-2026-09-21.md) для runtime/proof
+и отсутствующих финансовых datasets. Полный item12 и managed delivery открыты.

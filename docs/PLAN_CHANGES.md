@@ -35146,3 +35146,26 @@ with current edit/delete/moderation conditions and focus refs. Hiding the menu
 by mutation authority would remove direct message navigation. Clarify actual UI
 acceptance for another author's remaining menu; no new runtime scope follows
 from the unconfirmed empty-menu concern.
+
+
+## 2026-09-21 — item12 / CRM-09b: отделить цену договора от всех обязательств
+
+Исходный CRM-09 §7 принятого плана требует связный путь договора и оплаты.
+Проверка кода показала: старый «Бюджет» складывает все обязательства, agreement
+читает только evo_service_fee, а gross totalPaidMinor не вычитает возвраты.
+Поэтому presentation-срез сохраняет оба reader и весь legacy workspace:
+основной договор и net-paid/outstanding получают явные подписи, общие обязательства
+и дополнительные операции — отдельные раскрываемые разделы. Не удалять
+третьесторонние расходы, возвраты, историю, старые формы или отдельные права.
+
+Контракт до реализации: docs/design/v3/finance-hierarchy-slice-2026-09-21.md.
+База d3ceed4078 после #969, пять owned UI-файлов неизменны с44092c575. SQL/API нет.
+Полный перенос договорных команд и снятие contract tab — следующий срез, item12
+не закрывается этой компоновкой. Проверка текущих реальных данных только чтением;
+клиентские публикации/финансовые записи/Auth provisioning не подразумеваются.
+
+До UI-изменений actual incumbent Money/Contract проверены existing QA Admin:
+стоимость1000USD с неподписанными paid/remaining и противоречивым «Бюджет не указан»;
+финансовые записи не создавались, full snapshot совпал. Единственная существующая
+source-проверка currencyMismatch привязана к aside: разрешено обновить её locator
+на новую ветку с обязательным nonempty guard, сохранив проверяемую денежную защиту.

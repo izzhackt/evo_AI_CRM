@@ -243,7 +243,8 @@ export function Profile({
       ) : null}
       {current === "money" ? (
         <Money profile={profile} draft={draft} actor={actor} salesCaseId={sales?.handoff.caseId}
-          saleConditionsHref={draft.saleConditions ? `${hrefFor("overview")}#sale-conditions` : null} />
+          saleConditionsHref={draft.saleConditions ? `${hrefFor("overview")}#sale-conditions` : null}
+          contractPreparationHref={tabs.some((entry) => entry.key === "contract") ? hrefFor("contract") : null} />
       ) : null}
       {current === "contract" && draft.contract ? (
         <ProfileContractWorkspace

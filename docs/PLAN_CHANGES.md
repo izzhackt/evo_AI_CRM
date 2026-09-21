@@ -35146,3 +35146,20 @@ with current edit/delete/moderation conditions and focus refs. Hiding the menu
 by mutation authority would remove direct message navigation. Clarify actual UI
 acceptance for another author's remaining menu; no new runtime scope follows
 from the unconfirmed empty-menu concern.
+
+
+## 2026-09-21 — A15b sequencing from verified chat dependencies
+
+Fresh main686b7f41 shows root-only history pagination, root-only parent acceptance,
+separate thread drafts with immutable retryInput, no per-message seen store and
+no all-channel preview DTO. These are real dependencies of the accepted overall
+chat plan, not permission to flatten history with a cosmetic UI deletion.
+
+Select the separately accepted composer autosize as the next two-file block:
+TeamChatComposer.tsx and existing textarea sizing CSS, current44..160 bounds.
+Preserve all draft keys/state, command payload and IME/Enter/focus protections.
+No migration reservation or new server history is needed. Local unsent UI input
+can prove geometry without creating messages; empty history still limits actual
+reply/edit/saved-path evidence and must stay explicit. Impeccable guidance and
+current official layout references are recorded in the remainder analysis.
+Precode only; larger flat-feed/search/seen scopes await their own design/review.

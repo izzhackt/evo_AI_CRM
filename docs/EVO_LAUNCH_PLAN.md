@@ -12282,3 +12282,28 @@ empty, so populated menu/manual-link/task-link acceptance remains unverified;
 no fake messages or mutations were introduced to fill that gap. Exact widths
 and evidence limits are in docs/qa/crm-team-chat-task-actions-2026-09-21.md.
 Final reviews/CI and merge remain separate; broader item15 is unfinished.
+
+
+## 2026-09-21 — A / item15b: composer autosize precode
+
+After A15a/#970, source analysis of main686b7f41 is recorded in
+`docs/EVO_TEAM_CHAT_REMAINDER_ANALYSIS_2026-09-21.md`. Flat feed requires changing
+the root-only reader, reply-to-reply/rollback contract and old draft recovery;
+removing the thread UI alone would lose visible history. Sparse seen cannot
+reuse the whole-channel read_sequence command. No migration number is reserved.
+
+The next minimal accepted §9 slice is automatic composer height: currently
+rows1 with manual resize and CSS44..160; no autosize effect exists. A owns only
+TeamChatComposer.tsx and its existing team-chat.module.css textarea sizing.
+Grow/shrink from actual current body and width, keep the existing limits and
+internal overflow, restore saved drafts at proper height, clean up observers,
+and preserve every draft/request/command/IME/focus/authority behavior. No new
+history, SQL, message writes, DTO or stylesheet redesign.
+
+Impeccable Operate/refinement preserves EVO and space for conversation; no
+height animation. Official React/MDN sizing references, the complete invariants,
+real unsent-input QA steps and known empty-history limits are in the analysis.
+Source/doc work only while B owns the writer window. Precode approval precedes
+runtime changes; actual UI needs a separately coordinated read-only window.
+Independent exact-head review and protected short CI remain required. This
+slice does not claim flat chronology, shared quoted composer or sparse seen.

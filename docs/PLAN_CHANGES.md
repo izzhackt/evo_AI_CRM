@@ -36476,6 +36476,20 @@ two Auth audits added. Own browser/Auth/server closed. Transfer schema001–234
 and immutable private receipts to ROOT235; final-head review/CI and normal PR1003
 merge remain required before ROOT integrates main for235. Item25 stays partial.
 
+## 2026-09-21 — B items24/25 profile request feedback precode
+
+ROOT accepted the next bounded web slice after merged1003/main7f444455:
+[Profile request feedback](platform/portal-profile-request-feedback.md). Catch
+client-side action rejection and use truthful RU/KY unknown-result copy, keeping
+the same requestId, pending behavior, confirmed success focus and server/RPC196
+contract. Only one component and two dictionary values; no SQL/native/provider.
+Independent precode review precedes implementation; source-only work may proceed
+while ROOT235 then A1005 own the shared runtime. Actual B validation waits for
+its admitted window and permits only a real owned-Next outage with zero business
+writes. No positive deletion request, fixtures, new actors or status reset.
+Native refresh findings and current KY Home evidence remain separate; no broad
+E2E/accessibility/native/production completion claim.
+
 ## 2026-09-21 — ROOT item7a local235 closure
 
 [Actual management report](qa/crm-sales-management-actual-2026-09-21.md):
@@ -36496,6 +36510,20 @@ retention remain unverified; no acceptance claim is made for those branches.
 The next7b UI block preserves forms and will retain these proof gaps explicitly.
 Final-head review/CI/merge are still required; local235 transfers next to A1005.
 Production authority and delivery are separate.
+
+## 2026-09-21 — B1006 integrates ROOT235 source only
+
+Merge main `d68ce58711b413f8366c80615456cfbbf22a0772` after #1004 into
+reviewed B1006 `a917f332e6410ca6bb3442aeb385a8e7981ee826`. Resolve only
+additive launch/decision-log tails, preserving both histories and product code.
+ROOT235 release `6d04fe14e3993ee49a7f1635b6f0db3cc5bb57d0a170e8219d154ff81a8172b8`
+is assigned to A1005, not a B admission. Prepare only inert file-based observer
+inputs while A owns the runtime; future B baseline must be the direct A1005
+release with fresh source/config/Docker/query pins. Resolve configured Student
+identity against pre-existing users from that admitted state; never copy an
+older B actor ID or create a login/actor to force a match. No SQL reapply,
+Auth/browser/server call, business write or positive deletion request now.
+Independent integration review and current CI precede future B runtime admission.
 
 
 ## 2026-09-21 — A15g-1 / PR1005 actual local235 closure
@@ -36519,6 +36547,53 @@ pixel anchors, other channels and screen reader/device acceptance are unclaimed.
 Final docs-head review/CI/merge remain; immutable candidatea5e7567c is released=false.
 ROOT must accept the final release before B1006 binds the local235 environment.
 Item15 and all1–36 remain partial. Historical receipts retain their original limits.
+
+## 2026-09-21 — B1006 integrates A1005 and accepts local235 handoff
+
+Integrate main `29e0fb46a8067a6a4f5a9bedce81971aba2f56ff` after #1005.
+Only additive log tails conflict; preserve both and the reviewed B1006 product
+change. ROOT accepted the direct A1005 release `78b487d7a5c8c81da5c0fef4da071343616d39e42d13cbd6a0618618cb0abe67`
+as B1006's sole incoming baseline. Prepare read-only source/config/Docker and
+existing configured Student binding. Independent integration and concrete
+runtime-packet review precede ordinary Auth, owned browser/server and the two
+bounded transport-failure checks. Preserve after-UI observations, then reconcile
+strict full state only after ordinary own logout and closure. No positive account
+request, SQL, fixtures, provider or production changes. Next shared QA owner is
+ROOT7b; item32 remains a separate later admission.
+
+## 2026-09-21 — B1006 actual route STOP; QA closure released to ROOT7b
+
+[Actual report](qa/portal-profile-request-feedback-actual-2026-09-21.md): ordinary
+configured Student login on reviewed source08b90ed1 reached /apply/status rather
+than /portal. No profile/deletion activation, outage or visual pass was performed;
+PR1006 stays draft. Keep source CI35611174459 and its scope separate from actual.
+Reviewed narrow cleanup used the same owned session's real application-status
+logout, then closed only owned browser/Next and removed own Auth files. Unchanged
+strict final0548bab0 plus independent closure review43166e99 prove all290/catalog/
+effects and33AuthStorage preserved except own allowed Auth metadata+two audits;
+incoming224 sessions/239refresh/224AMR restored. Immutable resource release0f78c26c
+hands off to ROOT7b with testOutcomeSTOP and productAcceptancefalse. Preserve
+initial guard/closure-probe failures; no fixture/auth/backend edits or new login
+are authorized by this outcome. Investigate dispatcher eligibility from existing
+captured metadata/source only before proposing the smallest remedy.
+
+
+## 2026-09-21 — B1006 valid existing Student, outage STOP, strict release ROOT22F
+
+[Actual supplement](qa/portal-profile-request-feedback-actual-2026-09-21.md): the
+historical configured alias was a pre209 approval; migration209 already covers
+new approvals, so no duplicate migration/backfill/config/grant changes. A reviewed
+new packet selected the explicit existing authorized post209 Student in memory.
+Clean source5c0da6fa, unchanged product bytes versus reviewed08b90ed1: ordinary
+portal login and hydrated profile PASS. Own dev Next shutdown was followed by a
+saved chrome-error page/first-outage STOP; exact replacement cause UNKNOWN,
+command activation/rejection unproven, no retry/layout/product acceptance.
+Reviewed own API logout204 plus cookie cleanup/exact browser close completed
+without navigation or Next restart. Strict final88d7a5e9 preserved full290/33
+except permitted own Auth metadata and two audits. Resource released to ROOT22F
+by d26f3f48; PR1006 remains draft. Preserve both historical STOP packets. Future
+browser-offline confirmation is files-only proposal after ROOT22F then A15;
+no new UI admission or widened functionality is implied.
 
 
 ## 2026-09-21 — A14a compact staff catalogue, precode
@@ -36626,6 +36701,38 @@ old operational snapshots and distinguishing local #985 materials from pending
 company-download proof. Prose-only validation: diff review and git diff --check.
 
 
+## 2026-09-21 — ROOT22 sidebar disclosure identity and acceptance boundary
+
+Before coding, narrow the navigation fix to the existing authorized destination
+identity. Current query-based Sidebar remount loses disclosure choices even for
+calendar Next Link period changes. Replace only destinationKey in navigation.ts;
+retain role/access-version resets and all allowed-link computation. Unknown or
+hidden routes use a separately tagged pathname fallback, never an unauthorized
+candidate. Existing AppShell and form/mobile handlers stay unchanged.
+
+The original planning example mentioned report filters. Source inspection showed
+sales and catalogue search forms perform native GET document navigation, so a key
+change cannot preserve their React state across submission. The real acceptance
+path is calendar Next month and client Back/Forward; report reset is tested only
+after its initial GET has loaded and disclosures are set. No promise across reload,
+new tabs or native GET. Impeccable refinement preserves EVO's current visual and
+interaction vocabulary; one inspection batch plus at most one confirmation.
+Meaningful key/authorization tests, scoped checks and actual ordinary UI are kept
+separate. B32/A1008 own the earlier local windows; no runtime or data mutation is
+part of this precode entry. Public planning follows private approved plan8125ecd2
+and source-path correction927dd0e4; the complete item22 remains open.
+
+
+## 2026-09-21 — ROOT22 sidebar destination source implementation
+
+[Source proof](qa/crm-sidebar-destination-state-source-2026-09-21.md) records
+product d4c7dcdf: key now follows authorized activeId (tagged pathname fallback),
+with unchanged role/access-version boundaries. AppShell, visibility/guards,
+forms and visual styles are untouched.19 real navigation-builder tests, scoped
+lint, typecheck and diff-check passed. This establishes source behavior only;
+ordinary calendar Next Link/Back/Forward and1440/390/320 acceptance await the
+coordinated window after B32/A1008. Native GET/reload remain outside the guarantee.
+
 ## 2026-09-21 — A14a / PR1008: реальный каталог и закрытие local QA
 
 Product b8497ad44cd020f0abf112b92a5b4a7c7d459651 прошёл existing Admin ordinary
@@ -36669,6 +36776,28 @@ Main7be6461de23fe9c8e8a0cd378010d8be03637757 включён с сохранен�
 (16/15/0), пяти входящих docs и всех append-only записей. Runtime/source/test
 дерево остаётся byte-identical actual b8497ad4; новых product checks не запускали.
 
+## 2026-09-21 — ROOT22 partial UI, strict closure and functional remainder
+
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) records
+source32f50df4: first1440 assertions and390 month transitions completed before
+the script's open-menu pointer obstruction. One corrected confirmation stopped
+on document navigation; its cause remains unknown. Preserve both STOPs and
+keep #1010 draft. No product change or third visual/polish round is justified.
+Strict final290/33 passed with only own Auth metadata/two audits; own204/browser/
+server/port/token closure completed, resource6f6ff7ed passed to B32.
+
+Independent prepared plan93841526/reviewaee13ab1 fills only missing390/320
+FUNCTIONAL branches after B32/B1006, without screenshots or1440 repetition.
+Observe real Link interception together with URL/period/epoch/document requests;
+aria-busy is not hydration proof. No forced/prevented event or native fallback.
+Record each stage, one attempt, stop on unexpected outcome. Existing real data
+and source guards remain; no fixtures/tasks/roles/providers/production. This
+changes the method after observed automation stops, not the acceptance standard:
+full relevant UI proof, independent review and CI remain required for merge.
+
+Integrate accepted main d6add883 (#1008) and KB #1011. Both journal conflict
+blocks are retained; the two ROOT product files remain byte-identical to32f50df4,
+and incoming catalogue product files match main. Reuse unchanged scope checks.
 
 ### A15g-2 — последовательности одного автора, precode 2026-09-21
 
@@ -36784,3 +36913,71 @@ shared classes/права/DTO/grouping/seen неизменны. Scope ESLint и 
 на Node22.23.1; [source-квитанция](qa/team-chat-service-row-source-2026-09-21.md).
 Прежние39/39 не повторялись. Actual1440/390/320, anchors/menu/draft и выигрыш
 плотности ещё не доказаны. QA остаётся у ROOT22G, runtime не открывался.
+
+## 2026-09-21 — B1006 first browser-offline rejection PASS; resource release ROOT22G
+
+[Actual report](qa/portal-profile-request-feedback-actual-2026-09-21.md): after two
+preserved STOPs, ROOT admitted one genuine browser-context offline attempt with
+Next kept running, no mocks/route interception/retry/screenshots. This replaces
+only the failed verification method, not product semantics. Existing authorized
+post209 Student; frozen sourcec4d73455. One Enter produced one matching POST/
+requestfailed ERR_INTERNET_DISCONNECTED, RU neutral alert, enabled recovery,
+same document/button/epoch and no false success. Discarded the original document
+while offline before restoring online; ordinary own Auth API logout204, cookie
+cleanup/exact browser close, then own Next36648 stop. Strict final2891910b proves
+full290/33 preservation except allowed own Auth metadata/two audits; resource
+releaseb18b832e hands off ROOT22G. Retry/Space/KY/layout/positive deletion/native/
+VoiceOver/full E2E/production remain unclaimed. Current-main7faa4748 integration
+preserves all incoming files and both additive shared-log histories; B product
+bytes remain identical to actual c4d. Final exact-head review and protected CI
+remain required before ordinary merge; no new QA window or deployment implied.
+
+Independent actual+closure review27e335dd is APPROVED_SCOPED_NEGATIVE_UI_AND_CLOSURE;
+this does not claim server-command execution or positive request acceptance.
+
+## 2026-09-21 — ROOT22F partial functional result and main1013 integration
+
+Preserve both main c42f3963 Company-download checkpoint and ROOT22 history.
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) adds the
+single 34b6bd0b functional attempt: 390 Week/Back/Escape passed; same-sidebar's
+10-second waiter stopped because it defaulted month while the bare route defaults
+week. This is a proven harness/source mismatch, not a product bug or completed
+same-sidebar acceptance. Different destination and 320 were not run; no 1440 repeat,
+screenshots or retry. Any corrected inert proposal remains unexecuted preparation.
+Strict final 290/33/catalogue/effects and old sessions/refresh/AMR reconciliation
+passed; only own Auth metadata/two audits changed. Own API logout 204, browser/token/
+process/port closure and actual Ctrl-C exit 1 are retained. Release 11e05efb passed
+the environment to A15; product acceptance=false and #1010 remains draft.
+Only documentation changes; both product/test files retain 34b6bd0b bytes. Preserve
+current main rows 14/32 and update only the sidebar row 22/intro. Diff/marker review
+and git diff --check only; exact-head independent review/CI still gate merge.
+
+Corrected remainder script04f53dc1 / independent inert review9f334e2a is prepared
+only: bare Calendar expects week;320 selects the real «Месяц» Link before monthly
+checks. Passed390 Week/Back/Escape and1440 are excluded. It remains UNBOUND and
+unexecuted, queued after A15 and B1006 with fresh source/release/actor binding;
+no runtime admission or full item22 acceptance follows from this preparation.
+
+
+## 2026-09-21 — ROOT22G scoped functional acceptance and main integration
+
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) appends the
+single remaining functional pass at f5f8fef2: 390 same/different-destination and 320
+Month/next/Back/Forward/Week/Escape/focus/menu passed with trusted client Link,
+correct URL/period and unchanged document. No 1440 repeat or new screenshots.
+Independent actual/closure review 799f96ff accepts the bounded remainder; earlier
+STOPs and their precise limits remain historical, not relabelled successes.
+Strict final 290/33/catalogue/effects, original sessions/refresh/AMR and own cleanup
+passed; only own Auth sign-in metadata/two audits differ. Logout API 204, closed
+browser/server/33254, removed captured Auth and actual Ctrl-C exit 1 are retained.
+Release 77a63714 passed to A1014; its pre-review productAcceptance=false is immutable.
+The narrow client-navigation function is locally accepted, not the whole item 22,
+native GET/reload persistence, other roles, a new visual cycle or production.
+
+Integrate main 8b6259ec (#1012 at 7faa4748; #1006 at 8b6259ec), preserving both journal
+histories and current catalogue/KB/download rows. Align current rows 15/24 to those
+verified merges without widening grouping or negative-profile evidence; row 22
+records this actual result. Four shell/navigation files retain 32f50df4 bytes;
+other incoming product files retain main bytes. Documentation diff/marker/parity
+review and git diff --check only; no product tests, runtime or production action.
+Final exact-head documentation review and protected CI still gate #1010 merge.

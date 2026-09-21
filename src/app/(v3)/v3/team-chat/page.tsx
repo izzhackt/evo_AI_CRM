@@ -6,7 +6,8 @@ import { TeamChat } from "@/components/v3/team-chat/TeamChat";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { TEAM_CHAT_FAILURE_COPY, isTeamChatChannel, teamChatUuid } from "@/lib/platform-team-chat";
 import { TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
-import { readV3TeamChat } from "@/lib/v3/team-chat-source";
+import { readV3TeamChatFeed } from "@/lib/v3/team-chat-source";
+import { TeamChatV2Error } from "@/lib/server/platform-team-chat-v2-repository";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +19,13 @@ export default async function TeamChatPage({ searchParams }: {
   const actor = await requireV3PageActor("/v3/team-chat");
   const params = await searchParams;
   const channel = params.channel ?? "general";
-  const messageId = params.message ?? null;
-  if (!isTeamChatChannel(channel) || (messageId !== null && !teamChatUuid(messageId))) notFound();
+  const requestedMessage = params.message ?? null;
+  if (!isTeamChatChannel(channel) || (requestedMessage !== null && !teamChatUuid(requestedMessage))) notFound();
+  const messageId = requestedMessage?.toLowerCase() ?? null;
   let initial;
   let failure: keyof typeof TEAM_CHAT_FAILURE_COPY = "unavailable";
-  try { initial = await readV3TeamChat(actor, { channel, mode: messageId ? "message" : "latest", messageId }); }
-  catch (error) { failure = error instanceof TeamChatReadError ? error.status : "unavailable"; }
+  try { initial = await readV3TeamChatFeed(actor, messageId ? { channel, mode: "context", messageId } : { channel, mode: "latest" }); }
+  catch (error) { failure = error instanceof TeamChatReadError || error instanceof TeamChatV2Error ? error.status : "unavailable"; }
   if (!initial) {
     return <PartShell title="Командный чат"><Card>
       <p role="alert">{TEAM_CHAT_FAILURE_COPY[failure]}</p>

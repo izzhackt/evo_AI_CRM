@@ -36130,3 +36130,44 @@ contract dependency. Existing local checks remain attributed to their original
 heads; this integration receives independent exact-head delta review and fresh CI.
 Shared runtime remains exclusively A15f; B232 actual QA follows ROOT995 and ROOT231.
 No UI implementation, DB/Auth/Storage/browser action or production claim is added.
+
+### A15f unified chat UI — decisions recorded before code
+
+A15d225/A15e227 are merged; current base main115b895a. A227 actual local apply/API
+passed and full raw window was released to ROOT990. Start A15f source work in an
+isolated chat-only worktree while ROOT owns runtime. No migration or database/
+Auth/browser/server work belongs to this offline step.
+
+Update docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md with the current dependency
+state and concrete SSR/V2 timeline, one composer, V1 draft recovery, context/
+search/anchor, invalidation and seen integration. Pin a500ms stable body dwell
+with visible height at least min(50%body,160px), active visible window, overlay/
+search/quote exclusions and bounded1–50 IDs; never advance legacy read_sequence.
+V1 changes cannot invent direct quote identity; preserve or hydrate from V2.
+Existing unknown operation identities, rights, authored content and dates remain.
+
+DESIGN.md now reflects the already accepted single-feed/direct-quote decision;
+EVO/Golos/themes/AppShell are preserved. Reused A15d desktop/mobile captures are
+historical incumbent evidence and UI/CSS source remains unchanged since then.
+A15g owns density/grouping/channel previews. ROOT retains CaseAgreement and
+SalesRegisterView mobile work; B retains portal/requirements/iPhone. No UI
+implementation or actual UI acceptance is claimed by this precode commit.
+
+
+### A15f actual local chat acceptance and released runtime — 2026-09-21
+
+Actual ordinary Sales/Admin UI at e1250b58 passed the bounded five-post,
+versioned edit/delete, frozen V1/V2 replay, sparse unread gap/reload, search,
+legacy links, >50 history paging and composer journeys. Desktop1440 and320/390
+inspection preserved EVO and reachable controls. Full local230/287-table
+reconciliation confirmed exact seven commands, four finite seen tuples and all
+original rows; own sessions/browser/server closed. ENOSPC recovery is separately
+pinned, with final read-only state equality and release01b3c17b…8cb51 to ROOT995.
+See docs/qa/crm-team-chat-unified-feed-actual-2026-09-21.md for proof and limits.
+
+This closes A15f's scoped local acceptance, not all item15/first36 or production.
+A15g keeps grouping/density/channel previews and the observed follow-up: read
+search errors should explain retrieval failure rather than an uncertain write.
+Native/IME/screen-reader/moderation/revocation/storage-quota/post-refresh-failure
+journeys remain unclaimed. New main47d4a4746 integration preserves chat bytes;
+no migration is introduced by this chat PR.

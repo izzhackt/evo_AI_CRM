@@ -37341,6 +37341,52 @@ UI. Source final-head review и короткий CI обязательны пе�
 Новых миграций, permissions, runtime действий или полного item15 acceptance нет.
 
 
+### B24 — принятый precode: повтор операции урока
+
+После merge #1015 (main436865af) source-разбор обнаружил конкретную ошибку:
+после conflict → reloadDraft → unavailable кнопка «Повторить» выбирает
+start/save/complete по состоянию экрана, никогда reload. Принят
+[узкий контракт](platform/portal-lesson-retry-operation.md) и независимое
+precode review6f458939: явная идентичность отказавшей операции, сохранение
+существующих request IDs/snapshots, busy guard, draft и всего оформления.
+Actions/RPC/SQL и другие runners не меняются. Восемь incumbent-файлов и
+lesson320/1440 база сверены с acceptedf77a457b; это не actual ошибки reload.
+
+Контракт записан до UI-кода. Реальный Student-путь ждёт отдельного admission
+и восстановления локальной среды (отсутствующий OrbStack socket); Docker не
+перезапускаем, конфликт fixtures не создаём. Следующий PR остаётся draft с
+QA pending. Этот блок не закрывает весь пункт24, native или production.
+
+### B24 — source checkpoint: повтор операции урока
+
+Precode-контракт `0eea93dc` предшествует реализации `0f5fca638f195967d0601427e228b264ef43bd90`.
+Объём принятого контракта не изменён: только владение ошибкой и выбор retry в
+LessonRunner, адресный тест и документация. Regression воспроизведена до правки;
+после неё 20 адресных unit-проверок, scoped lint, TypeScript и diff check PASS.
+[Контракт](platform/portal-lesson-retry-operation.md#source-checkpoint--2026-09-21)
+фиксирует точные команды, spans и ограничения. Независимое source review,
+protected CI и реальный Student conflict/reload/retry пока pending; draft PR
+не является закрытием всего пункта24. Никаких новых runtime/QA/DB действий.
+
+
+### 2026-09-22 — B24: actual повтора урока и интеграция #1018
+
+[Узкая квитанция](qa/portal-lesson-retry-actual-2026-09-22.md): на frozen
+c59e93cf существующий Student сохранил один ответ, получил конфликт во второй
+вкладке, отказ загрузки при browser-offline и успешный ручной retry той же
+read-команды. Strict final290/33 и independent actual/closure review752f71b0
+приняты ROOT. Исходный closure OSError STOP сохранён, причина unknown;
+последующая отдельная проверка закрытия разрешена после новых PID/port данных
+и завершилась CLOSED. Повтора бизнес-сценария не было.
+
+Среда передана ROOT_COORDINATOR по handofff1126aac. После этого выполнена
+files-only интеграция main eec9c548, уже включающего #1020. Входящие изменения
+main и полные собственные дополнения журналов сохранены; LessonRunner/test
+побайтно равны c59. Контракт и архитектура не расширяются. Прежние source checks
+и actual используются со своим SHA и пределами; итоговому head требуются
+независимое exact-head review и protected CI. Пункт24 и production не закрыты.
+
+
 ## 2026-09-22 — A15 command feedback, accepted precode before implementation
 
 После protected merge #1020 в eec9c548 начинается [точное сообщение об исходе
@@ -37369,3 +37415,30 @@ retry semantics побайтно сохранены после только pres
 Новых string-mirroring tests нет. Следуют independent source review и short CI;
 actual UI ждёт отдельного QA окна после B1018 → ROOT16. Это source-only стадия
 того же плана, не merge-ready или production. Timestamp block сохранён далее.
+
+
+## 2026-09-22 — A15 command feedback: actual closure и интеграция #1024
+
+После source revieweab75360 и CI35666591542 наb7533a92 выполнена отдельная
+[локальная проверка](qa/team-chat-command-feedback-actual-2026-09-22.md) по
+прежнему принятому плану. После fresh ROOT16 release и одного concrete review
+обычный существующий Admin открыл canonical General moderation form и один
+раз подтвердил её при настоящем browser-offline. Запрос завершился
+net::ERR_INTERNET_DISCONNECTED, ответа/online retry не было. Текст неизвестного
+исхода, frozen reason/version/requestId, pending→retry и320/1440 приняты.
+
+Strict after/final:290 business tables неизменны, seen0,33 Auth/Storage
+сверены, inherited sessions/refresh/AMR восстановлены. Ownlogout204, browser
+closed, собственный PID15713 SIGTERM/reap0/group absent/connect_ex61; capture
+удалён. Независимое actual/visual/closure reviewf61ac50b прочитано и принято.
+Handoffd0e30ad6 возвращает QA ROOT до source/docs интеграции. Нет новых
+миграций, сообщений, прав, пользователей или UI replay. No port reuse claim.
+
+Main2b25a431 (#1018) интегрирован files-only;44 связанных chat/source/tests/SQL/
+dependencies/CSS/AppShell файла точны b753, входящие LessonRunner/test точны
+main. Append-only конфликты разрешены точным общим префиксом и полными хвостами
+обеих веток; parityfff9e492. Текущая строка15 исправлена: #1020 уже merged,
+его scoped продолжение принято; старые STOP/history receipts сохранены.
+Архитектура/контракт не расширены; итоговые exact-head review/CI/merge #1024
+остаются у ROOT. Timestamp далее отдельным блоком; positive commands,
+production/native/full15 и issue708 real-staff acceptance не заявляются.

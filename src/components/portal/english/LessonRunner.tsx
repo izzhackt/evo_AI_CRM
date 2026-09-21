@@ -41,6 +41,7 @@ import {
  */
 
 type AnsweredEntry = { answer: unknown; verdict: LearningVerdict; explain: LearningExplain };
+type LessonOperation = "start" | "answer" | "complete" | "reload";
 type PendingSave = {
   requestId: string;
   exerciseId: string;
@@ -85,6 +86,7 @@ export function LessonRunner({
   const [busy, setBusy] = useState(false);
   const [resultAnnouncement, setResultAnnouncement] = useState("");
   const [error, setError] = useState<LearningActionError["code"] | null>(null);
+  const failedOperation = useRef<LessonOperation | null>(null);
   const [exitNotice, setExitNotice] = useState(false);
   const pendingSave = useRef<PendingSave | null>(null);
   const startRequestId = useRef<string | null>(null);
@@ -124,9 +126,25 @@ export function LessonRunner({
     });
   }
 
+  function reportFailure(code: LearningActionError["code"], operation: LessonOperation) {
+    failedOperation.current = operation;
+    setError(code);
+  }
+
+  function retryFailedOperation() {
+    if (busyRef.current) return;
+    switch (failedOperation.current) {
+      case "start": void start(); break;
+      case "answer": void submitAnswer(); break;
+      case "complete": void complete(); break;
+      case "reload": void reloadDraft(); break;
+    }
+  }
+
   async function start() {
     if (busyRef.current) return;
     busyRef.current = true;
+    failedOperation.current = null;
     setBusy(true);
     setError(null);
     setResultAnnouncement("");
@@ -134,7 +152,7 @@ export function LessonRunner({
     try {
       const response = await startLearningLessonAction(view.lesson.lessonId, startRequestId.current);
       if (!response.ok) {
-        setError(response.code);
+        reportFailure(response.code, "start");
         return;
       }
       setAttempt(response.attempt);
@@ -144,7 +162,7 @@ export function LessonRunner({
       setPhase("exercises");
       focusHeading();
     } catch {
-      setError("unavailable");
+      reportFailure("unavailable", "start");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -168,6 +186,7 @@ export function LessonRunner({
     if (!request) return;
     pendingSave.current = request;
     busyRef.current = true;
+    failedOperation.current = null;
     setBusy(true);
     setError(null);
     setExitNotice(false);
@@ -182,7 +201,7 @@ export function LessonRunner({
         requestId: request.requestId,
       });
       if (!response.ok) {
-        setError(response.code);
+        reportFailure(response.code, "answer");
         if (response.code !== "unavailable") pendingSave.current = null;
         return;
       }
@@ -202,7 +221,7 @@ export function LessonRunner({
       // что уже используют start()/complete().
       focusHeading(response.save.verdict.correct ? strings.verdictCorrect : strings.verdictWrong);
     } catch {
-      setError("unavailable");
+      reportFailure("unavailable", "answer");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -212,6 +231,7 @@ export function LessonRunner({
   async function complete() {
     if (busyRef.current || !attempt) return;
     busyRef.current = true;
+    failedOperation.current = null;
     setBusy(true);
     setError(null);
     completeRequestId.current ??= crypto.randomUUID();
@@ -222,7 +242,7 @@ export function LessonRunner({
         requestId: completeRequestId.current,
       });
       if (!response.ok) {
-        setError(response.code);
+        reportFailure(response.code, "complete");
         if (response.code !== "unavailable") completeRequestId.current = null;
         return;
       }
@@ -230,7 +250,7 @@ export function LessonRunner({
       setAttempt(null);
       focusHeading();
     } catch {
-      setError("unavailable");
+      reportFailure("unavailable", "complete");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -240,11 +260,12 @@ export function LessonRunner({
   async function reloadDraft() {
     if (busyRef.current) return;
     busyRef.current = true;
+    failedOperation.current = null;
     setBusy(true);
     try {
       const response = await reloadLearningLessonAction(view.lesson.lessonId);
       if (!response.ok) {
-        setError(response.code);
+        reportFailure(response.code, "reload");
         return;
       }
       pendingSave.current = null;
@@ -254,7 +275,7 @@ export function LessonRunner({
       setIndex(firstUnansweredIndex(exercises, response.attempt.answers));
       setValue(null);
     } catch {
-      setError("unavailable");
+      reportFailure("unavailable", "reload");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -275,16 +296,12 @@ export function LessonRunner({
           {strings.reloadDraft}
         </button>
       ) : error === "unavailable" ? (
-        // Идемпотентные request_id делают повтор безопасным для каждого шага.
+        // Повторяем именно отказавшую операцию; её request_id и снимок сохранены.
         <button
           type="button"
           className="pt-btn-ghost"
           disabled={busy}
-          onClick={() => {
-            if (!attempt) void start();
-            else if (current && !currentEntry) void submitAnswer();
-            else void complete();
-          }}
+          onClick={retryFailedOperation}
         >
           {strings.retry}
         </button>

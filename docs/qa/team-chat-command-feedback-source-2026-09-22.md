@@ -1,5 +1,9 @@
 # A15 command feedback — source check, 22.09.2026
 
+Историческая квитанция source-этапа. Его последующее revieweab75360 и
+CI35666591542 на b7533a92 приняты; отдельная [actual/closure-квитанция](team-chat-command-feedback-actual-2026-09-22.md)
+фиксирует последующий UI-проход и сохраняет исходные ограничения ниже.
+
 База eec9c548 (#1020); принятый [план](../EVO_TEAM_CHAT_COMMAND_FEEDBACK_PLAN_2026-09-22.md)
 записан до кода в a4b59a62. Corrected approved precode1b5bcf4d, independent
 reviewa67c4d25: повтор может создать первое сообщение, но не его дубликат.

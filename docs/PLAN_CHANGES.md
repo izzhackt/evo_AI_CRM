@@ -37834,6 +37834,20 @@ Assessment source/tests unchanged; final exact-head review/CI и ROOT merge
 остаются отдельными. Никакого повторного runtime или расширения scope.
 
 
+## 2026-09-22 — assessment1029: local actual и accepted production8f9391dd
+
+Docs-only checkpoint различает [local dev actual1029](qa/portal-assessment-retry-source-2026-09-22.md)
+(Start1/accepted save1/r2/read2/Complete0, own closure52aa/d3f) и
+[release35705693269](qa/plan36-production-release-2026-09-22.md) на8f9391dd:
+healthy/restart0, generic read-only Auth smoke, pending absent/armfalse;
+readback02c00627 и independent reviewaa62f50a приняты. Schema239 неизменна,
+нового SQL/provider activation нет; production two-tab assessment не проверялся.
+Ведомость обновляет только current checkpoint/5/24/27/36.1026/980 native pending,
+CUA B08:21 locked; mail inputs/access pending, отправок нет. Прежний24b release,
+STOP, KB decisions и пределы31/32 сохранены. Проверки только diff/diff-check;
+код/runtime/права этот срез не меняет, весь1–36 не закрывается.
+
+
 ### 2026-09-22 — B native: принятый precode локального выхода
 
 После merge #1018 в main2b25a431 подтверждён scope mismatch: web Portal

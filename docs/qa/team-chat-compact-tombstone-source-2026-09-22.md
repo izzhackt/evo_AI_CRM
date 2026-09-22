@@ -1,9 +1,10 @@
-# A15 — compact root tombstone: source evidence
+# A15 — compact root tombstone: source и узкая UI-проверка
 
 22 сентября 2026. Реализация `af47d719adbf55eec8153679aceafcc2c3afdf21`
 на main `0926399b04898c919a65d2b5ff5b87adfe2d1d00`.
-Это проверка исходников; новый compact UI в работающем приложении не проверен.
-Независимое exact-head source review и protected short CI выполняются отдельно.
+Ниже сохранена проверка исходников и добавлен результат обычного UI-прогона
+на `00cba9739d95a95dd9d681b1ced094fdccd202de`. Отрицательные варианты проверены;
+новый compact root0 в работающем приложении не представлен и остаётся NOT PROVEN.
 
 ## Что изменилось
 
@@ -52,7 +53,7 @@ dependencies без установки. Полный build и unchanged suites �
 - ESLint: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 - typegen/TypeScript: `adba4af9194e10e47dda75ff0fd0f8c2b756474896d0eba5612799c527ff372a`.
 
-## Наличие данных и границы
+## Наличие данных до разрешённого UI-окна
 
 Saved-only eligibility reportSHA
 `339a70ae34ff6e975c9d3b0a2d4bcf0d455b4c1ada24e67f46c4452178bd511b`
@@ -68,3 +69,59 @@ controls, и positive root0 только если он реально досту
 В этом source-срезе runtime/Auth/DB/browser не запускались, shared QA остаётся B.
 Actual compact geometry, полный screen reader, другие роли, native/production,
 issue708 и весь item15 не приняты. Приватные snapshots/IDs/тексты в Git не добавлены.
+
+## Обычный UI и закрытие локальной QA — 22 сентября
+
+После передачи QA от B и отдельного допуска ROOT использован существующий Admin,
+обычный login и `/v3/team-chat?channel=general` в headless Chromium. Source guard
+сохранил точный `00cba9739d95a95dd9d681b1ced094fdccd202de`; два product-файла выше
+не менялись. Независимое source review APPROVED_SOURCE, reportSHA
+`bb286466c17a29cbd0cb2c299c3d6a9588029e23fcfe811ea3edaf943927c50a`;
+[protected CI 35681958190](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35681958190)
+SUCCESS: пять проверок прошли, три пропущены по scope.
+
+Свежий BEFORE подтвердил General64, три удалённых сообщения: root с одним ответом
+и два reply с цитатами. Подходящих root0 нет. Допуск на обычные собственные отметки
+прочтения вычислен заново для конечного набора51; фактически новых отметок0.
+Сообщения, пользователи, grants и fixtures ради варианта не создавались и не менялись.
+
+Один UI-прогон PASS: удалённый reply показан на390/320/1440px, затем все три
+существующих tombstone открыты обычными permalink на1440px. Шесть наблюдений
+подтвердили отсутствие compact-класса у исключённых вариантов, прежний bubble,
+автора, время/title, метку удаления, отсутствие удалённого body и сохранение цитат.
+Reply/menu имеют цели не меньше44px; горизонтального переполнения нет.
+Три permalink сохранили highlight; Reply принимает фокус, меню открывается Enter,
+«Ссылка» сохранена, edit/delete/moderation отсутствуют. Reply только фокусировался:
+draft не создавался. Три screenshots просмотрены; это отрицательные контроли,
+а не изображения нового compact root0. Полного экранного диктора не проверяли.
+
+После завершения запросов чат размонтирован. AFTER-UI и FINAL прошли независимую
+от UI сверку290 business-таблиц,33 Auth/Storage, схемы001–239, catalog/effects
+и канонических unread. Business-state после UI не менялся; прежние Auth-строки
+сохранены, новая собственная сессия закрыта обычным local logout204. Остались
+два ожидаемых собственных Auth audit события login/logout; полное побайтное
+равенство всей БД до/после не заявляется. Браузер закрыт, собственная process group
+остановлена и собрана launcher, порт отказал в соединении. Собственный файл
+Auth cookies удалён после строгой финальной сверки.
+
+До запуска server/Auth parent-команда остановилась с `ModuleNotFoundError: observe`.
+Причина — путь импорта inline Python; добавлен каталог уже проверенного helper.
+Исходный failure сохранён. Helpers/source не менялись, actual не повторялся.
+
+Приватные квитанции и SHA-256 (содержимое переписки и идентификаторы остаются вне Git):
+
+| Квитанция | SHA-256 |
+| --- | --- |
+| BEFORE | `077bf63dbbaab9e65f4426fac0ed488e9f051e3574a215ea5ebe9423f5dc54db` |
+| UI result | `d36d504894f12a8193aec37c7cde79b7875b99d5be979702cf6c8f0f5d8c8e60` |
+| AFTER-UI | `ab909200a02482c368f91d758628fba7f51ccefdbe776ba62c56f7d052767ccd` |
+| FINAL | `f2b8f31bd0bfa69b3dc33cf2d169d17662b3704fd861b16146cabf5065202439` |
+| Final effect verification | `1183fbd8faf7f74872a95e4d82bff9f59615d163ddb1cbbb19f575518cd7d2bd` |
+| PNG390 | `e8abd66ac8a1b6c8f677a8d1ae7b3fbccd9b43cb9d042af8b3a6123be4eda414` |
+| PNG320 | `7a616c74e4a673f17b52dd9c57ac01db083de2302be101d714d775909be73b6f` |
+| PNG1440 | `c78570349525ce9de2b5c78976d5777f302c92b6f87934b5c7a717a1b941b7b7` |
+
+Граница приёмки: source и обычные UI negative controls. **Положительная compact
+геометрия root0 — NOT PROVEN**, подходящего существующего сообщения нет.
+Другие роли, native, production, issue708 и весь item15 этим PR не закрыты.
+Независимое actual/closure review и итоговое exact-head review фиксируются отдельно.

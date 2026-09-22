@@ -14893,3 +14893,35 @@ compatibility addendum `82cca346` сохраняют границы этого �
 Проверки этого блока: review diff и `git diff --check`; продуктовые тесты и runtime
 не повторяются. Независимое review точного head и обычный PR/CI остаются впереди.
 План1–36 в целом и production этим checkpoint не закрываются.
+
+
+## 2026-09-22 — A15 compact root tombstone, before implementation
+
+После merged #1030/#1031 (main0926399b) согласован оставшийся §9 UX-срез:
+[компактный след удалённого сообщения](EVO_TEAM_CHAT_COMPACT_TOMBSTONE_PLAN_2026-09-22.md).
+Старый replyCount считает root-parent descendants, а не все прямые цитаты для
+бывшего reply. Поэтому scope только deleted + explicit parent null + count0 +
+quote null; unknown/reply/replied строки остаются прежними. SQL/wire/roles/actions,
+DOM IDs/anchors/search/seen/tail и текущий service-row сохраняются. Один scoped
+класс убирает лишнюю bubble набивку/фон и уменьшает вертикальные отступы;
+автор/время/placeholder/44px controls не скрываются. Impeccable Operate уточняет
+существующий EVO, не возвращает task UI/hover-only. Source review/short CI и
+отдельное фактическое подтверждение обязательны; общего QA-допуска нет, среда B.
+Saved3deleted/2latest без parent/count не доказывают доступный точный вариант.
+Новых fixtures/данных/провайдеров или заявления полного item15 не добавлено.
+Saved-only eligibility339a70ae не нашёл доказанного positive root0: исторический
+root count1 и два связанных reply остаются negative controls; live/read-only UI
+ещё не разрешён. Это ограничение actual, а не повод создавать новые сообщения.
+
+
+## 2026-09-22 — A15 compact root tombstone: source implemented
+
+Реализация af47d719 ограничена двумя UI-файлами: strict four-part guard + scoped
+padding/background, без изменения DOM/действий/wire/SQL/seen/anchors. Impeccable
+A/B: один P2, precode APPROVED, detector0; craft-floor прочитан до правки.
+[Source-квитанция](qa/team-chat-compact-tombstone-source-2026-09-22.md) фиксирует
+однократные scoped lint/typegen/tsc/diff PASS и точные hashes. Saved-only eligibility
+не доказал положительный root0; прежние linked/replied tombstones сохраняют вид.
+Actual compact geometry не принята. Независимое exact-head source review и short
+CI впереди; runtime/Auth/DB/UI не запускались, QA B не использовалась. Полный15,
+native, production и real-employee issue708 не закрыты.

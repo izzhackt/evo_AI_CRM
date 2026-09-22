@@ -37846,3 +37846,17 @@ readback02c00627 и independent reviewaa62f50a приняты. Schema239 неи�
 CUA B08:21 locked; mail inputs/access pending, отправок нет. Прежний24b release,
 STOP, KB decisions и пределы31/32 сохранены. Проверки только diff/diff-check;
 код/runtime/права этот срез не меняет, весь1–36 не закрывается.
+
+
+## 2026-09-22 — independent audit1–36: source и ограниченный read-only UI
+
+[Независимая ведомость](EVO_ITEMS_1_36_INDEPENDENT_REVIEW_2026-09-22.md)
+на main6515e695 проверяет36 требований без нового продуктового scope.
+ROOT/A/B координация исключила дублирование draft1026/980. Нового подтверждённого
+дефекта вне их scope в просмотренных путях не установлено. Read-only local dev
+Admin/Student audit пяти страниц, измерения1440/390/320 по таблице и клавиатура
+прошли; source, реальные ограничения и runner STOP сохранены.290 business,
+Storage, schema и incumbent sessions/refresh/AMR неизменны; собственные local
+logout204/cookies/browser/server закрыты. Нет SQL apply, native/mail/provider
+или production операций; KB141/144/145/pending159 и отложенные37–50 сохранены.
+Это docs-only результат ревью; прежние квитанции не переименованы в новые tests.

@@ -9,6 +9,7 @@ import ts from "typescript";
 import * as access from "../src/lib/platform-access.ts";
 import * as taskContract from "../src/lib/platform-admissions-task-contract.ts";
 import * as calendarTypes from "../src/components/v3/calendar/types.ts";
+import * as createLifecycle from "../src/components/v3/calendar/create-lifecycle.ts";
 import * as wording from "../src/lib/v3/wording.ts";
 
 const require = createRequire(import.meta.url);
@@ -38,6 +39,7 @@ const controls = compile("src/components/v3/calendar/TaskControls.tsx", id => {
   if (id === "@/lib/platform-admissions-task-contract") return taskContract;
   if (id === "@/lib/v3/wording") return wording;
   if (id === "./types") return calendarTypes;
+  if (id === "./create-lifecycle") return createLifecycle;
   if (id === "../tasks/TaskCasePicker") return casePicker;
   if (id === "@/lib/platform-admissions-task-actions") return {
     createPlatformAdmissionsTaskAction: unavailableAction,
@@ -56,7 +58,7 @@ function render(actor) {
     createElement(controls.CalendarCreateTaskForm, {
       cases: [CASE], casesHaveMore: false, selectedCase: CASE,
       assignees: [{ membershipId: ID, displayName: "Synthetic curator" }],
-      actorMembershipId: ID, actor, day: "2099-09-12", requestId: ID, expanded: true,
+      actorMembershipId: ID, actor, day: "2099-09-12", requestId: ID,
     }),
   ));
   assert.equal(actionCalls, 0, "SSR must not call server actions or navigation");

@@ -102,7 +102,7 @@ test("personal calendar gates each permitted task branch and keeps creation sepa
   assert.match(calendar, /calendarAccessNotice\(readAccess\)/);
   assert.match(calendar, /calendarEmptyPeriodLabel\(readAccess\)/);
   assert.match(calendar, /<CalendarCreateTaskForm/);
-  assert.match(controls, /isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "task\.create"\)/);
+  assert.match(controls, /!isStaffPreview\(actor\) && staffPresentationCan\(actor, "admissions\.read"\) && staffHasPermission\(actor, "task\.create"\)/);
   assert.match(adapter, /task\.key !== target\.task\.key/);
 });
 
@@ -120,7 +120,7 @@ test("case task candidates follow exact selection and block submission until che
 });
 
 test("V3 calendar create, change, complete and cancel use versioned server actions", () => {
-  assert.match(controls, /useActionState\(\s*createPlatformAdmissionsTaskAction/);
+  assert.match(controls, /useActionState\([\s\S]*?const next = await createPlatformAdmissionsTaskAction\(previous, form\)/);
   assert.match(controls, /useActionState\(\s*changePlatformAdmissionsTaskAction/);
   for (const field of [
     "student_case_id",
@@ -195,7 +195,8 @@ test("selected task controls and case navigation use only matching scoped target
   assert.doesNotMatch(changeForm, /staffHasPermission\(actor, "task\.(assign|visibility\.manage)"\)/);
   assert.match(calendar, /openCapabilities\?\.canReadCase \? <Link/);
   assert.match(calendar, /openCapabilities && taskRequestIds\[open\.key\]/);
-  assert.match(calendar, /staffPresentationCan\(actor, "admissions\.read"\) \? <CalendarCreateTaskForm/);
+  assert.match(calendar, /const canCreate = staffPresentationCan\(actor, "admissions\.read"\) &&\s*!isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.create"\)/);
+  assert.match(calendar, /canCreate \? <CalendarCreateTaskForm/);
 });
 
 test("V3 calendar resolves the page actor before reading Admissions data", () => {
@@ -215,7 +216,7 @@ test("V3 calendar writes use live permission hints and remain keyboard-operable"
     /!isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.manage"\)/,
   );
   assert.match(calendar, /CalendarTaskControls/);
-  assert.match(controls, /isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "task\.create"\)/);
+  assert.match(controls, /!isStaffPreview\(actor\) && staffPresentationCan\(actor, "admissions\.read"\) && staffHasPermission\(actor, "task\.create"\)/);
   assert.match(controls, /assignee\.membershipId === actorMembershipId/);
   assert.doesNotMatch(adapter, /assignee\.role !== "sales"/);
   assert.match(controls, /staffHasPermission\(actor, "task\.assign"\)/);
@@ -254,7 +255,7 @@ test("V3 calendar keeps exactly one active task-control component", () => {
 test("V3 stale task edits retain their draft and explicitly rebase before retry", () => {
   assert.match(calendar, /key=\{open\.id\}/);
   assert.doesNotMatch(calendar, /key=\{`\$\{open\.id\}:\$\{open\.version\}`\}/);
-  assert.match(page, /key=\{target \? target\.task\.key : `\$\{view\}:\$\{day\}`\}/);
+  assert.match(page, /key=\{JSON\.stringify\(\[actor\.organizationId, actor\.authUserId, actor\.membershipId, actor\.platformAccessVersion, actor\.presentationRole\]\)\}/);
   assert.match(calendar, /params\.set\("case", target\.studentCaseId\)/);
   assert.match(calendar, /params\.set\("task", target\.id\)/);
   assert.match(controls, /const \[expectedVersion, setExpectedVersion\] = useState\(task\.version\)/);

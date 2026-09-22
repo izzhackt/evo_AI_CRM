@@ -1,5 +1,8 @@
 # Повтор загрузки теста — source checkpoint
 
+> Разделы source checkpoint ниже — историческая запись до браузерного окна.
+> Актуальное локальное прохождение и его ограничения добавлены в конце файла.
+
 Дата: 22 сентября 2026. Source `70a6a3a7e750c10cb237e54b85feae9f054d63a3`.
 Статус: **source checks PASS; actual Student/UI acceptance pending**.
 [Контракт](../platform/portal-assessment-retry-operation.md) записан до кода
@@ -75,3 +78,82 @@ CFW `01a0c6928a6f7420bdcc423c2e083286`. Продуктовый обход тип
 остаётся у координатора и соседних задач. Нужны независимое source review,
 protected CI и отдельное согласованное actual окно. PR остаётся draft;
 пункт 24 и весь план 1–36 не завершены.
+
+
+## Actual checkpoint — 22 сентября 2026, controlled local development
+
+Фактический product source — `ba9204ec993a54de6e46da96b388728bc9e00898`,
+Node22.23.1. ROOT отдельно разрешил обычный Next development `--webpack` на
+собственном loopback HTTP после того, как production-конфигурационный guard
+отклонил local HTTP до Auth. Guard не ослаблялся; production canonical build
+`FEgfVkbA2tdSyuxSyWHLR` сохранён и остаётся отдельным доказательством сборки.
+Этот actual не выполнялся в production runtime и не доказывает production
+acceptance, хотя проверял тот же изменённый AssessmentRunner.
+
+Обычный существующий Student прошёл форму входа и один Start опубликованного
+RU English36. Реальный ответ UI и DB подтвердили одну новую blank draft r1.
+В двух документах той же попытки первый выбор A вызвал обычный autosave;
+единственная принятая запись дала r2 и один ответ. Другой выбор B с прежней
+revision вызвал stale conflict. Ответы, вопрос, actor и credential values
+остались в частных доказательствах и не публикуются здесь.
+
+При offline подтверждённая загрузка сохранённой попытки отказала. Локальный
+выбор B сохранился, radios остались disabled, отображалась ошибка загрузки.
+Отмена следующего confirm не отправила POST. После online подтверждённый read
+вернул принятый ответ A; UI снял ошибку и восстановил доступность radios.
+Это реальный UI/Server Action/DB путь, а не RPC substitute или mock response.
+
+Суммарно: login1, Start1, save2 attempted, read2 attempted, один accepted save,
+Complete0; итоговая draft r2 содержит один ответ. Notification requests:
+16 к завершению retry,21 к closure. `start-verified.json` записан08:15:51Z,
+`retry-verified.json`08:15:58Z. Последний фиксирует `offlineReadFailed:true`,
+`cancelSentNoPost:true`, `onlineReadReconciled:true`, `completeCount:0`.
+
+### Closure и сохранённые ограничения
+
+Own session закрыта обычным local logout с HTTP204. Оба документа стали inert,
+cookies отсутствовали, browser отключён; incumbent sessions/refresh/AMR
+сохранены, добавлены только собственные login/logout Auth audits. Auth/browser
+receipt08:17:09Z: `OWN_AUTH_AND_BROWSER_CLOSED`. Собственные development server
+process groups закрыты; окончательная webpack server receipt08:17:58Z.
+Final snapshot сохранён. Независимый actual/closure review ещё ожидается;
+эти наблюдения не подменяют его verdict.
+
+В отличие от исходного frozen production observer, этот проход использовал
+controlled route continue/abort с `/_next/static/*` и точными Next dev font/HMR
+исключениями. Это отдельная ограниченная dev-проверка изменённой функции,
+не выполнение frozen passive70-shape production protocol. Полный login→closure
+занял около6 минут после pre-Start font/hydration диагностики; только
+retryStarted→complete уложился в180 секунд. Нельзя приписывать всему окну
+исходный180s limit или считать повторный hydration readiness product retry.
+
+Исходные readiness/initialize/exercise STOP и pre-Start recovery evidence
+сохранены: до принятого Start mutation не было. Они не заменены на PASS.
+Production HTTP guard сохранил отказ до Auth; обычный dev Auth выполнен позднее
+по отдельному разрешению. Direct disabled radios проверены. Кнопка
+«Сохранить и выйти» защищена рассмотренным source guard, но напрямую этим actual
+не проверялась. KY runtime/layout, native, VoiceOver, uncertain write/complete,
+production и весь пункт24 этим сценарием не приняты.
+
+Частный receipt root: `/private/tmp/evo-assessment-start-post209-execution-20260922/dev-runtime`.
+В публичном репозитории сохранены только безопасные refs и SHA-256:
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `start-verified.json` | `b16cb4e879845e52979ccaaed3e268b4f11908a27fe9eaf58bb8538c112c2126` |
+| `retry-verified.json` | `b9fc5ba78fcef61c3d7110b19486e59cc76168ca912f777cb93927103e51941d` |
+| `final-snapshot.json` | `1167e2687d1f556f52a4f99dc415f4f9423831e88a765b478e5c17527d907153` |
+| `closure.json` | `e031c3a71b6b8d7be869ea71027c14648209ed7f57f7f268f38316c403a796bf` |
+| `webpack-server/closed.json` | `7172a28f967c95310e6f0e2212f6d1c38f1b0271d85a2523c93886ac2819d348` |
+| Original canonical build receipt | `fcf47456934625e12b487ea3d4e83b31841d5a83a01936c410cbd8ff08e74e14` |
+
+### Интеграция и повторное использование проверок
+
+Main `83c2e54fb7a0e572286c99c287cd093b9e7bfe6a` интегрирован после actual.
+AssessmentRunner, i18n, оба изменённых assessment tests, связанные actions/
+contract/source/exit guard и dependencies не изменились относительно `ba9204ec`.
+Прежние25/25, scoped lint, typegen/tsc, canonical build и protected CI35673640450
+на ba920 переиспользуются с исходной provenance; это не новые запуски на merge
+head. Docs diff и сохранение обеих append-history проверяются отдельно.
+Финальный exact-head review, новый protected CI и ROOT merge остаются отдельными
+шагами; автор интеграции не запускает ещё один actual и не сливает PR.

@@ -104,7 +104,9 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(fastPr, /^  changed-range:\n    name: Changed range$/mu);
   assert.match(fastPr, /^  fast-checks:\n    name: Fast checks$/mu);
   assert.match(fastPr, /git diff --check origin\/main\.\.\.HEAD/u);
-  assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --github-output "\$GITHUB_OUTPUT"/u);
+  assert.match(fastPr, /format_base_sha=\$\(git merge-base "\$BASE_SHA" "\$HEAD_SHA"\)/u);
+  assert.match(fastPr, /format_head_sha=\$\(git rev-parse "\$HEAD_SHA"\)/u);
+  assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$format_base_sha" --head "\$format_head_sha" --github-output "\$GITHUB_OUTPUT"/u);
   for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "unknown"]) {
     assert.match(fastPr, new RegExp(`${output}: \\$\\{\\{ steps\\.classify\\.outputs\\.${output} \\}\\}`, "u"));
   }

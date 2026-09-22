@@ -14616,6 +14616,22 @@ main. Append-only конфликты разрешены точным общим 
 Архитектура/контракт не расширены; итоговые exact-head review/CI/merge #1024
 остаются у ROOT. Timestamp далее отдельным блоком; positive commands,
 production/native/full15 и issue708 real-staff acceptance не заявляются.
+## 2026-09-22 — календарь16a: сворачиваемый список без срока, до кода
+
+После #1023 (main e8fc98dc) ROOT принимает независимый срез16a; A сохраняет командный чат. [Контракт](platform/crm-calendar-undated-disclosure.md) переносит ранее одобренный precode review4995fae6: серверный count, cursor/target, ручное раскрытие, клавиатура и ссылки сохраняются. Родительский key, reader, команды и форма не меняются. До UI-правки требуется текущий Admissions baseline в выделенном окне после A1020/B1018; подготовка пока файловая. Это исходное требование §10, не расширение календаря или доказательство завершения16b.
+
+
+## 2026-09-22 — календарь16a: actual и интеграция #1025
+
+[Квитанция](qa/calendar-undated-disclosure-actual-2026-09-22.md) закрепляет один
+Admissions batch1440/390/320 на0c1bf75f: раскрытие/клавиатура/реальная задача,
+12 прежних карточек,44px и no page overflow. Final290/33 и own closure приняты
+independent review4f7758c9; исходный preAuth admission-status STOP сохранён.
+Pagination отсутствует в данных, same-context refresh остаётся source-only.
+После закрытия runtime интегрирован main d1568d58 (#1024):13 файлов
+календаря/reader/shell/package неизменны, обе append-only истории сохранены.
+План/архитектура не расширены. Итоговому head нужны exact-head review/CI/merge;
+панель/черновики16b и production не закрыты.
 
 
 ## 2026-09-22 — A15 channel timestamp: accepted precode, reservation239 before source
@@ -14655,3 +14671,27 @@ case. Scoped lint, next typegen, tsc и diff PASS; receipt110de1d7 связыв�
 точные hashes/commands/raw spans. Independent source review/CI ещё впереди;
 239 не применена. ROOT16 → Bnative сохраняют QA очередь. Следующее actual
 Auth/RPC окно требует отдельного ROOT назначения; UI времени после reader.
+
+
+### A15 channel timestamp — local239, ordinary RPC и закрытие приняты, 22.09
+
+Source0e0266f8: independent reviewe1b5477d и CI35670526226 пройдены; прежние43
+адресных теста/lint/typecheck остаются evidence того же неизменённого кода.
+[Actual](qa/team-chat-channel-time-actual-2026-09-22.md): исходный STOP до SQL
+сохранён; после ROOT recovery все четыре полные проекции совпали. Отдельная
+новая попытка local238→239 прошла, один reader body изменён при прежних ACL/OID,
+290 бизнес-таблиц и33AuthStorage при DDL неизменны.
+
+Ordinary Admin200 сверён с независимым canonical UTC6:3канала,2populated/1empty.
+Student403/anonymous401/zeroUUID403 имеют42501. ZeroUUID — отсутствующая
+организация; populated foreign-tenant, ownAuthor/reply/tombstone/longBody
+actual-материал отсутствует. Нет новых fixtures, messages, seen или provider writes.
+
+Финал d40f24f0/closure6477693f сохранил290 business/33AuthStorage с допустимыми
+Auth-изменениями: только timestamps двух existing users и4ownlogin/logout audits;
+224sessions/239refresh/224AMR восстановлены в точности. Оба ownlogout204,
+private Auth captures удалены. Independent actual review4ec98b49 и ROOT
+приняли результат, handoffab6c6089 передал ресурс ROOT_COORDINATOR.
+A больше не выполняет runtime. Main ec3f62ba интегрирован с сохранением
+календаря16a и всех шести source/test/SQL файлов A239 побайтно от0e0266f8.
+Финальные exact-head review/CI/merge ещё впереди; UI/full15/production не заявлены.

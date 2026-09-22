@@ -60,7 +60,10 @@ source/test/fixture hashes: `110de1d7340d6c902c543a502f3ab2bcaceef5b938f64eaaf57
 точны исходной базе. Новый normalizer и migration239 входят в отдельные pins.
 Migration239 SHA256: `8f75738a93bec90929fe9e6fbd7084c59d5f9d051110f02ea4ea93006ae6bc15`.
 
-## Границы и следующий шаг
+## Границы на момент первого source checkpoint
+
+Этот раздел сохраняет состояние до последующей проверки.
+[Итог local239/RPC](team-chat-channel-time-actual-2026-09-22.md) опубликован отдельно.
 
 Независимое source review и защищённый CI ещё впереди. Миграция239 не применена;
 реальные Auth/RPC timestamps, denied Student/anonymous/foreign-org и сохранность

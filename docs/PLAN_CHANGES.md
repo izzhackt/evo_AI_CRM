@@ -38210,6 +38210,11 @@ accepted0aceda06, healthy/restart0 и отсутствие pending. Armfalse п�
 и отложенные37–50/E2E/content/AppStore сохраняются.
 
 
+## 2026-09-22 — explicit stale lead-card recovery
+
+On confirmed stale/request-conflict only, the explicit «Обновить карточку» button reloads the current document so all four card drafts, shared revision and request state reload together. The warning explicitly covers all unsaved card fields. Ordinary saves retain client-only revision bump and sibling drafts; no SSR-revision remount or automatic refresh is introduced. No SQL, rights or mutation payload changes. Source validation is scoped; actual two-session recovery awaits the coordinated local QA window.
+
+
 ## 2026-09-22 — country values расширенного каталога сайта
 
 Владелец расширил каталог публичного сайта на остальные действующие вузы EVO;

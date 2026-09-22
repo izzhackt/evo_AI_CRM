@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { createContext, useActionState, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
@@ -75,8 +74,8 @@ const MESSAGES: Record<Exclude<SaveLeadSaleConditionsActionState["status"], "idl
   saved: "Сохранено.",
   invalid: "Проверьте поля.",
   forbidden: "Нет доступа к этому действию.",
-  stale: "Данные изменил другой сотрудник. Введённое здесь не потеряно, но «Обновить» заменит его актуальными значениями.",
-  request_conflict: "Этот запрос уже использован. Обновите карточку перед повтором.",
+  stale: "Данные изменил другой сотрудник. «Обновить карточку» загрузит актуальные данные и удалит все несохранённые изменения на этой странице.",
+  request_conflict: "Этот запрос уже использован. «Обновить карточку» загрузит актуальные данные и удалит все несохранённые изменения на этой странице.",
   unavailable: "Сохранение не подтверждено. Проверьте подключение и повторите.",
 };
 
@@ -113,7 +112,6 @@ function allFieldValues(conditions: LeadSaleConditionsSnapshot): Record<string, 
 }
 
 function useCardFieldsAction(requestId: string) {
-  const router = useRouter();
   const { revision, bump } = useSaleConditionsRevision();
   const [state, action, pending] = useActionState(
     saveLeadSaleConditionsGroupAction,
@@ -131,12 +129,12 @@ function useCardFieldsAction(requestId: string) {
   useEffect(() => {
     if (state.status === "saved" && state.revision !== null) bump(state.revision);
   }, [bump, state.status, state.revision]);
-  return { state, action, pending, router, revision };
+  return { state, action, pending, revision };
 }
 
 function StatusRow({
-  state, pending, router,
-}: Readonly<{ state: SaveLeadSaleConditionsActionState; pending: boolean; router: ReturnType<typeof useRouter> }>) {
+  state, pending,
+}: Readonly<{ state: SaveLeadSaleConditionsActionState; pending: boolean }>) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
@@ -150,7 +148,7 @@ function StatusRow({
         ) : null}
       </div>
       {state.status === "stale" || state.status === "request_conflict" ? (
-        <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => router.refresh()}>
+        <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => window.location.reload()}>
           Обновить карточку
         </button>
       ) : null}
@@ -175,7 +173,7 @@ function SimpleFieldsCard({
   title: string; testId: string; fields: readonly SimpleField[];
   fieldGroup: "wishes" | "education";
 }>) {
-  const { state, action, pending, router, revision } = useCardFieldsAction(requestId);
+  const { state, action, pending, revision } = useCardFieldsAction(requestId);
   const base = allFieldValues(conditions);
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((field) => [field.key, base[field.key]])));
@@ -227,7 +225,7 @@ function SimpleFieldsCard({
               )}
             </label>
           ))}
-          <StatusRow state={state} pending={pending} router={router} />
+          <StatusRow state={state} pending={pending} />
         </form>
       </div>
     </Card>
@@ -297,7 +295,7 @@ const BUDGET_PERIOD_LABEL: Record<ConditionsBudgetPeriod, string> = { year: "в 
 export function LeadConditionsCard({
   leadId, conditions, requestId, readOnly = false,
 }: Readonly<{ leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean }>) {
-  const { state, action, pending, router, revision } = useCardFieldsAction(requestId);
+  const { state, action, pending, revision } = useCardFieldsAction(requestId);
   const base = allFieldValues(conditions);
   const [budgetAmount, setBudgetAmount] = useState(() => decimal(base.conditions_budget_minor));
   const [budgetCurrency, setBudgetCurrency] = useState(() => base.conditions_budget_currency);
@@ -377,7 +375,7 @@ export function LeadConditionsCard({
           <input type="hidden" name="conditions_budget_period" value={budgetPeriod} />
           <input type="hidden" name="conditions_scholarship" value={scholarship} />
           <input type="hidden" name="conditions_note" value={note} />
-          <StatusRow state={state} pending={pending} router={router} />
+          <StatusRow state={state} pending={pending} />
         </form>
       </div>
     </Card>

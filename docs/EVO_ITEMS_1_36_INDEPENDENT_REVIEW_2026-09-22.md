@@ -150,7 +150,6 @@ Raw screenshots, snapshot projections и Auth IDs хранятся приват�
 
 | Артефакт | SHA-256 |
 |---|---|
-
 | `before.json` | `8004d6f28e5102594b3692ede4d2119c3a159de6f439d2f2f54ecce2b599074c` |
 | `after.json` | `1fea9ba77816add9ba4a74cacd4c3d89ee5f841bd89e363ea7a4ee79da99cbf7` |
 | `admin-ui.json` | `844864b68dc868f4d05482923064a2bc9ce3c041fc04b3a6a40f89d4d7bb15d7` |

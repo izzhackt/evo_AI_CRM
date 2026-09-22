@@ -59,7 +59,8 @@ Main `8f9391ddc90b7746c0ee576f9beba76201970d8c` интегрирован в comm
 `ff0f7bd384b1d9c0b81e86451b35e5c0dd9c4c3e`. Конфликты были только в трёх
 документах; оба журнала сохраняют весь входящий main prefix и прежние additions.
 Полный iOS tree `e60e67d20fde495216b3c962ced349dc7eee8676` побайтно совпадает
-с independently reviewed source `d29997c9` (review `662396c4…`), включая
+с independently reviewed source `d29997c9` (exact review `bf9a0b8d…`,
+наследующий integration review `662396c4…` на `5c518e29`), включая
 anonymous wizard → SignInView callback и `.local` dependency #1026.
 Product-код, package pins и SDK не менялись. Более новый docs-only main
 не добавлялся во время сборки.

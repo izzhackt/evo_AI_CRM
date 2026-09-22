@@ -37718,3 +37718,19 @@ ROOT разрешил только files-only обновление draft #1026: 
 действий нет; прежние source/build/STOP receipts сохраняют исходные SHA и
 границы. Перед push требуется независимое exact-head review; draft остаётся
 открытым, native logout/production acceptance и merge/release не заявляются.
+
+
+## 2026-09-22 — item27: тот же возврат ко входу для existing-account hint
+
+ROOT разрешил проверить только соседнюю conflict-hint кнопку того же wizard.
+Исходники подтвердили: anonymous registerAndSignIn при outcome.conflict задаёт
+apply_server_conflict и conflictHint=true; видимая apply_go_to_login вызывает
+router.signOut внутри того же fullScreenCover и не закрывает его. Signed-in
+submit этот hint не создаёт. Это тот же navigation defect, а не новый Auth flow.
+
+До кода scope расширен только на использование уже принятого onSignIn callback
+обеими кнопками через общий private helper; default authenticated fallback
+сохраняется. Модель, visibility, draft/resend, copy/layout и negative QA не меняются.
+Предыдущие source review и CI35680327507 на5c518e29 остаются историческими.
+Новый head требует Swift syntax parse, diff-check, independent exact-head review
+и короткий CI; actual native/QA/Auth/build по-прежнему отдельно у ROOT.

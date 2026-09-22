@@ -14890,3 +14890,19 @@ executable неизменён, полные Auth/Kong logs0, fresh readonly fina
 сохраняет исходный STOP, описание metadata typo и границу reused baseline.
 Это не native logout acceptance; #1026 остаётся draft до реального продолжения
 на разблокированном Mac со свежим окном. iOS source/artifact и scope неизменны.
+
+
+## 2026-09-22 — item27: тот же возврат ко входу для existing-account hint
+
+ROOT разрешил проверить только соседнюю conflict-hint кнопку того же wizard.
+Исходники подтвердили: anonymous registerAndSignIn при outcome.conflict задаёт
+apply_server_conflict и conflictHint=true; видимая apply_go_to_login вызывает
+router.signOut внутри того же fullScreenCover и не закрывает его. Signed-in
+submit этот hint не создаёт. Это тот же navigation defect, а не новый Auth flow.
+
+До кода scope расширен только на использование уже принятого onSignIn callback
+обеими кнопками через общий private helper; default authenticated fallback
+сохраняется. Модель, visibility, draft/resend, copy/layout и negative QA не меняются.
+Предыдущие source review и CI35680327507 на5c518e29 остаются историческими.
+Новый head требует Swift syntax parse, diff-check, independent exact-head review
+и короткий CI; actual native/QA/Auth/build по-прежнему отдельно у ROOT.

@@ -336,9 +336,7 @@ struct ApplicationWizardView: View {
                             .font(.footnote)
                             .foregroundStyle(.red)
                         if model.conflictHint {
-                            Button("apply_go_to_login") {
-                                Task { await router.signOut() }
-                            }
+                            Button("apply_go_to_login", action: returnToSignIn)
                             .font(.footnote)
                         }
                     }
@@ -368,17 +366,19 @@ struct ApplicationWizardView: View {
                     }
                 }
             }
-            Button("signup_confirmation_sign_in") {
-                if let onSignIn {
-                    onSignIn()
-                } else {
-                    Task { await router.signOut() }
-                }
-            }
+            Button("signup_confirmation_sign_in", action: returnToSignIn)
                 .frame(minHeight: 44).disabled(model.isSubmitting)
             Text("signup_confirmation_sign_in_hint").font(.footnote).foregroundStyle(.secondary)
             Link("evo@evoadmissions.com", destination: URL(string: "mailto:evo@evoadmissions.com")!)
                 .frame(minHeight: 44)
+        }
+    }
+
+    private func returnToSignIn() {
+        if let onSignIn {
+            onSignIn()
+        } else {
+            Task { await router.signOut() }
         }
     }
 

@@ -15363,3 +15363,14 @@ accepted0aceda06, healthy/restart0 и отсутствие pending. Armfalse п�
 закрывают source/delivery шаги двух PR. Обновление документации не требует
 нового app release. KB159, решения31, пакет32, прежние ограничения доказательств
 и отложенные37–50/E2E/content/AppStore сохраняются.
+
+
+## 2026-09-22 — country values расширенного каталога сайта
+
+Владелец расширил каталог публичного сайта на остальные действующие вузы EVO;
+задача сайта передала ROOT зависимость приёмника для Czechia/Austria/Cyprus → EU.
+[Минимальный контракт](EVO_WEBSITE_COUNTRY_EXTENSION_2026-09-22.md) фиксируется до
+кода: только HTTP country allowlist и тело receive_website_lead, миграция240.
+Существующие country/university receipts, guards и шестистрановая подготовка
+сохранены. Тестовые lead submissions не выполняются по решению владельца.
+Это отдельная зависимость сайта рядом с code review1–36, не расширение admissions.

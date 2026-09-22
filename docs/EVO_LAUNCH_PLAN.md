@@ -14643,3 +14643,14 @@ Pagination отсутствует в данных, same-context refresh оста
 Сохраняются16a, права, shared DeadlineFields, actions/SQL; локально14px/12px согласно §10.
 Impeccable Operate/adapt и реальный16a incumbent используются до UI edits. Actual16b остаётся
 после выделенного QA-окна; pure/source checks не доказывают сохранение/production.
+
+
+### Calendar16b clarification — correcting an unavailable assignee (2026-09-22)
+
+The persistent-panel contract distinguishes fresh-data readiness for editing from eligibility to submit.
+After an explicit refresh and a fresh authorized token with exact ready case candidates, fields become
+editable even if the previously selected assignee is unavailable. The user can choose an eligible
+assignee; Save still requires that eligibility, current rights and settled pending states. Values and
+request ID stay intact; there is no automatic retry. The shared TaskCasePicker keeps its API and
+layout; a local create-form wrapper contains its existing wide-grid column spans inside the panel.
+The focused lifecycle regression checks correction allowed / submit blocked / eligible manual submit.

@@ -27,7 +27,9 @@ approved plan SHA256 `2c64156a5fcb2e8848e4b7adad800476df5b23c5b524c1efe550d928c4
   the existing case-assignee reader returns ready for that exact case/token. Refresh is not a Promise.
   Fields and request ID stay intact; the next manual Save is continuation, with no second acknowledgement
   button. A different authorized URL render may supply the fresh token; no causal URL nonce is added.
-  Recheck current rights/preview and assignee eligibility; ignore obsolete candidate results.
+  Recheck current rights/preview; ignore obsolete candidate results. Exact fresh candidates unlock
+  editing even when the former assignee is no longer eligible, so the user can repair the selection.
+  Save remains disabled until the current selected assignee is eligible; no automatic submission.
 - On saved: retain confirmation and lock until «Создать ещё», the only normal create-form reset,
   using the new UUID returned by the unchanged action. Invalid/forbidden/unavailable preserve draft;
   unknown outcome is not success or a new attempt. Request-conflict uses the action-returned UUID.

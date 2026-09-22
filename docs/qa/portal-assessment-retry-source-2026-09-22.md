@@ -116,8 +116,10 @@ cookies отсутствовали, browser отключён; incumbent sessions
 сохранены, добавлены только собственные login/logout Auth audits. Auth/browser
 receipt08:17:09Z: `OWN_AUTH_AND_BROWSER_CLOSED`. Собственные development server
 process groups закрыты; окончательная webpack server receipt08:17:58Z.
-Final snapshot сохранён. Независимый actual/closure review ещё ожидается;
-эти наблюдения не подменяют его verdict.
+Final snapshot сохранён. Независимый review `52aa4535` завершён **PASS**:
+`APPROVED_LOCAL_DEV_CHANGED_PATH_AND_OWN_CLOSURE`. Проверены полный actual delta,
+сохранение остальных business/Storage/incumbent Auth и собственная closure;
+ограничения ниже остаются в силе.
 
 В отличие от исходного frozen production observer, этот проход использовал
 controlled route continue/abort с `/_next/static/*` и точными Next dev font/HMR
@@ -146,6 +148,11 @@ production и весь пункт24 этим сценарием не приня�
 | `closure.json` | `e031c3a71b6b8d7be869ea71027c14648209ed7f57f7f268f38316c403a796bf` |
 | `webpack-server/closed.json` | `7172a28f967c95310e6f0e2212f6d1c38f1b0271d85a2523c93886ac2819d348` |
 | Original canonical build receipt | `fcf47456934625e12b487ea3d4e83b31841d5a83a01936c410cbd8ff08e74e14` |
+| Independent actual review JSON | `52aa453574b6301c9315aa72bae8f7c3dac605538353af3bbbf906afd0ae36b5` |
+| Independent actual review report | `d3f129b837c4455a5681234744bd10fa639eb7a3cc6a7921574509643070be26` |
+
+Independent review root: `/private/tmp/evo-assessment-start-post209-actual-review-20260922`;
+verdict относится к локальному dev changed path и own closure, не production.
 
 ### Интеграция и повторное использование проверок
 

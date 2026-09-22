@@ -37817,3 +37817,18 @@ production build `FEgfVkbA2tdSyuxSyWHLR` остаётся отдельным bui
 файлы byte-identical `ba9204ec`; прежние25/25, lint/tsc и build не выдаются за
 новые запуски. Финальному merge head требуются independent exact-head review
 и protected CI; PR пока draft, merge выполняет ROOT.
+
+
+## 2026-09-22 — B24 / #1029: независимый actual/closure verdict
+
+После предыдущего checkpoint получен independent review `52aa4535` — PASS,
+`APPROVED_LOCAL_DEV_CHANGED_PATH_AND_OWN_CLOSURE`; полный report `d3f129b8`.
+Он подтверждает ordinary Student dev --webpack Start/conflict/offline read/
+cancel/online read, единственный accepted save r2, сохранение остальных
+business/Storage/incumbent Auth и own logout204/browser/server closure.
+[QA-квитанция](qa/portal-assessment-retry-source-2026-09-22.md) содержит полные
+hashes и прежние ограничения: не frozen passive production protocol, не
+production/native/full24 acceptance; SaveAndExit напрямую не asserted.
+Merge main83c2 опубликован как `6ec6ec10`; этот follow-up только уточняет docs.
+Assessment source/tests unchanged; final exact-head review/CI и ROOT merge
+остаются отдельными. Никакого повторного runtime или расширения scope.

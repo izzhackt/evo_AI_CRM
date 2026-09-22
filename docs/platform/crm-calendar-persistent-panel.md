@@ -68,3 +68,33 @@ Production and whole item16 acceptance remain separate.
 - [React useLayoutEffect](https://react.dev/reference/react/useLayoutEffect): synchronize browser dialog/focus before paint.
 - [HTMLDialogElement.showModal](https://developer.mozilla.org/en-US/docs/Web/API/HTMLDialogElement/showModal): top layer/inert background; close a nonmodal dialog before switching mode.
 - [Next useRouter](https://nextjs.org/docs/app/api-reference/functions/use-router): refresh merges new server payload with retained client state, not a completion Promise.
+
+
+## 22 September 2026 — confirmed native-picker Escape correction, before code
+
+Actual checks on source `0a01800b321e81a04c6d520c46baf5a3aa7a2d15` preserved one form,
+draft/request ID and focus/selection across 1440/390/320, and real internal scrolling. The first
+native-select Escape check stopped; a bounded passive follow-up confirmed `select:open=true`
+and focus before Escape, then the dialog cancel handler closed the panel. Both STOPs remain
+recorded; subsequent picker state, target/history and typography checks were not proved.
+Follow-up trace SHA256: `e9406f4bfeb62ff44205771d1ddccb8875a55fe90faecd44682d018812bef6d7`.
+
+Fix only CalendarPanel's keyboard/cancel handling: capture a real Escape on an actually open
+native select, leave its keydown default intact, skip the matching desktop handler and consume
+only its paired dialog cancel. Keep an event-identity/cancel-pending ref through native default
+processing; clear on keyup, pointerdown, fresh keydown, panel lifecycle and unmount. Repeated
+keydown from the same held gesture retains its provenance. A focused closed select gets ordinary
+Escape-close behavior. No microtask expiry (observed before native cancel), timer UX, custom
+picker, focus-only exemption or native close event handler. Form/actions, geometry and focus
+return remain unchanged; Impeccable Operate prioritizes the existing native interaction.
+
+After the runtime was strictly closed, ROOT admitted this narrow correction under the existing
+16b contract. Scoped lint/typecheck/diff and relevant existing checks are source proof. New real
+regression must establish picker closed AND panel still open after the first Escape, followed by
+normal panel close on a separate Escape from the same closed select, in modal/mobile and
+nonmodal/desktop modes; ordinary title Escape and Close remain. Reuse unchanged layout evidence.
+No mock native event test substitutes for browser behavior; actual correction acceptance is pending.
+[MDN cancel](https://developer.mozilla.org/en-US/docs/Web/API/HTMLDialogElement/cancel_event)
+and [WHATWG close requests](https://html.spec.whatwg.org/multipage/interaction.html#close-requests-and-close-watchers)
+were checked for the narrow event contract. This is a behavioral defect correction, not further
+visual polishing; it does not claim saved/stale/unknown outcomes or production acceptance.

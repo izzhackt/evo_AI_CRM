@@ -14670,3 +14670,15 @@ SSR visibility + 48 узких calendar integration/D2 checks PASS; scoped lint/
 Первоначальные проверочные отказы и их точечные исправления описаны честно. Независимое source
 review, CI и согласованная реальная UI-проверка 16b ещё впереди. Browser/Auth/DB/записи/production
 не запускались; весь item 16 и план 1–36 этим checkpoint не закрыты.
+
+
+### Calendar16b — confirmed native-picker Escape correction, before code (2026-09-22)
+
+Actual source `0a01800b` preserved draft/focus and one form at three widths, then stopped on
+native-picker Escape. A passive follow-up proved the select was open before Escape and the
+current dialog cancel path closed the whole panel; both original STOPs remain. After strict
+runtime closure, the [existing16b contract](platform/crm-calendar-persistent-panel.md) now records
+the bounded correction: one real-open-picker Escape guard, native keydown default unchanged,
+matching desktop event/paired cancel handling and explicit gesture/lifecycle reset. Closed-select
+Escape, Close, all forms/actions/rights and geometry stay unchanged. Scoped source checks and a
+new changed-function browser regression are required; no successful correction or save is claimed.

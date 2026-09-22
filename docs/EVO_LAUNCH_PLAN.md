@@ -14862,3 +14862,22 @@ Scope: только TaskChip в calendar/grids.tsx — локальный inline
 Main #1030 `de847cf5` интегрирован с неизменными actual1031 product bytes и
 полными обеими append-history. Final-head review/CI/merge pending; production,
 native и весь item16/22 не принимаются этим локальным срезом.
+
+
+## 2026-09-22 — A15 compact root tombstone, before implementation
+
+После merged #1030/#1031 (main0926399b) согласован оставшийся §9 UX-срез:
+[компактный след удалённого сообщения](EVO_TEAM_CHAT_COMPACT_TOMBSTONE_PLAN_2026-09-22.md).
+Старый replyCount считает root-parent descendants, а не все прямые цитаты для
+бывшего reply. Поэтому scope только deleted + explicit parent null + count0 +
+quote null; unknown/reply/replied строки остаются прежними. SQL/wire/roles/actions,
+DOM IDs/anchors/search/seen/tail и текущий service-row сохраняются. Один scoped
+класс убирает лишнюю bubble набивку/фон и уменьшает вертикальные отступы;
+автор/время/placeholder/44px controls не скрываются. Impeccable Operate уточняет
+существующий EVO, не возвращает task UI/hover-only. Source review/short CI и
+отдельное фактическое подтверждение обязательны; общего QA-допуска нет, среда B.
+Saved3deleted/2latest без parent/count не доказывают доступный точный вариант.
+Новых fixtures/данных/провайдеров или заявления полного item15 не добавлено.
+Saved-only eligibility339a70ae не нашёл доказанного positive root0: исторический
+root count1 и два связанных reply остаются negative controls; live/read-only UI
+ещё не разрешён. Это ограничение actual, а не повод создавать новые сообщения.

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
 import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
@@ -20,8 +19,8 @@ const MESSAGES: Record<Exclude<SaveLeadSaleConditionsActionState["status"], "idl
   saved: "Сохранено.",
   invalid: "Проверьте поля, суммы и валюту.",
   forbidden: "Нет доступа к этому действию.",
-  stale: "Условия изменил другой сотрудник. Введённое здесь не потеряно, но «Обновить» заменит его актуальными значениями.",
-  request_conflict: "Этот запрос уже использован. Обновите карточку перед повтором.",
+  stale: "Условия изменил другой сотрудник. «Обновить карточку» загрузит актуальные данные и удалит все несохранённые изменения на этой странице.",
+  request_conflict: "Этот запрос уже использован. «Обновить карточку» загрузит актуальные данные и удалит все несохранённые изменения на этой странице.",
   unavailable: "Сохранение не подтверждено. Проверьте подключение и повторите.",
 };
 
@@ -83,7 +82,6 @@ export function LeadSaleConditions({
   requestId: string;
   readOnly?: boolean;
 }) {
-  const router = useRouter();
   const { revision, bump } = useSaleConditionsRevision();
   const [draft, setDraft] = useState(() => draftFrom(conditions));
   const [state, action, pending] = useActionState(
@@ -226,7 +224,7 @@ export function LeadSaleConditions({
             ) : null}
           </div>
           {state.status === "stale" || state.status === "request_conflict" ? (
-            <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => router.refresh()}>
+            <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => window.location.reload()}>
               Обновить карточку
             </button>
           ) : null}

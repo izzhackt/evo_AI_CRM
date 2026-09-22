@@ -139,7 +139,7 @@ Source46c56eba и artifact неизменны. Native acceptance ожидает 
 интеграции и не выполнялся. Swift delta остаётся ровно `.local` + комментарий,
 без изменений callers, UI, SDK, RLS или production config.
 
-По свежему CUA наблюдению ROOT в 08:21 UTC Mac снова заблокирован до ввода
+По свежему CUA наблюдению сессии B в 08:21 UTC Mac снова заблокирован до ввода
 credentials. Это текущий blocker, отдельно от исторического первого STOP.
 Native login/local logout/relaunch ещё не выполнен; ручная разблокировка и
 согласованное runtime-продолжение остаются необходимыми. Исторические source,

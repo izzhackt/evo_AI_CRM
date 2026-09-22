@@ -15074,3 +15074,10 @@ proof, не новая сборка или native acceptance. Shared node_module
 Новых tests/build/Simulator/Auth/DB/provider действий в этой интеграции нет.
 После push нужны независимый exact-head review и protected CI; PR остаётся
 draft, merge/release принадлежат ROOT. Production/native/full24 не заявляются.
+
+
+### Уточнение оператора native CUA — 2026-09-22
+
+В checkpoint интеграции #1026 выше под ROOT ошибочно назван оператор CUA.
+Вызов в 08:21 UTC выполнила сессия B; координатор ROOT получил её сообщение.
+Результат Mac locked, отсутствие ввода и ограничения native acceptance неизменны.

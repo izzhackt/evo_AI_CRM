@@ -14561,6 +14561,79 @@ main и полные собственные дополнения журнало�
 независимое exact-head review и protected CI. Пункт24 и production не закрыты.
 
 
+## 2026-09-22 — A15 command feedback, accepted precode before implementation
+
+После protected merge #1020 в eec9c548 начинается [точное сообщение об исходе
+команды](EVO_TEAM_CHAT_COMMAND_FEEDBACK_PLAN_2026-09-22.md). Independent
+precode reviewa67c4d25 принят с единственной коррекцией: повтор может создать
+первое сообщение, если исходная попытка не дошла; обещаем отсутствие дубликата,
+а не отсутствие нового сообщения. Corrected approved plan1b5bcf4d.
+
+Source scope: operation-specific copy для post/edit/delete/moderate и маленький
+typed presenter; обработчики, requestId/expectedVersion/frozen input/reason,
+retry, saved/forbidden, read errors, CSS/SQL/rights неизменны. Общая таблица
+platform-team-chat остаётся: server page ещё использует её вне command scope.
+Impeccable clarify/Operate сохраняет нынешний интерфейс и объясняет неизвестный
+исход без обещания сохранённого черновика при удалении. Последующая bounded
+offline UI-проверка без online submit/delete требует отдельного QA handoff;
+общий стенд сейчас B1018 → ROOT16. Source review/short CI прежде actual.
+
+
+### A15 command feedback — source prepared, 22.09
+
+[Source evidence](qa/team-chat-command-feedback-source-2026-09-22.md): typed
+operation/status copy table и два прежних alert selectors. Handler/input/ID/
+retry semantics побайтно сохранены после только presentation normalization;
+43-file parityb1598006. Targeted lint и tsc после штатного next typegen PASS.
+Первый fresh-worktree PNG declaration STOP отмечен, product fix не требовался.
+Новых string-mirroring tests нет. Следуют independent source review и short CI;
+actual UI ждёт отдельного QA окна после B1018 → ROOT16. Это source-only стадия
+того же плана, не merge-ready или production. Timestamp block сохранён далее.
+
+
+## 2026-09-22 — A15 command feedback: actual closure и интеграция #1024
+
+После source revieweab75360 и CI35666591542 наb7533a92 выполнена отдельная
+[локальная проверка](qa/team-chat-command-feedback-actual-2026-09-22.md) по
+прежнему принятому плану. После fresh ROOT16 release и одного concrete review
+обычный существующий Admin открыл canonical General moderation form и один
+раз подтвердил её при настоящем browser-offline. Запрос завершился
+net::ERR_INTERNET_DISCONNECTED, ответа/online retry не было. Текст неизвестного
+исхода, frozen reason/version/requestId, pending→retry и320/1440 приняты.
+
+Strict after/final:290 business tables неизменны, seen0,33 Auth/Storage
+сверены, inherited sessions/refresh/AMR восстановлены. Ownlogout204, browser
+closed, собственный PID15713 SIGTERM/reap0/group absent/connect_ex61; capture
+удалён. Независимое actual/visual/closure reviewf61ac50b прочитано и принято.
+Handoffd0e30ad6 возвращает QA ROOT до source/docs интеграции. Нет новых
+миграций, сообщений, прав, пользователей или UI replay. No port reuse claim.
+
+Main2b25a431 (#1018) интегрирован files-only;44 связанных chat/source/tests/SQL/
+dependencies/CSS/AppShell файла точны b753, входящие LessonRunner/test точны
+main. Append-only конфликты разрешены точным общим префиксом и полными хвостами
+обеих веток; parityfff9e492. Текущая строка15 исправлена: #1020 уже merged,
+его scoped продолжение принято; старые STOP/history receipts сохранены.
+Архитектура/контракт не расширены; итоговые exact-head review/CI/merge #1024
+остаются у ROOT. Timestamp далее отдельным блоком; positive commands,
+production/native/full15 и issue708 real-staff acceptance не заявляются.
+## 2026-09-22 — календарь16a: сворачиваемый список без срока, до кода
+
+После #1023 (main e8fc98dc) ROOT принимает независимый срез16a; A сохраняет командный чат. [Контракт](platform/crm-calendar-undated-disclosure.md) переносит ранее одобренный precode review4995fae6: серверный count, cursor/target, ручное раскрытие, клавиатура и ссылки сохраняются. Родительский key, reader, команды и форма не меняются. До UI-правки требуется текущий Admissions baseline в выделенном окне после A1020/B1018; подготовка пока файловая. Это исходное требование §10, не расширение календаря или доказательство завершения16b.
+
+
+## 2026-09-22 — календарь16a: actual и интеграция #1025
+
+[Квитанция](qa/calendar-undated-disclosure-actual-2026-09-22.md) закрепляет один
+Admissions batch1440/390/320 на0c1bf75f: раскрытие/клавиатура/реальная задача,
+12 прежних карточек,44px и no page overflow. Final290/33 и own closure приняты
+independent review4f7758c9; исходный preAuth admission-status STOP сохранён.
+Pagination отсутствует в данных, same-context refresh остаётся source-only.
+После закрытия runtime интегрирован main d1568d58 (#1024):13 файлов
+календаря/reader/shell/package неизменны, обе append-only истории сохранены.
+План/архитектура не расширены. Итоговому head нужны exact-head review/CI/merge;
+панель/черновики16b и production не закрыты.
+
+
 ### 2026-09-22 — B native: принятый precode локального выхода
 
 После merge #1018 в main2b25a431 подтверждён scope mismatch: web Portal

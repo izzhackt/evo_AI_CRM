@@ -4,7 +4,8 @@ import { useActionState, useImperativeHandle, useLayoutEffect, useRef, useState,
 import { Icon } from "@/components/icons";
 import { teamChatCommandAction } from "@/lib/platform-team-chat-actions";
 import { postTeamChatV2Action } from "@/lib/platform-team-chat-v2-actions";
-import { TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_INITIAL_ACTION, type TeamChatActionState, type TeamChatChannelKey, type TeamChatFailure, type TeamChatMessage, type TeamChatParticipant } from "@/lib/platform-team-chat";
+import { TEAM_CHAT_INITIAL_ACTION, type TeamChatActionState, type TeamChatChannelKey, type TeamChatFailure, type TeamChatMessage, type TeamChatParticipant } from "@/lib/platform-team-chat";
+import { TEAM_CHAT_COMMAND_FAILURE_COPY } from "@/lib/team-chat-command-feedback";
 import type { TeamChatQuote } from "@/lib/platform-team-chat-timeline";
 import { decodeTeamChatDraft, newTeamChatDraft, teamChatDraftHasContent, teamChatDraftInput, teamChatDraftLabel, teamChatDraftPrefix, type TeamChatDraft } from "@/lib/team-chat-drafts";
 import styles from "./team-chat.module.css";
@@ -259,7 +260,7 @@ function DraftForm({ initial, fieldRef, focus, channel, participants, quotes, on
     </div>
     {bodyTooLong ? <p id={`${fieldId}-limit`} role="alert" className={styles.error}>Сократите сообщение до 8000 символов.</p> : null}
     <div aria-live="polite" className={styles.muted}>{pending ? "Ожидаем подтверждения сервера…" : null}</div>
-    {state.status !== "idle" && state.status !== "saved" ? <p role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[state.status]}</p> : null}
+    {state.status !== "idle" && state.status !== "saved" ? <p role="alert" className={styles.error}>{TEAM_CHAT_COMMAND_FAILURE_COPY[edit ? "edit" : "post"][state.status]}</p> : null}
     {state.status === "conflict" && edit ? <p className={styles.muted}>Исходное сообщение изменилось. Черновик сохранён; откройте актуальное сообщение перед новой правкой.</p> : null}
     {edit && !uncertain ? <button type="button" className={styles.textButton} disabled={pending} onClick={onResume}>Сверить исходное сообщение</button> : null}
     {uncertain ? <p className={styles.muted}>Текст и адресат зафиксированы: сервер мог уже принять сообщение. Повтор проверит тот же запрос.</p> : null}

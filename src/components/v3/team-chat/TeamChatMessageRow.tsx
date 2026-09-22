@@ -3,7 +3,8 @@
 import { useActionState, useLayoutEffect, useRef, useState } from "react";
 import { teamChatCommandAction } from "@/lib/platform-team-chat-actions";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
-import { TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_INITIAL_ACTION, type TeamChatActionState, type TeamChatFailure, type TeamChatMessage, type TeamChatParticipant } from "@/lib/platform-team-chat";
+import { TEAM_CHAT_INITIAL_ACTION, type TeamChatActionState, type TeamChatFailure, type TeamChatMessage, type TeamChatParticipant } from "@/lib/platform-team-chat";
+import { TEAM_CHAT_COMMAND_FAILURE_COPY } from "@/lib/team-chat-command-feedback";
 import type { TeamChatQuote } from "@/lib/platform-team-chat-timeline";
 import { plainTextLinks } from "@/lib/plain-text-links";
 import { Icon } from "@/components/icons";
@@ -91,6 +92,6 @@ export function TeamChatDeleteConfirmation({ attempt, visible, onCancel, onSaved
       <button type="submit" autoFocus={isOwn} className={styles.primary} disabled={pending}>{pending ? "Удаляем…" : state.status === "unavailable" ? "Повторить тот же запрос" : "Подтвердить удаление"}</button>
       <button type="button" className={styles.secondary} disabled={pending} onClick={cancel}>Отмена</button>
     </div>
-    {state.status !== "saved" && state.status !== "idle" ? <p role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[state.status]}</p> : null}
+    {state.status !== "saved" && state.status !== "idle" ? <p role="alert" className={styles.error}>{TEAM_CHAT_COMMAND_FAILURE_COPY[isOwn ? "delete" : "moderate"][state.status]}</p> : null}
   </form>;
 }

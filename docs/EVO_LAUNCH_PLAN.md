@@ -14715,3 +14715,18 @@ Scope: TeamChat.tsx, scopedCSS, puretimeformatter/test и docs. Новая ми�
 source review/CI. Actual1440/390/320 только в будущем ROOT окне после ROOT16b
 иB1029; source не означает acceptance. Без тяжёлых локальных сборок/новых
 зависимостей при дисковом ограничении; no runtime до отдельного допуска.
+
+
+## 2026-09-22 — A15 visible channel timestamp: source implemented
+
+Precode7692a242 independently APPROVED (reportSHA a7a5f4d2); parent read the
+complete review and Impeccable craft-floor before coding. Source4e434eee adds
+only the planned channel time formatter, rail markup/CSS and seven pure tests.
+All7 tests, scoped ESLint, next typegen, TypeScript and diff check passed once.
+Exact package/lock dependencies reused; no install or full build. Reader239,
+normalizer, data/auth boundaries, message actions, drafts and seen are unchanged.
+
+[Source receipt](qa/team-chat-channel-time-ui-source-2026-09-22.md) records
+commands/hashes and limits. Source review/CI and actual1440/390/320 remain ahead;
+no source result is rendered UI acceptance. No runtime/Auth/SQL/browser action
+occurred. ROOT16b → B1029 → A QA queue and separate window admission remain.

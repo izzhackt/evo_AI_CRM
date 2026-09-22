@@ -6,9 +6,9 @@ The four lead-card sections retain their shared client revision and unsaved sibl
 
 Why: `router.refresh()` merges server output while retaining mounted client state; `useState(initialRevision)` does not reinitialize on updated props. Thus the previous recovery could continue submitting an obsolete revision. References: [Next.js useRouter](https://nextjs.org/docs/app/api-reference/functions/use-router), [React useState](https://react.dev/reference/react/useState).
 
-Source checks: Node 22 scoped ESLint on the two changed components and `git diff --check` passed. Existing dependencies reused from a checkout with identical package-lock; no installation, build, full suite, mocks or runtime execution.
+Initial source checks (before runtime): Node 22 scoped ESLint on the two changed components and `git diff --check` passed. Existing dependencies reused from a checkout with identical package-lock; no installation, build, full suite, mocks or runtime execution.
 
-## Minimal real local validation plan (not executed)
+## Original minimal local validation plan (recorded before execution)
 
 Use one existing authorized local QA staff identity in two ordinary browser tabs and one existing editable QA lead; ROOT must select the exact lead and authorize the finite field changes before the window. No new accounts, grants or fixtures.
 

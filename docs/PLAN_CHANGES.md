@@ -38213,3 +38213,14 @@ accepted0aceda06, healthy/restart0 и отсутствие pending. Armfalse п�
 ## 2026-09-22 — explicit stale lead-card recovery
 
 On confirmed stale/request-conflict only, the explicit «Обновить карточку» button reloads the current document so all four card drafts, shared revision and request state reload together. The warning explicitly covers all unsaved card fields. Ordinary saves retain client-only revision bump and sibling drafts; no SSR-revision remount or automatic refresh is introduced. No SQL, rights or mutation payload changes. Source validation is scoped; actual two-session recovery awaits the coordinated local QA window.
+
+
+## 2026-09-22 — country values расширенного каталога сайта
+
+Владелец расширил каталог публичного сайта на остальные действующие вузы EVO;
+задача сайта передала ROOT зависимость приёмника для Czechia/Austria/Cyprus → EU.
+[Минимальный контракт](EVO_WEBSITE_COUNTRY_EXTENSION_2026-09-22.md) фиксируется до
+кода: только HTTP country allowlist и тело receive_website_lead, миграция240.
+Существующие country/university receipts, guards и шестистрановая подготовка
+сохранены. Тестовые lead submissions не выполняются по решению владельца.
+Это отдельная зависимость сайта рядом с code review1–36, не расширение admissions.

@@ -37458,3 +37458,14 @@ Pagination отсутствует в данных, same-context refresh оста
 календаря/reader/shell/package неизменны, обе append-only истории сохранены.
 План/архитектура не расширены. Итоговому head нужны exact-head review/CI/merge;
 панель/черновики16b и production не закрыты.
+
+
+## 2026-09-22 — календарь16b: сохраняемая форма и адаптивная панель, до кода
+
+После merge16a/#1025 (`ec3f62bad`) принят [контракт16b](platform/crm-calendar-persistent-panel.md).
+Один owner и одна native dialog/form сохраняют create draft/request identity при клиентской
+навигации и resize; stale восстанавливается через явный refresh, новый authorized render token
+и exact case candidates, saved — через «Создать ещё». Known unavailable target не удаляет owner.
+Сохраняются16a, права, shared DeadlineFields, actions/SQL; локально14px/12px согласно §10.
+Impeccable Operate/adapt и реальный16a incumbent используются до UI edits. Actual16b остаётся
+после выделенного QA-окна; pure/source checks не доказывают сохранение/production.

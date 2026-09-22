@@ -33,8 +33,9 @@ final class SupabaseService {
         try await client.auth.signIn(email: email, password: password)
     }
 
+    /// Match Portal logout: preserve the user's other sessions.
     func signOut() async throws {
-        try await client.auth.signOut()
+        try await client.auth.signOut(scope: .local)
     }
 
     /// `platform.current_actor_authority()` — 0 or 1 row for the signed-in

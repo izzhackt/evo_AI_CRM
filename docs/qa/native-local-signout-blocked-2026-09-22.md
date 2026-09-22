@@ -91,3 +91,17 @@ build и no-Auth closure не доказывают native acceptance. В это�
 проверены только diff/истории и byte parity; новые tests/build/Simulator/Auth/
 DB/provider операции не запускались. Draft, independent final-head review,
 protected CI и ROOT merge сохраняют отдельные границы.
+
+
+## Решение владельца после STOP — 2026-09-22
+
+Владелец подтвердил #1026 и #980: «оба работают и код верный, прими и все,
+проверки не нужны». Текущая функциональная приёмка — **OWNER-CONFIRMED**;
+оставшиеся ручные native/mail шаги отменены как условия приёмки этих PR.
+Mac lock, invite alias и business Gmail не являются текущими блокерами их
+приёмки. Предыдущие разделы сохраняют исторические STOP и no-Auth closure;
+login/logout/relaunch и доставка/получение/ответ на письма не объявляются
+выполненными агентом. Новых UI/Auth/test/build/native/email запусков нет.
+Source integration, обычный GitHub CI, финальный delta review/merge ROOT и
+последующая runtime delivery учитываются отдельно. Audit #1037 и KB159
+этим решением не переписаны.

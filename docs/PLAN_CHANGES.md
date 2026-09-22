@@ -37848,6 +37848,20 @@ STOP, KB decisions и пределы31/32 сохранены. Проверки �
 код/runtime/права этот срез не меняет, весь1–36 не закрывается.
 
 
+## 2026-09-22 — independent audit1–36: source и ограниченный read-only UI
+
+[Независимая ведомость](EVO_ITEMS_1_36_INDEPENDENT_REVIEW_2026-09-22.md)
+на main6515e695 проверяет36 требований без нового продуктового scope.
+ROOT/A/B координация исключила дублирование draft1026/980. Нового подтверждённого
+дефекта вне их scope в просмотренных путях не установлено. Read-only local dev
+Admin/Student audit пяти страниц, измерения1440/390/320 по таблице и клавиатура
+прошли; source, реальные ограничения и runner STOP сохранены.290 business,
+Storage, schema и incumbent sessions/refresh/AMR неизменны; собственные local
+logout204/cookies/browser/server закрыты. Нет SQL apply, native/mail/provider
+или production операций; KB141/144/145/pending159 и отложенные37–50 сохранены.
+Это docs-only результат ревью; прежние квитанции не переименованы в новые tests.
+
+
 ### 2026-09-22 — B native: принятый precode локального выхода
 
 После merge #1018 в main2b25a431 подтверждён scope mismatch: web Portal
@@ -37938,3 +37952,28 @@ draft, merge/release принадлежат ROOT. Production/native/full24 не 
 В checkpoint интеграции #1026 выше под ROOT ошибочно назван оператор CUA.
 Вызов в 08:21 UTC выполнила сессия B; координатор ROOT получил её сообщение.
 Результат Mac locked, отсутствие ввода и ограничения native acceptance неизменны.
+
+
+## 2026-09-22 — Приёмка владельцем #1026 и #980
+
+Владелец явно подтвердил: «оба работают и код верный, прими и все, проверки
+не нужны». Функциональность этих двух PR принята как **OWNER-CONFIRMED**;
+оставшиеся ручные native/mail шаги сняты с условий приёмки. Mac lock, замена
+invite alias и business Gmail больше не блокируют приёмку этих PR. Это решение
+владельца, а не новый результат тестирования агентом: native login/logout/relaunch,
+реальная отправка/получение/ответ на письма в этом продолжении не выполнялись.
+Исторические STOP, исходные source/build receipts и независимый audit #1037
+сохраняют свои фактические результаты и пределы. Исключение KB159 не изменено.
+
+В #1026 интегрирован main `85272bf1d15b6dc4c223626715cfefd3eb6bbcfa`; полный
+iOS tree `a04bb0fe70622c120674096122067cd2535c9774` и зависимости сохранены.
+Единственная product-дельта против main — прежний `signOut(scope: .local)`
+с комментарием. При этой source/docs интеграции проверяются только diff и byte
+parity; новые UI/Auth/test/build/native/email операции не запускаются. Прежние
+source reviews и build переиспользуются на исходных ревизиях. Обычный GitHub CI
+остаётся включён; ROOT выполняет узкий финальный delta review и merge.
+
+Приёмка, source merge и runtime delivery учитываются отдельно: сначала #1026,
+затем интеграция #980 с полученным main. Managed activation/release #980 остаются
+у ROOT. Нового API/schema/provider scope или заявления о полной готовности
+1–36 это решение не добавляет.

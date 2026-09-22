@@ -107,6 +107,7 @@ export function TaskChip({
     <button
       type="button"
       id={`task-${task.key}`}
+      style={{ transitionProperty: "border-color" }}
       onClick={onSelect}
       aria-expanded={selected}
       aria-controls={selected && panelId ? panelId : undefined}

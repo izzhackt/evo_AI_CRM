@@ -14638,3 +14638,20 @@ microseconds, запрет timezone-free/invalid дат, сравнение ра
 UI времени после принятия reader отдельным блоком. Source-only сейчас: QA у
 ROOT16, затем B native; apply, Auth/RPC/browser/server и production не запускаются.
 No migration239 application or full15 acceptance claimed.
+
+
+### A15 channel timestamp — первый source checkpoint, 22.09
+
+[Source evidence](qa/team-chat-channel-time-source-2026-09-22.md): migration239
+содержит только две read projection additions относительно237; DTO optional
+outer field и strict UTC6 canonicalizer, paired preview/time acceptor. Nested7,
+guards/ACL/order/unread/seen и весь текущий UI сохранены. Из44 incumbent-файлов
+только два разрешённых lib-файла изменены; parityeb6e1d26. Pure SQL parse PASS,
+но SQL не исполнялся. Scope и архитектура соответствуют precode c72cbd15.
+
+На Node22.23.1 новые23 и прежние20 pure tests прошли отдельными однократными
+запусками; verbatim legacy decoder реально исполнен как pure compatibility
+case. Scoped lint, next typegen, tsc и diff PASS; receipt110de1d7 связывает
+точные hashes/commands/raw spans. Independent source review/CI ещё впереди;
+239 не применена. ROOT16 → Bnative сохраняют QA очередь. Следующее actual
+Auth/RPC окно требует отдельного ROOT назначения; UI времени после reader.

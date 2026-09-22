@@ -19,6 +19,8 @@ export type TeamChatChannel = Readonly<{
   key: TeamChatChannelKey; muted: boolean; preferenceVersion: string;
   readSequence: string; unreadCount: number; firstUnreadId: string | null;
   latestPreview: TeamChatChannelPreview | null;
+  /** Absent on legacy readers; null only when the channel has no latest row. */
+  latestPreviewCreatedAt?: string | null;
 }>;
 export type TeamChatMessage = Readonly<{
   id: string; channelKey: TeamChatChannelKey; sequence: string; authorMembershipId: string;

@@ -14,6 +14,8 @@ team-chat-channel-previews.ts и TeamChat.tsx не менялись. Из chat p
 изменились только два copy selectors в уже принятом #1024;238 относится
 к другому reader. Совместимость внешнего поля остаётся доказуемой предпосылкой.
 
+[Первый source checkpoint](qa/team-chat-channel-time-source-2026-09-22.md): reader/DTO реализованы,43 адресных pure tests, lint/typecheck PASS; independent review/CI и actual ещё впереди.239 не применена.
+
 ## Уточнения принятия и первого source-блока
 
 - 239 повторяет точную функцию237 с двумя projection additions: m.created_at

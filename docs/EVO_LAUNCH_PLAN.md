@@ -14616,3 +14616,19 @@ main. Append-only конфликты разрешены точным общим 
 Архитектура/контракт не расширены; итоговые exact-head review/CI/merge #1024
 остаются у ROOT. Timestamp далее отдельным блоком; positive commands,
 production/native/full15 и issue708 real-staff acceptance не заявляются.
+## 2026-09-22 — календарь16a: сворачиваемый список без срока, до кода
+
+После #1023 (main e8fc98dc) ROOT принимает независимый срез16a; A сохраняет командный чат. [Контракт](platform/crm-calendar-undated-disclosure.md) переносит ранее одобренный precode review4995fae6: серверный count, cursor/target, ручное раскрытие, клавиатура и ссылки сохраняются. Родительский key, reader, команды и форма не меняются. До UI-правки требуется текущий Admissions baseline в выделенном окне после A1020/B1018; подготовка пока файловая. Это исходное требование §10, не расширение календаря или доказательство завершения16b.
+
+
+## 2026-09-22 — календарь16a: actual и интеграция #1025
+
+[Квитанция](qa/calendar-undated-disclosure-actual-2026-09-22.md) закрепляет один
+Admissions batch1440/390/320 на0c1bf75f: раскрытие/клавиатура/реальная задача,
+12 прежних карточек,44px и no page overflow. Final290/33 и own closure приняты
+independent review4f7758c9; исходный preAuth admission-status STOP сохранён.
+Pagination отсутствует в данных, same-context refresh остаётся source-only.
+После закрытия runtime интегрирован main d1568d58 (#1024):13 файлов
+календаря/reader/shell/package неизменны, обе append-only истории сохранены.
+План/архитектура не расширены. Итоговому head нужны exact-head review/CI/merge;
+панель/черновики16b и production не закрыты.

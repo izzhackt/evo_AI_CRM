@@ -4,7 +4,7 @@ import type { PersonalCalendarCursor } from "@/lib/v3/personal-calendar-contract
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 
 import { Icon } from "@/components/icons";
 import { Pill } from "@/components/v3/Pill";
@@ -92,10 +92,33 @@ export function Calendar({
   basePath: string;
 }) {
   const panelId = useId();
+  const undatedListId = useId();
   const router = useRouter();
   const [navigating, startNavigation] = useTransition();
   const open = tasks.find((task) => task.key === initialTaskKey) ?? null;
   const openCapabilities = open ? calendarCapabilitiesForTask(open, taskCapabilities) : null;
+  const undatedCursorKey = undatedCursor
+    ? JSON.stringify([undatedCursor.sortAt, undatedCursor.kind, undatedCursor.taskId])
+    : null;
+  const undatedTargetKey = open?.day === null ? open.key : null;
+  const [undatedDisclosure, setUndatedDisclosure] = useState(() => ({
+    cursorKey: undatedCursorKey,
+    targetKey: undatedTargetKey,
+    expanded: undatedContinuationPage || undatedTargetKey !== null,
+  }));
+  // A new page or resolved undated target opens the list; the same context
+  // must not undo a manual collapse when refreshed server props arrive.
+  if (
+    undatedDisclosure.cursorKey !== undatedCursorKey ||
+    undatedDisclosure.targetKey !== undatedTargetKey
+  ) {
+    setUndatedDisclosure({
+      cursorKey: undatedCursorKey,
+      targetKey: undatedTargetKey,
+      expanded: undatedDisclosure.cursorKey !== undatedCursorKey ||
+        undatedTargetKey !== null || undatedDisclosure.expanded,
+    });
+  }
   const selectTask = (id: string | null) => {
     const target = tasks.find((task) => task.key === id);
     const params = undatedCursor
@@ -291,38 +314,52 @@ export function Calendar({
           aria-label="Задачи без срока"
           className="rounded-card border border-border bg-surface p-3"
         >
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-3">
-            Без срока — {undatedCount}
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-3">
+            <button
+              type="button"
+              aria-expanded={undatedDisclosure.expanded}
+              aria-controls={undatedListId}
+              onClick={() => setUndatedDisclosure((current) => ({
+                ...current,
+                expanded: !current.expanded,
+              }))}
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-ctl text-left hover:bg-surface-2 hover:text-fg"
+            >
+              <span>Без срока — {undatedCount}</span>
+              <Icon name="chevron-right" size={16} className={`shrink-0 ${undatedDisclosure.expanded ? "rotate-90" : ""}`} />
+            </button>
           </h2>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {unscheduled.map((task) => (
-              <TaskChip
-                key={task.key}
-                task={task}
-                today={today}
-                selected={task.key === chip.selectedId}
-                panelId={chip.panelId}
-                onSelect={() => chip.onSelect(task.key)}
-              />
-            ))}
-          </div>
-          {undatedNotice ? (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-              <p className="text-sm text-fg-3">{undatedNotice}</p>
-              <div className="flex flex-wrap items-center gap-2">
-                {undatedContinuationPage ? (
-                  <Link href={href(view, day)} className={GHOST}>
-                    К началу списка
-                  </Link>
-                ) : null}
-                {undatedNextHref ? (
-                  <Link href={undatedNextHref} className={GHOST}>
-                    Показать следующие
-                  </Link>
-                ) : null}
-              </div>
+          <div id={undatedListId} hidden={!undatedDisclosure.expanded} className="mt-2">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {unscheduled.map((task) => (
+                <TaskChip
+                  key={task.key}
+                  task={task}
+                  today={today}
+                  selected={task.key === chip.selectedId}
+                  panelId={chip.panelId}
+                  onSelect={() => chip.onSelect(task.key)}
+                />
+              ))}
             </div>
-          ) : null}
+            {undatedNotice ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                <p className="text-sm text-fg-3">{undatedNotice}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {undatedContinuationPage ? (
+                    <Link href={href(view, day)} className={GHOST}>
+                      К началу списка
+                    </Link>
+                  ) : null}
+                  {undatedNextHref ? (
+                    <Link href={undatedNextHref} className={GHOST}>
+                      Показать следующие
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </section>
       ) : null}
 

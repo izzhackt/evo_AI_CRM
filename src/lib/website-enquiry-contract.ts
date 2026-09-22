@@ -1,6 +1,7 @@
 export const WEBSITE_ENQUIRY_COUNTRIES = new Set([
   "China", "Malaysia", "Europe", "Germany", "United Kingdom", "Italy",
-  "Netherlands", "France", "Poland", "United Arab Emirates", "Turkey", "Undecided",
+  "Netherlands", "France", "Poland", "Czechia", "Austria", "Cyprus",
+  "United Arab Emirates", "Turkey", "Undecided",
 ]);
 
 export type WebsiteEnquiryUniversity = Readonly<{ slug: string; name: string }>;

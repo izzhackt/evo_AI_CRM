@@ -15396,3 +15396,14 @@ and private bundle correction are preserved; no product changes after review.
 Fresh CUA observation found Mac locked. Real lesson/assessment recovery remains
 pending ROOT-exclusive QA; no install/Auth/relay or new attempt occurred. See
 `docs/qa/native-learning-recovery-2026-09-22.md`. Accepted1026/980 remain closed.
+
+
+## 2026-09-22 — country values расширенного каталога сайта
+
+Владелец расширил каталог публичного сайта на остальные действующие вузы EVO;
+задача сайта передала ROOT зависимость приёмника для Czechia/Austria/Cyprus → EU.
+[Минимальный контракт](EVO_WEBSITE_COUNTRY_EXTENSION_2026-09-22.md) фиксируется до
+кода: только HTTP country allowlist и тело receive_website_lead, миграция240.
+Существующие country/university receipts, guards и шестистрановая подготовка
+сохранены. Тестовые lead submissions не выполняются по решению владельца.
+Это отдельная зависимость сайта рядом с code review1–36, не расширение admissions.

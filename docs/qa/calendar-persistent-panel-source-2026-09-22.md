@@ -54,3 +54,21 @@ computed 14/12px. Допускается один ограниченный ко�
 Saved/stale/unknown в реальном приложении не доказаны pure checks и потребуют отдельного
 намеренного сохранения; отсутствующие варианты не считаются PASS. Целиком item 16,
 широкий финальный E2E, native и production здесь не закрываются.
+
+
+## Native-picker Escape correction — source checks, 22 September 2026
+
+Pre-code `2653f38a` extends the existing16b contract after the two preserved actual STOPs.
+Only `CalendarPanel.tsx` changes product behavior from source `0a01800b`: capture a real open
+native select's Escape without cancelling its default, skip the matching desktop event and consume
+its paired native dialog cancel. Fresh keydown, keyup, pointerdown, panel lifecycle and unmount
+clear the guard. Held-key repeat retains that gesture's provenance; ordinary closed-select Escape
+and the Close button retain normal panel-close behavior. No form/action, geometry, CSS or authority
+change is included.
+
+Fresh scoped checks: 21 existing calendar integration checks and 4 actual-component SSR visibility
+checks PASS; scoped ESLint, Next typegen/TypeScript and diff check PASS. The single-file Impeccable
+detector returned exit0 with no findings. These checks do not exercise native picker default ordering;
+no fabricated native-event test was added. The previously passed layout/draft prefix remains evidence
+for unchanged source, while modal/desktop picker-close + panel-remains-open + next-Escape-close
+regression is pending. No new browser/Auth/DB/production run occurred while implementing this fix.

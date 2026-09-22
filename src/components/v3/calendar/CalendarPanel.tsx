@@ -40,12 +40,16 @@ export function CalendarPanel({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const applied = useRef({ open: false, desktop, contentKey });
   const restoreAfterClose = useRef(false);
+  const pickerEscape = useRef<{ keydown: KeyboardEvent; cancelPending: boolean } | null>(null);
   const titleId = `${id}-title`;
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     const previous = applied.current;
+    if (previous.open !== open || previous.desktop !== desktop || previous.contentKey !== contentKey) {
+      pickerEscape.current = null;
+    }
     const focused = document.activeElement;
     const retainFocus = previous.open && previous.desktop !== desktop &&
       dialog.contains(focused) && canFocus(focused) ? focused : null;
@@ -85,14 +89,38 @@ export function CalendarPanel({
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
-    return () => { if (dialog?.open) dialog.close(); };
+    return () => {
+      pickerEscape.current = null;
+      if (dialog?.open) dialog.close();
+    };
   }, []);
 
   return (
     <dialog ref={dialogRef} id={id} className={styles.dialog} aria-labelledby={titleId}
-      onCancel={(event) => { event.preventDefault(); onRequestClose(); }}
+      onKeyDownCapture={(event) => {
+        const continuingPress = event.key === "Escape" && event.repeat && pickerEscape.current !== null;
+        pickerEscape.current = null;
+        if (event.key === "Escape" && (continuingPress || (
+          event.target instanceof HTMLSelectElement &&
+          CSS.supports("selector(:open)") && event.target.matches(":open")
+        ))) {
+          // Keep the picker default intact; its paired dialog cancel can follow microtasks.
+          pickerEscape.current = { keydown: event.nativeEvent, cancelPending: true };
+        }
+      }}
+      onKeyUpCapture={() => { pickerEscape.current = null; }}
+      onPointerDownCapture={() => { pickerEscape.current = null; }}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (pickerEscape.current?.cancelPending) {
+          pickerEscape.current.cancelPending = false;
+          return;
+        }
+        onRequestClose();
+      }}
       onKeyDown={(event) => {
-        if (desktop && event.key === "Escape" && !event.defaultPrevented) {
+        if (desktop && event.key === "Escape" && !event.defaultPrevented &&
+          pickerEscape.current?.keydown !== event.nativeEvent) {
           event.preventDefault();
           onRequestClose();
         }

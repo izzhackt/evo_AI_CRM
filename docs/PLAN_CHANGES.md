@@ -37503,3 +37503,20 @@ executable неизменён, полные Auth/Kong logs0, fresh readonly fina
 сохраняет исходный STOP, описание metadata typo и границу reused baseline.
 Это не native logout acceptance; #1026 остаётся draft до реального продолжения
 на разблокированном Mac со свежим окном. iOS source/artifact и scope неизменны.
+
+
+### 2026-09-22 — B native #1026: согласованная интеграция свежего main, до merge
+
+ROOT разрешил только files-only обновление draft #1026: исходный head
+`1a70bb10094de003a5d5dd74f784928a05e84587`, входящий main после fetch
+`ac165cf992ea418c2a11745590a5dadb443e9d6f`. Сохранить текущий ledger и полные
+исторические дополнения обеих сторон в трёх конфликтующих документах. iOS tree
+должен остаться точным исходному head; единственный runtime diff против main —
+прежний `signOut(scope: .local)` с пояснением. Контракт и архитектура неизменны.
+
+Проверка этой интеграции ограничена `git diff --check`, сравнением iOS tree и
+оставшегося diff с входящим main. Общие node_modules не менять: их использует
+отдельная работа #1029. Новых build, QA, Auth, simulator, install или email
+действий нет; прежние source/build/STOP receipts сохраняют исходные SHA и
+границы. Перед push требуется независимое exact-head review; draft остаётся
+открытым, native logout/production acceptance и merge/release не заявляются.

@@ -37458,3 +37458,18 @@ Pagination отсутствует в данных, same-context refresh оста
 календаря/reader/shell/package неизменны, обе append-only истории сохранены.
 План/архитектура не расширены. Итоговому head нужны exact-head review/CI/merge;
 панель/черновики16b и production не закрыты.
+
+
+### 2026-09-22 — B24: precode повтора загрузки теста
+
+На main ec3f62ba подтверждена потеря операции в AssessmentRunner: после
+conflict → подтверждённой загрузки → read unavailable кнопка вызывает write
+и разблокирует преждевременное сохранение. [Контракт](platform/portal-assessment-retry-operation.md)
+записан до кода: start/write/reload в error state, повтор чтения с прежним
+подтверждением, сохранение pending UUID/snapshot; reloadRequired удерживает
+вопросы и Save-and-exit до успешного read. Три пары RU/KY строк описывают
+загрузку/ошибку/выход; устаревший exitNotice снимается после успешного чтения.
+Impeccable Operate/harden, layout/actions/Auth/RLS/SQL не меняются. ROOT разрешил
+отдельный source блок после checkpoint #1026; native ждёт Mac, QA у A239.
+Source checks/review и согласованный actual ещё впереди; пункт 24 и production
+не завершены. Новые npm/build после сбоя диска ждут разрешённого окна.

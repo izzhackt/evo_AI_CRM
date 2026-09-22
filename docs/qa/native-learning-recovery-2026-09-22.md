@@ -1,6 +1,6 @@
 # Native learning recovery — 22 September 2026
 
-Status: IMPLEMENTED_SOURCE; independent review, typecheck/build and real changed-path validation pending.
+Status: SOURCE_REVIEW_AND_SIMULATOR_COMPILE_PASS; real changed-path validation pending (fresh Mac-locked observation).
 Base: b4fc3f91d71a28916307abae554d057e343f138e.
 
 The bounded source review found: assessment exit can acknowledge an older
@@ -39,7 +39,7 @@ retained for the next explicit save. No automatic extra write is introduced.
 - `xcrun swiftc -frontend -parse ios/EVOAdmissions/Views/AssessmentRunnerView.swift ios/EVOAdmissions/Views/LessonRunnerView.swift`: exit0. Syntax only; not typecheck, build or actual app acceptance.
 - `git diff --check`: exit0.
 - No mock service, generated business fixture, implementation-mirroring test
-  or runtime substitute was used. No dependency installation/native build:
+  or runtime substitute was used. At this initial syntax-only stage no dependency installation/native build ran:
   free disk was491MiB before worktree setup and369MiB afterward.
 
 ## Minimal real-local validation plan (not executed)
@@ -80,3 +80,29 @@ write budget and companion web session before execution. No Complete calls.
 Capture actual RPC outcomes and the smallest task/attempt state delta, preserve
 all incoming Auth sessions, close only owned sessions/app/resources. Source
 checks do not prove these transitions. No actual has run in this source phase.
+
+## Simulator compile and current execution boundary
+
+Exact product source `dc5b627fc0276aefd1bd07e5a528ccbe16955f1a` received
+independent source review PASS (`8971fee262736f49936a1058942acd5d35e13dec30f16bf44bfe3d273ad27da8`).
+A real Xcode Debug iOS Simulator build for the existing selected device passed
+with cached packages, automatic package resolution disabled, and no downloads.
+The final built plist was checked for distinct bundle
+`com.evoadmissions.qa.learning20260922` and local-only Supabase origin
+`http://127.0.0.1:57596`. The future dedicated TCP relay targets57495;
+57496 is existing QA Postgres and is not used or changed.
+
+Setup history is preserved: missing ignored Local.xcconfig, then two JSON
+resources omitted by sparse checkout caused build failures. Both were repaired
+without product changes. A subsequent successful compile exposed an inherited
+literal QA bundle ID during artifact inspection; its private plist was corrected
+and rebuilt before any installation. Prior products were not replaced.
+
+Final build receipt SHA `4ca054c7dca49c4caeb0295ba064b37ced406e40568a082c75adc7626a83cd38`;
+completion SHA `cb810520dcb42ac20da8938919b28f44643956cf5f712ad496f509d0a82cb121`
+in `/private/tmp/evo-native-learning-build-20260922/`.
+One fresh CUA Simulator observation reported the Mac locked and automatic
+unlock unavailable. No installation, app launch, Auth, relay, database or
+changed-path UI execution followed. Compile is not actual recovery acceptance.
+ROOT coordinates the next exclusive window after ordinary Mac unlock;
+accepted #1026/#980 are not reopened by this work.

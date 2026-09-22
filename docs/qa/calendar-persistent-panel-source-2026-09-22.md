@@ -72,3 +72,23 @@ detector returned exit0 with no findings. These checks do not exercise native pi
 no fabricated native-event test was added. The previously passed layout/draft prefix remains evidence
 for unchanged source, while modal/desktop picker-close + panel-remains-open + next-Escape-close
 regression is pending. No new browser/Auth/DB/production run occurred while implementing this fix.
+
+
+## Native-picker blur/focus correction — source checks, 22 September 2026
+
+Actual regression of `3e11eef9` stopped because both the native picker and panel remained open
+after the first Escape. Panel preservation alone is not acceptance; that receipt remains unchanged.
+Pre-code amendment `fffb3848` explicitly supersedes the previous native-default assumption.
+
+Only CalendarPanel changes product code: actual open+focused select Escape prevents the keyboard
+default, blurs the real select and refocuses it if still focusable, without assigning its value or
+selectedIndex. The paired-cancel/event-identity guard is removed; one boolean limits held-key repeat,
+with existing gesture/lifecycle resets. Ordinary native cancel, closed-select Escape and Close remain.
+No CSS, layout, form/action, permission or source integration change is included.
+
+Fresh checks on this second correction: 21 existing calendar integration and 4 actual-component SSR
+visibility checks PASS; scoped lint, Next typegen/TypeScript, diff and single-file Impeccable detector
+PASS (detector exit0, no findings). No fake native-event test or new runtime dependency was added.
+These checks do not prove popup dismissal, focus events or selection invariance. Independent source
+review and the next coordinated modal/desktop native-picker regression remain pending; no browser,
+Auth, database or server was run during this source correction.

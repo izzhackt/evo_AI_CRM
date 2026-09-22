@@ -40,7 +40,7 @@ export function CalendarPanel({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const applied = useRef({ open: false, desktop, contentKey });
   const restoreAfterClose = useRef(false);
-  const pickerEscape = useRef<{ keydown: KeyboardEvent; cancelPending: boolean } | null>(null);
+  const pickerEscapeHeld = useRef(false);
   const titleId = `${id}-title`;
 
   useLayoutEffect(() => {
@@ -48,7 +48,7 @@ export function CalendarPanel({
     if (!dialog) return;
     const previous = applied.current;
     if (previous.open !== open || previous.desktop !== desktop || previous.contentKey !== contentKey) {
-      pickerEscape.current = null;
+      pickerEscapeHeld.current = false;
     }
     const focused = document.activeElement;
     const retainFocus = previous.open && previous.desktop !== desktop &&
@@ -90,7 +90,7 @@ export function CalendarPanel({
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
     return () => {
-      pickerEscape.current = null;
+      pickerEscapeHeld.current = false;
       if (dialog?.open) dialog.close();
     };
   }, []);
@@ -98,29 +98,28 @@ export function CalendarPanel({
   return (
     <dialog ref={dialogRef} id={id} className={styles.dialog} aria-labelledby={titleId}
       onKeyDownCapture={(event) => {
-        const continuingPress = event.key === "Escape" && event.repeat && pickerEscape.current !== null;
-        pickerEscape.current = null;
-        if (event.key === "Escape" && (continuingPress || (
-          event.target instanceof HTMLSelectElement &&
-          CSS.supports("selector(:open)") && event.target.matches(":open")
-        ))) {
-          // Keep the picker default intact; its paired dialog cancel can follow microtasks.
-          pickerEscape.current = { keydown: event.nativeEvent, cancelPending: true };
-        }
-      }}
-      onKeyUpCapture={() => { pickerEscape.current = null; }}
-      onPointerDownCapture={() => { pickerEscape.current = null; }}
-      onCancel={(event) => {
-        event.preventDefault();
-        if (pickerEscape.current?.cancelPending) {
-          pickerEscape.current.cancelPending = false;
+        const continuingPress = event.key === "Escape" && event.repeat && pickerEscapeHeld.current;
+        pickerEscapeHeld.current = false;
+        if (continuingPress) {
+          pickerEscapeHeld.current = true;
+          event.preventDefault();
           return;
         }
-        onRequestClose();
+        const select = event.target;
+        if (event.key === "Escape" && select instanceof HTMLSelectElement &&
+          document.activeElement === select && CSS.supports("selector(:open)") && select.matches(":open")) {
+          // Dismiss the native popup without forwarding this Escape to the panel.
+          pickerEscapeHeld.current = true;
+          event.preventDefault();
+          select.blur();
+          if (canFocus(select)) select.focus({ preventScroll: true });
+        }
       }}
+      onKeyUpCapture={() => { pickerEscapeHeld.current = false; }}
+      onPointerDownCapture={() => { pickerEscapeHeld.current = false; }}
+      onCancel={(event) => { event.preventDefault(); onRequestClose(); }}
       onKeyDown={(event) => {
-        if (desktop && event.key === "Escape" && !event.defaultPrevented &&
-          pickerEscape.current?.keydown !== event.nativeEvent) {
+        if (desktop && event.key === "Escape" && !event.defaultPrevented) {
           event.preventDefault();
           onRequestClose();
         }

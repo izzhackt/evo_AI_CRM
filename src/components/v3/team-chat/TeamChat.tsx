@@ -13,6 +13,7 @@ import type { TeamChatTimelineV2Page } from "@/lib/platform-team-chat-timeline-v
 import { emptyTeamChatFeed, extendTeamChatFeedRange, mergeTeamChatFeedChanges, mergeTeamChatFeedPage, mergeTeamChatSearchChanges, teamChatFeedMessage, teamChatFeedQuote, teamChatFeedRange, teamChatFeedRows, type TeamChatFeedSnapshot, type TeamChatFeedStore, type TeamChatFeedRange, type TeamChatScrollAnchor } from "@/lib/team-chat-feed";
 import { teamChatMessageContinuations } from "@/lib/team-chat-message-grouping";
 import { acceptTeamChatChannels, teamChatChannelPreviewText, type TeamChatChannelsState } from "@/lib/team-chat-channel-previews";
+import { formatTeamChatChannelTime } from "@/lib/team-chat-channel-time-label";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import { Icon } from "@/components/icons";
@@ -397,13 +398,22 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         {channelReadFailureCopy.retryLabel ? <button className={styles.textButton} type="button" disabled={busy || channelReadFailure.pending}
           onClick={() => retryRead("background", channelReadFailure.id)}>{channelReadFailure.pending ? "Повторяем…" : channelReadFailureCopy.retryLabel}</button> : null}
       </div> : null}
-      {channels.map((item) => <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`} className={`${styles.channel} ${item.key === channel ? styles.selected : ""}`} aria-current={item.key === channel ? "page" : undefined}
-        onClick={(event) => { if (item.key === channel) { event.preventDefault(); setPanel("messages"); } }}>
-        <span className={styles.channelAvatar} data-channel={item.key} aria-hidden="true">{TEAM_CHAT_LABELS[item.key][0]}</span>
-        <span className={styles.channelCopy}><span className={styles.channelName}>{TEAM_CHAT_LABELS[item.key]}</span>
-          <span className={styles.channelPreview}>{teamChatChannelPreviewText(item.latestPreview, membershipId)}</span>
-        </span>{item.unreadCount ? <span className={styles.unread} aria-label={`${item.unreadCount} непрочитанных`}>{item.unreadCount}</span> : null}
-      </Link>)}
+      {channels.map((item) => {
+        const time = formatTeamChatChannelTime(item.latestPreviewCreatedAt);
+        return <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`} className={`${styles.channel} ${item.key === channel ? styles.selected : ""}`} aria-current={item.key === channel ? "page" : undefined}
+          onClick={(event) => { if (item.key === channel) { event.preventDefault(); setPanel("messages"); } }}>
+          <span className={styles.channelAvatar} data-channel={item.key} aria-hidden="true">{TEAM_CHAT_LABELS[item.key][0]}</span>
+          <span className={styles.channelCopy}>
+            <span className={styles.channelHeading}>
+              <span className={styles.channelName}>{TEAM_CHAT_LABELS[item.key]}</span>
+              {time ? <time className={styles.channelTime} dateTime={time.dateTime} title={time.fullLabel}>
+                <span aria-hidden="true">{time.label}</span><span className={styles.srOnly}>{time.fullLabel}</span>
+              </time> : null}
+            </span>
+            <span className={styles.channelPreview}>{teamChatChannelPreviewText(item.latestPreview, membershipId)}</span>
+          </span>{item.unreadCount ? <span className={styles.unread} aria-label={`${item.unreadCount} непрочитанных`}>{item.unreadCount}</span> : null}
+        </Link>;
+      })}
     </nav>
     <section className={styles.conversation} aria-label={`Канал ${TEAM_CHAT_LABELS[channel]}`}>
       <div className={styles.conversationHeader}>

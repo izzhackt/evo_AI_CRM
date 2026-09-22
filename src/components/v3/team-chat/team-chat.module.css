@@ -49,6 +49,9 @@
 .ownMessage .messageHeader, .ownMessage .messageActions { justify-content: flex-end; }
 .bubble { margin-top: 5px; padding: 11px 16px; border-radius: 0 16px 16px 16px; background: var(--surface); }
 .ownMessage .bubble { border-radius: 16px 0 16px 16px; background: color-mix(in srgb, var(--accent) 11%, var(--surface)); }
+.compactDeleted { padding-block: 4px; }
+.compactDeleted .bubble { margin-top: 2px; padding: 0; border-radius: 0; background: transparent; }
+.compactDeleted .bubble > p { margin: 0; }
 .highlighted .bubble { outline: 2px solid var(--accent); outline-offset: 3px; }
 .messageHeader { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; font-size: 14px; }
 .messageMetadata { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; color: var(--text-3); font-size: 12px; }

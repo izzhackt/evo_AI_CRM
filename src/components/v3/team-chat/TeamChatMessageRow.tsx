@@ -19,11 +19,14 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
   const isOwn = message.authorMembershipId === ownMembershipId;
+  // replyCount counts legacy root children, not incoming direct quotes to a reply.
+  const compactDeleted = Boolean(message.deletedAt) && message.parentMessageId === null
+    && message.replyCount === 0 && quote === null;
   const initials = message.authorName.trim().split(/\s+/u).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("ru-RU");
   const mentionedNames = message.mentionedMembershipIds.map((id) => participants.find((person) => person.membershipId === id)?.displayName ?? "Участник");
   function closeMenu() { if (menu.current) menu.current.open = false; }
   return <article id={`team-message-channel-${message.id}`} data-chat-row={message.id} tabIndex={-1}
-    className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""} ${continuation ? styles.continuation : ""}`}>
+    className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""} ${continuation ? styles.continuation : ""} ${compactDeleted ? styles.compactDeleted : ""}`}>
     {!isOwn ? <span className={`${styles.authorAvatar} ${continuation ? styles.continuationAvatar : ""}`} aria-hidden="true">{initials}</span> : null}
     <div className={styles.messageContent}>
       <div className={continuation ? styles.srOnly : styles.messageHeader}>

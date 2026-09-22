@@ -38187,3 +38187,24 @@ production app — `8f9391dd`/schema239. После merge #980 reviewed managed
 configuration и один app release выполняет ROOT; B не меняет Auth/provider
 config и не отправляет письма. Independent audit #1037, KB159 и исторические
 receipts сохраняются без расширения claims.
+
+
+## 2026-09-22 — #1026/#980: принято владельцем, merge и доставка завершены
+
+Решение владельца «оба работают и код верный, прими и все, проверки не нужны»
+исполнено без новых ручных native/mail/UI/Auth прогонов. #1026 смержен в
+`faf50bef7`, #980 — в `0aceda063ab2fb365e554f8bd4cb799f920ccf7f`; защищённый CI
+прошёл на соответствующих heads. Исторические reviews и STOP не переименованы
+в новую проверку. Source и iPhone binary delivery по-прежнему различаются.
+
+Reviewed Auth activation исполнена один раз: confirmation template и точный
+redirect allowlist, остальные поля равны прежним. EnvOTP8 добавлен к source env;
+SMTP/Invite/recovery и provider OTP8/3600 не менялись. Писем не отправляли.
+Upstream35731816901 и release35731922596 SUCCESS; readback13:18:50UTC подтвердил
+accepted0aceda06, healthy/restart0 и отсутствие pending. Armfalse перечитан.
+Новых SQL apply нет, schema239 опирается на прежнюю квитанцию.
+
+[Приёмка и delivery receipt](qa/signup-owner-acceptance-delivery-2026-09-22.md)
+закрывают source/delivery шаги двух PR. Обновление документации не требует
+нового app release. KB159, решения31, пакет32, прежние ограничения доказательств
+и отложенные37–50/E2E/content/AppStore сохраняются.

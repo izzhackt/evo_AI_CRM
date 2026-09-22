@@ -1,5 +1,10 @@
 # PR980: main integration and native return to sign-in
 
+Final delivery: #980 merged as `0aceda063ab2fb365e554f8bd4cb799f920ccf7f`;
+managed Auth configuration and release35731922596 completed, accepted/healthy,
+pending absent and armfalse. [Owner acceptance and delivery receipt](signup-owner-acceptance-delivery-2026-09-22.md).
+The older source/readiness checkpoints below retain their historical scope.
+
 Current acceptance (2026-09-22): **OWNER-CONFIRMED**. The owner accepted #1026
 and #980 and waived the remaining manual native/mail prerequisites. Source merge
 and runtime delivery are tracked separately in the final section. The records

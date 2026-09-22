@@ -14697,6 +14697,85 @@ A больше не выполняет runtime. Main ec3f62ba интегриро
 Финальные exact-head review/CI/merge ещё впереди; UI/full15/production не заявлены.
 
 
+## 2026-09-22 — календарь16b: сохраняемая форма и адаптивная панель, до кода
+
+После merge16a/#1025 (`ec3f62bad`) принят [контракт16b](platform/crm-calendar-persistent-panel.md).
+Один owner и одна native dialog/form сохраняют create draft/request identity при клиентской
+навигации и resize; stale восстанавливается через явный refresh, новый authorized render token
+и exact case candidates, saved — через «Создать ещё». Known unavailable target не удаляет owner.
+Сохраняются16a, права, shared DeadlineFields, actions/SQL; локально14px/12px согласно §10.
+Impeccable Operate/adapt и реальный16a incumbent используются до UI edits. Actual16b остаётся
+после выделенного QA-окна; pure/source checks не доказывают сохранение/production.
+
+
+### Calendar16b clarification — correcting an unavailable assignee (2026-09-22)
+
+The persistent-panel contract distinguishes fresh-data readiness for editing from eligibility to submit.
+After an explicit refresh and a fresh authorized token with exact ready case candidates, fields become
+editable even if the previously selected assignee is unavailable. The user can choose an eligible
+assignee; Save still requires that eligibility, current rights and settled pending states. Values and
+request ID stay intact; there is no automatic retry. The shared TaskCasePicker keeps its API and
+layout; a local create-form wrapper contains its existing wide-grid column spans inside the panel.
+The focused lifecycle regression checks correction allowed / submit blocked / eligible manual submit.
+
+
+### Calendar16b — source implementation checkpoint (2026-09-22)
+
+После merged disclosure16a/#1025 (`ec3f62bad`) реализован принятый
+[контракт постоянной панели](platform/crm-calendar-persistent-panel.md): stable Calendar identity,
+один dialog/create subtree, desktop side panel/mobile modal, сохранение draft/request ID,
+explicit fresh-token stale recovery и saved-only новая попытка. Известный недоступный target
+не убирает весь Calendar. Shared DeadlineFields, task-change controls, actions/SQL/права и
+state logic 16a сохранены; локальная типографика 14/12px.
+
+[Source receipt](qa/calendar-persistent-panel-source-2026-09-22.md): 8 pure lifecycle + 4 существующих
+SSR visibility + 48 узких calendar integration/D2 checks PASS; scoped lint/typegen/tsc и diff check.
+Первоначальные проверочные отказы и их точечные исправления описаны честно. Независимое source
+review, CI и согласованная реальная UI-проверка 16b ещё впереди. Browser/Auth/DB/записи/production
+не запускались; весь item 16 и план 1–36 этим checkpoint не закрыты.
+
+
+### Calendar16b — confirmed native-picker Escape correction, before code (2026-09-22)
+
+Actual source `0a01800b` preserved draft/focus and one form at three widths, then stopped on
+native-picker Escape. A passive follow-up proved the select was open before Escape and the
+current dialog cancel path closed the whole panel; both original STOPs remain. After strict
+runtime closure, the [existing16b contract](platform/crm-calendar-persistent-panel.md) now records
+the bounded correction: one real-open-picker Escape guard, native keydown default unchanged,
+matching desktop event/paired cancel handling and explicit gesture/lifecycle reset. Closed-select
+Escape, Close, all forms/actions/rights and geometry stay unchanged. Scoped source checks and a
+new changed-function browser regression are required; no successful correction or save is claimed.
+
+
+### Calendar16b — native-picker dismissal amendment before code (2026-09-22)
+
+The changed-function regression on `3e11eef9` preserved the panel but also left the native picker
+open. This supersedes the previous no-preventDefault assumption; the STOP remains evidence.
+After strict owned closure, the [16b contract](platform/crm-calendar-persistent-panel.md) replaces
+paired-cancel correlation with actual open+focused select Escape prevention and real blur/focus,
+without setting values, emitting events or using timers. Only a held-key boolean may remain; normal
+closed-select Escape/cancel/Close are preserved. Selection/draft/scroll invariants require fresh real
+regression after source review; no successful correction or production acceptance is claimed yet.
+
+
+## Calendar16b — scoped actual и strict closure, 22 сентября 2026
+
+Source `5c421e50` прошёл обычный Admissions native-picker Escape в320/1440:
+picker закрывается, panel/draft/request ID/focus сохраняются; held repeat и
+следующий отдельный Escape, Close, existing target/history/view/period и14/12px
+подтверждены. Проверен один Tab; blur/focus scroll проверен только при нулевой
+позиции. Исходная0a геометрия1440/390/320 переиспользуется для неизменного layout.
+Три STOP сохранены в [actual-квитанции](qa/calendar-persistent-panel-actual-2026-09-22.md).
+
+Независимое actual/closure review `4065fc07` и ROOT release `0531f47e` приняты:
+290 business tables, catalog/effects, исходные sessions/refresh/AMR и Storage
+сохранены; только собственные sign-in metadata и два login/logout audit отличаются.
+Own logout204/browser/process/capture cleanup завершены, среда передана B1029.
+Задачи не сохранялись. Saved/stale/unknown, reload/cross-identity и отсутствующие
+варианты не приняты; весь item16/native/production не закрыты. Main `2a04610f`
+интегрируется с неизменными calendar5c и входящими chat/239; final exact-head
+review/CI/merge #1028 остаются отдельным следующим шагом.
+
 ## 2026-09-22 — A15 visible channel timestamp: precode after #1027
 
 #1027 защищённо смержен в2a04610f8: reader239/DTO, local apply и ordinary RPC

@@ -26,3 +26,13 @@ as proof that the original cause was repaired. No migration repeats are needed.
 Official references checked22September:
 [GitHub get a reference](https://docs.github.com/en/rest/git/refs#get-a-reference),
 [REST API rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+
+## Implemented validation
+
+The three inline programs pass Node22 syntax checks. Six existing static
+release-contract checks pass: secretless first step, least permissions, coarse
+arm/manual upstream, immutable checkout, Docker setup ordering and isolated
+control-token/Supabase mutation guards. No HTTP mocks ran. The first local test
+launch lacked dependencies; reusing an existing identical-lock node_modules
+resolved that setup error without downloading/installing. `git diff --check`
+passed. Actual new-stage GitHub execution remains for the managed workflow.

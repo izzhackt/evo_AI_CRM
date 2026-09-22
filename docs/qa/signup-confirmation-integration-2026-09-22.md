@@ -51,3 +51,50 @@ database execution or deployment was performed in this slice. No screenshots
 or real native interaction are claimed. PR980 remains draft until its separately
 authorized native confirmation journey and outstanding acceptance are complete;
 ROOT owns merges, the shared QA window and release decisions.
+
+
+## Отдельный native QA artifact — 22 сентября 2026
+
+Main `8f9391ddc90b7746c0ee576f9beba76201970d8c` интегрирован в commit
+`ff0f7bd384b1d9c0b81e86451b35e5c0dd9c4c3e`. Конфликты были только в трёх
+документах; оба журнала сохраняют весь входящий main prefix и прежние additions.
+Полный iOS tree `e60e67d20fde495216b3c962ced349dc7eee8676` побайтно совпадает
+с independently reviewed source `d29997c9` (review `662396c4…`), включая
+anonymous wizard → SignInView callback и `.local` dependency #1026.
+Product-код, package pins и SDK не менялись. Более новый docs-only main
+не добавлялся во время сборки.
+
+В 08:53:44–08:54:08 UTC один app-only `xcodebuild build` завершился exit 0:
+Xcode 26.5 / 17F42, Debug, iphonesimulator, scheme `EVO admissions`.
+Использованы собственные DerivedData и копии известных кешированных пакетов;
+automatic resolution и package updates отключены. Все семь revisions совпадают
+с lockfile (`773793d6…`), Supabase Swift остаётся 2.55.2. Новых tests, dependency
+install или повторной сборки #1026 не было. Свободное место: 2.49GB до compile,
+2.06GB после.
+
+Новый bundle `com.evoadmissions.qa.confirmation20260922` / `EVO QA Email`
+отделён от #1026. Local endpoint inputs переиспользованы из проверенного QA
+config (`3444833f…`); они не являются свежей runtime/config readiness.
+Publishable key не выведен и не включён в Git. Ad-hoc codesign verify exit 0;
+generated и embedded XML/DER совпадают и задают единственный application
+identifier `FAKETEAMID.com.evoadmissions.qa.confirmation20260922`. Это metadata
+namespace proof, не проверка живого Keychain enforcement. Все 19 файлов прежнего
+#1026 artifact и executable защищённого приложения сохранили SHA.
+
+Частный пакет: `/private/tmp/evo-signup980-native-build-20260922/`.
+
+| Квитанция | SHA-256 |
+|---|---|
+| `build.receipt.json` | `c18e5c6d15fada2252b51bd1b14671d960308b301e9ab9ccb478a98aa7160a45` |
+| `artifact.receipt.json` | `80137b60eee92820deaba7047323f7005f635e2c4ab74d5a9454e4e794f110f3` |
+| `app-files.json` | `04db67bab33e17defba78d750cc48a2f005e9e5d836b325dda2e79d304d35e61` |
+| Executable | `2f45e349ece4fe53c35868984b6369f25436c3b98647cbd54072943a5be642a9` |
+| Debug dylib | `94f6da8d7ca43beb65538a865fe484fe45f00f12c5452ed9ed0af5c7a671b895` |
+
+Install, Simulator launch/UI, Auth, DB, provider/mail и Keychain queries не
+выполнялись. Свежий ROOT CUA результат 08:21 UTC — Mac locked. Source/build
+готовность не закрывает native confirmation/login/logout/relaunch. После
+ручной разблокировки и нового назначения ROOT сначала продолжается actual
+#1026 на его неизменённом artifact; #980 остаётся отдельным последующим окном.
+Независимое review нового source/artifact и exact-head CI следуют отдельно.
+PR #980 остаётся draft; merge/release и полный пункт27 не заявляются.

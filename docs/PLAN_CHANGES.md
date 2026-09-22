@@ -37980,3 +37980,19 @@ package pins и прежние локальные QA endpoints. Это разр�
 без install/launch, Auth, DB, provider или UI. Результат сборки записывается
 после её фактического завершения; native acceptance и merge/release остаются
 отдельными решениями ROOT.
+
+
+## 2026-09-22 — B #980: app compile завершён, native actual остаётся открытым
+
+На merge source `ff0f7bd3` (main 8f9391dd + reviewed d29997c9) один app-only
+Xcode 26.5/17F42 compile прошёл exit0. Полный iOS tree e60e67d2 и все семь
+package pins сохранены; resolution/updates отключены, product edits отсутствуют.
+Отдельный QA bundle `com.evoadmissions.qa.confirmation20260922` имеет private
+output и проверенные signature/embedded entitlement metadata. Все 19 файлов
+прежнего #1026 artifact и защищённый executable побайтно сохранены.
+[Build receipt и границы](qa/signup-confirmation-integration-2026-09-22.md).
+Это compile-only результат: install/launch/UI/Auth/DB/provider не выполнялись.
+Mac locked по свежему ROOT наблюдению 08:21; после ручной разблокировки и нового
+окна сначала нужен actual #1026, затем отдельный #980. Новые main changes
+во время compile не интегрировались. PR #980 остаётся draft; independent
+source/artifact review и exact-head CI отдельно, native acceptance отсутствует.

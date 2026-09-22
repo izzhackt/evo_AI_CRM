@@ -14925,3 +14925,16 @@ A/B: один P2, precode APPROVED, detector0; craft-floor прочитан до
 Actual compact geometry не принята. Независимое exact-head source review и short
 CI впереди; runtime/Auth/DB/UI не запускались, QA B не использовалась. Полный15,
 native, production и real-employee issue708 не закрыты.
+
+
+## 2026-09-22 — items4/5/36: accepted production24b46830
+
+Документационный срез на accepted main24b46830 обновляет только текущую ведомость
+и [квитанцию production release](qa/plan36-production-release-2026-09-22.md).
+Forward207–239 применён из EED, migration bytes unchanged; release35701685557
+принят: healthy/restart0, CRM/portal200, pending отсутствует, armfalse.
+Исторические PREPARE/prebuild/readback STOP сохраняются. Пункт4 завершён source/CI,
+отсутствующий frozen lead-agent не запускается. Открытые1029/1026/980, native/mail
+actual и пределы31/32 сохраняются; весь1–36 не закрыт. Код, SQL, KB и права этот
+срез не меняет. Проверки только diff review/`git diff --check`; независимый
+exact-head docs review выполняется до публикации.

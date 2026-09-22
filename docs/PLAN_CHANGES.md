@@ -37751,3 +37751,16 @@ A/B: один P2, precode APPROVED, detector0; craft-floor прочитан до
 Actual compact geometry не принята. Независимое exact-head source review и short
 CI впереди; runtime/Auth/DB/UI не запускались, QA B не использовалась. Полный15,
 native, production и real-employee issue708 не закрыты.
+
+
+## 2026-09-22 — current status после production delivery
+
+Текущие статусы заменяют устаревшее «app/207–239 не поставлены»: accepted24b46830,
+схема239, release35701685557 SUCCESS, accepted readback72b9f89c/schema reviewf8cecf20.
+[Квитанция](qa/plan36-production-release-2026-09-22.md) сохраняет prebuild35700914430
+и test-only исправление1034; провала deploy/rollback не заявлено. Lead-agent
+maintenance не требует запуска отсутствующего frozen сервиса. #1032 merged с
+negative controls/positive NOT PROVEN;1029/1026/980 и реальная почта остаются
+непринятыми. Mac доступен, email inputs уточнены без публикации адресов; прежние
+исторические факты и KB decisions не переписываются. Scope только четыре docs,
+без продуктовых проверок/runtime и без заявления полного завершения1–36.

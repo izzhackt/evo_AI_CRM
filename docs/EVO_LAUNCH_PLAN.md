@@ -14632,3 +14632,66 @@ Pagination отсутствует в данных, same-context refresh оста
 календаря/reader/shell/package неизменны, обе append-only истории сохранены.
 План/архитектура не расширены. Итоговому head нужны exact-head review/CI/merge;
 панель/черновики16b и production не закрыты.
+
+
+## 2026-09-22 — A15 channel timestamp: accepted precode, reservation239 before source
+
+#1024 смержен вd1568d58 после review3e4cfb59 и CI35669601084. Следующий
+[принятый timestamp-контракт](EVO_TEAM_CHAT_CHANNEL_TIME_PLAN_2026-09-22.md)
+перенесён в репо до кода: original8c0466d5, independent37f9d5a, ROOTacceptance9c73157b.
+Fresh targeted diff сохраняет предпосылку additive outer field/nested7 exact.
+ROOT эксклюзивно зарезервировал239; другая миграция не назначается.
+
+Первый блок: m.created_at той же authorized latest строки, дополнительное outer
+latestPreviewCreatedAt, legacy-aware strict DTO и совместное принятие preview/time.
+Конкретизирован UTC canonical format с6 дробными знаками без потери PostgreSQL
+microseconds, запрет timezone-free/invalid дат, сравнение равных instants,
+сохранение времени при stale/null и same-ID legacy ответах. Это уточнения
+прежнего approved contract, не изменение authority/семантики команд.
+Старый decoder проверяется неизменным source fixture; pure cases не выдаются
+за SQL/Auth/UI acceptance. Nested7/guards/ACL/order/unread/seen/CSS неизменны.
+
+UI времени после принятия reader отдельным блоком. Source-only сейчас: QA у
+ROOT16, затем B native; apply, Auth/RPC/browser/server и production не запускаются.
+No migration239 application or full15 acceptance claimed.
+
+
+### A15 channel timestamp — первый source checkpoint, 22.09
+
+[Source evidence](qa/team-chat-channel-time-source-2026-09-22.md): migration239
+содержит только две read projection additions относительно237; DTO optional
+outer field и strict UTC6 canonicalizer, paired preview/time acceptor. Nested7,
+guards/ACL/order/unread/seen и весь текущий UI сохранены. Из44 incumbent-файлов
+только два разрешённых lib-файла изменены; parityeb6e1d26. Pure SQL parse PASS,
+но SQL не исполнялся. Scope и архитектура соответствуют precode c72cbd15.
+
+На Node22.23.1 новые23 и прежние20 pure tests прошли отдельными однократными
+запусками; verbatim legacy decoder реально исполнен как pure compatibility
+case. Scoped lint, next typegen, tsc и diff PASS; receipt110de1d7 связывает
+точные hashes/commands/raw spans. Independent source review/CI ещё впереди;
+239 не применена. ROOT16 → Bnative сохраняют QA очередь. Следующее actual
+Auth/RPC окно требует отдельного ROOT назначения; UI времени после reader.
+
+
+### A15 channel timestamp — local239, ordinary RPC и закрытие приняты, 22.09
+
+Source0e0266f8: independent reviewe1b5477d и CI35670526226 пройдены; прежние43
+адресных теста/lint/typecheck остаются evidence того же неизменённого кода.
+[Actual](qa/team-chat-channel-time-actual-2026-09-22.md): исходный STOP до SQL
+сохранён; после ROOT recovery все четыре полные проекции совпали. Отдельная
+новая попытка local238→239 прошла, один reader body изменён при прежних ACL/OID,
+290 бизнес-таблиц и33AuthStorage при DDL неизменны.
+
+Ordinary Admin200 сверён с независимым canonical UTC6:3канала,2populated/1empty.
+Student403/anonymous401/zeroUUID403 имеют42501. ZeroUUID — отсутствующая
+организация; populated foreign-tenant, ownAuthor/reply/tombstone/longBody
+actual-материал отсутствует. Нет новых fixtures, messages, seen или provider writes.
+
+Финал d40f24f0/closure6477693f сохранил290 business/33AuthStorage с допустимыми
+Auth-изменениями: только timestamps двух existing users и4ownlogin/logout audits;
+224sessions/239refresh/224AMR восстановлены в точности. Оба ownlogout204,
+private Auth captures удалены. Independent actual review4ec98b49 и ROOT
+приняли результат, handoffab6c6089 передал ресурс ROOT_COORDINATOR.
+A больше не выполняет runtime. Main ec3f62ba интегрирован с сохранением
+календаря16a и всех шести source/test/SQL файлов A239 побайтно от0e0266f8.
+Финальные exact-head review/CI/merge ещё впереди; UI/full15/production не заявлены.

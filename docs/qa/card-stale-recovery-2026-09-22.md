@@ -1,6 +1,6 @@
 # Explicit lead-card stale recovery — 2026-09-22
 
-Source change; actual local UI acceptance pending the ROOT-coordinated window.
+Source b22b1927: bounded ordinary Admin local UI and two-write recovery exercise completed; original harness STOPs and scope limits below.
 
 The four lead-card sections retain their shared client revision and unsaved sibling drafts during normal independent saves. On stale/request-conflict only, the existing explicit «Обновить карточку» action now reloads the current document. This resets revision, action/request state and fields together; no revision-driven remount or automatic refresh was added. The warning explicitly states that all unsaved changes on this page will be discarded. Current URL, permissions, writer payloads and design remain unchanged.
 
@@ -17,3 +17,13 @@ Use one existing authorized local QA staff identity in two ordinary browser tabs
 3. In A retain a new unsaved sibling draft while saving the other card once (write 2). Verify successful recovery and that this ordinary save leaves the sibling draft intact. No second save for that unsaved draft.
 
 Compare the selected row/revision and attributable receipts/audit against the authorized two-write budget; preserve other records and own ordinary Auth/session closure. Request-conflict uses the same explicit reload boundary but is source-covered unless an existing real condition represents it. No production/customer write, provider acceptance or full-plan completion is claimed.
+
+## Actual bounded local result
+
+Existing authorized Admin and existing QA lead, source `b22b1927dff602d31412de7cad6324d03ed10e04`, local schema239. First ordinary session opened two tabs, saved one nonfinancial education value and obtained genuine stale from the older tab. Clicking explicit recovery changed document timeOrigin, confirming real reload. The subsequent field assertion stopped because its expected string retained a leading space which the product correctly trimmed; the original STOP remains immutable. Raw DOM value at that assertion was not captured, so no stronger field-readback claim is made for that moment.
+
+A narrowly corrected continuation used a new ordinary session, verified the actual normalized field and revision, restored the exact original value with the second authorized save, and confirmed an unsaved wishes draft survived this ordinary save. No first save or stale submission was replayed. Final selected-row fields exactly match baseline; revision +2, request receipts +2 and audit events +2, with two selected-lead save audits. No financial fields changed. No broad whole-database/Auth equality claim is made.
+
+An earlier browser-launch STOP occurred before Auth because the bundled Chromium executable was absent; the installed Chrome channel was used instead, without downloads. Both owned sessions logged out locally with204 and browser contexts closed. Owned dev PIDs2737/2743 exited; port33276 refused connections; own generated build caches removed. Other runtimes untouched. Two private screenshots preserve stale/saved UI. Impeccable detector ran once on both changed components and returned zero findings.
+
+Evidence remains private at `/private/tmp/evo-card-stale-actual-20260922/`: original `result.json`, `browser-launch-stop.json`, corrected `continuation-result.json`, selected `before.json`/`after-stop.json`/`final.json`, `verification.json`, `closure.json`, screenshots and hash manifest. This proves the bounded local path, not production deployment or all card/role variants.

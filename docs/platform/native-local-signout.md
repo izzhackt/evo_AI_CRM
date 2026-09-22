@@ -2,7 +2,8 @@
 
 Дата: 2026-09-22. Precode до изменения Swift.
 База: main `2b25a431b327b3fa0e7c9eb670c94f21fd0b894f`, после merge #1018.
-Статус: **реализация и независимое source review приняты; app build прошёл; native actual ожидает своего окна**.
+Статус: **реализация, review и app build приняты; QA-сборка установлена,
+но native UI заблокирован экраном Mac до входа; actual logout не проверен**.
 
 ## Подтверждённое несоответствие
 
@@ -116,3 +117,13 @@ executable `07e2b300…` не изменился. Это проверка под
 Установка, launch, Auth и native logout не выполнялись. Source/build approval
 не закрывает настоящую проверку сохранности другого сеанса. PR остаётся draft
 до ограниченного actual, независимого финального review и protected CI.
+
+
+## Попытка native UI — остановлена до входа
+
+QA-сборка установлена и initial launch выполнен; первый CUA вызов остановлен
+блокировкой Mac. Ввода credentials/login/logout/relaunch не было. После
+разрешённого закрытия QA-процесса полный readonly final и Auth/Kong logs
+подтвердили отсутствие изменений; [точная квитанция](../qa/native-local-signout-blocked-2026-09-22.md).
+Source46c56eba и artifact неизменны. Native acceptance ожидает ручной
+разблокировки Mac и нового согласованного окна; PR #1026 остаётся draft.

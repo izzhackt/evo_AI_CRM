@@ -37415,3 +37415,18 @@ simulated access groups, непересекающиеся с установле�
 Это artifact metadata, не live Keychain enforcement/native acceptance.
 Установки, launch, Auth, DB и logout не было; actual ждёт своего QA-окна.
 Код не включает QA-only business path. Полный native/E2E/production не закрыты.
+
+
+### 2026-09-22 — B native: Mac lock до входа, own QA закрыт
+
+После принятого source/build и finite review для #1026 прошёл свежий
+READ ONLY baseline 7bd4f0df: exact state/effects/catalog/AuthStorage и290/33
+совпали с входящим ROOT16_POST handoff e3266a6f, схема001–238. Выполнены одна
+установка и initial launch отдельного QA bundle. Первый CUA вызов остановлен
+блокировкой Mac, до ввода credentials или login tap. ROOT разрешил собственное
+закрытие после ожидания ручной разблокировки: QA PID отсутствует, protected
+executable неизменён, полные Auth/Kong logs0, fresh readonly final ef838d17
+подтвердил все входящие данные и Auth rows. [Квитанция](qa/native-local-signout-blocked-2026-09-22.md)
+сохраняет исходный STOP, описание metadata typo и границу reused baseline.
+Это не native logout acceptance; #1026 остаётся draft до реального продолжения
+на разблокированном Mac со свежим окном. iOS source/artifact и scope неизменны.

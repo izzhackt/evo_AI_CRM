@@ -38208,3 +38208,26 @@ accepted0aceda06, healthy/restart0 и отсутствие pending. Armfalse п�
 закрывают source/delivery шаги двух PR. Обновление документации не требует
 нового app release. KB159, решения31, пакет32, прежние ограничения доказательств
 и отложенные37–50/E2E/content/AppStore сохраняются.
+
+
+## 2026-09-22 — native learning: read recovery and confirmed exit
+
+Before coding, ROOT authorizes a bounded correction of three source-confirmed
+iPhone learning defects on b4fc3f91. In AssessmentRunner and LessonRunner,
+a failed explicit read retains its operation and can only retry that read;
+a transport failure of a write retains its exact payload/request ID. Conflict
+recovery must preserve the visible draft while unsuccessful and block writes
+until the explicit authorized read succeeds. Assessment Save and Exit may
+dismiss only when the latest visible answers match confirmed saved state,
+not merely when an older pending request replays successfully.
+
+Preserve existing EVO copy/layout, RPCs, permissions, normal Supabase/Swift
+path, start/save/complete semantics and native logout/email acceptance.
+Impeccable Operate/harden/native guidance: controls must express the operation
+they repeat; pending recovery must not silently overwrite local input. No
+redesign, new fixtures, mock acceptance, schema changes or production actions.
+Source implementation and a minimal real-local validation plan come first;
+actual Auth/Simulator/DB work waits for ROOT's exclusive QA window. Low disk
+precludes an uncoordinated native build or dependency installation. See
+[bounded receipt](qa/native-learning-recovery-2026-09-22.md); actual acceptance
+is pending. #1026/#980 owner acceptance is not reopened.

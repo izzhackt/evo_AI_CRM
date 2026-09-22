@@ -15168,3 +15168,11 @@ Mac locked по свежему ROOT наблюдению 08:21; после ру�
 окна сначала нужен actual #1026, затем отдельный #980. Новые main changes
 во время compile не интегрировались. PR #980 остаётся draft; independent
 source/artifact review и exact-head CI отдельно, native acceptance отсутствует.
+
+
+## 2026-09-22 — Уточнение автора CUA наблюдения 08:21 UTC
+
+В предыдущем checkpoint #980 CUA результат `Mac locked` ошибочно приписан
+ROOT. Фактический наблюдатель — агент B (parent task), сообщивший результат
+координатору ROOT. Это уточнение provenance существующего наблюдения, без
+новой UI/Simulator/Auth операции; блокировка и compile-only границы не меняются.

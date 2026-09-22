@@ -93,7 +93,7 @@ namespace proof, не проверка живого Keychain enforcement. Все
 | Debug dylib | `94f6da8d7ca43beb65538a865fe484fe45f00f12c5452ed9ed0af5c7a671b895` |
 
 Install, Simulator launch/UI, Auth, DB, provider/mail и Keychain queries не
-выполнялись. Свежий ROOT CUA результат 08:21 UTC — Mac locked. Source/build
+выполнялись. Агент B получил CUA результат Mac locked в 08:21 UTC и сообщил ROOT. Source/build
 готовность не закрывает native confirmation/login/logout/relaunch. После
 ручной разблокировки и нового назначения ROOT сначала продолжается actual
 #1026 на его неизменённом artifact; #980 остаётся отдельным последующим окном.

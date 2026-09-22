@@ -38224,3 +38224,14 @@ On confirmed stale/request-conflict only, the explicit «Обновить кар
 Существующие country/university receipts, guards и шестистрановая подготовка
 сохранены. Тестовые lead submissions не выполняются по решению владельца.
 Это отдельная зависимость сайта рядом с code review1–36, не расширение admissions.
+
+
+## 2026-09-22 — diagnose first-step release admission failures
+
+Release35739964383 stopped before checkout/build/deploy with all logged static
+inputs matching. The inline main-ref request/identity failure is opaque; runner
+HTTP cause is unproven. [Narrow precode contract](qa/release-admission-diagnostics-2026-09-22.md)
+adds stage/status diagnostics only. All secretless, exact-main, actor/arm, timeout
+and redirect guards remain. No new token access, fallback, retry or permissions.
+One changed-source managed run follows independent review/CI; schema240 is not
+reapplied. Prior production0aceda06 remains accepted and arm is false.

@@ -81,6 +81,7 @@ export default async function CalendarPart({
     || (kind === "case" && !caseId) || (kind === "staff" && caseParam !== undefined))) notFound();
   const undatedCursor = undatedCursorFromParams(params);
   let target: Awaited<ReturnType<typeof readPersonalCalendarTaskTarget>> | null = null;
+  let unavailableTarget: { key: string; returnHref: string } | null = null;
   if (hasTarget && taskId && (kind === "case" || kind === "staff")) {
     try {
       target = await readPersonalCalendarTaskTarget(actor, caseId, taskId, kind);
@@ -90,11 +91,7 @@ export default async function CalendarPart({
       const returnHref = undatedCursor
         ? calendarUndatedContinuationHref("/v3/calendar", view, returnDay, undatedCursor)
         : `/v3/calendar?${new URLSearchParams({ view, date: returnDay })}`;
-      return <PartShell title="Календарь"><div className="space-y-4">
-        <p role="status" className="text-sm text-fg-2">Эта задача недоступна в вашем личном календаре.</p>
-        <Link href={returnHref} className="inline-flex min-h-11 items-center text-sm text-brand">Вернуться в календарь</Link>
-        <p><Link href="/v3/tasks" className="inline-flex min-h-11 items-center text-sm text-brand">Открыть раздел «Задачи»</Link></p>
-      </div></PartShell>;
+      unavailableTarget = { key: `${kind}:${taskId}`, returnHref };
     }
   }
   const requestedDay = singleValue(params.date);
@@ -116,8 +113,9 @@ export default async function CalendarPart({
     <PartShell title="Календарь">
       <div className="space-y-8">
         <Calendar
-          key={target ? target.task.key : `${view}:${day}`}
+          key={JSON.stringify([actor.organizationId, actor.authUserId, actor.membershipId, actor.platformAccessVersion, actor.presentationRole])}
           initialTaskKey={target?.task.key ?? null}
+          unavailableTarget={unavailableTarget}
           taskCapabilities={target?.capabilities ?? null}
           view={view}
           day={day}

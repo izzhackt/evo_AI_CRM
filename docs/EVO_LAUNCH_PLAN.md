@@ -14654,3 +14654,19 @@ assignee; Save still requires that eligibility, current rights and settled pendi
 request ID stay intact; there is no automatic retry. The shared TaskCasePicker keeps its API and
 layout; a local create-form wrapper contains its existing wide-grid column spans inside the panel.
 The focused lifecycle regression checks correction allowed / submit blocked / eligible manual submit.
+
+
+### Calendar16b — source implementation checkpoint (2026-09-22)
+
+После merged disclosure16a/#1025 (`ec3f62bad`) реализован принятый
+[контракт постоянной панели](platform/crm-calendar-persistent-panel.md): stable Calendar identity,
+один dialog/create subtree, desktop side panel/mobile modal, сохранение draft/request ID,
+explicit fresh-token stale recovery и saved-only новая попытка. Известный недоступный target
+не убирает весь Calendar. Shared DeadlineFields, task-change controls, actions/SQL/права и
+state logic 16a сохранены; локальная типографика 14/12px.
+
+[Source receipt](qa/calendar-persistent-panel-source-2026-09-22.md): 8 pure lifecycle + 4 существующих
+SSR visibility + 48 узких calendar integration/D2 checks PASS; scoped lint/typegen/tsc и diff check.
+Первоначальные проверочные отказы и их точечные исправления описаны честно. Независимое source
+review, CI и согласованная реальная UI-проверка 16b ещё впереди. Browser/Auth/DB/записи/production
+не запускались; весь item 16 и план 1–36 этим checkpoint не закрыты.

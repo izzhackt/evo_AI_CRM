@@ -117,7 +117,7 @@ export function TaskChip({
       }`}
     >
       <span
-        className={`line-clamp-2 w-full break-words text-xs font-semibold ${
+        className={`line-clamp-2 w-full break-words text-sm font-semibold ${
           selected ? "text-on-accent" : "text-fg"
         } ${task.state === "done" ? "line-through" : ""}`}
       >
@@ -128,7 +128,7 @@ export function TaskChip({
           одинаковое, и без имени они неразличимы: пришлось бы открывать
           каждую, чтобы понять, чья. */}
       <span
-        className={`flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 text-2xs ${
+        className={`flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs ${
           selected ? "text-on-accent" : "text-fg-3"
         }`}
       >

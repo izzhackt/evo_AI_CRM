@@ -38231,3 +38231,13 @@ actual Auth/Simulator/DB work waits for ROOT's exclusive QA window. Low disk
 precludes an uncoordinated native build or dependency installation. See
 [bounded receipt](qa/native-learning-recovery-2026-09-22.md); actual acceptance
 is pending. #1026/#980 owner acceptance is not reopened.
+
+
+## 2026-09-22 — native learning compile checkpoint
+
+Native learning recovery productdc5b627f independently source-reviewed and compiled
+for the existing iOS Simulator using cached packages. Setup-only failed attempts
+and private bundle correction are preserved; no product changes after review.
+Fresh CUA observation found Mac locked. Real lesson/assessment recovery remains
+pending ROOT-exclusive QA; no install/Auth/relay or new attempt occurred. See
+`docs/qa/native-learning-recovery-2026-09-22.md`. Accepted1026/980 remain closed.

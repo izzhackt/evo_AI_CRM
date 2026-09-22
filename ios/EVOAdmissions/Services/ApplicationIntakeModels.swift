@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 /// PORT-9a: the анкета contract, mirrored rule-for-rule from the web wizard's
 /// single validator (`src/lib/student-application-contract.ts`). The canonical
@@ -303,24 +304,71 @@ struct StudentRegistrationPayload: Encodable, Equatable, Sendable {
     let password: String
 }
 
-/// `{status}` answers of the registration endpoint — the same vocabulary as
-/// the web wizard's StudentSignupState (student-signup-actions.ts:15), plus
-/// `created`. Unknown strings and undecodable bodies read as `unavailable`.
-enum StudentRegistrationOutcome: String, Equatable, Sendable {
-    case created
-    case invalid
-    case password
-    case passwordTooLong = "password_too_long"
-    case conflict
-    case rateLimit = "rate_limit"
-    case unavailable
+/// Pending capability lives only in the wizard's memory, never in persisted draft.
+struct StudentSignupPending: Equatable, Sendable {
+    let maskedEmail: String
+    let expiresAt: Date
+    let dispatch: String
+    let retryAfterSeconds: Int?
+    let resendCapability: String
+}
 
-    static func decode(from data: Data) -> StudentRegistrationOutcome {
-        struct Body: Decodable { let status: String }
-        guard let body = try? JSONDecoder().decode(Body.self, from: data),
-              let outcome = StudentRegistrationOutcome(rawValue: body.status)
-        else { return .unavailable }
-        return outcome
+enum StudentRegistrationOutcome: Equatable, Sendable {
+    case pending(StudentSignupPending)
+    case invalid, password, passwordTooLong, conflict, rateLimit, unavailable
+    case createUnknown, upgradeRequired, confirmed, expired, accountConflict
+
+    static func decode(from data: Data, statusCode: Int, resend: Bool = false) -> Self {
+        let ambiguous: Self = resend ? .unavailable : .createUnknown
+        guard data.count <= 16384,
+              let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let status = body["status"] as? String else { return ambiguous }
+        if statusCode == 202 && status == "pending_confirmation" {
+            guard Set(body.keys) == Set(["status", "maskedEmail", "expiresAt", "dispatch", "retryAfterSeconds", "resendCapability"]),
+                  let email = body["maskedEmail"] as? String, !email.isEmpty, email.count <= 254,
+                  email.contains("*"), email.contains("@"), !email.contains(where: { $0.isNewline }),
+                  let expiry = body["expiresAt"] as? String,
+                  let dispatch = body["dispatch"] as? String, ["accepted", "failed", "unknown"].contains(dispatch),
+                  let cap = body["resendCapability"] as? String, cap.count <= 4096,
+                  cap.range(of: #"^v1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{22}$"#, options: .regularExpression) != nil
+            else { return ambiguous }
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let date = formatter.date(from: expiry) ?? ISO8601DateFormatter().date(from: expiry)
+            guard let date else { return ambiguous }
+            var retry: Int?
+            if !(body["retryAfterSeconds"] is NSNull) {
+                guard let number = body["retryAfterSeconds"] as? NSNumber,
+                      CFGetTypeID(number) != CFBooleanGetTypeID(),
+                      number.doubleValue.isFinite, number.doubleValue >= 0,
+                      number.doubleValue <= Double(Int32.max),
+                      number.doubleValue.rounded() == number.doubleValue else { return ambiguous }
+                retry = number.intValue
+            }
+            return .pending(.init(maskedEmail: email, expiresAt: date, dispatch: dispatch,
+                                  retryAfterSeconds: retry, resendCapability: cap))
+        }
+        guard Set(body.keys) == ["status"] else { return ambiguous }
+        if resend {
+            switch (statusCode, status) {
+            case (200, "confirmed"): return .confirmed
+            case (410, "expired"): return .expired
+            case (429, "rate_limit"): return .rateLimit
+            case (409, "account_conflict"): return .accountConflict
+            default: return .unavailable
+            }
+        }
+        switch (statusCode, status) {
+        case (400, "invalid"): return .invalid
+        case (400, "password"): return .password
+        case (400, "password_too_long"): return .passwordTooLong
+        case (409, "conflict"): return .conflict
+        case (429, "rate_limit"): return .rateLimit
+        case (503, "unavailable"): return .unavailable
+        case (503, "create_unknown"): return .createUnknown
+        case (426, "upgrade_required"): return .upgradeRequired
+        default: return .createUnknown // Includes legacy201 created; never repeat an ambiguous create.
+        }
     }
 }
 

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import * as signupContract from "../src/lib/student-signup-confirmation-contract.ts";
+import * as signupCapability from "../src/lib/server/student-signup-confirmation-capability.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
@@ -48,12 +50,18 @@ function compile(path, dependencies = {}) {
   return compiledModule.exports;
 }
 const fields = compile("src/lib/server/action-form-fields.ts");
-// New-account creation is exercised by the real Auth/RPC acceptance harness.
+// Confirmation-aware new-account acceptance requires the separate27c Auth packet.
 // Retained local action tests use this production helper without an Auth stub;
 // they stop before its service access or cover already-authenticated applicants.
 const backendConfig = compile("src/lib/server/platform-supabase-backend-config.ts");
 const backendClient = compile("src/lib/server/platform-supabase-service-client.ts", {
   "@supabase/supabase-js": { createClient },
+});
+
+const signupConfig = compile("src/lib/server/student-signup-confirmation-config.ts", {
+  "../supabase/config.ts": compile("src/lib/supabase/config.ts"),
+  "../student-signup-confirmation-contract.ts": signupContract,
+  "./platform-supabase-backend-config.ts": backendConfig,
 });
 
 // Execute production functions; Auth/repository calls are observed boundaries,
@@ -96,19 +104,34 @@ function harness(options = {}) {
     "./platform-supabase-backend-config": backendConfig,
     "./platform-supabase-service-client": backendClient,
     "./student-signup-runtime": runtime,
+    "./student-signup-confirmation-config.ts": signupConfig,
+  });
+  const confirmationRuntime = compile("src/lib/server/student-signup-confirmation-runtime.ts", {
+    "node:crypto": { randomUUID }, "@supabase/supabase-js": { createClient },
+    "../supabase/platform-authority.ts": { readVerifiedPlatformAuthority: async () => { throw new Error("New Auth flow is outside this retained harness"); } },
+    "../supabase/student-portal-authority.ts": portalAuthority,
+    "./platform-supabase-service-client.ts": backendClient,
+    "./student-public-registration.ts": publicRegistration,
+    "./student-signup-runtime.ts": runtime,
+    "./student-signup-confirmation-config.ts": signupConfig,
+    "./student-signup-confirmation-capability.ts": signupCapability,
   });
   const actions = compile("src/lib/student-signup-actions.ts", {
     "next/headers": { headers: async () => requestHeaders },
     "next/navigation": { redirect: (destination) => { throw Object.assign(new Error("redirect"), { destination }); } },
     "next/cache": { revalidatePath: (path) => calls.push(["revalidate", path]) },
     "./server/action-form-fields": fields, "./server/student-signup-runtime": runtime,
-    "./server/student-public-registration": publicRegistration,
+    "./server/student-signup-confirmation-runtime": confirmationRuntime,
+    "./server/student-signup-confirmation-web": {
+      readPendingStudentSignup: async () => null, // This retained harness has no pending browser cookie.
+      rememberStudentSignup: async () => { throw new Error("New account acceptance belongs to27c"); },
+    },
     "./student-application-contract": contract, "./student-invite-callback-contract": callback,
     "./supabase/server": { createSupabaseServerClient: async () => { calls.push(["client"]); return client; } },
     "./supabase/student-portal-authority": portalAuthority,
     "./v3/student-application-source": source,
   });
-  return { ...actions, resume: () => runtime.resumeStudentApplication(client), entryRedirect: (user = identity()) => runtime.studentApplicationEntryRedirect(client, user), calls };
+  return { ...actions, createPublicStudentAccount: publicRegistration.createPublicStudentAccount, resume: () => runtime.resumeStudentApplication(client), entryRedirect: (user = identity()) => runtime.studentApplicationEntryRedirect(client, user), calls };
 }
 const callNames = (run) => run.calls.map(([name]) => name);
 const verified = (user = identity()) => ({ data: { user }, error: null });
@@ -216,10 +239,10 @@ test("invalid origin, duplicate fields and injected identity never reach Auth", 
   assert.deepEqual(run.calls, []);
 });
 
-test("registration rejects a short password before service access and stops on uncertain identity", async () => {
+test("account helper rejects a short password before service access; action stops on uncertain identity", async () => {
   const short = harness();
-  assert.deepEqual(await short.registerStudentAction({ status: "idle" }, registration({ password: "short" })), { status: "password" });
-  assert.deepEqual(callNames(short), ["client", "getUser"]);
+  assert.deepEqual(await short.createPublicStudentAccount(EMAIL, "short", draft()), { status: "password" });
+  assert.deepEqual(callNames(short), []);
   const broken = harness({ identities: [{ data: { user: null }, error: new Error("Auth unavailable") }] });
   assert.deepEqual(await broken.registerStudentAction({ status: "idle" }, registration()), { status: "unavailable" });
   assert.deepEqual(callNames(broken), ["client", "getUser"]);
@@ -279,6 +302,7 @@ function proxyHarness({ claimsError = null } = {}) {
     "@/lib/platform-public-origin": origins,
     "@/lib/request-id": requestIds,
     "@/lib/student-invite-callback-contract": callback,
+    "@/lib/student-signup-confirmation-contract": signupContract,
     "@/lib/supabase/config": { getSupabasePublicConfig: () => ({ url: "https://supabase.example.test", publishableKey: "synthetic-public-key" }) },
     "@supabase/ssr": { createServerClient: (_url, _key, { cookies }) => {
       calls.push("createClient");

@@ -24,6 +24,7 @@ import {
   STUDENT_INVITE_CSRF_COOKIE,
   isStudentInviteCsrfToken,
 } from "@/lib/student-invite-callback-contract";
+import { STUDENT_SIGNUP_CONFIRMATION_PATH, STUDENT_SIGNUP_CONFIRMATION_CSRF_COOKIE } from "@/lib/student-signup-confirmation-contract";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 import { readVerifiedPlatformAuthority } from "@/lib/supabase/platform-authority";
 import { readVerifiedStudentPortalAuthority } from "@/lib/supabase/student-portal-authority";
@@ -296,6 +297,33 @@ export async function proxy(request: NextRequest) {
       { error: "method_not_allowed", request_id: id },
       { status: 405, headers: { Allow: "GET, HEAD, POST" } },
     ), id);
+  }
+
+  // No liveSessionState here: an expired foreign session must not refresh before confirmation.
+  if (path === STUDENT_SIGNUP_CONFIRMATION_PATH) {
+    if (!["GET", "HEAD", "POST"].includes(request.method)) return hiddenNotFound(id);
+    const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+    const csp = ["default-src 'self'", `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
+      "style-src 'self' 'unsafe-inline'", "img-src 'self' data:", "font-src 'self'", "connect-src 'self'",
+      "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'"].join("; ");
+    // Next reads this request header to nonce framework and hydration scripts.
+    requestHeaders.set("Content-Security-Policy", csp);
+    requestHeaders.set("x-nonce", nonce);
+    let csrf = request.cookies.get(STUDENT_SIGNUP_CONFIRMATION_CSRF_COOKIE)?.value;
+    if (request.method === "GET") {
+      if (!isStudentInviteCsrfToken(csrf)) csrf = crypto.randomUUID();
+      request.cookies.set(STUDENT_SIGNUP_CONFIRMATION_CSRF_COOKIE, csrf);
+      requestHeaders.set("cookie", request.cookies.toString());
+    }
+    const response = setResponseHeaders(nextResponse(requestHeaders), id);
+    if (request.method === "GET" && csrf) response.cookies.set(STUDENT_SIGNUP_CONFIRMATION_CSRF_COOKIE, csrf, {
+      httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production",
+      path: STUDENT_SIGNUP_CONFIRMATION_PATH, maxAge: 10 * 60,
+    });
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
   }
 
   if (path === "/auth/callback") {

@@ -19,7 +19,20 @@ enum ApplicationIntakeTransfer {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("email-confirmation-v1", forHTTPHeaderField: "X-EVO-Registration-Flow")
         request.httpBody = try JSONEncoder().encode(payload)
+        return request
+    }
+
+    static func registrationResendRequest(baseURL: URL, capability: String) throws -> URLRequest {
+        var url = baseURL
+        url.append(path: "api/portal/registration/resend")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("email-confirmation-v1", forHTTPHeaderField: "X-EVO-Registration-Flow")
+        request.httpBody = try JSONEncoder().encode(["cap": capability])
         return request
     }
 

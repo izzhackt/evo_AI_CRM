@@ -95,7 +95,9 @@ struct SignInView: View {
         }
         .fullScreenCover(isPresented: $showApplicationWizard) {
             NavigationStack {
-                ApplicationWizardView(router: router, mode: .anonymous)
+                ApplicationWizardView(router: router, mode: .anonymous, onSignIn: {
+                    showApplicationWizard = false
+                })
                     .navigationTitle("apply_wizard_title")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {

@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   createStudentPortalInviteAcceptanceHandler,
   createStudentPortalRegistrationHandler,
+  createStudentPortalRegistrationResendHandler,
 } from "../src/lib/server/student-portal-intake-route-handlers.ts";
 import { STUDENT_APPLICATION_CONSENT_VERSION } from "../src/lib/student-application-contract.ts";
 
@@ -53,19 +54,21 @@ function registrationRequest({
 } = {}) {
   return new Request("https://app.evoadmissions.com/api/portal/registration", {
     method: "POST",
-    headers: contentType === null ? {} : { "content-type": contentType },
+    headers: { "X-EVO-Registration-Flow": "email-confirmation-v1", ...(contentType === null ? {} : { "content-type": contentType }) },
     body: raw ?? JSON.stringify(body),
   });
 }
 
-function accountStub(status = "created") {
+const PENDING = { status: "pending_confirmation", maskedEmail: "u***@example.com", expiresAt: "2026-09-22T00:00:00Z", retryAfterSeconds: null, dispatch: "accepted", resendCapability: `v1.${"A".repeat(16)}.AA.${"A".repeat(22)}` };
+
+function accountStub(status = "pending_confirmation") {
   const calls = [];
   return {
     calls,
     async createAccount(email, password, draft) {
       calls.push({ email, password, draft });
-      return status === "created"
-        ? { status: "created", authUserId: AUTH_USER_ID }
+      return status === "pending_confirmation"
+        ? PENDING
         : { status };
     },
   };
@@ -87,7 +90,7 @@ test("registration accepts the charset-suffixed JSON content type", async () => 
   const response = await handler(
     registrationRequest({ contentType: "application/json; charset=utf-8" }),
   );
-  assert.equal(response.status, 201);
+  assert.equal(response.status, 202);
   assert.equal(account.calls.length, 1);
 });
 
@@ -168,8 +171,8 @@ test("registration normalizes email exactly like the web action and passes the d
       body: { questionnaire: validDraft(), email: "  User@Example.COM ", password: PASSWORD },
     }),
   );
-  assert.equal(response.status, 201);
-  assert.deepEqual(await response.json(), { status: "created" });
+  assert.equal(response.status, 202);
+  assert.deepEqual(await response.json(), PENDING);
   assert.equal(account.calls.length, 1);
   assert.equal(account.calls[0].email, "user@example.com");
   assert.equal(account.calls[0].password, PASSWORD);
@@ -184,6 +187,7 @@ test("registration maps every account-creation status to its HTTP code", async (
     ["conflict", 409],
     ["rate_limit", 429],
     ["unavailable", 503],
+    ["create_unknown", 503],
   ]) {
     const account = accountStub(status);
     const handler = createStudentPortalRegistrationHandler(account);
@@ -376,4 +380,40 @@ test("intake route files delegate to the shared handlers on the node runtime", (
   assert.match(acceptance, /export const runtime = "nodejs";/u);
   assert.match(acceptance, /export const dynamic = "force-dynamic";/u);
   assert.doesNotMatch(acceptance, /GET|PUT|DELETE/u);
+});
+
+test("old registration transport stops before reading body or creating identity", async () => {
+  const account = accountStub();
+  const handler = createStudentPortalRegistrationHandler(account);
+  for (const version of [null, "old", "email-confirmation-v1,old"]) {
+    const request = registrationRequest();
+    if (version === null) request.headers.delete("X-EVO-Registration-Flow");
+    else request.headers.set("X-EVO-Registration-Flow", version);
+    const response = await handler(request);
+    assert.equal(response.status, 426);
+    assert.equal(request.bodyUsed, false);
+    assert.deepEqual(await response.json(), {status:"upgrade_required"});
+  }
+  assert.equal(account.calls.length,0);
+});
+
+test("resend accepts only exact bounded cap JSON and current transport", async () => {
+  const calls=[];
+  const handler=createStudentPortalRegistrationResendHandler({resend:async cap=>{calls.push(cap);return PENDING;}});
+  const request=raw=>new Request("https://app.evoadmissions.com/api/portal/registration/resend",{method:"POST",headers:{"content-type":"application/json","X-EVO-Registration-Flow":"email-confirmation-v1"},body:raw});
+  const valid=JSON.stringify({cap:PENDING.resendCapability});
+  for(const raw of ["null","[]","{}",JSON.stringify({cap:PENDING.resendCapability,email:"x"}),JSON.stringify({cap:1}),JSON.stringify({cap:"x"}),`{"cap":"${PENDING.resendCapability}","cap":"${PENDING.resendCapability}"}`,`{"\\u0063ap":"${PENDING.resendCapability}"}`,"x".repeat(17000)]) {
+    assert.equal((await handler(request(raw))).status,400);
+  }
+  assert.equal(calls.length,0);
+  const old=request(valid);old.headers.delete("X-EVO-Registration-Flow");assert.equal((await handler(old)).status,426);assert.equal(old.bodyUsed,false);
+  const response=await handler(request(valid));assert.equal(response.status,202);assert.deepEqual(await response.json(),PENDING);assert.deepEqual(calls,[PENDING.resendCapability]);
+});
+
+test("resend maps terminal statuses and errors without leaking internal fields",async()=>{
+  for(const [status,code] of [["confirmed",200],["expired",410],["rate_limit",429],["account_conflict",409],["unavailable",503]]) {
+    const handler=createStudentPortalRegistrationResendHandler({resend:async()=>({status,privateValue:"never return"})});
+    const request=new Request("https://app.evoadmissions.com/api/portal/registration/resend",{method:"POST",headers:{"content-type":"application/json","X-EVO-Registration-Flow":"email-confirmation-v1"},body:JSON.stringify({cap:PENDING.resendCapability})});
+    const response=await handler(request);assert.equal(response.status,code);assert.deepEqual(await response.json(),{status});assert.equal(response.headers.get("cache-control"),"no-store");
+  }
 });

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { ApplicationWizard, type ApplicationNamePrefill } from "@/components/student-application/ApplicationWizard";
+import { SignupConfirmationPending } from "@/components/student-application/SignupConfirmationPending";
+import { SignupConfirmationFrame } from "@/components/student-application/SignupConfirmationFrame";
+import { readPendingStudentSignup } from "@/lib/server/student-signup-confirmation-web";
 import { getLocale } from "@/lib/i18n";
 import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "@/lib/student-application-contract";
 import { createStudentInviteSessionRuntime } from "@/lib/server/student-invite-session-runtime";
@@ -61,6 +64,10 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
         }
       } catch { /* prefill is a convenience, not authority */ }
     }
+  }
+  if (!data.user?.email_confirmed_at) {
+    const pending = await readPendingStudentSignup();
+    if (pending) return <SignupConfirmationFrame><SignupConfirmationPending initial={pending} locale={locale} restored /></SignupConfirmationFrame>;
   }
   return <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} />;
 }

@@ -176,3 +176,13 @@ source reviews и build переиспользуются на исходных �
 затем интеграция #980 с полученным main. Managed activation/release #980 остаются
 у ROOT. Нового API/schema/provider scope или заявления о полной готовности
 1–36 это решение не добавляет.
+
+
+## Source merge — 22 сентября 2026, 13:04:28 UTC
+
+#1026 смержен ROOT в main `faf50bef7db53ba48e907f54207643f4dde286f7`.
+Owner-confirmed приёмка и waiver ручных native/mail шагов сохранены; точный
+head `b40331f6` прошёл узкий ROOT delta review и автоматический CI35730782788.
+Native runtime агентом не проверялся, новый native binary не публиковался.
+#980 интегрирует эту принятую зависимость; его source merge и managed
+activation/app release отслеживаются отдельно ROOT.

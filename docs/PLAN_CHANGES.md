@@ -37977,3 +37977,213 @@ source reviews и build переиспользуются на исходных �
 затем интеграция #980 с полученным main. Managed activation/release #980 остаются
 у ROOT. Нового API/schema/provider scope или заявления о полной готовности
 1–36 это решение не добавляет.
+
+
+## 2026-09-21 — item27b/27c: интеграция и проверка в одном PR
+
+После #978 уточнён порядок:27b исходники web/native и27c actual QA образуют один
+coherent integration PR, который остаётся draft до проверки Auth/config/template
+и обоих клиентов. Не добавлять временный auto-confirm bypass или несогласованный
+shared flag. Это предотвращает регрессию существующих native consumers и
+преждевременный переход main на непроверенный почтовый путь.
+
+До кода зафиксированы обязательная несекретная configured OTP length без default,
+old-client426 до create, memory-only native resend, HttpOnly web resend, staged
+validated session cookie commit и existing exactActionStringFields для React19
+form envelopes. Принятый pure contract27a остаётся неизменным. Реальная доставка,
+новые QA identities и изменение SMTP/Auth templates имеют свой конкретный
+пакет; этот план не выдаёт им неявное разрешение.
+
+
+## 2026-09-21 — item27c: локальный web/API путь подтверждён
+
+На5bde выполнены реальные Auth/Mailpit создание и отрицательные сценарии;
+на428b после Impeccable исправлен SSR pending-state и проверены resend limit,
+confirmation→resume, replay и duplicate. Ровно2 owned Auth identities,1
+application/receipt и6 Mailpit писем сохранены. NativeC/UI и настоящая expiry
+не проверены; production/provider delivery не заявляется. PR980 остаётся draft.
+
+Независимая сверка24 снимков PASS, original Auth восстановлен exactspec/health,
+свои browser/server закрыты, окно передано B224. Подробности и пределы —
+`docs/qa/signup-confirmation-local-results-2026-09-21.md`. Полный1–36 остаётся
+открытым; это приёмка ограниченного web/API среза, не общий финальный E2E.
+
+
+## 2026-09-22 — item27: интеграция main и возврат из подтверждения во вход
+
+До изменения кода ROOT разрешил отдельный files-only срез PR980: интегрировать
+актуальный main, сохранить все существующие service/API/routes и объединить
+11 signup_confirmation_* ключей с новыми ключами и исправлениями main. Зависимость
+от PR1026 явная: перед merge регистрации должен быть сохранён выход только из
+текущей native-сессии signOut(scope: .local). Оба PR остаются draft, merge/release
+принадлежат ROOT; исходники assessment PR1029 ba9204ec остаются frozen.
+
+Узкий дефект native: анонимная анкета показана fullScreenCover из SignInView,
+но кнопка «Войти» в подтверждении меняет уже signedOut router и не закрывает
+представление. В этом срезе презентационный владелец явно возвращает пользователя
+к существующему SignInView; остальные authenticated sign-out callers сохраняются.
+Черновик анкеты не очищается, resend capability остаётся memory-only; новая
+авторизация, автоматический вход, редизайн и новые действия провайдера не входят.
+Impeccable применяется к понятному переходу и существующим disabled/loading states,
+с сохранением EVO, системной навигации и 44pt touch target.
+
+Проверки сейчас: сохранность обеих веток и JSON ключей, scoped Swift parse,
+git diff --check, независимое ревью точного HEAD и короткий PR CI. Heavy build,
+Simulator/установка, QA/Auth/письма и shared-runtime действия сейчас не запускаются.
+Поведение native после изменения требует отдельной реальной проверки позже;
+исторический web/API QA не переименовывается в новую или native-приёмку.
+
+
+### 2026-09-22 — B native: принятый precode локального выхода
+
+После merge #1018 в main2b25a431 подтверждён scope mismatch: web Portal
+использует local logout, native wrapper полагается на SDK default global,
+хотя invite-комментарий прямо обещает локальный выход. ROOT принял
+[узкий production-контракт](platform/native-local-signout.md) до Swift-кода:
+один аргумент `.local` и пояснение, без QA business-веток, UI/Auth/RLS/SDK
+изменений. Все существующие callers и оформление EVO сохраняются.
+
+Сначала app build и доказанная изоляция нового QA bundle на том же Simulator;
+native launch/Auth ждут отдельной передачи общей среды. Реальный ordinary
+logout должен завершить только собственную сессию с сохранением остальных.
+Текущий try?/offline limit не исправляется этим scope-изменением; экран входа
+не считается доказательством серверного отзыва. Нет новых аккаунтов, fixtures,
+широкого E2E, signup-приёмки или production-доставки.
+
+
+### 2026-09-22 — B native: source/build checkpoint локального выхода
+
+После precode e037555f реализован один production-аргумент `.local` и comment
+в46c56eba. Независимое source review8980c889 приняло diff без находок; caller/UI/
+SDK/Auth/RLS неизменны. App-target build Xcode26.5 exit0, все7 locked packages
+совпали. [Контракт и квитанции](platform/native-local-signout.md) фиксируют
+отдельный QA bundle, exact loopback origins и проверенную подпись/заявленные
+simulated access groups, непересекающиеся с установленным protected EVO.
+Это artifact metadata, не live Keychain enforcement/native acceptance.
+Установки, launch, Auth, DB и logout не было; actual ждёт своего QA-окна.
+Код не включает QA-only business path. Полный native/E2E/production не закрыты.
+
+
+### 2026-09-22 — B native: Mac lock до входа, own QA закрыт
+
+После принятого source/build и finite review для #1026 прошёл свежий
+READ ONLY baseline 7bd4f0df: exact state/effects/catalog/AuthStorage и290/33
+совпали с входящим ROOT16_POST handoff e3266a6f, схема001–238. Выполнены одна
+установка и initial launch отдельного QA bundle. Первый CUA вызов остановлен
+блокировкой Mac, до ввода credentials или login tap. ROOT разрешил собственное
+закрытие после ожидания ручной разблокировки: QA PID отсутствует, protected
+executable неизменён, полные Auth/Kong logs0, fresh readonly final ef838d17
+подтвердил все входящие данные и Auth rows. [Квитанция](qa/native-local-signout-blocked-2026-09-22.md)
+сохраняет исходный STOP, описание metadata typo и границу reused baseline.
+Это не native logout acceptance; #1026 остаётся draft до реального продолжения
+на разблокированном Mac со свежим окном. iOS source/artifact и scope неизменны.
+
+
+### 2026-09-22 — B native #1026: согласованная интеграция свежего main, до merge
+
+ROOT разрешил только files-only обновление draft #1026: исходный head
+`1a70bb10094de003a5d5dd74f784928a05e84587`, входящий main после fetch
+`ac165cf992ea418c2a11745590a5dadb443e9d6f`. Сохранить текущий ledger и полные
+исторические дополнения обеих сторон в трёх конфликтующих документах. iOS tree
+должен остаться точным исходному head; единственный runtime diff против main —
+прежний `signOut(scope: .local)` с пояснением. Контракт и архитектура неизменны.
+
+Проверка этой интеграции ограничена `git diff --check`, сравнением iOS tree и
+оставшегося diff с входящим main. Общие node_modules не менять: их использует
+отдельная работа #1029. Новых build, QA, Auth, simulator, install или email
+действий нет; прежние source/build/STOP receipts сохраняют исходные SHA и
+границы. Перед push требуется независимое exact-head review; draft остаётся
+открытым, native logout/production acceptance и merge/release не заявляются.
+
+
+## 2026-09-22 — item27: тот же возврат ко входу для existing-account hint
+
+ROOT разрешил проверить только соседнюю conflict-hint кнопку того же wizard.
+Исходники подтвердили: anonymous registerAndSignIn при outcome.conflict задаёт
+apply_server_conflict и conflictHint=true; видимая apply_go_to_login вызывает
+router.signOut внутри того же fullScreenCover и не закрывает его. Signed-in
+submit этот hint не создаёт. Это тот же navigation defect, а не новый Auth flow.
+
+До кода scope расширен только на использование уже принятого onSignIn callback
+обеими кнопками через общий private helper; default authenticated fallback
+сохраняется. Модель, visibility, draft/resend, copy/layout и negative QA не меняются.
+Предыдущие source review и CI35680327507 на5c518e29 остаются историческими.
+Новый head требует Swift syntax parse, diff-check, independent exact-head review
+и короткий CI; actual native/QA/Auth/build по-прежнему отдельно у ROOT.
+
+
+## 2026-09-22 — B #980: отдельная native QA-сборка после main #1029
+
+ROOT разрешил интегрировать main `8f9391dd` и собрать app target из текущего
+reviewed #980 source `d29997c9`, не ожидая разблокировки Mac. Product-код
+сохраняется побайтно; конфликты ограничены документацией, обе истории журналов
+сохраняются. #1029 и его принятый scoped local dev actual остаются во входящем
+main. Существующий #1026 artifact относится к другому iOS tree и не заменяет
+сборку #980. Новый QA bundle `com.evoadmissions.qa.confirmation20260922` и
+private build output отделены от #1026; используются только известные кешированные
+package pins и прежние локальные QA endpoints. Это разрешение на compile,
+без install/launch, Auth, DB, provider или UI. Результат сборки записывается
+после её фактического завершения; native acceptance и merge/release остаются
+отдельными решениями ROOT.
+
+
+## 2026-09-22 — B #980: app compile завершён, native actual остаётся открытым
+
+На merge source `ff0f7bd3` (main 8f9391dd + reviewed d29997c9) один app-only
+Xcode 26.5/17F42 compile прошёл exit0. Полный iOS tree e60e67d2 и все семь
+package pins сохранены; resolution/updates отключены, product edits отсутствуют.
+Отдельный QA bundle `com.evoadmissions.qa.confirmation20260922` имеет private
+output и проверенные signature/embedded entitlement metadata. Все 19 файлов
+прежнего #1026 artifact и защищённый executable побайтно сохранены.
+[Build receipt и границы](qa/signup-confirmation-integration-2026-09-22.md).
+Это compile-only результат: install/launch/UI/Auth/DB/provider не выполнялись.
+Mac locked по свежему ROOT наблюдению 08:21; после ручной разблокировки и нового
+окна сначала нужен actual #1026, затем отдельный #980. Новые main changes
+во время compile не интегрировались. PR #980 остаётся draft; independent
+source/artifact review и exact-head CI отдельно, native acceptance отсутствует.
+
+
+## 2026-09-22 — Уточнение автора CUA наблюдения 08:21 UTC
+
+В предыдущем checkpoint #980 CUA результат `Mac locked` ошибочно приписан
+ROOT. Фактический наблюдатель — агент B (parent task), сообщивший результат
+координатору ROOT. Это уточнение provenance существующего наблюдения, без
+новой UI/Simulator/Auth операции; блокировка и compile-only границы не меняются.
+
+
+## 2026-09-22 — #980: разрешены docs-конфликты с текущим main
+
+После завершения compile ROOT разрешил интегрировать docs-only main `6515e695`
+в draft #980 от `80334ef1`, чтобы снять GitHub conflict и открыть exact-head CI.
+Полный incoming main prefix и все прежние additions обоих журналов сохранены;
+current ledger сохраняет accepted production8f9391dd и все пределы проверки.
+iOS source/dependency tree остаётся точным build source `ff0f7bd3` / reviewed
+`d29997c9`; artifact80137b60 не пересобирался. Новых tests/build/runtime/Auth/DB
+действий нет, native acceptance не заявляется; main merge остаётся за ROOT.
+
+
+## 2026-09-22 — #980: приёмка владельцем и интеграция после #1026
+
+Владелец подтвердил #1026 и #980: «оба работают и код верный, прими и все,
+проверки не нужны». Функциональная приёмка **OWNER-CONFIRMED**; оставшиеся
+ручные native/mail шаги сняты с условий приёмки. Mac lock, invite alias и
+business Gmail не являются текущими блокерами этих PR. Исторические STOP
+и непроведённые проверки сохранены; native confirmation/login/logout/relaunch
+и получение/ответ на реальные письма не объявлены проверенными агентом.
+Новых UI/Auth/test/build/native/email запусков в этом продолжении нет.
+
+#1026 смержен ROOT в `faf50bef7db53ba48e907f54207643f4dde286f7` в 13:04:28 UTC
+после узкого delta review и CI35730782788 SUCCESS на `b40331f6`. Этот main
+интегрирован в #980; runtime bytes относительно reviewed `cc57c610` сохранены,
+включая iOS tree `e60e67d20fde495216b3c962ced349dc7eee8676` и package pins.
+Новые конфликты разрешены только в документах с сохранением обеих историй.
+Source/build/artifact evidence переиспользуются на их исходных ревизиях;
+достаточны diff-check и byte parity, обычный GitHub CI остаётся включён.
+ROOT выполняет финальный узкий delta review и merge; новый полный review
+или повторный ручной прогон не назначается.
+
+Source merge и runtime delivery учитываются отдельно. Последний зафиксированный
+production app — `8f9391dd`/schema239. После merge #980 reviewed managed
+configuration и один app release выполняет ROOT; B не меняет Auth/provider
+config и не отправляет письма. Independent audit #1037, KB159 и исторические
+receipts сохраняются без расширения claims.

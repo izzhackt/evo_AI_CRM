@@ -3,14 +3,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { parseWebsiteEnquiryUniversity, WEBSITE_ENQUIRY_COUNTRIES } from "../website-enquiry-contract.ts";
 
 const MAX_BYTES = 8192;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONFIG_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ORIGINS = new Set(["https://evoadmissions.com", "https://www.evoadmissions.com"]);
 const FIELDS = ["requestId", "name", "phone", "age", "city", "country", "consent", "website"];
-const COUNTRIES = new Set(["China", "Malaysia", "Europe", "Germany", "United Kingdom", "Italy",
-  "Netherlands", "France", "Poland", "United Arab Emirates", "Turkey"]);
 
 function response(status: number, code: string, requestId?: string): Response {
   return Response.json(requestId ? { status: code, requestId } : { error: code }, {
@@ -69,14 +68,18 @@ export async function receiveWebsiteLead(request: Request): Promise<Response> {
     error instanceof Error && error.message === "size" ? "request_too_large" : "invalid_request"); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return response(400, "invalid_request");
   const input = body as Record<string, unknown>;
-  if (Object.keys(input).length !== FIELDS.length || Object.keys(input).some(key => !FIELDS.includes(key))
+  if (FIELDS.some(key => !Object.hasOwn(input, key))
+    || Object.keys(input).some(key => !FIELDS.includes(key) && key !== "university")
     || typeof input.requestId !== "string" || !UUID.test(input.requestId)
     || !text(input.name, 300) || !text(input.phone, 50) || !/^\+?[\d\s().-]{7,40}$/.test(input.phone)
     || (input.age !== null && (typeof input.age !== "number" || !Number.isInteger(input.age) || input.age < 10 || input.age > 100))
-    || (input.city !== null && !text(input.city, 150)) || !text(input.country, 100) || !COUNTRIES.has(input.country)
+    || (input.city !== null && !text(input.city, 150)) || !text(input.country, 100) || !WEBSITE_ENQUIRY_COUNTRIES.has(input.country)
     || input.consent !== true || input.website !== "") return response(400, "invalid_request");
   const phone = input.phone.replace(/[\s().-]/g, "");
   if (!/^\+?\d{7,15}$/.test(phone)) return response(400, "invalid_request");
+  let university;
+  try { university = parseWebsiteEnquiryUniversity(input.university); }
+  catch { return response(400, "invalid_request"); }
   try {
     const client = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
     const { data, error } = await client.schema("platform").rpc("receive_website_lead", {
@@ -84,6 +87,7 @@ export async function receiveWebsiteLead(request: Request): Promise<Response> {
       p_name: input.name.trim(), p_phone: phone, p_age: input.age,
       p_city: typeof input.city === "string" ? input.city.trim() : null, p_country: input.country.trim(),
       p_consent: true, p_ip_hash: createHmac("sha256", key).update(ip).digest("hex"),
+      p_university: university,
     }).abortSignal(AbortSignal.timeout(10000));
     if (error || !data || typeof data !== "object" || Array.isArray(data)) return response(503, "unavailable");
     if (data.status === "accepted" && data.request_id === input.requestId.toLowerCase()) return response(200, "accepted", input.requestId);

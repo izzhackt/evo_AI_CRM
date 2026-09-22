@@ -12543,6 +12543,2239 @@ This append is precode only, awaiting independent exact-head review.224 remains
 B-reserved; A has no new migration number or apply/Auth-write window. Production
 release and new QA identities are not authorized by this planning slice.
 
+## 2026-09-21 — B3e-1 / 224: read-only v2 protocol (до реализации)
+
+После #979 root выделил224 для authenticated v2 requirements readers.
+[Точный контракт](platform/b3e1-requirements-v2-read-contract.md) сохраняет
+initializer/receipt/pending v1, добавляет строгую flat v2 проекцию текущего218
+и переводит CRM/web/iPhone reader consumers. Схема/полные редакции/editor/write
+ещё не включаются; reserved full DTO decoding не означает working full backend.
+Новые private/public functions без business writes; apply/QA только после
+проверки точного пакета и отдельного root writer window. Старые slots/files/review,
+214 publication/intake/deadline и последующие §11 submit/packages сохранены.
+
+
+### A15d precode accepted;225 reserved before implementation
+
+PR#981 exact54fb718c passed independent review and CI35551960705 and merged
+at67934327d. ROOT reserved225 exclusively for A15d (224 belongs to B) and
+authorized offline implementation of the accepted sparse-seen contract.
+
+Implement private per-actor seen IDs, an additive idempotent mark_seen RPC with
+bounded batch acknowledgement, compatible channel unread counts, strict
+types/decoder/repository/action and scoped checks. Keep current UI, read command,
+message history, root/quote semantics, drafts and legacy read_sequence unchanged.
+No local apply/Auth/browser window or new QA identity authority is included.
+Other-author unread coverage requires an independently reviewed real-actor packet.
+
+
+### A15d offline implementation; real225 QA still pending
+
+Runtimefb12146e implements225 private sparse seen, additive mark_seen with
+strict complete-set acknowledgement and existing channel unread exclusions.
+Current command/UI/parent links/drafts/timeline223 remain unchanged. Published
+custom-staff authority is retained; own/deleted/legacy-read IDs are no-ops,
+unknown/cross-scope IDs reject the whole batch. No seen cursor compaction.
+
+Seven pure contract tests, scoped ESLint, TypeScript and SQL parser checks pass;
+these do not prove actual SQL/Auth behavior.225 is not applied,224 must precede
+it, and ROOT currently owns shared Auth/DB/browser. Other-author unread proof
+requires positive ordinary existing-observer Auth and a separately reviewed QA
+packet/window; no staff provisioning or retry of unavailable salesOther.
+See docs/qa/crm-team-chat-sparse-seen-225-2026-09-21.md for hashes and limits.
+
+
+### A15d source review accepted; bounded225 QA proposal remains offline
+
+PR#983 exact63dfdb00 independently approved; CI35552439001 passes, including
+migration boundary. Runtimefb12146e is unchanged. The separate QA proposal
+uses existing Admin/Sales/Student only after positive ordinary Auth/authority,
+15negative mark_seen cases,10positive acknowledgements, exactly5retained seen
+rows and one legacy read plus its replay. No history/provider/identity writes.
+
+QA-only executable is syntax checked but not run; its manifest deliberately
+has no future225 apply/release bindings.224 source/release, fresh baseline,
+separate apply driver/packet review and ROOT window GO still precede execution.
+See docs/qa/crm-team-chat-sparse-seen-225-packet-2026-09-21.md.
+
+
+### A15d QA transport guard correction — offline only
+
+Independent packet review found one P2: bind credentialed HTTP to the pinned
+local Kong/project before login. The proposed helper now disables ambient
+proxies and freshly checks pinned DB/Kong, Kong image, project/workdir, common
+network ID and port57495 before every API request. Expected topology comes
+from saved ROOT27c evidence; no current environment claim or execution.
+Runtime/decoder/business QA sequence remain unchanged. Python syntax and docs
+diff checks only; final224 release/apply packet/review/ROOT GO remain required.
+
+
+### A15d local225 window — actual224 baseline accepted, apply pending
+
+B applied224 once and released the shared local environment. ROOT transferred
+the exclusive225 window to A. A ran a fresh READ ONLY full281/catalog snapshot;
+it exactly matches B final state, ledger001–224 and Auth8/8, including ROOT27c
+retained QA. Sessions are outside that equality claim. No225 apply/Auth yet.
+
+The prepared single-use driver preserves all old data/metadata/ACL and verifies
+new table/RLS,4 table+4 PK index catalog columns,3 constraints,8 internal FK
+triggers, one RPC and only the reviewed channels body. Full282 SQL/state will
+be retained for ROOT32. Independent driver review and exact source224/main
+integration/manifest binding still precede apply and the approved scoped QA.
+
+
+### A15d source224 integrated; reviewed225 driver awaiting final binding
+
+Merged main2b23285d (PR982) into225 with all five A runtime hashes unchanged.
+SQL224 equals B's actual reviewed/applied source. Append-only journals preserve
+both branches. Independent apply driver review APPROVED f68bc2bb; observer
+ea5a52df and catalog2520542a unchanged. Final integration-head/manifest review
+and protected checks remain; no225 apply/Auth run has occurred yet.
+
+
+### A15d local225 applied and sparse seen QA accepted; window released to ROOT32
+
+Exact actual source3fc9ef34 integrates accepted224 and preserves all A runtime
+hashes. Reviewed local CLI applied225 once: old281 data/metadata/ACL and ledger
+preserved, new seen empty. Ordinary Admin/Sales/Student Auth passed;15 negative
+calls and2 own/deleted no-ops completed before a retained harness SQL NULL stop.
+Fresh full282 reconciliation proved0 business writes. Independently reviewed
+bounded continuation reused those17 actual proofs and executed only previously
+unstarted legacy read/replay and8 remaining mark_seen calls. No rerun/reapply.
+
+Actual outcome:5 scoped seen rows, one Admin/general preference, one legacy
+receipt; repeated/reordered/subset/concurrent calls add no extra rows. Unread
+54→53→51→50→48; gaps remain unread. All10 actual acks decoded,279 other tables,
+old prefs/receipts, full postapply catalog and ROOT27/B224 data unchanged;
+ledger001–225/Auth8/8 preserved, sessions not claimed equal. Release2d7c943d
+contains full282 after_state and exact SQL19076b91, handed to ROOT32. No own
+server/browser/background process. A now docs/PR only; CI35555819344 passed
+at3fc9ef34; final docs exact-head review/checks still required before merge.
+No production/UI/server-action journey or whole-item15 completion claimed.
+
+
+### A15e precode: additive direct quotes while preserving v1 root replies
+
+A15d merged in main439a66de. New bounded contract at
+docs/EVO_TEAM_CHAT_DIRECT_QUOTES_PLAN_2026-09-21.md proposes one private quote
+map, post_v2 and timeline_v2. Existing command171 (with156 scoped rights),
+reader223, seen225, messages and frozen v1 requests remain unchanged. V2 keeps
+server-derived root-parent separately from direct target and stores an explicit
+versioned canonical receipt identity so same-root/different-target retries
+conflict safely. Current quote text is projected, never copied into the map.
+
+This step is prose-only. ROOT confirmed reservation227 before SQL implementation;
+226 belongs to B and ROOT32 owns local DB/Auth/UI. The plan bounds future QA to
+four new labelled messages plus edit/delete of its own new reply, with no old
+message/seen/preference changes. Future apply waits226 release and a fresh
+coordinated packet. No runtime, Auth, DB, browser or production action here.
+
+## 2026-09-21 — KB32: ограниченная локальная запись approved материалов
+
+После merged #975 продолжается существующий независимый KB-поток: два
+дословных snippets и две company file versions через обычный Admin UI,
+реальный ClamAV и private Storage. Owner content approvals сохраняются;
+новой фактической политики и AI-публикации нет. Новый runtime-код не нужен.
+Перед записью — fresh baseline/dedup после B224→A225, после — exact readback,
+два download hashes и scoped data reconciliation. Production не разрешён.
+Пакет: `docs/qa/knowledge-approved-materials-local-2026-09-21.md`.
+Подготовка scanner завершена; actual canonical write ещё не выполнен.
+
+## 2026-09-21 — KB32 actual local evidence и ограниченная UX-коррекция
+
+На frozen63e8ef9a реально сохранены2 approved snippets и2 scanned private files.
+Первый audited download307 остановлен Chrome ERR_BLOCKED_BY_CLIENT; второго
+не было, byte-download proof остаётся открытым. Actual budget8 receipts/10audit,
+1grant/consume;184 прежних audit,271 посторонняя таблица и схема сохранены.
+Student RPC403 и staff API401 проверены с тем же cookie positive /portal200.
+См. docs/qa/knowledge-approved-materials-local-2026-09-21.md. Не full32 complete.
+
+До следующей UI-правки принят малый scope по actual screenshots/computed style
+и Impeccable clarify/harden: устранить override primary bg/text в KnowledgeLibrary
+и столкновение breadcrumb/search на320px в FileManager. Сохранить EVO/Golos,
+подписи, все actions/forms/rights и внутреннюю прокрутку таблицы. Только local CSS
+и responsive layout; без новых бизнес-записей/миграций/provider/production.
+Проверка одной общей партией desktop+390/320, включая create/update contrast,
+поиск/очистку, breadcrumb и table actions; максимум одно подтверждение после
+правки. Первоначальный content proof остаётся привязан к63e8ef9a, UI proof
+получит отдельный новый SHA. Это исправление наблюдённых дефектов, не redesign.
+
+### KB32 — локальная UX-коррекция проверена
+
+Source547f7897 исправляет только подтверждённые primary contrast и mobile
+breadcrumb/search. Actual desktop1440+390/320, search/clear, внутренний table
+scroll и раскрытие file actions пройдены без бизнес-записей. Scoped lint/tsc/
+diff-check PASS, independent source review APPROVED. Full282/Storage/Auth
+равны завершённому content snapshot. Download-byte proof остаётся BLOCKED;
+не весь32 и не1–36 complete. Production и clientAI не публиковались.
+
+
+## 2026-09-21 — B3e-2 / 226: редактор требований (до реализации)
+
+#982 merged2b23285d: v2 readers уже в main, полный backend ещё не реализован.
+Root резервирует226 после A225 для полного staff editor/immutable revisions/
+explicit legacy mapping. [Точный контракт](platform/b3e2-requirements-editor-contract.md)
+закрепляет scoped document права, стабильные IDs, полный inventory113/137/179,
+точное idempotent intent и совместимость v1; не ослабляет mandatory gates.
+Новый согласованный editor-read и один atomic save расширяют таблицы218 без
+backfill старых строк, upload/submit/package процесса или правки214 binding.
+Impeccable Operate сохраняет EVO/Атлас и функции, максимум две visual rounds.
+Source work разрешён; DB/Auth/UI queue A225→root32, B226 window ещё не выдан.
+Перед реализацией independent exact precode review; перед apply/QA отдельный
+reviewed effects packet. Production и публикация старым native clients отдельно.
+
+## 2026-09-21 — CRM-09d: сохранить местную дату оплаты
+
+В рамках пункта12 найден отдельный дефект: `recordCasePaymentAction` получает
+время Бишкека из формы, переводит его в UTC и отрезает дату UTC. До06:00
+местная дата становится предыдущей; на границе месяца меняется и месяц.
+Исправить только получение DATE для `record_case_payment_v1`, сохранив
+проверку календаря/времени, права, request ID и существующий timestamp-путь
+общего финансового журнала. Миграция и изменение прежних записей не нужны.
+Проверить чистый parser на границах дня/месяца/года и invalid input; после
+окна KB32 проверить существующий ordinary UI путь без подмены hidden времени.
+Финансовый CRM→Student путь остаётся отдельной фактической приёмкой;
+чистый тест даты не выдаётся за исполнение оплаты или production release.
+
+### CRM-09d — точная локальная QA перед исполнением
+
+После root32 повторно связать existing Student1 case→membership→profile→Auth.
+Прежний09c экран1000USD относится к другому делу; он не доказывает баланс
+Student1. Сохранённые receipts целевого fictional QA дела показывают1KGS
+условий и отсутствие obligations/events; это требует fresh readiness.
+При совпадении через обычный Admin UI создать один явноLOCAL QA tranche1KGS
+и записать fictional payment0.50KGS без реальных денег/провайдера. Точный
+request UUID и at берутся из реальной формы без подмены hidden времени.
+Проверить actual local DATE и событие вCRM, затем тем же Student портал:
+1KGS начислено,0.50 оплачено,0.50 осталось. Portal DTO не содержит даты события.
+Бюджет: +1obligation,+1event,+1evidence,+2audit; обновляется только новый
+obligation. Все прежние строки, условия/cases/schema/Storage неизменны;
+Auth login/logout отдельно. Новые identities/права/активации/receipt files,
+refund для cleanup и production не разрешены этим сценарием. Actual result
+фиксируется отдельно; parser tests и предложение QA не означают выполнение.
+
+
+### CRM-09d — локальная запись оплаты и Student readback выполнены
+
+Frozen source `2c0755c1` после #985 прошёл обычный Admin UI → action → RPC →
+Student UI: один QA-транш 1,00 KGS, оплата 0,50, одинаковый остаток 0,50 и
+статус частичной оплаты. Actual form time21Sep09:40 сохранён как местный DATE;
+ночная граница отдельно проверена pure tests, не фактическим UI.
+Ровно +1 obligation/+1 event/+1 evidence/+2 audit; прежние194 audit,
+остальные278 таблиц, схема225 и Storage сохранены. Independent effects review
+APPROVED a0747bd3, final a2df3c2f. Own sessions/runtime завершены; full282
+handoff cce0f273 передан B226 для fresh baseline. Подробности и пределы:
+`docs/qa/payment-calendar-date-2026-09-21.md`. Это ограниченная локальная
+проверка оплаты, не весь12/1–36 и не production release.
+
+
+## 2026-09-21 — B3e-2 / 226: локальный editor/save/readback подтверждён
+
+На frozen `6cdacc76` после ROOT09d локально применена226 один раз, затем ordinary
+Admin UI выполнил Q1 A2, Q2 B2 и Q3 A3. Ровно +3 revisions/+7 items/+1 empty
+optional QA slot/+1 link/+3 audit; прежние строки всех282 tables сохранены.
+14 ordinary HTTP reads и Student A/B desktop/mobile пройдены. Own sessions
+logout local204, Next33236 остановлен; Storage и Auth identities сохранены.
+[Фактический отчёт](platform/b3e2-requirements-editor-qa.md) разделяет executed
+proof, сохранённые helper failures и runtime gaps. Независимая сверка результата,
+актуальный main, PR review/CI остаются merge-gates; production не разрешён.
+Это завершение bounded core-сценария, не всех recovery/concurrency/legacy/native
+расширений и не всего плана1–36. Нового scope/API во время QA не добавлено.
+
+
+### A15e offline implementation227 prepared; actual database/UI work pending
+
+Accepted precode PR986 merged418521f5. Runtime7a54f4e3 from main d02d15b7
+adds one closed direct-quote map, post_v2 and STABLE timeline_v2, strict pure
+DTOs plus ordinary SSR repositories/actions. Existing171/223/225 and V1 UI,
+commands, decoder, parent roots, drafts, messages, read/seen state stay intact.
+Direct-target identity is retained in the existing receipts; current quote text
+is projected from originals. No cloned body or V2→V1 fallback.
+
+Source checks:16 pure decoder tests PASS (7 new+9 existing), scoped lint and
+TypeScript PASS, outer SQL and both PL/pgSQL bodies parse. Fresh-worktree PNG
+type-reference setup is documented in the QA note, not a product fix. Current
+implementation has not been applied or exercised through Auth/DB/UI. Independent
+exact-head review, protected CI and actual226 source/release integration remain.
+
+ROOT retains shared-window authority.227 apply/QA needs a fresh post226 baseline
+and separately reviewed bounded packet/GO. Four new posts plus edit/delete of
+its own new reply remain the six-command budget; empty mentions on all post/edit
+inputs preserve the zero-notification budget. Full catalog deltas/table count
+will be enumerated after226. See docs/qa/crm-team-chat-direct-quotes-227-2026-09-21.md.
+
+
+### A15e local227 apply/API verified; UI remains A15f
+
+After accepted B226 merge28613990 and full RAW release bcb7ed6d, sourceec18763c
+integrated current main with all six reviewed runtime/test files unchanged.
+Fresh282-table baseline matched that release. Independent final binding review
+151fa95d covered the unchanged apply mechanics, bounded QA and own-session
+scope=local logout. ROOT conditional authority was satisfied before execution.
+
+A single local CLI apply passed exact additive catalog/ledger checks; all old
+282 business tables and old functions/ACL remained unchanged, quote map empty.
+Ordinary Admin/Sales/Student QA then passed43 prewrite denials and3 replay
+conflicts. Exactly6 effective commands created4 new messages/2 direct maps and
+edited/deleted only the new legacy reply. Frozen replay, identical concurrent
+requests and current edited/deleted off-page quotes passed. Actual production
+DTOs decoded9 receipts,6 V2 pages and2 V1 pages. All prior rows, notifications,
+seen/preferences and unrelated data remained unchanged; final283 tables checked.
+The three own sessions logged out with204. No browser/app server was started.
+
+Apply receipt0fb6ce37 and QA receipta16cc76d plus full hashes/paths are recorded
+in docs/qa/crm-team-chat-direct-quotes-227-2026-09-21.md. Cross-tenant execution
+was not claimed because no other existing org was available. No new identity,
+role, provider/production action or source/server-action/UI/native acceptance.
+Final independent actual-evidence/exact-head review, protected CI/merge and
+fresh full RAW release to ROOT990 remain. Only then start A15f UI code, preserving
+ROOT's separate mobile-sales presentation ownership. This does not close item15.
+
+### CRM-09e — следующий локальный срез: чек к существующей оплате
+
+Контракт исходного CRM-09 сохраняется. На main `70da1ed9` найден отсутствующий
+UI-вход к уже существующему receipt endpoint: после сохранения без файла и
+повторного открытия дела чек добавить нельзя. Добавить inline upload к
+receiptless payment под прежними write/preview gates; не создавать повторную
+оплату, не менять ledger, SQL, Storage policy или финансовые права.
+
+Сначала минимальная реализация и scoped checks; после общей очереди B226/A227
+один ordinary Admin upload к сохранённой fictional QA оплате и проверка
+сохранности суммы/баланса, metadata, scanner и Storage. Снимки до/после,
+неопределённый ответ без автоматического retry, desktop/mobile с Impeccable,
+независимое exact-head review и короткий CI. Actual upload, Student download,
+production и весь пункт12 до соответствующей квитанции не заявляются.
+
+
+### CRM-09e — hydration hardening, 2026-09-21
+
+Actual first upload click on source d3fe39b55a12d581f34fc3318369f47e0b5e52dc navigated by native GET to /v3/profile?; no payment-receipts POST occurred. Root receipt first-click-no-effect.json records exact before/after full 283-table, financial and Storage parity. The cause of the missing hydration handler remains unknown; document readiness and native file selection do not prove React hydration.
+
+Before another actual upload, reuse the existing stable useSyncExternalStore client/server snapshot pattern in CasePaymentReceiptUpload: keep file input and submit disabled during SSR/pre-hydration, expose busy state, retain immediate preventDefault and all in-flight/unknown/no-auto-retry guards. No layout, API, payment, Storage or legacy form changes. Scoped lint/typecheck validate source; root owns independent review and one actual UI confirmation round. This hardening is not proof of a successful upload or identification of the hydration root cause.
+
+
+### CRM-09e — connect existing receipt routes, 2026-09-21
+
+Actual corrected UI hydration passed; its single upload POST returned403 platform_route_not_connected at proxy before the handler. Root verified exact before/after283-table financial/audit/Storage/Auth-session parity; no upload succeeded. Connect only existing payment-receipts/{paymentEventId} and payment-receipt-files/{studentCaseId}/{fileId}/download through isConnectedPlatformApi with exact UUID v1–5 segments matching handlers. Retain ordinary staff-cookie proxy flow, live handler authority/record scope and all Storage checks; no public Student or direct-private bypass. Add positive/negative route-contract coverage. Existing case-contract upload connectivity is a separate finding, excluded from this slice. No UI change or new business operation; actual confirmation remains root-owned.
+
+
+### CRM-09e — scoped receipt authority dependency229, 2026-09-21
+
+Contract: `docs/platform/payment-receipt-authority-contract-2026-09-21.md`. Actual35a11aa0 upload stopped at service-role table SELECT42501, masked as404; zero successful uploads and root final283-table/financial/Storage/Auth-session parity. ROOT reserves229 afterB228. Before implementation, independently review authenticated exact upload/download target RPCs, delegated principal revalidation before receipt metadata write/replay, strict bounded decoder and403-versus503 behavior. No table grants, financial changes, contract-file expansion or new UI. Existing routes/legacy receipt compatibility remain; no apply/runtime in this precode.
+
+
+### CRM-09e229 — source implementation, 2026-09-21
+
+Implemented authenticated receipt upload/download target RPCs and a closed scalar decoder; handlers no longer directly SELECT payment_events/payment_receipt_files for receipt operations. Delegated metadata admission locks organization then existing155 profile/membership order and case; explicit156/189 read+write policy precedes historical replay, with full stored principal/metadata comparison. Contract-file handler/functions remain unchanged. Missing/malformed target and infrastructure errors503; explicit42501 becomes403. No UI edits.
+
+Node22 targeted decoder plus existing case-agreement checks41/41 PASS, scoped ESLint/typecheck/diff-check PASS. These are pure/source checks, not SQL/RLS or actual upload acceptance. Existing configured migration boundary invokes Docker/Postgres and was not run under source-only scope; SQL compile/role/revocation/concurrency/replay execution remains pending independent review and coordinated post228 local QA. Zero successful upload claim remains unchanged.
+
+
+## CRM-02c — вертикальные записи продаж на телефоне (2026-09-21)
+
+Принятый пункт7 и UX-план требуют показывать человека и его суммы вместе на
+узком экране. Текущая единственная таблица имеет min-width960px; этот срез
+меняет только её presentation в `SalesRegisterView.tsx`. ROOT владеет файлом;
+A продолжает chat, B — requirements. Независимую реализацию готовим параллельно
+с проверкой #990, без доступа к занятому общему runtime; actual UI и merge
+следуют после получения ROOT локального окна. SQL, DTO, формы, права,
+фильтры, direction facet, сводка и импорт в этот срез не входят.
+
+Impeccable Operate/adapt: сохранить EVO/Golos и одну SSR-таблицу с единственным
+sale-ID для возврата к строке. На узком контейнере строки вертикальны, на широком
+сохраняются колонки. Имя, программа, менеджер, дата, годовой месяц, обе суммы с
+их независимыми валютами/unknown, уточнение/архив и preview остаются доступными.
+Мобильные подписи — настоящий текст; семантику таблицы и focus проверяем в AX.
+Без второй копии данных, viewport-JS, новой палитры или финансовых вычислений.
+
+Проверка: scoped lint/typecheck, independent exact-head review и protected CI;
+после передачи runtime — ordinary existing Sales read-only desktop/320/390,
+контекст фильтра → preview → возврат/anchor, отсутствие нового list overflow.
+Использовать реальные имеющиеся строки; недостающие варианты отметить, не
+создавать финансовые данные. Один общий visual pass и максимум один fix/confirm.
+Merge/source, local UI и managed delivery явно различаются; весь пункт7 этим
+срезом не закрывается. Production/providers/финансовые writes не выполняются.
+
+## CRM-02c — локальная приёмка мобильного списка продаж (2026-09-21)
+
+На source `26c8b4c268b628563b5dd5b3226bea47c0866631` ordinary existing Sales
+проверил пять сохранённых локальных QA-записей; новых записей и sales writes нет.
+При baseline 115 список оставался шириной 960 px на телефоне; candidate сохраняет
+таблицу 1120 px при viewport 1440 и вертикальные строки без list overflow:
+390→346/346px, 320→286/286px (region/scrollWidth). Все значения и ссылки пяти
+строк совпали с baseline; browser AX сохранил таблицу, заголовки и пять строк,
+keyboard focus видим. Сентябрьский поиск → preview → «Назад» сохранил query,
+year/month, единственный sale-anchor и видимую строку. Impeccable Operate/adapt
+подтверждён на этом реальном read-only UI пути; native VoiceOver не запускался.
+
+Все 283 бизнес-таблицы/schema и Storage objects/buckets неизменны; собственная
+Auth-сессия восстановлена, сервер/вкладка закрыты. CI source 26c8:
+[35566545192](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35566545192),
+5 PASS / 3 SKIP. Private evidence: `/private/tmp/evo-sales-mobile-actual-20260921/`
+`actual-receipt.json` SHA256 `0c6cd413884449f4ecfca3d3ab41208d3cf9e30f5193d19e491c7f4c086e4626`;
+`release-receipt.json` SHA256 `16ece6aa4a6e6ef84cfae0fae9e0e1caf5a119b0c261b41f96e9607e2cd105c4`.
+Отдельная таблица сводки с min-width400px не менялась; эти замеры доказывают
+ширину списка продаж. Весь пункт 7 и production не объявляются завершёнными.
+После этой приёмки добавлена только документация; runtime-файл сохранён побайтно.
+
+
+## 2026-09-21 — item36: checkpoint после #987/#988/#991
+
+Docs-only на main `82260fdc`: обновлены current fronts execution/A/B и refinement.
+#987 direct quotes227, #988 editor226, #991 mobile sale records приняты в source
+и пределах локальных receipts; история и ограничения не переписаны. #990/229,
+#992 unified feed и #993/228 остаются непринятыми actual блоками. Пункты27/28/31/32
+сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
+DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
+Проверка: diff review и git diff --check; независимое exact-head review до merge.
+
+## CRM-02d — компактная сводка выбранных продаж, precode (2026-09-21)
+
+Baseline main `82260fdc2df3b6d370092633cf1ac1c350fe9af6`, после merged #991.
+Принятый CRM-02 (§поиск/итоги, строки131–142 исходного UX/admissions-плана)
+требует коротких итогов и разделения «Найдено по фильтрам» / «План отдела».
+Этот ROOT-срез меняет только section `sales-period-totals` в
+`src/components/v3/SalesRegisterView.tsx`; отдельный компонент не нужен.
+Параллельные A chat, B admissions и ROOT receipt229 не затрагиваются.
+
+Impeccable Operate + distill/adapt прочитаны с уже загруженным контекстом;
+контекст повторно не запускать, craft-floor прочитать непосредственно перед
+UI-edit после source GO. DESIGN.md сохраняет Golos/JetBrains Mono и текущие
+цвета/отступы: 14px для рабочих подписей/чисел, 12px только для пояснений.
+Просмотрены свежие `candidate-{1440,390,320}.png` из
+`/private/tmp/evo-sales-mobile-actual-20260921/`; target, globals, ui, AppShell,
+layout и DESIGN побайтно совпадают с actual source26c8. Desktop показывает
+крупный счётчик и разреженную сводку; мобильные кадры показывают только нижнее
+пояснение, верх сводки вне viewport. Источник подтверждает min-width400px,
+который не помещается в область286px на320. Полный mobile-before нужен позже;
+существующие снимки не объявляются положительной проверкой новой сводки.
+
+Один выбранный вариант: компактная строка «Найдено по фильтрам» с реальным
+count обычного размера; контекст архива сохраняется. Вместо min-width400px
+таблицы — единый semantic список групп по валюте: видимый код валюты и один
+`dl` с подписями «Стоимость» / «Оплачено по записям» и текущими значениями.
+На широкой области группы выровнены в компактные строки; на узкой подписи и
+суммы переносятся внутри доступной ширины. Один DOM без дублей для mobile,
+обрезки значений, новых карточек/аккордеонов, viewport-JS или новой типографики.
+Сокращаются большие отступы и размер счётчика, не необходимые данные.
+
+Порядок валют, обе суммы, существующее форматирование и счётчики неизвестных
+сохраняются. Валюты не суммируются/пересчитываются, неизвестное не становится
+нулём. Пояснение о накопленных суммах и отдельности месячных поступлений
+остаётся; заметка неизвестных сохраняет оба count. При пустых/архивных итогах
+не добавлять вымышленные нулевые суммы. План отдела получает отдельную подпись
+и собственную визуальную группу вне filtered-count/currency группы, без
+процента выполнения; прежние условие видимости, значение и fallback сохранены.
+**Отдельный remaining:** UI `finance.read.full` и SQL scoped
+`sales.register.target.manage` расходятся, поэтому «Не задан» может означать
+отсутствие доступа. CSS не исправляет этот authority gap; его не скрываем и
+не объявляем закрытым. Здесь нет SQL/DTO/API/permission изменений. Cash section,
+фильтры/формы/import, список991/anchors и расположение страницы «Студенты»
+остаются побайтно вне изменяемого section. Direction facet — отдельный срез.
+
+Source-проверка: scoped ESLint, Next typegen/tsc, diff-check и Impeccable detector;
+CSS-зеркальные тесты не добавлять. После review и передачи runtime ROOT: один
+батч actual ordinary Sales/Admin desktop/390/320 на существующих данных, full
+before/after summary с измерением section overflow и browser AX association;
+сравнить count, currencies, обе суммы, unknown notes, отделённый plan,
+месячный/годовой/пустой и архивный контекст без новых fixtures/бизнес-write.
+Недоступный existing actor/state отметить, не создавать роли/план ради QA.
+Проверить сохранность list991 и filter→preview→back. Максимум один пакет
+исправлений и один confirm; source/CI не заменяют actual UI. Precode approval
+и source GO предшествуют UI-edit; actual runtime требует отдельного окна.
+Ни весь пункт7, ни VoiceOver/native/production этим срезом не закрываются.
+
+CRM-02d source подготовлен после approved precode7b630598: только указанная
+область сводки; count, currencies, оба formatter expression, unknown counts
+и target gate/fallback сохранены. Scoped ESLint, Next typegen/tsc, diff-check
+и Impeccable detector PASS на Node22.23.1; вне этой области файл побайтно
+неизменен. Это source-проверка: actual desktop/mobile/AX и сравнение данных
+ещё не выполнялись; draft сохраняется до отдельной согласованной приёмки.
+
+
+## 2026-09-21 — B3f / 228: отдельные загрузка, отправка и проверка документа
+
+#988 MERGED `28613990d`: bounded editor226 QA/CI/review завершены; полныйRAW
+release `bcb7ed6d` передан A227, B больше не использует общий runtime.
+Root резервирует228 только для следующего single-document B3f; очередь
+A227→ROOT990→ROOT991 сохраняется, apply не разрешён.
+
+Source inventory055/043/116/128/226 показал, что общий current/status и прежний
+review автоматически связали бы A/B. Принято направление отдельных immutable
+program upload/submission/review/download contexts при тех же canonical bytes
+и scan/Storage transport. Старые Docs/manual/visa и approved ZIP guards сохраняются.
+[Precode228](platform/b3f-program-document-submission-contract.md) фиксирует
+approved-current replacement, exact historical-version download, fail-closed
+old readers и узкий SQL context-exclusion на legacy replay-входах. Последнее —
+явное compatibility amendment для review, не глобальное изменение legacy-процесса.
+До кода — независимое exact precode review; следующий полный package B3g отдельно.
+Impeccable Operate сохраняет EVO и функции, уточняя реальные saved/submit/review
+состояния. Runtime/новые файлы/production/native acceptance не заявлены.
+
+Независимый precode review64d4324e потребовал два уточнения до реализации:
+история следует server-proven predecessor-цепочке226 и доступна также для
+удалённых требований; прежнее решение не переносится в новую definition.
+Old-reader PT409 ограничен публичными entrypoints; общий v2 helper сохраняет
+внутреннюю projection для свежего editor/save226 и authorized pending recovery.
+Добавлен узкий changed-requirements сценарий; это исправление полноты контракта,
+не исполненное runtime-доказательство.
+
+### B3f — исходники и независимое source review
+
+Precode `b81c338c` APPROVED. Реализованы SQL228, web/CRM и iPhone save/submit/
+review/history/notification flow. Source reviews проверили отдельно transport,
+SQL, native и web/UX; конкретные найденные ошибки исправляются до immutable
+integration review. [Отчёт](platform/b3f-program-document-submission-qa.md)
+содержит офлайн-проверки, прежние несвязанные source-test failures и предложенные
+actual changed-path сценарии. Это не применённая228 и не готовый production flow.
+Root сохраняет228 за B, резервирует229 для receipt-пути; актуальное runtime окно
+после ROOT990: ROOT991 → B228 → ROOT229. Разрешение на запуск B ещё не передано.
+
+
+### B3f — локальная проверка сохранения, отправки и решения завершена
+
+На неизменном runtime HEAD `571d65a8645b518c3513d8a9eebe36410f929e8e`
+миграция228 применена один раз в согласованной локальной QA-базе. CI
+[35567860470](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35567860470)
+прошёл: шесть выбранных проверок успешны, две maintenance-проверки пропущены.
+
+Обычный Student/Admin UI подтвердил отдельные Save → Submit → Review: V1 принята
+по программе A; новая V2 остаётся черновиком; повторно выбранная V1 получила
+отдельное замечание по B. Старое уведомление A ведёт к принятой V1. Три browser
+скачивания вернули точные bytes V1, V1 и V2. Общий legacy slot целиком неизменён.
+Два ограниченных прохода Impeccable покрыли desktop/mobile web; native iPhone UI
+не проверен. [QA-отчёт](platform/b3f-program-document-submission-qa.md) отделяет
+исполненный основной сценарий от ещё не выполненных recovery/concurrency,
+changed-requirements и legacy-вариантов; весь объём13/17–21 не объявляется готовым.
+
+Итоговая проверка `72d19741efbbc37028ce0e5cb76fa19356e6867349da410207065c6ce82654df`
+подтвердила52 новых строки в17 таблицах,16 audit events, два Storage-объекта;
+прежние строки всех287 таблиц и прежние Storage-объекты сохранены. После выхода
+Auth sessions/refresh tokens вернулись к исходным полным хешам223/238; все три
+созданные этим прогоном сессии отсутствуют. Собственные browser/Next/scanner
+остановлены; точный Next child exit code неизвестен после прерывания supervisor,
+поэтому подтверждены лишь фактическое отсутствие процессов и закрытый порт.
+
+RAW release `/private/tmp/evo-b228-core-ui/release-receipt.json`, SHA256
+`f375371369becc30f1f873badb6a45d182580813ad9829f6e017042fdff39b6a`, передаёт
+локальное окно `nextOwner: ROOT990` с ledger001–228, полным состоянием и рецептом
+сверки. ROOT принял передачу; PR #993 смержен в `f712db2f2b0cdb623f82ea8f5fe048cda7e0d2ee`.
+Отдельный docs-only PR фиксирует результат без изменения проверенных исходников;
+production, внешние провайдеры, полная финальная E2E и App Store не затронуты.
+
+
+## 2026-09-21 — CRM-09e actual-path blocker: saved versions without a current pointer
+
+Ordinary local Admin opening the existing B209 Student1 case on source
+fcfabafa/schema229 hit the real profile error boundary before any receipt upload.
+The authenticated staff document-workspace RPC returned200: both228 saved file
+versions are finalized/verified/clean and download-ready, but `is_current` is NULL
+because migration113 projects `slot.current_version_id = version.id` while228
+intentionally leaves the legacy pointer absent. The strict TypeScript boolean
+decoder rejected that legitimate SQL result and crashed the entire case.
+
+Before coding, extend this receipt-path fix narrowly: accept literal NULL only
+as `isCurrent:false`; preserve exact keys, rejection of missing/string/numeric
+flags, other boolean/security guards and slot current-ID/number consistency.
+No new migration, current pointer, approval, download authority or file rewrite.
+Add regression coverage for no-current versions and malformed/current-pointer
+mismatches, then reopen this same actual case and complete the ordinary receipt
+journey. Source229 apply proof remains atfcfabafa with unchanged SQL; subsequent
+UI evidence must record its newer runtime head separately, never relabel the apply.
+
+
+## 2026-09-21 — CRM-09e actual audit-action failure and forward migration230
+
+Actual ordinary Admin upload on e17e1e52/schema229 reached real ClamAV and
+Storage (POST200), then PostgreSQL rejected `case.payment_receipt.upload` against
+the existing041 `audit_events_action_check`: every dot-separated action segment
+permits lowercase letters/digits, not underscores. The handler returned503 and
+removed only its new object (DELETE200). Full287-table, financial, audit, Storage,
+prefix and Auth-session before/after comparisons are exactly equal; no successful
+receipt exists and no retry has been performed.
+
+Before coding, ROOT reserves230 for a forward-only fix of this receipt function's
+two internal action literals to canonical `case.payment.receipt.upload`. Preserve
+the041 constraint,229 SQL/ledger, all auth/lock/idempotency/body/ACL semantics,
+receipt result and financial data. Assert the expected two replacements and exact
+function identity; fail on an unexpected predecessor. No contract-file expansion.
+Use the canonical action in later actual metadata replay/evidence. The former
+action could not persist under the unchanged mandatory audit constraint.
+
+Website receiver PR996 moves its unapplied migration230 to231; B3g package
+precode moves231 to232. OnlyROOT applies, in order. Verify230 on the actual local
+229 baseline with rollback first, canonicalCLI apply once, preserved full state,
+then a separately recorded new ordinary UI attempt. The prior503 remains failure
+evidence; never relabel it or rewrite migration229.
+
+
+## 2026-09-21 — B3g: неизменяемый состав комплекта и отдельное решение EVO
+
+После #993 и его QA-отчёта #997 (`7aad173f`) ROOT принял направление
+[precode B3g](platform/b3g-program-package-contract.md) и резервирует 232 для
+server/wire части; 231 — website, 230 — исправление аудита платёжного чека ROOT.
+Студент отправляет весь exact состав
+без предварительного staff одобрения файлов, сотрудник отдельно проверяет
+документы и комплект. Starter сохраняет явный смысл стартового комплекта EVO.
+Individual228, canonical bytes и история сохраняются; package review фиксирует
+точные review IDs. UI CRM/web/iPhone и узкий actual packet идут по одному контракту.
+Сейчас только precode: независимое exact-head review до кода; runtime/DDL не начаты,
+локальная база остаётся у ROOT990/229. Полный1–36 и production не объявляются готовыми.
+
+Уточнение по UI review: восстановление неподтверждённых package submit/review
+доступно отдельно от текущей очереди/редакции, привязано к владельцу и повторяет
+точный исходный состав/решение. Scoped QA включает потерю ответа с последующей
+перезагрузкой и сменой revision; очистка только по receipt или `not_written`.
+
+
+## 2026-09-21 — B3g.1: серверный контракт комплекта, offline implementation
+
+После принятого precode #998 (`8b942d506ab575042a1684bdccbd685d566d84fc`)
+координатор разрешил первый кодовый блок: миграция 232, атомарная отправка/проверка
+комплекта, чтение/история/уведомления, общий TypeScript/Swift codec и восстановление
+запроса. UI входит в следующий блок; текущий сохраняет все правила
+[контракта B3g](platform/b3g-program-package-contract.md).
+
+В отдельном worktree SQL-агент владеет только новой миграцией и SQL-тестами,
+серверный агент — новыми adapters/routes и их тестами, native-агент — новыми
+Swift models/pending и codec-тестами. B владеет общим wire, TypeScript codec,
+fixtures, pending и документацией. Общие файлы меняются только своим владельцем.
+Перед реализацией фиксируется точный JSON/RPC контракт; 1–100 пунктов комплекта
+не ограничиваются прежним лимитом 50 отдельных document DTO.
+
+Сейчас разрешены только offline проверки исходников, парсинга и codec; локальное
+окно DB/Auth/Storage/browser остаётся у ROOT для 229/230, затем A15f. Миграции
+230 ROOT и 231 website не копируются и не меняются из чужих PR. Их интеграция
+выполняется явно после слияния; CI может ожидать эти зависимости. До independent
+review и узкой реальной проверки функция не объявляется принятой или готовой
+в production. Native typecheck также не является UI acceptance.
+
+
+B3g.1 wire уточнение до review: оба ответа восстановления (`committed` и
+`not_written`) содержат requestId и case/application, проверяемые по frozen intent.
+Одного operation недостаточно: запоздавшее подтверждение отсутствия записи для
+другого запроса не должно очищать pending. SQL, TypeScript и Swift используют
+одинаковую корреляцию; бизнес-операции и полномочия не расширяются.
+
+
+B3g.1 initial offline validation: 73 scope-local Node checks passed (package
+codec/pending/actions/SQL source and affected 228 document contracts), TypeScript
+noEmit passed, scoped ESLint and diff-check passed. Swift author ran the shared
+fixture and pending/recovery checks: 92 passed. SQL author parsed 96 statements
+and 19 PL/pgSQL bodies with pglast. These are source/codec checks only; SQL object
+resolution, real ordinary-Auth transactions, Storage effects, UI and native screen
+behavior remain unverified until a separately coordinated runtime packet. The
+source block now goes to independent exact-head review; it does not complete B3g.
+
+
+B3g.1 independent review at `071dd526` requested two bounded corrections:
+use the inherited two-valued Student classification for configurable staff whose
+coarse platform role is NULL, and reject U+0000 in package correction reasons
+before TypeScript/Swift pending persistence. PostgreSQL JSONB cannot represent
+U+0000, so both mutation and recovery would fail before entering the RPC
+([PostgreSQL 17](https://www.postgresql.org/docs/17/datatype-json.html)). Other
+supported controls and the 5000-scalar limit remain unchanged. Swift also aligns
+with TypeScript by rejecting reuse from the same submission. Pending retention,
+authorization and request correlation are preserved; these fixes require fresh
+scoped checks and exact-head delta review, not new runtime claims.
+
+Bounded-fix validation: 43 TypeScript codec/pending/action checks and 22 SQL
+source checks passed; the Swift author ran 101 checks successfully. TypeScript
+noEmit, scoped ESLint and diff-check passed; SQL parsing still covers 96 statements
+and 19 PL/pgSQL bodies. These fresh checks cover the changed boundaries; the
+unchanged 228 document-codec evidence remains from `071dd526`. Actual runtime
+validation is still pending coordination.
+
+
+## 2026-09-21 — CRM-09e: фактическая загрузка и скачивание чека
+
+На runtime `3e83d4958ac25c5c9a457ceb35657c52dcd5f0f3`, local001–230,
+проверен обычный Admin-путь: существующая оплата → один чек → скачивание
+исходных766 байт. Суммы, даты и прежние данные сохранены; duplicate metadata
+replay, шесть scoped target/ACL probes и четыре row-lock barriers прошли.
+[QA-отчёт](platform/payment-receipt-local-qa-2026-09-21.md) сохраняет ранние
+ошибки, потерянный observer body201 и восстановление результата без reupload.
+
+Текущая собственная Auth-сессия закрыта обычной кнопкой, old223 hashes сохранены;
+одна идентифицированная собственная orphan-сессия остаётся без токена. Полная
+Auth/refresh-token parity и отзыв прав единственного Admin не заявляются.
+Собственные Next/browser/scanner остановлены. Full287 RAW release37e84090…5df5d
+передаёт окно A15f; независимое reviewcb628f6f…761ea принято. Это завершение
+локального CRM-09e, не всего item12/1–36 и не production.
+
+
+## 2026-09-21 — CRM-02d: integration after local230
+
+#995 integrates main `e5709f1344b3cb9160d0ba12378c2021a08877d3`. The reviewed
+SalesRegisterView bytes remain identical to `9e3baec1`; incoming admissions228
+and payment229/230 are accepted main changes, not additional summary scope.
+Actual UI remains pending the exclusive A15f handoff. The prepared packet is
+`/private/tmp/evo-sales-summary-after230-preparation-20260921/`; its incoming
+release and candidate revision must bind to the real values after that handoff.
+
+Scope-local UI acceptance compares baseline/candidate for existing ordinary
+Sales and Admin at 1440/390/320px: displayed count, currency groups and values,
+unknown notes, department target, semantic association and horizontal clipping.
+At most two visual batches. Filters, query/authorization logic, monthly receipts
+and sale records are source-identical; do not repeat unrelated month/year/archive
+and permission matrices. A single existing-data search/back check is sufficient
+if integration exposes a direct concern. No new business fixtures, role changes
+or scanner are needed. Preserve the incoming orphan session; close only this
+block's sessions and runtime. These observations do not establish production or
+complete item7. Direction filtering and target permission ambiguity remain open.
+
+
+## 2026-09-21 — website enquiry country and university context
+
+Scope: extend the existing same-origin website enquiry receiver so a visitor may
+choose `country: "Undecided"` and optionally supply `university: {slug, name}`.
+Preserve the original eight required fields and accept omitted/null university
+from older forms. Store the bounded visitor-supplied choice in the existing
+append-only receipt JSON; display it in the staff profile's existing website
+submissions section. This does not associate the lead with an authoritative CRM
+university entity or attribute a human case note to a staff member.
+
+- [ ] Forward migration, numbered only after schema-owner coordination: replace
+  the intake RPC with one implementation and a final optional JSONB argument;
+  preserve service-role-only ingress, all existing guards, phone linking,
+  request locking/rate limits, and canonical receipt comparison. Omit the new
+  payload key when empty so pre-release request retries remain identical.
+- [ ] `Undecided` leaves a new lead's interest direction NULL. Existing lead
+  direction/identity/ownership remains unchanged. No invented country mapping.
+- [ ] Server validates bounded exact university shape, projects it through the
+  existing authorized reader, and renders ordinary escaped text with a clear
+  label. Slug is source context, not a URL or claimed catalogue match.
+- [ ] Narrow checks: focused lint/type generation/typecheck, contract validation,
+  SQL review and independent exact-head review. No fake lead/provider calls,
+  no blanket migration/browser suite. Owner will perform the actual submission;
+  successful persistence/business acceptance is not claimed before that check.
+- [ ] Root release owner handles merge, schema coordination and managed release;
+  executor opens a reviewed candidate and does not deploy/apply/arm.
+
+Impeccable context and clarify guidance: keep the current definition-list layout,
+show the chosen university alongside country, translate the undecided sentinel
+into a short Russian label, and allow long names to wrap. Actual populated CRM
+UI proof depends on the owner's submission; static checks cannot replace it.
+
+Schema coordination confirmed before migration implementation: Astra reserves
+`231_platform_website_enquiry_context.sql`; ordered apply is 228 → 229 → 230 → 231,
+owned by the shared coordinator. No separate migration apply, arm or release.
+
+Implementation/check receipt: [website enquiry context](design/v3/references/2026-09-21-website-enquiry-context.md).
+Parser tests, focused lint, Next typegen/typecheck and diff check passed.
+No database execution or real enquiry submission is claimed; owner will submit.
+
+
+Website enquiry coordination update: the coordinator reassigned the unapplied
+website migration from 230 to 231 so migration230 can repair the receipt audit
+namespace required by the real229 path. Only the filename and this slice's
+references change; SQL/runtime behavior and prior validation remain unchanged.
+The shared coordinator owns ordered apply 228 → 229 → 230 → 231 and release.
+
+
+## 2026-09-21 — B3g.1: integration after 229–231 source merges
+
+At coordinator GO, integrate main `b4aed5e348c31fee43fe820179a8e8aade73763d`
+(#990 and #996) into the reviewed package source `6635d454`. Preserve all reviewed
+232, TypeScript and Swift implementation/test bytes and both additive document
+branches. Incoming231 changes only website enquiry RPCs; it adds no package
+contract dependency. Existing local checks remain attributed to their original
+heads; this integration receives independent exact-head delta review and fresh CI.
+Shared runtime remains exclusively A15f; B232 actual QA follows ROOT995 and ROOT231.
+No UI implementation, DB/Auth/Storage/browser action or production claim is added.
+
+
+## 2026-09-21 — B3g.2: package UI implementation admitted
+
+After #999 merged as `47d4a474613e76a1b0d1790922db9fd6bd945831`, ROOT admitted
+web/CRM/iPhone implementation under the accepted B3g contract and wire. No new
+business policy, RPC or migration is introduced. Worktree `evo-program-package-ui`,
+branch `izzhackt/program-package-ui`, starts at that fresh main.
+
+File ownership: web worker owns new applicationPackages components, Student and
+staff preparation integration, admissions package queue/detail, package notification
+route/policy and web RU/KY strings. Native worker owns iOS package service/model/views,
+preparation/notification integration, localization and native validation support.
+Parent owns `src/lib/portal/application-package-ui.ts`, its focused pure-contract
+tests, plan logs and integration. Workers preserve each other's edits.
+
+Use package readiness's100-item projection directly instead of the old50-item
+Documents aggregate; existing individual upload/review/download controls remain.
+Queue rows load exact package detail lazily for deadlines/composition/current file
+reviews. Historical notifications render their frozen decision separately from newer
+package/file reviews. Detached owner-scoped recovery remains available across
+revision and queue changes. Impeccable Operate/craft-floor preserves EVO/Golos and
+native patterns, RU/KY, explicit selection, readable states and focused actions.
+
+Only source and focused checks are currently admitted. No local DB/Auth/Storage,
+browser, simulator or UI runtime before ROOT995 then ROOT231 hands the window to
+B232; A15f currently owns it. Later narrow actual-path/visual proof remains required.
+This UI source block does not close all20/21, accessibility25 or the entire1–36.
+
+
+B3g.2 source checkpoint: web and native implementation complete for independent
+source review. Added dedicated Student owner recovery access from portal home,
+explicit optional-without-file feedback, preserved selection on revision change,
+and owner isolation for delayed responses/retries; these implement the accepted
+contract without a new RPC or policy. See [implementation and evidence](platform/b3g-package-ui.md).
+Checks: 10 pure UI-contract tests, 11 command/presentation tests, 17 Swift
+selection/navigation checks, Next typegen, TypeScript, scoped ESLint, full Swift
+source typecheck, RU/KY/membership/plutil and diff checks passed. Native input
+hashes were verified after the shared disk recovery. Synthetic action ports test
+local orchestration only. Authenticated web/native UI, 232 actual-path QA and
+production remain unclaimed and held for the coordinator's runtime handoff.
+
+
+B3g.2 exact-head review of52426ca requested two historical-display corrections.
+Both retain frozen notification evidence while separately exposing later package
+and current file decisions; no contract/policy/API changes. Added2 codec-backed
+Node regressions; native suite now24 checks. Scoped lint/TypeScript and final
+69-input Swift typecheck passed. Actual-path QA remains a separate unclaimed gate.
+
+### A15f unified chat UI — decisions recorded before code
+
+A15d225/A15e227 are merged; current base main115b895a. A227 actual local apply/API
+passed and full raw window was released to ROOT990. Start A15f source work in an
+isolated chat-only worktree while ROOT owns runtime. No migration or database/
+Auth/browser/server work belongs to this offline step.
+
+Update docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md with the current dependency
+state and concrete SSR/V2 timeline, one composer, V1 draft recovery, context/
+search/anchor, invalidation and seen integration. Pin a500ms stable body dwell
+with visible height at least min(50%body,160px), active visible window, overlay/
+search/quote exclusions and bounded1–50 IDs; never advance legacy read_sequence.
+V1 changes cannot invent direct quote identity; preserve or hydrate from V2.
+Existing unknown operation identities, rights, authored content and dates remain.
+
+DESIGN.md now reflects the already accepted single-feed/direct-quote decision;
+EVO/Golos/themes/AppShell are preserved. Reused A15d desktop/mobile captures are
+historical incumbent evidence and UI/CSS source remains unchanged since then.
+A15g owns density/grouping/channel previews. ROOT retains CaseAgreement and
+SalesRegisterView mobile work; B retains portal/requirements/iPhone. No UI
+implementation or actual UI acceptance is claimed by this precode commit.
+
+
+### A15f implementation staged — actual UI acceptance pending
+
+Draft PR#992 now wires the V2 feed/context, shared composer, direct quotes, V1
+draft recovery, search/anchor return and bounded sparse-seen client. Accepted
+171/223/225/227 contracts are unchanged. Source validation and its limits are
+recorded in docs/qa/crm-team-chat-unified-feed-source-2026-09-21.md. The old
+public-config test boundary was adapted to the additive reader, and the mute
+regression now asserts sparse seen rather than requiring the retired UI read
+button. Neither test is actual UI proof. Independent implementation review and
+ROOT-allocated actual browser window remain required; item15 is still open.
+
+No shared runtime access in this source step. ROOT provided the current queue
+cleanup990 → readonly991 → B228 → ROOT229. The A15f runtime effects will be
+bound separately after that window is released. No merge/release is claimed.
+
+Coordination update after source checks: ROOT reports991 merged at82260fdc and
+runtime handed to B228, followed by ROOT229. A15f remains source/review-only;
+its window is not opened by completion of source validation.
+
+
+### A15f actual local chat acceptance and released runtime — 2026-09-21
+
+Actual ordinary Sales/Admin UI at e1250b58 passed the bounded five-post,
+versioned edit/delete, frozen V1/V2 replay, sparse unread gap/reload, search,
+legacy links, >50 history paging and composer journeys. Desktop1440 and320/390
+inspection preserved EVO and reachable controls. Full local230/287-table
+reconciliation confirmed exact seven commands, four finite seen tuples and all
+original rows; own sessions/browser/server closed. ENOSPC recovery is separately
+pinned, with final read-only state equality and release01b3c17b…8cb51 to ROOT995.
+See docs/qa/crm-team-chat-unified-feed-actual-2026-09-21.md for proof and limits.
+
+This closes A15f's scoped local acceptance, not all item15/first36 or production.
+A15g keeps grouping/density/channel previews and the observed follow-up: read
+search errors should explain retrieval failure rather than an uncertain write.
+Native/IME/screen-reader/moderation/revocation/storage-quota/post-refresh-failure
+journeys remain unclaimed. New main47d4a4746 integration preserves chat bytes;
+no migration is introduced by this chat PR.
+
+
+### CRM-02d actual compact summary and current1–36 front —2026-09-21
+
+Ordinary Sales/Admin baseline0fd6952a/candidatef59adb70 at1440/390/320 preserved
+count, currency values, unknown notes, target visibility and row links. Mobile
+summary no longer horizontally scrolls. Cash positive and universal height
+reduction are not claimed. Full local230/287 business state, catalog, finance,
+Storage and incoming224 sessions restored; own browser/server stopped. See
+`docs/qa/crm-sales-compact-summary-2026-09-21.md`. Mainca7c98ec integration
+preserves exact SalesRegisterView bytes; this is reused proof, not a new run.
+
+`docs/EVO_ITEMS_1_36_STATUS_2026-09-21.md` reconciles the accepted original labels
+and remaining work, preserving earlier historical checkpoints. Local231 then
+applied once with no Auth/submission/business writes; window passed B232.
+No production delivery or whole1–36 completion claimed.
+
+
+### CRM-02e: authorized direction options —2026-09-21 precode
+
+After #995 merge a23490f7, implement accepted item7 direction selector using
+separate read-only RPC233. Existing v1/v2 report and writes stay unchanged.
+Organization and per-row authority precede DISTINCT; include all authorized
+periods/archive states, preserve exact strings/C order, reject overflow above
+1000 or unfilterable legacy values instead of silently truncating/normalizing.
+Strict DTO and shared500-code-point validator; native GET select retains
+unknown current URL values, filters/period/Back/reset. Explicit option error
+keeps exact-text input available without pretending empty success.
+See docs/EVO_SALES_DIRECTIONS_PLAN_2026-09-21.md for scope, grants and acceptance.
+Source-only while B232 owns QA; ROOT coordinates any later local apply.
+No production or fixture creation is authorized by this entry.
+
+
+CRM-02e source implementation: separate RPC233, strict options DTO and shared
+500-code-point validator; native select/error/empty/current-URL identity retained.
+17 targeted Node tests, scoped lint, normal typecheck and static SQL parse PASS.
+Actual local SQL/Auth/UI not run while B232 owns QA. See
+`docs/qa/crm-sales-directions-source-2026-09-21.md`; no deployment claim.
+
+## 2026-09-21 — B3g.2 latest-main integration before actual QA
+
+Merge main `a23490f746c9d13398712eed5e26dffd2330760b` into reviewed UI head
+`ef61dcce0ce8a5c5c93f8c30a69c8ba7308ee351` before local232 apply and actual
+web/CRM verification. Resolve only additive plan-document conflicts, preserving
+both parents. Package web/iPhone implementation, tests and migration232 stay
+byte-identical to the independently reviewed source. Incoming chat/sales changes
+stay intact. Existing source checks retain their exact revisions and limits;
+narrow integration review and current CI are required for this new head.
+No Auth, Storage, DB migration or user-interface action occurred in this merge.
+
+
+## 2026-09-21 — B3g.2 scoped fixes from ordinary package UI verification
+
+The authorized local232 Student/staff journey on de4bf800 submitted an actual
+package, requested corrections, approved its two files and then approved the
+package. It exposed duplicate sibling keys for the review/history components
+(which duplicated the staff form after refresh), repeated missing-material copy,
+and missing exact Student page allowances for package notifications/recovery.
+Fix those three defects together: preserve owner/package/epoch reset identity,
+suppress only redundant aggregate missing-material copy, and add the exact
+recovery pathname plus the fully anchored package-notification UUID pattern.
+Keep ownership checks and all other route denials. Add focused route regressions,
+obtain independent delta review and current CI, then inspect the existing actual
+notification/recovery and staff detail at desktop/mobile sizes. Do not repeat
+submissions, add actors/fixtures, rerun unchanged DB flows, or claim native UI or
+production acceptance. Existing actual receipts remain the evidence for writes.
+
+
+## 2026-09-21 — B item25: portal pending focus, result status and RU/KY metadata
+
+Fresh main c47a8137 contains merged PR1000 and prior PR896 success-focus fixes.
+Revalidation confirms three remaining source patterns: LanguageForm and the two
+learning answer buttons become natively disabled while pending; ExplainPanel
+mounts a populated status region only after the server answer; nine English,
+assessment, profession and message routes still export static Russian metadata.
+This source-only block preserves the existing EVO layout/typography and uses
+Impeccable Operate/harden with craft-floor. Existing success focus stays intact.
+
+Scope: keep pending submit buttons focusable via aria-disabled with synchronous
+activation guards; retain native invalid-input disabling and existing attempt,
+revision, request-ID and retry semantics. Add a pending guard and error handling
+to LanguageForm without changing its guarded language RPC/cookie flow. Mount
+one empty polite/atomic result status before each exercise response, announce
+only the confirmed short verdict after the existing heading-focus transition,
+and leave detailed explanation semantic/non-live. Clear the verdict on the next
+exercise; do not announce complete explanation text. Use existing locale/portal
+strings for the nine route titles, adding only generic Lesson/Profession RU/KY
+labels; retain brand suffix and avoid private-data fetches for metadata.
+
+The current backend, SQL, grading, attempts, profile authorization and native
+iPhone code are outside this change. No shared QA/Auth/Storage/browser/Simulator
+or production action is authorized by this source block. ROOT owns the shared
+window (233 then A234). Scoped existing tests, type/lint and independent exact-
+head source review precede a coordinated actual Student keyboard/language/
+learning check. Actual screen-reader speech remains unclaimed until exercised;
+DOM or source checks do not prove VoiceOver output. Do not reopen PR896 as missing
+work or change assessment autosave without a reproduced defect.
+
+Primary behavior references checked 2026-09-21:
+- MDN aria-disabled: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-disabled — preserves focusability, requires explicit activation prevention.
+- MDN aria-live: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-live — pre-existing polite regions expose later short updates.
+- W3C status messages: https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html — expose action outcomes without unnecessary focus changes.
+- Next generateMetadata: https://nextjs.org/docs/app/api-reference/functions/generate-metadata — use the existing server metadata API with request locale.
+
+### CRM-02e local233 acceptance and integration —2026-09-21
+
+Local apply233 at35499c33 passed exact functions/ledger/ACL preservation. Ordinary
+Sales/Admin directions are ready-empty, consistent with all five retained QA
+sales having no populated direction. The previous v2 report, totals, native GET
+and record/back period survive. An observed alignment/accessible-name defect was
+corrected in1b903e23 and confirmed at1440/390/320 for both roles in the second
+bounded visual pass. Populated selection, other-tenant positive data, overflow,
+VoiceOver and production are not claimed. See
+`docs/qa/crm-sales-directions-actual-2026-09-21.md`.
+
+Full290 business tables/catalog/effects/Storage and incoming224 sessions/239
+refresh rows equal baseline after own logout. Only ordinary Auth user metadata
+and six Auth audits changed. Own runtimes closed; released233 window to A234.
+Mainc47a8137 package UI is integrated without changing either product scope;
+only additive plan appendices conflict. Update the1–36 ledger with completed
+B1000 web/CRM package acceptance and prepared A1002/B1003, preserving native gaps.
+Remaining item7 work is department-target visibility and import placement, not
+an already-correct cash-summary permission rewrite.
+
+
+### CRM-02f / item7a: atomic management state —2026-09-21 precode
+
+After #1001 mergece0ef573, ROOT implements only the confirmed department-target
+state/authority mismatch. New read-only RPC235 returns scoped target/import flags
+and the selected department target in one STABLE snapshot. Keep existing
+organization grant pairs and the current TS/UI report-read entry requirement;
+add that requirement to this new endpoint, without rewriting oldv1/v2 SQL.
+No extra finance rights, role changes, writes or target-history repairs.
+
+Target summary/form use the same authoritative result: confirmed denial hides;
+unknown stops submission and preserves mounted drafts; allowed empty alone means
+“Не задан”. Preserve version/reason/request conflict handling and selected import
+File across transient reader failure; existing save/import commands unchanged.
+All-year/archive fetch rights only; preview/invalid/record/editor skip this read.
+Cash already has correct scoped authority and is not part of this fix. Moving
+the import form remains the later7b block. Impeccable Operate applies within
+current EVO; inspect historical233 baseline, reread craft-floor beforeUIediting.
+
+Contract: docs/EVO_SALES_MANAGEMENT_STATE_PLAN_2026-09-21.md, independentprecode
+approveded9a5f93. Reserve235 behindA234; actualexisting-actor/read-onlyQA after
+B1003 releases sharedruntime. No production/fixtures/targetwrites/importsubmit
+or newAuthactors. Missing actor/data combinations remain explicitly unclaimed.
+
+
+CRM-02f source implementation: additive RPC235 and strict management DTO,
+new authoritative View gates, preserved disabled target/import drafts on unknown
+read. Existing commands, v1/v2 and cash remain unchanged. Eight DTO tests,
+scoped lint, typecheck, whitespace and staticSQL parse PASS. Actual local235
+and browser acceptance pending shared-window release; no database/Auth or
+production use here. See docs/qa/crm-sales-management-source-2026-09-21.md.
+
+### A11 / CRM-07 case-chat queues — decisions before code, 2026-09-21
+
+A15f is merged in #992 / ca7c98ec2. Implement the bounded contract in
+[case-chat queue plan](EVO_CASE_CHAT_QUEUE_PLAN_2026-09-21.md): three queues
+from existing await_state, additive staff reader v2 with q/filter before the
+200-row limit, shared search race guard, current-list invalidation and durable
+selected conversation context. Existing v1, commands, rights, drafts and EVO
+identity remain. Selected-case title outside the queue uses the existing
+authorized full-case snapshot only after chat access; no extra list scan.
+Native history replaceState preserves q/queue without remounting the composer.
+
+ROOT reserved 234 for A; ROOT233 must merge first. Source-only work and review
+can proceed while B owns local QA. Actual migration/API/browser work requires
+ROOT's scheduled window and separately pinned effects. No full item11, shared
+runtime or production success is claimed by this precode entry.
+
+#### A11 / CRM-07 first QA correction — 2026-09-21
+
+Local234 first real UI pass at999040d0 found history-restoration and320px
+selected-chat defects. Apply the bounded correction in the case-chat queue plan:
+URL-owned filter context, fresh authorized history reads and shrinking mobile
+layout, retaining draft/attachment and commands/rights. SQL/apply234 unchanged;
+three permitted await commands restored none. Independent correction review,
+then at most one read-only confirmation batch and full finite-effects closure.
+
+#### A11 / CRM-07 actual local234 result — 2026-09-21
+
+[Actual report](qa/case-chat-queues-actual-2026-09-21.md): SQL234 applied once on
+999040d0; ordinary staff/Student boundaries and three await transitions passed.
+Actual history/320px defects were corrected and one confirmation batch passed
+on37f3d9860. Draft/document card persisted; no messages/file bytes/new actors.
+Full290-table/33-Auth-Storage reconciliation passed with exactly one thread,
+three await receipts/audits, finalnone; incoming224sessions/239refresh preserved.
+Own Auth/browser/server closed. Independent actual/closure review approved;
+window released B1003, which waits for merge1002. Final-head review/merge remain
+gates; production, broad E2E and unsupported positive QA states unclaimed.
+
+### A15g-1 / item15 — read errors and exact retry, precode 2026-09-21
+
+A11/#1002 merged479dd6788. The next accepted minimum is
+[read retry contract](EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md): operation-owned
+read errors, frozen search/cursor retry, separate background failure ownership,
+and terminal late forbidden without changing write protocol or permissions.
+A owns TeamChat.tsx, a small client-safe helper and behavior tests. No SQL,
+fixtures, density/preview scope or shared runtime until B1003→ROOT235 handoff.
+Correct stale current front of A15f plan; retain historical evidence/limits.
+
+## 2026-09-21 — B item25 integration and admitted local234 UI window
+
+After merged PR1002/main `479dd6788b87fc14d4d9e3e809c16e9efff1badd`,
+merge that main once into reviewed PR1003/source `622e40e209e8b3ead33ddb0c04d849654110f7a2`.
+Resolve only additive plan conflicts, preserving both parents and all product
+code. A234 release `bb97645c266ea2fedcfb8ce97d28560313bdf74ff324989421953b1d4050bf90`
+transfers the existing local schema001–234 to B1003; do not reapply SQL234.
+Independent integration review precedes the finite UI check: existing ordinary
+Student, own language RU→KY→RU, affected route titles, pending focus/repeated
+activation, at most one existing available lesson draft/start and one answer,
+and an existing review item only if present. No completed lessons or fixtures
+are created to populate the review bank. Preserve incoming business/Auth/Storage
+state except exact ordinary owned effects; capture complete before/final state
+and close own browser/Auth/server. Desktop/320px observations are actual visual
+evidence; speech is unclaimed unless a screen reader is actually exercised.
+No native unlock, production action, installs or full builds. Release the window
+with raw state/schema001–234 and exact runtime/config/observer pins to ROOT235.
+
+## 2026-09-21 — B item25 first actual UI correction
+
+The first local234 pass at875ec495 confirmed RU→KY and settled KY→RU:
+each double Enter sent one server action, with focus preserved while pending
+and after success; nine changed titles matched KY and mobile320 did not overflow.
+A fast initial restore before hydration also exposed a real local regression:
+the enabled aria-disabled submit button could issue native GET without saving.
+A later overlapping test navigation invalidated that attempt's timeout evidence,
+but the preceding native GET was preserved and independently reviewed as P2.
+Replace only LanguageForm's submit form with a non-submitting container and
+type=button/onClick, retaining the same pending ref/transition/error/RPC logic
+and named native radio group. Keep normal Enter/Space activation of the button;
+do not claim implicit Enter from arbitrary controls. No general hydration layer.
+Preserve first-pass evidence, keep the same owned Student session, review the
+source delta, then one confirmation batch: before-JS activation cannot navigate,
+one ordinary additional RU→KY→RU cycle (profile revision3→7 across both batches),
+and at most one lesson start/answer overall. No lesson completion, new login,
+fixtures, SQL, providers or native actions. ROOT235 remains next after closure.
+
+## 2026-09-21 — B item25 actual local234 closure
+
+[Actual report](qa/portal-learning-feedback-2026-09-21.md): final source
+`f77a457b80d73b3516a0c6018d7899eb1d9635f8` confirms ordinary Enter/Space language
+saves, pending focus and one existing lesson start/answer. Four language saves
+restore RU; no completed lesson or populated review bank was created. The first
+prehydration GET was fixed; the overlapping-driver timeout and failed fully-no-JS
+probe remain recorded as limitations. Nine KY route titles were checked on the
+byte-identical pre-correction route sources; speech/native/production unclaimed.
+Independent offline reconciliation passed 70 checks: 287/290 business tables
+unchanged, exact own profile/draft/two receipts, full catalog/ledger unchanged,
+224 incoming sessions/239 refresh rows preserved, only own login metadata and
+two Auth audits added. Own browser/Auth/server closed. Transfer schema001–234
+and immutable private receipts to ROOT235; final-head review/CI and normal PR1003
+merge remain required before ROOT integrates main for235. Item25 stays partial.
+
+## 2026-09-21 — B items24/25 profile request feedback precode
+
+ROOT accepted the next bounded web slice after merged1003/main7f444455:
+[Profile request feedback](platform/portal-profile-request-feedback.md). Catch
+client-side action rejection and use truthful RU/KY unknown-result copy, keeping
+the same requestId, pending behavior, confirmed success focus and server/RPC196
+contract. Only one component and two dictionary values; no SQL/native/provider.
+Independent precode review precedes implementation; source-only work may proceed
+while ROOT235 then A1005 own the shared runtime. Actual B validation waits for
+its admitted window and permits only a real owned-Next outage with zero business
+writes. No positive deletion request, fixtures, new actors or status reset.
+Native refresh findings and current KY Home evidence remain separate; no broad
+E2E/accessibility/native/production completion claim.
+
+## 2026-09-21 — ROOT item7a local235 closure
+
+[Actual management report](qa/crm-sales-management-actual-2026-09-21.md):
+source3616ea179b91b54d000c5cba5284a6cbb77ccb3a integrates main7f444455
+without changing the reviewed product files. One local235 apply added two
+read-only functions; 290 business and 33 Auth/Storage tables unchanged at apply.
+Ordinary Sales/Admin RPC and UI1440/390/320 confirm scoped management visibility,
+allowed-empty target, rights-only annual/archive state, invalid date rejection,
+and old-v2 body parity. Student/anon/service-role authority denials are actual.
+The initial Student QA binding mismatch stopped after one login before RPC;
+immutable evidence retained, independently reviewed metadata correction reused
+the same captured session for one denial and own logout, without a new login.
+Final business/catalog/Storage equality and all224 incoming sessions/239 refresh
+rows are exact. Only ordinary Auth metadata/audits changed; three owned logouts
+204 and own browser/server closure completed. No target/import writes or fixtures.
+Populated target/other-org/custom-grant combinations and refresh/unavailable/revoke
+retention remain unverified; no acceptance claim is made for those branches.
+The next7b UI block preserves forms and will retain these proof gaps explicitly.
+Final-head review/CI/merge are still required; local235 transfers next to A1005.
+Production authority and delivery are separate.
+
+## 2026-09-21 — B1006 integrates ROOT235 source only
+
+Merge main `d68ce58711b413f8366c80615456cfbbf22a0772` after #1004 into
+reviewed B1006 `a917f332e6410ca6bb3442aeb385a8e7981ee826`. Resolve only
+additive launch/decision-log tails, preserving both histories and product code.
+ROOT235 release `6d04fe14e3993ee49a7f1635b6f0db3cc5bb57d0a170e8219d154ff81a8172b8`
+is assigned to A1005, not a B admission. Prepare only inert file-based observer
+inputs while A owns the runtime; future B baseline must be the direct A1005
+release with fresh source/config/Docker/query pins. Resolve configured Student
+identity against pre-existing users from that admitted state; never copy an
+older B actor ID or create a login/actor to force a match. No SQL reapply,
+Auth/browser/server call, business write or positive deletion request now.
+Independent integration review and current CI precede future B runtime admission.
+
+
+## 2026-09-21 — A15g-1 / PR1005 actual local235 closure
+
+[Actual read-retry report](qa/crm-team-chat-read-retry-actual-2026-09-21.md):
+clean source7d70a71d integrates main d68ce587/#1004 without changing reviewed
+f882fedc product code. Existing custom scoped staff, ordinary Auth and real
+network offline/online confirm original search retry despite changed unsent
+input,50→61 unique search results, context/return,64 history and retained draft;
+1440/390/320 have one composer and no document overflow. Initial driver sequencing
+STOP and intermediate live-session AMR verifier STOP remain separate; the single
+same-session confirmation passed, and unchanged strict final verifier passed
+only after own logout/browser/server closure. No additional product correction.
+
+Independent actual/closure review3796fde3 approved full290-table/catalog/effects
+parity, zero new seen, restored224 sessions/239 refresh/224 AMR hashes, preserved
+8 users/stable fields and old Auth audits; only own sign-in metadata and two
+login/logout audit rows differ. No messages/new actors/fixtures/SQL/providers or
+production actions. Late forbidden/partial hydration remain source regressions;
+pixel anchors, other channels and screen reader/device acceptance are unclaimed.
+Final docs-head review/CI/merge remain; immutable candidatea5e7567c is released=false.
+ROOT must accept the final release before B1006 binds the local235 environment.
+Item15 and all1–36 remain partial. Historical receipts retain their original limits.
+
+## 2026-09-21 — B1006 integrates A1005 and accepts local235 handoff
+
+Integrate main `29e0fb46a8067a6a4f5a9bedce81971aba2f56ff` after #1005.
+Only additive log tails conflict; preserve both and the reviewed B1006 product
+change. ROOT accepted the direct A1005 release `78b487d7a5c8c81da5c0fef4da071343616d39e42d13cbd6a0618618cb0abe67`
+as B1006's sole incoming baseline. Prepare read-only source/config/Docker and
+existing configured Student binding. Independent integration and concrete
+runtime-packet review precede ordinary Auth, owned browser/server and the two
+bounded transport-failure checks. Preserve after-UI observations, then reconcile
+strict full state only after ordinary own logout and closure. No positive account
+request, SQL, fixtures, provider or production changes. Next shared QA owner is
+ROOT7b; item32 remains a separate later admission.
+
+## 2026-09-21 — B1006 actual route STOP; QA closure released to ROOT7b
+
+[Actual report](qa/portal-profile-request-feedback-actual-2026-09-21.md): ordinary
+configured Student login on reviewed source08b90ed1 reached /apply/status rather
+than /portal. No profile/deletion activation, outage or visual pass was performed;
+PR1006 stays draft. Keep source CI35611174459 and its scope separate from actual.
+Reviewed narrow cleanup used the same owned session's real application-status
+logout, then closed only owned browser/Next and removed own Auth files. Unchanged
+strict final0548bab0 plus independent closure review43166e99 prove all290/catalog/
+effects and33AuthStorage preserved except own allowed Auth metadata+two audits;
+incoming224 sessions/239refresh/224AMR restored. Immutable resource release0f78c26c
+hands off to ROOT7b with testOutcomeSTOP and productAcceptancefalse. Preserve
+initial guard/closure-probe failures; no fixture/auth/backend edits or new login
+are authorized by this outcome. Investigate dispatcher eligibility from existing
+captured metadata/source only before proposing the smallest remedy.
+
+
+## 2026-09-21 — B1006 valid existing Student, outage STOP, strict release ROOT22F
+
+[Actual supplement](qa/portal-profile-request-feedback-actual-2026-09-21.md): the
+historical configured alias was a pre209 approval; migration209 already covers
+new approvals, so no duplicate migration/backfill/config/grant changes. A reviewed
+new packet selected the explicit existing authorized post209 Student in memory.
+Clean source5c0da6fa, unchanged product bytes versus reviewed08b90ed1: ordinary
+portal login and hydrated profile PASS. Own dev Next shutdown was followed by a
+saved chrome-error page/first-outage STOP; exact replacement cause UNKNOWN,
+command activation/rejection unproven, no retry/layout/product acceptance.
+Reviewed own API logout204 plus cookie cleanup/exact browser close completed
+without navigation or Next restart. Strict final88d7a5e9 preserved full290/33
+except permitted own Auth metadata and two audits. Resource released to ROOT22F
+by d26f3f48; PR1006 remains draft. Preserve both historical STOP packets. Future
+browser-offline confirmation is files-only proposal after ROOT22F then A15;
+no new UI admission or widened functionality is implied.
+
+
+## 2026-09-21 — A14a compact staff catalogue, precode
+
+A1005 merged29e0fb46a; its local235 window released to ROOT/B1006.
+[Item14 contract](EVO_STAFF_CATALOG_COMPACT_PLAN_2026-09-21.md) independently
+approvedca49e8fb on plan8f081b63. Target source33966da1 is byte-identical on
+incoming29e0fb46a. A owns staff-only UniversityList, optional compact UniversityPhoto,
+a pure program/intake deadline selector+tests, and staff page's shared now.
+Keep query/country/level/pagination30/scoped reads and management rights unchanged.
+Retain actual photo attribution and existing EVO/Golos. Date selection needs
+open/announced source-backed deadline, nonfuture verifiedOn and explicit supported
+UTC/GMT/IANA zone (never posix/right or missing-zone fallback); same-day timed
+expiry follows existing label semantics. Rank published calendar dates, never
+claim earliest absolute instant; keep program/intake/source/time/TZ context.
+No start-date substitution, synthetic intake identity, SQL, Student/detail changes,
+country facet from30 rows, management redesign, provider writes or new fixtures.
+Source checks/review/CI first; actual1440/390/320 and decoded-data comparison await
+ROOT's shared-window handoff after B1006→ROOT7b→B32. No fresh staff baseline is
+available yet and no source-only result claims UI/production acceptance.
+
+
+### A14a source implementation — 2026-09-21
+
+Source030d7c2e implements only the five planned files. Staff rows retain real
+photo attribution, links/filters/permissions and expose a source-backed calendar
+deadline with exact programme/intake context. Explicit zone and local expiry
+parity, level selection, no start-date fallback, no synthetic identity; potential
+portal and default/large photo paths unchanged. [Source receipt](qa/staff-catalog-compact-source-2026-09-21.md):
+10 new temporal checks, typecheck and scoped lint pass. Combined37 checks:35 PASS,
+2 existing failures reproduced on clean main29e0fb46 (old draft lacks reviewKind;
+old SSR child hits server-only photo resolver). Retain both failures, do not
+change unrelated tests or claim full suite/SSR acceptance. No actual UI or shared
+QA/Auth/DB/server/browser use; independent exact-head source review/CI next,
+then ordinary staff UI/data comparison only after ROOT handoff. Whole item14,
+full country facet, management changes and production remain open.
+## 2026-09-21 — ROOT item7b import management precode
+
+After accepted #1004 (main d68ce587), implement the already approved
+[import placement plan](EVO_SALES_IMPORT_MANAGEMENT_PLAN_2026-09-21.md).
+Move the existing import mount out of the daily report into its own internal
+mode=import view; preserve a scoped report entry for authorized custom staff
+and add an independently scoped Admin Settings entry. Preserve existing forms,
+actions, SQL, permission checks and request/File state on router refresh.
+Parse and allowlist report context for a safe Back link; record/editor/saved
+contexts retain precedence. No new writes, migration, content or import submit.
+Impeccable Operate refinement preserves EVO and reduces daily-report noise.
+Precode independent review APPROVED (private SHA
+274c606ed5adbebed2b260c3c7b5aab585dabe29d8653810b5859991b13a0281).
+ROOT source work is isolated; A1005 then B1006 own the shared local runtime.
+Actual7b verification waits its coordinated window; populated/custom-role and
+refresh-retention scenarios are only claimed when really exercised.
+
+## 2026-09-21 — ROOT item7b source implementation
+
+[Source proof](qa/crm-sales-import-placement-source-2026-09-21.md): existing
+import form now mounts only in its own guarded mode; report and Settings keep
+scoped links. Safe internal Back retains the report context; explicit editor/row
+destinations retain precedence. Forms/actions/SQL/readers are unchanged. Seven
+navigation tests, scoped lint and typecheck passed; ordinary UI/Auth/refresh
+acceptance remains pending after A1005 and B1006. No import or production write.
+
+## 2026-09-21 — ROOT7b / PR1007 actual local235 closure
+
+[Import placement acceptance](qa/crm-sales-import-placement-actual-2026-09-21.md)
+on clean3035e912 confirms scoped Admin/custom-staff entry/denial, context-preserving
+Back, annual/archive/invalid contexts, existing record/editor precedence and Admin
+Settings entry.1440/390/320 inspected; original importer/actions/SQL unchanged.
+No file selection or submission. Two driver STOPs remain; an independently reviewed
+finite functional continuation completed remaining branches without another visual
+round or login. Sales passed its first batch. Final6fd1ecbd/verifierf2bdbb91 prove
+all290 business/catalog/effects and33 Auth/Storage preservation, with only owned
+sign-in metadata/four Auth audits. Both logouts204, browsers and owned Next closed.
+The launch-binding stop guard and exact-owned-process cleanup are retained.
+Final docs review/CI/merge and release to B32 remain; no production authority.
+
+
+### A14a / PR1008 integration with accepted main e0276ecd — 2026-09-21
+
+PR1007 merged e0276ecd5a7a0488370745d84d9b983334d85f52 after its independent
+reviews, CI and bounded local235 acceptance. Integrate that immutable main into
+A1008; keep reviewed catalogue product030d7c2e/head3d21b54d byte-identical.
+Resolve only additive launch/decision text and current ledger statuses, preserving
+both parents' evidence and B1006's unaccepted profile/login boundary. Source
+review8b620d9e and CI35611424947 are accepted for3d21; combined source checks
+remain35/37 with two reproduced baseline failures. Do not rerun unchanged product
+checks or treat them as full PASS. Exact integration review/CI remain required.
+ROOT has closed7b and handed the runtime to B32; A catalogue actual waits its
+subsequent immutable release. Inert templatev3 corrections02caf8a0 are approved
+only as offline preparation; all runtime pins remain null, no actual UI/resources
+are used, and no further iteration is planned before a concrete binding/failure.
+Country facet, management, full item14 and production remain outside this slice.
+
+## 2026-09-21 — KB31 bounded provenance checkpoint
+
+Record already completed offline candidate reconciliation; no new product code,
+runtime, content approval or publication. The admitted31-candidate queue now has
+11 with narrow provenance appendices,9 previously reviewed with unresolved claims,
+and11 derivatives still pending. These are work groups, not approved articles;
+appended candidates can also retain unresolved claims. Original text/frontmatter/
+status and source chains were preserved; last batches148/150/152 and151/326 had
+independent exact-byte closure48434643/38d705ab. Raw originals and forbidden material
+bodies were excluded. Update the knowledge execution/report and1–36 ledger, dating
+old operational snapshots and distinguishing local #985 materials from pending
+company-download proof. Prose-only validation: diff review and git diff --check.
+
+
+## 2026-09-21 — ROOT22: sidebar state on client navigation (precode)
+
+Bounded item22 refinement after accepted KB checkpoint #1009 (`06bec2b2`).
+Impeccable Operate guidance: preserve the user's navigation context in the existing
+EVO shell. Sidebar disclosure state currently resets for every query change because
+its React key includes the whole URL. Key it by the already-authorized active
+navigation destination, with pathname fallback for an unknown/hidden destination;
+retain presentation role and access version as reset boundaries. Keep links, route
+guards, groups, mobile onNavigate/onBlur/Escape and visual styling unchanged.
+
+Acceptance covers client Next Link/router transitions within the same destination:
+calendar Next month and Back/Forward; sales reset link after the initial native GET
+has loaded. A different destination or role/access version retains its reset.
+Ordinary GET-form submission, reload/new document and persistent session state are
+outside this fix; no localStorage or form interception. Pure navigation tests cover
+identity/permission boundaries; scoped lint/typecheck, independent exact-head review
+and one bounded ordinary local UI batch at1440/390/320 follow. Actual QA waits B32
+then A1008 resource release, using an existing authorized staff account without
+business writes or role changes. This slice does not finish all item22 typography,
+header or density work and does not authorize production delivery.
+
+
+## 2026-09-21 — ROOT22 sidebar destination source implementation
+
+[Source proof](qa/crm-sidebar-destination-state-source-2026-09-21.md) records
+product d4c7dcdf: key now follows authorized activeId (tagged pathname fallback),
+with unchanged role/access-version boundaries. AppShell, visibility/guards,
+forms and visual styles are untouched.19 real navigation-builder tests, scoped
+lint, typecheck and diff-check passed. This establishes source behavior only;
+ordinary calendar Next Link/Back/Forward and1440/390/320 acceptance await the
+coordinated window after B32/A1008. Native GET/reload remain outside the guarantee.
+
+## 2026-09-21 — A14a / PR1008: реальный каталог и закрытие local QA
+
+Product b8497ad44cd020f0abf112b92a5b4a7c7d459651 прошёл existing Admin ordinary
+Auth и scoped catalogue UI: поиск/страна/уровень/combined/reset/detail/back,
+loaded compact photo/caption/author/source/license/focus и1440/390/320 без
+horizontal overflow. [Actual-квитанция](qa/staff-catalog-compact-actual-2026-09-21.md).
+Первый STOP exact-label select сохранён, одна reviewed confirmation с четырьмя
+select[name] заменами прошла; product не менялся. Набор из пяти опубликованных
+вузов не покрывает positive future deadline или Next: это открытые data gaps.
+
+Strict final: все290 business tables, catalogue/effects неизменны;33 Auth/Storage
+сверены, incoming sessions/refresh/AMR сохранены. Только собственные Auth metadata
+и2 login/logout audit. Own logout204, browser/PID77446+77465/group77417/33252
+закрыты, собственный captured tokenfile удалён. Release047b2e0c передал QA ROOT22;
+B32 STOP не считается product acceptance. Source10/10+types/lint и прежние35/37
+baseline результаты переиспользованы. Docs-only main06bec2b2 сохранён вместе с
+KB row31 и полными append-only журналами; product retests не требуются.
+Финальные independent exact-head review/CI/merge ещё нужны; production не запускался.
+
+## 2026-09-21 — KB31 first-read completion checkpoint
+
+Record the completed bounded first review of the admitted 31-candidate set:
+16 candidates have narrow provenance appendices, 15 retain unresolved claims
+without an appendix, and none await first review. These are work groups, not
+whole-material approvals; unresolved claims also remain in appended materials.
+Last batches 146/147 and 153/154/327 passed independent exact-byte closure
+4a37d170/36e759a2: original prefixes, frontmatter, status, source chains and
+publication manifests were preserved. Retain earlier 11/9/11 history and all
+raw/applicant/trash/secret exclusions, including 125/321–325/328. Update only
+the knowledge QA report, execution checkpoint and item31 row; no product,
+KB or publication writes in this documentation slice. Item31 still needs
+specific business decisions and applicable official-source verification;
+item32 ordinary company downloads remain unproved by this evidence.
+Prose-only validation: diff review and git diff --check; independent exact-head
+review and protected CI remain required before merge. No production claim.
+
+
+### A1008 — финальная интеграция docs-only #1011
+
+Main7be6461de23fe9c8e8a0cd378010d8be03637757 включён с сохранением KB row31
+(16/15/0), пяти входящих docs и всех append-only записей. Runtime/source/test
+дерево остаётся byte-identical actual b8497ad4; новых product checks не запускали.
+
+## 2026-09-21 — ROOT22 partial UI, strict closure and functional remainder
+
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) records
+source32f50df4: first1440 assertions and390 month transitions completed before
+the script's open-menu pointer obstruction. One corrected confirmation stopped
+on document navigation; its cause remains unknown. Preserve both STOPs and
+keep #1010 draft. No product change or third visual/polish round is justified.
+Strict final290/33 passed with only own Auth metadata/two audits; own204/browser/
+server/port/token closure completed, resource6f6ff7ed passed to B32.
+
+Independent prepared plan93841526/reviewaee13ab1 fills only missing390/320
+FUNCTIONAL branches after B32/B1006, without screenshots or1440 repetition.
+Observe real Link interception together with URL/period/epoch/document requests;
+aria-busy is not hydration proof. No forced/prevented event or native fallback.
+Record each stage, one attempt, stop on unexpected outcome. Existing real data
+and source guards remain; no fixtures/tasks/roles/providers/production. This
+changes the method after observed automation stops, not the acceptance standard:
+full relevant UI proof, independent review and CI remain required for merge.
+
+Integrate accepted main d6add883 (#1008) and KB #1011. Both journal conflict
+blocks are retained; the two ROOT product files remain byte-identical to32f50df4,
+and incoming catalogue product files match main. Reuse unchanged scope checks.
+
+### A15g-2 — последовательности одного автора, precode 2026-09-21
+
+PR #1008 смержен в main d6add88372778758b23686fb0bba6ae74181e15b после
+независимого exact-head review beadbefc и CI35623264182. Его actual b8497ad4
+и ограничения остаются в существующей квитанции. A начинает следующий
+принятый ограниченный блок по [плану группировки](EVO_TEAM_CHAT_MESSAGE_GROUPING_PLAN_2026-09-21.md).
+Исходный чат идентичен actual7d70a71d/main29e0fb46; прежние снимки используются
+только как визуальная база, не как приёмка нового поведения.
+
+Принятый precode51ded385 и независимое reviewb42dbc42 разрешают presentation-only
+helper, два компонента ленты и локальный CSS: соседние видимые строки одного
+автора/канала в пределах5минут и одного дня Bishkek, без deleted/sequence gap;
+первая строка, highlighted target и server firstUnreadId всегда полные.
+Имена сохраняются для screen reader, время/edited/quote/mentions/действия видимы;
+16px текст,44px controls, avatar-column, IDs/keys, handlers, ACL, composer,
+seen и scroll-anchor механизм сохраняются. BigInt исключает потерю точности.
+Никаких DTO/SQL/migration, новых сообщений или previews всех каналов.
+
+До отдельного окна A работает только с исходниками: pure behavior tests,
+scope lint/typecheck и прямые feed/read-errors/seen/drafts проверки.
+Auth/DB/Storage/browser/server runtime остаётся в очереди B32 → B1006 →
+ROOT22F → A15. Actual1440/390/320, anchors/actions/draft и честный учёт
+возможного seen требуют будущего согласованного окна; production не заявляется.
+
+
+### A15g-2 — source готов, actual UI ожидает окна
+
+После precode6a128cbc реализован source05705f7a: pure grouping только видимых
+соседних строк, известные highlighted/unread boundaries, сохранённые действия
+и screen-reader авторы. 39/39 целевых tests, scope lint и typecheck PASS.
+Первый typecheck выявил `1n` при текущем target; `BigInt(1)` исправляет это без
+изменения конфигурации. [Source receipt](qa/team-chat-message-grouping-source-2026-09-21.md)
+сохраняет оба результата. Никаких Auth/DB/Storage/server/browser действий;
+actual UI/anchors/draft, независимое review и merge ещё впереди.
+
+
+## 2026-09-21 — B32: два Company download и закрытие local QA
+
+Документировать уже выполненные два скачивания существующих опубликованных TXT
+ordinary Admin через Company UI: app GET → 307 → Storage 200, сохранённые байты
+совпали с оригиналами. Source e0276ecd, scoped parity пяти файлов с main d6add883;
+[actual-квитанция](qa/company-material-download-actual-2026-09-21.md) содержит
+полные hashes. Strict final290/33 подтвердил только grants2/consumptions2/
+receipts4/audits4 и собственный Auth lifecycle, сохранив старые данные/сессии.
+Own local logout204 и закрытие ресурсов подтверждены; UI logout не заявляется.
+Release50fe4292 передал среду B1006; независимое review2abe1d27 принято.
+Исторические STOP и redirect-target net::ERR_ABORTED сохранены без утверждения
+о причине сетевого события. Меняются только эта квитанция, текущие intro/row32
+ведомости и addendum KB execution; весь пункт32/клиентский AI/production не закрыт.
+Никаких runtime/KB/publication изменений в этом срезе. Prose-only: diff review,
+git diff --check; отдельные exact-head review и protected CI перед merge.
+
+
+### A15g-2 / PR1012 — один actual batch и закрытие QA
+
+На source6e401f9c ordinary scoped staff прошёл один existing-data UI batch:
+пара15/16, полный первый/header target,3deleted rows, keyboard reply/menu/link,
+quote/remove, search/context/Back anchor, prependanchor, unsent draft и
+permalink.1440/390/320: nooverflow/onecomposer/body16/timevisible;3снимка
+просмотрены вместе, без коррекционного раунда. [Actual receipt](qa/team-chat-message-grouping-actual-2026-09-21.md)
+сохраняет foreign/unread/variants gaps и отсутствие numeric old/new density
+claim. Это ограниченная technical QA, не весьitem15 или production.
+
+AFTER RAW без intermediateAuthPASS → ownlogout204/browser/33256 closure →
+FINAL5f59a5dc/strict verifier9a2e964c PASS: все290business/33AuthStorage,
+zero new seen, original sessions/refresh/AMR restored, only2ownAuthaudits.
+OwncapturedAuth удалён после finalproof. Release27b0b2d2 передан ROOT для
+следующего B1006 admission; автоматический запуск не разрешается.
+
+Mainc42f3963/#1013 интегрирован только в docs с сохранением B32/KB истории;
+обе append-only истории сохранены построчно в прежнем порядке. Продукт
+побайтно совпадает с actual6e401f9c, старые tests не запускались заново.
+Независимое actual/final-head review, CI финального head и merge ещё впереди.
+
+
+### A1012 — независимая actual/closure приёмка
+
+APPROVED_SCOPED_ACTUAL_AND_CLOSURE831b1f6d принято для actual6e401f9c:
+полные parsed before/final290/33, preserved425audits/224sessions/239refresh/
+224AMR и2ownAuthaudits, zero newseen, UI assertions/PNG/closure подтверждены.
+[Квитанция](qa/team-chat-message-grouping-actual-2026-09-21.md) сохраняет всеgaps.
+B1006 получил окно через ROOT; A больше не использует sharedruntime.
+Final-head review/CI/merge остаются отдельными; product bytes не менялись.
+
+
+## 2026-09-21 — A15: общая строка времени и действий сообщения
+
+PR #1012 принят в main `7faa4748c899b58e25d630f6c3942a6dd21ff663`: final review
+`0036d57d`, CI35631741403 SUCCESS (5 PASS / 3 ожидаемых SKIP), ordinary squash
+exact head88f0479c. Предыдущие actual/gaps сохраняются, production не запускался.
+
+Следующий [двухфайловый контракт](EVO_TEAM_CHAT_SERVICE_ROW_PLAN_2026-09-21.md)
+принят до кода: precode83cf1217, независимое APPROVED_PRECODEeeceef77 и разрешение
+ROOT на source-only реализацию. В Row переносим единственные time/edited в footer
+с прежними Ответить/menu; полный автор остаётся над body, continuation header
+целиком srOnly. Новый scoped CSS не меняет shared messageActions/textButton,
+44px controls,16px body, права, callbacks, keys, details, grouping и seen.
+
+Причина: повторный time line box у коротких продолжений. Выигрыш остаётся
+проверяемой гипотезой; baseline112.1875/136.984375/161.78125px для1440/390/320
+сохраняется без выдуманного процента. Разрешены scope lint/typecheck и независимое
+source review; actual UI/anchors/draft/ширина нужны позже в отдельном окне ROOT.
+Сейчас QA у ROOT22G; Auth/DB/Storage/browser/server не трогаем. Превью всех каналов,
+DTO, миграции и весь item15 вне этого PR.
+
+
+### A15 service row — source готов к независимому review
+
+Контрактbe254e6f → product30f8fa3f: время/edited перенесены к действиям,
+повторный авторский header сохраняется через srOnly; Row и scoped CSS,
+shared classes/права/DTO/grouping/seen неизменны. Scope ESLint и typecheck PASS
+на Node22.23.1; [source-квитанция](qa/team-chat-service-row-source-2026-09-21.md).
+Прежние39/39 не повторялись. Actual1440/390/320, anchors/menu/draft и выигрыш
+плотности ещё не доказаны. QA остаётся у ROOT22G, runtime не открывался.
+
+## 2026-09-21 — B1006 first browser-offline rejection PASS; resource release ROOT22G
+
+[Actual report](qa/portal-profile-request-feedback-actual-2026-09-21.md): after two
+preserved STOPs, ROOT admitted one genuine browser-context offline attempt with
+Next kept running, no mocks/route interception/retry/screenshots. This replaces
+only the failed verification method, not product semantics. Existing authorized
+post209 Student; frozen sourcec4d73455. One Enter produced one matching POST/
+requestfailed ERR_INTERNET_DISCONNECTED, RU neutral alert, enabled recovery,
+same document/button/epoch and no false success. Discarded the original document
+while offline before restoring online; ordinary own Auth API logout204, cookie
+cleanup/exact browser close, then own Next36648 stop. Strict final2891910b proves
+full290/33 preservation except allowed own Auth metadata/two audits; resource
+releaseb18b832e hands off ROOT22G. Retry/Space/KY/layout/positive deletion/native/
+VoiceOver/full E2E/production remain unclaimed. Current-main7faa4748 integration
+preserves all incoming files and both additive shared-log histories; B product
+bytes remain identical to actual c4d. Final exact-head review and protected CI
+remain required before ordinary merge; no new QA window or deployment implied.
+
+Independent actual+closure review27e335dd is APPROVED_SCOPED_NEGATIVE_UI_AND_CLOSURE;
+this does not claim server-command execution or positive request acceptance.
+
+## 2026-09-21 — ROOT22F partial functional result and main1013 integration
+
+Preserve both main c42f3963 Company-download checkpoint and ROOT22 history.
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) adds the
+single 34b6bd0b functional attempt: 390 Week/Back/Escape passed; same-sidebar's
+10-second waiter stopped because it defaulted month while the bare route defaults
+week. This is a proven harness/source mismatch, not a product bug or completed
+same-sidebar acceptance. Different destination and 320 were not run; no 1440 repeat,
+screenshots or retry. Any corrected inert proposal remains unexecuted preparation.
+Strict final 290/33/catalogue/effects and old sessions/refresh/AMR reconciliation
+passed; only own Auth metadata/two audits changed. Own API logout 204, browser/token/
+process/port closure and actual Ctrl-C exit 1 are retained. Release 11e05efb passed
+the environment to A15; product acceptance=false and #1010 remains draft.
+Only documentation changes; both product/test files retain 34b6bd0b bytes. Preserve
+current main rows 14/32 and update only the sidebar row 22/intro. Diff/marker review
+and git diff --check only; exact-head independent review/CI still gate merge.
+
+Corrected remainder script04f53dc1 / independent inert review9f334e2a is prepared
+only: bare Calendar expects week;320 selects the real «Месяц» Link before monthly
+checks. Passed390 Week/Back/Escape and1440 are excluded. It remains UNBOUND and
+unexecuted, queued after A15 and B1006 with fresh source/release/actor binding;
+no runtime admission or full item22 acceptance follows from this preparation.
+
+
+## 2026-09-21 — ROOT22G scoped functional acceptance and main integration
+
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) appends the
+single remaining functional pass at f5f8fef2: 390 same/different-destination and 320
+Month/next/Back/Forward/Week/Escape/focus/menu passed with trusted client Link,
+correct URL/period and unchanged document. No 1440 repeat or new screenshots.
+Independent actual/closure review 799f96ff accepts the bounded remainder; earlier
+STOPs and their precise limits remain historical, not relabelled successes.
+Strict final 290/33/catalogue/effects, original sessions/refresh/AMR and own cleanup
+passed; only own Auth sign-in metadata/two audits differ. Logout API 204, closed
+browser/server/33254, removed captured Auth and actual Ctrl-C exit 1 are retained.
+Release 77a63714 passed to A1014; its pre-review productAcceptance=false is immutable.
+The narrow client-navigation function is locally accepted, not the whole item 22,
+native GET/reload persistence, other roles, a new visual cycle or production.
+
+Integrate main 8b6259ec (#1012 at 7faa4748; #1006 at 8b6259ec), preserving both journal
+histories and current catalogue/KB/download rows. Align current rows 15/24 to those
+verified merges without widening grouping or negative-profile evidence; row 22
+records this actual result. Four shell/navigation files retain 32f50df4 bytes;
+other incoming product files retain main bytes. Documentation diff/marker/parity
+review and git diff --check only; no product tests, runtime or production action.
+Final exact-head documentation review and protected CI still gate #1010 merge.
+
+
+## 2026-09-21 — ROOT14 country facet implementation contract
+
+After #1010 merged at59a726b5, implement the bounded [staff country facet](platform/staff-catalog-country-facet.md). ROOT reserves236 after fresh source inventory001–235. The current static ISO menu will use the complete authorized published-country projection for staff only; Student controls, six-country admissions scope, compact rows and existing readers stay intact. One additive staff-only RPC, strict DTO, explicit failure and preserved absent-country deep links. Precode review08c1a108 approved; Impeccable Operate applies. A1014 retains sole shared-QA ownership until strict release; this contract authorizes source work, not concurrent runtime or production. Source/actual/final review and protected CI remain required; known single-country data cannot prove multi-country/pagination positives.
+
+
+## 2026-09-21 — ROOT14 published-country source implementation
+
+[Source evidence](qa/staff-catalog-country-facet-source-2026-09-21.md) records productf8622d86: additive236 staff-only scoped country RPC, strict complete-facet DTO and staff select wiring. Seven pure tests, scoped lint/typecheck and SQL/PLpgSQL syntax checks passed. The selected missing country remains explicit; no static-list/empty-success fallback masks errors. Existing Student rendering, data and other readers are preserved. Exact-head source review, CI and coordinated local migration/ordinary Auth/UI remain pending; no runtime or production acceptance is inferred.
+
+
+## 2026-09-21 — ROOT14 source review correction: country reset
+
+Independent source review3f5c74a4 found one P2: the uncontrolled country select can retain CN after a client Link resets the URL. Key only the staff select by committed country; preserve other controls and Student behavior. This implements the existing filter/reset contract, not a new feature. Actual reset remains unverified until the coordinated UI pass; the earlier failed source verdict is retained.
+
+### A1014 — actual принят, строгая передача QA и интеграция main
+
+Exact source2f467e5b прошёл один existing-data UI batch1440/390/320 без коррекций.
+Одна строка времени/действий сохраняет44px controls/16px body, AX автора, menu,
+quote/draft, search/context/Back, prepend anchor/details identity и permalink.
+Та же пара: высоты112.1875→94.796875 /136.984375→119.59375 /161.78125→144.390625px;
+каждая −17.390625px, visible6→7/4→5/4→4. [Actual](qa/team-chat-service-row-actual-2026-09-21.md)
+сохраняет все отсутствующие варианты, initial readiness STOP и log-parser note.
+
+Raw after → own logout204/browser/server close → finalc9d5e401/strict6cf2902f
+PASS:290 business/33AuthStorage, zero seen/Storage,431 старых audits/8 users и
+224/239/224 sessions/refresh/AMR сохранены; только2ownAuth audits/metadata.
+Own Auth удалён после success, Ctrl-C exit1 записан честно; user33216 не тронут.
+Release7ca6c43a передан ROOT_COORDINATOR. Независимое actual/closure reviewa76c16a6
+принято. Runtime A закрыт, дополнительного visual pass нет.
+
+Main59a726b после #1006/#1010 интегрирован в4f33577f: chat bytes равны actual,
+3 импортированных product files и navigation test равны main; обе append-only
+истории сохранены. Sidebar destinationKey не меняет AppShell/chat layout; portal
+profile не входит в staff chat flow. Final exact-head review/CI/merge впереди;
+весь item15/production этим срезом не закрывается.
+
+
+### A15 — bounded channel preview reader/DTO до кода, 2026-09-21
+
+После merge #1014 / main24e78024 независимый precode review7a844584 принял
+предложение1ee57581. [Контракт](EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md)
+разделяет reader/DTO и последующий rail UI. ROOT резервирует237 и разрешает
+только первый source блок: additive latestPreview в существующем channels RPC,
+strict decoder и pure monotonic snapshot/preview acceptance с protocol tests.
+Сохранить authority156, sparse unread225, current signature/grants/STABLE/DEFINER,
+index223; latest включает replies/tombstones, body cap240 Unicode characters.
+Нет новых таблиц/index/subscriptions/N reads/timers; права/Composer/feed/seen
+и UI не меняются. Late search/background metadata не должны воскресить закрытый
+канал или старое тело после удаления; null и malformed/failure различаются.
+
+План/journals записаны до кода в isolated izzhackt/team-chat-channel-previews.
+Shared QA остаётся ROOT236, затемB1015; apply237/Auth/browser/server/runtime
+здесь не разрешены. Source checks и draft PR — ещё не actual acceptance/merge.
+Фиктивные actors/messages/grants не разрешены; protected CI, independent review
+и отдельный принятый actual packet остаются обязательными до merge. Rail UI
+начинается после первого merge; весь15/1–36/production не объявляется готовым.
+
+
+### A237 — source clarification before decoder hardening
+
+Message id and sequence_id are globally unique in migration141. The strict
+channels decoder will also reject repeated latest-message id or sequence across
+different channel projections: this is an impossible wire snapshot, not a second
+valid copy. Add a meaningful protocol case for this invariant; no SQL/UI scope
+change. The first15 protocol cases passed before this addition. Initial local
+SQL-parity extractor selected225's earlier seen function; scoping extraction to
+team_chat_channels confirms unchanged actor/unread/ACL source. No DB ran.
+
+
+### A237 — reader/DTO source готов, actual ожидает окна
+
+Source8104e106 реализует bounded latestPreview в237 и strict decode единственного
+channels RPC; pure acceptance helper подготовлен для следующего rail UI блока.
+[Source evidence](qa/team-chat-channel-previews-source-2026-09-21.md):16/16 protocol
+cases, typecheck и targeted lint PASS; exact actor/unread/ACL source225 preserved.
+Никакой SQL/Auth/RPC/UI/runtime проверки ещё нет; helper в UI не подключён.
+ROOT236/#1016 ещё не в базе main24e78024:001–235,236 не дублируется. До finalCI/
+actual237 — интеграция ROOT236 после merge и отдельный handoff послеB1015.
+Draft PR/source review впереди; actual/review/protectedCI остаются merge gate.
+
+## 2026-09-21 — B24: precode обратной связи о прочтении уведомлений
+
+После обычного merge #1006 в main8b6259ec выбран один оставшийся web-сценарий:
+[локальная ошибка single/bulk mark-read](platform/portal-notification-read-feedback.md).
+Исходники и независимый source-разбор подтверждают отсутствие local failure
+feedback; runtime здесь не выполнялся. Предложены общая клиентская форма,
+RU/KY alert и ручной повтор с сохранением existing actions/RPC/IDs/guard,
+неатомарного bulk и остановки на первой ошибке. Public unstable_rethrow для
+сохранения framework redirects — явно открытая деталь precode review, с
+зафиксированным официальным предупреждением о стабильности. Код не менялся.
+ROOT передал QA A1014; B остаётся files-only до отдельного admission.
+
+### B24 — source implementation после принятого precode
+
+Precode0e4317c5 независимо APPROVED_PRECODE49b1f3e2; координатор разрешил
+ограниченный source-блок. Наfd7f0900 общая клиентская форма добавляет локальную
+RU/KY ошибку и ручной повтор single/bulk/detail, сохраняет server actions/RPC/
+IDs/guards и first-error bulk. Public Next16.3.4 unstable_rethrow принят с
+задокументированным риском; служебные redirects пробрасываются, новых внутренних
+imports нет. Установленный public API:4/4 unit PASS; i18n8/8/source7/7 PASS,
+UI wiring18/22 с четырьмя отдельно воспроизведёнными baseline8b6259ec failures.
+Scoped lint/TypeScript/diff-check PASS. [Source checkpoint](platform/portal-notification-read-feedback.md)
+сохраняет точные ограничения. Actual/QA/source review/CI/merge ещё не заявлены;
+shared QA у A1014, следующий слот B не назначен.
+
+
+### B1015 — source approval и интеграция main59a726b
+
+Независимое APPROVED_SOURCE_ONLYff585096 для1c296e85 принято координатором.
+Интегрирован свежий main59a726b (#1010): обе ordered journal histories сохранены,
+актуальные строки ведомости приняты без изменений. Все6 B product/test files
+побайтно сохраняют sourcefd7f0900; другие incoming main files сохранены.
+Никаких новых product edits, тестовых повторов или runtime-действий. Прежние
+source checks сохраняют свои ограничения, включая4 baseline UI-contract failures.
+Draft #1015 ждёт CI интеграционного head; прежний DIRTY/zero-CI не считается
+проверкой. Actual B только после handoff ROOT_COUNTRY236 и отдельного admission.
+
+
+### B1015 — свежий main24e78024 после параллельного merge #1014
+
+Пока отправлялась интеграция59a726b, A1014 вошёл вmain24e78024. Он также
+интегрирован files-only: сохранены актуальные статусы и полные ordered истории
+обоих потоков. Входящий код относится только к staff team-chat component/CSS
+module; общий Portal/Auth/Next contract не менялся. B product/test bytes всё
+ещё равныfd7f0900, без новых исправлений или повторного runtime. Предыдущий
+headf0c346cd не получил CI из-за опередившего merge; новый frozen head должен
+получить свои checks. Actual B остаётся после ROOT_COUNTRY236handoff.
+## 2026-09-21 — ROOT14 country facet actual and main integration
+
+Actual deeaed89 passed one local236 CLI apply and one ordinary Admin/Student
+RPC/UI batch1440/390/320. Published CN, absent MY, native GET search/level/combined,
+country Link reset and full reset passed. No suspected inherited reset failure
+occurred. Own logouts204/browser/server closure and strict final290/33 preserved
+all business data and incoming224/239/224 sessions/refresh/AMR; only two own users'
+sign-in metadata and four Auth audits differ. [Actual evidence](qa/staff-catalog-country-facet-actual-2026-09-21.md)
+records the finite scope, missing datasets and independent review28f1a365.
+No production or catalogue write occurred. QA was released to ROOT, then a
+separate coordinator handoff assigned B1015 with a fresh binding still required.
+
+Integrate main24e78024 after #1014's accepted final head5f46d6ac and CI35635247615;
+retain both journal histories, unchanged country product bytes from deeaed89
+and incoming chat files from main. Correct current item14/15/22 and local236
+status without rewriting historical receipts. Source checks and unchanged
+runtime evidence are reused; integration/docs need diff/parity review and the
+protected final PR checks, not another visual cycle. Whole item14/manage,
+whole items1–36 and production remain incomplete.
+
+
+### A237 — интеграция канонической236, source перед повторным exact-head review
+
+ROOT1016 смержен в main9f7dde1d8b040d555af647a2b89628d06d6b921f
+2026-09-21T18:33:21Z. Интегрируем этот main в проверенный9fc0785c; все пять
+A237 source/test/SQL файлов побайтно сохранены, импортированные файлы ROOT236
+равны main. Оба append-only журнала сохраняют записи обоих родителей. Repo
+миграции теперь001–237; это не подтверждение применения237 к локальной базе.
+
+Источник и16 protocol cases прежние; повтор локальных product tests не нужен
+из-за одной интеграции независимого staff country reader. Проверяем diff,
+parity и fresh protected CI. Exact-head review впереди. Shared QA остаётсяB1015;
+apply/RPC237 и второй rail UI блок не запускались.
+
+
+### A237 — local reader/DTO actual принят, ресурс возвращён ROOT
+
+На sourcebb24f35f выполнены один canonical local apply237 и четыре ordinary
+Auth/PostgREST probes. Ledger001–236→001–237; изменено только тело существующего
+channels(uuid),1191 identities/OID/owner/ACL сохранены. DDL reviewe133a066 принято.
+Admin200 дал3 канала,2 latest/1 empty, exact production decoder и независимая
+canonical projection совпали. Admin nil-org403, Student403, anonymous401 —
+реальные42501 отказы. [Actual-квитанция](qa/team-chat-channel-previews-actual-2026-09-21.md)
+сохраняет неподтверждённые custom/inactive/no-scope/foreign-tenant и latest
+own-author/reply/tombstone/long-body варианты; UI/native/races не заявлены.
+
+Полный final3610d43f/closure3d267de8 сохранил290 business/33AuthStorage; отличия
+только timestamps двух existing users и4 own login/logout audits, zero seen.
+Входящие224/239/224 sessions/refresh/AMR сохранены; own logout204 оба, два своих
+private Auth captures удалены. Independent RPC/strict-closure review97acb1ae
+принято; отдельный ROOT handoff07d28083 передал ресурс ROOT_COORDINATOR. A больше
+не выполняет runtime. Старые STOP и подтверждённая ROOT recovery сохранены.
+
+Следующий шаг — интеграция main436865af после #1015 с сохранением обоих журналов
+и всех пяти A237 source/test/SQL bytesbb24. Неизменные scoped source/actual
+результаты переиспользуются; diff/parity, fresh protected CI и независимый
+final-head review обязательны. CI35639431195 наbb24 принят ранее и не заменяет
+новый CI. Rail UI начинается после merge #1017; whole15/1–36/production не закрыты.
+### B1015 — один offline single-form actual, закрытие и main9f7dde1d
+
+На frozenfa4ad8e8 существующий Student выполнил один Enter в одиночной форме
+уведомления с offline только собственного browser context. Единственный matching
+POST отказал ERR_INTERNET_DISCONNECTED; RU local alert, pending, восстановление
+кнопки/фокуса и неизменное read-state/list/document наблюдались. Retry/positive/
+bulk/detail не выполнялись. Своя local Auth logout204, cookies/browser/captures
+и Next закрыты; strict final290/33 PASS, zero business/Storage writes.
+[Actual](qa/portal-notification-read-feedback-actual-2026-09-21.md) сохраняет
+полные SHA и ограничения. Среда передана ROOT_COORDINATOR; independent actual
+review `94914f03` принято координатором. Пункты23–24, native, полный E2E и production не закрыты.
+
+После закрытия согласована files-only интеграция main9f7dde1d (#1016/236).
+Все6 B product/test files побайтно равныfd7f0900, incoming main code и полные
+ordered истории обоих journals сохранены. Строки14/15/22/31/32 ведомости
+сохранены изmain; строка24 дополнена узким actual и gaps. Повторного QA или
+тестов не было; прежний CI35635859635 относится кfa4ad8e8. Интегрированному
+final head ещё нужны независимое review и protected CI перед merge.
+
+
+### A237 — main436865af интегрирован после actual, final-head gate
+
+Merge0a1cdeb11533d408b56e99bdc1431ea1549dfab1 сохраняет обе полные ordered
+nonblank истории родителей41810d1b/436865af. Пять A237 source/test/SQL files
+побайтно равны actualbb24; шесть входящих B product/test и две B-документации
+равны main. Ведомость обновляет только текущий срез/local237/пункт15, сохраняя
+остальные строки main. [Source/integration](qa/team-chat-channel-previews-source-2026-09-21.md)
+и [actual](qa/team-chat-channel-previews-actual-2026-09-21.md) различают прежние
+source-only этапы и принятое узкое RPC доказательство. Runtime не повторялся.
+Fresh protected CI и независимый exact-head review впереди; #1017 пока draft,
+rail UI ждёт merge. Production и whole15/1–36 не закрыты.
+
+
+### A15 — rail previews precode после merge #1017
+
+#1017 смержен вc675d4b4 после exact-head reviewf36fec39 и CI35645855198
+(6SUCCESS/2SKIP) наab45c3a6. Новый isolated branch team-chat-channel-preview-rail
+содержит только [предложение второго блока](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md),
+ещё без product edits/runtime. Общие request tickets на refresh/search и
+принятый acceptor; latestPreview каждой строки; только presentation latest state
+удаляется, обязательные tail refs/hydration сохраняются. Mobile nav показывает
+существующий background failure/retry и forbidden, conversation ownership прежний.
+
+Impeccable4.3.1/Operate context переиспользован: сохраняем EVO/Golos/rail/unread.
+Прочитаны три сохранённых1014 PNG; восемь source/token/brand файлов равны1014,
+290 business-table snapshots1014→237 совпали (только saved evidence). Desktop
+rail имеет частичную visual basis;390/320 feed PNG не являются mobile rail
+baseline. Evidenceb28b4823; план задаёт точный будущий incumbent batch и scoped
+actual с предварительным seen binding. Craft-floor непосредственно до UI edit.
+
+QA у ROOT→manage incumbent→B1018; сейчас нет Auth/SQL/browser/server. Новая
+миграция не требуется,238 зарезервирована ROOT. Precode/source review перед
+реализацией; это не весь15/1–36 и не production.
+
+
+### A15 rail — принят precode, ограниченный logic-only этап до UI
+
+Независимый APPROVED_PRECODE430b613f на9eb9f51f принят ROOT. Разрешены общие
+request tickets и strict metadata acceptance в двух прежних refresh/search
+путях, pure preview formatter и целевые tests. На этом этапе существующие
+markup/CSS, latest presentation state, hydration/seen/feed/actions сохраняются;
+formatter к JSX пока не подключается. Это стадия одного coherent rail блока,
+не отдельное завершение UI/merge. Мобильная композиция выбирается после
+недостающего incumbent. План/журналы обновлены до source edit; craft-floor
+перечитан перед правкой component logic. QA остаётся ROOT→B1018; A готовит
+только inert incumbent packet, без Auth/SQL/browser/server/runtime.
+
+
+### A15 rail — logic-only source подготовлен к независимому review
+
+В двух существующих refresh/search путях подключён общий metadata ticket и
+прежний strict acceptor; stale metadata не отменяет feed/search, contradiction
+даёт unavailable прежнему owner до participant/feed/watermark. Revoked очищает
+ref/state. Additive pure formatter имеет null/own/other/tombstone/literal-text
+cases. Весь JSX/CSS и decoder/acceptor prefix побайтно прежние; formatter ещё
+не используется, presentation latest state сохранён до visual этапа.
+[Source evidence](qa/team-chat-channel-rail-logic-source-2026-09-21.md):31/31 pure
+tests, typecheck и targeted lint PASS; parity9173d669. No actual/UI/runtime,
+исторические screenshot ограничения остаются. Независимый source review впереди;
+это стадия одного rail блока, не отдельный завершённый UI или merge.
+
+
+### A15 rail — actual incumbent получен, UI source этап разрешён — 22.09
+
+ROOT просмотрел один c675 Admin batch390/320/1440 и разрешил следующий UI этап
+[того же плана](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md). Mobile rail gap
+закрыт: links68–69.6px/no overflow/Enter-back на320; desktop288px, preview13px.
+Короткий Impeccable critique записан до product edit: selected-only preview
+скрывает последнее сообщение «Продаж» (unread1), пустое «Поступление» не объяснено.
+Сохраняем принятую композицию; подключаем latestPreview ко всем строкам,
+mobile background error/retry и forbidden. Unknown остаётся failed read,
+не empty; foreground ownership, feed/seen/Composer и обязательный latestId
+сохраняются. Craft-floor перечитан, launcher не повторялся.
+
+[Actual evidence](qa/team-chat-channel-rail-incumbent-2026-09-22.md): summary3db207bf,
+final2d7889b8/strict6936f53d,290 business exact/seen0, inherited Auth rows exact,
+own logout204/browser/server closed/cookie removed. Независимое actual closure
+review у ROOT. Новый runtime/postchange UI batch отдельно по общей очереди;
+здесь только source. Ни238, ни production, ни весь15/1–36 не закрываются.
+
+Независимое incumbent actual/closure review5113321d принято ROOT; normalized
+release5902ec18 передал общий runtime ROOT238. Raw proof/verifier неизменны.
+Следующий этап A — только согласованные UI source edits и source проверки.
+
+
+### A15 rail — source UI подключён, actual после изменения впереди — 22.09
+
+После891653d4 brief/incumbent critique подключён approved formatter к каждой
+строке latestPreview. Mobile nav показывает прежний background ticket/error/
+retry/pending либо forbidden/login; conversation JSX остаётся побайтно прежним.
+Удалён только presentation latestMessageId state/lookup, обязательный latestId
+и hydration сохранены. CSS добавляет только desktop-hidden/mobile feedback.
+
+[UI source evidence](qa/team-chat-channel-rail-ui-source-2026-09-22.md): новый
+typecheck и targeted lint PASS;31 pure cases переиспользованы с2c442162 по12-file
+byte parity (не новый прогон). Unknown не выдаётся за empty, tombstone не выдаёт
+старый текст. Нового runtime не было; independent source review/new PR и один
+future postchange batch впереди. Shared runtime ROOT238; production не менялась.
+
+## 2026-09-21 — Item14 manage search / additive238 precode
+
+Accepted contract: [staff catalogue manage search](platform/staff-catalog-manage-search.md). Base9f7dde1d; ROOT reserves238 after A237. Implement scoped pending-draft literal search and mixed keyset50+1, strict DTO/query/listContext and additive reader first. Preserve legacy readers, commands, publications, permissions, all143 editorial templates and exact retry. UI index/editor remain unchanged until actual incumbent inspection; no SQL/Auth/runtime execution in this checkpoint. Integration of actual237 is required before protected migration checks; no fabricated predecessor. Plan approval is not actual acceptance.
+
+
+### ROOT238 manage — incumbent inspection and UI implementation, 2026-09-22
+
+Actual source f3871a0537605fd23ff847a2e312291de098a3e1 was inspected once by ordinary local Admin at 1440/390/320. The index has no search; Add is below 143 templates and the batch action dominates. Queue is empty, so draft detail/editor were not inspected. Incumbent receipt SHA256 89c0d3587dd84ade2ad7e09fc57b51cdec86dcb84ee869890e3e64f3a8a82528; strict final290/33 passed after own logout. Intermediate live AMR verifier STOP is retained; no allowlist was changed.
+
+Implement the approved manage contract: one header Add, labelled native GET name search, real238 pending page/count/cursor, independent name filtering of all templates, secondary batch and canonical listContext return links. Preserve forms/actions/template bytes and EVO/Golos. This authorizes source work only; migration238 and post-change UI acceptance remain pending after the current shared QA owner closes.
+
+
+### ROOT238 manage — real local acceptance, 2026-09-22
+
+Source `4bf6b9dbec8f04fc36db74a1f8547939c84081c6`: one local apply238, ordinary Admin empty/literal RPC reads and Student/anonymous/service/mismatched-organization denials; one ordinary Admin UI batch1440/390/320. Native search of the existing143 templates, template view/context Back, reset, browser history and real Tab passed. All290 business tables and33 Auth/Storage invariants passed strict final after own logout204. Own browser/child process closed and reaped; an initial post-stop socket-bind OSError is retained, with later read-only confirmation of group/listener absence and a free port. No second signal or UI rerun.
+
+[Actual receipt](qa/staff-catalog-manage-search-actual-2026-09-22.md) preserves the exact evidence and remaining zero-pending limitations: no positive draft search, >50/Next, existing editor or writes. This completes the implemented narrow local check, not production, whole item14 or1–36. Product files are unchanged by this documentation checkpoint; final-head review/CI remain required.
+
+
+## 2026-09-22 — Item22 mobile header spacing, precode
+
+After #1019 merged in43410559, implement [two-class mobile header refinement](platform/crm-mobile-header-spacing.md): top py2 keeps6px focus-ring clearance, actions min-h14/py1 restores old values atmd. Existing EVO identity, both rows, labels,44px controls, permissions/state/handlers and desktop remain. Independent direction reviews c242de8b/ac1da62c accepted. Use the already accepted manage route instead of chat for one narrow actual shell batch, avoiding unrelated seen effects; no exact height saving or text-zoom proof is claimed before execution. No data/API/migration change.
+
+## 2026-09-22 — Item22 mobile header actual and item36 checkpoint
+
+One ordinary Admin header batch at1440/390/320/focus on e999 accepted with independent actual/closure review441f869a. [Receipt](qa/crm-mobile-header-spacing-actual-2026-09-22.md) records measured geometry, preserved data, text-onlyzoom gap and original cleanup port timeout followed by verified closure. No new product scope or production change. Status checkpoint records #1019/#1015 merges, A1020 partial actual, and narrow KB141/144/145 owner decisions; it does not approve whole KB articles or declare all1–36 complete.
+
+## 2026-09-22 — служебная продажа и точечная сверка KB
+
+По прямому поручению владельца найдена и штатно архивирована одна служебная продажа в production001–206. [Квитанция](qa/service-sale-archive-actual-2026-09-22.md) подтверждает scoped1→0, организационные7→6, сохранение остальных209 продаж/истории и независимое actual review91c4d18b. Ранний STOP до записи сохранён. Релиз/схема/права не менялись. В KB153/156 добавлены только [подтверждения существующих фактов](qa/knowledge-source-reconciliation-2026-09-21.md) с сохранением candidate-статуса; новой политики или публикации нет. #1021 уже вmainfd77f2e2; остальной план остаётся в работе.
+
+
+## 2026-09-22 — KB31: источники существующих утверждений и карта остатка
+
+После merge #1022 вb983a45e KB157/158 получили только источник и дату к существующим фразам об e-Visa и проверке признания образования. [Квитанции и карта остатка](qa/knowledge-source-reconciliation-2026-09-21.md): independent reviews687d6d62/f17b7f87, applied receiptscfc377cb/954a7aa7. Другие утверждения/status/publication сохранены; статьи целиком не одобрены. Содержательное уточнение159 подтверждено официальным источником и независимо проверено, но ожидает решения владельца и не применено. Остаток разделён на дополнительные коммерческие правила, применимые официальные источники и допуск публикации. Решения владельца141/144/145 не пересматриваются.
+
+
+### A15 rail — bounded actual accepted and main integration, 22.09
+
+[Фактическая проверка](qa/team-chat-channel-rail-actual-2026-09-22.md) на bab531ae
+принята независимым review2de97c08:390/320/1440, search/context/draft, реальный
+offline background failure, один same-cursor retry с pending и online recovery.
+Первый UI STOP на global alert assertion сохранён; scoped продолжение выполнило
+только недостающее.290 business tables неизменны/seen0; inherited Auth restored,
+own logout204/browser/server closed/cookie removed. Cleanup helper STOP
+сохранён вместе с последующей отдельной closure receipt. QA передана B1018
+по решению ROOT (handoff75bfdaa6), новый UI replay не разрешался и не выполнялся.
+
+После закрытия интегрирован main e8fc98dc, merge e4c74b52. Append-only журналы
+сохранены с обеих сторон.43-file paritycd75ebe6: chat source/tests/SQL, package
+и globals CSS точные bab; отдельно принятая AppShell spacing правка #1021
+имеет собственную actual receipt. Старые PNG не названы новым combined UI run.
+Final exact-head review/CI остаются merge gate; merge owner ROOT. Полный15,
+production и следующие command feedback/time блоки здесь не закрываются.
+
+
+### B24 — принятый precode: повтор операции урока
+
+После merge #1015 (main436865af) source-разбор обнаружил конкретную ошибку:
+после conflict → reloadDraft → unavailable кнопка «Повторить» выбирает
+start/save/complete по состоянию экрана, никогда reload. Принят
+[узкий контракт](platform/portal-lesson-retry-operation.md) и независимое
+precode review6f458939: явная идентичность отказавшей операции, сохранение
+существующих request IDs/snapshots, busy guard, draft и всего оформления.
+Actions/RPC/SQL и другие runners не меняются. Восемь incumbent-файлов и
+lesson320/1440 база сверены с acceptedf77a457b; это не actual ошибки reload.
+
+Контракт записан до UI-кода. Реальный Student-путь ждёт отдельного admission
+и восстановления локальной среды (отсутствующий OrbStack socket); Docker не
+перезапускаем, конфликт fixtures не создаём. Следующий PR остаётся draft с
+QA pending. Этот блок не закрывает весь пункт24, native или production.
+
+### B24 — source checkpoint: повтор операции урока
+
+Precode-контракт `0eea93dc` предшествует реализации `0f5fca638f195967d0601427e228b264ef43bd90`.
+Retry теперь выбирает сохранённое имя отказавшей команды; payload/request IDs,
+actions и оформление сохранены. Две проверки воспроизвели прежний неверный
+выбор; после исправления 20 адресных unit-проверок, scoped lint, TypeScript и
+diff check прошли. [Контракт и пределы доказательства](platform/portal-lesson-retry-operation.md#source-checkpoint--2026-09-21)
+содержат команды и raw spans. Независимое source review, protected CI и реальный
+Student conflict/reload/retry пока pending. QA/Docker/Auth/DB не запускались,
+общий пункт24 и production не закрыты.
+
+
+### 2026-09-22 — B24: actual повтора урока и интеграция #1018
+
+[Узкая квитанция](qa/portal-lesson-retry-actual-2026-09-22.md): на frozen
+c59e93cf существующий Student сохранил один ответ, получил конфликт во второй
+вкладке, отказ загрузки при browser-offline и успешный ручной retry той же
+read-команды. Strict final290/33 и independent actual/closure review752f71b0
+приняты ROOT. Исходный closure OSError STOP сохранён, причина unknown;
+последующая отдельная проверка закрытия разрешена после новых PID/port данных
+и завершилась CLOSED. Повтора бизнес-сценария не было.
+
+Среда передана ROOT_COORDINATOR по handofff1126aac. После этого выполнена
+files-only интеграция main eec9c548, уже включающего #1020. Входящие изменения
+main и полные собственные дополнения журналов сохранены; LessonRunner/test
+побайтно равны c59. Контракт и архитектура не расширяются. Прежние source checks
+и actual используются со своим SHA и пределами; итоговому head требуются
+независимое exact-head review и protected CI. Пункт24 и production не закрыты.
+
+
+## 2026-09-22 — A15 command feedback, accepted precode before implementation
+
+После protected merge #1020 в eec9c548 начинается [точное сообщение об исходе
+команды](EVO_TEAM_CHAT_COMMAND_FEEDBACK_PLAN_2026-09-22.md). Independent
+precode reviewa67c4d25 принят с единственной коррекцией: повтор может создать
+первое сообщение, если исходная попытка не дошла; обещаем отсутствие дубликата,
+а не отсутствие нового сообщения. Corrected approved plan1b5bcf4d.
+
+Source scope: operation-specific copy для post/edit/delete/moderate и маленький
+typed presenter; обработчики, requestId/expectedVersion/frozen input/reason,
+retry, saved/forbidden, read errors, CSS/SQL/rights неизменны. Общая таблица
+platform-team-chat остаётся: server page ещё использует её вне command scope.
+Impeccable clarify/Operate сохраняет нынешний интерфейс и объясняет неизвестный
+исход без обещания сохранённого черновика при удалении. Последующая bounded
+offline UI-проверка без online submit/delete требует отдельного QA handoff;
+общий стенд сейчас B1018 → ROOT16. Source review/short CI прежде actual.
+
+
+### A15 command feedback — source prepared, 22.09
+
+[Source evidence](qa/team-chat-command-feedback-source-2026-09-22.md): typed
+operation/status copy table и два прежних alert selectors. Handler/input/ID/
+retry semantics побайтно сохранены после только presentation normalization;
+43-file parityb1598006. Targeted lint и tsc после штатного next typegen PASS.
+Первый fresh-worktree PNG declaration STOP отмечен, product fix не требовался.
+Новых string-mirroring tests нет. Следуют independent source review и short CI;
+actual UI ждёт отдельного QA окна после B1018 → ROOT16. Это source-only стадия
+того же плана, не merge-ready или production. Timestamp block сохранён далее.
+
+
+## 2026-09-22 — A15 command feedback: actual closure и интеграция #1024
+
+После source revieweab75360 и CI35666591542 наb7533a92 выполнена отдельная
+[локальная проверка](qa/team-chat-command-feedback-actual-2026-09-22.md) по
+прежнему принятому плану. После fresh ROOT16 release и одного concrete review
+обычный существующий Admin открыл canonical General moderation form и один
+раз подтвердил её при настоящем browser-offline. Запрос завершился
+net::ERR_INTERNET_DISCONNECTED, ответа/online retry не было. Текст неизвестного
+исхода, frozen reason/version/requestId, pending→retry и320/1440 приняты.
+
+Strict after/final:290 business tables неизменны, seen0,33 Auth/Storage
+сверены, inherited sessions/refresh/AMR восстановлены. Ownlogout204, browser
+closed, собственный PID15713 SIGTERM/reap0/group absent/connect_ex61; capture
+удалён. Независимое actual/visual/closure reviewf61ac50b прочитано и принято.
+Handoffd0e30ad6 возвращает QA ROOT до source/docs интеграции. Нет новых
+миграций, сообщений, прав, пользователей или UI replay. No port reuse claim.
+
+Main2b25a431 (#1018) интегрирован files-only;44 связанных chat/source/tests/SQL/
+dependencies/CSS/AppShell файла точны b753, входящие LessonRunner/test точны
+main. Append-only конфликты разрешены точным общим префиксом и полными хвостами
+обеих веток; parityfff9e492. Текущая строка15 исправлена: #1020 уже merged,
+его scoped продолжение принято; старые STOP/history receipts сохранены.
+Архитектура/контракт не расширены; итоговые exact-head review/CI/merge #1024
+остаются у ROOT. Timestamp далее отдельным блоком; positive commands,
+production/native/full15 и issue708 real-staff acceptance не заявляются.
+## 2026-09-22 — календарь16a: сворачиваемый список без срока, до кода
+
+После #1023 (main e8fc98dc) ROOT принимает независимый срез16a; A сохраняет командный чат. [Контракт](platform/crm-calendar-undated-disclosure.md) переносит ранее одобренный precode review4995fae6: серверный count, cursor/target, ручное раскрытие, клавиатура и ссылки сохраняются. Родительский key, reader, команды и форма не меняются. До UI-правки требуется текущий Admissions baseline в выделенном окне после A1020/B1018; подготовка пока файловая. Это исходное требование §10, не расширение календаря или доказательство завершения16b.
+
+
+## 2026-09-22 — календарь16a: actual и интеграция #1025
+
+[Квитанция](qa/calendar-undated-disclosure-actual-2026-09-22.md) закрепляет один
+Admissions batch1440/390/320 на0c1bf75f: раскрытие/клавиатура/реальная задача,
+12 прежних карточек,44px и no page overflow. Final290/33 и own closure приняты
+independent review4f7758c9; исходный preAuth admission-status STOP сохранён.
+Pagination отсутствует в данных, same-context refresh остаётся source-only.
+После закрытия runtime интегрирован main d1568d58 (#1024):13 файлов
+календаря/reader/shell/package неизменны, обе append-only истории сохранены.
+План/архитектура не расширены. Итоговому head нужны exact-head review/CI/merge;
+панель/черновики16b и production не закрыты.
+
+
+## 2026-09-22 — A15 channel timestamp: accepted precode, reservation239 before source
+
+#1024 смержен вd1568d58 после review3e4cfb59 и CI35669601084. Следующий
+[принятый timestamp-контракт](EVO_TEAM_CHAT_CHANNEL_TIME_PLAN_2026-09-22.md)
+перенесён в репо до кода: original8c0466d5, independent37f9d5a, ROOTacceptance9c73157b.
+Fresh targeted diff сохраняет предпосылку additive outer field/nested7 exact.
+ROOT эксклюзивно зарезервировал239; другая миграция не назначается.
+
+Первый блок: m.created_at той же authorized latest строки, дополнительное outer
+latestPreviewCreatedAt, legacy-aware strict DTO и совместное принятие preview/time.
+Конкретизирован UTC canonical format с6 дробными знаками без потери PostgreSQL
+microseconds, запрет timezone-free/invalid дат, сравнение равных instants,
+сохранение времени при stale/null и same-ID legacy ответах. Это уточнения
+прежнего approved contract, не изменение authority/семантики команд.
+Старый decoder проверяется неизменным source fixture; pure cases не выдаются
+за SQL/Auth/UI acceptance. Nested7/guards/ACL/order/unread/seen/CSS неизменны.
+
+UI времени после принятия reader отдельным блоком. Source-only сейчас: QA у
+ROOT16, затем B native; apply, Auth/RPC/browser/server и production не запускаются.
+No migration239 application or full15 acceptance claimed.
+
+
+### A15 channel timestamp — первый source checkpoint, 22.09
+
+[Source evidence](qa/team-chat-channel-time-source-2026-09-22.md): migration239
+содержит только две read projection additions относительно237; DTO optional
+outer field и strict UTC6 canonicalizer, paired preview/time acceptor. Nested7,
+guards/ACL/order/unread/seen и весь текущий UI сохранены. Из44 incumbent-файлов
+только два разрешённых lib-файла изменены; parityeb6e1d26. Pure SQL parse PASS,
+но SQL не исполнялся. Scope и архитектура соответствуют precode c72cbd15.
+
+На Node22.23.1 новые23 и прежние20 pure tests прошли отдельными однократными
+запусками; verbatim legacy decoder реально исполнен как pure compatibility
+case. Scoped lint, next typegen, tsc и diff PASS; receipt110de1d7 связывает
+точные hashes/commands/raw spans. Independent source review/CI ещё впереди;
+239 не применена. ROOT16 → Bnative сохраняют QA очередь. Следующее actual
+Auth/RPC окно требует отдельного ROOT назначения; UI времени после reader.
+
+
+### A15 channel timestamp — local239, ordinary RPC и закрытие приняты, 22.09
+
+Source0e0266f8: independent reviewe1b5477d и CI35670526226 пройдены; прежние43
+адресных теста/lint/typecheck остаются evidence того же неизменённого кода.
+[Actual](qa/team-chat-channel-time-actual-2026-09-22.md): исходный STOP до SQL
+сохранён; после ROOT recovery все четыре полные проекции совпали. Отдельная
+новая попытка local238→239 прошла, один reader body изменён при прежних ACL/OID,
+290 бизнес-таблиц и33AuthStorage при DDL неизменны.
+
+Ordinary Admin200 сверён с независимым canonical UTC6:3канала,2populated/1empty.
+Student403/anonymous401/zeroUUID403 имеют42501. ZeroUUID — отсутствующая
+организация; populated foreign-tenant, ownAuthor/reply/tombstone/longBody
+actual-материал отсутствует. Нет новых fixtures, messages, seen или provider writes.
+
+Финал d40f24f0/closure6477693f сохранил290 business/33AuthStorage с допустимыми
+Auth-изменениями: только timestamps двух existing users и4ownlogin/logout audits;
+224sessions/239refresh/224AMR восстановлены в точности. Оба ownlogout204,
+private Auth captures удалены. Independent actual review4ec98b49 и ROOT
+приняли результат, handoffab6c6089 передал ресурс ROOT_COORDINATOR.
+A больше не выполняет runtime. Main ec3f62ba интегрирован с сохранением
+календаря16a и всех шести source/test/SQL файлов A239 побайтно от0e0266f8.
+Финальные exact-head review/CI/merge ещё впереди; UI/full15/production не заявлены.
+
+
+## 2026-09-22 — календарь16b: сохраняемая форма и адаптивная панель, до кода
+
+После merge16a/#1025 (`ec3f62bad`) принят [контракт16b](platform/crm-calendar-persistent-panel.md).
+Один owner и одна native dialog/form сохраняют create draft/request identity при клиентской
+навигации и resize; stale восстанавливается через явный refresh, новый authorized render token
+и exact case candidates, saved — через «Создать ещё». Known unavailable target не удаляет owner.
+Сохраняются16a, права, shared DeadlineFields, actions/SQL; локально14px/12px согласно §10.
+Impeccable Operate/adapt и реальный16a incumbent используются до UI edits. Actual16b остаётся
+после выделенного QA-окна; pure/source checks не доказывают сохранение/production.
+
+
+### Calendar16b clarification — correcting an unavailable assignee (2026-09-22)
+
+The persistent-panel contract distinguishes fresh-data readiness for editing from eligibility to submit.
+After an explicit refresh and a fresh authorized token with exact ready case candidates, fields become
+editable even if the previously selected assignee is unavailable. The user can choose an eligible
+assignee; Save still requires that eligibility, current rights and settled pending states. Values and
+request ID stay intact; there is no automatic retry. The shared TaskCasePicker keeps its API and
+layout; a local create-form wrapper contains its existing wide-grid column spans inside the panel.
+The focused lifecycle regression checks correction allowed / submit blocked / eligible manual submit.
+
+
+### Calendar16b — source implementation checkpoint (2026-09-22)
+
+После merged disclosure16a/#1025 (`ec3f62bad`) реализован принятый
+[контракт постоянной панели](platform/crm-calendar-persistent-panel.md): stable Calendar identity,
+один dialog/create subtree, desktop side panel/mobile modal, сохранение draft/request ID,
+explicit fresh-token stale recovery и saved-only новая попытка. Известный недоступный target
+не убирает весь Calendar. Shared DeadlineFields, task-change controls, actions/SQL/права и
+state logic 16a сохранены; локальная типографика 14/12px.
+
+[Source receipt](qa/calendar-persistent-panel-source-2026-09-22.md): 8 pure lifecycle + 4 существующих
+SSR visibility + 48 узких calendar integration/D2 checks PASS; scoped lint/typegen/tsc и diff check.
+Первоначальные проверочные отказы и их точечные исправления описаны честно. Независимое source
+review, CI и согласованная реальная UI-проверка 16b ещё впереди. Browser/Auth/DB/записи/production
+не запускались; весь item 16 и план 1–36 этим checkpoint не закрыты.
+
+
+### Calendar16b — confirmed native-picker Escape correction, before code (2026-09-22)
+
+Actual source `0a01800b` preserved draft/focus and one form at three widths, then stopped on
+native-picker Escape. A passive follow-up proved the select was open before Escape and the
+current dialog cancel path closed the whole panel; both original STOPs remain. After strict
+runtime closure, the [existing16b contract](platform/crm-calendar-persistent-panel.md) now records
+the bounded correction: one real-open-picker Escape guard, native keydown default unchanged,
+matching desktop event/paired cancel handling and explicit gesture/lifecycle reset. Closed-select
+Escape, Close, all forms/actions/rights and geometry stay unchanged. Scoped source checks and a
+new changed-function browser regression are required; no successful correction or save is claimed.
+
+
+### Calendar16b — native-picker dismissal amendment before code (2026-09-22)
+
+The changed-function regression on `3e11eef9` preserved the panel but also left the native picker
+open. This supersedes the previous no-preventDefault assumption; the STOP remains evidence.
+After strict owned closure, the [16b contract](platform/crm-calendar-persistent-panel.md) replaces
+paired-cancel correlation with actual open+focused select Escape prevention and real blur/focus,
+without setting values, emitting events or using timers. Only a held-key boolean may remain; normal
+closed-select Escape/cancel/Close are preserved. Selection/draft/scroll invariants require fresh real
+regression after source review; no successful correction or production acceptance is claimed yet.
+
+
+## Calendar16b — scoped actual и strict closure, 22 сентября 2026
+
+Source `5c421e50` прошёл обычный Admissions native-picker Escape в320/1440:
+picker закрывается, panel/draft/request ID/focus сохраняются; held repeat и
+следующий отдельный Escape, Close, existing target/history/view/period и14/12px
+подтверждены. Проверен один Tab; blur/focus scroll проверен только при нулевой
+позиции. Исходная0a геометрия1440/390/320 переиспользуется для неизменного layout.
+Три STOP сохранены в [actual-квитанции](qa/calendar-persistent-panel-actual-2026-09-22.md).
+
+Независимое actual/closure review `4065fc07` и ROOT release `0531f47e` приняты:
+290 business tables, catalog/effects, исходные sessions/refresh/AMR и Storage
+сохранены; только собственные sign-in metadata и два login/logout audit отличаются.
+Own logout204/browser/process/capture cleanup завершены, среда передана B1029.
+Задачи не сохранялись. Saved/stale/unknown, reload/cross-identity и отсутствующие
+варианты не приняты; весь item16/native/production не закрыты. Main `2a04610f`
+интегрируется с неизменными calendar5c и входящими chat/239; final exact-head
+review/CI/merge #1028 остаются отдельным следующим шагом.
+
 
 ## 2026-09-21 — item27b: согласованная интеграция, до кода
 

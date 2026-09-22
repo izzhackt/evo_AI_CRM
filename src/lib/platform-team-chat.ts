@@ -11,9 +11,16 @@ export const TEAM_CHAT_BODY_LIMIT = 8000;
 export const TEAM_CHAT_PAGE_MODES = ["latest", "before", "changes", "thread", "search", "message"] as const;
 export type TeamChatPageMode = (typeof TEAM_CHAT_PAGE_MODES)[number];
 export type TeamChatParticipant = Readonly<{ membershipId: string; displayName: string; role: FixedRole | null }>;
+export type TeamChatChannelPreview = Readonly<{
+  id: string; sequence: string; version: string; authorMembershipId: string;
+  authorName: string; bodyPreview: string; deletedAt: string | null;
+}>;
 export type TeamChatChannel = Readonly<{
   key: TeamChatChannelKey; muted: boolean; preferenceVersion: string;
   readSequence: string; unreadCount: number; firstUnreadId: string | null;
+  latestPreview: TeamChatChannelPreview | null;
+  /** Absent on legacy readers; null only when the channel has no latest row. */
+  latestPreviewCreatedAt?: string | null;
 }>;
 export type TeamChatMessage = Readonly<{
   id: string; channelKey: TeamChatChannelKey; sequence: string; authorMembershipId: string;

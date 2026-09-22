@@ -1,17 +1,26 @@
 # Командный чат: переход к общей ленте
 
-Статус: precode для независимого review, без runtime-изменений.
-Проверенный источник: main `03068e1f918a289fd99c3229455d18604f29f26a`,
-21 сентября 2026. PR#976 принят; чтение общей истории уже реализовано,
-но существующая страница ещё использует v1 root/thread reader.
+Статус на21 сентября2026: A15f/#992 в main с `ca7c98ec2`; общая лента
+использует V2 timeline reader и существующий changes/search read path.
+[Принятый ограниченный actual](qa/crm-team-chat-unified-feed-actual-2026-09-21.md)
+относится к `e1250b58`; его ограничения и история review сохранены. Входящий
+main для старта A15g-1 — `479dd6788` после A11/#1002, интегрирован d68ce587/#1004.
+[A15g-1 read errors/exact retry](EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md)
+прошёл source/integration review и ограниченный local235 actual на7d70a71d;
+[квитанция](qa/crm-team-chat-read-retry-actual-2026-09-21.md). Собственные сессии
+закрыты, финальный docs-head review/CI/merge и ROOT handoff ещё требуются.
+Группировка/плотность/серверные channel previews остаются отдельно.
+Ниже сохранён первоначальный precode от03068e1f; его будущие A15d/A15e уже
+уточнены принятыми контрактами225/227 и реализованным разделом A15f.
 
 Основание — разделы9/12/13
 [согласованного функционального плана](EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md),
 [A15c](EVO_TEAM_CHAT_FLAT_READER_PLAN_2026-09-21.md) и
 [оставшаяся работа](EVO_TEAM_CHAT_REMAINDER_ANALYSIS_2026-09-21.md).
-Пункт15 целиком остаётся открытым. Установка223 уже состоялась один раз;
-повторная установка не нужна.224 зарезервирована за B; номер следующей
-миграции A выдаёт ROOT после отдельного согласования.
+Пункт15 целиком остаётся открытым. Повторять установки223/225/227 не нужно;
+A15f не добавляет миграций. После локального230 UI-проход завершён;
+собственные сессии закрыты, проверенная среда передана ROOT995.
+Состояние реализации и границы доказательств: [source receipt](qa/crm-team-chat-unified-feed-source-2026-09-21.md).
 
 ## Короткий UX-бриф — Impeccable shape / Operate
 
@@ -64,11 +73,10 @@ desktop/mobile, исправляет найденное вместе и при �
 | A15f — одна лента и один редактор | Общая история/context, draft recovery, visibility-driven seen, поиск/возврат и устойчивый scroll | Внешний AppShell, права, task/inbox/calendar поверхности |
 | A15g — компактность и каналы | Группировка, все реальные previews/время, завершённые responsive/error состояния | Новые каналы, глобальный поиск, внешние провайдеры |
 
-Это порядок зависимостей, а не разрешение сразу начать четыре реализации.
-Следующий кодовый блок — только A15d после независимого precode review.
-Каждый последующий блок уточняется по принятому предыдущему head; объединение
-или перенос границ явно отражается в launch plan до кода. UI-cutover A15f
-нельзя принимать без A15d/A15e и проверенной совместимости черновиков.
+Зависимости A15d/A15e приняты в PR#983/#987; следующий кодовый блок — A15f.
+Его уточнения ниже и в launch/PLAN_CHANGES зафиксированы до UI-кода.
+Компактность групп и полные previews каналов остаются отдельным A15g;
+A15f нельзя принимать без проверки совместимости прежних черновиков.
 
 ## A15d: ограниченный контракт до кода
 
@@ -216,8 +224,135 @@ B program/intake/requirements/portal/iPhone поверхности здесь н
 Перед UI-cutover обновить устаревшее описание отдельного обсуждения в DESIGN.md
 по уже принятому разделу9, сохранив внешнюю оболочку и мессенджерную стилистику.
 
-Этот PR меняет только документацию. Проверка — diff/ссылки/`git diff --check`,
+Первоначальный precode PR#981 менял только документацию. Проверка — diff/ссылки/`git diff --check`,
 затем независимый exact-head review и защищённые короткие CI. Ни backend A15d,
 ни общая лента, ни весь пункт15 этим документом не объявляются завершёнными.
 Production apply, provider actions, server release и новые QA identities не
 входят в этот плановый шаг.
+
+
+## A15d implementation and local verification update
+
+Precode PR#981 accepted and merged at67934327d. ROOT allocated225 before code.
+Runtimefb12146e implements only the A15d contract above; the exact RPC argument
+names are `p_organization_id`, `p_channel_key`, `p_message_ids`, acknowledgement
+`{channelKey,messageIds}`. No cursor or membership can be supplied by the client.
+[Actual local apply/Auth/unread/concurrency QA](qa/crm-team-chat-sparse-seen-225-2026-09-21.md)
+passed at3fc9ef34 after accepted224 integration. Migration225 applied once;
+exact5seen and one legacy read/replay were verified, full282 release passed
+to ROOT32. The retained harness stop and reviewed bounded continuation are
+recorded separately. No production/UI-cutover or whole-item15 completion.
+A15e quote model follows only after A15d merge;226 belongs to B, any later A
+migration requires a new coordinator reservation (227 is not silently claimed).
+
+
+## A15f: уточнённое подключение после принятого227
+
+Основание: PR#987/main115b895a, фактический API sourceec18763c; UI/CSS/source
+страницы не изменились с визуального осмотра03068e1f (diff проверен). Повторно
+просмотрены прежние desktop/mobile captures из A15d; это исходная визуальная
+опора, не свежая приёмка. Сохраняются EVO/Golos, темы, внешний AppShell и права.
+Композиция и функции уже выбраны владельцем; новая эстетическая развилка не нужна.
+
+### Файлы и границы
+
+- `src/lib/v3/team-chat-source.ts` и страница `/v3/team-chat`: начальный V2 latest
+  либо context для прежнего `?message=`, с прежними channels/participants.
+  Обрабатывать `TeamChatV2Error` вместе с прежним read error; отказ не превращать
+  в общий сбой и не обходить preview/scoped actor проверки.
+- `TeamChat.tsx`: единая история, context/return, поиск в текущем канале,
+  обновления/metadata и sparse seen. Небольшие chat-only helpers для состояния
+  диапазонов, якорей, draft recovery и видимости допустимы.
+- `TeamChatComposer.tsx`: один редактор post/reply/edit/recovered draft.
+  `TeamChatMessageRow.tsx`: отдельные «Ответить» и переход по цитате; правка в
+  общем редакторе. Сохранить own-edit/delete, moderator reason/confirmation,
+  ссылку на сообщение, неизвестную попытку и возврат фокуса.
+- `team-chat.module.css`: только размещение общей ленты/редактора, цитаты,
+  поиск/context и responsive states. Глобальные стили, шрифты и AppShell не менять.
+- Использовать существующие V2 post/read и seen225 actions. V1 остаётся для
+  search/changes/metadata, edit/delete/moderate и восстановленных V1 отправок.
+  Новые SQL/RPC/таблицы или изменение принятых171/223/225/227 не нужны.
+- ROOT владеет CaseAgreement и мобильным `SalesRegisterView.tsx`; B — portal/
+  requirements/iPhone. В A15f эти поверхности не редактировать.
+
+### Данные, черновики и переходы
+
+V2 хранит прямой quote ID отдельно от root-parent. Приходящие V1 changes не
+содержат direct ID: у известной строки сохранить её ID цитаты, неизвестную
+дочитать V2. Не угадывать прямую цитату по parent. Обновление оригинала должно
+обновлять его видимые цитаты и выбранную цитату редактора, даже если оригинал
+вне текущей страницы; применять только более свежую версию, deleted preview пуст.
+Данные текущего оригинала из разрешённого changes ответа можно использовать
+для такой проекции; неизвестную структуру ответа нельзя достраивать как V2.
+
+Один store ID/version; int64 cursor/sequence остаются строками. Отдельно хранить
+набор ID и границы активного непрерывного диапазона. Context-фрагмент не закрывает
+незагруженный промежуток. Before/after продолжают именно текущую границу; переход
+к latest не склеивает пропуск. Search хранит запрос/страницы/якорь/фокус; переход
+к результату сохраняет их для возврата. Изменение/удаление не считается новым tail.
+
+Сохранять первый видимый ID+смещение при prepend/обновлении/resize редактора.
+Новый хвост при чтении истории не сдвигает экран; появляется переход вниз.
+Удержание якоря делать коротким измерением после commit до paint, без большого
+блокирующего цикла. Этот выбор следует из [React useLayoutEffect](https://react.dev/reference/react/useLayoutEffect);
+это наше применение API, не обещание готовой устойчивости без браузерной проверки.
+
+Сканировать только собственный org/member/channel prefix sessionStorage.
+Восстановленные V1 drafts, включая ещё не отправленные, сохраняют V1 путь;
+requestId/retryInput неизвестной попытки неизменны. Не отправлять при mount,
+не удалять источник при чтении и не перезаписывать занятый ввод. Отдельный новый
+V2 draft содержит direct quote ID. Edit draft без expectedVersion требует текущего
+контекста и явного возобновления, без скрытой подстановки новой версии.
+Autosize44–160px, mentions/лимиты, Enter/Shift+Enter/IME сохраняются.
+Подтверждённая отправка и неудачный refresh имеют разные состояния.
+
+### Точный критерий автоматического просмотра
+
+В A15f применяем500мс непрерывного спокойного показа body сообщения и высоту
+его пересечения с viewport истории не меньше min(50%высоты body,160px).
+Документ должен быть visible и окно активно; нужный mobile слой открыт.
+Исключить search results, цитаты, собственные/удалённые сообщения и перекрытые
+меню/диалогом состояния. Scroll/resize/blur/hidden/смена слоя сбрасывают dwell;
+после стабилизации видимые body могут начать отсчёт заново. Сам прыжок не seen.
+
+IntersectionObserver ограничивает кандидатов видимостью в истории; геометрию
+уточнять при изменениях viewport и перед завершением dwell. Нельзя полагаться
+на callback произвольного pixel threshold: [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API)
+описывает пересечение и пороги, а не доказательство просмотра человеком.
+[Page Visibility](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)
+отдельно сообщает скрытие вкладки; focus/blur не заменяют её.
+
+Собирать только квалифицированные IDs в bounded batches1–50; серверный ack
+подтверждает результат, после него обновлять unread metadata. Ошибка seen
+сохраняет bounded очередь и даёт явный повтор без массового read fallback.
+При forbidden остановить refresh/reconnect/send/seen, очистить защищённые
+history/search/quotes/participants и очередь; смена канала/actor не переносит
+старые ответы асинхронных запросов в новый экран. Старый read_sequence не двигать.
+
+### Проверка этого среза
+
+До runtime: focused проверки чистого merge/range/draft/visibility-кода,
+TypeScript/scoped lint и независимый review. Это не заменяет браузерный путь.
+В выделенном ROOT окне — настоящие существующие QA actors/история и обычные
+server actions: старый deep link/reply, before/after более50 строк, reply-to-reply,
+изменённый/удалённый вне страницы original, frozen retry без дубля, V1 draft
+recovery, поиск/context/возврат, ошибки Storage и send-success/refresh-error.
+Проверить A→пропустить B→C: только реально показанное seen, B остаётся unread
+после reload; search/quote/hidden/overlay ничего не гасят. Точные допускаемые
+новые message/seen IDs и эффекты закрепить перед этим общим runtime окном;
+чужую историю/роль/сессии не менять. Никакого нового общего QA-протокола.
+
+Impeccable: craft-floor непосредственно перед первым UI edit. Один общий раунд
+реального desktop/mobile, light/dark,320/390px, focus/keyboard/IME; исправления
+пакетом и максимум один подтверждающий визуальный раунд. Не заявлять native,
+screen-reader, provider, production или полноту пункта15 по этому срезу.
+
+
+## A15f actual acceptance update — 2026-09-21
+
+The bounded actual local UI/data window passed at e1250b58 and was released to
+ROOT995 after a separately verified recovery epoch. See
+[actual report](qa/crm-team-chat-unified-feed-actual-2026-09-21.md) for source,
+receipt pins, preserved rows and unverified journeys. A15g remains open, including
+a read-error copy correction found during the offline-search check. This does
+not claim completion of all team-chat UX or production acceptance.

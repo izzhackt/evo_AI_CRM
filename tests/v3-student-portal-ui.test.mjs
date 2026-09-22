@@ -42,6 +42,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
   // with its own reader/view — see the "direct strict E2 result" test below.
   assert.deepEqual(pageFiles, [
     "src/app/(portal)/portal/applications/page.tsx",
+    "src/app/(portal)/portal/document-notifications/[notificationId]/page.tsx",
     "src/app/(portal)/portal/documents/page.tsx",
     "src/app/(portal)/portal/english/lesson/[lessonId]/page.tsx",
     "src/app/(portal)/portal/english/page.tsx",
@@ -54,6 +55,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
     "src/app/(portal)/portal/notifications/page.tsx",
     "src/app/(portal)/portal/page.tsx",
     "src/app/(portal)/portal/payments/page.tsx",
+    "src/app/(portal)/portal/preparations/[applicationId]/page.tsx",
     "src/app/(portal)/portal/professions/[cardId]/page.tsx",
     "src/app/(portal)/portal/professions/page.tsx",
     "src/app/(portal)/portal/profile/page.tsx",
@@ -614,7 +616,7 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
   );
   assert.doesNotMatch(action, /randomUUID/u);
   assert.doesNotMatch(action, /form\.get\("request_id"\)|auth_user_id|organization_id|student_case_id/iu);
-  assert.match(notifications, /form action=\{markReadAction\}/u);
+  assert.match(notifications, /PortalNotificationReadForm action=\{markReadAction\} errorMessage=\{strings\.markReadError\}/u);
   assert.match(notifications, /name="notification_id"/u);
   // PORT-6a: кнопка получает locale и берёт подписи из admission-словаря
   // (RU байт-в-байт прежние — проверено по словарю ниже).
@@ -658,7 +660,7 @@ test("notifications deep-link by category, and bulk mark-read loops the existing
   assert.match(notifications, /portalNotificationTarget\(notification, strings\)/u);
   assert.match(notifications, /href=\{target\.href\}/u);
   assert.match(notifications, /<PortalMarkAllReadButton locale=\{locale\} \/>/u);
-  assert.match(notifications, /form action=\{markAllReadAction\}/u);
+  assert.match(notifications, /PortalNotificationReadForm action=\{markAllReadAction\} errorMessage=\{strings\.markAllReadError\}/u);
 
   assert.match(markAll, /^"use client";/u);
   assert.match(markAll, /useFormStatus/u);

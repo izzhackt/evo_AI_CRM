@@ -1,0 +1,122 @@
+# Профиль: ошибка неподтверждённого запроса
+
+Пункты 24/25, отдельный небольшой блок после #1003. База:
+`7f44445569507a16f923e9279edb6422e82e3cab`. Статус: код и scoped source checks пройдены; первый настоящий transport-rejection
+в профиле подтверждён отдельным browser-offline проходом на `c4d73455`.
+Кнопка восстановлена, нейтральный RU alert показан, ложного успеха нет. Строгая
+сверка и закрытие собственных ресурсов пройдены. Прежние STOP сохранены;
+[результат и ограничения](../qa/portal-profile-request-feedback-actual-2026-09-21.md).
+
+## Проблема и контракт
+
+`DeleteAccountRequest.tsx:60–67` не ловит отклонение Promise от server action.
+При разрыве связи предусмотренный локальный alert не включается. Серверный
+catch не может обработать потерю ответа между сервером и браузером. Текущий
+`deleteError` на RU/KY утверждает отсутствие отправки, хотя результат неизвестен.
+
+- Добавить try/catch внутри существующего async transition. Подтверждённый `ok`
+  сохраняет `requestedAt`; отрицательный result и rejected Promise включают
+  существующий alert. Не показывать успех до receipt.
+- Ошибка RU: «Не удалось подтвердить отправку запроса. Повторите попытку.»
+  KY: «Сурамдын жөнөтүлгөнүн ырастоо мүмкүн болгон жок. Кайра аракет кылыңыз.»
+- Сохранить один `requestId` на mounted-компонент, pending/disabled, сброс ошибки
+  перед повтором, success-focus и начальное уже запрошенное состояние.
+- Сохранить серверный action, RPC196, права/RLS, формат receipt, EVO/Golos,
+  текущую компоновку и пояснения о последствиях запроса. SQL/CSS/native не менять.
+
+Scope: `src/components/portal/profile/DeleteAccountRequest.tsx` и ровно два
+значения `deleteError` в `src/lib/portal/i18n.ts`; документация. Образец catch —
+существующий `LanguageForm.tsx`. Это обработка ответа запроса, а не реализация
+удаления аккаунта или изменение политики хранения данных.
+
+## Проверка и очередь
+
+Сначала независимое precode review, затем scoped lint/type checks, имеющиеся
+профильные проверки, diff-check, независимое exact-head source review и CI.
+Новые тесты, повторяющие реализацию через mock server action, не нужны.
+Фактический UI нельзя заменить этими проверками исходников.
+
+### Первоначальный метод и очередь (история двух STOP)
+
+Actual — только в следующем выделенном B окне после ROOT235 и A1005. Привязать
+свою среду к тогдашней входящей release-квитанции, не предполагать схему 234
+новым baseline. Использовать существующего обычного QA Student, если кнопка
+доступна; отсутствие нужного состояния — явное ограничение, без fixture/актора
+или изменения статуса. Загрузить реальный профиль, остановить только собственный
+Next, на сохранённом DOM получить реальный transport rejection. Проверить alert,
+снятие pending и повтор при всё ещё недоступном собственном сервере. Успех и
+положительный deletion request не выполнять. Один desktop/320 px проход;
+проверить keyboard/читаемость, без нового оформления.
+
+До восстановления своего сервера оба неуспешных вызова должны завершиться;
+не оставлять отложенное нажатие/submit. Восстановление нужно только для обычного
+выхода из собственной сессии; кнопку запроса больше не активировать. Полная
+before/final сверка: ноль business/Storage изменений, только собственные
+разрешённые Auth metadata/audit. Закрыть свою сессию, браузер и сервер.
+
+Same-request retry подтверждается сохранённым lifecycle в source; положительный
+receipt, потеря ответа после серверной записи, VoiceOver, native, полный E2E и
+production этим отрицательным UI-срезом не подтверждаются. Пункт 25 остаётся
+частичным. На source-only стадии никакие runtime/DB/Auth/provider действия
+не разрешены этим документом.
+
+## Согласованная замена метода и текущая узкая приёмка
+
+После двух сохранённых STOP координатор ограничил новый actual одним первым
+transport-rejection, без visual-прохода и retry. В отдельном окне после A1012
+тот же разрешённый ранее существующий Student открыл профиль; сервер продолжал
+работать. Обычный Enter по настоящей кнопке выполнен при стандартном offline
+только своего browser context, без mock/route interception/изменения приложения.
+Один POST и matching requestfailed ERR_INTERNET_DISCONNECTED, тот же document/
+epoch/button, RU neutral alert, восстановленный enabled и отсутствие success
+подтвердили нужный catch на реальном UI-пути. Последующий strict final подтвердил
+ноль business/Storage записей. Это изменение способа проверки, не изменение
+функционального контракта или замена неуспеха искусственным PASS.
+
+Исходный document уничтожен about:blank whileoffline до возврата сети; затем
+обычный собственный Auth API logout204, очистка cookies/закрытие своего браузера,
+остановка своего Next и полная сверка290/33. Scope UI logout не заявлен. QA
+released ROOT22G. Не заявляются actual retry/Space/KY/layout, положительное
+принятие запроса, потеря ответа после записи, native/VoiceOver/full E2E/production.
+Пункт25 остаётся частичным; merge этого небольшого catch-среза требует final
+exact-head review и защищённых CI checks. Review/receipts приведены в actual doc.
+
+## Отдельный остаток native
+
+Source inventory на указанной базе нашёл скрытые refresh errors после первой
+загрузки: `AdmissionNotificationsView.swift:125–153` и `TestsView.swift:49–69`.
+Это самостоятельный будущий срез: сохранить данные, показать ошибку и retry;
+в заполненных списках pull-to-refresh уже существует. Native окно не открыто.
+Поздний [Home receipt](../design/portal/ios-home-refinement.md) уже подтверждает
+KY Home и свои light/dark/large-text состояния; его результат не переоткрывается.
+Не переносить этот PASS на остальные экраны или VoiceOver.
+
+## Source checkpoint — 2026-09-21
+
+Независимый precode review `11f425d6f8f838b923462f90be17dcff063ae142` — APPROVED.
+Реализация меняет только catch в компоненте и два согласованных error strings;
+requestId, RPC и success-focus сохранены. На Node22.23.1 прошли 14 существующих
+проверок `portal-i18n.test.mjs`/`portal-profile.test.mjs`, scoped ESLint двух
+изменённых файлов, TypeScript `--noEmit --incremental false` и diff-check.
+Прежний MODULE_TYPELESS_PACKAGE_JSON warning не блокирует проверки. Эти тесты
+проверяют словари, profile/receipt parsing и существующий wiring; transport catch
+в браузере ими не доказан. Source review/CI и будущее actual окно — отдельные gates.
+
+
+## Второй actual checkpoint и оставшаяся проверка — 2026-09-21
+
+[Дополнение к actual report](../qa/portal-profile-request-feedback-actual-2026-09-21.md)
+сохраняет оба STOP. Прежний alias относится к pre209 case; миграция209 уже
+исправляет новые approvals. Для нового окна явно выбран ранее существовавший
+разрешённый Student из receipt209, без изменения config, grants или данных.
+Обычный вход и hydrated profile подтверждены на5c0da6fa. После остановки своего
+Next dev профиль заменён error-page; точная причина неизвестна, выполнение
+deletion action не доказано. Второй action и layout не выполнялись. Cleanup
+прошёл обычным собственным API logout204, закрытием своего браузера и строгим
+final290/33, без UI logout claim. PR1006 остаётся draft; product acceptance нет.
+
+Предложение для будущего окна после ROOT22F → A15: один browser-context offline
+attempt на уже загруженном профиле при работающем сервере, с записью stage/message,
+реального POST/requestfailed и неизменности документа. Без route mocks/patches,
+повторного клика или screenshots. Это пока files-only предложение, не выполненная
+проверка, не разрешение нового окна и не заявление о retry semantics.

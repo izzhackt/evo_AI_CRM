@@ -1,7 +1,7 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
-    "signup_confirmation_title" : {
+    "signup_confirmation_title": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -17,7 +17,7 @@
         }
       }
     },
-    "signup_confirmation_check_email" : {
+    "signup_confirmation_check_email": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -33,7 +33,7 @@
         }
       }
     },
-    "signup_confirmation_send_uncertain" : {
+    "signup_confirmation_send_uncertain": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -49,7 +49,7 @@
         }
       }
     },
-    "signup_confirmation_latest" : {
+    "signup_confirmation_latest": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -65,7 +65,7 @@
         }
       }
     },
-    "signup_confirmation_resend" : {
+    "signup_confirmation_resend": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -81,7 +81,7 @@
         }
       }
     },
-    "signup_confirmation_sign_in" : {
+    "signup_confirmation_sign_in": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -97,7 +97,7 @@
         }
       }
     },
-    "signup_confirmation_sign_in_hint" : {
+    "signup_confirmation_sign_in_hint": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -113,7 +113,7 @@
         }
       }
     },
-    "signup_confirmation_support" : {
+    "signup_confirmation_support": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -129,7 +129,7 @@
         }
       }
     },
-    "signup_confirmation_confirmed" : {
+    "signup_confirmation_confirmed": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -145,7 +145,7 @@
         }
       }
     },
-    "signup_confirmation_upgrade" : {
+    "signup_confirmation_upgrade": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -161,7 +161,7 @@
         }
       }
     },
-    "signup_confirmation_conflict" : {
+    "signup_confirmation_conflict": {
       "localizations": {
         "ru": {
           "stringUnit": {
@@ -173,6 +173,1686 @@
           "stringUnit": {
             "state": "translated",
             "value": "Бул аракетти улантуу мүмкүн эмес. EVO менен байланышыңыз."
+          }
+        }
+      }
+    },
+    "package_later_review": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Более позднее решение по пакету"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом боюнча кийинки чечим"
+          }
+        }
+      }
+    },
+    "package_choose_submission": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать ранее отправленную версию"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мурда жөнөтүлгөн версияны тандоо"
+          }
+        }
+      }
+    },
+    "package_title": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пакет документов программы"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Программанын документтер топтому"
+          }
+        }
+      }
+    },
+    "package_preview": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить состав пакета"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтомдун курамын текшерүү"
+          }
+        }
+      }
+    },
+    "package_submit": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить пакет на проверку"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтомду текшерүүгө жөнөтүү"
+          }
+        }
+      }
+    },
+    "package_help": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранение файла не отправляет пакет. Пакет отправляется куратору EVO для проверки и не является подачей в университет."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файлды сактоо топтомду жөнөтпөйт. Топтом EVO кураторуна текшерүүгө жөнөтүлөт жана университетке арыз берүү болуп саналбайт."
+          }
+        }
+      }
+    },
+    "package_starter_note": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это пакет по стартовому списку EVO. Полный перечень программы ещё нужно уточнить."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул EVOнун баштапкы тизмеси боюнча топтом. Программанын толук тизмесин дагы тактоо керек."
+          }
+        }
+      }
+    },
+    "package_choose_file": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите точную версию файла для пакета."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом үчүн файлдын так версиясын тандаңыз."
+          }
+        }
+      }
+    },
+    "package_choose_saved": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать сохранённый файл"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сакталган файлды тандоо"
+          }
+        }
+      }
+    },
+    "package_choose_version": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать из моих документов"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Өз документтеримден тандоо"
+          }
+        }
+      }
+    },
+    "package_choice_retained": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот выбор сохранится, если вы загрузите новый файл. Заменить его можно здесь."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жаңы файл жүктөсөңүз да, бул тандоо сакталат. Аны ушул жерден алмаштыра аласыз."
+          }
+        }
+      }
+    },
+    "package_include_optional": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включить в пакет"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтомго кошуу"
+          }
+        }
+      }
+    },
+    "package_selected_composition": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Будет отправлено"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жөнөтүлө турган документтер"
+          }
+        }
+      }
+    },
+    "package_empty_composition": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В пакете ещё нет выбранных файлов."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтомдо тандалган файлдар азырынча жок."
+          }
+        }
+      }
+    },
+    "package_missing_required": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите обязательные документы"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Милдеттүү документтерди тандаңыз"
+          }
+        }
+      }
+    },
+    "package_optional_missing_file": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для включённого необязательного документа тоже нужно выбрать файл."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кошулган кошумча документ үчүн да файл тандоо керек."
+          }
+        }
+      }
+    },
+    "package_document": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Документ"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Документ"
+          }
+        }
+      }
+    },
+    "package_close": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жабуу"
+          }
+        }
+      }
+    },
+    "package_sent": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправлен на проверку"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текшерүүгө жөнөтүлдү"
+          }
+        }
+      }
+    },
+    "package_open_sent": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть отправленный пакет"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жөнөтүлгөн топтомду ачуу"
+          }
+        }
+      }
+    },
+    "package_version": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пакет"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом"
+          }
+        }
+      }
+    },
+    "package_history": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История пакетов"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтомдордун тарыхы"
+          }
+        }
+      }
+    },
+    "package_history_empty": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вы ещё не отправляли пакеты по этой программе."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул программа боюнча топтом жөнөтө элексиз."
+          }
+        }
+      }
+    },
+    "package_detail": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправленный пакет"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жөнөтүлгөн топтом"
+          }
+        }
+      }
+    },
+    "package_previous_requirements": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По предыдущему списку требований"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мурунку талаптар тизмеси боюнча"
+          }
+        }
+      }
+    },
+    "package_review": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Решение по пакету"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом боюнча чечим"
+          }
+        }
+      }
+    },
+    "package_review_detail": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть решение по пакету"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом боюнча чечимди ачуу"
+          }
+        }
+      }
+    },
+    "package_review_history": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История решений по пакету"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом боюнча чечимдердин тарыхы"
+          }
+        }
+      }
+    },
+    "package_review_history_empty": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Решений по этому пакету пока нет."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул топтом боюнча чечим азырынча жок."
+          }
+        }
+      }
+    },
+    "package_decision_approved": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пакет одобрен"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом жактырылды"
+          }
+        }
+      }
+    },
+    "package_decision_correction_required": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужны исправления"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оңдоолор керек"
+          }
+        }
+      }
+    },
+    "package_notification_snapshot": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показано решение из этого уведомления. Изменения после него отмечены отдельно."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул билдирүүдөгү чечим көрсөтүлдү. Андан кийинки өзгөрүүлөр өзүнчө белгиленген."
+          }
+        }
+      }
+    },
+    "package_warning_file_unavailable": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот файл сейчас недоступен. Он остаётся в составе отправленного пакета."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул файл азыр жеткиликсиз. Ал жөнөтүлгөн топтомдун курамында калат."
+          }
+        }
+      }
+    },
+    "package_warning_review_changed": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "После решения по пакету проверка этого файла изменилась. Текущее состояние:"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом боюнча чечимден кийин бул файлдын текшерүүсү өзгөрдү. Азыркы абалы:"
+          }
+        }
+      }
+    },
+    "package_reused_review": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Учтено ранее выданное одобрение этой версии файла."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файлдын ушул версиясына мурда берилген жактыруу эске алынды."
+          }
+        }
+      }
+    },
+    "package_recovery_title": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Незавершённые отправки пакетов"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аяктабаган топтом жөнөтүүлөрү"
+          }
+        }
+      }
+    },
+    "package_recovery_help": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Здесь сохраняются отправки с неподтверждённым результатом, в том числе по предыдущим требованиям. Проверка статуса не отправляет пакет заново."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул жерде жыйынтыгы ырасталбаган, анын ичинде мурунку талаптар боюнча жөнөтүүлөр сакталат. Абалды текшерүү топтомду кайра жөнөтпөйт."
+          }
+        }
+      }
+    },
+    "package_recovery_empty": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Незавершённых отправок нет."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аяктабаган жөнөтүүлөр жок."
+          }
+        }
+      }
+    },
+    "package_pending_submission": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправка ожидает подтверждения"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жөнөтүү ырастоону күтүүдө"
+          }
+        }
+      }
+    },
+    "package_pending_help": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат отправки пока не подтверждён. Проверьте его в незавершённых отправках, прежде чем менять состав."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жөнөтүүнүн жыйынтыгы азырынча ырастала элек. Курамын өзгөртүүдөн мурда аны аяктабаган жөнөтүүлөрдөн текшериңиз."
+          }
+        }
+      }
+    },
+    "package_metadata_unavailable": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось показать исходный состав. Проверьте статус отправки; повторная отправка пока недоступна."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Баштапкы курамды көрсөтүү мүмкүн болгон жок. Жөнөтүүнүн абалын текшериңиз; кайра жөнөтүү азырынча жеткиликсиз."
+          }
+        }
+      }
+    },
+    "package_check_status": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить статус"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Абалын текшерүү"
+          }
+        }
+      }
+    },
+    "package_retry_same": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повторить ту же отправку"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошол эле жөнөтүүнү кайталоо"
+          }
+        }
+      }
+    },
+    "package_reload_pending": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить незавершённые отправки"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аяктабаган жөнөтүүлөрдү жаңыртуу"
+          }
+        }
+      }
+    },
+    "package_not_written": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подтверждено: пакет не был отправлен. Можно открыть программу и подготовить отправку заново."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ырасталды: топтом жөнөтүлгөн эмес. Программаны ачып, жөнөтүүнү кайра даярдасаңыз болот."
+          }
+        }
+      }
+    },
+    "package_revision_changed": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требования изменились. Прежний выбор сохранён ниже. Перед новым выбором откройте обновлённый список."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Талаптар өзгөрдү. Мурунку тандоо төмөндө сакталган. Жаңы тандоо жасоодон мурда жаңыртылган тизмени ачыңыз."
+          }
+        }
+      }
+    },
+    "package_reset_selection": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать по новым требованиям"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жаңы талаптар боюнча тандоо"
+          }
+        }
+      }
+    },
+    "package_storage_unavailable": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось сохранить данные для безопасного повторения отправки. Попробуйте открыть программу ещё раз."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жөнөтүүнү коопсуз кайталоо үчүн маалыматты сактоо мүмкүн болгон жок. Программаны кайра ачып көрүңүз."
+          }
+        }
+      }
+    },
+    "package_preview_failed": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось проверить состав пакета. Попробуйте ещё раз."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтомдун курамын текшерүү мүмкүн болгон жок. Кайра аракет кылыңыз."
+          }
+        }
+      }
+    },
+    "package_request_unknown": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат запроса пока не подтверждён. Проверьте статус в незавершённых отправках."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Суроонун жыйынтыгы азырынча ырастала элек. Аяктабаган жөнөтүүлөрдөн абалын текшериңиз."
+          }
+        }
+      }
+    },
+    "package_access_unavailable": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пакет сейчас недоступен для вашего аккаунта."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом азыр аккаунтуңуз үчүн жеткиликсиз."
+          }
+        }
+      }
+    },
+    "package_changed": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требования или документы изменились. Обновите программу и снова проверьте выбранные версии."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Талаптар же документтер өзгөрдү. Программаны жаңыртып, тандалган версияларды кайра текшериңиз."
+          }
+        }
+      }
+    },
+    "package_not_ready": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пакет пока нельзя отправить. Проверьте состав и доступность выбранных файлов."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтомду азырынча жөнөтүү мүмкүн эмес. Курамын жана тандалган файлдардын жеткиликтүүлүгүн текшериңиз."
+          }
+        }
+      }
+    },
+    "package_reason_requirements_unavailable": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Список требований пока недоступен."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Талаптардын тизмеси азырынча жеткиликсиз."
+          }
+        }
+      }
+    },
+    "package_reason_empty_composition": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавьте документы в пакет."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтомго документтерди кошуңуз."
+          }
+        }
+      }
+    },
+    "package_reason_missing_required": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не для всех обязательных документов выбраны файлы."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бардык милдеттүү документтер үчүн файлдар тандала элек."
+          }
+        }
+      }
+    },
+    "package_reason_material_unavailable": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требование или связанный документ изменились. Обновите программу."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Талап же ага байланышкан документ өзгөрдү. Программаны жаңыртыңыз."
+          }
+        }
+      }
+    },
+    "package_reason_file_unavailable": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбранный файл недоступен. Выберите доступную версию."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тандалган файл жеткиликсиз. Жеткиликтүү версиясын тандаңыз."
+          }
+        }
+      }
+    },
+    "package_reason_previous_submission_changed": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По этому документу появилась другая отправка. Обновите программу и повторите выбор."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул документ боюнча башка жөнөтүү пайда болду. Программаны жаңыртып, кайра тандаңыз."
+          }
+        }
+      }
+    },
+    "program_document_notification_snapshot" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это решение из уведомления. Текущее состояние и более поздние отправки доступны в программе."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул — билдирүүдөгү чечим. Учурдагы абал жана кийинки жөнөтүүлөр программада жеткиликтүү."
+          }
+        }
+      }
+    },
+    "program_document_open_program" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть подготовку по программе"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Программа боюнча даярдыкты ачуу"
+          }
+        }
+      }
+    },
+    "program_document_review_detail" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Решение по документу"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Документ боюнча чечим"
+          }
+        }
+      }
+    },
+    "program_document_changed_refresh" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требования или отправка изменились. Данные обновлены: проверьте файл и отправьте нужную версию снова."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Талаптар же жөнөтүү өзгөрдү. Маалымат жаңыртылды: файлды текшерип, керектүү нусканы кайра жөнөтүңүз."
+          }
+        }
+      }
+    },
+    "program_document_upload_not_saved" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл не сохранён. Проверьте требования и файл, затем повторите загрузку."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл сакталган жок. Талаптарды жана файлды текшерип, кайра жүктөңүз."
+          }
+        }
+      }
+    },
+    "program_document_invalid_file" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите PDF, JPG или PNG до 25 МБ с обычным именем файла."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кадимки аталыштагы, 25 МБга чейинки PDF, JPG же PNG файлын тандаңыз."
+          }
+        }
+      }
+    },
+    "program_document_event_saved" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл сохранён"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл сакталды"
+          }
+        }
+      }
+    },
+    "program_document_saved" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранён, ещё не отправлен"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сакталды, жөнөтүлө элек"
+          }
+        }
+      }
+    },
+    "program_document_sent" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправлен на проверку"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текшерүүгө жөнөтүлдү"
+          }
+        }
+      }
+    },
+    "program_document_submit" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить на проверку"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текшерүүгө жөнөтүү"
+          }
+        }
+      }
+    },
+    "program_document_submit_selected" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить выбранную версию"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тандалган нусканы жөнөтүү"
+          }
+        }
+      }
+    },
+    "program_document_awaiting_review" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидает решения сотрудника"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кызматкердин чечими күтүлүүдө"
+          }
+        }
+      }
+    },
+    "program_document_previous_review" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверен по предыдущим требованиям"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мурунку талаптар боюнча текшерилген"
+          }
+        }
+      }
+    },
+    "program_document_previous_evidence" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл из предыдущих требований"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мурунку талаптардагы файл"
+          }
+        }
+      }
+    },
+    "program_document_previous_not_current" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это история. По текущим требованиям файл нужно отправить отдельно."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул — тарых. Учурдагы талаптар боюнча файлды өзүнчө жөнөтүү керек."
+          }
+        }
+      }
+    },
+    "program_document_reselect_same" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат загрузки пока не подтверждён. Для повтора выберите тот же файл с прежним именем."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жүктөөнүн жыйынтыгы ырастала элек. Кайталоо үчүн ошол эле файлды мурунку аталышы менен тандаңыз."
+          }
+        }
+      }
+    },
+    "program_document_retry_upload" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать тот же файл и повторить"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошол эле файлды тандап, кайталоо"
+          }
+        }
+      }
+    },
+    "program_document_retry_submit" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить результат отправки"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жөнөтүүнүн жыйынтыгын текшерүү"
+          }
+        }
+      }
+    },
+    "program_document_correct" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить исправленный файл"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оңдолгон файлды сактоо"
+          }
+        }
+      }
+    },
+    "program_document_choose_save" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать и сохранить файл"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файлды тандап, сактоо"
+          }
+        }
+      }
+    },
+    "program_document_save_explanation" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF, JPG или PNG до 25 МБ. После сохранения отправьте файл на проверку отдельной кнопкой."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "25 МБга чейинки PDF, JPG же PNG. Сактагандан кийин файлды өзүнчө баскыч менен текшерүүгө жөнөтүңүз."
+          }
+        }
+      }
+    },
+    "program_document_reuse" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать загруженную версию"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жүктөлгөн нусканы тандоо"
+          }
+        }
+      }
+    },
+    "program_document_reuse_help" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите конкретный файл. Решение по другой программе сюда не переносится."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Белгилүү бир файлды тандаңыз. Башка программа боюнча чечим бул жакка көчүрүлбөйт."
+          }
+        }
+      }
+    },
+    "program_document_no_reusable" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этого требования нет подходящих загруженных версий. Можно сохранить новый файл."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул талап үчүн ылайыктуу жүктөлгөн нускалар жок. Жаңы файлды сактай аласыз."
+          }
+        }
+      }
+    },
+    "program_document_item_history" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История этого требования"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул талаптын тарыхы"
+          }
+        }
+      }
+    },
+    "program_document_history" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История документов программы"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Программанын документтеринин тарыхы"
+          }
+        }
+      }
+    },
+    "program_document_history_help" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Здесь остаются версии и решения по прежним требованиям, включая удалённые из текущего списка."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул жерде мурунку талаптар боюнча нускалар жана чечимдер, анын ичинде учурдагы тизмеден алынып салынгандары да сакталат."
+          }
+        }
+      }
+    },
+    "program_document_history_empty" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этой программе ещё нет сохранённых или отправленных файлов."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул программада сакталган же жөнөтүлгөн файлдар азырынча жок."
+          }
+        }
+      }
+    },
+    "program_document_more" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать ещё"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дагы көрсөтүү"
+          }
+        }
+      }
+    },
+    "program_document_version" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Версия"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нуска"
+          }
+        }
+      }
+    },
+    "program_document_open_version" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть эту версию"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул нусканы ачуу"
+          }
+        }
+      }
+    },
+    "program_document_open_legacy" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть в общих документах"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жалпы документтерден ачуу"
+          }
+        }
+      }
+    },
+    "program_document_pending_title" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неподтверждённые действия"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ырасталбаган аракеттер"
+          }
+        }
+      }
+    },
+    "program_document_pending_old_help" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Остались неподтверждённые действия. Можно проверить прежнюю отправку или повторить сохранение того же файла. Повтор не изменит выбранное требование."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ырасталбаган аракеттер калды. Мурунку жөнөтүүнү текшерип же ошол эле файлды кайра сактай аласыз. Кайталоо тандалган талапты өзгөртпөйт."
+          }
+        }
+      }
+    },
+    "program_document_pending_unavailable" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось прочитать сохранённый запрос. Повторная отправка остановлена, чтобы не создать другую операцию. Попробуйте открыть экран снова."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сакталган сурам окулбай калды. Башка операция түзүлбөшү үчүн кайра жөнөтүү токтотулду. Экранды кайра ачып көрүңүз."
+          }
+        }
+      }
+    },
+    "program_document_same_file" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Остался неподтверждённый запрос для другого файла. Выберите прежний файл с тем же именем."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Башка файл үчүн ырасталбаган сурам калды. Мурунку файлды ошол эле аталышы менен тандаңыз."
+          }
+        }
+      }
+    },
+    "program_document_request_unknown" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат запроса пока не подтверждён. Повтор сохранит тот же файл и ту же отправку."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сурамдын жыйынтыгы ырастала элек. Кайталоодо ошол эле файл жана жөнөтүү сакталат."
+          }
+        }
+      }
+    },
+    "program_document_download_failed" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эту версию не удалось открыть. Обновите экран и попробуйте снова."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул нуска ачылбай калды. Экранды жаңыртып, кайра аракет кылыңыз."
+          }
+        }
+      }
+    },
+    "prep_file_storage_object_unavailable" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённый файл сейчас недоступен."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сакталган файл азыр жеткиликсиз."
+          }
+        }
+      }
+    },
+    "prep_file_scan_proof_unavailable" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка безопасности этой версии ещё не подтверждена."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул нусканын коопсуздук текшерүүсү ырастала элек."
+          }
+        }
+      }
+    },
+    "prep_optional" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Необязательно"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Милдеттүү эмес"
+          }
+        }
+      }
+    },
+    "prep_confirmed_note" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список подтверждён EVO. Решение по каждому файлу показано отдельно."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тизме EVO тарабынан ырасталды. Ар бир файл боюнча чечим өзүнчө көрсөтүлөт."
+          }
+        }
+      }
+    },
+    "prep_requirement_deadline" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Срок документа"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документтин мөөнөтү"
+          }
+        }
+      }
+    },
+    "prep_deadline_source" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Источник срока"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мөөнөттүн булагы"
+          }
+        }
+      }
+    },
+    "prep_deadline_verified" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Источник проверен:"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Булак текшерилген:"
+          }
+        }
+      }
+    },
+    "prep_definition_changed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Требование изменилось. Проверьте, соответствует ли ему прежний файл."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Талап өзгөрдү. Мурунку файл жаңы талапка туура келерин текшериңиз."
           }
         }
       }
@@ -1078,13 +2758,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Решение EVO: принят"
+            "value" : "Проверка файла: принят"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "EVO чечими: кабыл алынды"
+            "value" : "Файлды текшерүү: кабыл алынды"
           }
         }
       }
@@ -1094,13 +2774,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Решение EVO: нужны исправления"
+            "value" : "Проверка файла: нужны исправления"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "EVO чечими: оңдоолор керек"
+            "value" : "Файлды текшерүү: оңдоолор керек"
           }
         }
       }
@@ -1110,13 +2790,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Решение EVO: отклонён"
+            "value" : "Проверка файла: отклонён"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "EVO чечими: четке кагылды"
+            "value" : "Файлды текшерүү: четке кагылды"
           }
         }
       }

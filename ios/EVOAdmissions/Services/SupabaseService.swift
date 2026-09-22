@@ -237,14 +237,14 @@ final class SupabaseService {
 
     /// Current programme-scoped requirements; preserves uninitialized and
     /// needs_configuration instead of treating them as an empty ready checklist.
-    func studentApplicationRequirements(studentCaseId: UUID, applicationId: UUID) async throws -> ApplicationRequirementsView {
+    func studentApplicationRequirements(studentCaseId: UUID, applicationId: UUID) async throws -> ApplicationRequirementsV2View {
         struct Params: Encodable, Sendable {
             let p_student_case_id: String
             let p_application_id: String
         }
         do {
-            let result: ApplicationRequirementsView = try await client
-                .rpc("student_application_requirements_v1", params: Params(
+            let result: ApplicationRequirementsV2View = try await client
+                .rpc("student_application_requirements_v2", params: Params(
                     p_student_case_id: studentCaseId.uuidString.lowercased(),
                     p_application_id: applicationId.uuidString.lowercased()
                 ))
@@ -755,5 +755,72 @@ extension SupabaseService {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { return .unavailable }
         return InviteAcceptanceOutcome.from(statusCode: http.statusCode, body: data)
+    }
+}
+
+// Programme documents keep saved bytes, explicit submissions and decisions
+// separate. No fallback to the legacy material-current requirements reader.
+extension SupabaseService {
+    func studentApplicationDocuments(studentCaseId: UUID, applicationId: UUID) async throws -> ApplicationDocumentsView {
+        let result: ApplicationDocumentsView = try await client.rpc("student_application_documents_v1", params: ApplicationDocumentJSON.object([
+            "p_student_case_id": .string(studentCaseId.uuidString.lowercased()),
+            "p_application_id": .string(applicationId.uuidString.lowercased())
+        ])).execute().value
+        try result.validate(studentCaseId: studentCaseId, applicationId: applicationId)
+        return result
+    }
+
+    func submitApplicationDocument(_ intent: ApplicationDocumentSubmitIntent, requestId: String) async throws -> ApplicationDocumentSubmitReceipt {
+        do {
+            let result: ApplicationDocumentSubmitReceipt = try await client.rpc("submit_application_document_v1",
+                params: intent.parameters(requestId: requestId)).execute().value
+            try result.validate(intent, requestId: requestId)
+            return result
+        } catch let error as PostgrestError {
+            let afterReplayNoWrite = ["application_document_stale_requirements", "application_document_mapping_changed",
+                "application_document_previous_submission_changed", "application_document_file_unavailable"]
+            if error.code == "PT409", afterReplayNoWrite.contains(error.message) {
+                throw ApplicationDocumentDefinitiveFailure(key: "program_document_changed_refresh")
+            }
+            throw error
+        }
+    }
+
+    func applicationDocumentHistory(studentCaseId: UUID, applicationId: UUID, requirementItemId: String? = nil,
+                                    cursor: ApplicationDocumentHistoryCursor? = nil) async throws -> ApplicationDocumentHistory {
+        let result: ApplicationDocumentHistory = try await client.rpc("application_document_history_v1", params: ApplicationDocumentJSON.object([
+            "p_student_case_id": .string(studentCaseId.uuidString.lowercased()), "p_application_id": .string(applicationId.uuidString.lowercased()),
+            "p_requirement_item_id": requirementItemId.map(ApplicationDocumentJSON.string) ?? .null,
+            "p_cursor": try cursor.map { try JSONDecoder().decode(ApplicationDocumentJSON.self, from: JSONEncoder().encode($0)) } ?? .null,
+            "p_limit": .integer(20)
+        ])).execute().value
+        guard result.studentCaseId == studentCaseId.uuidString.lowercased(), result.applicationId == applicationId.uuidString.lowercased(),
+              result.requirementItemId == requirementItemId else { throw ApplicationDocumentClientError.invalidResponse }
+        return result
+    }
+
+    func applicationDocumentReusableVersions(studentCaseId: UUID, applicationId: UUID, requirementItemId: String,
+                                             cursor: ApplicationDocumentVersionCursor? = nil) async throws -> ApplicationDocumentReusablePage {
+        let result: ApplicationDocumentReusablePage = try await client.rpc("application_document_reusable_versions_v1", params: ApplicationDocumentJSON.object([
+            "p_student_case_id": .string(studentCaseId.uuidString.lowercased()), "p_application_id": .string(applicationId.uuidString.lowercased()),
+            "p_requirement_item_id": .string(requirementItemId),
+            "p_cursor": try cursor.map { try JSONDecoder().decode(ApplicationDocumentJSON.self, from: JSONEncoder().encode($0)) } ?? .null,
+            "p_limit": .integer(20)
+        ])).execute().value
+        guard result.studentCaseId == studentCaseId.uuidString.lowercased(), result.applicationId == applicationId.uuidString.lowercased(),
+              result.requirementItemId == requirementItemId else { throw ApplicationDocumentClientError.invalidResponse }
+        return result
+    }
+}
+
+extension SupabaseService {
+    func studentApplicationDocumentNotification(notificationId: UUID, studentCaseId: UUID) async throws -> ApplicationDocumentNotification {
+        let value: ApplicationDocumentNotification = try await client.rpc("student_application_document_notification_v1", params: ApplicationDocumentJSON.object([
+            "p_notification_id": .string(notificationId.uuidString.lowercased())
+        ])).execute().value
+        guard value.notificationId == notificationId.uuidString.lowercased(), value.studentCaseId == studentCaseId.uuidString.lowercased() else {
+            throw ApplicationDocumentClientError.invalidResponse
+        }
+        return value
     }
 }

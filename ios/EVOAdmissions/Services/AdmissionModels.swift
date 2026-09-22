@@ -367,10 +367,12 @@ struct NotificationReadReceipt: Decodable, Equatable {
 }
 
 /// Where a notification leads, mirroring the web's
-/// `portalNotificationTarget` (presentation.ts): category prefix decides,
-/// with `case_help_answer` as the one event-code special case. Targets the
+/// `portalNotificationTarget` (presentation.ts): exact review and help events
+/// take precedence over the document/payment category fallback. Targets the
 /// iPhone does not have yet degrade to HONEST DISCLOSURE, never a dead link.
 enum AdmissionNotificationTarget: Equatable {
+    case programPackageReview
+    case programDocumentReview
     /// document* → the documents screen.
     case documents
     /// payment* → the payments screen.
@@ -390,6 +392,8 @@ enum AdmissionNotificationTarget: Equatable {
 /// request id.
 enum AdmissionNotificationPolicy {
     static func target(category: String, eventCode: String) -> AdmissionNotificationTarget {
+        if eventCode == "application_package_review" { return .programPackageReview }
+        if eventCode == "application_document_review" { return .programDocumentReview }
         if eventCode == "case_help_answer" { return .caseHelpReplyDisclosure }
         if category.hasPrefix("document") { return .documents }
         if category.hasPrefix("payment") { return .payments }

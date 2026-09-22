@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { decimalToMinor, financeDateTime, financeMoney, readAuthorizedMonthlyPaymentSummary } from "../src/lib/platform-finance-entry-contract.ts";
+import { decimalToMinor, financeDateTime, financeLocalDate, financeMoney, readAuthorizedMonthlyPaymentSummary } from "../src/lib/platform-finance-entry-contract.ts";
 
 test("money parser uses integer minor units and rejects ambiguous amounts", () => {
   assert.equal(decimalToMinor("1,01"), "101");
@@ -110,4 +110,26 @@ test("sales record totals and plan remain independent of monthly cash availabili
   assert.match(view, /cash && cash\.status !== "not_allowed" && month/);
   assert.match(view, /cash\.status === "unavailable"/);
   assert.doesNotMatch(view, /canReadFinance = cash/);
+});
+
+test("payment DATE preserves local day while timestamp retains UTC conversion", () => {
+  for (const [local, utc] of [
+    ["2026-09-21T00:00", "2026-09-20T18:00:00.000Z"],
+    ["2026-09-21T05:59", "2026-09-20T23:59:00.000Z"],
+    ["2026-09-21T06:00", "2026-09-21T00:00:00.000Z"],
+    ["2026-10-01T00:00", "2026-09-30T18:00:00.000Z"],
+    ["2027-01-01T00:00", "2026-12-31T18:00:00.000Z"],
+    ["2024-02-29T00:00", "2024-02-28T18:00:00.000Z"],
+    ["2024-03-01T05:59", "2024-02-29T23:59:00.000Z"],
+    ["2026-09-21T23:59", "2026-09-21T17:59:00.000Z"],
+  ]) {
+    assert.equal(financeLocalDate(local), local.slice(0, 10));
+    assert.equal(financeDateTime(local), utc);
+  }
+});
+test("payment local date validates the complete datetime-local input", () => {
+  for (const value of ["2025-02-29T00:00", "2026-04-31T00:00", "2026-00-01T00:00", "2026-13-01T00:00", "2026-09-00T00:00", "2026-09-21T24:00", "2026-09-21T12:60", "2026-09-21T-1:00", "2026-09-21", "2026-09-21T1:00", "2026-09-21T00:00:00", "2026-09-21T00:00Z", "2026-09-21T00:00+06:00", " 2026-09-21T00:00", "2026-09-21T00:00\n", ""]) {
+    assert.equal(financeLocalDate(value), null, JSON.stringify(value));
+    assert.equal(financeDateTime(value), null, JSON.stringify(value));
+  }
 });

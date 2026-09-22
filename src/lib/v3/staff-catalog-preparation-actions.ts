@@ -4,8 +4,9 @@ import { isStaffPreview, staffHasPermission } from "../platform-access";
 import { requirePlatformStaffActor } from "../platform-guards";
 import { parseUniversityFilters, universityUuid, type UniversityPage } from "../platform-university-catalog";
 import { readStaffCaseCatalogPreparations } from "../portal/catalog-preparations-source";
-import { readStaffApplicationRequirements } from "../portal/application-requirements-source";
-import { parseApplicationRequirementsTarget, type ApplicationRequirements } from "../portal/application-requirements";
+import type { ApplicationRequirementsV2 } from "../portal/application-requirements-v2";
+import { readStaffApplicationDocuments } from "../portal/application-documents-source";
+import { parseApplicationRequirementsTarget } from "../portal/application-requirements";
 import type { CatalogPreparation } from "../portal/catalog-preparations";
 import { readStaffUniversities } from "./university-source";
 import { selectStaffCatalogIntakeAction } from "../portal/catalog-preparations-actions";
@@ -58,13 +59,16 @@ export async function readStaffPreparationsAction(caseId: string): Promise<Staff
   }
 }
 
-export async function readStaffPreparationRequirementsAction(input: unknown): Promise<StaffPreparationRead<ApplicationRequirements>> {
+export async function readStaffPreparationRequirementsAction(input: unknown): Promise<StaffPreparationRead<ApplicationRequirementsV2>> {
   const actor = await requirePlatformStaffActor();
   if (isStaffPreview(actor) || !staffHasPermission(actor, "document.read.full")) return { status: "forbidden" };
   const target = parseApplicationRequirementsTarget(input);
   if (!target) return { status: "invalid" };
   try {
-    return { status: "ready", value: await readStaffApplicationRequirements(target.studentCaseId, target.applicationId) };
+    // Initialization only needs the definition state. New document UI consumes the
+    // full program reader so legacy material reviews cannot become program acceptance.
+    const documents = await readStaffApplicationDocuments(target.studentCaseId, target.applicationId);
+    return { status: "ready", value: documents.requirements };
   } catch {
     return { status: "unavailable" };
   }

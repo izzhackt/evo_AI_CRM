@@ -1,10 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import {
   changePlatformAdmissionsTaskAction,
   createPlatformAdmissionsTaskAction,
@@ -30,6 +30,8 @@ import type {
   Day,
 } from "./types";
 import { taskDeadlineInputDefaults } from "./types";
+
+import { canEditCalendarCreate, canResumeCalendarCreate, nextCalendarCreateAttempt, type CreateRecovery } from "./create-lifecycle";
 
 const CONTROL =
   "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
@@ -188,17 +190,7 @@ function initialState(
   };
 }
 
-export function CalendarCreateTaskForm({
-  cases,
-  casesHaveMore,
-  assignees,
-  actorMembershipId,
-  actor,
-  day,
-  requestId,
-  selectedCase,
-  expanded = false,
-}: Readonly<{
+type CalendarCreateTaskProps = Readonly<{
   cases: readonly CalendarCaseOption[];
   casesHaveMore: boolean;
   assignees: readonly CalendarAssigneeOption[];
@@ -207,11 +199,53 @@ export function CalendarCreateTaskForm({
   day: Day;
   requestId: string;
   selectedCase?: CalendarCaseOption;
-  expanded?: boolean;
+  navigationPending?: boolean;
+}>;
+
+export function CalendarCreateTaskForm(props: CalendarCreateTaskProps) {
+  // The server UUID also marks fresh props; it never remounts an existing draft.
+  const [attempt, setAttempt] = useState(() => ({ requestId: props.requestId, day: props.day }));
+  const container = useRef<HTMLDivElement>(null);
+  const previousAttempt = useRef(attempt.requestId);
+  useLayoutEffect(() => {
+    if (previousAttempt.current !== attempt.requestId) {
+      const title = container.current?.querySelector<HTMLInputElement>("[data-calendar-create-title]");
+      if (title?.getClientRects().length && !title.closest("[hidden]")) {
+        title.focus({ preventScroll: true });
+      }
+      previousAttempt.current = attempt.requestId;
+    }
+  }, [attempt.requestId]);
+  if (isStaffPreview(props.actor) || !staffPresentationCan(props.actor, "admissions.read") ||
+      !staffHasPermission(props.actor, "task.create")) return null;
+  return <div ref={container}>
+    <CalendarCreateTaskAttempt {...props} key={attempt.requestId}
+      requestId={attempt.requestId} day={attempt.day} renderToken={props.requestId}
+      onCreateAnother={(requestId) => setAttempt({ requestId, day: props.day })} />
+  </div>;
+}
+
+function CalendarCreateTaskAttempt({
+  cases, casesHaveMore, assignees, actorMembershipId, actor, day, requestId,
+  selectedCase, navigationPending = false, renderToken, onCreateAnother,
+}: CalendarCreateTaskProps & Readonly<{
+  renderToken: string;
+  onCreateAnother: (requestId: string) => void;
 }>) {
   const router = useRouter();
+  const [recovery, setRecovery] = useState<CreateRecovery | null>(null);
+  const [refreshPending, startRefresh] = useTransition();
+  const committedToken = useRef(renderToken);
+  useLayoutEffect(() => { committedToken.current = renderToken; }, [renderToken]);
   const [state, action, pending] = useActionState(
-    createPlatformAdmissionsTaskAction,
+    async (previous: PlatformAdmissionsTaskActionState, form: FormData) => {
+      setRecovery(null);
+      const next = await createPlatformAdmissionsTaskAction(previous, form);
+      if (next.status === "stale") {
+        setRecovery({ baselineToken: committedToken.current, refreshRequested: false });
+      }
+      return next;
+    },
     initialState(requestId),
   );
   const [title, setTitle] = useState("");
@@ -220,43 +254,51 @@ export function CalendarCreateTaskForm({
   const [visible, setVisible] = useState("false");
   const [activeCaseId, setActiveCaseId] = useState(selectedCase?.id ?? "");
   const [candidateState, setCandidateState] = useState<Readonly<{
-    caseId: string; status: "loading" | "ready" | "unavailable"; assignees: readonly CalendarAssigneeOption[];
-  }>>(selectedCase ? { caseId: selectedCase.id, status: "ready", assignees } : { caseId: "", status: "loading", assignees: [] });
+    caseId: string; renderToken: string; status: "loading" | "ready" | "unavailable"; assignees: readonly CalendarAssigneeOption[];
+  }>>(selectedCase ? { caseId: selectedCase.id, renderToken, status: "ready", assignees } : { caseId: "", renderToken, status: "loading", assignees: [] });
   useEffect(() => {
     let cancelled = false;
-    if (!activeCaseId || selectedCase?.id === activeCaseId) return;
+    if (!activeCaseId) return;
     void readTaskCaseAssigneesAction(activeCaseId).then(result => {
-      if (!cancelled) setCandidateState({ caseId: activeCaseId, status: result.status === "ready" ? "ready" : "unavailable", assignees: result.assignees });
+      if (!cancelled) setCandidateState({ caseId: activeCaseId, renderToken, status: result.status === "ready" ? "ready" : "unavailable", assignees: result.assignees });
     }).catch(() => {
-      if (!cancelled) setCandidateState({ caseId: activeCaseId, status: "unavailable", assignees: [] });
+      if (!cancelled) setCandidateState({ caseId: activeCaseId, renderToken, status: "unavailable", assignees: [] });
     });
     return () => { cancelled = true; };
-  }, [activeCaseId, selectedCase?.id]);
+  }, [activeCaseId, renderToken]);
 
   useEffect(() => {
-    if (state.status === "saved" || state.status === "stale") router.refresh();
+    if (state.status === "saved") router.refresh();
   }, [router, state.status, state.version]);
 
-  if (isStaffPreview(actor) || !staffHasPermission(actor, "task.create")) {
+  const allowed = !isStaffPreview(actor) && staffPresentationCan(actor, "admissions.read") && staffHasPermission(actor, "task.create");
+  if (!allowed) {
     return null;
   }
 
-  const candidateReady = candidateState.caseId === activeCaseId && candidateState.status === "ready";
+  const candidateReady = candidateState.caseId === activeCaseId &&
+    candidateState.renderToken === renderToken && candidateState.status === "ready";
   const candidates = candidateReady ? candidateState.assignees : [];
   const availableAssignees = staffHasPermission(actor, "task.assign")
     ? candidates
     : candidates.filter((assignee) => assignee.membershipId === actorMembershipId);
-  const locked = pending || state.status === "saved" || state.status === "stale";
   const eligibleAssignee = availableAssignees.some(person => person.membershipId === selectedAssignee);
+  const recoveryInput = {
+    recovery, renderToken, actionPending: pending, refreshPending, navigationPending,
+    allowed, caseId: activeCaseId, candidateCaseId: candidateState.caseId,
+    candidateRenderToken: candidateState.renderToken, candidatesReady: candidateReady, eligibleAssignee,
+  };
+  const canEdit = canEditCalendarCreate(recoveryInput);
+  const canResume = canResumeCalendarCreate(recoveryInput);
+  const locked = pending || refreshPending || navigationPending || state.status === "saved" ||
+    (state.status === "stale" && !canEdit);
+  const nextAttempt = nextCalendarCreateAttempt(state.status, state.requestId, pending);
 
   return (
-    <details open={expanded || undefined} className="rounded-card border border-border bg-surface px-4 py-2">
-      <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-fg">
-        Создать задачу
-      </summary>
+    <div>
       <form
         action={action}
-        className="grid gap-3 border-t border-border pb-2 pt-4 md:grid-cols-2 xl:grid-cols-[minmax(12rem,1fr)_minmax(11rem,0.8fr)_minmax(11rem,0.8fr)]"
+        className="grid min-w-0 gap-3"
         data-testid="v3-calendar-task-create-form"
       >
         <input type="hidden" name="task_type" value="follow_up" />
@@ -266,12 +308,14 @@ export function CalendarCreateTaskForm({
 
         <fieldset disabled={locked} className="contents">
           <legend className="sr-only">Новая задача Admissions</legend>
-          <label className="text-sm font-medium text-fg-2 md:col-span-2 xl:col-span-3">
+          <label className="text-sm font-medium text-fg-2">
             Название задачи
-            <input name="title" value={title} onChange={(event) => setTitle(event.target.value)} required
+            <input data-calendar-create-title name="title" value={title} onChange={(event) => setTitle(event.target.value)} required
               minLength={1} maxLength={1_000} autoComplete="off" className={CONTROL} />
           </label>
-          <TaskCasePicker initialCases={cases} initialHasMore={casesHaveMore} selectedCase={selectedCase} onCaseChange={setActiveCaseId} disabled={locked} />
+          <div className="min-w-0">
+            <TaskCasePicker initialCases={cases} initialHasMore={casesHaveMore} selectedCase={selectedCase} onCaseChange={setActiveCaseId} disabled={locked} />
+          </div>
 
           <label className="text-xs font-medium text-fg-2">
             Ответственный
@@ -284,50 +328,64 @@ export function CalendarCreateTaskForm({
               ))}
             </select>
           </label>
-          {!candidateReady ? <p role="status" className="text-sm text-fg-2">{!activeCaseId ? "Выберите дело студента." : candidateState.caseId === activeCaseId && candidateState.status === "unavailable" ? "Не удалось проверить исполнителей. Обновите страницу; черновик не отправлен." : "Проверяем исполнителей выбранного дела…"}</p> : availableAssignees.length === 0 ? <p role="alert" className="text-sm text-danger">Нет доступного исполнителя для этого дела.</p> : null}
+          {!candidateReady ? <p role="status" className="text-sm text-fg-2">{!activeCaseId ? "Выберите дело студента." : candidateState.caseId === activeCaseId && candidateState.renderToken === renderToken && candidateState.status === "unavailable" ? "Не удалось проверить исполнителей. Обновите данные перед сохранением." : "Проверяем исполнителей выбранного дела…"}</p> : availableAssignees.length === 0 ? <p role="alert" className="text-sm text-danger">Нет доступного исполнителя для этого дела.</p> : null}
 
           <DeadlineFields day={day} />
 
-          <details className="md:col-span-2 xl:col-span-3">
+          <details>
             <summary className="min-h-11 cursor-pointer py-3 text-sm text-fg-2">Дополнительные настройки</summary>
-            <div className="grid gap-3 md:grid-cols-2">
-          <label className="text-sm font-medium text-fg-2">
-            Приоритет
-            <select name="priority" value={priority} onChange={(event) => setPriority(event.target.value)} className={CONTROL}>
-              {PLATFORM_CASE_TASK_PRIORITIES.map((priority) => {
-                const option = PRIORITY_OPTIONS.find((item) => item.value === priority);
-                if (!option) throw new Error("V3 task priority wording is unavailable.");
-                return (
-                  <option key={priority} value={priority}>
-                    {option.label}
-                  </option>
-                );
-              })}
-            </select>
-          </label>
+            <div className="grid gap-3">
+              <label className="text-sm font-medium text-fg-2">
+                Приоритет
+                <select name="priority" value={priority} onChange={(event) => setPriority(event.target.value)} className={CONTROL}>
+                  {PLATFORM_CASE_TASK_PRIORITIES.map((priority) => {
+                    const option = PRIORITY_OPTIONS.find((item) => item.value === priority);
+                    if (!option) throw new Error("V3 task priority wording is unavailable.");
+                    return (
+                      <option key={priority} value={priority}>
+                        {option.label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
 
-          {staffHasPermission(actor, "task.visibility.manage") ? <label className="text-sm font-medium text-fg-2">
-            Видимость студенту
-            <select name="student_visible" value={visible} onChange={(event) => setVisible(event.target.value)} className={CONTROL}>
-              <option value="false">Скрыта</option>
-              <option value="true">Видна</option>
-            </select>
-          </label> : <input type="hidden" name="student_visible" value="false" />}
+              {staffHasPermission(actor, "task.visibility.manage") ? <label className="text-sm font-medium text-fg-2">
+                Видимость студенту
+                <select name="student_visible" value={visible} onChange={(event) => setVisible(event.target.value)} className={CONTROL}>
+                  <option value="false">Скрыта</option>
+                  <option value="true">Видна</option>
+                </select>
+              </label> : <input type="hidden" name="student_visible" value="false" />}
             </div>
           </details>
 
           <div className="flex items-end">
-            <button type="submit" disabled={locked || !candidateReady || !eligibleAssignee} className={`${PRIMARY} w-full`}>
+            <button type="submit" disabled={locked || !candidateReady || !eligibleAssignee || (state.status === "stale" && !canResume)} className={`${PRIMARY} w-full`}>
               {pending ? "Создаём…" : "Создать задачу"}
             </button>
           </div>
         </fieldset>
 
-        <div className="space-y-1 md:col-span-2 xl:col-span-3">
-          <Feedback state={state} />
+        <div className="space-y-2">
+          {state.status !== "stale" ? <Feedback state={state} /> : null}
+          {state.status === "stale" ? <div role="status" className="space-y-2">
+            <p className="text-xs text-fg-2">{canEdit ? "Данные обновлены. Проверьте поля перед повторным сохранением." : "Поля сохранены. Обновите данные перед повторным сохранением."}</p>
+            <button type="button" className={SECONDARY}
+              disabled={pending || refreshPending || navigationPending}
+              onClick={() => {
+                setRecovery({ baselineToken: renderToken, refreshRequested: true });
+                startRefresh(() => router.refresh());
+              }}>
+              {refreshPending ? "Обновляем…" : "Обновить данные"}
+            </button>
+          </div> : null}
+          {nextAttempt ? <button type="button" className={SECONDARY}
+            disabled={navigationPending || refreshPending}
+            onClick={() => onCreateAnother(nextAttempt)}>Создать ещё</button> : null}
         </div>
       </form>
-    </details>
+    </div>
   );
 }
 

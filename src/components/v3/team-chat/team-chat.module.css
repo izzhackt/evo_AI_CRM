@@ -6,6 +6,7 @@
 .workspace :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 .channels { flex: 0 0 288px; min-width: 0; overflow-y: auto; padding: 22px 12px; border-right: 1px solid var(--border); }
 .channelTitle { margin: 0 8px 22px; font-size: 21px; font-weight: 600; line-height: 1.3; letter-spacing: -.02em; }
+.channelFeedback { display: none; }
 .channelSearch { display: flex; align-items: center; gap: 8px; margin: 0 4px 16px; padding-left: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text-3); }
 .workspace .channels .channelSearch input[type=search] { min-width: 0; width: 100%; padding-left: 0; border: 0; box-shadow: none; background: transparent; }
 .channelSearch:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
@@ -23,8 +24,7 @@
 .channelName { display: block; font-size: 15px; font-weight: 600; }
 .channelPreview { display: block; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; color: var(--text-3); }
 .unread { border-radius: 12px; background: var(--accent); color: var(--on-accent); min-width: 24px; padding: 2px 6px; text-align: center; font-size: 12px; }
-.conversation, .thread { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
-.thread { flex: 0 1 420px; border-left: 1px solid var(--border); }
+.conversation { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .conversationHeader { display: flex; flex-shrink: 0; align-items: center; gap: 14px; min-height: 78px; padding: 12px 24px; border-bottom: 1px solid var(--border); }
 .conversationHeader h2 { font-size: 18px; margin: 0; font-weight: 600; }
 .conversationHeader > :last-child { margin-left: auto; }
@@ -34,10 +34,13 @@
 .search { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 20px 12px; border-bottom: 1px solid var(--border); }
 .search input { flex: 1 1 140px; min-width: 0; }
 .workspace input:not([type=checkbox]):not([type=hidden]), .workspace textarea { border: 1px solid var(--control-edge); border-radius: 8px; padding: 10px 12px; color: var(--text); background: var(--surface); font: inherit; font-size: 14px; }
-.history { flex: 1; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; padding: 18px 28px; scrollbar-gutter: stable; background: var(--bg); }
+.history { flex: 1; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; overflow-anchor: none; padding: 18px 28px; scrollbar-gutter: stable; background: var(--bg); }
 .dateDivider { display: flex; justify-content: center; margin: 4px 0 18px; }
 .dateDivider span { padding: 5px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text) 4%, var(--bg)); color: var(--text-3); font-size: 12px; }
 .message { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0 12px; scroll-margin: 16px; }
+.continuation { padding-top: 2px; padding-bottom: 6px; }
+.continuationAvatar { visibility: hidden; }
+.continuation .bubble { margin-top: 2px; padding-block: 8px; }
 .messageContent { min-width: 0; max-width: min(680px, 85%); }
 .authorAvatar { flex-basis: 38px; width: 38px; height: 38px; background: color-mix(in srgb, var(--text) 8%, var(--surface)); font-size: 13px; }
 .ownMessage { justify-content: flex-end; }
@@ -46,7 +49,9 @@
 .ownMessage .bubble { border-radius: 16px 0 16px 16px; background: color-mix(in srgb, var(--accent) 11%, var(--surface)); }
 .highlighted .bubble { outline: 2px solid var(--accent); outline-offset: 3px; }
 .messageHeader { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; font-size: 14px; }
-.messageHeader time { color: var(--text-3); font-size: 12px; }
+.messageMetadata { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; color: var(--text-3); font-size: 12px; }
+.messageMetadata time { white-space: nowrap; }
+.messageFooter > button, .messageFooter > .messageMenu { flex-shrink: 0; }
 .body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; font-size: 16px; }
 .messageActions, .readActions { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .readActions { padding: 0 20px; background: var(--bg); }
@@ -64,6 +69,21 @@
 .secondary:hover { background: var(--bg); }
 .primary:hover:not(:disabled) { background: var(--accent-text); }
 .composer { flex-shrink: 0; padding: 12px 24px 16px; border-top: 1px solid var(--border); background: var(--surface); }
+.quote { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; text-align: left; overflow-wrap: anywhere; }
+.quote:hover { border-color: var(--accent-text); }
+.quote span, .composerQuote p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+.composerQuote { display: flex; align-items: flex-start; gap: 8px; padding-bottom: 8px; font-size: 13px; color: var(--text-2); }
+.composerQuote > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.composerQuote p { margin: 4px 0 0; }
+.drafts { margin-bottom: 8px; font-size: 14px; }
+.drafts summary { display: flex; align-items: center; color: var(--text-2); }
+.drafts[open] { max-height: 180px; overflow-y: auto; }
+.drafts button { overflow-wrap: anywhere; max-width: 100%; }
+.draftPreview { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 120px; overflow-y: auto; color: var(--text-2); }
+.searchResult { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.searchResult > strong { display: block; margin-bottom: 6px; font-size: 14px; }
+.searchResult mark { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); color: var(--text); }
+.composer [aria-live]:empty { display: none; }
 .composerInput { display: flex; gap: 8px; align-items: center; min-height: 66px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; }
 .workspace .composer textarea { display: block; flex: 1; order: 2; width: 100%; min-width: 0; min-height: 44px; max-height: 160px; padding: 10px 4px; border: none; resize: none; overflow-y: auto; line-height: 1.5; background: transparent; }
 .sendButton { order: 3; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
@@ -87,16 +107,11 @@
 .confirmation { background: var(--bg); padding: 12px; border-radius: 8px; font-size: 14px; }
 .mobileBack { display: none; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-@media (max-width: 1200px) and (min-width: 801px) {
-  .workspace[data-panel=thread] .channels { display: none; }
-  .thread { flex-basis: 45%; }
-}
 @media (max-width: 800px) {
   .workspace { height: 100%; min-height: 0; }
-  .workspace[data-panel=channels] .conversation, .workspace[data-panel=channels] .thread,
-  .workspace[data-panel=messages] .channels, .workspace[data-panel=messages] .thread,
-  .workspace[data-panel=thread] .channels, .workspace[data-panel=thread] .conversation { display: none; }
-  .channels, .thread { flex: 1; border: none; }
+  .workspace[data-panel=channels] .conversation, .workspace[data-panel=messages] .channels { display: none; }
+  .channels { flex: 1; border: none; }
+  .channelFeedback { display: block; margin-bottom: 12px; }
   .mobileBack { display: inline-flex; }
   .conversationHeader, .composer { padding: 12px; }
   .conversationHeader { min-height: 68px; gap: 8px; }

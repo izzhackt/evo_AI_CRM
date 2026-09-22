@@ -41,6 +41,7 @@ import {
  */
 
 type AnsweredEntry = { answer: unknown; verdict: LearningVerdict; explain: LearningExplain };
+type LessonOperation = "start" | "answer" | "complete" | "reload";
 type PendingSave = {
   requestId: string;
   exerciseId: string;
@@ -83,7 +84,9 @@ export function LessonRunner({
     view.draft ? firstUnansweredIndex(exercises, view.draft.answers) : 0);
   const [value, setValue] = useState<ExerciseValue | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resultAnnouncement, setResultAnnouncement] = useState("");
   const [error, setError] = useState<LearningActionError["code"] | null>(null);
+  const failedOperation = useRef<LessonOperation | null>(null);
   const [exitNotice, setExitNotice] = useState(false);
   const pendingSave = useRef<PendingSave | null>(null);
   const startRequestId = useRef<string | null>(null);
@@ -115,23 +118,41 @@ export function LessonRunner({
     });
   }, [attempt, completed]);
 
-  function focusHeading() {
+  function focusHeading(result?: string) {
     requestAnimationFrame(() => {
       heading.current?.focus();
       heading.current?.scrollIntoView({ block: "start" });
+      if (result) setResultAnnouncement(result);
     });
+  }
+
+  function reportFailure(code: LearningActionError["code"], operation: LessonOperation) {
+    failedOperation.current = operation;
+    setError(code);
+  }
+
+  function retryFailedOperation() {
+    if (busyRef.current) return;
+    switch (failedOperation.current) {
+      case "start": void start(); break;
+      case "answer": void submitAnswer(); break;
+      case "complete": void complete(); break;
+      case "reload": void reloadDraft(); break;
+    }
   }
 
   async function start() {
     if (busyRef.current) return;
     busyRef.current = true;
+    failedOperation.current = null;
     setBusy(true);
     setError(null);
+    setResultAnnouncement("");
     startRequestId.current ??= crypto.randomUUID();
     try {
       const response = await startLearningLessonAction(view.lesson.lessonId, startRequestId.current);
       if (!response.ok) {
-        setError(response.code);
+        reportFailure(response.code, "start");
         return;
       }
       setAttempt(response.attempt);
@@ -141,7 +162,7 @@ export function LessonRunner({
       setPhase("exercises");
       focusHeading();
     } catch {
-      setError("unavailable");
+      reportFailure("unavailable", "start");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -149,7 +170,7 @@ export function LessonRunner({
   }
 
   async function submitAnswer() {
-    if (busyRef.current || !attempt || !current || currentEntry) return;
+    if (busy || busyRef.current || !attempt || !current || currentEntry) return;
     const request = pendingSave.current ?? (() => {
       if (!currentValue) return null;
       const answer = exerciseValueToAnswer(currentValue);
@@ -165,9 +186,11 @@ export function LessonRunner({
     if (!request) return;
     pendingSave.current = request;
     busyRef.current = true;
+    failedOperation.current = null;
     setBusy(true);
     setError(null);
     setExitNotice(false);
+    setResultAnnouncement("");
     try {
       const response = await saveLearningAnswerAction({
         attemptId: attempt.attemptId,
@@ -178,7 +201,7 @@ export function LessonRunner({
         requestId: request.requestId,
       });
       if (!response.ok) {
-        setError(response.code);
+        reportFailure(response.code, "answer");
         if (response.code !== "unavailable") pendingSave.current = null;
         return;
       }
@@ -196,9 +219,9 @@ export function LessonRunner({
       // A11y (PORT-6a): успешный ответ заменяет кнопку «Ответить» разбором —
       // без переноса фокуса он молча падал на <body>. Тот же focusHeading(),
       // что уже используют start()/complete().
-      focusHeading();
+      focusHeading(response.save.verdict.correct ? strings.verdictCorrect : strings.verdictWrong);
     } catch {
-      setError("unavailable");
+      reportFailure("unavailable", "answer");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -208,6 +231,7 @@ export function LessonRunner({
   async function complete() {
     if (busyRef.current || !attempt) return;
     busyRef.current = true;
+    failedOperation.current = null;
     setBusy(true);
     setError(null);
     completeRequestId.current ??= crypto.randomUUID();
@@ -218,7 +242,7 @@ export function LessonRunner({
         requestId: completeRequestId.current,
       });
       if (!response.ok) {
-        setError(response.code);
+        reportFailure(response.code, "complete");
         if (response.code !== "unavailable") completeRequestId.current = null;
         return;
       }
@@ -226,7 +250,7 @@ export function LessonRunner({
       setAttempt(null);
       focusHeading();
     } catch {
-      setError("unavailable");
+      reportFailure("unavailable", "complete");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -236,11 +260,12 @@ export function LessonRunner({
   async function reloadDraft() {
     if (busyRef.current) return;
     busyRef.current = true;
+    failedOperation.current = null;
     setBusy(true);
     try {
       const response = await reloadLearningLessonAction(view.lesson.lessonId);
       if (!response.ok) {
-        setError(response.code);
+        reportFailure(response.code, "reload");
         return;
       }
       pendingSave.current = null;
@@ -250,7 +275,7 @@ export function LessonRunner({
       setIndex(firstUnansweredIndex(exercises, response.attempt.answers));
       setValue(null);
     } catch {
-      setError("unavailable");
+      reportFailure("unavailable", "reload");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -271,16 +296,12 @@ export function LessonRunner({
           {strings.reloadDraft}
         </button>
       ) : error === "unavailable" ? (
-        // Идемпотентные request_id делают повтор безопасным для каждого шага.
+        // Повторяем именно отказавшую операцию; её request_id и снимок сохранены.
         <button
           type="button"
           className="pt-btn-ghost"
           disabled={busy}
-          onClick={() => {
-            if (!attempt) void start();
-            else if (current && !currentEntry) void submitAnswer();
-            else void complete();
-          }}
+          onClick={retryFailedOperation}
         >
           {strings.retry}
         </button>
@@ -380,13 +401,15 @@ export function LessonRunner({
   return (
     <div className="pt-lesson-flow">
       {/*
-        A11y (PORT-6a): live-областью остаётся только часть «Сохраняем…» —
-        сам счётчик уже объявляется переносом фокуса на sr-only заголовок
-        ниже, и role="status" на всём абзаце дублировал каждое объявление.
+        Счётчик объявляется переносом фокуса на заголовок. Постоянная live-область
+        обновляет только сохранение и короткий подтверждённый вердикт; подробный
+        разбор не объявляется целиком. Вердикт обновляется после переноса фокуса.
       */}
       <p className="pt-ex-progress">
         {formatPortalString(strings.exerciseCounter, { n: String(index + 1), total: String(total) })}
-        <span role="status">{busy ? ` · ${strings.saving}` : ""}</span>
+        <span role="status" aria-live="polite" aria-atomic="true">
+          {busy ? ` · ${strings.saving}` : resultAnnouncement ? ` · ${resultAnnouncement}` : ""}
+        </span>
       </p>
       <section className="pt-lesson-card">
         <h2 ref={heading} tabIndex={-1} className="pt-sr-only">
@@ -427,6 +450,7 @@ export function LessonRunner({
               onClick={() => {
                 setIndex(index + 1);
                 setValue(null);
+                setResultAnnouncement("");
                 focusHeading();
               }}
             >
@@ -436,7 +460,8 @@ export function LessonRunner({
             <button
               type="button"
               className="pt-btn"
-              disabled={busy || !submittable}
+              disabled={!submittable}
+              aria-disabled={busy || !submittable}
               onClick={() => void submitAnswer()}
             >
               {busy ? strings.saving : strings.answerButton}

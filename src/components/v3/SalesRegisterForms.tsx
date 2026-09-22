@@ -285,9 +285,10 @@ export function SalesTargetForm({ reportMonth, target, requestId, readUnavailabl
   const [base, setBase] = useState(target);
   const [count, setCount] = useState(target ? String(target.targetCount) : "");
   const [reason, setReason] = useState("");
-  const [state, action, pending] = useActionState(async (previous: SalesRegisterActionState & { submittedVersion: number }, form: FormData) => ({
-    ...await saveSalesTargetAction(previous, form), submittedVersion: base?.version ?? 0,
-  }), { status: "idle", requestId, recordId: target?.id ?? null, leadId: null, submittedVersion: base?.version ?? 0 } as SalesRegisterActionState & { submittedVersion: number });
+  const [state, action, pending] = useActionState(async (previous: SalesRegisterActionState & { submittedVersion: number }, form: FormData) => {
+    if (readUnavailable) return { ...previous, status: "unavailable" as const };
+    return { ...await saveSalesTargetAction(previous, form), submittedVersion: base?.version ?? 0 };
+  }, { status: "idle", requestId, recordId: target?.id ?? null, leadId: null, submittedVersion: base?.version ?? 0 } as SalesRegisterActionState & { submittedVersion: number });
   const status = state.submittedVersion === (base?.version ?? 0) ? state.status : "idle";
   const changed = !readUnavailable && base?.version !== current?.version;
   return <form action={action} aria-busy={pending} className="mt-3 max-w-md space-y-3">
@@ -304,20 +305,23 @@ export function SalesTargetForm({ reportMonth, target, requestId, readUnavailabl
   </form>;
 }
 
-export function SalesRegisterImport({ requestId }: { requestId: string }) {
+export function SalesRegisterImport({ requestId, readUnavailable = false }: { requestId: string; readUnavailable?: boolean }) {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [state, action, pending] = useActionState(async (previous: Awaited<ReturnType<typeof importSalesRegisterAction>>, form: FormData) => {
+    if (readUnavailable) return { ...previous, status: "unavailable" as const };
     if (file) form.set("import_file", file);
     return importSalesRegisterAction(previous, form);
   }, { status: "idle", requestId, recordId: null, leadId: null, importResult: null } as Awaited<ReturnType<typeof importSalesRegisterAction>>);
   return <form action={action} aria-busy={pending} className="mt-3 max-w-xl space-y-3">
     <input type="hidden" name="request_id" value={state.requestId} />
     <p className="text-sm text-fg-3">Однократная загрузка подготовленной копии. Повтор не добавляет дубли и не заменяет исправления сотрудников. Google-таблица не изменяется.</p>
-    <label className="block"><span className={labelCls}>Подготовленный файл переноса (.json)</span><input type="file" accept=".json,application/json" onChange={e => setFile(e.target.files?.[0] ?? null)} disabled={pending || state.status === "saved"} className="min-h-11 max-w-full text-sm" /></label>
+    <label className="block"><span className={labelCls}>Подготовленный файл переноса (.json)</span><input type="file" accept=".json,application/json" onChange={e => setFile(e.target.files?.[0] ?? null)} disabled={pending || readUnavailable || state.status === "saved"} className="min-h-11 max-w-full text-sm" /></label>
     {file ? <p className="break-words text-xs text-fg-3">Выбран: {file.name}</p> : null}
     {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="text-sm">{MESSAGES[state.status]}</p> : null}
     {state.importResult ? <div role="status" className="space-y-2 text-sm"><p>Добавлено записей: {state.importResult.inserted}. Уже были перенесены: {state.importResult.skipped}. Добавлено планов: {state.importResult.targetsInserted}.</p>
       {state.importResult.mismatches || state.importResult.targetsMismatched ? <p>Есть расхождения с ранее перенесёнными данными: записи — {state.importResult.mismatches}, планы — {state.importResult.targetsMismatched}. Существующие данные не перезаписаны.</p> : null}</div> : null}
-    <button disabled={!file || pending || state.status === "saved"} className={`${btnCls} min-h-11`}>{pending ? "Переносим записи…" : "Перенести записи в платформу"}</button>
+    {readUnavailable ? <div className="space-y-2"><p role="alert" className="text-sm">{file ? "Перенос временно недоступен. Выбранный файл сохранён; отправка остановлена." : "Перенос временно недоступен. Проверьте доступ перед выбором файла."}</p><button type="button" disabled={pending} className={`${btnGhostCls} min-h-11`} onClick={() => router.refresh()}>Проверить доступ к переносу</button></div> : null}
+    <button disabled={!file || pending || readUnavailable || state.status === "saved"} className={`${btnCls} min-h-11`}>{pending ? "Переносим записи…" : "Перенести записи в платформу"}</button>
   </form>;
 }

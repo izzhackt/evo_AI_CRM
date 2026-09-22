@@ -95,10 +95,10 @@ private func initializeProgramRequirements(
         throw ProgramPreparationLocalError.working
     }
     defer { session.finish(key, generation: generation) }
-    let current = try await service.studentApplicationRequirements(
+    let documentView = try await service.applicationPackageReadiness(
         studentCaseId: context.scope.caseId, applicationId: preparation.id)
     guard session.matches(context, generation: generation) else { throw ProgramPreparationLocalError.unavailable }
-    guard current.state == .uninitialized else { return }
+    guard documentView.requirements.state == .uninitialized else { return }
     guard session.context?.canStart == true, preparation.applicationStatus == .preparation else { return }
     let intent = try session.requirementsIntent(context: context, applicationId: preparation.id)
     do {
@@ -208,7 +208,8 @@ final class ProgramPreparationModel: ObservableObject {
 @MainActor
 final class ProgramPreparationDetailModel: ObservableObject {
     @Published private(set) var preparation: CatalogPreparation?
-    @Published private(set) var requirements: ApplicationRequirementsView?
+    @Published private(set) var requirements: ApplicationRequirementsV2View?
+    @Published private(set) var documents: ApplicationPackageReadiness?
     @Published private(set) var isLoading = false
     @Published private(set) var isWorking = false
     @Published private(set) var readError = false
@@ -217,17 +218,19 @@ final class ProgramPreparationDetailModel: ObservableObject {
     private let service: SupabaseService
     private var readGeneration = 0
     private var target: UUID?
+    private var detailScope: ProgramPreparationContext.Scope?
 
     init(service: SupabaseService = .shared) { self.service = service }
 
     func load(applicationId: UUID, context: ProgramPreparationContext) async {
         readGeneration += 1
         let generation = readGeneration
-        if target != applicationId { preparation = nil; target = applicationId }
+        if target != applicationId || detailScope != context.scope { preparation = nil; target = applicationId; detailScope = context.scope }
         isLoading = true
         readError = false
         missing = false
         requirements = nil
+        documents = nil
         defer { if generation == readGeneration { isLoading = false } }
         do {
             let rows = try await service.studentCatalogPreparations(studentCaseId: context.scope.caseId)
@@ -236,9 +239,10 @@ final class ProgramPreparationDetailModel: ObservableObject {
                 preparation = nil; missing = true; return
             }
             preparation = row
-            let view = try await service.studentApplicationRequirements(studentCaseId: context.scope.caseId, applicationId: applicationId)
+            let view = try await service.applicationPackageReadiness(studentCaseId: context.scope.caseId, applicationId: applicationId)
             guard generation == readGeneration else { return }
-            requirements = view
+            documents = view
+            requirements = view.requirements
         } catch {
             if generation == readGeneration { readError = true }
         }

@@ -43,6 +43,7 @@ export function Settings({
   journalHrefFor,
   gates,
   platform,
+  salesImportHref,
   staff,
   staffView,
   selectedStaffMemberId,
@@ -64,6 +65,7 @@ export function Settings({
   journalHrefFor: (next: Readonly<{ objectType?: string; role?: string }>) => string;
   gates: GateFacts;
   platform: string;
+  salesImportHref?: string;
   staff?: StaffWorkspaceData;
   staffView: "people" | "departments" | "roles";
   selectedStaffMemberId?: string;
@@ -136,7 +138,7 @@ export function Settings({
           />
         ) : null}
         {current?.key === "documents" ? <DocumentsSection gates={gates} /> : null}
-        {current?.key === "platform" ? <PlatformSection platform={platform} /> : null}
+        {current?.key === "platform" ? <PlatformSection platform={platform} salesImportHref={salesImportHref} /> : null}
       </div>
     </div>
   );

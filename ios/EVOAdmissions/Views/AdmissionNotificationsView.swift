@@ -291,6 +291,17 @@ private struct NotificationRow: View {
     @ViewBuilder
     private var targetView: some View {
         switch target {
+        case .programPackageReview:
+            NavigationLink { ProgramPackageNotificationView(notificationId: notification.notificationId) } label: {
+                Text("package_review_detail").font(.footnote)
+            }
+            .frame(minHeight: 44)
+            .accessibilityLabel(Text("package_review_detail"))
+        case .programDocumentReview:
+            NavigationLink { ProgramDocumentNotificationView(notificationId: notification.notificationId) } label: {
+                Text("program_document_review_detail").font(.footnote)
+            }
+            .accessibilityLabel(Text("program_document_review_detail"))
         case .documents:
             NavigationLink {
                 AdmissionDocumentsView()

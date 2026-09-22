@@ -1,4 +1,5 @@
 import SwiftUI
+import QuickLook
 
 struct ProgramPreparationRoute: Hashable {
     let applicationId: UUID
@@ -72,11 +73,13 @@ struct CatalogIntakePreparationAction: View {
 struct ProgramPreparationListSection: View {
     @EnvironmentObject private var session: ProgramPreparationSession
     @StateObject private var model = ProgramPreparationModel()
+    @State private var visibleScope: ProgramPreparationContext.Scope?
 
     var body: some View {
         Section {
             if let context = session.context {
-                if model.isLoading {
+                NavigationLink("package_recovery_title") { ProgramPackageRecoveryView() }.frame(minHeight: 44)
+                if visibleScope != context.scope || model.isLoading {
                     ProgressView("prep_loading")
                 } else if model.loadFailed {
                     Text("prep_read_failed").foregroundStyle(.secondary)
@@ -103,6 +106,7 @@ struct ProgramPreparationListSection: View {
             Text("prep_list_title")
         }
         .task(id: session.context?.scope) {
+            visibleScope = session.context?.scope
             if let context = session.context { await model.load(context: context) }
         }
         .onChange(of: session.refreshSignal) {
@@ -115,7 +119,11 @@ struct ProgramPreparationView: View {
     let applicationId: UUID
     var initialSavedNotice = false
     @EnvironmentObject private var session: ProgramPreparationSession
+    @Environment(\.locale) private var locale
     @StateObject private var model = ProgramPreparationDetailModel()
+    @StateObject private var documentModel = ProgramDocumentModel()
+    @StateObject private var packageModel = ProgramPackageModel()
+    @State private var visibleScope: ProgramPreparationContext.Scope?
 
     private struct ReadTarget: Hashable {
         let scope: ProgramPreparationContext.Scope?
@@ -124,6 +132,7 @@ struct ProgramPreparationView: View {
 
     var body: some View {
         List {
+            if visibleScope == session.context?.scope, session.context != nil {
             if initialSavedNotice && model.requirements == nil {
                 Section { Text("prep_choice_saved") }
             }
@@ -150,7 +159,16 @@ struct ProgramPreparationView: View {
                 }
             } else if let requirements = model.requirements {
                 requirementsSection(requirements)
+                ProgramPackageSection(applicationId: applicationId, model: packageModel).disabled(documentModel.busy)
             }
+            ProgramDocumentPendingSection(model: documentModel)
+            if let error = documentModel.errorKey {
+                Section { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
+            }
+            if let notice = documentModel.noticeKey {
+                Section { Text(LocalizedStringKey(notice)) }
+            }
+            if documentModel.busy { Section { ProgressView("prep_loading") } }
             if let error = model.errorKey {
                 Section { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
             }
@@ -162,6 +180,7 @@ struct ProgramPreparationView: View {
                         guard let context = session.context else { return }
                         Task {
                             await model.continuePreparation(applicationId: applicationId, context: context, session: session)
+                            await refresh()
                         }
                     } label: {
                         HStack {
@@ -173,26 +192,42 @@ struct ProgramPreparationView: View {
                 }
             }
             Section {
+                NavigationLink { ProgramDocumentHistoryView(applicationId: applicationId, model: documentModel) } label: {
+                    Label("program_document_history", systemImage: "clock.arrow.circlepath")
+                }
                 NavigationLink { AdmissionDocumentsView() } label: {
                     Label("prep_all_documents", systemImage: "doc.text")
                 }
             } footer: {
                 Text("prep_upload_sends")
             }
+            } else {
+                ProgressView("prep_loading")
+            }
         }
+        .quickLookPreview($documentModel.previewURL)
         .navigationTitle("prep_detail_title")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: ReadTarget(scope: session.context?.scope, applicationId: applicationId)) { await refresh() }
+        .onChange(of: session.refreshSignal) { Task { await refresh() } }
         .refreshable { await refresh() }
     }
 
     private func refresh() async {
-        guard let context = session.context else { return }
+        guard let context = session.context else { documentModel.deactivate(); packageModel.deactivate(); visibleScope = nil; return }
+        if visibleScope != context.scope { packageModel.deactivate() }
+        visibleScope = context.scope
+        let generation = session.generation
+        documentModel.beginRead(context: context, applicationId: applicationId)
         await model.load(applicationId: applicationId, context: context)
+        if session.matches(context, generation: generation), let documents = model.documents {
+            documentModel.activate(documents, context: context)
+            packageModel.activate(documents, context: context)
+        }
     }
 
     @ViewBuilder
-    private func requirementsSection(_ requirements: ApplicationRequirementsView) -> some View {
+    private func requirementsSection(_ requirements: ApplicationRequirementsV2View) -> some View {
         Section {
             if requirements.state == .needsConfiguration {
                 Text("prep_needs_configuration")
@@ -205,38 +240,54 @@ struct ProgramPreparationView: View {
             ForEach(requirements.items) { item in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(item.label).font(.headline).accessibilityAddTraits(.isHeader)
-                    Text("prep_required").font(.caption).foregroundStyle(.secondary)
+                    Text(LocalizedStringKey(item.required ? "prep_required" : "prep_optional"))
+                        .font(.caption).foregroundStyle(.secondary)
                     Text(item.instructions).font(.subheadline)
-                    if let status = item.slotStatus {
-                        Text(LocalizedStringKey("prep_slot_\(status.rawValue)"))
-                            .font(.subheadline)
-                    }
-                    if let decision = item.reviewDecision {
-                        Text(LocalizedStringKey("prep_review_\(decision.rawValue)"))
-                            .font(.footnote)
-                        if let reason = item.reviewReason { Text(reason).font(.footnote) }
-                    }
-                    if item.technicalAvailability == .available {
-                        Text("prep_file_available").font(.footnote).foregroundStyle(.secondary)
-                    } else {
-                        ForEach(item.unavailableReasons, id: \.rawValue) { reason in
-                            Text(LocalizedStringKey("prep_file_\(reason.rawValue)"))
+                    if let deadline = item.deadline {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("prep_requirement_deadline").font(.subheadline)
+                            Text(deadlineLabel(deadline)).font(.subheadline)
+                            if let source = deadline.sourceUrl, let url = URL(string: source) {
+                                Link("prep_deadline_source", destination: url)
+                                    .font(.footnote).frame(minHeight: 44, alignment: .leading)
+                            }
+                            Text(String(localized: "prep_deadline_verified", locale: locale) + " "
+                                 + (CatalogDate.dayLabel(from: deadline.verifiedOn, locale: locale) ?? deadline.verifiedOn))
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
+                    }
+                    if item.definitionImpact == .changed {
+                        Text("prep_definition_changed").font(.footnote)
+                    }
+                    if let document = documentModel.documents?.documentItems.first(where: { $0.id == item.id.uuidString.lowercased() }),
+                       let revision = requirements.revision {
+                        ProgramDocumentControls(item: document, revisionId: revision.revisionId.uuidString.lowercased(),
+                            applicationId: applicationId, model: documentModel).disabled(packageModel.busy)
+                    }
+                    ForEach(item.unavailableReasons.filter { ["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"].contains($0.rawValue) }, id: \.rawValue) { reason in
+                        Text(LocalizedStringKey("prep_file_\(reason.rawValue)")).font(.footnote).foregroundStyle(.secondary)
                     }
                     if item.slotStatus != nil {
                         NavigationLink {
                             AdmissionDocumentsView(focusedSlotId: item.documentSlotId)
                         } label: {
-                            Text("prep_open_document").frame(minHeight: 44)
+                            Text("program_document_open_legacy").frame(minHeight: 44)
                         }
                     }
                 }.padding(.vertical, 4)
             }
         } header: {
-            Text(LocalizedStringKey(requirements.revision == nil ? "prep_requirements_title" : "prep_starter_title"))
+            Text(LocalizedStringKey(requirements.revision?.origin == .evoStarter ? "prep_starter_title" : "prep_requirements_title"))
         } footer: {
-            if requirements.revision != nil { Text("prep_starter_note") }
+            if requirements.revision?.origin == .evoStarter { Text("prep_starter_note") }
+            else if requirements.revision?.origin == .staffConfirmed { Text("prep_confirmed_note") }
         }
+    }
+
+    private func deadlineLabel(_ deadline: ApplicationRequirementDeadline) -> String {
+        let day = CatalogDate.dayLabel(from: deadline.date, locale: locale) ?? deadline.date
+        let time = deadline.time.map { ", \($0)" } ?? ""
+        let timezone = deadline.timezone.map { " (\($0))" } ?? ""
+        return day + time + timezone
     }
 }

@@ -3099,7 +3099,9 @@ main.pt-page > .pt-card {
 }
 
 .pt-btn:disabled,
-.pt-btn-ghost:disabled {
+.pt-btn-ghost:disabled,
+.pt-profile-language-submit .pt-btn[aria-disabled="true"],
+.pt-lesson-actions .pt-btn[aria-disabled="true"] {
   cursor: not-allowed;
   opacity: 0.55;
 }

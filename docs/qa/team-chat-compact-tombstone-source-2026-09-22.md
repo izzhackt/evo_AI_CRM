@@ -124,4 +124,15 @@ Auth cookies удалён после строгой финальной свер�
 Граница приёмки: source и обычные UI negative controls. **Положительная compact
 геометрия root0 — NOT PROVEN**, подходящего существующего сообщения нет.
 Другие роли, native, production, issue708 и весь item15 этим PR не закрыты.
-Независимое actual/closure review и итоговое exact-head review фиксируются отдельно.
+Независимое actual/closure review: **APPROVED_ACTUAL_NEGATIVE_CONTROLS_AND_CLOSURE**,
+без blockers; reportSHA `a11b941a05f00ce4f632530924b310b62e4a07a2e01964b5b9191fb093e4a812`.
+Review самостоятельно сверило raw snapshots/Auth, все PNG и handoff. A вернула
+ресурс ROOT для следующего окна B; released handoffSHA
+`4ba7644b1983c520e898c9023acb556cc2d1e49fd4f77a1079b47e2c3127e215`.
+
+После закрытия runtime интегрирован docs-only main
+`eed088a0539b8eca35115676a4860ff759a4c512` (#1033). Оба append-журнала сохраняют
+полный main-префикс и две исторические записи A15 побайтно. Общая ведомость/KB
+сохранены из main; два product-файла совпадают с проверенными hashes выше.
+Новый runtime для интеграции документов не запускался: actual остаётся на `00cba973`.
+Итоговое exact-head review и protected CI выполняются на head PR отдельно.

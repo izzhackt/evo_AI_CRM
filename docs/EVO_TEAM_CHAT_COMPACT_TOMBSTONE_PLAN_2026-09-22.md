@@ -4,7 +4,9 @@
 и diff check PASS. На `00cba973` независимое source review и protected CI прошли;
 обычный Admin UI подтвердил три существующих отрицательных варианта, включая
 ширины390/320/1440px. QA-сессия, браузер и свой сервер закрыты; строгая сверка
-данных PASS, добавленных seen0. [Квитанция](qa/team-chat-compact-tombstone-source-2026-09-22.md)
+данных PASS, добавленных seen0. Независимое actual/closure review одобрено;
+QA возвращена ROOT. Docs-only main `eed088a` интегрирован после закрытия runtime.
+[Квитанция](qa/team-chat-compact-tombstone-source-2026-09-22.md)
 сохраняет provenance и пределы. Положительного root0 нет: его compact geometry
 остаётся NOT PROVEN. Ниже сохранён согласованный precode-контракт; ограничения
 на ресурсы описывают состояние до отдельного разрешённого окна ROOT.

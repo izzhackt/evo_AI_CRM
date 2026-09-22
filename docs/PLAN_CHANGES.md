@@ -37442,3 +37442,25 @@ main. Append-only конфликты разрешены точным общим 
 Архитектура/контракт не расширены; итоговые exact-head review/CI/merge #1024
 остаются у ROOT. Timestamp далее отдельным блоком; positive commands,
 production/native/full15 и issue708 real-staff acceptance не заявляются.
+
+
+## 2026-09-22 — A15 channel timestamp: accepted precode, reservation239 before source
+
+#1024 смержен вd1568d58 после review3e4cfb59 и CI35669601084. Следующий
+[принятый timestamp-контракт](EVO_TEAM_CHAT_CHANNEL_TIME_PLAN_2026-09-22.md)
+перенесён в репо до кода: original8c0466d5, independent37f9d5a, ROOTacceptance9c73157b.
+Fresh targeted diff сохраняет предпосылку additive outer field/nested7 exact.
+ROOT эксклюзивно зарезервировал239; другая миграция не назначается.
+
+Первый блок: m.created_at той же authorized latest строки, дополнительное outer
+latestPreviewCreatedAt, legacy-aware strict DTO и совместное принятие preview/time.
+Конкретизирован UTC canonical format с6 дробными знаками без потери PostgreSQL
+microseconds, запрет timezone-free/invalid дат, сравнение равных instants,
+сохранение времени при stale/null и same-ID legacy ответах. Это уточнения
+прежнего approved contract, не изменение authority/семантики команд.
+Старый decoder проверяется неизменным source fixture; pure cases не выдаются
+за SQL/Auth/UI acceptance. Nested7/guards/ACL/order/unread/seen/CSS неизменны.
+
+UI времени после принятия reader отдельным блоком. Source-only сейчас: QA у
+ROOT16, затем B native; apply, Auth/RPC/browser/server и production не запускаются.
+No migration239 application or full15 acceptance claimed.

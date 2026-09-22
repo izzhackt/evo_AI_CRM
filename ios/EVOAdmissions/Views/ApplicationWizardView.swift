@@ -296,14 +296,17 @@ func applyCountryFlag(_ code: String) -> String {
 struct ApplicationWizardView: View {
     @ObservedObject var router: SessionRouter
     @StateObject private var model: ApplicationWizardViewModel
+    private let onSignIn: (() -> Void)?
 
     init(
         router: SessionRouter,
         mode: ApplicationWizardViewModel.Mode,
         draft: StudentApplicationDraft? = nil,
-        namePrefill: SessionRouter.ApplicationNamePrefill? = nil
+        namePrefill: SessionRouter.ApplicationNamePrefill? = nil,
+        onSignIn: (() -> Void)? = nil
     ) {
         self.router = router
+        self.onSignIn = onSignIn
         _model = StateObject(wrappedValue: ApplicationWizardViewModel(
             mode: mode, draft: draft, namePrefill: namePrefill
         ))
@@ -365,7 +368,13 @@ struct ApplicationWizardView: View {
                     }
                 }
             }
-            Button("signup_confirmation_sign_in") { Task { await router.signOut() } }
+            Button("signup_confirmation_sign_in") {
+                if let onSignIn {
+                    onSignIn()
+                } else {
+                    Task { await router.signOut() }
+                }
+            }
                 .frame(minHeight: 44).disabled(model.isSubmitting)
             Text("signup_confirmation_sign_in_hint").font(.footnote).foregroundStyle(.secondary)
             Link("evo@evoadmissions.com", destination: URL(string: "mailto:evo@evoadmissions.com")!)

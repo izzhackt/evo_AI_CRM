@@ -15390,3 +15390,16 @@ adds stage/status diagnostics only. All secretless, exact-main, actor/arm, timeo
 and redirect guards remain. No new token access, fallback, retry or permissions.
 One changed-source managed run follows independent review/CI; schema240 is not
 reapplied. Prior production0aceda06 remains accepted and arm is false.
+
+
+## 2026-09-22 — additional1–36 review, delivery and native remainder
+
+CRM1041 and receiver1039 are merged/delivered in accepted97b27d55/schema240;
+release35740963950/upstream35740912046 SUCCESS, healthy/restart0/pending absent/armfalse.
+The prior prebuild35739964383 STOP remains;1042 adds stage/status diagnostics
+without weakening first-step secretless or any release guard. No repeat SQL apply.
+[Consolidated receipt](qa/plan36-followup-review-delivery-2026-09-22.md) binds scope,
+actual local CRM, migration, independent reviews/CI and accepted server evidence.
+Native1040 remains draft: source review/build/CI passed, fresh Mac lock prevents
+actual; no merge/installation/Auth/binary delivery claimed. The owner-confirmed
+1026/980 waiver, KB159, items31/32 and deferred37–50/E2E/content/AppStore persist.

@@ -36,3 +36,12 @@ control-token/Supabase mutation guards. No HTTP mocks ran. The first local test
 launch lacked dependencies; reusing an existing identical-lock node_modules
 resolved that setup error without downloading/installing. `git diff --check`
 passed. Actual new-stage GitHub execution remains for the managed workflow.
+
+## Changed-source actual
+
+PR1042 merged97b27d55 after protected CI35740582357 and independent review920aac74.
+Upstream35740912046 and release35740963950 passed the actual inline admissions;
+one image was built and accepted. No metadata/permissions/secretless exception
+was introduced. The initial runner failure cause remains unproven, not declared
+fixed by a later success. [Delivery receipt](plan36-followup-review-delivery-2026-09-22.md)
+records accepted97b27d55 and armfalse.

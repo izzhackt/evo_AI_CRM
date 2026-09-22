@@ -1,5 +1,7 @@
 # Пункты5/36 — production release 22 сентября 2026
 
+## Исторический release — 22 сентября 2026,08:00UTC,24b46830
+
 На08:00:06UTC принят app source `24b468306740f1b6fd90e8064f5ab2b6b80425f6`,
 release `v3-r35701685557-a1-24b46830`, image
 `sha256:a802bcce6a96f1701da54e25cd892f0d815254afda6e4ec097fe93c606a2c67b`.
@@ -74,3 +76,51 @@ native, real-employee issue708 и внешние провайдеры этим r
 Новый runtime/SQL/Auth/UI прогон не выполнялся; browser receipt hash здесь не
 подменяет отдельное описание непроверенных пользовательских сценариев.
 Проверки документации: review diff и `git diff --check`, без продуктовых тестов.
+
+
+## Текущий release — 22 сентября 2026,08:44:10UTC
+
+[#1029](https://github.com/izzhackt/evo_AI_CRM/pull/1029) смержен в
+`8f9391ddc90b7746c0ee576f9beba76201970d8c` после exact-head297db review
+`7ac8b9af35fd8d9411a19fbf610268cae9a8822e24068401fb615f23075aac30`
+и [CI35704886141](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35704886141).
+[Local dev actual](portal-assessment-retry-source-2026-09-22.md) на `ba9204ec`
+подтвердил Start1, один accepted save r2, stale conflict, offline read failure,
+cancel без POST и online read recovery; save2/read2 attempted, Complete0.
+Independent actual/closure reviews `52aa4535`/`d3f129b8` приняты; особенности dev
+routing, время окна, исходные STOP и непроверенный SaveAndExit остаются в квитанции.
+
+App revision8f9391dd принят release `v3-r35705693269-a1-8f9391dd`:
+[upstream35705663397](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35705663397)
+и [release35705693269](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35705693269)
+SUCCESS. Image `sha256:df85c92a2cfe38a23e12cd7f63fdf2d651594c58b6c55d18b8b2407461fa54e9`,
+container `7937031d90479cf6bccb0b168d5e280ea428bd8247239ece4d43a78f39528267`:
+healthy/restart0, accepted pointer/record совпали с exact revision, pending отсутствует.
+CRM/app HTTP200 и armfalse зафиксированы ROOT отдельными окружающими командами,
+а не самим server-readback.py. Независимое review проверило сохранённый readback
+и GitHub metadata; verdict **APPROVED_SCOPED_RELEASE_EVIDENCE**.
+
+Immutable build, ledger guards, read-only authenticated case/Student portal smoke,
+final acceptance и transient cleanup прошли; rollback branches пропущены.
+Production assessment retry в двух вкладках не выполнялся. Schema239 использует
+прежнюю apply-квитанцию; migration files24b46830→8f9391dd неизменны. Нового SQL apply,
+provider configuration activation и rollback не было. Этот release не превращает
+local dev changed-path в production business acceptance.
+
+| Доказательство | SHA-256 |
+|---|---|
+| Accepted readback08:44:10UTC | `02c00627cbabdae86867de163b1fe3aafa182e4c0056be2bbcbb1874e168199f` |
+| Accepted pointer | `686f4b828bd3367dde1cc0349bbee462da02f2b65883f7b33b3b5ab6d184638e` |
+| Acceptance record | `915ebc49a90c757ae91720eb686aa78c3a193e2c18592cbaf2008ae77f192f9c` |
+| Browser receipt, ссылка accepted readback | `9174bd0e0b1c1c376d93e1e23776857d710863067dbd5fce279eb32b33e9fac0` |
+| Независимое release review | `aa62f50ac6977249598cb13daf4b5c06cf29c88b94f9bc32114c51eefa029296` |
+
+#1026/#980 остаются открытыми: native actual не выполнен. CUA-наблюдение B08:21
+снова показало locked Mac; прежнее unlocked07:41 не является текущим состоянием.
+Пользовательские входные данные для почты уточняются: invite alias вместо адреса
+с подтверждённой Auth identity и доступ к business receiving Gmail ещё ожидаются;
+личный signup-адрес свободен, собственный receiving Gmail доступен. Писем не было.
+#980 activation packet reviewed INERT; live OTP8/local6 отмечены, конфигурация,
+Invite/recovery и provider отправки не менялись. Полного завершения1–36 нет;
+решения31, границы32 и отложенный scope сохранены. Эта запись — docs-only по
+квитанциям, без повторных runtime/тестов; проверка diff и `git diff --check`.

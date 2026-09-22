@@ -63,7 +63,10 @@ worktree after exact package/lock equality, same ownership and a regular donor
 directory were verified. No install, full build, browser, server, Auth or SQL
 operation occurred. Only small local generated type artifacts were created.
 
-## Remaining acceptance
+## Acceptance required at the source checkpoint
+
+This is the historical sequence before the actual batch; it is not a current QA
+assignment. The dated completion below supersedes its pending statuses.
 
 Independent source review and short protected CI precede a separately admitted
 actual UI batch at1440/390/320. Shared QA remains with ROOT16b, then B1029, then A
@@ -72,3 +75,14 @@ to admitted existing IDs, and close only owned resources. Check real labels,
 semantic/full accessible time, overlap/overflow, keyboard/Back and directly
 affected draft/search/context continuity. Missing old-year/tombstone/other-role
 material remains an explicit gap; do not create messages to manufacture it.
+
+## Completion update — 22 September 2026
+
+Independent source review `449fa0fc` and protected CI35676395214 passed on
+`c1fcda9b`. One ordinary Admin actual batch390/320/1440 and strict closure were
+accepted by independent review `669af3dc`; ROOT release `d21f93bc` returned QA
+ownership. [Actual receipt](team-chat-channel-time-ui-actual-2026-09-22.md) records
+the preserved zero-seen STOP, separate finite51 admission, actual seen0, exact
+proof hashes and desktop name ellipsis limit. The source checks above were not
+rerun. Fresh main `ac165cf9` integration preserves all four A code/test bytes;
+final integration review, CI and PR #1030 merge are still separate steps.

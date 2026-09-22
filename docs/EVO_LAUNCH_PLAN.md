@@ -14809,3 +14809,26 @@ normalizer, data/auth boundaries, message actions, drafts and seen are unchanged
 commands/hashes and limits. Source review/CI and actual1440/390/320 remain ahead;
 no source result is rendered UI acceptance. No runtime/Auth/SQL/browser action
 occurred. ROOT16b → B1029 → A QA queue and separate window admission remain.
+
+
+## 2026-09-22 — A15 / #1030: actual time UI, closure and files-only integration
+
+На source `c1fcda9b` приняты source review/CI35676395214 и один ordinary Admin
+batch390/320/1440: видимые метки и UTC6, title/srOnly/AX, отсутствие переполнения,
+keyboard/Back/draft/search/context. [Actual-квитанция](qa/team-chat-channel-time-ui-actual-2026-09-22.md)
+сохраняет readonly zero-seen STOP и отдельное v3 finite51 разрешение ROOT;
+фактические seen0, business290/canonical/catalog неизменны; Auth/Storage33
+проверены с разрешёнными собственными login/logout эффектами. Strict own
+logout204/browser/process/capture closure принято независимым review669af3dc;
+ROOT release d21f93bc передал QA окну ROOT1031. Runtime больше не используется.
+Desktop rail288px сокращает «Продажи» до «Прода…»; полное имя остаётся в DOM/AX.
+Иные роли, варианты данных, полный screen-reader/item15 и production не приняты.
+
+Main ac165cf9 интегрирован коммитом c2157ae2: четыре A code/test-файла побайтно
+равны actual source, остальной src/tests/supabase сохранён из main; обе стороны
+append-журналов оставлены целиком. Разрешённый ROOT item36 patch dd6cc42d
+актуализирует merged1018/1027/1028 и исторические B3/B7 статусы; текущие строки
+уточнены на A actual, readonly STOP1029 и source-only98d46259/#1026. Это docs-only
+уточнение статуса без расширения функционального scope. Source tests/UI/RPC не
+повторяются; финальные independent exact-head review и protected short CI
+предшествуют отдельному ROOT merge #1030.

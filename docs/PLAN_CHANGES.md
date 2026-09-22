@@ -37508,3 +37508,14 @@ the bounded correction: one real-open-picker Escape guard, native keydown defaul
 matching desktop event/paired cancel handling and explicit gesture/lifecycle reset. Closed-select
 Escape, Close, all forms/actions/rights and geometry stay unchanged. Scoped source checks and a
 new changed-function browser regression are required; no successful correction or save is claimed.
+
+
+### Calendar16b — native-picker dismissal amendment before code (2026-09-22)
+
+The changed-function regression on `3e11eef9` preserved the panel but also left the native picker
+open. This supersedes the previous no-preventDefault assumption; the STOP remains evidence.
+After strict owned closure, the [16b contract](platform/crm-calendar-persistent-panel.md) replaces
+paired-cancel correlation with actual open+focused select Escape prevention and real blur/focus,
+without setting values, emitting events or using timers. Only a held-key boolean may remain; normal
+closed-select Escape/cancel/Close are preserved. Selection/draft/scroll invariants require fresh real
+regression after source review; no successful correction or production acceptance is claimed yet.

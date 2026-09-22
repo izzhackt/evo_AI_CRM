@@ -98,3 +98,33 @@ No mock native event test substitutes for browser behavior; actual correction ac
 and [WHATWG close requests](https://html.spec.whatwg.org/multipage/interaction.html#close-requests-and-close-watchers)
 were checked for the narrow event contract. This is a behavioral defect correction, not further
 visual polishing; it does not claim saved/stale/unknown outcomes or production acceptance.
+
+
+## 22 September 2026 — native-picker dismissal amendment, before second correction
+
+Actual regression on `3e11eef9d6835bab3fd1e8ac42bc11bea30ae2db` confirmed an open/focused
+select before Escape. The guard kept the panel open but the native picker also remained open;
+therefore the earlier assumption that uncancelled keydown plus cancelled dialog close would dismiss
+the picker is superseded. Preserve this STOP and earlier attempts. Trace SHA256: `010c495785f5e7eee924706d1a86aa72137c7278541343750c0e9f5300edf090`.
+
+After strict resource closure, replace event/cancel-pending correlation with a narrow Escape capture
+for a positively open AND currently focused native select: prevent the keyboard default, call its
+real blur(), then focus the surviving enabled element with preventScroll. Do not assign value/index,
+dispatch events, use a timer, change the control or add a generalized controller. Keep at most one
+boolean for the same held-Escape gesture; clear on keyup/pointerdown, fresh keydown, panel lifecycle
+and unmount. Restore ordinary native cancel and desktop !defaultPrevented paths. A closed select,
+unsupported :open selector or another control receives the previous ordinary Escape behavior.
+
+Chromium's [HTMLSelectElement blur dispatch](https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/third_party/blink/renderer/core/html/forms/html_select_element.cc)
+and [MenuListSelectType::DidBlur](https://chromium.googlesource.com/chromium/src/+/9dd7d49061ff6271c74f4dba9d90e11ae2a3dafc/third_party/blink/renderer/core/html/forms/select_type.cc)
+show native popup hiding on blur, but also dispatch of input/change when selection changed. These
+sources justify the mechanism, not acceptance across browsers or the installed binary. Current
+TaskCasePicker/Calendar form/ancestor paths have no product onBlur/onFocus actions; sidebar blur
+belongs to a sibling navigation element. Native focus events remain real and are not suppressed.
+
+The new coordinated regression must verify picker closed/panel open, same active select, value,
+selectedIndex, draft/request ID and scroll; the next separate Escape closes the panel normally.
+Check modal/mobile and nonmodal/desktop, ordinary Close/title Escape and held-key behavior. A
+selection discrepancy is a failure, never repaired by assigning values for the test. Scoped source
+checks remain separate from actual acceptance; geometry/actions/rights and existing saves stay
+unchanged. This is a second correction of the proved behavior, not another cosmetic inspection.

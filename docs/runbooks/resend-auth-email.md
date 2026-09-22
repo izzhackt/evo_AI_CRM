@@ -98,8 +98,8 @@ signup confirmation → отдельный callback с явным действи
 create unconfirmed, явное подтверждение email и затем resume анкеты. Пока это
 не приёмка SMTP, не изменение managed Auth и не production release.
 
-Перед включением обязательны точный template/config packet и его фактическая
-локальная проверка. `EVO_STUDENT_SIGNUP_OTP_LENGTH` в application environment
+При включении ROOT использует уже подготовленный и reviewed точный
+template/config packet; новые ручные проверки не назначены. `EVO_STUDENT_SIGNUP_OTP_LENGTH` в application environment
 должен точно совпасть с независимо проверенным Auth OTP length; default нет.
 Отсутствие или неправильная форма значения останавливает новую регистрацию
 перед quota/create. Одного заполнения env недостаточно для готовности.
@@ -108,10 +108,20 @@ create unconfirmed, явное подтверждение email и затем re
 capability: `{{ .RedirectTo }}&amp;otp={{ .Token }}`. Старый Confirm template с
 `ConfirmationURL` не совместим с этим кандидатом. Invite/recovery templates
 изменять нельзя. Само наличие шаблона в репозитории не устанавливает его в Auth.
-До одновременной готовности web/native, шаблона и конфигурации кандидат держится
-в draft. Managed SMTP/template операции и production требуют своей authority.
+22 сентября владелец принял #1026/#980 как **OWNER-CONFIRMED** и снял
+оставшиеся ручные native/mail проверки с условий приёмки. Кандидат переводится
+из draft после source/docs integration; обычный CI и узкий final review
+сохраняются. #1026 уже смержен в `faf50bef7`, #980 интегрирует эту базу.
+Managed configuration и один app release после merge выполняет ROOT по
+своей authority. Приёмка владельцем не является новым доказательством доставки
+или native UI: новых отправок, получения/ответов и ручных прогонов не было.
+Mac lock, invite alias и business Gmail не блокируют приёмку этих двух PR.
 
-## Короткая приёмка — PENDING
+## Исторический план ручной почтовой приёмки — шаги сняты владельцем 22.09
+
+Чеклист ниже сохраняется как история непроведённых шагов; он не является
+текущим prerequisite для #1026/#980. Выполненная ранее отправка от 19 сентября
+остаётся отдельным фактом; приёмка владельцем не меняет её результат.
 
 19 сентября отправлено одно обычное проверочное письмо на `evo@evoadmissions.com`
 из личного Gmail владельца; интерфейс подтвердил `Message sent`.

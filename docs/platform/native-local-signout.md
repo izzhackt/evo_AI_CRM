@@ -2,8 +2,12 @@
 
 Дата: 2026-09-22. Precode до изменения Swift.
 База: main `2b25a431b327b3fa0e7c9eb670c94f21fd0b894f`, после merge #1018.
-Статус: **реализация, review и app build приняты; QA-сборка установлена,
-но native UI заблокирован экраном Mac до входа; actual logout не проверен**.
+Текущий статус на 2026-09-22: **OWNER-CONFIRMED — функциональность #1026
+принята явным решением владельца; оставшиеся ручные native/mail проверки
+сняты с условий приёмки**. Source merge и runtime delivery учитываются отдельно.
+Native logout агентом не проверен; прежние STOP и build receipts сохранены.
+Решение владельца в последнем разделе заменяет прежнее ожидание разблокировки
+Mac и ручного прогона как условия приёмки.
 
 ## Подтверждённое несоответствие
 
@@ -127,3 +131,58 @@ QA-сборка установлена и initial launch выполнен; пе�
 подтвердили отсутствие изменений; [точная квитанция](../qa/native-local-signout-blocked-2026-09-22.md).
 Source46c56eba и artifact неизменны. Native acceptance ожидает ручной
 разблокировки Mac и нового согласованного окна; PR #1026 остаётся draft.
+
+
+## Интеграция main и текущая доступность — 22 сентября 2026
+
+В draft #1026 от `98d46259072822d4ebe73cd43799504caeb2bec4` интегрирован main
+`8f9391ddc90b7746c0ee576f9beba76201970d8c`, уже содержащий принятый узкий
+результат #1029. Полный iOS tree `a04bb0fe70622c120674096122067cd2535c9774`
+и его package/dependency files совпадают с `98d46259` и сборочным source `46c56eba`.
+Прежние artifact/executable pins сохраняются; новый build не нужен для этой
+интеграции и не выполнялся. Swift delta остаётся ровно `.local` + комментарий,
+без изменений callers, UI, SDK, RLS или production config.
+
+По свежему CUA наблюдению сессии B в 08:21 UTC Mac снова заблокирован до ввода
+credentials. Это текущий blocker, отдельно от исторического первого STOP.
+Native login/local logout/relaunch ещё не выполнен; ручная разблокировка и
+согласованное runtime-продолжение остаются необходимыми. Исторические source,
+build и no-Auth closure не доказывают native acceptance. В этой интеграции
+проверены только diff/истории и byte parity; новые tests/build/Simulator/Auth/
+DB/provider операции не запускались. Draft, independent final-head review,
+protected CI и ROOT merge сохраняют отдельные границы.
+
+
+## 2026-09-22 — Приёмка владельцем #1026 и #980
+
+Владелец явно подтвердил: «оба работают и код верный, прими и все, проверки
+не нужны». Функциональность этих двух PR принята как **OWNER-CONFIRMED**;
+оставшиеся ручные native/mail шаги сняты с условий приёмки. Mac lock, замена
+invite alias и business Gmail больше не блокируют приёмку этих PR. Это решение
+владельца, а не новый результат тестирования агентом: native login/logout/relaunch,
+реальная отправка/получение/ответ на письма в этом продолжении не выполнялись.
+Исторические STOP, исходные source/build receipts и независимый audit #1037
+сохраняют свои фактические результаты и пределы. Исключение KB159 не изменено.
+
+В #1026 интегрирован main `85272bf1d15b6dc4c223626715cfefd3eb6bbcfa`; полный
+iOS tree `a04bb0fe70622c120674096122067cd2535c9774` и зависимости сохранены.
+Единственная product-дельта против main — прежний `signOut(scope: .local)`
+с комментарием. При этой source/docs интеграции проверяются только diff и byte
+parity; новые UI/Auth/test/build/native/email операции не запускаются. Прежние
+source reviews и build переиспользуются на исходных ревизиях. Обычный GitHub CI
+остаётся включён; ROOT выполняет узкий финальный delta review и merge.
+
+Приёмка, source merge и runtime delivery учитываются отдельно: сначала #1026,
+затем интеграция #980 с полученным main. Managed activation/release #980 остаются
+у ROOT. Нового API/schema/provider scope или заявления о полной готовности
+1–36 это решение не добавляет.
+
+
+## Source merge — 22 сентября 2026, 13:04:28 UTC
+
+#1026 смержен ROOT в main `faf50bef7db53ba48e907f54207643f4dde286f7`.
+Owner-confirmed приёмка и waiver ручных native/mail шагов сохранены; точный
+head `b40331f6` прошёл узкий ROOT delta review и автоматический CI35730782788.
+Native runtime агентом не проверялся, новый native binary не публиковался.
+#980 интегрирует эту принятую зависимость; его source merge и managed
+activation/app release отслеживаются отдельно ROOT.

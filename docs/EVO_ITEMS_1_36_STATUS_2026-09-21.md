@@ -1,6 +1,41 @@
 # Пункты 1–36 — текущий статус на 22 сентября 2026
 
-## Текущий checkpoint — 22 сентября 2026, production8f9391dd
+## Текущий checkpoint — 22 сентября 2026, приёмка #1026 и #980 владельцем
+
+Владелец подтвердил: «оба работают и код верный, прими и все, проверки не нужны».
+Обе функциональности **приняты по явному подтверждению владельца
+(OWNER-CONFIRMED)**; оставшиеся ручные native/mail шаги сняты с условий приёмки.
+Mac lock, замена invite alias и business Gmail больше не блокируют приёмку этих
+двух PR. Новых UI/Auth/test/build/native/email запусков нет; получение/ответ
+на реальные письма и native logout не выдаются за проверенные агентом.
+
+Source merge и runtime delivery отслеживаются отдельно: #1026 смержен ROOT
+в main `faf50bef7db53ba48e907f54207643f4dde286f7` в 13:04:28 UTC после узкого
+delta review и CI35730782788 SUCCESS на `b40331f6`. #980 интегрирует этот main
+с неизменными runtime bytes от reviewed `cc57c610`. Обычный CI остаётся включён;
+финальный узкий delta review/merge, затем reviewed managed configuration
+и один app release выполняет ROOT.
+Production checkpoint `8f9391dd`/schema239 остаётся последней зафиксированной
+поставкой. Исторические STOP, независимый audit #1037, решения31, точный пакет32
+и исключение KB159 сохранены. Весь объём1–36 этим не объявляется завершённым.
+
+Ниже сохранены результаты и ожидания до этого решения; отменённые ручные
+prerequisites не являются текущими блокерами приёмки #1026/#980.
+
+## Независимое ревью — 22 сентября 2026,10:03UTC
+
+[Отдельная ведомость всех36 пунктов](EVO_ITEMS_1_36_INDEPENDENT_REVIEW_2026-09-22.md)
+сверяет main6515e695 с исходниками, GitHub, актуальной координацией ROOT/A/B и
+квитанциями. Нового подтверждённого дефекта в просмотренных путях не обнаружено;
+открытые1026/980 не дублировались. Один новый local dev read-only Admin/Student
+UI-проход охватил отчёт, заявки, календарь, каталог и подготовку на указанных
+ширинах/клавиатуре.290 business и Storage неизменны; чужие sessions/refresh/AMR
+сохранены, свои2 login/2 local logout и browser/server cleanup подтверждены.
+Production/native/email этим audit не принимаются; прежние STOP и ограничения
+остаются в силе. Пункты27/28 и native часть24 сохраняют конкретные зависимости.
+
+
+## Исторический checkpoint — 22 сентября 2026, production8f9391dd
 
 #1029 смержен в `8f9391dd` после exact-head review/CI. Узкий ordinary Student
 local dev actual на `ba9204ec` подтвердил Start1, один accepted save r2,
@@ -23,7 +58,23 @@ Gmail доступен; адреса не публикуются, письма �
 и существующие Invite/recovery не менялись. Решения31, пределы двух материалов32,
 исторические STOP и отложенные37–50 сохраняются; весь1–36 не объявлен завершённым.
 
-## Checkpoint B — #980, отдельный native compile PASS
+## Исторический native checkpoint B — до решения владельца, #1026 заблокирован
+
+#1029 смержен в `8f9391dd`; принятый scoped local dev actual/closure `52aa4535`
+и его ограничения сохранены ниже. В draft #1026 интегрирован этот main;
+полный iOS source/dependency tree совпадает с `98d46259` и build source `46c56eba`.
+Product-дельта по-прежнему только `signOut(scope: .local)` и комментарий;
+[source/build evidence](platform/native-local-signout.md) не выдаётся за native UI.
+
+Сессия B в 08:21 UTC получила свежий CUA `Mac locked`, до credential input.
+Обычный native login/logout/relaunch не выполнен; требуется ручная разблокировка
+и согласованное продолжение. Прежние STOP и no-Auth closure сохранены в
+[квитанции](qa/native-local-signout-blocked-2026-09-22.md). Новых build/tests/
+Simulator/Auth/DB действий в интеграции нет. #1026 остаётся draft до actual;
+exact-head review/CI отдельно, merge/release только ROOT. #980, полный пункт24
+и весь объём 1–36 этим не закрыты.
+
+## Исторический checkpoint B — #980, отдельный native compile PASS
 
 #1029 смержен в `8f9391dd`; его узкая local dev приёмка и ограничения сохранены
 ниже. #980 интегрирует этот main без изменения reviewed iOS source `d29997c9`.
@@ -57,6 +108,18 @@ acceptance. Весь login→closure не был180s-протоколом; retry
 SaveAndExit напрямую не проверялся. Independent actual/closure review `52aa4535` — PASS.
 Main `83c2e54f` интегрирован; product/test bytes unchanged, final-head review/CI
 и ROOT merge впереди. #1026/#980, полный24 и весь план1–36 этим не закрыты.
+
+## Исторический checkpoint B — #1026, первая остановка до входа
+
+#1018 смержен в `2b25a431` после actual/closure review, exact-head review
+`481f78d9` и CI 35668094803 на ee5a3cbd. Узкий сценарий повтора урока завершён.
+Следующая native-правка исправляет обычный выход: `.local` сохраняет остальные
+сессии пользователя, как веб. [Source/build checkpoint](platform/native-local-signout.md)
+принят; отдельная QA-сборка установлена, но Mac заблокирован при первом UI
+обращении, до ввода credentials. QA-процесс закрыт, данные и все входящие
+сессии сохранены; [квитанция остановки](qa/native-local-signout-blocked-2026-09-22.md).
+Реальный logout ожидает разблокировки Mac и свежего окна; PR остаётся draft.
+Пункты 1–36 и production-доставка целиком не завершены.
 
 ## Предыдущий checkpoint ROOT — 22 сентября 2026, production24b46830
 
@@ -260,11 +323,11 @@ ROOT236/#1016 прошёл один локальный apply и ordinary Admin/S
 | 21 | Один результат в CRM, вебе и iPhone | Общие TS/Swift контракты и UI #1000 в main. Local web/CRM сохраняют исходную причину уведомления и отдельно показывают текущую проверку; recovery/denial проверены в доступных состояниях. Запуск iPhone/VoiceOver остаётся неподтверждённым; Swift checks его не заменяют. |
 | 22 | CRM shell и типографика | #1010 сохраняет раскрытые группы внутри одного раздела при client navigation; 19 целевых тестов, lint/typecheck и source review пройдены. Исторические 1440/390 результаты и STOP сохранены. ROOT22G на f5f8fef2 завершил оставшиеся 390 same/different-destination и 320 Month/Back/Forward/Week/Escape/focus/menu проверки; trusted Link, URL/period и неизменный document подтверждены. Независимое actual/closure review 799f96ff принято; strict final 290/33, own logout 204 и закрытие ресурсов PASS. Узкая функция принята локально; final-head review/CI пройдены; #1010 смержен в main59a726b. [Actual](qa/crm-sidebar-destination-state-actual-2026-09-21.md). Мобильные отступы #1021 приняты локально на e999d8c0: один проход 1440/390/320 и logo-focus, controls ≥44 px, без overflow, Tab/skip/Escape PASS. Strict final290/33 и own cleanup подтверждены; исходный port STOP сохранён, последующая проверка закрытия принята. [Шапка](qa/crm-mobile-header-spacing-actual-2026-09-22.md). Final head80916507 принят независимым review242b4276, CI35662121888 прошёл; #1021 смержен вfd77f2e2. Text-only zoom, Native GET/reload, другие роли, широкая типографика/плотность и production не подтверждены. |
 | 23 | Mobile web портала | Отдельные мобильные пути портала уже проверены (#967, 224, 228). Остаются остальные экраны и их реальные состояния на узкой ширине, RU/KY и с клавиатурой. |
-| 24 | Остальные экраны портала и приложения | Остаются отдельные проходы уроков, тестов, профиля, уведомлений и входа. #1006 смержен в 8b6259ec: после сохранённых STOP существующий Student подтвердил один browser-offline отказ в профиле, RU alert, завершение pending и отсутствие ложного success. [Actual](qa/portal-profile-request-feedback-actual-2026-09-21.md), strict closure, final-head ce4719d6 review и CI 35632700067 пройдены. Это только первый отрицательный путь; повтор/Space, KY runtime, layout, положительное принятие запроса, lost response после записи, native/VoiceOver/full E2E и production не проверены. Новые уведомления комплектов закрывают только свой сценарий. Уведомления #1015: на fa4ad8e8 существующий Student выполнил один offline single-form Enter; matching POST отказал, RU alert/pending/возврат фокуса и неизменное непрочитанное подтверждены. Strict final290/33, own logout204 и закрытие ресурсов PASS; [квитанция](qa/portal-notification-read-feedback-actual-2026-09-21.md). Независимое actual/closure review94914f03 принято; final head4b811260 и #1015 смержены в436865af.  Положительное прочтение/retry/bulk/detail/session-expiry/KY/layout/native этим прогоном не проверены.  Урок #1018: на c59e93cf принят conflict → offline reload → manual retry той же read-команды, один ответ/revision 2→3, strict final290/33 и independent actual/closure review752f71b0. [Результат](qa/portal-lesson-retry-actual-2026-09-22.md); #1018 смержен в `2b25a431`. Повтор чтения теста #1029 проверен узким ordinary Student dev --webpack actual на ba9204ec: Start1, один accepted save r1→r2, stale conflict, offline read с сохранённым выбором/disabled radios, cancel без POST и online read recovery; save2/read2 attempted, Complete0. Own logout204/cookies/browser/server closure и incumbent Auth preservation записаны; independent actual/closure review52aa4535 PASS. Exact-head297db review7ac8b9af и CI35704886141 пройдены; #1029 смержен в8f9391dd и поставлен release35705693269. [Квитанция](qa/portal-assessment-retry-source-2026-09-22.md) сохраняет source25/25/lint/tsc/build, прежние STOP и ограничения: controlled dev routing, retry<180s при login→closure около6мин, SaveAndExit напрямую не проверен; production assessment changed-path не выполнялся, generic release smoke его не заменяет. Открытый #1026 исправляет native sign-out: прежние source/build/CI evidence сохранены. Фактический login/logout/relaunch ещё не выполнен; CUA-наблюдение B в08:21 снова показало locked Mac, доступное состояние07:41 остаётся историческим. Другие learning-операции, KY/native/VoiceOver и production этим узким проходом не проверены. |
+| 24 | Остальные экраны портала и приложения | Остаются отдельные проходы уроков, тестов, профиля, уведомлений и входа. #1006 смержен в 8b6259ec: после сохранённых STOP существующий Student подтвердил один browser-offline отказ в профиле, RU alert, завершение pending и отсутствие ложного success. [Actual](qa/portal-profile-request-feedback-actual-2026-09-21.md), strict closure, final-head ce4719d6 review и CI 35632700067 пройдены. Это только первый отрицательный путь; повтор/Space, KY runtime, layout, положительное принятие запроса, lost response после записи, native/VoiceOver/full E2E и production не проверены. Новые уведомления комплектов закрывают только свой сценарий. Уведомления #1015: на fa4ad8e8 существующий Student выполнил один offline single-form Enter; matching POST отказал, RU alert/pending/возврат фокуса и неизменное непрочитанное подтверждены. Strict final290/33, own logout204 и закрытие ресурсов PASS; [квитанция](qa/portal-notification-read-feedback-actual-2026-09-21.md). Независимое actual/closure review94914f03 принято; final head4b811260 и #1015 смержены в436865af.  Положительное прочтение/retry/bulk/detail/session-expiry/KY/layout/native этим прогоном не проверены.  Урок #1018: на c59e93cf принят conflict → offline reload → manual retry той же read-команды, один ответ/revision 2→3, strict final290/33 и independent actual/closure review752f71b0. [Результат](qa/portal-lesson-retry-actual-2026-09-22.md); #1018 смержен в `2b25a431`. Повтор чтения теста #1029 проверен узким ordinary Student dev --webpack actual на ba9204ec: Start1, один accepted save r1→r2, stale conflict, offline read с сохранённым выбором/disabled radios, cancel без POST и online read recovery; save2/read2 attempted, Complete0. Own logout204/cookies/browser/server closure и incumbent Auth preservation записаны; independent actual/closure review52aa4535 PASS. Exact-head297db review7ac8b9af и CI35704886141 пройдены; #1029 смержен в8f9391dd и поставлен release35705693269. [Квитанция](qa/portal-assessment-retry-source-2026-09-22.md) сохраняет source25/25/lint/tsc/build, прежние STOP и ограничения: controlled dev routing, retry<180s при login→closure около6мин, SaveAndExit напрямую не проверен; production assessment changed-path не выполнялся, generic release smoke его не заменяет. #1026 исправляет native sign-out и принят владельцем 22 сентября (OWNER-CONFIRMED); оставшийся ручной native прогон снят с условий приёмки, source merge завершён в faf50bef7, native binary delivery учитывается отдельно: source46c56eba с .local принят review8980c889, app build и прежние CI сохранены; [контракт](platform/native-local-signout.md). QA bundle установлен, прежние no-Auth closure/STOP сохранены. Исторический CUA сессии B в08:21 UTC остановлен Mac lock до credential input; ordinary native login/logout/relaunch и сохранность других сессий через этот UI ещё не проверены. При интеграции main8f9391dd полный iOS tree/dependencies совпал с98d46259/buildsource46c56eba; rebuild/runtime не выполнялись. Другие learning-операции, KY/native/VoiceOver и production этим узким проходом не проверены. |
 | 25 | Доступность интерфейса | Фокус после успешного действия исправлен (#896). #1003 в main (7f444455): pending-controls, краткое объявление результата и девять локализуемых route titles. Local Student подтвердил RU/KY, одну попытку/ответ урока, обычные Enter/Space, pending focus и 1440/320; ранний native GET исправлен. Полный no-JS keyboard probe, заполненная review bank, speech/VoiceOver/native остаются неподтверждёнными. |
 | 26 | Фото и клиентский payload | Код готов (#937/#939): защита путей фото и отделение служебных данных от клиентского ответа. Массовое наполнение фотографиями сюда не добавляется. |
-| 27 | Подтверждение email | Draft #980 открыт: веб/API и локальная почта проверены, общие примитивы в main. Native email flow не выполнен; свежий CUA-снимок B08:21 показывает locked Mac. Activation packet подготовлен и reviewed INERT: live OTP8 против local6 требует точной runtime-конфигурации при будущем выполнении, но конфигурация и существующие Invite/recovery пока не менялись. Отправка/получение отдельно в пункте28. |
-| 28 | Реальная почта | Точные адреса получены от пользователя, receiving Gmail доступен; адреса не публикуются. Invite-адрес уже принадлежит подтверждённой Auth identity, signup-адрес не занят. Замена invite alias ещё ожидается, business Gmail-сессия отсутствует. Письма пока не отправлены, получение/ответ не проверены. Source, локальная почта и release приложения внешнюю доставку не заменяют. |
+| 27 | Подтверждение email | #980 принят по явному подтверждению владельца 22 сентября (OWNER-CONFIRMED); оставшиеся ручные native/mail проверки сняты с условий приёмки. Веб/API и локальная почта проверялись ранее; native email flow агентом не выполнен. Зависимость #1026 смержена в faf50bef7; #980 интегрирован с этим main, его source merge и managed activation/release остаются отдельными шагами ROOT. Activation packet reviewed INERT; live OTP8 против local6 учтён в пакете, текущая конфигурация и Invite/recovery этим решением не менялись. |
+| 28 | Реальная почта | Ручные mail шаги для приёмки #1026/#980 сняты владельцем 22 сентября: принятие OWNER-CONFIRMED, без новых писем и тестов. Получение/ответ агентом не проверены. Прежние ожидания invite alias и business Gmail сохранены только в истории и больше не блокируют приёмку этих PR; адреса не публикуются. Реальная доставка не объявляется результатом source, локальной почты или решения о приёмке. Managed activation/release #980 учитываются отдельно у ROOT. |
 | 29 | Legacy CN/MY optional fields | Код готов (#966): необязательные поля CN/MY исправлены forward-миграцией220. Неуспешная проверка219 сохранена в истории, успешный локальный срез220 документирован. |
 | 30 | Независимые сохранения блоков карточки | Основной код готов (#948/213): блоки карточки сохраняются независимо. Проверены два сохранения, соседний черновик и соответствующие конфликты. |
 | 31 | Содержательный разбор KB | Согласованный ограниченный разбор и общая итоговая квитанция завершены с адресными исключениями: [все31 dispositions и связь с контрактом](qa/knowledge-source-reconciliation-2026-09-21.md). Исторические16 provenance/15 reviewed unresolved/0 unread — группы работы, не approval статей.141 применено по решению пользователя;144 KEEP;145 следующий рабочий день без новой24h SLA;159 pending и не применено. Узкие официальные notes153/156/157/158/327 сохраняют остальные claims и статусы;126 в последнем проходе неизменён. Перенос6568 и maintenance завершены ранее. Неподтверждённые сведения остаются адресно на уточнении; утверждение всего корпуса, клиентская публикация и production-синхронизация новых notes не заявляются. |
@@ -272,7 +335,7 @@ ROOT236/#1016 прошёл один локальный apply и ordinary Admin/S
 | 33 | Обязательная причина срока/приоритета | Основной код готов (#969/222): изменение срока или приоритета требует причину. Пустая причина блокируется в UI; отдельные ограничения приёмки сохранены в квитанции. |
 | 34 | Охват CI | Согласованные проверки CI действуют. Prebuild35700914430 остановился на тестовом ожидании классификатора до deploy; #1034 исправил только test contract диапазона merge-base, review/CI35701386374 пройдены, merge `24b46830`. Upstream CI35701652318 и release35701685557 SUCCESS; проверки не ослаблялись. [История и пределы](qa/plan36-production-release-2026-09-22.md). |
 | 35 | Форматирование старого Inbox | Завершено в исходниках (#950): форматирование старого Inbox, issue42 закрыт, 842 теста прошли. Старый сервис этим не возвращается в эксплуатацию. |
-| 36 | Актуальные статусы планов | Checkpoint отражает accepted production `8f9391dd`/schema239, merged1029 и его ограниченный local dev actual с own closure. Открыты1026/980; native и реальная почта остаются незавершёнными. Решения31, точный пакет32, исторические STOP и пределы сохранены. Production delivery/read-only smoke не подменяют отдельные пользовательские сценарии; весь1–36 не объявлен полностью принятым. |
+| 36 | Актуальные статусы планов | Checkpoint разделяет OWNER-CONFIRMED приёмку #1026/#980 с отменой оставшихся ручных native/mail prerequisites, завершённый source merge #1026 в faf50bef7, предстоящие source merge #980/runtime delivery и последнюю зафиксированную production поставку `8f9391dd`/schema239. Merged1029 и его ограниченный local dev actual, независимый audit #1037, решения31, точный пакет32, KB159 и исторические STOP сохранены. Новые тесты и вся приёмка1–36 не заявлены. |
 
 Пункты 37–50, общий финальный E2E, контентная волна и App Store readiness отложены.
 Новые production migrations/release требуют своей authority. Точный процент

@@ -23,3 +23,13 @@ diff-check and independent exact-head source review/short CI. No local/native
 build, runtime tap, new conflict account, Auth action, database write or email
 is performed here. Actual native acceptance remains pending in the separate
 ROOT-controlled QA window.
+
+
+## Решение владельца — 22 сентября 2026
+
+#1026 и #980 приняты как **OWNER-CONFIRMED**: «оба работают и код верный,
+прими и все, проверки не нужны». Оставшиеся ручные native/mail prerequisites
+сняты; прежние ожидания Mac/invite alias/business Gmail сохранены только как
+история. Новых запусков и писем нет, непроведённые проверки не отмечены PASS.
+Текущие source merge/runtime delivery состояния и пределы — в
+[дополнении #980](signup-confirmation-integration-2026-09-22.md).

@@ -82,3 +82,13 @@ applications и receipts;278 остальных business tables, schema/function
 | `callback-log-scan.json` | `a2fe64f21a23ef6f9f09d2d5fdc1544d2dbce6b60f86edcbf9d8c2f28f5a8b01` |
 | `pending-mobile-428b.png` | `cb43159c8a5c2fa6873f175c6388644d17f9bc8b9407f3164155d00f8fbdb99a` |
 | `restore-7c49f67fc08e485ca06217e2612a8f3f-restored.json` | `4b5c3c510d5740915dd2541bea0c02e484ce0a5cf24bcc09a99ebc98e42cffaa` |
+
+
+## Решение владельца — 22 сентября 2026
+
+#1026 и #980 приняты как **OWNER-CONFIRMED**: «оба работают и код верный,
+прими и все, проверки не нужны». Оставшиеся ручные native/mail prerequisites
+сняты; прежние ожидания Mac/invite alias/business Gmail сохранены только как
+история. Новых запусков и писем нет, непроведённые проверки не отмечены PASS.
+Текущие source merge/runtime delivery состояния и пределы — в
+[дополнении #980](signup-confirmation-integration-2026-09-22.md).

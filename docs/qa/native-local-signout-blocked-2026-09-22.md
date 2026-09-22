@@ -71,3 +71,37 @@ canonical hashes, inventories и schema ledger с baseline/входящим hand
 разблокированный Mac, новое окно ROOT и свежий baseline; текущая установка
 сама по себе не разрешает повторный вход. Полный E2E, production и пункт24
 этой попыткой не закрыты.
+
+
+## Интеграция main и текущая доступность — 22 сентября 2026
+
+В draft #1026 от `98d46259072822d4ebe73cd43799504caeb2bec4` интегрирован main
+`8f9391ddc90b7746c0ee576f9beba76201970d8c`, уже содержащий принятый узкий
+результат #1029. Полный iOS tree `a04bb0fe70622c120674096122067cd2535c9774`
+и его package/dependency files совпадают с `98d46259` и сборочным source `46c56eba`.
+Прежние artifact/executable pins сохраняются; новый build не нужен для этой
+интеграции и не выполнялся. Swift delta остаётся ровно `.local` + комментарий,
+без изменений callers, UI, SDK, RLS или production config.
+
+По свежему CUA наблюдению сессии B в 08:21 UTC Mac снова заблокирован до ввода
+credentials. Это текущий blocker, отдельно от исторического первого STOP.
+Native login/local logout/relaunch ещё не выполнен; ручная разблокировка и
+согласованное runtime-продолжение остаются необходимыми. Исторические source,
+build и no-Auth closure не доказывают native acceptance. В этой интеграции
+проверены только diff/истории и byte parity; новые tests/build/Simulator/Auth/
+DB/provider операции не запускались. Draft, independent final-head review,
+protected CI и ROOT merge сохраняют отдельные границы.
+
+
+## Решение владельца после STOP — 2026-09-22
+
+Владелец подтвердил #1026 и #980: «оба работают и код верный, прими и все,
+проверки не нужны». Текущая функциональная приёмка — **OWNER-CONFIRMED**;
+оставшиеся ручные native/mail шаги отменены как условия приёмки этих PR.
+Mac lock, invite alias и business Gmail не являются текущими блокерами их
+приёмки. Предыдущие разделы сохраняют исторические STOP и no-Auth closure;
+login/logout/relaunch и доставка/получение/ответ на письма не объявляются
+выполненными агентом. Новых UI/Auth/test/build/native/email запусков нет.
+Source integration, обычный GitHub CI, финальный delta review/merge ROOT и
+последующая runtime delivery учитываются отдельно. Audit #1037 и KB159
+этим решением не переписаны.

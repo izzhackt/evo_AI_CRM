@@ -1,8 +1,13 @@
 # PR980: main integration and native return to sign-in
 
-This is source integration and a narrow navigation correction. Native runtime
-acceptance remains pending; this receipt does not replace the earlier local
-web/API receipt or the stopped native logout check.
+Current acceptance (2026-09-22): **OWNER-CONFIRMED**. The owner accepted #1026
+and #980 and waived the remaining manual native/mail prerequisites. Source merge
+and runtime delivery are tracked separately in the final section. The records
+below retain their original scope; no new native/Auth/UI/test/build/email runs
+were performed and unperformed tests are not labelled PASS.
+
+The historical source integration and navigation receipts below do not replace
+the earlier local web/API receipt or the stopped native logout check.
 
 Inputs:
 
@@ -99,3 +104,30 @@ Install, Simulator launch/UI, Auth, DB, provider/mail и Keychain queries не
 #1026 на его неизменённом artifact; #980 остаётся отдельным последующим окном.
 Независимое review нового source/artifact и exact-head CI следуют отдельно.
 PR #980 остаётся draft; merge/release и полный пункт27 не заявляются.
+
+
+## 2026-09-22 — #980: приёмка владельцем и интеграция после #1026
+
+Владелец подтвердил #1026 и #980: «оба работают и код верный, прими и все,
+проверки не нужны». Функциональная приёмка **OWNER-CONFIRMED**; оставшиеся
+ручные native/mail шаги сняты с условий приёмки. Mac lock, invite alias и
+business Gmail не являются текущими блокерами этих PR. Исторические STOP
+и непроведённые проверки сохранены; native confirmation/login/logout/relaunch
+и получение/ответ на реальные письма не объявлены проверенными агентом.
+Новых UI/Auth/test/build/native/email запусков в этом продолжении нет.
+
+#1026 смержен ROOT в `faf50bef7db53ba48e907f54207643f4dde286f7` в 13:04:28 UTC
+после узкого delta review и CI35730782788 SUCCESS на `b40331f6`. Этот main
+интегрирован в #980; runtime bytes относительно reviewed `cc57c610` сохранены,
+включая iOS tree `e60e67d20fde495216b3c962ced349dc7eee8676` и package pins.
+Новые конфликты разрешены только в документах с сохранением обеих историй.
+Source/build/artifact evidence переиспользуются на их исходных ревизиях;
+достаточны diff-check и byte parity, обычный GitHub CI остаётся включён.
+ROOT выполняет финальный узкий delta review и merge; новый полный review
+или повторный ручной прогон не назначается.
+
+Source merge и runtime delivery учитываются отдельно. Последний зафиксированный
+production app — `8f9391dd`/schema239. После merge #980 reviewed managed
+configuration и один app release выполняет ROOT; B не меняет Auth/provider
+config и не отправляет письма. Independent audit #1037, KB159 и исторические
+receipts сохраняются без расширения claims.

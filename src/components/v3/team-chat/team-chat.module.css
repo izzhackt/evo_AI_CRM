@@ -21,9 +21,11 @@
 .channelAvatar[data-channel=sales] { background: color-mix(in srgb, var(--info) 16%, var(--surface)); }
 .channelAvatar[data-channel=admissions] { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); }
 .channelCopy { flex: 1; min-width: 0; }
-.channelName { display: block; font-size: 15px; font-weight: 600; }
+.channelHeading { display: flex; align-items: baseline; gap: 8px; }
+.channelName { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; }
+.channelTime { flex-shrink: 0; white-space: nowrap; font-size: 13px; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--text-3); }
 .channelPreview { display: block; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; color: var(--text-3); }
-.unread { border-radius: 12px; background: var(--accent); color: var(--on-accent); min-width: 24px; padding: 2px 6px; text-align: center; font-size: 12px; }
+.unread { flex-shrink: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); min-width: 24px; padding: 2px 6px; text-align: center; font-size: 12px; }
 .conversation { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .conversationHeader { display: flex; flex-shrink: 0; align-items: center; gap: 14px; min-height: 78px; padding: 12px 24px; border-bottom: 1px solid var(--border); }
 .conversationHeader h2 { font-size: 18px; margin: 0; font-weight: 600; }
@@ -47,6 +49,9 @@
 .ownMessage .messageHeader, .ownMessage .messageActions { justify-content: flex-end; }
 .bubble { margin-top: 5px; padding: 11px 16px; border-radius: 0 16px 16px 16px; background: var(--surface); }
 .ownMessage .bubble { border-radius: 16px 0 16px 16px; background: color-mix(in srgb, var(--accent) 11%, var(--surface)); }
+.compactDeleted { padding-block: 4px; }
+.compactDeleted .bubble { margin-top: 2px; padding: 0; border-radius: 0; background: transparent; }
+.compactDeleted .bubble > p { margin: 0; }
 .highlighted .bubble { outline: 2px solid var(--accent); outline-offset: 3px; }
 .messageHeader { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; font-size: 14px; }
 .messageMetadata { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; color: var(--text-3); font-size: 12px; }

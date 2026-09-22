@@ -37602,6 +37602,237 @@ Own logout204/browser/process/capture cleanup завершены, среда п�
 интегрируется с неизменными calendar5c и входящими chat/239; final exact-head
 review/CI/merge #1028 остаются отдельным следующим шагом.
 
+## 2026-09-22 — A15 visible channel timestamp: precode after #1027
+
+#1027 защищённо смержен в2a04610f8: reader239/DTO, local apply и ordinary RPC
+приняты, strict ownclosure завершена, QA возвращена ROOT. Следующий узкий
+[UI-план](EVO_TEAM_CHAT_CHANNEL_TIME_UI_PLAN_2026-09-22.md) записан до кода.
+Impeccable Operate сохраняет текущий EVO rail; historical1440/320 просмотрены,
+CSS и channel markup точно совпадают с accepted rail sourcebab531ae.
+
+Добавляется только компактный dd.MM HH:mm справа от названия; фиксированная
+зона организации, полный год/offset в title и srOnly, UTC6 в dateTime. Empty/
+legacy time не выдумывается; label/preview ellipsis и несжимаемый unread сохраняют
+плотность и44px target. Reader/guards/actions/drafts/seen не меняются.
+
+Scope: TeamChat.tsx, scopedCSS, puretimeformatter/test и docs. Новая миграция
+не нужна. До кода independent precode review; затем targeted tests/lint/types,
+source review/CI. Actual1440/390/320 только в будущем ROOT окне после ROOT16b
+иB1029; source не означает acceptance. Без тяжёлых локальных сборок/новых
+зависимостей при дисковом ограничении; no runtime до отдельного допуска.
+
+
+## 2026-09-22 — A15 visible channel timestamp: source implemented
+
+Precode7692a242 independently APPROVED (reportSHA a7a5f4d2); parent read the
+complete review and Impeccable craft-floor before coding. Source4e434eee adds
+only the planned channel time formatter, rail markup/CSS and seven pure tests.
+All7 tests, scoped ESLint, next typegen, TypeScript and diff check passed once.
+Exact package/lock dependencies reused; no install or full build. Reader239,
+normalizer, data/auth boundaries, message actions, drafts and seen are unchanged.
+
+[Source receipt](qa/team-chat-channel-time-ui-source-2026-09-22.md) records
+commands/hashes and limits. Source review/CI and actual1440/390/320 remain ahead;
+no source result is rendered UI acceptance. No runtime/Auth/SQL/browser action
+occurred. ROOT16b → B1029 → A QA queue and separate window admission remain.
+
+
+## 2026-09-22 — A15 / #1030: actual time UI, closure and files-only integration
+
+На source `c1fcda9b` приняты source review/CI35676395214 и один ordinary Admin
+batch390/320/1440: видимые метки и UTC6, title/srOnly/AX, отсутствие переполнения,
+keyboard/Back/draft/search/context. [Actual-квитанция](qa/team-chat-channel-time-ui-actual-2026-09-22.md)
+сохраняет readonly zero-seen STOP и отдельное v3 finite51 разрешение ROOT;
+фактические seen0, business290/canonical/catalog неизменны; Auth/Storage33
+проверены с разрешёнными собственными login/logout эффектами. Strict own
+logout204/browser/process/capture closure принято независимым review669af3dc;
+ROOT release d21f93bc передал QA окну ROOT1031. Runtime больше не используется.
+Desktop rail288px сокращает «Продажи» до «Прода…»; полное имя остаётся в DOM/AX.
+Иные роли, варианты данных, полный screen-reader/item15 и production не приняты.
+
+Main ac165cf9 интегрирован коммитом c2157ae2: четыре A code/test-файла побайтно
+равны actual source, остальной src/tests/supabase сохранён из main; обе стороны
+append-журналов оставлены целиком. Разрешённый ROOT item36 patch dd6cc42d
+актуализирует merged1018/1027/1028 и исторические B3/B7 статусы; текущие строки
+уточнены на A actual, readonly STOP1029 и source-only98d46259/#1026. Это docs-only
+уточнение статуса без расширения функционального scope. Source tests/UI/RPC не
+повторяются; финальные independent exact-head review и protected short CI
+предшествуют отдельному ROOT merge #1030.
+
+
+## 2026-09-22 — items16/22: контраст выбора TaskChip (precode)
+
+Отдельный небольшой блок после #1028: на сохранённом actual кадре выбранная
+карточка имеет белый текст на промежуточном фоне #e1989f (2.28:1), тогда как
+конечный EVO accent #d70217 даёт 5.37:1. Это согласуется с прежним глобальным
+150ms background transition кнопки и мгновенной сменой цвета дочернего текста;
+длительность дефекта фактически не измерялась.
+
+Scope: только TaskChip в calendar/grids.tsx — локальный inline transitionProperty
+оставляет border-color, переключая фон и дочерний текст вместе. Inline выбран
+для надёжного приоритета над unlayered .v3-world правилом. Токены, рамки, focus,
+размеры, права, handlers и глобальные стили сохраняются. Никаких новых данных
+или task writes. Scoped lint/diff и независимый source review; actual selection
+проверяется позже в выделенном локальном окне на существующей задаче, с обоими
+направлениями selected/unselected и сохранением focus/открытия деталей. Старые
+доказательства #1028 остаются историческими; этот блок ещё не actual/prod PASS.
+
+## 2026-09-22 — #1031 scoped actual + saved lifecycle закрыты локально
+
+На actual `0fa4f787` выполнены один1440 TaskChip select/deselect и отдельный
+разрешённый один ordinary Admissions create→saved lock/close-reopen→CreateAnother,
+без второго save. [Квитанция](qa/calendar-selection-and-saved-actual-2026-09-22.md)
+фиксирует contrast5.37/13.18/5.16, exact +1task/+1event/+1audit, retained task,
+полное сохранение прежних данных и собственную closure. Независимый review
+`b8e5ddf8` и ROOT release `d88cd4da` приняты; старые STOP/границы сохранены.
+Main #1030 `de847cf5` интегрирован с неизменными actual1031 product bytes и
+полными обеими append-history. Final-head review/CI/merge pending; production,
+native и весь item16/22 не принимаются этим локальным срезом.
+
+
+## 2026-09-22 — items31/32/36: итоговый документационный checkpoint
+
+Scope этого блока — только общие документы на базе main `0926399b`:
+полная обезличенная карта31 допущенного кандидата, точный итог двух материалов
+компании и исправление текущих статусов. Исторические квитанции и append-журналы
+сохраняются; исходники продукта, SQL, KB-файлы, approval и публикации не меняются.
+
+[План KB](EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md), §1 и §9, разрешает оставить
+конкретные спорные утверждения с явным вопросом. Итог анализа определяется
+инвентарём, происхождением, распределением и адресным остатком, а не утверждением
+всех статей. [Общая карта](qa/knowledge-source-reconciliation-2026-09-21.md)
+фиксирует31 disposition; прежние16/15/0 остаются группами первого разбора.
+Решения141/144/145 и pending159 сохраняются. Для327 записан только уже выполненный
+source-note: applied `d20e2b74`, independent closure `31cc21b9`,126 неизменён.
+Два согласованных текста/файла32 приняты локально, включая оба реальных скачивания;
+AI/RAG и новая контентная волна не являются незавершённой частью этого пакета.
+
+Ведомость различает merged #1030 (`de847cf5`)/#1031 (`0926399b`) и открытые
+#1032/#1029/#1026/#980. Пункт4 завершён в source/CI; действующий lead-agent
+не обнаружен при read-only проверке22сентября, frozen service не запускался.
+Пункт5 остаётся доставкой: production image `b7598a1c`, ledger001–206;
+207–239 и новый app не поставлены. Read-only ledger receipt `76e2cc08` и
+compatibility addendum `82cca346` сохраняют границы этого вывода. Откат на старый image условен:211 после
+публикации intake ID несовместим со старым parser,208 сохраняет суженные права
+записи при откате app. Это не разрешение на изменение данных или прав.
+
+Проверки этого блока: review diff и `git diff --check`; продуктовые тесты и runtime
+не повторяются. Независимое review точного head и обычный PR/CI остаются впереди.
+План1–36 в целом и production этим checkpoint не закрываются.
+
+
+## 2026-09-22 — A15 compact root tombstone, before implementation
+
+После merged #1030/#1031 (main0926399b) согласован оставшийся §9 UX-срез:
+[компактный след удалённого сообщения](EVO_TEAM_CHAT_COMPACT_TOMBSTONE_PLAN_2026-09-22.md).
+Старый replyCount считает root-parent descendants, а не все прямые цитаты для
+бывшего reply. Поэтому scope только deleted + explicit parent null + count0 +
+quote null; unknown/reply/replied строки остаются прежними. SQL/wire/roles/actions,
+DOM IDs/anchors/search/seen/tail и текущий service-row сохраняются. Один scoped
+класс убирает лишнюю bubble набивку/фон и уменьшает вертикальные отступы;
+автор/время/placeholder/44px controls не скрываются. Impeccable Operate уточняет
+существующий EVO, не возвращает task UI/hover-only. Source review/short CI и
+отдельное фактическое подтверждение обязательны; общего QA-допуска нет, среда B.
+Saved3deleted/2latest без parent/count не доказывают доступный точный вариант.
+Новых fixtures/данных/провайдеров или заявления полного item15 не добавлено.
+Saved-only eligibility339a70ae не нашёл доказанного positive root0: исторический
+root count1 и два связанных reply остаются negative controls; live/read-only UI
+ещё не разрешён. Это ограничение actual, а не повод создавать новые сообщения.
+
+
+## 2026-09-22 — A15 compact root tombstone: source implemented
+
+Реализация af47d719 ограничена двумя UI-файлами: strict four-part guard + scoped
+padding/background, без изменения DOM/действий/wire/SQL/seen/anchors. Impeccable
+A/B: один P2, precode APPROVED, detector0; craft-floor прочитан до правки.
+[Source-квитанция](qa/team-chat-compact-tombstone-source-2026-09-22.md) фиксирует
+однократные scoped lint/typegen/tsc/diff PASS и точные hashes. Saved-only eligibility
+не доказал положительный root0; прежние linked/replied tombstones сохраняют вид.
+Actual compact geometry не принята. Независимое exact-head source review и short
+CI впереди; runtime/Auth/DB/UI не запускались, QA B не использовалась. Полный15,
+native, production и real-employee issue708 не закрыты.
+
+
+## 2026-09-22 — current status после production delivery
+
+Текущие статусы заменяют устаревшее «app/207–239 не поставлены»: accepted24b46830,
+схема239, release35701685557 SUCCESS, accepted readback72b9f89c/schema reviewf8cecf20.
+[Квитанция](qa/plan36-production-release-2026-09-22.md) сохраняет prebuild35700914430
+и test-only исправление1034; провала deploy/rollback не заявлено. Lead-agent
+maintenance не требует запуска отсутствующего frozen сервиса. #1032 merged с
+negative controls/positive NOT PROVEN;1029/1026/980 и реальная почта остаются
+непринятыми. Mac доступен, email inputs уточнены без публикации адресов; прежние
+исторические факты и KB decisions не переписываются. Scope только четыре docs,
+без продуктовых проверок/runtime и без заявления полного завершения1–36.
+
+
+### 2026-09-22 — B24: precode повтора загрузки теста
+
+На main ec3f62ba подтверждена потеря операции в AssessmentRunner: после
+conflict → подтверждённой загрузки → read unavailable кнопка вызывает write
+и разблокирует преждевременное сохранение. [Контракт](platform/portal-assessment-retry-operation.md)
+записан до кода: start/write/reload в error state, повтор чтения с прежним
+подтверждением, сохранение pending UUID/snapshot; reloadRequired удерживает
+вопросы и Save-and-exit до успешного read. Три пары RU/KY строк описывают
+загрузку/ошибку/выход; устаревший exitNotice снимается после успешного чтения.
+Impeccable Operate/harden, layout/actions/Auth/RLS/SQL не меняются. ROOT разрешил
+отдельный source блок после checkpoint #1026; native ждёт Mac, QA у A239.
+Source checks/review и согласованный actual ещё впереди; пункт 24 и production
+не завершены. Новые npm/build после сбоя диска ждут разрешённого окна.
+
+
+### 2026-09-22 — B24: assessment retry source checkpoint
+
+Реализация70a6a3a7 следует precode92ff16ae и independent precode reviewbd45fcf8:
+операция в error state, read retry с подтверждением, блокировка select/pause
+до успешного read, три пары RU/KY сообщений. 25 профильных checks, scoped lint,
+Next typegen + TypeScript и diff check PASS. [Source-квитанция](qa/portal-assessment-retry-source-2026-09-22.md)
+сохраняет ранние ошибки неполных dependencies/conditions/generated types и
+ограничения чистых tests. Ни npm повторно, ни build/server/QA/Auth/DB не запускали.
+Исходники pending/UUID/snapshot/confirm/autosave вне заявленной дельты точны.
+Independent source review, protected CI и согласованный browser actual ещё
+нужны; draft, пункт 24 и production не закрываются.
+
+
+## 2026-09-22 — B24 / #1029: локальный dev actual и интеграция main
+
+На неизменном source `ba9204ec` с Node22.23.1 выполнен разрешённый обычный
+Student-путь в Next development `--webpack`: один Start создаёт blank draft r1;
+две попытки save дают ровно один accepted save r2 и stale conflict; offline read
+сохраняет локальный выбор и disabled radios; cancel не отправляет POST; online
+read возвращает сохранённый ответ. Complete0. Own local logout204, отсутствие
+cookies, закрытие browser и всех собственных server groups отражены в receipts;
+incumbent sessions/refresh/AMR сохранены. [Факты и границы](qa/portal-assessment-retry-source-2026-09-22.md).
+
+Это controlled local changed-function proof: dev routing использовал continue/
+abort и точный dev transport, а не frozen passive production observer. Полный
+login→closure занял около6 минут; только retry-часть была короче180s. SaveAndExit
+защищён source checks, но напрямую в actual не проверен. Прежние readiness/font/
+hydration STOP и production HTTP-конфигурационный отказ до Auth сохранены;
+production build `FEgfVkbA2tdSyuxSyWHLR` остаётся отдельным build evidence.
+Независимый actual review ожидается; production/native/full24 не заявляются.
+
+В эту ветку интегрирован main `83c2e54f`; оба append-only журнала сохраняют
+полный incoming prefix и полные B additions. Assessment source/test/dependency
+файлы byte-identical `ba9204ec`; прежние25/25, lint/tsc и build не выдаются за
+новые запуски. Финальному merge head требуются independent exact-head review
+и protected CI; PR пока draft, merge выполняет ROOT.
+
+
+## 2026-09-22 — B24 / #1029: независимый actual/closure verdict
+
+После предыдущего checkpoint получен independent review `52aa4535` — PASS,
+`APPROVED_LOCAL_DEV_CHANGED_PATH_AND_OWN_CLOSURE`; полный report `d3f129b8`.
+Он подтверждает ordinary Student dev --webpack Start/conflict/offline read/
+cancel/online read, единственный accepted save r2, сохранение остальных
+business/Storage/incumbent Auth и own logout204/browser/server closure.
+[QA-квитанция](qa/portal-assessment-retry-source-2026-09-22.md) содержит полные
+hashes и прежние ограничения: не frozen passive production protocol, не
+production/native/full24 acceptance; SaveAndExit напрямую не asserted.
+Merge main83c2 опубликован как `6ec6ec10`; этот follow-up только уточняет docs.
+Assessment source/tests unchanged; final exact-head review/CI и ROOT merge
+остаются отдельными. Никакого повторного runtime или расширения scope.
+
 
 ### 2026-09-22 — B native: принятый precode локального выхода
 
@@ -37663,3 +37894,26 @@ ROOT разрешил только files-only обновление draft #1026: 
 действий нет; прежние source/build/STOP receipts сохраняют исходные SHA и
 границы. Перед push требуется независимое exact-head review; draft остаётся
 открытым, native logout/production acceptance и merge/release не заявляются.
+
+
+## 2026-09-22 — B native #1026: интеграция main после #1029
+
+ROOT разрешил files-only интеграцию main `8f9391dd` в draft #1026 от исходного
+head `98d46259`. Входящий main уже содержит #1029: его принятый scoped local
+Student dev actual/closure `52aa4535` сохранён вместе с точными ограничениями.
+Оба журнала сохраняют полный incoming prefix и полные исторические B additions;
+текущий ledger не заменён старым native checkpoint.
+
+Полный iOS tree `a04bb0fe70622c120674096122067cd2535c9774` и package pins
+совпадают с `98d46259` и сборочным source `46c56eba`. Единственная native
+product-дельта против main — прежний `.local` argument и комментарий. Существующая
+QA-сборка сохраняет прежние pins; это повторное использование source/build
+proof, не новая сборка или native acceptance. Shared node_modules не меняется.
+
+Свежий CUA результат ROOT в 08:21 UTC снова `Mac locked`, до credential input.
+Нужна ручная разблокировка; ordinary native login → local logout → relaunch
+по-прежнему не выполнен. [История и границы](qa/native-local-signout-blocked-2026-09-22.md)
+сохраняет прежние STOP/no-Auth closure, не превращая их в успешный logout.
+Новых tests/build/Simulator/Auth/DB/provider действий в этой интеграции нет.
+После push нужны независимый exact-head review и protected CI; PR остаётся
+draft, merge/release принадлежат ROOT. Production/native/full24 не заявляются.

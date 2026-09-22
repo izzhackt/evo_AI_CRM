@@ -122,7 +122,7 @@ test("assessment UI uses bounded authenticated actions, not a browser database o
   assert.match(runner, /pending\.current \?\?/);
   assert.match(runner, /crypto\.randomUUID/);
   assert.match(runner, /installAssessmentExitGuard/);
-  assert.match(runner, /disabled=\{completing \|\| error\?\.code === "conflict"\}/);
+  assert.match(runner, /disabled=\{completing \|\| reloadRequired\}/);
   assert.doesNotMatch(runner, /createClient|supabase|localStorage|sessionStorage|gradingRules|correctOptionId|fetch\(/);
 });
 

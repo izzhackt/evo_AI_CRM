@@ -14,6 +14,7 @@ import { AssessmentResults } from "./AssessmentResults";
 
 type PendingWrite = { input: AssessmentWriteInput; complete: boolean };
 type ActionError = Extract<AssessmentActionResult, { ok: false }>;
+type FailedAction = ActionError & { operation: "start" | "write" | "reload" };
 // Локализация ошибки живёт на рендере по code (tests.error.*); message из
 // server action не показывается, поэтому локальная сетевая ошибка несёт код.
 const NETWORK_ERROR: ActionError = { ok: false, code: "unavailable", message: "" };
@@ -41,7 +42,7 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
   const busyRef = useRef(false);
   const pending = useRef<PendingWrite | null>(null);
   const startRequestId = useRef<string | null>(null);
-  const [error, setError] = useState<ActionError | null>(null);
+  const [error, setError] = useState<FailedAction | null>(null);
   const [exitNotice, setExitNotice] = useState(false);
   const [completing, setCompleting] = useState(false);
   const pageSize = instrument.instrumentKey === "english36" ? 1 : 4;
@@ -53,6 +54,7 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
   const count = attempt?.questions.filter(q => answers[q.id] !== undefined).length ?? 0;
   const total = attempt?.questions.length ?? instrument.questionCount;
   const pageCount = Math.ceil(total / pageSize);
+  const reloadRequired = error?.code === "conflict" || error?.operation === "reload";
 
   const write = useCallback(async (complete = false): Promise<boolean> => {
     const current = attemptRef.current;
@@ -65,7 +67,7 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
     try {
       const response = await (request.complete ? completeStudentAssessmentAction : saveStudentAssessmentAction)(request.input);
       if (!response.ok) {
-        setError(response);
+        setError({ ...response, operation: "write" });
         if (response.code !== "unavailable") { pending.current = null; setCompleting(false); }
         return false;
       }
@@ -79,7 +81,7 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
         heading.current?.focus();
       }
       return true;
-    } catch { setError(NETWORK_ERROR); return false; }
+    } catch { setError({ ...NETWORK_ERROR, operation: "write" }); return false; }
     finally { busyRef.current = false; setBusy(false); }
   }, []);
 
@@ -104,18 +106,18 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
     startRequestId.current ??= crypto.randomUUID();
     try {
       const response = await startStudentAssessmentAction(instrument.instrumentKey, startRequestId.current);
-      if (!response.ok) { setError(response); return; }
+      if (!response.ok) { setError({ ...response, operation: "start" }); return; }
       const next = response.attempt;
       attemptRef.current = next; setAttempt(next); setAnswers(next.answers); answersRef.current = next.answers;
       setSaved(assessmentAnswersFingerprint(next.answers));
       setPage(Math.floor(Math.max(0, next.questions.findIndex(q => !next.answers[q.id])) / pageSize));
       window.history.replaceState(null, "", `${assessmentPath(next.instrumentKey)}?attempt=${next.attemptId}`);
-    } catch { setError(NETWORK_ERROR); }
+    } catch { setError({ ...NETWORK_ERROR, operation: "start" }); }
     finally { busyRef.current = false; setBusy(false); }
   }
 
   function select(id: string, value: string) {
-    if (pending.current?.complete) return;
+    if (pending.current?.complete || reloadRequired) return;
     const next = { ...answersRef.current, [id]: value };
     answersRef.current = next; setAnswers(next);
   }
@@ -133,16 +135,17 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
     busyRef.current = true; setBusy(true);
     try {
       const response = await readStudentAssessmentAttemptAction(attemptRef.current.attemptId);
-      if (!response.ok) { setError(response); return; }
+      if (!response.ok) { setError({ ...response, operation: "reload" }); return; }
       attemptRef.current = response.attempt; setAttempt(response.attempt);
       answersRef.current = response.attempt.answers; setAnswers(response.attempt.answers);
       setSaved(assessmentAnswersFingerprint(response.attempt.answers)); pending.current = null; setError(null);
-    } catch { setError(NETWORK_ERROR); }
+      setExitNotice(false);
+    } catch { setError({ ...NETWORK_ERROR, operation: "reload" }); }
     finally { busyRef.current = false; setBusy(false); }
   }
 
   async function pause() {
-    if (busyRef.current || error?.code === "conflict") return;
+    if (busyRef.current || reloadRequired) return;
     if ((dirty || pending.current) && !await write()) return;
     if (assessmentAnswersFingerprint(answersRef.current) !== assessmentAnswersFingerprint(attemptRef.current?.answers ?? {})) return;
     router.push("/portal/tests");
@@ -152,11 +155,11 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
 
   const errorNotice = error || exitNotice ? (
     <div role="alert" className="pt-run-alert">
-      {error ? <p>{strings[`error.${error.code}`]}</p> : null}
-      {exitNotice ? <p>{strings.exitBlocked}</p> : null}
-      {attempt && error?.code === "conflict" ? (
+      {error ? <p>{error.operation === "reload" && error.code === "unavailable" ? strings.reloadUnavailable : strings[`error.${error.code}`]}</p> : null}
+      {exitNotice ? <p>{reloadRequired ? strings.reloadBeforeExit : strings.exitBlocked}</p> : null}
+      {attempt && (error?.code === "conflict" || (error?.code === "unavailable" && error.operation === "reload")) ? (
         <button type="button" className="pt-btn-ghost" onClick={() => void loadLatest()} disabled={busy}>{strings.loadSaved}</button>
-      ) : attempt && error?.code === "unavailable" ? (
+      ) : attempt && error?.code === "unavailable" && error.operation === "write" ? (
         <button type="button" className="pt-btn-ghost" onClick={() => void write()} disabled={busy}>{strings.retrySave}</button>
       ) : null}
     </div>
@@ -187,7 +190,7 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
         <div className="pt-run-bar-row">
           <span className="pt-run-count">{formatPortalString(strings.answeredOf, { count: String(count), total: String(total) })}</span>
           <span role="status" aria-live="polite" className="pt-run-status">
-            {busy ? strings.statusSaving : error ? strings.statusUnconfirmed : dirty ? strings.statusDirty : strings.statusSaved}
+            {busy ? (reloadRequired ? strings.statusLoadingSaved : strings.statusSaving) : error ? strings.statusUnconfirmed : dirty ? strings.statusDirty : strings.statusSaved}
           </span>
         </div>
         <progress
@@ -227,7 +230,7 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
                 instrumentKey={instrument.instrumentKey}
                 answer={answers[question.id]}
                 number={page * pageSize + offset + 1}
-                disabled={completing || error?.code === "conflict"}
+                disabled={completing || reloadRequired}
                 onSelect={select}
               />
             ))}
@@ -243,7 +246,7 @@ export function AssessmentRunner({ instrument, initialAttempt, locale }: {
         </div>
       </section>
       <div className="pt-run-footer">
-        <button type="button" className="pt-btn-ghost" disabled={busy || error?.code === "conflict"} onClick={() => void pause()}>{strings.saveAndExit}</button>
+        <button type="button" className="pt-btn-ghost" disabled={busy || reloadRequired} onClick={() => void pause()}>{strings.saveAndExit}</button>
         <p className="pt-run-note">{strings.returnNote}</p>
       </div>
     </div>

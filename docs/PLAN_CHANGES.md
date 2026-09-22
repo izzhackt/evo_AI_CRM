@@ -37764,3 +37764,71 @@ negative controls/positive NOT PROVEN;1029/1026/980 и реальная почт
 непринятыми. Mac доступен, email inputs уточнены без публикации адресов; прежние
 исторические факты и KB decisions не переписываются. Scope только четыре docs,
 без продуктовых проверок/runtime и без заявления полного завершения1–36.
+
+
+### 2026-09-22 — B24: precode повтора загрузки теста
+
+На main ec3f62ba подтверждена потеря операции в AssessmentRunner: после
+conflict → подтверждённой загрузки → read unavailable кнопка вызывает write
+и разблокирует преждевременное сохранение. [Контракт](platform/portal-assessment-retry-operation.md)
+записан до кода: start/write/reload в error state, повтор чтения с прежним
+подтверждением, сохранение pending UUID/snapshot; reloadRequired удерживает
+вопросы и Save-and-exit до успешного read. Три пары RU/KY строк описывают
+загрузку/ошибку/выход; устаревший exitNotice снимается после успешного чтения.
+Impeccable Operate/harden, layout/actions/Auth/RLS/SQL не меняются. ROOT разрешил
+отдельный source блок после checkpoint #1026; native ждёт Mac, QA у A239.
+Source checks/review и согласованный actual ещё впереди; пункт 24 и production
+не завершены. Новые npm/build после сбоя диска ждут разрешённого окна.
+
+
+### 2026-09-22 — B24: assessment retry source checkpoint
+
+Реализация70a6a3a7 следует precode92ff16ae и independent precode reviewbd45fcf8:
+операция в error state, read retry с подтверждением, блокировка select/pause
+до успешного read, три пары RU/KY сообщений. 25 профильных checks, scoped lint,
+Next typegen + TypeScript и diff check PASS. [Source-квитанция](qa/portal-assessment-retry-source-2026-09-22.md)
+сохраняет ранние ошибки неполных dependencies/conditions/generated types и
+ограничения чистых tests. Ни npm повторно, ни build/server/QA/Auth/DB не запускали.
+Исходники pending/UUID/snapshot/confirm/autosave вне заявленной дельты точны.
+Independent source review, protected CI и согласованный browser actual ещё
+нужны; draft, пункт 24 и production не закрываются.
+
+
+## 2026-09-22 — B24 / #1029: локальный dev actual и интеграция main
+
+На неизменном source `ba9204ec` с Node22.23.1 выполнен разрешённый обычный
+Student-путь в Next development `--webpack`: один Start создаёт blank draft r1;
+две попытки save дают ровно один accepted save r2 и stale conflict; offline read
+сохраняет локальный выбор и disabled radios; cancel не отправляет POST; online
+read возвращает сохранённый ответ. Complete0. Own local logout204, отсутствие
+cookies, закрытие browser и всех собственных server groups отражены в receipts;
+incumbent sessions/refresh/AMR сохранены. [Факты и границы](qa/portal-assessment-retry-source-2026-09-22.md).
+
+Это controlled local changed-function proof: dev routing использовал continue/
+abort и точный dev transport, а не frozen passive production observer. Полный
+login→closure занял около6 минут; только retry-часть была короче180s. SaveAndExit
+защищён source checks, но напрямую в actual не проверен. Прежние readiness/font/
+hydration STOP и production HTTP-конфигурационный отказ до Auth сохранены;
+production build `FEgfVkbA2tdSyuxSyWHLR` остаётся отдельным build evidence.
+Независимый actual review ожидается; production/native/full24 не заявляются.
+
+В эту ветку интегрирован main `83c2e54f`; оба append-only журнала сохраняют
+полный incoming prefix и полные B additions. Assessment source/test/dependency
+файлы byte-identical `ba9204ec`; прежние25/25, lint/tsc и build не выдаются за
+новые запуски. Финальному merge head требуются independent exact-head review
+и protected CI; PR пока draft, merge выполняет ROOT.
+
+
+## 2026-09-22 — B24 / #1029: независимый actual/closure verdict
+
+После предыдущего checkpoint получен independent review `52aa4535` — PASS,
+`APPROVED_LOCAL_DEV_CHANGED_PATH_AND_OWN_CLOSURE`; полный report `d3f129b8`.
+Он подтверждает ordinary Student dev --webpack Start/conflict/offline read/
+cancel/online read, единственный accepted save r2, сохранение остальных
+business/Storage/incumbent Auth и own logout204/browser/server closure.
+[QA-квитанция](qa/portal-assessment-retry-source-2026-09-22.md) содержит полные
+hashes и прежние ограничения: не frozen passive production protocol, не
+production/native/full24 acceptance; SaveAndExit напрямую не asserted.
+Merge main83c2 опубликован как `6ec6ec10`; этот follow-up только уточняет docs.
+Assessment source/tests unchanged; final exact-head review/CI и ROOT merge
+остаются отдельными. Никакого повторного runtime или расширения scope.

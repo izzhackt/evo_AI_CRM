@@ -1,6 +1,20 @@
 # Пункты 1–36 — текущий статус на 22 сентября 2026
 
-## Текущий checkpoint — 22 сентября 2026, production24b46830
+## Текущий checkpoint B — 22 сентября 2026, локальный actual #1029
+
+На source `ba9204ec` выполнен узкий ordinary Student dev `--webpack` сценарий:
+Start1 → blank r1 → один accepted save r2 → stale conflict → offline read fail
+с сохранённым выбором/disabled radios → cancel без POST → online read recovery.
+Всего save2/read2 attempted, Complete0; own logout204/cookies absent/browser и
+все собственные server groups закрыты, incumbent Auth сохранён по receipts.
+[Квитанция](qa/portal-assessment-retry-source-2026-09-22.md) сохраняет исходные
+STOP и различает controlled dev proof, отдельный production build и production
+acceptance. Весь login→closure не был180s-протоколом; retry-часть была <180s,
+SaveAndExit напрямую не проверялся. Independent actual/closure review `52aa4535` — PASS.
+Main `83c2e54f` интегрирован; product/test bytes unchanged, final-head review/CI
+и ROOT merge впереди. #1026/#980, полный24 и весь план1–36 этим не закрыты.
+
+## Предыдущий checkpoint ROOT — 22 сентября 2026, production24b46830
 
 #1032 смержен в `e969b3a1`, #1033 — в `eed088a0`, #1034 — в `24b46830`.
 Forward207–239 применён; новый app `24b46830` принят в production в08:00UTC:
@@ -26,6 +40,16 @@ business Gmail-сессии нет. Письма ещё не отправлен�
 Две Chrome-попытки первого файла заблокированы, второй браузером не проверен.
 Production browser PASS, новые материалы и AI/RAG не заявляются. Весь объём1–36
 не объявлен полностью принятым: merged, scoped actual и поставка различаются.
+
+## Исторический checkpoint B — source тестов портала, до actual
+
+Native logout #1026 остаётся draft: source/build review и CI на1a70bb10 прошли,
+но Mac-lock остановил actual до входа; QA закрыта без изменения данных.
+Независимый source-блок тестов реализован на70a6a3a7: повтор ошибки чтения
+снова читает сохранённую попытку, сохраняет подтверждение и блокировку
+редактирования до успешного чтения. 25 tests, lint и TypeScript PASS;
+[квитанция](qa/portal-assessment-retry-source-2026-09-22.md) отделяет source
+от ещё не выполненного browser actual. Пункт 24 и production не закрыты.
 
 ## Исторический checkpoint — main de847cf5, до merge #1031
 
@@ -192,7 +216,7 @@ ROOT236/#1016 прошёл один локальный apply и ordinary Admin/S
 | 21 | Один результат в CRM, вебе и iPhone | Общие TS/Swift контракты и UI #1000 в main. Local web/CRM сохраняют исходную причину уведомления и отдельно показывают текущую проверку; recovery/denial проверены в доступных состояниях. Запуск iPhone/VoiceOver остаётся неподтверждённым; Swift checks его не заменяют. |
 | 22 | CRM shell и типографика | #1010 сохраняет раскрытые группы внутри одного раздела при client navigation; 19 целевых тестов, lint/typecheck и source review пройдены. Исторические 1440/390 результаты и STOP сохранены. ROOT22G на f5f8fef2 завершил оставшиеся 390 same/different-destination и 320 Month/Back/Forward/Week/Escape/focus/menu проверки; trusted Link, URL/period и неизменный document подтверждены. Независимое actual/closure review 799f96ff принято; strict final 290/33, own logout 204 и закрытие ресурсов PASS. Узкая функция принята локально; final-head review/CI пройдены; #1010 смержен в main59a726b. [Actual](qa/crm-sidebar-destination-state-actual-2026-09-21.md). Мобильные отступы #1021 приняты локально на e999d8c0: один проход 1440/390/320 и logo-focus, controls ≥44 px, без overflow, Tab/skip/Escape PASS. Strict final290/33 и own cleanup подтверждены; исходный port STOP сохранён, последующая проверка закрытия принята. [Шапка](qa/crm-mobile-header-spacing-actual-2026-09-22.md). Final head80916507 принят независимым review242b4276, CI35662121888 прошёл; #1021 смержен вfd77f2e2. Text-only zoom, Native GET/reload, другие роли, широкая типографика/плотность и production не подтверждены. |
 | 23 | Mobile web портала | Отдельные мобильные пути портала уже проверены (#967, 224, 228). Остаются остальные экраны и их реальные состояния на узкой ширине, RU/KY и с клавиатурой. |
-| 24 | Остальные экраны портала и приложения | Остаются отдельные проходы уроков, тестов, профиля, уведомлений и входа. #1006 смержен в 8b6259ec: после сохранённых STOP существующий Student подтвердил один browser-offline отказ в профиле, RU alert, завершение pending и отсутствие ложного success. [Actual](qa/portal-profile-request-feedback-actual-2026-09-21.md), strict closure, final-head ce4719d6 review и CI 35632700067 пройдены. Это только первый отрицательный путь; повтор/Space, KY runtime, layout, положительное принятие запроса, lost response после записи, native/VoiceOver/full E2E и production не проверены. Новые уведомления комплектов закрывают только свой сценарий. Уведомления #1015: на fa4ad8e8 существующий Student выполнил один offline single-form Enter; matching POST отказал, RU alert/pending/возврат фокуса и неизменное непрочитанное подтверждены. Strict final290/33, own logout204 и закрытие ресурсов PASS; [квитанция](qa/portal-notification-read-feedback-actual-2026-09-21.md). Независимое actual/closure review94914f03 принято; final head4b811260 и #1015 смержены в436865af.  Положительное прочтение/retry/bulk/detail/session-expiry/KY/layout/native этим прогоном не проверены.  Урок #1018: на c59e93cf принят conflict → offline reload → manual retry той же read-команды, один ответ/revision 2→3, strict final290/33 и independent actual/closure review752f71b0. [Результат](qa/portal-lesson-retry-actual-2026-09-22.md); #1018 смержен в `2b25a431`. Повтор чтения попытки теста реализован отдельно в открытом #1029: source/build PASS сохранены, actual Student acceptance ещё не выполнен. Прежний readiness STOP сохранён; текущая local production-конфигурация отклонила HTTP до Auth-мутаций, готовится dev Next. Открытый #1026 исправляет native sign-out: прежние source/build/CI evidence сохранены. Mac теперь доступен, но фактический login/logout/relaunch ещё не выполнен; прежний locked-Mac STOP остаётся историей. Другие learning-операции, KY/native/VoiceOver и production этим узким проходом не проверены. |
+| 24 | Остальные экраны портала и приложения | Остаются отдельные проходы уроков, тестов, профиля, уведомлений и входа. #1006 смержен в 8b6259ec: после сохранённых STOP существующий Student подтвердил один browser-offline отказ в профиле, RU alert, завершение pending и отсутствие ложного success. [Actual](qa/portal-profile-request-feedback-actual-2026-09-21.md), strict closure, final-head ce4719d6 review и CI 35632700067 пройдены. Это только первый отрицательный путь; повтор/Space, KY runtime, layout, положительное принятие запроса, lost response после записи, native/VoiceOver/full E2E и production не проверены. Новые уведомления комплектов закрывают только свой сценарий. Уведомления #1015: на fa4ad8e8 существующий Student выполнил один offline single-form Enter; matching POST отказал, RU alert/pending/возврат фокуса и неизменное непрочитанное подтверждены. Strict final290/33, own logout204 и закрытие ресурсов PASS; [квитанция](qa/portal-notification-read-feedback-actual-2026-09-21.md). Независимое actual/closure review94914f03 принято; final head4b811260 и #1015 смержены в436865af.  Положительное прочтение/retry/bulk/detail/session-expiry/KY/layout/native этим прогоном не проверены.  Урок #1018: на c59e93cf принят conflict → offline reload → manual retry той же read-команды, один ответ/revision 2→3, strict final290/33 и independent actual/closure review752f71b0. [Результат](qa/portal-lesson-retry-actual-2026-09-22.md); #1018 смержен в `2b25a431`. Повтор чтения теста #1029 проверен узким ordinary Student dev --webpack actual на ba9204ec: Start1, один accepted save r1→r2, stale conflict, offline read с сохранённым выбором/disabled radios, cancel без POST и online read recovery; save2/read2 attempted, Complete0. Own logout204/cookies/browser/server closure и incumbent Auth preservation записаны; independent actual/closure review52aa4535 PASS, final-head gates ожидаются. [Квитанция](qa/portal-assessment-retry-source-2026-09-22.md) сохраняет source25/25/lint/tsc/build, прежние STOP и ограничения: controlled dev routing, retry<180s при login→closure около6мин, SaveAndExit напрямую не проверен, production acceptance отсутствует. Открытый #1026 исправляет native sign-out: прежние source/build/CI evidence сохранены. Mac теперь доступен, но фактический login/logout/relaunch ещё не выполнен; прежний locked-Mac STOP остаётся историей. Другие learning-операции, KY/native/VoiceOver и production этим узким проходом не проверены. |
 | 25 | Доступность интерфейса | Фокус после успешного действия исправлен (#896). #1003 в main (7f444455): pending-controls, краткое объявление результата и девять локализуемых route titles. Local Student подтвердил RU/KY, одну попытку/ответ урока, обычные Enter/Space, pending focus и 1440/320; ранний native GET исправлен. Полный no-JS keyboard probe, заполненная review bank, speech/VoiceOver/native остаются неподтверждёнными. |
 | 26 | Фото и клиентский payload | Код готов (#937/#939): защита путей фото и отделение служебных данных от клиентского ответа. Массовое наполнение фотографиями сюда не добавляется. |
 | 27 | Подтверждение email | Draft #980 остаётся открытым: веб/API и локальная почта проверены, общие примитивы в main. Mac доступен; реальный native email flow ещё не выполнен. Внешняя отправка/получение не подтверждены и отдельно отражены в пункте28. |
@@ -204,7 +228,7 @@ ROOT236/#1016 прошёл один локальный apply и ordinary Admin/S
 | 33 | Обязательная причина срока/приоритета | Основной код готов (#969/222): изменение срока или приоритета требует причину. Пустая причина блокируется в UI; отдельные ограничения приёмки сохранены в квитанции. |
 | 34 | Охват CI | Согласованные проверки CI действуют. Prebuild35700914430 остановился на тестовом ожидании классификатора до deploy; #1034 исправил только test contract диапазона merge-base, review/CI35701386374 пройдены, merge `24b46830`. Upstream CI35701652318 и release35701685557 SUCCESS; проверки не ослаблялись. [История и пределы](qa/plan36-production-release-2026-09-22.md). |
 | 35 | Форматирование старого Inbox | Завершено в исходниках (#950): форматирование старого Inbox, issue42 закрыт, 842 теста прошли. Старый сервис этим не возвращается в эксплуатацию. |
-| 36 | Актуальные статусы планов | Checkpoint отражает accepted production `24b46830`/schema239, merged1032/1033/1034, полный адресный результат31 и точный пакет32. Открыты1029/1026/980; actual B/native и реальная почта остаются отдельно. Исторические STOP и ограничения сохранены; merged/source, локальная приёмка и production различаются. Весь объём1–36 не объявлен полностью принятым. |
+| 36 | Актуальные статусы планов | Checkpoint отражает accepted production `24b46830`/schema239, merged1032/1033/1034, полный адресный результат31 и точный пакет32. Открыты1029/1026/980; узкий dev actual1029 принят independent review52aa4535, native и реальная почта остаются отдельно. Исторические STOP и ограничения сохранены; merged/source, локальная приёмка и production различаются. Весь объём1–36 не объявлен полностью принятым. |
 
 Пункты 37–50, общий финальный E2E, контентная волна и App Store readiness отложены.
 Новые production migrations/release требуют своей authority. Точный процент

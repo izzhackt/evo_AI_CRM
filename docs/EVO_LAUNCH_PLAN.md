@@ -15398,6 +15398,11 @@ pending ROOT-exclusive QA; no install/Auth/relay or new attempt occurred. See
 `docs/qa/native-learning-recovery-2026-09-22.md`. Accepted1026/980 remain closed.
 
 
+## 2026-09-22 — explicit stale lead-card recovery
+
+On confirmed stale/request-conflict only, the explicit «Обновить карточку» button reloads the current document so all four card drafts, shared revision and request state reload together. The warning explicitly covers all unsaved card fields. Ordinary saves retain client-only revision bump and sibling drafts; no SSR-revision remount or automatic refresh is introduced. No SQL, rights or mutation payload changes. Source validation is scoped; actual two-session recovery awaits the coordinated local QA window.
+
+
 ## 2026-09-22 — country values расширенного каталога сайта
 
 Владелец расширил каталог публичного сайта на остальные действующие вузы EVO;
@@ -15407,3 +15412,27 @@ pending ROOT-exclusive QA; no install/Auth/relay or new attempt occurred. See
 Существующие country/university receipts, guards и шестистрановая подготовка
 сохранены. Тестовые lead submissions не выполняются по решению владельца.
 Это отдельная зависимость сайта рядом с code review1–36, не расширение admissions.
+
+
+## 2026-09-22 — diagnose first-step release admission failures
+
+Release35739964383 stopped before checkout/build/deploy with all logged static
+inputs matching. The inline main-ref request/identity failure is opaque; runner
+HTTP cause is unproven. [Narrow precode contract](qa/release-admission-diagnostics-2026-09-22.md)
+adds stage/status diagnostics only. All secretless, exact-main, actor/arm, timeout
+and redirect guards remain. No new token access, fallback, retry or permissions.
+One changed-source managed run follows independent review/CI; schema240 is not
+reapplied. Prior production0aceda06 remains accepted and arm is false.
+
+
+## 2026-09-22 — additional1–36 review, delivery and native remainder
+
+CRM1041 and receiver1039 are merged/delivered in accepted97b27d55/schema240;
+release35740963950/upstream35740912046 SUCCESS, healthy/restart0/pending absent/armfalse.
+The prior prebuild35739964383 STOP remains;1042 adds stage/status diagnostics
+without weakening first-step secretless or any release guard. No repeat SQL apply.
+[Consolidated receipt](qa/plan36-followup-review-delivery-2026-09-22.md) binds scope,
+actual local CRM, migration, independent reviews/CI and accepted server evidence.
+Native1040 remains draft: source review/build/CI passed, fresh Mac lock prevents
+actual; no merge/installation/Auth/binary delivery claimed. The owner-confirmed
+1026/980 waiver, KB159, items31/32 and deferred37–50/E2E/content/AppStore persist.

@@ -57,5 +57,8 @@ ACL `{postgres=X/postgres,service_role=X/postgres}` неизменны; посл
 - `catalog-contract.json`: `998ba0c61e3d841813dd5c2f8324ac029edd8c765c1d1ad85839eb32355bc874`.
 - SQL240: `02799c85fc83555a87409c8afdb94b5856d3f24beef1db0e3f5d3a8e766ca131`.
 
-Production240 и app release ещё не выполнены; итоговая delivery-квитанция будет
-записана после независимого review, CI и штатного выпуска.
+Production240 применена один раз через linkedCLI; ordered ledger001–240,
+function/ACL/OID перечитаны, временные CLI роли отозваны. App97b27d55 принят
+release35740963950, healthy/restart0/pending absent/armfalse.
+[Итоговая delivery-квитанция](qa/plan36-followup-review-delivery-2026-09-22.md)
+сохраняет отсутствие lead POST и отдельную ответственность задачи сайта.

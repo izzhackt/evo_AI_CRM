@@ -35,8 +35,10 @@ jobs:
           set -Eeuo pipefail
           node <<'NODE'
           const env = process.env;
+          let stage = "metadata";
+          let httpStatus = null;
           const fail = () => {
-            process.stderr.write("::error::manual_platform_ci_admission_failed\n");
+            process.stderr.write(`::error::manual_platform_ci_admission_failed stage=${stage} http_status=${httpStatus ?? "none"}\n`);
             process.exit(2);
           };
           const exact = (name, value) => {
@@ -52,6 +54,7 @@ jobs:
             if (!/^[0-9a-f]{40}$/u.test(env.EVO_PROOF_REVISION ?? "")) fail();
             exact("EVO_PROOF_REVISION", env.EVO_SHA);
             exact("EVO_WORKFLOW_SHA", env.EVO_SHA);
+            stage = "main_ref_request";
             const response = await fetch(
               `${env.EVO_API_URL}/repos/${env.EVO_EXPECTED_REPOSITORY}/git/ref/heads/main`,
               {
@@ -63,8 +66,12 @@ jobs:
                 signal: AbortSignal.timeout(15_000),
               },
             );
+            httpStatus = response.status;
+            stage = "main_ref_http";
             if (!response.ok) fail();
+            stage = "main_ref_json";
             const payload = await response.json();
+            stage = "main_ref_identity";
             if (payload?.object?.type !== "commit" || payload?.object?.sha !== env.EVO_SHA) fail();
             process.stdout.write('{"ok":true,"code":"manual_platform_ci_admitted"}\n');
           };

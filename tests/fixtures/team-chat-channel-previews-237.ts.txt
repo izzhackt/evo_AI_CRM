@@ -2,7 +2,6 @@ import {
   TEAM_CHAT_CHANNELS, isTeamChatChannel, teamChatCursor, teamChatUuid,
   type TeamChatChannel, type TeamChatChannelPreview,
 } from "./platform-team-chat.ts";
-import { normalizeTeamChatPreviewCreatedAt } from "./team-chat-channel-preview-time.ts";
 
 export const TEAM_CHAT_CHANNEL_PREVIEW_LIMIT = 240;
 const previewFields = ["id", "sequence", "version", "authorMembershipId", "authorName", "bodyPreview", "deletedAt"] as const;
@@ -37,16 +36,6 @@ export function decodeTeamChatChannels(value: unknown): readonly TeamChatChannel
       || !teamChatCursor(row.preferenceVersion) || !teamChatCursor(row.readSequence)
       || !Number.isSafeInteger(row.unreadCount) || Number(row.unreadCount) < 0 || !nullableUuid(row.firstUnreadId)
       || (row.latestPreview !== null && !preview(row.latestPreview))) return null;
-    let latestPreviewCreatedAt: string | null | undefined;
-    if (Object.hasOwn(row, "latestPreviewCreatedAt")) {
-      if (row.latestPreview === null) {
-        if (row.latestPreviewCreatedAt !== null) return null;
-        latestPreviewCreatedAt = null;
-      } else {
-        latestPreviewCreatedAt = normalizeTeamChatPreviewCreatedAt(row.latestPreviewCreatedAt);
-        if (latestPreviewCreatedAt === null) return null;
-      }
-    }
     if (row.latestPreview) {
       const id = row.latestPreview.id.toLowerCase();
       if (messageIds.has(id) || sequences.has(row.latestPreview.sequence)) return null;
@@ -57,7 +46,6 @@ export function decodeTeamChatChannels(value: unknown): readonly TeamChatChannel
       key: row.key, muted: row.muted, preferenceVersion: row.preferenceVersion,
       readSequence: row.readSequence, unreadCount: Number(row.unreadCount), firstUnreadId: row.firstUnreadId,
       latestPreview: row.latestPreview === null ? null : { ...row.latestPreview },
-      ...(latestPreviewCreatedAt === undefined ? {} : { latestPreviewCreatedAt }),
     });
   }
   return channels;
@@ -81,33 +69,19 @@ export function acceptTeamChatChannels(
   if (requestId <= previous.requestId) return previous;
   const channels: TeamChatChannel[] = [];
   for (const channel of incoming) {
-    const previousChannel = previous.channels.find((item) => item.key === channel.key);
-    const before = previousChannel?.latestPreview;
-    const beforeTime = previousChannel?.latestPreviewCreatedAt;
-    const { latestPreviewCreatedAt: incomingTime, ...metadata } = channel;
-    let latestPreviewCreatedAt = incomingTime;
+    const before = previous.channels.find((item) => item.key === channel.key)?.latestPreview;
     let latestPreview = channel.latestPreview;
     if (before && latestPreview) {
       const sameId = before.id.toLowerCase() === latestPreview.id.toLowerCase();
       const sameSequence = before.sequence === latestPreview.sequence;
       if (sameId !== sameSequence) return null;
-      // Inputs have passed the strict decoder, so known times are canonical UTC.
-      if (sameId && beforeTime !== undefined && incomingTime !== undefined
-        && beforeTime !== incomingTime) return null;
       if (BigInt(before.sequence) > BigInt(latestPreview.sequence)
-        || (sameId && BigInt(before.version) > BigInt(latestPreview.version))) {
-        latestPreview = before;
-        latestPreviewCreatedAt = sameId ? beforeTime ?? incomingTime : beforeTime;
-      } else if (sameId) {
-        latestPreviewCreatedAt = incomingTime ?? beforeTime;
-      }
+        || (sameId && BigInt(before.version) > BigInt(latestPreview.version))) latestPreview = before;
     } else if (before && latestPreview === null) {
       // Current product deletion preserves the latest row as a tombstone.
       latestPreview = before;
-      latestPreviewCreatedAt = beforeTime;
     }
-    channels.push({ ...metadata, latestPreview: latestPreview ? { ...latestPreview } : null,
-      ...(latestPreviewCreatedAt === undefined ? {} : { latestPreviewCreatedAt }) });
+    channels.push({ ...channel, latestPreview: latestPreview ? { ...latestPreview } : null });
   }
   // The incoming authorized list controls membership; never append cached channels.
   return { requestId, channels };

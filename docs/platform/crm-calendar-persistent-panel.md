@@ -128,3 +128,20 @@ Check modal/mobile and nonmodal/desktop, ordinary Close/title Escape and held-ke
 selection discrepancy is a failure, never repaired by assigning values for the test. Scoped source
 checks remain separate from actual acceptance; geometry/actions/rights and existing saves stay
 unchanged. This is a second correction of the proved behavior, not another cosmetic inspection.
+
+
+## Current actual checkpoint — 22 September 2026
+
+The scoped [actual16b](../qa/calendar-persistent-panel-actual-2026-09-22.md) passed on `5c421e50`; all three native-picker
+STOPs remain historical failures. Independent actual/resource review `4065fc07`
+and ROOT release `0531f47e` are accepted. Business data and incoming Auth sessions/
+refresh/AMR/Storage are preserved; only own sign-in metadata and two own login/logout
+audits differ, and owned resources/capture are closed. No task was saved.
+
+The successful native-picker scenario covers320/1440, held repeat and separate
+Escape, focus/draft/request ID, existing target/history/view/period and14/12px.
+It measured zero scroll only and one modal Tab, not a full focus cycle. Original0a
+geometry1440/390/320 is reused only for unchanged layout. Saved/stale/unknown,
+hard reload/cross-identity, absent task/cursor variants, full item16/native/production
+remain outside this acceptance. Calendar5c bytes stay unchanged during main2a
+integration; final exact-head review/CI/merge #1028 are pending.

@@ -92,3 +92,20 @@ PASS (detector exit0, no findings). No fake native-event test or new runtime dep
 These checks do not prove popup dismissal, focus events or selection invariance. Independent source
 review and the next coordinated modal/desktop native-picker regression remain pending; no browser,
 Auth, database or server was run during this source correction.
+
+
+## Current actual checkpoint — 22 September 2026
+
+The scoped [actual16b](calendar-persistent-panel-actual-2026-09-22.md) passed on `5c421e50`; all three native-picker
+STOPs remain historical failures. Independent actual/resource review `4065fc07`
+and ROOT release `0531f47e` are accepted. Business data and incoming Auth sessions/
+refresh/AMR/Storage are preserved; only own sign-in metadata and two own login/logout
+audits differ, and owned resources/capture are closed. No task was saved.
+
+The successful native-picker scenario covers320/1440, held repeat and separate
+Escape, focus/draft/request ID, existing target/history/view/period and14/12px.
+It measured zero scroll only and one modal Tab, not a full focus cycle. Original0a
+geometry1440/390/320 is reused only for unchanged layout. Saved/stale/unknown,
+hard reload/cross-identity, absent task/cursor variants, full item16/native/production
+remain outside this acceptance. Calendar5c bytes stay unchanged during main2a
+integration; final exact-head review/CI/merge #1028 are pending.

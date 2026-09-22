@@ -37521,3 +37521,23 @@ private Auth captures удалены. Independent actual review4ec98b49 и ROOT
 A больше не выполняет runtime. Main ec3f62ba интегрирован с сохранением
 календаря16a и всех шести source/test/SQL файлов A239 побайтно от0e0266f8.
 Финальные exact-head review/CI/merge ещё впереди; UI/full15/production не заявлены.
+
+
+## 2026-09-22 — A15 visible channel timestamp: precode after #1027
+
+#1027 защищённо смержен в2a04610f8: reader239/DTO, local apply и ordinary RPC
+приняты, strict ownclosure завершена, QA возвращена ROOT. Следующий узкий
+[UI-план](EVO_TEAM_CHAT_CHANNEL_TIME_UI_PLAN_2026-09-22.md) записан до кода.
+Impeccable Operate сохраняет текущий EVO rail; historical1440/320 просмотрены,
+CSS и channel markup точно совпадают с accepted rail sourcebab531ae.
+
+Добавляется только компактный dd.MM HH:mm справа от названия; фиксированная
+зона организации, полный год/offset в title и srOnly, UTC6 в dateTime. Empty/
+legacy time не выдумывается; label/preview ellipsis и несжимаемый unread сохраняют
+плотность и44px target. Reader/guards/actions/drafts/seen не меняются.
+
+Scope: TeamChat.tsx, scopedCSS, puretimeformatter/test и docs. Новая миграция
+не нужна. До кода independent precode review; затем targeted tests/lint/types,
+source review/CI. Actual1440/390/320 только в будущем ROOT окне после ROOT16b
+иB1029; source не означает acceptance. Без тяжёлых локальных сборок/новых
+зависимостей при дисковом ограничении; no runtime до отдельного допуска.

@@ -14647,3 +14647,16 @@ Impeccable Operate/harden, layout/actions/Auth/RLS/SQL не меняются. RO
 отдельный source блок после checkpoint #1026; native ждёт Mac, QA у A239.
 Source checks/review и согласованный actual ещё впереди; пункт 24 и production
 не завершены. Новые npm/build после сбоя диска ждут разрешённого окна.
+
+
+### 2026-09-22 — B24: assessment retry source checkpoint
+
+Реализация70a6a3a7 следует precode92ff16ae и independent precode reviewbd45fcf8:
+операция в error state, read retry с подтверждением, блокировка select/pause
+до успешного read, три пары RU/KY сообщений. 25 профильных checks, scoped lint,
+Next typegen + TypeScript и diff check PASS. [Source-квитанция](qa/portal-assessment-retry-source-2026-09-22.md)
+сохраняет ранние ошибки неполных dependencies/conditions/generated types и
+ограничения чистых tests. Ни npm повторно, ни build/server/QA/Auth/DB не запускали.
+Исходники pending/UUID/snapshot/confirm/autosave вне заявленной дельты точны.
+Independent source review, protected CI и согласованный browser actual ещё
+нужны; draft, пункт 24 и production не закрываются.

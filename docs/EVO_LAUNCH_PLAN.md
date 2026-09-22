@@ -14832,3 +14832,33 @@ append-журналов оставлены целиком. Разрешённы�
 уточнение статуса без расширения функционального scope. Source tests/UI/RPC не
 повторяются; финальные independent exact-head review и protected short CI
 предшествуют отдельному ROOT merge #1030.
+
+
+## 2026-09-22 — items16/22: контраст выбора TaskChip (precode)
+
+Отдельный небольшой блок после #1028: на сохранённом actual кадре выбранная
+карточка имеет белый текст на промежуточном фоне #e1989f (2.28:1), тогда как
+конечный EVO accent #d70217 даёт 5.37:1. Это согласуется с прежним глобальным
+150ms background transition кнопки и мгновенной сменой цвета дочернего текста;
+длительность дефекта фактически не измерялась.
+
+Scope: только TaskChip в calendar/grids.tsx — локальный inline transitionProperty
+оставляет border-color, переключая фон и дочерний текст вместе. Inline выбран
+для надёжного приоритета над unlayered .v3-world правилом. Токены, рамки, focus,
+размеры, права, handlers и глобальные стили сохраняются. Никаких новых данных
+или task writes. Scoped lint/diff и независимый source review; actual selection
+проверяется позже в выделенном локальном окне на существующей задаче, с обоими
+направлениями selected/unselected и сохранением focus/открытия деталей. Старые
+доказательства #1028 остаются историческими; этот блок ещё не actual/prod PASS.
+
+## 2026-09-22 — #1031 scoped actual + saved lifecycle закрыты локально
+
+На actual `0fa4f787` выполнены один1440 TaskChip select/deselect и отдельный
+разрешённый один ordinary Admissions create→saved lock/close-reopen→CreateAnother,
+без второго save. [Квитанция](qa/calendar-selection-and-saved-actual-2026-09-22.md)
+фиксирует contrast5.37/13.18/5.16, exact +1task/+1event/+1audit, retained task,
+полное сохранение прежних данных и собственную closure. Независимый review
+`b8e5ddf8` и ROOT release `d88cd4da` приняты; старые STOP/границы сохранены.
+Main #1030 `de847cf5` интегрирован с неизменными actual1031 product bytes и
+полными обеими append-history. Final-head review/CI/merge pending; production,
+native и весь item16/22 не принимаются этим локальным срезом.

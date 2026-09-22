@@ -14775,3 +14775,60 @@ Own logout204/browser/process/capture cleanup завершены, среда п�
 варианты не приняты; весь item16/native/production не закрыты. Main `2a04610f`
 интегрируется с неизменными calendar5c и входящими chat/239; final exact-head
 review/CI/merge #1028 остаются отдельным следующим шагом.
+
+## 2026-09-22 — A15 visible channel timestamp: precode after #1027
+
+#1027 защищённо смержен в2a04610f8: reader239/DTO, local apply и ordinary RPC
+приняты, strict ownclosure завершена, QA возвращена ROOT. Следующий узкий
+[UI-план](EVO_TEAM_CHAT_CHANNEL_TIME_UI_PLAN_2026-09-22.md) записан до кода.
+Impeccable Operate сохраняет текущий EVO rail; historical1440/320 просмотрены,
+CSS и channel markup точно совпадают с accepted rail sourcebab531ae.
+
+Добавляется только компактный dd.MM HH:mm справа от названия; фиксированная
+зона организации, полный год/offset в title и srOnly, UTC6 в dateTime. Empty/
+legacy time не выдумывается; label/preview ellipsis и несжимаемый unread сохраняют
+плотность и44px target. Reader/guards/actions/drafts/seen не меняются.
+
+Scope: TeamChat.tsx, scopedCSS, puretimeformatter/test и docs. Новая миграция
+не нужна. До кода independent precode review; затем targeted tests/lint/types,
+source review/CI. Actual1440/390/320 только в будущем ROOT окне после ROOT16b
+иB1029; source не означает acceptance. Без тяжёлых локальных сборок/новых
+зависимостей при дисковом ограничении; no runtime до отдельного допуска.
+
+
+## 2026-09-22 — A15 visible channel timestamp: source implemented
+
+Precode7692a242 independently APPROVED (reportSHA a7a5f4d2); parent read the
+complete review and Impeccable craft-floor before coding. Source4e434eee adds
+only the planned channel time formatter, rail markup/CSS and seven pure tests.
+All7 tests, scoped ESLint, next typegen, TypeScript and diff check passed once.
+Exact package/lock dependencies reused; no install or full build. Reader239,
+normalizer, data/auth boundaries, message actions, drafts and seen are unchanged.
+
+[Source receipt](qa/team-chat-channel-time-ui-source-2026-09-22.md) records
+commands/hashes and limits. Source review/CI and actual1440/390/320 remain ahead;
+no source result is rendered UI acceptance. No runtime/Auth/SQL/browser action
+occurred. ROOT16b → B1029 → A QA queue and separate window admission remain.
+
+
+## 2026-09-22 — A15 / #1030: actual time UI, closure and files-only integration
+
+На source `c1fcda9b` приняты source review/CI35676395214 и один ordinary Admin
+batch390/320/1440: видимые метки и UTC6, title/srOnly/AX, отсутствие переполнения,
+keyboard/Back/draft/search/context. [Actual-квитанция](qa/team-chat-channel-time-ui-actual-2026-09-22.md)
+сохраняет readonly zero-seen STOP и отдельное v3 finite51 разрешение ROOT;
+фактические seen0, business290/canonical/catalog неизменны; Auth/Storage33
+проверены с разрешёнными собственными login/logout эффектами. Strict own
+logout204/browser/process/capture closure принято независимым review669af3dc;
+ROOT release d21f93bc передал QA окну ROOT1031. Runtime больше не используется.
+Desktop rail288px сокращает «Продажи» до «Прода…»; полное имя остаётся в DOM/AX.
+Иные роли, варианты данных, полный screen-reader/item15 и production не приняты.
+
+Main ac165cf9 интегрирован коммитом c2157ae2: четыре A code/test-файла побайтно
+равны actual source, остальной src/tests/supabase сохранён из main; обе стороны
+append-журналов оставлены целиком. Разрешённый ROOT item36 patch dd6cc42d
+актуализирует merged1018/1027/1028 и исторические B3/B7 статусы; текущие строки
+уточнены на A actual, readonly STOP1029 и source-only98d46259/#1026. Это docs-only
+уточнение статуса без расширения функционального scope. Source tests/UI/RPC не
+повторяются; финальные independent exact-head review и protected short CI
+предшествуют отдельному ROOT merge #1030.

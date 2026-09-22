@@ -1,6 +1,9 @@
 # A15 — компактный след удалённого сообщения без ответов
 
-Статус: ограниченный precode-контракт, 22 сентября 2026.
+Статус на 22 сентября 2026: source реализован на `af47d719`, scoped lint/types
+и diff check PASS. [Source-квитанция](qa/team-chat-compact-tombstone-source-2026-09-22.md)
+сохраняет precode provenance и пределы; source review/CI и actual остаются отдельно.
+Ниже — согласованный precode-контракт; compact geometry ещё не принята.
 Основа: main `0926399b04898c919a65d2b5ff5b87adfe2d1d00`, после merged #1030/#1031.
 Этот срез завершает конкретное требование §9 исходного
 [CRM/UX-плана](EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md): компактный вид

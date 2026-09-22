@@ -14881,3 +14881,16 @@ Saved3deleted/2latest без parent/count не доказывают доступ
 Saved-only eligibility339a70ae не нашёл доказанного positive root0: исторический
 root count1 и два связанных reply остаются negative controls; live/read-only UI
 ещё не разрешён. Это ограничение actual, а не повод создавать новые сообщения.
+
+
+## 2026-09-22 — A15 compact root tombstone: source implemented
+
+Реализация af47d719 ограничена двумя UI-файлами: strict four-part guard + scoped
+padding/background, без изменения DOM/действий/wire/SQL/seen/anchors. Impeccable
+A/B: один P2, precode APPROVED, detector0; craft-floor прочитан до правки.
+[Source-квитанция](qa/team-chat-compact-tombstone-source-2026-09-22.md) фиксирует
+однократные scoped lint/typegen/tsc/diff PASS и точные hashes. Saved-only eligibility
+не доказал положительный root0; прежние linked/replied tombstones сохраняют вид.
+Actual compact geometry не принята. Независимое exact-head source review и short
+CI впереди; runtime/Auth/DB/UI не запускались, QA B не использовалась. Полный15,
+native, production и real-employee issue708 не закрыты.

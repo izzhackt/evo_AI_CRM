@@ -354,6 +354,10 @@ instructions to run a full heavy suite for every change or release candidate.
 
 ## Historical EVO Inbox Companion Boundary
 
+State 2026-09-23 (read-only inventory): `/opt/evo-inbox` and every `evo-inbox`
+container are absent on `hermes-vps`. The rules below govern a possible return
+of the companion; they do not describe the current runtime.
+
 The frozen companion records below are migration and rollback input, not
 current V3 runtime authority or permission for a separate product, login, UI,
 canonical store or fallback. Issue #552 owns its post-acceptance retirement;
@@ -386,6 +390,11 @@ check the live checkpoint in `docs/design/v3/run-plan.md` and #552 before acting
   admin surface.
 
 ## WhatsApp And Lead-Agent Boundary
+
+State 2026-09-23 (read-only inventory): no `evo-lead-agent` container or unit
+exists on `hermes-vps`; `evo-crm-waha-1` runs, its session state unverified.
+The rules below govern a possible return of the lead-agent; they do not
+describe the current runtime.
 
 - This section describes the existing production CRM/lead-agent path, not the
   EVO Inbox companion app.

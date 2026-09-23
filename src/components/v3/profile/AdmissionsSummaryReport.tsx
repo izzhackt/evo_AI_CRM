@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 
-const TITLE = "Короткий отчёт по направлениям";
+// Same words as the sidebar item that opens and focuses this report.
+const TITLE = "Сводка по направлениям";
 
 /** The sidebar shortcut reveals the report even after its async data arrives. */
 export function AdmissionsSummaryReport({

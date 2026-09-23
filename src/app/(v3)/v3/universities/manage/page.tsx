@@ -12,6 +12,7 @@ import { withUniversityIntakeIds, type UniversityContent } from "@/lib/platform-
 import { readStaffUniversities, readUniversityDrafts, readUniversityManageDraftPage, readUniversityBatchSnapshot, reviewedUniversityTemplates } from "@/lib/v3/university-source";
 import { parseManageRoute, parseManageListContext, manageListHref, manageListContext, manageEditorHref } from "@/lib/university-manage-contract";
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Университеты" };
 const link = "inline-flex min-h-11 items-center rounded-ctl border border-border px-4 py-2 text-sm font-medium text-fg hover:bg-surface-2";
 type Params = Record<string, string | string[] | undefined>;
 export default async function UniversityManagePage({ searchParams }: { searchParams: Promise<Params> }) {

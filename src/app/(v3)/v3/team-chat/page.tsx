@@ -11,7 +11,7 @@ import { TeamChatV2Error } from "@/lib/server/platform-team-chat-v2-repository";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "EVO · Командный чат" };
+export const metadata = { title: "Командный чат" };
 
 export default async function TeamChatPage({ searchParams }: {
   searchParams: Promise<{ channel?: string | string[]; message?: string | string[] }>;

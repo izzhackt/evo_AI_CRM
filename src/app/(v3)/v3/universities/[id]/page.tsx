@@ -6,6 +6,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { universityUuid } from "@/lib/platform-university-catalog";
 import { readStaffUniversities } from "@/lib/v3/university-source";
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Университеты" };
 export default async function UniversityPage({ params }: { params: Promise<{ id: string }> }) {
   const [actor, route] = await Promise.all([requireV3PageActor("/v3/universities"), params]);
   const id = universityUuid(route.id) ?? notFound();

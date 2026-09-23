@@ -208,8 +208,8 @@ export function Overview({
                     className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
                   >
                     {sales.linkedConversations.length > 1
-                      ? `Открыть переписку в Inbox — ${conversation.subject}`
-                      : "Открыть переписку в Inbox"}
+                      ? `Открыть переписку WhatsApp — ${conversation.subject}`
+                      : "Открыть переписку WhatsApp"}
                   </Link>
                 ))}
               </div>

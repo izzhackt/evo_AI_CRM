@@ -22,7 +22,7 @@ import { readV3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "V3 · Входящие" };
+export const metadata = { title: "WhatsApp" };
 
 type SearchParams = Readonly<{
   q?: string | string[];
@@ -131,7 +131,7 @@ export default async function InboxPart({
   }
 
   return (
-    <PartShell title="Входящие" count={view.conversations.length} fill>
+    <PartShell title="WhatsApp" count={view.conversations.length} fill>
       <Inbox
         view={view}
         profileHref={profileHref}

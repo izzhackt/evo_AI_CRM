@@ -9,7 +9,7 @@ import { CaseChatReadError, readCaseChatPage, readStaffCaseChatThreads } from "@
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "EVO · Сообщения" };
+export const metadata = { title: "Сообщения" };
 
 export default async function MessagesPage({ searchParams }: {
   searchParams: Promise<{ case?: string | string[]; q?: string | string[]; queue?: string | string[]; attach?: string | string[] }>;

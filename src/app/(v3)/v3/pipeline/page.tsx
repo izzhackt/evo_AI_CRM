@@ -19,7 +19,7 @@ import {
 } from "@/lib/v3/pipeline-source";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "V3 · Воронка продаж" };
+export const metadata = { title: "Воронка продаж" };
 
 /**
  * Имена параметров — контракт адресной строки, на него ссылаются другие

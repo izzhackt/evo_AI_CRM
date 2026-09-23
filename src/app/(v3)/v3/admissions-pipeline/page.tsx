@@ -21,7 +21,7 @@ import { listStudentPortalActiveCurators } from "@/lib/server/student-portal-cur
 import { country as countryLabel } from "@/lib/v3/wording";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "V3 · Воронка поступления" };
+export const metadata = { title: "Воронка поступления" };
 
 /**
  * Query-string state, same contract style as /v3/pipeline
@@ -65,7 +65,7 @@ export default async function AdmissionsPipelinePart({
   if (view !== undefined && view !== "documents" && view !== "packages") notFound();
   const canReadDocuments = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
   const navigation = canReadDocuments ? <nav className="mb-5 flex flex-wrap gap-3" aria-label="Разделы поступления">
-    <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={boardHref(query)} aria-current={view === undefined ? "page" : undefined}>Воронка</Link>
+    <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={boardHref(query)} aria-current={view === undefined ? "page" : undefined}>Воронка поступления</Link>
     <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=documents`} aria-current={view === "documents" ? "page" : undefined}>Документы на проверку</Link>
     <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=packages`} aria-current={view === "packages" ? "page" : undefined}>Комплекты на проверку</Link>
   </nav> : null;

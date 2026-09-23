@@ -7,7 +7,7 @@ import { KnowledgeLibrary } from "@/components/v3/knowledge/KnowledgeLibrary";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { requireKnowledgeAdmin } from "@/lib/v3/knowledge-library-source";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "База знаний · EVO" };
+export const metadata = { title: "База знаний" };
 export default async function KnowledgePart({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const actor = await requireV3PageActor("/v3/knowledge"); requireKnowledgeAdmin(actor);
   const query = await searchParams;

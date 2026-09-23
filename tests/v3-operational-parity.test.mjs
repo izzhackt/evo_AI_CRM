@@ -51,7 +51,7 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.match(page, /loadV3ProfileRoute\(routeMode/u);
   assert.match(page, /kind: "target", target: explicitTarget/u);
   assert.match(page, /kind: "directory", params: directoryParams/u);
-  assert.match(page, /К списку поступления/u);
+  assert.match(page, /К списку студентов/u);
   assert.doesNotMatch(page, /readProfilePicks/u);
   assert.match(page, /invalidIdentityShape/u);
   assert.match(page, /\(hasLeadParam \|\| hasCaseParam\) && directoryParams\.active/u);

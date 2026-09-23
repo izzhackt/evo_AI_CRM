@@ -3,6 +3,7 @@ import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/
 import { randomUUID } from "node:crypto";
 import { Suspense } from "react";
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PartShell } from "@/components/v3/PartShell";
@@ -32,6 +33,7 @@ import {
   type PlatformCaseNoteCursor,
 } from "@/lib/platform-case-notes";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { v3SectionTitle } from "@/lib/v3/navigation";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import {
   listStudentPortalActiveCurators,
@@ -48,7 +50,18 @@ import {
 } from "@/lib/v3/profile-route-load";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "EVO · Поступление" };
+
+/**
+ * Вкладка называет подсвеченный пункт меню: «Студенты» (включая профиль),
+ * «EVO Docs» или «Сводка по направлениям».
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<ProfileSearchParams>;
+}): Promise<Metadata> {
+  return { title: v3SectionTitle("/v3/profile", await searchParams) };
+}
 
 type ProfileSearchParams = Readonly<
   Record<string, string | readonly string[] | undefined>
@@ -231,7 +244,7 @@ export default async function ProfilePart({
   }
 
   return (
-    <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Поступление"}>
+    <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Студенты"}>
       <div className="space-y-6">
         {docsMode && directory && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage") ? <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/v3/universities" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">Университеты и бланки</Link>
@@ -260,7 +273,7 @@ export default async function ProfilePart({
               className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
               href={requestsReturnTo ?? directoryHref}
             >
-              {requestsReturnTo ? "К списку заявок" : docsMode ? "К списку EVO Docs" : "К списку поступления"}
+              {requestsReturnTo ? "К списку заявок" : docsMode ? "К списку EVO Docs" : "К списку студентов"}
             </Link>
             {view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
               <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />

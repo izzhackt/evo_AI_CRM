@@ -8,6 +8,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { parseUniversityFilters } from "@/lib/platform-university-catalog";
 import { readStaffUniversities, readStaffUniversityCountries } from "@/lib/v3/university-source";
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Университеты" };
 export default async function UniversitiesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [actor, params] = await Promise.all([requireV3PageActor("/v3/universities"), searchParams]);
   const filters = parseUniversityFilters(params) ?? notFound();

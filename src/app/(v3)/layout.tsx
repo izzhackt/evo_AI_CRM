@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { isStaffPreview } from "@/lib/platform-access";
 
@@ -6,6 +7,17 @@ import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import { readStaffNotificationsForActor } from "@/lib/v3/staff-notification-source";
 
 import "./v3.css";
+
+/**
+ * Один вид вкладки браузера для всего staff CRM: «<Раздел> — EVO CRM».
+ * Страница задаёт только название раздела — подпись подсвеченного пункта
+ * меню. Next.js применяет `template` к дочерним сегментам этой группы вместо
+ * шаблона корневого layout; `absolute` — вкладка экрана без своего названия
+ * (`default` прошёл бы через корневой шаблон «… | EVO Admissions CRM»).
+ */
+export const metadata: Metadata = {
+  title: { absolute: "EVO CRM", template: "%s — EVO CRM" },
+};
 
 /**
  * Оболочка V3.

@@ -5,7 +5,7 @@ import { btnGhostCls, inputCls } from "@/components/ui";
 import { ADMISSIONS_DIRECTIONS } from "@/lib/platform-admissions-playbook-contract";
 import { DIRECTION_LABELS } from "@/components/v3/profile/admissions-view";
 import { staffScopeLabel } from "@/lib/v3/wording";
-import { STAFF_SCOPE_KINDS, type StaffRoleAssignmentInput, type StaffRoleExpectedBinding, type StaffRoleMember, type StaffRolesActionState, type StaffRoleWorkspace, type StaffScopeKind } from "@/lib/v3/staff-roles-contract";
+import { STAFF_SCOPE_KINDS, type StaffRoleAssignmentInput, type StaffRoleExpectedBinding, type StaffRoleMember, type StaffRoleScope, type StaffRolesActionState, type StaffRoleWorkspace, type StaffScopeKind } from "@/lib/v3/staff-roles-contract";
 import { StaffRoleCommandForm } from "./StaffRoleForms";
 
 type Row = StaffRoleAssignmentInput & { clientId: string };
@@ -24,14 +24,38 @@ export function StaffRoleAssignments({ member, workspace, organizationId }: Memb
   const next = (state: StaffRolesActionState, mode: EditorMode) => {
     if (canContinue(state)) setEditor((current) => ({ member, workspace, mode, sequence: current.sequence + 1 }));
   };
+  // A saved command no longer shows its draft fields: the result is the member's
+  // access as read back from the server once that readback reflects this receipt.
   return <StaffMemberAccessEditor key={editor.sequence} member={editor.member} workspace={editor.workspace} organizationId={organizationId}
     mode={editor.mode} onComplete={(state) => <div className="space-y-3">
-      {!canContinue(state) ? <p role="status" className="text-sm leading-6 text-fg-2">Ожидаем актуальные данные сотрудника. Следующее изменение будет доступно после подтверждения версии.</p> : null}
+      {canContinue(state) ? <div className="space-y-1">
+        <p id={`saved-access-${member.membershipId}`} className="text-sm font-semibold">Текущий доступ</p>
+        <ul aria-labelledby={`saved-access-${member.membershipId}`} className="space-y-1 text-sm leading-6 text-fg-2">
+          {savedAccessLines(member, workspace).map((line, index) => <li key={index} className="break-words">{line}</li>)}
+        </ul>
+      </div> : <p role="status" className="text-sm leading-6 text-fg-2">Загружаем сохранённый доступ. Если он не появился, обновите страницу.</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" className={btnGhostCls} disabled={!canContinue(state)} onClick={() => next(state, "assignments")}>Изменить назначения</button>
         <button type="button" className={btnGhostCls} disabled={!canContinue(state)} onClick={() => next(state, "admin")}>Изменить доступ Admin</button>
       </div>
     </div>} />;
+}
+
+function scopeDescription(scope: StaffRoleScope, workspace: StaffRoleWorkspace): string {
+  const kind = staffScopeLabel(scope.kind) ?? "Область недоступна";
+  if (scope.kind === "department") {
+    const department = workspace.departments.find((entry) => entry.id === scope.key);
+    return department ? `${kind}: ${department.name}` : kind;
+  }
+  const direction = scope.kind === "direction" ? ADMISSIONS_DIRECTIONS.find((entry) => entry === scope.key) : undefined;
+  return direction ? `${kind}: ${DIRECTION_LABELS[direction]}` : kind;
+}
+
+/** Read-only lines for the server readback shown after a confirmed save. */
+function savedAccessLines(member: StaffRoleMember, workspace: StaffRoleWorkspace): string[] {
+  const lines = member.assignments.map((assignment) => `${assignment.label} · ${scopeDescription(assignment.scope, workspace)}`);
+  if (member.systemRole === "admin") return ["Системный доступ администратора", ...lines];
+  return lines.length ? lines : ["Роли не назначены"];
 }
 
 function StaffMemberAccessEditor({ member: initial, workspace, organizationId, mode: initialMode, onComplete }: MemberEditorProps & {
@@ -50,8 +74,8 @@ function StaffMemberAccessEditor({ member: initial, workspace, organizationId, m
     {initial.systemRole === "admin" ? <p className="text-sm leading-6 text-fg-2">У администратора полный рабочий доступ, включая подтверждение договоров и платежей. Обход условий передачи требует отдельного разрешения; личные тесты студентов остаются закрытыми.</p> : null}
     <StaffRoleCommandForm label={`${mode === "assignments" ? "Назначения" : "Доступ администратора"}: ${initial.displayName}`}
       submitLabel={mode === "assignments" ? "Сохранить назначения" : initial.systemRole === "admin" ? "Снять доступ Admin" : "Назначить администратором"}
-      onComplete={onComplete}>
-      {(locked) => <>
+      onComplete={onComplete} keepDraftOnReset>
+      {(locked, state) => state.status === "success" ? null : <>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Изменить доступ сотрудника">
           <button type="button" className={btnGhostCls} disabled={locked} aria-pressed={mode === "assignments"} onClick={() => setMode("assignments")}>Назначения ролей</button>
           <button type="button" className={btnGhostCls} disabled={locked} aria-pressed={mode === "admin"} onClick={() => setMode("admin")}>Системный доступ администратора</button>

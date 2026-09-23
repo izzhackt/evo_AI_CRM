@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, type ReactNode } from "react";
 import { btnCls } from "@/components/ui";
 import { staffRolesAction } from "@/lib/staff-roles-actions";
 import { STAFF_ROLES_INITIAL_STATE, type StaffRolesActionState } from "@/lib/v3/staff-roles-contract";
@@ -30,14 +30,25 @@ export function StaffRoleFeedback({ state }: { state: StaffRolesActionState }) {
     className={`text-sm leading-6 ${state.status === "error" ? "text-danger" : "text-fg-2"}`}>{state.message}</p> : null;
 }
 
-export function StaffRoleCommandForm({ label, submitLabel, children, onComplete }: {
+export function StaffRoleCommandForm({ label, submitLabel, children, onComplete, keepDraftOnReset = false }: {
   label: string; submitLabel: string;
   children: (locked: boolean, state: StaffRolesActionState) => ReactNode;
   onComplete?: (state: StaffRolesActionState) => ReactNode;
+  /** Controlled drafts: React resets the form after every action, which would show
+   * each controlled select's first option while state still holds the reviewed value. */
+  keepDraftOnReset?: boolean;
 }) {
   const [state, action, pending] = useStaffRoleForm();
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    const form = formRef.current;
+    if (!keepDraftOnReset || !form) return;
+    const preserveDraft = (event: Event) => event.preventDefault();
+    form.addEventListener("reset", preserveDraft);
+    return () => form.removeEventListener("reset", preserveDraft);
+  }, [keepDraftOnReset]);
   const saved = state.status === "success";
-  return <form action={action} aria-label={label} aria-busy={pending} className="space-y-4">
+  return <form ref={formRef} action={action} aria-label={label} aria-busy={pending} className="space-y-4">
     <fieldset disabled={pending || saved || state.outcome === "unknown"} className="min-w-0 space-y-4">
       {children(pending || saved || state.outcome === "unknown", state)}
     </fieldset>

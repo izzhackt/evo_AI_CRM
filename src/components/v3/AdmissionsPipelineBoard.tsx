@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 
-import { cn } from "@/components/ui";
+import { btnGhostCls, cn } from "@/components/ui";
 import { Pill } from "@/components/v3/Pill";
 import {
   moveCasePipelineAction,
@@ -19,17 +19,45 @@ import {
 } from "@/lib/platform-admissions-pipeline-contract";
 import { admissionsPipelineStage, admissionsPipelineTab, caseChatAwaitState, country as countryLabel } from "@/lib/v3/wording";
 
-/** Full sentences only — «saved» needs none, it is silent. */
-const MESSAGES: Record<Exclude<MoveCasePipelineActionStatus, "saved">, string> = {
+/** Full sentences only — a saved stage move is silent; removal reports below. */
+const MESSAGES: Record<Exclude<MoveCasePipelineActionStatus, "saved"> | "no_response", string> = {
   invalid: "Не удалось подготовить перемещение.",
   forbidden: "У вашей роли нет прав на это перемещение.",
   request_conflict: "Команда уже использована. Повторите действие.",
   unavailable: "Supabase недоступен. Перемещение не подтверждено.",
+  no_response: "Ответ сервера не получен. Перемещение не подтверждено — обновите страницу.",
 };
+
+/** A lost response is not a confirmed move: the card reverts like any refusal. */
+const NO_RESPONSE = { status: "no_response" } as const;
 
 type MoveTarget =
   | Readonly<{ remove: true }>
   | Readonly<{ remove?: false; stage: AdmissionsPipelineStage }>;
+
+/**
+ * Removal is a hide, not a delete (187: `pipeline_hidden_at`, the case stays in
+ * «Студенты»). «Вернуть в воронку» is the same move command with the previous
+ * stage, which clears the hide server-side — no new server semantics.
+ */
+type RemovalNotice = Readonly<{
+  row: AdmissionsPipelineRow;
+  phase: "removing" | "removed" | "restoring" | "restored";
+}>;
+
+function removalMessage({ row, phase }: RemovalNotice): string {
+  const name = row.studentDisplayName;
+  switch (phase) {
+    case "removing":
+      return `Убираем дело «${name}» из воронки…`;
+    case "removed":
+      return `Дело «${name}» убрано из воронки.`;
+    case "restoring":
+      return `Возвращаем дело «${name}» в воронку…`;
+    case "restored":
+      return `Дело «${name}» снова в воронке.`;
+  }
+}
 
 function caseHref(studentCaseId: string): string {
   return `/v3/profile?case=${studentCaseId}&tab=route`;
@@ -44,6 +72,8 @@ function boardHref(basePath: string, params: Readonly<Record<string, string | nu
   return query ? `${basePath}?${query}` : basePath;
 }
 
+const MENU_ITEM_CLASS = "flex min-h-11 w-full items-center rounded-nav px-2 text-left text-sm text-fg hover:bg-surface-2";
+
 function CardMenu({
   row,
   onMove,
@@ -52,28 +82,70 @@ function CardMenu({
   onMove: (target: MoveTarget) => void;
 }>) {
   const ref = useRef<HTMLDetailsElement>(null);
-  const close = () => ref.current?.removeAttribute("open");
+  const summaryRef = useRef<HTMLElement>(null);
+  const removeTriggerRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const returnFocusToTrigger = useRef(false);
+  const confirmTextId = useId();
+  // «Убрать из воронки» hides the case from every curator's board, so it never
+  // runs from a single click: the item opens an inline confirmation first.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  useEffect(() => {
+    if (confirmingRemove) {
+      cancelRef.current?.focus();
+    } else if (returnFocusToTrigger.current) {
+      returnFocusToTrigger.current = false;
+      removeTriggerRef.current?.focus();
+    }
+  }, [confirmingRemove]);
+  const close = () => {
+    ref.current?.removeAttribute("open");
+    setConfirmingRemove(false);
+  };
+  const cancelRemove = () => {
+    returnFocusToTrigger.current = true;
+    setConfirmingRemove(false);
+  };
   return (
-    <details ref={ref} className="relative shrink-0" data-testid="v3-admissions-pipeline-move">
+    <details
+      ref={ref}
+      className="relative shrink-0"
+      data-testid="v3-admissions-pipeline-move"
+      onToggle={(event) => {
+        if (!event.currentTarget.open) setConfirmingRemove(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !event.currentTarget.open) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (confirmingRemove) {
+          cancelRemove();
+          return;
+        }
+        close();
+        summaryRef.current?.focus();
+      }}
+    >
       <summary
+        ref={summaryRef}
         aria-label="Действия с делом"
         className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg [&::-webkit-details-marker]:hidden"
       >
         ⋯
       </summary>
-      <div className="absolute right-0 z-20 mt-1 w-56 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
-        <p className="px-2 pb-0.5 pt-1 text-2xs font-semibold uppercase tracking-wide text-fg-3">Переместить в…</p>
+      <div className="absolute right-0 z-20 mt-1 w-60 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
+        <p className="px-2 pb-0.5 pt-1 text-xs font-semibold uppercase tracking-wide text-fg-3">Переместить в…</p>
         {(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => {
           const stages = ADMISSIONS_PIPELINE_TAB_STAGES[tabKey].filter((stage) => stage !== row.pipelineStage);
           if (stages.length === 0) return null;
           return (
             <div key={tabKey}>
-              <p className="px-2 pt-1 text-2xs text-fg-3">{admissionsPipelineTab(tabKey)}</p>
+              <p className="px-2 pt-1 text-xs text-fg-3">{admissionsPipelineTab(tabKey)}</p>
               {stages.map((stage) => (
                 <button
                   key={stage}
                   type="button"
-                  className="block w-full rounded-nav px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2"
+                  className={MENU_ITEM_CLASS}
                   onClick={() => { close(); onMove({ stage }); }}
                 >
                   {admissionsPipelineStage(stage)}
@@ -83,20 +155,43 @@ function CardMenu({
           );
         })}
         <hr className="my-1 border-border" />
-        <button
-          type="button"
-          className="block w-full rounded-nav px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2"
-          onClick={() => { close(); onMove({ remove: true }); }}
-        >
-          Убрать из воронки
-        </button>
-        <Link
-          href={caseHref(row.studentCaseId)}
-          prefetch={false}
-          className="block rounded-nav px-2 py-1.5 text-sm text-fg hover:bg-surface-2"
-        >
+        <Link href={caseHref(row.studentCaseId)} prefetch={false} className={MENU_ITEM_CLASS}>
           Открыть дело
         </Link>
+        <hr className="my-1 border-border" />
+        {confirmingRemove ? (
+          <div role="group" aria-labelledby={confirmTextId} className="rounded-nav bg-danger-weak p-2">
+            <p id={confirmTextId} className="break-words px-1 text-sm leading-5 text-fg">
+              Убрать «{row.studentDisplayName}» из воронки? Дело останется в «Студентах».
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-danger bg-danger px-3 text-sm font-semibold text-on-accent hover:bg-danger/90"
+                onClick={() => { close(); onMove({ remove: true }); }}
+              >
+                Убрать
+              </button>
+              <button
+                ref={cancelRef}
+                type="button"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg"
+                onClick={cancelRemove}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            ref={removeTriggerRef}
+            type="button"
+            className="flex min-h-11 w-full items-center rounded-nav px-2 text-left text-sm font-medium text-danger hover:bg-danger-weak"
+            onClick={() => setConfirmingRemove(true)}
+          >
+            Убрать из воронки
+          </button>
+        )}
       </div>
     </details>
   );
@@ -184,6 +279,8 @@ export function AdmissionsPipelineBoard({
   const [retrying, startRetry] = useTransition();
   const [cards, setCards] = useState(rows);
   const [error, setError] = useState<string | null>(null);
+  const [removal, setRemoval] = useState<RemovalNotice | null>(null);
+  const noticeRef = useRef<HTMLDivElement>(null);
   const [dragOverStage, setDragOverStage] = useState<AdmissionsPipelineStage | null>(null);
   const [crossTabHint, setCrossTabHint] = useState<Readonly<{ studentCaseId: string; tab: AdmissionsPipelineTab }> | null>(null);
   const [narrowStage, setNarrowStage] = useState<AdmissionsPipelineStage>(ADMISSIONS_PIPELINE_TAB_STAGES[tab][0]);
@@ -204,9 +301,24 @@ export function AdmissionsPipelineBoard({
     setNarrowStage(ADMISSIONS_PIPELINE_TAB_STAGES[tab][0]);
   }
 
+  // A confirmed removal takes its card (and the menu that had focus) out of the
+  // DOM; keep keyboard focus on the outcome and its «Вернуть в воронку» instead
+  // of dropping it to <body>. Focus the user already moved elsewhere is kept.
+  useEffect(() => {
+    if (!removal) return;
+    const active = document.activeElement;
+    if (!active || active === document.body) noticeRef.current?.focus();
+  }, [removal]);
+
   const showCurator = new Set(cards.map((row) => row.currentCuratorMembershipId).filter(Boolean)).size > 1;
   const tabStages = ADMISSIONS_PIPELINE_TAB_STAGES[tab];
   const boardEmpty = cards.length === 0;
+
+  // A later removal owns the notice: an earlier one finishing must not
+  // overwrite it.
+  function updateRemoval(studentCaseId: string, next: RemovalNotice | null) {
+    setRemoval((current) => (current?.row.studentCaseId === studentCaseId ? next : current));
+  }
 
   function moveCard(studentCaseId: string, target: MoveTarget) {
     const previousRow = cards.find((row) => row.studentCaseId === studentCaseId);
@@ -214,6 +326,7 @@ export function AdmissionsPipelineBoard({
     const previousStage = previousRow.pipelineStage;
     setError(null);
     setCrossTabHint(null);
+    if (target.remove) setRemoval({ row: previousRow, phase: "removing" });
     setCards((current) => target.remove
       ? current.filter((row) => row.studentCaseId !== studentCaseId)
       : current.map((row) => (row.studentCaseId === studentCaseId ? { ...row, pipelineStage: target.stage } : row)));
@@ -223,7 +336,7 @@ export function AdmissionsPipelineBoard({
         target.remove
           ? { studentCaseId, requestId, remove: true }
           : { studentCaseId, requestId, stage: target.stage },
-      ).then((result) => {
+      ).catch(() => NO_RESPONSE).then((result) => {
         if (result.status !== "saved") {
           // Revert only the moved card: a whole-board snapshot restore would
           // silently wipe concurrent moves that already succeeded.
@@ -236,12 +349,35 @@ export function AdmissionsPipelineBoard({
               row.studentCaseId === studentCaseId ? { ...row, pipelineStage: previousStage } : row,
             );
           });
+          if (target.remove) updateRemoval(studentCaseId, null);
           setError(MESSAGES[result.status]);
           return;
         }
-        if (!target.remove && admissionsPipelineTabOf(previousStage) !== admissionsPipelineTabOf(target.stage)) {
+        if (target.remove) {
+          updateRemoval(studentCaseId, { row: previousRow, phase: "removed" });
+          return;
+        }
+        if (admissionsPipelineTabOf(previousStage) !== admissionsPipelineTabOf(target.stage)) {
           setCrossTabHint({ studentCaseId, tab: admissionsPipelineTabOf(target.stage) });
         }
+      });
+    });
+  }
+
+  function restoreRemoved(row: AdmissionsPipelineRow) {
+    const { studentCaseId } = row;
+    setError(null);
+    setRemoval({ row, phase: "restoring" });
+    const requestId = crypto.randomUUID();
+    startTransition(() => {
+      void moveCasePipelineAction({ studentCaseId, requestId, stage: row.pipelineStage }).catch(() => NO_RESPONSE).then((result) => {
+        if (result.status !== "saved") {
+          updateRemoval(studentCaseId, { row, phase: "removed" });
+          setError(MESSAGES[result.status]);
+          return;
+        }
+        setCards((current) => (current.some((card) => card.studentCaseId === studentCaseId) ? current : [...current, row]));
+        updateRemoval(studentCaseId, { row, phase: "restored" });
       });
     });
   }
@@ -256,6 +392,21 @@ export function AdmissionsPipelineBoard({
           {error}
         </p>
       ) : null}
+
+      <div
+        ref={noticeRef}
+        tabIndex={-1}
+        className={removal ? "mb-3 flex flex-wrap items-center gap-x-3 rounded-ctl border border-border bg-surface px-3 py-1" : undefined}
+      >
+        <p role="status" className={removal ? "min-w-0 flex-1 break-words py-2 text-sm text-fg" : undefined}>
+          {removal ? removalMessage(removal) : null}
+        </p>
+        {removal?.phase === "removed" ? (
+          <button type="button" className={btnGhostCls} onClick={() => restoreRemoved(removal.row)}>
+            Вернуть в воронку
+          </button>
+        ) : null}
+      </div>
 
       <nav aria-label="Разделы воронки поступления" className="mb-4 inline-flex rounded-ctl border border-border bg-surface p-0.5">
         {(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => (

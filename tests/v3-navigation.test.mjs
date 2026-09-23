@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
   canAdminSelectEffectiveRole,
   fixedRoleCanAccessRoute,
 } from "../src/lib/fixed-role-policy.ts";
-import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
+import { buildV3Navigation, v3SectionTitle } from "../src/lib/v3/navigation.ts";
 import { admissionsDirectoryHref, withDocsSection } from "../src/components/v3/profile/admissions-view.ts";
 
 function navigation(role, href = "/v3/main") {
@@ -23,15 +24,15 @@ function links(model) {
 }
 
 // «Заявки» (unified-workflow S1) is sales.read-gated, so it joins admin/sales
-// at the FRONT of the Продажи group (plan §3 order: Заявки, Inbox, Воронка,
-// Отчёт продаж) and never reaches the admissions preview, which lacks
-// sales.read entirely — its list is unchanged from before this slice.
-// OTH-1: «Воронка» (id admissions-pipeline, /v3/admissions-pipeline) is the
+// at the FRONT of the Продажи group (plan §3 order: Заявки, WhatsApp,
+// Воронка продаж, Отчёт продаж) and never reaches the admissions preview,
+// which lacks sales.read entirely — its list is unchanged from before this slice.
+// OTH-1: «Воронка поступления» (id admissions-pipeline, /v3/admissions-pipeline) is the
 // FIRST item of the Поступление group (owner plan) — inserted right after
 // "home"/"sales-report" and before "admissions-worklist" for admin and
 // admissions; Sales never sees it (no admissions.read, matching the group's
 // existing admissions-worklist/universities-only visibility for that role).
-// OTH-5: «Сообщения» (id messages, /v3/messages) follows «Воронка» right
+// OTH-5: «Сообщения» (id messages, /v3/messages) follows that board right
 // after it — same admissions.read-only gate, so Sales never sees it either.
 const expectedRoleLinks = {
   admin: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
@@ -45,12 +46,13 @@ for (const role of ["admin", "sales", "admissions"]) {
     assert.deepEqual(links(model).map((link) => link.id), expectedRoleLinks[role]);
     assert.ok(links(model).every((link) => fixedRoleCanAccessRoute(role, link.route)));
     assert.ok(model.groups.every((group) => group.links.length > 0));
-    // S6 (plan §3/§14): the inbox link label is «Inbox» everywhere, sidebar
-    // included — «Клиентские сообщения» is retired.
+    // S6 (plan §3/§14) retired «Клиентские сообщения»; UX quick win 2
+    // (2026-09-24) names the WAHA-only inbox «WhatsApp» everywhere, sidebar
+    // included, instead of «Inbox».
     assert.deepEqual(model.common.map((link) => link.label), role === "sales"
       ? ["Задачи", "Командный чат", "Шаблоны ответов"]
       : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний"]
-      : ["Задачи", "Командный чат", "Inbox", "Календарь", "Документы", "Шаблоны ответов"]);
+      : ["Задачи", "Командный чат", "WhatsApp", "Календарь", "Документы", "Шаблоны ответов"]);
   });
 
   test(`Admin presentation preview of ${role} follows that role, not Admin authority`, () => {
@@ -65,14 +67,13 @@ for (const role of ["admin", "sales", "admissions"]) {
 test("the two disclosure groups use the approved destinations and worklist remains available to Sales", () => {
   const model = navigation("admin");
   assert.equal(model.home?.label, "Главная");
-  // Order follows plan §3: Заявки, Inbox, Воронка, Отчёт продаж. Label is
-  // «Inbox» (S6, plan §3/§14) — «Клиентские сообщения» is retired.
+  // Order follows plan §3: Заявки, WhatsApp (ex-«Inbox»), Воронка продаж,
+  // Отчёт продаж. The two boards carry their department in the label (UX
+  // quick win 2, 2026-09-24): an Admin sees both groups, and two identical
+  // «Воронка» items were ambiguous.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
-    ["Продажи", [["Заявки", "/v3/requests"], ["Inbox", "/v3/inbox"], ["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"]]],
-    // «Воронка» (curator kanban, OTH-1) duplicates the Продажи group's own
-    // «Воронка» label by design — two different boards for two different
-    // roles; see navigation.ts's own comment on this entry.
-    ["Поступление", [["Воронка", "/v3/admissions-pipeline"], ["Сообщения", "/v3/messages"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
+    ["Продажи", [["Заявки", "/v3/requests"], ["WhatsApp", "/v3/inbox"], ["Воронка продаж", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"]]],
+    ["Поступление", [["Воронка поступления", "/v3/admissions-pipeline"], ["Сообщения", "/v3/messages"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["admissions"]);
@@ -245,4 +246,131 @@ test("presentation role and access version changes reset the same destination", 
     assert.notEqual(next.destinationKey, current.destinationKey);
   }
   assert.equal(buildV3Navigation(actor, "/v3/main", query).destinationKey, current.destinationKey);
+});
+
+// UX quick win 2 (2026-09-24, Impeccable clarify): one name per destination —
+// sidebar item, page h1 and browser tab «<Раздел> — EVO CRM».
+function source(path) {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+function searchRecord(url) {
+  const record = {};
+  for (const name of new Set(url.searchParams.keys())) {
+    const values = url.searchParams.getAll(name);
+    record[name] = values.length === 1 ? values[0] : values;
+  }
+  return record;
+}
+
+function sectionTitle(href) {
+  const url = new URL(href, "https://navigation.test");
+  return v3SectionTitle(url.pathname, searchRecord(url));
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+test("every role sees each sidebar label once and both boards name their department", () => {
+  for (const role of ["admin", "sales", "admissions"]) {
+    const labels = links(navigation(role)).map((link) => link.label);
+    assert.equal(new Set(labels).size, labels.length, `${role}: ${labels.join(", ")}`);
+    for (const retired of ["Воронка", "Inbox", "Входящие"]) assert.ok(!labels.includes(retired), `${role}: ${retired}`);
+  }
+  const admin = links(navigation("admin"));
+  assert.equal(admin.find((link) => link.id === "pipeline")?.label, "Воронка продаж");
+  assert.equal(admin.find((link) => link.id === "admissions-pipeline")?.label, "Воронка поступления");
+  assert.equal(admin.find((link) => link.id === "inbox")?.label, "WhatsApp");
+});
+
+test("the browser tab names the sidebar item that the same address highlights", () => {
+  for (const role of ["admin", "sales", "admissions"]) {
+    for (const link of links(navigation(role))) assert.equal(sectionTitle(link.href), link.label, `${role} ${link.href}`);
+  }
+  for (const [href, title] of [
+    ["/v3/main?period=month", "Главная"],
+    ["/v3/main?view=sales&view=sales", "Главная"],
+    ["/v3/main?view=sales&year=2026&month=9", "Отчёт продаж"],
+    ["/v3/profile?case=record&tab=route", "Студенты"],
+    ["/v3/profile?id=record&section=summary", "Студенты"],
+    ["/v3/profile?section=docs&section=docs", "Студенты"],
+    ["/v3/profile?case=record&tab=anketa&section=docs", "EVO Docs"],
+    ["/v3/profile?section=summary&period=month", "Сводка по направлениям"],
+    ["/v3/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b", "Университеты"],
+    ["/v3/admissions-pipeline?view=documents", "Воронка поступления"],
+  ]) {
+    assert.equal(sectionTitle(href), title, href);
+    const model = navigation("admin", href);
+    assert.equal(links(model).find((link) => link.id === model.activeId)?.label, title, href);
+  }
+  assert.equal(v3SectionTitle("/v3/unknown"), undefined);
+});
+
+test("every staff page uses the one «<Раздел> — EVO CRM» tab pattern", () => {
+  assert.match(source("src/app/(v3)/layout.tsx"), /title: \{ absolute: "EVO CRM", template: "%s — EVO CRM" \}/u);
+  const redirectOnly = new Set(["src/app/(v3)/v3/page.tsx", "src/app/(v3)/v3/admissions-requests/page.tsx"]);
+  const pages = readdirSync(new URL("../src/app/(v3)", import.meta.url), { recursive: true })
+    .filter((file) => file.endsWith("page.tsx") || file === "not-found.tsx")
+    .map((file) => `src/app/(v3)/${file}`);
+  assert.ok(pages.length >= 20, pages.join(", "));
+  for (const file of pages) {
+    const page = source(file);
+    if (redirectOnly.has(file)) {
+      assert.match(page, /redirect\(/u, file);
+      assert.doesNotMatch(page, /<PartShell|<main/u, file);
+      continue;
+    }
+    const title = page.match(/export const metadata = \{ title: "([^"]+)" \};/u)?.[1];
+    if (title === undefined) {
+      assert.match(page, /export async function generateMetadata\([\s\S]*?title: v3SectionTitle\("\/v3\/(?:main|profile)", await searchParams\)/u, file);
+      continue;
+    }
+    assert.doesNotMatch(title, /V3|EVO|·|\|/u, file);
+    const route = file.match(/^src\/app\/\(v3\)(\/v3\/[^/]+)\//u)?.[1];
+    if (route) assert.equal(title, v3SectionTitle(route), file);
+  }
+  const denied = source("src/app/(v3)/access-denied/page.tsx");
+  for (const [, route, label] of denied.matchAll(/^  "(\/v3\/[^"]+)": "([^"]+)",$/gmu)) {
+    assert.equal(label, v3SectionTitle(route), route);
+  }
+});
+
+test("each sidebar destination opens under a heading with the same words", () => {
+  const V3 = "src/app/(v3)/v3";
+  // [link id, file, every literal PartShell title in the file is that label]
+  const headings = [
+    ["home", `${V3}/main/page.tsx`, true], ["home", `${V3}/main/loading.tsx`, true],
+    ["requests", `${V3}/requests/page.tsx`, true], ["requests", `${V3}/requests/loading.tsx`, true],
+    ["inbox", `${V3}/inbox/page.tsx`, true], ["inbox", `${V3}/inbox/loading.tsx`, true],
+    ["pipeline", `${V3}/pipeline/page.tsx`, true], ["pipeline", `${V3}/pipeline/loading.tsx`, true],
+    ["sales-report", "src/components/v3/SalesRegisterView.tsx", false],
+    ["admissions-pipeline", `${V3}/admissions-pipeline/page.tsx`, false],
+    ["messages", `${V3}/messages/page.tsx`, true], ["messages", "src/components/v3/case-chat/CaseChatThread.tsx", false],
+    ["admissions-worklist", `${V3}/profile/page.tsx`, false], ["admissions-worklist", `${V3}/profile/loading.tsx`, true],
+    ["evo-docs", `${V3}/profile/page.tsx`, false],
+    ["universities", `${V3}/universities/page.tsx`, true], ["universities", `${V3}/universities/loading.tsx`, true],
+    // The sidebar shortcut expands and focuses this report heading on the Студенты page.
+    ["admissions-summary", "src/components/v3/profile/AdmissionsSummaryReport.tsx", false],
+    ["tasks", `${V3}/tasks/page.tsx`, true], ["tasks", `${V3}/tasks/loading.tsx`, true],
+    ["team-chat", `${V3}/team-chat/page.tsx`, true], ["team-chat", "src/components/v3/team-chat/TeamChat.tsx", false],
+    ["calendar", `${V3}/calendar/page.tsx`, true], ["calendar", `${V3}/calendar/loading.tsx`, true],
+    ["documents", `${V3}/documents/page.tsx`, true],
+    ["reply-snippets", `${V3}/reply-snippets/page.tsx`, true],
+    ["knowledge", `${V3}/knowledge/page.tsx`, true],
+    ["settings", `${V3}/settings/page.tsx`, true],
+  ];
+  const visible = new Map(["admin", "sales", "admissions"].flatMap((role) => links(navigation(role)).map((link) => [link.id, link.label])));
+  assert.deepEqual([...new Set(headings.map(([id]) => id))].sort(), [...visible.keys()].sort());
+  for (const [id, file, strict] of headings) {
+    const label = escapeRegExp(visible.get(id));
+    const page = source(file);
+    assert.match(page, new RegExp(`<PartShell\\b[^>]*?\\btitle=(?:"${label}"|\\{[^}]*"${label}"[^}]*\\})|<h1\\b[^>]*>${label}</h1>|const TITLE = "${label}";`, "u"), `${id}: ${file}`);
+    if (strict) {
+      for (const [, title] of page.matchAll(/<PartShell\b[^>]*?\btitle="([^"]+)"/gu)) assert.equal(title, visible.get(id), file);
+    }
+  }
+  // Local section tabs reuse the sidebar words for the same addresses.
+  assert.match(source("src/components/v3/SalesReportNavigation.tsx"), /\{ title: "Главная", href: "\/v3\/main"[\s\S]*\{ title: "Отчёт продаж", href: "\/v3\/main\?view=sales"/u);
+  assert.match(source(`${V3}/admissions-pipeline/page.tsx`), />Воронка поступления<\/Link>/u);
 });

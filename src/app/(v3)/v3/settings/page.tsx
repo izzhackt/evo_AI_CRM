@@ -19,7 +19,7 @@ import {
 } from "@/lib/v3/settings-source";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "V3 · Настройки" };
+export const metadata = { title: "Настройки" };
 
 export default async function SettingsPart({
   searchParams,

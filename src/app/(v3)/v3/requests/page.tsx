@@ -16,7 +16,7 @@ import { loadScopedRequestsQueue, RequestsQueueSourceError } from "@/lib/v3/requ
 import { STATUS_LABELS, submittedDate } from "@/lib/student-application-presentation";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "EVO · Заявки" };
+export const metadata = { title: "Заявки" };
 const FILTER_LABELS: Record<RequestSourceFilter, string> = {
   all: "Все", website: "Сайт", platform_application: "Платформа", whatsapp: "WhatsApp", portal_consultation: "Кабинет: консультации",
 };

@@ -3,7 +3,7 @@ import { PartShell } from "@/components/v3/PartShell";
 
 export default function MainLoading() {
   return (
-    <PartShell title="Обзор">
+    <PartShell title="Главная">
       <div aria-busy="true" className="flex flex-col gap-3">
         <p role="status" className="text-sm text-fg-2">Загружаем обзор…</p>
         <SkeletonBlock className="h-14 w-full max-w-md" />

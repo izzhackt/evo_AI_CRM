@@ -18,11 +18,21 @@ import {
 } from "@/lib/v3/funnel-source";
 import { readV3OperationalDashboard } from "@/lib/v3/operations-source";
 import { readCurrentSalesFunnel } from "@/lib/v3/current-sales-funnel-source";
+import { v3SectionTitle } from "@/lib/v3/navigation";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "V3 · Главная" };
+
+/** Вкладка называет подсвеченный пункт меню: «Главная» или «Отчёт продаж». */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  return { title: v3SectionTitle("/v3/main", await searchParams) };
+}
 
 export default async function MainPart({
   searchParams,
@@ -49,7 +59,7 @@ export default async function MainPart({
       redirect("/v3/admissions-pipeline");
     }
     const operations = await readV3OperationalDashboard(actor);
-    return <PartShell title="Рабочий обзор"><OperationsOverview snapshot={operations} /></PartShell>;
+    return <PartShell title="Главная"><OperationsOverview snapshot={operations} /></PartShell>;
   }
   const period = resolvePeriod(query);
   const [periodDashboard, operations, currentFunnel] = await Promise.all([
@@ -76,7 +86,7 @@ export default async function MainPart({
   const currentHref = choices.find(choice => choice.active)?.href ?? "/v3/main";
 
   return (
-    <PartShell title="Обзор">
+    <PartShell title="Главная">
       {canReadReport ? <SalesReportNavigation sales={false} /> : null}
       <div className="mt-5 grid items-start gap-6 @4xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <section aria-labelledby="current-sales-title" className="min-w-0 rounded-card border border-border bg-surface p-4 @4xl:order-2">

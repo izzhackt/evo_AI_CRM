@@ -18,7 +18,7 @@ import { parsePersonalCalendarCursor, PersonalCalendarReadError } from "@/lib/v3
 import { readPersonalCalendarTaskTarget, readCalendarWorkspace, readNowMinutes, readToday } from "@/lib/v3/calendar-source";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "V3 · Календарь" };
+export const metadata = { title: "Календарь" };
 
 type CalendarSearchParams = Readonly<{
   case?: string | string[];

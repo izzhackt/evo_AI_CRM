@@ -102,7 +102,7 @@ test("the navigation entry is the first item of the Поступление group
   const firstLink = navigation.slice(linksStart, firstLinkEnd);
   assert.match(firstLink, /id: "admissions-pipeline"/u);
   assert.match(firstLink, /href: "\/v3\/admissions-pipeline"/u);
-  assert.match(firstLink, /label: "Воронка"/u);
+  assert.match(firstLink, /label: "Воронка поступления"/u);
   void group;
 });
 

@@ -4,7 +4,7 @@ import { staffHomeRoute } from "@/lib/platform-access";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import { chromeWords } from "@/lib/v3/wording";
 
-export const metadata = { title: "Страница не найдена · EVO" };
+export const metadata = { title: "Страница не найдена" };
 
 /**
  * Тупик внутри оболочки V3: срабатывает только на `notFound()`, брошенный

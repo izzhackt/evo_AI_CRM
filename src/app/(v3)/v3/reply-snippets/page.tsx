@@ -5,7 +5,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { staffCanAccessRoute } from "@/lib/platform-access";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Шаблоны ответов · EVO" };
+export const metadata = { title: "Шаблоны ответов" };
 
 export default async function ReplySnippetsPage() {
   const actor = await requireV3PageActor("/v3/reply-snippets");

@@ -18,6 +18,7 @@ import { readTeamChatPage, TeamChatReadError } from "@/lib/server/platform-team-
 import { readStaffTaskChatSource, readStaffTaskContext, readStaffTaskLeadContext, readLeadTaskLinks, type StaffTaskContext } from "@/lib/server/platform-staff-task-repository";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Задачи" };
 type Params = Record<string, string | string[] | undefined>;
 function single(params: Params, key: string) { const value = params[key]; if (Array.isArray(value)) notFound(); return value; }
 function optionalUuid(params: Params, key: string) { const value = single(params, key); if (value === undefined) return null; return staffTaskUuid(value) ?? notFound(); }

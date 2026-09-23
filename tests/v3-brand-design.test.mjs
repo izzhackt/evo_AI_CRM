@@ -118,6 +118,11 @@ test("solid red stays for the main action and every selection shares one accent-
   }
   // The audit filter chips used to show selection by colour alone.
   assert.match(read("src/components/v3/settings/sections.tsx"), /aria-current=\{active\.objectType === type\.key \? "page" : undefined\}/u);
+  // A selected form template keeps a non-colour cue: the edge v3-choice recolours
+  // and the 600 weight reaching the title (no weight fixed on the title itself).
+  const forms = read("src/app/(v3)/v3/universities/[id]/forms/page.tsx");
+  assert.match(forms, /className="v3-choice [^"]*\bborder-l-2 border-transparent\b[^"]*"/u, "selected template has an edge, not only a tint");
+  assert.doesNotMatch(forms, /text-sm font-medium">\{item\.title\}/u, "the title does not pin its own weight over v3-choice");
 
   const filterSubmits = [
     "src/components/v3/Inbox.tsx",

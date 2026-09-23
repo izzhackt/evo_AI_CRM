@@ -75,8 +75,8 @@ export default async function UniversityFormsPage({ params, searchParams }: {
         <nav aria-label={words.title} className="space-y-4 border-b border-border pb-5 lg:border-b-0 lg:border-r lg:pr-5">
           {templates.items.length ? <ul className="space-y-1">{templates.items.map(item => <li key={item.id}>
             <Link prefetch={false} href={`${base}?template=${item.id}`} aria-current={templateId === item.id ? "page" : undefined}
-              className="v3-choice block min-h-11 rounded-ctl px-3 py-3 text-fg hover:bg-surface-2">
-              <span className="block break-words text-sm font-medium">{item.title}</span>
+              className="v3-choice block min-h-11 rounded-ctl border-l-2 border-transparent px-3 py-3 font-medium text-fg hover:bg-surface-2">
+              <span className="block break-words text-sm">{item.title}</span>
               <span className="mt-1 block text-sm font-normal text-fg-2">{item.archived ? words.archived : item.publication ? words.published : words.draft}</span>
             </Link>
           </li>)}</ul> : <p className="text-sm text-fg-2">{words.empty}</p>}

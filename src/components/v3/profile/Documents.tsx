@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { Pill } from "@/components/v3/Pill";
+import { staffHasPermission } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import {
   listCaseBaselineChecklistOptions,
@@ -61,7 +62,14 @@ export async function Documents({
     : null;
 
   let baselineOptions: readonly BaselineChecklistOption[] = [];
-  if (uploadAccess === "allowed" && studentCaseId) {
+  let baselineOptionsUnavailable = false;
+  // The read itself requires document.manage; without it the server always
+  // refuses, so it is not attempted (the apply form stays hidden, as before).
+  if (
+    uploadAccess === "allowed"
+    && studentCaseId
+    && staffHasPermission(actor, "document.manage")
+  ) {
     try {
       const rows = await listCaseBaselineChecklistOptions(actor, studentCaseId);
       baselineOptions = Object.freeze(rows.map((row) => Object.freeze({
@@ -69,7 +77,9 @@ export async function Documents({
         label: baselineChecklistOptionLabel(row),
       })));
     } catch {
+      // A failed read is not "no templates": keep the form hidden, say so.
       baselineOptions = [];
+      baselineOptionsUnavailable = true;
     }
   }
   const baselineChecklistRequestId =
@@ -87,6 +97,7 @@ export async function Documents({
           studentCaseId={studentCaseId}
           createRequestId={createRequestId}
           baselineOptions={baselineOptions}
+          baselineOptionsUnavailable={baselineOptionsUnavailable}
           baselineChecklistRequestId={baselineChecklistRequestId}
           recognition={recognition}
         />

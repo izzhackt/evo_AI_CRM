@@ -1,9 +1,50 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import test from "node:test";
+import ts from "typescript";
+
+const require = createRequire(import.meta.url);
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+// Production component source with its import boundaries replaced; the element
+// tree is inspected directly (no DOM/browser substitute, no live backend).
+function compile(path, boundary) {
+  const code = ts.transpileModule(source(path), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+    },
+  }).outputText;
+  const compiled = { exports: {} };
+  new Function("require", "module", "exports", code)(
+    (id) => boundary(id) ?? require(id),
+    compiled,
+    compiled.exports,
+  );
+  return compiled.exports;
+}
+
+function findElements(node, predicate, found = []) {
+  if (Array.isArray(node)) {
+    for (const child of node) findElements(child, predicate, found);
+    return found;
+  }
+  if (!node || typeof node !== "object" || !("props" in node)) return found;
+  if (predicate(node)) found.push(node);
+  findElements(node.props.children, predicate, found);
+  return found;
+}
+
+function textOf(node) {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  return textOf(node.props?.children);
 }
 
 test("V3 profile documents use the canonical private Storage routes", () => {
@@ -215,4 +256,195 @@ test("V3 profile offers staff a one-time baseline checklist seed above the custo
   const baselineRenderCall = client.indexOf("<ApplyBaselineChecklist");
   const createCallSite = client.indexOf("<CreateChecklistItem");
   assert.ok(baselineRenderCall > 0 && baselineRenderCall < createCallSite);
+});
+
+const CASE_ID = "11111111-1111-4111-8111-111111111111";
+const VERSION_ID = "22222222-2222-4222-8222-222222222222";
+
+function DocumentsClientMarker() { return null; }
+
+function documentsWrapper(read) {
+  const calls = [];
+  const { Documents } = compile("src/components/v3/profile/Documents.tsx", (id) => {
+    if (id === "@/components/v3/Pill") return { Pill: () => null };
+    if (id === "@/components/ui") return { Card: ({ children }) => children };
+    if (id === "@/lib/platform-access") {
+      return {
+        staffHasPermission: (actor, key) =>
+          actor.systemRole === "admin" || actor.permissionKeys.includes(key),
+      };
+    }
+    if (id === "@/lib/platform-private-documents") {
+      return {
+        listCaseBaselineChecklistOptions: async (...args) => {
+          calls.push(args);
+          return read();
+        },
+      };
+    }
+    if (id === "./ProfileDocumentsClient") {
+      return { ProfileDocumentsClient: DocumentsClientMarker };
+    }
+    return undefined;
+  });
+  return { Documents, calls };
+}
+
+const MANAGER = Object.freeze({
+  systemRole: "staff",
+  permissionKeys: ["document.upload", "document.manage"],
+});
+
+async function wrapperClientProps(read, actor = MANAGER) {
+  const { Documents, calls } = documentsWrapper(read);
+  const tree = await Documents({
+    groups: [],
+    uploadAccess: "allowed",
+    studentCaseId: CASE_ID,
+    actor,
+  });
+  const [client] = findElements(tree, (node) => node.type === DocumentsClientMarker);
+  assert.ok(client, "Documents must render the documents client");
+  return { props: client.props, calls };
+}
+
+test("V3 documents wrapper tells a failed baseline-options read apart from an empty one", async () => {
+  const failed = await wrapperClientProps(() => {
+    throw new Error("read failed");
+  });
+  assert.equal(failed.calls.length, 1);
+  assert.equal(failed.props.baselineOptionsUnavailable, true);
+  assert.deepEqual(failed.props.baselineOptions, []);
+  assert.equal(failed.props.baselineChecklistRequestId, null);
+
+  const empty = await wrapperClientProps(() => []);
+  assert.equal(empty.calls.length, 1);
+  assert.equal(empty.props.baselineOptionsUnavailable, false);
+  assert.deepEqual(empty.props.baselineOptions, []);
+  assert.equal(empty.props.baselineChecklistRequestId, null);
+
+  const loaded = await wrapperClientProps(() => [{
+    countryRequirementVersionId: VERSION_ID,
+    targetCountry: "CN",
+    targetDegree: "bachelor",
+    programDirection: null,
+    checklistVersion: 3,
+    requirementCount: 7,
+  }]);
+  assert.equal(loaded.props.baselineOptionsUnavailable, false);
+  assert.equal(loaded.props.baselineOptions.length, 1);
+  assert.equal(loaded.props.baselineOptions[0].countryRequirementVersionId, VERSION_ID);
+  assert.match(loaded.props.baselineOptions[0].label, /CN · bachelor · версия 3 — 7 документов/u);
+  assert.equal(typeof loaded.props.baselineChecklistRequestId, "string");
+
+  // Without document.manage the server always refuses the read: it is not
+  // attempted and no failure is claimed (unchanged hidden form).
+  const uploadOnly = await wrapperClientProps(
+    () => {
+      throw new Error("must not be called");
+    },
+    { systemRole: "staff", permissionKeys: ["document.upload"] },
+  );
+  assert.equal(uploadOnly.calls.length, 0);
+  assert.equal(uploadOnly.props.baselineOptionsUnavailable, false);
+  assert.equal(uploadOnly.props.baselineChecklistRequestId, null);
+});
+
+function documentsClient(router) {
+  return compile("src/components/v3/profile/ProfileDocumentsClient.tsx", (id) => {
+    if (id === "react") {
+      return {
+        useState: (initial) => [typeof initial === "function" ? initial() : initial, () => {}],
+        useActionState: (action, initial) => [initial, action, false],
+        useEffect: () => {},
+        useTransition: () => [false, (callback) => callback()],
+      };
+    }
+    if (id === "next/link") return { default: () => null };
+    if (id === "next/navigation") return { useRouter: () => router };
+    if (id === "@/components/v3/Pill") return { Pill: () => null };
+    if (id === "@/components/ui") {
+      return { btnCls: "btn", btnGhostCls: "btn-ghost", inputCls: "input", labelCls: "label" };
+    }
+    if (id === "@/lib/platform-document-checklist-actions") {
+      const action = async (state) => state;
+      return {
+        applyCaseBaselineChecklistAction: action,
+        changePlatformDocumentSlotMetadataAction: action,
+        createPlatformCustomDocumentSlotAction: action,
+        removePlatformDocumentSlotAction: action,
+        setPlatformDocumentCaseLinkAction: action,
+      };
+    }
+    if (id === "@/lib/v3/wording") {
+      return {
+        documentPresence: String,
+        documentReviewDecision: String,
+        documentSlotStatus: String,
+      };
+    }
+    if (id === "./DocumentReviewForm") return { DocumentReviewForm: () => null };
+    if (id === "./DocumentPreviewButton") return { DocumentPreviewButton: () => null };
+    if (id === "./DocumentRecognitionJobs") return { DocumentRecognitionJobs: () => null };
+    return undefined;
+  });
+}
+
+function baselineSlot(tree) {
+  const byName = (name) => findElements(tree, (node) => node.type?.name === name);
+  return {
+    unavailable: byName("BaselineChecklistUnavailable"),
+    apply: byName("ApplyBaselineChecklist"),
+  };
+}
+
+test("V3 documents client shows an honest retry for a failed read and keeps empty unchanged", () => {
+  const refreshes = [];
+  const router = { refresh: () => refreshes.push("refresh") };
+  const { ProfileDocumentsClient } = documentsClient(router);
+  const base = {
+    groups: [],
+    historyGroups: [],
+    uploadAccess: "allowed",
+    studentCaseId: CASE_ID,
+    createRequestId: "33333333-3333-4333-8333-333333333333",
+  };
+
+  const failed = ProfileDocumentsClient({ ...base, baselineOptionsUnavailable: true });
+  const failedSlot = baselineSlot(failed);
+  assert.equal(failedSlot.unavailable.length, 1);
+  assert.equal(failedSlot.apply.length, 0);
+  // The "no requirements assigned" state for the checklist itself is unchanged.
+  assert.match(textOf(failed), /требования к документам ещё не назначены/u);
+
+  const notice = failedSlot.unavailable[0].type();
+  const [alert] = findElements(notice, (node) => node.props.role === "alert");
+  assert.ok(alert, "the failure must be announced");
+  assert.match(textOf(alert), /Не удалось загрузить базовые чек-листы\. Это не значит, что их нет/u);
+  assert.doesNotMatch(textOf(notice), /rpc|error|RepositoryError|Supabase/iu);
+  const [retry] = findElements(notice, (node) => node.type === "button");
+  assert.equal(retry.props.type, "button");
+  assert.equal(textOf(retry), "Повторить");
+  retry.props.onClick();
+  assert.deepEqual(refreshes, ["refresh"], "retry re-requests the server read once");
+
+  const empty = baselineSlot(ProfileDocumentsClient({ ...base }));
+  assert.equal(empty.unavailable.length, 0);
+  assert.equal(empty.apply.length, 0);
+
+  const loaded = baselineSlot(ProfileDocumentsClient({
+    ...base,
+    baselineOptions: [{ countryRequirementVersionId: VERSION_ID, label: "CN" }],
+    baselineChecklistRequestId: "44444444-4444-4444-8444-444444444444",
+  }));
+  assert.equal(loaded.unavailable.length, 0);
+  assert.equal(loaded.apply.length, 1);
+
+  const readOnly = baselineSlot(ProfileDocumentsClient({
+    ...base,
+    uploadAccess: "forbidden",
+    baselineOptionsUnavailable: true,
+  }));
+  assert.equal(readOnly.unavailable.length, 0);
+  assert.equal(readOnly.apply.length, 0);
 });

@@ -38248,3 +38248,19 @@ actual local CRM, migration, independent reviews/CI and accepted server evidence
 Native1040 remains draft: source review/build/CI passed, fresh Mac lock prevents
 actual; no merge/installation/Auth/binary delivery claimed. The owner-confirmed
 1026/980 waiver, KB159, items31/32 and deferred37–50/E2E/content/AppStore persist.
+
+
+## 2026-09-23 — EVO Docs: честная ошибка чтения базовых чек-листов (пункт13)
+
+Источник: пробел2/срез B в [brief дела](design/ux-refinement/case.md) и строка
+«EVO Docs» [UX-плана](EVO_UX_REFINEMENT_PLAN_2026-09-20.md). `Documents.tsx`
+превращал любой отказ `listCaseBaselineChecklistOptions` в пустой список: форма
+применения исчезала, как будто шаблонов нет. Теперь сбой чтения — отдельное
+состояние: вместо формы видна понятная ошибка («это не значит, что их нет») и
+кнопка повтора, которая заново запрашивает маршрут. Пустой ответ (дело уже
+привязано, неактивно или подходящих версий нет) ведёт себя как раньше. Без
+`document.manage` чтение не вызывается: сервер отклоняет его всегда, интерфейс
+этих ролей не меняется. Server read, SQL, права, write-путь и граница legacy
+slot auto-submit не меняются. Проверка: typecheck, lint затронутых файлов,
+целевой тест «сбой ≠ пусто + повтор», next build, diff check. Реальный сбой
+на живом бэкенде не воспроизводится (нет учётных данных) и остаётся unverified.

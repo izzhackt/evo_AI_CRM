@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState, type FormEvent } from "react";
+import { useActionState, useEffect, useState, useTransition, type FormEvent } from "react";
 
 import { Pill } from "@/components/v3/Pill";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
@@ -397,6 +397,36 @@ function ApplyBaselineChecklist({
   );
 }
 
+/**
+ * The server could not read the approved baseline versions for this case.
+ * Retry re-requests the route (the server read stays the authority); it never
+ * applies a checklist or creates an item.
+ */
+function BaselineChecklistUnavailable() {
+  const router = useRouter();
+  const [retrying, startRetry] = useTransition();
+
+  return (
+    <div
+      className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-2 px-4 py-4"
+      aria-busy={retrying}
+      data-testid="v3-document-baseline-checklist-unavailable"
+    >
+      <p role="alert" className="min-w-0 flex-1 text-sm text-danger">
+        Не удалось загрузить базовые чек-листы. Это не значит, что их нет — повторите попытку.
+      </p>
+      <button
+        type="button"
+        className={`${btnGhostCls} min-h-11`}
+        disabled={retrying}
+        onClick={() => startRetry(() => router.refresh())}
+      >
+        {retrying ? "Загружаем…" : "Повторить"}
+      </button>
+    </div>
+  );
+}
+
 function CreateChecklistItem({
   studentCaseId,
   requestId,
@@ -614,6 +644,7 @@ export function ProfileDocumentsClient({
   studentCaseId,
   createRequestId,
   baselineOptions = [],
+  baselineOptionsUnavailable = false,
   baselineChecklistRequestId = null,
   recognition = null,
 }: Readonly<{
@@ -623,6 +654,8 @@ export function ProfileDocumentsClient({
   studentCaseId: string | null;
   createRequestId: string | null;
   baselineOptions?: readonly BaselineChecklistOption[];
+  /** The options read failed; distinct from an empty (nothing to apply) list. */
+  baselineOptionsUnavailable?: boolean;
   baselineChecklistRequestId?: string | null;
   recognition?: DocumentRecognitionAccess | null;
 }>) {
@@ -693,7 +726,9 @@ export function ProfileDocumentsClient({
       {recognition ? <div className="px-4"><DocumentRecognitionJobs key={recognition.studentCaseId}
         access={recognition} sourceVersionId={null} sourceReady={false} /></div> : null}
 
-      {uploadAccess === "allowed" && studentCaseId && baselineChecklistRequestId &&
+      {uploadAccess === "allowed" && studentCaseId && baselineOptionsUnavailable ? (
+        <BaselineChecklistUnavailable />
+      ) : uploadAccess === "allowed" && studentCaseId && baselineChecklistRequestId &&
         baselineOptions.length > 0 ? (
           <ApplyBaselineChecklist
             key={baselineChecklistRequestId}

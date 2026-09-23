@@ -38264,3 +38264,19 @@ actual; no merge/installation/Auth/binary delivery claimed. The owner-confirmed
 slot auto-submit не меняются. Проверка: typecheck, lint затронутых файлов,
 целевой тест «сбой ≠ пусто + повтор», next build, diff check. Реальный сбой
 на живом бэкенде не воспроизводится (нет учётных данных) и остаётся unverified.
+
+
+## 2026-09-23 — docs-only сверка статуса1–36 и устаревших фактов
+
+Docs-only, без кода, SQL, конфигурации и релиза. Ведомость1–36: строки5/30/36
+обновляются до accepted production97b27d55 (release
+`v3-r35740963950-a1-97b27d55`, 22.09 14:37UTC, schema001–240) и #1041;
+добавляется заголовочная сверка23.09 с остатком1–36 и решениями владельца
+(только количества сотрудников, без имён). AGENTS.md: к разделам lead-agent и
+Inbox companion добавляются датированные заметки об отсутствующем runtime;
+правила не удаляются. ios/README.md: дописывается состояние после волны8
+(source-only, без дистрибуции). Шаблон `student-signup-confirmation.html`
+не меняется: тесты его не закрепляют, но SHA `a58987b3` записан в reviewed
+QA-пакете, а production confirmation template установлен из reviewed пакета
+#980. Правка даже комментария без новой reviewed Auth activation разорвала бы
+эту привязку, поэтому комментарий «not installed» остаётся до такой активации.

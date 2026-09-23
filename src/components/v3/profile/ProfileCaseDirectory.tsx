@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { btnGhostCls } from "@/components/ui";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import { studentOperationalStage } from "@/lib/v3/wording";
 import type { V3ProfileCaseDirectory, V3ProfileCaseDirectoryParams, V3ProfileCaseDirectoryRow } from "@/lib/v3/profile-source";
@@ -47,7 +48,7 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
         {[["", "Все направления"], ...Object.entries(DIRECTION_LABELS)].map(([value, label]) => <Link key={value}
           href={admissionsDirectoryHref({ ...params, direction: value ? value as V3ProfileCaseDirectoryParams["direction"] : undefined, cursor: null }, undefined, docsMode)}
           aria-current={(params.direction ?? "") === value ? "page" : undefined}
-          className={`inline-flex min-h-11 items-center rounded-nav border px-3 text-sm font-medium ${(params.direction ?? "") === value ? "border-accent bg-accent-weak text-accent" : "border-control-edge text-fg-2 hover:bg-surface-2"}`}>{label}</Link>)}
+          className="v3-choice inline-flex min-h-11 items-center rounded-nav border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2">{label}</Link>)}
       </nav> : null}
       <form key={JSON.stringify(params)} action="/v3/profile" method="get" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_180px_auto]" aria-label="Найти студента">
         {docsMode ? <input type="hidden" name="section" value="docs" /> : null}
@@ -59,7 +60,7 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
           <select className={INPUT} defaultValue={params.state ?? ""} name="case_status"><option value="">Все статусы</option><option value="pending">Ожидает начала</option><option value="active">В работе</option><option value="closed">Закрыто</option></select>
         </label>
         <div className="flex items-end gap-2">
-          <button type="submit" className="min-h-11 rounded-nav bg-accent px-4 text-sm font-semibold text-on-accent">Найти</button>
+          <button type="submit" className={btnGhostCls}>Найти</button>
           <a className="inline-flex min-h-11 items-center rounded-nav border border-control-edge px-4 text-sm font-medium text-fg-2 hover:bg-surface-2" href={directoryHref}>Сбросить</a>
         </div>
         {allowAdmissionsFilters ? <details className="sm:col-span-2 xl:col-span-3" open={Boolean(params.curatorMembershipId || params.attention)}>
@@ -94,7 +95,7 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
             </div>
             <div className="min-w-0 space-y-2">
               {docsMode && row.access === "full" ? <nav aria-label={`Документы: ${row.studentDisplayName}`} className="flex flex-wrap gap-2">
-                <Link href={href!} className="inline-flex min-h-11 items-center rounded-nav bg-accent px-3 text-sm font-semibold text-on-accent">Анкета и формы</Link>
+                <Link href={href!} className={btnGhostCls}>Анкета и формы</Link>
                 <Link href={withDocsSection(`/v3/profile?case=${row.studentCaseId}&tab=documents`, true)} className="inline-flex min-h-11 items-center rounded-nav px-3 text-sm font-medium text-fg-2 hover:bg-surface-2">Файлы</Link>
                 <Link href={withDocsSection(`/v3/profile?case=${row.studentCaseId}&tab=route&panel=packets#partner-packets`, true)} className="inline-flex min-h-11 items-center rounded-nav px-3 text-sm font-medium text-fg-2 hover:bg-surface-2">Пакет ZIP</Link>
               </nav> : <>

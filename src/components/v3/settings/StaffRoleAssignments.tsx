@@ -77,8 +77,8 @@ function StaffMemberAccessEditor({ member: initial, workspace, organizationId, m
       onComplete={onComplete} keepDraftOnReset>
       {(locked, state) => state.status === "success" ? null : <>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Изменить доступ сотрудника">
-          <button type="button" className={btnGhostCls} disabled={locked} aria-pressed={mode === "assignments"} onClick={() => setMode("assignments")}>Назначения ролей</button>
-          <button type="button" className={btnGhostCls} disabled={locked} aria-pressed={mode === "admin"} onClick={() => setMode("admin")}>Системный доступ администратора</button>
+          <button type="button" className={`${btnGhostCls} v3-choice`} disabled={locked} aria-pressed={mode === "assignments"} onClick={() => setMode("assignments")}>Назначения ролей</button>
+          <button type="button" className={`${btnGhostCls} v3-choice`} disabled={locked} aria-pressed={mode === "admin"} onClick={() => setMode("admin")}>Системный доступ администратора</button>
         </div>
         <input type="hidden" name="operation" value={mode} />
         <input type="hidden" name="membership_id" value={initial.membershipId} />

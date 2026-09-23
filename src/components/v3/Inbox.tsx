@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { btnGhostCls } from "@/components/ui";
 import { InboxMessageMedia } from "@/components/v3/inbox/InboxMessageMedia";
 import { Pill } from "@/components/v3/Pill";
 import type {
@@ -143,10 +144,7 @@ export function Inbox({
               placeholder="Имя, телефон или тема"
               className="min-h-10 min-w-0 flex-1 rounded-ctl border border-border bg-canvas px-3 text-sm text-fg outline-none focus:border-accent"
             />
-            <button
-              type="submit"
-              className="min-h-10 rounded-ctl bg-accent px-3 text-xs font-semibold text-on-accent"
-            >
+            <button type="submit" className={btnGhostCls}>
               Найти
             </button>
           </div>

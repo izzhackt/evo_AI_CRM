@@ -60,11 +60,7 @@ function NavigationLink({
       href={link.href}
       aria-current={activeId === link.id ? "page" : undefined}
       onNavigate={onNavigate}
-      className={`flex min-h-11 min-w-0 items-center gap-3 rounded-nav px-3 py-2 text-sm leading-5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-        activeId === link.id
-          ? "bg-accent-weak font-semibold text-accent-text"
-          : "text-fg-2 hover:bg-surface-2 hover:text-fg"
-      }`}
+      className="v3-choice flex min-h-11 min-w-0 items-center gap-3 rounded-nav px-3 py-2 text-sm leading-5 text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
     >
       {nested ? null : <Icon name={LINK_ICONS[link.id]} size={20} className="shrink-0" />}
       <span className="min-w-0">{link.label}</span>

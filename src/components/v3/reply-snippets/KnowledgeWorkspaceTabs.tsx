@@ -1,8 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { cn } from "@/components/ui";
-
 type Tab = "documents" | "snippets";
 
 export function KnowledgeWorkspaceTabs({
@@ -24,7 +22,7 @@ export function KnowledgeWorkspaceTabs({
     <div>
       <nav
         aria-label="Разделы базы знаний"
-        className="mb-5 border-b border-border"
+        className="mb-5 border-b border-border pb-2"
       >
         <ul className="flex gap-1">
           {([
@@ -36,12 +34,7 @@ export function KnowledgeWorkspaceTabs({
                 aria-current={active === id ? "page" : undefined}
                 href={id === "documents" ? "/v3/knowledge" : "/v3/knowledge?tab=snippets"}
                 scroll={false}
-                className={cn(
-                  "inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-semibold transition-colors",
-                  active === id
-                    ? "border-accent text-fg"
-                    : "border-transparent text-fg-3 hover:text-fg",
-                )}
+                className="v3-choice inline-flex min-h-11 items-center rounded-nav px-3 text-sm font-semibold text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg"
               >
                 {label}
               </Link>

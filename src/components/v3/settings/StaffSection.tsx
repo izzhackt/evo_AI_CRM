@@ -135,8 +135,7 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
     <nav aria-label="Управление командой" className="flex flex-wrap gap-2 border-b border-border pb-3">
       {([{ key: "people", label: "Сотрудники" }, { key: "roles", label: "Роли и доступ" }, { key: "departments", label: "Отделы" }] as const).map((entry) =>
         <Link key={entry.key} href={`/v3/settings?section=staff&view=${entry.key}`} aria-current={view === entry.key ? "page" : undefined}
-          className={`inline-flex min-h-11 items-center rounded-nav px-4 text-sm font-semibold ${view === entry.key
-            ? "bg-accent-weak text-accent" : "text-fg-2 hover:bg-surface-2"}`}>{entry.label}</Link>)}
+          className="v3-choice inline-flex min-h-11 items-center rounded-nav px-4 text-sm font-semibold text-fg-2 hover:bg-surface-2">{entry.label}</Link>)}
     </nav>
     {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
       <div className="flex flex-wrap items-center justify-between gap-3">

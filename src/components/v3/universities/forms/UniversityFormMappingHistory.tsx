@@ -12,7 +12,7 @@ export function UniversityFormMappingHistory({ base, templateId, versionId, mapp
     <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-fg">{words.history}</summary>
     <ul className="space-y-1">{mappings.map(mapping => <li key={mapping.id}>
       <Link prefetch={false} href={`${versionUrl}${before !== null ? `&before_mapping=${before}` : ""}&mapping=${mapping.id}`}
-        aria-current={selectedId === mapping.id ? "page" : undefined} className={link}>
+        aria-current={selectedId === mapping.id ? "page" : undefined} className={`v3-choice ${link}`}>
         {new Intl.DateTimeFormat("ru", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(mapping.created_at))}
         {" · "}{words.mappingCount} {mapping.mappings.length}{" · "}
         {mapping.review?.decision === "approved" ? words.mappingApproved : mapping.review?.decision === "rejected" ? words.mappingRejected : words.mappingPending}

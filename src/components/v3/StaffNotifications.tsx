@@ -148,7 +148,7 @@ export function StaffNotifications({ initialPage }: { initialPage: StaffNotifica
         aria-label={count && count !== "0" ? `Уведомления: ${count} непрочитанных` : "Уведомления"}
         className={`${CONTROL} flex items-center gap-2`} onClick={() => { if (!open) { setBusy(true); setMenuOpen(false); void load(); } setOpen((value) => !value); }}>
         <Icon name="bell" size={18} /><span className="hidden sm:inline">Уведомления</span>
-        {count && count !== "0" ? <span className="rounded-full bg-accent px-2 text-xs text-on-accent">{BigInt(count) > BigInt(99) ? "99+" : count}</span> : null}
+        {count && count !== "0" ? <span className="rounded-full bg-fg px-2 text-xs font-semibold text-surface">{BigInt(count) > BigInt(99) ? "99+" : count}</span> : null}
       </button>
       {open ? <section id={id} aria-label="Уведомления сотрудников" aria-busy={busy}
         className="absolute end-0 top-full z-40 mt-2 max-h-[70dvh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-card border border-border bg-surface p-4 shadow-evo-lg">

@@ -44,7 +44,7 @@ export function PipelineStageViewport({
                   aria-pressed={panel.key === activeKey}
                   aria-controls={`${panelId}-${panel.key}`}
                   onClick={() => setSelected(panel.key)}
-                  className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-ctl px-3 text-sm font-medium ${panel.key === activeKey ? "bg-accent text-on-accent" : "bg-surface-2 text-fg-2 hover:bg-surface-3 hover:text-fg"}`}
+                  className="v3-choice inline-flex min-h-11 shrink-0 items-center gap-2 rounded-ctl bg-surface-2 px-3 text-sm font-medium text-fg-2 hover:bg-surface-3 hover:text-fg"
                 >
                   {panel.title}
                   <span className="tabular-nums">{panel.count}</span>

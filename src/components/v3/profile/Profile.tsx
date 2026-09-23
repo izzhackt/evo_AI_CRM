@@ -148,7 +148,7 @@ export function Profile({
         tabIndex={0}
         className="max-w-full overflow-x-auto border-b border-border"
       >
-        <ul className="flex w-max gap-1">
+        <ul className="flex w-max gap-1 pb-2">
           {tabs.map((entry) => {
             const active = entry.key === current;
             return (
@@ -156,11 +156,7 @@ export function Profile({
                 <Link
                   href={hrefFor(entry.key)}
                   aria-current={active ? "page" : undefined}
-                  className={`-mb-px inline-flex min-h-10 items-center whitespace-nowrap border-b-2 px-3 text-sm ${
-                    active
-                      ? "border-accent font-semibold text-fg"
-                      : "border-transparent text-fg-3 hover:text-fg-2"
-                  }`}
+                  className="v3-choice inline-flex min-h-10 items-center whitespace-nowrap rounded-nav px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg"
                 >
                   {entry.title}
                 </Link>

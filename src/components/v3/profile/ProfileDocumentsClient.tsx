@@ -836,7 +836,7 @@ export function ProfileDocumentsClient({
                           </label>
                           <button
                             type="submit"
-                            className={btnCls}
+                            className={btnGhostCls}
                             disabled={state.outcome === "sending"}
                           >
                             {state.outcome === "sending" ? "Загрузка…" : "Сохранить"}

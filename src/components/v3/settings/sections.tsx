@@ -180,12 +180,8 @@ export function JournalSection({
   const unnamed = events.length - named.length;
   const exportEndAt = new Date();
   const exportStartAt = new Date(exportEndAt.getTime() - 30 * 24 * 60 * 60 * 1_000);
-  const chip = (on: boolean) =>
-    `inline-flex min-h-8 items-center gap-1.5 rounded-nav border px-2.5 text-xs ${
-      on
-        ? "border-accent bg-accent text-on-accent"
-        : "border-border bg-surface text-fg-2 hover:border-control-edge"
-    }`;
+  const chip =
+    "v3-choice inline-flex min-h-8 items-center gap-1.5 rounded-nav border border-border bg-surface px-2.5 text-xs text-fg-2 hover:border-control-edge";
 
   return (
     <div className="flex flex-col gap-4">
@@ -195,7 +191,7 @@ export function JournalSection({
         <p className="text-2xs uppercase tracking-wide text-fg-3">Тип записи</p>
         <ul className="flex flex-wrap gap-1.5">
           <li>
-            <Link href={hrefFor({})} className={chip(!active.objectType)}>
+            <Link href={hrefFor({})} aria-current={!active.objectType ? "page" : undefined} className={chip}>
               Все
             </Link>
           </li>
@@ -208,10 +204,11 @@ export function JournalSection({
               <li key={type.key}>
                 <Link
                   href={hrefFor({ objectType: type.key })}
-                  className={chip(active.objectType === type.key)}
+                  aria-current={active.objectType === type.key ? "page" : undefined}
+                  className={chip}
                 >
                   {word}
-                  <span className={active.objectType === type.key ? "text-on-accent" : "text-fg-3"}>
+                  <span className={active.objectType === type.key ? undefined : "text-fg-3"}>
                     {type.count}
                   </span>
                 </Link>

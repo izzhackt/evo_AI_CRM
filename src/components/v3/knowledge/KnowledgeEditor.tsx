@@ -120,8 +120,8 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
       {editable ? <input className={styles.titleInput} aria-label="Название страницы" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} maxLength={240} /> : <h2>{item.title}</h2>}
       {item.kind === "page" ? <>
         <div className={styles.editorBar}>
-          <button type="button" aria-pressed={mode === "read"} onClick={() => setMode("read")}>Читать</button>
-          {editable && <button type="button" aria-pressed={mode === "edit"} onClick={() => setMode("edit")}>Редактировать</button>}
+          <button type="button" className="v3-choice" aria-pressed={mode === "read"} onClick={() => setMode("read")}>Читать</button>
+          {editable && <button type="button" className="v3-choice" aria-pressed={mode === "edit"} onClick={() => setMode("edit")}>Редактировать</button>}
           {mode === "edit" && <>
             <button type="button" onClick={() => insert("\n## ")}>Заголовок</button>
             <button type="button" onClick={() => insert("\n- ")}>Список</button>

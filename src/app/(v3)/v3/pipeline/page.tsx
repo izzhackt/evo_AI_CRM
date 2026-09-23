@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { btnGhostCls } from "@/components/ui";
 import { PipelineMobileFilters } from "@/components/v3/PipelineStageViewport";
 import { Pipeline } from "@/components/v3/Pipeline";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
@@ -208,10 +209,7 @@ export default async function PipelinePart({
           </label>
         ) : null}
 
-        <button
-          type="submit"
-          className="inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-medium text-on-accent"
-        >
+        <button type="submit" className={btnGhostCls}>
           Найти
         </button>
 
@@ -317,11 +315,7 @@ function FilterLinkGroup({
                 href={choice.href}
                 prefetch={false}
                 aria-current={choice.active ? "page" : undefined}
-                className={`inline-flex min-h-9 items-center whitespace-nowrap rounded-nav px-2.5 text-xs ${
-                  choice.active
-                    ? "bg-accent font-medium text-on-accent"
-                    : "text-fg-2 hover:bg-surface-2"
-                }`}
+                className="v3-choice inline-flex min-h-9 items-center whitespace-nowrap rounded-nav px-2.5 text-xs text-fg-2 hover:bg-surface-2"
               >
                 {choice.title}
               </Link>

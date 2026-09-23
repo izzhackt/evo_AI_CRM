@@ -75,9 +75,9 @@ export default async function UniversityFormsPage({ params, searchParams }: {
         <nav aria-label={words.title} className="space-y-4 border-b border-border pb-5 lg:border-b-0 lg:border-r lg:pr-5">
           {templates.items.length ? <ul className="space-y-1">{templates.items.map(item => <li key={item.id}>
             <Link prefetch={false} href={`${base}?template=${item.id}`} aria-current={templateId === item.id ? "page" : undefined}
-              className={`block min-h-11 rounded-ctl border-l-2 px-3 py-3 ${templateId === item.id ? "border-accent bg-surface-2" : "border-transparent hover:bg-surface-2"}`}>
-              <span className="block break-words text-sm font-medium text-fg">{item.title}</span>
-              <span className="mt-1 block text-sm text-fg-2">{item.archived ? words.archived : item.publication ? words.published : words.draft}</span>
+              className="v3-choice block min-h-11 rounded-ctl border-l-2 border-transparent px-3 py-3 font-medium text-fg hover:bg-surface-2">
+              <span className="block break-words text-sm">{item.title}</span>
+              <span className="mt-1 block text-sm font-normal text-fg-2">{item.archived ? words.archived : item.publication ? words.published : words.draft}</span>
             </Link>
           </li>)}</ul> : <p className="text-sm text-fg-2">{words.empty}</p>}
           {templates.next_after_id ? <Link href={`${base}?after=${templates.next_after_id}`} className={link}>{words.more}</Link> : null}
@@ -129,7 +129,7 @@ export default async function UniversityFormsPage({ params, searchParams }: {
                 versionId={selected.id} mappings={workspace.mappings} selectedId={mapping?.id} before={beforeMapping} next={workspace.next_mapping_before} /> : null}
               {workspace.versions.length ? <details className="border-t border-border pt-4"><summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-fg">{words.versions}</summary>
                 <ul className="space-y-1">{workspace.versions.map(version => <li key={version.id}>
-                  <Link prefetch={false} href={`${base}?template=${workspace.template.id}&version=${version.id}`} className={link} aria-current={selected?.id === version.id ? "page" : undefined}>
+                  <Link prefetch={false} href={`${base}?template=${workspace.template.id}&version=${version.id}`} className={`v3-choice ${link}`} aria-current={selected?.id === version.id ? "page" : undefined}>
                     {words.version} {version.number} · {new Intl.DateTimeFormat("ru", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(version.created_at))}
                   </Link></li>)}</ul>
                 {workspace.next_version_before ? <Link href={`${base}?template=${workspace.template.id}&before_version=${workspace.next_version_before}`} className={link}>{words.olderVersions}</Link> : null}

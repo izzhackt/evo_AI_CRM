@@ -21,7 +21,7 @@ const TONE: Record<PillTone, string> = {
   danger: "bg-danger-weak text-danger",
   info: "bg-info-weak text-info",
   /** Для одного самого важного состояния на экране. Почти чёрная. */
-  solid: "bg-accent text-on-accent",
+  solid: "bg-fg text-surface",
 };
 
 export function Pill({

@@ -241,11 +241,7 @@ export function Calendar({
                   <Link
                     href={href(entry.key, day)}
                     aria-current={active ? "true" : undefined}
-                    className={`flex min-h-11 items-center rounded-ctl px-3 text-xs ${
-                      active
-                        ? "bg-accent font-semibold text-on-accent"
-                        : "text-fg-2 hover:bg-surface-2"
-                    }`}
+                    className="v3-choice flex min-h-11 items-center rounded-ctl px-3 text-xs text-fg-2 hover:bg-surface-2"
                   >
                     {entry.title}
                   </Link>

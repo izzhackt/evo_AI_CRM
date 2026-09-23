@@ -416,8 +416,8 @@ export function AdmissionsPipelineBoard({
             prefetch={false}
             aria-current={tab === tabKey ? "page" : undefined}
             className={cn(
-              "inline-flex min-h-9 items-center whitespace-nowrap rounded-nav px-3 text-sm",
-              tab === tabKey ? "bg-accent font-medium text-on-accent" : "text-fg-2 hover:bg-surface-2",
+              "v3-choice inline-flex min-h-9 items-center whitespace-nowrap rounded-nav px-3 text-sm",
+              "text-fg-2 hover:bg-surface-2",
             )}
           >
             {admissionsPipelineTab(tabKey)}

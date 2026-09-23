@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState, useCallback, useRef, useState } from "react";
+import { useActionState, useCallback, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { staffAuthAction, staffMemberAction } from "@/lib/staff-workspace-actions";
 import { STAFF_WORKSPACE_INITIAL_STATE, staffAuthRejectionMessage,
   type StaffWorkspaceData, type StaffWorkspaceMember,
   type StaffAuthRequest } from "@/lib/v3/staff-workspace-contract";
-import { btnGhostCls, inputCls } from "@/components/ui";
+import { btnDangerGhostCls, btnGhostCls, inputCls } from "@/components/ui";
 import { StaffDirectoryList } from "./StaffDirectoryList";
 import { StaffMemberDetails } from "./StaffMemberDetails";
 import { DepartmentsSection } from "./DepartmentsSection";
@@ -28,11 +28,11 @@ function MemberChangeForm({ member, onNext }: { member: StaffWorkspaceMember; on
   const [state, action, pending] = useStaffCommandForm(staffMemberAction);
   const [reason, setReason] = useState("");
   const value = member.status === "active" ? "suspended" : "active";
-  if (state.status === "success" && state.outcome !== "unknown") return <div className="space-y-3 border-t border-border pt-4">
+  if (state.status === "success" && state.outcome !== "unknown") return <div className="space-y-3">
     <Feedback state={state} />
     <button type="button" className={`${btnGhostCls} min-h-11`} onClick={onNext}>Изменить доступ снова</button>
   </div>;
-  return <form action={action} aria-busy={pending} className="space-y-3 border-t border-border pt-4">
+  return <form action={action} aria-busy={pending} className="space-y-3">
     <input type="hidden" name="operation" value="status" />
     <input type="hidden" name="membership_id" value={member.membershipId} />
     <input type="hidden" name="expected_version" value={member.version} />
@@ -41,7 +41,7 @@ function MemberChangeForm({ member, onNext }: { member: StaffWorkspaceMember; on
       <label className="block text-sm">Причина изменения<input className={`${inputCls} mt-1 min-h-11 w-full`} name="reason" required maxLength={500}
         value={reason} onChange={(event) => setReason(event.target.value)} /></label>
     </fieldset>
-    <button className={`${btnGhostCls} min-h-11`} type="submit" disabled={pending || state.status === "success"} formNoValidate={state.outcome === "unknown"}>
+    <button className={btnDangerGhostCls} type="submit" disabled={pending || state.status === "success"} formNoValidate={state.outcome === "unknown"}>
       {pending ? "Сохраняем…" : state.outcome === "unknown" ? "Проверить сохранение" : value === "active" ? "Восстановить доступ" : "Заблокировать доступ"}
     </button>
     <Feedback state={state} />
@@ -52,7 +52,7 @@ function RecoveryForm({ member }: { member: StaffWorkspaceMember }) {
   const [state, action, pending] = useStaffCommandForm(staffAuthAction);
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  return <form action={action} aria-busy={pending} className="space-y-3 border-t border-border pt-4">
+  return <form action={action} aria-busy={pending} className="space-y-3">
     <input type="hidden" name="operation" value="recovery" />
     <input type="hidden" name="membership_id" value={member.membershipId} />
     <input type="hidden" name="expected_version" value={member.version} />
@@ -63,11 +63,21 @@ function RecoveryForm({ member }: { member: StaffWorkspaceMember }) {
         checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
         Сотрудник согласовал письмо для восстановления входа на свой email</label>
     </fieldset>
-    <button type="submit" className={`${btnGhostCls} min-h-11`} name="retry_rejected" value={state.retryAllowed ? "yes" : "no"}
+    <button type="submit" className={btnDangerGhostCls} name="retry_rejected" value={state.retryAllowed ? "yes" : "no"}
       disabled={pending || state.status === "success"} formNoValidate={state.outcome === "unknown"}>
       {pending ? "Проверяем запрос…" : state.outcome === "unknown" ? "Проверить тот же запрос" : state.retryAllowed ? "Отправить новый запрос восстановления" : "Отправить восстановление входа"}</button>
     <Feedback state={state} />
   </form>;
+}
+
+/** Blocking and sign-in recovery sit apart from routine assignments, never in the same stack. */
+function StaffDangerZone({ member }: { member: StaffWorkspaceMember }) {
+  const headingId = useId();
+  return <section aria-labelledby={headingId} className="mt-8 space-y-4 rounded-card border border-danger/40 p-4">
+    <h4 id={headingId} className="text-md font-semibold text-danger">Опасные действия</h4>
+    <MemberChange member={member} />
+    {member.status === "active" ? <div className="border-t border-border pt-4"><RecoveryForm member={member} /></div> : null}
+  </section>;
 }
 
 function RequestRow({ request, workspace, organizationId }: { request: StaffAuthRequest; workspace: StaffRoleWorkspace; organizationId: string }) {
@@ -148,8 +158,7 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
               <div className="space-y-4 pt-2">
                 {selectedAccess ? <StaffRoleAssignments member={selectedAccess} workspace={roles} organizationId={organizationId} />
                   : <p role="alert" className="text-sm text-danger">Права сотрудника недоступны. Обновите страницу.</p>}
-                <MemberChange member={selectedMember} />
-                {selectedMember.status === "active" ? <RecoveryForm member={selectedMember} /> : null}</div>
+                <StaffDangerZone member={selectedMember} /></div>
             </StaffDisclosure>
           </StaffMemberDetails> : <div className="space-y-3 py-5">
             <p role={selectedMemberId ? "alert" : undefined} className="text-sm leading-6 text-fg-3">{selectedMemberId

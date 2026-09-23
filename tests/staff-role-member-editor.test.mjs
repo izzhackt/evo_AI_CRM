@@ -29,7 +29,8 @@ function editorHarness() {
     if (id === "@/components/ui") return { btnGhostCls: "button", inputCls: "input" };
     if (id === "@/lib/platform-admissions-playbook-contract") return { ADMISSIONS_DIRECTIONS: ["CN", "MY"] };
     if (id === "@/components/v3/profile/admissions-view") return { DIRECTION_LABELS: { CN: "Китай", MY: "Малайзия" } };
-    if (id === "@/lib/v3/wording") return { staffScopeLabel: (kind) => kind };
+    if (id === "@/lib/v3/wording") return { staffScopeLabel: (kind) => ({ own: "Свои записи", organization: "Вся организация",
+      department: "Отдел", direction: "Направление", record: "Отдельная запись" })[kind] ?? null };
     if (id === "@/lib/v3/staff-roles-contract") return { STAFF_SCOPE_KINDS: ["own", "organization", "department", "direction", "record"] };
     return require(id);
   };
@@ -174,4 +175,136 @@ test("existing command hook keeps the original request payload after an unknown 
   await action(unknown, changed);
   assert.deepEqual(attempts[1], attempts[0]);
   assert.ok(attempts[0].some(([key, value]) => key === "request_id" && value));
+});
+
+const textOf = (node) => node === null || node === undefined || typeof node === "boolean" ? ""
+  : typeof node === "string" || typeof node === "number" ? String(node)
+  : Array.isArray(node) ? node.map(textOf).join("") : textOf(node.props?.children);
+
+test("a saved assignment command shows the server readback, never its reset draft or version jargon", () => {
+  const harness = editorHarness();
+  let form = formOf(harness.render(props()));
+  assert.equal(form.keepDraftOnReset, true, "a failed command keeps the reviewed selects instead of the form's reset defaults");
+  assert.equal(form.children(true, saved(8)), null, "no draft rows (and no empty «Выберите роль») beside the saved message");
+  assert.notEqual(form.children(true, { status: "error", outcome: "unknown" }), null, "an unknown outcome keeps the original command visible");
+
+  let done = form.onComplete(saved(8));
+  assert.match(textOf(nodes(done, (node) => node.props?.role === "status")), /^Загружаем сохранённый доступ\. Если он не появился, обновите страницу\.$/u);
+  assert.equal(nodes(done, (node) => node.type === "li").length, 0, "the stale pre-save snapshot is not presented as saved");
+  assert.doesNotMatch(textOf(done), /верси/u);
+
+  const fresh = { ...member, accessVersion: 8, assignments: [
+    { id: "a1", roleId: "role", label: "Работа", bundleId: "bundle", bundleVersion: 2, scope: { kind: "direction", key: "CN", resourceKind: null } },
+    { id: "a2", roleId: "role", label: "Работа", bundleId: "bundle", bundleVersion: 2, scope: { kind: "department", key: "dep", resourceKind: null } },
+  ] };
+  const freshWorkspace = { ...workspace, departments: [{ id: "dep", name: "Продажи", status: "active" }] };
+  form = formOf(harness.render(props(fresh, freshWorkspace)));
+  done = form.onComplete(saved(8));
+  assert.deepEqual(nodes(done, (node) => node.type === "li").map(textOf), ["Работа · Направление: Китай", "Работа · Отдел: Продажи"]);
+  assert.equal(nodes(done, (node) => node.props?.role === "status").length, 0);
+  click(done, "Изменить назначения");
+  form = formOf(harness.render(props(fresh, freshWorkspace)));
+  assert.equal(field(form.children(false, {}), "expected_version"), 8, "the next edit starts from the same readback");
+  assert.deepEqual(JSON.parse(field(form.children(false, {}), "assignments")).map((row) => row.scope.kind), ["direction", "department"]);
+
+  for (const [readback, lines] of [[{ ...member, accessVersion: 8, assignments: [] }, ["Роли не назначены"]],
+    [{ ...member, systemRole: "admin", accessVersion: 8, assignments: [] }, ["Системный доступ администратора"]]]) {
+    const next = editorHarness();
+    formOf(next.render(props()));
+    const summary = formOf(next.render(props(readback))).onComplete(saved(8));
+    assert.deepEqual(nodes(summary, (node) => node.type === "li").map(textOf), lines);
+  }
+  const editorSource = readFileSync(componentPath, "utf8");
+  assert.doesNotMatch(editorSource, /подтверждения версии|Ожидаем актуальные данные/u);
+});
+
+test("the reset guard is opt-in and only cancels the form's own reset", () => {
+  const source = readFileSync(new URL("../src/components/v3/settings/StaffRoleForms.tsx", import.meta.url), "utf8");
+  assert.match(source, /keepDraftOnReset = false/u);
+  assert.match(source, /if \(!keepDraftOnReset \|\| !form\) return;/u);
+  assert.match(source, /form\.addEventListener\("reset", preserveDraft\)/u);
+  assert.match(source, /return \(\) => form\.removeEventListener\("reset", preserveDraft\)/u);
+});
+
+// StaffSection with its import boundaries replaced; element tree only.
+function staffSectionHarness() {
+  const instances = new Map();
+  let active;
+  let cursor;
+  const slot = (initial) => {
+    const instance = active;
+    const index = cursor++;
+    if (!(index in instance)) instance[index] = typeof initial === "function" ? initial() : initial;
+    return [instance, index];
+  };
+  const hooks = {
+    useState(initial) {
+      const [instance, index] = slot(initial);
+      return [instance[index], (value) => { instance[index] = typeof value === "function" ? value(instance[index]) : value; }];
+    },
+    useRef(initial) { const [instance, index] = slot(() => ({ current: initial })); return instance[index]; },
+    useId() { const [instance, index] = slot(() => `id-${instances.size}-${cursor}`); return instance[index]; },
+    useCallback: (callback) => callback,
+    useActionState: (action, initial) => [initial, action, false],
+  };
+  const idle = { status: "idle", message: "" };
+  const boundary = {
+    react: hooks,
+    "next/link": { default: "a" },
+    "@/lib/staff-workspace-actions": { staffAuthAction: "auth-action", staffMemberAction: "member-action" },
+    "@/lib/v3/staff-workspace-contract": { STAFF_WORKSPACE_INITIAL_STATE: idle, staffAuthRejectionMessage: () => "" },
+    "@/components/ui": { btnGhostCls: "ghost-button", btnDangerGhostCls: "danger-button", inputCls: "input" },
+    "./StaffDirectoryList": { StaffDirectoryList: "directory" },
+    "./StaffMemberDetails": { StaffMemberDetails: "member-details" },
+    "./DepartmentsSection": { DepartmentsSection: "departments" },
+    "./StaffRolesSection": { StaffRolesSection: "roles" },
+    "./StaffRoleAssignments": { StaffRoleAssignments: "role-assignments" },
+    "./StaffInviteForm": { StaffInviteForm: "invite", StaffPasswordForm: "password" },
+    "./StaffPendingAccess": { StaffPendingAccess: "pending" },
+    "./StaffDisclosure": { StaffDisclosure: "disclosure" },
+    "./useStaffCommandForm": { useStaffCommandForm: () => [idle, "command", false], StaffCommandFeedback: "feedback" },
+    "@/lib/v3/staff-invitation-access": { staffReconcileAllowsPreparation: () => true },
+  };
+  const sectionCode = ts.transpileModule(readFileSync(new URL("../src/components/v3/settings/StaffSection.tsx", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const compiled = { exports: {} };
+  new Function("require", "module", "exports", sectionCode)((id) => boundary[id] ?? require(id), compiled, compiled.exports);
+  function expand(node, path = "root") {
+    if (Array.isArray(node)) return node.map((child, index) => expand(child, `${path}/${index}`));
+    if (!node || typeof node !== "object") return node;
+    if (typeof node.type === "function") {
+      const key = `${path}/${node.type.name}:${node.key ?? ""}`;
+      if (!instances.has(key)) instances.set(key, []);
+      active = instances.get(key); cursor = 0;
+      return expand(node.type(node.props), `${key}/result`);
+    }
+    return { ...node, props: { ...node.props, children: expand(node.props.children, `${path}/children`) } };
+  }
+  return (status) => expand({ type: compiled.exports.StaffSection, props: {
+    data: { available: true, departments: [], requests: [], members: [{ membershipId: "member", displayName: "Сотрудник", status, version: 7,
+      metadata: { jobTitle: null, departmentId: null, directions: [], version: 1 } }] },
+    roles: { ...workspace, members: [member] }, organizationId: "org", view: "people", selectedMemberId: "member",
+  } });
+}
+
+test("block/restore and sign-in recovery sit in a separate «Опасные действия» zone after the assignments", () => {
+  const render = staffSectionHarness();
+  for (const [status, actions] of [["active", ["Заблокировать доступ", "Отправить восстановление входа"]], ["suspended", ["Восстановить доступ"]]]) {
+    const tree = render(status);
+    const [panel] = nodes(tree, (node) => node.type === "disclosure" && node.props.label === "Доступ");
+    const [zone] = nodes(panel, (node) => node.type === "section");
+    assert.ok(zone, status);
+    const [heading] = nodes(zone, (node) => node.type === "h4");
+    assert.equal(textOf(heading), "Опасные действия");
+    assert.equal(zone.props["aria-labelledby"], heading.props.id, "the zone is a named region");
+    assert.match(zone.props.className, /\bborder-danger\/40\b/u);
+    assert.match(heading.props.className, /\btext-danger\b/u);
+    const submits = nodes(zone, (node) => node.type === "button" && node.props.type === "submit");
+    assert.deepEqual(submits.map((node) => textOf(node)), actions);
+    assert.ok(submits.every((node) => node.props.className === "danger-button"), "existing danger button styling");
+    assert.equal(nodes(zone, (node) => node.type === "role-assignments").length, 0, "routine assignments stay outside the zone");
+    const order = nodes(panel, (node) => node.type === "role-assignments" || node === zone);
+    assert.deepEqual(order.map((node) => node.type), ["role-assignments", "section"], "«Сохранить назначения» comes first, danger last");
+    assert.ok(nodes(zone, (node) => node.type === "input" && node.props.name === "reason").every((input) => input.props.required));
+  }
 });

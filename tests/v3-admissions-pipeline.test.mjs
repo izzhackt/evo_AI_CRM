@@ -4,7 +4,9 @@
 // read and pattern-matched, not applied or executed.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import test from "node:test";
+import ts from "typescript";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -209,4 +211,185 @@ test("staff_admissions_pipeline_board_v1 is a NEW read RPC and does not widen st
 test("the new audit action is added to the p7a_safe_audit_actions allowlist, same rename-and-replace pattern as 179/181", () => {
   assert.match(migration, /RENAME TO p7a_safe_audit_actions_pre_admissions_pipeline_board;/u);
   assert.match(migration, /ARRAY\['case\.pipeline\.move'\]::TEXT\[\]/u);
+});
+
+// UX quick win 1 (Impeccable harden, 2026-09-24): the production board source is
+// compiled with its import boundaries replaced and its element tree driven
+// through pure hooks. Not React DOM, a browser, Auth or the live server action.
+function boardHarness(moveAction) {
+  const require = createRequire(import.meta.url);
+  const compile = (path, boundary) => {
+    const code = ts.transpileModule(source(path), { compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
+    } }).outputText;
+    const compiled = { exports: {} };
+    new Function("require", "module", "exports", code)((id) => boundary(id) ?? require(id), compiled, compiled.exports);
+    return compiled.exports;
+  };
+  const pipelineContract = compile("src/lib/platform-admissions-pipeline-contract.ts", () => undefined);
+  const instances = new Map();
+  let active;
+  let cursor;
+  const slot = (initial) => {
+    const instance = active;
+    const index = cursor++;
+    if (!(index in instance)) instance[index] = typeof initial === "function" ? initial() : initial;
+    return [instance, index];
+  };
+  const hooks = {
+    useState(initial) {
+      const [instance, index] = slot(initial);
+      return [instance[index], (value) => { instance[index] = typeof value === "function" ? value(instance[index]) : value; }];
+    },
+    useRef(initial) { const [instance, index] = slot(() => ({ current: initial })); return instance[index]; },
+    useId() { const [instance, index] = slot(() => `id-${instances.size}-${cursor}`); return instance[index]; },
+    useTransition() { return [false, (run) => run()]; },
+    useEffect() {},
+  };
+  const board = compile("src/components/v3/AdmissionsPipelineBoard.tsx", (id) => ({
+    react: hooks,
+    "next/link": { default: "a" },
+    "next/navigation": { useRouter: () => ({ refresh() {} }) },
+    "@/components/ui": { btnGhostCls: "ghost-button", cn: (...classes) => classes.filter(Boolean).join(" ") },
+    "@/components/v3/Pill": { Pill: "pill" },
+    "@/lib/platform-admissions-pipeline-actions": { moveCasePipelineAction: moveAction },
+    "@/lib/platform-admissions-pipeline-contract": pipelineContract,
+    "@/lib/v3/wording": {
+      admissionsPipelineStage: (stage) => `stage:${stage}`, admissionsPipelineTab: (tab) => `tab:${tab}`,
+      caseChatAwaitState: () => "Ждёт ответа", country: (code) => code,
+    },
+  })[id]);
+  function expand(node, path = "root") {
+    if (Array.isArray(node)) return node.map((child, index) => expand(child, `${path}/${index}`));
+    if (!node || typeof node !== "object") return node;
+    if (typeof node.type === "function") {
+      const key = `${path}/${node.type.name}:${node.key ?? ""}`;
+      if (!instances.has(key)) instances.set(key, []);
+      active = instances.get(key); cursor = 0;
+      return expand(node.type(node.props), `${key}/result`);
+    }
+    return { ...node, props: { ...node.props, children: expand(node.props.children, `${path}/children`) } };
+  }
+  return (props) => expand({ type: board.AdmissionsPipelineBoard, props });
+}
+function allNodes(tree, predicate) {
+  if (Array.isArray(tree)) return tree.flatMap((item) => allNodes(item, predicate));
+  if (!tree || typeof tree !== "object") return [];
+  return [...(predicate(tree) ? [tree] : []), ...allNodes(tree.props?.children, predicate)];
+}
+function textOf(node) {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  return textOf(node.props?.children);
+}
+const buttonsNamed = (tree, name) => allNodes(tree, (node) => node.type === "button" && textOf(node).trim() === name);
+function press(tree, name) {
+  const [button] = buttonsNamed(tree, name);
+  assert.ok(button, `button «${name}»`);
+  button.props.onClick();
+}
+const statusText = (tree) => textOf(allNodes(tree, (node) => node.props?.role === "status")).trim();
+const cardIds = (tree) => allNodes(tree, (node) => node.props?.["data-testid"] === "v3-admissions-pipeline-card")
+  .map((node) => node.props["data-student-case-id"]);
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+const CASE_ID = "7d1f0c3a-5b2e-4c1d-9a8b-0e6f5d4c3b2a";
+// "documents" sits outside the narrow view's default stage, so exactly one card menu renders.
+const boardRow = {
+  studentCaseId: CASE_ID, studentDisplayName: "Айдана Садыкова", targetCountry: "CN", primaryInstitutionName: null,
+  currentCuratorMembershipId: null, currentCuratorDisplayName: null, pipelineStage: "documents",
+  awaitingAck: false, overdue: false, needsReply: false,
+};
+const boardProps = { rows: [boardRow], truncated: false, boardUnavailable: false, tab: "admission",
+  query: { q: null, country: null, curator: null } };
+
+test("«Убрать из воронки» only opens a confirmation; «Отмена» and Escape keep the case", () => {
+  const calls = [];
+  const render = boardHarness(async (input) => { calls.push(input); return { status: "saved" }; });
+  let tree = render(boardProps);
+  press(tree, "Убрать из воронки");
+  assert.equal(calls.length, 0, "the menu item alone never removes the case");
+  tree = render(boardProps);
+  const [confirm] = allNodes(tree, (node) => node.props?.role === "group" && node.props["aria-labelledby"]);
+  assert.ok(confirm, "an inline confirmation group replaces the item");
+  assert.match(textOf(confirm), /Убрать «Айдана Садыкова» из воронки\? Дело останется в «Студентах»\./u);
+  assert.equal(buttonsNamed(tree, "Убрать из воронки").length, 0);
+  press(tree, "Отмена");
+  tree = render(boardProps);
+  assert.equal(buttonsNamed(tree, "Убрать").length, 0, "cancel closes the confirmation");
+  assert.equal(buttonsNamed(tree, "Убрать из воронки").length, 1);
+
+  press(tree, "Убрать из воронки");
+  tree = render(boardProps);
+  const [menu] = allNodes(tree, (node) => node.type === "details");
+  let prevented = 0;
+  menu.props.onKeyDown({ key: "Escape", currentTarget: { open: true }, preventDefault() { prevented += 1; }, stopPropagation() {} });
+  tree = render(boardProps);
+  assert.equal(prevented, 1);
+  assert.equal(buttonsNamed(tree, "Убрать").length, 0, "Escape cancels the confirmation");
+  assert.deepEqual(cardIds(tree), [CASE_ID]);
+  assert.equal(calls.length, 0);
+});
+
+test("a confirmed removal reports its server outcome in role=status and «Вернуть в воронку» restores the stage", async () => {
+  const calls = [];
+  const render = boardHarness(async (input) => { calls.push(input); return { status: "saved" }; });
+  let tree = render(boardProps);
+  press(tree, "Убрать из воронки");
+  tree = render(boardProps);
+  press(tree, "Убрать");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].studentCaseId, CASE_ID);
+  assert.equal(calls[0].remove, true);
+  assert.equal(calls[0].stage, undefined, "no invented reason or stage on the remove command");
+  assert.match(calls[0].requestId, /^[0-9a-f-]{36}$/u);
+  tree = render(boardProps);
+  assert.deepEqual(cardIds(tree), []);
+  assert.equal(statusText(tree), "Убираем дело «Айдана Садыкова» из воронки…", "not reported as done before the server");
+  await flush();
+  tree = render(boardProps);
+  assert.equal(statusText(tree), "Дело «Айдана Садыкова» убрано из воронки.");
+  press(tree, "Вернуть в воронку");
+  assert.deepEqual(Object.keys(calls[1]).sort(), ["requestId", "stage", "studentCaseId"]);
+  assert.equal(calls[1].stage, "documents", "undo is the existing move to the previous stage");
+  assert.notEqual(calls[1].requestId, calls[0].requestId);
+  await flush();
+  tree = render(boardProps);
+  assert.equal(statusText(tree), "Дело «Айдана Садыкова» снова в воронке.");
+  assert.deepEqual(cardIds(tree), [CASE_ID]);
+});
+
+test("a refused or lost removal restores the card, alerts and leaves no success status", async () => {
+  for (const [outcome, message] of [
+    [async () => ({ status: "forbidden" }), "У вашей роли нет прав на это перемещение."],
+    [async () => { throw new Error("network"); }, "Ответ сервера не получен. Перемещение не подтверждено — обновите страницу."],
+  ]) {
+    const render = boardHarness(outcome);
+    let tree = render(boardProps);
+    press(tree, "Убрать из воронки");
+    tree = render(boardProps);
+    press(tree, "Убрать");
+    await flush();
+    tree = render(boardProps);
+    assert.deepEqual(cardIds(tree), [CASE_ID]);
+    assert.equal(statusText(tree), "");
+    const [alert] = allNodes(tree, (node) => node.props?.role === "alert");
+    assert.equal(textOf(alert), message);
+  }
+});
+
+test("card menu targets are at least 44px, labels at least 12px, and removal is styled apart", () => {
+  const render = boardHarness(async () => ({ status: "saved" }));
+  const tree = render(boardProps);
+  const [menu] = allNodes(tree, (node) => node.type === "details");
+  const targets = allNodes(menu, (node) => node.type === "button" || node.type === "a");
+  assert.ok(targets.length >= 9, "8 stage moves, «Открыть дело» and the removal");
+  for (const target of targets) assert.match(target.props.className, /\bmin-h-11\b/u, textOf(target));
+  assert.doesNotMatch(JSON.stringify(allNodes(menu, (node) => node.type === "p").map((node) => node.props.className)), /text-2xs/u);
+  const [remove] = buttonsNamed(menu, "Убрать из воронки");
+  assert.match(remove.props.className, /\btext-danger\b/u);
+  const menuChildren = menu.props.children[1].props.children.flat(Infinity).filter((child) => child && typeof child === "object");
+  assert.equal(menuChildren.at(-2).type, "hr", "a separator sets removal apart from moves and «Открыть дело»");
+  assert.equal(menuChildren.at(-1), remove);
 });

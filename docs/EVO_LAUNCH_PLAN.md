@@ -15403,3 +15403,21 @@ actual local CRM, migration, independent reviews/CI and accepted server evidence
 Native1040 remains draft: source review/build/CI passed, fresh Mac lock prevents
 actual; no merge/installation/Auth/binary delivery claimed. The owner-confirmed
 1026/980 waiver, KB159, items31/32 and deferred37–50/E2E/content/AppStore persist.
+
+
+## 2026-09-23 — пункт 13, решения владельца и сверка статуса 1–36
+
+App `28f19c8e9dfbb625b001ebcf28b7393bd7e59b8b` (#1045: честная ошибка и повтор
+при сбое чтения базовых чек-листов, пункт 13) принят в production: CI 35908338400
+и release 35908378782 SUCCESS, `v3-r35908378782-a1-28f19c8e`, acceptance record
+sha256 `a5fe98f9a45a33fb26d6bf117737aebb4b3e9e4f78c350d4125c70253b7b4e06`,
+`evo-crm-app-1` healthy/restart0, CRM и app `/api/health` live, pending
+отсутствует, arm false с 19:24 UTC. Перед arm: ledger 001–240 равен репозиторию,
+миграций в дельте нет, других release-запусков в полёте не было. Выполнен общий
+release smoke; живой сбой чтения шаблонов не воспроизводился.
+
+Решения владельца 23.09: #687 принят и закрыт; роль Sales Manager назначается
+сотруднику с ролью Admin через Настройки CRM; #1040 и native-проверки iPhone
+отложены; KB159 без изменений; #708 открыт до второго сотрудника; SOPS-архив
+ключа Resend не нужен. Подробно — сверка 23.09 в
+[ведомости 1–36](EVO_ITEMS_1_36_STATUS_2026-09-21.md).

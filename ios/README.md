@@ -130,7 +130,7 @@ What landed on `main` after wave 8:
 - #925 university card and program readability; #926 admission operational
   stage; #927 home learning and favorites parity; #930 clearer home screen.
   #928 and #929 changed only the web portal; «new in catalog» (item 2) has no
-  iPhone counterpart yet — that parity is an owner decision.
+  iPhone counterpart yet — the owner deferred that parity on 2026-09-23.
 - #944, #946, #964, #967, #982, #993, #999: catalogue-intake decoders,
   catalogue selection → case preparation, program requirements (v1/v2
   readers), program preparation screens and saved-file vs submitted-document
@@ -142,15 +142,15 @@ What landed on `main` after wave 8:
 - #1026: sign-out uses `signOut(scope: .local)`, preserving the user's other
   sessions as the web does.
 - Draft #1040 (not merged): learning-draft preservation across retry and
-  Save and Exit in `AssessmentRunnerView` / `LessonRunnerView`; awaiting a
-  real simulator run.
+  Save and Exit in `AssessmentRunnerView` / `LessonRunnerView`; its simulator
+  run was deferred by the owner on 2026-09-23, so it stays a draft.
 
 Honest status:
 
 - Source only. The app has never been distributed: no TestFlight or App Store
   build exists. #980/#1026 were accepted by the owner without a native run;
-  native runs for items 13, 17–21, 24 and 25 remain open or need an explicit
-  owner waiver.
+  native runs for items 13, 17–21, 24 and 25 were deferred by the owner on
+  2026-09-23 and are not claimed as accepted.
 - CI runs only on `ubuntu-latest` and neither compiles nor tests Swift; iOS
   builds and XCTest runs happen only locally with Xcode. The test sources hold
   141 `func test…` methods (static count); no XCTest files were added for the

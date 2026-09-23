@@ -117,6 +117,21 @@
   color: var(--accent-text);
 }
 
+/*
+ * Единый вид «выбрано» (24.09.2026): вкладки, сегменты, навигация разделов,
+ * чипы фильтров и карточка, чьи подробности открыты рядом. Сплошной красный
+ * остаётся только главному действию экрана. Вид включается лишь объявленным
+ * состоянием — aria-current, aria-pressed="true" или aria-expanded="true", —
+ * поэтому выбранное нельзя показать одним цветом без смысла для читалки.
+ * --accent-text на --accent-weak: 6.4:1; рамка (если она есть) того же цвета.
+ */
+.v3-world .v3-choice:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-expanded="true"]) {
+  border-color: var(--accent-text);
+  background-color: var(--accent-weak);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
 /* Comfortable disclosure targets without surrounding every action in a card. */
 .v3-world summary {
   min-height: 44px;

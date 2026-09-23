@@ -88,7 +88,7 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
         <button type="button" disabled={busy || !record} onClick={() => void openManual()}>Добавленные материалы</button>
       </div>
       <div className={styles.actions} role="group" aria-label="Материалы клиента">
-        {(["documents", "chat", "history"] as const).map((key) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{({ documents: "Документы", chat: "Переписка", history: "История" })[key]}</button>)}
+        {(["documents", "chat", "history"] as const).map((key) => <button type="button" key={key} className="v3-choice" aria-pressed={tab === key} onClick={() => setTab(key)}>{({ documents: "Документы", chat: "Переписка", history: "История" })[key]}</button>)}
       </div>
       {tab === "documents" && record && !record.handoffAt && <p>Рабочий список документов появится после передачи дела.</p>}
       {tab === "documents" && documents && <KnowledgeCaseDocuments key={caseId} caseId={caseId} documents={documents} />}

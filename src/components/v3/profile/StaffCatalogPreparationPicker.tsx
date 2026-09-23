@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import { UNIVERSITY_LEVEL_LABELS, universityIntakeLabel, type PublishedUniversity, type UniversityIntake, type UniversityPage, type UniversityProgram } from "@/lib/platform-university-catalog";
 import type { CatalogPreparation, CatalogPreparationIntent } from "@/lib/portal/catalog-preparations";
 import { readStaffPreparationsAction, searchStaffPreparationCatalogAction, selectStaffPreparationAction, type StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
@@ -137,7 +137,7 @@ export function StaffCatalogPreparationPicker({ scope, canSelect, canInitialize,
             const existing = preparations.status === "ready" ? preparations.value.find((item) => item.institutionId === university.id && item.programId === program.id && item.intakeId === intake.id) : undefined;
             return <li key={intake.id ?? `legacy-${index}`} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0"><p className="break-words text-sm font-medium text-fg">{intake.label}</p><p className="mt-1 text-sm text-fg-3">{universityIntakeLabel(intake)}</p>{intake.applicationDeadline ? <p className="mt-1 text-sm text-fg-3">Опубликованная дата: {intake.applicationDeadline}{intake.deadlineTime ? ` ${intake.deadlineTime}` : ""}{intake.timezone ? ` (${intake.timezone})` : ""}</p> : null}{!intake.id ? <p className="mt-1 text-sm text-fg-3">Сведения о наборе нужно уточнить перед выбором.</p> : null}</div>
-              <button type="button" className={`${existing ? btnGhostCls : btnCls} shrink-0`} disabled={pending || preparations.status !== "ready" || (!existing && (!!retained || storageBlocked || !canSelect || !intake.id || intake.status === "closed" || !countries.has(university.content.country)))} onClick={() => existing ? open(existing.applicationId) : void choose(program, intake)}>{existing ? "Открыть подготовку" : "Начать подготовку"}</button>
+              <button type="button" className={`${btnGhostCls} shrink-0`} disabled={pending || preparations.status !== "ready" || (!existing && (!!retained || storageBlocked || !canSelect || !intake.id || intake.status === "closed" || !countries.has(university.content.country)))} onClick={() => existing ? open(existing.applicationId) : void choose(program, intake)}>{existing ? "Открыть подготовку" : "Начать подготовку"}</button>
             </li>;
           })}</ul>}
         </section>)}

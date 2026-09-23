@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { btnGhostCls } from "@/components/ui";
+
 /**
  * Переключатель периода под заголовком «Главная» (заголовок — в `PartShell`,
  * чтобы на странице был ровно один `h1`).
@@ -53,11 +55,7 @@ export function MainHeader({
                 <Link
                   href={choice.href}
                   aria-current={choice.active ? "page" : undefined}
-                  className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 text-sm transition-colors ${
-                    choice.active
-                      ? "bg-accent-weak font-semibold text-accent"
-                      : "text-fg-2 hover:bg-surface-2 hover:text-fg"
-                  }`}
+                  className="v3-choice inline-flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 text-sm text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg"
                 >
                   {choice.title}
                 </Link>
@@ -107,10 +105,7 @@ export function MainHeader({
             />
           </label>
 
-          <button
-            type="submit"
-            className="inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-medium text-on-accent transition-colors hover:bg-accent-2"
-          >
+          <button type="submit" className={btnGhostCls}>
             Показать
           </button>
         </form>

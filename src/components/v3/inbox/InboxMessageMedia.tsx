@@ -36,7 +36,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex min-h-9 items-center justify-center rounded-ctl bg-accent px-3 text-xs font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex min-h-9 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-xs font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Добавляем…" : "В дело студента"}
     </button>

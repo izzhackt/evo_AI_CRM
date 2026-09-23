@@ -93,19 +93,11 @@ export function Settings({
                 <Link
                   href={hrefFor(entry.key)}
                   aria-current={active ? "page" : undefined}
-                  className={`inline-flex min-h-9 w-full items-center gap-2 whitespace-nowrap rounded-nav px-3 text-sm ${
-                    active
-                      ? "bg-accent font-semibold text-on-accent"
-                      : "text-fg-2 hover:bg-surface-2"
-                  }`}
+                  className="v3-choice inline-flex min-h-9 w-full items-center gap-2 whitespace-nowrap rounded-nav px-3 text-sm text-fg-2 hover:bg-surface-2"
                 >
                   {entry.title}
                   {entry.admin ? (
-                    <span
-                      className={`ms-auto rounded-nav px-1 font-mono text-2xs ${
-                        active ? "bg-white/25 text-on-accent" : "bg-surface-2 text-fg-3"
-                      }`}
-                    >
+                    <span className="ms-auto rounded-nav bg-surface-2 px-1 font-mono text-2xs font-normal text-fg-3">
                       админ
                     </span>
                   ) : null}

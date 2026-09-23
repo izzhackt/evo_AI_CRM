@@ -29,7 +29,7 @@ function Filters({ selection }: { selection: RequestSelection }) {
       {REQUEST_SOURCE_FILTERS.map((source) => <Link key={source}
         href={requestsHref({ ...selection, source, cursor: null })}
         aria-current={selection.source === source ? "page" : undefined}
-        className={selection.source === source ? `${linkClass} border-accent bg-accent-weak text-accent` : linkClass}>
+        className={`v3-choice ${linkClass}`}>
         {FILTER_LABELS[source]}
       </Link>)}
     </nav>

@@ -19,6 +19,8 @@ import { readStaffTaskChatSource, readStaffTaskContext, readStaffTaskLeadContext
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Задачи" };
+// Один вид «выбрано» для типа, владельца и состояния задач (см. `.v3-choice` в v3.css).
+const CHOICE = "v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm text-fg-2 hover:bg-surface-2";
 type Params = Record<string, string | string[] | undefined>;
 function single(params: Params, key: string) { const value = params[key]; if (Array.isArray(value)) notFound(); return value; }
 function optionalUuid(params: Params, key: string) { const value = single(params, key); if (value === undefined) return null; return staffTaskUuid(value) ?? notFound(); }
@@ -142,9 +144,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       <p className="mt-2 text-sm text-fg-3">Проверьте название и исполнителя перед сохранением. Доступ к закрытому каналу не расширяется.</p>
       <Link href={`/v3/team-chat?channel=${sourceMessage.channelKey}&message=${sourceMessage.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm underline">Вернуться к сообщению</Link>
     </section> : null}
-    {workspace.canReadStaffTasks || workspace.canReadCaseTasks ? <nav aria-label="Тип задач" className="mb-4 flex flex-wrap gap-2 border-b border-border">
-      {workspace.canReadStaffTasks ? <Link href={href({ type: "staff" })} aria-current={domain === "staff" ? "page" : undefined} className={`min-h-11 px-3 py-3 text-sm ${domain === "staff" ? "border-b-2 border-accent font-semibold" : "text-fg-2"}`}>Рабочие</Link> : null}
-      {workspace.canReadCaseTasks ? <Link href={href({ type: "case" })} aria-current={domain === "case" ? "page" : undefined} className={`min-h-11 px-3 py-3 text-sm ${domain === "case" ? "border-b-2 border-accent font-semibold" : "text-fg-2"}`}>По студентам</Link> : null}
+    {workspace.canReadStaffTasks || workspace.canReadCaseTasks ? <nav aria-label="Тип задач" className="mb-4 flex flex-wrap gap-2 border-b border-border pb-2">
+      {workspace.canReadStaffTasks ? <Link href={href({ type: "staff" })} aria-current={domain === "staff" ? "page" : undefined} className={CHOICE}>Рабочие</Link> : null}
+      {workspace.canReadCaseTasks ? <Link href={href({ type: "case" })} aria-current={domain === "case" ? "page" : undefined} className={CHOICE}>По студентам</Link> : null}
     </nav> : null}
     {!canReadTaskQueue ? <p role="status" className="border-y border-border py-8 text-sm text-fg-2">
       {domain === "case" ? "В вашей роли нет права на просмотр задач по студентам." : "В вашей роли нет права на просмотр рабочих задач."}
@@ -152,9 +154,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     </p> : <>
     {domain === "staff" ? <div className="mb-4 flex flex-wrap justify-between gap-2">
       <nav aria-label="Чьи задачи" className="flex flex-wrap gap-2">{([["mine", "Мои"], ["created", "Назначенные мной"], ["all", "Все доступные"]] as const).map(([value, label]) =>
-        <Link key={value} href={href({ view: value })} aria-current={view === value ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-ctl px-3 text-sm ${view === value ? "bg-surface-2 font-semibold" : "text-fg-2"}`}>{label}</Link>)}</nav>
+        <Link key={value} href={href({ view: value })} aria-current={view === value ? "page" : undefined} className={CHOICE}>{label}</Link>)}</nav>
       <nav aria-label="Состояние задач" className="flex flex-wrap gap-2">{([["active", "В работе"], ["overdue", "Просрочено"], ["completed", "Завершённые"], ["all", "Все статусы"]] as const).map(([value, label]) =>
-        <Link key={value} href={href({ status: value })} aria-current={status === value ? "page" : undefined} className={`inline-flex min-h-11 items-center px-2 text-sm ${status === value ? "font-semibold text-accent-text" : "text-fg-2"}`}>{label}</Link>)}</nav>
+        <Link key={value} href={href({ status: value })} aria-current={status === value ? "page" : undefined} className={CHOICE}>{label}</Link>)}</nav>
     </div> : <p className="mb-4 text-sm text-fg-2">Доступные задачи по студентам.</p>}
     <p className="mb-2 text-sm text-fg-2">Сроки указаны по времени Бишкека.</p>
     {workspace.tasks.length === 0 ? <div role="status"><EmptyState text={cursor || caseCursor ? "В этой части списка задач нет." : "Задач по выбранному фильтру пока нет."} /></div> : <Card bodyClassName="p-0">

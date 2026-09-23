@@ -82,3 +82,65 @@ test("sales table scroll regions contain absolutely positioned screen-reader lab
     assert.ok(classes.includes("relative"), `positioned containing block: ${label}`);
   }
 });
+
+test("solid red stays for the main action and every selection shares one accent-weak style", () => {
+  const rule = css.match(/\.v3-world \.v3-choice:is\(\[aria-current\]:not\(\[aria-current="false"\]\), \[aria-pressed="true"\], \[aria-expanded="true"\]\) \{([^}]+)\}/u);
+  assert.ok(rule, "one selected rule keyed on the announced state");
+  assert.match(rule[1], /background-color: var\(--accent-weak\);/u);
+  assert.match(rule[1], /color: var\(--accent-text\);/u);
+  assert.doesNotMatch(rule[1], /var\(--accent\)|--on-accent/u);
+  assert.ok(contrast("text-2", "accent-weak") >= 4.5, "secondary text inside a selected calendar card");
+  assert.ok(contrast("surface", "text") >= 4.5, "dark neutral badge, solid pill and today marker");
+
+  const selectable = [
+    "src/components/v3/settings/Settings.tsx",
+    "src/components/v3/settings/sections.tsx",
+    "src/components/v3/settings/StaffSection.tsx",
+    "src/components/v3/calendar/Calendar.tsx",
+    "src/components/v3/calendar/grids.tsx",
+    "src/components/v3/AdmissionsPipelineBoard.tsx",
+    "src/app/(v3)/v3/admissions-pipeline/page.tsx",
+    "src/app/(v3)/v3/tasks/page.tsx",
+    "src/app/(v3)/v3/pipeline/page.tsx",
+    "src/components/v3/PipelineStageViewport.tsx",
+    "src/components/v3/MainHeader.tsx",
+    "src/components/v3/SalesReportNavigation.tsx",
+    "src/components/v3/profile/Profile.tsx",
+    "src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx",
+    "src/app/(v3)/v3/requests/page.tsx",
+    "src/components/v3/profile/ProfileCaseDirectory.tsx",
+  ];
+  for (const path of selectable) {
+    const source = read(path);
+    assert.match(source, /v3-choice/u, `${path} uses the shared selected style`);
+    assert.doesNotMatch(source, /\?\s*"[^"]*\bbg-accent\b[^"]*\btext-on-accent\b/u, `${path} has no solid red selection`);
+    assert.doesNotMatch(source, /border-b-2 border-accent/u, `${path} has no red underline selection`);
+  }
+  // The audit filter chips used to show selection by colour alone.
+  assert.match(read("src/components/v3/settings/sections.tsx"), /aria-current=\{active\.objectType === type\.key \? "page" : undefined\}/u);
+
+  const filterSubmits = [
+    "src/components/v3/Inbox.tsx",
+    "src/components/v3/MainHeader.tsx",
+    "src/app/(v3)/v3/pipeline/page.tsx",
+    "src/app/(v3)/v3/admissions-pipeline/page.tsx",
+    "src/components/v3/universities/UniversityCatalogue.tsx",
+    "src/components/v3/profile/ProfileCaseDirectory.tsx",
+  ];
+  for (const path of filterSubmits) {
+    const source = read(path);
+    const labels = [...source.matchAll(/(?:Найти|Показать)\s*<\/button>/gu)];
+    assert.ok(labels.length > 0, `${path} keeps its filter submit`);
+    for (const label of labels) {
+      const button = source.slice(source.lastIndexOf("<button", label.index), label.index);
+      assert.doesNotMatch(button, /\bbg-accent\b/u, `${path}: filter submit is secondary`);
+    }
+  }
+
+  const directory = read("src/components/v3/profile/ProfileCaseDirectory.tsx");
+  assert.match(directory, /className=\{btnGhostCls\}>Анкета и формы<\/Link>/u);
+  const notifications = read("src/components/v3/StaffNotifications.tsx");
+  assert.doesNotMatch(notifications, /\bbg-accent\b/u);
+  assert.match(notifications, /aria-label=\{count && count !== "0" \? `Уведомления: \$\{count\} непрочитанных` : "Уведомления"\}/u);
+  assert.match(read("src/components/v3/Pill.tsx"), /solid: "bg-fg text-surface",/u);
+});

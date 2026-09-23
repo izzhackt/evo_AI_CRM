@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { btnGhostCls } from "@/components/ui";
 import { AdmissionsPipelineBoard } from "@/components/v3/AdmissionsPipelineBoard";
 import { PartShell } from "@/components/v3/PartShell";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
@@ -65,9 +66,9 @@ export default async function AdmissionsPipelinePart({
   if (view !== undefined && view !== "documents" && view !== "packages") notFound();
   const canReadDocuments = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
   const navigation = canReadDocuments ? <nav className="mb-5 flex flex-wrap gap-3" aria-label="Разделы поступления">
-    <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={boardHref(query)} aria-current={view === undefined ? "page" : undefined}>Воронка поступления</Link>
-    <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=documents`} aria-current={view === "documents" ? "page" : undefined}>Документы на проверку</Link>
-    <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=packages`} aria-current={view === "packages" ? "page" : undefined}>Комплекты на проверку</Link>
+    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={boardHref(query)} aria-current={view === undefined ? "page" : undefined}>Воронка поступления</Link>
+    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=documents`} aria-current={view === "documents" ? "page" : undefined}>Документы на проверку</Link>
+    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=packages`} aria-current={view === "packages" ? "page" : undefined}>Комплекты на проверку</Link>
   </nav> : null;
   if (view === "packages") {
     if (!canReadDocuments) notFound();
@@ -156,10 +157,7 @@ export default async function AdmissionsPipelinePart({
           </label>
         ) : null}
 
-        <button
-          type="submit"
-          className="inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-medium text-on-accent"
-        >
+        <button type="submit" className={btnGhostCls}>
           Найти
         </button>
 

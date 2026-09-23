@@ -111,15 +111,11 @@ export function TaskChip({
       onClick={onSelect}
       aria-expanded={selected}
       aria-controls={selected && panelId ? panelId : undefined}
-      className={`flex min-h-11 w-full flex-col items-start gap-0.5 rounded-nav border px-1.5 py-1 text-start ${
-        selected
-          ? "border-accent bg-accent text-on-accent"
-          : "border-control-edge bg-surface-2 hover:border-accent"
-      }`}
+      className="v3-choice flex min-h-11 w-full flex-col items-start gap-0.5 rounded-nav border border-control-edge bg-surface-2 px-1.5 py-1 text-start hover:border-accent"
     >
       <span
         className={`line-clamp-2 w-full break-words text-sm font-semibold ${
-          selected ? "text-on-accent" : "text-fg"
+          selected ? "" : "text-fg"
         } ${task.state === "done" ? "line-through" : ""}`}
       >
         {task.title}
@@ -129,8 +125,8 @@ export function TaskChip({
           одинаковое, и без имени они неразличимы: пришлось бы открывать
           каждую, чтобы понять, чья. */}
       <span
-        className={`flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs ${
-          selected ? "text-on-accent" : "text-fg-3"
+        className={`flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-normal ${
+          selected ? "text-fg-2" : "text-fg-3"
         }`}
       >
         <span className="font-mono">
@@ -174,7 +170,7 @@ function DayNumberLink({
       <span
         aria-hidden="true"
         className={`grid h-6 min-w-6 place-items-center rounded-nav px-1 font-mono text-xs font-semibold ${
-          isToday ? "bg-accent text-on-accent" : muted ? "text-fg-3" : "text-fg"
+          isToday ? "bg-fg text-surface" : muted ? "text-fg-3" : "text-fg"
         }`}
       >
         {dayNumber(day)}

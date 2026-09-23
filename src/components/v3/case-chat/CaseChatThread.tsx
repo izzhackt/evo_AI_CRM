@@ -485,7 +485,7 @@ function CaseChatList({
         <div role="group" aria-label="Очередь переписок" className="mb-2 flex flex-wrap gap-1">
           {CASE_CHAT_QUEUES.map((value) => <button key={value} type="button" aria-pressed={queue === value}
             onClick={() => onQueue(value)}
-            className={`min-h-11 rounded-ctl px-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${queue === value ? "bg-accent-weak font-semibold text-accent-text" : "text-fg-2 hover:bg-surface-2"}`}>
+            className="v3-choice min-h-11 rounded-ctl px-2 text-sm text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
             {value === "all" ? "Все" : caseChatAwaitState(value)}
           </button>)}
         </div>

@@ -11,6 +11,7 @@ import { StudentsFacetDisclosure } from "./StudentsFacetDisclosure";
 import {
   activeFilters,
   buildFacetGroups,
+  coverageWorkload,
   curatorName,
   type FacetGroup,
   type StudentsCoverage,
@@ -86,7 +87,8 @@ export function StudentsWorkspace({
   const rows = docsMode ? directory.rows.filter((row) => row.access === "full") : directory.rows;
   const docsPageWithoutAccess = docsMode && directory.rows.length > 0 && rows.length === 0;
   const directoryHref = withDocsSection("/v3/profile", docsMode);
-  const workload = coverage.kind === "ready" ? coverage.workspace.curators : null;
+  // Нагрузка — из чтения замещения; отказ по бывшему куратору её не стирает.
+  const workload = coverageWorkload(coverage);
   const groups = buildFacetGroups({
     params,
     docsMode,
@@ -96,7 +98,7 @@ export function StudentsWorkspace({
     workload,
   });
   const filters = activeFilters(params, docsMode, curatorName(params.curatorMembershipId, curators, workload));
-  const coverageCuratorId = coverage.kind === "ready" || coverage.kind === "unavailable" ? coverage.curatorId : null;
+  const coverageCuratorId = coverage.kind === "hidden" || coverage.kind === "invalid" ? null : coverage.curatorId;
   const caption = `Дела студентов: ${rows.length} на этой странице${filters.length ? `. Фильтры: ${filters.map((filter) => filter.label).join(", ")}` : ""}`;
 
   return (

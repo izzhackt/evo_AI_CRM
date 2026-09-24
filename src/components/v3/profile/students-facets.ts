@@ -26,7 +26,31 @@ export type StudentsCoverage =
   | Readonly<{ kind: "hidden" }>
   | Readonly<{ kind: "invalid" }>
   | (StudentsCoverageSelection & Readonly<{ kind: "unavailable" }>)
+  /**
+   * Чтение по выбранному куратору отказано, потому что он больше не куратор
+   * (старая закладка, смена роли), а общее чтение нагрузки удалось и его в
+   * списке нет. Числа фасетов остаются; замещать некого.
+   */
+  | (StudentsCoverageSelection & Readonly<{ kind: "curator_unavailable"; curators: readonly CoverageCurator[] }>)
   | (StudentsCoverageSelection & Readonly<{ kind: "ready"; workspace: CoverageWorkspace }>);
+
+/** Нагрузка кураторов из чтения замещения; null — чтения нет, чисел нет. */
+export function coverageWorkload(coverage: StudentsCoverage): readonly CoverageCurator[] | null {
+  return coverage.kind === "ready" ? coverage.workspace.curators
+    : coverage.kind === "curator_unavailable" ? coverage.curators
+    : null;
+}
+
+/**
+ * Адрес раздела замещения. `curator` держит таблицу и фасет на том же
+ * кураторе, что и раздел, — у всех ссылок раздела, включая «Отмену».
+ */
+export function coverageHref(curatorId: string, caseId?: string, afterCaseId?: string): string {
+  const query = new URLSearchParams({ curator: curatorId, coverage_curator: curatorId });
+  if (caseId) query.set("coverage_case", caseId);
+  if (afterCaseId) query.set("coverage_after", afterCaseId);
+  return `/v3/profile?${query.toString()}#curator-coverage`;
+}
 
 export type StudentsSummary = AdmissionsSummary | "unavailable" | null;
 

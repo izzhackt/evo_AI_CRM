@@ -99,17 +99,23 @@ test("main and sales report have mutually exclusive, query-aware current links",
 
 test("the former summary address lands on «Студенты» for every role", () => {
   // «Сводка по направлениям» is the facet column of «Студенты» since
-  // 2026-09-24; old bookmarks keep working and highlight that page.
+  // 2026-09-24; old bookmarks keep working and highlight that page. Unusual
+  // shapes (repeated or empty values, profile targets, directory filters)
+  // stay on the same destination: none of them opens a separate summary.
   for (const role of ["admin", "sales", "admissions"]) {
     for (const href of [
       "/v3/profile?section=summary", "/v3/profile?section=summary&period=month#admissions-summary",
-      "/v3/profile?section=summary&section=summary", "/v3/profile?case=record&section=summary",
       "/v3/profile", "/v3/profile?section=", "/v3/profile?section=unknown",
+      "/v3/profile?section=summary&section=summary", "/v3/profile?section=summary&section=other",
+      "/v3/profile?case=record&section=summary", "/v3/profile?id=record&section=summary",
+      "/v3/profile?case=&section=summary", "/v3/profile?id=&section=summary",
+      "/v3/profile?case=record&tab=history", "/v3/profile?query=test&state=closed",
     ]) {
       const model = navigation(role, href);
       assert.equal(model.activeId, "admissions-worklist", `${role} ${href}`);
       assert.equal(links(model).some((link) => link.label === "Сводка по направлениям"), false, `${role} ${href}`);
       assert.equal(model.destinationKey, navigation(role, "/v3/profile").destinationKey, `${role} ${href}`);
+      assert.equal(sectionTitle(href), "Студенты", `${role} ${href}`);
     }
   }
   assert.equal(v3SectionTitle("/v3/profile", { section: "summary" }), "Студенты");

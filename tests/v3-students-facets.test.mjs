@@ -13,6 +13,7 @@ import {
   nextStepOverdue,
   rowProblems,
 } from "../src/components/v3/profile/students-facets.ts";
+import { resolveStudentsCoverage } from "../src/lib/v3/students-coverage.ts";
 
 /**
  * «Студенты» — фасеты и таблица (решение владельца 24.09.2026). Логика чисел
@@ -80,6 +81,82 @@ test("curator workload comes only from the coverage read and unknown selections 
   assert.deepEqual(unknown.items.map((entry) => [entry.label, entry.count]), [["Выбранный куратор", null]]);
 });
 
+test("a curator-scoped refusal for a former curator keeps workload counts and names the reason", async () => {
+  const FORMER = "aaaaaaaa-1111-4111-8111-000000000005";
+  const CASE = "cccccccc-2222-4222-8222-000000000002";
+  const admin = { systemRole: "admin", presentationRole: null, permissionKeys: [] };
+  const workload = [{ id: CURATOR, name: "Куратор А", active: true, active_case_count: 7, open_task_count: 2, nearest_due: null }];
+  const workspace = { organization_id: "eeeeeeee-4444-4444-8444-000000000000", curators: workload, cases: [], next_case_id: null, preview: null };
+  // The real reader throws one generic error for every refusal (42501 «Curator
+  // unavailable» included); only an unscoped read can say why.
+  const reader = (answers) => {
+    const calls = [];
+    const read = async (_actor, selection) => {
+      calls.push(selection);
+      const answer = answers[calls.length - 1];
+      if (answer instanceof Error) throw answer;
+      return answer;
+    };
+    return { calls, read };
+  };
+  const refused = new Error("Curator coverage is unavailable.");
+
+  // Facet selection of a former curator: scoped read refused, unscoped read has no such curator.
+  const former = reader([refused, workspace]);
+  assert.deepEqual(await resolveStudentsCoverage(admin, {}, FORMER, former.read), {
+    kind: "curator_unavailable", curators: workload, curatorId: FORMER, caseId: null, afterCaseId: null, explicit: false,
+  });
+  assert.deepEqual(former.calls, [{ curatorId: FORMER, caseId: undefined, afterCaseId: undefined }, {}]);
+
+  // The same for an old coverage bookmark with a case: the section opens with the reason.
+  const bookmark = reader([refused, workspace]);
+  const fromBookmark = await resolveStudentsCoverage(admin, { coverage_curator: FORMER, coverage_case: CASE }, undefined, bookmark.read);
+  assert.equal(fromBookmark.kind, "curator_unavailable");
+  assert.equal(fromBookmark.explicit, true);
+  assert.equal(fromBookmark.caseId, CASE);
+
+  // The curator is still listed: the refusal had another cause, nothing is invented.
+  const other = reader([refused, workspace]);
+  assert.deepEqual(await resolveStudentsCoverage(admin, {}, CURATOR, other.read), {
+    kind: "unavailable", curatorId: CURATOR, caseId: null, afterCaseId: null, explicit: false,
+  });
+  // Both reads failing, or an unscoped read failing, stay unavailable without a retry loop.
+  const both = reader([refused, refused]);
+  assert.equal((await resolveStudentsCoverage(admin, {}, FORMER, both.read)).kind, "unavailable");
+  assert.equal(both.calls.length, 2);
+  const unscoped = reader([refused]);
+  assert.equal((await resolveStudentsCoverage(admin, {}, undefined, unscoped.read)).kind, "unavailable");
+  assert.equal(unscoped.calls.length, 1);
+
+  // A successful scoped read is used as is; no second read.
+  const ready = reader([workspace]);
+  assert.equal((await resolveStudentsCoverage(admin, {}, CURATOR, ready.read)).kind, "ready");
+  assert.equal(ready.calls.length, 1);
+  // Access and parameter rules are unchanged and never reach the reader.
+  const untouched = reader([]);
+  assert.deepEqual(await resolveStudentsCoverage({ ...admin, presentationRole: "admissions" }, {}, FORMER, untouched.read), { kind: "hidden" });
+  assert.deepEqual(await resolveStudentsCoverage({ systemRole: "staff", presentationRole: null, permissionKeys: [] }, {}, FORMER, untouched.read), { kind: "hidden" });
+  assert.deepEqual(await resolveStudentsCoverage(admin, { coverage_case: CASE }, undefined, untouched.read), { kind: "invalid" });
+  assert.equal(untouched.calls.length, 0);
+});
+
+test("the coverage section states why it cannot cover instead of opening empty", () => {
+  const unavailable = surfaces.get("curator-unavailable");
+  const section = unavailable.match(/<section id="curator-coverage"[\s\S]*?<\/section>/u)?.[0] ?? "";
+  assert.match(section, /<details><summary[^>]*>Замещение куратора<\/summary><div[^>]*><p role="status" class="text-sm text-fg-2">Этот куратор сейчас недоступен для замещения\.<\/p><\/div><\/details>/u);
+  assert.doesNotMatch(section, /Нагрузка сейчас недоступна/u);
+  // Workload counts stay in the curator facet; the former curator has no number.
+  const curatorFacet = unavailable.match(/<section aria-labelledby="students-facet-curator">[\s\S]*?<\/section>/u)?.[0] ?? "";
+  for (const count of ["104", "96", "78"]) assert.match(curatorFacet, new RegExp(`<span class="sr-only">в работе: </span>${count}</span>`, "u"), count);
+  assert.match(curatorFacet, /aria-current="true"[^>]*><span[^>]*>Выбранный куратор<\/span><span class="sr-only">, снять фильтр<\/span>/u);
+  assert.doesNotMatch(unavailable, /Нагрузка кураторов сейчас недоступна/u);
+
+  // A successful read without the selected curator: the same single line, no case picker.
+  const missing = surfaces.get("curator-missing");
+  assert.match(missing, /<details open=""><summary[^>]*>Замещение куратора<\/summary><div[^>]*><p role="status" class="text-sm text-fg-2">Этот куратор сейчас недоступен для замещения\.<\/p><\/div><\/details>/u);
+  assert.doesNotMatch(missing, /Найти студента<\/span><select name="coverage_case"/u);
+});
+
 test("facet links keep the URL filter contract, docs section and toggles", () => {
   const groups = buildFacetGroups({ params: params({ direction: "MY", attention: "overdue", query: "Ким" }), docsMode: true, allowAdmissionsFilters: true, summary: SUMMARY, curators: [], workload: null });
   const direction = group(groups, "direction");
@@ -145,6 +222,8 @@ test("rendered facets show summary numbers and mark only the selected facets wit
   assert.match(filtered, /data-testid="v3-curator-coverage"/u);
   assert.match(filtered, /<details open="">/u);
   assert.match(filtered, /data-testid="v3-curator-coverage-form"/u);
+  // «Отмена» keeps the table on the same curator, like every coverage link.
+  assert.match(filtered, new RegExp(`href="/v3/profile\\?curator=${CURATOR}&amp;coverage_curator=${CURATOR}#curator-coverage">Отмена</a>`, "u"));
   // The summary is read with the chosen curator, so «Все» narrows with it.
   assert.match(filtered, /Все<\/span><span class="shrink-0 font-mono tabular-nums text-fg-3"><span class="sr-only">в работе: <\/span>104<\/span>/u);
   // Coverage dates use the table's mono day.month format.
@@ -196,6 +275,11 @@ test("dense rows: direction folds under the name, fixed vocabulary never hyphena
   assert.doesNotMatch(table, /hyphens-auto/u);
   assert.match(table, /@3xl:line-clamp-2" title=\{row\.nextAction\}/u);
   assert.match(table, /@3xl:block @3xl:truncate" title=\{row\.admissionsDisplayName\}/u);
+  // Name hit area: 20 px line + 8 px up to the cell edge + 16 px down = 44 px in
+  // the table (48 px in the stack), never above the cell (the sticky header and
+  // the previous row would take it). Measured in Chromium, see PR #1050.
+  assert.match(table, /@3xl:leading-5 before:absolute before:-inset-x-1 before:-top-2 before:-bottom-4 /u);
+  assert.doesNotMatch(table, /before:-inset-y-/u);
   const html = surfaces.get("admin-default");
   // Name and «direction · degree» share the row header; in the stack the stage
   // continues the same text run (aria-hidden: the stage cell stays for readers).

@@ -83,6 +83,8 @@ const CURATOR_A = "aaaaaaaa-1111-4111-8111-000000000001";
 const CURATOR_B = "aaaaaaaa-1111-4111-8111-000000000002";
 const CURATOR_C = "aaaaaaaa-1111-4111-8111-000000000003";
 const CURATOR_D = "aaaaaaaa-1111-4111-8111-000000000004";
+// Бывший куратор: старая закладка на фасет после смены роли.
+const FORMER_CURATOR = "aaaaaaaa-1111-4111-8111-000000000005";
 const caseId = (n) => `cccccccc-2222-4222-8222-${String(n).padStart(12, "0")}`;
 
 function fullRow(n, fields) {
@@ -224,6 +226,18 @@ const SCENARIOS = {
     coverage: readyCoverage({ curatorId: CURATOR_A, caseId: caseId(2), explicit: true }),
   },
   "summary-unavailable": { ...base, summary: "unavailable", coverage: { kind: "unavailable", curatorId: null, caseId: null, afterCaseId: null, explicit: false } },
+  // Чтение по бывшему куратору отказано (42501), общее чтение нагрузки удалось.
+  "curator-unavailable": {
+    ...base,
+    params: params({ curatorMembershipId: FORMER_CURATOR }),
+    coverage: { kind: "curator_unavailable", curatorId: FORMER_CURATOR, caseId: null, afterCaseId: null, explicit: false, curators: COVERAGE_CURATORS },
+  },
+  // Чтение удалось, но выбранного куратора в списке нагрузки нет.
+  "curator-missing": {
+    ...base,
+    params: params({ curatorMembershipId: FORMER_CURATOR }),
+    coverage: readyCoverage({ curatorId: FORMER_CURATOR, explicit: true }),
+  },
   "curator-role": { ...base, curators: [], coverage: { kind: "hidden" }, params: params({ attention: "overdue" }) },
   sales: {
     ...base,

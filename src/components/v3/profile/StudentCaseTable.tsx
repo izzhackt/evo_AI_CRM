@@ -28,6 +28,14 @@ const ACTION_CELL = "block min-w-0 @3xl:table-cell @3xl:px-2 @3xl:py-1 @3xl:alig
 const ROW_ACTION = "inline-flex min-h-11 items-center rounded-nav px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 hover:text-fg";
 /** Имя в таблице — одной строкой; полное имя — в тексте ссылки и в подсказке. */
 const NAME = "block [overflow-wrap:anywhere] @3xl:truncate";
+/*
+ * Область нажатия имени — не меньше 44 px и целиком внутри своей ячейки:
+ * 8 px вверх до края ячейки (py-2 в таблице, py-3 в стопке) и 16 px вниз на
+ * строку «направление · уровень». В таблице 20 + 8 + 16 = 44 px, в стопке
+ * 24 + 8 + 16 = 48 px. Вверх не выходим: над первой строкой липкая шапка
+ * перекрыла бы выступ, над остальными он забирал бы нажатия у соседа.
+ */
+const NAME_LINK = "relative block w-fit max-w-full text-base font-semibold text-fg underline-offset-4 @3xl:leading-5 before:absolute before:-inset-x-1 before:-top-2 before:-bottom-4 before:content-[''] hover:underline";
 const HEAD = "@3xl:sticky @3xl:top-0 @3xl:z-10 @3xl:bg-bg px-2 py-2.5 text-start text-xs font-semibold text-fg-2 shadow-[inset_0_-1px_0_var(--border)] first:ps-3";
 const TONE = {
   danger: "font-medium text-danger",
@@ -78,10 +86,7 @@ function StudentCell({ row, href, stage }: Readonly<{ row: V3ProfileCaseDirector
   return (
     <th scope="row" role="rowheader" className={`${DATA_CELL} order-1 basis-full text-start font-normal`}>
       {href ? (
-        <Link
-          href={href}
-          className="relative block w-fit max-w-full text-base font-semibold text-fg underline-offset-4 @3xl:leading-5 before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:underline"
-        >
+        <Link href={href} className={NAME_LINK}>
           <span className={NAME} title={row.studentDisplayName}>{row.studentDisplayName}</span>
         </Link>
       ) : (

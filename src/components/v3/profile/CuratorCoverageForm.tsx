@@ -10,6 +10,7 @@ import type { CoverageCurator, CoveragePreview } from "@/lib/platform-case-cover
 import { coverageConflictLabel } from "@/lib/v3/wording";
 
 import { CoverageDueTime } from "./CoverageDueTime";
+import { coverageHref } from "./students-facets";
 
 function revision(preview: CoveragePreview): string {
   return JSON.stringify([preview.owner_id, preview.scope_version, preview.coverage?.id,
@@ -156,7 +157,7 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today }:
         <button type="submit" disabled={!canSubmit} className={CONFIRM}>
           {pending ? "Сохраняем…" : returning ? "Подтвердить возврат" : "Подтвердить замещение"}
         </button>
-        {!pending ? <Link className={`${btnGhostCls} min-h-11`} href={`/v3/profile?coverage_curator=${preview.owner_id}#curator-coverage`}>Отмена</Link> : null}
+        {!pending ? <Link className={`${btnGhostCls} min-h-11`} href={coverageHref(preview.owner_id)}>Отмена</Link> : null}
       </div>
     </form>
   );

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import { CoverageDueTime } from "./CoverageDueTime";
 import { CuratorCoverageForm } from "./CuratorCoverageForm";
-import type { StudentsCoverage } from "./students-facets";
+import { coverageHref as href, coverageWorkload, type StudentsCoverage } from "./students-facets";
 
 /**
  * Нагрузка и замещение куратора внутри «Студентов» (24.09.2026): открывается
@@ -11,13 +11,6 @@ import type { StudentsCoverage } from "./students-facets";
  * раздел виден только при `case.curator.assign`, чтение и перенос — те же
  * `read_curator_coverage_workspace` и `CuratorCoverageForm`.
  */
-function href(curatorId: string, caseId?: string, afterCaseId?: string): string {
-  // `curator` держит таблицу и фасет на том же кураторе, что и раздел замещения.
-  const query = new URLSearchParams({ curator: curatorId, coverage_curator: curatorId });
-  if (caseId) query.set("coverage_case", caseId);
-  if (afterCaseId) query.set("coverage_after", afterCaseId);
-  return `/v3/profile?${query.toString()}#curator-coverage`;
-}
 
 const LINK = "inline-flex min-h-11 items-center text-sm font-medium text-fg underline decoration-border-strong underline-offset-4 hover:decoration-fg";
 
@@ -44,7 +37,11 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today 
       : null;
   }
   const workspace = coverage.kind === "ready" ? coverage.workspace : null;
-  const selected = workspace?.curators.find((curator) => curator.id === curatorId) ?? null;
+  const workload = coverageWorkload(coverage);
+  const selected = workload?.find((curator) => curator.id === curatorId) ?? null;
+  // Нагрузка прочитана, а выбранного среди кураторов нет: замещать некого.
+  // Раздел говорит это одной строкой, а не раскрывается пустым.
+  const notCurator = workload !== null && !selected;
   const name = selected?.name ?? fallbackName ?? "Выбранный куратор";
   return (
     <section id="curator-coverage" aria-labelledby="curator-coverage-title" data-testid="v3-curator-coverage" className="border-b border-border pb-2">
@@ -57,12 +54,13 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today 
           {!selected.active ? <div><dt className="sr-only">Назначение: </dt><dd className="inline">недоступен для нового назначения</dd></div> : null}
         </dl> : null}
       </div>
-      {!workspace ? <p role="alert" className="py-2 text-sm text-fg-2">Нагрузка сейчас недоступна. Это не означает, что дел или задач нет. <Link href={href(curatorId, caseId ?? undefined, afterCaseId ?? undefined)} className="underline underline-offset-4">Повторить чтение</Link>.</p> : null}
+      {!workload ? <p role="alert" className="py-2 text-sm text-fg-2">Нагрузка сейчас недоступна. Это не означает, что дел или задач нет. <Link href={href(curatorId, caseId ?? undefined, afterCaseId ?? undefined)} className="underline underline-offset-4">Повторить чтение</Link>.</p> : null}
       {/* One stable position for the form: a failed re-read keeps the open draft
           (CuratorCoverageForm holds its last read and blocks submission). */}
-      {workspace || caseId ? <details open={explicit}>
+      {workload || caseId ? <details open={explicit}>
         <summary className={`${LINK} cursor-pointer`}>Замещение куратора</summary>
         <div className="space-y-4 pb-4 pt-2">
+          {notCurator ? <p role="status" className="text-sm text-fg-2">Этот куратор сейчас недоступен для замещения.</p> : null}
           {workspace ? <>
             {selected ? <>
               {workspace.cases.length === 0 ? <p className="text-sm text-fg-2">На этой странице активных дел нет.</p> : <form action="/v3/profile#curator-coverage" method="get" className="flex flex-wrap items-end gap-3">

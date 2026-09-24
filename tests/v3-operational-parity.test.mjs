@@ -13,13 +13,14 @@ test("both V3 role homes render the canonical role-scoped operational dashboard"
   const adapter = source("src/lib/v3/operations-source.ts");
   const overview = source("src/components/v3/OperationsOverview.tsx");
 
-  // Главная остаётся единственным местом с рабочим обзором: календарь на неё
-  // ссылается, а не рисует ту же сводку второй раз.
+  // Главная остаётся единственным местом с рабочим обзором: календарь не
+  // рисует ту же сводку второй раз. Карточка-ссылка «Сводка на Главной» снята
+  // решением владельца 25.09.2026 — «Главная» первым пунктом меню у всех ролей.
   assert.match(main, /readV3OperationalDashboard\(actor\)/u);
   assert.match(main, /<OperationsOverview snapshot=\{operations\} \/>/u);
   assert.doesNotMatch(calendar, /OperationsOverview/u);
-  assert.match(calendar, /href="\/v3\/main"/u);
-  assert.match(calendar, /Сводка на Главной/u);
+  assert.doesNotMatch(calendar, /href="\/v3\/main"/u);
+  assert.doesNotMatch(calendar, /Сводка на Главной/u);
   assert.match(adapter, /readPlatformDashboardSnapshot\(actor\)/u);
   assert.match(adapter, /ActivePlatformActor/u);
   for (const key of ["sales", "clients", "tasks", "finance", "whatsapp"]) {

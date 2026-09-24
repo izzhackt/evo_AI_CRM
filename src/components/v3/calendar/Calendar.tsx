@@ -250,13 +250,16 @@ export function Calendar({
             })}
           </ul>
         </nav>
+        {/* Единственный способ создать задачу по студенту прямо из календаря —
+            поэтому кнопка остаётся, но тихой: сплошной красный на странице один,
+            «Создать задачу» в верхней панели (решение владельца 25.09). */}
         {canCreate ? <button type="button" aria-haspopup="dialog" aria-controls={panelId}
-          className="min-h-11 rounded-ctl bg-accent px-3 text-sm font-semibold text-on-accent hover:opacity-90"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 hover:text-fg"
           onClick={(event) => {
             trigger.current = event.currentTarget;
             closing.current = false;
             setPanel({ targetKey, mode: "create" });
-          }}>Задача по студенту</button> : null}
+          }}><Icon name="plus" size={16} />Задача по студенту</button> : null}
       </div>
 
       <div className={`grid min-w-0 items-start gap-4 ${panelOpen ? "lg:grid-cols-[minmax(0,1fr)_22rem]" : "grid-cols-1"}`}>

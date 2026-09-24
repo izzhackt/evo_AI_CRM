@@ -14,7 +14,6 @@ export type V3NavigationLinkId =
   | "messages"
   | "admissions-worklist"
   | "evo-docs"
-  | "admissions-summary"
   | "universities"
   | "inbox"
   | "calendar"
@@ -90,13 +89,8 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Студенты" },
       { id: "evo-docs", href: "/v3/profile?section=docs", route: "/v3/profile", label: "EVO Docs", capability: "admissions.read" },
       { id: "universities", href: "/v3/universities", route: "/v3/universities", label: "Университеты" },
-      {
-        id: "admissions-summary",
-        href: "/v3/profile?section=summary#admissions-summary",
-        route: "/v3/profile",
-        label: "Сводка по направлениям",
-        capability: "admissions.read",
-      },
+      // «Сводка по направлениям» removed 2026-09-24: its counts are the facets
+      // of «Студенты» now; `/v3/profile?section=summary` resolves to that page.
     ],
   },
 ];
@@ -135,10 +129,7 @@ export function v3SectionTitle(
   const id: V3NavigationLinkId | undefined = pathname === "/v3/main"
     ? isSingleValue(query, "view", "sales") ? "sales-report" : "home"
     : pathname === "/v3/profile"
-      ? isSingleValue(query, "section", "docs") ? "evo-docs"
-        : isSingleValue(query, "section", "summary") && !query.has("case") && !query.has("id")
-          ? "admissions-summary"
-          : "admissions-worklist"
+      ? isSingleValue(query, "section", "docs") ? "evo-docs" : "admissions-worklist"
       : pathname.startsWith("/v3/universities/")
         ? "universities"
         : ALL_LINKS.find((link) => link.route === pathname)?.id;
@@ -177,14 +168,10 @@ export function buildV3Navigation(
   if (pathname === "/v3/main") {
     candidate = isSingleValue(query, "view", "sales") ? "sales-report" : "home";
   } else if (pathname === "/v3/profile") {
-    // Explicit targets (including malformed/empty ones) render a profile or
-    // its error state, never the directory summary. Match the page contract.
+    // The former summary address (`?section=summary`) is the same «Студенты»
+    // page since 2026-09-24; only EVO Docs is a separate destination here.
     candidate = isSingleValue(query, "section", "docs") && links.some(link => link.id === "evo-docs")
       ? "evo-docs"
-      : isSingleValue(query, "section", "summary")
-      && !query.has("case") && !query.has("id")
-      && staffPresentationCan(actor, "admissions.read")
-      ? "admissions-summary"
       : "admissions-worklist";
   } else if (pathname.startsWith("/v3/universities/")) {
     candidate = "universities";

@@ -44,8 +44,9 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   const page = source("src/app/(v3)/v3/profile/page.tsx");
   const adapter = source("src/lib/v3/profile-source.ts");
   const directory = source(
-    "src/components/v3/profile/ProfileCaseDirectory.tsx",
+    "src/components/v3/profile/StudentsWorkspace.tsx",
   );
+  const facets = source("src/components/v3/profile/students-facets.ts");
 
   assert.match(page, /parseV3ProfileCaseDirectoryParams\(params\)/u);
   assert.match(page, /loadV3ProfileRoute\(routeMode/u);
@@ -90,21 +91,28 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   }
   assert.match(directory, /name="case_q"/u);
   assert.match(directory, /name="case_status"/u);
-  assert.match(directory, /value="closed"/u);
+  // Status is a facet since 2026-09-24; «Закрыто» stays one of its filters.
+  assert.match(facets, /const STATE_ORDER = \["active", "pending", "closed"\]/u);
+  assert.match(facets, /closed: "Закрыто"/u);
   const directoryLinks = source("src/components/v3/profile/admissions-view.ts");
   assert.match(directoryLinks, /case_before_at/u);
   assert.match(directoryLinks, /case_before_id/u);
   assert.match(directory, /admissionsDirectoryHref\(params, directory\.nextCursor, docsMode\)/u);
+  // Rows live in the semantic table since 2026-09-24 (StudentCaseTable).
+  const table = source("src/components/v3/profile/StudentCaseTable.tsx");
   assert.match(
-    directory,
-    /row\.access === "full" \? withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{docsMode \? "anketa" : "route"\}`, docsMode\)/u,
+    table,
+    /if \(row\.access === "full"\) \{\s*return withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{docsMode \? "anketa" : "route"\}`, docsMode\);/u,
   );
-  assert.match(directory, /row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null/u);
-  assert.match(directory, /data-access=\{row\.access\}/u);
-  assert.match(directory, /href=\{href\}[\s\S]*\{row\.studentDisplayName\}/u);
-  assert.match(directory, /aria-label="Доступные дела студентов"/u);
-  assert.doesNotMatch(directory, />\s*\{row\.studentCaseId\}\s*</u);
-  assert.doesNotMatch(directory, /href=["']\/clients/u);
+  assert.match(table, /return row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null;/u);
+  assert.match(table, /data-access=\{row\.access\}/u);
+  assert.match(table, /href=\{href\}[\s\S]*\{row\.studentDisplayName\}/u);
+  assert.match(table, /<caption className="sr-only">\{caption\}<\/caption>/u);
+  assert.match(directory, /const caption = `Дела студентов: \$\{rows\.length\} на этой странице/u);
+  for (const file of [directory, table]) {
+    assert.doesNotMatch(file, />\s*\{row\.studentCaseId\}\s*</u);
+    assert.doesNotMatch(file, /href=["']\/clients/u);
+  }
 });
 
 test("the student directory stays discoverable from navigation and both inbox queues", () => {

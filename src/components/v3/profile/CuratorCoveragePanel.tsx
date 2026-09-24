@@ -1,85 +1,95 @@
-import { staffHasPermission } from "@/lib/platform-access";
-import { randomUUID } from "node:crypto";
-
 import Link from "next/link";
 
 import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
-import type { PlatformActor } from "@/lib/platform-auth";
-import { coverageDeadlineLabel, parseCoverageUuid } from "@/lib/platform-case-coverage-contract";
-import { readCuratorCoverageWorkspace } from "@/lib/server/curator-coverage-source";
+import { coverageDeadlineLabel } from "@/lib/platform-case-coverage-contract";
 
 import { CuratorCoverageForm } from "./CuratorCoverageForm";
+import type { StudentsCoverage } from "./students-facets";
 
-type Query = Readonly<Record<string, string | readonly string[] | undefined>>;
+/**
+ * Нагрузка и замещение куратора внутри «Студентов» (24.09.2026): открывается
+ * выбором куратора в фасете, без отдельной карточки. Поведение и права прежние:
+ * раздел виден только при `case.curator.assign`, чтение и перенос — те же
+ * `read_curator_coverage_workspace` и `CuratorCoverageForm`.
+ */
 function href(curatorId: string, caseId?: string, afterCaseId?: string): string {
-  const query = new URLSearchParams({ coverage_curator: curatorId });
+  // `curator` держит таблицу и фасет на том же кураторе, что и раздел замещения.
+  const query = new URLSearchParams({ curator: curatorId, coverage_curator: curatorId });
   if (caseId) query.set("coverage_case", caseId);
   if (afterCaseId) query.set("coverage_after", afterCaseId);
   return `/v3/profile?${query.toString()}#curator-coverage`;
 }
 
-export async function CuratorCoveragePanel({ actor, params }: Readonly<{ actor: PlatformActor; params: Query }>) {
-  if (!staffHasPermission(actor, "case.curator.assign")) return null;
-  const requested = [params.coverage_curator, params.coverage_case, params.coverage_after];
-  const parsed = requested.map((value) => value === undefined ? undefined : parseCoverageUuid(value));
-  const [curatorId, caseId, afterCaseId] = parsed;
-  const invalid = parsed.includes(null) || Boolean((caseId || afterCaseId) && !curatorId);
-  let workspace = null;
-  if (!invalid) {
-    try {
-      workspace = await readCuratorCoverageWorkspace(actor, {
-        curatorId: curatorId ?? undefined, caseId: caseId ?? undefined, afterCaseId: afterCaseId ?? undefined,
-      });
-    } catch { /* A missing/denied projection must not appear as zero workload. */ }
+const LINK = "inline-flex min-h-11 items-center text-sm font-medium text-fg underline decoration-border-strong underline-offset-4 hover:decoration-fg";
+
+export function CuratorCoveragePanel({ coverage, fallbackName, requestId }: Readonly<{
+  coverage: StudentsCoverage;
+  /** Имя из списка кураторов, если чтение нагрузки недоступно. */
+  fallbackName: string | null;
+  requestId: string;
+}>) {
+  if (coverage.kind === "hidden") return null;
+  if (coverage.kind === "invalid") {
+    return <section id="curator-coverage" aria-label="Замещение куратора" data-testid="v3-curator-coverage" className="border-b border-border pb-3">
+      <p role="alert" className="py-2 text-sm text-fg-2">Параметры замещения не приняты. <Link href="/v3/profile" className="underline underline-offset-4">Начать выбор заново</Link>.</p>
+    </section>;
   }
-  const selected = workspace?.curators.find((curator) => curator.id === curatorId);
+  const { curatorId, caseId, afterCaseId, explicit } = coverage;
+  if (!curatorId) {
+    return coverage.kind === "unavailable" && explicit
+      ? <section id="curator-coverage" aria-label="Замещение куратора" data-testid="v3-curator-coverage" className="border-b border-border pb-3">
+        <p role="alert" className="py-2 text-sm text-fg-2">Нагрузка сейчас недоступна. Это не означает, что дел или задач нет.</p>
+      </section>
+      : null;
+  }
+  const workspace = coverage.kind === "ready" ? coverage.workspace : null;
+  const selected = workspace?.curators.find((curator) => curator.id === curatorId) ?? null;
+  const name = selected?.name ?? fallbackName ?? "Выбранный куратор";
   return (
-    <details id="curator-coverage" className="rounded-card border border-border bg-surface" open={requested.some((value) => value !== undefined)} data-testid="v3-curator-coverage">
-      <summary className="min-h-11 cursor-pointer px-5 py-4 font-semibold text-fg">Нагрузка и замещение кураторов</summary>
-      <div className="space-y-5 border-t border-border p-5">
-        <p className="text-sm text-fg-2">Активные дела, открытые задачи и ближайший срок. Выберите куратора, затем студента для проверки переноса.</p>
-        {invalid ? <p role="alert" className="text-sm text-fg-2">Параметры выбора не приняты. <Link href="/v3/profile#curator-coverage" className="underline">Начать выбор заново</Link>.</p>
-          : !workspace ? <p role="alert" className="text-sm text-fg-2">Нагрузка сейчас недоступна. Это не означает, что дел или задач нет. <Link href={curatorId ? href(curatorId, caseId ?? undefined, afterCaseId ?? undefined) : "/v3/profile#curator-coverage"} className="underline">Повторить чтение</Link>.</p>
-            : <>
-              {workspace.curators.length === 0 ? <p className="text-sm text-fg-2">Кураторов пока нет.</p> : <ul className="divide-y divide-border">
-                {workspace.curators.map((curator) => <li key={curator.id} className="grid gap-2 py-3 first:pt-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                  <div className="min-w-0">
-                    <Link href={href(curator.id)} aria-current={curator.id === curatorId ? "page" : undefined} className="inline-flex min-h-11 items-center break-words text-sm font-semibold text-fg hover:underline">{curator.name}</Link>
-                    {!curator.active ? <p className="text-sm text-fg-2">Недоступен для нового назначения</p> : null}
-                  </div>
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                    <div><dt className="text-fg-2">Активных дел</dt><dd className="font-medium text-fg">{curator.active_case_count}</dd></div>
-                    <div><dt className="text-fg-2">Открытых задач</dt><dd className="font-medium text-fg">{curator.open_task_count}</dd></div>
-                    <div className="col-span-2"><dt className="inline text-fg-2">Ближайший срок: </dt><dd className="inline text-fg">{coverageDeadlineLabel(curator.nearest_due)}</dd></div>
-                  </dl>
-                </li>)}
-              </ul>}
-              {selected ? <div className="space-y-3 border-t border-border pt-4">
-                <h3 className="font-semibold text-fg">Студенты: {selected.name}</h3>
-                {workspace.cases.length === 0 ? <p className="text-sm text-fg-2">На этой странице активных дел нет.</p> : <form action="/v3/profile#curator-coverage" method="get" className="flex flex-wrap items-end gap-3">
-                  <input type="hidden" name="coverage_curator" value={selected.id} />
-                  {afterCaseId ? <input type="hidden" name="coverage_after" value={afterCaseId} /> : null}
-                  <label className="min-w-0 flex-1 basis-56"><span className={labelCls}>Найти студента</span>
-                    <select name="coverage_case" defaultValue={caseId ?? ""} required className={`${inputCls} min-h-11`}>
-                      <option value="">Выберите студента</option>
-                      {workspace.cases.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
-                      {workspace.preview && !workspace.cases.some((student) => student.id === workspace.preview!.id) ? <option value={workspace.preview.id}>{workspace.preview.name}</option> : null}
-                    </select>
-                  </label>
-                  <button type="submit" className={`${btnGhostCls} min-h-11`}>Проверить перенос</button>
-                </form>}
-                <div className="flex flex-wrap gap-3">
-                  {afterCaseId ? <Link href={href(selected.id)} className={`${btnGhostCls} min-h-11`}>К началу списка</Link> : null}
-                  {workspace.next_case_id ? <Link href={href(selected.id, undefined, workspace.next_case_id)} className={`${btnGhostCls} min-h-11`}>Следующие студенты</Link> : null}
-                </div>
-              </div> : null}
-            </>}
-        {workspace?.preview && workspace.preview.owner_id !== curatorId ? <div role="alert" className="space-y-2 border-s-2 border-border ps-3 text-sm text-fg-2">
-          <p>Текущий куратор: {workspace.curators.find((curator) => curator.id === workspace.preview!.owner_id)?.name}. Старый выбор больше не подходит для переноса.</p>
-          <Link href={href(workspace.preview.owner_id, workspace.preview.id)} className={`${btnGhostCls} min-h-11`}>Открыть актуальное назначение</Link>
-        </div> : null}
-        {caseId ? <CuratorCoverageForm key={caseId} preview={workspace?.preview ?? null} curators={workspace?.curators ?? []} requestId={randomUUID()} /> : null}
+    <section id="curator-coverage" aria-labelledby="curator-coverage-title" data-testid="v3-curator-coverage" className="border-b border-border pb-2">
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+        <h2 id="curator-coverage-title" className="text-base font-semibold text-fg">{name}</h2>
+        {selected ? <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-fg-2">
+          <div><dt className="inline">Активных дел: </dt><dd className="inline font-mono text-fg">{selected.active_case_count}</dd></div>
+          <div><dt className="inline">Открытых задач: </dt><dd className="inline font-mono text-fg">{selected.open_task_count}</dd></div>
+          <div><dt className="inline">Ближайший срок: </dt><dd className="inline text-fg">{coverageDeadlineLabel(selected.nearest_due)}</dd></div>
+          {!selected.active ? <div><dt className="sr-only">Назначение: </dt><dd className="inline">недоступен для нового назначения</dd></div> : null}
+        </dl> : null}
       </div>
-    </details>
+      {!workspace ? <p role="alert" className="py-2 text-sm text-fg-2">Нагрузка сейчас недоступна. Это не означает, что дел или задач нет. <Link href={href(curatorId, caseId ?? undefined, afterCaseId ?? undefined)} className="underline underline-offset-4">Повторить чтение</Link>.</p> : null}
+      {/* One stable position for the form: a failed re-read keeps the open draft
+          (CuratorCoverageForm holds its last read and blocks submission). */}
+      {workspace || caseId ? <details open={explicit}>
+        <summary className={`${LINK} cursor-pointer`}>Замещение куратора</summary>
+        <div className="space-y-4 pb-4 pt-2">
+          {workspace ? <>
+            {selected ? <>
+              {workspace.cases.length === 0 ? <p className="text-sm text-fg-2">На этой странице активных дел нет.</p> : <form action="/v3/profile#curator-coverage" method="get" className="flex flex-wrap items-end gap-3">
+                <input type="hidden" name="curator" value={selected.id} />
+                <input type="hidden" name="coverage_curator" value={selected.id} />
+                {afterCaseId ? <input type="hidden" name="coverage_after" value={afterCaseId} /> : null}
+                <label className="min-w-0 flex-1 basis-56"><span className={labelCls}>Найти студента</span>
+                  <select name="coverage_case" defaultValue={caseId ?? ""} required className={`${inputCls} min-h-11`}>
+                    <option value="">Выберите студента</option>
+                    {workspace.cases.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                    {workspace.preview && !workspace.cases.some((student) => student.id === workspace.preview!.id) ? <option value={workspace.preview.id}>{workspace.preview.name}</option> : null}
+                  </select>
+                </label>
+                <button type="submit" className={`${btnGhostCls} min-h-11`}>Проверить перенос</button>
+              </form>}
+              {afterCaseId || workspace.next_case_id ? <nav aria-label="Страницы студентов куратора" className="flex flex-wrap gap-x-5">
+                {afterCaseId ? <Link href={href(selected.id)} className={LINK}>К началу списка</Link> : null}
+                {workspace.next_case_id ? <Link href={href(selected.id, undefined, workspace.next_case_id)} className={LINK}>Следующие студенты</Link> : null}
+              </nav> : null}
+            </> : null}
+            {workspace.preview && workspace.preview.owner_id !== curatorId ? <div role="alert" className="space-y-2 text-sm text-fg-2">
+              <p>Текущий куратор: {workspace.curators.find((curator) => curator.id === workspace.preview!.owner_id)?.name}. Старый выбор больше не подходит для переноса.</p>
+              <Link href={href(workspace.preview.owner_id, workspace.preview.id)} className={`${btnGhostCls} min-h-11`}>Открыть актуальное назначение</Link>
+            </div> : null}
+          </> : null}
+          {caseId ? <CuratorCoverageForm key={caseId} preview={workspace?.preview ?? null} curators={workspace?.curators ?? []} requestId={requestId} /> : null}
+        </div>
+      </details> : null}
+    </section>
   );
 }

@@ -63,13 +63,15 @@ test("role settings retain native disclosure and shell retains visible preview e
 });
 
 test("directory filters reset native form state when applied URL filters change", () => {
-  const directory = read("src/components/v3/profile/ProfileCaseDirectory.tsx");
+  // «Студенты» facets (2026-09-24): status/curator/attention are facet links;
+  // the search form carries them as hidden fields so a new query keeps them.
+  const directory = read("src/components/v3/profile/StudentsWorkspace.tsx");
   assert.match(directory, /<form\s+key=\{JSON\.stringify\(params\)\}/u);
   assert.match(directory, /defaultValue=\{params\.query\}/u);
-  assert.match(directory, /defaultValue=\{params\.state \?\? ""\}/u);
+  assert.match(directory, /<input type="hidden" name="case_status" value=\{params\.state\} \/>/u);
   // Since #836 the reset link preserves the chosen section (docs vs worklist).
   assert.match(directory, /const directoryHref = withDocsSection\("\/v3\/profile", docsMode\);/u);
-  assert.match(directory, /<a\s[^>]*href=\{directoryHref\}\s*>\s*Сбросить\s*<\/a>/u);
+  assert.match(directory, /<Link href=\{directoryHref\}[^>]*>\s*Сбросить\s*<\/Link>/u);
 });
 
 test("sales table scroll regions contain absolutely positioned screen-reader labels", () => {
@@ -108,7 +110,7 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/profile/Profile.tsx",
     "src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx",
     "src/app/(v3)/v3/requests/page.tsx",
-    "src/components/v3/profile/ProfileCaseDirectory.tsx",
+    "src/components/v3/profile/StudentsWorkspace.tsx",
   ];
   for (const path of selectable) {
     const source = read(path);
@@ -130,7 +132,7 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/app/(v3)/v3/pipeline/page.tsx",
     "src/app/(v3)/v3/admissions-pipeline/page.tsx",
     "src/components/v3/universities/UniversityCatalogue.tsx",
-    "src/components/v3/profile/ProfileCaseDirectory.tsx",
+    "src/components/v3/profile/StudentsWorkspace.tsx",
   ];
   for (const path of filterSubmits) {
     const source = read(path);
@@ -142,7 +144,7 @@ test("solid red stays for the main action and every selection shares one accent-
     }
   }
 
-  const directory = read("src/components/v3/profile/ProfileCaseDirectory.tsx");
+  const directory = read("src/components/v3/profile/StudentCaseTable.tsx");
   assert.match(directory, /className=\{btnGhostCls\}>Анкета и формы<\/Link>/u);
   const notifications = read("src/components/v3/StaffNotifications.tsx");
   assert.doesNotMatch(notifications, /\bbg-accent\b/u);

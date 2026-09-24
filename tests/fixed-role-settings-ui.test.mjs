@@ -83,7 +83,10 @@ test("the V3 shell renders assigned permissions and a protected Admin preview", 
     const links = [navigation.home, ...navigation.groups.flatMap((group) => group.links), ...navigation.common, navigation.settings].filter(Boolean);
     for (const link of links) assert.ok(staffCanAccessRoute(actor, link.route), `${actor.systemRole}: ${link.href}`);
     assert.equal(Boolean(navigation.settings), example.settings);
-    assert.equal(navigation.groups.some((group) => group.links.some((link) => link.id === "admissions-summary")), example.summary);
+    // The summary is part of «Студенты» since 2026-09-24; `summary` records
+    // who may read those facet counts, never a separate sidebar item.
+    assert.equal(navigation.groups.some((group) => group.links.some((link) => link.id === "admissions-summary")), false);
+    if (example.summary) assert.ok(navigation.groups.some((group) => group.links.some((link) => link.id === "admissions-worklist")));
     if (actor.systemRole === "staff" && actor.permissionKeys.length === 0) assert.deepEqual(links, []);
     if (actor.permissionKeys[0] === "catalog.read") assert.deepEqual(links.map((link) => link.route), ["/v3/universities"]);
   }

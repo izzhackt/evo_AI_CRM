@@ -1,8 +1,7 @@
 import Link from "next/link";
 
 import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
-import { coverageDeadlineLabel } from "@/lib/platform-case-coverage-contract";
-
+import { CoverageDueTime } from "./CoverageDueTime";
 import { CuratorCoverageForm } from "./CuratorCoverageForm";
 import type { StudentsCoverage } from "./students-facets";
 
@@ -22,11 +21,13 @@ function href(curatorId: string, caseId?: string, afterCaseId?: string): string 
 
 const LINK = "inline-flex min-h-11 items-center text-sm font-medium text-fg underline decoration-border-strong underline-offset-4 hover:decoration-fg";
 
-export function CuratorCoveragePanel({ coverage, fallbackName, requestId }: Readonly<{
+export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today }: Readonly<{
   coverage: StudentsCoverage;
   /** Имя из списка кураторов, если чтение нагрузки недоступно. */
   fallbackName: string | null;
   requestId: string;
+  /** Сегодня в Бишкеке, YYYY-MM-DD: год в дате только если он другой. */
+  today: string;
 }>) {
   if (coverage.kind === "hidden") return null;
   if (coverage.kind === "invalid") {
@@ -50,9 +51,9 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId }: Read
       <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
         <h2 id="curator-coverage-title" className="text-base font-semibold text-fg">{name}</h2>
         {selected ? <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-fg-2">
-          <div><dt className="inline">Активных дел: </dt><dd className="inline font-mono text-fg">{selected.active_case_count}</dd></div>
-          <div><dt className="inline">Открытых задач: </dt><dd className="inline font-mono text-fg">{selected.open_task_count}</dd></div>
-          <div><dt className="inline">Ближайший срок: </dt><dd className="inline text-fg">{coverageDeadlineLabel(selected.nearest_due)}</dd></div>
+          <div><dt className="inline">Активных дел: </dt><dd className="inline font-mono tabular-nums text-fg">{selected.active_case_count}</dd></div>
+          <div><dt className="inline">Открытых задач: </dt><dd className="inline font-mono tabular-nums text-fg">{selected.open_task_count}</dd></div>
+          <div><dt className="inline">Ближайший срок: </dt><dd className="inline text-fg"><CoverageDueTime value={selected.nearest_due} today={today} /></dd></div>
           {!selected.active ? <div><dt className="sr-only">Назначение: </dt><dd className="inline">недоступен для нового назначения</dd></div> : null}
         </dl> : null}
       </div>
@@ -87,7 +88,7 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId }: Read
               <Link href={href(workspace.preview.owner_id, workspace.preview.id)} className={`${btnGhostCls} min-h-11`}>Открыть актуальное назначение</Link>
             </div> : null}
           </> : null}
-          {caseId ? <CuratorCoverageForm key={caseId} preview={workspace?.preview ?? null} curators={workspace?.curators ?? []} requestId={requestId} /> : null}
+          {caseId ? <CuratorCoverageForm key={caseId} preview={workspace?.preview ?? null} curators={workspace?.curators ?? []} requestId={requestId} today={today} /> : null}
         </div>
       </details> : null}
     </section>

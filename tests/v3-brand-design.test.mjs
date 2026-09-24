@@ -144,8 +144,12 @@ test("solid red stays for the main action and every selection shares one accent-
     }
   }
 
+  // EVO Docs row actions are one quiet link style (24.09 finish review): not
+  // red and not a bordered button.
   const directory = read("src/components/v3/profile/StudentCaseTable.tsx");
-  assert.match(directory, /className=\{btnGhostCls\}>Анкета и формы<\/Link>/u);
+  assert.match(directory, /className=\{ROW_ACTION\}>Анкета и формы<\/Link>/u);
+  const rowAction = directory.match(/const ROW_ACTION = "([^"]+)";/u)?.[1] ?? "";
+  assert.doesNotMatch(rowAction, /\bbg-accent\b|\bborder\b/u);
   const notifications = read("src/components/v3/StaffNotifications.tsx");
   assert.doesNotMatch(notifications, /\bbg-accent\b/u);
   assert.match(notifications, /aria-label=\{count && count !== "0" \? `Уведомления: \$\{count\} непрочитанных` : "Уведомления"\}/u);

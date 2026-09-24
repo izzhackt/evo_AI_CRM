@@ -19,7 +19,7 @@ import {
 
 type CuratorOption = Readonly<{ membershipId: string; displayName: string }>;
 
-const QUIET_LINK = "inline-flex min-h-11 items-center text-sm font-medium text-fg-2 hover:text-fg";
+const QUIET_LINK = "inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-fg-2 hover:text-fg";
 
 function FacetList({ group }: Readonly<{ group: FacetGroup }>) {
   const headingId = `students-facet-${group.id}`;
@@ -100,7 +100,7 @@ export function StudentsWorkspace({
   const caption = `Дела студентов: ${rows.length} на этой странице${filters.length ? `. Фильтры: ${filters.map((filter) => filter.label).join(", ")}` : ""}`;
 
   return (
-    <div data-testid="v3-student-case-directory" className="min-w-0 @min-[62rem]:grid @min-[62rem]:grid-cols-[15rem_minmax(0,1fr)] @min-[62rem]:items-start @min-[62rem]:gap-x-8">
+    <div data-testid="v3-student-case-directory" className="min-w-0 @min-[68rem]:grid @min-[68rem]:grid-cols-[15rem_minmax(0,1fr)] @min-[68rem]:items-start @min-[68rem]:gap-x-8">
       {/*
         THESIS: сводка и есть фильтр — каждое число стоит рядом с тем, что
         фильтрует, и одним кликом сужает таблицу дел. Отказ от плиток-KPI над
@@ -116,15 +116,17 @@ export function StudentsWorkspace({
         FIRST VIEWPORT: 1440×900 — меню 260 px; H1 «Студенты»; слева липкая
         колонка фасетов 240 px (Направление, Требует внимания, Статус, Куратор;
         числа справа); справа поиск с «Найти», чипы фильтров и плотная таблица
-        из шести колонок с закреплённой шапкой, видно около семи строк;
-        главное действие — «Создать задачу» в верхней панели оболочки.
+        из шести колонок с закреплённой шапкой (Студент с направлением и
+        уровнем, Этап, Следующий шаг, Срок, Куратор, Проблемы), не больше двух
+        строк в ряду, видно не меньше десяти строк; главное действие —
+        «Создать задачу» в верхней панели оболочки.
         FORM: «Фасеты и таблица», структура №1 из 7, seed key 34af73ee.
         FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
       */}
       <aside
         id="admissions-summary"
         aria-label="Фильтры студентов"
-        className="min-w-0 @min-[62rem]:sticky @min-[62rem]:top-4 @min-[62rem]:-ms-3 @min-[62rem]:max-h-[calc(100dvh-2rem)] @min-[62rem]:overflow-y-auto @min-[62rem]:pb-4"
+        className="min-w-0 @min-[68rem]:sticky @min-[68rem]:top-4 @min-[68rem]:-ms-3 @min-[68rem]:max-h-[calc(100dvh-2rem)] @min-[68rem]:overflow-y-auto @min-[68rem]:pb-4"
       >
         <StudentsFacetDisclosure summary={filters.length ? filters.map((filter) => filter.label).join(", ") : null}>
           <div className="space-y-6">
@@ -141,7 +143,9 @@ export function StudentsWorkspace({
         </StudentsFacetDisclosure>
       </aside>
 
-      <div className="mt-5 min-w-0 space-y-4 @min-[62rem]:mt-0">
+      {/* Своя ширина колонки решает, таблица это или стопки: колонка фасетов
+          появляется, только когда рядом с ней помещается таблица (≥ 48rem). */}
+      <div className="@container mt-5 min-w-0 space-y-4 @min-[68rem]:mt-0">
         <form key={JSON.stringify(params)} action="/v3/profile" method="get" role="search" aria-label="Найти студента" className="flex min-w-0 gap-2">
           {docsMode ? <input type="hidden" name="section" value="docs" /> : null}
           {params.direction ? <input type="hidden" name="direction" value={params.direction} /> : null}
@@ -180,6 +184,7 @@ export function StudentsWorkspace({
             coverage={coverage}
             fallbackName={curatorName(coverageCuratorId, curators, workload)}
             requestId={coverageRequestId}
+            today={today}
           />
         ) : null}
 
@@ -200,8 +205,8 @@ export function StudentsWorkspace({
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
           {!params.invalid && rows.length > 0 ? <p className="text-sm text-fg-3">На странице: <span className="font-mono text-fg-2">{rows.length}</span></p> : <span />}
           <nav aria-label="Страницы каталога студентов" className="flex flex-wrap items-center gap-x-6">
-            {params.cursor ? <Link className={QUIET_LINK} href={admissionsDirectoryHref(params, undefined, docsMode)}>← К началу</Link> : null}
-            {directory.hasNext && directory.nextCursor ? <Link className={QUIET_LINK} href={admissionsDirectoryHref(params, directory.nextCursor, docsMode)} rel="next">Следующие записи →</Link> : null}
+            {params.cursor ? <Link className={QUIET_LINK} href={admissionsDirectoryHref(params, undefined, docsMode)}><Icon name="arrow-left" size={16} />К началу</Link> : null}
+            {directory.hasNext && directory.nextCursor ? <Link className={QUIET_LINK} href={admissionsDirectoryHref(params, directory.nextCursor, docsMode)} rel="next">Следующие записи<Icon name="arrow-right" size={16} /></Link> : null}
           </nav>
         </div>
       </div>

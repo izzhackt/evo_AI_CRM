@@ -140,6 +140,19 @@ const SUMMARY = {
   ],
 };
 
+// Сводка по одному куратору (страница читает её с `curatorMembershipId`):
+// в сумме 104 дела в работе — столько же, сколько нагрузка куратора А ниже.
+const SUMMARY_CURATOR_A = {
+  stock: [
+    { direction: "AE", active: 8, overdue: 0, awaiting_ack: 0, needs_curator: 0 },
+    { direction: "CN", active: 47, overdue: 4, awaiting_ack: 1, needs_curator: 0 },
+    { direction: "EUROPE", active: 12, overdue: 1, awaiting_ack: 0, needs_curator: 0 },
+    { direction: "MY", active: 29, overdue: 2, awaiting_ack: 1, needs_curator: 0 },
+    { direction: "TR", active: 6, overdue: 1, awaiting_ack: 0, needs_curator: 0 },
+    { direction: "unknown", active: 2, overdue: 0, awaiting_ack: 0, needs_curator: 0 },
+  ],
+};
+
 const CURATOR_OPTIONS = [
   { membershipId: CURATOR_A, displayName: "Айгүл Осмонова" },
   { membershipId: CURATOR_B, displayName: "Эрмек Токтосунов" },
@@ -207,6 +220,7 @@ const SCENARIOS = {
     ...base,
     directory: directory(filteredRows, false),
     params: params({ direction: "CN", curatorMembershipId: CURATOR_A, state: "active" }),
+    summary: SUMMARY_CURATOR_A,
     coverage: readyCoverage({ curatorId: CURATOR_A, caseId: caseId(2), explicit: true }),
   },
   "summary-unavailable": { ...base, summary: "unavailable", coverage: { kind: "unavailable", curatorId: null, caseId: null, afterCaseId: null, explicit: false } },

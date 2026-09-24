@@ -1,5 +1,5 @@
 import type { AdmissionsAttention, AdmissionsDirection, AdmissionsSummary } from "@/lib/platform-admissions-playbook-contract";
-import type { CoverageCurator, CoverageWorkspace } from "@/lib/platform-case-coverage-contract";
+import type { CoverageCurator, CoverageDeadline, CoverageWorkspace } from "@/lib/platform-case-coverage-contract";
 import type { PlatformStudentCaseState } from "@/lib/platform-admissions";
 import type { V3ProfileCaseDirectoryParams, V3ProfileCaseDirectoryRow } from "@/lib/v3/profile-source";
 import { admissionsDirectoryHref, ATTENTION_LABELS, DIRECTION_LABELS } from "./admissions-view.ts";
@@ -226,8 +226,29 @@ export function nextStepOverdue(row: V3ProfileCaseDirectoryRow, today: string): 
   return row.state === "active" && Boolean(row.nextActionDueOn) && row.nextActionDueOn! < today;
 }
 
-export function formatDueOn(value: string): string {
-  return value.split("-").reverse().join(".");
+/**
+ * Один формат даты на странице: «27.09»; год — двумя цифрами и только если он
+ * не совпадает с сегодняшним (YYYY-MM-DD в Бишкеке): «03.01.27». Так дата
+ * помещается в узкую колонку «Срок» без переноса.
+ */
+export function formatDueOn(value: string, today: string): string {
+  const [year, month, day] = value.split("-");
+  return year === today.slice(0, 4) ? `${day}.${month}` : `${day}.${month}.${year.slice(2)}`;
+}
+
+const BISHKEK_PARTS = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Bishkek", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+});
+
+/**
+ * Срок из чтения замещения тем же форматом, что в таблице. Дата остаётся
+ * датой; у срока со временем — день и время по Бишкеку. Нет срока — null.
+ */
+export function coverageDue(value: CoverageDeadline | null, today: string): Readonly<{ dateTime: string; text: string; timed: boolean }> | null {
+  if (value?.due_on) return { dateTime: value.due_on, text: formatDueOn(value.due_on, today), timed: false };
+  if (!value?.due_at) return null;
+  const parts = Object.fromEntries(BISHKEK_PARTS.formatToParts(new Date(value.due_at)).map((part) => [part.type, part.value]));
+  return { dateTime: value.due_at, text: `${formatDueOn(`${parts.year}-${parts.month}-${parts.day}`, today)} ${parts.hour}:${parts.minute}`, timed: true };
 }
 
 /**

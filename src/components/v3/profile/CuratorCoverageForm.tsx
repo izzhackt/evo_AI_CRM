@@ -4,15 +4,26 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
-import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import { manageCaseCoverageAction, type CaseCoverageActionState } from "@/lib/platform-case-coverage-actions";
-import { coverageDeadlineLabel, type CoverageCurator, type CoveragePreview } from "@/lib/platform-case-coverage-contract";
+import type { CoverageCurator, CoveragePreview } from "@/lib/platform-case-coverage-contract";
 import { coverageConflictLabel } from "@/lib/v3/wording";
+
+import { CoverageDueTime } from "./CoverageDueTime";
 
 function revision(preview: CoveragePreview): string {
   return JSON.stringify([preview.owner_id, preview.scope_version, preview.coverage?.id,
     preview.coverage?.version, preview.conflicts, preview.tasks.map((task) => [task.id, task.version, task.conflict])]);
 }
+/*
+ * Внутри «Студентов» сплошной красный есть только у «Создать задачу»:
+ * подтверждение замещения — тёмная нейтральная кнопка. Недоступное состояние —
+ * явные токены, без opacity (DESIGN.md: не снижаем контраст через opacity).
+ */
+const DISABLED = "disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3 disabled:active:scale-100";
+const CONFIRM = `inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-fg bg-fg px-4 text-base font-semibold text-surface transition-[background-color,border-color,color,transform] duration-150 ease-out enabled:hover:border-fg-2 enabled:hover:bg-fg-2 enabled:active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 ${DISABLED}`;
+const GHOST = `${btnGhostCls.replace("disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100", "")} ${DISABLED}`;
+
 const RESULTS: Record<Exclude<CaseCoverageActionState["status"], "idle">, string> = {
   saved: "Смена куратора и перенос выбранных задач подтверждены.",
   invalid: "Проверьте заместителя, срок, причину и выбранные задачи.",
@@ -22,19 +33,21 @@ const RESULTS: Record<Exclude<CaseCoverageActionState["status"], "idle">, string
   unavailable: "Не удалось подтвердить сохранение. Проверьте актуальные данные перед повтором.",
 };
 
-export function CuratorCoverageForm({ preview, curators, requestId }: Readonly<{
+export function CuratorCoverageForm({ preview, curators, requestId, today }: Readonly<{
   preview: CoveragePreview | null; curators: readonly CoverageCurator[]; requestId: string;
+  /** Сегодня в Бишкеке, YYYY-MM-DD. */
+  today: string;
 }>) {
   // A failed refresh must not unmount a user's draft. Cached data stays visibly
   // unavailable and cannot authorize a mutation; never use it as a live fallback.
   const [lastRead, setLastRead] = useState(preview ? { preview, curators } : null);
   if (preview && preview !== lastRead?.preview) setLastRead({ preview, curators });
   if (!lastRead) return null;
-  return <CoverageDraft preview={lastRead.preview} curators={lastRead.curators} requestId={requestId} readUnavailable={preview === null} />;
+  return <CoverageDraft preview={lastRead.preview} curators={lastRead.curators} requestId={requestId} readUnavailable={preview === null} today={today} />;
 }
 
-function CoverageDraft({ preview, curators, requestId, readUnavailable }: Readonly<{
-  preview: CoveragePreview; curators: readonly CoverageCurator[]; requestId: string; readUnavailable: boolean;
+function CoverageDraft({ preview, curators, requestId, readUnavailable, today }: Readonly<{
+  preview: CoveragePreview; curators: readonly CoverageCurator[]; requestId: string; readUnavailable: boolean; today: string;
 }>) {
   const router = useRouter();
   // Stable case identity, not scope/task versions: refresh never discards the draft.
@@ -77,7 +90,7 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable }: Readon
             ? `Дело вернётся: ${destinationName ?? "прежний куратор"}. Открытые задачи — указанным ниже исполнителям.`
             : "Заместитель станет единственным куратором этого студента. Возврат подтверждает Admin вручную."}
         </p>
-        {reviewed.coverage ? <p className="mt-1 text-sm text-fg-2">Плановый возврат: {coverageDeadlineLabel({ due_on: reviewed.coverage.planned_end_on, due_at: null })}</p> : null}
+        {reviewed.coverage ? <p className="mt-1 text-sm text-fg-2">Плановый возврат: <CoverageDueTime value={{ due_on: reviewed.coverage.planned_end_on, due_at: null }} today={today} /></p> : null}
       </div>
       <input type="hidden" name="operation" value={returning ? "return" : "start"} />
       <input type="hidden" name="student_case_id" value={reviewed.id} />
@@ -115,7 +128,7 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable }: Readon
               const targetName = returning ? task.return_assignee_name : destinationName;
               return <li key={task.id} className="space-y-2 py-3 first:pt-0">
                 <p className="break-words text-sm font-medium text-fg">{task.title}</p>
-                <p className="text-sm text-fg-2">{task.assignee_name} · {coverageDeadlineLabel(task)}</p>
+                <p className="text-sm text-fg-2">{task.assignee_name} · <CoverageDueTime value={task} today={today} /></p>
                 {task.required || !task.can_transfer ? <>
                   <input type="hidden" name={`task_${task.id}`} value={transfer ? "true" : "false"} />
                   <p className="text-sm text-fg-2">{transfer ? `Переносится: ${targetName ?? "выбранный заместитель"}` : "Остаётся у текущего исполнителя"}</p>
@@ -136,11 +149,11 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable }: Readon
       {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="text-sm text-fg-2">{RESULTS[status]}</p> : null}
       {needsReview ? <div className="space-y-2 border-s-2 border-border ps-3">
         <p className="text-sm text-fg-2">Есть обновлённые данные. Причина, дата и выбор куратора сохранятся; список переноса нужно проверить заново.</p>
-        <button type="button" disabled={pending} className={`${btnGhostCls} min-h-11`} onClick={() => { setReviewed(preview); setChoices({}); }}>Показать актуальный состав переноса</button>
+        <button type="button" disabled={pending} className={`${GHOST} min-h-11`} onClick={() => { setReviewed(preview); setChoices({}); }}>Показать актуальный состав переноса</button>
       </div> : null}
-      {status === "stale" || status === "unavailable" || readUnavailable ? <button type="button" disabled={pending} className={`${btnGhostCls} min-h-11`} onClick={() => router.refresh()}>Обновить данные без сброса ввода</button> : null}
+      {status === "stale" || status === "unavailable" || readUnavailable ? <button type="button" disabled={pending} className={`${GHOST} min-h-11`} onClick={() => router.refresh()}>Обновить данные без сброса ввода</button> : null}
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={!canSubmit} className={`${btnCls} min-h-11`}>
+        <button type="submit" disabled={!canSubmit} className={CONFIRM}>
           {pending ? "Сохраняем…" : returning ? "Подтвердить возврат" : "Подтвердить замещение"}
         </button>
         {!pending ? <Link className={`${btnGhostCls} min-h-11`} href={`/v3/profile?coverage_curator=${preview.owner_id}#curator-coverage`}>Отмена</Link> : null}

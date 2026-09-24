@@ -8,6 +8,8 @@ import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
 import {
   activeFilters,
   buildFacetGroups,
+  coverageDue,
+  formatDueOn,
   nextStepOverdue,
   rowProblems,
 } from "../src/components/v3/profile/students-facets.ts";
@@ -103,6 +105,16 @@ test("row rules mirror the server: Bishkek overdue next step and worded problem 
   assert.deepEqual(rowProblems({ ...row, access: "sales_summary" }), []);
 });
 
+test("one date format on the page: day.month, a two-digit year only when it differs", () => {
+  assert.equal(formatDueOn("2026-09-27", "2026-09-24"), "27.09");
+  assert.equal(formatDueOn("2027-01-03", "2026-09-24"), "03.01.27");
+  assert.deepEqual(coverageDue({ due_on: "2026-09-25", due_at: null }, "2026-09-24"), { dateTime: "2026-09-25", text: "25.09", timed: false });
+  // Timed coverage work is shown in the organisation's Bishkek zone (UTC+6).
+  assert.deepEqual(coverageDue({ due_on: null, due_at: "2026-12-31T20:30:00Z" }, "2026-09-24"), { dateTime: "2026-12-31T20:30:00Z", text: "01.01.27 02:30", timed: true });
+  assert.equal(coverageDue({ due_on: null, due_at: null }, "2026-09-24"), null);
+  assert.equal(coverageDue(null, "2026-09-24"), null);
+});
+
 test("the sidebar no longer has a summary item and the old summary address lands on «Студенты»", () => {
   const admin = { systemRole: "admin", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: [] };
   const model = buildV3Navigation(admin, "/v3/profile", new URLSearchParams("section=summary"));
@@ -133,6 +145,17 @@ test("rendered facets show summary numbers and mark only the selected facets wit
   assert.match(filtered, /data-testid="v3-curator-coverage"/u);
   assert.match(filtered, /<details open="">/u);
   assert.match(filtered, /data-testid="v3-curator-coverage-form"/u);
+  // The summary is read with the chosen curator, so «Все» narrows with it.
+  assert.match(filtered, /Все<\/span><span class="shrink-0 font-mono tabular-nums text-fg-3"><span class="sr-only">в работе: <\/span>104<\/span>/u);
+  // Coverage dates use the table's mono day.month format.
+  assert.match(filtered, /<dt class="inline">Ближайший срок: <\/dt><dd class="inline text-fg"><time dateTime="2026-09-25" class="whitespace-nowrap font-mono tabular-nums">25\.09<\/time><\/dd>/u);
+  assert.match(filtered, /Айгүл Осмонова · <time dateTime="2026-09-20" class="whitespace-nowrap font-mono tabular-nums">20\.09<\/time>/u);
+  // Solid red belongs to «Создать задачу» only; disabled is explicit, not dimmed.
+  const confirm = filtered.match(/<button type="submit" disabled="" class="([^"]+)">Подтвердить замещение<\/button>/u);
+  assert.ok(confirm, "confirm button renders disabled until the form is complete");
+  assert.doesNotMatch(confirm[1], /\bbg-accent\b|opacity-/u);
+  assert.match(confirm[1], /\bbg-fg\b[\s\S]*disabled:bg-surface-2 disabled:text-fg-3/u);
+  assert.doesNotMatch(read("src/components/v3/profile/CuratorCoverageForm.tsx"), /\bbtnCls\b/u);
 
   const unavailable = surfaces.get("summary-unavailable");
   assert.doesNotMatch(unavailable, /<span class="sr-only">(в работе|дел): <\/span>/u);
@@ -144,7 +167,7 @@ test("the case list is a semantic table with one real link per row", () => {
   const html = surfaces.get("admin-default");
   assert.match(html, /<table role="table"[^>]*data-testid="v3-student-case-table"><caption class="sr-only">Дела студентов: 12 на этой странице<\/caption>/u);
   const headers = [...html.matchAll(/<th scope="col" role="columnheader"[^>]*>([^<]+)<\/th>/gu)].map((match) => match[1]);
-  assert.deepEqual(headers, ["Студент", "Направление", "Этап", "Следующий шаг", "Куратор", "Проблемы"]);
+  assert.deepEqual(headers, ["Студент", "Этап", "Следующий шаг", "Срок", "Куратор", "Проблемы"]);
   const rows = [...html.matchAll(/<tr role="row" data-testid="v3-student-case-row" data-access="([^"]+)" data-student-case-id="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/gu)];
   assert.equal(rows.length, 12);
   for (const [, access, id, body] of rows) {
@@ -157,28 +180,53 @@ test("the case list is a semantic table with one real link per row", () => {
       assert.match(body, /Только итог передачи/u, id);
     }
   }
-  // Overdue is named in words, not only coloured.
-  assert.match(html, /Срок прошёл <time dateTime="2026-09-20"/u);
-  assert.doesNotMatch(html, /Срок прошёл <time dateTime="2026-09-24"/u);
-  assert.match(html, /Ожидает принятия/u);
+  // Overdue is named in words, not only coloured; dates are mono day.month.
+  assert.match(html, /<time dateTime="2026-09-20" class="[^"]*font-mono[^"]*tabular-nums[^"]*">20\.09<\/time><span class="[^"]*text-danger">(?:<span class="@3xl:hidden">срок <\/span>)прошёл<\/span>/u);
+  assert.match(html, /<time dateTime="2026-09-24" class="font-mono tabular-nums">24\.09<\/time><\/span>/u);
+  assert.doesNotMatch(html, /dateTime="2026-09-24"[^>]*>24\.09<\/time><span[^>]*>(?:<span[^>]*>срок <\/span>)?прошёл/u);
+  // «Ожидает принятия» stands under the curator the case waits for.
+  assert.match(html, /Эрмек Токтосунов<\/span><span aria-hidden="true" class="@3xl:hidden"> · <\/span><span class="font-medium text-warn @3xl:block">Ожидает принятия<\/span>/u);
   assert.match(html, /Нужно назначить куратора/u);
+  // A closed case says so once, in the step column; its stage stays.
+  assert.match(html, /Поступление завершено[\s\S]*?Дело закрыто/u);
+});
+
+test("dense rows: direction folds under the name, fixed vocabulary never hyphenates", () => {
+  const table = read("src/components/v3/profile/StudentCaseTable.tsx");
+  assert.doesNotMatch(table, /hyphens-auto/u);
+  assert.match(table, /@3xl:line-clamp-2" title=\{row\.nextAction\}/u);
+  assert.match(table, /@3xl:block @3xl:truncate" title=\{row\.admissionsDisplayName\}/u);
+  const html = surfaces.get("admin-default");
+  // Name and «direction · degree» share the row header; in the stack the stage
+  // continues the same text run (aria-hidden: the stage cell stays for readers).
+  assert.match(html, /Айдана Сыдыкова<\/span><\/a><span class="block text-sm text-fg-2 @3xl:truncate" title="Китай · Бакалавриат">Китай · Бакалавриат<span aria-hidden="true" class="@3xl:hidden"><span> · <span class="text-fg">Сбор документов<\/span><\/span><\/span><\/span><\/th>/u);
+  assert.match(html, /<td role="cell" class="[^"]*@max-3xl:sr-only"><span class="block text-fg">Сбор документов<\/span><\/td>/u);
 });
 
 test("EVO Docs keeps its per-row actions in the same table and no summary numbers", () => {
   const html = surfaces.get("docs");
   const headers = [...html.matchAll(/<th scope="col" role="columnheader"[^>]*>([^<]+)<\/th>/gu)].map((match) => match[1]);
-  assert.deepEqual(headers, ["Студент", "Направление", "Куратор", "Документы"]);
+  assert.deepEqual(headers, ["Студент", "Куратор", "Документы"]);
   const rows = [...html.matchAll(/data-testid="v3-student-case-row" data-access="([^"]+)" data-student-case-id="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/gu)];
   assert.equal(rows.length, 11, "sales_summary rows stay out of EVO Docs");
   for (const [, access, id, body] of rows) {
     assert.equal(access, "full");
-    assert.match(body, new RegExp(`href="/v3/profile\\?case=${id}&amp;tab=anketa&amp;section=docs"[^>]*>Анкета и формы</a>`, "u"));
+    // Quiet row links (no bordered button): the same style for all three actions.
+    assert.match(body, new RegExp(`<a class="inline-flex min-h-11 [^"]*" href="/v3/profile\\?case=${id}&amp;tab=anketa&amp;section=docs">Анкета и формы</a>`, "u"));
+    assert.doesNotMatch(body, /class="[^"]*\bborder-control-edge\b[^"]*"[^>]*>(Анкета и формы|Файлы|Пакет ZIP)</u);
+    assert.doesNotMatch(body, /Ожидает принятия/u, "EVO Docs shows documents, not work status");
     assert.match(body, new RegExp(`href="/v3/profile\\?case=${id}&amp;tab=documents&amp;section=docs"[^>]*>Файлы</a>`, "u"));
     assert.match(body, new RegExp(`href="/v3/profile\\?case=${id}&amp;tab=route&amp;panel=packets&amp;section=docs#partner-packets"[^>]*>Пакет ZIP</a>`, "u"));
   }
   assert.match(html, /<input type="hidden" name="section" value="docs"\/>/u);
   assert.doesNotMatch(html, /<span class="sr-only">(в работе|дел): <\/span>/u);
   assert.doesNotMatch(html, /data-testid="v3-curator-coverage"/u);
+});
+
+test("pagination uses drawn icons, not text glyphs", () => {
+  const workspace = read("src/components/v3/profile/StudentsWorkspace.tsx");
+  assert.doesNotMatch(workspace, /[←→]/u);
+  assert.match(surfaces.get("admin-default"), /rel="next" href="[^"]+">Следующие записи<svg [^>]*aria-hidden="true"/u);
 });
 
 test("invalid, empty and Sales states stay honest", () => {

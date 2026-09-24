@@ -213,6 +213,34 @@ test("the lead panel docks beside the board and never covers its own card", () =
   assert.match(source, /saved\?\.leadId === selected\.id && saved\.version !== selected\.workflow\.workflowVersion/u, "one «Решение сохранено.» at a time");
 });
 
+test("a handed-off lead's panel folds the working stages and opens «Переданы» instead of squeezing six columns", () => {
+  // Reached by «Переданы» → card → «Все этапы» (the link keeps ?lead=), a reload or a shared link.
+  const panel = surfaces.get("sales-panel-handed");
+  const stages = ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential", "handed_off"];
+  const board = tag(panel, /<div role="group" aria-label="Воронка продаж"[^>]*>/u);
+  assert.match(board, /@6xl:@max-\[97\.5rem\]:\[grid-template-columns:var\(--board-tracks-panel\)\]/u);
+  assert.equal(board.match(/--board-tracks-panel:([^;"]+)/u)?.[1], boardTracks(stages, "handed_off", ["handed_off"]), "only the lead's stage stays open");
+  for (const key of stages.slice(0, 6)) {
+    const column = tag(panel, new RegExp(`<section aria-labelledby="[^"]*-${key}" data-testid="v3-pipeline-column"[\\s\\S]*?</section>`, "u"));
+    assert.match(column, /<header class="[^"]*@6xl:@max-\[97\.5rem\]:hidden">/u, key);
+    assert.match(column, new RegExp(`class="[^"]*hidden @6xl:@max-\\[97\\.5rem\\]:flex flex-1" href="/v3/pipeline\\?stage=${key}">`, "u"), `${key} folds to a rail`);
+  }
+  // «Переданы»: its rail only while six columns fit beside the panel, a column with the lead's card otherwise.
+  const rail = tag(panel, /<a[^>]*data-testid="v3-pipeline-rail"[^>]*data-stage-rail="handed_off"[^>]*>/u);
+  assert.match(classOf(rail), /(?:^|\s)hidden @min-\[97\.5rem\]:flex(?:\s|$)/u);
+  const handed = tag(panel, /<section aria-labelledby="[^"]*-handed_off" data-testid="v3-pipeline-column"[\s\S]*?<\/section>/u);
+  assert.match(classOf(tag(handed, /<section[^>]*>/u)), /(?:^|\s)hidden @6xl:@max-\[97\.5rem\]:flex(?:\s|$)/u);
+  assert.match(handed, /<article data-testid="v3-pipeline-card" data-lead-id="dddddddd-3333-4333-8333-000000000013" aria-current="true"/u);
+  assert.match(handed, /@6xl:grid @6xl:grid-cols-\[repeat\(auto-fill,minmax\(min\(240px,100%\),1fr\)\)\]/u, "cards in a grid, not one wide row");
+  assert.match(tag(panel, /<dialog [^>]*>/u), /data-lead-id="dddddddd-3333-4333-8333-000000000013"/u);
+  // Without a panel «Переданы» is only the rail.
+  const sales = surfaces.get("sales");
+  assert.doesNotMatch(sales, /-handed_off" data-testid="v3-pipeline-column"/u);
+  assert.match(classOf(tag(sales, /<a[^>]*data-stage-rail="handed_off"[^>]*>/u)), /(?:^|\s)hidden @6xl:flex(?:\s|$)/u);
+  // Closing the panel removes that column: focus falls back to the stage rail, never to <body>.
+  assert.match(read("src/components/v3/Pipeline.tsx"), /\(card \?\? rail\)\?\.focus\(\);/u);
+});
+
 test("a sales card opens the right panel with the existing decision form; the card has no form", () => {
   const board = surfaces.get("sales");
   assert.doesNotMatch(board, /data-testid="v3-pipeline-decision"/u, "no in-card expanding form");
@@ -303,7 +331,13 @@ test("error copy names no provider and the admissions route has a board skeleton
   for (const path of ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/PipelineDecisionForm.tsx"]) {
     assert.doesNotMatch(read(path), /Supabase недоступен/u, path);
   }
-  assert.match(read("src/components/v3/AdmissionsPipelineBoard.tsx"), /unavailable: "Сервер не ответил — перемещение не сохранено\. Повторите\."/u);
+  // `unavailable` can follow a committed write whose receipt was lost: the copy
+  // says «не подтверждено», never «не сохранено».
+  assert.match(read("src/components/v3/AdmissionsPipelineBoard.tsx"), /unavailable: "Перемещение не подтверждено\. Обновите страницу и проверьте этап\."/u);
+  assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /unavailable: "Изменение не подтверждено\. Повторите\."/u);
+  for (const path of ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/PipelineDecisionForm.tsx"]) {
+    assert.doesNotMatch(read(path), /не сохранено/u, path);
+  }
   assert.match(read("src/components/v3/AdmissionsPipelineBoard.tsx"), /Показаны первые 400 дел — уточните поиск\./u);
   assert.ok(existsSync(new URL("../src/app/(v3)/v3/admissions-pipeline/loading.tsx", import.meta.url)));
   assert.match(read("src/app/(v3)/v3/admissions-pipeline/loading.tsx"), /@5xl:grid-cols-\[repeat\(5,minmax\(168px,360px\)\)\]/u);

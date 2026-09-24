@@ -29,8 +29,10 @@ export {
  * Открытая панель лида стоит в ряд с доской. Пока контейнер уже
  * `BOARD_PANEL_FOLD_BELOW_PX` (1556 px ≤ 97.5rem), колонки, кроме этапа
  * лида, сворачиваются в рейки: панель не закрывает карточку, по которой
- * нажали. Решает запрос контейнера CSS, поэтому серверная разметка с `?lead=`
- * не мигает. Классы записаны целиком — их находит сборщик Tailwind.
+ * нажали. Этап лида, который без панели стоит рейкой («Переданы»), в это
+ * время раскрывается колонкой. Решает запрос контейнера CSS, поэтому
+ * серверная разметка с `?lead=` не мигает. Классы записаны целиком — их
+ * находит сборщик Tailwind.
  */
 export const BOARD_PANEL_FOLD = {
   /** Дорожки доски, пока панель открыта и места мало. */
@@ -39,6 +41,10 @@ export const BOARD_PANEL_FOLD = {
   content: "@6xl:@max-[97.5rem]:hidden",
   /** Рейка свёрнутой колонки. */
   rail: "hidden @6xl:@max-[97.5rem]:flex",
+  /** Рейка этапа лида, который раскрывается рядом с панелью: только пока места хватает. */
+  wideRail: "hidden @min-[97.5rem]:flex",
+  /** Раскрытая колонка того же этапа: только пока панель открыта и места мало. */
+  column: "hidden @6xl:@max-[97.5rem]:flex",
 } as const;
 
 /** «Айгүл Осмонова» → «АО»; полное имя остаётся в подсказке `title`. */
@@ -150,12 +156,15 @@ export function BoardRail({
   href,
   className,
   testId,
+  stage,
 }: Readonly<{
   title: string;
   count: number | null;
   href: string;
   className?: string;
   testId?: string;
+  /** Ключ этапа: сюда возвращается фокус, когда карточки этапа не видно. */
+  stage?: string;
 }>) {
   return (
     <Link
@@ -163,6 +172,7 @@ export function BoardRail({
       prefetch={false}
       scroll={false}
       data-testid={testId}
+      data-stage-rail={stage}
       title={`Раскрыть этап «${title}»`}
       className={cn(
         "min-h-0 w-11 flex-col items-center gap-2 rounded-nav border-s border-border py-3 text-fg-2 hover:bg-surface-2 hover:text-fg",

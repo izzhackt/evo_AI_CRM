@@ -22,7 +22,7 @@
  *   node tests/e2e/boards-static-render.cjs --screenshots [outDir]
  *     → статическая разметка с CSS из globals.css + v3.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке), снимки Playwright Chromium
- *       1280×800, 1440×900, 1920×1080, 390×844 и 360×800 плюс измерения в
+ *       1280×800, 1440×900, 1536×864, 1920×1080, 390×844 и 360×800 плюс измерения в
  *       stdout (JSON-строки). Без гидратации: открытое меню открывается
  *       `showPopover()` и ставится той же `placeMenu`, что и в браузере.
  *   node tests/e2e/boards-static-render.cjs --hydrate [outDir]
@@ -32,8 +32,10 @@
  *       и маршрутизатор: `pushState` обновляет `useSearchParams`, как в
  *       Next.js, `refresh()` заново строит страницу для текущего адреса.
  *       Сценарии: панель лида (открытие карточкой, Escape, возврат фокуса,
- *       сохранение и обновление с `?lead=`), модальный лист на телефоне,
- *       подпись рейки при фокусе клавиатуры, меню дела и перетаскивание.
+ *       сохранение и обновление с `?lead=`), переданный лид при всех этапах
+ *       (рейка «Переданы» → карточка → «Все этапы», затем обновление на
+ *       1536 px), модальный лист на телефоне, подпись рейки при фокусе
+ *       клавиатуры, меню дела и перетаскивание.
  *
  * По умолчанию outDir — .impeccable/review (не коммитится).
  */
@@ -145,6 +147,9 @@ const SCENARIOS = {
   "sales-panel": { page: "sales", search: `lead=${leadId(5)}` },
   // Лид в самой правой рабочей колонке: панель не должна закрыть его карточку.
   "sales-panel-right": { page: "sales", search: `lead=${leadId(11)}` },
+  // Переданный лид при всех этапах («Все этапы» из фокуса «Переданы» или
+  // ссылка): рядом с панелью раскрыт «Переданы», рабочие этапы — рейки.
+  "sales-panel-handed": { page: "sales", search: `lead=${leadId(13)}` },
   "sales-focus": { page: "sales", search: "stage=qualified" },
   "sales-handed": { page: "sales", search: "stage=handed_off" },
   "sales-mine": { page: "sales", search: "assignment=mine" },
@@ -301,6 +306,7 @@ async function screenshots() {
   const VIEWPORTS = {
     "1280": { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 },
     "1440": { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
+    "1536": { viewport: { width: 1536, height: 864 }, deviceScaleFactor: 1 },
     "1920": { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 },
     "390": { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
     "360": { viewport: { width: 360, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
@@ -309,6 +315,7 @@ async function screenshots() {
     ["sales", ["1280", "1440", "1920", "390"]],
     ["sales-panel", ["1280", "1440", "1920", "390"]],
     ["sales-panel-right", ["1440"]],
+    ["sales-panel-handed", ["1280", "1440", "1536", "1920"]],
     ["sales-focus", ["1440"]],
     ["sales-handed", ["1280"]],
     ["sales-search", ["1440", "390"]],
@@ -754,6 +761,36 @@ async function hydrate() {
         return columns.map((column) => [column.querySelector("h2")?.textContent, column.querySelectorAll('[data-testid="v3-admissions-pipeline-card"]').length]);
       });
       report({ journey: "admissions-1440", menu, menuClosed, over, dropped,
+        recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
+      await context.close();
+    }
+
+    // 6. Продажи, 1280: переданный лид при всех этапах. Рейка «Переданы» →
+    // карточка → «Все этапы» (ссылка сохраняет `?lead=`): рядом с панелью
+    // раскрыт «Переданы», рабочие этапы свёрнуты в рейки, имена не обрезаны.
+    // Затем закрытие крестиком и обновление того же адреса на 1536 px.
+    {
+      const { context, page, console_ } = await open({ width: 1280, height: 800 }, "/v3/pipeline");
+      await page.locator('[data-testid="v3-pipeline-rail"][href$="stage=handed_off"]').click();
+      await page.waitForURL(/stage=handed_off/u);
+      await cardLink(page, 13).first().click();
+      await panel(page).waitFor();
+      await page.getByRole("link", { name: "Все этапы" }).click();
+      await page.waitForURL((url) => !url.search.includes("stage="));
+      await page.waitForTimeout(100);
+      const allStages = { url: page.url().replace(origin, ""), metrics: await page.evaluate(measure) };
+      await page.screenshot({ path: join(outDir, "boards-hydrated-handed-all-1280.png") });
+      // Фокус после «Все этапы» на доске, а не в немодальной панели: закрывает крестик.
+      await panel(page).getByRole("link", { name: "Закрыть" }).click();
+      await panel(page).waitFor({ state: "detached" });
+      const closed = { url: page.url().replace(origin, ""), focus: await focusState(page), metrics: await page.evaluate(measure) };
+      await page.setViewportSize({ width: 1536, height: 864 });
+      await page.goto(`${origin}/v3/pipeline?lead=${leadId(13)}`, { waitUntil: "load" });
+      await page.waitForSelector("html[data-hydrated=true]");
+      await page.waitForTimeout(200);
+      const reloaded1536 = { url: page.url().replace(origin, ""), metrics: await page.evaluate(measure) };
+      await page.screenshot({ path: join(outDir, "boards-hydrated-handed-all-1536.png") });
+      report({ journey: "sales-handed-all-1280", allStages, closed, reloaded1536,
         recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
       await context.close();
     }

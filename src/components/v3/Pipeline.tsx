@@ -425,7 +425,7 @@ export function Pipeline({
   const boardHref = useBoardHref();
   const rootRef = useRef<HTMLDivElement>(null);
   const focusPanel = useRef(false);
-  const returnFocusTo = useRef<string | null>(null);
+  const returnFocusTo = useRef<Readonly<{ leadId: string; stage: PipelineStageKey | null }> | null>(null);
   // Сохранённое решение: лид и версия, с которой его сохранили. Пока доска
   // не обновилась, итог показывает сама форма; после обновления форма
   // пересоздаётся с новой версией, и итог остаётся строкой панели — без
@@ -446,8 +446,10 @@ export function Pipeline({
   const stageKeys = stages.map((stage) => stage.key);
   const tracks = boardTracks(stageKeys, focus, terminalKeys);
   // Панель открыта при всех этапах: где шести колонкам рядом с ней не хватает
-  // места, раскрыт только этап выбранного лида (дорожки как у фокуса).
-  const foldFor = focus === "all" && selected && !selectedStage?.terminal ? selected.stageKey : null;
+  // места, раскрыт только этап выбранного лида (дорожки как у фокуса). Для
+  // переданного лида это «Переданы»: рабочие этапы сворачиваются в рейки,
+  // а не сжимаются до 111 px рядом с панелью.
+  const foldFor = focus === "all" && selectedStage ? selectedStage.key : null;
   const boardStyle = {
     "--board-tracks": tracks,
     ...(foldFor ? { "--board-tracks-panel": boardTracks(stageKeys, foldFor, terminalKeys) } : {}),
@@ -464,9 +466,15 @@ export function Pipeline({
       rootRef.current?.querySelector<HTMLElement>('[data-testid="v3-pipeline-lead-panel"] h2')?.focus();
     }
     if (!selected && returnFocusTo.current) {
-      const id = returnFocusTo.current;
+      const { leadId, stage } = returnFocusTo.current;
       returnFocusTo.current = null;
-      rootRef.current?.querySelector<HTMLElement>(`[data-lead-link="${id}"]`)?.focus();
+      // Карточка переданного лида уходит вместе с раскрытой рядом с панелью
+      // колонкой «Переданы» — тогда фокус встаёт на рейку её этапа.
+      const root = rootRef.current;
+      const shown = (element: HTMLElement) => element.getClientRects().length > 0;
+      const card = [...(root?.querySelectorAll<HTMLElement>(`[data-lead-link="${leadId}"]`) ?? [])].find(shown);
+      const rail = stage ? [...(root?.querySelectorAll<HTMLElement>(`[data-stage-rail="${stage}"]`) ?? [])].find(shown) : undefined;
+      (card ?? rail)?.focus();
     }
   }, [selected]);
 
@@ -476,7 +484,7 @@ export function Pipeline({
     if (saved?.leadId !== lead.id) setSaved(null);
   };
   const closePanel = () => {
-    returnFocusTo.current = selectedId;
+    returnFocusTo.current = selectedId ? { leadId: selectedId, stage: selected?.stageKey ?? null } : null;
     setSaved(null);
     if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
   };
@@ -505,6 +513,19 @@ export function Pipeline({
         </li>
       );
     });
+
+  /** Заголовок колонки без фокуса: ссылка «Только этап …». */
+  const stageTitleLink = (stage: PipelineStage, href: string) => (
+    <Link
+      href={href}
+      prefetch={false}
+      scroll={false}
+      title={`Только этап «${stage.title}»`}
+      className="flex min-h-11 min-w-0 items-center truncate rounded-nav hover:underline hover:underline-offset-4"
+    >
+      <span className="truncate">{stage.title}</span>
+    </Link>
+  );
 
   const handedLinks = (stage: PipelineStage, inStage: readonly PipelineLead[], visible: readonly PipelineLead[]) => (
     <>
@@ -572,7 +593,10 @@ export function Pipeline({
 
           if (stage.terminal && focus === "all") {
             // «Переданы» — исход, а не рабочий этап: рейка справа на широком
-            // экране, свёрнутая группа в конце списка на узком.
+            // экране, свёрнутая группа в конце списка на узком. Открыта панель
+            // переданного лида и места мало — рейку заменяет колонка с его
+            // карточкой, а рабочие этапы свёрнуты (одна дорожка, один элемент).
+            const unfold = foldFor === stage.key;
             return (
               <div key={stage.key} className="contents">
                 {emptyWorking.length > 0 ? (
@@ -584,9 +608,24 @@ export function Pipeline({
                   title={stage.title}
                   count={inStage.length}
                   href={focusHref}
-                  className="hidden @6xl:flex"
+                  stage={stage.key}
+                  className={unfold ? BOARD_PANEL_FOLD.wideRail : "hidden @6xl:flex"}
                   testId="v3-pipeline-rail"
                 />
+                {unfold ? (
+                  <BoardColumn
+                    headingId={headingId}
+                    testId="v3-pipeline-column"
+                    spread
+                    title={stageTitleLink(stage, focusHref)}
+                    count={inStage.length}
+                    emptyText={BOARD_EMPTY.leads}
+                    className={BOARD_PANEL_FOLD.column}
+                  >
+                    {renderCards(stage, visible)}
+                    {handedLinks(stage, inStage, visible)}
+                  </BoardColumn>
+                ) : null}
                 {inStage.length > 0 ? (
                   <details className="border-t border-border @6xl:hidden">
                     <summary className="t-item flex min-h-11 cursor-pointer items-center gap-2 px-1.5 text-fg">
@@ -611,21 +650,7 @@ export function Pipeline({
               testId="v3-pipeline-column"
               spread={focused || foldFor === stage.key}
               fold={foldFor && foldFor !== stage.key ? { title: stage.title, href: boardHref({ stage: stage.key, lead: null }) } : undefined}
-              title={
-                focused ? (
-                  <span className="truncate">{stage.title}</span>
-                ) : (
-                  <Link
-                    href={focusHref}
-                    prefetch={false}
-                    scroll={false}
-                    title={`Только этап «${stage.title}»`}
-                    className="flex min-h-11 min-w-0 items-center truncate rounded-nav hover:underline hover:underline-offset-4"
-                  >
-                    <span className="truncate">{stage.title}</span>
-                  </Link>
-                )
-              }
+              title={focused ? <span className="truncate">{stage.title}</span> : stageTitleLink(stage, focusHref)}
               marker={
                 stage.gate ? (
                   <span title="Есть условия" className="flex shrink-0 items-center text-fg-3">

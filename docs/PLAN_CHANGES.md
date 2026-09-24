@@ -38491,3 +38491,30 @@ node-тесты против базового прогона origin/main, git di
 - `tests/v3-students-facets.test.mjs` добавлен в `test:frontend` рядом с
   остальными v3-контрактами; пины `tests/ci-node-test-suite.test.mjs`
   обновлены. Workflow «Fast checks» node-тестов продукта не запускает.
+
+
+## 2026-09-24 — CRM typeset: система шрифтовых ролей на Golos Text
+
+Источник: две независимые оценки staff CRM на `origin/main @ 7a266c6e3` по
+Impeccable typeset — типографическая (роли, иерархия, чтение, нагрузка) и
+механическая (detector `--scope type` дал 0 находок, потому что не переводит
+Tailwind-классы в пиксели; grep нашёл 96 `text-2xs` = 11 px, 10 px заметки в
+воронке, 10 px подписи осей графика, 22 заглавные трекинговые микроподписи,
+заголовки страниц 28/21/18 px). Решение владельца 24.09: оставить Golos Text и
+JetBrains Mono и построить ясную систему ролей. Срез (только типографика staff
+CRM): роли определяются один раз в `src/app/(v3)/v3.css` — токены на
+`.v3-world` и классы `t-*` в `@layer components`, значения шкалы общего
+`globals.css` не меняются; ничего меньше 12 px; заглавные подписи становятся
+обычными (sentence case) без разрядки; один размер заголовка страницы через
+общий `PageHeader`; табличные цифры для KPI, счётчиков, сумм и дат в таблицах;
+моноширинный только для идентификаторов и времени. Вне среза: student portal
+(`src/app/(portal)/**`, `src/components/portal/**`, `portal.css`) и v3-файлы,
+которые портал тоже рендерит; файлы страницы «Студенты», которые переписывает
+параллельный редизайн (`ProfileCaseDirectory`, `AdmissionsSummaryPanel`,
+`AdmissionsSummaryReport`, `CuratorCoveragePanel`, `CuratorCoverageForm`,
+список/сводка в `v3/profile/page.tsx`), — временное исключение в контрактном
+тесте. Раскладка, тексты, поведение, права, SQL и production smoke
+`data-testid` не меняются. Проверка: typecheck, eslint затронутых файлов,
+целевые node-тесты против baseline `origin/main`, новый контракт ролей в
+`tests/v3-brand-design.test.mjs`, git diff --check; next build — в CI.
+Ограничения: живой рендер в браузере и на production не проверялся.

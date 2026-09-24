@@ -100,10 +100,16 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     catch { sourceUnavailable = true; }
   }
 
-  const queue = buildTaskQueue({
-    staff: workspace.queue.staff, cases: workspace.queue.cases, filters,
-    actorMembershipId: actor.membershipId, now, complete: workspace.queue.complete,
-  });
+  let queue;
+  try {
+    queue = buildTaskQueue({
+      staff: workspace.queue.staff, cases: workspace.queue.cases, filters,
+      actorMembershipId: actor.membershipId, now, complete: workspace.queue.complete,
+    });
+  } catch {
+    // Повтор одной задачи в двух страницах чтения — данные не сходятся: не показываем их.
+    return <PartShell title="Задачи"><QueueError text="Список задач прочитан с расхождением. Повторите загрузку." retryHref={listHref()} /></PartShell>;
+  }
   // Панель — часть адреса списка: закрытие возвращает те же вид, фильтры и поиск.
   const closeHref = listHref();
   const canReadTaskQueue = workspace.canReadStaffTasks || workspace.canReadCaseTasks;

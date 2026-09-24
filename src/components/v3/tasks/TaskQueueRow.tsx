@@ -104,6 +104,7 @@ export function TaskQueueRow({
   const due = queueDue(task, now, open);
   const word = exceptionWord(task, open);
   const done = Boolean(recent);
+  const undoId = `${result.triggerId}-undo`;
 
   async function completeStaff() {
     if (pending) return;
@@ -117,6 +118,8 @@ export function TaskQueueRow({
       if (state.status === "saved" && state.version) {
         onCompleted({ task, version: state.version, previousStatus: task.status, expired: false });
         announce(`Задача «${task.title}» завершена.`);
+        // Круг сменился отметкой: фокус переходит на «Отменить» в той же строке.
+        requestAnimationFrame(() => document.getElementById(undoId)?.focus());
       } else setError(STAFF_ERROR_COPY[state.status] ?? "Не удалось сохранить. Повторите.");
     } catch { setError("Не удалось сохранить. Повторите."); }
     finally { setPending(false); }
@@ -169,7 +172,7 @@ export function TaskQueueRow({
         {done ? (
           <span className={`${ROW_BUTTON} text-ok`}><Icon name="circle-check" size={22} /></span>
         ) : can.complete && task.kind === "staff" ? (
-          <button type="button" onClick={completeStaff} disabled={pending} aria-label={`Завершить: ${task.title}`}
+          <button id={result.triggerId} type="button" onClick={completeStaff} disabled={pending} aria-label={`Завершить: ${task.title}`}
             className={`group ${ROW_BUTTON} text-fg-3 hover:text-ok focus-visible:text-ok disabled:text-fg-3`}>
             <Icon name="circle" size={22} className="group-hover:hidden group-focus-visible:hidden" />
             <Icon name="circle-check" size={22} className="hidden group-hover:block group-focus-visible:block" />
@@ -184,6 +187,7 @@ export function TaskQueueRow({
         ) : !open ? (
           <span className={`${ROW_BUTTON} text-fg-3`}>
             <Icon name={task.status === "done" ? "circle-check" : "circle"} size={22} />
+            {task.status === "done" ? <span className="sr-only">{taskStatus(task.status)}</span> : null}
           </span>
         ) : <span aria-hidden="true" className="size-11" />}
       </div>
@@ -204,7 +208,10 @@ export function TaskQueueRow({
             Завершено
             {!recent.expired ? <>
               {" · "}
-              <button type="button" onClick={() => void onUndo(recent).then((failure) => setError(failure))}
+              <button id={undoId} type="button" onClick={() => void onUndo(recent).then((failure) => {
+                setError(failure);
+                if (!failure) requestAnimationFrame(() => document.getElementById(result.triggerId)?.focus());
+              })}
                 className="relative inline-flex min-h-6 items-center t-caption text-fg underline underline-offset-2 before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:text-accent-text">
                 Отменить
               </button>

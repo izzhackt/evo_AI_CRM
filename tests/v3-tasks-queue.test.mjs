@@ -234,7 +234,7 @@ test("the body groups rows under due bands and completes in the row", () => {
   const bands = [...html.matchAll(/<h2 id="queue-band-[a-z]+"[^>]*><span class="text-(?:danger|fg)">([^<]+)</gu)].map((match) => match[1]);
   assert.deepEqual(bands, ["Просрочено", "Сегодня · чт 24.09", "Завтра · пт 25.09", "На этой неделе", "Позже", "Без срока"]);
   // Staff task: one click; case task: the anchored «Результат» window.
-  assert.match(html, /<button type="button" aria-label="Завершить: Отправить партнёру пакет по весеннему набору"/u);
+  assert.match(html, /<button id="[^"]+" type="button" aria-label="Завершить: Отправить партнёру пакет по весеннему набору"/u);
   const caseRow = html.slice(html.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
   assert.match(caseRow, /popoverTarget="(queue-popover-[^"]+)"[^>]*aria-haspopup="dialog" aria-label="Завершить с результатом: Подтвердить подачу в UCSI"/u);
   assert.match(caseRow, /<label for="[^"]+" id="[^"]+" class="block t-label text-fg-2">Результат<\/label>/u);
@@ -269,6 +269,7 @@ test("empty, restricted and «Поставил я» states are honest", () => {
   assert.match(surfaces.get("no-queue-access"), /В вашей роли нет права на просмотр задач\. Новую задачу можно создать строкой выше\./u);
   assert.match(surfaces.get("created-view"), /Здесь только рабочие задачи/u);
   assert.match(surfaces.get("done-view"), />Завершённые и отменённые</u);
+  assert.match(surfaces.get("done-view"), /<span class="sr-only">выполнена<\/span>/u, "the check mark is announced, not only drawn");
   assert.match(read("src/app/(v3)/v3/tasks/loading.tsx"), /<QueueSkeleton \/>/u);
 });
 

@@ -16,6 +16,7 @@ const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "u
 const contract = source("src/lib/platform-admissions-pipeline-contract.ts");
 const serverModule = source("src/lib/platform-admissions-pipeline.ts");
 const board = source("src/components/v3/AdmissionsPipelineBoard.tsx");
+const boardPrimitive = source("src/components/v3/board/Board.tsx");
 const actions = source("src/lib/platform-admissions-pipeline-actions.ts");
 const page = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
 const migration = source("supabase/migrations/187_platform_admissions_pipeline_board.sql");
@@ -63,10 +64,14 @@ test("the board never calls the fact-gated admissions playbook RPC or imports it
 test("the card menu offers «Переместить в…» and «Убрать из воронки», grouped by tab", () => {
   assert.match(board, /Переместить в…/u);
   assert.match(board, /Убрать из воронки/u);
-  assert.match(board, /data-testid="v3-admissions-pipeline-move"/u);
+  // Boards 25.09: the menu is a top-layer popover (TopLayerMenu) carrying the same test id.
+  assert.match(board, /testId="v3-admissions-pipeline-move"/u);
   assert.match(board, /data-testid="v3-admissions-pipeline-board"/u);
   assert.match(board, /data-testid="v3-admissions-pipeline-card"/u);
   assert.match(board, /ADMISSIONS_PIPELINE_TAB_STAGES\[tabKey\]\.filter\(\(stage\) => stage !== row\.pipelineStage\)/u);
+  assert.match(board, /tabTargets\(tab\)\.map/u, "this tab's stages first");
+  assert.match(board, /Другой раздел/u);
+  assert.match(board, /tabTargets\(otherTab\)\.map/u, "the other tab's stages behind «Другой раздел»");
 });
 
 test("a failed move renders a role=\"alert\" error and reverts the optimistic move", () => {
@@ -75,8 +80,11 @@ test("a failed move renders a role=\"alert\" error and reverts the optimistic mo
   assert.match(board, /if \(result\.status !== "saved"\)/u);
 });
 
-test("quiet UI: no explanatory helper paragraph, empty column is silent, empty board is one line", () => {
+test("quiet UI: no explanatory helper paragraph, empty column is one quiet shared line, empty board is one line", () => {
   assert.doesNotMatch(board, /Пусто/u);
+  // Boards 25.09: both boards share the empty-column line of the Board primitive.
+  assert.match(board, /emptyText=\{BOARD_EMPTY\.cases\}/u);
+  assert.match(boardPrimitive, /BOARD_EMPTY = \{ leads: "Нет лидов", cases: "Нет дел" \}/u);
   assert.match(board, /Дел в работе нет\./u);
 });
 
@@ -245,12 +253,29 @@ function boardHarness(moveAction) {
     useId() { const [instance, index] = slot(() => `id-${instances.size}-${cursor}`); return instance[index]; },
     useTransition() { return [false, (run) => run()]; },
     useEffect() {},
+    useCallback(callback) { return callback; },
   };
+  const ui = { btnGhostCls: "ghost-button", cn: (...classes) => classes.filter(Boolean).join(" ") };
+  const icons = { Icon: "svg" };
+  // The shared Board primitive and the top-layer menu are production sources
+  // too (boards 25.09): compiled with the same boundaries, not stubbed away.
+  const boardTracks = compile("src/components/v3/board/board-tracks.ts", () => undefined);
+  const boardPrimitive = compile("src/components/v3/board/Board.tsx", (id) => ({
+    "next/link": { default: "a" }, "@/components/icons": icons, "@/components/ui": ui,
+    "@/components/v3/board/board-tracks": boardTracks,
+  })[id]);
+  const menuPosition = compile("src/components/v3/board/menu-position.ts", () => undefined);
+  const topLayerMenu = compile("src/components/v3/board/TopLayerMenu.tsx", (id) => ({
+    react: hooks, "@/components/v3/board/menu-position": menuPosition,
+  })[id]);
   const board = compile("src/components/v3/AdmissionsPipelineBoard.tsx", (id) => ({
     react: hooks,
     "next/link": { default: "a" },
     "next/navigation": { useRouter: () => ({ refresh() {} }) },
-    "@/components/ui": { btnGhostCls: "ghost-button", cn: (...classes) => classes.filter(Boolean).join(" ") },
+    "@/components/ui": ui,
+    "@/components/icons": icons,
+    "@/components/v3/board/Board": boardPrimitive,
+    "@/components/v3/board/TopLayerMenu": topLayerMenu,
     "@/components/v3/Pill": { Pill: "pill" },
     "@/lib/platform-admissions-pipeline-actions": { moveCasePipelineAction: moveAction },
     "@/lib/platform-admissions-pipeline-contract": pipelineContract,
@@ -295,9 +320,9 @@ const cardIds = (tree) => allNodes(tree, (node) => node.props?.["data-testid"] =
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 const CASE_ID = "7d1f0c3a-5b2e-4c1d-9a8b-0e6f5d4c3b2a";
-// "documents" sits outside the narrow view's default stage, so exactly one card menu renders.
+// Boards 25.09: one DOM for the narrow list and the wide grid, so exactly one card menu renders.
 const boardRow = {
-  studentCaseId: CASE_ID, studentDisplayName: "Айдана Садыкова", targetCountry: "CN", primaryInstitutionName: null,
+  studentCaseId: CASE_ID, studentDisplayName: "Студент Синтетический", targetCountry: "CN", primaryInstitutionName: null,
   currentCuratorMembershipId: null, currentCuratorDisplayName: null, pipelineStage: "documents",
   awaitingAck: false, overdue: false, needsReply: false,
 };
@@ -313,7 +338,7 @@ test("«Убрать из воронки» only opens a confirmation; «Отме
   tree = render(boardProps);
   const [confirm] = allNodes(tree, (node) => node.props?.role === "group" && node.props["aria-labelledby"]);
   assert.ok(confirm, "an inline confirmation group replaces the item");
-  assert.match(textOf(confirm), /Убрать «Айдана Садыкова» из воронки\? Дело останется в «Студентах»\./u);
+  assert.match(textOf(confirm), /Убрать «Студент Синтетический» из воронки\? Дело останется в «Студентах»\./u);
   assert.equal(buttonsNamed(tree, "Убрать из воронки").length, 0);
   press(tree, "Отмена");
   tree = render(boardProps);
@@ -322,11 +347,12 @@ test("«Убрать из воронки» only opens a confirmation; «Отме
 
   press(tree, "Убрать из воронки");
   tree = render(boardProps);
-  const [menu] = allNodes(tree, (node) => node.type === "details");
+  const [menu] = allNodes(tree, (node) => node.props?.["data-testid"] === "v3-admissions-pipeline-move");
+  assert.equal(menu.props.popover, "auto", "the menu lives in the top layer, not inside the column");
   let prevented = 0;
-  menu.props.onKeyDown({ key: "Escape", currentTarget: { open: true }, preventDefault() { prevented += 1; }, stopPropagation() {} });
+  menu.props.onKeyDown({ key: "Escape", preventDefault() { prevented += 1; }, stopPropagation() {} });
   tree = render(boardProps);
-  assert.equal(prevented, 1);
+  assert.equal(prevented, 1, "Escape cancels the confirmation instead of closing the popover");
   assert.equal(buttonsNamed(tree, "Убрать").length, 0, "Escape cancels the confirmation");
   assert.deepEqual(cardIds(tree), [CASE_ID]);
   assert.equal(calls.length, 0);
@@ -346,17 +372,17 @@ test("a confirmed removal reports its server outcome in role=status and «Вер
   assert.match(calls[0].requestId, /^[0-9a-f-]{36}$/u);
   tree = render(boardProps);
   assert.deepEqual(cardIds(tree), []);
-  assert.equal(statusText(tree), "Убираем дело «Айдана Садыкова» из воронки…", "not reported as done before the server");
+  assert.equal(statusText(tree), "Убираем дело «Студент Синтетический» из воронки…", "not reported as done before the server");
   await flush();
   tree = render(boardProps);
-  assert.equal(statusText(tree), "Дело «Айдана Садыкова» убрано из воронки.");
+  assert.equal(statusText(tree), "Дело «Студент Синтетический» убрано из воронки.");
   press(tree, "Вернуть в воронку");
   assert.deepEqual(Object.keys(calls[1]).sort(), ["requestId", "stage", "studentCaseId"]);
   assert.equal(calls[1].stage, "documents", "undo is the existing move to the previous stage");
   assert.notEqual(calls[1].requestId, calls[0].requestId);
   await flush();
   tree = render(boardProps);
-  assert.equal(statusText(tree), "Дело «Айдана Садыкова» снова в воронке.");
+  assert.equal(statusText(tree), "Дело «Студент Синтетический» снова в воронке.");
   assert.deepEqual(cardIds(tree), [CASE_ID]);
 });
 
@@ -382,14 +408,24 @@ test("a refused or lost removal restores the card, alerts and leaves no success 
 test("card menu targets are at least 44px, labels at least 12px, and removal is styled apart", () => {
   const render = boardHarness(async () => ({ status: "saved" }));
   const tree = render(boardProps);
-  const [menu] = allNodes(tree, (node) => node.type === "details");
+  const [trigger] = allNodes(tree, (node) => node.type === "button" && node.props["aria-label"] === "Действия с делом");
+  const [menu] = allNodes(tree, (node) => node.props?.["data-testid"] === "v3-admissions-pipeline-move");
+  assert.equal(trigger.props.popoverTarget, menu.props.id, "the trigger opens the top-layer menu");
+  assert.match(trigger.props.className, /\bsize-11\b/u, "44px trigger");
   const targets = allNodes(menu, (node) => node.type === "button" || node.type === "a");
-  assert.ok(targets.length >= 9, "8 stage moves, «Открыть дело» and the removal");
+  // 4 stage moves in this tab, «Другой раздел», 4 moves of the other tab, «Открыть дело», the removal.
+  assert.equal(targets.length, 11);
   for (const target of targets) assert.match(target.props.className, /\bmin-h-11\b/u, textOf(target));
   assert.doesNotMatch(JSON.stringify(allNodes(menu, (node) => node.type === "p").map((node) => node.props.className)), /text-2xs/u);
+  const [other] = buttonsNamed(menu, "Другой раздел");
+  const otherGroup = allNodes(menu, (node) => node.props?.id === other.props["aria-controls"])[0];
+  assert.equal(otherGroup.props.hidden, true, "the other tab's stages stay folded until asked");
+  assert.deepEqual(allNodes(otherGroup, (node) => node.type === "button").map(textOf),
+    ["stage:confirmed", "stage:visa", "stage:predeparture", "stage:arrived"]);
   const [remove] = buttonsNamed(menu, "Убрать из воронки");
   assert.match(remove.props.className, /\btext-danger\b/u);
-  const menuChildren = menu.props.children[1].props.children.flat(Infinity).filter((child) => child && typeof child === "object");
+  const menuChildren = [menu.props.children].flat(Infinity).flatMap((child) => child?.props?.children ?? []).flat(Infinity)
+    .filter((child) => child && typeof child === "object");
   assert.equal(menuChildren.at(-2).type, "hr", "a separator sets removal apart from moves and «Открыть дело»");
   assert.equal(menuChildren.at(-1), remove);
 });

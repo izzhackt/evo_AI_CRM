@@ -7094,15 +7094,13 @@ async function proveBrowserDocumentDownload(page, appUrl, status, document, allo
 }
 
 async function proveBrowserSalesReadback(page, appUrl, salesProof, role, browserStep) {
-  await browserStep(async () => await page.goto(`${appUrl}/v3/pipeline`, { waitUntil: "domcontentloaded" }));
+  // Boards 25.09: the decision form lives in the lead panel, opened by ?lead=.
+  await browserStep(async () => await page.goto(`${appUrl}/v3/pipeline?lead=${salesProof.leadId}`, { waitUntil: "domcontentloaded" }));
   await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
   const panel = await browserStep(async () => page.locator(
     `[data-testid="v3-pipeline-decision"][data-lead-id="${salesProof.leadId}"]`,
   ));
   await browserStep(async () => await panel.waitFor({ state: "visible", timeout: 45_000 }));
-  if (await browserStep(async () => await panel.getAttribute("open")) === null) {
-    await browserStep(async () => await panel.locator("summary").click());
-  }
   const form = await browserStep(async () => panel.getByTestId("v3-pipeline-workflow-form"));
   await browserStep(async () => await form.waitFor({ state: "visible", timeout: 45_000 }));
   const marker = await browserStep(async () => await form.getByTestId("v3-pipeline-next-action").inputValue());

@@ -205,7 +205,9 @@ test("Pipeline page uses the tested coordinator and manual creation keeps the ac
   assert.match(adapter, /board: \(current\) => readPipelineLeads\(current, filters\)/);
   assert.match(adapter, /owners: readPipelineOwnerOptions/);
   assert.match(page, /canCreateLead \? <ManualLeadForm/);
-  assert.match(page, /!ownerSelectShown && query\.owner !== null/);
+  // Boards 25.09: «Ответственный» applies on change through its own link
+  // addresses, so the search form always carries a chosen owner as a hidden field.
+  assert.match(page, /\{query\.owner !== null \? \(\s*<input type="hidden" name="owner" value=\{query\.owner\} \/>/);
   assert.match(page, /name="owner" value=\{query\.owner\}/);
   const action = source("src/lib/platform-manual-lead-actions.ts");
   const manual = source("src/lib/v3/manual-lead-source.ts");

@@ -100,14 +100,16 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/settings/StaffSection.tsx",
     "src/components/v3/calendar/Calendar.tsx",
     "src/components/v3/calendar/grids.tsx",
-    "src/components/v3/AdmissionsPipelineBoard.tsx",
+    // Boards 25.09: segments, the filter toggle and the open-lead card of both
+    // boards live in the shared Board primitive and the sales board.
+    "src/components/v3/board/Board.tsx",
+    "src/components/v3/board/BoardToolbar.tsx",
+    "src/components/v3/Pipeline.tsx",
     "src/app/(v3)/v3/admissions-pipeline/page.tsx",
     // «Задачи» (25.09.2026): вкладки, фильтры и срок в диалоге — примитивы очереди.
     "src/components/v3/queue/QueueViewTabs.tsx",
     "src/components/v3/queue/FilterMenu.tsx",
     "src/components/v3/tasks/ComposerDeadlineField.tsx",
-    "src/app/(v3)/v3/pipeline/page.tsx",
-    "src/components/v3/PipelineStageViewport.tsx",
     "src/components/v3/MainHeader.tsx",
     "src/components/v3/SalesReportNavigation.tsx",
     "src/components/v3/profile/Profile.tsx",
@@ -132,8 +134,8 @@ test("solid red stays for the main action and every selection shares one accent-
   const filterSubmits = [
     "src/components/v3/Inbox.tsx",
     "src/components/v3/MainHeader.tsx",
-    "src/app/(v3)/v3/pipeline/page.tsx",
-    "src/app/(v3)/v3/admissions-pipeline/page.tsx",
+    // Both boards' search (Enter on desktop, «Найти» on the phone).
+    "src/components/v3/board/Board.tsx",
     "src/components/v3/universities/UniversityCatalogue.tsx",
     "src/components/v3/profile/StudentsWorkspace.tsx",
   ];
@@ -282,10 +284,13 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
 
   // Подпись настоящего поля или фильтра — t-label (14 px), даже в строке с
   // контролом; t-caption остаётся подписям данных: колонкам, терминам, чипам.
+  // Boards 25.09: filter selects of both boards share NavigateSelect, whose
+  // label is t-label; the search field is named «Поиск» for assistive tech.
+  const toolbar = read("src/components/v3/board/BoardToolbar.tsx");
+  assert.match(toolbar, /<label className="t-label [^"]*">\s*\{label\}\s*<select/u, "board filter label");
   const pipelinePage = read("src/app/(v3)/v3/pipeline/page.tsx");
-  for (const name of ["Поиск", "Сотрудник"]) {
-    assert.match(pipelinePage, new RegExp(`<label className="t-label [^"]*">\\s*${name}\\s*<`, "u"), `pipeline «${name}» filter label`);
-  }
+  assert.match(pipelinePage, /label="Ответственный"/u, "pipeline «Ответственный» filter label");
+  assert.match(read("src/components/v3/board/Board.tsx"), /<span className="sr-only">Поиск<\/span>/u, "board search is named");
   const catalogue = read("src/components/v3/universities/UniversityCatalogue.tsx");
   for (const name of ["Название", "Страна", "Уровень"]) {
     assert.match(catalogue, new RegExp(`<label className="t-label text-fg-2">${name}<`, "u"), `university «${name}» filter label`);

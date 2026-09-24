@@ -35,7 +35,9 @@
  *       сохранение и обновление с `?lead=`), переданный лид при всех этапах
  *       (рейка «Переданы» → карточка → «Все этапы», затем обновление на
  *       1536 px), модальный лист на телефоне, подпись рейки при фокусе
- *       клавиатуры, меню дела и перетаскивание.
+ *       клавиатуры и при наведении мыши (линия иконки и центр пункта, число
+ *       мутаций меню, исчезновение подписи после ухода курсора), меню дела
+ *       и перетаскивание.
  *
  * По умолчанию outDir — .impeccable/review (не коммитится).
  */
@@ -721,6 +723,88 @@ async function hydrate() {
       }
       await page.screenshot({ path: join(outDir, "boards-hydrated-rail-hint-1280.png") });
       report({ journey: "rail-hint-1280", reached, hint, console: console_ });
+      await context.close();
+    }
+
+    // 4б. Рейка меню, 1280: подпись при наведении мыши на обеих досках.
+    // Курсор ставится на линию иконки (точка на контуре SVG) и в центр
+    // пункта. Считаем мутации DOM в меню за 1 с наведения: подпись не должна
+    // перерисовывать меню по кругу. Затем курсор уходит на доску: подпись
+    // должна исчезнуть.
+    for (const path of ["/v3/pipeline", "/v3/admissions-pipeline"]) {
+      const { context, page, console_ } = await open({ width: 1280, height: 800 }, path);
+      const tipText = () => page.evaluate(() => {
+        const tip = [...document.querySelectorAll('nav[aria-label="Разделы"] span[aria-hidden="true"].fixed')]
+          .find((element) => getComputedStyle(element).display !== "none");
+        return tip?.textContent ?? null;
+      });
+      const countMutations = () => page.evaluate(() => {
+        window.__railMutations = 0;
+        window.__railObserver?.disconnect();
+        window.__railObserver = new MutationObserver((records) => { window.__railMutations += records.length; });
+        window.__railObserver.observe(document.querySelector('nav[aria-label="Разделы"]'), { subtree: true, childList: true, attributes: true, characterData: true });
+      });
+      const mutations = () => page.evaluate(() => window.__railMutations);
+      const items = await page.evaluate(() => {
+        const nav = document.querySelector('nav[aria-label="Разделы"]');
+        return [...nav.querySelectorAll("a, button")].filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && rect.right <= 72 && element.querySelector("svg");
+        }).map((element) => {
+          const svg = element.querySelector("svg");
+          let stroke = null;
+          for (const shape of svg.querySelectorAll("path, circle, rect, line, polyline")) {
+            const length = shape.getTotalLength();
+            const matrix = shape.getScreenCTM();
+            for (const fraction of [0.5, 0.33, 0.66, 0.2, 0.8]) {
+              const point = shape.getPointAtLength(length * fraction);
+              const x = point.x * matrix.a + point.y * matrix.c + matrix.e;
+              const y = point.x * matrix.b + point.y * matrix.d + matrix.f;
+              if (document.elementFromPoint(x, y) === shape) { stroke = { x, y }; break; }
+            }
+            if (stroke) break;
+          }
+          const rect = element.getBoundingClientRect();
+          const centre = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+          const centreHit = document.elementFromPoint(centre.x, centre.y);
+          return {
+            label: element.getAttribute("aria-label") ?? element.textContent.trim(),
+            stroke,
+            centre,
+            centreOnStroke: centreHit !== svg && svg.contains(centreHit),
+          };
+        });
+      });
+      const board = { x: 760, y: 560 };
+      const results = [];
+      for (const item of items) {
+        for (const [mode, point] of [["stroke", item.stroke], ["centre", item.centre]]) {
+          if (!point) { results.push({ label: item.label, mode, point: null }); continue; }
+          await page.mouse.move(board.x, board.y);
+          await page.waitForTimeout(100);
+          await countMutations();
+          await page.mouse.move(point.x, point.y);
+          await page.waitForTimeout(1000);
+          const hover = { tip: await tipText(), mutations: await mutations() };
+          if (item.label === "Выйти" && mode === "centre") {
+            await page.screenshot({ path: join(outDir, `boards-hydrated-rail-hover-${basename(path)}-1280.png`) });
+          }
+          await countMutations();
+          await page.mouse.move(board.x, board.y, { steps: 5 });
+          await page.waitForTimeout(1000);
+          const left = { tip: await tipText(), mutations: await mutations() };
+          if (item.label === "Выйти" && mode === "centre") {
+            await page.screenshot({ path: join(outDir, `boards-hydrated-rail-left-${basename(path)}-1280.png`) });
+          }
+          results.push({ label: item.label, mode, centreOnStroke: item.centreOnStroke, hover, left,
+            ok: hover.tip === item.label && hover.mutations < 100 && left.tip === null });
+        }
+      }
+      report({ journey: `rail-hover-${basename(path)}-1280`, items: items.length,
+        ok: results.filter((result) => result.ok).length, total: results.length,
+        maxHoverMutations: Math.max(...results.map((result) => result.hover?.mutations ?? 0)),
+        stuckAfterLeave: results.filter((result) => result.left && result.left.tip !== null).map((result) => `${result.label}/${result.mode}`),
+        results, console: console_ });
       await context.close();
     }
 

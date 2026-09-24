@@ -199,7 +199,9 @@ function Sidebar({
   const showRailHint = (element: HTMLElement, label: string) => {
     if (!window.matchMedia(RAIL_MEDIA).matches) return;
     const rect = element.getBoundingClientRect();
-    setRailHint({ label, top: rect.top + rect.height / 2 });
+    const top = rect.top + rect.height / 2;
+    // Повторное наведение на тот же пункт не перерисовывает меню.
+    setRailHint((previous) => previous?.label === label && previous.top === top ? previous : { label, top });
   };
   const hint = (label: string): HintHandlers => rail ? {
     onPointerEnter: (event) => showRailHint(event.currentTarget, label),

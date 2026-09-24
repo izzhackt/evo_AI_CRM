@@ -107,6 +107,14 @@ const PATHS: Record<IconName, string> = {
   "help-circle": '<circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4"/><path d="M12 17.3h.01"/>',
 };
 
+// Разметка каждой иконки — один постоянный объект. React 19 сравнивает
+// `dangerouslySetInnerHTML` по ссылке: новый объект на каждом рендере заново
+// записывал бы innerHTML и заменял узлы SVG, в том числе под курсором (тогда
+// браузер теряет pointerout и снова шлёт pointerover).
+const MARKUP = Object.fromEntries(
+  Object.entries(PATHS).map(([name, html]) => [name, { __html: html }]),
+) as Record<IconName, { __html: string }>;
+
 export function Icon({
   name,
   size = 18,
@@ -130,7 +138,7 @@ export function Icon({
       strokeLinejoin="round"
       aria-hidden="true"
       className={className}
-      dangerouslySetInnerHTML={{ __html: PATHS[name] }}
+      dangerouslySetInnerHTML={MARKUP[name]}
       {...rest}
     />
   );

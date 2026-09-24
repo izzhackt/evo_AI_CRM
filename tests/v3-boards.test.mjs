@@ -3,6 +3,9 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
+import * as jsxRuntime from "react/jsx-runtime";
+import ts from "typescript";
 
 import { BOARD_ROUTES, isBoardRoute } from "../src/lib/v3/board-layout.ts";
 import {
@@ -121,6 +124,34 @@ test("the sidebar folds to a 64px rail on board routes below 1536px and keeps na
   assert.match(shell, /onFocus: \(event\) => showRailHint\(event\.currentTarget, label\)/u, "hint on keyboard focus too");
   assert.match(shell, /onPointerEnter: \(event\) => showRailHint\(event\.currentTarget, label\)/u);
   assert.match(shell, /pointer-events-none fixed start-\[4\.5rem\]/u, "hint escapes the scrolling rail");
+});
+
+// Подпись рейки при наведении не должна перерисовывать меню по кругу. React 19
+// сравнивает `dangerouslySetInnerHTML` по ссылке: новый объект на каждом
+// рендере заново записывал innerHTML иконок, заменял линию SVG под курсором,
+// браузер снова слал pointerover, а потерянный pointerout оставлял подпись на
+// экране. Живое наведение (линия иконки и центр пункта, 9 пунктов на обеих
+// досках) меряет boards-static-render.cjs --hydrate.
+test("rail hover hint does not loop: icon markup is one stable object and a repeat hover is a no-op", () => {
+  const compiled = ts.transpileModule(read("src/components/icons.tsx"), { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
+  } }).outputText;
+  const icons = {};
+  runInNewContext(compiled, { exports: icons, require(name) {
+    assert.equal(name, "react/jsx-runtime");
+    return jsxRuntime;
+  } });
+  for (const name of ["log-out", "bar-chart", "grid", "x"]) {
+    const first = icons.Icon({ name });
+    const second = icons.Icon({ name, size: 20, className: "shrink-0" });
+    assert.equal(first.props.dangerouslySetInnerHTML, second.props.dangerouslySetInnerHTML, `${name}: same markup object on every render`);
+    assert.match(first.props.dangerouslySetInnerHTML.__html, /^<(path|rect|circle)\b/u, name);
+  }
+  const shell = read("src/components/v3/AppShell.tsx");
+  assert.match(shell,
+    /setRailHint\(\(previous\) => previous\?\.label === label && previous\.top === top \? previous : \{ label, top \}\)/u,
+    "hovering the same item again keeps the same state and does not re-render the sidebar");
+  assert.match(shell, /onPointerLeave: \(\) => setRailHint\(null\)/u);
 });
 
 test("the admissions case menu renders in the top layer and is placed inside the viewport", () => {

@@ -658,8 +658,13 @@ async function expectExactSupabaseSalesRead(
   readOnly = false,
 ) {
   await page.goto("/v3/pipeline");
+  // Boards 25.09: PageHeader puts the working-lead count inside the <h1>
+  // («Воронка продаж 12»); the count is absent when the read is truncated.
   await expect(
-    page.getByRole("heading", { name: "Воронка продаж", exact: true }),
+    page.getByRole("heading", {
+      level: 1,
+      name: /^Воронка продаж(?:\s+\d+)?$/u,
+    }),
   ).toBeVisible();
 
   const workflowPanel = page.locator(

@@ -548,7 +548,7 @@ export type NextStepAccess =
 export function nextStepAccess(input: NextStepAccessInput, row: Pick<StudentCaseQueueRow, "state" | "isMine" | "studentCaseId">, recordScopes: readonly string[] = []): NextStepAccess {
   if (input.preview) return { kind: "read_only", reason: "В просмотре интерфейса роли шаг не меняется." };
   if (row.state === "closed") return { kind: "read_only", reason: "Дело закрыто: шаг не меняется." };
-  if (row.state !== "active") return { kind: "read_only", reason: "Дело ещё не в работе: шаг появится после принятия." };
+  if (row.state !== "active") return { kind: "read_only", reason: "Шаг задаётся только делу в работе." };
   if (input.admin) return { kind: "edit" };
   if (input.routeManage && (row.isMine || input.broadScope || recordScopes.includes(row.studentCaseId))) return { kind: "edit" };
   return { kind: "read_only", reason: null };

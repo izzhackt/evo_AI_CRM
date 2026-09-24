@@ -312,7 +312,7 @@ test("the next-step editor is shown only where the RPC may allow it; others read
   assert.deepEqual(nextStepAccess({ ...staff, routeManage: false }, { ...row, isMine: true }), { kind: "read_only", reason: null });
   assert.deepEqual(nextStepAccess({ ...staff, admin: true, preview: true }, row), { kind: "read_only", reason: "В просмотре интерфейса роли шаг не меняется." });
   assert.deepEqual(nextStepAccess({ ...staff, admin: true }, { ...row, state: "closed" }), { kind: "read_only", reason: "Дело закрыто: шаг не меняется." });
-  assert.equal(nextStepAccess({ ...staff, admin: true }, { ...row, state: "pending" }).kind, "read_only");
+  assert.deepEqual(nextStepAccess({ ...staff, admin: true }, { ...row, state: "pending" }), { kind: "read_only", reason: "Шаг задаётся только делу в работе." });
   // Rendered: Admin gets the editor; the role preview reads the step with the reason.
   const panel = surfaces.get("admin-panel").slice(surfaces.get("admin-panel").indexOf("<dialog"));
   assert.match(panel, /data-testid="v3-next-step-editor"/u);

@@ -27,8 +27,8 @@ function FacetList({ group }: Readonly<{ group: FacetGroup }>) {
   return (
     <section aria-labelledby={headingId}>
       <div className="flex items-baseline justify-between gap-3 px-3 pb-1">
-        <h2 id={headingId} className="text-sm font-semibold text-fg">{group.title}</h2>
-        {group.countLabel ? <span aria-hidden="true" className="text-xs text-fg-3">{group.countLabel}</span> : null}
+        <h2 id={headingId} className="t-item text-fg">{group.title}</h2>
+        {group.countLabel ? <span aria-hidden="true" className="t-caption text-fg-3">{group.countLabel}</span> : null}
       </div>
       <ul>
         {group.items.map((item) => (
@@ -43,7 +43,7 @@ function FacetList({ group }: Readonly<{ group: FacetGroup }>) {
                 {item.note ? <span className="font-normal text-fg-3"> · {item.note}</span> : null}
               </span>
               {item.count !== null ? (
-                <span className={`shrink-0 font-mono tabular-nums ${item.selected ? "" : "text-fg-3"}`}>
+                <span className={`shrink-0 tabular-nums ${item.selected ? "" : "text-fg-3"}`}>
                   <span className="sr-only">{group.countLabel}: </span>{item.count}
                 </span>
               ) : null}
@@ -109,8 +109,8 @@ export function StudentsWorkspace({
         списком, отдельного отчёта в меню и карточек-строк в рамках.
         OWN-WORLD: рабочий стол EVO — серая земля #f3f3f3; белое только у полей
         ввода и строки под курсором; волосяные линии #dedede вместо рамок; Golos
-        Text; JetBrains Mono для чисел и дат; выбранное — .v3-choice; сплошной
-        красный #d70217 только у «Создать задачу».
+        Text, числа — табличными цифрами Golos, JetBrains Mono — только даты;
+        выбранное — .v3-choice; сплошной красный #d70217 только у «Создать задачу».
         STORY: сотрудник видит, сколько дел в работе по направлениям, где
         просрочки и кто без куратора; кликает число — таблица сужается;
         открывает дело по имени. Admin выбирает куратора, видит нагрузку и
@@ -205,7 +205,7 @@ export function StudentsWorkspace({
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
-          {!params.invalid && rows.length > 0 ? <p className="text-sm text-fg-3">На странице: <span className="font-mono text-fg-2">{rows.length}</span></p> : <span />}
+          {!params.invalid && rows.length > 0 ? <p className="text-sm text-fg-3">На странице: <span className="tabular-nums text-fg-2">{rows.length}</span></p> : <span />}
           <nav aria-label="Страницы каталога студентов" className="flex flex-wrap items-center gap-x-6">
             {params.cursor ? <Link className={QUIET_LINK} href={admissionsDirectoryHref(params, undefined, docsMode)}><Icon name="arrow-left" size={16} />К началу</Link> : null}
             {directory.hasNext && directory.nextCursor ? <Link className={QUIET_LINK} href={admissionsDirectoryHref(params, directory.nextCursor, docsMode)} rel="next">Следующие записи<Icon name="arrow-right" size={16} /></Link> : null}

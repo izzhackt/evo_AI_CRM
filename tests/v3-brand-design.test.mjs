@@ -171,17 +171,6 @@ const TYPE_ROLES = {
   figure: [28, 32, 600],
 };
 
-// ВРЕМЕННОЕ исключение: страницу «Студенты» переписывает параллельный редизайн,
-// который примет эти роли сам. Список/сводка в v3/profile/page.tsx идут через
-// эти компоненты. Когда редизайн влит, список должен опустеть.
-const STUDENTS_REDESIGN_FILES = new Set([
-  "src/components/v3/profile/ProfileCaseDirectory.tsx",
-  "src/components/v3/profile/AdmissionsSummaryPanel.tsx",
-  "src/components/v3/profile/AdmissionsSummaryReport.tsx",
-  "src/components/v3/profile/CuratorCoveragePanel.tsx",
-  "src/components/v3/profile/CuratorCoverageForm.tsx",
-]);
-
 // Эти v3-компоненты рендерит и Student portal. Портал тоже грузит v3.css
 // (src/app/(portal)/layout.tsx) и оборачивает содержимое в .v3-world
 // (components/portal/Shell.tsx), поэтому роль `t-*` сработала бы и там — но
@@ -203,7 +192,7 @@ function staffCrmSources() {
       if (/\.(tsx|ts|css)$/u.test(entry)) files.push(`${root}/${entry.split("\\").join("/")}`);
     }
   }
-  return files.filter((path) => !STUDENTS_REDESIGN_FILES.has(path)).map((path) => [path, read(path)]);
+  return files.map((path) => [path, read(path)]);
 }
 
 const ROLE_CLASS = /(?<![\w-])t-(?:page-title|record-title|section|item|body|body-compact|label|meta|caption|figure)(?![\w-])/u;
@@ -303,5 +292,27 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
 
   for (const path of PORTAL_SHARED_FILES) {
     assert.doesNotMatch(read(path), ROLE_CLASS, `${path} is shared with the portal and keeps its Tailwind utilities`);
+  }
+
+  // «Студенты» (фасеты и таблица, #1050) — на тех же ролях: заголовки групп
+  // фасетов — t-item, подписи чисел и шапка таблицы — t-caption, имя — t-item,
+  // строка «направление · уровень» — t-meta. Числа — табличные цифры Golos,
+  // JetBrains Mono — только даты в колонке «Срок» и в замещении куратора.
+  const students = read("src/components/v3/profile/StudentsWorkspace.tsx");
+  assert.match(students, /<h2 id=\{headingId\} className="t-item text-fg">\{group\.title\}<\/h2>/u);
+  assert.match(students, /className="t-caption text-fg-3">\{group\.countLabel\}/u);
+  assert.match(students, /На странице: <span className="tabular-nums text-fg-2">/u);
+  assert.doesNotMatch(students, /font-mono/u, "facet counts are Golos tabular digits");
+  const caseTable = read("src/components/v3/profile/StudentCaseTable.tsx");
+  assert.match(caseTable, /const HEAD = "[^"]*\bt-caption text-fg-2\b[^"]*";/u);
+  assert.match(caseTable, /const NAME_LINK = "[^"]*\bt-item text-fg\b[^"]*";/u);
+  assert.match(caseTable, /<span className="block t-meta text-fg-2 @3xl:truncate" title=\{meta\}>/u);
+  assert.equal(caseTable.match(/\bfont-mono\b/gu)?.length, 2, "only the two due-date <time> elements are monospace");
+  const coveragePanel = read("src/components/v3/profile/CuratorCoveragePanel.tsx");
+  assert.match(coveragePanel, /<h2 id="curator-coverage-title" className="t-section text-fg">/u);
+  assert.doesNotMatch(coveragePanel, /font-mono/u, "workload counts are Golos tabular digits");
+  assert.match(read("src/components/v3/profile/CoverageDueTime.tsx"), /className="whitespace-nowrap font-mono tabular-nums"/u);
+  for (const path of ["src/components/v3/profile/CuratorCoveragePanel.tsx", "src/components/v3/profile/CuratorCoverageForm.tsx"]) {
+    assert.doesNotMatch(read(path), /\blabelCls\b/u, `${path} field labels use fieldLabelCls (t-label)`);
   }
 });

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
-import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
 import { manageCaseCoverageAction, type CaseCoverageActionState } from "@/lib/platform-case-coverage-actions";
 import type { CoverageCurator, CoveragePreview } from "@/lib/platform-case-coverage-contract";
 import { coverageConflictLabel } from "@/lib/v3/wording";
@@ -85,7 +85,7 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today }:
   return (
     <form action={action} aria-busy={pending} className="space-y-4 border-t border-border pt-5" data-testid="v3-curator-coverage-form">
       <div>
-        <h3 className="font-semibold text-fg">{returning ? "Вернуть дело студента" : "Назначить замещение"}: {reviewed.name}</h3>
+        <h3 className="t-section text-fg">{returning ? "Вернуть дело студента" : "Назначить замещение"}: {reviewed.name}</h3>
         <p className="mt-1 text-sm text-fg-2">
           {returning
             ? `Дело вернётся: ${destinationName ?? "прежний куратор"}. Открытые задачи — указанным ниже исполнителям.`
@@ -106,22 +106,22 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today }:
           <input type="hidden" name="substitute_membership_id" value="" />
           <input type="hidden" name="planned_end_on" value="" />
         </> : <div className="grid gap-4 sm:grid-cols-2">
-          <label><span className={labelCls}>Заместитель</span>
+          <label><span className={fieldLabelCls}>Заместитель</span>
             <select name="substitute_membership_id" value={substitute} onChange={(event) => setSubstitute(event.target.value)} required className={`${inputCls} min-h-11`}>
               <option value="">Выберите куратора</option>
               {availableSubstitutes.map((curator) => <option key={curator.id} value={curator.id}>{curator.name}</option>)}
             </select>
             {availableSubstitutes.length === 0 ? <span className="mt-1 block text-sm text-fg-2">Нет доступного заместителя.</span> : null}
           </label>
-          <label><span className={labelCls}>Плановая дата возврата</span>
+          <label><span className={fieldLabelCls}>Плановая дата возврата</span>
             <input name="planned_end_on" type="date" value={endOn} onChange={(event) => setEndOn(event.target.value)} required className={`${inputCls} min-h-11`} />
           </label>
         </div>}
-        <label className="block"><span className={labelCls}>{returning ? "Причина возврата" : "Причина отсутствия и замещения"}</span>
+        <label className="block"><span className={fieldLabelCls}>{returning ? "Причина возврата" : "Причина отсутствия и замещения"}</span>
           <textarea name="reason" value={reason} onChange={(event) => setReason(event.target.value)} required maxLength={1000} rows={2} className={inputCls} />
         </label>
         <div>
-          <h4 className="text-sm font-semibold text-fg">Открытые задачи: {reviewed.tasks.length}</h4>
+          <h4 className="t-item text-fg">Открытые задачи: {reviewed.tasks.length}</h4>
           <p className="mt-1 text-sm text-fg-2">Завершённые задачи и история не меняются.</p>
           {reviewed.tasks.length === 0 ? <p className="mt-3 text-sm text-fg-2">Открытых задач нет. Изменится только куратор.</p> : <ul className="mt-3 divide-y divide-border">
             {reviewed.tasks.map((task) => {
@@ -133,7 +133,7 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today }:
                 {task.required || !task.can_transfer ? <>
                   <input type="hidden" name={`task_${task.id}`} value={transfer ? "true" : "false"} />
                   <p className="text-sm text-fg-2">{transfer ? `Переносится: ${targetName ?? "выбранный заместитель"}` : "Остаётся у текущего исполнителя"}</p>
-                </> : <label className="block max-w-md"><span className={labelCls}>Перенос задачи «{task.title}»</span>
+                </> : <label className="block max-w-md"><span className={fieldLabelCls}>Перенос задачи «{task.title}»</span>
                   <select name={`task_${task.id}`} value={transfer ? "true" : "false"} onChange={(event) => setChoices((previous) => ({ ...previous, [task.id]: event.target.value === "true" }))} className={`${inputCls} min-h-11`}>
                     <option value="false">Оставить текущему исполнителю</option>
                     <option value="true">Передать: {targetName ?? "выбранный заместитель"}</option>

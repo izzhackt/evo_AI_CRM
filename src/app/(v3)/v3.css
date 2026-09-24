@@ -227,7 +227,8 @@
     line-height: var(--type-body-compact-leading);
     font-weight: 400;
   }
-  /* Подпись поля формы над контролом (`fieldLabelCls`). */
+  /* Подпись поля формы (`fieldLabelCls`) и подпись фильтра или контрола в
+     строке — над контролом или рядом с ним. */
   .v3-world .t-label {
     font-size: var(--type-label);
     line-height: var(--type-label-leading);
@@ -239,8 +240,8 @@
     line-height: var(--type-meta-leading);
     font-weight: 400;
   }
-  /* Колонка, термин, статус, группа навигации, подпись фильтра в строке —
-     вместо заглавных микроподписей. */
+  /* Подпись данных: колонка, термин, статус, чип, группа чипов или навигации —
+     вместо заглавных микроподписей. Подпись поля или фильтра — `t-label`. */
   .v3-world .t-caption {
     font-size: var(--type-caption);
     line-height: var(--type-caption-leading);

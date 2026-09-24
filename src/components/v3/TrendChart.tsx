@@ -17,16 +17,57 @@ export type TrendSeries = Readonly<{
 
 const WIDTH = 620;
 const HEIGHT = 220;
-const PAD_LEFT = 44;
+/** Слева помещается четырёхзначное значение шкалы наибольшим кеглем подписи. */
+const PAD_LEFT = 52;
 const PAD_RIGHT = 14;
 const PAD_TOP = 16;
 const PAD_BOTTOM = 30;
 /**
- * Подписи осей — 12 единиц viewBox. SVG не уже своего viewBox (`min-w`
- * равен WIDTH), поэтому на экране подписи не мельче 12 px; на узком экране
- * обёртка прокручивается, как и раньше.
+ * Кегль подписей осей в единицах viewBox. SVG растягивает viewBox шириной
+ * WIDTH на свою ширину, а она не меньше 480 px (`min-w-[480px]`, как и до
+ * ролей шрифта; уже — обёртка прокручивается). Пока обёртка уже WIDTH,
+ * кегль 12 × 620 / 480 = 15.5 даёт на экране 12–15.5 px; от WIDTH и шире
+ * хватает 12 единиц — 12 px и больше, но меньше 16 px заголовка карточки
+ * (одна колонка Главной не шире 814 px).
  */
-const LABEL_SIZE = 12;
+const LABEL_CLASS = "text-[15.5px] @min-[620px]/trend:text-[12px]";
+/** Наибольший кегль подписи в единицах viewBox — по нему расставляются деления. */
+const LABEL_SIZE = 15.5;
+/** Средняя ширина знака Golos в долях кегля, с запасом (цифры ≈ 0.53). */
+const LABEL_CHAR_EM = 0.6;
+const LABEL_GAP = 8;
+
+type PlacedTick = Readonly<{
+  label: string;
+  index: number;
+  x: number;
+  anchor: "start" | "middle" | "end";
+}>;
+
+/**
+ * Подписи делений, которые встают без наложения. Первая подпись может нести
+ * год («26 дек 2025») и тогда шире шага делений — соседняя с ней пропускается.
+ * Последняя подпись называет конец периода и остаётся всегда. Крайние подписи
+ * прижимаются к своему краю, а не центрируются: при семи и менее делениях
+ * последняя стояла ровно на границе кадра и половина текста уходила за него.
+ */
+export function placeTicks(ticks: readonly string[]): PlacedTick[] {
+  const last = ticks.length - 1;
+  const kept: (PlacedTick & { left: number; right: number })[] = [];
+  ticks.forEach((label, index) => {
+    if (!label) return;
+    const x = PAD_LEFT + (index * (WIDTH - PAD_LEFT - PAD_RIGHT)) / Math.max(last, 1);
+    const anchor = index === 0 ? "start" : index === last ? "end" : "middle";
+    const width = label.length * LABEL_SIZE * LABEL_CHAR_EM;
+    const left = anchor === "start" ? x : anchor === "end" ? x - width : x - width / 2;
+    while (kept.length > 0 && left < kept[kept.length - 1].right + LABEL_GAP) {
+      if (index !== last) return;
+      kept.pop();
+    }
+    kept.push({ label, index, x, anchor, left, right: left + width });
+  });
+  return kept.map(({ label, index, x, anchor }) => ({ label, index, x, anchor }));
+}
 
 function pointsOf(values: readonly number[], max: number) {
   const steps = Math.max(values.length - 1, 1);
@@ -71,11 +112,11 @@ export function TrendChart({
       role="group"
       aria-label={caption}
       tabIndex={0}
-      className="max-w-full overflow-x-auto rounded-ctl"
+      className="@container/trend max-w-full overflow-x-auto rounded-ctl"
     >
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="h-auto w-full min-w-[620px]"
+        className="h-auto w-full min-w-[480px]"
         role="img"
         aria-label={`${caption}. ${spoken}`}
       >
@@ -105,7 +146,7 @@ export function TrendChart({
                 x={PAD_LEFT - 8}
                 y={y + 4}
                 textAnchor="end"
-                fontSize={LABEL_SIZE}
+                className={LABEL_CLASS}
                 fill="var(--text-3)"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               >
@@ -154,26 +195,19 @@ export function TrendChart({
             })()
           : null}
 
-        {ticks.map((tick, index) =>
-          tick ? (
-            <text
-              key={`${tick}-${index}`}
-              x={PAD_LEFT + (index * (WIDTH - PAD_LEFT - PAD_RIGHT)) / Math.max(ticks.length - 1, 1)}
-              y={HEIGHT - 8}
-              // Крайние подписи прижимаются к своему краю, а не центрируются:
-              // при семи и менее делениях последняя стояла ровно на границе
-              // кадра и половина текста уходила за него.
-              textAnchor={
-                index === 0 ? "start" : index === ticks.length - 1 ? "end" : "middle"
-              }
-              fontSize={LABEL_SIZE}
-              fill="var(--text-3)"
-              style={{ fontVariantNumeric: "tabular-nums" }}
-            >
-              {tick}
-            </text>
-          ) : null,
-        )}
+        {placeTicks(ticks).map((tick) => (
+          <text
+            key={`${tick.label}-${tick.index}`}
+            x={tick.x}
+            y={HEIGHT - 8}
+            textAnchor={tick.anchor}
+            className={LABEL_CLASS}
+            fill="var(--text-3)"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {tick.label}
+          </text>
+        ))}
       </svg>
     </div>
   );

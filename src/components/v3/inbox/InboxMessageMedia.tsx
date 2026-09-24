@@ -90,7 +90,7 @@ function MediaAttachmentForm({
       />
       <input type="hidden" name="request_id" value={state.requestId} />
 
-      <label className="t-caption flex flex-col gap-1">
+      <label className="t-label flex flex-col gap-1">
         <span>Документ в деле студента</span>
         <select
           name="document_slot_id"

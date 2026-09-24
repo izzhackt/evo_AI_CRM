@@ -175,7 +175,7 @@ export default async function PipelinePart({
           <input type="hidden" name="owner" value={query.owner} />
         ) : null}
 
-        <label className="t-caption inline-flex w-full min-w-0 items-center gap-1.5 text-fg-3 @2xl:w-auto">
+        <label className="t-label inline-flex w-full min-w-0 items-center gap-1.5 text-fg-3 @2xl:w-auto">
           Поиск
           <input
             type="search"
@@ -188,7 +188,7 @@ export default async function PipelinePart({
         </label>
 
         {ownerSelectShown ? (
-          <label className="t-caption inline-flex w-full min-w-0 items-center gap-1.5 text-fg-3 @2xl:w-auto">
+          <label className="t-label inline-flex w-full min-w-0 items-center gap-1.5 text-fg-3 @2xl:w-auto">
             Сотрудник
             <select
               key={query.owner ?? "all"}

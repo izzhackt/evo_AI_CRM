@@ -182,8 +182,11 @@ const STUDENTS_REDESIGN_FILES = new Set([
   "src/components/v3/profile/CuratorCoverageForm.tsx",
 ]);
 
-// Эти v3-компоненты рендерит и Student portal, где v3.css не загружен:
-// роль `t-*` там не сработала бы, поэтому они остаются на утилитах Tailwind.
+// Эти v3-компоненты рендерит и Student portal. Портал тоже грузит v3.css
+// (src/app/(portal)/layout.tsx) и оборачивает содержимое в .v3-world
+// (components/portal/Shell.tsx), поэтому роль `t-*` сработала бы и там — но
+// срез касается только staff CRM: чтобы портал не изменился визуально, эти
+// файлы остаются на утилитах Tailwind.
 const PORTAL_SHARED_FILES = [
   "src/components/v3/profile/CaseHelpPanel.tsx",
   "src/components/v3/profile/CaseHelpWorkspace.tsx",
@@ -266,9 +269,39 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
     assert.doesNotMatch(source, /font-mono/u, `${path} KPI is not monospace`);
   }
   assert.match(read("src/components/v3/team-chat/TeamChat.tsx"), /<h1 className=\{`t-page-title \$\{styles\.channelTitle\}`\}>/u);
-  assert.match(read("src/components/v3/TrendChart.tsx"), /const LABEL_SIZE = 12;[\s\S]*min-w-\[620px\]/u, "axis labels render at least 12px");
+
+  // График Главной: раскладка как на main (SVG не уже 480 px, viewBox 620),
+  // а подписи осей на экране не мельче 12 px при любой ширине графика.
+  const trend = read("src/components/v3/TrendChart.tsx");
+  const viewBoxWidth = Number(trend.match(/const WIDTH = (\d+);/u)?.[1]);
+  const minWidth = Number(trend.match(/className="h-auto w-full min-w-\[(\d+)px\]"/u)?.[1]);
+  const labelClass = trend.match(/const LABEL_CLASS = "text-\[([\d.]+)px\] @min-\[(\d+)px\]\/trend:text-\[([\d.]+)px\]";/u);
+  assert.ok(labelClass, "axis label size is set by LABEL_CLASS");
+  const [narrow, breakpoint, wide] = labelClass.slice(1).map(Number);
+  assert.equal(viewBoxWidth, 620);
+  assert.equal(minWidth, 480, "chart keeps the 480px minimum of main: Главная layout unchanged");
+  assert.ok(narrow * minWidth / viewBoxWidth >= 12, "labels are at least 12px at the 480px minimum");
+  assert.equal(breakpoint, viewBoxWidth, "smaller label units only once the chart is as wide as its viewBox");
+  assert.ok(wide * breakpoint / viewBoxWidth >= 12, "labels stay at least 12px on wide charts");
+  assert.equal(Number(trend.match(/const LABEL_SIZE = ([\d.]+);/u)?.[1]), narrow, "ticks are spaced for the largest label");
+  assert.match(trend, /className="@container\/trend max-w-full overflow-x-auto rounded-ctl"/u);
+  assert.equal(trend.match(/className=\{LABEL_CLASS\}/gu)?.length, 2, "both axes use the label size");
+  assert.doesNotMatch(trend, /fontSize=/u);
+
+  // Подпись настоящего поля или фильтра — t-label (14 px), даже в строке с
+  // контролом; t-caption остаётся подписям данных: колонкам, терминам, чипам.
+  const pipelinePage = read("src/app/(v3)/v3/pipeline/page.tsx");
+  for (const name of ["Поиск", "Сотрудник"]) {
+    assert.match(pipelinePage, new RegExp(`<label className="t-label [^"]*">\\s*${name}\\s*<`, "u"), `pipeline «${name}» filter label`);
+  }
+  const catalogue = read("src/components/v3/universities/UniversityCatalogue.tsx");
+  for (const name of ["Название", "Страна", "Уровень"]) {
+    assert.match(catalogue, new RegExp(`<label className="t-label text-fg-2">${name}<`, "u"), `university «${name}» filter label`);
+  }
+  assert.match(read("src/components/v3/inbox/InboxMessageMedia.tsx"),
+    /<label className="t-label flex flex-col gap-1">\s*<span>Документ в деле студента<\/span>/u);
 
   for (const path of PORTAL_SHARED_FILES) {
-    assert.doesNotMatch(read(path), ROLE_CLASS, `${path} renders in the portal without v3.css`);
+    assert.doesNotMatch(read(path), ROLE_CLASS, `${path} is shared with the portal and keeps its Tailwind utilities`);
   }
 });

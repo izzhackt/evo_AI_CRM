@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { btnGhostCls } from "@/components/ui";
 import { AdmissionsPipelineBoard } from "@/components/v3/AdmissionsPipelineBoard";
+import { BoardReset, BoardSearch, BoardSegments } from "@/components/v3/board/Board";
+import { BoardFilters, NavigateSelect } from "@/components/v3/board/BoardToolbar";
 import { PartShell } from "@/components/v3/PartShell";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { PackageQueue } from "@/components/portal/applicationPackages/PackageQueue";
@@ -14,12 +15,13 @@ import {
   readAdmissionsPipelineBoard,
   type AdmissionsPipelineTab,
 } from "@/lib/platform-admissions-pipeline";
+import { admissionsPipelineTabOf } from "@/lib/platform-admissions-pipeline-contract";
 import {
   PLATFORM_APPLICATION_COUNTRIES,
   isPlatformApplicationCountryCode,
 } from "@/lib/platform-application-contract";
 import { listStudentPortalActiveCurators } from "@/lib/server/student-portal-curator-options";
-import { country as countryLabel } from "@/lib/v3/wording";
+import { admissionsPipelineTab, country as countryLabel } from "@/lib/v3/wording";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Воронка поступления" };
@@ -51,8 +53,18 @@ const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const MAX_QUERY_LENGTH = 200;
 
-const CONTROL_CLASS =
-  "min-h-11 rounded-ctl border border-control-edge bg-surface px-2.5 text-sm text-fg";
+const QUEUE_LINK_CLASS =
+  "t-meta inline-flex min-h-11 items-center gap-1 text-fg-2 underline-offset-4 hover:text-fg hover:underline";
+
+/**
+ * Первая страница очереди (до 20 записей): число — только из прочитанного;
+ * есть продолжение — «20+», чтение не удалось — без числа.
+ */
+function queueCount(result: PromiseSettledResult<Readonly<{ items: readonly unknown[]; nextCursor: unknown }> | null>): string | null {
+  if (result.status !== "fulfilled" || result.value === null) return null;
+  const { items, nextCursor } = result.value;
+  return nextCursor === null ? String(items.length) : `${items.length}+`;
+}
 
 export default async function AdmissionsPipelinePart({
   searchParams,
@@ -65,10 +77,13 @@ export default async function AdmissionsPipelinePart({
   const view = singleValue(params.view);
   if (view !== undefined && view !== "documents" && view !== "packages") notFound();
   const canReadDocuments = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
+  const viewHref = (next: "documents" | "packages") => `${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=${next}`;
+  // Очереди — отдельные списки со своими заголовками; с их страниц обратно
+  // ведёт та же навигация, что и раньше.
   const navigation = canReadDocuments ? <nav className="mb-5 flex flex-wrap gap-3" aria-label="Разделы поступления">
     <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={boardHref(query)} aria-current={view === undefined ? "page" : undefined}>Воронка поступления</Link>
-    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=documents`} aria-current={view === "documents" ? "page" : undefined}>Документы на проверку</Link>
-    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=packages`} aria-current={view === "packages" ? "page" : undefined}>Комплекты на проверку</Link>
+    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={viewHref("documents")} aria-current={view === "documents" ? "page" : undefined}>Документы на проверку</Link>
+    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={viewHref("packages")} aria-current={view === "packages" ? "page" : undefined}>Комплекты на проверку</Link>
   </nav> : null;
   if (view === "packages") {
     if (!canReadDocuments) notFound();
@@ -88,7 +103,8 @@ export default async function AdmissionsPipelinePart({
     </PartShell>;
   }
 
-  const [boardResult, curatorsResult] = await Promise.allSettled([
+  const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
+  const [boardResult, curatorsResult, documentsResult, packagesResult] = await Promise.allSettled([
     readAdmissionsPipelineBoard(actor, {
       country: query.country,
       curatorMembershipId: query.curator,
@@ -99,80 +115,110 @@ export default async function AdmissionsPipelinePart({
     actor.systemRole === "admin" && !isStaffPreview(actor)
       ? listStudentPortalActiveCurators(actor)
       : Promise.resolve([]),
+    // Числа очередей в шапке — первые страницы тех же чтений, что у самих
+    // очередей; без права на документы очереди не читаются вовсе.
+    canReadDocuments
+      ? readStaffApplicationDocumentSubmissionQueueAction(owner).then((result) => (result.ok ? result.page : null))
+      : Promise.resolve(null),
+    canReadDocuments
+      ? readStaffApplicationPackageQueueAction(owner).then((result) => (result.ok ? result.queue : null))
+      : Promise.resolve(null),
   ]);
   const board = boardResult.status === "fulfilled" ? boardResult.value : null;
   const curatorOptions = curatorsResult.status === "fulfilled" ? curatorsResult.value : [];
 
   const filtersActive = query.q !== null || query.country !== null || query.curator !== null;
+  // Числа разделов — из того же чтения доски; при усечении или без чтения
+  // числа нет.
+  const tabCount = (tabKey: AdmissionsPipelineTab) =>
+    board && !board.truncated ? board.rows.filter((row) => admissionsPipelineTabOf(row.pipelineStage) === tabKey).length : null;
+  const documentsCount = queueCount(documentsResult);
+  const packagesCount = queueCount(packagesResult);
+
+  const queues = canReadDocuments ? (
+    // Одна тихая строка и на телефоне: две ссылки столбиком отодвигали доску
+    // на 180 px вниз.
+    <nav aria-label="Очереди на проверку" className="flex flex-wrap items-center gap-x-2">
+      <Link className={QUEUE_LINK_CLASS} href={viewHref("documents")}>
+        Документы на проверку
+        {documentsCount !== null ? <span className="tabular-nums text-fg-3">{documentsCount}</span> : null}
+      </Link>
+      <span aria-hidden="true" className="t-meta text-fg-3">·</span>
+      <Link className={QUEUE_LINK_CLASS} href={viewHref("packages")}>
+        Комплекты на проверку
+        {packagesCount !== null ? <span className="tabular-nums text-fg-3">{packagesCount}</span> : null}
+      </Link>
+    </nav>
+  ) : undefined;
+
+  const countryOptions = [
+    { value: "", label: "Все страны", href: boardHref({ ...query, country: null }) },
+    ...PLATFORM_APPLICATION_COUNTRIES.map((code) => ({
+      value: code,
+      label: countryLabel(code) ?? code,
+      href: boardHref({ ...query, country: code }),
+    })),
+  ];
+  const curatorSelectOptions = [
+    { value: "", label: "Все кураторы", href: boardHref({ ...query, curator: null }) },
+    ...curatorOptions.map((option) => ({
+      value: option.membershipId,
+      label: option.displayName,
+      href: boardHref({ ...query, curator: option.membershipId }),
+    })),
+  ];
 
   return (
-    <PartShell title="Воронка поступления">
-      {navigation}
-      <form
-        key={boardHref(query)}
-        method="get"
-        action="/v3/admissions-pipeline"
-        className="flex flex-wrap items-center gap-2"
-      >
-        <input type="hidden" name="tab" value={query.tab} />
+    <PartShell width="board" title="Воронка поступления" action={queues}>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
+        <BoardSegments
+          label="Разделы воронки поступления"
+          items={(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => ({
+            key: tabKey,
+            title: admissionsPipelineTab(tabKey),
+            count: tabCount(tabKey),
+            href: boardHref({ ...query, tab: tabKey }),
+            active: query.tab === tabKey,
+          }))}
+        />
 
-        <label className="inline-flex items-center gap-1.5 text-xs text-fg-3">
-          Поиск
-          <input
-            type="search"
-            name="q"
-            defaultValue={query.q ?? ""}
-            maxLength={MAX_QUERY_LENGTH}
-            placeholder="Имя студента"
-            className={`${CONTROL_CLASS} w-64 max-w-full placeholder:text-fg-3`}
-          />
-        </label>
+        <BoardSearch
+          key={boardHref(query)}
+          action="/v3/admissions-pipeline"
+          defaultValue={query.q ?? ""}
+          maxLength={MAX_QUERY_LENGTH}
+          placeholder="Имя студента"
+          hidden={
+            <>
+              <input type="hidden" name="tab" value={query.tab} />
+              {query.country !== null ? <input type="hidden" name="country" value={query.country} /> : null}
+              {query.curator !== null ? <input type="hidden" name="curator" value={query.curator} /> : null}
+            </>
+          }
+        />
 
-        <label className="inline-flex items-center gap-1.5 text-xs text-fg-3">
-          Страна
-          <select name="country" defaultValue={query.country ?? ""} className={CONTROL_CLASS}>
-            <option value="">Все страны</option>
-            {PLATFORM_APPLICATION_COUNTRIES.map((code) => (
-              <option key={code} value={code}>
-                {countryLabel(code)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {curatorOptions.length === 0 && query.curator !== null ? (
-          <input type="hidden" name="curator" value={query.curator} />
-        ) : null}
-        {curatorOptions.length > 0 ? (
-          <label className="inline-flex items-center gap-1.5 text-xs text-fg-3">
-            Куратор
-            <select name="curator" defaultValue={query.curator ?? ""} className={CONTROL_CLASS}>
-              <option value="">Все кураторы</option>
-              {curatorOptions.map((option) => (
-                <option key={option.membershipId} value={option.membershipId}>
-                  {option.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        <button type="submit" className={btnGhostCls}>
-          Найти
-        </button>
+        <BoardFilters activeCount={Number(query.country !== null) + Number(query.curator !== null)}>
+          <NavigateSelect key={`country:${query.country ?? ""}`} label="Страна" value={query.country ?? ""} options={countryOptions} />
+          {curatorOptions.length > 0 ? (
+            <NavigateSelect
+              key={`curator:${query.curator ?? ""}`}
+              label="Куратор"
+              value={query.curator ?? ""}
+              options={
+                query.curator !== null && !curatorOptions.some((option) => option.membershipId === query.curator)
+                  ? [...curatorSelectOptions, { value: query.curator, label: "Выбранный куратор", href: boardHref(query) }]
+                  : curatorSelectOptions
+              }
+            />
+          ) : null}
+        </BoardFilters>
 
         {filtersActive ? (
-          <Link
-            href={boardHref({ tab: query.tab, q: null, country: null, curator: null })}
-            prefetch={false}
-            className="inline-flex min-h-11 items-center px-1 text-sm text-fg-2 underline underline-offset-4 hover:text-fg"
-          >
-            Сбросить всё
-          </Link>
+          <BoardReset href={boardHref({ tab: query.tab, q: null, country: null, curator: null })} />
         ) : null}
-      </form>
+      </div>
 
-      <div className="mt-6">
+      <div className="mt-3 flex min-w-0 flex-col md:min-h-[320px] md:flex-1 md:overflow-y-auto @5xl:overflow-visible">
         <AdmissionsPipelineBoard
           rows={board?.rows ?? []}
           truncated={board?.truncated ?? false}

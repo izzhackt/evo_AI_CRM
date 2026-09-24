@@ -44,7 +44,9 @@ export type IconName =
   | "circle-check"
   | "chevron-down"
   | "more-horizontal"
-  | "help-circle";
+  | "help-circle"
+  | "grip-vertical"
+  | "lock";
 
 const PATHS: Record<IconName, string> = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -95,6 +97,8 @@ const PATHS: Record<IconName, string> = {
   check: '<path d="m5 12 4 4L19 6"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
   menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
+  "grip-vertical": '<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   x: '<path d="m18 6-12 12"/><path d="m6 6 12 12"/>',
   circle: '<circle cx="12" cy="12" r="9"/>',
   "circle-check": '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/>',
@@ -102,6 +106,14 @@ const PATHS: Record<IconName, string> = {
   "more-horizontal": '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
   "help-circle": '<circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4"/><path d="M12 17.3h.01"/>',
 };
+
+// Разметка каждой иконки — один постоянный объект. React 19 сравнивает
+// `dangerouslySetInnerHTML` по ссылке: новый объект на каждом рендере заново
+// записывал бы innerHTML и заменял узлы SVG, в том числе под курсором (тогда
+// браузер теряет pointerout и снова шлёт pointerover).
+const MARKUP = Object.fromEntries(
+  Object.entries(PATHS).map(([name, html]) => [name, { __html: html }]),
+) as Record<IconName, { __html: string }>;
 
 export function Icon({
   name,
@@ -126,7 +138,7 @@ export function Icon({
       strokeLinejoin="round"
       aria-hidden="true"
       className={className}
-      dangerouslySetInnerHTML={{ __html: PATHS[name] }}
+      dangerouslySetInnerHTML={MARKUP[name]}
       {...rest}
     />
   );

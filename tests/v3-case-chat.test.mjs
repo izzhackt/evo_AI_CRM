@@ -239,11 +239,13 @@ test("the board decoder tolerates the new needs_reply key (field-picking, no exh
   assert.match(contract, /needsReply: boolean;/u);
 });
 
-test("the pipeline board renders the needs_reply Pill with text and a link to the messages screen", () => {
+test("the pipeline board renders needs_reply as a danger word with a link to the messages screen", () => {
+  // Boards 25.09 (finish review): the card states its condition as a word in
+  // the shared card grammar, not a tinted Pill; the wording source is the same.
   const board = source("src/components/v3/AdmissionsPipelineBoard.tsx");
   assert.match(board, /row\.needsReply \?/u);
   assert.match(board, /href=\{`\/v3\/messages\?case=\$\{row\.studentCaseId\}`\}/u);
-  assert.match(board, /<Pill tone="danger">\{caseChatAwaitState\("needs_reply"\)\}<\/Pill>/u);
+  assert.match(board, /className="t-caption text-danger underline-offset-4 hover:underline"\s*>\s*\{caseChatAwaitState\("needs_reply"\)\?\.toLocaleLowerCase\("ru-RU"\)\}/u);
 });
 
 test("the staff notification contract decodes case_message with an ids-only href to the messages screen", () => {
@@ -252,7 +254,7 @@ test("the staff notification contract decodes case_message with an ids-only href
   assert.match(contract, /else if \(row\.kind === "case_message"\) \{\s*if \(!isStaffNotificationId\(row\.student_case_id\)\) return fail\(\);\s*href = `\/v3\/messages\?case=\$\{row\.student_case_id\}`;/u);
 });
 
-test("wording.ts carries the await-state dictionary used by the composer and the board Pill", () => {
+test("wording.ts carries the await-state dictionary used by the composer and the board", () => {
   const wording = source("src/lib/v3/wording.ts");
   assert.match(wording, /const CASE_CHAT_AWAIT_STATE: Record<string, string> = \{\s*none: "Без отметки",\s*needs_reply: "Нужен ответ",\s*awaiting_student: "Ждём студента",\s*\};/u);
   assert.match(wording, /export const caseChatAwaitState = \(v: string \| null \| undefined\) => lookup\(CASE_CHAT_AWAIT_STATE, v\);/u);

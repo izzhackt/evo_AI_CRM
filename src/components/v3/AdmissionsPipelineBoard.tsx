@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { btnGhostCls, cn } from "@/components/ui";
-import { Pill } from "@/components/v3/Pill";
+import { Icon } from "@/components/icons";
+import {
+  BOARD_CARD_CLASS,
+  BOARD_EMPTY,
+  BoardColumn,
+  BoardGrip,
+  cappedBoardTracks,
+  ownerInitials,
+} from "@/components/v3/board/Board";
+import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
 import {
   moveCasePipelineAction,
   type MoveCasePipelineActionStatus,
@@ -24,7 +33,7 @@ const MESSAGES: Record<Exclude<MoveCasePipelineActionStatus, "saved"> | "no_resp
   invalid: "Не удалось подготовить перемещение.",
   forbidden: "У вашей роли нет прав на это перемещение.",
   request_conflict: "Команда уже использована. Повторите действие.",
-  unavailable: "Supabase недоступен. Перемещение не подтверждено.",
+  unavailable: "Перемещение не подтверждено. Обновите страницу и проверьте этап.",
   no_response: "Ответ сервера не получен. Перемещение не подтверждено — обновите страницу.",
 };
 
@@ -44,6 +53,9 @@ type RemovalNotice = Readonly<{
   row: AdmissionsPipelineRow;
   phase: "removing" | "removed" | "restoring" | "restored";
 }>;
+
+/** A saved move into the other tab leaves this board: say where it went. */
+type CrossTabHint = Readonly<{ studentCaseId: string; tab: AdmissionsPipelineTab; name: string; stage: AdmissionsPipelineStage }>;
 
 function removalMessage({ row, phase }: RemovalNotice): string {
   const name = row.studentDisplayName;
@@ -74,22 +86,30 @@ function boardHref(basePath: string, params: Readonly<Record<string, string | nu
 
 const MENU_ITEM_CLASS = "flex min-h-11 w-full items-center rounded-nav px-2 text-left text-sm text-fg hover:bg-surface-2";
 
+/**
+ * «Действия с делом» — меню в top layer (`TopLayerMenu`): колонка с
+ * `overflow-y-auto` больше не обрезает его до первой строки. Сначала этапы
+ * текущего раздела, этапы другого раздела — за «Другой раздел», затем
+ * «Открыть дело» и отдельно «Убрать из воронки» с подтверждением.
+ */
 function CardMenu({
   row,
+  tab,
   onMove,
 }: Readonly<{
   row: AdmissionsPipelineRow;
+  tab: AdmissionsPipelineTab;
   onMove: (target: MoveTarget) => void;
 }>) {
-  const ref = useRef<HTMLDetailsElement>(null);
-  const summaryRef = useRef<HTMLElement>(null);
   const removeTriggerRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const returnFocusToTrigger = useRef(false);
   const confirmTextId = useId();
+  const otherId = useId();
   // «Убрать из воронки» hides the case from every curator's board, so it never
   // runs from a single click: the item opens an inline confirmation first.
   const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [otherOpen, setOtherOpen] = useState(false);
   useEffect(() => {
     if (confirmingRemove) {
       cancelRef.current?.focus();
@@ -98,163 +118,190 @@ function CardMenu({
       removeTriggerRef.current?.focus();
     }
   }, [confirmingRemove]);
-  const close = () => {
-    ref.current?.removeAttribute("open");
-    setConfirmingRemove(false);
-  };
   const cancelRemove = () => {
     returnFocusToTrigger.current = true;
     setConfirmingRemove(false);
   };
+  const otherTab: AdmissionsPipelineTab = tab === "admission" ? "visa" : "admission";
+  const tabTargets = (tabKey: AdmissionsPipelineTab) =>
+    ADMISSIONS_PIPELINE_TAB_STAGES[tabKey].filter((stage) => stage !== row.pipelineStage);
   return (
-    <details
-      ref={ref}
-      className="relative shrink-0"
-      data-testid="v3-admissions-pipeline-move"
-      onToggle={(event) => {
-        if (!event.currentTarget.open) setConfirmingRemove(false);
+    <TopLayerMenu
+      label="Действия с делом"
+      trigger={<Icon name="more-horizontal" size={20} />}
+      triggerClassName="flex size-11 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg"
+      menuClassName="w-64 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg"
+      testId="v3-admissions-pipeline-move"
+      onOpenChange={(open) => {
+        if (open) return;
+        setConfirmingRemove(false);
+        setOtherOpen(false);
       }}
       onKeyDown={(event) => {
-        if (event.key !== "Escape" || !event.currentTarget.open) return;
+        // Escape сначала отменяет подтверждение удаления, а меню закрывает
+        // уже следующий Escape (его обрабатывает сам popover).
+        if (event.key !== "Escape" || !confirmingRemove) return;
         event.preventDefault();
         event.stopPropagation();
-        if (confirmingRemove) {
-          cancelRemove();
-          return;
-        }
-        close();
-        summaryRef.current?.focus();
+        cancelRemove();
       }}
     >
-      <summary
-        ref={summaryRef}
-        aria-label="Действия с делом"
-        className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg [&::-webkit-details-marker]:hidden"
-      >
-        ⋯
-      </summary>
-      <div className="absolute right-0 z-20 mt-1 w-60 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
-        <p className="t-caption px-2 pb-0.5 pt-1 text-fg-3">Переместить в…</p>
-        {(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => {
-          const stages = ADMISSIONS_PIPELINE_TAB_STAGES[tabKey].filter((stage) => stage !== row.pipelineStage);
-          if (stages.length === 0) return null;
-          return (
-            <div key={tabKey}>
-              <p className="px-2 pt-1 text-xs text-fg-3">{admissionsPipelineTab(tabKey)}</p>
-              {stages.map((stage) => (
-                <button
-                  key={stage}
-                  type="button"
-                  className={MENU_ITEM_CLASS}
-                  onClick={() => { close(); onMove({ stage }); }}
-                >
-                  {admissionsPipelineStage(stage)}
-                </button>
-              ))}
-            </div>
-          );
-        })}
-        <hr className="my-1 border-border" />
-        <Link href={caseHref(row.studentCaseId)} prefetch={false} className={MENU_ITEM_CLASS}>
-          Открыть дело
-        </Link>
-        <hr className="my-1 border-border" />
-        {confirmingRemove ? (
-          <div role="group" aria-labelledby={confirmTextId} className="rounded-nav bg-danger-weak p-2">
-            <p id={confirmTextId} className="break-words px-1 text-sm leading-5 text-fg">
-              Убрать «{row.studentDisplayName}» из воронки? Дело останется в «Студентах».
-            </p>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-danger bg-danger px-3 text-sm font-semibold text-on-accent hover:bg-danger/90"
-                onClick={() => { close(); onMove({ remove: true }); }}
-              >
-                Убрать
-              </button>
-              <button
-                ref={cancelRef}
-                type="button"
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg"
-                onClick={cancelRemove}
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        ) : (
+      {(close) => (
+        <>
+          <p className="t-caption px-2 pb-0.5 pt-1 text-fg-3">Переместить в…</p>
+          {tabTargets(tab).map((stage) => (
+            <button
+              key={stage}
+              type="button"
+              className={MENU_ITEM_CLASS}
+              onClick={() => { close(); onMove({ stage }); }}
+            >
+              {admissionsPipelineStage(stage)}
+            </button>
+          ))}
           <button
-            ref={removeTriggerRef}
             type="button"
-            className="flex min-h-11 w-full items-center rounded-nav px-2 text-left text-sm font-medium text-danger hover:bg-danger-weak"
-            onClick={() => setConfirmingRemove(true)}
+            aria-expanded={otherOpen}
+            aria-controls={otherId}
+            className={cn(MENU_ITEM_CLASS, "justify-between gap-2")}
+            onClick={() => setOtherOpen((previous) => !previous)}
           >
-            Убрать из воронки
+            Другой раздел
+            <Icon name="chevron-down" size={16} className={cn("shrink-0 text-fg-3", otherOpen && "rotate-180")} />
           </button>
-        )}
-      </div>
-    </details>
+          <div id={otherId} hidden={!otherOpen} role="group" aria-label={admissionsPipelineTab(otherTab)}>
+            <p className="t-caption px-2 pt-1 text-fg-3">{admissionsPipelineTab(otherTab)}</p>
+            {tabTargets(otherTab).map((stage) => (
+              <button
+                key={stage}
+                type="button"
+                className={cn(MENU_ITEM_CLASS, "ps-4")}
+                onClick={() => { close(); onMove({ stage }); }}
+              >
+                {admissionsPipelineStage(stage)}
+              </button>
+            ))}
+          </div>
+          <hr className="my-1 border-border" />
+          <Link href={caseHref(row.studentCaseId)} prefetch={false} className={MENU_ITEM_CLASS}>
+            Открыть дело
+          </Link>
+          <hr className="my-1 border-border" />
+          {confirmingRemove ? (
+            <div role="group" aria-labelledby={confirmTextId} className="rounded-nav bg-danger-weak p-2">
+              <p id={confirmTextId} className="t-body-compact break-words px-1 text-fg">
+                Убрать «{row.studentDisplayName}» из воронки? Дело останется в «Студентах».
+              </p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-danger bg-danger px-3 text-sm font-semibold text-on-accent hover:bg-danger/90"
+                  onClick={() => { close(); onMove({ remove: true }); }}
+                >
+                  Убрать
+                </button>
+                <button
+                  ref={cancelRef}
+                  type="button"
+                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg"
+                  onClick={cancelRemove}
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              ref={removeTriggerRef}
+              type="button"
+              className="flex min-h-11 w-full items-center rounded-nav px-2 text-left text-sm font-medium text-danger hover:bg-danger-weak"
+              onClick={() => setConfirmingRemove(true)}
+            >
+              Убрать из воронки
+            </button>
+          )}
+        </>
+      )}
+    </TopLayerMenu>
   );
 }
 
 function BoardCard({
   row,
+  tab,
   showCurator,
-  draggable,
   onMove,
   onDragStart,
 }: Readonly<{
   row: AdmissionsPipelineRow;
+  tab: AdmissionsPipelineTab;
   showCurator: boolean;
-  draggable: boolean;
   onMove: (target: MoveTarget) => void;
   onDragStart?: () => void;
 }>) {
   const secondLine = [countryLabel(row.targetCountry), row.primaryInstitutionName]
     .filter((value): value is string => Boolean(value))
     .join(" · ");
+  // Та же грамматика, что у карточки продаж: куратор — инициалами справа во
+  // второй строке (полное имя в подсказке), состояние — словом и цветом в
+  // третьей, а не плашками.
+  const marks = [
+    row.overdue ? <span key="overdue" className="t-caption text-danger">просрочено</span> : null,
+    row.needsReply ? (
+      <Link
+        key="reply"
+        href={`/v3/messages?case=${row.studentCaseId}`}
+        prefetch={false}
+        draggable={false}
+        className="t-caption text-danger underline-offset-4 hover:underline"
+      >
+        {caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU")}
+      </Link>
+    ) : null,
+    row.awaitingAck ? <span key="ack" className="t-caption text-warn">ждёт принятия</span> : null,
+  ].filter((mark) => mark !== null);
+  const curator = showCurator ? row.currentCuratorDisplayName : null;
   return (
     <article
-      draggable={draggable}
+      draggable
       onDragStart={(event) => {
-        if (!draggable) return;
         event.dataTransfer.setData("text/plain", row.studentCaseId);
         event.dataTransfer.effectAllowed = "move";
         onDragStart?.();
       }}
       data-testid="v3-admissions-pipeline-card"
       data-student-case-id={row.studentCaseId}
-      className={cn(
-        "rounded-ctl border border-border bg-surface px-3 py-2.5",
-        draggable && "cursor-grab active:cursor-grabbing",
-      )}
+      className={cn(BOARD_CARD_CLASS, "cursor-grab active:cursor-grabbing")}
     >
-      <div className="flex items-start gap-1.5">
-        <div className="min-w-0 flex-1">
-          <Link
-            href={caseHref(row.studentCaseId)}
-            prefetch={false}
-            className="block truncate text-base font-semibold leading-5 text-fg underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            {row.studentDisplayName}
-          </Link>
-          {secondLine ? <p className="mt-0.5 truncate text-sm text-fg-2">{secondLine}</p> : null}
-          {showCurator && row.currentCuratorDisplayName ? (
-            <p className="t-meta mt-0.5 truncate text-fg-3">{row.currentCuratorDisplayName}</p>
+      <BoardGrip />
+      <p className="flex min-w-0 pe-10">
+        <Link
+          href={caseHref(row.studentCaseId)}
+          prefetch={false}
+          draggable={false}
+          title={row.studentDisplayName}
+          className="t-item block min-w-0 truncate text-fg underline-offset-4 hover:underline"
+        >
+          {row.studentDisplayName}
+        </Link>
+      </p>
+      {secondLine || curator ? (
+        <p className="t-meta flex min-w-0 items-baseline gap-2 pe-8 text-fg-3">
+          <span className="min-w-0 flex-1 truncate text-fg-2" title={secondLine || undefined}>{secondLine}</span>
+          {curator ? (
+            <abbr title={curator} className="shrink-0 no-underline">
+              {ownerInitials(curator)}
+            </abbr>
           ) : null}
-          {row.awaitingAck || row.overdue || row.needsReply ? (
-            <p className="mt-1.5 flex flex-wrap gap-1.5">
-              {row.awaitingAck ? <Pill tone="warn">Ожидает принятия</Pill> : null}
-              {row.overdue ? <Pill tone="danger">Просрочено</Pill> : null}
-              {row.needsReply ? (
-                <Link href={`/v3/messages?case=${row.studentCaseId}`} className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
-                  <Pill tone="danger">{caseChatAwaitState("needs_reply")}</Pill>
-                </Link>
-              ) : null}
-            </p>
-          ) : null}
-        </div>
-        <CardMenu row={row} onMove={onMove} />
+        </p>
+      ) : null}
+      {marks.length > 0 ? (
+        <p className="t-meta truncate whitespace-nowrap">
+          {marks.flatMap((mark, index) => (index === 0 ? [mark] : [<span key={`dot-${index}`} aria-hidden="true" className="text-fg-3"> · </span>, mark]))}
+        </p>
+      ) : null}
+      <div className="absolute end-0.5 top-0.5">
+        <CardMenu row={row} tab={tab} onMove={onMove} />
       </div>
     </article>
   );
@@ -276,13 +323,14 @@ export function AdmissionsPipelineBoard({
   basePath?: string;
 }>) {
   const router = useRouter();
+  const idPrefix = useId();
   const [retrying, startRetry] = useTransition();
   const [cards, setCards] = useState(rows);
   const [error, setError] = useState<string | null>(null);
   const [removal, setRemoval] = useState<RemovalNotice | null>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
   const [dragOverStage, setDragOverStage] = useState<AdmissionsPipelineStage | null>(null);
-  const [crossTabHint, setCrossTabHint] = useState<Readonly<{ studentCaseId: string; tab: AdmissionsPipelineTab }> | null>(null);
+  const [crossTabHint, setCrossTabHint] = useState<CrossTabHint | null>(null);
   const [narrowStage, setNarrowStage] = useState<AdmissionsPipelineStage>(ADMISSIONS_PIPELINE_TAB_STAGES[tab][0]);
   const [, startTransition] = useTransition();
 
@@ -310,7 +358,10 @@ export function AdmissionsPipelineBoard({
     if (!active || active === document.body) noticeRef.current?.focus();
   }, [removal]);
 
-  const showCurator = new Set(cards.map((row) => row.currentCuratorMembershipId).filter(Boolean)).size > 1;
+  // Инициалы куратора различают дела, только когда кураторов на доске
+  // несколько и фильтр «Куратор» не выбран.
+  const showCurator = query.curator === null
+    && new Set(cards.map((row) => row.currentCuratorMembershipId).filter(Boolean)).size > 1;
   const tabStages = ADMISSIONS_PIPELINE_TAB_STAGES[tab];
   const boardEmpty = cards.length === 0;
 
@@ -324,6 +375,7 @@ export function AdmissionsPipelineBoard({
     const previousRow = cards.find((row) => row.studentCaseId === studentCaseId);
     if (!previousRow) return;
     const previousStage = previousRow.pipelineStage;
+    if (!target.remove && target.stage === previousStage) return;
     setError(null);
     setCrossTabHint(null);
     if (target.remove) setRemoval({ row: previousRow, phase: "removing" });
@@ -358,7 +410,12 @@ export function AdmissionsPipelineBoard({
           return;
         }
         if (admissionsPipelineTabOf(previousStage) !== admissionsPipelineTabOf(target.stage)) {
-          setCrossTabHint({ studentCaseId, tab: admissionsPipelineTabOf(target.stage) });
+          setCrossTabHint({
+            studentCaseId,
+            tab: admissionsPipelineTabOf(target.stage),
+            name: previousRow.studentDisplayName,
+            stage: target.stage,
+          });
         }
       });
     });
@@ -386,9 +443,9 @@ export function AdmissionsPipelineBoard({
     boardHref(basePath, { tab: nextTab, q: query.q, country: query.country, curator: query.curator });
 
   return (
-    <div data-testid="v3-admissions-pipeline-board">
+    <div data-testid="v3-admissions-pipeline-board" className="flex min-w-0 flex-col @5xl:h-full @5xl:min-h-0">
       {error ? (
-        <p role="alert" className="mb-3 rounded-ctl border border-danger bg-danger-weak px-3 py-2 text-sm text-danger">
+        <p role="alert" className="t-body-compact mb-2 shrink-0 rounded-ctl border border-danger bg-danger-weak px-3 py-2 text-danger">
           {error}
         </p>
       ) : null}
@@ -396,48 +453,36 @@ export function AdmissionsPipelineBoard({
       <div
         ref={noticeRef}
         tabIndex={-1}
-        className={removal ? "mb-3 flex flex-wrap items-center gap-x-3 rounded-ctl border border-border bg-surface px-3 py-1" : undefined}
+        className={removal || crossTabHint ? "mb-2 flex shrink-0 flex-wrap items-center gap-x-3 rounded-ctl border border-border bg-surface px-3 py-1" : undefined}
       >
-        <p role="status" className={removal ? "min-w-0 flex-1 break-words py-2 text-sm text-fg" : undefined}>
-          {removal ? removalMessage(removal) : null}
+        <p role="status" className={removal || crossTabHint ? "t-body-compact min-w-0 flex-1 break-words py-2 text-fg" : undefined}>
+          {removal
+            ? removalMessage(removal)
+            : crossTabHint
+              ? `Дело «${crossTabHint.name}» перемещено в «${admissionsPipelineStage(crossTabHint.stage)}».`
+              : null}
         </p>
         {removal?.phase === "removed" ? (
           <button type="button" className={btnGhostCls} onClick={() => restoreRemoved(removal.row)}>
             Вернуть в воронку
           </button>
         ) : null}
+        {!removal && crossTabHint ? <CrossTabHintLink hint={crossTabHint} tabHref={tabHref} /> : null}
       </div>
 
-      <nav aria-label="Разделы воронки поступления" className="mb-4 inline-flex rounded-ctl border border-border bg-surface p-0.5">
-        {(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => (
-          <Link
-            key={tabKey}
-            href={tabHref(tabKey)}
-            prefetch={false}
-            aria-current={tab === tabKey ? "page" : undefined}
-            className={cn(
-              "v3-choice inline-flex min-h-9 items-center whitespace-nowrap rounded-nav px-3 text-sm",
-              "text-fg-2 hover:bg-surface-2",
-            )}
-          >
-            {admissionsPipelineTab(tabKey)}
-          </Link>
-        ))}
-      </nav>
-
       {truncated ? (
-        <p className="t-meta mb-3 text-fg-3">показаны первые 400</p>
+        <p className="t-meta mb-2 shrink-0 text-fg-3">Показаны первые 400 дел — уточните поиск.</p>
       ) : null}
 
       {boardUnavailable ? (
         <div className="space-y-2">
-          <p role="alert" className="text-sm text-danger">Не удалось загрузить воронку поступления.</p>
+          <p role="alert" className="t-body-compact text-danger">Не удалось загрузить воронку поступления.</p>
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               disabled={retrying}
               onClick={() => startRetry(() => router.refresh())}
-              className="inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg hover:bg-surface-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              className="inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg hover:bg-surface-2 disabled:bg-surface-2 disabled:text-fg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               {retrying ? "Загрузка…" : "Повторить"}
             </button>
@@ -447,78 +492,61 @@ export function AdmissionsPipelineBoard({
           </div>
         </div>
       ) : boardEmpty ? (
-        <p className="px-1 py-10 text-center text-sm text-fg-3">Дел в работе нет.</p>
+        <p className="t-body-compact px-1 py-10 text-center text-fg-3">Дел в работе нет.</p>
       ) : (
         <>
           {/* Narrow screens: stage picker + single-column list, moves via the card menu only. */}
-          <div className="@2xl:hidden">
-            <label className="mb-3 flex items-center gap-2 text-sm text-fg-2">
-              Этап
-              <select
-                value={narrowStage}
-                onChange={(event) => setNarrowStage(event.target.value as AdmissionsPipelineStage)}
-                className="min-h-11 flex-1 rounded-ctl border border-control-edge bg-surface px-2.5 text-sm text-fg"
-              >
-                {tabStages.map((stage) => (
-                  <option key={stage} value={stage}>
-                    {admissionsPipelineStage(stage)} ({cards.filter((row) => row.pipelineStage === stage).length})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <ul className="flex flex-col gap-2">
-              {cards.filter((row) => row.pipelineStage === narrowStage).map((row) => (
-                <li key={row.studentCaseId}>
-                  <BoardCard row={row} showCurator={showCurator} draggable={false} onMove={(target) => moveCard(row.studentCaseId, target)} />
-                  {crossTabHint?.studentCaseId === row.studentCaseId ? (
-                    <CrossTabHintLink hint={crossTabHint} tabHref={tabHref} />
-                  ) : null}
-                </li>
+          <label className="t-label mb-3 flex items-center gap-2 text-fg-2 @5xl:hidden">
+            Этап
+            <select
+              value={narrowStage}
+              onChange={(event) => setNarrowStage(event.target.value as AdmissionsPipelineStage)}
+              className="min-h-11 flex-1 rounded-ctl border border-control-edge bg-surface px-2.5 text-sm font-normal text-fg"
+            >
+              {tabStages.map((stage) => (
+                <option key={stage} value={stage}>
+                  {admissionsPipelineStage(stage)} ({cards.filter((row) => row.pipelineStage === stage).length})
+                </option>
               ))}
-            </ul>
-          </div>
+            </select>
+          </label>
 
-          {/* Wide screens: full kanban board, drag-and-drop between columns. */}
-          <div role="group" aria-label="Воронка поступления" className="hidden max-w-full overflow-x-auto rounded-card @2xl:block">
-            <ol className="flex flex-col gap-3 @2xl:w-max @2xl:flex-row @2xl:items-start">
-              {tabStages.map((stage) => {
-                const inStage = cards.filter((row) => row.pipelineStage === stage);
-                return (
-                  <li
-                    key={stage}
-                    onDragOver={(event) => { event.preventDefault(); setDragOverStage(stage); }}
-                    onDragLeave={() => setDragOverStage((current) => (current === stage ? null : current))}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      setDragOverStage(null);
-                      const studentCaseId = event.dataTransfer.getData("text/plain");
-                      if (studentCaseId) moveCard(studentCaseId, { stage });
-                    }}
-                    className={cn(
-                      "min-w-0 rounded-card bg-surface-2 @2xl:w-[280px] @2xl:shrink-0",
-                      dragOverStage === stage && "outline outline-2 outline-offset-[-2px] outline-accent",
-                    )}
-                  >
-                    <div className="flex flex-col rounded-card @2xl:max-h-[70dvh] @2xl:overflow-y-auto">
-                      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-surface-2 px-3.5 pb-2 pt-3">
-                        <h3 className="t-item truncate text-fg">{admissionsPipelineStage(stage)}</h3>
-                        <span className="t-meta shrink-0 tabular-nums text-fg-3">{inStage.length}</span>
-                      </div>
-                      <ul className="flex flex-col gap-2 px-2.5 pb-2.5">
-                        {inStage.map((row) => (
-                          <li key={row.studentCaseId}>
-                            <BoardCard row={row} showCurator={showCurator} draggable onMove={(target) => moveCard(row.studentCaseId, target)} />
-                            {crossTabHint?.studentCaseId === row.studentCaseId ? (
-                              <CrossTabHintLink hint={crossTabHint} tabHref={tabHref} />
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
+          {/* Wide screens: every stage of the tab as a grid column, left-aligned, drag-and-drop between columns. */}
+          <div
+            role="group"
+            aria-label="Воронка поступления"
+            className="flex min-w-0 flex-col @5xl:grid @5xl:h-full @5xl:min-h-0 @5xl:grid-rows-[minmax(0,1fr)] @5xl:justify-start @5xl:gap-2"
+            style={{ gridTemplateColumns: cappedBoardTracks(tabStages.length) }}
+          >
+            {tabStages.map((stage) => {
+              const inStage = cards.filter((row) => row.pipelineStage === stage);
+              return (
+                <BoardColumn
+                  key={stage}
+                  headingId={`${idPrefix}-${stage}`}
+                  title={<span className="truncate">{admissionsPipelineStage(stage)}</span>}
+                  count={inStage.length}
+                  emptyText={BOARD_EMPTY.cases}
+                  testId="v3-admissions-pipeline-column"
+                  className={stage === narrowStage ? "flex" : "hidden @5xl:flex"}
+                  highlighted={dragOverStage === stage}
+                  onDragOver={(event) => { event.preventDefault(); setDragOverStage(stage); }}
+                  onDragLeave={() => setDragOverStage((current) => (current === stage ? null : current))}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDragOverStage(null);
+                    const studentCaseId = event.dataTransfer.getData("text/plain");
+                    if (studentCaseId) moveCard(studentCaseId, { stage });
+                  }}
+                >
+                  {inStage.map((row) => (
+                    <li key={row.studentCaseId}>
+                      <BoardCard row={row} tab={tab} showCurator={showCurator} onMove={(target) => moveCard(row.studentCaseId, target)} />
+                    </li>
+                  ))}
+                </BoardColumn>
+              );
+            })}
           </div>
         </>
       )}
@@ -530,14 +558,14 @@ function CrossTabHintLink({
   hint,
   tabHref,
 }: Readonly<{
-  hint: Readonly<{ studentCaseId: string; tab: AdmissionsPipelineTab }>;
+  hint: CrossTabHint;
   tabHref: (tab: AdmissionsPipelineTab) => string;
 }>) {
   return (
     <Link
       href={tabHref(hint.tab)}
       prefetch={false}
-      className="t-item mt-1 inline-flex min-h-6 items-center px-1 text-accent-text underline underline-offset-4"
+      className="t-item inline-flex min-h-11 items-center px-1 text-accent-text underline underline-offset-4"
     >
       Открыть в «{admissionsPipelineTab(hint.tab)}»
     </Link>

@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { btnGhostCls } from "@/components/ui";
-import { PipelineMobileFilters } from "@/components/v3/PipelineStageViewport";
+import {
+  BoardReset,
+  BoardSearch,
+  BoardSegments,
+  type BoardSegment,
+} from "@/components/v3/board/Board";
+import { BoardFilters, NavigateSelect, type NavigateOption } from "@/components/v3/board/BoardToolbar";
 import { Pipeline } from "@/components/v3/Pipeline";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
 import { PartShell } from "@/components/v3/PartShell";
@@ -24,7 +28,8 @@ export const metadata = { title: "Воронка продаж" };
 
 /**
  * Имена параметров — контракт адресной строки, на него ссылаются другие
- * экраны (например, карточки главной). Не переименовывать.
+ * экраны (например, карточки главной). Не переименовывать. `lead` открывает
+ * правую панель лида; его читает и меняет сама доска (`Pipeline`).
  */
 type SearchParams = Readonly<{
   q?: string | string[];
@@ -44,21 +49,13 @@ type BoardQuery = Readonly<{
   handed: "latest" | "all";
 }>;
 
-type FilterChoice = Readonly<{
-  key: string;
-  title: string;
-  href: string;
-  active: boolean;
-}>;
+type FilterChoice = BoardSegment;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const MAX_QUERY_LENGTH = 200;
-
-const CONTROL_CLASS =
-  "min-h-11 rounded-ctl border border-control-edge bg-surface px-2.5 text-sm font-normal text-fg";
 
 export default async function PipelinePart({
   searchParams,
@@ -70,9 +67,11 @@ export default async function PipelinePart({
   const query = parseBoardQuery(params);
 
   const stages = readPipelineStages();
+  // Фокус этапа (`?stage=`) — представление, а не фильтр чтения: доска читает
+  // все этапы, чтобы свёрнутые колонки показывали настоящие числа.
   const filters: PipelineBoardFilters = Object.freeze({
     query: query.q,
-    stage: query.stage,
+    stage: "all",
     due: query.due,
     assignment: query.assignment,
     ownerMembershipId: query.owner,
@@ -84,52 +83,58 @@ export default async function PipelinePart({
     leads.map((lead) => [lead.id, randomUUID()]),
   );
 
-  const stageChoices: readonly FilterChoice[] = [
-    allChoice(query.stage === "all", boardHref({ ...query, stage: "all" })),
-    ...stages.map((stage) => ({
-      key: stage.key,
-      title: stage.title,
-      href: boardHref({ ...query, stage: stage.key }),
-      active: query.stage === stage.key,
-    })),
-  ];
+  // Числа «Срока» — только из этого чтения: при «Все» и без усечения все
+  // группы видны; с выбранным сроком известно только его собственное число.
+  // Нет чтения — нет числа.
+  const dueCount = (key: Exclude<BoardQuery["due"], "all">, due: "overdue" | "today" | "none") =>
+    board.truncated ? null
+      : query.due === "all" ? leads.filter((lead) => lead.due === due).length
+      : query.due === key ? leads.length
+      : null;
   const dueChoices: readonly FilterChoice[] = [
     allChoice(query.due === "all", boardHref({ ...query, due: "all" })),
     {
       key: "overdue",
       title: "Просрочено",
+      count: dueCount("overdue", "overdue"),
       href: boardHref({ ...query, due: "overdue" }),
       active: query.due === "overdue",
     },
     {
       key: "today",
       title: "Сегодня",
+      count: dueCount("today", "today"),
       href: boardHref({ ...query, due: "today" }),
       active: query.due === "today",
     },
     {
-      key: "unscheduled", title: "Без следующего действия",
-      href: boardHref({ ...query, due: "unscheduled" }), active: query.due === "unscheduled",
+      key: "unscheduled",
+      title: "Без действия",
+      count: dueCount("unscheduled", "none"),
+      href: boardHref({ ...query, due: "unscheduled" }),
+      active: query.due === "unscheduled",
     },
   ];
-  const assignmentChoices: readonly FilterChoice[] = [
-    allChoice(
-      query.assignment === "all",
-      boardHref({ ...query, assignment: "all" }),
-    ),
-    {
-      key: "mine",
-      title: "Мои",
-      href: boardHref({ ...query, assignment: "mine" }),
-      active: query.assignment === "mine",
-    },
-    {
-      key: "unassigned",
-      title: "Без ответственного",
-      href: boardHref({ ...query, assignment: "unassigned" }),
-      active: query.assignment === "unassigned",
-    },
+
+  // «Ответственный» — один выбор вместо «Сотрудника» с «Найти» и отдельного
+  // ряда «Ответственный»: те же параметры `assignment` и `owner`.
+  const ownerListed =
+    query.owner === null ||
+    ownerRows.some((row) => row.membershipId === query.owner);
+  const responsibleOptions: readonly NavigateOption[] = [
+    { value: "all", label: "Все", href: boardHref({ ...query, assignment: "all", owner: null }) },
+    { value: "mine", label: "Мои", href: boardHref({ ...query, assignment: "mine", owner: null }) },
+    { value: "unassigned", label: "Без ответственного", href: boardHref({ ...query, assignment: "unassigned", owner: null }) },
+    ...(!ownerListed && query.owner !== null
+      ? [{ value: query.owner, label: "Выбранный сотрудник", href: boardHref({ ...query, assignment: "all", owner: query.owner }) }]
+      : []),
   ];
+  const staffOptions: readonly NavigateOption[] = ownerRows.map((option) => ({
+    value: option.membershipId,
+    label: option.displayLabel,
+    href: boardHref({ ...query, assignment: "all", owner: option.membershipId }),
+  }));
+  const responsibleValue = query.owner ?? query.assignment;
 
   const filtersActive =
     query.q !== null ||
@@ -137,84 +142,65 @@ export default async function PipelinePart({
     query.due !== "all" ||
     query.assignment !== "all" ||
     query.owner !== null;
-  const ownerSelectShown = ownerRows.length > 0;
-  const ownerListed =
-    query.owner === null ||
-    ownerRows.some((row) => row.membershipId === query.owner);
+  const activeFilterCount = Number(query.due !== "all") + Number(query.assignment !== "all" || query.owner !== null);
+  const workingCount = board.truncated ? null : leads.filter((lead) => lead.stageKey !== "handed_off").length;
 
   return (
     <ManualLeadDisclosure>
       <PartShell
+        width="board"
         title="Воронка продаж"
+        count={workingCount}
         action={canCreateLead ? <ManualLeadTrigger /> : undefined}
       >
       {canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
         owners={ownerRows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : null}
 
-      {/* Поиск — форма методом GET, как период на главной: запрос живёт в
-          адресе, экран можно переслать целиком. Фильтры, выбранные ссылками
-          ниже, форма несёт с собой скрытыми полями, чтобы поиск их не сбрасывал. */}
-      <form
-        method="get"
-        action="/v3/pipeline"
-        className="mt-6 flex flex-wrap items-center gap-2"
-      >
-        {query.stage !== "all" ? (
-          <input type="hidden" name="stage" value={query.stage} />
-        ) : null}
-        {query.due !== "all" ? (
-          <input type="hidden" name="due" value={query.due} />
-        ) : null}
-        {query.assignment !== "all" ? (
-          <input type="hidden" name="assignment" value={query.assignment} />
-        ) : null}
-        {query.handed === "all" ? (
-          <input type="hidden" name="handed" value="all" />
-        ) : null}
-        {!ownerSelectShown && query.owner !== null ? (
-          <input type="hidden" name="owner" value={query.owner} />
-        ) : null}
-
-        <label className="t-label inline-flex w-full min-w-0 items-center gap-1.5 text-fg-3 @2xl:w-auto">
-          Поиск
-          <input
-            type="search"
-            name="q"
-            defaultValue={query.q ?? ""}
-            maxLength={MAX_QUERY_LENGTH}
-            placeholder="Имя, контакт или действие"
-            className={`${CONTROL_CLASS} min-w-0 flex-1 placeholder:text-fg-3 @2xl:w-64 @2xl:flex-none`}
-          />
-        </label>
-
-        {ownerSelectShown ? (
-          <label className="t-label inline-flex w-full min-w-0 items-center gap-1.5 text-fg-3 @2xl:w-auto">
-            Сотрудник
-            <select
-              key={query.owner ?? "all"}
-              name="owner"
-              defaultValue={query.owner ?? ""}
-              className={`${CONTROL_CLASS} min-w-0 flex-1 @2xl:flex-none`}
-            >
-              <option value="">Все сотрудники</option>
-              {!ownerListed && query.owner !== null ? (
-                <option value={query.owner}>Выбранный сотрудник</option>
+      {/* Одна строка инструментов 44 px. Поиск — форма методом GET, как
+          период на главной: запрос живёт в адресе, экран можно переслать
+          целиком. Остальные фильтры поиск несёт скрытыми полями, а выбор
+          «Ответственного» и «Срока» применяется сразу, без «Найти». */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
+        <BoardSearch
+          key={query.q ?? ""}
+          action="/v3/pipeline"
+          defaultValue={query.q ?? ""}
+          maxLength={MAX_QUERY_LENGTH}
+          placeholder="Имя, контакт или действие"
+          hidden={
+            <>
+              {query.stage !== "all" ? (
+                <input type="hidden" name="stage" value={query.stage} />
               ) : null}
-              {ownerRows.map((option) => (
-                <option key={option.membershipId} value={option.membershipId}>
-                  {option.displayLabel}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
+              {query.due !== "all" ? (
+                <input type="hidden" name="due" value={query.due} />
+              ) : null}
+              {query.assignment !== "all" ? (
+                <input type="hidden" name="assignment" value={query.assignment} />
+              ) : null}
+              {query.handed === "all" ? (
+                <input type="hidden" name="handed" value="all" />
+              ) : null}
+              {query.owner !== null ? (
+                <input type="hidden" name="owner" value={query.owner} />
+              ) : null}
+            </>
+          }
+        />
 
-        <button type="submit" className={btnGhostCls}>
-          Найти
-        </button>
+        <BoardFilters activeCount={activeFilterCount}>
+          <NavigateSelect
+            key={responsibleValue}
+            label="Ответственный"
+            value={responsibleValue}
+            options={responsibleOptions}
+            groups={staffOptions.length > 0 ? [{ label: "Сотрудники", options: staffOptions }] : []}
+          />
+          <BoardSegments label="Срок" showLabel items={dueChoices} />
+        </BoardFilters>
 
         {filtersActive ? (
-          <Link
+          <BoardReset
             href={boardHref({
               q: null,
               stage: "all",
@@ -223,63 +209,36 @@ export default async function PipelinePart({
               owner: null,
               handed: query.handed,
             })}
-            prefetch={false}
-            className="inline-flex min-h-11 items-center px-1 text-sm text-fg-2 underline underline-offset-4 hover:text-fg"
-          >
-            Сбросить всё
-          </Link>
+          />
         ) : null}
-      </form>
+      </div>
 
-      {ownerSelectShown && ownerOptions?.hasNext ? (
+      {ownerRows.length > 0 && ownerOptions?.hasNext ? (
         <p className="t-meta mt-1 text-fg-3">
           Показаны первые 100 сотрудников.
         </p>
       ) : null}
 
-      <div className="mt-3 flex flex-col gap-2">
-        <div className="hidden @2xl:block">
-        <FilterLinkGroup
-          id="v3-pipeline-filter-stage"
-          label="Стадия"
-          choices={stageChoices}
-        />
-        </div>
-        <PipelineMobileFilters activeCount={Number(query.due !== "all") + Number(query.assignment !== "all")}>
-        <FilterLinkGroup
-          id="v3-pipeline-filter-due"
-          label="Срок"
-          choices={dueChoices}
-        />
-        <FilterLinkGroup
-          id="v3-pipeline-filter-assignment"
-          label="Ответственный"
-          choices={assignmentChoices}
-        />
-        </PipelineMobileFilters>
-      </div>
-
       {board.truncated ? (
-        <p className="t-meta mt-4 text-fg-3">
-          Прочитаны первые 4000 лидов — используйте поиск или фильтры.
+        <p className="t-meta mt-2 text-fg-3">
+          Прочитаны первые 4000 лидов — уточните поиск или фильтры.
         </p>
       ) : null}
 
-      <div className="mt-6">
+      {/* Доска занимает оставшуюся высоту: на широком экране прокручиваются
+          колонки, на узком (список этапов) — эта область. */}
+      <div className="mt-3 flex min-w-0 flex-col md:min-h-[320px] md:flex-1 md:overflow-y-auto @6xl:overflow-visible">
         <Pipeline
           stages={stages}
           leads={leads}
           filteredStage={query.stage}
-          allStagesHref={boardHref({ ...query, stage: "all" })}
-          truncated={board.truncated}
           ownerOptions={ownerRows}
           ownerOptionsHaveMore={ownerOptions?.hasNext ?? false}
           actor={actor}
           actorMembershipId={actor.membershipId}
           requestIds={requestIds}
           handedExpanded={query.handed === "all"}
-          handedShowAllHref={boardHref({ ...query, handed: "all" })}
-          handedShowLatestHref={boardHref({ ...query, handed: "latest" })}
+          showOwner={query.assignment !== "mine"}
         />
       </div>
       </PartShell>
@@ -287,48 +246,8 @@ export default async function PipelinePart({
   );
 }
 
-function FilterLinkGroup({
-  id,
-  label,
-  choices,
-}: Readonly<{
-  id: string;
-  label: string;
-  choices: readonly FilterChoice[];
-}>) {
-  return (
-    <div className="flex min-w-0 items-center gap-2">
-      <span id={id} className="t-caption w-24 shrink-0 text-fg-3">
-        {label}
-      </span>
-      {/* Полоса ссылок не помещается в 393px и прокручивается, поэтому ей
-          нужен клавиатурный доступ и собственное имя (SC 2.1.1). */}
-      <nav
-        aria-labelledby={id}
-        tabIndex={0}
-        className="min-w-0 max-w-full overflow-x-auto"
-      >
-        <ul className="flex w-max items-center gap-0.5 rounded-ctl border border-border bg-surface p-0.5">
-          {choices.map((choice) => (
-            <li key={choice.key}>
-              <Link
-                href={choice.href}
-                prefetch={false}
-                aria-current={choice.active ? "page" : undefined}
-                className="v3-choice inline-flex min-h-9 items-center whitespace-nowrap rounded-nav px-2.5 text-xs text-fg-2 hover:bg-surface-2"
-              >
-                {choice.title}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </div>
-  );
-}
-
 function allChoice(active: boolean, href: string): FilterChoice {
-  return { key: "all", title: "Все", href, active };
+  return { key: "all", title: "Все", count: null, href, active };
 }
 
 function boardHref(query: BoardQuery): string {

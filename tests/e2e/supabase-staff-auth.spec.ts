@@ -658,28 +658,38 @@ async function expectExactSupabaseSalesRead(
   readOnly = false,
 ) {
   await page.goto("/v3/pipeline");
+  // Boards 25.09: PageHeader puts the working-lead count inside the <h1>
+  // («Воронка продаж 12»); the count is absent when the read is truncated.
   await expect(
-    page.getByRole("heading", { name: "Воронка продаж", exact: true }),
+    page.getByRole("heading", {
+      level: 1,
+      name: /^Воронка продаж(?:\s+\d+)?$/u,
+    }),
   ).toBeVisible();
 
   const workflowPanel = page.locator(
     `[data-testid="v3-pipeline-decision"][data-lead-id="${leadId}"]`,
   );
-  const exactLead = page.getByRole("article").filter({
-    has: page.locator(`a[href="/v3/profile?id=${leadId}"]`),
-  });
+  const exactLead = page.locator(
+    `[data-testid="v3-pipeline-card"][data-lead-id="${leadId}"]`,
+  );
   await expect(exactLead).toHaveCount(1);
+  await expect(exactLead).toContainText(
+    "Verify authenticated Supabase Sales read path",
+  );
+  // Boards 25.09: the card opens the right-hand lead panel (?lead=); the
+  // decision form and the link to the lead card live in that panel.
+  await exactLead.locator(`a[data-lead-link="${leadId}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`/v3/pipeline\\?lead=${leadId}$`));
+  const leadPanel = page.getByTestId("v3-pipeline-lead-panel");
+  await expect(leadPanel).toHaveAttribute("data-lead-id", leadId);
   if (readOnly) {
     await expect(workflowPanel).toHaveCount(0);
   } else {
     await expect(workflowPanel).toBeVisible();
-    await workflowPanel.locator("summary").click();
     await expect(workflowPanel.locator('input[name="expected_version"]')).toHaveValue("7");
   }
-  await expect(exactLead).toContainText(
-    "Verify authenticated Supabase Sales read path",
-  );
-  await exactLead.locator(`a[href="/v3/profile?id=${leadId}"]`).click();
+  await leadPanel.locator(`a[href="/v3/profile?id=${leadId}"]`).click();
   await expect(page).toHaveURL(new RegExp(`/v3/profile\\?id=${leadId}$`));
   await expect(page.getByTestId("v3-profile")).toHaveAttribute(
     "data-lead-id",
@@ -1341,12 +1351,15 @@ test("Sales and Admin persist the same canonical workflow through the real inter
     );
   const workflowForm = () =>
     workflowPanel().getByTestId("v3-pipeline-workflow-form");
+  // Boards 25.09: the decision form lives in the lead panel that the card
+  // opens (?lead=); after a reload the panel is rendered open by the URL.
   const openWorkflow = async () => {
-    const panel = workflowPanel();
-    await expect(panel).toBeVisible();
-    if ((await panel.getAttribute("open")) === null) {
-      await panel.locator("summary").click();
+    if ((await workflowPanel().count()) === 0) {
+      await page
+        .locator(`[data-testid="v3-pipeline-card"][data-lead-id="${leadId}"] a[data-lead-link="${leadId}"]`)
+        .click();
     }
+    await expect(workflowPanel()).toBeVisible();
     return workflowForm();
   };
 
@@ -1367,9 +1380,9 @@ test("Sales and Admin persist the same canonical workflow through the real inter
     .getByTestId("v3-pipeline-next-action-date")
     .fill("2099-09-08");
   await form.getByTestId("v3-pipeline-submit").click();
-  await expect(workflowForm()).toHaveCount(0);
+  // The panel stays open; the refreshed form carries the next version.
+  await expect(workflowForm().locator('input[name="expected_version"]')).toHaveValue("12");
   form = await openWorkflow();
-  await expect(form.locator('input[name="expected_version"]')).toHaveValue("12");
   await expect(form.getByText("Версия 12", { exact: true })).toBeVisible();
 
   await page.reload();
@@ -1397,9 +1410,8 @@ test("Sales and Admin persist the same canonical workflow through the real inter
     .getByTestId("v3-pipeline-next-action-date")
     .fill("2099-09-09");
   await form.getByTestId("v3-pipeline-submit").click();
-  await expect(workflowForm()).toHaveCount(0);
+  await expect(workflowForm().locator('input[name="expected_version"]')).toHaveValue("13");
   form = await openWorkflow();
-  await expect(form.locator('input[name="expected_version"]')).toHaveValue("13");
   await expect(form.getByText("Версия 13", { exact: true })).toBeVisible();
 
   await page.reload();

@@ -59,9 +59,9 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 350); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» facets (tests/v3-students-facets.test.mjs), + «Задачи» queue (tests/v3-tasks-queue.test.mjs), + «Студенты» queue backend (tests/v3-students-queue.test.mjs)
+  assert.equal(plan.occurrenceCount, 351); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» facets (tests/v3-students-facets.test.mjs), + «Задачи» queue (tests/v3-tasks-queue.test.mjs), + «Студенты» queue backend (tests/v3-students-queue.test.mjs), + boards (tests/v3-boards.test.mjs)
   // Один assert на пин: задвоенная строка была случайной (дедуплицирована в PORT-5c).
-  assert.equal(plan.uniqueFileCount, 211); // + PORT-9a, + PORT-9d, + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend
+  assert.equal(plan.uniqueFileCount, 212); // + PORT-9a, + PORT-9d, + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend, + boards
   assert.equal(plan.duplicateCount, 139);
   assert.equal(plan.files.includes("tests/student-portal-assessment-preview.test.mjs"), false);
   assert.equal(new Set(plan.files).size, plan.files.length);
@@ -109,7 +109,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 179); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend
+  assert.equal(bounded.files.length, 180); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend, + boards
   assert.equal(serial.files.length, 21);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs", "tests/v3-trend-chart.test.mjs",
@@ -128,9 +128,9 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 248); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend
+  assert.equal(plan.occurrenceCount, 249); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend, + boards
   // Один assert на пин: задвоенная строка была случайной (дедуплицирована в PORT-5c).
-  assert.equal(plan.uniqueFileCount, 206); // + PORT-9a, + PORT-9d, + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend
+  assert.equal(plan.uniqueFileCount, 207); // + PORT-9a, + PORT-9d, + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend, + boards
   assert.equal(plan.duplicateCount, 42);
   assert.equal(plan.files.includes("tests/student-portal-assessment-preview.test.mjs"), false);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));

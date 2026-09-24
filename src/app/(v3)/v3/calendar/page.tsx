@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Card } from "@/components/ui";
 import { PartShell } from "@/components/v3/PartShell";
 import { Calendar } from "@/components/v3/calendar/Calendar";
 import {
@@ -111,49 +109,38 @@ export default async function CalendarPart({
 
   return (
     <PartShell title="Календарь">
-      <div className="space-y-8">
-        <Calendar
-          key={JSON.stringify([actor.organizationId, actor.authUserId, actor.membershipId, actor.platformAccessVersion, actor.presentationRole])}
-          initialTaskKey={target?.task.key ?? null}
-          unavailableTarget={unavailableTarget}
-          taskCapabilities={target?.capabilities ?? null}
-          view={view}
-          day={day}
-          today={today}
-          nowMinutes={nowMinutes}
-          days={days}
-          tasks={workspace.tasks}
-          readAccess={workspace.access}
-          undatedContinuationPage={workspace.access.tasks && undatedCursor !== null}
-          undatedNextHref={workspace.undatedNextCursor
-            ? calendarUndatedContinuationHref(
-                "/v3/calendar",
-                view,
-                day,
-                workspace.undatedNextCursor,
-              )
-            : null}
-          undatedCount={workspace.undatedCount}
-          undatedCursor={undatedCursor}
-          cases={workspace.cases}
-          casesHaveMore={workspace.casesHaveMore}
-          assignees={workspace.assignees}
-          actorMembershipId={actor.membershipId}
-          actor={actor}
-          createRequestId={randomUUID()}
-          taskRequestIds={taskRequestIds}
-          basePath="/v3/calendar"
-        />
-        <Card>
-          <Link
-            href="/v3/main"
-            className="flex min-h-11 items-center justify-between gap-3 text-sm font-semibold text-fg hover:text-accent-text"
-          >
-            Сводка на Главной
-            <span aria-hidden="true">→</span>
-          </Link>
-        </Card>
-      </div>
+      <Calendar
+        key={JSON.stringify([actor.organizationId, actor.authUserId, actor.membershipId, actor.platformAccessVersion, actor.presentationRole])}
+        initialTaskKey={target?.task.key ?? null}
+        unavailableTarget={unavailableTarget}
+        taskCapabilities={target?.capabilities ?? null}
+        view={view}
+        day={day}
+        today={today}
+        nowMinutes={nowMinutes}
+        days={days}
+        tasks={workspace.tasks}
+        readAccess={workspace.access}
+        undatedContinuationPage={workspace.access.tasks && undatedCursor !== null}
+        undatedNextHref={workspace.undatedNextCursor
+          ? calendarUndatedContinuationHref(
+              "/v3/calendar",
+              view,
+              day,
+              workspace.undatedNextCursor,
+            )
+          : null}
+        undatedCount={workspace.undatedCount}
+        undatedCursor={undatedCursor}
+        cases={workspace.cases}
+        casesHaveMore={workspace.casesHaveMore}
+        assignees={workspace.assignees}
+        actorMembershipId={actor.membershipId}
+        actor={actor}
+        createRequestId={randomUUID()}
+        taskRequestIds={taskRequestIds}
+        basePath="/v3/calendar"
+      />
     </PartShell>
   );
 }

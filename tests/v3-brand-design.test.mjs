@@ -102,7 +102,10 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/calendar/grids.tsx",
     "src/components/v3/AdmissionsPipelineBoard.tsx",
     "src/app/(v3)/v3/admissions-pipeline/page.tsx",
-    "src/app/(v3)/v3/tasks/page.tsx",
+    // «Задачи» (25.09.2026): вкладки, фильтры и срок в диалоге — примитивы очереди.
+    "src/components/v3/queue/QueueViewTabs.tsx",
+    "src/components/v3/queue/FilterMenu.tsx",
+    "src/components/v3/tasks/ComposerDeadlineField.tsx",
     "src/app/(v3)/v3/pipeline/page.tsx",
     "src/components/v3/PipelineStageViewport.tsx",
     "src/components/v3/MainHeader.tsx",

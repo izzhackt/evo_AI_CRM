@@ -112,6 +112,16 @@
   outline-offset: 3px;
 }
 
+/*
+ * Заголовок записи в панели очереди получает фокус скриптом (tabindex="-1"),
+ * чтобы читалка назвала открытую запись. Это не элемент управления: рамка
+ * фокуса вокруг заголовка — лишний красный. Та же граница, что у
+ * `[tabindex="-1"]` в globals.css.
+ */
+.v3-world [data-queue-heading]:focus-visible {
+  outline: none;
+}
+
 /* Foreground red stays readable even on the deepest neutral surface. */
 .v3-world .text-accent {
   color: var(--accent-text);
@@ -130,6 +140,23 @@
   background-color: var(--accent-weak);
   color: var(--accent-text);
   font-weight: 600;
+}
+
+/*
+ * Всплывающее меню и окно у своей кнопки (рабочая очередь, 25.09.2026):
+ * popover API держит его в верхнем слое — контейнер с прокруткой его не
+ * обрежет, — а CSS anchor positioning ставит под кнопкой и переворачивает у
+ * края окна. Имя якоря задаёт компонент (`anchor-name`/`position-anchor`);
+ * где anchor positioning нет, место считает `useAnchoredPopover`.
+ */
+.v3-world .v3-anchored {
+  inset: auto;
+  margin: 4px 0;
+  position-area: block-end span-inline-end;
+  position-try-fallbacks: flip-block, flip-inline;
+}
+.v3-world .v3-anchored-end {
+  position-area: block-end span-inline-start;
 }
 
 /*

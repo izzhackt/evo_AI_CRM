@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Icon } from "@/components/icons";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import type { StaffParticipant } from "@/lib/platform-staff-task-contract";
@@ -9,13 +10,15 @@ import { mutateStaffTaskAction } from "@/lib/platform-staff-task-actions";
 import { createPlatformAdmissionsTaskAction } from "@/lib/platform-admissions-task-actions";
 import { PLATFORM_CASE_TASK_PRIORITIES, type PlatformCaseTaskPriority } from "@/lib/platform-admissions-task-contract";
 import { readTaskCaseAssigneesAction } from "@/lib/v3/task-case-actions";
-import { DeadlineFields } from "../calendar/TaskControls";
+import { ComposerDeadlineField } from "./ComposerDeadlineField";
 import { TaskCasePicker } from "./TaskCasePicker";
 import type { CalendarCaseOption, Day } from "../calendar/types";
 
 const CONTROL = "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2";
 const PRIMARY = "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
 const SECONDARY = "inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-55";
+/** Свёрнутые необязательные поля: без треугольника браузера, рисованная стрелка рядом с подписью (как у фильтров). */
+const DISCLOSURE = "flex min-h-11 w-full cursor-pointer list-none items-center gap-1.5 t-label text-fg-2 hover:text-fg [&::-webkit-details-marker]:hidden";
 const PRIORITY_LABEL: Record<PlatformCaseTaskPriority, string> = { low: "Низкий", normal: "Обычный", high: "Высокий", urgent: "Срочный" };
 
 type ComposerStatus = "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable";
@@ -48,6 +51,7 @@ export function TaskComposerDialog({
   participants, actorMembershipId, actor, staffAllowed, caseAllowed, day,
   initialCase = null, initialCaseAssignees = [], sourceMessageId, sourceMessageVersion,
   sourceLeadId, sourceLeadVersion, triggerLabel = "+ Задача", triggerClassName, openIntent = null,
+  hideTrigger = false, initialTitle = "", onClosed,
 }: Readonly<{
   participants: readonly StaffParticipant[]; actorMembershipId: string; actor: ActivePlatformActor;
   staffAllowed: boolean; caseAllowed: boolean; day: Day;
@@ -60,6 +64,12 @@ export function TaskComposerDialog({
    * even while already mounted -- the global AppShell "+" nav link and the
    * task-list header both rely on this to force-open across a same-page nav. */
   openIntent?: string | null;
+  /** Без своей кнопки: диалог открывают адрес (`openIntent`) или строка «Новая задача…». */
+  hideTrigger?: boolean;
+  /** Название, набранное до открытия (строка «Новая задача…»); важнее черновика. */
+  initialTitle?: string;
+  /** Куда вернуть фокус, если своей кнопки нет. */
+  onClosed?: () => void;
 }>) {
   const [open, setOpen] = useState(openIntent !== null);
   const [seenIntent, setSeenIntent] = useState(openIntent);
@@ -70,16 +80,17 @@ export function TaskComposerDialog({
   const trigger = useRef<HTMLButtonElement>(null);
   if ((!staffAllowed && !caseAllowed) || isStaffPreview(actor)) return null;
   return <>
-    <button ref={trigger} type="button" aria-haspopup="dialog"
+    {!hideTrigger ? <button ref={trigger} type="button" aria-haspopup="dialog"
       className={triggerClassName ?? "min-h-11 rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:opacity-90"}
-      onClick={() => setOpen(true)}>{triggerLabel}</button>
+      onClick={() => setOpen(true)}>{triggerLabel}</button> : null}
     {open ? <TaskComposerModal
       participants={participants} actorMembershipId={actorMembershipId} actor={actor} day={day}
       staffAllowed={staffAllowed} caseAllowed={caseAllowed && !sourceMessageId && !sourceLeadId}
       initialCase={initialCase} initialCaseAssignees={initialCaseAssignees}
       sourceMessageId={sourceMessageId} sourceMessageVersion={sourceMessageVersion}
       sourceLeadId={sourceLeadId} sourceLeadVersion={sourceLeadVersion}
-      onClose={() => { setOpen(false); trigger.current?.focus(); }}
+      initialTitle={initialTitle}
+      onClose={() => { setOpen(false); if (trigger.current) trigger.current.focus(); else onClosed?.(); }}
     /> : null}
   </>;
 }
@@ -87,7 +98,7 @@ export function TaskComposerDialog({
 function TaskComposerModal({
   participants, actorMembershipId, actor, staffAllowed, caseAllowed, day,
   initialCase, initialCaseAssignees, sourceMessageId, sourceMessageVersion,
-  sourceLeadId, sourceLeadVersion, onClose,
+  sourceLeadId, sourceLeadVersion, initialTitle, onClose,
 }: Readonly<{
   participants: readonly StaffParticipant[]; actorMembershipId: string; actor: ActivePlatformActor;
   staffAllowed: boolean; caseAllowed: boolean; day: Day;
@@ -95,6 +106,7 @@ function TaskComposerModal({
   initialCaseAssignees: readonly Readonly<{ membershipId: string; displayName: string }>[];
   sourceMessageId?: string; sourceMessageVersion?: string;
   sourceLeadId?: string; sourceLeadVersion?: string;
+  initialTitle: string;
   onClose: () => void;
 }>) {
   const router = useRouter();
@@ -111,7 +123,7 @@ function TaskComposerModal({
   // Lazy initializers hydrate synchronously from the one draft this exact
   // dialog instance owns -- an effect would set state right after mount for
   // no benefit, since the dialog is freshly created per open() anyway.
-  const [title, setTitle] = useState(() => readDraft(draftContext)?.title ?? "");
+  const [title, setTitle] = useState(() => initialTitle.trim() || readDraft(draftContext)?.title || "");
   const [description, setDescription] = useState(() => readDraft(draftContext)?.description ?? "");
   const [priority, setPriority] = useState<PlatformCaseTaskPriority>("normal");
   const [staffAssignee, setStaffAssignee] = useState(actorMembershipId);
@@ -279,8 +291,11 @@ function TaskComposerModal({
 
         {caseAllowed ? (initialCase ? <div className="text-sm">
           <span className="text-fg-2">Студент/дело: </span>{initialCase.name}
-        </div> : <details open={caseSectionOpen} onToggle={(event) => setCaseSectionOpen(event.currentTarget.open)}>
-          <summary className="min-h-11 cursor-pointer py-2 text-sm text-fg-2">Студент/дело · необязательно</summary>
+        </div> : <details open={caseSectionOpen} onToggle={(event) => setCaseSectionOpen(event.currentTarget.open)} className="group">
+          <summary className={DISCLOSURE}>
+            Студент/дело · необязательно
+            <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
+          </summary>
           <div className="grid gap-3 pt-2 sm:grid-cols-2">
             <TaskCasePicker initialCases={[]} initialHasMore={false} onCaseChange={setCaseId} disabled={locked || !caseMode} />
           </div>
@@ -300,12 +315,13 @@ function TaskComposerModal({
           {caseMode && !candidatesReady ? <span className="mt-1 block text-xs text-fg-2">{!caseId ? "Выберите дело студента." : caseCandidates.caseId === caseId && caseCandidates.status === "unavailable" ? "Не удалось проверить исполнителей. Обновите страницу." : "Проверяем исполнителей выбранного дела…"}</span> : null}
         </label>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <DeadlineFields day={day} defaultKind="none" />
-        </div>
+        <ComposerDeadlineField day={day} disabled={locked} />
 
-        <details>
-          <summary className="min-h-11 cursor-pointer py-2 text-sm text-fg-2">Описание и приоритет</summary>
+        <details className="group">
+          <summary className={DISCLOSURE}>
+            Описание и приоритет
+            <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
+          </summary>
           <div className="grid gap-3 pt-2 sm:grid-cols-2">
             {!caseMode ? <label className="text-sm font-medium sm:col-span-2">Описание
               <textarea maxLength={10000} rows={3} value={description} disabled={locked}

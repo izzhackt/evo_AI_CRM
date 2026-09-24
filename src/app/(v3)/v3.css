@@ -133,6 +133,23 @@
 }
 
 /*
+ * Всплывающее меню и окно у своей кнопки (рабочая очередь, 25.09.2026):
+ * popover API держит его в верхнем слое — контейнер с прокруткой его не
+ * обрежет, — а CSS anchor positioning ставит под кнопкой и переворачивает у
+ * края окна. Имя якоря задаёт компонент (`anchor-name`/`position-anchor`);
+ * где anchor positioning нет, место считает `useAnchoredPopover`.
+ */
+.v3-world .v3-anchored {
+  inset: auto;
+  margin: 4px 0;
+  position-area: block-end span-inline-end;
+  position-try-fallbacks: flip-block, flip-inline;
+}
+.v3-world .v3-anchored-end {
+  position-area: block-end span-inline-start;
+}
+
+/*
  * Шрифтовые роли staff CRM (24.09.2026, решение владельца: Golos Text для
  * интерфейса, JetBrains Mono только для технических значений).
  *

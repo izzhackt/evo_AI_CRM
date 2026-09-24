@@ -2633,6 +2633,24 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_portal_case_chat.sql
   fi
+
+  # Migration 241 («Студенты» queue backend, PR 1 of 2): the editable
+  # «Следующий шаг / Срок» write platform.set_case_next_action_v1 (137 route
+  # authority, admissions_version, request_id replay through audit_events,
+  # the case.next.action.change journal row and its «История» allowlist),
+  # the due-sorted keyset queue platform.staff_student_case_queue_v1 and
+  # its counts platform.staff_student_case_queue_counts_v1. The suite proves
+  # curator/Admin allowed, Sales/other curator/Student/anon/service_role
+  # refused, replay, version conflict, clearing, NULL-date paging stability,
+  # «Мои» without visibility widening, counts equal to rows and the
+  # staff-only step (the Student projections student_portal_cases/profile
+  # return it as NULL). Exercised at its own checkpoint against the full
+  # current-boundary schema, same convention as 185/187-200.
+  if [[ "$(basename "$migration")" == 241_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_next_action_queue.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

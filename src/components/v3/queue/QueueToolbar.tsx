@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Icon } from "@/components/icons";
 
 import { QueueFilterDisclosure } from "./QueueFilterDisclosure";
-import { QueueKeyboardHelp } from "./QueueKeyboardHelp";
+import { QueueKeyboardHelp, type QueueKey } from "./QueueKeyboardHelp";
 
 /** Поле поиска очереди: «/» переводит в него фокус (`useQueueKeyboard`). */
 export const QUEUE_SEARCH_SELECTOR = "[data-queue-search]";
@@ -31,12 +31,15 @@ export function QueueToolbar({
   filters,
   activeCount,
   resetHref,
+  keys = [],
 }: Readonly<{
   search: QueueSearch;
   filters: ReactNode;
   /** Число выбранных фильтров и поиска: для «Фильтры (n)». */
   activeCount: number;
   resetHref: string | null;
+  /** Клавиши страницы сверх общих — в окне «?». */
+  keys?: readonly QueueKey[];
 }>) {
   return (
     <div role="group" aria-label="Поиск и фильтры" className="flex flex-wrap items-center gap-2" data-testid="queue-toolbar">
@@ -67,7 +70,7 @@ export function QueueToolbar({
         ) : null}
       </QueueFilterDisclosure>
       <span className="ms-auto hidden md:block" />
-      <QueueKeyboardHelp />
+      <QueueKeyboardHelp extra={keys} />
     </div>
   );
 }

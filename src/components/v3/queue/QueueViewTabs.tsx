@@ -15,10 +15,16 @@ export type QueueTab = Readonly<{
  * табличные цифры Golos и только там, где его дало чтение. На телефоне ряд
  * не переносится, а прокручивается вбок внутри себя.
  */
-export function QueueViewTabs({ label, tabs }: Readonly<{ label: string; tabs: readonly QueueTab[] }>) {
+export function QueueViewTabs({ label, tabs, id }: Readonly<{
+  label: string;
+  tabs: readonly QueueTab[];
+  /** Якорь ряда вкладок (например, прежний адрес `#admissions-summary`). */
+  id?: string;
+}>) {
   return (
-    <nav aria-label={label} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" data-testid="queue-view-tabs">
-      <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
+    <nav id={id} aria-label={label} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" data-testid="queue-view-tabs">
+      {/* Телефон — ряд прокручивается вбок; шире — переносится, чтобы текущий вид не уходил за край рядом с панелью. */}
+      <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2 sm:min-w-0 sm:flex-wrap">
         {tabs.map((tab) => (
           <li key={tab.key}>
             <Link

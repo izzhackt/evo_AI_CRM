@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Icon } from "@/components/icons";
 import { changePlatformAdmissionsTaskAction } from "@/lib/platform-admissions-task-actions";
@@ -96,6 +96,9 @@ export function TaskQueueRow({
 }>) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  // Синхронный замок от двойного нажатия: `pending` меняется только после
+  // рендера, и второй быстрый щелчок успел бы отправить команду ещё раз.
+  const busy = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const result = useAnchoredPopover("start");
   const menu = useAnchoredPopover("end");
@@ -108,7 +111,8 @@ export function TaskQueueRow({
   const undoId = `${result.triggerId}-undo`;
 
   async function completeStaff() {
-    if (pending) return;
+    if (busy.current) return;
+    busy.current = true;
     setPending(true);
     setError(null);
     try {
@@ -123,7 +127,7 @@ export function TaskQueueRow({
         requestAnimationFrame(() => document.getElementById(undoId)?.focus());
       } else setError(STAFF_ERROR_COPY[state.status] ?? "Не удалось сохранить. Повторите.");
     } catch { setError("Не удалось сохранить. Повторите."); }
-    finally { setPending(false); }
+    finally { busy.current = false; setPending(false); }
   }
 
   async function changeCase(change: Parameters<typeof caseChangeForm>[1], saved: string): Promise<string | null> {
@@ -140,7 +144,8 @@ export function TaskQueueRow({
 
   async function postponeStaff() {
     document.getElementById(menu.popoverId)?.hidePopover();
-    if (pending) return;
+    if (busy.current) return;
+    busy.current = true;
     setPending(true);
     setError(null);
     try {
@@ -151,7 +156,7 @@ export function TaskQueueRow({
       if (state.status === "saved") { announce(`Задача «${task.title}» перенесена на завтра.`); router.refresh(); }
       else setError(STAFF_ERROR_COPY[state.status] ?? "Не удалось сохранить. Повторите.");
     } catch { setError("Не удалось сохранить. Повторите."); }
-    finally { setPending(false); }
+    finally { busy.current = false; setPending(false); }
   }
 
   function openCasePostpone() {
@@ -219,10 +224,15 @@ export function TaskQueueRow({
             Завершено
             {!recent.expired ? <>
               {" · "}
-              <button id={undoId} type="button" onClick={() => void onUndo(recent).then((failure) => {
-                setError(failure);
-                if (!failure) requestAnimationFrame(() => document.getElementById(result.triggerId)?.focus());
-              })}
+              <button id={undoId} type="button" data-queue-undo="" onClick={() => {
+                if (busy.current) return;
+                busy.current = true;
+                void onUndo(recent).then((failure) => {
+                  busy.current = false;
+                  setError(failure);
+                  if (!failure) requestAnimationFrame(() => document.getElementById(result.triggerId)?.focus());
+                });
+              }}
                 className="relative inline-flex min-h-6 items-center t-caption text-fg underline underline-offset-2 before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:text-accent-text">
                 Отменить
               </button>
@@ -285,14 +295,16 @@ export function TaskQueueRow({
             aria-label={`Действия: ${task.title}`} className={`${ROW_BUTTON} rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg`}>
             <Icon name="more-horizontal" size={20} />
           </button>
-          <div id={menu.popoverId} popover="auto" style={menu.popoverStyle} aria-label={`Действия: ${task.title}`}
+          <div id={menu.popoverId} popover="auto" style={menu.popoverStyle} role="group" aria-label={`Действия: ${task.title}`}
             className="v3-anchored v3-anchored-end w-56 rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg">
             {can.postpone ? (
               <button type="button" className={MENU_ITEM} disabled={pending} onClick={task.kind === "staff" ? () => void postponeStaff() : openCasePostpone}>
                 Перенести на завтра
               </button>
             ) : null}
-            {can.transfer ? <Link href={moveHref} scroll={false} className={MENU_ITEM}>Передать…</Link> : null}
+            {/* Строка при смене адреса не пересоздаётся: меню закрывается само. */}
+            {can.transfer ? <Link href={moveHref} scroll={false} onClick={() => document.getElementById(menu.popoverId)?.hidePopover()}
+              className={MENU_ITEM}>Передать…</Link> : null}
           </div>
         </> : <span aria-hidden="true" className="size-11" />}
       </div>

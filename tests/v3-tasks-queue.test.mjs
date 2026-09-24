@@ -4,14 +4,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { dueBandLabel, dueBucket, nextFriday, queueDue, weekEnd } from "../src/components/v3/queue/due-bucket.ts";
-import { nextQueueIndex, rowNeedsReveal } from "../src/components/v3/queue/queue-navigation.ts";
+import { DUE_BUCKETS, dueBandLabel, dueBucket, dueFilterDays, nextFriday, queueDue, weekEnd } from "../src/components/v3/queue/due-bucket.ts";
+import { nextQueueIndex, queueFocusAfterRemoval, rowNeedsReveal } from "../src/components/v3/queue/queue-navigation.ts";
 import { shortPersonName } from "../src/components/v3/queue/person-name.ts";
 import { activeFilterCount, queueHref } from "../src/components/v3/queue/queue-url.ts";
 import { caseChangeForm, currentDeadline, dueTomorrow, staffEditForm, staffStatusForm, tomorrowDeadline } from "../src/components/v3/tasks/task-commands.ts";
 import { parsePlatformCaseTaskDeadline } from "../src/lib/platform-admissions-task-contract.ts";
 import { STAFF_TASK_FORM_FIELDS, parseStaffTaskCommand } from "../src/lib/platform-staff-task-contract.ts";
-import { buildTaskQueue, parseTaskQueueFilters, taskQueueParams } from "../src/lib/v3/task-queue.ts";
+import { buildTaskQueue, parseTaskQueueFilters, taskQueueNarrowing, taskQueueParams } from "../src/lib/v3/task-queue.ts";
 
 /**
  * «Задачи» — одна очередь по срокам (решение владельца 25.09.2026) и общие
@@ -54,6 +54,49 @@ test("dueBucket groups by the Bishkek day and the exact instant of a timed deadl
   assert.equal(weekEnd("2026-09-27"), "2026-09-27");
   assert.equal(weekEnd("2026-09-22"), "2026-09-27");
   assert.deepEqual(["2026-09-24", "2026-09-25", "2026-09-26"].map(nextFriday), ["2026-09-25", "2026-10-02", "2026-10-02"]);
+});
+
+test("the server day bounds of a «Срок» group always contain the group, by the Bishkek day", () => {
+  const shift = (day, delta) => new Date(Date.parse(`${day}T00:00:00Z`) + delta * 86_400_000).toISOString().slice(0, 10);
+  // Every weekday of one week at 10:00, plus Sunday 23:50 and Monday 00:10 in Bishkek.
+  const moments = [...Array.from({ length: 7 }, (_, index) => `${shift("2026-09-21", index)}T10:00:00+06:00`),
+    "2026-09-27T23:50:00+06:00", "2026-09-28T00:10:00+06:00", "2026-12-31T12:00:00+06:00"];
+  for (const moment of moments) {
+    const now = new Date(moment);
+    const today = moment.slice(0, 10);
+    const tasks = Array.from({ length: 20 }, (_, index) => shift(today, index - 5)).flatMap((day) => [
+      { day, task: due(day) },
+      { day, task: due(null, new Date(`${day}T00:30:00+06:00`).toISOString()) },
+      { day, task: due(null, new Date(`${day}T23:30:00+06:00`).toISOString()) },
+    ]);
+    for (const bucket of DUE_BUCKETS) {
+      const days = dueFilterDays(bucket, today);
+      if (bucket === "none") { assert.equal(days, null, "undated tasks have no day to bound"); continue; }
+      if (days.from && days.to) assert.ok(days.from <= days.to, `${moment} ${bucket}: the server rejects reversed bounds`);
+      for (const { day, task } of tasks.filter(({ task }) => dueBucket(task, now) === bucket)) {
+        assert.ok((days.from === null || day >= days.from) && (days.to === null || day <= days.to), `${moment} ${bucket} ${JSON.stringify(task)}`);
+      }
+    }
+  }
+  assert.deepEqual(dueFilterDays("today", "2026-09-24"), { from: "2026-09-24", to: "2026-09-24" });
+  assert.deepEqual(dueFilterDays("overdue", "2026-09-24"), { from: null, to: "2026-09-24" }, "a timed task earlier today is overdue");
+  assert.deepEqual(dueFilterDays("later", "2026-09-27"), { from: "2026-09-28", to: null });
+});
+
+test("at the read limit the screen offers only what shrinks the server read that was cut off", () => {
+  assert.deepEqual(taskQueueNarrowing(filters({ view: "all" }), ["staff", "case"]),
+    { label: "Показать мои задачи на сегодня", overrides: { view: null, due: "today" } });
+  assert.deepEqual(taskQueueNarrowing(filters({ view: "all" }), ["staff"]), { label: "Показать только мои задачи", overrides: { view: null } });
+  assert.deepEqual(taskQueueNarrowing(filters(), ["case"]), { label: "Показать задачи на сегодня", overrides: { due: "today" } });
+  // «Мои» does not shrink the case read (its assignee is filtered in the app);
+  // search, «Просрочено» and «Без срока» do not shrink it either.
+  assert.equal(taskQueueNarrowing(filters({ view: "all" }), ["case"])?.overrides.view, undefined);
+  assert.equal(taskQueueNarrowing(filters(), ["staff"]), null);
+  assert.equal(taskQueueNarrowing(filters({ query: "виза" }), ["staff"]), null);
+  assert.equal(taskQueueNarrowing(filters({ due: "overdue" }), ["case"]), null);
+  assert.equal(taskQueueNarrowing(filters({ due: "none" }), ["case"]), null);
+  assert.equal(taskQueueNarrowing(filters({ state: "done" }), ["case"]), null, "closed tasks have no due filter");
+  assert.equal(taskQueueNarrowing(filters({ view: "all" }), []), null);
 });
 
 test("queue dates are ДД.ММ (+ ЧЧ:ММ) in Bishkek with the overdue word, never colour alone", () => {
@@ -165,6 +208,34 @@ test("j/k and arrows move from the focused row, else from the selected one, and 
   assert.equal(nextQueueIndex(5, 0, 2, -1), 0);
 });
 
+test("focus leaving with a completed row moves to the next remaining row, else the previous", () => {
+  const keys = ["a", "b", "c", "d"];
+  assert.equal(queueFocusAfterRemoval(keys, "b", new Set(["b"])), "c");
+  assert.equal(queueFocusAfterRemoval(keys, "b", new Set(["b", "c"])), "d");
+  assert.equal(queueFocusAfterRemoval(keys, "d", new Set(["d"])), "c");
+  assert.equal(queueFocusAfterRemoval(keys, "b", new Set(keys)), null);
+  assert.equal(queueFocusAfterRemoval(keys, "x", new Set(["x"])), null);
+  const list = read("src/components/v3/tasks/TaskQueueList.tsx");
+  // Each completion keeps its own deadline: a refresh or another completion does not extend it.
+  assert.match(list, /const expiresAt = Date\.now\(\) \+ TASK_UNDO_MS;/u);
+  assert.match(list, /Math\.max\(0, Math\.min\(\.\.\.live\.map\(\(entry\) => entry\.expiresAt\)\) - Date\.now\(\)\)/u);
+  assert.match(list, /keepFocusInList\(new Set\(Object\.keys\(recent\)\)/u);
+  assert.match(read("src/components/v3/tasks/TaskQueueRow.tsx"), /<button id=\{undoId\} type="button" data-queue-undo=""/u);
+});
+
+test("menus close on a choice, popovers carry a role, and a fast double press sends one command", () => {
+  const menu = read("src/components/v3/queue/FilterMenu.tsx");
+  assert.match(menu, /onClick=\{\(\) => document\.getElementById\(popoverId\)\?\.hidePopover\(\)\}/u);
+  assert.match(menu, /popover="auto"\s+style=\{popoverStyle\}\s+role="group"/u);
+  assert.match(read("src/components/v3/queue/QueueKeyboardHelp.tsx"), /popover="auto"\s+style=\{popoverStyle\}\s+role="dialog"/u);
+  const row = read("src/components/v3/tasks/TaskQueueRow.tsx");
+  assert.match(row, /popover="auto" style=\{menu\.popoverStyle\} role="group"/u);
+  assert.match(row, /<Link href=\{moveHref\} scroll=\{false\} onClick=\{\(\) => document\.getElementById\(menu\.popoverId\)\?\.hidePopover\(\)\}/u);
+  // `pending` changes only after a render; the lock is synchronous.
+  assert.equal(row.match(/if \(busy\.current\) return;\s+busy\.current = true;/gu)?.length, 3, "complete, postpone and undo");
+  assert.match(read("src/components/v3/queue/QueueFieldPopover.tsx"), /if \(busy\.current\) return;[\s\S]*busy\.current = true;[\s\S]*await onSubmit\(value\)/u);
+});
+
 test("a deep-linked selected row is scrolled into view only when it is hidden", () => {
   // Below the fold, or under the sticky band header: reveal.
   assert.equal(rowNeedsReveal({ top: 1040, bottom: 1093 }, 900), true);
@@ -235,6 +306,31 @@ test("view tabs are real links with aria-current and numbers only where the read
   assert.doesNotMatch(partial, /· \d+<\/span><\/h2>/u);
   assert.match(partial, /Показаны не все задачи/u);
   assert.match(partial, /href="\/v3\/tasks\?window=2">Показать больше задач/u);
+});
+
+test("a partial read never says there are no tasks: only the read part is empty", () => {
+  // Review 25.09: the case queue arrives by due date without a state filter, so
+  // past and closed tasks can fill the limit before today's are read.
+  for (const [name, more] of [
+    ["incomplete-empty", "/v3/tasks?window=2"],
+    ["incomplete-empty-today", "/v3/tasks?due=today&amp;window=2"],
+    ["incomplete-empty-search", "/v3/tasks?q=%D1%81%D1%82%D1%83%D0%B4%D0%B5%D0%BD%D1%82&amp;window=2"],
+  ]) {
+    const html = surfaces.get(name);
+    assert.match(html, new RegExp(`data-testid="queue-empty"><p class="t-item text-fg">В прочитанной части списка ничего не найдено</p><a[^>]*href="${more.replaceAll("?", "\\?")}"[^>]*>Показать больше задач</a>`, "u"), name);
+    assert.doesNotMatch(html, /Открытых задач нет|На сегодня задач нет|>Ничего не найдено<|Сузьте/u, name);
+    assert.doesNotMatch(html, /Показаны не все задачи/u, `${name}: one message, not two`);
+    assert.doesNotMatch(html, /tabular-nums text-fg-3">\d/u, `${name}: no numbers`);
+  }
+  // At the limit: only a lever that shrinks the cut-off server read, or nothing.
+  assert.match(surfaces.get("incomplete-limit"), /Показаны не все задачи[^<]*<a[^>]*href="\/v3\/tasks\?due=today&amp;window=4">Показать мои задачи на сегодня<\/a>/u);
+  const mineLimit = surfaces.get("incomplete-limit-mine");
+  assert.match(mineLimit, /Показаны не все задачи: список больше, чем читается за один раз, и числа скрыты\.<\/p>/u);
+  assert.doesNotMatch(mineLimit, /Сузьте|Показать больше задач/u);
+  assert.match(surfaces.get("incomplete-limit-empty"),
+    /В прочитанной части списка ничего не найдено<\/p><a[^>]*href="\/v3\/tasks\?due=today&amp;q=%D1%81%D1%82%D1%83%D0%B4%D0%B5%D0%BD%D1%82&amp;window=4"[^>]*>Показать задачи на сегодня<\/a>/u);
+  // A complete read keeps its exact empty words.
+  assert.match(surfaces.get("empty-today"), />На сегодня задач нет</u);
 });
 
 test("filters keep the rest of the URL, show the value inside and escape overflow via the popover API", () => {

@@ -47,6 +47,26 @@ export function dueBucket(task: DueInput, now: Date, open = true): DueBucket {
   return deadline.day <= weekEnd(today) ? "week" : "later";
 }
 
+/**
+ * Дни срока, в которых лежит группа открытой очереди: по Бишкеку,
+ * включительно; `null` у края — края нет. Это надмножество группы:
+ * «Просрочено» включает сегодня (задача со временем, которое уже прошло),
+ * «На этой неделе» — с сегодняшнего дня; точный отбор остаётся за
+ * `dueBucket`. По этим дням сервер читает только нужную часть очереди.
+ * `null` — у группы нет дней («Без срока»): такие задачи границами дня не
+ * выбрать.
+ */
+export function dueFilterDays(due: DueFilter, today: string): Readonly<{ from: string | null; to: string | null }> | null {
+  switch (due) {
+    case "overdue": return { from: null, to: today };
+    case "today": return { from: today, to: today };
+    case "tomorrow": return { from: shiftDay(today, 1), to: shiftDay(today, 1) };
+    case "week": return { from: today, to: weekEnd(today) };
+    case "later": return { from: shiftDay(weekEnd(today), 1), to: null };
+    case "none": return null;
+  }
+}
+
 /** «25.09»; год двумя цифрами — только если он не текущий: «03.01.27». */
 export function formatQueueDay(day: string, today: string): string {
   const [year, month, date] = day.split("-");

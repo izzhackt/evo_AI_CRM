@@ -73,7 +73,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   let workspace;
   try {
     workspace = await readStaffTaskWorkspace(actor, {
-      view: filters.view, state: filters.state, type: filters.type, window: filters.window,
+      view: filters.view, state: filters.state, type: filters.type, due: filters.due, today: day, window: filters.window,
       taskId: taskKind === "staff" ? taskId : null, selectedCaseId,
     });
   } catch {
@@ -161,6 +161,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     <TasksWorkspace
       filters={filters}
       queue={queue}
+      cutOff={workspace.queue.cutOff}
       day={day}
       nowIso={now.toISOString()}
       canReadStaffTasks={workspace.canReadStaffTasks}

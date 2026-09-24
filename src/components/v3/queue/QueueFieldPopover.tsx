@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { QUEUE_CONFIRM, QUEUE_FIELD, QUEUE_SECONDARY } from "./queue-buttons";
 
@@ -35,6 +35,8 @@ export function QueueFieldPopover({
 }>) {
   const [value, setValue] = useState("");
   const [pending, setPending] = useState(false);
+  // Синхронный замок: второй быстрый Enter не дожидается рендера с `pending`.
+  const busy = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const inputId = `${popover.id}-field`;
 
@@ -68,11 +70,13 @@ export function QueueFieldPopover({
       <form
         onSubmit={async (event) => {
           event.preventDefault();
-          if (pending) return;
+          if (busy.current) return;
           if (!value.trim()) { setError(emptyError); return; }
+          busy.current = true;
           setPending(true);
           setError(null);
           const failure = await onSubmit(value).catch(() => "Сохранение пока не подтверждено. Повторите.");
+          busy.current = false;
           setPending(false);
           if (failure) { setError(failure); return; }
           setValue("");

@@ -157,6 +157,14 @@ const CASES = [
   caseRow(10, { title: "Выдать итоговые документы", student: "Алина Ким", caseState: "closed", status: "done", dueOn: "2026-09-10", updatedAt: "2026-09-22T09:00:00.000Z" }),
 ];
 
+// Три прошедшие закрытые задачи по студентам: так выглядит начало очереди,
+// которую сервер отдаёт по сроку без отбора по состоянию.
+const PAST_DONE_CASES = [
+  caseRow(11, { title: "Отправить анкету в UCSI", student: "Тимур Абдылдаев", status: "done", dueOn: "2026-08-03", updatedAt: "2026-08-03T09:00:00.000Z" }),
+  caseRow(12, { title: "Проверить оплату консульского сбора", student: "Мээрим Жолдошева", status: "done", dueOn: "2026-08-11", updatedAt: "2026-08-11T09:00:00.000Z" }),
+  caseRow(13, { title: "Записать на медосмотр", student: "Санжар Алиев", status: "cancelled", dueOn: "2026-08-19", updatedAt: "2026-08-19T09:00:00.000Z" }),
+];
+
 const PARTICIPANTS = [ME, COLLEAGUE, COLLEAGUE_2].map((membershipId) => ({ membershipId, displayName: NAMES[membershipId], role: "admissions" }));
 const ACTOR = {
   authUserId: "bbbbbbbb-7777-4777-8777-000000000001", profileId: "bbbbbbbb-7777-4777-8777-000000000002",
@@ -173,15 +181,17 @@ function scenario(search, extra = {}) {
   const staffRows = STAFF.filter((task) => filters.view !== "mine" || task.assigneeMembershipId === ME)
     .filter((task) => filters.view !== "created" || task.creatorMembershipId === ME)
     .filter((task) => (filters.state === "done") === (task.status === "done" || task.status === "cancelled"));
-  const caseRows = filters.view === "created" ? [] : CASES;
+  const caseRows = filters.view === "created" ? [] : extra.cases ?? CASES;
+  const complete = extra.complete ?? true;
   const queue = buildTaskQueue({
-    staff: filters.type === "case" ? [] : staffRows, cases: filters.type === "staff" ? [] : caseRows,
-    filters, actorMembershipId: ME, now: NOW, complete: extra.complete ?? true,
+    staff: filters.type === "case" ? [] : extra.staff ?? staffRows, cases: filters.type === "staff" ? [] : caseRows,
+    filters, actorMembershipId: ME, now: NOW, complete,
   });
   return {
     search,
     props: {
-      filters, queue, day: TODAY, nowIso: NOW.toISOString(), canReadStaffTasks: true, canReadCaseTasks: true, teamView: true,
+      filters, queue, cutOff: extra.cutOff ?? (complete ? [] : ["case"]),
+      day: TODAY, nowIso: NOW.toISOString(), canReadStaffTasks: true, canReadCaseTasks: true, teamView: true,
       createdExcludesCases: filters.view === "created" && filters.type !== "staff",
       composer: {
         participants: PARTICIPANTS, actorMembershipId: ME, actor: ACTOR, day: TODAY, staffAllowed: true, caseAllowed: true,
@@ -246,6 +256,17 @@ const SCENARIOS = {
     return { ...base, props: { ...base.props, filters: { ...base.props.filters, query: "" }, queue: { ...base.props.queue, rows: [], bands: [] } } };
   })(),
   incomplete: scenario("", { complete: false }),
+  // Неполное чтение, в прочитанной части которого нет подходящих строк:
+  // предел очереди по студентам заняли прошедшие закрытые задачи (сервер
+  // отдаёт их по сроку, раньше сегодняшних). «Задач нет» здесь было бы ложью.
+  "incomplete-empty": scenario("", { complete: false, staff: [], cases: PAST_DONE_CASES }),
+  "incomplete-empty-today": scenario("due=today", { complete: false, staff: [], cases: PAST_DONE_CASES }),
+  "incomplete-empty-search": scenario("q=студент", { complete: false, staff: [], cases: PAST_DONE_CASES }),
+  // У предела окна «Показать больше задач» нет: предлагается только то, что
+  // сужает само чтение на сервере.
+  "incomplete-limit": scenario("view=all&window=4", { complete: false, cutOff: ["staff", "case"] }),
+  "incomplete-limit-mine": scenario("window=4", { complete: false, cutOff: ["staff"] }),
+  "incomplete-limit-empty": scenario("q=студент&window=4", { complete: false, cutOff: ["case"], staff: [], cases: PAST_DONE_CASES }),
   // Диалог создания открыт адресом (как кнопкой «Создать задачу» верхней панели).
   composer: (() => {
     const base = scenario("");
@@ -468,6 +489,12 @@ async function screenshots() {
       ["tasks-panel-staff-1440.png", DESKTOP, false, null],
     ]],
     ["tasks-empty", renderTasksPage("empty-today"), "empty-today", [["tasks-empty-today-1440.png", DESKTOP, false, null]]],
+    ["tasks-incomplete", renderTasksPage("incomplete"), "incomplete", [["tasks-incomplete-1440-full.png", DESKTOP, true, null]]],
+    ["tasks-incomplete-empty", renderTasksPage("incomplete-empty-today"), "incomplete-empty-today", [
+      ["tasks-incomplete-empty-today-1440.png", DESKTOP, false, null],
+      ["tasks-incomplete-empty-today-390.png", PHONE, false, null],
+    ]],
+    ["tasks-incomplete-limit", renderTasksPage("incomplete-limit-empty"), "incomplete-limit-empty", [["tasks-incomplete-limit-empty-1440.png", DESKTOP, false, null]]],
     ["tasks-composer", renderTasksPage("composer"), "composer", [
       ["tasks-composer-1440.png", DESKTOP, false, "disclosures"],
       ["tasks-composer-390.png", PHONE, false, "date"],

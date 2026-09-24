@@ -7,6 +7,7 @@ import { mutateStaffTaskAction } from "@/lib/platform-staff-task-actions";
 import type { QueueTask } from "@/lib/v3/task-queue";
 
 import { DueBands } from "../queue/DueBands";
+import { queueFocusAfterRemoval } from "../queue/queue-navigation";
 import { queueHref, type QueueParams } from "../queue/queue-url";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
 import { STAFF_ERROR_COPY, staffStatusForm } from "./task-commands";
@@ -23,7 +24,24 @@ export type TaskQueueBandData = Readonly<{
   rows: readonly QueueTask[];
 }>;
 
-type Recent = Readonly<RecentCompletion & { band: string; index: number; label: string; danger: boolean }>;
+/** `expiresAt` — свой срок «Отменить» у каждой строки (мс, `Date.now()`). */
+type Recent = Readonly<RecentCompletion & { band: string; index: number; label: string; danger: boolean; expiresAt: number }>;
+
+/**
+ * Фокус на «Отменить», срок которого вышел (`expiring`), переходит на соседнюю
+ * остающуюся строку — не на страницу: кнопка исчезает сейчас, строка — с
+ * обновлением списка. `gone` — все строки, которые уйдут с обновлением.
+ */
+function keepFocusInList(gone: ReadonlySet<string>, expiring: ReadonlySet<string>) {
+  const active = document.activeElement;
+  const row = active instanceof HTMLElement && active.matches("[data-queue-undo]") ? active.closest<HTMLElement>("[data-queue-row]") : null;
+  const current = row?.dataset.queueRow;
+  if (!row || !current || !expiring.has(current)) return;
+  const rows = [...document.querySelectorAll<HTMLElement>("[data-queue-row]")];
+  const target = queueFocusAfterRemoval(rows.map((element) => element.dataset.queueRow ?? ""), current, gone);
+  // Остающихся строк нет — фокус остаётся в своей строке, на её названии.
+  (rows.find((element) => element.dataset.queueRow === target) ?? row).querySelector<HTMLElement>("[data-queue-open]")?.focus();
+}
 
 function withoutKey(recent: Readonly<Record<string, Recent>>, key: string) {
   return Object.fromEntries(Object.entries(recent).filter(([entry]) => entry !== key));
@@ -73,12 +91,19 @@ export function TaskQueueList({
     setRecent((current) => Object.fromEntries(Object.entries(current).filter(([key, entry]) => !entry.expired || serverKeys.has(key))));
   }
 
+  // У каждой отмены свой срок: обновление списка и завершение другой задачи
+  // его не продлевают. Таймер ждёт ближайший срок.
   useEffect(() => {
-    if (!Object.values(recent).some((entry) => !entry.expired)) return;
+    const live = Object.values(recent).filter((entry) => !entry.expired);
+    if (!live.length) return;
     const timer = window.setTimeout(() => {
-      setRecent((current) => Object.fromEntries(Object.entries(current).map(([key, entry]) => [key, { ...entry, expired: true }])));
+      const now = Date.now();
+      // Уйдут все недавно завершённые строки — и те, чьё «Отменить» ещё идёт.
+      keepFocusInList(new Set(Object.keys(recent)), new Set(live.filter((entry) => entry.expiresAt <= now).map((entry) => entry.task.key)));
+      setRecent((current) => Object.fromEntries(Object.entries(current).map(([key, entry]) =>
+        [key, entry.expired || entry.expiresAt > now ? entry : { ...entry, expired: true }])));
       router.refresh();
-    }, TASK_UNDO_MS);
+    }, Math.max(0, Math.min(...live.map((entry) => entry.expiresAt)) - Date.now()));
     return () => window.clearTimeout(timer);
   }, [recent, router]);
 
@@ -140,10 +165,13 @@ export function TaskQueueList({
               recent={recent[task.key] ?? null}
               announce={announce}
               onUndo={undo}
-              onCompleted={(completion) => setRecent((current) => ({
-                ...current,
-                [task.key]: { ...completion, band: band.key, index, label: band.label, danger: band.danger, expired: false },
-              }))}
+              onCompleted={(completion) => {
+                const expiresAt = Date.now() + TASK_UNDO_MS;
+                setRecent((current) => ({
+                  ...current,
+                  [task.key]: { ...completion, band: band.key, index, label: band.label, danger: band.danger, expired: false, expiresAt },
+                }));
+              }}
             />
           )),
         }))}

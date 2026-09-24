@@ -38,6 +38,7 @@ export function QueueKeyboardHelp() {
         id={QUEUE_HELP_ID}
         popover="auto"
         style={popoverStyle}
+        role="dialog"
         aria-label="Сочетания клавиш"
         className="v3-anchored v3-anchored-end w-60 rounded-ctl border border-border bg-surface p-3 text-fg shadow-evo-lg"
       >

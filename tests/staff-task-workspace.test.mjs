@@ -16,7 +16,7 @@ const actor = Object.freeze({
 });
 // One queue since 25.09.2026: both kinds are read unless `type` narrows it.
 const options = Object.freeze({
-  view: "mine", state: "open", type: null, window: 1, taskId: null, selectedCaseId: null,
+  view: "mine", state: "open", type: null, due: null, today: "2026-09-24", window: 1, taskId: null, selectedCaseId: null,
 });
 const emptyPage = Object.freeze({ rows: [], nextCursor: null });
 
@@ -53,7 +53,7 @@ test("case-create-only workspace preserves exact selected-case composer without 
   assert.equal(workspace.canReadCases, true);
   assert.equal(workspace.canReadCaseTasks, false);
   assert.equal(workspace.canReadStaffTasks, false);
-  assert.deepEqual(workspace.queue, { staff: [], cases: [], complete: true });
+  assert.deepEqual(workspace.queue, { staff: [], cases: [], complete: true, cutOff: [] });
   assert.deepEqual(workspace.selectedCase, { id: CASE_ID, name: "Test student" });
   assert.deepEqual(workspace.caseAssignees, [{ membershipId: MEMBER_ID, displayName: "Test assignee" }]);
 });
@@ -76,14 +76,14 @@ test("task.manage alone lists case tasks without requiring case or profile read"
   assert.deepEqual(recorded.calls, [{ name: "listPlatformAdmissionsTaskQueue", args: [manager, { pageSize: 100, cursor: null }] }]);
   assert.equal(workspace.canReadCaseTasks, true);
   assert.equal(workspace.canReadCases, false);
-  assert.deepEqual(workspace.queue, { staff: [], cases: [row], complete: true });
+  assert.deepEqual(workspace.queue, { staff: [], cases: [row], complete: true, cutOff: [] });
 });
 
 test("a permitted empty case queue remains distinct from an unpermitted queue", async () => {
   const recorded = recordingReaders();
   const workspace = await readStaffTaskWorkspace({ ...actor, permissionKeys: ["task.manage"] }, options, recorded);
   assert.equal(workspace.canReadCaseTasks, true);
-  assert.deepEqual(workspace.queue, { staff: [], cases: [], complete: true });
+  assert.deepEqual(workspace.queue, { staff: [], cases: [], complete: true, cutOff: [] });
   assert.equal(recorded.calls.length, 1);
 });
 
@@ -97,7 +97,7 @@ test("staff-create-only workspace loads composer recipients but not the staff li
     { name: "listStaffTaskAssignees", args: [creator, null] },
   ]);
   assert.equal(workspace.canReadStaffTasks, false);
-  assert.deepEqual(workspace.queue, { staff: [], cases: [], complete: true });
+  assert.deepEqual(workspace.queue, { staff: [], cases: [], complete: true, cutOff: [] });
   assert.deepEqual(workspace.assignees, recipients);
 });
 
@@ -177,7 +177,7 @@ test("the staff list is read page by page until its cursor ends, then the queue 
     { view: "mine", status: "completed", cursor: null },
     { view: "mine", status: "completed", cursor },
   ]);
-  assert.deepEqual(workspace.queue, { staff: [{ id: "a" }, { id: "b" }], cases: [], complete: true });
+  assert.deepEqual(workspace.queue, { staff: [{ id: "a" }, { id: "b" }], cases: [], complete: true, cutOff: [] });
 });
 
 test("a read that hits its page limit is reported incomplete instead of pretending to be whole", async () => {
@@ -192,6 +192,8 @@ test("a read that hits its page limit is reported incomplete instead of pretendi
   assert.equal(recorded.calls.filter(({ name }) => name === "listStaffTasks").length, 4);
   assert.equal(recorded.calls.filter(({ name }) => name === "listPlatformAdmissionsTaskQueue").length, 3);
   assert.equal(workspace.queue.complete, false);
+  // The screen offers only what shrinks the read that was actually cut off.
+  assert.deepEqual(workspace.queue.cutOff, ["staff", "case"]);
   // «Показать больше задач» widens the same read, it does not change its order.
   const wider = sequenceReaders({
     listStaffTasks: [page([{ id: "s" }], staffCursor)],
@@ -234,4 +236,53 @@ test("«Вся команда» is offered to Admin, task.manage holders and dep
     const workspace = await readStaffTaskWorkspace({ ...actor, ...override }, options, recordingReaders());
     assert.equal(workspace.teamView, expected, JSON.stringify(override));
   }
+});
+
+test("«Срок» bounds the case read by the Bishkek day; the staff read and «Без срока» stay unbounded", async () => {
+  const reader = { ...actor, permissionKeys: ["staff.task.read", "task.manage"] };
+  const caseArgs = async (patch) => {
+    const recorded = recordingReaders();
+    await readStaffTaskWorkspace(reader, { ...options, ...patch }, recorded);
+    return {
+      cases: recorded.calls.filter(({ name }) => name === "listPlatformAdmissionsTaskQueue").map(({ args }) => args[1]),
+      staff: recorded.calls.filter(({ name }) => name === "listStaffTasks").map(({ args }) => args[1]),
+    };
+  };
+  // Thursday 24.09.2026: past and closed case tasks no longer fill the limit before today's.
+  const today = await caseArgs({ due: "today" });
+  assert.deepEqual(today.cases, [{ pageSize: 100, cursor: null, dueFrom: "2026-09-24", dueTo: "2026-09-24" }]);
+  assert.deepEqual(today.staff, [{ view: "mine", status: "active", cursor: null }], "the staff list has no day bounds");
+  assert.deepEqual((await caseArgs({ due: "overdue" })).cases, [{ pageSize: 100, cursor: null, dueTo: "2026-09-24" }]);
+  assert.deepEqual((await caseArgs({ due: "tomorrow" })).cases, [{ pageSize: 100, cursor: null, dueFrom: "2026-09-25", dueTo: "2026-09-25" }]);
+  assert.deepEqual((await caseArgs({ due: "week" })).cases, [{ pageSize: 100, cursor: null, dueFrom: "2026-09-24", dueTo: "2026-09-27" }]);
+  assert.deepEqual((await caseArgs({ due: "later" })).cases, [{ pageSize: 100, cursor: null, dueFrom: "2026-09-28" }]);
+  assert.deepEqual((await caseArgs({ due: "none" })).cases, [{ pageSize: 100, cursor: null }]);
+  assert.deepEqual((await caseArgs({ due: null })).cases, [{ pageSize: 100, cursor: null }]);
+  // Closed tasks have no due filter, whatever the options say.
+  assert.deepEqual((await caseArgs({ state: "done", due: "today" })).cases, [{ pageSize: 100, cursor: null }]);
+  // The bounds travel with every page of the same read.
+  const caseCursor = { sortAt: "2026-09-24T04:00:00Z", caseTaskId: "65000000-0000-4000-8000-000000000013" };
+  const paged = sequenceReaders({ listPlatformAdmissionsTaskQueue: [caseQueuePage([{ caseTaskId: "c1" }], caseCursor), caseQueuePage([{ caseTaskId: "c2" }], null)] });
+  const workspace = await readStaffTaskWorkspace(reader, { ...options, type: "case", due: "today" }, paged);
+  assert.deepEqual(paged.calls.map(({ args }) => args[1]), [
+    { pageSize: 100, cursor: null, dueFrom: "2026-09-24", dueTo: "2026-09-24" },
+    { pageSize: 100, cursor: caseCursor, dueFrom: "2026-09-24", dueTo: "2026-09-24" },
+  ]);
+  assert.deepEqual(workspace.queue, { staff: [], cases: [{ caseTaskId: "c1" }, { caseTaskId: "c2" }], complete: true, cutOff: [] });
+});
+
+test("only the read that hit its limit is reported as cut off", async () => {
+  const reader = { ...actor, permissionKeys: ["staff.task.read", "task.manage"] };
+  const caseCursor = { sortAt: "2026-09-24T04:00:00Z", caseTaskId: "65000000-0000-4000-8000-000000000014" };
+  const recorded = sequenceReaders({ listPlatformAdmissionsTaskQueue: [caseQueuePage([{ caseTaskId: "c" }], caseCursor)] });
+  const workspace = await readStaffTaskWorkspace(reader, options, recorded);
+  assert.equal(workspace.queue.complete, false);
+  assert.deepEqual(workspace.queue.cutOff, ["case"]);
+});
+
+test("the tasks page sends «Срок» and today's Bishkek day to the read and passes the cut-off to the screen", () => {
+  const page = readFileSync(new URL("../src/app/(v3)/v3/tasks/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /type: filters\.type, due: filters\.due, today: day, window: filters\.window,/u);
+  assert.match(page, /const day = dayInOrganizationTimezone\(now\);/u);
+  assert.match(page, /cutOff=\{workspace\.queue\.cutOff\}/u);
 });

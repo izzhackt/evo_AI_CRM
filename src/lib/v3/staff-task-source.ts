@@ -7,6 +7,7 @@ import type { getPlatformAdmissionsTaskWorkspace, listPlatformAdmissionsTaskQueu
 import type { listPlatformStudentCases } from "../platform-admissions";
 import type { listStaffParticipants, listStaffTaskAssignees, listStaffTasks } from "../server/platform-staff-task-repository";
 import type { StaffTask, StaffTaskCursor } from "../platform-staff-task-contract";
+import { dueFilterDays, type DueFilter } from "../../components/v3/queue/due-bucket.ts";
 import type { TaskQueueKind, TaskQueueState, TaskQueueView, TaskQueueWindow } from "./task-queue.ts";
 
 type StaffTaskWorkspaceReaders = Readonly<{
@@ -24,7 +25,10 @@ type StaffTaskWorkspaceReaders = Readonly<{
  * возможна только после полного чтения), задачи по студентам — 3 страницы по
  * 100 (`staff_case_task_queue` уже упорядочена по сроку). Окно 2 и 4
  * («Показать больше задач») умножает предел. Неполное чтение не прячется:
- * `complete` становится false, и экран называет это словами.
+ * `complete` становится false, `cutOff` называет упёршиеся виды, и экран
+ * говорит это словами. Фильтр «Срок» уходит в чтение задач по студентам
+ * границами дня (`dueFilterDays`): иначе прошедшие и закрытые задачи заняли
+ * бы весь предел раньше сегодняшних.
  */
 export const TASK_QUEUE_READ_PAGES = Object.freeze({ staff: 4, case: 3 });
 export const CASE_QUEUE_PAGE_SIZE = 100;
@@ -50,6 +54,10 @@ export type StaffTaskWorkspaceOptions = Readonly<{
   state: TaskQueueState;
   /** null — оба вида; иначе ненужное чтение не выполняется. */
   type: TaskQueueKind | null;
+  /** Фильтр «Срок» открытой очереди; null — любой срок. */
+  due: DueFilter | null;
+  /** Сегодня в Бишкеке, YYYY-MM-DD: от него считаются границы дня срока. */
+  today: string;
   window: TaskQueueWindow;
   taskId: string | null;
   selectedCaseId: string | null;
@@ -100,11 +108,15 @@ export async function readStaffTaskWorkspace(
     }
     return { rows, complete: false };
   }
+  // Сервер сравнивает день срока по Бишкеку, как `dueBucket`; границы шире
+  // группы, точный отбор делает `buildTaskQueue`. «Без срока» границами не выбрать.
+  const days = options.state === "open" && options.due ? dueFilterDays(options.due, options.today) : null;
+  const dueBounds = { ...(days?.from ? { dueFrom: days.from } : {}), ...(days?.to ? { dueTo: days.to } : {}) };
   async function readCaseQueue(): Promise<Readonly<{ rows: readonly PlatformAdmissionsTaskQueueRow[]; complete: boolean }>> {
     const rows: PlatformAdmissionsTaskQueueRow[] = [];
     let cursor: PlatformAdmissionsTaskQueueCursor | null = null;
     for (let page = 0; page < TASK_QUEUE_READ_PAGES.case * options.window; page += 1) {
-      const result = await listPlatformAdmissionsTaskQueue(actor, { pageSize: CASE_QUEUE_PAGE_SIZE, cursor });
+      const result = await listPlatformAdmissionsTaskQueue(actor, { pageSize: CASE_QUEUE_PAGE_SIZE, cursor, ...dueBounds });
       rows.push(...result.rows);
       cursor = result.nextCursor;
       if (!cursor) return { rows, complete: true };
@@ -124,12 +136,13 @@ export async function readStaffTaskWorkspace(
   const caseRow = selectedCasePage?.rows[0];
   const caseWorkspace = options.selectedCaseId && canReadCases && staffHasPermission(actor, "task.create")
     ? await getPlatformAdmissionsTaskWorkspace(actor, options.selectedCaseId) : null;
+  // Виды, чьё чтение упёрлось в предел; пусто — очередь прочитана целиком.
+  const cutOff: TaskQueueKind[] = [
+    ...(staffQueue && !staffQueue.complete ? ["staff" as const] : []),
+    ...(caseQueue && !caseQueue.complete ? ["case" as const] : []),
+  ];
   return {
-    queue: {
-      staff: staffQueue?.rows ?? [],
-      cases: caseQueue?.rows ?? [],
-      complete: (staffQueue?.complete ?? true) && (caseQueue?.complete ?? true),
-    },
+    queue: { staff: staffQueue?.rows ?? [], cases: caseQueue?.rows ?? [], complete: cutOff.length === 0, cutOff },
     selectedTask: selectedTaskPage?.rows[0] ?? null,
     selectedCase: caseRow?.access === "full" && caseRow.studentCase.state === "active" ? { id: caseRow.studentCase.studentCaseId, name: caseRow.studentCase.studentDisplayName } : null,
     participants, assignees, canReadCases, canReadCaseTasks, canReadStaffTasks, teamView,

@@ -26,3 +26,15 @@ export const QUEUE_REVEAL_TOP_PX = 48;
 export function rowNeedsReveal(rect: Readonly<{ top: number; bottom: number }>, viewportHeight: number, topInset = QUEUE_REVEAL_TOP_PX): boolean {
   return rect.top < topInset || rect.bottom > viewportHeight;
 }
+
+/**
+ * Куда перевести фокус, когда строка с фокусом уходит из списка (истекло
+ * «Отменить» у завершённой задачи): на следующую остающуюся строку, иначе на
+ * предыдущую; `null` — остающихся строк нет. `gone` — ключи строк, которые
+ * исчезнут с обновлением списка.
+ */
+export function queueFocusAfterRemoval(keys: readonly string[], current: string, gone: ReadonlySet<string>): string | null {
+  const index = keys.indexOf(current);
+  if (index < 0) return null;
+  return [...keys.slice(index + 1), ...keys.slice(0, index).reverse()].find((key) => !gone.has(key)) ?? null;
+}

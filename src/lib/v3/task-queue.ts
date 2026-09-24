@@ -146,6 +146,27 @@ export function compareQueueTasks(state: TaskQueueState) {
   };
 }
 
+/**
+ * Чем сделать неполное чтение меньше — только тем, что сужает само чтение на
+ * сервере, а не отбор в приложении. Вкладка «Мои» сужает чтение рабочих
+ * задач (`staff_task_list` получает вид), срок «Сегодня» — чтение задач по
+ * студентам (границы дня у `staff_case_task_queue`). Поиск, исполнитель
+ * задач по студентам и «Срок» рабочих задач отбираются здесь и чтение не
+ * уменьшают, поэтому их экран не предлагает. `cutOff` — виды, чьё чтение
+ * упёрлось в предел; null — сузить нечем.
+ */
+export function taskQueueNarrowing(
+  filters: TaskQueueFilters,
+  cutOff: readonly TaskQueueKind[],
+): Readonly<{ label: string; overrides: Readonly<Record<string, string | null>> }> | null {
+  const mine = cutOff.includes("staff") && filters.view === "all";
+  const today = cutOff.includes("case") && filters.state === "open" && filters.due === null;
+  if (mine && today) return { label: "Показать мои задачи на сегодня", overrides: { view: null, due: "today" } };
+  if (mine) return { label: "Показать только мои задачи", overrides: { view: null } };
+  if (today) return { label: "Показать задачи на сегодня", overrides: { due: "today" } };
+  return null;
+}
+
 export type TaskQueueBand = Readonly<{ bucket: DueBucket; rows: readonly QueueTask[] }>;
 export type TaskQueueCounts = Readonly<Record<TaskQueueView, number | null>>;
 

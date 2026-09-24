@@ -16,7 +16,8 @@ export const FILTER_BUTTON =
  * Выпадающий фильтр очереди: «Тип ▾», а после выбора — «Тип: По студентам ×».
  * Варианты — настоящие ссылки (фильтр живёт в адресе), выбранный отмечен
  * `aria-current` и общим `.v3-choice`. Окно — popover API в верхнем слое:
- * открывается и без скрипта, закрывается Esc и щелчком мимо.
+ * открывается и без скрипта, закрывается Esc, щелчком мимо и выбором: страница
+ * при смене адреса не пересоздаётся, и само окно открытым не останется.
  */
 export function FilterMenu({
   label,
@@ -61,6 +62,7 @@ export function FilterMenu({
         id={popoverId}
         popover="auto"
         style={popoverStyle}
+        role="group"
         aria-label={label}
         className="v3-anchored min-w-48 max-w-[min(20rem,calc(100vw-1rem))] rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg"
       >
@@ -71,6 +73,7 @@ export function FilterMenu({
                 href={option.href}
                 scroll={false}
                 aria-current={option.selected ? "true" : undefined}
+                onClick={() => document.getElementById(popoverId)?.hidePopover()}
                 className="v3-choice flex min-h-11 items-center gap-2 rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
               >
                 <span className="min-w-0 flex-1">{option.label}</span>

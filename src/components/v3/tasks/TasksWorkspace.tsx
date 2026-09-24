@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
-import type { TaskQueue, TaskQueueFilters } from "@/lib/v3/task-queue";
-import { taskQueueParams, TASK_QUEUE_WINDOWS } from "@/lib/v3/task-queue";
+import type { TaskQueue, TaskQueueFilters, TaskQueueKind } from "@/lib/v3/task-queue";
+import { taskQueueNarrowing, taskQueueParams, TASK_QUEUE_WINDOWS } from "@/lib/v3/task-queue";
 
 import { DUE_BUCKETS, DUE_FILTER_LABELS, dueBandLabel, type DueFilter } from "../queue/due-bucket";
 import { FilterMenu } from "../queue/FilterMenu";
@@ -24,9 +24,15 @@ const EMPTY_DUE: Readonly<Record<DueFilter, string>> = {
 };
 
 type Href = (overrides?: Record<string, string | null>) => string;
+type QueueAction = Readonly<{ label: string; href: string }>;
 
-/** Пустой список говорит, что именно пусто, и предлагает одно подходящее действие. */
-export function taskQueueEmptyState(filters: TaskQueueFilters, href: Href) {
+/**
+ * Пустой список говорит, что именно пусто, и предлагает одно подходящее
+ * действие. Неполное чтение не даёт права сказать «задач нет»: пусто только в
+ * прочитанной части, и действие — прочитать больше или, у предела, уже.
+ */
+export function taskQueueEmptyState(filters: TaskQueueFilters, href: Href, read: Readonly<{ complete: boolean; next: QueueAction | null }>) {
+  if (!read.complete) return { title: "В прочитанной части списка ничего не найдено", action: read.next };
   if (filters.query) return { title: "Ничего не найдено", action: { label: "Сбросить поиск", href: href({ q: null }) } };
   if (filters.state === "done") return { title: "Завершённых задач нет", action: { label: "Показать открытые", href: href({ status: null }) } };
   if (filters.due) return { title: EMPTY_DUE[filters.due], action: { label: "Показать все открытые", href: href({ due: null }) } };
@@ -42,6 +48,7 @@ export function taskQueueEmptyState(filters: TaskQueueFilters, href: Href) {
 export function TasksWorkspace({
   filters,
   queue,
+  cutOff,
   day,
   nowIso,
   canReadStaffTasks,
@@ -58,6 +65,8 @@ export function TasksWorkspace({
 }: Readonly<{
   filters: TaskQueueFilters;
   queue: TaskQueue;
+  /** Виды, чьё чтение упёрлось в предел (`readStaffTaskWorkspace`). */
+  cutOff: readonly TaskQueueKind[];
   /** Сегодня в Бишкеке, YYYY-MM-DD. */
   day: string;
   /** Момент чтения сервера. */
@@ -112,8 +121,14 @@ export function TasksWorkspace({
     />
   </>;
   const active = activeFilterCount([filters.type, filters.due, filters.query, filters.state === "done" ? "done" : null]);
-  const empty = taskQueueEmptyState(filters, listHref);
   const nextWindow = TASK_QUEUE_WINDOWS.find((value) => value > filters.window);
+  const narrowing = taskQueueNarrowing(filters, cutOff);
+  // Неполное чтение: прочитать больше, а у предела — уже, если есть чем.
+  const readNext: QueueAction | null = queue.complete ? null
+    : nextWindow ? { label: "Показать больше задач", href: listHref({ window: String(nextWindow) }) }
+    : narrowing ? { label: narrowing.label, href: listHref(narrowing.overrides) }
+    : null;
+  const empty = taskQueueEmptyState(filters, listHref, { complete: queue.complete, next: readNext });
   const bands = queue.bands.map((band) => ({
     key: band.bucket,
     label: band.bucket === "past" ? "Завершённые и отменённые" : dueBandLabel(band.bucket, day),
@@ -169,10 +184,10 @@ export function TasksWorkspace({
             permissions={permissions}
           />}
         </div>
-        {canReadTaskQueue && !queue.complete ? <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
+        {/* Пустое неполное чтение уже сказало это в пустом состоянии. */}
+        {canReadTaskQueue && !queue.complete && queue.rows.length > 0 ? <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
           Показаны не все задачи: список больше, чем читается за один раз, и числа скрыты.
-          {nextWindow ? <Link href={listHref({ window: String(nextWindow) })} scroll={false} className={QUEUE_QUIET_LINK}>Показать больше задач</Link>
-            : <span>Сузьте вид, тип или срок.</span>}
+          {readNext ? <Link href={readNext.href} scroll={false} className={QUEUE_QUIET_LINK}>{readNext.label}</Link> : null}
         </p> : null}
       </div>
       {panel}

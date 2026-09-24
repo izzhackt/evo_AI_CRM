@@ -5,7 +5,11 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { BOARD_ROUTES, isBoardRoute } from "../src/lib/v3/board-layout.ts";
-import { boardTracks, cappedBoardTracks } from "../src/components/v3/board/board-tracks.ts";
+import {
+  BOARD_PANEL_FOLD_BELOW_PX,
+  boardTracks,
+  cappedBoardTracks,
+} from "../src/components/v3/board/board-tracks.ts";
 import { placeMenu } from "../src/components/v3/board/menu-position.ts";
 
 /**
@@ -64,9 +68,13 @@ test("columns are a fluid grid: 6 working stages share the width, «Переда
   assert.equal(cappedBoardTracks(5), "repeat(5, minmax(168px, 360px))");
   assert.equal(cappedBoardTracks(4), "repeat(4, minmax(168px, 360px))");
 
+  // Sales tracks are a custom property read by a container-query class, so an
+  // open lead panel can swap them without JS (see the panel test below).
+  const salesTracksOf = (name) => surfaces.get(name).match(/data-testid="v3-pipeline-board"[^>]*style="--board-tracks:([^;"]+)/u)?.[1];
+  assert.equal(salesTracksOf("sales"), boardTracks(stages, "all", ["handed_off"]));
+  assert.equal(salesTracksOf("sales-focus"), boardTracks(stages, "qualified", ["handed_off"]));
+  assert.match(tag(surfaces.get("sales"), /<div role="group" aria-label="Воронка продаж"[^>]*>/u), /@6xl:\[grid-template-columns:var\(--board-tracks\)\]/u);
   const tracksOf = (name) => surfaces.get(name).match(/style="grid-template-columns:([^"]+)"/u)?.[1];
-  assert.equal(tracksOf("sales"), boardTracks(stages, "all", ["handed_off"]));
-  assert.equal(tracksOf("sales-focus"), boardTracks(stages, "qualified", ["handed_off"]));
   assert.equal(tracksOf("admissions"), cappedBoardTracks(5));
   assert.equal(tracksOf("admissions-visa"), cappedBoardTracks(4));
   for (const source of [read("src/components/v3/Pipeline.tsx"), read("src/components/v3/AdmissionsPipelineBoard.tsx")]) {
@@ -149,20 +157,60 @@ test("drag is neutral: hover grip and dashed drop highlight, never red", () => {
   assert.match(board, /<BoardGrip \/>/u);
 });
 
-test("sales due status is a word next to the colour, not an 8px dot", () => {
-  const sales = surfaces.get("sales");
-  const cards = [...sales.matchAll(/<article data-testid="v3-pipeline-card" data-lead-id="([^"]+)"[^>]*>([\s\S]*?)<\/article>/gu)]
-    .map(([, id, body]) => [id.slice(-2), body]);
-  const card = (n) => cards.find(([id]) => id === n)?.[1] ?? "";
-  assert.match(card("01"), /<span class="t-caption shrink-0 text-danger"><span class="sr-only">срок <\/span>прошёл<\/span>/u);
-  assert.match(card("02"), /<span class="t-caption shrink-0 text-warn"><span class="sr-only">срок <\/span>сегодня<\/span>/u);
-  assert.doesNotMatch(card("04"), /прошёл|сегодня/u, "a later date needs no word");
-  assert.match(card("03"), /Без следующего действия/u);
+test("sales card: full-width name, owner beside the action, due word beside its date", () => {
+  const cardsOf = (name) => new Map([...surfaces.get(name).matchAll(/<article data-testid="v3-pipeline-card" data-lead-id="([^"]+)"[^>]*>([\s\S]*?)<\/article>/gu)]
+    .map(([, id, body]) => [id.slice(-2), body]));
+  const cards = cardsOf("sales");
+  const lines = (n) => [...(cards.get(n) ?? "").matchAll(/<p class="([^"]*)">([\s\S]*?)<\/p>/gu)].map(([, className, body]) => ({ className, body }));
+  // Line 1 is the name alone, so a narrow 1280px column never cuts it for a due word.
+  assert.match(lines("01")[0].body, /^<a [^>]*class="t-item min-w-0 flex-1 truncate[^"]*"[^>]*>Айжан Примерова<\/a>$/u);
+  // Line 2: the next action and the owner's initials, full name in the title.
+  assert.match(lines("01")[1].body, /Позвонить и уточнить страну<\/span><abbr title="Менеджер Первый" class="shrink-0 no-underline">МП<\/abbr>$/u);
+  // Line 3: «прошёл 23.09» (word, then mono ДД.ММ), «сегодня» without a date, then «4 дн.».
+  assert.match(lines("01")[2].body, /^<span><span class="t-caption shrink-0 text-danger"><span class="sr-only">срок <\/span>прошёл<\/span> <time dateTime="\d{4}-\d{2}-\d{2}" class="font-mono tabular-nums">\d{2}\.\d{2}<\/time><\/span><span aria-hidden="true"> · <\/span><span title="4 дн\. на стадии">4 дн\.<span class="sr-only"> на стадии<\/span><\/span>$/u);
+  assert.match(lines("02")[2].body, /^<time dateTime="\d{4}-\d{2}-\d{2}"><span class="t-caption shrink-0 text-warn"><span class="sr-only">срок <\/span>сегодня<\/span><\/time>/u);
+  assert.doesNotMatch(cards.get("04"), /прошёл|сегодня/u, "a later date needs no word");
+  assert.match(cards.get("03"), /Без следующего действия/u);
+  for (const n of ["01", "02", "03", "04", "05", "06"]) assert.ok(lines(n).length <= 3, `card ${n} has at most 3 lines`);
   assert.doesNotMatch(read("src/components/v3/Pipeline.tsx"), /rounded-full|DUE_MARK/u);
-  // Dates are mono ДД.ММ, stage age in days, owner initials with the full name in the title.
-  assert.match(card("01"), /<time dateTime="\d{4}-\d{2}-\d{2}" class="font-mono tabular-nums">\d{2}\.\d{2}<\/time><span aria-hidden="true"> · <\/span><span>4 дн\. на стадии<\/span>/u);
-  assert.match(card("01"), /<abbr title="Менеджер Первый" class="shrink-0 no-underline">МП<\/abbr>/u);
   assert.doesNotMatch(tag(surfaces.get("sales-mine"), /<article data-testid="v3-pipeline-card"[\s\S]*?<\/article>/u), /<abbr/u, "no initials when only «Мои» are shown");
+  // A handed-off lead with no action keeps its initials on the name line, not alone on a line.
+  const handed = cardsOf("sales-handed").get("13");
+  assert.match(handed, /Алина Переданная<\/a><span class="t-meta text-fg-3"><abbr title="Менеджер Первый" class="shrink-0 no-underline">МП<\/abbr><\/span><\/p>$/u);
+});
+
+test("focused stage and the lead's stage beside the panel lay cards out in a grid, not 1000px rows", () => {
+  const list = tag(surfaces.get("sales-focus"), /data-testid="v3-pipeline-column"[^>]*>[\s\S]*?<ul class="[^"]*"/u);
+  assert.match(list, /@6xl:grid @6xl:grid-cols-\[repeat\(auto-fill,minmax\(min\(240px,100%\),1fr\)\)\] @6xl:content-start"$/u);
+  assert.equal(count(tag(surfaces.get("sales"), /<div role="group" aria-label="Воронка продаж"[\s\S]*$/u), /auto-fill/gu), 0, "the full board keeps plain columns");
+});
+
+test("the lead panel docks beside the board and never covers its own card", () => {
+  const panel = surfaces.get("sales-panel");
+  const stages = ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential", "handed_off"];
+  // Six columns of 168px + the «Переданы» rail + gaps + the 400px panel + page padding.
+  assert.equal(BOARD_PANEL_FOLD_BELOW_PX, 6 * 168 + 44 + 6 * 8 + 400 + 8 + 48);
+  assert.ok(97.5 * 16 >= BOARD_PANEL_FOLD_BELOW_PX, "the container query threshold covers the computed width");
+  const board = tag(panel, /<div role="group" aria-label="Воронка продаж"[^>]*>/u);
+  assert.match(board, /@6xl:@max-\[97\.5rem\]:\[grid-template-columns:var\(--board-tracks-panel\)\]/u);
+  assert.equal(board.match(/--board-tracks-panel:([^;"]+)/u)?.[1], boardTracks(stages, "contacting", ["handed_off"]), "only the lead's stage stays open");
+  // Folded columns hide their cards and show a rail that opens the stage and closes the panel.
+  const folded = tag(panel, /<section aria-labelledby="[^"]*-new" data-testid="v3-pipeline-column"[\s\S]*?<\/section>/u);
+  assert.match(folded, /<header class="[^"]*@6xl:@max-\[97\.5rem\]:hidden">/u);
+  assert.match(folded, /<ul class="[^"]*@6xl:@max-\[97\.5rem\]:hidden">/u);
+  assert.match(folded, /<a title="Раскрыть этап «Новый»" class="[^"]*hidden @6xl:@max-\[97\.5rem\]:flex flex-1" href="\/v3\/pipeline\?stage=new">/u);
+  const own = tag(panel, /<section aria-labelledby="[^"]*-contacting" data-testid="v3-pipeline-column"[\s\S]*?<\/section>/u);
+  assert.doesNotMatch(own, /@max-\[97\.5rem\]:hidden/u);
+  assert.doesNotMatch(tag(surfaces.get("sales"), /<div role="group" aria-label="Воронка продаж"[^>]*>/u), /board-tracks-panel/u, "no panel, no fold");
+  // The panel is a row track on wide screens and a modal sheet below them.
+  const dialog = tag(panel, /<dialog [^>]*>/u);
+  assert.match(dialog, /open=""/u);
+  assert.match(classOf(dialog), /\bfixed inset-y-0 end-0\b[\s\S]*\bopen:flex\b[\s\S]*@6xl:static[\s\S]*@6xl:w-\[400px\]/u);
+  assert.match(panel, /<div class="relative flex min-w-0 flex-col @6xl:h-full @6xl:min-h-0 @6xl:flex-row @6xl:gap-2">/u);
+  const source = read("src/components/v3/Pipeline.tsx");
+  assert.match(source, /const sheet = getComputedStyle\(dialog\)\.position === "fixed";/u, "CSS decides the mode, JS follows it");
+  assert.match(source, /if \(sheet\) dialog\.showModal\(\);\s*else dialog\.show\(\);/u);
+  assert.match(source, /saved\?\.leadId === selected\.id && saved\.version !== selected\.workflow\.workflowVersion/u, "one «Решение сохранено.» at a time");
 });
 
 test("a sales card opens the right panel with the existing decision form; the card has no form", () => {
@@ -170,7 +218,7 @@ test("a sales card opens the right panel with the existing decision form; the ca
   assert.doesNotMatch(board, /data-testid="v3-pipeline-decision"/u, "no in-card expanding form");
   assert.doesNotMatch(board, /Для связанных задач сначала назначьте ответственного/u);
   const panel = surfaces.get("sales-panel");
-  const aside = tag(panel, /<aside[^>]*data-testid="v3-pipeline-lead-panel"[\s\S]*<\/aside>/u);
+  const aside = tag(panel, /<dialog[^>]*data-testid="v3-pipeline-lead-panel"[\s\S]*<\/dialog>/u);
   assert.ok(aside, "?lead= renders the panel on the server");
   assert.match(aside, /data-lead-id="dddddddd-3333-4333-8333-000000000005" data-testid="v3-pipeline-decision"/u);
   assert.match(aside, /<input type="hidden" name="expected_version" value="3"\/>/u);
@@ -223,6 +271,32 @@ test("mobile: grouped stage list with empty stages on one line and filters behin
   assert.match(search, /class="t-meta text-fg-3 @6xl:hidden">Пусто:/u);
   assert.match(surfaces.get("sales"), /<details class="border-t border-border @6xl:hidden"><summary[^>]*>Переданы/u);
   assert.match(read("src/components/v3/board/BoardToolbar.tsx"), /Фильтры\s*\{activeCount > 0 \? <span className="tabular-nums">\(\{activeCount\}\)<\/span> : null\}/u);
+});
+
+test("admissions card shares the sales grammar: words, not pills; curator initials; 3 lines", () => {
+  const admissions = surfaces.get("admissions");
+  const card = (n) => tag(admissions, new RegExp(`<article [^>]*data-student-case-id="[^"]*${n}"[\\s\\S]*?<div class="absolute end-0\\.5 top-0\\.5">`, "u"));
+  assert.match(card("06"), /<span class="min-w-0 flex-1 truncate text-fg-2" title="Малайзия · UCSI University">Малайзия · UCSI University<\/span><abbr title="Куратор Один" class="shrink-0 no-underline">КО<\/abbr>/u);
+  assert.match(card("06"), /<span class="t-caption text-danger">просрочено<\/span><span aria-hidden="true" class="text-fg-3"> · <\/span><a draggable="false" class="t-caption text-danger[^"]*" href="\/v3\/messages\?case=[^"]+">нужен ответ<\/a>/u);
+  assert.match(card("01"), /<span class="t-caption text-warn">ждёт принятия<\/span>/u);
+  for (const n of ["01", "02", "03", "04", "05", "06", "07"]) {
+    assert.ok(count(card(n), /<p class=/gu) <= 3, `case ${n} has at most 3 lines`);
+  }
+  const source = read("src/components/v3/AdmissionsPipelineBoard.tsx");
+  assert.doesNotMatch(source, /<Pill\b|Ожидает принятия/u);
+  assert.match(source, /const showCurator = query\.curator === null/u);
+  assert.equal(count(surfaces.get("admissions-curator"), /<abbr/gu), 0, "no curator initials once «Куратор» is chosen");
+  assert.match(source, /<Icon name="chevron-down" size=\{16\} className=\{cn\("shrink-0 text-fg-3", otherOpen && "rotate-180"\)\} \/>/u, "inline disclosure, not a flyout chevron");
+  // Queue links: one quiet wrapping line, also on a phone.
+  const queues = tag(admissions, /<nav aria-label="Очереди на проверку"[^>]*>/u);
+  assert.match(classOf(queues), /^flex flex-wrap items-center gap-x-2$/u);
+  assert.match(read("src/app/(v3)/v3/admissions-pipeline/page.tsx"), /const QUEUE_LINK_CLASS =\s*"t-meta inline-flex min-h-11 /u);
+});
+
+test("rail mode keeps the 64px top bar: the moved logo is sized to fit", () => {
+  assert.match(read("src/components/v3/AppShell.tsx"), /<EvoLogo width=\{100\} \/>/u);
+  // 100px wide at 1843×842 is 46px tall: + 2 × 8px padding + 1px border ≤ 64px.
+  assert.ok(Math.ceil((100 * 842) / 1843) + 16 + 1 <= 64);
 });
 
 test("error copy names no provider and the admissions route has a board skeleton", () => {

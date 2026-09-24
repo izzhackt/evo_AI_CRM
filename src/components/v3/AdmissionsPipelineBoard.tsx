@@ -6,13 +6,13 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { btnGhostCls, cn } from "@/components/ui";
 import { Icon } from "@/components/icons";
-import { Pill } from "@/components/v3/Pill";
 import {
   BOARD_CARD_CLASS,
   BOARD_EMPTY,
   BoardColumn,
   BoardGrip,
   cappedBoardTracks,
+  ownerInitials,
 } from "@/components/v3/board/Board";
 import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
 import {
@@ -167,7 +167,7 @@ function CardMenu({
             onClick={() => setOtherOpen((previous) => !previous)}
           >
             Другой раздел
-            <Icon name="chevron-right" size={16} className={cn("shrink-0 text-fg-3", otherOpen && "rotate-90")} />
+            <Icon name="chevron-down" size={16} className={cn("shrink-0 text-fg-3", otherOpen && "rotate-180")} />
           </button>
           <div id={otherId} hidden={!otherOpen} role="group" aria-label={admissionsPipelineTab(otherTab)}>
             <p className="t-caption px-2 pt-1 text-fg-3">{admissionsPipelineTab(otherTab)}</p>
@@ -242,6 +242,25 @@ function BoardCard({
   const secondLine = [countryLabel(row.targetCountry), row.primaryInstitutionName]
     .filter((value): value is string => Boolean(value))
     .join(" · ");
+  // Та же грамматика, что у карточки продаж: куратор — инициалами справа во
+  // второй строке (полное имя в подсказке), состояние — словом и цветом в
+  // третьей, а не плашками.
+  const marks = [
+    row.overdue ? <span key="overdue" className="t-caption text-danger">просрочено</span> : null,
+    row.needsReply ? (
+      <Link
+        key="reply"
+        href={`/v3/messages?case=${row.studentCaseId}`}
+        prefetch={false}
+        draggable={false}
+        className="t-caption text-danger underline-offset-4 hover:underline"
+      >
+        {caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU")}
+      </Link>
+    ) : null,
+    row.awaitingAck ? <span key="ack" className="t-caption text-warn">ждёт принятия</span> : null,
+  ].filter((mark) => mark !== null);
+  const curator = showCurator ? row.currentCuratorDisplayName : null;
   return (
     <article
       draggable
@@ -266,19 +285,19 @@ function BoardCard({
           {row.studentDisplayName}
         </Link>
       </p>
-      {secondLine ? <p className="t-meta truncate pe-8 text-fg-2" title={secondLine}>{secondLine}</p> : null}
-      {showCurator && row.currentCuratorDisplayName ? (
-        <p className="t-meta truncate text-fg-3" title={row.currentCuratorDisplayName}>{row.currentCuratorDisplayName}</p>
-      ) : null}
-      {row.awaitingAck || row.overdue || row.needsReply ? (
-        <p className="mt-1 flex flex-wrap gap-1">
-          {row.awaitingAck ? <Pill tone="warn">Ожидает принятия</Pill> : null}
-          {row.overdue ? <Pill tone="danger">Просрочено</Pill> : null}
-          {row.needsReply ? (
-            <Link href={`/v3/messages?case=${row.studentCaseId}`} draggable={false} className="inline-flex rounded-[5px]">
-              <Pill tone="danger">{caseChatAwaitState("needs_reply")}</Pill>
-            </Link>
+      {secondLine || curator ? (
+        <p className="t-meta flex min-w-0 items-baseline gap-2 pe-8 text-fg-3">
+          <span className="min-w-0 flex-1 truncate text-fg-2" title={secondLine || undefined}>{secondLine}</span>
+          {curator ? (
+            <abbr title={curator} className="shrink-0 no-underline">
+              {ownerInitials(curator)}
+            </abbr>
           ) : null}
+        </p>
+      ) : null}
+      {marks.length > 0 ? (
+        <p className="t-meta truncate whitespace-nowrap">
+          {marks.flatMap((mark, index) => (index === 0 ? [mark] : [<span key={`dot-${index}`} aria-hidden="true" className="text-fg-3"> · </span>, mark]))}
         </p>
       ) : null}
       <div className="absolute end-0.5 top-0.5">
@@ -339,7 +358,10 @@ export function AdmissionsPipelineBoard({
     if (!active || active === document.body) noticeRef.current?.focus();
   }, [removal]);
 
-  const showCurator = new Set(cards.map((row) => row.currentCuratorMembershipId).filter(Boolean)).size > 1;
+  // Инициалы куратора различают дела, только когда кураторов на доске
+  // несколько и фильтр «Куратор» не выбран.
+  const showCurator = query.curator === null
+    && new Set(cards.map((row) => row.currentCuratorMembershipId).filter(Boolean)).size > 1;
   const tabStages = ADMISSIONS_PIPELINE_TAB_STAGES[tab];
   const boardEmpty = cards.length === 0;
 

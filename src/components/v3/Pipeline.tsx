@@ -4,15 +4,18 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useId, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { cn } from "@/components/ui";
 import {
   BOARD_CARD_CLASS,
   BOARD_EMPTY,
+  BOARD_PANEL_FOLD,
   BoardColumn,
   BoardRail,
   boardTracks,
+  ownerInitials,
 } from "@/components/v3/board/Board";
 import { PipelineDecisionForm } from "@/components/v3/PipelineDecisionForm";
 import type {
@@ -74,14 +77,16 @@ export function stageAgeCopy(days: number): string {
   return `${days} дн. на стадии`;
 }
 
-/** «Айгүл Осмонова» → «АО»; полное имя остаётся в подсказке. */
-export function ownerInitials(name: string): string {
-  return name
-    .split(/\s+/u)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => (Array.from(part)[0] ?? "").toLocaleUpperCase("ru-RU"))
-    .join("");
+/**
+ * Возраст на стадии в карточке: «4 дн.»; «на стадии» — в подсказке и для
+ * читалки, чтобы узкая колонка 1280 px не обрезала строку посреди слова.
+ */
+function StageAge({ days }: Readonly<{ days: number }>) {
+  return (
+    <span title={stageAgeCopy(days)}>
+      {days} дн.<span className="sr-only"> на стадии</span>
+    </span>
+  );
 }
 
 function DueWord({ due }: Readonly<{ due: PipelineLead["due"] }>) {
@@ -134,14 +139,35 @@ function LeadCard({
   onOpen: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const owner = lead.workflow.currentOwnerDisplayName;
-  const meta = [
-    lead.nextActionAt && lead.workflow.nextActionDueDate ? (
-      <time key="due" dateTime={lead.workflow.nextActionDueDate} className="font-mono tabular-nums">
-        {lead.nextActionAt}
-      </time>
-    ) : null,
-    !terminal && lead.stageAgeDays !== null ? <span key="age">{stageAgeCopy(lead.stageAgeDays)}</span> : null,
-  ].filter((part) => part !== null);
+  const dueDate = lead.nextActionAt ? lead.workflow.nextActionDueDate : null;
+  const due = terminal ? "later" : lead.due;
+  // Третья строка: слово срока рядом со своей датой («прошёл 23.09»),
+  // «сегодня» без даты, позже — только дата; затем «4 дн.». Имя в первой
+  // строке и срок в третьей получают всю ширину карточки, а инициалы
+  // ответственного стоят справа от его следующего действия.
+  const meta: ReactNode[] = [];
+  if (dueDate) {
+    meta.push(
+      due === "today" ? (
+        <time key="due" dateTime={dueDate}>
+          <DueWord due="today" />
+        </time>
+      ) : (
+        <span key="due">
+          {due === "overdue" ? (
+            <>
+              <DueWord due="overdue" />{" "}
+            </>
+          ) : null}
+          <time dateTime={dueDate} className="font-mono tabular-nums">
+            {lead.nextActionAt}
+          </time>
+        </span>
+      ),
+    );
+  }
+  if (!terminal && lead.stageAgeDays !== null) meta.push(<StageAge key="age" days={lead.stageAgeDays} />);
+  const actionLine = !(terminal && !lead.nextAction);
   const initials = showOwner && owner ? (
     <abbr title={owner} className="shrink-0 no-underline">
       {ownerInitials(owner)}
@@ -168,21 +194,20 @@ function LeadCard({
         >
           {lead.name}
         </Link>
-        {terminal ? null : <DueWord due={lead.due} />}
+        {/* Переданный лид без действия: инициалы у имени, а не одни в строке. */}
+        {actionLine ? null : initials ? <span className="t-meta text-fg-3">{initials}</span> : null}
       </p>
-      {terminal && !lead.nextAction ? null : (
-        <p className={`t-meta truncate ${lead.nextAction ? "text-fg-2" : "text-fg-3"}`} title={lead.nextAction ?? undefined}>
-          {lead.nextAction ?? "Без следующего действия"}
-        </p>
-      )}
-      {meta.length > 0 || initials ? (
-        // Узкая колонка обрезает дату и возраст многоточием, а инициалы
-        // ответственного остаются видны справа.
-        <p className="t-meta flex min-w-0 items-baseline gap-2 whitespace-nowrap text-fg-3">
-          <span className="min-w-0 flex-1 truncate">
-            {meta.flatMap((part, index) => (index === 0 ? [part] : [<span key={`dot-${index}`} aria-hidden="true"> · </span>, part]))}
+      {actionLine ? (
+        <p className="t-meta flex min-w-0 items-baseline gap-2 text-fg-3">
+          <span className={`min-w-0 flex-1 truncate ${lead.nextAction ? "text-fg-2" : ""}`} title={lead.nextAction ?? undefined}>
+            {lead.nextAction ?? "Без следующего действия"}
           </span>
           {initials}
+        </p>
+      ) : null}
+      {meta.length > 0 ? (
+        <p className="t-meta truncate whitespace-nowrap text-fg-3">
+          {meta.flatMap((part, index) => (index === 0 ? [part] : [<span key={`dot-${index}`} aria-hidden="true"> · </span>, part]))}
         </p>
       ) : null}
     </article>
@@ -219,18 +244,62 @@ function LeadPanel({
   onSaved: () => void;
 }) {
   const headingId = useId();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const savedRef = useRef<HTMLParagraphElement>(null);
+  // Закрытия, которые сделала сама панель при смене вида: событие `close`
+  // приходит позже задачей, и его нельзя принять за закрытие человеком.
+  const switchingCloses = useRef(0);
   const owner = lead.workflow.currentOwnerDisplayName;
+
+  // Широкий экран (контейнер от 72rem): панель — немодальный диалог в ряду с
+  // доской, доска остаётся рабочей. Уже — лист поверх страницы, поэтому
+  // модальный: страница за ним инертна, Escape закрывает его, где бы ни был
+  // фокус. Какой вид сейчас, говорит CSS самой панели (запрос контейнера),
+  // а не второе правило в JS.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const sync = () => {
+      const sheet = getComputedStyle(dialog).position === "fixed";
+      if (dialog.open && dialog.matches(":modal") === sheet) return;
+      if (dialog.open) {
+        switchingCloses.current += 1;
+        dialog.close();
+      }
+      if (sheet) dialog.showModal();
+      else dialog.show();
+    };
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+  }, []);
+
+  // Итог сохранения появляется после обновления доски под кнопкой — панель
+  // докручивается до него, если он оказался ниже края.
+  useEffect(() => {
+    if (saved) savedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [saved]);
+
   return (
-    <aside
+    <dialog
+      ref={dialogRef}
+      open
       aria-labelledby={headingId}
       data-testid="v3-pipeline-lead-panel"
       data-lead-id={lead.id}
+      onClose={() => {
+        if (switchingCloses.current > 0) {
+          switchingCloses.current -= 1;
+          return;
+        }
+        onClose();
+      }}
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;
         event.preventDefault();
         onClose();
       }}
-      className="fixed inset-y-0 end-0 z-40 flex w-full max-w-[420px] flex-col border-s border-border bg-surface shadow-evo-lg @6xl:absolute @6xl:z-20"
+      className="fixed inset-y-0 end-0 start-auto z-40 m-0 hidden h-dvh max-h-none w-full max-w-[420px] flex-col border-s border-border bg-surface p-0 text-fg shadow-evo-lg backdrop:bg-black/45 open:flex @6xl:static @6xl:z-auto @6xl:h-full @6xl:w-[400px] @6xl:max-w-none @6xl:shrink-0 @6xl:rounded-card @6xl:border @6xl:shadow-none"
     >
       <header className="flex shrink-0 items-start gap-2 border-b border-border py-2 pe-2 ps-4">
         <h2 id={headingId} tabIndex={-1} className="t-record-title min-w-0 flex-1 break-words py-2 text-fg">
@@ -304,10 +373,6 @@ function LeadPanel({
           </section>
         ) : null}
 
-        {saved ? (
-          <p role="status" className="t-body-compact mt-3 border-t border-border pt-3 text-ok">Решение сохранено.</p>
-        ) : null}
-
         {!terminal && !isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
           <div className="mt-3 border-t border-border pt-3">
             <PipelineDecisionForm
@@ -321,10 +386,13 @@ function LeadPanel({
               requestId={requestId}
               onSaved={onSaved}
             />
+            {/* Итог — там же, где его показывала форма до обновления доски:
+                у кнопки, куда смотрит сотрудник. */}
+            {saved ? <p ref={savedRef} role="status" className="t-body-compact mt-2 text-ok">Решение сохранено.</p> : null}
           </div>
         ) : null}
       </div>
-    </aside>
+    </dialog>
   );
 }
 
@@ -358,7 +426,11 @@ export function Pipeline({
   const rootRef = useRef<HTMLDivElement>(null);
   const focusPanel = useRef(false);
   const returnFocusTo = useRef<string | null>(null);
-  const [savedLeadId, setSavedLeadId] = useState<string | null>(null);
+  // Сохранённое решение: лид и версия, с которой его сохранили. Пока доска
+  // не обновилась, итог показывает сама форма; после обновления форма
+  // пересоздаётся с новой версией, и итог остаётся строкой панели — без
+  // двух одинаковых «Решение сохранено.» подряд.
+  const [saved, setSaved] = useState<Readonly<{ leadId: string; version: string }> | null>(null);
   const idPrefix = useId();
 
   const selectedId = search?.get("lead") ?? null;
@@ -371,7 +443,15 @@ export function Pipeline({
       : [{ key: stage.key, title: stage.title }],
   );
   const terminalKeys = stages.filter((stage) => stage.terminal).map((stage) => stage.key);
-  const tracks = boardTracks(stages.map((stage) => stage.key), focus, terminalKeys);
+  const stageKeys = stages.map((stage) => stage.key);
+  const tracks = boardTracks(stageKeys, focus, terminalKeys);
+  // Панель открыта при всех этапах: где шести колонкам рядом с ней не хватает
+  // места, раскрыт только этап выбранного лида (дорожки как у фокуса).
+  const foldFor = focus === "all" && selected && !selectedStage?.terminal ? selected.stageKey : null;
+  const boardStyle = {
+    "--board-tracks": tracks,
+    ...(foldFor ? { "--board-tracks-panel": boardTracks(stageKeys, foldFor, terminalKeys) } : {}),
+  } as CSSProperties;
   const emptyWorking = focus === "all"
     ? stages.filter((stage) => !stage.terminal && !leads.some((lead) => lead.stageKey === stage.key))
     : [];
@@ -393,11 +473,11 @@ export function Pipeline({
   const openLead = (lead: PipelineLead) => (event: MouseEvent<HTMLAnchorElement>) => {
     if (!pushBoardState(event, boardHref({ lead: lead.id }))) return;
     focusPanel.current = true;
-    if (savedLeadId !== lead.id) setSavedLeadId(null);
+    if (saved?.leadId !== lead.id) setSaved(null);
   };
   const closePanel = () => {
     returnFocusTo.current = selectedId;
-    setSavedLeadId(null);
+    setSaved(null);
     if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
   };
 
@@ -429,7 +509,7 @@ export function Pipeline({
   const handedLinks = (stage: PipelineStage, inStage: readonly PipelineLead[], visible: readonly PipelineLead[]) => (
     <>
       {stage.terminal && visible.length < inStage.length ? (
-        <li>
+        <li className="col-span-full">
           <Link
             href={boardHref({ handed: "all" })}
             prefetch={false}
@@ -441,7 +521,7 @@ export function Pipeline({
         </li>
       ) : null}
       {stage.terminal && handedExpanded && inStage.length > HANDED_VISIBLE_LIMIT ? (
-        <li>
+        <li className="col-span-full">
           <Link
             href={boardHref({ handed: null })}
             prefetch={false}
@@ -456,14 +536,19 @@ export function Pipeline({
   );
 
   return (
-    <div ref={rootRef} className="relative flex min-w-0 flex-col @6xl:h-full @6xl:min-h-0">
+    // Широкий экран: доска и панель лида — один ряд, панель не перекрывает
+    // колонки, а забирает у доски 408 px.
+    <div ref={rootRef} className="relative flex min-w-0 flex-col @6xl:h-full @6xl:min-h-0 @6xl:flex-row @6xl:gap-2">
       <div
         role="group"
         aria-label="Воронка продаж"
         data-testid="v3-pipeline-board"
         data-focus={focus}
-        className="flex min-w-0 flex-col gap-4 @6xl:grid @6xl:h-full @6xl:min-h-0 @6xl:grid-rows-[minmax(0,1fr)] @6xl:gap-2"
-        style={{ gridTemplateColumns: tracks }}
+        className={cn(
+          "flex min-w-0 flex-col gap-4 @6xl:grid @6xl:h-full @6xl:min-h-0 @6xl:flex-1 @6xl:grid-rows-[minmax(0,1fr)] @6xl:gap-2 @6xl:[grid-template-columns:var(--board-tracks)]",
+          foldFor && BOARD_PANEL_FOLD.tracks,
+        )}
+        style={boardStyle}
       >
         {stages.map((stage) => {
           const { inStage, visible } = cardsOf(stage);
@@ -524,6 +609,8 @@ export function Pipeline({
               key={stage.key}
               headingId={headingId}
               testId="v3-pipeline-column"
+              spread={focused || foldFor === stage.key}
+              fold={foldFor && foldFor !== stage.key ? { title: stage.title, href: boardHref({ stage: stage.key, lead: null }) } : undefined}
               title={
                 focused ? (
                   <span className="truncate">{stage.title}</span>
@@ -582,9 +669,9 @@ export function Pipeline({
           actorMembershipId={actorMembershipId}
           requestId={requestIds[selected.id] ?? ""}
           closeHref={boardHref({ lead: null })}
-          saved={savedLeadId === selected.id}
+          saved={saved?.leadId === selected.id && saved.version !== selected.workflow.workflowVersion}
           onClose={closePanel}
-          onSaved={() => setSavedLeadId(selected.id)}
+          onSaved={() => setSaved({ leadId: selected.id, version: selected.workflow.workflowVersion })}
         />
       ) : null}
     </div>

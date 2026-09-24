@@ -54,7 +54,7 @@ const CONTROL_CHARACTER_PATTERN =
 const MAX_QUERY_LENGTH = 200;
 
 const QUEUE_LINK_CLASS =
-  "inline-flex min-h-11 items-center gap-1.5 px-1 text-sm text-fg-2 underline-offset-4 hover:text-fg hover:underline";
+  "t-meta inline-flex min-h-11 items-center gap-1 text-fg-2 underline-offset-4 hover:text-fg hover:underline";
 
 /**
  * Первая страница очереди (до 20 записей): число — только из прочитанного;
@@ -136,12 +136,14 @@ export default async function AdmissionsPipelinePart({
   const packagesCount = queueCount(packagesResult);
 
   const queues = canReadDocuments ? (
-    <nav aria-label="Очереди на проверку" className="flex flex-col items-start @2xl:flex-row @2xl:items-center @2xl:gap-x-3">
+    // Одна тихая строка и на телефоне: две ссылки столбиком отодвигали доску
+    // на 180 px вниз.
+    <nav aria-label="Очереди на проверку" className="flex flex-wrap items-center gap-x-2">
       <Link className={QUEUE_LINK_CLASS} href={viewHref("documents")}>
         Документы на проверку
         {documentsCount !== null ? <span className="tabular-nums text-fg-3">{documentsCount}</span> : null}
       </Link>
-      <span aria-hidden="true" className="hidden text-fg-3 @2xl:inline">·</span>
+      <span aria-hidden="true" className="t-meta text-fg-3">·</span>
       <Link className={QUEUE_LINK_CLASS} href={viewHref("packages")}>
         Комплекты на проверку
         {packagesCount !== null ? <span className="tabular-nums text-fg-3">{packagesCount}</span> : null}

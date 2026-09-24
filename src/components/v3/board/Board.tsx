@@ -19,10 +19,37 @@ export const BOARD_EMPTY = { leads: "Нет лидов", cases: "Нет дел" 
 
 export {
   BOARD_FLUID_TRACK,
+  BOARD_PANEL_FOLD_BELOW_PX,
   BOARD_RAIL_TRACK,
   boardTracks,
   cappedBoardTracks,
 } from "@/components/v3/board/board-tracks";
+
+/**
+ * Открытая панель лида стоит в ряд с доской. Пока контейнер уже
+ * `BOARD_PANEL_FOLD_BELOW_PX` (1556 px ≤ 97.5rem), колонки, кроме этапа
+ * лида, сворачиваются в рейки: панель не закрывает карточку, по которой
+ * нажали. Решает запрос контейнера CSS, поэтому серверная разметка с `?lead=`
+ * не мигает. Классы записаны целиком — их находит сборщик Tailwind.
+ */
+export const BOARD_PANEL_FOLD = {
+  /** Дорожки доски, пока панель открыта и места мало. */
+  tracks: "@6xl:@max-[97.5rem]:[grid-template-columns:var(--board-tracks-panel)]",
+  /** Заголовок и карточки свёрнутой колонки. */
+  content: "@6xl:@max-[97.5rem]:hidden",
+  /** Рейка свёрнутой колонки. */
+  rail: "hidden @6xl:@max-[97.5rem]:flex",
+} as const;
+
+/** «Айгүл Осмонова» → «АО»; полное имя остаётся в подсказке `title`. */
+export function ownerInitials(name: string): string {
+  return name
+    .split(/\s+/u)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => (Array.from(part)[0] ?? "").toLocaleUpperCase("ru-RU"))
+    .join("");
+}
 
 /** Оболочка карточки: одна рамка, наведение — край контрола. */
 export const BOARD_CARD_CLASS =
@@ -46,6 +73,8 @@ export function BoardColumn({
   emptyText,
   className,
   highlighted = false,
+  spread = false,
+  fold,
   testId,
   onDragOver,
   onDragLeave,
@@ -63,6 +92,14 @@ export function BoardColumn({
   className?: string;
   /** Сюда можно бросить карточку: нейтральная пунктирная подсветка. */
   highlighted?: boolean;
+  /**
+   * Колонка одна на всю ширину (фокус этапа, этап лида рядом с панелью):
+   * карточки встают сеткой по 240 px и больше, а не растягиваются на 1000 px
+   * от имени до срока. Уже 240 px — одна карточка во всю колонку.
+   */
+  spread?: boolean;
+  /** Рядом открыта панель и места мало: колонка сворачивается в рейку. */
+  fold?: Readonly<{ title: string; href: string }>;
   testId?: string;
   onDragOver?: DragEventHandler<HTMLElement>;
   onDragLeave?: DragEventHandler<HTMLElement>;
@@ -83,7 +120,7 @@ export function BoardColumn({
         className ?? "flex",
       )}
     >
-      <header className="flex min-h-11 shrink-0 items-center gap-1.5 border-b border-border px-1.5">
+      <header className={cn("flex min-h-11 shrink-0 items-center gap-1.5 border-b border-border px-1.5", fold && BOARD_PANEL_FOLD.content)}>
         <h2 id={headingId} className="t-item flex min-w-0 flex-1 items-center text-fg">
           {title}
         </h2>
@@ -91,10 +128,17 @@ export function BoardColumn({
         {count !== null ? <span className="t-meta shrink-0 tabular-nums text-fg-3">{count}</span> : null}
         {headerAction}
       </header>
-      <ul className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-0.5 pb-2 pt-2">
+      <ul
+        className={cn(
+          "flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-0.5 pb-2 pt-2",
+          spread && "@6xl:grid @6xl:grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] @6xl:content-start",
+          fold && BOARD_PANEL_FOLD.content,
+        )}
+      >
         {children}
-        {empty ? <li className="t-meta px-1.5 py-1 text-fg-3">{emptyText}</li> : null}
+        {empty ? <li className="t-meta col-span-full px-1.5 py-1 text-fg-3">{emptyText}</li> : null}
       </ul>
+      {fold ? <BoardRail title={fold.title} count={count} href={fold.href} className={cn(BOARD_PANEL_FOLD.rail, "flex-1")} /> : null}
     </section>
   );
 }

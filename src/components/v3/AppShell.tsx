@@ -379,7 +379,8 @@ export function AppShell({
               aria-label="EVO Admissions — начало работы"
               className="me-auto hidden rounded-nav focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring md:max-2xl:inline-flex"
             >
-              <EvoLogo width={116} />
+              {/* 100 px — высота 46 px: верхняя панель остаётся 64 px, как без рейки. */}
+              <EvoLogo width={100} />
             </Link>
           ) : null}
           {/* Общее действие оболочки — нейтральное: красным остаётся главное

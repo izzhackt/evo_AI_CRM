@@ -74,7 +74,7 @@ function RecoveryForm({ member }: { member: StaffWorkspaceMember }) {
 function StaffDangerZone({ member }: { member: StaffWorkspaceMember }) {
   const headingId = useId();
   return <section aria-labelledby={headingId} className="mt-8 space-y-4 rounded-card border border-danger/40 p-4">
-    <h4 id={headingId} className="text-md font-semibold text-danger">Опасные действия</h4>
+    <h4 id={headingId} className="t-section text-danger">Опасные действия</h4>
     <MemberChange member={member} />
     {member.status === "active" ? <div className="border-t border-border pt-4"><RecoveryForm member={member} /></div> : null}
   </section>;
@@ -139,7 +139,7 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
     </nav>
     {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-md font-semibold">Сотрудники · {data.members.length}</h3>
+        <h3 className="t-section">Сотрудники · {data.members.length}</h3>
         <StaffDisclosure label="Создать аккаунт" className="w-full" buttonClassName="font-medium text-accent">
           <div className="pt-3"><StaffPasswordForm workspace={roles} organizationId={organizationId} /></div>
         </StaffDisclosure>

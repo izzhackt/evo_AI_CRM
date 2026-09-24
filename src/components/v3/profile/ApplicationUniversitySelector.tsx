@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useEffect, useRef, useState } from "react";
-import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   searchApplicationUniversitiesAction,
   type ApplicationUniversitySearchResult,
@@ -58,7 +58,7 @@ export function ApplicationUniversitySelector() {
       {manual ? <>
         <input type="hidden" name="catalog_institution_id" value="" />
         <label className="block">
-          <span className={labelCls}>{words.institution}</span>
+          <span className={fieldLabelCls}>{words.institution}</span>
           <input name="institution_name" required maxLength={300} value={manualName}
             onChange={(event) => setManualName(event.target.value)} className={inputCls} />
         </label>
@@ -67,7 +67,7 @@ export function ApplicationUniversitySelector() {
         <input type="hidden" name="institution_name" value="" />
         <div className="flex items-end gap-2">
           <label className="min-w-0 flex-1">
-            <span className={labelCls}>{words.searchLabel}</span>
+            <span className={fieldLabelCls}>{words.searchLabel}</span>
             <input value={query} maxLength={100} className={inputCls}
               onChange={(event) => { invalidate(); setQuery(event.target.value); }}
               onKeyDown={(event) => {
@@ -80,7 +80,7 @@ export function ApplicationUniversitySelector() {
             onClick={() => search()}>{words.search}</button>
         </div>
         <label className="block">
-          <span className={labelCls}>{words.selectLabel}</span>
+          <span className={fieldLabelCls}>{words.selectLabel}</span>
           <select name="catalog_institution_id" required value={selectedId}
             className={inputCls} onChange={(event) => setSelectedId(event.target.value)}>
             <option value="">{words.placeholder}</option>

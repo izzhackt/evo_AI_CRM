@@ -108,7 +108,7 @@ export function PipelineDecisionForm({
       data-lead-id={lead.leadId}
       data-testid="v3-pipeline-decision"
     >
-      <summary className="cursor-pointer rounded-sm text-2xs font-semibold text-fg-2 outline-none hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+      <summary className="t-item cursor-pointer rounded-sm text-fg-2 outline-none hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
         Изменить этап и действие
       </summary>
 
@@ -134,7 +134,7 @@ export function PipelineDecisionForm({
         <fieldset disabled={pending} className="space-y-3">
           <legend className="sr-only">Решение по лиду</legend>
 
-          <label className="block text-2xs font-medium text-fg-2">
+          <label className="block t-label text-fg-2">
             Этап
             <select
               name="stage_key"
@@ -153,7 +153,7 @@ export function PipelineDecisionForm({
             </select>
           </label>
 
-          <label className="block text-2xs font-medium text-fg-2">
+          <label className="block t-label text-fg-2">
             Ответственный
             {!canAssignOwner ? <input type="hidden" name="current_owner_membership_id" value={lead.currentOwnerMembershipId ?? ""} /> : null}
             <select
@@ -184,12 +184,12 @@ export function PipelineDecisionForm({
           </label>
 
           {ownerOptionsHaveMore && staffHasPermission(actor, "lead.sales.owner.assign") ? (
-            <p className="text-2xs leading-4 text-fg-3">
+            <p className="t-meta text-fg-3">
               Показаны первые 100 сотрудников.
             </p>
           ) : null}
 
-          <label className="flex items-start gap-2 text-2xs leading-4 text-fg-2">
+          <label className="t-body-compact flex items-start gap-2 text-fg-2">
             <input
               type="checkbox"
               checked={clearNextAction}
@@ -213,7 +213,7 @@ export function PipelineDecisionForm({
             </>
           ) : (
             <>
-              <label className="block text-2xs font-medium text-fg-2">
+              <label className="block t-label text-fg-2">
                 Следующее действие
                 <textarea
                   name="next_action_text"
@@ -230,7 +230,7 @@ export function PipelineDecisionForm({
                 />
               </label>
 
-              <label className="block text-2xs font-medium text-fg-2">
+              <label className="block t-label text-fg-2">
                 Срок
                 <input
                   type="date"
@@ -247,7 +247,7 @@ export function PipelineDecisionForm({
             </>
           )}
 
-          <label className="block text-2xs font-medium text-fg-2">
+          <label className="block t-label text-fg-2">
             Причина{reasonRequired ? " · обязательна" : ""}
             <textarea
               name="reason"
@@ -264,7 +264,7 @@ export function PipelineDecisionForm({
             />
             <span
               id={`${controlId}-reason`}
-              className="mt-1 block text-2xs leading-4 text-fg-3"
+              className="t-meta mt-1 block text-fg-3"
             >
               Нужна при смене ответственного или удалении действия.
             </span>
@@ -278,7 +278,7 @@ export function PipelineDecisionForm({
             >
               {pending ? "Сохраняем…" : "Сохранить решение"}
             </button>
-            <span className="font-mono text-2xs text-fg-3">
+            <span className="t-meta font-mono text-fg-3">
               Версия {workflowVersion}
             </span>
           </div>
@@ -290,7 +290,7 @@ export function PipelineDecisionForm({
           aria-atomic="true"
           data-status={result.status}
           data-testid="v3-pipeline-workflow-status"
-          className={`min-h-4 text-2xs leading-4 ${
+          className={`t-body-compact min-h-4 ${
             result.status === "saved" ? "text-ok" : "text-warn"
           }`}
         >

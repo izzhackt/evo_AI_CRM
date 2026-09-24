@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState, type FormEvent } from "react";
 
-import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import { reviewPlatformDocumentAction, type DocumentReviewOutcome } from "@/lib/platform-document-review-action";
 import type { PlatformDocumentReviewDecision } from "@/lib/platform-private-documents";
 
@@ -74,7 +74,7 @@ export function DocumentReviewForm({ item, studentCaseId }: Readonly<{
         <p className="text-xs text-fg-3">Проверяется версия {item.currentVersionNumber}. Скачайте файл перед решением.</p>
         {!item.downloadReady ? <p className="text-xs text-fg-3">Принятие недоступно до завершения проверки файла. Его можно вернуть на исправление или отклонить.</p> : null}
         <label>
-          <span className={labelCls}>Решение</span>
+          <span className={fieldLabelCls}>Решение</span>
           <select className={`${inputCls} min-h-11`} value={decision} disabled={locked}
             onChange={event => setDecision(event.target.value as PlatformDocumentReviewDecision)}>
             <option value="approved" disabled={!item.downloadReady}>Принять</option>
@@ -84,7 +84,7 @@ export function DocumentReviewForm({ item, studentCaseId }: Readonly<{
         </label>
         {decision !== "approved" ? (
           <div>
-            <label htmlFor={reasonId} className={labelCls}>Что нужно исправить</label>
+            <label htmlFor={reasonId} className={fieldLabelCls}>Что нужно исправить</label>
             <textarea id={reasonId} className={`${inputCls} min-h-24 resize-y`} value={reason}
               required maxLength={2000} disabled={locked} aria-describedby={`${reasonId}-help`}
               onChange={event => setReason(event.target.value)} />

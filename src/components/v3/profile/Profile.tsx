@@ -123,7 +123,7 @@ export function Profile({
     >
       {caseHeader ?? (
         <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="min-w-0 text-xl font-semibold tracking-[-0.02em] text-fg">
+          <h2 className="t-record-title min-w-0 text-fg">
             {profile.person}
           </h2>
           <p className="text-sm text-fg-3">{state}</p>

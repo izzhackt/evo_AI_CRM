@@ -21,7 +21,7 @@ function StaffUniversityRow({ university, level, now }: { university: PublishedU
     <div className="min-w-0"><Photo content={content} compact /></div>
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
       <div className="min-w-0">
-        <h2 className="text-lg font-semibold leading-6 text-fg"><Link href={`/v3/universities/${id}`} className="inline-flex min-h-11 items-center py-1 underline-offset-4 [overflow-wrap:anywhere] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">{content.name}</Link></h2>
+        <h2 className="t-section text-fg"><Link href={`/v3/universities/${id}`} className="inline-flex min-h-11 items-center py-1 underline-offset-4 [overflow-wrap:anywhere] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">{content.name}</Link></h2>
         <p className="break-words text-sm leading-5 text-fg-2">{universityCountry(content.country)}{content.city ? ` · ${content.city}` : ""}</p>
         <p className="mt-2 line-clamp-2 break-words text-sm leading-6 text-fg-2">{content.overview}</p>
         <p className="mt-2 text-xs leading-5 text-fg-3">Программ в карточке: {content.programs.length}</p>
@@ -30,7 +30,7 @@ function StaffUniversityRow({ university, level, now }: { university: PublishedU
       <div className="min-w-0 border-t border-border pt-3 [overflow-wrap:anywhere] xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
         {deadline ? <>
           <dl>
-            <dt className="text-xs font-medium leading-5 text-fg-3">Дата подачи</dt>
+            <dt className="t-caption text-fg-3">Дата подачи</dt>
             <dd className="mt-1 text-base font-semibold leading-6 text-fg"><time dateTime={deadline.applicationDeadline}>{date(deadline.applicationDeadline)}</time></dd>
           </dl>
           <p className="text-sm leading-5 text-fg-2">{deadline.intake.deadlineTime ? `${deadline.intake.deadlineTime} · ` : ""}{deadline.intake.timezone}</p>
@@ -57,16 +57,16 @@ export function UniversityList({ page, filters, base, countries, canManage = fal
   return <div className="space-y-6">
     <p className="max-w-2xl text-sm leading-6 text-fg-2">Университеты, программы и сроки поступления.</p>
     <form action={base} className="grid gap-3 rounded-card border border-border bg-surface p-4 sm:grid-cols-[2fr_1fr_1fr_auto]">
-      <label className="text-xs font-medium text-fg-2">Название<input name="q" type="search" defaultValue={filters.query} maxLength={100} className={input} placeholder="Найти университет" /></label>
-      <label className="text-xs font-medium text-fg-2">Страна<select key={base === "/v3/universities" ? filters.country : undefined} name="country" defaultValue={filters.country} className={input}><option value="">Все страны</option>{staffCountries ? staffCountries.map(({ code, label, unavailable }) => <option key={code} value={code}>{label}{unavailable ? " — нет опубликованных карточек" : ""}</option>) : <><option value="CN">Китай</option><option value="MY">Малайзия</option>{UNIVERSITY_COUNTRIES.filter((code) => !["CN", "MY"].includes(code)).map((code) => ({ code, label: universityCountry(code) })).sort((a, b) => a.label.localeCompare(b.label, "ru")).map(({ code, label }) => <option key={code} value={code}>{label}</option>)}</>}</select></label>
-      <label className="text-xs font-medium text-fg-2">Уровень<select name="level" defaultValue={filters.level} className={input}><option value="">Все уровни</option>{UNIVERSITY_LEVELS.map((level) => <option key={level} value={level}>{UNIVERSITY_LEVEL_LABELS[level]}</option>)}</select></label>
+      <label className="t-label text-fg-2">Название<input name="q" type="search" defaultValue={filters.query} maxLength={100} className={input} placeholder="Найти университет" /></label>
+      <label className="t-label text-fg-2">Страна<select key={base === "/v3/universities" ? filters.country : undefined} name="country" defaultValue={filters.country} className={input}><option value="">Все страны</option>{staffCountries ? staffCountries.map(({ code, label, unavailable }) => <option key={code} value={code}>{label}{unavailable ? " — нет опубликованных карточек" : ""}</option>) : <><option value="CN">Китай</option><option value="MY">Малайзия</option>{UNIVERSITY_COUNTRIES.filter((code) => !["CN", "MY"].includes(code)).map((code) => ({ code, label: universityCountry(code) })).sort((a, b) => a.label.localeCompare(b.label, "ru")).map(({ code, label }) => <option key={code} value={code}>{label}</option>)}</>}</select></label>
+      <label className="t-label text-fg-2">Уровень<select name="level" defaultValue={filters.level} className={input}><option value="">Все уровни</option>{UNIVERSITY_LEVELS.map((level) => <option key={level} value={level}>{UNIVERSITY_LEVEL_LABELS[level]}</option>)}</select></label>
       <button className={`${link} self-end`}>Найти</button>
     </form>
     {filters.query || filters.country || filters.level || filters.offset ? <Link className={link} href={base}>Сбросить фильтры</Link> : null}
-    {!page.items.length ? <section className="rounded-card border border-border bg-surface px-5 py-10 text-center"><h2 className="text-lg font-semibold text-fg">Пока нет опубликованных карточек по этому запросу</h2><p className="mt-2 text-sm text-fg-2">Попробуйте убрать фильтры.{canManage ? " В управлении каталогом можно проверить источники и опубликовать первую карточку." : " Новые сведения появятся после проверки и публикации."}</p></section> : base === "/v3/universities" ? <ul className="space-y-3">{page.items.map((item) => <StaffUniversityRow key={item.id} university={item} level={filters.level} now={now} />)}</ul> : <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{page.items.map((item) => <li key={item.id} className="min-w-0 rounded-card border border-border bg-surface p-4">
+    {!page.items.length ? <section className="rounded-card border border-border bg-surface px-5 py-10 text-center"><h2 className="t-section text-fg">Пока нет опубликованных карточек по этому запросу</h2><p className="mt-2 text-sm text-fg-2">Попробуйте убрать фильтры.{canManage ? " В управлении каталогом можно проверить источники и опубликовать первую карточку." : " Новые сведения появятся после проверки и публикации."}</p></section> : base === "/v3/universities" ? <ul className="space-y-3">{page.items.map((item) => <StaffUniversityRow key={item.id} university={item} level={filters.level} now={now} />)}</ul> : <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{page.items.map((item) => <li key={item.id} className="min-w-0 rounded-card border border-border bg-surface p-4">
       <Photo content={item.content} />
-      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-fg-3">{universityCountry(item.content.country)}{item.content.city ? ` · ${item.content.city}` : ""}</p>
-      <h2 className="mt-2 break-words text-lg font-semibold leading-6 text-fg"><Link href={`${base}/${item.id}`} className="underline-offset-4 hover:underline">{item.content.name}</Link></h2>
+      <p className="t-caption mt-4 text-fg-3">{universityCountry(item.content.country)}{item.content.city ? ` · ${item.content.city}` : ""}</p>
+      <h2 className="t-section mt-2 break-words text-fg"><Link href={`${base}/${item.id}`} className="underline-offset-4 hover:underline">{item.content.name}</Link></h2>
       <p className="mt-3 line-clamp-3 text-sm leading-6 text-fg-2">{item.content.overview}</p>
       <p className="mt-3 text-xs text-fg-3">Программ в карточке: {item.content.programs.length}</p>
       <Link className={`${link} mt-4 w-full`} href={`${base}/${item.id}`}>Программы и сроки<span className="sr-only"> — {item.content.name}</span></Link>
@@ -77,8 +77,8 @@ export function UniversityList({ page, filters, base, countries, canManage = fal
 function Program({ program, now }: { program: UniversityProgram; now: Date }) {
   const intakes = program.intakes.filter((intake) => intake.status !== "unknown" && intake.status !== "needs_reconfirmation");
   return <article className="rounded-card border border-border bg-surface p-4 sm:p-5">
-    <p className="text-xs font-medium text-fg-3">{UNIVERSITY_LEVEL_LABELS[program.level]}</p>
-    <h3 className="mt-1 text-lg font-semibold text-fg">{program.title}</h3>
+    <p className="t-caption text-fg-3">{UNIVERSITY_LEVEL_LABELS[program.level]}</p>
+    <h3 className="t-section mt-1 text-fg">{program.title}</h3>
     {program.duration || program.language ? <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm">
       {program.duration ? <div><dt className="text-fg-3">Длительность</dt><dd className="mt-1 text-fg">{program.duration}</dd></div> : null}
       {program.language ? <div><dt className="text-fg-3">Язык обучения</dt><dd className="mt-1 text-fg">{program.language}</dd></div> : null}
@@ -86,7 +86,7 @@ function Program({ program, now }: { program: UniversityProgram; now: Date }) {
     <p className="mt-4 text-sm leading-6 text-fg-2">{program.summary}</p>
     <Source href={program.sourceUrl}>Официальная страница программы</Source>
     {intakes.length ? <ul className="mt-3 space-y-3">{intakes.map((intake, index) => <li key={index} className="rounded-ctl border border-border bg-surface-2 p-4">
-      <h4 className="font-medium text-fg">{intake.label}</h4>
+      <h4 className="t-item text-fg">{intake.label}</h4>
       <p className="mt-1 text-sm font-medium text-fg-2">{universityIntakeLabel(intake, now)}</p>
       {intake.startDate || intake.startMonth || intake.applicationDeadline ? <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
         {intake.startDate || intake.startMonth ? <div><dt className="text-fg-3">Начало обучения</dt><dd className="mt-1 text-fg">{intake.startDate ? date(intake.startDate) : new Intl.DateTimeFormat("ru", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${intake.startMonth}-01T12:00:00Z`))}</dd></div> : null}
@@ -100,7 +100,7 @@ export function UniversityContentView({ content, now }: { content: UniversityCon
   return <div className="space-y-6">
     <Photo content={content} large />
     <div><p className="text-sm font-medium text-fg-2">{universityCountry(content.country)}{content.city ? ` · ${content.city}` : ""}</p><p className="mt-3 max-w-3xl text-base leading-7 text-fg">{content.overview}</p><Source href={content.websiteUrl}>Сайт учебного заведения</Source></div>
-    <section aria-labelledby="university-programs"><h2 id="university-programs" className="text-xl font-semibold text-fg">Программы и наборы</h2><div className="mt-4 space-y-4">{content.programs.map((program) => <Program key={program.id} program={program} now={now} />)}</div></section>
+    <section aria-labelledby="university-programs"><h2 id="university-programs" className="t-section text-fg">Программы и наборы</h2><div className="mt-4 space-y-4">{content.programs.map((program) => <Program key={program.id} program={program} now={now} />)}</div></section>
     <Source href={content.sourceUrl}>Основной источник карточки</Source>
   </div>;
 }

@@ -68,10 +68,10 @@ export function ProfileNotes({
       className="rounded-card border border-border bg-surface"
     >
       <div className="border-b border-border px-4 py-3">
-        <h2 id="profile-notes-title" className="text-sm font-semibold text-fg">
+        <h2 id="profile-notes-title" className="t-section text-fg">
           Заметки
         </h2>
-        <p className="mt-0.5 text-2xs text-fg-3">
+        <p className="t-meta mt-0.5 text-fg-3">
           Исправление записывается новой заметкой; сохранённые записи не редактируются.
         </p>
       </div>
@@ -84,7 +84,7 @@ export function ProfileNotes({
           value={notes.subject.studentCaseId ?? ""}
         />
         <input type="hidden" name="request_id" value={state.requestId} />
-        <label htmlFor="profile-note-body" className="block text-xs font-semibold text-fg-2">
+        <label htmlFor="profile-note-body" className="block t-label text-fg-2">
           Новая заметка
         </label>
         <textarea
@@ -112,13 +112,13 @@ export function ProfileNotes({
           <p
             id="profile-note-body-length-error"
             role="alert"
-            className="text-xs text-danger"
+            className="t-body-compact text-danger"
           >
             Изменение не применено: заметка не может превышать 4000 символов.
           </p>
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-2xs text-fg-3" aria-live="polite">
+          <p className="t-body-compact text-fg-3" aria-live="polite">
             {state.status === "idle" ? "До 4000 знаков." : STATUS_COPY[state.status]}
           </p>
           <button
@@ -136,7 +136,7 @@ export function ProfileNotes({
           {notes.rows.map((note, index) => (
             <li key={`${note.createdAt}:${index}`} className="px-4 py-3">
               <p className="whitespace-pre-wrap break-words text-sm text-fg">{note.body}</p>
-              <p className="mt-1 text-2xs text-fg-3">
+              <p className="t-meta mt-1 text-fg-3">
                 <span>{note.authorDisplayName}</span>
                 {" · "}
                 <time dateTime={note.createdAt}>{formatNoteTime(note.createdAt)}</time>

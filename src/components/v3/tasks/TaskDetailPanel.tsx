@@ -224,7 +224,7 @@ export function TaskDetailPanel({ data, closeHref, day }: Readonly<{ data: Panel
       </header>
       <div className="space-y-5 p-4">
         <div>
-          <h2 className="break-words text-lg font-semibold">{title}</h2>
+          <h2 className="t-record-title break-words">{title}</h2>
           <p className="mt-1 text-sm text-fg-2">{taskStatus(status) ?? status}{overdue ? " · Просрочено" : ""}</p>
         </div>
         {description ? <p className="whitespace-pre-wrap break-words text-sm leading-6 text-fg-2">{description}</p> : null}
@@ -251,10 +251,10 @@ export function TaskDetailPanel({ data, closeHref, day }: Readonly<{ data: Panel
 
         {!isDone ? <form onSubmit={data.kind === "staff" ? completeStaff : completeCase} className="space-y-2 border-y border-border py-4">
           {data.kind === "staff"
-            ? <label className="block text-xs font-medium text-fg-2">Результат работы · необязательно
+            ? <label className="block t-label text-fg-2">Результат работы · необязательно
                 <textarea value={completionNote} onChange={(event) => setCompletionNote(event.target.value)} maxLength={4000} rows={2} disabled={pending} className={CONTROL} placeholder="Что сделано и какой следующий шаг?" />
               </label>
-            : <label className="block text-xs font-medium text-fg-2">Причина
+            : <label className="block t-label text-fg-2">Причина
                 <input value={completeReason} onChange={(event) => setCompleteReason(event.target.value)} required maxLength={1000} disabled={pending} className={CONTROL} />
               </label>}
           <button type="submit" disabled={pending} className={PRIMARY}>{pending ? "Сохраняем…" : "Завершить"}</button>
@@ -281,7 +281,7 @@ export function TaskDetailPanel({ data, closeHref, day }: Readonly<{ data: Panel
           <div className="grid gap-3 sm:grid-cols-2">
             <DeadlineFields day={day} task={{ dueOn, dueAt, day: projection.day, minutes: projection.minutes }} defaultKind="none" />
           </div>
-          {data.kind === "case" ? <label className="block text-xs font-medium text-fg-2">Причина изменения
+          {data.kind === "case" ? <label className="block t-label text-fg-2">Причина изменения
             <input value={editReason} onChange={(event) => setEditReason(event.target.value)} required maxLength={1000} disabled={pending} className={CONTROL} />
           </label> : null}
           <button type="submit" disabled={pending} className={SECONDARY}>{pending ? "Сохраняем…" : "Сохранить"}</button>

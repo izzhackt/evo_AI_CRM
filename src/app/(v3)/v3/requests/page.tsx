@@ -97,7 +97,7 @@ export default async function RequestsPage({ searchParams }: {
                   href={`/v3/profile?id=${encodeURIComponent(row.leadId)}&returnTo=${encodeURIComponent(currentHref)}`}
                   className="inline-flex min-h-11 items-center break-words text-base font-semibold text-fg hover:text-accent hover:underline">
                   {row.personName}
-                </Link> : <h2 className="break-words text-base font-semibold text-fg">{row.personName}</h2>}
+                </Link> : <h2 className="t-section break-words text-fg">{row.personName}</h2>}
                 <p className="mt-1 text-sm text-fg-2">{row.kind === "application" ? "Анкета платформы" : row.kind === "consultation" ? "Консультация" : `Обращение · ${FILTER_LABELS[row.source]}`}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-fg-2">

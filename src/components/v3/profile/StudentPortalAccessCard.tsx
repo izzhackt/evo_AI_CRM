@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 
-import { btnCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   manageStudentPortalAccessAction,
   type StudentPortalAccessActionState,
@@ -146,7 +146,7 @@ export function StudentPortalAccessControls({
         <input type="hidden" name="request_id" value={requestId} />
         {legacyPending ? (
           <label>
-            <span className={labelCls}>Ответственный Curator</span>
+            <span className={fieldLabelCls}>Ответственный Curator</span>
             <select
               className={inputCls}
               name="legacy_curator_membership_id"
@@ -167,7 +167,7 @@ export function StudentPortalAccessControls({
           <input type="hidden" name="legacy_curator_membership_id" value="" />
         )}
         <label className={legacyPending ? "" : "md:col-span-2"}>
-          <span className={labelCls}>Причина</span>
+          <span className={fieldLabelCls}>Причина</span>
           <input
             className={inputCls}
             name="reason"
@@ -190,7 +190,7 @@ export function StudentPortalAccessControls({
           <input type="hidden" name="case_shape" value={caseShape} />
           <BindingFields state={state} />
           <label>
-            <span className={labelCls}>Причина повторного приглашения</span>
+            <span className={fieldLabelCls}>Причина повторного приглашения</span>
             <input
               className={inputCls}
               name="reason"

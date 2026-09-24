@@ -51,7 +51,7 @@ export async function UniversityProgramsTab({
       {draft.handoffAcknowledgement ? <ProfileHandoffAcknowledgement snapshot={draft.handoffAcknowledgement} /> : null}
 
       <section id="admissions-workspace" className="space-y-3">
-        <h3 className="font-semibold text-fg">Вузы и программы</h3>
+        <h3 className="t-item text-fg">Вузы и программы</h3>
         <p className="text-sm leading-6 text-fg-2">
           Добавьте рассматриваемые варианты и отметьте основной. Выбор университета не означает подачу документов.
         </p>

@@ -73,3 +73,31 @@ for (const [peak, expectedTicks] of [
     assert.deepEqual({ series, ticks }, before, "rendering leaves caller arrays unchanged");
   });
 }
+
+// Подписи осей крупнее 10 единиц, поэтому деления расставляются без наложения.
+const { placeTicks } = componentModule.exports;
+const thinned = (labels) => labels.map((one, index) => (index % Math.max(1, Math.ceil(labels.length / 7)) === 0 ? one : ""));
+const days = (first, count, month, withYear) => Array.from({ length: count }, (_, index) =>
+  `${first + index} ${month}${withYear && index === 0 ? " 2025" : ""}`);
+
+test("tick placement keeps every thinned label of an ordinary month", () => {
+  const ticks = thinned([...days(1, 30, "сен", false)]);
+  assert.deepEqual(placeTicks(ticks).map((tick) => tick.label), ["1 сен", "6 сен", "11 сен", "16 сен", "21 сен", "26 сен"]);
+  assert.deepEqual(placeTicks(ticks).map((tick) => tick.anchor), ["start", "middle", "middle", "middle", "middle", "middle"]);
+});
+
+test("a first label carrying the year drops only its colliding neighbour", () => {
+  const month = thinned([...days(26, 6, "дек", true), ...days(1, 24, "янв", false)]);
+  assert.deepEqual(placeTicks(month).map((tick) => tick.label), ["26 дек 2025", "5 янв", "10 янв", "15 янв", "20 янв"]);
+  const week = [...days(28, 4, "дек", true), ...days(1, 3, "янв", false)];
+  assert.deepEqual(placeTicks(week).map((tick) => tick.label), ["28 дек 2025", "30 дек", "31 дек", "1 янв", "2 янв", "3 янв"]);
+  assert.equal(placeTicks(week).at(-1).anchor, "end");
+});
+
+test("the last label names the end of the period and always stays", () => {
+  const ticks = ["1 сен", "", "", "", "", "", "", "", "длинная подпись предпоследнего деления", "30 сен"];
+  const placed = placeTicks(ticks);
+  assert.deepEqual(placed.map((tick) => tick.index), [0, 9]);
+  assert.equal(placed.at(-1).label, "30 сен");
+  assert.deepEqual(placeTicks(Object.freeze(["Начало", "Конец"])).map((tick) => tick.label), ["Начало", "Конец"]);
+});

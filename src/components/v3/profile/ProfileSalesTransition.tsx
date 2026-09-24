@@ -7,7 +7,7 @@ import { isStaffPreview } from "@/lib/platform-access";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
-import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
   mutatePlatformLeadAdmissionsGateAction,
@@ -65,7 +65,7 @@ function ActionResult({ status }: { status: PlatformStudentHandoffActionStatus }
 
 function Version({ value }: { value: string }) {
   return (
-    <span className="text-2xs text-fg-3">
+    <span className="t-meta text-fg-3">
       Версия проверки: <span className="font-mono text-fg-2">{value}</span>
     </span>
   );
@@ -123,7 +123,7 @@ function GateActionForm({
       {contract ? (
         <div className="grid gap-3 @4xl:grid-cols-[minmax(0,1fr)_7rem_10rem]">
           <label>
-            <span className={labelCls}>Ожидаемая сумма</span>
+            <span className={fieldLabelCls}>Ожидаемая сумма</span>
             <input
               name="amount"
               inputMode="decimal"
@@ -135,7 +135,7 @@ function GateActionForm({
             />
           </label>
           <label>
-            <span className={labelCls}>Валюта</span>
+            <span className={fieldLabelCls}>Валюта</span>
             <input
               name="currency"
               pattern="[A-Za-z]{3}"
@@ -149,7 +149,7 @@ function GateActionForm({
             />
           </label>
           <label>
-            <span className={labelCls}>Ожидаемая дата</span>
+            <span className={fieldLabelCls}>Ожидаемая дата</span>
             <input
               type="date"
               name="due_date"
@@ -169,7 +169,7 @@ function GateActionForm({
 
       {payment ? (
         <label className="block max-w-60">
-          <span className={labelCls}>Дата получения</span>
+          <span className={fieldLabelCls}>Дата получения</span>
           <input
             type="date"
             name="received_date"
@@ -184,7 +184,7 @@ function GateActionForm({
 
       {override ? (
         <label>
-          <span className={labelCls}>Причина исключения</span>
+          <span className={fieldLabelCls}>Причина исключения</span>
           <textarea
             name="reason"
             required
@@ -202,7 +202,7 @@ function GateActionForm({
         <input type="hidden" name="evidence_reference" value="" />
       ) : (
         <label>
-          <span className={labelCls}>Доказательство</span>
+          <span className={fieldLabelCls}>Доказательство</span>
           <input
             name="evidence_reference"
             required
@@ -234,7 +234,7 @@ function GateActionForm({
 
 function Evidence({ value }: { value: string | null }) {
   return value ? (
-    <p className="mt-1 break-all text-2xs leading-5 text-fg-3">{value}</p>
+    <p className="t-meta mt-1 break-all text-fg-3">{value}</p>
   ) : null;
 }
 
@@ -265,7 +265,7 @@ function GateCard({
       <div className="grid gap-0 @5xl:grid-cols-2" data-testid="v3-sales-gate">
         <section className="space-y-3 p-4 @5xl:border-e @5xl:border-border">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-sm font-semibold text-fg">Договор</h4>
+            <h4 className="t-item text-fg">Договор</h4>
             <Pill tone={gate.contractConfirmed ? "ok" : "neutral"}>
               {gate.contractConfirmed ? "подтверждён" : "не подтверждён"}
             </Pill>
@@ -293,7 +293,7 @@ function GateCard({
 
         <section className="space-y-3 border-t border-border p-4 @5xl:border-t-0">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-sm font-semibold text-fg">Первый платёж</h4>
+            <h4 className="t-item text-fg">Первый платёж</h4>
             <Pill tone={gate.firstPaymentReceivedDate ? "ok" : "neutral"}>
               {gate.firstPaymentReceivedDate ? "получен" : "не получен"}
             </Pill>
@@ -319,7 +319,7 @@ function GateCard({
 
       {canOverride ? (
         <div className="border-t border-border p-4">
-          <h4 className="text-sm font-semibold text-fg">Исключение Admin</h4>
+          <h4 className="t-item text-fg">Исключение Admin</h4>
           <GateActionForm
             key={`override:${gate.gateVersion}`}
             actionName="override_gate"
@@ -434,7 +434,7 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
               </p>
             ) : null}
             {decision === "clarification_requested" ? (
-              <label className={labelCls}>
+              <label className={fieldLabelCls}>
                 Что нужно уточнить у Sales
                 <textarea name="clarification" required maxLength={2000} rows={3}
                   className={cn(inputCls, "mt-1 min-h-24 resize-y")} value={clarification}
@@ -442,7 +442,7 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
                   aria-invalid={state.status === "invalid" || undefined} />
               </label>
             ) : declining ? (
-              <label className={labelCls}>
+              <label className={fieldLabelCls}>
                 Причина отклонения
                 <textarea name="clarification" required maxLength={1000} rows={3}
                   className={cn(inputCls, "mt-1 min-h-24 resize-y")} value={clarification}
@@ -453,7 +453,7 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
             {declining ? (
               <input type="hidden" name="agreed_contact_date" value="" />
             ) : (
-              <label className={labelCls}>
+              <label className={fieldLabelCls}>
                 Согласованная дата контакта · необязательно
                 <input type="date" name="agreed_contact_date" className={cn(inputCls, "mt-1 min-h-11")}
                   min="0001-01-01" max="9999-12-31" value={contactDate}

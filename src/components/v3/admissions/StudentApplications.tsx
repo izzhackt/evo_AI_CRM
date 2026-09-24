@@ -15,7 +15,7 @@ export function StudentApplicationAnswers({ application }: { application: Studen
   const answers = [...formatStudentApplicationAnswers(application.questionnaire), { label: "Почта", value: application.email }];
   return <section className="min-w-0 rounded-[10px] border border-border bg-surface" aria-label="Заполнено студентом">
     <div className="border-b border-border px-4 py-3">
-      <h3 className="text-sm font-semibold text-fg">Заполнено студентом</h3>
+      <h3 className="t-item text-fg">Заполнено студентом</h3>
       <p className="mt-1 text-sm text-fg-2">Отправлено {submittedDate(application.submittedAt)}. Сведения требуют проверки.</p>
     </div>
     <dl className="grid min-w-0 divide-y divide-border">

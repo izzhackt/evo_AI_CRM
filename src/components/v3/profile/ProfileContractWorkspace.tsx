@@ -79,7 +79,7 @@ function Fact({ label, children }: Readonly<{
 }>) {
   return (
     <div className="min-w-0 border-b border-border px-4 py-2.5 last:border-b-0">
-      <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
+      <dt className="t-caption text-fg-3">
         {label}
       </dt>
       <dd className="mt-1 break-words text-sm leading-5 text-fg">
@@ -134,7 +134,7 @@ function HandoffContext({ handoff }: Readonly<{
           </Fact>
         </dl>
         <div className="border-t border-border px-4 py-3 text-sm leading-5 text-fg-2">
-          <p className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
+          <p className="t-caption text-fg-3">
             Причина передачи
           </p>
           <p
@@ -145,7 +145,7 @@ function HandoffContext({ handoff }: Readonly<{
           </p>
         </div>
         <div className="border-t border-border px-4 py-3">
-          <p className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
+          <p className="t-caption text-fg-3">
             Стартовые задачи
           </p>
           {handoff.starterTasks.length === 0 ? (

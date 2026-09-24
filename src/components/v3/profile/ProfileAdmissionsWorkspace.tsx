@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
 import { Pill, type PillTone } from "@/components/v3/Pill";
-import { btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   changePlatformUniversityApplicationAction,
   updateApplicationPartnerDetailsAction,
@@ -99,7 +99,7 @@ export function ApplicationCountryField({
   const options = platformApplicationCountryEditOptions(defaultValue || null);
   return (
     <label>
-      <span className={labelCls}>Страна</span>
+      <span className={fieldLabelCls}>Страна</span>
       <select name="country" defaultValue={defaultValue} className={inputCls}>
         <option value="">Не указана</option>
         {options.map((countryCode) => (
@@ -119,7 +119,7 @@ export function ApplicationDegreeField({
   const options = platformApplicationDegreeEditOptions(defaultValue || null);
   return (
     <label>
-      <span className={labelCls}>Ступень</span>
+      <span className={fieldLabelCls}>Ступень</span>
       <select name="degree" defaultValue={defaultValue} className={inputCls}>
         <option value="">Не указана</option>
         {options.map((degreeKey) => (
@@ -214,7 +214,7 @@ function ApplicationStatusForm({
       <input type="hidden" name="expected_version" value={state.version ?? application.version} />
       <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
         <label>
-          <span className={labelCls}>Статус</span>
+          <span className={fieldLabelCls}>Статус</span>
           <select
             name="status"
             required
@@ -230,14 +230,14 @@ function ApplicationStatusForm({
         </label>
         {needsEvidence ? (
           <label>
-            <span className={labelCls}>Ссылка на подтверждение</span>
+            <span className={fieldLabelCls}>Ссылка на подтверждение</span>
             <input name="evidence_reference" required maxLength={1000} className={inputCls} />
           </label>
         ) : (
           <input type="hidden" name="evidence_reference" value="" />
         )}
         <label className="md:col-span-2">
-          <span className={labelCls}>Заметка</span>
+          <span className={fieldLabelCls}>Заметка</span>
           <textarea name="note" required={needsNote} rows={2} maxLength={1000} className={inputCls} />
         </label>
         <button type="submit" className={btnGhostCls} disabled={locked || !nextStatus}>
@@ -277,7 +277,7 @@ function ApplicationDetailsForm({
       <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
         <PrimaryApplicationField defaultChecked={application.isPrimary} />
         <label>
-          <span className={labelCls}>Дедлайн от университета</span>
+          <span className={fieldLabelCls}>Дедлайн от университета</span>
           <input
             name="university_deadline_on"
             type="date"
@@ -343,7 +343,7 @@ function ApplicationPartnerFacts({
     if (facts.length === 0) return null;
     return (
       <div className="mt-3 rounded-nav border border-border p-3">
-        <h4 className="text-sm font-medium text-fg">Партнёр и решение</h4>
+        <h4 className="t-item text-fg">Партнёр и решение</h4>
         <dl className="mt-2 grid gap-2 sm:grid-cols-2">
           {facts.map((fact) => (
             <div key={fact.label} className="min-w-0">
@@ -358,14 +358,14 @@ function ApplicationPartnerFacts({
 
   return (
     <form action={action} className="mt-3 space-y-3 rounded-nav border border-border p-3" aria-busy={pending}>
-      <h4 className="text-sm font-medium text-fg">Партнёр и решение</h4>
+      <h4 className="t-item text-fg">Партнёр и решение</h4>
       <input type="hidden" name="application_id" value={application.universityApplicationId} />
       <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
       <input type="hidden" name="request_id" value={state.requestId} />
       <input type="hidden" name="expected_version" value={state.version ?? application.version} />
       <fieldset disabled={locked} className="grid gap-3 sm:grid-cols-2">
         <label>
-          <span className={labelCls}>Контакт партнёра</span>
+          <span className={fieldLabelCls}>Контакт партнёра</span>
           <input
             name="partner_contact"
             maxLength={300}
@@ -375,7 +375,7 @@ function ApplicationPartnerFacts({
           />
         </label>
         <label>
-          <span className={labelCls}>Ссылка</span>
+          <span className={fieldLabelCls}>Ссылка</span>
           <input
             name="external_link"
             type="url"
@@ -387,7 +387,7 @@ function ApplicationPartnerFacts({
           />
         </label>
         <label>
-          <span className={labelCls}>Номер / ссылка решения</span>
+          <span className={fieldLabelCls}>Номер / ссылка решения</span>
           <input
             name="decision_reference"
             maxLength={300}
@@ -397,7 +397,7 @@ function ApplicationPartnerFacts({
           />
         </label>
         <label className="sm:col-span-2">
-          <span className={labelCls}>Заметка о решении</span>
+          <span className={fieldLabelCls}>Заметка о решении</span>
           <textarea
             name="decision_note"
             maxLength={2000}
@@ -441,7 +441,7 @@ function FinanceStopCreateForm({
       <input type="hidden" name="expected_version" value="0" />
       <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
         <label>
-          <span className={labelCls}>Что блокируем</span>
+          <span className={fieldLabelCls}>Что блокируем</span>
           <select
             name="blocked_action"
             required
@@ -454,15 +454,15 @@ function FinanceStopCreateForm({
           </select>
         </label>
         <label>
-          <span className={labelCls}>Следующий шаг</span>
+          <span className={fieldLabelCls}>Следующий шаг</span>
           <input name="next_action" required minLength={3} maxLength={1000} className={inputCls} />
         </label>
         <label>
-          <span className={labelCls}>Причина</span>
+          <span className={fieldLabelCls}>Причина</span>
           <input name="reason" required minLength={3} maxLength={1000} className={inputCls} />
         </label>
         <label>
-          <span className={labelCls}>Ссылка на подтверждение</span>
+          <span className={fieldLabelCls}>Ссылка на подтверждение</span>
           <input name="evidence_ref" required maxLength={512} className={inputCls} />
         </label>
         <button type="submit" className={btnGhostCls} disabled={locked}>
@@ -504,11 +504,11 @@ function FinanceStopResolveForm({
       <input type="hidden" name="expected_version" value={state.version ?? version} />
       <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
         <label>
-          <span className={labelCls}>Причина снятия</span>
+          <span className={fieldLabelCls}>Причина снятия</span>
           <input name="reason" required minLength={3} maxLength={1000} className={inputCls} />
         </label>
         <label>
-          <span className={labelCls}>Ссылка на подтверждение</span>
+          <span className={fieldLabelCls}>Ссылка на подтверждение</span>
           <input name="evidence_ref" required maxLength={512} className={inputCls} />
         </label>
         <button type="submit" className={btnGhostCls} disabled={locked}>

@@ -33,7 +33,7 @@ export function ApplicationDeadlineChip({
       <span className="line-clamp-2 w-full break-words text-xs font-semibold text-fg">
         {ADMISSIONS_DEADLINE_LABELS[deadline.deadlineKind]} · {deadline.universityName}{deadline.programName ? ` · ${deadline.programName}` : ""}
       </span>
-      <span className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 text-2xs text-fg-3">
+      <span className="t-meta flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 text-fg-3">
         <span>{deadline.studentDisplayName}</span>
         {status ? <Pill tone="neutral">{status}</Pill> : null}
       </span>
@@ -60,7 +60,7 @@ export function NearestApplicationDeadline({
       aria-label="Ближайший срок поступления"
       className="rounded-card border border-border bg-surface p-4"
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-fg-3">
+      <p className="t-caption text-fg-3">
         Ближайший дедлайн
       </p>
       {deadline ? (

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 
-import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   saveLeadSaleConditionsGroupAction,
   type SaveLeadSaleConditionsActionState,
@@ -110,7 +110,7 @@ export function LeadSaleConditions({
 
   const currencySelect = (label: string, value: string, onChange: (value: string) => void) => (
     <label>
-      <span className={labelCls}>{label}</span>
+      <span className={fieldLabelCls}>{label}</span>
       <select value={value} disabled={locked} onChange={(event) => onChange(event.target.value)} className={cn(inputCls, "min-h-11 w-full")}>
         <option value="">Не указана</option>
         {SALE_CONDITION_CURRENCIES.map((code: SaleConditionCurrency) => (
@@ -142,7 +142,7 @@ export function LeadSaleConditions({
           <input type="hidden" name="request_id" value={state.requestId} />
           <input type="hidden" name="field_group" value="sale" />
           <label className="block">
-            <span className={labelCls}>Услуга/пакет</span>
+            <span className={fieldLabelCls}>Услуга/пакет</span>
             <input
               name="service_label"
               value={draft.serviceLabel}
@@ -153,7 +153,7 @@ export function LeadSaleConditions({
             />
           </label>
           <label className="block max-w-60">
-            <span className={labelCls}>Дата продажи</span>
+            <span className={fieldLabelCls}>Дата продажи</span>
             <input
               type="date"
               name="signing_date"
@@ -168,7 +168,7 @@ export function LeadSaleConditions({
           <div className="grid gap-3 @2xl:grid-cols-2">
             <div className="grid grid-cols-[minmax(0,1fr)_8.5rem] gap-3">
               <label>
-                <span className={labelCls}>Сумма</span>
+                <span className={fieldLabelCls}>Сумма</span>
                 <input
                   inputMode="decimal"
                   pattern="[0-9]+([.,][0-9]{1,2})?"
@@ -182,7 +182,7 @@ export function LeadSaleConditions({
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_8.5rem] gap-3">
               <label>
-                <span className={labelCls}>Оплачено</span>
+                <span className={fieldLabelCls}>Оплачено</span>
                 <input
                   inputMode="decimal"
                   pattern="[0-9]+([.,][0-9]{1,2})?"
@@ -196,7 +196,7 @@ export function LeadSaleConditions({
             </div>
           </div>
           <label className="block">
-            <span className={labelCls}>Заметка об оплате</span>
+            <span className={fieldLabelCls}>Заметка об оплате</span>
             <textarea
               name="payment_note"
               value={draft.paymentNote}

@@ -23,8 +23,8 @@ export default async function V3NotFound() {
       data-testid="v3-not-found"
     >
       <section className="w-full border-y border-border py-10 sm:py-14">
-        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-fg-3">{words.eyebrow}</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">{words.title}</h1>
+        <p className="t-caption text-fg-3">{words.eyebrow}</p>
+        <h1 className="t-page-title mt-2 text-fg">{words.title}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-fg-3">{words.staffText}</p>
         <Link
           href={home}

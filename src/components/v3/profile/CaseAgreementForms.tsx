@@ -1,7 +1,7 @@
 "use client";
 import { useActionState, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   saveCaseTrancheAction,
   recordCasePaymentAction,
@@ -163,7 +163,7 @@ function TrancheEditor({
         <input type="hidden" name="archive" value={archive ? "true" : "false"} />
         <fieldset disabled={locked} className="space-y-3">
           <label className="block">
-            <span className={labelCls}>Название</span>
+            <span className={fieldLabelCls}>Название</span>
             <input
               name="label"
               maxLength={500}
@@ -174,7 +174,7 @@ function TrancheEditor({
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label>
-              <span className={labelCls}>Сумма</span>
+              <span className={fieldLabelCls}>Сумма</span>
               <input
                 name="amount"
                 inputMode="decimal"
@@ -191,7 +191,7 @@ function TrancheEditor({
               />
             </label>
             <label>
-              <span className={labelCls}>Валюта</span>
+              <span className={fieldLabelCls}>Валюта</span>
               <input
                 name="currency"
                 pattern="[A-Za-z]{3}"
@@ -204,7 +204,7 @@ function TrancheEditor({
             </label>
           </div>
           <label className="block">
-            <span className={labelCls}>Срок</span>
+            <span className={fieldLabelCls}>Срок</span>
             <input name="due_on" type="date" defaultValue={tranche?.dueOn ?? ""} className={inputCls} />
           </label>
           {tranche && canArchive ? (
@@ -366,7 +366,7 @@ function PaymentForm({
         <input type="hidden" name="currency" value={obligation?.currency ?? ""} />
         <fieldset disabled={locked} className="space-y-3">
           <label className="block">
-            <span className={labelCls}>Транш</span>
+            <span className={fieldLabelCls}>Транш</span>
             <select
               name="payment_obligation_id"
               required
@@ -387,7 +387,7 @@ function PaymentForm({
             </p>
           ) : null}
           <label className="block">
-            <span className={labelCls}>Сумма{obligation ? ` (${obligation.currency})` : ""}</span>
+            <span className={fieldLabelCls}>Сумма{obligation ? ` (${obligation.currency})` : ""}</span>
             <input
               name="amount"
               inputMode="decimal"
@@ -397,7 +397,7 @@ function PaymentForm({
             />
           </label>
           <label className="block">
-            <span className={labelCls}>Чек</span>
+            <span className={fieldLabelCls}>Чек</span>
             <input
               ref={receiptInputRef}
               type="file"

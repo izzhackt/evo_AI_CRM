@@ -86,7 +86,7 @@ export default async function UniversityFormsPage({ params, searchParams }: {
         <div className="min-w-0 space-y-6">
           {create ? <UniversityFormCreate key="create" catalogId={catalogId} templateId={randomUUID()} requestId={randomUUID()} action={createUniversityFormAction} />
             : workspace ? <>
-              <div className="space-y-2"><h2 className="break-words text-xl font-bold text-fg">{workspace.template.title}</h2>
+              <div className="space-y-2"><h2 className="t-record-title break-words text-fg">{workspace.template.title}</h2>
                 {workspace.template.archived ? <p className="text-sm text-fg-2">{words.archived}</p> : null}
                 {inspection?.source_current === false && !workspace.template.archived ? <p role="alert" className="text-sm text-fg-2">{words.sourceChanged}</p> : null}
               </div>
@@ -104,7 +104,7 @@ export default async function UniversityFormsPage({ params, searchParams }: {
                   mappingId={randomUUID()} requestId={randomUUID()} initialMappings={mapping?.mappings ?? []} action={manageUniversityFormAction} />
                   : <Link prefetch={false} href={`${base}?template=${workspace.template.id}&version=${selected.id}${beforeMapping ? `&before_mapping=${beforeMapping}` : ""}&mapping=${mapping.id}&edit=1`} className={link}>{management.edit}</Link> : null}
               {mapping && !upload && !edit ? <div className="space-y-5 border-t border-border pt-5">
-                <div className="space-y-2"><h3 className="text-lg font-bold text-fg">{management.mappings}</h3>
+                <div className="space-y-2"><h3 className="t-section text-fg">{management.mappings}</h3>
                   <p className="text-sm text-fg-2">{management.mappingCount} {mapping.mappings.length} · {mapping.review?.decision === "approved" ? management.mappingApproved : mapping.review?.decision === "rejected" ? management.mappingRejected : management.mappingPending}</p>
                   {!(writable && selected && inspection?.inspection === "verified" && inspection.manifest) ? <ul className="max-h-80 space-y-2 overflow-y-auto pr-2" tabIndex={0} aria-label={management.mappings}>
                     {mapping.mappings.map(field => <li key={field.slotId} className="text-sm leading-6 text-fg">
@@ -141,7 +141,7 @@ export default async function UniversityFormsPage({ params, searchParams }: {
                   versionId={selected?.id ?? null} revision={workspace.template.revision} requestId={randomUUID()}
                   decision={{ operation: "archive" }} action={manageUniversityFormAction} />
               </details> : null}
-            </> : <div className="space-y-2"><h2 className="text-xl font-bold text-fg">{templates.items.length ? words.choose : words.empty}</h2>
+            </> : <div className="space-y-2"><h2 className="t-section text-fg">{templates.items.length ? words.choose : words.empty}</h2>
               <p className="max-w-xl text-sm leading-6 text-fg-2">{templates.items.length ? words.chooseExplanation : words.emptyExplanation}</p></div>}
         </div>
       </div>

@@ -36,7 +36,7 @@ export function ContextBanner({
           <Icon name={tone === "danger" || tone === "warning" ? "alert" : "file-check"} size={16} />
         </span>
         <div className="min-w-0">
-          <h2 className="text-sm font-bold text-current">{title}</h2>
+          <h2 className="t-item text-current">{title}</h2>
           <p className="mt-0.5 text-sm leading-5">{description}</p>
         </div>
       </div>

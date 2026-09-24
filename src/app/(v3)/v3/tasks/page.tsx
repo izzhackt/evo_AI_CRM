@@ -129,11 +129,11 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   return <>
     <PartShell title="Задачи" action={!sourceLead ? composer : undefined}>
     {sourceLead ? <section className="mb-5 space-y-3 border-y border-border py-4" aria-label="Задачи по лиду">
-      <h2 className="text-lg font-semibold">{sourceLead.clientDisplayName ?? "Имя клиента не указано"}</h2>
+      <h2 className="t-section">{sourceLead.clientDisplayName ?? "Имя клиента не указано"}</h2>
       <p className="text-sm text-fg-2">Следующее действие воронки: {sourceLead.nextActionText ?? "Не назначено"}{sourceLead.nextActionDueDate ? ` · ${sourceLead.nextActionDueDate}` : ""}</p>
       {sourceLead.canOpenPipeline ? <Link href={sourceLead.clientDisplayName === "Имя клиента не указано" ? "/v3/pipeline" : `/v3/pipeline?q=${encodeURIComponent(sourceLead.clientDisplayName)}`} className="inline-flex min-h-11 items-center text-sm underline">Открыть в воронке</Link> : null}
       {composer}
-      <h3 className="text-sm font-semibold">Связанные рабочие задачи</h3>
+      <h3 className="t-item">Связанные рабочие задачи</h3>
       {leadTasks?.rows.length ? <ul className="divide-y divide-border">{leadTasks.rows.map((task) => <li key={task.id}><Link href={`/v3/tasks?task=${task.id}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="break-words underline">{task.title}</span><Badge value={task.status} label={taskStatus(task.status) ?? task.status} /></Link></li>)}</ul> : <EmptyState text="Нет доступных связанных задач. Можно создать первую выше." />}
       {leadTasks?.truncated ? <p className="text-sm text-fg-2">Показаны последние 50 задач. Остальные доступны в общем списке.</p> : null}
       <Link href="/v3/tasks" className="inline-flex min-h-11 items-center text-sm underline">Все мои задачи →</Link>

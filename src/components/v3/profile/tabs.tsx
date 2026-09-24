@@ -56,7 +56,7 @@ function FactList({ facts }: { facts: readonly Fact[] }) {
           key={fact.label}
           className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5 last:border-b-0"
         >
-          <dt className="w-40 shrink-0 text-2xs text-fg-3">{fact.label}</dt>
+          <dt className="t-caption w-40 shrink-0 text-fg-3">{fact.label}</dt>
           <dd className="min-w-0 flex-1 text-sm text-fg">
             {fact.value}
           </dd>
@@ -296,14 +296,14 @@ export function Overview({
           blocked ? "v3-edge-danger border-border border-s-2" : "border-border"
         }`}
       >
-        <span className="text-2xs font-semibold uppercase tracking-wide text-fg-3">Оплата</span>
-        <span className="text-2xl font-bold leading-tight tracking-[-0.02em] text-fg">
+        <span className="t-caption text-fg-3">Оплата</span>
+        <span className="t-figure text-fg">
           {draft.paidPercent === null ? "—" : draft.paidPercent}
           {draft.paidPercent === null ? null : (
             <span className="text-sm font-normal text-fg-3">%</span>
           )}
         </span>
-        <span className="text-2xs text-fg-3">
+        <span className="t-meta text-fg-3">
           {profile.financeStop
             ? `финансовый стоп: ${profile.financeStop}`
             : draft.remaining
@@ -325,7 +325,7 @@ export function Overview({
                 </Pill>
                 {application.isPrimary ? <Pill tone="info">Основной вариант</Pill> : null}
               </p>
-              <p className="px-4 pb-3 pt-0.5 text-2xs text-fg-3">
+              <p className="t-meta px-4 pb-3 pt-0.5 text-fg-3">
                 {application.institution} · набор {application.intake}
                 {application.universityDeadlineOn
                   ? ` · дедлайн ${allDayDate(application.universityDeadlineOn) ?? "не указан"}`
@@ -486,7 +486,7 @@ export function Money({
                 <span className="min-w-0 flex-1 break-words text-sm text-fg">
                   {payment.name}
                 </span>
-                <span className="shrink-0 font-mono text-sm tabular-nums text-fg">
+                <span className="shrink-0 text-sm tabular-nums text-fg">
                   {payment.amount}
                 </span>
                 <Pill tone={PAY_TONE[payment.state]}>{payment.at}</Pill>
@@ -530,13 +530,13 @@ export function History({ profile }: { profile: PersonProfile }) {
                     {entry.href ? (
                       <Link href={entry.href} className="inline-flex min-h-11 min-w-0 items-center text-sm text-fg underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2">{label}</Link>
                     ) : <span className="min-w-0 text-sm text-fg">{label}</span>}
-                    {entry.at ? <span className="font-mono text-2xs text-fg-3">{entry.at}</span> : null}
+                    {entry.at ? <span className="t-meta font-mono text-fg-3">{entry.at}</span> : null}
                   </div>
                   {entry.changedFields?.length ? (
                     <p className="mt-1 text-xs text-fg-3">Изменено: {[...new Set(entry.changedFields.map(taskChangeField).filter(Boolean))].join(", ")}.</p>
                   ) : null}
                   {roleWord(entry.role) ? (
-                    <p className="mt-0.5 text-2xs text-fg-3">{roleWord(entry.role)}</p>
+                    <p className="t-meta mt-0.5 text-fg-3">{roleWord(entry.role)}</p>
                   ) : null}
                 </li>
               );

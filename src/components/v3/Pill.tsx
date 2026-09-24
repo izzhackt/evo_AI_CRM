@@ -33,7 +33,7 @@ export function Pill({
 }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-[5px] px-1.5 py-0.5 text-2xs font-medium leading-4 ${TONE[tone]}`}
+      className={`t-caption inline-flex shrink-0 items-center rounded-[5px] px-1.5 py-0.5 ${TONE[tone]}`}
     >
       {children}
     </span>

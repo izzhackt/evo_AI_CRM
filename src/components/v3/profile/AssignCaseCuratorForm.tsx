@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
-import { btnCls, btnGhostCls, cn, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, cn, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   assignCaseCuratorAction,
   type AssignCaseCuratorActionState,
@@ -65,7 +65,7 @@ export function AssignCaseCuratorForm({
     <form action={action} className="flex flex-col gap-2" aria-busy={pending} data-testid="v3-assign-case-curator-form">
       <input type="hidden" name="student_case_id" value={studentCaseId} />
       <input type="hidden" name="request_id" value={state.requestId} />
-      <label className={labelCls}>
+      <label className={fieldLabelCls}>
         Куратор
         <select
           name="curator_membership_id"
@@ -83,7 +83,7 @@ export function AssignCaseCuratorForm({
           ))}
         </select>
       </label>
-      <label className={labelCls}>
+      <label className={fieldLabelCls}>
         Причина назначения
         <textarea
           name="reason"

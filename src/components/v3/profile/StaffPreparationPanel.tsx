@@ -125,7 +125,7 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
     {opened ? <div id={`${id}-documents`} className="mt-4 space-y-3" aria-busy={loading || pending}>
       {editorOpen ? <StaffRequirementsEditor key={`${scope.organizationId}:${scope.membershipId}:${scope.studentCaseId}:${preparation.applicationId}`} scope={{ ...scope, applicationId: preparation.applicationId }} onSaved={() => { void load(); }} onClose={() => { setEditorOpen(false); requestAnimationFrame(() => editorButton.current?.focus()); }} /> : <>
       {canRead ? <PackagePreparation scope={documentScope} readiness={documents} loading={loading} audience="staff" strings={packageStrings("ru")} documentStrings={documentStrings} canReview={canReview} recovery={false} onSaved={() => void load()} epoch={historyEpoch} /> : null}
-      <h4 className="font-semibold text-fg">Документы программы</h4>
+      <h4 className="t-item text-fg">Документы программы</h4>
       {requirements?.origin === "evo_starter" ? <p className="max-w-2xl text-sm leading-6 text-fg-2">Фото и паспорт — стартовые документы. Полный список для программы ещё нужно уточнить.</p> : null}
       {requirements?.configurationState === "confirmed" ? <p className="max-w-2xl text-sm leading-6 text-fg-2">Состав требований подтверждён сотрудником EVO. Файлы проверяются отдельно.</p> : null}
       {!canRead || view?.status === "forbidden" ? <p className="text-sm text-fg-2">Выбор программы сохранён. Нет доступа к чтению документов этого дела.</p> : <>

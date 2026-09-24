@@ -225,7 +225,7 @@ test("rendered facets show summary numbers and mark only the selected facets wit
   // «Отмена» keeps the table on the same curator, like every coverage link.
   assert.match(filtered, new RegExp(`href="/v3/profile\\?curator=${CURATOR}&amp;coverage_curator=${CURATOR}#curator-coverage">Отмена</a>`, "u"));
   // The summary is read with the chosen curator, so «Все» narrows with it.
-  assert.match(filtered, /Все<\/span><span class="shrink-0 font-mono tabular-nums text-fg-3"><span class="sr-only">в работе: <\/span>104<\/span>/u);
+  assert.match(filtered, /Все<\/span><span class="shrink-0 tabular-nums text-fg-3"><span class="sr-only">в работе: <\/span>104<\/span>/u);
   // Coverage dates use the table's mono day.month format.
   assert.match(filtered, /<dt class="inline">Ближайший срок: <\/dt><dd class="inline text-fg"><time dateTime="2026-09-25" class="whitespace-nowrap font-mono tabular-nums">25\.09<\/time><\/dd>/u);
   assert.match(filtered, /Айгүл Осмонова · <time dateTime="2026-09-20" class="whitespace-nowrap font-mono tabular-nums">20\.09<\/time>/u);
@@ -275,15 +275,16 @@ test("dense rows: direction folds under the name, fixed vocabulary never hyphena
   assert.doesNotMatch(table, /hyphens-auto/u);
   assert.match(table, /@3xl:line-clamp-2" title=\{row\.nextAction\}/u);
   assert.match(table, /@3xl:block @3xl:truncate" title=\{row\.admissionsDisplayName\}/u);
-  // Name hit area: 20 px line + 8 px up to the cell edge + 16 px down = 44 px in
-  // the table (48 px in the stack), never above the cell (the sticky header and
-  // the previous row would take it). Measured in Chromium, see PR #1050.
-  assert.match(table, /@3xl:leading-5 before:absolute before:-inset-x-1 before:-top-2 before:-bottom-4 /u);
+  // Name hit area: 20 px t-item line + 8 px up to the cell edge + 16 px down =
+  // 44 px in the table and in the stack, never above the cell (the sticky
+  // header and the previous row would take it). Measured in Chromium, see
+  // PR #1050 (48 px in the stack before the typeset roles, #1051).
+  assert.match(table, /t-item text-fg underline-offset-4 before:absolute before:-inset-x-1 before:-top-2 before:-bottom-4 /u);
   assert.doesNotMatch(table, /before:-inset-y-/u);
   const html = surfaces.get("admin-default");
   // Name and «direction · degree» share the row header; in the stack the stage
   // continues the same text run (aria-hidden: the stage cell stays for readers).
-  assert.match(html, /Айдана Сыдыкова<\/span><\/a><span class="block text-sm text-fg-2 @3xl:truncate" title="Китай · Бакалавриат">Китай · Бакалавриат<span aria-hidden="true" class="@3xl:hidden"><span> · <span class="text-fg">Сбор документов<\/span><\/span><\/span><\/span><\/th>/u);
+  assert.match(html, /Айдана Сыдыкова<\/span><\/a><span class="block t-meta text-fg-2 @3xl:truncate" title="Китай · Бакалавриат">Китай · Бакалавриат<span aria-hidden="true" class="@3xl:hidden"><span> · <span class="text-fg">Сбор документов<\/span><\/span><\/span><\/span><\/th>/u);
   assert.match(html, /<td role="cell" class="[^"]*@max-3xl:sr-only"><span class="block text-fg">Сбор документов<\/span><\/td>/u);
 });
 

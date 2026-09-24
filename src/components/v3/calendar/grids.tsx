@@ -129,7 +129,7 @@ export function TaskChip({
           selected ? "text-fg-2" : "text-fg-3"
         }`}
       >
-        <span className="font-mono">
+        <span className="tabular-nums">
           {task.day === null
             ? "без срока"
             : task.minutes === null
@@ -169,7 +169,7 @@ function DayNumberLink({
     >
       <span
         aria-hidden="true"
-        className={`grid h-6 min-w-6 place-items-center rounded-nav px-1 font-mono text-xs font-semibold ${
+        className={`grid h-6 min-w-6 place-items-center rounded-nav px-1 text-xs font-semibold tabular-nums ${
           isToday ? "bg-fg text-surface" : muted ? "text-fg-3" : "text-fg"
         }`}
       >
@@ -304,7 +304,7 @@ export function TimeGrid({
                 className="flex flex-col items-center gap-0.5 border-b border-s border-border py-1.5"
               >
                 <DayNumberLink day={day} today={chip.today} href={hrefForDay(day)} />
-                <span aria-hidden="true" className="font-mono text-2xs uppercase tracking-wide text-fg-3">
+                <span aria-hidden="true" className="t-caption text-fg-3">
                   {weekdayShort(day)}
                 </span>
               </span>
@@ -317,7 +317,7 @@ export function TimeGrid({
             из этих событий. */}
         {hasCalendarAllDayRow(allDay, deadlines) ? (
           <>
-            <span className="border-b border-border px-2 py-2 text-end font-mono text-2xs text-fg-3">
+            <span className="t-meta border-b border-border px-2 py-2 text-end text-fg-3">
               весь день
             </span>
             {days.map((day) => (
@@ -341,7 +341,7 @@ export function TimeGrid({
             <Fragment key={hour}>
               <span
                 ref={hour === anchor ? anchorRef : undefined}
-                className={`scroll-mt-2 pe-2 pt-1 text-end font-mono text-2xs text-fg-3 ${edge}`}
+                className={`t-meta scroll-mt-2 pe-2 pt-1 text-end font-mono text-fg-3 ${edge}`}
               >
                 {timeLabel(hour)}
               </span>
@@ -429,7 +429,7 @@ export function MonthGrid({
           {weekdayNames().map((name) => (
             <span
               key={name}
-              className="border-b border-s border-border py-1.5 text-center font-mono text-2xs uppercase tracking-wide text-fg-3 first:border-s-0"
+              className="t-caption border-b border-s border-border py-1.5 text-center text-fg-3 first:border-s-0"
             >
               {name}
             </span>
@@ -468,7 +468,7 @@ export function MonthGrid({
                 {rest > 0 ? (
                   <Link
                     href={hrefForDay(day)}
-                    className="inline-flex min-h-6 items-center rounded-nav px-1.5 text-2xs text-fg-2 underline hover:bg-surface-2 hover:text-fg"
+                    className="t-item inline-flex min-h-6 items-center rounded-nav px-1.5 text-fg-2 underline hover:bg-surface-2 hover:text-fg"
                   >
                     <span aria-hidden="true">ещё {rest}</span>
                     <span className="sr-only">

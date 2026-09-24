@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
 import { CoverageDueTime } from "./CoverageDueTime";
 import { CuratorCoverageForm } from "./CuratorCoverageForm";
 import { coverageHref as href, coverageWorkload, type StudentsCoverage } from "./students-facets";
@@ -46,10 +46,10 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today 
   return (
     <section id="curator-coverage" aria-labelledby="curator-coverage-title" data-testid="v3-curator-coverage" className="border-b border-border pb-2">
       <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-        <h2 id="curator-coverage-title" className="text-base font-semibold text-fg">{name}</h2>
+        <h2 id="curator-coverage-title" className="t-section text-fg">{name}</h2>
         {selected ? <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-fg-2">
-          <div><dt className="inline">Активных дел: </dt><dd className="inline font-mono tabular-nums text-fg">{selected.active_case_count}</dd></div>
-          <div><dt className="inline">Открытых задач: </dt><dd className="inline font-mono tabular-nums text-fg">{selected.open_task_count}</dd></div>
+          <div><dt className="inline">Активных дел: </dt><dd className="inline tabular-nums text-fg">{selected.active_case_count}</dd></div>
+          <div><dt className="inline">Открытых задач: </dt><dd className="inline tabular-nums text-fg">{selected.open_task_count}</dd></div>
           <div><dt className="inline">Ближайший срок: </dt><dd className="inline text-fg"><CoverageDueTime value={selected.nearest_due} today={today} /></dd></div>
           {!selected.active ? <div><dt className="sr-only">Назначение: </dt><dd className="inline">недоступен для нового назначения</dd></div> : null}
         </dl> : null}
@@ -67,7 +67,7 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today 
                 <input type="hidden" name="curator" value={selected.id} />
                 <input type="hidden" name="coverage_curator" value={selected.id} />
                 {afterCaseId ? <input type="hidden" name="coverage_after" value={afterCaseId} /> : null}
-                <label className="min-w-0 flex-1 basis-56"><span className={labelCls}>Найти студента</span>
+                <label className="min-w-0 flex-1 basis-56"><span className={fieldLabelCls}>Найти студента</span>
                   <select name="coverage_case" defaultValue={caseId ?? ""} required className={`${inputCls} min-h-11`}>
                     <option value="">Выберите студента</option>
                     {workspace.cases.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}

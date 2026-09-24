@@ -1,7 +1,7 @@
 "use client";
 import { useActionState, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { btnCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, inputCls, fieldLabelCls } from "@/components/ui";
 import { saveFinanceEntryAction } from "@/lib/platform-finance-entry-actions";
 import { financeMoney, type FinanceEntryState, type FinanceEntryWorkspace } from "@/lib/platform-finance-entry-contract";
 
@@ -36,25 +36,25 @@ function FinanceEntryEditor({ workspace, operation, requestId, onAnother }: Prop
       <fieldset disabled={locked} className="space-y-4">
         {operation === "obligation" ? <>
           <input type="hidden" name="obligation_id" value="" /><input type="hidden" name="payment_id" value="" /><input type="hidden" name="source" value="" /><input type="hidden" name="evidence" value="" />
-          <label className="block"><span className={labelCls}>Назначение</span><input name="label" required maxLength={500} className={inputCls} /></label>
-          <div className="grid gap-4 sm:grid-cols-2"><label><span className={labelCls}>Тип</span><select name="category" className={inputCls}><option value="evo_service_fee">Услуги EVO</option><option value="third_party_cost">Расходы третьих сторон</option></select></label>
-            <label><span className={labelCls}>Валюта</span><input name="currency" required pattern="[A-Za-z]{3}" maxLength={3} placeholder="USD" className={inputCls} /></label></div>
-          <label className="block"><span className={labelCls}>Следующий шаг по оплате</span><input name="next_action" required maxLength={1000} className={inputCls} /></label>
+          <label className="block"><span className={fieldLabelCls}>Назначение</span><input name="label" required maxLength={500} className={inputCls} /></label>
+          <div className="grid gap-4 sm:grid-cols-2"><label><span className={fieldLabelCls}>Тип</span><select name="category" className={inputCls}><option value="evo_service_fee">Услуги EVO</option><option value="third_party_cost">Расходы третьих сторон</option></select></label>
+            <label><span className={fieldLabelCls}>Валюта</span><input name="currency" required pattern="[A-Za-z]{3}" maxLength={3} placeholder="USD" className={inputCls} /></label></div>
+          <label className="block"><span className={fieldLabelCls}>Следующий шаг по оплате</span><input name="next_action" required maxLength={1000} className={inputCls} /></label>
         </> : <>
           <input type="hidden" name="label" value="" /><input type="hidden" name="category" value="" /><input type="hidden" name="next_action" value="" />
           <input type="hidden" name="currency" value={obligation?.currency ?? ""} />
-          <label className="block"><span className={labelCls}>Обязательство</span><select name="obligation_id" required value={obligationId} onChange={event => setObligationId(event.target.value)} className={inputCls}>
+          <label className="block"><span className={fieldLabelCls}>Обязательство</span><select name="obligation_id" required value={obligationId} onChange={event => setObligationId(event.target.value)} className={inputCls}>
             {workspace.obligations.map(item => <option key={item.id} value={item.id}>{item.label} · {item.currency}</option>)}</select></label>
           {obligation ? <p className="text-sm text-fg-2">Осталось по обязательству: {financeMoney(obligation.outstandingMinor, obligation.currency)}</p> : null}
-          {operation === "refund" ? <label className="block"><span className={labelCls}>Какая оплата возвращается</span><select key={obligationId} name="payment_id" required className={inputCls} defaultValue=""><option value="" disabled>Выберите исходную оплату</option>
+          {operation === "refund" ? <label className="block"><span className={fieldLabelCls}>Какая оплата возвращается</span><select key={obligationId} name="payment_id" required className={inputCls} defaultValue=""><option value="" disabled>Выберите исходную оплату</option>
             {workspace.events.filter(event => event.type === "payment" && event.obligationId === obligationId && BigInt(event.refundableMinor) > BigInt(0)).map(event => <option key={event.id} value={event.id}>{new Intl.DateTimeFormat("ru-RU", { timeZone: "Asia/Bishkek" }).format(new Date(event.occurredAt))} · доступно {financeMoney(event.refundableMinor, event.currency)}</option>)}</select></label>
             : <input type="hidden" name="payment_id" value="" />}
-          <div className="grid gap-4 sm:grid-cols-2"><label><span className={labelCls}>Способ / источник оплаты</span><input name="source" required maxLength={200} className={inputCls} /></label>
-            <label><span className={labelCls}>Ссылка или номер подтверждения</span><input name="evidence" required maxLength={512} className={inputCls} /></label></div>
+          <div className="grid gap-4 sm:grid-cols-2"><label><span className={fieldLabelCls}>Способ / источник оплаты</span><input name="source" required maxLength={200} className={inputCls} /></label>
+            <label><span className={fieldLabelCls}>Ссылка или номер подтверждения</span><input name="evidence" required maxLength={512} className={inputCls} /></label></div>
         </>}
-        <div className="grid gap-4 sm:grid-cols-2"><label><span className={labelCls}>Сумма{operation !== "obligation" && obligation ? ` (${obligation.currency})` : ""}</span><input name="amount" inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" required className={inputCls} /></label>
-          <label><span className={labelCls}>{operation === "obligation" ? "Срок оплаты" : "Когда получено / возвращено"} · Бишкек</span><input name="at" type="datetime-local" required className={inputCls} /></label></div>
-        <label className="block"><span className={labelCls}>Основание</span><input name="reason" required maxLength={1000} className={inputCls} /></label>
+        <div className="grid gap-4 sm:grid-cols-2"><label><span className={fieldLabelCls}>Сумма{operation !== "obligation" && obligation ? ` (${obligation.currency})` : ""}</span><input name="amount" inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" required className={inputCls} /></label>
+          <label><span className={fieldLabelCls}>{operation === "obligation" ? "Срок оплаты" : "Когда получено / возвращено"} · Бишкек</span><input name="at" type="datetime-local" required className={inputCls} /></label></div>
+        <label className="block"><span className={fieldLabelCls}>Основание</span><input name="reason" required maxLength={1000} className={inputCls} /></label>
         <p className="text-xs leading-relaxed text-fg-2">Записывайте только подтверждённый факт. Эта форма не переводит деньги и не списывает их со счёта.</p>
         <button className={btnCls} disabled={locked}>{pending ? "Сохраняем…" : title}</button>
       </fieldset>

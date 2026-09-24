@@ -106,17 +106,17 @@ function LeadCard({
             {lead.name}
           </Link>
           {lead.nextAction ? (
-            <span className="mt-0.5 block truncate text-2xs text-fg-2">
+            <span className="t-meta mt-0.5 block truncate text-fg-2">
               {lead.nextAction}
             </span>
           ) : null}
           {lead.nextActionAt ? (
-            <span className="mt-0.5 block truncate text-2xs text-fg-3">
+            <span className="t-meta mt-0.5 block truncate text-fg-3">
               {lead.nextActionAt}
             </span>
           ) : null}
           {!terminal && lead.stageAgeDays !== null ? (
-            <span className="mt-0.5 block text-2xs text-fg-3">
+            <span className="t-meta mt-0.5 block text-fg-3">
               {stageAgeCopy(lead.stageAgeDays)}
             </span>
           ) : null}
@@ -137,10 +137,10 @@ function LeadCard({
         <div
           className="mt-2 rounded-ctl border border-border bg-bg px-2.5 py-2"
         >
-          <p className="line-clamp-2 whitespace-pre-wrap break-words text-2xs text-fg-2">
+          <p className="t-meta line-clamp-2 whitespace-pre-wrap break-words text-fg-2">
             {lead.latestNote.body}
           </p>
-          <p className="mt-1 truncate text-[10px] text-fg-3">
+          <p className="t-meta mt-1 truncate text-fg-3">
             {lead.latestNote.authorDisplayName}
             {" · "}
             <time dateTime={lead.latestNote.createdAt}>
@@ -227,11 +227,11 @@ export function Pipeline({
                 className="flex flex-col rounded-card @2xl:max-h-[70dvh] @2xl:overflow-y-auto"
               >
                 <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-surface-2 px-3.5 pb-2 pt-3">
-                  <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-fg">
+                  <h3 className="t-item flex min-w-0 items-center gap-1.5 text-fg">
                     <span className="truncate">{stage.title}</span>
                     {stage.gate ? <Pill tone="solid">Есть условия</Pill> : null}
                   </h3>
-                  <span className="shrink-0 font-mono text-2xs text-fg-3">
+                  <span className="t-meta shrink-0 tabular-nums text-fg-3">
                     {inStage.length}
                   </span>
                 </div>
@@ -258,14 +258,14 @@ export function Pipeline({
                     );
                   })}
                   {inStage.length === 0 ? (
-                    <li className="px-1 py-2 text-2xs text-fg-3">Пусто</li>
+                    <li className="t-meta px-1 py-2 text-fg-3">Пусто</li>
                   ) : null}
                   {stage.terminal && visible.length < inStage.length ? (
                     <li>
                       <Link
                         href={handedShowAllHref}
                         prefetch={false}
-                        className="flex min-h-6 items-center px-1 text-2xs font-semibold text-fg-2 underline underline-offset-4 hover:text-fg"
+                        className="flex min-h-6 items-center px-1 t-item text-fg-2 underline underline-offset-4 hover:text-fg"
                       >
                         Показать все {inStage.length}
                       </Link>
@@ -278,7 +278,7 @@ export function Pipeline({
                       <Link
                         href={handedShowLatestHref}
                         prefetch={false}
-                        className="flex min-h-6 items-center px-1 text-2xs font-semibold text-fg-2 underline underline-offset-4 hover:text-fg"
+                        className="flex min-h-6 items-center px-1 t-item text-fg-2 underline underline-offset-4 hover:text-fg"
                       >
                         Показать последние {HANDED_VISIBLE_LIMIT}
                       </Link>

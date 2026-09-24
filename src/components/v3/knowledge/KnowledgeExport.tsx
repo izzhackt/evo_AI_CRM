@@ -52,7 +52,7 @@ export function KnowledgeExport({ ids, area, caseIds, canonical, buttonClassName
   return <>
     <button type="button" className={buttonClassName} onClick={() => setOpen(true)}>{label}</button>
     <dialog ref={modal} className={styles.modal} onCancel={() => setOpen(false)} onClose={() => setOpen(false)}>
-      <h2>{label}</h2>
+      <h2 className="t-section">{label}</h2>
       <div className={styles.exportOptions}>
         <label><input type="checkbox" checked={archive} onChange={(e) => setArchive(e.target.checked)} /> Архивные материалы</label>
         <label><input type="checkbox" checked={history} onChange={(e) => setHistory(e.target.checked)} /> История версий</label>
@@ -61,7 +61,7 @@ export function KnowledgeExport({ ids, area, caseIds, canonical, buttonClassName
       <p>ZIP с файлами и страницами Markdown. Готовая выгрузка доступна вам в течение 24 часов.</p>
       {error && <p className={styles.error} role="alert">{error}</p>}
       <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void start()}>Подготовить ZIP</button><button type="button" onClick={() => setOpen(false)}>Закрыть</button></div>
-      {jobs.length > 0 && <h3>Мои выгрузки</h3>}
+      {jobs.length > 0 && <h3 className="t-item">Мои выгрузки</h3>}
       <ul className={styles.exportJobs}>{jobs.map((job) => {
         const expired = Date.parse(job.expires_at) <= now;
         const interrupted = job.state === "running" && job.lease_until && Date.parse(job.lease_until) < now;

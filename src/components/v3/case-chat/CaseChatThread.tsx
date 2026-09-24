@@ -481,7 +481,7 @@ function CaseChatList({
   return (
     <nav aria-label="Переписки" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-e border-border @2xl:w-[320px] @2xl:shrink-0`}>
       <div className="border-b border-border p-3">
-        <h1 className="mb-2 text-lg font-semibold text-fg">Сообщения</h1>
+        <h1 className="t-page-title mb-2 text-fg">Сообщения</h1>
         <div role="group" aria-label="Очередь переписок" className="mb-2 flex flex-wrap gap-1">
           {CASE_CHAT_QUEUES.map((value) => <button key={value} type="button" aria-pressed={queue === value}
             onClick={() => onQueue(value)}

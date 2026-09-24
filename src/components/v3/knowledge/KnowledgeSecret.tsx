@@ -56,7 +56,7 @@ export function KnowledgeSecret({ item, parentId, onClose, onSaved }: {
     finally { setBusy(false); }
   }
   return <section className={styles.editor}>
-    <div className={styles.editorTop}><button type="button" onClick={() => { setValue(null); onClose(); }}>← К папке</button><h2>{item ? item.title : "Новый доступ"}</h2>{item && <KnowledgeExport ids={[item.id]} label="Выгрузить зашифрованную запись" />}</div>
+    <div className={styles.editorTop}><button type="button" onClick={() => { setValue(null); onClose(); }}>← К папке</button><h2 className="t-record-title">{item ? item.title : "Новый доступ"}</h2>{item && <KnowledgeExport ids={[item.id]} label="Выгрузить зашифрованную запись" />}</div>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {status && <p role="status">{status}</p>}
     <form onSubmit={save} className={styles.secretForm} autoComplete="off">

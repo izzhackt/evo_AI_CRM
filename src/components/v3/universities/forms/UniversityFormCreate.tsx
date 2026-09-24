@@ -40,7 +40,7 @@ export function UniversityFormCreate({ catalogId, templateId, requestId, action 
 
   return <section aria-labelledby={`${id}-heading`} className="max-w-2xl space-y-5">
     <div className="space-y-2">
-      <h2 id={`${id}-heading`} className="text-xl font-bold text-fg">{words.createTitle}</h2>
+      <h2 id={`${id}-heading`} className="t-section text-fg">{words.createTitle}</h2>
       <p className="text-sm leading-6 text-fg-2">{words.createExplanation}</p>
     </div>
     <form action={submit} aria-busy={pending} className="space-y-5">

@@ -2,7 +2,7 @@
 
 import { useState, type RefObject } from "react";
 
-import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 
 import { insertReplySnippetWithinCodePointLimit } from "./insert-reply-snippet";
 
@@ -73,7 +73,7 @@ export function ReplySnippetPicker({
     <div className="space-y-2" data-testid="v3-reply-snippet-picker">
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
         <label>
-          <span className={labelCls}>Шаблон ответа</span>
+          <span className={fieldLabelCls}>Шаблон ответа</span>
           <select
             className={inputCls}
             value={activeSelectedId}

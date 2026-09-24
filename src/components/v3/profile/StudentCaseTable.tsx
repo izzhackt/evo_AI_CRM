@@ -30,13 +30,15 @@ const ROW_ACTION = "inline-flex min-h-11 items-center rounded-nav px-3 text-sm f
 const NAME = "block [overflow-wrap:anywhere] @3xl:truncate";
 /*
  * Область нажатия имени — не меньше 44 px и целиком внутри своей ячейки:
- * 8 px вверх до края ячейки (py-2 в таблице, py-3 в стопке) и 16 px вниз на
- * строку «направление · уровень». В таблице 20 + 8 + 16 = 44 px, в стопке
- * 24 + 8 + 16 = 48 px. Вверх не выходим: над первой строкой липкая шапка
- * перекрыла бы выступ, над остальными он забирал бы нажатия у соседа.
+ * строка имени (роль t-item, 20 px), 8 px вверх до края ячейки (py-2 в
+ * таблице, py-3 в стопке) и 16 px вниз на строку «направление · уровень»
+ * (t-meta, 16 px): 20 + 8 + 16 = 44 px и в таблице, и в стопке. Вверх не
+ * выходим: над первой строкой липкая шапка перекрыла бы выступ, над
+ * остальными он забирал бы нажатия у соседа.
  */
-const NAME_LINK = "relative block w-fit max-w-full text-base font-semibold text-fg underline-offset-4 @3xl:leading-5 before:absolute before:-inset-x-1 before:-top-2 before:-bottom-4 before:content-[''] hover:underline";
-const HEAD = "@3xl:sticky @3xl:top-0 @3xl:z-10 @3xl:bg-bg px-2 py-2.5 text-start text-xs font-semibold text-fg-2 shadow-[inset_0_-1px_0_var(--border)] first:ps-3";
+const NAME_LINK = "relative block w-fit max-w-full t-item text-fg underline-offset-4 before:absolute before:-inset-x-1 before:-top-2 before:-bottom-4 before:content-[''] hover:underline";
+/** Шапка колонки — подпись данных (t-caption), без заглавных. */
+const HEAD = "@3xl:sticky @3xl:top-0 @3xl:z-10 @3xl:bg-bg px-2 py-2.5 text-start t-caption text-fg-2 shadow-[inset_0_-1px_0_var(--border)] first:ps-3";
 const TONE = {
   danger: "font-medium text-danger",
   muted: "text-fg-3",
@@ -90,10 +92,10 @@ function StudentCell({ row, href, stage }: Readonly<{ row: V3ProfileCaseDirector
           <span className={NAME} title={row.studentDisplayName}>{row.studentDisplayName}</span>
         </Link>
       ) : (
-        <span className={`${NAME} text-base font-semibold text-fg @3xl:leading-5`} title={row.studentDisplayName}>{row.studentDisplayName}</span>
+        <span className={`${NAME} t-item text-fg`} title={row.studentDisplayName}>{row.studentDisplayName}</span>
       )}
       {/* В таблице — «направление · уровень»; в стопке та же строка продолжает этапом. */}
-      <span className="block text-sm text-fg-2 @3xl:truncate" title={meta}>
+      <span className="block t-meta text-fg-2 @3xl:truncate" title={meta}>
         {meta}
         {stage.length ? (
           <span aria-hidden="true" className="@3xl:hidden">

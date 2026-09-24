@@ -131,7 +131,7 @@ function StartProfile({ snapshot, requestId, readOnly }: WorkspaceProps) {
     catch { return { ...initialState(previous.requestId), status: "unavailable" as const }; }
   }, initialState(requestId));
   return <section aria-labelledby="student-profile-fields-title" className="space-y-3 rounded-card border border-border bg-surface p-4">
-    <h2 id="student-profile-fields-title" className="text-base font-semibold">Анкета студента</h2>
+    <h2 id="student-profile-fields-title" className="t-section">Анкета студента</h2>
     <p className="text-sm leading-6 text-fg-2">Анкета ещё не создана. Начните её и заполняйте сведения по мере проверки.</p>
     {snapshot.canInitialize && !readOnly ? <form action={action} className="space-y-3">
       <input type="hidden" name="student_case_id" value={snapshot.studentCaseId} />
@@ -224,7 +224,7 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
     }}>
     <header className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="student-profile-fields-title" className="text-base font-semibold">Анкета студента</h2>
+        <h2 id="student-profile-fields-title" className="t-section">Анкета студента</h2>
         <span className={`text-sm font-semibold ${readiness.ready ? "text-ok" : "text-fg-2"}`}>{readiness.ready ? "Проверена" : "Черновик"}</span>
       </div>
       <p className="text-sm leading-6 text-fg-2">Подтверждено {confirmedCount} из {PROFILE_FIELDS.length} полей. Звёздочкой отмечены обязательные.</p>

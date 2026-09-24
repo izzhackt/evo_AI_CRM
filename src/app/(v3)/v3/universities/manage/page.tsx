@@ -74,7 +74,7 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
         {index.q || index.cursor ? <Link className={link} href="/v3/universities/manage">Сбросить</Link> : null}
       </form>
       <section aria-labelledby="manage-pending-heading">
-        <h2 id="manage-pending-heading" className="text-lg font-semibold text-fg">На проверке</h2>
+        <h2 id="manage-pending-heading" className="t-section text-fg">На проверке</h2>
         {page === null ? <div role="alert" className="mt-3"><p className="text-sm text-danger">Не удалось загрузить черновики. Обновите страницу, чтобы повторить загрузку.</p></div> : <>
           <p className="mt-2 text-sm text-fg-3">На этой странице: {page.items.length}</p>
           {page.items.length ? <ul className="mt-3 divide-y divide-border rounded-card border border-border bg-surface">{page.items.map((draft) => <li key={draft.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0 break-words"><p className="font-medium text-fg">{draft.content.name}</p><p className="mt-1 text-xs text-fg-3">На основе опубликованной версии {draft.baseVersion}</p></div><Link className={link} href={manageEditorHref("draft", draft.id, listContext)}>Проверить</Link></li>)}</ul> : <p role="status" className="mt-2 text-sm text-fg-3">{index.q ? "Черновиков с таким названием не найдено." : index.cursor ? "На этой странице черновиков нет." : "Новых черновиков нет."}</p>}
@@ -82,7 +82,7 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
         </>}
       </section>
       <section aria-labelledby="manage-templates-heading">
-        <div className="flex flex-wrap items-center justify-between gap-3"><h2 id="manage-templates-heading" className="text-lg font-semibold text-fg">Подготовленные сведения из открытых источников</h2><Link className={link} href={manageEditorHref("batch", "1", listContext)}>Проверить и опубликовать пакет</Link></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 id="manage-templates-heading" className="t-section text-fg">Подготовленные сведения из открытых источников</h2><Link className={link} href={manageEditorHref("batch", "1", listContext)}>Проверить и опубликовать пакет</Link></div>
         <p className="mt-2 text-sm leading-6 text-fg-2">Это исходные материалы для вашей проверки, а не автоматически опубликованные записи. Они не означают партнёрство с EVO. Для уже опубликованного вуза используйте «Предложить обновление» в его карточке.</p>
         {matchingTemplates.length ? <ul className="mt-3 grid gap-3 sm:grid-cols-2">{matchingTemplates.map((item) => <li key={item.key} className="min-w-0"><Link className={`${link} w-full break-words`} href={manageEditorHref("template", item.key, listContext)}>{item.content.name}</Link></li>)}</ul> : <p role="status" className="mt-3 text-sm text-fg-3">Подготовленных материалов с таким названием не найдено.</p>}
       </section>

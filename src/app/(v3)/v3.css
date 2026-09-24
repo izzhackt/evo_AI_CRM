@@ -132,6 +132,131 @@
   font-weight: 600;
 }
 
+/*
+ * Шрифтовые роли staff CRM (24.09.2026, решение владельца: Golos Text для
+ * интерфейса, JetBrains Mono только для технических значений).
+ *
+ * Роль — это назначение текста, а не размер: заголовок страницы, имя записи,
+ * раздел, пункт, текст, подпись поля, метаданные, подпись колонки/статуса,
+ * крупная цифра. Значения заданы один раз токенами на `.v3-world`; классы
+ * `t-*` и CSS-модули читают только токены. Шкала общего `globals.css` (её
+ * делит портал) не меняется; единицы — px, как у остальной шкалы, чтобы
+ * роли не расходились с `text-sm` при нестандартном размере шрифта браузера.
+ *
+ * Правила: ничего меньше 12 px; вес только 400/500/600; без заглавных
+ * подписей и положительной разрядки; счётчики, суммы и KPI — табличные
+ * цифры Golos (`tabular-nums`); `font-mono` — только идентификаторы, коды,
+ * версии, даты и время в плотных колонках и метки времени (правило
+ * DESIGN.md). `t-caption` называет данные, `t-meta` — второстепенные
+ * сведения; подпись поля или фильтра — `t-label`. Роль не сочетается на
+ * одном элементе с `text-*`/`font-*`/`leading-*`/`tracking-*`: утилита
+ * молча победит. Цвет остаётся за утилитами `text-fg*`.
+ *
+ * Классы лежат в `@layer components`: база Tailwind (сброс h1–h6) ниже них,
+ * утилиты и несложенный `.v3-choice` (вес 600 у выбранного) — выше. Порядок
+ * слоёв повторяет объявление Tailwind на случай, если этот файл загрузится
+ * раньше `globals.css`.
+ */
+.v3-world {
+  --type-page-title: 24px;
+  --type-page-title-leading: 32px;
+  --type-record-title: 20px;
+  --type-record-title-leading: 28px;
+  --type-section: 16px;
+  --type-section-leading: 24px;
+  --type-item: 14px;
+  --type-item-leading: 20px;
+  --type-body: 16px;
+  --type-body-leading: 24px;
+  --type-body-compact: 14px;
+  --type-body-compact-leading: 21px;
+  --type-label: 14px;
+  --type-label-leading: 20px;
+  --type-meta: 12px;
+  --type-meta-leading: 16px;
+  --type-caption: 12px;
+  --type-caption-leading: 16px;
+  --type-figure: 28px;
+  --type-figure-leading: 32px;
+  /* Golos крупнее 20 px слегка поджимается; мельче — без разрядки. */
+  --type-title-tracking: -0.01em;
+  /* Удобная длина строки для статьи базы знаний и других длинных текстов. */
+  --type-measure: 70ch;
+}
+
+@layer properties, theme, base, components, utilities;
+
+@layer components {
+  /* Один h1 на экран: PageHeader, экраны ошибок и доступа, отчёт продаж, чаты. */
+  .v3-world .t-page-title {
+    font-size: var(--type-page-title);
+    line-height: var(--type-page-title-leading);
+    font-weight: 600;
+    letter-spacing: var(--type-title-tracking);
+    text-wrap: balance;
+  }
+  /* Имя того, чья карточка открыта: дело, запись продажи, сотрудник, шаблон. */
+  .v3-world .t-record-title {
+    font-size: var(--type-record-title);
+    line-height: var(--type-record-title-leading);
+    font-weight: 600;
+    letter-spacing: var(--type-title-tracking);
+    text-wrap: balance;
+  }
+  /* Заголовок карточки, панели, области или диалога. */
+  .v3-world .t-section {
+    font-size: var(--type-section);
+    line-height: var(--type-section-leading);
+    font-weight: 600;
+  }
+  /* Группа внутри карточки, имя строки или карточки в списке. */
+  .v3-world .t-item {
+    font-size: var(--type-item);
+    line-height: var(--type-item-leading);
+    font-weight: 600;
+  }
+  /* Абзацы и сообщения; длинный текст — не шире `--type-measure`. */
+  .v3-world .t-body {
+    font-size: var(--type-body);
+    line-height: var(--type-body-leading);
+    font-weight: 400;
+  }
+  /* Плотный рабочий текст: ячейки, строки, пояснения, фильтры. */
+  .v3-world .t-body-compact {
+    font-size: var(--type-body-compact);
+    line-height: var(--type-body-compact-leading);
+    font-weight: 400;
+  }
+  /* Подпись поля формы (`fieldLabelCls`) и подпись фильтра или контрола в
+     строке — над контролом или рядом с ним. */
+  .v3-world .t-label {
+    font-size: var(--type-label);
+    line-height: var(--type-label-leading);
+    font-weight: 500;
+  }
+  /* Время, автор, счётчик, вторичная строка. Не ошибка и не действие. */
+  .v3-world .t-meta {
+    font-size: var(--type-meta);
+    line-height: var(--type-meta-leading);
+    font-weight: 400;
+  }
+  /* Подпись данных: колонка, термин, статус, чип, группа чипов или навигации —
+     вместо заглавных микроподписей. Подпись поля или фильтра — `t-label`. */
+  .v3-world .t-caption {
+    font-size: var(--type-caption);
+    line-height: var(--type-caption-leading);
+    font-weight: 500;
+  }
+  /* KPI и итог: табличные цифры Golos, не моноширинный. */
+  .v3-world .t-figure {
+    font-size: var(--type-figure);
+    line-height: var(--type-figure-leading);
+    font-weight: 600;
+    letter-spacing: var(--type-title-tracking);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
 /* Comfortable disclosure targets without surrounding every action in a card. */
 .v3-world summary {
   min-height: 44px;

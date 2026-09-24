@@ -97,7 +97,7 @@ export function Settings({
                 >
                   {entry.title}
                   {entry.admin ? (
-                    <span className="ms-auto rounded-nav bg-surface-2 px-1 font-mono text-2xs font-normal text-fg-3">
+                    <span className="t-meta ms-auto rounded-nav bg-surface-2 px-1 text-fg-3">
                       админ
                     </span>
                   ) : null}
@@ -109,7 +109,7 @@ export function Settings({
       </nav>
 
       <div className="min-w-0">
-        <h2 className="mb-3 flex flex-wrap items-center gap-2 text-md font-bold text-fg">
+        <h2 className="t-section mb-3 flex flex-wrap items-center gap-2 text-fg">
           {current?.title}
           {current?.admin ? <Pill>виден только администратору</Pill> : null}
         </h2>

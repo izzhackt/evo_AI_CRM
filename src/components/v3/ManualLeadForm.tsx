@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { createContext, useActionState, useContext, useRef, useState } from "react";
-import { btnCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, inputCls, fieldLabelCls } from "@/components/ui";
 import { createManualLeadAction } from "@/lib/platform-manual-lead-actions";
 import { LEAD_DIRECTIONS, MANUAL_LEAD_SOURCES, type ManualLeadState } from "@/lib/platform-manual-lead-contract";
 
@@ -71,16 +71,16 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
     <input type="hidden" name="request_id" value={currentRequestId} />
     <fieldset disabled={locked} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <label><span className={labelCls}>Имя</span><input name="name" required maxLength={300} className={inputCls} /></label>
-        <label><span className={labelCls}>Телефон</span><input name="phone" type="tel" maxLength={50} className={inputCls} /></label>
-        <label><span className={labelCls}>Email, если телефона нет</span><input name="email" type="email" maxLength={320} className={inputCls} /></label>
-        <label><span className={labelCls}>Источник</span><select name="source" className={inputCls}>{Object.entries(MANUAL_LEAD_SOURCES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
-        <label><span className={labelCls}>Ответственный</span><select name="owner_id" defaultValue={ownerId} required className={inputCls}>{owners.map(owner => <option key={owner.id} value={owner.id}>{owner.displayName}</option>)}</select></label>
-        <label><span className={labelCls}>Направление</span><select name="direction" className={inputCls}><option value="">Пока не выбрано</option>{Object.entries(LEAD_DIRECTIONS).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
+        <label><span className={fieldLabelCls}>Имя</span><input name="name" required maxLength={300} className={inputCls} /></label>
+        <label><span className={fieldLabelCls}>Телефон</span><input name="phone" type="tel" maxLength={50} className={inputCls} /></label>
+        <label><span className={fieldLabelCls}>Email, если телефона нет</span><input name="email" type="email" maxLength={320} className={inputCls} /></label>
+        <label><span className={fieldLabelCls}>Источник</span><select name="source" className={inputCls}>{Object.entries(MANUAL_LEAD_SOURCES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
+        <label><span className={fieldLabelCls}>Ответственный</span><select name="owner_id" defaultValue={ownerId} required className={inputCls}>{owners.map(owner => <option key={owner.id} value={owner.id}>{owner.displayName}</option>)}</select></label>
+        <label><span className={fieldLabelCls}>Направление</span><select name="direction" className={inputCls}><option value="">Пока не выбрано</option>{Object.entries(LEAD_DIRECTIONS).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
       </div>
       <details><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Следующее действие</summary><div className="grid gap-4 sm:grid-cols-2">
-        <label><span className={labelCls}>Что сделать</span><textarea name="next_action" maxLength={500} rows={2} className={inputCls} /></label>
-        <label><span className={labelCls}>Срок</span><input name="due_date" type="date" className={inputCls} /></label>
+        <label><span className={fieldLabelCls}>Что сделать</span><textarea name="next_action" maxLength={500} rows={2} className={inputCls} /></label>
+        <label><span className={fieldLabelCls}>Срок</span><input name="due_date" type="date" className={inputCls} /></label>
       </div></details>
       <button className={btnCls} disabled={locked}>{pending ? "Сохраняем…" : "Сохранить лида"}</button>
     </fieldset>

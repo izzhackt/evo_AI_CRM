@@ -78,7 +78,7 @@ export async function CaseTasksPanel({
               <Link href={`/v3/tasks?task=${task.caseTaskId}&kind=case&case=${caseId}`} className="min-w-0 flex-1 text-sm text-fg underline decoration-transparent hover:decoration-inherit">
                 {task.title}
               </Link>
-              <span className="shrink-0 text-xs font-medium text-fg-2">{taskStatus(task.status) ?? task.status}</span>
+              <span className="t-caption shrink-0 text-fg-2">{taskStatus(task.status) ?? task.status}</span>
               <Deadline dueOn={task.dueOn} dueAt={task.dueAt} status={task.status} now={now} />
             </li>
           ))}

@@ -17,7 +17,7 @@ import {
   btnDangerGhostCls,
   btnGhostCls,
   inputCls,
-  labelCls,
+  fieldLabelCls,
 } from "@/components/ui";
 import {
   archivePlatformCompanyFileAction,
@@ -202,7 +202,7 @@ function CreateFolderForm({
       <input type="hidden" name="parent_folder_id" value={parentFolderId} />
       <input type="hidden" name="request_id" value={state.requestId} />
       <label>
-        <span className={labelCls}>Название папки</span>
+        <span className={fieldLabelCls}>Название папки</span>
         <input
           required
           name="name"
@@ -246,7 +246,7 @@ function CreateFileForm({
       <input type="hidden" name="folder_id" value={folderId} />
       <input type="hidden" name="request_id" value={state.requestId} />
       <label>
-        <span className={labelCls}>Название файла</span>
+        <span className={fieldLabelCls}>Название файла</span>
         <input
           required
           name="display_name"
@@ -316,7 +316,7 @@ function FolderControls({
           <input type="hidden" name="expected_version" value={folder.version} />
           <input type="hidden" name="request_id" value={renameState.requestId} />
           <label>
-            <span className={labelCls}>Новое название</span>
+            <span className={fieldLabelCls}>Новое название</span>
             <input
               required
               name="name"
@@ -337,7 +337,7 @@ function FolderControls({
           <input type="hidden" name="expected_version" value={folder.version} />
           <input type="hidden" name="request_id" value={moveState.requestId} />
           <label>
-            <span className={labelCls}>Переместить в</span>
+            <span className={fieldLabelCls}>Переместить в</span>
             <select
               name="new_parent_folder_id"
               className={inputCls}
@@ -450,7 +450,7 @@ function CompanyFileUploadForm({ file }: Readonly<{ file: KnowledgeFile }>) {
       <input type="hidden" name="expected_file_version" value={file.version ?? ""} />
       <input type="hidden" name="request_id" value={file.uploadRequestId ?? ""} />
       <label>
-        <span className={labelCls}>{file.currentVersionId ? "Заменить файл" : "Загрузить файл"}</span>
+        <span className={fieldLabelCls}>{file.currentVersionId ? "Заменить файл" : "Загрузить файл"}</span>
         <input
           required
           type="file"
@@ -536,7 +536,7 @@ function FileControls({
           <input type="hidden" name="expected_version" value={file.version} />
           <input type="hidden" name="request_id" value={renameState.requestId} />
           <label>
-            <span className={labelCls}>Название</span>
+            <span className={fieldLabelCls}>Название</span>
             <input
               required
               name="display_name"
@@ -557,7 +557,7 @@ function FileControls({
           <input type="hidden" name="expected_version" value={file.version} />
           <input type="hidden" name="request_id" value={moveState.requestId} />
           <label>
-            <span className={labelCls}>Переместить в</span>
+            <span className={fieldLabelCls}>Переместить в</span>
             <select
               name="folder_id"
               className={inputCls}
@@ -636,7 +636,7 @@ function SidebarFolder({
           <Icon name="folder" size={15} />
         )}
         <span className="min-w-0 flex-1 truncate">{folder.name}</span>
-        <span className="font-mono text-2xs text-fg-3">{folderCount(folder.id)}</span>
+        <span className="t-meta tabular-nums text-fg-3">{folderCount(folder.id)}</span>
       </button>
       {children.length > 0 ? (
         <ul className="ms-3 border-s border-border ps-1">
@@ -874,7 +874,7 @@ export function FileManager({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-fg">{folder.name}</span>
-                      <span className="mt-0.5 block text-2xs text-fg-3">
+                      <span className="t-meta mt-0.5 block tabular-nums text-fg-3">
                         {folderCount(folder.id)} записей
                       </span>
                     </span>
@@ -892,7 +892,7 @@ export function FileManager({
           >
             <table className="w-full min-w-[560px] border-separate border-spacing-0 text-start">
               <thead>
-                <tr className="text-start text-2xs uppercase tracking-wide text-fg-3">
+                <tr className="t-caption text-start text-fg-3">
                   {allowKnowledgeExport && <th className="w-10 border-b border-border px-3 py-2">
                     <input type="checkbox" aria-label="Выбрать документы на экране" disabled={!exportable.length}
                       checked={exportable.length > 0 && exportable.every((file) => selectedVersions.has(file.currentVersionId!))}
@@ -925,12 +925,12 @@ export function FileManager({
                         <span className="font-medium">{file.name}</span>
                       )}
                       {normalizedQuery && file.folderId ? (
-                        <span className="mt-0.5 block text-2xs text-fg-3">
+                        <span className="t-meta mt-0.5 block text-fg-3">
                           {byId.get(file.folderId)?.name ?? "Закрытая папка"}
                         </span>
                       ) : null}
                     </td>
-                    <td className="border-b border-border px-3 py-3 font-mono text-2xs text-fg-3">
+                    <td className="t-meta border-b border-border px-3 py-3 text-fg-3">
                       {file.size ?? "—"}
                     </td>
                     <td className="border-b border-border px-3 py-3 align-top">

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -154,4 +154,165 @@ test("solid red stays for the main action and every selection shares one accent-
   assert.doesNotMatch(notifications, /\bbg-accent\b/u);
   assert.match(notifications, /aria-label=\{count && count !== "0" \? `Уведомления: \$\{count\} непрочитанных` : "Уведомления"\}/u);
   assert.match(read("src/components/v3/Pill.tsx"), /solid: "bg-fg text-surface",/u);
+});
+
+// Шрифтовые роли staff CRM (решение владельца 24.09.2026): Golos Text и
+// JetBrains Mono остаются, текст получает одну из ролей `t-*` из v3.css.
+const TYPE_ROLES = {
+  "page-title": [24, 32, 600],
+  "record-title": [20, 28, 600],
+  section: [16, 24, 600],
+  item: [14, 20, 600],
+  body: [16, 24, 400],
+  "body-compact": [14, 21, 400],
+  label: [14, 20, 500],
+  meta: [12, 16, 400],
+  caption: [12, 16, 500],
+  figure: [28, 32, 600],
+};
+
+// Эти v3-компоненты рендерит и Student portal. Портал тоже грузит v3.css
+// (src/app/(portal)/layout.tsx) и оборачивает содержимое в .v3-world
+// (components/portal/Shell.tsx), поэтому роль `t-*` сработала бы и там — но
+// срез касается только staff CRM: чтобы портал не изменился визуально, эти
+// файлы остаются на утилитах Tailwind.
+const PORTAL_SHARED_FILES = [
+  "src/components/v3/profile/CaseHelpPanel.tsx",
+  "src/components/v3/profile/CaseHelpWorkspace.tsx",
+  "src/components/v3/profile/CaseOperationsForms.tsx",
+  "src/components/v3/profile/StudentProfileExportHistory.tsx",
+  "src/components/v3/profile/UniversityFormExportPanel.tsx",
+  "src/components/v3/settings/StaffDisclosure.tsx",
+];
+
+function staffCrmSources() {
+  const files = ["src/components/ui.tsx"];
+  for (const root of ["src/app/(v3)", "src/components/v3"]) {
+    for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
+      if (/\.(tsx|ts|css)$/u.test(entry)) files.push(`${root}/${entry.split("\\").join("/")}`);
+    }
+  }
+  return files.map((path) => [path, read(path)]);
+}
+
+const ROLE_CLASS = /(?<![\w-])t-(?:page-title|record-title|section|item|body|body-compact|label|meta|caption|figure)(?![\w-])/u;
+
+test("type roles are defined once in v3.css on the staff shell and never below 12px", () => {
+  assert.match(css, /@layer properties, theme, base, components, utilities;/u, "layer order matches Tailwind 4");
+  for (const [role, [size, leading, weight]] of Object.entries(TYPE_ROLES)) {
+    assert.match(css, new RegExp(`--type-${role}: ${size}px;`, "u"), `--type-${role} token`);
+    assert.match(css, new RegExp(`--type-${role}-leading: ${leading}px;`, "u"), `--type-${role}-leading token`);
+    const rule = [...css.matchAll(new RegExp(`\\.v3-world \\.t-${role} \\{([^}]+)\\}`, "gu"))];
+    assert.equal(rule.length, 1, `.t-${role} is defined exactly once`);
+    assert.match(rule[0][1], new RegExp(`font-size: var\\(--type-${role}\\);`, "u"));
+    assert.match(rule[0][1], new RegExp(`line-height: var\\(--type-${role}-leading\\);`, "u"));
+    assert.match(rule[0][1], new RegExp(`font-weight: ${weight};`, "u"));
+  }
+  const components = css.slice(css.indexOf("@layer components {"));
+  assert.ok(components.indexOf(".v3-world .t-page-title") > 0, "roles live in the components layer");
+  assert.match(css, /\.v3-world \.t-figure \{[^}]*font-variant-numeric: tabular-nums;/u, "figures use Golos tabular digits");
+  for (const [, px] of css.matchAll(/--type-[a-z-]+: (\d+)px;/gu)) assert.ok(Number(px) >= 12, `role token ${px}px`);
+  assert.match(read("src/app/globals.css"), /--text-2xs:\s*11px;/u, "the shared portal scale keeps its value");
+});
+
+test("staff CRM sources use the role system: no text below 12px, no caps labels, one page-title role", () => {
+  const failures = [];
+  const fail = (path, message) => failures.push(`${path}: ${message}`);
+  for (const [path, source] of staffCrmSources()) {
+    if (path.endsWith(".css")) {
+      for (const [, value, unit] of source.matchAll(/font-size:\s*([\d.]+)(px|rem|em)\b/gu)) {
+        if (Number(value) * (unit === "px" ? 1 : 16) < 12) fail(path, `font-size ${value}${unit}`);
+      }
+      if (/letter-spacing:\s*0?\.\d|text-transform:\s*uppercase/u.test(source)) fail(path, "caps or positive tracking");
+      continue;
+    }
+    if (/\btext-2xs\b/u.test(source)) fail(path, "text-2xs (11px)");
+    if (/\btext-\[(?:\d|1[01])(?:\.\d+)?px\]/u.test(source)) fail(path, "arbitrary text size below 12px");
+    if (/\btext-md\b/u.test(source)) fail(path, "text-md duplicates text-base");
+    if (/\bfont-(?:bold|extrabold|black)\b/u.test(source)) fail(path, "weight above 600");
+    if (/\btracking-(?:wide|wider|widest|\[0?\.\d)/u.test(source)) fail(path, "positive letter-spacing");
+    if (/\btext-(?:2xl|3xl)\b/u.test(source)) fail(path, "title size outside the page-title role");
+    if (/fontSize=(?:"|\{)(?:\d|1[01])(?:"|\})/u.test(source)) fail(path, "SVG text below 12px");
+    const uppercase = [...source.matchAll(/\buppercase\b/gu)].length;
+    const inputTransform = path === "src/components/v3/profile/ProfileSalesTransition.tsx"
+      ? [...source.matchAll(/cn\(inputCls, "uppercase"\)/gu)].length : 0;
+    if (uppercase > inputTransform) fail(path, "uppercase label (only the currency input value may be uppercased)");
+    if (PORTAL_SHARED_FILES.includes(path)) continue;
+    for (const heading of source.matchAll(/<(h[1-6])\b([^>]*)>/gu)) {
+      const [, level, attributes] = heading;
+      if (/className=(?:"[^"]*|\{`[^`]*)\btext-(?:xs|sm|base|lg|xl)\b/u.test(attributes)) fail(path, `${level} sizes itself instead of using a role`);
+      if (level === "h1" && !/className=(?:"[^"]*|\{`[^`]*)\bt-page-title\b/u.test(attributes)) fail(path, "h1 without t-page-title");
+    }
+  }
+  assert.deepEqual(failures, []);
+
+  const ui = read("src/components/ui.tsx");
+  assert.match(ui, /<h1 className="t-page-title [^"]*">/u, "PageHeader carries the shared page-title role");
+  assert.match(ui, /<span className="font-normal tabular-nums text-fg-3">\{count\}<\/span>/u, "page counter uses Golos tabular digits");
+  assert.match(ui, /eyebrow \? \(\s*<h3 className="t-section /u, "compact card title is a section heading, not 11px caps");
+  assert.match(ui, /export const fieldLabelCls = "mb-1 block t-label text-fg-2";/u);
+  assert.match(ui, /export const labelCls = "mb-1 block text-xs font-medium text-fg-2";/u, "auth/Student label unchanged");
+  for (const path of ["src/components/v3/MetricCard.tsx", "src/components/v3/OperationsOverview.tsx"]) {
+    const source = read(path);
+    assert.match(source, /\bt-figure\b/u, `${path} KPI uses t-figure`);
+    assert.doesNotMatch(source, /font-mono/u, `${path} KPI is not monospace`);
+  }
+  assert.match(read("src/components/v3/team-chat/TeamChat.tsx"), /<h1 className=\{`t-page-title \$\{styles\.channelTitle\}`\}>/u);
+
+  // График Главной: раскладка как на main (SVG не уже 480 px, viewBox 620),
+  // а подписи осей на экране не мельче 12 px при любой ширине графика.
+  const trend = read("src/components/v3/TrendChart.tsx");
+  const viewBoxWidth = Number(trend.match(/const WIDTH = (\d+);/u)?.[1]);
+  const minWidth = Number(trend.match(/className="h-auto w-full min-w-\[(\d+)px\]"/u)?.[1]);
+  const labelClass = trend.match(/const LABEL_CLASS = "text-\[([\d.]+)px\] @min-\[(\d+)px\]\/trend:text-\[([\d.]+)px\]";/u);
+  assert.ok(labelClass, "axis label size is set by LABEL_CLASS");
+  const [narrow, breakpoint, wide] = labelClass.slice(1).map(Number);
+  assert.equal(viewBoxWidth, 620);
+  assert.equal(minWidth, 480, "chart keeps the 480px minimum of main: Главная layout unchanged");
+  assert.ok(narrow * minWidth / viewBoxWidth >= 12, "labels are at least 12px at the 480px minimum");
+  assert.equal(breakpoint, viewBoxWidth, "smaller label units only once the chart is as wide as its viewBox");
+  assert.ok(wide * breakpoint / viewBoxWidth >= 12, "labels stay at least 12px on wide charts");
+  assert.equal(Number(trend.match(/const LABEL_SIZE = ([\d.]+);/u)?.[1]), narrow, "ticks are spaced for the largest label");
+  assert.match(trend, /className="@container\/trend max-w-full overflow-x-auto rounded-ctl"/u);
+  assert.equal(trend.match(/className=\{LABEL_CLASS\}/gu)?.length, 2, "both axes use the label size");
+  assert.doesNotMatch(trend, /fontSize=/u);
+
+  // Подпись настоящего поля или фильтра — t-label (14 px), даже в строке с
+  // контролом; t-caption остаётся подписям данных: колонкам, терминам, чипам.
+  const pipelinePage = read("src/app/(v3)/v3/pipeline/page.tsx");
+  for (const name of ["Поиск", "Сотрудник"]) {
+    assert.match(pipelinePage, new RegExp(`<label className="t-label [^"]*">\\s*${name}\\s*<`, "u"), `pipeline «${name}» filter label`);
+  }
+  const catalogue = read("src/components/v3/universities/UniversityCatalogue.tsx");
+  for (const name of ["Название", "Страна", "Уровень"]) {
+    assert.match(catalogue, new RegExp(`<label className="t-label text-fg-2">${name}<`, "u"), `university «${name}» filter label`);
+  }
+  assert.match(read("src/components/v3/inbox/InboxMessageMedia.tsx"),
+    /<label className="t-label flex flex-col gap-1">\s*<span>Документ в деле студента<\/span>/u);
+
+  for (const path of PORTAL_SHARED_FILES) {
+    assert.doesNotMatch(read(path), ROLE_CLASS, `${path} is shared with the portal and keeps its Tailwind utilities`);
+  }
+
+  // «Студенты» (фасеты и таблица, #1050) — на тех же ролях: заголовки групп
+  // фасетов — t-item, подписи чисел и шапка таблицы — t-caption, имя — t-item,
+  // строка «направление · уровень» — t-meta. Числа — табличные цифры Golos,
+  // JetBrains Mono — только даты в колонке «Срок» и в замещении куратора.
+  const students = read("src/components/v3/profile/StudentsWorkspace.tsx");
+  assert.match(students, /<h2 id=\{headingId\} className="t-item text-fg">\{group\.title\}<\/h2>/u);
+  assert.match(students, /className="t-caption text-fg-3">\{group\.countLabel\}/u);
+  assert.match(students, /На странице: <span className="tabular-nums text-fg-2">/u);
+  assert.doesNotMatch(students, /font-mono/u, "facet counts are Golos tabular digits");
+  const caseTable = read("src/components/v3/profile/StudentCaseTable.tsx");
+  assert.match(caseTable, /const HEAD = "[^"]*\bt-caption text-fg-2\b[^"]*";/u);
+  assert.match(caseTable, /const NAME_LINK = "[^"]*\bt-item text-fg\b[^"]*";/u);
+  assert.match(caseTable, /<span className="block t-meta text-fg-2 @3xl:truncate" title=\{meta\}>/u);
+  assert.equal(caseTable.match(/\bfont-mono\b/gu)?.length, 2, "only the two due-date <time> elements are monospace");
+  const coveragePanel = read("src/components/v3/profile/CuratorCoveragePanel.tsx");
+  assert.match(coveragePanel, /<h2 id="curator-coverage-title" className="t-section text-fg">/u);
+  assert.doesNotMatch(coveragePanel, /font-mono/u, "workload counts are Golos tabular digits");
+  assert.match(read("src/components/v3/profile/CoverageDueTime.tsx"), /className="whitespace-nowrap font-mono tabular-nums"/u);
+  for (const path of ["src/components/v3/profile/CuratorCoveragePanel.tsx", "src/components/v3/profile/CuratorCoverageForm.tsx"]) {
+    assert.doesNotMatch(read(path), /\blabelCls\b/u, `${path} field labels use fieldLabelCls (t-label)`);
+  }
 });

@@ -22,7 +22,7 @@ export async function FinanceEntryWorkspace({ caseId }: Readonly<{ caseId: strin
     {workspace.canReadEvents ? <details className="border-t border-border"><summary className="min-h-11 cursor-pointer py-3 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">История операций · {workspace.events.length}</summary>
       {workspace.events.length ? <ul className="divide-y divide-border">{workspace.events.map(event => <li key={event.id} className="flex flex-wrap justify-between gap-3 py-3 text-sm">
         <span>{event.type === "payment" ? "Оплата" : "Возврат"} · {workspace.obligations.find(o => o.id === event.obligationId)?.label}<span className="mt-1 block text-xs text-fg-2">{new Intl.DateTimeFormat("ru-RU", { timeZone: "Asia/Bishkek", dateStyle: "medium", timeStyle: "short" }).format(new Date(event.occurredAt))} · Бишкек</span></span>
-        <span className="font-mono">{financeMoney(event.amountMinor, event.currency)}</span>
+        <span className="tabular-nums">{financeMoney(event.amountMinor, event.currency)}</span>
       </li>)}</ul> : <p className="pb-3 text-sm text-fg-2">Подтверждённых операций пока нет.</p>}
     </details> : <p className="py-3 text-sm text-fg-2">Детальная история платежей ограничена финансовыми правами.</p>}
   </div></Card>;

@@ -1,5 +1,6 @@
 import { PartShell } from "@/components/v3/PartShell";
+import { QueueSkeleton } from "@/components/v3/queue/QueueStates";
 
 export default function TasksLoading() {
-  return <PartShell title="Задачи"><p role="status" className="text-sm text-fg-2">Загружаем задачи…</p></PartShell>;
+  return <PartShell title="Задачи"><QueueSkeleton /></PartShell>;
 }

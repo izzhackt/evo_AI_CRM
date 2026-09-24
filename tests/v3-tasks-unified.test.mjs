@@ -11,6 +11,9 @@ import test from "node:test";
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const composer = source("src/components/v3/tasks/TaskComposerDialog.tsx");
 const panelPage = source("src/app/(v3)/v3/tasks/page.tsx");
+const taskList = source("src/components/v3/tasks/TaskQueueList.tsx");
+const taskRow = source("src/components/v3/tasks/TaskQueueRow.tsx");
+const quickAdd = source("src/components/v3/tasks/TaskQuickAdd.tsx");
 const caseTasksPanel = source("src/components/v3/profile/CaseTasksPanel.tsx");
 const admissionsTaskActions = source("src/lib/platform-admissions-task-actions.ts");
 const notificationsContract = source("src/lib/platform-staff-notifications-contract.ts");
@@ -64,7 +67,12 @@ test("submitting with a case chosen routes through the canonical create_case_tas
 });
 
 test("the unified composer is reachable from both the task list and a case (CaseTasksPanel)", () => {
+  // «Задачи» (25.09.2026): no red page button; the quiet «Новая задача…» row
+  // and the global top-bar link open the same TaskComposerDialog.
+  assert.match(quickAdd, /import \{ TaskComposerDialog \} from "\.\/TaskComposerDialog"/u);
+  assert.match(quickAdd, /<TaskComposerDialog\s+\{\.\.\.composer\}\s+hideTrigger/u);
   assert.match(panelPage, /import \{ TaskComposerDialog \} from "@\/components\/v3\/tasks\/TaskComposerDialog"/u);
+  assert.doesNotMatch(panelPage, /<PartShell[^>]*\baction=/u);
   assert.match(caseTasksPanel, /import \{ TaskComposerDialog \} from "@\/components\/v3\/tasks\/TaskComposerDialog"/u);
   assert.match(caseTasksPanel, /initialCase=\{\{ id: caseId, name: caseName \}\}/u);
 });
@@ -75,22 +83,23 @@ test("the task-list page renders a right-side/full-screen panel instead of navig
   assert.match(panelPage, /readCalendarTaskTarget\(actor, selectedCaseId, taskId\)/u);
 });
 
-test("closing the panel returns to the same list URL with its filters, cursor and scroll position preserved", () => {
-  // Source pin: the close/list href is built from the SAME domain/view/status
-  // (+ pagination cursor) the list itself renders with, not a bare /v3/tasks.
-  assert.match(panelPage, /const listParams: Record<string, string> = \{ type: domain, view, status \};/u);
-  assert.match(panelPage, /const closeHref = `\/v3\/tasks\?\$\{new URLSearchParams\(listParams\)\}`;/u);
-  assert.match(panelPage, /function taskHref\(item: WorkspaceTask\): string \{/u);
+test("closing the panel returns to the same list URL with its filters and scroll position preserved", () => {
+  // The close/list href is built from the SAME view/type/state/due/search
+  // params the list itself renders with, not a bare /v3/tasks.
+  assert.match(panelPage, /const listParams = taskQueueParams\(filters\);/u);
+  assert.match(panelPage, /const listHref = \(overrides: Record<string, string \| null> = \{\}\) => queueHref\("\/v3\/tasks", listParams, overrides\);/u);
+  assert.match(panelPage, /const closeHref = listHref\(\);/u);
+  assert.match(taskList, /export function taskPanelHref\(listParams: QueueParams, task: QueueTask, move = false\): string \{/u);
   // scroll={false} on the row links: opening/closing the panel must not
   // reset the list's scroll position via Next.js's default scroll-to-top.
-  assert.match(panelPage, /<Link href=\{taskHref\(item\)\} scroll=\{false\}/u);
-  const panel = source("src/components/v3/tasks/TaskDetailPanel.tsx");
-  assert.match(panel, /<Link href=\{closeHref\}/u);
+  assert.match(taskRow, /<Link\s+href=\{href\}\s+scroll=\{false\}\s+data-queue-open=""/u);
+  const panel = source("src/components/v3/queue/QueueDetailPanel.tsx");
+  assert.match(panel, /<Link\s+href=\{closeHref\}\s+scroll=\{false\}/u);
 });
 
 test("case tasks open in the same /v3/tasks panel, never a redirect to /v3/calendar", () => {
   assert.doesNotMatch(panelPage, /v3\/calendar\?case=/u);
-  assert.match(panelPage, /query\.set\("kind", "case"\); query\.set\("case", item\.task\.studentCaseId\);/u);
+  assert.match(taskList, /\{ task: task\.id, kind: "case", case: task\.studentCaseId \}/u);
 });
 
 test("the notifications contract decodes the v2 enrichment fields", () => {

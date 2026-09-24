@@ -9,7 +9,7 @@ import { mutateStaffTaskAction } from "@/lib/platform-staff-task-actions";
 import { createPlatformAdmissionsTaskAction } from "@/lib/platform-admissions-task-actions";
 import { PLATFORM_CASE_TASK_PRIORITIES, type PlatformCaseTaskPriority } from "@/lib/platform-admissions-task-contract";
 import { readTaskCaseAssigneesAction } from "@/lib/v3/task-case-actions";
-import { DeadlineFields } from "../calendar/TaskControls";
+import { ComposerDeadlineField } from "./ComposerDeadlineField";
 import { TaskCasePicker } from "./TaskCasePicker";
 import type { CalendarCaseOption, Day } from "../calendar/types";
 
@@ -48,6 +48,7 @@ export function TaskComposerDialog({
   participants, actorMembershipId, actor, staffAllowed, caseAllowed, day,
   initialCase = null, initialCaseAssignees = [], sourceMessageId, sourceMessageVersion,
   sourceLeadId, sourceLeadVersion, triggerLabel = "+ Задача", triggerClassName, openIntent = null,
+  hideTrigger = false, initialTitle = "", onClosed,
 }: Readonly<{
   participants: readonly StaffParticipant[]; actorMembershipId: string; actor: ActivePlatformActor;
   staffAllowed: boolean; caseAllowed: boolean; day: Day;
@@ -60,6 +61,12 @@ export function TaskComposerDialog({
    * even while already mounted -- the global AppShell "+" nav link and the
    * task-list header both rely on this to force-open across a same-page nav. */
   openIntent?: string | null;
+  /** Без своей кнопки: диалог открывают адрес (`openIntent`) или строка «Новая задача…». */
+  hideTrigger?: boolean;
+  /** Название, набранное до открытия (строка «Новая задача…»); важнее черновика. */
+  initialTitle?: string;
+  /** Куда вернуть фокус, если своей кнопки нет. */
+  onClosed?: () => void;
 }>) {
   const [open, setOpen] = useState(openIntent !== null);
   const [seenIntent, setSeenIntent] = useState(openIntent);
@@ -70,16 +77,17 @@ export function TaskComposerDialog({
   const trigger = useRef<HTMLButtonElement>(null);
   if ((!staffAllowed && !caseAllowed) || isStaffPreview(actor)) return null;
   return <>
-    <button ref={trigger} type="button" aria-haspopup="dialog"
+    {!hideTrigger ? <button ref={trigger} type="button" aria-haspopup="dialog"
       className={triggerClassName ?? "min-h-11 rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:opacity-90"}
-      onClick={() => setOpen(true)}>{triggerLabel}</button>
+      onClick={() => setOpen(true)}>{triggerLabel}</button> : null}
     {open ? <TaskComposerModal
       participants={participants} actorMembershipId={actorMembershipId} actor={actor} day={day}
       staffAllowed={staffAllowed} caseAllowed={caseAllowed && !sourceMessageId && !sourceLeadId}
       initialCase={initialCase} initialCaseAssignees={initialCaseAssignees}
       sourceMessageId={sourceMessageId} sourceMessageVersion={sourceMessageVersion}
       sourceLeadId={sourceLeadId} sourceLeadVersion={sourceLeadVersion}
-      onClose={() => { setOpen(false); trigger.current?.focus(); }}
+      initialTitle={initialTitle}
+      onClose={() => { setOpen(false); if (trigger.current) trigger.current.focus(); else onClosed?.(); }}
     /> : null}
   </>;
 }
@@ -87,7 +95,7 @@ export function TaskComposerDialog({
 function TaskComposerModal({
   participants, actorMembershipId, actor, staffAllowed, caseAllowed, day,
   initialCase, initialCaseAssignees, sourceMessageId, sourceMessageVersion,
-  sourceLeadId, sourceLeadVersion, onClose,
+  sourceLeadId, sourceLeadVersion, initialTitle, onClose,
 }: Readonly<{
   participants: readonly StaffParticipant[]; actorMembershipId: string; actor: ActivePlatformActor;
   staffAllowed: boolean; caseAllowed: boolean; day: Day;
@@ -95,6 +103,7 @@ function TaskComposerModal({
   initialCaseAssignees: readonly Readonly<{ membershipId: string; displayName: string }>[];
   sourceMessageId?: string; sourceMessageVersion?: string;
   sourceLeadId?: string; sourceLeadVersion?: string;
+  initialTitle: string;
   onClose: () => void;
 }>) {
   const router = useRouter();
@@ -111,7 +120,7 @@ function TaskComposerModal({
   // Lazy initializers hydrate synchronously from the one draft this exact
   // dialog instance owns -- an effect would set state right after mount for
   // no benefit, since the dialog is freshly created per open() anyway.
-  const [title, setTitle] = useState(() => readDraft(draftContext)?.title ?? "");
+  const [title, setTitle] = useState(() => initialTitle.trim() || readDraft(draftContext)?.title || "");
   const [description, setDescription] = useState(() => readDraft(draftContext)?.description ?? "");
   const [priority, setPriority] = useState<PlatformCaseTaskPriority>("normal");
   const [staffAssignee, setStaffAssignee] = useState(actorMembershipId);
@@ -300,9 +309,7 @@ function TaskComposerModal({
           {caseMode && !candidatesReady ? <span className="mt-1 block text-xs text-fg-2">{!caseId ? "Выберите дело студента." : caseCandidates.caseId === caseId && caseCandidates.status === "unavailable" ? "Не удалось проверить исполнителей. Обновите страницу." : "Проверяем исполнителей выбранного дела…"}</span> : null}
         </label>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <DeadlineFields day={day} defaultKind="none" />
-        </div>
+        <ComposerDeadlineField day={day} disabled={locked} />
 
         <details>
           <summary className="min-h-11 cursor-pointer py-2 text-sm text-fg-2">Описание и приоритет</summary>

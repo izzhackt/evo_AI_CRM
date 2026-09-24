@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState, useTransition, type FormEvent } from "react";
 
 import { Pill } from "@/components/v3/Pill";
-import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   applyCaseBaselineChecklistAction,
   changePlatformDocumentSlotMetadataAction,
@@ -115,7 +115,7 @@ function RemovedDocumentHistory({
       data-testid="v3-removed-document-history"
     >
       <div className="bg-surface-2 px-4 py-3">
-        <h4 id="removed-document-history-title" className="text-sm font-semibold text-fg">
+        <h4 id="removed-document-history-title" className="t-item text-fg">
           История удалённых пунктов
         </h4>
         <p className="mt-1 text-xs text-fg-3">
@@ -127,8 +127,8 @@ function RemovedDocumentHistory({
         {groups.map((group) => (
           <li key={group.title} className="border-t border-border first:border-t-0">
             <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-              <h5 className="text-sm font-semibold text-fg">{group.title}</h5>
-              <span className="font-mono text-2xs text-fg-3">{group.items.length}</span>
+              <h5 className="t-item text-fg">{group.title}</h5>
+              <span className="t-meta tabular-nums text-fg-3">{group.items.length}</span>
             </div>
             <ul>
               {group.items.map((item) => (
@@ -165,7 +165,7 @@ function RemovedDocumentHistory({
                             <p className="truncate text-xs font-medium text-fg">
                               {version.filename} · версия {version.versionNumber}
                             </p>
-                            <p className="mt-0.5 text-2xs text-fg-3">
+                            <p className="t-meta mt-0.5 text-fg-3">
                               {version.submittedBy} · {historyDate(version.submittedAt)}
                             </p>
                           </div>
@@ -181,7 +181,7 @@ function RemovedDocumentHistory({
                               </a>
                             </div>
                           ) : (
-                            <span className="text-2xs text-fg-3">
+                            <span className="t-meta text-fg-3">
                               Скачивание недоступно
                             </span>
                           )}
@@ -367,7 +367,7 @@ function ApplyBaselineChecklist({
       <input type="hidden" name="student_case_id" value={studentCaseId} />
       <input type="hidden" name="request_id" value={state.requestId || requestId} />
       <label>
-        <span className={labelCls}>Базовый чек-лист</span>
+        <span className={fieldLabelCls}>Базовый чек-лист</span>
         <select
           required
           name="country_requirement_version_id"
@@ -457,7 +457,7 @@ function CreateChecklistItem({
       <input type="hidden" name="student_case_id" value={studentCaseId} />
       <input type="hidden" name="request_id" value={state.requestId || requestId} />
       <label>
-        <span className={labelCls}>Новый документ</span>
+        <span className={fieldLabelCls}>Новый документ</span>
         <input
           required
           name="label"
@@ -468,7 +468,7 @@ function CreateChecklistItem({
         />
       </label>
       <label>
-        <span className={labelCls}>Группа</span>
+        <span className={fieldLabelCls}>Группа</span>
         <input
           required
           name="group_label"
@@ -556,7 +556,7 @@ function ChecklistItemControls({
           value="Обновление пункта чек-листа сотрудником"
         />
         <label>
-          <span className={labelCls}>Название</span>
+          <span className={fieldLabelCls}>Название</span>
           <input
             required
             name="label"
@@ -567,7 +567,7 @@ function ChecklistItemControls({
           />
         </label>
         <label>
-          <span className={labelCls}>Группа</span>
+          <span className={fieldLabelCls}>Группа</span>
           <input
             required
             name="group_label"
@@ -759,8 +759,8 @@ export function ProfileDocumentsClient({
         {groups.map((group) => (
           <li key={group.title} className="border-b border-border last:border-b-0">
             <div className="flex items-center justify-between gap-3 bg-surface-2 px-4 py-2.5">
-              <h4 className="text-sm font-semibold text-fg">{group.title}</h4>
-              <span className="font-mono text-2xs text-fg-3">{group.items.length}</span>
+              <h4 className="t-item text-fg">{group.title}</h4>
+              <span className="t-meta tabular-nums text-fg-3">{group.items.length}</span>
             </div>
             {group.items.length === 0 ? (
               <p className="px-4 py-4 text-sm text-fg-3">Требований нет.</p>
@@ -822,7 +822,7 @@ export function ProfileDocumentsClient({
                         >
                           <input type="hidden" name="request_id" value={item.uploadRequestId} />
                           <label>
-                            <span className={labelCls}>
+                            <span className={fieldLabelCls}>
                               {item.presence === "present" ? "Заменить файл" : "Загрузить файл"}
                             </span>
                             <input

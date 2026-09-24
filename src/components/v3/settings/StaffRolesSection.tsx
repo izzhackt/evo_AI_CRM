@@ -52,7 +52,7 @@ function RoleEditor({ role, sourceRole, permissions, onClose }: {
   const [selected, setSelected] = useState<readonly string[]>(role?.draftPermissionKeys ?? sourceRole?.draftPermissionKeys ?? []);
   const operation = role ? "save" : sourceRole ? "copy" : "create";
   return <div className="min-w-0 space-y-4">
-    <h3 className="text-md font-semibold">{role ? "Изменить роль" : sourceRole ? "Скопировать роль" : "Новая роль"}</h3>
+    <h3 className="t-section">{role ? "Изменить роль" : sourceRole ? "Скопировать роль" : "Новая роль"}</h3>
     <StaffRoleCommandForm label="Редактор роли" submitLabel="Сохранить черновик" onComplete={(state) => <div className="flex flex-wrap gap-3">
       <button type="button" className={btnGhostCls} onClick={onClose}>Закрыть редактор</button>
       {state.roleId ? <Link href={roleHref(state.roleId)} className={btnCls} onClick={onClose}>Открыть роль</Link> : null}
@@ -92,7 +92,7 @@ function RolePublication({ role, workspace }: { role: StaffEditableRole; workspa
       <StaffRoleFeedback state={state} />
       <button type="submit" className={btnCls} disabled={pending}>{pending ? "Проверяем…" : "Проверить и опубликовать"}</button>
     </form> : <>
-      <h4 className="text-sm font-semibold">Изменение доступа</h4>
+      <h4 className="t-item">Изменение доступа</h4>
       <div className="space-y-2 text-sm leading-6">
         <p>Затронуто сотрудников: {impact.affectedMembershipIds.length}</p>
         {impact.affectedMembershipIds.length ? <ul className="list-disc space-y-1 pl-5">{impact.affectedMembershipIds.map((id) =>
@@ -151,7 +151,7 @@ function RoleArchiveReview({ role, workspace, onRestart }: {
       <StaffRoleFeedback state={state} />
       <button type="submit" className={btnCls} disabled={pending}>{pending ? "Проверяем…" : "Проверить архивирование"}</button>
     </form> : <>
-      <h4 className="text-sm font-semibold">Изменение доступа при архивировании</h4>
+      <h4 className="t-item">Изменение доступа при архивировании</h4>
       <div className="space-y-2 text-sm leading-6">
         <p>Затронуто сотрудников: {impact.affectedMembershipIds.length}</p>
         {impact.affectedMembershipIds.length ? <ul className="list-disc space-y-1 pl-5">
@@ -210,7 +210,7 @@ function RoleDetails({ role, workspace, onCopy }: { role: StaffEditableRole; wor
   if (editing) return <RoleEditor role={role} permissions={workspace.permissions} onClose={() => setEditing(false)} />;
   return <div className="space-y-5">
     <Link className={`${btnGhostCls} @4xl:hidden`} href="/v3/settings?section=staff&view=roles">К списку ролей</Link>
-    <div className="space-y-2"><h3 className="text-lg font-semibold break-words">{role.label}</h3>
+    <div className="space-y-2"><h3 className="t-record-title break-words">{role.label}</h3>
       {role.description ? <p className="text-sm leading-6 text-fg-2">{role.description}</p> : null}
       <p className="text-sm text-fg-3">{role.status === "archived" ? "В архиве" : role.bundleId ? "Опубликована" : "Черновик"} · сотрудников: {role.memberCount}</p>
     </div>
@@ -220,7 +220,7 @@ function RoleDetails({ role, workspace, onCopy }: { role: StaffEditableRole; wor
       {role.status === "active" ? <button type="button" className={btnGhostCls} aria-expanded={publishing} onClick={() => setPublishing(!publishing)}>Публикация</button> : null}
     </div>
     {publishing ? <RolePublication key={role.id} role={role} workspace={workspace} /> : null}
-    <section className="space-y-2"><h4 className="text-sm font-semibold">Действующие разрешения</h4>
+    <section className="space-y-2"><h4 className="t-item">Действующие разрешения</h4>
       {role.permissionKeys.length ? <ul className="divide-y divide-border text-sm leading-6">{role.permissionKeys.map((key) =>
         <li key={key} className="py-2">{workspace.permissions.find((permission) => permission.key === key)?.label}</li>)}</ul>
         : <p className="text-sm text-fg-3">Нет опубликованных разрешений.</p>}
@@ -240,7 +240,7 @@ export function StaffRolesSection({ workspace, selectedRoleId }: { workspace: St
   const visible = workspace.roles.filter((role) => (archived || role.status === "active") && `${role.label} ${role.description}`.toLocaleLowerCase("ru").includes(query.toLocaleLowerCase("ru").trim()));
   if (newRole) return <RoleEditor sourceRole={newRole === "new" ? undefined : newRole} permissions={workspace.permissions} onClose={() => setNewRole(null)} />;
   return <StaffRoleControls>
-    <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-md font-semibold">Роли и доступ</h3><button type="button" className={btnCls} onClick={() => setNewRole("new")}>Создать роль</button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="t-section">Роли и доступ</h3><button type="button" className={btnCls} onClick={() => setNewRole("new")}>Создать роль</button></div>
     <p className="text-sm leading-6 text-fg-3">Роль задаёт действия. Область — свои записи, отдел или направление — выбирается при назначении сотруднику.</p>
     <details className="border-b border-border pb-3" data-testid="staff-role-preview">
       <summary className="min-h-11 cursor-pointer content-center rounded-nav px-2 py-2 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">

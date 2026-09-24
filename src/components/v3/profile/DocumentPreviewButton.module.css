@@ -43,7 +43,8 @@
 .heading h2 {
   margin: 0;
   overflow-wrap: anywhere;
-  font-size: 1rem;
+  font-size: var(--type-section);
+  line-height: var(--type-section-leading);
   font-weight: 600;
 }
 
@@ -51,7 +52,8 @@
 .footer p {
   margin: 0;
   color: var(--text-3);
-  font-size: .75rem;
+  font-size: var(--type-meta);
+  line-height: var(--type-meta-leading);
 }
 
 .heading p {
@@ -71,7 +73,8 @@
   gap: 1rem;
   overflow: auto;
   padding: 1.5rem;
-  font-size: .875rem;
+  font-size: var(--type-body-compact);
+  line-height: var(--type-body-compact-leading);
   text-align: center;
 }
 

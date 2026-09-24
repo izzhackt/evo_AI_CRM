@@ -19,9 +19,9 @@ export function Card({
 }) {
   return (
     <section className="overflow-hidden rounded-card border border-border bg-surface">
-      <h3 className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 text-2xs font-semibold uppercase tracking-wide text-fg-2">
+      <h3 className="t-section flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 text-fg">
         {title}
-        {aside ? <span className="font-normal normal-case tracking-normal">{aside}</span> : null}
+        {aside ? <span className="t-body-compact">{aside}</span> : null}
       </h3>
       {children}
     </section>
@@ -31,7 +31,7 @@ export function Card({
 /** Краткое пояснение к правилам или состоянию. */
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <p className="border-t border-border bg-surface-2 px-4 py-2.5 text-2xs leading-4 text-fg-3">
+    <p className="t-meta border-t border-border bg-surface-2 px-4 py-2.5 text-fg-3">
       {children}
     </p>
   );
@@ -56,11 +56,11 @@ export function StateSection({ health }: { health: readonly Health[] }) {
             key={item.name}
             className={`flex flex-col gap-0.5 rounded-card border border-s-2 border-border bg-surface px-4 py-3 ${TONE_EDGE[item.tone]}`}
           >
-            <span className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
+            <span className="t-caption text-fg-3">
               {item.name}
             </span>
-            <span className="text-md font-bold tracking-[-0.01em] text-fg">{item.state}</span>
-            <span className="text-2xs text-fg-3">{item.detail}</span>
+            <span className="t-item text-fg">{item.state}</span>
+            <span className="t-meta text-fg-3">{item.detail}</span>
           </li>
         ))}
       </ul>
@@ -73,7 +73,7 @@ export function StateSection({ health }: { health: readonly Health[] }) {
               className="grid gap-x-4 gap-y-1 border-b border-border px-4 py-3 last:border-b-0 @4xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)]"
             >
               <span className="text-sm font-semibold text-fg">{item.name}</span>
-              <span className="text-2xs leading-4 text-fg-2">{item.blocker}</span>
+              <span className="t-body-compact text-fg-2">{item.blocker}</span>
             </li>
           ))}
         </ul>
@@ -104,11 +104,11 @@ export function IntegrationsSection({
           >
             <dl>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5">
-                <dt className="w-40 shrink-0 text-2xs text-fg-3">Подробности</dt>
+                <dt className="t-caption w-40 shrink-0 text-fg-3">Подробности</dt>
                 <dd className="min-w-0 flex-1 text-sm text-fg">{item.detail}</dd>
               </div>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5">
-                <dt className="w-40 shrink-0 text-2xs text-fg-3">Что требуется</dt>
+                <dt className="t-caption w-40 shrink-0 text-fg-3">Что требуется</dt>
                 <dd className="min-w-0 flex-1 text-sm text-fg">{item.blocker}</dd>
               </div>
             </dl>
@@ -123,7 +123,7 @@ export function IntegrationsSection({
               className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 last:border-b-0"
             >
               <span className="min-w-0 flex-1 text-sm text-fg">{one.name}</span>
-              <span className="text-2xs text-fg-3">{one.detail}</span>
+              <span className="t-meta text-fg-3">{one.detail}</span>
             </li>
           ))}
         </ul>
@@ -188,7 +188,7 @@ export function JournalSection({
       {/* Фильтры — ссылки: адрес несёт выбор, поэтому отфильтрованный журнал
           можно переслать и вернуться назад кнопкой браузера. */}
       <nav aria-label="Фильтры журнала" className="flex flex-col gap-2">
-        <p className="text-2xs uppercase tracking-wide text-fg-3">Тип записи</p>
+        <p className="t-caption text-fg-3">Тип записи</p>
         <ul className="flex flex-wrap gap-1.5">
           <li>
             <Link href={hrefFor({})} aria-current={!active.objectType ? "page" : undefined} className={chip}>
@@ -208,7 +208,7 @@ export function JournalSection({
                   className={chip}
                 >
                   {word}
-                  <span className={active.objectType === type.key ? undefined : "text-fg-3"}>
+                  <span className={active.objectType === type.key ? "tabular-nums" : "tabular-nums text-fg-3"}>
                     {type.count}
                   </span>
                 </Link>
@@ -277,11 +277,11 @@ export function JournalSection({
                     {journalEvent(entry.transition)}
                   </span>
                   {actorWord !== null ? <Pill>{actorWord}</Pill> : null}
-                  <span className="shrink-0 font-mono text-2xs text-fg-3">{entry.at}</span>
+                  <span className="t-meta shrink-0 font-mono text-fg-3">{entry.at}</span>
                   {/* Имени объекта аудит не отдаёт — только тип и id. Короткий
                       id различает строки об одном типе, ссылка есть там, где
                       id ведёт в профиль нового мира. */}
-                  <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-fg-3">
+                  <span className="t-meta flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-fg-3">
                     {objectWord !== null ? <span>{objectWord}</span> : null}
                     {entry.objectId !== null ? (
                       <span className="font-mono">#{entry.objectId.slice(0, 8)}</span>
@@ -306,7 +306,7 @@ export function JournalSection({
           </ul>
         </div>
         {unnamed > 0 ? (
-          <p className="border-t border-border px-4 py-2 text-2xs text-fg-3">
+          <p className="t-meta border-t border-border px-4 py-2 text-fg-3">
             {unnamed}{" "}
             {pluralRu(
               unnamed,
@@ -357,7 +357,7 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
               key={k}
               className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5 last:border-b-0"
             >
-              <span className="w-44 shrink-0 text-2xs text-fg-3">{k}</span>
+              <span className="t-caption w-44 shrink-0 text-fg-3">{k}</span>
               <span className="min-w-0 flex-1 text-sm text-fg">{v}</span>
             </li>
           ))}
@@ -381,8 +381,8 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
             ["Финансовых стопов", gates.financeStops],
           ].map(([label, n]) => (
             <li key={String(label)} className="bg-surface px-4 py-3">
-              <span className="block text-2xs text-fg-3">{label}</span>
-              <span className="block text-lg font-bold text-fg">{n}</span>
+              <span className="t-caption block text-fg-3">{label}</span>
+              <span className="t-item block tabular-nums text-fg">{n}</span>
             </li>
           ))}
         </ul>
@@ -403,11 +403,11 @@ export function PlatformSection({ platform, salesImportHref }: { platform: strin
       <Card title="Что сейчас запущено">
         <dl>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5">
-            <dt className="w-44 shrink-0 text-2xs text-fg-3">База данных</dt>
+            <dt className="t-caption w-44 shrink-0 text-fg-3">База данных</dt>
             <dd className="min-w-0 flex-1 text-sm text-fg">{platform}</dd>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-4 py-2.5">
-            <dt className="w-44 shrink-0 text-2xs text-fg-3">Настройки окружения</dt>
+            <dt className="t-caption w-44 shrink-0 text-fg-3">Настройки окружения</dt>
             <dd className="min-w-0 flex-1 text-sm text-fg">только для чтения</dd>
           </div>
         </dl>
@@ -434,7 +434,7 @@ export function PlatformSection({ platform, salesImportHref }: { platform: strin
               className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5 last:border-b-0"
             >
               <span className="w-52 shrink-0 text-sm font-medium text-fg">{what}</span>
-              <span className="min-w-0 flex-1 text-2xs leading-4 text-fg-2">{why}</span>
+              <span className="t-body-compact min-w-0 flex-1 text-fg-2">{why}</span>
             </li>
           ))}
         </ul>

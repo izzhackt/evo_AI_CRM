@@ -96,7 +96,7 @@ export function UniversityFormUpload({ catalogId, templateId, revision, reserveR
   if (state.sent && state.version) return <UniversityFormUploadStatus catalogId={catalogId} templateId={templateId}
     version={state.version} initialInspection={null} initialReceipt={state.receipt} checkOnMount />;
   return <section aria-labelledby={`${id}-title`} className="max-w-2xl space-y-5">
-    <h2 id={`${id}-title`} className="text-lg font-bold text-fg">{words.upload}</h2>
+    <h2 id={`${id}-title`} className="t-section text-fg">{words.upload}</h2>
     <form action={submit} aria-busy={pending} className="space-y-5">
       <div className="space-y-2">
         <label htmlFor={`${id}-file`} className="block text-sm font-medium text-fg">{words.file}</label>

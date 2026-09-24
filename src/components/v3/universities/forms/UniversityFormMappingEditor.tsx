@@ -88,7 +88,7 @@ export function UniversityFormMappingEditor({ catalogId, templateId, revision, v
     setMappings(rows => rows.map(row => row.slotId === slotId ? { ...row, ...patch } : row));
   }
   return <section aria-labelledby={`${id}-title`} className="space-y-5 border-t border-border pt-5">
-    <div className="max-w-2xl space-y-2"><h3 id={`${id}-title`} className="text-lg font-bold text-fg">{readOnly ? words.savedMapping : words.edit}</h3>
+    <div className="max-w-2xl space-y-2"><h3 id={`${id}-title`} className="t-section text-fg">{readOnly ? words.savedMapping : words.edit}</h3>
       <p className="text-sm leading-6 text-fg-2">{readOnly ? words.reviewExplanation : words.editExplanation}</p>
       <p className="text-sm leading-6 text-fg-2">{words.excerptExplanation}</p></div>
     <form action={readOnly ? undefined : submit} aria-busy={pending} className="space-y-5">

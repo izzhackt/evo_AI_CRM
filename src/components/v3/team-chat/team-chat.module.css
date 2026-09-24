@@ -5,7 +5,8 @@
 .workspace button:disabled { cursor: wait; background: var(--bg); color: var(--text-3); }
 .workspace :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 .channels { flex: 0 0 288px; min-width: 0; overflow-y: auto; padding: 22px 12px; border-right: 1px solid var(--border); }
-.channelTitle { margin: 0 8px 22px; font-size: 21px; font-weight: 600; line-height: 1.3; letter-spacing: -.02em; }
+/* Размер, вес и разрядку заголовка задаёт роль t-page-title из v3.css. */
+.channelTitle { margin: 0 8px 22px; }
 .channelFeedback { display: none; }
 .channelSearch { display: flex; align-items: center; gap: 8px; margin: 0 4px 16px; padding-left: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text-3); }
 .workspace .channels .channelSearch input[type=search] { min-width: 0; width: 100%; padding-left: 0; border: 0; box-shadow: none; background: transparent; }
@@ -22,23 +23,23 @@
 .channelAvatar[data-channel=admissions] { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); }
 .channelCopy { flex: 1; min-width: 0; }
 .channelHeading { display: flex; align-items: baseline; gap: 8px; }
-.channelName { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; }
-.channelTime { flex-shrink: 0; white-space: nowrap; font-size: 13px; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--text-3); }
-.channelPreview { display: block; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; color: var(--text-3); }
-.unread { flex-shrink: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); min-width: 24px; padding: 2px 6px; text-align: center; font-size: 12px; }
+.channelName { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-item); line-height: var(--type-item-leading); font-weight: 600; }
+.channelTime { flex-shrink: 0; white-space: nowrap; font-size: var(--type-meta); line-height: var(--type-meta-leading); font-weight: 400; font-variant-numeric: tabular-nums; color: var(--text-3); }
+.channelPreview { display: block; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-meta); line-height: var(--type-meta-leading); font-weight: 400; color: var(--text-3); }
+.unread { flex-shrink: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); min-width: 24px; padding: 2px 6px; text-align: center; font-size: var(--type-caption); line-height: var(--type-caption-leading); font-weight: 500; font-variant-numeric: tabular-nums; }
 .conversation { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .conversationHeader { display: flex; flex-shrink: 0; align-items: center; gap: 14px; min-height: 78px; padding: 12px 24px; border-bottom: 1px solid var(--border); }
-.conversationHeader h2 { font-size: 18px; margin: 0; font-weight: 600; }
+.conversationHeader h2 { font-size: var(--type-section); line-height: var(--type-section-leading); margin: 0; font-weight: 600; }
 .conversationHeader > :last-child { margin-left: auto; }
 .iconButton { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; border: none; border-radius: 8px; background: transparent; color: var(--text-2); }
 .iconButton:hover { background: var(--bg); }
-.transport { display: flex; align-items: center; flex-wrap: wrap; padding: 0 20px; gap: 8px; font-size: 13px; color: var(--text-3); }
+.transport { display: flex; align-items: center; flex-wrap: wrap; padding: 0 20px; gap: 8px; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); color: var(--text-3); }
 .search { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 20px 12px; border-bottom: 1px solid var(--border); }
 .search input { flex: 1 1 140px; min-width: 0; }
 .workspace input:not([type=checkbox]):not([type=hidden]), .workspace textarea { border: 1px solid var(--control-edge); border-radius: 8px; padding: 10px 12px; color: var(--text); background: var(--surface); font: inherit; font-size: 14px; }
 .history { flex: 1; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; overflow-anchor: none; padding: 18px 28px; scrollbar-gutter: stable; background: var(--bg); }
 .dateDivider { display: flex; justify-content: center; margin: 4px 0 18px; }
-.dateDivider span { padding: 5px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text) 4%, var(--bg)); color: var(--text-3); font-size: 12px; }
+.dateDivider span { padding: 5px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text) 4%, var(--bg)); color: var(--text-3); font-size: var(--type-meta); line-height: var(--type-meta-leading); }
 .message { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0 12px; scroll-margin: 16px; }
 .continuation { padding-top: 2px; padding-bottom: 6px; }
 .continuationAvatar { visibility: hidden; }
@@ -54,14 +55,14 @@
 .compactDeleted .bubble > p { margin: 0; }
 .highlighted .bubble { outline: 2px solid var(--accent); outline-offset: 3px; }
 .messageHeader { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; font-size: 14px; }
-.messageMetadata { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; color: var(--text-3); font-size: 12px; }
+.messageMetadata { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; color: var(--text-3); font-size: var(--type-meta); line-height: var(--type-meta-leading); }
 .messageMetadata time { white-space: nowrap; }
 .messageFooter > button, .messageFooter > .messageMenu { flex-shrink: 0; }
-.body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; font-size: 16px; }
+.body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--type-body); line-height: var(--type-body-leading); }
 .messageActions, .readActions { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .readActions { padding: 0 20px; background: var(--bg); }
 .readActions:empty { display: none; }
-.textButton { border: none; background: transparent; color: var(--text-2); display: inline-flex; gap: 6px; align-items: center; justify-content: center; text-align: left; font-size: 13px; padding: 8px 4px; text-decoration: none; border-radius: 6px; }
+.textButton { border: none; background: transparent; color: var(--text-2); display: inline-flex; gap: 6px; align-items: center; justify-content: center; text-align: left; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); padding: 8px 4px; text-decoration: none; border-radius: 6px; }
 .textButton:hover { color: var(--accent-text); background: var(--bg); }
 .messageMenu summary { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; border-radius: 6px; font-size: 22px; color: var(--text-3); list-style: none; }
 .messageMenu summary::-webkit-details-marker { display: none; }
@@ -74,10 +75,10 @@
 .secondary:hover { background: var(--bg); }
 .primary:hover:not(:disabled) { background: var(--accent-text); }
 .composer { flex-shrink: 0; padding: 12px 24px 16px; border-top: 1px solid var(--border); background: var(--surface); }
-.quote { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; text-align: left; overflow-wrap: anywhere; }
+.quote { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-2); font: inherit; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); text-align: left; overflow-wrap: anywhere; }
 .quote:hover { border-color: var(--accent-text); }
 .quote span, .composerQuote p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
-.composerQuote { display: flex; align-items: flex-start; gap: 8px; padding-bottom: 8px; font-size: 13px; color: var(--text-2); }
+.composerQuote { display: flex; align-items: flex-start; gap: 8px; padding-bottom: 8px; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); color: var(--text-2); }
 .composerQuote > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .composerQuote p { margin: 4px 0 0; }
 .drafts { margin-bottom: 8px; font-size: 14px; }
@@ -86,7 +87,7 @@
 .drafts button { overflow-wrap: anywhere; max-width: 100%; }
 .draftPreview { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 120px; overflow-y: auto; color: var(--text-2); }
 .searchResult { padding: 12px 0; border-bottom: 1px solid var(--border); }
-.searchResult > strong { display: block; margin-bottom: 6px; font-size: 14px; }
+.searchResult > strong { display: block; margin-bottom: 6px; font-size: var(--type-item); line-height: var(--type-item-leading); font-weight: 600; }
 .searchResult mark { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); color: var(--text); }
 .composer [aria-live]:empty { display: none; }
 .composerInput { display: flex; gap: 8px; align-items: center; min-height: 66px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; }
@@ -95,20 +96,23 @@
 .sendButton:hover:not(:disabled) { background: var(--accent-text); }
 .composer > [aria-live]:empty { display: none; }
 .composerFooter { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.label { display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-2); }
+.label { display: block; margin-bottom: 8px; font-size: var(--type-label); line-height: var(--type-label-leading); font-weight: 500; color: var(--text-2); }
 .label input { display: block; width: 100%; margin-top: 6px; }
-.muted { color: var(--text-3); font-size: 13px; line-height: 1.5; }
+/* Уведомления, вопросы и пояснения к восстановлению — не мельче 14 px;
+   внутри строки метаданных пометка «изменено» остаётся её размера. */
+.muted { color: var(--text-3); font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); }
+.messageMetadata .muted { font-size: inherit; line-height: inherit; }
 .mentions { position: relative; order: 1; flex: 0 0 44px; }
 .mentions summary { display: flex; align-items: center; justify-content: center; height: 44px; width: 44px; font-size: 27px; list-style: none; color: var(--text-2); border-radius: 8px; }
 .mentions summary::-webkit-details-marker { display: none; }
 .mentions summary:hover { background: var(--bg); }
-.mentions summary small { font-size: 12px; color: var(--accent-text); }
+.mentions summary small { font-size: var(--type-meta); color: var(--accent-text); }
 .mentionOptions { position: absolute; z-index: 10; bottom: calc(100% + 12px); left: 0; width: min(280px, calc(100vw - 64px)); max-height: min(240px, 40dvh); overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 8px 24px #00000012; }
 .mentionOptions label { display: flex; gap: 8px; align-items: center; min-height: 44px; font-size: 14px; }
 .mentionOptions input { width: 18px; height: 18px; min-height: 18px; accent-color: var(--accent); }
-.mentionNames { font-size: 13px; color: var(--accent-text); margin: 8px 0 0; }
+.mentionNames { font-size: var(--type-meta); line-height: var(--type-meta-leading); color: var(--accent-text); margin: 8px 0 0; }
 .error { color: var(--danger); font-size: 14px; line-height: 1.5; padding: 8px 12px; overflow-wrap: anywhere; }
-.empty { color: var(--text-3); font-size: 16px; line-height: 1.5; padding: 32px 8px; }
+.empty { color: var(--text-3); font-size: var(--type-body); line-height: var(--type-body-leading); padding: 32px 8px; }
 .confirmation { background: var(--bg); padding: 12px; border-radius: 8px; font-size: 14px; }
 .mobileBack { display: none; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
@@ -121,10 +125,9 @@
   .conversationHeader, .composer { padding: 12px; }
   .conversationHeader { min-height: 68px; gap: 8px; }
   .conversationHeader .channelAvatar { display: none; }
-  .conversationHeader h2 { font-size: 16px; }
   .message { gap: 8px; }
   .messageContent { max-width: 90%; }
-  .authorAvatar { flex-basis: 30px; width: 30px; height: 30px; font-size: 11px; }
+  .authorAvatar { flex-basis: 30px; width: 30px; height: 30px; font-size: var(--type-meta); }
   .bubble { padding: 10px 12px; }
   .composerInput { gap: 4px; padding: 4px; }
   .search { padding: 8px 12px; }

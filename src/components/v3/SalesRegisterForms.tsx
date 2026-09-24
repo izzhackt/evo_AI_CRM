@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   saveSalesRegisterAction, saveSalesTargetAction, importSalesRegisterAction,
   searchSalesRegisterStudentsAction, readSalesReportConditionsPreviewAction,
@@ -90,8 +90,8 @@ function ConditionsPreview({ leadId, preview, pending }: {
     <dt className="text-fg-3">Услуга/пакет</dt><dd className="text-right text-fg">{conditions.serviceLabel || "не указано"}</dd>
     <dt className="text-fg-3">Дата продажи</dt><dd className="text-right text-fg">{conditions.signingDate ? conditions.signingDate.split("-").reverse().join(".") : "не указана"}</dd>
     <dt className="text-fg-3">Месяц отчёта</dt><dd className="text-right font-medium text-fg">{new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${preview.reportMonth}T00:00:00Z`))}</dd>
-    <dt className="text-fg-3">Стоимость</dt><dd className="text-right font-mono text-fg">{previewMoney(conditions.serviceCostMinor, conditions.serviceCostCurrency)}</dd>
-    <dt className="text-fg-3">Оплачено</dt><dd className="text-right font-mono text-fg">{previewMoney(conditions.paidMinor, conditions.paidCurrency)}</dd>
+    <dt className="text-fg-3">Стоимость</dt><dd className="text-right tabular-nums text-fg">{previewMoney(conditions.serviceCostMinor, conditions.serviceCostCurrency)}</dd>
+    <dt className="text-fg-3">Оплачено</dt><dd className="text-right tabular-nums text-fg">{previewMoney(conditions.paidMinor, conditions.paidCurrency)}</dd>
     {conditions.paymentNote ? <><dt className="text-fg-3">Об оплате</dt><dd className="text-right text-fg">{conditions.paymentNote}</dd></> : null}
     <dt className="col-span-2 border-t border-border pt-2 text-xs text-fg-3">
       <Link href={cardHref} className="inline-flex min-h-11 items-center text-sm text-fg underline underline-offset-4">Исправить условия</Link>
@@ -143,18 +143,18 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   const update = (key: string, value: string) => setDraft(previous => ({ ...previous, [key]: value }));
   const wire: Draft = { ...draft, report_month: `${draft.report_month}-01`, service_cost_minor: minor(draft.cost), paid_minor: minor(draft.paid) };
   delete wire.cost; delete wire.paid;
-  const input = (key: string, type = "text", required = false, maxLength = 200) => <label key={key} className="block min-w-0"><span className={labelCls}>{FIELD_LABELS[key]}</span>
+  const input = (key: string, type = "text", required = false, maxLength = 200) => <label key={key} className="block min-w-0"><span className={fieldLabelCls}>{FIELD_LABELS[key]}</span>
     <input type={type} value={draft[key]} onChange={event => update(key, event.target.value)} required={required} maxLength={maxLength}
       min={type === "month" ? "1900-01" : type === "date" ? "1900-01-01" : undefined}
       max={type === "month" ? "2100-12" : type === "date" ? "2100-12-31" : undefined}
       className={`${inputCls} min-h-11 w-full`} /></label>;
-  const currency = (key: string) => <label className="block"><span className={labelCls}>Валюта</span><select value={draft[key]} onChange={event => update(key, event.target.value)} className={`${inputCls} min-h-11 w-full`}>
+  const currency = (key: string) => <label className="block"><span className={fieldLabelCls}>Валюта</span><select value={draft[key]} onChange={event => update(key, event.target.value)} className={`${inputCls} min-h-11 w-full`}>
     <option value="">Не указана</option>{SALES_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
   </select></label>;
 
   return <div className="space-y-6">
     <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
-    <h1 className="text-2xl font-semibold tracking-tight">{recordId ? "Запись продажи" : "Добавить продажу"}</h1>
+    <h1 className="t-page-title">{recordId ? "Запись продажи" : "Добавить продажу"}</h1>
     {record?.sourceKind === "pipeline" && record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Открыть профиль студента</Link> : null}
     {record?.archived ? <p className="text-sm text-fg-2">Эта запись в архиве и не входит в рабочие итоги. Для редактирования сначала восстановите её.</p> : null}
     <form action={action} aria-busy={pending} className="space-y-6" data-testid="sales-register-form">
@@ -173,7 +173,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
               нового студента и не переспрашивает условия продажи. */}
           <div className="space-y-4">
             <p className="text-sm text-fg-2">Выберите лида и куратора. Условия продажи и данные заявителя подставятся из карточки.</p>
-            <label className="block"><span className={labelCls}>Имя или телефон</span><div className="flex gap-2">
+            <label className="block"><span className={fieldLabelCls}>Имя или телефон</span><div className="flex gap-2">
               <input value={studentQuery} onChange={e => {
                 selectionGeneration.current += 1;
                 setStudentQuery(e.target.value); setLeadId(""); setSelectedLead(null); setStudentResults([]); setSearchStatus("idle"); setConditionsPreview(null);
@@ -186,7 +186,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
                 setStudentResults(result.leads); setSearchStatus(result.status); setLeadId(""); setSelectedLead(null); setConditionsPreview(null);
               })}>{searchPending ? "Ищем…" : "Найти"}</button>
             </div></label>
-            {searchStatus === "ready" && studentResults.length > 0 ? <label className="block"><span className={labelCls}>Выберите студента</span><select value={leadId} required onChange={e => {
+            {searchStatus === "ready" && studentResults.length > 0 ? <label className="block"><span className={fieldLabelCls}>Выберите студента</span><select value={leadId} required onChange={e => {
               const generation = ++selectionGeneration.current;
               const lead = studentResults.find(item => item.id === e.target.value) ?? null;
               setLeadId(lead?.id ?? ""); setSelectedLead(lead); setConditionsPreview(null);
@@ -201,16 +201,16 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
             {searchStatus === "unavailable" ? <p role="alert" className="text-sm text-fg-2">Поиск недоступен. Попробуйте ещё раз.</p> : null}
           </div>
           {selectedLead ? <div className="grid gap-4 sm:grid-cols-2">
-            <p className="text-sm"><span className={labelCls}>Заявитель</span><span className="block text-fg">{selectedLead.label}</span></p>
-            <p className="text-sm"><span className={labelCls}>Телефон</span><span className="block text-fg">{selectedLead.phone || "не указан"}</span></p>
+            <p className="text-sm"><span className={fieldLabelCls}>Заявитель</span><span className="block text-fg">{selectedLead.label}</span></p>
+            <p className="text-sm"><span className={fieldLabelCls}>Телефон</span><span className="block text-fg">{selectedLead.phone || "не указан"}</span></p>
           </div> : null}
-          <label className="block max-w-md"><span className={labelCls}>Куратор</span><select value={curatorId} required onChange={e => setCuratorId(e.target.value)} className={`${inputCls} min-h-11 w-full`}>
+          <label className="block max-w-md"><span className={fieldLabelCls}>Куратор</span><select value={curatorId} required onChange={e => setCuratorId(e.target.value)} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Выберите куратора</option>{intakeOptions?.curators.map(curator => <option value={curator.id} key={curator.id}>{curator.label}</option>)}
           </select></label>
           {intakeOptions && intakeOptions.curators.length === 0 ? <p role="alert" className="text-sm text-fg-2">Нет доступного куратора. Администратор может назначить роль сотруднику в настройках команды.</p> : null}
           {!intakeOptions ? <p role="alert" className="text-sm text-fg-2">Не удалось загрузить кураторов. Обновите страницу перед сохранением.</p> : null}
           {leadId ? <div className="border-t border-border pt-4">
-            <h2 className="mb-2 text-sm font-semibold text-fg">Условия продажи</h2>
+            <h2 className="t-item mb-2 text-fg">Условия продажи</h2>
             <ConditionsPreview leadId={leadId} preview={conditionsPreview} pending={previewPending} />
           </div> : null}
         </> : null}
@@ -218,24 +218,24 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
         <div className="grid gap-4 sm:grid-cols-2">{input("applicant_name", "text", true, 300)}{input("phone", "tel")}{input("report_month", "month", true)}{input("signing_date", "date")}</div>
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
-            <label><span className={labelCls}>Стоимость услуг</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.cost} onChange={e => update("cost", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("service_cost_currency")}
+            <label><span className={fieldLabelCls}>Стоимость услуг</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.cost} onChange={e => update("cost", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("service_cost_currency")}
           </div>{record?.serviceCostRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.serviceCostRaw}</p> : null}</div>
           <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
-            <label><span className={labelCls}>Оплачено по записи</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.paid} onChange={e => update("paid", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("paid_currency")}
+            <label><span className={fieldLabelCls}>Оплачено по записи</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.paid} onChange={e => update("paid", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("paid_currency")}
           </div>{record?.paidRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.paidRaw}</p> : null}</div>
         </div>
         <p className="text-xs text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми.</p>
         <div className="grid gap-4 sm:grid-cols-2">{input("manager_label", "text", false, 300)}
-          {canChooseOwner ? <label><span className={labelCls}>Ответственный за продажу</span><select value={draft.owner_membership_id} disabled={locked} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
+          {canChooseOwner ? <label><span className={fieldLabelCls}>Ответственный за продажу</span><select value={draft.owner_membership_id} disabled={locked} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Не назначен</option>{ownerOptions.map(owner => <option value={owner.id} key={owner.id}>{owner.label || "Сотрудник без имени"}</option>)}
           </select></label> : null}
         </div>
         <details><summary className="cursor-pointer py-3 text-sm font-medium">Программа и договор</summary><div className="mt-3 grid gap-4 sm:grid-cols-2">
           {input("country")}{input("university", "text", false, 500)}{input("program", "text", false, 500)}{input("direction", "text", false, 500)}{input("intake")}{input("contract_number")}{input("status_raw", "text", false, 2000)}
         </div></details>
-        <label className="block"><span className={labelCls}>Примечание</span><textarea value={draft.notes} onChange={e => update("notes", e.target.value)} maxLength={2000} rows={3} className={`${inputCls} w-full`} /></label>
+        <label className="block"><span className={fieldLabelCls}>Примечание</span><textarea value={draft.notes} onChange={e => update("notes", e.target.value)} maxLength={2000} rows={3} className={`${inputCls} w-full`} /></label>
         <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={draft.needs_review === "true"} onChange={e => update("needs_review", String(e.target.checked))} className="h-5 w-5" />Нужно уточнить данные</label>
-        <label className="block"><span className={labelCls}>Причина изменения</span><input name="reason" value={reason} onChange={e => setReason(e.target.value)} required maxLength={1000} className={`${inputCls} min-h-11 w-full`} /></label>
+        <label className="block"><span className={fieldLabelCls}>Причина изменения</span><input name="reason" value={reason} onChange={e => setReason(e.target.value)} required maxLength={1000} className={`${inputCls} min-h-11 w-full`} /></label>
         </> : null}
       </fieldset>
       {readUnavailable ? <p role="alert" className="text-sm text-fg-2">Актуальные данные недоступны. Ввод сохранён; отправка остановлена.</p> : null}
@@ -270,7 +270,7 @@ function ArchiveForm({ record, expectedVersion, requestId, disabled, backHref }:
     <input type="hidden" name="operation" value={record.archived ? "restore" : "archive"} /><input type="hidden" name="record_id" value={record.id} />
     <input type="hidden" name="expected_version" value={expectedVersion} /><input type="hidden" name="request_id" value={state.requestId} />
     <p className="text-sm text-fg-3">{record.archived ? "Запись снова войдёт в рабочий отчёт." : "Ошибочную запись можно убрать из рабочих итогов. История сохранится, восстановление доступно здесь."}</p>
-    <label className="block"><span className={labelCls}>Причина</span><input name="reason" required maxLength={1000} value={reason} onChange={e => setReason(e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>
+    <label className="block"><span className={fieldLabelCls}>Причина</span><input name="reason" required maxLength={1000} value={reason} onChange={e => setReason(e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>
     {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="text-sm">{MESSAGES[status]}</p> : null}
     {status === "stale" || status === "unavailable" ? <button type="button" className={`${btnGhostCls} min-h-11`} disabled={pending} onClick={() => router.refresh()}>Обновить и сверить запись выше</button> : null}
     {status === "saved" ? <Link href={backHref} className={`${btnGhostCls} min-h-11`}>К отчёту</Link> : <button disabled={disabled || pending || status === "stale"} className={`${btnGhostCls} min-h-11`}>{pending ? "Сохраняем…" : record.archived ? "Восстановить запись" : "Архивировать запись"}</button>}
@@ -294,8 +294,8 @@ export function SalesTargetForm({ reportMonth, target, requestId, readUnavailabl
   return <form action={action} aria-busy={pending} className="mt-3 max-w-md space-y-3">
     <input type="hidden" name="request_id" value={state.requestId} /><input type="hidden" name="record_id" value={base?.id ?? ""} />
     <input type="hidden" name="expected_version" value={base?.version ?? 0} /><input type="hidden" name="report_month" value={reportMonth} /><input type="hidden" name="manager_label" value="" />
-    <label className="block"><span className={labelCls}>План отдела — количество продаж</span><input name="target_count" type="number" required min="0" max="1000000" value={count} onChange={e => setCount(e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>
-    <label className="block"><span className={labelCls}>Причина</span><input name="reason" value={reason} onChange={e => setReason(e.target.value)} required maxLength={1000} className={`${inputCls} min-h-11 w-full`} /></label>
+    <label className="block"><span className={fieldLabelCls}>План отдела — количество продаж</span><input name="target_count" type="number" required min="0" max="1000000" value={count} onChange={e => setCount(e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>
+    <label className="block"><span className={fieldLabelCls}>Причина</span><input name="reason" value={reason} onChange={e => setReason(e.target.value)} required maxLength={1000} className={`${inputCls} min-h-11 w-full`} /></label>
     {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="text-sm">{MESSAGES[status]}</p> : null}
     {readUnavailable ? <p role="alert" className="text-sm">Актуальный план недоступен. Ваш ввод сохранён; отправка остановлена.</p> : null}
     {changed || status === "stale" || status === "unavailable" || readUnavailable ? <div className="space-y-2">
@@ -316,7 +316,7 @@ export function SalesRegisterImport({ requestId, readUnavailable = false }: { re
   return <form action={action} aria-busy={pending} className="mt-3 max-w-xl space-y-3">
     <input type="hidden" name="request_id" value={state.requestId} />
     <p className="text-sm text-fg-3">Однократная загрузка подготовленной копии. Повтор не добавляет дубли и не заменяет исправления сотрудников. Google-таблица не изменяется.</p>
-    <label className="block"><span className={labelCls}>Подготовленный файл переноса (.json)</span><input type="file" accept=".json,application/json" onChange={e => setFile(e.target.files?.[0] ?? null)} disabled={pending || readUnavailable || state.status === "saved"} className="min-h-11 max-w-full text-sm" /></label>
+    <label className="block"><span className={fieldLabelCls}>Подготовленный файл переноса (.json)</span><input type="file" accept=".json,application/json" onChange={e => setFile(e.target.files?.[0] ?? null)} disabled={pending || readUnavailable || state.status === "saved"} className="min-h-11 max-w-full text-sm" /></label>
     {file ? <p className="break-words text-xs text-fg-3">Выбран: {file.name}</p> : null}
     {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="text-sm">{MESSAGES[state.status]}</p> : null}
     {state.importResult ? <div role="status" className="space-y-2 text-sm"><p>Добавлено записей: {state.importResult.inserted}. Уже были перенесены: {state.importResult.skipped}. Добавлено планов: {state.importResult.targetsInserted}.</p>

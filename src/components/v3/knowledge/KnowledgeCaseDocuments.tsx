@@ -17,7 +17,7 @@ export function KnowledgeCaseDocuments({ caseId, documents }: { caseId: string; 
       </>}
     </div>
     {!documents.slots.length && <p>В деле пока нет документов.</p>}
-    {documents.slots.map((slot) => <section key={slot.documentSlotId}><h3>{slot.requirementLabel}</h3>
+    {documents.slots.map((slot) => <section key={slot.documentSlotId}><h3 className="t-item">{slot.requirementLabel}</h3>
       <ul>{slot.versions.map((version) => <li key={version.documentVersionId}>
         <input type="checkbox" aria-label={`Выбрать ${version.originalFilename}, версия ${version.versionNumber}`} disabled={!version.downloadReady}
           checked={selected.has(version.documentVersionId)} onChange={(event) => setSelected((old) => {

@@ -176,7 +176,7 @@ function Sidebar({
         </ul>
 
         <section aria-label="Общее" className="mx-3 border-t border-border pb-4 pt-4">
-          <h2 className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-fg-3">Общее</h2>
+          <h2 className="t-caption mb-2 px-3 text-fg-3">Общее</h2>
           <ul className="space-y-1">
             {navigation.common.map((link) => (
               <li key={link.id}>

@@ -106,7 +106,7 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
     </div>}
     {error && <div className={styles.error} role="alert">{error}{!conflict && <button type="button" onClick={() => void save()}>Повторить сохранение</button>}</div>}
     {conflict && <div className={styles.conflict}>
-      <h3>Текущая версия</h3><pre>{item.kind === "page" ? conflict.body : conflict.review_question}</pre>
+      <h3 className="t-item">Текущая версия</h3><pre>{item.kind === "page" ? conflict.body : conflict.review_question}</pre>
       <button type="button" onClick={() => {
         versionRef.current = conflict.version; pendingRef.current = null; setConflict(null); setError(""); void save();
       }}>{item.kind === "page" ? "Сохранить мой текст" : "Сохранить мои изменения"}</button>
@@ -117,7 +117,7 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
       }}>Принять текущую</button>
     </div>}
     <div className={styles.editorContent}>
-      {editable ? <input className={styles.titleInput} aria-label="Название страницы" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} maxLength={240} /> : <h2>{item.title}</h2>}
+      {editable ? <input className={styles.titleInput} aria-label="Название страницы" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} maxLength={240} /> : <h2 className="t-record-title">{item.title}</h2>}
       {item.kind === "page" ? <>
         <div className={styles.editorBar}>
           <button type="button" className="v3-choice" aria-pressed={mode === "read"} onClick={() => setMode("read")}>Читать</button>
@@ -145,7 +145,7 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
       </label>}
     </div>
     {history && <aside className={styles.history} aria-label="История версий">
-      <div className={styles.editorBar}><h3>История версий</h3><button type="button" onClick={() => setHistory(false)}>Закрыть</button></div>
+      <div className={styles.editorBar}><h3 className="t-item">История версий</h3><button type="button" onClick={() => setHistory(false)}>Закрыть</button></div>
       {versions.map((version) => <details key={version.version}>
         <summary>Версия {version.version} · {new Date(version.created_at).toLocaleString("ru")}</summary>
         <pre>{version.snapshot.body}</pre>

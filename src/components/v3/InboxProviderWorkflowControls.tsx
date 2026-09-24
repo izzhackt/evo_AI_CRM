@@ -247,7 +247,7 @@ export function InboxProviderWorkflowControls({
       data-testid="v3-inbox-provider-workflow-controls"
     >
       <div>
-        <h3 className="text-md font-semibold text-fg">Ответ и отправка</h3>
+        <h3 className="t-section text-fg">Ответ и отправка</h3>
         <p className="mt-1 max-w-[56ch] border-l-2 border-accent pl-3 text-sm leading-6 text-fg-2">
           ИИ только готовит черновик. Решение принимает сотрудник, а одно
           WhatsApp-сообщение отправляется лишь после отдельного подтверждения.
@@ -292,7 +292,7 @@ export function InboxProviderWorkflowControls({
       )}
 
       <div className="space-y-3 rounded-ctl border border-border bg-surface-2 p-4">
-        <h4 className="text-sm font-semibold text-fg">Черновик Gemini</h4>
+        <h4 className="t-item text-fg">Черновик Gemini</h4>
         {proposal?.outcome === "proposal_ready" && proposal.proposal ? (
           <>
             <p className="whitespace-pre-wrap text-sm leading-6 text-fg">
@@ -322,7 +322,7 @@ export function InboxProviderWorkflowControls({
       proposal.proposal &&
       latestReview === null ? (
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-fg">
+          <h4 className="t-item text-fg">
             Решение сотрудника
           </h4>
           <div className="flex flex-wrap gap-2">
@@ -413,7 +413,7 @@ export function InboxProviderWorkflowControls({
 
       {reviews.length > 0 ? (
         <div className="space-y-2">
-          <h4 className="text-sm font-semibold text-fg">История решений</h4>
+          <h4 className="t-item text-fg">История решений</h4>
           <ol className="space-y-2 text-sm text-fg-2">
             {reviews.map((review) => (
               <li
@@ -438,7 +438,7 @@ export function InboxProviderWorkflowControls({
       ) : null}
 
       <div className="space-y-3 border-t border-border pt-5">
-        <h4 className="text-sm font-semibold text-fg">
+        <h4 className="t-item text-fg">
           Одно подтверждённое сообщение WhatsApp
         </h4>
         <form action={sendAction} className="space-y-3">

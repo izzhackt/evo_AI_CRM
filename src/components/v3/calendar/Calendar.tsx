@@ -273,7 +273,7 @@ export function Calendar({
               aria-label="Задачи без срока"
               className="rounded-card border border-border bg-surface p-3"
             >
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-3">
+              <h2 className="t-item text-fg-3">
                 <button
                   type="button"
                   aria-expanded={undatedDisclosure.expanded}

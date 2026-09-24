@@ -262,7 +262,7 @@ function TaskComposerModal({
     onCancel={(event) => { event.preventDefault(); onClose(); }} data-testid="v3-task-composer-dialog">
     <div className="flex max-h-[85dvh] flex-col">
       <header className="flex items-center justify-between gap-3 border-b border-border p-4">
-        <h2 id={titleId} className="text-base font-semibold">Новая задача</h2>
+        <h2 id={titleId} className="t-section">Новая задача</h2>
         <button type="button" onClick={onClose} className={SECONDARY}>Закрыть</button>
       </header>
       {state.status === "saved" ? <div className="space-y-4 p-4">

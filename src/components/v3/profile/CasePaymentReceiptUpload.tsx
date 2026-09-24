@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
-import { btnCls, btnGhostCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, fieldLabelCls } from "@/components/ui";
 
 const subscribe = () => () => {};
 const clientSnapshot = () => true;
@@ -78,7 +78,7 @@ export function CasePaymentReceiptUpload({ paymentEventId }: { paymentEventId: s
     <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-accent-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Загрузить чек</summary>
     <form onSubmit={upload} className="min-w-0 space-y-3 pt-2" aria-busy={!hydrated || status === "pending"}>
       <label className="block min-w-0">
-        <span className={labelCls}>Чек · PDF, JPEG или PNG, до 25 МБ</span>
+        <span className={fieldLabelCls}>Чек · PDF, JPEG или PNG, до 25 МБ</span>
         <input ref={input} type="file" required accept="application/pdf,image/jpeg,image/png" disabled={!hydrated || status === "pending" || status === "saved" || status === "unknown"} className="block w-full min-w-0 max-w-full text-sm text-fg-2" />
       </label>
       <button type="submit" className={btnCls} disabled={!hydrated || status === "pending" || status === "saved" || status === "unknown"}>{status === "pending" ? "Загружаем…" : "Загрузить чек"}</button>

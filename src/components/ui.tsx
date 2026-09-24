@@ -65,7 +65,7 @@ export function Badge({ value, label, className }: { value: string; label: strin
   return (
     <span
       className={cn(
-        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-xs font-semibold leading-4 whitespace-nowrap",
+        "t-caption inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 whitespace-nowrap",
         TONE_CLS[tone],
         className,
       )}
@@ -81,11 +81,11 @@ export function Badge({ value, label, className }: { value: string; label: strin
  * Два режима заголовка:
  * - обычный (по умолчанию) — `h2` полужирным, действие справа, тень попап-уровня;
  *   для главных панелей экрана.
- * - `eyebrow` — уменьшенная заглавная подпись без тени (бывший
- *   `profile/Card.tsx`); для плотных рабочих панелей в кейсе, где заголовок —
- *   это ярлык раздела, а не отдельный визуальный блок. В этом режиме тело не
- *   получает своих отступов: строки и таблицы внутри сами отвечают за
- *   отступы до края рамки.
+ * - `eyebrow` — плотная шапка без тени (бывший `profile/Card.tsx`); для
+ *   рабочих панелей в кейсе. Заголовок той же роли `t-section`, что и у
+ *   обычной карточки (раньше — 11 px заглавными, мельче текста под ним). В
+ *   этом режиме тело не получает своих отступов: строки и таблицы внутри сами
+ *   отвечают за отступы до края рамки.
  *
  * `id` — якорь для перехода на раздел (например, `#applications`).
  */
@@ -122,13 +122,13 @@ export function Card({
     >
       {hasHeader ? (
         eyebrow ? (
-          <h3 className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 text-2xs font-semibold uppercase tracking-wide text-fg-2">
+          <h3 className="t-section flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 text-fg">
             {title}
-            {aside ? <span className="font-normal normal-case tracking-normal">{aside}</span> : null}
+            {aside ? <span className="t-body-compact">{aside}</span> : null}
           </h3>
         ) : (
           <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
-            {title && <h2 className="text-base font-semibold text-fg">{title}</h2>}
+            {title && <h2 className="t-section text-fg">{title}</h2>}
             {aside}
           </header>
         )
@@ -167,9 +167,9 @@ export function StatCard({
       )}
     >
       <span className={cn("absolute inset-y-0 left-0 w-[3px]", stripe[tone])} aria-hidden="true" />
-      <div className="font-mono text-3xl font-semibold leading-none text-fg">{value}</div>
-      <div className="mt-2 text-xs font-medium text-fg-2">{label}</div>
-      {meta && <div className="mt-1.5 text-xs leading-4 text-fg-3">{meta}</div>}
+      <div className="t-figure text-fg">{value}</div>
+      <div className="t-caption mt-2 text-fg-2">{label}</div>
+      {meta && <div className="t-meta mt-1.5 text-fg-3">{meta}</div>}
     </div>
   );
   return href ? (
@@ -196,10 +196,10 @@ export function PageHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="flex flex-wrap items-baseline gap-2.5 text-2xl font-semibold tracking-[-0.02em] text-fg">
+        <h1 className="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">
           {title}
           {typeof count === "number" ? (
-            <span className="font-mono text-xl font-normal tabular-nums text-fg-3">{count}</span>
+            <span className="font-normal tabular-nums text-fg-3">{count}</span>
           ) : null}
         </h1>
         {description && <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">{description}</p>}
@@ -228,6 +228,12 @@ export const filterBarCls =
   "grid gap-2 rounded-card border border-border bg-surface p-3 shadow-evo";
 
 export const labelCls = "mb-1 block text-xs font-medium text-fg-2";
+
+/**
+ * Подпись поля в staff CRM: роль `t-label` (14 px, 500) из `(v3)/v3.css`.
+ * `labelCls` остаётся для страниц входа и Student, где этих ролей нет.
+ */
+export const fieldLabelCls = "mb-1 block t-label text-fg-2";
 
 export function EmptyState({
   title,

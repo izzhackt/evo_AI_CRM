@@ -51,7 +51,7 @@ export function PipelineStageViewport({
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-2xs text-fg-3">
+            <p className="t-meta mt-1 text-fg-3">
               {truncated ? "Количество среди загруженных лидов" : "Количество с учётом фильтров"}
             </p>
           </>

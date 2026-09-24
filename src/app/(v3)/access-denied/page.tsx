@@ -59,7 +59,7 @@ export default async function AccessDeniedPage({
       data-testid="access-denied-state"
     >
       <section className="w-full border-y border-border py-10 sm:py-14">
-        <h1 className="text-3xl font-semibold tracking-[-0.03em] text-fg">
+        <h1 className="t-page-title text-fg">
           Нет доступа к разделу
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-fg-3">
@@ -67,11 +67,11 @@ export default async function AccessDeniedPage({
         </p>
         <dl className="mt-8 grid gap-5 border-y border-border py-5 sm:grid-cols-2">
           <div>
-            <dt className="text-xs text-fg-3">Запрошенный раздел</dt>
+            <dt className="t-caption text-fg-3">Запрошенный раздел</dt>
             <dd className="mt-1 font-medium text-fg">{requestedLabel}</dd>
           </div>
           <div>
-            <dt className="text-xs text-fg-3">Ваш доступ</dt>
+            <dt className="t-caption text-fg-3">Ваш доступ</dt>
             <dd className="mt-1 font-medium text-fg">
               {actor.presentationRole ? roleTitle(actor.presentationRole) : actor.systemRole === "admin" ? "Admin" : actor.assignments.map(item => item.label).join(" · ") || "Права ещё не назначены"}
             </dd>

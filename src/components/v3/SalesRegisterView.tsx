@@ -1,7 +1,7 @@
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
-import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { SalesRegisterWorkspace, SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
 import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess, readSalesRegisterDirections, readSalesRegisterManagement } from "@/lib/v3/sales-register-source";
@@ -71,7 +71,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
     <SalesReportNavigation sales />
     {(!editing || !canManage) && !viewingRecord ? <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Отчёт продаж</h1>
+        <h1 className="t-page-title text-fg">Отчёт продаж</h1>
       </div>
       {!editing && workspace && canManage ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
     </header> : null}
@@ -79,7 +79,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
     {writeAccess === "unavailable" ? <p role="alert" className="mt-4 text-sm text-fg-2">Не удалось проверить права на запись продажи. Обновите страницу перед добавлением или изменением.</p> : null}
     {editing && writeAccess === "denied" ? <p role="status" className="mt-4 text-sm text-fg-2">Добавление и исправление продаж доступны Sales Manager.</p> : null}
     {saved ? <section id="saved-sale" aria-labelledby="saved-sale-title" className="mt-6 scroll-mt-4 rounded-card border border-accent bg-surface-2 p-4">
-      <h2 id="saved-sale-title" className="text-base font-semibold text-fg">Продажа добавлена</h2>
+      <h2 id="saved-sale-title" className="t-section text-fg">Продажа добавлена</h2>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0"><p className="break-words font-medium text-fg">{saved.applicantName}</p>
           <p className="mt-1 text-sm text-fg-2">{dateLabel(saved.signingDate)} · {money(saved.serviceCostMinor, saved.serviceCostCurrency)}</p></div>
@@ -95,16 +95,16 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
       editHref={canManage && workspace?.selected ? href({ record: workspace.selected.id, edit: "true" }) : null} /> : <>
       <form key={params.toString()} method="get" aria-label="Фильтры отчёта продаж" className="mt-6 grid grid-cols-2 items-start gap-3 rounded-card border border-border bg-surface p-4 @2xl:flex @2xl:flex-wrap">
         <input type="hidden" name="view" value="sales" />
-        <label className="min-w-0 @2xl:w-28"><span className={labelCls}>Год</span><input name="year" type="number" min="1900" max="2100" required defaultValue={valid ? year : ""} className={`${inputCls} min-h-11`} /></label>
-        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Месяц</span><select name="month" defaultValue={month ?? "all"} className={`${inputCls} min-h-11`}>
+        <label className="min-w-0 @2xl:w-28"><span className={fieldLabelCls}>Год</span><input name="year" type="number" min="1900" max="2100" required defaultValue={valid ? year : ""} className={`${inputCls} min-h-11`} /></label>
+        <label className="min-w-0 @2xl:w-44"><span className={fieldLabelCls}>Месяц</span><select name="month" defaultValue={month ?? "all"} className={`${inputCls} min-h-11`}>
           <option value="all">Весь год</option>{MONTHS.map((title, i) => <option key={title} value={i + 1}>{title}</option>)}
         </select></label>
-        <label className="col-span-2 min-w-0 @2xl:min-w-60 @2xl:flex-1"><span className={labelCls}>Имя, телефон или договор</span><input name="q" type="search" defaultValue={searchQuery ?? (typeof query.q === "string" ? query.q : "")} maxLength={200} className={`${inputCls} min-h-11`} /></label>
-        <label className="min-w-0 @2xl:w-40"><span className={labelCls}>Записи</span><select name="archived" defaultValue={query.archived === "true" ? "true" : "false"} className={`${inputCls} min-h-11`}>
+        <label className="col-span-2 min-w-0 @2xl:min-w-60 @2xl:flex-1"><span className={fieldLabelCls}>Имя, телефон или договор</span><input name="q" type="search" defaultValue={searchQuery ?? (typeof query.q === "string" ? query.q : "")} maxLength={200} className={`${inputCls} min-h-11`} /></label>
+        <label className="min-w-0 @2xl:w-40"><span className={fieldLabelCls}>Записи</span><select name="archived" defaultValue={query.archived === "true" ? "true" : "false"} className={`${inputCls} min-h-11`}>
           <option value="false">Рабочие</option><option value="true">Архив</option>
         </select></label>
-        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Менеджер</span><select name="manager" defaultValue={query.manager ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option>{query.manager && !workspace?.managerLabels.includes(query.manager) ? <option value={query.manager}>{query.manager}</option> : null}{workspace?.managerLabels.map(label => <option key={label} value={label}>{label}</option>)}</select></label>
-        <label className="min-w-0 @2xl:w-44"><span id="sales-direction-label" className={labelCls}>Направление</span>
+        <label className="min-w-0 @2xl:w-44"><span className={fieldLabelCls}>Менеджер</span><select name="manager" defaultValue={query.manager ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option>{query.manager && !workspace?.managerLabels.includes(query.manager) ? <option value={query.manager}>{query.manager}</option> : null}{workspace?.managerLabels.map(label => <option key={label} value={label}>{label}</option>)}</select></label>
+        <label className="min-w-0 @2xl:w-44"><span id="sales-direction-label" className={fieldLabelCls}>Направление</span>
           {directionControl.kind === "select" ? <select name="direction" defaultValue={directionControl.value}
             aria-labelledby="sales-direction-label" aria-describedby={directionHelp ? "sales-direction-help" : undefined} className={`${inputCls} min-h-11`}>
             {directionControl.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -112,7 +112,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
             aria-labelledby="sales-direction-label" aria-invalid={directionControl.reason === "invalid" ? true : undefined} aria-describedby="sales-direction-help" className={`${inputCls} min-h-11`} />}
           {directionHelp ? <span id="sales-direction-help" className="mt-1 block text-xs leading-relaxed text-fg-2">{directionHelp}</span> : null}
         </label>
-        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Уточнения</span><select name="review" defaultValue={query.review ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option><option value="true">Нужно уточнить</option><option value="false">Сверенные</option></select></label>
+        <label className="min-w-0 @2xl:w-44"><span className={fieldLabelCls}>Уточнения</span><select name="review" defaultValue={query.review ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option><option value="true">Нужно уточнить</option><option value="false">Сверенные</option></select></label>
         <button className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:mt-5 @2xl:w-auto`} type="submit">Показать</button>
         {valid && hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:mt-5 @2xl:w-auto`}>Сбросить фильтры</Link> : null}
       </form>
@@ -123,24 +123,24 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         <div className="@container/sales-summary mt-5 min-w-0 border-b border-border pb-4">
           <section aria-labelledby="sales-period-totals">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h2 id="sales-period-totals" className="text-sm font-semibold text-fg">Найдено по фильтрам</h2>
+              <h2 id="sales-period-totals" className="t-item text-fg">Найдено по фильтрам</h2>
               <dl className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <dt className={query.archived === "true" ? "text-fg-2" : "sr-only"}>{query.archived === "true" ? "Записей в архиве" : "Записей продаж"}</dt>
-                <dd className="font-mono text-base tabular-nums text-fg">{workspace.totalCount}</dd>
+                <dd className="text-base tabular-nums text-fg">{workspace.totalCount}</dd>
               </dl>
             </div>
             {workspace.totals.length > 0 ? <>
               <ul aria-label="Денежные итоги по валютам" className="mt-3 divide-y divide-border">
                 {workspace.totals.map(t => <li key={t.currency} className="grid min-w-0 gap-x-4 gap-y-1.5 py-2 @min-[36rem]/sales-summary:grid-cols-[4rem_minmax(0,1fr)]">
-                  <h3 className="text-sm font-medium text-fg">{t.currency}</h3>
+                  <h3 className="t-item text-fg">{t.currency}</h3>
                   <dl className="grid min-w-0 gap-x-6 gap-y-1 @min-[36rem]/sales-summary:grid-cols-2">
                     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                       <dt className="text-sm text-fg-2">Стоимость</dt>
-                      <dd className="min-w-0 max-w-full font-mono text-sm tabular-nums text-fg [overflow-wrap:anywhere]">{number.format(t.costMinor / 100)}</dd>
+                      <dd className="min-w-0 max-w-full text-sm tabular-nums text-fg [overflow-wrap:anywhere]">{number.format(t.costMinor / 100)}</dd>
                     </div>
                     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                       <dt className="text-sm text-fg-2">Оплачено по записям</dt>
-                      <dd className="min-w-0 max-w-full font-mono text-sm tabular-nums text-fg [overflow-wrap:anywhere]">{number.format(t.paidMinor / 100)}</dd>
+                      <dd className="min-w-0 max-w-full text-sm tabular-nums text-fg [overflow-wrap:anywhere]">{number.format(t.paidMinor / 100)}</dd>
                     </div>
                   </dl>
                 </li>)}
@@ -151,19 +151,19 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           </section>
           {canTarget && month && query.archived !== "true" ? <section aria-labelledby="sales-department-target" className="mt-3 border-t border-border pt-3">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h2 id="sales-department-target" className="text-sm font-medium text-fg">План отдела</h2>
-              <p className="font-mono text-sm tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</p>
+              <h2 id="sales-department-target" className="t-item text-fg">План отдела</h2>
+              <p className="text-sm tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</p>
             </div>
             <p className="mt-1 text-xs leading-relaxed text-fg-2">На выбранный месяц. Фильтры записей не меняют план.</p>
           </section> : null}
         </div>
         {cash && cash.status !== "not_allowed" && month ? <section aria-labelledby="sales-cash-totals" className="border-b border-border py-6">
-          <h2 id="sales-cash-totals" className="text-base font-semibold text-fg">Поступления и возвраты за месяц</h2>
+          <h2 id="sales-cash-totals" className="t-section text-fg">Поступления и возвраты за месяц</h2>
           <p className="mt-2 text-xs leading-relaxed text-fg-2">Подтверждённые финансовые события всей организации по дате операции, время Бишкека. Фильтры строк продаж на этот блок не влияют. Расходы третьих сторон не являются выручкой EVO.</p>
           {cash.status === "unavailable" ? <p role="alert" className="mt-4 text-sm text-fg-2">Не удалось загрузить финансовую сводку. Обновите страницу, чтобы повторить.</p> : cash.totals.length === 0 ? <p className="mt-4 text-sm text-fg-2">В этом месяце подтверждённых финансовых событий нет.</p> : <div className="mt-4 grid gap-4 md:grid-cols-2">{cash.totals.map(total => <dl key={total.currency} className="space-y-2 rounded-card border border-border p-4 text-sm">
-            <div className="flex flex-wrap justify-between gap-3"><dt>Получено · {total.currency}</dt><dd className="font-mono">{financeMoney(total.paymentsMinor, total.currency)}</dd></div>
-            <div className="flex flex-wrap justify-between gap-3"><dt>Возвращено</dt><dd className="font-mono">{financeMoney(total.refundsMinor, total.currency)}</dd></div>
-            <div className="flex flex-wrap justify-between gap-3 font-semibold"><dt>Итого</dt><dd className="font-mono">{financeMoney(total.netMinor, total.currency)}</dd></div>
+            <div className="flex flex-wrap justify-between gap-3"><dt>Получено · {total.currency}</dt><dd className="tabular-nums">{financeMoney(total.paymentsMinor, total.currency)}</dd></div>
+            <div className="flex flex-wrap justify-between gap-3"><dt>Возвращено</dt><dd className="tabular-nums">{financeMoney(total.refundsMinor, total.currency)}</dd></div>
+            <div className="flex flex-wrap justify-between gap-3 font-semibold"><dt>Итого</dt><dd className="tabular-nums">{financeMoney(total.netMinor, total.currency)}</dd></div>
           </dl>)}</div>}
         </section> : null}
 
@@ -176,12 +176,12 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           <div role="region" aria-label="Записи продаж" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav border border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <table role="table" className="block w-full text-left text-sm @min-[60rem]/sales-records:table @min-[60rem]/sales-records:min-w-[960px]">
               <caption className="sr-only">Продажи выбранного периода</caption>
-              <thead role="rowgroup" className="sr-only border-b border-border bg-surface-2 text-xs text-fg-2 @min-[60rem]/sales-records:not-sr-only @min-[60rem]/sales-records:table-header-group"><tr role="row"><th role="columnheader" scope="col" className="px-4 py-3 font-medium">Студент и программа</th><th role="columnheader" scope="col" className="px-4 py-3 font-medium">Менеджер и дата</th><th role="columnheader" scope="col" className="px-4 py-3 text-right font-medium">Стоимость</th><th role="columnheader" scope="col" className="px-4 py-3 text-right font-medium">Оплачено по записи</th><th role="columnheader" scope="col" className="px-4 py-3 font-medium">Уточнения</th><th role="columnheader" scope="col" className="px-4 py-3"><span className="sr-only">Действие</span></th></tr></thead>
+              <thead role="rowgroup" className="t-caption sr-only border-b border-border bg-surface-2 text-fg-2 @min-[60rem]/sales-records:not-sr-only @min-[60rem]/sales-records:table-header-group"><tr role="row"><th role="columnheader" scope="col" className="px-4 py-3 font-medium">Студент и программа</th><th role="columnheader" scope="col" className="px-4 py-3 font-medium">Менеджер и дата</th><th role="columnheader" scope="col" className="px-4 py-3 text-right font-medium">Стоимость</th><th role="columnheader" scope="col" className="px-4 py-3 text-right font-medium">Оплачено по записи</th><th role="columnheader" scope="col" className="px-4 py-3 font-medium">Уточнения</th><th role="columnheader" scope="col" className="px-4 py-3"><span className="sr-only">Действие</span></th></tr></thead>
               <tbody role="rowgroup" className="block divide-y divide-border @min-[60rem]/sales-records:table-row-group">{workspace.rows.map(row => <tr role="row" key={row.id} id={`sale-${row.id}`} className={`block scroll-mt-24 align-top @min-[60rem]/sales-records:table-row ${row.id === saved?.id ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
                 <th role="rowheader" scope="row" className="block min-w-0 px-4 pt-3 pb-1 font-normal @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:min-w-[240px] @min-[60rem]/sales-records:max-w-[360px] @min-[60rem]/sales-records:py-3"><Link href={href({ record: row.id })} className="inline-flex min-h-11 max-w-full items-center font-semibold text-fg underline-offset-4 hover:underline"><span className="min-w-0 break-words">{row.applicantName || "Имя не указано"}</span></Link><p className="break-words text-sm text-fg-2">{[row.country, row.program].filter(Boolean).join(" · ") || "Программа не указана"}</p></th>
                 <td role="cell" className="block min-w-0 px-4 pt-2 pb-3 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:min-w-[180px] @min-[60rem]/sales-records:max-w-[260px] @min-[60rem]/sales-records:py-5"><span aria-hidden="true" className="mb-1 block text-xs text-fg-2 @min-[60rem]/sales-records:hidden">Менеджер и дата</span><p className="break-words text-fg">{row.managerLabel || "Менеджер не указан"}</p><p className="mt-1 text-xs text-fg-2">{dateLabel(row.signingDate)}</p>{month === undefined ? <p className="mt-1 text-xs text-fg-2">Месяц отчёта: {MONTHS[Number(row.reportMonth.slice(5, 7)) - 1]} {row.reportMonth.slice(0, 4)}</p> : null}</td>
-                <td role="cell" className="block px-4 py-2 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:py-5 @min-[60rem]/sales-records:text-right @min-[60rem]/sales-records:whitespace-nowrap"><div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 @min-[60rem]/sales-records:block"><span aria-hidden="true" className="text-fg-2 @min-[60rem]/sales-records:hidden">Стоимость</span><span className="ms-auto min-w-0 max-w-full break-words font-mono tabular-nums">{money(row.serviceCostMinor, row.serviceCostCurrency)}</span></div></td>
-                <td role="cell" className="block px-4 py-2 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:py-5 @min-[60rem]/sales-records:text-right @min-[60rem]/sales-records:whitespace-nowrap"><div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 @min-[60rem]/sales-records:block"><span aria-hidden="true" className="text-fg-2 @min-[60rem]/sales-records:hidden">Оплачено по записи</span><span className="ms-auto min-w-0 max-w-full break-words font-mono tabular-nums">{money(row.paidMinor, row.paidCurrency)}</span></div></td>
+                <td role="cell" className="block px-4 py-2 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:py-5 @min-[60rem]/sales-records:text-right @min-[60rem]/sales-records:whitespace-nowrap"><div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 @min-[60rem]/sales-records:block"><span aria-hidden="true" className="text-fg-2 @min-[60rem]/sales-records:hidden">Стоимость</span><span className="ms-auto min-w-0 max-w-full break-words tabular-nums">{money(row.serviceCostMinor, row.serviceCostCurrency)}</span></div></td>
+                <td role="cell" className="block px-4 py-2 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:py-5 @min-[60rem]/sales-records:text-right @min-[60rem]/sales-records:whitespace-nowrap"><div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 @min-[60rem]/sales-records:block"><span aria-hidden="true" className="text-fg-2 @min-[60rem]/sales-records:hidden">Оплачено по записи</span><span className="ms-auto min-w-0 max-w-full break-words tabular-nums">{money(row.paidMinor, row.paidCurrency)}</span></div></td>
                 <td role="cell" className="block px-4 pt-1 text-xs text-fg-2 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:min-w-[140px] @min-[60rem]/sales-records:py-5">{row.needsReview ? "Нужно уточнить" : row.archived ? "В архиве" : ""}</td>
                 <td role="cell" className="block px-4 pt-2 pb-4 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:py-3"><Link href={href({ record: row.id })} className={`${btnGhostCls} min-h-11 w-full justify-center whitespace-nowrap @min-[60rem]/sales-records:w-auto`}>Открыть<span className="sr-only">: {row.applicantName || "Имя не указано"}</span></Link></td>
               </tr>)}</tbody>

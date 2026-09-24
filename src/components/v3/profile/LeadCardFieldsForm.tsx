@@ -2,7 +2,7 @@
 
 import { createContext, useActionState, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
-import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   saveLeadSaleConditionsGroupAction,
   type SaveLeadSaleConditionsActionState,
@@ -189,7 +189,7 @@ function SimpleFieldsCard({
           <input type="hidden" name="field_group" value={fieldGroup} />
           {fields.map((field) => (
             <label key={field.key} className="block">
-              <span className={labelCls}>{field.label}</span>
+              <span className={fieldLabelCls}>{field.label}</span>
               {field.selectOptions ? (
                 <select
                   name={field.key}
@@ -315,7 +315,7 @@ export function LeadConditionsCard({
           <div className="grid gap-3 @2xl:grid-cols-2">
             <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
               <label>
-                <span className={labelCls}>Бюджет</span>
+                <span className={fieldLabelCls}>Бюджет</span>
                 <input
                   inputMode="decimal"
                   pattern="[0-9]+([.,][0-9]{1,2})?"
@@ -336,7 +336,7 @@ export function LeadConditionsCard({
               </select>
             </div>
             <label>
-              <span className={labelCls}>Период</span>
+              <span className={fieldLabelCls}>Период</span>
               <select
                 value={budgetPeriod}
                 disabled={locked}
@@ -349,7 +349,7 @@ export function LeadConditionsCard({
             </label>
           </div>
           <label className="block">
-            <span className={labelCls}>Стипендия</span>
+            <span className={fieldLabelCls}>Стипендия</span>
             <input
               value={scholarship}
               maxLength={500}
@@ -359,7 +359,7 @@ export function LeadConditionsCard({
             />
           </label>
           <label className="block">
-            <span className={labelCls}>Ограничения и пожелания</span>
+            <span className={fieldLabelCls}>Ограничения и пожелания</span>
             <textarea
               value={note}
               maxLength={2000}

@@ -21,6 +21,12 @@ const PAD_LEFT = 44;
 const PAD_RIGHT = 14;
 const PAD_TOP = 16;
 const PAD_BOTTOM = 30;
+/**
+ * Подписи осей — 12 единиц viewBox. SVG не уже своего viewBox (`min-w`
+ * равен WIDTH), поэтому на экране подписи не мельче 12 px; на узком экране
+ * обёртка прокручивается, как и раньше.
+ */
+const LABEL_SIZE = 12;
 
 function pointsOf(values: readonly number[], max: number) {
   const steps = Math.max(values.length - 1, 1);
@@ -69,7 +75,7 @@ export function TrendChart({
     >
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="h-auto w-full min-w-[480px]"
+        className="h-auto w-full min-w-[620px]"
         role="img"
         aria-label={`${caption}. ${spoken}`}
       >
@@ -99,7 +105,7 @@ export function TrendChart({
                 x={PAD_LEFT - 8}
                 y={y + 4}
                 textAnchor="end"
-                fontSize="10"
+                fontSize={LABEL_SIZE}
                 fill="var(--text-3)"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               >
@@ -160,7 +166,7 @@ export function TrendChart({
               textAnchor={
                 index === 0 ? "start" : index === ticks.length - 1 ? "end" : "middle"
               }
-              fontSize="10"
+              fontSize={LABEL_SIZE}
               fill="var(--text-3)"
               style={{ fontVariantNumeric: "tabular-nums" }}
             >

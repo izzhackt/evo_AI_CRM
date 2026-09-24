@@ -111,7 +111,7 @@ export async function CaseAgreementBlock({
           </div>
 
           <section className="border-t border-border pt-4">
-            <h3 className="mb-2 text-base font-semibold text-fg">Договор</h3>
+            <h3 className="t-section mb-2 text-fg">Договор</h3>
             {agreement.contractCurrent ? (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 <span className="min-w-0 flex-1 break-words text-fg">
@@ -165,12 +165,12 @@ export async function CaseAgreementBlock({
           {contractWorkspace}
 
           <section className="border-t border-border pt-4" data-testid="v3-case-agreement-tranches">
-            <h3 className="mb-2 text-base font-semibold text-fg">Транши</h3>
+            <h3 className="t-section mb-2 text-fg">Транши</h3>
             <ul className="divide-y divide-border">
               {agreement.tranches.map((tranche) => (
                 <li key={tranche.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
                   <span className="min-w-0 flex-1 break-words text-sm font-medium text-fg">{tranche.label}</span>
-                  <span className="shrink-0 font-mono text-sm tabular-nums text-fg">
+                  <span className="shrink-0 text-sm tabular-nums text-fg">
                     {financeMoney(tranche.amountMinor, tranche.currency)}
                   </span>
                   <div className="flex w-full flex-wrap gap-x-4 gap-y-1 text-sm text-fg-2">
@@ -201,7 +201,7 @@ export async function CaseAgreementBlock({
           </section>
 
           <section className="border-t border-border pt-4" data-testid="v3-case-agreement-payment">
-            <h3 className="mb-2 text-base font-semibold text-fg">Оплаты и чеки</h3>
+            <h3 className="t-section mb-2 text-fg">Оплаты и чеки</h3>
             <ul className="divide-y divide-border">
               {agreement.payments.map((payment) => (
                 <li key={payment.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
@@ -209,7 +209,7 @@ export async function CaseAgreementBlock({
                     {new Date(payment.occurredOn).toLocaleDateString("ru-RU", { timeZone: "UTC" })}
                   </span>
                   {payment.eventType === "refund" ? <Pill tone="warn">Возврат</Pill> : null}
-                  <span className="shrink-0 font-mono text-sm tabular-nums text-fg">
+                  <span className="shrink-0 text-sm tabular-nums text-fg">
                     {payment.eventType === "refund" ? "−" : ""}
                     {financeMoney(payment.amountMinor, payment.currency)}
                   </span>

@@ -58,7 +58,7 @@ const CONTROL_CHARACTER_PATTERN =
 const MAX_QUERY_LENGTH = 200;
 
 const CONTROL_CLASS =
-  "min-h-11 rounded-ctl border border-control-edge bg-surface px-2.5 text-sm text-fg";
+  "min-h-11 rounded-ctl border border-control-edge bg-surface px-2.5 text-sm font-normal text-fg";
 
 export default async function PipelinePart({
   searchParams,
@@ -175,7 +175,7 @@ export default async function PipelinePart({
           <input type="hidden" name="owner" value={query.owner} />
         ) : null}
 
-        <label className="inline-flex w-full min-w-0 items-center gap-1.5 text-2xs text-fg-3 @2xl:w-auto">
+        <label className="t-caption inline-flex w-full min-w-0 items-center gap-1.5 text-fg-3 @2xl:w-auto">
           Поиск
           <input
             type="search"
@@ -188,7 +188,7 @@ export default async function PipelinePart({
         </label>
 
         {ownerSelectShown ? (
-          <label className="inline-flex w-full min-w-0 items-center gap-1.5 text-2xs text-fg-3 @2xl:w-auto">
+          <label className="t-caption inline-flex w-full min-w-0 items-center gap-1.5 text-fg-3 @2xl:w-auto">
             Сотрудник
             <select
               key={query.owner ?? "all"}
@@ -232,7 +232,7 @@ export default async function PipelinePart({
       </form>
 
       {ownerSelectShown && ownerOptions?.hasNext ? (
-        <p className="mt-1 text-2xs leading-4 text-fg-3">
+        <p className="t-meta mt-1 text-fg-3">
           Показаны первые 100 сотрудников.
         </p>
       ) : null}
@@ -260,7 +260,7 @@ export default async function PipelinePart({
       </div>
 
       {board.truncated ? (
-        <p className="mt-4 text-2xs leading-4 text-fg-3">
+        <p className="t-meta mt-4 text-fg-3">
           Прочитаны первые 4000 лидов — используйте поиск или фильтры.
         </p>
       ) : null}
@@ -298,7 +298,7 @@ function FilterLinkGroup({
 }>) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span id={id} className="w-24 shrink-0 text-2xs text-fg-3">
+      <span id={id} className="t-caption w-24 shrink-0 text-fg-3">
         {label}
       </span>
       {/* Полоса ссылок не помещается в 393px и прокручивается, поэтому ей

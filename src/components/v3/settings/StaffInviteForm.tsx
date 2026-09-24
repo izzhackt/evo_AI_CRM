@@ -27,7 +27,7 @@ function Invitation({ workspace, organizationId, onNext, mode }: {
     if (name !== "rights_confirmed") setRightsConfirmed(false);
     if (name === "email" || name === "display_name") setRecipientConfirmed(false);
   }}>
-    <h3 className="text-md font-semibold">{mode === "password" ? "Создать аккаунт" : "Пригласить сотрудника"}</h3>
+    <h3 className="t-section">{mode === "password" ? "Создать аккаунт" : "Пригласить сотрудника"}</h3>
     <p className="text-sm leading-6 text-fg-3">{mode === "password"
       ? "Укажите сотрудника и его права. Пароль из 12 символов появится после создания — сохраните его и передайте лично."
       : "Выберите рабочие права и согласованный email. Сотрудник сам установит пароль по письму."}</p>

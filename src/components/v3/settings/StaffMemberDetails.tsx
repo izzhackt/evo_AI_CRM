@@ -144,12 +144,12 @@ export function StaffMemberDetails({ member, access, departments, children }: {
   return <article aria-label={`Сотрудник: ${member.displayName}`} className="min-w-0 space-y-5">
     <Link href="/v3/settings?section=staff&view=people" className={`${btnGhostCls} @4xl:hidden`}>К сотрудникам</Link>
     <header className="space-y-2 border-b border-border pb-4">
-      <h3 ref={heading} tabIndex={-1} className="break-words text-xl font-semibold">{member.displayName}</h3>
+      <h3 ref={heading} tabIndex={-1} className="t-record-title break-words">{member.displayName}</h3>
       <p className="text-sm leading-6 text-fg-2">{staffDirectoryAccessSummary(member, access)} · {member.status === "active" ? "Доступ активен" : "Доступ заблокирован"}</p>
     </header>
     <section className="space-y-4" aria-label="Рабочие сведения">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-md font-semibold">Рабочие сведения</h4>
+        <h4 className="t-section">Рабочие сведения</h4>
         {!editing ? <button ref={editButton} type="button" className={btnGhostCls} onClick={() => setEditing(true)}>Редактировать</button> : null}
       </div>
       <p className="text-sm leading-6 text-fg-3">Должность не даёт прав доступа. Назначения ролей меняются в разделе «Доступ».</p>

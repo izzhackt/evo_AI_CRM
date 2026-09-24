@@ -23,14 +23,14 @@ export type Metric = Readonly<{
 export function MetricCard({ metric }: { metric: Metric }) {
   return (
     <li className="flex flex-col gap-1 rounded-card border border-border bg-surface px-4 py-3.5">
-      <span className="text-xs text-fg-3">{metric.label}</span>
+      <span className="t-caption text-fg-3">{metric.label}</span>
 
-      <span className="font-mono text-2xl font-semibold leading-none tracking-[-0.02em] text-fg">
+      <span className="t-figure text-fg">
         {metric.value}
       </span>
 
       {metric.insteadOfDelta ? (
-        <span className="text-2xs text-fg-3">{metric.insteadOfDelta}</span>
+        <span className="t-meta text-fg-3">{metric.insteadOfDelta}</span>
       ) : null}
     </li>
   );

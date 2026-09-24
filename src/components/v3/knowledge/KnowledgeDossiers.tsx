@@ -71,7 +71,7 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
   return <section className={styles.dossiers} aria-busy={busy}>
     {error && <p className={styles.error} role="alert">{error}<button type="button" onClick={() => void load()}>Повторить</button></p>}
     {!caseId ? <>
-      <h2>Клиенты</h2>
+      <h2 className="t-section">Клиенты</h2>
       {directory && !directory.items.length && <p>По запросу ничего не найдено.</p>}
       <ul className={styles.clientList}>{directory?.items.map((item) => <li key={item.studentCaseId}>
         <Link href={`/v3/knowledge?area=clients&case=${item.studentCaseId}`}>{item.studentDisplayName}</Link>
@@ -82,7 +82,7 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
     </> : <>
       <Link href="/v3/knowledge?area=clients">← Клиенты</Link>
       <KnowledgeExport caseIds={[caseId]} label="Выгрузить досье" />
-      <h2>{record?.studentDisplayName ?? "Загрузка досье…"}</h2>
+      <h2 className="t-record-title">{record?.studentDisplayName ?? "Загрузка досье…"}</h2>
       <div className={styles.actions}>
         <Link href={`/v3/profile?case=${caseId}`}>Открыть дело</Link>
         <button type="button" disabled={busy || !record} onClick={() => void openManual()}>Добавленные материалы</button>

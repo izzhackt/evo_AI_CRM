@@ -116,7 +116,7 @@ export function DeadlineFields({
   );
   return (
     <>
-      <label className="text-xs font-medium text-fg-2">
+      <label className="t-label text-fg-2">
         Тип срока
         <select
           name="deadline_kind"
@@ -132,7 +132,7 @@ export function DeadlineFields({
       </label>
       {kind === "all_day" ? (
         <>
-          <label className="text-xs font-medium text-fg-2">
+          <label className="t-label text-fg-2">
             Дата · Бишкек
             <input
               name="due_on"
@@ -148,7 +148,7 @@ export function DeadlineFields({
       ) : kind === "timed" ? (
         <>
           <input type="hidden" name="due_on" value="" />
-          <label className="text-xs font-medium text-fg-2">
+          <label className="t-label text-fg-2">
             Дата и время · Бишкек
             <input
               type="datetime-local"
@@ -317,7 +317,7 @@ function CalendarCreateTaskAttempt({
             <TaskCasePicker initialCases={cases} initialHasMore={casesHaveMore} selectedCase={selectedCase} onCaseChange={setActiveCaseId} disabled={locked} />
           </div>
 
-          <label className="text-xs font-medium text-fg-2">
+          <label className="t-label text-fg-2">
             Ответственный
             <select name="assignee_membership_id" required disabled={!candidateReady} value={selectedAssignee} onChange={(event) => setSelectedAssignee(event.target.value)} className={CONTROL}>
               {!eligibleAssignee ? <option value={selectedAssignee} disabled>Выберите доступного исполнителя</option> : null}
@@ -532,7 +532,7 @@ function CalendarChangeTaskForm({
         <input type="hidden" name="expected_version" value={expectedVersion} />
         <input type="hidden" name="request_id" value={state.requestId} />
         <fieldset disabled={locked} className="contents">
-        <label className="text-xs font-medium text-fg-2">
+        <label className="t-label text-fg-2">
           Состояние
           <select
             name="status"
@@ -549,7 +549,7 @@ function CalendarChangeTaskForm({
         </label>
 
         {canAssign ? (
-          <label className="text-xs font-medium text-fg-2">
+          <label className="t-label text-fg-2">
             Ответственный
             <select
               name="assignee_membership_id"
@@ -572,7 +572,7 @@ function CalendarChangeTaskForm({
           />
         )}
 
-        <label className="text-xs font-medium text-fg-2">
+        <label className="t-label text-fg-2">
           Приоритет
           <select name="priority"
             value={priority}
@@ -586,7 +586,7 @@ function CalendarChangeTaskForm({
         </label>
         <DeadlineFields day={task.day ?? day} task={task} />
         {canChangeVisibility ? (
-            <label className="text-xs font-medium text-fg-2">
+            <label className="t-label text-fg-2">
               Видимость студенту
               <select
                 name="student_visible"
@@ -605,7 +605,7 @@ function CalendarChangeTaskForm({
               value={String(task.studentVisible)}
             />
         )}
-        <label className="text-xs font-medium text-fg-2 sm:col-span-2">
+        <label className="t-label text-fg-2 sm:col-span-2">
           Причина изменения
           <input name="reason" value={reason}
             onChange={(event) => setReason(event.target.value)}

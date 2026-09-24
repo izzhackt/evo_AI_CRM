@@ -153,7 +153,7 @@ export function StaffNotifications({ initialPage }: { initialPage: StaffNotifica
       {open ? <section id={id} aria-label="Уведомления сотрудников" aria-busy={busy}
         className="absolute end-0 top-full z-40 mt-2 max-h-[70dvh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-card border border-border bg-surface p-4 shadow-evo-lg">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="font-semibold text-fg">Уведомления</h2>
+          <h2 className="t-section text-fg">Уведомления</h2>
           <div className="relative">
             <button type="button" aria-haspopup="menu" aria-expanded={menuOpen} className={CONTROL}
               onClick={() => setMenuOpen((value) => !value)}>⋯</button>

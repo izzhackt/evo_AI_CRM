@@ -126,7 +126,7 @@ export function CalendarPanel({
       }}
     >
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-2">
-        <h2 ref={headingRef} id={titleId} tabIndex={-1} className="min-w-0 self-center break-words text-sm font-semibold text-fg">
+        <h2 ref={headingRef} id={titleId} tabIndex={-1} className="t-section min-w-0 self-center break-words text-fg">
           {title}
         </h2>
         <button type="button" onClick={onRequestClose}

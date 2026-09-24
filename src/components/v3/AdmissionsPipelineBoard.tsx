@@ -134,7 +134,7 @@ function CardMenu({
         ⋯
       </summary>
       <div className="absolute right-0 z-20 mt-1 w-60 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
-        <p className="px-2 pb-0.5 pt-1 text-xs font-semibold uppercase tracking-wide text-fg-3">Переместить в…</p>
+        <p className="t-caption px-2 pb-0.5 pt-1 text-fg-3">Переместить в…</p>
         {(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => {
           const stages = ADMISSIONS_PIPELINE_TAB_STAGES[tabKey].filter((stage) => stage !== row.pipelineStage);
           if (stages.length === 0) return null;
@@ -240,7 +240,7 @@ function BoardCard({
           </Link>
           {secondLine ? <p className="mt-0.5 truncate text-sm text-fg-2">{secondLine}</p> : null}
           {showCurator && row.currentCuratorDisplayName ? (
-            <p className="mt-0.5 truncate text-2xs text-fg-3">{row.currentCuratorDisplayName}</p>
+            <p className="t-meta mt-0.5 truncate text-fg-3">{row.currentCuratorDisplayName}</p>
           ) : null}
           {row.awaitingAck || row.overdue || row.needsReply ? (
             <p className="mt-1.5 flex flex-wrap gap-1.5">
@@ -426,7 +426,7 @@ export function AdmissionsPipelineBoard({
       </nav>
 
       {truncated ? (
-        <p className="mb-3 text-2xs leading-4 text-fg-3">показаны первые 400</p>
+        <p className="t-meta mb-3 text-fg-3">показаны первые 400</p>
       ) : null}
 
       {boardUnavailable ? (
@@ -501,8 +501,8 @@ export function AdmissionsPipelineBoard({
                   >
                     <div className="flex flex-col rounded-card @2xl:max-h-[70dvh] @2xl:overflow-y-auto">
                       <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-surface-2 px-3.5 pb-2 pt-3">
-                        <h3 className="truncate text-sm font-semibold text-fg">{admissionsPipelineStage(stage)}</h3>
-                        <span className="shrink-0 font-mono text-2xs text-fg-3">{inStage.length}</span>
+                        <h3 className="t-item truncate text-fg">{admissionsPipelineStage(stage)}</h3>
+                        <span className="t-meta shrink-0 tabular-nums text-fg-3">{inStage.length}</span>
                       </div>
                       <ul className="flex flex-col gap-2 px-2.5 pb-2.5">
                         {inStage.map((row) => (
@@ -537,7 +537,7 @@ function CrossTabHintLink({
     <Link
       href={tabHref(hint.tab)}
       prefetch={false}
-      className="mt-1 inline-flex min-h-6 items-center px-1 text-2xs font-semibold text-accent-text underline underline-offset-4"
+      className="t-item mt-1 inline-flex min-h-6 items-center px-1 text-accent-text underline underline-offset-4"
     >
       Открыть в «{admissionsPipelineTab(hint.tab)}»
     </Link>

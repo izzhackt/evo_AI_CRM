@@ -90,7 +90,7 @@ function MediaAttachmentForm({
       />
       <input type="hidden" name="request_id" value={state.requestId} />
 
-      <label className="flex flex-col gap-1 text-2xs font-medium">
+      <label className="t-caption flex flex-col gap-1">
         <span>Документ в деле студента</span>
         <select
           name="document_slot_id"
@@ -111,7 +111,7 @@ function MediaAttachmentForm({
       {selectedSlot ? <SubmitButton /> : null}
       {state.status !== "idle" ? (
         <p
-          className="text-2xs leading-4"
+          className="t-body-compact"
           role={state.status === "attached" ? "status" : "alert"}
         >
           {ATTACH_STATUS_COPY[state.status]}
@@ -148,11 +148,11 @@ export function InboxMessageMedia({
             key={item.mediaId ?? `unavailable-media-${index}`}
             className="min-w-0 border-t border-current/20 pt-2"
           >
-            <p className="truncate text-xs font-semibold">
+            <p className="t-item truncate">
               {item.fileName ?? item.kindLabel}
             </p>
             {item.mimeType || item.fileSizeLabel ? (
-              <p className={`mt-0.5 text-2xs ${statusTone}`}>
+              <p className={`t-meta mt-0.5 ${statusTone}`}>
                 {[item.mimeType, item.fileSizeLabel].filter(Boolean).join(" · ")}
               </p>
             ) : null}
@@ -177,7 +177,7 @@ export function InboxMessageMedia({
                 </a>
               </div>
             ) : (
-              <p className={`mt-1 text-2xs leading-4 ${statusTone}`} role="status">
+              <p className={`t-body-compact mt-1 ${statusTone}`} role="status">
                 {item.stateLabel}
               </p>
             )}

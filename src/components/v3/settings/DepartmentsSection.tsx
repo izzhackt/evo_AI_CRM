@@ -88,7 +88,7 @@ function DepartmentRow({ department, onArchived, onLockedChange }: {
   return <li className="min-w-0 space-y-4 py-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 flex-1 space-y-1">
-        <h4 className="break-words font-semibold">{department.name}</h4>
+        <h4 className="t-item break-words">{department.name}</h4>
         <p className="text-sm text-fg-3">{department.status === "archived" ? "В архиве" : "Действующий отдел"} · Сотрудников: {department.memberCount}</p>
         {department.description ? <p className="whitespace-pre-wrap break-words text-sm leading-6 text-fg-2">{department.description}</p> : null}
       </div>
@@ -123,7 +123,7 @@ export function DepartmentsSection({ departments }: { departments: readonly Staf
   return <section className="min-w-0 space-y-4" aria-label="Отделы">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="space-y-1">
-        <h3 className="text-md font-semibold">Отделы · {departments.length}</h3>
+        <h3 className="t-section">Отделы · {departments.length}</h3>
         <p className="text-sm leading-6 text-fg-3">Структура команды и распределение сотрудников.</p>
       </div>
       {!creating ? <button ref={addButton} type="button" className={btnCls} disabled={lockedForms.length > 0} onClick={() => setCreating(true)}>Добавить отдел</button> : null}

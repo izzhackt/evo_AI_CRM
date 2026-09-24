@@ -32,7 +32,7 @@ export function KnowledgeCanonicalSearch({ search, onOpen }: { search: string; o
     finally { setBusy(false); }
   }
   return <section className={styles.dossiers} aria-label="Материалы CRM" aria-busy={busy}>
-    <h2>Материалы CRM</h2>
+    <h2 className="t-section">Материалы CRM</h2>
     {error && <p role="alert" className={styles.error}>{error}<button type="button" onClick={() => setRetry((value) => value + 1)}>Повторить поиск</button></p>}
     <ul className={styles.clientList}>{page?.items.map((item) => <li key={`${item.kind}:${item.id}`}>
       <Link href={item.href} onClick={onOpen}>{item.title}</Link>

@@ -18,7 +18,7 @@ function HeaderFact({ label, value, meta, action }: Readonly<{
 }>) {
   return (
     <div className="min-w-0">
-      <dt className="text-2xs text-fg-3">{label}</dt>
+      <dt className="t-caption text-fg-3">{label}</dt>
       <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-sm text-fg">
         <span className="min-w-0">{value}</span>
         {meta ? <span className="text-fg-3">до {meta}</span> : null}
@@ -81,7 +81,7 @@ export async function CaseHeader({
   return (
     <section className="flex flex-col gap-3" data-testid="v3-case-header">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="min-w-0 text-xl font-semibold tracking-[-0.02em] text-fg">
+        <h2 className="t-record-title min-w-0 text-fg">
           {profile.person}
         </h2>
         <p className="text-sm text-fg-3">{state}</p>

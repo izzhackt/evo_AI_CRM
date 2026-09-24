@@ -21,7 +21,7 @@ export async function SalesRegisterImportView({ actor, query }: { actor: ActiveP
 
   return <main className="mx-auto w-full min-w-0 max-w-[1240px] px-4 py-8 sm:px-6">
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-fg">Перенос данных отчёта</h1>
+      <h1 className="t-page-title text-fg">Перенос данных отчёта</h1>
       <Link href={context.reportHref} className={`${btnGhostCls} min-h-11`}>Вернуться к отчёту</Link>
     </header>
     {!context.valid ? <p role="alert" className="mt-6 text-sm text-fg-2">Проверьте год, месяц и фильтры в отчёте перед переносом данных.</p> : null}

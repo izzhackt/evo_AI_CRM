@@ -389,7 +389,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
 
   return <div ref={workspace} className={styles.workspace} data-panel={panel} aria-busy={busy}>
     <nav className={styles.channels} aria-label="Каналы команды">
-      <h1 className={styles.channelTitle}>Командный чат</h1>
+      <h1 className={`t-page-title ${styles.channelTitle}`}>Командный чат</h1>
       {forbidden ? <div className={`${styles.channelFeedback} ${styles.error}`} role="alert">
         <p>{transportLabel}</p>
         <a className={styles.secondary} href="/login">Войти снова</a>

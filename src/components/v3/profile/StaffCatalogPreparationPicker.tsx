@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import { UNIVERSITY_LEVEL_LABELS, universityIntakeLabel, type PublishedUniversity, type UniversityIntake, type UniversityPage, type UniversityProgram } from "@/lib/platform-university-catalog";
 import type { CatalogPreparation, CatalogPreparationIntent } from "@/lib/portal/catalog-preparations";
 import { readStaffPreparationsAction, searchStaffPreparationCatalogAction, selectStaffPreparationAction, type StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
@@ -117,7 +117,7 @@ export function StaffCatalogPreparationPicker({ scope, canSelect, canInitialize,
       {preparations.status !== "ready" ? <p role="alert" className="text-sm text-danger">Сохранённые подготовки сейчас недоступны. Новый выбор временно отключён.</p> : null}
       <button type="button" className={btnGhostCls} disabled={pending} onClick={() => void checkSaved()}>Проверить сохранённые подготовки</button>
       <form className="flex flex-col gap-2 sm:flex-row sm:items-end" onSubmit={(event) => { event.preventDefault(); void search(); }}>
-        <label className={`${labelCls} min-w-0 flex-1`}>Университет<input type="search" className={`${inputCls} mt-1`} value={query} maxLength={100} disabled={pending} placeholder="Название университета" onChange={(event) => { ++epoch.current; setQuery(event.target.value); setPage(null); setUniversity(null); setCatalogStatus("idle"); }} /></label>
+        <label className={`${fieldLabelCls} min-w-0 flex-1`}>Университет<input type="search" className={`${inputCls} mt-1`} value={query} maxLength={100} disabled={pending} placeholder="Название университета" onChange={(event) => { ++epoch.current; setQuery(event.target.value); setPage(null); setUniversity(null); setCatalogStatus("idle"); }} /></label>
         <button type="submit" className={btnGhostCls} disabled={pending || catalogStatus === "loading"}>Найти</button>
       </form>
       {catalogStatus === "loading" ? <p role="status" className="text-sm text-fg-3">Ищем опубликованные программы…</p> : null}
@@ -128,11 +128,11 @@ export function StaffCatalogPreparationPicker({ scope, canSelect, canInitialize,
         {page.nextOffset !== null ? <button className={btnGhostCls} type="button" disabled={pending} onClick={() => void search(page.nextOffset!)}>Следующие университеты</button> : null}
       </> : null}
       {university ? <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="min-w-0 break-words font-semibold text-fg">{university.content.name}</h4><button type="button" className={btnGhostCls} disabled={pending} onClick={() => setUniversity(null)}>Другой университет</button></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="t-item min-w-0 break-words text-fg">{university.content.name}</h4><button type="button" className={btnGhostCls} disabled={pending} onClick={() => setUniversity(null)}>Другой университет</button></div>
         <a href={`/v3/universities/${university.id}`} className="inline-flex min-h-11 items-center text-sm text-accent-text underline underline-offset-4">Карточка университета и источники</a>
         {!countries.has(university.content.country) ? <p className="text-sm text-fg-2">Для этой страны пока доступно ручное добавление заявки.</p> : null}
         {university.content.programs.map((program) => <section key={program.id} className="border-t border-border pt-3">
-          <h5 className="break-words font-medium text-fg">{program.title}</h5><p className="mt-1 text-sm text-fg-3">{UNIVERSITY_LEVEL_LABELS[program.level]}{program.language ? ` · ${program.language}` : ""}</p>
+          <h5 className="t-item break-words text-fg">{program.title}</h5><p className="mt-1 text-sm text-fg-3">{UNIVERSITY_LEVEL_LABELS[program.level]}{program.language ? ` · ${program.language}` : ""}</p>
           {!program.intakes.length ? <p className="py-2 text-sm text-fg-2">Сведения о наборах ещё не опубликованы.</p> : <ul className="mt-2 divide-y divide-border">{program.intakes.map((intake, index) => {
             const existing = preparations.status === "ready" ? preparations.value.find((item) => item.institutionId === university.id && item.programId === program.id && item.intakeId === intake.id) : undefined;
             return <li key={intake.id ?? `legacy-${index}`} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">

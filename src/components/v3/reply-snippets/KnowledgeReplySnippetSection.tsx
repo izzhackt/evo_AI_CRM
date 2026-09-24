@@ -9,7 +9,7 @@ import {
   btnGhostCls,
   cn,
   inputCls,
-  labelCls,
+  fieldLabelCls,
 } from "@/components/ui";
 import { Pill } from "@/components/v3/Pill";
 import {
@@ -118,7 +118,7 @@ function CreateSnippetForm({
     <form action={action} className="space-y-3" aria-busy={pending}>
       <input type="hidden" name="request_id" value={state.requestId} />
       <label>
-        <span className={labelCls}>Кому доступен</span>
+        <span className={fieldLabelCls}>Кому доступен</span>
         <select name="audience" className={inputCls} disabled={locked}>
           {audiences.map((audience) => (
             <option key={audience} value={audience}>
@@ -128,7 +128,7 @@ function CreateSnippetForm({
         </select>
       </label>
       <label>
-        <span className={labelCls}>Название</span>
+        <span className={fieldLabelCls}>Название</span>
         <input
           name="title"
           required
@@ -138,7 +138,7 @@ function CreateSnippetForm({
         />
       </label>
       <label>
-        <span className={labelCls}>Текст ответа</span>
+        <span className={fieldLabelCls}>Текст ответа</span>
         <textarea
           name="body"
           required
@@ -183,7 +183,7 @@ function SnippetRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold text-fg">{snippet.title}</h3>
+            <h3 className="t-item text-fg">{snippet.title}</h3>
             <Pill tone="neutral">
               {AUDIENCE_LABELS[snippet.audience]}
             </Pill>
@@ -206,7 +206,7 @@ function SnippetRow({
               <input type="hidden" name="expected_version" value={snippet.version} />
               <input type="hidden" name="request_id" value={updateState.requestId} />
               <label>
-                <span className={labelCls}>Кому доступен</span>
+                <span className={fieldLabelCls}>Кому доступен</span>
                 <select
                   name="audience"
                   className={inputCls}
@@ -221,7 +221,7 @@ function SnippetRow({
                 </select>
               </label>
               <label>
-                <span className={labelCls}>Название</span>
+                <span className={fieldLabelCls}>Название</span>
                 <input
                   name="title"
                   required
@@ -232,7 +232,7 @@ function SnippetRow({
                 />
               </label>
               <label>
-                <span className={labelCls}>Текст ответа</span>
+                <span className={fieldLabelCls}>Текст ответа</span>
                 <textarea
                   name="body"
                   required
@@ -281,7 +281,7 @@ export function KnowledgeReplySnippetSection({
       className="rounded-card border border-border bg-surface"
     >
       <header className="border-b border-border px-4 py-3 sm:px-5">
-        <h2 id="v3-reply-snippets-heading" className="text-lg font-semibold text-fg">
+        <h2 id="v3-reply-snippets-heading" className="t-section text-fg">
           Шаблоны ответов
         </h2>
         <p className="mt-1 text-sm leading-5 text-fg-3">
@@ -292,7 +292,7 @@ export function KnowledgeReplySnippetSection({
       <div className={cn("grid gap-6 p-4 sm:p-5", canManage && "lg:grid-cols-[minmax(16rem,0.7fr)_minmax(0,1.3fr)]")}>
         {canManage ? (
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-fg">Новый шаблон</h3>
+            <h3 className="t-item mb-3 text-fg">Новый шаблон</h3>
             <CreateSnippetForm
               key={createReplySnippetFormKey(createRequestId)}
               requestId={createRequestId}
@@ -302,7 +302,7 @@ export function KnowledgeReplySnippetSection({
         ) : null}
 
         <div className={cn(canManage && "lg:border-s lg:border-border lg:ps-6")}>
-          <h3 className="mb-3 text-sm font-semibold text-fg">Доступные шаблоны</h3>
+          <h3 className="t-item mb-3 text-fg">Доступные шаблоны</h3>
           {items.length === 0 ? (
             <p className="py-6 text-center text-sm text-fg-3">Шаблонов пока нет.</p>
           ) : (

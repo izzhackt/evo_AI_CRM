@@ -46,7 +46,7 @@ export function UniversityFormDecision({ catalogId, templateId, versionId, revis
   const feedback = universityFormActionMessage(state.status);
   if (decision.operation === "publish" && decision.mapping.review?.decision !== "approved") return null;
   return <section aria-labelledby={`${id}-title`} className="max-w-2xl space-y-4">
-    <div className="space-y-2"><h3 id={`${id}-title`} className="text-lg font-bold text-fg">{metadata.title}</h3>
+    <div className="space-y-2"><h3 id={`${id}-title`} className="t-section text-fg">{metadata.title}</h3>
       <p className="text-sm leading-6 text-fg-2">{metadata.explanation}</p></div>
     <form action={submit} aria-busy={pending} className="space-y-4">
       {Object.entries({ operation: decision.operation, template_id: templateId, request_id: requestId,

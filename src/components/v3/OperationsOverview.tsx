@@ -68,7 +68,7 @@ export function OperationsOverview({
       data-testid="v3-operational-dashboard"
     >
       <h2
-        className="text-lg font-semibold text-fg"
+        className="t-section text-fg"
         id="operations-overview-title"
       >
         Рабочий обзор
@@ -87,10 +87,10 @@ export function OperationsOverview({
                 data-dashboard-card={card.key}
                 href={card.href}
               >
-                <span className="text-xs font-medium text-fg-3">
+                <span className="t-caption text-fg-3">
                   {CARD_TITLE[card.key]}
                 </span>
-                <strong className="mt-2 block font-mono text-3xl font-semibold text-fg">
+                <strong className="t-figure mt-2 block text-fg">
                   {card.loadedCount}
                   {card.hasMore ? "+" : ""}
                 </strong>
@@ -106,7 +106,7 @@ export function OperationsOverview({
       )}
 
       <div className="mt-5">
-        <h3 className="text-sm font-semibold text-fg">Требует внимания</h3>
+        <h3 className="t-item text-fg">Требует внимания</h3>
         {snapshot.attentionItems.length === 0 ? (
           <p className="mt-2 text-sm text-fg-3">
             В доступных разделах ничего не требует срочного внимания.
@@ -122,7 +122,7 @@ export function OperationsOverview({
                 >
                   <span>{ATTENTION_TITLE[item.key]}</span>
                   {item.value === null ? null : (
-                    <strong className="font-mono text-base">{item.value}</strong>
+                    <strong className="text-base font-semibold tabular-nums">{item.value}</strong>
                   )}
                 </Link>
               </li>

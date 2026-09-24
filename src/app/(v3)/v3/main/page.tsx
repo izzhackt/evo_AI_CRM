@@ -91,7 +91,7 @@ export default async function MainPart({
       <div className="mt-5 grid items-start gap-6 @4xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <section aria-labelledby="current-sales-title" className="min-w-0 rounded-card border border-border bg-surface p-4 @4xl:order-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="current-sales-title" className="text-md font-bold text-fg">Воронка продаж</h2>
+            <h2 id="current-sales-title" className="t-section text-fg">Воронка продаж</h2>
             <Link href="/v3/pipeline" className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">К доске</Link>
           </div>
           <p className="mb-4 text-sm text-fg-3">Текущие этапы по доступным вам лидам.</p>
@@ -104,11 +104,11 @@ export default async function MainPart({
               <div className="mt-5 border-t border-border pt-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-fg">Продажи в вашем отчёте</h3>
-                    <p className="mt-1 text-2xs text-fg-3">По лидам текущей воронки</p>
+                    <h3 className="t-item text-fg">Продажи в вашем отчёте</h3>
+                    <p className="t-meta mt-1 text-fg-3">По лидам текущей воронки</p>
                   </div>
                   {currentFunnel.sales.status === "available" ? (
-                    <span className="text-md font-semibold tabular-nums text-fg">{currentFunnel.sales.count.toLocaleString("ru-RU")}</span>
+                    <span className="text-base font-semibold tabular-nums text-fg">{currentFunnel.sales.count.toLocaleString("ru-RU")}</span>
                   ) : null}
                 </div>
                 {currentFunnel.sales.status === "denied" ? (
@@ -131,7 +131,7 @@ export default async function MainPart({
         </section>
 
         <section aria-labelledby="period-leads-title" className="min-w-0 @4xl:order-1">
-          <h2 id="period-leads-title" className="mb-3 text-md font-bold text-fg">Лиды за период</h2>
+          <h2 id="period-leads-title" className="t-section mb-3 text-fg">Лиды за период</h2>
           <MainHeader choices={choices} range={period.key === "custom"
             ? { from: period.from, to: period.to, max: period.today } : null} />
           {!periodDashboard ? (
@@ -150,12 +150,12 @@ export default async function MainPart({
               </ul>
               <section className="mt-4 min-w-0 rounded-card border border-border bg-surface p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-md font-bold text-fg">Динамика</h3>
-                  <span className="text-2xs text-fg-3">{periodLabel(period)}</span>
+                  <h3 className="t-section text-fg">Динамика</h3>
+                  <span className="t-meta text-fg-3">{periodLabel(period)}</span>
                 </div>
                 {trend ? (
                   <>
-                    <p className="mt-2 flex flex-wrap gap-4 text-2xs text-fg-3">
+                    <p className="t-meta mt-2 flex flex-wrap gap-4 text-fg-3">
                       {trend.series.map(one => (
                         <span key={one.label} className="inline-flex items-center gap-1.5">
                           {one.emphasis === "primary" ? <span aria-hidden="true" className="inline-block h-0.5 w-3.5 bg-accent" />

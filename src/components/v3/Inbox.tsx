@@ -211,12 +211,12 @@ export function Inbox({
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">
                       {conversation.person}
                     </span>
-                    <span className="shrink-0 font-mono text-2xs text-fg-3">
+                    <span className="t-meta shrink-0 font-mono text-fg-3">
                       {conversation.updatedAt}
                     </span>
                   </span>
                   {conversation.waitingSince ? (
-                    <span className="text-2xs font-medium text-warn">
+                    <span className="t-caption text-warn">
                       Ждёт ответа с {conversation.waitingSince}
                       {conversation.awaitingReplyFor
                         ? ` · ${conversation.awaitingReplyFor}`
@@ -229,7 +229,7 @@ export function Inbox({
           })}
           {!hasConversations ? (
             <li className="px-4 py-10 sm:px-6" data-testid="v3-inbox-empty">
-              <h2 className="text-base font-semibold text-fg">{emptyTitle}</h2>
+              <h2 className="t-section text-fg">{emptyTitle}</h2>
               <p className="mt-2 max-w-prose text-sm leading-6 text-fg-2">
                 {view.queueNewestHref
                   ? "Вернитесь к новым диалогам, чтобы обновить список."
@@ -270,7 +270,7 @@ export function Inbox({
               {/* Имя не сжимается первым: при нехватке ширины пилюля
                   переносится на свою строку, а заголовок остаётся целым. */}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h2 className="min-w-0 text-md font-bold text-fg">
+                <h2 className="t-section min-w-0 text-fg">
                   {open.person}
                 </h2>
                 {open.waitingSince ? (
@@ -280,7 +280,7 @@ export function Inbox({
                   </Pill>
                 ) : null}
               </div>
-              <p className="mt-0.5 text-2xs text-fg-3">
+              <p className="t-meta mt-0.5 text-fg-3">
                 {channelLabel(open.channelState)}
                 {open.channelObservedAt
                   ? ` · проверено ${open.channelObservedAt}`
@@ -358,7 +358,7 @@ export function Inbox({
                     />
                     {message.at ? (
                       <p
-                        className={`mt-1 font-mono text-2xs ${
+                        className={`t-meta mt-1 font-mono ${
                           message.inbound ? "text-fg-3" : "text-on-accent"
                         }`}
                       >

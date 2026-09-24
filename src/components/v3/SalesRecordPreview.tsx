@@ -16,7 +16,7 @@ export function SalesRecordPreview({ record, backHref, editHref }: {
   record: SalesRegisterRow | null; backHref: string; editHref: string | null;
 }) {
   if (!record) return <section className="mt-6 max-w-[860px] space-y-4">
-    <h1 className="text-2xl font-semibold text-fg">Запись продажи</h1>
+    <h1 className="t-page-title text-fg">Запись продажи</h1>
     <p role="alert" className="text-sm text-fg-2">Не удалось открыть запись. Возможно, доступ изменился или соединение прервалось.</p>
     <Link href={backHref} className={`${btnGhostCls} min-h-11`}>К отчёту</Link>
   </section>;
@@ -40,8 +40,8 @@ export function SalesRecordPreview({ record, backHref, editHref }: {
   return <section className="mt-6 max-w-[860px] space-y-6" aria-labelledby="sale-preview-title">
     <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
     <header className="space-y-3">
-      <h1 id="sale-preview-title" className="text-2xl font-semibold tracking-tight text-fg">Запись продажи</h1>
-      <h2 className="break-words text-xl font-semibold text-fg">{record.applicantName || "Имя не указано"}</h2>
+      <h1 id="sale-preview-title" className="t-page-title text-fg">Запись продажи</h1>
+      <h2 className="t-record-title break-words text-fg">{record.applicantName || "Имя не указано"}</h2>
       <p className="max-w-2xl text-sm leading-6 text-fg-2">Сведения из записи отчёта.{record.leadId ? " Текущие данные клиента и условия — в его карточке." : ""}</p>
       {record.archived ? <p className="text-sm text-fg-2">Запись в архиве и не входит в рабочие итоги.</p> : null}
       {record.needsReview ? <p className="text-sm font-medium text-fg-2">Требует проверки</p> : null}
@@ -51,15 +51,15 @@ export function SalesRecordPreview({ record, backHref, editHref }: {
       </div>
     </header>
     <dl className="grid gap-x-8 gap-y-5 border-y border-border py-5 sm:grid-cols-2">
-      <div className="min-w-0"><dt className="text-sm text-fg-2">Стоимость услуг</dt><dd className="mt-1 break-words text-lg font-semibold text-fg"><Amount minor={record.serviceCostMinor} currency={record.serviceCostCurrency} raw={record.serviceCostRaw} /></dd></div>
-      <div className="min-w-0"><dt className="text-sm text-fg-2">Оплачено по записи</dt><dd className="mt-1 break-words text-lg font-semibold text-fg"><Amount minor={record.paidMinor} currency={record.paidCurrency} raw={record.paidRaw} /></dd></div>
+      <div className="min-w-0"><dt className="text-sm text-fg-2">Стоимость услуг</dt><dd className="t-section mt-1 break-words text-fg"><Amount minor={record.serviceCostMinor} currency={record.serviceCostCurrency} raw={record.serviceCostRaw} /></dd></div>
+      <div className="min-w-0"><dt className="text-sm text-fg-2">Оплачено по записи</dt><dd className="t-section mt-1 break-words text-fg"><Amount minor={record.paidMinor} currency={record.paidCurrency} raw={record.paidRaw} /></dd></div>
     </dl>
     <p className="text-sm leading-6 text-fg-2">Оплата в записи — часть отчёта продажи, а не подтверждение поступления денег. Суммы в разных валютах не пересчитываются.</p>
     <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="min-w-0">
       <dt className="text-sm text-fg-2">{label}</dt><dd className="mt-1 break-words text-sm text-fg">{value || "Не указано"}</dd>
     </div>)}</dl>
     {record.notes ? <section className="space-y-2 border-t border-border pt-5" aria-labelledby="sale-preview-notes">
-      <h2 id="sale-preview-notes" className="text-base font-semibold text-fg">Примечание</h2>
+      <h2 id="sale-preview-notes" className="t-section text-fg">Примечание</h2>
       <p className="whitespace-pre-wrap break-words text-sm leading-6 text-fg-2">{record.notes}</p>
     </section> : null}
     <p className="border-t border-border pt-5 text-sm leading-6 text-fg-2">

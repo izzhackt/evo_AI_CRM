@@ -293,7 +293,7 @@ function ResultState({
       </p>
       {state.steps.length > 0 ? (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.04em]">
+          <p className="t-caption">
             {copy.steps}
           </p>
           <ol className="mt-2 space-y-1.5">
@@ -318,7 +318,7 @@ function ResultState({
       ) : null}
       {state.attemptId ? (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.04em]">
+          <p className="t-caption">
             {copy.attempt}
           </p>
           <code

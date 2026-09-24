@@ -167,7 +167,7 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
   function select(slot: UniversityFormMapping) { setSelected(slot.slotId); setPage(slot.position?.page ?? page); stopGesture(); }
   const moving = !locked && preview && gesturePreview?.readKey === readKey ? gesturePreview : null;
   return <section aria-labelledby={`${id}-title`} className="space-y-5">
-    <div className="max-w-2xl space-y-2"><h3 id={`${id}-title`} className="text-lg font-bold text-fg">{readOnly ? words.savedMapping : words.edit}</h3>
+    <div className="max-w-2xl space-y-2"><h3 id={`${id}-title`} className="t-section text-fg">{readOnly ? words.savedMapping : words.edit}</h3>
       <p className="text-sm leading-6 text-fg-2">{readOnly ? words.reviewExplanation : pdf.explanation}</p></div>
     <form action={readOnly ? undefined : submit} aria-busy={pending} className="space-y-5"
       onSubmit={event => { if (gesture.current) { event.preventDefault(); stopGesture(); } }}
@@ -203,7 +203,7 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
             aria-label={`${pdf.field} ${index + 1}: ${item.manual ? words.manual : universityFormSourceLabel(item.sourceKey ?? "")}`}
             aria-pressed={selected === item.slotId} onClick={() => select(item)} onFocus={() => setSelected(item.slotId)}
             onPointerDown={event => { if (!drawing) startGesture(event, "move", item); }}
-            className={`absolute border-2 text-left text-xs font-bold outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent ${selected === item.slotId ? "z-10 border-accent bg-accent/10 text-accent" : "border-fg-2 bg-surface/40 text-fg"} ${drawing ? "pointer-events-none" : ""} ${!locked ? "cursor-move" : ""}`}
+            className={`absolute border-2 text-left text-xs font-semibold outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent ${selected === item.slotId ? "z-10 border-accent bg-accent/10 text-accent" : "border-fg-2 bg-surface/40 text-fg"} ${drawing ? "pointer-events-none" : ""} ${!locked ? "cursor-move" : ""}`}
             onKeyDown={event => {
               if (locked || selected !== item.slotId || !item.position || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
               event.preventDefault(); const step = event.shiftKey ? 10 : 1, p = item.position;

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 
-import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   createPlatformUniversityApplicationAction,
   type PlatformUniversityApplicationActionState,
@@ -66,7 +66,7 @@ function ApplicationCreateForm({
       <fieldset disabled={locked} className="grid gap-3">
         <ApplicationUniversitySelector key={workspace.studentCaseId} />
         <label>
-          <span className={labelCls}>Программа</span>
+          <span className={fieldLabelCls}>Программа</span>
           <input name="program_name" maxLength={300} className={inputCls} />
           <span className="mt-1 block text-xs text-fg-3">Можно указать позже.</span>
         </label>
@@ -77,17 +77,17 @@ function ApplicationCreateForm({
           </summary>
           <div className="mt-3 grid gap-3">
             <label>
-              <span className={labelCls}>Дедлайн от университета</span>
+              <span className={fieldLabelCls}>Дедлайн от университета</span>
               <input name="university_deadline_on" type="date" className={inputCls} />
             </label>
             <ApplicationCountryField />
             <ApplicationDegreeField />
             <label>
-              <span className={labelCls}>Ссылка на подтверждение</span>
+              <span className={fieldLabelCls}>Ссылка на подтверждение</span>
               <input name="evidence_reference" maxLength={1000} className={inputCls} />
             </label>
             <label>
-              <span className={labelCls}>Заметка</span>
+              <span className={fieldLabelCls}>Заметка</span>
               <textarea name="note" rows={2} maxLength={1000} className={inputCls} />
             </label>
           </div>

@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { StudentsCoverage } from "@/components/v3/profile/students-facets";
+import type { StudentsCoverage } from "@/components/v3/profile/students-coverage-view";
 
 import type { ActivePlatformActor } from "../platform-auth";
 import { readCuratorCoverageWorkspace } from "../server/curator-coverage-source";

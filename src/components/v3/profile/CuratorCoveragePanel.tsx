@@ -3,13 +3,14 @@ import Link from "next/link";
 import { btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
 import { CoverageDueTime } from "./CoverageDueTime";
 import { CuratorCoverageForm } from "./CuratorCoverageForm";
-import { coverageHref as href, coverageWorkload, type StudentsCoverage } from "./students-facets";
+import { COVERAGE_VIEW_HREF, coverageHref as href, coverageWorkload, type StudentsCoverage } from "./students-coverage-view";
 
 /**
- * Нагрузка и замещение куратора внутри «Студентов» (24.09.2026): открывается
- * выбором куратора в фасете, без отдельной карточки. Поведение и права прежние:
- * раздел виден только при `case.curator.assign`, чтение и перенос — те же
- * `read_curator_coverage_workspace` и `CuratorCoverageForm`.
+ * Нагрузка и замещение куратора внутри «Студентов»: с 25.09.2026 открывается
+ * в правой панели вида «Нагрузка кураторов» выбором куратора в его таблице.
+ * Поведение и права прежние: раздел виден только при `case.curator.assign`,
+ * чтение и перенос — те же `read_curator_coverage_workspace` и
+ * `CuratorCoverageForm`. Заголовок — заголовок записи панели очереди.
  */
 
 const LINK = "inline-flex min-h-11 items-center text-sm font-medium text-fg underline decoration-border-strong underline-offset-4 hover:decoration-fg";
@@ -25,7 +26,7 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today 
   if (coverage.kind === "hidden") return null;
   if (coverage.kind === "invalid") {
     return <section id="curator-coverage" aria-label="Замещение куратора" data-testid="v3-curator-coverage" className="border-b border-border pb-3">
-      <p role="alert" className="py-2 text-sm text-fg-2">Параметры замещения не приняты. <Link href="/v3/profile" className="underline underline-offset-4">Начать выбор заново</Link>.</p>
+      <p role="alert" className="py-2 text-sm text-fg-2">Параметры замещения не приняты. <Link href={COVERAGE_VIEW_HREF} className="underline underline-offset-4">Начать выбор заново</Link>.</p>
     </section>;
   }
   const { curatorId, caseId, afterCaseId, explicit } = coverage;
@@ -46,7 +47,7 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today 
   return (
     <section id="curator-coverage" aria-labelledby="curator-coverage-title" data-testid="v3-curator-coverage" className="border-b border-border pb-2">
       <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-        <h2 id="curator-coverage-title" className="t-section text-fg">{name}</h2>
+        <h2 id="curator-coverage-title" tabIndex={-1} data-queue-heading="" className="t-section text-fg xl:pe-10">{name}</h2>
         {selected ? <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-fg-2">
           <div><dt className="inline">Активных дел: </dt><dd className="inline tabular-nums text-fg">{selected.active_case_count}</dd></div>
           <div><dt className="inline">Открытых задач: </dt><dd className="inline tabular-nums text-fg">{selected.open_task_count}</dd></div>
@@ -64,7 +65,7 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today 
           {workspace ? <>
             {selected ? <>
               {workspace.cases.length === 0 ? <p className="text-sm text-fg-2">На этой странице активных дел нет.</p> : <form action="/v3/profile#curator-coverage" method="get" className="flex flex-wrap items-end gap-3">
-                <input type="hidden" name="curator" value={selected.id} />
+                <input type="hidden" name="view" value="curators" />
                 <input type="hidden" name="coverage_curator" value={selected.id} />
                 {afterCaseId ? <input type="hidden" name="coverage_after" value={afterCaseId} /> : null}
                 <label className="min-w-0 flex-1 basis-56"><span className={fieldLabelCls}>Найти студента</span>

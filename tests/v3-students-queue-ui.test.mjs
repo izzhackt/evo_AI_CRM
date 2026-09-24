@@ -470,7 +470,7 @@ test("«Нагрузка кураторов» keeps the coverage read, form and 
   assert.match(panel, /<input type="hidden" name="view" value="curators"\/>/u);
   // «Отмена» stays on this view, on the case owner.
   assert.match(panel, /href="\/v3\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000002#curator-coverage">Отмена<\/a>/u);
-  // Solid red belongs to «Создать задачу» only; disabled is explicit, not dimmed.
+  // No solid red: confirmation is dark neutral; disabled is explicit, not dimmed.
   const confirm = panel.match(/<button type="submit" disabled="" class="([^"]+)">Подтвердить замещение<\/button>/u);
   assert.ok(confirm);
   assert.doesNotMatch(confirm[1], /\bbg-accent\b|opacity-/u);
@@ -536,7 +536,7 @@ test("the facet rail is gone and the page reads no summary for it", () => {
   for (const name of ["admin-active", "curator-mine", "docs-review"]) {
     assert.doesNotMatch(surfaces.get(name), /aria-label="Фильтры студентов"|students-facet-/u, name);
   }
-  // Only «Создать задачу» is solid red: nothing on this page adds another.
+  // The queue has no main action of its own: nothing here is solid red.
   for (const file of ["StudentsQueueTable.tsx", "StudentsQueueHead.tsx", "StudentQuickView.tsx", "NextStepEditor.tsx", "StudentsDocsTable.tsx", "CuratorWorkloadView.tsx", "StudentsDirectoryFallback.tsx", "StudentsQueueScreen.tsx"]) {
     assert.doesNotMatch(read(`src/components/v3/students/${file}`), /\bbg-accent\b|\bopacity-/u, file);
   }

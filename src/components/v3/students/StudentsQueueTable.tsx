@@ -20,7 +20,7 @@ import { studentsRowSignals, type StudentsBand, type StudentsSignal } from "./st
  * «направление · уровень», а его ячейка остаётся для читалки.
  */
 const WIDE_COLUMNS = "@min-[60rem]/students:grid-cols-[minmax(0,19fr)_minmax(0,25fr)_minmax(0,9fr)_minmax(0,14fr)_minmax(0,14fr)_minmax(0,19fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_step_due_stage_curator_signals_link']";
-const ROW_GRID = `grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 [grid-template-areas:'student_student'_'step_due'_'curator_curator'_'signals_signals'] @min-[36rem]/students:grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,11rem)_2.75rem] @min-[36rem]/students:[grid-template-areas:'student_due_curator_link'_'step_due_signals_link'] ${WIDE_COLUMNS}`;
+const ROW_GRID = `grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 [grid-template-areas:'student_student'_'step_due'_'curator_curator'_'signals_signals'] @min-[36rem]/students:grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,12.5rem)_2.75rem] @min-[36rem]/students:[grid-template-areas:'student_due_curator_link'_'step_due_signals_link'] ${WIDE_COLUMNS}`;
 const CELL = "min-w-0 px-3 @min-[36rem]/students:px-2 @min-[60rem]/students:py-2";
 const HEAD = "flex h-9 items-center px-2 text-start t-caption text-fg-2 first:ps-3";
 const TONE: Readonly<Record<StudentsSignal["tone"], string>> = {

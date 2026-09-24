@@ -4,9 +4,23 @@
 --
 -- Owner decision 25.09: «Следующий шаг / Срок» is the EDITABLE case field
 -- platform.student_cases.next_action / next_action_due_on (042/137), edited by
--- the case's curator and Admin. Today nothing in the CRM writes it after the
--- Sales handoff default (088), and the directory is ordered by updated_at
--- (078), so this migration adds, additively and forward-only:
+-- the case's curator and Admin. Today no CRM application code writes it after
+-- the Sales handoff default (088) (137's configure/update_case_admissions_*_v1
+-- can, but nothing in the app calls them), and the directory is ordered by
+-- updated_at (078).
+--
+-- STAFF-ONLY. Until this migration the same column was also returned to the
+-- Student word for word by platform.student_portal_cases() (042; the iPhone
+-- home «Следующий шаг») and platform.student_portal_profile()
+-- (case_next_action, 159). A staff-edited free-text step («Позвонить
+-- студенту») is an instruction for staff, so section (f) stops both Student
+-- projections from returning it. docs/PLAN_CHANGES.md «2026-09-25 —
+-- «Студенты» PR 1: «Следующий шаг» только для сотрудников» records that the
+-- owner has not yet chosen between a student-facing and a staff-only step and
+-- that this is the safe default until they do.
+--
+-- Forward-only. Everything is additive except (e) and (f), which rewrite the
+-- bodies of three existing functions and keep their signatures and grants:
 --
 --  a) platform_private.case_next_action_band / case_queue_in_view: two small
 --     IMMUTABLE predicates shared by the page read and the counts read, so a
@@ -62,6 +76,11 @@
 --     gains 'case.next.action.change' (self-verifying anchor replace, the
 --     182 pattern; CREATE OR REPLACE keeps the owner and grants). The Admin
 --     audit search allowlist (p7a) is NOT widened here.
+--  f) platform.student_portal_cases() and platform.student_portal_profile():
+--     the next_action / case_next_action column is always NULL (same anchor
+--     replace; same signature, owner and grants). The web portal is not
+--     affected: it reads student_portal_overview_v2 (131), which never used
+--     the free-text case step.
 --
 -- Style: SECURITY DEFINER, SET search_path = '', REVOKE/GRANT pairs, no
 -- existing signature or default changes. References:
@@ -133,7 +152,9 @@ BEGIN
     OR p_expected_version IS NULL OR p_expected_version NOT BETWEEN 0 AND 9223372036854775806
     OR (normalized IS NULL AND p_next_action_due_on IS NOT NULL)
     OR char_length(normalized) > 1000
-    OR normalized ~ '[[:cntrl:]]'
+    -- One line, locale-independent: C0 and C1 controls, U+2028 and U+2029,
+    -- exactly the TypeScript WRITE_CONTROL_PATTERN (text cannot hold U+0000).
+    OR normalized ~ U&'[\0001-\001F\007F-\009F\2028\2029]'
     OR (p_next_action_due_on IS NOT NULL
       AND p_next_action_due_on NOT BETWEEN DATE '0001-01-01' AND DATE '9999-12-31')
   THEN
@@ -224,7 +245,7 @@ REVOKE ALL ON FUNCTION platform.set_case_next_action_v1(UUID, UUID, BIGINT, TEXT
 GRANT EXECUTE ON FUNCTION platform.set_case_next_action_v1(UUID, UUID, BIGINT, TEXT, DATE, UUID)
   TO authenticated;
 COMMENT ON FUNCTION platform.set_case_next_action_v1(UUID, UUID, BIGINT, TEXT, DATE, UUID) IS
-  '«Следующий шаг / Срок»: set or clear student_cases.next_action/next_action_due_on on an active case. Authority = 137 route commands (admissions_lock_case, case.route.manage); optimistic admissions_version (+1); idempotent by request_id via audit_events; appends case.next.action.change.';
+  '«Следующий шаг / Срок»: set or clear student_cases.next_action/next_action_due_on on an active case. Staff-only: since 241 the Student projections return NULL for it. Authority = 137 route commands (admissions_lock_case, case.route.manage); optimistic admissions_version (+1); idempotent by request_id via audit_events; appends case.next.action.change.';
 
 -- ---------------------------------------------------------------------------
 -- c) platform.staff_student_case_queue_v1
@@ -524,5 +545,34 @@ BEGIN
   EXECUTE body;
 END
 $a241_activity$;
+
+-- ---------------------------------------------------------------------------
+-- f) The next step is staff-only: the Student projections stop returning it
+-- ---------------------------------------------------------------------------
+-- Both functions keep their RETURNS TABLE, so CREATE OR REPLACE keeps the
+-- owner and the EXECUTE grant (authenticated only); the column stays in the
+-- shape and is NULL for every row. Each body must reference
+-- student_case.next_action exactly once before and not at all after.
+DO $a241_portal$
+DECLARE target TEXT; original TEXT; body TEXT;
+BEGIN
+  FOREACH target IN ARRAY ARRAY['platform.student_portal_cases()', 'platform.student_portal_profile()'] LOOP
+    original := pg_get_functiondef(target::regprocedure);
+    body := replace(original, 'student_case.next_action,', 'NULL::TEXT,');
+    IF (length(original) - length(replace(original, 'student_case.next_action', '')))
+        / length('student_case.next_action') <> 1
+      OR strpos(body, 'student_case.next_action') > 0
+    THEN
+      RAISE EXCEPTION 'student_portal_next_action_anchor_drift: %', target;
+    END IF;
+    EXECUTE body;
+  END LOOP;
+END
+$a241_portal$;
+
+COMMENT ON FUNCTION platform.student_portal_cases() IS
+  'Student-safe self projection with no caller-selectable case identifier. next_action is always NULL since 241: the case next step is staff-only.';
+COMMENT ON FUNCTION platform.student_portal_profile() IS
+  'Student-self profile projection. case_next_action is always NULL since 241: the case next step is staff-only.';
 
 COMMIT;

@@ -2,7 +2,8 @@
 -- Boundary suite for migration 241 («Студенты» queue backend): the editable
 -- «Следующий шаг / Срок» write (platform.set_case_next_action_v1), the queue
 -- page (platform.staff_student_case_queue_v1), its counts
--- (platform.staff_student_case_queue_counts_v1) and the «История» allowlist.
+-- (platform.staff_student_case_queue_counts_v1), the «История» allowlist and
+-- the staff-only boundary: the Student projections never return the step.
 -- Isolated synthetic SQL fixtures only -- no Auth invitation, real customer,
 -- provider or production action. Style follows platform_pipeline_board.sql
 -- (187) and platform_document_export_artifacts.sql (scoped roles through the
@@ -150,11 +151,14 @@ SET LOCAL session_replication_role = replica;
 -- 503 a step without a date, 504/511 no step, 505 curator B's, 506 closed,
 -- 508 pending without sale evidence, 509 a CN playbook-configured case,
 -- 510 names curator C as curator although C's role reaches only 511.
+-- 504 is the Student's (5) own case with an activated portal: the staff next
+-- step written on it must never reach the Student projections.
 INSERT INTO platform.student_cases(
   id, organization_id, responsible_sales_membership_id, current_curator_membership_id,
   source_key, student_display_name, target_country, target_degree, operational_stage,
   state, handoff_at, closed_at, current_scope_id, current_scope_version,
-  admissions_direction, pipeline_stage, next_action, next_action_due_on
+  admissions_direction, pipeline_stage, next_action, next_action_due_on,
+  student_membership_id, portal_activated_at
 )
 SELECT pg_temp.n241_id(500 + f.k), pg_temp.n241_id(1), pg_temp.n241_id(302),
   CASE WHEN f.state = 'pending' THEN NULL ELSE pg_temp.n241_id(f.curator) END,
@@ -163,7 +167,9 @@ SELECT pg_temp.n241_id(500 + f.k), pg_temp.n241_id(1), pg_temp.n241_id(302),
   CASE WHEN f.state = 'pending' THEN NULL ELSE clock_timestamp() END,
   CASE WHEN f.state = 'closed' THEN clock_timestamp() END,
   pg_temp.n241_id(420 + f.k), 1, f.direction, f.pipeline, f.step,
-  CASE WHEN f.due_offset IS NULL THEN NULL ELSE (SELECT d FROM n241_today) + f.due_offset END
+  CASE WHEN f.due_offset IS NULL THEN NULL ELSE (SELECT d FROM n241_today) + f.due_offset END,
+  CASE WHEN f.k = 4 THEN pg_temp.n241_id(305) END,
+  CASE WHEN f.k = 4 THEN clock_timestamp() END
 FROM (VALUES
   (1, 303, 'active', 'CZ', 'contract_confirmed', 'EUROPE', 'documents', 'Шаг 501', -2),
   (2, 303, 'active', 'CN', 'contract_confirmed', NULL, 'new', 'Шаг 502', 0),
@@ -199,7 +205,18 @@ SELECT pg_temp.n241_id(1), pg_temp.n241_id(501), s.status::platform.document_slo
   CASE WHEN s.removed THEN 'N241 synthetic removal' END
 FROM (VALUES (1, 'submitted', FALSE), (2, 'correction_required', FALSE), (3, 'rejected', FALSE),
   (4, 'approved', FALSE), (5, 'required', FALSE), (6, 'submitted', TRUE)) AS s(n, status, removed);
+-- The Student's partial profile on 504 (the 159/196 shape), so the Student
+-- profile projection returns its one row.
+INSERT INTO platform.student_profiles(id, organization_id, student_case_id, revision, preferred_display_name,
+  citizenship_country, consent_status, consent_evidence_ref, created_by_membership_id, updated_by_membership_id)
+  VALUES (pg_temp.n241_id(801), pg_temp.n241_id(1), pg_temp.n241_id(504), 1, 'N241 Student 504',
+    'Kyrgyzstan', 'granted', 'synthetic:n241:consent', pg_temp.n241_id(301), pg_temp.n241_id(301));
 SET LOCAL session_replication_role = origin;
+-- The Student reads only their own case (student_case scope of 504).
+INSERT INTO platform.membership_scope_assignments(organization_id, membership_id, scope_id, scope_version,
+  assignment_version, granted, actor_kind, reason, request_id)
+  VALUES (pg_temp.n241_id(1), pg_temp.n241_id(305), pg_temp.n241_id(424), 1, 1, TRUE, 'system',
+    'N241 synthetic Student case scope', pg_temp.n241_id(605));
 
 -- Staff roles through the installed commands. A: own scope with documents;
 -- B: own scope without document.read.full; C: one record (case 511); Sales:
@@ -374,6 +391,27 @@ SELECT pg_temp.n241_assert(pg_temp.n241_error(format($q$SELECT platform.set_case
 SELECT pg_temp.n241_assert(pg_temp.n241_row('mine', pg_temp.n241_id(504)) ->> 'next_action' = 'Позвонить студенту'
   AND pg_temp.n241_row('mine', pg_temp.n241_id(504)) ->> 'admissions_version' = '1',
   'the conflicting write changed nothing');
+-- The step is staff-only: the Student of 504 reads the case in both Student
+-- projections, but never the text the curator saved (review of 31ca2948).
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n241_student';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n241_assert((SELECT count(*) = 1 AND bool_and(p.next_action IS NULL)
+  FROM platform.student_portal_cases() AS p WHERE p.case_id = pg_temp.n241_id(504)),
+  'the Student reads the own case, with no next step in student_portal_cases');
+SELECT pg_temp.n241_assert((SELECT count(*) = 1 AND bool_and(p.case_id = pg_temp.n241_id(504) AND p.case_next_action IS NULL)
+  FROM platform.student_portal_profile() AS p),
+  'the Student reads the own profile, with no case next step in student_portal_profile');
+SELECT pg_temp.n241_assert(NOT EXISTS (SELECT 1 FROM platform.student_portal_cases() AS p
+    WHERE to_jsonb(p)::TEXT LIKE '%Позвонить студенту%')
+  AND NOT EXISTS (SELECT 1 FROM platform.student_portal_profile() AS p
+    WHERE to_jsonb(p)::TEXT LIKE '%Позвонить студенту%'),
+  'the staff text appears in no column of either Student projection');
+SELECT pg_temp.n241_assert(pg_temp.n241_error(format($q$SELECT platform.set_case_next_action_v1(%L, %L, 1, 'Шаг студента', NULL, %L)$q$,
+  pg_temp.n241_id(1), pg_temp.n241_id(504), gen_random_uuid())) LIKE '42501:%', 'the Student cannot write the step of the own case');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n241_curator_a';
+SET LOCAL ROLE authenticated;
 SELECT platform.set_case_next_action_v1(pg_temp.n241_id(1), pg_temp.n241_id(504), 1, E' \t ', NULL,
   pg_temp.n241_id(903)) AS n241_clear_receipt \gset
 SELECT pg_temp.n241_assert((:'n241_clear_receipt'::JSONB ->> 'cleared')::BOOLEAN
@@ -389,6 +427,13 @@ SELECT pg_temp.n241_assert(pg_temp.n241_error(format($q$SELECT platform.set_case
 SELECT pg_temp.n241_assert(pg_temp.n241_error(format($q$SELECT platform.set_case_next_action_v1(%L, %L, 2, %L, NULL, %L)$q$,
   pg_temp.n241_id(1), pg_temp.n241_id(504), E'Строка\nвторая', gen_random_uuid())) = '22023:case_next_action_invalid',
   'the step is one line');
+SELECT pg_temp.n241_assert(pg_temp.n241_error(format($q$SELECT platform.set_case_next_action_v1(%L, %L, 2, %L, NULL, %L)$q$,
+  pg_temp.n241_id(1), pg_temp.n241_id(504), U&'Строка\2028вторая', gen_random_uuid())) = '22023:case_next_action_invalid'
+  AND pg_temp.n241_error(format($q$SELECT platform.set_case_next_action_v1(%L, %L, 2, %L, NULL, %L)$q$,
+  pg_temp.n241_id(1), pg_temp.n241_id(504), U&'Строка\2029вторая', gen_random_uuid())) = '22023:case_next_action_invalid'
+  AND pg_temp.n241_error(format($q$SELECT platform.set_case_next_action_v1(%L, %L, 2, %L, NULL, %L)$q$,
+  pg_temp.n241_id(1), pg_temp.n241_id(504), U&'Строка\0085вторая', gen_random_uuid())) = '22023:case_next_action_invalid',
+  'U+2028, U+2029 and C1 controls inside the step are refused, like the TypeScript parser');
 SELECT pg_temp.n241_assert(pg_temp.n241_error(format($q$SELECT platform.set_case_next_action_v1(%L, %L, 2, %L, NULL, %L)$q$,
   pg_temp.n241_id(1), pg_temp.n241_id(504), repeat('я', 1001), gen_random_uuid())) = '22023:case_next_action_invalid',
   'the step is at most 1000 characters');
@@ -581,6 +626,18 @@ SELECT pg_temp.n241_assert((SELECT bool_and(p.prosecdef AND p.proconfig = ARRAY[
     'platform.staff_student_case_queue_v1(text,integer,text,text,text,uuid,text,text)'::REGPROCEDURE,
     'platform.staff_student_case_queue_counts_v1(text,text,uuid,text,text)'::REGPROCEDURE)),
   'SECURITY DEFINER with an empty search_path');
+
+SELECT pg_temp.n241_assert((SELECT bool_and(p.prosecdef AND p.proconfig = ARRAY['search_path=""']
+    AND strpos(p.prosrc, 'student_case.next_action') = 0 AND strpos(p.prosrc, 'NULL::TEXT') > 0
+    AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
+    AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE'))
+  FROM pg_proc p WHERE p.oid IN ('platform.student_portal_cases()'::REGPROCEDURE,
+    'platform.student_portal_profile()'::REGPROCEDURE)),
+  'Student projections keep definer, search_path and grants, and no longer read the case next step');
+SELECT pg_temp.n241_assert(pg_get_function_result('platform.student_portal_cases()'::REGPROCEDURE) LIKE '%, next_action text, %'
+  AND pg_get_function_result('platform.student_portal_profile()'::REGPROCEDURE) LIKE '%, case_next_action text, %',
+  'Student projection signatures keep their next-step columns (always NULL)');
 
 SELECT 'N241_CASE_NEXT_ACTION_QUEUE_SUITE_PASS' AS n241_suite_marker;
 ROLLBACK;

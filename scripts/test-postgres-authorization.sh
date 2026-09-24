@@ -2642,9 +2642,10 @@ SQL
   # its counts platform.staff_student_case_queue_counts_v1. The suite proves
   # curator/Admin allowed, Sales/other curator/Student/anon/service_role
   # refused, replay, version conflict, clearing, NULL-date paging stability,
-  # «Мои» without visibility widening and counts equal to rows. Exercised at
-  # its own checkpoint against the full current-boundary schema, same
-  # convention as 185/187-200.
+  # «Мои» without visibility widening, counts equal to rows and the
+  # staff-only step (the Student projections student_portal_cases/profile
+  # return it as NULL). Exercised at its own checkpoint against the full
+  # current-boundary schema, same convention as 185/187-200.
   if [[ "$(basename "$migration")" == 241_* ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \

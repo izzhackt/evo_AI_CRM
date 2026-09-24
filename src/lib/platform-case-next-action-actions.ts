@@ -7,6 +7,7 @@
  * round-trips, Admin role preview never writes, and only the confirmed
  * receipt produces «сохранено». An unknown outcome keeps the same request id
  * so the retry replays the original write instead of making a second one.
+ * The step is staff-only: the Student projections never return it (241 f).
  */
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";

@@ -7,6 +7,11 @@
  * response that does not match the SQL contract exactly is rejected rather
  * than rendered. MUST stay free of server-only imports so the future client
  * panel can import the types and the input parser.
+ *
+ * The next step is staff-only: since migration 241 the Student projections
+ * (student_portal_cases, student_portal_profile) return NULL for it, so staff
+ * may write internal instructions here. docs/PLAN_CHANGES.md records that the
+ * owner has not yet chosen between this and a student-facing step.
  */
 import {
   ADMISSIONS_ATTENTION,

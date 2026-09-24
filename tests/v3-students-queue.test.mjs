@@ -3,7 +3,8 @@
 // These supplement, never replace, the real-Postgres boundary suite
 // supabase/tests/platform_case_next_action_queue.sql (checkpoint 241 in
 // scripts/test-postgres-authorization.sh), which proves authorization,
-// replay, conflicts, paging and counts against the actual SQL.
+// replay, conflicts, paging, counts and the staff-only boundary (the Student
+// projections never return the step) against the actual SQL.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -259,7 +260,7 @@ test("every outcome has Russian copy and «История» knows the new event"
   assert.match(migration, /INSERT INTO platform\.audit_events[\s\S]*'case\.next\.action\.change', 'student_case'/u);
 });
 
-test("migration 241 is additive, definer-safe and reuses the route-command authority", () => {
+test("migration 241 is forward-only, definer-safe and reuses the route-command authority", () => {
   assert.match(migration, /^BEGIN;$/mu);
   assert.match(migration, /COMMIT;\s*$/u);
   assert.doesNotMatch(migration, /\bDROP\b|ALTER TABLE|CREATE OR REPLACE FUNCTION|session_replication_role|DISABLE\s+(?:ROW LEVEL SECURITY|TRIGGER)/iu);
@@ -275,6 +276,32 @@ test("migration 241 is additive, definer-safe and reuses the route-command autho
   assert.match(migration, /private\.platform_can_read_document_full\(c\.organization_id, c\.id\)/u);
   assert.match(migration, /RAISE EXCEPTION 'staff_student_case_activity_source_anchor_drift'/u);
   assert.match(migration, /NOT BETWEEN 1 AND 100/u);
+});
+
+test("the staff next step never reaches the Student projections", () => {
+  const block = migration.match(/DO \$a241_portal\$[\s\S]*?\$a241_portal\$;/u)?.[0] ?? "";
+  assert.match(block, /ARRAY\['platform\.student_portal_cases\(\)', 'platform\.student_portal_profile\(\)'\]/u);
+  assert.match(block, /replace\(original, 'student_case\.next_action,', 'NULL::TEXT,'\)/u);
+  assert.match(block, /RAISE EXCEPTION 'student_portal_next_action_anchor_drift: %', target;/u);
+  assert.match(migration, /COMMENT ON FUNCTION platform\.student_portal_cases\(\) IS\s+'[^']*next_action is always NULL since 241/u);
+  assert.match(migration, /COMMENT ON FUNCTION platform\.student_portal_profile\(\) IS\s+'[^']*case_next_action is always NULL since 241/u);
+  assert.match(suite, /the Student reads the own case, with no next step in student_portal_cases/u);
+  assert.match(suite, /the staff text appears in no column of either Student projection/u);
+  assert.match(suite, /the Student cannot write the step of the own case/u);
+});
+
+test("the SQL one-line rule is exactly the TypeScript one over the whole BMP", () => {
+  const literal = migration.match(/normalized ~ U&'\[([^\]]+)\]'/u)?.[1];
+  assert.ok(literal, "explicit, locale-independent control class");
+  assert.doesNotMatch(migration, /\[\[:cntrl:\]\]/u);
+  const ranges = [...literal.matchAll(/\\([0-9A-F]{4})(?:-\\([0-9A-F]{4}))?/gu)]
+    .map((match) => [parseInt(match[1], 16), parseInt(match[2] ?? match[1], 16)]);
+  const sqlRefuses = (code) => ranges.some(([from, to]) => code >= from && code <= to);
+  for (let code = 1; code <= 0xffff; code += 1) {
+    if (code >= 0xd800 && code <= 0xdfff) continue;
+    const tsRefuses = parseCaseNextActionInput(`a${String.fromCharCode(code)}b`, "") === null;
+    if (tsRefuses !== sqlRefuses(code)) assert.fail(`U+${code.toString(16).padStart(4, "0")}: TypeScript ${tsRefuses}, SQL ${sqlRefuses(code)}`);
+  }
 });
 
 test("the real-Postgres suite runs at checkpoint 241 of the Migration boundary job", () => {

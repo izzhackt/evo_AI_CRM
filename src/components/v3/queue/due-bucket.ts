@@ -65,6 +65,11 @@ export type QueueDue = Readonly<{
   text: string;
   /** «прошёл», «сегодня», «завтра», «через 3 дн»; null — слово не нужно. */
   word: string | null;
+  /**
+   * Подпись даты у закрытой задачи — «срок»: в списке завершённых голая дата
+   * читается как день завершения, а его чтение не отдаёт. У открытой — null.
+   */
+  caption: string | null;
   overdue: boolean;
 }>;
 
@@ -86,6 +91,7 @@ export function queueDue(task: DueInput, now: Date, open = true): QueueDue | nul
     dateTime: task.dueAt ?? deadline.day,
     text: `${formatQueueDay(deadline.day, today)}${time}`,
     word,
+    caption: open ? null : "срок",
     overdue,
   });
 }

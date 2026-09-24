@@ -150,7 +150,7 @@ export function TaskDetailPanel({
     <QueueDetailPanel closeHref={closeHref} backLabel="К задачам" headingId={headingId}>
       <div className="space-y-5" data-testid="v3-task-detail-panel">
         <header className="space-y-2">
-          <h2 id={headingId} tabIndex={-1} className="t-record-title break-words text-fg xl:pe-10">{title}</h2>
+          <h2 id={headingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{title}</h2>
           {data.kind === "case" ? (
             <p className="flex flex-wrap items-center gap-x-3 t-body-compact text-fg-2">
               <span>{data.task.person ?? "Студент"}{data.task.caseState === "closed" ? " · дело закрыто" : ""}</span>
@@ -229,8 +229,8 @@ export function TaskDetailPanel({
             text per capabilities.canAssign, exactly like CalendarChangeTaskForm's
             own canAssign branch (TaskControls.tsx:492-514). */}
         {!readOnly ? (
-          <details open={moveOpen} className="border-t border-border pt-2">
-            <summary className="group flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 t-item text-fg [&::-webkit-details-marker]:hidden">
+          <details open={moveOpen} className="group border-t border-border pt-2">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 t-item text-fg [&::-webkit-details-marker]:hidden">
               Перенести или передать
               <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 group-open:rotate-180" />
             </summary>

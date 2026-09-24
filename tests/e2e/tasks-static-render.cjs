@@ -15,17 +15,22 @@
  * Calendar) с СИНТЕТИЧЕСКИМИ данными: задачи, имена и даты выдуманы для
  * проверки вёрстки и не являются записями EVO. Очередь собирает тот же
  * `buildTaskQueue`, что и страница. Живой Supabase, права и данные этот рендер
- * не проверяет; гидрации нет — там, где страница открывает окно скриптом,
- * снимок повторяет этот шаг в браузере и говорит об этом.
+ * не проверяет.
  *
  *   node tests/e2e/tasks-static-render.cjs --json
- *     → stdout: JSON [{ name, html }] — разметка сценариев без оболочки
- *       (для tests/v3-tasks-queue.test.mjs).
+ *     → stdout: JSON [{ name, html }] — серверная разметка сценариев без
+ *       оболочки (для tests/v3-tasks-queue.test.mjs).
  *   node tests/e2e/tasks-static-render.cjs --screenshots [outDir]
  *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844; по умолчанию outDir — .impeccable/review
- *       (не коммитится).
+ *       (не коммитится). Тело «Задач» в браузере отрисовывает сам React —
+ *       те же компоненты, собранные esbuild: эффекты работают по-настоящему
+ *       (панель поднимается в модальный режим, выбранная строка прокручивается
+ *       в окно, диалог создания открывается по адресу), а «Фильтры» и круг
+ *       задачи нажимаются мышью. Серверные действия заменены заглушками,
+ *       которые отказывают: снимок ничего не сохраняет. AppShell остаётся
+ *       серверной разметкой без скриптов.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -184,20 +189,25 @@ function scenario(search, extra = {}) {
       },
       composerKey: "standalone", canCreate: true, urlIntent: null, permissions: PERMISSIONS,
       selectedKey: extra.selectedKey ?? null,
-      panel: extra.panel ?? null,
+      panel: extra.panel ? createElement(TaskDetailPanel, extra.panel) : null,
     },
+    // Свойства панели без React-элемента: браузерная сборка создаёт её сама.
+    panelProps: extra.panel ?? null,
   };
 }
 
+// Панель задачи по студенту: строка «На этой неделе» ниже первого экрана —
+// при открытии страницы с ?task= её прокручивает в окно сам список.
 const PANEL_CASE = CASES[4];
-const panelCase = (search) => createElement(TaskDetailPanel, {
+const panelCase = (search) => ({
   day: TODAY, nowIso: NOW.toISOString(), closeHref: `/v3/tasks${search ? `?${search}` : ""}`,
   data: {
     kind: "case",
     caseId: PANEL_CASE.studentCaseId,
     task: {
       kind: "case", key: `case:${PANEL_CASE.caseTaskId}`, id: PANEL_CASE.caseTaskId, studentCaseId: PANEL_CASE.studentCaseId,
-      taskType: "follow_up", title: PANEL_CASE.title, details: null, dueOn: PANEL_CASE.dueOn, dueAt: null, day: PANEL_CASE.dueOn,
+      taskType: "follow_up", title: PANEL_CASE.title, details: "Семья выбирает между двумя странами: нужен общий список программ со сроками подачи и стоимостью.",
+      dueOn: PANEL_CASE.dueOn, dueAt: null, day: PANEL_CASE.dueOn,
       minutes: null, overdue: false, state: "open", cancelReason: null, person: PANEL_CASE.studentDisplayName, priority: "normal",
       studentVisible: false, assigneeMembershipId: ME, assigneeDisplayName: NAMES[ME], caseState: "active", version: PANEL_CASE.version,
     },
@@ -206,9 +216,28 @@ const panelCase = (search) => createElement(TaskDetailPanel, {
   },
 });
 
+// Панель рабочей задачи: описание и прежние результаты (задачу уже завершали
+// с заметкой и вернули в работу) — порядок «Описание → Результаты».
+const PANEL_STAFF = STAFF[1];
+const panelStaff = (search) => ({
+  day: TODAY, nowIso: NOW.toISOString(), closeHref: `/v3/tasks${search ? `?${search}` : ""}`,
+  data: {
+    kind: "staff", task: PANEL_STAFF, participants: PARTICIPANTS,
+    extra: {
+      leadHref: null, sourceHref: null, sourceUnavailable: false, outcomesUnavailable: false,
+      outcomes: [
+        { requestId: "99999999-5555-4555-8555-000000000001", note: "Первый вариант отправлен руководителю, вернули с правками по срокам.", author: NAMES[COLLEAGUE], createdAt: "2026-09-22T09:15:00.000Z" },
+        { requestId: "99999999-5555-4555-8555-000000000002", note: "Список документов сверен с памяткой посольства.", author: NAMES[ME], createdAt: "2026-09-23T11:40:00.000Z" },
+      ],
+    },
+  },
+});
+
 const SCENARIOS = {
   "mine-default": scenario(""),
+  "team-view": scenario("view=all"),
   "team-panel": scenario("view=all", { selectedKey: `case:${PANEL_CASE.caseTaskId}`, panel: panelCase("view=all") }),
+  "team-panel-staff": scenario("view=all", { selectedKey: `staff:${PANEL_STAFF.id}`, panel: panelStaff("view=all") }),
   "team-case-filter": scenario("view=all&type=case&due=overdue"),
   "created-view": scenario("view=created"),
   "done-view": scenario("status=done"),
@@ -255,18 +284,6 @@ function renderWorkspace(name) {
   return renderToStaticMarkup(withContexts(createElement(TasksWorkspace, props), "/v3/tasks", search));
 }
 
-if (process.argv.includes("--json")) {
-  process.stdout.write(JSON.stringify(Object.keys(SCENARIOS).map((name) => ({ name, html: renderWorkspace(name) }))));
-} else if (process.argv.includes("--screenshots")) {
-  screenshots().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
-} else {
-  console.error("usage: tasks-static-render.cjs --json | --screenshots [outDir]");
-  process.exit(2);
-}
-
 async function compileCss() {
   const postcss = require("postcss");
   const tailwind = require("@tailwindcss/postcss");
@@ -279,21 +296,47 @@ async function compileCss() {
   return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), ...cssModules].join("\n");
 }
 
-function shell(title, count, body, search) {
+function appShell(content, pathname, search) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
   const page = createElement(
     "div",
     { className: "v3-world" },
-    createElement(AppShell, { actor: ACTOR, initialNotifications: null }, createElement(PartShell, { title, count }, body)),
+    createElement(AppShell, { actor: ACTOR, initialNotifications: null }, content),
   );
-  return renderToStaticMarkup(withContexts(page, title === "Календарь" ? "/v3/calendar" : "/v3/tasks", search));
+  return renderToStaticMarkup(withContexts(page, pathname, search));
 }
+
+function shell(title, count, body, search) {
+  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  return appShell(createElement(PartShell, { title, count }, body), title === "Календарь" ? "/v3/calendar" : "/v3/tasks", search);
+}
+
+/** Контейнер тела «Задач»: браузерная сборка отрисовывает в нём TasksWorkspace заново. */
+const CLIENT_ROOT_ID = "queue-client-root";
+const FIXTURE_ID = "queue-client-fixture";
 
 function renderTasksPage(name) {
   const { props, search } = SCENARIOS[name];
   const count = props.queue.complete && (props.canReadStaffTasks || props.canReadCaseTasks) ? props.queue.rows.length : null;
-  return shell("Задачи", count, createElement(TasksWorkspace, props), search);
+  return shell("Задачи", count, createElement("div", { id: CLIENT_ROOT_ID }, createElement(TasksWorkspace, props)), search);
+}
+
+/** Данные сценария для браузера: те же свойства, панель — свойствами, не элементом. */
+function clientFixture(name) {
+  const { props, search, panelProps } = SCENARIOS[name];
+  return JSON.stringify({ search, props: { ...props, panel: null }, panel: panelProps }).replaceAll("<", "\\u003c");
+}
+
+/** Загрузка — настоящий `loading.tsx` страницы внутри AppShell. */
+function renderTasksLoadingPage() {
+  const { default: TasksLoading } = require(join(ROOT, "src/app/(v3)/v3/tasks/loading.tsx"));
+  return appShell(createElement(TasksLoading), "/v3/tasks", "");
+}
+
+/** Ошибка чтения — тот же QueueError и текст, что у page.tsx при сбое чтения задач. */
+function renderTasksErrorPage() {
+  const { QueueError } = require(join(ROOT, "src/components/v3/queue/QueueStates.tsx"));
+  return shell("Задачи", undefined, createElement(QueueError, { text: "Не удалось загрузить задачи и доступных сотрудников.", retryHref: "/v3/tasks" }), "");
 }
 
 function renderCalendarPage() {
@@ -322,93 +365,200 @@ function renderCalendarPage() {
   return shell("Календарь", undefined, body, "view=week");
 }
 
+// --- браузерная сборка тела «Задач» -------------------------------------------
+// Точка входа: те же TasksWorkspace и TaskDetailPanel, те же контексты
+// маршрутизатора, что у серверного рендера выше. Навигация — заглушка (ссылки
+// не уходят со страницы).
+const CLIENT_ENTRY = `
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
+import { TasksWorkspace } from "../../src/components/v3/tasks/TasksWorkspace";
+import { TaskDetailPanel } from "../../src/components/v3/tasks/TaskDetailPanel";
+
+const fixture = JSON.parse(document.getElementById("${FIXTURE_ID}").textContent);
+const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} };
+const panel = fixture.panel ? createElement(TaskDetailPanel, fixture.panel) : null;
+createRoot(document.getElementById("${CLIENT_ROOT_ID}")).render(
+  createElement(AppRouterContext.Provider, { value: router },
+    createElement(PathnameContext.Provider, { value: "/v3/tasks" },
+      createElement(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
+        createElement(TasksWorkspace, { ...fixture.props, panel })))),
+);
+// Два кадра: React зафиксировал дерево и выполнил эффекты (показ панели, прокрутка к строке).
+requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.clientRendered = "1"; }));
+`;
+
+/**
+ * Серверные действия и server-only в браузере не нужны: заглушки отказывают,
+ * CSS-модули — имена как есть. Фильтры esbuild — регулярные выражения Go:
+ * без флага `u`.
+ */
+const browserStubs = {
+  name: "tasks-static-render-stubs",
+  setup(build) {
+    build.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "empty" }));
+    build.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
+    build.onLoad({ filter: /\.module\.css$/ }, () => ({
+      contents: "export default new Proxy({}, { get: (_target, key) => (typeof key === 'string' ? key : undefined) });",
+      loader: "js",
+    }));
+    build.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
+    build.onLoad({ filter: /[\\/]src[\\/].+\.tsx?$/ }, (args) => {
+      const source = readFileSync(args.path, "utf8");
+      if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
+      const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
+      return {
+        contents: names.map((name) => `export async function ${name}() { throw new Error("static render: server action ${name} is not available"); }`).join("\n"),
+        loader: "ts",
+      };
+    });
+  },
+};
+
+async function buildClientBundle(outFile) {
+  const esbuild = require("esbuild");
+  await esbuild.build({
+    stdin: { contents: CLIENT_ENTRY, resolveDir: __dirname, sourcefile: "tasks-client-entry.js", loader: "js" },
+    bundle: true,
+    outfile: outFile,
+    format: "iife",
+    platform: "browser",
+    target: "chrome120",
+    jsx: "automatic",
+    tsconfig: join(ROOT, "tsconfig.json"),
+    define: { "process.env.NODE_ENV": '"production"' },
+    banner: { js: "var process = globalThis.process || { env: {} };" },
+    plugins: [browserStubs],
+    logLevel: "error",
+  });
+}
+
 async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const css = await compileCss();
+  const bundleName = "tasks-client.js";
+  await buildClientBundle(join(outDir, bundleName));
   const DESKTOP = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 };
   const LAPTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 };
   const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
-  // [файл страницы, html, [снимок, контекст, во весь рост, шаг в браузере]]
+  // [файл страницы, html, сценарий для браузера или null, [снимок, контекст, во весь рост, действие]]
   const pages = [
-    ["tasks-mine", renderTasksPage("mine-default"), [
+    ["tasks-mine", renderTasksPage("mine-default"), "mine-default", [
       ["tasks-desktop-1440.png", DESKTOP, false, null],
       ["tasks-desktop-1440-full.png", DESKTOP, true, null],
+      ["tasks-desktop-1920.png", { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 }, false, null],
       ["tasks-desktop-1280.png", LAPTOP, false, null],
       ["tasks-mobile-390.png", PHONE, true, null],
       ["tasks-mobile-filters-390.png", PHONE, false, "filters"],
       ["tasks-result-popover-1440.png", DESKTOP, false, "result"],
     ]],
-    ["tasks-panel", renderTasksPage("team-panel"), [
+    ["tasks-team", renderTasksPage("team-view"), "team-view", [
+      ["tasks-team-1440.png", DESKTOP, false, null],
+      ["tasks-team-mobile-390.png", PHONE, false, null],
+    ]],
+    ["tasks-panel", renderTasksPage("team-panel"), "team-panel", [
       ["tasks-panel-1440.png", DESKTOP, false, null],
       ["tasks-panel-1280.png", LAPTOP, false, null],
-      ["tasks-panel-mobile-390.png", PHONE, false, "modal"],
+      ["tasks-panel-mobile-390.png", PHONE, false, null],
     ]],
-    ["tasks-empty", renderTasksPage("empty-today"), [["tasks-empty-today-1440.png", DESKTOP, false, null]]],
-    ["tasks-composer", renderTasksPage("composer"), [["tasks-composer-1440.png", DESKTOP, false, "composer"], ["tasks-composer-390.png", PHONE, false, "composer"]]],
-    ["tasks-done", renderTasksPage("done-view"), [["tasks-done-1440.png", DESKTOP, false, null]]],
-    ["calendar-week", renderCalendarPage(), [["tasks-calendar-week-1440.png", DESKTOP, true, null]]],
+    ["tasks-panel-staff", renderTasksPage("team-panel-staff"), "team-panel-staff", [
+      ["tasks-panel-staff-1440.png", DESKTOP, false, null],
+    ]],
+    ["tasks-empty", renderTasksPage("empty-today"), "empty-today", [["tasks-empty-today-1440.png", DESKTOP, false, null]]],
+    ["tasks-composer", renderTasksPage("composer"), "composer", [
+      ["tasks-composer-1440.png", DESKTOP, false, "disclosures"],
+      ["tasks-composer-390.png", PHONE, false, "date"],
+    ]],
+    ["tasks-done", renderTasksPage("done-view"), "done-view", [["tasks-done-1440.png", DESKTOP, false, null]]],
+    ["tasks-loading", renderTasksLoadingPage(), null, [["tasks-loading-1440.png", DESKTOP, false, null]]],
+    ["tasks-error", renderTasksErrorPage(), null, [["tasks-error-1440.png", DESKTOP, false, null]]],
+    ["calendar-week", renderCalendarPage(), null, [["tasks-calendar-week-1440.png", DESKTOP, true, null]]],
   ];
+  // CSS собирается после рендера страниц: CSS-модули календаря загружаются вместе с его компонентами.
+  const css = await compileCss();
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   try {
-    for (const [name, html, shots] of pages) {
+    for (const [name, html, clientScenario, shots] of pages) {
       const htmlPath = join(outDir, `${name}.html`);
+      const client = clientScenario
+        ? `<script type="application/json" id="${FIXTURE_ID}">${clientFixture(clientScenario)}</script><script src="${bundleName}"></script>`
+        : "";
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
         '<html lang="ru" data-theme="light" class="h-full antialiased">',
         `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${name} — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
-        `<body class="min-h-full">${html}</body></html>`,
+        `<body class="min-h-full">${html}${client}</body></html>`,
       ].join(""));
       for (const [file, context, fullPage, step] of shots) {
         const browserContext = await browser.newContext(context);
         const page = await browserContext.newPage();
+        const errors = [];
+        page.on("pageerror", (error) => errors.push(error.message));
+        page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
         await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
         await page.evaluate(() => document.fonts.ready);
+        if (clientScenario) await page.waitForSelector("html[data-client-rendered]", { state: "attached", timeout: 10_000 });
         if (step === "result") {
-          // Круг задачи по студенту открывает окно «Результат» самим браузером
-          // (popovertarget), без скрипта страницы.
+          // Круг задачи по студенту открывает окно «Результат» (popovertarget).
           await page.click('[data-kind="case"] button[aria-haspopup="dialog"]');
           await page.evaluate(() => document.querySelector(":popover-open input")?.focus());
         }
         if (step === "filters") {
-          // Нет гидрации: повторяем то, что рисует QueueFilterDisclosure при open.
-          await page.evaluate(() => {
-            const button = document.querySelector('[data-testid="queue-toolbar"] button[aria-controls]');
-            button.setAttribute("aria-expanded", "true");
-            const content = document.getElementById(button.getAttribute("aria-controls"));
-            content.className = content.className.replace(/\bhidden\b/u, "flex");
-          });
+          await page.click('[data-testid="queue-toolbar"] button[aria-controls]');
         }
-        if (step === "composer") {
-          // Нет гидрации: повторяем эффект TaskComposerModal — showModal().
-          await page.evaluate(() => document.querySelector('[data-testid="v3-task-composer-dialog"]').showModal());
+        if (step === "disclosures") {
+          // Раскрыть «Описание и приоритет» щелчком — видно рисованную стрелку в обоих положениях.
+          await page.click('[data-testid="v3-task-composer-dialog"] summary:has-text("Описание и приоритет")');
         }
-        if (step === "modal") {
-          // Нет гидрации: повторяем шаг QueueDetailPanel уже 1280 px — showModal().
-          await page.evaluate(() => {
-            const dialog = document.querySelector('[data-testid="queue-detail-panel"]');
-            dialog.close();
-            dialog.showModal();
-          });
+        if (step === "date") {
+          // «Дата…» раскрывает день и время «по Бишкеку» — подсказка часового пояса живёт только здесь.
+          await page.click('[data-testid="v3-task-composer-dialog"] button:has-text("Дата…")');
         }
-        const metrics = await page.evaluate(() => ({
-          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-          rowsInViewport: [...document.querySelectorAll("[data-queue-row]")].filter((row) => {
-            const rect = row.getBoundingClientRect();
-            return rect.bottom <= window.innerHeight && rect.top >= 0;
-          }).length,
-          rowHeight: Math.round(document.querySelector("[data-queue-row]")?.getBoundingClientRect().height ?? 0),
-          solidRed: [...document.querySelectorAll("a, button")].filter((element) => getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)"
-            && element.getBoundingClientRect().width > 0).length,
-        }));
+        // Цвета состояний меняются с переходом 150 мс (v3.css): снимок — после него.
+        if (step) await page.waitForTimeout(400);
+        if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
+        const metrics = await page.evaluate(() => {
+          const selected = document.querySelector('[data-queue-row] [aria-current="true"]')?.closest("[data-queue-row]");
+          const rect = selected?.getBoundingClientRect();
+          const filterButton = document.querySelector('[data-testid="queue-toolbar"] button[aria-controls]');
+          return {
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            rowsInViewport: [...document.querySelectorAll("[data-queue-row]")].filter((row) => {
+              const box = row.getBoundingClientRect();
+              return box.bottom <= window.innerHeight && box.top >= 0;
+            }).length,
+            rowHeight: Math.round(document.querySelector("[data-queue-row]")?.getBoundingClientRect().height ?? 0),
+            selectedInView: rect ? rect.top >= 0 && rect.bottom <= window.innerHeight : null,
+            selectedBackground: selected ? getComputedStyle(selected).backgroundColor : null,
+            panelModal: document.querySelector('[data-testid="queue-detail-panel"]')?.matches(":modal") ?? null,
+            filtersExpanded: filterButton && filterButton.offsetParent !== null ? filterButton.getAttribute("aria-expanded") : null,
+            solidRed: [...document.querySelectorAll("a, button")].filter((element) => getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)"
+              && element.getBoundingClientRect().width > 0).length,
+          };
+        });
         await page.screenshot({ path: join(outDir, file), fullPage });
-        process.stdout.write(`${file}: ${name} overflow=${metrics.overflow}px rows-in-viewport=${metrics.rowsInViewport} row-height=${metrics.rowHeight}px solid-red=${metrics.solidRed}\n`);
+        const facts = Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ");
+        process.stdout.write(`${file}: ${name} ${facts}\n`);
         await browserContext.close();
       }
     }
   } finally {
     await browser.close();
   }
+}
+
+if (process.argv.includes("--json")) {
+  process.stdout.write(JSON.stringify(Object.keys(SCENARIOS).map((name) => ({ name, html: renderWorkspace(name) }))));
+} else if (process.argv.includes("--screenshots")) {
+  screenshots().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+} else {
+  console.error("usage: tasks-static-render.cjs --json | --screenshots [outDir]");
+  process.exit(2);
 }

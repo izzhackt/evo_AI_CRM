@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Icon } from "@/components/icons";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import type { StaffParticipant } from "@/lib/platform-staff-task-contract";
@@ -16,6 +17,8 @@ import type { CalendarCaseOption, Day } from "../calendar/types";
 const CONTROL = "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2";
 const PRIMARY = "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
 const SECONDARY = "inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-55";
+/** Свёрнутые необязательные поля: без треугольника браузера, рисованная стрелка рядом с подписью (как у фильтров). */
+const DISCLOSURE = "flex min-h-11 w-full cursor-pointer list-none items-center gap-1.5 t-label text-fg-2 hover:text-fg [&::-webkit-details-marker]:hidden";
 const PRIORITY_LABEL: Record<PlatformCaseTaskPriority, string> = { low: "Низкий", normal: "Обычный", high: "Высокий", urgent: "Срочный" };
 
 type ComposerStatus = "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable";
@@ -288,8 +291,11 @@ function TaskComposerModal({
 
         {caseAllowed ? (initialCase ? <div className="text-sm">
           <span className="text-fg-2">Студент/дело: </span>{initialCase.name}
-        </div> : <details open={caseSectionOpen} onToggle={(event) => setCaseSectionOpen(event.currentTarget.open)}>
-          <summary className="min-h-11 cursor-pointer py-2 text-sm text-fg-2">Студент/дело · необязательно</summary>
+        </div> : <details open={caseSectionOpen} onToggle={(event) => setCaseSectionOpen(event.currentTarget.open)} className="group">
+          <summary className={DISCLOSURE}>
+            Студент/дело · необязательно
+            <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
+          </summary>
           <div className="grid gap-3 pt-2 sm:grid-cols-2">
             <TaskCasePicker initialCases={[]} initialHasMore={false} onCaseChange={setCaseId} disabled={locked || !caseMode} />
           </div>
@@ -311,8 +317,11 @@ function TaskComposerModal({
 
         <ComposerDeadlineField day={day} disabled={locked} />
 
-        <details>
-          <summary className="min-h-11 cursor-pointer py-2 text-sm text-fg-2">Описание и приоритет</summary>
+        <details className="group">
+          <summary className={DISCLOSURE}>
+            Описание и приоритет
+            <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
+          </summary>
           <div className="grid gap-3 pt-2 sm:grid-cols-2">
             {!caseMode ? <label className="text-sm font-medium sm:col-span-2">Описание
               <textarea maxLength={10000} rows={3} value={description} disabled={locked}

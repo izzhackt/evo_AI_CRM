@@ -5,7 +5,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { dueBandLabel, dueBucket, nextFriday, queueDue, weekEnd } from "../src/components/v3/queue/due-bucket.ts";
-import { nextQueueIndex } from "../src/components/v3/queue/queue-navigation.ts";
+import { nextQueueIndex, rowNeedsReveal } from "../src/components/v3/queue/queue-navigation.ts";
+import { shortPersonName } from "../src/components/v3/queue/person-name.ts";
 import { activeFilterCount, queueHref } from "../src/components/v3/queue/queue-url.ts";
 import { caseChangeForm, currentDeadline, dueTomorrow, staffEditForm, staffStatusForm, tomorrowDeadline } from "../src/components/v3/tasks/task-commands.ts";
 import { parsePlatformCaseTaskDeadline } from "../src/lib/platform-admissions-task-contract.ts";
@@ -56,12 +57,13 @@ test("dueBucket groups by the Bishkek day and the exact instant of a timed deadl
 });
 
 test("queue dates are ДД.ММ (+ ЧЧ:ММ) in Bishkek with the overdue word, never colour alone", () => {
-  assert.deepEqual(queueDue(due(null, "2026-09-24T09:00:00.000Z"), NOW), { dateTime: "2026-09-24T09:00:00.000Z", text: "24.09 15:00", word: "сегодня", overdue: false });
-  assert.deepEqual(queueDue(due("2026-09-20"), NOW), { dateTime: "2026-09-20", text: "20.09", word: "прошёл", overdue: true });
+  assert.deepEqual(queueDue(due(null, "2026-09-24T09:00:00.000Z"), NOW), { dateTime: "2026-09-24T09:00:00.000Z", text: "24.09 15:00", word: "сегодня", caption: null, overdue: false });
+  assert.deepEqual(queueDue(due("2026-09-20"), NOW), { dateTime: "2026-09-20", text: "20.09", word: "прошёл", caption: null, overdue: true });
   assert.equal(queueDue(due("2026-09-25"), NOW).word, "завтра");
   assert.equal(queueDue(due("2026-09-27"), NOW).word, "через 3 дн");
   assert.equal(queueDue(due("2027-01-03"), NOW).text, "03.01.27");
-  assert.equal(queueDue(due("2026-09-20"), NOW, false).word, null);
+  // A closed task has no relative word; its bare date is labelled «срок» so it is not read as the completion day.
+  assert.deepEqual(queueDue(due("2026-09-20"), NOW, false), { dateTime: "2026-09-20", text: "20.09", word: null, caption: "срок", overdue: false });
   assert.equal(queueDue(due(null), NOW), null);
   assert.equal(dueBandLabel("today", "2026-09-24"), "Сегодня · чт 24.09");
   assert.equal(dueBandLabel("tomorrow", "2026-09-24"), "Завтра · пт 25.09");
@@ -163,6 +165,25 @@ test("j/k and arrows move from the focused row, else from the selected one, and 
   assert.equal(nextQueueIndex(5, 0, 2, -1), 0);
 });
 
+test("a deep-linked selected row is scrolled into view only when it is hidden", () => {
+  // Below the fold, or under the sticky band header: reveal.
+  assert.equal(rowNeedsReveal({ top: 1040, bottom: 1093 }, 900), true);
+  assert.equal(rowNeedsReveal({ top: 20, bottom: 73 }, 900), true);
+  // Fully visible: a click on the row never moves the list.
+  assert.equal(rowNeedsReveal({ top: 460, bottom: 513 }, 900), false);
+  assert.equal(rowNeedsReveal({ top: 48, bottom: 900 }, 900), false);
+  const hook = read("src/components/v3/queue/useQueueKeyboard.ts");
+  assert.match(hook, /if \(openKey !== null\) \{\s*revealQueueRow\(openKey\);/u);
+  assert.match(hook, /rowNeedsReveal\(row\.getBoundingClientRect\(\), window\.innerHeight\)[\s\S]*row\.scrollIntoView\(\{ block: "center" \}\)/u);
+});
+
+test("a folded assignee is marked «исп.» and shortened, never read as the student or the source", () => {
+  assert.equal(shortPersonName("Айгүл Осмонова"), "Айгүл О.");
+  assert.equal(shortPersonName("  Эрмек   Токтосунов "), "Эрмек Т.");
+  assert.equal(shortPersonName("Мадина"), "Мадина");
+  assert.equal(shortPersonName("Администратор (синтетический)"), "Администратор (синтетический)");
+});
+
 test("row commands submit exactly the fields the existing actions accept", () => {
   const status = staffStatusForm({ id: "11111111-1111-4111-8111-111111111111", version: "4" }, "done", "  Отправлено ");
   assert.deepEqual([...status.keys()].sort(), [...STAFF_TASK_FORM_FIELDS].sort());
@@ -238,13 +259,84 @@ test("the body groups rows under due bands and completes in the row", () => {
   const caseRow = html.slice(html.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
   assert.match(caseRow, /popoverTarget="(queue-popover-[^"]+)"[^>]*aria-haspopup="dialog" aria-label="Завершить с результатом: Подтвердить подачу в UCSI"/u);
   assert.match(caseRow, /<label for="[^"]+" id="[^"]+" class="block t-label text-fg-2">Результат<\/label>/u);
-  assert.match(caseRow, /<time dateTime="2026-09-20" class="block whitespace-nowrap font-mono tabular-nums text-danger">20\.09<\/time><span class="block t-meta text-danger">прошёл<\/span>/u);
+  assert.match(caseRow, /<time dateTime="2026-09-20" class="block font-mono tabular-nums text-danger">20\.09<\/time><span class="flex min-h-6 items-center t-meta text-danger">прошёл<\/span>/u);
   // The assignee column is hidden in «Мои» and the status word only marks exceptions.
   assert.doesNotMatch(html, /в работе/u);
   assert.match(html, /· заблокирована/u);
   assert.match(html, /data-testid="task-quick-add"[\s\S]*placeholder="Новая задача…"/u);
   assert.doesNotMatch(html, /Сроки указаны по времени Бишкека/u);
   assert.doesNotMatch(html, /\bbg-accent\b/u, "the page itself has no solid red: «Создать задачу» lives in the top bar");
+});
+
+test("«Срок» is its own column right before the title, not at the far edge", () => {
+  const mine = surfaces.get("mine-default");
+  const row = mine.slice(mine.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
+  assert.match(row, /^[^>]*class="relative grid grid-cols-\[2\.75rem_minmax\(0,1fr\)_2\.75rem\] [^"]*@min-\[32rem\]:grid-cols-\[2\.75rem_7rem_minmax\(0,1fr\)_2\.75rem\] hover:bg-surface/u);
+  // DOM order = visual order: circle, date column, then the title link.
+  assert.match(row, /^[^>]*><div class="flex">[\s\S]*?<\/div><p class="hidden self-start pt-1 t-body-compact @min-\[32rem\]:block"><time [^>]*>20\.09<\/time>[\s\S]*?<\/p><div class="min-w-0 py-0\.5"><a data-queue-open=""/u);
+  // The narrow meta line leads with the same date.
+  assert.match(row, /<p class="flex min-h-6 min-w-0 items-center[^"]*"><span class="shrink-0 @min-\[32rem\]:hidden"><span class="text-danger"><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> прошёл<\/span> ·<\/span>/u);
+  const team = surfaces.get("team-view");
+  assert.match(team, /@3xl:grid-cols-\[2\.75rem_7rem_minmax\(0,1fr\)_minmax\(0,11rem\)_2\.75rem\]/u);
+});
+
+test("the assignee is marked wherever it has no column of its own", () => {
+  const team = surfaces.get("team-view");
+  const row = team.slice(team.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'), team.indexOf('data-queue-row="staff:bbbbbbbb-5555-4555-8555-000000000007"'));
+  // 32–48rem (panel open beside the list): «исп.» and a short name inside the meta line.
+  assert.match(row, /<span class="hidden min-w-0 shrink-\[0\.5\] truncate @min-\[32rem\]:inline @3xl:hidden" title="Исполнитель: Айгүл Осмонова">· <span aria-hidden="true">исп\. Айгүл О\.<\/span><span class="sr-only">исполнитель Айгүл Осмонова<\/span><\/span>/u);
+  // Phone: its own line with the full name.
+  assert.match(row, /<p class="truncate pb-1 t-meta text-fg-2 @min-\[32rem\]:hidden" title="Исполнитель: Айгүл Осмонова"><span aria-hidden="true">исп\.<\/span><span class="sr-only">исполнитель<\/span> Айгүл Осмонова<\/p>/u);
+  // ≥48rem: its own column.
+  assert.match(row, /<p class="hidden truncate t-body-compact text-fg-2 @3xl:block" title="Айгүл Осмонова">Айгүл Осмонова<\/p>/u);
+  // «Мои» shows no assignee at all.
+  assert.doesNotMatch(surfaces.get("mine-default"), /исп\./u);
+});
+
+test("the student name links to the case only for a mouse on a wide screen", () => {
+  const row = surfaces.get("mine-default");
+  const caseRow = row.slice(row.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
+  assert.match(caseRow, /<a title="Тимур Абдылдаев" class="relative z-10 hidden h-6 min-w-0 items-center [^"]*md:pointer-fine:flex" href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000001">/u);
+  assert.match(caseRow, /<span class="min-w-0 truncate md:pointer-fine:hidden">Тимур Абдылдаев<\/span>/u);
+  // Everywhere else the whole row opens the task; the panel carries «Открыть дело».
+  assert.match(surfaces.get("team-panel"), />Открыть дело<\/a>/u);
+});
+
+test("closed tasks label their bare date as «срок»", () => {
+  const done = surfaces.get("done-view");
+  assert.match(done, /<time dateTime="2026-09-19" class="block font-mono tabular-nums text-fg">19\.09<\/time><span class="flex min-h-6 items-center t-meta text-fg-3">срок<\/span>/u);
+  assert.match(done, /<span class="shrink-0 @min-\[32rem\]:hidden"><span>срок <time dateTime="2026-09-19" class="font-mono tabular-nums">19\.09<\/time><\/span> ·<\/span>/u);
+  assert.doesNotMatch(done, /прошёл/u, "a closed task is never overdue");
+});
+
+test("the composer's optional sections use the drawn chevron, not the browser marker", () => {
+  const summaries = [...surfaces.get("composer").matchAll(/<summary class="([^"]+)">([^<]+)<svg[^>]*class="([^"]+)"/gu)];
+  assert.deepEqual(summaries.map((match) => match[2]), ["Студент/дело · необязательно", "Описание и приоритет"]);
+  for (const [, summaryClass, , iconClass] of summaries) {
+    assert.match(summaryClass, /\blist-none\b/u);
+    assert.match(summaryClass, /\[&amp;::-webkit-details-marker\]:hidden/u);
+    assert.match(summaryClass, /\bt-label\b/u);
+    assert.doesNotMatch(summaryClass, /\btext-sm\b/u);
+    assert.match(iconClass, /group-open:rotate-180/u);
+  }
+  assert.match(surfaces.get("composer"), /<details class="group"><summary/u);
+  // The panel's «Перенести или передать» chevron turns too: `group` sits on <details>.
+  assert.match(surfaces.get("team-panel"), /<details class="group border-t border-border pt-2"><summary/u);
+});
+
+test("the staff panel reads Описание, then Результаты, then the folded move form", () => {
+  const panel = surfaces.get("team-panel-staff").slice(surfaces.get("team-panel-staff").indexOf("<dialog"));
+  const order = ["aria-label=\"Описание\"", "aria-label=\"Результаты\"", ">Перенести или передать"].map((marker) => panel.indexOf(marker));
+  assert.ok(order.every((index) => index > 0), "every section is present");
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.match(panel, /Первый вариант отправлен руководителю/u);
+  const list = surfaces.get("team-panel-staff");
+  assert.match(list.slice(list.indexOf('data-queue-row="staff:bbbbbbbb-5555-4555-8555-000000000002"')), /^[^>]*class="[^"]*\bbg-surface-2\b/u);
+});
+
+test("the loading skeleton keeps the date column before the title", () => {
+  const skeleton = read("src/components/v3/queue/QueueStates.tsx");
+  assert.match(skeleton, /<span className="hidden w-28 shrink-0 sm:block"><SkeletonBlock className="h-3\.5 w-12 rounded-nav" \/><\/span>\s*<div className="min-w-0 flex-1 space-y-1\.5">/u);
 });
 
 test("the right panel pushes the list, marks the row and keeps the list URL", () => {
@@ -256,7 +348,9 @@ test("the right panel pushes the list, marks the row and keeps the list URL", ()
   const panel = html.slice(html.indexOf("<dialog"));
   assert.match(panel, /^<dialog open="" aria-labelledby="([^"]+)" data-testid="queue-detail-panel"/u);
   assert.match(panel, /data-testid="queue-detail-close"[^>]*href="\/v3\/tasks\?view=all"/u);
-  assert.match(panel, /<h2 id="[^"]+" tabindex="-1" class="t-record-title/u);
+  assert.match(panel, /<h2 id="[^"]+" tabindex="-1" data-queue-heading="" class="t-record-title/u);
+  // The script-focused heading names the record for a screen reader without a red focus frame.
+  assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-queue-heading\]:focus-visible \{\s*outline: none;/u);
   assert.match(panel, /href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000005"[^>]*>Открыть дело<\/a>/u);
   assert.match(panel, />Обсудить<\/a>/u);
   assert.match(panel, /<details class="[^"]*"><summary[^>]*>Перенести или передать/u);

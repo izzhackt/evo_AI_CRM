@@ -32,7 +32,10 @@ export function QueueDetailPanel({
   closeHref: string;
   /** «К задачам» — подпись возврата на узком экране. */
   backLabel: string;
-  /** id заголовка записи внутри `children`: он называет панель и получает фокус. */
+  /**
+   * id заголовка записи внутри `children`: он называет панель и получает фокус.
+   * Заголовку нужен `tabIndex={-1}` и `data-queue-heading` — без рамки фокуса.
+   */
   headingId: string;
   children: ReactNode;
 }>) {

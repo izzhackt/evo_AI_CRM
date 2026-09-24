@@ -24,13 +24,14 @@ export function QueueSkeleton({ rows = 6 }: Readonly<{ rows?: number }>) {
       </div>
       <ul>
         {Array.from({ length: rows }, (_, index) => (
-          <li key={index} className="flex min-h-[3.25rem] items-center gap-4 border-b border-border py-2">
-            <span aria-hidden="true" className="ms-3 size-5 shrink-0 animate-pulse rounded-full border-2 border-surface-2 motion-reduce:animate-none" />
+          <li key={index} className="flex min-h-[3.25rem] items-center gap-2 border-b border-border py-2">
+            <span aria-hidden="true" className="mx-3 size-5 shrink-0 animate-pulse rounded-full border-2 border-surface-2 motion-reduce:animate-none" />
+            {/* Колонка срока перед названием — как у строк очереди. */}
+            <span className="hidden w-28 shrink-0 sm:block"><SkeletonBlock className="h-3.5 w-12 rounded-nav" /></span>
             <div className="min-w-0 flex-1 space-y-1.5">
               <SkeletonBlock className={`h-3.5 rounded-nav ${TITLE_WIDTHS[index % TITLE_WIDTHS.length]}`} />
               <SkeletonBlock className={`h-3 rounded-nav ${META_WIDTHS[index % META_WIDTHS.length]}`} />
             </div>
-            <SkeletonBlock className="hidden h-3.5 w-16 shrink-0 rounded-nav sm:block" />
           </li>
         ))}
       </ul>

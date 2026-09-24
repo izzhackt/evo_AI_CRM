@@ -12,6 +12,7 @@ import type { QueueTask } from "@/lib/v3/task-queue";
 import { taskStatus } from "@/lib/v3/wording";
 
 import { queueDue } from "../queue/due-bucket";
+import { shortPersonName } from "../queue/person-name";
 import { QueueFieldPopover } from "../queue/QueueFieldPopover";
 import { useAnchoredPopover } from "../queue/useAnchoredPopover";
 import { CASE_ERROR_COPY, STAFF_ERROR_COPY, caseChangeForm, dueTomorrow, staffEditForm, staffStatusForm, tomorrowDeadline } from "./task-commands";
@@ -158,15 +159,16 @@ export function TaskQueueRow({
     document.getElementById(postpone.popoverId)?.showPopover();
   }
 
-  const layout = showAssignee
-    ? "@3xl:grid-cols-[2.75rem_minmax(0,1fr)_minmax(0,11rem)_7rem_2.75rem]"
-    : "@3xl:grid-cols-[2.75rem_minmax(0,1fr)_7rem_2.75rem]";
+  // Срок — своя колонка сразу перед названием (не у правого края): дата и
+  // задача читаются вместе при любой ширине. Исполнитель — колонкой от 48rem.
+  const layout = showAssignee ? "@3xl:grid-cols-[2.75rem_7rem_minmax(0,1fr)_minmax(0,11rem)_2.75rem]" : "";
+  const caption = due ? due.word ?? due.caption : null;
 
   return (
     <li
       data-queue-row={task.key}
       data-kind={task.kind}
-      className={`relative grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-2 border-b border-border @min-[32rem]:grid-cols-[2.75rem_minmax(0,1fr)_7rem_2.75rem] ${layout} ${selected ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
+      className={`relative grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-2 border-b border-border @min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_2.75rem] ${layout}${layout ? " " : ""}${selected ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
     >
       <div className="flex">
         {done ? (
@@ -191,6 +193,15 @@ export function TaskQueueRow({
           </span>
         ) : <span aria-hidden="true" className="size-11" />}
       </div>
+
+      {/* Первая строка даты стоит на одной линии с названием, слово — с «студент · …». */}
+      <p className="hidden self-start pt-1 t-body-compact @min-[32rem]:block">
+        {due ? <>
+          {/* «24.09 14:30» помещается в 7rem; редкое «03.01.27 14:00» переносит время, а не наезжает на название. */}
+          <time dateTime={due.dateTime} className={`block font-mono tabular-nums ${due.overdue ? "text-danger" : "text-fg"}`}>{due.text}</time>
+          {caption ? <span className={`flex min-h-6 items-center t-meta ${due.overdue ? "text-danger" : "text-fg-3"}`}>{caption}</span> : null}
+        </> : null}
+      </p>
 
       <div className="min-w-0 py-0.5">
         <Link
@@ -218,36 +229,55 @@ export function TaskQueueRow({
             </> : null}
           </p>
         ) : (
-          <p className="flex min-h-6 min-w-0 items-center gap-x-1 whitespace-nowrap t-meta text-fg-2">
-            {/* Ссылка на дело — 24 px по высоте (WCAG 2.5.8): вся строка открывает задачу. */}
-            {task.kind === "case" && task.studentCaseId ? (
+          <p className="flex min-h-6 min-w-0 items-center gap-x-1 overflow-hidden whitespace-nowrap t-meta text-fg-2 @min-[32rem]:overflow-visible">
+            {/* Узкая строка: срок первым, как колонка срока на широкой. Срок и
+                слово-исключение не сжимаются; имя студента, «Рабочая» и «из чата»
+                сокращаются многоточием. Крайний случай обрезается у края: на узкой
+                ширине в строке нет ссылок, и рамке фокуса обрезаться нечему. */}
+            {due ? (
+              <span className="shrink-0 @min-[32rem]:hidden">
+                <span className={due.overdue ? "text-danger" : undefined}>
+                  {due.caption ? `${due.caption} ` : null}<time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{due.word ? ` ${due.word}` : null}
+                </span> ·
+              </span>
+            ) : null}
+            {task.kind === "case" && task.studentCaseId ? <>
+              {/* Имя — ссылка на дело только при мыши на широком экране (24 px по
+                  высоте, WCAG 2.5.8; открытый вопрос владельцу — DESIGN.md). На
+                  телефоне и сенсорном экране это текст: вся строка открывает
+                  задачу, а дело — «Открыть дело» в панели. */}
               <Link href={`/v3/profile?case=${encodeURIComponent(task.studentCaseId)}`} title={task.studentDisplayName ?? undefined}
-                className="relative z-10 flex h-6 min-w-0 items-center underline-offset-2 hover:text-fg hover:underline">
+                className="relative z-10 hidden h-6 min-w-0 items-center underline-offset-2 hover:text-fg hover:underline md:pointer-fine:flex">
                 <span className="truncate">{task.studentDisplayName}</span>
               </Link>
-            ) : <span className="shrink-0">Рабочая{task.fromChat ? " · из чата" : ""}</span>}
-            {task.caseState === "closed" ? <span className="shrink-0">· дело закрыто</span> : null}
+              <span className="min-w-0 truncate md:pointer-fine:hidden">{task.studentDisplayName}</span>
+            </> : <>
+              <span className="min-w-0 truncate">Рабочая</span>
+              {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">· из чата</span> : null}
+            </>}
+            {task.caseState === "closed" ? <span className="min-w-0 truncate">· дело закрыто</span> : null}
             {word ? <span className={`shrink-0 ${task.status === "blocked" ? "text-warn" : "text-fg-3"}`}>· {word}</span> : null}
-            {showAssignee ? <span className="min-w-0 truncate @3xl:hidden" title={task.assigneeDisplayName}>· {task.assigneeDisplayName}</span> : null}
-            {due ? (
-              <span className={`shrink-0 @min-[32rem]:hidden ${due.overdue ? "text-danger" : ""}`}>
-                · <time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{due.word ? ` ${due.word}` : null}
+            {/* Без своей колонки (32–48rem: панель открыта рядом) исполнитель
+                помечен «исп.» и сокращён — его не спутать со студентом или
+                источником; сжимается медленнее имени студента. */}
+            {showAssignee ? (
+              <span className="hidden min-w-0 shrink-[0.5] truncate @min-[32rem]:inline @3xl:hidden" title={`Исполнитель: ${task.assigneeDisplayName}`}>
+                · <span aria-hidden="true">исп. {shortPersonName(task.assigneeDisplayName)}</span><span className="sr-only">исполнитель {task.assigneeDisplayName}</span>
               </span>
             ) : null}
           </p>
         )}
+        {/* Телефон: строке «срок · студент» не хватает места — исполнитель своей строкой, полным именем. */}
+        {showAssignee && !done ? (
+          <p className="truncate pb-1 t-meta text-fg-2 @min-[32rem]:hidden" title={`Исполнитель: ${task.assigneeDisplayName}`}>
+            <span aria-hidden="true">исп.</span><span className="sr-only">исполнитель</span> {task.assigneeDisplayName}
+          </p>
+        ) : null}
       </div>
 
       {showAssignee ? (
         <p className="hidden truncate t-body-compact text-fg-2 @3xl:block" title={task.assigneeDisplayName}>{task.assigneeDisplayName}</p>
       ) : null}
-
-      <p className="hidden pe-1 text-end t-body-compact @min-[32rem]:block">
-        {due ? <>
-          <time dateTime={due.dateTime} className={`block whitespace-nowrap font-mono tabular-nums ${due.overdue ? "text-danger" : "text-fg"}`}>{due.text}</time>
-          {due.word ? <span className={`block t-meta ${due.overdue ? "text-danger" : "text-fg-3"}`}>{due.word}</span> : null}
-        </> : null}
-      </p>
 
       <div className="flex justify-end">
         {!done && (can.postpone || can.transfer) ? <>

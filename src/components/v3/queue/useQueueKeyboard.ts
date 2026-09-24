@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { nextQueueIndex } from "./queue-navigation";
+import { nextQueueIndex, rowNeedsReveal } from "./queue-navigation";
 import { QUEUE_HELP_ID } from "./QueueKeyboardHelp";
 import { QUEUE_SEARCH_SELECTOR } from "./QueueToolbar";
 
@@ -29,11 +29,25 @@ function rowLinks(): HTMLElement[] {
 }
 
 /**
+ * Выбранная строка должна быть видна рядом с панелью. После перехода по
+ * ссылке с открытой записью или обновления страницы строка может оказаться
+ * ниже первого экрана — тогда страница прокручивается к ней (в середину окна).
+ * Видимую строку не трогает (`rowNeedsReveal`).
+ */
+export function revealQueueRow(key: string): boolean {
+  const row = document.querySelector<HTMLElement>(`${QUEUE_ROW_SELECTOR}[data-queue-row="${CSS.escape(key)}"]`);
+  if (!row || !rowNeedsReveal(row.getBoundingClientRect(), window.innerHeight)) return false;
+  row.scrollIntoView({ block: "center" });
+  return true;
+}
+
+/**
  * Клавиатура очереди: «/» — поиск, ↑/↓ и j/k — строка, Enter — открыть
  * (обычная ссылка строки), «?» — подсказка с клавишами; Esc закрывает панель
  * (`QueueDetailPanel`). Пока пользователь печатает, открыто всплывающее окно
- * или модальный диалог, клавиши не перехватываются. После закрытия панели
- * фокус возвращается на строку, которая была открыта.
+ * или модальный диалог, клавиши не перехватываются. Открытая запись видна в
+ * списке (`revealQueueRow`) — и при переходе по ссылке, и после обновления;
+ * после закрытия панели фокус возвращается на строку, которая была открыта.
  */
 export function useQueueKeyboard({ openKey }: Readonly<{ openKey: string | null }>) {
   const previousOpenKey = useRef(openKey);
@@ -41,7 +55,11 @@ export function useQueueKeyboard({ openKey }: Readonly<{ openKey: string | null 
   useEffect(() => {
     const previous = previousOpenKey.current;
     previousOpenKey.current = openKey;
-    if (!previous || openKey !== null) return;
+    if (openKey !== null) {
+      revealQueueRow(openKey);
+      return;
+    }
+    if (!previous) return;
     const row = document.querySelector(`${QUEUE_ROW_SELECTOR}[data-queue-row="${CSS.escape(previous)}"] ${QUEUE_OPEN_SELECTOR}`);
     if (row instanceof HTMLElement) row.focus();
   }, [openKey]);

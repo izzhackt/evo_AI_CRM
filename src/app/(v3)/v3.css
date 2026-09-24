@@ -112,6 +112,16 @@
   outline-offset: 3px;
 }
 
+/*
+ * Заголовок записи в панели очереди получает фокус скриптом (tabindex="-1"),
+ * чтобы читалка назвала открытую запись. Это не элемент управления: рамка
+ * фокуса вокруг заголовка — лишний красный. Та же граница, что у
+ * `[tabindex="-1"]` в globals.css.
+ */
+.v3-world [data-queue-heading]:focus-visible {
+  outline: none;
+}
+
 /* Foreground red stays readable even on the deepest neutral surface. */
 .v3-world .text-accent {
   color: var(--accent-text);

@@ -596,6 +596,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "case.handoff.create": "Передача дела оформлена",
   "case.lifecycle.change": "Состояние дела изменено",
   "case.route.change": "Маршрут дела изменён",
+  "case.next.action.change": "Следующий шаг изменён",
   "lead.admissions.handoff.completed": "Дело передано в сопровождение",
   "case.update.append": "Запись добавлена в дело",
   "catalog.import.batch.create": "Партия импорта каталога создана",
@@ -688,7 +689,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "workflow.version.retire": "Версия процесса отозвана",
 } satisfies Readonly<Record<PlatformAuditAction |
   "case.handoff.acknowledge" | "case.handoff.clarification" |
-  "case.coverage.start" | "case.coverage.return" |
+  "case.coverage.start" | "case.coverage.return" | "case.next.action.change" |
   "lead.admissions.handoff.completed" | "lead.manual.create", string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
@@ -1181,6 +1182,25 @@ export function studentPortalInviteFailure(value: string): string | null {
       "Этот email принадлежит аккаунту сотрудника. Для студенческого доступа нужен другой email.",
     portal_invite_already_accepted:
       "Email уже занят существующим аккаунтом; его тип подтвердить не удалось. Письмо не отправлено.",
+  };
+  return labels[value] ?? null;
+}
+
+/**
+ * Итог сохранения «Следующего шага» (migration 241). Для неизвестного исхода
+ * форма повторяет тот же запрос: сервер вернёт уже записанный результат, а не
+ * сохранит шаг второй раз.
+ */
+export function caseNextActionOutcome(value: string, cleared = false): string | null {
+  const labels: Record<string, string> = {
+    saved: cleared ? "Следующий шаг снят." : "Следующий шаг сохранён.",
+    invalid: "Проверьте шаг и срок: шаг — одна строка до 1000 символов, срок без шага не указывается.",
+    forbidden: "Нет права менять следующий шаг этого дела.",
+    preview: "В просмотре интерфейса роли изменения не сохраняются.",
+    stale: "Дело изменили, пока вы редактировали. Обновите его и сохраните шаг ещё раз.",
+    not_active: "Дело не в работе: следующий шаг задаётся только делу в работе.",
+    request_conflict: "Этот запрос уже использован с другими данными. Сохраните ещё раз.",
+    unavailable: "Не удалось подтвердить сохранение. Повторите: повтор не сохранит шаг дважды.",
   };
   return labels[value] ?? null;
 }

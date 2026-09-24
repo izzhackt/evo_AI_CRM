@@ -32,7 +32,6 @@ const LINK_ICONS = {
   messages: "message-square",
   "admissions-worklist": "users",
   "evo-docs": "folder",
-  "admissions-summary": "plane",
   universities: "building",
   inbox: "message-square",
   calendar: "calendar",

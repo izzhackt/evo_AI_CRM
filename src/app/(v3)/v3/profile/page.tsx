@@ -10,11 +10,10 @@ import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
 import { CaseHeader } from "@/components/v3/profile/CaseHeader";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
-import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
+import { StudentsWorkspace } from "@/components/v3/profile/StudentsWorkspace";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
+import type { StudentsCoverage, StudentsSummary } from "@/components/v3/profile/students-facets";
 import { UniversityProgramsTab } from "@/components/v3/profile/UniversityProgramsTab";
-import { AdmissionsSummaryPanel } from "@/components/v3/profile/AdmissionsSummaryPanel";
-import { CuratorCoveragePanel } from "@/components/v3/profile/CuratorCoveragePanel";
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
 import {
   buildV3ProfileHref,
@@ -33,6 +32,8 @@ import {
   type PlatformCaseNoteCursor,
 } from "@/lib/platform-case-notes";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
+import { readAdmissionsSummary } from "@/lib/v3/admissions-source";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import {
@@ -48,12 +49,13 @@ import {
   loadV3ProfileRoute,
   type V3ProfileRouteLoadMode,
 } from "@/lib/v3/profile-route-load";
+import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Вкладка называет подсвеченный пункт меню: «Студенты» (включая профиль),
- * «EVO Docs» или «Сводка по направлениям».
+ * Вкладка называет подсвеченный пункт меню: «Студенты» (включая профиль и
+ * прежний адрес сводки `?section=summary`) или «EVO Docs».
  */
 export async function generateMetadata({
   searchParams,
@@ -187,6 +189,19 @@ export default async function ProfilePart({
     : explicitTarget
       ? { kind: "target", target: explicitTarget }
       : { kind: "directory", params: directoryParams };
+  // «Студенты» (24.09.2026): числа фасетов и нагрузка кураторов читаются
+  // вместе со списком, а не отдельными панелями. Сводка берётся по всем
+  // направлениям (только куратор сужает её), чтобы у каждого направления было
+  // своё число; нет чтения — нет числа.
+  const directoryMode = routeMode.kind === "directory";
+  const summaryRead: Promise<StudentsSummary> = directoryMode && !docsMode && !directoryParams.invalid
+    && staffPresentationCan(actor, "admissions.read")
+    ? readAdmissionsSummary(actor, { curatorMembershipId: directoryParams.curatorMembershipId })
+      .catch(() => "unavailable" as const)
+    : Promise.resolve(null);
+  const coverageRead: Promise<StudentsCoverage> = directoryMode && !docsMode
+    ? loadStudentsCoverage(actor, params, directoryParams.curatorMembershipId)
+    : Promise.resolve({ kind: "hidden" });
   const { directory, view } = await loadV3ProfileRoute(routeMode, {
     readDirectory: (nextParams) =>
       readV3ProfileCaseDirectory(actor, nextParams),
@@ -242,6 +257,7 @@ export default async function ProfilePart({
       studentPortalCuratorsAvailable = false;
     }
   }
+  const [facetSummary, coverage] = await Promise.all([summaryRead, coverageRead]);
 
   return (
     <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Студенты"}>
@@ -249,23 +265,18 @@ export default async function ProfilePart({
         {docsMode && directory && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage") ? <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/v3/universities" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">Университеты и бланки</Link>
         </div> : null}
-        {!docsMode && directory && staffPresentationCan(actor, "admissions.read") ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
-          <AdmissionsSummaryPanel actor={actor} params={directoryParams} expanded={singleSearchParam(params.section) === "summary"} />
-        </Suspense> : null}
         {directory ? (
-          <ProfileCaseDirectory
+          <StudentsWorkspace
             directory={directory}
-            initiallyOpen={directoryParams.active || !view}
             params={directoryParams}
-            curators={studentPortalCurators}
-            allowAdmissionsFilters={staffPresentationCan(actor, "admissions.read")}
             docsMode={docsMode}
+            allowAdmissionsFilters={staffPresentationCan(actor, "admissions.read")}
+            summary={facetSummary}
+            curators={studentPortalCurators}
+            coverage={coverage}
+            today={dayInOrganizationTimezone(new Date())}
+            coverageRequestId={randomUUID()}
           />
-        ) : null}
-        {!docsMode && directory && staffHasPermission(actor, "case.curator.assign") && !isStaffPreview(actor) ? (
-          <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем нагрузку кураторов…</p>}>
-            <CuratorCoveragePanel actor={actor} params={params} />
-          </Suspense>
         ) : null}
         {view ? (
           <>
@@ -312,22 +323,16 @@ export default async function ProfilePart({
               hrefFor={hrefFor}
             />
           </>
-        ) : docsMode && !invalidIdentityShape && !missing ? null : (
+        ) : invalidIdentityShape || missing ? (
           <p className="border-t border-border px-4 py-5 text-sm leading-relaxed text-fg-2">
             {invalidIdentityShape
               ? "Ссылка на профиль некорректна. Найдите студента через поиск."
-              : missing
-                ? "Профиль не найден или недоступен вам. Найдите студента через поиск."
-                : directory && (directory.rows.length > 0 || directoryParams.active)
-                  ? "Выберите студента в результатах поиска, чтобы открыть его профиль."
-                  : "Здесь вы сможете открыть профиль студента: документы, заявки и задачи по поступлению."}
-            {invalidIdentityShape || missing ? (
-              <Link href={requestsReturnTo ?? directoryHref} className="mt-3 flex min-h-11 w-fit items-center font-medium text-accent underline underline-offset-4">
-                {requestsReturnTo ? "К списку заявок" : "Найти студента"}
-              </Link>
-            ) : null}
+              : "Профиль не найден или недоступен вам. Найдите студента через поиск."}
+            <Link href={requestsReturnTo ?? directoryHref} className="mt-3 flex min-h-11 w-fit items-center font-medium text-accent underline underline-offset-4">
+              {requestsReturnTo ? "К списку заявок" : "Найти студента"}
+            </Link>
           </p>
-        )}
+        ) : null}
       </div>
     </PartShell>
   );

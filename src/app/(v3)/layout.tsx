@@ -4,6 +4,7 @@ import { isStaffPreview } from "@/lib/platform-access";
 
 import { AppShell } from "@/components/v3/AppShell";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import { readLookPreview } from "@/lib/v3/look-preview";
 import { readStaffNotificationsForActor } from "@/lib/v3/staff-notification-source";
 
 import "./v3.css";
@@ -32,12 +33,14 @@ export const metadata: Metadata = {
  */
 export default async function V3Layout({ children }: { children: ReactNode }) {
   const actor = await requirePlatformStaffActor();
-  const notifications = !isStaffPreview(actor)
-    ? await readStaffNotificationsForActor(actor).catch(() => null)
-    : null;
+  const [notifications, lookPreview] = await Promise.all([
+    !isStaffPreview(actor) ? readStaffNotificationsForActor(actor).catch(() => null) : Promise.resolve(null),
+    // Предпросмотр нового облика (Э1.1, временно до решения владельца): только Admin.
+    readLookPreview(actor),
+  ]);
 
   return (
-    <div className="v3-world">
+    <div className="v3-world" data-look={lookPreview ? "next" : undefined}>
       <AppShell
         actor={actor}
         initialNotifications={notifications}

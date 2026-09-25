@@ -4,6 +4,7 @@ import { isSectionKey } from "@/components/v3/settings/types";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { redirect } from "next/navigation";
 
+import { readLookPreview } from "@/lib/v3/look-preview";
 import { normalizeJournalFilters } from "@/lib/v3/settings-journal-contract";
 import { readSalesRegisterManagement } from "@/lib/v3/sales-register-source";
 import { readStaffWorkspace } from "@/lib/v3/staff-workspace-source";
@@ -45,7 +46,7 @@ export default async function SettingsPart({
   const actor = await requireV3PageActor("/v3/settings");
   const isAdmin = actor.systemRole === "admin" && actor.presentationRole === null;
 
-  const [health, integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement] = await Promise.all([
+  const [health, integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, lookPreview] = await Promise.all([
     readHealth(actor),
     readIntegrations(actor),
     isAdmin
@@ -64,6 +65,7 @@ export default async function SettingsPart({
     isAdmin && section === "staff" ? readStaffWorkspace(actor) : Promise.resolve(undefined),
     isAdmin && section === "staff" ? readStaffRoles(actor) : Promise.resolve(undefined),
     isAdmin && section === "platform" ? readSalesRegisterManagement(actor, null) : Promise.resolve(undefined),
+    readLookPreview(actor),
   ]);
 
   // Протухший курсор из адреса читается первой страницей; адрес при этом
@@ -121,6 +123,7 @@ export default async function SettingsPart({
         gates={gates}
         platform={platform}
         salesImportHref={salesManagement?.status === "ready" && salesManagement.data.canImport ? "/v3/main?view=sales&mode=import" : undefined}
+        lookPreview={lookPreview}
         staff={staff}
         staffView={params.view === "departments" ? "departments" : params.view === "roles" ? "roles" : "people"}
         staffRoles={staffRoles}

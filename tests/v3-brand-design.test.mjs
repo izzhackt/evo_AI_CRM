@@ -5,7 +5,10 @@ import { test } from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const css = read("src/app/(v3)/v3.css");
-const tokens = Object.fromEntries([...css.matchAll(/--([a-z0-9-]+):\s*(#[a-f0-9]{6});/gu)]
+// Базовый облик — первый блок `.v3-world { … }`; предпросмотр нового облика
+// (`[data-look="next"]`, Э1.1) проверяет tests/v3-look-preview.test.mjs.
+const baseBlock = css.slice(css.indexOf(".v3-world {"), css.indexOf("}", css.indexOf(".v3-world {")));
+const tokens = Object.fromEntries([...baseBlock.matchAll(/--([a-z0-9-]+):\s*(#[a-f0-9]{6});/gu)]
   .map((match) => [match[1], match[2]]));
 
 function luminance(hex) {

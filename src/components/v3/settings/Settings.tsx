@@ -44,6 +44,7 @@ export function Settings({
   gates,
   platform,
   salesImportHref,
+  lookPreview,
   staff,
   staffView,
   selectedStaffMemberId,
@@ -66,6 +67,8 @@ export function Settings({
   gates: GateFacts;
   platform: string;
   salesImportHref?: string;
+  /** Предпросмотр нового облика включён (Э1.1; только Admin). */
+  lookPreview: boolean;
   staff?: StaffWorkspaceData;
   staffView: "people" | "departments" | "roles";
   selectedStaffMemberId?: string;
@@ -130,7 +133,7 @@ export function Settings({
           />
         ) : null}
         {current?.key === "documents" ? <DocumentsSection gates={gates} /> : null}
-        {current?.key === "platform" ? <PlatformSection platform={platform} salesImportHref={salesImportHref} /> : null}
+        {current?.key === "platform" ? <PlatformSection platform={platform} salesImportHref={salesImportHref} lookPreview={lookPreview} /> : null}
       </div>
     </div>
   );

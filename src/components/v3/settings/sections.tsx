@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 
 import { Icon } from "@/components/icons";
+import { btnGhostCls } from "@/components/ui";
 import { Pill } from "@/components/v3/Pill";
+import { setLookPreviewAction } from "@/lib/v3/look-preview-actions";
 
 import type { GateFacts, Health, Integration, JournalEntry } from "./types";
 import { journalActor, journalEvent, journalObject } from "@/lib/v3/wording";
@@ -397,9 +399,23 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
 
 /* ------------------------------------------------------------ Платформа */
 
-export function PlatformSection({ platform, salesImportHref }: { platform: string; salesImportHref?: string }) {
+export function PlatformSection({ platform, salesImportHref, lookPreview }: { platform: string; salesImportHref?: string; lookPreview: boolean }) {
   return (
     <div className="flex flex-col gap-4">
+      {/* Э1.1 плана редизайна: временный предпросмотр нового облика до решения владельца (Э1.5). */}
+      <Card title="Новый облик — предпросмотр">
+        <form action={setLookPreviewAction} className="flex flex-col items-start gap-3 px-4 py-3" data-testid="v3-look-preview">
+          <p className="t-body-compact max-w-[60ch] text-fg-2">
+            Облик из плана редизайна: работа — белый лист на тёплом сером столе, «выбрано» — нейтральное,
+            красный — только главное действие и проблема. Виден только вам в этом браузере; остальные сотрудники
+            видят прежний облик, пока вы не решите.
+          </p>
+          <p className="t-body-compact text-fg">Сейчас: {lookPreview ? "новый облик" : "прежний облик"}</p>
+          <input type="hidden" name="look" value={lookPreview ? "" : "next"} />
+          <button type="submit" className={btnGhostCls}>{lookPreview ? "Выключить предпросмотр" : "Включить предпросмотр"}</button>
+        </form>
+      </Card>
+
       <Card title="Что сейчас запущено">
         <dl>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5">

@@ -476,7 +476,8 @@ function renderPage(name) {
     : undefined;
   const page = createElement(
     "div",
-    { className: "v3-world" },
+    // `--look=next` — снимки предпросмотра нового облика (Э1.1), как у Admin с включённым переключателем.
+    { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
     createElement(
       AppShell,
       { actor: item.actor === "curator" ? CURATOR_ACTOR : ACTOR, initialNotifications: null },

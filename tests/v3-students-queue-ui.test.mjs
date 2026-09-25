@@ -80,7 +80,7 @@ test("old facet and summary addresses map onto the new views and redirect", () =
   // case_q → q, case_status → view, direction/curator keep their names.
   assert.equal(redirect({ case_q: "Ким", case_status: "closed", direction: "CN" }), "/v3/profile?view=closed&q=%D0%9A%D0%B8%D0%BC&direction=CN");
   assert.equal(redirect({ case_status: "active", curator: MEMBER }), `/v3/profile?view=active&curator=${MEMBER}`);
-  assert.equal(redirect({ case_status: "pending" }, CURATOR), "/v3/profile?view=needs_action");
+  assert.equal(redirect({ case_status: "pending" }, CURATOR), "/v3/profile?view=pending");
   // Attention wins over status; «Ждут куратора» is an Admin view.
   assert.equal(redirect({ attention: "overdue", case_status: "closed" }), "/v3/profile");
   assert.equal(redirect({ attention: "awaiting_ack" }, CURATOR), "/v3/profile?view=needs_action");
@@ -205,9 +205,9 @@ test("counts come only from the counts read: tabs, bands, menus and the header g
   const params = ok({});
   const tabs = studentsQueueTabs(params, null, ADMIN);
   assert.deepEqual(tabs.map((tab) => [tab.label, tab.count]), [
-    ["Мои", null], ["Требуют действия", null], ["Все в работе", null], ["Ждут куратора", null], ["Закрытые", null], ["Нагрузка кураторов", null],
+    ["Мои", null], ["Требуют действия", null], ["Все в работе", null], ["Ожидает начала", null], ["Ждут куратора", null], ["Закрытые", null], ["Нагрузка кураторов", null],
   ]);
-  assert.deepEqual(studentsQueueTabs(params, null, CURATOR).map((tab) => tab.key), ["mine", "needs_action", "active", "closed"]);
+  assert.deepEqual(studentsQueueTabs(params, null, CURATOR).map((tab) => tab.key), ["mine", "needs_action", "active", "pending", "closed"]);
   const html = surfaces.get("counts-unavailable");
   assert.match(html, /Счётчики недоступны, список работает\. <a[^>]*href="\/v3\/profile\?view=active"[^>]*>Повторить<\/a>/u);
   const nav = html.match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
@@ -216,7 +216,7 @@ test("counts come only from the counts read: tabs, bands, menus and the header g
   // With the read, every tab number is the number of rows its click shows.
   const counted = surfaces.get("admin-active").match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
   assert.deepEqual([...counted.matchAll(/<a [^>]*>([^<]+)(?:<span class="tabular-nums text-fg-3">(\d+)<\/span>)?<\/a>/gu)].map((match) => [match[1], match[2] ?? null]), [
-    ["Мои", "8"], ["Требуют действия", "9"], ["Все в работе", "20"], ["Ждут куратора", "2"], ["Закрытые", "14"], ["Нагрузка кураторов", null],
+    ["Мои", "8"], ["Требуют действия", "9"], ["Все в работе", "20"], ["Ожидает начала", "2"], ["Ждут куратора", "2"], ["Закрытые", "14"], ["Нагрузка кураторов", null],
   ]);
   // EVO Docs: review/fix tabs are filtered inside the read, so their numbers need a complete read.
   const rows = [{ documents: { submitted: 2, correctionRequired: 0, rejected: 0 } }, { documents: { submitted: 0, correctionRequired: 1, rejected: 1 } }, { documents: null }];
@@ -624,8 +624,8 @@ test("the facet rail is gone and the page reads no summary for it", () => {
 test("curator assignment views follow case.curator.assign, not the Admin role", () => {
   const params = ok({});
   assert.deepEqual(studentsQueueTabs(params, null, MANAGER).map((tab) => tab.key),
-    ["mine", "needs_action", "active", "needs_curator", "closed", "curators"], "a manager with case.curator.assign sees both views");
-  assert.deepEqual(studentsQueueTabs(params, null, CURATOR).map((tab) => tab.key), ["mine", "needs_action", "active", "closed"]);
+    ["mine", "needs_action", "active", "pending", "needs_curator", "closed", "curators"], "a manager with case.curator.assign sees both views");
+  assert.deepEqual(studentsQueueTabs(params, null, CURATOR).map((tab) => tab.key), ["mine", "needs_action", "active", "pending", "closed"]);
   assert.equal(parse({ view: "curators" }, MANAGER).kind, "ok");
   assert.equal(parse({ view: "curators" }, CURATOR).kind, "invalid");
   // The coverage form returns to `view=curators`; old links open the same view.
@@ -704,4 +704,30 @@ test("stage keys never reach the screen and the summary read is gone with its la
   const source = read("src/lib/v3/admissions-source.ts");
   assert.doesNotMatch(source, /readAdmissionsSummary|normalizeAdmissionsSummary|admissions_direction_summary_v1/u);
   assert.doesNotMatch(read("src/lib/platform-admissions-playbook-contract.ts"), /AdmissionsSummary/u);
+});
+
+test("«Ожидает начала» is a queue view: pending cases, no due groups, legacy links land on it", () => {
+  const params = ok({});
+  assert.deepEqual(studentsQueueTabs(params, null, CURATOR).map((tab) => [tab.key, tab.label]).find(([key]) => key === "pending"), ["pending", "Ожидает начала"]);
+  assert.equal(parse({ view: "pending" }, CURATOR).kind, "ok");
+  const legacy = parse({ case_status: "pending" }, ADMIN);
+  assert.equal(legacy.kind, "redirect");
+  assert.equal(legacy.href, "/v3/profile?view=pending");
+  assert.equal(studentsStepView("pending"), false, "the step is set only on a case in work");
+  const html = surfaces.get("pending");
+  assert.ok([...html.matchAll(/data-queue-row=/gu)].length >= 1, "pending rows are rendered");
+  assert.doesNotMatch(html, /students-band-/u, "no due groups for cases that are not in work");
+  assert.doesNotMatch(html, /добавьте шаг/u);
+});
+
+test("«Принять дело» in the panel reuses the case card, only for the curator who can answer", () => {
+  const accept = surfaces.get("panel-accept");
+  const block = accept.match(/<div class="mt-4" data-testid="v3-students-panel-handoff">[\s\S]*$/u)?.[0] ?? "";
+  assert.match(block, /data-testid="v3-handoff-acknowledgement"/u, "the same «Приём дела» part as in the case card");
+  assert.match(block, />Принять дело</u);
+  assert.doesNotMatch(surfaces.get("admin-panel"), /v3-students-panel-handoff/u, "no block without a snapshot the curator can answer");
+  const source = read("src/lib/v3/students-queue-source.ts");
+  assert.match(source, /snapshot\.canRespond && snapshot\.assignmentEventId \? Object\.freeze\(\{ \.\.\.snapshot, requestId: randomUUID\(\) \}\) : null/u);
+  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  assert.match(page, /params\.open && !isStaffPreview\(actor\) \? readStudentsHandoff\(actor, params\.open\)/u, "one read per open panel, never in role preview");
 });

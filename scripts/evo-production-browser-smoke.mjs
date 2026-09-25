@@ -251,6 +251,24 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       await page.getByTestId("v3-admissions-pipeline-board").waitFor({ state: "visible", timeout: 30_000 });
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_admissions_pipeline_smoke_passed"}\n');
+      // «Студенты» and EVO Docs are the 241 work queue (Э0 of the 25.09 redesign
+      // plan). The checks do not depend on data: the queue container and its view
+      // tabs render (the loading skeleton has neither), and no read error or
+      // refusal replaced the list.
+      checkpoint("students_queue");
+      await visit(page, `${configuration.baseUrl}/v3/profile`);
+      await page.getByTestId("v3-student-case-directory").waitFor({ state: "visible", timeout: 30_000 });
+      await page.getByRole("navigation", { name: "Виды списка студентов", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+      if (await page.getByTestId("queue-error").count()) throw new Error("students_queue_unavailable");
+      if (runtimeError) throw new Error("staff_runtime_error");
+      process.stdout.write('{"ok":true,"code":"production_students_queue_smoke_passed"}\n');
+      checkpoint("evo_docs");
+      await visit(page, `${configuration.baseUrl}/v3/profile?section=docs`);
+      await page.getByTestId("v3-student-case-directory").waitFor({ state: "visible", timeout: 30_000 });
+      await page.getByRole("navigation", { name: "Виды списка студентов", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+      if (await page.getByTestId("queue-error").count()) throw new Error("evo_docs_queue_unavailable");
+      if (runtimeError) throw new Error("staff_runtime_error");
+      process.stdout.write('{"ok":true,"code":"production_evo_docs_smoke_passed"}\n');
       checkpoint("team_chat");
       await visit(page, `${configuration.baseUrl}/v3/team-chat`);
       const channels = page.getByRole("navigation", { name: "Каналы команды", exact: true });

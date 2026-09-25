@@ -1,12 +1,15 @@
 import "server-only";
 
-import type { StudentsOpenTasks, StudentsQueueParams } from "@/components/v3/students/students-queue-view";
+import { randomUUID } from "node:crypto";
+
+import type { StudentsHandoff, StudentsOpenTasks, StudentsQueueParams } from "@/components/v3/students/students-queue-view";
 import {
   studentsCountsView,
   studentsQueueRequest,
 } from "@/components/v3/students/students-queue-view";
 
 import { getPlatformAdmissionsTaskWorkspace } from "../platform-admissions-workspace";
+import { getHandoffAcknowledgement } from "../platform-handoff-acknowledgement";
 import type { ActivePlatformActor } from "../platform-auth";
 import {
   readStudentCaseQueue,
@@ -66,5 +69,20 @@ export async function readStudentsOpenTasks(actor: ActivePlatformActor, studentC
     return Object.freeze({ kind: "ready", tasks: Object.freeze(open) });
   } catch {
     return Object.freeze({ kind: "unavailable" });
+  }
+}
+
+/**
+ * «Приём дела» для «Быстрого просмотра» — существующее чтение
+ * `staff_student_case_handoff_acknowledgement` (одно на открытую панель).
+ * Панель показывает блок только текущему куратору, который может ответить;
+ * отказ чтения — без блока: принять дело можно из карточки дела.
+ */
+export async function readStudentsHandoff(actor: ActivePlatformActor, studentCaseId: string): Promise<StudentsHandoff | null> {
+  try {
+    const snapshot = await getHandoffAcknowledgement(actor, studentCaseId);
+    return snapshot.canRespond && snapshot.assignmentEventId ? Object.freeze({ ...snapshot, requestId: randomUUID() }) : null;
+  } catch {
+    return null;
   }
 }

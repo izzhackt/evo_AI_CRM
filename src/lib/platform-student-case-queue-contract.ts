@@ -24,8 +24,11 @@ import {
   type AdmissionsPipelineStage,
 } from "./platform-admissions-pipeline-contract.ts";
 
-/** Tabs of the queue, in display order. «Ждут куратора» is an Admin tab in the UI. */
-export const STUDENT_CASE_QUEUE_VIEWS = ["mine", "needs_action", "active", "needs_curator", "closed"] as const;
+/**
+ * Views of the queue (241; `pending` since 242 — state «Ожидает начала»). The
+ * counts read returns exactly these keys. Display order lives in the UI.
+ */
+export const STUDENT_CASE_QUEUE_VIEWS = ["mine", "needs_action", "active", "needs_curator", "closed", "pending"] as const;
 export type StudentCaseQueueView = (typeof STUDENT_CASE_QUEUE_VIEWS)[number];
 
 /** No name sort: its keyset cursor would carry the student name into the URL. */

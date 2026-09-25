@@ -21,6 +21,7 @@ import {
   studentsQueueTabs,
   type NextStepAccessInput,
   type StudentsDocsView,
+  type StudentsHandoff,
   type StudentsOpenTasks,
   type StudentsQueueActor,
   type StudentsQueueParams,
@@ -34,6 +35,8 @@ export type StudentsQueueScreenInput = Readonly<{
   read: Readonly<{ page: StudentCaseQueuePage | null; counts: StudentCaseQueueCounts | null; forbidden?: boolean }>;
   actor: StudentsQueueActor;
   openTasks: StudentsOpenTasks | null;
+  /** «Приём дела» открытой строки (только куратору, который может ответить). */
+  handoff?: StudentsHandoff | null;
   coverage: StudentsCoverage | null;
   /** Сегодня в Бишкеке (часы приложения) — для дат нагрузки кураторов. */
   today: string;
@@ -178,6 +181,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       editor={input.editor}
       recordScopes={input.recordScopes}
       openTasks={input.openTasks}
+      handoff={input.handoff ?? null}
       createTask={input.createTask}
       requestId={input.requestIds.nextStep}
     />,

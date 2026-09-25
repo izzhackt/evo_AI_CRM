@@ -52,7 +52,7 @@ import {
   type V3ProfileRouteLoadMode,
 } from "@/lib/v3/profile-route-load";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
-import { readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
+import { readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
 
 export const dynamic = "force-dynamic";
 
@@ -157,6 +157,8 @@ async function studentsQueuePage(
       readStudentsQueue(actor, params),
       params.open ? readStudentsOpenTasks(actor, params.open) : Promise.resolve(null),
       params.view === "curators" ? loadStudentsCoverage(actor, { ...query, ...params.coverage }, undefined) : Promise.resolve(null),
+      // Просмотр роли не отвечает на передачу (действие его отклоняет) — блок не читаем.
+      params.open && !isStaffPreview(actor) ? readStudentsHandoff(actor, params.open) : Promise.resolve(null),
     ]),
     curatorsRead,
   ]);
@@ -168,6 +170,7 @@ async function studentsQueuePage(
     actor: studentsQueueActor(actor),
     openTasks: reads?.[1] ?? null,
     coverage: reads?.[2] ?? null,
+    handoff: reads?.[3] ?? null,
     today: dayInOrganizationTimezone(new Date()),
     curatorNames: curators.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
     editor: {

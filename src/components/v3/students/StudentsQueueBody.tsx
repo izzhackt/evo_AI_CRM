@@ -27,6 +27,7 @@ import {
   studentsListHref,
   studentsQueueHref,
   type NextStepAccessInput,
+  type StudentsHandoff,
   type StudentsOpenTasks,
   type StudentsQueueParams,
   type StudentsQueueView,
@@ -48,6 +49,7 @@ export function studentsEmptyState(params: StudentsQueueParams, counts: StudentC
     case "needs_action": return { title: "Дел, требующих действия, нет", action: active };
     case "needs_curator": return { title: "У всех дел есть куратор", action: active };
     case "closed": return { title: "Закрытых дел нет", action: null };
+    case "pending": return { title: "Дел, ожидающих начала, нет", action: active };
     default: return { title: "Дел в работе нет", action: null };
   }
 }
@@ -68,6 +70,7 @@ export function StudentsQueueBody({
   editor,
   recordScopes,
   openTasks,
+  handoff,
   createTask,
   requestId,
 }: Readonly<{
@@ -84,6 +87,7 @@ export function StudentsQueueBody({
   recordScopes: readonly string[];
   /** Открытые задачи дела в панели (читает сервер только при `open`). */
   openTasks: StudentsOpenTasks | null;
+  handoff: StudentsHandoff | null;
   /** Можно ли создать задачу по делу из панели. */
   createTask: boolean;
   requestId: string;
@@ -145,6 +149,7 @@ export function StudentsQueueBody({
       now={now}
       access={nextStepAccess(editor, openRow, recordScopes)}
       tasks={openTasks}
+      handoff={handoff?.studentCaseId === openRow.studentCaseId ? handoff : null}
       requestId={requestId}
       onSaved={onSaved}
       links={{

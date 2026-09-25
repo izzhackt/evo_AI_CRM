@@ -2651,6 +2651,17 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_next_action_queue.sql
   fi
+
+  # Migration 242 («Студенты» «Ожидает начала», Э0.2 of the 25.09 redesign
+  # plan): the queue page and counts accept the view 'pending' (state
+  # 'pending'). The suite proves the pending rows, unchanged other views,
+  # counts equal to rows for all six views, unchanged row visibility for an
+  # own-scope curator and unchanged Sales/anon refusals.
+  if [[ "$(basename "$migration")" == 242_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_queue_pending_view.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

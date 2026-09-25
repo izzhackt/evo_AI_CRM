@@ -164,7 +164,8 @@ const inView = (r, v) => v === "mine" ? r.state === "active" && r.isMine
   : v === "needs_action" ? r.attentionFlags.some((flag) => ["overdue", "awaiting_ack", "needs_curator"].includes(flag))
   : v === "active" ? r.state === "active"
   : v === "needs_curator" ? r.attentionFlags.includes("needs_curator")
-  : v === "closed" ? r.state === "closed" : false;
+  : v === "closed" ? r.state === "closed"
+  : v === "pending" ? r.state === "pending" : false;
 /** Порядок 241 по сроку: ранг (дата · без даты · без шага), день, id. */
 const byDue = (a, b) => (a.cursor < b.cursor ? -1 : a.cursor > b.cursor ? 1 : 0);
 const CLOSED_COUNT = 14;
@@ -174,7 +175,7 @@ function countsFor(viewKey, filters = {}) {
   const match = (r, skip) => (skip === "direction" || !filters.direction || (r.admissionsDirection ?? "unknown") === filters.direction)
     && (skip === "curator" || !filters.curator || r.currentCuratorMembershipId === filters.curator)
     && (skip === "stage" || !filters.stage || r.pipelineStage === filters.stage);
-  const views = Object.fromEntries(["mine", "needs_action", "active", "needs_curator", "closed"].map((v) => [v, v === "closed" ? CLOSED_COUNT : ROWS.filter((r) => match(r) && inView(r, v)).length]));
+  const views = Object.fromEntries(["mine", "needs_action", "active", "needs_curator", "closed", "pending"].map((v) => [v, v === "closed" ? CLOSED_COUNT : ROWS.filter((r) => match(r) && inView(r, v)).length]));
   const shown = ROWS.filter((r) => match(r) && inView(r, viewKey));
   const group = (skip, key) => {
     const counts = new Map();
@@ -258,7 +259,7 @@ function coverage(selection = {}) {
 }
 
 /** Сценарий: адрес страницы → разбор тем же `parseStudentsQueueParams`, чтения — синтетика. */
-function scenario(search, { actor = "admin", docsMode = false, read, openTasks = null, coverageRead = null, invalid = false } = {}) {
+function scenario(search, { actor = "admin", docsMode = false, read, openTasks = null, handoff = null, coverageRead = null, invalid = false } = {}) {
   const query = Object.fromEntries(new URLSearchParams(search));
   const parse = view.parseStudentsQueueParams(query, docsMode ? "docs" : "queue", QUEUE_ACTOR[actor]);
   if (parse.kind === "redirect") throw new Error(`scenario ${search} redirects to ${parse.href}`);
@@ -275,6 +276,7 @@ function scenario(search, { actor = "admin", docsMode = false, read, openTasks =
     },
     actor: QUEUE_ACTOR[actor],
     openTasks,
+    handoff,
     coverage: coverageRead,
     today: TODAY,
     curatorNames: actor === "admin" ? Object.entries(NAMES).map(([membershipId, displayName]) => ({ membershipId, displayName })) : [],
@@ -324,6 +326,16 @@ const SCENARIOS = {
     return { ...base, input: { ...base.input, read: { page: null, counts: null, forbidden: true } } };
   })(),
   "manager-default": scenario("", { actor: "manager" }),
+  pending: scenario("view=pending"),
+  // Куратор открывает переданное ему дело: «Приём дела» первым в панели.
+  "panel-accept": scenario(`view=active&open=${caseId(3)}`, {
+    openTasks: TASKS,
+    handoff: {
+      organizationId: "eeeeeeee-4444-4444-8444-000000000000", studentCaseId: caseId(3),
+      assignmentEventId: "abababab-7777-4777-8777-000000000001", canRespond: true, current: null,
+      requestId: "99999999-6666-4666-8666-000000000003",
+    },
+  }),
   "manager-curators": scenario("view=curators", { actor: "manager", coverageRead: coverage() }),
   // Синтетика закрытых дел: строки «в работе» со сроками всех групп, закрытые.
   closed: (() => {
@@ -591,6 +603,14 @@ async function screenshots() {
     ["manager-default", [["students-manager-default-1440.png", DESKTOP, false, null]]],
     ["manager-curators", [["students-manager-curators-1440.png", DESKTOP, false, null]]],
     ["closed", [["students-closed-1440.png", DESKTOP, false, null]]],
+    ["panel-accept", [
+      ["students-panel-accept-1440.png", DESKTOP, false, null],
+      ["students-panel-accept-390.png", PHONE, false, null],
+    ]],
+    ["pending", [
+      ["students-pending-1440.png", DESKTOP, false, null],
+      ["students-pending-390.png", PHONE, false, null],
+    ]],
     ["docs-no-access", [["students-docs-no-access-1440.png", DESKTOP, false, null]]],
     ["docs-incomplete-empty", [
       ["students-docs-incomplete-empty-1440.png", DESKTOP, false, null],

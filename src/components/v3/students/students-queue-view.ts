@@ -28,6 +28,7 @@ import {
   type StudentCaseQueueSort,
   type StudentCaseQueueView,
 } from "../../../lib/platform-student-case-queue-contract.ts";
+import type { HandoffAcknowledgement } from "../../../lib/platform-handoff-acknowledgement.ts";
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
 import { dueBucket, formatQueueDay, queueDayWithWeekday, weekEnd } from "../queue/due-bucket.ts";
 import { shortPersonName } from "../queue/person-name.ts";
@@ -35,7 +36,7 @@ import { shortPersonName } from "../queue/person-name.ts";
 export const STUDENTS_PATH = "/v3/profile";
 
 /** Виды «Студентов» в порядке вкладок; «Нагрузка кураторов» — вид без строк дел. */
-export const STUDENTS_QUEUE_VIEWS = ["mine", "needs_action", "active", "needs_curator", "closed", "curators"] as const;
+export const STUDENTS_QUEUE_VIEWS = ["mine", "needs_action", "active", "pending", "needs_curator", "closed", "curators"] as const;
 export type StudentsQueueView = (typeof STUDENTS_QUEUE_VIEWS)[number];
 /** Вкладки EVO Docs: очередь проверки документов. */
 export const STUDENTS_DOCS_VIEWS = ["review", "fix", "all"] as const;
@@ -52,6 +53,7 @@ export const STUDENTS_VIEW_LABELS: Readonly<Record<StudentsQueueView, string>> =
   mine: "Мои",
   needs_action: "Требуют действия",
   active: "Все в работе",
+  pending: "Ожидает начала",
   needs_curator: "Ждут куратора",
   closed: "Закрытые",
   curators: "Нагрузка кураторов",
@@ -152,7 +154,7 @@ function legacyView(attention: string | null, state: string | null, actor: Stude
   if (state === null) return null;
   if (state === "active") return "active";
   if (state === "closed") return "closed";
-  if (state === "pending") return "needs_action";
+  if (state === "pending") return "pending";
   throw new StudentsQueueParamError();
 }
 
@@ -444,9 +446,12 @@ export type StudentsBand<Row> = Readonly<{
   rows: readonly Row[];
 }>;
 
-/** Виды, где шаг можно задать: у закрытых дел шага нет, группы по его сроку ничего не значат. */
+/**
+ * Виды, где шаг можно задать: шаг задаётся только делу в работе, поэтому у
+ * закрытых и ожидающих начала дел группы по его сроку ничего не значат.
+ */
 export function studentsStepView(view: StudentsQueueParams["view"]): boolean {
-  return view !== "closed";
+  return view !== "closed" && view !== "pending";
 }
 
 /**
@@ -630,6 +635,13 @@ export type StudentsPanelTask = Readonly<{
   dueAt: string | null;
   assigneeDisplayName: string;
 }>;
+
+/**
+ * «Приём дела» открытой строки — тот же снимок и та же форма, что в карточке
+ * дела (`ProfileHandoffAcknowledgement`). Есть только у текущего куратора,
+ * который может ответить; иначе null, и панель блок не рисует.
+ */
+export type StudentsHandoff = HandoffAcknowledgement & Readonly<{ requestId: string }>;
 
 /** Задачи панели: «недоступно» — это не «задач нет». */
 export type StudentsOpenTasks =

@@ -30,6 +30,7 @@ import { caseNextActionOutcome, journalEvent } from "../src/lib/v3/wording.ts";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = source("supabase/migrations/241_platform_case_next_action_queue.sql");
+const pendingMigration = source("supabase/migrations/242_platform_case_queue_pending_view.sql");
 const suite = source("supabase/tests/platform_case_next_action_queue.sql");
 const actions = source("src/lib/platform-case-next-action-actions.ts");
 const serverModule = source("src/lib/platform-student-case-queue.ts");
@@ -68,10 +69,14 @@ function row(overrides = {}) {
 }
 
 test("vocabularies match the SQL contract exactly", () => {
-  assert.deepEqual([...STUDENT_CASE_QUEUE_VIEWS], ["mine", "needs_action", "active", "needs_curator", "closed"]);
+  assert.deepEqual([...STUDENT_CASE_QUEUE_VIEWS], ["mine", "needs_action", "active", "needs_curator", "closed", "pending"]);
   assert.deepEqual([...STUDENT_CASE_QUEUE_SORTS], ["due", "updated"]);
   assert.deepEqual([...CASE_NEXT_ACTION_BANDS], ["overdue", "today", "this_week", "later", "undated", "no_step"]);
   assert.match(migration, /p_view NOT IN \('mine', 'needs_action', 'active', 'needs_curator', 'closed'\)/u);
+  // 242 widens both allowlists by exactly «pending» (anchor replace) and adds views.pending.
+  assert.match(pendingMigration, /p_view NOT IN \('mine', 'needs_action', 'active', 'needs_curator', 'closed', 'pending'\)/u);
+  assert.match(pendingMigration, /WHEN 'pending' THEN p_state = 'pending'/u);
+  assert.match(pendingMigration, /'pending', count\(\*\) FILTER \(WHERE platform_private\.case_queue_in_view\('pending', state, is_mine, flags\)\)/u);
   assert.match(migration, /p_sort NOT IN \('due', 'updated'\)/u);
   for (const band of CASE_NEXT_ACTION_BANDS) assert.match(migration, new RegExp(`'${band}'`, "u"));
   const stageChecks = [...migration.matchAll(/p_pipeline_stage NOT IN \(([^)]*)\)/gu)];
@@ -189,7 +194,7 @@ test("a queue page decodes exactly and fails closed on any inconsistency", () =>
 test("counts decode only when the tab, total and bands agree", () => {
   const counts = {
     view: "mine", today: "2026-09-25", total: 3,
-    views: { mine: 3, needs_action: 1, active: 9, needs_curator: 0, closed: 2 },
+    views: { mine: 3, needs_action: 1, active: 9, needs_curator: 0, closed: 2, pending: 1 },
     bands: { overdue: 1, today: 1, this_week: 0, later: 0, undated: 0, no_step: 1 },
     directions: [{ direction: "EUROPE", count: 2 }, { direction: "unknown", count: 1 }],
     curators: [{ membership_id: CURATOR, display_name: "Synthetic Curator", is_me: true, count: 3 }],

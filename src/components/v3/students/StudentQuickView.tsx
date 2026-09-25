@@ -9,9 +9,10 @@ import { admissionsPipelineStage, taskStatus } from "@/lib/v3/wording";
 import { queueDue } from "../queue/due-bucket";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { QueueDetailPanel } from "../queue/QueueDetailPanel";
+import { ProfileHandoffAcknowledgement } from "../profile/ProfileSalesTransition";
 import { NextStepEditor } from "./NextStepEditor";
 import { studentsRowMeta } from "./StudentsQueueTable";
-import { studentsDocumentsLine, type NextStepAccess, type StudentsOpenTasks } from "./students-queue-view";
+import { studentsDocumentsLine, type NextStepAccess, type StudentsHandoff, type StudentsOpenTasks } from "./students-queue-view";
 
 const SECTION = "space-y-2 border-t border-border pt-4";
 const LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
@@ -50,6 +51,7 @@ export function StudentQuickView({
   now,
   access,
   tasks,
+  handoff = null,
   links,
   requestId,
   onSaved,
@@ -59,6 +61,8 @@ export function StudentQuickView({
   now: Date;
   access: NextStepAccess;
   tasks: StudentsOpenTasks | null;
+  /** «Приём дела»: тот же блок, что в карточке дела; только текущему куратору, который может ответить. */
+  handoff?: StudentsHandoff | null;
   links: QuickViewLinks;
   requestId: string;
   onSaved: (receipt: CaseNextActionReceipt) => void;
@@ -81,6 +85,8 @@ export function StudentQuickView({
       <div className="mt-3">
         <Link href={links.case} className={QUEUE_SECONDARY}>Открыть дело</Link>
       </div>
+      {/* Принять дело — главное действие куратора по переданному делу: первым под шапкой. */}
+      {handoff ? <div className="mt-4" data-testid="v3-students-panel-handoff"><ProfileHandoffAcknowledgement snapshot={handoff} /></div> : null}
 
       <dl className="mt-4 divide-y divide-border border-t border-border">
         {stage ? <Fact term="Этап">{stage}</Fact> : null}

@@ -205,6 +205,22 @@ function checkpoint(phase) {
   process.stdout.write(`${JSON.stringify({ code: "production_browser_smoke_checkpoint", phase })}\n`);
 }
 
+/**
+ * «Студенты» and EVO Docs are the 241 work queue. The check does not depend on
+ * data: the queue container renders in every state (the loading skeleton has
+ * none), so a refusal, a list read error or missing counts fail at once — the
+ * counts read is what migration 242 changes — and then the view tabs of this
+ * mode must be there.
+ */
+async function verifyStudentsQueue(page, prefix, tab) {
+  await page.getByTestId("v3-student-case-directory").waitFor({ state: "visible", timeout: 30_000 });
+  if (await page.getByTestId("queue-forbidden").count()) throw new Error(`${prefix}_forbidden`);
+  if (await page.getByTestId("queue-error").count()) throw new Error(`${prefix}_unavailable`);
+  if (await page.getByTestId("queue-counts-unavailable").count()) throw new Error(`${prefix}_counts_unavailable`);
+  const views = page.getByRole("navigation", { name: "Виды списка студентов", exact: true });
+  await views.getByRole("link", { name: tab }).first().waitFor({ state: "visible", timeout: 30_000 });
+}
+
 export async function runProductionBrowserSmoke({ environment = process.env } = {}) {
   const configuration = readProductionSmokeConfiguration(environment);
   const browser = await chromium.launch({ headless: true });
@@ -251,6 +267,19 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       await page.getByTestId("v3-admissions-pipeline-board").waitFor({ state: "visible", timeout: 30_000 });
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_admissions_pipeline_smoke_passed"}\n');
+      // «Студенты» and EVO Docs (Э0 of the 25.09 redesign plan): each mode is
+      // told apart by its own tab — «Все в работе» is not in EVO Docs,
+      // «На проверку» is only there.
+      checkpoint("students_queue");
+      await visit(page, `${configuration.baseUrl}/v3/profile`);
+      await verifyStudentsQueue(page, "students_queue", /^Все в работе/u);
+      if (runtimeError) throw new Error("staff_runtime_error");
+      process.stdout.write('{"ok":true,"code":"production_students_queue_smoke_passed"}\n');
+      checkpoint("evo_docs");
+      await visit(page, `${configuration.baseUrl}/v3/profile?section=docs`);
+      await verifyStudentsQueue(page, "evo_docs_queue", /^На проверку/u);
+      if (runtimeError) throw new Error("staff_runtime_error");
+      process.stdout.write('{"ok":true,"code":"production_evo_docs_smoke_passed"}\n');
       checkpoint("team_chat");
       await visit(page, `${configuration.baseUrl}/v3/team-chat`);
       const channels = page.getByRole("navigation", { name: "Каналы команды", exact: true });

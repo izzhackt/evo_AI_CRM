@@ -1598,21 +1598,15 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(page.getByTestId("v3-student-case-row")).toHaveCount(0);
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
 
+  // «Студенты» work queue (2026-09-25): the 241 search matches names, not
+  // case numbers, so a case number (also the old `case_q` address) opens that
+  // case's overview for Admin and curators.
   await page.goto(`/v3/profile?case_q=${studentCaseId}`);
   await expect(page).toHaveURL(
-    new RegExp(`/v3/profile\\?case_q=${studentCaseId}$`),
+    new RegExp(`/v3/profile\\?case=${studentCaseId}&tab=overview$`),
   );
-  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
-  const caseRows = page.getByTestId("v3-student-case-row");
-  await expect(caseRows).toHaveCount(1);
-  const exactCaseRow = page.locator(
-    `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
-  );
-  await expect(exactCaseRow).toBeVisible();
-  await expect(exactCaseRow).toHaveAttribute("data-access", "full");
-  const directoryCaseHref = `/v3/profile?case=${studentCaseId}&tab=route`;
-  const exactCaseLink = exactCaseRow.locator(`a[href="${directoryCaseHref}"]`);
-  await expect(exactCaseLink).toHaveCount(1);
+  await expect(page.getByTestId("v3-profile")).toBeVisible();
+  await expect(page.getByTestId("v3-student-case-directory")).toHaveCount(0);
 
   await page.goto("/v3/settings?section=staff&view=roles");
   await page.locator('[data-testid="staff-role-preview"] summary').click();
@@ -1636,11 +1630,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await page.getByTestId("preview-role-admin").click();
   await expectActiveRole(page, "admin");
   await page.goto(`/v3/profile?case_q=${studentCaseId}`);
-  const restoredCaseRow = page.locator(
-    `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
-  );
-  await expect(restoredCaseRow).toHaveAttribute("data-access", "full");
-  await restoredCaseRow.locator(`a[href="${directoryCaseHref}"]`).click();
+  await expect(page).toHaveURL(new RegExp(
+    `/v3/profile\\?case=${studentCaseId}&tab=overview$`,
+  ));
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=route`);
   await expect(page).toHaveURL(new RegExp(
     `/v3/profile\\?case=${studentCaseId}&tab=route$`,
   ));

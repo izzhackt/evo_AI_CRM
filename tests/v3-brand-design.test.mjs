@@ -63,15 +63,21 @@ test("role settings retain native disclosure and shell retains visible preview e
 });
 
 test("directory filters reset native form state when applied URL filters change", () => {
-  // «Студенты» facets (2026-09-24): status/curator/attention are facet links;
-  // the search form carries them as hidden fields so a new query keeps them.
-  const directory = read("src/components/v3/profile/StudentsWorkspace.tsx");
-  assert.match(directory, /<form\s+key=\{JSON\.stringify\(params\)\}/u);
-  assert.match(directory, /defaultValue=\{params\.query\}/u);
-  assert.match(directory, /<input type="hidden" name="case_status" value=\{params\.state\} \/>/u);
-  // Since #836 the reset link preserves the chosen section (docs vs worklist).
-  assert.match(directory, /const directoryHref = withDocsSection\("\/v3\/profile", docsMode\);/u);
-  assert.match(directory, /<Link href=\{directoryHref\}[^>]*>\s*Сбросить\s*<\/Link>/u);
+  // «Студенты» work queue (2026-09-25): one queue toolbar. The search form is
+  // keyed by the applied query, carries the view and filters as hidden
+  // fields, and «Сбросить» (only when something is set) keeps the view and
+  // the EVO Docs section.
+  const toolbar = read("src/components/v3/queue/QueueToolbar.tsx");
+  assert.match(toolbar, /<form key=\{search\.defaultValue\}/u);
+  assert.match(toolbar, /Object\.entries\(search\.hidden\)\.map\(\(\[name, value\]\) => value \? <input key=\{name\} type="hidden" name=\{name\} value=\{value\} \/> : null\)/u);
+  assert.match(toolbar, /\{resetHref \? \([\s\S]*Сбросить[\s\S]*\) : null\}/u);
+  const students = read("src/components/v3/students/StudentsQueueHead.tsx");
+  assert.match(students, /section: params\.mode === "docs" \? "docs" : null,\s*view: params\.view !== params\.defaultView \? params\.view : null,/u);
+  assert.match(students, /resetHref=\{active \? studentsListHref\(params, \{ query: null, direction: null, curator: null, stage: null, sort: null \}\) : null\}/u);
+  // The Sales list keeps the 078 parameters and the chosen section.
+  const fallback = read("src/components/v3/students/StudentsDirectoryFallback.tsx");
+  assert.match(fallback, /const baseHref = withDocsSection\("\/v3\/profile", docsMode\);/u);
+  assert.match(fallback, /resetHref=\{active \? baseHref : null\}/u);
 });
 
 test("sales table scroll regions contain absolutely positioned screen-reader labels", () => {
@@ -115,7 +121,8 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/profile/Profile.tsx",
     "src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx",
     "src/app/(v3)/v3/requests/page.tsx",
-    "src/components/v3/profile/StudentsWorkspace.tsx",
+    // «Студенты» (25.09.2026): срок в редакторе шага — тот же выбор, что в диалоге задачи.
+    "src/components/v3/students/NextStepEditor.tsx",
   ];
   for (const path of selectable) {
     const source = read(path);
@@ -137,7 +144,6 @@ test("solid red stays for the main action and every selection shares one accent-
     // Both boards' search (Enter on desktop, «Найти» on the phone).
     "src/components/v3/board/Board.tsx",
     "src/components/v3/universities/UniversityCatalogue.tsx",
-    "src/components/v3/profile/StudentsWorkspace.tsx",
   ];
   for (const path of filterSubmits) {
     const source = read(path);
@@ -149,12 +155,16 @@ test("solid red stays for the main action and every selection shares one accent-
     }
   }
 
-  // EVO Docs row actions are one quiet link style (24.09 finish review): not
-  // red and not a bordered button.
-  const directory = read("src/components/v3/profile/StudentCaseTable.tsx");
-  assert.match(directory, /className=\{ROW_ACTION\}>Анкета и формы<\/Link>/u);
-  const rowAction = directory.match(/const ROW_ACTION = "([^"]+)";/u)?.[1] ?? "";
-  assert.doesNotMatch(rowAction, /\bbg-accent\b|\bborder\b/u);
+  // EVO Docs (25.09.2026): one quiet row action «Открыть документы», and the
+  // former «Анкета и формы» / «Пакет ZIP» in the row menu — none of them red
+  // or a bordered button.
+  const docsTable = read("src/components/v3/students/StudentsDocsTable.tsx");
+  const openDocuments = docsTable.match(/data-queue-open=""\s+className="([^"]+)"\s*>\s*Открыть документы/u)?.[1] ?? "";
+  assert.ok(openDocuments, "«Открыть документы» is the row action");
+  assert.doesNotMatch(openDocuments, /\bbg-accent\b|\bborder\b/u);
+  const docsMenu = read("src/components/v3/students/DocsRowMenu.tsx");
+  assert.match(docsMenu, /className=\{MENU_ITEM\}>Анкета и формы<\/Link>/u);
+  assert.doesNotMatch(docsMenu.match(/const MENU_ITEM = "([^"]+)";/u)?.[1] ?? "", /\bbg-accent\b|\bborder\b/u);
   const notifications = read("src/components/v3/StaffNotifications.tsx");
   assert.doesNotMatch(notifications, /\bbg-accent\b/u);
   assert.match(notifications, /aria-label=\{count && count !== "0" \? `Уведомления: \$\{count\} непрочитанных` : "Уведомления"\}/u);
@@ -302,22 +312,27 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
     assert.doesNotMatch(read(path), ROLE_CLASS, `${path} is shared with the portal and keeps its Tailwind utilities`);
   }
 
-  // «Студенты» (фасеты и таблица, #1050) — на тех же ролях: заголовки групп
-  // фасетов — t-item, подписи чисел и шапка таблицы — t-caption, имя — t-item,
-  // строка «направление · уровень» — t-meta. Числа — табличные цифры Golos,
-  // JetBrains Mono — только даты в колонке «Срок» и в замещении куратора.
-  const students = read("src/components/v3/profile/StudentsWorkspace.tsx");
-  assert.match(students, /<h2 id=\{headingId\} className="t-item text-fg">\{group\.title\}<\/h2>/u);
-  assert.match(students, /className="t-caption text-fg-3">\{group\.countLabel\}/u);
-  assert.match(students, /На странице: <span className="tabular-nums text-fg-2">/u);
-  assert.doesNotMatch(students, /font-mono/u, "facet counts are Golos tabular digits");
-  const caseTable = read("src/components/v3/profile/StudentCaseTable.tsx");
+  // «Студенты» (рабочая очередь, 25.09.2026) — на тех же ролях: заголовок
+  // группы по сроку — t-item, шапка таблицы — t-caption, имя — t-item, строка
+  // «направление · уровень» — t-meta. Числа — табличные цифры Golos,
+  // JetBrains Mono — только даты срока и замещения куратора.
+  const caseTable = read("src/components/v3/students/StudentsQueueTable.tsx");
   assert.match(caseTable, /const HEAD = "[^"]*\bt-caption text-fg-2\b[^"]*";/u);
-  assert.match(caseTable, /const NAME_LINK = "[^"]*\bt-item text-fg\b[^"]*";/u);
-  assert.match(caseTable, /<span className="block t-meta text-fg-2 @3xl:truncate" title=\{meta\}>/u);
-  assert.equal(caseTable.match(/\bfont-mono\b/gu)?.length, 2, "only the two due-date <time> elements are monospace");
+  assert.match(caseTable, /className="block truncate t-item text-fg before:absolute before:inset-0/u);
+  assert.match(caseTable, /<span className="block truncate t-meta text-fg-2" title=\{meta\}>/u);
+  // The due band is opaque over its full height and owns its hairline (25.09 finish review).
+  assert.match(caseTable, /className="flex flex-wrap items-baseline gap-x-1\.5 border-b border-border bg-bg py-1\.5 ps-3 text-start t-item"/u);
+  assert.match(caseTable, /<span className="font-normal tabular-nums text-fg-3">· \{band\.count\}<\/span>/u);
+  // Dates only — the due day and, when sorted by update, «обн. ДД.ММ» — share one mono constant.
+  assert.equal(caseTable.match(/\bfont-mono\b/gu)?.length, 1, "one mono class for the row's dates");
+  assert.match(caseTable, /const DATE = "font-mono tabular-nums";/u);
+  assert.equal(caseTable.match(/className=\{`?\$?\{?DATE\b/gu)?.length, 2, "the due <time> and the update <time>");
+  for (const path of ["src/components/v3/students/StudentsQueueHead.tsx", "src/components/v3/queue/QueueViewTabs.tsx", "src/components/v3/queue/FilterMenu.tsx"]) {
+    assert.doesNotMatch(read(path), /font-mono/u, `${path}: counts are Golos tabular digits`);
+  }
   const coveragePanel = read("src/components/v3/profile/CuratorCoveragePanel.tsx");
-  assert.match(coveragePanel, /<h2 id="curator-coverage-title" className="t-section text-fg">/u);
+  // Since 25.09 the coverage heading is the record heading of the queue panel.
+  assert.match(coveragePanel, /<h2 id="curator-coverage-title" tabIndex=\{-1\} data-queue-heading="" className="t-section text-fg xl:pe-10">/u);
   assert.doesNotMatch(coveragePanel, /font-mono/u, "workload counts are Golos tabular digits");
   assert.match(read("src/components/v3/profile/CoverageDueTime.tsx"), /className="whitespace-nowrap font-mono tabular-nums"/u);
   for (const path of ["src/components/v3/profile/CuratorCoveragePanel.tsx", "src/components/v3/profile/CuratorCoverageForm.tsx"]) {

@@ -1,7 +1,6 @@
 import { staffPresentationCan } from "../platform-access.ts";
 import "server-only";
 import type { ActivePlatformActor } from "../platform-auth";
-import { ADMISSIONS_DIRECTIONS, type AdmissionsSummary } from "../platform-admissions-playbook-contract.ts";
 import type { ApplicationPartnerDetails } from "@/components/v3/profile/types";
 
 export class AdmissionsSourceError extends Error {
@@ -14,18 +13,6 @@ function record(value: unknown): Record<string, unknown> {
 }
 function list(value: unknown, max = 500): unknown[] { return Array.isArray(value) && value.length <= max ? value : invalid(); }
 function uuid(value: unknown): string { return typeof value === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value) ? value : invalid(); }
-function choice<T extends string>(value: unknown, values: readonly T[]): T { return typeof value === "string" && values.includes(value as T) ? value as T : invalid(); }
-function count(value: unknown): number { return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : invalid(); }
-
-export function normalizeAdmissionsSummary(input: unknown): AdmissionsSummary {
-  const row = record(input);
-  const stock = list(row.stock, 6).map((value) => {
-    const item = record(value);
-    return { direction: choice(item.direction, [...ADMISSIONS_DIRECTIONS, "unknown"]), active: count(item.active), overdue: count(item.overdue), awaiting_ack: count(item.awaiting_ack), needs_curator: count(item.needs_curator) };
-  });
-  if (new Set(stock.map((item) => item.direction)).size !== stock.length) return invalid();
-  return { stock };
-}
 
 export async function admissionsRpc(name: string, args: Record<string, unknown> = {}): Promise<unknown> {
   const { createSupabaseServerClient } = await import("../supabase/server");
@@ -36,10 +23,6 @@ export async function admissionsRpc(name: string, args: Record<string, unknown> 
 }
 function staff(actor: ActivePlatformActor): void {
   if (!staffPresentationCan(actor, "admissions.read")) throw new AdmissionsSourceError("denied");
-}
-export async function readAdmissionsSummary(actor: ActivePlatformActor, params: { direction?: string; curatorMembershipId?: string }): Promise<AdmissionsSummary> {
-  staff(actor);
-  return normalizeAdmissionsSummary(await admissionsRpc("admissions_direction_summary_v1", { p_direction: params.direction ?? null, p_curator_membership_id: params.curatorMembershipId ?? null }));
 }
 
 /**

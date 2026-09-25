@@ -19,6 +19,10 @@ import { PageHeader } from "@/components/ui";
  * окна под верхней панелью (`AppShell` задаёт её на маршрутах досок): шапка и
  * строка инструментов стоят сверху, доска получает оставшуюся высоту, и её
  * колонки прокручиваются внутри себя, а не страница.
+ *
+ * `dense` — рабочая очередь (решение владельца 25.09.2026, «Студенты»):
+ * отступ над заголовком и между заголовком и вкладками вдвое меньше, чтобы
+ * первый экран отдавал место строкам, а не шапке.
  */
 export function PartShell({
   title,
@@ -27,6 +31,7 @@ export function PartShell({
   action,
   width = "wide",
   fill = false,
+  dense = false,
   children,
 }: {
   title: string;
@@ -37,6 +42,8 @@ export function PartShell({
   width?: "wide" | "narrow" | "board";
   /** Экран занимает высоту окна: список и лента прокручиваются внутри себя. */
   fill?: boolean;
+  /** Плотная шапка рабочей очереди: вдвое меньше воздуха над и под заголовком. */
+  dense?: boolean;
   children: React.ReactNode;
 }) {
   if (width === "board") {
@@ -53,11 +60,11 @@ export function PartShell({
     <main
       className={`mx-auto w-full px-4 sm:px-6 ${
         width === "narrow" ? "max-w-[860px]" : "max-w-[1240px]"
-      } ${fill ? "flex h-dvh flex-col py-6" : "py-8"}`}
+      } ${fill ? "flex h-dvh flex-col py-6" : dense ? "pb-8 pt-4" : "py-8"}`}
     >
       <PageHeader title={title} count={count} description={description} action={action} />
 
-      <div className={fill ? "mt-5 flex min-h-0 flex-1 flex-col" : "mt-6"}>{children}</div>
+      <div className={fill ? "mt-5 flex min-h-0 flex-1 flex-col" : dense ? "mt-3" : "mt-6"}>{children}</div>
     </main>
   );
 }

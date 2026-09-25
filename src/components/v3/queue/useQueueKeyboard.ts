@@ -9,6 +9,8 @@ import { QUEUE_SEARCH_SELECTOR } from "./QueueToolbar";
 /** Строка очереди: `data-queue-row="<ключ>"`, внутри — ссылка `data-queue-open`. */
 export const QUEUE_ROW_SELECTOR = "[data-queue-row]";
 export const QUEUE_OPEN_SELECTOR = "[data-queue-open]";
+/** Необязательная вторая ссылка строки — запись целиком (Shift+Enter). */
+export const QUEUE_FULL_SELECTOR = "[data-queue-full]";
 
 export function typingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement
@@ -43,7 +45,8 @@ export function revealQueueRow(key: string): boolean {
 
 /**
  * Клавиатура очереди: «/» — поиск, ↑/↓ и j/k — строка, Enter — открыть
- * (обычная ссылка строки), «?» — подсказка с клавишами; Esc закрывает панель
+ * (обычная ссылка строки), Shift+Enter — вторая ссылка строки
+ * (`data-queue-full`), «?» — подсказка с клавишами; Esc закрывает панель
  * (`QueueDetailPanel`). Пока пользователь печатает, открыто всплывающее окно
  * или модальный диалог, клавиши не перехватываются. Открытая запись видна в
  * списке (`revealQueueRow`) — и при переходе по ссылке, и после обновления;
@@ -74,6 +77,15 @@ export function useQueueKeyboard({ openKey }: Readonly<{ openKey: string | null 
         event.preventDefault();
         search.focus();
         search.select();
+        return;
+      }
+      if (event.key === "Enter" && event.shiftKey) {
+        // Shift+Enter на строке открывает запись целиком (у «Студентов» — дело), а не новое окно.
+        const row = event.target instanceof Element ? event.target.closest(QUEUE_ROW_SELECTOR) : null;
+        const full = row?.querySelector<HTMLElement>(QUEUE_FULL_SELECTOR);
+        if (!full) return;
+        event.preventDefault();
+        full.click();
         return;
       }
       if (event.key === "?") {

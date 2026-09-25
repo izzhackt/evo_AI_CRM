@@ -5,14 +5,16 @@ import { Suspense } from "react";
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
 import { CaseHeader } from "@/components/v3/profile/CaseHeader";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
-import { StudentsWorkspace } from "@/components/v3/profile/StudentsWorkspace";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
-import type { StudentsCoverage, StudentsSummary } from "@/components/v3/profile/students-facets";
+import { buildStudentsQueueScreen } from "@/components/v3/students/StudentsQueueScreen";
+import { StudentsDirectoryFallback } from "@/components/v3/students/StudentsDirectoryFallback";
+import { parseStudentsQueueParams, parseStudentsReturnTo } from "@/components/v3/students/students-queue-view";
 import { UniversityProgramsTab } from "@/components/v3/profile/UniversityProgramsTab";
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
 import {
@@ -32,8 +34,8 @@ import {
   type PlatformCaseNoteCursor,
 } from "@/lib/platform-case-notes";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
-import { readAdmissionsSummary } from "@/lib/v3/admissions-source";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import {
@@ -50,6 +52,7 @@ import {
   type V3ProfileRouteLoadMode,
 } from "@/lib/v3/profile-route-load";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
+import { readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +129,62 @@ function buildProfileNotesHref(
   return `/v3/profile?${query.toString()}`;
 }
 
+
+/**
+ * Кто открывает очередь: Admin в своём интерфейсе и тот, кто назначает и
+ * замещает кураторов (`case.curator.assign` — то же условие, что у чтения
+ * нагрузки и команды замещения). Просмотр роли — ни то, ни другое.
+ */
+function studentsQueueActor(actor: ActivePlatformActor) {
+  const preview = isStaffPreview(actor);
+  return { admin: actor.systemRole === "admin" && !preview, coverage: !preview && staffHasPermission(actor, "case.curator.assign") };
+}
+
+/**
+ * «Студенты» и EVO Docs как рабочая очередь (миграция 241, PLAN_CHANGES
+ * «Студенты» PR 2): страница читает очередь, числа, задачи открытого дела и
+ * нагрузку кураторов, а экран собирает `buildStudentsQueueScreen`.
+ */
+async function studentsQueuePage(
+  actor: ActivePlatformActor,
+  parse: Exclude<ReturnType<typeof parseStudentsQueueParams>, Readonly<{ kind: "redirect" }>>,
+  query: ProfileSearchParams,
+  curatorsRead: Promise<readonly StudentPortalCuratorOption[]>,
+) {
+  const params = parse.params;
+  const [reads, curators] = await Promise.all([
+    parse.kind === "invalid" ? null : Promise.all([
+      readStudentsQueue(actor, params),
+      params.open ? readStudentsOpenTasks(actor, params.open) : Promise.resolve(null),
+      params.view === "curators" ? loadStudentsCoverage(actor, { ...query, ...params.coverage }, undefined) : Promise.resolve(null),
+      // Просмотр роли не отвечает на передачу (действие его отклоняет) — блок не читаем.
+      params.open && !isStaffPreview(actor) ? readStudentsHandoff(actor, params.open) : Promise.resolve(null),
+    ]),
+    curatorsRead,
+  ]);
+  const scopes = actor.assignments.map((assignment) => assignment.scope);
+  return buildStudentsQueueScreen({
+    params,
+    invalid: parse.kind === "invalid",
+    read: reads?.[0] ?? { page: null, counts: null, forbidden: false },
+    actor: studentsQueueActor(actor),
+    openTasks: reads?.[1] ?? null,
+    coverage: reads?.[2] ?? null,
+    handoff: reads?.[3] ?? null,
+    today: dayInOrganizationTimezone(new Date()),
+    curatorNames: curators.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
+    editor: {
+      admin: actor.systemRole === "admin" && !isStaffPreview(actor),
+      preview: isStaffPreview(actor),
+      routeManage: staffHasPermission(actor, "case.route.manage"),
+      broadScope: scopes.some((scope) => scope.kind === "organization" || scope.kind === "department" || scope.kind === "direction"),
+    },
+    recordScopes: scopes.filter((scope) => scope.kind === "record" && scope.resourceKind === "student_case" && scope.key).map((scope) => scope.key!),
+    createTask: !isStaffPreview(actor) && staffHasPermission(actor, "task.create"),
+    requestIds: { nextStep: randomUUID(), coverage: randomUUID() },
+  });
+}
+
 export default async function ProfilePart({
   searchParams,
 }: {
@@ -138,9 +197,12 @@ export default async function ProfilePart({
     && staffPresentationCan(actor, "admissions.read")
     && (isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"));
   const requestsReturnTo = parseRequestsReturnTo(singleSearchParam(params.returnTo));
-  const directoryHref = withDocsSection("/v3/profile", docsMode);
-  const withRequestsReturn = (href: string) => requestsReturnTo
-    ? `${href}${href.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(requestsReturnTo)}` : href;
+  // «К списку студентов» возвращает тот же вид очереди, фильтры, страницу и строку.
+  const studentsReturnTo = requestsReturnTo ? null : parseStudentsReturnTo(singleSearchParam(params.returnTo));
+  const listReturnTo = requestsReturnTo ?? studentsReturnTo;
+  const directoryHref = studentsReturnTo ?? withDocsSection("/v3/profile", docsMode);
+  const withRequestsReturn = (href: string) => listReturnTo
+    ? `${href}${href.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(listReturnTo)}` : href;
 
   // Lead and Student Case are different canonical identities. A requested
   // value is never substituted with the first picker row, and the two query
@@ -189,22 +251,18 @@ export default async function ProfilePart({
     : explicitTarget
       ? { kind: "target", target: explicitTarget }
       : { kind: "directory", params: directoryParams };
-  // «Студенты» (24.09.2026): числа фасетов и нагрузка кураторов читаются
-  // вместе со списком, а не отдельными панелями. Сводка берётся по всем
-  // направлениям (только куратор сужает её), чтобы у каждого направления было
-  // своё число; нет чтения — нет числа.
+  // «Студенты» (25.09.2026): очередь дел миграции 241 для Admin и куратора с
+  // полным чтением дел; Sales и просмотр роли «Продажи» (241 их не пускает)
+  // остаются на прежнем чтении с ограниченным итогом передачи.
   const directoryMode = routeMode.kind === "directory";
-  const summaryRead: Promise<StudentsSummary> = directoryMode && !docsMode && !directoryParams.invalid
-    && staffPresentationCan(actor, "admissions.read")
-    ? readAdmissionsSummary(actor, { curatorMembershipId: directoryParams.curatorMembershipId })
-      .catch(() => "unavailable" as const)
-    : Promise.resolve(null);
-  const coverageRead: Promise<StudentsCoverage> = directoryMode && !docsMode
-    ? loadStudentsCoverage(actor, params, directoryParams.curatorMembershipId)
-    : Promise.resolve({ kind: "hidden" });
+  const queueMode = staffPresentationCan(actor, "admissions.read") && staffHasPermission(actor, "case.read.full");
+  const queueParse = directoryMode && queueMode
+    ? parseStudentsQueueParams(params, docsMode ? "docs" : "queue", studentsQueueActor(actor))
+    : null;
+  // Прежние адреса (фасеты, сводка) и поиск по номеру дела — на новый адрес.
+  if (queueParse?.kind === "redirect") redirect(queueParse.href);
   const { directory, view } = await loadV3ProfileRoute(routeMode, {
-    readDirectory: (nextParams) =>
-      readV3ProfileCaseDirectory(actor, nextParams),
+    readDirectory: (nextParams) => queueMode ? Promise.resolve(null) : readV3ProfileCaseDirectory(actor, nextParams),
     readTarget: (target) => readProfileTarget(actor, target, noteCursor,
       singleSearchParam(params.tab) === "history" ? { cursor: activityCursor } : undefined),
   });
@@ -245,38 +303,30 @@ export default async function ProfilePart({
   const notesLatestHref = view && noteCursor
     ? withDocsSection(buildProfileNotesHref(view.details.routeTarget), docsMode)
     : null;
-  let studentPortalCurators: readonly StudentPortalCuratorOption[] = [];
-  let studentPortalCuratorsAvailable = true;
-  if (
+  // Имена кураторов (Admin) нужны и делу, и меню «Куратор ▾» очереди: очередь
+  // читается параллельно с ними.
+  const curatorsRead: Promise<Readonly<{ curators: readonly StudentPortalCuratorOption[]; available: boolean }>> =
     actor.systemRole === "admin" && !isStaffPreview(actor) &&
-    (directory || view?.details.admissions?.caseState === "pending")
-  ) {
-    try {
-      studentPortalCurators = await listStudentPortalActiveCurators(actor);
-    } catch {
-      studentPortalCuratorsAvailable = false;
-    }
-  }
-  const [facetSummary, coverage] = await Promise.all([summaryRead, coverageRead]);
+    (directoryMode || view?.details.admissions?.caseState === "pending")
+      ? listStudentPortalActiveCurators(actor).then((curators) => ({ curators, available: true }), () => ({ curators: [], available: false }))
+      : Promise.resolve({ curators: [], available: true });
+  const [curatorOptions, queuePage] = await Promise.all([
+    curatorsRead,
+    queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
+  ]);
+  const studentPortalCurators = curatorOptions.curators;
+  const studentPortalCuratorsAvailable = curatorOptions.available;
+  // «Университеты и бланки» — редкий путь: тихая ссылка справа от заголовка, не красная.
+  const docsAction = docsMode && directoryMode && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage")
+    ? <Link href="/v3/universities" className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">Университеты и бланки</Link>
+    : undefined;
 
   return (
-    <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Студенты"}>
+    <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Студенты"} count={queuePage?.count ?? null} action={docsAction} dense={queuePage !== null}>
       <div className="space-y-6">
-        {docsMode && directory && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage") ? <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/v3/universities" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">Университеты и бланки</Link>
-        </div> : null}
+        {queuePage?.content ?? null}
         {directory ? (
-          <StudentsWorkspace
-            directory={directory}
-            params={directoryParams}
-            docsMode={docsMode}
-            allowAdmissionsFilters={staffPresentationCan(actor, "admissions.read")}
-            summary={facetSummary}
-            curators={studentPortalCurators}
-            coverage={coverage}
-            today={dayInOrganizationTimezone(new Date())}
-            coverageRequestId={randomUUID()}
-          />
+          <StudentsDirectoryFallback directory={directory} params={directoryParams} docsMode={docsMode} />
         ) : null}
         {view ? (
           <>

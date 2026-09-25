@@ -320,9 +320,13 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   assert.match(caseTable, /const HEAD = "[^"]*\bt-caption text-fg-2\b[^"]*";/u);
   assert.match(caseTable, /className="block truncate t-item text-fg before:absolute before:inset-0/u);
   assert.match(caseTable, /<span className="block truncate t-meta text-fg-2" title=\{meta\}>/u);
-  assert.match(caseTable, /className="flex flex-wrap items-baseline gap-x-1\.5 py-2 ps-3 text-start t-item"/u);
+  // The due band is opaque over its full height and owns its hairline (25.09 finish review).
+  assert.match(caseTable, /className="flex flex-wrap items-baseline gap-x-1\.5 border-b border-border bg-bg py-1\.5 ps-3 text-start t-item"/u);
   assert.match(caseTable, /<span className="font-normal tabular-nums text-fg-3">· \{band\.count\}<\/span>/u);
-  assert.equal(caseTable.match(/\bfont-mono\b/gu)?.length, 1, "only the due-date <time> is monospace");
+  // Dates only — the due day and, when sorted by update, «обн. ДД.ММ» — share one mono constant.
+  assert.equal(caseTable.match(/\bfont-mono\b/gu)?.length, 1, "one mono class for the row's dates");
+  assert.match(caseTable, /const DATE = "font-mono tabular-nums";/u);
+  assert.equal(caseTable.match(/className=\{`?\$?\{?DATE\b/gu)?.length, 2, "the due <time> and the update <time>");
   for (const path of ["src/components/v3/students/StudentsQueueHead.tsx", "src/components/v3/queue/QueueViewTabs.tsx", "src/components/v3/queue/FilterMenu.tsx"]) {
     assert.doesNotMatch(read(path), /font-mono/u, `${path}: counts are Golos tabular digits`);
   }

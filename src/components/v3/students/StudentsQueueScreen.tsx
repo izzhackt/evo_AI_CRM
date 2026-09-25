@@ -40,7 +40,17 @@ export type StudentsQueueScreenInput = Readonly<{
   requestIds: Readonly<{ nextStep: string; coverage: string }>;
 }>;
 
-const DIRECTORY = "min-w-0 space-y-3";
+const DIRECTORY = "min-w-0 space-y-2";
+
+/**
+ * Шапка очереди — вкладки, строка инструментов и заметка о числах — во всю
+ * ширину над списком и панелью: открытая панель не переносит ни вкладки, ни
+ * фильтры, и первая строка списка не прыгает. Между вкладками и строкой
+ * инструментов — половина прежнего воздуха.
+ */
+function QueueHead({ children }: Readonly<{ children: ReactNode }>) {
+  return <div className="space-y-1.5" data-testid="v3-students-queue-head">{children}</div>;
+}
 
 function docsEmptyTitle(view: StudentsDocsView, filtered: boolean): string {
   if (view === "review") return "Документов на проверку нет";
@@ -63,7 +73,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
     return {
       count: null,
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">
-        <StudentsTabs tabs={tabs} />
+        <QueueHead><StudentsTabs tabs={tabs} /></QueueHead>
         <StudentsFilterRejected resetHref={studentsQueueHref(params)} />
       </div>,
     };
@@ -84,12 +94,14 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       count: tabCounts[view],
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">
         <QueueKeyboard />
-        <StudentsTabs tabs={studentsDocsTabs(params, tabCounts)} />
-        {toolbar}
-        {countsNotice}
+        <QueueHead>
+          <StudentsTabs tabs={studentsDocsTabs(params, tabCounts)} />
+          {toolbar}
+          {countsNotice}
+        </QueueHead>
         {page === null ? <QueueError text="Не удалось загрузить дела для EVO Docs." retryHref={here} />
           : shown.length === 0 ? <QueueEmpty title={docsEmptyTitle(view, filtered)} />
-          : <StudentsDocsTable rows={shown} caption={`${STUDENTS_DOCS_VIEW_LABELS[view]}: ${shown.length} из прочитанных дел`} returnTo={here} />}
+          : <StudentsDocsTable rows={shown} view={view} caption={`${STUDENTS_DOCS_VIEW_LABELS[view]}: ${shown.length} из прочитанных дел`} returnTo={here} />}
         {page && (params.cursor || page.nextCursor) ? (
           <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
             {/* У 241 нет отбора по документам: вкладка проверки отбирает строки внутри чтения по 100 дел. */}
@@ -107,11 +119,11 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
   }
 
   const curators = params.view === "curators";
-  const head = <>
+  const head = <QueueHead>
     <StudentsTabs tabs={studentsQueueTabs(params, read.counts, admin)} />
     {curators ? null : toolbar}
     {curators ? null : countsNotice}
-  </>;
+  </QueueHead>;
   if (curators) {
     return {
       count: null,

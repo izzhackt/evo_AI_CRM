@@ -308,7 +308,7 @@ export default async function ProfilePart({
     : undefined;
 
   return (
-    <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Студенты"} count={queuePage?.count ?? null} action={docsAction}>
+    <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Студенты"} count={queuePage?.count ?? null} action={docsAction} dense={queuePage !== null}>
       <div className="space-y-6">
         {queuePage?.content ?? null}
         {directory ? (

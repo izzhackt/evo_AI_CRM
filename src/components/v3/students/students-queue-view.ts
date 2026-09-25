@@ -29,7 +29,8 @@ import {
   type StudentCaseQueueView,
 } from "../../../lib/platform-student-case-queue-contract.ts";
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
-import { dueBucket, queueDayWithWeekday, weekEnd } from "../queue/due-bucket.ts";
+import { dueBucket, formatQueueDay, queueDayWithWeekday, weekEnd } from "../queue/due-bucket.ts";
+import { shortPersonName } from "../queue/person-name.ts";
 
 export const STUDENTS_PATH = "/v3/profile";
 
@@ -475,15 +476,39 @@ export type StudentsSignal = Readonly<{ key: string; text: string; tone: "danger
 
 const NBSP = "\u00a0";
 
+export type StudentsSignalOptions = Readonly<{
+  /**
+   * Колонки «Куратор» нет (вид «Мои»: там в каждой строке были бы «Вы») —
+   * исключения куратора переходят в сигналы: «ждёт принятия», «нужен
+   * куратор» и чужое дело («куратор: Имя Ф.»).
+   */
+  curatorWords?: boolean;
+  /** Сортировка по обновлению: групп по сроку нет, просроченный шаг назван словом. */
+  overdueStep?: boolean;
+}>;
+
 /**
  * «Сигналы» строки — словами и только из самой строки 241: просроченные
  * задачи, документы исправить или отклонены, просроченный дедлайн (флаг
  * внимания без просроченных задач и шага), «ждём партнёра». Документы «на
  * проверке» — работа проверяющего: они в строке документов панели и в EVO
- * Docs, а не в сигналах. «Ждёт принятия» и «нужен куратор» — в колонке «Куратор».
+ * Docs, а не в сигналах. «Ждёт принятия» и «нужен куратор» — в колонке
+ * «Куратор», а без неё (`curatorWords`) — первыми сигналами.
  */
-export function studentsRowSignals(row: Pick<StudentCaseQueueRow, "overdueTaskCount" | "documents" | "attentionFlags" | "dueBand">): readonly StudentsSignal[] {
+export function studentsRowSignals(
+  row: Pick<StudentCaseQueueRow, "overdueTaskCount" | "documents" | "attentionFlags" | "dueBand">
+    & Partial<Pick<StudentCaseQueueRow, "isMine" | "currentCuratorMembershipId" | "currentCuratorDisplayName">>,
+  options: StudentsSignalOptions = {},
+): readonly StudentsSignal[] {
   const signals: StudentsSignal[] = [];
+  if (options.curatorWords) {
+    if (row.attentionFlags.includes("awaiting_ack")) signals.push({ key: "awaiting", tone: "warn", text: "ждёт принятия" });
+    if (row.attentionFlags.includes("needs_curator")) signals.push({ key: "needs_curator", tone: "danger", text: "нужен куратор" });
+    else if (row.currentCuratorMembershipId && row.isMine === false) {
+      signals.push({ key: "curator", tone: "muted", text: `куратор:${NBSP}${shortPersonName(row.currentCuratorDisplayName ?? "без имени")}` });
+    }
+  }
+  if (options.overdueStep && row.dueBand === "overdue") signals.push({ key: "step", tone: "danger", text: "Шаг просрочен" });
   const tasks = row.overdueTaskCount;
   if (tasks > 0) {
     signals.push({ key: "tasks", tone: "danger", text: `${tasks}${NBSP}${russianPlural(tasks, "задача просрочена", "задачи просрочены", "задач просрочено")}` });
@@ -522,6 +547,34 @@ export function studentsDocumentsLine(documents: StudentCaseChecklistCounts | nu
   if (documents.rejected) parts.push({ key: "rejected", tone: "warn", text: `${documents.rejected}${NBSP}${russianPlural(documents.rejected, "отклонён", "отклонены", "отклонено")}` });
   if (documents.missing) parts.push({ key: "missing", tone: "muted", text: `${documents.missing}${NBSP}не${NBSP}загружено` });
   return { summary: `${documents.approved} из ${documents.total} принято`, parts };
+}
+
+/**
+ * Ячейка «Документы» EVO Docs: первым — число, которое определяет вкладку
+ * («2 на проверке» на «На проверку», «1 исправить · 1 отклонён» на
+ * «Исправить»), затем остальное тише. На «Все» первым идёт «7 из 12 принято».
+ * null — нет права читать документы.
+ */
+export type StudentsDocsPart = Readonly<{ key: string; text: string; tone: "default" | "danger" | "warn" | "muted" }>;
+
+export function studentsDocsCell(
+  view: StudentsDocsView,
+  documents: StudentCaseChecklistCounts | null,
+): Readonly<{ lead: readonly StudentsDocsPart[]; rest: readonly StudentsDocsPart[] }> | null {
+  const line = studentsDocumentsLine(documents);
+  if (line === null) return null;
+  const summary: StudentsDocsPart = { key: "summary", tone: "default", text: line.summary };
+  const leadKeys: readonly string[] = view === "review" ? ["review"] : view === "fix" ? ["fix", "rejected"] : [];
+  const lead = line.parts.filter((part) => leadKeys.includes(part.key)).map((part) => part.key === "review" ? { ...part, tone: "default" as const } : part);
+  if (lead.length === 0) return { lead: [summary], rest: line.parts };
+  return { lead, rest: [{ ...summary, tone: "muted" }, ...line.parts.filter((part) => !leadKeys.includes(part.key))] };
+}
+
+/** День последнего изменения дела (сортировка «по обновлению»): «обн. 22.09» по Бишкеку. */
+export function studentsUpdatedDay(updatedAt: string, today: string): Readonly<{ dateTime: string; text: string }> | null {
+  const moment = new Date(updatedAt);
+  if (!Number.isFinite(moment.getTime())) return null;
+  return { dateTime: updatedAt, text: formatQueueDay(dayInOrganizationTimezone(moment), today) };
 }
 
 // --- Редактор «Следующего шага» -------------------------------------------

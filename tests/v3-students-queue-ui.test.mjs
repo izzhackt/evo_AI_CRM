@@ -14,11 +14,13 @@ import {
   parseStudentsReturnTo,
   studentsBands,
   studentsCaseHref,
+  studentsDocsCell,
   studentsDocumentsLine,
   studentsListHref,
   studentsQueueHref,
   studentsQueueTabs,
   studentsRowSignals,
+  studentsUpdatedDay,
 } from "../src/components/v3/students/students-queue-view.ts";
 import { coverageDue, coverageHref, formatDueOn } from "../src/components/v3/profile/students-coverage-view.ts";
 import { dueBucket, weekEnd } from "../src/components/v3/queue/due-bucket.ts";
@@ -263,9 +265,9 @@ test("the queue is one semantic table: caption, column headers, a row header per
   assert.doesNotMatch(html, /Индивидуальный этап сопровождения/u);
   assert.match(html, /<time dateTime="2026-09-19" class="font-mono tabular-nums [^"]*text-danger">19\.09<\/time><span class="[^"]*text-danger">прошёл<\/span>/u);
   assert.match(html, /<time dateTime="2026-09-24" class="font-mono tabular-nums [^"]*text-fg">24\.09<\/time><span class="[^"]*text-fg-3">завтра<\/span>/u);
-  assert.match(html, /<span class="t-meta text-fg-3">без срока<\/span>/u);
+  assert.match(html, /<span class="t-meta text-fg-3[^"]*">без срока<\/span>/u);
   // Awaiting acceptance under the curator; a case without one says it needs one.
-  assert.match(html, /<span class="font-medium text-warn @min-\[60rem\]\/students:block">ждёт принятия<\/span>/u);
+  assert.match(html, /<span class="font-medium text-warn @min-\[36rem\]\/students:block">ждёт принятия<\/span>/u);
   // «Требуют действия» holds the pending cases that need one.
   assert.match(surfaces.get("admin-default"), /<span class="font-medium text-danger">нужен куратор<\/span>/u);
   // Signals are words from the row.
@@ -273,6 +275,38 @@ test("the queue is one semantic table: caption, column headers, a row header per
   assert.match(html, /2\u00a0документа исправить/u);
   assert.match(html, /Просрочен дедлайн/u);
   assert.match(html, /Ждём партнёра/u);
+  // Signals are never cut: no clamp or ellipsis on the signals cell; each signal wraps whole.
+  const source = read("src/components/v3/students/StudentsQueueTable.tsx");
+  const signalsCell = source.match(/function SignalsCell[\s\S]*?\n\}\n/u)?.[0] ?? "";
+  assert.ok(signalsCell, "SignalsCell");
+  assert.doesNotMatch(signalsCell, /line-clamp|truncate|text-ellipsis/u);
+  assert.match(signalsCell, /className=\{`inline-block max-w-full font-medium \$\{TONE\[signal\.tone\]\}`\}/u);
+  // Rows settle at 44 px when the step fits one line: 4 px per cell from 60rem, the hairline is an inset shadow.
+  assert.match(source, /const CELL = "min-w-0 px-3 @min-\[36rem\]\/students:px-2 @min-\[60rem\]\/students:py-1";/u);
+  assert.match(source, /shadow-\[inset_0_-1px_0_var\(--border\)\][^`]*@min-\[60rem\]\/students:py-0/u);
+  // The column header keeps the rows' tracks and gaps and stays visible beside the panel (from 30rem).
+  assert.match(source, /const HEAD_GRID = `grid grid-cols-\[minmax\(0,1fr\)_auto\] gap-x-3 \$\{MID_COLUMNS\} \$\{WIDE_COLUMNS\}`;/u);
+  assert.match(html, /<thead role="rowgroup" class="sr-only @min-\[30rem\]\/students:not-sr-only/u);
+});
+
+test("«Мои» has no curator column: its exceptions become signals, and the update sort shows its key", () => {
+  const mine = surfaces.get("curator-mine");
+  const headers = [...mine.matchAll(/<th role="columnheader" scope="col"[^>]*>([\s\S]*?)<\/th>/gu)].map((match) => texts(match[1]));
+  assert.deepEqual(headers, ["Студент", "Следующий шаг", "Срок", "Этап", "Сигналы", "Дело"]);
+  assert.doesNotMatch(mine, />Вы</u, "no «Вы» on every row");
+  const base = { overdueTaskCount: 0, documents: null, attentionFlags: [], dueBand: "later", isMine: true, currentCuratorMembershipId: MEMBER, currentCuratorDisplayName: "Имя Фамилия" };
+  assert.deepEqual(studentsRowSignals({ ...base, attentionFlags: ["awaiting_ack"] }), [], "with the column the words stay in it");
+  assert.deepEqual(studentsRowSignals({ ...base, attentionFlags: ["awaiting_ack"] }, { curatorWords: true }).map((signal) => [signal.text, signal.tone]), [["ждёт принятия", "warn"]]);
+  assert.deepEqual(studentsRowSignals({ ...base, isMine: false }, { curatorWords: true }).map((signal) => signal.text), ["куратор:\u00a0Имя Ф."]);
+  assert.deepEqual(studentsRowSignals({ ...base, currentCuratorMembershipId: null, isMine: false, attentionFlags: ["needs_curator"] }, { curatorWords: true }).map((signal) => [signal.text, signal.tone]), [["нужен куратор", "danger"]]);
+  // Sorted by update there are no due bands: the overdue step is a word and the row shows «обн. ДД.ММ».
+  assert.deepEqual(studentsRowSignals({ ...base, dueBand: "overdue" }, { overdueStep: true }).map((signal) => signal.text), ["Шаг просрочен"]);
+  assert.deepEqual(studentsUpdatedDay("2026-09-22T20:30:00Z", "2026-09-23"), { dateTime: "2026-09-22T20:30:00Z", text: "23.09" }, "the Bishkek day");
+  assert.equal(studentsUpdatedDay("not a date", "2026-09-23"), null);
+  const updated = surfaces.get("admin-updated");
+  assert.match(updated, /обн\. <time dateTime="[^"]+" class="font-mono tabular-nums">\d\d\.\d\d<\/time>/u);
+  assert.match(updated, />Шаг просрочен</u);
+  assert.doesNotMatch(surfaces.get("admin-active"), /обн\. <time/u, "the due sort keeps the due word");
 });
 
 test("row signals and the documents line are words from the row, never guesses", () => {
@@ -340,9 +374,22 @@ test("the editor validates like the SQL and submits exactly the action's fields"
   assert.equal(form.get("next_action_due_on"), "2026-09-25");
   assert.match(source, /setRequestId\(state\.requestId\);/u);
   assert.match(source, /if \(busy\.current\) return;\s+busy\.current = true;/u);
-  // «Сохранено» only from the receipt; the conflict offers «Обновить».
+  // «Сохранено» only from the receipt. A version conflict makes «Обновить» the dark primary and locks
+  // «Сохранить» and «Снять шаг» until the case is re-read; the typed text stays and says so.
   assert.match(source, /if \(state\.status === "saved" && state\.receipt\)/u);
-  assert.match(source, /feedback\.stale \? <button type="button" onClick=\{\(\) => router\.refresh\(\)\} className=\{QUEUE_SECONDARY\}>Обновить<\/button>/u);
+  assert.match(source, /const locked = Boolean\(server\?\.stale\) && \(!refreshed \|\| refreshing\);/u);
+  assert.match(source, /\{locked \? \(\s*<button type="button" onClick=\{refresh\} className=\{QUEUE_CONFIRM\}>Обновить<\/button>\s*\) : null\}/u);
+  assert.match(source, /<button type="submit" disabled=\{pending \|\| !dirty \|\| locked\} className=\{locked \? QUEUE_SECONDARY : QUEUE_CONFIRM\}>/u);
+  assert.match(source, /disabled=\{pending \|\| locked\} onClick=\{\(\) => void send\("", ""\)\}/u);
+  assert.match(source, /\{server\.stale && text\.trim\(\) \? <span className="text-fg"> Ваш текст остался в поле\.<\/span> : null\}/u);
+  assert.match(source, /startRefresh\(\(\) => router\.refresh\(\)\);/u);
+  // Input errors sit directly under their own field and are wired to it.
+  assert.match(source, /aria-invalid=\{stepError \? true : undefined\}\s+aria-describedby=\{stepError \? stepErrorId : undefined\}\s+className=\{STEP_FIELD\}\s+\/>\s+\{stepError \? <p id=\{stepErrorId\} role="alert"/u);
+  assert.match(source, /aria-invalid=\{dateError \? true : undefined\}\s+aria-describedby=\{dateError \? dateErrorId : undefined\}/u);
+  // The step field never collapses below three lines; the five due choices are one 44 px button group.
+  assert.match(source, /const STEP_FIELD = "mt-1 block min-h-24 /u);
+  assert.match(source, /const SEGMENT = "v3-choice relative -ms-px inline-flex min-h-11 min-w-0 flex-auto /u);
+  assert.match(source, /<div className="mt-1 flex">\s+\{chips\.map/u);
   assert.match(read("src/lib/v3/wording.ts"), /stale: "Шаг уже изменили: другой сотрудник, другая вкладка или правка дела\. Обновите\.",/u);
   {
     assert.equal(editor.nextStepInputError("", "today", "", true), "Напишите шаг или нажмите «Снять шаг»: срок без шага не сохраняется.");
@@ -367,8 +414,12 @@ test("the editor validates like the SQL and submits exactly the action's fields"
 
 test("«Быстрый просмотр» is the queue panel: record heading, the case with returnTo, tasks and documents", () => {
   const html = surfaces.get("admin-panel");
-  // The list and the panel share the grid from 1280 px; the open row is marked.
-  assert.match(html, /^<div class="xl:grid xl:grid-cols-\[minmax\(0,1fr\)_26rem\] xl:items-start xl:gap-6">/u);
+  // The head (tabs, toolbar) spans the full width above the grid, so opening the panel
+  // neither wraps it nor moves the first row; list and panel share the grid from 1280 px.
+  assert.match(html, /^<div class="min-w-0 space-y-2" data-testid="v3-student-case-directory"><div class="space-y-1\.5" data-testid="v3-students-queue-head">/u);
+  const grid = html.indexOf('<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6">');
+  assert.ok(grid > html.indexOf('data-testid="queue-toolbar"'), "the grid starts below the toolbar");
+  assert.ok(html.indexOf("<dialog") > grid);
   const row = html.slice(html.indexOf(`data-queue-row="${CASE}"`));
   assert.match(row, /^[^>]*class="[^"]*\bbg-surface-2\b/u);
   assert.match(row, /aria-current="true"/u);
@@ -414,6 +465,19 @@ test("toolbar: search «/», filters with counts inside menus, sort visible, «�
   assert.match(filtered, /Этап: <span class="text-fg">Документы<\/span>/u);
   assert.match(filtered, /aria-label="Убрать фильтр: Направление: Китай"/u);
   assert.match(filtered, /href="\/v3\/profile\?view=active"[^>]*>\s*Сбросить/u);
+  // One row: search shrinks to 12rem before filters wrap; «?» sits at the end of the first line, never alone.
+  const toolbarSource = read("src/components/v3/queue/QueueToolbar.tsx");
+  assert.match(toolbarSource, /<div role="group" aria-label="Поиск и фильтры" className="flex items-start gap-2" data-testid="queue-toolbar">\s+<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">/u);
+  assert.match(toolbarSource, /className="min-w-48 flex-1 basis-48 md:max-w-sm"/u);
+  assert.match(toolbarSource, /<\/QueueFilterDisclosure>\s+<\/div>\s+<QueueKeyboardHelp extra=\{keys\} \/>/u);
+  // The view tabs never wrap: they scroll inside their own row, the current tab is brought into view, edges fade.
+  const tabs = read("src/components/v3/queue/QueueViewTabs.tsx");
+  assert.match(tabs, /<ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">/u);
+  assert.doesNotMatch(tabs, /flex-wrap/u);
+  const strip = read("src/components/v3/queue/QueueTabStrip.tsx");
+  assert.match(strip, /querySelector<HTMLElement>\('\[aria-current="page"\]'\)/u);
+  assert.match(strip, /data-fade-end=\{edges\.end \? "" : undefined\}/u);
+  assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \.v3-tab-strip\[data-fade-end\] \{\s+mask-image:/u);
   // The page-specific key lives in «?», not as permanent text.
   assert.match(html, /<kbd[^>]*>Shift<\/kbd><kbd[^>]*>Enter<\/kbd><\/dt><dd class="t-body-compact text-fg-2">открыть дело<\/dd>/u);
   assert.match(read("src/components/v3/queue/useQueueKeyboard.ts"), /if \(event\.key === "Enter" && event\.shiftKey\) \{[\s\S]*querySelector<HTMLElement>\(QUEUE_FULL_SELECTOR\)[\s\S]*full\.click\(\);/u);
@@ -452,6 +516,17 @@ test("EVO Docs is a document review queue without work statuses", () => {
   assert.match(menu, /anketaHref=\{studentsCaseHref\(row\.studentCaseId, \{ docs: true, tab: "anketa", returnTo \}\)\}/u);
   assert.match(menu, /packetHref=\{`\$\{studentsCaseHref\(row\.studentCaseId, \{ docs: true, tab: "route", returnTo \}\)\}&panel=packets#partner-packets`\}/u);
   assert.match(surfaces.get("docs-all"), /Нет доступа к документам/u);
+  // The row action looks like a link: text and arrow, underlined on row hover and on focus, one line.
+  assert.match(menu, /className="inline-flex min-h-11 items-center gap-1\.5 whitespace-nowrap t-label text-fg underline-offset-4 before:absolute before:inset-0 before:content-\[''\] group-hover:underline focus-visible:underline"/u);
+  assert.match(html, /Порядок: сначала недавно изменённые дела/u, "the order is said, not implied");
+  // The documents cell leads with the number that defines the tab.
+  const documents = { total: 12, approved: 7, submitted: 2, correctionRequired: 1, rejected: 1, missing: 1 };
+  assert.deepEqual(studentsDocsCell("review", documents).lead.map((part) => part.text), ["2\u00a0на проверке"]);
+  assert.deepEqual(studentsDocsCell("review", documents).rest.map((part) => part.text), ["7 из 12 принято", "1\u00a0исправить", "1\u00a0отклонён", "1\u00a0не\u00a0загружено"]);
+  assert.deepEqual(studentsDocsCell("fix", documents).lead.map((part) => [part.text, part.tone]), [["1\u00a0исправить", "warn"], ["1\u00a0отклонён", "warn"]]);
+  assert.deepEqual(studentsDocsCell("all", documents).lead.map((part) => part.text), ["7 из 12 принято"]);
+  assert.equal(studentsDocsCell("review", null), null);
+  assert.match(surfaces.get("docs-fix"), /<span class="block t-item"><span><span class="inline-block font-medium text-warn">\d\u00a0(?:исправить|отклонён)/u);
   const tabs = html.match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
   assert.deepEqual([...tabs.matchAll(/<a [^>]*>([^<]+)/gu)].map((match) => match[1]), ["На проверку", "Исправить", "Все"]);
 });

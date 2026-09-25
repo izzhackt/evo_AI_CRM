@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useId, useRef, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
 
 import { saveCaseNextActionAction, type CaseNextActionActionState } from "@/lib/platform-case-next-action-actions";
 import {
@@ -16,11 +16,25 @@ import { QUEUE_CONFIRM, QUEUE_FIELD, QUEUE_SECONDARY } from "../queue/queue-butt
 import { nextStepChoiceFor, nextStepDueFor, nextStepForm, nextStepInputError, oneLineStep, type NextStepEditorRow } from "./next-step-input";
 import type { NextStepDueChoice } from "./students-queue-view";
 
-const CHIP = "v3-choice inline-flex min-h-11 items-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
-/** Шаг — одна строка, но длинный текст виден целиком: поле в несколько строк без переносов. */
-const STEP_FIELD = "mt-1 block min-h-11 w-full min-w-0 resize-none rounded-ctl border border-control-edge bg-surface px-3 py-2.5 t-body text-fg placeholder:text-fg-3 focus-visible:border-accent aria-[invalid=true]:border-danger disabled:bg-surface-2 disabled:text-fg-3 [field-sizing:content]";
+/**
+ * Быстрый срок — один выбор из пяти, поэтому одна группа кнопок с общими
+ * волосяными границами (без зазоров между ними): пять вариантов помещаются в
+ * одну строку и в панели 26rem, и на телефоне 390 px, высота каждой — 44 px,
+ * группа растягивается на ширину поля. Выбранный вариант — `.v3-choice`
+ * поверх соседей (его рамка видна целиком), фокус — тоже поверх.
+ */
+const SEGMENT = "v3-choice relative -ms-px inline-flex min-h-11 min-w-0 flex-auto items-center justify-center whitespace-nowrap border border-control-edge bg-surface px-1.5 t-label text-fg-2 first:ms-0 first:rounded-s-ctl last:rounded-e-ctl hover:bg-surface-2 hover:text-fg aria-pressed:z-10 focus-visible:z-20";
+/**
+ * Шаг — одна строка, но длинный текст виден целиком: поле растёт по тексту и
+ * не бывает ниже трёх строк (пустое поле не схлопывается в одну).
+ */
+const STEP_FIELD = "mt-1 block min-h-24 w-full min-w-0 resize-none rounded-ctl border border-control-edge bg-surface px-3 py-2.5 t-body text-fg placeholder:text-fg-3 focus-visible:border-accent aria-[invalid=true]:border-danger disabled:bg-surface-2 disabled:text-fg-3 [field-sizing:content]";
 
-type Feedback = Readonly<{ tone: "ok" | "danger"; text: string; stale: boolean }>;
+/**
+ * Сообщение редактора и его место: ошибка ввода — сразу под своим полем
+ * (`aria-describedby` + `aria-invalid`), ответ сервера — над кнопками.
+ */
+type Feedback = Readonly<{ tone: "ok" | "danger"; text: string; field: "step" | "date" | null; stale: boolean }>;
 
 /**
  * «Следующий шаг» в «Быстром просмотре»: одна строка текста и срок с
@@ -54,6 +68,9 @@ export function NextStepEditor({
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [baseline, setBaseline] = useState({ text: row.nextAction ?? "", due: row.nextActionDueOn ?? "", version: row.admissionsVersion });
   const [serverMoved, setServerMoved] = useState(false);
+  // Конфликт версии: пока дело не перечитано, «Сохранить» недоступна, главная кнопка — «Обновить».
+  const [refreshing, startRefresh] = useTransition();
+  const [refreshed, setRefreshed] = useState(false);
 
   const due = nextStepDueFor(choice, date, today);
   const dirty = text.trim() !== baseline.text || due !== baseline.due;
@@ -65,6 +82,9 @@ export function NextStepEditor({
     const serverText = row.nextAction ?? "";
     const serverDue = row.nextActionDueOn ?? "";
     setBaseline({ text: serverText, due: serverDue, version: row.admissionsVersion });
+    // Новая версия прочитана — конфликт разрешён: его сообщение больше не правда.
+    if (feedback?.stale) setFeedback(null);
+    setRefreshed(false);
     if (!dirty || (text.trim() === serverText && due === serverDue)) {
       setText(serverText);
       setChoice(nextStepChoiceFor(row.nextActionDueOn, row.nextAction !== null, today));
@@ -80,6 +100,7 @@ export function NextStepEditor({
     busy.current = true;
     setPending(true);
     setFeedback(null);
+    setRefreshed(false);
     try {
       const state: CaseNextActionActionState = await saveCaseNextActionAction(
         { status: "idle", requestId, message: null, receipt: null },
@@ -87,15 +108,15 @@ export function NextStepEditor({
       );
       setRequestId(state.requestId);
       if (state.status === "saved" && state.receipt) {
-        setFeedback({ tone: "ok", text: state.message ?? "Следующий шаг сохранён.", stale: false });
+        setFeedback({ tone: "ok", text: state.message ?? "Следующий шаг сохранён.", field: null, stale: false });
         setServerMoved(false);
         onSaved(state.receipt);
       } else {
-        setFeedback({ tone: "danger", text: state.message ?? "Не удалось сохранить шаг. Повторите.", stale: state.status === "stale" });
+        setFeedback({ tone: "danger", text: state.message ?? "Не удалось сохранить шаг. Повторите.", field: null, stale: state.status === "stale" });
       }
     } catch {
       // Ответа нет — исход неизвестен: тот же request id повторит запись, а не создаст вторую.
-      setFeedback({ tone: "danger", text: "Не удалось подтвердить сохранение. Повторите: повтор не сохранит шаг дважды.", stale: false });
+      setFeedback({ tone: "danger", text: "Не удалось подтвердить сохранение. Повторите: повтор не сохранит шаг дважды.", field: null, stale: false });
     } finally {
       busy.current = false;
       setPending(false);
@@ -105,12 +126,17 @@ export function NextStepEditor({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const error = nextStepInputError(text, choice, date, hasStep);
-    if (error) { setFeedback({ tone: "danger", text: error, stale: false }); return; }
+    if (error) { setFeedback({ tone: "danger", text: error, field: choice === "date" && !date ? "date" : "step", stale: false }); return; }
     if (!parseCaseNextActionInput(text, due)) {
-      setFeedback({ tone: "danger", text: `Шаг — одна строка до ${CASE_NEXT_ACTION_MAX_LENGTH} символов.`, stale: false });
+      setFeedback({ tone: "danger", text: `Шаг — одна строка до ${CASE_NEXT_ACTION_MAX_LENGTH} символов.`, field: "step", stale: false });
       return;
     }
     void send(text, due);
+  }
+
+  function refresh() {
+    setRefreshed(true);
+    startRefresh(() => router.refresh());
   }
 
   const friday = nextFriday(today);
@@ -122,8 +148,13 @@ export function NextStepEditor({
     ["date", "Дата…"],
     ["none", "Без срока"],
   ];
-  const errorId = `${fieldId}-feedback`;
-  const invalid = feedback?.tone === "danger" && !feedback.stale;
+  const stepErrorId = `${fieldId}-error`;
+  const dateErrorId = `${fieldId}-date-error`;
+  const stepError = feedback?.tone === "danger" && feedback.field === "step" ? feedback.text : null;
+  const dateError = feedback?.tone === "danger" && feedback.field === "date" ? feedback.text : null;
+  const server = feedback && feedback.field === null ? feedback : null;
+  // Конфликт: пока дело не перечитано, сохранять нечем — чужая версия победит снова.
+  const locked = Boolean(server?.stale) && (!refreshed || refreshing);
 
   return (
     <form onSubmit={submit} noValidate aria-busy={pending} className="space-y-3" data-testid="v3-next-step-editor">
@@ -132,8 +163,11 @@ export function NextStepEditor({
         <textarea
           id={fieldId}
           value={text}
-          rows={2}
-          onChange={(event) => setText(oneLineStep(event.target.value))}
+          rows={3}
+          onChange={(event) => {
+            setText(oneLineStep(event.target.value));
+            if (feedback?.field === "step") setFeedback(null);
+          }}
           onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
             // Enter сохраняет (шаг — одна строка); Shift+Enter переноса тоже не вставляет.
             if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
@@ -144,16 +178,17 @@ export function NextStepEditor({
           autoComplete="off"
           enterKeyHint="done"
           disabled={pending}
-          aria-invalid={invalid ? true : undefined}
-          aria-describedby={feedback ? errorId : undefined}
+          aria-invalid={stepError ? true : undefined}
+          aria-describedby={stepError ? stepErrorId : undefined}
           className={STEP_FIELD}
         />
+        {stepError ? <p id={stepErrorId} role="alert" className="mt-1 t-body-compact text-danger">{stepError}</p> : null}
       </div>
       <fieldset className="min-w-0" disabled={pending}>
         <legend className="t-label text-fg">Срок</legend>
-        <div className="mt-1 flex flex-wrap gap-2">
+        <div className="mt-1 flex">
           {chips.map(([value, label]) => (
-            <button key={value} type="button" aria-pressed={choice === value} onClick={() => setChoice(value)} className={CHIP}>
+            <button key={value} type="button" aria-pressed={choice === value} onClick={() => { setChoice(value); if (feedback?.field === "date") setFeedback(null); }} className={SEGMENT}>
               {label}
             </button>
           ))}
@@ -161,27 +196,36 @@ export function NextStepEditor({
         {choice === "date" ? (
           <label className="mt-3 block t-label text-fg-2">
             Дата
-            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-invalid={invalid && !date ? true : undefined} className={`${QUEUE_FIELD} aria-[invalid=true]:border-danger`} />
+            <input
+              type="date"
+              value={date}
+              onChange={(event) => { setDate(event.target.value); if (feedback?.field === "date") setFeedback(null); }}
+              aria-invalid={dateError ? true : undefined}
+              aria-describedby={dateError ? dateErrorId : undefined}
+              className={`${QUEUE_FIELD} aria-[invalid=true]:border-danger`}
+            />
           </label>
         ) : null}
+        {dateError ? <p id={dateErrorId} role="alert" className="mt-1 t-body-compact text-danger">{dateError}</p> : null}
       </fieldset>
       {serverMoved ? (
         <p className="t-body-compact text-fg-2">
           Сейчас в деле: {baseline.text || "шаг не задан"}{baseline.due ? ` · ${formatQueueDay(baseline.due, today)}` : ""}. Сохраните, чтобы заменить.
         </p>
       ) : null}
-      {feedback ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <p id={errorId} role={feedback.tone === "ok" ? "status" : "alert"} className={`t-body-compact ${feedback.tone === "ok" ? "text-ok" : "text-danger"}`}>
-            {feedback.text}
-          </p>
-          {feedback.stale ? <button type="button" onClick={() => router.refresh()} className={QUEUE_SECONDARY}>Обновить</button> : null}
-        </div>
+      {server ? (
+        <p role={server.tone === "ok" ? "status" : "alert"} className={`t-body-compact ${server.tone === "ok" ? "text-ok" : "text-danger"}`}>
+          {server.text}
+          {server.stale && text.trim() ? <span className="text-fg"> Ваш текст остался в поле.</span> : null}
+        </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={pending || !dirty} className={QUEUE_CONFIRM}>{pending ? "Сохраняем…" : "Сохранить"}</button>
+        {locked ? (
+          <button type="button" onClick={refresh} className={QUEUE_CONFIRM}>Обновить</button>
+        ) : null}
+        <button type="submit" disabled={pending || !dirty || locked} className={locked ? QUEUE_SECONDARY : QUEUE_CONFIRM}>{pending ? "Сохраняем…" : "Сохранить"}</button>
         {hasStep ? (
-          <button type="button" disabled={pending} onClick={() => void send("", "")} className={QUEUE_SECONDARY}>Снять шаг</button>
+          <button type="button" disabled={pending || locked} onClick={() => void send("", "")} className={QUEUE_SECONDARY}>Снять шаг</button>
         ) : null}
       </div>
     </form>

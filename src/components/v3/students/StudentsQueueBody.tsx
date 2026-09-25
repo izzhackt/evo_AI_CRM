@@ -157,7 +157,7 @@ export function StudentsQueueBody({
   ) : <StudentQuickViewMissing closeHref={closeHref} caseHref={studentsCaseHref(openKey, { returnTo: closeHref })} />;
 
   return (
-    <div className={panel ? "xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6" : undefined}>
+    <div className="min-w-0 space-y-2" data-testid="v3-student-case-directory">
       {/*
         THESIS: утро куратора, а не справочник дел — одна очередь «что
         просрочено и что сегодня», сгруппированная по сроку «Следующего шага»;
@@ -171,36 +171,42 @@ export function StudentsQueueBody({
         щёлкает строку — справа «Быстрый просмотр», меняет шаг и срок, строка
         переходит в свою группу; «Открыть дело» — Student 360 с возвратом.
         FIRST VIEWPORT: 1440×900 — H1 «Студенты» с числом, вкладки видов,
-        одна строка инструментов, шапка колонок и группы по сроку: строки по
-        53 px, не меньше десяти дел в первом экране.
+        одна строка инструментов (во всю ширину: панель её не переносит),
+        шапка колонок и группы по сроку: строка с шагом в одну строку — 44 px,
+        не меньше десяти дел в первом экране.
       */}
-      <div className="min-w-0 space-y-3" data-testid="v3-student-case-directory">
-        {head}
-        <div className="@container/students min-w-0" data-queue-list="">
-          {empty ? (
-            <QueueEmpty
-              title={empty.title}
-              action={empty.action ? <Link href={empty.action.href} scroll={false} className={QUEUE_QUIET_LINK}>{empty.action.label}</Link> : null}
-            />
-          ) : (
-            <StudentsQueueTable
-              bands={bands}
-              caption={caption}
-              hint={!editor.preview && (editor.admin || editor.routeManage) ? "откройте строку и добавьте шаг" : null}
-              now={now}
-              selectedKey={openKey}
-              links={links}
-            />
-          )}
+      {head}
+      <div className={panel ? "xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6" : undefined}>
+        <div className="min-w-0 space-y-3">
+          <div className="@container/students min-w-0" data-queue-list="">
+            {empty ? (
+              <QueueEmpty
+                title={empty.title}
+                action={empty.action ? <Link href={empty.action.href} scroll={false} className={QUEUE_QUIET_LINK}>{empty.action.label}</Link> : null}
+              />
+            ) : (
+              <StudentsQueueTable
+                bands={bands}
+                caption={caption}
+                hint={!editor.preview && (editor.admin || editor.routeManage) ? "откройте строку и добавьте шаг" : null}
+                now={now}
+                today={today}
+                sort={params.sort}
+                curatorColumn={params.view !== "mine"}
+                selectedKey={openKey}
+                links={links}
+              />
+            )}
+          </div>
+          {params.cursor || nextCursor ? (
+            <nav aria-label="Страницы списка студентов" className="flex flex-wrap items-center gap-x-6">
+              {params.cursor ? <Link className={QUEUE_QUIET_LINK} scroll={false} href={studentsQueueHref(params, { cursor: null, open: null })}><Icon name="arrow-left" size={16} />К началу</Link> : null}
+              {nextCursor ? <Link className={QUEUE_QUIET_LINK} rel="next" href={studentsQueueHref(params, { cursor: nextCursor, open: null })}>Следующие {STUDENTS_QUEUE_PAGE_SIZE}<Icon name="arrow-right" size={16} /></Link> : null}
+            </nav>
+          ) : null}
         </div>
-        {params.cursor || nextCursor ? (
-          <nav aria-label="Страницы списка студентов" className="flex flex-wrap items-center gap-x-6">
-            {params.cursor ? <Link className={QUEUE_QUIET_LINK} scroll={false} href={studentsQueueHref(params, { cursor: null, open: null })}><Icon name="arrow-left" size={16} />К началу</Link> : null}
-            {nextCursor ? <Link className={QUEUE_QUIET_LINK} rel="next" href={studentsQueueHref(params, { cursor: nextCursor, open: null })}>Следующие {STUDENTS_QUEUE_PAGE_SIZE}<Icon name="arrow-right" size={16} /></Link> : null}
-          </nav>
-        ) : null}
+        {panel}
       </div>
-      {panel}
     </div>
   );
 }

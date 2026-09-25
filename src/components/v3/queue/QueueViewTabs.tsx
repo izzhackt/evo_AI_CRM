@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { QueueTabStrip } from "./QueueTabStrip";
+
 export type QueueTab = Readonly<{
   key: string;
   label: string;
@@ -12,8 +14,9 @@ export type QueueTab = Readonly<{
 /**
  * Вкладки-виды очереди («Мои · Поставил я · Вся команда»): настоящие ссылки с
  * адресом и `aria-current="page"`, выбранная — общий `.v3-choice`. Число —
- * табличные цифры Golos и только там, где его дало чтение. На телефоне ряд
- * не переносится, а прокручивается вбок внутри себя.
+ * табличные цифры Golos и только там, где его дало чтение. Ряд никогда не
+ * переносится (высота шапки не меняется, когда рядом открыта панель): лишнее
+ * прокручивается вбок внутри ряда, текущая вкладка видна (`QueueTabStrip`).
  */
 export function QueueViewTabs({ label, tabs, id }: Readonly<{
   label: string;
@@ -22,9 +25,8 @@ export function QueueViewTabs({ label, tabs, id }: Readonly<{
   id?: string;
 }>) {
   return (
-    <nav id={id} aria-label={label} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" data-testid="queue-view-tabs">
-      {/* Телефон — ряд прокручивается вбок; шире — переносится, чтобы текущий вид не уходил за край рядом с панелью. */}
-      <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2 sm:min-w-0 sm:flex-wrap">
+    <QueueTabStrip id={id} label={label}>
+      <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
         {tabs.map((tab) => (
           <li key={tab.key}>
             <Link
@@ -39,6 +41,6 @@ export function QueueViewTabs({ label, tabs, id }: Readonly<{
           </li>
         ))}
       </ul>
-    </nav>
+    </QueueTabStrip>
   );
 }

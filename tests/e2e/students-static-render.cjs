@@ -271,7 +271,7 @@ function scenario(search, { actor = "admin", docsMode = false, read, openTasks =
     createTask: actor !== "preview",
     requestIds: { nextStep: "99999999-6666-4666-8666-000000000001", coverage: "99999999-6666-4666-8666-000000000002" },
   };
-  return { kind: "queue", search, docsMode, input };
+  return { kind: "queue", search, docsMode, input, actor };
 }
 
 const SALES_DIRECTORY = {
@@ -310,6 +310,7 @@ const SCENARIOS = {
   invalid: scenario("view=active", { invalid: true }),
   "docs-review": scenario("section=docs", { docsMode: true }),
   "docs-all": scenario("section=docs&view=all", { docsMode: true }),
+  "docs-fix": scenario("section=docs&view=fix", { docsMode: true }),
   "docs-incomplete": (() => {
     const base = scenario("section=docs", { docsMode: true });
     return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, nextCursor: base.input.read.page.rows.at(-1).cursor } } } };
@@ -372,6 +373,13 @@ const ACTOR = {
   displayName: "Администратор (синтетический)", systemRole: "admin", platformAccessVersion: 1, assignments: [],
   permissionKeys: [], email: "synthetic@example.invalid", presentationRole: null,
 };
+/** Сотрудник поступления для сценариев куратора: подвал оболочки называет ту же роль, что и экран. */
+const CURATOR_ACTOR = {
+  ...ACTOR,
+  displayName: "Куратор (синтетический)", systemRole: "staff",
+  assignments: [{ label: "Сотрудник поступления" }],
+  permissionKeys: ["case.read.full", "profile.read.full", "case.route.manage", "document.read.full", "task.create", "staff.task.read", "staff.task.create", "team.chat.admissions"],
+};
 
 /** Контейнер тела: браузерная сборка отрисовывает в нём тот же экран заново. */
 const CLIENT_ROOT_ID = "students-client-root";
@@ -390,8 +398,8 @@ function renderPage(name) {
     { className: "v3-world" },
     createElement(
       AppShell,
-      { actor: ACTOR, initialNotifications: null },
-      createElement(PartShell, { title: item.docsMode ? "EVO Docs" : "Студенты", count: built.count, action },
+      { actor: item.actor === "curator" ? CURATOR_ACTOR : ACTOR, initialNotifications: null },
+      createElement(PartShell, { title: item.docsMode ? "EVO Docs" : "Студенты", count: built.count, action, dense: item.kind !== "sales" },
         createElement("div", { id: CLIENT_ROOT_ID }, built.content)),
     ),
   );
@@ -503,7 +511,11 @@ async function screenshots() {
       ["students-direction-menu-1440.png", DESKTOP, false, "direction"],
     ]],
     ["admin-default", [["students-admin-default-1440.png", DESKTOP, false, null]]],
-    ["curator-mine", [["students-curator-mine-1440.png", DESKTOP, false, null]]],
+    ["curator-mine", [
+      ["students-curator-mine-1440.png", DESKTOP, false, null],
+      ["students-curator-mine-1280.png", LAPTOP, false, null],
+      ["students-focus-1440.png", DESKTOP, false, "focus"],
+    ]],
     ["admin-panel", [
       ["students-panel-1440.png", DESKTOP, false, null],
       ["students-panel-1280.png", LAPTOP, false, null],
@@ -511,6 +523,7 @@ async function screenshots() {
       ["students-panel-390.png", PHONE, false, null],
       ["students-panel-validation-1440.png", DESKTOP, false, "validation"],
       ["students-panel-conflict-1440.png", DESKTOP, false, "conflict"],
+      ["students-panel-conflict-390.png", PHONE, false, "conflict"],
       ["students-panel-date-1440.png", DESKTOP, false, "date"],
     ]],
     ["preview-panel", [["students-panel-readonly-1440.png", DESKTOP, false, null]]],
@@ -528,6 +541,7 @@ async function screenshots() {
       ["students-docs-390.png", PHONE, false, null],
       ["students-docs-menu-1440.png", DESKTOP, false, "docs-menu"],
     ]],
+    ["docs-fix", [["students-docs-fix-1440.png", DESKTOP, false, null]]],
     ["docs-incomplete", [["students-docs-incomplete-1440.png", DESKTOP, false, null]]],
     ["sales", [["students-sales-1440.png", DESKTOP, false, null]]],
   ];
@@ -569,12 +583,27 @@ async function screenshots() {
           await page.waitForSelector(`${editor} [role="alert"]`);
         }
         if (step === "date") await page.click(`${editor} button:has-text("Дата…")`);
+        // Клавиатура: ↓ со страницы переводит фокус на первую строку — видна рамка фокуса.
+        if (step === "focus") { await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown"); }
         if (step) await page.waitForTimeout(400);
         if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
         const metrics = await page.evaluate(() => {
           const rows = [...document.querySelectorAll("[data-queue-row]")];
           const panel = document.querySelector('[data-testid="queue-detail-panel"]');
+          const head = document.querySelector('[data-testid="v3-students-queue-head"]');
+          const strip = document.querySelector('[data-testid="queue-view-tabs"]');
+          const current = strip?.querySelector('[aria-current="page"]');
+          const toolbar = document.querySelector('[data-testid="queue-toolbar"]');
+          const chips = [...document.querySelectorAll('[data-testid="v3-next-step-editor"] fieldset button')].map((chip) => Math.round(chip.getBoundingClientRect().top));
+          const stripBox = strip?.getBoundingClientRect();
+          const currentBox = current?.getBoundingClientRect();
           return {
+            headBottom: head ? Math.round(head.getBoundingClientRect().bottom + window.scrollY) : null,
+            toolbarHeight: toolbar ? Math.round(toolbar.getBoundingClientRect().height) : null,
+            tabsScroll: strip ? strip.scrollWidth > strip.clientWidth : null,
+            activeTabVisible: stripBox && currentBox ? currentBox.left >= stripBox.left - 1 && currentBox.right <= stripBox.right + 1 : null,
+            firstRowTop: rows[0] ? Math.round(rows[0].getBoundingClientRect().top + window.scrollY) : null,
+            chipRows: chips.length ? new Set(chips).size : null,
             overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
             rowsInViewport: rows.filter((row) => {
               const box = row.getBoundingClientRect();

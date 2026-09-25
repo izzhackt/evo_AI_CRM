@@ -160,6 +160,59 @@
 }
 
 /*
+ * Ряд вкладок-видов очереди (`QueueTabStrip`) не переносится, а
+ * прокручивается вбок. Полосы прокрутки нет — у края, за которым ещё есть
+ * вкладки, ряд гаснет маской на 3rem (это знак «дальше есть», а не
+ * приглушение состояния); текущая вкладка всегда в видимой части.
+ */
+.v3-world .v3-tab-strip {
+  scrollbar-width: none;
+}
+.v3-world .v3-tab-strip::-webkit-scrollbar {
+  display: none;
+}
+.v3-world .v3-tab-strip[data-fade-end] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent);
+}
+.v3-world .v3-tab-strip[data-fade-start] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 3rem), transparent);
+}
+.v3-world .v3-tab-strip[data-fade-start][data-fade-end] {
+  mask-image: linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
+}
+
+/*
+ * Липкий заголовок группы по сроку («Студенты»): непрозрачный во всю высоту,
+ * с волосяной линией на своей ячейке. Когда он прилип к верху, под ним
+ * появляется мягкая тень со смещением вниз — строка, уходящая под заголовок,
+ * читается как прокрутка, а не как его продолжение. Где запросов
+ * `scroll-state` нет, остаются фон и линия.
+ */
+.v3-world .v3-sticky-band {
+  container-type: scroll-state;
+}
+
+@container scroll-state(stuck: top) {
+  .v3-world .v3-sticky-band > * {
+    box-shadow: 0 6px 8px -6px rgb(0 0 0 / 0.16);
+  }
+}
+
+/*
+ * Строка-таблица очереди («Студенты», EVO Docs, «Нагрузка кураторов»): ссылка
+ * строки покрывает всю строку, поэтому и фокус клавиатуры — рамка всей строки
+ * внутрь, а не вокруг имени (там она наезжала на «направление · уровень»).
+ */
+.v3-world .v3-queue-row [data-queue-open]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.v3-world .v3-queue-row:has([data-queue-open]:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/*
  * Шрифтовые роли staff CRM (24.09.2026, решение владельца: Golos Text для
  * интерфейса, JetBrains Mono только для технических значений).
  *

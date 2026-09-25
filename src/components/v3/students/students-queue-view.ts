@@ -655,9 +655,20 @@ export type StudentsPanelTask = Readonly<{
 /**
  * «Приём дела» открытой строки — тот же снимок и та же форма, что в карточке
  * дела (`ProfileHandoffAcknowledgement`). Есть только у текущего куратора,
- * который может ответить; иначе null, и панель блок не рисует.
+ * который может ответить, пока дело не принято (`studentsHandoffPending`);
+ * иначе null, и панель блок не рисует.
  */
 export type StudentsHandoff = HandoffAcknowledgement & Readonly<{ requestId: string }>;
+
+/**
+ * Блоку «Приём дела» в панели есть что делать: куратор может ответить, а дело
+ * ещё не принято — то же правило, что у сигнала `awaiting_ack` (182). После
+ * «Принять дело» ответ можно пересмотреть только в карточке дела: в очереди
+ * принятое дело не открывается сплошной красной кнопкой.
+ */
+export function studentsHandoffPending(handoff: Pick<HandoffAcknowledgement, "canRespond" | "assignmentEventId" | "current">): boolean {
+  return handoff.canRespond && handoff.assignmentEventId !== null && handoff.current?.decision !== "accepted";
+}
 
 /** Задачи панели: «недоступно» — это не «задач нет». */
 export type StudentsOpenTasks =

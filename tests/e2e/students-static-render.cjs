@@ -331,7 +331,13 @@ const SCENARIOS = {
     return { ...base, input: { ...base.input, read: { page: null, counts: null, forbidden: true } } };
   })(),
   "manager-default": scenario("", { actor: "manager" }),
-  pending: scenario("view=pending"),
+  // Отказ куратора вернул дело в ожидание, а сохранённый шаг остался (182): он не «просрочен».
+  pending: (() => {
+    const base = scenario("view=pending");
+    const rows = base.input.read.page.rows.map((row, index) => index === 0
+      ? { ...row, nextAction: "Созвониться о старте занятий", nextActionDueOn: "2026-09-18", dueBand: "overdue" } : row);
+    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows } } } };
+  })(),
   // Куратор открывает переданное ему дело: «Приём дела» первым в панели.
   "panel-accept": scenario(`view=active&open=${caseId(3)}`, {
     openTasks: TASKS,
@@ -339,6 +345,19 @@ const SCENARIOS = {
       organizationId: "eeeeeeee-4444-4444-8444-000000000000", studentCaseId: caseId(3),
       assignmentEventId: "abababab-7777-4777-8777-000000000001", canRespond: true, current: null,
       requestId: "99999999-6666-4666-8666-000000000003",
+    },
+  }),
+  // Куратор попросил уточнение: дело ещё не принято, блок остаётся с ответом и «Принять дело».
+  "panel-clarification": scenario(`view=active&open=${caseId(3)}`, {
+    openTasks: TASKS,
+    handoff: {
+      organizationId: "eeeeeeee-4444-4444-8444-000000000000", studentCaseId: caseId(3),
+      assignmentEventId: "abababab-7777-4777-8777-000000000001", canRespond: true,
+      current: {
+        acknowledgementId: "acacacac-7777-4777-8777-000000000002", decision: "clarification_requested",
+        clarification: "Уточните, кто из родителей подписывает договор.", agreedContactDate: null, createdAt: "2026-09-22T08:00:00.000Z",
+      },
+      requestId: "99999999-6666-4666-8666-000000000004",
     },
   }),
   "manager-curators": scenario("view=curators", { actor: "manager", coverageRead: coverage() }),
@@ -615,6 +634,7 @@ async function screenshots() {
       ["students-panel-accept-1440.png", DESKTOP, false, null],
       ["students-panel-accept-390.png", PHONE, false, null],
     ]],
+    ["panel-clarification", [["students-panel-clarification-1440.png", DESKTOP, false, null]]],
     ["pending", [
       ["students-pending-1440.png", DESKTOP, false, null],
       ["students-pending-390.png", PHONE, false, null],

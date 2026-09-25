@@ -20,6 +20,7 @@ import {
   studentsQueueHref,
   studentsQueueTabs,
   studentsEffectiveSort,
+  studentsHandoffPending,
   studentsQueueRequest,
   studentsRowSignals,
   studentsStepView,
@@ -750,6 +751,9 @@ test("«Ожидает начала» is a queue view: pending cases, no due gro
   assert.ok([...html.matchAll(/data-queue-row=/gu)].length >= 1, "pending rows are rendered");
   assert.doesNotMatch(html, /students-band-/u, "no due groups for cases that are not in work");
   assert.doesNotMatch(html, /добавьте шаг/u);
+  // A declined case keeps its saved step (182): its date is shown, but it is not «просрочен».
+  assert.match(texts(html), /Созвониться о старте занятий 18\.09/u);
+  assert.doesNotMatch(html, /Шаг просрочен|прошёл/u);
 });
 
 test("«Принять дело» in the panel reuses the case card, only for the curator who can answer", () => {
@@ -759,7 +763,18 @@ test("«Принять дело» in the panel reuses the case card, only for th
   assert.match(block, />Принять дело</u);
   assert.doesNotMatch(surfaces.get("admin-panel"), /v3-students-panel-handoff/u, "no block without a snapshot the curator can answer");
   const source = read("src/lib/v3/students-queue-source.ts");
-  assert.match(source, /snapshot\.canRespond && snapshot\.assignmentEventId \? Object\.freeze\(\{ \.\.\.snapshot, requestId: randomUUID\(\) \}\) : null/u);
+  assert.match(source, /return studentsHandoffPending\(snapshot\) \? Object\.freeze\(\{ \.\.\.snapshot, requestId: randomUUID\(\) \}\) : null;/u);
+  // Only while the case waits for acceptance — the same rule as the awaiting_ack signal (182).
+  const snapshot = { canRespond: true, assignmentEventId: "abababab-7777-4777-8777-000000000001", current: null };
+  const answer = (decision) => ({ acknowledgementId: "acacacac-7777-4777-8777-000000000002", decision, clarification: null, agreedContactDate: null, createdAt: "2026-09-22T08:00:00.000Z" });
+  assert.equal(studentsHandoffPending(snapshot), true, "no answer yet");
+  assert.equal(studentsHandoffPending({ ...snapshot, current: answer("clarification_requested") }), true, "a clarification is not an acceptance");
+  assert.equal(studentsHandoffPending({ ...snapshot, current: answer("accepted") }), false, "an accepted case is not asked again in the queue");
+  assert.equal(studentsHandoffPending({ ...snapshot, canRespond: false }), false, "only the curator who can answer");
+  assert.equal(studentsHandoffPending({ ...snapshot, assignmentEventId: null }), false, "nothing to answer without an assignment");
+  const clarification = surfaces.get("panel-clarification");
+  assert.match(clarification, /Уточните, кто из родителей подписывает договор\./u, "the open clarification is shown");
+  assert.match(clarification, /data-testid="v3-students-panel-handoff"[\s\S]*>Принять дело</u);
   const page = read("src/app/(v3)/v3/profile/page.tsx");
   assert.match(page, /params\.open && !isStaffPreview\(actor\) \? readStudentsHandoff\(actor, params\.open\)/u, "one read per open panel, never in role preview");
 });

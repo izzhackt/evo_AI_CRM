@@ -134,7 +134,8 @@ export function StudentsToolbar({
     direction: params.direction,
     curator: params.curator,
     stage: queue ? params.stage : null,
-    sort: sortable && params.sort === "updated" ? "updated" : null,
+    // Поиск сохраняет выбор порядка, как вкладки и меню, даже в виде без выбора.
+    sort: queue && params.sort === "updated" ? "updated" : null,
   };
   return (
     <QueueToolbar
@@ -153,7 +154,7 @@ export function StudentsToolbar({
 /** «Счётчики недоступны, список работает. Повторить» — числа не выдумываются. */
 export function StudentsCountsUnavailable({ retryHref }: Readonly<{ retryHref: string }>) {
   return (
-    <p role="status" className="t-body-compact text-fg-2">
+    <p role="status" data-testid="queue-counts-unavailable" className="t-body-compact text-fg-2">
       Счётчики недоступны, список работает. <Link href={retryHref} className="underline underline-offset-4">Повторить</Link>
     </p>
   );

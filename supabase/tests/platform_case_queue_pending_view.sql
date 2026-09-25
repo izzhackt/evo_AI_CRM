@@ -24,11 +24,14 @@ EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE;
 END
 $$;
 -- Follow next_cursor to the end and return every case id in page order.
-CREATE FUNCTION pg_temp.n242_ids(p_view TEXT, p_sort TEXT, p_limit INTEGER) RETURNS UUID[] LANGUAGE plpgsql AS $$
+CREATE FUNCTION pg_temp.n242_ids(
+  p_view TEXT, p_sort TEXT, p_limit INTEGER, p_direction TEXT DEFAULT NULL,
+  p_curator UUID DEFAULT NULL, p_stage TEXT DEFAULT NULL
+) RETURNS UUID[] LANGUAGE plpgsql AS $$
 DECLARE page JSONB; next_cur TEXT := NULL; ids UUID[] := ARRAY[]::UUID[]; pages INTEGER := 0;
 BEGIN
   LOOP
-    page := platform.staff_student_case_queue_v1(p_view, p_limit, p_sort, next_cur);
+    page := platform.staff_student_case_queue_v1(p_view, p_limit, p_sort, next_cur, p_direction, p_curator, p_stage);
     ids := ids || COALESCE((SELECT array_agg((r ->> 'student_case_id')::UUID ORDER BY o)
       FROM jsonb_array_elements(page -> 'rows') WITH ORDINALITY AS t(r, o)), ARRAY[]::UUID[]);
     next_cur := page ->> 'next_cursor';
@@ -54,8 +57,30 @@ BEGIN
   END LOOP;
 END
 $$;
+-- Every facet of the pending view equals the rows the same filter returns.
+CREATE FUNCTION pg_temp.n242_pending_facets_match(p_label TEXT) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE counts JSONB := platform.staff_student_case_queue_counts_v1('pending'); facet JSONB; facet_total BIGINT;
+BEGIN
+  FOR facet IN SELECT value FROM jsonb_array_elements(counts -> 'directions') LOOP
+    PERFORM pg_temp.n242_assert((facet ->> 'count')::BIGINT = cardinality(pg_temp.n242_ids('pending', 'due', 100, facet ->> 'direction')),
+      p_label || ': pending direction facet equals filtered rows');
+  END LOOP;
+  FOR facet IN SELECT value FROM jsonb_array_elements(counts -> 'curators') LOOP
+    PERFORM pg_temp.n242_assert((facet ->> 'count')::BIGINT
+      = cardinality(pg_temp.n242_ids('pending', 'due', 100, NULL, (facet ->> 'membership_id')::UUID)),
+      p_label || ': pending curator facet equals filtered rows');
+  END LOOP;
+  FOR facet IN SELECT value FROM jsonb_array_elements(counts -> 'stages') LOOP
+    PERFORM pg_temp.n242_assert((facet ->> 'count')::BIGINT = cardinality(pg_temp.n242_ids('pending', 'due', 100, NULL, NULL, facet ->> 'pipeline_stage')),
+      p_label || ': pending stage facet equals filtered rows');
+  END LOOP;
+  SELECT COALESCE(sum((value ->> 'count')::BIGINT), 0) INTO facet_total FROM jsonb_array_elements(counts -> 'directions');
+  PERFORM pg_temp.n242_assert(facet_total = (counts ->> 'total')::BIGINT, p_label || ': pending directions add up to the total');
+END
+$$;
 GRANT EXECUTE ON FUNCTION pg_temp.n242_id(INTEGER), pg_temp.n242_assert(BOOLEAN, TEXT), pg_temp.n242_error(TEXT),
-  pg_temp.n242_ids(TEXT, TEXT, INTEGER), pg_temp.n242_counts_match_rows(TEXT)
+  pg_temp.n242_ids(TEXT, TEXT, INTEGER, TEXT, UUID, TEXT), pg_temp.n242_counts_match_rows(TEXT),
+  pg_temp.n242_pending_facets_match(TEXT)
   TO authenticated, anon, service_role;
 
 SELECT 'N242_CASE_QUEUE_PENDING_VIEW_SUITE_START' AS n242_suite_marker;
@@ -68,11 +93,13 @@ SELECT pg_temp.n242_assert(NOT platform_private.case_queue_in_view('active', 'pe
 SELECT pg_temp.n242_assert(NOT platform_private.case_queue_in_view('bogus', 'pending', FALSE, NULL), 'unknown views stay empty');
 
 -- ---------------------------------------------------------------------------
--- Fixture: admin (1), sales (2), curator A (3). Only this organization's
+-- Fixture: admin (1), sales (2), curator A (3), a manager invited through
+-- «Сотрудники» (4: no coarse role, as 157 creates staff) and a legacy finance
+-- member (5: coarse role frozen since 155). Only this organization's
 -- synthetic rows are created.
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE n242_actors(n INTEGER, role platform.business_role, claims TEXT);
-INSERT INTO n242_actors(n, role) VALUES (1, 'admin'), (2, 'sales'), (3, 'curator');
+INSERT INTO n242_actors(n, role) VALUES (1, 'admin'), (2, 'sales'), (3, 'curator'), (4, NULL), (5, 'finance');
 GRANT SELECT ON n242_actors TO authenticated;
 
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.n242_id(1), 'N242 Fictional organization');
@@ -126,11 +153,18 @@ FROM (VALUES
 SET LOCAL session_replication_role = origin;
 
 -- Staff roles through the installed commands. Curator A: own scope with full
--- case read; Sales: the Sales template's summary keys, own scope.
-CREATE TEMP TABLE n242_roles(role_id UUID, membership_id UUID, keys JSONB, request_base INTEGER);
+-- case read; Sales: the Sales template's summary keys, own scope; the manager
+-- and the legacy finance member: full case read on the whole organization.
+CREATE TEMP TABLE n242_roles(role_id UUID, membership_id UUID, keys JSONB, request_base INTEGER, scope JSONB);
 INSERT INTO n242_roles VALUES
-  (pg_temp.n242_id(701), pg_temp.n242_id(303), '["case.read.full","case.route.manage","case.update.append"]', 710),
-  (pg_temp.n242_id(702), pg_temp.n242_id(302), '["lead.read","case.read.summary","document.read.sales","task.create"]', 720);
+  (pg_temp.n242_id(701), pg_temp.n242_id(303), '["case.read.full","case.route.manage","case.update.append"]', 710,
+    '{"kind": "own", "key": null, "resourceKind": null}'),
+  (pg_temp.n242_id(702), pg_temp.n242_id(302), '["lead.read","case.read.summary","document.read.sales","task.create"]', 720,
+    '{"kind": "own", "key": null, "resourceKind": null}'),
+  (pg_temp.n242_id(703), pg_temp.n242_id(304), '["case.read.full","case.route.manage","case.update.append"]', 730,
+    jsonb_build_object('kind', 'organization', 'key', pg_temp.n242_id(1)::TEXT, 'resourceKind', NULL)),
+  (pg_temp.n242_id(704), pg_temp.n242_id(305), '["case.read.full","case.route.manage","case.update.append"]', 740,
+    jsonb_build_object('kind', 'organization', 'key', pg_temp.n242_id(1)::TEXT, 'resourceKind', NULL));
 GRANT SELECT ON n242_roles TO authenticated;
 
 SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.n242_id(101),
@@ -148,8 +182,7 @@ BEGIN
       platform.staff_role_impact(pg_temp.n242_id(1), r.role_id, 1) ->> 'impactFingerprint',
       'N242 publish role', pg_temp.n242_id(r.request_base + 2));
     PERFORM platform.staff_role_assignments_save(pg_temp.n242_id(1), r.membership_id, 1,
-      jsonb_build_array(jsonb_build_object('roleId', r.role_id,
-        'scope', jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL))),
+      jsonb_build_array(jsonb_build_object('roleId', r.role_id, 'scope', r.scope)),
       jsonb_build_array(jsonb_build_object('roleId', r.role_id, 'roleVersion', 2,
         'bundleId', (published ->> 'bundleId')::UUID, 'bundleVersion', 1)),
       'N242 grant role', pg_temp.n242_id(r.request_base + 3));
@@ -165,8 +198,12 @@ UPDATE n242_actors a SET claims = (platform_private.custom_access_token_hook(jso
 SELECT claims AS n242_admin FROM n242_actors WHERE n = 1 \gset
 SELECT claims AS n242_sales FROM n242_actors WHERE n = 2 \gset
 SELECT claims AS n242_curator FROM n242_actors WHERE n = 3 \gset
-SELECT pg_temp.n242_assert((SELECT count(*) = 3 FROM n242_actors
+SELECT claims AS n242_manager FROM n242_actors WHERE n = 4 \gset
+SELECT claims AS n242_finance FROM n242_actors WHERE n = 5 \gset
+SELECT pg_temp.n242_assert((SELECT count(*) = 5 FROM n242_actors
   WHERE claims::JSONB ->> 'platform_membership_id' = pg_temp.n242_id(300 + n)::TEXT), 'staff claims resolve to their memberships');
+SELECT pg_temp.n242_assert(:'n242_manager'::JSONB ->> 'platform_role' = 'staff', 'the invited manager has no coarse role');
+SELECT pg_temp.n242_assert(:'n242_finance'::JSONB ->> 'platform_role' = 'finance', 'the legacy member keeps the frozen finance role');
 
 -- ---------------------------------------------------------------------------
 -- Admin: the pending view lists exactly the pending cases; nothing else moves.
@@ -192,6 +229,7 @@ SELECT pg_temp.n242_assert(
   (SELECT count(*) = 6 FROM jsonb_object_keys(platform.staff_student_case_queue_counts_v1('active') -> 'views')),
   'views carries exactly the six views');
 SELECT pg_temp.n242_counts_match_rows('admin');
+SELECT pg_temp.n242_pending_facets_match('admin');
 SELECT pg_temp.n242_assert(pg_temp.n242_error($q$SELECT platform.staff_student_case_queue_v1('bogus', 10)$q$) = '22023',
   'unknown view is still invalid for the page read');
 SELECT pg_temp.n242_assert(pg_temp.n242_error($q$SELECT platform.staff_student_case_queue_counts_v1('bogus')$q$) = '22023',
@@ -207,6 +245,27 @@ SELECT pg_temp.n242_assert(cardinality(pg_temp.n242_ids('pending', 'due', 100)) 
 SELECT pg_temp.n242_assert((platform.staff_student_case_queue_counts_v1('pending') -> 'views' ->> 'pending')::INTEGER = 0,
   'own-scope curator pending count is zero');
 SELECT pg_temp.n242_counts_match_rows('curator A');
+
+-- ---------------------------------------------------------------------------
+-- A manager invited through «Сотрудники» (no coarse role) reads the queue by
+-- the right: 241's coarse check lets a NULL role through, and the
+-- organization scope shows the unassigned pending cases.
+-- ---------------------------------------------------------------------------
+SET LOCAL request.jwt.claims TO :'n242_manager';
+SELECT pg_temp.n242_assert(pg_temp.n242_ids('pending', 'due', 100) = ARRAY[pg_temp.n242_id(503), pg_temp.n242_id(502)],
+  'the invited manager sees the pending cases of the organization');
+SELECT pg_temp.n242_counts_match_rows('manager');
+SELECT pg_temp.n242_pending_facets_match('manager');
+
+-- ---------------------------------------------------------------------------
+-- A legacy member whose frozen coarse role is finance is refused even with
+-- full case read on the organization — the 241 gate this migration keeps.
+-- ---------------------------------------------------------------------------
+SET LOCAL request.jwt.claims TO :'n242_finance';
+SELECT pg_temp.n242_assert(pg_temp.n242_error($q$SELECT platform.staff_student_case_queue_v1('pending', 10)$q$) = '42501',
+  'a legacy finance role is refused the pending view despite case.read.full');
+SELECT pg_temp.n242_assert(pg_temp.n242_error($q$SELECT platform.staff_student_case_queue_counts_v1('pending')$q$) = '42501',
+  'a legacy finance role is refused pending counts despite case.read.full');
 
 -- ---------------------------------------------------------------------------
 -- Refusals are unchanged: Sales and anon cannot read any view, pending included.

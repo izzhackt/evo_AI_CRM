@@ -83,7 +83,7 @@ function docsEmptyTitle(view: StudentsDocsView, filtered: boolean, complete: boo
  */
 function QueueForbidden({ docs, coverageHref }: Readonly<{ docs: boolean; coverageHref: string | null }>) {
   return (
-    <div role="alert" className="flex flex-col items-start gap-1 border-y border-border py-8">
+    <div role="alert" data-testid="queue-forbidden" className="flex flex-col items-start gap-1 border-y border-border py-8">
       <p className="t-item text-danger">{docs ? "Очередь EVO Docs для вашей учётной записи недоступна." : "Список студентов для вашей учётной записи недоступен."}</p>
       <p className="t-body-compact text-fg-2">Обратитесь к администратору: повторная попытка не поможет.</p>
       {coverageHref ? <Link href={coverageHref} className={QUEUE_QUIET_LINK}>Открыть «Нагрузку кураторов»</Link> : null}

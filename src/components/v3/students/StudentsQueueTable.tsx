@@ -73,7 +73,8 @@ export function studentsRowMeta(row: Pick<StudentCaseQueueRow, "admissionsDirect
  * должен быть виден; просроченный шаг тогда назван в сигналах.
  */
 function DueCell({ row, now, today, sort }: Readonly<{ row: StudentCaseQueueRow; now: Date; today: string; sort: StudentCaseQueueSort }>) {
-  const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state !== "closed") : null;
+  // Шаг ведётся только у дела в работе: у закрытого и ожидающего начала дата без «прошёл».
+  const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   const updated = sort === "updated" ? studentsUpdatedDay(row.updatedAt, today) : null;
   const word = updated ? null : due?.word ?? due?.caption ?? null;
   return (
@@ -155,8 +156,9 @@ export function StudentsQueueRow({
   const meta = studentsRowMeta(row);
   // Неизвестный этап не показывается ключом базы (CLAUDE.md): слова нет — ячейка пустая.
   const stage = admissionsPipelineStage(row.pipelineStage);
-  // Шаг закрытого дела уже не работа: «Шаг просрочен» у него был бы ложной тревогой.
-  const signals = studentsRowSignals(row, { curatorWords: !curatorColumn, overdueStep: sort === "updated" && row.state !== "closed" });
+  // Шаг ведётся только у дела в работе: у закрытого или вернувшегося в ожидание
+  // «Шаг просрочен» был бы ложной тревогой (сохранённый шаг там не правится).
+  const signals = studentsRowSignals(row, { curatorWords: !curatorColumn, overdueStep: sort === "updated" && row.state === "active" });
   return (
     <tr
       role="row"

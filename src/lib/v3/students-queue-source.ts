@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import type { StudentsHandoff, StudentsOpenTasks, StudentsQueueParams } from "@/components/v3/students/students-queue-view";
 import {
   studentsCountsView,
+  studentsHandoffPending,
   studentsQueueRequest,
 } from "@/components/v3/students/students-queue-view";
 
@@ -75,13 +76,14 @@ export async function readStudentsOpenTasks(actor: ActivePlatformActor, studentC
 /**
  * «Приём дела» для «Быстрого просмотра» — существующее чтение
  * `staff_student_case_handoff_acknowledgement` (одно на открытую панель).
- * Панель показывает блок только текущему куратору, который может ответить;
- * отказ чтения — без блока: принять дело можно из карточки дела.
+ * Панель показывает блок только текущему куратору, который может ответить,
+ * и только пока дело не принято; отказ чтения — без блока: принять дело
+ * можно из карточки дела.
  */
 export async function readStudentsHandoff(actor: ActivePlatformActor, studentCaseId: string): Promise<StudentsHandoff | null> {
   try {
     const snapshot = await getHandoffAcknowledgement(actor, studentCaseId);
-    return snapshot.canRespond && snapshot.assignmentEventId ? Object.freeze({ ...snapshot, requestId: randomUUID() }) : null;
+    return studentsHandoffPending(snapshot) ? Object.freeze({ ...snapshot, requestId: randomUUID() }) : null;
   } catch {
     return null;
   }

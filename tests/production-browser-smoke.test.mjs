@@ -168,15 +168,32 @@ test("CLI errors are sanitized and never echo missing credential names", () => {
 });
 
 test("«Студенты» and EVO Docs smoke checks the real queue without depending on data", () => {
-  for (const [name, route, failure] of [
-    ["students_queue", "/v3/profile`", "students_queue_unavailable"],
-    ["evo_docs", "/v3/profile?section=docs`", "evo_docs_queue_unavailable"],
+  const verify = smokeSource.slice(smokeSource.indexOf("async function verifyStudentsQueue("), smokeSource.indexOf("export async function runProductionBrowserSmoke("));
+  // The container renders in every queue state, so a refusal, a list error and missing counts fail at once.
+  assert.match(verify, /getByTestId\("v3-student-case-directory"\)\.waitFor\(\{ state: "visible", timeout: 30_000 \}\)/u);
+  for (const [id, suffix] of [["queue-forbidden", "forbidden"], ["queue-error", "unavailable"], ["queue-counts-unavailable", "counts_unavailable"]]) {
+    assert.ok(verify.includes(`if (await page.getByTestId("${id}").count()) throw new Error(\`\${prefix}_${suffix}\`);`), id);
+  }
+  assert.match(verify, /getByRole\("navigation", \{ name: "Виды списка студентов", exact: true \}\)/u);
+  assert.match(verify, /views\.getByRole\("link", \{ name: tab \}\)\.first\(\)\.waitFor\(\{ state: "visible", timeout: 30_000 \}\)/u);
+  for (const [name, route, prefix, tab] of [
+    ["students_queue", "/v3/profile`", "students_queue", "Все в работе"],
+    ["evo_docs", "/v3/profile?section=docs`", "evo_docs_queue", "На проверку"],
   ]) {
     const check = smokeSource.split(`checkpoint("${name}");`)[1]?.split("checkpoint(")[0] ?? "";
     assert.ok(check.includes(`\${configuration.baseUrl}${route}`), `${name} visits ${route}`);
-    assert.match(check, /getByTestId\("v3-student-case-directory"\)\.waitFor/u);
-    assert.match(check, /getByRole\("navigation", \{ name: "Виды списка студентов", exact: true \}\)\.waitFor/u);
-    assert.match(check, new RegExp(`getByTestId\\("queue-error"\\)\\.count\\(\\)\\) throw new Error\\("${failure}"\\)`, "u"));
+    assert.ok(check.includes(`await verifyStudentsQueue(page, "${prefix}", /^${tab}/u);`), `${name} checks its own tab`);
     assert.match(check, /if \(runtimeError\) throw new Error\("staff_runtime_error"\)/u);
   }
+  // The selectors are the real components' — renaming one there breaks this test, not the release.
+  const component = (path) => readFileSync(new URL(`../src/components/v3/${path}`, import.meta.url), "utf8");
+  assert.match(component("students/StudentsQueueScreen.tsx"), /data-testid="queue-forbidden"/u);
+  assert.match(component("students/StudentsQueueScreen.tsx"), /data-testid="v3-student-case-directory"/u);
+  assert.match(component("students/StudentsQueueBody.tsx"), /data-testid="v3-student-case-directory"/u);
+  assert.match(component("students/StudentsQueueHead.tsx"), /data-testid="queue-counts-unavailable"/u);
+  assert.match(component("students/StudentsQueueHead.tsx"), /label="Виды списка студентов"/u);
+  assert.match(component("queue/QueueStates.tsx"), /data-testid="queue-error"/u);
+  const labels = component("students/students-queue-view.ts");
+  assert.match(labels, /active: "Все в работе"/u);
+  assert.match(labels, /review: "На проверку"/u);
 });

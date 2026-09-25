@@ -128,7 +128,8 @@ GRANT SELECT ON n242_today TO authenticated;
 SET LOCAL session_replication_role = replica;
 -- 501 active and 505 active with an overdue step (curator A), 502/503 plain
 -- pending cases (no curator, no handoff, no sale evidence; 503 carries the
--- 088-style default step), 504 closed (curator A).
+-- 088-style default step; 502 is already on «shortlist», so the pending stage
+-- facet has two buckets), 504 closed (curator A).
 INSERT INTO platform.student_cases(
   id, organization_id, responsible_sales_membership_id, current_curator_membership_id,
   source_key, student_display_name, target_country, target_degree, operational_stage,
@@ -141,15 +142,15 @@ SELECT pg_temp.n242_id(500 + f.k), pg_temp.n242_id(1), pg_temp.n242_id(302),
   f.state::platform.student_case_state,
   CASE WHEN f.state = 'pending' THEN NULL ELSE clock_timestamp() END,
   CASE WHEN f.state = 'closed' THEN clock_timestamp() END,
-  pg_temp.n242_id(420 + f.k), 1, f.direction, 'new', f.step,
+  pg_temp.n242_id(420 + f.k), 1, f.direction, f.stage, f.step,
   CASE WHEN f.due_offset IS NULL THEN NULL ELSE (SELECT d FROM n242_today) + f.due_offset END
 FROM (VALUES
-  (1, 'active', 'CN', 'CN', 'Шаг 501', 5),
-  (2, 'pending', 'MY', 'MY', NULL, NULL),
-  (3, 'pending', 'CN', NULL, 'Шаг 503', 2),
-  (4, 'closed', 'IT', 'EUROPE', 'Шаг 504', -5),
-  (5, 'active', 'TR', 'TR', 'Шаг 505', -1)
-) AS f(k, state, country, direction, step, due_offset);
+  (1, 'active', 'CN', 'CN', 'new', 'Шаг 501', 5),
+  (2, 'pending', 'MY', 'MY', 'shortlist', NULL, NULL),
+  (3, 'pending', 'CN', NULL, 'new', 'Шаг 503', 2),
+  (4, 'closed', 'IT', 'EUROPE', 'new', 'Шаг 504', -5),
+  (5, 'active', 'TR', 'TR', 'new', 'Шаг 505', -1)
+) AS f(k, state, country, direction, stage, step, due_offset);
 SET LOCAL session_replication_role = origin;
 
 -- Staff roles through the installed commands. Curator A: own scope with full
@@ -230,6 +231,10 @@ SELECT pg_temp.n242_assert(
   'views carries exactly the six views');
 SELECT pg_temp.n242_counts_match_rows('admin');
 SELECT pg_temp.n242_pending_facets_match('admin');
+SELECT pg_temp.n242_assert(jsonb_array_length(platform.staff_student_case_queue_counts_v1('pending') -> 'stages') = 2,
+  'the pending stage facet has both stages, so the stage filter is exercised');
+SELECT pg_temp.n242_assert(jsonb_array_length(platform.staff_student_case_queue_counts_v1('pending') -> 'curators') = 0,
+  'pending cases have no curator, so the pending curator facet is empty');
 SELECT pg_temp.n242_assert(pg_temp.n242_error($q$SELECT platform.staff_student_case_queue_v1('bogus', 10)$q$) = '22023',
   'unknown view is still invalid for the page read');
 SELECT pg_temp.n242_assert(pg_temp.n242_error($q$SELECT platform.staff_student_case_queue_counts_v1('bogus')$q$) = '22023',
@@ -262,6 +267,8 @@ SELECT pg_temp.n242_pending_facets_match('manager');
 -- full case read on the organization — the 241 gate this migration keeps.
 -- ---------------------------------------------------------------------------
 SET LOCAL request.jwt.claims TO :'n242_finance';
+SELECT pg_temp.n242_assert(platform.staff_access_snapshot() -> 'permissions' ? 'case.read.full',
+  'the legacy finance member does hold case.read.full — the refusal is the coarse role');
 SELECT pg_temp.n242_assert(pg_temp.n242_error($q$SELECT platform.staff_student_case_queue_v1('pending', 10)$q$) = '42501',
   'a legacy finance role is refused the pending view despite case.read.full');
 SELECT pg_temp.n242_assert(pg_temp.n242_error($q$SELECT platform.staff_student_case_queue_counts_v1('pending')$q$) = '42501',

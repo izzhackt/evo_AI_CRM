@@ -754,6 +754,10 @@ test("«Ожидает начала» is a queue view: pending cases, no due gro
   // A declined case keeps its saved step (182): its date is shown, but it is not «просрочен».
   assert.match(texts(html), /Созвониться о старте занятий 18\.09/u);
   assert.doesNotMatch(html, /Шаг просрочен|прошёл/u);
+  // Nor in its quick view, where the step is read-only (overdue open tasks keep their own word).
+  const panel = surfaces.get("pending-panel");
+  assert.match(texts(panel), /Созвониться о старте занятий · 18\.09 Шаг задаётся только делу в работе/u);
+  assert.doesNotMatch(panel, /<time[^>]*text-danger[^>]*>18\.09/u);
 });
 
 test("«Принять дело» in the panel reuses the case card, only for the curator who can answer", () => {
@@ -775,6 +779,14 @@ test("«Принять дело» in the panel reuses the case card, only for th
   const clarification = surfaces.get("panel-clarification");
   assert.match(clarification, /Уточните, кто из родителей подписывает договор\./u, "the open clarification is shown");
   assert.match(clarification, /data-testid="v3-students-panel-handoff"[\s\S]*>Принять дело</u);
+  // After «Принять дело» the re-read snapshot no longer waits for an answer and the block goes:
+  // the panel names the saved result and moves focus off the vanished button.
+  const card = read("src/components/v3/profile/ProfileSalesTransition.tsx");
+  assert.match(card, /const next = await respondToHandoffAction\(previous, formData\);\s*if \(next\.status === "saved"\) onSaved\?\.\(formData\.get\("decision"\) as HandoffDecision\);/u);
+  const panel = read("src/components/v3/students/StudentQuickView.tsx");
+  assert.match(panel, /onSaved=\{\(decision\) => \{ if \(decision === "accepted"\) setAccepted\(true\); \}\}/u);
+  assert.match(panel, /\) : accepted \? <p role="status"[^>]*>Дело принято\.<\/p> : null\}/u, "said only after the server's receipt");
+  assert.match(panel, /if \(!accepted \|\| handoff\) return;[\s\S]*active === document\.body\) headingRef\.current\?\.focus\(\);/u);
   const page = read("src/app/(v3)/v3/profile/page.tsx");
   assert.match(page, /params\.open && !isStaffPreview\(actor\) \? readStudentsHandoff\(actor, params\.open\)/u, "one read per open panel, never in role preview");
 });

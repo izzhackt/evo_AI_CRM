@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { CaseNextActionReceipt, StudentCaseQueueRow } from "@/lib/platform-student-case-queue-contract";
 import { admissionsPipelineStage, taskStatus } from "@/lib/v3/wording";
@@ -61,32 +61,46 @@ export function StudentQuickView({
   now: Date;
   access: NextStepAccess;
   tasks: StudentsOpenTasks | null;
-  /** «Приём дела»: тот же блок, что в карточке дела; только текущему куратору, который может ответить. */
+  /** «Приём дела»: тот же блок, что в карточке дела; только текущему куратору, пока дело не принято. */
   handoff?: StudentsHandoff | null;
   links: QuickViewLinks;
   requestId: string;
   onSaved: (receipt: CaseNextActionReceipt) => void;
 }>) {
   const headingId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const stepHeadingId = `${headingId}-step`;
+  // «Принять дело» сохранено: перечитанный снимок больше не ждёт ответа, и блок уходит —
+  // итог называет панель, фокус с исчезнувшей кнопки переходит на заголовок.
+  const [accepted, setAccepted] = useState(false);
+  useEffect(() => {
+    if (!accepted || handoff) return;
+    const active = document.activeElement;
+    if (active === null || active === document.body) headingRef.current?.focus();
+  }, [accepted, handoff]);
   // Неизвестный этап не показывается ключом базы (CLAUDE.md).
   const stage = admissionsPipelineStage(row.pipelineStage);
   const awaiting = row.attentionFlags.includes("awaiting_ack");
   const documents = studentsDocumentsLine(row.documents);
-  const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state !== "closed") : null;
+  // Шаг ведётся только у дела в работе: у закрытого и ожидающего начала дата без «прошёл».
+  const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   const openTasks = tasks?.kind === "ready" ? tasks.tasks : [];
 
   return (
     <QueueDetailPanel closeHref={links.close} backLabel="К студентам" headingId={headingId}>
       <header className="space-y-1 xl:pe-10">
-        <h2 id={headingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg">{row.studentDisplayName}</h2>
+        <h2 ref={headingRef} id={headingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg">{row.studentDisplayName}</h2>
         <p className="t-meta text-fg-2">{studentsRowMeta(row)}</p>
       </header>
       <div className="mt-3">
         <Link href={links.case} className={QUEUE_SECONDARY}>Открыть дело</Link>
       </div>
       {/* Принять дело — главное действие куратора по переданному делу: первым под шапкой. */}
-      {handoff ? <div className="mt-4" data-testid="v3-students-panel-handoff"><ProfileHandoffAcknowledgement snapshot={handoff} /></div> : null}
+      {handoff ? (
+        <div className="mt-4" data-testid="v3-students-panel-handoff">
+          <ProfileHandoffAcknowledgement snapshot={handoff} onSaved={(decision) => { if (decision === "accepted") setAccepted(true); }} />
+        </div>
+      ) : accepted ? <p role="status" className="mt-4 t-body-compact text-fg" data-testid="v3-students-panel-handoff-accepted">Дело принято.</p> : null}
 
       <dl className="mt-4 divide-y divide-border border-t border-border">
         {stage ? <Fact term="Этап">{stage}</Fact> : null}

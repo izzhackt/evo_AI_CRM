@@ -288,6 +288,14 @@ function scenario(search, { actor = "admin", docsMode = false, read, openTasks =
   return { kind: "queue", search, docsMode, input, actor };
 }
 
+/** Первое дело вида с сохранённым шагом, срок которого прошёл (как после отказа куратора в 182). */
+function withStaleStep(base) {
+  const staleId = base.input.read.page.rows[0].studentCaseId;
+  const rows = base.input.read.page.rows.map((row) => row.studentCaseId === staleId
+    ? { ...row, nextAction: "Созвониться о старте занятий", nextActionDueOn: "2026-09-18", dueBand: "overdue" } : row);
+  return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows } } } };
+}
+
 const SALES_DIRECTORY = {
   hasNext: false,
   nextCursor: null,
@@ -332,12 +340,9 @@ const SCENARIOS = {
   })(),
   "manager-default": scenario("", { actor: "manager" }),
   // Отказ куратора вернул дело в ожидание, а сохранённый шаг остался (182): он не «просрочен».
-  pending: (() => {
-    const base = scenario("view=pending");
-    const rows = base.input.read.page.rows.map((row, index) => index === 0
-      ? { ...row, nextAction: "Созвониться о старте занятий", nextActionDueOn: "2026-09-18", dueBand: "overdue" } : row);
-    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows } } } };
-  })(),
+  pending: withStaleStep(scenario("view=pending")),
+  // То же дело в «Быстром просмотре»: шаг только для чтения, дата без «прошёл».
+  "pending-panel": withStaleStep(scenario(`view=pending&open=${pageFor("pending", "updated").rows[0].studentCaseId}`, { openTasks: TASKS })),
   // Куратор открывает переданное ему дело: «Приём дела» первым в панели.
   "panel-accept": scenario(`view=active&open=${caseId(3)}`, {
     openTasks: TASKS,

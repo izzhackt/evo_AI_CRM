@@ -376,8 +376,13 @@ export function ProfileSalesHandoffAcknowledgement({ snapshot }: { snapshot: Sal
   </Card>;
 }
 
-export function ProfileHandoffAcknowledgement({ snapshot }: {
+export function ProfileHandoffAcknowledgement({ snapshot, onSaved }: {
   snapshot: HandoffAcknowledgement & Readonly<{ requestId: string }>;
+  /**
+   * Ответ записан сервером. Панель очереди убирает блок после «принято»
+   * (перечитанный снимок больше не ждёт ответа) и называет итог сама.
+   */
+  onSaved?: (decision: HandoffDecision) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -385,7 +390,11 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
   const [clarification, setClarification] = useState("");
   const [contactDate, setContactDate] = useState(snapshot.current?.agreedContactDate ?? "");
   const [state, action, pending] = useActionState<HandoffResponseActionState, FormData>(
-    respondToHandoffAction,
+    async (previous, formData) => {
+      const next = await respondToHandoffAction(previous, formData);
+      if (next.status === "saved") onSaved?.(formData.get("decision") as HandoffDecision);
+      return next;
+    },
     { status: "idle", requestId: snapshot.requestId, acknowledgementId: null, submittedContext: null },
   );
   const saved = state.status === "saved";

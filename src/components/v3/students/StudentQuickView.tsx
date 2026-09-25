@@ -70,17 +70,18 @@ export function StudentQuickView({
   const headingId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const stepHeadingId = `${headingId}-step`;
-  // «Принять дело» сохранено: перечитанный снимок больше не ждёт ответа, и блок уходит —
-  // итог называет панель, фокус с исчезнувшей кнопки переходит на заголовок.
-  const [accepted, setAccepted] = useState(false);
+  // Приём или отказ записан: перечитанный снимок больше не ждёт ответа, и блок уходит —
+  // итог называет панель, фокус с исчезнувшей кнопки переходит на заголовок. Строка
+  // панели может быть прежней (дело ушло из вида), поэтому «ждёт принятия» гаснет по ответу.
+  const [answered, setAnswered] = useState<"accepted" | "declined" | null>(null);
   useEffect(() => {
-    if (!accepted || handoff) return;
+    if (!answered || handoff) return;
     const active = document.activeElement;
     if (active === null || active === document.body) headingRef.current?.focus();
-  }, [accepted, handoff]);
+  }, [answered, handoff]);
   // Неизвестный этап не показывается ключом базы (CLAUDE.md).
   const stage = admissionsPipelineStage(row.pipelineStage);
-  const awaiting = row.attentionFlags.includes("awaiting_ack");
+  const awaiting = !answered && row.attentionFlags.includes("awaiting_ack");
   const documents = studentsDocumentsLine(row.documents);
   // Шаг ведётся только у дела в работе: у закрытого и ожидающего начала дата без «прошёл».
   const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
@@ -98,14 +99,20 @@ export function StudentQuickView({
       {/* Принять дело — главное действие куратора по переданному делу: первым под шапкой. */}
       {handoff ? (
         <div className="mt-4" data-testid="v3-students-panel-handoff">
-          <ProfileHandoffAcknowledgement snapshot={handoff} onSaved={(decision) => { if (decision === "accepted") setAccepted(true); }} />
+          <ProfileHandoffAcknowledgement snapshot={handoff} onSaved={(decision) => setAnswered(decision === "clarification_requested" ? null : decision)} />
         </div>
-      ) : accepted ? <p role="status" className="mt-4 t-body-compact text-fg" data-testid="v3-students-panel-handoff-accepted">Дело принято.</p> : null}
+      ) : answered ? (
+        <p role="status" className="mt-4 t-body-compact text-fg" data-testid="v3-students-panel-handoff-answered">
+          {/* Отказ в той же записи возвращает дело в ожидание без куратора (182). */}
+          {answered === "accepted" ? "Дело принято." : "Назначение отклонено. Дело вернулось в «Ожидает начала»."}
+        </p>
+      ) : null}
 
       <dl className="mt-4 divide-y divide-border border-t border-border">
         {stage ? <Fact term="Этап">{stage}</Fact> : null}
         <Fact term="Куратор">
-          {row.currentCuratorDisplayName ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
+          {answered === "declined" ? <span className="text-fg-3">не назначен</span>
+            : row.currentCuratorDisplayName ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
           {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}
         </Fact>
         {row.state !== "active" ? <Fact term="Состояние">{row.state === "closed" ? "Дело закрыто" : "Ожидает начала"}</Fact> : null}

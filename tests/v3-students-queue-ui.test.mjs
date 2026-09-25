@@ -784,9 +784,13 @@ test("«Принять дело» in the panel reuses the case card, only for th
   const card = read("src/components/v3/profile/ProfileSalesTransition.tsx");
   assert.match(card, /const next = await respondToHandoffAction\(previous, formData\);\s*if \(next\.status === "saved"\) onSaved\?\.\(formData\.get\("decision"\) as HandoffDecision\);/u);
   const panel = read("src/components/v3/students/StudentQuickView.tsx");
-  assert.match(panel, /onSaved=\{\(decision\) => \{ if \(decision === "accepted"\) setAccepted\(true\); \}\}/u);
-  assert.match(panel, /\) : accepted \? <p role="status"[^>]*>Дело принято\.<\/p> : null\}/u, "said only after the server's receipt");
-  assert.match(panel, /if \(!accepted \|\| handoff\) return;[\s\S]*active === document\.body\) headingRef\.current\?\.focus\(\);/u);
+  assert.match(panel, /onSaved=\{\(decision\) => setAnswered\(decision === "clarification_requested" \? null : decision\)\}/u);
+  assert.match(panel, /\) : answered \? \(\s*<p role="status"[\s\S]*?\{answered === "accepted" \? "Дело принято\." : "Назначение отклонено\. Дело вернулось в «Ожидает начала»\."\}/u,
+    "said only after the server's receipt; a decline returns the case to pending without a curator (182)");
+  // The panel row may be the one read before the answer (the case left the view): no stale «ждёт принятия» or curator.
+  assert.match(panel, /const awaiting = !answered && row\.attentionFlags\.includes\("awaiting_ack"\);/u);
+  assert.match(panel, /\{answered === "declined" \? <span className="text-fg-3">не назначен<\/span>/u);
+  assert.match(panel, /if \(!answered \|\| handoff\) return;[\s\S]*active === document\.body\) headingRef\.current\?\.focus\(\);/u);
   const page = read("src/app/(v3)/v3/profile/page.tsx");
   assert.match(page, /params\.open && !isStaffPreview\(actor\) \? readStudentsHandoff\(actor, params\.open\)/u, "one read per open panel, never in role preview");
 });

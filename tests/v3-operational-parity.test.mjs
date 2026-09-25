@@ -44,10 +44,11 @@ test("both V3 role homes render the canonical role-scoped operational dashboard"
 test("V3 profile preserves strict searchable paginated Student Case discovery", () => {
   const page = source("src/app/(v3)/v3/profile/page.tsx");
   const adapter = source("src/lib/v3/profile-source.ts");
-  const directory = source(
-    "src/components/v3/profile/StudentsWorkspace.tsx",
-  );
-  const facets = source("src/components/v3/profile/students-facets.ts");
+  // Since 2026-09-25 Admin and curators get the migration-241 work queue;
+  // Sales (and the Sales role preview), which 241 refuses, keep the 078 page.
+  const fallback = source("src/components/v3/students/StudentsDirectoryFallback.tsx");
+  const queueView = source("src/components/v3/students/students-queue-view.ts");
+  const queueSource = source("src/lib/v3/students-queue-source.ts");
 
   assert.match(page, /parseV3ProfileCaseDirectoryParams\(params\)/u);
   assert.match(page, /loadV3ProfileRoute\(routeMode/u);
@@ -58,6 +59,13 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.match(page, /invalidIdentityShape/u);
   assert.match(page, /\(hasLeadParam \|\| hasCaseParam\) && directoryParams\.active/u);
   assert.doesNotMatch(page, /effectiveDirectoryParams/u);
+  // The queue is for staff with the full case read; everyone else keeps the 078 read.
+  assert.match(page, /const queueMode = staffPresentationCan\(actor, "admissions\.read"\) && staffHasPermission\(actor, "case\.read\.full"\);/u);
+  assert.match(page, /readDirectory: \(nextParams\) => queueMode \? Promise\.resolve\(null\) : readV3ProfileCaseDirectory\(actor, nextParams\)/u);
+  assert.match(page, /if \(queueParse\?\.kind === "redirect"\) redirect\(queueParse\.href\);/u);
+  assert.match(queueSource, /readStudentCaseQueue\(actor, studentsQueueRequest\(params\)\)/u);
+  assert.match(queueSource, /readStudentCaseQueueCounts\(actor, studentsCountsView\(params\), filters\)/u);
+  assert.match(queueView, /STUDENTS_QUEUE_PAGE_SIZE = 50/u);
   assert.match(adapter, /listPlatformStudentCases\(actor, \{/u);
   assert.match(adapter, /cursor: params\.cursor/u);
   assert.match(adapter, /pageSize: 25/u);
@@ -90,27 +98,19 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   ]) {
     assert.match(adapter, new RegExp(`${field}: null`));
   }
-  assert.match(directory, /name="case_q"/u);
-  assert.match(directory, /name="case_status"/u);
-  // Status is a facet since 2026-09-24; «Закрыто» stays one of its filters.
-  assert.match(facets, /const STATE_ORDER = \["active", "pending", "closed"\]/u);
-  assert.match(facets, /closed: "Закрыто"/u);
+  assert.match(fallback, /name: "case_q"/u);
+  assert.match(fallback, /case_status: params\.state \?\? null/u);
+  assert.match(fallback, /closed: "Закрыто"/u);
   const directoryLinks = source("src/components/v3/profile/admissions-view.ts");
   assert.match(directoryLinks, /case_before_at/u);
   assert.match(directoryLinks, /case_before_id/u);
-  assert.match(directory, /admissionsDirectoryHref\(params, directory\.nextCursor, docsMode\)/u);
-  // Rows live in the semantic table since 2026-09-24 (StudentCaseTable).
-  const table = source("src/components/v3/profile/StudentCaseTable.tsx");
-  assert.match(
-    table,
-    /if \(row\.access === "full"\) \{\s*return withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{docsMode \? "anketa" : "route"\}`, docsMode\);/u,
-  );
-  assert.match(table, /return row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null;/u);
-  assert.match(table, /data-access=\{row\.access\}/u);
-  assert.match(table, /href=\{href\}[\s\S]*\{row\.studentDisplayName\}/u);
-  assert.match(table, /<caption className="sr-only">\{caption\}<\/caption>/u);
-  assert.match(directory, /const caption = `Дела студентов: \$\{rows\.length\} на этой странице/u);
-  for (const file of [directory, table]) {
+  assert.match(fallback, /admissionsDirectoryHref\(params, directory\.nextCursor, docsMode\)/u);
+  // A handed-off summary opens the lead card; a full case opens its overview.
+  assert.match(fallback, /if \(row\.access === "full"\) return withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{docsMode \? "documents" : "overview"\}`, docsMode\);/u);
+  assert.match(fallback, /return row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null;/u);
+  assert.match(fallback, /data-access=\{row\.access\}/u);
+  assert.match(fallback, /<caption className="sr-only">Дела студентов: \{rows\.length\} на этой странице<\/caption>/u);
+  for (const file of [fallback, source("src/components/v3/students/StudentsQueueTable.tsx")]) {
     assert.doesNotMatch(file, />\s*\{row\.studentCaseId\}\s*</u);
     assert.doesNotMatch(file, /href=["']\/clients/u);
   }

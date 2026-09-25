@@ -10,7 +10,7 @@ import type { CoverageCurator, CoveragePreview } from "@/lib/platform-case-cover
 import { coverageConflictLabel } from "@/lib/v3/wording";
 
 import { CoverageDueTime } from "./CoverageDueTime";
-import { coverageHref } from "./students-facets";
+import { coverageHref } from "./students-coverage-view";
 
 function revision(preview: CoveragePreview): string {
   return JSON.stringify([preview.owner_id, preview.scope_version, preview.coverage?.id,
@@ -77,7 +77,7 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today }:
   useEffect(() => {
     if (status === "saved") {
       // Update the owner filter before fetching: the old owner no longer owns this case.
-      const query = new URLSearchParams({ coverage_curator: destination, coverage_case: reviewed.id });
+      const query = new URLSearchParams({ view: "curators", coverage_curator: destination, coverage_case: reviewed.id });
       router.replace(`/v3/profile?${query.toString()}#curator-coverage`, { scroll: false });
     }
   }, [destination, reviewed.id, router, status]);

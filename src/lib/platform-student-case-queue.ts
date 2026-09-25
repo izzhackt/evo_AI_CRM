@@ -43,6 +43,17 @@ function unavailable(): never {
   throw new StudentCaseQueueContractError();
 }
 
+/**
+ * Сервер отказал в чтении очереди (42501): у учётной записи нет полномочий
+ * очереди. Это не сбой — повтор тем же запросом не поможет.
+ */
+export class StudentCaseQueueForbiddenError extends Error {
+  constructor() {
+    super("Student case queue read is forbidden.");
+    this.name = "StudentCaseQueueForbiddenError";
+  }
+}
+
 function requireQueueOrganization(actor: PlatformActor): string {
   if (!staffCan(actor, "admissions.read")) return unavailable();
   return parseQueueUuid(actor.organizationId) ?? unavailable();
@@ -63,9 +74,11 @@ export async function readStudentCaseQueue(
     const args = buildStudentCaseQueueRpcArguments(request);
     const client = await getPlatformClient();
     const response = await client.schema("platform").rpc("staff_student_case_queue_v1", args, { get: true });
+    if (response.error?.code === "42501") throw new StudentCaseQueueForbiddenError();
     if (response.error) return unavailable();
     return normalizeStudentCaseQueuePage(response.data, request);
-  } catch {
+  } catch (error) {
+    if (error instanceof StudentCaseQueueForbiddenError) throw error;
     return unavailable();
   }
 }

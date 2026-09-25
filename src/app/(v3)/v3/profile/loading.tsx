@@ -1,21 +1,7 @@
-import { SkeletonBlock } from "@/components/ui";
 import { PartShell } from "@/components/v3/PartShell";
+import { QueueSkeleton } from "@/components/v3/queue/QueueStates";
 
+/** Загрузка «Студентов» — форма очереди: вкладки, строка инструментов и волосяные строки. */
 export default function ProfileLoading() {
-  return (
-    <PartShell title="Студенты">
-      <div aria-busy="true" className="flex flex-col gap-3">
-        <p role="status" className="text-sm text-fg-2">Загружаем список студентов…</p>
-        <SkeletonBlock className="h-24 w-full sm:h-14" />
-        <div className="divide-y divide-border rounded-card border border-border bg-surface">
-          {Array.from({ length: 5 }, (_, index) => (
-            <div key={index} className="grid gap-3 p-5 sm:grid-cols-[minmax(160px,1fr)_minmax(200px,1.25fr)]">
-              <SkeletonBlock className="h-16" />
-              <SkeletonBlock className="h-16" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </PartShell>
-  );
+  return <PartShell title="Студенты" dense><QueueSkeleton label="Загружаем список студентов…" leading={false} /></PartShell>;
 }

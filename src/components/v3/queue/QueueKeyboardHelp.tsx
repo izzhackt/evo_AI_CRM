@@ -7,7 +7,9 @@ import { useAnchoredPopover } from "./useAnchoredPopover";
 /** Один на странице: `useQueueKeyboard` открывает его клавишей «?». */
 export const QUEUE_HELP_ID = "queue-keyboard-help";
 
-const KEYS: readonly (readonly [readonly string[], string])[] = [
+export type QueueKey = readonly [readonly string[], string];
+
+const KEYS: readonly QueueKey[] = [
   [["/"], "поиск"],
   [["↑", "↓"], "выбрать строку"],
   [["j", "k"], "то же"],
@@ -19,7 +21,7 @@ const KEYS: readonly (readonly [readonly string[], string])[] = [
  * Сочетания клавиш очереди — в маленьком окне по кнопке «?», а не постоянным
  * текстом на странице (правило «Тихий интерфейс»).
  */
-export function QueueKeyboardHelp() {
+export function QueueKeyboardHelp({ extra = [] }: Readonly<{ extra?: readonly QueueKey[] }> = {}) {
   const { triggerId, triggerStyle, popoverStyle } = useAnchoredPopover("end");
   return (
     <>
@@ -44,7 +46,7 @@ export function QueueKeyboardHelp() {
       >
         <p className="t-item text-fg">Клавиши</p>
         <dl className="mt-2 grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5">
-          {KEYS.map(([keys, action]) => (
+          {[...KEYS, ...extra].map(([keys, action]) => (
             <div key={keys.join("+")} className="contents">
               <dt className="flex gap-1 t-meta">
                 {keys.map((key) => (

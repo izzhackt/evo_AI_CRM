@@ -10,10 +10,16 @@ const META_WIDTHS = ["w-1/3", "w-1/4"];
  * Загрузка очереди — форма будущего экрана: ряд вкладок, строка инструментов
  * и волосяные строки, без текста-заглушки и без скачка раскладки.
  */
-export function QueueSkeleton({ rows = 6 }: Readonly<{ rows?: number }>) {
+export function QueueSkeleton({ rows = 6, label = "Загружаем задачи…", leading = true }: Readonly<{
+  rows?: number;
+  /** Что загружается — для читалки. */
+  label?: string;
+  /** Круг выполнения слева (у задач); у списков без него — false. */
+  leading?: boolean;
+}>) {
   return (
     <div aria-busy="true" className="space-y-4" data-testid="queue-skeleton">
-      <p role="status" className="sr-only">Загружаем задачи…</p>
+      <p role="status" className="sr-only">{label}</p>
       <div className="flex gap-2 border-b border-border pb-2">
         {["w-20", "w-26", "w-30"].map((width) => <SkeletonBlock key={width} className={`h-11 rounded-nav ${width}`} />)}
       </div>
@@ -25,7 +31,7 @@ export function QueueSkeleton({ rows = 6 }: Readonly<{ rows?: number }>) {
       <ul>
         {Array.from({ length: rows }, (_, index) => (
           <li key={index} className="flex min-h-[3.25rem] items-center gap-2 border-b border-border py-2">
-            <span aria-hidden="true" className="mx-3 size-5 shrink-0 animate-pulse rounded-full border-2 border-surface-2 motion-reduce:animate-none" />
+            {leading ? <span aria-hidden="true" className="mx-3 size-5 shrink-0 animate-pulse rounded-full border-2 border-surface-2 motion-reduce:animate-none" /> : null}
             {/* Колонка срока перед названием — как у строк очереди. */}
             <span className="hidden w-28 shrink-0 sm:block"><SkeletonBlock className="h-3.5 w-12 rounded-nav" /></span>
             <div className="min-w-0 flex-1 space-y-1.5">

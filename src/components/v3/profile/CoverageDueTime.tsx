@@ -1,6 +1,6 @@
 import type { CoverageDeadline } from "@/lib/platform-case-coverage-contract";
 
-import { coverageDue } from "./students-facets";
+import { coverageDue } from "./students-coverage-view";
 
 /** Срок замещения моноширинными цифрами — тем же форматом, что колонка «Срок». */
 export function CoverageDueTime({ value, today }: Readonly<{ value: CoverageDeadline | null; today: string }>) {

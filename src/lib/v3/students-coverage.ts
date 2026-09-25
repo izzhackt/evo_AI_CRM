@@ -1,4 +1,4 @@
-import type { StudentsCoverage } from "@/components/v3/profile/students-facets";
+import type { StudentsCoverage } from "@/components/v3/profile/students-coverage-view";
 
 import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth";

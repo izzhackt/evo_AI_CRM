@@ -6,7 +6,14 @@ import { Icon } from "@/components/icons";
 
 import { useAnchoredPopover } from "./useAnchoredPopover";
 
-export type FilterOption = Readonly<{ key: string; label: string; href: string; selected: boolean }>;
+export type FilterOption = Readonly<{
+  key: string;
+  label: string;
+  href: string;
+  selected: boolean;
+  /** Число строк после выбора — только из чтения; null или нет — числа нет. */
+  count?: number | null;
+}>;
 
 /** Кнопка фильтра строки инструментов: 44 px, нейтральная; выбранное значение — внутри. */
 export const FILTER_BUTTON =
@@ -77,6 +84,7 @@ export function FilterMenu({
                 className="v3-choice flex min-h-11 items-center gap-2 rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
               >
                 <span className="min-w-0 flex-1">{option.label}</span>
+                {option.count !== undefined && option.count !== null ? <span className="shrink-0 tabular-nums text-fg-3">{option.count}</span> : null}
                 {option.selected ? <Icon name="check" size={16} className="shrink-0" /> : null}
               </Link>
             </li>

@@ -58,6 +58,11 @@ export type CaseChatPage = Readonly<{
   thread: CaseChatThread; readSequenceId: string;
 }>;
 
+/** Pages are newest-first (sequence DESC): an older page goes after the loaded messages. */
+export function appendOlderCaseChatPage(loaded: CaseChatPage, older: CaseChatPage): CaseChatPage {
+  return { ...older, messages: [...loaded.messages, ...older.messages] };
+}
+
 export type CaseChatThreadRow = Readonly<{
   studentCaseId: string; studentDisplayName: string; lastMessageSnippet: string | null;
   lastMessageAt: string | null; lastMessageAuthorMembershipId: string | null;

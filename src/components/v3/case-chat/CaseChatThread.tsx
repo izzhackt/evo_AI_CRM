@@ -12,7 +12,7 @@ import {
   readCaseChatPageAction, setCaseChatAwaitAction,
 } from "@/lib/platform-case-chat-actions";
 import {
-  CASE_CHAT_AWAIT_STATES, CASE_CHAT_BODY_LIMIT, CASE_CHAT_FAILURE_COPY, CASE_CHAT_INITIAL_ACTION, CASE_CHAT_QUEUES, caseChatHref, parseCaseChatAttachParam, parseCaseChatQueue,
+  CASE_CHAT_AWAIT_STATES, CASE_CHAT_BODY_LIMIT, CASE_CHAT_FAILURE_COPY, CASE_CHAT_INITIAL_ACTION, CASE_CHAT_QUEUES, appendOlderCaseChatPage, caseChatHref, parseCaseChatAttachParam, parseCaseChatQueue,
   type CaseChatActionState, type CaseChatAwaitState, type CaseChatFailure, type CaseChatMessage,
   type CaseChatPage, type CaseChatPendingAttachment, type CaseChatQueue, type CaseChatThreadRow, type CaseChatThreadsList,
 } from "@/lib/platform-case-chat-contract";
@@ -405,9 +405,7 @@ function CaseChatThreadView({
     try {
       const result = await readCaseChatPageAction(caseId, "before", page.cursor);
       if (result.status !== "ready") { setError(result.status); return; }
-      setPage((previous) => previous ? {
-        ...result.page, messages: [...result.page.messages, ...previous.messages],
-      } : result.page);
+      setPage((previous) => previous ? appendOlderCaseChatPage(previous, result.page) : result.page);
       requestAnimationFrame(() => { if (node) node.scrollTop = position + node.scrollHeight - height; });
     } finally { setBusy(false); }
   }

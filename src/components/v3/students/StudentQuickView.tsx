@@ -103,15 +103,17 @@ export function StudentQuickView({
         </div>
       ) : answered ? (
         <p role="status" className="mt-4 t-body-compact text-fg" data-testid="v3-students-panel-handoff-answered">
-          {/* Отказ в той же записи возвращает дело в ожидание без куратора (182). */}
-          {answered === "accepted" ? "Дело принято." : "Назначение отклонено. Дело вернулось в «Ожидает начала»."}
+          {/* Отказ в той же записи возвращает дело в ожидание без куратора (182); вид не называем —
+              куратору со своей областью дело без куратора не видно. */}
+          {answered === "accepted" ? "Дело принято." : "Назначение отклонено. Дело снова ждёт куратора."}
         </p>
       ) : null}
 
       <dl className="mt-4 divide-y divide-border border-t border-border">
         {stage ? <Fact term="Этап">{stage}</Fact> : null}
         <Fact term="Куратор">
-          {answered === "declined" ? <span className="text-fg-3">не назначен</span>
+          {/* Отказ возможен только по переданному делу, поэтому после него дело ждёт куратора — как в строке списка. */}
+          {answered === "declined" ? <span className="font-medium text-danger">нужен куратор</span>
             : row.currentCuratorDisplayName ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
           {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}
         </Fact>

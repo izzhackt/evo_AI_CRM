@@ -20,6 +20,7 @@ import {
   studentsQueueHref,
   studentsQueueTabs,
   studentsRowSignals,
+  studentsStepView,
   studentsUpdatedDay,
 } from "../src/components/v3/students/students-queue-view.ts";
 import { coverageDue, coverageHref, formatDueOn } from "../src/components/v3/profile/students-coverage-view.ts";
@@ -44,8 +45,9 @@ const surfaces = new Map(JSON.parse(execFileSync(
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
 )).map((surface) => [surface.name, surface.html]));
 
-const ADMIN = { admin: true };
-const CURATOR = { admin: false };
+const ADMIN = { admin: true, coverage: true };
+const CURATOR = { admin: false, coverage: false };
+const MANAGER = { admin: false, coverage: true };
 const MEMBER = "aaaaaaaa-1111-4111-8111-000000000001";
 const CASE = "cccccccc-2222-4222-8222-000000000003";
 const parse = (query, actor = ADMIN, mode = "queue") => parseStudentsQueueParams(query, mode, actor);
@@ -615,4 +617,87 @@ test("the facet rail is gone and the page reads no summary for it", () => {
   for (const file of ["StudentsQueueTable.tsx", "StudentsQueueHead.tsx", "StudentQuickView.tsx", "NextStepEditor.tsx", "StudentsDocsTable.tsx", "CuratorWorkloadView.tsx", "StudentsDirectoryFallback.tsx", "StudentsQueueScreen.tsx"]) {
     assert.doesNotMatch(read(`src/components/v3/students/${file}`), /\bbg-accent\b|\bopacity-/u, file);
   }
+});
+
+// --- Исправления по независимому review #1056 (25.09) ------------------------
+
+test("curator assignment views follow case.curator.assign, not the Admin role", () => {
+  const params = ok({});
+  assert.deepEqual(studentsQueueTabs(params, null, MANAGER).map((tab) => tab.key),
+    ["mine", "needs_action", "active", "needs_curator", "closed", "curators"], "a manager with case.curator.assign sees both views");
+  assert.deepEqual(studentsQueueTabs(params, null, CURATOR).map((tab) => tab.key), ["mine", "needs_action", "active", "closed"]);
+  assert.equal(parse({ view: "curators" }, MANAGER).kind, "ok");
+  assert.equal(parse({ view: "curators" }, CURATOR).kind, "invalid");
+  // The coverage form returns to `view=curators`; old links open the same view.
+  assert.equal(parse({ coverage_curator: MEMBER }, MANAGER).params.view, "curators");
+  assert.equal(parse({ attention: "needs_curator" }, MANAGER).kind, "redirect");
+  assert.match(parse({ attention: "needs_curator" }, MANAGER).href, /view=needs_curator/u);
+  assert.doesNotMatch(parse({ attention: "needs_curator" }, CURATOR).href, /view=needs_curator/u);
+  // The default view stays by role: a manager works from «Мои» like any curator.
+  assert.equal(parse({}, MANAGER).params.defaultView, "mine");
+  const manager = surfaces.get("manager-default");
+  assert.match(manager, /aria-label="Куратор[^"]*"/u, "«Куратор ▾» for a manager");
+  assert.match(surfaces.get("manager-curators"), /data-testid="v3-curator-workload/u);
+  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  assert.match(page, /coverage: !preview && staffHasPermission\(actor, "case\.curator\.assign"\)/u);
+});
+
+test("Enter never saves an unchanged or locked step, and a due without text is not a change", () => {
+  const source = read("src/components/v3/students/NextStepEditor.tsx");
+  const submit = source.slice(source.indexOf("function submit("), source.indexOf("function refresh("));
+  assert.match(submit, /if \(!dirty \|\| locked\) return;/u, "requestSubmit() bypasses the disabled button");
+  assert.equal(editor.nextStepDirty("", "2026-09-25", { text: "", due: "" }), false, "«Сегодня» on an empty field is not a change");
+  assert.equal(editor.nextStepDirty("Позвонить", "2026-09-25", { text: "", due: "" }), true);
+  assert.equal(editor.nextStepDirty(" Позвонить ", "2026-09-25", { text: "Позвонить", due: "2026-09-25" }), false);
+  assert.equal(editor.nextStepDirty("Позвонить", "", { text: "Позвонить", due: "2026-09-25" }), true);
+  assert.equal(editor.nextStepDirty("", "", { text: "Позвонить", due: "" }), true, "clearing an existing step is a change");
+  // After the answer focus goes back to the step field instead of <body>.
+  assert.match(source, /restoreFocus\.current = Boolean\(formRef\.current\?\.contains\(document\.activeElement\)\)/u);
+  assert.match(source, /if \(pending \|\| !restoreFocus\.current\) return;[\s\S]*fieldRef\.current\?\.focus\(\);/u);
+});
+
+test("a queue read the server refuses is an honest dead end, not a retry loop", () => {
+  const html = surfaces.get("forbidden");
+  assert.match(html, /Список студентов для вашей учётной записи недоступен\./u);
+  assert.doesNotMatch(html, />Повторить</u);
+  assert.doesNotMatch(html, /Не удалось загрузить список/u);
+  const lib = read("src/lib/platform-student-case-queue.ts");
+  assert.match(lib, /if \(response\.error\?\.code === "42501"\) throw new StudentCaseQueueForbiddenError\(\);/u);
+  assert.match(read("src/lib/v3/students-queue-source.ts"), /forbidden = error instanceof StudentCaseQueueForbiddenError;/u);
+});
+
+test("when the list itself failed, the counts note does not claim the list works", () => {
+  const html = surfaces.get("page-and-counts-error");
+  assert.match(html, /Не удалось загрузить список студентов\./u);
+  assert.doesNotMatch(html, /Счётчики недоступны, список работает/u);
+  assert.match(surfaces.get("counts-unavailable"), /Счётчики недоступны, список работает/u, "still shown when only counts failed");
+});
+
+test("EVO Docs does not say «нет» from a partial read or without document access", () => {
+  const partial = surfaces.get("docs-incomplete-empty");
+  assert.match(partial, /В прочитанной части списка ничего не найдено/u);
+  assert.doesNotMatch(partial, /Документов на проверку нет/u);
+  assert.match(partial, /Проверить следующие 100/u);
+  const noAccess = surfaces.get("docs-no-access");
+  assert.match(noAccess, /Нет доступа к документам дел — откройте «Все»/u);
+  assert.doesNotMatch(noAccess, /Документов на проверку нет/u);
+});
+
+test("«Закрытые» has no due groups and no add-a-step hint", () => {
+  const closed = surfaces.get("closed");
+  assert.doesNotMatch(closed, /students-band-/u);
+  assert.doesNotMatch(closed, /добавьте шаг/u);
+  assert.equal(studentsStepView("closed"), false);
+  assert.equal(studentsStepView("active"), true);
+  const rows = [{ dueBand: "overdue" }, { dueBand: "no_step" }];
+  assert.deepEqual(studentsBands(rows, "due", "2026-09-23", null, false).map((band) => band.key), ["all"]);
+});
+
+test("stage keys never reach the screen and the summary read is gone with its last reader", () => {
+  for (const file of ["StudentsQueueTable.tsx", "StudentQuickView.tsx", "StudentsQueueHead.tsx"]) {
+    assert.doesNotMatch(read(`src/components/v3/students/${file}`), /admissionsPipelineStage\([^)]*\) \?\? /u, file);
+  }
+  const source = read("src/lib/v3/admissions-source.ts");
+  assert.doesNotMatch(source, /readAdmissionsSummary|normalizeAdmissionsSummary|admissions_direction_summary_v1/u);
+  assert.doesNotMatch(read("src/lib/platform-admissions-playbook-contract.ts"), /AdmissionsSummary/u);
 });

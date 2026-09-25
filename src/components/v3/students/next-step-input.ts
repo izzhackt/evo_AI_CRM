@@ -46,6 +46,15 @@ export function nextStepInputError(text: string, choice: NextStepDueChoice, date
     : "Напишите шаг: срок без шага не сохраняется.";
 }
 
+/**
+ * Есть ли что сохранять. Срок без текста у дела без шага — не правка:
+ * быстрый вариант «Сегодня» у пустого поля не должен включать «Сохранить».
+ */
+export function nextStepDirty(text: string, due: string, baseline: Readonly<{ text: string; due: string }>): boolean {
+  const trimmed = text.trim();
+  return trimmed !== baseline.text || (trimmed !== "" && due !== baseline.due);
+}
+
 /** Форма команды: ровно поля действия, ожидаемая версия — версия строки из чтения. */
 export function nextStepForm(row: NextStepEditorRow, text: string, dueOn: string, requestId: string): FormData {
   const form = new FormData();

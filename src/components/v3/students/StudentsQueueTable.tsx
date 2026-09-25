@@ -153,7 +153,8 @@ export function StudentsQueueRow({
   links: StudentsRowLinks;
 }>) {
   const meta = studentsRowMeta(row);
-  const stage = admissionsPipelineStage(row.pipelineStage) ?? row.pipelineStage;
+  // Неизвестный этап не показывается ключом базы (CLAUDE.md): слова нет — ячейка пустая.
+  const stage = admissionsPipelineStage(row.pipelineStage);
   const signals = studentsRowSignals(row, { curatorWords: !curatorColumn, overdueStep: sort === "updated" });
   return (
     <tr
@@ -179,7 +180,7 @@ export function StudentsQueueRow({
         </Link>
         <span className="block truncate t-meta text-fg-2" title={meta}>
           {meta}
-          <span aria-hidden="true" className="@min-[60rem]/students:hidden"> · {stage}</span>
+          {stage ? <span aria-hidden="true" className="@min-[60rem]/students:hidden"> · {stage}</span> : null}
         </span>
       </th>
       <td role="cell" className={`${CELL} [grid-area:step] t-body-compact @min-[36rem]/students:ps-3 @min-[60rem]/students:ps-2`}>

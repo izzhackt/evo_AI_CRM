@@ -97,13 +97,17 @@ export function StudentsToolbar({
         clearHref={studentsListHref(params, { stage: null })}
         options={[
           { key: "all", label: "Все этапы", href: studentsListHref(params, { stage: null }), selected: params.stage === null },
-          ...ADMISSIONS_PIPELINE_STAGES.map((stage) => ({
-            key: stage,
-            label: admissionsPipelineStage(stage) ?? stage,
-            href: studentsListHref(params, { stage }),
-            selected: params.stage === stage,
-            count: facetCount(counts, (value) => value.stages, (item) => item.pipelineStage === stage, (item) => item.count),
-          })),
+          // Этап без слова в wording.ts не показывается ключом базы (CLAUDE.md).
+          ...ADMISSIONS_PIPELINE_STAGES.flatMap((stage) => {
+            const label = admissionsPipelineStage(stage);
+            return label ? [{
+              key: stage,
+              label,
+              href: studentsListHref(params, { stage }),
+              selected: params.stage === stage,
+              count: facetCount(counts, (value) => value.stages, (item) => item.pipelineStage === stage, (item) => item.count),
+            }] : [];
+          }),
         ]}
       />
     ) : null}

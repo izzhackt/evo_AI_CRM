@@ -219,7 +219,17 @@ const TASKS = {
 const EDITOR = {
   admin: { admin: true, preview: false, routeManage: true, broadScope: true },
   curator: { admin: false, preview: false, routeManage: true, broadScope: false },
+  // Руководитель поступления: не Admin, но назначает и замещает кураторов (`case.curator.assign`).
+  manager: { admin: false, preview: false, routeManage: true, broadScope: true },
   preview: { admin: false, preview: true, routeManage: true, broadScope: true },
+};
+
+/** Кто открывает очередь — как `studentsQueueActor` страницы. */
+const QUEUE_ACTOR = {
+  admin: { admin: true, coverage: true },
+  curator: { admin: false, coverage: false },
+  manager: { admin: false, coverage: true },
+  preview: { admin: false, coverage: false },
 };
 
 const COVERAGE_CURATORS = [
@@ -250,7 +260,7 @@ function coverage(selection = {}) {
 /** Сценарий: адрес страницы → разбор тем же `parseStudentsQueueParams`, чтения — синтетика. */
 function scenario(search, { actor = "admin", docsMode = false, read, openTasks = null, coverageRead = null, invalid = false } = {}) {
   const query = Object.fromEntries(new URLSearchParams(search));
-  const parse = view.parseStudentsQueueParams(query, docsMode ? "docs" : "queue", { admin: actor === "admin" });
+  const parse = view.parseStudentsQueueParams(query, docsMode ? "docs" : "queue", QUEUE_ACTOR[actor]);
   if (parse.kind === "redirect") throw new Error(`scenario ${search} redirects to ${parse.href}`);
   const params = parse.params;
   const countsView = view.studentsCountsView(params);
@@ -261,7 +271,9 @@ function scenario(search, { actor = "admin", docsMode = false, read, openTasks =
     read: read ?? {
       page: params.view === "curators" ? null : docsMode ? pageFor("active", "updated", filters) : pageFor(params.view, params.sort, filters),
       counts: countsFor(countsView, filters),
+      forbidden: false,
     },
+    actor: QUEUE_ACTOR[actor],
     openTasks,
     coverage: coverageRead,
     today: TODAY,
@@ -301,7 +313,28 @@ const SCENARIOS = {
   })(),
   "page-error": (() => {
     const base = scenario("view=active");
-    return { ...base, input: { ...base.input, read: { page: null, counts: base.input.read.counts } } };
+    return { ...base, input: { ...base.input, read: { page: null, counts: base.input.read.counts, forbidden: false } } };
+  })(),
+  "page-and-counts-error": (() => {
+    const base = scenario("view=active");
+    return { ...base, input: { ...base.input, read: { page: null, counts: null, forbidden: false } } };
+  })(),
+  forbidden: (() => {
+    const base = scenario("view=active");
+    return { ...base, input: { ...base.input, read: { page: null, counts: null, forbidden: true } } };
+  })(),
+  "manager-default": scenario("", { actor: "manager" }),
+  "manager-curators": scenario("view=curators", { actor: "manager", coverageRead: coverage() }),
+  closed: scenario("view=closed"),
+  "docs-no-access": (() => {
+    const base = scenario("section=docs", { docsMode: true });
+    const rows = base.input.read.page.rows.map((row) => ({ ...row, documents: null }));
+    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows } } } };
+  })(),
+  "docs-incomplete-empty": (() => {
+    const base = scenario("section=docs", { docsMode: true });
+    const rows = base.input.read.page.rows.filter((row) => !row.documents || row.documents.submitted === 0);
+    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows, nextCursor: rows.at(-1).cursor } } } };
   })(),
   "empty-mine": (() => {
     const base = scenario("", { actor: "curator" });

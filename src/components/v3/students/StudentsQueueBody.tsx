@@ -22,6 +22,7 @@ import {
   caseNextActionBand,
   nextStepAccess,
   studentsBands,
+  studentsStepView,
   studentsCaseHref,
   studentsListHref,
   studentsQueueHref,
@@ -126,7 +127,8 @@ export function StudentsQueueBody({
 
   // Пока сохранённая строка не пришла с сервера, числа групп не показываем:
   // строка уже перешла в другую группу, а числа ещё старые.
-  const bands = studentsBands(shownRows, params.sort, today, saved ? null : counts);
+  const stepView = studentsStepView(params.view);
+  const bands = studentsBands(shownRows, params.sort, today, saved ? null : counts, stepView);
   const returnTo = (caseId: string) => studentsQueueHref(params, { open: caseId });
   const links = (row: StudentCaseQueueRow) => ({
     open: studentsQueueHref(params, { open: row.studentCaseId }),
@@ -188,7 +190,7 @@ export function StudentsQueueBody({
               <StudentsQueueTable
                 bands={bands}
                 caption={caption}
-                hint={!editor.preview && (editor.admin || editor.routeManage) ? "откройте строку и добавьте шаг" : null}
+                hint={stepView && !editor.preview && (editor.admin || editor.routeManage) ? "откройте строку и добавьте шаг" : null}
                 now={now}
                 today={today}
                 sort={params.sort}

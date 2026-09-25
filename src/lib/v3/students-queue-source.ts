@@ -11,6 +11,7 @@ import type { ActivePlatformActor } from "../platform-auth";
 import {
   readStudentCaseQueue,
   readStudentCaseQueueCounts,
+  StudentCaseQueueForbiddenError,
   type StudentCaseQueueCounts,
   type StudentCaseQueuePage,
 } from "../platform-student-case-queue";
@@ -20,6 +21,8 @@ export type StudentsQueueRead = Readonly<{
   page: StudentCaseQueuePage | null;
   /** null — числа не прочитаны: «Счётчики недоступны, список работает». */
   counts: StudentCaseQueueCounts | null;
+  /** Сервер отказал в чтении очереди: честный отказ без «Повторить». */
+  forbidden: boolean;
 }>;
 
 /**
@@ -34,12 +37,16 @@ export async function readStudentsQueue(actor: ActivePlatformActor, params: Stud
     pipelineStage: params.mode === "queue" ? params.stage : null,
     query: params.query,
   };
+  let forbidden = false;
   const [page, counts] = await Promise.all([
     params.view === "curators" ? Promise.resolve(null)
-      : readStudentCaseQueue(actor, studentsQueueRequest(params)).catch(() => null),
+      : readStudentCaseQueue(actor, studentsQueueRequest(params)).catch((error: unknown) => {
+        forbidden = error instanceof StudentCaseQueueForbiddenError;
+        return null;
+      }),
     readStudentCaseQueueCounts(actor, studentsCountsView(params), filters).catch(() => null),
   ]);
-  return Object.freeze({ page, counts });
+  return Object.freeze({ page, counts, forbidden });
 }
 
 /**

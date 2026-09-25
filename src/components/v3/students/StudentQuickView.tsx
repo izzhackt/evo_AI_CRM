@@ -65,7 +65,8 @@ export function StudentQuickView({
 }>) {
   const headingId = useId();
   const stepHeadingId = `${headingId}-step`;
-  const stage = admissionsPipelineStage(row.pipelineStage) ?? row.pipelineStage;
+  // Неизвестный этап не показывается ключом базы (CLAUDE.md).
+  const stage = admissionsPipelineStage(row.pipelineStage);
   const awaiting = row.attentionFlags.includes("awaiting_ack");
   const documents = studentsDocumentsLine(row.documents);
   const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state !== "closed") : null;
@@ -82,7 +83,7 @@ export function StudentQuickView({
       </div>
 
       <dl className="mt-4 divide-y divide-border border-t border-border">
-        <Fact term="Этап">{stage}</Fact>
+        {stage ? <Fact term="Этап">{stage}</Fact> : null}
         <Fact term="Куратор">
           {row.currentCuratorDisplayName ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
           {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}

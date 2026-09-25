@@ -21,6 +21,7 @@ import {
   type NextStepAccessInput,
   type StudentsDocsView,
   type StudentsOpenTasks,
+  type StudentsQueueActor,
   type StudentsQueueParams,
 } from "./students-queue-view";
 
@@ -28,7 +29,9 @@ export type StudentsQueueScreenInput = Readonly<{
   params: StudentsQueueParams;
   /** Адрес не разобран: только вкладки и «Не удалось применить фильтры». */
   invalid: boolean;
-  read: Readonly<{ page: StudentCaseQueuePage | null; counts: StudentCaseQueueCounts | null }>;
+  /** `forbidden` — сервер отказал в чтении очереди: повтор не поможет, «Повторить» нет. */
+  read: Readonly<{ page: StudentCaseQueuePage | null; counts: StudentCaseQueueCounts | null; forbidden?: boolean }>;
+  actor: StudentsQueueActor;
   openTasks: StudentsOpenTasks | null;
   coverage: StudentsCoverage | null;
   /** Сегодня в Бишкеке (часы приложения) — для дат нагрузки кураторов. */
@@ -52,10 +55,28 @@ function QueueHead({ children }: Readonly<{ children: ReactNode }>) {
   return <div className="space-y-1.5" data-testid="v3-students-queue-head">{children}</div>;
 }
 
-function docsEmptyTitle(view: StudentsDocsView, filtered: boolean): string {
+/**
+ * Пусто в EVO Docs. «Нет» — только при полном чтении: вкладки проверки
+ * отбирают строки внутри прочитанных 100 дел, поэтому пустое неполное чтение
+ * говорит о прочитанной части. Без права читать документы вкладки проверки
+ * ничего не отберут — это называется словами, а не «документов нет».
+ */
+function docsEmptyTitle(view: StudentsDocsView, filtered: boolean, complete: boolean, documents: boolean): string {
+  if (view !== "all" && !documents) return "Нет доступа к документам дел — откройте «Все»";
+  if (view !== "all" && !complete) return "В прочитанной части списка ничего не найдено";
   if (view === "review") return "Документов на проверку нет";
   if (view === "fix") return "Документов на исправление нет";
   return filtered ? "Ничего не найдено" : "Дел в работе нет";
+}
+
+/** Сервер не пускает к очереди: повтор не поможет, поэтому без «Повторить». */
+function QueueForbidden() {
+  return (
+    <div role="alert" className="space-y-1 border-y border-border py-8">
+      <p className="t-item text-danger">Список студентов для вашей учётной записи недоступен.</p>
+      <p className="t-body-compact text-fg-2">Обратитесь к администратору: доступ к делам студентов настраивается в «Сотрудниках».</p>
+    </div>
+  );
 }
 
 /**
@@ -66,10 +87,9 @@ function docsEmptyTitle(view: StudentsDocsView, filtered: boolean): string {
  */
 export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Readonly<{ count: number | null; content: ReactNode }> {
   const { params, read } = input;
-  const admin = { admin: input.editor.admin };
   const docs = params.mode === "docs";
   if (input.invalid) {
-    const tabs = docs ? studentsDocsTabs(params, { review: null, fix: null, all: null }) : studentsQueueTabs(params, null, admin);
+    const tabs = docs ? studentsDocsTabs(params, { review: null, fix: null, all: null }) : studentsQueueTabs(params, null, input.actor);
     return {
       count: null,
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">
@@ -79,8 +99,9 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
     };
   }
   const here = studentsQueueHref(params);
-  const toolbar = <StudentsToolbar params={params} counts={read.counts} curatorFilter={input.editor.admin} curatorNames={input.curatorNames} />;
-  const countsNotice = read.counts ? null : <StudentsCountsUnavailable retryHref={here} />;
+  const toolbar = <StudentsToolbar params={params} counts={read.counts} curatorFilter={input.actor.coverage} curatorNames={input.curatorNames} />;
+  // Список не прочитан — заметка «список работает» была бы неправдой.
+  const countsNotice = read.counts || read.page === null ? null : <StudentsCountsUnavailable retryHref={here} />;
 
   if (docs) {
     const page = read.page;
@@ -90,6 +111,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
     const view = params.view as StudentsDocsView;
     const shown = rows.filter((row) => docsRowMatches(view, row));
     const filtered = Boolean(params.query || params.direction || params.curator);
+    const documents = rows.length === 0 || rows.some((row) => row.documents !== null);
     return {
       count: tabCounts[view],
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">
@@ -99,8 +121,9 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
           {toolbar}
           {countsNotice}
         </QueueHead>
-        {page === null ? <QueueError text="Не удалось загрузить дела для EVO Docs." retryHref={here} />
-          : shown.length === 0 ? <QueueEmpty title={docsEmptyTitle(view, filtered)} />
+        {read.forbidden ? <QueueForbidden />
+          : page === null ? <QueueError text="Не удалось загрузить дела для EVO Docs." retryHref={here} />
+          : shown.length === 0 ? <QueueEmpty title={docsEmptyTitle(view, filtered, complete, documents)} />
           : <StudentsDocsTable rows={shown} view={view} caption={`${STUDENTS_DOCS_VIEW_LABELS[view]}: ${shown.length} из прочитанных дел`} returnTo={here} />}
         {page && (params.cursor || page.nextCursor) ? (
           <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
@@ -120,7 +143,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
 
   const curators = params.view === "curators";
   const head = <QueueHead>
-    <StudentsTabs tabs={studentsQueueTabs(params, read.counts, admin)} />
+    <StudentsTabs tabs={studentsQueueTabs(params, read.counts, input.actor)} />
     {curators ? null : toolbar}
     {curators ? null : countsNotice}
   </QueueHead>;
@@ -135,7 +158,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       count: read.counts?.total ?? null,
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">
         {head}
-        <QueueError text="Не удалось загрузить список студентов." retryHref={here} />
+        {read.forbidden ? <QueueForbidden /> : <QueueError text="Не удалось загрузить список студентов." retryHref={here} />}
       </div>,
     };
   }

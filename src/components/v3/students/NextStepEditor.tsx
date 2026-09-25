@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
 
 import { saveCaseNextActionAction, type CaseNextActionActionState } from "@/lib/platform-case-next-action-actions";
 import {
@@ -13,7 +13,7 @@ import {
 import { shiftDay } from "../calendar/types";
 import { formatQueueDay, nextFriday } from "../queue/due-bucket";
 import { QUEUE_CONFIRM, QUEUE_FIELD, QUEUE_SECONDARY } from "../queue/queue-buttons";
-import { nextStepChoiceFor, nextStepDueFor, nextStepForm, nextStepInputError, oneLineStep, type NextStepEditorRow } from "./next-step-input";
+import { nextStepChoiceFor, nextStepDirty, nextStepDueFor, nextStepForm, nextStepInputError, oneLineStep, type NextStepEditorRow } from "./next-step-input";
 import type { NextStepDueChoice } from "./students-queue-view";
 
 /**
@@ -57,6 +57,11 @@ export function NextStepEditor({
 }>) {
   const router = useRouter();
   const fieldId = useId();
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  // Фокус был в форме перед отправкой: после ответа он возвращается в поле шага,
+  // а не падает на страницу (кнопки «Снять шаг» и «Обновить» могли исчезнуть).
+  const restoreFocus = useRef(false);
   const hasStep = row.nextAction !== null;
   const [text, setText] = useState(row.nextAction ?? "");
   const [choice, setChoice] = useState<NextStepDueChoice>(nextStepChoiceFor(row.nextActionDueOn, hasStep, today));
@@ -73,7 +78,7 @@ export function NextStepEditor({
   const [refreshed, setRefreshed] = useState(false);
 
   const due = nextStepDueFor(choice, date, today);
-  const dirty = text.trim() !== baseline.text || due !== baseline.due;
+  const dirty = nextStepDirty(text, due, baseline);
 
   // Строка перечитана (своё сохранение или «Обновить» после конфликта):
   // черновик без правок принимает новое значение, правленый — остаётся, а
@@ -98,6 +103,7 @@ export function NextStepEditor({
   async function send(nextText: string, nextDue: string) {
     if (busy.current) return;
     busy.current = true;
+    restoreFocus.current = Boolean(formRef.current?.contains(document.activeElement));
     setPending(true);
     setFeedback(null);
     setRefreshed(false);
@@ -125,6 +131,9 @@ export function NextStepEditor({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // Enter в поле отправляет форму и при недоступной «Сохранить»: без правок
+    // и до перечитывания после конфликта версии записывать нечего.
+    if (!dirty || locked) return;
     const error = nextStepInputError(text, choice, date, hasStep);
     if (error) { setFeedback({ tone: "danger", text: error, field: choice === "date" && !date ? "date" : "step", stale: false }); return; }
     if (!parseCaseNextActionInput(text, due)) {
@@ -156,11 +165,18 @@ export function NextStepEditor({
   // Конфликт: пока дело не перечитано, сохранять нечем — чужая версия победит снова.
   const locked = Boolean(server?.stale) && (!refreshed || refreshing);
 
+  useEffect(() => {
+    if (pending || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    fieldRef.current?.focus();
+  }, [pending]);
+
   return (
-    <form onSubmit={submit} noValidate aria-busy={pending} className="space-y-3" data-testid="v3-next-step-editor">
+    <form ref={formRef} onSubmit={submit} noValidate aria-busy={pending} className="space-y-3" data-testid="v3-next-step-editor">
       <div>
         <label htmlFor={fieldId} className="block t-label text-fg">Шаг</label>
         <textarea
+          ref={fieldRef}
           id={fieldId}
           value={text}
           rows={3}

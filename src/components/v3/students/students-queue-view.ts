@@ -41,8 +41,12 @@ export type StudentsQueueView = (typeof STUDENTS_QUEUE_VIEWS)[number];
 export const STUDENTS_DOCS_VIEWS = ["review", "fix", "all"] as const;
 export type StudentsDocsView = (typeof STUDENTS_DOCS_VIEWS)[number];
 
-/** Виды только для Admin: «Ждут куратора» и «Нагрузка кураторов». */
-const ADMIN_VIEWS: ReadonlySet<string> = new Set(["needs_curator", "curators"]);
+/**
+ * Виды назначения кураторов: «Ждут куратора» и «Нагрузка кураторов». Их видит
+ * тот, кто может назначать и замещать кураторов (`case.curator.assign`, не
+ * просмотр роли), — то же условие, что у чтения нагрузки и команды замещения.
+ */
+const COVERAGE_VIEWS: ReadonlySet<string> = new Set(["needs_curator", "curators"]);
 
 export const STUDENTS_VIEW_LABELS: Readonly<Record<StudentsQueueView, string>> = {
   mine: "Мои",
@@ -93,6 +97,8 @@ export type StudentsQueueParse =
 export type StudentsQueueActor = Readonly<{
   /** Admin в своём интерфейсе (не просмотр роли). */
   admin: boolean;
+  /** `case.curator.assign` вне просмотра роли: назначение, нагрузка и замещение кураторов. */
+  coverage: boolean;
 }>;
 
 type SearchParams = Readonly<Record<string, string | readonly string[] | undefined>>;
@@ -108,7 +114,7 @@ export function studentsDefaultView(mode: StudentsQueueMode, actor: StudentsQueu
 
 export function studentsViewAllowed(view: string, mode: StudentsQueueMode, actor: StudentsQueueActor): boolean {
   if (mode === "docs") return (STUDENTS_DOCS_VIEWS as readonly string[]).includes(view);
-  return (STUDENTS_QUEUE_VIEWS as readonly string[]).includes(view) && (actor.admin || !ADMIN_VIEWS.has(view));
+  return (STUDENTS_QUEUE_VIEWS as readonly string[]).includes(view) && (actor.coverage || !COVERAGE_VIEWS.has(view));
 }
 
 function single(params: SearchParams, key: string): string | undefined {
@@ -140,7 +146,7 @@ export function parseStudentsQuery(value: string | undefined): string | null {
 function legacyView(attention: string | null, state: string | null, actor: StudentsQueueActor): StudentsQueueView | null {
   if (attention !== null) {
     if (!(ADMISSIONS_ATTENTION as readonly string[]).includes(attention)) throw new StudentsQueueParamError();
-    if (attention === "needs_curator") return actor.admin ? "needs_curator" : "needs_action";
+    if (attention === "needs_curator") return actor.coverage ? "needs_curator" : "needs_action";
     return attention === "overdue" || attention === "awaiting_ack" ? "needs_action" : "active";
   }
   if (state === null) return null;
@@ -177,8 +183,8 @@ export function parseStudentsQueueParams(
       view = rawView as StudentsQueueView | StudentsDocsView;
     } else if (mode === "queue") {
       view = legacyView(trimmed(single(searchParams, "attention")), trimmed(single(searchParams, "case_status")), actor);
-      // Ссылки замещения куратора открывают «Нагрузку кураторов» (Admin).
-      if (view === null && coverageEntries.length > 0 && actor.admin) view = "curators";
+      // Ссылки замещения куратора открывают «Нагрузку кураторов».
+      if (view === null && coverageEntries.length > 0 && actor.coverage) view = "curators";
     }
     const resolvedView = view ?? defaultView;
 
@@ -290,8 +296,8 @@ export function parseStudentsReturnTo(value: unknown): string | null {
     }
     if (raw.section !== undefined && raw.section !== "docs") return null;
     const mode: StudentsQueueMode = raw.section === "docs" ? "docs" : "queue";
-    // Виды Admin проверит сама страница; здесь достаточно, чтобы вид вообще существовал.
-    const parsed = parseStudentsQueueParams(raw, mode, { admin: true });
+    // Виды назначения кураторов проверит сама страница; здесь достаточно, чтобы вид вообще существовал.
+    const parsed = parseStudentsQueueParams(raw, mode, { admin: true, coverage: true });
     if (parsed.kind !== "ok") return null;
     const text = new URLSearchParams(Object.entries(raw).filter(([key]) => key !== "section"));
     const prefix = mode === "docs" ? "section=docs" : "";
@@ -438,18 +444,24 @@ export type StudentsBand<Row> = Readonly<{
   rows: readonly Row[];
 }>;
 
+/** Виды, где шаг можно задать: у закрытых дел шага нет, группы по его сроку ничего не значат. */
+export function studentsStepView(view: StudentsQueueParams["view"]): boolean {
+  return view !== "closed";
+}
+
 /**
  * Группы тела: при сортировке по сроку — группы 241 в их порядке, только
  * непустые на этой странице, с числом группы из чтения чисел; при сортировке
- * по обновлению — один список без групп.
+ * по обновлению и в «Закрытых» — один список без групп.
  */
 export function studentsBands<Row extends Pick<StudentCaseQueueRow, "dueBand">>(
   rows: readonly Row[],
   sort: StudentCaseQueueSort,
   today: string,
   counts: StudentCaseQueueCounts | null,
+  stepView = true,
 ): readonly StudentsBand<Row>[] {
-  if (sort === "updated") return rows.length ? [{ key: "all", label: null, count: null, tone: "default", rows }] : [];
+  if (sort === "updated" || !stepView) return rows.length ? [{ key: "all", label: null, count: null, tone: "default", rows }] : [];
   return CASE_NEXT_ACTION_BANDS
     .map((band) => ({
       key: band,

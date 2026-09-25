@@ -131,6 +131,16 @@ function buildProfileNotesHref(
 
 
 /**
+ * Кто открывает очередь: Admin в своём интерфейсе и тот, кто назначает и
+ * замещает кураторов (`case.curator.assign` — то же условие, что у чтения
+ * нагрузки и команды замещения). Просмотр роли — ни то, ни другое.
+ */
+function studentsQueueActor(actor: ActivePlatformActor) {
+  const preview = isStaffPreview(actor);
+  return { admin: actor.systemRole === "admin" && !preview, coverage: !preview && staffHasPermission(actor, "case.curator.assign") };
+}
+
+/**
  * «Студенты» и EVO Docs как рабочая очередь (миграция 241, PLAN_CHANGES
  * «Студенты» PR 2): страница читает очередь, числа, задачи открытого дела и
  * нагрузку кураторов, а экран собирает `buildStudentsQueueScreen`.
@@ -154,7 +164,8 @@ async function studentsQueuePage(
   return buildStudentsQueueScreen({
     params,
     invalid: parse.kind === "invalid",
-    read: reads?.[0] ?? { page: null, counts: null },
+    read: reads?.[0] ?? { page: null, counts: null, forbidden: false },
+    actor: studentsQueueActor(actor),
     openTasks: reads?.[1] ?? null,
     coverage: reads?.[2] ?? null,
     today: dayInOrganizationTimezone(new Date()),
@@ -243,7 +254,7 @@ export default async function ProfilePart({
   const directoryMode = routeMode.kind === "directory";
   const queueMode = staffPresentationCan(actor, "admissions.read") && staffHasPermission(actor, "case.read.full");
   const queueParse = directoryMode && queueMode
-    ? parseStudentsQueueParams(params, docsMode ? "docs" : "queue", { admin: actor.systemRole === "admin" && !isStaffPreview(actor) })
+    ? parseStudentsQueueParams(params, docsMode ? "docs" : "queue", studentsQueueActor(actor))
     : null;
   // Прежние адреса (фасеты, сводка) и поиск по номеру дела — на новый адрес.
   if (queueParse?.kind === "redirect") redirect(queueParse.href);

@@ -270,7 +270,7 @@ function scenario(search, { actor = "admin", docsMode = false, read, openTasks =
     params,
     invalid: invalid || parse.kind === "invalid",
     read: read ?? {
-      page: params.view === "curators" ? null : docsMode ? pageFor("active", "updated", filters) : pageFor(params.view, params.sort, filters),
+      page: params.view === "curators" ? null : docsMode ? pageFor("active", "updated", filters) : pageFor(params.view, view.studentsEffectiveSort(params.view, params.sort), filters),
       counts: countsFor(countsView, filters),
       forbidden: false,
     },
@@ -321,8 +321,13 @@ const SCENARIOS = {
     const base = scenario("view=active");
     return { ...base, input: { ...base.input, read: { page: null, counts: null, forbidden: false } } };
   })(),
+  // Отказ 241 (прежняя грубая роль): у руководителя остаётся «Нагрузка кураторов», читаемая без 241.
   forbidden: (() => {
-    const base = scenario("view=active");
+    const base = scenario("view=active", { actor: "manager" });
+    return { ...base, input: { ...base.input, read: { page: null, counts: null, forbidden: true } } };
+  })(),
+  "forbidden-docs": (() => {
+    const base = scenario("section=docs", { actor: "curator", docsMode: true });
     return { ...base, input: { ...base.input, read: { page: null, counts: null, forbidden: true } } };
   })(),
   "manager-default": scenario("", { actor: "manager" }),
@@ -340,8 +345,10 @@ const SCENARIOS = {
   // Синтетика закрытых дел: строки «в работе» со сроками всех групп, закрытые.
   closed: (() => {
     const base = scenario("view=closed");
-    const rows = pageFor("active", "due").rows.map((row) => ({ ...row, state: "closed" }));
-    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows } } } };
+    const rows = pageFor("active", "updated").rows.map((row) => ({ ...row, state: "closed" }));
+    // Числа — по тем же синтетическим закрытым строкам: заголовок и вкладка не спорят.
+    const counts = { ...base.input.read.counts, total: rows.length, views: { ...base.input.read.counts.views, closed: rows.length } };
+    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows }, counts } } };
   })(),
   "docs-no-access": (() => {
     const base = scenario("section=docs", { docsMode: true });
@@ -599,6 +606,7 @@ async function screenshots() {
       ["students-forbidden-1440.png", DESKTOP, false, null],
       ["students-forbidden-390.png", PHONE, false, null],
     ]],
+    ["forbidden-docs", [["students-forbidden-docs-1440.png", DESKTOP, false, null]]],
     ["page-and-counts-error", [["students-page-and-counts-error-1440.png", DESKTOP, false, null]]],
     ["manager-default", [["students-manager-default-1440.png", DESKTOP, false, null]]],
     ["manager-curators", [["students-manager-curators-1440.png", DESKTOP, false, null]]],

@@ -201,7 +201,7 @@ export function parseStudentsQueueParams(
     if (sortValue !== null && sortValue !== "due" && sortValue !== "updated") throw new StudentsQueueParamError();
     const sort: StudentCaseQueueSort = mode === "docs" ? "updated" : sortValue === "updated" ? "updated" : "due";
     const cursorValue = legacy ? null : trimmed(single(searchParams, "cursor"));
-    const cursor = cursorValue === null ? null : parseStudentCaseQueueCursor(cursorValue, sort) ?? fail();
+    const cursor = cursorValue === null ? null : parseStudentCaseQueueCursor(cursorValue, studentsEffectiveSort(resolvedView, sort)) ?? fail();
     const openValue = trimmed(single(searchParams, "open"));
     const open = openValue === null || mode === "docs" || resolvedView === "curators" ? null : parseQueueUuid(openValue) ?? fail();
     const coverage = Object.freeze(Object.fromEntries(resolvedView === "curators" ? coverageEntries : [])) as StudentsQueueParams["coverage"];
@@ -332,7 +332,7 @@ export function studentsQueueRequest(params: StudentsQueueParams): StudentCaseQu
   if (params.mode === "docs") {
     return { ...filters, view: "active", sort: "updated", cursor: params.cursor, pageSize: STUDENTS_DOCS_PAGE_SIZE };
   }
-  return { ...filters, view: studentsCountsView(params), sort: params.sort, cursor: params.cursor, pageSize: STUDENTS_QUEUE_PAGE_SIZE };
+  return { ...filters, view: studentsCountsView(params), sort: studentsEffectiveSort(params.view, params.sort), cursor: params.cursor, pageSize: STUDENTS_QUEUE_PAGE_SIZE };
 }
 
 /** Вид 241 для чтения чисел: у «Нагрузки кураторов» и EVO Docs своих строк дел нет — «Все в работе». */
@@ -386,14 +386,21 @@ export function docsRowMatches(view: StudentsDocsView, row: Pick<StudentCaseQueu
  * поэтому число есть только у полного чтения (первая страница без
  * продолжения); «Все» — число вида «Все в работе» из чтения чисел.
  */
+/** Документы прочитаны хотя бы у одного дела (или дел нет): без права на документы вкладкам проверки нечего считать. */
+export function docsReadable(rows: readonly Pick<StudentCaseQueueRow, "documents">[]): boolean {
+  return rows.length === 0 || rows.some((row) => row.documents !== null);
+}
+
 export function docsTabCounts(
   rows: readonly Pick<StudentCaseQueueRow, "documents">[],
   complete: boolean,
   counts: StudentCaseQueueCounts | null,
 ): Readonly<Record<StudentsDocsView, number | null>> {
+  // Число «0» без прочитанных документов было бы неправдой: неизвестно — null.
+  const known = complete && docsReadable(rows);
   return {
-    review: complete ? rows.filter((row) => docsRowMatches("review", row)).length : null,
-    fix: complete ? rows.filter((row) => docsRowMatches("fix", row)).length : null,
+    review: known ? rows.filter((row) => docsRowMatches("review", row)).length : null,
+    fix: known ? rows.filter((row) => docsRowMatches("fix", row)).length : null,
     all: counts ? counts.views.active : complete ? rows.length : null,
   };
 }
@@ -452,6 +459,15 @@ export type StudentsBand<Row> = Readonly<{
  */
 export function studentsStepView(view: StudentsQueueParams["view"]): boolean {
   return view !== "closed" && view !== "pending";
+}
+
+/**
+ * Порядок чтения вида. У «Закрытых» и «Ожидает начала» шагов в работе нет:
+ * по сроку 241 ставил бы дела без шага в порядке номеров, поэтому они всегда
+ * по обновлению. Выбор человека (`sort`) в адресе остаётся для видов с шагами.
+ */
+export function studentsEffectiveSort(view: StudentsQueueParams["view"], sort: StudentCaseQueueSort): StudentCaseQueueSort {
+  return studentsStepView(view) ? sort : "updated";
 }
 
 /**

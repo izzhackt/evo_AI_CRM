@@ -9,7 +9,7 @@ import { FilterMenu, type FilterOption } from "../queue/FilterMenu";
 import { activeFilterCount } from "../queue/queue-url";
 import { QueueToolbar } from "../queue/QueueToolbar";
 import { QueueViewTabs } from "../queue/QueueViewTabs";
-import { studentsListHref, type StudentsQueueParams, type StudentsTab } from "./students-queue-view";
+import { studentsListHref, studentsStepView, type StudentsQueueParams, type StudentsTab } from "./students-queue-view";
 
 const DIRECTION_ORDER = ["CN", "MY", "EUROPE", "AE", "TR", "unknown"] as const;
 
@@ -49,8 +49,10 @@ export function StudentsTabs({ tabs }: Readonly<{ tabs: readonly StudentsTab[] }
 
 /**
  * Строка инструментов «Студентов»: поиск, «Направление ▾», «Куратор ▾»
- * (Admin), «Этап ▾» и «Сортировка» — в EVO Docs без этапа и сортировки
- * (статусов работы там нет). Числа в меню — из чтения чисел 241.
+ * (право назначать кураторов), «Этап ▾» и «Сортировка» — в EVO Docs без
+ * этапа и сортировки (статусов работы там нет), в «Закрытых» и «Ожидает
+ * начала» без сортировки (всегда по обновлению). Числа в меню — из чтения
+ * чисел 241.
  */
 export function StudentsToolbar({
   params,
@@ -60,11 +62,13 @@ export function StudentsToolbar({
 }: Readonly<{
   params: StudentsQueueParams;
   counts: StudentCaseQueueCounts | null;
-  /** «Куратор ▾» — у Admin (и у всех, если фильтр уже в адресе). */
+  /** «Куратор ▾» — с правом назначать кураторов (и у всех, если фильтр уже в адресе). */
   curatorFilter: boolean;
   curatorNames: readonly CuratorName[];
 }>) {
   const queue = params.mode === "queue";
+  // Выбор порядка есть только у видов с шагами (studentsEffectiveSort).
+  const sortable = queue && studentsStepView(params.view);
   const curator = params.curator ? curatorOptions(params, counts, curatorNames).find((option) => option.key === params.curator) : null;
   const filters = <>
     <FilterMenu
@@ -111,7 +115,7 @@ export function StudentsToolbar({
         ]}
       />
     ) : null}
-    {queue ? (
+    {sortable ? (
       <FilterMenu
         label="Сортировка"
         valueLabel={params.sort === "updated" ? "по обновлению" : "по сроку"}
@@ -123,14 +127,14 @@ export function StudentsToolbar({
     ) : null}
   </>;
   // В EVO Docs порядок всегда «по обновлению» и выбором не считается.
-  const active = activeFilterCount([params.query, params.direction, params.curator, queue ? params.stage : null, queue && params.sort === "updated" ? "updated" : null]);
+  const active = activeFilterCount([params.query, params.direction, params.curator, queue ? params.stage : null, sortable && params.sort === "updated" ? "updated" : null]);
   const hidden: Record<string, string | null> = {
     section: params.mode === "docs" ? "docs" : null,
     view: params.view !== params.defaultView ? params.view : null,
     direction: params.direction,
     curator: params.curator,
     stage: queue ? params.stage : null,
-    sort: queue && params.sort === "updated" ? "updated" : null,
+    sort: sortable && params.sort === "updated" ? "updated" : null,
   };
   return (
     <QueueToolbar

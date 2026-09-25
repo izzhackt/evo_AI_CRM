@@ -1,8 +1,9 @@
 import type { CoverageCurator, CoverageDeadline, CoverageWorkspace } from "@/lib/platform-case-coverage-contract";
 
 /**
- * «Нагрузка кураторов» — вид «Студентов» для Admin (PLAN_CHANGES
- * «Студенты» PR 2): то же чтение `read_curator_coverage_workspace` и те же
+ * «Нагрузка кураторов» — вид «Студентов» для права назначать кураторов
+ * (`case.curator.assign`, вне просмотра роли; PLAN_CHANGES «Студенты» PR 2):
+ * то же чтение `read_curator_coverage_workspace` и те же
  * параметры `coverage_*`, что у прежней панели замещения. Чистая логика без
  * запросов и без React. Нет чтения — нет числа, а не ноль.
  */

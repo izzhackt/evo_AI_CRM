@@ -19,6 +19,8 @@ import {
   studentsListHref,
   studentsQueueHref,
   studentsQueueTabs,
+  studentsEffectiveSort,
+  studentsQueueRequest,
   studentsRowSignals,
   studentsStepView,
   studentsUpdatedDay,
@@ -651,9 +653,12 @@ test("Enter never saves an unchanged or locked step, and a due without text is n
   assert.equal(editor.nextStepDirty(" Позвонить ", "2026-09-25", { text: "Позвонить", due: "2026-09-25" }), false);
   assert.equal(editor.nextStepDirty("Позвонить", "", { text: "Позвонить", due: "2026-09-25" }), true);
   assert.equal(editor.nextStepDirty("", "", { text: "Позвонить", due: "" }), true, "clearing an existing step is a change");
-  // After the answer focus goes back to the step field instead of <body>.
-  assert.match(source, /restoreFocus\.current = Boolean\(formRef\.current\?\.contains\(document\.activeElement\)\)/u);
-  assert.match(source, /if \(pending \|\| !restoreFocus\.current\) return;[\s\S]*fieldRef\.current\?\.focus\(\);/u);
+  // After the answer — and after «Обновить» — focus goes back to the step field instead of <body>,
+  // but never away from where the person moved it while waiting.
+  const refresh = source.slice(source.indexOf("function refresh("), source.indexOf("const friday"));
+  assert.match(submit + refresh, /restoreFocus\.current = Boolean\(formRef\.current\?\.contains\(document\.activeElement\)\)/u);
+  assert.match(refresh, /restoreFocus\.current = Boolean\(formRef\.current\?\.contains\(document\.activeElement\)\)/u, "«Обновить» disappears after the reread");
+  assert.match(source, /if \(pending \|\| refreshing \|\| !restoreFocus\.current\) return;[\s\S]*active === document\.body \|\| formRef\.current\?\.contains\(active\)\) fieldRef\.current\?\.focus\(\);[\s\S]*\}, \[pending, refreshing\]\);/u);
 });
 
 test("a queue read the server refuses is an honest dead end, not a retry loop", () => {
@@ -662,6 +667,13 @@ test("a queue read the server refuses is an honest dead end, not a retry loop", 
   assert.doesNotMatch(html, />Повторить</u);
   assert.doesNotMatch(html, /Не удалось загрузить список/u);
   assert.doesNotMatch(html, /id="admissions-summary"|name="q"/u, "no tabs or filters that cannot open anything");
+  // 241 refuses a frozen legacy role that «Сотрудники» cannot change — no false remedy there.
+  assert.doesNotMatch(html, /Сотрудник/u);
+  // The coverage read does not go through 241: whoever may assign curators keeps «Нагрузка кураторов».
+  assert.match(html, /href="\/v3\/profile\?view=curators">Открыть «Нагрузку кураторов»</u);
+  const docs = surfaces.get("forbidden-docs");
+  assert.match(docs, /Очередь EVO Docs для вашей учётной записи недоступна\./u);
+  assert.doesNotMatch(docs, /Список студентов|Нагрузку кураторов/u, "EVO Docs names itself; no coverage link without the right");
   const lib = read("src/lib/platform-student-case-queue.ts");
   assert.match(lib, /if \(response\.error\?\.code === "42501"\) throw new StudentCaseQueueForbiddenError\(\);/u);
   assert.match(read("src/lib/v3/students-queue-source.ts"), /forbidden = error instanceof StudentCaseQueueForbiddenError;/u);
@@ -684,6 +696,12 @@ test("EVO Docs does not say «нет» from a partial read or without document a
   const noAccess = surfaces.get("docs-no-access");
   assert.match(noAccess, /Нет доступа к документам дел — откройте «Все»/u);
   assert.doesNotMatch(noAccess, /Документов на проверку нет/u);
+  // No readable documents: the review tabs and the header have no number, not «0».
+  assert.match(noAccess, /href="\/v3\/profile\?section=docs">На проверку<\/a>/u);
+  assert.match(noAccess, /href="\/v3\/profile\?section=docs&amp;view=fix">Исправить<\/a>/u);
+  const blind = [{ documents: null }, { documents: null }];
+  assert.deepEqual(docsTabCounts(blind, true, { views: { active: 2 } }), { review: null, fix: null, all: 2 });
+  assert.deepEqual(docsTabCounts([], true, null), { review: 0, fix: 0, all: 0 }, "no cases at all is a true zero");
 });
 
 test("«Закрытые» has no due groups and no add-a-step hint", () => {
@@ -691,6 +709,20 @@ test("«Закрытые» has no due groups and no add-a-step hint", () => {
   assert.ok([...closed.matchAll(/data-queue-row=/gu)].length >= 5, "closed rows are rendered");
   assert.doesNotMatch(closed, /students-band-/u);
   assert.doesNotMatch(closed, /добавьте шаг/u);
+  // Without steps in work the order is by update: the key is shown, there is no sort choice, an old step is not «просрочен».
+  assert.match(texts(closed), /обн\. \d\d\.\d\d/u);
+  assert.doesNotMatch(closed, /Сортировка/u);
+  assert.doesNotMatch(closed, /Шаг просрочен/u);
+  for (const view of ["closed", "pending"]) {
+    assert.equal(studentsQueueRequest(ok({ view })).sort, "updated", view);
+    assert.equal(studentsQueueRequest(ok({ view, sort: "due" })).sort, "updated", `${view}: a carried due sort is not applied`);
+    assert.equal(parse({ view, cursor: `due|1|2026-09-20|${CASE}` }).kind, "invalid", `${view}: a due cursor cannot page an update order`);
+    assert.equal(parse({ view, cursor: `updated|2026-09-20T10:00:00.000000Z|${CASE}` }).kind, "ok", view);
+  }
+  assert.equal(studentsQueueRequest(ok({ view: "active" })).sort, "due");
+  assert.equal(studentsQueueRequest(ok({ view: "active", sort: "updated" })).sort, "updated");
+  assert.equal(studentsEffectiveSort("mine", "due"), "due");
+  assert.doesNotMatch(surfaces.get("pending"), /Сортировка/u);
   assert.equal(studentsStepView("closed"), false);
   assert.equal(studentsStepView("active"), true);
   const rows = [{ dueBand: "overdue" }, { dueBand: "no_step" }];

@@ -59,8 +59,9 @@ export function NextStepEditor({
   const fieldId = useId();
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  // Фокус был в форме перед отправкой: после ответа он возвращается в поле шага,
-  // а не падает на страницу (кнопки «Снять шаг» и «Обновить» могли исчезнуть).
+  // Фокус был в форме перед отправкой или «Обновить»: после ответа он
+  // возвращается в поле шага, а не падает на страницу (кнопки «Снять шаг» и
+  // «Обновить» могли исчезнуть).
   const restoreFocus = useRef(false);
   const hasStep = row.nextAction !== null;
   const [text, setText] = useState(row.nextAction ?? "");
@@ -144,6 +145,7 @@ export function NextStepEditor({
   }
 
   function refresh() {
+    restoreFocus.current = Boolean(formRef.current?.contains(document.activeElement));
     setRefreshed(true);
     startRefresh(() => router.refresh());
   }
@@ -166,10 +168,12 @@ export function NextStepEditor({
   const locked = Boolean(server?.stale) && (!refreshed || refreshing);
 
   useEffect(() => {
-    if (pending || !restoreFocus.current) return;
+    if (pending || refreshing || !restoreFocus.current) return;
     restoreFocus.current = false;
-    fieldRef.current?.focus();
-  }, [pending]);
+    // Человек сам ушёл фокусом дальше, пока шёл ответ, — не забираем его назад.
+    const active = document.activeElement;
+    if (active === null || active === document.body || formRef.current?.contains(active)) fieldRef.current?.focus();
+  }, [pending, refreshing]);
 
   return (
     <form ref={formRef} onSubmit={submit} noValidate aria-busy={pending} className="space-y-3" data-testid="v3-next-step-editor">

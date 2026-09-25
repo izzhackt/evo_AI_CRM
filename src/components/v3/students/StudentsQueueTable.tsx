@@ -155,7 +155,8 @@ export function StudentsQueueRow({
   const meta = studentsRowMeta(row);
   // Неизвестный этап не показывается ключом базы (CLAUDE.md): слова нет — ячейка пустая.
   const stage = admissionsPipelineStage(row.pipelineStage);
-  const signals = studentsRowSignals(row, { curatorWords: !curatorColumn, overdueStep: sort === "updated" });
+  // Шаг закрытого дела уже не работа: «Шаг просрочен» у него был бы ложной тревогой.
+  const signals = studentsRowSignals(row, { curatorWords: !curatorColumn, overdueStep: sort === "updated" && row.state !== "closed" });
   return (
     <tr
       role="row"

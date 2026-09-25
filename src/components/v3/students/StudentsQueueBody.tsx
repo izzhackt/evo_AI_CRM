@@ -22,6 +22,7 @@ import {
   caseNextActionBand,
   nextStepAccess,
   studentsBands,
+  studentsEffectiveSort,
   studentsStepView,
   studentsCaseHref,
   studentsListHref,
@@ -198,7 +199,7 @@ export function StudentsQueueBody({
                 hint={stepView && !editor.preview && (editor.admin || editor.routeManage) ? "откройте строку и добавьте шаг" : null}
                 now={now}
                 today={today}
-                sort={params.sort}
+                sort={studentsEffectiveSort(params.view, params.sort)}
                 curatorColumn={params.view !== "mine"}
                 selectedKey={openKey}
                 links={links}

@@ -13,7 +13,7 @@ const CELL = "min-w-0 px-3 @min-[40rem]/curators:px-2 @min-[40rem]/curators:py-3
 const HEAD = "flex h-9 items-center px-2 text-start t-caption text-fg-2 first:ps-3";
 
 /**
- * «Нагрузка кураторов» (Admin): таблица из чтения
+ * «Нагрузка кураторов» (право назначать кураторов, вне просмотра роли): таблица из чтения
  * `read_curator_coverage_workspace` — те же числа, что у прежней панели
  * замещения. Выбор куратора открывает в правой панели прежние
  * `CuratorCoveragePanel` и `CuratorCoverageForm`: поведение, команда и права
@@ -48,7 +48,7 @@ export function CuratorWorkloadView({
         <div className="min-w-0 space-y-3" data-testid="v3-curator-workload">
           <QueueKeyboard openKey={selectedId} />
           {coverage.kind === "hidden" ? (
-            <p role="status" className="border-b border-border py-8 t-body-compact text-fg-2">Нагрузка кураторов доступна Admin.</p>
+            <p role="status" className="border-b border-border py-8 t-body-compact text-fg-2">Нагрузка кураторов для вашей учётной записи недоступна.</p>
           ) : coverage.kind === "invalid" ? (
             <CuratorCoveragePanel coverage={coverage} fallbackName={null} requestId={requestId} today={today} />
           ) : !workload ? (

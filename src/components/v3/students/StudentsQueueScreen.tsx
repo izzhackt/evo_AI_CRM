@@ -13,10 +13,12 @@ import { StudentsCountsUnavailable, StudentsFilterRejected, StudentsTabs, Studen
 import {
   STUDENTS_DOCS_PAGE_SIZE,
   STUDENTS_DOCS_VIEW_LABELS,
+  docsReadable,
   docsRowMatches,
   docsTabCounts,
   russianPlural,
   studentsDocsTabs,
+  studentsListHref,
   studentsQueueHref,
   studentsQueueTabs,
   type NextStepAccessInput,
@@ -73,12 +75,18 @@ function docsEmptyTitle(view: StudentsDocsView, filtered: boolean, complete: boo
   return filtered ? "Ничего не найдено" : "Дел в работе нет";
 }
 
-/** Сервер не пускает к очереди: повтор не поможет, поэтому без «Повторить». */
-function QueueForbidden() {
+/**
+ * Сервер не пускает к очереди: повтор не поможет, поэтому без «Повторить».
+ * Отказ 241 — прежняя грубая роль учётной записи, её не меняют в
+ * «Сотрудниках», поэтому туда не отправляем. «Нагрузка кураторов» читается
+ * без 241 и остаётся тем, у кого есть право назначать кураторов.
+ */
+function QueueForbidden({ docs, coverageHref }: Readonly<{ docs: boolean; coverageHref: string | null }>) {
   return (
-    <div role="alert" className="space-y-1 border-y border-border py-8">
-      <p className="t-item text-danger">Список студентов для вашей учётной записи недоступен.</p>
-      <p className="t-body-compact text-fg-2">Обратитесь к администратору: доступ к делам студентов настраивается в «Сотрудниках».</p>
+    <div role="alert" className="flex flex-col items-start gap-1 border-y border-border py-8">
+      <p className="t-item text-danger">{docs ? "Очередь EVO Docs для вашей учётной записи недоступна." : "Список студентов для вашей учётной записи недоступен."}</p>
+      <p className="t-body-compact text-fg-2">Обратитесь к администратору: повторная попытка не поможет.</p>
+      {coverageHref ? <Link href={coverageHref} className={QUEUE_QUIET_LINK}>Открыть «Нагрузку кураторов»</Link> : null}
     </div>
   );
 }
@@ -104,7 +112,8 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
   }
   // Сервер не пускает к очереди: вкладки и фильтры ничего не откроют — только честный отказ.
   if (read.forbidden) {
-    return { count: null, content: <div className={DIRECTORY} data-testid="v3-student-case-directory"><QueueForbidden /></div> };
+    const coverageHref = !docs && input.actor.coverage ? studentsListHref(params, { view: "curators" }) : null;
+    return { count: null, content: <div className={DIRECTORY} data-testid="v3-student-case-directory"><QueueForbidden docs={docs} coverageHref={coverageHref} /></div> };
   }
   const here = studentsQueueHref(params);
   const toolbar = <StudentsToolbar params={params} counts={read.counts} curatorFilter={input.actor.coverage} curatorNames={input.curatorNames} />;
@@ -115,11 +124,11 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
     const page = read.page;
     const rows = page?.rows ?? [];
     const complete = page !== null && params.cursor === null && page.nextCursor === null;
+    const documents = docsReadable(rows);
     const tabCounts = docsTabCounts(rows, complete, read.counts);
     const view = params.view as StudentsDocsView;
     const shown = rows.filter((row) => docsRowMatches(view, row));
     const filtered = Boolean(params.query || params.direction || params.curator);
-    const documents = rows.length === 0 || rows.some((row) => row.documents !== null);
     return {
       count: tabCounts[view],
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">

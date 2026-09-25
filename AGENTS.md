@@ -98,6 +98,11 @@ instructions to run a full heavy suite for every change or release candidate.
 
 ## Current Product Authority
 
+- Latest owner direction (2026-09-25): the staff CRM follows
+  `docs/EVO_CRM_REDESIGN_PLAN_2026-09-25.md`, accepted with its review
+  amendments and executed by one session. The production permissions and the
+  limits of the executing environment are recorded there and in
+  `docs/PLAN_CHANGES.md`; provider enablement is not included.
 - Current September10 screenshot follow-up is
   `docs/design/v3/admin-realtime-university-expansion-run-plan.md`. Admin must be
   eligible for Sales/Admissions work under their own identity; preserve active

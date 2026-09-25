@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { LOOK_PREVIEW_COOKIE, LOOK_PREVIEW_VALUE, lookPreviewAllowed } from "../src/lib/v3/look-preview-contract.ts";
+import { LOOK_PREVIEW_COOKIE, LOOK_PREVIEW_VALUE, lookPreviewAllowed, lookPreviewEnabled } from "../src/lib/v3/look-preview-contract.ts";
 
 /**
  * Э1.1 плана редизайна (25.09.2026): новый облик за переключателем
@@ -41,6 +41,12 @@ test("only an Admin outside role preview can see the new look", () => {
   assert.equal(lookPreviewAllowed({ systemRole: "staff", presentationRole: null }), false);
   assert.equal(LOOK_PREVIEW_COOKIE, "evo_look_preview");
   assert.equal(LOOK_PREVIEW_VALUE, "next");
+  // The cookie means nothing without the right: a copied cookie never changes a staff member's look.
+  assert.equal(lookPreviewEnabled({ systemRole: "admin", presentationRole: null }, "next"), true);
+  assert.equal(lookPreviewEnabled({ systemRole: "admin", presentationRole: null }, undefined), false);
+  assert.equal(lookPreviewEnabled({ systemRole: "admin", presentationRole: null }, "other"), false);
+  assert.equal(lookPreviewEnabled({ systemRole: "staff", presentationRole: null }, "next"), false);
+  assert.equal(lookPreviewEnabled({ systemRole: "admin", presentationRole: "curator" }, "next"), false);
 });
 
 test("the new look overrides the same token names in one place and every value meets contrast", () => {
@@ -56,17 +62,22 @@ test("the new look overrides the same token names in one place and every value m
     assert.ok(contrast("control-edge", surface) >= 3, `control edge on ${surface}`);
     assert.ok(contrast("focus-ring", surface) >= 3, `focus ring on ${surface}`);
   }
-  for (const [upper, lower] of [["surface", "bg"], ["bg", "surface-2"], ["surface-2", "surface-3"], ["surface", "accent-weak"], ["bg", "accent-weak"]]) {
+  // «Выбрано» стоит и рядом с наведением (`hover:bg-surface-2`) — отличается и от него.
+  for (const [upper, lower] of [["surface", "bg"], ["bg", "surface-2"], ["surface-2", "surface-3"], ["surface", "accent-weak"], ["bg", "accent-weak"], ["surface-2", "accent-weak"]]) {
     assert.ok(contrast(upper, lower) >= 1.08, `${upper} and ${lower} stay distinguishable`);
   }
   assert.ok(contrast("on-accent", "accent") >= 4.5);
 });
 
 test("links keep an underline without red, and only buttons and board cards are raised", () => {
-  assert.match(css, /\.v3-world\[data-look="next"\] a:is\(\.text-accent, \.text-accent-text\) \{\s*text-decoration-line: underline;/u);
-  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-raised:not\(:disabled\) \{\s*box-shadow: var\(--shadow-raised\);/u);
+  // Links and text-only action buttons keep an underline; a selected item is not underlined.
+  assert.match(css, /\.v3-world\[data-look="next"\] :is\(a, button\):is\(\.text-accent, \.text-accent-text\):not\(\[aria-current\], \[aria-pressed="true"\], \.bg-accent-weak\) \{\s*text-decoration-line: underline;/u);
+  // The active menu section is a button with the selected fill — not underlined (AppShell).
+  assert.match(read("src/components/v3/AppShell.tsx"), /group\.active \? "bg-accent-weak text-accent-text"/u);
+  // The raised shadow never replaces the keyboard focus halo of globals.css.
+  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-raised:not\(:disabled\):not\(:focus-visible\) \{\s*box-shadow: var\(--shadow-raised\);/u);
   const raisedRules = [...css.matchAll(/^([^\n*]*\.v3-raised[^\n]*)\{$/gmu)].map((match) => match[1]);
-  assert.deepEqual(raisedRules, ['.v3-world[data-look="next"] .v3-raised:not(:disabled) '], "no raised rule outside the new look");
+  assert.deepEqual(raisedRules, ['.v3-world[data-look="next"] .v3-raised:not(:disabled):not(:focus-visible) '], "no raised rule outside the new look");
   const ui = read("src/components/ui.tsx");
   for (const name of ["btnCls", "btnGhostCls", "btnDangerGhostCls"]) assert.match(ui, new RegExp(`export const ${name} =\\s*"v3-raised `, "u"), name);
   const queue = read("src/components/v3/queue/queue-buttons.ts");
@@ -78,7 +89,8 @@ test("the switch is Admin-only, kept per browser, and the shell sets the look on
   const layout = read("src/app/(v3)/layout.tsx");
   assert.match(layout, /<div className="v3-world" data-look=\{lookPreview \? "next" : undefined\}>/u);
   assert.match(layout, /readLookPreview\(actor\)/u);
-  assert.match(read("src/lib/v3/look-preview.ts"), /if \(!lookPreviewAllowed\(actor\)\) return false;/u);
+  const reader = read("src/lib/v3/look-preview.ts");
+  assert.match(reader, /if \(!lookPreviewAllowed\(actor\)\) return false;\s*return lookPreviewEnabled\(actor, \(await cookies\(\)\)/u, "the right is checked before the cookie is read");
   const action = read("src/lib/v3/look-preview-actions.ts");
   assert.match(action, /^"use server";/u);
   assert.match(action, /if \(!lookPreviewAllowed\(actor\)\) redirect\(/u);

@@ -406,8 +406,8 @@ export function PlatformSection({ platform, salesImportHref, lookPreview }: { pl
       <Card title="Новый облик — предпросмотр">
         <form action={setLookPreviewAction} className="flex flex-col items-start gap-3 px-4 py-3" data-testid="v3-look-preview">
           <p className="t-body-compact max-w-[60ch] text-fg-2">
-            Облик из плана редизайна: работа — белый лист на тёплом сером столе, «выбрано» — нейтральное,
-            красный — только главное действие и проблема. Виден только вам в этом браузере; остальные сотрудники
+            Первый срез облика из плана редизайна: тёплый серый стол, нейтральное «выбрано», красный текст — только у
+            проблем. Остальное придёт следующими срезами. Виден только вам в этом браузере; остальные сотрудники
             видят прежний облик, пока вы не решите.
           </p>
           <p className="t-body-compact text-fg">Сейчас: {lookPreview ? "новый облик" : "прежний облик"}</p>

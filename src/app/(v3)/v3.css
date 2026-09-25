@@ -89,26 +89,34 @@
  * Посчитано до CSS: текст (`--text`, `--text-2`, `--text-3`, статусы) ≥4.5:1 на
  * листе, столе, `--surface-2`, `--surface-3` и на выбранном; граница контрола
  * и рамка фокуса ≥3:1; ступени лист/стол 1.13, стол/`--surface-2` 1.10,
- * выбранное/лист 1.28, выбранное/стол 1.14.
+ * выбранное/лист 1.38, выбранное/стол 1.22, выбранное/наведение
+ * (`--surface-2`) 1.12. Типографика не меняется (роли 24.09).
  */
 .v3-world[data-look="next"] {
   --bg: #f3f1ec;
   /* Мелкий тёмно-красный акцент становится обычным тёмным текстом. */
   --accent-text: #202020;
-  /* «Выбрано» — нейтральная подложка вместо бледно-красной (#1048). */
-  --accent-weak: #e6e3dd;
+  /* «Выбрано» — нейтральная подложка вместо бледно-красной (#1048), темнее наведения. */
+  --accent-weak: #dfdbd3;
   --focus-ring: #202020;
   --focus-halo: rgb(32 32 32 / 0.12);
   --shadow-raised: 0 1px 1px rgb(26 26 25 / 0.1);
 }
 
-/* Без красного ссылка остаётся ссылкой: она подчёркнута всегда. */
-.v3-world[data-look="next"] a:is(.text-accent, .text-accent-text) {
+/*
+ * Без красного ссылка и текстовая кнопка-действие остаются узнаваемыми: они
+ * подчёркнуты всегда. Выбранный пункт (`aria-current`, `aria-pressed`,
+ * подложка `bg-accent-weak` — например, активный раздел меню) — не ссылка
+ * «куда-то», его держит нейтральная подложка. Перевод текстовых действий в
+ * настоящие кнопки — Э1.3.
+ */
+.v3-world[data-look="next"] :is(a, button):is(.text-accent, .text-accent-text):not([aria-current], [aria-pressed="true"], .bg-accent-weak) {
   text-decoration-line: underline;
   text-underline-offset: 4px;
 }
 
-.v3-world[data-look="next"] .v3-raised:not(:disabled) {
+/* Фокус клавиатуры сохраняет свой ореол (globals.css) — тень его не перекрывает. */
+.v3-world[data-look="next"] .v3-raised:not(:disabled):not(:focus-visible) {
   box-shadow: var(--shadow-raised);
 }
 

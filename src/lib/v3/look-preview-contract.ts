@@ -13,3 +13,8 @@ export const LOOK_PREVIEW_VALUE = "next";
 export function lookPreviewAllowed(actor: Pick<ActivePlatformActor, "systemRole" | "presentationRole">): boolean {
   return actor.systemRole === "admin" && !isStaffPreview(actor);
 }
+
+/** Новый облик включён: право Admin проверяется раньше cookie, и у остальных cookie ничего не значит. */
+export function lookPreviewEnabled(actor: Pick<ActivePlatformActor, "systemRole" | "presentationRole">, cookieValue: string | undefined): boolean {
+  return lookPreviewAllowed(actor) && cookieValue === LOOK_PREVIEW_VALUE;
+}

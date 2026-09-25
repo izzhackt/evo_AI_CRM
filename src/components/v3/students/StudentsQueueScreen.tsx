@@ -15,6 +15,7 @@ import {
   STUDENTS_DOCS_VIEW_LABELS,
   docsRowMatches,
   docsTabCounts,
+  russianPlural,
   studentsDocsTabs,
   studentsQueueHref,
   studentsQueueTabs,
@@ -98,6 +99,10 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       </div>,
     };
   }
+  // Сервер не пускает к очереди: вкладки и фильтры ничего не откроют — только честный отказ.
+  if (read.forbidden) {
+    return { count: null, content: <div className={DIRECTORY} data-testid="v3-student-case-directory"><QueueForbidden /></div> };
+  }
   const here = studentsQueueHref(params);
   const toolbar = <StudentsToolbar params={params} counts={read.counts} curatorFilter={input.actor.coverage} curatorNames={input.curatorNames} />;
   // Список не прочитан — заметка «список работает» была бы неправдой.
@@ -121,14 +126,13 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
           {toolbar}
           {countsNotice}
         </QueueHead>
-        {read.forbidden ? <QueueForbidden />
-          : page === null ? <QueueError text="Не удалось загрузить дела для EVO Docs." retryHref={here} />
+        {page === null ? <QueueError text="Не удалось загрузить дела для EVO Docs." retryHref={here} />
           : shown.length === 0 ? <QueueEmpty title={docsEmptyTitle(view, filtered, complete, documents)} />
           : <StudentsDocsTable rows={shown} view={view} caption={`${STUDENTS_DOCS_VIEW_LABELS[view]}: ${shown.length} из прочитанных дел`} returnTo={here} />}
         {page && (params.cursor || page.nextCursor) ? (
           <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
             {/* У 241 нет отбора по документам: вкладка проверки отбирает строки внутри чтения по 100 дел. */}
-            {view === "all" ? null : <span>Проверены {params.cursor ? "следующие" : "первые"} {rows.length} дел в работе; числа вкладок — после полного чтения.</span>}
+            {view === "all" ? null : <span>Проверены {params.cursor ? "следующие" : "первые"} {rows.length} {russianPlural(rows.length, "дело", "дела", "дел")} в работе; числа вкладок — после полного чтения.</span>}
             {params.cursor ? <Link href={studentsQueueHref(params, { cursor: null })} className={QUEUE_QUIET_LINK}>К началу</Link> : null}
             {page.nextCursor ? (
               <Link href={studentsQueueHref(params, { cursor: page.nextCursor })} rel="next" className={QUEUE_QUIET_LINK}>
@@ -158,7 +162,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       count: read.counts?.total ?? null,
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">
         {head}
-        {read.forbidden ? <QueueForbidden /> : <QueueError text="Не удалось загрузить список студентов." retryHref={here} />}
+        <QueueError text="Не удалось загрузить список студентов." retryHref={here} />
       </div>,
     };
   }

@@ -661,6 +661,7 @@ test("a queue read the server refuses is an honest dead end, not a retry loop", 
   assert.match(html, /Список студентов для вашей учётной записи недоступен\./u);
   assert.doesNotMatch(html, />Повторить</u);
   assert.doesNotMatch(html, /Не удалось загрузить список/u);
+  assert.doesNotMatch(html, /id="admissions-summary"|name="q"/u, "no tabs or filters that cannot open anything");
   const lib = read("src/lib/platform-student-case-queue.ts");
   assert.match(lib, /if \(response\.error\?\.code === "42501"\) throw new StudentCaseQueueForbiddenError\(\);/u);
   assert.match(read("src/lib/v3/students-queue-source.ts"), /forbidden = error instanceof StudentCaseQueueForbiddenError;/u);
@@ -678,6 +679,8 @@ test("EVO Docs does not say «нет» from a partial read or without document a
   assert.match(partial, /В прочитанной части списка ничего не найдено/u);
   assert.doesNotMatch(partial, /Документов на проверку нет/u);
   assert.match(partial, /Проверить следующие 100/u);
+  assert.match(partial, /Проверены первые \d+ (дело|дела|дел) в работе/u);
+  assert.doesNotMatch(partial, /первые [234] дел /u, "Russian plural: 4 дела, not 4 дел");
   const noAccess = surfaces.get("docs-no-access");
   assert.match(noAccess, /Нет доступа к документам дел — откройте «Все»/u);
   assert.doesNotMatch(noAccess, /Документов на проверку нет/u);
@@ -685,6 +688,7 @@ test("EVO Docs does not say «нет» from a partial read or without document a
 
 test("«Закрытые» has no due groups and no add-a-step hint", () => {
   const closed = surfaces.get("closed");
+  assert.ok([...closed.matchAll(/data-queue-row=/gu)].length >= 5, "closed rows are rendered");
   assert.doesNotMatch(closed, /students-band-/u);
   assert.doesNotMatch(closed, /добавьте шаг/u);
   assert.equal(studentsStepView("closed"), false);

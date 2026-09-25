@@ -325,7 +325,12 @@ const SCENARIOS = {
   })(),
   "manager-default": scenario("", { actor: "manager" }),
   "manager-curators": scenario("view=curators", { actor: "manager", coverageRead: coverage() }),
-  closed: scenario("view=closed"),
+  // Синтетика закрытых дел: строки «в работе» со сроками всех групп, закрытые.
+  closed: (() => {
+    const base = scenario("view=closed");
+    const rows = pageFor("active", "due").rows.map((row) => ({ ...row, state: "closed" }));
+    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows } } } };
+  })(),
   "docs-no-access": (() => {
     const base = scenario("section=docs", { docsMode: true });
     const rows = base.input.read.page.rows.map((row) => ({ ...row, documents: null }));
@@ -577,6 +582,20 @@ async function screenshots() {
     ["docs-fix", [["students-docs-fix-1440.png", DESKTOP, false, null]]],
     ["docs-incomplete", [["students-docs-incomplete-1440.png", DESKTOP, false, null]]],
     ["sales", [["students-sales-1440.png", DESKTOP, false, null]]],
+    // Исправления по независимому review #1056.
+    ["forbidden", [
+      ["students-forbidden-1440.png", DESKTOP, false, null],
+      ["students-forbidden-390.png", PHONE, false, null],
+    ]],
+    ["page-and-counts-error", [["students-page-and-counts-error-1440.png", DESKTOP, false, null]]],
+    ["manager-default", [["students-manager-default-1440.png", DESKTOP, false, null]]],
+    ["manager-curators", [["students-manager-curators-1440.png", DESKTOP, false, null]]],
+    ["closed", [["students-closed-1440.png", DESKTOP, false, null]]],
+    ["docs-no-access", [["students-docs-no-access-1440.png", DESKTOP, false, null]]],
+    ["docs-incomplete-empty", [
+      ["students-docs-incomplete-empty-1440.png", DESKTOP, false, null],
+      ["students-docs-incomplete-empty-390.png", PHONE, false, null],
+    ]],
   ];
   const css = await compileCss();
   const { chromium } = require("playwright");

@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 import type { QueueTask } from "@/lib/v3/task-queue";
 
+import { isNextLook, type V3Look } from "../blocks/look";
+import { UndoToast } from "../blocks/UndoToast";
 import { DueBands } from "../queue/DueBands";
 import { queueHref, type QueueParams } from "../queue/queue-url";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
@@ -37,6 +41,7 @@ export function TaskQueueList({
   showAssignee,
   nowIso,
   permissions,
+  look,
 }: Readonly<{
   bands: readonly TaskQueueBandData[];
   open: boolean;
@@ -45,9 +50,37 @@ export function TaskQueueList({
   showAssignee: boolean;
   nowIso: string;
   permissions: TaskRowPermissions;
+  /** Новый облик (Э1.3): блоки строки и «Отменить» строкой в верхнем слое. */
+  look?: V3Look;
 }>) {
   const { recent, message, announce, undo, completed, shown } = useRecentCompletions(bands);
+  // «Отменить» нового облика: ответ сервера ждут и ошибку показывают в строке UndoToast.
+  const [undoState, setUndoState] = useState<Readonly<Record<string, Readonly<{ pending: boolean; error: string | null }>>>>({});
   useQueueKeyboard({ openKey });
+
+  const toasts = isNextLook(look) ? Object.values(recent).filter((entry) => !entry.expired).map((entry) => {
+    const key = entry.task.key;
+    const state = undoState[key];
+    return {
+      key,
+      message: `Задача «${entry.task.title}» завершена.`,
+      pending: state?.pending ?? false,
+      error: state?.error ?? null,
+      focus: true,
+      onUndo: () => {
+        if (state?.pending) return;
+        setUndoState((current) => ({ ...current, [key]: { pending: true, error: null } }));
+        void undo(entry).then((failure) => {
+          setUndoState((current) => ({ ...current, [key]: { pending: false, error: failure } }));
+          // Задача снова открыта: фокус — на её круг выполнения, как после отмены в строке.
+          if (!failure) {
+            requestAnimationFrame(() => document.querySelector<HTMLElement>(
+              `[data-queue-row="${CSS.escape(key)}"] button[aria-label^="Завершить"]`)?.focus());
+          }
+        });
+      },
+    };
+  }) : null;
 
   return (
     <>
@@ -69,6 +102,7 @@ export function TaskQueueList({
               showAssignee={showAssignee}
               nowIso={nowIso}
               permissions={permissions}
+              look={look}
               recent={recent[task.key] ?? null}
               announce={announce}
               onUndo={undo}
@@ -77,6 +111,8 @@ export function TaskQueueList({
           )),
         }))}
       />
+      {/* Последним: место прочих детей и их `useId` — как в прежнем облике. */}
+      {toasts ? <UndoToast items={toasts} /> : null}
     </>
   );
 }

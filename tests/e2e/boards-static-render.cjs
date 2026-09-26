@@ -39,6 +39,12 @@
  *       мутаций меню, исчезновение подписи после ухода курсора), меню дела
  *       и перетаскивание.
  *
+ *   --look=next (с --json или --screenshots) — новый облик (Э1.1–Э1.3,
+ *       предпросмотр Admin): `data-look="next"` на оболочке, страницы читают
+ *       облик заглушкой `readLookPreview` — точка фазы у колонок, инициалы,
+ *       чипы и срок словом в карточках, дорожка этапа в панели лида. Снимки —
+ *       `boards-next-*.png`.
+ *
  * По умолчанию outDir — .impeccable/review (не коммитится).
  */
 
@@ -53,6 +59,7 @@ const ROOT = resolve(__dirname, "../..");
 const FIXTURES = join(__dirname, "boards-fixtures.cjs");
 const LOGO = join(ROOT, "public/brand/evo-logo.png");
 const HYDRATE = process.argv.includes("--hydrate");
+const LOOK_NEXT = process.argv.includes("--look=next");
 
 // --- require-hook: .ts/.tsx компилируются TypeScript'ом в CJS ---------------
 const compile = (source) =>
@@ -184,8 +191,8 @@ async function renderPageTree(pageKey, search, { loading = false, rows = "defaul
       : await require(join(ROOT, module)).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) });
     const tree = createElement(
       "div",
-      { className: "v3-world" },
-      createElement(AppShell, { actor: ACTOR, initialNotifications: null }, content),
+      { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
+      createElement(AppShell, { actor: ACTOR, initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, content),
     );
     return withContexts(tree, pathname, search);
   } finally {
@@ -338,7 +345,8 @@ async function screenshots() {
     for (const [shot, sizes] of shots) {
       const scenario = shot === "admissions-menu" ? "admissions" : shot === "rail-flyout" ? "sales" : shot;
       const { page: pageKey } = SCENARIOS[scenario];
-      const htmlPath = join(outDir, `boards-${scenario}.html`);
+      const prefix = LOOK_NEXT ? "boards-next" : "boards";
+      const htmlPath = join(outDir, `${prefix}-${scenario}.html`);
       if (!existsSync(htmlPath) || shot === scenario) {
         writeFileSync(htmlPath, [
           "<!DOCTYPE html>",
@@ -376,7 +384,7 @@ async function screenshots() {
         if (shot === "admissions-menu" || shot === "rail-flyout") {
           metrics.menu = await page.evaluate(menuMetrics);
         }
-        const file = `boards-${shot}-${size}.png`;
+        const file = `${prefix}-${shot}-${size}.png`;
         await page.screenshot({ path: join(outDir, file), fullPage: size === "390" || size === "360" });
         process.stdout.write(`${JSON.stringify({ file, ...metrics })}\n`);
         await context.close();

@@ -4,6 +4,7 @@ import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } fr
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 
 import { ApplicationDecision } from "../admissions/StudentApplications";
+import type { V3Look } from "../blocks/look";
 import type { NextStepAccess } from "../students/students-queue-view";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { CaseHeader } from "./CaseHeader";
@@ -35,6 +36,8 @@ export type CaseWorkPartsInput = Readonly<{
   salesDataOpen: boolean;
   /** «Обращения студента» (`CaseHelpWorkspace` — своё чтение); null — не показываются. */
   help: ReactNode;
+  /** Новый облик (Э1.3–Э1.4, предпросмотр Admin): дорожка этапа, срок словом, инициалы, полоса документов. */
+  look?: V3Look;
 }>;
 
 /**
@@ -97,6 +100,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       coverage={admin && staffHasPermission(actor, "case.curator.assign")}
       curators={input.curators}
       assignCuratorRequestId={input.requestIds.assignCurator}
+      look={input.look}
     />
   );
 
@@ -129,6 +133,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       salesData={salesVisible && sales ? <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={input.requestIds} quiet /> : null}
       salesDataOpen={input.salesDataOpen}
       help={input.help}
+      look={input.look}
       notes={(
         <ProfileNotes
           key={profileNotesSubjectKey(input.notes.subject)}

@@ -26,7 +26,11 @@ import {
   type AdmissionsPipelineStage,
   type AdmissionsPipelineTab,
 } from "@/lib/platform-admissions-pipeline-contract";
+import { stagePhase } from "@/lib/v3/stages";
 import { admissionsPipelineStage, admissionsPipelineTab, caseChatAwaitState, country as countryLabel } from "@/lib/v3/wording";
+import { Initials } from "@/components/v3/blocks/Initials";
+import { isNextLook, type V3Look } from "@/components/v3/blocks/look";
+import { StageChip, StatusChip } from "@/components/v3/blocks/StatusChip";
 
 /** Full sentences only — a saved stage move is silent; removal reports below. */
 const MESSAGES: Record<Exclude<MoveCasePipelineActionStatus, "saved"> | "no_response", string> = {
@@ -232,12 +236,15 @@ function BoardCard({
   showCurator,
   onMove,
   onDragStart,
+  next = false,
 }: Readonly<{
   row: AdmissionsPipelineRow;
   tab: AdmissionsPipelineTab;
   showCurator: boolean;
   onMove: (target: MoveTarget) => void;
   onDragStart?: () => void;
+  /** Новый облик (Э1.3): куратор — круг инициалов, состояния — чипы со словом. */
+  next?: boolean;
 }>) {
   const secondLine = [countryLabel(row.targetCountry), row.primaryInstitutionName]
     .filter((value): value is string => Boolean(value))
@@ -245,7 +252,16 @@ function BoardCard({
   // Та же грамматика, что у карточки продаж: куратор — инициалами справа во
   // второй строке (полное имя в подсказке), состояние — словом и цветом в
   // третьей, а не плашками.
-  const marks = [
+  const replyWord = caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU") ?? "";
+  const marks = next ? [
+    row.overdue ? <StatusChip key="overdue" label="просрочено" tone="danger" size="sm" /> : null,
+    row.needsReply ? (
+      <Link key="reply" href={`/v3/messages?case=${row.studentCaseId}`} prefetch={false} draggable={false} className="inline-flex rounded-full">
+        <StatusChip label={replyWord} tone="danger" size="sm" />
+      </Link>
+    ) : null,
+    row.awaitingAck ? <StatusChip key="ack" label="ждёт принятия" tone="warn" size="sm" /> : null,
+  ].filter((mark) => mark !== null) : [
     row.overdue ? <span key="overdue" className="t-caption text-danger">просрочено</span> : null,
     row.needsReply ? (
       <Link
@@ -288,14 +304,16 @@ function BoardCard({
       {secondLine || curator ? (
         <p className="t-meta flex min-w-0 items-baseline gap-2 pe-8 text-fg-3">
           <span className="min-w-0 flex-1 truncate text-fg-2" title={secondLine || undefined}>{secondLine}</span>
-          {curator ? (
+          {curator && next ? <Initials name={curator} size="sm" /> : curator ? (
             <abbr title={curator} className="shrink-0 no-underline">
               {ownerInitials(curator)}
             </abbr>
           ) : null}
         </p>
       ) : null}
-      {marks.length > 0 ? (
+      {marks.length > 0 && next ? (
+        <p className="flex flex-wrap gap-1 py-px">{marks}</p>
+      ) : marks.length > 0 ? (
         <p className="t-meta truncate whitespace-nowrap">
           {marks.flatMap((mark, index) => (index === 0 ? [mark] : [<span key={`dot-${index}`} aria-hidden="true" className="text-fg-3"> · </span>, mark]))}
         </p>
@@ -314,6 +332,7 @@ export function AdmissionsPipelineBoard({
   tab,
   query,
   basePath = "/v3/admissions-pipeline",
+  look,
 }: Readonly<{
   rows: readonly AdmissionsPipelineRow[];
   truncated: boolean;
@@ -321,7 +340,10 @@ export function AdmissionsPipelineBoard({
   tab: AdmissionsPipelineTab;
   query: Readonly<{ q: string | null; country: string | null; curator: string | null }>;
   basePath?: string;
+  /** Новый облик (Э1.3–Э1.4, предпросмотр Admin): точка фазы у колонок, инициалы и чипы в карточках. */
+  look?: V3Look;
 }>) {
+  const next = isNextLook(look);
   const router = useRouter();
   const idPrefix = useId();
   const [retrying, startRetry] = useTransition();
@@ -524,7 +546,9 @@ export function AdmissionsPipelineBoard({
                 <BoardColumn
                   key={stage}
                   headingId={`${idPrefix}-${stage}`}
-                  title={<span className="truncate">{admissionsPipelineStage(stage)}</span>}
+                  title={next
+                    ? <StageChip label={admissionsPipelineStage(stage)} phase={stagePhase("admissions", stage)} className="min-w-0" truncate />
+                    : <span className="truncate">{admissionsPipelineStage(stage)}</span>}
                   count={inStage.length}
                   emptyText={BOARD_EMPTY.cases}
                   testId="v3-admissions-pipeline-column"
@@ -541,7 +565,7 @@ export function AdmissionsPipelineBoard({
                 >
                   {inStage.map((row) => (
                     <li key={row.studentCaseId}>
-                      <BoardCard row={row} tab={tab} showCurator={showCurator} onMove={(target) => moveCard(row.studentCaseId, target)} />
+                      <BoardCard row={row} tab={tab} showCurator={showCurator} onMove={(target) => moveCard(row.studentCaseId, target)} next={next} />
                     </li>
                   ))}
                 </BoardColumn>

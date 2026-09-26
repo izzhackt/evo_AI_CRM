@@ -55,6 +55,8 @@ import {
   type V3ProfileRouteLoadMode,
 } from "@/lib/v3/profile-route-load";
 import { readCaseWork } from "@/lib/v3/case-work-source";
+import { readLookPreview } from "@/lib/v3/look-preview";
+import type { V3Look } from "@/components/v3/blocks/look";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
 import { readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
@@ -177,6 +179,7 @@ async function studentsQueuePage(
   parse: Exclude<ReturnType<typeof parseStudentsQueueParams>, Readonly<{ kind: "redirect" }>>,
   query: ProfileSearchParams,
   curatorsRead: Promise<readonly StudentPortalCuratorOption[]>,
+  look: V3Look | undefined,
 ) {
   const params = parse.params;
   const [reads, curators] = await Promise.all([
@@ -204,6 +207,7 @@ async function studentsQueuePage(
     recordScopes: editor.recordScopes,
     createTask: !isStaffPreview(actor) && staffHasPermission(actor, "task.create"),
     requestIds: { nextStep: randomUUID(), coverage: randomUUID() },
+    look,
   });
 }
 
@@ -214,6 +218,8 @@ export default async function ProfilePart({
 }) {
   const actor = await requireV3PageActor("/v3/profile");
   const params = await searchParams;
+  // Новый облик (предпросмотр Admin, Э1.3): тот же признак, что `data-look` оболочки.
+  const look = (await readLookPreview(actor)) ? "next" as const : undefined;
   const directoryParams = parseV3ProfileCaseDirectoryParams(params);
   const docsMode = singleSearchParam(params.section) === "docs"
     && staffPresentationCan(actor, "admissions.read")
@@ -346,7 +352,7 @@ export default async function ProfilePart({
     : null;
   const [curatorOptions, queuePage, caseWork] = await Promise.all([
     curatorsRead,
-    queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
+    queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators), look) : null,
     caseTarget ? readCaseWork(actor, caseTarget, { overview: tab === "overview" }) : null,
   ]);
   const studentPortalCurators = curatorOptions.curators;
@@ -379,6 +385,7 @@ export default async function ProfilePart({
       curatorsAvailable: studentPortalCuratorsAvailable,
       hrefFor,
       salesDataOpen: singleSearchParam(params.panel) === "sales",
+      look,
       help: actor.presentationRole !== "sales" ? (
         <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем обращения студента…</p>}>
           <CaseHelpWorkspace actor={actor} caseId={caseTarget.studentCaseId} />

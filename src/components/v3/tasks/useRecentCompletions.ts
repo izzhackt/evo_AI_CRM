@@ -28,13 +28,16 @@ export type RecentEntry<Row> = Readonly<RecentCompletion & { row: Row; band: str
  * Фокус на «Отменить», срок которого вышел (`expiring`), переходит на соседнюю
  * остающуюся строку — не на страницу: кнопка исчезает сейчас, строка — с
  * обновлением списка. `gone` — все строки, которые уйдут с обновлением.
+ * «Отменить» нового облика стоит не в строке, а в верхнем слое (UndoToast):
+ * её строку называет `data-undo-row`.
  */
 function keepFocusInList(gone: ReadonlySet<string>, expiring: ReadonlySet<string>) {
   const active = document.activeElement;
-  const row = active instanceof HTMLElement && active.matches("[data-queue-undo]") ? active.closest<HTMLElement>("[data-queue-row]") : null;
+  const undo = active instanceof HTMLElement && active.matches("[data-queue-undo]") ? active : null;
+  const rows = [...document.querySelectorAll<HTMLElement>("[data-queue-row]")];
+  const row = undo?.closest<HTMLElement>("[data-queue-row]") ?? rows.find((element) => element.dataset.queueRow === undo?.dataset.undoRow) ?? null;
   const current = row?.dataset.queueRow;
   if (!row || !current || !expiring.has(current)) return;
-  const rows = [...document.querySelectorAll<HTMLElement>("[data-queue-row]")];
   const target = queueFocusAfterRemoval(rows.map((element) => element.dataset.queueRow ?? ""), current, gone);
   // Остающихся строк нет — фокус остаётся в своей строке, на её названии.
   (rows.find((element) => element.dataset.queueRow === target) ?? row).querySelector<HTMLElement>("[data-queue-open]")?.focus();

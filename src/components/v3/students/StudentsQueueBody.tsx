@@ -11,6 +11,7 @@ import type {
   StudentCaseQueueRow,
 } from "@/lib/platform-student-case-queue-contract";
 
+import type { V3Look } from "../blocks/look";
 import { QueueEmpty, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
 import { StudentQuickView, StudentQuickViewMissing } from "./StudentQuickView";
@@ -74,6 +75,7 @@ export function StudentsQueueBody({
   handoff,
   createTask,
   requestId,
+  look,
 }: Readonly<{
   /** Вкладки, строка инструментов и заметки над таблицей (рисует сервер). */
   head: ReactNode;
@@ -92,6 +94,8 @@ export function StudentsQueueBody({
   /** Можно ли создать задачу по делу из панели. */
   createTask: boolean;
   requestId: string;
+  /** Новый облик (Э1.3): общие блоки в таблице и «Быстром просмотре». */
+  look?: V3Look;
 }>) {
   const router = useRouter();
   const openKey = params.open;
@@ -153,6 +157,7 @@ export function StudentsQueueBody({
       handoff={handoff?.studentCaseId === openRow.studentCaseId ? handoff : null}
       requestId={requestId}
       onSaved={onSaved}
+      look={look}
       links={{
         close: closeHref,
         case: studentsCaseHref(openRow.studentCaseId, { returnTo: returnTo(openRow.studentCaseId) }),
@@ -203,6 +208,7 @@ export function StudentsQueueBody({
                 curatorColumn={params.view !== "mine"}
                 selectedKey={openKey}
                 links={links}
+                look={look}
               />
             )}
           </div>

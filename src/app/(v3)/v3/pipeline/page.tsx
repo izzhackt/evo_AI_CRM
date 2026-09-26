@@ -13,6 +13,8 @@ import { Pipeline } from "@/components/v3/Pipeline";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
 import { PartShell } from "@/components/v3/PartShell";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
+import { readLookPreview } from "@/lib/v3/look-preview";
 import {
   PLATFORM_SALES_STAGES,
   type PlatformSalesStage,
@@ -65,6 +67,8 @@ export default async function PipelinePart({
     requireV3PageActor("/v3/pipeline"),
   ]);
   const query = parseBoardQuery(params);
+  // Новый облик (предпросмотр Admin, Э1.3): тот же признак, что `data-look` оболочки.
+  const look = (await readLookPreview(actor)) ? "next" as const : undefined;
 
   const stages = readPipelineStages();
   // Фокус этапа (`?stage=`) — представление, а не фильтр чтения: доска читает
@@ -242,6 +246,8 @@ export default async function PipelinePart({
           requestIds={requestIds}
           handedExpanded={query.handed === "all"}
           showOwner={query.assignment !== "mine"}
+          look={look}
+          today={look ? dayInOrganizationTimezone(new Date()) : undefined}
         />
       </div>
       </PartShell>

@@ -17,6 +17,12 @@ import {
   boardTracks,
   ownerInitials,
 } from "@/components/v3/board/Board";
+import { DueWord as DueWordBlock } from "@/components/v3/blocks/DueWord";
+import { Initials } from "@/components/v3/blocks/Initials";
+import { isNextLook, type V3Look } from "@/components/v3/blocks/look";
+import { StageChip } from "@/components/v3/blocks/StatusChip";
+import { StageTrack } from "@/components/v3/blocks/StageTrack";
+import { dueWordOf, type DueWordView } from "@/components/v3/queue/due-bucket";
 import { PipelineDecisionForm } from "@/components/v3/PipelineDecisionForm";
 import type {
   PlatformSalesOwnerOption,
@@ -101,6 +107,17 @@ function DueWord({ due }: Readonly<{ due: PipelineLead["due"] }>) {
   );
 }
 
+/**
+ * Новый облик (Э1.3): срок лида словом — «прошёл 3 дн», «сегодня», «через
+ * 2 дн» — от полудня сегодняшнего дня Бишкека, который прочитала страница
+ * (тот же день, что у `due` из pipeline-source). Без дня или срока — null.
+ */
+function leadDueWord(lead: PipelineLead, today: string | undefined): DueWordView | null {
+  const dueDate = lead.nextActionAt ? lead.workflow.nextActionDueDate : null;
+  if (!today || !dueDate) return null;
+  return dueWordOf({ dueOn: dueDate, dueAt: null }, new Date(`${today}T06:00:00.000Z`));
+}
+
 /** Адрес доски с изменёнными параметрами; прочие фильтры сохраняются. */
 function useBoardHref() {
   const pathname = usePathname() ?? "/v3/pipeline";
@@ -131,6 +148,8 @@ function LeadCard({
   showOwner,
   href,
   onOpen,
+  next = false,
+  dueWord = null,
 }: {
   lead: PipelineLead;
   terminal: boolean;
@@ -138,6 +157,12 @@ function LeadCard({
   showOwner: boolean;
   href: string;
   onOpen: (event: MouseEvent<HTMLAnchorElement>) => void;
+  /**
+   * Новый облик (Э1.3): срок словом (блок `DueWord`) и круг инициалов
+   * ответственного; undefined — прежняя карточка. null — у лида нет срока.
+   */
+  dueWord?: DueWordView | null;
+  next?: boolean;
 }) {
   const owner = lead.workflow.currentOwnerDisplayName;
   const dueDate = lead.nextActionAt ? lead.workflow.nextActionDueDate : null;
@@ -147,7 +172,16 @@ function LeadCard({
   // строке и срок в третьей получают всю ширину карточки, а инициалы
   // ответственного стоят справа от его следующего действия.
   const meta: ReactNode[] = [];
-  if (dueDate) {
+  if (dueDate && next) {
+    // Новый облик: слово срока блоком (`DueWord`) перед датой; «сегодня» — без даты, как прежде.
+    const word = terminal ? null : dueWord;
+    meta.push(
+      <span key="due">
+        {word ? <DueWordBlock view={word} /> : null}
+        {word?.tone === "today" ? null : <>{word ? " " : null}<time dateTime={dueDate} className="font-mono tabular-nums">{lead.nextActionAt}</time></>}
+      </span>,
+    );
+  } else if (dueDate) {
     meta.push(
       due === "today" ? (
         <time key="due" dateTime={dueDate}>
@@ -169,7 +203,7 @@ function LeadCard({
   }
   if (!terminal && lead.stageAgeDays !== null) meta.push(<StageAge key="age" days={lead.stageAgeDays} />);
   const actionLine = !(terminal && !lead.nextAction);
-  const initials = showOwner && owner ? (
+  const initials = showOwner && owner && next ? <Initials name={owner} size="sm" /> : showOwner && owner ? (
     <abbr title={owner} className="shrink-0 no-underline">
       {ownerInitials(owner)}
     </abbr>
@@ -217,6 +251,8 @@ function LeadCard({
 
 function LeadPanel({
   lead,
+  next = false,
+  today,
   stageTitle,
   terminal,
   workflowStages,
@@ -232,6 +268,9 @@ function LeadPanel({
   onSaved,
 }: {
   lead: PipelineLead;
+  /** Новый облик (Э1.3–Э1.4): дорожка этапа и срок словом. */
+  next?: boolean;
+  today?: string;
   stageTitle: string;
   terminal: boolean;
   workflowStages: readonly Readonly<{ key: PlatformSalesStage; title: string }>[];
@@ -328,7 +367,7 @@ function LeadPanel({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3">
         <dl className="t-body-compact grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-fg">
           <dt className="t-caption pt-0.5 text-fg-3">Этап</dt>
-          <dd>{stageTitle}</dd>
+          <dd>{next ? <StageTrack kind="sales" current={lead.stageKey} /> : stageTitle}</dd>
           <dt className="t-caption pt-0.5 text-fg-3">Ответственный</dt>
           <dd className={owner ? undefined : "text-fg-3"}>{owner ?? "Не назначен"}</dd>
           <dt className="t-caption pt-0.5 text-fg-3">Действие</dt>
@@ -338,7 +377,7 @@ function LeadPanel({
               <dt className="t-caption pt-0.5 text-fg-3">Срок</dt>
               <dd className="flex items-baseline gap-2">
                 <time dateTime={lead.workflow.nextActionDueDate} className="font-mono tabular-nums">{lead.nextActionAt}</time>
-                {terminal ? null : <DueWord due={lead.due} />}
+                {terminal ? null : next ? <DueWordBlock view={leadDueWord(lead, today)} /> : <DueWord due={lead.due} />}
               </dd>
             </>
           ) : null}
@@ -411,6 +450,8 @@ export function Pipeline({
   handedExpanded,
   filteredStage,
   showOwner,
+  look,
+  today,
 }: {
   stages: readonly PipelineStage[];
   leads: readonly PipelineLead[];
@@ -424,7 +465,12 @@ export function Pipeline({
   filteredStage: PipelineStageKey | "all";
   /** Инициалы ответственного не нужны, когда показаны только «Мои». */
   showOwner: boolean;
+  /** Новый облик (Э1.3–Э1.4, предпросмотр Admin): точка фазы у колонок, инициалы и срок словом, дорожка этапа. */
+  look?: V3Look;
+  /** Сегодня в Бишкеке (страница): день, от которого новый облик считает слово срока. */
+  today?: string;
 }) {
+  const next = isNextLook(look);
   const search = useSearchParams();
   const boardHref = useBoardHref();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -513,6 +559,8 @@ export function Pipeline({
             showOwner={showOwner}
             href={boardHref({ lead: lead.id })}
             onOpen={openLead(lead)}
+            next={next}
+            dueWord={next ? leadDueWord(lead, today) : null}
           />
         </li>
       );
@@ -527,7 +575,7 @@ export function Pipeline({
       title={`Только этап «${stage.title}»`}
       className="flex min-h-11 min-w-0 items-center truncate rounded-nav hover:underline hover:underline-offset-4"
     >
-      <span className="truncate">{stage.title}</span>
+      {next ? <StageChip label={stage.title} phase="sales" className="min-w-0" truncate /> : <span className="truncate">{stage.title}</span>}
     </Link>
   );
 
@@ -654,7 +702,9 @@ export function Pipeline({
               testId="v3-pipeline-column"
               spread={focused || foldFor === stage.key}
               fold={foldFor && foldFor !== stage.key ? { title: stage.title, href: boardHref({ stage: stage.key, lead: null }) } : undefined}
-              title={focused ? <span className="truncate">{stage.title}</span> : stageTitleLink(stage, focusHref)}
+              title={focused
+                ? next ? <StageChip label={stage.title} phase="sales" className="min-w-0" truncate /> : <span className="truncate">{stage.title}</span>
+                : stageTitleLink(stage, focusHref)}
               marker={
                 stage.gate ? (
                   <span title="Есть условия" className="flex shrink-0 items-center text-fg-3">
@@ -689,6 +739,8 @@ export function Pipeline({
       {selected ? (
         <LeadPanel
           lead={selected}
+          next={next}
+          today={today}
           stageTitle={selectedStage?.title ?? ""}
           terminal={selectedStage?.terminal ?? false}
           workflowStages={workflowStages}

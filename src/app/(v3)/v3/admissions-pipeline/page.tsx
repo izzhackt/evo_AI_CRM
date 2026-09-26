@@ -21,6 +21,7 @@ import {
   isPlatformApplicationCountryCode,
 } from "@/lib/platform-application-contract";
 import { listStudentPortalActiveCurators } from "@/lib/server/student-portal-curator-options";
+import { readLookPreview } from "@/lib/v3/look-preview";
 import { admissionsPipelineTab, country as countryLabel } from "@/lib/v3/wording";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +75,8 @@ export default async function AdmissionsPipelinePart({
     requireV3PageActor("/v3/admissions-pipeline"),
   ]);
   const query = parseBoardQuery(params);
+  // Новый облик (предпросмотр Admin, Э1.3): тот же признак, что `data-look` оболочки.
+  const look = (await readLookPreview(actor)) ? "next" as const : undefined;
   const view = singleValue(params.view);
   if (view !== undefined && view !== "documents" && view !== "packages") notFound();
   const canReadDocuments = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
@@ -225,6 +228,7 @@ export default async function AdmissionsPipelinePart({
           boardUnavailable={boardResult.status === "rejected"}
           tab={query.tab}
           query={{ q: query.q, country: query.country, curator: query.curator }}
+          look={look}
         />
       </div>
     </PartShell>

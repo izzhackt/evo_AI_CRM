@@ -20,6 +20,10 @@ import { PageHeader } from "@/components/ui";
  * строка инструментов стоят сверху, доска получает оставшуюся высоту, и её
  * колонки прокручиваются внутри себя, а не страница.
  *
+ * `fill` — переписка WhatsApp: от 768 px страница забирает высоту под верхней
+ * панелью в колонке оболочки (`AppShell`, `isFillRoute`), список и лента
+ * прокручиваются внутри себя, страница — нет. Ниже 768 px — обычный поток.
+ *
  * `dense` — рабочая очередь (решение владельца 25.09.2026, «Студенты»):
  * отступ над заголовком и между заголовком и вкладками вдвое меньше, чтобы
  * первый экран отдавал место строкам, а не шапке.
@@ -60,7 +64,7 @@ export function PartShell({
     <main
       className={`mx-auto w-full px-4 sm:px-6 ${
         width === "narrow" ? "max-w-[860px]" : "max-w-[1240px]"
-      } ${fill ? "flex h-dvh flex-col py-6" : dense ? "pb-8 pt-4" : "py-8"}`}
+      } ${fill ? "flex flex-col py-6 md:min-h-0 md:flex-1" : dense ? "pb-8 pt-4" : "py-8"}`}
     >
       <PageHeader title={title} count={count} description={description} action={action} />
 

@@ -77,7 +77,7 @@ export function StudentsDirectoryFallback({
             <tbody role="rowgroup" className="block">
               {rows.map((row) => {
                 const href = rowHref(row, docsMode);
-                const meta = [row.admissionsDirection ? DIRECTION_LABELS[row.admissionsDirection] : row.targetCountry ?? "не указано", row.targetDegree].filter(Boolean).join(" · ");
+                const meta = [row.admissionsDirection ? DIRECTION_LABELS[row.admissionsDirection] : row.targetCountry ?? "Страна не указана", row.targetDegree].filter(Boolean).join(" · ");
                 return (
                   <tr key={row.studentCaseId} role="row" data-queue-row={row.studentCaseId} data-testid="v3-student-case-row" data-access={row.access}
                     data-student-case-id={row.studentCaseId} className={`relative ${ROW_GRID} border-b border-border py-2 hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface @min-[40rem]/directory:py-0`}>

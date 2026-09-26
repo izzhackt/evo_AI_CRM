@@ -153,7 +153,7 @@ test("the address keeps view, filters, page and the open row; returnTo accepts o
   const page = read("src/app/(v3)/v3/profile/page.tsx");
   assert.match(page, /const studentsReturnTo = requestsReturnTo \? null : parseStudentsReturnTo\(singleSearchParam\(params\.returnTo\)\);/u);
   assert.match(page, /const directoryHref = studentsReturnTo \?\? withDocsSection\("\/v3\/profile", docsMode\);/u);
-  assert.match(page, /\{requestsReturnTo \? "К списку заявок" : docsMode \? "К списку EVO Docs" : "К списку студентов"\}/u);
+  assert.match(page, /\{requestsReturnTo \? "К списку заявок" : pipelineBackHref \? "К воронке продаж" : docsMode \? "К списку EVO Docs" : "К списку студентов"\}/u);
 });
 
 test("due bands mirror case_next_action_band (241) on top of dueBucket, Sunday included", () => {

@@ -811,13 +811,18 @@ export async function listCaseBaselineChecklistOptions(
     const organizationId = requireDocumentManager(actor);
     const parsedStudentCaseId = requiredUuid(studentCaseId);
     const client = dependencies.client ?? await getPlatformClient();
+    // Обычный POST, не GET: функция (179) проверяет сотрудника через
+    // require_case_operator → require_domain_actor (155), а тот берёт
+    // SELECT … FOR UPDATE — в read-only транзакции GET это ошибка 25006.
+    // Одного POST мало, пока функция STABLE: PostgREST и POST к STABLE
+    // выполняет в READ ONLY. Окончательно чинит миграция (read-safe проверка
+    // или VOLATILE); POST подходит обоим её вариантам (PLAN_CHANGES 26.09).
     const response = await client.schema("platform").rpc(
       "staff_case_baseline_checklist_options",
       {
         p_organization_id: organizationId,
         p_student_case_id: parsedStudentCaseId,
       },
-      { get: true },
     );
     if (response.error || !Array.isArray(response.data)) return invalidShape();
     const options = response.data.map(normalizePlatformCaseBaselineChecklistOption);

@@ -85,11 +85,14 @@ export default async function PipelinePart({
 
   // Числа «Срока» — только из этого чтения: при «Все» и без усечения все
   // группы видны; с выбранным сроком известно только его собственное число.
-  // Нет чтения — нет числа.
+  // Нет чтения — нет числа. Считаются только рабочие этапы, как в заголовке:
+  // переданный лид лежит в свёрнутой колонке «Переданы», и его «Без действия»
+  // вело на доску, где все рабочие колонки пусты (аудит 26.09).
+  const working = leads.filter((lead) => lead.stageKey !== "handed_off");
   const dueCount = (key: Exclude<BoardQuery["due"], "all">, due: "overdue" | "today" | "none") =>
     board.truncated ? null
-      : query.due === "all" ? leads.filter((lead) => lead.due === due).length
-      : query.due === key ? leads.length
+      : query.due === "all" ? working.filter((lead) => lead.due === due).length
+      : query.due === key ? working.length
       : null;
   const dueChoices: readonly FilterChoice[] = [
     allChoice(query.due === "all", boardHref({ ...query, due: "all" })),
@@ -143,7 +146,7 @@ export default async function PipelinePart({
     query.assignment !== "all" ||
     query.owner !== null;
   const activeFilterCount = Number(query.due !== "all") + Number(query.assignment !== "all" || query.owner !== null);
-  const workingCount = board.truncated ? null : leads.filter((lead) => lead.stageKey !== "handed_off").length;
+  const workingCount = board.truncated ? null : working.length;
 
   return (
     <ManualLeadDisclosure>

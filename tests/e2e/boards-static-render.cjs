@@ -155,6 +155,9 @@ const SCENARIOS = {
   "sales-focus": { page: "sales", search: "stage=qualified" },
   "sales-handed": { page: "sales", search: "stage=handed_off" },
   "sales-mine": { page: "sales", search: "assignment=mine" },
+  // «Без действия» нажато: переданный лид без срока приходит в чтении, но
+  // число и рабочие колонки — только рабочие этапы.
+  "sales-unscheduled": { page: "sales", search: "due=unscheduled" },
   "sales-search": { page: "sales", search: "q=%D0%A2%D0%B8%D0%BC%D1%83%D1%80" },
   "sales-volume": { page: "sales", search: "", rows: "volume" },
   "sales-loading": { page: "sales", search: "", loading: true },

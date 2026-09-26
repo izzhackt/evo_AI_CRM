@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   getPlatformCaseDocumentWorkspace,
+  listCaseBaselineChecklistOptions,
   listPlatformDocumentQueue,
   normalizePlatformCaseDocumentWorkspace,
   normalizePlatformDocumentQueueRow,
@@ -475,6 +476,38 @@ test("case and queue reads call one authenticated GET-safe Supabase RPC each", a
     ],
     ["staff_document_queue", { p_limit: 2 }, { get: true }],
   ]);
+});
+
+test("baseline checklist options go by POST: the gate locks rows, which a read-only GET refuses", async () => {
+  // staff_case_baseline_checklist_options (179) checks the actor through
+  // require_case_operator -> require_domain_actor (155), which runs
+  // SELECT ... FOR UPDATE; PostgREST runs every GET in a READ ONLY
+  // transaction, where that fails with 25006 (audit 26.09).
+  const calls = [];
+  const client = {
+    schema(schema) {
+      assert.equal(schema, "platform");
+      return {
+        async rpc(...args) {
+          calls.push(args);
+          return { data: [], error: null };
+        },
+      };
+    },
+  };
+  const manager = { ...ACTOR, permissionKeys: ["document.read.full", "document.manage"] };
+  // A legitimate empty list (no approved templates) is an empty result, not a failure.
+  assert.deepEqual(await listCaseBaselineChecklistOptions(manager, CASE_ID, { client }), []);
+  assert.deepEqual(calls, [[
+    "staff_case_baseline_checklist_options",
+    { p_organization_id: ORGANIZATION_ID, p_student_case_id: CASE_ID },
+  ]]);
+  // The other two document reads stay GET: their gate
+  // (require_admissions_runtime_actor) takes no row locks.
+  const source = readFileSync(new URL("../src/lib/platform-private-documents.ts", import.meta.url), "utf8");
+  const options = source.slice(source.indexOf("export async function listCaseBaselineChecklistOptions"));
+  assert.doesNotMatch(options.slice(0, options.indexOf("\n}\n")), /get: true/u);
+  assert.equal(source.match(/\{ get: true \}/gu)?.length, 2);
 });
 
 test("Sales is rejected before any Admissions document RPC", async () => {

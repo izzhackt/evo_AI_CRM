@@ -68,7 +68,7 @@ export async function readCalendarTasks(
     seen.add(task.key);
     tasks.push(task);
   }
-  return { tasks: Object.freeze(tasks), undatedNextCursor: undated.nextCursor, undatedCount: undated.totalCount };
+  return { tasks: Object.freeze(tasks), undatedNextCursor: undated.nextCursor };
 }
 
 async function readActiveCases(
@@ -147,7 +147,6 @@ export async function readCalendarWorkspace(
     access,
     tasks: target ? Object.freeze([target.task, ...tasks.filter(task => task.key !== target.task.key)]) : tasks,
     undatedNextCursor: read?.undatedNextCursor ?? null,
-    undatedCount: read?.undatedCount ?? 0,
     cases: cases?.rows ?? [], casesHaveMore: cases?.hasNext ?? false,
     assignees: target?.assignees ?? [],
   });

@@ -63,6 +63,7 @@ export async function Documents({
 
   let baselineOptions: readonly BaselineChecklistOption[] = [];
   let baselineOptionsUnavailable = false;
+  let baselineOptionsRead = false;
   // The read itself requires document.manage; without it the server always
   // refuses, so it is not attempted (the apply form stays hidden, as before).
   if (
@@ -76,12 +77,19 @@ export async function Documents({
         countryRequirementVersionId: row.countryRequirementVersionId,
         label: baselineChecklistOptionLabel(row),
       })));
+      baselineOptionsRead = true;
     } catch {
       // A failed read is not "no templates": keep the form hidden, say so.
       baselineOptions = [];
       baselineOptionsUnavailable = true;
     }
   }
+  // «No templates» only from a successful read that returned nothing, and only
+  // while the case has no template-backed item: once a baseline was applied
+  // the list is empty by design (the binding is one-time, 179), not absent.
+  const baselineTemplatesAbsent = baselineOptionsRead
+    && baselineOptions.length === 0
+    && !activeGroups.some((group) => group.items.some((item) => item.intentKind === "baseline"));
   const baselineChecklistRequestId =
     uploadAccess === "allowed" && studentCaseId && baselineOptions.length > 0
       ? randomUUID()
@@ -98,6 +106,7 @@ export async function Documents({
           createRequestId={createRequestId}
           baselineOptions={baselineOptions}
           baselineOptionsUnavailable={baselineOptionsUnavailable}
+          baselineTemplatesAbsent={baselineTemplatesAbsent}
           baselineChecklistRequestId={baselineChecklistRequestId}
           recognition={recognition}
         />

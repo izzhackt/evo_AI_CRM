@@ -107,7 +107,7 @@ test("the former summary address lands on «Студенты» for every role", 
       "/v3/profile?section=summary", "/v3/profile?section=summary&period=month#admissions-summary",
       "/v3/profile", "/v3/profile?section=", "/v3/profile?section=unknown",
       "/v3/profile?section=summary&section=summary", "/v3/profile?section=summary&section=other",
-      "/v3/profile?case=record&section=summary", "/v3/profile?id=record&section=summary",
+      "/v3/profile?case=record&section=summary",
       "/v3/profile?case=&section=summary", "/v3/profile?id=&section=summary",
       "/v3/profile?case=record&tab=history", "/v3/profile?query=test&state=closed",
     ]) {
@@ -119,6 +119,28 @@ test("the former summary address lands on «Студенты» for every role", 
     }
   }
   assert.equal(v3SectionTitle("/v3/profile", { section: "summary" }), "Студенты");
+});
+
+test("a lead card lives under «Воронка продаж» and names itself «Лид» in the tab", () => {
+  // Audit 26.09: Lead 360 highlighted Поступление › Студенты and the tab read
+  // «Студенты — EVO CRM». A case (`?case=`) stays «Студенты».
+  for (const href of ["/v3/profile?id=record", "/v3/profile?id=record&tab=history", "/v3/profile?id=record&section=summary",
+    "/v3/profile?id=record&returnTo=%2Fv3%2Fpipeline%3Fdue%3Dunscheduled"]) {
+    for (const role of ["admin", "sales"]) {
+      const model = navigation(role, href);
+      assert.equal(model.activeId, "pipeline", `${role} ${href}`);
+      assert.equal(model.groups.find((group) => group.id === "sales")?.active, true, `${role} ${href}`);
+    }
+    // Admissions has no sales board: it keeps its own section, never nothing.
+    assert.equal(navigation("admissions", href).activeId, "admissions-worklist", href);
+    assert.equal(sectionTitle(href), "Лид", href);
+  }
+  for (const href of ["/v3/profile?case=record", "/v3/profile?id=record&case=record", "/v3/profile?id=&tab=overview",
+    "/v3/profile?id=a&id=b"]) {
+    assert.equal(navigation("admin", href).activeId, "admissions-worklist", href);
+    assert.equal(sectionTitle(href), "Студенты", href);
+  }
+  assert.equal(sectionTitle("/v3/profile?id=record&section=docs"), "EVO Docs");
 });
 
 test("forbidden and unknown paths never mark an unrelated link current", () => {
@@ -197,7 +219,9 @@ test("destination keys preserve disclosure identity through filters and client d
   const destinations = [
     ["sales-report", ["/v3/main?view=sales", "/v3/main?view=sales&year=2026&month=9&q=Name&offset=30&review=true", "/v3/main?archived=true&month=10&view=sales&year=2026"]],
     ["calendar", ["/v3/calendar", "/v3/calendar?view=month&date=2026-09-01", "/v3/calendar?date=2026-10-01&view=week"]],
-    ["admissions-worklist", ["/v3/profile", "/v3/profile?case=record&tab=route", "/v3/profile?id=record&query=updated", "/v3/profile?section=summary&case=", "/v3/profile?section=summary&id="]],
+    ["admissions-worklist", ["/v3/profile", "/v3/profile?case=record&tab=route", "/v3/profile?section=summary&case=", "/v3/profile?section=summary&id="]],
+    // The board and a lead card opened from it keep the same sidebar identity.
+    ["pipeline", ["/v3/pipeline", "/v3/pipeline?due=unscheduled&lead=record", "/v3/profile?id=record&query=updated"]],
     ["evo-docs", ["/v3/profile?section=docs", "/v3/profile?case=record&section=docs&tab=anketa"]],
     ["universities", ["/v3/universities", "/v3/universities?country=MY&level=bachelor", "/v3/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b"]],
   ];
@@ -299,7 +323,6 @@ test("the browser tab names the sidebar item that the same address highlights", 
     ["/v3/main?view=sales&view=sales", "Главная"],
     ["/v3/main?view=sales&year=2026&month=9", "Отчёт продаж"],
     ["/v3/profile?case=record&tab=route", "Студенты"],
-    ["/v3/profile?id=record&section=summary", "Студенты"],
     ["/v3/profile?section=docs&section=docs", "Студенты"],
     ["/v3/profile?case=record&tab=anketa&section=docs", "EVO Docs"],
     ["/v3/profile?section=summary&period=month", "Студенты"],

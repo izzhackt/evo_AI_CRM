@@ -378,7 +378,7 @@ function renderCalendarPage() {
   const body = createElement(Calendar, {
     initialTaskKey: null, unavailableTarget: null, taskCapabilities: null, view: "week", day: TODAY, today: TODAY, nowMinutes: 600,
     days, tasks, readAccess: { caseTasks: true, staffTasks: true, tasks: true, applicationDeadlines: false }, undatedContinuationPage: false, undatedNextHref: null,
-    undatedCount: 0, undatedCursor: null, cases: [], casesHaveMore: false, assignees: [], actorMembershipId: ME, actor: ACTOR,
+    undatedCursor: null, cases: [], casesHaveMore: false, assignees: [], actorMembershipId: ME, actor: ACTOR,
     createRequestId: "99999999-6666-4666-8666-000000000001", taskRequestIds: Object.fromEntries(tasks.map((item) => [item.key, {
       change: "99999999-6666-4666-8666-000000000002", complete: "99999999-6666-4666-8666-000000000003", cancel: "99999999-6666-4666-8666-000000000004",
     }])), basePath: "/v3/calendar",

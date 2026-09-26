@@ -28,6 +28,7 @@ import {
   type CalendarView,
   type Day,
   VIEW_TITLES,
+  calendarUndatedOpenCount,
   calendarUndatedPageNotice,
   calendarAccessNotice,
   calendarEmptyPeriodLabel,
@@ -60,7 +61,6 @@ export function Calendar({
   readAccess,
   undatedContinuationPage,
   undatedNextHref,
-  undatedCount,
   undatedCursor,
   cases,
   casesHaveMore,
@@ -84,7 +84,6 @@ export function Calendar({
   readAccess: CalendarReadAccess;
   undatedContinuationPage: boolean;
   undatedNextHref: string | null;
-  undatedCount: number;
   undatedCursor: PersonalCalendarCursor | null;
   cases: readonly CalendarCaseOption[];
   casesHaveMore: boolean;
@@ -201,6 +200,7 @@ export function Calendar({
     undatedNextHref !== null,
     unscheduled.length,
   ) : null;
+  const undatedOpen = calendarUndatedOpenCount(unscheduled, undatedContinuationPage, undatedNextHref !== null);
   const accessNotice = calendarAccessNotice(readAccess);
   const emptyPeriodLabel = calendarEmptyPeriodLabel(readAccess);
 
@@ -287,7 +287,7 @@ export function Calendar({
                   }))}
                   className="flex min-h-11 w-full items-center justify-between gap-3 rounded-ctl text-left hover:bg-surface-2 hover:text-fg"
                 >
-                  <span>Без срока — {undatedCount}</span>
+                  <span>{undatedOpen === null ? "Без срока" : `Без срока — ${undatedOpen}`}</span>
                   <Icon name="chevron-right" size={16} className={`shrink-0 ${undatedDisclosure.expanded ? "rotate-90" : ""}`} />
                 </button>
               </h2>

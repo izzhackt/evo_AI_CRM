@@ -295,10 +295,10 @@ const MANAGER = Object.freeze({
   permissionKeys: ["document.upload", "document.manage"],
 });
 
-async function wrapperClientProps(read, actor = MANAGER) {
+async function wrapperClientProps(read, actor = MANAGER, groups = []) {
   const { Documents, calls } = documentsWrapper(read);
   const tree = await Documents({
-    groups: [],
+    groups,
     uploadAccess: "allowed",
     studentCaseId: CASE_ID,
     actor,
@@ -316,12 +316,26 @@ test("V3 documents wrapper tells a failed baseline-options read apart from an em
   assert.equal(failed.props.baselineOptionsUnavailable, true);
   assert.deepEqual(failed.props.baselineOptions, []);
   assert.equal(failed.props.baselineChecklistRequestId, null);
+  // A failed read never claims that templates are absent.
+  assert.equal(failed.props.baselineTemplatesAbsent, false);
 
   const empty = await wrapperClientProps(() => []);
   assert.equal(empty.calls.length, 1);
   assert.equal(empty.props.baselineOptionsUnavailable, false);
   assert.deepEqual(empty.props.baselineOptions, []);
   assert.equal(empty.props.baselineChecklistRequestId, null);
+  // Production 26.09: 0 country_requirement_versions — a quiet fact, not an error.
+  assert.equal(empty.props.baselineTemplatesAbsent, true);
+
+  // A case whose baseline was already applied reads an empty list by design
+  // (the binding is one-time): that is not «no templates».
+  const bound = await wrapperClientProps(() => [], MANAGER, [{
+    kind: "active",
+    title: "Документы",
+    items: [{ id: CASE_ID, name: "Паспорт", intentKind: "baseline", presence: "absent" }],
+  }]);
+  assert.equal(bound.props.baselineOptionsUnavailable, false);
+  assert.equal(bound.props.baselineTemplatesAbsent, false);
 
   const loaded = await wrapperClientProps(() => [{
     countryRequirementVersionId: VERSION_ID,
@@ -332,6 +346,7 @@ test("V3 documents wrapper tells a failed baseline-options read apart from an em
     requirementCount: 7,
   }]);
   assert.equal(loaded.props.baselineOptionsUnavailable, false);
+  assert.equal(loaded.props.baselineTemplatesAbsent, false);
   assert.equal(loaded.props.baselineOptions.length, 1);
   assert.equal(loaded.props.baselineOptions[0].countryRequirementVersionId, VERSION_ID);
   assert.match(loaded.props.baselineOptions[0].label, /CN · bachelor · версия 3 — 7 документов/u);
@@ -347,6 +362,7 @@ test("V3 documents wrapper tells a failed baseline-options read apart from an em
   );
   assert.equal(uploadOnly.calls.length, 0);
   assert.equal(uploadOnly.props.baselineOptionsUnavailable, false);
+  assert.equal(uploadOnly.props.baselineTemplatesAbsent, false);
   assert.equal(uploadOnly.props.baselineChecklistRequestId, null);
 });
 
@@ -395,10 +411,11 @@ function baselineSlot(tree) {
   return {
     unavailable: byName("BaselineChecklistUnavailable"),
     apply: byName("ApplyBaselineChecklist"),
+    absent: findElements(tree, (node) => node.props?.["data-testid"] === "v3-document-baseline-checklist-empty"),
   };
 }
 
-test("V3 documents client shows an honest retry for a failed read and keeps empty unchanged", () => {
+test("V3 documents client shows an honest retry for a failed read and a quiet line when no template exists", () => {
   const refreshes = [];
   const router = { refresh: () => refreshes.push("refresh") };
   const { ProfileDocumentsClient } = documentsClient(router);
@@ -431,6 +448,24 @@ test("V3 documents client shows an honest retry for a failed read and keeps empt
   const empty = baselineSlot(ProfileDocumentsClient({ ...base }));
   assert.equal(empty.unavailable.length, 0);
   assert.equal(empty.apply.length, 0);
+  assert.equal(empty.absent.length, 0);
+
+  // Read succeeded, nothing to apply and nothing applied: one quiet line
+  // above the manual form, no alert, no danger colour.
+  const absentTree = ProfileDocumentsClient({ ...base, baselineTemplatesAbsent: true });
+  const absent = baselineSlot(absentTree);
+  assert.equal(absent.unavailable.length, 0);
+  assert.equal(absent.apply.length, 0);
+  assert.equal(absent.absent.length, 1);
+  assert.equal(textOf(absent.absent[0]).trim(), "Шаблонов чек-листа пока нет — документы добавляются вручную.");
+  assert.doesNotMatch(absent.absent[0].props.className, /danger|accent/u);
+  assert.equal(absent.absent[0].props.role, undefined);
+  // Without the manual form (no command id) the line would point nowhere.
+  assert.equal(baselineSlot(ProfileDocumentsClient({ ...base, createRequestId: null, baselineTemplatesAbsent: true })).absent.length, 0);
+  // A failed read wins over «absent»: never both.
+  const both = baselineSlot(ProfileDocumentsClient({ ...base, baselineOptionsUnavailable: true, baselineTemplatesAbsent: true }));
+  assert.equal(both.unavailable.length, 1);
+  assert.equal(both.absent.length, 0);
 
   const loaded = baselineSlot(ProfileDocumentsClient({
     ...base,

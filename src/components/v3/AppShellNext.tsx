@@ -23,7 +23,7 @@ import { Icon } from "@/components/icons";
 import { cn } from "@/components/ui";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
 import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
-import { isBoardRoute } from "@/lib/v3/board-layout";
+import { isBoardRoute, isFillRoute } from "@/lib/v3/board-layout";
 import {
   buildV3Navigation,
   type V3Navigation,
@@ -366,6 +366,9 @@ export function AppShellNext({
   const canCreateTask = !previewing && staffHasPermission(actor, "staff.task.create");
   const board = isBoardRoute(pathname);
   const rail = board;
+  // Высота окна от 768 px: доски и переписка WhatsApp — то же правило, что в
+  // прежней оболочке (`isFillRoute`, аудит 26.09); рейка — только у досок.
+  const fill = isFillRoute(pathname);
   const contentId = useId();
   const menuId = useId();
   const headingId = useId();
@@ -680,7 +683,7 @@ export function AppShellNext({
         inert={sheetOpen}
         className={cn(
           "@container min-w-0 flex-1 max-md:pb-[calc(var(--shell-tabbar)+var(--shell-safe-bottom))]",
-          board && "md:flex md:h-dvh md:flex-col",
+          fill && "md:flex md:h-dvh md:flex-col",
         )}
       >
         <div
@@ -688,7 +691,7 @@ export function AppShellNext({
           ref={contentRef}
           tabIndex={-1}
           data-shell-content=""
-          className={cn("min-w-0 outline-none", board && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto")}
+          className={cn("min-w-0 outline-none", fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto")}
         >
           {children}
         </div>

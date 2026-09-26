@@ -279,11 +279,17 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   assert.match(shell, /flex h-\[var\(--shell-top\)\] shrink-0/u, "top row height is the variable");
   assert.match(shell, /grid h-\[var\(--shell-tabbar\)\]/u, "tab bar height is the variable");
   assert.match(shell, /max-md:pb-\[calc\(var\(--shell-tabbar\)\+var\(--shell-safe-bottom\)\)\]/u, "content clears the tab bar");
-  // Все три страницы «на окно» попадают под правило.
+  // «Сообщения» и «Командный чат» — страницы «на окно» под правилом.
   assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label="Сообщения">/u);
   assert.match(read("src/app/(v3)/v3/team-chat/page.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label="Командный чат">/u);
-  assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex h-dvh flex-col py-6"/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{view\.conversations\.length\} fill>/u);
+  // WhatsApp (PartShell `fill`) своей высоты не задаёт: от 768 px её даёт
+  // колонка оболочки по `isFillRoute` — в новом облике так же, как в прежнем.
+  assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{[^}]*\} fill>/u);
+  assert.match(shell, /const fill = isFillRoute\(pathname\);/u);
+  assert.match(shell, /fill && "md:flex md:h-dvh md:flex-col"/u, "the content column is window-high on fill routes");
+  assert.match(shell, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
+  assert.doesNotMatch(shell, /board && "md:flex md:h-dvh/u, "not only boards");
   // Движение листа выключает prefers-reduced-motion; строка и панель вкладок листа стоят на месте.
   assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{\s*\.v3-world\[data-look="next"\] \[data-shell-menu\]\[data-sheet-open\] > \[data-shell-menu-body\] \{\s*animation: v3-shell-sheet-in 180ms/u);
 });

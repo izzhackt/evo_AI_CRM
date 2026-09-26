@@ -603,6 +603,8 @@ function shellMetrics() {
     headingCenter: heading ? Math.round(heading.getBoundingClientRect().top + heading.getBoundingClientRect().height / 2) : null,
     logoCenter: logo ? Math.round(logo.getBoundingClientRect().top + logo.getBoundingClientRect().height / 2) : null,
     mainBottom: main ? rect(main).bottom : null,
+    // Низ `main` при прокрутке страницы до конца (телефон, обычный поток).
+    mainBottomAtEnd: main ? Math.round(main.getBoundingClientRect().bottom - Math.max(0, document.documentElement.scrollHeight - window.innerHeight - window.scrollY)) : null,
     composer: composer ? { bottom: Math.round(composer.getBoundingClientRect().bottom), limit: Math.round(tabbarTop), above: composer.getBoundingClientRect().bottom <= tabbarTop + 0.5 } : null,
     minFontPx: texts.length ? Math.min(...texts.map((element) => parseFloat(getComputedStyle(element).fontSize))) : null,
     smallTargets: targets.filter((element) => {
@@ -785,7 +787,14 @@ async function screenshots() {
             check(metrics.mainTop !== null && metrics.mainTop < 40, `${label}: content starts at ${metrics.mainTop}px (top bar left?)`);
           }
           if (metrics.composer) check(metrics.composer.above, `${label}: composer ${metrics.composer.bottom} below ${metrics.composer.limit}`);
-          if (pageKey === "messages") check(metrics.overflowY <= 0, `${label}: window page scrolls ${metrics.overflowY}px`);
+          // WhatsApp продаж — страница `fill`: от 768 px высоту окна даёт колонка
+          // оболочки (`isFillRoute`), `main` доходит до низа окна; на телефоне —
+          // обычный поток (аудит 26.09, #1064), конец страницы — над панелью вкладок
+          // (1 px — её верхняя граница, она ложится на нижний отступ `main`, py-6).
+          const whatsappPage = pageKey === "messages" && role === "sales";
+          if (pageKey === "messages" && !(whatsappPage && PHONE.has(viewportKey))) check(metrics.overflowY <= 0, `${label}: window page scrolls ${metrics.overflowY}px`);
+          if (whatsappPage && !PHONE.has(viewportKey)) check(metrics.mainBottom === VIEWPORTS[viewportKey].viewport.height, `${label}: WhatsApp main ends at ${metrics.mainBottom}, not at the window bottom`);
+          if (whatsappPage && PHONE.has(viewportKey)) check(metrics.tabbar !== null && metrics.mainBottomAtEnd <= metrics.tabbar.rect.top + 1, `${label}: WhatsApp page end ${metrics.mainBottomAtEnd} under the tab bar ${metrics.tabbar?.rect.top}`);
         }
       }
     }

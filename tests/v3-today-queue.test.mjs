@@ -7,6 +7,7 @@ import { salesDynamicsCarry, salesDynamicsHref } from "../src/lib/sales-register
 import { salesBoardFunnel } from "../src/lib/v3/sales-board-funnel.ts";
 import {
   TODAY_BANDS,
+  TODAY_UNCOUNTED,
   buildTodayQueue,
   todayChatItems,
   todayDateLabel,
@@ -62,7 +63,7 @@ const caseRow = (n, fields) => {
 };
 const lead = (n, fields) => ({
   id: uuid("ffffffff", n), name: fields.name ?? `Лид ${n}`, stageKey: fields.stage ?? "contacting", source: fields.source ?? "website",
-  nextAction: fields.action ?? null, nextActionAt: null, due: fields.due ?? "none", stageAgeDays: 1, latestNote: null, href: "",
+  nextAction: fields.action ?? null, nextActionAt: null, due: fields.due ?? "none", stageAgeDays: fields.age === undefined ? 1 : fields.age, latestNote: null, href: "",
   workflow: {
     leadId: uuid("ffffffff", n), currentOwnerMembershipId: fields.owner === undefined ? ME : fields.owner, currentOwnerDisplayName: null,
     stageKey: "contacting", nextActionText: fields.action ?? null, nextActionDueDate: fields.dueDate ?? null, workflowVersion: "1",
@@ -180,6 +181,13 @@ test("leads and requests: working stages only, the board's due words, unowned re
     // Неизвестный ключ источника не выводится сырым.
     ["Лид без ответственного", "нет ответственного", "waiting"],
   ]);
+  // «Когда» у заявки — только слово из дней на этапе «Новый»; даты чтение не даёт, и она не выдумывается.
+  assert.deepEqual(requests.map((item) => item.waitingDays), [1, null], "days in «Новый» only: a later stage's age is not time without an owner");
+  assert.deepEqual(todayWhen(requests[0], NOW), { dateTime: null, text: null, word: "ждёт 1 дн", overdue: false });
+  assert.equal(todayWhen(requests[1], NOW), null);
+  const [fresh] = todayRequestItems([lead(12, { stage: "new", owner: null, age: 0 })]);
+  assert.equal(todayWhen(fresh, NOW).word, "сегодня");
+  assert.equal(todayRequestItems([lead(13, { stage: "new", owner: null, age: null })])[0].waitingDays, null);
 });
 
 test("chats: the «Нужен ответ» state of the read, waiting since the last message", () => {
@@ -209,6 +217,14 @@ test("bands follow urgency; one case from two reads is one row in its most urgen
   assert.equal(bandOf(queue, "overdue").danger, true);
   // Ждущие дольше всех — первыми.
   assert.deepEqual(bandOf(queue, "waiting").items.map((item) => item.key), [`chat:${uuid("dddddddd", 6)}`, `chat:${uuid("dddddddd", 5)}`]);
+  // Заявка встаёт по дню прихода среди переписок: 3 дня назад — после сообщения 20.09, раньше вчерашней заявки и сообщения 25.09.
+  const mixed = buildTodayQueue([
+    read("chats", todayChatItems([thread(5, { at: "2026-09-25T00:00:00.000Z" }), thread(6, { at: "2026-09-20T00:00:00.000Z" })])),
+    read("requests", todayRequestItems([lead(20, { stage: "new", owner: null, age: 1 }), lead(21, { stage: "new", owner: null, age: 3 })])),
+  ], NOW);
+  assert.deepEqual(bandOf(mixed, "waiting").items.map((item) => item.key), [
+    `chat:${uuid("dddddddd", 6)}`, `lead:${uuid("ffffffff", 21)}`, `lead:${uuid("ffffffff", 20)}`, `chat:${uuid("dddddddd", 5)}`,
+  ]);
   assert.equal(bandOf(queue, "upcoming").label, "Ближайшие 14 дней");
   assert.equal(buildTodayQueue([read("tasks", [])], NOW).bands.length, 0, "empty bands are not drawn");
   assert.throws(() => buildTodayQueue([read("tasks", []), read("tasks", [])], NOW), /twice/u);
@@ -217,14 +233,15 @@ test("bands follow urgency; one case from two reads is one row in its most urgen
 test("no invented numbers: a band counts only when every read writing into it is complete", () => {
   const tasks = todayTaskItems({ staff: [staffTask(1, { dueOn: "2026-09-24" }), staffTask(2, { dueOn: TODAY })], cases: [], actorMembershipId: ME, now: NOW });
   const chats = todayChatItems([thread(1)]);
-  const complete = buildTodayQueue([read("tasks", tasks), read("chats", chats)], NOW);
-  assert.deepEqual(complete.bands.map((band) => [band.band, band.count]), [["overdue", 1], ["today", 1], ["waiting", 1]]);
+  const requests = todayRequestItems([lead(1, { stage: "new", owner: null })]);
+  const complete = buildTodayQueue([read("tasks", tasks), read("requests", requests)], NOW);
+  assert.deepEqual(complete.bands.map((band) => [band.band, band.count, band.note]), [["overdue", 1, null], ["today", 1, null], ["waiting", 1, null]]);
   assert.equal(bandOf(complete, "today").label, "Сегодня · сб 26.09");
   assert.equal(complete.complete, true);
   assert.deepEqual(complete.notices, []);
 
   // Неполные задачи гасят числа только своих групп; «Ждут ответа» остаётся с числом.
-  const partial = buildTodayQueue([read("tasks", tasks, "partial"), read("chats", chats)], NOW);
+  const partial = buildTodayQueue([read("tasks", tasks, "partial"), read("requests", requests)], NOW);
   assert.deepEqual(partial.bands.map((band) => [band.band, band.count]), [["overdue", null], ["today", null], ["waiting", 1]]);
   assert.equal(partial.complete, false);
   assert.deepEqual(partial.notices, [{
@@ -233,10 +250,25 @@ test("no invented numbers: a band counts only when every read writing into it is
   }]);
 
   // Ошибка источника — на месте и с «Повторить»; строки остальных источников остаются.
-  const failed = buildTodayQueue([{ source: "tasks", state: "error" }, read("students", todayStudentItems([caseRow(1, { step: "Шаг", due: TODAY, band: "today" })], TODAY)), read("chats", chats)], NOW);
+  const failed = buildTodayQueue([{ source: "tasks", state: "error" }, read("students", todayStudentItems([caseRow(1, { step: "Шаг", due: TODAY, band: "today" })], TODAY)), read("requests", requests)], NOW);
   assert.deepEqual(failed.bands.map((band) => [band.band, band.count, band.items.length]), [["today", null, 1], ["waiting", 1, 1]]);
   assert.deepEqual(failed.notices[0], { source: "tasks", kind: "error", text: "Задачи не загрузились.", link: { label: "Повторить", href: "/v3/main" } });
   assert.equal(failed.applicable, true);
+
+  // «Нужен ответ» не снимается ответом сотрудника (разбор 26.09): число группы с перепиской было бы
+  // завышенным — его нет и при полном чтении, а группа говорит почему. Строки остаются.
+  const withChats = buildTodayQueue([read("tasks", tasks), read("requests", requests), read("chats", chats)], NOW);
+  assert.deepEqual(bandOf(withChats, "waiting").count, null);
+  assert.equal(bandOf(withChats, "waiting").items.length, 2);
+  assert.equal(bandOf(withChats, "waiting").note, "Без числа: часть переписок «Нужен ответ» может быть уже отвечена.");
+  assert.equal(bandOf(withChats, "waiting").note, TODAY_UNCOUNTED.chats);
+  assert.equal(bandOf(withChats, "overdue").count, 1, "other bands keep their numbers");
+  assert.equal(withChats.complete, true, "rows are all read: «На сегодня всё» is not blocked by the missing number");
+  // Неполное чтение уже названо над очередью: у группы без числа своей строки нет.
+  const partialChats = buildTodayQueue([read("chats", chats, "partial")], NOW);
+  assert.deepEqual([bandOf(partialChats, "waiting").count, bandOf(partialChats, "waiting").note], [null, null]);
+  // Пустые переписки число не гасят.
+  assert.equal(bandOf(buildTodayQueue([read("requests", requests), read("chats", [])], NOW), "waiting").count, 1);
 });
 
 test("denied and preview sources name themselves without hiding the numbers the role can read", () => {
@@ -396,8 +428,22 @@ test("static render: the page root, the dated heading and one queue for Admin", 
   assert.match(html, /<h1 class="t-page-title[^"]*">Сегодня<\/h1><p class="t-meta mt-1 text-fg-3"><time dateTime="2026-09-26">Суббота, 26 сентября<\/time><\/p>/u);
   assert.doesNotMatch(html, /Главная|Рабочий обзор|Лиды за период|data-dashboard-card/u);
   const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
-  assert.deepEqual(headers, ["Просрочено · 5", "Сегодня · сб 26.09 · 4", "Ждут ответа · 6", "Без следующего шага · 2", "Ближайшие 14 дней · 4"]);
-  assert.match(html, /aria-label="Доски"[\s\S]*href="\/v3\/pipeline"[^>]*>Воронка продаж<\/a>[\s\S]*href="\/v3\/admissions-pipeline"[^>]*>Воронка поступления<\/a>/u);
+  assert.deepEqual(headers, ["Просрочено · 5", "Сегодня · сб 26.09 · 4", "Ждут ответа", "Без следующего шага · 2", "Ближайшие 14 дней · 4"]);
+  assert.match(html, /<\/h2><p class="[^"]*t-meta[^"]*">Без числа: часть переписок «Нужен ответ» может быть уже отвечена\.<\/p>/u);
+  // Две доски: на телефоне короткие имена в строке заголовка, шире — полные; видимое слово и есть имя ссылки.
+  assert.match(html, /aria-label="Доски"[\s\S]*href="\/v3\/pipeline"[^>]*><span class="sm:hidden">Продажи<\/span><span class="hidden sm:inline">Воронка продаж<\/span><\/a>[\s\S]*href="\/v3\/admissions-pipeline"[^>]*><span class="sm:hidden">Поступление<\/span><span class="hidden sm:inline">Воронка поступления<\/span><\/a>/u);
+  // Красный — у просроченного срока, не у причины: причина всегда обычным текстом.
+  const reasons = [...html.matchAll(/<span class="([^"]*)" data-today-reason="">([^<]*)<\/span>/gu)];
+  assert.ok(reasons.length >= 10);
+  assert.ok(reasons.every(([, cls]) => !/text-danger/u.test(cls)), "no reason is red");
+  assert.ok(reasons.some(([, , word]) => word === "действие просрочено"));
+  // Заявка: «ждёт 3 дн» — слово без даты; пришедшая сегодня — «сегодня».
+  assert.match(html, /<span class="block text-fg-2">ждёт 3 дн<\/span>/u);
+  // Строки «Сегодня» и задач — рамка фокуса всей строки.
+  assert.equal(html.match(/<li data-queue-row="[^"]+" data-today-source="[^"]+" class="v3-queue-row /gu)?.length, html.match(/data-today-source="[a-z]+" class="/gu)?.length);
+  // Составная причина — по части на слово: переносится целиком, без обрывка.
+  assert.match(html, /data-today-reason="">нет ответственного<\/span><span [^>]*data-today-reason="">WhatsApp<\/span>/u);
+  assert.match(html, /<li data-queue-row="staff:[^"]+" data-kind="staff" class="v3-queue-row /u);
   // Задача — настоящая строка «Задач»: круг завершения на месте.
   assert.match(html, /data-queue-row="staff:[^"]+" data-kind="staff"[\s\S]*?aria-label="Завершить: Отправить партнёру пакет по весеннему набору"/u);
   assert.match(html, /aria-label="Завершить с результатом: Записать на визу X1"/u);
@@ -421,7 +467,7 @@ test("static render: admissions and sales see only their own sources", () => {
   const sales = surfaces.get("sales");
   assert.doesNotMatch(sales, /data-today-source="(?:students|handoffs|chats)"|Воронка поступления|Записать на визу X1/u);
   assert.match(sales, /Новая заявка/u);
-  assert.match(sales, /нет ответственного · WhatsApp/u);
+  assert.match(sales, /data-today-reason="">нет ответственного<\/span><span [^>]*data-today-reason="">WhatsApp<\/span>/u);
 });
 
 test("static render: a failed source is named in place and only its bands lose their numbers", () => {
@@ -430,7 +476,7 @@ test("static render: a failed source is named in place and only its bands lose t
   assert.match(html, /data-today-notice="error" data-today-source="tasks"[^>]*><span class="text-danger">Задачи не загрузились\.<\/span><a [^>]*href="\/v3\/main"[^>]*>Повторить<\/a>/u);
   assert.match(html, /data-today-notice="partial" data-today-source="students"[\s\S]*?href="\/v3\/profile\?view=mine"[^>]*>Мои студенты<\/a>/u);
   const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
-  assert.deepEqual(headers, ["Просрочено", "Сегодня · сб 26.09", "Ждут ответа · 3", "Без следующего шага"]);
+  assert.deepEqual(headers, ["Просрочено", "Сегодня · сб 26.09", "Ждут ответа · 1", "Без следующего шага"]);
   assert.doesNotMatch(html, /На сегодня всё/u);
 });
 
@@ -442,4 +488,35 @@ test("static render: an empty day says so only after complete reads, with the ne
   const admissions = surfaces.get("empty-admissions");
   assert.match(admissions, /data-testid="queue-empty"[\s\S]*На сегодня всё[\s\S]*href="\/v3\/profile"[^>]*>Открыть студентов<\/a>/u);
   assert.doesNotMatch(admissions, /<h2 id="today-band-/u);
+});
+
+test("report: the period cohort and the board never share a bare «Переданы»", () => {
+  const html = surfaces.get("report-dynamics");
+  const board = html.indexOf('aria-labelledby="sales-dynamics-board"');
+  assert.ok(board > 0, "the board funnel is its own section");
+  const period = html.slice(html.indexOf('aria-labelledby="sales-dynamics-period"'), board);
+  const current = html.slice(board);
+  // Когорта периода — слова со словом области; «Переданы» без него — только колонка доски.
+  assert.match(text(period), /Пришло лидов 12 Из них квалифицированы 5 Из них переданы 2/u);
+  assert.doesNotMatch(period, />Переданы</u);
+  assert.match(current, /<h3 id="sales-dynamics-board"[^>]*>Сейчас на доске<\/h3>/u);
+  assert.equal(current.match(/>Переданы</gu)?.length, 1);
+  // Легенда и подпись графика — те же слова когорты.
+  assert.match(period, /Из них переданы<\/li>/u);
+  assert.doesNotMatch(period, /Переданы: /u);
+});
+
+test("report: charts and funnel are ink; red stays with the page action", () => {
+  const html = surfaces.get("report-dynamics");
+  const dynamics = html.slice(html.indexOf('<details id="sales-dynamics"'));
+  assert.doesNotMatch(dynamics, /var\(--accent\)|\bbg-accent\b|evo-trend-area|linearGradient/u);
+  assert.match(dynamics, /preserveAspectRatio="none"/u);
+  assert.ok((dynamics.match(/vector-effect="non-scaling-stroke"/gu)?.length ?? 0) >= 3, "lines keep their width at any chart width");
+  // Выбранный период — общий «выбрано», а не свой красный.
+  assert.match(dynamics, /aria-current="page" class="v3-choice [^"]*"[^>]*>Неделя<\/a>/u);
+  // Записи отчёта — выше раздела; без выбранного периода раздел свёрнут.
+  const collapsed = surfaces.get("report-collapsed");
+  assert.ok(collapsed.indexOf('aria-label="Записи продаж"') < collapsed.indexOf('<details id="sales-dynamics"'));
+  assert.match(collapsed, /<details id="sales-dynamics" class=/u);
+  assert.match(html, /<details id="sales-dynamics" open="" class=/u);
 });

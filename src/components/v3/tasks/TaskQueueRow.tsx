@@ -181,7 +181,7 @@ export function TaskQueueRow({
     <li
       data-queue-row={task.key}
       data-kind={task.kind}
-      className={`relative grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-2 border-b border-border @min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_2.75rem] ${layout}${layout ? " " : ""}${selected ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
+      className={`v3-queue-row relative grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-2 border-b border-border @min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_2.75rem] ${layout}${layout ? " " : ""}${selected ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
     >
       <div className="flex">
         {done ? (

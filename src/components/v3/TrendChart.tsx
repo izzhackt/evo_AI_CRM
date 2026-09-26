@@ -1,91 +1,123 @@
 /**
- * График динамики: основная серия площадью, вторая пунктиром, редкая сетка,
- * выделенный последний узел.
+ * График «Динамики по дням» «Отчёта продаж»: основная серия сплошной линией,
+ * остальные — пунктиром своего рисунка, редкая сетка, отмеченный последний
+ * узел.
  *
- * Рисуется тем же способом, что и воронка — собственным SVG, а не графической
- * библиотекой. Библиотека принесла бы свою палитру и свою типографику, и с ними
- * пришлось бы воевать; здесь цвета берутся из токенов EVO и переживают смену
- * темы, а вся геометрия — это пересчёт значений в координаты.
+ * ЧЕРНИЛА, А НЕ КРАСНЫЙ (Э3, 26.09.2026). Красный в этом мире — главное
+ * действие страницы и проблема (DESIGN.md, уточнение 25.09), а график не
+ * одно и не другое: линии — цвет текста, без розовой заливки под линией.
+ * Серии различаются рисунком линии и подписаны в легенде — не цветом.
+ *
+ * ПО ШИРИНЕ КОНТЕЙНЕРА. Поле графика — SVG с `preserveAspectRatio="none"`:
+ * оно растягивается на любую ширину, а толщина и пунктир линий не меняются
+ * (`vector-effect: non-scaling-stroke`). Подписи осей и последний узел — HTML
+ * поверх поля, поэтому на телефоне кегль тот же 12 px, что на широком
+ * экране, и видны все дни периода без прокрутки. Какие подписи дат стоят,
+ * решает `trendTicks` заранее для ступеней ширины контейнера (container
+ * queries): на узком графике подписи редеют, но первая и последняя остаются.
+ *
+ * Библиотеки графиков нет: она принесла бы свою палитру и типографику.
  */
 
 export type TrendSeries = Readonly<{
   label: string;
   values: readonly number[];
-  /** Основная серия рисуется линией с площадью, вторая — пунктиром. */
+  /** Основная серия — сплошная линия, остальные — пунктир по порядку `SECONDARY_DASH`. */
   emphasis: "primary" | "secondary";
 }>;
 
-const WIDTH = 620;
-const HEIGHT = 220;
-/** Слева помещается четырёхзначное значение шкалы наибольшим кеглем подписи. */
-const PAD_LEFT = 52;
-const PAD_RIGHT = 14;
-const PAD_TOP = 16;
-const PAD_BOTTOM = 30;
-/**
- * Кегль подписей осей в единицах viewBox. SVG растягивает viewBox шириной
- * WIDTH на свою ширину, а она не меньше 480 px (`min-w-[480px]`, как и до
- * ролей шрифта; уже — обёртка прокручивается). Пока обёртка уже WIDTH,
- * кегль 12 × 620 / 480 = 15.5 даёт на экране 12–15.5 px; от WIDTH и шире
- * хватает 12 единиц — 12 px и больше, но меньше 16 px заголовка карточки
- * (одна колонка Главной не шире 814 px).
- */
-const LABEL_CLASS = "text-[15.5px] @min-[620px]/trend:text-[12px]";
-/** Наибольший кегль подписи в единицах viewBox — по нему расставляются деления. */
-const LABEL_SIZE = 15.5;
-/** Средняя ширина знака Golos в долях кегля, с запасом (цифры ≈ 0.53). */
-const LABEL_CHAR_EM = 0.6;
-const LABEL_GAP = 8;
+/** Рисунок пунктира второстепенных серий по порядку: две серии не сливаются в одну. */
+export const SECONDARY_DASH = ["5 4", "1.5 3.5"] as const;
 
-type PlacedTick = Readonly<{
+/**
+ * Ступени ширины контейнера графика (px), с которых меняется набор подписей
+ * дат. Нулевая ступень считается для самого узкого графика — телефона 320 px
+ * без полей страницы и карточки.
+ */
+export const TICK_TIERS = [240, 320, 448, 640] as const;
+// Классы ступеней — строками целиком: так их находит Tailwind.
+const TIER_SHOW = ["block", "@min-[20rem]/trend:block", "@min-[28rem]/trend:block", "@min-[40rem]/trend:block"] as const;
+const TIER_HIDE = ["hidden", "@min-[20rem]/trend:hidden", "@min-[28rem]/trend:hidden", "@min-[40rem]/trend:hidden"] as const;
+
+/** Ширина оси значений и зазора до поля, px (четыре цифры `t-meta` с запасом). */
+const AXIS_WIDTH = 40;
+/** Средняя ширина знака подписи 12 px, px, с запасом (Golos, цифры ≈ 6.4). */
+const LABEL_CHAR_PX = 7.2;
+const LABEL_GAP_PX = 12;
+
+export type TrendTick = Readonly<{
   label: string;
   index: number;
-  x: number;
+  /** Место на оси, доля ширины поля 0…1. */
+  at: number;
   anchor: "start" | "middle" | "end";
+  /** Видна ли подпись на каждой ступени `TICK_TIERS`. */
+  shown: readonly boolean[];
 }>;
 
 /**
- * Подписи делений, которые встают без наложения. Первая подпись может нести
- * год («26 дек 2025») и тогда шире шага делений — соседняя с ней пропускается.
- * Последняя подпись называет конец периода и остаётся всегда. Крайние подписи
- * прижимаются к своему краю, а не центрируются: при семи и менее делениях
- * последняя стояла ровно на границе кадра и половина текста уходила за него.
+ * Подписи делений, которые на каждой ступени ширины встают без наложения.
+ * На ступени берётся каждая k-я подпись с наименьшим k, при котором ничего не
+ * наезжает, — шаг ровный. Крайние подписи прижаты к своему краю, остальные —
+ * по центру деления. Последнее деление называет конец периода и остаётся
+ * всегда (соседняя с ним подпись уступает место). Первая подпись может нести
+ * год («26 дек 2025») и тогда шире шага — уступает только её сосед.
  */
-export function placeTicks(ticks: readonly string[]): PlacedTick[] {
+export function trendTicks(ticks: readonly string[]): readonly TrendTick[] {
   const last = ticks.length - 1;
-  const kept: (PlacedTick & { left: number; right: number })[] = [];
-  ticks.forEach((label, index) => {
-    if (!label) return;
-    const x = PAD_LEFT + (index * (WIDTH - PAD_LEFT - PAD_RIGHT)) / Math.max(last, 1);
-    const anchor = index === 0 ? "start" : index === last ? "end" : "middle";
-    const width = label.length * LABEL_SIZE * LABEL_CHAR_EM;
-    const left = anchor === "start" ? x : anchor === "end" ? x - width : x - width / 2;
-    while (kept.length > 0 && left < kept[kept.length - 1].right + LABEL_GAP) {
-      if (index !== last) return;
-      kept.pop();
+  const placed = ticks.flatMap((label, index) => label ? [{
+    label,
+    index,
+    at: last > 0 ? index / last : 0,
+    anchor: (index === 0 ? "start" : index === last ? "end" : "middle") as TrendTick["anchor"],
+  }] : []);
+  const tiers = TICK_TIERS.map((container) => {
+    const width = container - AXIS_WIDTH;
+    const span = (tick: (typeof placed)[number]) => {
+      const x = tick.at * width;
+      const size = tick.label.length * LABEL_CHAR_PX;
+      const left = tick.anchor === "start" ? x : tick.anchor === "end" ? x - size : x - size / 2;
+      return { left, right: left + size };
+    };
+    const overlaps = (a: (typeof placed)[number], b: (typeof placed)[number]) => span(b).left < span(a).right + LABEL_GAP_PX;
+    const wideFirst = placed.length > 1 && placed[0].index === 0 && placed[0].label.length > placed[1].label.length;
+    for (let step = 1; step <= Math.max(placed.length, 1); step += 1) {
+      const chosen = placed.filter((tick, order) => order % step === 0 || tick.index === last);
+      // Конец периода остаётся: соседи, на которых он наезжает, уступают.
+      while (chosen.length > 1 && chosen.at(-1)!.index === last && overlaps(chosen.at(-2)!, chosen.at(-1)!)) chosen.splice(-2, 1);
+      // Первая подпись с годом шире шага: уступает только сосед.
+      if (wideFirst) while (chosen.length > 2 && overlaps(chosen[0], chosen[1])) chosen.splice(1, 1);
+      if (chosen.every((tick, order) => order === 0 || !overlaps(chosen[order - 1], tick))) return new Set(chosen.map((tick) => tick.index));
     }
-    kept.push({ label, index, x, anchor, left, right: left + width });
+    return new Set(placed.filter((tick) => tick.index === last || tick.index === placed[0]?.index).map((tick) => tick.index));
   });
-  return kept.map(({ label, index, x, anchor }) => ({ label, index, x, anchor }));
+  return placed.map((tick) => Object.freeze({ ...tick, shown: Object.freeze(tiers.map((tier) => tier.has(tick.index))) }));
+}
+
+/** Классы видимости подписи по ступеням: только там, где видимость меняется. */
+function tierClass(shown: readonly boolean[]): string {
+  return shown.map((on, tier) => tier === 0 || on !== shown[tier - 1] ? (on ? TIER_SHOW[tier] : TIER_HIDE[tier]) : "")
+    .filter(Boolean).join(" ");
+}
+
+export type TrendGrid = Readonly<{ value: number; y: number }>;
+
+/** Линии сетки: 0, середина и максимум — без повторов; `y` — доля высоты сверху (0…100). */
+export function trendGrid(series: readonly TrendSeries[]): Readonly<{ max: number; grid: readonly TrendGrid[] }> {
+  const max = Math.max(1, ...series.flatMap((one) => [...one.values]));
+  const grid = [...new Set([0, Math.round(max / 2), max])].map((value) => Object.freeze({ value, y: 100 - (value / max) * 100 }));
+  return Object.freeze({ max, grid: Object.freeze(grid) });
 }
 
 function pointsOf(values: readonly number[], max: number) {
   const steps = Math.max(values.length - 1, 1);
-  return values.map((value, index) => ({
-    x: PAD_LEFT + (index * (WIDTH - PAD_LEFT - PAD_RIGHT)) / steps,
-    y:
-      HEIGHT -
-      PAD_BOTTOM -
-      (max > 0 ? value / max : 0) * (HEIGHT - PAD_TOP - PAD_BOTTOM),
-  }));
+  return values.map((value, index) => ({ x: (index / steps) * 100, y: 100 - (value / max) * 100 }));
 }
 
-function lineOf(points: { x: number; y: number }[], close = false) {
-  const d = `M ${points.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L ")}`;
-  if (!close) return d;
-  const last = points[points.length - 1];
-  const first = points[0];
-  return `${d} L ${last.x.toFixed(1)} ${HEIGHT - PAD_BOTTOM} L ${first.x.toFixed(1)} ${HEIGHT - PAD_BOTTOM} Z`;
+function dashOf(series: readonly TrendSeries[], one: TrendSeries): string | undefined {
+  if (one.emphasis === "primary") return undefined;
+  const order = series.filter((entry) => entry.emphasis === "secondary").indexOf(one);
+  return SECONDARY_DASH[Math.max(0, order) % SECONDARY_DASH.length];
 }
 
 export function TrendChart({
@@ -98,117 +130,82 @@ export function TrendChart({
   ticks: readonly string[];
   caption: string;
 }) {
-  const max = Math.max(1, ...series.flatMap((s) => [...s.values]));
-  const primary = series.find((s) => s.emphasis === "primary");
-  const gridValues = [...new Set([0, Math.round(max / 2), max])];
-  const spoken = series
-    .map((s) => `${s.label}: ${s.values.join(", ")}`)
-    .join("; ");
+  const { max, grid } = trendGrid(series);
+  const primary = series.find((one) => one.emphasis === "primary");
+  const lastPoint = primary ? pointsOf(primary.values, max).at(-1) : undefined;
+  const spoken = series.map((one) => `${one.label}: ${one.values.join(", ")}`).join("; ");
 
   return (
-    // Прокручиваемая область обязана иметь клавиатурный доступ (SC 2.1.1):
-    // без tabIndex мышь прокручивает график, а клавиатура нет.
-    <div
-      role="group"
-      aria-label={caption}
-      tabIndex={0}
-      className="@container/trend max-w-full overflow-x-auto rounded-ctl"
-    >
-      <svg
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="h-auto w-full min-w-[480px]"
-        role="img"
-        aria-label={`${caption}. ${spoken}`}
-      >
-        <defs>
-          <linearGradient id="evo-trend-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="var(--accent)" stopOpacity="0.16" />
-            <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
+    <figure role="group" aria-label={caption} className="@container/trend min-w-0">
+      {series.length > 1 ? (
+        <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 t-meta text-fg-2">
+          {series.map((one) => (
+            <li key={one.label} className="inline-flex items-center gap-1.5">
+              <svg aria-hidden="true" width="18" height="6" viewBox="0 0 18 6" className="shrink-0">
+                <line x1="0" y1="3" x2="18" y2="3" stroke={one.emphasis === "primary" ? "var(--text)" : "var(--text-2)"}
+                  strokeWidth={one.emphasis === "primary" ? 2 : 1.5} strokeDasharray={dashOf(series, one)} strokeLinecap="round" />
+              </svg>
+              {one.label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
-        {gridValues.map((value) => {
-          const y =
-            HEIGHT -
-            PAD_BOTTOM -
-            (max > 0 ? value / max : 0) * (HEIGHT - PAD_TOP - PAD_BOTTOM);
-          return (
-            <g key={value}>
-              <line
-                x1={PAD_LEFT}
-                y1={y}
-                x2={WIDTH - PAD_RIGHT}
-                y2={y}
-                stroke="var(--border)"
-                strokeWidth="1"
-              />
-              <text
-                x={PAD_LEFT - 8}
-                y={y + 4}
-                textAnchor="end"
-                className={LABEL_CLASS}
-                fill="var(--text-3)"
-                style={{ fontVariantNumeric: "tabular-nums" }}
-              >
-                {value}
-              </text>
-            </g>
-          );
-        })}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+        {/* Ось значений: невидимый максимум задаёт ширину колонки. */}
+        <div aria-hidden="true" className="relative h-44 t-meta tabular-nums text-fg-3">
+          <span className="invisible block">{max}</span>
+          {grid.map((line) => (
+            <span key={line.value} data-trend-value={line.value} className="absolute end-0 -translate-y-1/2" style={{ top: `${line.y}%` }}>
+              {line.value}
+            </span>
+          ))}
+        </div>
 
-        {primary ? (
-          <path d={lineOf(pointsOf(primary.values, max), true)} fill="url(#evo-trend-area)" />
-        ) : null}
-
-        {series.map((one) => {
-          const points = pointsOf(one.values, max);
-          const isPrimary = one.emphasis === "primary";
-          return (
-            <path
-              key={one.label}
-              d={lineOf(points)}
-              fill="none"
-              stroke={isPrimary ? "var(--accent)" : "var(--text-3)"}
-              strokeWidth={isPrimary ? 2.4 : 1.6}
-              strokeDasharray={isPrimary ? undefined : "3 3"}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          );
-        })}
-
-        {/* Последняя точка основной серии: «вот где мы сейчас». */}
-        {primary
-          ? (() => {
-              const last = pointsOf(primary.values, max).at(-1);
-              if (!last) return null;
+        <div className="relative h-44 min-w-0">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" role="img" aria-label={`${caption}. ${spoken}`}>
+            {grid.map((line) => (
+              <line key={line.value} x1="0" y1={line.y} x2="100" y2={line.y} stroke="var(--border)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+            ))}
+            {series.map((one) => {
+              const points = pointsOf(one.values, max);
+              if (points.length === 0) return null;
               return (
-                <circle
-                  cx={last.x}
-                  cy={last.y}
-                  r="4.5"
-                  fill="var(--surface)"
-                  stroke="var(--accent)"
-                  strokeWidth="2.4"
+                <path
+                  key={one.label}
+                  d={`M ${points.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" L ")}`}
+                  fill="none"
+                  stroke={one.emphasis === "primary" ? "var(--text)" : "var(--text-2)"}
+                  strokeWidth={one.emphasis === "primary" ? 2 : 1.5}
+                  strokeDasharray={dashOf(series, one)}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
                 />
               );
-            })()
-          : null}
+            })}
+          </svg>
+          {/* Последний узел основной серии: «вот где мы сейчас». */}
+          {lastPoint ? (
+            <span aria-hidden="true" className="absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-fg bg-surface"
+              style={{ left: `${lastPoint.x}%`, top: `${lastPoint.y}%` }} />
+          ) : null}
+        </div>
 
-        {placeTicks(ticks).map((tick) => (
-          <text
-            key={`${tick.label}-${tick.index}`}
-            x={tick.x}
-            y={HEIGHT - 8}
-            textAnchor={tick.anchor}
-            className={LABEL_CLASS}
-            fill="var(--text-3)"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
-            {tick.label}
-          </text>
-        ))}
-      </svg>
-    </div>
+        <span aria-hidden="true" />
+        <div aria-hidden="true" className="relative h-6 t-meta tabular-nums text-fg-3">
+          {trendTicks(ticks).map((tick) => (
+            <span
+              key={`${tick.label}-${tick.index}`}
+              data-trend-tick={tick.index}
+              className={`absolute top-1.5 whitespace-nowrap ${tick.anchor === "middle" ? "-translate-x-1/2" : tick.anchor === "end" ? "-translate-x-full" : ""} ${tierClass(tick.shown)}`}
+              style={{ left: `${tick.at * 100}%` }}
+            >
+              {tick.label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </figure>
   );
 }

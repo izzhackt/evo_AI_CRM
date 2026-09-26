@@ -6,7 +6,12 @@ import { QUEUE_QUIET_LINK, QueueEmpty } from "../queue/QueueStates";
 import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
 import { TodayQueueList } from "./TodayQueueList";
 
-export type TodayLink = Readonly<{ label: string; href: string }>;
+export type TodayLink = Readonly<{
+  label: string;
+  href: string;
+  /** Короткое имя для телефона, когда досок две («Продажи» вместо «Воронка продаж»). */
+  short?: string;
+}>;
 
 /**
  * Ошибка и неполное чтение источника — на месте, над очередью: что не так и
@@ -31,12 +36,23 @@ function TodayNotices({ notices }: Readonly<{ notices: readonly TodayNotice[] }>
 /**
  * Тихие ссылки шапки: доски роли остаются на один клик (поступлению — его
  * доска, продажам — своя). Это переходы, не действия страницы: без красного.
+ * Две доски на телефоне называются коротко («Продажи · Поступление»), чтобы
+ * стоять в строке заголовка и не отнимать у очереди первый экран; видимое
+ * слово и есть имя ссылки.
  */
 export function TodayBoardLinks({ links }: Readonly<{ links: readonly TodayLink[] }>) {
   if (links.length === 0) return null;
+  const compact = links.length > 1;
   return (
     <nav aria-label="Доски" className="flex flex-wrap gap-x-4">
-      {links.map((link) => <Link key={link.href} href={link.href} className={QUEUE_QUIET_LINK}>{link.label}</Link>)}
+      {links.map((link) => (
+        <Link key={link.href} href={link.href} className={QUEUE_QUIET_LINK}>
+          {compact && link.short ? <>
+            <span className="sm:hidden">{link.short}</span>
+            <span className="hidden sm:inline">{link.label}</span>
+          </> : link.label}
+        </Link>
+      ))}
     </nav>
   );
 }

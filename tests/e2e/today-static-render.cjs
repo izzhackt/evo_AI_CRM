@@ -23,11 +23,14 @@
  *   node tests/e2e/today-static-render.cjs --screenshots [outDir] [--look=next]
  *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
- *       1440×900, 1280×800 и 390×844, Admin ещё 320 (reflow) и во весь рост
- *       (и раздел «Динамика по дням» отчёта
- *       продаж — 1440 и 390 во весь рост); по умолчанию outDir —
- *       .impeccable/review (не коммитится). `--look=next` — предпросмотр
- *       нового облика (Э1.1): имена файлов получают суффикс `-next`.
+ *       1440×900, 1280×800 и 390×844, Admin ещё 320 (reflow), во весь рост и
+ *       фокус клавиатуры на строке «Сегодня» и на строке задачи (1440 и 390);
+ *       «Отчёт продаж» — настоящий `SalesRegisterView` с синтетическими
+ *       записями: раздел «Динамика по дням» открыт (выбран период; 1440,
+ *       1280, 390 во весь рост) и свёрнут по умолчанию под записями (1440 и
+ *       390 во весь рост). По умолчанию outDir — .impeccable/review (не
+ *       коммитится). `--look=next` — предпросмотр нового облика (Э1.1): имена
+ *       файлов получают суффикс `-next`.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -157,7 +160,7 @@ function lead(n, fields) {
   return {
     id: leadId(n), name: fields.name, stageKey: fields.stage ?? "contacting", source: fields.source ?? "website",
     nextAction: fields.action ?? null, nextActionAt: dueDate ? `${dueDate.slice(8)}.${dueDate.slice(5, 7)}` : null, due,
-    stageAgeDays: 2, latestNote: null, href: `/v3/profile?id=${leadId(n)}`,
+    stageAgeDays: fields.stage === "handed_off" ? null : fields.age ?? 2, latestNote: null, href: `/v3/profile?id=${leadId(n)}`,
     workflow: {
       leadId: leadId(n), currentOwnerMembershipId: owner, currentOwnerDisplayName: owner ? NAMES[owner] : null,
       stageKey: fields.stage === "handed_off" ? "qualified" : fields.stage ?? "contacting",
@@ -209,8 +212,8 @@ const MY_LEADS = [
   lead(5, { name: "Нурлан Переданов", stage: "handed_off", action: null }),
 ];
 const UNASSIGNED = [
-  lead(6, { name: "Эльмира Формова", stage: "new", owner: null, source: "website" }),
-  lead(7, { name: "Амир Входящий", stage: "new", owner: null, source: "whatsapp" }),
+  lead(6, { name: "Эльмира Формова", stage: "new", owner: null, source: "website", age: 0 }),
+  lead(7, { name: "Амир Входящий", stage: "new", owner: null, source: "whatsapp", age: 3 }),
 ];
 const CHATS = [
   chat(3, { name: "Нурай Образцова", at: "2026-09-25T12:00:00.000Z" }),
@@ -276,7 +279,8 @@ const SCENARIOS = {
   admissions: { actor: "admissions", data: { staff: STAFF_TASKS.slice(1, 3), cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, chats: CHATS } },
   sales: { actor: "sales", data: { staff: STAFF_TASKS, leads: MY_LEADS, unassigned: UNASSIGNED } },
   // Ошибка задач и неполное чтение студентов: остальные источники видны, числа гасятся только там, куда они пишут.
-  partial: { actor: "admissions", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS.slice(0, 3), minePartial: true, attention: ATTENTION_ROWS, chats: CHATS, fail: ["tasks"] } },
+  // Переписок нет: их группа и при полном чтении без числа, а здесь видно, что полная группа число сохраняет.
+  partial: { actor: "admissions", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS.slice(0, 3), minePartial: true, attention: ATTENTION_ROWS, chats: [], fail: ["tasks"] } },
   // Пустой день продаж: всё прочитано, пора делать нечего, ближайший срок — лид на чт 01.10.
   empty: { actor: "sales", data: { staff: [staffTask(9, { title: "Подготовить вопросы к планёрке" })], leads: [MY_LEADS[3]], unassigned: [] } },
   // Пустой день поступления без сроков: главное действие роли.
@@ -304,11 +308,9 @@ function withContexts(node, search = "") {
   );
 }
 
-const BOARDS = {
-  admin: [{ label: "Воронка продаж", href: "/v3/pipeline" }, { label: "Воронка поступления", href: "/v3/admissions-pipeline" }],
-  admissions: [{ label: "Воронка поступления", href: "/v3/admissions-pipeline" }],
-  sales: [{ label: "Воронка продаж", href: "/v3/pipeline" }],
-};
+const SALES_BOARD = { label: "Воронка продаж", short: "Продажи", href: "/v3/pipeline" };
+const ADMISSIONS_BOARD = { label: "Воронка поступления", short: "Поступление", href: "/v3/admissions-pipeline" };
+const BOARDS = { admin: [SALES_BOARD, ADMISSIONS_BOARD], admissions: [ADMISSIONS_BOARD], sales: [SALES_BOARD] };
 const MAIN_ACTION = {
   admin: { label: "Открыть воронку продаж", href: "/v3/pipeline" },
   admissions: { label: "Открыть студентов", href: "/v3/profile" },
@@ -337,12 +339,60 @@ async function buildPage(name) {
 }
 
 /**
- * Раздел «Динамика по дням» «Отчёта продаж» (графики и воронка ушли сюда со
- * стартовой страницы): настоящий `SalesDynamics` с синтетической когортой и
- * воронкой по определению доски (`salesBoardFunnel`: переданный лид —
- * «Переданы»). Записи отчёта этот рендер не читает — вместо них строка-заглушка.
+ * «Отчёт продаж» с разделом «Динамика по дням» (графики и воронка ушли сюда
+ * со стартовой страницы). Страница — настоящий `SalesRegisterView`: его
+ * чтения подменены синтетическими записями (require.cache), раздел —
+ * настоящий `SalesDynamics` с синтетической когортой (нарастающим итогом,
+ * как у `funnel-source`) и воронкой по определению доски (`salesBoardFunnel`:
+ * переданный лид — «Переданы»). `open` — выбран период: раздел открыт; без
+ * периода он свёрнут под записями.
  */
-function buildReportDynamics() {
+function stubModule(path, exports) {
+  const filename = join(ROOT, path);
+  const stub = new Module(filename);
+  stub.filename = filename;
+  stub.loaded = true;
+  stub.exports = exports;
+  require.cache[filename] = stub;
+}
+
+const SALE = (n, fields) => ({
+  id: `99999999-2222-4222-8222-${String(n).padStart(12, "0")}`, version: 1, reportMonth: "2026-09-01", signingDate: fields.signed,
+  applicantName: fields.name, phone: "", country: fields.country, university: "", program: fields.program, direction: fields.country,
+  intake: "", contractNumber: "", managerLabel: fields.manager, statusRaw: "", ownerMembershipId: null,
+  serviceCostRaw: "", serviceCostMinor: fields.cost, serviceCostCurrency: "USD", paidRaw: "", paidMinor: fields.paid, paidCurrency: "USD",
+  needsReview: fields.review ?? false, notes: "", archived: false, sourceKey: null, sourceKind: "manual", leadId: null, clientId: null,
+  sourceSha256: null, sourceSheet: null, sourceRow: null, updatedAt: "2026-09-24T05:00:00.000Z",
+});
+const SALES_ROWS = [
+  SALE(1, { name: "Айдана Примерова", country: "Китай", program: "Бакалавриат, экономика", manager: "Менеджер А", signed: "2026-09-22", cost: 250000, paid: 125000 }),
+  SALE(2, { name: "Нурбек Шаблонов", country: "Малайзия", program: "Foundation", manager: "Менеджер Б", signed: "2026-09-18", cost: 180000, paid: 180000 }),
+  SALE(3, { name: "Алия Образцова", country: "Польша", program: "Магистратура, IT", manager: "Менеджер А", signed: "2026-09-09", cost: 300000, paid: 0, review: true }),
+];
+
+function stubSalesRegister() {
+  stubModule("src/lib/v3/sales-register-source.ts", {
+    async readSalesRegisterWriteAccess() { return "allowed"; },
+    async readSalesRegisterDirections() { return ["Китай", "Малайзия", "Польша"]; },
+    async readSalesRegisterManagement() { return { status: "denied" }; },
+    async readSalesRegisterIntakeOptions() { return null; },
+    async readSalesRegisterWorkspace() {
+      return {
+        year: 2026, month: 9, totalCount: SALES_ROWS.length, rows: SALES_ROWS, selected: null, offset: 0, hasMore: false,
+        totals: [{ currency: "USD", costMinor: 730000, paidMinor: 305000 }], unresolvedCostCount: 0, unresolvedPaidCount: 0,
+        targets: [], managerLabels: ["Менеджер А", "Менеджер Б"], ownerOptions: [],
+      };
+    },
+  });
+  stubModule("src/lib/v3/finance-entry-source.ts", { async readMonthlyPaymentSummary() { return null; } });
+  // Формы и просмотр записи в виде списка не рисуются; их серверные действия рендеру не нужны.
+  stubModule("src/components/v3/SalesRegisterForms.tsx", { SalesRegisterForm: () => null, SalesTargetForm: () => null });
+  stubModule("src/components/v3/SalesRecordPreview.tsx", { SalesRecordPreview: () => null });
+}
+
+async function buildReport(open) {
+  stubSalesRegister();
+  const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
   const { SalesDynamics } = require(join(ROOT, "src/components/v3/SalesDynamics.tsx"));
   const { salesBoardFunnel } = require(join(ROOT, "src/lib/v3/sales-board-funnel.ts"));
   const { salesDynamicsCarry, salesDynamicsHref } = require(join(ROOT, "src/lib/sales-register-navigation.ts"));
@@ -352,15 +402,17 @@ function buildReportDynamics() {
     .map((key) => ({ key, title: title(key), gate: key === "qualified", terminal: false }))
     .concat([{ key: "handed_off", title: FUNNEL_STEP.handed, gate: false, terminal: true }]);
   const board = [...MY_LEADS, ...UNASSIGNED];
-  const query = { view: "sales", year: "2026", month: "9", period: "week" };
+  const query = open ? { view: "sales", year: "2026", month: "9", period: "week" } : { view: "sales", year: "2026", month: "9" };
   const periods = [["today", "Сегодня"], ["yesterday", "Вчера"], ["week", "Неделя"], ["month", "Месяц"], ["custom", "Период"]];
-  const days = ["20.09", "21.09", "22.09", "23.09", "24.09", "25.09", "26.09"];
+  // Подписи и значения — как у `funnel-source`: «20 сен», серии нарастающим итогом.
+  const days = ["20 сен", "21 сен", "22 сен", "23 сен", "24 сен", "25 сен", "26 сен"];
+  const cumulative = (values) => { let total = 0; return values.map((value) => (total += value)); };
   const dynamics = createElement(SalesDynamics, {
     id: "sales-dynamics",
-    open: true,
-    choices: periods.map(([key, label]) => ({ key, title: label, href: salesDynamicsHref(query, { key }), active: key === "week" })),
+    open,
+    choices: periods.map(([key, label]) => ({ key, title: label, href: salesDynamicsHref(query, { key }), active: key === (open ? "week" : "month") })),
     range: null,
-    periodText: "20–26 сентября",
+    periodText: "20 сен — 26 сен",
     formAction: "/v3/main#sales-dynamics",
     carry: salesDynamicsCarry(query),
     retryHref: salesDynamicsHref(query, { key: "week" }),
@@ -376,22 +428,19 @@ function buildReportDynamics() {
           stages: [],
         },
         trend: {
-          label: "20–26 сентября",
+          label: "20 сен — 26 сен",
           ticks: days,
           series: [
-            { label: FUNNEL_STEP.leads, values: [1, 3, 0, 2, 4, 1, 1], emphasis: "primary" },
-            { label: FUNNEL_STEP.qualified, values: [0, 1, 0, 1, 2, 1, 0], emphasis: "secondary" },
-            { label: FUNNEL_STEP.handed, values: [0, 0, 0, 1, 0, 1, 0], emphasis: "secondary" },
+            { label: FUNNEL_STEP.leads, values: cumulative([1, 3, 0, 2, 4, 1, 1]), emphasis: "primary" },
+            { label: FUNNEL_STEP.qualified, values: cumulative([0, 1, 0, 1, 2, 1, 0]), emphasis: "secondary" },
+            { label: FUNNEL_STEP.handed, values: cumulative([0, 0, 0, 1, 0, 1, 0]), emphasis: "secondary" },
           ],
         },
       },
       funnel: salesBoardFunnel({ leads: board, truncated: false }, stages),
     },
   });
-  return createElement("main", { className: "mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6" },
-    createElement("h1", { className: "t-page-title text-fg" }, "Отчёт продаж"),
-    createElement("p", { className: "mt-6 border-y border-border py-6 t-body-compact text-fg-3" }, "Записи отчёта в этом рендере не читаются."),
-    dynamics);
+  return SalesRegisterView({ actor: ACTORS.sales, query, dynamics });
 }
 
 async function compileCss() {
@@ -408,7 +457,7 @@ async function compileCss() {
 
 async function renderFullPage(name, look) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { who, node } = name === "report-dynamics" ? { who: ACTORS.sales, node: buildReportDynamics() } : await buildPage(name);
+  const { who, node } = REPORTS[name] !== undefined ? { who: ACTORS.sales, node: await buildReport(REPORTS[name]) } : await buildPage(name);
   const page = createElement(
     "div",
     // `--look=next` — предпросмотр нового облика (Э1.1), как у Admin с включённым переключателем.
@@ -416,8 +465,11 @@ async function renderFullPage(name, look) {
     createElement(AppShell, { actor: who, initialNotifications: null }, node),
   );
   // Отчёт — `/v3/main?view=sales`: меню подсвечивает «Отчёт продаж», а не «Сегодня».
-  return renderToStaticMarkup(withContexts(page, name === "report-dynamics" ? "view=sales&period=week" : ""));
+  return renderToStaticMarkup(withContexts(page, REPORTS[name] === undefined ? "" : REPORTS[name] ? "view=sales&period=week" : "view=sales"));
 }
+
+/** Отчёт продаж: раздел открыт (выбран период) или свёрнут по умолчанию. */
+const REPORTS = { "report-dynamics": true, "report-collapsed": false };
 
 async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
@@ -433,7 +485,7 @@ async function screenshots() {
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   try {
-    for (const name of [...Object.keys(SCENARIOS), "report-dynamics"]) {
+    for (const name of [...Object.keys(SCENARIOS), ...Object.keys(REPORTS)]) {
       const html = await renderFullPage(name, look);
       const htmlPath = join(outDir, `today-${name}${suffix}.html`);
       writeFileSync(htmlPath, [
@@ -443,12 +495,19 @@ async function screenshots() {
         `<body class="min-h-full">${html}</body></html>`,
       ].join(""));
       const shots = name === "report-dynamics"
-        ? [[`today-${name}-1440${suffix}.png`, DESKTOP, true], [`today-${name}-390${suffix}.png`, PHONE, true]]
-        : [...widths.map(([width, context]) => [`today-${name}-${width}${suffix}.png`, context, false]),
+        ? [[`today-${name}-1440${suffix}.png`, DESKTOP, true], [`today-${name}-1280${suffix}.png`, LAPTOP, true], [`today-${name}-390${suffix}.png`, PHONE, true]]
+        : name === "report-collapsed"
+          ? [[`today-${name}-1440${suffix}.png`, DESKTOP, true], [`today-${name}-390${suffix}.png`, PHONE, true]]
+          : [...widths.map(([width, context]) => [`today-${name}-${width}${suffix}.png`, context, false]),
           ...(name === "admin" ? [[`today-${name}-1440-full${suffix}.png`, DESKTOP, true], [`today-${name}-390-full${suffix}.png`, PHONE, true],
             // Reflow 320 CSS px (WCAG 1.4.10): без горизонтальной прокрутки.
-            [`today-${name}-320${suffix}.png`, { ...PHONE, viewport: { width: 320, height: 700 } }, false]] : [])];
-      for (const [file, context, fullPage] of shots) {
+            [`today-${name}-320${suffix}.png`, { ...PHONE, viewport: { width: 320, height: 700 } }, false],
+            // Фокус клавиатуры: строка «Сегодня» (лид) и строка задачи — рамка всей строки.
+            [`today-focus-row-1440${suffix}.png`, DESKTOP, false, '[data-today-source="leads"] [data-queue-open]'],
+            [`today-focus-task-1440${suffix}.png`, DESKTOP, false, '[data-kind="staff"] [data-queue-open]'],
+            [`today-focus-row-390${suffix}.png`, PHONE, false, '[data-today-source="leads"] [data-queue-open]'],
+            [`today-focus-task-390${suffix}.png`, PHONE, false, '[data-kind="staff"] [data-queue-open]']] : [])];
+      for (const [file, context, fullPage, focus] of shots) {
         const browserContext = await browser.newContext(context);
         const tab = await browserContext.newPage();
         const errors = [];
@@ -458,6 +517,18 @@ async function screenshots() {
         // Логотип оболочки — картинка с диска: снимок после её загрузки.
         await tab.waitForFunction(() => [...document.images].every((image) => image.complete));
         if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
+        let focusFacts = "";
+        if (focus) {
+          await tab.keyboard.press("Tab");
+          await tab.locator(focus).first().focus();
+          focusFacts = await tab.evaluate(() => {
+            const active = document.activeElement;
+            active.scrollIntoView({ block: "center" });
+            const row = active.closest("li");
+            const style = getComputedStyle(row);
+            return ` focusVisible=${active.matches(":focus-visible")} rowOutline=${style.outlineStyle}/${style.outlineWidth}/${style.outlineColor}`;
+          });
+        }
         const metrics = await tab.evaluate(() => {
           const main = document.querySelector('[data-testid="v3-operational-dashboard"]') ?? document.querySelector("main");
           const firstBand = main?.querySelector("section h2");
@@ -481,13 +552,28 @@ async function screenshots() {
             rowHeight: rows.length ? Math.round(Math.min(...rows.map((row) => row.getBoundingClientRect().height))) : null,
             textUnder12: small,
             tinyTargets: targets,
+            // Отчёт: переключатель периода и график помещаются без прокрутки (0 — всё видно).
+            periodOverflow: (() => { const nav = document.querySelector('nav[aria-label="Период"]'); return nav ? nav.scrollWidth - nav.clientWidth : null; })(),
+            trendTicksOutside: (() => {
+              const chart = document.querySelector("details[open] figure[aria-label]");
+              if (!chart) return null;
+              const box = chart.getBoundingClientRect();
+              return [...chart.querySelectorAll("[data-trend-tick]")].filter((tick) => {
+                const rect = tick.getBoundingClientRect();
+                return rect.width > 0 && (rect.left < box.left - 1 || rect.right > box.right + 1);
+              }).length;
+            })(),
+            trendTicksShown: (() => {
+              const chart = document.querySelector("details[open] figure[aria-label]");
+              return chart ? [...chart.querySelectorAll("[data-trend-tick]")].filter((tick) => tick.getBoundingClientRect().width > 0).length : null;
+            })(),
             solidRed: [...document.querySelectorAll("main a, main button")].filter((element) => getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)"
               && element.getBoundingClientRect().width > 0).length,
           };
         });
         await tab.screenshot({ path: join(outDir, file), fullPage });
         const facts = Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ");
-        process.stdout.write(`${file}: ${facts}\n`);
+        process.stdout.write(`${file}: ${facts}${focusFacts}\n`);
         await browserContext.close();
       }
     }
@@ -502,7 +588,9 @@ async function json() {
     const { node } = await buildPage(name);
     out.push({ name, html: renderToStaticMarkup(withContexts(node)) });
   }
-  out.push({ name: "report-dynamics", html: renderToStaticMarkup(withContexts(buildReportDynamics())) });
+  for (const [name, open] of Object.entries(REPORTS)) {
+    out.push({ name, html: renderToStaticMarkup(withContexts(await buildReport(open), open ? "view=sales&period=week" : "view=sales")) });
+  }
   process.stdout.write(JSON.stringify(out));
 }
 

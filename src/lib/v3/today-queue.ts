@@ -9,8 +9,9 @@
  * страница и проверяет unit-тест.
  *
  * Правило чисел одно: число у группы есть, только когда каждое чтение,
- * которое пишет в эту группу, прочитано целиком. Неполное чтение и ошибка
- * называются словами, а не превращаются в ноль.
+ * которое пишет в эту группу, прочитано целиком и его строки можно считать
+ * (`TODAY_UNCOUNTED`). Неполное чтение и ошибка называются словами, а не
+ * превращаются в ноль.
  */
 import type { PipelineLead } from "../../components/v3/Pipeline.tsx";
 import { dayDelta, shiftDay } from "../../components/v3/calendar/types.ts";
@@ -67,6 +68,12 @@ export type TodayItem = Readonly<{
   due: TodayDue | null;
   /** С какого момента ждёт (переписка); null — неизвестно. */
   since: string | null;
+  /**
+   * Сколько дней ждёт без даты: новая заявка — дни на этапе «Новый» доски
+   * (`stageAgeDays`, день Бишкека). Только слово («ждёт 3 дн»), дата не
+   * выводится; null — неизвестно.
+   */
+  waitingDays: number | null;
   /** Существующая панель или страница записи. */
   openHref: string;
   /** Задача рисуется настоящей строкой «Задач» (круг завершения, «Отменить»); иначе null. */
@@ -84,9 +91,11 @@ export type TodaySourceRead =
 export type TodayBandView = Readonly<{
   band: TodayBand;
   label: string;
-  /** Число строк — только когда все чтения, пишущие в группу, полные; иначе null. */
+  /** Число строк — только когда все чтения, пишущие в группу, полные и считаемые; иначе null. */
   count: number | null;
   danger: boolean;
+  /** Почему у группы нет числа, хотя чтения полные (см. `TODAY_UNCOUNTED`); иначе null. */
+  note: string | null;
   items: readonly TodayItem[];
 }>;
 
@@ -113,6 +122,17 @@ export type TodayQueue = Readonly<{
 }>;
 
 const TODAY_PATH = "/v3/main";
+
+/**
+ * Источники, чьи строки есть, а число — нет, даже при полном чтении. Переписки:
+ * разбор 26.09 нашёл, что ответ сотрудника не снимает «Нужен ответ»
+ * (`191_platform_case_chat.sql`, состояние треда сохраняется), поэтому часть
+ * строк может быть уже отвечена. Пока сервер не исправлен, число группы с
+ * такими строками было бы завышенным — его нет, а группа говорит почему.
+ */
+export const TODAY_UNCOUNTED: Readonly<Partial<Record<TodaySource, string>>> = {
+  chats: "Без числа: часть переписок «Нужен ответ» может быть уже отвечена.",
+};
 
 /** Слова источника в уведомлениях: ошибка, неполное чтение и где смотреть всё. */
 type SourceCopy = Readonly<{ error: string; partial: string; denied: string; preview: string; all: Readonly<{ label: string; href: string }> }>;
@@ -213,6 +233,7 @@ export function todayTaskItems(input: Readonly<{
       reason: task.kind === "case" ? "задача по студенту" : "рабочая задача",
       due: { dueOn: task.dueOn, dueAt: task.dueAt },
       since: null,
+      waitingDays: null,
       openHref: task.kind === "staff"
         ? queueHref("/v3/tasks", {}, { task: task.id })
         : queueHref("/v3/tasks", {}, { task: task.id, kind: "case", case: task.studentCaseId }),
@@ -258,6 +279,7 @@ export function todayStudentItems(rows: readonly StudentCaseQueueRow[], today: s
       reason: found.filter((entry, index) => index === 0 || entry.band !== "upcoming").map((entry) => entry.reason).join(" · "),
       due: found[0].step && row.nextActionDueOn ? { dueOn: row.nextActionDueOn, dueAt: null } : null,
       since: null,
+      waitingDays: null,
       openHref: queueHref("/v3/profile", { view: "mine", open: row.studentCaseId }),
       task: null,
     }));
@@ -277,13 +299,13 @@ export function todayHandoffItems(rows: readonly StudentCaseQueueRow[], options:
     if (row.attentionFlags.includes("awaiting_ack") && row.isMine) {
       items.push(Object.freeze({
         key: `student:${row.studentCaseId}`, source: "handoffs", band: "waiting", title: "Принять дело", who,
-        reason: "ждёт принятия", due: null, since: null, task: null,
+        reason: "ждёт принятия", due: null, since: null, waitingDays: null, task: null,
         openHref: queueHref("/v3/profile", { view: "needs_action", open: row.studentCaseId }),
       }));
     } else if (row.attentionFlags.includes("needs_curator") && options.coverage) {
       items.push(Object.freeze({
         key: `student:${row.studentCaseId}`, source: "handoffs", band: "waiting", title: "Назначить куратора", who,
-        reason: "нужен куратор", due: null, since: null, task: null,
+        reason: "нужен куратор", due: null, since: null, waitingDays: null, task: null,
         openHref: queueHref("/v3/profile", { view: "needs_curator", open: row.studentCaseId }),
       }));
     }
@@ -320,6 +342,7 @@ export function todayLeadItems(leads: readonly PipelineLead[], today: string): r
         : "следующее действие",
       due: dueOn ? { dueOn, dueAt: null } : null,
       since: null,
+      waitingDays: null,
       openHref: queueHref("/v3/pipeline", { lead: lead.id }),
       task: null,
     }));
@@ -329,7 +352,10 @@ export function todayLeadItems(leads: readonly PipelineLead[], today: string): r
 
 /**
  * Заявки без ответственного — чтение доски продаж `assignment=unassigned`:
- * у RPC «Заявок» поля ответственного нет. Только рабочие этапы.
+ * у RPC «Заявок» поля ответственного нет. Только рабочие этапы. Сколько
+ * ждёт — только у новой заявки: дни на этапе «Новый» и есть дни с прихода.
+ * У лида дальше по воронке дни этапа — не время без ответственного, поэтому
+ * слова срока у него нет.
  */
 export function todayRequestItems(leads: readonly PipelineLead[]): readonly TodayItem[] {
   const items: TodayItem[] = [];
@@ -345,6 +371,7 @@ export function todayRequestItems(leads: readonly PipelineLead[]): readonly Toda
       reason: from ? `нет ответственного · ${from}` : "нет ответственного",
       due: null,
       since: null,
+      waitingDays: lead.stageKey === "new" ? lead.stageAgeDays : null,
       openHref: queueHref("/v3/pipeline", { lead: lead.id }),
       task: null,
     }));
@@ -367,6 +394,7 @@ export function todayChatItems(rows: readonly CaseChatThreadRow[]): readonly Tod
     reason: "нужен ответ",
     due: null,
     since: row.lastMessageAt,
+    waitingDays: null,
     openHref: queueHref("/v3/messages", { case: row.studentCaseId, queue: "needs_reply" }),
     task: null,
   })));
@@ -378,17 +406,25 @@ function dueSortTime(item: TodayItem): number {
   return item.due ? platformTaskDeadlineSortTime(item.due.dueOn, item.due.dueAt) : Number.POSITIVE_INFINITY;
 }
 
-function sinceSortTime(item: TodayItem): number {
-  const time = item.since ? Date.parse(item.since) : Number.NaN;
-  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+/**
+ * С какого момента ждёт: момент последнего сообщения или начало дня Бишкека,
+ * с которого заявка на этапе «Новый». Неизвестно — в конце.
+ */
+function waitSortTime(item: TodayItem, today: string): number {
+  if (item.since) {
+    const time = Date.parse(item.since);
+    return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+  }
+  if (item.waitingDays !== null) return platformTaskDeadlineSortTime(shiftDay(today, -item.waitingDays), null);
+  return Number.POSITIVE_INFINITY;
 }
 
 /**
  * Внутри группы: по сроку, у ждущих — дольше всех ждущие первыми; без
  * момента — в конце. Затем по источнику и названию.
  */
-function compareItems(left: TodayItem, right: TodayItem): number {
-  const [a, b] = left.band === "waiting" ? [sinceSortTime(left), sinceSortTime(right)] : [dueSortTime(left), dueSortTime(right)];
+function compareItems(left: TodayItem, right: TodayItem, today: string): number {
+  const [a, b] = left.band === "waiting" ? [waitSortTime(left, today), waitSortTime(right, today)] : [dueSortTime(left), dueSortTime(right)];
   if (a !== b) return a < b ? -1 : 1;
   if (left.source !== right.source) return SOURCE_ORDER[left.source] - SOURCE_ORDER[right.source];
   const title = left.title.localeCompare(right.title, "ru");
@@ -449,11 +485,19 @@ export function buildTodayQueue(reads: readonly TodaySourceRead[], now: Date): T
   const blocking = reads.filter((read) => read.state === "error" || read.state === "partial");
   const bands: TodayBandView[] = [];
   for (const band of TODAY_BANDS) {
-    const rows = items.filter((item) => item.band === band).sort(compareItems);
+    const rows = items.filter((item) => item.band === band).sort((left, right) => compareItems(left, right, today));
     if (rows.length === 0) continue;
     const known = !blocking.some((read) => TODAY_SOURCE_BANDS[read.source].includes(band));
+    // Число, которое чтение даёт завышенным, не показывается и при полном чтении.
+    const uncounted = [...new Set(rows.map((item) => TODAY_UNCOUNTED[item.source]).filter((note): note is string => Boolean(note)))];
     bands.push(Object.freeze({
-      band, label: todayBandLabel(band, today), count: known ? rows.length : null, danger: band === "overdue", items: Object.freeze(rows),
+      band,
+      label: todayBandLabel(band, today),
+      count: known && uncounted.length === 0 ? rows.length : null,
+      danger: band === "overdue",
+      // Неполное чтение уже названо над очередью; своя строка — только у полной группы без числа.
+      note: known && uncounted.length ? uncounted.join(" ") : null,
+      items: Object.freeze(rows),
     }));
   }
   const upcomingDays = items
@@ -480,20 +524,21 @@ export function buildTodayQueue(reads: readonly TodaySourceRead[], now: Date): T
 // --- Слова строки и шапки ------------------------------------------------
 
 export type TodayWhen = Readonly<{
-  /** Значение для `<time dateTime>`. */
-  dateTime: string;
-  /** «25.09» или «25.09 14:00» — по Бишкеку. */
-  text: string;
-  /** «прошёл», «сегодня», «через 3 дн», «вчера», «2 дн назад»; null — без слова. */
+  /** Значение для `<time dateTime>`; null — даты нет, только слово. */
+  dateTime: string | null;
+  /** «25.09» или «25.09 14:00» — по Бишкеку; null — даты нет, только слово. */
+  text: string | null;
+  /** «прошёл», «сегодня», «через 3 дн», «вчера», «2 дн назад», «ждёт 3 дн»; null — без слова. */
   word: string | null;
   overdue: boolean;
 }>;
 
 /**
- * Когда: срок строки (то же слово, что у «Задач») или — у ждущей
- * переписки — день последнего сообщения и сколько дней прошло.
+ * Когда: срок строки (то же слово, что у «Задач»), у ждущей переписки —
+ * день последнего сообщения и сколько дней прошло, у новой заявки — только
+ * слово «ждёт N дн» («сегодня» — пришла сегодня): даты чтение не даёт.
  */
-export function todayWhen(item: Pick<TodayItem, "due" | "since">, now: Date): TodayWhen | null {
+export function todayWhen(item: Pick<TodayItem, "due" | "since"> & Partial<Pick<TodayItem, "waitingDays">>, now: Date): TodayWhen | null {
   if (item.due) {
     const due = queueDue(item.due, now, true);
     return due ? Object.freeze({ dateTime: due.dateTime, text: due.text, word: due.word, overdue: due.overdue }) : null;
@@ -510,6 +555,10 @@ export function todayWhen(item: Pick<TodayItem, "due" | "since">, now: Date): To
       word: ago <= 0 ? "сегодня" : ago === 1 ? "вчера" : `${ago} дн назад`,
       overdue: false,
     });
+  }
+  const days = item.waitingDays ?? null;
+  if (days !== null && Number.isSafeInteger(days) && days >= 0) {
+    return Object.freeze({ dateTime: null, text: null, word: days === 0 ? "сегодня" : `ждёт ${days} дн`, overdue: false });
   }
   return null;
 }

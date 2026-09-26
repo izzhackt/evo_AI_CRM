@@ -5,7 +5,10 @@ import { btnGhostCls } from "@/components/ui";
 /**
  * Переключатель периода раздела «Динамика по дням» «Отчёта продаж» (Э3,
  * 26.09.2026: графики ушли со стартовой страницы «Сегодня»). Заголовок
- * страницы — у отчёта, чтобы на странице был ровно один `h1`.
+ * страницы — у отчёта, чтобы на странице был ровно один `h1`; заголовок
+ * «Лиды за период» и место переключателя в строке задаёт раздел.
+ * Выбранный период — общий `.v3-choice`, как вкладки «Задач» и меню: в
+ * новом облике «выбрано» нейтральное вместе со всеми выборами (Э1.1).
  *
  * ПЕРЕКЛЮЧАТЕЛЬ ПЕРИОДА — ССЫЛКИ, А НЕ КНОПКИ С СОСТОЯНИЕМ. Период живёт в
  * адресе, поэтому экран можно переслать целиком и вернуться к прошлому
@@ -46,31 +49,29 @@ export function MainHeader({
   hidden?: Readonly<Record<string, string>>;
 }) {
   return (
-    <header className="flex flex-col gap-4 border-b border-border pb-4">
-      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3">
-        {/* Пять названий не помещаются в 393px, поэтому полоса прокручивается.
-            Прокручиваемой области нужен клавиатурный доступ (SC 2.1.1) и
-            собственное имя. */}
-        <nav
-          aria-label="Период"
-          tabIndex={0}
-          className="min-w-0 max-w-full overflow-x-auto"
-        >
-          <ul className="flex w-max items-center gap-0.5 rounded-ctl border border-border bg-surface p-0.5">
-            {choices.map((choice) => (
-              <li key={choice.key}>
-                <Link
-                  href={choice.href}
-                  aria-current={choice.active ? "page" : undefined}
-                  className="v3-choice inline-flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 text-sm text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg"
-                >
-                  {choice.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </div>
+    <div className="flex w-full min-w-0 flex-col items-stretch gap-3 sm:w-auto sm:items-end">
+      {/* На телефоне пять названий делят ширину поровну и видны целиком
+          (390 px); уже — полоса прокручивается. Прокручиваемой области нужен
+          клавиатурный доступ (SC 2.1.1) и собственное имя. */}
+      <nav
+        aria-label="Период"
+        tabIndex={0}
+        className="min-w-0 max-w-full overflow-x-auto rounded-ctl"
+      >
+        <ul className="flex w-max min-w-full items-center gap-0.5 rounded-ctl border border-border bg-surface p-0.5 sm:min-w-0">
+          {choices.map((choice) => (
+            <li key={choice.key} className="flex-1 sm:flex-none">
+              <Link
+                href={choice.href}
+                aria-current={choice.active ? "page" : undefined}
+                className="v3-choice inline-flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-nav px-2 t-label text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg motion-reduce:transition-none sm:px-3"
+              >
+                {choice.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       {range ? (
         // Диапазон встаёт под тем переключателем, который его открыл, а на
@@ -118,6 +119,6 @@ export function MainHeader({
           </button>
         </form>
       ) : null}
-    </header>
+    </div>
   );
 }

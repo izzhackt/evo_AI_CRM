@@ -33,6 +33,7 @@ export function TodayQueueList({
     key: band.band, label: band.label, count: band.count, danger: band.danger, rows: band.items,
   })), [bands]);
   const { recent, message, announce, undo, completed, shown } = useRecentCompletions(completionBands);
+  const notes = useMemo(() => new Map(bands.map((band) => [band.band as string, band.note])), [bands]);
   useQueueKeyboard({ openKey: null });
 
   return (
@@ -45,6 +46,7 @@ export function TodayQueueList({
           label: band.label,
           count: band.count,
           danger: band.danger,
+          note: notes.get(band.key) ?? null,
           rows: band.rows.map((item, index) => item.task ? (
             <TaskQueueRow
               key={item.key}

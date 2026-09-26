@@ -104,8 +104,8 @@ export default async function MainPart({
   const queue = buildTodayQueue(reads, now);
   const preview = isStaffPreview(actor);
   const boards: TodayLink[] = [
-    ...(canReadSales && staffCanAccessRoute(actor, "/v3/pipeline") ? [{ label: "Воронка продаж", href: "/v3/pipeline" }] : []),
-    ...(staffCanAccessRoute(actor, "/v3/admissions-pipeline") ? [{ label: "Воронка поступления", href: "/v3/admissions-pipeline" }] : []),
+    ...(canReadSales && staffCanAccessRoute(actor, "/v3/pipeline") ? [{ label: "Воронка продаж", short: "Продажи", href: "/v3/pipeline" }] : []),
+    ...(staffCanAccessRoute(actor, "/v3/admissions-pipeline") ? [{ label: "Воронка поступления", short: "Поступление", href: "/v3/admissions-pipeline" }] : []),
   ];
 
   return (

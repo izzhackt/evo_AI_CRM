@@ -7,6 +7,8 @@ export type DueBandView = Readonly<{
   count: number | null;
   /** «Просрочено»: слово окрашено, но смысл несёт само слово. */
   danger: boolean;
+  /** Тихая строка под заголовком: почему у группы нет числа при полном чтении. */
+  note?: string | null;
   rows: ReactNode;
 }>;
 
@@ -28,6 +30,7 @@ export function DueBands({ bands, idPrefix = "queue-band" }: Readonly<{ bands: r
               <span className={band.danger ? "text-danger" : "text-fg"}>{band.label}</span>
               {band.count !== null ? <span className="font-normal tabular-nums text-fg-3">· {band.count}</span> : null}
             </h2>
+            {band.note ? <p className="border-b border-border py-2 ps-3 t-meta text-fg-2">{band.note}</p> : null}
             <ul>{band.rows}</ul>
           </section>
         );

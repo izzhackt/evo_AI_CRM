@@ -276,23 +276,17 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   }
   assert.match(read("src/components/v3/team-chat/TeamChat.tsx"), /<h1 className=\{`t-page-title \$\{styles\.channelTitle\}`\}>/u);
 
-  // График Главной: раскладка как на main (SVG не уже 480 px, viewBox 620),
-  // а подписи осей на экране не мельче 12 px при любой ширине графика.
+  // График «Динамики по дням» (26.09.2026): поле растягивается на ширину
+  // контейнера без прокрутки и без минимальной ширины, линии не меняют толщину,
+  // а подписи осей — HTML-роль t-meta (12 px) при любой ширине; чернила, не красный.
   const trend = read("src/components/v3/TrendChart.tsx");
-  const viewBoxWidth = Number(trend.match(/const WIDTH = (\d+);/u)?.[1]);
-  const minWidth = Number(trend.match(/className="h-auto w-full min-w-\[(\d+)px\]"/u)?.[1]);
-  const labelClass = trend.match(/const LABEL_CLASS = "text-\[([\d.]+)px\] @min-\[(\d+)px\]\/trend:text-\[([\d.]+)px\]";/u);
-  assert.ok(labelClass, "axis label size is set by LABEL_CLASS");
-  const [narrow, breakpoint, wide] = labelClass.slice(1).map(Number);
-  assert.equal(viewBoxWidth, 620);
-  assert.equal(minWidth, 480, "chart keeps its 480px minimum in the report's «Динамика по дням»");
-  assert.ok(narrow * minWidth / viewBoxWidth >= 12, "labels are at least 12px at the 480px minimum");
-  assert.equal(breakpoint, viewBoxWidth, "smaller label units only once the chart is as wide as its viewBox");
-  assert.ok(wide * breakpoint / viewBoxWidth >= 12, "labels stay at least 12px on wide charts");
-  assert.equal(Number(trend.match(/const LABEL_SIZE = ([\d.]+);/u)?.[1]), narrow, "ticks are spaced for the largest label");
-  assert.match(trend, /className="@container\/trend max-w-full overflow-x-auto rounded-ctl"/u);
-  assert.equal(trend.match(/className=\{LABEL_CLASS\}/gu)?.length, 2, "both axes use the label size");
-  assert.doesNotMatch(trend, /fontSize=/u);
+  assert.match(trend, /viewBox="0 0 100 100" preserveAspectRatio="none"/u);
+  assert.doesNotMatch(trend, /min-w-\[\d+px\]|overflow-x-auto/u, "no fixed minimum width, no horizontal scroll");
+  assert.ok((trend.match(/vectorEffect="non-scaling-stroke"/gu)?.length ?? 0) >= 2, "grid and series keep their stroke width");
+  assert.equal(trend.match(/className="relative h-(?:44|6) t-meta tabular-nums text-fg-3"/gu)?.length, 2, "both axes use the 12px meta role");
+  assert.doesNotMatch(trend, /fontSize=|<text\b/u, "no SVG text that scales with the chart");
+  assert.doesNotMatch(trend, /--accent|bg-accent|linearGradient/u, "the chart is ink, not red");
+  assert.doesNotMatch(read("src/components/v3/Funnel.tsx"), /\bbg-accent\b/u, "funnel bars and dots are ink, not red");
 
   // Подпись настоящего поля или фильтра — t-label (14 px), даже в строке с
   // контролом; t-caption остаётся подписям данных: колонкам, терминам, чипам.

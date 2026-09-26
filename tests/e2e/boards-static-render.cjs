@@ -39,7 +39,8 @@
  *       мутаций меню, исчезновение подписи после ухода курсора), меню дела
  *       и перетаскивание.
  *
- *   --look=next (с --json или --screenshots) — новый облик (Э1.1–Э1.3,
+ *   --look=next (с --json, --screenshots, --hydrate или --hydrate-close) —
+ *       новый облик (Э1.1–Э1.3,
  *       предпросмотр Admin): `data-look="next"` на оболочке, страницы читают
  *       облик заглушкой `readLookPreview` — точка фазы у колонок, инициалы,
  *       чипы и срок словом в карточках, дорожка этапа в панели лида. Снимки —
@@ -457,6 +458,9 @@ const PAGES = {
 };
 const h = React.createElement;
 const IMAGE = { ...imageConfigDefault, unoptimized: true };
+// Облик — тот же, что отрисовал сервер (флаг --look=next): иначе React
+// пересоберёт дерево на клиенте в текущем облике.
+const LOOK_NEXT = ${JSON.stringify(LOOK_NEXT)};
 async function renderPage(pathname, search) {
   globalThis.__harnessUuid = fixtures.syntheticUuids();
   return PAGES[pathname]()({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) });
@@ -493,7 +497,8 @@ function Harness({ initial }) {
     h(PathnameContext.Provider, { value: view.pathname },
       h(SearchParamsContext.Provider, { value: searchParams },
         h(ImageConfigContext.Provider, { value: IMAGE },
-          h("div", { className: "v3-world" }, h(AppShell, { actor: fixtures.ACTOR, initialNotifications: null }, view.content))))));
+          h("div", { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
+            h(AppShell, { actor: fixtures.ACTOR, initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, view.content))))));
 }
 (async () => {
   window.__harness = { pushes: [], refreshes: [], recoverable: [] };
@@ -558,7 +563,8 @@ async function bundleHydration() {
     jsx: "automatic",
     tsconfig: join(ROOT, "tsconfig.json"),
     define: { "process.env.NODE_ENV": JSON.stringify("development") },
-    banner: { js: "var process = globalThis.process || { env: { NODE_ENV: \"development\" } };" },
+    // `argv` несёт только флаг облика: заглушка `readLookPreview` читает его и в браузере.
+    banner: { js: `var process = globalThis.process || { env: { NODE_ENV: "development" }, argv: ${JSON.stringify(LOOK_NEXT ? ["--look=next"] : [])} };` },
     plugins: [plugin],
     logLevel: "silent",
   });

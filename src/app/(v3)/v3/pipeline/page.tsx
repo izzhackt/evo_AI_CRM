@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
@@ -10,9 +11,15 @@ import {
 } from "@/components/v3/board/Board";
 import { BoardFilters, NavigateSelect, type NavigateOption } from "@/components/v3/board/BoardToolbar";
 import { Pipeline } from "@/components/v3/Pipeline";
+import { ClosedLeadsList } from "@/components/v3/closure/ClosedLeadsList";
+import { Icon } from "@/components/icons";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
 import { PartShell } from "@/components/v3/PartShell";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isStaffPreview } from "@/lib/platform-access";
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { parseClosedLeadsCursor, readClosedLeads, type ClosedLeadsPage } from "@/lib/platform-closure";
+import { closureWords } from "@/lib/v3/wording";
 import {
   PLATFORM_SALES_STAGES,
   type PlatformSalesStage,
@@ -38,6 +45,9 @@ type SearchParams = Readonly<{
   assignment?: string | string[];
   owner?: string | string[];
   handed?: string | string[];
+  /** «Закрытые» (миграция 246): список закрытых лидов вместо доски. */
+  view?: string | string[];
+  cursor?: string | string[];
 }>;
 
 type BoardQuery = Readonly<{
@@ -64,6 +74,7 @@ export default async function PipelinePart({
     searchParams,
     requireV3PageActor("/v3/pipeline"),
   ]);
+  if (params.view !== undefined) return closedLeadsPart(actor, params);
   const query = parseBoardQuery(params);
 
   const stages = readPipelineStages();
@@ -202,6 +213,12 @@ export default async function PipelinePart({
           <BoardSegments label="Срок" showLabel items={dueChoices} />
         </BoardFilters>
 
+        {/* Закрытые лиды — не этап доски, а отдельный тихий список (246). */}
+        <Link href={CLOSED_VIEW_PATH} prefetch={false} data-testid="v3-pipeline-closed-link"
+          className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg @2xl:order-last @2xl:ms-auto">
+          {closureWords.lead.closedList}
+        </Link>
+
         {filtersActive ? (
           <BoardReset
             href={boardHref({
@@ -246,6 +263,51 @@ export default async function PipelinePart({
       </div>
       </PartShell>
     </ManualLeadDisclosure>
+  );
+}
+
+const CLOSED_VIEW_PATH = "/v3/pipeline?view=closed";
+
+/**
+ * «Закрытые лиды»: отдельная страница-список поверх той же навигации «Воронки
+ * продаж». Адрес — `?view=closed[&cursor=…]`, другие параметры доски сюда не
+ * относятся и отклоняются.
+ */
+async function closedLeadsPart(actor: ActivePlatformActor, params: SearchParams) {
+  const view = singleValue(params.view);
+  const rawCursor = singleValue(params.cursor);
+  const extra = Object.entries(params).some(([key, value]) => value !== undefined && key !== "view" && key !== "cursor");
+  const cursor = rawCursor === undefined ? null : parseClosedLeadsCursor(rawCursor);
+  if (view !== "closed" || extra || (rawCursor !== undefined && cursor === null)) notFound();
+  let page: ClosedLeadsPage | null = null;
+  try {
+    page = await readClosedLeads(actor, { cursor });
+  } catch {
+    page = null;
+  }
+  const here = cursor ? `${CLOSED_VIEW_PATH}&cursor=${encodeURIComponent(cursor)}` : CLOSED_VIEW_PATH;
+  return (
+    <PartShell
+      title={closureWords.lead.closedListTitle}
+      count={page && cursor === null && page.nextCursor === null ? page.rows.length : null}
+      back={
+        <Link href="/v3/pipeline" className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
+          <Icon name="arrow-left" size={16} />
+          {closureWords.lead.backToBoard}
+        </Link>
+      }
+      dense
+    >
+      <ClosedLeadsList
+        page={page}
+        readOnly={isStaffPreview(actor)}
+        retryHref={here}
+        firstHref={CLOSED_VIEW_PATH}
+        nextHref={page?.nextCursor ? `${CLOSED_VIEW_PATH}&cursor=${encodeURIComponent(page.nextCursor)}` : null}
+        paged={cursor !== null}
+        leadHref={(leadId) => `/v3/profile?id=${leadId}&returnTo=${encodeURIComponent(here)}`}
+      />
+    </PartShell>
   );
 }
 

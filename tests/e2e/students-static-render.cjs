@@ -263,7 +263,7 @@ function coverage(selection = {}) {
 }
 
 /** Сценарий: адрес страницы → разбор тем же `parseStudentsQueueParams`, чтения — синтетика. */
-function scenario(search, { actor = "admin", docsMode = false, read, openTasks = null, handoff = null, coverageRead = null, invalid = false } = {}) {
+function scenario(search, { actor = "admin", docsMode = false, read, openTasks = null, handoff = null, coverageRead = null, invalid = false, closure = null } = {}) {
   const query = Object.fromEntries(new URLSearchParams(search));
   const parse = view.parseStudentsQueueParams(query, docsMode ? "docs" : "queue", QUEUE_ACTOR[actor]);
   if (parse.kind === "redirect") throw new Error(`scenario ${search} redirects to ${parse.href}`);
@@ -281,6 +281,7 @@ function scenario(search, { actor = "admin", docsMode = false, read, openTasks =
     actor: QUEUE_ACTOR[actor],
     openTasks,
     handoff,
+    closure,
     coverage: coverageRead,
     today: TODAY,
     curatorNames: actor === "admin" ? Object.entries(NAMES).map(([membershipId, displayName]) => ({ membershipId, displayName })) : [],
@@ -370,12 +371,32 @@ const SCENARIOS = {
     },
   }),
   "manager-curators": scenario("view=curators", { actor: "manager", coverageRead: coverage() }),
+  // «Завершить дело» (246): у открытого дела в работе — кнопка, окно с исходом.
+  "panel-close": scenario(`view=active&open=${OPEN_CASE}`, {
+    openTasks: TASKS,
+    closure: { studentCaseId: OPEN_CASE, state: "active", admissionsVersion: "3", closedAt: null, outcome: null, note: null, closedByName: null, canChange: true },
+  }),
+  // Закрытое дело в «Быстром просмотре» сразу после «Завершить дело»: «Закрыто · исход · дата», под ней
+  // «Вернуть в работу»; число «Все в работе» на одно меньше, чем в «panel-close» — дело ушло из работы.
+  "panel-closed": (() => {
+    const rows = pageFor("active", "updated").rows.map((row) => ({ ...row, state: "closed" }));
+    const open = rows[0].studentCaseId;
+    const base = scenario(`view=closed&open=${open}`, {
+      openTasks: { kind: "ready", tasks: [] },
+      closure: { studentCaseId: open, state: "closed", admissionsVersion: rows[0].admissionsVersion, closedAt: "2026-09-22T06:30:00.000Z",
+        outcome: "not_admitted", note: null, closedByName: NAMES[ME], canChange: true },
+    });
+    const views = base.input.read.counts.views;
+    const counts = { ...base.input.read.counts, total: rows.length, views: { ...views, active: views.active - 1, closed: rows.length } };
+    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows }, counts } } };
+  })(),
   // Синтетика закрытых дел: строки «в работе» со сроками всех групп, закрытые.
   closed: (() => {
     const base = scenario("view=closed");
     const rows = pageFor("active", "updated").rows.map((row) => ({ ...row, state: "closed" }));
     // Числа — по тем же синтетическим закрытым строкам: заголовок и вкладка не спорят.
-    const counts = { ...base.input.read.counts, total: rows.length, views: { ...base.input.read.counts.views, closed: rows.length } };
+    const views = base.input.read.counts.views;
+    const counts = { ...base.input.read.counts, total: rows.length, views: { ...views, active: views.active - 1, closed: rows.length } };
     return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows }, counts } } };
   })(),
   "docs-no-access": (() => {
@@ -650,6 +671,16 @@ async function screenshots() {
       ["students-panel-accept-390.png", PHONE, false, null],
     ]],
     ["panel-clarification", [["students-panel-clarification-1440.png", DESKTOP, false, null]]],
+    // «Завершить дело» и закрытое дело (миграция 246).
+    ["panel-close", [
+      ["close-case-panel-1440.png", DESKTOP, false, null],
+      ["close-case-panel-dialog-1440.png", DESKTOP, false, "close-case"],
+      ["close-case-panel-dialog-390.png", PHONE, false, "close-case"],
+    ]],
+    ["panel-closed", [
+      ["close-case-panel-closed-1440.png", DESKTOP, false, null],
+      ["close-case-panel-closed-390.png", PHONE, false, null],
+    ]],
     ["pending", [
       ["students-pending-1440.png", DESKTOP, false, null],
       ["students-pending-390.png", PHONE, false, null],
@@ -663,8 +694,10 @@ async function screenshots() {
   const css = await compileCss();
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
+  // `--only=имя,имя` — снять только эти сценарии (например, `--only=panel-close,panel-closed`).
+  const only = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length).split(",") ?? null;
   try {
-    for (const [name, shots] of pages) {
+    for (const [name, shots] of pages.filter(([name]) => only === null || only.includes(name))) {
       const htmlPath = join(outDir, `students-${name}.html`);
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
@@ -698,6 +731,12 @@ async function screenshots() {
           await page.waitForSelector(`${editor} [role="alert"]`);
         }
         if (step === "date") await page.click(`${editor} button:has-text("Дата…")`);
+        if (step === "close-case") {
+          // «Завершить дело…» → окно; исход «Поступил» выбран, подтверждение не отправляется.
+          await page.click('[data-testid="v3-close-case"]');
+          await page.waitForSelector('[data-testid="v3-close-case-dialog"][open]');
+          await page.getByRole("radio", { name: "Поступил" }).check();
+        }
         // Клавиатура: ↓ со страницы переводит фокус на первую строку — видна рамка фокуса.
         if (step === "focus") { await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown"); }
         if (step) await page.waitForTimeout(400);
@@ -726,6 +765,13 @@ async function screenshots() {
             }).length,
             rowHeight: Math.round(rows[0]?.getBoundingClientRect().height ?? 0),
             panelModal: panel ? panel.matches(":modal") : null,
+            closeDialog: (() => {
+              const dialog = document.querySelector('[data-testid="v3-close-case-dialog"]');
+              if (!dialog || !dialog.open) return null;
+              const box = dialog.getBoundingClientRect();
+              return `modal=${dialog.matches(":modal")} ${Math.round(box.width)}x${Math.round(box.height)} clipped=${box.left < 0 || box.right > window.innerWidth || box.top < 0 || box.bottom > window.innerHeight}`;
+            })(),
+            closedLine: document.querySelector('[data-testid="v3-case-closed-line"]')?.textContent.replace(/\s+/gu, " ").trim() ?? null,
             solidRed: [...document.querySelectorAll("a, button")].filter((element) => getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)"
               && element.getBoundingClientRect().width > 0).length,
             smallTargets: [...document.querySelectorAll("main a, main button")].filter((element) => {
@@ -753,6 +799,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: students-static-render.cjs --json | --screenshots [outDir]");
+  console.error("usage: students-static-render.cjs --json | --screenshots [outDir] [--only=scenario,…]");
   process.exit(2);
 }

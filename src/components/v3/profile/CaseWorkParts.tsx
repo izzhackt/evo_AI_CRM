@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
+import type { CaseClosure } from "@/lib/platform-closure-contract";
 
 import { ApplicationDecision } from "../admissions/StudentApplications";
 import type { NextStepAccess } from "../students/students-queue-view";
@@ -30,6 +31,8 @@ export type CaseWorkPartsInput = Readonly<{
   notesLatestHref: string | null;
   curators: readonly Readonly<{ membershipId: string; displayName: string }>[];
   curatorsAvailable: boolean;
+  /** Закрытие дела (246) для строки фактов; null — не прочитано. */
+  closure?: CaseClosure | null;
   hrefFor: (tab: string) => string;
   /** `?panel=sales`: раскрыть «Данные продажи» (переход из «Договор и оплата»). */
   salesDataOpen: boolean;
@@ -97,6 +100,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       coverage={admin && staffHasPermission(actor, "case.curator.assign")}
       curators={input.curators}
       assignCuratorRequestId={input.requestIds.assignCurator}
+      closure={input.closure ?? null}
     />
   );
 

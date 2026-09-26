@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import type { CaseClosure } from "@/lib/platform-closure-contract";
 import type { StudentCaseQueueCounts, StudentCaseQueuePage } from "@/lib/platform-student-case-queue-contract";
 
 import type { StudentsCoverage } from "../profile/students-coverage-view";
@@ -39,6 +40,8 @@ export type StudentsQueueScreenInput = Readonly<{
   openTasks: StudentsOpenTasks | null;
   /** «Приём дела» открытой строки (только куратору, который может ответить). */
   handoff?: StudentsHandoff | null;
+  /** Закрытие открытой строки (246): «Завершить дело» и строка закрытого дела. */
+  closure?: CaseClosure | null;
   coverage: StudentsCoverage | null;
   /** Сегодня в Бишкеке (часы приложения) — для дат нагрузки кураторов. */
   today: string;
@@ -191,6 +194,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       recordScopes={input.recordScopes}
       openTasks={input.openTasks}
       handoff={input.handoff ?? null}
+      closure={input.closure ?? null}
       createTask={input.createTask}
       requestId={input.requestIds.nextStep}
     />,

@@ -2704,6 +2704,22 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_work_signals.sql
   fi
+
+  # Migration 246 («Закрыть лид» и «Завершить дело», owner decision 26.09):
+  # members modelled like production (coarse role NULL, the production
+  # bundles, as in 244's suite). A Sales Manager closes and returns a lead of
+  # the own department (another department, a handed-off lead, Admissions,
+  # the Student, no membership and anon refused); the closed lead leaves the
+  # board, chips and funnel and returns at its previous stage. The curator,
+  # a department Admissions Manager and the Admin finish and return a case
+  # (another curator, Sales, the Student, no membership and anon refused);
+  # it moves between the active views and «Закрытые». Replay, request-id
+  # reuse, version and state conflicts, and the 137 playbook guard.
+  if [[ "$(basename "$migration")" == 246_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_lead_case_closure.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

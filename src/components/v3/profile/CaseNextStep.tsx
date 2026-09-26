@@ -93,8 +93,10 @@ export function CaseNextStep({
           </button>
         ) : null}
       </p>
-      {/* У дела в работе причина бывает одна — просмотр роли; «закрыто» и «ожидает начала» уже названы в строке фактов. */}
-      {access.kind === "read_only" && access.reason && row?.state === "active" ? <p className="t-meta text-fg-2">{access.reason}</p> : null}
+      {/* У дела в работе причина бывает одна — просмотр роли. Закрытое дело говорит то же, что «Быстрый просмотр»
+          («Дело закрыто: шаг не меняется.»): шаг и срок — последние, а не живые. «Ожидает начала» уже названо в строке фактов. */}
+      {access.kind === "read_only" && access.reason && (row?.state === "active" || row?.state === "closed")
+        ? <p className="t-meta text-fg-2">{access.reason}</p> : null}
       {/* Окно встаёт от кнопки у поля страницы: на телефоне ширина — экран без полей 16 px с обеих сторон. */}
       {editable && row ? (
         <div id={popover.popoverId} popover="auto" style={popover.popoverStyle} role="dialog" aria-labelledby={titleId}

@@ -1212,3 +1212,96 @@ export function caseNextActionOutcome(value: string, cleared = false): string | 
   };
   return labels[value] ?? null;
 }
+
+/**
+ * «Закрыть лид» и «Завершить дело» (миграция 246). Ключи причин и исходов —
+ * контракт SQL (`platform-closure-contract.ts`); здесь только слова для них и
+ * для окна, строки закрытого и ответов сервера.
+ */
+const LEAD_CLOSE_REASON: Record<string, string> = {
+  no_response: "Не отвечает",
+  other_agency: "Выбрал другое агентство",
+  budget: "Не подходит по бюджету",
+  duplicate: "Дубликат",
+  other: "Другое",
+};
+const CASE_CLOSE_OUTCOME: Record<string, string> = {
+  enrolled: "Поступил",
+  declined: "Отказался",
+  not_admitted: "Не прошёл",
+  other: "Другое",
+};
+export const leadCloseReason = (v: string | null | undefined) => lookup(LEAD_CLOSE_REASON, v);
+export const caseCloseOutcome = (v: string | null | undefined) => lookup(CASE_CLOSE_OUTCOME, v);
+
+export const closureWords = {
+  more: "Ещё действия",
+  cancel: "Отмена",
+  dismiss: "Скрыть строку",
+  reopen: "Вернуть в работу",
+  reopening: "Возвращаем…",
+  noteLabel: "Что случилось",
+  lead: {
+    action: "Закрыть лид",
+    pending: "Закрываем…",
+    legend: "Причина",
+    closed: "Закрыт",
+    handedOff: "Лид передан в поступление — это продажа. Закрыть его как потерянный нельзя.",
+    closedList: "Закрытые",
+    closedListTitle: "Закрытые лиды",
+    backToBoard: "К воронке продаж",
+    backToClosed: "К закрытым лидам",
+    /** Lead 360 закрытого лида: почему нет контактов и истории. */
+    detailsAfterReopen: "Контакты и история вернутся после «Вернуть в работу».",
+    detailsOpenOnly: "Контакты и история видны только у лида в работе.",
+    empty: "Закрытых лидов нет.",
+    unavailable: "Не удалось загрузить закрытые лиды.",
+    noDate: "дата не записана",
+  },
+  case: {
+    action: "Завершить дело",
+    pending: "Завершаем…",
+    legend: "Исход",
+    closed: "Закрыто",
+  },
+} as const;
+
+/**
+ * Окно «Завершить дело»: открытые задачи дела закрытие не отменяет — они
+ * остаются в «Задачах» и в их сроках. Число — только прочитанное; не
+ * прочитано — то же правило без числа; задач нет — нечего говорить.
+ * Предлог «в» не остаётся в конце строки (неразрывный пробел).
+ */
+export function caseCloseOpenTasks(count: number | null | undefined): string | null {
+  if (count === 0) return null;
+  return typeof count === "number" && Number.isInteger(count) && count > 0
+    ? `Открытые задачи дела (${count}) останутся в\u00a0«Задачах».`
+    : "Открытые задачи дела останутся в\u00a0«Задачах».";
+}
+
+/**
+ * Ответ сервера на закрытие и возврат. Для неизвестного исхода окно
+ * повторяет тот же запрос: сервер вернёт уже записанный результат.
+ */
+export function closureOutcome(
+  value: string,
+  kind: "lead" | "case",
+  closed: boolean,
+): string | null {
+  const lead = kind === "lead";
+  const labels: Record<string, string> = {
+    saved: lead ? (closed ? "Лид закрыт." : "Лид снова в работе.") : (closed ? "Дело завершено." : "Дело снова в работе."),
+    invalid: lead
+      ? "Выберите причину. Для «Другое» напишите, что случилось: одна строка до 500 символов."
+      : "Выберите исход. Для «Другое» напишите, что случилось: одна строка до 500 символов.",
+    forbidden: lead ? "Нет права закрывать этот лид или возвращать его в работу." : "Нет права завершать это дело или возвращать его в работу.",
+    preview: "В просмотре интерфейса роли изменения не сохраняются.",
+    stale: lead
+      ? "Лид уже изменили: другой сотрудник или другая вкладка. Обновите страницу."
+      : "Дело уже изменили: другой сотрудник или другая вкладка. Обновите страницу.",
+    handed_off: "Лид передан в поступление — это продажа. Закрыть его как потерянный нельзя.",
+    request_conflict: "Этот запрос уже использован с другими данными. Повторите.",
+    unavailable: "Не удалось подтвердить. Повторите: повтор не выполнит действие дважды.",
+  };
+  return labels[value] ?? null;
+}

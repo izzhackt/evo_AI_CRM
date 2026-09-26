@@ -13,6 +13,8 @@ import { Profile } from "@/components/v3/profile/Profile";
 import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
 import { caseWorkParts } from "@/components/v3/profile/CaseWorkParts";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
+import { CloseRecordMenu } from "@/components/v3/closure/Closure";
+import { ClosedLeadView } from "@/components/v3/closure/ClosedLeadView";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
 import { buildStudentsQueueScreen } from "@/components/v3/students/StudentsQueueScreen";
 import { StudentsDirectoryFallback } from "@/components/v3/students/StudentsDirectoryFallback";
@@ -39,7 +41,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { v3SectionTitle } from "@/lib/v3/navigation";
-import { PIPELINE_PATH, parsePipelineReturnTo } from "@/lib/v3/pipeline-return";
+import { PIPELINE_PATH, isClosedLeadsReturn, parsePipelineReturnTo } from "@/lib/v3/pipeline-return";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import {
   listStudentPortalActiveCurators,
@@ -55,6 +57,8 @@ import {
   type V3ProfileRouteLoadMode,
 } from "@/lib/v3/profile-route-load";
 import { readCaseWork } from "@/lib/v3/case-work-source";
+import { readCaseClosure, readClosedLeads, type CaseClosure, type ClosedLeadRow } from "@/lib/platform-closure";
+import { closureWords } from "@/lib/v3/wording";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
 import { readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
@@ -167,6 +171,11 @@ function nextStepEditor(actor: ActivePlatformActor): Readonly<{ input: NextStepA
   };
 }
 
+/** Просмотр роли не пишет: подсказка права закрытия у него всегда «нет». */
+function previewClosure(actor: ActivePlatformActor, closure: CaseClosure | null): CaseClosure | null {
+  return closure && isStaffPreview(actor) ? { ...closure, canChange: false } : closure;
+}
+
 /**
  * «Студенты» и EVO Docs как рабочая очередь (миграция 241, PLAN_CHANGES
  * «Студенты» PR 2): страница читает очередь, числа, задачи открытого дела и
@@ -186,6 +195,8 @@ async function studentsQueuePage(
       params.view === "curators" ? loadStudentsCoverage(actor, { ...query, ...params.coverage }, undefined) : Promise.resolve(null),
       // Просмотр роли не отвечает на передачу (действие его отклоняет) — блок не читаем.
       params.open && !isStaffPreview(actor) ? readStudentsHandoff(actor, params.open) : Promise.resolve(null),
+      // «Завершить дело» / строка закрытого дела в панели (246); сбой — без действия.
+      params.open ? readCaseClosure(actor, params.open).catch(() => null) : Promise.resolve(null),
     ]),
     curatorsRead,
   ]);
@@ -198,6 +209,7 @@ async function studentsQueuePage(
     openTasks: reads?.[1] ?? null,
     coverage: reads?.[2] ?? null,
     handoff: reads?.[3] ?? null,
+    closure: previewClosure(actor, reads?.[4] ?? null),
     today: dayInOrganizationTimezone(new Date()),
     curatorNames: curators.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
     editor: editor.input,
@@ -344,11 +356,14 @@ export default async function ProfilePart({
   const caseTarget = view?.details.routeTarget.studentCaseId && view.details.admissions
     ? { studentCaseId: view.details.admissions.studentCaseId, studentDisplayName: view.profile.person, state: view.details.admissions.caseState }
     : null;
-  const [curatorOptions, queuePage, caseWork] = await Promise.all([
+  const [curatorOptions, queuePage, caseWork, caseClosureRead] = await Promise.all([
     curatorsRead,
     queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
     caseTarget ? readCaseWork(actor, caseTarget, { overview: tab === "overview" }) : null,
+    // «Завершить дело» и строка закрытого дела (246); сбой чтения — прежнее «Дело закрыто» без действия.
+    caseTarget ? readCaseClosure(actor, caseTarget.studentCaseId).catch(() => null) : null,
   ]);
+  const caseClosure = previewClosure(actor, caseClosureRead);
   const studentPortalCurators = curatorOptions.curators;
   const studentPortalCuratorsAvailable = curatorOptions.available;
   // «Университеты и бланки» — редкий путь: тихая ссылка справа от заголовка, не красная.
@@ -377,6 +392,7 @@ export default async function ProfilePart({
       notesLatestHref,
       curators: studentPortalCurators,
       curatorsAvailable: studentPortalCuratorsAvailable,
+      closure: caseClosure,
       hrefFor,
       salesDataOpen: singleSearchParam(params.panel) === "sales",
       help: actor.presentationRole !== "sales" ? (
@@ -386,6 +402,27 @@ export default async function ProfilePart({
       ) : null,
     });
   })() : null;
+  // «⋯» дела у заголовка: «Завершить дело» (246), пока дело в работе и сервер подсказал право.
+  const caseAction = caseParts && view && caseClosure?.state === "active" && caseClosure.canChange ? (
+    <CloseRecordMenu kind="case" subjectId={caseClosure.studentCaseId} subjectName={view.profile.person}
+      expectedVersion={caseClosure.admissionsVersion}
+      // Задачи «Обзор» уже прочитал; на других вкладках числа нет — окно скажет правило без числа.
+      openTasks={caseWork?.tasks.kind === "ready" ? caseWork.tasks.tasks.length : null} />
+  ) : undefined;
+  // «⋯» лида в шапке Lead 360: «Закрыть лид» (246). Переданный лид — продажа:
+  // пункт недоступен и называет причину; решает сервер.
+  const leadMenu = view && !caseParts && view.sales && view.details.routeTarget.leadId && !isStaffPreview(actor)
+    && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
+      <CloseRecordMenu kind="lead" subjectId={view.sales.lead.leadId} subjectName={view.profile.person}
+        expectedVersion={view.sales.lead.workflowVersion}
+        blockedReason={view.sales.handoff.handedOffAt ? closureWords.lead.handedOff : null} />
+    ) : undefined;
+  // Закрытый лид детальное чтение 093 не отдаёт: Lead 360 читает его из
+  // «Закрытых» (246) и показывает строку «Закрыт · причина · дата».
+  const closedLead: ClosedLeadRow | null = missing && explicitTarget?.leadId && staffPresentationCan(actor, "sales.read")
+    ? await readClosedLeads(actor, { leadId: explicitTarget.leadId, limit: 1 }).then((page) => page.rows[0] ?? null, () => null)
+    : null;
+
   // Возврат из дела — тот же вид списка (`returnTo` #1059): «Студенты», EVO Docs или «Заявки».
   const caseBack = caseParts ? (
     <Link href={requestsReturnTo ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
@@ -393,10 +430,22 @@ export default async function ProfilePart({
       {requestsReturnTo ? "Заявки" : docsMode ? "EVO Docs" : "Студенты"}
     </Link>
   ) : undefined;
+  // Закрытый лид: тот же возврат над заголовком, что у дела (не красная ссылка
+  // в теле). Пришли из «Закрытых лидов» — туда и называем.
+  const closedLeadBack = closedLead ? (
+    <Link href={requestsReturnTo ?? pipelineBackHref ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
+      <Icon name="arrow-left" size={16} />
+      {requestsReturnTo ? "К списку заявок"
+        : pipelineReturnTo && isClosedLeadsReturn(pipelineReturnTo) ? closureWords.lead.backToClosed
+          : pipelineBackHref ? closureWords.lead.backToBoard : "К списку студентов"}
+    </Link>
+  ) : undefined;
 
   return (
-    <PartShell title={caseParts && view ? view.profile.person : docsMode ? "EVO Docs" : view ? "Профиль" : "Студенты"}
-      count={queuePage?.count ?? null} action={docsAction} dense={queuePage !== null || caseParts !== null} back={caseBack}>
+    <PartShell title={caseParts && view ? view.profile.person : docsMode ? "EVO Docs" : view ? "Профиль"
+      : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты"}
+      count={queuePage?.count ?? null} action={docsAction ?? caseAction} dense={queuePage !== null || caseParts !== null}
+      back={caseBack ?? closedLeadBack}>
       <div className="space-y-6">
         {queuePage?.content ?? null}
         {directory ? (
@@ -420,6 +469,7 @@ export default async function ProfilePart({
               universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details}
                 packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
               caseHeader={caseParts?.header ?? undefined}
+              headerMenu={leadMenu}
               caseOverview={caseParts?.overview ?? undefined}
               draft={view.details}
               sales={view.sales}
@@ -438,6 +488,8 @@ export default async function ProfilePart({
               hrefFor={hrefFor}
             />
           </>
+        ) : closedLead ? (
+          <ClosedLeadView row={closedLead} readOnly={isStaffPreview(actor)} />
         ) : invalidIdentityShape || missing ? (
           <p className="border-t border-border px-4 py-5 text-sm leading-relaxed text-fg-2">
             {invalidIdentityShape

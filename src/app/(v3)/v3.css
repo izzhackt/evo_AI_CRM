@@ -134,6 +134,9 @@
   --shell-top: 0px;
   --shell-tabbar: 0px;
   --shell-safe-bottom: 0px;
+  /* Отступ над заголовком страницы: один у всех разделов, центр заголовка —
+     на уровне центра логотипа в боковом меню (AppShellNext, `pt-3.5`). */
+  --shell-page-top: 1.5rem;
 }
 
 @media (width < 48rem) {
@@ -141,6 +144,7 @@
     --shell-top: 3.5rem;
     --shell-tabbar: 3.5rem;
     --shell-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --shell-page-top: 1.25rem;
   }
 }
 
@@ -148,9 +152,42 @@
   height: calc(100dvh - var(--shell-top) - var(--shell-tabbar) - var(--shell-safe-bottom));
 }
 
-/* Лист «Ещё» появляется коротким подъёмом; при просьбе системы — без движения. */
+/*
+ * Верх страницы без верхней панели: заголовок стоит на одной высоте у всех
+ * разделов, переход «Задачи» → «Студенты» не прыгает. Страницы с PageHeader
+ * (PartShell, доски, WhatsApp) — отступ `main`; у «Сообщений» заголовок в
+ * шапке списка (рамка карточки 1px и `p-3`), поэтому сдвигается он сам.
+ */
+.v3-world[data-look="next"] [data-shell-content] main:has(> div:first-child > div:first-child > h1.t-page-title) {
+  padding-top: var(--shell-page-top);
+}
+
+.v3-world[data-look="next"] [data-shell-content] main[aria-label="Сообщения"] h1.t-page-title {
+  margin-top: calc(var(--shell-page-top) - 0.8125rem);
+}
+
+/*
+ * Список меню длиннее окна: у края, за которым есть ещё пункты, — мягкая
+ * тень внутрь (та же, что под прилипшим заголовком группы «Студентов»). Тень
+ * видна, где бы ни прошёл край — по пункту или по промежутку; прокрутили до
+ * конца — тени у этого края нет.
+ */
+.v3-world[data-look="next"] [data-shell-scroll][data-more-below] {
+  box-shadow: inset 0 -8px 8px -6px rgb(0 0 0 / 0.16);
+}
+
+.v3-world[data-look="next"] [data-shell-scroll][data-more-above] {
+  box-shadow: inset 0 8px 8px -6px rgb(0 0 0 / 0.16);
+}
+
+.v3-world[data-look="next"] [data-shell-scroll][data-more-above][data-more-below] {
+  box-shadow: inset 0 8px 8px -6px rgb(0 0 0 / 0.16), inset 0 -8px 8px -6px rgb(0 0 0 / 0.16);
+}
+
+/* Лист «Ещё»: строка и панель вкладок стоят на месте, содержимое появляется
+   коротким подъёмом; при просьбе системы — без движения. */
 @media (prefers-reduced-motion: no-preference) {
-  .v3-world[data-look="next"] [data-shell-menu][data-sheet-open] {
+  .v3-world[data-look="next"] [data-shell-menu][data-sheet-open] > [data-shell-menu-body] {
     animation: v3-shell-sheet-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 }

@@ -10,11 +10,16 @@ import type { V3Navigation, V3NavigationGroup, V3NavigationLink, V3NavigationLin
  * только выбирает из того, что роль уже видит.
  */
 
-/** Иконка у каждого пункта, из существующего набора; одна иконка — один смысл. */
+/**
+ * Иконка у каждого пункта, из набора `@/components/icons`; одна иконка — один
+ * смысл (обе воронки — `funnel`: смысл один). В рейке 64 px иконка — первая
+ * подсказка, поэтому три переписки различимы: «Сообщения» — квадратный пузырь,
+ * WhatsApp — круглый (его собственная форма), «Командный чат» — два пузыря.
+ */
 export const NEXT_LINK_ICONS = {
   home: "grid",
   requests: "file-check",
-  inbox: "phone",
+  inbox: "message-circle",
   pipeline: "funnel",
   "sales-report": "bar-chart",
   "admissions-pipeline": "funnel",
@@ -24,9 +29,9 @@ export const NEXT_LINK_ICONS = {
   universities: "building",
   calendar: "calendar",
   tasks: "check-square",
-  "team-chat": "message-circle",
-  documents: "book-open",
-  "reply-snippets": "send",
+  "team-chat": "messages-square",
+  documents: "file-text",
+  "reply-snippets": "quote",
   knowledge: "book-open",
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
@@ -38,6 +43,26 @@ export const NEXT_GROUP_ICONS = {
 
 /** Мест под разделы в нижней панели; пятое — всегда «Ещё». */
 export const SHELL_TAB_SLOTS = 4;
+
+/**
+ * Короткая подпись вкладки: подпись вкладки всегда в одну строку и без
+ * переноса внутри слова, а место на 320 px — около 60 px. Полное имя пункта
+ * остаётся доступным именем ссылки (`aria-label`), и видимая подпись входит в
+ * него (WCAG 2.5.3).
+ */
+const SHORT_TAB_LABELS: Partial<Record<V3NavigationLinkId, string>> = {
+  pipeline: "Воронка",
+  "admissions-pipeline": "Воронка",
+  "sales-report": "Отчёт",
+  "team-chat": "Чат",
+  "reply-snippets": "Шаблоны",
+};
+
+/** Подпись вкладки и доступное имя, если подпись короче пункта меню. */
+export function shellTabLabel(link: Pick<V3NavigationLink, "id" | "label">): Readonly<{ text: string; name: string | undefined }> {
+  const text = SHORT_TAB_LABELS[link.id] ?? link.label;
+  return { text, name: text === link.label ? undefined : link.label };
+}
 
 /** Порядок из решения владельца 26.09.2026: Admin и поступление — дела и переписка, продажи — воронка и заявки. */
 const ADMISSIONS_TABS: readonly V3NavigationLinkId[] = ["home", "admissions-worklist", "tasks", "messages"];
@@ -88,6 +113,17 @@ export function shellTabs(navigation: NavigationLists): ShellTabs {
     links: chosen,
     currentInMore: navigation.activeId !== null && !chosen.some((link) => link.id === navigation.activeId),
   };
+}
+
+/**
+ * Отделы меню открываются по одному: открыть отдел — значит закрыть другие,
+ * кроме отдела текущей страницы (`activeIds`). Так на 1280×800 список не
+ * уходит под аккаунт целиком, а текущий раздел не прячется. Повторное нажатие
+ * закрывает отдел.
+ */
+export function toggleMenuGroup<T extends string>(open: readonly T[], id: T, activeIds: readonly T[]): T[] {
+  if (open.includes(id)) return open.filter((one) => one !== id);
+  return [...open.filter((one) => one !== id && activeIds.includes(one)), id];
 }
 
 /**

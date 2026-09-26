@@ -6,7 +6,16 @@ import { fileURLToPath } from "node:url";
 
 import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
-import { NEXT_GROUP_ICONS, NEXT_LINK_ICONS, SHELL_TAB_SLOTS, shellTabs, trapFocusIndex, visibleNavigationLinks } from "../src/lib/v3/shell-tabs.ts";
+import {
+  NEXT_GROUP_ICONS,
+  NEXT_LINK_ICONS,
+  SHELL_TAB_SLOTS,
+  shellTabLabel,
+  shellTabs,
+  toggleMenuGroup,
+  trapFocusIndex,
+  visibleNavigationLinks,
+} from "../src/lib/v3/shell-tabs.ts";
 
 /**
  * Э1.2 плана редизайна (25.09.2026): оболочка нового облика — меню без
@@ -100,6 +109,49 @@ test("every menu item of the new look has an icon from the existing set", () => 
   }
 });
 
+test("icons tell the rail items apart: one glyph per meaning, three conversations with three glyphs", () => {
+  // Обе воронки — один смысл, один знак; всё остальное — свой знак у каждого пункта.
+  const byIcon = new Map();
+  for (const [id, icon] of Object.entries(NEXT_LINK_ICONS)) byIcon.set(icon, [...(byIcon.get(icon) ?? []), id]);
+  for (const [icon, ids] of byIcon) {
+    if (icon === "funnel") assert.deepEqual(ids, ["pipeline", "admissions-pipeline"]);
+    else assert.equal(ids.length, 1, `${icon} is shared by ${ids.join(", ")}`);
+  }
+  assert.notEqual(NEXT_LINK_ICONS.inbox, "phone", "WhatsApp is a conversation, not a call");
+  assert.notEqual(NEXT_LINK_ICONS["reply-snippets"], "send", "templates are text, not a send action");
+  assert.deepEqual(new Set([NEXT_LINK_ICONS.messages, NEXT_LINK_ICONS.inbox, NEXT_LINK_ICONS["team-chat"]]).size, 3);
+  // Групп и «Ещё» это тоже касается: их знаки не совпадают с пунктами.
+  for (const icon of [...Object.values(NEXT_GROUP_ICONS), "menu"]) assert.ok(!byIcon.has(icon), icon);
+});
+
+test("tab labels fit one line: short label only where the full one does not, and the visible label stays inside the accessible name", () => {
+  const links = visibleNavigationLinks(nav("admin"));
+  for (const link of links) {
+    const label = shellTabLabel(link);
+    if (label.name === undefined) {
+      assert.equal(label.text, link.label, link.id);
+    } else {
+      assert.equal(label.name, link.label, link.id);
+      assert.ok(label.name.toLowerCase().includes(label.text.toLowerCase()), `${link.id}: «${label.text}» is inside «${label.name}» (WCAG 2.5.3)`);
+      assert.ok(label.text.length < label.name.length, link.id);
+    }
+  }
+  assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => shellTabLabel(link).text), ["Главная", "Воронка", "Заявки", "Задачи"]);
+  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => shellTabLabel(link).text), ["Главная", "Студенты", "Задачи", "Сообщения"]);
+  assert.equal(shellTabLabel({ id: "pipeline", label: "Воронка продаж" }).name, "Воронка продаж");
+});
+
+test("menu groups open one at a time, except the group that holds the current page", () => {
+  assert.deepEqual(toggleMenuGroup([], "sales", []), ["sales"]);
+  assert.deepEqual(toggleMenuGroup(["sales"], "admissions", []), ["admissions"], "opening one closes the other");
+  assert.deepEqual(toggleMenuGroup(["admissions"], "sales", ["admissions"]), ["admissions", "sales"], "the current page's group stays open");
+  assert.deepEqual(toggleMenuGroup(["admissions", "sales"], "sales", ["admissions"]), ["admissions"], "a second press closes it");
+  assert.deepEqual(toggleMenuGroup(["admissions"], "admissions", ["admissions"]), [], "the current group can be closed by hand");
+  const shell = read("src/components/v3/AppShellNext.tsx");
+  assert.match(shell, /useState<readonly V3NavigationGroup\["id"\]\[\]>\(activeGroups\)/u, "starts with the current page's group open");
+  assert.match(shell, /onToggle=\{\(\) => setOpenGroups\(\(previous\) => toggleMenuGroup\(previous, group\.id, activeGroups\)\)\}/u);
+});
+
 test("Tab inside the «Ещё» sheet cycles and never leaves it", () => {
   assert.equal(trapFocusIndex(3, 0, false), 1);
   assert.equal(trapFocusIndex(3, 2, false), 0, "past the last item — back to the first");
@@ -126,7 +178,7 @@ const EXPECTED_TABS = {
   admin: ["Главная", "Студенты", "Задачи", "Сообщения"],
   admissions: ["Главная", "Студенты", "Задачи", "Сообщения"],
   "admissions-staff": ["Главная", "Студенты", "Задачи", "Сообщения"],
-  sales: ["Главная", "Воронка продаж", "Заявки", "Задачи"],
+  sales: ["Главная", "Воронка", "Заявки", "Задачи"],
 };
 function tabbar(html) {
   const start = html.indexOf('<nav aria-label="Быстрые разделы"');
@@ -163,15 +215,23 @@ test("new look: no top bar; menu holds create, bell, preview exit and account; p
     assert.equal(count(html, /data-testid="active-role"/gu), 1, name);
     assert.match(html, /data-testid="v3-shell"/u);
     const bar = tabbar(html);
-    const labels = [...bar.matchAll(/<span class="t-caption line-clamp-2[^"]*">([^<]+)<\/span>/gu)].map((match) => match[1]);
+    const labels = [...bar.matchAll(/<a [^>]*data-shell-tab="[^"]+"[^>]*>.*?<span class="t-caption whitespace-nowrap">([^<]+)<\/span><\/a>/gu)].map((match) => match[1]);
     assert.deepEqual(labels, EXPECTED_TABS[role], `${name}: tab labels`);
-    assert.equal(count(bar, /<li /gu), labels.length + 1, `${name}: tabs plus «Ещё»`);
+    assert.equal(count(bar, /<li>/gu), labels.length + 1, `${name}: tabs plus «Ещё»`);
     assert.ok(labels.length + 1 <= 5);
+    // Подпись в одну строку: колонка не уже своей подписи.
+    assert.match(bar, new RegExp(`grid-template-columns:repeat\\(${labels.length + 1}, minmax\\(auto, 1fr\\)\\)`, "u"), `${name}: columns never narrower than their label`);
+    if (role === "sales") assert.match(bar, /aria-label="Воронка продаж"[^>]*data-shell-tab="pipeline"/u, `${name}: the full name stays the accessible name`);
     assert.match(bar, /<button type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="([^"]+)"/u, `${name}: «Ещё» controls the sheet`);
     const sheetId = bar.match(/aria-controls="([^"]+)"/u)[1];
-    // Закрытый лист — не диалог; открытый получает role="dialog" и aria-modal (снимки).
+    // Закрытый лист — не диалог; открытый получает role="dialog" и aria-modal, свою
+    // строку с логотипом и панель вкладок с «Закрыть» на месте «Ещё» (снимки).
     assert.match(html, new RegExp(`<div id="${sheetId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}" data-shell-menu="" class="[^"]*\\bhidden\\b`, "u"), `${name}: sheet closed by default`);
-    assert.match(html, /<h2 id="[^"]+" class="t-section text-fg">Меню<\/h2><button type="button" aria-label="Закрыть меню"/u, name);
+    assert.doesNotMatch(html, /Закрыть меню|v3-shell-sheet-tabbar/u, `${name}: the sheet's own bar renders only while open`);
+    // Аккаунт: имя и роль в одну строку с подсказкой, «Выйти» — тихая кнопка без рамки и тени.
+    assert.match(html, /<span class="t-meta mt-0\.5 block truncate text-fg-3" title="[^"]+" data-testid="active-role"/u, `${name}: role caption on one line`);
+    assert.match(html, /<button type="submit" data-testid="staff-logout" class="inline-flex min-h-11 min-w-11 [^"]*"/u, `${name}: quiet sign-out`);
+    assert.doesNotMatch(html, /<button type="submit" data-testid="staff-logout" class="[^"]*(v3-raised|border-control-edge)/u, `${name}: sign-out is not a raised button`);
     // Текущий раздел во вкладке — aria-current; иначе подсвечено «Ещё».
     const current = [...bar.matchAll(/<a [^>]*aria-current="page"[^>]*data-shell-tab="([^"]+)"/gu)].map((match) => match[1]);
     const inMore = /data-shell-tab="more" data-current-inside=""/u.test(bar);
@@ -224,8 +284,31 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   assert.match(read("src/app/(v3)/v3/team-chat/page.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label="Командный чат">/u);
   assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex h-dvh flex-col py-6"/u);
   assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{view\.conversations\.length\} fill>/u);
-  // Движение листа выключает prefers-reduced-motion.
-  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{\s*\.v3-world\[data-look="next"\] \[data-shell-menu\]\[data-sheet-open\] \{\s*animation: v3-shell-sheet-in 180ms/u);
+  // Движение листа выключает prefers-reduced-motion; строка и панель вкладок листа стоят на месте.
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{\s*\.v3-world\[data-look="next"\] \[data-shell-menu\]\[data-sheet-open\] > \[data-shell-menu-body\] \{\s*animation: v3-shell-sheet-in 180ms/u);
+});
+
+test("without a top bar every page title starts at one height, level with the logo row", () => {
+  const css = read("src/app/(v3)/v3.css");
+  assert.match(css, /\.v3-world\[data-look="next"\] \{[^}]*--shell-page-top: 1\.5rem;/u);
+  assert.match(css, /@media \(width < 48rem\) \{\s*\.v3-world\[data-look="next"\] \{[^}]*--shell-page-top: 1\.25rem;/u);
+  // PageHeader страниц (PartShell, доски, WhatsApp) и заголовок «Сообщений» в шапке списка.
+  assert.match(css, /\[data-shell-content\] main:has\(> div:first-child > div:first-child > h1\.t-page-title\) \{\s*padding-top: var\(--shell-page-top\);/u);
+  assert.match(css, /main\[aria-label="Сообщения"\] h1\.t-page-title \{\s*margin-top: calc\(var\(--shell-page-top\) - 0\.8125rem\);/u);
+  assert.match(read("src/components/ui.tsx"), /<div className="flex flex-wrap items-start justify-between gap-4">\s*<div className="min-w-0">\s*<h1 className="t-page-title/u, "PageHeader keeps the structure the rule reads");
+  assert.match(read("src/components/v3/case-chat/CaseChatThread.tsx"), /<div className="border-b border-border p-3">\s*<h1 className="t-page-title mb-2 text-fg">Сообщения<\/h1>/u);
+  // Логотип: `pt-3.5` + 51 px высоты — центр на 40 px, как у заголовка 24 + 32/2.
+  assert.match(read("src/components/v3/AppShellNext.tsx"), /"hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex"/u);
+});
+
+test("a menu list longer than the window shows a shadow at the clipped edge", () => {
+  const css = read("src/app/(v3)/v3.css");
+  assert.match(css, /\[data-shell-scroll\]\[data-more-below\] \{\s*box-shadow: inset 0 -8px 8px -6px/u);
+  assert.match(css, /\[data-shell-scroll\]\[data-more-above\] \{\s*box-shadow: inset 0 8px 8px -6px/u);
+  const shell = read("src/components/v3/AppShellNext.tsx");
+  assert.match(shell, /data-more-above=\{edges\.above \? "" : undefined\}\s*data-more-below=\{edges\.below \? "" : undefined\}/u);
+  assert.match(shell, /const below = scroller\.scrollTop \+ scroller\.clientHeight < scroller\.scrollHeight - 1;/u);
+  assert.match(shell, /observer\.observe\(scroller\);\s*observer\.observe\(content\);/u, "recomputed when a group opens or the window changes");
 });
 
 test("the new look is chosen once by the layout and the current AppShell stays the default", () => {

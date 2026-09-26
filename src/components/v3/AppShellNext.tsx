@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 
 import type { ActivePlatformActor } from "@/lib/platform-auth";
@@ -30,7 +31,15 @@ import {
   type V3NavigationLink,
   type V3NavigationLinkId,
 } from "@/lib/v3/navigation";
-import { NEXT_GROUP_ICONS, NEXT_LINK_ICONS, shellTabs, trapFocusIndex } from "@/lib/v3/shell-tabs";
+import {
+  NEXT_GROUP_ICONS,
+  NEXT_LINK_ICONS,
+  shellTabLabel,
+  shellTabs,
+  toggleMenuGroup,
+  trapFocusIndex,
+  type ShellTabs,
+} from "@/lib/v3/shell-tabs";
 import { roleTitle } from "@/lib/v3/wording";
 
 /*
@@ -42,13 +51,17 @@ import { roleTitle } from "@/lib/v3/wording";
  * становится AppShell или удаляется (izzhackt/evo_AI_CRM#1061).
  *
  * - Компьютер: верхней панели нет. «Создать задачу», уведомления, просмотр
- *   роли и аккаунт — в боковом меню; прокручивается список разделов, аккаунт
- *   с «Выйти» закреплён внизу. На досках до 1536 px — рейка 64 px.
+ *   роли и аккаунт — в боковом меню; прокручивается список разделов (у краёв
+ *   списка, за которыми есть ещё пункты, — тень), аккаунт с «Выйти»
+ *   закреплён внизу. Отделы открываются по одному. На досках до 1536 px —
+ *   рейка 64 px.
  * - Телефон (<768 px): сверху одна строка с логотипом, снизу панель вкладок
  *   (`shellTabs`), «Ещё» открывает то же боковое меню листом с семантикой
- *   диалога. Меню в DOM одно: уведомления, их опрос и число не удваиваются.
- * - Высоты строки и панели — переменные `--shell-*` в v3.css: страницы на
- *   высоту окна считают себя в тех же единицах.
+ *   диалога. У листа те же строка сверху и панель вкладок внизу: на месте
+ *   «Ещё» — «Закрыть», под тем же пальцем. Меню в DOM одно: уведомления, их
+ *   опрос и число не удваиваются.
+ * - Высоты строки и панели и отступ над заголовком страницы — переменные
+ *   `--shell-*` в v3.css: страницы на высоту окна считают себя в тех же единицах.
  * Адреса, права и состав меню — только из `buildV3Navigation`.
  */
 
@@ -58,7 +71,18 @@ const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visi
 const ITEM = `v3-choice flex min-h-11 min-w-0 items-center gap-3 rounded-nav px-3 py-2 text-sm leading-5 text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 /** Нейтральная кнопка оболочки: красным остаётся только главное действие страницы. */
 const SHELL_BUTTON = `v3-raised inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
+/** Тихая кнопка без рамки и тени: «Выйти» не спорит с «Создать задачу». */
+const QUIET_BUTTON = `inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-ctl px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+/**
+ * Вкладка нижней панели: иконка в «пилюле» и подпись в одну строку. Колонки
+ * панели не уже своей подписи (`minmax(auto, 1fr)`), поэтому подпись не
+ * переносится внутри слова, а ряд иконок у всех вкладок один.
+ */
+const TAB = `group flex h-full min-h-11 min-w-[44px] flex-col items-center justify-center gap-0.5 transition-colors hover:text-fg ${FOCUS} focus-visible:outline-offset-[-2px]`;
+/** «Пилюля» в px, как иконка и подпись: при крупном корневом шрифте растёт высота панели, а не пилюля. */
+const TAB_PILL = "flex h-[24px] w-full max-w-[48px] shrink-0 items-center justify-center rounded-full transition-colors";
+const TAB_LABEL = "t-caption whitespace-nowrap";
 
 type RailHint = Readonly<{ label: string; top: number }>;
 type HintHandlers = Readonly<{
@@ -68,6 +92,7 @@ type HintHandlers = Readonly<{
   onBlur?: () => void;
 }>;
 type Hint = (label: string) => HintHandlers;
+type ScrollEdges = Readonly<{ above: boolean; below: boolean }>;
 
 function MenuLink({
   link,
@@ -98,18 +123,21 @@ function MenuLink({
 
 function MenuGroup({
   group,
+  open,
+  onToggle,
   activeId,
   rail,
   hint,
   onNavigate,
 }: {
   group: V3NavigationGroup;
+  open: boolean;
+  onToggle: () => void;
   activeId: V3NavigationLinkId | null;
   rail: boolean;
   hint: Hint;
   onNavigate: () => void;
 }) {
-  const [open, setOpen] = useState(group.active);
   const contentId = useId();
   const icon = NEXT_GROUP_ICONS[group.id];
 
@@ -120,7 +148,7 @@ function MenuGroup({
         type="button"
         aria-expanded={open}
         aria-controls={contentId}
-        onClick={() => setOpen((previous) => !previous)}
+        onClick={onToggle}
         className={cn(
           `flex min-h-11 w-full items-center gap-3 rounded-nav px-3 py-2 text-start text-sm font-medium transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`,
           group.active ? "text-fg" : "text-fg-2",
@@ -176,7 +204,10 @@ function MenuGroup({
   );
 }
 
-/** Список разделов. Ключ — место назначения: при переходе раскрывается текущий отдел. */
+/**
+ * Список разделов. Ключ — место назначения: при переходе раскрывается текущий
+ * отдел. Отделы открываются по одному (`toggleMenuGroup`).
+ */
 function MenuLists({
   navigation,
   rail,
@@ -188,6 +219,9 @@ function MenuLists({
   hint: Hint;
   onNavigate: () => void;
 }) {
+  const activeGroups = navigation.groups.filter((group) => group.active).map((group) => group.id);
+  const [openGroups, setOpenGroups] = useState<readonly V3NavigationGroup["id"][]>(activeGroups);
+
   return (
     <>
       <ul aria-label="Навигация по разделам" className={cn("space-y-1 px-3 pb-4", rail && "md:max-2xl:px-2")}>
@@ -197,7 +231,16 @@ function MenuLists({
           </li>
         ) : null}
         {navigation.groups.map((group) => (
-          <MenuGroup key={group.id} group={group} activeId={navigation.activeId} rail={rail} hint={hint} onNavigate={onNavigate} />
+          <MenuGroup
+            key={group.id}
+            group={group}
+            open={openGroups.includes(group.id)}
+            onToggle={() => setOpenGroups((previous) => toggleMenuGroup(previous, group.id, activeGroups))}
+            activeId={navigation.activeId}
+            rail={rail}
+            hint={hint}
+            onNavigate={onNavigate}
+          />
         ))}
       </ul>
       {navigation.common.length ? (
@@ -213,6 +256,95 @@ function MenuLists({
         </section>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Есть ли пункты за верхним и нижним краем прокручиваемого списка: список
+ * меняет высоту при раскрытии отдела и при смене окна, поэтому края
+ * пересчитываются и при прокрутке, и при изменении размеров.
+ */
+function useScrollEdges(scrollRef: RefObject<HTMLElement | null>, contentRef: RefObject<HTMLElement | null>): ScrollEdges {
+  const [edges, setEdges] = useState<ScrollEdges>({ above: false, below: false });
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content) return;
+    const update = () => {
+      const above = scroller.scrollTop > 1;
+      const below = scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1;
+      setEdges((previous) => (previous.above === above && previous.below === below ? previous : { above, below }));
+    };
+    update();
+    scroller.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(scroller);
+    observer.observe(content);
+    return () => {
+      scroller.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [scrollRef, contentRef]);
+  return edges;
+}
+
+/**
+ * Нижняя панель телефона. `page` — панель страницы; `sheet` — та же панель
+ * внутри листа «Ещё» (в порядке фокуса диалога): вкладки те же, а на месте
+ * «Ещё» — «Закрыть».
+ */
+function TabBar({
+  variant,
+  tabs,
+  activeId,
+  inert,
+  onNavigate,
+  children,
+}: {
+  variant: "page" | "sheet";
+  tabs: ShellTabs;
+  activeId: V3NavigationLinkId | null;
+  inert?: boolean;
+  onNavigate: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <nav
+      aria-label="Быстрые разделы"
+      inert={inert}
+      data-testid={variant === "page" ? "v3-shell-tabbar" : "v3-shell-sheet-tabbar"}
+      className={cn(
+        "border-t border-border bg-surface pb-[var(--shell-safe-bottom)] md:hidden",
+        variant === "page" ? "fixed inset-x-0 bottom-0 z-40" : "shrink-0",
+      )}
+    >
+      <ul
+        className="grid h-[var(--shell-tabbar)]"
+        style={{ gridTemplateColumns: `repeat(${tabs.links.length + 1}, minmax(auto, 1fr))` }}
+      >
+        {tabs.links.map((link) => {
+          const label = shellTabLabel(link);
+          return (
+            <li key={link.id}>
+              <Link
+                href={link.href}
+                aria-current={activeId === link.id ? "page" : undefined}
+                aria-label={label.name}
+                onNavigate={onNavigate}
+                data-shell-tab={link.id}
+                className={`${TAB} text-fg-2 aria-[current=page]:text-fg`}
+              >
+                <span className={`${TAB_PILL} group-aria-[current=page]:bg-accent-weak`}>
+                  <Icon name={NEXT_LINK_ICONS[link.id]} size={20} />
+                </span>
+                <span className={TAB_LABEL}>{label.text}</span>
+              </Link>
+            </li>
+          );
+        })}
+        <li>{children}</li>
+      </ul>
+    </nav>
   );
 }
 
@@ -241,9 +373,12 @@ export function AppShellNext({
   const menuRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const returnFocus = useRef(false);
   const [unread, setUnread] = useState<string | undefined>(initialNotifications?.unreadCount);
   const [railHint, setRailHint] = useState<RailHint | null>(null);
+  const edges = useScrollEdges(scrollRef, listRef);
 
   // Лист «Ещё» открыт для одного адреса: любой переход его закрывает, и
   // «Назад» на тот же адрес не открывает его снова.
@@ -265,8 +400,9 @@ export function AppShellNext({
       }
       return;
     }
-    // Диалог: фокус — на «Закрыть», страница под листом не прокручивается;
-    // окно стало шире телефона — лист закрывается, меню снова боковое.
+    // Диалог: фокус — на «Закрыть» (там же, где был «Ещё»), страница под
+    // листом не прокручивается; окно стало шире телефона — лист закрывается,
+    // меню снова боковое.
     closeRef.current?.focus();
     const root = document.documentElement;
     const overflow = root.style.overflow;
@@ -322,6 +458,7 @@ export function AppShellNext({
     : systemRole === "admin" ? "Администратор"
     : [...new Set(actor.assignments.map((assignment) => assignment.label))].join(", ") || "Права ещё не назначены";
   const home = staffHomeRoute(actor);
+  const unreadCount = unread && unread !== "0" ? unread : null;
 
   return (
     <div
@@ -378,21 +515,24 @@ export function AppShellNext({
           sheetOpen ? "flex max-md:fixed max-md:inset-0 max-md:z-50" : "hidden",
         )}
       >
-        <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border ps-4 pe-2 md:hidden">
-          <h2 id={headingId} className="t-section text-fg">Меню</h2>
-          <button
-            ref={closeRef}
-            type="button"
-            aria-label="Закрыть меню"
-            onClick={() => closeSheet(true)}
-            className={`flex size-11 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg ${FOCUS}`}
-          >
-            <Icon name="x" size={22} />
-          </button>
-        </div>
+        {/* Лист: та же строка, что сверху страницы, — лист открывается между строкой и панелью вкладок. */}
+        {sheetOpen ? (
+          <div className="flex h-[var(--shell-top)] shrink-0 items-center border-b border-border px-4 md:hidden">
+            <h2 id={headingId} className="sr-only">Меню</h2>
+            <Link
+              href={home}
+              aria-label="EVO Admissions — начало работы"
+              onNavigate={closeAfterNavigation}
+              className={`inline-flex min-h-11 shrink-0 items-center rounded-nav ${FOCUS}`}
+            >
+              <EvoLogo width={88} />
+            </Link>
+          </div>
+        ) : null}
 
-        <nav aria-label="Разделы" className="flex min-h-0 flex-1 flex-col">
-          <div className={cn("hidden shrink-0 px-5 pb-4 pt-5 md:flex", rail && "md:max-2xl:hidden")}>
+        <nav aria-label="Разделы" data-shell-menu-body="" className="flex min-h-0 flex-1 flex-col">
+          {/* Строка логотипа по центру совпадает с заголовком страницы (`--shell-page-top` в v3.css). */}
+          <div className={cn("hidden shrink-0 px-5 pb-4 pt-3.5 md:flex", rail && "md:max-2xl:hidden")}>
             <Link
               href={home}
               aria-label="EVO Admissions — начало работы"
@@ -456,34 +596,32 @@ export function AppShellNext({
             </div>
           ) : null}
 
-          <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3", rail && "md:max-2xl:pt-2")}>
-            <MenuLists key={navigation.destinationKey} navigation={navigation} rail={rail} hint={hint} onNavigate={closeAfterNavigation} />
+          {/* Тень у края, за которым есть ещё пункты: список не обрывается молча. */}
+          <div
+            ref={scrollRef}
+            data-shell-scroll=""
+            data-more-above={edges.above ? "" : undefined}
+            data-more-below={edges.below ? "" : undefined}
+            className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3", rail && "md:max-2xl:pt-2")}
+          >
+            <div ref={listRef}>
+              <MenuLists key={navigation.destinationKey} navigation={navigation} rail={rail} hint={hint} onNavigate={closeAfterNavigation} />
+            </div>
           </div>
 
           {/* Аккаунт закреплён внизу и виден всегда: прокручивается список выше. */}
-          <div className="shrink-0 border-t border-border pb-[var(--shell-safe-bottom)]">
-            {navigation.settings ? (
-              <div className={cn("px-3 pt-2", rail && "md:max-2xl:px-2")}>
-                <MenuLink link={navigation.settings} activeId={navigation.activeId} rail={rail} hint={hint(navigation.settings.label)} onNavigate={closeAfterNavigation} />
-              </div>
-            ) : null}
-            <div className={cn("flex items-center gap-3 p-3", rail && "md:max-2xl:flex-col md:max-2xl:p-2")}>
-              <p className={cn("min-w-0 flex-1", rail && "md:max-2xl:sr-only")}>
-                <span className="t-item block truncate text-fg" title={displayName}>{displayName}</span>
-                <span
-                  className="t-meta mt-0.5 block text-fg-3"
-                  data-testid="active-role"
-                  data-role={presentationRole ?? systemRole}
-                  data-system-role={systemRole}
-                >
-                  {accessLabel}
-                </span>
-              </p>
+          <div data-shell-account="" className="shrink-0 border-t border-border">
+            <div className={cn("flex items-center gap-1 px-3 pt-2", rail && "md:max-2xl:flex-col md:max-2xl:px-2")}>
+              {navigation.settings ? (
+                <div className={cn("min-w-0 flex-1", rail && "md:max-2xl:w-full md:max-2xl:flex-none")}>
+                  <MenuLink link={navigation.settings} activeId={navigation.activeId} rail={rail} hint={hint(navigation.settings.label)} onNavigate={closeAfterNavigation} />
+                </div>
+              ) : null}
               <form action={logoutStaffAction} className="shrink-0">
                 <button
                   type="submit"
                   data-testid="staff-logout"
-                  className={cn(SHELL_BUTTON, rail && "md:max-2xl:w-11 md:max-2xl:px-0")}
+                  className={cn(QUIET_BUTTON, rail && "md:max-2xl:w-11 md:max-2xl:px-0")}
                   {...hint("Выйти")}
                 >
                   <Icon name="log-out" size={18} className="shrink-0" />
@@ -491,8 +629,41 @@ export function AppShellNext({
                 </button>
               </form>
             </div>
+            {/* Имя и роль — во всю ширину строки (от края логотипа), каждая в одну строку; целиком — в подсказке. */}
+            <p className={cn("min-w-0 px-5 pb-3 pt-1", rail && "md:max-2xl:sr-only")}>
+              <span className="t-item block truncate text-fg" title={displayName}>{displayName}</span>
+              <span
+                className="t-meta mt-0.5 block truncate text-fg-3"
+                title={accessLabel}
+                data-testid="active-role"
+                data-role={presentationRole ?? systemRole}
+                data-system-role={systemRole}
+              >
+                {accessLabel}
+              </span>
+            </p>
           </div>
         </nav>
+
+        {/* Лист: панель вкладок остаётся на месте; «Ещё» стало «Закрыть». */}
+        {sheetOpen ? (
+          <TabBar variant="sheet" tabs={tabs} activeId={navigation.activeId} onNavigate={closeAfterNavigation}>
+            <button
+              ref={closeRef}
+              type="button"
+              aria-label="Закрыть меню"
+              data-shell-tab="close"
+              onClick={() => closeSheet(true)}
+              className={cn(TAB, "w-full text-fg")}
+            >
+              <span className={TAB_PILL}>
+                <Icon name="x" size={20} />
+              </span>
+              <span className={TAB_LABEL}>Закрыть</span>
+            </button>
+          </TabBar>
+        ) : null}
+
         {rail && railHint ? (
           <span
             aria-hidden="true"
@@ -523,63 +694,31 @@ export function AppShellNext({
         </div>
       </div>
 
-      {/* Телефон: нижняя панель вкладок — до четырёх разделов роли и «Ещё».
-          Подпись в две строки («Воронка продаж») + иконка 24 px = ровно 56 px. */}
-      <nav
-        aria-label="Быстрые разделы"
-        inert={sheetOpen}
-        data-testid="v3-shell-tabbar"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface pb-[var(--shell-safe-bottom)] md:hidden"
-      >
-        <ul
-          className="grid h-[var(--shell-tabbar)]"
-          style={{ gridTemplateColumns: `repeat(${tabs.links.length + 1}, minmax(0, 1fr))` }}
+      {/* Телефон: нижняя панель вкладок — до четырёх разделов роли и «Ещё». */}
+      <TabBar variant="page" tabs={tabs} activeId={navigation.activeId} inert={sheetOpen} onNavigate={closeAfterNavigation}>
+        <button
+          ref={moreRef}
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={sheetOpen}
+          aria-controls={menuId}
+          aria-label={unreadCount ? `Ещё: меню, непрочитанных уведомлений — ${unreadCount}` : "Ещё"}
+          data-shell-tab="more"
+          data-current-inside={tabs.currentInMore ? "" : undefined}
+          onClick={() => setSheetAt(address)}
+          className={cn(TAB, "w-full", tabs.currentInMore ? "text-fg" : "text-fg-2")}
         >
-          {tabs.links.map((link) => (
-            <li key={link.id} className="min-w-0">
-              <Link
-                href={link.href}
-                aria-current={navigation.activeId === link.id ? "page" : undefined}
-                onNavigate={closeAfterNavigation}
-                data-shell-tab={link.id}
-                className={`group flex h-full min-h-11 min-w-0 flex-col items-center justify-center px-0.5 text-fg-2 transition-colors hover:text-fg aria-[current=page]:text-fg ${FOCUS} focus-visible:outline-offset-[-2px]`}
-              >
-                <span className="flex h-6 w-12 shrink-0 items-center justify-center rounded-full transition-colors group-aria-[current=page]:bg-accent-weak">
-                  <Icon name={NEXT_LINK_ICONS[link.id]} size={20} />
-                </span>
-                <span className="t-caption line-clamp-2 max-w-full text-center [overflow-wrap:anywhere]">{link.label}</span>
-              </Link>
-            </li>
-          ))}
-          <li className="min-w-0">
-            <button
-              ref={moreRef}
-              type="button"
-              aria-haspopup="dialog"
-              aria-expanded={sheetOpen}
-              aria-controls={menuId}
-              aria-label={unread && unread !== "0" ? `Ещё: меню, непрочитанных уведомлений — ${unread}` : "Ещё"}
-              data-shell-tab="more"
-              data-current-inside={tabs.currentInMore ? "" : undefined}
-              onClick={() => setSheetAt(address)}
-              className={cn(
-                `group flex h-full min-h-11 w-full min-w-0 flex-col items-center justify-center px-0.5 transition-colors hover:text-fg ${FOCUS} focus-visible:outline-offset-[-2px]`,
-                tabs.currentInMore ? "text-fg" : "text-fg-2",
-              )}
-            >
-              <span className={cn("relative flex h-6 w-12 shrink-0 items-center justify-center rounded-full transition-colors", tabs.currentInMore && "bg-accent-weak")}>
-                <Icon name="menu" size={20} />
-                {unread && unread !== "0" ? (
-                  <span aria-hidden="true" className="t-caption absolute -top-1 end-0 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface">
-                    {BigInt(unread) > BigInt(99) ? "99+" : unread}
-                  </span>
-                ) : null}
+          <span className={cn(TAB_PILL, "relative", tabs.currentInMore && "bg-accent-weak")}>
+            <Icon name="menu" size={20} />
+            {unreadCount ? (
+              <span aria-hidden="true" className="t-caption absolute -top-1 end-0 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface">
+                {BigInt(unreadCount) > BigInt(99) ? "99+" : unreadCount}
               </span>
-              <span className="t-caption">Ещё</span>
-            </button>
-          </li>
-        </ul>
-      </nav>
+            ) : null}
+          </span>
+          <span className={TAB_LABEL}>Ещё</span>
+        </button>
+      </TabBar>
     </div>
   );
 }

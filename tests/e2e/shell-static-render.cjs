@@ -26,12 +26,16 @@
  *       `renderToString` и `hydrateRoot` настоящими клиентскими компонентами
  *       (бандл esbuild); тело — статическая разметка настоящих экранов из
  *       students/tasks/boards-static-render.cjs --json и CaseChatWorkspace с
- *       синтетической перепиской (Главная — синтетический список). Снимки
- *       Playwright Chromium 1440×900, 1280×800, 1920×1080, 390×844, 360×740 и
- *       сценарии (раскрытые группы на 1280×800, лист «Ещё», уведомления в
- *       верхнем слое, поле ответа при крупном корневом шрифте, рейка при
- *       просмотре роли). Проверки печатаются JSON-строками; при нарушении —
- *       код выхода 1. По умолчанию outDir — .impeccable/review (не коммитится).
+ *       синтетической перепиской. Снимки
+ *       Playwright Chromium 1440×900, 1280×800, 1920×1080, 390×844, 360×740,
+ *       320×568 и сценарии (отделы на 1280×800 и тень у края списка, лист «Ещё»
+ *       с «Закрыть» на месте «Ещё», уведомления в верхнем слое, поле ответа и
+ *       подписи вкладок при крупном корневом шрифте, рейка при просмотре
+ *       роли, одна высота заголовка у всех страниц). Главная — настоящая
+ *       страница `v3/main/page.tsx` с синтетическими чтениями (у поступления
+ *       она ведёт на «Воронку поступления» — снимок показывает её). Проверки
+ *       печатаются JSON-строками; при нарушении — код выхода 1. По умолчанию
+ *       outDir — .impeccable/review (не коммитится).
  */
 
 const { execFileSync } = require("node:child_process");
@@ -152,13 +156,15 @@ const ACTORS = {
     assignments: [{ label: "Admissions" }, { label: "Сопровождение — общие разделы" }], permissionKeys: ADMISSIONS_KEYS,
   },
 };
-// Ожидаемые вкладки (решение владельца 26.09.2026).
+// Ожидаемые вкладки (решение владельца 26.09.2026): доступные имена — полные
+// имена разделов; видимая подпись «Воронки продаж» короче — «Воронка».
 const EXPECTED_TABS = {
   admin: ["Главная", "Студенты", "Задачи", "Сообщения", "Ещё"],
   admissions: ["Главная", "Студенты", "Задачи", "Сообщения", "Ещё"],
   "admissions-staff": ["Главная", "Студенты", "Задачи", "Сообщения", "Ещё"],
   sales: ["Главная", "Воронка продаж", "Заявки", "Задачи", "Ещё"],
 };
+const EXPECTED_TAB_TEXT = { ...EXPECTED_TABS, sales: ["Главная", "Воронка", "Заявки", "Задачи", "Ещё"] };
 
 const notificationId = (n) => `ffffffff-3333-4333-8333-${String(n).padStart(12, "0")}`;
 const NOTIFICATIONS = {
@@ -185,16 +191,107 @@ function partShell(props, innerHtml) {
   return markup.replace(SLOT, innerHtml);
 }
 
-/** Главная — синтетический список «на сегодня»: оболочку проверяем на длинной странице. */
-function homeBody() {
-  const rows = ["Перезвонить семье", "Проверить анкету", "Отправить договор", "Согласовать список вузов", "Загрузить перевод диплома",
-    "Записать на визу", "Ответить в переписке", "Назначить куратора", "Проверить оплату", "Подтвердить подачу"];
-  const list = h("section", { className: "rounded-card border border-border bg-surface" },
-    h("h2", { className: "t-section border-b border-border px-4 py-3 text-fg" }, "На сегодня (синтетические строки)"),
-    h("ul", { className: "divide-y divide-border" }, rows.map((text, index) => h("li", { key: text, className: "flex min-h-11 items-center justify-between gap-3 px-4 py-2" },
-      h("span", { className: "t-body-compact text-fg" }, `${text} (синтетика)`),
-      h("span", { className: "t-meta font-mono tabular-nums text-fg-3" }, `${String(20 + index).padStart(2, "0")}.09`)))));
-  return partShell({ title: "Главная" }, renderToStaticMarkup(list));
+/**
+ * Главная — настоящая страница `src/app/(v3)/v3/main/page.tsx`: её чтения
+ * (актёр страницы, лиды за период, текущая воронка, рабочий обзор) заменены
+ * синтетическими ответами, разметку строит сама страница. Если страница
+ * перенаправляет (поступление без продаж → «Воронка поступления»), фикстура
+ * возвращает адрес перенаправления: снимок показывает то, куда роль попадает.
+ */
+const HOME_LEADS = [3, 1, 2, 4, 0, 2, 5, 3, 1, 2, 2, 4, 1, 0, 3, 2, 5, 2, 1, 3, 4, 2, 1, 0, 2, 3, 1, 4, 2, 3];
+function homePeriodDashboard() {
+  const { FUNNEL_STEP } = require(join(ROOT, "src/lib/v3/wording.ts"));
+  const qualified = HOME_LEADS.map((value, index) => (index % 3 === 0 ? Math.max(0, value - 1) : Math.floor(value / 2)));
+  const handed = qualified.map((value, index) => (index % 4 === 0 ? Math.min(value, 1) : 0));
+  const sum = (values) => values.reduce((total, value) => total + value, 0);
+  const counts = { leads: sum(HOME_LEADS), qualified: sum(qualified), handed: sum(handed) };
+  const months = ["авг", "сен"];
+  const ticks = HOME_LEADS.map((_value, index) => {
+    if (index % 5 !== 0) return "";
+    const day = 28 + index;
+    return day <= 31 ? `${day} ${months[0]}` : `${day - 31} ${months[1]}`;
+  });
+  return {
+    figures: {
+      counts,
+      metrics: [
+        { label: FUNNEL_STEP.leads, value: counts.leads, insteadOfDelta: null },
+        { label: FUNNEL_STEP.qualified, value: counts.qualified, insteadOfDelta: null },
+        { label: FUNNEL_STEP.handed, value: counts.handed, insteadOfDelta: null },
+      ],
+      stages: [
+        { name: FUNNEL_STEP.leads, value: counts.leads },
+        { name: FUNNEL_STEP.qualified, value: counts.qualified },
+        { name: FUNNEL_STEP.handed, value: counts.handed },
+      ],
+    },
+    trend: {
+      series: [
+        { label: FUNNEL_STEP.leads, values: HOME_LEADS, emphasis: "primary" },
+        { label: FUNNEL_STEP.qualified, values: qualified, emphasis: "secondary" },
+        { label: FUNNEL_STEP.handed, values: handed, emphasis: "secondary" },
+      ],
+      ticks,
+      label: "за 30 дней (синтетика)",
+    },
+  };
+}
+
+function homeCurrentFunnel() {
+  const { PLATFORM_SALES_STAGES } = require(join(ROOT, "src/lib/platform-sales-contract.ts"));
+  const { leadStage } = require(join(ROOT, "src/lib/v3/wording.ts"));
+  const values = [14, 9, 6, 4, 3, 2];
+  return {
+    status: "available",
+    stages: PLATFORM_SALES_STAGES.map((key, index) => ({ key, name: leadStage(key), value: values[index] })),
+    sales: { status: "available", count: 5 },
+  };
+}
+
+function homeOperations(role) {
+  const sales = [
+    { key: "sales", href: "/v3/pipeline", loadedCount: 38, hasMore: false, overdueCount: 4, unassignedCount: 2 },
+    { key: "whatsapp", href: "/v3/inbox", loadedCount: 12, hasMore: false, salesCount: 8, admissionsCount: 4 },
+  ];
+  const admissions = [
+    { key: "clients", href: "/v3/profile", loadedCount: 57, hasMore: false, attentionCount: 6 },
+    { key: "tasks", href: "/v3/calendar", loadedCount: 23, hasMore: false, overdueCount: 3 },
+    { key: "finance", href: "/v3/profile", loadedCount: 100, hasMore: true, blockedCount: null },
+  ];
+  const attention = [
+    { key: "sales_overdue", href: "/v3/pipeline?due=overdue", value: 4, tone: "danger" },
+    { key: "sales_unassigned", href: "/v3/pipeline?assignment=unassigned", value: 2, tone: "warn" },
+    { key: "whatsapp_open", href: "/v3/inbox", value: 12, tone: "info" },
+  ];
+  const admissionsAttention = [
+    { key: "student_attention", href: "/v3/profile", value: 6, tone: "warn" },
+    { key: "admissions_overdue", href: "/v3/calendar", value: 3, tone: "danger" },
+  ];
+  return role === "sales"
+    ? { cards: sales, attentionItems: attention }
+    : { cards: [sales[0], ...admissions, sales[1]], attentionItems: [...attention.slice(0, 2), ...admissionsAttention, attention[2]] };
+}
+
+async function homeFixture(role) {
+  const actor = ACTORS[role];
+  const guards = require(join(ROOT, "src/lib/platform-guards.ts"));
+  const period = require(join(ROOT, "src/lib/v3/funnel-source.ts"));
+  const operations = require(join(ROOT, "src/lib/v3/operations-source.ts"));
+  const current = require(join(ROOT, "src/lib/v3/current-sales-funnel-source.ts"));
+  guards.requireV3PageActor = async () => actor;
+  period.readPeriodDashboard = async () => homePeriodDashboard();
+  operations.readV3OperationalDashboard = async () => homeOperations(role);
+  // Просмотр роли не раскрывает воронку Admin — так же, как настоящее чтение.
+  current.readCurrentSalesFunnel = async () => (actor.presentationRole === null ? homeCurrentFunnel() : { status: "preview" });
+  const { default: MainPart } = require(join(ROOT, "src/app/(v3)/v3/main/page.tsx"));
+  try {
+    const element = await MainPart({ searchParams: Promise.resolve({}) });
+    return { pathname: "/v3/main", search: "", body: renderToStaticMarkup(withContexts(element, "/v3/main", "")) };
+  } catch (error) {
+    const digest = typeof error?.digest === "string" ? error.digest : "";
+    if (!digest.startsWith("NEXT_REDIRECT")) throw error;
+    return { redirectedTo: digest.split(";")[2] };
+  }
 }
 
 function spawnJson(script) {
@@ -462,6 +559,13 @@ function shellMetrics() {
   const targets = chrome.flatMap((root) => [...root.querySelectorAll("a, button")]).filter(visible);
   const oldTopBar = [...document.querySelectorAll('[data-testid="v3-shell"] > div > div')].find((element) => element.className.includes("md:min-h-16") && visible(element));
   const tabbarTop = tabbar && visible(tabbar) ? tabbar.getBoundingClientRect().top : window.innerHeight;
+  const heading = [...document.querySelectorAll("[data-shell-content] h1")].find(visible);
+  const logo = [...document.querySelectorAll("[data-shell-menu] nav img")].find(visible);
+  const lineCount = (element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return new Set([...range.getClientRects()].filter((box) => box.width > 0).map((box) => Math.round(box.top))).size;
+  };
   return {
     viewport: `${window.innerWidth}x${window.innerHeight}`,
     look: shell?.dataset.shellLook ?? "current",
@@ -473,6 +577,12 @@ function shellMetrics() {
     tabbar: tabs.length ? {
       slots: tabs.length,
       labels: tabs.map((tab) => tab.querySelector(":scope > span:last-child").textContent.trim()),
+      // Доступное имя вкладки-ссылки: aria-label или подпись; у «Ещё» — подпись.
+      names: tabs.map((tab) => (tab.tagName === "A" ? tab.getAttribute("aria-label") : null) ?? tab.querySelector(":scope > span:last-child").textContent.trim()),
+      // Подпись в одну строку, без переноса внутри слова.
+      multiLine: tabs.filter((tab) => lineCount(tab.querySelector(":scope > span:last-child")) !== 1).map((tab) => tab.textContent.trim()),
+      // Один ряд иконок: верх «пилюль» у всех вкладок одинаков и отстоит от верхней границы панели.
+      pillTops: [...new Set(tabs.map((tab) => Math.round(tab.querySelector(":scope > span:first-child").getBoundingClientRect().top - tabbar.getBoundingClientRect().top)))],
       current: tabs.filter((tab) => tab.getAttribute("aria-current") === "page").map((tab) => tab.querySelector(":scope > span:last-child").textContent.trim()),
       badge: tabbar.querySelector('[data-shell-tab="more"] span[aria-hidden="true"]')?.textContent ?? null,
       rect: rect(tabbar),
@@ -489,6 +599,9 @@ function shellMetrics() {
     } : null,
     logout: visible(logout) ? { ...rect(logout), inViewport: logout.getBoundingClientRect().top >= 0 && logout.getBoundingClientRect().bottom <= window.innerHeight } : null,
     mainTop: main ? rect(main).top : null,
+    headingTop: heading ? Math.round(heading.getBoundingClientRect().top) : null,
+    headingCenter: heading ? Math.round(heading.getBoundingClientRect().top + heading.getBoundingClientRect().height / 2) : null,
+    logoCenter: logo ? Math.round(logo.getBoundingClientRect().top + logo.getBoundingClientRect().height / 2) : null,
     mainBottom: main ? rect(main).bottom : null,
     composer: composer ? { bottom: Math.round(composer.getBoundingClientRect().bottom), limit: Math.round(tabbarTop), above: composer.getBoundingClientRect().bottom <= tabbarTop + 0.5 } : null,
     minFontPx: texts.length ? Math.min(...texts.map((element) => parseFloat(getComputedStyle(element).fontSize))) : null,
@@ -507,19 +620,20 @@ const VIEWPORTS = {
   "1920": { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 },
   "390": { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
   "360": { viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  // Перекомпоновка на 320 px (WCAG 1.4.10, план редизайна: телефон 393 и 320).
+  "320": { viewport: { width: 320, height: 568 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
 };
-const PHONE = new Set(["390", "360"]);
+const PHONE = new Set(["390", "360", "320"]);
 
-function pageFixtures() {
+async function pageFixtures() {
   const students = spawnJson("students-static-render.cjs");
   const tasks = spawnJson("tasks-static-render.cjs");
   const boards = spawnJson("boards-static-render.cjs");
   const messages = messagesFixture();
-  const home = homeBody();
   const whatsapp = whatsappBody();
   const studentsFor = { admin: "admin-active", admissions: "curator-mine", "admissions-staff": "curator-mine", sales: "sales" };
-  return {
-    home: () => ({ pathname: "/v3/main", search: "", body: home }),
+  const fixtures = {
+    home: (role) => homes[role],
     students: (role) => ({
       pathname: "/v3/profile", search: "",
       body: partShell({ title: "Студенты", dense: role !== "sales" }, students.get(studentsFor[role])),
@@ -534,6 +648,15 @@ function pageFixtures() {
       : messages,
     tasks: () => ({ pathname: "/v3/tasks", search: "", body: partShell({ title: "Задачи" }, tasks.get("mine-default")) }),
   };
+  // Главная — настоящая страница; перенаправление ведёт на снимок той страницы, куда роль попадает.
+  const homes = {};
+  for (const role of Object.keys(ACTORS)) {
+    const home = await homeFixture(role);
+    if (home.redirectedTo === "/v3/admissions-pipeline") homes[role] = { ...fixtures.board(role), redirectedFrom: "/v3/main" };
+    else if (home.redirectedTo) throw new Error(`home ${role}: unexpected redirect ${home.redirectedTo}`);
+    else homes[role] = home;
+  }
+  return fixtures;
 }
 
 async function screenshots() {
@@ -541,7 +664,7 @@ async function screenshots() {
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
   const bundleName = "shell-client.js";
-  const fixtures = pageFixtures();
+  const fixtures = await pageFixtures();
   const css = await compileCss();
   await buildClientBundle(join(outDir, bundleName));
   const failures = [];
@@ -578,7 +701,27 @@ async function screenshots() {
     await page.evaluate(() => document.fonts.ready);
     await page.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
     await page.waitForTimeout(50);
-    return { context, page, errors };
+    // Телефон: Chrome запоминает ширину первой (частичной) раскладки при
+    // разборе HTML и расширяет по ней окно раскладки до следующего изменения
+    // окна (на 320 px — 331 px, и у прежнего облика с тем же телом). Ширина
+    // первой раскладки пишется в отчёт, а проверки и снимок — по устоявшейся
+    // раскладке: окно на 1 px шире и обратно, масштаб страницы снова 1.
+    let firstLayoutWidth = null;
+    if (PHONE.has(viewportKey)) {
+      firstLayoutWidth = await page.evaluate(() => window.innerWidth);
+      const { width, height } = VIEWPORTS[viewportKey].viewport;
+      await page.setViewportSize({ width: width + 1, height });
+      await page.waitForTimeout(50);
+      await page.setViewportSize({ width, height });
+      await page.waitForTimeout(100);
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
+      await cdp.detach();
+      await page.waitForTimeout(50);
+      const settled = await page.evaluate(() => ({ width: window.innerWidth, scale: window.visualViewport.scale, visual: window.visualViewport.width }));
+      if (settled.width !== width || settled.scale !== 1 || settled.visual !== width) throw new Error(`${htmlPath} ${viewportKey}: viewport did not settle ${JSON.stringify(settled)}`);
+    }
+    return { context, page, errors, firstLayoutWidth };
   };
   const finish = async ({ context, page, errors }, label) => {
     const harness = await page.evaluate(() => window.__harness);
@@ -600,6 +743,7 @@ async function screenshots() {
     htmlFor["home-admin-current"] = writePage("home-admin-current", "admin", "current", fixtures.home("admin"));
 
     // 1. Все страницы × роли × окна.
+    const headingTops = {};
     for (const pageKey of pages) {
       for (const role of roles) {
         for (const viewportKey of Object.keys(VIEWPORTS)) {
@@ -608,8 +752,13 @@ async function screenshots() {
           const metrics = await session.page.evaluate(shellMetrics);
           await session.page.screenshot({ path: join(outDir, file) });
           await finish(session, file);
-          report({ file, page: pageKey, role, ...metrics });
+          report({ file, page: pageKey, role, redirectedFrom: fixtures[pageKey](role).redirectedFrom ?? null, firstLayoutWidth: session.firstLayoutWidth, ...metrics });
           const label = `${file}`;
+          // Заголовок страницы: одна высота у всех страниц окна (кроме доски в рейке — там нет логотипа).
+          if (metrics.headingTop !== null) (headingTops[viewportKey] ??= []).push({ file, top: metrics.headingTop });
+          if (metrics.logoCenter !== null && metrics.headingCenter !== null) {
+            check(Math.abs(metrics.logoCenter - metrics.headingCenter) <= 2, `${label}: page title centre ${metrics.headingCenter} vs logo centre ${metrics.logoCenter}`);
+          }
           check(metrics.look === "next", `${label}: new shell not rendered`);
           check(metrics.overflowX === 0, `${label}: horizontal overflow ${metrics.overflowX}px`);
           check(!metrics.oldTopBar, `${label}: old top bar is visible`);
@@ -621,9 +770,12 @@ async function screenshots() {
             check(metrics.sidebar === null, `${label}: sidebar visible on the phone`);
             if (metrics.tabbar) {
               check(metrics.tabbar.slots <= 5, `${label}: ${metrics.tabbar.slots} tab slots`);
-              check(JSON.stringify(metrics.tabbar.labels) === JSON.stringify(EXPECTED_TABS[role]), `${label}: tabs ${metrics.tabbar.labels.join(" · ")}`);
+              check(JSON.stringify(metrics.tabbar.names) === JSON.stringify(EXPECTED_TABS[role]), `${label}: tabs ${metrics.tabbar.names.join(" · ")}`);
+              check(JSON.stringify(metrics.tabbar.labels) === JSON.stringify(EXPECTED_TAB_TEXT[role]), `${label}: tab text ${metrics.tabbar.labels.join(" · ")}`);
               check(metrics.tabbar.minTargetHeight >= 44 && metrics.tabbar.minTargetWidth >= 44, `${label}: tab target ${metrics.tabbar.minTargetWidth}×${metrics.tabbar.minTargetHeight}`);
               check(metrics.tabbar.labelsClipped.length === 0, `${label}: clipped tab labels ${metrics.tabbar.labelsClipped.join(", ")}`);
+              check(metrics.tabbar.multiLine.length === 0, `${label}: tab labels on two lines: ${metrics.tabbar.multiLine.join(", ")}`);
+              check(metrics.tabbar.pillTops.length === 1 && metrics.tabbar.pillTops[0] >= 4, `${label}: tab icons not on one row ${metrics.tabbar.pillTops.join(", ")}`);
               check(metrics.tabbar.current.length <= 1, `${label}: several current tabs`);
             }
             check(metrics.topRow !== null && metrics.topRow.height <= 56, `${label}: phone top ${metrics.topRow?.height}px`);
@@ -636,6 +788,11 @@ async function screenshots() {
           if (pageKey === "messages") check(metrics.overflowY <= 0, `${label}: window page scrolls ${metrics.overflowY}px`);
         }
       }
+    }
+    for (const [viewportKey, tops] of Object.entries(headingTops)) {
+      const values = [...new Set(tops.map((entry) => entry.top))];
+      report({ journey: "page-top", viewport: viewportKey, tops: values });
+      check(values.length === 1, `page top at ${viewportKey}: title tops differ ${tops.map((entry) => `${entry.file}=${entry.top}`).join(", ")}`);
     }
 
     // 1б. Приглашённый сотрудник поступления (права, не просмотр роли): вкладки те же.
@@ -651,48 +808,79 @@ async function screenshots() {
     }
 
     // 1в. Прежний облик для сравнения («до»).
-    for (const viewportKey of ["1440", "390"]) {
+    for (const viewportKey of ["1440", "390", "320"]) {
       const file = `shell-current-home-admin-${viewportKey}.png`;
       const session = await open(htmlFor["home-admin-current"], viewportKey);
       const metrics = await session.page.evaluate(shellMetrics);
       await session.page.screenshot({ path: join(outDir, file) });
       await finish(session, file);
-      report({ file, page: "home", role: "admin", ...metrics });
+      report({ file, page: "home", role: "admin", firstLayoutWidth: session.firstLayoutWidth, ...metrics });
       check(metrics.look === "current" && metrics.tabbar === null, `${file}: current look changed`);
     }
 
-    // 2. 1280×800, Admin: «Продажи» и «Поступление» раскрыты — «Выйти» в окне, прокручивается список.
+    // 2. 1280×800, Admin: отделы открываются по одному (кроме отдела текущей
+    //    страницы), у края длинного списка — тень внутрь, «Выйти» всегда в окне.
     for (const pageKey of ["home", "students"]) {
       const session = await open(htmlFor[`${pageKey}-admin`], "1280");
       const { page } = session;
+      const groupsOpen = () => page.evaluate(() => Object.fromEntries([...document.querySelectorAll("[data-shell-menu] nav button[aria-expanded]")]
+        .map((button) => [button.textContent.trim(), button.getAttribute("aria-expanded") === "true"])));
+      const initial = await groupsOpen();
       for (const label of ["Продажи", "Поступление"]) {
         const group = page.locator("[data-shell-menu] nav button[aria-expanded]", { hasText: label });
         if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
       }
       await page.waitForTimeout(250);
-      const expanded = await page.evaluate(() => {
-        const scroller = document.querySelector("[data-shell-menu] nav > div.overflow-y-auto");
+      const edgeState = () => page.evaluate(() => {
+        const scroller = document.querySelector("[data-shell-scroll]");
         const logout = document.querySelector('[data-testid="staff-logout"]').getBoundingClientRect();
         return {
-          groupsOpen: [...document.querySelectorAll("[data-shell-menu] nav button[aria-expanded]")].map((button) => `${button.textContent.trim()}=${button.getAttribute("aria-expanded")}`),
-          listScrolls: scroller.scrollHeight > scroller.clientHeight,
-          logout: { top: Math.round(logout.top), bottom: Math.round(logout.bottom) },
+          listScrolls: scroller.scrollHeight > scroller.clientHeight + 1,
+          moreAbove: scroller.hasAttribute("data-more-above"),
+          moreBelow: scroller.hasAttribute("data-more-below"),
+          shadow: getComputedStyle(scroller).boxShadow,
           logoutInViewport: logout.top >= 0 && logout.bottom <= window.innerHeight,
-          pageOverflowY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
+          tasksVisible: (() => {
+            const tasks = [...scroller.querySelectorAll("a")].find((link) => link.textContent.trim() === "Задачи");
+            if (!tasks) return false;
+            const box = tasks.getBoundingClientRect();
+            const view = scroller.getBoundingClientRect();
+            return box.top >= view.top && box.bottom <= view.bottom;
+          })(),
         };
       });
+      const expanded = { initial, after: await groupsOpen(), ...(await edgeState()) };
       const file = `shell-${pageKey}-admin-1280-expanded.png`;
       await page.screenshot({ path: join(outDir, file) });
+      // Список прокручен до конца: тень сверху, снизу её нет.
+      await page.evaluate(() => { const scroller = document.querySelector("[data-shell-scroll]"); scroller.scrollTop = scroller.scrollHeight; });
+      await page.waitForTimeout(100);
+      const scrolled = await edgeState();
+      if (pageKey === "home") await page.screenshot({ path: join(outDir, "shell-home-admin-1280-expanded-scrolled.png") });
       await finish(session, file);
-      report({ journey: "expanded-groups-1280", file, ...expanded });
-      check(expanded.logoutInViewport, `${file}: «Выйти» outside the viewport with both groups open`);
+      report({ journey: "groups-1280", file, ...expanded, scrolled });
+      check(expanded.logoutInViewport && scrolled.logoutInViewport, `${file}: «Выйти» outside the viewport`);
+      if (pageKey === "home") {
+        // Текущая страница вне отделов: открыт только последний открытый отдел.
+        check(!initial["Продажи"] && !initial["Поступление"], `${file}: groups open on Главная ${JSON.stringify(initial)}`);
+        check(!expanded.after["Продажи"] && expanded.after["Поступление"], `${file}: groups are not single-open ${JSON.stringify(expanded.after)}`);
+      } else {
+        // «Студенты» в «Поступлении»: отдел текущей страницы остаётся открытым.
+        check(initial["Поступление"] && expanded.after["Продажи"] && expanded.after["Поступление"], `${file}: current group closed ${JSON.stringify(expanded.after)}`);
+      }
+      check(expanded.moreBelow === expanded.listScrolls && !expanded.moreAbove, `${file}: scroll cue ${JSON.stringify(expanded)}`);
+      if (expanded.listScrolls) {
+        check(expanded.shadow.includes("inset"), `${file}: no cue at the clipped edge`);
+        check(scrolled.moreAbove && !scrolled.moreBelow && scrolled.tasksVisible, `${file}: after scrolling ${JSON.stringify(scrolled)}`);
+      }
     }
 
     // 3. Телефон: лист «Ещё» — диалог, фокус заперт, Escape и «Закрыть» возвращают фокус.
-    for (const [role, viewportKey] of [["admin", "390"], ["sales", "360"], ["admissions", "390"]]) {
+    for (const [role, viewportKey] of [["admin", "390"], ["sales", "360"], ["admissions", "390"], ["admin", "320"]]) {
       const session = await open(htmlFor[`home-${role}`], viewportKey);
       const { page } = session;
       const more = page.locator('[data-shell-tab="more"]');
+      const moreBox = await more.boundingBox();
       await more.click();
       await page.waitForSelector('[data-shell-menu][role="dialog"]');
       const focusOnOpen = await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? null);
@@ -710,8 +898,16 @@ async function screenshots() {
           moreExpanded: document.querySelector('[data-shell-tab="more"]').getAttribute("aria-expanded"),
           logoutInViewport: (() => { const r = document.querySelector('[data-testid="staff-logout"]').getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; })(),
           items: [...dialog.querySelectorAll("a, button")].filter((element) => element.getBoundingClientRect().height > 0).map((element) => element.getAttribute("aria-label") ?? element.textContent.trim()),
-          animation: getComputedStyle(dialog).animationName,
+          animation: getComputedStyle(dialog.querySelector("[data-shell-menu-body]")).animationName,
           htmlOverflow: document.documentElement.style.overflow,
+          // «Закрыть» — внутри диалога, на месте «Ещё» у нижнего края.
+          close: (() => {
+            const button = dialog.querySelector('[data-shell-tab="close"]');
+            if (!button) return null;
+            const r = button.getBoundingClientRect();
+            return { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height), inside: dialog.contains(button) };
+          })(),
+          sheetTabs: [...dialog.querySelectorAll('[data-testid="v3-shell-sheet-tabbar"] li > *')].map((element) => element.getAttribute("aria-label") ?? element.textContent.trim()),
         };
       });
       const file = `shell-sheet-${role}-${viewportKey}.png`;
@@ -737,8 +933,17 @@ async function screenshots() {
       await more.click();
       await page.getByRole("button", { name: "Закрыть меню" }).click();
       const closedByButton = await page.evaluate(() => document.activeElement === document.querySelector('[data-shell-tab="more"]'));
+      // Вкладка в листе ведёт в раздел и закрывает лист.
+      await more.click();
+      const firstTab = await page.evaluate(() => document.querySelector('[data-testid="v3-shell-sheet-tabbar"] a[data-shell-tab]')?.getAttribute("href") ?? null);
+      await page.locator('[data-testid="v3-shell-sheet-tabbar"] a[data-shell-tab]').first().click();
+      const afterTab = await page.evaluate(() => ({ pushes: window.__harness.pushes, sheet: document.querySelector("[data-shell-menu]").getAttribute("role") }));
       await finish(session, file);
-      report({ journey: "sheet", file, role, focusOnOpen, opened, tabCycle: { count, escaped, backInside }, closed, closedByButton });
+      report({ journey: "sheet", file, role, moreBox, focusOnOpen, opened, tabCycle: { count, escaped, backInside }, closed, closedByButton, firstTab, afterTab });
+      check(opened.close?.inside && moreBox && Math.abs(opened.close.x - moreBox.x) <= 1 && Math.abs(opened.close.y - moreBox.y) <= 1
+        && Math.abs(opened.close.width - moreBox.width) <= 1, `${file}: «Закрыть» is not where «Ещё» was (${JSON.stringify(opened.close)} vs ${JSON.stringify(moreBox)})`);
+      check(JSON.stringify(opened.sheetTabs) === JSON.stringify([...EXPECTED_TABS[role].slice(0, -1), "Закрыть меню"]), `${file}: sheet tab bar ${opened.sheetTabs.join(" · ")}`);
+      check(afterTab.sheet === null && afterTab.pushes.at(-1) === firstTab, `${file}: a tab in the sheet did not navigate and close it`);
       check(opened.role === "dialog" && opened.modal === "true" && opened.label === "Меню", `${file}: sheet is not a labelled modal dialog`);
       check(opened.focusInside && focusOnOpen === "Закрыть меню", `${file}: focus not moved into the sheet (${focusOnOpen})`);
       check(opened.covers, `${file}: sheet does not cover the page`);
@@ -758,7 +963,7 @@ async function screenshots() {
     {
       const session = await open(htmlFor["home-admin"], "390", { reducedMotion: "reduce" });
       await session.page.locator('[data-shell-tab="more"]').click();
-      const animation = await session.page.evaluate(() => getComputedStyle(document.querySelector("[data-shell-menu]")).animationName);
+      const animation = await session.page.evaluate(() => getComputedStyle(document.querySelector("[data-shell-menu] [data-shell-menu-body]")).animationName);
       await finish(session, "reduced-motion");
       report({ journey: "reduced-motion", animation });
       check(animation === "none", `reduced motion: sheet still animates (${animation})`);
@@ -812,16 +1017,27 @@ async function screenshots() {
     }
 
     // 5. Поле ответа над панелью вкладок: 390×844 и крупный корневой шрифт.
-    for (const [role, viewportKey, rootFontSize] of [["admin", "390", 20], ["admissions", "360", 24], ["admin", "1280", 20]]) {
-      const session = await open(htmlFor[`messages-${role}`], viewportKey, { rootFontSize });
+    //    Подписи вкладок при крупном корневом шрифте — в одну строку, иконки в один ряд.
+    for (const [pageKey, role, viewportKey, rootFontSize] of [
+      ["messages", "admin", "390", 20], ["messages", "admissions", "360", 24], ["messages", "admin", "320", 20], ["messages", "admin", "1280", 20],
+      ["home", "sales", "360", 24], ["home", "sales", "320", 24], ["home", "admin", "320", 24],
+    ]) {
+      const session = await open(htmlFor[`${pageKey}-${role}`], viewportKey, { rootFontSize });
       const metrics = await session.page.evaluate(shellMetrics);
-      const file = `shell-messages-${role}-${viewportKey}-root${rootFontSize}.png`;
+      const file = `shell-${pageKey}-${role}-${viewportKey}-root${rootFontSize}.png`;
       await session.page.screenshot({ path: join(outDir, file) });
       await finish(session, file);
-      report({ journey: "composer-root-font", file, rootFontSize, ...metrics });
-      check(metrics.composer?.above === true, `${file}: composer under the tab bar (${JSON.stringify(metrics.composer)})`);
-      check(metrics.overflowY <= 0, `${file}: page scrolls ${metrics.overflowY}px`);
+      report({ journey: "root-font", file, rootFontSize, ...metrics });
+      if (pageKey === "messages") {
+        check(metrics.composer?.above === true, `${file}: composer under the tab bar (${JSON.stringify(metrics.composer)})`);
+        check(metrics.overflowY <= 0, `${file}: page scrolls ${metrics.overflowY}px`);
+      }
       check(metrics.overflowX === 0, `${file}: horizontal overflow`);
+      if (metrics.tabbar) {
+        check(metrics.tabbar.multiLine.length === 0, `${file}: tab labels on two lines: ${metrics.tabbar.multiLine.join(", ")}`);
+        check(metrics.tabbar.pillTops.length === 1 && metrics.tabbar.pillTops[0] >= 4, `${file}: tab icons not on one row ${metrics.tabbar.pillTops.join(", ")}`);
+        check(metrics.tabbar.labelsClipped.length === 0, `${file}: clipped tab labels ${metrics.tabbar.labelsClipped.join(", ")}`);
+      }
     }
 
     // 6. Доска, 1280: рейка 64 px, при просмотре роли видна подпись роли; подпись при фокусе.

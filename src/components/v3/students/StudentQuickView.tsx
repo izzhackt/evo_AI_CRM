@@ -113,7 +113,8 @@ export function StudentQuickView({
         <Link href={links.case} className={QUEUE_SECONDARY}>Открыть дело</Link>
         {row.state === "active" && canChange && (known !== null || closure?.state === "active") ? (
           <CloseRecordButton kind="case" subjectId={row.studentCaseId} subjectName={row.studentDisplayName}
-            expectedVersion={row.admissionsVersion} onClosed={changed} className={QUEUE_SECONDARY} />
+            expectedVersion={row.admissionsVersion} onClosed={changed} className={QUEUE_SECONDARY}
+            openTasks={tasks?.kind === "ready" ? tasks.tasks.length : null} />
         ) : null}
       </div>
       {/* Принять дело — главное действие куратора по переданному делу: первым под шапкой. */}

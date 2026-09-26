@@ -981,6 +981,15 @@ async function hydrateClose() {
           ?.closest('[data-testid="v3-pipeline-column"]')?.querySelector("h2, h3")?.textContent?.trim() ?? null, leadId(6)),
       };
       await page.screenshot({ path: join(outDir, "close-lead-reopened-1440.png") });
+      // Строка живёт до «Скрыть строку» (44 px): после него строки нет, фокус — на первой карточке доски.
+      const dismissBox = await page.getByTestId("v3-pipeline-closed-notice-dismiss").boundingBox();
+      await page.getByTestId("v3-pipeline-closed-notice-dismiss").click();
+      await page.getByTestId("v3-pipeline-closed-notice").waitFor({ state: "detached" });
+      const dismissed = {
+        target: dismissBox ? `${Math.round(dismissBox.width)}x${Math.round(dismissBox.height)}` : null,
+        noticeGone: await page.getByTestId("v3-pipeline-closed-notice").count() === 0,
+        focusOnCard: await page.evaluate(() => Boolean(document.activeElement?.closest('[data-testid="v3-pipeline-card"]'))),
+      };
       // Переданный лид — продажа: пункт недоступен и называет причину.
       await page.goto(`${origin}/v3/pipeline?lead=${leadId(13)}`, { waitUntil: "load" });
       await page.waitForSelector("html[data-hydrated=true]");
@@ -989,7 +998,7 @@ async function hydrateClose() {
       const handed = await page.evaluate(menuMetrics);
       handed.text = (await page.locator('[data-testid="v3-lead-actions-menu"]').textContent()).trim();
       await page.screenshot({ path: join(outDir, "close-lead-handed-1440.png") });
-      report({ journey: "close-lead-1440", menu, opened, missingReason, filled, closed, reopened, handed,
+      report({ journey: "close-lead-1440", menu, opened, missingReason, filled, closed, reopened, dismissed, handed,
         recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
       await context.close();
     }
@@ -1014,6 +1023,18 @@ async function hydrateClose() {
         overflow: await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
       };
       await page.screenshot({ path: join(outDir, "close-lead-closed-390.png") });
+      // Клавиатурный фокус на «Вернуть в работу»: рамка не ложится на строку над кнопкой.
+      await page.keyboard.press("Tab");
+      await page.getByTestId("v3-pipeline-closed-notice").getByRole("button", { name: "Вернуть в работу" }).focus();
+      closed.focusRing = await page.evaluate(() => {
+        const button = document.activeElement;
+        const run = button?.closest('[data-testid="v3-lead-closed-line"]')?.querySelector("p");
+        if (!button || !run) return null;
+        const style = getComputedStyle(button);
+        const ringTop = button.getBoundingClientRect().top - parseFloat(style.outlineOffset) - parseFloat(style.outlineWidth);
+        return { visible: button.matches(":focus-visible"), gapToText: Math.round(ringTop - run.getBoundingClientRect().bottom) };
+      });
+      await page.screenshot({ path: join(outDir, "close-lead-closed-focus-390.png") });
       report({ journey: "close-lead-390", dialog, closed, recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
       await context.close();
     }

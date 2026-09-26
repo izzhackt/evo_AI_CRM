@@ -20,7 +20,9 @@
 --    «Закрытые»; another curator, Sales, the Student, no membership and anon
 --    are refused; a department Admissions Manager and the Admin pass; exact
 --    replay, request-id reuse, stale version, state conflicts; a 137
---    playbook case keeps its guard (cancelled/active outcome);
+--    playbook case keeps its guard (cancelled/active outcome) while the 246
+--    read says «Поступил» and the admissions summary counts no playbook
+--    outcome;
 --  * definer, empty search_path and authenticated-only grants.
 -- Isolated synthetic SQL fixtures only -- no Auth invitation, real person,
 -- provider or production action.
@@ -552,15 +554,34 @@ SELECT pg_temp.n246_assert((platform.staff_student_case_closure_v1(pg_temp.n246_
 SELECT pg_temp.n246_assert(platform.set_case_next_action_v1(pg_temp.n246_id(1), pg_temp.n246_id(501), 2, 'N246 next', NULL,
   pg_temp.n246_id(5012)) ->> 'admissions_version' = '3', 'the next-step editor works on the returned case with the new version');
 -- A case bound to the 137 playbook: the playbook outcome follows the state.
-SELECT pg_temp.n246_assert(platform.set_student_case_closed_v1(pg_temp.n246_id(1), pg_temp.n246_id(506), 1, TRUE, 'not_admitted', NULL,
-  pg_temp.n246_id(5021)) ->> 'admissions_version' = '2', 'a playbook case is finished through the same command');
+-- Finished as «Поступил» before its arrival is confirmed, the 137 guard
+-- stores the playbook outcome 'cancelled' ("playbook stopped"); the
+-- business outcome stays «Поступил» in the 246 read, and the admissions
+-- summary (183, gate 244) counts no playbook outcome, so nothing reports
+-- the enrolled student as cancelled.
+SELECT pg_temp.n246_assert((SELECT (s ->> 'active')::INTEGER = 1 FROM jsonb_array_elements(
+    platform.admissions_direction_summary_v1('MY') -> 'stock') AS s WHERE s ->> 'direction' = 'MY'),
+  'the MY summary counts the active playbook case before it is finished');
+SELECT pg_temp.n246_assert(platform.set_student_case_closed_v1(pg_temp.n246_id(1), pg_temp.n246_id(506), 1, TRUE, 'enrolled', NULL,
+  pg_temp.n246_id(5021)) ->> 'admissions_version' = '2', 'a playbook case is finished as «Поступил» through the same command');
+SELECT pg_temp.n246_assert(platform.staff_student_case_closure_v1(pg_temp.n246_id(1), pg_temp.n246_id(506)) ->> 'outcome' = 'enrolled',
+  'the closure read says «Поступил» for the finished playbook case');
+SELECT pg_temp.n246_assert((SELECT (s ->> 'active')::INTEGER = 0 AND NOT (s ?| ARRAY['cancelled', 'arrived'])
+    FROM jsonb_array_elements(platform.admissions_direction_summary_v1('MY') -> 'stock') AS s WHERE s ->> 'direction' = 'MY'),
+  'the MY summary drops the finished case from active and reports no cancelled/arrived counter');
 RESET ROLE;
 SELECT pg_temp.n246_assert((SELECT state = 'closed' AND admissions_outcome = 'cancelled' AND admissions_version = 2
-  FROM platform.student_cases WHERE id = pg_temp.n246_id(506)), 'the playbook outcome of a finished case is cancelled');
+  FROM platform.student_cases WHERE id = pg_temp.n246_id(506)), 'the playbook outcome of a case finished before arrival is cancelled');
+SELECT pg_temp.n246_assert(strpos((SELECT p.prosrc FROM pg_proc AS p
+    WHERE p.oid = 'platform.admissions_direction_summary_v1(text,uuid,date,date)'::REGPROCEDURE), 'admissions_outcome') = 0,
+  'the latest admissions summary does not read the playbook outcome');
 SET LOCAL request.jwt.claims TO :'n246_admissions_a';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.n246_assert(platform.set_student_case_closed_v1(pg_temp.n246_id(1), pg_temp.n246_id(506), 2, FALSE, NULL, NULL,
   pg_temp.n246_id(5022)) ->> 'state' = 'active', 'the playbook case is returned to work');
+SELECT pg_temp.n246_assert((SELECT (s ->> 'active')::INTEGER = 1 FROM jsonb_array_elements(
+    platform.admissions_direction_summary_v1('MY') -> 'stock') AS s WHERE s ->> 'direction' = 'MY'),
+  'the returned playbook case is counted active again');
 RESET ROLE;
 SELECT pg_temp.n246_assert((SELECT state = 'active' AND admissions_outcome = 'active' AND admissions_version = 3 AND closed_at IS NULL
   FROM platform.student_cases WHERE id = pg_temp.n246_id(506)), 'the returned playbook case is active again');

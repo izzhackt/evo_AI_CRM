@@ -65,6 +65,14 @@
 --       to a 137 playbook the playbook outcome follows the state as that guard
 --       requires: 'arrived' when the case is enrolled and its confirmed
 --       arrival facts exist, otherwise 'cancelled'; 'active' on return.
+--       'cancelled' is only the guard's word for "playbook stopped": a case
+--       finished as «Поступил» before its arrival is confirmed also gets it.
+--       The business outcome is the 246 outcome (audit after_state, read by
+--       staff_student_case_closure_v1). No report counts the playbook
+--       outcome any more — 137's cancelled/arrived counters were dropped
+--       from platform.admissions_direction_summary_v1 by 183 (244 only
+--       changed its gate) — and the anchor below fails closed if a report
+--       reading admissions_outcome ever comes back before this migration.
 --     * Events: platform.student_case_lifecycle_events (042) and
 --       platform.audit_events 'case.lifecycle.change' with the outcome and
 --       note (already in the case «История» allowlist, 132).
@@ -93,6 +101,11 @@ BEGIN
     OR to_regprocedure('platform.staff_sales_handoff_facts(uuid,uuid[])') IS NULL
     OR to_regprocedure('platform_private.admissions_lock_case(uuid,text)') IS NULL
     OR to_regprocedure('platform_private.u7_require_case_workspace_actor(uuid)') IS NULL
+    -- The admissions summary must not count the playbook outcome: a case
+    -- finished as «Поступил» before arrival is 'cancelled' there (see c).
+    OR strpos((SELECT p.prosrc FROM pg_catalog.pg_proc AS p
+      WHERE p.oid = 'platform.admissions_direction_summary_v1(text,uuid,date,date)'::regprocedure),
+      'admissions_outcome') <> 0
   THEN
     RAISE EXCEPTION 'a246_closure_anchor_drift';
   END IF;

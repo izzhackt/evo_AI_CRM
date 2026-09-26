@@ -1237,6 +1237,7 @@ export const caseCloseOutcome = (v: string | null | undefined) => lookup(CASE_CL
 export const closureWords = {
   more: "Ещё действия",
   cancel: "Отмена",
+  dismiss: "Скрыть строку",
   reopen: "Вернуть в работу",
   reopening: "Возвращаем…",
   noteLabel: "Что случилось",
@@ -1249,6 +1250,10 @@ export const closureWords = {
     closedList: "Закрытые",
     closedListTitle: "Закрытые лиды",
     backToBoard: "К воронке продаж",
+    backToClosed: "К закрытым лидам",
+    /** Lead 360 закрытого лида: почему нет контактов и истории. */
+    detailsAfterReopen: "Контакты и история вернутся после «Вернуть в работу».",
+    detailsOpenOnly: "Контакты и история видны только у лида в работе.",
     empty: "Закрытых лидов нет.",
     unavailable: "Не удалось загрузить закрытые лиды.",
     noDate: "дата не записана",
@@ -1260,6 +1265,19 @@ export const closureWords = {
     closed: "Закрыто",
   },
 } as const;
+
+/**
+ * Окно «Завершить дело»: открытые задачи дела закрытие не отменяет — они
+ * остаются в «Задачах» и в их сроках. Число — только прочитанное; не
+ * прочитано — то же правило без числа; задач нет — нечего говорить.
+ * Предлог «в» не остаётся в конце строки (неразрывный пробел).
+ */
+export function caseCloseOpenTasks(count: number | null | undefined): string | null {
+  if (count === 0) return null;
+  return typeof count === "number" && Number.isInteger(count) && count > 0
+    ? `Открытые задачи дела (${count}) останутся в\u00a0«Задачах».`
+    : "Открытые задачи дела останутся в\u00a0«Задачах».";
+}
 
 /**
  * Ответ сервера на закрытие и возврат. Для неизвестного исхода окно

@@ -61,3 +61,8 @@ export function parsePipelineReturnTo(value: unknown): string | null {
     return null;
   }
 }
+
+/** Проверенный адрес возврата ведёт на «Закрытые лиды» (`?view=closed`, 246). */
+export function isClosedLeadsReturn(returnTo: string): boolean {
+  return new URL(returnTo, "https://internal.invalid").searchParams.get("view") === "closed";
+}

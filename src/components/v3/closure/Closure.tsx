@@ -20,7 +20,7 @@ import {
   type CaseClosureReceipt,
   type LeadClosureReceipt,
 } from "@/lib/platform-closure-contract";
-import { caseCloseOutcome, closureOutcome, closureWords, leadCloseReason } from "@/lib/v3/wording";
+import { caseCloseOutcome, caseCloseOpenTasks, closureOutcome, closureWords, leadCloseReason } from "@/lib/v3/wording";
 
 export type ClosureKind = "lead" | "case";
 type Receipt<K extends ClosureKind> = K extends "lead" ? LeadClosureReceipt : CaseClosureReceipt;
@@ -65,12 +65,15 @@ async function submitClosure<K extends ClosureKind>(
  * окна. Причина обязательна; «Другое» просит одну строку текста. «Закрыто» —
  * только по квитанции сервера; неизвестный исход повторяется тем же request
  * id (сервер не закроет дважды), конфликт версии предлагает «Обновить».
+ * Дело: окно заранее говорит, что открытые задачи дела остаются в «Задачах»
+ * (закрытие их не отменяет) — числом, если оно прочитано.
  */
 export function ClosureDialog<K extends ClosureKind>({
   kind,
   subjectId,
   subjectName,
   expectedVersion,
+  openTasks = null,
   onClose,
   onDone,
 }: Readonly<{
@@ -78,6 +81,8 @@ export function ClosureDialog<K extends ClosureKind>({
   subjectId: string;
   subjectName: string;
   expectedVersion: string;
+  /** Дело: сколько открытых задач прочитано; null — не прочитано (без числа). */
+  openTasks?: number | null;
   onClose: () => void;
   onDone: (receipt: Receipt<K>) => void;
 }>) {
@@ -96,6 +101,7 @@ export function ClosureDialog<K extends ClosureKind>({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Readonly<{ text: string; field: "choice" | "note" | null; stale: boolean }> | null>(null);
   const busy = useRef(false);
+  const tasksNote = kind === "case" ? caseCloseOpenTasks(openTasks) : null;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -195,6 +201,7 @@ export function ClosureDialog<K extends ClosureKind>({
               />
             </div>
           ) : null}
+          {tasksNote ? <p className="t-body-compact text-fg-2" data-testid="v3-close-case-tasks">{tasksNote}</p> : null}
           {error ? <p id={errorId} role="alert" className="t-body-compact text-danger">{error.text}</p> : null}
         </div>
         {/* Телефон: кнопки во всю ширину одна под другой, подтверждение сверху; шире — в ряд справа. */}
@@ -226,6 +233,7 @@ export function CloseRecordMenu<K extends ClosureKind>({
   subjectName,
   expectedVersion,
   blockedReason = null,
+  openTasks = null,
   onClosed,
   triggerClassName,
 }: Readonly<{
@@ -235,6 +243,8 @@ export function CloseRecordMenu<K extends ClosureKind>({
   expectedVersion: string;
   /** Почему закрыть нельзя; null — можно. */
   blockedReason?: string | null;
+  /** Дело: открытые задачи для окна; null — не прочитано. */
+  openTasks?: number | null;
   /** После квитанции; по умолчанию страница перечитывается. */
   onClosed?: (receipt: Receipt<K>) => void;
   triggerClassName?: string;
@@ -278,6 +288,7 @@ export function CloseRecordMenu<K extends ClosureKind>({
           subjectId={subjectId}
           subjectName={subjectName}
           expectedVersion={expectedVersion}
+          openTasks={openTasks}
           onClose={cancel}
           onDone={(receipt) => {
             setDialogOpen(false);
@@ -291,10 +302,34 @@ export function CloseRecordMenu<K extends ClosureKind>({
 }
 
 /**
- * Тихая строка закрытого: «Закрыт · причина · дата · Вернуть в работу».
- * «Вернуть в работу» — настоящая обратная команда (тот же RPC), без окна:
+ * «А · Б · В» одной строкой. Перенос начинается с части, а не с «·»: у
+ * каждой части разделитель стоит слева в поле шириной `w-5`, а строка
+ * сдвинута на это поле влево и обрезана (`overflow-hidden`) — разделитель
+ * в начале строки уходит за край. Так точки стоят только между частями
+ * одной строки, на любой ширине.
+ */
+export function DotRun({ parts, className }: Readonly<{ parts: readonly ReactNode[]; className?: string }>) {
+  return (
+    <p className={cn("overflow-hidden", className)}>
+      <span className="-ms-5 flex flex-wrap items-baseline">
+        {parts.map((part, index) => (
+          <span key={index} className="inline-flex min-w-0 items-baseline">
+            <span aria-hidden="true" className="w-5 shrink-0 text-center text-fg-3">·</span>
+            {part}
+          </span>
+        ))}
+      </span>
+    </p>
+  );
+}
+
+/**
+ * Тихая строка закрытого: «Закрыт · причина · дата», под ней своей строкой —
+ * «Вернуть в работу». Это настоящая обратная команда (тот же RPC), без окна:
  * возврат сам обратим. После квитанции страница перечитывается или
- * вызывающий решает сам (`onReopened`).
+ * вызывающий решает сам (`onReopened`). `showState={false}` — список, где
+ * заголовок уже говорит «Закрытые»; `details` встаёт между строкой и
+ * командой.
  */
 export function ClosedLine<K extends ClosureKind>({
   kind,
@@ -305,6 +340,8 @@ export function ClosedLine<K extends ClosureKind>({
   closedAt,
   canReopen,
   subject,
+  showState = true,
+  details,
   onReopened,
   className,
 }: Readonly<{
@@ -315,8 +352,12 @@ export function ClosedLine<K extends ClosureKind>({
   note: string | null;
   closedAt: string | null;
   canReopen: boolean;
-  /** Кто закрыт — в строке-уведомлении списка («Лид «Имя»»). */
+  /** Кто закрыт — в строке-уведомлении доски («Лид «Имя»»). */
   subject?: ReactNode;
+  /** Слово «Закрыт»/«Закрыто» первой частью; в списке «Закрытые» — без него. */
+  showState?: boolean;
+  /** Факты записи между строкой закрытия и «Вернуть в работу». */
+  details?: ReactNode;
   onReopened?: (receipt: Receipt<K>) => void;
   className?: string;
 }>) {
@@ -351,16 +392,18 @@ export function ClosedLine<K extends ClosureKind>({
     }
   }
 
-  const parts: ReactNode[] = [<span key="state" className="font-medium text-fg">{subject ? <>{subject} {words.closed.toLowerCase()}</> : words.closed}</span>];
-  if (reason) parts.push(<span key="reason" className="min-w-0 break-words">{reason}</span>);
-  if (closedAt) parts.push(<ClosureDate key="date" at={closedAt} />);
-  else if (kind === "lead") parts.push(<span key="date">{closureWords.lead.noDate}</span>);
-  // Точка-разделитель переносится вместе со своей частью: строка не кончается «·».
-  const dot = <span aria-hidden="true" className="text-fg-3">·</span>;
+  const parts: ReactNode[] = [];
+  if (showState || subject) {
+    parts.push(<span className="font-medium text-fg">{subject ? <>{subject} {words.closed.toLowerCase()}</> : words.closed}</span>);
+  }
+  if (reason) parts.push(<span className="min-w-0 break-words">{reason}</span>);
+  if (closedAt) parts.push(<ClosureDate at={closedAt} />);
+  else if (kind === "lead") parts.push(<span>{closureWords.lead.noDate}</span>);
+  const testId = kind === "lead" ? "v3-lead-closed-line" : "v3-case-closed-line";
   // Возвращено: строка закрытого больше не правда — остаётся только итог.
   if (result?.ok) {
     return (
-      <div className={cn("space-y-1", className)} data-testid={kind === "lead" ? "v3-lead-closed-line" : "v3-case-closed-line"}>
+      <div className={className} data-testid={testId}>
         <p role="status" className="flex min-h-11 items-center t-body-compact text-ok">
           {subject ? <span>{subject} снова в работе.</span> : result.text}
         </p>
@@ -368,21 +411,17 @@ export function ClosedLine<K extends ClosureKind>({
     );
   }
   return (
-    <div className={cn("space-y-1", className)} data-testid={kind === "lead" ? "v3-lead-closed-line" : "v3-case-closed-line"}>
-      <p className="flex flex-wrap items-center gap-x-2 t-body-compact text-fg-2">
-        {parts.map((part, index) => index === 0 ? part : (
-          <span key={`part-${index}`} className="inline-flex min-w-0 items-center gap-x-2">{dot}{part}</span>
-        ))}
-        {canReopen ? (
-          <span className="inline-flex items-center gap-x-2">
-            {dot}
-            <button type="button" onClick={() => void reopen()} disabled={pending} aria-busy={pending}
-              className="inline-flex min-h-11 items-center whitespace-nowrap t-label text-fg underline underline-offset-4 hover:text-fg-2 disabled:cursor-wait disabled:text-fg-3">
-              {pending ? closureWords.reopening : closureWords.reopen}
-            </button>
-          </span>
-        ) : null}
-      </p>
+    <div className={className} data-testid={testId}>
+      {parts.length ? <DotRun parts={parts} className="t-body-compact text-fg-2" /> : null}
+      {details}
+      {/* Своей строкой: 44 px цели не раздвигают строку закрытия, а рамка
+          фокуса (3 px наружу) не ложится на текст над ней. */}
+      {canReopen ? (
+        <button type="button" onClick={() => void reopen()} disabled={pending} aria-busy={pending}
+          className="mt-1.5 flex min-h-11 w-fit items-center whitespace-nowrap t-label text-fg underline underline-offset-4 hover:text-fg-2 disabled:cursor-wait disabled:text-fg-3">
+          {pending ? closureWords.reopening : closureWords.reopen}
+        </button>
+      ) : null}
       {result ? <p role="alert" className="t-body-compact text-danger">{result.text}</p> : null}
     </div>
   );
@@ -397,6 +436,7 @@ export function CloseRecordButton<K extends ClosureKind>({
   subjectId,
   subjectName,
   expectedVersion,
+  openTasks = null,
   onClosed,
   className,
 }: Readonly<{
@@ -404,6 +444,8 @@ export function CloseRecordButton<K extends ClosureKind>({
   subjectId: string;
   subjectName: string;
   expectedVersion: string;
+  /** Дело: открытые задачи для окна; null — не прочитано. */
+  openTasks?: number | null;
   onClosed: (receipt: Receipt<K>) => void;
   className: string;
 }>) {
@@ -422,6 +464,7 @@ export function CloseRecordButton<K extends ClosureKind>({
           subjectId={subjectId}
           subjectName={subjectName}
           expectedVersion={expectedVersion}
+          openTasks={openTasks}
           onClose={() => { setDialogOpen(false); triggerRef.current?.focus(); }}
           onDone={(receipt) => { setDialogOpen(false); onClosed(receipt); }}
         />

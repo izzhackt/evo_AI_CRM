@@ -23,8 +23,8 @@ import {
   normalizeLeadClosureReceipt,
   parseClosedLeadsCursor,
 } from "../src/lib/platform-closure-contract.ts";
-import { parsePipelineReturnTo } from "../src/lib/v3/pipeline-return.ts";
-import { caseCloseOutcome, closureOutcome, closureWords, leadCloseReason } from "../src/lib/v3/wording.ts";
+import { isClosedLeadsReturn, parsePipelineReturnTo } from "../src/lib/v3/pipeline-return.ts";
+import { caseCloseOpenTasks, caseCloseOutcome, closureOutcome, closureWords, leadCloseReason } from "../src/lib/v3/wording.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = read("supabase/migrations/246_platform_lead_case_closure.sql");
@@ -36,6 +36,11 @@ const harness = (name) => new Map(JSON.parse(execFileSync(
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
 )).map((surface) => [surface.name, surface.html]));
 const texts = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
+// Строка закрытия: части через «·», разделитель у начала строки срезан (DotRun), а
+// «Вернуть в работу» — своей строкой после неё, не внутри <p>.
+const RUN_OPEN = '<p class="overflow-hidden t-body-compact text-fg-2"><span class="-ms-5 flex flex-wrap items-baseline">';
+const RUN_DOT = '<span aria-hidden="true" class="w-5 shrink-0 text-center text-fg-3">·</span>';
+const REOPEN_ROW = /<\/p><button type="button"[^>]*class="mt-1\.5 flex min-h-11 w-fit items-center[^"]*"[^>]*>Вернуть в работу<\/button>/u;
 
 const ORG = "eeeeeeee-4444-4444-8444-000000000000";
 const LEAD = "dddddddd-3333-4333-8333-000000000001";
@@ -75,6 +80,16 @@ test("246 relies on the existing transitions and says so in self-verifying ancho
   assert.ok(migration.includes(`$q$NEW.lifecycle_state NOT IN ('open', 'disqualified', 'archived')$q$`));
   assert.ok(migration.includes(`$q$OR (OLD.state = 'closed' AND NEW.state = 'active')$q$`));
   assert.ok(migration.includes("to_regprocedure('platform.staff_sales_handoff_facts(uuid,uuid[])')"));
+  // «Поступил» до подтверждённого прибытия — у playbook 'cancelled': ни один отчёт не должен его считать.
+  const anchors = migration.slice(migration.indexOf("DO $a246_anchors$"), migration.indexOf("$a246_anchors$;"));
+  assert.match(anchors, /'platform\.admissions_direction_summary_v1\(text,uuid,date,date\)'::regprocedure\),\s+'admissions_outcome'\) <> 0/u);
+});
+
+test("an enrolled playbook case is never reported as cancelled (real-Postgres assertions)", () => {
+  assert.match(suite, /set_student_case_closed_v1\(pg_temp\.n246_id\(1\), pg_temp\.n246_id\(506\), 1, TRUE, 'enrolled', NULL,/u);
+  assert.match(suite, /staff_student_case_closure_v1\(pg_temp\.n246_id\(1\), pg_temp\.n246_id\(506\)\) ->> 'outcome' = 'enrolled'/u);
+  assert.match(suite, /NOT \(s \?\| ARRAY\['cancelled', 'arrived'\]\)/u);
+  assert.match(suite, /'admissions_outcome'\) = 0,\n  'the latest admissions summary does not read the playbook outcome'/u);
 });
 
 test("lead command: permission on the lead decides, a handoff refuses, the stage stays", () => {
@@ -218,6 +233,10 @@ test("wording: every reason, outcome and outcome message has Russian words", () 
   assert.equal(closureWords.lead.action, "Закрыть лид");
   assert.equal(closureWords.case.action, "Завершить дело");
   assert.equal(closureWords.reopen, "Вернуть в работу");
+  // Окно «Завершить дело»: задачи дела остаются — числом, если оно прочитано.
+  assert.equal(caseCloseOpenTasks(3), "Открытые задачи дела (3) останутся в\u00a0«Задачах».");
+  assert.equal(caseCloseOpenTasks(null), "Открытые задачи дела останутся в\u00a0«Задачах».", "not read — the rule without a number");
+  assert.equal(caseCloseOpenTasks(0), null, "no open tasks — nothing to say");
 });
 
 test("board: «⋯» in the lead panel, a handed-off lead says why, «Закрытые» is a quiet link and a list", () => {
@@ -233,11 +252,17 @@ test("board: «⋯» in the lead panel, a handed-off lead says why, «Закры
   const link = surfaces.get("sales").match(/<a[^>]*data-testid="v3-pipeline-closed-link"[^>]*>Закрытые<\/a>/u)?.[0] ?? "";
   assert.match(link, /href="\/v3\/pipeline\?view=closed"/u);
   assert.doesNotMatch(link, /bg-accent/u, "a quiet link, not a red button");
-  const closed = texts(surfaces.get("sales-closed"));
+  const closedHtml = surfaces.get("sales-closed");
+  const closed = texts(closedHtml);
   assert.match(closed, /Закрытые лиды 3/u);
-  assert.match(closed, /Нурлан Закрытов Этап: Связались · Ответственный: Менеджер Первый · Закрыл: Менеджер Первый Закрыт · Не отвечает · \d{2}\.\d{2}\.\d{4} · Вернуть в работу/u);
-  assert.match(closed, /Закрыт · Другое: Решила поступать через родственников в Казани · /u);
-  assert.match(surfaces.get("sales-closed"), /<time dateTime="[^"]+" class="font-mono tabular-nums">\d{2}\.\d{2}\.\d{4}<\/time>/u);
+  // Имя, сразу причина и дата (заголовок уже говорит «Закрытые» — без «Закрыт» в строке), затем факты и возврат.
+  assert.match(closed, /Нурлан Закрытов · Не отвечает · \d{2}\.\d{2}\.\d{4} · Этап: Связались · Ответственный: Менеджер Первый · Закрыл: Менеджер Первый Вернуть в работу/u);
+  assert.match(closed, /Асель Отказова · Другое: Решила поступать через родственников в Казани · \d{2}\.\d{2}\.\d{4} · Этап:/u);
+  assert.doesNotMatch(closed, /Закрыт ·/u);
+  assert.match(closedHtml, /<time dateTime="[^"]+" class="font-mono tabular-nums">\d{2}\.\d{2}\.\d{4}<\/time>/u);
+  assert.ok(closedHtml.includes(`${RUN_OPEN}<span class="inline-flex min-w-0 items-baseline">${RUN_DOT}<span class="min-w-0 break-words">Не отвечает</span>`));
+  assert.match(closedHtml, /<p class="overflow-hidden t-meta text-fg-2"><span class="-ms-5 flex flex-wrap items-baseline">/u, "facts wrap without a leading «·» too");
+  assert.match(closedHtml, REOPEN_ROW);
   // Закрытый список — не доска: без её красной кнопки.
   assert.doesNotMatch(surfaces.get("sales-closed"), /Добавить лида/u);
 });
@@ -249,16 +274,29 @@ test("«Студенты»: «Завершить дело…» in the quick view
   assert.match(panel, /<button type="button" class="[^"]*" data-testid="v3-close-case">Завершить дело…<\/button>/u);
   assert.doesNotMatch(surfaces.get("admin-panel").slice(surfaces.get("admin-panel").indexOf("<dialog")), /v3-close-case/u,
     "without a closure read there is no action");
-  const closed = texts(surfaces.get("panel-closed").slice(surfaces.get("panel-closed").indexOf("<dialog")));
-  assert.match(closed, /Состояние Закрыто · Не прошёл · 22\.09\.2026 · Вернуть в работу/u);
+  const closedPanel = surfaces.get("panel-closed").slice(surfaces.get("panel-closed").indexOf("<dialog"));
+  const closed = texts(closedPanel);
+  assert.match(closed, /Состояние · Закрыто · Не прошёл · 22\.09\.2026 Вернуть в работу/u);
+  assert.ok(closedPanel.includes(`${RUN_OPEN}<span class="inline-flex min-w-0 items-baseline">${RUN_DOT}<span class="font-medium text-fg">Закрыто</span>`));
+  assert.match(closedPanel, REOPEN_ROW);
+  assert.match(closed, /Дело закрыто: шаг не меняется\./u);
   assert.doesNotMatch(closed, /Завершить дело/u);
 });
 
 test("Student 360 and Lead 360: the closed line, and the lead view keeps its overview", () => {
   const surfaces = harness("case");
-  const closed = texts(surfaces.get("closed-outcome"));
-  assert.match(closed, /Состояние Закрыто · Поступил · 22\.09\.2026 · Вернуть в работу/u);
+  const closedHtml = surfaces.get("closed-outcome");
+  const closed = texts(closedHtml);
+  assert.match(closed, /Состояние · Закрыто · Поступил · 22\.09\.2026 Вернуть в работу/u);
+  assert.match(closedHtml, REOPEN_ROW);
+  // Шапка закрытого дела говорит то же, что «Быстрый просмотр»: шаг — последний, не живой.
+  assert.match(closed, /Следующий шаг Собрать апостиль на аттестат 20\.09 Дело закрыто: шаг не меняется\./u);
   assert.match(texts(surfaces.get("closed")), /Состояние Дело закрыто/u, "without the closure read the fact stays as before");
+  // Закрытый лид: без красной ссылки и сырого text-sm; почему нет контактов — одной тихой строкой.
+  const view = read("src/components/v3/closure/ClosedLeadView.tsx");
+  assert.doesNotMatch(view, /text-accent|text-sm\b|<Link/u);
+  assert.match(view, /closureWords\.lead\.detailsAfterReopen : closureWords\.lead\.detailsOpenOnly/u);
+  assert.equal(closureWords.lead.detailsAfterReopen, "Контакты и история вернутся после «Вернуть в работу».");
 });
 
 test("pages wire the reads, the hints and the preview rule", () => {
@@ -276,4 +314,17 @@ test("pages wire the reads, the hints and the preview rule", () => {
   assert.match(actions, /if \(isStaffPreview\(actor\)\) return refusal\("case", closed, "preview", requestId\);/u);
   assert.equal(parsePipelineReturnTo("/v3/pipeline?view=closed"), "/v3/pipeline?view=closed");
   assert.equal(parsePipelineReturnTo("/v3/pipeline?view=open"), null);
+  // Закрытый лид: возврат над заголовком (PartShell back), «К закрытым лидам», если пришли из списка.
+  assert.equal(isClosedLeadsReturn("/v3/pipeline?view=closed"), true);
+  assert.equal(isClosedLeadsReturn("/v3/pipeline?stage=new"), false);
+  assert.match(profile, /pipelineReturnTo && isClosedLeadsReturn\(pipelineReturnTo\) \? closureWords\.lead\.backToClosed/u);
+  assert.match(profile, /back=\{caseBack \?\? closedLeadBack\}/u);
+  assert.match(profile, /: closedLead \? closedLead\.name \?\? "Лид без имени"/u);
+  // Окно «Завершить дело» получает число открытых задач, прочитанное «Обзором» и панелью.
+  assert.match(profile, /openTasks=\{caseWork\?\.tasks\.kind === "ready" \? caseWork\.tasks\.tasks\.length : null\}/u);
+  assert.match(read("src/components/v3/students/StudentQuickView.tsx"), /openTasks=\{tasks\?\.kind === "ready" \? tasks\.tasks\.length : null\}/u);
+  // Строка доски после закрытия скрывается настоящей кнопкой 44 px; итог возврата — её же строка.
+  assert.match(pipeline, /<button type="button" onClick=\{dismissNotice\} aria-label=\{closureWords\.dismiss\}/u);
+  assert.match(pipeline, /className="flex size-11 shrink-0 items-center justify-center rounded-nav/u);
+  assert.match(pipeline, /Лид «\{closedNotice\.name\}» снова в работе\./u);
 });

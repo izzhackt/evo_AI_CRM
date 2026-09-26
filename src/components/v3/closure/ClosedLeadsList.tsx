@@ -3,13 +3,13 @@ import Link from "next/link";
 import type { ClosedLeadsPage } from "@/lib/platform-closure-contract";
 import { closureWords, leadStage } from "@/lib/v3/wording";
 
-import { ClosedLine } from "./Closure";
+import { ClosedLine, DotRun } from "./Closure";
 
 const QUIET_LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 
 /**
  * «Закрытые лиды» доски продаж (`/v3/pipeline?view=closed`): новые закрытия
- * сверху, у каждого — «Закрыт · причина · дата · Вернуть в работу». Чтение
+ * сверху, у каждого — имя, «причина · дата», факты и «Вернуть в работу». Чтение
  * 246 отдаёт только лиды, которые сотрудник читает; «Вернуть в работу» —
  * только тем, кому сервер подсказал право. Сбой чтения — не пустой список.
  */
@@ -50,13 +50,13 @@ export function ClosedLeadsList({
             const word = leadStage(row.stageKey);
             const stage = word ? word.charAt(0).toUpperCase() + word.slice(1) : null;
             const facts = [stage ? `Этап: ${stage}` : null, row.ownerName ? `Ответственный: ${row.ownerName}` : null,
-              row.closedByName ? `Закрыл: ${row.closedByName}` : null].filter(Boolean).join(" · ");
+              row.closedByName ? `Закрыл: ${row.closedByName}` : null].filter((fact): fact is string => fact !== null);
             return (
               <li key={row.leadId} className="py-2" data-lead-id={row.leadId}>
                 <Link href={leadHref(row.leadId)} className="t-item inline-flex min-h-11 items-center break-words text-fg underline-offset-4 hover:underline">
                   {row.name ?? "Лид без имени"}
                 </Link>
-                {facts ? <p className="t-meta text-fg-2">{facts}</p> : null}
+                {/* Заголовок уже говорит «Закрытые»: сразу причина и дата, ниже — факты, затем возврат. */}
                 <ClosedLine
                   kind="lead"
                   subjectId={row.leadId}
@@ -65,6 +65,8 @@ export function ClosedLeadsList({
                   note={row.note}
                   closedAt={row.closedAt}
                   canReopen={row.canManage && !readOnly}
+                  showState={false}
+                  details={facts.length ? <DotRun parts={facts} className="t-meta text-fg-2" /> : null}
                 />
               </li>
             );

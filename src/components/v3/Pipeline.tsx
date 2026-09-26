@@ -450,7 +450,8 @@ export function Pipeline({
   const noticeRef = useRef<HTMLDivElement>(null);
   // Закрытый лид уходит с доски; строка над доской называет его и даёт
   // настоящий «Вернуть в работу» (обратная команда 246).
-  const [closedNotice, setClosedNotice] = useState<Readonly<{ name: string; receipt: LeadClosureReceipt }> | null>(null);
+  // `reopened` — «Вернуть в работу» подтверждён: строка говорит итог, пока её не скроют.
+  const [closedNotice, setClosedNotice] = useState<Readonly<{ name: string; receipt: LeadClosureReceipt; reopened: boolean }> | null>(null);
   const focusPanel = useRef(false);
   const returnFocusTo = useRef<Readonly<{ leadId: string; stage: PipelineStageKey | null }> | null>(null);
   // Сохранённое решение: лид и версия, с которой его сохранили. Пока доска
@@ -516,16 +517,22 @@ export function Pipeline({
     if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
   };
   function leadClosed(name: string, receipt: LeadClosureReceipt) {
-    setClosedNotice({ name, receipt });
+    setClosedNotice({ name, receipt, reopened: false });
     returnFocusTo.current = null;
     setSaved(null);
     if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
     router.refresh();
   }
-  // Карточка закрытого лида уходит с доски — фокус встаёт на его строку.
+  // Карточка закрытого лида уходит с доски (или возвращается) — фокус встаёт на его строку.
   useEffect(() => {
     if (closedNotice) noticeRef.current?.focus();
   }, [closedNotice]);
+  // Строку скрыли — она больше не нужна; фокус — на первую карточку доски, а не в никуда.
+  function dismissNotice() {
+    setClosedNotice(null);
+    [...(rootRef.current?.querySelectorAll<HTMLElement>("a[data-lead-link]") ?? [])]
+      .find((element) => element.getClientRects().length > 0)?.focus();
+  }
 
   const cardsOf = (stage: PipelineStage) => {
     const inStage = leads.filter((lead) => lead.stageKey === stage.key);
@@ -597,20 +604,37 @@ export function Pipeline({
   return (
     <>
     {closedNotice ? (
-      // Фокус переходит сюда после закрытия: читалка прочтёт строку целиком.
+      // Фокус переходит сюда после закрытия и возврата: читалка прочтёт строку целиком.
+      // Строка живёт до «Скрыть» (или следующего закрытия), а не до ухода со страницы.
       <div ref={noticeRef} tabIndex={-1} data-testid="v3-pipeline-closed-notice"
-        className="mb-2 shrink-0 rounded-ctl border border-border bg-surface px-3 py-1 outline-none focus-visible:outline-2 focus-visible:outline-focus-ring">
-        <ClosedLine
-          key={`${closedNotice.receipt.leadId}:${closedNotice.receipt.changedAt}`}
-          kind="lead"
-          subject={<>Лид «{closedNotice.name}»</>}
-          subjectId={closedNotice.receipt.leadId}
-          expectedVersion={closedNotice.receipt.workflowVersion}
-          reasonKey={closedNotice.receipt.reason}
-          note={closedNotice.receipt.note}
-          closedAt={closedNotice.receipt.changedAt}
-          canReopen
-        />
+        className="mb-2 flex shrink-0 items-start gap-2 rounded-ctl border border-border bg-surface ps-3 outline-none focus-visible:outline-2 focus-visible:outline-focus-ring">
+        {closedNotice.reopened ? (
+          <p role="status" className="flex min-h-11 min-w-0 flex-1 items-center break-words t-body-compact text-ok">
+            Лид «{closedNotice.name}» снова в работе.
+          </p>
+        ) : (
+          <ClosedLine
+            key={`${closedNotice.receipt.leadId}:${closedNotice.receipt.changedAt}`}
+            kind="lead"
+            subject={<>Лид «{closedNotice.name}»</>}
+            subjectId={closedNotice.receipt.leadId}
+            expectedVersion={closedNotice.receipt.workflowVersion}
+            reasonKey={closedNotice.receipt.reason}
+            note={closedNotice.receipt.note}
+            closedAt={closedNotice.receipt.changedAt}
+            canReopen
+            onReopened={() => {
+              setClosedNotice((notice) => notice ? { ...notice, reopened: true } : notice);
+              router.refresh();
+            }}
+            className="min-w-0 flex-1 pt-3"
+          />
+        )}
+        <button type="button" onClick={dismissNotice} aria-label={closureWords.dismiss}
+          data-testid="v3-pipeline-closed-notice-dismiss"
+          className="flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg">
+          <Icon name="x" size={20} />
+        </button>
       </div>
     ) : null}
     {/* Широкий экран: доска и панель лида — один ряд, панель не перекрывает

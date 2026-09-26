@@ -376,7 +376,8 @@ const SCENARIOS = {
     openTasks: TASKS,
     closure: { studentCaseId: OPEN_CASE, state: "active", admissionsVersion: "3", closedAt: null, outcome: null, note: null, closedByName: null, canChange: true },
   }),
-  // Закрытое дело в «Быстром просмотре»: «Закрыто · исход · дата · Вернуть в работу».
+  // Закрытое дело в «Быстром просмотре» сразу после «Завершить дело»: «Закрыто · исход · дата», под ней
+  // «Вернуть в работу»; число «Все в работе» на одно меньше, чем в «panel-close» — дело ушло из работы.
   "panel-closed": (() => {
     const rows = pageFor("active", "updated").rows.map((row) => ({ ...row, state: "closed" }));
     const open = rows[0].studentCaseId;
@@ -385,7 +386,8 @@ const SCENARIOS = {
       closure: { studentCaseId: open, state: "closed", admissionsVersion: rows[0].admissionsVersion, closedAt: "2026-09-22T06:30:00.000Z",
         outcome: "not_admitted", note: null, closedByName: NAMES[ME], canChange: true },
     });
-    const counts = { ...base.input.read.counts, total: rows.length, views: { ...base.input.read.counts.views, closed: rows.length } };
+    const views = base.input.read.counts.views;
+    const counts = { ...base.input.read.counts, total: rows.length, views: { ...views, active: views.active - 1, closed: rows.length } };
     return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows }, counts } } };
   })(),
   // Синтетика закрытых дел: строки «в работе» со сроками всех групп, закрытые.
@@ -393,7 +395,8 @@ const SCENARIOS = {
     const base = scenario("view=closed");
     const rows = pageFor("active", "updated").rows.map((row) => ({ ...row, state: "closed" }));
     // Числа — по тем же синтетическим закрытым строкам: заголовок и вкладка не спорят.
-    const counts = { ...base.input.read.counts, total: rows.length, views: { ...base.input.read.counts.views, closed: rows.length } };
+    const views = base.input.read.counts.views;
+    const counts = { ...base.input.read.counts, total: rows.length, views: { ...views, active: views.active - 1, closed: rows.length } };
     return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows }, counts } } };
   })(),
   "docs-no-access": (() => {

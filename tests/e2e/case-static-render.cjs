@@ -346,6 +346,10 @@ function caseBody(name) {
 }
 
 // --- рендер ------------------------------------------------------------------
+// `--look=next`: слой нового облика и его оболочка Э1.2 (меню без верхней панели,
+// нижняя панель телефона) — как у Admin с включённым переключателем.
+const NEXT_LOOK = process.argv.includes("--look=next");
+const NEXT_SHELL = NEXT_LOOK ? { look: "next" } : {};
 const routerStub = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} };
 const SEARCH = `case=${CASE_ID}&tab=overview&returnTo=${encodeURIComponent(RETURN_TO)}`;
 
@@ -368,30 +372,37 @@ function renderPage(name, { closeDialog = false } = {}) {
     createElement(Icon, { name: "arrow-left", size: 16 }), "Студенты");
   // «⋯» у заголовка — как в page.tsx: дело в работе и сервер подсказал право (246).
   const closure = SCENARIOS[name].closure;
+  // Открытые задачи «Обзора» — число для окна «Завершить дело», как в page.tsx.
+  const tasks = SCENARIOS[name].work.tasks;
+  const openTasks = tasks.kind === "ready" ? tasks.tasks.length : null;
   const action = closure?.state === "active" && closure.canChange
-    ? createElement(closureUi.CloseRecordMenu, { kind: "case", subjectId: CASE_ID, subjectName: NAME, expectedVersion: closure.admissionsVersion })
+    ? createElement(closureUi.CloseRecordMenu, { kind: "case", subjectId: CASE_ID, subjectName: NAME, expectedVersion: closure.admissionsVersion, openTasks })
     : undefined;
   // Окно «Завершить дело» — то же, что открывает пункт меню; страница не гидратируется, снимок поднимает его `showModal()`.
   const dialog = closeDialog
-    ? createElement(closureUi.ClosureDialog, { kind: "case", subjectId: CASE_ID, subjectName: NAME, expectedVersion: "4", onClose() {}, onDone() {} })
+    ? createElement(closureUi.ClosureDialog, { kind: "case", subjectId: CASE_ID, subjectName: NAME, expectedVersion: "4", openTasks, onClose() {}, onDone() {} })
     : null;
-  const page = createElement("div", { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
-    createElement(AppShell, { actor: SCENARIOS[name].actor, initialNotifications: null },
+  const page = createElement("div", { className: "v3-world", "data-look": NEXT_LOOK ? "next" : undefined },
+    createElement(AppShell, { actor: SCENARIOS[name].actor, initialNotifications: null, ...NEXT_SHELL },
       createElement(PartShell, { title: NAME, count: null, dense: true, back, action }, createElement("div", { className: "space-y-6" }, caseBody(name)))), dialog);
   return renderToStaticMarkup(withContexts(page));
 }
 
-// Lead 360 закрытого лида (246): «Профиль», строка «Закрыт · причина · дата · Вернуть в работу».
+// Lead 360 закрытого лида (246), как в page.tsx: имя — заголовок, возврат «К закрытым лидам» над ним
+// (пришли из «Закрытых»), строка «Закрыт · причина · дата», «Вернуть в работу» и почему нет контактов.
 function renderClosedLeadPage() {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
   const row = { leadId: LEAD_ID, name: NAME, ownerName: "Эрмек Токтосунов", stageKey: "qualified", workflowVersion: "5",
     closedAt: "2026-09-24T09:15:00.000Z", reason: "other_agency", note: null, closedByName: "Эрмек Токтосунов", canManage: true };
-  const page = createElement("div", { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
-    createElement(AppShell, { actor: ADMIN, initialNotifications: null },
-      createElement(PartShell, { title: "Профиль", count: null },
+  const back = createElement("a", { href: "/v3/pipeline?view=closed", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
+    createElement(Icon, { name: "arrow-left", size: 16 }), "К закрытым лидам");
+  const page = createElement("div", { className: "v3-world", "data-look": NEXT_LOOK ? "next" : undefined },
+    createElement(AppShell, { actor: ADMIN, initialNotifications: null, ...NEXT_SHELL },
+      createElement(PartShell, { title: row.name, count: null, back },
         createElement("div", { className: "space-y-6" },
-          createElement(ClosedLeadView, { row, backHref: "/v3/pipeline", backLabel: "К воронке продаж", readOnly: false })))));
+          createElement(ClosedLeadView, { row, readOnly: false })))));
   return renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: routerStub },
     createElement(PathnameContext.Provider, { value: "/v3/profile" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(`id=${LEAD_ID}`) },
@@ -431,8 +442,9 @@ function renderLeadPage(root) {
       headerMenu: root === ROOT ? createElement(closureUi.CloseRecordMenu, { kind: "lead", subjectId: LEAD_ID, subjectName: LEAD.profile.person,
         expectedVersion: LEAD.sales.lead.workflowVersion, blockedReason: null }) : undefined,
     }));
-  const page = createElement("div", { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
-    createElement(AppShell, { actor: LEAD.actor, initialNotifications: null },
+  // Оболочка нового облика (Э1.2) — только у этой ветки: дерево сравнения рендерится, как раньше.
+  const page = createElement("div", { className: "v3-world", "data-look": NEXT_LOOK ? "next" : undefined },
+    createElement(AppShell, { actor: LEAD.actor, initialNotifications: null, ...(root === ROOT ? NEXT_SHELL : {}) },
       createElement(PartShell, { title: "Профиль", count: null }, body)));
   return renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: routerStub },
     createElement(PathnameContext.Provider, { value: "/v3/profile" },
@@ -467,9 +479,10 @@ async function settle(page) {
   await page.waitForLoadState("networkidle");
   const broken = await page.evaluate(async () => {
     await document.fonts.ready;
-    const images = [...document.images];
+    // Только видимые: скрытая копия логотипа (lazy) в оболочке нового облика не грузится, и её decode() не завершится.
+    const images = [...document.images].filter((image) => image.checkVisibility());
     await Promise.all(images.map((image) => image.decode().catch(() => null)));
-    return images.filter((image) => image.checkVisibility() && !(image.complete && image.naturalWidth > 0)).map((image) => image.alt || image.src);
+    return images.filter((image) => !(image.complete && image.naturalWidth > 0)).map((image) => image.alt || image.src);
   });
   if (broken.length) throw new Error(`images not loaded: ${broken.join(", ")}`);
 }
@@ -669,6 +682,14 @@ async function screenshots() {
             popoverOpen: Boolean(popover),
             popoverTopLayer: popover ? popover.matches(":popover-open") && getComputedStyle(popover).position === "fixed" : null,
             popoverBox: box(popover),
+            // «Вернуть в работу» закрытого дела: рамка фокуса (outline наружу) не ложится на строку закрытия над кнопкой.
+            closedRingGap: (() => {
+              const button = document.activeElement;
+              const run = button?.closest('[data-testid="v3-case-closed-line"]')?.querySelector("p");
+              if (!run || button === document.body) return null;
+              const style = getComputedStyle(button);
+              return Math.round(button.getBoundingClientRect().top - parseFloat(style.outlineOffset) - parseFloat(style.outlineWidth) - run.getBoundingClientRect().bottom);
+            })(),
             focused: document.activeElement && document.activeElement !== document.body
               ? `${document.activeElement.tagName.toLowerCase()}:${(document.activeElement.getAttribute("aria-label") ?? document.activeElement.textContent).trim().slice(0, 40)}` : null,
           };

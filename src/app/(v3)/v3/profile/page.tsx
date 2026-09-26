@@ -41,7 +41,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { v3SectionTitle } from "@/lib/v3/navigation";
-import { PIPELINE_PATH, parsePipelineReturnTo } from "@/lib/v3/pipeline-return";
+import { PIPELINE_PATH, isClosedLeadsReturn, parsePipelineReturnTo } from "@/lib/v3/pipeline-return";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import {
   listStudentPortalActiveCurators,
@@ -405,7 +405,9 @@ export default async function ProfilePart({
   // «⋯» дела у заголовка: «Завершить дело» (246), пока дело в работе и сервер подсказал право.
   const caseAction = caseParts && view && caseClosure?.state === "active" && caseClosure.canChange ? (
     <CloseRecordMenu kind="case" subjectId={caseClosure.studentCaseId} subjectName={view.profile.person}
-      expectedVersion={caseClosure.admissionsVersion} />
+      expectedVersion={caseClosure.admissionsVersion}
+      // Задачи «Обзор» уже прочитал; на других вкладках числа нет — окно скажет правило без числа.
+      openTasks={caseWork?.tasks.kind === "ready" ? caseWork.tasks.tasks.length : null} />
   ) : undefined;
   // «⋯» лида в шапке Lead 360: «Закрыть лид» (246). Переданный лид — продажа:
   // пункт недоступен и называет причину; решает сервер.
@@ -428,10 +430,22 @@ export default async function ProfilePart({
       {requestsReturnTo ? "Заявки" : docsMode ? "EVO Docs" : "Студенты"}
     </Link>
   ) : undefined;
+  // Закрытый лид: тот же возврат над заголовком, что у дела (не красная ссылка
+  // в теле). Пришли из «Закрытых лидов» — туда и называем.
+  const closedLeadBack = closedLead ? (
+    <Link href={requestsReturnTo ?? pipelineBackHref ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
+      <Icon name="arrow-left" size={16} />
+      {requestsReturnTo ? "К списку заявок"
+        : pipelineReturnTo && isClosedLeadsReturn(pipelineReturnTo) ? closureWords.lead.backToClosed
+          : pipelineBackHref ? closureWords.lead.backToBoard : "К списку студентов"}
+    </Link>
+  ) : undefined;
 
   return (
-    <PartShell title={caseParts && view ? view.profile.person : docsMode ? "EVO Docs" : view || closedLead ? "Профиль" : "Студенты"}
-      count={queuePage?.count ?? null} action={docsAction ?? caseAction} dense={queuePage !== null || caseParts !== null} back={caseBack}>
+    <PartShell title={caseParts && view ? view.profile.person : docsMode ? "EVO Docs" : view ? "Профиль"
+      : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты"}
+      count={queuePage?.count ?? null} action={docsAction ?? caseAction} dense={queuePage !== null || caseParts !== null}
+      back={caseBack ?? closedLeadBack}>
       <div className="space-y-6">
         {queuePage?.content ?? null}
         {directory ? (
@@ -475,12 +489,7 @@ export default async function ProfilePart({
             />
           </>
         ) : closedLead ? (
-          <ClosedLeadView
-            row={closedLead}
-            backHref={requestsReturnTo ?? pipelineBackHref ?? directoryHref}
-            backLabel={requestsReturnTo ? "К списку заявок" : pipelineBackHref ? "К воронке продаж" : "К списку студентов"}
-            readOnly={isStaffPreview(actor)}
-          />
+          <ClosedLeadView row={closedLead} readOnly={isStaffPreview(actor)} />
         ) : invalidIdentityShape || missing ? (
           <p className="border-t border-border px-4 py-5 text-sm leading-relaxed text-fg-2">
             {invalidIdentityShape

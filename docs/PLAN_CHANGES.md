@@ -39799,3 +39799,90 @@ SQL и миграций»).
   'document.manage' — 42501. Дело вне области сотрудника — 42501.
 - Выпуск, применение миграции и запись в production делает координатор после
   merge.
+
+## 2026-09-26 — Доступ по правам роли для приглашённых сотрудников (миграция 243)
+
+Записи выше не переписываются. Ответ на аудит доступа 26.09.2026 (только
+чтение production и `main` `d89eebea6`): все сотрудники, приглашённые через
+«Сотрудники», имеют `organization_memberships.current_role` NULL (грубая роль
+заморожена с 155), грубая роль `admin` есть только у системного Admin.
+Аудит воспроизвёл каждый отказ на одноразовой базе 001–242 с участниками как
+в production (грубая роль NULL, точные ключи ролей и формы областей):
+
+- перемещение карточки «Воронки поступления» — `platform.move_case_pipeline_v1`
+  (187:152, `platform_role IN ('admin','curator')`): отказ Admissions и
+  Admissions Manager (`case_pipeline_forbidden`), хотя роль держит
+  `case.update.append`, а интерфейс показывает перемещение;
+- назначение куратора — `private.assign_case_curator_v1` (182:478/499)
+  вызывает `platform_private.require_case_assignment_admin_locked`, удалённую
+  в 156:1616: `42883` у всех, включая Admin;
+- сохранение редактора требований — `platform.staff_save_application_requirements_v1`
+  (226:769, `WHERE platform_role<>'student'`): для роли NULL организация
+  актора NULL, отказ держателям `document.manage`;
+- «Подготовить кабинет» — `platform.prepare_lead_cabinet_v1` (184:316–325,
+  `IN ('admin','sales')`): отказ Sales Manager, хотя у него
+  `lead.sales.workflow.manage` на лид;
+- запросы на удаление аккаунта — `platform.staff_account_deletion_requests_v1`
+  (196:203, `platform_role <> 'admin'`) при NULL пропускает любого сотрудника с
+  `organization.read` к именам студентов (избыточный доступ, интерфейс
+  вызывает только для Admin);
+- чтения доски, очереди «Студенты», её чисел и сводки направлений (191:653,
+  241:276/445 с 242, 183:52, `NOT IN ('admin','curator')`) пропускают
+  сотрудников только за счёт NULL-семантики.
+
+Срез — одна миграция `243_platform_access_by_permissions.sql`, только вперёд:
+`CREATE OR REPLACE` по последнему определению каждой функции, `SECURITY
+DEFINER`, `search_path = ''`; сигнатуры, владелец, гранты и коды ошибок не
+меняются.
+
+1. `move_case_pipeline_v1`: вместо грубой роли — «сотрудник, не студент»
+   (`IS DISTINCT FROM 'student'`) и ключ `case.update.append` в роли; решает,
+   как и раньше, проверка дела `staff_can_access(..., 'case.update.append',
+   'student_case', ...)`. Admissions и Admissions Manager двигают доступные им
+   дела; Sales Manager (ключа нет), студент и anon — отказ.
+2. `private.assign_case_curator_v1`: вызов удалённого помощника заменяется
+   существующим `platform_private.require_case_assignment_operator_locked(org,
+   case)` (156:977: `require_case_operator` → `require_domain_actor` с
+   блокировкой строк организации, профиля и членства и проверкой
+   `case.curator.assign` на дело). Полномочие по-прежнему только у Admin:
+   `require_admin_actor` до и после блокировок не меняется. Допуск Admissions
+   Manager — открытое решение владельца B, в этот срез не входит.
+3. `staff_save_application_requirements_v1`: поиск актора
+   `IS DISTINCT FROM 'student'` (самопроверяющая замена одного якоря) —
+   держатели `document.manage` сохраняют, как уже предлагает интерфейс.
+4. `prepare_lead_cabinet_v1`: грубый предикат снимается; остаются явный
+   отказ студенту и `staff_can_access(lead, 'lead.sales.workflow.manage')`.
+   Функция сама создаёт только ожидающее дело кабинета и выдачу доступа к
+   порталу не вызывает. Функции приглашения и выдачи
+   (`require_student_portal_cabinet_actor_e1`,
+   `assert_student_portal_cabinet_membership_e1`,
+   `prepare_student_portal_provisioning`) не меняются — решение владельца C.
+5. `staff_account_deletion_requests_v1`: `IS DISTINCT FROM 'admin'` — только
+   Admin, как в интерфейсе.
+6. Чтения доски, очереди, чисел и сводки: явный отказ студенту и anon
+   (`membership_id IS NULL OR platform_role IS NOT DISTINCT FROM 'student'`);
+   сотрудники проходят по прежней проверке `case.read.full`. Для
+   production круг читающих не меняется: грубые `sales`/`curator` у активных
+   сотрудников аудит не нашёл; гипотетический прежний `sales` решается тем же
+   правом, что и все.
+7. Намеренно без изменений: `save_lead_sale_conditions_v1` (интерфейс вызывает
+   `_group_v1` с проверкой по правам), `kb_require_admin` (только Admin —
+   решение владельца E), `staff_student_portal_curator_options` (решение B),
+   меню «Продажи» у Admissions (решение D).
+
+Интерфейс: предварительная проверка `moveCasePipeline`
+(`src/lib/platform-admissions-pipeline.ts`) сверяется с тем же ключом
+`case.update.append`, что проверяет сервер, вместо широкой `admissions.write`.
+Сопоставление ошибок не меняется.
+
+Проверка: новый набор на реальном Postgres
+`supabase/tests/platform_access_by_permissions.sql` в контрольной точке 243
+(`scripts/test-postgres-authorization.sh`) с участниками как в production:
+грубая роль NULL, Admissions (35 ключей, своя область), Admissions Manager
+(36 ключей, область отдела), Sales Manager (23 ключа, область отдела),
+«общие разделы» (область организации); статический node-тест текста 243.
+
+Выпуск: миграцию 243 применить управляемым путём (`evo-schema-ledger.yml`
+apply и сверка ledger) до выпуска, который отгружает этот код. Новый код на
+старой схеме ничего не расширяет (сервер по-прежнему отказывает), старый код на
+новой схеме получает исправленные проверки.

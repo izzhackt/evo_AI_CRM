@@ -53,7 +53,7 @@ export function TaskQueueList({
   /** Новый облик (Э1.3): блоки строки и «Отменить» строкой в верхнем слое. */
   look?: V3Look;
 }>) {
-  const { recent, message, announce, undo, completed, shown } = useRecentCompletions(bands);
+  const { recent, message, announce, undo, completed, shown, hold } = useRecentCompletions(bands);
   // «Отменить» нового облика: ответ сервера ждут и ошибку показывают в строке UndoToast.
   const [undoState, setUndoState] = useState<Readonly<Record<string, Readonly<{ pending: boolean; error: string | null }>>>>({});
   useQueueKeyboard({ openKey });
@@ -112,7 +112,7 @@ export function TaskQueueList({
         }))}
       />
       {/* Последним: место прочих детей и их `useId` — как в прежнем облике. */}
-      {toasts ? <UndoToast items={toasts} /> : null}
+      {toasts ? <UndoToast items={toasts} onHold={hold} /> : null}
     </>
   );
 }

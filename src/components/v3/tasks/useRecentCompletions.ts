@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { mutateStaffTaskAction } from "@/lib/platform-staff-task-actions";
 
 import { queueFocusAfterRemoval } from "../queue/queue-navigation";
 import { STAFF_ERROR_COPY, staffStatusForm } from "./task-commands";
 import type { RecentCompletion } from "./TaskQueueRow";
+import { resumedUndoDeadline } from "./undo-deadline";
 
 /** Сколько строка держит «Завершено · Отменить» до обновления списка. */
 export const TASK_UNDO_MS = 6000;
@@ -21,8 +22,12 @@ export type CompletionBand<Row extends Readonly<{ key: string }>> = Readonly<{
   rows: readonly Row[];
 }>;
 
-/** `expiresAt` — свой срок «Отменить» у каждой строки (мс, `Date.now()`). */
-export type RecentEntry<Row> = Readonly<RecentCompletion & { row: Row; band: string; index: number; label: string; danger: boolean; expiresAt: number }>;
+/**
+ * `expiresAt` — свой срок «Отменить» у каждой строки (мс, `Date.now()`);
+ * `completedAt` — когда строка завершена: пауза (`hold`) сдвигает срок только
+ * на время, прошедшее после завершения.
+ */
+export type RecentEntry<Row> = Readonly<RecentCompletion & { row: Row; band: string; index: number; label: string; danger: boolean; expiresAt: number; completedAt: number }>;
 
 /**
  * Фокус на «Отменить», срок которого вышел (`expiring`), переходит на соседнюю
@@ -59,6 +64,10 @@ export function useRecentCompletions<Row extends Readonly<{ key: string }>>(band
   const [recent, setRecent] = useState<Readonly<Record<string, RecentEntry<Row>>>>({});
   const [message, setMessage] = useState("");
   const [seenBands, setSeenBands] = useState(bands);
+  // Пауза сроков «Отменить» (новый облик, UndoToast): пока фокус или указатель
+  // на строке «Отменить», срок не идёт. `heldSince` — начало паузы, мс.
+  const [held, setHeld] = useState(false);
+  const heldSince = useRef<number | null>(null);
 
   // Истёкшая отмена держит строку «завершённой», пока обновлённый список
   // сервера её не уберёт: без мигания обратно в открытую задачу.
@@ -72,7 +81,7 @@ export function useRecentCompletions<Row extends Readonly<{ key: string }>>(band
   // его не продлевают. Таймер ждёт ближайший срок.
   useEffect(() => {
     const live = Object.values(recent).filter((entry) => !entry.expired);
-    if (!live.length) return;
+    if (!live.length || held) return;
     const timer = window.setTimeout(() => {
       const now = Date.now();
       // Уйдут все недавно завершённые строки — и те, чьё «Отменить» ещё идёт.
@@ -82,7 +91,29 @@ export function useRecentCompletions<Row extends Readonly<{ key: string }>>(band
       router.refresh();
     }, Math.max(0, Math.min(...live.map((entry) => entry.expiresAt)) - Date.now()));
     return () => window.clearTimeout(timer);
-  }, [recent, router]);
+  }, [recent, router, held]);
+
+  /**
+   * Пауза и продолжение сроков «Отменить» (WCAG 2.2.1): строка «Отменить»
+   * нового облика держит паузу, пока в ней фокус или указатель. Каждый срок
+   * сдвигается на время паузы после своего завершения (`resumedUndoDeadline`).
+   * Прежний облик и «Сегодня» паузу не зовут.
+   */
+  const hold = useCallback((next: boolean) => {
+    if (next) {
+      if (heldSince.current !== null) return;
+      heldSince.current = Date.now();
+      setHeld(true);
+      return;
+    }
+    const since = heldSince.current;
+    if (since === null) return;
+    heldSince.current = null;
+    const now = Date.now();
+    setRecent((current) => Object.fromEntries(Object.entries(current).map(([key, entry]) =>
+      [key, entry.expired ? entry : { ...entry, expiresAt: resumedUndoDeadline(entry, since, now) }])));
+    setHeld(false);
+  }, []);
 
   const announce = useCallback((text: string) => setMessage(text), []);
 
@@ -103,10 +134,11 @@ export function useRecentCompletions<Row extends Readonly<{ key: string }>>(band
   }, [router]);
 
   const completed = useCallback((row: Row, band: CompletionBand<Row>, index: number, completion: RecentCompletion) => {
+    const completedAt = Date.now();
     const expiresAt = Date.now() + TASK_UNDO_MS;
     setRecent((current) => ({
       ...current,
-      [row.key]: { ...completion, row, band: band.key, index, label: band.label, danger: band.danger, expired: false, expiresAt },
+      [row.key]: { ...completion, row, band: band.key, index, label: band.label, danger: band.danger, expired: false, expiresAt, completedAt },
     }));
   }, []);
 
@@ -127,5 +159,5 @@ export function useRecentCompletions<Row extends Readonly<{ key: string }>>(band
     }
   }
 
-  return { recent, message, announce, undo, completed, shown };
+  return { recent, message, announce, undo, completed, shown, hold };
 }

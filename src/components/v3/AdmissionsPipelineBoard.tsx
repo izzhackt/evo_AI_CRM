@@ -26,11 +26,10 @@ import {
   type AdmissionsPipelineStage,
   type AdmissionsPipelineTab,
 } from "@/lib/platform-admissions-pipeline-contract";
-import { stagePhase } from "@/lib/v3/stages";
 import { admissionsPipelineStage, admissionsPipelineTab, caseChatAwaitState, country as countryLabel } from "@/lib/v3/wording";
 import { Initials } from "@/components/v3/blocks/Initials";
 import { isNextLook, type V3Look } from "@/components/v3/blocks/look";
-import { StageChip, StatusChip } from "@/components/v3/blocks/StatusChip";
+import { StatusChip } from "@/components/v3/blocks/StatusChip";
 
 /** Full sentences only — a saved stage move is silent; removal reports below. */
 const MESSAGES: Record<Exclude<MoveCasePipelineActionStatus, "saved"> | "no_response", string> = {
@@ -257,7 +256,8 @@ function BoardCard({
   const marks = next ? [
     row.overdue ? <StatusChip key="overdue" label="просрочено" tone="danger" size="sm" /> : null,
     row.needsReply ? (
-      <Link key="reply" href={`/v3/messages?case=${row.studentCaseId}`} prefetch={false} draggable={false} className="inline-flex rounded-full">
+      // Ссылка на переписку дела: чип 18 px, зона нажатия 44 px (`.v3-chip-link`, v3.css).
+      <Link key="reply" href={`/v3/messages?case=${row.studentCaseId}`} prefetch={false} draggable={false} className="v3-chip-link inline-flex">
         <StatusChip label={replyWord} tone="danger" size="sm" />
       </Link>
     ) : null,
@@ -341,7 +341,7 @@ export function AdmissionsPipelineBoard({
   tab: AdmissionsPipelineTab;
   query: Readonly<{ q: string | null; country: string | null; curator: string | null }>;
   basePath?: string;
-  /** Новый облик (Э1.3–Э1.4, предпросмотр Admin): точка фазы у колонок, инициалы и чипы в карточках. */
+  /** Новый облик (Э1.3, предпросмотр Admin): инициалы и чипы в карточках. */
   look?: V3Look;
 }>) {
   const next = isNextLook(look);
@@ -547,9 +547,10 @@ export function AdmissionsPipelineBoard({
                 <BoardColumn
                   key={stage}
                   headingId={`${idPrefix}-${stage}`}
-                  title={next
-                    ? <StageChip label={admissionsPipelineStage(stage)} phase={stagePhase("admissions", stage)} className="min-w-0" truncate />
-                    : <span className="truncate">{admissionsPipelineStage(stage)}</span>}
+                  // Заголовок колонки — слово без точки фазы и в новом облике: на вкладке
+                  // одна фаза, точка повторяла бы один цвет над каждой колонкой (правило
+                  // плана «колонки не подкрашиваются»); фаза видна на вкладке.
+                  title={<span className="truncate">{admissionsPipelineStage(stage)}</span>}
                   count={inStage.length}
                   emptyText={BOARD_EMPTY.cases}
                   testId="v3-admissions-pipeline-column"

@@ -95,11 +95,11 @@ function Documents({ input }: Readonly<{ input: CaseOverviewInput }>) {
         {input.hrefs.documents ? <Link href={input.hrefs.documents} className={LINK}>Документы дела</Link> : null}
       </div>
       {line && isNextLook(input.look) ? (
-        // Новый облик: «N из M принято» полосой — только из прочитанных чисел; пустой чек-лист — прежняя строка.
+        // Новый облик: «N из M принято» полосой — только из прочитанных чисел; пустой чек-лист
+        // или числа, которые не сходятся, — прежняя строка без полосы.
         <div className="space-y-2">
-          {input.documents && input.documents.total > 0
-            ? <ProgressBar done={input.documents.approved} total={input.documents.total} word="принято" />
-            : <p className="t-body-compact text-fg">{line.summary}</p>}
+          <ProgressBar done={input.documents?.approved} total={input.documents?.total} word="принято"
+            fallback={<p className="t-body-compact text-fg">{line.summary}</p>} />
           {line.parts.length ? (
             <p className="flex flex-wrap gap-1">
               {line.parts.map((part) => <StatusChip key={part.key} label={part.text} tone={part.tone === "warn" ? "warn" : part.tone === "danger" ? "danger" : "neutral"} />)}

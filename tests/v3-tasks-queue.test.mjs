@@ -215,7 +215,9 @@ test("focus leaving with a completed row moves to the next remaining row, else t
   assert.equal(queueFocusAfterRemoval(keys, "d", new Set(["d"])), "c");
   assert.equal(queueFocusAfterRemoval(keys, "b", new Set(keys)), null);
   assert.equal(queueFocusAfterRemoval(keys, "x", new Set(["x"])), null);
-  const list = read("src/components/v3/tasks/TaskQueueList.tsx");
+  // The in-place completion lifecycle is shared by «Задачи» and «Сегодня» (useRecentCompletions).
+  const list = read("src/components/v3/tasks/useRecentCompletions.ts");
+  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /useRecentCompletions\(bands\)/u);
   // Each completion keeps its own deadline: a refresh or another completion does not extend it.
   assert.match(list, /const expiresAt = Date\.now\(\) \+ TASK_UNDO_MS;/u);
   assert.match(list, /Math\.max\(0, Math\.min\(\.\.\.live\.map\(\(entry\) => entry\.expiresAt\)\) - Date\.now\(\)\)/u);

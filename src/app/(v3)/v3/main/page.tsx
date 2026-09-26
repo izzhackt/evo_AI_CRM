@@ -6,16 +6,16 @@ import type { PeriodChoice } from "@/components/v3/MainHeader";
 import { PartShell } from "@/components/v3/PartShell";
 import { SalesDynamics } from "@/components/v3/SalesDynamics";
 import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
-import { SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
-import { TodayBoardLinks, TodayScreen, type TodayLink } from "@/components/v3/today/TodayScreen";
-import { isStaffPreview, staffCan, staffCanAccessRoute, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
+import { SalesDynamicsReport, SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
+import { TodayBoardLinks, TodayScreen } from "@/components/v3/today/TodayScreen";
+import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { isSalesImportQuery, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } from "@/lib/sales-register-navigation";
 import { PERIODS, periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { readSalesDynamics, type SalesDynamicsRead } from "@/lib/v3/sales-dynamics-source";
 import { buildTodayQueue, todayDateLabel } from "@/lib/v3/today-queue";
-import { readTodayQueue, type TodayAccess } from "@/lib/v3/today-source";
+import { readTodayQueue, todayLinks } from "@/lib/v3/today-source";
 
 export const dynamic = "force-dynamic";
 
@@ -30,17 +30,6 @@ export async function generateMetadata({
 
 type MainQuery = Readonly<{ period?: string; from?: string; to?: string; view?: string } & SalesReportQuery>;
 
-/**
- * Главное действие роли для пустого дня: куда идти, когда пора сделать
- * нечего. Доски — переходы, а не красная кнопка.
- */
-function mainActionFor(access: TodayAccess, canReadReport: boolean): TodayLink | null {
-  if (access.sources.includes("leads")) return { label: "Открыть воронку продаж", href: "/v3/pipeline" };
-  if (access.sources.includes("students")) return { label: "Открыть студентов", href: "/v3/profile" };
-  if (access.sources.includes("tasks")) return { label: "Все задачи", href: "/v3/tasks" };
-  return canReadReport ? { label: "Открыть отчёт продаж", href: "/v3/main?view=sales" } : null;
-}
-
 /** Раздел отчёта ждёт уже начатые чтения (они не отказывают: ошибки — внутри результата). */
 async function StreamedSalesDynamics({ read, ...props }: Omit<ComponentProps<typeof SalesDynamics>, "read"> & Readonly<{ read: Promise<SalesDynamicsRead> }>) {
   return <SalesDynamics {...props} read={await read} />;
@@ -49,7 +38,10 @@ async function StreamedSalesDynamics({ read, ...props }: Omit<ComponentProps<typ
 /**
  * `/v3/main` — «Сегодня» (Э3, 26.09.2026): стартовая страница каждой роли с
  * одной очередью того, что пора сделать. Графики, период и воронка — в
- * разделе «Динамика по дням» «Отчёта продаж» (`?view=sales`).
+ * разделе «Динамика по дням» «Отчёта продаж» (`?view=sales`). Роль, которая
+ * читает лиды, но не записи отчёта (Admissions по миграции 173: `lead.read`
+ * без `sales.register.read`), видела их на прежней Главной — у неё «Отчёт
+ * продаж» состоит из одного этого раздела.
  */
 export default async function MainPart({
   searchParams,
@@ -62,8 +54,8 @@ export default async function MainPart({
   const canReadReport = isStaffPreview(actor) ? canReadSales : staffCan(actor, "sales.report.read");
 
   if (query.view === "sales") {
-    if (!canReadReport) redirect("/access-denied?from=%2Fv3%2Fmain");
-    if (isSalesImportQuery(query)) return <SalesRegisterImportView actor={actor} query={query} />;
+    if (!canReadReport && !canReadSales) redirect("/access-denied?from=%2Fv3%2Fmain");
+    if (canReadReport && isSalesImportQuery(query)) return <SalesRegisterImportView actor={actor} query={query} />;
     if (!canReadSales) return <SalesRegisterView actor={actor} query={query} />;
     const period = resolvePeriod(query);
     const carry = salesDynamicsCarry(query);
@@ -76,37 +68,33 @@ export default async function MainPart({
       active: one.key === period.key,
     }));
     // Чтения раздела идут параллельно с отчётом, а раздел приходит потоком:
-    // записи отчёта не ждут когорту и доску.
+    // записи отчёта не ждут когорту и доску. Без записей отчёта раздел — вся
+    // страница: открыт всегда.
     const dynamics = readSalesDynamics(actor, period);
-    return (
-      <SalesRegisterView
-        actor={actor}
-        query={query}
-        dynamics={<Suspense fallback={<p role="status" className="mt-8 flex min-h-11 items-center border-t border-border pt-2 t-meta text-fg-3">Загружаем «Динамику по дням»…</p>}>
-          <StreamedSalesDynamics
-            id={SALES_DYNAMICS_ANCHOR}
-            open={typeof query.period === "string"}
-            choices={choices}
-            range={period.key === "custom" ? { from: period.from, to: period.to, max: period.today } : null}
-            periodText={periodLabel(period)}
-            formAction={`/v3/main#${SALES_DYNAMICS_ANCHOR}`}
-            carry={carry}
-            retryHref={salesDynamicsHref(query, period)}
-            read={dynamics}
-          />
-        </Suspense>}
-      />
+    const section = (
+      <Suspense fallback={<p role="status" className="mt-8 flex min-h-11 items-center border-t border-border pt-2 t-meta text-fg-3">Загружаем «Динамику по дням»…</p>}>
+        <StreamedSalesDynamics
+          id={SALES_DYNAMICS_ANCHOR}
+          open={!canReadReport || typeof query.period === "string"}
+          choices={choices}
+          range={period.key === "custom" ? { from: period.from, to: period.to, max: period.today } : null}
+          periodText={periodLabel(period)}
+          formAction={`/v3/main#${SALES_DYNAMICS_ANCHOR}`}
+          carry={carry}
+          retryHref={salesDynamicsHref(query, period)}
+          read={dynamics}
+        />
+      </Suspense>
     );
+    if (!canReadReport) return <SalesDynamicsReport dynamics={section} />;
+    return <SalesRegisterView actor={actor} query={query} dynamics={section} />;
   }
 
   const now = new Date();
   const { access, reads } = await readTodayQueue(actor, { now });
   const queue = buildTodayQueue(reads, now);
   const preview = isStaffPreview(actor);
-  const boards: TodayLink[] = [
-    ...(canReadSales && staffCanAccessRoute(actor, "/v3/pipeline") ? [{ label: "Воронка продаж", short: "Продажи", href: "/v3/pipeline" }] : []),
-    ...(staffCanAccessRoute(actor, "/v3/admissions-pipeline") ? [{ label: "Воронка поступления", short: "Поступление", href: "/v3/admissions-pipeline" }] : []),
-  ];
+  const { boards, mainAction } = todayLinks(actor, access, { canReadReport });
 
   return (
     <PartShell
@@ -118,7 +106,7 @@ export default async function MainPart({
       <TodayScreen
         queue={queue}
         nowIso={now.toISOString()}
-        mainAction={mainActionFor(access, canReadReport)}
+        mainAction={mainAction}
         permissions={{
           actorMembershipId: actor.membershipId,
           admin: actor.systemRole === "admin" && !preview,

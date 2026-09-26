@@ -156,10 +156,13 @@ export function buildV3Navigation(
   pathname: string,
   query: NavigationQuery,
 ) {
+  // «Отчёт продаж» — записи отчёта или (Э3, 26.09.2026) раздел «Динамика по
+  // дням» для роли, которая читает лиды без записей: графики и воронка ушли
+  // сюда с прежней Главной, где она их видела. Просмотр роли — по sales.read.
   const allowed = (link: V3NavigationLink) =>
     staffCanAccessRoute(actor, link.route)
     && (link.id !== "sales-report"
-      || (isStaffPreview(actor) ? staffPresentationCan(actor, "sales.read") : staffCan(actor, "sales.report.read")))
+      || staffPresentationCan(actor, "sales.read") || (!isStaffPreview(actor) && staffCan(actor, "sales.report.read")))
     && (link.id !== "evo-docs" || isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"))
     && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;

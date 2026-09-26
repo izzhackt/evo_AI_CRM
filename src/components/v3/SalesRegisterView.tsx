@@ -23,6 +23,23 @@ const money = (minor: number | null, currency: string | null) => minor === null 
 const dateLabel = (date: string | null) => date ? date.split("-").reverse().join(".") : "Дата не указана";
 
 /**
+ * «Отчёт продаж» роли, которая читает лиды, но не записи отчёта (Admissions
+ * по миграции 173: `lead.read` без `sales.register.read`). До «Сегодня» она
+ * видела «Лиды за период», «Динамику» и воронку на Главной; теперь они —
+ * раздел «Динамика по дням» (`dynamics`), и страница — только он. Чтений
+ * записей нет: их сервер этой роли не отдаёт.
+ */
+export function SalesDynamicsReport({ dynamics }: { dynamics: ReactNode }) {
+  return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
+    <header className="min-w-0">
+      <h1 className="t-page-title text-fg">Отчёт продаж</h1>
+      <p className="t-meta mt-1 text-fg-3">Записи продаж вашей роли недоступны: здесь лиды за период и доска продаж.</p>
+    </header>
+    {dynamics}
+  </main>;
+}
+
+/**
  * «Отчёт продаж». `dynamics` — раздел «Динамика по дням» (графики и воронка,
  * Э3 26.09.2026) для ролей, читающих продажи; стоит под записями и только в
  * виде списка — не в редакторе и не в карточке записи.

@@ -84,7 +84,9 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
-const { readTodayQueue, TodaySourceDenied } = require(join(ROOT, "src/lib/v3/today-source.ts"));
+const { readTodayQueue, todayLinks, TodaySourceDenied } = require(join(ROOT, "src/lib/v3/today-source.ts"));
+const { staffCan } = require(join(ROOT, "src/lib/platform-access.ts"));
+const { staffRoleKeys } = require("./staff-role-templates.cjs");
 const { buildTodayQueue, todayDateLabel } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
 const { TodayBoardLinks, TodayScreen } = require(join(ROOT, "src/components/v3/today/TodayScreen.tsx"));
 const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
@@ -227,17 +229,15 @@ const actor = (fields) => ({
   ...fields,
 });
 const own = (label) => [{ id: "99999999-1111-4111-8111-000000000001", roleId: "99999999-1111-4111-8111-000000000002", label, bundleId: "b", bundleVersion: 1, scope: { kind: "own", key: null, resourceKind: null } }];
+// Права — шаблонов миграции 173 вместе с общими разделами, как у настоящих
+// ролей: у Admissions есть и `lead.read`, но продаж она не ведёт.
 const ACTORS = {
   admin: actor({ displayName: "Администратор (синтетический)", systemRole: "admin", assignments: [], permissionKeys: [] }),
   admissions: actor({
-    displayName: "Куратор (синтетический)", systemRole: "staff", assignments: own("Сотрудник поступления"),
-    permissionKeys: ["case.read.full", "profile.read.full", "case.route.manage", "document.read.full", "task.create", "task.manage",
-      "staff.task.read", "staff.task.create", "staff.task.complete", "staff.task.edit", "team.chat.admissions", "communication.read.full"],
+    displayName: "Куратор (синтетический)", systemRole: "staff", assignments: own("Admissions"), permissionKeys: staffRoleKeys("admissions"),
   }),
   sales: actor({
-    displayName: "Менеджер продаж (синтетический)", systemRole: "staff", assignments: own("Sales Manager"),
-    permissionKeys: ["lead.read", "lead.sales.workflow.manage", "lead.sales.owner.assign", "sales.register.read", "case.read.summary",
-      "staff.task.read", "staff.task.create", "staff.task.complete", "staff.task.edit", "team.chat.sales", "reply.snippet.sales"],
+    displayName: "Менеджер продаж (синтетический)", systemRole: "staff", assignments: own("Sales Manager"), permissionKeys: staffRoleKeys("sales-manager"),
   }),
 };
 
@@ -261,7 +261,7 @@ function readers(data) {
         return page("mine", data.mine ?? [], data.minePartial ? MINE_ROWS.at(-1).cursor : null);
       }
       fail("handoffs");
-      return page("needs_action", data.attention ?? []);
+      return page("needs_action", data.attention ?? [], data.attentionPartial ? ATTENTION_ROWS.at(-1).cursor : null);
     },
     async readLeads(_actor, assignment) {
       fail(assignment === "mine" ? "leads" : "requests");
@@ -278,9 +278,11 @@ const SCENARIOS = {
   admin: { actor: "admin", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, leads: MY_LEADS, unassigned: UNASSIGNED, chats: CHATS } },
   admissions: { actor: "admissions", data: { staff: STAFF_TASKS.slice(1, 3), cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, chats: CHATS } },
   sales: { actor: "sales", data: { staff: STAFF_TASKS, leads: MY_LEADS, unassigned: UNASSIGNED } },
-  // Ошибка задач и неполное чтение студентов: остальные источники видны, числа гасятся только там, куда они пишут.
-  // Переписок нет: их группа и при полном чтении без числа, а здесь видно, что полная группа число сохраняет.
-  partial: { actor: "admissions", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS.slice(0, 3), minePartial: true, attention: ATTENTION_ROWS, chats: [], fail: ["tasks"] } },
+  // Ошибка переписок и неполное «Требуют действия» (как у Admin, когда таких дел больше 100): остальные
+  // источники видны, числа гаснут только у групп, которые от них зависят. Строки «Моих» сливаются со
+  // строками «Требуют действия», поэтому неполное чтение гасит и «Без следующего шага» с «Ближайшими»;
+  // «Просрочено» и «Сегодня» число сохраняют.
+  partial: { actor: "admissions", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, attentionPartial: true, chats: CHATS, fail: ["chats"] } },
   // Пустой день продаж: всё прочитано, пора делать нечего, ближайший срок — лид на чт 01.10.
   empty: { actor: "sales", data: { staff: [staffTask(9, { title: "Подготовить вопросы к планёрке" })], leads: [MY_LEADS[3]], unassigned: [] } },
   // Пустой день поступления без сроков: главное действие роли.
@@ -308,21 +310,13 @@ function withContexts(node, search = "") {
   );
 }
 
-const SALES_BOARD = { label: "Воронка продаж", short: "Продажи", href: "/v3/pipeline" };
-const ADMISSIONS_BOARD = { label: "Воронка поступления", short: "Поступление", href: "/v3/admissions-pipeline" };
-const BOARDS = { admin: [SALES_BOARD, ADMISSIONS_BOARD], admissions: [ADMISSIONS_BOARD], sales: [SALES_BOARD] };
-const MAIN_ACTION = {
-  admin: { label: "Открыть воронку продаж", href: "/v3/pipeline" },
-  admissions: { label: "Открыть студентов", href: "/v3/profile" },
-  sales: { label: "Открыть воронку продаж", href: "/v3/pipeline" },
-};
-
-/** Та же сборка, что у `main/page.tsx`: `PartShell` с датой, доски в шапке, `TodayScreen`. */
+/** Та же сборка, что у `main/page.tsx`: `PartShell` с датой, доски в шапке (`todayLinks`), `TodayScreen`. */
 async function buildPage(name) {
   const scenario = SCENARIOS[name];
   const who = ACTORS[scenario.actor];
-  const { reads } = await readTodayQueue(who, { now: NOW, readers: readers(scenario.data) });
+  const { access, reads } = await readTodayQueue(who, { now: NOW, readers: readers(scenario.data) });
   const queue = buildTodayQueue(reads, NOW);
+  const { boards, mainAction } = todayLinks(who, access, { canReadReport: staffCan(who, "sales.report.read") });
   const admin = who.systemRole === "admin";
   const has = (key) => admin || who.permissionKeys.includes(key);
   const permissions = {
@@ -333,8 +327,8 @@ async function buildPage(name) {
     title: "Сегодня",
     testId: "v3-operational-dashboard",
     meta: createElement("time", { dateTime: queue.today }, todayDateLabel(queue.today)),
-    action: createElement(TodayBoardLinks, { links: BOARDS[scenario.actor] }),
-  }, createElement(TodayScreen, { queue, nowIso: NOW.toISOString(), permissions, mainAction: MAIN_ACTION[scenario.actor] }));
+    action: createElement(TodayBoardLinks, { links: boards }),
+  }, createElement(TodayScreen, { queue, nowIso: NOW.toISOString(), permissions, mainAction }));
   return { who, node };
 }
 
@@ -390,9 +384,10 @@ function stubSalesRegister() {
   stubModule("src/components/v3/SalesRecordPreview.tsx", { SalesRecordPreview: () => null });
 }
 
-async function buildReport(open) {
+async function buildReport(report) {
+  const { open, leadsOnly } = report;
   stubSalesRegister();
-  const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
+  const { SalesDynamicsReport, SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
   const { SalesDynamics } = require(join(ROOT, "src/components/v3/SalesDynamics.tsx"));
   const { salesBoardFunnel } = require(join(ROOT, "src/lib/v3/sales-board-funnel.ts"));
   const { salesDynamicsCarry, salesDynamicsHref } = require(join(ROOT, "src/lib/sales-register-navigation.ts"));
@@ -402,7 +397,8 @@ async function buildReport(open) {
     .map((key) => ({ key, title: title(key), gate: key === "qualified", terminal: false }))
     .concat([{ key: "handed_off", title: FUNNEL_STEP.handed, gate: false, terminal: true }]);
   const board = [...MY_LEADS, ...UNASSIGNED];
-  const query = open ? { view: "sales", year: "2026", month: "9", period: "week" } : { view: "sales", year: "2026", month: "9" };
+  // Без записей отчёта — только параметры раздела: выбрана неделя, как после нажатия «Неделя».
+  const query = leadsOnly ? { view: "sales", period: "week" } : open ? { view: "sales", year: "2026", month: "9", period: "week" } : { view: "sales", year: "2026", month: "9" };
   const periods = [["today", "Сегодня"], ["yesterday", "Вчера"], ["week", "Неделя"], ["month", "Месяц"], ["custom", "Период"]];
   // Подписи и значения — как у `funnel-source`: «20 сен», серии нарастающим итогом.
   const days = ["20 сен", "21 сен", "22 сен", "23 сен", "24 сен", "25 сен", "26 сен"];
@@ -440,7 +436,8 @@ async function buildReport(open) {
       funnel: salesBoardFunnel({ leads: board, truncated: false }, stages),
     },
   });
-  return SalesRegisterView({ actor: ACTORS.sales, query, dynamics });
+  // Роль с lead.read без записей отчёта (Admissions по 173): страница — только раздел, как у `main/page.tsx`.
+  return leadsOnly ? SalesDynamicsReport({ dynamics }) : SalesRegisterView({ actor: ACTORS.sales, query, dynamics });
 }
 
 async function compileCss() {
@@ -457,7 +454,8 @@ async function compileCss() {
 
 async function renderFullPage(name, look) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { who, node } = REPORTS[name] !== undefined ? { who: ACTORS.sales, node: await buildReport(REPORTS[name]) } : await buildPage(name);
+  const report = REPORTS[name];
+  const { who, node } = report ? { who: report.leadsOnly ? ACTORS.admissions : ACTORS.sales, node: await buildReport(report) } : await buildPage(name);
   const page = createElement(
     "div",
     // `--look=next` — предпросмотр нового облика (Э1.1), как у Admin с включённым переключателем.
@@ -465,11 +463,20 @@ async function renderFullPage(name, look) {
     createElement(AppShell, { actor: who, initialNotifications: null }, node),
   );
   // Отчёт — `/v3/main?view=sales`: меню подсвечивает «Отчёт продаж», а не «Сегодня».
-  return renderToStaticMarkup(withContexts(page, REPORTS[name] === undefined ? "" : REPORTS[name] ? "view=sales&period=week" : "view=sales"));
+  return renderToStaticMarkup(withContexts(page, report ? reportSearch(report) : ""));
 }
 
-/** Отчёт продаж: раздел открыт (выбран период) или свёрнут по умолчанию. */
-const REPORTS = { "report-dynamics": true, "report-collapsed": false };
+/**
+ * Отчёт продаж: раздел открыт (выбран период) или свёрнут по умолчанию под
+ * записями; `leadsOnly` — роль с lead.read без записей (Admissions по 173):
+ * страница из одного открытого раздела.
+ */
+const REPORTS = {
+  "report-dynamics": { open: true, leadsOnly: false },
+  "report-collapsed": { open: false, leadsOnly: false },
+  "report-lead-read": { open: true, leadsOnly: true },
+};
+const reportSearch = (report) => report.open ? "view=sales&period=week" : "view=sales";
 
 async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
@@ -494,7 +501,7 @@ async function screenshots() {
         `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Сегодня — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
         `<body class="min-h-full">${html}</body></html>`,
       ].join(""));
-      const shots = name === "report-dynamics"
+      const shots = name === "report-dynamics" || name === "report-lead-read"
         ? [[`today-${name}-1440${suffix}.png`, DESKTOP, true], [`today-${name}-1280${suffix}.png`, LAPTOP, true], [`today-${name}-390${suffix}.png`, PHONE, true]]
         : name === "report-collapsed"
           ? [[`today-${name}-1440${suffix}.png`, DESKTOP, true], [`today-${name}-390${suffix}.png`, PHONE, true]]
@@ -588,8 +595,8 @@ async function json() {
     const { node } = await buildPage(name);
     out.push({ name, html: renderToStaticMarkup(withContexts(node)) });
   }
-  for (const [name, open] of Object.entries(REPORTS)) {
-    out.push({ name, html: renderToStaticMarkup(withContexts(await buildReport(open), open ? "view=sales&period=week" : "view=sales")) });
+  for (const [name, report] of Object.entries(REPORTS)) {
+    out.push({ name, html: renderToStaticMarkup(withContexts(await buildReport(report), reportSearch(report))) });
   }
   process.stdout.write(JSON.stringify(out));
 }

@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
 import { salesDynamicsCarry, salesDynamicsHref } from "../src/lib/sales-register-navigation.ts";
 import { salesBoardFunnel } from "../src/lib/v3/sales-board-funnel.ts";
 import {
   TODAY_BANDS,
+  TODAY_MERGED_SOURCES,
+  TODAY_SOURCES,
   TODAY_UNCOUNTED,
   buildTodayQueue,
+  todayBandsDependingOn,
   todayChatItems,
   todayDateLabel,
   todayHandoffItems,
@@ -18,7 +23,8 @@ import {
   todayTaskItems,
   todayWhen,
 } from "../src/lib/v3/today-queue.ts";
-import { TodaySourceDenied, readTodayQueue, todayAccess } from "../src/lib/v3/today-source.ts";
+import { TodaySourceDenied, readTodayQueue, todayAccess, todayLinks } from "../src/lib/v3/today-source.ts";
+import roleTemplates from "./e2e/staff-role-templates.cjs";
 
 /**
  * «Сегодня» (Э3, 26.09.2026): одна очередь из существующих чтений. Логика
@@ -271,6 +277,55 @@ test("no invented numbers: a band counts only when every read writing into it is
   assert.equal(bandOf(buildTodayQueue([read("requests", requests), read("chats", [])], NOW), "waiting").count, 1);
 });
 
+test("merged rows: a partial read hides the numbers of every band its missing rows could change", () => {
+  // Два моих дела без шага; одно из них ещё и ждёт моего принятия (одно дело из «Моих» и «Требуют действия»).
+  const mine = todayStudentItems([caseRow(1, { band: "no_step" }), caseRow(2, { band: "no_step" })], TODAY);
+  const handoffs = todayHandoffItems([caseRow(2, { band: "no_step", flags: ["awaiting_ack"] })], { coverage: false });
+  const complete = buildTodayQueue([read("students", mine), read("handoffs", handoffs)], NOW);
+  assert.deepEqual(complete.bands.map((band) => [band.band, band.count]), [["waiting", 1], ["no_step", 1]]);
+
+  // Разбор 60e58029, случай 1: «Требуют действия» прочитано не полностью, строка «ждёт принятия» не пришла.
+  // Дело осталось в «Без следующего шага» — там 2 строки, а верный ответ 1: числа нет.
+  const handoffsPartial = buildTodayQueue([read("students", mine), read("handoffs", [], "partial")], NOW);
+  assert.deepEqual(handoffsPartial.bands.map((band) => [band.band, band.count, band.items.length]), [["no_step", null, 2]]);
+
+  // Случай 2: «Мои» прочитаны не полностью, а дело на самом деле просрочено. Строка «ждёт принятия» —
+  // в «Ждут ответа», но её место — «Просрочено»: у «Ждут ответа» числа нет.
+  const studentsPartial = buildTodayQueue([read("students", [], "partial"), read("handoffs", handoffs)], NOW);
+  assert.deepEqual(studentsPartial.bands.map((band) => [band.band, band.count, band.items.length]), [["waiting", null, 1]]);
+  const studentsFailed = buildTodayQueue([{ source: "students", state: "error" }, read("handoffs", handoffs)], NOW);
+  assert.equal(bandOf(studentsFailed, "waiting").count, null, "a failed read hides the same numbers as a partial one");
+
+  // Вниз слияние строку не отдаёт: неполное «Требуют действия» не трогает «Просрочено» и «Сегодня».
+  const urgent = todayStudentItems([
+    caseRow(3, { step: "Апостиль", due: "2026-09-23", band: "overdue" }),
+    caseRow(4, { step: "Звонок", due: TODAY, band: "today" }),
+    caseRow(5, { band: "no_step" }),
+  ], TODAY);
+  const adminPartial = buildTodayQueue([read("students", urgent), read("handoffs", handoffs, "partial")], NOW);
+  assert.deepEqual(adminPartial.bands.map((band) => [band.band, band.count]), [["overdue", 1], ["today", 1], ["waiting", null], ["no_step", null]]);
+
+  // Которые группы от какого чтения зависят — одна таблица; лиды и заявки сливаются так же, как дела.
+  assert.deepEqual(todayBandsDependingOn("handoffs"), ["waiting", "no_step", "upcoming"]);
+  assert.deepEqual(todayBandsDependingOn("students"), ["overdue", "today", "waiting", "no_step", "upcoming"]);
+  assert.deepEqual(todayBandsDependingOn("requests"), ["waiting", "no_step", "upcoming"]);
+  assert.deepEqual(todayBandsDependingOn("leads"), ["overdue", "today", "waiting", "no_step", "upcoming"]);
+  assert.deepEqual(todayBandsDependingOn("tasks"), ["overdue", "today", "upcoming"]);
+  assert.deepEqual(todayBandsDependingOn("chats"), ["waiting"]);
+  for (const source of TODAY_SOURCES) {
+    for (const other of TODAY_MERGED_SOURCES[source]) assert.ok(TODAY_MERGED_SOURCES[other].includes(source), `${source} ↔ ${other}`);
+  }
+  // Лид из «Моих лидов» без действия и он же в «Без ответственного» (чтения в разное время): неполная
+  // «Без ответственного» гасит «Без следующего шага».
+  const leadRows = todayLeadItems([lead(1, {}), lead(2, {})], TODAY);
+  assert.equal(bandOf(buildTodayQueue([read("leads", leadRows), read("requests", [], "partial")], NOW), "no_step").count, null);
+  assert.equal(bandOf(buildTodayQueue([read("leads", leadRows), read("requests", [])], NOW), "no_step").count, 2);
+
+  // Строки источников с разными ключами не сливаются молча: незаявленное слияние — ошибка сборки.
+  const clash = [{ ...todayChatItems([thread(1)])[0], key: `student:${uuid("dddddddd", 1)}` }];
+  assert.throws(() => buildTodayQueue([read("students", mine), read("chats", clash)], NOW), /do not share keys/u);
+});
+
 test("denied and preview sources name themselves without hiding the numbers the role can read", () => {
   const queue = buildTodayQueue([
     read("tasks", todayTaskItems({ staff: [staffTask(1, { dueOn: TODAY })], cases: [], actorMembershipId: ME, now: NOW })),
@@ -309,24 +364,68 @@ const actor = (fields) => ({
   authUserId: ME, profileId: ME, membershipId: ME, organizationId: ORG, displayName: "Сотрудник", platformAccessVersion: 1,
   email: "synthetic@example.invalid", presentationRole: null, systemRole: "staff", assignments: [], permissionKeys: [], ...fields,
 });
-const ADMISSIONS = ["case.read.full", "profile.read.full", "task.manage", "task.create", "staff.task.read", "staff.task.complete"];
-const SALES = ["lead.read", "lead.sales.workflow.manage", "sales.register.read", "case.read.summary", "staff.task.read"];
+// Права настоящих ролей — шаблоны миграции 173 вместе с общими разделами (читаются из файла миграции).
+const ADMISSIONS = roleTemplates.staffRoleKeys("admissions");
+const ADMISSIONS_MANAGER = roleTemplates.staffRoleKeys("admissions-manager");
+const SALES = roleTemplates.staffRoleKeys("sales");
+const SALES_MANAGER = roleTemplates.staffRoleKeys("sales-manager");
 
-test("role scoping: each role reads only its own sources", () => {
+test("role scoping: each role reads only its own sources, on the real 173 role templates", () => {
+  // Шаблон Admissions несёт lead.read (видеть лид дела), но продаж не ведёт: лидов и заявок у неё нет.
+  assert.ok(ADMISSIONS.includes("lead.read") && !ADMISSIONS.includes("lead.sales.workflow.manage") && !ADMISSIONS.includes("sales.register.read"));
   assert.deepEqual(todayAccess(actor({ systemRole: "admin" })), {
     sources: ["tasks", "students", "handoffs", "leads", "requests", "chats"], coverage: true, preview: false,
   });
   assert.deepEqual(todayAccess(actor({ permissionKeys: ADMISSIONS })), {
     sources: ["tasks", "students", "handoffs", "chats"], coverage: false, preview: false,
   });
-  assert.equal(todayAccess(actor({ permissionKeys: [...ADMISSIONS, "case.curator.assign"] })).coverage, true);
+  assert.deepEqual(todayAccess(actor({ permissionKeys: ADMISSIONS_MANAGER })), {
+    sources: ["tasks", "students", "handoffs", "chats"], coverage: true, preview: false,
+  });
   assert.deepEqual(todayAccess(actor({ permissionKeys: SALES })), { sources: ["tasks", "leads", "requests"], coverage: false, preview: false });
+  assert.deepEqual(todayAccess(actor({ permissionKeys: SALES_MANAGER })), { sources: ["tasks", "leads", "requests"], coverage: false, preview: false });
+  // Одно lead.read — чтение, не работа продаж; назначение ответственных — работа продаж.
+  assert.deepEqual(todayAccess(actor({ permissionKeys: ["lead.read"] })).sources, []);
+  assert.deepEqual(todayAccess(actor({ permissionKeys: ["lead.read", "lead.sales.owner.assign"] })).sources, ["leads", "requests"]);
+  assert.deepEqual(todayAccess(actor({ permissionKeys: ["lead.sales.workflow.manage"] })).sources, [], "no sales work without reading leads");
   assert.deepEqual(todayAccess(actor({ permissionKeys: ["sales.register.read"] })).sources, [], "report-only role has no queue");
   // Просмотр роли «Продажи» у Admin: права роли, а не Admin; назначение кураторов не показывается.
   assert.deepEqual(todayAccess(actor({ systemRole: "admin", presentationRole: "sales" })), {
     sources: ["tasks", "leads", "requests"], coverage: false, preview: true,
   });
   assert.deepEqual(todayAccess(actor({ systemRole: "admin", presentationRole: "admissions" })).sources, ["tasks", "students", "handoffs", "chats"]);
+});
+
+test("header boards and the empty-day action follow the role's sources, not lead.read alone", () => {
+  const linksOf = (fields, canReadReport = false) => {
+    const who = actor(fields);
+    return todayLinks(who, todayAccess(who), { canReadReport });
+  };
+  const SALES_BOARD = { label: "Воронка продаж", short: "Продажи", href: "/v3/pipeline" };
+  const ADMISSIONS_BOARD = { label: "Воронка поступления", short: "Поступление", href: "/v3/admissions-pipeline" };
+  // Настоящая Admissions (lead.read по 173): её доска и «Открыть студентов», без воронки продаж.
+  assert.deepEqual(linksOf({ permissionKeys: ADMISSIONS }), { boards: [ADMISSIONS_BOARD], mainAction: { label: "Открыть студентов", href: "/v3/profile" } });
+  assert.deepEqual(linksOf({ permissionKeys: SALES }, true), { boards: [SALES_BOARD], mainAction: { label: "Открыть воронку продаж", href: "/v3/pipeline" } });
+  assert.deepEqual(linksOf({ systemRole: "admin" }, true).boards, [SALES_BOARD, ADMISSIONS_BOARD]);
+  assert.deepEqual(linksOf({ systemRole: "admin", presentationRole: "admissions" }).boards, [ADMISSIONS_BOARD]);
+  assert.deepEqual(linksOf({ systemRole: "admin", presentationRole: "sales" }, true).boards, [SALES_BOARD]);
+  assert.deepEqual(linksOf({ permissionKeys: ["sales.register.read"] }, true), { boards: [], mainAction: { label: "Открыть отчёт продаж", href: "/v3/main?view=sales" } });
+  assert.deepEqual(linksOf({ permissionKeys: ["lead.read"] }), { boards: [], mainAction: null });
+});
+
+test("«Отчёт продаж» stays reachable for lead readers without the report: menu item and a report of the section", () => {
+  const menu = (permissionKeys) => buildV3Navigation(actor({ permissionKeys }), "/v3/main", new URLSearchParams("view=sales"));
+  const ids = (model) => model.groups.flatMap((group) => group.links.map((link) => link.id));
+  // До «Сегодня» Admissions (lead.read без sales.register.read) видела графики и воронку на Главной.
+  const admissions = menu(ADMISSIONS);
+  assert.ok(ids(admissions).includes("sales-report"));
+  assert.equal(admissions.activeId, "sales-report");
+  assert.ok(ids(menu(["sales.register.read"])).includes("sales-report"), "report-only role keeps its item");
+  assert.ok(!ids(menu(["case.read.full", "profile.read.full"])).includes("sales-report"), "no lead and no report read — no item");
+  const page = readFileSync(new URL("../src/app/(v3)/v3/main/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /if \(!canReadReport && !canReadSales\) redirect\("\/access-denied\?from=%2Fv3%2Fmain"\);/u);
+  assert.match(page, /if \(!canReadReport\) return <SalesDynamicsReport dynamics=\{section\} \/>;/u);
+  assert.match(page, /open=\{!canReadReport \|\| typeof query\.period === "string"\}/u);
 });
 
 function fakeReaders(overrides = {}) {
@@ -447,10 +546,13 @@ test("static render: the page root, the dated heading and one queue for Admin", 
   // Задача — настоящая строка «Задач»: круг завершения на месте.
   assert.match(html, /data-queue-row="staff:[^"]+" data-kind="staff"[\s\S]*?aria-label="Завершить: Отправить партнёру пакет по весеннему набору"/u);
   assert.match(html, /aria-label="Завершить с результатом: Записать на визу X1"/u);
-  // Остальные строки — «Открыть» в существующую панель, покрывающее строку.
-  assert.match(html, /<a data-queue-open="" aria-label="Открыть: Перезвонить после консультации"[^>]*href="\/v3\/pipeline\?lead=ffffffff-3333-4333-8333-000000000001"/u);
-  assert.match(html, /<a data-queue-open="" aria-label="Открыть: Назначить куратора"[^>]*href="\/v3\/profile\?view=needs_curator&amp;open=dddddddd-2222-4222-8222-000000000012"/u);
-  assert.match(html, /<a data-queue-open="" aria-label="Открыть: Ответить в переписке"[^>]*href="\/v3\/messages\?case=dddddddd-2222-4222-8222-000000000014&amp;queue=needs_reply"/u);
+  // Остальные строки — «Открыть» в существующую панель, покрывающее строку; имя ссылки называет и человека.
+  assert.match(html, /<a data-queue-open="" aria-label="Открыть: Перезвонить после консультации — Асель Проектова"[^>]*href="\/v3\/pipeline\?lead=ffffffff-3333-4333-8333-000000000001"/u);
+  assert.match(html, /<a data-queue-open="" aria-label="Открыть: Назначить куратора — Жанна Вводная"[^>]*href="\/v3\/profile\?view=needs_curator&amp;open=dddddddd-2222-4222-8222-000000000012"/u);
+  assert.match(html, /<a data-queue-open="" aria-label="Открыть: Ответить в переписке — Лейла Тестовая"[^>]*href="\/v3\/messages\?case=dddddddd-2222-4222-8222-000000000014&amp;queue=needs_reply"/u);
+  // Две новые заявки — два разных имени ссылки.
+  const requestNames = [...html.matchAll(/aria-label="(Открыть: Новая заявка[^"]*)"/gu)].map((match) => match[1]);
+  assert.deepEqual(requestNames.sort(), ["Открыть: Новая заявка — Амир Входящий", "Открыть: Новая заявка — Эльмира Формова"]);
   // Срок — JetBrains Mono «ДД.ММ» и слово; «Переданы» и чужие дела в очередь не попадают.
   assert.match(html, /<time dateTime="2026-09-23" class="block font-mono tabular-nums text-danger">23\.09<\/time>/u);
   assert.doesNotMatch(html, /Нурлан Переданов|Кирилл Чужой|Проверить сроки подачи в Варшаве/u);
@@ -458,9 +560,11 @@ test("static render: the page root, the dated heading and one queue for Admin", 
   assert.doesNotMatch(html, /\bbg-accent\b/u);
 });
 
-test("static render: admissions and sales see only their own sources", () => {
+test("static render: admissions and sales see only their own sources (real 173 templates)", () => {
+  // Куратор рендера — с правами шаблона Admissions, включая lead.read: лидов, заявок и воронки продаж нет.
   const admissions = surfaces.get("admissions");
-  assert.doesNotMatch(admissions, /data-today-source="(?:leads|requests)"|Воронка продаж/u);
+  assert.doesNotMatch(admissions, /data-today-source="(?:leads|requests)"|Воронка продаж|Открыть воронку продаж/u);
+  assert.match(admissions, /aria-label="Доски"[^>]*><a [^>]*href="\/v3\/admissions-pipeline"[^>]*>Воронка поступления<\/a><\/nav>/u);
   assert.match(admissions, /data-today-source="chats"/u);
   assert.match(admissions, /Принять дело/u);
   assert.doesNotMatch(admissions, /Назначить куратора/u, "no curator assignment without case.curator.assign");
@@ -470,13 +574,16 @@ test("static render: admissions and sales see only their own sources", () => {
   assert.match(sales, /data-today-reason="">нет ответственного<\/span><span [^>]*data-today-reason="">WhatsApp<\/span>/u);
 });
 
-test("static render: a failed source is named in place and only its bands lose their numbers", () => {
+test("static render: a failed source is named in place and only the bands that depend on it lose their numbers", () => {
   const html = surfaces.get("partial");
   assert.match(html, /<div role="alert"[^>]*data-testid="today-notices"/u);
-  assert.match(html, /data-today-notice="error" data-today-source="tasks"[^>]*><span class="text-danger">Задачи не загрузились\.<\/span><a [^>]*href="\/v3\/main"[^>]*>Повторить<\/a>/u);
-  assert.match(html, /data-today-notice="partial" data-today-source="students"[\s\S]*?href="\/v3\/profile\?view=mine"[^>]*>Мои студенты<\/a>/u);
+  assert.match(html, /data-today-notice="error" data-today-source="chats"[^>]*><span class="text-danger">Сообщения не загрузились\.<\/span><a [^>]*href="\/v3\/main"[^>]*>Повторить<\/a>/u);
+  assert.match(html, /data-today-notice="partial" data-today-source="handoffs"[\s\S]*?href="\/v3\/profile\?view=needs_action"[^>]*>Требуют действия<\/a>/u);
+  // Неполное «Требуют действия» гасит группы, куда его строка могла бы забрать дело из «Моих»;
+  // «Просрочено» и «Сегодня» срочнее «Ждут ответа» и число сохраняют.
   const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
-  assert.deepEqual(headers, ["Просрочено", "Сегодня · сб 26.09", "Ждут ответа · 1", "Без следующего шага"]);
+  assert.deepEqual(headers, ["Просрочено · 4", "Сегодня · сб 26.09 · 3", "Ждут ответа", "Без следующего шага", "Ближайшие 14 дней"]);
+  assert.doesNotMatch(html, /data-queue-row="chat:/u, "the failed source draws no rows");
   assert.doesNotMatch(html, /На сегодня всё/u);
 });
 
@@ -504,6 +611,15 @@ test("report: the period cohort and the board never share a bare «Переда�
   // Легенда и подпись графика — те же слова когорты.
   assert.match(period, /Из них переданы<\/li>/u);
   assert.doesNotMatch(period, /Переданы: /u);
+});
+
+test("report: a lead reader without the report gets «Отчёт продаж» of the open section only", () => {
+  const html = surfaces.get("report-lead-read");
+  assert.equal(html.match(/<h1\b/gu)?.length, 1);
+  assert.match(html, /<h1 class="t-page-title text-fg">Отчёт продаж<\/h1><p class="t-meta mt-1 text-fg-3">Записи продаж вашей роли недоступны: здесь лиды за период и доска продаж\.<\/p>/u);
+  assert.match(html, /<details id="sales-dynamics" open="" class=/u);
+  assert.match(text(html), /Пришло лидов 12 Из них квалифицированы 5 Из них переданы 2/u);
+  assert.doesNotMatch(html, /aria-label="Записи продаж"|Добавить продажу|\bbg-accent\b/u);
 });
 
 test("report: charts and funnel are ink; red stays with the page action", () => {

@@ -1,17 +1,10 @@
 import Link from "next/link";
 
-import type { TodayNotice, TodayQueue } from "@/lib/v3/today-queue";
+import type { TodayLink, TodayNotice, TodayQueue } from "@/lib/v3/today-queue";
 
 import { QUEUE_QUIET_LINK, QueueEmpty } from "../queue/QueueStates";
 import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
 import { TodayQueueList } from "./TodayQueueList";
-
-export type TodayLink = Readonly<{
-  label: string;
-  href: string;
-  /** Короткое имя для телефона, когда досок две («Продажи» вместо «Воронка продаж»). */
-  short?: string;
-}>;
 
 /**
  * Ошибка и неполное чтение источника — на месте, над очередью: что не так и

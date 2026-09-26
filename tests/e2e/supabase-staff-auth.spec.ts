@@ -1334,16 +1334,22 @@ test("Sales and Admin mutate one canonical workflow while anonymous and Admissio
   expect(qualifiedEntries.some((entry) => entry.lead_id === leadId)).toBe(true);
 
   await signIn(page, "admin");
+  // «Сегодня» (Э3, 26.09.2026): the period cohort lives in «Динамика по
+  // дням» of «Отчёт продаж» (open once a period is chosen). Its figures are a
+  // <dl>: «Из них квалифицированы» names the cohort; the trend legend and the
+  // board funnel («Квалифицирован») are separate elements.
   await page.goto(
     `/v3/main?view=sales&period=custom&from=${cohortDate}&to=${cohortDate}`,
   );
-  const qualifiedMetric = page.locator("li").filter({
-    has: page.getByText("Квалифицированы", { exact: true }),
+  const periodFigures = page.locator("#sales-dynamics dl[data-period-figures]");
+  await expect(periodFigures).toBeVisible();
+  const qualifiedFigure = periodFigures.locator("div").filter({
+    has: page.locator("dt", { hasText: /^Из них квалифицированы$/u }),
   });
-  await expect(qualifiedMetric).toHaveCount(1);
-  await expect(
-    qualifiedMetric.getByText(String(qualifiedEntries.length), { exact: true }),
-  ).toBeVisible();
+  await expect(qualifiedFigure).toHaveCount(1);
+  await expect(qualifiedFigure.locator("dd")).toHaveText(
+    qualifiedEntries.length.toLocaleString("ru-RU"),
+  );
 });
 
 test("Sales and Admin persist the same canonical workflow through the real interface", async ({

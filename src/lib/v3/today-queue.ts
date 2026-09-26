@@ -9,9 +9,11 @@
  * страница и проверяет unit-тест.
  *
  * Правило чисел одно: число у группы есть, только когда каждое чтение,
- * которое пишет в эту группу, прочитано целиком и его строки можно считать
- * (`TODAY_UNCOUNTED`). Неполное чтение и ошибка называются словами, а не
- * превращаются в ноль.
+ * от которого зависят её строки, прочитано целиком и его строки можно считать
+ * (`TODAY_UNCOUNTED`). Зависят — чтения, которые пишут в группу, и чтения со
+ * слитыми строками, которые могли бы забрать строку из неё в более срочную
+ * группу (`todayBandsDependingOn`). Неполное чтение и ошибка называются
+ * словами, а не превращаются в ноль.
  */
 import type { PipelineLead } from "../../components/v3/Pipeline.tsx";
 import { dayDelta, shiftDay } from "../../components/v3/calendar/types.ts";
@@ -50,7 +52,47 @@ export const TODAY_SOURCE_BANDS: Readonly<Record<TodaySource, readonly TodayBand
   chats: ["waiting"],
 };
 
+/**
+ * Источники с общим ключом строки: их строки об одном деле или лиде
+ * сливаются в одну (`mergeItems`). Дело — из «Моих» и «Требуют действия»
+ * (`student:`), лид — из «Моих лидов» и «Без ответственного» (`lead:`). У
+ * остальных источников ключи свои; слияние чужих ключей — ошибка сборки.
+ */
+export const TODAY_MERGED_SOURCES: Readonly<Record<TodaySource, readonly TodaySource[]>> = {
+  tasks: [],
+  students: ["handoffs"],
+  handoffs: ["students"],
+  leads: ["requests"],
+  requests: ["leads"],
+  chats: [],
+};
+
+const BAND_RANK: Readonly<Record<TodayBand, number>> = Object.fromEntries(TODAY_BANDS.map((band, index) => [band, index])) as Record<TodayBand, number>;
+
+/**
+ * Группы, чьё число зависит от полноты источника. Свои группы — его строки
+ * могли не прочитаться. И группы источников со слитыми строками, которые
+ * менее срочны, чем какая-то группа этого источника: слияние оставляет строку
+ * в самой срочной группе, поэтому непрочитанная строка забрала бы строку
+ * соседа из такой группы вверх (дело без шага, ждущее принятия, — в «Ждут
+ * ответа», а не в «Без следующего шага»). Вниз слияние строку не отдаёт.
+ */
+export function todayBandsDependingOn(source: TodaySource): readonly TodayBand[] {
+  const own = TODAY_SOURCE_BANDS[source];
+  const top = Math.min(...own.map((band) => BAND_RANK[band]));
+  const pulled = TODAY_MERGED_SOURCES[source].flatMap((other) => TODAY_SOURCE_BANDS[other].filter((band) => BAND_RANK[band] > top));
+  return TODAY_BANDS.filter((band) => own.includes(band) || pulled.includes(band));
+}
+
 export type TodayWho = Readonly<{ name: string; href: string }>;
+
+/** Тихая ссылка страницы: доска в шапке или главное действие пустого дня. */
+export type TodayLink = Readonly<{
+  label: string;
+  href: string;
+  /** Короткое имя для телефона, когда досок две («Продажи» вместо «Воронка продаж»). */
+  short?: string;
+}>;
 export type TodayDue = Readonly<{ dueOn: string | null; dueAt: string | null }>;
 
 export type TodayItem = Readonly<{
@@ -91,7 +133,7 @@ export type TodaySourceRead =
 export type TodayBandView = Readonly<{
   band: TodayBand;
   label: string;
-  /** Число строк — только когда все чтения, пишущие в группу, полные и считаемые; иначе null. */
+  /** Число строк — только когда все чтения, от которых зависит группа (`todayBandsDependingOn`), полные и считаемые; иначе null. */
   count: number | null;
   danger: boolean;
   /** Почему у группы нет числа, хотя чтения полные (см. `TODAY_UNCOUNTED`); иначе null. */
@@ -183,7 +225,6 @@ const SOURCE_COPY: Readonly<Record<TodaySource, SourceCopy>> = {
 };
 
 const SOURCE_ORDER: Readonly<Record<TodaySource, number>> = Object.fromEntries(TODAY_SOURCES.map((source, index) => [source, index])) as Record<TodaySource, number>;
-const BAND_ORDER: Readonly<Record<TodayBand, number>> = Object.fromEntries(TODAY_BANDS.map((band, index) => [band, index])) as Record<TodayBand, number>;
 
 function horizonDay(today: string): string {
   return shiftDay(today, TODAY_HORIZON_DAYS);
@@ -268,7 +309,7 @@ export function todayStudentItems(rows: readonly StudentCaseQueueRow[], today: s
       found.push({ band: "overdue", reason: "дедлайн просрочен", step: false });
     }
     if (found.length === 0) continue;
-    found.sort((left, right) => BAND_ORDER[left.band] - BAND_ORDER[right.band]);
+    found.sort((left, right) => BAND_RANK[left.band] - BAND_RANK[right.band]);
     items.push(Object.freeze({
       key: `student:${row.studentCaseId}`,
       source: "students",
@@ -435,6 +476,9 @@ function compareItems(left: TodayItem, right: TodayItem, today: string): number 
 /**
  * Одно дело из двух чтений (шаг из «Моих» и «ждёт принятия» из «Требуют
  * действия») — одна строка в самой срочной группе, причины через «·».
+ * Сливаются только источники из `TODAY_MERGED_SOURCES`: от этого списка
+ * зависят числа групп, поэтому незаявленное слияние — ошибка, а не тихо
+ * неверное число.
  */
 function mergeItems(items: readonly TodayItem[]): readonly TodayItem[] {
   const byKey = new Map<string, TodayItem>();
@@ -444,7 +488,10 @@ function mergeItems(items: readonly TodayItem[]): readonly TodayItem[] {
       byKey.set(item.key, item);
       continue;
     }
-    const [kept, other] = BAND_ORDER[item.band] < BAND_ORDER[current.band] ? [item, current] : [current, item];
+    if (current.source !== item.source && !TODAY_MERGED_SOURCES[current.source].includes(item.source)) {
+      throw new Error("Today queue merged rows of sources that do not share keys.");
+    }
+    const [kept, other] = BAND_RANK[item.band] < BAND_RANK[current.band] ? [item, current] : [current, item];
     const reasons = [...new Set([...kept.reason.split(" · "), ...other.reason.split(" · ")])];
     byKey.set(item.key, Object.freeze({ ...kept, reason: reasons.join(" · ") }));
   }
@@ -487,7 +534,7 @@ export function buildTodayQueue(reads: readonly TodaySourceRead[], now: Date): T
   for (const band of TODAY_BANDS) {
     const rows = items.filter((item) => item.band === band).sort((left, right) => compareItems(left, right, today));
     if (rows.length === 0) continue;
-    const known = !blocking.some((read) => TODAY_SOURCE_BANDS[read.source].includes(band));
+    const known = !blocking.some((read) => todayBandsDependingOn(read.source).includes(band));
     // Число, которое чтение даёт завышенным, не показывается и при полном чтении.
     const uncounted = [...new Set(rows.map((item) => TODAY_UNCOUNTED[item.source]).filter((note): note is string => Boolean(note)))];
     bands.push(Object.freeze({

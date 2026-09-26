@@ -25,8 +25,10 @@ const PIECE = "relative flex min-h-6 items-center gap-x-1 ps-3 before:absolute b
  * круга, срок своей колонкой перед названием (JetBrains Mono «ДД.ММ» и
  * слово), под названием — кто и почему. Действие одно — «Открыть»
  * существующую панель; эта ссылка покрывает всю строку, и фокус клавиатуры —
- * рамка всей строки (`.v3-queue-row`). Имя человека — ссылка на его карточку
- * только при мыши на широком экране (как у «Задач»).
+ * рамка всей строки (`.v3-queue-row`). Имя этой ссылки называет и человека
+ * («Открыть: Новая заявка — имя»): у многих строк одно название. Имя
+ * человека — ссылка на его карточку только при мыши на широком экране (как у
+ * «Задач»).
  *
  * Красный — только у просроченного срока и его слова; причина — обычный
  * текст (группа «Просрочено» уже названа красным). Причина не сокращается
@@ -92,7 +94,7 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
         <Link
           href={item.openHref}
           data-queue-open=""
-          aria-label={`Открыть: ${item.title}`}
+          aria-label={`Открыть: ${item.title}${item.who ? ` — ${item.who.name}` : ""}`}
           className="grid min-h-11 min-w-11 place-items-center rounded-nav t-label text-fg-2 before:absolute before:inset-0 before:content-[''] hover:text-fg @min-[32rem]:px-3 @min-[32rem]:underline @min-[32rem]:underline-offset-4"
         >
           <span aria-hidden="true" className="hidden @min-[32rem]:inline">Открыть</span>

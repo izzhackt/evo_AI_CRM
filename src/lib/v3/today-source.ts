@@ -2,7 +2,7 @@ import "server-only";
 
 import type { PipelineLead } from "../../components/v3/Pipeline.tsx";
 import { dayInOrganizationTimezone } from "../platform-task-deadline.ts";
-import { isStaffPreview, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
+import { isStaffPreview, staffCanAccessRoute, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth";
 import type { PlatformAdmissionsTaskQueueCursor, PlatformAdmissionsTaskQueueRow } from "../platform-admissions-task-contract.ts";
 import type { CaseChatThreadRow } from "../platform-case-chat-contract.ts";
@@ -18,6 +18,7 @@ import {
   todayRequestItems,
   todayStudentItems,
   todayTaskItems,
+  type TodayLink,
   type TodaySource,
   type TodaySourceRead,
 } from "./today-queue.ts";
@@ -95,17 +96,29 @@ export type TodayAccess = Readonly<{
 }>;
 
 /**
+ * Ведёт продажи: двигает свои лиды или назначает ответственных. Одного
+ * `lead.read` мало: шаблон Admissions (миграция 173) несёт его, чтобы видеть
+ * лид дела, но лидов у сопровождения нет. Просмотр роли — по `sales.write`
+ * роли.
+ */
+function worksSales(actor: ActivePlatformActor): boolean {
+  if (isStaffPreview(actor)) return staffPresentationCan(actor, "sales.write");
+  return staffPresentationCan(actor, "sales.read")
+    && (staffHasPermission(actor, "lead.sales.workflow.manage") || staffHasPermission(actor, "lead.sales.owner.assign"));
+}
+
+/**
  * Какие источники относятся к смотрящему — по тем же правилам, что меню и
  * страницы: задачи — как у «Задач» (`taskQueueAccess`), студенты — как у
  * очереди «Студентов» (поступление и полное чтение дел), лиды и заявки —
- * чтение продаж, переписки — «Сообщения» (поступление).
+ * тем, кто ведёт продажи, переписки — «Сообщения» (поступление).
  */
 export function todayAccess(actor: ActivePlatformActor): TodayAccess {
   const tasks = taskQueueAccess(actor);
   const preview = isStaffPreview(actor);
   const admissions = staffPresentationCan(actor, "admissions.read");
   const students = admissions && staffHasPermission(actor, "case.read.full");
-  const sales = staffPresentationCan(actor, "sales.read");
+  const sales = worksSales(actor);
   const sources: TodaySource[] = [];
   if (tasks.canReadStaffTasks || tasks.canReadCaseTasks) sources.push("tasks");
   if (students) sources.push("students", "handoffs");
@@ -116,6 +129,33 @@ export function todayAccess(actor: ActivePlatformActor): TodayAccess {
     coverage: !preview && staffHasPermission(actor, "case.curator.assign"),
     preview,
   });
+}
+
+export type TodayLinks = Readonly<{
+  /** Тихие ссылки шапки: доски роли. */
+  boards: readonly TodayLink[];
+  /** Главное действие пустого дня; null — у роли его нет. */
+  mainAction: TodayLink | null;
+}>;
+
+/**
+ * Ссылки «Сегодня» по источникам роли, а не по одному `lead.read`: доска
+ * продаж и «Открыть воронку продаж» — тем, кто ведёт продажи; доска
+ * поступления — по праву её страницы. Пустой день без очереди — отчёт, если
+ * роль его читает. Доски — переходы, а не красная кнопка.
+ */
+export function todayLinks(actor: ActivePlatformActor, access: TodayAccess, options: Readonly<{ canReadReport: boolean }>): TodayLinks {
+  const sales = access.sources.includes("leads") && staffCanAccessRoute(actor, "/v3/pipeline");
+  const boards: TodayLink[] = [
+    ...(sales ? [{ label: "Воронка продаж", short: "Продажи", href: "/v3/pipeline" }] : []),
+    ...(staffCanAccessRoute(actor, "/v3/admissions-pipeline") ? [{ label: "Воронка поступления", short: "Поступление", href: "/v3/admissions-pipeline" }] : []),
+  ];
+  const mainAction: TodayLink | null = sales ? { label: "Открыть воронку продаж", href: "/v3/pipeline" }
+    : access.sources.includes("students") ? { label: "Открыть студентов", href: "/v3/profile" }
+    : access.sources.includes("tasks") ? { label: "Все задачи", href: "/v3/tasks" }
+    : options.canReadReport ? { label: "Открыть отчёт продаж", href: "/v3/main?view=sales" }
+    : null;
+  return Object.freeze({ boards: Object.freeze(boards), mainAction });
 }
 
 type Pages<Row> = Readonly<{ rows: readonly Row[]; complete: boolean }>;

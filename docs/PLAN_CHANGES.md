@@ -39749,3 +39749,53 @@ API; `/api/health` crm и app — HTTP GET. Остальное названо и
 typecheck`, eslint изменённых файлов, `git diff --check`; доски и календарь —
 существующими статическими рендерами. Выпуск, миграции и запись в production
 делает координатор после merge.
+
+## 2026-09-26 — Трек A2, дополнение: миграция 243 — базовые чек-листы без блокировок
+
+Записи выше не переписываются. Основание — независимое review PR #1064 на
+голове `29f5ee7a`: исправление 2 («Документы») из записи выше не убирает
+ошибку production. Review воспроизвело её в разовых контейнерах (Postgres 17 и
+PostgREST v16.2). STABLE-функция, которая вызывает VOLATILE-проверку с
+`SELECT … FOR UPDATE`, отвечает `25006 cannot execute SELECT FOR UPDATE in a
+read-only transaction` и на GET, и на POST. Строки возвращает только POST к
+VOLATILE-функции или STABLE-функция с проверкой без блокировок. Цепочка в
+репозитории та же: `staff_case_baseline_checklist_options` (179:35, STABLE) →
+`require_case_operator` (173:43, VOLATILE) → `require_domain_actor` (155:512,
+`FOR UPDATE` строк организации, профиля и членства). Аудит 26.09
+(UXADMISSIONS): красное «Не удалось загрузить базовые чек-листы…» на 2 из 2
+загрузок.
+
+Изменение объёма: в треке появляется одна миграция (запись выше говорила «без
+SQL и миграций»).
+
+- `243_platform_case_baseline_options_read_gate.sql`, только вперёд. В одной
+  функции `platform.staff_case_baseline_checklist_options` проверка
+  `require_case_operator(…, 'document.manage')` заменяется по якорю, с
+  самопроверкой (ровно один старый фрагмент до замены, ровно один новый
+  после). Новая проверка: `require_domain_actor_read(p_organization_id,
+  'document.manage')` и `staff_can_access(p_organization_id,
+  actor.actor_membership_id, 'document.manage', 'student_case',
+  p_student_case_id)`, иначе `42501`. Функция остаётся STABLE SECURITY
+  DEFINER. Подпись, тип результата, владелец, права и комментарий не
+  меняются.
+- Права те же. Для 'document.manage' `require_case_operator` проверяет ровно
+  это право (`require_domain_actor_read` внутри `require_domain_actor`) и
+  область дела (`staff_can_access`). Его дополнительные проверки касаются
+  только ключей договора, финансов и передачи. Уходят лишь блокировки строк,
+  которые чтению не нужны. Запись `seed_case_baseline_checklist` не
+  меняется: она по-прежнему идёт через `require_case_operator` с блокировками
+  и повторной проверкой после них.
+- Клиент: `listCaseBaselineChecklistOptions` возвращается к `{ get: true }`,
+  как два других чтения этого файла. После 243 все три — чтения без
+  блокировок. Переход на POST из записи выше отменяется: он ничего не менял.
+- Тихая строка «Шаблонов чек-листа пока нет — документы добавляются вручную.»
+  из записи выше остаётся. После 243 она становится достижимой.
+- Проверка на реальном Postgres (закреплённый образ `supabase/postgres
+  17.6.1.143`, миграции 001–243). Новый набор
+  `supabase/tests/platform_case_baseline_options_read_gate.sql` подключается в
+  `scripts/test-postgres-authorization.sh` после 243. Он доказывает три вещи.
+  В транзакции READ ONLY чтение не падает с 25006 и отдаёт строки; контроль —
+  старая проверка `require_case_operator` в том же режиме даёт 25006. Без
+  'document.manage' — 42501. Дело вне области сотрудника — 42501.
+- Выпуск, применение миграции и запись в production делает координатор после
+  merge.

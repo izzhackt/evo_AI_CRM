@@ -54,13 +54,16 @@ export function TaskQueueList({
   look?: V3Look;
 }>) {
   const { recent, message, announce, undo, completed, shown, hold } = useRecentCompletions(bands);
-  // «Отменить» нового облика: ответ сервера ждут и ошибку показывают в строке UndoToast.
-  const [undoState, setUndoState] = useState<Readonly<Record<string, Readonly<{ pending: boolean; error: string | null }>>>>({});
+  // «Отменить» нового облика: ответ сервера ждут и ошибку показывают в строке
+  // UndoToast. Состояние принадлежит одному завершению (`completedAt`): при
+  // новом завершении той же задачи прежняя ошибка не всплывает.
+  const [undoState, setUndoState] = useState<Readonly<Record<string, Readonly<{ completedAt: number; pending: boolean; error: string | null }>>>>({});
   useQueueKeyboard({ openKey });
 
   const toasts = isNextLook(look) ? Object.values(recent).filter((entry) => !entry.expired).map((entry) => {
     const key = entry.task.key;
-    const state = undoState[key];
+    const { completedAt } = entry;
+    const state = undoState[key]?.completedAt === completedAt ? undoState[key] : undefined;
     return {
       key,
       message: `Задача «${entry.task.title}» завершена.`,
@@ -69,9 +72,9 @@ export function TaskQueueList({
       focus: true,
       onUndo: () => {
         if (state?.pending) return;
-        setUndoState((current) => ({ ...current, [key]: { pending: true, error: null } }));
+        setUndoState((current) => ({ ...current, [key]: { completedAt, pending: true, error: null } }));
         void undo(entry).then((failure) => {
-          setUndoState((current) => ({ ...current, [key]: { pending: false, error: failure } }));
+          setUndoState((current) => ({ ...current, [key]: { completedAt, pending: false, error: failure } }));
           // Задача снова открыта: фокус — на её круг выполнения, как после отмены в строке.
           if (!failure) {
             requestAnimationFrame(() => document.querySelector<HTMLElement>(

@@ -38,3 +38,24 @@ export function queueFocusAfterRemoval(keys: readonly string[], current: string,
   if (index < 0) return null;
   return [...keys.slice(index + 1), ...keys.slice(0, index).reverse()].find((key) => !gone.has(key)) ?? null;
 }
+
+/**
+ * Атрибут всплывающего окна, которое не забирает клавиши очереди. Меню, окно
+ * «Результат» и подсказка «?» — окна, в которых человек сейчас работает:
+ * пока они открыты, j/k, «/», «?», Shift+Enter и Esc панели молчат. Строка
+ * «Отменить» нового облика (UndoToast, `popover="manual"`) — не такое окно:
+ * она висит не меньше 6 секунд после каждого завершения и не должна
+ * выключать клавиатуру очереди на это время.
+ */
+export const QUEUE_PASSIVE_POPOVER = "data-queue-passive";
+
+/**
+ * Молчит ли клавиатура очереди при открытых всплывающих окнах
+ * (`:popover-open`): да, если среди них есть хоть одно не пассивное (без
+ * `data-queue-passive`). Одна строка «Отменить» клавиши не выключает. Чистая
+ * функция — её проверяет unit-тест.
+ */
+export function popoverBlocksQueueKeys(open: Iterable<Readonly<{ hasAttribute(name: string): boolean }>>): boolean {
+  for (const element of open) if (!element.hasAttribute(QUEUE_PASSIVE_POPOVER)) return true;
+  return false;
+}

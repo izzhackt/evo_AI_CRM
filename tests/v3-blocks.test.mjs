@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dueWordOf } from "../src/components/v3/queue/due-bucket.ts";
 import { personInitials } from "../src/components/v3/queue/person-name.ts";
 import { progressOf } from "../src/components/v3/blocks/progress.ts";
+import { resumedUndoDeadline } from "../src/components/v3/tasks/undo-deadline.ts";
 import { ADMISSIONS_PIPELINE_STAGES } from "../src/lib/platform-admissions-pipeline-contract.ts";
 import {
   ADMISSIONS_TRACK_STAGES,
@@ -176,6 +177,14 @@ test("progress only from real counts: «N из M», nothing estimated", () => {
   for (const name of ["progress-unread", "progress-empty-checklist", "progress-inconsistent", "progress-fraction"]) {
     assert.equal(blocks.get(name), "", name);
   }
+  // Без полосы остаётся строка прежнего облика — прочитанные числа не пропадают.
+  assert.equal(blocks.get("progress-inconsistent-fallback"), '<p class="t-body-compact text-fg">8 из 7 принято</p>');
+  assert.equal(blocks.get("progress-empty-fallback"), '<p class="t-body-compact text-fg">Чек-лист не собран</p>');
+  for (const path of ["src/components/v3/profile/CaseOverview.tsx", "src/components/v3/students/StudentQuickView.tsx"]) {
+    const source = read(path);
+    assert.match(source, /<ProgressBar done=\{[a-z.]+\?\.approved\} total=\{[a-z.]+\?\.total\} word="принято"\s+fallback=\{<p className="t-body-compact text-fg">\{[a-z]+\.summary\}<\/p>\} \/>/u, `${path}: summary line when there is no bar`);
+    assert.doesNotMatch(source, /documents\.total > 0\s*\?\s*<ProgressBar/u, `${path}: no bar-or-nothing branch`);
+  }
 });
 
 // --- дорожка этапа ------------------------------------------------------------
@@ -196,6 +205,14 @@ test("stage track: 9 or 7 segments in phase colour, one current, every segment n
   assert.equal(blocks.get("track-null"), "");
 });
 
+test("a closed case has no current stage: the stage word «при закрытии», no track, no aria-current", () => {
+  const closed = blocks.get("track-closed");
+  assert.equal(closed, '<div class="v3-track" data-track="admissions" data-closed=""><p class="v3-track-caption"><span class="t-body-compact text-fg">Документы</span> <span class="t-meta text-fg-2">этап при закрытии</span></p></div>');
+  assert.doesNotMatch(closed, /aria-current|текущий этап|v3-track-step/u);
+  assert.match(read("src/components/v3/profile/CaseHeader.tsx"), /<StageTrack kind="admissions" current=\{row\.pipelineStage\} closed=\{input\.state === "closed"\} \/>/u);
+  assert.match(read("src/components/v3/students/StudentQuickView.tsx"), /<StageTrack kind="admissions" current=\{row\.pipelineStage\} closed=\{row\.state === "closed"\} \/>/u);
+});
+
 // --- «Отменить» -------------------------------------------------------------
 
 test("undo lives in the top layer and only where a real reverse command exists", () => {
@@ -213,12 +230,32 @@ test("undo lives in the top layer and only where a real reverse command exists",
   }
   assert.deepEqual(users, ["src/components/v3/tasks/TaskQueueList.tsx"]);
   const list = read("src/components/v3/tasks/TaskQueueList.tsx");
-  assert.match(list, /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
+  // Команда отмены — общая с «Сегодня» (useRecentCompletions, #1067).
+  assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
   assert.match(list, /const toasts = isNextLook\(look\) \?/u, "new look only");
   // У перемещения по доске поступления нет проверки версии (187/244) — «Отменить» там не появляется.
   assert.match(read("supabase/migrations/244_platform_access_by_permissions.sql"), /Deliberately no optimistic version check/u);
   // Задача по студенту завершается с результатом, отмены у неё нет.
   assert.match(read("src/components/v3/profile/CaseTaskList.tsx"), /onCompleted=\{\(\) => \{\}\}/u);
+});
+
+test("the undo deadline stands still while focus or the pointer is on the undo row", () => {
+  // Завершена до паузы: срок сдвигается на всю паузу — оставшиеся 4 с сохраняются.
+  assert.equal(resumedUndoDeadline({ completedAt: 1_000, expiresAt: 7_000 }, 3_000, 20_000), 24_000);
+  // Завершена во время паузы: сдвиг — только время с завершения.
+  assert.equal(resumedUndoDeadline({ completedAt: 5_000, expiresAt: 11_000 }, 3_000, 20_000), 26_000);
+  // Пауза без времени — срок прежний.
+  assert.equal(resumedUndoDeadline({ completedAt: 1_000, expiresAt: 7_000 }, 3_000, 3_000), 7_000);
+  const hook = read("src/components/v3/tasks/useRecentCompletions.ts");
+  assert.match(hook, /if \(!live\.length \|\| held\) return;/u, "no timer while held");
+  assert.match(hook, /expiresAt: resumedUndoDeadline\(entry, since, now\)/u);
+  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u);
+  const toast = read("src/components/v3/blocks/UndoToast.tsx");
+  for (const handler of ["onFocus", "onBlur", "onPointerEnter", "onPointerLeave"]) assert.match(toast, new RegExp(`${handler}=\\{`, "u"), handler);
+  assert.match(toast, /event\.currentTarget\.contains\(event\.relatedTarget\)\) return;/u, "focus moving inside the row keeps the pause");
+  assert.match(toast, /items\.length === 0\s*\? \{ focus: false, pointer: false \}/u, "hidden rows release the pause");
+  // «Сегодня» и прежний облик паузу не зовут.
+  assert.doesNotMatch(read("src/components/v3/today/TodayQueueList.tsx"), /\bhold\b/u);
 });
 
 // --- CSS: только новый облик, движение, контраст ------------------------------
@@ -267,6 +304,12 @@ test("block styles exist only in the new look, set no font sizes and keep contra
   assert.match(css, /\.v3-world\[data-look="next"\] \.v3-due\[data-due="today"\] \{[^}]*background: var\(--accent\);[^}]*color: var\(--on-accent\);/u);
   assert.match(css, /\.v3-world\[data-look="next"\] \.v3-due\[data-due="overdue"\] \{\s*color: var\(--danger\);/u);
   assert.match(css, /\.v3-world\[data-look="next"\] \.v3-toast-action \{[^}]*min-height: 44px;/u, "44 px target");
+  // Чип-ссылка: чип 18 px с полями −1 px — ссылка 16 px; зона нажатия 16 + 2 × 14 = 44 px.
+  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-chip\[data-size="sm"\] \{\s*min-height: 18px;\s*margin-block: -1px;/u);
+  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-chip-link::after \{\s*content: "";\s*position: absolute;\s*inset: -14px -4px;/u);
+  // Третья строка карточки продаж — одна линия; не поместилось — уходит целиком.
+  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-card-meta \{\s*height: 1lh;\s*overflow: hidden;/u);
+  assert.match(css, /\.v3-world\[data-look="next"\] :is\(\.v3-card-due, \.v3-card-age\) \{\s*white-space: nowrap;/u);
 });
 
 test("motion is short and only when the system allows it", () => {
@@ -285,7 +328,7 @@ const SCREENS = [
   ["tasks-static-render.cjs", ["team-view", "team-panel"]],
   ["students-static-render.cjs", ["admin-active", "admin-panel", "curator-mine"]],
   ["boards-static-render.cjs", ["sales", "sales-panel", "admissions"]],
-  ["case-static-render.cjs", ["curator", "admin", "unread"]],
+  ["case-static-render.cjs", ["curator", "admin", "unread", "closed"]],
 ];
 const current = new Map(SCREENS.map(([script]) => [script, render(script)]));
 const next = new Map(SCREENS.map(([script]) => [script, render(script, "--look=next")]));
@@ -304,13 +347,27 @@ test("the current look renders none of the blocks; the new look renders them on 
   assert.match(students.get("admin-panel"), /<div class="v3-track" data-track="admissions">/u, "quick view: stage track");
   assert.match(students.get("admin-panel"), /<span class="t-body-compact text-fg">\d+ из \d+ принято<\/span>/u, "quick view: documents progress");
   const boards = next.get("boards-static-render.cjs");
-  assert.equal([...boards.get("sales").matchAll(/<span class="v3-stage[^"]*" data-phase="sales">/gu)].length, 6, "sales column headers: six working stages");
+  // Колонки не подкрашиваются: у доски и вкладки одна фаза — точки над колонками нет.
+  for (const name of ["sales", "admissions"]) assert.doesNotMatch(boards.get(name), /v3-phase-dot|v3-stage/u, `${name}: column headers are words`);
   assert.match(boards.get("sales-panel"), /<div class="v3-track" data-track="sales">/u, "lead panel: stage track");
-  assert.match(boards.get("admissions"), /<span class="v3-stage[^"]*" data-phase="admission">/u);
+  assert.match(boards.get("admissions"), /<a [^>]*class="v3-chip-link inline-flex" href="\/v3\/messages\?case=[^"]+"><span class="v3-chip t-caption" data-tone="danger" data-size="sm">нужен ответ<\/span><\/a>/u, "reply chip link");
   assert.match(boards.get("admissions"), /<span class="v3-initials t-caption" data-size="sm" title="[^"]+">/u, "card: curator initials with the name in the title");
+  // Карточка продаж: дата, затем слово срока — как в «Задачах»; возраст этапа подписан.
+  const lines = [...boards.get("sales").matchAll(/<p class="v3-card-meta t-meta text-fg-3">([\s\S]*?)<\/p>/gu)].map(([, html]) => html);
+  assert.ok(lines.length >= 5, "sales cards have their third line");
+  assert.ok(lines.some((html) => /^<span class="v3-card-due"><time dateTime="[^"]+" class="font-mono tabular-nums">\d\d\.\d\d<\/time> <span class="v3-due t-caption" data-due="overdue">прошёл \d+ дн<\/span><\/span> <span class="v3-card-age"><span aria-hidden="true">· <\/span>на этапе \d+ дн<\/span>$/u.test(html)), "date, word, then «на этапе N дн»");
+  assert.ok(lines.some((html) => /<time dateTime="[^"]+" class="font-mono tabular-nums">\d\d\.\d\d<\/time> <span class="v3-due t-caption" data-due="today">сегодня<\/span>/u.test(html)), "«сегодня» after its date");
+  assert.ok(lines.some((html) => /^<span class="v3-card-age">на этапе \d+ дн<\/span>$/u.test(html)), "no deadline: only the stage age");
+  for (const html of lines) assert.doesNotMatch(html, /дн\./u, "one abbreviation: «дн»");
+  assert.match(boards.get("sales-panel"), /<dt class="t-caption pt-0\.5 text-fg-3">На этапе<\/dt><dd class="tabular-nums">\d+ дн<\/dd>/u);
+  // Прежний облик — прежние слова.
+  assert.match(current.get("boards-static-render.cjs").get("sales"), /\d+ дн\.<span class="sr-only"> на стадии<\/span>/u);
   const kase = next.get("case-static-render.cjs");
   assert.match(kase.get("curator"), /<div class="v3-track" data-track="admissions">/u, "case header: stage track");
   assert.match(kase.get("curator"), /<span class="v3-due t-caption" data-due="[a-z]+">/u, "case header: step due word");
+  // Закрытое дело: этап при закрытии, без текущего этапа.
+  assert.match(kase.get("closed"), /<div class="v3-track" data-track="admissions" data-closed="">/u);
+  assert.doesNotMatch(kase.get("closed"), /aria-current="step"/u);
   // Нет чтения документов — нет полосы.
   assert.doesNotMatch(kase.get("unread"), /v3-progress/u);
   assert.match(kase.get("unread"), /Нет доступа к документам этого дела\./u);

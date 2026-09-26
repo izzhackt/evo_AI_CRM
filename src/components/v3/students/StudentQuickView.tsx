@@ -124,7 +124,7 @@ export function StudentQuickView({
       ) : null}
 
       <dl className="mt-4 divide-y divide-border border-t border-border">
-        {stage ? <Fact term="Этап">{next ? <StageTrack kind="admissions" current={row.pipelineStage} /> : stage}</Fact> : null}
+        {stage ? <Fact term="Этап">{next ? <StageTrack kind="admissions" current={row.pipelineStage} closed={row.state === "closed"} /> : stage}</Fact> : null}
         <Fact term="Куратор">
           {/* Отказ возможен только по переданному делу, поэтому после него дело ждёт куратора — как в строке списка. */}
           {answered === "declined" ? <span className="font-medium text-danger">нужен куратор</span>
@@ -190,11 +190,10 @@ export function StudentQuickView({
         <h3 className="t-item text-fg">Документы</h3>
         {documents && next ? (
           // Новый облик: полоса «N из M принято» — только из прочитанных чисел чек-листа;
-          // пустой чек-лист — прежняя строка «Чек-лист не собран», без полосы.
+          // пустой чек-лист или числа, которые не сходятся, — прежняя строка, без полосы.
           <div className="space-y-2">
-            {row.documents && row.documents.total > 0
-              ? <ProgressBar done={row.documents.approved} total={row.documents.total} word="принято" />
-              : <p className="t-body-compact text-fg">{documents.summary}</p>}
+            <ProgressBar done={row.documents?.approved} total={row.documents?.total} word="принято"
+              fallback={<p className="t-body-compact text-fg">{documents.summary}</p>} />
             {documents.parts.length ? (
               <p className="flex flex-wrap gap-1">
                 {documents.parts.map((part) => <StatusChip key={part.key} label={part.text} tone={part.tone === "warn" ? "warn" : part.tone === "danger" ? "danger" : "neutral"} />)}

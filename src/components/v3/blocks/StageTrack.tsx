@@ -16,18 +16,34 @@ const STATE_WORD = { done: "пройден", current: "текущий этап",
  * («Документы, текущий этап, Поступление») — подпись для неё скрыта, чтобы
  * этап не звучал дважды.
  * Этапа нет в наборе — дорожки нет.
+ *
+ * `closed` — дело закрыто: этап больше не текущий. Дорожки и
+ * `aria-current` нет — только слово этапа и «этап при закрытии».
  */
 export function StageTrack({
   kind,
   current,
   className,
+  closed = false,
 }: Readonly<{
   kind: StageTrackKind;
   current: string | null | undefined;
   className?: string;
+  closed?: boolean;
 }>) {
   const track = stageTrack(kind, current);
   if (!track) return null;
+  if (closed) {
+    return (
+      <div className={className ? `v3-track ${className}` : "v3-track"} data-track={kind} data-closed="">
+        <p className="v3-track-caption">
+          {/* Пробел — для читалки: между элементами флекса он не виден. */}
+          <span className="t-body-compact text-fg">{track.current.title}</span>{" "}
+          <span className="t-meta text-fg-2">этап при закрытии</span>
+        </p>
+      </div>
+    );
+  }
   return (
     <div className={className ? `v3-track ${className}` : "v3-track"} data-track={kind}>
       <ol className="v3-track-steps" aria-label={TRACK_LABEL[kind]}>

@@ -92,10 +92,18 @@ const CASES = {
   "progress-empty-checklist": createElement(ProgressBar, { done: 0, total: 0, word: "принято" }),
   "progress-inconsistent": createElement(ProgressBar, { done: 8, total: 7, word: "принято" }),
   "progress-fraction": createElement(ProgressBar, { done: 2.5, total: 7, word: "принято" }),
+  // Числа прочитаны, но не сходятся: полосы нет, остаётся строка прежнего облика.
+  "progress-inconsistent-fallback": createElement(ProgressBar, {
+    done: 8, total: 7, word: "принято", fallback: createElement("p", { className: "t-body-compact text-fg" }, "8 из 7 принято"),
+  }),
+  "progress-empty-fallback": createElement(ProgressBar, {
+    done: 0, total: 0, word: "принято", fallback: createElement("p", { className: "t-body-compact text-fg" }, "Чек-лист не собран"),
+  }),
   "track-admissions": createElement(StageTrack, { kind: "admissions", current: "documents" }),
   "track-admissions-visa": createElement(StageTrack, { kind: "admissions", current: "visa" }),
   "track-sales": createElement(StageTrack, { kind: "sales", current: "qualified" }),
   "track-sales-handed": createElement(StageTrack, { kind: "sales", current: "handed_off" }),
+  "track-closed": createElement(StageTrack, { kind: "admissions", current: "documents", closed: true }),
   "track-unknown": createElement(StageTrack, { kind: "admissions", current: "admissions_validation" }),
   "track-null": createElement(StageTrack, { kind: "sales", current: null }),
   "toast": createElement(UndoToast, {

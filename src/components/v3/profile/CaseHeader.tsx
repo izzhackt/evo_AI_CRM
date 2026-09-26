@@ -61,7 +61,7 @@ export function CaseHeader(input: CaseHeaderInput) {
     <section className="flex flex-col gap-3" data-testid="v3-case-header" aria-label="Сведения дела">
       <dl className="grid grid-cols-2 gap-x-4 border-y border-border sm:flex sm:flex-wrap sm:gap-x-0">
         <Fact term="Направление">{input.direction ? DIRECTION_LABELS[input.direction] : "Не выбрано"}</Fact>
-        {stage ? <Fact term="Этап">{next && row ? <StageTrack kind="admissions" current={row.pipelineStage} /> : stage}</Fact> : null}
+        {stage ? <Fact term="Этап">{next && row ? <StageTrack kind="admissions" current={row.pipelineStage} closed={input.state === "closed"} /> : stage}</Fact> : null}
         <Fact term="Куратор">
           {(next && input.curatorName ? (
             <span className="inline-flex items-center gap-2"><Initials name={input.curatorName} decorative />{input.curatorName}</span>

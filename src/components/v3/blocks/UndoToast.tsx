@@ -20,13 +20,27 @@ export type UndoToastItem = Readonly<{
  * «Отменить» нового облика (Э1.3): короткая строка у нижнего края окна в
  * верхнем слое (popover API — ни прокрутка, ни открытая панель её не
  * закрывают). Только там, где есть настоящая обратная команда; срок и сама
- * команда — у вызывающего (6 секунд «Задач»). Появляется за 160 мс, при
- * `prefers-reduced-motion` — без движения (v3.css). Объявление для читалки
+ * команда — у вызывающего (6 секунд «Задач»). Пока фокус или указатель на
+ * строке, срок стоит (`onHold(true)`), и идёт дальше, когда они ушли
+ * (`onHold(false)`): фокус приходит сюда после каждого завершения, и
+ * клавиатуре с читалкой не приходится успевать за таймером. Появляется за 160 мс,
+ * при `prefers-reduced-motion` — без движения (v3.css). Объявление для читалки
  * делает живая область списка: строка его не повторяет.
  */
-export function UndoToast({ items, label = "Можно отменить" }: Readonly<{ items: readonly UndoToastItem[]; label?: string }>) {
+export function UndoToast({
+  items,
+  label = "Можно отменить",
+  onHold,
+}: Readonly<{
+  items: readonly UndoToastItem[];
+  label?: string;
+  /** Пауза сроков: true — фокус или указатель на строке, false — ушли. */
+  onHold?: (held: boolean) => void;
+}>) {
   const regionRef = useRef<HTMLDivElement>(null);
   const seen = useRef<ReadonlySet<string>>(new Set());
+  const inside = useRef({ focus: false, pointer: false });
+  const sync = () => onHold?.(inside.current.focus || inside.current.pointer);
 
   useEffect(() => {
     const region = regionRef.current;
@@ -39,10 +53,31 @@ export function UndoToast({ items, label = "Можно отменить" }: Read
     seen.current = new Set(items.map((item) => item.key));
     const target = fresh.at(-1);
     if (target) region.querySelector<HTMLElement>(`[data-undo-row="${CSS.escape(target.key)}"]`)?.focus();
-  }, [items]);
+    // Строки ушли вместе с фокусом или под указателем — пауза снимается:
+    // скрытая строка событий ухода не присылает.
+    inside.current = items.length === 0
+      ? { focus: false, pointer: false }
+      : { ...inside.current, focus: region.contains(document.activeElement) };
+    onHold?.(inside.current.focus || inside.current.pointer);
+  }, [items, onHold]);
 
   return (
-    <div ref={regionRef} popover="manual" role="group" aria-label={label} className="v3-toasts" data-testid="v3-undo-toasts">
+    <div
+      ref={regionRef}
+      popover="manual"
+      role="group"
+      aria-label={label}
+      className="v3-toasts"
+      data-testid="v3-undo-toasts"
+      onFocus={() => { inside.current.focus = true; sync(); }}
+      onBlur={(event) => {
+        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+        inside.current.focus = false;
+        sync();
+      }}
+      onPointerEnter={() => { inside.current.pointer = true; sync(); }}
+      onPointerLeave={() => { inside.current.pointer = false; sync(); }}
+    >
       <ul className="flex flex-col gap-2">
         {items.map((item) => (
           <li key={item.key} className="v3-toast">

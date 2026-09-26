@@ -31,6 +31,8 @@
  *       нажимается по-настоящему. Серверное действие шага заменено заглушкой,
  *       которая отвечает конфликтом версии (снимок ничего не сохраняет);
  *       остальные действия отказывают.
+ *   --look=next (с --json или --screenshots) — новый облик (Э1.1–Э1.3,
+ *       предпросмотр Admin): `data-look="next"` и проп `look` экрана.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -426,6 +428,15 @@ function withContexts(node, pathname, search) {
       ),
     ),
   );
+}
+
+/**
+ * `--look=next` — новый облик (Э1.3, предпросмотр Admin): экран получает проп
+ * `look`, как от страницы; общие блоки — в таблице и «Быстром просмотре».
+ * Тот же вход у браузерной сборки (`clientFixture`).
+ */
+if (process.argv.includes("--look=next")) {
+  for (const item of Object.values(SCENARIOS)) if (item.input) item.input = { ...item.input, look: "next" };
 }
 
 function screen(name) {

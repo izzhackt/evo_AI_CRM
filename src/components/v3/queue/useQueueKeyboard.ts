@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { nextQueueIndex, rowNeedsReveal } from "./queue-navigation";
+import { nextQueueIndex, popoverBlocksQueueKeys, rowNeedsReveal } from "./queue-navigation";
 import { QUEUE_HELP_ID } from "./QueueKeyboardHelp";
 import { QUEUE_SEARCH_SELECTOR } from "./QueueToolbar";
 
@@ -17,8 +17,26 @@ export function typingTarget(target: EventTarget | null): boolean {
     && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
 }
 
+/**
+ * Открыто всплывающее окно, в котором человек работает (меню, «Результат»,
+ * подсказка «?»): клавиши очереди молчат. Строка «Отменить» нового облика
+ * (`data-queue-passive`) их не выключает — `popoverBlocksQueueKeys`.
+ */
 export function openPopover(): boolean {
-  try { return document.querySelector(":popover-open") !== null; } catch { return false; }
+  try { return popoverBlocksQueueKeys(document.querySelectorAll(":popover-open")); } catch { return false; }
+}
+
+/**
+ * Строка, от которой идут j/k: с фокусом внутри, иначе — строка, чью
+ * «Отменить» (UndoToast, `data-undo-row`) держит фокус: после завершения
+ * j/k продолжают от завершённой задачи, а не с начала списка.
+ */
+function focusedRowIndex(links: readonly HTMLElement[]): number {
+  const active = document.activeElement;
+  const inRow = links.findIndex((link) => link.closest(QUEUE_ROW_SELECTOR)?.contains(active));
+  if (inRow >= 0 || !(active instanceof HTMLElement)) return inRow;
+  const undoKey = active.closest<HTMLElement>("[data-undo-row]")?.dataset.undoRow;
+  return undoKey === undefined ? -1 : links.findIndex((link) => link.closest<HTMLElement>(QUEUE_ROW_SELECTOR)?.dataset.queueRow === undoKey);
 }
 
 /** Модальное окно поверх очереди (диалог создания задачи, панель на узком экране). */
@@ -48,7 +66,8 @@ export function revealQueueRow(key: string): boolean {
  * (обычная ссылка строки), Shift+Enter — вторая ссылка строки
  * (`data-queue-full`), «?» — подсказка с клавишами; Esc закрывает панель
  * (`QueueDetailPanel`). Пока пользователь печатает, открыто всплывающее окно
- * или модальный диалог, клавиши не перехватываются. Открытая запись видна в
+ * (кроме строки «Отменить» — `openPopover`) или модальный диалог, клавиши не
+ * перехватываются. Открытая запись видна в
  * списке (`revealQueueRow`) — и при переходе по ссылке, и после обновления;
  * после закрытия панели фокус возвращается на строку, которая была открыта.
  */
@@ -102,7 +121,7 @@ export function useQueueKeyboard({ openKey }: Readonly<{ openKey: string | null 
       const target = event.target instanceof Element ? event.target : null;
       if (arrow && target && target !== document.body && !target.closest("[data-queue-list]")) return;
       const links = rowLinks();
-      const current = links.findIndex((link) => link.closest(QUEUE_ROW_SELECTOR)?.contains(document.activeElement));
+      const current = focusedRowIndex(links);
       const selected = links.findIndex((link) => link.getAttribute("aria-current") === "true");
       const next = nextQueueIndex(links.length, current, selected, event.key === "ArrowDown" || event.key === "j" ? 1 : -1);
       if (next < 0) return;

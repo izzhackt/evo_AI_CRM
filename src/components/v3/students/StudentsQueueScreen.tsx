@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import type { StudentCaseQueueCounts, StudentCaseQueuePage } from "@/lib/platform-student-case-queue-contract";
 
+import type { V3Look } from "../blocks/look";
 import type { StudentsCoverage } from "../profile/students-coverage-view";
 import { QueueEmpty, QueueError, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
@@ -47,6 +48,8 @@ export type StudentsQueueScreenInput = Readonly<{
   recordScopes: readonly string[];
   createTask: boolean;
   requestIds: Readonly<{ nextStep: string; coverage: string }>;
+  /** Новый облик (Э1.3, предпросмотр Admin): общие блоки в таблице и «Быстром просмотре». */
+  look?: V3Look;
 }>;
 
 const DIRECTORY = "min-w-0 space-y-2";
@@ -193,6 +196,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       handoff={input.handoff ?? null}
       createTask={input.createTask}
       requestId={input.requestIds.nextStep}
+      look={input.look}
     />,
   };
 }

@@ -101,6 +101,13 @@
   --focus-ring: #202020;
   --focus-halo: rgb(32 32 32 / 0.12);
   --shadow-raised: 0 1px 1px rgb(26 26 25 / 0.1);
+  /* Три цвета фаз (Э1.4) — только точка чипа этапа и дорожка этапа, всегда со
+     словом. Оттенки вне статусов (красный, янтарный, зелёный, синий):
+     «Продажи» — слива, «Поступление» — бирюза, «Виза и выезд» — фиалка;
+     ≥4.2:1 на листе, столе, `--surface-2`, `--surface-3` и «выбрано». */
+  --phase-sales: #9b2c7a;
+  --phase-admission: #0e6f75;
+  --phase-visa: #5b45b0;
 }
 
 /*
@@ -492,5 +499,280 @@
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Общие блоки нового облика (Э1.3–Э1.4 плана редизайна, 26.09.2026;
+ * src/components/v3/blocks/). Их рисуют только экраны с пропом `look="next"`,
+ * и правила живут только под `data-look="next"` — то же временное
+ * сосуществование, izzhackt/evo_AI_CRM#1061. Шрифт — роли `t-*` в разметке;
+ * здесь только форма и цвет.
+ *
+ * - `.v3-chip` — статус словом; цвет подкрепляет слово, красный — проблема.
+ * - `.v3-stage` — этап: точка цвета фазы и слово доски; слово переносится.
+ * - `.v3-due` — срок словом; «сегодня» — маленькая красная заливка:
+ *   белый на `#d70217` 5.4:1.
+ * - `.v3-initials` — нейтральный круг 24 px: `--text-2` на `--surface-2` 8:1.
+ * - `.v3-progress` — подпись «N из M» и полоса 4 px.
+ * - `.v3-track` — дорожка этапа: текущий отрезок шире и выше.
+ * - `.v3-toasts` — «Отменить» у нижнего края окна в верхнем слое.
+ * Движение — до 200 мс и только при `prefers-reduced-motion: no-preference`.
+ */
+.v3-world[data-look="next"] .v3-chip {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 20px;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 1px 7px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.v3-world[data-look="next"] .v3-chip[data-size="sm"] {
+  min-height: 18px;
+  margin-block: -1px;
+  padding: 0 6px;
+}
+.v3-world[data-look="next"] .v3-chip[data-tone="danger"] {
+  border-color: transparent;
+  background: var(--danger-weak);
+  color: var(--danger);
+}
+.v3-world[data-look="next"] .v3-chip[data-tone="warn"] {
+  border-color: transparent;
+  background: var(--warn-weak);
+  color: var(--warn);
+}
+.v3-world[data-look="next"] .v3-chip[data-tone="ok"] {
+  border-color: transparent;
+  background: var(--ok-weak);
+  color: var(--ok);
+}
+.v3-world[data-look="next"] .v3-chip[data-tone="info"] {
+  border-color: transparent;
+  background: var(--info-weak);
+  color: var(--info);
+}
+
+.v3-world[data-look="next"] :is(.v3-stage, .v3-track-step)[data-phase="sales"] {
+  --phase: var(--phase-sales);
+}
+.v3-world[data-look="next"] :is(.v3-stage, .v3-track-step)[data-phase="admission"] {
+  --phase: var(--phase-admission);
+}
+.v3-world[data-look="next"] :is(.v3-stage, .v3-track-step)[data-phase="visa"] {
+  --phase: var(--phase-visa);
+}
+.v3-world[data-look="next"] .v3-stage {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: baseline;
+  gap: 6px;
+  text-wrap: pretty;
+}
+.v3-world[data-look="next"] .v3-phase-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--phase);
+  /* Точка стоит на средней линии первой строки слова. */
+  transform: translateY(-1px);
+}
+
+.v3-world[data-look="next"] .v3-due {
+  display: inline-block;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.v3-world[data-look="next"] .v3-due[data-due="overdue"] {
+  color: var(--danger);
+}
+.v3-world[data-look="next"] .v3-due[data-due="today"] {
+  border-radius: 4px;
+  background: var(--accent);
+  padding: 0 5px;
+  color: var(--on-accent);
+}
+
+.v3-world[data-look="next"] .v3-initials {
+  display: inline-grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* В строке карточки доски (16 px) круг 20 px не раздвигает строку. */
+.v3-world[data-look="next"] .v3-initials[data-size="sm"] {
+  width: 20px;
+  height: 20px;
+  margin-block: -2px;
+}
+
+.v3-world[data-look="next"] .v3-progress {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.v3-world[data-look="next"] .v3-progress-track {
+  display: block;
+  width: min(100%, 16rem);
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+.v3-world[data-look="next"] .v3-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-2);
+}
+
+.v3-world[data-look="next"] .v3-track {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+.v3-world[data-look="next"] .v3-track-steps {
+  display: flex;
+  width: min(100%, 15rem);
+  align-items: center;
+  gap: 2px;
+}
+.v3-world[data-look="next"] .v3-track-step {
+  height: 6px;
+  min-width: 8px;
+  flex: 1 1 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+.v3-world[data-look="next"] .v3-track-step[data-phase-start] {
+  margin-inline-start: 6px;
+}
+.v3-world[data-look="next"] .v3-track-step[data-state="done"] {
+  background: color-mix(in srgb, var(--phase) 45%, var(--surface));
+}
+.v3-world[data-look="next"] .v3-track-step[data-state="current"] {
+  height: 10px;
+  flex-grow: 2.5;
+  background: var(--phase);
+}
+.v3-world[data-look="next"] .v3-track-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+/*
+ * Третья строка карточки продаж: сначала срок целиком, затем «на этапе 4 дн».
+ * Строка высотой в одну линию, части не переносятся внутри себя: подпись
+ * возраста, которой не хватило места, уходит на скрытую вторую линию целиком,
+ * а не обрезается посреди слова (на 1280 px колонка ~150 px); она остаётся в
+ * панели лида и для читалки.
+ */
+.v3-world[data-look="next"] .v3-card-meta {
+  height: 1lh;
+  overflow: hidden;
+}
+.v3-world[data-look="next"] :is(.v3-card-due, .v3-card-age) {
+  white-space: nowrap;
+}
+
+/*
+ * Чип-ссылка в строке карточки («нужен ответ»; чип 18 px с полями −1 px —
+ * ссылка 16 px): зона нажатия 16 + 2 × 14 = 44 px по высоте — прозрачным
+ * псевдоэлементом, строка карточки не раздвигается.
+ */
+.v3-world[data-look="next"] .v3-chip-link {
+  position: relative;
+  border-radius: 999px;
+}
+.v3-world[data-look="next"] .v3-chip-link::after {
+  content: "";
+  position: absolute;
+  inset: -14px -4px;
+}
+/* Слово чипа-ссылки подчёркнуто: рядом такой же чип «просрочено» — не ссылка. */
+.v3-world[data-look="next"] .v3-chip-link .v3-chip {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/*
+ * «Отменить» у нижнего края окна: верхний слой (popover), над нижней панелью
+ * телефона Э1.2, если она есть (`--shell-tabbar`). Тёмная нейтральная строка —
+ * `--surface` на `--text` 16:1; рамка фокуса внутри светлая: тёмная рамка
+ * нового облика на тёмной строке не видна.
+ */
+.v3-world[data-look="next"] .v3-toasts {
+  inset: auto 0 calc(16px + var(--shell-tabbar, 0px) + var(--shell-safe-bottom, 0px)) 0;
+  width: min(30rem, calc(100vw - 2rem));
+  margin: 0 auto;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+.v3-world[data-look="next"] .v3-toast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  border-radius: 8px;
+  background: var(--text);
+  padding: 4px 4px 4px 16px;
+  color: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.v3-world[data-look="next"] .v3-toast-action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border-radius: 6px;
+  padding: 0 12px;
+  color: var(--surface);
+  text-decoration-line: underline;
+  text-underline-offset: 4px;
+}
+.v3-world[data-look="next"] .v3-toast-action:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.14);
+}
+.v3-world[data-look="next"] .v3-toast-action:disabled {
+  opacity: 1;
+  text-decoration-line: none;
+}
+.v3-world[data-look="next"] .v3-toast-action:focus-visible {
+  outline-color: var(--surface);
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world[data-look="next"] .v3-toast {
+    animation: v3-toast-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .v3-world[data-look="next"] .v3-progress-fill {
+    transition: width 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes v3-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
 }

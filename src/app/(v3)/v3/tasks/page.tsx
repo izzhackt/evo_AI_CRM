@@ -11,6 +11,7 @@ import { TasksWorkspace } from "@/components/v3/tasks/TasksWorkspace";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { staffTaskUuid } from "@/lib/platform-staff-task-contract";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
+import { readLookPreview } from "@/lib/v3/look-preview";
 import { readStaffTaskWorkspace, taskQueueAccess } from "@/lib/v3/staff-task-source";
 import { buildTaskQueue, parseTaskQueueFilters, taskQueueParams } from "@/lib/v3/task-queue";
 import { readCalendarTaskTarget } from "@/lib/v3/calendar-source";
@@ -27,6 +28,8 @@ function optionalUuid(params: Params, key: string) { const value = single(params
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<Params> }) {
   const [params, actor] = await Promise.all([searchParams, requireV3PageActor("/v3/tasks")]);
+  // Новый облик (предпросмотр Admin, Э1.3): тот же признак, что `data-look` оболочки.
+  const look = (await readLookPreview(actor)) ? "next" as const : undefined;
   const access = taskQueueAccess(actor);
   const preview = isStaffPreview(actor);
   const canUseStaffTasks = staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create");
@@ -179,6 +182,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       }}
       selectedKey={selectedKey}
       panel={panel}
+      look={look}
     />
     </>}
     </PartShell>

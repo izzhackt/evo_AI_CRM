@@ -6,7 +6,13 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { CaseNextActionReceipt, StudentCaseQueueRow } from "@/lib/platform-student-case-queue-contract";
 import { admissionsPipelineStage, taskStatus } from "@/lib/v3/wording";
 
-import { queueDue } from "../queue/due-bucket";
+import { DueWord } from "../blocks/DueWord";
+import { Initials } from "../blocks/Initials";
+import { isNextLook, type V3Look } from "../blocks/look";
+import { ProgressBar } from "../blocks/ProgressBar";
+import { StageTrack } from "../blocks/StageTrack";
+import { StatusChip } from "../blocks/StatusChip";
+import { dueWordOf, queueDue } from "../queue/due-bucket";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { QueueDetailPanel } from "../queue/QueueDetailPanel";
 import { ProfileHandoffAcknowledgement } from "../profile/ProfileSalesTransition";
@@ -55,6 +61,7 @@ export function StudentQuickView({
   links,
   requestId,
   onSaved,
+  look,
 }: Readonly<{
   row: StudentCaseQueueRow;
   today: string;
@@ -66,7 +73,13 @@ export function StudentQuickView({
   links: QuickViewLinks;
   requestId: string;
   onSaved: (receipt: CaseNextActionReceipt) => void;
+  /**
+   * Новый облик (Э1.3–Э1.4): дорожка этапа, инициалы куратора, срок словом и
+   * полоса документов «N из M принято» из прочитанных чисел чек-листа.
+   */
+  look?: V3Look;
 }>) {
+  const next = isNextLook(look);
   const headingId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const stepHeadingId = `${headingId}-step`;
@@ -85,6 +98,7 @@ export function StudentQuickView({
   const documents = studentsDocumentsLine(row.documents);
   // Шаг ведётся только у дела в работе: у закрытого и ожидающего начала дата без «прошёл».
   const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
+  const dueWord = next && due ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   const openTasks = tasks?.kind === "ready" ? tasks.tasks : [];
 
   return (
@@ -110,11 +124,13 @@ export function StudentQuickView({
       ) : null}
 
       <dl className="mt-4 divide-y divide-border border-t border-border">
-        {stage ? <Fact term="Этап">{stage}</Fact> : null}
+        {stage ? <Fact term="Этап">{next ? <StageTrack kind="admissions" current={row.pipelineStage} closed={row.state === "closed"} /> : stage}</Fact> : null}
         <Fact term="Куратор">
           {/* Отказ возможен только по переданному делу, поэтому после него дело ждёт куратора — как в строке списка. */}
           {answered === "declined" ? <span className="font-medium text-danger">нужен куратор</span>
-            : row.currentCuratorDisplayName ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
+            : (next && row.currentCuratorDisplayName ? (
+              <span className="inline-flex items-center gap-2"><Initials name={row.currentCuratorDisplayName} decorative />{row.currentCuratorDisplayName}</span>
+            ) : row.currentCuratorDisplayName) ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
           {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}
         </Fact>
         {row.state !== "active" ? <Fact term="Состояние">{row.state === "closed" ? "Дело закрыто" : "Ожидает начала"}</Fact> : null}
@@ -129,7 +145,7 @@ export function StudentQuickView({
             {row.nextAction ? (
               <p className="t-body-compact break-words text-fg">
                 {row.nextAction}
-                {due ? <> · <time dateTime={due.dateTime} className={`font-mono tabular-nums ${due.overdue ? "text-danger" : ""}`}>{due.text}</time>{due.word ? <span className={due.overdue ? "text-danger" : "text-fg-2"}> {due.word}</span> : null}</> : null}
+                {due ? <> · <time dateTime={due.dateTime} className={`font-mono tabular-nums ${due.overdue && !next ? "text-danger" : ""}`}>{due.text}</time>{dueWord ? <> <DueWord view={dueWord} /></> : due.word ? <span className={due.overdue ? "text-danger" : "text-fg-2"}> {due.word}</span> : null}</> : null}
               </p>
             ) : <p className="t-body-compact text-fg-3">Шаг не задан</p>}
             {access.reason ? <p className="t-body-compact text-fg-2">{access.reason}</p> : null}
@@ -152,12 +168,13 @@ export function StudentQuickView({
           <ul className="divide-y divide-border">
             {openTasks.slice(0, QUICK_VIEW_TASKS).map((task) => {
               const taskDue = queueDue({ dueOn: task.dueOn, dueAt: task.dueAt }, now);
+              const taskDueWord = next && taskDue ? dueWordOf({ dueOn: task.dueOn, dueAt: task.dueAt }, now) : null;
               const word = task.status === "blocked" ? taskStatus(task.status) : null;
               return (
                 <li key={task.id} className="py-2">
                   <Link href={links.task(task.id)} className="block break-words t-body-compact text-fg underline-offset-4 hover:underline">{task.title}</Link>
                   <p className="t-meta text-fg-2">
-                    {taskDue ? <><time dateTime={taskDue.dateTime} className={`font-mono tabular-nums ${taskDue.overdue ? "text-danger" : ""}`}>{taskDue.text}</time>{taskDue.word ? <span className={taskDue.overdue ? "text-danger" : undefined}> {taskDue.word}</span> : null}</> : "без срока"}
+                    {taskDue ? <><time dateTime={taskDue.dateTime} className={`font-mono tabular-nums ${taskDue.overdue && !next ? "text-danger" : ""}`}>{taskDue.text}</time>{taskDueWord ? <> <DueWord view={taskDueWord} /></> : taskDue.word ? <span className={taskDue.overdue ? "text-danger" : undefined}> {taskDue.word}</span> : null}</> : "без срока"}
                     {word ? <span className="text-warn"> · {word}</span> : null}
                     <span> · исп. {task.assigneeDisplayName}</span>
                   </p>
@@ -171,7 +188,19 @@ export function StudentQuickView({
 
       <section aria-label="Документы дела" className={`mt-4 ${SECTION}`}>
         <h3 className="t-item text-fg">Документы</h3>
-        {documents ? (
+        {documents && next ? (
+          // Новый облик: полоса «N из M принято» — только из прочитанных чисел чек-листа;
+          // пустой чек-лист или числа, которые не сходятся, — прежняя строка, без полосы.
+          <div className="space-y-2">
+            <ProgressBar done={row.documents?.approved} total={row.documents?.total} word="принято"
+              fallback={<p className="t-body-compact text-fg">{documents.summary}</p>} />
+            {documents.parts.length ? (
+              <p className="flex flex-wrap gap-1">
+                {documents.parts.map((part) => <StatusChip key={part.key} label={part.text} tone={part.tone === "warn" ? "warn" : part.tone === "danger" ? "danger" : "neutral"} />)}
+              </p>
+            ) : null}
+          </div>
+        ) : documents ? (
           <p className="t-body-compact text-fg">
             {documents.summary}
             {documents.parts.map((part) => <span key={part.key}><span className="text-fg-3"> · </span><span className={`font-medium ${TONE[part.tone]}`}>{part.text}</span></span>)}

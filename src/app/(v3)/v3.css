@@ -120,6 +120,48 @@
   box-shadow: var(--shadow-raised);
 }
 
+/*
+ * Оболочка нового облика (Э1.2, AppShellNext.tsx; то же временное
+ * сосуществование, izzhackt/evo_AI_CRM#1061). Верхней панели нет; на телефоне
+ * (<768 px) сверху одна строка, снизу панель вкладок. Их высоты — одни
+ * переменные в rem: строка, панель, отступ содержимого и высота страниц «на
+ * окно» считаются в одних единицах и не расходятся при крупном корневом
+ * шрифте. Страница «на окно» — `main` с высотой из 100dvh (WhatsApp через
+ * PartShell `fill`, «Сообщения», «Командный чат»): её поле ответа стоит над
+ * панелью вкладок, а на компьютере она занимает окно целиком.
+ */
+.v3-world[data-look="next"] {
+  --shell-top: 0px;
+  --shell-tabbar: 0px;
+  --shell-safe-bottom: 0px;
+}
+
+@media (width < 48rem) {
+  .v3-world[data-look="next"] {
+    --shell-top: 3.5rem;
+    --shell-tabbar: 3.5rem;
+    --shell-safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+.v3-world[data-look="next"] [data-shell-content] main:is(.h-dvh, [class*="100dvh"]) {
+  height: calc(100dvh - var(--shell-top) - var(--shell-tabbar) - var(--shell-safe-bottom));
+}
+
+/* Лист «Ещё» появляется коротким подъёмом; при просьбе системы — без движения. */
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world[data-look="next"] [data-shell-menu][data-sheet-open] {
+    animation: v3-shell-sheet-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes v3-shell-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
 /* Скругление мелкое: у референса окно софта, а не карточка-плитка. */
 .v3-world .rounded-card {
   border-radius: 10px;

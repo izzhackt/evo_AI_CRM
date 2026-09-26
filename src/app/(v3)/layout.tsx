@@ -35,7 +35,8 @@ export default async function V3Layout({ children }: { children: ReactNode }) {
   const actor = await requirePlatformStaffActor();
   const [notifications, lookPreview] = await Promise.all([
     !isStaffPreview(actor) ? readStaffNotificationsForActor(actor).catch(() => null) : Promise.resolve(null),
-    // Предпросмотр нового облика (Э1.1, временно до решения владельца): только Admin.
+    // Предпросмотр нового облика (Э1.1, временно до решения владельца): только
+    // Admin, в том числе в просмотре роли (Э1.2). Облик решает и оболочку.
     readLookPreview(actor),
   ]);
 
@@ -44,6 +45,7 @@ export default async function V3Layout({ children }: { children: ReactNode }) {
       <AppShell
         actor={actor}
         initialNotifications={notifications}
+        look={lookPreview ? "next" : undefined}
       >
         {children}
       </AppShell>

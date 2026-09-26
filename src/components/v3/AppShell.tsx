@@ -24,6 +24,7 @@ import {
 } from "@/lib/v3/navigation";
 import { roleTitle } from "@/lib/v3/wording";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
+import { AppShellNext } from "@/components/v3/AppShellNext";
 import type { StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 
 const LINK_ICONS = {
@@ -327,7 +328,25 @@ function Sidebar({
   );
 }
 
+/**
+ * Оболочка V3. `look="next"` — новый облик (предпросмотр Admin, Э1.2 плана
+ * редизайна): своя оболочка без верхней панели и с нижней панелью телефона
+ * в AppShellNext.tsx. Прежняя оболочка ниже не меняется. Временное
+ * сосуществование до решения владельца (Э1.5, izzhackt/evo_AI_CRM#1061).
+ */
 export function AppShell({
+  look,
+  ...props
+}: {
+  children: React.ReactNode;
+  actor: ActivePlatformActor;
+  initialNotifications: StaffNotificationPage | null;
+  look?: "next";
+}) {
+  return look === "next" ? <AppShellNext {...props} /> : <CurrentAppShell {...props} />;
+}
+
+function CurrentAppShell({
   children,
   actor,
   initialNotifications,

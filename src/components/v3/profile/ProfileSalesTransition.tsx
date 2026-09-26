@@ -21,8 +21,8 @@ import type {
 
 import type { HandoffAcknowledgement, HandoffDecision, SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import { respondToHandoffAction, type HandoffResponseActionState } from "@/lib/platform-handoff-acknowledgement-actions";
-import { allDayDate, handoffAcknowledgementLabel } from "@/lib/v3/wording";
-import type { HandoffStripItem, HandoffStripView } from "./handoff-strip-view";
+import { handoffAcknowledgementLabel } from "@/lib/v3/wording";
+import { handoffFootnote, type HandoffStripItem, type HandoffStripView, type StripText } from "./handoff-strip-view";
 import type {
   ProfileSalesRequestIds,
 } from "./types";
@@ -226,26 +226,39 @@ function GateActionForm({
   );
 }
 
-/** Одно доказательство полосы: есть (галочка и дата), нет (прочерк) или есть с оговоркой словами. */
+/**
+ * Текст полосы: слова — Golos, даты — JetBrains Mono (один формат даты,
+ * DESIGN.md). Слово перед датой не отрывается от неё переносом («принято 19.09»).
+ */
+function StripLine({ text }: { text: StripText }) {
+  return <>{text.map((part, index) => typeof part === "string"
+    ? typeof text[index + 1] === "object" && part.endsWith(" ") ? `${part.slice(0, -1)}\u00a0` : part
+    : <span key={index} className="whitespace-nowrap font-mono tabular-nums">{part.date}</span>)}</>;
+}
+
+/**
+ * Одно доказательство полосы: есть (галочка и дата), нет (прочерк), есть с
+ * оговоркой словами или лежит в отчёте, который роль не читает (только слова).
+ */
 function StripValue({ item }: { item: HandoffStripItem }) {
+  // Знак и слова — одна строка текста: длинные слова переносятся за галочкой,
+  // а не уводят её на отдельную строку. Дата — отдельно и не рвётся.
+  const gap = item.text ? "me-1.5" : null;
+  const mark = item.state === "done" ? (
+    <>
+      <Icon name="check" size={16} className={cn("inline-block align-[-3px] text-ok", gap)} />
+      <span className="sr-only">есть </span>
+    </>
+  ) : item.state === "missing" ? (
+    <>
+      <span aria-hidden="true" className={cn("text-fg-3", gap)}>—</span>
+      <span className="sr-only">нет </span>
+    </>
+  ) : null;
+  const tone = item.state === "attention" ? "text-warn" : item.state === "done" ? "text-fg" : "text-fg-2";
   return (
     <>
-      {item.state === "done" ? (
-        <>
-          <Icon name="check" size={16} className="shrink-0 text-ok" />
-          <span className="sr-only">есть</span>
-        </>
-      ) : item.state === "missing" ? (
-        <>
-          <span aria-hidden="true" className="text-fg-3">—</span>
-          <span className="sr-only">нет</span>
-        </>
-      ) : null}
-      {item.text ? (
-        <span className={cn("min-w-0 break-words", item.state === "attention" ? "text-warn" : item.state === "missing" ? "text-fg-2" : "text-fg")}>
-          {item.text}
-        </span>
-      ) : null}
+      {mark || item.text ? <span className={cn("min-w-0 break-words text-end @2xl:text-start", tone)}>{mark}{item.text}</span> : null}
       {item.date ? <span className="whitespace-nowrap font-mono tabular-nums text-fg-2">{item.date}</span> : null}
     </>
   );
@@ -277,13 +290,10 @@ function HandoffCard({
   const contractForm = !preview && !gate.contractConfirmed && gate.canConfirmContract;
   const paymentForm = !preview && gate.contractConfirmed && !gate.firstPaymentReceivedDate && gate.canConfirmFirstPayment;
   const canOverride = !preview && gate.canOverrideGate && !gate.normalHandoffAllowed;
-  const details = [
-    gate.contractConfirmed && gate.firstPaymentAmount !== null
-      ? `Первый платёж ${gate.firstPaymentAmount} ${gate.firstPaymentCurrency ?? ""}${gate.firstPaymentDueDate ? `, ожидается ${allDayDate(gate.firstPaymentDueDate) ?? gate.firstPaymentDueDate}` : ""}`.trim()
-      : null,
-    gate.contractEvidenceReference ? `Договор: ${gate.contractEvidenceReference}` : null,
-    gate.firstPaymentEvidenceReference ? `Платёж: ${gate.firstPaymentEvidenceReference}` : null,
-  ].filter((line): line is string => line !== null);
+  const footnote = handoffFootnote(gate, { now: new Date() });
+  // Линия над полосой — только когда над ней есть строка передачи или
+  // предупреждение; иначе она удваивает линию под заголовком карточки.
+  const ruleAbove = view !== null && (view.summary !== null || view.warnings.length > 0);
 
   return (
     <Card eyebrow title="Передача">
@@ -298,20 +308,30 @@ function HandoffCard({
         ) : (
           <>
             {view.summary ? (
-              <p className="t-body-compact text-fg" data-testid="v3-handoff-summary">{view.summary}</p>
+              <p className="t-body-compact text-fg" data-testid="v3-handoff-summary"><StripLine text={view.summary} /></p>
             ) : null}
             {view.warnings.length > 0 ? (
               <ul className="space-y-1" data-testid="v3-handoff-warnings">
-                {view.warnings.map((warning) => (
-                  <li key={warning} className="flex items-start gap-1.5 t-body-compact text-warn">
+                {view.warnings.map((warning, index) => (
+                  <li key={index} className="flex flex-wrap items-start gap-x-1.5 gap-y-1 t-body-compact text-warn">
                     <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
-                    <span>{warning}</span>
+                    <span className="min-w-0 flex-[1_1_16rem]"><StripLine text={warning.text} /></span>
+                    {warning.href ? (
+                      // 44 px цели без лишней высоты строки: поле касания выходит за строку.
+                      <a href={warning.href} className="-my-3 inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
+                        Открыть запись
+                      </a>
+                    ) : null}
                   </li>
                 ))}
               </ul>
             ) : null}
             <dl
-              className="grid divide-y divide-border border-y border-border @2xl:grid-cols-5 @2xl:divide-x @2xl:divide-y-0"
+              className={cn(
+                "grid divide-y divide-border @2xl:grid-cols-5 @2xl:divide-x @2xl:divide-y-0",
+                ruleAbove && "border-t border-border",
+                footnote && "border-b border-border",
+              )}
               data-testid="v3-handoff-strip"
             >
               {view.items.map((item) => (
@@ -321,7 +341,7 @@ function HandoffCard({
                   data-state={item.state}
                   className="flex min-h-11 min-w-0 items-center justify-between gap-x-4 gap-y-1 py-2 @2xl:flex-col @2xl:items-start @2xl:justify-start @2xl:px-3 @2xl:py-2.5 @2xl:first:ps-0"
                 >
-                  <dt className="t-caption text-fg-3">{item.label}</dt>
+                  <dt className="shrink-0 t-caption text-fg-3">{item.label}</dt>
                   <dd className="flex min-w-0 flex-wrap items-center justify-end gap-x-1.5 t-body-compact @2xl:justify-start">
                     <StripValue item={item} />
                   </dd>
@@ -330,8 +350,8 @@ function HandoffCard({
             </dl>
           </>
         )}
-        {details.length > 0 ? (
-          <p className="t-meta break-words text-fg-3">{details.join(" · ")}</p>
+        {footnote ? (
+          <p className="t-meta break-words text-fg-3" data-testid="v3-handoff-footnote"><StripLine text={footnote} /></p>
         ) : null}
       </div>
 

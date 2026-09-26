@@ -4,9 +4,23 @@ import { parseSalesRegisterSearchQuery } from "./sales-register-search.ts";
 export type SalesReportQuery = Readonly<{
   year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
   manager?: string; direction?: string; review?: string; saved?: string; edit?: string; q?: string; mode?: string;
+  sale?: string;
 }>;
 
-const REPORT_KEYS = ["year", "month", "offset", "q", "manager", "direction", "review", "archived"] as const;
+/**
+ * Записи, которыми таблица месяца отчёта расходится с «Продажами» периода
+ * (Э2, миграция 247, `read_sales_register_v3`): без даты продажи, с датой
+ * продажи вне периода и продажи периода, записанные в другой месяц отчёта.
+ * Заголовок отчёта ведёт по ним в таблицу — `sale=<срез>`.
+ */
+export const SALES_SALE_SLICES = ["undated", "other_sale_date", "filed_elsewhere"] as const;
+export type SalesSaleSlice = typeof SALES_SALE_SLICES[number];
+
+export function parseSalesSaleSlice(value: unknown): SalesSaleSlice | null {
+  return typeof value === "string" && (SALES_SALE_SLICES as readonly string[]).includes(value) ? value as SalesSaleSlice : null;
+}
+
+const REPORT_KEYS = ["year", "month", "offset", "q", "manager", "direction", "review", "archived", "sale"] as const;
 
 /** Explicit record/editor/result destinations retain the existing report route. */
 export function isSalesImportQuery(query: Readonly<Record<string, unknown>>): boolean {
@@ -27,7 +41,10 @@ export function salesReportContext(query: Readonly<Record<string, unknown>>, cur
     && Number.isInteger(offset) && offset >= 0 && offset <= 1_000_000
     && (query.manager === undefined || (typeof query.manager === "string" && query.manager.length <= 300))
     && parseSalesRegisterDirection(query.direction) !== null
-    && (query.review === undefined || (typeof query.review === "string" && ["", "true", "false"].includes(query.review)));
+    && (query.review === undefined || (typeof query.review === "string" && ["", "true", "false"].includes(query.review)))
+    // Срез — расхождение продаж, архив в нём не бывает.
+    && (query.sale === undefined || (parseSalesSaleSlice(query.sale) !== null && query.archived !== "true"));
+  const saleSlice = valid ? parseSalesSaleSlice(query.sale) : null;
 
   const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
   const clearFiltersHref = `/v3/main?${params.toString()}`;
@@ -36,6 +53,7 @@ export function salesReportContext(query: Readonly<Record<string, unknown>>, cur
   for (const key of ["manager", "direction", "review"] as const) {
     if (typeof query[key] === "string" && query[key]) params.set(key, query[key]);
   }
+  if (saleSlice) params.set("sale", saleSlice);
   if (valid && offset > 0) params.set("offset", String(offset));
 
   // Invalid values stay visible when returning to the report for correction.
@@ -51,8 +69,14 @@ export function salesReportContext(query: Readonly<Record<string, unknown>>, cur
     for (const [key, value] of Object.entries(extra)) next.set(key, value);
     return `/v3/main?${next.toString()}`;
   };
+  // Ссылка из заголовка на записи среза: тот же период, без других фильтров —
+  // ровно те записи, что названы рядом с «Продажами».
+  const saleSliceHref = (slice: SalesSaleSlice) => {
+    const next = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all", sale: slice });
+    return `/v3/main?${next.toString()}`;
+  };
   return {
-    valid, year, month, offset, searchQuery, params, href, clearFiltersHref,
+    valid, year, month, offset, searchQuery, saleSlice, saleSliceHref, params, href, clearFiltersHref,
     reportHref: href(), importHref: href({ mode: "import" }),
     reportMonth: `${year}-${String(month ?? current.month).padStart(2, "0")}-01`,
   };

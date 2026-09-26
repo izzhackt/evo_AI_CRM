@@ -36,17 +36,11 @@ export function ProfileNotes({
   requestId,
   olderHref,
   latestHref,
-  quiet = false,
 }: {
   notes: ProfileNotesSnapshot;
   requestId: string;
   olderHref: string | null;
   latestHref: string | null;
-  /**
-   * Дело студента: сплошной красный отдан одному главному действию страницы,
-   * поэтому «Добавить заметку» — спокойная кнопка (решение владельца 26.09).
-   */
-  quiet?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const acceptedBodyRef = useRef("");
@@ -131,7 +125,10 @@ export function ProfileNotes({
           <button
             type="submit"
             disabled={pending || lengthRejected}
-            className={quiet ? QUEUE_SECONDARY : "min-h-10 rounded-ctl bg-accent px-3 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"}
+            // Спокойная кнопка 44 px и в деле студента, и в Lead 360: сплошной
+            // красный отдан одному главному действию страницы (решение
+            // владельца 26.09; Э2 — и в карточке лида).
+            className={QUEUE_SECONDARY}
           >
             {pending ? "Сохраняем…" : "Добавить заметку"}
           </button>

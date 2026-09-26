@@ -9,7 +9,9 @@ import ts from "typescript";
 import * as access from "../src/lib/platform-access.ts";
 import * as wording from "../src/lib/v3/wording.ts";
 import * as profileTypes from "../src/components/v3/profile/types.ts";
-import { handoffStripView } from "../src/components/v3/profile/handoff-strip-view.ts";
+import * as stripView from "../src/components/v3/profile/handoff-strip-view.ts";
+
+const { handoffStripView } = stripView;
 
 const require = createRequire(import.meta.url);
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime.js");
@@ -45,6 +47,7 @@ const component = compile("src/components/v3/profile/ProfileSalesTransition.tsx"
     mutatePlatformLeadAdmissionsGateAction: unavailableAction,
   };
   if (id === "@/lib/platform-handoff-acknowledgement-actions") return { respondToHandoffAction: unavailableAction };
+  if (id === "./handoff-strip-view") return stripView;
   return require(id);
 });
 
@@ -69,7 +72,7 @@ const completed = {
 // lead reads its evidence from staff_lead_handoff_strip_v1 (synthetic here).
 const view = handoffStripView({
   leadId: LEAD, stage: "handed_off",
-  handoff: { completedAt: "2026-09-10T05:00:00+00:00", evidence: "handoff" },
+  handoff: { completedAt: "2026-09-10T05:00:00+00:00", evidence: "handoff", acceptanceRecordable: true },
   contract: { confirmed: true, confirmedAt: "2026-09-09T05:00:00+00:00" },
   firstPayment: { receivedDate: "2026-09-10" },
   report: { status: "denied" },
@@ -105,7 +108,8 @@ test("the «Передача» strip alone renders the satisfied read state with
   const html = render();
   assert.match(html, /data-handoff-item="contract" data-state="done"/);
   assert.match(html, /data-handoff-item="payment" data-state="done"/);
-  assert.match(html, /Передано 10\.09 · Synthetic curator · ждёт принятия/);
+  // Dates are drawn in JetBrains Mono; the one word for a pending answer is «ждёт ответа».
+  assert.match(html.replace(/<[^>]+>/g, ""), /Передано\s10\.09 · Synthetic curator · ждёт ответа/);
   assert.doesNotMatch(html, /Разрешить исключение/);
 });
 

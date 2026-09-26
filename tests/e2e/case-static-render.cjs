@@ -267,9 +267,11 @@ const SALES = {
   handoff: { caseId: CASE_ID, canOpenCase: true },
   // Полоса «Передача» (Э2): то, что вернуло бы staff_lead_handoff_strip_v1 для этого лида.
   strip: { status: "available", strip: {
-    leadId: LEAD_ID, stage: "handed_off", handoff: { completedAt: "2026-08-30T06:00:00.000Z", evidence: "handoff" },
+    leadId: LEAD_ID, stage: "handed_off",
+    handoff: { completedAt: "2026-08-30T06:00:00.000Z", evidence: "handoff", acceptanceRecordable: true },
     contract: { confirmed: true, confirmedAt: "2026-08-28T05:00:00.000Z" }, firstPayment: { receivedDate: "2026-08-30" },
-    report: { status: "available", record: { id: uuid("12341234", 1), reportMonth: "2026-08-01", saleDate: "2026-08-28", archived: false } },
+    report: { status: "available", record: { id: uuid("12341234", 1), reportMonth: "2026-08-01", saleDate: "2026-08-28", archived: false,
+      hasContractNumber: true, paid: { minor: 60000, currency: "USD" } } },
     curator: { displayName: "Айгүл Осмонова", assignedAt: "2026-08-30T06:05:00.000Z" },
     acceptance: { decision: "accepted", at: "2026-09-21T04:00:00.000Z" },
   } },

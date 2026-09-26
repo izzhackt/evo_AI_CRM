@@ -13,12 +13,14 @@
  *
  *  - Lead 360 (`/v3/profile?id=…`): `Profile` с полосой «Передача» —
  *    переданный лид как в production (передан 18.09, запись о продаже в
- *    архиве: предупреждение словами), лид, проданный в уже открытое дело
- *    (208: дата по квитанции, куратор ещё не ответил), и лид до передачи
+ *    архиве: предупреждение словами и «Открыть запись»), лид, проданный в
+ *    уже открытое дело (208: дата по квитанции; договор и оплата — по записи
+ *    отчёта; приём в CRM не отмечается — сказано словами), и лид до передачи
  *    (полоса нейтральна, формы подтверждения спокойные);
  *  - «Отчёт продаж»: настоящий `SalesRegisterView` с подменёнными чтениями —
  *    заголовок «Продажи за сентябрь» по дате продажи и названные расхождения
- *    с таблицей месяца отчёта;
+ *    с таблицей месяца отчёта — ссылками на эти записи; и сама таблица по
+ *    ссылке «без даты продажи» (`sale=undated`);
  *  - «Динамика по дням»: настоящие чтения периода и доски с подменёнными
  *    RPC — переданный лид в «Переданы» (а не «Новый») и на доске, и в
  *    когорте периода; кабинет без продажи не передача; «Продажи за период»
@@ -74,17 +76,24 @@ const CURATOR_NAME = "Айгерим Условная";
 const STRIPS = {
   // Как в production 26.09: передан 18.09 через 088, запись о продаже в архиве.
   handed: {
-    leadId: LEAD_ID, stage: "handed_off", handoff: { completedAt: "2026-09-18T05:00:00.000Z", evidence: "handoff" },
+    leadId: LEAD_ID, stage: "handed_off",
+    handoff: { completedAt: "2026-09-18T05:00:00.000Z", evidence: "handoff", acceptanceRecordable: true },
     contract: { confirmed: true, confirmedAt: "2026-09-17T05:00:00.000Z" }, firstPayment: { receivedDate: "2026-09-17" },
-    report: { status: "available", record: { id: uuid("12341234", 1), reportMonth: "2026-09-01", saleDate: "2026-09-17", archived: true } },
+    report: { status: "available", record: { id: uuid("12341234", 1), reportMonth: "2026-09-01", saleDate: "2026-09-17", archived: true,
+      hasContractNumber: true, paid: { minor: 60000, currency: "USD" } } },
     curator: { displayName: CURATOR_NAME, assignedAt: "2026-09-18T05:05:00.000Z" },
     acceptance: { decision: "accepted", at: "2026-09-19T03:30:00.000Z" },
   },
-  // Продажа сохранена в отчёте в уже открытое дело (208): дата — по квитанции.
+  // Продажа сохранена в отчёте в уже открытое дело (208): дата — по квитанции;
+  // строка условий ничего не подтверждает — договор и оплата по записи отчёта
+  // (та же запись «Алина Переданная» в «Отчёте продаж»: 22.09, оплачено 600 USD);
+  // ответ куратора записать нельзя (182 требует строки 088).
   sold: {
-    leadId: LEAD_ID, stage: "handed_off", handoff: { completedAt: "2026-09-23T03:00:00.000Z", evidence: "sales_report" },
+    leadId: LEAD_ID, stage: "handed_off",
+    handoff: { completedAt: "2026-09-23T03:00:00.000Z", evidence: "sales_report", acceptanceRecordable: false },
     contract: { confirmed: false, confirmedAt: null }, firstPayment: { receivedDate: null },
-    report: { status: "available", record: { id: uuid("12341234", 2), reportMonth: "2026-09-01", saleDate: "2026-09-22", archived: false } },
+    report: { status: "available", record: { id: uuid("56565656", 1), reportMonth: "2026-09-01", saleDate: "2026-09-22", archived: false,
+      hasContractNumber: false, paid: { minor: 60000, currency: "USD" } } },
     curator: { displayName: CURATOR_NAME, assignedAt: "2026-09-23T03:00:00.000Z" }, acceptance: null,
   },
   // До передачи: квалифицирован, договора ещё нет.
@@ -159,7 +168,13 @@ const HANDED = new Set([uuid("dddddddd", 1)]);
 
 const STUBS = {
   "@/lib/v3/sales-register-source": {
-    readSalesRegisterWorkspace: async () => WORKSPACE,
+    // Срез «без даты продажи» — как read_sales_register_v3 с p_sale_slice => 'undated'.
+    readSalesRegisterWorkspace: async (_actor, selection) => {
+      if (!selection.saleSlice) return WORKSPACE;
+      if (selection.saleSlice !== "undated") throw new Error(`harness: slice ${selection.saleSlice} is not modelled`);
+      const rows = REPORT_ROWS.filter((row) => row.signingDate === null);
+      return { ...WORKSPACE, rows, totalCount: rows.length, totals: [{ currency: "USD", costMinor: 150000, paidMinor: 60000 }] };
+    },
     readSalesRegisterIntakeOptions: async () => null,
     readSalesRegisterWriteAccess: async () => "allowed",
     readSalesRegisterDirections: async () => ["Малайзия"],
@@ -168,7 +183,11 @@ const STUBS = {
   "@/lib/v3/finance-entry-source": { readMonthlyPaymentSummary: async () => ({ status: "not_allowed" }) },
   "@/lib/v3/sales-numbers-source": { readSalesCount: async () => SALES_COUNT, readLeadHandoffStrip: async () => ({ status: "unavailable" }) },
   "@/lib/platform-sales-stage-entries": {
-    listPlatformSalesStageEntries: async () => ({ rows: [], hasNext: false, nextCursor: null }),
+    // Доказанный вход в «Квалифицирован» у лида 2 (он и на доске «Квалифицирован»);
+    // у переданного лида 1 (stage_key 'new', как в production) входа нет — он
+    // квалифицирован передачей.
+    listPlatformSalesStageEntries: async () => ({ rows: [{ organizationId: ORG, leadId: uuid("dddddddd", 2), stageKey: "qualified",
+      enteredAt: "2026-09-10T05:00:00.000Z", enteredOn: "2026-09-10", requestId: uuid("14141414", 1) }], hasNext: false, nextCursor: null }),
     PlatformSalesStageEntryError: class PlatformSalesStageEntryError extends Error {},
   },
   "@/lib/platform-sales": {
@@ -261,10 +280,11 @@ function leadPage(name) {
 }
 
 // --- «Отчёт продаж» ------------------------------------------------------------
-async function reportPage() {
+async function reportPage(extra = {}) {
   const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
-  const element = await SalesRegisterView({ actor: ADMIN, query: { view: "sales", year: "2026", month: "9" } });
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", "view=sales&year=2026&month=9"));
+  const query = { view: "sales", year: "2026", month: "9", ...extra };
+  const element = await SalesRegisterView({ actor: ADMIN, query });
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", new URLSearchParams(query).toString()));
 }
 
 // --- «Динамика по дням»: когорта, «Продажи» периода и воронка по доске ----------
@@ -293,6 +313,7 @@ async function renderAll() {
   const out = [];
   for (const name of Object.keys(LEAD_SCENARIOS)) out.push({ name, html: leadPage(name) });
   out.push({ name: "report", html: await reportPage() });
+  out.push({ name: "report-undated", html: await reportPage({ sale: "undated" }) });
   out.push({ name: "funnel", html: await funnelPage() });
   return out;
 }
@@ -334,8 +355,10 @@ async function screenshots() {
           await document.fonts.ready;
           await Promise.all([...document.images].map((image) => image.decode().catch(() => null)));
         });
-        const target = name.startsWith("lead") ? '[data-testid="v3-lead-stage"]' : name === "report" ? "main h1" : "#sales-dynamics";
-        await page.evaluate((selector) => {
+        const target = name.startsWith("lead") ? '[data-testid="v3-lead-stage"]' : name.startsWith("report") ? "main h1" : "#sales-dynamics";
+        // Lead 360 — во весь рост с шапкой профиля: этап, полоса и заметки на одном снимке.
+        const fullPage = name.startsWith("lead");
+        if (!fullPage) await page.evaluate((selector) => {
           const element = document.querySelector(selector);
           if (!element) throw new Error(`no ${selector}`);
           window.scrollTo({ top: Math.max(0, element.getBoundingClientRect().top + window.scrollY - 96), behavior: "instant" });
@@ -355,7 +378,7 @@ async function screenshots() {
           headline: document.querySelector('[data-testid="v3-sales-headline"]')?.textContent?.replace(/\s+/gu, " ").trim() ?? null,
         }));
         const file = `numbers-${name}-${width}.png`;
-        await page.screenshot({ path: join(outDir, file) });
+        await page.screenshot({ path: join(outDir, file), fullPage });
         process.stdout.write(`${file}: ${Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);
         if (name === "funnel") {
           // Второй экран: «Продажи за период» и «Сейчас на доске».

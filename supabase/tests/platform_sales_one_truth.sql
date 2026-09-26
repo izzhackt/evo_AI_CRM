@@ -25,7 +25,18 @@
 --  * «Продажи» = non-archived records by sale date (staff_sales_count_v1),
 --    reconciled exactly with the report table of the same month;
 --  * the strip's dates and evidence (088 and 208 paths, archived record,
---    curator and the curator's answer);
+--    curator and the curator's answer); a 208 sale's contract and payment
+--    evidence comes from its record (contract number flag, paid amount);
+--  * who can answer a handoff, through the real 182 RPC as the assigned
+--    curator: on the 208 case every actor gate passes and the call stops at
+--    182's 088 precondition (no 088 row is ever written there), and the
+--    strip says 'acceptance_recordable' false instead of a pending step
+--    nobody can take; on the 088 case the curator's decline is recorded
+--    (or, before PR #1074's migration 249, refused only by 042's guard —
+--    then the fixture writes the end state 182 intends) and the strip shows
+--    that decline without a curator, the handoff still «Переданы»;
+--  * read_sales_register_v3: p_sale_slice NULL is v2; each slice opens
+--    exactly the records staff_sales_count_v1 names, for every actor;
 --  * no widening: counts equal what the actor's own report read shows, a
 --    department-scoped Sales Manager does not count or read another
 --    department's records or leads, and Admissions, the Student, a caller
@@ -60,11 +71,18 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE;
 END
 $$;
+-- SQLSTATE and message of a failing statement, or 'ok'.
+CREATE FUNCTION pg_temp.n247_message(sql TEXT) RETURNS TEXT LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE sql; RETURN 'ok';
+EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE || ' ' || SQLERRM;
+END
+$$;
 CREATE FUNCTION pg_temp.n247_ids(VARIADIC n INTEGER[]) RETURNS UUID[] LANGUAGE SQL IMMUTABLE AS $$
   SELECT COALESCE(array_agg(pg_temp.n247_id(x) ORDER BY pg_temp.n247_id(x)), ARRAY[]::UUID[]) FROM unnest(n) AS x
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.n247_id(INTEGER), pg_temp.n247_assert(BOOLEAN, TEXT),
-  pg_temp.n247_error(TEXT), pg_temp.n247_ids(INTEGER[])
+  pg_temp.n247_error(TEXT), pg_temp.n247_message(TEXT), pg_temp.n247_ids(INTEGER[])
   TO authenticated, anon, service_role;
 
 SELECT 'N247_SALES_ONE_TRUTH_SUITE_START' AS n247_suite_marker;
@@ -197,9 +215,12 @@ INSERT INTO platform_private.sales_register(id, organization_id, report_month, o
   lead_id, client_id, fields, archived, source_snapshot)
 VALUES
   (pg_temp.n247_id(902 + 1000), pg_temp.n247_id(1), DATE '2026-09-01', pg_temp.n247_id(302), 'pipeline',
-    pg_temp.n247_id(702), pg_temp.n247_id(701), '{"applicant_name":"N247 R702","signing_date":"2026-09-17"}', TRUE, '{}'),
+    pg_temp.n247_id(702), pg_temp.n247_id(701), '{"applicant_name":"N247 R702","signing_date":"2026-09-17","contract_number":"N247-C-1"}', TRUE, '{}'),
   (pg_temp.n247_id(910 + 1000), pg_temp.n247_id(1), DATE '2026-09-01', pg_temp.n247_id(302), 'pipeline',
-    pg_temp.n247_id(710), pg_temp.n247_id(709), '{"applicant_name":"N247 R710","signing_date":"2026-09-22"}', FALSE,
+    -- 208 copies the lead's sale conditions: a signing date and the paid
+    -- amount, never a contract number (sales_register_new_snapshot).
+    pg_temp.n247_id(710), pg_temp.n247_id(709),
+    '{"applicant_name":"N247 R710","signing_date":"2026-09-22","contract_number":"","paid_minor":60000,"paid_currency":"USD"}', FALSE,
     jsonb_build_object('activation', 'pending_case', 'student_case_id', pg_temp.n247_id(503)));
 INSERT INTO platform_private.sales_register(id, organization_id, report_month, owner_membership_id, source_kind, fields, archived)
 SELECT pg_temp.n247_id(1950 + f.k), pg_temp.n247_id(1), f.month::DATE, pg_temp.n247_id(f.owner), 'manual',
@@ -324,6 +345,13 @@ BEGIN
   PERFORM pg_temp.n247_assert((report ->> 'total_count')::INTEGER = (counted ->> 'sales')::INTEGER
       - (counted ->> 'filed_elsewhere')::INTEGER + (counted ->> 'undated')::INTEGER + (counted ->> 'other_sale_date')::INTEGER,
     p_label || ': the report month table ' || (report ->> 'total_count') || ' reconciles with ' || counted::TEXT);
+  -- v3 without a slice is v2; each named set opens exactly its records.
+  PERFORM pg_temp.n247_assert(platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, 9) = report,
+    p_label || ': read_sales_register_v3 without a slice = v2');
+  PERFORM pg_temp.n247_assert(
+    (platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, 9, p_sale_slice => s.slice) ->> 'total_count') = counted ->> s.slice,
+    p_label || ': slice ' || s.slice || ' opens the ' || (counted ->> s.slice) || ' records the headline names')
+  FROM (VALUES ('undated'), ('other_sale_date'), ('filed_elsewhere')) AS s(slice);
 END
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.n247_board(), pg_temp.n247_funnel_count(JSONB, TEXT),
@@ -413,22 +441,25 @@ SELECT platform.staff_lead_handoff_strip_v1(pg_temp.n247_id(1), pg_temp.n247_id(
 RESET ROLE;
 SELECT pg_temp.n247_assert(:'n247_strip_702'::JSONB = jsonb_build_object(
     'organization_id', pg_temp.n247_id(1), 'lead_id', pg_temp.n247_id(702), 'stage', 'handed_off',
-    'handoff', jsonb_build_object('completed_at', '2026-09-18T05:00:00+00:00'::TIMESTAMPTZ, 'evidence', 'handoff'),
+    'handoff', jsonb_build_object('completed_at', '2026-09-18T05:00:00+00:00'::TIMESTAMPTZ, 'evidence', 'handoff',
+      'acceptance_recordable', TRUE),
     'contract', jsonb_build_object('confirmed', TRUE, 'confirmed_at', '2026-09-17T05:00:00+00:00'::TIMESTAMPTZ),
     'first_payment', jsonb_build_object('received_date', '2026-09-17'),
     'report', jsonb_build_object('status', 'available', 'record', jsonb_build_object('id', pg_temp.n247_id(1902),
-      'report_month', '2026-09-01', 'sale_date', '2026-09-17', 'archived', TRUE)),
+      'report_month', '2026-09-01', 'sale_date', '2026-09-17', 'archived', TRUE, 'has_contract_number', TRUE, 'paid', NULL)),
     'curator', jsonb_build_object('display_name', 'N247 Actor 4', 'assigned_at', '2026-09-18T05:05:00+00:00'::TIMESTAMPTZ),
     'acceptance', jsonb_build_object('decision', 'accepted', 'at', '2026-09-19T03:30:00+00:00'::TIMESTAMPTZ)),
   '702: handed off 18.09 through 088, contract and payment 17.09, the archived record, curator, accepted 19.09: ' || :'n247_strip_702');
 SELECT pg_temp.n247_assert(:'n247_strip_710'::JSONB @> jsonb_build_object('stage', 'handed_off',
-    'handoff', jsonb_build_object('completed_at', '2026-09-23T03:00:00+00:00'::TIMESTAMPTZ, 'evidence', 'sales_report'),
+    'handoff', jsonb_build_object('completed_at', '2026-09-23T03:00:00+00:00'::TIMESTAMPTZ, 'evidence', 'sales_report',
+      'acceptance_recordable', FALSE),
     'contract', jsonb_build_object('confirmed', FALSE, 'confirmed_at', NULL),
     'first_payment', jsonb_build_object('received_date', NULL),
-    'report', jsonb_build_object('status', 'available', 'record', jsonb_build_object('sale_date', '2026-09-22', 'archived', FALSE)),
+    'report', jsonb_build_object('status', 'available', 'record', jsonb_build_object('sale_date', '2026-09-22', 'archived', FALSE,
+      'has_contract_number', FALSE, 'paid', jsonb_build_object('minor', '60000', 'currency', 'USD'))),
     'curator', jsonb_build_object('display_name', 'N247 Actor 4'))
   AND (:'n247_strip_710'::JSONB -> 'acceptance') = 'null'::JSONB,
-  '710: the 208 handoff is dated by its receipt (23.09), the sale 22.09, curator assigned, not yet answered: ' || :'n247_strip_710');
+  '710: the 208 handoff is dated by its receipt (23.09); the gate row confirms nothing, the record carries the sale date 22.09 and 600 USD paid; curator assigned, no answer, and none can be recorded: ' || :'n247_strip_710');
 SELECT pg_temp.n247_assert(:'n247_strip_704'::JSONB @> jsonb_build_object('stage', 'qualified', 'handoff', NULL,
     'report', jsonb_build_object('status', 'available', 'record', NULL), 'curator', NULL, 'acceptance', NULL),
   '704: a bare cabinet is no handoff, no curator, no record: ' || :'n247_strip_704');
@@ -527,6 +558,107 @@ SELECT pg_temp.n247_assert(pg_temp.n247_error($$SELECT platform_private.sales_le
   AND pg_temp.n247_error($$SELECT * FROM platform_private.sales_lead_handoffs(pg_temp.n247_id(1), ARRAY[pg_temp.n247_id(702)])$$) = '42501',
   'no client role calls the private helpers directly');
 RESET ROLE;
+
+-- read_sales_register_v3 refuses what v2 refuses, and a slice over the
+-- archive or an unknown slice.
+SET LOCAL request.jwt.claims TO :'n247_admin';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n247_assert(
+  pg_temp.n247_error($$SELECT platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, 9, p_archived => TRUE, p_sale_slice => 'undated')$$) = '22023'
+  AND pg_temp.n247_error($$SELECT platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, 9, p_sale_slice => 'archived')$$) = '22023',
+  'v3: a slice over the archive or an unknown slice is 22023');
+SELECT pg_temp.n247_assert(
+  (SELECT array_agg(r ->> 'applicant_name' ORDER BY r ->> 'applicant_name')
+    FROM jsonb_array_elements(platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, 9, p_sale_slice => 'filed_elsewhere') -> 'rows') r)
+    = ARRAY['N247 M6']
+  AND (SELECT array_agg(r ->> 'applicant_name' ORDER BY r ->> 'applicant_name')
+    FROM jsonb_array_elements(platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, 9, p_sale_slice => 'undated') -> 'rows') r)
+    = ARRAY['N247 M3']
+  AND (SELECT array_agg(r ->> 'applicant_name' ORDER BY r ->> 'applicant_name')
+    FROM jsonb_array_elements(platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, 9, p_sale_slice => 'other_sale_date') -> 'rows') r)
+    = ARRAY['N247 M4'],
+  'v3 September: filed elsewhere = M6 (August report), undated = M3, other sale date = M4');
+SELECT pg_temp.n247_assert(
+  (platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, NULL, p_sale_slice => 'filed_elsewhere') ->> 'total_count') = '0'
+  AND (platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, NULL, p_sale_slice => 'undated') ->> 'total_count')
+    = (platform.staff_sales_count_v1(pg_temp.n247_id(1), DATE '2026-01-01', DATE '2026-12-31') ->> 'undated'),
+  'v3 whole year: nothing is filed outside the year; undated = the year count');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n247_admissions_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n247_assert(
+  pg_temp.n247_error($$SELECT platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, 9, p_sale_slice => 'undated')$$) = '42501',
+  'Admissions A: no report read through v3');
+RESET ROLE;
+SET LOCAL ROLE anon;
+SELECT pg_temp.n247_assert(
+  pg_temp.n247_error($$SELECT platform.read_sales_register_v3(pg_temp.n247_id(1), 2026, 9)$$) = '42501',
+  'anon cannot execute read_sales_register_v3');
+RESET ROLE;
+
+-- ---------------------------------------------------------------------------
+-- 5. Who can answer a handoff — through the real 182 RPC as the curator.
+-- ---------------------------------------------------------------------------
+-- 208 (lead 710, case 503): every actor gate of respond_student_case_handoff
+-- passes and it stops at its 088 precondition, so no answer can ever be
+-- recorded for this case; the strip reports it instead of «ждёт ответа».
+SET LOCAL request.jwt.claims TO :'n247_admissions_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n247_message(format(
+  'SELECT platform.respond_student_case_handoff(%L::UUID, %L::UUID, %L::UUID, NULL, %L, NULL, NULL, %L::UUID)',
+  pg_temp.n247_id(1), pg_temp.n247_id(503), pg_temp.n247_id(813), 'accepted', pg_temp.n247_id(850))) AS n247_answer_208 \gset
+RESET ROLE;
+SELECT pg_temp.n247_assert(:'n247_answer_208' = '42501 Completed handoff is required',
+  '208: the assigned curator cannot record an answer (182 needs a 088 row): ' || :'n247_answer_208');
+SELECT pg_temp.n247_assert(NOT EXISTS (SELECT 1 FROM platform.student_case_handoff_acknowledgements
+    WHERE student_case_id = pg_temp.n247_id(503))
+  AND (:'n247_strip_710'::JSONB #>> '{handoff,acceptance_recordable}') = 'false',
+  '208: no answer row, and the strip says it cannot be recorded');
+-- 088 (lead 702, case 501): the same curator declines through the same RPC.
+-- 182 then reverts the case to 'pending' and clears handoff_at and the
+-- curator; the strip keeps the handoff («Переданы») and shows the decline
+-- without a curator. Until 042's guard admits that UPDATE (PR #1074,
+-- migration 249) it refuses it with 55000 and nothing changes; then the
+-- fixture writes the end state 182 intends (triggers bypassed for the
+-- fixture only). Either way the strip read is proven. Rolled back.
+SAVEPOINT n247_decline;
+SET LOCAL request.jwt.claims TO :'n247_admissions_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n247_message(format(
+  'SELECT platform.respond_student_case_handoff(%L::UUID, %L::UUID, %L::UUID, %L::UUID, %L, %L, NULL, %L::UUID)',
+  pg_temp.n247_id(1), pg_temp.n247_id(501), pg_temp.n247_id(811), pg_temp.n247_id(830), 'declined',
+  'N247 synthetic decline reason', pg_temp.n247_id(851))) AS n247_decline_088 \gset
+RESET ROLE;
+SELECT pg_temp.n247_assert(:'n247_decline_088' IN ('ok', '55000 First student-case handoff timestamp is immutable'),
+  '088: the curator''s decline is recorded, or refused only by 042''s guard: ' || :'n247_decline_088');
+SELECT (:'n247_decline_088' <> 'ok') AS n247_decline_refused \gset
+\if :n247_decline_refused
+SELECT pg_temp.n247_assert((SELECT state::TEXT FROM platform.student_cases WHERE id = pg_temp.n247_id(501)) = 'active',
+  '088: the refused decline changed nothing');
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.student_case_handoff_acknowledgements(id, organization_id, student_case_id, handoff_id,
+  assignment_event_id, curator_membership_id, revision, decision, clarification, request_id, created_at)
+VALUES (pg_temp.n247_id(832), pg_temp.n247_id(1), pg_temp.n247_id(501), pg_temp.n247_id(801), pg_temp.n247_id(811),
+  pg_temp.n247_id(304), 2, 'declined', 'N247 synthetic decline reason', pg_temp.n247_id(833), '2026-09-20 10:00+06');
+UPDATE platform.student_cases SET state = 'pending', current_curator_membership_id = NULL, handoff_at = NULL
+WHERE id = pg_temp.n247_id(501);
+SET LOCAL session_replication_role = origin;
+\endif
+SET LOCAL request.jwt.claims TO :'n247_admin';
+SET LOCAL ROLE authenticated;
+SELECT platform.staff_lead_handoff_strip_v1(pg_temp.n247_id(1), pg_temp.n247_id(702))::TEXT AS n247_strip_declined \gset
+RESET ROLE;
+SELECT pg_temp.n247_assert(:'n247_strip_declined'::JSONB @> jsonb_build_object('stage', 'handed_off',
+    'handoff', jsonb_build_object('completed_at', '2026-09-18T05:00:00+00:00'::TIMESTAMPTZ, 'evidence', 'handoff',
+      'acceptance_recordable', TRUE),
+    'acceptance', jsonb_build_object('decision', 'declined'))
+  AND (:'n247_strip_declined'::JSONB #>> '{acceptance,at}') IS NOT NULL
+  AND (:'n247_strip_declined'::JSONB -> 'curator') = 'null'::JSONB
+  AND (SELECT state::TEXT FROM platform.student_cases WHERE id = pg_temp.n247_id(501)) = 'pending',
+  'declined: still «Переданы», no curator, the decline shown with its time: ' || :'n247_strip_declined');
+ROLLBACK TO SAVEPOINT n247_decline;
+SELECT pg_temp.n247_assert((SELECT state::TEXT FROM platform.student_cases WHERE id = pg_temp.n247_id(501)) = 'active',
+  'the decline probe is rolled back');
 
 SELECT 'N247_SALES_ONE_TRUTH_SUITE_OK' AS n247_suite_marker;
 ROLLBACK;

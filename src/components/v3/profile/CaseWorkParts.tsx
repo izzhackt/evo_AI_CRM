@@ -140,7 +140,6 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
           requestId={input.requestIds.note}
           olderHref={input.notesOlderHref}
           latestHref={input.notesLatestHref}
-          quiet
         />
       )}
       hrefs={{

@@ -180,7 +180,12 @@ export function resolvePeriod(
 export type PeriodCounts = Readonly<{
   /** Canonical sales leads created in the selected period. */
   leads: number;
-  /** Leads in the cohort with a proven first entry into qualified. */
+  /**
+   * Leads in the cohort with a proven first entry into qualified, or with a
+   * completed handoff (Э2 review): a handed-off lead was qualified whatever
+   * its stage history says, so «Из них квалифицированы» ≥ «Из них переданы»
+   * and the funnel never narrows the wrong way.
+   */
   qualified: number;
   /**
    * Leads in the cohort with a COMPLETED handoff — the board's «Переданы»
@@ -224,7 +229,7 @@ function datedLead(
   return {
     date: organizationDate(createdAt),
     hour: organizationHour(createdAt),
-    qualified: qualifiedLeadIds.has(row.leadId),
+    qualified: qualifiedLeadIds.has(row.leadId) || handedLeadIds.has(row.leadId),
     handed: handedLeadIds.has(row.leadId),
   };
 }

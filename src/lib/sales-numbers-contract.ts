@@ -83,8 +83,13 @@ export type LeadHandoffStrip = Readonly<{
   leadId: string;
   /** Этап по одному правилу доски (`sales_lead_stage`). */
   stage: ResolvedSalesStage;
-  /** Завершённая передача: когда и чем доказана (088 или квитанция отчёта 208). */
-  handoff: Readonly<{ completedAt: string; evidence: "handoff" | "sales_report" }> | null;
+  /**
+   * Завершённая передача: когда и чем доказана (088 или квитанция отчёта 208).
+   * `acceptanceRecordable` — может ли куратор вообще ответить на неё: ответ
+   * (182) требует строки 088, а путь 208 её не пишет — тогда «ждёт ответа»
+   * было бы шагом, который никто не может сделать.
+   */
+  handoff: Readonly<{ completedAt: string; evidence: "handoff" | "sales_report"; acceptanceRecordable: boolean }> | null;
   contract: Readonly<{ confirmed: boolean; confirmedAt: string | null }>;
   firstPayment: Readonly<{ receivedDate: string | null }>;
   /** `denied` — роль не читает отчёт продаж: пункта в полосе нет. */
@@ -92,11 +97,20 @@ export type LeadHandoffStrip = Readonly<{
     | Readonly<{ status: "denied" }>
     | Readonly<{
         status: "available";
-        record: Readonly<{ id: string; reportMonth: string; saleDate: string | null; archived: boolean }> | null;
+        record: Readonly<{
+          id: string; reportMonth: string; saleDate: string | null; archived: boolean;
+          /** В записи указан номер договора. */
+          hasContractNumber: boolean;
+          /** «Оплачено по записи» больше нуля: сумма в минимальных единицах и валюта. */
+          paid: Readonly<{ minor: number; currency: string }> | null;
+        }> | null;
       }>;
   /** Текущий куратор дела этой передачи и когда его назначили. */
   curator: Readonly<{ displayName: string; assignedAt: string | null }> | null;
-  /** Последний ответ этого куратора на это назначение. */
+  /**
+   * Последний ответ этого куратора на это назначение; без куратора — только
+   * отказ, после которого дело вернулось в ожидание куратора (182).
+   */
   acceptance: Readonly<{ decision: HandoffDecisionWord; at: string }> | null;
 }>;
 
@@ -106,9 +120,21 @@ export type LeadHandoffStripRead =
 
 function parseHandoff(value: unknown): LeadHandoffStrip["handoff"] | undefined {
   if (value === null) return null;
-  const row = object(value, ["completed_at", "evidence"]);
-  if (!row || !timestamp(row.completed_at) || (row.evidence !== "handoff" && row.evidence !== "sales_report")) return undefined;
-  return Object.freeze({ completedAt: row.completed_at, evidence: row.evidence });
+  const row = object(value, ["completed_at", "evidence", "acceptance_recordable"]);
+  if (!row || !timestamp(row.completed_at) || (row.evidence !== "handoff" && row.evidence !== "sales_report")
+    || typeof row.acceptance_recordable !== "boolean"
+    // Передача 088 — это и есть строка, на которую отвечает куратор.
+    || (row.evidence === "handoff" && !row.acceptance_recordable)) return undefined;
+  return Object.freeze({ completedAt: row.completed_at, evidence: row.evidence, acceptanceRecordable: row.acceptance_recordable });
+}
+
+function parsePaid(value: unknown): Readonly<{ minor: number; currency: string }> | null | undefined {
+  if (value === null) return null;
+  const row = object(value, ["minor", "currency"]);
+  // Та же граница суммы, что у записи отчёта (134): до 13 цифр, больше нуля.
+  const minor = row && typeof row.minor === "string" && /^[1-9]\d{0,12}$/.test(row.minor) ? Number(row.minor) : null;
+  if (!row || minor === null || typeof row.currency !== "string" || !/^[A-Z]{3}$/.test(row.currency)) return undefined;
+  return Object.freeze({ minor, currency: row.currency });
 }
 
 function parseReport(value: unknown): LeadHandoffStrip["report"] | undefined {
@@ -117,15 +143,17 @@ function parseReport(value: unknown): LeadHandoffStrip["report"] | undefined {
   if (row.status === "denied") return row.record === null ? Object.freeze({ status: "denied" as const }) : undefined;
   if (row.status !== "available") return undefined;
   if (row.record === null) return Object.freeze({ status: "available" as const, record: null });
-  const record = object(row.record, ["id", "report_month", "sale_date", "archived"]);
+  const record = object(row.record, ["id", "report_month", "sale_date", "archived", "has_contract_number", "paid"]);
+  const paid = record ? parsePaid(record.paid) : undefined;
   if (!record || typeof record.id !== "string" || !UUID.test(record.id) || !realDate(record.report_month)
     || record.report_month.slice(8) !== "01" || (record.sale_date !== null && !realDate(record.sale_date))
-    || typeof record.archived !== "boolean") return undefined;
+    || typeof record.archived !== "boolean" || typeof record.has_contract_number !== "boolean" || paid === undefined) return undefined;
   return Object.freeze({
     status: "available" as const,
     record: Object.freeze({
       id: record.id.toLowerCase(), reportMonth: record.report_month,
       saleDate: record.sale_date as string | null, archived: record.archived,
+      hasContractNumber: record.has_contract_number, paid,
     }),
   });
 }
@@ -168,7 +196,8 @@ export function parseLeadHandoffStrip(
   if ((row.stage === "handed_off") !== (handoff !== null) && row.stage !== "closed") return null;
   // Куратор и ответ бывают только у дела передачи.
   if (handoff === null && (curator !== null || acceptance !== null)) return null;
-  if (curator === null && acceptance !== null) return null;
+  // Без куратора бывает только отказ: он и снял куратора (182).
+  if (curator === null && acceptance !== null && acceptance.decision !== "declined") return null;
   return Object.freeze({
     leadId: expected.leadId,
     stage: row.stage,

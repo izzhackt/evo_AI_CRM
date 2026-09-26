@@ -6,6 +6,7 @@ import { parseSalesDate, parseSalesInteger, parseSalesUuid, parseSalesRegisterIn
 import { parseSalesRegisterSearchQuery, parseSalesRegisterSearchWorkspace } from "../sales-register-search";
 import { parseSalesRegisterDirection, parseSalesRegisterDirections } from "../sales-register-directions";
 import { parseSalesRegisterManagement, type SalesRegisterManagementRead } from "../sales-register-management";
+import type { SalesSaleSlice } from "../sales-register-navigation";
 
 /** Authority and the selected department target come from the same snapshot. */
 export async function readSalesRegisterManagement(actor: ActivePlatformActor, reportMonth: string | null): Promise<SalesRegisterManagementRead> {
@@ -56,6 +57,8 @@ export async function readSalesRegisterIntakeOptions(actor: ActivePlatformActor,
 export async function readSalesRegisterWorkspace(actor: PlatformActor, selection: Readonly<{
   year: number; month?: number | null; offset?: number; recordId?: string; archived?: boolean;
   manager?: string | null; direction?: string | null; needsReview?: boolean | null; query?: string | null;
+  /** Э2: записи, названные рядом с «Продажами» (`read_sales_register_v3`, миграция 247). */
+  saleSlice?: SalesSaleSlice | null;
 }>): Promise<SalesRegisterWorkspace> {
   const unavailable = () => new Error("Sales register is unavailable.");
   if (!staffHasPermission(actor, "sales.register.read")) throw unavailable();
@@ -65,21 +68,34 @@ export async function readSalesRegisterWorkspace(actor: PlatformActor, selection
   const recordId = selection.recordId === undefined ? null : parseSalesUuid(selection.recordId);
   const manager = selection.manager || null, direction = parseSalesRegisterDirection(selection.direction);
   const query = parseSalesRegisterSearchQuery(selection.query);
+  const slice = selection.saleSlice ?? null;
   if (query === null || !year || year < 1900 || offset === null || month === 0 || (selection.month != null && month === null)
     || (selection.recordId !== undefined && !recordId) || (manager !== null && (manager.length > 300 || /[\u0000-\u001f\u007f]/.test(manager)))
-    || direction === null) throw unavailable();
+    || direction === null || (slice !== null && selection.archived)) throw unavailable();
   const client = await createSupabaseServerClient();
-  const { data, error } = await client.schema("platform").rpc("read_sales_register_v2", {
+  const filters = {
     p_organization_id: actor.organizationId, p_year: year, p_month: month, p_offset: offset,
     p_record_id: recordId, p_archived: selection.archived ?? false,
     p_manager_label: manager, p_direction: direction || null, p_needs_review: selection.needsReview ?? null,
     p_query: query || null,
-  });
+  };
+  // Без среза — прежнее чтение v2; срез — v3 с тем же ответом и одним фильтром больше.
+  const { data, error } = slice === null
+    ? await client.schema("platform").rpc("read_sales_register_v2", filters)
+    : await client.schema("platform").rpc("read_sales_register_v3", { ...filters, p_sale_slice: slice });
   if (error) throw unavailable();
   const result = parseSalesRegisterSearchWorkspace(data, actor.organizationId);
+  // Период по «Дате продажи»: месяц или год выбора.
+  const periodFrom = `${year}-${String(month ?? 1).padStart(2, "0")}-01`;
+  const periodTo = `${year}-${String(month ?? 12).padStart(2, "0")}-31`;
+  const inPeriod = (day: string | null) => day !== null && day >= periodFrom && day <= periodTo;
+  const filedInPeriod = (reportMonth: string) => reportMonth.startsWith(`${year}-`) && (month === null || Number(reportMonth.slice(5, 7)) === month);
   if (result.query !== (query || null) || result.year !== year || result.month !== month || result.offset !== offset || (result.selected?.id ?? null) !== recordId
     || result.rows.some(row => row.archived !== (selection.archived ?? false)
-      || !row.reportMonth.startsWith(`${year}-`) || (month !== null && Number(row.reportMonth.slice(5, 7)) !== month)
+      // Срез «из другого месяца отчёта» — продажи периода, записанные вне его месяцев.
+      || (slice === "filed_elsewhere" ? filedInPeriod(row.reportMonth) || !inPeriod(row.signingDate) : !filedInPeriod(row.reportMonth))
+      || (slice === "undated" && row.signingDate !== null)
+      || (slice === "other_sale_date" && (row.signingDate === null || inPeriod(row.signingDate)))
       || (manager !== null && row.managerLabel !== manager) || (direction !== "" && row.direction !== direction)
       || (selection.needsReview != null && row.needsReview !== selection.needsReview))) throw unavailable();
   return result;

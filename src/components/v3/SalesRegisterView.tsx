@@ -17,13 +17,19 @@ import { SalesRecordPreview } from "./SalesRecordPreview";
 import { salesDirectionControl } from "@/lib/sales-register-directions";
 import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 
-import { salesReportContext, type SalesReportQuery } from "@/lib/sales-register-navigation";
+import { salesReportContext, type SalesReportQuery, type SalesSaleSlice } from "@/lib/sales-register-navigation";
 export type { SalesReportQuery } from "@/lib/sales-register-navigation";
 
 const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
 const money = (minor: number | null, currency: string | null) => minor === null || !currency ? "Не уточнено" : `${number.format(minor / 100)} ${currency}`;
 const dateLabel = (date: string | null) => date ? date.split("-").reverse().join(".") : "Дата не указана";
+/** Что показывает таблица при срезе из заголовка «Продажи» (Э2). */
+const SALE_SLICE_TITLE: Record<SalesSaleSlice, string> = {
+  undated: "Записи без даты продажи: в продажи не входят",
+  other_sale_date: "Записи с датой продажи в другом месяце: в продажи этого периода не входят",
+  filed_elsewhere: "Продажи периода, записанные в другой месяц отчёта",
+};
 
 /**
  * «Отчёт продаж» роли, которая читает лиды, но не записи отчёта (Admissions
@@ -49,7 +55,7 @@ export function SalesDynamicsReport({ dynamics }: { dynamics: ReactNode }) {
  */
 export async function SalesRegisterView({ actor, query, dynamics = null }: { actor: ActivePlatformActor; query: SalesReportQuery; dynamics?: ReactNode }) {
   const now = new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit" }).formatToParts(new Date());
-  const { year, month, offset, searchQuery, valid, reportMonth, params, href, clearFiltersHref, importHref } = salesReportContext(query, {
+  const { year, month, offset, searchQuery, saleSlice, saleSliceHref, valid, reportMonth, params, href, clearFiltersHref, importHref } = salesReportContext(query, {
     year: Number(now.find(p => p.type === "year")!.value), month: Number(now.find(p => p.type === "month")!.value),
   });
   const writeAccess = await readSalesRegisterWriteAccess(actor);
@@ -72,7 +78,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
     [workspace, cash, intakeOptions, salesCount] = await Promise.all([
       readSalesRegisterWorkspace(actor, { year, month, offset, recordId: query.record ?? query.saved, archived: query.archived === "true",
         manager: query.manager, direction: query.direction, needsReview: query.review ? query.review === "true" : null,
-        query: searchQuery }).catch(() => null),
+        query: searchQuery, saleSlice }).catch(() => null),
       checkFinanceAccess && month ? readMonthlyPaymentSummary(actor, year, month)
         .catch(() => ({ status: "unavailable" as const })) : Promise.resolve(null),
       query.new === "true" && !query.record && canManage ? readSalesRegisterIntakeOptions(actor).catch(() => null) : Promise.resolve(null),
@@ -91,7 +97,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
       ? "Введите направление до 500 символов без переносов строк и служебных символов."
       : "Не удалось загрузить список. Введите направление как в записи или обновите страницу."
     : directionControl.empty ? "В доступных записях нет заполненных направлений." : null;
-  const hasFilters = Boolean(searchQuery || query.manager || query.direction || query.review || query.archived === "true");
+  const hasFilters = Boolean(searchQuery || query.manager || query.direction || query.review || query.archived === "true" || saleSlice);
   const saved = !editing && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
   const target = management.status === "ready" ? management.data.target : null;
   const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
@@ -100,7 +106,8 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
     {(!editing || !canManage) && !viewingRecord ? <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 flex-[1_1_20rem]">
         <h1 className="t-page-title text-fg">Отчёт продаж</h1>
-        {salesCount && headlinePeriod ? <SalesPeriodHeadline read={salesCount} label={headlinePeriod.label} retryHref={href()} /> : null}
+        {salesCount && headlinePeriod ? <SalesPeriodHeadline read={salesCount} label={headlinePeriod.label} retryHref={href()}
+          filtered={hasFilters} sliceHref={saleSliceHref} /> : null}
       </div>
       {!editing && workspace && canManage ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
     </header> : null}
@@ -145,6 +152,10 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
         <button className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:mt-5 @2xl:w-auto`} type="submit">Показать</button>
         {valid && hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:mt-5 @2xl:w-auto`}>Сбросить фильтры</Link> : null}
       </form>
+      {saleSlice && headlinePeriod ? <p role="status" className="mt-4 flex flex-wrap items-center gap-x-3 t-body-compact text-fg-2" data-sale-slice={saleSlice}>
+        <span>{SALE_SLICE_TITLE[saleSlice]} — {headlinePeriod.label}.</span>
+        <Link href={clearFiltersHref} className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-fg">Все записи периода</Link>
+      </p> : null}
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
         <p>{searchQuery === null ? "Введите поисковый запрос до 200 символов без переносов строк." : valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
         <Link href="/v3/main?view=sales" className={`${btnGhostCls} min-h-11`}>Открыть текущий месяц</Link>
@@ -208,7 +219,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
               <thead role="rowgroup" className="t-caption sr-only border-b border-border bg-surface-2 text-fg-2 @min-[60rem]/sales-records:not-sr-only @min-[60rem]/sales-records:table-header-group"><tr role="row"><th role="columnheader" scope="col" className="px-4 py-3 font-medium">Студент и программа</th><th role="columnheader" scope="col" className="px-4 py-3 font-medium">Менеджер и дата</th><th role="columnheader" scope="col" className="px-4 py-3 text-right font-medium">Стоимость</th><th role="columnheader" scope="col" className="px-4 py-3 text-right font-medium">Оплачено по записи</th><th role="columnheader" scope="col" className="px-4 py-3 font-medium">Уточнения</th><th role="columnheader" scope="col" className="px-4 py-3"><span className="sr-only">Действие</span></th></tr></thead>
               <tbody role="rowgroup" className="block divide-y divide-border @min-[60rem]/sales-records:table-row-group">{workspace.rows.map(row => <tr role="row" key={row.id} id={`sale-${row.id}`} className={`block scroll-mt-24 align-top @min-[60rem]/sales-records:table-row ${row.id === saved?.id ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
                 <th role="rowheader" scope="row" className="block min-w-0 px-4 pt-3 pb-1 font-normal @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:min-w-[240px] @min-[60rem]/sales-records:max-w-[360px] @min-[60rem]/sales-records:py-3"><Link href={href({ record: row.id })} className="inline-flex min-h-11 max-w-full items-center font-semibold text-fg underline-offset-4 hover:underline"><span className="min-w-0 break-words">{row.applicantName || "Имя не указано"}</span></Link><p className="break-words text-sm text-fg-2">{[row.country, row.program].filter(Boolean).join(" · ") || "Программа не указана"}</p></th>
-                <td role="cell" className="block min-w-0 px-4 pt-2 pb-3 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:min-w-[180px] @min-[60rem]/sales-records:max-w-[260px] @min-[60rem]/sales-records:py-5"><span aria-hidden="true" className="mb-1 block text-xs text-fg-2 @min-[60rem]/sales-records:hidden">Менеджер и дата</span><p className="break-words text-fg">{row.managerLabel || "Менеджер не указан"}</p><p className="mt-1 text-xs text-fg-2">{dateLabel(row.signingDate)}</p>{month === undefined ? <p className="mt-1 text-xs text-fg-2">Месяц отчёта: {MONTHS[Number(row.reportMonth.slice(5, 7)) - 1]} {row.reportMonth.slice(0, 4)}</p> : null}</td>
+                <td role="cell" className="block min-w-0 px-4 pt-2 pb-3 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:min-w-[180px] @min-[60rem]/sales-records:max-w-[260px] @min-[60rem]/sales-records:py-5"><span aria-hidden="true" className="mb-1 block text-xs text-fg-2 @min-[60rem]/sales-records:hidden">Менеджер и дата</span><p className="break-words text-fg">{row.managerLabel || "Менеджер не указан"}</p><p className="mt-1 text-xs text-fg-2">{dateLabel(row.signingDate)}</p>{month === undefined || saleSlice === "filed_elsewhere" ? <p className="mt-1 text-xs text-fg-2">Месяц отчёта: {MONTHS[Number(row.reportMonth.slice(5, 7)) - 1]} {row.reportMonth.slice(0, 4)}</p> : null}</td>
                 <td role="cell" className="block px-4 py-2 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:py-5 @min-[60rem]/sales-records:text-right @min-[60rem]/sales-records:whitespace-nowrap"><div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 @min-[60rem]/sales-records:block"><span aria-hidden="true" className="text-fg-2 @min-[60rem]/sales-records:hidden">Стоимость</span><span className="ms-auto min-w-0 max-w-full break-words tabular-nums">{money(row.serviceCostMinor, row.serviceCostCurrency)}</span></div></td>
                 <td role="cell" className="block px-4 py-2 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:py-5 @min-[60rem]/sales-records:text-right @min-[60rem]/sales-records:whitespace-nowrap"><div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 @min-[60rem]/sales-records:block"><span aria-hidden="true" className="text-fg-2 @min-[60rem]/sales-records:hidden">Оплачено по записи</span><span className="ms-auto min-w-0 max-w-full break-words tabular-nums">{money(row.paidMinor, row.paidCurrency)}</span></div></td>
                 <td role="cell" className="block px-4 pt-1 text-xs text-fg-2 @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:min-w-[140px] @min-[60rem]/sales-records:py-5">{row.needsReview ? "Нужно уточнить" : row.archived ? "В архиве" : ""}</td>

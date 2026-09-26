@@ -58,6 +58,24 @@
 --     for the handoff's case the current curator with the assignment time and
 --     the curator's latest answer to that assignment. Gate: lead.read on this
 --     lead (the 212 gate); students and callers without a membership refused.
+--     A sale saved from the report into an open cabinet (208) confirms
+--     nothing on the gate row: its contract and payment evidence is the
+--     record itself, so the record carries whether it has a contract number
+--     and the amount paid by the record. After a decline (182 reverts the
+--     case to 'pending' and clears the curator) the case's latest answer —
+--     that decline — is returned without a curator. 'acceptance_recordable'
+--     says whether the curator CAN answer at all: 182's
+--     respond_student_case_handoff needs a 088 handoff row for the case, and
+--     the 208 pending-case branch writes none, so its curator cannot record
+--     an acceptance (known gap; the strip says so in words, never «ждёт»).
+--  g) platform.read_sales_register_v3: read_sales_register_v2 (216, the
+--     latest definition; anchored below) plus p_sale_slice, so the report
+--     headline's named discrepancies open exactly those records: 'undated'
+--     and 'other_sale_date' (records of the period's report months without a
+--     sale date / with a sale date outside the period) and 'filed_elsewhere'
+--     (sales of the period filed under another report month) — the same
+--     three sets staff_sales_count_v1 counts. p_sale_slice NULL returns what
+--     v2 returns; v2 itself is not touched.
 BEGIN;
 
 -- ---------------------------------------------------------------------------
@@ -310,6 +328,7 @@ DECLARE
   case_row RECORD;
   assignment RECORD;
   response RECORD;
+  recordable BOOLEAN := NULL;
 BEGIN
   SELECT a.* INTO actor FROM platform.current_actor_authority() a
   WHERE a.organization_id = p_organization_id AND a.membership_id IS NOT NULL
@@ -334,26 +353,49 @@ BEGIN
   WHERE g.organization_id = p_organization_id AND g.lead_id = p_lead_id;
 
   -- The report record: only for report readers with access to the record.
+  -- A sale saved through the report (208) confirms nothing on the gate row,
+  -- so the record's own contract number and paid amount are its evidence.
   IF platform_private.staff_has_permission(p_organization_id, actor.membership_id, 'sales.register.read') THEN
-    SELECT r.id, r.report_month, r.archived, NULLIF(r.fields->>'signing_date', '')::DATE AS sale_date INTO sale
+    SELECT r.id, r.report_month, r.archived, NULLIF(r.fields->>'signing_date', '')::DATE AS sale_date,
+      COALESCE(btrim(r.fields->>'contract_number'), '') <> '' AS has_contract_number,
+      CASE WHEN r.fields->>'paid_minor' ~ '^[0-9]{1,13}$' AND (r.fields->>'paid_minor')::BIGINT > 0
+        AND r.fields->>'paid_currency' ~ '^[A-Z]{3}$' THEN (r.fields->>'paid_minor')::BIGINT END AS paid_minor,
+      r.fields->>'paid_currency' AS paid_currency
+    INTO sale
     FROM platform_private.sales_register r
     WHERE r.organization_id = p_organization_id AND r.lead_id = p_lead_id
       AND platform_private.staff_can_access(
         p_organization_id, actor.membership_id, 'sales.register.read', 'sales_register', r.id);
     report := jsonb_build_object('status', 'available', 'record', CASE WHEN sale.id IS NULL THEN NULL ELSE
       jsonb_build_object('id', sale.id, 'report_month', sale.report_month, 'sale_date', sale.sale_date,
-        'archived', sale.archived) END);
+        'archived', sale.archived, 'has_contract_number', sale.has_contract_number,
+        'paid', CASE WHEN sale.paid_minor IS NULL THEN NULL ELSE
+          jsonb_build_object('minor', sale.paid_minor::TEXT, 'currency', sale.paid_currency) END) END);
   ELSE
     report := jsonb_build_object('status', 'denied', 'record', NULL);
   END IF;
 
   -- The handoff's case: its current curator, when that curator was
   -- assigned, and the curator's latest answer to exactly that assignment
-  -- (the 130 lookup: a reassignment starts a new answer).
+  -- (the 130 lookup: a reassignment starts a new answer). With no curator
+  -- after a decline (182: the case back in 'pending'), the case's latest
+  -- answer is that decline.
   IF handoff.student_case_id IS NOT NULL THEN
-    SELECT c.id, c.current_curator_membership_id INTO case_row
+    SELECT c.id, c.current_curator_membership_id, c.state INTO case_row
     FROM platform.student_cases c
     WHERE c.organization_id = p_organization_id AND c.id = handoff.student_case_id;
+    recordable := EXISTS (
+      SELECT 1 FROM platform.sales_admissions_handoffs h
+      WHERE h.organization_id = p_organization_id AND h.student_case_id = handoff.student_case_id);
+    IF case_row.current_curator_membership_id IS NULL AND case_row.state = 'pending' THEN
+      SELECT a.decision, a.created_at INTO response
+      FROM platform.student_case_handoff_acknowledgements a
+      WHERE a.organization_id = p_organization_id AND a.student_case_id = case_row.id
+      ORDER BY a.created_at DESC, a.revision DESC LIMIT 1;
+      IF response.decision = 'declined' THEN
+        acceptance := jsonb_build_object('decision', response.decision, 'at', response.created_at);
+      END IF;
+    END IF;
     IF case_row.current_curator_membership_id IS NOT NULL THEN
       SELECT e.id, e.created_at INTO assignment
       FROM platform.student_case_assignment_events e
@@ -383,7 +425,8 @@ BEGIN
     'stage', platform_private.sales_lead_stage(lead_row.lifecycle_state, lead_row.stage_key,
       handoff.completed_at IS NOT NULL),
     'handoff', CASE WHEN handoff.completed_at IS NULL THEN NULL ELSE
-      jsonb_build_object('completed_at', handoff.completed_at, 'evidence', handoff.evidence) END,
+      jsonb_build_object('completed_at', handoff.completed_at, 'evidence', handoff.evidence,
+        'acceptance_recordable', COALESCE(recordable, FALSE)) END,
     'contract', jsonb_build_object('confirmed', COALESCE(gate.contract_confirmed, FALSE),
       'confirmed_at', CASE WHEN gate.contract_confirmed IS TRUE THEN gate.contract_confirmed_at END),
     'first_payment', jsonb_build_object('received_date', gate.first_payment_received_date),
@@ -393,11 +436,111 @@ BEGIN
 END
 $$;
 
+-- ---------------------------------------------------------------------------
+-- g) platform.read_sales_register_v3: v2 (216) + the headline's three sets
+-- ---------------------------------------------------------------------------
+-- Anchor: v3 is v2's body with one filter added. If a later migration had
+-- already replaced private.read_sales_register_v2, this copy would be stale.
+DO $a247_register_anchor$
+BEGIN
+  IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
+      WHERE p.oid = 'private.read_sales_register_v2(uuid,integer,integer,integer,uuid,boolean,text,text,boolean,text)'::regprocedure)
+    IS DISTINCT FROM '818c2db2bc59909b22c13da912ec4da6' THEN
+    RAISE EXCEPTION 'a247_register_anchor_drift: private.read_sales_register_v2 is not the 216 definition';
+  END IF;
+END
+$a247_register_anchor$;
+
+CREATE FUNCTION platform.read_sales_register_v3(p_organization_id UUID, p_year INTEGER, p_month INTEGER DEFAULT NULL,
+  p_offset INTEGER DEFAULT 0, p_record_id UUID DEFAULT NULL, p_archived BOOLEAN DEFAULT false,
+  p_manager_label TEXT DEFAULT NULL, p_direction TEXT DEFAULT NULL, p_needs_review BOOLEAN DEFAULT NULL,
+  p_query TEXT DEFAULT NULL, p_sale_slice TEXT DEFAULT NULL)
+RETURNS JSONB
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE actor RECORD; selected JSONB:=NULL; rows JSONB; total BIGINT; totals JSONB; targets JSONB; labels JSONB; owners JSONB;
+ unresolved_cost BIGINT; unresolved_paid BIGINT; first_month DATE; last_month DATE; period_end DATE;
+ normalized_query TEXT := NULLIF(btrim(p_query),''); query_lower TEXT; query_digits TEXT;
+BEGIN
+ SELECT * INTO actor FROM platform_private.sales_register_actor(p_organization_id);
+ IF p_year IS NULL OR p_year NOT BETWEEN 1900 AND 2100 OR (p_month IS NOT NULL AND p_month NOT BETWEEN 1 AND 12)
+   OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 1000000 OR p_archived IS NULL
+   OR (p_manager_label IS NOT NULL AND (length(p_manager_label) NOT BETWEEN 1 AND 300 OR p_manager_label ~ '[[:cntrl:]]'))
+   OR (p_direction IS NOT NULL AND (length(p_direction) NOT BETWEEN 1 AND 500 OR p_direction ~ '[[:cntrl:]]'))
+   OR (p_query IS NOT NULL AND (length(p_query)>200 OR p_query ~ '[[:cntrl:]]'))
+   -- 247: the three sets are sales discrepancies, so never over the archive.
+   OR (p_sale_slice IS NOT NULL AND (p_sale_slice NOT IN ('undated','other_sale_date','filed_elsewhere') OR p_archived)) THEN
+   RAISE EXCEPTION 'sales_register_invalid_filter' USING ERRCODE='22023'; END IF;
+ query_lower:=lower(normalized_query);
+ query_digits:=CASE WHEN normalized_query ~ '^[+0-9 ().-]+$'
+   THEN NULLIF(regexp_replace(normalized_query,'[^0-9]','','g'),'') ELSE NULL END;
+ first_month:=make_date(p_year,coalesce(p_month,1),1);
+ last_month:=CASE WHEN p_month IS NULL THEN make_date(p_year,12,1) ELSE first_month END;
+ period_end:=(last_month + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
+ IF p_record_id IS NOT NULL THEN
+   SELECT platform_private.sales_register_row(r) INTO selected FROM platform_private.sales_register r
+     WHERE r.organization_id=p_organization_id AND r.id=p_record_id AND platform_private.staff_can_access(p_organization_id, actor.membership_id,
+      'sales.register.read', 'sales_register', r.id);
+   IF NOT FOUND THEN RAISE EXCEPTION 'sales_register_forbidden' USING ERRCODE='42501'; END IF;
+ END IF;
+ WITH filtered AS MATERIALIZED (SELECT r.* FROM platform_private.sales_register r WHERE r.organization_id=p_organization_id
+   AND platform_private.staff_can_access(p_organization_id, actor.membership_id,
+      'sales.register.read', 'sales_register', r.id) AND r.archived=p_archived
+   -- 247: the report months of the period, except 'filed_elsewhere' — sales
+   -- of the period (by «Дата продажи») filed under another report month;
+   -- the same three sets as staff_sales_count_v1.
+   AND CASE WHEN p_sale_slice = 'filed_elsewhere'
+     THEN NULLIF(r.fields->>'signing_date','')::DATE BETWEEN first_month AND period_end
+       AND r.report_month NOT BETWEEN first_month AND last_month
+     ELSE r.report_month BETWEEN first_month AND last_month END
+   AND (p_sale_slice IS NULL OR p_sale_slice = 'filed_elsewhere'
+     OR (p_sale_slice = 'undated' AND NULLIF(r.fields->>'signing_date','') IS NULL)
+     OR (p_sale_slice = 'other_sale_date'
+       AND NULLIF(r.fields->>'signing_date','')::DATE NOT BETWEEN first_month AND period_end))
+   AND (p_manager_label IS NULL OR r.fields->>'manager_label'=p_manager_label)
+   AND (p_direction IS NULL OR r.fields->>'direction'=p_direction)
+   AND (p_needs_review IS NULL OR (r.fields->>'needs_review')::BOOLEAN=p_needs_review)
+   AND (normalized_query IS NULL
+     OR strpos(lower(coalesce(r.fields->>'applicant_name','')),query_lower)>0
+     OR strpos(lower(coalesce(r.fields->>'contract_number','')),query_lower)>0
+     OR (query_digits IS NOT NULL AND strpos(regexp_replace(coalesce(r.fields->>'phone',''),'[^0-9]','','g'),query_digits)>0)))
+ SELECT (SELECT count(*) FROM filtered),
+   coalesce((SELECT jsonb_agg(platform_private.sales_register_row(page::platform_private.sales_register) ORDER BY page.report_month DESC,page.id) FROM
+      (SELECT * FROM filtered ORDER BY report_month DESC,id LIMIT 50 OFFSET p_offset) page),'[]'),
+   (SELECT count(*) FROM filtered WHERE fields->>'service_cost_minor' IS NULL),
+   (SELECT count(*) FROM filtered WHERE fields->>'paid_minor' IS NULL),
+   coalesce((SELECT jsonb_agg(jsonb_build_object('currency',currency,'cost_minor',cost_minor::TEXT,'paid_minor',paid_minor::TEXT) ORDER BY currency)
+     FROM (SELECT currency,sum(cost_minor) cost_minor,sum(paid_minor) paid_minor FROM (
+       SELECT fields->>'service_cost_currency' currency,(fields->>'service_cost_minor')::BIGINT cost_minor,0::BIGINT paid_minor FROM filtered WHERE fields->>'service_cost_minor' IS NOT NULL
+       UNION ALL SELECT fields->>'paid_currency',0::BIGINT,(fields->>'paid_minor')::BIGINT FROM filtered WHERE fields->>'paid_minor' IS NOT NULL) amounts GROUP BY currency) sums),'[]')
+ INTO total,rows,unresolved_cost,unresolved_paid,totals;
+ IF p_archived THEN totals:='[]'; unresolved_cost:=0; unresolved_paid:=0; END IF;
+ SELECT coalesce(jsonb_agg(label ORDER BY label),'[]') INTO labels FROM (SELECT DISTINCT r.fields->>'manager_label' label
+   FROM platform_private.sales_register r WHERE r.organization_id=p_organization_id AND platform_private.staff_can_access(p_organization_id, actor.membership_id,
+      'sales.register.read', 'sales_register', r.id)
+   AND r.fields->>'manager_label'<>'' LIMIT 1000) label_rows;
+ IF platform_private.staff_can_access(p_organization_id, actor.membership_id,
+      'sales.register.target.manage', 'organization', p_organization_id) THEN
+   SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.id,'version',t.version::TEXT,'report_month',t.report_month,
+     'manager_label',t.manager_label,'target_count',t.target_count) ORDER BY t.report_month,t.manager_label),'[]') INTO targets
+     FROM platform_private.sales_register_targets t WHERE t.organization_id=p_organization_id AND t.report_month BETWEEN first_month AND last_month;
+ ELSE targets:='[]'; END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('id',m.id,'label',left(btrim(regexp_replace(coalesce(p.display_name,''),'[[:cntrl:]]',' ','g')),300)) ORDER BY p.display_name,m.id),'[]') INTO owners
+ FROM platform.organization_memberships m JOIN platform.profiles p ON p.id=m.profile_id
+ WHERE m.organization_id=p_organization_id AND platform_private.staff_can_receive_assignment(p_organization_id, m.id, 'sales.register.read', 'sales_register', NULL)
+   AND platform_private.staff_can_create_for_owner(p_organization_id, actor.membership_id,
+     'sales.register.manage', 'sales_register', m.id);
+ RETURN jsonb_build_object('query',normalized_query,'organization_id',p_organization_id,'year',p_year,'month',p_month,'offset',p_offset,
+   'total_count',total,'rows',rows,'selected',selected,'has_more',p_offset+50<total,'totals',totals,
+   'unresolved_cost_count',unresolved_cost,'unresolved_paid_count',unresolved_paid,'targets',targets,'manager_labels',labels,'owner_options',owners);
+END $$;
+
 REVOKE ALL ON FUNCTION platform.staff_sales_count_v1(UUID, DATE, DATE),
-  platform.staff_lead_handoff_strip_v1(UUID, UUID)
+  platform.staff_lead_handoff_strip_v1(UUID, UUID),
+  platform.read_sales_register_v3(UUID, INTEGER, INTEGER, INTEGER, UUID, BOOLEAN, TEXT, TEXT, BOOLEAN, TEXT, TEXT)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION platform.staff_sales_count_v1(UUID, DATE, DATE),
-  platform.staff_lead_handoff_strip_v1(UUID, UUID)
+  platform.staff_lead_handoff_strip_v1(UUID, UUID),
+  platform.read_sales_register_v3(UUID, INTEGER, INTEGER, INTEGER, UUID, BOOLEAN, TEXT, TEXT, BOOLEAN, TEXT, TEXT)
   TO authenticated;
 
 -- Every function of this migration stays SECURITY DEFINER with the empty
@@ -415,7 +558,8 @@ BEGIN
       'platform.staff_sales_handoff_facts(uuid,uuid[])'::regprocedure,
       'platform.current_sales_funnel(uuid)'::regprocedure,
       'platform.staff_sales_count_v1(uuid,date,date)'::regprocedure,
-      'platform.staff_lead_handoff_strip_v1(uuid,uuid)'::regprocedure)
+      'platform.staff_lead_handoff_strip_v1(uuid,uuid)'::regprocedure,
+      'platform.read_sales_register_v3(uuid,integer,integer,integer,uuid,boolean,text,text,boolean,text,text)'::regprocedure)
   LOOP
     IF NOT routine.prosecdef OR routine.proconfig IS DISTINCT FROM ARRAY['search_path=""']
       OR has_function_privilege('anon', routine.signature, 'EXECUTE')
@@ -449,6 +593,8 @@ COMMENT ON FUNCTION platform.current_sales_funnel(UUID) IS
 COMMENT ON FUNCTION platform.staff_sales_count_v1(UUID, DATE, DATE) IS
   'The one «Продажи» count (247): non-archived sales register records readable by the actor with a sale date in [from, to]; plus undated / other sale date / filed elsewhere counts for the report months the period touches.';
 COMMENT ON FUNCTION platform.staff_lead_handoff_strip_v1(UUID, UUID) IS
-  'Lead 360 «Передача» (247): resolved stage, handoff date and evidence, contract and first payment confirmations, the report record (report readers only), the handoff case curator and answer.';
+  'Lead 360 «Передача» (247): resolved stage, handoff date, evidence and whether its curator can record an answer, contract and first payment confirmations, the report record with its contract-number flag and paid amount (report readers only), the handoff case curator and answer (or the decline that cleared the curator).';
+COMMENT ON FUNCTION platform.read_sales_register_v3(UUID, INTEGER, INTEGER, INTEGER, UUID, BOOLEAN, TEXT, TEXT, BOOLEAN, TEXT, TEXT) IS
+  'read_sales_register_v2 (216) plus p_sale_slice (247): undated / other_sale_date / filed_elsewhere — the sets staff_sales_count_v1 names beside «Продажи»; NULL = v2.';
 
 COMMIT;

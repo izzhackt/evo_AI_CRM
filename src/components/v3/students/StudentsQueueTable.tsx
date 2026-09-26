@@ -6,7 +6,6 @@ import { stagePhase } from "@/lib/v3/stages";
 import { admissionsPipelineStage } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
-import { Initials } from "../blocks/Initials";
 import { isNextLook, type V3Look } from "../blocks/look";
 import { StageChip, StatusChip, type StatusChipTone } from "../blocks/StatusChip";
 import { DIRECTION_LABELS } from "../profile/admissions-view";
@@ -103,7 +102,7 @@ function DueCell({ row, now, today, sort, next }: Readonly<{ row: StudentCaseQue
   );
 }
 
-function CuratorCell({ row, next }: Readonly<{ row: StudentCaseQueueRow; next: boolean }>) {
+function CuratorCell({ row }: Readonly<{ row: StudentCaseQueueRow }>) {
   const awaiting = row.attentionFlags.includes("awaiting_ack");
   const needsCurator = row.attentionFlags.includes("needs_curator");
   // Своё дело — «Вы». В узкой колонке — «Имя Ф.», полное имя — в подсказке и в панели.
@@ -112,16 +111,7 @@ function CuratorCell({ row, next }: Readonly<{ row: StudentCaseQueueRow; next: b
   return (
     <td role="cell" className={`${CELL} [grid-area:curator] self-start t-body-compact ${quietOnPhone ? "@max-[36rem]/students:sr-only" : ""}`}>
       <span className="@min-[36rem]/students:hidden text-fg-2">Куратор: </span>
-      {row.currentCuratorMembershipId && next ? (
-        // Новый облик: нейтральный круг инициалов рядом с именем (имя написано — круг только рисунок).
-        <span className="inline-flex min-w-0 max-w-full items-center gap-2 align-middle text-fg" title={full}>
-          <Initials name={full} decorative />
-          {row.isMine ? "Вы" : <>
-            <span aria-hidden="true" className="truncate @max-[36rem]/students:hidden">{shortPersonName(full)}</span>
-            <span className="truncate @min-[36rem]/students:sr-only">{full}</span>
-          </>}
-        </span>
-      ) : row.currentCuratorMembershipId ? (
+      {row.currentCuratorMembershipId ? (
         <span className="text-fg @min-[36rem]/students:block @min-[36rem]/students:truncate" title={full}>
           {row.isMine ? "Вы" : <>
             <span aria-hidden="true" className="@max-[36rem]/students:hidden">{shortPersonName(full)}</span>
@@ -177,7 +167,11 @@ export function StudentsQueueRow({
   curatorColumn: boolean;
   selected: boolean;
   links: StudentsRowLinks;
-  /** Новый облик (Э1.3–Э1.4): этап — чип фазы, срок словом, куратор — инициалы, сигналы — чипы. */
+  /**
+   * Новый облик (Э1.3–Э1.4): этап — точка фазы и слово, срок словом, сигналы —
+   * чипы. Куратор остаётся «Имя Ф.»: круг инициалов в узкой колонке обрезал
+   * бы имя (снимок 1280), а в «Быстром просмотре» он стоит рядом с полным именем.
+   */
   look?: V3Look;
 }>) {
   const next = isNextLook(look);
@@ -223,7 +217,7 @@ export function StudentsQueueRow({
       <td role="cell" className={`${CELL} t-body-compact text-fg sr-only @min-[60rem]/students:not-sr-only @min-[60rem]/students:[grid-area:stage]`}>
         {next ? <StageChip label={stage} phase={stagePhase("admissions", row.pipelineStage)} /> : stage}
       </td>
-      {curatorColumn ? <CuratorCell row={row} next={next} /> : null}
+      {curatorColumn ? <CuratorCell row={row} /> : null}
       <SignalsCell signals={signals} next={next} />
       <td role="cell" className="hidden [grid-area:link] @min-[36rem]/students:flex @min-[36rem]/students:items-center @min-[36rem]/students:justify-center">
         <Link

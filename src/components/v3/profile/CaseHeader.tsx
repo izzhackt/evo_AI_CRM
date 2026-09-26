@@ -6,6 +6,9 @@ import { admissionsPipelineStage } from "@/lib/v3/wording";
 
 import type { CaseClosure } from "@/lib/platform-closure-contract";
 
+import { Initials } from "../blocks/Initials";
+import { isNextLook, type V3Look } from "../blocks/look";
+import { StageTrack } from "../blocks/StageTrack";
 import { Pill } from "../Pill";
 import { ClosedLine } from "../closure/Closure";
 import type { NextStepAccess } from "../students/students-queue-view";
@@ -42,6 +45,8 @@ export type CaseHeaderInput = Readonly<{
   assignCuratorRequestId: string;
   /** Закрытие дела (246): исход, дата и «Вернуть в работу»; null — не прочитано. */
   closure?: CaseClosure | null;
+  /** Новый облик (Э1.3–Э1.4): дорожка этапа, инициалы куратора, срок шага словом. */
+  look?: V3Look;
 }>;
 
 /**
@@ -52,6 +57,7 @@ export type CaseHeaderInput = Readonly<{
  */
 export function CaseHeader(input: CaseHeaderInput) {
   const { work } = input;
+  const next = isNextLook(input.look);
   const row = work.row;
   const stage = row ? admissionsPipelineStage(row.pipelineStage) : null;
   const awaiting = row?.attentionFlags.includes("awaiting_ack") ?? false;
@@ -60,9 +66,11 @@ export function CaseHeader(input: CaseHeaderInput) {
     <section className="flex flex-col gap-3" data-testid="v3-case-header" aria-label="Сведения дела">
       <dl className="grid grid-cols-2 gap-x-4 border-y border-border sm:flex sm:flex-wrap sm:gap-x-0">
         <Fact term="Направление">{input.direction ? DIRECTION_LABELS[input.direction] : "Не выбрано"}</Fact>
-        {stage ? <Fact term="Этап">{stage}</Fact> : null}
+        {stage ? <Fact term="Этап">{next && row ? <StageTrack kind="admissions" current={row.pipelineStage} /> : stage}</Fact> : null}
         <Fact term="Куратор">
-          {input.curatorName ?? (work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
+          {(next && input.curatorName ? (
+            <span className="inline-flex items-center gap-2"><Initials name={input.curatorName} decorative />{input.curatorName}</span>
+          ) : input.curatorName) ?? (work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
           {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}
           {input.coverage && !work.needsCurator ? (
             <Link href={curatorId ? coverageHref(curatorId, input.studentCaseId) : COVERAGE_VIEW_HREF}
@@ -80,7 +88,7 @@ export function CaseHeader(input: CaseHeaderInput) {
         ) : input.state !== "active" ? <Fact term="Состояние">{input.state === "closed" ? "Дело закрыто" : "Ожидает начала"}</Fact> : null}
         <Fact term="Следующий шаг" wide>
           <CaseNextStep row={row} fallbackStep={input.fallbackStep} access={input.stepAccess}
-            today={work.today} nowIso={work.nowIso} requestId={input.stepRequestId} />
+            today={work.today} nowIso={work.nowIso} requestId={input.stepRequestId} look={input.look} />
         </Fact>
       </dl>
       {input.financeStop || work.deletionRequested ? (

@@ -31,6 +31,11 @@
  *       задачи нажимаются мышью. Серверные действия заменены заглушками,
  *       которые отказывают: снимок ничего не сохраняет. AppShell остаётся
  *       серверной разметкой без скриптов.
+ *   --look=next (с --json или --screenshots) — новый облик (Э1.1–Э1.3,
+ *       предпросмотр Admin): `data-look="next"` на оболочке и проп `look`
+ *       «Задач» — общие блоки строки и «Отменить» в верхнем слое. Снимки —
+ *       `tasks-next-*.png`; для снимка «Отменить» заглушка смены состояния
+ *       рабочей задачи один раз отвечает «сохранено» (синтетика, не команда).
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -94,6 +99,10 @@ const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { TasksWorkspace } = require(join(ROOT, "src/components/v3/tasks/TasksWorkspace.tsx"));
 const { TaskDetailPanel } = require(join(ROOT, "src/components/v3/tasks/TaskDetailPanel.tsx"));
 const { buildTaskQueue, parseTaskQueueFilters } = require(join(ROOT, "src/lib/v3/task-queue.ts"));
+
+/** Новый облик (предпросмотр Admin): проп `look` у «Задач» и `data-look` у оболочки. */
+const LOOK_NEXT = process.argv.includes("--look=next");
+const withLook = (props) => (LOOK_NEXT ? { ...props, look: "next" } : props);
 
 // --- синтетические данные ---------------------------------------------------
 // «Сейчас» — четверг 24.09.2026, 10:00 по Бишкеку (04:00 UTC).
@@ -302,7 +311,7 @@ function withContexts(node, pathname, search) {
 
 function renderWorkspace(name) {
   const { props, search } = SCENARIOS[name];
-  return renderToStaticMarkup(withContexts(createElement(TasksWorkspace, props), "/v3/tasks", search));
+  return renderToStaticMarkup(withContexts(createElement(TasksWorkspace, withLook(props)), "/v3/tasks", search));
 }
 
 async function compileCss() {
@@ -321,8 +330,8 @@ function appShell(content, pathname, search) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const page = createElement(
     "div",
-    { className: "v3-world" },
-    createElement(AppShell, { actor: ACTOR, initialNotifications: null }, content),
+    { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
+    createElement(AppShell, { actor: ACTOR, initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, content),
   );
   return renderToStaticMarkup(withContexts(page, pathname, search));
 }
@@ -339,13 +348,13 @@ const FIXTURE_ID = "queue-client-fixture";
 function renderTasksPage(name) {
   const { props, search } = SCENARIOS[name];
   const count = props.queue.complete && (props.canReadStaffTasks || props.canReadCaseTasks) ? props.queue.rows.length : null;
-  return shell("Задачи", count, createElement("div", { id: CLIENT_ROOT_ID }, createElement(TasksWorkspace, props)), search);
+  return shell("Задачи", count, createElement("div", { id: CLIENT_ROOT_ID }, createElement(TasksWorkspace, withLook(props))), search);
 }
 
 /** Данные сценария для браузера: те же свойства, панель — свойствами, не элементом. */
 function clientFixture(name) {
   const { props, search, panelProps } = SCENARIOS[name];
-  return JSON.stringify({ search, props: { ...props, panel: null }, panel: panelProps }).replaceAll("<", "\\u003c");
+  return JSON.stringify({ search, props: { ...withLook(props), panel: null }, panel: panelProps }).replaceAll("<", "\\u003c");
 }
 
 /** Загрузка — настоящий `loading.tsx` страницы внутри AppShell. */
@@ -430,8 +439,13 @@ const browserStubs = {
       const source = readFileSync(args.path, "utf8");
       if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
       const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
+      // Снимок «Отменить» (--look=next): смена состояния рабочей задачи один раз
+      // отвечает «сохранено», дальше — как все заглушки. Синтетика, не команда.
+      const saved = (name) => name === "mutateStaffTaskAction"
+        ? "if (globalThis.__staticSavedOnce) { globalThis.__staticSavedOnce = false; return { status: \"saved\", requestId: \"static\", taskId: null, version: \"4\" }; } "
+        : "";
       return {
-        contents: names.map((name) => `export async function ${name}() { throw new Error("static render: server action ${name} is not available"); }`).join("\n"),
+        contents: names.map((name) => `export async function ${name}() { ${saved(name)}throw new Error("static render: server action ${name} is not available"); }`).join("\n"),
         loader: "ts",
       };
     });
@@ -460,7 +474,7 @@ async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const bundleName = "tasks-client.js";
+  const bundleName = LOOK_NEXT ? "tasks-next-client.js" : "tasks-client.js";
   await buildClientBundle(join(outDir, bundleName));
   const DESKTOP = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 };
   const LAPTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 };
@@ -475,6 +489,7 @@ async function screenshots() {
       ["tasks-mobile-390.png", PHONE, true, null],
       ["tasks-mobile-filters-390.png", PHONE, false, "filters"],
       ["tasks-result-popover-1440.png", DESKTOP, false, "result"],
+      ...(LOOK_NEXT ? [["tasks-undo-1440.png", DESKTOP, false, "undo"], ["tasks-undo-mobile-390.png", PHONE, false, "undo"]] : []),
     ]],
     ["tasks-team", renderTasksPage("team-view"), "team-view", [
       ["tasks-team-1440.png", DESKTOP, false, null],
@@ -509,7 +524,9 @@ async function screenshots() {
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   try {
-    for (const [name, html, clientScenario, shots] of pages) {
+    for (const [pageName, html, clientScenario, shots] of pages) {
+      // Новый облик — свои файлы рядом с прежними: `tasks-next-*`.
+      const name = LOOK_NEXT ? pageName.replace(/^tasks-|^calendar-/u, (prefix) => `${prefix}next-`) : pageName;
       const htmlPath = join(outDir, `${name}.html`);
       const client = clientScenario
         ? `<script type="application/json" id="${FIXTURE_ID}">${clientFixture(clientScenario)}</script><script src="${bundleName}"></script>`
@@ -520,7 +537,8 @@ async function screenshots() {
         `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${name} — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
         `<body class="min-h-full">${html}${client}</body></html>`,
       ].join(""));
-      for (const [file, context, fullPage, step] of shots) {
+      for (const [shotName, context, fullPage, step] of shots) {
+        const file = LOOK_NEXT ? shotName.replace(/^tasks-/u, "tasks-next-") : shotName;
         const browserContext = await browser.newContext(context);
         const page = await browserContext.newPage();
         const errors = [];
@@ -533,6 +551,12 @@ async function screenshots() {
           // Круг задачи по студенту открывает окно «Результат» (popovertarget).
           await page.click('[data-kind="case"] button[aria-haspopup="dialog"]');
           await page.evaluate(() => document.querySelector(":popover-open input")?.focus());
+        }
+        if (step === "undo") {
+          // Рабочая задача завершается кругом: «Отменить» появляется в верхнем слое, фокус — на ней.
+          await page.evaluate(() => { globalThis.__staticSavedOnce = true; });
+          await page.click('[data-kind="staff"] button[aria-label^="Завершить: "]');
+          await page.waitForSelector('[data-testid="v3-undo-toasts"]:popover-open [data-undo-row]');
         }
         if (step === "filters") {
           await page.click('[data-testid="queue-toolbar"] button[aria-controls]');
@@ -586,6 +610,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: tasks-static-render.cjs --json | --screenshots [outDir]");
+  console.error("usage: tasks-static-render.cjs --json | --screenshots [outDir] [--look=next]");
   process.exit(2);
 }

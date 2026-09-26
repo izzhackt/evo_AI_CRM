@@ -340,6 +340,8 @@ function buildParts(name) {
     },
     notes: NOTES, notesOlderHref: null, notesLatestHref: null, curators: [], curatorsAvailable: true, hrefFor,
     salesDataOpen: false, help: null, closure: item.closure ?? null,
+    // Новый облик (Э1.3): дорожка этапа, срок словом, инициалы, полоса документов.
+    ...(process.argv.includes("--look=next") ? { look: "next" } : {}),
   });
   return { item, parts, hrefFor };
 }

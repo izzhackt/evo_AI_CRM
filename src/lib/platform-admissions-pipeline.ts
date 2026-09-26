@@ -11,7 +11,7 @@
  * (strict manual decoding, fail-closed) and platform-sales.ts's
  * mutationErrorFromRpc (errcode/message pair -> a small status enum).
  */
-import { staffCan } from "./platform-access.ts";
+import { staffCan, staffHasPermission } from "./platform-access.ts";
 import {
   ADMISSIONS_PIPELINE_STAGES,
   type AdmissionsPipelineBoard,
@@ -265,7 +265,9 @@ export async function moveCasePipeline(
   let requestId: string;
   try {
     organizationId = requireAdmissionsOrganization(actor);
-    if (!staffCan(actor, "admissions.write")) mutationFailure("forbidden");
+    // The key move_case_pipeline_v1 checks per case (243); the broad
+    // admissions.write section also covers roles the server refuses.
+    if (!staffHasPermission(actor, "case.update.append")) mutationFailure("forbidden");
     studentCaseId = requiredUuid(input.studentCaseId);
     requestId = requiredUuid(input.requestId);
     if (!input.remove) requiredStage(input.stage);

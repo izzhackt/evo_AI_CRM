@@ -77,10 +77,12 @@ const tone = (s: string): PillTone => STATUS_TONE[s] ?? "neutral";
  * анкета never assigns a curator or direction, only opens the portal
  * cabinet. Admissions handoff stays a separate, later fact (Sales report).
  */
-export function PlatformAccessCard({ application, requestId, readOnly, leadId, leadCabinetCase, prepareRequestId, children }: {
+export function PlatformAccessCard({ application, requestId, readOnly, leadId, leadCabinetCase, prepareRequestId, caseLink = true, children }: {
   application: StudentApplication | null; requestId: string; readOnly: boolean;
   /** «Подготовить кабинет» (unified workflow S7): for a lead with no анкета and no linked case. */
   leadId: string | null; leadCabinetCase: LeadCabinetCase | null; prepareRequestId: string;
+  /** «Открыть дело» — только тому, кто открывает дела (без `admissions.read` ссылка вела бы в пустоту). */
+  caseLink?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -88,15 +90,15 @@ export function PlatformAccessCard({ application, requestId, readOnly, leadId, l
       <div className="space-y-3 px-4 py-3">
         {application === null && leadCabinetCase !== null ? (
           <p className="text-sm text-fg-2">
-            {leadCabinetCase.state === "closed" ? "Дело закрыто." : "Дело уже создано."}{" "}
-            <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(leadCabinetCase.studentCaseId)}&tab=anketa`}>
+            {leadCabinetCase.state === "closed" ? "Дело закрыто." : "Дело уже создано."}
+            {caseLink ? <>{" "}<Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(leadCabinetCase.studentCaseId)}&tab=anketa`}>
               Открыть дело
-            </Link>
+            </Link></> : null}
           </p>
         ) : application === null ? (readOnly || leadId === null ? (
           <p className="text-sm text-fg-2">Заявка на доступ не заполнена. Подготовка кабинета недоступна в этом режиме.</p>
         ) : (
-          <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} />
+          <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} caseLink={caseLink} />
         )) : application.status === "approved" ? (
           <p className="text-sm text-fg-2">
             Заявка на доступ одобрена.{" "}

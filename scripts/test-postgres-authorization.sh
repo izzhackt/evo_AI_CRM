@@ -2735,6 +2735,20 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_sales_one_truth.sql
   fi
+
+  # Migration 248 (owner decisions B and C of 26.09, access by permissions
+  # after 244): members modelled like production with the 244 fixtures
+  # (coarse role NULL, the production bundles and scope shapes). It proves,
+  # both ways, that the Admissions Manager reads, lists curators for and
+  # assigns a case a curator of its department declined — and nobody else
+  # gains it — and that the Sales Manager prepares, reissues and finalizes the
+  # cabinet invite of its own department's lead while the other department,
+  # Admissions, the Student and anonymous callers are refused.
+  if [[ "$(basename "$migration")" == 248_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_access_owner_defaults.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

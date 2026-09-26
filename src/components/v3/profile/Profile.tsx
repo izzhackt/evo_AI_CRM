@@ -1,6 +1,6 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { randomUUID } from "node:crypto";
-import { isStaffPreview, staffCan, staffHasPermission } from "@/lib/platform-access";
+import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
@@ -195,6 +195,7 @@ export function Profile({
                 state: draft.admissions.caseState,
               } : draft.leadCabinetCase}
               prepareRequestId={requestIds.prepareLeadCabinet}
+              caseLink={staffPresentationCan(actor, "admissions.read")}
             >
               {!isStaffPreview(actor) &&
               profile.student &&
@@ -214,6 +215,23 @@ export function Profile({
                   )}
                   curatorOptions={studentPortalCurators}
                   curatorOptionsAvailable={studentPortalCuratorsAvailable}
+                />
+              ) : !isStaffPreview(actor) && !draft.admissions && draft.leadCabinetCase?.cabinetInvite ? (
+                // Решение владельца C (миграция 248): ожидающий кабинет лида —
+                // приглашение отсюда же, у Sales с правом на этот лид.
+                <StudentPortalAccessControls
+                  organizationId={organizationId}
+                  studentCaseId={draft.leadCabinetCase.studentCaseId}
+                  email={profile.email}
+                  displayName={profile.person}
+                  caseState="pending"
+                  isCabinetCase
+                  requestId={studentPortalProvisioningRequestId(
+                    organizationId,
+                    draft.leadCabinetCase.studentCaseId,
+                  )}
+                  curatorOptions={[]}
+                  curatorOptionsAvailable
                 />
               ) : null}
             </PlatformAccessCard>

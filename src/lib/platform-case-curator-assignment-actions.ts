@@ -14,7 +14,9 @@ import { parsePlatformAdmissionsUuid } from "./platform-admissions.ts";
  * куратора" inline form on a needs-curator case. Gate mirrors
  * `manageCaseCoverageAction`'s own established `case.curator.assign` check —
  * the same real RBAC permission, not the coarser page-level
- * `FixedRoleCapability` gate `requirePlatformMutationCapability` takes.
+ * `FixedRoleCapability` gate `requirePlatformMutationCapability` takes. Since
+ * migration 248 (owner decision B) that is the whole gate: the Admissions
+ * Manager assigns too; the RPC decides which cases (its department's).
  */
 export type AssignCaseCuratorActionState = Readonly<{
   status:
@@ -54,11 +56,7 @@ export async function assignCaseCuratorAction(
   form: FormData,
 ): Promise<AssignCaseCuratorActionState> {
   const actor = await requirePlatformStaffActor();
-  if (
-    actor.systemRole !== "admin" ||
-    isStaffPreview(actor) ||
-    !staffHasPermission(actor, "case.curator.assign")
-  ) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "case.curator.assign")) {
     return outcome("forbidden", previous.requestId);
   }
   const fields = exactActionStringFields(form, FIELDS);

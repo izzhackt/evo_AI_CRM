@@ -18,13 +18,16 @@ test("V3 profile exposes Student Portal provisioning to Admin always, and to Sal
   assert.match(profile, /!isStaffPreview\(actor\) &&\s*profile\.student &&\s*draft\.admissions &&\s*\(actor\.systemRole === "admin" \|\|\s*\(draft\.admissions\.isCabinetCase && staffCan\(actor, "sales\.write"\)\)\)[\s\S]*<StudentPortalAccessControls/u);
   assert.match(profile, /isCabinetCase=\{draft\.admissions\.isCabinetCase\}/u);
   assert.doesNotMatch(profile, /authorityRole === "admin"[\s\S]*<StudentPortalAccessControls/u);
-  // Curator options are only ever consumed by the legacy_pending picker
-  // (never cabinet_pending, which has no curator at all) — that fetch stays
-  // admin-only, byte-unchanged from before S8.
+  // Curator options feed the legacy_pending picker (never cabinet_pending,
+  // which has no curator at all) and, since migration 248 (owner decision B),
+  // the «Назначить куратора» form and the «Куратор» filter: the fetch runs for
+  // whoever assigns curators — the Admin and holders of case.curator.assign,
+  // outside a role preview (studentsQueueActor(actor).coverage).
   assert.match(
     page,
-    /actor\.systemRole === "admin" && !isStaffPreview\(actor\)[\s\S]*listStudentPortalActiveCurators/u,
+    /const curatorsRead[^=]*=\s*studentsQueueActor\(actor\)\.coverage &&[\s\S]*?listStudentPortalActiveCurators\(actor\)/u,
   );
+  assert.match(page, /coverage: !preview && staffHasPermission\(actor, "case\.curator\.assign"\)/u);
   assert.match(page, /@\/lib\/server\/student-portal-curator-options/u);
   assert.doesNotMatch(page, /@\/lib\/platform-case-assignment/u);
 });

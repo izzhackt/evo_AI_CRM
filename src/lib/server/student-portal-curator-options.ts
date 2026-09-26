@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { staffHasPermission } from "../platform-access.ts";
 import type { PlatformActor } from "../platform-auth.ts";
 
 const UUID_PATTERN =
@@ -99,7 +100,9 @@ export async function listStudentPortalActiveCurators(
   options: StudentPortalCuratorOptionsRepositoryOptions = {},
 ): Promise<readonly StudentPortalCuratorOption[]> {
   const organizationId = requiredUuid(actor.organizationId);
-  if (actor.systemRole !== "admin") return invalidShape();
+  // Миграция 248 (решение владельца B): имена кураторов читает тот, кто их
+  // назначает, — Admin и держатель `case.curator.assign` (Admissions Manager).
+  if (!staffHasPermission(actor, "case.curator.assign")) return invalidShape();
 
   try {
     const client = options.client ?? await getPlatformClient();

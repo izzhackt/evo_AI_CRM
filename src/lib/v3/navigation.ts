@@ -49,6 +49,13 @@ const HOME: V3NavigationLink = {
 const SETTINGS: V3NavigationLink = {
   id: "settings", href: "/v3/settings", route: "/v3/settings", label: "Настройки",
 };
+// «Заявки» стоит ровно в одной группе (`buildV3Navigation`): в «Продажах» у
+// того, кто ведёт продажи, иначе в «Поступлении». Кроме обращений с сайта и
+// WhatsApp там разбирают «Анкеты платформы» (решение — отдел сопровождения,
+// 177) и консультации из кабинета студента (`lead.read`, 197).
+const REQUESTS: V3NavigationLink = {
+  id: "requests", href: "/v3/requests", route: "/v3/requests", label: "Заявки",
+};
 const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
   {
     id: "sales",
@@ -64,7 +71,7 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
     // (UX quick win 2, 2026-09-24); /v3/inbox lists only WAHA-backed
     // conversations, so it is named «WhatsApp».
     links: [
-      { id: "requests", href: "/v3/requests", route: "/v3/requests", label: "Заявки" },
+      REQUESTS,
       { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "WhatsApp", capability: "sales.read" },
       { id: "pipeline", href: "/v3/pipeline", route: "/v3/pipeline", label: "Воронка продаж" },
       { id: "sales-report", href: "/v3/main?view=sales", route: "/v3/main", label: "Отчёт продаж" },
@@ -93,6 +100,11 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       { id: "universities", href: "/v3/universities", route: "/v3/universities", label: "Университеты" },
       // «Сводка по направлениям» removed 2026-09-24: its counts are the facets
       // of «Студенты» now; `/v3/profile?section=summary` resolves to that page.
+      // «Заявки» — здесь только у ролей без работы продаж (D, 26.09.2026):
+      // Admissions Manager разбирает там анкеты платформы, обе роли
+      // поступления — консультации из кабинета. Последним: прежний порядок
+      // группы не меняется.
+      REQUESTS,
     ],
   },
 ];
@@ -150,6 +162,19 @@ export function v3SectionTitle(
   return ALL_LINKS.find((link) => link.id === id)?.label;
 }
 
+/**
+ * Работа продаж в меню — у того, кто ведёт лиды или читает отчёт продаж
+ * (решение владельца D, 26.09.2026). `lead.read` у ролей поступления
+ * открывает куратору лид его дела (контакты и данные продажи в деле) и
+ * поэтому остаётся в `sales.read`, но разделом продаж не делает. Просмотр
+ * роли — по её `sales.read`, как раньше.
+ */
+function salesWorkspace(actor: ActivePlatformActor): boolean {
+  return isStaffPreview(actor)
+    ? staffPresentationCan(actor, "sales.read")
+    : staffHasPermission(actor, "lead.sales.workflow.manage") || staffHasPermission(actor, "sales.register.read");
+}
+
 /** Presentation-only navigation. Server route guards remain the authority. */
 export function buildV3Navigation(
   actor: ActivePlatformActor,
@@ -167,13 +192,25 @@ export function buildV3Navigation(
     && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;
   const settings = allowed(SETTINGS) ? SETTINGS : null;
-  const common = COMMON.filter((link) => allowed(link)
-    && (!staffCanAccessRoute(actor, "/v3/knowledge") || (link.id !== "documents" && link.id !== "reply-snippets"))
-    && (link.id !== "inbox" || !staffPresentationCan(actor, "sales.read")));
+  // Без работы продаж (D) в «Продажах» остаётся только «Отчёт продаж» по
+  // своему правилу выше: читатель лидов без записей отчёта видит там
+  // «Динамику по дням» (Э3, #1067). WhatsApp и «Воронка продаж» скрыты,
+  // «Заявки» переходят в «Поступление»: там разбирают анкеты платформы и
+  // консультации из кабинета, и другого пути к ним в приложении нет.
+  const sales = salesWorkspace(actor);
+  const inGroup = (group: (typeof GROUPS)[number], link: V3NavigationLink) => link.id === "requests"
+    ? (group.id === "sales") === sales
+    : group.id !== "sales" || sales || link.id === "sales-report";
   const visibleGroups = GROUPS.map((group) => ({
     ...group,
-    links: group.links.filter(allowed),
+    links: group.links.filter((link) => allowed(link) && inGroup(group, link)),
   })).filter((group) => group.links.length > 0);
+  // WhatsApp — один пункт: в «Продажах», если группа его показывает, иначе в
+  // общих разделах у каждого, кому открыт его раздел (`messaging.read`).
+  const inboxInGroup = visibleGroups.some((group) => group.links.some((link) => link.id === "inbox"));
+  const common = COMMON.filter((link) => allowed(link)
+    && (!staffCanAccessRoute(actor, "/v3/knowledge") || (link.id !== "documents" && link.id !== "reply-snippets"))
+    && (link.id !== "inbox" || !inboxInGroup));
   const links = [
     ...(home ? [home] : []),
     ...visibleGroups.flatMap((group) => group.links),

@@ -1,4 +1,4 @@
-import { staffPresentationCan, staffHasPermission, isStaffPreview } from "../platform-access.ts";
+import { staffPresentationCan, staffHasPermission, isStaffPreview, staffCan } from "../platform-access.ts";
 import "server-only";
 
 import { randomUUID } from "node:crypto";
@@ -838,6 +838,13 @@ async function readLeadProfile(
   const leadCabinetCase = fullCase ? null : needsCaseDiscovery
     ? discoveredCase
     : await readLeadCabinetCase(actor, leadId);
+  // Решение владельца C (миграция 248): Sales с правом на лид отправляет и
+  // повторяет приглашение в кабинет с карточки лида — само дело ему не открыть
+  // (нет case.read.full). Чтение 185/248 подтверждает, что ожидающее дело —
+  // кабинет лида, к которому у него есть доступ; при отказе приглашения нет.
+  const cabinetInvite = leadCabinetCase?.state === "pending" && !isStaffPreview(actor) && staffCan(actor, "sales.write")
+    ? await readStudentCaseCabinetOrigin(actor, leadCabinetCase.studentCaseId)
+    : false;
   // S8: same pending-only optimization as readCaseProfile above.
   const isCabinetCase = fullCase && fullCase.studentCase.state === "pending" && caseId
     ? await readStudentCaseCabinetOrigin(actor, caseId)
@@ -871,7 +878,7 @@ async function readLeadProfile(
         handoffAcknowledgement: null,
         salesHandoffAcknowledgement,
         saleConditions,
-        leadCabinetCase,
+        leadCabinetCase: leadCabinetCase ? { ...leadCabinetCase, cabinetInvite } : null,
         contractSignedAt: gate.contractConfirmedAt
           ? formatDate(gate.contractConfirmedAt, true)
           : null,

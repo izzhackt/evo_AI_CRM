@@ -82,17 +82,16 @@ export async function readCaseWork(
   options: Readonly<{ overview: boolean }>,
 ): Promise<CaseWorkRead> {
   const now = new Date();
-  const admin = actor.systemRole === "admin" && !isStaffPreview(actor);
   const [row, tasks, chat, deletionRequested] = await Promise.all([
     readCaseQueueRow(actor, target),
     options.overview ? readCaseTasks(actor, target) : NOT_READ,
     options.overview ? readCaseChat(actor, target) : NOT_READ,
     hasOpenAccountDeletionRequestForCase(actor, target.studentCaseId),
   ]);
-  // «Нужен куратор» — флаг строки очереди (как в списке); без строки Admin, который назначает
-  // кураторов, читает его отдельно (182), как раньше шапка дела.
+  // «Нужен куратор» — флаг строки очереди (как в списке); без строки тот, кто назначает
+  // кураторов (Admin и `case.curator.assign`, миграция 248), читает его отдельно (182).
   const needsCurator = row ? row.attentionFlags.includes("needs_curator")
-    : admin && staffHasPermission(actor, "case.curator.assign")
+    : !isStaffPreview(actor) && staffHasPermission(actor, "case.curator.assign")
       ? (await readCaseAttentionFlags(actor, target.studentCaseId).catch((): readonly AdmissionsAttention[] => [])).includes("needs_curator")
       : false;
   return Object.freeze({

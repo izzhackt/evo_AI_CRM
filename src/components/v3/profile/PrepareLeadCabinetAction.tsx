@@ -31,12 +31,17 @@ const REFRESH_ON_STATUS = new Set<PrepareLeadCabinetActionState["status"]>([
  * «Подготовить кабинет» (unified workflow S7, plan §4): for a site/WhatsApp
  * lead with no platform анкета and no linked case yet. Calls
  * `platform.prepare_lead_cabinet_v1` (migration 184) — creates the pending,
- * curator-less cabinet case, nothing more. Invite dispatch stays a SEPARATE,
- * already admin-gated flow the case page owns (StudentPortalAccessCard);
- * that gate is not widened here, per the migration's own documented outcome
- * — a real, honest gap for a cabinet-prepared case, not hidden.
+ * curator-less cabinet case, nothing more. The invite is a SEPARATE step
+ * (StudentPortalAccessCard): since migration 248 (owner decision C) Sales
+ * with the lead permission sends it from this same «Доступ к порталу» card
+ * after the refresh, the Admin also from the case.
  */
-export function PrepareLeadCabinetAction({ leadId, requestId }: Readonly<{ leadId: string; requestId: string }>) {
+export function PrepareLeadCabinetAction({ leadId, requestId, caseLink = true }: Readonly<{
+  leadId: string;
+  requestId: string;
+  /** «Открыть дело» — только тому, кто открывает дела (как в «Доступе к порталу»). */
+  caseLink?: boolean;
+}>) {
   const router = useRouter();
   const [state, action, pending] = useActionState(
     prepareLeadCabinetAction,
@@ -49,11 +54,10 @@ export function PrepareLeadCabinetAction({ leadId, requestId }: Readonly<{ leadI
   if (state.status === "saved" && state.studentCaseId) {
     return (
       <p className="text-sm text-fg-2" role="status">
-        Кабинет подготовлен.{" "}
-        <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(state.studentCaseId)}&tab=anketa`}>
+        Кабинет подготовлен.
+        {caseLink ? <>{" "}<Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(state.studentCaseId)}&tab=anketa`}>
           Открыть дело
-        </Link>
-        {" "}· «Приглашение отправляет администратор из дела».
+        </Link></> : null}
       </p>
     );
   }

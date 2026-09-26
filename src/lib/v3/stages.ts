@@ -5,7 +5,9 @@
  * чип и дорожка этапа говорят одно и то же.
  *
  * - Продажи — шесть рабочих этапов и «Переданы» (исход: завершённая передача
- *   в поступление, колонка доски продаж).
+ *   в поступление, колонка доски продаж). Порядок и слова — те же, что у
+ *   доски, воронки, «Сегодня» и Lead 360 (`sales-stage.ts`,
+ *   `SALES_STAGE_TITLE`, миграция 247); здесь их не повторяют.
  * - Поступление — девять этапов доски (`pipeline_stage`): первые пять — фаза
  *   «Поступление», последние четыре — «Виза и выезд» (вкладки доски).
  *
@@ -17,8 +19,8 @@ import {
   admissionsPipelineTabOf,
   type AdmissionsPipelineStage,
 } from "../platform-admissions-pipeline-contract.ts";
-import { PLATFORM_SALES_STAGES, type PlatformSalesStage } from "../platform-sales-contract.ts";
-import { FUNNEL_STEP, admissionsPipelineStage, admissionsPipelineTab, leadStage } from "./wording.ts";
+import { SALES_BOARD_STAGES, type SalesBoardStage } from "./sales-stage.ts";
+import { admissionsPipelineStage, admissionsPipelineTab, salesStage } from "./wording.ts";
 
 /** Три фазы — три цвета: только у чипа и дорожки этапа и всегда со словом. */
 export type StagePhase = "sales" | "admission" | "visa";
@@ -29,21 +31,19 @@ export const STAGE_PHASE_TITLE: Readonly<Record<StagePhase, string>> = Object.fr
   visa: admissionsPipelineTab("visa"),
 });
 
-export type SalesTrackStage = PlatformSalesStage | "handed_off";
+export type SalesTrackStage = SalesBoardStage;
 export type StageTrackKind = "sales" | "admissions";
 export type TrackStage<Kind extends StageTrackKind> = Kind extends "sales" ? SalesTrackStage : AdmissionsPipelineStage;
 
 /** Семь этапов доски продаж по порядку колонок: шесть рабочих и «Переданы». */
-export const SALES_TRACK_STAGES: readonly SalesTrackStage[] = Object.freeze([...PLATFORM_SALES_STAGES, "handed_off"]);
+export const SALES_TRACK_STAGES: readonly SalesTrackStage[] = SALES_BOARD_STAGES;
 
 /** Девять этапов доски поступления по порядку колонок. */
 export const ADMISSIONS_TRACK_STAGES: readonly AdmissionsPipelineStage[] = ADMISSIONS_PIPELINE_STAGES;
 
-/** «Новый» … «Потенциальный клиент», «Переданы» — как заголовки колонок доски продаж. */
+/** «Новый» … «Потенциальный клиент», «Переданы» — заголовки колонок доски продаж. */
 export function salesStageTitle(key: string | null | undefined): string | null {
-  if (key === "handed_off") return FUNNEL_STEP.handed;
-  const word = leadStage(key);
-  return word === null ? null : word.charAt(0).toUpperCase() + word.slice(1);
+  return salesStage(key);
 }
 
 /** Слово этапа дела — слово колонки «Воронки поступления». */

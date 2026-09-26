@@ -52,7 +52,7 @@ const ts = require("typescript");
 const ROOT = resolve(__dirname, "../..");
 const FIXTURES = join(__dirname, "boards-fixtures.cjs");
 const LOGO = join(ROOT, "public/brand/evo-logo.png");
-const HYDRATE = process.argv.includes("--hydrate");
+const HYDRATE = process.argv.includes("--hydrate") || process.argv.includes("--hydrate-close");
 
 // --- require-hook: .ts/.tsx компилируются TypeScript'ом в CJS ---------------
 const compile = (source) =>
@@ -161,6 +161,8 @@ const SCENARIOS = {
   "sales-search": { page: "sales", search: "q=%D0%A2%D0%B8%D0%BC%D1%83%D1%80" },
   "sales-volume": { page: "sales", search: "", rows: "volume" },
   "sales-loading": { page: "sales", search: "", loading: true },
+  // «Закрытые лиды» (246): список закрытых с причиной, датой и «Вернуть в работу».
+  "sales-closed": { page: "sales", search: "view=closed" },
   "admissions": { page: "admissions", search: "" },
   "admissions-visa": { page: "admissions", search: "tab=visa" },
   // Фильтр «Куратор»: инициалы куратора на карточках не нужны.
@@ -206,6 +208,8 @@ async function main() {
     process.stdout.write(JSON.stringify(out));
   } else if (process.argv.includes("--screenshots")) {
     await screenshots();
+  } else if (process.argv.includes("--hydrate-close")) {
+    await hydrateClose();
   } else if (HYDRATE) {
     await hydrate();
   } else {
@@ -326,6 +330,7 @@ async function screenshots() {
     ["sales-search", ["1440", "390"]],
     ["sales-volume", ["1440"]],
     ["sales-loading", ["1440"]],
+    ["sales-closed", ["1440", "390"]],
     ["admissions", ["1280", "1440", "1920", "390", "360"]],
     ["admissions-visa", ["1920"]],
     ["admissions-menu", ["1440", "1280"]],
@@ -879,6 +884,151 @@ async function hydrate() {
       await page.screenshot({ path: join(outDir, "boards-hydrated-handed-all-1536.png") });
       report({ journey: "sales-handed-all-1280", allStages, closed, reloaded1536,
         recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
+      await context.close();
+    }
+  } finally {
+    await browser.close();
+    server.close();
+  }
+}
+
+/**
+ * «Закрыть лид» (миграция 246) на гидратированной доске:
+ *   node tests/e2e/boards-static-render.cjs --hydrate-close [outDir]
+ * Панель лида → «⋯» → «Закрыть лид…» → окно (причина, «Другое» с текстом) →
+ * подтверждение → лид уходит с доски, строка «Лид «…» закрыт · причина ·
+ * дата · Вернуть в работу» → возврат. Переданный лид: пункт недоступен и
+ * называет причину. Телефон: окно поверх листа панели. Снимки
+ * `close-lead-*.png`; измерения — JSON-строки в stdout. Серверное действие
+ * подменено фикстурой (tests/e2e/boards-fixtures.cjs).
+ */
+async function hydrateClose() {
+  const outDir = outDirArg("--hydrate-close");
+  setSaveSucceeds(true);
+  const [css, bundle] = await Promise.all([compileCss("/__fonts"), bundleHydration()]);
+  const { server, origin } = await startServer(css, bundle);
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
+  const open = async (viewport, path, mobile = false) => {
+    const context = await browser.newContext({ viewport, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile });
+    const page = await context.newPage();
+    const console_ = [];
+    page.on("console", (message) => { if (message.type() === "error" || message.type() === "warning") console_.push(message.text()); });
+    page.on("pageerror", (error) => console_.push(`pageerror: ${error.message}`));
+    await page.goto(`${origin}${path}`, { waitUntil: "load" });
+    await page.waitForSelector("html[data-hydrated=true]", { timeout: 15_000 });
+    await page.evaluate(() => document.fonts.ready);
+    return { context, page, console_ };
+  };
+  const cardLink = (page, n) => page.locator(`[data-testid="v3-pipeline-card"][data-lead-id="${leadId(n)}"] a[data-lead-link]`);
+  const panel = (page) => page.locator('[data-testid="v3-pipeline-lead-panel"]');
+  const dialogMetrics = (page) => page.evaluate(() => {
+    const dialog = document.querySelector('[data-testid="v3-close-lead-dialog"]');
+    if (!dialog) return null;
+    const rect = dialog.getBoundingClientRect();
+    const red = [...dialog.querySelectorAll("button")].filter((element) => getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)")
+      .map((element) => element.textContent.trim());
+    const pageRed = [...document.querySelectorAll("a, button")].filter((element) => !dialog.contains(element) && element.checkVisibility()
+      && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim());
+    return {
+      modal: dialog.matches(":modal"), rect: `${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}`,
+      clipped: rect.left < 0 || rect.top < 0 || rect.right > window.innerWidth || rect.bottom > window.innerHeight,
+      redInDialog: red, redOutsideDialog: pageRed,
+      smallTargets: [...dialog.querySelectorAll("button, input, label")].filter((element) => element.getBoundingClientRect().height < 24).length,
+      smallText: [...dialog.querySelectorAll("*")].filter((element) => [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim())
+        && parseFloat(getComputedStyle(element).fontSize) < 12).length,
+      focused: document.activeElement ? `${document.activeElement.tagName.toLowerCase()}:${document.activeElement.getAttribute("value") ?? document.activeElement.textContent.trim().slice(0, 30)}` : null,
+    };
+  });
+  try {
+    // 1. 1440: панель → «⋯» → окно → «Другое» с текстом → закрыт → возврат.
+    {
+      const { context, page, console_ } = await open({ width: 1440, height: 900 }, "/v3/pipeline");
+      await cardLink(page, 6).click();
+      await panel(page).waitFor();
+      await panel(page).getByRole("button", { name: "Ещё действия" }).click();
+      await page.waitForSelector('[data-testid="v3-lead-actions-menu"]:popover-open');
+      const menu = await page.evaluate(menuMetrics);
+      await page.screenshot({ path: join(outDir, "close-lead-menu-1440.png") });
+      await page.getByRole("button", { name: "Закрыть лид…" }).click();
+      await page.getByTestId("v3-close-lead-dialog").waitFor();
+      const opened = await dialogMetrics(page);
+      // Без выбора причины — ошибка у поля, не запрос.
+      await page.getByTestId("v3-close-lead-dialog").getByRole("button", { name: "Закрыть лид" }).click();
+      const missingReason = await page.getByTestId("v3-close-lead-dialog").getByRole("alert").textContent();
+      await page.getByRole("radio", { name: "Другое", exact: true }).check();
+      await page.getByLabel("Что случилось").fill("Семья решила отложить поступление на год");
+      const filled = await dialogMetrics(page);
+      await page.screenshot({ path: join(outDir, "close-lead-dialog-1440.png") });
+      await page.getByTestId("v3-close-lead-dialog").getByRole("button", { name: "Закрыть лид" }).click();
+      await page.getByTestId("v3-pipeline-closed-notice").waitFor();
+      await page.waitForFunction((id) => !document.querySelector(`[data-testid="v3-pipeline-card"][data-lead-id="${id}"]`), leadId(6));
+      const closed = {
+        url: page.url().replace(origin, ""),
+        notice: (await page.getByTestId("v3-pipeline-closed-notice").textContent()).replace(/\s+/gu, " ").trim(),
+        focusInNotice: await page.evaluate(() => Boolean(document.activeElement?.closest('[data-testid="v3-pipeline-closed-notice"]'))),
+        panelOpen: await panel(page).count(),
+        cardGone: await cardLink(page, 6).count() === 0,
+      };
+      await page.screenshot({ path: join(outDir, "close-lead-closed-1440.png") });
+      await page.getByTestId("v3-pipeline-closed-notice").getByRole("button", { name: "Вернуть в работу" }).click();
+      await cardLink(page, 6).waitFor();
+      const reopened = {
+        notice: (await page.getByTestId("v3-pipeline-closed-notice").textContent()).replace(/\s+/gu, " ").trim(),
+        cardBack: await cardLink(page, 6).count() === 1,
+        column: await page.evaluate((id) => document.querySelector(`[data-testid="v3-pipeline-card"][data-lead-id="${id}"]`)
+          ?.closest('[data-testid="v3-pipeline-column"]')?.querySelector("h2, h3")?.textContent?.trim() ?? null, leadId(6)),
+      };
+      await page.screenshot({ path: join(outDir, "close-lead-reopened-1440.png") });
+      // Переданный лид — продажа: пункт недоступен и называет причину.
+      await page.goto(`${origin}/v3/pipeline?lead=${leadId(13)}`, { waitUntil: "load" });
+      await page.waitForSelector("html[data-hydrated=true]");
+      await panel(page).getByRole("button", { name: "Ещё действия" }).click();
+      await page.waitForSelector('[data-testid="v3-lead-actions-menu"]:popover-open');
+      const handed = await page.evaluate(menuMetrics);
+      handed.text = (await page.locator('[data-testid="v3-lead-actions-menu"]').textContent()).trim();
+      await page.screenshot({ path: join(outDir, "close-lead-handed-1440.png") });
+      report({ journey: "close-lead-1440", menu, opened, missingReason, filled, closed, reopened, handed,
+        recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
+      await context.close();
+    }
+    // 2. Телефон 390: окно поверх модального листа панели.
+    {
+      const { context, page, console_ } = await open({ width: 390, height: 844 }, "/v3/pipeline", true);
+      await cardLink(page, 1).click();
+      await panel(page).waitFor();
+      await panel(page).getByRole("button", { name: "Ещё действия" }).click();
+      await page.waitForSelector('[data-testid="v3-lead-actions-menu"]:popover-open');
+      await page.screenshot({ path: join(outDir, "close-lead-menu-390.png") });
+      await page.getByRole("button", { name: "Закрыть лид…" }).click();
+      await page.getByTestId("v3-close-lead-dialog").waitFor();
+      await page.getByRole("radio", { name: "Другое", exact: true }).check();
+      await page.getByLabel("Что случилось").fill("Перезвонит сам после экзаменов");
+      const dialog = await dialogMetrics(page);
+      await page.screenshot({ path: join(outDir, "close-lead-dialog-390.png") });
+      await page.getByTestId("v3-close-lead-dialog").getByRole("button", { name: "Закрыть лид" }).click();
+      await page.getByTestId("v3-pipeline-closed-notice").waitFor();
+      const closed = {
+        notice: (await page.getByTestId("v3-pipeline-closed-notice").textContent()).replace(/\s+/gu, " ").trim(),
+        overflow: await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      };
+      await page.screenshot({ path: join(outDir, "close-lead-closed-390.png") });
+      report({ journey: "close-lead-390", dialog, closed, recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
+      await context.close();
+    }
+    // 3. «Закрытые лиды»: список с причиной и датой, на ноутбуке и телефоне.
+    for (const [size, viewport, mobile] of [["1440", { width: 1440, height: 900 }, false], ["390", { width: 390, height: 844 }, true]]) {
+      const { context, page, console_ } = await open(viewport, "/v3/pipeline?view=closed", mobile);
+      const list = await page.evaluate(() => ({
+        rows: [...document.querySelectorAll('[data-testid="v3-closed-leads"] li')].map((row) => row.textContent.replace(/\s+/gu, " ").trim()),
+        h1: document.querySelector("main h1")?.textContent?.trim(),
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        solidRed: [...document.querySelectorAll("a, button")].filter((element) => element.checkVisibility()
+          && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim()),
+      }));
+      await page.screenshot({ path: join(outDir, `close-lead-list-${size}.png`), fullPage: mobile });
+      report({ journey: `close-lead-list-${size}`, list, console: console_ });
       await context.close();
     }
   } finally {

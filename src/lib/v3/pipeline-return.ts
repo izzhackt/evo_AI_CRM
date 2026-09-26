@@ -12,6 +12,7 @@ export const PIPELINE_PATH = "/v3/pipeline";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const CONTROL = /[\u0000-\u001F\u007F]/u;
+const CLOSED_CURSOR = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z\|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const STAGES: ReadonlySet<string> = new Set([...PLATFORM_SALES_STAGES, "handed_off", "all"]);
 
 const VALID: Readonly<Record<string, (value: string) => boolean>> = Object.freeze({
@@ -22,6 +23,9 @@ const VALID: Readonly<Record<string, (value: string) => boolean>> = Object.freez
   owner: (value) => UUID.test(value),
   handed: (value) => value === "all",
   lead: (value) => UUID.test(value),
+  // «Закрытые лиды» (246): вид и курсор его страниц.
+  view: (value) => value === "closed",
+  cursor: (value) => CLOSED_CURSOR.test(value),
 });
 
 /** Адрес доски из её текущих параметров; чужие параметры не переносятся. */

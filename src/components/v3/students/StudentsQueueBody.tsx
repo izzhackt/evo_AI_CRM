@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import type { CaseClosure, CaseClosureReceipt } from "@/lib/platform-closure-contract";
 import type {
   CaseNextActionReceipt,
   StudentCaseQueueCounts,
@@ -72,6 +73,7 @@ export function StudentsQueueBody({
   recordScopes,
   openTasks,
   handoff,
+  closure = null,
   createTask,
   requestId,
 }: Readonly<{
@@ -89,6 +91,8 @@ export function StudentsQueueBody({
   /** Открытые задачи дела в панели (читает сервер только при `open`). */
   openTasks: StudentsOpenTasks | null;
   handoff: StudentsHandoff | null;
+  /** Закрытие открытой строки (246); null — не прочитано. */
+  closure?: CaseClosure | null;
   /** Можно ли создать задачу по делу из панели. */
   createTask: boolean;
   requestId: string;
@@ -130,6 +134,19 @@ export function StudentsQueueBody({
     router.refresh();
   }
 
+  // «Завершить дело» / «Вернуть в работу»: дело уходит из вида списка, а
+  // панель остаётся на нём (`kept`) с новым состоянием и строкой закрытого.
+  function onClosureChanged(receipt: CaseClosureReceipt) {
+    const base = (saved?.studentCaseId === receipt.studentCaseId ? saved : null)
+      ?? rows.find((row) => row.studentCaseId === receipt.studentCaseId)
+      ?? (kept?.studentCaseId === receipt.studentCaseId ? kept : null);
+    if (!base) { router.refresh(); return; }
+    const next: StudentCaseQueueRow = { ...base, state: receipt.state, admissionsVersion: receipt.admissionsVersion };
+    setSaved(next);
+    setKept(next);
+    router.refresh();
+  }
+
   // Пока сохранённая строка не пришла с сервера, числа групп не показываем:
   // строка уже перешла в другую группу, а числа ещё старые.
   const stepView = studentsStepView(params.view);
@@ -151,6 +168,8 @@ export function StudentsQueueBody({
       access={nextStepAccess(editor, openRow, recordScopes)}
       tasks={openTasks}
       handoff={handoff?.studentCaseId === openRow.studentCaseId ? handoff : null}
+      closure={closure?.studentCaseId === openRow.studentCaseId ? closure : null}
+      onClosureChanged={onClosureChanged}
       requestId={requestId}
       onSaved={onSaved}
       links={{

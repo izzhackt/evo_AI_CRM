@@ -3,7 +3,7 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
@@ -18,6 +18,9 @@ import {
   ownerInitials,
 } from "@/components/v3/board/Board";
 import { PipelineDecisionForm } from "@/components/v3/PipelineDecisionForm";
+import { ClosedLine, CloseRecordMenu } from "@/components/v3/closure/Closure";
+import type { LeadClosureReceipt } from "@/lib/platform-closure-contract";
+import { closureWords } from "@/lib/v3/wording";
 import type {
   PlatformSalesOwnerOption,
   PlatformSalesStage,
@@ -230,6 +233,7 @@ function LeadPanel({
   saved,
   onClose,
   onSaved,
+  onLeadClosed,
 }: {
   lead: PipelineLead;
   stageTitle: string;
@@ -246,6 +250,8 @@ function LeadPanel({
   saved: boolean;
   onClose: () => void;
   onSaved: () => void;
+  /** «Закрыть лид» подтверждён сервером: лид уходит с доски. */
+  onLeadClosed: (receipt: LeadClosureReceipt) => void;
 }) {
   const headingId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -309,6 +315,18 @@ function LeadPanel({
         <h2 id={headingId} tabIndex={-1} className="t-record-title min-w-0 flex-1 break-words py-2 text-fg">
           {lead.name}
         </h2>
+        {/* «⋯» лида: «Закрыть лид». Переданный лид — продажа: пункт недоступен
+            и называет причину. Права — подсказка; решает сервер (246). */}
+        {!isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
+          <CloseRecordMenu
+            kind="lead"
+            subjectId={lead.workflow.leadId}
+            subjectName={lead.name}
+            expectedVersion={lead.workflow.workflowVersion}
+            blockedReason={terminal ? closureWords.lead.handedOff : null}
+            onClosed={onLeadClosed}
+          />
+        ) : null}
         <Link
           href={closeHref}
           prefetch={false}
@@ -426,8 +444,13 @@ export function Pipeline({
   showOwner: boolean;
 }) {
   const search = useSearchParams();
+  const router = useRouter();
   const boardHref = useBoardHref();
   const rootRef = useRef<HTMLDivElement>(null);
+  const noticeRef = useRef<HTMLDivElement>(null);
+  // Закрытый лид уходит с доски; строка над доской называет его и даёт
+  // настоящий «Вернуть в работу» (обратная команда 246).
+  const [closedNotice, setClosedNotice] = useState<Readonly<{ name: string; receipt: LeadClosureReceipt }> | null>(null);
   const focusPanel = useRef(false);
   const returnFocusTo = useRef<Readonly<{ leadId: string; stage: PipelineStageKey | null }> | null>(null);
   // Сохранённое решение: лид и версия, с которой его сохранили. Пока доска
@@ -492,6 +515,17 @@ export function Pipeline({
     setSaved(null);
     if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
   };
+  function leadClosed(name: string, receipt: LeadClosureReceipt) {
+    setClosedNotice({ name, receipt });
+    returnFocusTo.current = null;
+    setSaved(null);
+    if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
+    router.refresh();
+  }
+  // Карточка закрытого лида уходит с доски — фокус встаёт на его строку.
+  useEffect(() => {
+    if (closedNotice) noticeRef.current?.focus();
+  }, [closedNotice]);
 
   const cardsOf = (stage: PipelineStage) => {
     const inStage = leads.filter((lead) => lead.stageKey === stage.key);
@@ -561,8 +595,26 @@ export function Pipeline({
   );
 
   return (
-    // Широкий экран: доска и панель лида — один ряд, панель не перекрывает
-    // колонки, а забирает у доски 408 px.
+    <>
+    {closedNotice ? (
+      // Фокус переходит сюда после закрытия: читалка прочтёт строку целиком.
+      <div ref={noticeRef} tabIndex={-1} data-testid="v3-pipeline-closed-notice"
+        className="mb-2 shrink-0 rounded-ctl border border-border bg-surface px-3 py-1 outline-none focus-visible:outline-2 focus-visible:outline-focus-ring">
+        <ClosedLine
+          key={`${closedNotice.receipt.leadId}:${closedNotice.receipt.changedAt}`}
+          kind="lead"
+          subject={<>Лид «{closedNotice.name}»</>}
+          subjectId={closedNotice.receipt.leadId}
+          expectedVersion={closedNotice.receipt.workflowVersion}
+          reasonKey={closedNotice.receipt.reason}
+          note={closedNotice.receipt.note}
+          closedAt={closedNotice.receipt.changedAt}
+          canReopen
+        />
+      </div>
+    ) : null}
+    {/* Широкий экран: доска и панель лида — один ряд, панель не перекрывает
+        колонки, а забирает у доски 408 px. */}
     <div ref={rootRef} className="relative flex min-w-0 flex-col @6xl:h-full @6xl:min-h-0 @6xl:flex-row @6xl:gap-2">
       <div
         role="group"
@@ -702,8 +754,10 @@ export function Pipeline({
           saved={saved?.leadId === selected.id && saved.version !== selected.workflow.workflowVersion}
           onClose={closePanel}
           onSaved={() => setSaved({ leadId: selected.id, version: selected.workflow.workflowVersion })}
+          onLeadClosed={(receipt) => leadClosed(selected.name, receipt)}
         />
       ) : null}
     </div>
+    </>
   );
 }

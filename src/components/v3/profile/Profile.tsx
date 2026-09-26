@@ -68,6 +68,7 @@ export function Profile({
   universityProgramsTab,
   caseHeader,
   caseOverview,
+  headerMenu,
 }: {
   profile: PersonProfile;
   /** «Вузы и программы» (unified workflow S4) — replaces the old «Маршрут» tab content. */
@@ -79,6 +80,8 @@ export function Profile({
    * работа. Вид лида (`?id=`) его не получает и остаётся прежним.
    */
   caseOverview?: React.ReactNode;
+  /** «⋯» лида в шапке (`?id=`): «Закрыть лид» (миграция 246). */
+  headerMenu?: React.ReactNode;
   /** Canonical projections not represented directly in `PersonProfile`. */
   draft: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
@@ -115,6 +118,7 @@ export function Profile({
     caseStatus: profile.caseStatus,
     leadStage: profile.stage,
   });
+  const taskCaseId = !isStaffPreview(actor) && staffHasPermission(actor, "task.manage") ? draft.admissions?.studentCaseId ?? null : null;
   const uploadAccess = draft.admissions?.caseState !== "active"
     ? "closed" as const
     : !isStaffPreview(actor) && staffHasPermission(actor, "document.upload")
@@ -136,14 +140,15 @@ export function Profile({
           {profile.financeStop ? (
             <Pill tone="danger">финансовый стоп</Pill>
           ) : null}
-          {!isStaffPreview(actor) && staffHasPermission(actor, "task.manage") && draft.admissions ? (
+          {taskCaseId ? (
             <Link
-              href={`/v3/tasks?create=case&case=${encodeURIComponent(draft.admissions.studentCaseId)}`}
+              href={`/v3/tasks?create=case&case=${encodeURIComponent(taskCaseId)}`}
               className="ms-auto inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               Создать задачу по студенту
             </Link>
           ) : null}
+          {headerMenu ? <div className={taskCaseId ? "self-center" : "ms-auto self-center"}>{headerMenu}</div> : null}
         </header>
       )}
 

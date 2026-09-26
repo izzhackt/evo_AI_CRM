@@ -122,7 +122,26 @@ const queueItems = (count) => Array.from({ length: count }, (_, index) => ({ id:
  * подтверждает ли подменённое серверное действие сохранение решения (только
  * в браузерной гидратации: там проверяется панель после обновления).
  */
-const state = { salesRows: SALES_ROWS, saveSucceeds: false, versions: new Map() };
+const state = { salesRows: SALES_ROWS, saveSucceeds: false, versions: new Map(), closed: new Map() };
+
+// «Закрытые лиды» (246): три закрытых раньше и те, что закрыты в сценарии.
+// Закрытый лид, как в RPC доски (lifecycle_state = 'open'), с доски уходит.
+const CLOSED_BEFORE = [
+  { leadId: leadId(20), name: "Нурлан Закрытов", ownerName: "Менеджер Первый", stageKey: "contacting", workflowVersion: "4",
+    closedAt: ago(2), reason: "no_response", note: null, closedByName: "Менеджер Первый", canManage: true },
+  { leadId: leadId(21), name: "Асель Отказова", ownerName: "Менеджер Второй", stageKey: "qualified", workflowVersion: "6",
+    closedAt: ago(5), reason: "other", note: "Решила поступать через родственников в Казани", closedByName: "Менеджер Второй", canManage: true },
+  { leadId: leadId(22), name: "Эркин Дубликатов", ownerName: null, stageKey: "new", workflowVersion: "2",
+    closedAt: ago(9), reason: "duplicate", note: null, closedByName: "Администратор (синтетический)", canManage: true },
+];
+function closedRows() {
+  const now = [...state.closed.entries()].map(([id, closure]) => {
+    const one = state.salesRows.find((row) => row.leadId === id);
+    return { leadId: id, name: one?.clientDisplayName ?? null, ownerName: one?.currentOwnerDisplayName ?? null,
+      stageKey: one?.stageKey ?? "new", workflowVersion: one?.workflowVersion ?? "1", closedByName: ACTOR.displayName, canManage: true, ...closure };
+  });
+  return [...now.reverse(), ...CLOSED_BEFORE];
+}
 // Сохранённое решение, как на сервере, поднимает версию лида: следующее
 // чтение доски её отдаёт, и форма пересоздаётся с новой версией.
 const withVersion = (one) => (state.versions.has(one.leadId) ? { ...one, ...state.versions.get(one.leadId) } : one);
@@ -155,7 +174,7 @@ const STUBS = {
       rows: (options.query
         ? state.salesRows.filter((one) => [one.clientDisplayName, one.clientEmail, one.clientPhone, one.nextActionText]
           .some((value) => value?.toLocaleLowerCase("ru-RU").includes(options.query.toLocaleLowerCase("ru-RU"))))
-        : state.salesRows).filter((one) => matchesDue(one, options.dueFilter ?? "all")).map(withVersion),
+        : state.salesRows).filter((one) => !state.closed.has(one.leadId) && matchesDue(one, options.dueFilter ?? "all")).map(withVersion),
       hasNext: false,
       nextCursor: null,
     }),
@@ -181,6 +200,26 @@ const STUBS = {
     },
   },
   "@/lib/platform-manual-lead-actions": { createManualLeadAction: async (previous) => previous },
+  // «Закрыть лид» / «Вернуть в работу»: подменённое действие записывает
+  // закрытие в состояние сценария и отвечает квитанцией, как сервер.
+  "@/lib/platform-closure-actions": {
+    leadClosureAction: async (previous, form) => {
+      const id = String(form.get("lead_id"));
+      const closed = form.get("closed") === "true";
+      const changedAt = new Date(NOW).toISOString();
+      const reason = closed ? String(form.get("reason")) : null;
+      const note = closed ? String(form.get("note") || "") || null : null;
+      if (closed) state.closed.set(id, { reason, note, closedAt: changedAt });
+      else state.closed.delete(id);
+      return { status: "saved", requestId: globalThis.crypto.randomUUID(), message: closed ? "Лид закрыт." : "Лид снова в работе.",
+        receipt: { leadId: id, lifecycle: closed ? "closed" : "open", reason, note, workflowVersion: String(form.get("expected_version")), changedAt } };
+    },
+    caseClosureAction: async (previous) => ({ ...previous, status: "unavailable", message: "Не удалось подтвердить. Повторите: повтор не выполнит действие дважды." }),
+  },
+  "@/lib/platform-closure": {
+    parseClosedLeadsCursor: (value) => (typeof value === "string" && value !== "" ? value : null),
+    readClosedLeads: async () => ({ rows: closedRows(), nextCursor: null }),
+  },
   "@/lib/platform-admissions-pipeline": {
     readAdmissionsPipelineBoard: async () => ({ rows: ADMISSIONS_ROWS, truncated: false }),
   },

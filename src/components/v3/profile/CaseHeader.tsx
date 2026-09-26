@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import { admissionsPipelineStage } from "@/lib/v3/wording";
 
+import type { CaseClosure } from "@/lib/platform-closure-contract";
+
 import { Pill } from "../Pill";
+import { ClosedLine } from "../closure/Closure";
 import type { NextStepAccess } from "../students/students-queue-view";
 import { AssignCaseCuratorForm } from "./AssignCaseCuratorForm";
 import { CaseNextStep } from "./CaseNextStep";
@@ -37,6 +40,8 @@ export type CaseHeaderInput = Readonly<{
   coverage: boolean;
   curators: readonly Readonly<{ membershipId: string; displayName: string }>[];
   assignCuratorRequestId: string;
+  /** Закрытие дела (246): исход, дата и «Вернуть в работу»; null — не прочитано. */
+  closure?: CaseClosure | null;
 }>;
 
 /**
@@ -66,7 +71,13 @@ export function CaseHeader(input: CaseHeaderInput) {
             </Link>
           ) : null}
         </Fact>
-        {input.state !== "active" ? <Fact term="Состояние">{input.state === "closed" ? "Дело закрыто" : "Ожидает начала"}</Fact> : null}
+        {input.state === "closed" && input.closure?.state === "closed" ? (
+          <Fact term="Состояние" wide>
+            <ClosedLine kind="case" subjectId={input.studentCaseId} expectedVersion={input.closure.admissionsVersion}
+              reasonKey={input.closure.outcome} note={input.closure.note} closedAt={input.closure.closedAt}
+              canReopen={input.closure.canChange} />
+          </Fact>
+        ) : input.state !== "active" ? <Fact term="Состояние">{input.state === "closed" ? "Дело закрыто" : "Ожидает начала"}</Fact> : null}
         <Fact term="Следующий шаг" wide>
           <CaseNextStep row={row} fallbackStep={input.fallbackStep} access={input.stepAccess}
             today={work.today} nowIso={work.nowIso} requestId={input.stepRequestId} />

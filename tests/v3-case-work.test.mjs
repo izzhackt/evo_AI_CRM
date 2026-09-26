@@ -221,7 +221,8 @@ test("unread parts say so: no stage, no step editor, no invented task, chat or d
 test("the page: name as h1, «Дело студента» tab title, back to the same list; the lead view keeps its own overview", () => {
   const page = read("src/app/(v3)/v3/profile/page.tsx");
   assert.match(page, /if \(typeof caseParam === "string" && leadParam === undefined\) return \{ title: "Дело студента" \};/u);
-  assert.match(page, /<PartShell title=\{caseParts && view \? view\.profile\.person : docsMode \? "EVO Docs" : view \? "Профиль" : "Студенты"\}/u);
+  // Закрытый лид (246) — тоже «Профиль».
+  assert.match(page, /<PartShell title=\{caseParts && view \? view\.profile\.person : docsMode \? "EVO Docs" : view \|\| closedLead \? "Профиль" : "Студенты"\}/u);
   assert.match(page, /<Link href=\{requestsReturnTo \?\? directoryHref\}[^>]*>\s*<Icon name="arrow-left" size=\{16\} \/>\s*\{requestsReturnTo \? "Заявки" : docsMode \? "EVO Docs" : "Студенты"\}/u);
   assert.match(page, /const caseTarget = view\?\.details\.routeTarget\.studentCaseId && view\.details\.admissions/u);
   assert.match(page, /caseOverview=\{caseParts\?\.overview \?\? undefined\}/u);

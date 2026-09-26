@@ -107,6 +107,8 @@ const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"))
 const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
 const workView = require(join(ROOT, "src/components/v3/profile/case-work-view.ts"));
 const queueView = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
+const closureUi = require(join(ROOT, "src/components/v3/closure/Closure.tsx"));
+const { ClosedLeadView } = require(join(ROOT, "src/components/v3/closure/ClosedLeadView.tsx"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сегодня» — среда 23.09.2026 по Бишкеку (как в статическом рендере «Студентов»).
@@ -288,7 +290,9 @@ const SCENARIOS = {
   "curator-accept": { actor: CURATOR, profile: profile(), draft: draft({ handoff: HANDOFF_PENDING }), sales: null,
     work: work({ row: queueRow({ flags: ["overdue", "awaiting_ack"] }) }) },
   // Куратор в своём деле после принятия: шаг просрочен, задачи, переписка ждёт ответа.
-  "curator": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null, work: work() },
+  // «⋯» у заголовка — «Завершить дело» (246): сервер подсказал право.
+  "curator": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null, work: work(),
+    closure: { studentCaseId: CASE_ID, state: "active", admissionsVersion: "4", closedAt: null, outcome: null, note: null, closedByName: null, canChange: true } },
   // Admin по делу, связанному с лидом: контакты, доступ к порталу, продажа, оплата, «Данные продажи».
   "admin": { actor: ADMIN, profile: profile({ leadId: LEAD_ID, email: "student@example.invalid", phone: "+996 000 000 001" }),
     draft: draft({ finance: true, contract: true, paidPercent: 40, paid: "600 $", remaining: "900 $", saleConditions: SALE_CONDITIONS,
@@ -304,6 +308,11 @@ const SCENARIOS = {
   // Закрытое дело: шаг не меняется, задач нет.
   "closed": { actor: CURATOR, profile: profile({ state: "closed" }), draft: draft({ state: "closed" }), sales: null,
     work: work({ row: queueRow({ state: "closed", flags: [] }), tasks: { kind: "ready", tasks: [], assignees: [] }, chat: { kind: "ready", awaitState: "none", last: null } }) },
+  // Дело завершено с исходом (246): в строке фактов «Закрыто · Поступил · дата · Вернуть в работу».
+  "closed-outcome": { actor: CURATOR, profile: profile({ state: "closed" }), draft: draft({ state: "closed" }), sales: null,
+    work: work({ row: queueRow({ state: "closed", flags: [] }), tasks: { kind: "ready", tasks: [], assignees: [] }, chat: { kind: "ready", awaitState: "none", last: null } }),
+    closure: { studentCaseId: CASE_ID, state: "closed", admissionsVersion: "6", closedAt: "2026-09-22T06:30:00.000Z", outcome: "enrolled", note: null,
+      closedByName: "Айгүл Осмонова", canChange: true } },
 };
 
 function buildParts(name) {
@@ -320,7 +329,7 @@ function buildParts(name) {
       step: uuid("12121212", 11), assignCurator: uuid("12121212", 12), portal: uuid("12121212", 13), note: uuid("12121212", 14),
     },
     notes: NOTES, notesOlderHref: null, notesLatestHref: null, curators: [], curatorsAvailable: true, hrefFor,
-    salesDataOpen: false, help: null,
+    salesDataOpen: false, help: null, closure: item.closure ?? null,
   });
   return { item, parts, hrefFor };
 }
@@ -351,16 +360,42 @@ function renderWorkspace(name) {
   return renderToStaticMarkup(withContexts(caseBody(name)));
 }
 
-function renderPage(name) {
+function renderPage(name, { closeDialog = false } = {}) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
   const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
   const back = createElement("a", { href: RETURN_TO, className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), "Студенты");
+  // «⋯» у заголовка — как в page.tsx: дело в работе и сервер подсказал право (246).
+  const closure = SCENARIOS[name].closure;
+  const action = closure?.state === "active" && closure.canChange
+    ? createElement(closureUi.CloseRecordMenu, { kind: "case", subjectId: CASE_ID, subjectName: NAME, expectedVersion: closure.admissionsVersion })
+    : undefined;
+  // Окно «Завершить дело» — то же, что открывает пункт меню; страница не гидратируется, снимок поднимает его `showModal()`.
+  const dialog = closeDialog
+    ? createElement(closureUi.ClosureDialog, { kind: "case", subjectId: CASE_ID, subjectName: NAME, expectedVersion: "4", onClose() {}, onDone() {} })
+    : null;
   const page = createElement("div", { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
     createElement(AppShell, { actor: SCENARIOS[name].actor, initialNotifications: null },
-      createElement(PartShell, { title: NAME, count: null, dense: true, back }, createElement("div", { className: "space-y-6" }, caseBody(name)))));
+      createElement(PartShell, { title: NAME, count: null, dense: true, back, action }, createElement("div", { className: "space-y-6" }, caseBody(name)))), dialog);
   return renderToStaticMarkup(withContexts(page));
+}
+
+// Lead 360 закрытого лида (246): «Профиль», строка «Закрыт · причина · дата · Вернуть в работу».
+function renderClosedLeadPage() {
+  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const row = { leadId: LEAD_ID, name: NAME, ownerName: "Эрмек Токтосунов", stageKey: "qualified", workflowVersion: "5",
+    closedAt: "2026-09-24T09:15:00.000Z", reason: "other_agency", note: null, closedByName: "Эрмек Токтосунов", canManage: true };
+  const page = createElement("div", { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
+    createElement(AppShell, { actor: ADMIN, initialNotifications: null },
+      createElement(PartShell, { title: "Профиль", count: null },
+        createElement("div", { className: "space-y-6" },
+          createElement(ClosedLeadView, { row, backHref: "/v3/pipeline", backLabel: "К воронке продаж", readOnly: false })))));
+  return renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: routerStub },
+    createElement(PathnameContext.Provider, { value: "/v3/profile" },
+      createElement(SearchParamsContext.Provider, { value: new URLSearchParams(`id=${LEAD_ID}`) },
+        createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, page)))));
 }
 
 // --- вид лида (`?id=…`): тот же Profile без частей дела ----------------------
@@ -392,6 +427,9 @@ function renderLeadPage(root) {
         wishesCard: uuid("13131313", 8), educationCard: uuid("13131313", 9), conditionsCard: uuid("13131313", 10) },
       noteRequestId: uuid("13131313", 11), notes: { ...NOTES, subject: { leadId: LEAD_ID, studentCaseId: null } },
       notesOlderHref: null, notesLatestHref: null, tab: "overview", hrefFor,
+      // «⋯» лида (246), как в page.tsx; дерево сравнения без него (`headerMenu` там не существует).
+      headerMenu: root === ROOT ? createElement(closureUi.CloseRecordMenu, { kind: "lead", subjectId: LEAD_ID, subjectName: LEAD.profile.person,
+        expectedVersion: LEAD.sales.lead.workflowVersion, blockedReason: null }) : undefined,
     }));
   const page = createElement("div", { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
     createElement(AppShell, { actor: LEAD.actor, initialNotifications: null },
@@ -522,6 +560,21 @@ async function screenshots() {
   const leadMarkup = renderLeadPage(ROOT);
   pages.push({ name: "lead", htmlPath: join(outDir, `${look}-lead.html`), shots: leadShots });
   writeHtml(pages.at(-1).htmlPath, "Профиль", css, leadMarkup);
+  // Закрытие (246): окно «Завершить дело», дело с исходом, закрытый Lead 360 — файлы `close-*.png`.
+  if (look === "case") {
+    const dialogPage = { name: "close-case-360", prefix: null, htmlPath: join(outDir, "close-case-360.html"),
+      shots: [shot("1440"), shot("dialog-1440", { do: "close-dialog" }), shot("dialog-390", { do: "close-dialog" })] };
+    writeHtml(dialogPage.htmlPath, "Дело студента", css, renderPage("curator", { closeDialog: true }));
+    const closedPage = { name: "close-case-360-closed", prefix: null, htmlPath: join(outDir, "close-case-360-closed.html"),
+      shots: [shot("1440"), shot("390"), shot("focus-1440", { do: "focus", focus: '[data-testid="v3-case-closed-line"] button' })] };
+    writeHtml(closedPage.htmlPath, "Дело студента", css, renderPage("closed-outcome"));
+    const leadPage = { name: "close-lead-360", prefix: null, htmlPath: join(outDir, "close-lead-360.html"), shots: [shot("1440"), shot("390")] };
+    writeHtml(leadPage.htmlPath, "Профиль", css, leadMarkup);
+    const leadClosedPage = { name: "close-lead-360-closed", prefix: null, htmlPath: join(outDir, "close-lead-360-closed.html"),
+      shots: [shot("1440"), shot("390")] };
+    writeHtml(leadClosedPage.htmlPath, "Профиль", css, renderClosedLeadPage());
+    pages.push(dialogPage, closedPage, leadPage, leadClosedPage);
+  }
   let compareMarkup = null;
   if (COMPARE_ROOT) {
     compareMarkup = renderLeadPage(COMPARE_ROOT);
@@ -532,9 +585,11 @@ async function screenshots() {
   const browser = await chromium.launch();
   const captured = new Map();
   try {
-    for (const { name, htmlPath, shots } of pages) {
+    // `--only=имя,имя` — снять только эти страницы (например, `--only=close-case-360,close-lead-360`).
+    const only = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length).split(",") ?? null;
+    for (const { name, htmlPath, shots, prefix = look } of pages.filter((one) => only === null || only.includes(one.name))) {
       for (const { suffix, context, full, do: action, at, focus } of shots) {
-        const file = `${look}-${name}-${suffix}.png`;
+        const file = prefix === null ? `${name}-${suffix}.png` : `${prefix}-${name}-${suffix}.png`;
         const browserContext = await browser.newContext(context);
         const page = await browserContext.newPage();
         const errors = [];
@@ -554,6 +609,14 @@ async function screenshots() {
           });
         }
         if (action === "sales") await page.click('[data-testid="v3-case-sales-data"] > summary');
+        if (action === "close-dialog") {
+          // Окно в верхнем слое, исход «Поступил» выбран — как после щелчка по «Завершить дело…».
+          await page.evaluate(() => {
+            const dialog = document.querySelector('[data-testid="v3-close-case-dialog"]');
+            dialog.showModal();
+            dialog.querySelector('input[value="enrolled"]').checked = true;
+          });
+        }
         if (action === "focus") await keyboardFocus(page, focus);
         if (full) {
           await page.addStyleTag({ content: STATIC_NAV });
@@ -619,7 +682,7 @@ async function screenshots() {
     await browser.close();
   }
   if (compareMarkup !== null) {
-    const same = (suffix) => captured.get(`lead-${suffix}`).equals(captured.get(`lead-main-${suffix}`));
+    const same = (suffix) => captured.get(`lead-${suffix}`)?.equals(captured.get(`lead-main-${suffix}`) ?? Buffer.alloc(0)) ?? false;
     // Путь к файлу логотипа у деревьев разный; сравнивается остальная разметка. Отличия названы.
     const differences = markupDifferences(leadMarkup, compareMarkup.replaceAll(pathToFileURL(COMPARE_ROOT).href, pathToFileURL(ROOT).href));
     process.stdout.write(`lead view vs ${COMPARE_ROOT}: markup ${differences.length ? `differs: ${differences.join(" ")}` : "identical"}; `
@@ -635,6 +698,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: case-static-render.cjs --json | --screenshots [outDir] [--look=next]");
+  console.error("usage: case-static-render.cjs --json | --screenshots [outDir] [--look=next] [--only=page,…]");
   process.exit(2);
 }

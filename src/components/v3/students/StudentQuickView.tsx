@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 
+import type { CaseClosure, CaseClosureReceipt } from "@/lib/platform-closure-contract";
 import type { CaseNextActionReceipt, StudentCaseQueueRow } from "@/lib/platform-student-case-queue-contract";
 import { admissionsPipelineStage, taskStatus } from "@/lib/v3/wording";
 
@@ -10,6 +11,7 @@ import { queueDue } from "../queue/due-bucket";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { QueueDetailPanel } from "../queue/QueueDetailPanel";
 import { ProfileHandoffAcknowledgement } from "../profile/ProfileSalesTransition";
+import { ClosedLine, CloseRecordButton } from "../closure/Closure";
 import { NextStepEditor } from "./NextStepEditor";
 import { studentsRowMeta } from "./StudentsQueueTable";
 import { studentsDocumentsLine, type NextStepAccess, type StudentsHandoff, type StudentsOpenTasks } from "./students-queue-view";
@@ -55,6 +57,8 @@ export function StudentQuickView({
   links,
   requestId,
   onSaved,
+  closure = null,
+  onClosureChanged,
 }: Readonly<{
   row: StudentCaseQueueRow;
   today: string;
@@ -66,8 +70,20 @@ export function StudentQuickView({
   links: QuickViewLinks;
   requestId: string;
   onSaved: (receipt: CaseNextActionReceipt) => void;
+  /** Закрытие этого дела (246): исход, дата и подсказка права; null — не прочитано. */
+  closure?: CaseClosure | null;
+  /** «Завершить дело» или «Вернуть в работу» подтверждены сервером. */
+  onClosureChanged?: (receipt: CaseClosureReceipt) => void;
 }>) {
   const headingId = useId();
+  // Квитанция последнего закрытия/возврата — до того, как придёт новое чтение.
+  const [receipt, setReceipt] = useState<CaseClosureReceipt | null>(null);
+  const changed = (next: CaseClosureReceipt) => { setReceipt(next); onClosureChanged?.(next); };
+  const known = receipt && receipt.state === row.state ? receipt : null;
+  const closedFacts = known && known.state === "closed"
+    ? { outcome: known.outcome, note: known.note, closedAt: known.closedAt }
+    : closure?.state === "closed" && row.state === "closed" ? { outcome: closure.outcome, note: closure.note, closedAt: closure.closedAt } : null;
+  const canChange = closure?.canChange === true;
   const headingRef = useRef<HTMLHeadingElement>(null);
   const stepHeadingId = `${headingId}-step`;
   // Приём или отказ записан: перечитанный снимок больше не ждёт ответа, и блок уходит —
@@ -93,8 +109,12 @@ export function StudentQuickView({
         <h2 ref={headingRef} id={headingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg">{row.studentDisplayName}</h2>
         <p className="t-meta text-fg-2">{studentsRowMeta(row)}</p>
       </header>
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap gap-2">
         <Link href={links.case} className={QUEUE_SECONDARY}>Открыть дело</Link>
+        {row.state === "active" && canChange && (known !== null || closure?.state === "active") ? (
+          <CloseRecordButton kind="case" subjectId={row.studentCaseId} subjectName={row.studentDisplayName}
+            expectedVersion={row.admissionsVersion} onClosed={changed} className={QUEUE_SECONDARY} />
+        ) : null}
       </div>
       {/* Принять дело — главное действие куратора по переданному делу: первым под шапкой. */}
       {handoff ? (
@@ -117,8 +137,17 @@ export function StudentQuickView({
             : row.currentCuratorDisplayName ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
           {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}
         </Fact>
-        {row.state !== "active" ? <Fact term="Состояние">{row.state === "closed" ? "Дело закрыто" : "Ожидает начала"}</Fact> : null}
+        {row.state === "closed" && closedFacts ? (
+          <Fact term="Состояние">
+            <ClosedLine key={row.admissionsVersion} kind="case" subjectId={row.studentCaseId} expectedVersion={row.admissionsVersion}
+              reasonKey={closedFacts.outcome} note={closedFacts.note} closedAt={closedFacts.closedAt}
+              canReopen={canChange} onReopened={changed} />
+          </Fact>
+        ) : row.state !== "active" ? <Fact term="Состояние">{row.state === "closed" ? "Дело закрыто" : "Ожидает начала"}</Fact> : null}
       </dl>
+      {row.state === "active" && known ? (
+        <p role="status" className="py-2 t-body-compact text-ok">Дело снова в работе.</p>
+      ) : null}
 
       <section aria-labelledby={stepHeadingId} className={`mt-2 ${SECTION}`}>
         <h3 id={stepHeadingId} className="t-item text-fg">Следующий шаг</h3>

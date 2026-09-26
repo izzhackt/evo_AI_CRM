@@ -110,7 +110,7 @@ test("the sidebar folds to a 64px rail on board routes below 1536px and keeps na
   const nav = tag(sales, /<nav aria-label="Разделы"[^>]*>/u);
   assert.match(classOf(nav), /\bmd:w-16\b/u);
   assert.match(classOf(nav), /\b2xl:w-\[260px\]/u);
-  assert.match(sales, /<span class="min-w-0 md:max-2xl:sr-only">Главная<\/span>/u, "labels stay for assistive tech");
+  assert.match(sales, /<span class="min-w-0 md:max-2xl:sr-only">Сегодня<\/span>/u, "labels stay for assistive tech");
   // Group structure: the expand toggle hides in the rail, a top-layer flyout takes over.
   assert.match(sales, /<button type="button" popoverTarget="[^"]+" aria-label="Продажи" aria-expanded="false" class="hidden [^"]*md:max-2xl:flex/u);
   assert.match(sales, /<div id="[^"]+" popover="auto" role="group" aria-label="Продажи"[^>]*>[\s\S]*?Воронка продаж/u);

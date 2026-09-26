@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 import { expect, test, type Download, type Locator, type Page } from "@playwright/test";
 import postgres from "postgres";
-import { STAFF_BASELINE_CARDS as ROLE_DASHBOARD_CARD_KEYS, STAFF_BASELINE_HOME as ROLE_HOME } from "./staff-baseline";
+import { STAFF_BASELINE_HOME as ROLE_HOME } from "./staff-baseline";
 
 const authMode = process.env.EVO_EXPECT_STAFF_AUTH_MODE ?? "configured";
 
@@ -585,17 +585,13 @@ async function expectActiveRole(
   );
 }
 
-async function expectOperationalDashboardCards(page: Page, role: TestRole) {
-  const dashboard = page.getByTestId("v3-operational-dashboard");
-  await expect(dashboard).toBeVisible();
-  const cards = dashboard.locator("[data-dashboard-card]");
-  await expect(cards).toHaveCount(ROLE_DASHBOARD_CARD_KEYS[role].length);
-  const actualKeys = await cards.evaluateAll((elements) =>
-    elements
-      .map((element) => element.getAttribute("data-dashboard-card"))
-      .sort(),
-  );
-  expect(actualKeys).toEqual([...ROLE_DASHBOARD_CARD_KEYS[role]].sort());
+// «Сегодня» (Э3, 26.09.2026) replaced the card overview: every role lands on
+// one queue under the same page test id, never on a sample or zero fallback.
+async function expectTodayQueue(page: Page) {
+  const today = page.getByTestId("v3-operational-dashboard");
+  await expect(today).toBeVisible();
+  await expect(today.getByRole("heading", { level: 1, name: "Сегодня" })).toBeVisible();
+  await expect(today.locator("[data-dashboard-card]")).toHaveCount(0);
 }
 
 async function expectDirectRouteDenied(
@@ -786,7 +782,7 @@ test("all three real identities persist, enforce role routes, and log out", asyn
     }
     await signIn(page, candidate.role);
     await expectActiveRole(page, candidate.role);
-    await expectOperationalDashboardCards(page, candidate.role);
+    await expectTodayQueue(page);
     await expect(page.getByTestId("active-role")).toHaveText(label);
     await expect
       .poll(async () =>
@@ -1338,16 +1334,22 @@ test("Sales and Admin mutate one canonical workflow while anonymous and Admissio
   expect(qualifiedEntries.some((entry) => entry.lead_id === leadId)).toBe(true);
 
   await signIn(page, "admin");
+  // «Сегодня» (Э3, 26.09.2026): the period cohort lives in «Динамика по
+  // дням» of «Отчёт продаж» (open once a period is chosen). Its figures are a
+  // <dl>: «Из них квалифицированы» names the cohort; the trend legend and the
+  // board funnel («Квалифицирован») are separate elements.
   await page.goto(
-    `/v3/main?period=custom&from=${cohortDate}&to=${cohortDate}`,
+    `/v3/main?view=sales&period=custom&from=${cohortDate}&to=${cohortDate}`,
   );
-  const qualifiedMetric = page.locator("li").filter({
-    has: page.getByText("Квалифицированы", { exact: true }),
+  const periodFigures = page.locator("#sales-dynamics dl[data-period-figures]");
+  await expect(periodFigures).toBeVisible();
+  const qualifiedFigure = periodFigures.locator("div").filter({
+    has: page.locator("dt", { hasText: /^Из них квалифицированы$/u }),
   });
-  await expect(qualifiedMetric).toHaveCount(1);
-  await expect(
-    qualifiedMetric.getByText(String(qualifiedEntries.length), { exact: true }),
-  ).toBeVisible();
+  await expect(qualifiedFigure).toHaveCount(1);
+  await expect(qualifiedFigure.locator("dd")).toHaveText(
+    qualifiedEntries.length.toLocaleString("ru-RU"),
+  );
 });
 
 test("Sales and Admin persist the same canonical workflow through the real interface", async ({

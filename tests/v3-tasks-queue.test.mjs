@@ -215,7 +215,9 @@ test("focus leaving with a completed row moves to the next remaining row, else t
   assert.equal(queueFocusAfterRemoval(keys, "d", new Set(["d"])), "c");
   assert.equal(queueFocusAfterRemoval(keys, "b", new Set(keys)), null);
   assert.equal(queueFocusAfterRemoval(keys, "x", new Set(["x"])), null);
-  const list = read("src/components/v3/tasks/TaskQueueList.tsx");
+  // The in-place completion lifecycle is shared by «Задачи» and «Сегодня» (useRecentCompletions).
+  const list = read("src/components/v3/tasks/useRecentCompletions.ts");
+  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /useRecentCompletions\(bands\)/u);
   // Each completion keeps its own deadline: a refresh or another completion does not extend it.
   assert.match(list, /const expiresAt = Date\.now\(\) \+ TASK_UNDO_MS;/u);
   assert.match(list, /Math\.max\(0, Math\.min\(\.\.\.live\.map\(\(entry\) => entry\.expiresAt\)\) - Date\.now\(\)\)/u);
@@ -367,7 +369,8 @@ test("the body groups rows under due bands and completes in the row", () => {
 test("«Срок» is its own column right before the title, not at the far edge", () => {
   const mine = surfaces.get("mine-default");
   const row = mine.slice(mine.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
-  assert.match(row, /^[^>]*class="relative grid grid-cols-\[2\.75rem_minmax\(0,1fr\)_2\.75rem\] [^"]*@min-\[32rem\]:grid-cols-\[2\.75rem_7rem_minmax\(0,1fr\)_2\.75rem\] hover:bg-surface/u);
+  // `.v3-queue-row`: ссылка строки покрывает строку — фокус клавиатуры рамкой всей строки (26.09.2026).
+  assert.match(row, /^[^>]*class="v3-queue-row relative grid grid-cols-\[2\.75rem_minmax\(0,1fr\)_2\.75rem\] [^"]*@min-\[32rem\]:grid-cols-\[2\.75rem_7rem_minmax\(0,1fr\)_2\.75rem\] hover:bg-surface/u);
   // DOM order = visual order: circle, date column, then the title link.
   assert.match(row, /^[^>]*><div class="flex">[\s\S]*?<\/div><p class="hidden self-start pt-1 t-body-compact @min-\[32rem\]:block"><time [^>]*>20\.09<\/time>[\s\S]*?<\/p><div class="min-w-0 py-0\.5"><a data-queue-open=""/u);
   // The narrow meta line leads with the same date.

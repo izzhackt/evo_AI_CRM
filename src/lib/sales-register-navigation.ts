@@ -57,3 +57,34 @@ export function salesReportContext(query: Readonly<Record<string, unknown>>, cur
     reportMonth: `${year}-${String(month ?? current.month).padStart(2, "0")}-01`,
   };
 }
+
+/** Якорь раздела «Динамика по дням» внизу отчёта. */
+export const SALES_DYNAMICS_ANCHOR = "sales-dynamics";
+
+/**
+ * Параметры отчёта, которые раздел «Динамика по дням» несёт в своих ссылках
+ * периода и форме диапазона: выбор периода не сбрасывает месяц, фильтры и
+ * страницу отчёта. Только одиночные строки из списка ключей отчёта.
+ */
+export function salesDynamicsCarry(query: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
+  const carry: Record<string, string> = { view: "sales" };
+  for (const key of REPORT_KEYS) {
+    const value = query[key];
+    if (typeof value === "string" && value !== "") carry[key] = value;
+  }
+  return carry;
+}
+
+/** Ссылка периода раздела: `/v3/main?view=sales&…&period=week#sales-dynamics`. */
+export function salesDynamicsHref(
+  query: Readonly<Record<string, unknown>>,
+  period: Readonly<{ key: string; from?: string; to?: string }>,
+): string {
+  const params = new URLSearchParams(salesDynamicsCarry(query));
+  params.set("period", period.key);
+  if (period.key === "custom" && period.from && period.to) {
+    params.set("from", period.from);
+    params.set("to", period.to);
+  }
+  return `/v3/main?${params.toString()}#${SALES_DYNAMICS_ANCHOR}`;
+}

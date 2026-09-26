@@ -67,8 +67,8 @@ test("tab slots per role follow the owner's order: admissions and Admin — Ст
     assert.equal(tabs.kind, kind, who);
     assert.deepEqual(ids(tabs.links), expected, who);
   }
-  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => link.label), ["Главная", "Студенты", "Задачи", "Сообщения"]);
-  assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => link.label), ["Главная", "Воронка продаж", "Заявки", "Задачи"]);
+  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Сообщения"]);
+  assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => link.label), ["Сегодня", "Воронка продаж", "Заявки", "Задачи"]);
 });
 
 test("tabs come only from the role's visible navigation: never an item it cannot open, never more than four plus «Ещё»", () => {
@@ -107,6 +107,9 @@ test("every menu item of the new look has an icon from the existing set", () => 
     for (const link of visibleNavigationLinks(nav(who))) assert.ok(NEXT_LINK_ICONS[link.id], link.id);
     for (const group of nav(who).groups) assert.ok(NEXT_GROUP_ICONS[group.id], group.id);
   }
+  // «Сегодня» (Э3) — один знак в обоих обликах.
+  assert.equal(NEXT_LINK_ICONS.home, "sun");
+  assert.match(read("src/components/v3/AppShell.tsx"), /const LINK_ICONS = \{\s*home: "sun",/u);
 });
 
 test("icons tell the rail items apart: one glyph per meaning, three conversations with three glyphs", () => {
@@ -136,8 +139,8 @@ test("tab labels fit one line: short label only where the full one does not, and
       assert.ok(label.text.length < label.name.length, link.id);
     }
   }
-  assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => shellTabLabel(link).text), ["Главная", "Воронка", "Заявки", "Задачи"]);
-  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => shellTabLabel(link).text), ["Главная", "Студенты", "Задачи", "Сообщения"]);
+  assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Воронка", "Заявки", "Задачи"]);
+  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Студенты", "Задачи", "Сообщения"]);
   assert.equal(shellTabLabel({ id: "pipeline", label: "Воронка продаж" }).name, "Воронка продаж");
 });
 
@@ -175,10 +178,10 @@ const surface = (name) => {
 };
 const count = (html, pattern) => [...html.matchAll(pattern)].length;
 const EXPECTED_TABS = {
-  admin: ["Главная", "Студенты", "Задачи", "Сообщения"],
-  admissions: ["Главная", "Студенты", "Задачи", "Сообщения"],
-  "admissions-staff": ["Главная", "Студенты", "Задачи", "Сообщения"],
-  sales: ["Главная", "Воронка", "Заявки", "Задачи"],
+  admin: ["Сегодня", "Студенты", "Задачи", "Сообщения"],
+  admissions: ["Сегодня", "Студенты", "Задачи", "Сообщения"],
+  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Сообщения"],
+  sales: ["Сегодня", "Воронка", "Заявки", "Задачи"],
 };
 function tabbar(html) {
   const start = html.indexOf('<nav aria-label="Быстрые разделы"');

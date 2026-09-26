@@ -1,6 +1,7 @@
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { SalesRegisterWorkspace, SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
@@ -8,7 +9,6 @@ import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRe
 import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
 import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
-import { SalesReportNavigation } from "./SalesReportNavigation";
 import { SalesRegisterForm, SalesTargetForm } from "./SalesRegisterForms";
 import { SalesRecordPreview } from "./SalesRecordPreview";
 import { salesDirectionControl } from "@/lib/sales-register-directions";
@@ -22,7 +22,29 @@ const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
 const money = (minor: number | null, currency: string | null) => minor === null || !currency ? "Не уточнено" : `${number.format(minor / 100)} ${currency}`;
 const dateLabel = (date: string | null) => date ? date.split("-").reverse().join(".") : "Дата не указана";
 
-export async function SalesRegisterView({ actor, query }: { actor: ActivePlatformActor; query: SalesReportQuery }) {
+/**
+ * «Отчёт продаж» роли, которая читает лиды, но не записи отчёта (Admissions
+ * по миграции 173: `lead.read` без `sales.register.read`). До «Сегодня» она
+ * видела «Лиды за период», «Динамику» и воронку на Главной; теперь они —
+ * раздел «Динамика по дням» (`dynamics`), и страница — только он. Чтений
+ * записей нет: их сервер этой роли не отдаёт.
+ */
+export function SalesDynamicsReport({ dynamics }: { dynamics: ReactNode }) {
+  return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
+    <header className="min-w-0">
+      <h1 className="t-page-title text-fg">Отчёт продаж</h1>
+      <p className="t-meta mt-1 text-fg-3">Записи продаж вашей роли недоступны: здесь лиды за период и доска продаж.</p>
+    </header>
+    {dynamics}
+  </main>;
+}
+
+/**
+ * «Отчёт продаж». `dynamics` — раздел «Динамика по дням» (графики и воронка,
+ * Э3 26.09.2026) для ролей, читающих продажи; стоит под записями и только в
+ * виде списка — не в редакторе и не в карточке записи.
+ */
+export async function SalesRegisterView({ actor, query, dynamics = null }: { actor: ActivePlatformActor; query: SalesReportQuery; dynamics?: ReactNode }) {
   const now = new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit" }).formatToParts(new Date());
   const { year, month, offset, searchQuery, valid, reportMonth, params, href, clearFiltersHref, importHref } = salesReportContext(query, {
     year: Number(now.find(p => p.type === "year")!.value), month: Number(now.find(p => p.type === "month")!.value),
@@ -68,7 +90,6 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
 
   return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
-    <SalesReportNavigation sales />
     {(!editing || !canManage) && !viewingRecord ? <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
         <h1 className="t-page-title text-fg">Отчёт продаж</h1>
@@ -194,6 +215,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           {workspace.hasMore ? <Link href={href({ offset: String(offset + 50) })} className={`${btnGhostCls} min-h-11`}>Далее</Link> : <span />}
         </nav>
       </>}
+      {dynamics}
       {(showTargetForm && month && query.archived !== "true") || canImport || managementUnavailable ? <div className="mt-8 space-y-5 border-t border-border pt-5">
         {managementUnavailable ? <p role="alert" className="text-sm text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null}
         {showTargetForm && month && query.archived !== "true" ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Изменить план месяца</summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace || managementUnavailable} /></details> : null}

@@ -10,24 +10,28 @@ const META_WIDTHS = ["w-1/3", "w-1/4"];
  * Загрузка очереди — форма будущего экрана: ряд вкладок, строка инструментов
  * и волосяные строки, без текста-заглушки и без скачка раскладки.
  */
-export function QueueSkeleton({ rows = 6, label = "Загружаем задачи…", leading = true }: Readonly<{
+export function QueueSkeleton({ rows = 6, label = "Загружаем задачи…", leading = true, head = true }: Readonly<{
   rows?: number;
   /** Что загружается — для читалки. */
   label?: string;
   /** Круг выполнения слева (у задач); у списков без него — false. */
   leading?: boolean;
+  /** Вкладки и строка инструментов; у очереди без них («Сегодня») — false. */
+  head?: boolean;
 }>) {
   return (
     <div aria-busy="true" className="space-y-4" data-testid="queue-skeleton">
       <p role="status" className="sr-only">{label}</p>
-      <div className="flex gap-2 border-b border-border pb-2">
-        {["w-20", "w-26", "w-30"].map((width) => <SkeletonBlock key={width} className={`h-11 rounded-nav ${width}`} />)}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <SkeletonBlock className="h-11 w-full max-w-sm rounded-ctl" />
-        <SkeletonBlock className="hidden h-11 w-24 rounded-ctl md:block" />
-        <SkeletonBlock className="hidden h-11 w-24 rounded-ctl md:block" />
-      </div>
+      {head ? <>
+        <div className="flex gap-2 border-b border-border pb-2">
+          {["w-20", "w-26", "w-30"].map((width) => <SkeletonBlock key={width} className={`h-11 rounded-nav ${width}`} />)}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <SkeletonBlock className="h-11 w-full max-w-sm rounded-ctl" />
+          <SkeletonBlock className="hidden h-11 w-24 rounded-ctl md:block" />
+          <SkeletonBlock className="hidden h-11 w-24 rounded-ctl md:block" />
+        </div>
+      </> : null}
       <ul>
         {Array.from({ length: rows }, (_, index) => (
           <li key={index} className="flex min-h-[3.25rem] items-center gap-2 border-b border-border py-2">

@@ -57,7 +57,7 @@ try {
       for (const route of routes) {
         await page.goto(`${base}${route}`, { waitUntil: "networkidle" });
         if (route === "/v3/main") {
-          await page.getByText("Квалифицированы", { exact: true }).first().waitFor();
+          await page.getByRole("heading", { level: 1, name: "Сегодня" }).waitFor();
         }
         await assertStyled(page, base, { v3: true });
         const axe = await new AxeBuilder({ page })

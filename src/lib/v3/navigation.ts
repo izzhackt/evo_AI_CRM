@@ -41,8 +41,10 @@ export type V3NavigationGroup = Readonly<{
 
 type NavigationQuery = Pick<URLSearchParams, "getAll" | "has" | "toString">;
 
+// «Сегодня» (Э3, 26.09.2026): стартовая страница каждой роли — очередь того,
+// что пора сделать; id и адрес прежние.
 const HOME: V3NavigationLink = {
-  id: "home", href: "/v3/main", route: "/v3/main", label: "Главная",
+  id: "home", href: "/v3/main", route: "/v3/main", label: "Сегодня",
 };
 const SETTINGS: V3NavigationLink = {
   id: "settings", href: "/v3/settings", route: "/v3/settings", label: "Настройки",
@@ -154,10 +156,13 @@ export function buildV3Navigation(
   pathname: string,
   query: NavigationQuery,
 ) {
+  // «Отчёт продаж» — записи отчёта или (Э3, 26.09.2026) раздел «Динамика по
+  // дням» для роли, которая читает лиды без записей: графики и воронка ушли
+  // сюда с прежней Главной, где она их видела. Просмотр роли — по sales.read.
   const allowed = (link: V3NavigationLink) =>
     staffCanAccessRoute(actor, link.route)
     && (link.id !== "sales-report"
-      || (isStaffPreview(actor) ? staffPresentationCan(actor, "sales.read") : staffCan(actor, "sales.report.read")))
+      || staffPresentationCan(actor, "sales.read") || (!isStaffPreview(actor) && staffCan(actor, "sales.report.read")))
     && (link.id !== "evo-docs" || isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"))
     && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;

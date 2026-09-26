@@ -17,7 +17,8 @@ import type { V3Navigation, V3NavigationGroup, V3NavigationLink, V3NavigationLin
  * WhatsApp — круглый (его собственная форма), «Командный чат» — два пузыря.
  */
 export const NEXT_LINK_ICONS = {
-  home: "grid",
+  // «Сегодня» (Э3): тот же знак, что в прежнем облике.
+  home: "sun",
   requests: "file-check",
   inbox: "message-circle",
   pipeline: "funnel",

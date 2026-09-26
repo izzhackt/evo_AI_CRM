@@ -22,7 +22,7 @@
  *       разметка оболочки в прежнем и новом облике с простым телом (для
  *       tests/v3-shell-next.test.mjs).
  *   node tests/e2e/shell-static-render.cjs --screenshots [outDir]
- *     → страницы Главная, Студенты, доска, Сообщения, Задачи: оболочка —
+ *     → страницы «Сегодня», Студенты, доска, Сообщения, Задачи: оболочка —
  *       `renderToString` и `hydrateRoot` настоящими клиентскими компонентами
  *       (бандл esbuild); тело — статическая разметка настоящих экранов из
  *       students/tasks/boards-static-render.cjs --json и CaseChatWorkspace с
@@ -31,9 +31,9 @@
  *       320×568 и сценарии (отделы на 1280×800 и тень у края списка, лист «Ещё»
  *       с «Закрыть» на месте «Ещё», уведомления в верхнем слое, поле ответа и
  *       подписи вкладок при крупном корневом шрифте, рейка при просмотре
- *       роли, одна высота заголовка у всех страниц). Главная — настоящая
- *       страница `v3/main/page.tsx` с синтетическими чтениями (у поступления
- *       она ведёт на «Воронку поступления» — снимок показывает её). Проверки
+ *       роли, одна высота заголовка у всех страниц). «Сегодня» — настоящая
+ *       страница `v3/main/page.tsx` с синтетическими читателями очереди
+ *       (стартовая у каждой роли, без перенаправлений). Проверки
  *       печатаются JSON-строками; при нарушении — код выхода 1. По умолчанию
  *       outDir — .impeccable/review (не коммитится).
  */
@@ -159,12 +159,12 @@ const ACTORS = {
 // Ожидаемые вкладки (решение владельца 26.09.2026): доступные имена — полные
 // имена разделов; видимая подпись «Воронки продаж» короче — «Воронка».
 const EXPECTED_TABS = {
-  admin: ["Главная", "Студенты", "Задачи", "Сообщения", "Ещё"],
-  admissions: ["Главная", "Студенты", "Задачи", "Сообщения", "Ещё"],
-  "admissions-staff": ["Главная", "Студенты", "Задачи", "Сообщения", "Ещё"],
-  sales: ["Главная", "Воронка продаж", "Заявки", "Задачи", "Ещё"],
+  admin: ["Сегодня", "Студенты", "Задачи", "Сообщения", "Ещё"],
+  admissions: ["Сегодня", "Студенты", "Задачи", "Сообщения", "Ещё"],
+  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Сообщения", "Ещё"],
+  sales: ["Сегодня", "Воронка продаж", "Заявки", "Задачи", "Ещё"],
 };
-const EXPECTED_TAB_TEXT = { ...EXPECTED_TABS, sales: ["Главная", "Воронка", "Заявки", "Задачи", "Ещё"] };
+const EXPECTED_TAB_TEXT = { ...EXPECTED_TABS, sales: ["Сегодня", "Воронка", "Заявки", "Задачи", "Ещё"] };
 
 const notificationId = (n) => `ffffffff-3333-4333-8333-${String(n).padStart(12, "0")}`;
 const NOTIFICATIONS = {
@@ -192,106 +192,80 @@ function partShell(props, innerHtml) {
 }
 
 /**
- * Главная — настоящая страница `src/app/(v3)/v3/main/page.tsx`: её чтения
- * (актёр страницы, лиды за период, текущая воронка, рабочий обзор) заменены
- * синтетическими ответами, разметку строит сама страница. Если страница
- * перенаправляет (поступление без продаж → «Воронка поступления»), фикстура
- * возвращает адрес перенаправления: снимок показывает то, куда роль попадает.
+ * Стартовая страница — «Сегодня» (Э3), настоящая страница
+ * `src/app/(v3)/v3/main/page.tsx`: актёр страницы подменён, очередь собирает
+ * настоящий `readTodayQueue` (права роли, независимые чтения) с
+ * синтетическими читателями — по паре задач, дел, лидов и переписок, сроки
+ * от сегодняшнего дня. Разметку строит сама страница. Перенаправлений у неё
+ * нет: «Сегодня» — стартовая страница каждой роли.
  */
-const HOME_LEADS = [3, 1, 2, 4, 0, 2, 5, 3, 1, 2, 2, 4, 1, 0, 3, 2, 5, 2, 1, 3, 4, 2, 1, 0, 2, 3, 1, 4, 2, 3];
-function homePeriodDashboard() {
-  const { FUNNEL_STEP } = require(join(ROOT, "src/lib/v3/wording.ts"));
-  const qualified = HOME_LEADS.map((value, index) => (index % 3 === 0 ? Math.max(0, value - 1) : Math.floor(value / 2)));
-  const handed = qualified.map((value, index) => (index % 4 === 0 ? Math.min(value, 1) : 0));
-  const sum = (values) => values.reduce((total, value) => total + value, 0);
-  const counts = { leads: sum(HOME_LEADS), qualified: sum(qualified), handed: sum(handed) };
-  const months = ["авг", "сен"];
-  const ticks = HOME_LEADS.map((_value, index) => {
-    if (index % 5 !== 0) return "";
-    const day = 28 + index;
-    return day <= 31 ? `${day} ${months[0]}` : `${day - 31} ${months[1]}`;
+function homeReaders(actor) {
+  const { dayInOrganizationTimezone } = require(join(ROOT, "src/lib/platform-task-deadline.ts"));
+  const { shiftDay } = require(join(ROOT, "src/components/v3/calendar/types.ts"));
+  const today = dayInOrganizationTimezone(new Date());
+  const day = (offset) => shiftDay(today, offset);
+  const me = actor.membershipId;
+  const id = (prefix, n) => `${prefix}-${String(n).padStart(12, "0")}`;
+  const staffTask = (n, title, dueOn) => ({
+    id: id("bbbbbbbb-5555-4555-8555", n), organizationId: ORG, creatorMembershipId: me, creatorDisplayName: actor.displayName,
+    assigneeMembershipId: me, assigneeDisplayName: actor.displayName, title, description: null, status: "open", priority: "normal",
+    dueOn, dueAt: null, version: "1", sourceMessageId: null, createdAt: "2026-09-20T05:00:00.000Z", updatedAt: "2026-09-24T05:00:00.000Z",
+  });
+  const caseRow = (n, name, step, due) => ({
+    studentCaseId: id("dddddddd-2222-4222-8222", n), studentDisplayName: name, state: "active", admissionsDirection: "CN", targetCountry: null,
+    targetDegree: "Бакалавриат", pipelineStage: "documents", pipelineHidden: false, nextAction: step, nextActionDueOn: due,
+    dueBand: due < today ? "overdue" : due === today ? "today" : "later", admissionsVersion: "1", currentCuratorMembershipId: me,
+    currentCuratorDisplayName: actor.displayName, isMine: true, attentionFlags: [], overdueTaskCount: 0, documents: null,
+    updatedAt: "2026-09-24T05:00:00.000000Z", cursor: `due|0|${due}|${id("dddddddd-2222-4222-8222", n)}`,
+  });
+  const lead = (n, name, action, due, owner) => ({
+    id: id("ffffffff-3333-4333-8333", n), name, stageKey: due ? "contacting" : "new", source: "website", nextAction: action,
+    nextActionAt: due ? `${due.slice(8)}.${due.slice(5, 7)}` : null, due: due === null ? "none" : due < today ? "overdue" : due === today ? "today" : "later",
+    stageAgeDays: 1, latestNote: null, href: `/v3/profile?id=${id("ffffffff-3333-4333-8333", n)}`,
+    workflow: {
+      leadId: id("ffffffff-3333-4333-8333", n), currentOwnerMembershipId: owner, currentOwnerDisplayName: owner ? actor.displayName : null,
+      stageKey: due ? "contacting" : "new", nextActionText: action, nextActionDueDate: due, workflowVersion: "1",
+    },
   });
   return {
-    figures: {
-      counts,
-      metrics: [
-        { label: FUNNEL_STEP.leads, value: counts.leads, insteadOfDelta: null },
-        { label: FUNNEL_STEP.qualified, value: counts.qualified, insteadOfDelta: null },
-        { label: FUNNEL_STEP.handed, value: counts.handed, insteadOfDelta: null },
-      ],
-      stages: [
-        { name: FUNNEL_STEP.leads, value: counts.leads },
-        { name: FUNNEL_STEP.qualified, value: counts.qualified },
-        { name: FUNNEL_STEP.handed, value: counts.handed },
-      ],
+    async listStaffTasks() {
+      return { rows: [staffTask(1, "Подготовить вопросы к планёрке (синтетика)", day(-1)), staffTask(2, "Проверить отчёт недели (синтетика)", today)], nextCursor: null };
     },
-    trend: {
-      series: [
-        { label: FUNNEL_STEP.leads, values: HOME_LEADS, emphasis: "primary" },
-        { label: FUNNEL_STEP.qualified, values: qualified, emphasis: "secondary" },
-        { label: FUNNEL_STEP.handed, values: handed, emphasis: "secondary" },
-      ],
-      ticks,
-      label: "за 30 дней (синтетика)",
+    async listCaseTasks() {
+      return { rows: [], nextCursor: null };
+    },
+    async readStudentCaseQueue(_actor, request) {
+      const rows = request.view === "mine" ? [caseRow(1, "Студент А (синтетика)", "Собрать документы (синтетика)", today), caseRow(2, "Студент Б (синтетика)", "Отправить анкету (синтетика)", day(3))] : [];
+      return { view: request.view, sort: "due", today, rows, nextCursor: null };
+    },
+    async readLeads(_actor, assignment) {
+      return {
+        leads: assignment === "mine" ? [lead(1, "Лид А (синтетика)", "Перезвонить (синтетика)", today, me)] : [lead(2, "Лид Б (синтетика)", null, null, null)],
+        truncated: false,
+      };
+    },
+    async readChats() {
+      return {
+        rows: [{ studentCaseId: id("dddddddd-2222-4222-8222", 3), studentDisplayName: "Студент В (синтетика)", lastMessageSnippet: "Добрый день (синтетика)",
+          lastMessageAt: `${day(-1)}T08:00:00.000Z`, lastMessageAuthorMembershipId: "aaaaaaaa-1111-4111-8111-000000000099", awaitState: "needs_reply", unread: true }],
+        truncated: false,
+      };
     },
   };
-}
-
-function homeCurrentFunnel() {
-  const { PLATFORM_SALES_STAGES } = require(join(ROOT, "src/lib/platform-sales-contract.ts"));
-  const { leadStage } = require(join(ROOT, "src/lib/v3/wording.ts"));
-  const values = [14, 9, 6, 4, 3, 2];
-  return {
-    status: "available",
-    stages: PLATFORM_SALES_STAGES.map((key, index) => ({ key, name: leadStage(key), value: values[index] })),
-    sales: { status: "available", count: 5 },
-  };
-}
-
-function homeOperations(role) {
-  const sales = [
-    { key: "sales", href: "/v3/pipeline", loadedCount: 38, hasMore: false, overdueCount: 4, unassignedCount: 2 },
-    { key: "whatsapp", href: "/v3/inbox", loadedCount: 12, hasMore: false, salesCount: 8, admissionsCount: 4 },
-  ];
-  const admissions = [
-    { key: "clients", href: "/v3/profile", loadedCount: 57, hasMore: false, attentionCount: 6 },
-    { key: "tasks", href: "/v3/calendar", loadedCount: 23, hasMore: false, overdueCount: 3 },
-    { key: "finance", href: "/v3/profile", loadedCount: 100, hasMore: true, blockedCount: null },
-  ];
-  const attention = [
-    { key: "sales_overdue", href: "/v3/pipeline?due=overdue", value: 4, tone: "danger" },
-    { key: "sales_unassigned", href: "/v3/pipeline?assignment=unassigned", value: 2, tone: "warn" },
-    { key: "whatsapp_open", href: "/v3/inbox", value: 12, tone: "info" },
-  ];
-  const admissionsAttention = [
-    { key: "student_attention", href: "/v3/profile", value: 6, tone: "warn" },
-    { key: "admissions_overdue", href: "/v3/calendar", value: 3, tone: "danger" },
-  ];
-  return role === "sales"
-    ? { cards: sales, attentionItems: attention }
-    : { cards: [sales[0], ...admissions, sales[1]], attentionItems: [...attention.slice(0, 2), ...admissionsAttention, attention[2]] };
 }
 
 async function homeFixture(role) {
-  const actor = ACTORS[role];
+  // Назначения оболочки несут только подпись; права задач читают и область —
+  // у синтетических сотрудников она «свои».
+  const actor = { ...ACTORS[role], assignments: ACTORS[role].assignments.map((assignment) => ({ scope: { kind: "own", key: null, resourceKind: null }, ...assignment })) };
   const guards = require(join(ROOT, "src/lib/platform-guards.ts"));
-  const period = require(join(ROOT, "src/lib/v3/funnel-source.ts"));
-  const operations = require(join(ROOT, "src/lib/v3/operations-source.ts"));
-  const current = require(join(ROOT, "src/lib/v3/current-sales-funnel-source.ts"));
+  const today = require(join(ROOT, "src/lib/v3/today-source.ts"));
   guards.requireV3PageActor = async () => actor;
-  period.readPeriodDashboard = async () => homePeriodDashboard();
-  operations.readV3OperationalDashboard = async () => homeOperations(role);
-  // Просмотр роли не раскрывает воронку Admin — так же, как настоящее чтение.
-  current.readCurrentSalesFunnel = async () => (actor.presentationRole === null ? homeCurrentFunnel() : { status: "preview" });
+  const read = today.readTodayQueue.harnessOriginal ?? today.readTodayQueue;
+  today.readTodayQueue = Object.assign((who, options) => read(who, { ...options, readers: homeReaders(actor) }), { harnessOriginal: read });
   const { default: MainPart } = require(join(ROOT, "src/app/(v3)/v3/main/page.tsx"));
-  try {
-    const element = await MainPart({ searchParams: Promise.resolve({}) });
-    return { pathname: "/v3/main", search: "", body: renderToStaticMarkup(withContexts(element, "/v3/main", "")) };
-  } catch (error) {
-    const digest = typeof error?.digest === "string" ? error.digest : "";
-    if (!digest.startsWith("NEXT_REDIRECT")) throw error;
-    return { redirectedTo: digest.split(";")[2] };
-  }
+  const element = await MainPart({ searchParams: Promise.resolve({}) });
+  return { pathname: "/v3/main", search: "", body: renderToStaticMarkup(withContexts(element, "/v3/main", "")) };
 }
 
 function spawnJson(script) {
@@ -650,14 +624,9 @@ async function pageFixtures() {
       : messages,
     tasks: () => ({ pathname: "/v3/tasks", search: "", body: partShell({ title: "Задачи" }, tasks.get("mine-default")) }),
   };
-  // Главная — настоящая страница; перенаправление ведёт на снимок той страницы, куда роль попадает.
+  // «Сегодня» — настоящая страница, без перенаправлений: стартовая у каждой роли.
   const homes = {};
-  for (const role of Object.keys(ACTORS)) {
-    const home = await homeFixture(role);
-    if (home.redirectedTo === "/v3/admissions-pipeline") homes[role] = { ...fixtures.board(role), redirectedFrom: "/v3/main" };
-    else if (home.redirectedTo) throw new Error(`home ${role}: unexpected redirect ${home.redirectedTo}`);
-    else homes[role] = home;
-  }
+  for (const role of Object.keys(ACTORS)) homes[role] = await homeFixture(role);
   return fixtures;
 }
 
@@ -754,7 +723,7 @@ async function screenshots() {
           const metrics = await session.page.evaluate(shellMetrics);
           await session.page.screenshot({ path: join(outDir, file) });
           await finish(session, file);
-          report({ file, page: pageKey, role, redirectedFrom: fixtures[pageKey](role).redirectedFrom ?? null, firstLayoutWidth: session.firstLayoutWidth, ...metrics });
+          report({ file, page: pageKey, role, firstLayoutWidth: session.firstLayoutWidth, ...metrics });
           const label = `${file}`;
           // Заголовок страницы: одна высота у всех страниц окна (кроме доски в рейке — там нет логотипа).
           if (metrics.headingTop !== null) (headingTops[viewportKey] ??= []).push({ file, top: metrics.headingTop });
@@ -871,7 +840,7 @@ async function screenshots() {
       check(expanded.logoutInViewport && scrolled.logoutInViewport, `${file}: «Выйти» outside the viewport`);
       if (pageKey === "home") {
         // Текущая страница вне отделов: открыт только последний открытый отдел.
-        check(!initial["Продажи"] && !initial["Поступление"], `${file}: groups open on Главная ${JSON.stringify(initial)}`);
+        check(!initial["Продажи"] && !initial["Поступление"], `${file}: groups open on «Сегодня» ${JSON.stringify(initial)}`);
         check(!expanded.after["Продажи"] && expanded.after["Поступление"], `${file}: groups are not single-open ${JSON.stringify(expanded.after)}`);
       } else {
         // «Студенты» в «Поступлении»: отдел текущей страницы остаётся открытым.

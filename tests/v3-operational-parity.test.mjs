@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
 
@@ -7,38 +7,33 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-test("both V3 role homes render the canonical role-scoped operational dashboard", () => {
+test("«Сегодня» is the one start page of every role and replaces the operational overview", () => {
   const main = source("src/app/(v3)/v3/main/page.tsx");
   const calendar = source("src/app/(v3)/v3/calendar/page.tsx");
-  const adapter = source("src/lib/v3/operations-source.ts");
-  const overview = source("src/components/v3/OperationsOverview.tsx");
+  const today = source("src/lib/v3/today-source.ts");
 
-  // Главная остаётся единственным местом с рабочим обзором: календарь не
-  // рисует ту же сводку второй раз. Карточка-ссылка «Сводка на Главной» снята
-  // решением владельца 25.09.2026 — «Главная» первым пунктом меню у всех ролей.
-  assert.match(main, /readV3OperationalDashboard\(actor\)/u);
-  assert.match(main, /<OperationsOverview snapshot=\{operations\} \/>/u);
-  assert.doesNotMatch(calendar, /OperationsOverview/u);
+  // Э3 (26.09.2026): /v3/main is «Сегодня» for every role — Admissions is no
+  // longer redirected to its board — and the release smoke finds the page
+  // root by the same test id. The queue reads only existing sources.
+  assert.match(main, /testId="v3-operational-dashboard"/u);
+  assert.match(main, /readTodayQueue\(actor, \{ now \}\)/u);
+  assert.match(main, /<TodayScreen\b/u);
+  assert.doesNotMatch(main, /redirect\("\/v3\/admissions-pipeline"\)/u);
+  assert.doesNotMatch(main, /OperationsOverview|readV3OperationalDashboard|readCurrentSalesFunnel|TrendChart|MetricCard/u);
+  // Charts, period and funnel live in the report's «Динамика по дням».
+  assert.match(main, /query\.view === "sales"/u);
+  assert.match(main, /<SalesDynamics\b/u);
+  assert.doesNotMatch(calendar, /OperationsOverview|TodayScreen/u);
   assert.doesNotMatch(calendar, /href="\/v3\/main"/u);
   assert.doesNotMatch(calendar, /Сводка на Главной/u);
-  assert.match(adapter, /readPlatformDashboardSnapshot\(actor\)/u);
-  assert.match(adapter, /ActivePlatformActor/u);
-  for (const key of ["sales", "clients", "tasks", "finance", "whatsapp"]) {
-    assert.match(overview, new RegExp(`${key}:`));
+  for (const reader of ["staff.listStaffTasks", "workspace.listPlatformAdmissionsTaskQueue", "queue.readStudentCaseQueue",
+    "pipeline.readPipelineLeads", "chat.readStaffCaseChatThreads"]) {
+    assert.match(today, new RegExp(reader.replace(".", "\\.")), reader);
   }
-  for (const key of [
-    "sales_overdue",
-    "sales_unassigned",
-    "student_attention",
-    "admissions_overdue",
-    "finance_stops",
-    "whatsapp_open",
-  ]) {
-    assert.match(overview, new RegExp(`${key}:`));
+  assert.doesNotMatch(today, /\.rpc\(|createSupabaseServerClient/u, "no new read: only the existing readers");
+  for (const retired of ["src/components/v3/OperationsOverview.tsx", "src/lib/v3/operations-source.ts", "src/components/v3/SalesReportNavigation.tsx"]) {
+    assert.equal(existsSync(new URL(`../${retired}`, import.meta.url)), false, retired);
   }
-  assert.match(overview, /href=\{card\.href\}/u);
-  assert.match(overview, /href=\{item\.href\}/u);
-  assert.doesNotMatch(overview, /href=["']\/dashboard/u);
 });
 
 test("V3 profile preserves strict searchable paginated Student Case discovery", () => {

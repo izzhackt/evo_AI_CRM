@@ -1587,7 +1587,9 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   ));
   await page.context().clearCookies();
   await signIn(page, "admissions");
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=overview`);
+  // The case «Обзор» keeps one line per application (owner decision 2026-09-26);
+  // the applications workspace lives on «Вузы и программы» (`tab=route`).
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=route`);
   await expect(page.getByTestId("v3-profile")).toBeVisible();
   await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 
@@ -2033,7 +2035,9 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await page.context().clearCookies();
   await signIn(page, "admissions");
 
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=overview`);
+  // Applications are created and changed on «Вузы и программы» (`tab=route`);
+  // the reloads below stay on that tab.
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=route`);
   await expect(page.getByTestId("v3-profile")).toBeVisible();
   await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 

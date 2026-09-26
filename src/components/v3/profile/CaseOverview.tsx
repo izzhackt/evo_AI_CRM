@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import type { HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import type { StudentCaseChecklistCounts } from "@/lib/platform-student-case-queue-contract";
-import { applicationStatus, caseChatAwaitState, handoffAcknowledgementLabel } from "@/lib/v3/wording";
+import { applicationStatus, caseChatAwaitState } from "@/lib/v3/wording";
 
 import { Icon } from "@/components/icons";
 
@@ -14,6 +14,7 @@ import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
 import { CaseDisclosure } from "./CaseDisclosure";
 import { CaseHandoffBlock } from "./CaseHandoffBlock";
 import { CaseTaskList } from "./CaseTaskList";
+import { HandoffResponseSummary } from "./ProfileSalesTransition";
 import { caseMomentLabel, type CaseApplicationLine, type CaseWorkRead } from "./case-work-view";
 
 const SECTION = "min-w-0 space-y-2 border-t border-border pt-4";
@@ -217,7 +218,13 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
         ) : null}
         {answered && handoff ? (
           <Fact term="Приём дела">
-            {handoff.current ? handoffAcknowledgementLabel(handoff.current.decision) : "Ожидает ответа куратора"}
+            {/* Как прежняя карточка «Приём дела»: решение, текст куратора (уточнение или причина отказа)
+                и согласованный контакт — их видят и те, кто ответить не может (Admin, Admissions Manager). */}
+            <HandoffResponseSummary current={handoff.current ? {
+              decision: handoff.current.decision,
+              clarification: handoff.current.clarification,
+              agreedContactDate: handoff.current.agreedContactDate,
+            } : null} />
             {handoff.canRespond ? (
               <details>
                 <summary className={SUMMARY}>Изменить ответ</summary>
@@ -242,8 +249,8 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
  * «Что дальше» (приём дела, открытые задачи) → «Документы» → «Переписка» →
  * «Заявки» → «Оплата» → «Заметки». Каждая часть — строка из уже прочитанных
  * данных со ссылкой на свою вкладку; формы продажи — в свёрнутом разделе
- * «Данные продажи». От 1280 px справа — «Сведения»: контакты, доступ к
- * порталу, приём дела и продажа.
+ * «Данные продажи». От 1280 px справа — «Сведения»: контакты, приём дела
+ * (решение, текст куратора, согласованный контакт) и продажа.
  */
 export function CaseOverview(input: CaseOverviewInput) {
   const facts = hasFacts(input);

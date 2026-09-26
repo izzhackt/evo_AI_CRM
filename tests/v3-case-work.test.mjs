@@ -166,7 +166,19 @@ test("after acceptance the answer moves to «Сведения»; nothing on the 
   const html = surfaces.get("curator");
   assert.equal((visible(html).match(/bg-accent (?:px|text)/gu) ?? []).length, 0);
   assert.doesNotMatch(html, /data-testid="v3-case-next"[\s\S]*?data-testid="v3-case-handoff"[\s\S]*?data-testid="v3-case-tasks"/u);
-  assert.match(texts(html), /Сведения Приём дела Дело принято куратором Изменить ответ/u);
+  assert.match(texts(html), /Сведения Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026 Изменить ответ/u);
+});
+
+test("«Приём дела» in «Сведения» keeps the curator's answer for those who cannot respond: decision, reason, agreed contact", () => {
+  // Admin не отвечает на назначение: причина отказа куратора — та же, что в прежней карточке «Приём дела».
+  const declined = surfaces.get("admin-declined");
+  assert.match(texts(declined), /Сведения Приём дела Назначение отклонено куратором Нагрузка выше нормы до конца октября, прошу назначить другого куратора\./u);
+  assert.doesNotMatch(texts(declined), /Изменить ответ|Принять дело/u);
+  assert.doesNotMatch(declined, /data-testid="v3-case-handoff"/u);
+  // Тот же HandoffResponseSummary, что у карточки «Приём дела» на лиде и во вкладке «Вузы и программы».
+  const overview = read("src/components/v3/profile/CaseOverview.tsx");
+  assert.match(overview, /import \{ HandoffResponseSummary \} from "\.\/ProfileSalesTransition";/u);
+  assert.match(overview, /<Fact term="Приём дела">[\s\S]*?<HandoffResponseSummary current=\{handoff\.current \? \{\n\s+decision: handoff\.current\.decision,\n\s+clarification: handoff\.current\.clarification,\n\s+agreedContactDate: handoff\.current\.agreedContactDate,/u);
 });
 
 test("Admin: sales forms leave the overview for a collapsed «Данные продажи»; contacts and portal are one line each", () => {
@@ -187,7 +199,7 @@ test("Admin: sales forms leave the overview for a collapsed «Данные пр�
   assert.match(text, /Оплата Договор и оплата 40% оплачено · остаток 900 \$/u);
   assert.match(text, /Доступ к порталу анкета одобрена Настроить/u);
   assert.match(html, /aria-expanded="false" aria-controls="[^"]+"[^>]*>Настроить<\/button><\/div><div id="[^"]+" hidden=""/u);
-  assert.match(text, /Сведения Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Продажа Эрмек Токтосунов Передано в поступление/u);
+  assert.match(text, /Сведения Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026 Продажа Эрмек Токтосунов Передано в поступление/u);
   assert.match(text, /Нагрузка кураторов/u);
   assert.match(html, /href="\/v3\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000001&amp;coverage_case=cccccccc-2222-4222-8222-000000000001#curator-coverage"/u);
 });

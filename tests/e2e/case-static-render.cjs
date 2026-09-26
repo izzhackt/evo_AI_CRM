@@ -205,6 +205,12 @@ const HANDOFF_ACCEPTED = {
   ...HANDOFF_PENDING, canRespond: false,
   current: { acknowledgementId: uuid("33333333", 1), decision: "accepted", clarification: null, agreedContactDate: "2026-09-24", createdAt: "2026-09-21T04:00:00.000Z" },
 };
+// Куратор отклонил назначение с причиной; отвечать может только он — Admin видит ответ целиком.
+const HANDOFF_DECLINED = {
+  ...HANDOFF_PENDING, canRespond: false,
+  current: { acknowledgementId: uuid("33333333", 2), decision: "declined", clarification: "Нагрузка выше нормы до конца октября, прошу назначить другого куратора.",
+    agreedContactDate: null, createdAt: "2026-09-21T04:00:00.000Z" },
+};
 
 const CHAT = {
   needsReply: { kind: "ready", awaitState: "needs_reply", last: { authorName: NAME, mine: false, text: "Здравствуйте! Нотариус просит оригинал аттестата, можно принести в пятницу?", createdAt: "2026-09-22T08:14:00.000Z" } },
@@ -290,6 +296,8 @@ const SCENARIOS = {
         submittedAt: "2026-08-20T04:00:00.000Z", decidedAt: "2026-08-21T04:00:00.000Z", decisionReason: null, studentCaseId: CASE_ID,
         admissionsDirection: "CN", canonicalLeadId: LEAD_ID } }),
     sales: SALES, work: work({ chat: CHAT.awaiting }) },
+  // Admin после отказа куратора: в «Сведениях» — решение и причина отказа (ответить может только куратор).
+  "admin-declined": { actor: ADMIN, profile: profile(), draft: draft({ handoff: HANDOFF_DECLINED }), sales: null, work: work() },
   // Строка очереди не прочитана, задачи недоступны, переписка закрыта правами — всё названо, ничего не выдумано.
   "unread": { actor: CURATOR, profile: profile(), draft: draft({ documents: false }), sales: null,
     work: work({ row: null, tasks: { kind: "unavailable" }, chat: { kind: "forbidden" } }) },
@@ -499,6 +507,7 @@ async function screenshots() {
       ...["portal-1440", "portal-1280", "portal-1280-full", "portal-390", "portal-390-full"].map((suffix) => shot(suffix, PORTAL)),
       ...["sales-1440", "sales-1440-full", "sales-1280", "sales-1280-full", "sales-390", "sales-390-full"].map((suffix) => shot(suffix, SALES)),
     ]],
+    ["admin-declined", ["1440", "390-full"].map((suffix) => shot(suffix))],
     ["unread", ["1440", "1280", "390", "390-full"].map((suffix) => shot(suffix))],
     ["closed", ["1440", "1280", "390", "390-full"].map((suffix) => shot(suffix))],
   ];

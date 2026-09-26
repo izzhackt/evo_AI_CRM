@@ -265,7 +265,7 @@ export async function moveCasePipeline(
   let requestId: string;
   try {
     organizationId = requireAdmissionsOrganization(actor);
-    // The key move_case_pipeline_v1 checks per case (243); the broad
+    // The key move_case_pipeline_v1 checks per case (244); the broad
     // admissions.write section also covers roles the server refuses.
     if (!staffHasPermission(actor, "case.update.append")) mutationFailure("forbidden");
     studentCaseId = requiredUuid(input.studentCaseId);

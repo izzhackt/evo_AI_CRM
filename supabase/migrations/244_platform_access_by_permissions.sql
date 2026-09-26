@@ -1,6 +1,9 @@
 -- Доступ по правам роли для приглашённых сотрудников (аудит доступа 26.09.2026).
 -- docs/PLAN_CHANGES.md «2026-09-26 — Доступ по правам роли для приглашённых
--- сотрудников (миграция 243)».
+-- сотрудников (миграция 243)» and «2026-09-26 — Доступ по правам роли: номер
+-- миграции 243 → 244»: written as 243, renumbered to 244 on the rebase onto
+-- #1064, which took 243 (243_platform_case_baseline_options_read_gate.sql,
+-- a disjoint function). The content is unchanged.
 --
 -- Why: since 155 the coarse role (organization_memberships.current_role) is
 -- frozen. Every staff member invited through «Сотрудники» has it NULL, so
@@ -75,7 +78,7 @@ DECLARE
   actor RECORD; fingerprint TEXT; prior platform_private.case_pipeline_requests%ROWTYPE;
   case_row platform.student_cases%ROWTYPE; before_state JSONB; after_state JSONB; receipt JSONB;
 BEGIN
-  -- 243: staff (never a student) whose role holds case.update.append; the
+  -- 244: staff (never a student) whose role holds case.update.append; the
   -- coarse role is frozen since 155 and NULL for every invited member.
   SELECT a.* INTO actor FROM platform.current_actor_authority() a
     WHERE a.organization_id = p_organization_id AND a.platform_role IS DISTINCT FROM 'student'
@@ -170,7 +173,7 @@ BEGIN
   PERFORM 1 FROM platform_private.require_admin_actor(p_organization_id, 'case.curator.assign');
   PERFORM platform_private.lock_student_case_note_assignment_domain(p_organization_id);
   PERFORM platform_private.lock_p2d_request(p_request_id);
-  -- 243: 156 dropped the Admin-only locked recheck this body used to call
+  -- 244: 156 dropped the Admin-only locked recheck this body used to call
   -- and moved 117's assign path to this helper (row locks +
   -- case.curator.assign on the case). require_admin_actor around it keeps
   -- this RPC Admin-only.
@@ -217,7 +220,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- c) platform.staff_save_application_requirements_v1 (226): staff actor row
 -- ---------------------------------------------------------------------------
-DO $a243_requirements$
+DO $a244_requirements$
 DECLARE
   original TEXT;
   body TEXT;
@@ -234,7 +237,7 @@ BEGIN
   END IF;
   EXECUTE body;
 END
-$a243_requirements$;
+$a244_requirements$;
 
 -- ---------------------------------------------------------------------------
 -- d) platform.prepare_lead_cabinet_v1 (184): staff with the lead permission
@@ -247,7 +250,7 @@ DECLARE actor RECORD; owner_id UUID; client_id_value UUID; client_name TEXT; cli
 BEGIN
   PERFORM platform_private.lock_p2d_request(p_request_id);
   IF p_lead_id IS NULL THEN RAISE EXCEPTION 'lead_cabinet_invalid_command' USING ERRCODE='22023'; END IF;
-  -- 243: staff (never a student); the lead permission below decides, not the
+  -- 244: staff (never a student); the lead permission below decides, not the
   -- coarse role frozen since 155.
   SELECT a.* INTO actor FROM platform.current_actor_authority() a
     WHERE a.organization_id=p_organization_id AND a.platform_role IS DISTINCT FROM 'student';
@@ -304,7 +307,7 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- Staff-чтение запросов удаления: только admin своей организации (план §6:
 -- «Удаление аккаунта» — процесс команды; sales/curator доступа не имеют).
--- 243: `<> 'admin'` пропускал NULL-роль; IS DISTINCT FROM отказывает ей.
+-- 244: `<> 'admin'` пропускал NULL-роль; IS DISTINCT FROM отказывает ей.
 CREATE OR REPLACE FUNCTION platform.staff_account_deletion_requests_v1()
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE a RECORD;
@@ -340,7 +343,7 @@ END $$;
 -- f) Board, queue, counts and direction summary: refuse students and anon
 -- explicitly; staff pass by case.read.full as before
 -- ---------------------------------------------------------------------------
-DO $a243_reads$
+DO $a244_reads$
 DECLARE
   target RECORD;
   original TEXT;
@@ -369,7 +372,7 @@ BEGIN
     EXECUTE body;
   END LOOP;
 END
-$a243_reads$;
+$a244_reads$;
 
 -- ---------------------------------------------------------------------------
 -- g) Same grants as their origin migrations, restated; self-check
@@ -399,7 +402,7 @@ GRANT EXECUTE ON FUNCTION
 
 -- No coarse-role gate and no call to the dropped helper remain in the nine
 -- bodies; each stays SECURITY DEFINER with the empty search_path.
-DO $a243_verify$
+DO $a244_verify$
 DECLARE routine RECORD;
 BEGIN
   FOR routine IN SELECT p.oid::REGPROCEDURE AS signature, p.prosrc, p.prosecdef, p.proconfig
@@ -419,13 +422,13 @@ BEGIN
       OR strpos(routine.prosrc, 'require_case_assignment_admin_locked') <> 0
       OR NOT routine.prosecdef OR routine.proconfig IS DISTINCT FROM ARRAY['search_path=""']
     THEN
-      RAISE EXCEPTION 'a243_access_by_permissions_verification_failed: %', routine.signature;
+      RAISE EXCEPTION 'a244_access_by_permissions_verification_failed: %', routine.signature;
     END IF;
   END LOOP;
   IF to_regprocedure('platform_private.require_case_assignment_operator_locked(uuid,uuid)') IS NULL THEN
-    RAISE EXCEPTION 'a243_access_by_permissions_verification_failed: operator helper missing';
+    RAISE EXCEPTION 'a244_access_by_permissions_verification_failed: operator helper missing';
   END IF;
 END
-$a243_verify$;
+$a244_verify$;
 
 COMMIT;

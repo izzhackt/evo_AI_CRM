@@ -1,7 +1,7 @@
-// Migration 243 (access by role permissions for invited staff): static
+// Migration 244 (access by role permissions for invited staff): static
 // checks of the migration text, its real-Postgres suite wiring and the board
 // move pre-check. These supplement, never replace, the boundary suite
-// supabase/tests/platform_access_by_permissions.sql (checkpoint 243 in
+// supabase/tests/platform_access_by_permissions.sql (checkpoint 244 in
 // scripts/test-postgres-authorization.sh), which runs every changed function
 // against members modelled like production (coarse role NULL, the production
 // role bundles and scope shapes).
@@ -15,15 +15,15 @@ import {
 } from "../src/lib/platform-admissions-pipeline.ts";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const migration = source("supabase/migrations/243_platform_access_by_permissions.sql");
+const migration = source("supabase/migrations/244_platform_access_by_permissions.sql");
 const suite = source("supabase/tests/platform_access_by_permissions.sql");
 const script = source("scripts/test-postgres-authorization.sh");
 const pipeline = source("src/lib/platform-admissions-pipeline.ts");
 
-const ORG = "24300000-0000-4000-8000-000000000001";
-const REQUEST = "24300000-0000-4000-8000-000000003001";
+const ORG = "24400000-0000-4000-8000-000000000001";
+const REQUEST = "24400000-0000-4000-8000-000000003001";
 
-/** The body of one CREATE OR REPLACE FUNCTION in 243, up to its closing $$. */
+/** The body of one CREATE OR REPLACE FUNCTION in 244, up to its closing $$. */
 function functionBody(signaturePrefix) {
   const start = migration.indexOf(`CREATE OR REPLACE FUNCTION ${signaturePrefix}(`);
   assert.notEqual(start, -1, signaturePrefix);
@@ -32,7 +32,7 @@ function functionBody(signaturePrefix) {
   return migration.slice(bodyStart, bodyEnd);
 }
 
-test("243 is one forward-only transaction that rewrites only the nine audited functions", () => {
+test("244 is one forward-only transaction that rewrites only the nine audited functions", () => {
   assert.match(migration, /^BEGIN;$/mu);
   assert.match(migration, /^COMMIT;\s*$/mu);
   assert.doesNotMatch(migration, /\bDROP\s+(FUNCTION|TABLE|POLICY|TRIGGER)\b/iu);
@@ -59,7 +59,7 @@ test("243 is one forward-only transaction that rewrites only the nine audited fu
   assert.equal((migration.match(/SECURITY DEFINER SET search_path ?= ?''/gu) ?? []).length, 4);
 });
 
-test("deliberately unchanged surfaces stay out of 243 (owner decisions B, C and E)", () => {
+test("deliberately unchanged surfaces stay out of 244 (owner decisions B, C and E)", () => {
   for (const name of [
     "require_student_portal_cabinet_actor_e1",
     "assert_student_portal_cabinet_membership_e1",
@@ -123,14 +123,14 @@ test("deletion requests: NULL no longer passes the Admin check", () => {
 test("grants are restated as before and the migration verifies itself", () => {
   assert.match(migration, /FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;\nGRANT EXECUTE ON FUNCTION/u);
   assert.doesNotMatch(migration, /GRANT [A-Z ,]+ TO (anon|service_role|PUBLIC)/u);
-  assert.match(migration, /a243_access_by_permissions_verification_failed/u);
+  assert.match(migration, /a244_access_by_permissions_verification_failed/u);
 });
 
-test("the real-Postgres suite runs at checkpoint 243 with production-shaped members", () => {
-  assert.match(script, /== 243_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_access_by_permissions\.sql/u);
+test("the real-Postgres suite runs at checkpoint 244 with production-shaped members", () => {
+  assert.match(script, /== 244_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_access_by_permissions\.sql/u);
   assert.match(suite, /^BEGIN;$/mu);
   assert.match(suite, /^ROLLBACK;\s*$/mu);
-  assert.match(suite, /N243_ACCESS_BY_PERMISSIONS_SUITE_PASS/u);
+  assert.match(suite, /N244_ACCESS_BY_PERMISSIONS_SUITE_PASS/u);
   assert.match(suite, /= ARRAY\[35, 36, 23, 12, 16\], 'role bundles have the production key counts/u);
   assert.match(suite, /"current_role" IS NULL AND current_bundle_id IS NULL/u);
   assert.doesNotMatch(suite, /@(?!example\.invalid)[a-z0-9-]+\.[a-z]/iu, "synthetic addresses only");

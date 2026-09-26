@@ -2676,7 +2676,7 @@ SQL
       -f /workspace/supabase/tests/platform_case_baseline_options_read_gate.sql
   fi
 
-  # Migration 243 (access by role permissions, 26.09 access audit): invited
+  # Migration 244 (access by role permissions, 26.09 access audit): invited
   # staff have coarse role NULL, so the suite models members exactly like
   # production (NULL coarse role, the production role bundles and scope
   # shapes). It proves board moves by case.update.append per case, curator
@@ -2685,7 +2685,7 @@ SQL
   # accessible leads only, deletion requests for the Admin only, and
   # board/queue/counts/summary reads unchanged for staff and refused for
   # students, callers without a membership and anonymous callers.
-  if [[ "$(basename "$migration")" == 243_* ]]; then
+  if [[ "$(basename "$migration")" == 244_* ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_access_by_permissions.sql

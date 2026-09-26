@@ -29,8 +29,8 @@
  *       записями: раздел «Динамика по дням» открыт (выбран период; 1440,
  *       1280, 390 во весь рост) и свёрнут по умолчанию под записями (1440 и
  *       390 во весь рост). По умолчанию outDir — .impeccable/review (не
- *       коммитится). `--look=next` — предпросмотр нового облика (Э1.1): имена
- *       файлов получают суффикс `-next`.
+ *       коммитится). `--look=next` — предпросмотр нового облика (Э1.1) с его
+ *       оболочкой (Э1.2): имена файлов получают суффикс `-next`.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -458,9 +458,10 @@ async function renderFullPage(name, look) {
   const { who, node } = report ? { who: report.leadsOnly ? ACTORS.admissions : ACTORS.sales, node: await buildReport(report) } : await buildPage(name);
   const page = createElement(
     "div",
-    // `--look=next` — предпросмотр нового облика (Э1.1), как у Admin с включённым переключателем.
+    // `--look=next` — предпросмотр нового облика (Э1.1), как у Admin с включённым переключателем;
+    // оболочка — как у layout после Э1.2: `AppShell` с `look="next"`.
     { className: "v3-world", "data-look": look === "next" ? "next" : undefined },
-    createElement(AppShell, { actor: who, initialNotifications: null }, node),
+    createElement(AppShell, { actor: who, initialNotifications: null, ...(look === "next" ? { look: "next" } : {}) }, node),
   );
   // Отчёт — `/v3/main?view=sales`: меню подсвечивает «Отчёт продаж», а не «Сегодня».
   return renderToStaticMarkup(withContexts(page, report ? reportSearch(report) : ""));
@@ -521,8 +522,9 @@ async function screenshots() {
         tab.on("pageerror", (error) => errors.push(error.message));
         await tab.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
         await tab.evaluate(() => document.fonts.ready);
-        // Логотип оболочки — картинка с диска: снимок после её загрузки.
-        await tab.waitForFunction(() => [...document.images].every((image) => image.complete));
+        // Логотип оболочки — картинка с диска: снимок после её загрузки. Оболочка нового облика
+        // держит логотип и в скрытой на этой ширине строке; ленивая картинка там не грузится.
+        await tab.waitForFunction(() => [...document.images].every((image) => image.complete || image.getClientRects().length === 0));
         if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
         let focusFacts = "";
         if (focus) {

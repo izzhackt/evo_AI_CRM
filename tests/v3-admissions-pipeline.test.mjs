@@ -268,8 +268,18 @@ function boardHarness(moveAction) {
   const topLayerMenu = compile("src/components/v3/board/TopLayerMenu.tsx", (id) => ({
     react: hooks, "@/components/v3/board/menu-position": menuPosition,
   })[id]);
+  // The new-look blocks (Э1.3) are production sources as well: compiled, not stubbed.
+  const personName = compile("src/components/v3/queue/person-name.ts", () => undefined);
+  const initials = compile("src/components/v3/blocks/Initials.tsx", (id) => ({
+    "../queue/person-name": personName,
+  })[id]);
+  const look = compile("src/components/v3/blocks/look.ts", () => undefined);
+  const statusChip = compile("src/components/v3/blocks/StatusChip.tsx", () => undefined);
   const board = compile("src/components/v3/AdmissionsPipelineBoard.tsx", (id) => ({
     react: hooks,
+    "@/components/v3/blocks/Initials": initials,
+    "@/components/v3/blocks/look": look,
+    "@/components/v3/blocks/StatusChip": statusChip,
     "next/link": { default: "a" },
     "next/navigation": { useRouter: () => ({ refresh() {} }) },
     "@/components/ui": ui,

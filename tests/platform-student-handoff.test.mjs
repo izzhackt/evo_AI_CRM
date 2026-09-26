@@ -566,13 +566,17 @@ test("V3 profile exposes the gate through the reviewed server-action contract; t
   );
   assert.doesNotMatch(source, /handoffPlatformLeadToAdmissionsAction/);
   assert.equal(source.match(/name="expected_gate_version"/g)?.length, 1);
-  assert.equal(source.match(/<Version value=\{gateVersion\} \/>/g)?.length, 1);
+  // Э2 (26.09.2026): the version stays a hidden field of the command; the
+  // visible «Версия проверки» was technical noise (quiet interface).
+  assert.doesNotMatch(source, /Версия проверки|<Version\b/);
   // Unified workflow S2 (plan §6): payment is a separate fact from the sale
   // conditions. The explanatory paragraph narrating this was removed by the
   // quiet-interface sweep (OTH-0, #857, pinned in tests/v3-quiet-interface);
-  // the structure itself — a separate gate card with its own payment fields —
-  // is asserted below.
-  assert.match(source, /title="Договор и оплата"/);
+  // the structure itself — a separate card with its own payment fields — is
+  // asserted below. Since Э2 the card is the neutral «Передача» strip, not a
+  // red «Договор и оплата: ожидает условий» (tests/v3-honest-numbers.test.mjs).
+  assert.match(source, /title="Передача"/);
+  assert.doesNotMatch(source, /label: "ожидает условий"|tone: "danger"/);
   assert.doesNotMatch(source, /отдельный факт/);
 
   for (const status of [

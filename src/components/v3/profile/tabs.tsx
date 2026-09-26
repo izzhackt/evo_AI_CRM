@@ -9,7 +9,6 @@ import {
   eventLabel,
   journalEvent,
   taskChangeField,
-  leadStage,
   role as roleWord,
   source as sourceWord,
 } from "@/lib/v3/wording";
@@ -34,6 +33,7 @@ import { ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, Prof
 import { LeadSaleConditions } from "./LeadSaleConditions";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { PrepareLeadCabinetAction } from "./PrepareLeadCabinetAction";
+import { handoffStripView } from "./handoff-strip-view";
 import type {
   Fact,
   PersonProfile,
@@ -148,14 +148,19 @@ export function SalesOverview({
   requestIds: ProfileSalesRequestIds;
   quiet?: boolean;
 }) {
-  const stage = leadStage(sales.lead.stageKey);
+  // Этап — по одному правилу доски (Э2, 26.09.2026): переданный лид —
+  // «Переданы», закрытый — не рабочий. Без чтения полосы этапа не показываем:
+  // сырой stage_key мог бы снова сказать «Новый» про переданного лида.
+  const strip = sales.strip.status === "available"
+    ? handoffStripView(sales.strip.strip, { now: new Date() })
+    : null;
   const saleConditionsReadOnly = isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage");
   return (
     <>
       <Card
         eyebrow
         title="Продажи"
-        aside={stage ? <Pill tone="neutral">{stage}</Pill> : undefined}
+        aside={strip ? <Pill tone="neutral"><span data-testid="v3-lead-stage">{strip.stageTitle}</span></Pill> : undefined}
       >
         <FactList
           facts={[
@@ -200,6 +205,7 @@ export function SalesOverview({
       <ProfileSalesTransition
         actor={actor}
         gate={sales.gate}
+        view={strip}
         requestIds={requestIds}
       />
 

@@ -8,6 +8,7 @@ import { loadProfileSalesContext } from "./profile-route-load";
 import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
 import { readLeadSaleConditions } from "./lead-sale-conditions-source";
 import { readLeadCabinetCase, readStudentCaseCabinetOrigin } from "./lead-cabinet-source";
+import { readLeadHandoffStrip } from "./sales-numbers-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
 import { countryLabel } from "@/lib/student-application-presentation";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
@@ -747,6 +748,9 @@ async function readLeadProfile(
   if (!staffPresentationCan(actor, "sales.read")) return null;
   const lead = await getPlatformSalesLead(actor, leadId);
   if (lead === null) return null;
+  // «Передача» (Э2): its own read, in parallel; it never throws — a failed
+  // read is `unavailable`, shown as such, never a guessed stage or tick.
+  const stripRead = readLeadHandoffStrip(actor, leadId);
 
   const salesContext = await loadProfileSalesContext(
     expectedStudentCaseId === null ? "lead" : "case",
@@ -785,6 +789,11 @@ async function readLeadProfile(
   const applications = fullCase?.applications ?? [];
   const visa = fullCase?.visa ?? null;
   const finance = fullCase?.finance ?? null;
+  const strip = await stripRead;
+  // A sale saved into an already open cabinet (208) has no 088 row, so the
+  // handoff snapshot has no date; the strip dates it by its create receipt.
+  const handedOffAt = handoff.handedOffAt
+    ?? (strip.status === "available" ? strip.strip.handoff?.completedAt ?? null : null);
 
   const profile: PersonProfile = {
     leadId: lead.leadId,
@@ -799,9 +808,9 @@ async function readLeadProfile(
     arrived: formatDate(lead.createdAt, true),
     nextAction: studentCase?.nextAction ?? lead.nextActionText,
     nextActionAt: formatDate(lead.nextActionDueDate),
-    handoff: handoff.handedOffAt
+    handoff: handedOffAt
       ? {
-          at: formatDate(handoff.handedOffAt, true) ?? handoff.handedOffAt,
+          at: formatDate(handedOffAt, true) ?? handedOffAt,
           contract: gate.contractConfirmed,
           payment: gate.firstPaymentConfirmedAt !== null,
           override: gate.gateState === "overridden",
@@ -875,6 +884,7 @@ async function readLeadProfile(
       lead,
       gate,
       handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)),
+      strip,
       linkedConversations: lead.linkedConversations,
     },
   };

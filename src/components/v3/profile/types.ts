@@ -9,6 +9,7 @@ import type {
 } from "@/lib/platform-finance-control";
 import type { PlatformSalesWorkflowLead } from "@/lib/platform-sales-contract";
 import type { PlatformSalesLinkedConversation } from "@/lib/platform-sales";
+import type { LeadHandoffStripRead } from "@/lib/sales-numbers-contract";
 import type { HandoffAcknowledgement, SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import type {
   PlatformLeadAdmissionsGateSnapshot,
@@ -158,6 +159,12 @@ export type ProfileSalesSnapshot = Readonly<{
   lead: PlatformSalesWorkflowLead;
   gate: PlatformLeadAdmissionsGateSnapshot;
   handoff: ProfileSalesHandoffSnapshot;
+  /**
+   * Полоса «Передача» (Э2, миграция 247): этап по правилу доски и
+   * доказательства передачи с датами. `unavailable` — чтение не удалось:
+   * ни этапа, ни галочек наугад.
+   */
+  strip: LeadHandoffStripRead;
   /**
    * Card ↔ chat link (plan §4/§12): `staff_sales_lead_detail` already reads
    * this (platform-sales.ts's `getPlatformSalesLead`); it was fetched but

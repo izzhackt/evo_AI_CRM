@@ -449,6 +449,8 @@ const lookup = (table: Record<string, string>, value: string | null | undefined)
   value == null ? null : (table[value] ?? null);
 
 export const leadStage = (v: string | null | undefined) => lookup(LEAD_STAGE, v);
+/** Название этапа продаж, как у колонки доски; `null` — не этап продаж. */
+export const salesStage = (v: string | null | undefined) => lookup(SALES_STAGE_TITLE, v);
 export const applicationStatus = (v: string | null | undefined) => lookup(APPLICATION_STATUS, v);
 export function allDayDate(value: string | null | undefined): string | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
@@ -532,6 +534,23 @@ export const FUNNEL_STEP = {
   leads: "Лиды",
   qualified: "Квалифицированы",
   handed: "Переданы",
+} as const;
+
+/**
+ * Этапы продаж — шесть рабочих и «Переданы» (решение владельца 26.09.2026):
+ * одни названия у доски, воронки, «Сегодня» и Lead 360. Порядок — порядок
+ * колонок доски. В «Переданы» лид попадает по завершённой передаче, а не по
+ * своему `stage_key` (`src/lib/v3/sales-stage.ts`, SQL
+ * `platform_private.sales_lead_stage`, миграция 247).
+ */
+export const SALES_STAGE_TITLE = {
+  new: "Новый",
+  contacting: "Связались",
+  qualified: "Квалифицирован",
+  meeting_scheduled: "Встреча назначена",
+  meeting_completed: "Встреча проведена",
+  potential: "Потенциальный клиент",
+  handed_off: FUNNEL_STEP.handed,
 } as const;
 
 /* ------------------------------------------------------------------ */

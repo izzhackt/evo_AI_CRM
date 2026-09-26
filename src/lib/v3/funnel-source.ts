@@ -3,7 +3,8 @@ import "server-only";
 import type { FunnelStage } from "@/components/v3/Funnel";
 import type { Metric } from "@/components/v3/MetricCard";
 import type { TrendSeries } from "@/components/v3/TrendChart";
-import type { PlatformActor } from "@/lib/platform-auth";
+import { isStaffPreview } from "@/lib/platform-access";
+import type { ActivePlatformActor, PlatformActor } from "@/lib/platform-auth";
 import type { PlatformSalesLeadRow } from "@/lib/platform-sales";
 import {
   listPlatformSalesStageEntries,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/platform-sales-stage-entries";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { readAllCanonicalSalesLeads } from "@/lib/v3/pipeline-source";
+import { readCompletedSalesHandoffs } from "@/lib/v3/sales-handoff-source";
 
 /** Когорта считается только по полному чтению: усечённые числа врали бы. */
 async function readAllCanonicalSalesLeadsComplete(
@@ -180,8 +182,13 @@ export type PeriodCounts = Readonly<{
   leads: number;
   /** Leads in the cohort with a proven first entry into qualified. */
   qualified: number;
-  /** Leads in the cohort that have a canonical linked student case. */
-  handed: number;
+  /**
+   * Leads in the cohort with a COMPLETED handoff — the board's «Переданы»
+   * (Э2, 26.09.2026), not any linked case: a cabinet opened without a sale is
+   * not a handoff. null — the handoff projection was not read (role preview
+   * refuses it): no number rather than an invented one.
+   */
+  handed: number | null;
 }>;
 
 export type PeriodFigures = Readonly<{
@@ -211,13 +218,14 @@ type DatedLead = Readonly<{
 function datedLead(
   row: PlatformSalesLeadRow,
   qualifiedLeadIds: ReadonlySet<string>,
+  handedLeadIds: ReadonlySet<string>,
 ): DatedLead {
   const createdAt = timestamp(row.createdAt);
   return {
     date: organizationDate(createdAt),
     hour: organizationHour(createdAt),
     qualified: qualifiedLeadIds.has(row.leadId),
-    handed: row.linkedStudentCaseCount > 0,
+    handed: handedLeadIds.has(row.leadId),
   };
 }
 
@@ -281,25 +289,26 @@ async function readAllProvenStageEntries(
   }
 }
 
-function periodFigures(rows: readonly DatedLead[], period: Period): PeriodFigures {
+function periodFigures(rows: readonly DatedLead[], period: Period, handedRead: boolean): PeriodFigures {
   const cohort = rows.filter((row) => row.date >= period.from && row.date <= period.to);
   const counts: PeriodCounts = {
     leads: cohort.length,
     qualified: cohort.filter((row) => row.qualified).length,
-    handed: cohort.filter((row) => row.handed).length,
+    handed: handedRead ? cohort.filter((row) => row.handed).length : null,
   };
+  const handed = counts.handed;
 
   return {
     counts,
     metrics: [
       { label: FUNNEL_STEP.leads, value: counts.leads, insteadOfDelta: null },
       { label: FUNNEL_STEP.qualified, value: counts.qualified, insteadOfDelta: null },
-      { label: FUNNEL_STEP.handed, value: counts.handed, insteadOfDelta: null },
+      ...(handed === null ? [] : [{ label: FUNNEL_STEP.handed, value: handed, insteadOfDelta: null }]),
     ],
     stages: [
       { name: FUNNEL_STEP.leads, value: counts.leads },
       { name: FUNNEL_STEP.qualified, value: counts.qualified },
-      { name: FUNNEL_STEP.handed, value: counts.handed },
+      ...(handed === null ? [] : [{ name: FUNNEL_STEP.handed, value: handed }]),
     ],
   };
 }
@@ -316,14 +325,14 @@ function assemble(
   labels: readonly string[],
   leadValues: readonly number[],
   qualifiedValues: readonly number[],
-  handedValues: readonly number[],
+  handedValues: readonly number[] | null,
   label: string,
 ): PeriodTrend | null {
   if (labels.length < 2) return null;
   const leads = cumulative(leadValues);
   const qualified = cumulative(qualifiedValues);
-  const handed = cumulative(handedValues);
-  if ([...leads, ...qualified, ...handed].every((value) => value === 0)) return null;
+  const handed = handedValues === null ? null : cumulative(handedValues);
+  if ([...leads, ...qualified, ...(handed ?? [])].every((value) => value === 0)) return null;
 
   const every = Math.max(1, Math.ceil(labels.length / 7));
   const ticks = labels.map((one, index) => (index % every === 0 ? one : ""));
@@ -332,7 +341,8 @@ function assemble(
     series: [
       { label: FUNNEL_STEP.leads, values: leads, emphasis: "primary" },
       { label: FUNNEL_STEP.qualified, values: qualified, emphasis: "secondary" },
-      { label: FUNNEL_STEP.handed, values: handed, emphasis: "secondary" },
+      // Нет чтения передач — нет и линии «Переданы», а не линия нулей.
+      ...(handed === null ? [] : [{ label: FUNNEL_STEP.handed, values: handed, emphasis: "secondary" as const }]),
     ],
     ticks,
     label,
@@ -342,6 +352,7 @@ function assemble(
 function hourlyTrend(
   rows: readonly DatedLead[],
   period: Period,
+  handedRead: boolean,
 ): PeriodTrend | null {
   const leads = Array.from({ length: 24 }, () => 0);
   const qualified = Array.from({ length: 24 }, () => 0);
@@ -361,7 +372,7 @@ function hourlyTrend(
     labels,
     leads,
     qualified,
-    handed,
+    handedRead ? handed : null,
     rangeLabel(period.from, period.from, period.today),
   );
 }
@@ -370,6 +381,7 @@ function dailyTrend(
   rows: readonly DatedLead[],
   period: Period,
   days: number,
+  handedRead: boolean,
 ): PeriodTrend | null {
   const step = days <= 31 ? 1 : days <= 182 ? 7 : 30;
   const whole = Math.ceil(days / step);
@@ -401,19 +413,21 @@ function dailyTrend(
     labels,
     leads,
     qualified,
-    handed,
+    handedRead ? handed : null,
     rangeLabel(period.from, period.to, period.today),
   );
 }
 
 /**
- * The queue defines the exact lead-creation cohort and current handoff state;
- * the guarded history projection adds only receipt-and-audit-proven stage
- * entries. Both are Supabase views of the same canonical leads, with no
- * browser synthesis from `updated_at` and no second event authority.
+ * The queue defines the exact lead-creation cohort; the guarded history
+ * projection adds only receipt-and-audit-proven stage entries; «Переданы» is
+ * the board's completed-handoff projection (`staff_sales_handoff_facts`, the
+ * one definition of migration 247), not case existence. All are Supabase
+ * views of the same canonical leads, with no browser synthesis from
+ * `updated_at` and no second event authority.
  */
 export async function readPeriodDashboard(
-  actor: PlatformActor,
+  actor: ActivePlatformActor,
   period: Period,
 ): Promise<PeriodDashboard> {
   const [leadRows, stageEntries] = await Promise.all([
@@ -423,10 +437,16 @@ export async function readPeriodDashboard(
   const cohort = creationCohort(leadRows, period);
   const cohortLeadIds = new Set(cohort.map((row) => row.leadId));
   const qualifiedLeadIds = provenQualifiedLeadIds(stageEntries, cohortLeadIds);
-  const rows = cohort.map((row) => datedLead(row, qualifiedLeadIds));
+  // Role preview: the handoff projection refuses it (the Admin's broader
+  // visibility must not leak), so «Переданы» is omitted, not zero.
+  const handedRead = !isStaffPreview(actor);
+  const handedLeadIds = handedRead && cohort.length > 0
+    ? await readCompletedSalesHandoffs(actor, [...cohortLeadIds])
+    : new Set<string>();
+  const rows = cohort.map((row) => datedLead(row, qualifiedLeadIds, handedLeadIds));
   const days = span(period.from, period.to);
   return {
-    figures: periodFigures(rows, period),
-    trend: days === 1 ? hourlyTrend(rows, period) : dailyTrend(rows, period, days),
+    figures: periodFigures(rows, period, handedRead),
+    trend: days === 1 ? hourlyTrend(rows, period, handedRead) : dailyTrend(rows, period, days, handedRead),
   };
 }

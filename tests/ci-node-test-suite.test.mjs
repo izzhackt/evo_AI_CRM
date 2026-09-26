@@ -59,9 +59,9 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 359); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» UI (tests/v3-students-queue-ui.test.mjs, ex-facets), + «Задачи» queue (tests/v3-tasks-queue.test.mjs), + «Студенты» queue backend (tests/v3-students-queue.test.mjs), + boards (tests/v3-boards.test.mjs), + «Сообщения» order (tests/v3-case-chat-order.test.mjs), + new look preview (tests/v3-look-preview.test.mjs), + truthful state (tests/v3-truthful-state.test.mjs), + access by permissions 244 (tests/platform-access-by-permissions.test.mjs), + case work (tests/v3-case-work.test.mjs), + new look shell Э1.2 (tests/v3-shell-next.test.mjs), + «Сегодня» (tests/v3-today-queue.test.mjs), + closure 246 (tests/v3-lead-case-closure.test.mjs)
+  assert.equal(plan.occurrenceCount, 360); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» UI (tests/v3-students-queue-ui.test.mjs, ex-facets), + «Задачи» queue (tests/v3-tasks-queue.test.mjs), + «Студенты» queue backend (tests/v3-students-queue.test.mjs), + boards (tests/v3-boards.test.mjs), + «Сообщения» order (tests/v3-case-chat-order.test.mjs), + new look preview (tests/v3-look-preview.test.mjs), + truthful state (tests/v3-truthful-state.test.mjs), + access by permissions 244 (tests/platform-access-by-permissions.test.mjs), + case work (tests/v3-case-work.test.mjs), + new look shell Э1.2 (tests/v3-shell-next.test.mjs), + «Сегодня» (tests/v3-today-queue.test.mjs), + closure 246 (tests/v3-lead-case-closure.test.mjs), + honest numbers 247 (tests/v3-honest-numbers.test.mjs)
   // Один assert на пин: задвоенная строка была случайной (дедуплицирована в PORT-5c).
-  assert.equal(plan.uniqueFileCount, 220); // + PORT-9a, + PORT-9d, + «Студенты» UI (ex-facets), + «Задачи» queue, + «Студенты» queue backend, + boards, + «Сообщения» order, + new look preview, + truthful state, + access by permissions 244, + case work, + new look shell (Э1.2), + «Сегодня», + closure 246 (tests/v3-lead-case-closure.test.mjs)
+  assert.equal(plan.uniqueFileCount, 221); // + PORT-9a, + PORT-9d, + «Студенты» UI (ex-facets), + «Задачи» queue, + «Студенты» queue backend, + boards, + «Сообщения» order, + new look preview, + truthful state, + access by permissions 244, + case work, + new look shell (Э1.2), + «Сегодня», + closure 246 (tests/v3-lead-case-closure.test.mjs), + honest numbers 247 (tests/v3-honest-numbers.test.mjs)
   assert.equal(plan.duplicateCount, 139);
   assert.equal(plan.files.includes("tests/student-portal-assessment-preview.test.mjs"), false);
   assert.equal(new Set(plan.files).size, plan.files.length);
@@ -115,7 +115,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs", "tests/v3-trend-chart.test.mjs",
     "tests/staff-role-controls.test.mjs", "tests/staff-disclosure.test.mjs",
     "tests/staff-metadata-feedback.test.mjs", "tests/v3-handoff-navigation.test.mjs",
-    "tests/v3-calendar-visibility-proof.test.mjs",
+    "tests/v3-calendar-visibility-proof.test.mjs", "tests/v3-honest-numbers.test.mjs",
     "tests/v3-student-profile-fields.test.mjs", "tests/v3-document-recognition-jobs.test.mjs",
     "tests/university-form-controls.test.mjs", "tests/document-export-client.test.mjs"]);
   assert.equal(plain.concurrency, 1);
@@ -128,9 +128,9 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 257); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend, + boards, + «Сообщения» order, + new look preview, + truthful state, + access by permissions 244, + case work, + new look shell (Э1.2), + «Сегодня», + closure 246 (tests/v3-lead-case-closure.test.mjs)
+  assert.equal(plan.occurrenceCount, 258); // + PORT-9a, + PORT-9d (tests/university-photo-storage.test.mjs), + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend, + boards, + «Сообщения» order, + new look preview, + truthful state, + access by permissions 244, + case work, + new look shell (Э1.2), + «Сегодня», + closure 246 (tests/v3-lead-case-closure.test.mjs), + honest numbers 247 (tests/v3-honest-numbers.test.mjs)
   // Один assert на пин: задвоенная строка была случайной (дедуплицирована в PORT-5c).
-  assert.equal(plan.uniqueFileCount, 215); // + PORT-9a, + PORT-9d, + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend, + boards, + «Сообщения» order, + new look preview, + truthful state, + access by permissions 244, + case work, + new look shell (Э1.2), + «Сегодня», + closure 246 (tests/v3-lead-case-closure.test.mjs)
+  assert.equal(plan.uniqueFileCount, 216); // + PORT-9a, + PORT-9d, + «Студенты» facets, + «Задачи» queue, + «Студенты» queue backend, + boards, + «Сообщения» order, + new look preview, + truthful state, + access by permissions 244, + case work, + new look shell (Э1.2), + «Сегодня», + closure 246 (tests/v3-lead-case-closure.test.mjs), + honest numbers 247 (tests/v3-honest-numbers.test.mjs)
   assert.equal(plan.duplicateCount, 42);
   assert.equal(plan.files.includes("tests/student-portal-assessment-preview.test.mjs"), false);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));

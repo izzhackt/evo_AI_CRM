@@ -7,6 +7,9 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { SalesRegisterWorkspace, SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
 import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess, readSalesRegisterDirections, readSalesRegisterManagement } from "@/lib/v3/sales-register-source";
 import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
+import { readSalesCount } from "@/lib/v3/sales-numbers-source";
+import type { SalesCountRead } from "@/lib/sales-numbers-contract";
+import { SalesPeriodHeadline, salesHeadlinePeriod } from "./SalesPeriodHeadline";
 import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { SalesRegisterForm, SalesTargetForm } from "./SalesRegisterForms";
@@ -62,14 +65,18 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
   let workspace: SalesRegisterWorkspace | null = null;
   let intakeOptions: SalesRegisterIntakeOptions | null = null;
   let cash: MonthlyPaymentSummaryRead | Readonly<{ status: "unavailable" }> | null = null;
+  // «Продажи» периода по одному определению (Э2): не зависит от фильтров строк.
+  const headlinePeriod = valid ? salesHeadlinePeriod(year, month) : null;
+  let salesCount: SalesCountRead | null = null;
   if (valid) {
-    [workspace, cash, intakeOptions] = await Promise.all([
+    [workspace, cash, intakeOptions, salesCount] = await Promise.all([
       readSalesRegisterWorkspace(actor, { year, month, offset, recordId: query.record ?? query.saved, archived: query.archived === "true",
         manager: query.manager, direction: query.direction, needsReview: query.review ? query.review === "true" : null,
         query: searchQuery }).catch(() => null),
       checkFinanceAccess && month ? readMonthlyPaymentSummary(actor, year, month)
         .catch(() => ({ status: "unavailable" as const })) : Promise.resolve(null),
       query.new === "true" && !query.record && canManage ? readSalesRegisterIntakeOptions(actor).catch(() => null) : Promise.resolve(null),
+      headlinePeriod && !editing && !viewingRecord ? readSalesCount(actor, headlinePeriod) : Promise.resolve(null),
     ]);
   }
   const management = await managementPromise;
@@ -93,6 +100,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
     {(!editing || !canManage) && !viewingRecord ? <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
         <h1 className="t-page-title text-fg">Отчёт продаж</h1>
+        {salesCount && headlinePeriod ? <SalesPeriodHeadline read={salesCount} label={headlinePeriod.label} retryHref={href()} /> : null}
       </div>
       {!editing && workspace && canManage ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
     </header> : null}

@@ -1,8 +1,9 @@
--- Отказ куратора от дела фиксируется (решение владельца 26.09.2026).
+-- Отказ куратора от дела фиксируется (контракт среза 26.09.2026: сценарий
+-- S3 плана §7 и правило B владельца, миграция 248).
 -- docs/PLAN_CHANGES.md «2026-09-26 — Отказ куратора от дела не фиксируется:
--- какой инвариант guard 042 ослабить (миграция 249)». 246-248 belong to
--- parallel slices that are not on main yet; merge order closes the gap and
--- the number is settled at merge.
+-- какой инвариант guard 042 ослабить (миграция 249)» и «2026-09-27 — Отказ
+-- куратора (249): перенос на main после 246–248». Applies after 246-248;
+-- none of them replaced the guard, so the anchors below are 042's body.
 --
 -- Why: 182's decline (private.respond_student_case_handoff, 182:392-436)
 -- reverts the assignment with
@@ -18,8 +19,8 @@
 -- use and neither plan §7's decline (S3) nor owner decision B of 26.09
 -- (migration 248) could take effect.
 --
--- Owner decision 26.09: relax the guard for exactly the 182 decline shape
--- and nothing else. A «curator decline» is an UPDATE with
+-- Contract (26.09): relax the guard for exactly the 182 decline shape and
+-- nothing else. A «curator decline» is an UPDATE with
 --   OLD.state = 'active' AND NEW.state = 'pending',
 --   a curator before and none after,
 --   handoff_at and closed_at empty after (student_cases_state_shape_check,
@@ -41,8 +42,8 @@
 -- handoff_at immutable in every other UPDATE, pending -> active only with a
 -- curator and rotation, a curator change with rotation and the same state,
 -- closed <-> active as before (the line
--- `OR (OLD.state = 'closed' AND NEW.state = 'active')` that 246 of a parallel
--- slice anchors on stays byte-for-byte). A case bound to a country playbook
+-- `OR (OLD.state = 'closed' AND NEW.state = 'active')` that 246 checks for
+-- stays byte-for-byte). A case bound to a country playbook
 -- is still refused by 137's own platform_private.admissions_guard_case
 -- (PT409), atomically -- recorded, not changed here.
 --

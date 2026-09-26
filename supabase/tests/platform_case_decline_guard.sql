@@ -1,7 +1,8 @@
 \set ON_ERROR_STOP on
--- Boundary suite for migration 249 (a curator's decline commits; owner
--- decision 26.09.2026). Members are modelled EXACTLY like production, with
--- the fixtures of the 244 suite (supabase/tests/platform_access_by_permissions.sql):
+-- Boundary suite for migration 249 (a curator's decline commits; the slice
+-- contract of 26.09.2026 for plan S3 and owner rule B of 248). Members are
+-- modelled EXACTLY like production, with the fixtures of the 244 suite
+-- (supabase/tests/platform_access_by_permissions.sql):
 -- invited staff have organization_memberships.current_role NULL, so
 -- current_actor_authority().platform_role is NULL and the JWT says 'staff';
 -- permissions come only from scoped role assignments with the production
@@ -18,9 +19,8 @@
 --     only the current curator can decline; a retry after the commit writes
 --     nothing;
 --  2. the Admissions Manager of the curator's department then sees and
---     assigns the case by migration 248's rule when 248 is in the chain, and
---     does not see it when it is not (the unchanged pre-248 boundary); a
---     second decline commits too;
+--     assigns the case by migration 248's rule (248 precedes 249 in the
+--     chain; the suite requires it); a second decline commits too;
 --  3. every other illegal transition stays refused with its 042 error: a
 --     revert without a recorded decline, with a stale decline of an earlier
 --     assignment, with another curator's decline, after an acceptance, and
@@ -447,9 +447,8 @@ RESET ROLE;
 -- ---------------------------------------------------------------------------
 -- 2. The Admissions Manager and migration 248's rule.
 -- ---------------------------------------------------------------------------
-SELECT to_regprocedure('platform_private.needs_curator_case_last_curator(uuid,uuid)') IS NOT NULL AS n249_has_248 \gset
-\if :n249_has_248
-SELECT 'N249_WITH_248_RULE' AS n249_chain;
+SELECT pg_temp.n249_assert(to_regprocedure('platform_private.needs_curator_case_last_curator(uuid,uuid)') IS NOT NULL,
+  'migration 248''s rule precedes 249 in the chain');
 SELECT pg_temp.n249_assert(platform_private.needs_curator_case_last_curator(pg_temp.n249_id(1), pg_temp.n249_id(504))
   = pg_temp.n249_id(306), 'the last curator of 504 is Admissions B, from the event the real command wrote');
 SELECT pg_temp.n249_as(3);
@@ -459,20 +458,6 @@ SELECT pg_temp.n249_assert(pg_temp.n249_view('needs_curator') = pg_temp.n249_ids
   AND pg_temp.n249_view_count('needs_curator') = 1, '«Ждут куратора»: 504, and the number equals the rows');
 SELECT pg_temp.n249_assert(pg_temp.n249_assign(504, 304, 3020) = 'ok', 'the manager hands 504 to Admissions A');
 RESET ROLE;
-\else
-SELECT 'N249_WITHOUT_248_RULE' AS n249_chain;
-SELECT pg_temp.n249_as(3);
-SET LOCAL ROLE authenticated;
-SELECT pg_temp.n249_assert(NOT pg_temp.n249_can_read(504) AND pg_temp.n249_view('needs_curator') = ARRAY[]::UUID[],
-  'without 248 the manager does not see the declined case (the pre-248 boundary)');
-SELECT pg_temp.n249_assert(pg_temp.n249_assign(504, 304, 3020) LIKE '42501:%',
-  'without 248 the manager cannot assign it');
-RESET ROLE;
-SELECT pg_temp.n249_as(1);
-SET LOCAL ROLE authenticated;
-SELECT pg_temp.n249_assert(pg_temp.n249_assign(504, 304, 3021) = 'ok', 'the Admin hands 504 to Admissions A');
-RESET ROLE;
-\endif
 
 -- A second decline, by the next curator, commits the same way.
 SELECT pg_temp.n249_assignment(504) AS n249_a2 \gset
@@ -483,7 +468,6 @@ SELECT pg_temp.n249_assert(pg_temp.n249_respond(504, :'n249_a2', NULL, 'declined
 RESET ROLE;
 SELECT pg_temp.n249_assert((SELECT state = 'pending' AND current_curator_membership_id IS NULL AND current_scope_version = 5
   FROM platform.student_cases WHERE id = pg_temp.n249_id(504)), '504 is pending again on scope v5');
-\if :n249_has_248
 SELECT pg_temp.n249_assert(platform_private.needs_curator_case_last_curator(pg_temp.n249_id(1), pg_temp.n249_id(504))
   = pg_temp.n249_id(304), 'the last curator of 504 is now Admissions A');
 SELECT pg_temp.n249_as(3);
@@ -495,7 +479,6 @@ SELECT pg_temp.n249_as(6);
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.n249_assert(NOT pg_temp.n249_can_read(504), 'Admissions B (own scope) does not get it back');
 RESET ROLE;
-\endif
 
 -- ---------------------------------------------------------------------------
 -- 3. Every other transition the guard refused stays refused.

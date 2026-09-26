@@ -236,20 +236,28 @@ test("D: the role bundles are the production ones", () => {
 });
 
 for (const label of ["Admissions", "Admissions Manager"]) {
-  test(`D: ${label} sees no sales work, only «Отчёт продаж» of #1067; WhatsApp stays in the common sections`, () => {
+  test(`D: ${label} sees no sales work, only «Отчёт продаж» of #1067; «Заявки» under «Поступление», WhatsApp in the common sections`, () => {
     const keys = [...bundles[label], ...bundles["Admissions common"]];
     const model = navigationFor(keys);
-    // D hides «Заявки», WhatsApp and «Воронка продаж»; «Отчёт продаж» keeps
+    // D hides WhatsApp and «Воронка продаж» in «Продажи»; «Отчёт продаж» keeps
     // its own rule of «Сегодня» (#1067): a lead reader without report
     // records opens «Динамика по дням» there, the charts of the former Главная.
+    // «Заявки» moves to «Поступление», last: the Admissions Manager reviews
+    // «Анкеты платформы» there (177: profile.read.full, profile.manage and
+    // case.curator.assign in the review department) and both roles handle
+    // the cabinet consultations (197: lead.read). No other surface lists
+    // them.
     assert.deepEqual(ids(model).groups, [
       ["sales", ["sales-report"]],
-      ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
+      ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "requests"]],
     ]);
     assert.ok(ids(model).common.includes("inbox"), "WhatsApp is reachable through communication.read.full");
-    for (const id of ["requests", "pipeline"]) {
-      assert.equal([...model.groups.flatMap((group) => group.links), ...model.common].some((link) => link.id === id), false, id);
-    }
+    const everyLink = [...model.groups.flatMap((group) => group.links), ...model.common];
+    assert.equal(everyLink.some((link) => link.id === "pipeline"), false, "pipeline");
+    assert.equal(everyLink.filter((link) => link.id === "requests").length, 1, "«Заявки» stands once");
+    const requests = navigationFor(keys, "/v3/requests");
+    assert.equal(requests.activeId, "requests");
+    assert.deepEqual(requests.groups.filter((group) => group.active).map((group) => group.id), ["admissions"]);
     assert.equal(navigationFor(keys, "/v3/main?view=sales").activeId, "sales-report");
     // A lead card opened from a case highlights «Студенты», not a hidden board.
     assert.equal(navigationFor(keys, "/v3/profile?id=24800000-0000-4000-8000-000000000702").activeId, "admissions-worklist");
@@ -263,15 +271,21 @@ for (const label of ["Sales Manager", "Sales"]) {
   test(`D: ${label} keeps the whole «Продажи» group with WhatsApp inside it`, () => {
     const model = navigationFor([...bundles[label], ...bundles["Sales common"]]);
     assert.deepEqual(ids(model).groups[0], ["sales", ["requests", "inbox", "pipeline", "sales-report"]]);
+    assert.equal(ids(model).groups.slice(1).some(([, links]) => links.includes("requests")), false, "«Заявки» stands once");
     assert.equal(ids(model).common.includes("inbox"), false);
   });
 }
 
-test("D: the Admin keeps both groups; common roles without lead work see no «Продажи»", () => {
+test("D: the Admin keeps both groups with «Заявки» in «Продажи» only; common roles without lead work see neither", () => {
   const admin = navigationFor([], "/v3/main", "admin");
-  assert.deepEqual(ids(admin).groups.map(([id]) => id), ["sales", "admissions"]);
+  assert.deepEqual(ids(admin).groups, [
+    ["sales", ["requests", "inbox", "pipeline", "sales-report"]],
+    ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
+  ]);
   assert.equal(ids(admin).common.includes("inbox"), false);
   for (const label of ["Sales common", "Admissions common"]) {
-    assert.equal(ids(navigationFor(bundles[label])).groups.some(([id]) => id === "sales"), false, label);
+    const model = ids(navigationFor(bundles[label]));
+    assert.equal(model.groups.some(([id]) => id === "sales"), false, label);
+    assert.equal(model.groups.some(([, links]) => links.includes("requests")), false, label);
   }
 });

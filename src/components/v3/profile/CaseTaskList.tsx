@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { QueueTask } from "@/lib/v3/task-queue";
 
+import type { V3Look } from "../blocks/look";
 import { TaskQueueRow, type TaskRowPermissions } from "../tasks/TaskQueueRow";
 import { CASE_TASKS_SHOWN } from "./case-work-view";
 
@@ -25,10 +26,13 @@ export function CaseTaskList({
   tasks,
   permissions,
   nowIso,
+  look,
 }: Readonly<{
   tasks: readonly QueueTask[];
   permissions: TaskRowPermissions;
   nowIso: string;
+  /** Новый облик (Э1.3): срок словом и инициалы в строках. */
+  look?: V3Look;
 }>) {
   const [all, setAll] = useState(false);
   const [announcement, setAnnouncement] = useState("");
@@ -49,6 +53,7 @@ export function CaseTaskList({
             hideStudent
             nowIso={nowIso}
             permissions={permissions}
+            look={look}
             recent={null}
             // Задача по студенту завершается с результатом через окно строки и
             // перечитывает страницу; «Отменить» есть только у рабочих задач.

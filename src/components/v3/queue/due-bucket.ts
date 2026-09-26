@@ -142,3 +142,26 @@ export const DUE_FILTER_LABELS: Readonly<Record<DueFilter, string>> = {
 export function parseDueFilter(value: string | undefined): DueFilter | null {
   return DUE_BUCKETS.find((bucket) => bucket === value) ?? null;
 }
+
+/**
+ * Срок словом для блока `DueWord` (Э1.3 плана редизайна, новый облик):
+ * «прошёл 3 дн» (красный текст), «сегодня» (маленькая красная заливка),
+ * «завтра», «через 2 дн» (нейтрально). Срок, прошедший сегодня (время уже
+ * наступило), — «прошёл». У закрытой задачи слова нет: просрочки у неё нет.
+ * Правило дня — `projectPlatformTaskDeadline`, как у групп и строки очереди.
+ */
+export type DueWordTone = "overdue" | "today" | "upcoming";
+export type DueWordView = Readonly<{ text: string; tone: DueWordTone }>;
+
+export function dueWordOf(task: DueInput, now: Date, open = true): DueWordView | null {
+  if (!open) return null;
+  const deadline = projectPlatformTaskDeadline(task.dueOn, task.dueAt, now);
+  if (deadline.day === null) return null;
+  const today = dayInOrganizationTimezone(now);
+  const distance = dayDelta(today, deadline.day);
+  if (deadline.overdue || distance < 0) {
+    return Object.freeze({ text: distance < 0 ? `прошёл ${-distance} дн` : "прошёл", tone: "overdue" });
+  }
+  if (distance === 0) return Object.freeze({ text: "сегодня", tone: "today" });
+  return Object.freeze({ text: distance === 1 ? "завтра" : `через ${distance} дн`, tone: "upcoming" });
+}

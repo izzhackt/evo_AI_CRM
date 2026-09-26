@@ -10,6 +10,9 @@ import { Icon } from "@/components/icons";
 import { Pill } from "../Pill";
 import { formatQueueDay } from "../queue/due-bucket";
 import { studentsDocumentsLine, studentsHandoffPending } from "../students/students-queue-view";
+import { isNextLook, type V3Look } from "../blocks/look";
+import { ProgressBar } from "../blocks/ProgressBar";
+import { StatusChip } from "../blocks/StatusChip";
 import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
 import { CaseDisclosure } from "./CaseDisclosure";
 import { CaseHandoffBlock } from "./CaseHandoffBlock";
@@ -48,6 +51,8 @@ export type CaseOverviewInput = Readonly<{
   help: ReactNode;
   notes: ReactNode;
   hrefs: Readonly<{ documents: string | null; route: string | null; money: string | null; messages: string }>;
+  /** Новый облик (Э1.3): блоки в строках задач и полоса документов из прочитанных чисел. */
+  look?: V3Look;
 }>;
 
 function Fact({ term, children }: Readonly<{ term: string; children: ReactNode }>) {
@@ -75,7 +80,7 @@ function Tasks({ input, headingId }: Readonly<{ input: CaseOverviewInput; headin
       ) : work.tasks.tasks.length === 0 ? (
         <p className="t-body-compact text-fg-2">Открытых задач нет.</p>
       ) : (
-        <CaseTaskList tasks={work.tasks.tasks} permissions={input.taskPermissions} nowIso={work.nowIso} />
+        <CaseTaskList tasks={work.tasks.tasks} permissions={input.taskPermissions} nowIso={work.nowIso} look={input.look} />
       )}
     </section>
   );
@@ -89,7 +94,19 @@ function Documents({ input }: Readonly<{ input: CaseOverviewInput }>) {
         <h2 id="case-documents-title" className="t-section text-fg">Документы</h2>
         {input.hrefs.documents ? <Link href={input.hrefs.documents} className={LINK}>Документы дела</Link> : null}
       </div>
-      {line ? (
+      {line && isNextLook(input.look) ? (
+        // Новый облик: «N из M принято» полосой — только из прочитанных чисел; пустой чек-лист
+        // или числа, которые не сходятся, — прежняя строка без полосы.
+        <div className="space-y-2">
+          <ProgressBar done={input.documents?.approved} total={input.documents?.total} word="принято"
+            fallback={<p className="t-body-compact text-fg">{line.summary}</p>} />
+          {line.parts.length ? (
+            <p className="flex flex-wrap gap-1">
+              {line.parts.map((part) => <StatusChip key={part.key} label={part.text} tone={part.tone === "warn" ? "warn" : part.tone === "danger" ? "danger" : "neutral"} />)}
+            </p>
+          ) : null}
+        </div>
+      ) : line ? (
         <p className="t-body-compact text-fg">
           {line.summary}
           {line.parts.map((part) => <span key={part.key}><span className="text-fg-3"> · </span><span className={`font-medium ${TONE[part.tone]}`}>{part.text}</span></span>)}

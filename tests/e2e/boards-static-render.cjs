@@ -39,6 +39,13 @@
  *       мутаций меню, исчезновение подписи после ухода курсора), меню дела
  *       и перетаскивание.
  *
+ *   --look=next (с --json, --screenshots, --hydrate или --hydrate-close) —
+ *       новый облик (Э1.1–Э1.3,
+ *       предпросмотр Admin): `data-look="next"` на оболочке, страницы читают
+ *       облик заглушкой `readLookPreview` — точка фазы у колонок, инициалы,
+ *       чипы и срок словом в карточках, дорожка этапа в панели лида. Снимки —
+ *       `boards-next-*.png`.
+ *
  * По умолчанию outDir — .impeccable/review (не коммитится).
  */
 
@@ -53,6 +60,7 @@ const ROOT = resolve(__dirname, "../..");
 const FIXTURES = join(__dirname, "boards-fixtures.cjs");
 const LOGO = join(ROOT, "public/brand/evo-logo.png");
 const HYDRATE = process.argv.includes("--hydrate") || process.argv.includes("--hydrate-close");
+const LOOK_NEXT = process.argv.includes("--look=next");
 
 // --- require-hook: .ts/.tsx компилируются TypeScript'ом в CJS ---------------
 const compile = (source) =>
@@ -186,8 +194,8 @@ async function renderPageTree(pageKey, search, { loading = false, rows = "defaul
       : await require(join(ROOT, module)).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) });
     const tree = createElement(
       "div",
-      { className: "v3-world" },
-      createElement(AppShell, { actor: ACTOR, initialNotifications: null }, content),
+      { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
+      createElement(AppShell, { actor: ACTOR, initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, content),
     );
     return withContexts(tree, pathname, search);
   } finally {
@@ -343,7 +351,8 @@ async function screenshots() {
     for (const [shot, sizes] of shots) {
       const scenario = shot === "admissions-menu" ? "admissions" : shot === "rail-flyout" ? "sales" : shot;
       const { page: pageKey } = SCENARIOS[scenario];
-      const htmlPath = join(outDir, `boards-${scenario}.html`);
+      const prefix = LOOK_NEXT ? "boards-next" : "boards";
+      const htmlPath = join(outDir, `${prefix}-${scenario}.html`);
       if (!existsSync(htmlPath) || shot === scenario) {
         writeFileSync(htmlPath, [
           "<!DOCTYPE html>",
@@ -381,7 +390,7 @@ async function screenshots() {
         if (shot === "admissions-menu" || shot === "rail-flyout") {
           metrics.menu = await page.evaluate(menuMetrics);
         }
-        const file = `boards-${shot}-${size}.png`;
+        const file = `${prefix}-${shot}-${size}.png`;
         await page.screenshot({ path: join(outDir, file), fullPage: size === "390" || size === "360" });
         process.stdout.write(`${JSON.stringify({ file, ...metrics })}\n`);
         await context.close();
@@ -449,6 +458,9 @@ const PAGES = {
 };
 const h = React.createElement;
 const IMAGE = { ...imageConfigDefault, unoptimized: true };
+// Облик — тот же, что отрисовал сервер (флаг --look=next): иначе React
+// пересоберёт дерево на клиенте в текущем облике.
+const LOOK_NEXT = ${JSON.stringify(LOOK_NEXT)};
 async function renderPage(pathname, search) {
   globalThis.__harnessUuid = fixtures.syntheticUuids();
   return PAGES[pathname]()({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) });
@@ -485,7 +497,8 @@ function Harness({ initial }) {
     h(PathnameContext.Provider, { value: view.pathname },
       h(SearchParamsContext.Provider, { value: searchParams },
         h(ImageConfigContext.Provider, { value: IMAGE },
-          h("div", { className: "v3-world" }, h(AppShell, { actor: fixtures.ACTOR, initialNotifications: null }, view.content))))));
+          h("div", { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
+            h(AppShell, { actor: fixtures.ACTOR, initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, view.content))))));
 }
 (async () => {
   window.__harness = { pushes: [], refreshes: [], recoverable: [] };
@@ -550,7 +563,8 @@ async function bundleHydration() {
     jsx: "automatic",
     tsconfig: join(ROOT, "tsconfig.json"),
     define: { "process.env.NODE_ENV": JSON.stringify("development") },
-    banner: { js: "var process = globalThis.process || { env: { NODE_ENV: \"development\" } };" },
+    // `argv` несёт только флаг облика: заглушка `readLookPreview` читает его и в браузере.
+    banner: { js: `var process = globalThis.process || { env: { NODE_ENV: "development" }, argv: ${JSON.stringify(LOOK_NEXT ? ["--look=next"] : [])} };` },
     plugins: [plugin],
     logLevel: "silent",
   });

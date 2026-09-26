@@ -220,6 +220,9 @@ const STUBS = {
     parseClosedLeadsCursor: (value) => (typeof value === "string" && value !== "" ? value : null),
     readClosedLeads: async () => ({ rows: closedRows(), nextCursor: null }),
   },
+  // Облик страницы — флаг рендера `--look=next` (предпросмотр Admin, Э1.1–Э1.3), не cookie.
+  // В браузере гидратации `process` — заглушка из баннера бандла; без `argv` — текущий облик.
+  "@/lib/v3/look-preview": { readLookPreview: async () => (process.argv ?? []).includes("--look=next") },
   "@/lib/platform-admissions-pipeline": {
     readAdmissionsPipelineBoard: async () => ({ rows: ADMISSIONS_ROWS, truncated: false }),
   },

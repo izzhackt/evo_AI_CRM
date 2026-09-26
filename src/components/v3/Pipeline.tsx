@@ -157,12 +157,10 @@ function LeadCard({
   showOwner: boolean;
   href: string;
   onOpen: (event: MouseEvent<HTMLAnchorElement>) => void;
-  /**
-   * Новый облик (Э1.3): срок словом (блок `DueWord`) и круг инициалов
-   * ответственного; undefined — прежняя карточка. null — у лида нет срока.
-   */
-  dueWord?: DueWordView | null;
+  /** Новый облик (Э1.3): срок словом (блок `DueWord`) и круг инициалов ответственного. */
   next?: boolean;
+  /** Слово срока нового облика; null — у лида нет срока или дня чтения. */
+  dueWord?: DueWordView | null;
 }) {
   const owner = lead.workflow.currentOwnerDisplayName;
   const dueDate = lead.nextActionAt ? lead.workflow.nextActionDueDate : null;
@@ -177,8 +175,10 @@ function LeadCard({
     const word = terminal ? null : dueWord;
     meta.push(
       <span key="due">
-        {word ? <DueWordBlock view={word} /> : null}
-        {word?.tone === "today" ? null : <>{word ? " " : null}<time dateTime={dueDate} className="font-mono tabular-nums">{lead.nextActionAt}</time></>}
+        {word?.tone === "today" ? <time dateTime={dueDate}><DueWordBlock view={word} /></time> : <>
+          {word ? <><DueWordBlock view={word} />{" "}</> : null}
+          <time dateTime={dueDate} className="font-mono tabular-nums">{lead.nextActionAt}</time>
+        </>}
       </span>,
     );
   } else if (dueDate) {

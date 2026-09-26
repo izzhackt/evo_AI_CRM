@@ -251,7 +251,8 @@ function BoardCard({
     .join(" · ");
   // Та же грамматика, что у карточки продаж: куратор — инициалами справа во
   // второй строке (полное имя в подсказке), состояние — словом и цветом в
-  // третьей, а не плашками.
+  // третьей, а не плашками. Новый облик (Э1.3): круг инициалов и чипы со
+  // словом; дней просрочки нет — чтение доски даты шага не отдаёт.
   const replyWord = caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU") ?? "";
   const marks = next ? [
     row.overdue ? <StatusChip key="overdue" label="просрочено" tone="danger" size="sm" /> : null,

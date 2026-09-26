@@ -560,17 +560,19 @@ async function screenshots() {
   const leadMarkup = renderLeadPage(ROOT);
   pages.push({ name: "lead", htmlPath: join(outDir, `${look}-lead.html`), shots: leadShots });
   writeHtml(pages.at(-1).htmlPath, "Профиль", css, leadMarkup);
-  // Закрытие (246): окно «Завершить дело», дело с исходом, закрытый Lead 360 — файлы `close-*.png`.
-  if (look === "case") {
-    const dialogPage = { name: "close-case-360", prefix: null, htmlPath: join(outDir, "close-case-360.html"),
+  // Закрытие (246): окно «Завершить дело», дело с исходом, закрытый Lead 360 — файлы `close-*.png`
+  // (новый облик — `close-next-*.png`).
+  {
+    const close = look === "case" ? "close" : "close-next";
+    const dialogPage = { name: `${close}-case-360`, prefix: null, htmlPath: join(outDir, `${close}-case-360.html`),
       shots: [shot("1440"), shot("dialog-1440", { do: "close-dialog" }), shot("dialog-390", { do: "close-dialog" })] };
     writeHtml(dialogPage.htmlPath, "Дело студента", css, renderPage("curator", { closeDialog: true }));
-    const closedPage = { name: "close-case-360-closed", prefix: null, htmlPath: join(outDir, "close-case-360-closed.html"),
+    const closedPage = { name: `${close}-case-360-closed`, prefix: null, htmlPath: join(outDir, `${close}-case-360-closed.html`),
       shots: [shot("1440"), shot("390"), shot("focus-1440", { do: "focus", focus: '[data-testid="v3-case-closed-line"] button' })] };
     writeHtml(closedPage.htmlPath, "Дело студента", css, renderPage("closed-outcome"));
-    const leadPage = { name: "close-lead-360", prefix: null, htmlPath: join(outDir, "close-lead-360.html"), shots: [shot("1440"), shot("390")] };
+    const leadPage = { name: `${close}-lead-360`, prefix: null, htmlPath: join(outDir, `${close}-lead-360.html`), shots: [shot("1440"), shot("390")] };
     writeHtml(leadPage.htmlPath, "Профиль", css, leadMarkup);
-    const leadClosedPage = { name: "close-lead-360-closed", prefix: null, htmlPath: join(outDir, "close-lead-360-closed.html"),
+    const leadClosedPage = { name: `${close}-lead-360-closed`, prefix: null, htmlPath: join(outDir, `${close}-lead-360-closed.html`),
       shots: [shot("1440"), shot("390")] };
     writeHtml(leadClosedPage.htmlPath, "Профиль", css, renderClosedLeadPage());
     pages.push(dialogPage, closedPage, leadPage, leadClosedPage);

@@ -300,8 +300,13 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   assert.match(text(report), /Продажи за сентябрь 2026: 5 · по дате продажи, без архива Не входят: без даты продажи — 1 запись, дата продажи в другом месяце — 1 запись\. Входят из другого месяца отчёта: 1 запись\./u);
   assert.match(text(report), /Найдено по фильтрам Записей продаж 6/u);
 
-  // Воронка по доске: переданный лид (его stage_key — 'new') в «Переданы», а не в «Новый».
-  const funnel = text(pages.get("funnel"));
-  assert.match(funnel, /В работе 3 · Переданы 1/u);
-  assert.match(funnel, /Новый 1 .*Переданы 1/u);
+  // «Динамика по дням»: настоящие чтения периода и доски. Переданный лид (его stage_key — 'new')
+  // — «Переданы» и в когорте, и на доске; кабинет без продажи (лид 2) — не передача.
+  const dynamics = pages.get("funnel");
+  const board = dynamics.indexOf('aria-labelledby="sales-dynamics-board"');
+  const cohort = text(dynamics.slice(dynamics.indexOf('aria-labelledby="sales-dynamics-period"'), board));
+  assert.match(cohort, /Пришло лидов 4 Из них квалифицированы 0 Из них переданы 1/u);
+  assert.match(cohort, /Продажи за период: 5 · по дате продажи, без архива; без даты продажи не посчитаны: 1 запись/u);
+  const current = text(dynamics.slice(board));
+  assert.match(current, /Новый 1 .*Связались 1 .*Квалифицирован 1 .*Переданы 1/u);
 });

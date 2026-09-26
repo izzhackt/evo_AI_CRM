@@ -379,6 +379,13 @@ function stubSalesRegister() {
     },
   });
   stubModule("src/lib/v3/finance-entry-source.ts", { async readMonthlyPaymentSummary() { return null; } });
+  // «Продажи» по дате продажи (Э2, 247): три записи сентября, все с датой продажи.
+  stubModule("src/lib/v3/sales-numbers-source.ts", {
+    async readSalesCount(actor, period) {
+      return { status: "available", count: { ...period, sales: 3, undated: 0, otherSaleDate: 0, filedElsewhere: 0 } };
+    },
+    async readLeadHandoffStrip() { return { status: "unavailable" }; },
+  });
   // Формы и просмотр записи в виде списка не рисуются; их серверные действия рендеру не нужны.
   stubModule("src/components/v3/SalesRegisterForms.tsx", { SalesRegisterForm: () => null, SalesTargetForm: () => null });
   stubModule("src/components/v3/SalesRecordPreview.tsx", { SalesRecordPreview: () => null });
@@ -434,6 +441,7 @@ async function buildReport(report) {
         },
       },
       funnel: salesBoardFunnel({ leads: board, truncated: false }, stages),
+      sales: { status: "available", count: { from: "2026-09-20", to: "2026-09-26", sales: 2, undated: 0, otherSaleDate: 0, filedElsewhere: 0 } },
     },
   });
   // Роль с lead.read без записей отчёта (Admissions по 173): страница — только раздел, как у `main/page.tsx`.

@@ -19,8 +19,10 @@
  *  - «Отчёт продаж»: настоящий `SalesRegisterView` с подменёнными чтениями —
  *    заголовок «Продажи за сентябрь» по дате продажи и названные расхождения
  *    с таблицей месяца отчёта;
- *  - воронка: настоящее чтение доски (`readPipelineLeads` с подменёнными
- *    RPC) и её воронка — переданный лид в «Переданы», а не «Новый».
+ *  - «Динамика по дням»: настоящие чтения периода и доски с подменёнными
+ *    RPC — переданный лид в «Переданы» (а не «Новый») и на доске, и в
+ *    когорте периода; кабинет без продажи не передача; «Продажи за период»
+ *    по тому же определению, что заголовок отчёта.
  *
  *   node tests/e2e/numbers-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] (для tests/v3-honest-numbers.test.mjs).
@@ -165,6 +167,10 @@ const STUBS = {
   },
   "@/lib/v3/finance-entry-source": { readMonthlyPaymentSummary: async () => ({ status: "not_allowed" }) },
   "@/lib/v3/sales-numbers-source": { readSalesCount: async () => SALES_COUNT, readLeadHandoffStrip: async () => ({ status: "unavailable" }) },
+  "@/lib/platform-sales-stage-entries": {
+    listPlatformSalesStageEntries: async () => ({ rows: [], hasNext: false, nextCursor: null }),
+    PlatformSalesStageEntryError: class PlatformSalesStageEntryError extends Error {},
+  },
   "@/lib/platform-sales": {
     listPlatformSalesLeads: async () => ({ rows: BOARD_ROWS, hasNext: false, nextCursor: null }),
     listPlatformSalesOwnerOptions: async () => ({ rows: [], hasNext: false, nextCursor: null }),
@@ -261,19 +267,26 @@ async function reportPage() {
   return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", "view=sales&year=2026&month=9"));
 }
 
-// --- воронка по доске ------------------------------------------------------------
+// --- «Динамика по дням»: когорта, «Продажи» периода и воронка по доске ----------
+// Настоящие чтения периода и доски (`readSalesDynamics` → `readPeriodDashboard`,
+// `readPipelineLeads`, `salesBoardFunnel`) поверх подменённых RPC: переданный
+// лид (его stage_key — 'new') — «Переданы» и на доске, и в когорте; кабинет без
+// продажи (лид 2) — не передача.
 async function funnelPage() {
-  const { readPipelineLeads, readPipelineStages } = require(join(ROOT, "src/lib/v3/pipeline-source.ts"));
-  const read = await readPipelineLeads(ADMIN);
-  const stages = readPipelineStages();
-  const { Funnel } = require(join(ROOT, "src/components/v3/Funnel.tsx"));
-  const funnelStages = stages.map((stage) => ({ name: stage.title, value: read.leads.filter((lead) => lead.stageKey === stage.key).length }));
-  const working = read.leads.filter((lead) => lead.stageKey !== "handed_off").length;
-  const body = createElement("section", { "aria-labelledby": "numbers-funnel", className: "max-w-2xl rounded-card border border-border bg-surface p-4", "data-testid": "numbers-funnel" },
-    createElement("h2", { id: "numbers-funnel", className: "t-section text-fg" }, "Сейчас на доске"),
-    createElement("p", { className: "t-meta mb-3 text-fg-3" }, `В работе ${working} · Переданы ${read.leads.length - working} — те же числа, что у доски`),
-    createElement(Funnel, { stages: funnelStages, caption: "Этапы доски продаж сейчас" }));
-  return renderToStaticMarkup(withContexts(shell(ADMIN, "Воронка продаж", body), "/v3/main", "view=sales"));
+  const { readSalesDynamics } = require(join(ROOT, "src/lib/v3/sales-dynamics-source.ts"));
+  const { SalesDynamics } = require(join(ROOT, "src/components/v3/SalesDynamics.tsx"));
+  const { salesDynamicsCarry, salesDynamicsHref } = require(join(ROOT, "src/lib/sales-register-navigation.ts"));
+  const period = { key: "custom", from: "2026-09-01", to: "2026-09-26", today: "2026-09-26" };
+  const query = { view: "sales", period: "custom", from: period.from, to: period.to };
+  const read = await readSalesDynamics(ADMIN, period);
+  const periods = [["today", "Сегодня"], ["yesterday", "Вчера"], ["week", "Неделя"], ["month", "Месяц"], ["custom", "Период"]];
+  const body = createElement(SalesDynamics, {
+    id: "sales-dynamics", open: true,
+    choices: periods.map(([key, title]) => ({ key, title, href: salesDynamicsHref(query, key === "custom" ? period : { key }), active: key === "custom" })),
+    range: { from: period.from, to: period.to, max: period.today }, periodText: "1 сен — 26 сен",
+    formAction: "/v3/main#sales-dynamics", carry: salesDynamicsCarry(query), retryHref: salesDynamicsHref(query, period), read,
+  });
+  return renderToStaticMarkup(withContexts(shell(ADMIN, "Отчёт продаж", body), "/v3/main", "view=sales&period=custom"));
 }
 
 async function renderAll() {
@@ -321,7 +334,7 @@ async function screenshots() {
           await document.fonts.ready;
           await Promise.all([...document.images].map((image) => image.decode().catch(() => null)));
         });
-        const target = name.startsWith("lead") ? '[data-testid="v3-lead-stage"]' : name === "report" ? "main h1" : '[data-testid="numbers-funnel"]';
+        const target = name.startsWith("lead") ? '[data-testid="v3-lead-stage"]' : name === "report" ? "main h1" : "#sales-dynamics";
         await page.evaluate((selector) => {
           const element = document.querySelector(selector);
           if (!element) throw new Error(`no ${selector}`);
@@ -344,6 +357,15 @@ async function screenshots() {
         const file = `numbers-${name}-${width}.png`;
         await page.screenshot({ path: join(outDir, file) });
         process.stdout.write(`${file}: ${Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);
+        if (name === "funnel") {
+          // Второй экран: «Продажи за период» и «Сейчас на доске».
+          await page.evaluate(() => {
+            const element = document.querySelector("[data-period-sales]");
+            window.scrollTo({ top: Math.max(0, element.getBoundingClientRect().top + window.scrollY - 24), behavior: "instant" });
+          });
+          await page.screenshot({ path: join(outDir, `numbers-funnel-board-${width}.png`) });
+          process.stdout.write(`numbers-funnel-board-${width}.png\n`);
+        }
         await context.close();
       }
     }

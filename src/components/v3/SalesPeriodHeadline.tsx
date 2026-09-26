@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import type { SalesCountRead } from "@/lib/sales-numbers-contract";
 
 const MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
@@ -59,5 +61,30 @@ export function SalesPeriodHeadline({ read, label, retryHref }: Readonly<{
         </p>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * «Продажи за период» раздела «Динамика по дням» — то же определение, что у
+ * заголовка отчёта (Э2): записи не в архиве с датой продажи в периоде.
+ * Стоит отдельной строкой, а не среди чисел когорты: когорта — лиды,
+ * пришедшие за период, а продажа считается по своей дате.
+ */
+export function SalesPeriodLine({ read, retryHref }: Readonly<{ read: SalesCountRead; retryHref: string }>) {
+  if (read.status === "denied") return null;
+  if (read.status === "unavailable") {
+    return (
+      <p role="alert" className="mt-3 t-body-compact text-fg-2" data-period-sales="">
+        Не удалось посчитать продажи за период.{" "}
+        <Link href={retryHref} className="inline-flex min-h-11 items-center underline underline-offset-4">Повторить</Link>
+      </p>
+    );
+  }
+  const { sales, undated } = read.count;
+  return (
+    <p className="mt-3 t-body-compact text-fg-2" data-period-sales={sales}>
+      Продажи за период: <strong className="text-base font-semibold tabular-nums text-fg">{sales.toLocaleString("ru-RU")}</strong>
+      <span className="text-fg-3"> · по дате продажи, без архива{undated > 0 ? `; без даты продажи не посчитаны: ${records(undated)}` : ""}</span>
+    </p>
   );
 }

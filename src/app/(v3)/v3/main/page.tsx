@@ -1,31 +1,25 @@
-import { Funnel } from "@/components/v3/Funnel";
-import { MainHeader, type PeriodChoice } from "@/components/v3/MainHeader";
-import { MetricCard } from "@/components/v3/MetricCard";
-import { OperationsOverview } from "@/components/v3/OperationsOverview";
-import { PartShell } from "@/components/v3/PartShell";
-import { TrendChart } from "@/components/v3/TrendChart";
-import { SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
-import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
-import { isSalesImportQuery } from "@/lib/sales-register-navigation";
-import { SalesReportNavigation } from "@/components/v3/SalesReportNavigation";
-import { isStaffPreview, staffCan, staffPresentationCan } from "@/lib/platform-access";
-import { requireV3PageActor } from "@/lib/platform-guards";
-import {
-  PERIODS,
-  periodLabel,
-  readPeriodDashboard,
-  resolvePeriod,
-} from "@/lib/v3/funnel-source";
-import { readV3OperationalDashboard } from "@/lib/v3/operations-source";
-import { readCurrentSalesFunnel } from "@/lib/v3/current-sales-funnel-source";
-import { v3SectionTitle } from "@/lib/v3/navigation";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense, type ComponentProps } from "react";
+
+import type { PeriodChoice } from "@/components/v3/MainHeader";
+import { PartShell } from "@/components/v3/PartShell";
+import { SalesDynamics } from "@/components/v3/SalesDynamics";
+import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
+import { SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
+import { TodayBoardLinks, TodayScreen, type TodayLink } from "@/components/v3/today/TodayScreen";
+import { isStaffPreview, staffCan, staffCanAccessRoute, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
+import { requireV3PageActor } from "@/lib/platform-guards";
+import { isSalesImportQuery, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } from "@/lib/sales-register-navigation";
+import { PERIODS, periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
+import { v3SectionTitle } from "@/lib/v3/navigation";
+import { readSalesDynamics, type SalesDynamicsRead } from "@/lib/v3/sales-dynamics-source";
+import { buildTodayQueue, todayDateLabel } from "@/lib/v3/today-queue";
+import { readTodayQueue, type TodayAccess } from "@/lib/v3/today-source";
 
 export const dynamic = "force-dynamic";
 
-/** Вкладка называет подсвеченный пункт меню: «Главная» или «Отчёт продаж». */
+/** Вкладка называет подсвеченный пункт меню: «Сегодня» или «Отчёт продаж». */
 export async function generateMetadata({
   searchParams,
 }: {
@@ -34,145 +28,107 @@ export async function generateMetadata({
   return { title: v3SectionTitle("/v3/main", await searchParams) };
 }
 
+type MainQuery = Readonly<{ period?: string; from?: string; to?: string; view?: string } & SalesReportQuery>;
+
+/**
+ * Главное действие роли для пустого дня: куда идти, когда пора сделать
+ * нечего. Доски — переходы, а не красная кнопка.
+ */
+function mainActionFor(access: TodayAccess, canReadReport: boolean): TodayLink | null {
+  if (access.sources.includes("leads")) return { label: "Открыть воронку продаж", href: "/v3/pipeline" };
+  if (access.sources.includes("students")) return { label: "Открыть студентов", href: "/v3/profile" };
+  if (access.sources.includes("tasks")) return { label: "Все задачи", href: "/v3/tasks" };
+  return canReadReport ? { label: "Открыть отчёт продаж", href: "/v3/main?view=sales" } : null;
+}
+
+/** Раздел отчёта ждёт уже начатые чтения (они не отказывают: ошибки — внутри результата). */
+async function StreamedSalesDynamics({ read, ...props }: Omit<ComponentProps<typeof SalesDynamics>, "read"> & Readonly<{ read: Promise<SalesDynamicsRead> }>) {
+  return <SalesDynamics {...props} read={await read} />;
+}
+
+/**
+ * `/v3/main` — «Сегодня» (Э3, 26.09.2026): стартовая страница каждой роли с
+ * одной очередью того, что пора сделать. Графики, период и воронка — в
+ * разделе «Динамика по дням» «Отчёта продаж» (`?view=sales`).
+ */
 export default async function MainPart({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; view?: string } & SalesReportQuery>;
+  searchParams: Promise<MainQuery>;
 }) {
   const actor = await requireV3PageActor("/v3/main");
   const query = await searchParams;
   const canReadSales = staffPresentationCan(actor, "sales.read");
   const canReadReport = isStaffPreview(actor) ? canReadSales : staffCan(actor, "sales.report.read");
-  if (query.view === "sales" || (!canReadSales && canReadReport)) {
+
+  if (query.view === "sales") {
     if (!canReadReport) redirect("/access-denied?from=%2Fv3%2Fmain");
     if (isSalesImportQuery(query)) return <SalesRegisterImportView actor={actor} query={query} />;
-    return <SalesRegisterView actor={actor} query={query} />;
+    if (!canReadSales) return <SalesRegisterView actor={actor} query={query} />;
+    const period = resolvePeriod(query);
+    const carry = salesDynamicsCarry(query);
+    // «Период», когда он уже выбран, несёт разобранные даты: в адресе — тот
+    // диапазон, который посчитан, а не набранный руками.
+    const choices: PeriodChoice[] = PERIODS.map((one) => ({
+      key: one.key,
+      title: one.title,
+      href: salesDynamicsHref(query, one.key === "custom" && period.key === "custom" ? period : { key: one.key }),
+      active: one.key === period.key,
+    }));
+    // Чтения раздела идут параллельно с отчётом, а раздел приходит потоком:
+    // записи отчёта не ждут когорту и доску.
+    const dynamics = readSalesDynamics(actor, period);
+    return (
+      <SalesRegisterView
+        actor={actor}
+        query={query}
+        dynamics={<Suspense fallback={<p role="status" className="mt-8 flex min-h-11 items-center border-t border-border pt-2 t-meta text-fg-3">Загружаем «Динамику по дням»…</p>}>
+          <StreamedSalesDynamics
+            id={SALES_DYNAMICS_ANCHOR}
+            open={typeof query.period === "string"}
+            choices={choices}
+            range={period.key === "custom" ? { from: period.from, to: period.to, max: period.today } : null}
+            periodText={periodLabel(period)}
+            formAction={`/v3/main#${SALES_DYNAMICS_ANCHOR}`}
+            carry={carry}
+            retryHref={salesDynamicsHref(query, period)}
+            read={dynamics}
+          />
+        </Suspense>}
+      />
+    );
   }
-  if (!canReadSales) {
-    // Ниже мы уже знаем canReadReport === false, иначе выше был бы возврат:
-    // это ровно условие «есть Admissions, нет отчёта продаж» из плана.
-    const canReadAdmissions = staffPresentationCan(actor, "admissions.read");
-    if (canReadAdmissions) {
-      // OTH-1: «Мой день» (CuratorDay) is replaced — not layered — by the
-      // kanban board «Воронка поступления» at its own route. CuratorDay.tsx
-      // is deleted; this branch only redirects there now.
-      redirect("/v3/admissions-pipeline");
-    }
-    const operations = await readV3OperationalDashboard(actor);
-    return <PartShell title="Главная"><OperationsOverview snapshot={operations} /></PartShell>;
-  }
-  const period = resolvePeriod(query);
-  const [periodDashboard, operations, currentFunnel] = await Promise.all([
-    readPeriodDashboard(actor, period).catch(() => null),
-    readV3OperationalDashboard(actor),
-    readCurrentSalesFunnel(actor),
-  ]);
-  const trend = periodDashboard?.trend;
 
-  // Нажатие на «Период», когда он уже выбран, не должно терять выбранные
-  // даты: ссылка несёт их с собой. Даты берутся уже разобранные, поэтому в
-  // адресе оказывается тот диапазон, который посчитан, а не тот, который
-  // набрали руками.
-  const choices: PeriodChoice[] = PERIODS.map((one) => ({
-    key: one.key,
-    title: one.title,
-    href:
-      one.key === "custom" && period.key === "custom"
-        ? `/v3/main?period=custom&from=${period.from}&to=${period.to}`
-        : `/v3/main?period=${one.key}`,
-    active: one.key === period.key,
-  }));
-
-  const currentHref = choices.find(choice => choice.active)?.href ?? "/v3/main";
+  const now = new Date();
+  const { access, reads } = await readTodayQueue(actor, { now });
+  const queue = buildTodayQueue(reads, now);
+  const preview = isStaffPreview(actor);
+  const boards: TodayLink[] = [
+    ...(canReadSales && staffCanAccessRoute(actor, "/v3/pipeline") ? [{ label: "Воронка продаж", href: "/v3/pipeline" }] : []),
+    ...(staffCanAccessRoute(actor, "/v3/admissions-pipeline") ? [{ label: "Воронка поступления", href: "/v3/admissions-pipeline" }] : []),
+  ];
 
   return (
-    <PartShell title="Главная">
-      {canReadReport ? <SalesReportNavigation sales={false} /> : null}
-      <div className="mt-5 grid items-start gap-6 @4xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <section aria-labelledby="current-sales-title" className="min-w-0 rounded-card border border-border bg-surface p-4 @4xl:order-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="current-sales-title" className="t-section text-fg">Воронка продаж</h2>
-            <Link href="/v3/pipeline" className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">К доске</Link>
-          </div>
-          <p className="mb-4 text-sm text-fg-3">Текущие этапы по доступным вам лидам.</p>
-          {currentFunnel.status === "available" ? (
-            <>
-              {currentFunnel.stages.every(stage => stage.value === 0) ? (
-                <p className="py-4 text-sm text-fg-2">В работе пока нет лидов.</p>
-              ) : null}
-              <Funnel stages={currentFunnel.stages} caption="Текущие этапы продаж" />
-              <div className="mt-5 border-t border-border pt-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h3 className="t-item text-fg">Продажи в вашем отчёте</h3>
-                    <p className="t-meta mt-1 text-fg-3">По лидам текущей воронки</p>
-                  </div>
-                  {currentFunnel.sales.status === "available" ? (
-                    <span className="text-base font-semibold tabular-nums text-fg">{currentFunnel.sales.count.toLocaleString("ru-RU")}</span>
-                  ) : null}
-                </div>
-                {currentFunnel.sales.status === "denied" ? (
-                  <p className="mt-3 text-sm text-fg-2">Нет доступа к отчёту продаж.</p>
-                ) : currentFunnel.sales.status === "unavailable" ? (
-                  <p className="mt-3 text-sm text-fg-2">Не удалось загрузить продажи. <a href={currentHref} className="underline underline-offset-4">Повторить</a></p>
-                ) : (
-                  <Link href="/v3/main?view=sales" className="mt-2 inline-flex min-h-11 items-center text-sm text-accent hover:underline">Открыть отчёт</Link>
-                )}
-              </div>
-            </>
-          ) : currentFunnel.status === "preview" ? (
-            <p className="py-5 text-sm text-fg-2">Данные воронки недоступны при просмотре другой роли.</p>
-          ) : (
-            <div className="py-5 text-sm text-fg-2">
-              <p>Не удалось загрузить текущую воронку.</p>
-              <a href={currentHref} className="mt-2 inline-flex min-h-11 items-center text-accent underline underline-offset-4">Повторить</a>
-            </div>
-          )}
-        </section>
-
-        <section aria-labelledby="period-leads-title" className="min-w-0 @4xl:order-1">
-          <h2 id="period-leads-title" className="t-section mb-3 text-fg">Лиды за период</h2>
-          <MainHeader choices={choices} range={period.key === "custom"
-            ? { from: period.from, to: period.to, max: period.today } : null} />
-          {!periodDashboard ? (
-            <div className="mt-4 rounded-card border border-border bg-surface px-4 py-6 text-sm text-fg-3">
-              <p>Не удалось загрузить данные за выбранный период.</p>
-              <a className="mt-3 inline-flex min-h-11 items-center text-accent underline underline-offset-4" href={currentHref}>Повторить загрузку</a>
-            </div>
-          ) : periodDashboard.figures.counts.leads === 0 ? (
-            <p className="mt-4 rounded-card border border-border bg-surface px-4 py-10 text-center text-sm text-fg-3">
-              За этот период лидов нет.
-            </p>
-          ) : (
-            <>
-              <ul className="mt-4 grid grid-cols-2 gap-3 @2xl:grid-cols-3">
-                {periodDashboard.figures.metrics.map(metric => <MetricCard key={metric.label} metric={metric} />)}
-              </ul>
-              <section className="mt-4 min-w-0 rounded-card border border-border bg-surface p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="t-section text-fg">Динамика</h3>
-                  <span className="t-meta text-fg-3">{periodLabel(period)}</span>
-                </div>
-                {trend ? (
-                  <>
-                    <p className="t-meta mt-2 flex flex-wrap gap-4 text-fg-3">
-                      {trend.series.map(one => (
-                        <span key={one.label} className="inline-flex items-center gap-1.5">
-                          {one.emphasis === "primary" ? <span aria-hidden="true" className="inline-block h-0.5 w-3.5 bg-accent" />
-                            : <span aria-hidden="true" className="inline-block h-0 w-3.5 border-t-2 border-dashed border-fg-3" />}
-                          {one.label}
-                        </span>
-                      ))}
-                    </p>
-                    <div className="mt-3"><TrendChart series={trend.series} ticks={trend.ticks} caption={`Динамика, ${trend.label}`} /></div>
-                  </>
-                ) : <p className="px-1 py-10 text-center text-sm text-fg-3">Динамики за этот период нет.</p>}
-              </section>
-            </>
-          )}
-        </section>
-      </div>
-      <OperationsOverview snapshot={operations} />
+    <PartShell
+      title="Сегодня"
+      testId="v3-operational-dashboard"
+      meta={<time dateTime={queue.today}>{todayDateLabel(queue.today)}</time>}
+      action={<TodayBoardLinks links={boards} />}
+    >
+      <TodayScreen
+        queue={queue}
+        nowIso={now.toISOString()}
+        mainAction={mainActionFor(access, canReadReport)}
+        permissions={{
+          actorMembershipId: actor.membershipId,
+          admin: actor.systemRole === "admin" && !preview,
+          preview,
+          staffComplete: staffHasPermission(actor, "staff.task.complete"),
+          staffEdit: staffHasPermission(actor, "staff.task.edit"),
+          caseManage: staffHasPermission(actor, "task.manage"),
+          caseAssign: staffHasPermission(actor, "task.assign"),
+        }}
+      />
     </PartShell>
   );
 }

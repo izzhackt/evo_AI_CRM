@@ -3,8 +3,9 @@ import Link from "next/link";
 import { btnGhostCls } from "@/components/ui";
 
 /**
- * Переключатель периода под заголовком «Главная» (заголовок — в `PartShell`,
- * чтобы на странице был ровно один `h1`).
+ * Переключатель периода раздела «Динамика по дням» «Отчёта продаж» (Э3,
+ * 26.09.2026: графики ушли со стартовой страницы «Сегодня»). Заголовок
+ * страницы — у отчёта, чтобы на странице был ровно один `h1`.
  *
  * ПЕРЕКЛЮЧАТЕЛЬ ПЕРИОДА — ССЫЛКИ, А НЕ КНОПКИ С СОСТОЯНИЕМ. Период живёт в
  * адресе, поэтому экран можно переслать целиком и вернуться к прошлому
@@ -33,10 +34,16 @@ export type PeriodRange = Readonly<{
 export function MainHeader({
   choices,
   range,
+  action = "/v3/main",
+  hidden = {},
 }: {
   choices: readonly PeriodChoice[];
   /** Поля произвольного диапазона. null — выбран не «Период». */
   range: PeriodRange | null;
+  /** Адрес формы диапазона (с якорем раздела). */
+  action?: string;
+  /** Параметры страницы, которые форма диапазона несёт с собой (вид и фильтры отчёта). */
+  hidden?: Readonly<Record<string, string>>;
 }) {
   return (
     <header className="flex flex-col gap-4 border-b border-border pb-4">
@@ -70,9 +77,10 @@ export function MainHeader({
         // узком экране — по левому краю, как всё остальное содержимое.
         <form
           method="get"
-          action="/v3/main"
+          action={action}
           className="flex flex-wrap items-center gap-2 sm:justify-end"
         >
+          {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
           <input type="hidden" name="period" value="custom" />
 
           {/* Подпись — сама метка, а не `aria-label`: видимое слово и то, что

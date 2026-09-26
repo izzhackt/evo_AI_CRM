@@ -28,7 +28,7 @@ import { AppShellNext } from "@/components/v3/AppShellNext";
 import type { StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 
 const LINK_ICONS = {
-  home: "grid",
+  home: "sun",
   requests: "file-check",
   pipeline: "funnel",
   "sales-report": "bar-chart",

@@ -120,7 +120,6 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/queue/FilterMenu.tsx",
     "src/components/v3/tasks/ComposerDeadlineField.tsx",
     "src/components/v3/MainHeader.tsx",
-    "src/components/v3/SalesReportNavigation.tsx",
     "src/components/v3/profile/Profile.tsx",
     "src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx",
     "src/app/(v3)/v3/requests/page.tsx",
@@ -270,7 +269,7 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   assert.match(ui, /eyebrow \? \(\s*<h3 className="t-section /u, "compact card title is a section heading, not 11px caps");
   assert.match(ui, /export const fieldLabelCls = "mb-1 block t-label text-fg-2";/u);
   assert.match(ui, /export const labelCls = "mb-1 block text-xs font-medium text-fg-2";/u, "auth/Student label unchanged");
-  for (const path of ["src/components/v3/MetricCard.tsx", "src/components/v3/OperationsOverview.tsx"]) {
+  for (const path of ["src/components/v3/MetricCard.tsx"]) {
     const source = read(path);
     assert.match(source, /\bt-figure\b/u, `${path} KPI uses t-figure`);
     assert.doesNotMatch(source, /font-mono/u, `${path} KPI is not monospace`);
@@ -286,7 +285,7 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   assert.ok(labelClass, "axis label size is set by LABEL_CLASS");
   const [narrow, breakpoint, wide] = labelClass.slice(1).map(Number);
   assert.equal(viewBoxWidth, 620);
-  assert.equal(minWidth, 480, "chart keeps the 480px minimum of main: Главная layout unchanged");
+  assert.equal(minWidth, 480, "chart keeps its 480px minimum in the report's «Динамика по дням»");
   assert.ok(narrow * minWidth / viewBoxWidth >= 12, "labels are at least 12px at the 480px minimum");
   assert.equal(breakpoint, viewBoxWidth, "smaller label units only once the chart is as wide as its viewBox");
   assert.ok(wide * breakpoint / viewBoxWidth >= 12, "labels stay at least 12px on wide charts");

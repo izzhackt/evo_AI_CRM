@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 import { expect, test, type Download, type Locator, type Page } from "@playwright/test";
 import postgres from "postgres";
-import { STAFF_BASELINE_CARDS as ROLE_DASHBOARD_CARD_KEYS, STAFF_BASELINE_HOME as ROLE_HOME } from "./staff-baseline";
+import { STAFF_BASELINE_HOME as ROLE_HOME } from "./staff-baseline";
 
 const authMode = process.env.EVO_EXPECT_STAFF_AUTH_MODE ?? "configured";
 
@@ -585,17 +585,13 @@ async function expectActiveRole(
   );
 }
 
-async function expectOperationalDashboardCards(page: Page, role: TestRole) {
-  const dashboard = page.getByTestId("v3-operational-dashboard");
-  await expect(dashboard).toBeVisible();
-  const cards = dashboard.locator("[data-dashboard-card]");
-  await expect(cards).toHaveCount(ROLE_DASHBOARD_CARD_KEYS[role].length);
-  const actualKeys = await cards.evaluateAll((elements) =>
-    elements
-      .map((element) => element.getAttribute("data-dashboard-card"))
-      .sort(),
-  );
-  expect(actualKeys).toEqual([...ROLE_DASHBOARD_CARD_KEYS[role]].sort());
+// «Сегодня» (Э3, 26.09.2026) replaced the card overview: every role lands on
+// one queue under the same page test id, never on a sample or zero fallback.
+async function expectTodayQueue(page: Page) {
+  const today = page.getByTestId("v3-operational-dashboard");
+  await expect(today).toBeVisible();
+  await expect(today.getByRole("heading", { level: 1, name: "Сегодня" })).toBeVisible();
+  await expect(today.locator("[data-dashboard-card]")).toHaveCount(0);
 }
 
 async function expectDirectRouteDenied(
@@ -786,7 +782,7 @@ test("all three real identities persist, enforce role routes, and log out", asyn
     }
     await signIn(page, candidate.role);
     await expectActiveRole(page, candidate.role);
-    await expectOperationalDashboardCards(page, candidate.role);
+    await expectTodayQueue(page);
     await expect(page.getByTestId("active-role")).toHaveText(label);
     await expect
       .poll(async () =>
@@ -1339,7 +1335,7 @@ test("Sales and Admin mutate one canonical workflow while anonymous and Admissio
 
   await signIn(page, "admin");
   await page.goto(
-    `/v3/main?period=custom&from=${cohortDate}&to=${cohortDate}`,
+    `/v3/main?view=sales&period=custom&from=${cohortDate}&to=${cohortDate}`,
   );
   const qualifiedMetric = page.locator("li").filter({
     has: page.getByText("Квалифицированы", { exact: true }),

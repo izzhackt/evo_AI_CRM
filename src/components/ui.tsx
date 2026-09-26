@@ -185,12 +185,15 @@ export function PageHeader({
   title,
   count,
   description,
+  meta,
   action,
 }: {
   title: string;
   /** Размер того, что показано рядом с заголовком. null/undefined — считать нечего. */
   count?: number | null;
   description?: string;
+  /** Второстепенная строка под заголовком (`t-meta`): например, дата «Сегодня». */
+  meta?: ReactNode;
   action?: ReactNode;
 }) {
   return (
@@ -202,6 +205,7 @@ export function PageHeader({
             <span className="font-normal tabular-nums text-fg-3">{count}</span>
           ) : null}
         </h1>
+        {meta ? <p className="t-meta mt-1 text-fg-3">{meta}</p> : null}
         {description && <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -68,7 +68,8 @@ for (const role of ["admin", "sales", "admissions"]) {
 
 test("the two disclosure groups use the approved destinations and worklist remains available to Sales", () => {
   const model = navigation("admin");
-  assert.equal(model.home?.label, "Главная");
+  // «Сегодня» (Э3, 26.09.2026): the start page of every role, same id and address.
+  assert.equal(model.home?.label, "Сегодня");
   // Order follows plan §3: Заявки, WhatsApp (ex-«Inbox»), Воронка продаж,
   // Отчёт продаж. The two boards carry their department in the label (UX
   // quick win 2, 2026-09-24): an Admin sees both groups, and two identical
@@ -144,8 +145,8 @@ test("a lead card lives under «Воронка продаж» and names itself �
 });
 
 test("forbidden and unknown paths never mark an unrelated link current", () => {
-  // /v3/main is the admissions «Мой день» home now; only the sales report view
-  // and sales-only routes stay outside that role's navigation.
+  // /v3/main is «Сегодня» for admissions too (Э3, 26.09.2026); only the sales
+  // report view and sales-only routes stay outside that role's navigation.
   assert.equal(navigation("admissions", "/v3/main").activeId, "home");
   // «Заявки» is sales.read-gated (unified workflow S1); admissions lacks that
   // capability entirely, so it never becomes this preview's active link.
@@ -319,8 +320,8 @@ test("the browser tab names the sidebar item that the same address highlights", 
     for (const link of links(navigation(role))) assert.equal(sectionTitle(link.href), link.label, `${role} ${link.href}`);
   }
   for (const [href, title] of [
-    ["/v3/main?period=month", "Главная"],
-    ["/v3/main?view=sales&view=sales", "Главная"],
+    ["/v3/main?period=month", "Сегодня"],
+    ["/v3/main?view=sales&view=sales", "Сегодня"],
     ["/v3/main?view=sales&year=2026&month=9", "Отчёт продаж"],
     ["/v3/profile?case=record&tab=route", "Студенты"],
     ["/v3/profile?section=docs&section=docs", "Студенты"],
@@ -397,7 +398,8 @@ test("each sidebar destination opens under a heading with the same words", () =>
       for (const [, title] of page.matchAll(/<PartShell\b[^>]*?\btitle="([^"]+)"/gu)) assert.equal(title, visible.get(id), file);
     }
   }
-  // Local section tabs reuse the sidebar words for the same addresses.
-  assert.match(source("src/components/v3/SalesReportNavigation.tsx"), /\{ title: "Главная", href: "\/v3\/main"[\s\S]*\{ title: "Отчёт продаж", href: "\/v3\/main\?view=sales"/u);
+  // «Сегодня | Отчёт продаж» tabs are gone (Э3, 26.09.2026): the report keeps its own menu item.
+  assert.equal(existsSync(new URL("../src/components/v3/SalesReportNavigation.tsx", import.meta.url)), false);
+  assert.doesNotMatch(source("src/components/v3/SalesRegisterView.tsx"), /SalesReportNavigation|Раздел главной/u);
   assert.match(source(`${V3}/admissions-pipeline/page.tsx`), />Воронка поступления<\/Link>/u);
 });

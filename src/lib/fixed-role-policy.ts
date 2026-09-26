@@ -119,8 +119,8 @@ export function fixedRoleCanAccessRoute(
 export function fixedRoleHomeRoute(
   role: FixedRole,
 ): "/v3/main" | "/v3/calendar" {
-  // Every fixed role now has a home dashboard on /v3/main («Мой день» for
-  // admissions), matching real-staff routeCapabilities.
+  // Every fixed role starts on /v3/main — «Сегодня», one queue of what is
+  // due (Э3, 26.09.2026) — matching real-staff routeCapabilities.
   void role;
   return "/v3/main";
 }

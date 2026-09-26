@@ -12,7 +12,7 @@ import { roleTitle } from "@/lib/v3/wording";
 export const metadata = { title: "Нет доступа" };
 
 const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
-  "/v3/main": "Главная",
+  "/v3/main": "Сегодня",
   "/v3/pipeline": "Воронка продаж",
   "/v3/admissions-pipeline": "Воронка поступления",
   "/v3/inbox": "WhatsApp",

@@ -43,6 +43,7 @@ final class LessonRunnerModel: ObservableObject {
     @Published private(set) var answered: [UUID: LearningAnsweredEntry]
     @Published private(set) var isWriting = false
     @Published private(set) var isReloading = false
+    @Published private(set) var reloadRequired = false
     @Published private(set) var failure: LearningWriteFailureKind?
     @Published private(set) var result: LearningLessonResult?
 
@@ -102,7 +103,7 @@ final class LessonRunnerModel: ObservableObject {
     var allAnswered: Bool { !exercises.isEmpty && answeredCount == exercises.count }
 
     var canSubmit: Bool {
-        guard let currentExercise, currentEntry == nil, !isWriting else { return false }
+        guard let currentExercise, currentEntry == nil, !isWriting, !reloadRequired, !isReloading else { return false }
         return form.answer(for: currentExercise) != nil
     }
 
@@ -120,6 +121,7 @@ final class LessonRunnerModel: ObservableObject {
     // MARK: - Start / resume
 
     func begin() async {
+        guard !reloadRequired, !isReloading else { return }
         failure = nil
         if attemptId != nil {
             enterExercises()
@@ -138,6 +140,7 @@ final class LessonRunnerModel: ObservableObject {
             enterExercises()
         } catch {
             failure = classify(error)
+            if failure == .conflict { reloadRequired = true }
         }
         isWriting = false
     }
@@ -159,6 +162,7 @@ final class LessonRunnerModel: ObservableObject {
         result = payload.result
         pendingWrite = nil
         failure = nil
+        reloadRequired = false
     }
 
     private static func entries(from payload: LearningAttemptSnapshot) -> [UUID: LearningAnsweredEntry] {
@@ -185,7 +189,7 @@ final class LessonRunnerModel: ObservableObject {
 
     func submit() async {
         guard let exercise = currentExercise, currentEntry == nil,
-              let attemptId, !isWriting else { return }
+              let attemptId, !isWriting, !reloadRequired, !isReloading else { return }
         // Замороженный неподтверждённый запрос повторяется как есть —
         // сервер вернёт исходный receipt по input_hash (198:763-776).
         let write: PendingLearningWrite
@@ -222,6 +226,7 @@ final class LessonRunnerModel: ObservableObject {
         } catch {
             let kind = classify(error)
             failure = kind
+            if kind == .conflict { reloadRequired = true }
             if !PendingLearningWrite.isRetryable(after: kind) {
                 pendingWrite = nil
             }
@@ -230,7 +235,7 @@ final class LessonRunnerModel: ObservableObject {
     }
 
     func advance() {
-        guard phase == .exercises else { return }
+        guard phase == .exercises, !reloadRequired, !isReloading else { return }
         failure = nil
         pageIndex += 1
         if pageIndex >= exercises.count {
@@ -242,7 +247,7 @@ final class LessonRunnerModel: ObservableObject {
     // MARK: - Completion
 
     func complete() async {
-        guard let attemptId, allAnswered, !isWriting else { return }
+        guard let attemptId, allAnswered, !isWriting, !reloadRequired, !isReloading else { return }
         let write = pendingWrite ?? PendingLearningWrite(
             requestId: UUID(),
             operation: .complete,
@@ -262,6 +267,7 @@ final class LessonRunnerModel: ObservableObject {
         } catch {
             let kind = classify(error)
             failure = kind
+            if kind == .conflict { reloadRequired = true }
             if !PendingLearningWrite.isRetryable(after: kind) {
                 pendingWrite = nil
             }
@@ -273,6 +279,10 @@ final class LessonRunnerModel: ObservableObject {
     /// повторяются замороженным снимком; неудавшийся start повторяется тем
     /// же стабильным startRequestId (второй попытки не будет).
     func retryPending() async {
+        if reloadRequired {
+            await reloadSavedAttempt()
+            return
+        }
         if let pendingWrite {
             switch pendingWrite.operation {
             case .save: await submit()
@@ -289,7 +299,8 @@ final class LessonRunnerModel: ObservableObject {
     /// Явная замена локального состояния сохранённой на сервере попыткой.
     /// Вызывается только по кнопке — молча ввод не затирается.
     func reloadSavedAttempt() async {
-        guard !isReloading else { return }
+        guard !isReloading, !isWriting else { return }
+        reloadRequired = true
         isReloading = true
         do {
             let fresh = try await service.learningLesson(lessonId: response.lesson.lessonId)
@@ -314,6 +325,7 @@ final class LessonRunnerModel: ObservableObject {
     /// «Пройти ещё раз»: полный сброс локального состояния и НОВАЯ попытка
     /// (start создаёт новый draft — завершённая попытка иммутабельна).
     func repeatRun() async {
+        guard !reloadRequired, !isReloading, !isWriting else { return }
         answered = [:]
         result = nil
         attemptId = nil
@@ -321,6 +333,7 @@ final class LessonRunnerModel: ObservableObject {
         startRequestId = nil
         pendingWrite = nil
         failure = nil
+        reloadRequired = false
         pageIndex = 0
         phase = .intro
         resetForm()
@@ -448,7 +461,7 @@ struct LessonRunnerView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color("AccentColor"))
-                .disabled(model.isWriting || model.exercises.isEmpty)
+                .disabled(model.isWriting || model.isReloading || model.reloadRequired || model.exercises.isEmpty)
                 // A11y (9b): во время записи label — ProgressView без текста.
                 .accessibilityLabel(model.attemptId != nil
                     ? Text("english_continue_lesson")
@@ -511,6 +524,7 @@ struct LessonRunnerView: View {
                         Task { await model.retryPending() }
                     }
                     .buttonStyle(.bordered)
+                    .disabled(model.isWriting || model.isReloading)
                 case .conflict:
                     Button("english_reload_draft") {
                         confirmReload = true
@@ -538,7 +552,7 @@ struct LessonRunnerView: View {
 
     private func failureMessage(_ kind: LearningWriteFailureKind) -> LocalizedStringKey {
         switch kind {
-        case .network: return "english_error_unavailable"
+        case .network: return model.reloadRequired ? "english_error_conflict" : "english_error_unavailable"
         case .conflict: return "english_error_conflict"
         case .denied: return "english_error_denied"
         case .rejected: return "english_error_invalid"
@@ -560,11 +574,12 @@ struct LessonRunnerView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color("AccentColor"))
                 .frame(maxWidth: .infinity, alignment: .trailing)
+                .disabled(model.reloadRequired || model.isReloading)
             } else {
                 ExerciseFormView(
                     exercise: exercise,
                     form: $model.form,
-                    disabled: model.isWriting
+                    disabled: model.isWriting || model.reloadRequired || model.isReloading
                 )
                 Button {
                     Task { await model.submit() }
@@ -613,7 +628,7 @@ struct LessonRunnerView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color("AccentColor"))
-                    .disabled(!model.allAnswered || model.isWriting)
+                    .disabled(!model.allAnswered || model.isWriting || model.reloadRequired || model.isReloading)
                     // A11y (9b): во время записи label — ProgressView.
                     .accessibilityLabel(Text("english_finish_button"))
                 }
@@ -680,7 +695,7 @@ struct LessonRunnerView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .disabled(model.isWriting)
+                .disabled(model.isWriting || model.reloadRequired || model.isReloading)
                 // A11y (9b): во время записи label — ProgressView.
                 .accessibilityLabel(Text("english_repeat_lesson"))
 

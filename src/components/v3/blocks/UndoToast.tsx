@@ -25,7 +25,10 @@ export type UndoToastItem = Readonly<{
  * (`onHold(false)`): фокус приходит сюда после каждого завершения, и
  * клавиатуре с читалкой не приходится успевать за таймером. Появляется за 160 мс,
  * при `prefers-reduced-motion` — без движения (v3.css). Объявление для читалки
- * делает живая область списка: строка его не повторяет.
+ * делает живая область списка: строка его не повторяет. Клавиши очереди
+ * (j/k, ↑/↓, «/», «?», Shift+Enter, Esc панели) при открытой строке работают:
+ * она помечена `data-queue-passive` (`popoverBlocksQueueKeys`), а j/k с её
+ * «Отменить» продолжают от завершённой строки.
  */
 export function UndoToast({
   items,
@@ -69,6 +72,7 @@ export function UndoToast({
       aria-label={label}
       className="v3-toasts"
       data-testid="v3-undo-toasts"
+      data-queue-passive=""
       onFocus={() => { inside.current.focus = true; sync(); }}
       onBlur={(event) => {
         if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;

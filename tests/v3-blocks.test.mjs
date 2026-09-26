@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dueWordOf } from "../src/components/v3/queue/due-bucket.ts";
 import { personInitials } from "../src/components/v3/queue/person-name.ts";
 import { progressOf } from "../src/components/v3/blocks/progress.ts";
+import { QUEUE_PASSIVE_POPOVER, popoverBlocksQueueKeys } from "../src/components/v3/queue/queue-navigation.ts";
 import { resumedUndoDeadline } from "../src/components/v3/tasks/undo-deadline.ts";
 import { ADMISSIONS_PIPELINE_STAGES } from "../src/lib/platform-admissions-pipeline-contract.ts";
 import {
@@ -258,6 +259,52 @@ test("the undo deadline stands still while focus or the pointer is on the undo r
   assert.doesNotMatch(read("src/components/v3/today/TodayQueueList.tsx"), /\bhold\b/u);
 });
 
+test("the queue keys keep working while the undo row is open", () => {
+  // Ревью PR #1070 (голова 0faee9fc): строка «Отменить» — `popover="manual"`, и
+  // проверка «открыто любое :popover-open» выключала j/k, ↑/↓, «/», «?»,
+  // Shift+Enter и Esc панели на всё время строки (≥ 6 с, без конца при фокусе).
+  const element = (...attributes) => ({ hasAttribute: (name) => attributes.includes(name) });
+  const undoRow = element(QUEUE_PASSIVE_POPOVER);
+  const menu = element();
+  assert.equal(QUEUE_PASSIVE_POPOVER, "data-queue-passive");
+  assert.equal(popoverBlocksQueueKeys([]), false, "nothing open");
+  assert.equal(popoverBlocksQueueKeys([undoRow]), false, "only the undo row: keys work");
+  assert.equal(popoverBlocksQueueKeys([menu]), true, "a menu, «Результат» or the «?» help: keys wait");
+  assert.equal(popoverBlocksQueueKeys([undoRow, menu]), true, "a menu over the undo row still wins");
+  assert.equal(popoverBlocksQueueKeys([menu, undoRow]), true);
+  // Строка «Отменить» помечена пассивной; другие окна верхнего слоя — нет.
+  assert.match(blocks.get("toast"), /^<div [^>]*data-testid="v3-undo-toasts" data-queue-passive=""/u);
+  const passive = [];
+  for (const root of ["src/app/(v3)", "src/components/v3"]) {
+    for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
+      const path = `${root}/${String(entry).split("\\").join("/")}`;
+      if (/\.tsx?$/u.test(path) && /data-queue-passive=/u.test(read(path))) passive.push(path);
+    }
+  }
+  assert.deepEqual(passive, ["src/components/v3/blocks/UndoToast.tsx"], "only the undo row is passive");
+  // Обе проверки клавиш — клавиатура очереди и Esc панели — идут через одно правило.
+  const hook = read("src/components/v3/queue/useQueueKeyboard.ts");
+  assert.match(hook, /export function openPopover\(\): boolean \{\s*try \{ return popoverBlocksQueueKeys\(document\.querySelectorAll\(":popover-open"\)\); \} catch \{ return false; \}/u);
+  assert.doesNotMatch(hook, /querySelector\(":popover-open"\)/u, "no «any popover» check is left");
+  assert.match(hook, /if \(openPopover\(\) \|\| modalOpen\(\)\) return;/u);
+  assert.match(read("src/components/v3/queue/QueueDetailPanel.tsx"), /event\.key !== "Escape"[^\n]*openPopover\(\) \|\| modalOpen\(\)\) return;/u);
+  // j/k с «Отменить» продолжают от завершённой строки (data-undo-row), а не с начала списка.
+  assert.match(hook, /active\.closest<HTMLElement>\("\[data-undo-row\]"\)\?\.dataset\.undoRow/u);
+  assert.match(hook, /const current = focusedRowIndex\(links\);/u);
+  // Живая проверка в Chromium — `tests/e2e/tasks-static-render.cjs --screenshots <dir> --look=next`:
+  // снимки `*-undo-keys-1440` падают, если j/k, ↓, «?», «/» или Esc панели молчат при открытой строке.
+  const harness = read("tests/e2e/tasks-static-render.cjs");
+  assert.match(harness, /\["tasks-undo-keys-1440\.png", DESKTOP, false, "undo-keys"\]/u);
+  assert.match(harness, /\["tasks-panel-staff-undo-keys-1440\.png", DESKTOP, false, "undo-keys"\]/u);
+  assert.match(harness, /if \(failures\.length\) throw new Error/u);
+});
+
+test("an undo error belongs to one completion and does not come back with the next", () => {
+  const list = read("src/components/v3/tasks/TaskQueueList.tsx");
+  assert.match(list, /const state = undoState\[key\]\?\.completedAt === completedAt \? undoState\[key\] : undefined;/u);
+  assert.equal(list.match(/\[key\]: \{ completedAt, pending: (?:true|false), error: (?:null|failure) \}/gu)?.length, 2);
+});
+
 // --- CSS: только новый облик, движение, контраст ------------------------------
 
 function luminance(hex) {
@@ -307,6 +354,8 @@ test("block styles exist only in the new look, set no font sizes and keep contra
   // Чип-ссылка: чип 18 px с полями −1 px — ссылка 16 px; зона нажатия 16 + 2 × 14 = 44 px.
   assert.match(css, /\.v3-world\[data-look="next"\] \.v3-chip\[data-size="sm"\] \{\s*min-height: 18px;\s*margin-block: -1px;/u);
   assert.match(css, /\.v3-world\[data-look="next"\] \.v3-chip-link::after \{\s*content: "";\s*position: absolute;\s*inset: -14px -4px;/u);
+  // Чип-ссылка подчёркнут: рядом такой же чип «просрочено», который не ссылка.
+  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-chip-link \.v3-chip \{\s*text-decoration-line: underline;/u);
   // Третья строка карточки продаж — одна линия; не поместилось — уходит целиком.
   assert.match(css, /\.v3-world\[data-look="next"\] \.v3-card-meta \{\s*height: 1lh;\s*overflow: hidden;/u);
   assert.match(css, /\.v3-world\[data-look="next"\] :is\(\.v3-card-due, \.v3-card-age\) \{\s*white-space: nowrap;/u);

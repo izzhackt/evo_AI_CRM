@@ -705,6 +705,12 @@
   position: absolute;
   inset: -14px -4px;
 }
+/* Слово чипа-ссылки подчёркнуто: рядом такой же чип «просрочено» — не ссылка. */
+.v3-world[data-look="next"] .v3-chip-link .v3-chip {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
 
 /*
  * «Отменить» у нижнего края окна: верхний слой (popover), над нижней панелью

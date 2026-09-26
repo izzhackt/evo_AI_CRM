@@ -1,5 +1,5 @@
 import { parseRequestsReturnTo } from "@/lib/requests-queue-contract";
-import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
+import { isStaffPreview, staffCanAccessRoute, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import { Suspense } from "react";
 
@@ -37,6 +37,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { v3SectionTitle } from "@/lib/v3/navigation";
+import { PIPELINE_PATH, parsePipelineReturnTo } from "@/lib/v3/pipeline-return";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import {
   listStudentPortalActiveCurators,
@@ -199,7 +200,9 @@ export default async function ProfilePart({
   const requestsReturnTo = parseRequestsReturnTo(singleSearchParam(params.returnTo));
   // «К списку студентов» возвращает тот же вид очереди, фильтры, страницу и строку.
   const studentsReturnTo = requestsReturnTo ? null : parseStudentsReturnTo(singleSearchParam(params.returnTo));
-  const listReturnTo = requestsReturnTo ?? studentsReturnTo;
+  // Карточка лида из панели доски возвращает на доску в то же состояние.
+  const pipelineReturnTo = requestsReturnTo || studentsReturnTo ? null : parsePipelineReturnTo(singleSearchParam(params.returnTo));
+  const listReturnTo = requestsReturnTo ?? studentsReturnTo ?? pipelineReturnTo;
   const directoryHref = studentsReturnTo ?? withDocsSection("/v3/profile", docsMode);
   const withRequestsReturn = (href: string) => listReturnTo
     ? `${href}${href.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(listReturnTo)}` : href;
@@ -211,6 +214,11 @@ export default async function ProfilePart({
   const caseParam = singleSearchParam(params.case);
   const hasLeadParam = params.id !== undefined;
   const hasCaseParam = params.case !== undefined;
+  // Лид (не дело) без адреса возврата — назад на доску, где лиды и живут; в
+  // меню подсвечена та же «Воронка продаж» (navigation.ts).
+  const pipelineBackHref = pipelineReturnTo
+    ?? (listReturnTo === null && leadParam && !hasCaseParam && !docsMode && staffCanAccessRoute(actor, PIPELINE_PATH)
+      ? PIPELINE_PATH : null);
   const hasNoteBeforeAt = params.note_before_at !== undefined;
   const hasNoteBeforeId = params.note_before_id !== undefined;
   const noteBeforeAt = singleSearchParam(params.note_before_at);
@@ -332,9 +340,9 @@ export default async function ProfilePart({
           <>
             <Link
               className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
-              href={requestsReturnTo ?? directoryHref}
+              href={requestsReturnTo ?? pipelineBackHref ?? directoryHref}
             >
-              {requestsReturnTo ? "К списку заявок" : docsMode ? "К списку EVO Docs" : "К списку студентов"}
+              {requestsReturnTo ? "К списку заявок" : pipelineBackHref ? "К воронке продаж" : docsMode ? "К списку EVO Docs" : "К списку студентов"}
             </Link>
             {view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
               <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />

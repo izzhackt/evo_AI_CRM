@@ -5,6 +5,7 @@ import { Icon } from "@/components/icons";
 import { loadStaffNotificationsAction, markAllStaffNotificationsReadAction, markStaffNotificationReadAction } from "@/lib/v3/staff-notification-actions";
 import type { StaffNotification, StaffNotificationCursor, StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 import { dayInOrganizationTimezone, projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
+import { caseMessageNotificationCopy } from "@/components/v3/staff-notification-copy";
 
 const TIME = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
 const EXACT_TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
@@ -57,9 +58,7 @@ function rowCopy(item: StaffNotification): string {
     case "case_help":
       return item.studentDisplayName ? `Новое обращение по делу студента · ${item.studentDisplayName}` : "Новое обращение по делу студента";
     case "case_message":
-      return item.actorDisplayName && item.studentDisplayName
-        ? `${item.actorDisplayName} написал(а) в переписке · ${item.studentDisplayName}`
-        : "Новое сообщение в переписке по делу";
+      return caseMessageNotificationCopy(item.actorDisplayName, item.studentDisplayName);
     default:
       return "Событие";
   }

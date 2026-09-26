@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
 
 import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
-import { Inbox } from "@/components/v3/Inbox";
+import { Inbox, inboxNotConnected } from "@/components/v3/Inbox";
 import { InboxProviderWorkflowControls } from "@/components/v3/InboxProviderWorkflowControls";
 import { PartShell } from "@/components/v3/PartShell";
 import { getLocale } from "@/lib/i18n";
@@ -130,11 +130,19 @@ export default async function InboxPart({
     );
   }
 
+  // Не подключён и пусто: считать нечего, числа в заголовке нет. Подключает
+  // Администратор — только ему ссылка на Настройки (не в просмотре роли).
+  const notConnected = inboxNotConnected(view);
+  const settingsHref = actor.systemRole === "admin" && actor.presentationRole === null
+    ? "/v3/settings?section=integrations"
+    : null;
+
   return (
-    <PartShell title="WhatsApp" count={view.conversations.length} fill>
+    <PartShell title="WhatsApp" count={notConnected ? null : view.conversations.length} fill>
       <Inbox
         view={view}
         profileHref={profileHref}
+        settingsHref={settingsHref}
         workflowControls={workflowControls}
         amoCrmControls={amoCrmControls}
         mediaAttachmentContext={mediaAttachmentContext}

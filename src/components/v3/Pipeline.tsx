@@ -24,6 +24,7 @@ import type {
   PlatformSalesWorkflowLead,
 } from "@/lib/platform-sales-contract";
 import type { PlatformSalesLeadLatestNote } from "@/lib/platform-sales";
+import { pipelineReturnHref, withPipelineReturn } from "@/lib/v3/pipeline-return";
 
 export type PipelineStageKey = PlatformSalesStage | "handed_off";
 
@@ -225,6 +226,7 @@ function LeadPanel({
   actorMembershipId,
   requestId,
   closeHref,
+  returnTo,
   saved,
   onClose,
   onSaved,
@@ -239,6 +241,8 @@ function LeadPanel({
   actorMembershipId: string;
   requestId: string;
   closeHref: string;
+  /** Текущее состояние доски — туда ведёт «К воронке продаж» из карточки. */
+  returnTo: string;
   saved: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -347,7 +351,7 @@ function LeadPanel({
         </dl>
 
         <p className="mt-2 flex flex-wrap gap-x-5">
-          <Link href={lead.href} prefetch={false} className="t-item inline-flex min-h-11 items-center text-accent-text underline underline-offset-4">
+          <Link href={withPipelineReturn(lead.href, returnTo)} prefetch={false} className="t-item inline-flex min-h-11 items-center text-accent-text underline underline-offset-4">
             Открыть карточку лида
           </Link>
           {/* Ролям без права на задачи ссылка просто не показывается —
@@ -694,6 +698,7 @@ export function Pipeline({
           actorMembershipId={actorMembershipId}
           requestId={requestIds[selected.id] ?? ""}
           closeHref={boardHref({ lead: null })}
+          returnTo={pipelineReturnHref(search)}
           saved={saved?.leadId === selected.id && saved.version !== selected.workflow.workflowVersion}
           onClose={closePanel}
           onSaved={() => setSaved({ leadId: selected.id, version: selected.workflow.workflowVersion })}

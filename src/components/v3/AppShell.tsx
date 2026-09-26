@@ -14,7 +14,7 @@ import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { Icon, type IconName } from "@/components/icons";
 import { cn } from "@/components/ui";
 import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
-import { isBoardRoute } from "@/lib/v3/board-layout";
+import { isBoardRoute, isFillRoute } from "@/lib/v3/board-layout";
 import {
   buildV3Navigation,
   type V3Navigation,
@@ -346,6 +346,8 @@ export function AppShell({
   // Доска занимает высоту окна: от 768 px страница не прокручивается,
   // прокручиваются колонки доски (PartShell width="board").
   const board = isBoardRoute(pathname);
+  // Высота окна: доски и переписка WhatsApp (рейка меню — только у досок).
+  const fill = isFillRoute(pathname);
 
   return (
     <div
@@ -372,7 +374,7 @@ export function AppShell({
         rail={board}
       />
       {/* Container queries use the width remaining after the sidebar (260px, or the 64px rail on boards). */}
-      <div className={cn("@container min-w-0 flex-1", board && "md:flex md:h-dvh md:flex-col")}>
+      <div className={cn("@container min-w-0 flex-1", fill && "md:flex md:h-dvh md:flex-col")}>
         <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-end gap-3 border-b border-border bg-surface px-4 py-1 md:min-h-16 md:px-6 md:py-2">
           {/* В рейке нет места полному логотипу — он стоит в верхней панели. */}
           {board ? (
@@ -410,7 +412,7 @@ export function AppShell({
           id={contentId}
           ref={contentRef}
           tabIndex={-1}
-          className={cn("min-w-0 outline-none", board && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto")}
+          className={cn("min-w-0 outline-none", fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto")}
         >
           {children}
         </div>

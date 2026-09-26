@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   getPlatformCaseDocumentWorkspace,
+  listCaseBaselineChecklistOptions,
   listPlatformDocumentQueue,
   normalizePlatformCaseDocumentWorkspace,
   normalizePlatformDocumentQueueRow,
@@ -475,6 +476,64 @@ test("case and queue reads call one authenticated GET-safe Supabase RPC each", a
     ],
     ["staff_document_queue", { p_limit: 2 }, { get: true }],
   ]);
+});
+
+test("baseline checklist options are a GET read; migration 243 gives the STABLE function a lock-free gate", async () => {
+  // PostgREST runs a GET, and a POST to a STABLE function, in a READ ONLY
+  // transaction. Before 243 the gate of staff_case_baseline_checklist_options
+  // (179) was require_case_operator -> require_domain_actor (155) with
+  // SELECT ... FOR UPDATE, so every read failed with 25006 whatever the
+  // transport (audit 26.09, review of PR #1064). The transport is not the fix;
+  // the gate is. Real-Postgres proof:
+  // supabase/tests/platform_case_baseline_options_read_gate.sql.
+  const calls = [];
+  const client = {
+    schema(schema) {
+      assert.equal(schema, "platform");
+      return {
+        async rpc(...args) {
+          calls.push(args);
+          return { data: [], error: null };
+        },
+      };
+    },
+  };
+  const manager = { ...ACTOR, permissionKeys: ["document.read.full", "document.manage"] };
+  // A legitimate empty list (no approved templates) is an empty result, not a failure.
+  assert.deepEqual(await listCaseBaselineChecklistOptions(manager, CASE_ID, { client }), []);
+  assert.deepEqual(calls, [[
+    "staff_case_baseline_checklist_options",
+    { p_organization_id: ORGANIZATION_ID, p_student_case_id: CASE_ID },
+    { get: true },
+  ]]);
+
+  const migration = readFileSync(new URL(
+    "../supabase/migrations/243_platform_case_baseline_options_read_gate.sql",
+    import.meta.url,
+  ), "utf8");
+  const oldGate = migration.match(/old_gate CONSTANT TEXT := \$q\$([\s\S]*?)\$q\$;/u)?.[1];
+  const newGate = migration.match(/new_gate CONSTANT TEXT := \$q\$([\s\S]*?)\$q\$;/u)?.[1];
+  assert.ok(oldGate && newGate, "243 carries one old and one new gate anchor");
+  // The old anchor is the exact 179 gate text, so the replace cannot miss.
+  const original = readFileSync(new URL(
+    "../supabase/migrations/179_platform_case_baseline_checklist.sql",
+    import.meta.url,
+  ), "utf8");
+  const optionsBody = original.slice(
+    original.indexOf("CREATE FUNCTION platform.staff_case_baseline_checklist_options("),
+    original.indexOf("CREATE FUNCTION platform.seed_case_baseline_checklist("),
+  );
+  assert.equal(optionsBody.split(oldGate).length - 1, 1);
+  assert.match(oldGate, /platform_private\.require_case_operator\(/u);
+  // Same permission and case scope, no lock, still 42501 when out of scope.
+  assert.match(newGate, /platform_private\.require_domain_actor_read\(\s*p_organization_id,\s*'document\.manage'\s*\)/u);
+  assert.match(newGate, /platform_private\.staff_can_access\(\s*p_organization_id,\s*actor\.actor_membership_id,\s*'document\.manage',\s*'student_case',\s*p_student_case_id\s*\)/u);
+  assert.match(newGate, /ERRCODE = '42501'/u);
+  assert.doesNotMatch(newGate, /require_case_operator|FOR UPDATE|require_domain_actor\(/u);
+  // The migration only swaps the gate: no VOLATILE, no grant or signature change.
+  const code = migration.replace(/--[^\n]*/gu, "");
+  assert.match(code, /proc\.provolatile = 's'/u);
+  assert.doesNotMatch(code, /\bVOLATILE\b|\bGRANT\b|\bREVOKE\b|CREATE (?:OR REPLACE )?FUNCTION|seed_case_baseline_checklist\(/u);
 });
 
 test("Sales is rejected before any Admissions document RPC", async () => {

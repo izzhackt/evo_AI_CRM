@@ -130,7 +130,6 @@ export default async function CalendarPart({
               workspace.undatedNextCursor,
             )
           : null}
-        undatedCount={workspace.undatedCount}
         undatedCursor={undatedCursor}
         cases={workspace.cases}
         casesHaveMore={workspace.casesHaveMore}

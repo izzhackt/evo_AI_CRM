@@ -2662,6 +2662,19 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_queue_pending_view.sql
   fi
+
+  # Migration 243 (track A2 «честное состояние», audit 26.09): the Student
+  # 360 baseline checklist options read gets a lock-free gate, so it works
+  # in the READ ONLY transaction PostgREST uses for a STABLE function. The
+  # suite proves rows and no 25006 under READ ONLY (control: the old gate
+  # still fails with 25006), 42501 without document.manage and 42501 for a
+  # case outside the staff member's scope, and the same decisions as the
+  # old gate for every fixture actor and case.
+  if [[ "$(basename "$migration")" == 243_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_baseline_options_read_gate.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

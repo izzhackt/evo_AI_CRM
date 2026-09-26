@@ -173,7 +173,7 @@ export function Overview({
         <>
           <Card
             eyebrow
-            title="Sales"
+            title="Продажи"
             aside={stage ? <Pill tone="neutral">{stage}</Pill> : undefined}
           >
             <FactList

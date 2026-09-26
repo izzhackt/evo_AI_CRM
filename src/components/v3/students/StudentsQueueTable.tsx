@@ -63,7 +63,7 @@ export type StudentsRowLinks = Readonly<{
 }>;
 
 export function studentsRowMeta(row: Pick<StudentCaseQueueRow, "admissionsDirection" | "targetCountry" | "targetDegree">): string {
-  const direction = row.admissionsDirection ? DIRECTION_LABELS[row.admissionsDirection] : row.targetCountry ?? "не указано";
+  const direction = row.admissionsDirection ? DIRECTION_LABELS[row.admissionsDirection] : row.targetCountry ?? "Страна не указана";
   return [direction, row.targetDegree].filter(Boolean).join(" · ");
 }
 

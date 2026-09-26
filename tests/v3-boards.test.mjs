@@ -283,7 +283,9 @@ test("a sales card opens the right panel with the existing decision form; the ca
   assert.match(aside, /<input type="hidden" name="expected_version" value="3"\/>/u);
   assert.match(aside, /Родители просят сравнить/u, "latest note");
   assert.match(aside, />Задачи по лиду<\/a>/u);
-  assert.match(aside, /href="\/v3\/profile\?id=dddddddd-3333-4333-8333-000000000005">Открыть карточку лида/u);
+  // The lead card returns to this board state (audit 26.09: the back link read
+  // «К списку студентов»): the open panel is part of that state.
+  assert.match(aside, /href="\/v3\/profile\?id=dddddddd-3333-4333-8333-000000000005&amp;returnTo=%2Fv3%2Fpipeline%3Flead%3Ddddddddd-3333-4333-8333-000000000005">Открыть карточку лида/u);
   assert.match(panel, /<article data-testid="v3-pipeline-card" data-lead-id="dddddddd-3333-4333-8333-000000000005" aria-current="true" class="v3-choice /u);
   assert.match(read("src/components/v3/Pipeline.tsx"), /window\.history\.pushState\(null, "", href\)/u, "opening stays client-side and URL-addressable");
 });
@@ -307,12 +309,21 @@ test("one 44px toolbar: no «Стадия» chips, selects apply on change, «С
   assert.doesNotMatch(sales, /id="v3-pipeline-filter-stage"|>Сотрудник</u);
   assert.match(sales, /<label class="t-label [^"]*">Ответственный<select/u);
   assert.match(sales, /<optgroup label="Сотрудники">/u);
-  const due = tag(sales, /<nav aria-label="Срок"[\s\S]*?<\/nav>/u);
-  assert.deepEqual([...due.matchAll(/<a [^>]*>([^<]+)(?:<span class="tabular-nums text-fg-3">(\d+)<\/span>)?<\/a>/gu)].map((match) => [match[1], match[2] ?? null].join(" ").trim()),
-    ["Все", "Просрочено 4", "Сегодня 3", "Без действия 3"]);
-  // With a due filter only its own number is known — no invented counts.
+  const dueChips = (html) => [...tag(html, /<nav aria-label="Срок"[\s\S]*?<\/nav>/u)
+    .matchAll(/<a [^>]*>([^<]+)(?:<span class="tabular-nums text-fg-3">(\d+)<\/span>)?<\/a>/gu)]
+    .map((match) => [match[1], match[2] ?? null].join(" ").trim());
+  // Only working stages are counted, like the title: the two handed-off
+  // leads (one overdue, one without an action) are not «Просрочено» or
+  // «Без действия» work (audit 26.09: the chip led to empty working columns).
+  assert.deepEqual(dueChips(sales), ["Все", "Просрочено 3", "Сегодня 3", "Без действия 2"]);
+  // With a due filter only its own number is known — no invented counts —
+  // and it still excludes the handed-off lead that the filtered read returns.
+  const unscheduled = surfaces.get("sales-unscheduled");
+  assert.deepEqual(dueChips(unscheduled), ["Все", "Просрочено", "Сегодня", "Без действия 2"]);
+  assert.match(unscheduled, /Воронка продаж<span class="[^"]*">2<\/span>/u);
   const page = read("src/app/(v3)/v3/pipeline/page.tsx");
-  assert.match(page, /board\.truncated \? null\s*: query\.due === "all" \? leads\.filter\(\(lead\) => lead\.due === due\)\.length\s*: query\.due === key \? leads\.length\s*: null/u);
+  assert.match(page, /const working = leads\.filter\(\(lead\) => lead\.stageKey !== "handed_off"\);/u);
+  assert.match(page, /board\.truncated \? null\s*: query\.due === "all" \? working\.filter\(\(lead\) => lead\.due === due\)\.length\s*: query\.due === key \? working\.length\s*: null/u);
   const admissions = surfaces.get("admissions");
   const tabs = tag(admissions, /<nav aria-label="Разделы воронки поступления"[\s\S]*?<\/nav>/u);
   assert.match(tabs, /Поступление<span class="tabular-nums text-fg-3">7<\/span>/u);

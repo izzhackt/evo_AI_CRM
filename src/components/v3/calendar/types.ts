@@ -310,6 +310,26 @@ export function calendarUndatedPageNotice(
   return null;
 }
 
+/**
+ * Число в «Без срока — N»: открытые задачи без срока. Выполненные и
+ * отменённые остаются в списке (зачёркнутыми), но работой не считаются —
+ * прежде число брало `total_count` чтения, где они есть (аудит 26.09).
+ * Точно число известно, только когда весь список без срока прочитан на этой
+ * странице; есть продолжение — «N+» (нижняя граница, как «20+» у очередей),
+ * а на странице продолжения или без открытых задач при продолжении — без
+ * числа: нет чтения — нет числа.
+ */
+export function calendarUndatedOpenCount(
+  tasks: readonly Pick<CalendarTask, "day" | "state">[],
+  continuationPage: boolean,
+  hasNextPage: boolean,
+): string | null {
+  if (continuationPage) return null;
+  const open = tasks.filter((task) => task.day === null && task.state !== "done" && task.state !== "cancelled").length;
+  if (!hasNextPage) return String(open);
+  return open > 0 ? `${open}+` : null;
+}
+
 /* ------------------------------------------------------- отрезок и шаг */
 
 /** Клетки сетки: один день, семь дней недели или всё поле месяца. */

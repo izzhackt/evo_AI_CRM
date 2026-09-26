@@ -126,6 +126,15 @@ const state = { salesRows: SALES_ROWS, saveSucceeds: false, versions: new Map() 
 // Сохранённое решение, как на сервере, поднимает версию лида: следующее
 // чтение доски её отдаёт, и форма пересоздаётся с новой версией.
 const withVersion = (one) => (state.versions.has(one.leadId) ? { ...one, ...state.versions.get(one.leadId) } : one);
+// Срок, как у RPC доски: переданного лида фильтр не исключает — он тоже
+// приходит в чтении и попадает в свёрнутую колонку «Переданы».
+function matchesDue(one, dueFilter) {
+  const today = bishkekDate(0);
+  if (dueFilter === "overdue") return one.nextActionDueDate !== null && one.nextActionDueDate < today;
+  if (dueFilter === "due_today") return one.nextActionDueDate === today;
+  if (dueFilter === "unscheduled") return one.nextActionDueDate === null;
+  return true;
+}
 function selectSalesRows(kind) {
   state.salesRows = kind === "volume" ? VOLUME_ROWS : SALES_ROWS;
 }
@@ -146,7 +155,7 @@ const STUBS = {
       rows: (options.query
         ? state.salesRows.filter((one) => [one.clientDisplayName, one.clientEmail, one.clientPhone, one.nextActionText]
           .some((value) => value?.toLocaleLowerCase("ru-RU").includes(options.query.toLocaleLowerCase("ru-RU"))))
-        : state.salesRows).map(withVersion),
+        : state.salesRows).filter((one) => matchesDue(one, options.dueFilter ?? "all")).map(withVersion),
       hasNext: false,
       nextCursor: null,
     }),

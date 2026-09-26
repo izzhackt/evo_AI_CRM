@@ -811,6 +811,9 @@ export async function listCaseBaselineChecklistOptions(
     const organizationId = requireDocumentManager(actor);
     const parsedStudentCaseId = requiredUuid(studentCaseId);
     const client = dependencies.client ?? await getPlatformClient();
+    // GET — чтение в READ ONLY. С миграции 243 проверка этой функции не
+    // блокирует строк (require_domain_actor_read + staff_can_access); до неё
+    // require_case_operator брал FOR UPDATE и падал с 25006.
     const response = await client.schema("platform").rpc(
       "staff_case_baseline_checklist_options",
       {

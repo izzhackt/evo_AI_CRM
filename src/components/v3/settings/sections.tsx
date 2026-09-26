@@ -67,19 +67,27 @@ export function StateSection({ health }: { health: readonly Health[] }) {
         ))}
       </ul>
 
-      <Card title="Требует внимания" aside={<Pill tone="warn">{blocked.length}</Pill>}>
-        <ul>
-          {blocked.map((item) => (
-            <li
-              key={item.name}
-              className="grid gap-x-4 gap-y-1 border-b border-border px-4 py-3 last:border-b-0 @4xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)]"
-            >
-              <span className="text-sm font-semibold text-fg">{item.name}</span>
-              <span className="t-body-compact text-fg-2">{item.blocker}</span>
-            </li>
-          ))}
-        </ul>
-        <Note>Для настройки подключений обратитесь к техническому специалисту.</Note>
+      {/* Считается только настроенное и сломанное или ждущее проверки:
+          «не проверялось» и «не используется» — факты, а не тревога. */}
+      <Card title="Требует внимания" aside={blocked.length > 0 ? <Pill tone="warn">{blocked.length}</Pill> : undefined}>
+        {blocked.length > 0 ? (
+          <>
+            <ul>
+              {blocked.map((item) => (
+                <li
+                  key={item.name}
+                  className="grid gap-x-4 gap-y-1 border-b border-border px-4 py-3 last:border-b-0 @4xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)]"
+                >
+                  <span className="text-sm font-semibold text-fg">{item.name}</span>
+                  <span className="t-body-compact text-fg-2">{item.blocker}</span>
+                </li>
+              ))}
+            </ul>
+            <Note>Для настройки подключений обратитесь к техническому специалисту.</Note>
+          </>
+        ) : (
+          <p className="t-body-compact px-4 py-3 text-fg-3">Ничего не требует внимания.</p>
+        )}
       </Card>
     </div>
   );

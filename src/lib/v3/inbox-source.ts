@@ -113,9 +113,11 @@ async function readInboxChannelStatus(
   try {
     const health = await getPlatformWahaSessionHealth(actor, "crm_primary");
     return Object.freeze({
+      // Нет строки о сессии CRM — WhatsApp к CRM не подключали (чтение
+      // прошло; сбой чтения — ниже, «unavailable»).
       channelState:
         health === null
-          ? "unknown"
+          ? "not_connected"
           : isFreshWorkingWahaSession(health)
             ? "ready"
             : "attention",

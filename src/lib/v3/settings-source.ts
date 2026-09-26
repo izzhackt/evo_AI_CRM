@@ -15,6 +15,7 @@ import {
 } from "@/lib/platform-communications";
 import { providerDisplayStatus } from "@/lib/provider-display-status";
 import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
+import { isPlatformP7BObservabilityEnabled } from "@/lib/server/platform-observability-config";
 import { loadPlatformOperationsReadiness } from "@/lib/server/platform-operations-readiness";
 import {
   platformWahaHealthDisplayStatus,
@@ -25,16 +26,20 @@ import {
   normalizeJournalFilters,
   type JournalFilters,
 } from "@/lib/v3/settings-journal-contract";
-import { settingsBlockedWahaDetail, settingsStatusWords } from "@/lib/v3/wording";
+import {
+  amoIntegration,
+  databaseFact,
+  geminiIntegration,
+  settingsHealth,
+  wahaIntegration,
+  type Health,
+  type Integration,
+  type SettingsHealthFacts,
+} from "@/lib/v3/settings-health";
 
 export type { JournalFilters } from "@/lib/v3/settings-journal-contract";
 
-export type Integration = Readonly<{
-  name: string;
-  state: string;
-  ok: boolean;
-  detail: string;
-}>;
+export type { Health, Integration } from "@/lib/v3/settings-health";
 
 const AUDIT_PAGE_SIZE = 100;
 const JOURNAL_PAGE_SIZE = 60;
@@ -86,65 +91,29 @@ function formatSettingsObservedAt(value: string | undefined): string {
   return `Данные на ${date} (Бишкек).`;
 }
 
-function wahaState(facts: ProviderFacts): Integration {
-  const observed = formatSettingsObservedAt(facts.waha?.observedAt);
-  if (facts.wahaDisplay === "ready") {
-    return {
-      name: "WhatsApp",
-      state: "готова",
-      ok: true,
-      detail: `Подключение подтверждено. ${observed}`,
-    };
-  }
-  if (facts.wahaDisplay === "blocked") {
-    return {
-      name: "WhatsApp",
-      state: "заблокирована",
-      ok: false,
-      detail: `${settingsBlockedWahaDetail(facts.waha?.status)} ${observed}`,
-    };
-  }
+function wahaFacts(facts: ProviderFacts): SettingsHealthFacts["waha"] {
   return {
-    name: "WhatsApp",
-    state: "не подтверждена",
-    ok: false,
-    detail: "Нет данных о подключении.",
+    display: facts.wahaDisplay,
+    sessionStatus: facts.waha?.status,
+    observed: formatSettingsObservedAt(facts.waha?.observedAt),
   };
 }
 
-function geminiState(facts: ProviderFacts): Integration {
-  if (facts.geminiDisplay === "configured_not_verified") {
-    return {
-      name: "Gemini · предложения",
-      state: "настроен, не проверен",
-      ok: false,
-      detail: "Работа сервиса ещё не проверена.",
-    };
-  }
+function healthFacts(
+  facts: ProviderFacts,
+  readiness: Awaited<ReturnType<typeof loadPlatformOperationsReadiness>>,
+): SettingsHealthFacts {
   return {
-    name: "Gemini · предложения",
-    state: facts.geminiDisplay === "blocked" ? "заблокирован" : "не настроен",
-    ok: false,
-    detail: facts.geminiDisplay === "blocked"
-      ? "Параметры подключения некорректны."
-      : "Подключение не настроено.",
-  };
-}
-
-function amoState(facts: ProviderFacts): Integration {
-  if (facts.amo.status === "ready") {
-    return {
-      name: "amoCRM",
-      state: "настроена, не проверена",
-      ok: false,
-      detail: "Синхронизация ещё не проверена.",
-    };
-  }
-  return {
-    name: "amoCRM",
-    state: "заблокирована",
-    ok: false,
-    detail: settingsStatusWords.amoBlocked[facts.amo.reason],
+    waha: wahaFacts(facts),
+    gemini: facts.geminiDisplay,
+    amo: facts.amo,
+    database: {
+      // Выключенная проверка отдаёт ту же «состояние недоступно», что и
+      // упавшая; различает их только сам выключатель.
+      checked: isPlatformP7BObservabilityEnabled(),
+      status: readiness.components.supabase.status,
+      observed: formatSettingsObservedAt(readiness.observed_at),
+    },
   };
 }
 
@@ -153,25 +122,23 @@ export async function readIntegrations(
 ): Promise<readonly Integration[]> {
   assertAdminAuthority(actor);
   const facts = await readProviderFacts(actor);
-  return [wahaState(facts), amoState(facts), geminiState(facts)];
+  return [
+    wahaIntegration(wahaFacts(facts)),
+    amoIntegration(facts.amo),
+    geminiIntegration(facts.geminiDisplay),
+  ];
 }
 
 const readOperationsReadiness = cache(loadPlatformOperationsReadiness);
 
 export async function readPlatformFact(): Promise<string> {
   const readiness = await readOperationsReadiness();
-  const supabase = readiness.components.supabase;
-  return `${settingsStatusWords.database[supabase.status]} · ${formatSettingsObservedAt(readiness.observed_at)}`;
+  return databaseFact({
+    checked: isPlatformP7BObservabilityEnabled(),
+    status: readiness.components.supabase.status,
+    observed: formatSettingsObservedAt(readiness.observed_at),
+  });
 }
-
-export type Health = Readonly<{
-  name: string;
-  state: string;
-  detail: string;
-  tone: "ok" | "warn" | "off";
-  blocker: string | null;
-  where: string | null;
-}>;
 
 export async function readHealth(
   actor: ActivePlatformActor,
@@ -181,49 +148,7 @@ export async function readHealth(
     readProviderFacts(actor),
     readOperationsReadiness(),
   ]);
-  const whatsapp = wahaState(facts);
-  const gemini = geminiState(facts);
-  const amo = amoState(facts);
-  const supabase = readiness.components.supabase;
-
-  return [
-    {
-      name: "WhatsApp",
-      state: whatsapp.state,
-      detail: whatsapp.detail,
-      tone: whatsapp.ok ? "ok" : "warn",
-      blocker: whatsapp.ok ? null : "Нужна актуальная проверка подключения.",
-      where: whatsapp.ok ? null : "platform.staff_waha_session_health",
-    },
-    {
-      name: "Gemini · черновики ответов",
-      state: gemini.state,
-      detail: gemini.detail,
-      tone: gemini.ok ? "ok" : facts.geminiDisplay === "not_configured" ? "off" : "warn",
-      blocker: gemini.ok ? null : facts.geminiDisplay === "configured_not_verified"
-        ? "Нужна проверка работы сервиса."
-        : "Нужно проверить настройки подключения.",
-      where: gemini.ok ? null : "EVO_PLATFORM_GEMINI_API_KEY",
-    },
-    {
-      name: "amoCRM",
-      state: amo.state,
-      detail: amo.detail,
-      tone: amo.ok ? "ok" : "warn",
-      blocker: amo.ok ? null : facts.amo.status === "ready"
-        ? "Нужна проверка синхронизации."
-        : "Нужно проверить настройки синхронизации.",
-      where: amo.ok ? null : "canonical amoCRM command readiness",
-    },
-    {
-      name: "База данных",
-      state: settingsStatusWords.database[supabase.status],
-      detail: formatSettingsObservedAt(readiness.observed_at),
-      tone: supabase.status === "ready" ? "ok" : "warn",
-      blocker: supabase.status === "ready" ? null : "Нужна актуальная проверка подключения к базе данных.",
-      where: supabase.status === "ready" ? null : "EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED",
-    },
-  ];
+  return settingsHealth(healthFacts(facts, readiness));
 }
 
 export type JournalEventEntry = Readonly<{

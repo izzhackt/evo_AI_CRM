@@ -109,6 +109,16 @@ function isSingleValue(query: NavigationQuery, name: string, value: string) {
   return values.length === 1 && values[0] === value;
 }
 
+/**
+ * Карточка лида (`/v3/profile?id=…` без дела): лид живёт на «Воронке
+ * продаж», а не в «Студентах» (аудит 26.09). Дело (`?case=`) и EVO Docs
+ * остаются своими разделами.
+ */
+function isLeadProfile(query: NavigationQuery): boolean {
+  const ids = query.getAll("id");
+  return ids.length === 1 && ids[0] !== "" && !query.has("case");
+}
+
 const ALL_LINKS: readonly V3NavigationLink[] = [HOME, ...GROUPS.flatMap((group) => group.links), ...COMMON, SETTINGS];
 
 /**
@@ -116,7 +126,8 @@ const ALL_LINKS: readonly V3NavigationLink[] = [HOME, ...GROUPS.flatMap((group) 
  * (`/v3/main`, `/v3/profile`): подпись пункта, который `buildV3Navigation`
  * подсвечивает по тем же правилам. Права не читаются — вкладка только
  * называет раздел, доступ решает страница. Шаблон «<Раздел> — EVO CRM» задан
- * в `(v3)/layout.tsx`.
+ * в `(v3)/layout.tsx`. Исключение — карточка лида: вкладка называет саму
+ * запись, «Лид», а в меню подсвечена «Воронка продаж».
  */
 export function v3SectionTitle(
   pathname: string,
@@ -126,6 +137,7 @@ export function v3SectionTitle(
   for (const [name, value] of Object.entries(searchParams)) {
     for (const one of typeof value === "string" ? [value] : value ?? []) query.append(name, one);
   }
+  if (pathname === "/v3/profile" && !isSingleValue(query, "section", "docs") && isLeadProfile(query)) return "Лид";
   const id: V3NavigationLinkId | undefined = pathname === "/v3/main"
     ? isSingleValue(query, "view", "sales") ? "sales-report" : "home"
     : pathname === "/v3/profile"
@@ -172,7 +184,9 @@ export function buildV3Navigation(
     // page since 2026-09-24; only EVO Docs is a separate destination here.
     candidate = isSingleValue(query, "section", "docs") && links.some(link => link.id === "evo-docs")
       ? "evo-docs"
-      : "admissions-worklist";
+      : isLeadProfile(query) && links.some(link => link.id === "pipeline")
+        ? "pipeline"
+        : "admissions-worklist";
   } else if (pathname.startsWith("/v3/universities/")) {
     candidate = "universities";
   } else {

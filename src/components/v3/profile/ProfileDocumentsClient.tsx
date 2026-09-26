@@ -645,6 +645,7 @@ export function ProfileDocumentsClient({
   createRequestId,
   baselineOptions = [],
   baselineOptionsUnavailable = false,
+  baselineTemplatesAbsent = false,
   baselineChecklistRequestId = null,
   recognition = null,
 }: Readonly<{
@@ -656,6 +657,8 @@ export function ProfileDocumentsClient({
   baselineOptions?: readonly BaselineChecklistOption[];
   /** The options read failed; distinct from an empty (nothing to apply) list. */
   baselineOptionsUnavailable?: boolean;
+  /** The read succeeded with no template for this case, and none was applied. */
+  baselineTemplatesAbsent?: boolean;
   baselineChecklistRequestId?: string | null;
   recognition?: DocumentRecognitionAccess | null;
 }>) {
@@ -736,6 +739,12 @@ export function ProfileDocumentsClient({
             options={baselineOptions}
             requestId={baselineChecklistRequestId}
           />
+        ) : uploadAccess === "allowed" && studentCaseId && createRequestId && baselineTemplatesAbsent ? (
+          // A quiet fact, not an error: the manual form right below is the way.
+          <p className="t-body-compact border-b border-border px-4 py-3 text-fg-3"
+            data-testid="v3-document-baseline-checklist-empty">
+            Шаблонов чек-листа пока нет — документы добавляются вручную.
+          </p>
         ) : null}
 
       {uploadAccess === "allowed" && studentCaseId && createRequestId ? (

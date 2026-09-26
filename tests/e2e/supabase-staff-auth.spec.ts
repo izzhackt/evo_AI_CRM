@@ -689,12 +689,22 @@ async function expectExactSupabaseSalesRead(
     await expect(workflowPanel).toBeVisible();
     await expect(workflowPanel.locator('input[name="expected_version"]')).toHaveValue("7");
   }
-  await leadPanel.locator(`a[href="/v3/profile?id=${leadId}"]`).click();
-  await expect(page).toHaveURL(new RegExp(`/v3/profile\\?id=${leadId}$`));
+  // Audit 26.09: the lead card returns to this exact board state, so the
+  // panel link carries ?returnTo= with the open panel (?lead=), and the card
+  // offers «К воронке продаж» back to it instead of «К списку студентов».
+  const boardHref = `/v3/pipeline?lead=${leadId}`;
+  const leadCardSearch = `?id=${leadId}&returnTo=${encodeURIComponent(boardHref)}`;
+  await leadPanel.locator(`a[href="/v3/profile${leadCardSearch}"]`).click();
+  await expect(page).toHaveURL(
+    (url) => url.pathname === "/v3/profile" && url.search === leadCardSearch,
+  );
   await expect(page.getByTestId("v3-profile")).toHaveAttribute(
     "data-lead-id",
     leadId,
   );
+  await expect(
+    page.getByRole("link", { name: "К воронке продаж", exact: true }),
+  ).toHaveAttribute("href", boardHref);
   await expect(
     page.getByRole("heading", {
       name: "EVO P2B Isolated Sales Proof",

@@ -44,7 +44,11 @@ export type InboxSelectedConversation = InboxConversation &
     latestInboundSourceMessageId: string | null;
     newestMessagesHref: string | null;
     olderMessagesHref: string | null;
-    channelState: "ready" | "attention" | "unknown" | "unavailable";
+    /**
+     * `not_connected` — сессии WhatsApp для CRM нет вовсе; `unknown` — диалог
+     * из прежней сессии, о которой CRM состояния не знает.
+     */
+    channelState: "ready" | "attention" | "not_connected" | "unknown" | "unavailable";
     channelObservedAt: string | null;
     canonicalContext: InboxCanonicalContext;
   }>;
@@ -68,18 +72,36 @@ function channelLabel(
   if (state === "ready") return "WhatsApp подключён";
   if (state === "attention") return "WhatsApp требует проверки";
   if (state === "unavailable") return "Не удалось получить состояние WhatsApp";
+  if (state === "not_connected") return "WhatsApp не подключён к CRM";
   return "Состояние WhatsApp не подтверждено";
+}
+
+/**
+ * WhatsApp не подключён и диалогов нет: вместо статуса, поиска и пустого
+ * списка — одно честное состояние. Ссылку на Настройки видит только
+ * Администратор (`settingsHref`), остальным подключать нечем.
+ */
+export function inboxNotConnected(view: InboxView): boolean {
+  return view.channelState === "not_connected"
+    && view.selected === null
+    && view.conversations.length === 0
+    && !view.searchQuery
+    && !view.waitingOnly
+    && view.queueNewestHref === null;
 }
 
 export function Inbox({
   view,
   profileHref,
+  settingsHref = null,
   workflowControls,
   amoCrmControls,
   mediaAttachmentContext = null,
 }: Readonly<{
   view: InboxView;
   profileHref: string | null;
+  /** Только Администратору вне просмотра роли. */
+  settingsHref?: string | null;
   workflowControls?: ReactNode;
   amoCrmControls?: ReactNode;
   mediaAttachmentContext?: V3InboxMediaAttachmentContext | null;
@@ -87,6 +109,26 @@ export function Inbox({
   const open = view.selected;
   const hasConversations = view.conversations.length > 0;
   const hasFilters = Boolean(view.searchQuery) || view.waitingOnly;
+  if (inboxNotConnected(view)) {
+    return (
+      <section
+        className="rounded-card border border-border bg-surface px-4 py-10 sm:px-6"
+        data-testid="v3-inbox-not-connected"
+        data-source="supabase-platform"
+      >
+        <h2 className="t-section text-fg">WhatsApp не подключён к CRM — подключает Администратор</h2>
+        {settingsHref ? (
+          <Link
+            href={settingsHref}
+            className="mt-4 inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-4 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            data-testid="v3-inbox-settings"
+          >
+            Открыть настройки
+          </Link>
+        ) : null}
+      </section>
+    );
+  }
   const emptyTitle = view.queueNewestHref
     ? "На этой странице диалогов нет"
     : hasFilters

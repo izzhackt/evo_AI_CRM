@@ -39,7 +39,7 @@ function StaffUniversityRow({ university, level, now }: { university: PublishedU
           {deadline.sameDateCount > 0 ? <p className="mt-1 text-xs leading-5 text-fg-3">Других наборов с этой датой: {deadline.sameDateCount}</p> : null}
           <Source href={deadline.intake.sourceUrl}>Источник срока</Source>
           <p className="text-xs leading-5 text-fg-3">Дата проверки: {date(deadline.intake.verifiedOn)}</p>
-        </> : <p className="text-sm leading-6 text-fg-2">Сроки подачи — в карточке</p>}
+        </> : <p className="text-sm leading-6 text-fg-2">Срок не подтверждён</p>}
       </div>
     </div>
   </li>;

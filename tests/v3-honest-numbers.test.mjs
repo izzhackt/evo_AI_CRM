@@ -255,7 +255,7 @@ test("«Продажи» headline: one number by sale date, discrepancies named,
   const render = (read) => renderToStaticMarkup(createElement(headline.SalesPeriodHeadline, { read, label: "сентябрь 2026", retryHref: "/v3/main?view=sales" }));
   const full = render({ status: "available", count: { from: "2026-09-01", to: "2026-09-30", sales: 5, undated: 1, otherSaleDate: 1, filedElsewhere: 1 } });
   assert.match(full, /Продажи за сентябрь 2026: <strong class="[^"]*tabular-nums[^"]*">5<\/strong>/u);
-  assert.match(full, /Не входят записи этого периода отчёта: без даты продажи — 1 запись, с датой продажи в другом месяце — 1 запись\. Входят продажи из записей другого месяца отчёта: 1 запись\./u);
+  assert.match(full, /Не входят: без даты продажи — 1 запись, дата продажи в другом месяце — 1 запись\. Входят из другого месяца отчёта: 1 запись\./u);
   assert.doesNotMatch(full, /font-mono/u, "counts are Golos tabular digits");
   const clean = render({ status: "available", count: { from: "2026-09-01", to: "2026-09-30", sales: 6, undated: 0, otherSaleDate: 0, filedElsewhere: 0 } });
   assert.doesNotMatch(clean, /v3-sales-headline-notes/u);
@@ -265,4 +265,43 @@ test("«Продажи» headline: one number by sale date, discrepancies named,
   const view = read("src/components/v3/SalesRegisterView.tsx");
   assert.match(view, /readSalesCount\(actor, headlinePeriod\)/u);
   assert.match(read("src/lib/v3/sales-numbers-source.ts"), /rpc\("staff_sales_count_v1"/u);
+});
+
+// Настоящие компоненты страницы с синтетическими данными (tests/e2e/numbers-static-render.cjs --json):
+// Lead 360, «Отчёт продаж» с подменёнными чтениями и воронка по настоящему чтению доски.
+test("rendered pages: Lead 360 strip, the report headline and the board funnel tell one truth", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url");
+  const pages = new Map(JSON.parse(execFileSync(process.execPath,
+    [fileURLToPath(new URL("./e2e/numbers-static-render.cjs", import.meta.url)), "--json"],
+    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })).map((page) => [page.name, page.html]));
+  const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
+
+  // Переданный лид как в production: этап доски, передача с датами, архивная запись названа словами.
+  const handed = pages.get("lead-handed");
+  assert.match(handed, /data-testid="v3-lead-stage">Переданы</u);
+  assert.match(text(handed), /Передача Передано 18\.09 · Айгерим Условная · принято 19\.09 Запись о продаже в архиве и в продажи не входит\./u);
+  assert.doesNotMatch(handed, /ожидает условий|Новый</u);
+  // Продажа в уже открытое дело (208): дата по квитанции, без предупреждения.
+  const sold = pages.get("lead-sold");
+  assert.match(text(sold), /Передано 23\.09 · Айгерим Условная · ждёт принятия/u);
+  assert.doesNotMatch(sold, /v3-handoff-warnings/u);
+  // До передачи: нейтрально, формы подтверждения спокойные, исключение Admin свёрнуто.
+  const working = pages.get("lead-working");
+  assert.match(working, /data-testid="v3-lead-stage">Квалифицирован</u);
+  assert.doesNotMatch(working, /v3-handoff-summary|v3-handoff-warnings/u);
+  assert.match(working, /<details class="group border-t border-border px-4 py-1"><summary[^>]*>.*?Исключение Admin<\/summary>/u);
+  const transition = working.slice(working.indexOf('data-testid="v3-sales-transition"'));
+  assert.doesNotMatch(transition.slice(0, transition.indexOf("</section>")), /bg-accent/u, "no solid red in «Передача»");
+
+  // «Отчёт продаж»: «Продажи» по дате продажи; таблица месяца (6 записей) сходится со словами.
+  const report = pages.get("report");
+  assert.match(report, /data-testid="v3-sales-headline" data-sales="5"/u);
+  assert.match(text(report), /Продажи за сентябрь 2026: 5 · по дате продажи, без архива Не входят: без даты продажи — 1 запись, дата продажи в другом месяце — 1 запись\. Входят из другого месяца отчёта: 1 запись\./u);
+  assert.match(text(report), /Найдено по фильтрам Записей продаж 6/u);
+
+  // Воронка по доске: переданный лид (его stage_key — 'new') в «Переданы», а не в «Новый».
+  const funnel = text(pages.get("funnel"));
+  assert.match(funnel, /В работе 3 · Переданы 1/u);
+  assert.match(funnel, /Новый 1 .*Переданы 1/u);
 });

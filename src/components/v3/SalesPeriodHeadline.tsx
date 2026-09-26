@@ -43,7 +43,7 @@ export function SalesPeriodHeadline({ read, label, retryHref }: Readonly<{
   const { sales, undated, otherSaleDate, filedElsewhere } = read.count;
   const notes = [
     undated > 0 ? `без даты продажи — ${records(undated)}` : null,
-    otherSaleDate > 0 ? `с датой продажи в другом месяце — ${records(otherSaleDate)}` : null,
+    otherSaleDate > 0 ? `дата продажи в другом месяце — ${records(otherSaleDate)}` : null,
   ].filter((note): note is string => note !== null);
   return (
     <div className="mt-1" data-testid="v3-sales-headline" data-sales={sales}>
@@ -53,9 +53,9 @@ export function SalesPeriodHeadline({ read, label, retryHref }: Readonly<{
       </p>
       {notes.length > 0 || filedElsewhere > 0 ? (
         <p className="t-meta mt-0.5 text-fg-3" data-testid="v3-sales-headline-notes">
-          {notes.length > 0 ? `Не входят записи этого периода отчёта: ${notes.join(", ")}.` : null}
+          {notes.length > 0 ? `Не входят: ${notes.join(", ")}.` : null}
           {notes.length > 0 && filedElsewhere > 0 ? " " : null}
-          {filedElsewhere > 0 ? `Входят продажи из записей другого месяца отчёта: ${records(filedElsewhere)}.` : null}
+          {filedElsewhere > 0 ? `Входят из другого месяца отчёта: ${records(filedElsewhere)}.` : null}
         </p>
       ) : null}
     </div>

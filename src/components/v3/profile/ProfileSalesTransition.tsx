@@ -105,7 +105,7 @@ function GateActionForm({
   return (
     <form
       action={action}
-      className="space-y-3 border-t border-border pt-3"
+      className="mt-3 space-y-3"
       data-testid={`v3-gate-${contract ? "contract" : payment ? "payment" : "override"}-form`}
     >
       <input type="hidden" name="lead_id" value={gate.leadId} />
@@ -348,10 +348,16 @@ function HandoffCard({
         </div>
       ) : null}
       {canOverride ? (
-        <div className="border-t border-border p-4">
-          <h4 className="t-item text-fg">Исключение Admin</h4>
-          <GateActionForm key={`override:${gate.gateVersion}`} actionName="override_gate" gate={gate} requestId={requestIds.override} />
-        </div>
+        // Редкий инструмент Admin — свёрнут: он не должен занимать карточку каждого лида.
+        <details className="group border-t border-border px-4 py-1">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">
+            <Icon name="chevron-right" size={16} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none" />
+            Исключение Admin
+          </summary>
+          <div className="pb-3">
+            <GateActionForm key={`override:${gate.gateVersion}`} actionName="override_gate" gate={gate} requestId={requestIds.override} />
+          </div>
+        </details>
       ) : null}
     </Card>
   );

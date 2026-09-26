@@ -2704,6 +2704,20 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_work_signals.sql
   fi
+
+  # Migration 249 (a curator's decline commits, owner decision 26.09): 042's
+  # case guard admits exactly 182's decline shape with the curator's recorded
+  # decline. Members modelled like production (coarse role NULL, the
+  # production bundles, as in 244's suite): the real 182 command commits the
+  # decline (case, scopes, response, event, audit), only the current curator
+  # declines, every other transition keeps its 042 refusal, a playbook-bound
+  # case stays refused (137), and the Admissions Manager sees the declined
+  # case when migration 248's rule is in the chain (and not without it).
+  if [[ "$(basename "$migration")" == 249_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_decline_guard.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

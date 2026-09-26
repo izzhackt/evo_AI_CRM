@@ -95,9 +95,10 @@ export function CaseNextStep({
       </p>
       {/* У дела в работе причина бывает одна — просмотр роли; «закрыто» и «ожидает начала» уже названы в строке фактов. */}
       {access.kind === "read_only" && access.reason && row?.state === "active" ? <p className="t-meta text-fg-2">{access.reason}</p> : null}
+      {/* Окно встаёт от кнопки у поля страницы: на телефоне ширина — экран без полей 16 px с обеих сторон. */}
       {editable && row ? (
         <div id={popover.popoverId} popover="auto" style={popover.popoverStyle} role="dialog" aria-labelledby={titleId}
-          className="v3-anchored w-[min(28rem,calc(100vw-1rem))] rounded-ctl border border-border bg-surface p-4 text-fg shadow-evo-lg">
+          className="v3-anchored w-[min(28rem,calc(100vw-2rem))] rounded-ctl border border-border bg-surface p-4 text-fg shadow-evo-lg">
           <h2 id={titleId} className="t-section text-fg">Следующий шаг</h2>
           <div className="mt-3">
             <NextStepEditor key={row.studentCaseId} row={row} today={today} requestId={requestId} onSaved={onSaved} />

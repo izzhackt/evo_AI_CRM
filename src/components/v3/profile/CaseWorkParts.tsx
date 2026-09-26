@@ -126,7 +126,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       contacts={{ phone: profile.phone, email: profile.email }}
       portal={application !== null || portalControls ? { ...casePortalStatus(application), settings: portalSettings } : null}
       sales={salesVisible && sales ? { manager: sales.lead.currentOwnerDisplayName, nextAction: sales.lead.nextActionText } : null}
-      salesData={salesVisible && sales ? <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={input.requestIds} /> : null}
+      salesData={salesVisible && sales ? <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={input.requestIds} quiet /> : null}
       salesDataOpen={input.salesDataOpen}
       help={input.help}
       notes={(

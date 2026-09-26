@@ -148,10 +148,13 @@ export function Profile({
       )}
 
       {/* Полоса вкладок прокручивается на узком экране: названия разделов не
-          помещаются в 393px, а переносить их в две строки — терять шапку. */}
+          помещаются в 393px, а переносить их в две строки — терять шапку.
+          Прокрутка обрезает внешнюю рамку фокуса — `data-tab-strip` рисует её
+          внутри вкладки (v3.css). */}
       <nav
         aria-label="Разделы профиля"
         tabIndex={0}
+        data-tab-strip=""
         className="max-w-full overflow-x-auto border-b border-border"
       >
         <ul className="flex w-max gap-1 pb-2">

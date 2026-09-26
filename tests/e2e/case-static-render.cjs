@@ -19,22 +19,37 @@
  *   node tests/e2e/case-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — разметка сценариев без оболочки
  *       (для tests/v3-case-work.test.mjs).
- *   node tests/e2e/case-static-render.cjs --screenshots [outDir] [--look=next]
+ *   node tests/e2e/case-static-render.cjs --screenshots [outDir] [--look=next] [--compare-root=<dir>]
  *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844 в outDir (по умолчанию .impeccable/review,
  *       не коммитится); с `--look=next` — предпросмотр нового облика (Э1.1),
  *       файлы `case-next-*.png`. Страница не гидратируется: окно шага и
  *       раскрытия работают на атрибутах браузера (popover, details).
+ *
+ *     Снимок делается после загрузки картинок (логотип next/image — lazy) и
+ *     шрифтов. Во весь рост меню разделов на время снимка статично: иначе
+ *     липкая колонка высотой в экран обрывается на 900 px. Раскрытые разделы
+ *     («Настроить», «Данные продажи») снимаются экраном, прокрученным к
+ *     разделу, и во весь рост.
+ *
+ *     Вид лида (`?id=…`, Э4 — позже) рендерится тем же `Profile` без частей
+ *     дела (без «Заявок с сайта» — это отдельное чтение): `case-lead-1440.png`.
+ *     С `--compare-root=<dir>` (дерево другой ревизии со ссылкой node_modules,
+ *     например `git archive origin/main src public/brand`) тот же вид лида
+ *     рендерится и из него — `case-lead-main-1440.png`; разметка и пиксели
+ *     сравниваются побайтно, отличия разметки названы в выводе.
  */
 
-const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
+const { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } = require("node:fs");
 const Module = require("node:module");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 const ts = require("typescript");
 
 const ROOT = resolve(__dirname, "../..");
+const compareArg = process.argv.find((arg) => arg.startsWith("--compare-root="));
+const COMPARE_ROOT = compareArg ? realpathSync(resolve(compareArg.slice("--compare-root=".length))) : null;
 
 // --- require-hook: .ts/.tsx компилируются TypeScript'ом в CJS ---------------
 // Имя файла обязательно: иначе обобщённая стрелка `<T,>(…)` в .ts читается как JSX.
@@ -68,7 +83,10 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
     return originalResolve.call(this, join(ROOT, "node_modules/server-only/empty.js"), ...rest);
   }
   if (typeof request === "string" && request.startsWith("@/")) {
-    const base = join(ROOT, "src", request.slice(2));
+    // Модули дерева сравнения берут `@/` из своего дерева, а не из этой ветки.
+    const parent = rest[0];
+    const root = COMPARE_ROOT && parent?.filename?.startsWith(`${COMPARE_ROOT}/`) ? COMPARE_ROOT : ROOT;
+    const base = join(root, "src", request.slice(2));
     for (const candidate of [base, `${base}.ts`, `${base}.tsx`]) {
       if (existsSync(candidate)) return originalResolve.call(this, candidate, ...rest);
     }
@@ -337,16 +355,117 @@ function renderPage(name) {
   return renderToStaticMarkup(withContexts(page));
 }
 
-async function compileCss() {
+// --- вид лида (`?id=…`): тот же Profile без частей дела ----------------------
+// Лид после продажи с передачей в поступление: «Продажи», проверка договора,
+// условия продажи — та же часть SalesOverview, что на деле уходит в «Данные продажи».
+const LEAD = {
+  actor: ADMIN,
+  profile: { ...profile({ leadId: LEAD_ID, email: "student@example.invalid", phone: "+996 000 000 001" }),
+    student: false, stage: "won", caseStatus: null, source: "Сайт", nextAction: "Передано в поступление" },
+  draft: { ...draft({ documents: false, saleConditions: SALE_CONDITIONS }), routeTarget: { leadId: LEAD_ID, studentCaseId: null },
+    admissions: null, handoffAcknowledgement: null },
+  sales: SALES,
+};
+
+// Разметка страницы лида как в page.tsx: «Профиль», ссылка к списку, Profile без caseHeader/caseOverview.
+function renderLeadPage(root) {
+  const { AppShell } = require(join(root, "src/components/v3/AppShell.tsx"));
+  const { PartShell } = require(join(root, "src/components/v3/PartShell.tsx"));
+  const { Profile: RootProfile } = require(join(root, "src/components/v3/profile/Profile.tsx"));
+  const { buildV3ProfileHref: rootHref } = require(join(root, "src/components/v3/profile/types.ts"));
+  const hrefFor = (tab) => rootHref({ leadId: LEAD_ID, studentCaseId: null }, tab);
+  const body = createElement("div", { className: "space-y-6" },
+    createElement("a", { href: "/v3/profile", className: "inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline" }, "К списку студентов"),
+    createElement(RootProfile, {
+      profile: LEAD.profile, draft: LEAD.draft, sales: LEAD.sales, actor: LEAD.actor, organizationId: ORG,
+      studentPortalCurators: [], studentPortalCuratorsAvailable: true,
+      requestIds: { contract: uuid("13131313", 1), firstPayment: uuid("13131313", 2), override: uuid("13131313", 3), handoff: uuid("13131313", 4),
+        platformAccess: uuid("13131313", 5), saleConditions: uuid("13131313", 6), prepareLeadCabinet: uuid("13131313", 7),
+        wishesCard: uuid("13131313", 8), educationCard: uuid("13131313", 9), conditionsCard: uuid("13131313", 10) },
+      noteRequestId: uuid("13131313", 11), notes: { ...NOTES, subject: { leadId: LEAD_ID, studentCaseId: null } },
+      notesOlderHref: null, notesLatestHref: null, tab: "overview", hrefFor,
+    }));
+  const page = createElement("div", { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
+    createElement(AppShell, { actor: LEAD.actor, initialNotifications: null },
+      createElement(PartShell, { title: "Профиль", count: null }, body)));
+  return renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: routerStub },
+    createElement(PathnameContext.Provider, { value: "/v3/profile" },
+      createElement(SearchParamsContext.Provider, { value: new URLSearchParams(`id=${LEAD_ID}&tab=overview`) },
+        createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, page)))));
+}
+
+async function compileCss(root = ROOT) {
   const postcss = require("postcss");
   const tailwind = require("@tailwindcss/postcss");
-  const globalsPath = join(ROOT, "src/app/globals.css");
-  const result = await postcss([tailwind({ base: ROOT, optimize: false })]).process(readFileSync(globalsPath, "utf8"), { from: globalsPath });
+  const globalsPath = join(root, "src/app/globals.css");
+  const result = await postcss([tailwind({ base: root, optimize: false })]).process(readFileSync(globalsPath, "utf8"), { from: globalsPath });
   const fonts = ["golos-text", "jetbrains-mono"].map((font) => {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(root, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+}
+
+function writeHtml(path, title, css, markup) {
+  writeFileSync(path, [
+    "<!DOCTYPE html>",
+    '<html lang="ru" data-theme="light" class="h-full antialiased">',
+    `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${title} — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+    `<body class="min-h-full">${markup}</body></html>`,
+  ].join(""));
+}
+
+// Снимок только после того, как видно всё: шрифты и картинки (логотип next/image грузится lazy
+// и событие load не ждёт его). Картинка без пикселей — ошибка снимка, а не пустое место.
+async function settle(page) {
+  await page.waitForLoadState("networkidle");
+  const broken = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const images = [...document.images];
+    await Promise.all(images.map((image) => image.decode().catch(() => null)));
+    return images.filter((image) => image.checkVisibility() && !(image.complete && image.naturalWidth > 0)).map((image) => image.alt || image.src);
+  });
+  if (broken.length) throw new Error(`images not loaded: ${broken.join(", ")}`);
+}
+
+// Только на время снимка во весь рост: меню разделов (липкое, высотой в экран) — обычная колонка во всю высоту.
+const STATIC_NAV = 'nav[aria-label="Разделы"] { position: static !important; height: auto !important; }';
+
+async function scrollToTop(page, selector) {
+  await page.evaluate((target) => {
+    const element = document.querySelector(target);
+    if (!element) throw new Error(`no ${target}`);
+    window.scrollTo({ top: Math.max(0, element.getBoundingClientRect().top + window.scrollY - 16), behavior: "instant" });
+  }, selector);
+}
+
+// Клавиатурный фокус: Tab делает последний ввод клавиатурным, фокус на цели — с видимой рамкой (:focus-visible).
+async function keyboardFocus(page, selector) {
+  await page.keyboard.press("Tab");
+  await page.focus(selector);
+  const visible = await page.evaluate(() => document.activeElement?.matches(":focus-visible") ?? false);
+  if (!visible) throw new Error(`focus ring not visible on ${selector}`);
+}
+
+/**
+ * Отличия разметки этой ветки от дерева сравнения: вставки (`+…`) и место,
+ * где совпадение не восстановилось. Пусто — разметка побайтно та же.
+ */
+function markupDifferences(ours, theirs) {
+  const out = [];
+  let i = 0;
+  let j = 0;
+  while ((i < ours.length || j < theirs.length) && out.length < 5) {
+    if (ours[i] === theirs[j]) { i += 1; j += 1; continue; }
+    const resume = ours.indexOf(theirs.slice(j, j + 40), i);
+    if (j >= theirs.length || resume < 0) {
+      out.push(`at ${i}: ours ${JSON.stringify(ours.slice(i, i + 60))} theirs ${JSON.stringify(theirs.slice(j, j + 60))}`);
+      break;
+    }
+    out.push(`+${JSON.stringify(ours.slice(i, resume))}`);
+    i = resume;
+  }
+  return out;
 }
 
 async function screenshots() {
@@ -358,39 +477,83 @@ async function screenshots() {
   const LAPTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 };
   const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
   const REFLOW = { viewport: { width: 320, height: 720 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
-  // [сценарий, [снимок, контекст, во весь рост, действие]]
-  const pages = [
-    ["curator-accept", [["1440", DESKTOP, false, null], ["1440-full", DESKTOP, true, null], ["1280", LAPTOP, false, null], ["390", PHONE, false, null], ["390-full", PHONE, true, null]]],
-    ["curator", [["1440", DESKTOP, false, null], ["1440-full", DESKTOP, true, null], ["1280", LAPTOP, false, null], ["390", PHONE, false, null], ["320-full", REFLOW, true, null], ["step-1440", DESKTOP, false, "step"], ["step-390", PHONE, false, "step"]]],
-    ["admin", [["1440", DESKTOP, false, null], ["1440-full", DESKTOP, true, null], ["1280", LAPTOP, false, null], ["390-full", PHONE, true, null], ["portal-1440", DESKTOP, true, "portal"], ["sales-1440", DESKTOP, true, "sales"]]],
-    ["unread", [["1440", DESKTOP, false, null]]],
-    ["closed", [["1440", DESKTOP, false, null]]],
+  const SIZES = { 1440: DESKTOP, 1280: LAPTOP, 390: PHONE, 320: REFLOW };
+  // Снимок: `ширина[-full]` — экран или во весь рост; `do` — действие до снимка; `at` — прокрутить экран к разделу.
+  const shot = (suffix, extra = {}) => {
+    const [width, full] = suffix.replace(/^[a-z-]+-(?=\d)/u, "").split("-");
+    return { suffix, context: SIZES[width], full: full === "full", ...extra };
+  };
+  const PORTAL = { do: "portal", at: '[data-testid="v3-case-portal"]' };
+  const SALES = { do: "sales", at: '[data-testid="v3-case-sales-data"]' };
+  const CASE_PAGES = [
+    ["curator-accept", ["1440", "1440-full", "1280", "390", "390-full"].map((suffix) => shot(suffix))],
+    ["curator", [
+      ...["1440", "1440-full", "1280", "390", "320-full"].map((suffix) => shot(suffix)),
+      ...["step-1440", "step-1280", "step-390"].map((suffix) => shot(suffix, { do: "step" })),
+      shot("focus-1440", { do: "focus", focus: '[data-testid="v3-case-next-step"] button' }),
+      shot("focus-task-1440", { do: "focus", focus: '[data-testid="v3-case-tasks"] button[aria-label^="Завершить"]' }),
+      shot("focus-tab-1440", { do: "focus", focus: 'nav[aria-label="Разделы профиля"] a[aria-current="page"]' }),
+    ]],
+    ["admin", [
+      ...["1440", "1440-full", "1280", "390-full"].map((suffix) => shot(suffix)),
+      ...["portal-1440", "portal-1280", "portal-1280-full", "portal-390", "portal-390-full"].map((suffix) => shot(suffix, PORTAL)),
+      ...["sales-1440", "sales-1440-full", "sales-1280", "sales-1280-full", "sales-390", "sales-390-full"].map((suffix) => shot(suffix, SALES)),
+    ]],
+    ["unread", ["1440", "1280", "390", "390-full"].map((suffix) => shot(suffix))],
+    ["closed", ["1440", "1280", "390", "390-full"].map((suffix) => shot(suffix))],
   ];
   const css = await compileCss();
+  const pages = CASE_PAGES.map(([name, shots]) => {
+    const htmlPath = join(outDir, `${look}-${name}.html`);
+    writeHtml(htmlPath, "Дело студента", css, renderPage(name));
+    return { name, htmlPath, shots };
+  });
+  // Вид лида этой ветки и, если дано, дерева сравнения — те же данные, тот же снимок.
+  const leadShots = ["1440", "1440-full"].map((suffix) => shot(suffix));
+  const leadMarkup = renderLeadPage(ROOT);
+  pages.push({ name: "lead", htmlPath: join(outDir, `${look}-lead.html`), shots: leadShots });
+  writeHtml(pages.at(-1).htmlPath, "Профиль", css, leadMarkup);
+  let compareMarkup = null;
+  if (COMPARE_ROOT) {
+    compareMarkup = renderLeadPage(COMPARE_ROOT);
+    pages.push({ name: "lead-main", htmlPath: join(outDir, `${look}-lead-main.html`), shots: leadShots });
+    writeHtml(pages.at(-1).htmlPath, "Профиль", await compileCss(COMPARE_ROOT), compareMarkup);
+  }
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
+  const captured = new Map();
   try {
-    for (const [name, shots] of pages) {
-      const htmlPath = join(outDir, `${look}-${name}.html`);
-      writeFileSync(htmlPath, [
-        "<!DOCTYPE html>",
-        '<html lang="ru" data-theme="light" class="h-full antialiased">',
-        `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Дело студента — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
-        `<body class="min-h-full">${renderPage(name)}</body></html>`,
-      ].join(""));
-      for (const [suffix, context, fullPage, step] of shots) {
+    for (const { name, htmlPath, shots } of pages) {
+      for (const { suffix, context, full, do: action, at, focus } of shots) {
         const file = `${look}-${name}-${suffix}.png`;
         const browserContext = await browser.newContext(context);
         const page = await browserContext.newPage();
         const errors = [];
         page.on("pageerror", (error) => errors.push(error.message));
         await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
-        await page.evaluate(() => document.fonts.ready);
-        if (step === "step") await page.click('[data-testid="v3-case-next-step"] button');
-        // Раскрытие «Настроить» — клиентская кнопка; страница не гидратируется, поэтому снимок открывает её область сам.
-        if (step === "portal") await page.evaluate(() => { document.querySelector('[data-testid="v3-case-portal"] [data-case-disclosure]').hidden = false; });
-        if (step === "sales") await page.click('[data-testid="v3-case-sales-data"] > summary');
-        if (step) await page.waitForTimeout(300);
+        await settle(page);
+        if (action === "step") await page.click('[data-testid="v3-case-next-step"] button');
+        // Раскрытие «Настроить» — клиентская кнопка; страница не гидратируется, поэтому снимок открывает её область сам
+        // (как сделал бы клик: область видна, кнопка называет обратное действие и `aria-expanded`).
+        if (action === "portal") {
+          await page.evaluate(() => {
+            const region = document.querySelector('[data-testid="v3-case-portal"] [data-case-disclosure]');
+            const toggle = document.querySelector(`[aria-controls="${CSS.escape(region.id)}"]`);
+            region.hidden = false;
+            toggle.setAttribute("aria-expanded", "true");
+            toggle.textContent = "Свернуть";
+          });
+        }
+        if (action === "sales") await page.click('[data-testid="v3-case-sales-data"] > summary');
+        if (action === "focus") await keyboardFocus(page, focus);
+        if (full) {
+          await page.addStyleTag({ content: STATIC_NAV });
+          await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+        } else if (at) {
+          await scrollToTop(page, at);
+        }
+        if (action) await page.waitForTimeout(300);
+        await settle(page);
         if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
         const metrics = await page.evaluate(() => {
           const top = (selector) => {
@@ -399,13 +562,24 @@ async function screenshots() {
           };
           const overview = document.querySelector('[data-testid="v3-case-overview"]');
           const firstTask = document.querySelector('[data-testid="v3-case-tasks"] [data-queue-row]');
+          const nav = document.querySelector('nav[aria-label="Разделы"]');
+          const popover = [...document.querySelectorAll("[popover]")].find((element) => element.matches(":popover-open"));
+          const facts = document.querySelector('[data-testid="v3-case-facts"]');
+          const box = (element) => {
+            if (!element) return null;
+            const rect = element.getBoundingClientRect();
+            return `${Math.round(rect.left)},${Math.round(rect.top + window.scrollY)}→${Math.round(rect.right)},${Math.round(rect.bottom + window.scrollY)}`;
+          };
           return {
             pageHeight: document.documentElement.scrollHeight,
+            scrollY: Math.round(window.scrollY),
+            navHeight: nav ? Math.round(nav.getBoundingClientRect().height) : null,
             overviewHeight: overview ? Math.round(overview.getBoundingClientRect().height) : null,
             h1: top("main h1"),
             facts: top('[data-testid="v3-case-header"] dl'),
             step: top('[data-testid="v3-case-next-step"]'),
             nextHeading: top("#case-next-title"),
+            factsColumn: box(facts),
             firstTaskBottom: firstTask ? Math.round(firstTask.getBoundingClientRect().bottom + window.scrollY) : null,
             overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
             // Видно на странице: содержимое свёрнутого <details> и закрытого окна не считается.
@@ -415,13 +589,18 @@ async function screenshots() {
               && [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim())
               && parseFloat(getComputedStyle(element).fontSize) < 12).length,
             smallTargets: [...document.querySelectorAll("main a, main button, main summary")].filter((element) => {
-              const box = element.getBoundingClientRect();
-              return element.checkVisibility() && box.height < 24;
+              const rect = element.getBoundingClientRect();
+              return element.checkVisibility() && rect.height < 24;
             }).length,
-            popoverOpen: [...document.querySelectorAll("[popover]")].some((element) => element.matches(":popover-open")),
+            popoverOpen: Boolean(popover),
+            popoverTopLayer: popover ? popover.matches(":popover-open") && getComputedStyle(popover).position === "fixed" : null,
+            popoverBox: box(popover),
+            focused: document.activeElement && document.activeElement !== document.body
+              ? `${document.activeElement.tagName.toLowerCase()}:${(document.activeElement.getAttribute("aria-label") ?? document.activeElement.textContent).trim().slice(0, 40)}` : null,
           };
         });
-        await page.screenshot({ path: join(outDir, file), fullPage });
+        const buffer = await page.screenshot({ path: join(outDir, file), fullPage: full });
+        captured.set(`${name}-${suffix}`, buffer);
         const facts = Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ");
         process.stdout.write(`${file}: ${facts}\n`);
         await browserContext.close();
@@ -429,6 +608,13 @@ async function screenshots() {
     }
   } finally {
     await browser.close();
+  }
+  if (compareMarkup !== null) {
+    const same = (suffix) => captured.get(`lead-${suffix}`).equals(captured.get(`lead-main-${suffix}`));
+    // Путь к файлу логотипа у деревьев разный; сравнивается остальная разметка. Отличия названы.
+    const differences = markupDifferences(leadMarkup, compareMarkup.replaceAll(pathToFileURL(COMPARE_ROOT).href, pathToFileURL(ROOT).href));
+    process.stdout.write(`lead view vs ${COMPARE_ROOT}: markup ${differences.length ? `differs: ${differences.join(" ")}` : "identical"}; `
+      + `pixels 1440 ${same("1440") ? "identical" : "DIFFERENT"}, 1440-full ${same("1440-full") ? "identical" : "DIFFERENT"}\n`);
   }
 }
 

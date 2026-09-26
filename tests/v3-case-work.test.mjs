@@ -179,6 +179,11 @@ test("Admin: sales forms leave the overview for a collapsed «Данные пр�
     assert.doesNotMatch(texts(shown), new RegExp(`(?:^| )${block} .*Сохранить`, "u"), block);
   }
   assert.match(html, /id="sale-conditions"/u, "the sale conditions anchor still exists inside «Данные продажи»");
+  // Раскрытые «Данные продажи» не добавляют красных: четыре «Сохранить» — спокойные кнопки.
+  const salesData = html.slice(html.indexOf('<details id="sales-data"'));
+  assert.equal((salesData.match(/bg-accent (?:px|text)/gu) ?? []).length, 0, "no solid red inside «Данные продажи»");
+  assert.equal((salesData.match(/>(?:Сохранить|Сохранить условия)<\/button>/gu) ?? []).length, 4);
+  assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet \/>/u);
   assert.match(text, /Оплата Договор и оплата 40% оплачено · остаток 900 \$/u);
   assert.match(text, /Доступ к порталу анкета одобрена Настроить/u);
   assert.match(html, /aria-expanded="false" aria-controls="[^"]+"[^>]*>Настроить<\/button><\/div><div id="[^"]+" hidden=""/u);
@@ -215,6 +220,9 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   assert.match(profile, /\{current === "overview" && caseOverview \? caseOverview : null\}/u);
   assert.match(profile, /\{current === "overview" && !caseOverview \? \(/u);
   assert.match(profile, /<Overview\n/u);
+  // Полоса вкладок прокручивается и обрезала бы внешнюю рамку фокуса — у её вкладок рамка внутри.
+  assert.match(profile, /aria-label="Разделы профиля"\n\s+tabIndex=\{0\}\n\s+data-tab-strip=""/u);
+  assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-tab-strip\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u);
   // Прежний «Обзор» лида рисует ту же часть продажи, что «Данные продажи» дела.
   assert.match(read("src/components/v3/profile/tabs.tsx"), /<SalesOverview profile=\{profile\} sales=\{sales\} draft=\{draft\} actor=\{actor\} requestIds=\{requestIds\} \/>/u);
   // Строка очереди дела — то же чтение 241, выбранная по id; не нашлась — null, а не выдумка.

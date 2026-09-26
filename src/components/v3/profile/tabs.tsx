@@ -130,6 +130,8 @@ export function PlatformAccessCard({ application, requestId, readOnly, leadId, l
  * первого платежа («Договор и оплата») и четыре блока условий продажи. Одна
  * часть для обоих видов: на карточке лида — в «Обзоре» как раньше, на деле
  * студента — в свёрнутом разделе «Данные продажи» (решение владельца 26.09).
+ * `quiet` (дело): «Сохранить» четырёх блоков условий — спокойные кнопки,
+ * сплошной красный остаётся одному главному действию страницы.
  */
 export function SalesOverview({
   profile,
@@ -137,12 +139,14 @@ export function SalesOverview({
   draft,
   actor,
   requestIds,
+  quiet = false,
 }: {
   profile: PersonProfile;
   sales: ProfileSalesSnapshot;
   draft: ProfileDraft;
   actor: ActivePlatformActor;
   requestIds: ProfileSalesRequestIds;
+  quiet?: boolean;
 }) {
   const stage = leadStage(sales.lead.stageKey);
   const saleConditionsReadOnly = isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage");
@@ -215,24 +219,28 @@ export function SalesOverview({
             conditions={draft.saleConditions}
             requestId={requestIds.saleConditions}
             readOnly={saleConditionsReadOnly}
+            quiet={quiet}
           />
           <LeadWishesCard
             leadId={draft.saleConditions.leadId}
             conditions={draft.saleConditions}
             requestId={requestIds.wishesCard}
             readOnly={saleConditionsReadOnly}
+            quiet={quiet}
           />
           <LeadEducationCard
             leadId={draft.saleConditions.leadId}
             conditions={draft.saleConditions}
             requestId={requestIds.educationCard}
             readOnly={saleConditionsReadOnly}
+            quiet={quiet}
           />
           <LeadConditionsCard
             leadId={draft.saleConditions.leadId}
             conditions={draft.saleConditions}
             requestId={requestIds.conditionsCard}
             readOnly={saleConditionsReadOnly}
+            quiet={quiet}
           />
         </SaleConditionsRevisionProvider>
       ) : null}

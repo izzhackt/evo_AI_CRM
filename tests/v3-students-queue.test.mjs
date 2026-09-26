@@ -31,6 +31,7 @@ import { caseNextActionOutcome, journalEvent } from "../src/lib/v3/wording.ts";
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = source("supabase/migrations/241_platform_case_next_action_queue.sql");
 const pendingMigration = source("supabase/migrations/242_platform_case_queue_pending_view.sql");
+const signalsMigration = source("supabase/migrations/245_platform_case_work_signals.sql");
 const suite = source("supabase/tests/platform_case_next_action_queue.sql");
 const actions = source("src/lib/platform-case-next-action-actions.ts");
 const serverModule = source("src/lib/platform-student-case-queue.ts");
@@ -84,6 +85,29 @@ test("vocabularies match the SQL contract exactly", () => {
   for (const check of stageChecks) {
     assert.deepEqual([...check[1].matchAll(/'([a-z_]+)'/gu)].map((match) => match[1]), [...ADMISSIONS_PIPELINE_STAGES]);
   }
+});
+
+test("245: «Требуют действия» adds no step and a chat waiting for staff; a staff post waits for the student", () => {
+  // One predicate for rows and numbers; the two new signals join the three 182 flags.
+  assert.match(signalsMigration, /WHEN 'needs_action' THEN COALESCE\(p_flags && ARRAY\['overdue', 'awaiting_ack', 'needs_curator', 'no_step', 'needs_reply'\]::TEXT\[\], FALSE\)/u);
+  assert.match(signalsMigration, /IF c\.state = 'active' AND NULLIF\(btrim\(c\.next_action\), ''\) IS NULL THEN\n    flags := array_append\(flags, 'no_step'\);/u);
+  assert.match(signalsMigration, /IF c\.state IN \('active', 'pending'\) AND platform_private\.case_needs_reply\(c\.organization_id, c\.id\) THEN/u);
+  // Both reads take the queue flags by anchor; the row keeps 182's attention_flags and adds needs_reply.
+  assert.match(signalsMigration, /\$q\$THEN platform_private\.admissions_attention_flags\(c\.id\) END\)\$q\$/u);
+  assert.match(signalsMigration, /\$q\$THEN platform_private\.admissions_attention_flags\(c\.id\) END AS flags,\$q\$/u);
+  assert.match(signalsMigration, /'needs_reply', platform_private\.case_needs_reply\(shown\.organization_id, shown\.id\),/u);
+  assert.doesNotMatch(signalsMigration, /CREATE (OR REPLACE )?FUNCTION platform_private\.admissions_attention_flags/u, "182's flags stay as they are");
+  // The staff post: awaiting_student with who and when, unless the command chose a state.
+  assert.match(signalsMigration, /WHEN 'post' THEN ARRAY\['mode', 'body', 'quotedMessageId', 'attachmentKind', 'attachmentId', 'state'\]/u);
+  assert.match(signalsMigration, /await_state := 'awaiting_student';/u);
+  assert.match(signalsMigration, /CASE WHEN actor\.platform_role = 'student' THEN NULL ELSE actor\.membership_id END,\n      CASE WHEN actor\.platform_role = 'student' THEN NULL ELSE clock_timestamp\(\) END/u);
+  // Forward-only helpers: SECURITY DEFINER, empty search_path, no grants.
+  for (const helper of ["case_needs_reply(p_organization_id UUID, p_student_case_id UUID)", "case_queue_flags(p_case_id UUID)"]) {
+    assert.match(signalsMigration, new RegExp(`CREATE FUNCTION platform_private\\.${helper.replace(/[()]/gu, "\\$&")}\\n[^$]*SECURITY DEFINER SET search_path = ''`, "u"), helper);
+  }
+  assert.match(signalsMigration, /REVOKE ALL ON FUNCTION platform_private\.case_needs_reply\(UUID, UUID\),\n  platform_private\.case_queue_flags\(UUID\)\n  FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/u);
+  // The counts payload keeps its exact view keys: the client decodes them exactly.
+  assert.doesNotMatch(signalsMigration, /'no_step', count|'needs_reply', count/u);
 });
 
 test("next-step input mirrors the SQL: trim, one line, 1000 characters, date needs a step", () => {
@@ -189,6 +213,12 @@ test("a queue page decodes exactly and fails closed on any inconsistency", () =>
   rejects(() => normalizeStudentCaseQueuePage({ ...base, rows: [row({ attention_flags: ["overdue", "overdue"] })] }, request));
   rejects(() => normalizeStudentCaseQueuePage({ ...base, rows: [row({ admissions_version: 4 })] }, request), "bigint must stay text");
   rejects(() => normalizeStudentCaseQueuePage({ ...base, today: "2026-02-30" }, request));
+  // 245: needs_reply is a boolean on the row; a read before 245 has no key — false, not a failure.
+  assert.equal(page.rows[0].needsReply, false);
+  assert.equal(normalizeStudentCaseQueuePage({ ...base, rows: [row({ needs_reply: true })] }, request).rows[0].needsReply, true);
+  assert.equal(normalizeStudentCaseQueuePage({ ...base, rows: [row({ needs_reply: false })] }, request).rows[0].needsReply, false);
+  rejects(() => normalizeStudentCaseQueuePage({ ...base, rows: [row({ needs_reply: "true" })] }, request), "needs_reply must be boolean");
+  rejects(() => normalizeStudentCaseQueuePage({ ...base, rows: [row({ needs_reply: null })] }, request), "needs_reply must be boolean");
 });
 
 test("counts decode only when the tab, total and bands agree", () => {

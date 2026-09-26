@@ -521,16 +521,17 @@ export type StudentsSignalOptions = Readonly<{
 }>;
 
 /**
- * «Сигналы» строки — словами и только из самой строки 241: просроченные
- * задачи, документы исправить или отклонены, просроченный дедлайн (флаг
- * внимания без просроченных задач и шага), «ждём партнёра». Документы «на
+ * «Сигналы» строки — словами и только из самой строки 241: «нужен ответ»
+ * (переписка ждёт сотрудника, 245), просроченные задачи, документы исправить
+ * или отклонены, просроченный дедлайн (флаг внимания без просроченных задач
+ * и шага), «ждём партнёра». Документы «на
  * проверке» — работа проверяющего: они в строке документов панели и в EVO
  * Docs, а не в сигналах. «Ждёт принятия» и «нужен куратор» — в колонке
  * «Куратор», а без неё (`curatorWords`) — первыми сигналами.
  */
 export function studentsRowSignals(
   row: Pick<StudentCaseQueueRow, "overdueTaskCount" | "documents" | "attentionFlags" | "dueBand">
-    & Partial<Pick<StudentCaseQueueRow, "isMine" | "currentCuratorMembershipId" | "currentCuratorDisplayName">>,
+    & Partial<Pick<StudentCaseQueueRow, "isMine" | "currentCuratorMembershipId" | "currentCuratorDisplayName" | "needsReply">>,
   options: StudentsSignalOptions = {},
 ): readonly StudentsSignal[] {
   const signals: StudentsSignal[] = [];
@@ -541,6 +542,8 @@ export function studentsRowSignals(
       signals.push({ key: "curator", tone: "muted", text: `куратор:${NBSP}${shortPersonName(row.currentCuratorDisplayName ?? "без имени")}` });
     }
   }
+  // Студент написал и ждёт ответа сотрудника — работа, которую видно только здесь и в «Сообщениях».
+  if (row.needsReply) signals.push({ key: "reply", tone: "danger", text: "нужен ответ" });
   if (options.overdueStep && row.dueBand === "overdue") signals.push({ key: "step", tone: "danger", text: "Шаг просрочен" });
   const tasks = row.overdueTaskCount;
   if (tasks > 0) {

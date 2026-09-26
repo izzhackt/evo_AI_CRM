@@ -105,6 +105,8 @@ export type StudentCaseQueueRow = Readonly<{
   currentCuratorDisplayName: string | null;
   isMine: boolean;
   attentionFlags: readonly AdmissionsAttention[];
+  /** 245: the case chat waits for a staff answer («нужен ответ»). */
+  needsReply: boolean;
   overdueTaskCount: number;
   /** null: the actor cannot read this case's documents (нет чтения — нет числа). */
   documents: StudentCaseChecklistCounts | null;
@@ -376,6 +378,8 @@ export function normalizeStudentCaseQueueRow(value: unknown, sort: StudentCaseQu
     currentCuratorDisplayName: optionalText(value.current_curator_display_name, 200),
     isMine,
     attentionFlags: attentionFlags(value.attention_flags),
+    // 245 adds the key; a read before 245 is applied has none — false, not a failure.
+    needsReply: value.needs_reply === undefined ? false : requiredBoolean(value.needs_reply),
     overdueTaskCount: count(value.overdue_task_count),
     documents: checklist(value.documents),
     updatedAt: requiredTimestamp(value.updated_at),

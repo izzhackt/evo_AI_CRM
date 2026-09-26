@@ -344,10 +344,11 @@ export default async function ProfilePart({
   const notesLatestHref = view && noteCursor
     ? withDocsSection(buildProfileNotesHref(view.details.routeTarget), docsMode)
     : null;
-  // Имена кураторов (Admin) нужны и делу, и меню «Куратор ▾» очереди: очередь
-  // читается параллельно с ними.
+  // Имена кураторов нужны и делу, и меню «Куратор ▾» очереди: очередь
+  // читается параллельно с ними. Читает тот, кто назначает кураторов (Admin и
+  // `case.curator.assign`, миграция 248), — то же условие, что у вида очереди.
   const curatorsRead: Promise<Readonly<{ curators: readonly StudentPortalCuratorOption[]; available: boolean }>> =
-    actor.systemRole === "admin" && !isStaffPreview(actor) &&
+    studentsQueueActor(actor).coverage &&
     (directoryMode || view?.details.admissions?.caseState === "pending")
       ? listStudentPortalActiveCurators(actor).then((curators) => ({ curators, available: true }), () => ({ curators: [], available: false }))
       : Promise.resolve({ curators: [], available: true });

@@ -97,7 +97,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       work={work}
       stepAccess={input.stepAccess}
       stepRequestId={input.requestIds.step}
-      coverage={admin && staffHasPermission(actor, "case.curator.assign")}
+      coverage={!preview && staffHasPermission(actor, "case.curator.assign")}
       curators={input.curators}
       assignCuratorRequestId={input.requestIds.assignCurator}
       closure={input.closure ?? null}

@@ -31,10 +31,10 @@ const REFRESH_ON_STATUS = new Set<PrepareLeadCabinetActionState["status"]>([
  * «Подготовить кабинет» (unified workflow S7, plan §4): for a site/WhatsApp
  * lead with no platform анкета and no linked case yet. Calls
  * `platform.prepare_lead_cabinet_v1` (migration 184) — creates the pending,
- * curator-less cabinet case, nothing more. Invite dispatch stays a SEPARATE,
- * already admin-gated flow the case page owns (StudentPortalAccessCard);
- * that gate is not widened here, per the migration's own documented outcome
- * — a real, honest gap for a cabinet-prepared case, not hidden.
+ * curator-less cabinet case, nothing more. The invite is a SEPARATE step
+ * (StudentPortalAccessCard): since migration 248 (owner decision C) Sales
+ * with the lead permission sends it from this same «Доступ к порталу» card
+ * after the refresh, the Admin also from the case.
  */
 export function PrepareLeadCabinetAction({ leadId, requestId }: Readonly<{ leadId: string; requestId: string }>) {
   const router = useRouter();
@@ -53,7 +53,6 @@ export function PrepareLeadCabinetAction({ leadId, requestId }: Readonly<{ leadI
         <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(state.studentCaseId)}&tab=anketa`}>
           Открыть дело
         </Link>
-        {" "}· «Приглашение отправляет администратор из дела».
       </p>
     );
   }

@@ -110,9 +110,10 @@ export default async function AdmissionsPipelinePart({
       curatorMembershipId: query.curator,
       query: query.q,
     }),
-    // Same admin gate as /v3/profile: the helper rejects every non-admin
-    // actor, so a curator never issues a call that always fails.
-    actor.systemRole === "admin" && !isStaffPreview(actor)
+    // Same gate as /v3/profile: who assigns curators (the Admin and
+    // `case.curator.assign`, migration 248) reads their names; a curator
+    // never issues a call that always fails.
+    !isStaffPreview(actor) && staffHasPermission(actor, "case.curator.assign")
       ? listStudentPortalActiveCurators(actor)
       : Promise.resolve([]),
     // Числа очередей в шапке — первые страницы тех же чтений, что у самих

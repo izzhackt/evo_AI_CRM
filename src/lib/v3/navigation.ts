@@ -150,6 +150,19 @@ export function v3SectionTitle(
   return ALL_LINKS.find((link) => link.id === id)?.label;
 }
 
+/**
+ * Группа «Продажи» — у того, кто ведёт лиды или читает отчёт продаж
+ * (решение владельца D, 26.09.2026). `lead.read` у ролей поступления
+ * открывает куратору лид его дела (контакты и данные продажи в деле) и
+ * поэтому остаётся в `sales.read`, но разделом продаж не делает. Просмотр
+ * роли — по её `sales.read`, как раньше.
+ */
+function salesWorkspace(actor: ActivePlatformActor): boolean {
+  return isStaffPreview(actor)
+    ? staffPresentationCan(actor, "sales.read")
+    : staffHasPermission(actor, "lead.sales.workflow.manage") || staffHasPermission(actor, "sales.register.read");
+}
+
 /** Presentation-only navigation. Server route guards remain the authority. */
 export function buildV3Navigation(
   actor: ActivePlatformActor,
@@ -167,13 +180,17 @@ export function buildV3Navigation(
     && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;
   const settings = allowed(SETTINGS) ? SETTINGS : null;
-  const common = COMMON.filter((link) => allowed(link)
-    && (!staffCanAccessRoute(actor, "/v3/knowledge") || (link.id !== "documents" && link.id !== "reply-snippets"))
-    && (link.id !== "inbox" || !staffPresentationCan(actor, "sales.read")));
+  const sales = salesWorkspace(actor);
   const visibleGroups = GROUPS.map((group) => ({
     ...group,
-    links: group.links.filter(allowed),
+    links: group.id === "sales" && !sales ? [] : group.links.filter(allowed),
   })).filter((group) => group.links.length > 0);
+  // WhatsApp — один пункт: в «Продажах», если группа его показывает, иначе в
+  // общих разделах у каждого, кому открыт его раздел (`messaging.read`).
+  const inboxInGroup = visibleGroups.some((group) => group.links.some((link) => link.id === "inbox"));
+  const common = COMMON.filter((link) => allowed(link)
+    && (!staffCanAccessRoute(actor, "/v3/knowledge") || (link.id !== "documents" && link.id !== "reply-snippets"))
+    && (link.id !== "inbox" || !inboxInGroup));
   const links = [
     ...(home ? [home] : []),
     ...visibleGroups.flatMap((group) => group.links),

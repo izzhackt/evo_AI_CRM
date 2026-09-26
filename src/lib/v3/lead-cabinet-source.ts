@@ -13,7 +13,17 @@ import { createSupabaseServerClient } from "../supabase/server";
  * "для уже открытого доступа показываем «Доступ открыт», а не повторное
  * одобрение" for leads that never had an анкета in the first place.
  */
-export type LeadCabinetCase = Readonly<{ studentCaseId: string; state: "pending" | "active" | "closed" }>;
+export type LeadCabinetCase = Readonly<{
+  studentCaseId: string;
+  state: "pending" | "active" | "closed";
+  /**
+   * Решение владельца C (миграция 248): ожидающий кабинет, приглашение в
+   * который этот сотрудник может отправить с карточки лида (Sales с правом на
+   * лид кабинета). Читает `readStudentCaseCabinetOrigin`; нет чтения — нет
+   * приглашения.
+   */
+  cabinetInvite?: boolean;
+}>;
 
 const CASE_STATES = ["pending", "active", "closed"] as const;
 

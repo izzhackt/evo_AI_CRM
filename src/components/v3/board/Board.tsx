@@ -57,9 +57,9 @@ export function ownerInitials(name: string): string {
     .join("");
 }
 
-/** Оболочка карточки: одна рамка, наведение — край контрола. */
+/** Оболочка карточки: одна рамка, наведение — край контрола; в новом облике — волосяная тень (`.v3-raised`). */
 export const BOARD_CARD_CLASS =
-  "group relative min-w-0 rounded-ctl border border-border bg-surface px-3 py-2 hover:border-control-edge focus-within:border-control-edge";
+  "v3-raised group relative min-w-0 rounded-ctl border border-border bg-surface px-3 py-2 hover:border-control-edge focus-within:border-control-edge";
 
 /** Захват для перетаскивания: виден при наведении и фокусе внутри карточки. */
 export function BoardGrip() {

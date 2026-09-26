@@ -1,7 +1,8 @@
 "use client";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ButtonHTMLAttributes } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icons";
+import { placeMenu } from "@/components/v3/board/menu-position";
 import { loadStaffNotificationsAction, markAllStaffNotificationsReadAction, markStaffNotificationReadAction } from "@/lib/v3/staff-notification-actions";
 import type { StaffNotification, StaffNotificationCursor, StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 import { dayInOrganizationTimezone, projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
@@ -11,6 +12,13 @@ const TIME = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", 
 const EXACT_TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
 const DATE_ONLY = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "Asia/Bishkek" });
 const CONTROL = "min-h-11 rounded-ctl border border-control-edge px-3 text-sm text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+/**
+ * Новый облик (Э1.2, временно до Э1.5): колокольчик — квадратная кнопка в
+ * боковом меню и в листе «Ещё», число — на ней; панель живёт в верхнем слое
+ * (popover), поэтому ни меню, ни лист её не обрезают.
+ */
+const MENU_TRIGGER = "v3-raised relative flex size-11 shrink-0 items-center justify-center rounded-ctl border border-control-edge bg-surface text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+const PHONE_MEDIA = "(width < 48rem)";
 
 function addDaysToIsoDate(day: string, delta: number): string {
   const [year, month, date] = day.split("-").map(Number);
@@ -64,7 +72,15 @@ function rowCopy(item: StaffNotification): string {
   }
 }
 
-export function StaffNotifications({ initialPage }: { initialPage: StaffNotificationPage | null }) {
+export function StaffNotifications({ initialPage, variant = "bar", onCountChange, triggerProps }: {
+  initialPage: StaffNotificationPage | null;
+  /** «bar» — верхняя панель прежнего облика; «menu» — меню нового облика (Э1.2). */
+  variant?: "bar" | "menu";
+  /** Новый облик: число непрочитанных для «Ещё» нижней панели телефона. */
+  onCountChange?: (count: string | undefined) => void;
+  /** Новый облик: подпись рейки при наведении и фокусе. */
+  triggerProps?: Pick<ButtonHTMLAttributes<HTMLButtonElement>, "onPointerEnter" | "onPointerLeave" | "onFocus" | "onBlur">;
+}) {
   const router = useRouter();
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -139,18 +155,65 @@ export function StaffNotifications({ initialPage }: { initialPage: StaffNotifica
   }
   const count = page?.unreadCount;
   const failed = error !== null;
+  useEffect(() => { onCountChange?.(count); }, [count, onCountChange]);
+  const menu = variant === "menu";
+  // Новый облик: панель в верхнем слое у своей кнопки — справа от бокового
+  // меню, на телефоне — под кнопкой в листе «Ещё».
+  const panel = useRef<HTMLElement | null>(null);
+  const placePanel = useCallback(() => {
+    const trigger = toggle.current;
+    const element = panel.current;
+    if (!trigger || !element) return;
+    const box = trigger.getBoundingClientRect();
+    const phone = window.matchMedia(PHONE_MEDIA).matches;
+    // На компьютере — справа от самого меню, а не от кнопки: панель не наезжает на его край.
+    const edge = phone ? null : trigger.closest("nav")?.getBoundingClientRect().right ?? null;
+    const position = placeMenu(
+      { top: box.top, bottom: box.bottom, left: box.left, right: edge === null ? box.right : Math.max(box.right, edge) },
+      { width: element.offsetWidth, height: element.scrollHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+      phone ? "bottom-end" : "right-start",
+    );
+    element.style.top = `${position.top}px`;
+    element.style.left = `${position.left}px`;
+    element.style.maxHeight = `${Math.min(position.maxHeight, window.innerHeight * 0.7)}px`;
+  }, []);
+  const panelRef = useCallback((element: HTMLElement | null) => {
+    panel.current = element;
+    if (!element || typeof element.showPopover !== "function" || element.matches(":popover-open")) return;
+    element.showPopover();
+    placePanel();
+  }, [placePanel]);
+  useEffect(() => {
+    if (!open || !menu) return;
+    window.addEventListener("resize", placePanel);
+    window.addEventListener("scroll", placePanel, true);
+    return () => {
+      window.removeEventListener("resize", placePanel);
+      window.removeEventListener("scroll", placePanel, true);
+    };
+  }, [open, menu, placePanel]);
   return (
     <div ref={root} className="relative" onKeyDown={(event) => {
       if (event.key === "Escape" && open) { event.stopPropagation(); setOpen(false); toggle.current?.focus(); }
     }}>
       <button ref={toggle} type="button" aria-expanded={open} aria-controls={id}
         aria-label={count && count !== "0" ? `Уведомления: ${count} непрочитанных` : "Уведомления"}
-        className={`${CONTROL} flex items-center gap-2`} onClick={() => { if (!open) { setBusy(true); setMenuOpen(false); void load(); } setOpen((value) => !value); }}>
-        <Icon name="bell" size={18} /><span className="hidden sm:inline">Уведомления</span>
-        {count && count !== "0" ? <span className="rounded-full bg-fg px-2 text-xs font-semibold text-surface">{BigInt(count) > BigInt(99) ? "99+" : count}</span> : null}
+        className={menu ? MENU_TRIGGER : `${CONTROL} flex items-center gap-2`} onClick={() => { if (!open) { setBusy(true); setMenuOpen(false); void load(); } setOpen((value) => !value); }}
+        {...(menu ? triggerProps : undefined)}>
+        {menu ? <>
+          <Icon name="bell" size={20} />
+          {count && count !== "0" ? <span className="t-caption absolute -end-2 -top-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface">{BigInt(count) > BigInt(99) ? "99+" : count}</span> : null}
+        </> : <>
+          <Icon name="bell" size={18} /><span className="hidden sm:inline">Уведомления</span>
+          {count && count !== "0" ? <span className="rounded-full bg-fg px-2 text-xs font-semibold text-surface">{BigInt(count) > BigInt(99) ? "99+" : count}</span> : null}
+        </>}
       </button>
       {open ? <section id={id} aria-label="Уведомления сотрудников" aria-busy={busy}
-        className="absolute end-0 top-full z-40 mt-2 max-h-[70dvh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-card border border-border bg-surface p-4 shadow-evo-lg">
+        ref={menu ? panelRef : undefined} popover={menu ? "manual" : undefined}
+        className={menu
+          ? "inset-auto m-0 w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-card border border-border bg-surface p-4 text-fg shadow-evo-lg"
+          : "absolute end-0 top-full z-40 mt-2 max-h-[70dvh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-card border border-border bg-surface p-4 shadow-evo-lg"}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="t-section text-fg">Уведомления</h2>
           <div className="relative">

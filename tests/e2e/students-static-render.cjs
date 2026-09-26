@@ -480,11 +480,16 @@ function renderPage(name) {
     : undefined;
   const page = createElement(
     "div",
-    // `--look=next` — снимки предпросмотра нового облика (Э1.1), как у Admin с включённым переключателем.
+    // `--look=next` — снимки предпросмотра нового облика (Э1.1), как у Admin с включённым переключателем;
+    // с Э1.2 и оболочка нового облика (меню без верхней панели, нижняя панель телефона).
     { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
     createElement(
       AppShell,
-      { actor: item.actor === "curator" ? CURATOR_ACTOR : ACTOR, initialNotifications: null },
+      {
+        actor: item.actor === "curator" ? CURATOR_ACTOR : ACTOR,
+        initialNotifications: null,
+        ...(process.argv.includes("--look=next") ? { look: "next" } : {}),
+      },
       createElement(PartShell, { title: item.docsMode ? "EVO Docs" : "Студенты", count: built.count, action, dense: item.kind !== "sales" },
         createElement("div", { id: CLIENT_ROOT_ID }, built.content)),
     ),

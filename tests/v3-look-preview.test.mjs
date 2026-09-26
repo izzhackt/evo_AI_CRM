@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { LOOK_PREVIEW_COOKIE, LOOK_PREVIEW_VALUE, lookPreviewAllowed, lookPreviewEnabled } from "../src/lib/v3/look-preview-contract.ts";
+import { LOOK_PREVIEW_COOKIE, LOOK_PREVIEW_VALUE, lookPreviewAllowed, lookPreviewEnabled, lookPreviewVisible } from "../src/lib/v3/look-preview-contract.ts";
 
 /**
  * Э1.1 плана редизайна (25.09.2026): новый облик за переключателем
@@ -35,9 +35,9 @@ function contrast(fg, bg) {
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
-test("only an Admin outside role preview can see the new look", () => {
+test("only an Admin sees the new look; the switch itself stays with the Admin outside role preview", () => {
   assert.equal(lookPreviewAllowed({ systemRole: "admin", presentationRole: null }), true);
-  assert.equal(lookPreviewAllowed({ systemRole: "admin", presentationRole: "sales" }), false, "not while previewing a role");
+  assert.equal(lookPreviewAllowed({ systemRole: "admin", presentationRole: "sales" }), false, "the switch is not offered while previewing a role");
   assert.equal(lookPreviewAllowed({ systemRole: "staff", presentationRole: null }), false);
   assert.equal(LOOK_PREVIEW_COOKIE, "evo_look_preview");
   assert.equal(LOOK_PREVIEW_VALUE, "next");
@@ -46,7 +46,12 @@ test("only an Admin outside role preview can see the new look", () => {
   assert.equal(lookPreviewEnabled({ systemRole: "admin", presentationRole: null }, undefined), false);
   assert.equal(lookPreviewEnabled({ systemRole: "admin", presentationRole: null }, "other"), false);
   assert.equal(lookPreviewEnabled({ systemRole: "staff", presentationRole: null }, "next"), false);
-  assert.equal(lookPreviewEnabled({ systemRole: "admin", presentationRole: "curator" }, "next"), false);
+  // Э1.2 (26.09.2026), deliberate and revertible: the new look stays on while
+  // the Admin previews a role, so the owner sees each role's menu and tabs.
+  assert.equal(lookPreviewVisible({ systemRole: "admin", presentationRole: "sales" }), true);
+  assert.equal(lookPreviewEnabled({ systemRole: "admin", presentationRole: "sales" }, "next"), true);
+  assert.equal(lookPreviewEnabled({ systemRole: "admin", presentationRole: "admissions" }, undefined), false);
+  assert.equal(lookPreviewVisible({ systemRole: "staff", presentationRole: null }), false);
 });
 
 test("the new look overrides the same token names in one place and every value meets contrast", () => {
@@ -90,7 +95,7 @@ test("the switch is Admin-only, kept per browser, and the shell sets the look on
   assert.match(layout, /<div className="v3-world" data-look=\{lookPreview \? "next" : undefined\}>/u);
   assert.match(layout, /readLookPreview\(actor\)/u);
   const reader = read("src/lib/v3/look-preview.ts");
-  assert.match(reader, /if \(!lookPreviewAllowed\(actor\)\) return false;\s*return lookPreviewEnabled\(actor, \(await cookies\(\)\)/u, "the right is checked before the cookie is read");
+  assert.match(reader, /if \(!lookPreviewVisible\(actor\)\) return false;\s*return lookPreviewEnabled\(actor, \(await cookies\(\)\)/u, "the right is checked before the cookie is read");
   const action = read("src/lib/v3/look-preview-actions.ts");
   assert.match(action, /^"use server";/u);
   assert.match(action, /if \(!lookPreviewAllowed\(actor\)\) redirect\(/u);

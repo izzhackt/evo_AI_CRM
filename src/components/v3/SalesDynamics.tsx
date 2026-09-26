@@ -5,6 +5,7 @@ import type { SalesDynamicsRead } from "@/lib/v3/sales-dynamics-source";
 import { FUNNEL_STEP } from "@/lib/v3/wording";
 
 import { Funnel } from "./Funnel";
+import { SalesPeriodLine } from "./SalesPeriodHeadline";
 import { MainHeader, type PeriodChoice } from "./MainHeader";
 import { QUEUE_QUIET_LINK } from "./queue/QueueStates";
 import { TrendChart } from "./TrendChart";
@@ -86,12 +87,17 @@ export function SalesDynamics({
               {/* На телефоне — список «подпись … число» (три длинные подписи в треть
                   ширины не помещаются), шире — три колонки. */}
               <dl className="mt-4 grid divide-y divide-border border-y border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0" data-period-figures="">
-                {([["leads", FUNNEL_STEP.leads], ["qualified", FUNNEL_STEP.qualified], ["handed", FUNNEL_STEP.handed]] as const).map(([key, word]) => (
-                  <div key={key} className="flex min-w-0 items-baseline justify-between gap-x-4 gap-y-1 py-2 sm:flex-col sm:items-start sm:px-4 sm:py-3 sm:first:ps-0">
-                    <dt className="t-caption text-fg-2">{PERIOD_WORDS[word]}</dt>
-                    <dd className="t-figure tabular-nums text-fg">{counts?.[key].toLocaleString("ru-RU")}</dd>
-                  </div>
-                ))}
+                {/* «Из них переданы» — завершённые передачи (Э2); без их чтения
+                    (просмотр роли) числа нет, а не ноль. */}
+                {([["leads", FUNNEL_STEP.leads], ["qualified", FUNNEL_STEP.qualified], ["handed", FUNNEL_STEP.handed]] as const).map(([key, word]) => {
+                  const value = counts?.[key];
+                  return value === null || value === undefined ? null : (
+                    <div key={key} className="flex min-w-0 items-baseline justify-between gap-x-4 gap-y-1 py-2 sm:flex-col sm:items-start sm:px-4 sm:py-3 sm:first:ps-0">
+                      <dt className="t-caption text-fg-2">{PERIOD_WORDS[word]}</dt>
+                      <dd className="t-figure tabular-nums text-fg">{value.toLocaleString("ru-RU")}</dd>
+                    </div>
+                  );
+                })}
               </dl>
               <section aria-labelledby={`${id}-trend`} className="mt-4 min-w-0 rounded-card border border-border bg-surface p-4">
                 <h4 id={`${id}-trend`} className="mb-3 t-item text-fg">Нарастающим итогом</h4>
@@ -105,6 +111,7 @@ export function SalesDynamics({
               </section>
             </>
           )}
+          <SalesPeriodLine read={read.sales} retryHref={retryHref} />
         </section>
 
         <section aria-labelledby={`${id}-board`} className="min-w-0" data-board-funnel="">

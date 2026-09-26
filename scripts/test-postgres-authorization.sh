@@ -2720,6 +2720,21 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_lead_case_closure.sql
   fi
+
+  # Migration 247 (Э2 «Честные числа», owner decisions 26.09): one stage
+  # resolver and one completed-handoff definition for the board, the funnel,
+  # Lead 360 and the period «Переданы»; one «Продажи» count (non-archived
+  # records by sale date). Members modelled like production (coarse role
+  # NULL, the production bundles, as in 244's suite) on data that mirrors
+  # production: one handed-off lead with an archived record, a cabinet
+  # without a sale, records in and out of the archive, with and without a
+  # sale date. The four numbers that disagreed now agree; the count
+  # reconciles with the report month; no widening; refusals.
+  if [[ "$(basename "$migration")" == 247_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_sales_one_truth.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

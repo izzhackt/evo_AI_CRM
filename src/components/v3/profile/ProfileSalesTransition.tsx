@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
 import { btnCls, btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
-import { Pill, type PillTone } from "@/components/v3/Pill";
+import { Icon } from "@/components/icons";
 import {
   mutatePlatformLeadAdmissionsGateAction,
   type PlatformLeadAdmissionsGateActionState,
@@ -22,6 +22,7 @@ import type {
 import type { HandoffAcknowledgement, HandoffDecision, SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import { respondToHandoffAction, type HandoffResponseActionState } from "@/lib/platform-handoff-acknowledgement-actions";
 import { handoffAcknowledgementLabel } from "@/lib/v3/wording";
+import { handoffFootnote, type HandoffStripItem, type HandoffStripView, type StripText } from "./handoff-strip-view";
 import type {
   ProfileSalesRequestIds,
 } from "./types";
@@ -60,14 +61,6 @@ function ActionResult({ status }: { status: PlatformStudentHandoffActionStatus }
     >
       {ACTION_MESSAGES[status]}
     </p>
-  );
-}
-
-function Version({ value }: { value: string }) {
-  return (
-    <span className="t-meta text-fg-3">
-      Версия проверки: <span className="font-mono text-fg-2">{value}</span>
-    </span>
   );
 }
 
@@ -112,7 +105,7 @@ function GateActionForm({
   return (
     <form
       action={action}
-      className="space-y-3 border-t border-border pt-3"
+      className="mt-3 space-y-3"
       data-testid={`v3-gate-${contract ? "contract" : payment ? "payment" : "override"}-form`}
     >
       <input type="hidden" name="lead_id" value={gate.leadId} />
@@ -216,7 +209,9 @@ function GateActionForm({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={locked} className={btnCls}>
+        {/* Спокойная кнопка: подтверждение — доказательство передачи, а не
+            главное действие страницы (Э2). */}
+        <button type="submit" disabled={locked} className={cn(btnGhostCls, "min-h-11")}>
           {pending
             ? "Сохраняем…"
             : contract
@@ -225,108 +220,164 @@ function GateActionForm({
                 ? "Подтвердить платёж"
                 : "Разрешить исключение"}
         </button>
-        <Version value={gateVersion} />
       </div>
       <ActionResult status={state.status} />
     </form>
   );
 }
 
-function Evidence({ value }: { value: string | null }) {
-  return value ? (
-    <p className="t-meta mt-1 break-all text-fg-3">{value}</p>
-  ) : null;
+/**
+ * Текст полосы: слова — Golos, даты — JetBrains Mono (один формат даты,
+ * DESIGN.md). Слово перед датой не отрывается от неё переносом («принято 19.09»).
+ */
+function StripLine({ text }: { text: StripText }) {
+  return <>{text.map((part, index) => typeof part === "string"
+    ? typeof text[index + 1] === "object" && part.endsWith(" ") ? `${part.slice(0, -1)}\u00a0` : part
+    : <span key={index} className="whitespace-nowrap font-mono tabular-nums">{part.date}</span>)}</>;
 }
 
-function GateCard({
+/**
+ * Одно доказательство полосы: есть (галочка и дата), нет (прочерк), есть с
+ * оговоркой словами или лежит в отчёте, который роль не читает (только слова).
+ */
+function StripValue({ item }: { item: HandoffStripItem }) {
+  // Знак и слова — одна строка текста: длинные слова переносятся за галочкой,
+  // а не уводят её на отдельную строку. Дата — отдельно и не рвётся.
+  const gap = item.text ? "me-1.5" : null;
+  const mark = item.state === "done" ? (
+    <>
+      <Icon name="check" size={16} className={cn("inline-block align-[-3px] text-ok", gap)} />
+      <span className="sr-only">есть </span>
+    </>
+  ) : item.state === "missing" ? (
+    <>
+      <span aria-hidden="true" className={cn("text-fg-3", gap)}>—</span>
+      <span className="sr-only">нет </span>
+    </>
+  ) : null;
+  const tone = item.state === "attention" ? "text-warn" : item.state === "done" ? "text-fg" : "text-fg-2";
+  return (
+    <>
+      {mark || item.text ? <span className={cn("min-w-0 break-words text-end @2xl:text-start", tone)}>{mark}{item.text}</span> : null}
+      {item.date ? <span className="whitespace-nowrap font-mono tabular-nums text-fg-2">{item.date}</span> : null}
+    </>
+  );
+}
+
+/**
+ * «Передача» (Э2 «Честные числа», решения владельца 26.09.2026) — вместо
+ * красного «Договор и оплата: ожидает условий», который ничего не запрещал.
+ * Условие передачи — доказательство, не запрет: до передачи полоса
+ * нейтральна; после — строка «Передано ДД.ММ · куратор · принято ДД.ММ», а
+ * нехватка доказательства названа словами в тоне предупреждения. Формы
+ * подтверждения договора и платежа прежние и спокойные: сплошной красный
+ * остаётся главному действию страницы.
+ */
+function HandoffCard({
   actor,
   gate,
+  view,
   requestIds,
 }: {
   actor: ActivePlatformActor;
   gate: PlatformLeadAdmissionsGateSnapshot;
+  /** null — полоса не прочитана: ни этапа, ни галочек наугад. */
+  view: HandoffStripView | null;
   requestIds: ProfileSalesRequestIds;
 }) {
-  const gateStatus: Readonly<{ label: string; tone: PillTone }> =
-    gate.normalHandoffAllowed
-      ? { label: "готово к передаче", tone: "ok" }
-      : gate.exceptionalHandoffAllowed
-        ? { label: "исключение разрешено", tone: "warn" }
-        : { label: "ожидает условий", tone: "danger" };
-  const canOverride =
-    !isStaffPreview(actor) && gate.canOverrideGate && !gate.normalHandoffAllowed;
+  const router = useRouter();
+  const preview = isStaffPreview(actor);
+  const contractForm = !preview && !gate.contractConfirmed && gate.canConfirmContract;
+  const paymentForm = !preview && gate.contractConfirmed && !gate.firstPaymentReceivedDate && gate.canConfirmFirstPayment;
+  const canOverride = !preview && gate.canOverrideGate && !gate.normalHandoffAllowed;
+  const footnote = handoffFootnote(gate, { now: new Date() });
+  // Линия над полосой — только когда над ней есть строка передачи или
+  // предупреждение; иначе она удваивает линию под заголовком карточки.
+  const ruleAbove = view !== null && (view.summary !== null || view.warnings.length > 0);
 
   return (
-    <Card
-      eyebrow
-      title="Договор и оплата"
-      aside={<Pill tone={gateStatus.tone}>{gateStatus.label}</Pill>}
-    >
-      <div className="grid gap-0 @5xl:grid-cols-2" data-testid="v3-sales-gate">
-        <section className="space-y-3 p-4 @5xl:border-e @5xl:border-border">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="t-item text-fg">Договор</h4>
-            <Pill tone={gate.contractConfirmed ? "ok" : "neutral"}>
-              {gate.contractConfirmed ? "подтверждён" : "не подтверждён"}
-            </Pill>
+    <Card eyebrow title="Передача">
+      <div className="space-y-3 p-4" data-testid="v3-sales-gate">
+        {view === null ? (
+          <div role="alert" className="t-body-compact text-fg-2">
+            <p>Не удалось загрузить передачу.</p>
+            <button type="button" className={cn(btnGhostCls, "mt-2 min-h-11")} onClick={() => router.refresh()}>
+              Повторить
+            </button>
           </div>
-          {gate.contractConfirmed ? (
-            <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-sm">
-              <dt className="text-fg-3">Первый платёж</dt>
-              <dd className="text-right text-fg">
-                {gate.firstPaymentAmount} {gate.firstPaymentCurrency}
-              </dd>
-              <dt className="text-fg-3">Ожидается</dt>
-              <dd className="font-mono text-xs text-fg">{gate.firstPaymentDueDate}</dd>
+        ) : (
+          <>
+            {view.summary ? (
+              <p className="t-body-compact text-fg" data-testid="v3-handoff-summary"><StripLine text={view.summary} /></p>
+            ) : null}
+            {view.warnings.length > 0 ? (
+              <ul className="space-y-1" data-testid="v3-handoff-warnings">
+                {view.warnings.map((warning, index) => (
+                  <li key={index} className="flex flex-wrap items-start gap-x-1.5 gap-y-1 t-body-compact text-warn">
+                    <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
+                    <span className="min-w-0 flex-[1_1_16rem]"><StripLine text={warning.text} /></span>
+                    {warning.href ? (
+                      // 44 px цели без лишней высоты строки: поле касания выходит за строку.
+                      <a href={warning.href} className="-my-3 inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
+                        Открыть запись
+                      </a>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <dl
+              className={cn(
+                "grid divide-y divide-border @2xl:grid-cols-5 @2xl:divide-x @2xl:divide-y-0",
+                ruleAbove && "border-t border-border",
+                footnote && "border-b border-border",
+              )}
+              data-testid="v3-handoff-strip"
+            >
+              {view.items.map((item) => (
+                <div
+                  key={item.key}
+                  data-handoff-item={item.key}
+                  data-state={item.state}
+                  className="flex min-h-11 min-w-0 items-center justify-between gap-x-4 gap-y-1 py-2 @2xl:flex-col @2xl:items-start @2xl:justify-start @2xl:px-3 @2xl:py-2.5 @2xl:first:ps-0"
+                >
+                  <dt className="shrink-0 t-caption text-fg-3">{item.label}</dt>
+                  <dd className="flex min-w-0 flex-wrap items-center justify-end gap-x-1.5 t-body-compact @2xl:justify-start">
+                    <StripValue item={item} />
+                  </dd>
+                </div>
+              ))}
             </dl>
-          ) : null}
-          <Evidence value={gate.contractEvidenceReference} />
-          {!isStaffPreview(actor) && !gate.contractConfirmed && gate.canConfirmContract ? (
-            <GateActionForm
-              key={`contract:${gate.gateVersion}`}
-              actionName="confirm_contract"
-              gate={gate}
-              requestId={requestIds.contract}
-            />
-          ) : null}
-        </section>
-
-        <section className="space-y-3 border-t border-border p-4 @5xl:border-t-0">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="t-item text-fg">Первый платёж</h4>
-            <Pill tone={gate.firstPaymentReceivedDate ? "ok" : "neutral"}>
-              {gate.firstPaymentReceivedDate ? "получен" : "не получен"}
-            </Pill>
-          </div>
-          {gate.firstPaymentReceivedDate ? (
-            <p className="font-mono text-xs text-fg-2">
-              {gate.firstPaymentReceivedDate}
-            </p>
-          ) : null}
-          <Evidence value={gate.firstPaymentEvidenceReference} />
-          {gate.contractConfirmed &&
-          !gate.firstPaymentReceivedDate &&
-          !isStaffPreview(actor) && gate.canConfirmFirstPayment ? (
-            <GateActionForm
-              key={`payment:${gate.gateVersion}`}
-              actionName="confirm_first_payment"
-              gate={gate}
-              requestId={requestIds.firstPayment}
-            />
-          ) : null}
-        </section>
+          </>
+        )}
+        {footnote ? (
+          <p className="t-meta break-words text-fg-3" data-testid="v3-handoff-footnote"><StripLine text={footnote} /></p>
+        ) : null}
       </div>
 
-      {canOverride ? (
+      {contractForm ? (
         <div className="border-t border-border p-4">
-          <h4 className="t-item text-fg">Исключение Admin</h4>
-          <GateActionForm
-            key={`override:${gate.gateVersion}`}
-            actionName="override_gate"
-            gate={gate}
-            requestId={requestIds.override}
-          />
+          <h4 className="t-item text-fg">Подтвердить договор</h4>
+          <GateActionForm key={`contract:${gate.gateVersion}`} actionName="confirm_contract" gate={gate} requestId={requestIds.contract} />
         </div>
+      ) : null}
+      {paymentForm ? (
+        <div className="border-t border-border p-4">
+          <h4 className="t-item text-fg">Подтвердить первый платёж</h4>
+          <GateActionForm key={`payment:${gate.gateVersion}`} actionName="confirm_first_payment" gate={gate} requestId={requestIds.firstPayment} />
+        </div>
+      ) : null}
+      {canOverride ? (
+        // Редкий инструмент Admin — свёрнут: он не должен занимать карточку каждого лида.
+        <details className="group border-t border-border px-4 py-1">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">
+            <Icon name="chevron-right" size={16} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none" />
+            Исключение Admin
+          </summary>
+          <div className="pb-3">
+            <GateActionForm key={`override:${gate.gateVersion}`} actionName="override_gate" gate={gate} requestId={requestIds.override} />
+          </div>
+        </details>
       ) : null}
     </Card>
   );
@@ -336,21 +387,24 @@ function GateCard({
  * Unified workflow S2 (plan §6, §13): the card-side «Передача в Admissions»
  * bypass is retired here. The only curator handoff trigger left is a saved
  * Sales report (platform.create_sales_report_handoff); the lead card shows
- * that outcome through LeadSaleConditions' linked-register block instead of
- * a second, form-driven path to the same result.
+ * that outcome through the «Передача» strip (Э2) and LeadSaleConditions'
+ * linked-register block instead of a second, form-driven path to the same
+ * result.
  */
 export function ProfileSalesTransition({
   actor,
   gate,
+  view,
   requestIds,
 }: {
   actor: ActivePlatformActor;
   gate: PlatformLeadAdmissionsGateSnapshot;
+  view: HandoffStripView | null;
   requestIds: ProfileSalesRequestIds;
 }) {
   return (
     <div className="flex flex-col gap-4" data-testid="v3-sales-transition">
-      <GateCard actor={actor} gate={gate} requestIds={requestIds} />
+      <HandoffCard actor={actor} gate={gate} view={view} requestIds={requestIds} />
     </div>
   );
 }

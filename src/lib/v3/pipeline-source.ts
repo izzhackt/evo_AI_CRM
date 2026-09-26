@@ -14,7 +14,8 @@ import {
 } from "@/lib/platform-sales";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { readCompletedSalesHandoffs } from "@/lib/v3/sales-handoff-source";
-import { FUNNEL_STEP, leadStage } from "@/lib/v3/wording";
+import { resolveSalesStage, SALES_BOARD_STAGES } from "@/lib/v3/sales-stage";
+import { salesStage } from "@/lib/v3/wording";
 
 const PAGE_SIZE = 100;
 const OWNER_PAGE_SIZE = 100;
@@ -61,11 +62,11 @@ const RPC_DUE_FILTER: Record<
 });
 
 function requiredStageTitle(key: string): string {
-  const title = leadStage(key);
+  const title = salesStage(key);
   if (title === null) {
     throw new Error("Canonical sales workflow returned an unknown stage.");
   }
-  return title.charAt(0).toUpperCase() + title.slice(1);
+  return title;
 }
 
 /**
@@ -75,16 +76,15 @@ function requiredStageTitle(key: string): string {
  * mere case existence. The gate marker belongs to `qualified`, the exact
  * stage required by the canonical handoff command; contract/payment evidence
  * remains a separate server-side decision rendered on the V3 person profile.
+ * Columns and titles are the one sales stage list (Э2, 26.09.2026):
+ * `SALES_BOARD_STAGES` and `salesStage`.
  */
-const STAGES: readonly PipelineStage[] = [
-  { key: "new", title: requiredStageTitle("new"), gate: false, terminal: false },
-  { key: "contacting", title: requiredStageTitle("contacting"), gate: false, terminal: false },
-  { key: "qualified", title: requiredStageTitle("qualified"), gate: true, terminal: false },
-  { key: "meeting_scheduled", title: requiredStageTitle("meeting_scheduled"), gate: false, terminal: false },
-  { key: "meeting_completed", title: requiredStageTitle("meeting_completed"), gate: false, terminal: false },
-  { key: "potential", title: requiredStageTitle("potential"), gate: false, terminal: false },
-  { key: "handed_off", title: FUNNEL_STEP.handed, gate: false, terminal: true },
-];
+const STAGES: readonly PipelineStage[] = SALES_BOARD_STAGES.map((key) => ({
+  key,
+  title: requiredStageTitle(key),
+  gate: key === "qualified",
+  terminal: key === "handed_off",
+}));
 
 const DATE_PARTS = new Intl.DateTimeFormat("en-CA", {
   timeZone: ORG_TIMEZONE,
@@ -231,9 +231,16 @@ export async function readPipelineLeads(
   const today = organizationDate(new Date());
 
   const mapped = read.rows.map((row) => {
-    const stageKey = completed.has(row.leadId)
-      ? "handed_off" as const
-      : row.stageKey;
+    // The one resolver (Э2): a completed handoff is «Переданы» whatever
+    // stage_key says; a lead that is not open is never on the board.
+    const stageKey = resolveSalesStage({
+      lifecycleState: row.lifecycleState,
+      stageKey: row.stageKey,
+      handedOff: completed.has(row.leadId),
+    });
+    if (stageKey === "closed") {
+      throw new Error("Canonical sales board returned a lead that is not open.");
+    }
     return {
       id: row.leadId,
       name:

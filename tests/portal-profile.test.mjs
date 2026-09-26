@@ -124,9 +124,10 @@ test("profile screen wiring stays in place", () => {
   assert.match(deletion, /useState\(\(\) => crypto\.randomUUID\(\)\)/u, "request_id must be stable per attempt");
   assert.match(deletion, /strings\.deleteRequested/u);
 
+  // Дело студента 26.09: шапка рисует пилюлю, а чтение запроса — в общем чтении дела.
   const header = source("src/components/v3/profile/CaseHeader.tsx");
   assert.match(header, /запросил удаление аккаунта/u);
-  assert.match(header, /hasOpenAccountDeletionRequestForCase/u);
+  assert.match(source("src/lib/v3/case-work-source.ts"), /hasOpenAccountDeletionRequestForCase\(actor, target\.studentCaseId\)/u);
 });
 
 // План §7 (тексты) и §13: никаких обещаний сроков в состоянии запроса.

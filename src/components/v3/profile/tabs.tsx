@@ -125,6 +125,121 @@ export function PlatformAccessCard({ application, requestId, readOnly, leadId, l
   );
 }
 
+/**
+ * Продажа на карточке: менеджер и действие продаж, проверка договора и
+ * первого платежа («Договор и оплата») и четыре блока условий продажи. Одна
+ * часть для обоих видов: на карточке лида — в «Обзоре» как раньше, на деле
+ * студента — в свёрнутом разделе «Данные продажи» (решение владельца 26.09).
+ */
+export function SalesOverview({
+  profile,
+  sales,
+  draft,
+  actor,
+  requestIds,
+}: {
+  profile: PersonProfile;
+  sales: ProfileSalesSnapshot;
+  draft: ProfileDraft;
+  actor: ActivePlatformActor;
+  requestIds: ProfileSalesRequestIds;
+}) {
+  const stage = leadStage(sales.lead.stageKey);
+  const saleConditionsReadOnly = isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage");
+  return (
+    <>
+      <Card
+        eyebrow
+        title="Продажи"
+        aside={stage ? <Pill tone="neutral">{stage}</Pill> : undefined}
+      >
+        <FactList
+          facts={[
+            {
+              label: "Менеджер продаж",
+              value: sales.lead.currentOwnerDisplayName ?? "не назначен",
+            },
+            {
+              label: "Следующее действие",
+              value: sales.lead.nextActionText ?? "не назначено",
+            },
+            { label: "Срок", value: profile.nextActionAt },
+          ]}
+        />
+        {/*
+         * Card ↔ chat link (plan §4/§12): only when a linked conversation
+         * already exists, and only for actors who can actually open
+         * Inbox (messaging.read — the route's own gate, symmetric with
+         * v3InboxProfileHref's reverse-direction check on the inbox
+         * page). The lead read already carries this (see types.ts).
+         */}
+        {sales.linkedConversations.length > 0 && staffPresentationCan(actor, "messaging.read") ? (
+          <div className="flex flex-col gap-1 border-t border-border px-4 py-2.5">
+            {sales.linkedConversations.map((conversation) => (
+              <Link
+                key={conversation.conversationId}
+                href={buildV3InboxHref({
+                  conversationId: conversation.conversationId,
+                  filters: { query: null, waitingOnly: false },
+                })}
+                className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
+              >
+                {sales.linkedConversations.length > 1
+                  ? `Открыть переписку WhatsApp — ${conversation.subject}`
+                  : "Открыть переписку WhatsApp"}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </Card>
+
+      <ProfileSalesTransition
+        actor={actor}
+        gate={sales.gate}
+        requestIds={requestIds}
+      />
+
+      {draft.saleConditions ? (
+        // The four blocks below share ONE revisioned row
+        // (platform_private.lead_sale_conditions). They used to be keyed
+        // by revision (`key={`…:${revision}`}`) so a save in any one of
+        // them remounted all four via router.refresh() — which silently
+        // wiped whatever draft the OTHER three had typed but not yet
+        // saved. SaleConditionsRevisionProvider replaces that: mounted
+        // once here, it hands every block a shared, client-side
+        // expected_revision that a save bumps directly, with no refresh
+        // and no remount. See its doc comment in LeadCardFieldsForm.tsx.
+        <SaleConditionsRevisionProvider initialRevision={draft.saleConditions.revision}>
+          <LeadSaleConditions
+            leadId={draft.saleConditions.leadId}
+            conditions={draft.saleConditions}
+            requestId={requestIds.saleConditions}
+            readOnly={saleConditionsReadOnly}
+          />
+          <LeadWishesCard
+            leadId={draft.saleConditions.leadId}
+            conditions={draft.saleConditions}
+            requestId={requestIds.wishesCard}
+            readOnly={saleConditionsReadOnly}
+          />
+          <LeadEducationCard
+            leadId={draft.saleConditions.leadId}
+            conditions={draft.saleConditions}
+            requestId={requestIds.educationCard}
+            readOnly={saleConditionsReadOnly}
+          />
+          <LeadConditionsCard
+            leadId={draft.saleConditions.leadId}
+            conditions={draft.saleConditions}
+            requestId={requestIds.conditionsCard}
+            readOnly={saleConditionsReadOnly}
+          />
+        </SaleConditionsRevisionProvider>
+      ) : null}
+    </>
+  );
+}
+
 /* ------------------------------------------------------------------ Обзор */
 
 /**
@@ -150,8 +265,6 @@ export function Overview({
   tabHref: (tab: string) => string;
 }) {
   const application = profile.applications.find((candidate) => candidate.isPrimary) ?? null;
-  const stage = sales ? leadStage(sales.lead.stageKey) : null;
-  const saleConditionsReadOnly = isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage");
 
   // Плитка здесь ровно одна, и это не оплошность.
   //
@@ -170,96 +283,7 @@ export function Overview({
   return (
     <div className="flex flex-col gap-4">
       {sales && staffPresentationCan(actor, "sales.read") ? (
-        <>
-          <Card
-            eyebrow
-            title="Продажи"
-            aside={stage ? <Pill tone="neutral">{stage}</Pill> : undefined}
-          >
-            <FactList
-              facts={[
-                {
-                  label: "Менеджер продаж",
-                  value: sales.lead.currentOwnerDisplayName ?? "не назначен",
-                },
-                {
-                  label: "Следующее действие",
-                  value: sales.lead.nextActionText ?? "не назначено",
-                },
-                { label: "Срок", value: profile.nextActionAt },
-              ]}
-            />
-            {/*
-             * Card ↔ chat link (plan §4/§12): only when a linked conversation
-             * already exists, and only for actors who can actually open
-             * Inbox (messaging.read — the route's own gate, symmetric with
-             * v3InboxProfileHref's reverse-direction check on the inbox
-             * page). The lead read already carries this (see types.ts).
-             */}
-            {sales.linkedConversations.length > 0 && staffPresentationCan(actor, "messaging.read") ? (
-              <div className="flex flex-col gap-1 border-t border-border px-4 py-2.5">
-                {sales.linkedConversations.map((conversation) => (
-                  <Link
-                    key={conversation.conversationId}
-                    href={buildV3InboxHref({
-                      conversationId: conversation.conversationId,
-                      filters: { query: null, waitingOnly: false },
-                    })}
-                    className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
-                  >
-                    {sales.linkedConversations.length > 1
-                      ? `Открыть переписку WhatsApp — ${conversation.subject}`
-                      : "Открыть переписку WhatsApp"}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-          </Card>
-
-          <ProfileSalesTransition
-            actor={actor}
-            gate={sales.gate}
-            requestIds={requestIds}
-          />
-
-          {draft.saleConditions ? (
-            // The four blocks below share ONE revisioned row
-            // (platform_private.lead_sale_conditions). They used to be keyed
-            // by revision (`key={`…:${revision}`}`) so a save in any one of
-            // them remounted all four via router.refresh() — which silently
-            // wiped whatever draft the OTHER three had typed but not yet
-            // saved. SaleConditionsRevisionProvider replaces that: mounted
-            // once here, it hands every block a shared, client-side
-            // expected_revision that a save bumps directly, with no refresh
-            // and no remount. See its doc comment in LeadCardFieldsForm.tsx.
-            <SaleConditionsRevisionProvider initialRevision={draft.saleConditions.revision}>
-              <LeadSaleConditions
-                leadId={draft.saleConditions.leadId}
-                conditions={draft.saleConditions}
-                requestId={requestIds.saleConditions}
-                readOnly={saleConditionsReadOnly}
-              />
-              <LeadWishesCard
-                leadId={draft.saleConditions.leadId}
-                conditions={draft.saleConditions}
-                requestId={requestIds.wishesCard}
-                readOnly={saleConditionsReadOnly}
-              />
-              <LeadEducationCard
-                leadId={draft.saleConditions.leadId}
-                conditions={draft.saleConditions}
-                requestId={requestIds.educationCard}
-                readOnly={saleConditionsReadOnly}
-              />
-              <LeadConditionsCard
-                leadId={draft.saleConditions.leadId}
-                conditions={draft.saleConditions}
-                requestId={requestIds.conditionsCard}
-                readOnly={saleConditionsReadOnly}
-              />
-            </SaleConditionsRevisionProvider>
-          ) : null}
-        </>
+        <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={requestIds} />
       ) : null}
 
       {draft.handoffAcknowledgement ? (

@@ -67,12 +67,18 @@ export function Profile({
   hrefFor,
   universityProgramsTab,
   caseHeader,
+  caseOverview,
 }: {
   profile: PersonProfile;
   /** «Вузы и программы» (unified workflow S4) — replaces the old «Маршрут» tab content. */
   universityProgramsTab?: React.ReactNode;
   /** Сводка дела над вкладками для `?case=`-целей; заменяет обычную шапку профиля. */
   caseHeader?: React.ReactNode;
+  /**
+   * «Обзор» дела студента (`?case=`, решение владельца 26.09.2026): сначала
+   * работа. Вид лида (`?id=`) его не получает и остаётся прежним.
+   */
+  caseOverview?: React.ReactNode;
   /** Canonical projections not represented directly in `PersonProfile`. */
   draft: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
@@ -167,7 +173,8 @@ export function Profile({
       </nav>
 
       {current === "route" ? universityProgramsTab : null}
-      {current === "overview" ? (
+      {current === "overview" && caseOverview ? caseOverview : null}
+      {current === "overview" && !caseOverview ? (
         <div className="space-y-4">
           {sales || draft.admissions || draft.studentApplication ? (
             <PlatformAccessCard
@@ -240,7 +247,8 @@ export function Profile({
       ) : null}
       {current === "money" ? (
         <Money profile={profile} draft={draft} actor={actor} salesCaseId={sales?.handoff.caseId}
-          saleConditionsHref={draft.saleConditions ? `${hrefFor("overview")}#sale-conditions` : null}
+          // На деле студента условия продажи лежат в свёрнутом разделе «Данные продажи»: `panel=sales` раскрывает его.
+          saleConditionsHref={draft.saleConditions ? `${hrefFor("overview")}${caseOverview ? "&panel=sales" : ""}#sale-conditions` : null}
           financeVisible={!profile.student || tabAccess.finance}
           contractWorkspace={draft.access.contract && draft.contract ? (
             <ProfileContractWorkspace

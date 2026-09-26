@@ -1,123 +1,86 @@
-import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
-import { Pill } from "@/components/v3/Pill";
-import { personState } from "@/lib/v3/wording";
-import type { AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
-import { hasOpenAccountDeletionRequestForCase } from "@/lib/platform-account-deletion";
-import { readCaseAttentionFlags } from "@/lib/platform-admissions";
-import type { StudentPortalCuratorOption } from "@/lib/server/student-portal-curator-options";
+import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
+import { admissionsPipelineStage } from "@/lib/v3/wording";
 
+import { Pill } from "../Pill";
+import type { NextStepAccess } from "../students/students-queue-view";
 import { AssignCaseCuratorForm } from "./AssignCaseCuratorForm";
+import { CaseNextStep } from "./CaseNextStep";
 import { DIRECTION_LABELS } from "./admissions-view";
-import type { PersonProfile, ProfileDraft } from "./types";
+import type { CaseWorkRead } from "./case-work-view";
+import { COVERAGE_VIEW_HREF, coverageHref } from "./students-coverage-view";
 
-function HeaderFact({ label, value, meta, action }: Readonly<{
-  label: string; value: string; meta?: string | null; action?: React.ReactNode;
-}>) {
+/** Факт строки: подпись данных над значением; соседей разделяет волосяная линия. */
+function Fact({ term, wide = false, children }: Readonly<{ term: string; wide?: boolean; children: ReactNode }>) {
   return (
-    <div className="min-w-0">
-      <dt className="t-caption text-fg-3">{label}</dt>
-      <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-sm text-fg">
-        <span className="min-w-0">{value}</span>
-        {meta ? <span className="text-fg-3">до {meta}</span> : null}
-        {action}
-      </dd>
+    <div className={`min-w-0 border-border py-2 sm:border-s sm:px-4 sm:first:border-s-0 sm:first:ps-0 ${wide ? "col-span-2 sm:min-w-[16rem] sm:flex-1" : ""}`}>
+      <dt className="t-caption text-fg-2">{term}</dt>
+      <dd className="mt-0.5 min-w-0 t-body-compact text-fg">{children}</dd>
     </div>
   );
 }
 
-/**
- * Шапка дела — сводка над вкладками для `?case=`-целей.
- *
- * Имя и состояние человека, направление, куратор и следующий шаг — одним
- * взглядом. Unified workflow S4 (plan §8): «Обзор» больше не несёт
- * обязательный индикатор этапов поступления, поэтому эта шапка больше не
- * читает отдельный маршрут-воркспейс и не показывает «Этап» или блокер
- * текущего этапа — их источник (маршрут/плейбук/gates) удалён вместе с
- * вкладкой «Маршрут». Направление берётся из уже загруженного `draft.admissions`
- * (заполняется из того же DTO дела, что и раньше читало
- * `staff_case_admissions_workspace_v1` — profile-source.ts's `admissionsWorkspace()`).
- */
-export async function CaseHeader({
-  actor,
-  profile,
-  draft,
-  curators = [],
-  assignCuratorRequestId,
-}: Readonly<{
-  actor: ActivePlatformActor;
-  profile: PersonProfile;
-  draft: ProfileDraft;
-  /** Reused from the same `listStudentPortalActiveCurators` read the page already loads (S3, plan §7). */
-  curators?: readonly StudentPortalCuratorOption[];
+export type CaseHeaderInput = Readonly<{
+  studentCaseId: string;
+  state: "pending" | "active" | "closed";
+  direction: AdmissionsDirection | null;
+  curatorName: string | null;
+  /** Шаг из самого дела — когда строки очереди нет. */
+  fallbackStep: string | null;
+  financeStop: string | null;
+  work: CaseWorkRead;
+  stepAccess: NextStepAccess;
+  stepRequestId: string;
+  /** Admin: «Нагрузка кураторов» и назначение куратора делу, которое его ждёт. */
+  coverage: boolean;
+  curators: readonly Readonly<{ membershipId: string; displayName: string }>[];
   assignCuratorRequestId: string;
-}>) {
-  const caseId = draft.routeTarget.studentCaseId;
-  if (!caseId) return null;
-  const state = personState({
-    hasCase: profile.student,
-    caseStatus: profile.caseStatus,
-    leadStage: profile.stage,
-  });
-  const direction = draft.admissions?.direction ? DIRECTION_LABELS[draft.admissions.direction] : "Не выбрано";
-  const nextAction = profile.nextAction || "Не назначено";
-  const dueOn = profile.nextActionAt;
-  const canLinkCoverage = actor.systemRole === "admin" && !isStaffPreview(actor)
-    && staffHasPermission(actor, "case.curator.assign");
-  // S3 (plan §7): «Admin выбирает другого куратора внутри того же дела» — a
-  // pending case reverted by a declined assignment (still carrying its sale)
-  // is a needs-curator case, read the same way the directory computes it,
-  // via a dedicated small RPC (182's staff_case_attention_flags_v1).
-  const canAssignCurator = canLinkCoverage
-    && (await readCaseAttentionFlags(actor, caseId).catch((): readonly AdmissionsAttention[] => []))
-      .includes("needs_curator");
-  // PORT-5a (план §13): компактная строка о запросе удаления аккаунта из
-  // портала. Чтение admin-only (миграция 196); для остальных ролей и при
-  // любом отказе бейджа просто нет — карточка клиента не перестраивается.
-  const deletionRequested = await hasOpenAccountDeletionRequestForCase(actor, caseId);
+}>;
 
+/**
+ * Строка фактов дела под именем (h1 страницы): направление · этап (слова
+ * «Воронки поступления») · куратор · следующий шаг и срок. Видна на каждой
+ * вкладке дела. Этап и срок берутся из строки очереди 241 — без неё этапа
+ * нет, а не «Новые» по умолчанию.
+ */
+export function CaseHeader(input: CaseHeaderInput) {
+  const { work } = input;
+  const row = work.row;
+  const stage = row ? admissionsPipelineStage(row.pipelineStage) : null;
+  const awaiting = row?.attentionFlags.includes("awaiting_ack") ?? false;
+  const curatorId = row?.currentCuratorMembershipId ?? null;
   return (
-    <section className="flex flex-col gap-3" data-testid="v3-case-header">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="t-record-title min-w-0 text-fg">
-          {profile.person}
-        </h2>
-        <p className="text-sm text-fg-3">{state}</p>
-        {profile.financeStop ? <Pill tone="danger">финансовый стоп</Pill> : null}
-        {deletionRequested ? <Pill tone="warn">запросил удаление аккаунта</Pill> : null}
-        {!isStaffPreview(actor) && staffHasPermission(actor, "task.manage") ? (
-          <Link
-            href={`/v3/tasks?create=case&case=${encodeURIComponent(caseId)}`}
-            className="ms-auto inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-          >
-            Создать задачу по студенту
-          </Link>
-        ) : null}
-      </div>
-
-      <dl className="grid gap-x-6 gap-y-3 rounded-card border border-border bg-surface px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">
-        <HeaderFact label="Направление" value={direction} />
-        <HeaderFact
-          label="Куратор"
-          value={draft.responsible ?? "не назначен"}
-          action={canLinkCoverage && !canAssignCurator ? (
-            <Link href="/v3/profile#curator-coverage" className="inline-flex min-h-11 items-center text-xs font-semibold text-accent underline underline-offset-4">
+    <section className="flex flex-col gap-3" data-testid="v3-case-header" aria-label="Сведения дела">
+      <dl className="grid grid-cols-2 gap-x-4 border-y border-border sm:flex sm:flex-wrap sm:gap-x-0">
+        <Fact term="Направление">{input.direction ? DIRECTION_LABELS[input.direction] : "Не выбрано"}</Fact>
+        {stage ? <Fact term="Этап">{stage}</Fact> : null}
+        <Fact term="Куратор">
+          {input.curatorName ?? (work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
+          {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}
+          {input.coverage && !work.needsCurator ? (
+            <Link href={curatorId ? coverageHref(curatorId, input.studentCaseId) : COVERAGE_VIEW_HREF}
+              className="flex min-h-11 w-fit items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg sm:min-h-6">
               Нагрузка кураторов
             </Link>
-          ) : undefined}
-        />
-        <HeaderFact label="Следующий шаг" value={nextAction} meta={dueOn} />
+          ) : null}
+        </Fact>
+        {input.state !== "active" ? <Fact term="Состояние">{input.state === "closed" ? "Дело закрыто" : "Ожидает начала"}</Fact> : null}
+        <Fact term="Следующий шаг" wide>
+          <CaseNextStep row={row} fallbackStep={input.fallbackStep} access={input.stepAccess}
+            today={work.today} nowIso={work.nowIso} requestId={input.stepRequestId} />
+        </Fact>
       </dl>
-
-      {canAssignCurator ? (
-        <div className="rounded-card border border-border bg-surface px-4 py-3">
-          <AssignCaseCuratorForm
-            studentCaseId={caseId}
-            curators={curators}
-            requestId={assignCuratorRequestId}
-          />
+      {input.financeStop || work.deletionRequested ? (
+        <p className="flex flex-wrap items-center gap-2">
+          {input.financeStop ? <Pill tone="danger">финансовый стоп</Pill> : null}
+          {work.deletionRequested ? <Pill tone="warn">запросил удаление аккаунта</Pill> : null}
+        </p>
+      ) : null}
+      {input.coverage && work.needsCurator ? (
+        <div className="border-b border-border pb-3">
+          <AssignCaseCuratorForm studentCaseId={input.studentCaseId} curators={input.curators} requestId={input.assignCuratorRequestId} />
         </div>
       ) : null}
     </section>

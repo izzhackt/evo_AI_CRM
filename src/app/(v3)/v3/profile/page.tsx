@@ -7,14 +7,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { Icon } from "@/components/icons";
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
-import { CaseHeader } from "@/components/v3/profile/CaseHeader";
+import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
+import { caseWorkParts } from "@/components/v3/profile/CaseWorkParts";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
 import { buildStudentsQueueScreen } from "@/components/v3/students/StudentsQueueScreen";
 import { StudentsDirectoryFallback } from "@/components/v3/students/StudentsDirectoryFallback";
-import { parseStudentsQueueParams, parseStudentsReturnTo } from "@/components/v3/students/students-queue-view";
+import { nextStepAccess, parseStudentsQueueParams, parseStudentsReturnTo, type NextStepAccessInput } from "@/components/v3/students/students-queue-view";
 import { UniversityProgramsTab } from "@/components/v3/profile/UniversityProgramsTab";
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
 import {
@@ -52,6 +54,8 @@ import {
   loadV3ProfileRoute,
   type V3ProfileRouteLoadMode,
 } from "@/lib/v3/profile-route-load";
+import { readCaseWork } from "@/lib/v3/case-work-source";
+import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
 import { readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
 
@@ -59,13 +63,17 @@ export const dynamic = "force-dynamic";
 
 /**
  * Вкладка называет подсвеченный пункт меню: «Студенты» (включая профиль и
- * прежний адрес сводки `?section=summary`) или «EVO Docs».
+ * прежний адрес сводки `?section=summary`) или «EVO Docs»; дело студента —
+ * «Дело студента».
  */
 export async function generateMetadata({
   searchParams,
 }: {
   searchParams: Promise<ProfileSearchParams>;
 }): Promise<Metadata> {
+  // Дело студента (решение владельца 26.09): имя человека в заголовок вкладки браузера не попадает.
+  const { case: caseParam, id: leadParam } = await searchParams;
+  if (typeof caseParam === "string" && leadParam === undefined) return { title: "Дело студента" };
   return { title: v3SectionTitle("/v3/profile", await searchParams) };
 }
 
@@ -142,6 +150,24 @@ function studentsQueueActor(actor: ActivePlatformActor) {
 }
 
 /**
+ * Права редактора «Следующего шага» — одни для «Быстрого просмотра» очереди и
+ * для дела студента (#1059): подсказка интерфейса, запись проверяет
+ * `set_case_next_action_v1`.
+ */
+function nextStepEditor(actor: ActivePlatformActor): Readonly<{ input: NextStepAccessInput; recordScopes: readonly string[] }> {
+  const scopes = actor.assignments.map((assignment) => assignment.scope);
+  return {
+    input: {
+      admin: actor.systemRole === "admin" && !isStaffPreview(actor),
+      preview: isStaffPreview(actor),
+      routeManage: staffHasPermission(actor, "case.route.manage"),
+      broadScope: scopes.some((scope) => scope.kind === "organization" || scope.kind === "department" || scope.kind === "direction"),
+    },
+    recordScopes: scopes.filter((scope) => scope.kind === "record" && scope.resourceKind === "student_case" && scope.key).map((scope) => scope.key!),
+  };
+}
+
+/**
  * «Студенты» и EVO Docs как рабочая очередь (миграция 241, PLAN_CHANGES
  * «Студенты» PR 2): страница читает очередь, числа, задачи открытого дела и
  * нагрузку кураторов, а экран собирает `buildStudentsQueueScreen`.
@@ -163,7 +189,7 @@ async function studentsQueuePage(
     ]),
     curatorsRead,
   ]);
-  const scopes = actor.assignments.map((assignment) => assignment.scope);
+  const editor = nextStepEditor(actor);
   return buildStudentsQueueScreen({
     params,
     invalid: parse.kind === "invalid",
@@ -174,13 +200,8 @@ async function studentsQueuePage(
     handoff: reads?.[3] ?? null,
     today: dayInOrganizationTimezone(new Date()),
     curatorNames: curators.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
-    editor: {
-      admin: actor.systemRole === "admin" && !isStaffPreview(actor),
-      preview: isStaffPreview(actor),
-      routeManage: staffHasPermission(actor, "case.route.manage"),
-      broadScope: scopes.some((scope) => scope.kind === "organization" || scope.kind === "department" || scope.kind === "direction"),
-    },
-    recordScopes: scopes.filter((scope) => scope.kind === "record" && scope.resourceKind === "student_case" && scope.key).map((scope) => scope.key!),
+    editor: editor.input,
+    recordScopes: editor.recordScopes,
     createTask: !isStaffPreview(actor) && staffHasPermission(actor, "task.create"),
     requestIds: { nextStep: randomUUID(), coverage: randomUUID() },
   });
@@ -318,9 +339,15 @@ export default async function ProfilePart({
     (directoryMode || view?.details.admissions?.caseState === "pending")
       ? listStudentPortalActiveCurators(actor).then((curators) => ({ curators, available: true }), () => ({ curators: [], available: false }))
       : Promise.resolve({ curators: [], available: true });
-  const [curatorOptions, queuePage] = await Promise.all([
+  // Дело студента (`?case=`, решение владельца 26.09.2026): строка очереди,
+  // задачи, переписка — одним параллельным заходом с именами кураторов.
+  const caseTarget = view?.details.routeTarget.studentCaseId && view.details.admissions
+    ? { studentCaseId: view.details.admissions.studentCaseId, studentDisplayName: view.profile.person, state: view.details.admissions.caseState }
+    : null;
+  const [curatorOptions, queuePage, caseWork] = await Promise.all([
     curatorsRead,
     queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
+    caseTarget ? readCaseWork(actor, caseTarget, { overview: tab === "overview" }) : null,
   ]);
   const studentPortalCurators = curatorOptions.curators;
   const studentPortalCuratorsAvailable = curatorOptions.available;
@@ -329,8 +356,47 @@ export default async function ProfilePart({
     ? <Link href="/v3/universities" className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">Университеты и бланки</Link>
     : undefined;
 
+  const caseParts = view && caseTarget && caseWork ? (() => {
+    const editor = nextStepEditor(actor);
+    return caseWorkParts({
+      actor,
+      profile: view.profile,
+      draft: view.details,
+      sales: view.sales,
+      work: caseWork,
+      stepAccess: caseWork.row ? nextStepAccess(editor.input, caseWork.row, editor.recordScopes) : { kind: "read_only", reason: null },
+      requestIds: {
+        ...requestIds,
+        step: randomUUID(),
+        assignCurator: randomUUID(),
+        portal: studentPortalProvisioningRequestId(actor.organizationId, caseTarget.studentCaseId),
+        note: randomUUID(),
+      },
+      notes: toProfileNotesSnapshot(view.notes.subject, view.notes.page),
+      notesOlderHref,
+      notesLatestHref,
+      curators: studentPortalCurators,
+      curatorsAvailable: studentPortalCuratorsAvailable,
+      hrefFor,
+      salesDataOpen: singleSearchParam(params.panel) === "sales",
+      help: actor.presentationRole !== "sales" ? (
+        <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем обращения студента…</p>}>
+          <CaseHelpWorkspace actor={actor} caseId={caseTarget.studentCaseId} />
+        </Suspense>
+      ) : null,
+    });
+  })() : null;
+  // Возврат из дела — тот же вид списка (`returnTo` #1059): «Студенты», EVO Docs или «Заявки».
+  const caseBack = caseParts ? (
+    <Link href={requestsReturnTo ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
+      <Icon name="arrow-left" size={16} />
+      {requestsReturnTo ? "Заявки" : docsMode ? "EVO Docs" : "Студенты"}
+    </Link>
+  ) : undefined;
+
   return (
-    <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Студенты"} count={queuePage?.count ?? null} action={docsAction} dense={queuePage !== null}>
+    <PartShell title={caseParts && view ? view.profile.person : docsMode ? "EVO Docs" : view ? "Профиль" : "Студенты"}
+      count={queuePage?.count ?? null} action={docsAction} dense={queuePage !== null || caseParts !== null} back={caseBack}>
       <div className="space-y-6">
         {queuePage?.content ?? null}
         {directory ? (
@@ -338,12 +404,12 @@ export default async function ProfilePart({
         ) : null}
         {view ? (
           <>
-            <Link
+            {caseParts ? null : <Link
               className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
               href={requestsReturnTo ?? pipelineBackHref ?? directoryHref}
             >
               {requestsReturnTo ? "К списку заявок" : pipelineBackHref ? "К воронке продаж" : docsMode ? "К списку EVO Docs" : "К списку студентов"}
-            </Link>
+            </Link>}
             {view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
               <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
             </Suspense> : null}
@@ -353,17 +419,8 @@ export default async function ProfilePart({
               profile={view.profile}
               universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details}
                 packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
-              caseHeader={view.details.routeTarget.studentCaseId ? (
-                <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку дела…</p>}>
-                  <CaseHeader
-                    actor={actor}
-                    profile={view.profile}
-                    draft={view.details}
-                    curators={studentPortalCurators}
-                    assignCuratorRequestId={randomUUID()}
-                  />
-                </Suspense>
-              ) : undefined}
+              caseHeader={caseParts?.header ?? undefined}
+              caseOverview={caseParts?.overview ?? undefined}
               draft={view.details}
               sales={view.sales}
               actor={actor}

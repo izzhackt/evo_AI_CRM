@@ -72,6 +72,7 @@ export function TaskQueueRow({
   selected,
   open,
   showAssignee,
+  hideStudent = false,
   nowIso,
   permissions,
   recent,
@@ -86,6 +87,11 @@ export function TaskQueueRow({
   /** Вид «Открытые». */
   open: boolean;
   showAssignee: boolean;
+  /**
+   * Строка стоит в деле этого студента (дело студента, «Что дальше»): имя в
+   * каждой строке повторяло бы заголовок страницы.
+   */
+  hideStudent?: boolean;
   /** Момент чтения сервера: одинаковые сроки при рендере и гидрации. */
   nowIso: string;
   permissions: TaskRowPermissions;
@@ -168,6 +174,8 @@ export function TaskQueueRow({
   // задача читаются вместе при любой ширине. Исполнитель — колонкой от 48rem.
   const layout = showAssignee ? "@3xl:grid-cols-[2.75rem_7rem_minmax(0,1fr)_minmax(0,11rem)_2.75rem]" : "";
   const caption = due ? due.word ?? due.caption : null;
+  // Без имени студента после срока на узкой строке идут только «дело закрыто» и слово-исключение.
+  const tail = task.caseState === "closed" || word !== null;
 
   return (
     <li
@@ -248,10 +256,10 @@ export function TaskQueueRow({
               <span className="shrink-0 @min-[32rem]:hidden">
                 <span className={due.overdue ? "text-danger" : undefined}>
                   {due.caption ? `${due.caption} ` : null}<time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{due.word ? ` ${due.word}` : null}
-                </span> ·
+                </span>{hideStudent && !tail ? null : " ·"}
               </span>
             ) : null}
-            {task.kind === "case" && task.studentCaseId ? <>
+            {hideStudent ? null : task.kind === "case" && task.studentCaseId ? <>
               {/* Имя — ссылка на дело только при мыши на широком экране (24 px по
                   высоте, WCAG 2.5.8; открытый вопрос владельцу — DESIGN.md). На
                   телефоне и сенсорном экране это текст: вся строка открывает
@@ -265,14 +273,14 @@ export function TaskQueueRow({
               <span className="min-w-0 truncate">Рабочая</span>
               {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">· из чата</span> : null}
             </>}
-            {task.caseState === "closed" ? <span className="min-w-0 truncate">· дело закрыто</span> : null}
-            {word ? <span className={`shrink-0 ${task.status === "blocked" ? "text-warn" : "text-fg-3"}`}>· {word}</span> : null}
+            {task.caseState === "closed" ? <span className="min-w-0 truncate">{hideStudent ? "" : "· "}дело закрыто</span> : null}
+            {word ? <span className={`shrink-0 ${task.status === "blocked" ? "text-warn" : "text-fg-3"}`}>{hideStudent && task.caseState !== "closed" ? "" : "· "}{word}</span> : null}
             {/* Без своей колонки (32–48rem: панель открыта рядом) исполнитель
                 помечен «исп.» и сокращён — его не спутать со студентом или
                 источником; сжимается медленнее имени студента. */}
             {showAssignee ? (
               <span className="hidden min-w-0 shrink-[0.5] truncate @min-[32rem]:inline @3xl:hidden" title={`Исполнитель: ${task.assigneeDisplayName}`}>
-                · <span aria-hidden="true">исп. {shortPersonName(task.assigneeDisplayName)}</span><span className="sr-only">исполнитель {task.assigneeDisplayName}</span>
+                {hideStudent && !tail ? null : "· "}<span aria-hidden="true">исп. {shortPersonName(task.assigneeDisplayName)}</span><span className="sr-only">исполнитель {task.assigneeDisplayName}</span>
               </span>
             ) : null}
           </p>

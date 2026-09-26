@@ -151,7 +151,7 @@ export function v3SectionTitle(
 }
 
 /**
- * Группа «Продажи» — у того, кто ведёт лиды или читает отчёт продаж
+ * Работа продаж в меню — у того, кто ведёт лиды или читает отчёт продаж
  * (решение владельца D, 26.09.2026). `lead.read` у ролей поступления
  * открывает куратору лид его дела (контакты и данные продажи в деле) и
  * поэтому остаётся в `sales.read`, но разделом продаж не делает. Просмотр
@@ -180,10 +180,14 @@ export function buildV3Navigation(
     && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;
   const settings = allowed(SETTINGS) ? SETTINGS : null;
+  // Без работы продаж (D) в «Продажах» остаётся только «Отчёт продаж» по
+  // своему правилу выше: читатель лидов без записей отчёта видит там
+  // «Динамику по дням» (Э3, #1067). «Заявки», WhatsApp и «Воронка продаж»
+  // скрыты.
   const sales = salesWorkspace(actor);
   const visibleGroups = GROUPS.map((group) => ({
     ...group,
-    links: group.id === "sales" && !sales ? [] : group.links.filter(allowed),
+    links: group.links.filter((link) => allowed(link) && (group.id !== "sales" || sales || link.id === "sales-report")),
   })).filter((group) => group.links.length > 0);
   // WhatsApp — один пункт: в «Продажах», если группа его показывает, иначе в
   // общих разделах у каждого, кому открыт его раздел (`messaging.read`).

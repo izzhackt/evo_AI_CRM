@@ -36,7 +36,12 @@ const REFRESH_ON_STATUS = new Set<PrepareLeadCabinetActionState["status"]>([
  * with the lead permission sends it from this same «Доступ к порталу» card
  * after the refresh, the Admin also from the case.
  */
-export function PrepareLeadCabinetAction({ leadId, requestId }: Readonly<{ leadId: string; requestId: string }>) {
+export function PrepareLeadCabinetAction({ leadId, requestId, caseLink = true }: Readonly<{
+  leadId: string;
+  requestId: string;
+  /** «Открыть дело» — только тому, кто открывает дела (как в «Доступе к порталу»). */
+  caseLink?: boolean;
+}>) {
   const router = useRouter();
   const [state, action, pending] = useActionState(
     prepareLeadCabinetAction,
@@ -49,10 +54,10 @@ export function PrepareLeadCabinetAction({ leadId, requestId }: Readonly<{ leadI
   if (state.status === "saved" && state.studentCaseId) {
     return (
       <p className="text-sm text-fg-2" role="status">
-        Кабинет подготовлен.{" "}
-        <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(state.studentCaseId)}&tab=anketa`}>
+        Кабинет подготовлен.
+        {caseLink ? <>{" "}<Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(state.studentCaseId)}&tab=anketa`}>
           Открыть дело
-        </Link>
+        </Link></> : null}
       </p>
     );
   }

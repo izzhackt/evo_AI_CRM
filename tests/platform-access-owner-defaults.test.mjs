@@ -202,8 +202,12 @@ test("C: the lead card offers the cabinet invite to Sales with the lead permissi
   assert.match(profile, /caseLink=\{staffPresentationCan\(actor, "admissions\.read"\)\}/u);
   const tabs = source("src/components/v3/profile/tabs.tsx");
   assert.match(tabs, /\{caseLink \? <>\{" "\}<Link [^>]*href=\{`\/v3\/profile\?case=\$\{encodeURIComponent\(leadCabinetCase\.studentCaseId\)\}&tab=anketa`\}>/u);
+  assert.match(tabs, /<PrepareLeadCabinetAction leadId=\{leadId\} requestId=\{prepareRequestId\} caseLink=\{caseLink\} \/>/u);
   const prepare = source("src/components/v3/profile/PrepareLeadCabinetAction.tsx");
   assert.doesNotMatch(prepare, /Приглашение отправляет администратор/u);
+  // Right after «Подготовить кабинет» the same rule: no «Открыть дело» for
+  // Sales without admissions.read, not even until the refresh.
+  assert.match(prepare, /Кабинет подготовлен\.\s*\{caseLink \? <>\{" "\}<Link [^>]*href=\{`\/v3\/profile\?case=\$\{encodeURIComponent\(state\.studentCaseId\)\}&tab=anketa`\}>/u);
 });
 
 // ---------------------------------------------------------------------------
@@ -232,14 +236,21 @@ test("D: the role bundles are the production ones", () => {
 });
 
 for (const label of ["Admissions", "Admissions Manager"]) {
-  test(`D: ${label} sees no «Продажи»; WhatsApp stays in the common sections`, () => {
+  test(`D: ${label} sees no sales work, only «Отчёт продаж» of #1067; WhatsApp stays in the common sections`, () => {
     const keys = [...bundles[label], ...bundles["Admissions common"]];
     const model = navigationFor(keys);
-    assert.deepEqual(ids(model).groups, [["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]]]);
+    // D hides «Заявки», WhatsApp and «Воронка продаж»; «Отчёт продаж» keeps
+    // its own rule of «Сегодня» (#1067): a lead reader without report
+    // records opens «Динамика по дням» there, the charts of the former Главная.
+    assert.deepEqual(ids(model).groups, [
+      ["sales", ["sales-report"]],
+      ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
+    ]);
     assert.ok(ids(model).common.includes("inbox"), "WhatsApp is reachable through communication.read.full");
-    for (const id of ["requests", "pipeline", "sales-report"]) {
+    for (const id of ["requests", "pipeline"]) {
       assert.equal([...model.groups.flatMap((group) => group.links), ...model.common].some((link) => link.id === id), false, id);
     }
+    assert.equal(navigationFor(keys, "/v3/main?view=sales").activeId, "sales-report");
     // A lead card opened from a case highlights «Студенты», not a hidden board.
     assert.equal(navigationFor(keys, "/v3/profile?id=24800000-0000-4000-8000-000000000702").activeId, "admissions-worklist");
     // The capability behind the case page's lead data is unchanged: lead.read

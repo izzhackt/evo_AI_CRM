@@ -98,7 +98,7 @@ export function PlatformAccessCard({ application, requestId, readOnly, leadId, l
         ) : application === null ? (readOnly || leadId === null ? (
           <p className="text-sm text-fg-2">Заявка на доступ не заполнена. Подготовка кабинета недоступна в этом режиме.</p>
         ) : (
-          <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} />
+          <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} caseLink={caseLink} />
         )) : application.status === "approved" ? (
           <p className="text-sm text-fg-2">
             Заявка на доступ одобрена.{" "}

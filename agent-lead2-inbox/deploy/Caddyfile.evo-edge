@@ -138,6 +138,43 @@ olympiadai.72.62.119.112.sslip.io {
   }
 }
 
+# Sales assistant: a separate product maintained in /opt/sales-assistant, not EVO.
+# Its api container joins evo_public_web as sales-assistant-api and trusts proxy
+# headers only from that network. The app sets its own CSP, X-Frame-Options,
+# Referrer-Policy and Permissions-Policy; the edge adds HSTS and hides Server.
+# No access log: guest chat URLs (/chat/<token>) are capability links.
+assistant.72.62.119.112.sslip.io {
+	# App limit: 26 MiB per request (25 MB document + multipart overhead).
+	request_body {
+		max_size 26MiB
+	}
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	# SSE (answer preparation): no compression, every event passed through immediately.
+	@advice_stream path_regexp advice_stream ^/api/rooms/[^/]+/advice/stream$
+	handle @advice_stream {
+		reverse_proxy sales-assistant-api:8781 {
+			flush_interval -1
+			transport http {
+				read_timeout 5m
+			}
+		}
+	}
+
+	handle {
+		encode zstd gzip
+		reverse_proxy sales-assistant-api:8781 {
+			flush_interval -1
+			transport http {
+				read_timeout 5m
+			}
+		}
+	}
+}
+
 (evo_website) {
 	encode zstd gzip
 	header {

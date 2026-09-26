@@ -61,7 +61,7 @@ export function CaseHeader(input: CaseHeaderInput) {
           {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}
           {input.coverage && !work.needsCurator ? (
             <Link href={curatorId ? coverageHref(curatorId, input.studentCaseId) : COVERAGE_VIEW_HREF}
-              className="flex min-h-11 w-fit items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg sm:min-h-6">
+              className="flex min-h-11 w-fit items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
               Нагрузка кураторов
             </Link>
           ) : null}

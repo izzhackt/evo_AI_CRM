@@ -132,13 +132,18 @@ function useCardFieldsAction(requestId: string) {
   return { state, action, pending, revision };
 }
 
+/**
+ * `quiet` — дело студента: блоки лежат в свёрнутом разделе «Данные продажи»,
+ * сплошной красный отдан главному действию страницы, поэтому «Сохранить» —
+ * спокойная кнопка (решение владельца 26.09). Карточка лида — как раньше.
+ */
 function StatusRow({
-  state, pending,
-}: Readonly<{ state: SaveLeadSaleConditionsActionState; pending: boolean }>) {
+  state, pending, quiet,
+}: Readonly<{ state: SaveLeadSaleConditionsActionState; pending: boolean; quiet: boolean }>) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={pending || state.status === "saved"} className={cn(btnCls, "min-h-11")}>
+        <button type="submit" disabled={pending || state.status === "saved"} className={cn(quiet ? btnGhostCls : btnCls, "min-h-11")}>
           {pending ? "Сохраняем…" : "Сохранить"}
         </button>
         {state.status !== "idle" ? (
@@ -167,11 +172,11 @@ type SimpleField = Readonly<{
 }>;
 
 function SimpleFieldsCard({
-  leadId, conditions, requestId, readOnly, title, testId, fields, fieldGroup,
+  leadId, conditions, requestId, readOnly, title, testId, fields, fieldGroup, quiet,
 }: Readonly<{
   leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly: boolean;
   title: string; testId: string; fields: readonly SimpleField[];
-  fieldGroup: "wishes" | "education";
+  fieldGroup: "wishes" | "education"; quiet: boolean;
 }>) {
   const { state, action, pending, revision } = useCardFieldsAction(requestId);
   const base = allFieldValues(conditions);
@@ -225,7 +230,7 @@ function SimpleFieldsCard({
               )}
             </label>
           ))}
-          <StatusRow state={state} pending={pending} />
+          <StatusRow state={state} pending={pending} quiet={quiet} />
         </form>
       </div>
     </Card>
@@ -234,12 +239,13 @@ function SimpleFieldsCard({
 
 /** «Пожелания» (plan §5): страны, направления, уровень образования, интейк, вузы. */
 export function LeadWishesCard(props: Readonly<{
-  leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean;
+  leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean; quiet?: boolean;
 }>) {
   return (
     <SimpleFieldsCard
       {...props}
       readOnly={props.readOnly ?? false}
+      quiet={props.quiet ?? false}
       title="Пожелания"
       fieldGroup="wishes"
       testId="v3-lead-wishes"
@@ -257,12 +263,13 @@ export function LeadWishesCard(props: Readonly<{
 
 /** «Образование» (plan §5): текущее образование, класс/курс, оценки, английский, сертификаты. */
 export function LeadEducationCard(props: Readonly<{
-  leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean;
+  leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean; quiet?: boolean;
 }>) {
   return (
     <SimpleFieldsCard
       {...props}
       readOnly={props.readOnly ?? false}
+      quiet={props.quiet ?? false}
       title="Образование"
       fieldGroup="education"
       testId="v3-lead-education"
@@ -293,8 +300,8 @@ const BUDGET_PERIOD_LABEL: Record<ConditionsBudgetPeriod, string> = { year: "в 
 
 /** «Условия» (plan §5): бюджет с валютой и периодом, стипендия, пожелания/ограничения. */
 export function LeadConditionsCard({
-  leadId, conditions, requestId, readOnly = false,
-}: Readonly<{ leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean }>) {
+  leadId, conditions, requestId, readOnly = false, quiet = false,
+}: Readonly<{ leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean; quiet?: boolean }>) {
   const { state, action, pending, revision } = useCardFieldsAction(requestId);
   const base = allFieldValues(conditions);
   const [budgetAmount, setBudgetAmount] = useState(() => decimal(base.conditions_budget_minor));
@@ -375,7 +382,7 @@ export function LeadConditionsCard({
           <input type="hidden" name="conditions_budget_period" value={budgetPeriod} />
           <input type="hidden" name="conditions_scholarship" value={scholarship} />
           <input type="hidden" name="conditions_note" value={note} />
-          <StatusRow state={state} pending={pending} />
+          <StatusRow state={state} pending={pending} quiet={quiet} />
         </form>
       </div>
     </Card>

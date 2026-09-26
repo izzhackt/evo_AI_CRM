@@ -27,6 +27,9 @@ import { PageHeader } from "@/components/ui";
  * `dense` — рабочая очередь (решение владельца 25.09.2026, «Студенты»):
  * отступ над заголовком и между заголовком и вкладками вдвое меньше, чтобы
  * первый экран отдавал место строкам, а не шапке.
+ *
+ * `back` — ссылка возврата над заголовком (дело студента: «Студенты» с тем же
+ * видом списка, решение владельца 26.09.2026).
  */
 export function PartShell({
   title,
@@ -36,6 +39,7 @@ export function PartShell({
   width = "wide",
   fill = false,
   dense = false,
+  back,
   children,
 }: {
   title: string;
@@ -48,6 +52,8 @@ export function PartShell({
   fill?: boolean;
   /** Плотная шапка рабочей очереди: вдвое меньше воздуха над и под заголовком. */
   dense?: boolean;
+  /** Возврат к списку над заголовком. */
+  back?: React.ReactNode;
   children: React.ReactNode;
 }) {
   if (width === "board") {
@@ -66,6 +72,7 @@ export function PartShell({
         width === "narrow" ? "max-w-[860px]" : "max-w-[1240px]"
       } ${fill ? "flex flex-col py-6 md:min-h-0 md:flex-1" : dense ? "pb-8 pt-4" : "py-8"}`}
     >
+      {back}
       <PageHeader title={title} count={count} description={description} action={action} />
 
       <div className={fill ? "mt-5 flex min-h-0 flex-1 flex-col" : dense ? "mt-3" : "mt-6"}>{children}</div>

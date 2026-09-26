@@ -126,6 +126,7 @@ function row(n, fields) {
     currentCuratorDisplayName: curator ? NAMES[curator] : null,
     isMine: curator === ME,
     attentionFlags: fields.flags ?? [],
+    needsReply: fields.needsReply ?? false,
     overdueTaskCount: fields.overdueTasks ?? 0,
     documents: fields.documents === undefined ? docs(10, 6, 1, 0, 0) : fields.documents,
     updatedAt: fields.updatedAt ?? `2026-09-2${n % 3}T0${n % 9}:00:00.000000Z`,
@@ -155,13 +156,16 @@ const ROWS = [
   row(18, { name: "Бекзат Шаршенов", stage: "new", state: "pending", curator: null, flags: ["needs_curator"], documents: docs(0, 0) }),
   row(19, { name: "Гүлзат Алымбекова", direction: "MY", degree: "Бакалавриат", stage: "ready_to_submit", step: "Проверить мотивационное письмо", due: TODAY, curator: CURATOR_C, documents: docs(10, 7, 3, 0, 0) }),
   row(20, { name: "Ильяс Жумалиев", direction: "CN", degree: "Магистратура", stage: "documents", step: "Подготовить перевод диплома", due: "2026-09-21", flags: ["overdue"], documents: docs(12, 8, 0, 1, 1) }),
-  row(21, { name: "Нурай Касымова", direction: "EUROPE", degree: "Бакалавриат", stage: "predeparture", step: "Купить билет до Праги", due: "2026-10-01", curator: CURATOR_B }),
+  // Студентка написала в переписке и ждёт ответа (245): «нужен ответ» в сигналах и в «Требуют действия».
+  row(21, { name: "Нурай Касымова", direction: "EUROPE", degree: "Бакалавриат", stage: "predeparture", step: "Купить билет до Праги", due: "2026-10-01", curator: CURATOR_B, needsReply: true }),
   row(22, { name: "Темирлан Осмонов", direction: "TR", degree: "Foundation", stage: "confirmed", curator: CURATOR_C }),
 ];
 
 const BAND_ORDER = ["overdue", "today", "this_week", "later", "undated", "no_step"];
 const inView = (r, v) => v === "mine" ? r.state === "active" && r.isMine
+  // 245: «Требуют действия» — флаги 182, дело в работе без шага и переписка, ждущая сотрудника.
   : v === "needs_action" ? r.attentionFlags.some((flag) => ["overdue", "awaiting_ack", "needs_curator"].includes(flag))
+    || (r.state === "active" && r.nextAction === null) || (r.needsReply && ["active", "pending"].includes(r.state))
   : v === "active" ? r.state === "active"
   : v === "needs_curator" ? r.attentionFlags.includes("needs_curator")
   : v === "closed" ? r.state === "closed"

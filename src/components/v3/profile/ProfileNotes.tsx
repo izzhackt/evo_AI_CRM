@@ -8,6 +8,7 @@ import {
   type PlatformCaseNoteActionState,
 } from "@/lib/platform-case-note-actions";
 import { isPlatformCaseNoteBodyWithinCodePointLimit } from "@/lib/platform-case-note-contract";
+import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import type { ProfileNotesSnapshot } from "./types";
 
 const NOTE_TIME = new Intl.DateTimeFormat("ru-RU", {
@@ -35,11 +36,17 @@ export function ProfileNotes({
   requestId,
   olderHref,
   latestHref,
+  quiet = false,
 }: {
   notes: ProfileNotesSnapshot;
   requestId: string;
   olderHref: string | null;
   latestHref: string | null;
+  /**
+   * Дело студента: сплошной красный отдан одному главному действию страницы,
+   * поэтому «Добавить заметку» — спокойная кнопка (решение владельца 26.09).
+   */
+  quiet?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const acceptedBodyRef = useRef("");
@@ -124,7 +131,7 @@ export function ProfileNotes({
           <button
             type="submit"
             disabled={pending || lengthRejected}
-            className="min-h-10 rounded-ctl bg-accent px-3 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className={quiet ? QUEUE_SECONDARY : "min-h-10 rounded-ctl bg-accent px-3 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"}
           >
             {pending ? "Сохраняем…" : "Добавить заметку"}
           </button>

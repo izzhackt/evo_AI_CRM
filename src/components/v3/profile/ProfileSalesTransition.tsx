@@ -355,8 +355,12 @@ export function ProfileSalesTransition({
   );
 }
 
-/** The current owner's response lives alongside the original, completed handoff. */
-function HandoffResponseSummary({ current }: { current: SalesHandoffAcknowledgement["current"] }) {
+/**
+ * The current owner's response lives alongside the original, completed handoff.
+ * Also the «Приём дела» fact on the case «Обзор»: whoever cannot answer still
+ * sees the decision, the curator's text and the agreed contact date.
+ */
+export function HandoffResponseSummary({ current }: { current: SalesHandoffAcknowledgement["current"] }) {
   const dateText = current?.agreedContactDate
     ? current.agreedContactDate.split("-").reverse().join(".") : null;
   return <>

@@ -76,11 +76,14 @@ export function LeadSaleConditions({
   conditions,
   requestId,
   readOnly = false,
+  quiet = false,
 }: {
   leadId: string;
   conditions: LeadSaleConditionsSnapshot;
   requestId: string;
   readOnly?: boolean;
+  /** Дело студента, «Данные продажи»: «Сохранить условия» — спокойная кнопка, не второй красный. */
+  quiet?: boolean;
 }) {
   const { revision, bump } = useSaleConditionsRevision();
   const [draft, setDraft] = useState(() => draftFrom(conditions));
@@ -214,7 +217,7 @@ export function LeadSaleConditions({
           <input type="hidden" name="paid_minor" value={toMinor(draft.paidAmount)} />
           <input type="hidden" name="paid_currency" value={draft.paidCurrency} />
           <div className="flex flex-wrap items-center gap-3">
-            <button type="submit" disabled={locked} className={cn(btnCls, "min-h-11")}>
+            <button type="submit" disabled={locked} className={cn(quiet ? btnGhostCls : btnCls, "min-h-11")}>
               {pending ? "Сохраняем…" : "Сохранить условия"}
             </button>
             {state.status !== "idle" ? (

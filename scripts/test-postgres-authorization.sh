@@ -2690,6 +2690,20 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_access_by_permissions.sql
   fi
+
+  # Migration 245 («Требуют действия» и «Ждём студента» по правде, owner
+  # decision 26.09): «Требуют действия» counts an active case with no next
+  # step and a case whose chat waits for staff; each queue row returns
+  # needs_reply; a staff post sets awaiting_student (an explicit state in the
+  # same command wins) and a student post keeps setting needs_reply. Members
+  # modelled like production (coarse role NULL, the production bundles, as in
+  # 244's suite): counts equal rows, no visibility widening, both chat
+  # transitions, unchanged post idempotency and authority.
+  if [[ "$(basename "$migration")" == 245_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_work_signals.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

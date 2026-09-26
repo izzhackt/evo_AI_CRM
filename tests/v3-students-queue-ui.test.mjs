@@ -219,7 +219,8 @@ test("counts come only from the counts read: tabs, bands, menus and the header g
   // With the read, every tab number is the number of rows its click shows.
   const counted = surfaces.get("admin-active").match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
   assert.deepEqual([...counted.matchAll(/<a [^>]*>([^<]+)(?:<span class="tabular-nums text-fg-3">(\d+)<\/span>)?<\/a>/gu)].map((match) => [match[1], match[2] ?? null]), [
-    ["Мои", "8"], ["Требуют действия", "9"], ["Все в работе", "20"], ["Ожидает начала", "2"], ["Ждут куратора", "2"], ["Закрытые", "14"], ["Нагрузка кураторов", null],
+    // 245: «Требуют действия» также считает дела в работе без шага (2) и переписку, ждущую ответа (1).
+    ["Мои", "8"], ["Требуют действия", "12"], ["Все в работе", "20"], ["Ожидает начала", "2"], ["Ждут куратора", "2"], ["Закрытые", "14"], ["Нагрузка кураторов", null],
   ]);
   // EVO Docs: review/fix tabs are filtered inside the read, so their numbers need a complete read.
   const rows = [{ documents: { submitted: 2, correctionRequired: 0, rejected: 0 } }, { documents: { submitted: 0, correctionRequired: 1, rejected: 1 } }, { documents: null }];
@@ -280,6 +281,9 @@ test("the queue is one semantic table: caption, column headers, a row header per
   assert.match(html, /2\u00a0документа исправить/u);
   assert.match(html, /Просрочен дедлайн/u);
   assert.match(html, /Ждём партнёра/u);
+  // 245: the chat waits for a staff answer — «нужен ответ», red, on the row that says so, and on no other.
+  assert.equal((html.match(/>нужен ответ</gu) ?? []).length, 1);
+  assert.match(html, /data-queue-row="cccccccc-2222-4222-8222-000000000021"[\s\S]*?text-danger">нужен ответ<[\s\S]*?<\/tr>/u);
   // Signals are never cut: no clamp or ellipsis on the signals cell; each signal wraps whole.
   const source = read("src/components/v3/students/StudentsQueueTable.tsx");
   const signalsCell = source.match(/function SignalsCell[\s\S]*?\n\}\n/u)?.[0] ?? "";
@@ -321,6 +325,11 @@ test("row signals and the documents line are words from the row, never guesses",
   // The overdue flag without overdue tasks or an overdue step is a deadline (application/visa).
   assert.deepEqual(studentsRowSignals({ ...base, attentionFlags: ["overdue"] }).map((signal) => signal.text), ["Просрочен дедлайн"]);
   assert.deepEqual(studentsRowSignals({ ...base, attentionFlags: ["overdue"], dueBand: "overdue" }), []);
+  // 245: a chat waiting for staff is a red word first among the work signals.
+  assert.deepEqual(studentsRowSignals({ ...base, needsReply: true, overdueTaskCount: 1 }).map((signal) => [signal.text, signal.tone]), [
+    ["нужен ответ", "danger"], ["1\u00a0задача просрочена", "danger"],
+  ]);
+  assert.deepEqual(studentsRowSignals({ ...base, needsReply: false }), []);
   const documents = { total: 12, approved: 7, submitted: 2, correctionRequired: 1, rejected: 1, missing: 1 };
   // «На проверке» is the reviewer's work: in the documents line, not in the row signals.
   assert.deepEqual(studentsRowSignals({ ...base, documents }).map((signal) => [signal.text, signal.tone]), [

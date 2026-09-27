@@ -53,8 +53,8 @@ const nav = (who, href = "/v3/main") => {
 const ids = (links) => links.map((link) => link.id);
 
 test("tab slots per role follow the owner's order: admissions and Admin — Студенты · Задачи · Переписка, sales — Воронка · Заявки · Задачи", () => {
-  // 27.09.2026 (owner decision): «Переписка со студентами» stands where
-  // «Переписки» of Э5 stood; the sales WhatsApp takes no slot of its own.
+  // 27.09.2026 (owner decision): «Переписка» (its short name since 28.09.2026)
+  // stands where «Переписки» of Э5 stood; the sales WhatsApp takes no slot of its own.
   const admissions = ["home", "admissions-worklist", "tasks", "messages"];
   const sales = ["home", "pipeline", "requests", "tasks"];
   for (const [who, kind, expected] of [
@@ -68,7 +68,7 @@ test("tab slots per role follow the owner's order: admissions and Admin — Ст
     assert.equal(tabs.kind, kind, who);
     assert.deepEqual(ids(tabs.links), expected, who);
   }
-  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписка со студентами"]);
+  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписка"]);
   assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => link.label), ["Сегодня", "Воронка продаж", "Заявки", "Задачи"]);
   // WhatsApp does not make a sales role an admissions one; its four slots are
   // taken, so WhatsApp lives in «Ещё», which lights up on its page.
@@ -132,7 +132,7 @@ test("icons tell the rail items apart: one glyph per meaning, three conversation
     if (icon === "funnel") assert.deepEqual(ids, ["pipeline", "admissions-pipeline"]);
     else assert.equal(ids.length, 1, `${icon} is shared by ${ids.join(", ")}`);
   }
-  // 27.09.2026: переписка со студентами — квадратный пузырь, WhatsApp — круглый
+  // 27.09.2026: «Переписка» поступления — квадратный пузырь, WhatsApp — круглый
   // (его собственная форма), «Командный чат» — два пузыря.
   assert.equal(LINK_ICONS.messages, "message-square");
   assert.equal(LINK_ICONS.inbox, "message-circle");
@@ -158,8 +158,9 @@ test("tab labels fit one line: short label only where the full one does not, and
   assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Воронка", "Заявки", "Задачи"]);
   assert.deepEqual(shellTabs(nav("admin")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Студенты", "Задачи", "Переписка"]);
   assert.equal(shellTabLabel({ id: "pipeline", label: "Воронка продаж" }).name, "Воронка продаж");
-  // «Переписка» on the tab, the full «Переписка со студентами» as its accessible name.
-  assert.deepEqual(shellTabLabel({ id: "messages", label: "Переписка со студентами" }), { text: "Переписка", name: "Переписка со студентами" });
+  // Owner decision 28.09.2026: the menu item itself is «Переписка» — the tab
+  // needs no short label and no separate accessible name.
+  assert.deepEqual(shellTabLabel({ id: "messages", label: "Переписка" }), { text: "Переписка", name: undefined });
   assert.deepEqual(shellTabLabel({ id: "inbox", label: "WhatsApp" }), { text: "WhatsApp", name: undefined });
 });
 
@@ -224,7 +225,11 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
     // Подпись в одну строку: колонка не уже своей подписи.
     assert.match(bar, new RegExp(`grid-template-columns:repeat\\(${labels.length + 1}, minmax\\(auto, 1fr\\)\\)`, "u"), `${name}: columns never narrower than their label`);
     if (role === "sales") assert.match(bar, /aria-label="Воронка продаж"[^>]*data-shell-tab="pipeline"/u, `${name}: the full name stays the accessible name`);
-    else assert.match(bar, /aria-label="Переписка со студентами"[^>]*data-shell-tab="messages"/u, `${name}: the full name stays the accessible name`);
+    else {
+      // «Переписка» (28.09.2026): the label is the full name, so no aria-label.
+      assert.match(bar, /<a [^>]*data-shell-tab="messages"[^>]*>(?:(?!<\/a>).)*<span class="t-caption whitespace-nowrap">Переписка<\/span><\/a>/u, `${name}: «Переписка» tab`);
+      assert.doesNotMatch(bar, /<a (?=[^>]*data-shell-tab="messages")[^>]*aria-label=/u, `${name}: the visible label is the accessible name`);
+    }
     assert.match(bar, /<button type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="([^"]+)"/u, `${name}: «Ещё» controls the sheet`);
     const sheetId = bar.match(/aria-controls="([^"]+)"/u)[1];
     // Закрытый лист — не диалог; открытый получает role="dialog" и aria-modal, свою
@@ -282,7 +287,7 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   assert.match(shell, /flex h-\[var\(--shell-top\)\] shrink-0/u, "top row height is the variable");
   assert.match(shell, /grid h-\[var\(--shell-tabbar\)\]/u, "tab bar height is the variable");
   assert.match(shell, /max-md:pb-\[calc\(var\(--shell-tabbar\)\+var\(--shell-safe-bottom\)\)\]/u, "content clears the tab bar");
-  // «Переписка со студентами» и «Командный чат» — страницы «на окно» под правилом.
+  // «Переписка» и «Командный чат» — страницы «на окно» под правилом.
   const conversations = read("src/components/v3/ConversationsMain.tsx");
   assert.match(conversations, /className="[^"]*h-\[calc\(100dvh-150px\)\] md:h-\[calc\(100dvh-64px\)\]"/u);
   assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<ConversationsMain title=\{TITLE\} threadOpen=\{rawCase !== null\}>/u);
@@ -303,13 +308,13 @@ test("without a top bar every page title starts at one height, level with the lo
   const css = read("src/app/(v3)/v3.css");
   assert.match(css, /\.v3-world\[data-surface="staff"\] \{[^}]*--shell-page-top: 1\.5rem;/u);
   assert.match(css, /@media \(width < 48rem\) \{\s*\.v3-world\[data-surface="staff"\] \{[^}]*--shell-page-top: 1\.25rem;/u);
-  // PageHeader страниц (PartShell, доски, «Переписка со студентами»): Э5 вынес
+  // PageHeader страниц (PartShell, доски, «Переписка»): Э5 вынес
   // заголовок переписки по делу из шапки списка в PageHeader страницы, и
   // отдельный сдвиг заголовка «Сообщений» не нужен.
   assert.match(css, /\[data-shell-content\] main:has\(> div:first-child > div:first-child > h1\.t-page-title\) \{\s*padding-top: var\(--shell-page-top\);/u);
   assert.doesNotMatch(css, /main\[aria-label="Сообщения"\]/u);
   assert.match(read("src/components/ui.tsx"), /<div className=\{cn\("flex flex-wrap items-start justify-between gap-4", className\)\}>\s*<div className="min-w-0">\s*<h1 className="t-page-title/u, "PageHeader keeps the structure the rule reads");
-  // «Переписка со студентами»: PageHeader — первый ребёнок `main` (правило выше его находит).
+  // «Переписка»: PageHeader — первый ребёнок `main` (правило выше его находит).
   assert.match(read("src/components/v3/ConversationsMain.tsx"), /md:h-\[calc\(100dvh-64px\)\]"\s*>\s*<PageHeader title=\{title\} className=/u);
   assert.doesNotMatch(read("src/components/v3/case-chat/CaseChatThread.tsx"), /<h1\b/u);
   // Логотип: `pt-3.5` + 51 px высоты — центр на 40 px, как у заголовка 24 + 32/2.

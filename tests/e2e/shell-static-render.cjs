@@ -156,12 +156,13 @@ const ACTORS = {
   },
 };
 // Ожидаемые вкладки (решение владельца 26.09.2026): доступные имена — полные
-// имена разделов; видимые подписи «Воронки продаж» и «Переписки со студентами»
-// (27.09.2026) короче — «Воронка» и «Переписка». WhatsApp продаж — в «Ещё».
+// имена разделов; видимая подпись «Воронки продаж» короче — «Воронка».
+// «Переписка» (решение владельца 28.09.2026) — имя пункта целиком, отдельного
+// доступного имени нет. WhatsApp продаж — в «Ещё».
 const EXPECTED_TABS = {
-  admin: ["Сегодня", "Студенты", "Задачи", "Переписка со студентами", "Ещё"],
-  admissions: ["Сегодня", "Студенты", "Задачи", "Переписка со студентами", "Ещё"],
-  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Переписка со студентами", "Ещё"],
+  admin: ["Сегодня", "Студенты", "Задачи", "Переписка", "Ещё"],
+  admissions: ["Сегодня", "Студенты", "Задачи", "Переписка", "Ещё"],
+  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Переписка", "Ещё"],
   sales: ["Сегодня", "Воронка продаж", "Заявки", "Задачи", "Ещё"],
 };
 const ADMISSIONS_TAB_TEXT = ["Сегодня", "Студенты", "Задачи", "Переписка", "Ещё"];
@@ -285,7 +286,7 @@ function mainOf(html) {
 }
 
 /**
- * «Переписка со студентами» (Э5, отдельный пункт «Поступления» с 27.09.2026) —
+ * «Переписка» (Э5, отдельный пункт «Поступления» с 27.09.2026) —
  * настоящий CaseChatWorkspace в настоящей обёртке страницы
  * (`ConversationsMain`) с синтетической перепиской. Он рендерится на сервере и гидратируется в браузере: поле ответа
  * появляется только на клиенте (черновик из localStorage), поэтому его место
@@ -315,7 +316,7 @@ function messagesFixture() {
   return {
     pathname: "/v3/messages", search: `case=${caseId(1)}`, body: null,
     messages: {
-      main: { title: "Переписка со студентами", threadOpen: true },
+      main: { title: "Переписка", threadOpen: true },
       props: {
         organizationId: ORG, membershipId: me,
         realtimeConfig: { url: "http://127.0.0.1:9", publishableKey: "synthetic-harness-key" },
@@ -328,7 +329,7 @@ function messagesFixture() {
   };
 }
 
-/** WhatsApp (у продаж нет переписки со студентами): настоящий loading.tsx — страница `fill` на высоту окна. */
+/** WhatsApp (у продаж нет «Переписки» поступления): настоящий loading.tsx — страница `fill` на высоту окна. */
 function whatsappBody() {
   const { default: InboxLoading } = require(join(ROOT, "src/app/(v3)/v3/inbox/loading.tsx"));
   return renderToStaticMarkup(withContexts(h(InboxLoading), "/v3/inbox", ""));
@@ -452,7 +453,7 @@ const page = ${JSON.stringify(NOTIFICATIONS)};
 export async function loadStaffNotificationsAction() { return { ok: true, page }; }
 export async function markStaffNotificationReadAction() { return { ok: true }; }
 export async function markAllStaffNotificationsReadAction() { return { ok: true }; }`;
-  // «Переписка со студентами»: чтения отвечают той же синтетической
+  // «Переписка»: чтения отвечают той же синтетической
   // перепиской, отправка честно недоступна — снимок ничего не пишет.
   const caseChatStub = `
 const fixture = () => JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent).messages.props;
@@ -550,12 +551,23 @@ function shellMetrics() {
     range.selectNodeContents(element);
     return new Set([...range.getClientRects()].filter((box) => box.width > 0).map((box) => Math.round(box.top))).size;
   };
+  // Подписи пунктов меню, видимые глазу (в рейке подпись — sr-only, 1 px).
+  const menuLabels = menu && visible(menu)
+    ? [...menu.querySelectorAll('[data-shell-menu-body] a[href^="/v3/"] > svg + span')].filter((span) => visible(span) && span.getBoundingClientRect().width > 1)
+    : [];
+  const messagesLabel = menuLabels.find((span) => span.parentElement.getAttribute("href") === "/v3/messages");
   return {
     viewport: `${window.innerWidth}x${window.innerHeight}`,
     overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     overflowY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
     topRow: visible(topbar) ? rect(topbar) : null,
     sidebar: visible(menu) ? rect(menu) : null,
+    // Пункты меню — в одну строку (решение владельца 28.09.2026: «Переписка»
+    // вместо «Переписки со студентами», которая вставала в две строки).
+    menuMultiLine: menuLabels.filter((span) => lineCount(span) !== 1).map((span) => span.textContent.trim()),
+    messagesItem: messagesLabel
+      ? { label: messagesLabel.textContent.trim(), lines: lineCount(messagesLabel), height: Math.round(messagesLabel.parentElement.getBoundingClientRect().height) }
+      : null,
     tabbar: tabs.length ? {
       slots: tabs.length,
       labels: tabs.map((tab) => tab.querySelector(":scope > span:last-child").textContent.trim()),
@@ -626,7 +638,7 @@ async function pageFixtures() {
     board: (role) => role === "admissions" || role === "admissions-staff"
       ? { pathname: "/v3/admissions-pipeline", search: "", body: mainOf(boards.get("admissions")) }
       : { pathname: "/v3/pipeline", search: "", body: mainOf(boards.get("sales")) },
-    // Переписка роли: у продаж нет переписки со студентами — их переписка — страница WhatsApp на высоту окна.
+    // Переписка роли: у продаж нет «Переписки» поступления — их переписка — страница WhatsApp на высоту окна.
     messages: (role) => role === "sales"
       ? { pathname: "/v3/inbox", search: "", body: whatsapp }
       : messages,
@@ -757,6 +769,7 @@ async function screenshots() {
             check(metrics.topRow !== null && metrics.topRow.height <= 56, `${label}: phone top ${metrics.topRow?.height}px`);
           } else {
             check(metrics.tabbar === null, `${label}: tab bar on the desktop`);
+            check(metrics.menuMultiLine.length === 0, `${label}: menu items on two lines: ${metrics.menuMultiLine.join(", ")}`);
             check(metrics.logout?.inViewport === true, `${label}: «Выйти» outside the viewport`);
             check(metrics.mainTop !== null && metrics.mainTop < 40, `${label}: content starts at ${metrics.mainTop}px (top bar left?)`);
           }
@@ -826,6 +839,12 @@ async function screenshots() {
       });
       const expanded = { initial, after: await groupsOpen(), ...(await edgeState()) };
       const file = `shell-${pageKey}-admin-1280-expanded.png`;
+      // Оба отдела открыты: «Переписка» — в одну строку, высота пункта 44 px (не 56).
+      const menuLines = await page.evaluate(shellMetrics);
+      report({ journey: "menu-lines-1280", file, menuMultiLine: menuLines.menuMultiLine, messagesItem: menuLines.messagesItem });
+      check(menuLines.menuMultiLine.length === 0, `${file}: menu items on two lines: ${menuLines.menuMultiLine.join(", ")}`);
+      check(menuLines.messagesItem?.label === "Переписка" && menuLines.messagesItem.lines === 1 && menuLines.messagesItem.height === 44,
+        `${file}: «Переписка» item ${JSON.stringify(menuLines.messagesItem)}`);
       await page.screenshot({ path: join(outDir, file) });
       // Список прокручен до конца: тень сверху, снизу её нет.
       await page.evaluate(() => { const scroller = document.querySelector("[data-shell-scroll]"); scroller.scrollTop = scroller.scrollHeight; });
@@ -914,8 +933,20 @@ async function screenshots() {
       const firstTab = await page.evaluate(() => document.querySelector('[data-testid="v3-shell-sheet-tabbar"] a[data-shell-tab]')?.getAttribute("href") ?? null);
       await page.locator('[data-testid="v3-shell-sheet-tabbar"] a[data-shell-tab]').first().click();
       const afterTab = await page.evaluate(() => ({ pushes: window.__harness.pushes, sheet: document.querySelector("[data-shell-menu]").getAttribute("role") }));
+      // Лист снова открыт, отдел «Поступление» раскрыт: пункты меню — в одну
+      // строку (решение владельца 28.09.2026: «Переписка»).
+      await more.click();
+      const admissionsGroup = page.locator("[data-shell-menu] nav button[aria-expanded]", { hasText: "Поступление" });
+      if ((await admissionsGroup.count()) === 1 && (await admissionsGroup.getAttribute("aria-expanded")) !== "true") await admissionsGroup.click();
+      await page.waitForTimeout(250);
+      const sheetLines = await page.evaluate(shellMetrics);
+      await page.screenshot({ path: join(outDir, `shell-sheet-${role}-${viewportKey}-admissions.png`) });
       await finish(session, file);
-      report({ journey: "sheet", file, role, moreBox, focusOnOpen, opened, tabCycle: { count, escaped, backInside }, closed, closedByButton, firstTab, afterTab });
+      report({ journey: "sheet", file, role, moreBox, focusOnOpen, opened, tabCycle: { count, escaped, backInside }, closed, closedByButton, firstTab, afterTab,
+        sheetMenu: { menuMultiLine: sheetLines.menuMultiLine, messagesItem: sheetLines.messagesItem } });
+      check(sheetLines.menuMultiLine.length === 0, `${file}: sheet menu items on two lines: ${sheetLines.menuMultiLine.join(", ")}`);
+      if (role !== "sales") check(sheetLines.messagesItem?.label === "Переписка" && sheetLines.messagesItem.lines === 1 && sheetLines.messagesItem.height === 44,
+        `${file}: «Переписка» item in the sheet ${JSON.stringify(sheetLines.messagesItem)}`);
       check(opened.close?.inside && moreBox && Math.abs(opened.close.x - moreBox.x) <= 1 && Math.abs(opened.close.y - moreBox.y) <= 1
         && Math.abs(opened.close.width - moreBox.width) <= 1, `${file}: «Закрыть» is not where «Ещё» was (${JSON.stringify(opened.close)} vs ${JSON.stringify(moreBox)})`);
       check(JSON.stringify(opened.sheetTabs) === JSON.stringify([...EXPECTED_TABS[role].slice(0, -1), "Закрыть меню"]), `${file}: sheet tab bar ${opened.sheetTabs.join(" · ")}`);

@@ -35,9 +35,10 @@ function links(model) {
 // Owner decision 27.09.2026 (replaces the one common «Переписки» item of Э5):
 // «WhatsApp» (id inbox, /v3/inbox, messaging.read) is the sales WhatsApp where
 // leads arrive and stands in «Продажи» right after the sales board;
-// «Переписка со студентами» (id messages, /v3/messages, admissions.read) is
-// the cabinet chat with existing students and stands in «Поступление» right
-// after the admissions board. Each page stands alone.
+// «Переписка» (id messages, /v3/messages, admissions.read; «Переписка со
+// студентами» until the owner decision 28.09.2026 shortened it to one menu
+// line) is the cabinet chat with existing students and stands in
+// «Поступление» right after the admissions board. Each page stands alone.
 // Э6 (27.09.2026): every destination has one place for all roles — roles only
 // hide items. «Заявки» are shared by sales and admissions and lead «Общее»,
 // never inside «Продажи».
@@ -81,13 +82,14 @@ test("the two disclosure groups use the approved destinations and worklist remai
   assert.equal(model.home?.label, "Сегодня");
   // «Заявки» are a shared destination in «Общее» (Э6, 27.09.2026). Each
   // department holds its board and then its own conversations (owner
-  // decision 27.09.2026): «Продажи» — WhatsApp, «Поступление» — «Переписка
-  // со студентами». The two boards carry their department in the label (UX
-  // quick win 2, 2026-09-24): an Admin sees both groups, and two identical
-  // «Воронка» items were ambiguous.
+  // decision 27.09.2026): «Продажи» — WhatsApp, «Поступление» — «Переписка»
+  // (short name, owner decision 28.09.2026: the long «Переписка со
+  // студентами» wrapped to two lines). The two boards carry their department
+  // in the label (UX quick win 2, 2026-09-24): an Admin sees both groups, and
+  // two identical «Воронка» items were ambiguous.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
     ["Продажи", [["Воронка продаж", "/v3/pipeline"], ["WhatsApp", "/v3/inbox"], ["Отчёт продаж", "/v3/main?view=sales"]]],
-    ["Поступление", [["Воронка поступления", "/v3/admissions-pipeline"], ["Переписка со студентами", "/v3/messages"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"]]],
+    ["Поступление", [["Воронка поступления", "/v3/admissions-pipeline"], ["Переписка", "/v3/messages"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["admissions"]);
@@ -356,7 +358,7 @@ test("every role sees each sidebar label once and both boards name their departm
   assert.equal(admin.find((link) => link.id === "pipeline")?.label, "Воронка продаж");
   assert.equal(admin.find((link) => link.id === "admissions-pipeline")?.label, "Воронка поступления");
   assert.equal(admin.find((link) => link.id === "inbox")?.label, "WhatsApp");
-  assert.equal(admin.find((link) => link.id === "messages")?.label, "Переписка со студентами");
+  assert.equal(admin.find((link) => link.id === "messages")?.label, "Переписка");
 });
 
 test("the browser tab names the sidebar item that the same address highlights", () => {
@@ -376,8 +378,8 @@ test("the browser tab names the sidebar item that the same address highlights", 
     // 27.09.2026: each conversation page highlights its own item and names its own tab.
     ["/v3/inbox", "WhatsApp"],
     ["/v3/inbox?waiting=1", "WhatsApp"],
-    ["/v3/messages?queue=all", "Переписка со студентами"],
-    ["/v3/messages?case=record", "Переписка со студентами"],
+    ["/v3/messages?queue=all", "Переписка"],
+    ["/v3/messages?case=record", "Переписка"],
   ]) {
     assert.equal(sectionTitle(href), title, href);
     const model = navigation("admin", href);

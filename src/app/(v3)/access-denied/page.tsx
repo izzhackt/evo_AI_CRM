@@ -21,7 +21,7 @@ const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/v3/calendar": "Календарь",
   "/v3/tasks": "Задачи",
   "/v3/team-chat": "Командный чат",
-  "/v3/messages": "Переписка со студентами",
+  "/v3/messages": "Переписка",
   "/v3/universities": "Университеты",
   "/v3/knowledge": "База знаний",
   "/v3/documents": "Документы",

@@ -13,12 +13,12 @@ import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Переписка со студентами" };
-const TITLE = "Переписка со студентами";
+export const metadata = { title: "Переписка" };
+const TITLE = "Переписка";
 
 /**
- * «Переписка со студентами» — пункт «Поступления» (решение владельца
- * 27.09.2026): переписка по делу через кабинет студента с теми, кто уже
+ * «Переписка» — пункт «Поступления» (решение владельца 27.09.2026; короткое
+ * имя — 28.09.2026): переписка по делу через кабинет студента с теми, кто уже
  * студент или клиент. Страница стоит отдельно от WhatsApp продаж; шапка на
  * высоту окна — `ConversationsMain`, очереди, шапка переписки и шаблоны
  * (Э5) — в `CaseChatWorkspace`. Права — прежние: страница `admissions.read`,

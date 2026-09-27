@@ -154,7 +154,12 @@ export function SidePanel({
       data-side-panel=""
       {...data}
       onCancel={(event) => { event.preventDefault(); closeRef.current(); }}
-      onClick={(event) => { if (event.target === event.currentTarget) closeRef.current(); }}
+      onClick={(event) => {
+        // Щелчок по затемнению листа — мимо коробки диалога; по его полосе прокрутки — нет.
+        const box = event.currentTarget.getBoundingClientRect();
+        const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+        if (event.target === event.currentTarget && outside) closeRef.current();
+      }}
       className={`fixed inset-0 z-50 m-0 h-dvh max-h-none w-full max-w-none overflow-y-auto overscroll-contain border-0 bg-surface p-0 text-fg backdrop:bg-black/40 md:start-auto md:w-[var(--side-panel-width)] md:border-s md:border-border md:shadow-evo-lg xl:inset-auto xl:z-auto xl:w-[var(--side-panel-width)] xl:shrink-0 xl:rounded-card xl:border xl:shadow-none ${wide}`}
     >
       <div className="flex min-h-full flex-col">
@@ -164,7 +169,8 @@ export function SidePanel({
           <Link
             href={closeHref}
             scroll={false}
-            prefetch={false}
+            // Закрытие без сервера (доска) адрес не предзагружает; у очередей — как раньше.
+            prefetch={onClose ? false : undefined}
             onClick={closeClick}
             data-testid="queue-detail-close"
             className="inline-flex min-h-11 items-center gap-2 rounded-nav px-2 t-label text-fg-2 hover:bg-surface-2 hover:text-fg xl:absolute xl:end-2 xl:top-2 xl:z-10 xl:w-11 xl:justify-center xl:px-0"

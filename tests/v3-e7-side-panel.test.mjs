@@ -231,6 +231,8 @@ test("phone and narrow windows: the same dialog becomes a modal sheet; Esc and c
   assert.match(panel, /if \(event\.key !== "Escape" \|\| event\.defaultPrevented \|\| typingTarget\(event\.target\) \|\| openPopover\(\) \|\| modalOpen\(\)\) return;/u,
     "beside the list Esc closes unless typing or a menu/dialog is on top");
   assert.match(panel, /closeRef\.current = onClose \?\? \(\(\) => router\.push\(closeHref, \{ scroll: false \}\)\);/u);
+  // Затемнение листа закрывает его; щелчок по самой панели (и её полосе прокрутки) — нет.
+  assert.match(panel, /const outside = event\.clientX < box\.left \|\| event\.clientX > box\.right \|\| event\.clientY < box\.top \|\| event\.clientY > box\.bottom;\s*if \(event\.target === event\.currentTarget && outside\) closeRef\.current\(\);/u);
   // Лист: во весь экран на телефоне, шириной токена от 768 px, рядом со списком от 1280 px.
   for (const [name, html] of [["tasks", tasks.get("team-panel")], ["board", boards.get("sales-panel")], ["report", numbers.get("report-panel")]]) {
     const classes = attr(openTag(panelOf(html)), "class");

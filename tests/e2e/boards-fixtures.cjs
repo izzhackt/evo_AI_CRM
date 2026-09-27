@@ -144,8 +144,10 @@ function moveElsewhere(studentCaseId, stage) {
   const current = pipeline.get(studentCaseId);
   pipeline.set(studentCaseId, { stage, hidden: false, version: current.version + 1 });
 }
-// Браузер гидратации: сценарий зовёт чужое перемещение и читает вызовы.
-globalThis.__boardsFixture = { moveElsewhere, pipelineCalls };
+// Браузер гидратации: сценарий зовёт чужое перемещение, читает вызовы и
+// задерживает ответ (`delayMs`), чтобы увидеть доску до ответа сервера.
+const boardsFixture = { moveElsewhere, pipelineCalls, delayMs: 0 };
+globalThis.__boardsFixture = boardsFixture;
 
 /**
  * Какой набор лидов читает доска (обычный или объёмный `sales-volume`) и
@@ -261,7 +263,12 @@ const STUBS = {
       truncated: false,
     }),
   },
-  "@/lib/platform-admissions-pipeline-actions": { moveCasePipelineAction: async (input) => movePipeline(input) },
+  "@/lib/platform-admissions-pipeline-actions": {
+    moveCasePipelineAction: async (input) => {
+      if (boardsFixture.delayMs > 0) await new Promise((resolve) => setTimeout(resolve, boardsFixture.delayMs));
+      return movePipeline(input);
+    },
+  },
   "@/lib/portal/application-documents-actions": {
     readStaffApplicationDocumentSubmissionQueueAction: async () => ({ ok: true, page: { protocolVersion: 1, items: queueItems(20), nextCursor: { sortAt: "2026-09-20T10:00:00Z", id: "x" } } }),
   },

@@ -477,6 +477,14 @@ const stageCount = (tree, stage) => {
   return Number(textOf(option).match(/\((\d+)\)$/u)[1]);
 };
 const alertText = (tree) => allNodes(tree, (node) => node.props?.role === "alert").map(textOf).join("");
+/** Слова строки отказа без ссылки «Открыть в «…»» (она в той же строке). */
+const alertWords = (tree) => allNodes(tree, (node) => node.props?.role === "alert")
+  .flatMap((alert) => allNodes(alert, (node) => node.type === "p")).map(textOf).join("");
+const alertLinks = (tree) => allNodes(tree, (node) => node.props?.role === "alert")
+  .flatMap((alert) => allNodes(alert, (node) => node.type === "a")).map(textOf);
+const pickerStage = (tree) => allNodes(tree, (node) => node.type === "select")[0].props.value;
+const shownStatus = (tree) => allNodes(tree, (node) => node.props?.role === "status" && textOf(node) !== "" && node.props.className !== "sr-only")
+  .map(textOf);
 const toastNode = (tree) => allNodes(tree, (node) => node.props?.["data-testid"] === "v3-undo-toasts")[0];
 // Фокус в браузере ставят эффекты; здесь `document` нужен только для чтения
 // activeElement (и меню верхнего слоя ищет себя по id — здесь его нет).
@@ -506,11 +514,15 @@ test("a confirmed menu move offers «Отменить»; it sends the reverse mo
     "the reverse move carries the version of the own move's receipt");
   assert.notEqual(server.calls[1].requestId, server.calls[0].requestId);
   tree = render(boardProps);
-  assert.equal(stageCount(tree, "documents"), 1, "optimistically back");
-  assert.equal(buttonsNamed(tree, "Отменить")[0].props.disabled, true, "the button waits for the server");
+  // Карточка не прыгает до ответа: отмена может не пройти (дело переместили).
+  assert.equal(stageCount(tree, "ready_to_submit"), 1, "the card stays until the server answers");
+  assert.equal(stageCount(tree, "documents"), 0, "not moved back before the server");
+  assert.equal(buttonsNamed(tree, "Отменить")[0].props.disabled, true, "the button carries the wait");
   await flush();
   tree = render(boardProps);
   assert.equal(statusText(tree), "Перемещение отменено: дело «Студент Синтетический» снова в «stage:documents».");
+  assert.equal(stageCount(tree, "documents"), 1, "back where the receipt says");
+  assert.equal(pickerStage(tree), "documents", "the phone picker shows the stage the card came back to");
   assert.equal(buttonsNamed(tree, "Отменить").length, 0);
   assert.equal(alertText(tree), "");
   assert.equal(server.position.stage, "documents");
@@ -533,19 +545,27 @@ test("a drag move offers «Отменить» too", async () => {
 });
 
 test("someone moved the case in between: the undo is refused, the card sits where the server says, nothing is claimed", async () => {
-  for (const [label, move, expect] of [
-    ["another stage of this tab", (server) => server.elsewhere("awaiting_decision"), (tree) => {
-      assert.equal(stageCount(tree, "awaiting_decision"), 1);
-      assert.deepEqual(cardIds(tree), [CASE_ID]);
-    }],
-    ["removed from the board", (server) => server.elsewhere("ready_to_submit", true), (tree) => {
-      assert.deepEqual(cardIds(tree), [], "a hidden case leaves the board");
-    }],
-    ["the other tab", (server) => server.elsewhere("visa"), (tree) => {
-      assert.deepEqual(cardIds(tree), [], "the case is on the other tab now, not on this one");
-      assert.equal(allNodes(tree, (node) => node.type === "a" && textOf(node) === "Открыть в «tab:visa»").length, 1,
-        "a link to where the case is now");
-    }],
+  const refused = "Дело уже переместили — отмена не выполнена.";
+  for (const [label, move, where, expect] of [
+    ["another stage of this tab", (server) => server.elsewhere("awaiting_decision"),
+      "Сейчас дело «Студент Синтетический» — в «stage:awaiting_decision».", (tree) => {
+        assert.equal(stageCount(tree, "awaiting_decision"), 1);
+        assert.deepEqual(cardIds(tree), [CASE_ID]);
+        assert.equal(pickerStage(tree), "awaiting_decision", "the phone picker shows the stage the server named");
+        assert.deepEqual(alertLinks(tree), []);
+      }],
+    ["removed from the board", (server) => server.elsewhere("ready_to_submit", true),
+      "Сейчас дело «Студент Синтетический» убрано из воронки.", (tree) => {
+        assert.deepEqual(cardIds(tree), [], "a hidden case leaves the board");
+        assert.deepEqual(alertLinks(tree), []);
+      }],
+    ["the other tab", (server) => server.elsewhere("visa"),
+      "Сейчас дело «Студент Синтетический» — в «stage:visa».", (tree) => {
+        assert.deepEqual(cardIds(tree), [], "the case is on the other tab now, not on this one");
+        assert.deepEqual(alertLinks(tree), ["Открыть в «tab:visa»"], "the link to where the case is now sits in the same line");
+        assert.equal(allNodes(tree, (node) => node.type === "a" && textOf(node) === "Открыть в «tab:visa»").length, 1,
+          "no second notice with the same link");
+      }],
   ]) {
     const server = fakeServer();
     const render = boardHarness(server.action);
@@ -558,8 +578,9 @@ test("someone moved the case in between: the undo is refused, the card sits wher
     assert.equal(server.calls[1].expectedVersion, 8, label);
     await flush();
     tree = render(boardProps);
-    assert.equal(alertText(tree), "Дело уже переместили — отмена не выполнена.", label);
-    assert.doesNotMatch(statusText(tree), /отменено/u, `${label}: no success claimed`);
+    // Одна строка на событие: отказ и где дело сейчас; второй строки нет.
+    assert.equal(alertWords(tree), `${refused} ${where}`, label);
+    assert.equal(statusText(tree), "", `${label}: no second notice, no success claimed`);
     assert.equal(buttonsNamed(tree, "Отменить").length, 0, label);
     expect(tree);
   }
@@ -593,7 +614,7 @@ test("a receipt without a version (the v1 command replayed) offers no «Отме
   assert.equal(buttonsNamed(tree, "Отменить").length, 0);
 });
 
-test("the new look shows «Перемещено в «…» · Отменить» as the top-layer UndoToast, the words for the reader stay in the board", async () => {
+test("the new look shows «Дело «…» перемещено в «…» · Отменить» as the top-layer UndoToast, the words for the reader stay in the board", async () => {
   const server = fakeServer();
   const render = boardHarness(server.action);
   const props = { ...boardProps, look: "next" };
@@ -605,17 +626,23 @@ test("the new look shows «Перемещено в «…» · Отменить»
   tree = render(props);
   const toast = toastNode(tree);
   const [row] = allNodes(toast, (node) => node.type === "li");
-  assert.equal(textOf(row), "Перемещено в «stage:ready_to_submit».Отменить");
+  // Строка называет дело, как «Задачи» — свою задачу.
+  assert.equal(textOf(row), "Дело «Студент Синтетический» перемещено в «stage:ready_to_submit».Отменить");
   assert.equal(buttonsNamed(tree, "Отменить").length, 1, "one «Отменить»: in the toast, not in the board line");
   const [status] = allNodes(tree, (node) => node.props?.role === "status" && textOf(node) !== "");
   assert.equal(status.props.className, "sr-only", "announced politely, not shown twice");
   assert.equal(textOf(status), "Дело «Студент Синтетический» перемещено в «stage:ready_to_submit».");
   press(toast, "Отменить");
   assert.equal(server.calls[1].expectedVersion, 8);
+  tree = render(props);
+  assert.equal(stageCount(tree, "ready_to_submit"), 1, "the card waits for the server in the new look too");
+  assert.equal(buttonsNamed(toastNode(tree), "Отменить")[0].props.disabled, true);
   await flush();
   tree = render(props);
   assert.equal(allNodes(toastNode(tree), (node) => node.type === "li").length, 0);
   assert.equal(stageCount(tree, "documents"), 1);
+  // Итог отмены виден в обоих обликах, а не только читалке.
+  assert.deepEqual(shownStatus(tree), ["Перемещение отменено: дело «Студент Синтетический» снова в «stage:documents»."]);
 });
 
 test("«Вернуть в воронку» carries the removal receipt's version; a later move by someone else refuses it", async () => {
@@ -632,7 +659,8 @@ test("«Вернуть в воронку» carries the removal receipt's version
   assert.deepEqual(server.calls[1], { studentCaseId: CASE_ID, requestId: server.calls[1].requestId, stage: "documents", expectedVersion: 8 });
   await flush();
   tree = render(boardProps);
-  assert.equal(alertText(tree), "Дело уже переместили — отмена не выполнена.");
+  assert.equal(alertWords(tree), "Дело уже переместили — отмена не выполнена. Сейчас дело «Студент Синтетический» — в «stage:shortlist».");
+  assert.equal(pickerStage(tree), "shortlist");
   assert.equal(buttonsNamed(tree, "Вернуть в воронку").length, 0);
   assert.deepEqual(cardIds(tree), [CASE_ID], "back on the board where the server says");
   assert.equal(stageCount(tree, "shortlist"), 1);
@@ -688,6 +716,23 @@ test("the board writes only through v2 (251); the action checks the version and 
   assert.match(board, /expiresAt: resumedUndoDeadline\(current, since, now\)/u, "the deadline stands still while held (WCAG 2.2.1)");
   assert.match(board, /if \(!undo \|\| undo\.pending \|\| held\) return;/u);
   assert.match(board, /focus: via === "menu"/u, "a menu move puts focus on «Отменить», a drag does not");
+});
+
+test("after an undo answer focus goes to the card, else the inline link, else the line — never a browser ring", () => {
+  // Порядок целей: карточка там, где её назвал сервер → «Открыть в «…»» в строке
+  // отказа → сама строка отказа → строка уведомлений, только если в ней есть слова.
+  const effect = board.slice(board.indexOf("if (!refocus) return;"), board.indexOf("}, [refocus]);"));
+  const order = ["[data-student-case-id=", 'errorRef.current?.querySelector<HTMLElement>("a")', "errorRef.current,", "noticeRef.current?.textContent ? noticeRef.current : null"]
+    .map((needle) => effect.indexOf(needle));
+  assert.ok(order.every((index, position) => index > 0 && (position === 0 || index > order[position - 1])), `refocus order: ${order}`);
+  assert.equal((board.match(/setRefocus\(\{ studentCaseId \}\)/gu) ?? []).length, 3, "undo success, undo refusal and «Вернуть в воронку» refusal");
+  assert.doesNotMatch(board, /setRefocus\(\{ studentCaseId: null \}\)/u);
+  // Цели с tabIndex=-1: рамка строки отказа без кольца браузера; строка
+  // уведомлений — кольцо токенов доски.
+  assert.match(board, /role="alert"\s+className="[^"]*\boutline-none\b[^"]*"/u);
+  assert.match(board, /"outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:shadow-\[0_0_0_3px_var\(--focus-halo\)\]"/u);
+  // Телефон: выбор этапа следует за карточкой после ответа.
+  assert.match(board, /if \(admissionsPipelineTabOf\(stage\) === tab\) setNarrowStage\(stage\);/u);
 });
 
 test("migration 251 is forward-only and additive: a version column with its trigger and v2 beside the untouched v1", () => {

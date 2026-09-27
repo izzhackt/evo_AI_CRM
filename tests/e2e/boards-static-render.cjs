@@ -41,12 +41,15 @@
  *
  *   node tests/e2e/boards-static-render.cjs --hydrate-undo [outDir] [--look=next]
  *     → «Отменить» на доске поступления (Э7, миграция 251), гидратация как
- *       у --hydrate: перетаскивание → «Перемещено в «…» · Отменить» → отмена;
- *       «⋯ → Переместить в…» → фокус на «Отменить» → чужое перемещение →
- *       отказ «Дело уже переместили — отмена не выполнена.»; срок ~6 с и
- *       пауза под указателем. 1440 и 390, снимки `f2-*.png`; нарушение —
- *       код выхода 1. Подменённое действие ведёт версию положения, как
- *       `move_case_pipeline_v2` (tests/e2e/boards-fixtures.cjs).
+ *       у --hydrate: перетаскивание → «Дело «…» перемещено в «…» · Отменить»
+ *       → отмена (итог виден в обоих обликах); «⋯ → Переместить в…» → фокус
+ *       на «Отменить» → чужое перемещение → карточка ждёт ответа → отказ
+ *       «Дело уже переместили — отмена не выполнена. Сейчас дело «…» — в «…».»
+ *       одной строкой; срок ~6 с и пауза под указателем; путь только
+ *       клавиатурой (кольцо на «Отменить», на карточке, на цели отказа).
+ *       1440 и 390, снимки `f2-*.png`; нарушение — код выхода 1. Подменённое
+ *       действие ведёт версию положения, как `move_case_pipeline_v2`
+ *       (tests/e2e/boards-fixtures.cjs).
  *
  *   --look=next (с --json, --screenshots, --hydrate, --hydrate-close или --hydrate-undo) —
  *       новый облик (Э1.1–Э1.3,
@@ -1087,7 +1090,10 @@ async function hydrateClose() {
  * «Отменить» на доске поступления (Э7, миграция 251):
  *   node tests/e2e/boards-static-render.cjs --hydrate-undo [outDir] [--look=next]
  * Снимки `f2-<облик>-<шаг>-<ширина>.png`; измерения — JSON-строки в stdout,
- * нарушения — список `failures` и код выхода 1.
+ * нарушения — список `failures` и код выхода 1. Путь клавиатуры (`kbd-*`):
+ * Tab до «⋯», Enter, Tab до этапа, Enter → кольцо на «Отменить» → Enter →
+ * кольцо на вернувшейся карточке → отказ → кольцо на карточке там, где её
+ * назвал сервер, или на ссылке «Открыть в «…»» в строке отказа.
  */
 async function hydrateUndo() {
   const outDir = outDirArg("--hydrate-undo");
@@ -1128,24 +1134,44 @@ async function hydrateUndo() {
     const rect = button?.getBoundingClientRect();
     const active = document.activeElement;
     const cardNode = document.querySelector(`[data-testid="v3-admissions-pipeline-card"][data-student-case-id="${id}"]`);
+    const alertNode = board.querySelector("[role=alert]");
     const fonts = offerNode ? [...offerNode.querySelectorAll("*")].filter((element) => [...element.childNodes]
       .some((node) => node.nodeType === 3 && node.textContent.trim())).map((element) => parseFloat(getComputedStyle(element).fontSize)) : [];
     const red = (element) => getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)";
+    const activeStyle = active && active !== document.body ? getComputedStyle(active) : null;
     return {
       offer: offerNode ? offerNode.innerText.replace(/\s+/gu, " ").trim() : null,
       inTopLayer: Boolean(toastButton),
+      pending: button ? button.disabled : null,
       target: rect ? `${Math.round(rect.width)}x${Math.round(rect.height)}` : null,
       targetHeight: rect ? rect.height : null,
       minFont: fonts.length ? Math.min(...fonts) : null,
       undoRed: button ? red(button) : false,
       solidRed: [...document.querySelectorAll("a, button")].filter((element) => element.checkVisibility() && red(element)).map((element) => element.textContent.trim()),
       status: [...board.querySelectorAll("[role=status]")].map((element) => element.textContent.trim()).filter(Boolean),
-      alert: board.querySelector("[role=alert]")?.textContent.trim() ?? null,
+      // Слова, которые видно (не только читалке).
+      shownStatus: [...board.querySelectorAll("[role=status]")].filter((element) => !element.classList.contains("sr-only")
+        && element.checkVisibility() && element.getBoundingClientRect().height > 1).map((element) => element.textContent.trim()).filter(Boolean),
+      alert: alertNode ? [...alertNode.querySelectorAll("p")].map((element) => element.textContent.trim()).join(" ") : null,
+      alertLinks: alertNode ? [...alertNode.querySelectorAll("a")].map((element) => element.textContent.trim()) : [],
+      hintLinks: [...board.querySelectorAll("a")].filter((element) => /^Открыть в «/u.test(element.textContent.trim())).length,
+      // Коробки уведомлений над доской: строка отказа и строка уведомлений (если видна).
+      noticeBoxes: [...board.children].filter((element) => element.matches("[role=alert], [tabindex='-1']")
+        && element.getBoundingClientRect().height > 1).length,
       focus: !active || active === document.body ? "body"
         : active === button ? "undo"
         : active.matches("[role=alert]") ? "alert"
+        : active.closest("[role=alert]") && active.matches("a") ? `alert-link:${active.textContent.trim()}`
         : active.closest('[data-testid="v3-admissions-pipeline-card"]') ? `card:${active.closest('[data-testid="v3-admissions-pipeline-card"]').dataset.studentCaseId === id ? "moved" : "other"}`
         : `${active.tagName.toLowerCase()}:${(active.textContent ?? "").trim().slice(0, 30)}`,
+      // Кольцо фокуса: видно ли его и чьё оно — токенов (solid) или браузера (auto).
+      ring: activeStyle ? {
+        visible: active.matches(":focus-visible"),
+        style: activeStyle.outlineStyle,
+        color: activeStyle.outlineColor,
+        width: activeStyle.outlineWidth,
+      } : null,
+      picker: board.querySelector("select")?.value ?? null,
       column: cardNode?.closest('[data-testid="v3-admissions-pipeline-column"]')?.querySelector("h2")?.textContent.trim() ?? null,
       cardVisible: Boolean(cardNode?.checkVisibility()),
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -1160,11 +1186,19 @@ async function hydrateUndo() {
   const common = (label, entry) => {
     check(entry.overflow <= 0, `${label}: no horizontal scroll (${entry.overflow})`);
     check(!entry.undoRed, `${label}: «Отменить» is not the page's red`);
+    check(entry.noticeBoxes <= 1, `${label}: one notice box per event (${entry.noticeBoxes})`);
+    // Кольцо на цели программного фокуса — токены, не браузер.
+    check(!entry.ring || entry.ring.style !== "auto", `${label}: no browser default focus ring (${JSON.stringify(entry.ring)})`);
     if (entry.offer) {
       check(entry.targetHeight >= 44, `${label}: «Отменить» target ${entry.target}`);
       check(entry.minFont >= 12, `${label}: offer text ≥ 12px (${entry.minFont})`);
       check(entry.inTopLayer === LOOK_NEXT, `${label}: ${LOOK_NEXT ? "top-layer toast" : "board line"}`);
     }
+  };
+  /** Кольцо клавиатуры видно и оно токенов доски (solid, 2px). */
+  const ringed = (label, entry) => {
+    check(entry.ring && entry.ring.visible && entry.ring.style === "solid" && entry.ring.width === "2px",
+      `${label}: themed focus ring (${JSON.stringify(entry.ring)})`);
   };
   const drag = async (page, n, columnIndex) => {
     const source = card(page, n);
@@ -1182,6 +1216,31 @@ async function hydrateUndo() {
     await page.waitForSelector("[popover]:popover-open");
     await page.locator("[popover]:popover-open").getByRole("button", { name: stageLabel, exact: true }).click();
   };
+  /** Только клавиатура: Tab до «⋯», Enter, Tab до этапа, Enter. */
+  const keyboardMove = async (page, n, stageLabel, label) => {
+    await card(page, n).locator("a").first().focus();
+    await page.keyboard.press("Tab");
+    const trigger = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+    check(trigger === "Действия с делом", `${label}: Tab reaches «⋯» (${trigger})`);
+    await page.keyboard.press("Enter");
+    await page.waitForSelector("[popover]:popover-open");
+    for (let step = 0; step < 12; step += 1) {
+      await page.keyboard.press("Tab");
+      const text = await page.evaluate(() => document.activeElement?.textContent?.trim() ?? "");
+      if (text === stageLabel) break;
+    }
+    const chosen = await page.evaluate(() => document.activeElement?.textContent?.trim() ?? "");
+    check(chosen === stageLabel, `${label}: Tab reaches «${stageLabel}» in the menu (${chosen})`);
+    await page.keyboard.press("Enter");
+  };
+  const offerFocused = (page) => page.waitForFunction(() => document.activeElement?.matches("[data-board-undo], [data-undo-row]"));
+  const movedText = (name, stage) => `Дело «${name}» перемещено в «${stage}».`;
+  const undoneText = (name, stage) => `Перемещение отменено: дело «${name}» снова в «${stage}».`;
+  const REFUSED = "Дело уже переместили — отмена не выполнена.";
+  const cardIn = (page, n, stage) => page.waitForFunction(([id, heading]) => {
+    const node = document.querySelector(`[data-testid="v3-admissions-pipeline-card"][data-student-case-id="${id}"]`);
+    return node?.checkVisibility() && node.closest('[data-testid="v3-admissions-pipeline-column"]')?.querySelector("h2")?.textContent.trim() === heading;
+  }, [caseId(n), stage]);
   try {
     // 1. 1440: перетаскивание → «Отменить» → отмена; меню → фокус → чужое перемещение → отказ; срок и пауза.
     {
@@ -1190,46 +1249,53 @@ async function hydrateUndo() {
       await waitOffer(page);
       const dragged = await state(page, 1);
       common("drag offer 1440", dragged);
-      check(dragged.offer === (LOOK_NEXT ? "Перемещено в «Документы». Отменить" : "Дело «Айжан Примерова» перемещено в «Документы». Отменить"), `drag offer text: ${dragged.offer}`);
+      check(dragged.offer === `${movedText("Айжан Примерова", "Документы")} Отменить`, `drag offer names the case: ${dragged.offer}`);
       check(dragged.column === "Документы", "the dragged card sits in «Документы»");
       check(dragged.focus !== "undo", "a drag does not move focus to «Отменить»");
-      check(dragged.status.includes("Дело «Айжан Примерова» перемещено в «Документы»."), "the move is announced politely");
+      check(dragged.status.includes(movedText("Айжан Примерова", "Документы")), "the move is announced politely");
       check(dragged.lastCall && dragged.lastCall.expectedVersion === undefined, "an ordinary move sends no version");
       await shot(page, "drag-offer", 1440);
       await undoButton(page).click();
       await noOffer(page);
-      await page.waitForFunction((id) => document.querySelector(`[data-testid="v3-admissions-pipeline-card"][data-student-case-id="${id}"]`)
-        ?.closest('[data-testid="v3-admissions-pipeline-column"]')?.querySelector("h2")?.textContent.trim() === "Новые", caseId(1));
+      await cardIn(page, 1, "Новые");
       await page.waitForTimeout(100);
       const undone = await state(page, 1);
       common("undone 1440", undone);
       check(undone.column === "Новые", "undo puts the card back in «Новые»");
       check(undone.lastCall.expectedVersion === 2 && undone.lastCall.stage === "new", `undo sends the receipt's version: ${JSON.stringify(undone.lastCall)}`);
-      check(undone.status.includes("Перемещение отменено: дело «Айжан Примерова» снова в «Новые»."), "the undo is announced");
+      check(undone.shownStatus.includes(undoneText("Айжан Примерова", "Новые")), `the undo result is shown, not only announced (${undone.shownStatus})`);
       check(undone.focus === "card:moved", `focus after undo on the card (${undone.focus})`);
       check(undone.alert === null, "no error after a clean undo");
       await shot(page, "undone", 1440);
 
       await menuMove(page, 4, "Готовы к подаче");
       await waitOffer(page);
-      await page.waitForFunction(() => document.activeElement?.matches("[data-board-undo], [data-undo-row]"));
+      await offerFocused(page);
       const menu = await state(page, 4);
       common("menu offer 1440", menu);
       check(menu.focus === "undo", `a menu move puts focus on «Отменить» (${menu.focus})`);
+      check(menu.offer === `${movedText("Элина Демо", "Готовы к подаче")} Отменить`, `menu offer names the case: ${menu.offer}`);
       await shot(page, "menu-offer", 1440);
-      // Другой сотрудник переместил дело, пока строка «Отменить» открыта.
+      // Другой сотрудник переместил дело, пока строка «Отменить» открыта; ответ сервера — через 700 мс.
       await page.evaluate((id) => globalThis.__boardsFixture.moveElsewhere(id, "awaiting_decision"), caseId(4));
+      await page.evaluate(() => { globalThis.__boardsFixture.delayMs = 700; });
       await page.keyboard.press("Enter");
+      await page.waitForTimeout(200);
+      const waiting = await state(page, 4);
+      check(waiting.column === "Готовы к подаче", `the card waits for the server, no jump back (${waiting.column})`);
+      check(waiting.pending === true, "«Отменить» carries the wait (disabled)");
       await page.getByRole("alert").waitFor();
+      await page.evaluate(() => { globalThis.__boardsFixture.delayMs = 0; });
       await page.waitForTimeout(150);
       const conflict = await state(page, 4);
       common("conflict 1440", conflict);
-      check(conflict.alert === "Дело уже переместили — отмена не выполнена.", `conflict alert: ${conflict.alert}`);
+      check(conflict.alert === `${REFUSED} Сейчас дело «Элина Демо» — в «Ожидаем решения».`, `conflict line names where the case is: ${conflict.alert}`);
       check(conflict.column === "Ожидаем решения", `the card sits where the server says (${conflict.column})`);
       check(conflict.offer === null, "the refused undo leaves no «Отменить»");
+      check(conflict.shownStatus.length === 0, `one line for the event, no second notice (${conflict.shownStatus})`);
       check(!conflict.status.some((text) => text.includes("отменено")), "no success claimed");
       check(conflict.lastCall.expectedVersion === 2, "the undo carried the version of the own move");
-      check(conflict.focus === "alert", `focus on the outcome (${conflict.focus})`);
+      check(conflict.focus === "card:moved", `focus on the card where the server put it (${conflict.focus})`);
       await shot(page, "conflict", 1440);
 
       // Срок: без указателя строка уходит за ~6 с; под указателем стоит.
@@ -1253,30 +1319,36 @@ async function hydrateUndo() {
       await page.mouse.move(1300, 60); // вне строки «Отменить» в обоих обликах
       await page.waitForFunction(() => !document.querySelector("[data-board-undo]")
         && !document.querySelector('[data-testid="v3-undo-toasts"]:popover-open [data-undo-row]'), null, { timeout: 9_000 });
-      report({ journey: "undo-1440", dragged, undone, menu, conflict, expiredAfter, held: { offer: held.offer },
+      report({ journey: "undo-1440", dragged, undone, menu, waiting: { column: waiting.column, pending: waiting.pending }, conflict, expiredAfter, held: { offer: held.offer },
         recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
       check(pageErrors(console_).length === 0, `console clean at 1440: ${pageErrors(console_).join(" | ")}`);
       await context.close();
     }
-    // 2. Телефон 390: только меню; отмена, затем отказ после чужого перемещения в другой раздел.
+    // 2. Телефон 390: только меню; отмена после смены этапа в выборе, затем отказ после чужого перемещения в другой раздел.
     {
       const { context, page, console_ } = await open({ width: 390, height: 844 }, true);
       await menuMove(page, 1, "Документы");
       await waitOffer(page);
-      await page.waitForFunction(() => document.activeElement?.matches("[data-board-undo], [data-undo-row]"));
+      await offerFocused(page);
       const offer = await state(page, 1);
       common("menu offer 390", offer);
       check(offer.focus === "undo", `focus on «Отменить» at 390 (${offer.focus})`);
       check(!offer.cardVisible, "the moved card left the shown stage");
+      check(offer.offer === `${movedText("Айжан Примерова", "Документы")} Отменить`, `the offer names the case at 390: ${offer.offer}`);
       await shot(page, "menu-offer", 390);
+      // Сотрудник открыл «Документы», чтобы увидеть карточку, и отменил оттуда.
+      await page.locator('[data-testid="v3-admissions-pipeline-board"] select').selectOption("documents");
+      await card(page, 1).waitFor({ state: "visible" });
       await undoButton(page).click();
       await noOffer(page);
-      await card(page, 1).waitFor({ state: "visible" });
+      await cardIn(page, 1, "Новые");
       await page.waitForTimeout(100);
       const undone = await state(page, 1);
       common("undone 390", undone);
       check(undone.cardVisible && undone.column === "Новые", "the card is back in the shown stage");
+      check(undone.picker === "new", `the picker follows the card back to «Новые» (${undone.picker})`);
       check(undone.focus === "card:moved", `focus on the card at 390 (${undone.focus})`);
+      check(undone.shownStatus.includes(undoneText("Айжан Примерова", "Новые")), `the undo result is shown at 390 (${undone.shownStatus})`);
       await shot(page, "undone", 390);
       await menuMove(page, 1, "Документы");
       await waitOffer(page);
@@ -1286,14 +1358,61 @@ async function hydrateUndo() {
       await page.waitForTimeout(150);
       const conflict = await state(page, 1);
       common("conflict 390", conflict);
-      check(conflict.alert === "Дело уже переместили — отмена не выполнена.", `conflict alert at 390: ${conflict.alert}`);
+      check(conflict.alert === `${REFUSED} Сейчас дело «Айжан Примерова» — в «Оформление визы».`, `conflict line at 390: ${conflict.alert}`);
       check(conflict.column === null, "the case is on the other tab now");
-      const link = await page.getByRole("link", { name: "Открыть в «Виза и выезд»" }).count();
-      check(link === 1, "a link to the tab where the case is now");
-      check(conflict.focus === "alert", `focus on the outcome at 390 (${conflict.focus})`);
+      check(conflict.alertLinks.length === 1 && conflict.alertLinks[0] === "Открыть в «Виза и выезд»", `the link sits in the conflict line (${conflict.alertLinks})`);
+      check(conflict.hintLinks === 1, `one link, no second notice box (${conflict.hintLinks})`);
+      check(conflict.shownStatus.length === 0, `no second notice at 390 (${conflict.shownStatus})`);
+      check(conflict.focus === "alert-link:Открыть в «Виза и выезд»", `focus on the inline link at 390 (${conflict.focus})`);
       await shot(page, "conflict", 390);
-      report({ journey: "undo-390", offer, undone, conflict, link, recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
+      report({ journey: "undo-390", offer, undone, conflict, recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
       check(pageErrors(console_).length === 0, `console clean at 390: ${pageErrors(console_).join(" | ")}`);
+      await context.close();
+    }
+    // 3. Только клавиатура, 1440 и 390: кольцо на «Отменить», на вернувшейся карточке и на цели после отказа.
+    for (const { width, height, mobile, n, name, from, to, elsewhere, expect } of [
+      { width: 1440, height: 900, mobile: false, n: 5, name: "Бекзат Тестов", from: "Документы", to: "Готовы к подаче",
+        elsewhere: "awaiting_decision", expect: { focus: "card:moved", column: "Ожидаем решения", where: "Сейчас дело «Бекзат Тестов» — в «Ожидаем решения»." } },
+      { width: 390, height: 844, mobile: true, n: 2, name: "Тимур Образцов", from: "Новые", to: "Документы",
+        elsewhere: "visa", expect: { focus: "alert-link:Открыть в «Виза и выезд»", column: null, where: "Сейчас дело «Тимур Образцов» — в «Оформление визы»." } },
+    ]) {
+      const { context, page, console_ } = await open({ width, height }, mobile);
+      await keyboardMove(page, n, to, `kbd ${width}`);
+      await waitOffer(page);
+      await offerFocused(page);
+      const offer = await state(page, n);
+      common(`kbd offer ${width}`, offer);
+      check(offer.focus === "undo", `kbd ${width}: focus on «Отменить» (${offer.focus})`);
+      ringed(`kbd offer ${width}`, offer);
+      check(offer.offer === `${movedText(name, to)} Отменить`, `kbd ${width}: offer ${offer.offer}`);
+      await shot(page, "kbd-offer", width);
+      await page.keyboard.press("Enter");
+      await noOffer(page);
+      await cardIn(page, n, from);
+      await page.waitForTimeout(100);
+      const undone = await state(page, n);
+      common(`kbd undone ${width}`, undone);
+      check(undone.focus === "card:moved", `kbd ${width}: focus on the returned card (${undone.focus})`);
+      ringed(`kbd undone ${width}`, undone);
+      check(undone.shownStatus.includes(undoneText(name, from)), `kbd ${width}: undo result shown (${undone.shownStatus})`);
+      await shot(page, "kbd-undone", width);
+      await keyboardMove(page, n, to, `kbd again ${width}`);
+      await waitOffer(page);
+      await offerFocused(page);
+      await page.evaluate(([id, stage]) => globalThis.__boardsFixture.moveElsewhere(id, stage), [caseId(n), elsewhere]);
+      await page.keyboard.press("Enter");
+      await page.getByRole("alert").waitFor();
+      await page.waitForTimeout(150);
+      const conflict = await state(page, n);
+      common(`kbd conflict ${width}`, conflict);
+      check(conflict.alert === `${REFUSED} ${expect.where}`, `kbd ${width}: conflict line ${conflict.alert}`);
+      check(conflict.column === expect.column, `kbd ${width}: card where the server says (${conflict.column})`);
+      check(conflict.focus === expect.focus, `kbd ${width}: focus after the conflict (${conflict.focus})`);
+      ringed(`kbd conflict ${width}`, conflict);
+      await shot(page, "kbd-conflict", width);
+      report({ journey: `keyboard-${width}`, offer: { focus: offer.focus, ring: offer.ring }, undone: { focus: undone.focus, ring: undone.ring },
+        conflict: { focus: conflict.focus, ring: conflict.ring, alert: conflict.alert }, console: console_ });
+      check(pageErrors(console_).length === 0, `console clean kbd ${width}: ${pageErrors(console_).join(" | ")}`);
       await context.close();
     }
   } finally {

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
 import { Inbox, inboxNotConnected } from "@/components/v3/Inbox";
+import { ConversationChannels } from "@/components/v3/ConversationChannels";
 import { InboxProviderWorkflowControls } from "@/components/v3/InboxProviderWorkflowControls";
 import { PartShell } from "@/components/v3/PartShell";
 import { getLocale } from "@/lib/i18n";
@@ -18,11 +19,12 @@ import {
   type InboxAmoCrmCommand,
 } from "@/lib/v3/inbox-source";
 import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
+import { conversationChannels } from "@/lib/v3/navigation";
 import { readV3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "WhatsApp" };
+export const metadata = { title: "Переписки" };
 
 type SearchParams = Readonly<{
   q?: string | string[];
@@ -130,15 +132,20 @@ export default async function InboxPart({
     );
   }
 
-  // Не подключён и пусто: считать нечего, числа в заголовке нет. Подключает
+  // Не подключён и пусто: считать нечего, числа у канала нет. Подключает
   // Администратор — только ему ссылка на Настройки (не в просмотре роли).
   const notConnected = inboxNotConnected(view);
   const settingsHref = actor.systemRole === "admin" && actor.presentationRole === null
     ? "/v3/settings?section=integrations"
     : null;
 
+  // «Переписки» (Э5): канал WhatsApp рядом с «Кабинетом студента»; число
+  // диалогов страницы — у вкладки канала, а не у заголовка всех переписок.
   return (
-    <PartShell title="WhatsApp" count={notConnected ? null : view.conversations.length} fill>
+    <PartShell title="Переписки" fill>
+      <div className="mb-4 shrink-0">
+        <ConversationChannels channels={conversationChannels(actor)} current="whatsapp" count={notConnected ? null : view.conversations.length} />
+      </div>
       <Inbox
         view={view}
         profileHref={profileHref}

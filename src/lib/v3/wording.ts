@@ -272,6 +272,14 @@ const CASE_CHAT_AWAIT_STATE: Record<string, string> = {
   awaiting_student: "Ждём студента",
 };
 
+// Э5 «Переписки» (27.09.2026): подписи видимого переключателя состояния в
+// шапке переписки. Третье состояние — действие «ответ не требуется», короче.
+const CASE_CHAT_AWAIT_CHOICE: Record<string, string> = {
+  needs_reply: "Нужен ответ",
+  awaiting_student: "Ждём студента",
+  none: "Не требуется",
+};
+
 // PORT-5b «Запрос консультации» (миграция 197): состояние запроса из
 // кабинета студента в очереди «Заявки».
 const PORTAL_CONSULTATION_STATUS: Record<string, string> = {
@@ -473,6 +481,7 @@ export const admissionsPipelineStage = (v: string | null | undefined) =>
   lookup(ADMISSIONS_PIPELINE_STAGE, v);
 export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];
 export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_STATE, v);
+export const caseChatAwaitChoice = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE, v);
 export const portalConsultationStatus = (v: string | null | undefined) =>
   lookup(PORTAL_CONSULTATION_STATUS, v);
 export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];

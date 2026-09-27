@@ -4,7 +4,7 @@ import { useState, type RefObject } from "react";
 
 import { btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 
-import { insertReplySnippetWithinCodePointLimit } from "./insert-reply-snippet";
+import { insertReplySnippetWithinCodePointLimit, REPLY_MESSAGE_MAX_CODE_POINTS } from "./insert-reply-snippet";
 
 export type ReplySnippetPickerItem = Readonly<{
   replySnippetId: string;
@@ -18,6 +18,11 @@ export type ReplySnippetPickerProps = Readonly<{
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   onMessageTextChange: (value: string) => void;
   disabled?: boolean;
+  /**
+   * Предел итогового текста в знаках Unicode. По умолчанию — предел
+   * отправки WhatsApp (3000); переписка по делу передаёт свой (8000, Э5).
+   */
+  maxCodePoints?: number;
 }>;
 
 export function ReplySnippetPicker({
@@ -26,6 +31,7 @@ export function ReplySnippetPicker({
   textareaRef,
   onMessageTextChange,
   disabled = false,
+  maxCodePoints = REPLY_MESSAGE_MAX_CODE_POINTS,
 }: ReplySnippetPickerProps) {
   const [selectedId, setSelectedId] = useState(snippets[0]?.replySnippetId ?? "");
   const [rejectedMessageText, setRejectedMessageText] = useState<string | null>(
@@ -47,6 +53,7 @@ export function ReplySnippetPicker({
       snippet.body,
       textarea?.selectionStart,
       textarea?.selectionEnd,
+      maxCodePoints,
     );
     if (!insertion.accepted) {
       setRejectedMessageText(messageText);
@@ -98,7 +105,7 @@ export function ReplySnippetPicker({
       </div>
       {rejectedMessageText === messageText ? (
         <p role="alert" className="text-sm text-danger">
-          Шаблон не вставлен: финальный текст не может превышать 3000 символов.
+          Шаблон не вставлен: финальный текст не может превышать {maxCodePoints} символов.
         </p>
       ) : null}
     </div>

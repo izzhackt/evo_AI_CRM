@@ -2779,6 +2779,21 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_requests_queue_triage.sql
   fi
+
+  # Migration 251 (Э7 «Отменить» на доске поступления с проверкой версии,
+  # owner-accepted redesign plan 25.09): pipeline_version with its trigger and
+  # move_case_pipeline_v2 beside the untouched v1. Members modelled like
+  # production (coarse role NULL, the production bundles, as in 244's suite):
+  # allowed and refused exactly like v1, request-id replay shared with v1, the
+  # undo accepted when nobody moved the case and refused with
+  # case_pipeline_moved (PT409) and the current position when someone did —
+  # also away and back — with nothing written; v1 bumps the version; only
+  # position changes bump and a direct write of the version is put back.
+  if [[ "$(basename "$migration")" == 251_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_pipeline_move_undo.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -136,7 +136,6 @@ export default async function CalendarPart({
         assignees={workspace.assignees}
         actorMembershipId={actor.membershipId}
         actor={actor}
-        createRequestId={randomUUID()}
         taskRequestIds={taskRequestIds}
         basePath="/v3/calendar"
       />

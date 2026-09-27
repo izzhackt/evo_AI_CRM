@@ -13,8 +13,10 @@ import type {
 } from "@/lib/platform-student-case-queue-contract";
 
 import type { V3Look } from "../blocks/look";
+import { useBulkSelection } from "../queue/Bulk";
 import { QueueEmpty, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
+import { curatorAssignable, stepDueEditable, StudentsBulkActions, type StudentsBulkAccess } from "./StudentsBulkActions";
 import { StudentQuickView, StudentQuickViewMissing } from "./StudentQuickView";
 import { StudentsQueueTable } from "./StudentsQueueTable";
 import {
@@ -78,6 +80,7 @@ export function StudentsQueueBody({
   createTask,
   requestId,
   look,
+  curators = null,
 }: Readonly<{
   /** Вкладки, строка инструментов и заметки над таблицей (рисует сервер). */
   head: ReactNode;
@@ -100,6 +103,11 @@ export function StudentsQueueBody({
   requestId: string;
   /** Новый облик (Э1.3): общие блоки в таблице и «Быстром просмотре». */
   look?: V3Look;
+  /**
+   * Кураторы для «Назначить куратора» выбранным (Э7) — только тому, кто
+   * назначает кураторов (`case.curator.assign`); null — действия нет.
+   */
+  curators?: readonly Readonly<{ membershipId: string; displayName: string }>[] | null;
 }>) {
   const router = useRouter();
   const openKey = params.open;
@@ -161,6 +169,17 @@ export function StudentsQueueBody({
     case: studentsCaseHref(row.studentCaseId, { returnTo: returnTo(row.studentCaseId) }),
   });
   const closeHref = studentsQueueHref(params, { open: null });
+
+  // Массовые действия (Э7): отметить можно дело, к которому подходит хотя бы
+  // одно действие роли; нет таких — нет колонки. Права — подсказка, каждое
+  // дело проверяет сервер.
+  const bulkAccess: StudentsBulkAccess = { curators: editor.preview ? null : curators, editor, recordScopes };
+  const selectable = new Map(shownRows
+    .filter((row) => curatorAssignable(bulkAccess, row) || stepDueEditable(bulkAccess, row))
+    .map((row) => [row.studentCaseId, row] as const));
+  const selectableKeys = [...selectable.keys()];
+  const selection = useBulkSelection(selectableKeys);
+  const bulk = selectable.size > 0;
   const caption = `${STUDENTS_VIEW_LABELS[params.view as StudentsQueueView]}: ${rows.length} на этой странице`;
   const empty = rows.length === 0 ? studentsEmptyState(params, counts) : null;
   const panel = openKey === null ? null : openRow ? (
@@ -228,9 +247,15 @@ export function StudentsQueueBody({
                 selectedKey={openKey}
                 links={links}
                 look={look}
+                select={bulk ? (row) => ({
+                  available: selectable.has(row.studentCaseId),
+                  checked: selection.has(row.studentCaseId),
+                  onToggle: () => selection.toggle(row.studentCaseId),
+                }) : null}
               />
             )}
           </div>
+          {bulk ? <StudentsBulkActions selection={selection} rows={selectable} allKeys={selectableKeys} today={today} access={bulkAccess} /> : null}
           {params.cursor || nextCursor ? (
             <nav aria-label="Страницы списка студентов" className="flex flex-wrap items-center gap-x-6">
               {params.cursor ? <Link className={QUEUE_QUIET_LINK} scroll={false} href={studentsQueueHref(params, { cursor: null, open: null })}><Icon name="arrow-left" size={16} />К началу</Link> : null}

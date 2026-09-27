@@ -6,6 +6,7 @@ import { admissionsPipelineStage } from "@/lib/v3/wording";
 
 import { DIRECTION_LABELS } from "../profile/admissions-view";
 import { FilterMenu, type FilterOption } from "../queue/FilterMenu";
+import { SELECT_KEY } from "../queue/keyboard-keys";
 import { activeFilterCount } from "../queue/queue-url";
 import { QueueToolbar } from "../queue/QueueToolbar";
 import { QueueViewTabs } from "../queue/QueueViewTabs";
@@ -59,12 +60,15 @@ export function StudentsToolbar({
   counts,
   curatorFilter,
   curatorNames,
+  selectKey = false,
 }: Readonly<{
   params: StudentsQueueParams;
   counts: StudentCaseQueueCounts | null;
   /** «Куратор ▾» — с правом назначать кураторов (и у всех, если фильтр уже в адресе). */
   curatorFilter: boolean;
   curatorNames: readonly CuratorName[];
+  /** У роли есть массовые действия (Э7): «x» — в окне «?». */
+  selectKey?: boolean;
 }>) {
   const queue = params.mode === "queue";
   // Выбор порядка есть только у видов с шагами (studentsEffectiveSort).
@@ -146,7 +150,7 @@ export function StudentsToolbar({
       filters={filters}
       activeCount={active}
       resetHref={active ? studentsListHref(params, { query: null, direction: null, curator: null, stage: null, sort: null }) : null}
-      keys={queue ? [[["Shift", "Enter"], "открыть дело"]] : []}
+      keys={queue ? [[["Shift", "Enter"], "открыть дело"], ...(selectKey ? [SELECT_KEY] : [])] : []}
     />
   );
 }

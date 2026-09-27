@@ -370,13 +370,17 @@ test("«Срок» is its own column right before the title, not at the far edge
   const mine = surfaces.get("mine-default");
   const row = mine.slice(mine.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
   // `.v3-queue-row`: ссылка строки покрывает строку — фокус клавиатуры рамкой всей строки (26.09.2026).
-  assert.match(row, /^[^>]*class="v3-queue-row relative grid grid-cols-\[2\.75rem_minmax\(0,1fr\)_2\.75rem\] [^"]*@min-\[32rem\]:grid-cols-\[2\.75rem_7rem_minmax\(0,1fr\)_2\.75rem\] hover:bg-surface/u);
+  // Э7: у того, кто правит задачи, первая колонка шире — отметка для массовых действий и круг рядом.
+  assert.match(row, /^[^>]*class="v3-queue-row relative grid grid-cols-\[5\.5rem_minmax\(0,1fr\)_2\.75rem\] [^"]*@min-\[32rem\]:grid-cols-\[5\.5rem_7rem_minmax\(0,1fr\)_2\.75rem\] hover:bg-surface/u);
+  assert.match(row, /^[^>]*><div class="flex"><label [^>]*><input type="checkbox" data-queue-select=""[^>]*aria-label="Выбрать: Подтвердить подачу в UCSI"/u);
   // DOM order = visual order: circle, date column, then the title link.
   assert.match(row, /^[^>]*><div class="flex">[\s\S]*?<\/div><p class="hidden self-start pt-1 t-body-compact @min-\[32rem\]:block"><time [^>]*>20\.09<\/time>[\s\S]*?<\/p><div class="min-w-0 py-0\.5"><a data-queue-open=""/u);
   // The narrow meta line leads with the same date.
   assert.match(row, /<p class="flex min-h-6 min-w-0 items-center[^"]*"><span class="shrink-0 @min-\[32rem\]:hidden"><span class="text-danger"><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> прошёл<\/span> ·<\/span>/u);
   const team = surfaces.get("team-view");
-  assert.match(team, /@3xl:grid-cols-\[2\.75rem_7rem_minmax\(0,1fr\)_minmax\(0,11rem\)_2\.75rem\]/u);
+  assert.match(team, /@3xl:grid-cols-\[5\.5rem_7rem_minmax\(0,1fr\)_minmax\(0,11rem\)_2\.75rem\]/u);
+  // Без права правки колонки выбора нет: прежняя сетка.
+  assert.match(surfaces.get("done-view"), /class="v3-queue-row relative grid grid-cols-\[2\.75rem_minmax\(0,1fr\)_2\.75rem\] /u);
 });
 
 test("the assignee is marked wherever it has no column of its own", () => {
@@ -472,7 +476,9 @@ test("the calendar loses only «Сводка на Главной» and its secon
   assert.match(page, /<PartShell title="Календарь">\s*<Calendar/u);
   assert.doesNotMatch(read("src/app/(v3)/v3/calendar/loading.tsx"), /h-16/u);
   const calendar = read("src/components/v3/calendar/Calendar.tsx");
-  const button = calendar.slice(calendar.lastIndexOf("<button", calendar.indexOf("Задача по студенту</button>")), calendar.indexOf("Задача по студенту</button>"));
+  // Э7: «Новая задача» календаря — тот же диалог, что у всех входов, с тихой кнопкой.
+  const button = calendar.slice(calendar.indexOf("<TaskComposerDialog"), calendar.indexOf("Новая задача</>}"));
+  assert.match(button, /triggerTestId="v3-calendar-new-task"/u);
   assert.doesNotMatch(button, /\bbg-accent\b/u);
-  assert.match(calendar, /canCreate \? <CalendarCreateTaskForm/u, "creating a case task from the calendar still works");
+  assert.match(calendar, /canCreate \|\| canCreateStaff \? <TaskComposerDialog/u, "creating a task from the calendar still works");
 });

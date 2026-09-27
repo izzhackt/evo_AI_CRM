@@ -25,6 +25,7 @@ import {
 import { roleTitle } from "@/lib/v3/wording";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
 import { AppShellNext, useScrollEdges } from "@/components/v3/AppShellNext";
+import { onCreateTaskClick, PaletteButton, ShellCommands } from "@/components/v3/palette/ShellCommands";
 import type { StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 
 const LINK_ICONS = {
@@ -417,13 +418,14 @@ function CurrentAppShell({
           ) : null}
           {/* Общее действие оболочки — нейтральное: красным остаётся главное
               действие самой страницы (решение владельца 25.09.2026). */}
-          {!previewing && staffHasPermission(actor, "staff.task.create") ? <Link href="/v3/tasks?create=staff" onClick={(event) => {
-            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-            event.preventDefault();
+          {/* Э7: обычное нажатие открывает диалог «Новая задача» на месте (с
+              контекстом страницы), ссылка остаётся прежним путём. */}
+          {!previewing && staffHasPermission(actor, "staff.task.create") ? <Link href="/v3/tasks?create=staff" onClick={(event) => onCreateTaskClick(event, () => {
             router.push(`/v3/tasks?create=staff&open=${crypto.randomUUID()}`);
-          }} className="inline-flex min-h-11 items-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          })} className="inline-flex min-h-11 items-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
             <Icon name="plus" size={18} />Создать задачу
           </Link> : null}
+          <PaletteButton label className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" />
           {!previewing ? <StaffNotifications initialPage={initialNotifications} /> : (
             <div className="flex w-full flex-wrap items-center justify-between gap-2" data-testid="preview-active">
               <span className="text-sm text-fg-2">Интерфейс: {roleTitle(actor.presentationRole!)}</span>
@@ -445,6 +447,7 @@ function CurrentAppShell({
           {children}
         </div>
       </div>
+      <ShellCommands actor={actor} navigation={navigation} />
     </div>
   );
 }

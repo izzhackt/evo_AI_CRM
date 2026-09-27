@@ -6,10 +6,12 @@ import type { QueueTask } from "@/lib/v3/task-queue";
 
 import { isNextLook, type V3Look } from "../blocks/look";
 import { UndoToast } from "../blocks/UndoToast";
+import { useBulkSelection } from "../queue/Bulk";
 import { DueBands } from "../queue/DueBands";
 import { queueHref, type QueueParams } from "../queue/queue-url";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
-import { TaskQueueRow, type TaskRowPermissions } from "./TaskQueueRow";
+import { TaskBulkActions } from "./TaskBulkActions";
+import { TaskQueueRow, taskRowAbilities, type TaskRowPermissions } from "./TaskQueueRow";
 import { useRecentCompletions } from "./useRecentCompletions";
 
 export type TaskQueueBandData = Readonly<{
@@ -60,6 +62,16 @@ export function TaskQueueList({
   const [undoState, setUndoState] = useState<Readonly<Record<string, Readonly<{ completedAt: number; pending: boolean; error: string | null }>>>>({});
   useQueueKeyboard({ openKey });
 
+  // Массовые действия (Э7): выбрать можно задачи, которые сотрудник может
+  // править, — открытые и не только что завершённые. Нет таких — нет колонки.
+  const now = new Date(nowIso);
+  const selectable = new Map(shown.flatMap((band) => band.rows)
+    .filter((task) => !recent[task.key] && taskRowAbilities(task, permissions, open, now).edit)
+    .map((task) => [task.key, task] as const));
+  const selectableKeys = [...selectable.keys()];
+  const selection = useBulkSelection(selectableKeys);
+  const bulk = selectable.size > 0;
+
   const toasts = isNextLook(look) ? Object.values(recent).filter((entry) => !entry.expired).map((entry) => {
     const key = entry.task.key;
     const { completedAt } = entry;
@@ -106,6 +118,7 @@ export function TaskQueueList({
               nowIso={nowIso}
               permissions={permissions}
               look={look}
+              select={bulk ? { available: selectable.has(task.key), checked: selection.has(task.key), onToggle: () => selection.toggle(task.key) } : null}
               recent={recent[task.key] ?? null}
               announce={announce}
               onUndo={undo}
@@ -114,6 +127,7 @@ export function TaskQueueList({
           )),
         }))}
       />
+      {bulk ? <TaskBulkActions selection={selection} tasks={selectable} allKeys={selectableKeys} nowIso={nowIso} /> : null}
       {/* Последним: место прочих детей и их `useId` — как в прежнем облике. */}
       {toasts ? <UndoToast items={toasts} onHold={hold} /> : null}
     </>

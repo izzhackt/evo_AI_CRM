@@ -58,6 +58,7 @@ const composer = compile("src/components/v3/tasks/TaskComposerDialog.tsx", id =>
   if (id === "@/lib/v3/task-composer-actions") return { readTaskComposerAssigneesAction: unavailableAction };
   if (id === "./ComposerDeadlineField") return deadline;
   if (id === "./TaskCasePicker") return casePicker;
+  if (id === "../queue/queue-buttons") return queueButtons;
   return require(id);
 });
 
@@ -127,7 +128,8 @@ test("the real Auth scenario binds current Admissions rights and expects no visi
   const createEnd = scenario.indexOf("const createdTask = page", createBegin);
   assert.ok(createBegin >= 0 && createEnd > createBegin);
   const creation = scenario.slice(createBegin, createEnd);
-  assert.match(scenario, /page\.getByTestId\("v3-calendar-new-task"\)\.click\(\)/);
+  // Э7: «Создать задачу» оболочки (с днём календаря), а у кого её нет — своя кнопка календаря.
+  assert.match(scenario, /page\.locator\('a\[href="\/v3\/tasks\?create=staff"\], \[data-testid="v3-calendar-new-task"\]'\)\.filter\(\{ visible: true \}\)\.first\(\)\.click\(\)/);
   assert.doesNotMatch(render(scopedAdmissions), /name="student_visible"/);
   assert.ok(/expect\(createTask\.locator\('select\[name="student_visible"\]'\)\)\.toHaveCount\(0\)/.test(creation));
   assert.equal(/locator\('select\[name="student_visible"\]'\)[\s\S]*?\.selectOption/.test(creation), false);

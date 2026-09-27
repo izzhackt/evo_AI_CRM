@@ -6,7 +6,7 @@ import type { QueueTask } from "@/lib/v3/task-queue";
 
 import { isNextLook, type V3Look } from "../blocks/look";
 import { UndoToast } from "../blocks/UndoToast";
-import { useBulkSelection } from "../queue/Bulk";
+import { BulkPickToggle, useBulkSelection } from "../queue/Bulk";
 import { DueBands } from "../queue/DueBands";
 import { queueHref, type QueueParams } from "../queue/queue-url";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
@@ -100,6 +100,7 @@ export function TaskQueueList({
   return (
     <>
       <p role="status" aria-live="polite" className="sr-only">{message}</p>
+      {bulk ? <BulkPickToggle selection={selection} /> : null}
       <DueBands
         bands={shown.map((band) => ({
           key: band.key,
@@ -118,7 +119,7 @@ export function TaskQueueList({
               nowIso={nowIso}
               permissions={permissions}
               look={look}
-              select={bulk ? { available: selectable.has(task.key), checked: selection.has(task.key), onToggle: () => selection.toggle(task.key) } : null}
+              select={bulk ? { available: selectable.has(task.key), checked: selection.has(task.key), onToggle: () => selection.toggle(task.key), revealed: selection.revealed } : null}
               recent={recent[task.key] ?? null}
               announce={announce}
               onUndo={undo}

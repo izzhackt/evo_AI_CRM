@@ -47,6 +47,7 @@ const { buildStudentsQueueScreen } = require("@/components/v3/students/StudentsQ
 const studentsView = require("@/components/v3/students/students-queue-view");
 const { Calendar } = require("@/components/v3/calendar/Calendar");
 const { gridDays } = require("@/components/v3/calendar/types");
+const { TaskComposerContextMark } = require("@/components/v3/tasks/task-composer-context");
 const h = React.createElement;
 
 const fixture = JSON.parse(document.getElementById("e7-fixture").textContent);
@@ -224,7 +225,21 @@ window.__e7Actions = {
   loadStaffNotificationsAction: async () => ({ ok: true, page: { items: [], unreadCount: "0", nextCursor: null } }),
 };
 
-const pages = { tasks: tasksPage, students: () => studentsPage(fixture.search), calendar: calendarPage };
+/**
+ * Страница дела на телефоне: настоящее дело (CaseWorkParts) в этот рендер не
+ * входит — вместо него та же отметка контекста, что ставит страница дела
+ * (\`TaskComposerContextMark\` с делом и его исполнителями). «Создать задачу»
+ * оболочки берёт из неё дело, которое можно убрать («Без дела»).
+ */
+function casePage() {
+  const row = STUDENTS[2];
+  return h(PartShell, { title: row.studentDisplayName },
+    h(TaskComposerContextMark, { value: { case: { id: row.studentCaseId, name: row.studentDisplayName },
+      caseAssignees: PARTICIPANTS.map(({ membershipId, displayName }) => ({ membershipId, displayName })) } }),
+    h("p", { className: "t-body-compact text-fg-2" }, "Синтетическая страница дела: только контекст для диалога задачи."));
+}
+
+const pages = { tasks: tasksPage, students: () => studentsPage(fixture.search), calendar: calendarPage, case: casePage };
 const tree = h(AppRouterContext.Provider, { value: router },
   h(PathnameContext.Provider, { value: fixture.pathname },
     h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
@@ -321,6 +336,7 @@ const PAGES = {
   students: { pathname: "/v3/profile", search: `view=active&open=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
   "students-plain": { page: "students", pathname: "/v3/profile", search: "view=active" },
   calendar: { pathname: "/v3/calendar", search: "view=week&date=2026-09-26" },
+  case: { pathname: "/v3/profile", search: `case=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
 };
 
 const isPhone = (page) => page.viewportSize().width < 768;
@@ -333,30 +349,45 @@ async function clickShellCreate(page) {
   await page.waitForSelector('[data-testid="v3-task-composer-dialog"][open]');
 }
 
+/** Телефон: отметок нет, пока не нажато «Выбрать»; на компьютере колонка видна сразу. */
+async function revealSelect(page) {
+  if (!isPhone(page)) return;
+  const shown = await page.locator("[data-queue-select]").filter({ visible: true }).count();
+  if (shown) throw new Error(`phone shows ${shown} row checkboxes before «Выбрать»`);
+  await page.getByTestId("queue-bulk-pick").click();
+}
+
 async function selectRows(page, count) {
+  await revealSelect(page);
   const boxes = page.locator("[data-queue-select]");
   for (let index = 0; index < count; index += 1) await boxes.nth(index).check();
   await page.waitForSelector('[data-testid="queue-bulk-bar"]');
 }
 
-// [имя снимка, страница, шаги]
+// [имя снимка, страница (или страница по ширине), шаги]
 const SHOTS = [
-  ["e7-composer-shell", "students", async (page) => {
-    // Телефон: «Быстрый просмотр» — окно поверх страницы; дело открывает его «+ Задача» (тот же диалог оболочки).
-    if (isPhone(page)) {
-      await page.getByTestId("queue-detail-panel").locator("a", { hasText: "+ Задача" }).click();
-      await page.waitForSelector('[data-testid="v3-task-composer-dialog"][open]');
-    } else await clickShellCreate(page);
+  // «Создать задачу» оболочки с контекстом страницы: на компьютере — «Быстрый
+  // просмотр» справа от «Студентов»; на телефоне он — окно поверх страницы, поэтому
+  // контекст даёт страница дела (отметка той же формы, что у CaseWorkParts).
+  ["e7-composer-shell", (width) => (width === "390" ? "case" : "students"), async (page) => {
+    await clickShellCreate(page);
+    await page.getByTestId("v3-task-composer-dialog").locator('[data-composer-context="case"] button', { hasText: "Без дела" }).waitFor();
   }],
+  // Календарь: своей кнопки у того, у кого есть кнопка оболочки, нет; оболочка открывает диалог с выбранным днём.
   ["e7-composer-calendar", "calendar", async (page) => {
-    await page.getByTestId("v3-calendar-new-task").click();
-    await page.waitForSelector('[data-testid="v3-task-composer-dialog"][open]');
+    const own = await page.getByTestId("v3-calendar-new-task").count();
+    if (own) throw new Error("the calendar shows its own create button next to the shell one");
+    await clickShellCreate(page);
+    const due = await page.locator('[data-testid="v3-task-composer-dialog"] input[name="due_on"]').inputValue();
+    if (due !== "2026-09-26") throw new Error(`the calendar day is not the default deadline: ${due}`);
   }],
   ["e7-composer-quickadd", "tasks", async (page) => {
     await page.fill('[data-testid="task-quick-add"] input', "Позвонить семье после консультации");
     await page.keyboard.press("Enter");
     await page.waitForSelector('[data-testid="v3-task-composer-dialog"][open]');
   }],
+  // До выбора: на компьютере колонка отметок, на телефоне — только «Выбрать».
+  ["e7-select-idle", "tasks", async () => {}],
   ["e7-bulk-tasks", "tasks", async (page) => { await selectRows(page, 3); }],
   ["e7-bulk-tasks-dialog", "tasks", async (page) => {
     await selectRows(page, 3);
@@ -374,6 +405,7 @@ const SHOTS = [
   }],
   ["e7-bulk-students", "students-plain", async (page) => { await selectRows(page, 4); }],
   ["e7-bulk-students-curator", "students-plain", async (page) => {
+    await revealSelect(page);
     await page.locator('[data-student-case-id$="000000000006"] [data-queue-select]').check();
     await page.locator('[data-student-case-id$="000000000007"] [data-queue-select]').check();
     await page.locator('[data-student-case-id$="000000000001"] [data-queue-select]').check();
@@ -427,6 +459,14 @@ function probe() {
   const smallest = texts.reduce((min, element) => Math.min(min, parseFloat(getComputedStyle(element).fontSize)), 99);
   const active = document.activeElement;
   const bar = document.querySelector('[data-testid="queue-bulk-bar"]');
+  const selectAll = bar?.querySelector("[data-bulk-select-all]");
+  // Главная кнопка диалога задачи — в окне и видна (закреплённый низ, телефон с «Датой» и «Временем»).
+  const submit = document.querySelector('[data-testid="v3-task-composer-dialog"][open] button[type="submit"]');
+  const submitBox = submit?.getBoundingClientRect();
+  // Полоса под строкой действий: от её низа до нижней панели (или края окна) — ничего не просвечивает.
+  const dock = document.querySelector("[data-bulk-dock]");
+  const tabbar = [...document.querySelectorAll('[data-testid="v3-shell-tabbar"]')].find(visible);
+  const floor = tabbar ? tabbar.getBoundingClientRect().top : innerHeight;
   return {
     overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     minText: smallest,
@@ -434,6 +474,10 @@ function probe() {
     modal: document.querySelector("dialog:modal")?.getAttribute("data-testid") ?? null,
     solidRed: [...document.querySelectorAll("a, button")].filter((element) => getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)" && visible(element)).length,
     bulkBar: bar ? bar.textContent.replace(/\s+/gu, " ").trim() : null,
+    selectAll: selectAll ? selectAll.innerText.replace(/\s+/gu, " ").trim() : null,
+    submitInView: submitBox ? submitBox.top >= 0 && submitBox.bottom <= innerHeight : null,
+    dockGap: dock ? Math.round(floor - dock.getBoundingClientRect().bottom) : null,
+    phoneBoxes: innerWidth < 640 ? [...document.querySelectorAll("[data-queue-select]")].filter(visible).length : null,
     selected: document.querySelectorAll("[data-queue-select]:checked").length,
     calls: window.__e7.calls.length,
   };
@@ -465,9 +509,10 @@ async function screenshots() {
   ];
   const failures = [];
   try {
-    for (const [shot, pageName, step] of SHOTS) {
+    for (const [shot, pageFor, step] of SHOTS) {
       for (const [width, context] of VIEWPORTS) {
         const file = `${shot.replace(/^e7-/u, LOOK_NEXT ? "e7-next-" : "e7-")}-${width}.png`;
+        const pageName = typeof pageFor === "function" ? pageFor(width) : pageFor;
         const browserContext = await browser.newContext(context);
         const page = await browserContext.newPage();
         const errors = [];
@@ -486,6 +531,9 @@ async function screenshots() {
         if (facts.overflow > 0) failures.push(`${file}: horizontal overflow ${facts.overflow}px`);
         if (facts.minText < 12) failures.push(`${file}: text smaller than 12px (${facts.minText}px)`);
         if (facts.focusInDialog === false) failures.push(`${file}: focus is outside the open dialog`);
+        if (facts.submitInView === false) failures.push(`${file}: «Создать задачу» is outside the viewport`);
+        if (facts.selectAll !== null && !/ · \d+$/u.test(facts.selectAll)) failures.push(`${file}: «Выбрать все» reads «${facts.selectAll}»`);
+        if (shot === "e7-select-idle" && facts.phoneBoxes) failures.push(`${file}: ${facts.phoneBoxes} checkboxes before «Выбрать»`);
         const real = errors.filter((message) => !/server action .* is not available/u.test(message));
         if (real.length) failures.push(`${file}: browser errors: ${real.join(" | ")}`);
         await page.screenshot({ path: join(outDir, file), fullPage: false });
@@ -552,6 +600,55 @@ async function keyboardProbe(browser, outDir, failures) {
   const closed = await page.evaluate(() => document.querySelector('[data-testid="v3-command-palette"]')?.open);
   expect("Esc closes the palette", closed === false, { closed });
   process.stdout.write(`keyboard: x, j+x, Ctrl+K, Tab trap, «созд»+Enter → composer, Esc → row, «кален»+Enter → /v3/calendar, Esc ok\n`);
+  await context.close();
+  await bulkFocusProbe(browser, outDir, expect);
+}
+
+/**
+ * Полный успех массового действия с клавиатуры: выбор пустеет, строка
+ * действий уходит вместе с кнопкой — фокус после «Готово» встаёт на
+ * отправленную строку списка, а не на `body`. Частичный отказ оставляет
+ * строку действий — фокус возвращается на её кнопку.
+ */
+async function bulkFocusProbe(browser, outDir, expect) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}tasks.html`)).href, { waitUntil: "load" });
+  await page.waitForSelector("html[data-rendered]", { state: "attached" });
+  const row = page.locator('[data-kind="staff"][data-queue-row]').first();
+  const key = await row.getAttribute("data-queue-row");
+  await row.locator("[data-queue-select]").focus();
+  await page.keyboard.press("Space");
+  await page.getByTestId("task-bulk-reschedule-trigger").focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByTestId("task-bulk-reschedule");
+  await dialog.waitFor();
+  // Срок по умолчанию — «Завтра»; отправка — кнопкой формы.
+  await dialog.locator('button[type="submit"]').focus();
+  await page.keyboard.press("Enter");
+  await dialog.locator("[data-bulk-result]").waitFor();
+  const onDone = await page.evaluate(() => document.activeElement?.textContent ?? null);
+  expect("the result focuses «Готово»", onDone === "Готово", { onDone });
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(100);
+  const after = await page.evaluate(() => ({
+    tag: document.activeElement?.tagName ?? null,
+    row: document.activeElement?.closest("[data-queue-row]")?.getAttribute("data-queue-row") ?? null,
+    bar: Boolean(document.querySelector('[data-testid="queue-bulk-bar"]')),
+  }));
+  expect("full success: the bar is gone and focus is on the sent row, not body", !after.bar && after.row === key && after.tag !== "BODY", { after, key });
+  // Частичный отказ: две строки, вторая отвечает отказом — строка действий остаётся, фокус — на её кнопке.
+  const rows = page.locator('[data-kind="staff"][data-queue-row] [data-queue-select]');
+  await rows.nth(0).check();
+  await rows.nth(1).check();
+  await page.getByTestId("task-bulk-reschedule-trigger").click();
+  await dialog.locator('button[type="submit"]').click();
+  await dialog.locator("[data-bulk-result]").waitFor();
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(100);
+  const partial = await page.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? document.activeElement?.tagName ?? null);
+  expect("partial failure: focus returns to the action button", partial === "task-bulk-reschedule-trigger", { partial });
+  process.stdout.write(`bulk focus: full success → row ${after.row === key ? "ok" : "MISSING"}, partial → ${partial}\n`);
   await context.close();
 }
 

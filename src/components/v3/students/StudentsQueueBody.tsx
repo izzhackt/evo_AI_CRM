@@ -13,7 +13,7 @@ import type {
 } from "@/lib/platform-student-case-queue-contract";
 
 import type { V3Look } from "../blocks/look";
-import { useBulkSelection } from "../queue/Bulk";
+import { BulkPickToggle, useBulkSelection } from "../queue/Bulk";
 import { QueueEmpty, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
 import { curatorAssignable, stepDueEditable, StudentsBulkActions, type StudentsBulkAccess } from "./StudentsBulkActions";
@@ -229,6 +229,7 @@ export function StudentsQueueBody({
       {head}
       <div className={panel ? "xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6" : undefined}>
         <div className="min-w-0 space-y-3">
+          {bulk && !empty ? <BulkPickToggle selection={selection} /> : null}
           <div className="@container/students min-w-0" data-queue-list="">
             {empty ? (
               <QueueEmpty
@@ -251,6 +252,7 @@ export function StudentsQueueBody({
                   available: selectable.has(row.studentCaseId),
                   checked: selection.has(row.studentCaseId),
                   onToggle: () => selection.toggle(row.studentCaseId),
+                  revealed: selection.revealed,
                 }) : null}
               />
             )}

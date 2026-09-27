@@ -221,7 +221,8 @@ test("selected task controls and case navigation use only matching scoped target
   assert.match(calendar, /openCapabilities\?\.canReadCase \? <Link/);
   assert.match(calendar, /openCapabilities && taskRequestIds\[open\.key\]/);
   assert.match(calendar, /const canCreate = staffPresentationCan\(actor, "admissions\.read"\) &&\s*!isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.create"\)/);
-  assert.match(calendar, /canCreate \|\| canCreateStaff \? <TaskComposerDialog/);
+  // Э7: у кого `staff.task.create`, у того «Создать задачу» оболочки с днём календаря; своя кнопка — остальным создателям.
+  assert.match(calendar, /canCreate && !canCreateStaff \? <TaskComposerDialog/);
   assert.match(calendar, /staffAllowed=\{canCreateStaff\} caseAllowed=\{canCreate\}/);
 });
 

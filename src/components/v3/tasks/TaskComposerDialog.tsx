@@ -13,11 +13,16 @@ import { readTaskCaseAssigneesAction } from "@/lib/v3/task-case-actions";
 import { readTaskComposerAssigneesAction } from "@/lib/v3/task-composer-actions";
 import { ComposerDeadlineField } from "./ComposerDeadlineField";
 import { TaskCasePicker } from "./TaskCasePicker";
+import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import type { CalendarCaseOption, Day } from "../calendar/types";
 
-const CONTROL = "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2";
-const PRIMARY = "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
-const SECONDARY = "inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-55";
+/** Поле диалога: 16 px (`t-body`) — без увеличения на iPhone, как у полей очереди. */
+const CONTROL = "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 t-body text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2";
+/** Единственный сплошной красный — «Создать задачу» (и «Открыть задачу» после сохранения). */
+const PRIMARY = "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 t-label text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
+const SECONDARY = QUEUE_SECONDARY;
+/** Подпись поля — роль `t-label`, как у окон массовых действий. */
+const LABEL = "block t-label text-fg";
 /** Тихая кнопка в строке контекста: «Убрать» дело, «Повторить» чтение. */
 const QUIET = "inline-flex min-h-11 items-center rounded-ctl px-2 t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 /** Свёрнутые необязательные поля: без треугольника браузера, рисованная стрелка рядом с подписью (как у фильтров). */
@@ -359,92 +364,99 @@ function TaskComposerModal({
         <button type="button" onClick={close} className={SECONDARY}>Закрыть</button>
       </header>
       {state.status === "saved" ? <div className="space-y-4 p-4">
-        <p role="status" className="text-sm text-ok">Задача создана.</p>
+        <p role="status" className="t-body-compact text-ok">Задача создана.</p>
         <div className="flex flex-wrap gap-3">
           {state.href ? <a href={state.href} className={PRIMARY}>Открыть задачу</a> : null}
           <button type="button" className={SECONDARY} onClick={createAnother}>Создать ещё</button>
           <button type="button" className={SECONDARY} onClick={close}>Готово</button>
         </div>
-      </div> : <form onSubmit={submit} className="space-y-4 overflow-y-auto p-4" data-composer-mode={caseMode ? "case" : "staff"}>
-        <label className="block text-sm font-medium">Название
-          <input ref={titleInputRef} name="title" required maxLength={1000} autoFocus value={title}
-            onChange={(event) => setTitle(event.target.value)} disabled={locked} autoComplete="off" className={CONTROL} />
-        </label>
+      </div> : <form onSubmit={submit} className="flex min-h-0 flex-col" data-composer-mode={caseMode ? "case" : "staff"}>
+        {/* Поля прокручиваются, «Создать задачу» — в закреплённом низу окна:
+            на телефоне с открытыми «Дата» и «Время» главная кнопка остаётся видна. */}
+        <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4">
+          <label className={LABEL}>Название
+            <input ref={titleInputRef} name="title" required maxLength={1000} autoFocus value={title}
+              onChange={(event) => setTitle(event.target.value)} disabled={locked} autoComplete="off" className={CONTROL} />
+          </label>
 
-        {sourceLeadId ? <p className="text-sm" data-composer-context="lead">
-          <span className="text-fg-2">Лид: </span>{sourceLeadName ?? "Имя клиента не указано"}
-        </p> : null}
+          {sourceLeadId ? <p className="t-body-compact" data-composer-context="lead">
+            <span className="text-fg-2">Лид: </span>{sourceLeadName ?? "Имя клиента не указано"}
+          </p> : null}
 
-        {caseAllowed ? (attachedCase ? <div className="flex flex-wrap items-center gap-x-2 text-sm" data-composer-context="case">
-          <span><span className="text-fg-2">Студент/дело: </span>{attachedCase.name}</span>
-          {caseRemovable && staffAllowed ? <button type="button" className={QUIET} disabled={locked} onClick={detachCase}>
-            Без дела
-          </button> : null}
-        </div> : <details open={caseSectionOpen} onToggle={(event) => setCaseSectionOpen(event.currentTarget.open)} className="group">
-          <summary className={DISCLOSURE}>
-            Студент/дело · необязательно
-            <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
-          </summary>
-          <div className="grid gap-3 pt-2 sm:grid-cols-2">
-            <TaskCasePicker initialCases={initialCases} initialHasMore={casesHaveMore} onCaseChange={setCaseId} disabled={locked || !caseMode} />
+          {/* «Без дела» — рядом с именем; перенесённое на телефоне — по левому краю полей (-ms-2 снимает отступ зоны нажатия). */}
+          {caseAllowed ? (attachedCase ? <div className="flex flex-wrap items-center gap-x-4 t-body-compact" data-composer-context="case">
+            <span><span className="text-fg-2">Студент/дело: </span>{attachedCase.name}</span>
+            {caseRemovable && staffAllowed ? <button type="button" className={`${QUIET} -ms-2`} disabled={locked} onClick={detachCase}>
+              Без дела
+            </button> : null}
+          </div> : <details open={caseSectionOpen} onToggle={(event) => setCaseSectionOpen(event.currentTarget.open)} className="group">
+            <summary className={DISCLOSURE}>
+              Студент/дело · необязательно
+              <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
+            </summary>
+            <div className="grid gap-3 pt-2 sm:grid-cols-2">
+              <TaskCasePicker initialCases={initialCases} initialHasMore={casesHaveMore} onCaseChange={setCaseId} disabled={locked || !caseMode} />
+            </div>
+          </details>) : null}
+
+          <label className={LABEL}>Исполнитель
+            {caseMode
+              ? <select required disabled={locked || !candidatesReady} value={caseAssignee}
+                  onChange={(event) => setCaseAssignee(event.target.value)} className={CONTROL}>
+                  {!eligibleCaseAssignee ? <option value={caseAssignee} disabled>Выберите исполнителя</option> : null}
+                  {caseAssigneeOptions.map((person) => <option key={person.membershipId} value={person.membershipId}>{person.displayName}</option>)}
+                </select>
+              : <select required disabled={locked || staffPeople.status !== "ready"} value={staffAssignee} onChange={(event) => setStaffAssignee(event.target.value)} className={CONTROL}>
+                  {!staffPeople.rows.some((person) => person.membershipId === staffAssignee) ? <option value={staffAssignee} disabled>{staffPeople.status === "loading" ? "Загружаем сотрудников…" : "Выберите сотрудника"}</option> : null}
+                  {staffPeople.rows.map((person) => <option key={person.membershipId} value={person.membershipId}>{person.displayName}</option>)}
+                </select>}
+            {caseMode && !candidatesReady ? <span className="mt-1 block t-meta text-fg-2">{!caseId ? "Выберите дело студента." : caseCandidates.caseId === caseId && caseCandidates.status === "unavailable" ? "Не удалось проверить исполнителей. Обновите страницу." : "Проверяем исполнителей выбранного дела…"}</span> : null}
+            {caseMode && candidatesReady && caseAssigneeOptions.length === 0 ? <span role="alert" className="mt-1 block t-body-compact text-danger">Нет доступного исполнителя для этого дела.</span> : null}
+          </label>
+          {!caseMode && staffPeople.status === "unavailable" ? <p role="alert" className="flex flex-wrap items-center gap-x-2 t-body-compact text-danger">
+            Не удалось загрузить сотрудников.
+            <button type="button" className={QUIET} onClick={() => { setStaffPeople({ status: "loading", rows: [] }); setStaffRead((value) => value + 1); }}>Повторить</button>
+          </p> : null}
+
+          <ComposerDeadlineField key={attempt} day={day} defaultDay={defaultDueDay} disabled={locked} />
+
+          <details className="group">
+            <summary className={DISCLOSURE}>
+              {extrasLabel}
+              <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
+            </summary>
+            <div className="grid gap-3 pt-2 sm:grid-cols-2">
+              {!caseMode ? <label className={`${LABEL} sm:col-span-2`}>Описание
+                <textarea maxLength={10000} rows={3} value={description} disabled={locked}
+                  onChange={(event) => setDescription(event.target.value)} className={CONTROL} />
+              </label> : null}
+              <label className={LABEL}>Приоритет
+                <select name="priority" value={priority} disabled={locked} onChange={(event) => setPriority(event.target.value as PlatformCaseTaskPriority)} className={CONTROL}>
+                  {PLATFORM_CASE_TASK_PRIORITIES.map((value) => <option key={value} value={value}>{PRIORITY_LABEL[value]}</option>)}
+                </select>
+              </label>
+              {caseMode && canChangeVisibility ? <label className={LABEL}>Видимость студенту
+                <select name="student_visible" value={studentVisible ? "true" : "false"} disabled={locked}
+                  onChange={(event) => setStudentVisible(event.target.value === "true")} className={CONTROL}>
+                  <option value="false">Скрыта</option>
+                  <option value="true">Видна</option>
+                </select>
+              </label> : null}
+            </div>
+          </details>
+        </div>
+
+        <div className="shrink-0 space-y-2 border-t border-border p-4">
+          {state.status !== "idle" && errorCopy[state.status] ? <p role="alert" className="flex flex-wrap items-center gap-x-2 t-body-compact text-danger">
+            {errorCopy[state.status]}
+            {state.status === "stale" ? <button type="button" className={QUIET} onClick={() => router.refresh()}>Обновить данные</button> : null}
+          </p> : null}
+          <div className="flex flex-wrap gap-3">
+            <button type="submit" disabled={submitBlocked} className={PRIMARY}>
+              {pending ? "Создаём…" : "Создать задачу"}
+            </button>
+            <button type="button" className={SECONDARY} onClick={close}>Отмена</button>
           </div>
-        </details>) : null}
-
-        <label className="block text-sm font-medium">Исполнитель
-          {caseMode
-            ? <select required disabled={locked || !candidatesReady} value={caseAssignee}
-                onChange={(event) => setCaseAssignee(event.target.value)} className={CONTROL}>
-                {!eligibleCaseAssignee ? <option value={caseAssignee} disabled>Выберите исполнителя</option> : null}
-                {caseAssigneeOptions.map((person) => <option key={person.membershipId} value={person.membershipId}>{person.displayName}</option>)}
-              </select>
-            : <select required disabled={locked || staffPeople.status !== "ready"} value={staffAssignee} onChange={(event) => setStaffAssignee(event.target.value)} className={CONTROL}>
-                {!staffPeople.rows.some((person) => person.membershipId === staffAssignee) ? <option value={staffAssignee} disabled>{staffPeople.status === "loading" ? "Загружаем сотрудников…" : "Выберите сотрудника"}</option> : null}
-                {staffPeople.rows.map((person) => <option key={person.membershipId} value={person.membershipId}>{person.displayName}</option>)}
-              </select>}
-          {caseMode && !candidatesReady ? <span className="mt-1 block text-xs text-fg-2">{!caseId ? "Выберите дело студента." : caseCandidates.caseId === caseId && caseCandidates.status === "unavailable" ? "Не удалось проверить исполнителей. Обновите страницу." : "Проверяем исполнителей выбранного дела…"}</span> : null}
-          {caseMode && candidatesReady && caseAssigneeOptions.length === 0 ? <span role="alert" className="mt-1 block text-xs text-danger">Нет доступного исполнителя для этого дела.</span> : null}
-        </label>
-        {!caseMode && staffPeople.status === "unavailable" ? <p role="alert" className="flex flex-wrap items-center gap-x-2 text-xs text-danger">
-          Не удалось загрузить сотрудников.
-          <button type="button" className={QUIET} onClick={() => { setStaffPeople({ status: "loading", rows: [] }); setStaffRead((value) => value + 1); }}>Повторить</button>
-        </p> : null}
-
-        <ComposerDeadlineField key={attempt} day={day} defaultDay={defaultDueDay} disabled={locked} />
-
-        <details className="group">
-          <summary className={DISCLOSURE}>
-            {extrasLabel}
-            <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
-          </summary>
-          <div className="grid gap-3 pt-2 sm:grid-cols-2">
-            {!caseMode ? <label className="text-sm font-medium sm:col-span-2">Описание
-              <textarea maxLength={10000} rows={3} value={description} disabled={locked}
-                onChange={(event) => setDescription(event.target.value)} className={CONTROL} />
-            </label> : null}
-            <label className="text-sm font-medium">Приоритет
-              <select name="priority" value={priority} disabled={locked} onChange={(event) => setPriority(event.target.value as PlatformCaseTaskPriority)} className={CONTROL}>
-                {PLATFORM_CASE_TASK_PRIORITIES.map((value) => <option key={value} value={value}>{PRIORITY_LABEL[value]}</option>)}
-              </select>
-            </label>
-            {caseMode && canChangeVisibility ? <label className="text-sm font-medium">Видимость студенту
-              <select name="student_visible" value={studentVisible ? "true" : "false"} disabled={locked}
-                onChange={(event) => setStudentVisible(event.target.value === "true")} className={CONTROL}>
-                <option value="false">Скрыта</option>
-                <option value="true">Видна</option>
-              </select>
-            </label> : null}
-          </div>
-        </details>
-
-        {state.status !== "idle" && errorCopy[state.status] ? <p role="alert" className="flex flex-wrap items-center gap-x-2 text-sm text-danger">
-          {errorCopy[state.status]}
-          {state.status === "stale" ? <button type="button" className={QUIET} onClick={() => router.refresh()}>Обновить данные</button> : null}
-        </p> : null}
-        <div className="flex flex-wrap gap-3 border-t border-border pt-4">
-          <button type="submit" disabled={submitBlocked} className={PRIMARY}>
-            {pending ? "Создаём…" : "Создать задачу"}
-          </button>
-          <button type="button" className={SECONDARY} onClick={close}>Отмена</button>
         </div>
       </form>}
     </div>

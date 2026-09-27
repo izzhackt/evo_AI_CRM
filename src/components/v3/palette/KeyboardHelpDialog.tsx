@@ -74,14 +74,16 @@ export function KeyboardHelpDialog() {
       onClick={(event) => { if (event.target === event.currentTarget) hide(); }}
       className="m-auto w-[min(26rem,calc(100vw-2rem))] max-w-none rounded-card border border-border bg-surface p-0 text-fg shadow-evo-lg backdrop:bg-black/35"
     >
-      {open ? <div className="p-4">
+      {/* Два списка — одна сетка: общая ширина колонки клавиш (`--key-column`), у каждой группы свой заголовок. */}
+      {open ? <div className="p-4 [--key-column:5.5rem]">
         <div className="flex items-center justify-between gap-3">
           <h2 id={titleId} className="t-section">Клавиши</h2>
           <button ref={closeRef} type="button" onClick={hide} className="inline-flex min-h-11 items-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg">
             Закрыть
           </button>
         </div>
-        <KeyList keys={SHELL_KEYS} className="mt-3" />
+        <h3 className="mt-3 t-item text-fg">Везде</h3>
+        <KeyList keys={SHELL_KEYS} className="mt-2" />
         <h3 className="mt-4 t-item text-fg">В списках</h3>
         <p className="mt-0.5 t-meta text-fg-2">«Задачи», «Студенты», EVO Docs</p>
         <KeyList keys={LIST_KEYS} className="mt-2" />

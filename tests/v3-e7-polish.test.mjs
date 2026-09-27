@@ -91,6 +91,7 @@ const composer = compile("src/components/v3/tasks/TaskComposerDialog.tsx", (id) 
   if (id === "@/lib/v3/task-composer-actions") return { readTaskComposerAssigneesAction: forbiddenAction };
   if (id === "./ComposerDeadlineField") return deadlineField;
   if (id === "./TaskCasePicker") return casePicker;
+  if (id === "../queue/queue-buttons") return queueButtons;
   return require(id);
 });
 
@@ -153,7 +154,7 @@ test("every entry point opens that one composer: menu, Ctrl+K, «Новая за
   // Контекст страницы для кнопки меню и Ctrl+K: дело, лид, день календаря.
   assert.match(source("src/components/v3/profile/CaseWorkParts.tsx"), /<TaskComposerContextMark value=\{\{\s*case: \{ id: caseId, name: profile\.person \}/u);
   assert.match(source("src/components/v3/profile/LeadWorkParts.tsx"), /\{ lead: \{ id: leadId, version: sales\.lead\.workflowVersion, name: profile\.person \} \}/u);
-  assert.match(source("src/components/v3/calendar/Calendar.tsx"), /<TaskComposerContextMark value=\{\{ dueDay: day \}\} \/>/u);
+  assert.match(source("src/components/v3/calendar/Calendar.tsx"), /<TaskComposerContextMark value=\{\{ dueDay: day, cases, casesHaveMore \}\} \/>/u);
 });
 
 test("the composer is prefilled by its entry point: case, page case, lead, calendar day, typed title", () => {
@@ -428,9 +429,125 @@ test("focus: top-layer windows trap and return focus; «x» marks the focused ro
   assert.match(read("src/components/v3/tasks/TaskComposerDialog.tsx"), /function close\(\) \{\s*dialogRef\.current\?\.close\(\);\s*onClose\(\);\s*\}/u);
   const bulkSource = read("src/components/v3/queue/Bulk.tsx");
   assert.match(bulkSource, /if \(phase\.kind === "done"\) doneRef\.current\?\.focus\(\);/u, "the result keeps focus inside the window");
-  assert.match(bulkSource, /setOpen\(false\);\s*onOpenChange\(false\);\s*dialogRef\.current\?\.close\(\);\s*setPhase\(\{ kind: "form" \}\);\s*setError\(null\);\s*triggerRef\.current\?\.focus\(\);/u);
+  // Кнопка действия остаётся — фокус на неё; выбор опустел (всё сохранено) — на отправленную строку, не на body.
+  assert.match(bulkSource, /const triggerStays = selection\.count > 0 && trigger !== null && !trigger\.disabled && trigger\.getClientRects\(\)\.length > 0;/u);
+  assert.match(bulkSource, /setOpen\(false\);\s*onOpenChange\(false\);\s*dialogRef\.current\?\.close\(\);\s*setPhase\(\{ kind: "form" \}\);\s*setError\(null\);\s*if \(trigger && triggerStays\) trigger\.focus\(\);\s*else focusAfterBulk\(sentKeys\.current\);/u);
   // Строка выбора — настоящий чекбокс с именем строки, нейтральный цвет выбора.
   const html = renderToStaticMarkup(createElement(bulk.RowSelect, { label: "Задача А", checked: true, onToggle() {} }));
   assert.match(html, /<input type="checkbox" data-queue-select="" aria-label="Выбрать: Задача А" class="size-\[18px\] cursor-pointer accent-fg" checked=""\/>/u);
   assert.match(html, /^<label class="relative z-10 grid size-11 /u, "a 44 px target above the row link");
+});
+
+// --- финальная проверка Э7: окно, строка действий, телефон, одна кнопка --------
+
+test("the composer keeps «Создать задачу» in a pinned footer and speaks in type roles", () => {
+  const html = renderComposer({ defaultDueDay: "2026-09-29" });
+  // Поля прокручиваются, главная кнопка — в закреплённом низу окна (телефон с «Датой» и «Временем»).
+  assert.match(html, /<form class="flex min-h-0 flex-col" data-composer-mode="staff"><div class="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4">/u);
+  const footer = 'class="shrink-0 space-y-2 border-t border-border p-4"';
+  assert.doesNotMatch(html.slice(html.indexOf("overflow-y-auto"), html.indexOf(footer)), /type="submit"/u, "the submit is not inside the scroll");
+  assert.match(html, /class="shrink-0 space-y-2 border-t border-border p-4"><div class="flex flex-wrap gap-3"><button type="submit"[^>]*>Создать задачу<\/button>/u);
+  // Роли текста: подписи — t-label, ни text-sm, ни text-xs во всём окне (и в поиске дела).
+  const withCase = renderComposer({ initialCase: CASE, caseRemovable: true });
+  const withPicker = renderComposer({ staffAllowed: false });
+  for (const markup of [html, withCase, withPicker]) assert.doesNotMatch(markup, /\btext-(?:sm|xs)\b/u);
+  assert.match(html, /<label class="block t-label text-fg">Название/u);
+  assert.match(withPicker, /class="t-label text-fg-2">Найти активное дело студента<\/label>/u);
+});
+
+test("one create button per calendar screen: the shell opens the composer with the day and the cases already read", () => {
+  const calendar = read("src/components/v3/calendar/Calendar.tsx");
+  assert.match(calendar, /<TaskComposerContextMark value=\{\{ dueDay: day, cases, casesHaveMore \}\} \/>/u);
+  // Своя кнопка — только у того, у кого нет «Создать задачу» оболочки (`staff.task.create`); имя то же.
+  assert.match(calendar, /canCreate && !canCreateStaff \? <TaskComposerDialog[\s\S]*?triggerChildren=\{<><Icon name="plus" size=\{16\} \/>Создать задачу<\/>\}/u);
+  assert.doesNotMatch(calendar, /Новая задача<\/>/u);
+  const host = read("src/components/v3/tasks/TaskComposerHost.tsx");
+  assert.match(host, /initialCases=\{access\.case \? context\.cases \?\? \[\] : \[\]\}/u);
+  assert.match(host, /casesHaveMore=\{access\.case \? context\.casesHaveMore \?\? false : false\}/u);
+  // Кнопка оболочки — у того же права, что и рабочая задача календаря.
+  assert.match(read("src/components/v3/AppShell.tsx"), /!previewing && staffHasPermission\(actor, "staff\.task\.create"\) \? <Link href="\/v3\/tasks\?create=staff"/u);
+  assert.match(read("src/components/v3/AppShellNext.tsx"), /const canCreateTask = !previewing && staffHasPermission\(actor, "staff\.task\.create"\);/u);
+});
+
+const NOUN = { one: "дело", few: "дела", many: "дел" };
+function fakeSelection(keys, revealed = true) {
+  return { keys, count: keys.length, has: (key) => keys.includes(key), toggle() {}, set() {}, clear() {}, revealed, pick() {} };
+}
+
+test("bulk bar: spaced «Выбрать все · N», a ground band down to the tab bar, and a reason next to an action that fits no row", () => {
+  const selection = fakeSelection(["a", "b"]);
+  const html = renderToStaticMarkup(createElement(bulk.BulkBar, { selection, allKeys: ["a", "b", "c"], noun: NOUN },
+    createElement(bulk.BulkActionDialog, {
+      title: "Назначить куратора", triggerLabel: "Назначить куратора", testId: "t", items: [],
+      skipped: [{ key: "a", label: "А", reason: "дело не ждёт куратора" }], noun: NOUN, selection,
+      emptyReason: "Нет дел, ждущих куратора", validate: () => null, command: async () => null, onFinished() {}, onOpenChange() {},
+    }, "поля")));
+  assert.match(html, /^<div class="v3-bulk-dock sticky z-30 bg-bg pt-2 pb-3" data-bulk-dock=""><div role="region" aria-label="Действия с выбранными" data-testid="queue-bulk-bar"/u);
+  // Один строчный span: пробелы вокруг «·» не схлопываются во flex-кнопке.
+  assert.match(html, /data-bulk-select-all=""[^>]*><span><span class="sm:hidden">[\s\S]*?<span class="hidden sm:inline">Выбрать все на странице<\/span> · <span class="tabular-nums">3<\/span><\/span><\/button>/u);
+  // Недоступное действие: причина словами рядом с кнопкой; на телефоне его нет.
+  assert.match(html, /<span class="inline-flex items-center gap-1\.5 me-3 max-sm:hidden"><button [^>]*disabled=""[^>]*aria-describedby="([^"]+)"[^>]*>Назначить куратора<\/button><span id="\1" class="t-meta text-fg-2" data-testid="t-unavailable">Нет дел, ждущих куратора<\/span><\/span>/u);
+  const css = read("src/app/(v3)/v3.css");
+  assert.match(css, /\.v3-world \.v3-bulk-dock \{\s*bottom: calc\(var\(--shell-tabbar, 0px\) \+ var\(--shell-safe-bottom, 0px\)\);\s*\}/u, "no gap above the phone tab bar");
+  assert.doesNotMatch(css, /v3-bulk-bar/u);
+  const students = read("src/components/v3/students/StudentsBulkActions.tsx");
+  assert.match(students, /emptyReason="Нет дел, ждущих куратора"/u);
+  assert.match(students, /emptyReason="Нет дел с шагом, доступным вам"/u);
+  assert.match(students, /disabledReason="Некого назначить: список кураторов пуст"/u);
+});
+
+test("phone: no checkbox beside the completion circle until «Выбрать»; «Снять выбор» hides them again", () => {
+  assert.match(renderToStaticMarkup(createElement(bulk.BulkPickToggle, { selection: fakeSelection([], false) })),
+    /^<div class="flex justify-end sm:hidden"><button type="button" data-testid="queue-bulk-pick"[^>]*>Выбрать<\/button><\/div>$/u);
+  assert.match(renderToStaticMarkup(createElement(bulk.BulkPickToggle, { selection: fakeSelection([], true) })), />Отмена<\/button>/u);
+  assert.match(renderToStaticMarkup(createElement(bulk.RowSelect, { label: "А", checked: false, onToggle() {}, phoneHidden: true })), /^<label class="relative z-10 grid size-11 [^"]* max-sm:hidden">/u);
+  assert.doesNotMatch(renderToStaticMarkup(createElement(bulk.RowSelect, { label: "А", checked: false, onToggle() {} })), /max-sm:hidden/u);
+  const source = read("src/components/v3/queue/Bulk.tsx");
+  assert.match(source, /clear: \(\) => \{ setSelected\(\[\]\); setPicking\(false\); \}/u);
+  assert.match(source, /revealed: picking \|\| live\.length > 0/u);
+  // Обе очереди: «Выбрать» над списком, строки знают, видны ли отметки на телефоне.
+  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /\{bulk \? <BulkPickToggle selection=\{selection\} \/> : null\}/u);
+  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /revealed: selection\.revealed \}/u);
+  assert.match(read("src/components/v3/students/StudentsQueueBody.tsx"), /\{bulk && !empty \? <BulkPickToggle selection=\{selection\} \/> : null\}/u);
+  assert.match(read("src/components/v3/tasks/TaskQueueRow.tsx"), /"\[--row-lead:5\.5rem\] max-sm:\[--row-lead:2\.75rem\]"/u);
+});
+
+test("after a full success focus goes to a sent row still on the page, then the first row — never body", () => {
+  const focused = [];
+  const element = (name, shown = true) => ({ focus: () => focused.push(name), getClientRects: () => (shown ? [{}] : []) });
+  const rows = new Map([
+    ["hidden", { querySelector: (selector) => (selector === "[data-queue-open]" ? element("link-hidden", false) : null) }],
+    ["b", { querySelector: (selector) => (selector === "[data-queue-open]" ? element("link-b") : null) }],
+  ]);
+  const saved = { document: globalThis.document, CSS: globalThis.CSS };
+  globalThis.CSS = { escape: (value) => value };
+  globalThis.document = {
+    querySelector(selector) {
+      const key = /^\[data-queue-row="([^"]+)"\]$/u.exec(selector)?.[1];
+      if (key !== undefined) return rows.get(key) ?? null;
+      if (selector === "[data-queue-row] [data-queue-open]") return element("first-row");
+      if (selector === "[data-shell-content], main") return element("content");
+      return null;
+    },
+  };
+  try {
+    bulk.focusAfterBulk(["gone", "hidden", "b"]);
+    bulk.focusAfterBulk(["gone"]);
+    assert.deepEqual(focused, ["link-b", "first-row"]);
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.CSS = saved.CSS;
+  }
+  // Браузерная проверка того же пути с клавиатуры — tests/e2e/e7-static-render.cjs (bulkFocusProbe).
+  assert.match(read("tests/e2e/e7-static-render.cjs"), /full success: the bar is gone and focus is on the sent row, not body/u);
+});
+
+test("palette footer hides on phone without a status; the «?» window lists two groups on one key column", () => {
+  const palette = read("src/components/v3/palette/CommandPalette.tsx");
+  assert.match(palette, /border-t border-border px-4 py-2\$\{status \? "" : " max-md:sr-only"\}/u, "the live status stays in the tree");
+  const help = read("src/components/v3/palette/KeyboardHelpDialog.tsx");
+  assert.match(help, /<div className="p-4 \[--key-column:5\.5rem\]">/u);
+  assert.match(help, /<h3 className="mt-3 t-item text-fg">Везде<\/h3>\s*<KeyList keys=\{SHELL_KEYS\}/u);
+  assert.match(help, /<h3 className="mt-4 t-item text-fg">В списках<\/h3>/u);
+  assert.match(read("src/components/v3/queue/KeyList.tsx"), /grid-cols-\[var\(--key-column,auto\)_1fr\]/u);
 });

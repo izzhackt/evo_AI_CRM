@@ -58,6 +58,8 @@ export function TaskComposerHost({ actor }: Readonly<{ actor: ActivePlatformActo
       caseAllowed={access.case}
       initialCase={access.case ? context.case ?? null : null}
       initialCaseAssignees={context.caseAssignees ?? []}
+      initialCases={access.case ? context.cases ?? [] : []}
+      casesHaveMore={access.case ? context.casesHaveMore ?? false : false}
       caseRemovable={!context.caseFixed}
       sourceLeadId={lead?.id}
       sourceLeadVersion={lead?.version}

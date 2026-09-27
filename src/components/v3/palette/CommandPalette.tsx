@@ -302,7 +302,9 @@ export function CommandPalette({ actor, navigation }: Readonly<{ actor: ActivePl
             </div>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2">
+        {/* На телефоне «Все клавиши» нет: без слов статуса полоса пустая — её не видно,
+            но строка статуса остаётся в дереве доступности (живая область). */}
+        <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2${status ? "" : " max-md:sr-only"}`} data-testid="v3-command-palette-footer">
           <p role="status" aria-live="polite" className="min-w-0 flex-1 t-meta text-fg-2" data-testid="v3-command-palette-status">{status}</p>
           <button type="button" onClick={() => { hide(); openKeyboardHelp(); }} className="hidden min-h-11 items-center gap-1.5 rounded-ctl px-2 t-meta text-fg-2 hover:bg-surface-2 hover:text-fg md:inline-flex">
             <kbd className="inline-flex min-w-6 justify-center rounded-nav border border-border bg-bg px-1.5 font-mono text-fg">?</kbd>

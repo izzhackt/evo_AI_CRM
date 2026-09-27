@@ -19,6 +19,9 @@ export type TaskComposerPageContext = Readonly<{
   lead?: Readonly<{ id: string; version: string; name: string | null }> | null;
   /** День срока по умолчанию («Календарь»); без него — сегодня. */
   dueDay?: Day | null;
+  /** Первая страница активных дел, уже прочитанная страницей («Календарь»): поиск дела не пуст сразу. */
+  cases?: readonly CalendarCaseOption[];
+  casesHaveMore?: boolean;
   /**
    * Дело выбрано самим входом («+ Задача» «Быстрого просмотра»), а не взято
    * из страницы для «Создать задачу» меню: его в диалоге не убирают.

@@ -1903,8 +1903,9 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await signIn(page, "admissions");
   await page.goto("/v3/calendar?view=day&date=2099-09-12");
   // Э7: календарь создаёт задачу тем же диалогом «Новая задача», что и
-  // остальные входы, со сроком на выбранный день.
-  await page.getByTestId("v3-calendar-new-task").click();
+  // остальные входы, со сроком на выбранный день: «Создать задачу» оболочки
+  // (у кого есть staff.task.create), иначе своя кнопка календаря.
+  await page.locator('a[href="/v3/tasks?create=staff"], [data-testid="v3-calendar-new-task"]').filter({ visible: true }).first().click();
   const createTask = page.getByTestId("v3-task-composer-dialog");
   await expect(createTask).toBeVisible();
   await createTask

@@ -106,7 +106,9 @@ export function Calendar({
   }
   // Э7: одна форма создания задачи — `TaskComposerDialog`, как у всех входов.
   // Задача по студенту — те же условия, что у прежней формы календаря;
-  // рабочая — у кого `staff.task.create`.
+  // рабочая — у кого `staff.task.create`. У того же права — «Создать задачу»
+  // оболочки: она открывает этот диалог с выбранным днём, своей кнопки у
+  // календаря тогда нет (одна кнопка на экран).
   const canCreate = staffPresentationCan(actor, "admissions.read") &&
     !isStaffPreview(actor) && staffHasPermission(actor, "task.create");
   const canCreateStaff = !isStaffPreview(actor) && staffHasPermission(actor, "staff.task.create");
@@ -250,19 +252,21 @@ export function Calendar({
             })}
           </ul>
         </nav>
-        {/* Э7: тот же диалог «Новая задача», что у меню и «Задач», со сроком на
-            выбранный день. Кнопка тихая: сплошной красный на странице один
-            (решение владельца 25.09). «Создать задачу» меню тоже берёт этот
-            день (`TaskComposerContextMark`). */}
-        <TaskComposerContextMark value={{ dueDay: day }} />
-        {canCreate || canCreateStaff ? <TaskComposerDialog
+        {/* Э7: «Создать задачу» оболочки открывает тот же диалог «Новая задача»
+            со сроком на выбранный день и с уже прочитанными делами
+            (`TaskComposerContextMark`) — второй кнопки на экране нет. Своя
+            кнопка календаря — только у того, у кого кнопки оболочки нет
+            (задачи по студентам без `staff.task.create`); тихая: сплошной
+            красный на странице один (решение владельца 25.09). */}
+        <TaskComposerContextMark value={{ dueDay: day, cases, casesHaveMore }} />
+        {canCreate && !canCreateStaff ? <TaskComposerDialog
           participants={null} actor={actor} actorMembershipId={actorMembershipId}
           day={today} defaultDueDay={day}
           staffAllowed={canCreateStaff} caseAllowed={canCreate}
           initialCases={cases} casesHaveMore={casesHaveMore}
           triggerTestId="v3-calendar-new-task"
-          triggerClassName="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 hover:text-fg"
-          triggerChildren={<><Icon name="plus" size={16} />Новая задача</>}
+          triggerClassName="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+          triggerChildren={<><Icon name="plus" size={16} />Создать задачу</>}
         /> : null}
       </div>
 

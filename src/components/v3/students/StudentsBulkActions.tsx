@@ -142,6 +142,8 @@ export function StudentsBulkActions({
           noun={CASE_NOUN}
           selection={selection}
           disabled={access.curators.length === 0}
+          disabledReason="Некого назначить: список кураторов пуст"
+          emptyReason="Нет дел, ждущих куратора"
           onOpenChange={onOpenChange}
           validate={() => !curator ? "Выберите куратора." : !reason.trim() ? "Укажите причину назначения." : reason.trim().length > 1000 ? "Причина — до 1000 символов." : null}
           command={async (item) => {
@@ -174,6 +176,7 @@ export function StudentsBulkActions({
           skipped={stepSkipped}
           noun={CASE_NOUN}
           selection={selection}
+          emptyReason="Нет дел с шагом, доступным вам"
           onOpenChange={onOpenChange}
           validate={() => bulkDueDay(choice, date, today) === "" ? "Выберите дату." : null}
           command={async (item) => {

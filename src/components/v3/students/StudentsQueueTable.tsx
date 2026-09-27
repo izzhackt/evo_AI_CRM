@@ -6,7 +6,7 @@ import { stagePhase } from "@/lib/v3/stages";
 import { admissionsPipelineStage } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
-import { RowSelect } from "../queue/Bulk";
+import { PHONE_HIDDEN, RowSelect } from "../queue/Bulk";
 import { isNextLook, type V3Look } from "../blocks/look";
 import { StageChip, StatusChip, type StatusChipTone } from "../blocks/StatusChip";
 import { DIRECTION_LABELS } from "../profile/admissions-view";
@@ -62,8 +62,11 @@ const TONE: Readonly<Record<StudentsSignal["tone"], string>> = {
 /** Новый облик: сигнал — чип со словом того же тона. */
 const CHIP_TONE: Readonly<Record<StudentsSignal["tone"], StatusChipTone>> = { danger: "danger", warn: "warn", muted: "neutral" };
 
-/** Колонка выбора для массовых действий (Э7); у дела без подходящего действия — пустое место. */
-export type StudentsRowSelect = Readonly<{ available: boolean; checked: boolean; onToggle: () => void }>;
+/**
+ * Колонка выбора для массовых действий (Э7); у дела без подходящего действия —
+ * пустое место. На телефоне отметок нет, пока не нажато «Выбрать» (`revealed`).
+ */
+export type StudentsRowSelect = Readonly<{ available: boolean; checked: boolean; onToggle: () => void; revealed: boolean }>;
 
 export type StudentsRowLinks = Readonly<{
   /** Та же очередь с открытой строкой (`?open=`). */
@@ -188,6 +191,7 @@ export function StudentsQueueRow({
   // Шаг ведётся только у дела в работе: у закрытого или вернувшегося в ожидание
   // «Шаг просрочен» был бы ложной тревогой (сохранённый шаг там не правится).
   const signals = studentsRowSignals(row, { curatorWords: !curatorColumn, overdueStep: sort === "updated" && row.state === "active" });
+  const phoneHidden = select !== null && !select.revealed;
   const name = <>
     {/* Вся строка открывает «Быстрый просмотр»: ссылка — имя, её область — строка. */}
     <Link
@@ -216,12 +220,12 @@ export function StudentsQueueRow({
       data-selected={select?.checked ? "" : undefined}
       className={`v3-queue-row relative ${curatorColumn ? ROW_GRID : ROW_GRID_MINE} scroll-mt-9 py-2 shadow-[inset_0_-1px_0_var(--border)] @min-[30rem]/students:scroll-mt-[4.25rem] @min-[36rem]/students:py-1.5 @min-[60rem]/students:py-0 ${selected || select?.checked ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
     >
-      <th role="rowheader" scope="row" className={`${CELL} [grid-area:student] text-start font-normal ${select ? "flex items-start gap-1 ps-0 @min-[36rem]/students:ps-0" : "@min-[36rem]/students:ps-3"}`}>
+      <th role="rowheader" scope="row" className={`${CELL} [grid-area:student] text-start font-normal ${select ? `flex items-start gap-1 ps-0 ${phoneHidden ? "max-sm:ps-3 " : ""}@min-[36rem]/students:ps-0` : "@min-[36rem]/students:ps-3"}`}>
         {/* Отметка для массовых действий (Э7) — слева от имени, над ссылкой строки. */}
         {select ? <>
           {select.available
-            ? <RowSelect label={row.studentDisplayName} checked={select.checked} onToggle={select.onToggle} />
-            : <span aria-hidden="true" className="size-11 shrink-0" />}
+            ? <RowSelect label={row.studentDisplayName} checked={select.checked} onToggle={select.onToggle} phoneHidden={phoneHidden} />
+            : <span aria-hidden="true" className={`size-11 shrink-0${phoneHidden ? ` ${PHONE_HIDDEN}` : ""}`} />}
           <span className="min-w-0 flex-1 self-center">{name}</span>
         </> : name}
       </th>

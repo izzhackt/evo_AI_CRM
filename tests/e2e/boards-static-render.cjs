@@ -295,7 +295,6 @@ function measure() {
   const red = [...document.querySelectorAll("a, button")].filter((element) => visible(element)
     && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim());
   const main = [...document.querySelectorAll("main")].find(visible);
-  const topBar = main?.parentElement?.previousElementSibling;
   const panel = document.querySelector('[data-testid="v3-pipeline-lead-panel"]');
   const panelRect = panel && visible(panel) ? panel.getBoundingClientRect() : null;
   const selectedCard = panel ? document.querySelector(`[data-testid="v3-pipeline-card"][data-lead-id="${panel.dataset.leadId}"]`) : null;
@@ -309,7 +308,6 @@ function measure() {
     boardOverflowX: board ? board.scrollWidth - board.clientWidth : null,
     pageOverflowY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
     sidebarWidth: sidebar ? Math.round(sidebar.getBoundingClientRect().width) : null,
-    topBarHeight: topBar ? Math.round(topBar.getBoundingClientRect().height) : null,
     mainX: main ? Math.round(main.getBoundingClientRect().left) : null,
     boardX: board ? Math.round(board.getBoundingClientRect().left) : null,
     boardTop: board ? Math.round(board.getBoundingClientRect().top) : null,

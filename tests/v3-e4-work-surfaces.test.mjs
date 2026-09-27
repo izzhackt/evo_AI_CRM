@@ -194,7 +194,7 @@ test("rendered Lead 360: name as h1, stage and «Что дальше» in the he
   assert.match(text(handed), /Что дальше Передано 18\.09 · Айгерим Условная · принято 19\.09/u);
   assert.match(text(early), /Что дальше Позвонить после консультации с родителями 29\.09/u);
   // Вторичные действия: «Написать» (связанная переписка) и «Задача по лиду» — не «Создать задачу»
-  // верхней строки; на телефоне — значки 44 px, имя остаётся для чтения с экрана.
+  // меню; на телефоне — значки 44 px, имя остаётся для чтения с экрана.
   const actions = potential.slice(potential.indexOf('data-testid="v3-lead-actions"'), potential.indexOf('data-testid="v3-lead-actions-menu"'));
   assert.match(actions, /title="Написать"[^>]*>.*?<span class="sr-only sm:not-sr-only">Написать<\/span><\/a>/u);
   // Э7: «Задача по лиду» открывает на месте тот же диалог «Новая задача», что у всех входов, — это кнопка.

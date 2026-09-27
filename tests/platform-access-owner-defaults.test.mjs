@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { staffCan } from "../src/lib/platform-access.ts";
-import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
+import { buildV3Navigation, conversationChannels } from "../src/lib/v3/navigation.ts";
 
 const {
   listStudentPortalActiveCurators,
@@ -236,7 +236,7 @@ test("D: the role bundles are the production ones", () => {
 });
 
 for (const label of ["Admissions", "Admissions Manager"]) {
-  test(`D: ${label} sees no sales work, only «Отчёт продаж» of #1067; «Заявки» under «Поступление», WhatsApp in the common sections`, () => {
+  test(`D: ${label} sees no sales work, only «Отчёт продаж» of #1067; «Заявки» under «Поступление», «Переписки» in the common sections`, () => {
     const keys = [...bundles[label], ...bundles["Admissions common"]];
     const model = navigationFor(keys);
     // D hides WhatsApp and «Воронка продаж» in «Продажи»; «Отчёт продаж» keeps
@@ -249,9 +249,13 @@ for (const label of ["Admissions", "Admissions Manager"]) {
     // them.
     assert.deepEqual(ids(model).groups, [
       ["sales", ["sales-report"]],
-      ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "requests"]],
+      ["admissions", ["admissions-pipeline", "admissions-worklist", "evo-docs", "universities", "requests"]],
     ]);
-    assert.ok(ids(model).common.includes("inbox"), "WhatsApp is reachable through communication.read.full");
+    // Э5 (27.09.2026): one «Переписки» item; both channels open (case.read.full
+    // for «Кабинет студента», communication.read.full for WhatsApp), the item
+    // leads to the first — «Кабинет студента».
+    assert.equal(model.common.find((link) => link.id === "conversations")?.href, "/v3/messages");
+    assert.deepEqual(conversationChannels(staffActor(keys)).map((channel) => channel.key), ["cabinet", "whatsapp"]);
     const everyLink = [...model.groups.flatMap((group) => group.links), ...model.common];
     assert.equal(everyLink.some((link) => link.id === "pipeline"), false, "pipeline");
     assert.equal(everyLink.filter((link) => link.id === "requests").length, 1, "«Заявки» stands once");
@@ -268,21 +272,25 @@ for (const label of ["Admissions", "Admissions Manager"]) {
 }
 
 for (const label of ["Sales Manager", "Sales"]) {
-  test(`D: ${label} keeps the whole «Продажи» group with WhatsApp inside it`, () => {
-    const model = navigationFor([...bundles[label], ...bundles["Sales common"]]);
-    assert.deepEqual(ids(model).groups[0], ["sales", ["requests", "inbox", "pipeline", "sales-report"]]);
+  test(`D: ${label} keeps the whole «Продажи» group; WhatsApp is its channel of «Переписки»`, () => {
+    const keys = [...bundles[label], ...bundles["Sales common"]];
+    const model = navigationFor(keys);
+    assert.deepEqual(ids(model).groups[0], ["sales", ["requests", "pipeline", "sales-report"]]);
     assert.equal(ids(model).groups.slice(1).some(([, links]) => links.includes("requests")), false, "«Заявки» stands once");
-    assert.equal(ids(model).common.includes("inbox"), false);
+    // Э5: no case.read.full / profile.read.full — «Кабинет студента» stays
+    // closed, WhatsApp (communication.read.full) is the one channel.
+    assert.deepEqual(conversationChannels(staffActor(keys)).map((channel) => channel.key), ["whatsapp"]);
+    assert.equal(model.common.find((link) => link.id === "conversations")?.href, "/v3/inbox");
   });
 }
 
 test("D: the Admin keeps both groups with «Заявки» in «Продажи» only; common roles without lead work see neither", () => {
   const admin = navigationFor([], "/v3/main", "admin");
   assert.deepEqual(ids(admin).groups, [
-    ["sales", ["requests", "inbox", "pipeline", "sales-report"]],
-    ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
+    ["sales", ["requests", "pipeline", "sales-report"]],
+    ["admissions", ["admissions-pipeline", "admissions-worklist", "evo-docs", "universities"]],
   ]);
-  assert.equal(ids(admin).common.includes("inbox"), false);
+  assert.equal(ids(admin).common.filter((id) => id === "conversations").length, 1);
   for (const label of ["Sales common", "Admissions common"]) {
     const model = ids(navigationFor(bundles[label]));
     assert.equal(model.groups.some(([id]) => id === "sales"), false, label);

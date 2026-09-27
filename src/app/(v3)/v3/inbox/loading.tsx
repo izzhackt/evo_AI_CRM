@@ -1,9 +1,10 @@
 import { SkeletonBlock } from "@/components/ui";
 import { PartShell } from "@/components/v3/PartShell";
 
+/** «Переписки» → WhatsApp (Э5): пока идёт чтение, каналы неизвестны — только каркас. */
 export default function InboxLoading() {
   return (
-    <PartShell title="WhatsApp" fill>
+    <PartShell title="Переписки" fill>
       <p role="status" className="text-sm text-fg-2">Загружаем диалоги…</p>
       <div
         aria-busy="true"

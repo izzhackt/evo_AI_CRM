@@ -12,8 +12,16 @@ export type CaseChatAwaitState = (typeof CASE_CHAT_AWAIT_STATES)[number];
 export const CASE_CHAT_QUEUES = ["all", "needs_reply", "awaiting_student"] as const;
 export type CaseChatQueue = (typeof CASE_CHAT_QUEUES)[number];
 
+/**
+ * Э5 «Переписки» (26–27.09.2026): список «Кабинета студента» открывается
+ * очередью «Нужен ответ»; «Все» — явным `?queue=all`. Порядок сегментов —
+ * `CASE_CHAT_QUEUE_ORDER`.
+ */
+export const CASE_CHAT_DEFAULT_QUEUE = "needs_reply" satisfies CaseChatQueue;
+export const CASE_CHAT_QUEUE_ORDER = ["needs_reply", "awaiting_student", "all"] as const satisfies readonly CaseChatQueue[];
+
 export function parseCaseChatQueue(value: unknown): CaseChatQueue | null {
-  if (value === undefined) return "all";
+  if (value === undefined) return CASE_CHAT_DEFAULT_QUEUE;
   return typeof value === "string" && (CASE_CHAT_QUEUES as readonly string[]).includes(value)
     ? value as CaseChatQueue : null;
 }
@@ -26,7 +34,7 @@ export function caseChatHref(query: string, queue: CaseChatQueue, caseId: string
   const params = new URLSearchParams();
   if (caseId) params.set("case", caseId);
   if (query) params.set("q", query);
-  if (queue !== "all") params.set("queue", queue);
+  if (queue !== CASE_CHAT_DEFAULT_QUEUE) params.set("queue", queue);
   // An attachment belongs to its selected case, never to the list itself.
   if (caseId && attachment) params.set("attach", `${attachment.kind}:${attachment.id}`);
   const search = params.toString();

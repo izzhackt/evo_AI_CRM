@@ -13,23 +13,22 @@ import type { V3Navigation, V3NavigationGroup, V3NavigationLink, V3NavigationLin
 /**
  * Иконка у каждого пункта, из набора `@/components/icons`; одна иконка — один
  * смысл (обе воронки — `funnel`: смысл один). В рейке 64 px иконка — первая
- * подсказка, поэтому три переписки различимы: «Сообщения» — квадратный пузырь,
- * WhatsApp — круглый (его собственная форма), «Командный чат» — два пузыря.
+ * подсказка, поэтому две переписки различимы: «Переписки» (кабинет студента и
+ * WhatsApp, Э5) — квадратный пузырь, «Командный чат» — два пузыря.
  */
 export const NEXT_LINK_ICONS = {
   // «Сегодня» (Э3): тот же знак, что в прежнем облике.
   home: "sun",
   requests: "file-check",
-  inbox: "message-circle",
   pipeline: "funnel",
   "sales-report": "bar-chart",
   "admissions-pipeline": "funnel",
-  messages: "message-square",
   "admissions-worklist": "users",
   "evo-docs": "folder",
   universities: "building",
   calendar: "calendar",
   tasks: "check-square",
+  conversations: "message-square",
   "team-chat": "messages-square",
   documents: "file-text",
   "reply-snippets": "quote",
@@ -65,8 +64,12 @@ export function shellTabLabel(link: Pick<V3NavigationLink, "id" | "label">): Rea
   return { text, name: text === link.label ? undefined : link.label };
 }
 
-/** Порядок из решения владельца 26.09.2026: Admin и поступление — дела и переписка, продажи — воронка и заявки. */
-const ADMISSIONS_TABS: readonly V3NavigationLinkId[] = ["home", "admissions-worklist", "tasks", "messages"];
+/**
+ * Порядок из решения владельца 26.09.2026: Admin и поступление — дела и
+ * переписка, продажи — воронка и заявки. Переписка — «Переписки» (Э5) на
+ * месте прежних «Сообщений».
+ */
+const ADMISSIONS_TABS: readonly V3NavigationLinkId[] = ["home", "admissions-worklist", "tasks", "conversations"];
 const SALES_TABS: readonly V3NavigationLinkId[] = ["home", "pipeline", "requests", "tasks"];
 
 export type ShellTabs = Readonly<{
@@ -91,7 +94,7 @@ export function visibleNavigationLinks(navigation: NavigationLists): V3Navigatio
 
 /**
  * Вкладки нижней панели. Набор выбирается по видимым разделам: доска или
- * переписка поступления (право admissions.read) — набор поступления, иначе
+ * «Кабинет студента» поступления (право admissions.read) — набор поступления, иначе
  * воронка или заявки — набор продаж. Пункт, которого роль не видит, не
  * показывается; свободное место занимает следующий видимый раздел по порядку
  * меню (кроме «Настроек» — они в «Ещё»). Больше четырёх мест не бывает.
@@ -99,7 +102,7 @@ export function visibleNavigationLinks(navigation: NavigationLists): V3Navigatio
 export function shellTabs(navigation: NavigationLists): ShellTabs {
   const visible = visibleNavigationLinks(navigation);
   const byId = new Map(visible.map((link) => [link.id, link]));
-  const kind = byId.has("messages") || byId.has("admissions-pipeline") ? "admissions"
+  const kind = byId.has("admissions-pipeline") || byId.get("conversations")?.route === "/v3/messages" ? "admissions"
     : byId.has("pipeline") || byId.has("requests") ? "sales"
     : "other";
   const preferred = kind === "admissions" ? ADMISSIONS_TABS : kind === "sales" ? SALES_TABS : [];

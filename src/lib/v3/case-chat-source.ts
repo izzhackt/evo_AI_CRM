@@ -7,6 +7,7 @@ import {
   type CaseChatFailure, type CaseChatMessage, type CaseChatPage, type CaseChatThreadRow, type CaseChatThreadsList,
 } from "../platform-case-chat-contract.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
+import { readCaseChatQueueWith, type CaseChatQueueRead } from "../../components/v3/case-chat/case-chat-queue.ts";
 
 export class CaseChatReadError extends Error {
   constructor(readonly status: CaseChatFailure) { super(status); }
@@ -97,4 +98,15 @@ export async function readStaffCaseChatThreads(actor: ActivePlatformActor, query
   if (error) throw new CaseChatReadError(caseChatErrorStatus(error));
   if (!record(data) || !Array.isArray(data.rows) || typeof data.truncated !== "boolean") throw new CaseChatReadError("unavailable");
   return { rows: data.rows.map(threadRow), truncated: data.truncated };
+}
+
+/**
+ * «Кабинет студента» (Э5): строки выбранной очереди, числа сегментов и
+ * следующая переписка из того же чтения `staff_case_chat_threads_v2` — «Все»
+ * одним чтением, очереди отдельно только если «Все» обрезано
+ * (`readCaseChatQueueWith`). Права и видимость — те же, что у каждого чтения.
+ */
+export async function readStaffCaseChatQueue(actor: ActivePlatformActor, query: string | null, queue: CaseChatQueue): Promise<CaseChatQueueRead> {
+  if (!isCaseChatListQuery(query) || parseCaseChatQueue(queue) === null) throw new CaseChatReadError("invalid");
+  return readCaseChatQueueWith((filter) => readStaffCaseChatThreads(actor, query, filter), queue);
 }

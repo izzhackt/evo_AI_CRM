@@ -6,26 +6,74 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { startTransition, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/icons";
+import { Initials } from "@/components/v3/blocks/Initials";
+import { isNextLook, type V3Look } from "@/components/v3/blocks/look";
+import { StageChip, StatusChip } from "@/components/v3/blocks/StatusChip";
 import { Pill, type PillTone } from "@/components/v3/Pill";
+import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
+import { useAnchoredPopover } from "@/components/v3/queue/useAnchoredPopover";
+import { ReplySnippetPicker, type ReplySnippetPickerItem } from "@/components/v3/reply-snippets/ReplySnippetPicker";
 import {
   loadStaffCaseChatThreadsAction, markCaseChatReadAction, postCaseChatMessageAction,
   readCaseChatPageAction, setCaseChatAwaitAction,
 } from "@/lib/platform-case-chat-actions";
+import type { AdmissionsPipelineStage } from "@/lib/platform-admissions-pipeline-contract";
 import {
-  CASE_CHAT_AWAIT_STATES, CASE_CHAT_BODY_LIMIT, CASE_CHAT_FAILURE_COPY, CASE_CHAT_INITIAL_ACTION, CASE_CHAT_QUEUES, appendOlderCaseChatPage, caseChatHref, parseCaseChatAttachParam, parseCaseChatQueue,
+  CASE_CHAT_BODY_LIMIT, CASE_CHAT_DEFAULT_QUEUE, CASE_CHAT_FAILURE_COPY, CASE_CHAT_INITIAL_ACTION, CASE_CHAT_QUEUE_ORDER, appendOlderCaseChatPage, caseChatHref, parseCaseChatAttachParam, parseCaseChatQueue,
   type CaseChatActionState, type CaseChatAwaitState, type CaseChatFailure, type CaseChatMessage,
   type CaseChatPage, type CaseChatPendingAttachment, type CaseChatQueue, type CaseChatThreadRow, type CaseChatThreadsList,
 } from "@/lib/platform-case-chat-contract";
-import { caseChatAwaitState } from "@/lib/v3/wording";
+import { stagePhase } from "@/lib/v3/stages";
+import { admissionsPipelineStage, caseChatAwaitChoice, caseChatAwaitState } from "@/lib/v3/wording";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
 
-const TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
-const ROW_TIME = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+import { caseChatNextLine, type CaseChatQueueRead } from "./case-chat-queue";
 
-function awaitTone(state: CaseChatAwaitState): PillTone {
-  return state === "needs_reply" ? "danger" : state === "awaiting_student" ? "warn" : "neutral";
+const TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+/** Плотная дата строки списка: «25.09»; сегодняшнее сообщение — время «14:05». */
+const ROW_DAY = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+const DAY_KEY = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+
+function rowTime(at: string, readAt: string): string {
+  const moment = new Date(at);
+  const now = new Date(readAt);
+  if (Number.isFinite(now.getTime()) && DAY_KEY.format(moment) === DAY_KEY.format(now)) return TIME.format(moment);
+  return ROW_DAY.format(moment);
 }
+
+/**
+ * Э5 «Переписки»: «Нужен ответ» — предупреждение словом, не красный (красный
+ * текст — только проблема); «Ждём студента» — нейтрально: ход за студентом.
+ */
+function awaitTone(state: CaseChatAwaitState): PillTone {
+  return state === "needs_reply" ? "warn" : "neutral";
+}
+
+/** Состояние словом: в новом облике — чип (Э1.3), в прежнем — `Pill`. Слово есть всегда. */
+function StateWord({ look, tone, label }: Readonly<{ look: V3Look | undefined; tone: PillTone; label: string }>) {
+  if (isNextLook(look)) return <StatusChip label={label} tone={tone === "solid" ? "neutral" : tone} />;
+  return <Pill tone={tone}>{label}</Pill>;
+}
+
+/** Порядок видимого переключателя состояния в шапке переписки. */
+const AWAIT_CONTROL_ORDER = ["needs_reply", "awaiting_student", "none"] as const satisfies readonly CaseChatAwaitState[];
+
+/**
+ * Шаблоны ответа для поля ответа (Э5): то же чтение и то же право, что у
+ * WhatsApp (`readV3ReplySnippets`, `snippets.read`). null — права нет, кнопки
+ * «Шаблон» нет; «unavailable» — чтение не удалось, окно говорит об этом.
+ */
+export type CaseChatSnippets =
+  | Readonly<{ status: "ready"; items: readonly ReplySnippetPickerItem[] }>
+  | Readonly<{ status: "unavailable" }>
+  | null;
+
+/** Факты дела для шапки переписки: направление и этап словами доски; null — строки очереди 241 нет. */
+export type CaseChatCaseFacts = Readonly<{
+  direction: string | null;
+  stage: AdmissionsPipelineStage | null;
+}>;
 
 /**
  * Persisted part of the draft: text + pending attachment only. Which message
@@ -85,6 +133,7 @@ function CaseChatComposer(props: Readonly<{
   caseId: string; storageScope: string; pendingAttachment: CaseChatPendingAttachment | null;
   onAttachmentConsumed: () => void;
   replyTo: CaseChatMessage | null; onClearReply: () => void; onSaved: () => void;
+  snippets: CaseChatSnippets;
 }>) {
   const mounted = useSyncExternalStore(subscribeNever, clientTrue, serverFalse);
   return mounted
@@ -93,11 +142,12 @@ function CaseChatComposer(props: Readonly<{
 }
 
 function MountedCaseChatComposer({
-  caseId, storageScope, pendingAttachment, onAttachmentConsumed, replyTo, onClearReply, onSaved,
+  caseId, storageScope, pendingAttachment, onAttachmentConsumed, replyTo, onClearReply, onSaved, snippets,
 }: Readonly<{
   caseId: string; storageScope: string; pendingAttachment: CaseChatPendingAttachment | null;
   onAttachmentConsumed: () => void;
   replyTo: CaseChatMessage | null; onClearReply: () => void; onSaved: () => void;
+  snippets: CaseChatSnippets;
 }>) {
   const key = draftStorageKey(storageScope, caseId);
   const [initial] = useState<Draft>(() => {
@@ -139,6 +189,32 @@ function MountedCaseChatComposer({
   const bodyLength = Array.from(draft.body).length;
   const tooLong = bodyLength > CASE_CHAT_BODY_LIMIT;
   const canSend = !pending && (draft.body.trim().length > 0 || draft.attachment !== null) && !tooLong;
+  // Шаблон вставляется в текст и ничего не отправляет. Пока ответ отправляется
+  // или повтор заморожен («Повторить»), текст менять нельзя — и шаблон тоже.
+  const picker = useAnchoredPopover("start");
+  const canPick = snippets !== null && !pending && !uncertain;
+
+  useEffect(() => {
+    const element = document.getElementById(picker.popoverId);
+    if (!element) return;
+    const onToggle = (event: Event) => {
+      if ((event as ToggleEvent).newState === "open") {
+        element.querySelector<HTMLElement>("select, button, a[href]")?.focus();
+        return;
+      }
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (!active || active === document.body || element.contains(active)) textarea.current?.focus();
+      });
+    };
+    element.addEventListener("toggle", onToggle);
+    return () => element.removeEventListener("toggle", onToggle);
+  }, [picker.popoverId]);
+
+  function openPicker() {
+    const element = document.getElementById(picker.popoverId);
+    if (element && !element.matches(":popover-open")) element.showPopover();
+  }
 
   async function submit(form: FormData) {
     setPending(true);
@@ -191,57 +267,142 @@ function MountedCaseChatComposer({
         </div>
       ) : null}
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-1.5 @md:gap-2">
+        {snippets !== null ? (
+          <button
+            type="button" id={picker.triggerId} popoverTarget={picker.popoverId} style={picker.triggerStyle}
+            aria-haspopup="dialog" disabled={!canPick}
+            className={`${QUEUE_SECONDARY} shrink-0 @max-md:px-0 @max-md:w-11`}
+          >
+            <Icon name="quote" size={18} className="shrink-0" />
+            <span className="@max-md:sr-only">Шаблон</span>
+          </button>
+        ) : null}
         <label className="sr-only" htmlFor={`${key}-body`}>Сообщение в переписке</label>
         <textarea
           id={`${key}-body`} ref={textarea} value={draft.body} rows={1} maxLength={CASE_CHAT_BODY_LIMIT + 200}
           readOnly={pending || uncertain} disabled={pending}
-          placeholder="Напишите студенту…" aria-invalid={tooLong || undefined}
+          placeholder="Сообщение…" aria-invalid={tooLong || undefined}
           className="min-h-11 min-w-0 flex-1 resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg"
           onChange={(event) => persist({ ...draft, body: event.target.value })}
+          onKeyDown={(event) => {
+            // «/» в пустом поле открывает шаблоны, как кнопка «Шаблон»; сам знак не печатается.
+            if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
+            if (!canPick || draft.body !== "") return;
+            event.preventDefault();
+            openPicker();
+          }}
         />
-        <button type="submit" disabled={!canSend} className="inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-55">
+        <button type="submit" disabled={!canSend} className="inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-3 text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-55 @md:px-4">
           {pending ? "Отправляем…" : uncertain ? "Повторить" : "Отправить"}
         </button>
       </div>
       {tooLong ? <p role="alert" className="mt-1 text-sm text-danger">Сократите сообщение до {CASE_CHAT_BODY_LIMIT} символов.</p> : null}
       {state.status !== "idle" && state.status !== "saved" ? <p role="alert" className="mt-1 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[state.status]}</p> : null}
       {storageError ? <p className="mt-1 text-sm text-fg-3">Браузер не сохраняет черновик в этой вкладке.</p> : null}
+      {snippets !== null ? (
+        <div
+          id={picker.popoverId} popover="auto" role="dialog" aria-label="Шаблон ответа" style={picker.popoverStyle}
+          data-testid="case-chat-snippet-popover"
+          className="v3-anchored w-[min(24rem,calc(100vw-1rem))] rounded-ctl border border-border bg-surface p-3 text-fg shadow-evo-lg"
+        >
+          {snippets.status === "ready" ? (
+            <ReplySnippetPicker
+              snippets={snippets.items}
+              messageText={draft.body}
+              textareaRef={textarea}
+              maxCodePoints={CASE_CHAT_BODY_LIMIT}
+              disabled={!canPick}
+              onMessageTextChange={(value) => {
+                persist({ ...draft, body: value });
+                document.getElementById(picker.popoverId)?.hidePopover();
+              }}
+            />
+          ) : (
+            <p role="alert" className="t-body-compact text-danger">Шаблоны не загрузились. Обновите страницу.</p>
+          )}
+        </div>
+      ) : null}
     </form>
   );
 }
 
+/**
+ * Нажатая часть переключателя состояния — в тоне самого состояния, а не общим
+ * «выбрано» (`.v3-choice`): так запись состояния не читается как фильтр
+ * очереди рядом и никогда не красная. «Нужен ответ» — предупреждение
+ * (янтарь со словом), остальные — нейтрально: поднятая часть на подложке.
+ */
+const AWAIT_PRESSED: Readonly<Record<CaseChatAwaitState, string>> = {
+  needs_reply: "aria-pressed:border-warn/40 aria-pressed:bg-warn-weak aria-pressed:text-warn",
+  awaiting_student: "aria-pressed:border-border-strong aria-pressed:bg-surface aria-pressed:text-fg",
+  none: "aria-pressed:border-border-strong aria-pressed:bg-surface aria-pressed:text-fg",
+};
+
+/**
+ * Шапка переписки (Э5): с кем переписка — имя, направление и этап словами
+ * доски поступления, «Открыть дело»; состояние — видимым переключателем из
+ * трёх (прежняя команда `set_await`) с подписью «Состояние», а не пунктом
+ * меню «⋯». После ответа сотрудника «Ждём студента» ставит сама команда
+ * отправки (245); переключатель — для ручных изменений. `awaitState` null —
+ * состояние не прочитано, переключателя нет. На узком экране «К списку» —
+ * стрелка в строке имени (заголовок страницы и каналы тогда скрыты), чтобы
+ * лента начиналась как можно выше.
+ */
 function ThreadHeader({
-  row, caseId, listHref, onSetAwait, awaitPending,
+  name, facts, caseId, listHref, awaitState, onSetAwait, awaitPending, look,
 }: Readonly<{
-  row: Pick<CaseChatThreadRow, "studentDisplayName" | "awaitState"> | null; caseId: string;
-  listHref: string;
-  onSetAwait: (state: CaseChatAwaitState) => void; awaitPending: boolean;
+  name: string | null; facts: CaseChatCaseFacts | null; caseId: string; listHref: string;
+  awaitState: CaseChatAwaitState | null;
+  onSetAwait: (state: CaseChatAwaitState) => void; awaitPending: boolean; look: V3Look | undefined;
 }>) {
-  const state = row?.awaitState ?? "none";
+  const next = isNextLook(look);
+  const stage = facts?.stage ? admissionsPipelineStage(facts.stage) : null;
+  const direction = facts?.direction ?? null;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-border p-3 @2xl:flex @2xl:gap-3">
-      <Link href={listHref} className="col-start-1 row-start-1 inline-flex min-h-11 items-center text-sm text-fg-2 underline decoration-transparent hover:decoration-inherit @2xl:hidden" scroll={false}>
-        ← К списку
-      </Link>
-      <div className="col-start-1 row-start-2 min-w-0 flex-1">
-        <p className="truncate font-semibold text-fg">{row?.studentDisplayName ?? "Переписка"}</p>
-      </div>
-      {state !== "none" ? <span className="col-start-2 row-start-2"><Pill tone={awaitTone(state)}>{caseChatAwaitState(state)}</Pill></span> : null}
-      <Link href={`/v3/profile?case=${caseId}&tab=route`} className="hidden min-h-11 items-center text-sm text-fg-2 underline decoration-transparent hover:decoration-inherit @2xl:inline-flex">
-        Открыть дело
-      </Link>
-      <details className="relative col-start-2 row-start-1 justify-self-end">
-        <summary aria-label="Ещё" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 [&::-webkit-details-marker]:hidden">⋯</summary>
-        <div className="absolute end-0 z-20 mt-1 w-56 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
-          {CASE_CHAT_AWAIT_STATES.filter((value) => value !== state).map((value) => (
-            <button key={value} type="button" disabled={awaitPending} onClick={() => onSetAwait(value)}
-              className="block w-full rounded-nav px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2 disabled:opacity-55">
-              {value === "none" ? "Ответ не требуется" : caseChatAwaitState(value)}
-            </button>
-          ))}
+    <div className="flex flex-col gap-2 border-b border-border p-3" data-testid="case-chat-thread-header">
+      <div className="flex items-start justify-between gap-2 @2xl:gap-3">
+        <div className="flex min-w-0 items-start gap-1 @2xl:gap-2.5">
+          <Link href={listHref} scroll={false} aria-label="К списку" title="К списку"
+            className="-my-1 -ms-2 inline-flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg @2xl:hidden">
+            <Icon name="arrow-left" size={20} className="shrink-0" />
+          </Link>
+          {next && name ? <span className="mt-0.5 hidden shrink-0 @2xl:block"><Initials name={name} decorative /></span> : null}
+          <div className="min-w-0">
+            {/* Узко имя встаёт в две строки, а не в «Студент …»: с кем переписка — главное. */}
+            <h2 className="t-section break-words text-fg @max-2xl:line-clamp-2 @2xl:truncate">{name ?? "Переписка"}</h2>
+            {direction || stage ? (
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 t-body-compact text-fg-2" data-testid="case-chat-case-facts">
+                {direction ? <span>{direction}</span> : null}
+                {direction && stage ? <span aria-hidden="true" className="text-fg-3">·</span> : null}
+                {stage ? (next ? <StageChip label={stage} phase={stagePhase("admissions", facts?.stage)} /> : <span>{stage}</span>) : null}
+              </p>
+            ) : null}
+          </div>
         </div>
-      </details>
+        <Link href={`/v3/profile?case=${caseId}`} className={`${QUEUE_SECONDARY} shrink-0 hover:bg-surface-2 hover:text-fg`}>
+          Открыть дело
+        </Link>
+      </div>
+      {awaitState !== null ? (
+        /* Подпись «Состояние» отличает запись от фильтра очереди. Узко —
+           подпись над переключателем и три равные части на всю ширину (слово
+           может встать в две строки), широко — в строку, по ширине слов. */
+        <div className="flex flex-col gap-1 @2xl:flex-row @2xl:items-center @2xl:gap-3">
+          <span className="t-label text-fg-3" aria-hidden="true">Состояние</span>
+          <div role="group" aria-label="Состояние переписки" data-testid="case-chat-await-control"
+            className="grid grid-cols-3 gap-0.5 rounded-ctl border border-border bg-surface-2 p-0.5 @2xl:flex @2xl:w-fit">
+            {AWAIT_CONTROL_ORDER.map((value) => (
+              <button key={value} type="button" aria-pressed={awaitState === value} disabled={awaitPending}
+                onClick={() => { if (value !== awaitState) onSetAwait(value); }}
+                data-tone={awaitTone(value)}
+                className={`inline-flex min-h-11 items-center justify-center rounded-nav border border-transparent px-1.5 text-center t-label text-fg-2 hover:text-fg aria-pressed:font-semibold ${AWAIT_PRESSED[value]} disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring @2xl:whitespace-nowrap @2xl:px-3`}>
+                {caseChatAwaitChoice(value)}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -259,16 +420,33 @@ function AttachmentCard({ message, caseId }: Readonly<{ message: CaseChatMessage
   );
 }
 
+/**
+ * Сообщение ленты. «Действия с сообщением» — знак из набора иконок в строке
+ * «автор · время» самого пузыря (не отдельной строкой под ним и не символом
+ * «⋯»): цель 44 px, но строка пузыря от неё не растёт. Меню — в верхнем слое
+ * (popover), прокрутка ленты его не обрежет.
+ */
 function MessageRow({
   message, own, caseId, onReply,
 }: Readonly<{ message: CaseChatMessage; own: boolean; caseId: string; onReply: (message: CaseChatMessage) => void }>) {
+  const menu = useAnchoredPopover(own ? "end" : "start");
   return (
-    <div className={`flex flex-col gap-0.5 py-2 ${own ? "items-end" : "items-start"}`} id={`case-message-${message.id}`}>
+    <div className={`flex flex-col py-2 ${own ? "items-end" : "items-start"}`} id={`case-message-${message.id}`}>
       <div className={`max-w-[85%] min-w-0 rounded-ctl px-3 py-2 ${own ? "bg-accent/10" : "bg-surface-2"}`}>
-        <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-fg-3">
-          <span className="font-medium text-fg-2">{own ? "Вы" : message.authorName}</span>
-          <time dateTime={message.createdAt}>{TIME.format(new Date(message.createdAt))}</time>
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 text-xs text-fg-3">
+            <span className="font-medium text-fg-2">{own ? "Вы" : message.authorName}</span>
+            <time dateTime={message.createdAt}>{TIME.format(new Date(message.createdAt))}</time>
+          </p>
+          <button type="button" id={menu.triggerId} popoverTarget={menu.popoverId} style={menu.triggerStyle}
+            aria-label="Действия с сообщением"
+            className="group -my-3.5 -me-2.5 inline-flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-3 hover:text-fg">
+            {/* Цель — 44 px, подложка при наведении — только вокруг знака, внутри пузыря. */}
+            <span className="inline-flex size-7 items-center justify-center rounded-nav group-hover:bg-surface-3">
+              <Icon name="more-horizontal" size={16} className="shrink-0" />
+            </span>
+          </button>
+        </div>
         {message.quotedPreview ? (
           <p className="mt-1 truncate border-s-2 border-border ps-2 text-xs text-fg-3">
             {message.quotedPreview.authorName}: {message.quotedPreview.bodyPreview}
@@ -277,26 +455,26 @@ function MessageRow({
         {message.body ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-fg">{message.body}</p> : null}
         <AttachmentCard message={message} caseId={caseId} />
       </div>
-      <details className="relative col-start-2 row-start-1 justify-self-end">
-        <summary aria-label="Действия с сообщением" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-nav text-xs text-fg-3 hover:bg-surface-2 [&::-webkit-details-marker]:hidden">⋯</summary>
-        <div className="absolute end-0 z-20 mt-1 w-52 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
-          <button type="button" className="block w-full rounded-nav px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2" onClick={() => onReply(message)}>
-            Ответить с цитатой
-          </button>
-        </div>
-      </details>
+      <div id={menu.popoverId} popover="auto" role="group" aria-label="Действия с сообщением" style={menu.popoverStyle}
+        className={`v3-anchored ${own ? "v3-anchored-end" : ""} w-52 rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg`}>
+        <button type="button" className="flex min-h-11 w-full items-center rounded-nav px-2 text-left text-sm text-fg hover:bg-surface-2"
+          onClick={() => { document.getElementById(menu.popoverId)?.hidePopover(); onReply(message); }}>
+          Ответить с цитатой
+        </button>
+      </div>
     </div>
   );
 }
 
 function CaseChatThreadView({
   caseId, initialPage, initialFailure, storageScope, membershipId, pendingAttachment, onAttachmentConsumed,
-  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged,
+  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged, facts, snippets, look,
 }: Readonly<{
   caseId: string; initialPage: CaseChatPage | null; initialFailure: CaseChatFailure | null;
   storageScope: string; membershipId: string; pendingAttachment: CaseChatPendingAttachment | null;
   onAttachmentConsumed: () => void; organizationId: string; realtimeConfig: SupabasePublicConfig;
   studentDisplayName: string | null; listHref: string; onListChanged: () => void;
+  facts: CaseChatCaseFacts | null; snippets: CaseChatSnippets; look: V3Look | undefined;
 }>) {
   const [page, setPage] = useState<CaseChatPage | null>(initialPage);
   const [error, setError] = useState<CaseChatFailure | null>(initialFailure);
@@ -431,7 +609,8 @@ function CaseChatThreadView({
 
   if (!page) {
     return <div className="flex min-w-0 flex-1 flex-col">
-      <ThreadHeader row={studentDisplayName === null ? null : { studentDisplayName, awaitState: "none" }} caseId={caseId} listHref={listHref} onSetAwait={() => {}} awaitPending={false} />
+      <ThreadHeader name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
+        awaitState={null} onSetAwait={() => {}} awaitPending={false} look={look} />
       <p role="alert" className="p-4 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error ?? "unavailable"]}</p>
     </div>;
   }
@@ -440,9 +619,8 @@ function CaseChatThreadView({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ThreadHeader
-        listHref={listHref}
-        row={studentDisplayName === null ? null : { studentDisplayName, awaitState: awaitState ?? page.thread.awaitState }}
-        caseId={caseId} onSetAwait={changeAwait} awaitPending={awaitPending} />
+        name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
+        awaitState={awaitState ?? page.thread.awaitState} onSetAwait={changeAwait} awaitPending={awaitPending} look={look} />
       {error ? <p role="alert" className="px-3 pt-2 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error]}</p> : null}
       <div ref={viewport} className="min-h-0 flex-1 overflow-y-auto px-3" aria-label="История переписки">
         {page.hasMore ? <button type="button" disabled={busy} onClick={() => void loadOlder()} className="my-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg-2 hover:bg-surface-2">
@@ -455,37 +633,56 @@ function CaseChatThreadView({
       </div>
       <CaseChatComposer caseId={caseId} storageScope={storageScope} pendingAttachment={pendingAttachment}
         onAttachmentConsumed={onAttachmentConsumed} replyTo={replyTo} onClearReply={() => setReplyTo(null)}
-        onSaved={() => startTransition(() => { void refresh(); })} />
+        onSaved={() => startTransition(() => { void refresh(); })} snippets={snippets} />
     </div>
   );
 }
 
-function threadRowBadges(row: CaseChatThreadRow) {
+/**
+ * Отметки строки словами. Состояние — только в «Всех»: в очереди оно у всех
+ * строк одно и ничего не сообщает. «Непрочитанное» — отдельное состояние
+ * (чтение 234): чужое сообщение после моей отметки прочтения.
+ */
+function threadRowBadges(row: CaseChatThreadRow, queue: CaseChatQueue): { tone: PillTone; text: string }[] {
   const badges: { tone: PillTone; text: string }[] = [];
-  if (row.awaitState === "needs_reply") badges.push({ tone: "danger", text: caseChatAwaitState("needs_reply") ?? "Нужен ответ" });
-  else if (row.awaitState === "awaiting_student") badges.push({ tone: "warn", text: caseChatAwaitState("awaiting_student") ?? "Ждём студента" });
+  if (queue === "all" && row.awaitState !== "none") {
+    const text = caseChatAwaitState(row.awaitState);
+    if (text) badges.push({ tone: awaitTone(row.awaitState), text });
+  }
   if (row.unread) badges.push({ tone: "info", text: "Непрочитанное" });
   return badges;
 }
 
+function queueLabel(queue: CaseChatQueue): string {
+  return queue === "all" ? "Все" : caseChatAwaitState(queue) ?? "";
+}
+
 function CaseChatList({
-  threads, selectedCaseId, query, onQuery, queue, onQueue, membershipId, hidden, loading, failure, onRetry,
+  threads, counts, readAt, selectedCaseId, query, onQuery, queue, onQueue, membershipId, hidden, loading, failure, onRetry, look,
 }: Readonly<{
-  threads: CaseChatThreadsList; selectedCaseId: string | null; query: string; onQuery: (value: string) => void;
+  threads: CaseChatThreadsList; counts: CaseChatQueueRead["counts"] | null; readAt: string;
+  selectedCaseId: string | null; query: string; onQuery: (value: string) => void;
   queue: CaseChatQueue; onQueue: (value: CaseChatQueue) => void;
   membershipId: string; hidden: boolean; loading: boolean; failure: CaseChatFailure | null; onRetry: () => void;
+  look: V3Look | undefined;
 }>) {
   const router = useRouter();
+  const next = isNextLook(look);
   return (
-    <nav aria-label="Переписки" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-e border-border @2xl:w-[320px] @2xl:shrink-0`}>
-      <div className="border-b border-border p-3">
-        <h1 className="t-page-title mb-2 text-fg">Сообщения</h1>
-        <div role="group" aria-label="Очередь переписок" className="mb-2 flex flex-wrap gap-1">
-          {CASE_CHAT_QUEUES.map((value) => <button key={value} type="button" aria-pressed={queue === value}
-            onClick={() => onQueue(value)}
-            className="v3-choice min-h-11 rounded-ctl px-2 text-sm text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-            {value === "all" ? "Все" : caseChatAwaitState(value)}
-          </button>)}
+    <nav aria-label="Переписки кабинета студента" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-border @2xl:w-[360px] @2xl:shrink-0 @2xl:border-e`}>
+      <div className="flex flex-col gap-2 border-b border-border p-3">
+        {/* Очереди на виду (Э5): число — из того же чтения, только из полного; «Все» без числа. */}
+        <div role="group" aria-label="Очередь переписок" data-testid="case-chat-queues" className="flex flex-wrap gap-1">
+          {CASE_CHAT_QUEUE_ORDER.map((value) => {
+            const count = value === "all" || counts === null ? null : counts[value];
+            return (
+              <button key={value} type="button" aria-pressed={queue === value} onClick={() => onQueue(value)}
+                className="v3-choice inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-nav px-2.5 t-label text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+                {queueLabel(value)}
+                {count !== null ? <span className="tabular-nums text-fg-3" data-queue-count={value}>{count}</span> : null}
+              </button>
+            );
+          })}
         </div>
         <form onSubmit={(event) => { event.preventDefault(); }} role="search">
           <label className="sr-only" htmlFor="case-chat-search">Поиск по студенту</label>
@@ -507,48 +704,94 @@ function CaseChatList({
         {!loading && !failure && (threads.rows.length === 0 ? <div className="p-4">
           <p role="status" className="text-sm text-fg-3">{query.trim()
             ? queue === "all" ? "По вашему запросу переписок не найдено." : "В этой очереди нет переписок по вашему запросу."
-            : queue === "all" ? "Переписок пока нет." : "В этой очереди переписок нет."}</p>
+            : queue === "needs_reply" ? "Нет переписок, ждущих ответа." : queue === "all" ? "Переписок пока нет." : "В этой очереди переписок нет."}</p>
           {query.trim() ? <button type="button" onClick={() => onQuery("")} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
             Сбросить поиск
+          </button> : queue !== "all" ? <button type="button" onClick={() => onQueue("all")} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
+            Показать все переписки
           </button> : null}
         </div> : threads.rows.map((row) => {
-          const badges = threadRowBadges(row);
+          const badges = threadRowBadges(row, queue);
           return (
             <button key={row.studentCaseId} type="button"
               onClick={() => router.push(caseChatHref(query, queue, row.studentCaseId))}
               aria-current={row.studentCaseId === selectedCaseId ? "page" : undefined}
-              className={`flex w-full flex-col gap-0.5 border-b border-border px-3 py-3 text-start hover:bg-surface-2 ${row.studentCaseId === selectedCaseId ? "bg-surface-2" : ""}`}>
-              <span className="flex items-center justify-between gap-2">
-                <span className="truncate font-medium text-fg">{row.studentDisplayName}</span>
-                {row.lastMessageAt ? <time className="shrink-0 text-xs text-fg-3" dateTime={row.lastMessageAt}>{ROW_TIME.format(new Date(row.lastMessageAt))}</time> : null}
+              data-case-chat-row={row.studentCaseId}
+              className={`flex w-full items-start gap-2.5 border-b border-border px-3 py-3 text-start hover:bg-surface-2 ${row.studentCaseId === selectedCaseId ? "bg-surface-2" : ""}`}>
+              {next ? <span className="mt-0.5 shrink-0"><Initials name={row.studentDisplayName} decorative /></span> : null}
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="truncate t-item text-fg">{row.studentDisplayName}</span>
+                  {row.lastMessageAt ? <time className="t-meta shrink-0 font-mono tabular-nums text-fg-3" dateTime={row.lastMessageAt}>{rowTime(row.lastMessageAt, readAt)}</time> : null}
+                </span>
+                {row.lastMessageSnippet ? <span className="truncate text-sm text-fg-2">
+                  {row.lastMessageAuthorMembershipId === membershipId ? "Вы: " : ""}{row.lastMessageSnippet}
+                </span> : <span className="text-sm text-fg-3">Нет сообщений</span>}
+                {badges.length ? <span className="mt-0.5 flex flex-wrap gap-1">{badges.map((badge) => <StateWord key={badge.text} look={look} tone={badge.tone} label={badge.text} />)}</span> : null}
               </span>
-              {row.lastMessageSnippet ? <span className="truncate text-sm text-fg-2">
-                {row.lastMessageAuthorMembershipId === membershipId ? "Вы: " : ""}{row.lastMessageSnippet}
-              </span> : <span className="text-sm text-fg-3">Нет сообщений</span>}
-              {badges.length ? <span className="mt-0.5 flex flex-wrap gap-1">{badges.map((badge) => <Pill key={badge.text} tone={badge.tone}>{badge.text}</Pill>)}</span> : null}
             </button>
           );
         }))}
-        {!loading && !failure && threads.truncated ? <p className="p-3 text-xs text-fg-3">Показаны первые {threads.rows.length}. Уточните поиск.</p> : null}
+        {!loading && !failure && threads.truncated ? <p className="t-meta p-3 text-fg-3">Показаны первые {threads.rows.length}. Уточните поиск.</p> : null}
       </div>
     </nav>
   );
 }
 
+/**
+ * Правая часть без открытой переписки (Э5): вместо «Выберите переписку
+ * слева.» — следующая переписка, ждущая ответа, дольше всех ждущая (из
+ * полного чтения), или тихое «Все ответы даны» — в любой очереди, в том
+ * числе в пустой «Нужен ответ» (список слева тогда говорит «Нет переписок,
+ * ждущих ответа.», без повтора). Иначе — пусто.
+ */
+function NextThreadPane({ read, membershipId, query, queue, loading, failure }: Readonly<{
+  read: CaseChatQueueRead; membershipId: string; query: string; queue: CaseChatQueue;
+  loading: boolean; failure: CaseChatFailure | null;
+}>) {
+  const line = loading || failure ? { kind: "none" as const } : caseChatNextLine(read, membershipId, query);
+  return (
+    <div className="hidden flex-1 flex-col items-center justify-center gap-3 p-6 text-center @2xl:flex" data-testid="case-chat-next">
+      {line.kind === "next" ? (
+        <>
+          <p className="max-w-[48ch] t-body text-fg-2">
+            Следующий: <span className="font-semibold text-fg">{line.row.studentDisplayName}</span>
+            {line.waiting ? <> — {line.waiting}</> : null}
+          </p>
+          <Link href={caseChatHref(query, queue, line.row.studentCaseId)} scroll={false} className={`${QUEUE_SECONDARY} hover:bg-surface-2 hover:text-fg`}
+            aria-label={`Открыть переписку: ${line.row.studentDisplayName}`}>
+            Открыть
+          </Link>
+        </>
+      ) : line.kind === "all-answered" ? (
+        <p className="t-body text-fg-3">Все ответы даны</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function CaseChatWorkspace({
-  organizationId, membershipId, realtimeConfig, initialThreads, initialStudentDisplayName, selectedCaseId, initialPage,
-  initialPageFailure,
+  organizationId, membershipId, realtimeConfig, initialQueue, initialStudentDisplayName, selectedCaseId, initialPage,
+  initialPageFailure, caseFacts = null, snippets = null, look,
 }: Readonly<{
   organizationId: string; membershipId: string; realtimeConfig: SupabasePublicConfig;
-  initialThreads: CaseChatThreadsList; selectedCaseId: string | null;
+  initialQueue: CaseChatQueueRead; selectedCaseId: string | null;
   initialStudentDisplayName: string | null;
   initialPage: CaseChatPage | null; initialPageFailure: CaseChatFailure | null;
+  /** Направление и этап открытого дела (строка очереди 241); null — нет строки. */
+  caseFacts?: CaseChatCaseFacts | null;
+  snippets?: CaseChatSnippets;
+  look?: V3Look;
 }>) {
-  const [threads, setThreads] = useState(initialThreads);
+  const [queueRead, setQueueRead] = useState(initialQueue);
+  const threads = queueRead.list;
   // The actual history entry owns filters; cached initial server props do not.
   const params = useSearchParams();
   const query = params.get("q") ?? "";
-  const queue = parseCaseChatQueue(params.get("queue") ?? undefined) ?? "all";
+  // Поиск, по которому прочитаны числа (сначала — поиск чтения страницы):
+  // другой поиск — чисел нет, пока не придёт его чтение.
+  const [countsQuery, setCountsQuery] = useState(() => query.trim());
+  const queue = parseCaseChatQueue(params.get("queue") ?? undefined) ?? CASE_CHAT_DEFAULT_QUEUE;
   const attachment = params.get("case") === selectedCaseId ? parseCaseChatAttachParam(params.get("attach")) : null;
   const scope = useRef({ query, queue });
   const [loading, setLoading] = useState(false);
@@ -565,7 +808,7 @@ export function CaseChatWorkspace({
     try {
       const result = await loadStaffCaseChatThreadsAction(value, selectedQueue);
       if (sequence !== searchSequence.current) return;
-      if (result.status === "ready") setThreads(result.list);
+      if (result.status === "ready") { setQueueRead(result.read); setCountsQuery(value.trim()); }
       else setFailure(result.status);
     } catch {
       if (sequence !== searchSequence.current) return;
@@ -610,7 +853,7 @@ export function CaseChatWorkspace({
       const current = new URL(window.location.href);
       scope.current = {
         query: current.searchParams.get("q") ?? "",
-        queue: parseCaseChatQueue(current.searchParams.get("queue") ?? undefined) ?? "all",
+        queue: parseCaseChatQueue(current.searchParams.get("queue") ?? undefined) ?? CASE_CHAT_DEFAULT_QUEUE,
       };
       refreshList();
     };
@@ -637,22 +880,21 @@ export function CaseChatWorkspace({
   }
 
   const row = threads.rows.find((item) => item.studentCaseId === selectedCaseId);
+  const counts = countsQuery === query.trim() ? queueRead.counts : null;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 rounded-card border border-border bg-surface">
-      <CaseChatList threads={threads} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
-        queue={queue} onQueue={onQueue}
+      <CaseChatList threads={threads} counts={counts} readAt={queueRead.readAt} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
+        queue={queue} onQueue={onQueue} look={look}
         membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={refreshList} />
       {selectedCaseId ? (
         <CaseChatThreadView caseId={selectedCaseId} initialPage={initialPage} initialFailure={initialPageFailure}
           storageScope={`${organizationId}:${membershipId}`} membershipId={membershipId} pendingAttachment={attachment}
           onAttachmentConsumed={consumeAttachment} organizationId={organizationId} realtimeConfig={realtimeConfig}
           studentDisplayName={row?.studentDisplayName ?? initialStudentDisplayName} onListChanged={refreshList}
-          listHref={caseChatHref(query, queue)} />
+          listHref={caseChatHref(query, queue)} facts={caseFacts} snippets={snippets} look={look} />
       ) : (
-        <div className="hidden flex-1 items-center justify-center p-6 text-center text-sm text-fg-3 @2xl:flex">
-          {!loading && !failure && threads.rows.length > 0 ? "Выберите переписку слева." : null}
-        </div>
+        <NextThreadPane read={queueRead} membershipId={membershipId} query={query} queue={queue} loading={loading} failure={failure} />
       )}
     </div>
   );

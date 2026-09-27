@@ -201,17 +201,23 @@ test("the composer freezes the exact submitted field values (not just the reques
   assert.match(component, /else if \(result\.status !== "unavailable"\) \{\s*persist\(\{ \.\.\.draft, requestId: crypto\.randomUUID\(\), retryBody: undefined, retryQuotedMessageId: undefined, retryAttachmentKind: undefined, retryAttachmentId: undefined \}\);/u);
   // Quiet UI: no explanatory narration strings.
   assert.doesNotMatch(component, /Это нужно для|Мы делаем это|Обратите внимание/u);
-  // States distinguishable by text, not color alone: every Pill has a text child, and the await Pill always renders caseChatAwaitState(...) alongside its tone.
-  assert.match(component, /<Pill tone=\{awaitTone\(state\)\}>\{caseChatAwaitState\(state\)\}<\/Pill>/u);
+  // States distinguishable by text, not color alone. Э5 (27.09.2026): the
+  // header shows the state as a visible three-way control with words, and a
+  // row chip always carries its word (Pill in the current look, StatusChip in
+  // the new one); «Нужен ответ» is a warning, not danger red.
+  assert.match(component, /\{caseChatAwaitChoice\(value\)\}/u);
+  assert.match(component, /return <Pill tone=\{tone\}>\{label\}<\/Pill>;/u);
+  assert.match(component, /return state === "needs_reply" \? "warn" : "neutral";/u);
 });
 
-test("the messages route registers in all three route maps and the navigation group", () => {
+test("the messages route registers in all three route maps and the «Переписки» channels", () => {
   assert.match(source("src/lib/fixed-role-policy.ts"), /"\/v3\/messages",/u);
   assert.match(source("src/lib/fixed-role-policy.ts"), /"\/v3\/messages": \["admissions\.read"\]/u);
   assert.match(source("src/lib/platform-route-contract.ts"), /"\/v3\/messages",/u);
   assert.match(source("src/lib/platform-access.ts"), /"\/v3\/messages": \["admissions\.read"\]/u);
+  // Э5: «Сообщения» is the «Кабинет студента» channel of the one «Переписки» item.
   const navigation = source("src/lib/v3/navigation.ts");
-  assert.match(navigation, /\{ id: "messages", href: "\/v3\/messages", route: "\/v3\/messages", label: "Сообщения" \}/u);
+  assert.match(navigation, /\{ key: "cabinet", label: "Кабинет студента", href: "\/v3\/messages", route: "\/v3\/messages" \}/u);
 });
 
 test("«Обсудить» links exist from the case card, task detail panel (case tasks) and the documents panel", () => {

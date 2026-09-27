@@ -13,7 +13,7 @@ import { readStudentCaseQueue, STUDENT_CASE_QUEUE_PAGE_SIZE_MAX, STUDENT_CASE_QU
 import { dayInOrganizationTimezone } from "../platform-task-deadline";
 import { CaseChatReadError, readCaseChatPage } from "./case-chat-source";
 
-type CaseWorkTarget = Readonly<{
+export type CaseWorkTarget = Readonly<{
   studentCaseId: string;
   studentDisplayName: string;
   state: "pending" | "active" | "closed";
@@ -25,9 +25,10 @@ type CaseWorkTarget = Readonly<{
  * Отдельного чтения одного дела у 241 нет, поэтому очередь читается видом по
  * состоянию дела и поиском по имени, а строка выбирается по id. Не нашлась
  * (отказ 241, больше 100 совпадений по имени) — null: этапа и редактора шага
- * нет, а не выдуманы.
+ * нет, а не выдуманы. Тем же чтением шапка переписки (Э5) называет
+ * направление и этап дела.
  */
-async function readCaseQueueRow(actor: ActivePlatformActor, target: CaseWorkTarget): Promise<CaseWorkRow> {
+export async function readCaseQueueRow(actor: ActivePlatformActor, target: CaseWorkTarget): Promise<CaseWorkRow> {
   const query = target.studentDisplayName.trim();
   if (!query || Array.from(query).length > STUDENT_CASE_QUEUE_QUERY_MAX_LENGTH) return null;
   try {

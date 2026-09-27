@@ -10,6 +10,7 @@ import { QueueEmpty, QueueError, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
 import { CuratorWorkloadView } from "./CuratorWorkloadView";
 import { StudentsDocsTable } from "./StudentsDocsTable";
+import { StudentsPackagesTable } from "./StudentsPackagesTable";
 import { StudentsQueueBody } from "./StudentsQueueBody";
 import { StudentsCountsUnavailable, StudentsFilterRejected, StudentsTabs, StudentsToolbar, type CuratorName } from "./StudentsQueueHead";
 import {
@@ -18,6 +19,7 @@ import {
   docsReadable,
   docsRowMatches,
   docsTabCounts,
+  type DocsPackagesRead,
   russianPlural,
   studentsDocsTabs,
   studentsListHref,
@@ -53,6 +55,8 @@ export type StudentsQueueScreenInput = Readonly<{
   requestIds: Readonly<{ nextStep: string; coverage: string }>;
   /** Новый облик (Э1.3, предпросмотр Admin): общие блоки в таблице и «Быстром просмотре». */
   look?: V3Look;
+  /** EVO Docs: очередь «Комплекты на проверку» (вкладка «Комплекты»); без неё — вкладки нет. */
+  packages?: DocsPackagesRead;
 }>;
 
 const DIRECTORY = "min-w-0 space-y-2";
@@ -78,7 +82,37 @@ function docsEmptyTitle(view: StudentsDocsView, filtered: boolean, complete: boo
   if (view !== "all" && !complete) return "В прочитанной части списка ничего не найдено";
   if (view === "review") return "Документов на проверку нет";
   if (view === "fix") return "Документов на исправление нет";
+  // Дела без чек-листа сюда не входят: «не хватает» считается только по местам чек-листа.
+  if (view === "missing") return "Незагруженных документов по чек-листам нет";
   return filtered ? "Ничего не найдено" : "Дел в работе нет";
+}
+
+/** Вся очередь «Комплекты на проверку» — на доске поступления (там же «Показать ещё» и проверка). */
+const PACKAGES_QUEUE_HREF = "/v3/admissions-pipeline?view=packages";
+
+/**
+ * Вкладка «Комплекты»: строки очереди «Комплекты на проверку». Первая
+ * страница — 20 комплектов; есть продолжение — числа нет, и строка
+ * называет, где вся очередь. Фильтры дел к комплектам не относятся, поэтому
+ * строки инструментов здесь нет.
+ */
+function PackagesView({ packages, returnTo, today }: Readonly<{ packages: DocsPackagesRead; returnTo: string; today: string }>) {
+  if (packages.kind === "error") return <QueueError text="Не удалось загрузить комплекты на проверку." retryHref={returnTo} />;
+  if (packages.kind === "denied" || packages.kind === "hidden") {
+    return <QueueEmpty title="Очередь комплектов вашей учётной записи недоступна" />;
+  }
+  const { items, nextCursor } = packages.queue;
+  if (items.length === 0) return <QueueEmpty title="Комплектов на проверку нет" />;
+  return <>
+    <StudentsPackagesTable items={items} returnTo={returnTo} today={today}
+      caption={nextCursor ? `Комплекты: последние ${items.length} отправленных` : `Комплекты: ${items.length}`} />
+    {nextCursor ? (
+      <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
+        <span>Показаны последние {items.length} {russianPlural(items.length, "комплект", "комплекта", "комплектов")}; вся очередь — на доске поступления.</span>
+        <Link href={PACKAGES_QUEUE_HREF} className={QUEUE_QUIET_LINK}>Все комплекты на проверку</Link>
+      </p>
+    ) : null}
+  </>;
 }
 
 /**
@@ -107,7 +141,9 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
   const { params, read } = input;
   const docs = params.mode === "docs";
   if (input.invalid) {
-    const tabs = docs ? studentsDocsTabs(params, { review: null, fix: null, all: null }) : studentsQueueTabs(params, null, input.actor);
+    const tabs = docs
+      ? studentsDocsTabs(params, { review: null, fix: null, missing: null, packages: null, all: null }, { packages: (input.packages?.kind ?? "hidden") !== "hidden" })
+      : studentsQueueTabs(params, null, input.actor);
     return {
       count: null,
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">
@@ -131,8 +167,20 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
     const rows = page?.rows ?? [];
     const complete = page !== null && params.cursor === null && page.nextCursor === null;
     const documents = docsReadable(rows);
-    const tabCounts = docsTabCounts(rows, complete, read.counts);
+    const packages = input.packages ?? { kind: "hidden" };
+    const tabCounts = docsTabCounts(rows, complete, read.counts, packages);
     const view = params.view as StudentsDocsView;
+    const tabs = <StudentsTabs tabs={studentsDocsTabs(params, tabCounts, { packages: packages.kind !== "hidden" })} />;
+    if (view === "packages") {
+      return {
+        count: tabCounts.packages,
+        content: <div className={DIRECTORY} data-testid="v3-student-case-directory">
+          <QueueKeyboard />
+          <QueueHead>{tabs}</QueueHead>
+          <PackagesView packages={packages} returnTo={here} today={input.today} />
+        </div>,
+      };
+    }
     const shown = rows.filter((row) => docsRowMatches(view, row));
     const filtered = Boolean(params.query || params.direction || params.curator);
     return {
@@ -140,13 +188,13 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">
         <QueueKeyboard />
         <QueueHead>
-          <StudentsTabs tabs={studentsDocsTabs(params, tabCounts)} />
+          {tabs}
           {toolbar}
           {countsNotice}
         </QueueHead>
         {page === null ? <QueueError text="Не удалось загрузить дела для EVO Docs." retryHref={here} />
           : shown.length === 0 ? <QueueEmpty title={docsEmptyTitle(view, filtered, complete, documents)} />
-          : <StudentsDocsTable rows={shown} view={view} caption={`${STUDENTS_DOCS_VIEW_LABELS[view]}: ${shown.length} из прочитанных дел`} returnTo={here} />}
+          : <StudentsDocsTable rows={shown} view={view} caption={`${STUDENTS_DOCS_VIEW_LABELS[view]}: ${shown.length} из прочитанных дел`} returnTo={here} look={input.look} />}
         {page && (params.cursor || page.nextCursor) ? (
           <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
             {/* У 241 нет отбора по документам: вкладка проверки отбирает строки внутри чтения по 100 дел. */}

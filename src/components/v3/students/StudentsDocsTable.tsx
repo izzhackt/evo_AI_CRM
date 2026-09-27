@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Icon } from "@/components/icons";
 import type { StudentCaseQueueRow } from "@/lib/platform-student-case-queue-contract";
 
+import { isNextLook, type V3Look } from "../blocks/look";
+import { ProgressBar } from "../blocks/ProgressBar";
 import { DocsRowMenu } from "./DocsRowMenu";
 import { studentsRowMeta } from "./StudentsQueueTable";
 import { studentsCaseHref, studentsDocsCell, type StudentsDocsPart, type StudentsDocsView } from "./students-queue-view";
@@ -17,6 +19,30 @@ function Parts({ parts, strong }: Readonly<{ parts: readonly StudentsDocsPart[];
     </span>
   ));
 }
+/**
+ * Ячейка «Документы» нового облика: число вкладки («2 на проверке», «3 не
+ * загружено»), полоса «N из M принято» из прочитанных чисел чек-листа и
+ * остальные слова. Итог «N из M» рисует только полоса; без чисел (пустой
+ * чек-лист) — прежняя строка итога.
+ */
+function DocumentsProgress({ row, lead, rest }: Readonly<{
+  row: StudentCaseQueueRow;
+  lead: readonly StudentsDocsPart[];
+  rest: readonly StudentsDocsPart[];
+}>) {
+  const words = lead.filter((part) => part.key !== "summary");
+  const others = rest.filter((part) => part.key !== "summary");
+  const summary = [...lead, ...rest].find((part) => part.key === "summary");
+  return (
+    <span className="block space-y-1">
+      {words.length ? <span className="block t-item"><Parts parts={words} strong /></span> : null}
+      <ProgressBar done={row.documents?.approved} total={row.documents?.total} word="принято"
+        fallback={summary ? <span className="block text-fg">{summary.text}</span> : null} />
+      {others.length ? <span className="block"><Parts parts={others} strong={false} /></span> : null}
+    </span>
+  );
+}
+
 /*
  * EVO Docs — очередь проверки документов: Студент | Документы | Куратор |
  * одно действие «Открыть документы →» и «⋯». От 48rem своей ширины — таблица в
@@ -24,6 +50,9 @@ function Parts({ parts, strong }: Readonly<{ parts: readonly StudentsDocsPart[];
  * здесь нет. «Документы» начинаются с числа, которое определяет вкладку
  * (t-item), остальное — строкой ниже. Порядок строк — последнее изменение
  * дела (у чтения 241 нет времени ожидания проверки), и он назван над таблицей.
+ * Новый облик (Э1.3, Э3): «N из M принято» — полоса прогресса только из
+ * прочитанных чисел чек-листа (без них — прежняя строка), число вкладки —
+ * над ней, остальные слова состояния — под ней.
  */
 /**
  * Колонка действия — постоянные 11rem: «Открыть документы →» в одну строку.
@@ -40,13 +69,17 @@ export function StudentsDocsTable({
   view,
   caption,
   returnTo,
+  look,
 }: Readonly<{
   rows: readonly StudentCaseQueueRow[];
   view: StudentsDocsView;
   caption: string;
   /** Адрес этой очереди EVO Docs: «К списку EVO Docs» возвращает сюда. */
   returnTo: string;
+  /** Новый облик (предпросмотр Admin): полоса «N из M принято». */
+  look?: V3Look;
 }>) {
+  const next = isNextLook(look);
   return (
     <div className="@container/docs min-w-0 space-y-1" data-queue-list="">
       <p className="t-meta text-fg-2">Порядок: сначала недавно изменённые дела</p>
@@ -79,10 +112,11 @@ export function StudentsDocsTable({
                   <span className="block truncate t-meta text-fg-2" title={meta}>{meta}</span>
                 </th>
                 <td role="cell" className={`${CELL} [grid-area:documents] t-body-compact`}>
-                  {documents ? <>
-                    <span className="block t-item"><Parts parts={documents.lead} strong /></span>
-                    {documents.rest.length ? <span className="block"><Parts parts={documents.rest} strong={false} /></span> : null}
-                  </> : <span className="text-fg-3">Нет доступа к документам</span>}
+                  {documents && next ? <DocumentsProgress row={row} lead={documents.lead} rest={documents.rest} />
+                    : documents ? <>
+                      <span className="block t-item"><Parts parts={documents.lead} strong /></span>
+                      {documents.rest.length ? <span className="block"><Parts parts={documents.rest} strong={false} /></span> : null}
+                    </> : <span className="text-fg-3">Нет доступа к документам</span>}
                 </td>
                 <td role="cell" className={`${CELL} t-body-compact text-fg sr-only @min-[48rem]/docs:not-sr-only @min-[48rem]/docs:[grid-area:curator] @min-[48rem]/docs:self-center`}>
                   {row.currentCuratorDisplayName

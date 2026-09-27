@@ -65,7 +65,7 @@ import { readLookPreview } from "@/lib/v3/look-preview";
 import type { V3Look } from "@/components/v3/blocks/look";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
-import { readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
+import { readDocsPackages, readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
 
 export const dynamic = "force-dynamic";
 
@@ -193,7 +193,7 @@ async function studentsQueuePage(
   look: V3Look | undefined,
 ) {
   const params = parse.params;
-  const [reads, curators] = await Promise.all([
+  const [reads, curators, packages] = await Promise.all([
     parse.kind === "invalid" ? null : Promise.all([
       readStudentsQueue(actor, params),
       params.open ? readStudentsOpenTasks(actor, params.open) : Promise.resolve(null),
@@ -204,6 +204,8 @@ async function studentsQueuePage(
       params.open ? readCaseClosure(actor, params.open).catch(() => null) : Promise.resolve(null),
     ]),
     curatorsRead,
+    // EVO Docs, вкладка «Комплекты» и её число (Э3): очередь «Комплекты на проверку».
+    params.mode === "docs" ? readDocsPackages(actor) : Promise.resolve(undefined),
   ]);
   const editor = nextStepEditor(actor);
   return buildStudentsQueueScreen({
@@ -215,6 +217,7 @@ async function studentsQueuePage(
     coverage: reads?.[2] ?? null,
     handoff: reads?.[3] ?? null,
     closure: previewClosure(actor, reads?.[4] ?? null),
+    packages,
     today: dayInOrganizationTimezone(new Date()),
     curatorNames: curators.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
     editor: editor.input,

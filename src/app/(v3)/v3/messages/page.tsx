@@ -10,20 +10,20 @@ import { getPlatformStudentCaseView } from "@/lib/platform-admissions";
 import { CaseChatReadError, readCaseChatPage, readStaffCaseChatQueue } from "@/lib/v3/case-chat-source";
 import { readCaseQueueRow } from "@/lib/v3/case-work-source";
 import { readLookPreview } from "@/lib/v3/look-preview";
-import { conversationChannels } from "@/lib/v3/navigation";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Переписки" };
-const TITLE = "Переписки";
+export const metadata = { title: "Переписка со студентами" };
+const TITLE = "Переписка со студентами";
 
 /**
- * «Переписки» → «Кабинет студента» (Э5 плана редизайна, 27.09.2026):
- * переписка по делу со студентом. Заголовок «Переписки» и вкладки каналов —
- * общая со страницей WhatsApp шапка `ConversationsMain`; очереди, шапка
- * переписки и шаблоны — в `CaseChatWorkspace`. Права — прежние: страница `admissions.read`, чтения и
- * команды проверяет база.
+ * «Переписка со студентами» — пункт «Поступления» (решение владельца
+ * 27.09.2026): переписка по делу через кабинет студента с теми, кто уже
+ * студент или клиент. Страница стоит отдельно от WhatsApp продаж; шапка на
+ * высоту окна — `ConversationsMain`, очереди, шапка переписки и шаблоны
+ * (Э5) — в `CaseChatWorkspace`. Права — прежние: страница `admissions.read`,
+ * чтения и команды проверяет база.
  */
 export default async function MessagesPage({ searchParams }: {
   searchParams: Promise<{ case?: string | string[]; q?: string | string[]; queue?: string | string[]; attach?: string | string[] }>;
@@ -36,7 +36,6 @@ export default async function MessagesPage({ searchParams }: {
   const queue = parseCaseChatQueue(params.queue);
   if (queue === null) notFound();
   if (rawCase !== null && !caseChatUuid(rawCase)) notFound();
-  const channels = conversationChannels(actor);
 
   let queueRead: Awaited<ReturnType<typeof readStaffCaseChatQueue>> | null = null;
   let threadsFailure: keyof typeof CASE_CHAT_FAILURE_COPY = "unavailable";
@@ -47,7 +46,7 @@ export default async function MessagesPage({ searchParams }: {
   }
 
   if (!queueRead) {
-    return <ConversationsMain title={TITLE} channels={channels} current="cabinet" height="window">
+    return <ConversationsMain title={TITLE}>
       <Card>
         <p role="alert">{threadsFailure === "forbidden" ? "Доступ к перепискам изменился. Обновите страницу." : "Не удалось загрузить переписки. Обновите страницу."}</p>
         <a className="mt-4 inline-flex min-h-11 items-center text-accent-text underline" href={caseChatHref(query ?? "", queue, rawCase, parseCaseChatAttachParam(attach))}>Обновить страницу</a>
@@ -99,7 +98,7 @@ export default async function MessagesPage({ searchParams }: {
 
   const realtimeConfig = getSupabasePublicConfig();
   return (
-    <ConversationsMain title={TITLE} channels={channels} current="cabinet" height="window" threadOpen={rawCase !== null}>
+    <ConversationsMain title={TITLE} threadOpen={rawCase !== null}>
       <CaseChatWorkspace
         key={`${actor.membershipId}:${rawCase ?? "list"}`}
         organizationId={actor.organizationId}

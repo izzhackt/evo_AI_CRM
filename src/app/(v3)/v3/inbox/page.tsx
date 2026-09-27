@@ -3,9 +3,9 @@ import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
 
 import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
-import { ConversationsMain } from "@/components/v3/ConversationsMain";
 import { Inbox, inboxNotConnected } from "@/components/v3/Inbox";
 import { InboxProviderWorkflowControls } from "@/components/v3/InboxProviderWorkflowControls";
+import { PartShell } from "@/components/v3/PartShell";
 import { getLocale } from "@/lib/i18n";
 import {
   parsePlatformConversationCursor,
@@ -18,13 +18,11 @@ import {
   type InboxAmoCrmCommand,
 } from "@/lib/v3/inbox-source";
 import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
-import { conversationChannels } from "@/lib/v3/navigation";
 import { readV3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Переписки" };
-const TITLE = "Переписки";
+export const metadata = { title: "WhatsApp" };
 
 type SearchParams = Readonly<{
   q?: string | string[];
@@ -132,19 +130,18 @@ export default async function InboxPart({
     );
   }
 
-  // Не подключён и пусто: считать нечего, числа у канала нет. Подключает
+  // Не подключён и пусто: считать нечего, числа в заголовке нет. Подключает
   // Администратор — только ему ссылка на Настройки (не в просмотре роли).
   const notConnected = inboxNotConnected(view);
   const settingsHref = actor.systemRole === "admin" && actor.presentationRole === null
     ? "/v3/settings?section=integrations"
     : null;
 
-  // «Переписки» (Э5): канал WhatsApp рядом с «Кабинетом студента» под одной
-  // шапкой с ним (`ConversationsMain`); число диалогов страницы — у вкладки
-  // канала, а не у заголовка всех переписок.
+  // WhatsApp — пункт «Продаж» (решение владельца 27.09.2026: WhatsApp
+  // продажников, куда приходят лиды); страница стоит отдельно от переписки
+  // со студентами, число диалогов — у заголовка, как до Э5.
   return (
-    <ConversationsMain title={TITLE} channels={conversationChannels(actor)} current="whatsapp" height="fill"
-      count={notConnected ? null : view.conversations.length}>
+    <PartShell title="WhatsApp" count={notConnected ? null : view.conversations.length} fill>
       <Inbox
         view={view}
         profileHref={profileHref}
@@ -153,7 +150,7 @@ export default async function InboxPart({
         amoCrmControls={amoCrmControls}
         mediaAttachmentContext={mediaAttachmentContext}
       />
-    </ConversationsMain>
+    </PartShell>
   );
 }
 

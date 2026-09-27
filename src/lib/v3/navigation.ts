@@ -16,7 +16,8 @@ export type V3NavigationLinkId =
   | "universities"
   | "calendar"
   | "tasks"
-  | "conversations"
+  | "inbox"
+  | "messages"
   | "team-chat"
   | "documents"
   | "reply-snippets"
@@ -40,35 +41,6 @@ export type V3NavigationGroup = Readonly<{
 
 type NavigationQuery = Pick<URLSearchParams, "getAll" | "has" | "toString">;
 
-/**
- * «Переписки» (Э5 плана редизайна, 27.09.2026) — один пункт меню вместо
- * «Сообщений» и «WhatsApp». Каналы — прежние страницы со своими проверками:
- * «Кабинет студента» (`/v3/messages`, переписка по делу, `admissions.read`)
- * и WhatsApp (`/v3/inbox`, `messaging.read`). Роль видит только каналы,
- * которые открывает; пункт ведёт в первый из них и скрыт, если каналов нет.
- */
-export type ConversationChannelKey = "cabinet" | "whatsapp";
-export type ConversationChannel = Readonly<{
-  key: ConversationChannelKey;
-  label: string;
-  href: string;
-  route: Extract<FixedRoleRoute, "/v3/messages" | "/v3/inbox">;
-}>;
-export const CONVERSATIONS_LABEL = "Переписки";
-const CONVERSATION_CHANNELS: readonly ConversationChannel[] = [
-  { key: "cabinet", label: "Кабинет студента", href: "/v3/messages", route: "/v3/messages" },
-  { key: "whatsapp", label: "WhatsApp", href: "/v3/inbox", route: "/v3/inbox" },
-];
-
-/** Каналы, которые роль открывает, — те же проверки маршрутов, что у страниц и меню. */
-export function conversationChannels(actor: ActivePlatformActor): readonly ConversationChannel[] {
-  return CONVERSATION_CHANNELS.filter((channel) => staffCanAccessRoute(actor, channel.route));
-}
-
-export function isConversationsRoute(pathname: string): boolean {
-  return CONVERSATION_CHANNELS.some((channel) => channel.route === pathname);
-}
-
 // «Сегодня» (Э3, 26.09.2026): стартовая страница каждой роли — очередь того,
 // что пора сделать; id и адрес прежние.
 const HOME: V3NavigationLink = {
@@ -90,11 +62,14 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
     label: "Продажи",
     // Э6 (27.09.2026): у каждого раздела одно место для всех ролей, роль
     // только скрывает пункты. «Заявки» — общие для продаж и поступления и
-    // стоят в «Общем» (COMMON), WhatsApp — канал «Переписок» там же (Э5);
-    // здесь — только доска и отчёт продаж. Each label equals its page h1 and
-    // browser-tab section (UX quick win 2, 2026-09-24).
+    // стоят в «Общем» (COMMON). WhatsApp — здесь, после доски (решение
+    // владельца 27.09.2026: WhatsApp продажников, куда приходят лиды); его
+    // маршрут — `messaging.read`, а место в «Продажах» подчиняется правилу D
+    // ниже. Each label equals its page h1 and browser-tab section (UX quick
+    // win 2, 2026-09-24).
     links: [
       { id: "pipeline", href: "/v3/pipeline", route: "/v3/pipeline", label: "Воронка продаж" },
+      { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "WhatsApp" },
       { id: "sales-report", href: "/v3/main?view=sales", route: "/v3/main", label: "Отчёт продаж" },
     ],
   },
@@ -111,8 +86,10 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       // groups, never meets two identical «Воронка» items (UX quick win 2,
       // 2026-09-24); the sales board is «Воронка продаж».
       { id: "admissions-pipeline", href: "/v3/admissions-pipeline", route: "/v3/admissions-pipeline", label: "Воронка поступления" },
-      // OTH-5 «Сообщения» stood here; since Э5 (27.09.2026) the per-case
-      // chat is the «Кабинет студента» channel of «Переписки» (common section).
+      // Переписка по делу через кабинет студента — с теми, кто уже студент
+      // или клиент (решение владельца 27.09.2026), сразу после доски, как
+      // «Сообщения» OTH-5. Маршрут — `admissions.read`: у продаж его нет.
+      { id: "messages", href: "/v3/messages", route: "/v3/messages", label: "Переписка со студентами" },
       // Plan §3: «Рабочий список» renamed to «Студенты» (id kept for stability).
       { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Студенты" },
       { id: "evo-docs", href: "/v3/profile?section=docs", route: "/v3/profile", label: "EVO Docs", capability: "admissions.read" },
@@ -124,17 +101,12 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
 ];
 // «Общее» — разделы обоих отделов, одно место у всех ролей (Э6, 27.09.2026).
 // Пунктов Э6 не убирает: у продаж и Admin «Заявки» вышли из сворачиваемых
-// «Продаж» в «Общее», которое открыто всегда (+1 строка). «Меньше пунктов»
-// плана дал Э5: «Сообщения» и WhatsApp стали одним пунктом «Переписки».
-// «Переписки» (Э5): адрес и маршрут — первого канала роли (`conversationsLink`);
-// здесь — место в порядке меню и адрес для вкладки браузера.
-const CONVERSATIONS: V3NavigationLink = {
-  id: "conversations", href: "/v3/messages", route: "/v3/messages", label: CONVERSATIONS_LABEL,
-};
+// «Продаж» в «Общее», которое открыто всегда (+1 строка). Переписки здесь
+// нет: WhatsApp — в «Продажах», переписка со студентами — в «Поступлении»
+// (решение владельца 27.09.2026 вместо одного пункта «Переписки» Э5).
 const COMMON: readonly V3NavigationLink[] = [
   REQUESTS,
   { id: "tasks", href: "/v3/tasks", route: "/v3/tasks", label: "Задачи" },
-  CONVERSATIONS,
   { id: "team-chat", href: "/v3/team-chat", route: "/v3/team-chat", label: "Командный чат" },
   { id: "calendar", href: "/v3/calendar", route: "/v3/calendar", label: "Календарь" },
   { id: "documents", href: "/v3/documents", route: "/v3/documents", label: "Документы" },
@@ -182,9 +154,7 @@ export function v3SectionTitle(
       ? isSingleValue(query, "section", "docs") ? "evo-docs" : "admissions-worklist"
       : pathname.startsWith("/v3/universities/")
         ? "universities"
-        : isConversationsRoute(pathname)
-          ? "conversations"
-          : ALL_LINKS.find((link) => link.route === pathname)?.id;
+        : ALL_LINKS.find((link) => link.route === pathname)?.id;
   return ALL_LINKS.find((link) => link.id === id)?.label;
 }
 
@@ -199,12 +169,6 @@ function salesWorkspace(actor: ActivePlatformActor): boolean {
   return isStaffPreview(actor)
     ? staffPresentationCan(actor, "sales.read")
     : staffHasPermission(actor, "lead.sales.workflow.manage") || staffHasPermission(actor, "sales.register.read");
-}
-
-/** «Переписки» роли: первый открытый канал; null — каналов нет, пункта нет. */
-function conversationsLink(actor: ActivePlatformActor): V3NavigationLink | null {
-  const channel = conversationChannels(actor)[0];
-  return channel ? { ...CONVERSATIONS, href: channel.href, route: channel.route } : null;
 }
 
 /** Presentation-only navigation. Server route guards remain the authority. */
@@ -226,9 +190,11 @@ export function buildV3Navigation(
   const settings = allowed(SETTINGS) ? SETTINGS : null;
   // Без работы продаж (D) в «Продажах» остаётся только «Отчёт продаж» по
   // своему правилу выше: читатель лидов без записей отчёта видит там
-  // «Динамику по дням» (Э3, #1067); «Воронка продаж» скрыта. Роль только
-  // скрывает пункты и никогда их не переносит (Э6): «Заявки» и «Переписки» —
-  // в «Общем» у всех, кому открыт их маршрут.
+  // «Динамику по дням» (Э3, #1067); «Воронка продаж» и WhatsApp скрыты.
+  // Роль только скрывает пункты и никогда их не переносит (Э6): «Заявки» —
+  // в «Общем» у всех, кому открыт их маршрут; WhatsApp у ролей поступления
+  // пункта не получает, хотя его маршрут им открыт (решение владельца
+  // 27.09.2026: это WhatsApp продажников).
   const sales = salesWorkspace(actor);
   const inGroup = (group: (typeof GROUPS)[number], link: V3NavigationLink) =>
     group.id !== "sales" || sales || link.id === "sales-report";
@@ -236,14 +202,9 @@ export function buildV3Navigation(
     ...group,
     links: group.links.filter((link) => allowed(link) && inGroup(group, link)),
   })).filter((group) => group.links.length > 0);
-  // «Переписки» — один пункт в общих разделах у каждого, кому открыт хотя
-  // бы один канал (Э5): «Кабинет студента» или WhatsApp. «Документы» и
-  // «Шаблоны ответов» у того, кому открыта «База знаний», — внутри неё:
-  // пункт скрыт, а не задвоен.
-  const common = COMMON.flatMap((link) => {
-    const resolved = link.id === "conversations" ? conversationsLink(actor) : link;
-    return resolved ? [resolved] : [];
-  }).filter((link) => allowed(link)
+  // «Документы» и «Шаблоны ответов» у того, кому открыта «База знаний», —
+  // внутри неё: пункт скрыт, а не задвоен.
+  const common = COMMON.filter((link) => allowed(link)
     && (!staffCanAccessRoute(actor, "/v3/knowledge") || (link.id !== "documents" && link.id !== "reply-snippets")));
   const links = [
     ...(home ? [home] : []),
@@ -265,8 +226,6 @@ export function buildV3Navigation(
         : "admissions-worklist";
   } else if (pathname.startsWith("/v3/universities/")) {
     candidate = "universities";
-  } else if (isConversationsRoute(pathname)) {
-    candidate = "conversations";
   } else {
     candidate = links.find((link) => link.route === pathname)?.id;
   }

@@ -53,9 +53,10 @@ const nav = (who, href = "/v3/main") => {
 };
 const ids = (links) => links.map((link) => link.id);
 
-test("tab slots per role follow the owner's order: admissions and Admin — Студенты · Задачи · Переписки, sales — Воронка · Заявки · Задачи", () => {
-  // Э5 (27.09.2026): «Переписки» stands where «Сообщения» stood.
-  const admissions = ["home", "admissions-worklist", "tasks", "conversations"];
+test("tab slots per role follow the owner's order: admissions and Admin — Студенты · Задачи · Переписка, sales — Воронка · Заявки · Задачи", () => {
+  // 27.09.2026 (owner decision): «Переписка со студентами» stands where
+  // «Переписки» of Э5 stood; the sales WhatsApp takes no slot of its own.
+  const admissions = ["home", "admissions-worklist", "tasks", "messages"];
   const sales = ["home", "pipeline", "requests", "tasks"];
   for (const [who, kind, expected] of [
     ["admin", "admissions", admissions],
@@ -68,10 +69,18 @@ test("tab slots per role follow the owner's order: admissions and Admin — Ст
     assert.equal(tabs.kind, kind, who);
     assert.deepEqual(ids(tabs.links), expected, who);
   }
-  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписки"]);
+  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписка со студентами"]);
   assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => link.label), ["Сегодня", "Воронка продаж", "Заявки", "Задачи"]);
-  // WhatsApp alone (no «Кабинет студента») does not make a sales role an admissions one.
+  // WhatsApp does not make a sales role an admissions one; its four slots are
+  // taken, so WhatsApp lives in «Ещё», which lights up on its page.
   assert.equal(shellTabs(nav("sales-staff")).kind, "sales");
+  for (const who of ["sales-staff", "admin-preview-sales", "admin"]) {
+    const onWhatsApp = shellTabs(nav(who, "/v3/inbox"));
+    assert.equal(nav(who, "/v3/inbox").activeId, "inbox", who);
+    assert.equal(onWhatsApp.currentInMore, true, `${who}: WhatsApp is in «Ещё»`);
+  }
+  // The student chat highlights its own tab.
+  assert.equal(shellTabs(nav("admissions-staff", "/v3/messages?queue=all")).currentInMore, false);
 });
 
 test("tabs come only from the role's visible navigation: never an item it cannot open, never more than four plus «Ещё»", () => {
@@ -115,7 +124,7 @@ test("every menu item of the new look has an icon from the existing set", () => 
   assert.match(read("src/components/v3/AppShell.tsx"), /const LINK_ICONS = \{\s*home: "sun",/u);
 });
 
-test("icons tell the rail items apart: one glyph per meaning, two conversation items with two glyphs", () => {
+test("icons tell the rail items apart: one glyph per meaning, three conversation items with three glyphs", () => {
   // Обе воронки — один смысл, один знак; всё остальное — свой знак у каждого пункта.
   const byIcon = new Map();
   for (const [id, icon] of Object.entries(NEXT_LINK_ICONS)) byIcon.set(icon, [...(byIcon.get(icon) ?? []), id]);
@@ -123,11 +132,13 @@ test("icons tell the rail items apart: one glyph per meaning, two conversation i
     if (icon === "funnel") assert.deepEqual(ids, ["pipeline", "admissions-pipeline"]);
     else assert.equal(ids.length, 1, `${icon} is shared by ${ids.join(", ")}`);
   }
-  // Э5: «Переписки» (кабинет студента и WhatsApp) — квадратный пузырь, «Командный чат» — два пузыря.
-  assert.equal(NEXT_LINK_ICONS.conversations, "message-square");
-  assert.notEqual(NEXT_LINK_ICONS.conversations, "phone", "conversations, not a call");
+  // 27.09.2026: переписка со студентами — квадратный пузырь, WhatsApp — круглый
+  // (его собственная форма), «Командный чат» — два пузыря.
+  assert.equal(NEXT_LINK_ICONS.messages, "message-square");
+  assert.equal(NEXT_LINK_ICONS.inbox, "message-circle");
+  assert.notEqual(NEXT_LINK_ICONS.inbox, "phone", "conversations, not a call");
   assert.notEqual(NEXT_LINK_ICONS["reply-snippets"], "send", "templates are text, not a send action");
-  assert.deepEqual(new Set([NEXT_LINK_ICONS.conversations, NEXT_LINK_ICONS["team-chat"]]).size, 2);
+  assert.deepEqual(new Set([NEXT_LINK_ICONS.messages, NEXT_LINK_ICONS.inbox, NEXT_LINK_ICONS["team-chat"]]).size, 3);
   // Групп и «Ещё» это тоже касается: их знаки не совпадают с пунктами.
   for (const icon of [...Object.values(NEXT_GROUP_ICONS), "menu"]) assert.ok(!byIcon.has(icon), icon);
 });
@@ -145,8 +156,11 @@ test("tab labels fit one line: short label only where the full one does not, and
     }
   }
   assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Воронка", "Заявки", "Задачи"]);
-  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Студенты", "Задачи", "Переписки"]);
+  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Студенты", "Задачи", "Переписка"]);
   assert.equal(shellTabLabel({ id: "pipeline", label: "Воронка продаж" }).name, "Воронка продаж");
+  // «Переписка» on the tab, the full «Переписка со студентами» as its accessible name.
+  assert.deepEqual(shellTabLabel({ id: "messages", label: "Переписка со студентами" }), { text: "Переписка", name: "Переписка со студентами" });
+  assert.deepEqual(shellTabLabel({ id: "inbox", label: "WhatsApp" }), { text: "WhatsApp", name: undefined });
 });
 
 test("menu groups open one at a time, except the group that holds the current page", () => {
@@ -183,9 +197,9 @@ const surface = (name) => {
 };
 const count = (html, pattern) => [...html.matchAll(pattern)].length;
 const EXPECTED_TABS = {
-  admin: ["Сегодня", "Студенты", "Задачи", "Переписки"],
-  admissions: ["Сегодня", "Студенты", "Задачи", "Переписки"],
-  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Переписки"],
+  admin: ["Сегодня", "Студенты", "Задачи", "Переписка"],
+  admissions: ["Сегодня", "Студенты", "Задачи", "Переписка"],
+  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Переписка"],
   sales: ["Сегодня", "Воронка", "Заявки", "Задачи"],
 };
 function tabbar(html) {
@@ -230,6 +244,7 @@ test("new look: no top bar; menu holds create, bell, preview exit and account; p
     // Подпись в одну строку: колонка не уже своей подписи.
     assert.match(bar, new RegExp(`grid-template-columns:repeat\\(${labels.length + 1}, minmax\\(auto, 1fr\\)\\)`, "u"), `${name}: columns never narrower than their label`);
     if (role === "sales") assert.match(bar, /aria-label="Воронка продаж"[^>]*data-shell-tab="pipeline"/u, `${name}: the full name stays the accessible name`);
+    else assert.match(bar, /aria-label="Переписка со студентами"[^>]*data-shell-tab="messages"/u, `${name}: the full name stays the accessible name`);
     assert.match(bar, /<button type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="([^"]+)"/u, `${name}: «Ещё» controls the sheet`);
     const sheetId = bar.match(/aria-controls="([^"]+)"/u)[1];
     // Закрытый лист — не диалог; открытый получает role="dialog" и aria-modal, свою
@@ -287,16 +302,16 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   assert.match(shell, /flex h-\[var\(--shell-top\)\] shrink-0/u, "top row height is the variable");
   assert.match(shell, /grid h-\[var\(--shell-tabbar\)\]/u, "tab bar height is the variable");
   assert.match(shell, /max-md:pb-\[calc\(var\(--shell-tabbar\)\+var\(--shell-safe-bottom\)\)\]/u, "content clears the tab bar");
-  // «Переписки» → «Кабинет студента» и «Командный чат» — страницы «на окно» под правилом.
+  // «Переписка со студентами» и «Командный чат» — страницы «на окно» под правилом.
   const conversations = read("src/components/v3/ConversationsMain.tsx");
-  assert.match(conversations, /height === "window" \? "h-\[calc\(100dvh-150px\)\] md:h-\[calc\(100dvh-64px\)\]" : "md:flex-1"/u);
-  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<ConversationsMain title=\{TITLE\} channels=\{channels\} current="cabinet" height="window" threadOpen=/u);
+  assert.match(conversations, /className="[^"]*h-\[calc\(100dvh-150px\)\] md:h-\[calc\(100dvh-64px\)\]"/u);
+  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<ConversationsMain title=\{TITLE\} threadOpen=\{rawCase !== null\}>/u);
   assert.match(read("src/app/(v3)/v3/team-chat/page.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label="Командный чат">/u);
-  // WhatsApp (общая шапка «Переписок», `height="fill"`) своей высоты не задаёт:
-  // от 768 px её даёт колонка оболочки по `isFillRoute` — в новом облике так
-  // же, как в прежнем (и как у PartShell `fill`).
+  // WhatsApp (PartShell `fill`, отдельная страница «Продаж») своей высоты не
+  // задаёт: от 768 px её даёт колонка оболочки по `isFillRoute` — в новом
+  // облике так же, как в прежнем.
   assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<ConversationsMain title=\{TITLE\} channels=\{conversationChannels\(actor\)\} current="whatsapp" height="fill"/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{notConnected \? null : view\.conversations\.length\} fill>/u);
   assert.match(shell, /const fill = isFillRoute\(pathname\);/u);
   assert.match(shell, /fill && "md:flex md:h-dvh md:flex-col"/u, "the content column is window-high on fill routes");
   assert.match(shell, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
@@ -309,14 +324,14 @@ test("without a top bar every page title starts at one height, level with the lo
   const css = read("src/app/(v3)/v3.css");
   assert.match(css, /\.v3-world\[data-look="next"\] \{[^}]*--shell-page-top: 1\.5rem;/u);
   assert.match(css, /@media \(width < 48rem\) \{\s*\.v3-world\[data-look="next"\] \{[^}]*--shell-page-top: 1\.25rem;/u);
-  // PageHeader страниц (PartShell, доски, обе страницы «Переписок»): Э5 вынес
-  // заголовок «Кабинета студента» из шапки списка в PageHeader страницы, и
+  // PageHeader страниц (PartShell, доски, «Переписка со студентами»): Э5 вынес
+  // заголовок переписки по делу из шапки списка в PageHeader страницы, и
   // отдельный сдвиг заголовка «Сообщений» не нужен.
   assert.match(css, /\[data-shell-content\] main:has\(> div:first-child > div:first-child > h1\.t-page-title\) \{\s*padding-top: var\(--shell-page-top\);/u);
   assert.doesNotMatch(css, /main\[aria-label="Сообщения"\]/u);
   assert.match(read("src/components/ui.tsx"), /<div className=\{cn\("flex flex-wrap items-start justify-between gap-4", className\)\}>\s*<div className="min-w-0">\s*<h1 className="t-page-title/u, "PageHeader keeps the structure the rule reads");
-  // Обе страницы «Переписок»: PageHeader — первый ребёнок `main` (правило выше его находит).
-  assert.match(read("src/components/v3/ConversationsMain.tsx"), /\)\}\s*>\s*<PageHeader title=\{title\} className=/u);
+  // «Переписка со студентами»: PageHeader — первый ребёнок `main` (правило выше его находит).
+  assert.match(read("src/components/v3/ConversationsMain.tsx"), /md:h-\[calc\(100dvh-64px\)\]"\s*>\s*<PageHeader title=\{title\} className=/u);
   assert.doesNotMatch(read("src/components/v3/case-chat/CaseChatThread.tsx"), /<h1\b/u);
   // Логотип: `pt-3.5` + 51 px высоты — центр на 40 px, как у заголовка 24 + 32/2.
   assert.match(read("src/components/v3/AppShellNext.tsx"), /"hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex"/u);

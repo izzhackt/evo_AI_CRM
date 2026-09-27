@@ -210,14 +210,14 @@ test("the composer freezes the exact submitted field values (not just the reques
   assert.match(component, /return state === "needs_reply" \? "warn" : "neutral";/u);
 });
 
-test("the messages route registers in all three route maps and the «Переписки» channels", () => {
+test("the messages route registers in all three route maps and as «Переписка со студентами» in «Поступление»", () => {
   assert.match(source("src/lib/fixed-role-policy.ts"), /"\/v3\/messages",/u);
   assert.match(source("src/lib/fixed-role-policy.ts"), /"\/v3\/messages": \["admissions\.read"\]/u);
   assert.match(source("src/lib/platform-route-contract.ts"), /"\/v3\/messages",/u);
   assert.match(source("src/lib/platform-access.ts"), /"\/v3\/messages": \["admissions\.read"\]/u);
-  // Э5: «Сообщения» is the «Кабинет студента» channel of the one «Переписки» item.
+  // 27.09.2026 (owner decision): the per-case chat is its own admissions item again.
   const navigation = source("src/lib/v3/navigation.ts");
-  assert.match(navigation, /\{ key: "cabinet", label: "Кабинет студента", href: "\/v3\/messages", route: "\/v3\/messages" \}/u);
+  assert.match(navigation, /\{ id: "messages", href: "\/v3\/messages", route: "\/v3\/messages", label: "Переписка со студентами" \}/u);
 });
 
 test("«Обсудить» links exist from the case card, task detail panel (case tasks) and the documents panel", () => {

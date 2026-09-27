@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { btnGhostCls, inputCls } from "@/components/ui";
 import { ADMISSIONS_DIRECTIONS } from "@/lib/platform-admissions-playbook-contract";
 import { DIRECTION_LABELS } from "@/components/v3/profile/admissions-view";
@@ -76,7 +77,7 @@ export function StaffInvitationFields({ rows, noAccess, onChange, workspace, org
       })}</div>
       <button type="button" className={`${btnGhostCls} min-h-11`} disabled={!roles.length || rows.length >= 100}
         onClick={() => onChange([...rows, { clientId: crypto.randomUUID(), roleId: "", roleVersion: 0, scope: scopeFor("own") }], noAccess)}>Добавить роль</button>
-      {!roles.length ? <p className="text-sm text-fg-3">Сначала создайте и опубликуйте роль во вкладке «Роли и права».</p> : !rows.length ? <p className="text-sm text-fg-3">Добавьте роль или явно выберите вход без рабочих прав.</p> : null}
+      {!roles.length ? <p className="text-sm text-fg-3">Сначала создайте и опубликуйте роль в разделе <Link href="/v3/settings?section=staff&view=roles" className="underline underline-offset-4 hover:text-fg">«Роли и доступ»</Link>.</p> : !rows.length ? <p className="text-sm text-fg-3">Добавьте роль или явно выберите вход без рабочих прав.</p> : null}
     </>}
   </div>;
 }

@@ -2,6 +2,10 @@ import Link from "next/link";
 
 import type { SalesCountRead } from "@/lib/sales-numbers-contract";
 import type { SalesSaleSlice } from "@/lib/sales-register-navigation";
+import { salesWord } from "@/lib/sales-register-view";
+
+import { isNextLook, type V3Look } from "./blocks/look";
+import { progressOf } from "./blocks/progress";
 
 const MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 
@@ -24,15 +28,18 @@ const NOTE_LINK = "inline-flex min-h-11 items-center text-fg-2 underline underli
 /**
  * Заголовок «Отчёта продаж» — число «Продажи» по одному определению (Э2,
  * решение владельца 26.09.2026): записи не в архиве с датой продажи в
- * выбранном месяце или году. Таблица ниже собрана по «Месяцу отчёта»; всё,
- * чем она расходится с этим числом, названо словами и ведёт в таблицу к
- * этим записям (`sale=<срез>`, `read_sales_register_v3`): записи без даты
- * продажи, записи с датой продажи в другом месяце и продажи этого периода,
- * записанные в другой месяц отчёта. Число не зависит от фильтров строк — при
- * фильтрах это сказано («без фильтров»), чтобы его не сверяли с «Найдено по
- * фильтрам». Роль без чтения отчёта — ничего; чтение не удалось — так и сказано.
+ * выбранном месяце или году. Э4 (27.09.2026): «N продаж из плана M», если
+ * план месяца прочитан (его отдаёт чтение управления отчётом), с тонкой
+ * полосой в новом облике и словами «осталось N»; без плана — «N продаж».
+ * Таблица ниже собрана по «Месяцу отчёта»; всё, чем она расходится с этим
+ * числом, названо словами и ведёт в таблицу к этим записям (`sale=<срез>`,
+ * `read_sales_register_v3`): записи без даты продажи, записи с датой продажи
+ * в другом месяце и продажи этого периода, записанные в другой месяц отчёта.
+ * Число не зависит от фильтров строк — при фильтрах это сказано («без
+ * фильтров»). Роль без чтения отчёта — ничего; чтение не удалось — так и
+ * сказано.
  */
-export function SalesPeriodHeadline({ read, label, retryHref, filtered = false, sliceHref }: Readonly<{
+export function SalesPeriodHeadline({ read, label, retryHref, filtered = false, sliceHref, target = null, look }: Readonly<{
   read: SalesCountRead;
   /** «сентябрь 2026» или «2026 год». */
   label: string;
@@ -41,6 +48,10 @@ export function SalesPeriodHeadline({ read, label, retryHref, filtered = false, 
   filtered?: boolean;
   /** Ссылка на записи среза в том же периоде; без неё — только слова. */
   sliceHref?: (slice: SalesSaleSlice) => string;
+  /** План отдела на месяц из чтения; null — плана нет или он не читается. */
+  target?: number | null;
+  /** Новый облик (Э1.3): тонкая полоса «продажи из плана». */
+  look?: V3Look;
 }>) {
   if (read.status === "denied") return null;
   if (read.status === "unavailable") {
@@ -59,11 +70,21 @@ export function SalesPeriodHeadline({ read, label, retryHref, filtered = false, 
     undated > 0 ? note("undated", `без даты продажи — ${records(undated)}`) : null,
     otherSaleDate > 0 ? note("other_sale_date", `дата продажи в другом месяце — ${records(otherSaleDate)}`) : null,
   ].filter((item) => item !== null);
+  const progress = target !== null && isNextLook(look) ? progressOf(sales, target) : null;
   return (
-    <div className="mt-1" data-testid="v3-sales-headline" data-sales={sales}>
-      <p className="t-body-compact text-fg-2">
-        Продажи за {label}: <strong className="text-base font-semibold tabular-nums text-fg">{sales.toLocaleString("ru-RU")}</strong>
-        <span className="text-fg-3"> · по дате продажи, без архива{filtered ? " и без фильтров" : ""}</span>
+    <div className="min-w-0" data-testid="v3-sales-headline" data-sales={sales}>
+      <p className="t-section text-fg">
+        <span className="tabular-nums">{sales.toLocaleString("ru-RU")}</span> {salesWord(sales)}
+        {target !== null ? <> из плана <span className="tabular-nums" data-sales-target={target}>{target.toLocaleString("ru-RU")}</span></> : null}
+      </p>
+      {progress ? (
+        <span className="v3-progress-track mt-1.5" aria-hidden="true">
+          <span className="v3-progress-fill" style={{ width: `${progress.percent}%` }} />
+        </span>
+      ) : null}
+      <p className="t-meta mt-1 text-fg-2">
+        по дате продажи за {label}, без архива{filtered ? " и без фильтров" : ""}
+        {target !== null ? sales >= target ? " · план выполнен" : ` · осталось ${(target - sales).toLocaleString("ru-RU")}` : null}
       </p>
       {notIn.length > 0 || filedElsewhere > 0 ? (
         <div className="flex flex-wrap items-center gap-x-4 t-meta text-fg-3" data-testid="v3-sales-headline-notes">

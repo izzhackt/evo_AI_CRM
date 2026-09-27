@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
 import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
+import { QUEUE_CONFIRM } from "./queue/queue-buttons";
 import {
   saveSalesRegisterAction, saveSalesTargetAction, importSalesRegisterAction,
   searchSalesRegisterStudentsAction, readSalesReportConditionsPreviewAction,
@@ -59,6 +60,18 @@ type FormProps = Readonly<{
   ownerOptions: readonly Readonly<{ id: string; label: string }>[]; canChooseOwner: boolean;
   ownMembershipId: string; ownLabel: string; requestId: string; archiveRequestId: string; backHref: string; readUnavailable: boolean;
   intakeOptions?: SalesRegisterIntakeOptions | null;
+  /**
+   * Э4 (27.09.2026): запись открыта в правой панели рядом со списком —
+   * заголовок h2 с этим id (фокус панели), без «← К отчёту», поля в одну
+   * колонку, «Сохранить продажу» — тёмная нейтральная кнопка: сплошной
+   * красный отчёта — «Добавить продажу».
+   */
+  panelHeadingId?: string;
+  /**
+   * «Оформить продажу» из Lead 360 (Э4): тот же поиск лида формы запускается
+   * сам по имени лида и выбирает его, если он найден; иначе — прежний выбор.
+   */
+  initialLead?: Readonly<{ id: string; query: string }> | null;
 }>;
 
 export function SalesRegisterForm(props: FormProps) {
@@ -99,7 +112,9 @@ function ConditionsPreview({ leadId, preview, pending }: {
   </dl>;
 }
 
-function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwner, ownMembershipId, ownLabel, requestId, archiveRequestId, backHref, readUnavailable, intakeOptions }: FormProps) {
+function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwner, ownMembershipId, ownLabel, requestId, archiveRequestId, backHref, readUnavailable, intakeOptions, panelHeadingId, initialLead }: FormProps) {
+  const panel = Boolean(panelHeadingId);
+  const pair = panel ? "grid gap-4" : "grid gap-4 sm:grid-cols-2";
   const router = useRouter();
   const [base, setBase] = useState({ version: record?.version ?? 0, values: fields(record, reportMonth, ownMembershipId, ownLabel) });
   const [draft, setDraft] = useState(base.values);
@@ -114,6 +129,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   const [conditionsPreview, setConditionsPreview] = useState<SalesReportConditionsPreview | null>(null);
   const [previewPending, startPreview] = useTransition();
   const selectionGeneration = useRef(0);
+  const initialLeadRef = useRef(initialLead ?? null);
   const [state, action, pending] = useActionState(async (previous: SalesRegisterActionState & { submittedVersion: number }, form: FormData) => ({
     ...await saveSalesRegisterAction(previous, form), submittedVersion: base.version,
   }), { status: "idle", requestId, recordId, leadId: null, submittedVersion: base.version } as SalesRegisterActionState & { submittedVersion: number });
@@ -141,6 +157,30 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   const canSubmit = !locked && !readUnavailable && !changed && status !== "stale" && !record?.archived
     && (Boolean(recordId) || (Boolean(intakeOptions) && Boolean(curatorId) && Boolean(leadId) && conditionsReady));
   const update = (key: string, value: string) => setDraft(previous => ({ ...previous, [key]: value }));
+  function chooseLead(lead: SalesRegisterIntakeOptions["leads"][number] | null) {
+    const generation = ++selectionGeneration.current;
+    setLeadId(lead?.id ?? ""); setSelectedLead(lead); setConditionsPreview(null);
+    if (lead) startPreview(async () => {
+      const result = await readSalesReportConditionsPreviewAction(lead.id).catch(() => ({ status: "unavailable" as const }));
+      if (generation === selectionGeneration.current) setConditionsPreview(result);
+    });
+  }
+  // «Оформить продажу» из Lead 360: прежний поиск по имени лида — один раз, при открытии формы.
+  const searchInitialLead = useEffectEvent(() => {
+    const wanted = initialLeadRef.current;
+    initialLeadRef.current = null;
+    if (!wanted || recordId || wanted.query.trim().length < 2) return;
+    setStudentQuery(wanted.query);
+    const generation = ++selectionGeneration.current;
+    startSearch(async () => {
+      const result = await searchSalesRegisterStudentsAction(wanted.query).catch(() => ({ status: "unavailable" as const, leads: [] }));
+      if (generation !== selectionGeneration.current) return;
+      setStudentResults(result.leads); setSearchStatus(result.status);
+      const lead = result.leads.find(item => item.id === wanted.id) ?? null;
+      if (lead) chooseLead(lead);
+    });
+  });
+  useEffect(() => { searchInitialLead(); }, []);
   const wire: Draft = { ...draft, report_month: `${draft.report_month}-01`, service_cost_minor: minor(draft.cost), paid_minor: minor(draft.paid) };
   delete wire.cost; delete wire.paid;
   const input = (key: string, type = "text", required = false, maxLength = 200) => <label key={key} className="block min-w-0"><span className={fieldLabelCls}>{FIELD_LABELS[key]}</span>
@@ -153,8 +193,13 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   </select></label>;
 
   return <div className="space-y-6">
-    <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
-    <h1 className="t-page-title">{recordId ? "Запись продажи" : "Добавить продажу"}</h1>
+    {panel ? <div>
+      <p className="t-caption text-fg-2">Запись продажи</p>
+      <h2 id={panelHeadingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{record?.applicantName || "Запись продажи"}</h2>
+    </div> : <>
+      <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
+      <h1 className="t-page-title">{recordId ? "Запись продажи" : "Добавить продажу"}</h1>
+    </>}
     {record?.sourceKind === "pipeline" && record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Открыть профиль студента</Link> : null}
     {record?.archived ? <p className="text-sm text-fg-2">Эта запись в архиве и не входит в рабочие итоги. Для редактирования сначала восстановите её.</p> : null}
     <form action={action} aria-busy={pending} className="space-y-6" data-testid="sales-register-form">
@@ -187,20 +232,14 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
               })}>{searchPending ? "Ищем…" : "Найти"}</button>
             </div></label>
             {searchStatus === "ready" && studentResults.length > 0 ? <label className="block"><span className={fieldLabelCls}>Выберите студента</span><select value={leadId} required onChange={e => {
-              const generation = ++selectionGeneration.current;
-              const lead = studentResults.find(item => item.id === e.target.value) ?? null;
-              setLeadId(lead?.id ?? ""); setSelectedLead(lead); setConditionsPreview(null);
-              if (lead) startPreview(async () => {
-                const result = await readSalesReportConditionsPreviewAction(lead.id).catch(() => ({ status: "unavailable" as const }));
-                if (generation === selectionGeneration.current) setConditionsPreview(result);
-              });
+              chooseLead(studentResults.find(item => item.id === e.target.value) ?? null);
             }} className={`${inputCls} min-h-11 w-full`}>
               <option value="">Выберите студента</option>{studentResults.map(lead => <option key={lead.id} value={lead.id}>{lead.label}{lead.phone ? ` · ${lead.phone}` : ""}</option>)}
             </select></label> : null}
             {searchStatus === "ready" && studentResults.length === 0 ? <p role="status" className="text-sm text-fg-2">Непереданных студентов не найдено. Уточните имя или телефон.</p> : null}
             {searchStatus === "unavailable" ? <p role="alert" className="text-sm text-fg-2">Поиск недоступен. Попробуйте ещё раз.</p> : null}
           </div>
-          {selectedLead ? <div className="grid gap-4 sm:grid-cols-2">
+          {selectedLead ? <div className={pair}>
             <p className="text-sm"><span className={fieldLabelCls}>Заявитель</span><span className="block text-fg">{selectedLead.label}</span></p>
             <p className="text-sm"><span className={fieldLabelCls}>Телефон</span><span className="block text-fg">{selectedLead.phone || "не указан"}</span></p>
           </div> : null}
@@ -215,8 +254,8 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
           </div> : null}
         </> : null}
         {recordId ? <>
-        <div className="grid gap-4 sm:grid-cols-2">{input("applicant_name", "text", true, 300)}{input("phone", "tel")}{input("report_month", "month", true)}{input("signing_date", "date")}</div>
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className={pair}>{input("applicant_name", "text", true, 300)}{input("phone", "tel")}{input("report_month", "month", true)}{input("signing_date", "date")}</div>
+        <div className={panel ? "grid gap-5" : "grid gap-5 sm:grid-cols-2"}>
           <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
             <label><span className={fieldLabelCls}>Стоимость услуг</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.cost} onChange={e => update("cost", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("service_cost_currency")}
           </div>{record?.serviceCostRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.serviceCostRaw}</p> : null}</div>
@@ -225,12 +264,12 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
           </div>{record?.paidRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.paidRaw}</p> : null}</div>
         </div>
         <p className="text-xs text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми.</p>
-        <div className="grid gap-4 sm:grid-cols-2">{input("manager_label", "text", false, 300)}
+        <div className={pair}>{input("manager_label", "text", false, 300)}
           {canChooseOwner ? <label><span className={fieldLabelCls}>Ответственный за продажу</span><select value={draft.owner_membership_id} disabled={locked} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Не назначен</option>{ownerOptions.map(owner => <option value={owner.id} key={owner.id}>{owner.label || "Сотрудник без имени"}</option>)}
           </select></label> : null}
         </div>
-        <details><summary className="cursor-pointer py-3 text-sm font-medium">Программа и договор</summary><div className="mt-3 grid gap-4 sm:grid-cols-2">
+        <details><summary className="cursor-pointer py-3 text-sm font-medium">Программа и договор</summary><div className={`mt-3 ${pair}`}>
           {input("country")}{input("university", "text", false, 500)}{input("program", "text", false, 500)}{input("direction", "text", false, 500)}{input("intake")}{input("contract_number")}{input("status_raw", "text", false, 2000)}
         </div></details>
         <label className="block"><span className={fieldLabelCls}>Примечание</span><textarea value={draft.notes} onChange={e => update("notes", e.target.value)} maxLength={2000} rows={3} className={`${inputCls} w-full`} /></label>
@@ -250,7 +289,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
         }}>Сверил изменения, продолжить с моим вводом</button>
       </div> : null}
       {status === "stale" || status === "unavailable" || readUnavailable ? <button type="button" className={`${btnGhostCls} min-h-11`} disabled={pending} onClick={() => router.refresh()}>Обновить данные без сброса ввода</button> : null}
-      <div className="flex flex-wrap gap-3"><button type="submit" disabled={!canSubmit} className={`${btnCls} min-h-11`}>{pending ? "Сохраняем…" : recordId ? "Сохранить продажу" : "Сохранить"}</button><Link href={backHref} className={`${btnGhostCls} min-h-11`}>{status === "saved" ? "Готово — к отчёту" : "Отмена"}</Link></div>
+      <div className="flex flex-wrap gap-3"><button type="submit" disabled={!canSubmit} className={panel ? QUEUE_CONFIRM : `${btnCls} min-h-11`}>{pending ? "Сохраняем…" : recordId ? "Сохранить продажу" : "Сохранить"}</button><Link href={backHref} className={`${btnGhostCls} min-h-11`}>{status === "saved" ? "Готово — к отчёту" : "Отмена"}</Link></div>
     </form>
     {record ? <details className="border-t border-border pt-3"><summary className="cursor-pointer py-3 text-sm font-medium">Источник и архив</summary>
       {record.sourceSheet ? <p className="my-3 text-sm text-fg-3">Импорт: {record.sourceSheet}, строка {record.sourceRow}. Исходный файл не изменён.</p> : null}
@@ -301,7 +340,8 @@ export function SalesTargetForm({ reportMonth, target, requestId, readUnavailabl
     {changed || status === "stale" || status === "unavailable" || readUnavailable ? <div className="space-y-2">
       {!readUnavailable ? <p className="text-sm">Текущий план: {current?.targetCount ?? "не задан"}. Ваш ввод сохранён.</p> : null}
       <button type="button" className={`${btnGhostCls} min-h-11`} disabled={pending} onClick={() => router.refresh()}>Проверить актуальный план</button><button type="button" disabled={!changed || pending || readUnavailable} className={`${btnGhostCls} min-h-11`} onClick={() => { setBase(current); setCount(current ? String(current.targetCount) : ""); }}>Загрузить актуальное значение вместо моего ввода</button></div> : null}
-    <button disabled={pending || readUnavailable || changed || status === "saved" || status === "stale"} className={`${btnCls} min-h-11`}>{pending ? "Сохраняем…" : "Сохранить план"}</button>
+    {/* Тёмная нейтральная: сплошной красный отчёта — «Добавить продажу» (Э4). */}
+    <button disabled={pending || readUnavailable || changed || status === "saved" || status === "stale"} className={QUEUE_CONFIRM}>{pending ? "Сохраняем…" : "Сохранить план"}</button>
   </form>;
 }
 

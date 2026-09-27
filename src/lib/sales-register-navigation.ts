@@ -5,6 +5,8 @@ export type SalesReportQuery = Readonly<{
   year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
   manager?: string; direction?: string; review?: string; saved?: string; edit?: string; q?: string; mode?: string;
   sale?: string;
+  /** С `new=true`: «Оформить продажу» из Lead 360 — лид, которого форма ищет сама (Э4). */
+  lead?: string;
 }>;
 
 /**

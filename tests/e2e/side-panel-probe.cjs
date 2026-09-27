@@ -8,15 +8,21 @@
  * (tests/e2e/*-static-render.cjs); снимки — `.impeccable/review/f1-*.png`
  * (не коммитятся), замеры — JSON-строки в stdout.
  *
- * Что меряется на открытой панели: ширина и положение (`--side-panel-width`),
- * режим (рядом со списком — `show()`, уже 1280 px — модальный `showModal()`),
- * фокус на заголовке записи после открытия, роль заголовка `t-record-title`,
- * выбранная строка (`aria-current`, подложка) и то, что она видна рядом с
- * панелью, переполнение вбок, текст мельче 12 px и сплошной красный внутри
- * панели. Путь в гидратированном дереве (`journey`): Esc закрывает панель и
- * возвращает фокус на строку; открытие строкой — снова фокус на заголовке;
- * закрытие ссылкой «Закрыть» / «← К …» — фокус снова на строке; у модального
- * листа фон инертен. Нарушение — исключение с фактами.
+ * Что меряется на открытой панели: облик страницы (`data-look`), ширина и
+ * положение (`--side-panel-width`), режим (рядом со списком — `show()`, уже
+ * 1280 px — модальный `showModal()`), фокус на заголовке записи после
+ * открытия, роль заголовка `t-record-title`, закрытие (от 768 px — крестик в
+ * углу шапки, на телефоне — «← К …»), выбранная строка (`aria-current`,
+ * подложка) и то, что она видна рядом с панелью, верх панели вровень с верхом
+ * списка, переполнение вбок, текст мельче 12 px и сплошной красный внутри
+ * панели. Путь в гидратированном дереве (`journey`): шапка не уезжает, когда
+ * прокручено тело (от 768 px; на телефоне — полоса «← К …»); Esc закрывает
+ * панель и возвращает фокус на строку; открытие строкой — снова фокус на
+ * заголовке; в поле панели первая Esc только выводит из поля (введённое
+ * цело), вторая закрывает; закрытие ссылкой «Закрыть» / «← К …» — фокус снова
+ * на строке; у модального листа фон инертен, а на планшете затемнение
+ * закрывает лист, щелчок по самому листу — нет. Нарушение — исключение с
+ * фактами.
  */
 
 const PANEL = "dialog[data-side-panel]";
@@ -50,6 +56,7 @@ function measure(selectedSelector) {
   }).length;
   return {
     viewport: window.innerWidth,
+    look: document.querySelector(".v3-world")?.getAttribute("data-look") ?? "current",
     modal: dialog.matches(":modal"),
     position: style.position,
     panel: panelBox,
@@ -74,6 +81,34 @@ function measure(selectedSelector) {
   };
 }
 
+/**
+ * Выполняется в странице: верх панели рядом со списком относительно верха
+ * первой колонки той же сетки (список, доска). Панель липнет к окну
+ * (`sticky`), поэтому мерить — при прокрутке в начало; прокрутка
+ * возвращается.
+ */
+function columnTopDelta() {
+  const dialog = document.querySelector("dialog[data-side-panel]");
+  if (!dialog || dialog.matches(":modal")) return null;
+  // Обёртка `display: contents` (стенд «Отчёта») не участвует в сетке: соседи — у её родителя.
+  let item = dialog;
+  while (item.parentElement && getComputedStyle(item.parentElement).display === "contents") item = item.parentElement;
+  const grid = item.parentElement;
+  const column = grid ? [...grid.children].find((child) => child !== item && child.getClientRects().length > 0) : null;
+  if (!column) return null;
+  const scrolled = [];
+  for (let node = grid; node; node = node.parentElement) {
+    if (node.scrollTop > 0) { scrolled.push([node, node.scrollTop]); node.scrollTop = 0; }
+  }
+  const root = document.scrollingElement;
+  const rootTop = root ? root.scrollTop : 0;
+  if (root) root.scrollTop = 0;
+  const delta = Math.round(dialog.getBoundingClientRect().top - column.getBoundingClientRect().top);
+  if (root) root.scrollTop = rootTop;
+  for (const [node, top] of scrolled) node.scrollTop = top;
+  return delta;
+}
+
 /** Выполняется в странице: что сейчас в фокусе. */
 function focusFacts(returnSelector) {
   const active = document.activeElement;
@@ -85,6 +120,42 @@ function focusFacts(returnSelector) {
     inPanel: Boolean(active?.closest("dialog[data-side-panel]")),
     panelOpen: Boolean(document.querySelector("dialog[data-side-panel]")),
   };
+}
+
+/**
+ * Выполняется в странице: шапка не уезжает, когда тело панели прокручено до
+ * конца. От 768 px прокручивается тело (`data-side-panel-body`), и заголовок
+ * с крестиком стоят на месте; на телефоне прокручивается весь лист, и на месте
+ * стоит полоса «← К …». Прокрутку в начало возвращает `resetScroll`.
+ */
+async function scrollBody() {
+  const dialog = document.querySelector("dialog[data-side-panel]");
+  const body = dialog?.querySelector("[data-side-panel-body]");
+  if (!dialog || !body) return null;
+  const phone = window.innerWidth < 768;
+  const scroller = phone ? dialog : body;
+  const heading = dialog.querySelector("[data-queue-heading]");
+  const close = dialog.querySelector('[data-testid="queue-detail-close"]');
+  const top = (element) => Math.round(element.getBoundingClientRect().top);
+  const inView = (element) => {
+    const rect = element.getBoundingClientRect();
+    const panel = dialog.getBoundingClientRect();
+    return rect.height > 0 && rect.top >= Math.max(0, panel.top) - 1 && rect.bottom <= Math.min(window.innerHeight, panel.bottom) + 1;
+  };
+  const scrollable = scroller.scrollHeight - scroller.clientHeight > 8;
+  const before = { heading: top(heading), close: top(close) };
+  scroller.scrollTop = scroller.scrollHeight;
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const after = { heading: top(heading), close: top(close), headingInView: inView(heading), closeInView: inView(close), scrollTop: Math.round(scroller.scrollTop) };
+  return { phone, scrollable, before, after, dialogScrolls: dialog.scrollHeight - dialog.clientHeight > 8 };
+}
+
+/** Выполняется в странице: прокрутка листа и тела панели — в начало. */
+function resetScroll() {
+  const dialog = document.querySelector("dialog[data-side-panel]");
+  const body = dialog?.querySelector("[data-side-panel-body]");
+  if (dialog) dialog.scrollTop = 0;
+  if (body) body.scrollTop = 0;
 }
 
 /** Выполняется в странице: у модального листа элемент за ним не получает фокус. */
@@ -103,53 +174,139 @@ function backgroundInert() {
 const waitClosed = (page) => page.waitForSelector(PANEL, { state: "detached", timeout: 10_000 });
 const waitOpen = (page) => page.waitForSelector(PANEL, { state: "attached", timeout: 10_000 });
 
+/** Поле ввода панели, в котором можно печатать: первое видимое и доступное. */
+const FIELD = `${PANEL} :is(textarea, input[type="text"], input[type="search"], input:not([type])):not([disabled]):not([readonly])`;
+
+/** Выполняется в странице: где фокус и что в поле после Esc. */
+function fieldFacts(marker) {
+  const dialog = document.querySelector("dialog[data-side-panel]");
+  const field = document.querySelector("[data-f1-field]");
+  return {
+    panelOpen: Boolean(dialog?.open),
+    headingFocused: Boolean(dialog) && document.activeElement === dialog.querySelector("[data-queue-heading]"),
+    fieldFocused: document.activeElement === field,
+    kept: Boolean(field) && field.value.includes(marker),
+  };
+}
+
 /**
- * Путь по гидратированному экрану: открытая по адресу панель → Esc → фокус
- * на строке → открыть строку (`reopen`) → фокус на заголовке → «Закрыть»
- * (или «← К …» на листе) → фокус на строке. `returnSelector` — строка
- * (ссылка «Открыть»), куда панель возвращает фокус.
+ * Путь по гидратированному экрану: открытая по адресу панель → шапка при
+ * прокрутке → Esc → фокус на строке → открыть строку (`reopen`) → фокус на
+ * заголовке → поле: Esc, Esc → строка → открыть → «Закрыть» (или «← К …» на
+ * телефоне) → фокус на строке; на планшете — ещё щелчок по листу (открыт) и
+ * по затемнению (закрыт, фокус на строке). `returnSelector` — строка (ссылка
+ * «Открыть»), куда панель возвращает фокус; `look` — ожидаемый облик
+ * («current» или «next»); `scrolledPath` — снимок с прокрученным телом.
  */
-async function journey(page, { selected, returnSelector, reopen }) {
+async function journey(page, { selected, returnSelector, reopen, look, scrolledPath }) {
   const failures = [];
   const expect = (label, ok, facts) => { if (!ok) failures.push(`${label}: ${JSON.stringify(facts)}`); };
-  await waitOpen(page);
-  await page.waitForTimeout(250);
+  const settleOpen = async () => { await waitOpen(page); await page.waitForTimeout(250); };
+  const settleClosed = async () => { await waitClosed(page); await page.waitForTimeout(100); };
+  await settleOpen();
   const opened = await page.evaluate(measure, selected);
+  expect("the page renders the expected look", opened.look === look, { look: opened.look, expected: look });
   expect("the panel takes focus on its record heading when opened by the address", opened.headingFocused, opened);
   expect("the heading is the record title role", opened.headingRole === "t-record-title", opened);
   const wide = opened.viewport >= 1280;
+  const phone = opened.viewport < 768;
   expect(wide ? "beside the list from 1280px: non-modal" : "below 1280px: a modal sheet", opened.modal === !wide, opened);
-  expect("the panel is the token wide (or the whole phone)", opened.viewport < 768
+  expect("the panel is the token wide (or the whole phone)", phone
     ? opened.panel.width === opened.viewport
     : Math.abs(opened.panel.width - opened.tokenPx) <= 1, opened);
-  if (wide) expect("the selected row stays visible beside the panel", opened.selected?.ariaCurrent && opened.selectedBeside, opened);
+  if (!phone) {
+    expect("from 768px the close control is the corner cross «Закрыть»", opened.close?.name === "Закрыть"
+      && opened.close.box.right <= opened.panel.right && opened.close.box.right >= opened.panel.right - 16
+      && opened.close.box.top - opened.panel.top <= 16, opened.close);
+  } else {
+    expect("on a phone the close control is «← К …»", /^К /u.test(opened.close?.name ?? ""), opened.close);
+  }
+  if (wide) {
+    expect("the selected row stays visible beside the panel", opened.selected?.ariaCurrent && opened.selectedBeside, opened);
+    opened.columnTopDelta = await page.evaluate(columnTopDelta);
+    expect("the panel starts level with the list beside it", opened.columnTopDelta !== null && Math.abs(opened.columnTopDelta) <= 1, { columnTopDelta: opened.columnTopDelta });
+  }
+  if (!phone) expect("the sheet slides in from the right edge", opened.panel.right === opened.viewport || wide, opened.panel);
   expect("no sideways overflow", opened.overflowX <= 0, opened);
   expect("no text under 12px in the panel", opened.textUnder12 === 0, opened);
   expect("no solid red inside the panel: the page keeps one main action", opened.solidRedInPanel === 0, opened);
   const inert = await page.evaluate(backgroundInert);
   if (!wide) expect("the page behind the sheet is inert", inert === true, { inert });
 
+  // Шапка при прокрутке тела: заголовок и крестик на месте (на телефоне — полоса «← К …»).
+  const header = await page.evaluate(scrollBody);
+  if (header?.scrollable && scrolledPath) await page.screenshot({ path: scrolledPath });
+  await page.evaluate(resetScroll);
+  if (header?.scrollable) {
+    if (header.phone) {
+      expect("on a phone the «← К …» bar stays on top while the sheet scrolls", header.after.closeInView && Math.abs(header.after.close - header.before.close) <= 1 && header.after.scrollTop > 0, header);
+    } else {
+      expect("from 768px the header stays put while the body scrolls", !header.dialogScrolls
+        && Math.abs(header.after.heading - header.before.heading) <= 1 && Math.abs(header.after.close - header.before.close) <= 1
+        && header.after.headingInView && header.after.closeInView && header.after.scrollTop > 0, header);
+    }
+  }
+  await page.evaluate(() => document.querySelector("dialog[data-side-panel] [data-queue-heading]")?.focus({ preventScroll: true }));
+
   // Esc: с фокусом на заголовке (как после открытия).
   await page.keyboard.press("Escape");
-  await waitClosed(page);
-  await page.waitForTimeout(100);
+  await settleClosed();
   const afterEsc = await page.evaluate(focusFacts, returnSelector);
   expect("Esc closes the panel and returns focus to the row", afterEsc.onReturnTarget, afterEsc);
 
   // Открыть снова строкой: фокус — на заголовке.
   await reopen();
-  await waitOpen(page);
-  await page.waitForTimeout(250);
+  await settleOpen();
   const reopened = await page.evaluate(measure, selected);
   expect("opening from the row focuses the record heading", reopened.headingFocused, reopened);
 
-  // «Закрыть» (рядом со списком — крестик, на листе — «← К …»).
+  // Поле панели: первая Esc только выводит из поля, введённое цело; вторая закрывает.
+  let typing = null;
+  const field = page.locator(FIELD).filter({ visible: true }).first();
+  if (await field.count()) {
+    const marker = " Э7";
+    await field.evaluate((element) => element.setAttribute("data-f1-field", ""));
+    await field.click();
+    await page.keyboard.type(marker);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(150);
+    const first = await page.evaluate(fieldFacts, marker);
+    await page.keyboard.press("Escape");
+    await settleClosed();
+    const second = await page.evaluate(focusFacts, returnSelector);
+    typing = { first, second };
+    expect("the first Esc in a panel field keeps the panel open and the typed text", first.panelOpen && first.kept && !first.fieldFocused && first.headingFocused, first);
+    expect("the second Esc closes the panel and returns focus to the row", second.onReturnTarget, second);
+    await reopen();
+    await settleOpen();
+  }
+
+  // «Закрыть» (от 768 px — крестик, на телефоне — «← К …»).
   await page.locator(`${PANEL} [data-testid="queue-detail-close"]`).click();
-  await waitClosed(page);
-  await page.waitForTimeout(100);
+  await settleClosed();
   const afterClose = await page.evaluate(focusFacts, returnSelector);
   expect("the close link returns focus to the row", afterClose.onReturnTarget, afterClose);
-  return { opened, inert, afterEsc, reopened: { headingFocused: reopened.headingFocused, modal: reopened.modal }, afterClose, failures };
+
+  // Планшет: щелчок по самому листу его не закрывает, по затемнению — закрывает.
+  let backdrop = null;
+  if (!wide && !phone) {
+    await reopen();
+    await settleOpen();
+    const panel = await page.evaluate(() => {
+      const header = document.querySelector("dialog[data-side-panel] [data-side-panel-header]").getBoundingClientRect();
+      return { left: header.left, bottom: header.bottom };
+    });
+    await page.mouse.click(panel.left + 4, panel.bottom - 4);
+    await page.waitForTimeout(150);
+    const stays = await page.evaluate(() => Boolean(document.querySelector("dialog[data-side-panel]")?.open));
+    await page.mouse.click(24, Math.round(opened.panel.height / 2));
+    await settleClosed();
+    const afterBackdrop = await page.evaluate(focusFacts, returnSelector);
+    backdrop = { stays, afterBackdrop };
+    expect("a click on the sheet itself keeps it open", stays, backdrop);
+    expect("a click on the dimmed page closes the sheet and returns focus to the row", afterBackdrop.onReturnTarget, afterBackdrop);
+  }
+  return { opened, inert, header, afterEsc, reopened: { headingFocused: reopened.headingFocused, modal: reopened.modal }, typing, afterClose, backdrop, failures };
 }
 
 /**
@@ -190,12 +347,14 @@ function linkShim(root) {
   };
 }
 
-/** Ширины снимков F1: ноутбук, широкий ноутбук и телефон. */
+/** Ширины снимков F1: широкий ноутбук, ноутбук, планшет (лист справа) и телефон. */
 const F1_WIDTHS = [
   ["1440", { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 }],
   ["1280", { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }],
+  ["1024", { viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 }],
   ["390", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
 ];
+
 
 /** Строка отчёта F1 и сбор нарушений по всем снимкам. */
 function report(entry) {

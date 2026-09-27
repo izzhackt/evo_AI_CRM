@@ -46,7 +46,7 @@
  *   node tests/e2e/numbers-static-render.cjs --f1 [outDir]
  *     → Э7 «Одна боковая панель везде»: «Отчёт продаж» с записью, открытой
  *       по адресу (`?record=…&edit=true`), в прежнем и новом облике на
- *       1440×900, 1280×800 и 390×844 — снимки `f1-report[-next]-<ширина>.png`
+ *       1440×900, 1280×800, 1024×768 (лист справа) и 390×844 — снимки `f1-report[-next]-<ширина>.png`
  *       и замеры `tests/e2e/side-panel-probe.cjs`. Отчёт — серверный
  *       компонент: список и тело записи остаются серверной разметкой, а
  *       панель в браузере — настоящая `SidePanel` (сборка esbuild) с шапкой и
@@ -807,6 +807,8 @@ async function f1() {
           selected: `[id="sale-${record}"][data-selected]`,
           returnSelector: row,
           reopen: () => page.click(row),
+          look: look ? "next" : "current",
+          scrolledPath: join(outDir, `f1-report${suffix}-${width}-scrolled.png`),
         });
         if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
         probe.report({ screen: "report", look: suffix || "-current", width, ...result });

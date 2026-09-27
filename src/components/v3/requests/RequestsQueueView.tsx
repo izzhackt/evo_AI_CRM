@@ -328,55 +328,60 @@ export function RequestsQueueView(props: ViewProps) {
 
   return (
     <TakeFeedback key={listHref}>
-    <div className={sidePanelSplit(panel !== null)}>
-      {/*
-        THESIS: утренний разбор входящих — кто пришёл, откуда, когда и взял ли
-        кто-нибудь; не взятое берут одной кнопкой здесь же.
-        OWN-WORLD: рабочий стол EVO — строки на волосяных линиях без карточек,
-        Golos Text, время прихода JetBrains Mono «ДД.ММ ЧЧ:ММ»; сплошной
-        красный — только «Добавить лида» в шапке; «Взять себе» — спокойная
-        приподнятая кнопка; выбранное — `.v3-choice`.
-        FIRST VIEWPORT: 1440×900 — h1 и «Добавить лида», вкладки с числами,
-        «Ждут разбора / Все», затем строки по 57 px: имя, источник, когда,
-        разбор, «Открыть».
-      */}
-      <div className="min-w-0 space-y-3" data-testid="requests-queue">
-        <QueueViewTabs label="Источник заявки" tabs={tabs} />
-        <BoardSegments label="Состояние" items={statusItems} />
-        {read.status !== "ready" ? (
-          read.status === "forbidden"
-            ? <p role="status" className="border-y border-border py-8 t-body-compact text-fg-2">У вашей роли нет доступа к заявкам.</p>
-            : <QueueError text={read.status === "invalid" ? "Эта страница очереди больше не открывается." : "Заявки не загрузились. Список и числа сейчас неизвестны."}
-              retryHref={read.status === "invalid" ? requestsHref({ ...selection, cursor: null }) : listHref} />
-        ) : (
-          <>
-            {closedLine ? <p className="t-body-compact text-fg-2" data-testid="requests-closed-kinds">{closedLine}</p> : null}
-            <TakeStatus />
-            {read.queue.rows.length === 0 ? <RequestsEmpty queue={read.queue} props={props} now={now} /> : (
-              <div className="@container min-w-0">
-                <div aria-hidden="true" className={`hidden gap-x-3 border-b border-border py-2 ps-3 t-caption text-fg-3 @min-[56rem]:grid ${WIDE_COLUMNS}`}>
-                  <span>{selectedKind === "application" ? "Анкета" : selectedKind === "consultation" ? "Консультация" : "Заявка"}</span>
-                  <span>Источник</span>
-                  <span>Пришла</span>
-                  <span>Разбор</span>
-                  <span />
+    {/*
+      THESIS: утренний разбор входящих — кто пришёл, откуда, когда и взял ли
+      кто-нибудь; не взятое берут одной кнопкой здесь же.
+      OWN-WORLD: рабочий стол EVO — строки на волосяных линиях без карточек,
+      Golos Text, время прихода JetBrains Mono «ДД.ММ ЧЧ:ММ»; сплошной
+      красный — только «Добавить лида» в шапке; «Взять себе» — спокойная
+      приподнятая кнопка; выбранное — `.v3-choice`.
+      FIRST VIEWPORT: 1440×900 — h1 и «Добавить лида», вкладки с числами,
+      «Ждут разбора / Все», затем строки по 57 px: имя, источник, когда,
+      разбор, «Открыть».
+      Э7: вкладки и «Ждут разбора / Все» — во всю ширину над сеткой «список |
+      панель», как у «Студентов», «Нагрузки кураторов» и «Отчёта продаж»:
+      панель начинается рядом с первой строкой и не сдвигает вкладки.
+    */}
+    <div className="min-w-0 space-y-3" data-testid="requests-queue">
+      <QueueViewTabs label="Источник заявки" tabs={tabs} />
+      <BoardSegments label="Состояние" items={statusItems} />
+      <div className={sidePanelSplit(panel !== null)}>
+        <div className="min-w-0 space-y-3">
+          {read.status !== "ready" ? (
+            read.status === "forbidden"
+              ? <p role="status" className="border-y border-border py-8 t-body-compact text-fg-2">У вашей роли нет доступа к заявкам.</p>
+              : <QueueError text={read.status === "invalid" ? "Эта страница очереди больше не открывается." : "Заявки не загрузились. Список и числа сейчас неизвестны."}
+                retryHref={read.status === "invalid" ? requestsHref({ ...selection, cursor: null }) : listHref} />
+          ) : (
+            <>
+              {closedLine ? <p className="t-body-compact text-fg-2" data-testid="requests-closed-kinds">{closedLine}</p> : null}
+              <TakeStatus />
+              {read.queue.rows.length === 0 ? <RequestsEmpty queue={read.queue} props={props} now={now} /> : (
+                <div className="@container min-w-0">
+                  <div aria-hidden="true" className={`hidden gap-x-3 border-b border-border py-2 ps-3 t-caption text-fg-3 @min-[56rem]:grid ${WIDE_COLUMNS}`}>
+                    <span>{selectedKind === "application" ? "Анкета" : selectedKind === "consultation" ? "Консультация" : "Заявка"}</span>
+                    <span>Источник</span>
+                    <span>Пришла</span>
+                    <span>Разбор</span>
+                    <span />
+                  </div>
+                  <ul data-queue-list="" data-testid="requests-rows">
+                    {read.queue.rows.map((row) => <RequestRowView key={requestOpenKey(row)} row={row} props={props} listHref={listHref} now={now} />)}
+                  </ul>
                 </div>
-                <ul data-queue-list="" data-testid="requests-rows">
-                  {read.queue.rows.map((row) => <RequestRowView key={requestOpenKey(row)} row={row} props={props} listHref={listHref} now={now} />)}
-                </ul>
-              </div>
-            )}
-          </>
-        )}
-        {queue && (queue.previousCursor || queue.nextCursor) ? (
-          <nav aria-label="Страницы заявок" className="flex flex-wrap gap-x-5">
-            {queue.previousCursor ? <Link className={QUEUE_QUIET_LINK} href={requestsHref({ ...selection, cursor: queue.previousCursor })}>Предыдущая страница</Link> : null}
-            {queue.nextCursor ? <Link className={QUEUE_QUIET_LINK} href={requestsHref({ ...selection, cursor: queue.nextCursor })}>Следующая страница</Link> : null}
-          </nav>
-        ) : null}
+              )}
+            </>
+          )}
+          {queue && (queue.previousCursor || queue.nextCursor) ? (
+            <nav aria-label="Страницы заявок" className="flex flex-wrap gap-x-5">
+              {queue.previousCursor ? <Link className={QUEUE_QUIET_LINK} href={requestsHref({ ...selection, cursor: queue.previousCursor })}>Предыдущая страница</Link> : null}
+              {queue.nextCursor ? <Link className={QUEUE_QUIET_LINK} href={requestsHref({ ...selection, cursor: queue.nextCursor })}>Следующая страница</Link> : null}
+            </nav>
+          ) : null}
+        </div>
+        {panel}
+        <QueueKeyboard openKey={openRow ? requestOpenKey(openRow) : null} />
       </div>
-      {panel}
-      <QueueKeyboard openKey={openRow ? requestOpenKey(openRow) : null} />
     </div>
     </TakeFeedback>
   );

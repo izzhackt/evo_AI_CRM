@@ -445,7 +445,12 @@ test("the loading skeleton keeps the date column before the title", () => {
 
 test("the right panel pushes the list, marks the row and keeps the list URL", () => {
   const html = surfaces.get("team-panel");
-  assert.match(html, /^<div class="xl:grid xl:grid-cols-\[minmax\(0,1fr\)_var\(--side-panel-width\)\] xl:items-start xl:gap-6">/u);
+  // Э7: tabs and the toolbar span the full width above the «list | panel» grid,
+  // so the panel starts level with the first queue row, as on «Студенты».
+  assert.match(html, /^<div class="min-w-0 space-y-3" data-testid="task-queue">/u);
+  const grid = html.indexOf('<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_var(--side-panel-width)] xl:items-start xl:gap-6">');
+  assert.ok(grid > html.indexOf('data-testid="queue-toolbar"') && html.indexOf('data-testid="queue-toolbar"') > 0, "the grid starts below the toolbar");
+  assert.ok(html.indexOf("data-queue-row=") > grid && html.indexOf("<dialog") > grid, "rows and the panel share the grid");
   const row = html.slice(html.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000005"'));
   assert.match(row, /^[^>]*class="[^"]*\bbg-surface-2\b/u);
   assert.match(row, /aria-current="true"[^>]*>Согласовать с семьёй список программ в Польше и Чехии<\/a>/u);

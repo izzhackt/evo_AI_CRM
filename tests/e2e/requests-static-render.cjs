@@ -40,8 +40,8 @@
  *       заглушки (конфликт, «Лид уже изменён»), ничего не сохраняют.
  *   node tests/e2e/requests-static-render.cjs --f1 [outDir] [--look=next]
  *     → Э7 «Одна боковая панель везде»: настоящая страница «Заявок» в
- *       оболочке с открытым лидом (`?open=lead:…`) на 1440×900, 1280×800 и
- *       390×844 — снимки `f1-requests[-next]-<ширина>.png` и замеры
+ *       оболочке с открытым лидом (`?open=lead:…`) на 1440×900, 1280×800,
+ *       1024×768 (лист справа) и 390×844 — снимки `f1-requests[-next]-<ширина>.png` и замеры
  *       `tests/e2e/side-panel-probe.cjs`. `RequestsQueueView` в браузере —
  *       та же сборка esbuild; адрес — состояние стенда: `router.push`
  *       открывает и закрывает панель по `open`, как сервер, и путь Esc →
@@ -803,6 +803,8 @@ async function f1() {
         selected: '[data-queue-row]:has([data-queue-open][aria-current="true"])',
         returnSelector: open,
         reopen: () => tab.click(open),
+        look: LOOK_NEXT ? "next" : "current",
+        scrolledPath: join(outDir, `f1-requests${look}-${width}-scrolled.png`),
       });
       if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
       probe.report({ screen: "requests", look: look || "-current", width, ...result });

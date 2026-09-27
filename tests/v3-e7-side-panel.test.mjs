@@ -16,6 +16,7 @@ import {
   SIDE_PANEL_WIDTH_REM,
   attributeReturn,
   queueRowReturn,
+  sidePanelEscape,
   sidePanelFocusReturn,
   sidePanelReturnTarget,
   sidePanelSplit,
@@ -86,6 +87,10 @@ test("one width token and one breakpoint for the grid, the sheet and the board",
   const css = read("src/app/(v3)/v3.css");
   assert.match(css, /\.v3-world \{\s*--side-panel-width: 26rem;\s*\}/u);
   assert.equal(BOARD_PANEL_PX, SIDE_PANEL_WIDTH_REM * 16, "the board reserves the same 416px");
+  // Лист шага лида в карточке лида — той же ширины: токен, а не своё число.
+  const drawer = read("src/components/v3/profile/LeadStepDrawer.tsx");
+  assert.match(drawer, /\bmax-w-\[var\(--side-panel-width\)\]/u);
+  assert.doesNotMatch(drawer, /26rem\]/u);
   // `xl` Tailwind — 80rem: запрос в JS тот же, что в CSS, и при крупном шрифте браузера.
   assert.equal(SIDE_PANEL_WIDE_QUERY, "(min-width: 80rem)");
   assert.equal(SIDE_PANEL_SPLIT, "xl:grid xl:grid-cols-[minmax(0,1fr)_var(--side-panel-width)] xl:items-start xl:gap-6");
@@ -117,7 +122,7 @@ test("URL-addressable: each page keeps its own parameter, and closing drops only
     const close = panel.match(/<a data-testid="queue-detail-close"[^>]*>/u)?.[0] ?? "";
     assert.equal(unescape(attr(close, "href")), closeHref, `${name}: closing keeps the list address`);
     assert.equal(panel.match(/data-testid="queue-detail-close"/gu)?.length, 1, `${name}: one close link`);
-    assert.match(panel, new RegExp(`<span class="xl:hidden">${back}</span><span class="hidden xl:block xl:sr-only">Закрыть</span>`, "u"), `${name}: «← ${back}» on the sheet, «Закрыть» beside the list`);
+    assert.match(panel, new RegExp(`<span class="md:hidden">${back}</span><span class="hidden md:block md:sr-only">Закрыть</span>`, "u"), `${name}: «← ${back}» on a phone, the corner «Закрыть» from 768px`);
   }
   // Открытые адреса — прежние параметры страниц.
   assert.match(tasks.get("team-panel"), /<a data-queue-open="" aria-current="true" [^>]*href="\/v3\/tasks\?view=all&amp;task=cccccccc-6666-4666-8666-000000000005&amp;kind=case&amp;case=dddddddd-2222-4222-8222-000000000005">/u);
@@ -153,7 +158,15 @@ test("one header: record title, context line, «Открыть …», actions an
     assert.equal(panel.match(/<h2\b/gu)?.length ? panel.match(/data-queue-heading=""/gu).length : 0, 1, `${name}: one record heading`);
     if (open) assert.match(header, new RegExp(`data-side-panel-open="" href="[^"]+">${open}<svg`, "u"), `${name}: «${open}» in the header`);
   }
+  // Строка контекста — у каждой панели, и у доски, и у формы «Отчёта продаж».
+  for (const [name, panel] of headers) assert.match(panel.match(/<header [\s\S]*?<\/header>/u)[0], /data-side-panel-context="">/u, `${name}: a context line`);
   assert.match(panelOf(tasks.get("team-panel")), /data-side-panel-context="">[^<]+<\/div>/u, "who the task is about");
+  assert.match(panelOf(numbers.get("report-panel")), /data-side-panel-context="">Сведения из записи отчёта\.(?: Текущие данные клиента и условия — в его карточке\.)?<\/div>/u, "the report form: the same line as the record view");
+  // Доска: этап и ответственный переехали из списка фактов в строку контекста, не удвоились.
+  const lead = panelOf(boards.get("sales-panel"));
+  assert.match(lead, /data-side-panel-context="">Связались · Ответственный: [^<]+<\/div>/u);
+  assert.doesNotMatch(lead, /<dt [^>]*>(?:Этап|Ответственный)<\/dt>/u, "stage and owner are not repeated in the fact list");
+  assert.match(lead, /<dt [^>]*>Действие<\/dt>/u);
   assert.match(panelOf(students.get("curators")), /data-side-panel-context=""><dl[^>]*><div><dt class="inline">Активных дел: <\/dt>/u, "curator workload as the context line");
   // «⋯» записи — в шапке, рядом с заголовком (доска: «Закрыть лид»).
   const board = panelOf(boards.get("sales-panel"));
@@ -172,7 +185,11 @@ test("selected row: aria-current and the hover-free surface-2 on every list", ()
   assert.match(rowOf(students.get("admin-panel"), 'data-queue-row="cccccccc-2222-4222-8222-000000000003"'), /\bbg-surface-2\b/u);
   assert.match(rowOf(requests.get("drawer-lead"), 'data-queue-row="lead:dddddddd-3333-4333-8333-000000000001"'), /\bbg-surface-2\b/u);
   assert.match(numbers.get("report-panel"), /data-selected="" class="[^"]*\bbg-surface-2\b/u);
-  assert.match(boards.get("sales-panel"), /<article data-testid="v3-pipeline-card" data-lead-id="dddddddd-3333-4333-8333-000000000005" aria-current="true" class="v3-choice /u);
+  // Карточка доски с открытой панелью выбрана как строка: aria-current и surface-2 (без красного `.v3-choice`).
+  const card = rowOf(boards.get("sales-panel"), 'data-lead-id="dddddddd-3333-4333-8333-000000000005" aria-current="true"');
+  assert.match(card, /\baria-\[current=true\]:bg-surface-2\b/u);
+  assert.doesNotMatch(card, /\bv3-choice\b/u);
+  assert.doesNotMatch(read("src/components/v3/Pipeline.tsx"), /v3-choice/u);
   for (const [name, html] of [["tasks", tasks.get("team-panel")], ["students", students.get("admin-panel")], ["requests", requests.get("drawer-lead")], ["report", numbers.get("report-panel")]]) {
     assert.equal(html.match(/aria-current="true"/gu)?.filter(Boolean).length >= 1, true, name);
   }
@@ -224,22 +241,35 @@ test("focus returns to the row that was open, and only when focus had nowhere to
 
 test("phone and narrow windows: the same dialog becomes a modal sheet; Esc and close follow one rule", () => {
   const panel = read("src/components/v3/panel/SidePanel.tsx");
+  // Esc — одно правило на любой ширине: в поле панели первая Esc выводит из поля, вторая закрывает.
+  assert.equal(sidePanelEscape(false, false), "close");
+  assert.equal(sidePanelEscape(false, true), "close");
+  assert.equal(sidePanelEscape(true, true), "leave-field");
+  assert.equal(sidePanelEscape(true, false), "ignore", "a field outside the panel (list search) is not the panel's business");
   assert.match(panel, /const media = window\.matchMedia\(SIDE_PANEL_WIDE_QUERY\);[\s\S]*?const modal = !media\.matches;[\s\S]*?if \(modal\) dialog\.showModal\(\);\s*else dialog\.show\(\);/u,
     "below 1280px showModal(): top layer, inert page, focus kept inside");
   assert.match(panel, /media\.addEventListener\("change", arrange\)/u, "resizing across 1280px switches the mode without remounting");
-  assert.match(panel, /onCancel=\{\(event\) => \{ event\.preventDefault\(\); closeRef\.current\(\); \}\}/u, "Esc on the sheet closes through the page address");
-  assert.match(panel, /if \(event\.key !== "Escape" \|\| event\.defaultPrevented \|\| typingTarget\(event\.target\) \|\| openPopover\(\) \|\| modalOpen\(\)\) return;/u,
-    "beside the list Esc closes unless typing or a menu/dialog is on top");
+  assert.match(panel, /onCancel=\{\(event\) => \{[\s\S]*?const step = sidePanelEscape\(typingTarget\(active\), event\.currentTarget\.contains\(active\)\);\s*if \(step === "leave-field" && event\.cancelable\) \{\s*event\.preventDefault\(\);\s*leaveField\(event\.currentTarget\);\s*return;\s*\}\s*event\.preventDefault\(\);\s*closeRef\.current\(\);/u,
+    "the sheet: the first Esc in a field leaves it and keeps the input; otherwise Esc closes through the page address");
+  assert.match(panel, /if \(event\.key !== "Escape" \|\| event\.defaultPrevented \|\| openPopover\(\) \|\| modalOpen\(\)\) return;[\s\S]*?const step = sidePanelEscape\(typingTarget\(event\.target\), inPanel\);\s*if \(step === "ignore"\) return;\s*event\.preventDefault\(\);\s*if \(step === "leave-field"\) leaveField\(dialog\);\s*else closeRef\.current\(\);/u,
+    "beside the list: the same rule, unless a menu or dialog is on top");
+  assert.match(panel, /function leaveField\(dialog: HTMLDialogElement \| null\) \{\s*dialog\?\.querySelector<HTMLElement>\("\[data-queue-heading\]"\)\?\.focus\(\{ preventScroll: true \}\);/u, "leaving a field puts focus on the record heading");
   assert.match(panel, /closeRef\.current = onClose \?\? \(\(\) => router\.push\(closeHref, \{ scroll: false \}\)\);/u);
   // Затемнение листа закрывает его; щелчок по самой панели (и её полосе прокрутки) — нет.
   assert.match(panel, /const outside = event\.clientX < box\.left \|\| event\.clientX > box\.right \|\| event\.clientY < box\.top \|\| event\.clientY > box\.bottom;\s*if \(event\.target === event\.currentTarget && outside\) closeRef\.current\(\);/u);
   // Лист: во весь экран на телефоне, шириной токена от 768 px, рядом со списком от 1280 px.
   for (const [name, html] of [["tasks", tasks.get("team-panel")], ["board", boards.get("sales-panel")], ["report", numbers.get("report-panel")]]) {
     const classes = attr(openTag(panelOf(html)), "class");
-    assert.match(classes, /^fixed inset-0 z-50 m-0 h-dvh max-h-none w-full max-w-none overflow-y-auto overscroll-contain /u, `${name}: full screen on a phone`);
-    assert.match(classes, /\bmd:w-\[var\(--side-panel-width\)\]/u, `${name}: the token from 768px`);
-    assert.match(classes, /\bxl:w-\[var\(--side-panel-width\)\]/u, `${name}: the token beside the list`);
+    assert.match(classes, /^fixed inset-0 z-50 m-0 hidden h-dvh max-h-none w-full max-w-none flex-col overflow-y-auto overscroll-contain /u, `${name}: full screen on a phone, the whole sheet scrolls`);
+    assert.match(classes, /\bopen:flex\b/u, `${name}: a column while open`);
+    assert.match(classes, /\bmd:w-\[var\(--side-panel-width\)\]/u, `${name}: the token from 768px (sheet and beside the list)`);
+    assert.match(classes, /\bmd:overflow-hidden\b/u, `${name}: from 768px only the body scrolls`);
     assert.match(classes, /\bbackdrop:bg-black\/40\b/u, `${name}: one backdrop`);
+    // Закреплённая шапка от 768 px: полоса «← К …» — только телефон, крестик — в углу шапки.
+    const markup = panelOf(html);
+    assert.match(markup, /<div class="sticky top-0 z-10 flex min-h-14 shrink-0 items-center border-b border-border bg-surface px-2 md:contents"><a data-testid="queue-detail-close" class="[^"]*\bmd:absolute md:end-2 md:top-2\b/u, `${name}: the corner cross from 768px`);
+    assert.match(markup, /<header class="flex shrink-0 [^"]*" data-side-panel-header="">/u, `${name}: the header does not shrink or scroll`);
+    assert.match(markup, /<div class="flex-1 p-4 md:min-h-0 md:overflow-y-auto md:overscroll-contain" data-side-panel-body="">/u, `${name}: the body scrolls under it`);
   }
   assert.match(attr(openTag(panelOf(tasks.get("team-panel"))), "class"), /xl:sticky xl:top-4 xl:h-auto xl:max-h-\[calc\(100dvh-2rem\)\]$/u, "lists: sticky beside the rows");
   assert.match(attr(openTag(panelOf(boards.get("sales-panel"))), "class"), /xl:relative xl:h-full xl:max-h-none$/u, "board: the board's height");
@@ -247,5 +277,30 @@ test("phone and narrow windows: the same dialog becomes a modal sheet; Esc and c
   for (const script of ["tasks", "students", "requests", "boards", "numbers"]) {
     assert.match(read(`tests/e2e/${script}-static-render.cjs`), /--f1/u, script);
   }
-  assert.match(read("tests/e2e/side-panel-probe.cjs"), /async function journey\(page, \{ selected, returnSelector, reopen \}\)/u);
+  const probe = read("tests/e2e/side-panel-probe.cjs");
+  assert.match(probe, /async function journey\(page, \{ selected, returnSelector, reopen, look, scrolledPath \}\)/u);
+  assert.match(probe, /\["1024", \{ viewport: \{ width: 1024, height: 768 \}/u, "the tablet sheet is measured and captured");
+  assert.match(probe, /the first Esc in a panel field keeps the panel open and the typed text/u);
+  assert.match(probe, /from 768px the header stays put while the body scrolls/u);
+  assert.match(probe, /a click on the dimmed page closes the sheet and returns focus to the row/u);
+  assert.match(probe, /the page renders the expected look/u, "both looks are asserted, not assumed from the file name");
+});
+
+test("one vertical start: tabs and toolbars span the page above the list | panel grid", () => {
+  const gridAt = (html) => html.indexOf(`<div class="${SIDE_PANEL_SPLIT}">`);
+  // «Задачи»: вкладки и строка инструментов — над сеткой; строки и панель — в ней.
+  const taskPage = tasks.get("team-panel");
+  assert.ok(taskPage.indexOf('data-testid="queue-toolbar"') > 0 && gridAt(taskPage) > taskPage.indexOf('data-testid="queue-toolbar"'), "tasks: the toolbar above the grid");
+  // «Заявки»: вкладки источников и «Ждут разбора / Все» — над сеткой.
+  const requestPage = requests.get("drawer-lead");
+  const grid = gridAt(requestPage);
+  assert.ok(grid > requestPage.indexOf('aria-label="Источник заявки"') && grid > requestPage.indexOf('aria-label="Состояние"') && requestPage.indexOf('aria-label="Состояние"') > 0, "requests: tabs and segments above the grid");
+  assert.ok(requestPage.indexOf('data-testid="requests-rows"') > grid && requestPage.indexOf("<dialog") > grid, "requests: rows and the panel share the grid");
+  // «Студенты» и «Нагрузка кураторов» так и было: шапка — во всю ширину над сеткой.
+  const studentPage = students.get("admin-panel");
+  assert.ok(gridAt(studentPage) > studentPage.indexOf('data-testid="queue-toolbar"'));
+  // «Нагрузка кураторов»: форма замещения в панели 26rem — поля в одну колонку.
+  const form = read("src/components/v3/profile/CuratorCoverageForm.tsx");
+  assert.doesNotMatch(form, /sm:grid-cols-2/u);
+  assert.match(panelOf(students.get("curators")), /<div class="grid gap-4"><label><span class="[^"]*">Заместитель<\/span>/u);
 });

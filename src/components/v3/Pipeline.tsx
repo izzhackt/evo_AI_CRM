@@ -230,7 +230,9 @@ function LeadCard({
       data-testid="v3-pipeline-card"
       data-lead-id={lead.id}
       aria-current={selected ? "true" : undefined}
-      className={`v3-choice ${BOARD_CARD_CLASS}`}
+      // Карточка, чья панель открыта рядом, выбрана как строка списка (Э7):
+      // `aria-current` и подложка `surface-2`, рамка — как у наведения.
+      className={`${BOARD_CARD_CLASS} aria-[current=true]:border-control-edge aria-[current=true]:bg-surface-2`}
     >
       <p className="flex min-w-0 items-baseline gap-2">
         {/* Вся карточка нажимается: ссылка растянута на неё псевдоэлементом. */}
@@ -311,6 +313,10 @@ function LeadPanel({
 }) {
   const savedRef = useRef<HTMLParagraphElement>(null);
   const owner = lead.workflow.currentOwnerDisplayName;
+  // Строка контекста шапки (Э7): этап и ответственный — из списка фактов
+  // панели, прежними словами. В новом облике над ней — дорожка этапа, без
+  // своей подписи: слово этапа уже в строке.
+  const contextLine = `${stageTitle} · ${owner ? `Ответственный: ${owner}` : "Ответственный не назначен"}`;
 
   // Итог сохранения появляется после обновления доски под кнопкой — панель
   // докручивается до него, если он оказался ниже края.
@@ -328,6 +334,12 @@ function LeadPanel({
       onClose={onClose}
       backLabel="К воронке"
       title={lead.name}
+      context={next ? (
+        <>
+          <StageTrack kind="sales" current={lead.stageKey} caption={false} className="mb-1.5 pt-1" />
+          <p>{contextLine}</p>
+        </>
+      ) : contextLine}
       open={{ href: withPipelineReturn(lead.href, returnTo), label: "Открыть карточку лида", prefetch: false }}
       // «⋯» лида: «Закрыть лид». Переданный лид — продажа: пункт недоступен
       // и называет причину. Права — подсказка; решает сервер (246).
@@ -347,10 +359,6 @@ function LeadPanel({
       data={{ "data-lead-id": lead.id }}
     >
       <dl className="t-body-compact grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-fg">
-        <dt className="t-caption pt-0.5 text-fg-3">Этап</dt>
-        <dd>{next ? <StageTrack kind="sales" current={lead.stageKey} /> : stageTitle}</dd>
-        <dt className="t-caption pt-0.5 text-fg-3">Ответственный</dt>
-        <dd className={owner ? undefined : "text-fg-3"}>{owner ?? "Не назначен"}</dd>
         <dt className="t-caption pt-0.5 text-fg-3">Действие</dt>
         <dd className={`break-words ${lead.nextAction ? "" : "text-fg-3"}`}>{lead.nextAction ?? "Без следующего действия"}</dd>
         {lead.nextActionAt && lead.workflow.nextActionDueDate ? (

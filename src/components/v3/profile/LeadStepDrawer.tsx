@@ -88,7 +88,7 @@ export function LeadStepDrawer({
       role="dialog"
       aria-labelledby={headingId}
       data-testid="v3-lead-step-drawer"
-      className="fixed inset-y-0 end-0 start-auto m-0 h-dvh max-h-none w-full max-w-[26rem] overflow-y-auto border-0 border-s border-border bg-surface p-0 text-fg shadow-evo-lg"
+      className="fixed inset-y-0 end-0 start-auto m-0 h-dvh max-h-none w-full max-w-[var(--side-panel-width)] overflow-y-auto border-0 border-s border-border bg-surface p-0 text-fg shadow-evo-lg"
     >
       <div className="sticky top-0 z-10 flex min-h-14 items-center gap-2 border-b border-border bg-surface ps-4 pe-2">
         <h2 id={headingId} className="t-section min-w-0 flex-1 truncate text-fg" title={name}>{name}</h2>

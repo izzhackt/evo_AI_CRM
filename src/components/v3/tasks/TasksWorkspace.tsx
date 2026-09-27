@@ -144,7 +144,7 @@ export function TasksWorkspace({
   }));
 
   return (
-    <div className={sidePanelSplit(Boolean(panel))}>
+    <div className="min-w-0 space-y-3" data-testid="task-queue">
       {/*
         THESIS: день менеджера, а не устройство базы — одна очередь рабочих
         задач и задач по студентам, сгруппированная по сроку; «что просрочено и
@@ -161,44 +161,49 @@ export function TasksWorkspace({
         инструментов, «Новая задача…», затем группы по сроку: строки по 53 px,
         срок моноширинной колонкой сразу перед названием, круг и «⋯» по 44 px;
         видно семь задач под заголовками трёх групп.
+        Э7: вкладки и строка инструментов — во всю ширину над сеткой «список |
+        панель», как у «Студентов» и «Заявок»: открытая панель начинается
+        рядом с первой строкой очереди и не сужает поиск и фильтры.
       */}
-      <div className="min-w-0 space-y-3" data-testid="task-queue">
-        {canReadTaskQueue && tabs.length > 1 ? <QueueViewTabs label="Чьи задачи" tabs={tabs} /> : null}
-        {canReadTaskQueue ? <QueueToolbar
-          search={{ action: "/v3/tasks", name: "q", defaultValue: filters.query, placeholder: "Задача или студент", label: "Найти задачу",
-            hidden: { ...listParams, q: null } }}
-          filters={filterMenus}
-          activeCount={active}
-          resetHref={active ? listHref({ type: null, due: null, q: null, status: null, window: null }) : null}
-          keys={filters.state === "open" && !permissions.preview && (permissions.staffEdit || permissions.caseManage) ? [SELECT_KEY] : []}
-        /> : null}
-        {createdExcludesCases ? <p className="t-body-compact text-fg-2">Здесь только рабочие задачи: автор задач по студентам в общем списке не читается.</p> : null}
-        <div className="@container min-w-0">
-          <TaskQuickAdd key={composerKey} composer={composer} showRow={canCreate} urlIntent={urlIntent} />
-          {!canReadTaskQueue ? <p role="status" className="border-b border-border py-8 t-body-compact text-fg-2">
-            В вашей роли нет права на просмотр задач.
-            {canCreate ? " Новую задачу можно создать строкой выше." : null}
-          </p> : queue.rows.length === 0 ? <QueueEmpty
-            title={empty.title}
-            action={empty.action ? <Link href={empty.action.href} scroll={false} className={QUEUE_QUIET_LINK}>{empty.action.label}</Link> : null}
-          /> : <TaskQueueList
-            bands={bands}
-            open={filters.state === "open"}
-            openKey={selectedKey}
-            listParams={listParams}
-            showAssignee={filters.view !== "mine"}
-            nowIso={nowIso}
-            permissions={permissions}
-            look={look}
-          />}
+      {canReadTaskQueue && tabs.length > 1 ? <QueueViewTabs label="Чьи задачи" tabs={tabs} /> : null}
+      {canReadTaskQueue ? <QueueToolbar
+        search={{ action: "/v3/tasks", name: "q", defaultValue: filters.query, placeholder: "Задача или студент", label: "Найти задачу",
+          hidden: { ...listParams, q: null } }}
+        filters={filterMenus}
+        activeCount={active}
+        resetHref={active ? listHref({ type: null, due: null, q: null, status: null, window: null }) : null}
+        keys={filters.state === "open" && !permissions.preview && (permissions.staffEdit || permissions.caseManage) ? [SELECT_KEY] : []}
+      /> : null}
+      {createdExcludesCases ? <p className="t-body-compact text-fg-2">Здесь только рабочие задачи: автор задач по студентам в общем списке не читается.</p> : null}
+      <div className={sidePanelSplit(Boolean(panel))}>
+        <div className="min-w-0 space-y-3">
+          <div className="@container min-w-0">
+            <TaskQuickAdd key={composerKey} composer={composer} showRow={canCreate} urlIntent={urlIntent} />
+            {!canReadTaskQueue ? <p role="status" className="border-b border-border py-8 t-body-compact text-fg-2">
+              В вашей роли нет права на просмотр задач.
+              {canCreate ? " Новую задачу можно создать строкой выше." : null}
+            </p> : queue.rows.length === 0 ? <QueueEmpty
+              title={empty.title}
+              action={empty.action ? <Link href={empty.action.href} scroll={false} className={QUEUE_QUIET_LINK}>{empty.action.label}</Link> : null}
+            /> : <TaskQueueList
+              bands={bands}
+              open={filters.state === "open"}
+              openKey={selectedKey}
+              listParams={listParams}
+              showAssignee={filters.view !== "mine"}
+              nowIso={nowIso}
+              permissions={permissions}
+              look={look}
+            />}
+          </div>
+          {/* Пустое неполное чтение уже сказало это в пустом состоянии. */}
+          {canReadTaskQueue && !queue.complete && queue.rows.length > 0 ? <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
+            Показаны не все задачи: список больше, чем читается за один раз, и числа скрыты.
+            {readNext ? <Link href={readNext.href} scroll={false} className={QUEUE_QUIET_LINK}>{readNext.label}</Link> : null}
+          </p> : null}
         </div>
-        {/* Пустое неполное чтение уже сказало это в пустом состоянии. */}
-        {canReadTaskQueue && !queue.complete && queue.rows.length > 0 ? <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
-          Показаны не все задачи: список больше, чем читается за один раз, и числа скрыты.
-          {readNext ? <Link href={readNext.href} scroll={false} className={QUEUE_QUIET_LINK}>{readNext.label}</Link> : null}
-        </p> : null}
+        {panel}
       </div>
-      {panel}
     </div>
   );
 }

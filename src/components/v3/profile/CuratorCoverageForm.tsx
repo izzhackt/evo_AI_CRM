@@ -105,7 +105,8 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today }:
         {returning ? <>
           <input type="hidden" name="substitute_membership_id" value="" />
           <input type="hidden" name="planned_end_on" value="" />
-        </> : <div className="grid gap-4 sm:grid-cols-2">
+        </> : <div className="grid gap-4">
+          {/* Форма живёт в боковой панели шириной 26rem (Э7): поля — в одну колонку, как у формы «Отчёта продаж». */}
           <label><span className={fieldLabelCls}>Заместитель</span>
             <select name="substitute_membership_id" value={substitute} onChange={(event) => setSubstitute(event.target.value)} required className={`${inputCls} min-h-11`}>
               <option value="">Выберите куратора</option>

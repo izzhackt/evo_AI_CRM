@@ -25,8 +25,10 @@ export function salesRecordContext(record: SalesRegisterRow): string {
 /**
  * Шапка боковой панели «Отчёта продаж» (Э7): заголовок, строка контекста и
  * «Открыть …» — те же тексты, что рисовали просмотр записи и форма.
- * Форма показывает ссылку на карточку только у продажи, оформленной из
- * карточки лида (`sourceKind: "pipeline"`), — как и раньше.
+ * Строка контекста одна у просмотра и формы (`salesRecordContext`): у каждой
+ * панели шапка — заголовок, контекст, «Открыть …». Форма показывает ссылку на
+ * карточку только у продажи, оформленной из карточки лида
+ * (`sourceKind: "pipeline"`), — как и раньше.
  */
 export function salesRecordPanelHeader(record: SalesRegisterRow | null, editing: boolean): Readonly<{
   title: string; context: string | null; open: Readonly<{ href: string; label: string }> | null;
@@ -34,7 +36,7 @@ export function salesRecordPanelHeader(record: SalesRegisterRow | null, editing:
   if (editing) {
     return {
       title: record?.applicantName || "Запись продажи",
-      context: null,
+      context: record ? salesRecordContext(record) : null,
       open: record?.sourceKind === "pipeline" && record.leadId ? { href: salesRecordLeadHref(record.leadId), label: "Открыть профиль студента" } : null,
     };
   }

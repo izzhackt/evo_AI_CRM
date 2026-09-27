@@ -53,8 +53,8 @@
  *
  *   node tests/e2e/boards-static-render.cjs --f1 [outDir] [--look=next]
  *     → Э7 «Одна боковая панель везде»: гидратированная «Воронка продаж» с
- *       панелью лида, открытой по адресу (`?lead=`), на 1440×900, 1280×800 и
- *       390×844 — снимки `f1-pipeline[-next]-<ширина>.png` и замеры
+ *       панелью лида, открытой по адресу (`?lead=`), на 1440×900, 1280×800,
+ *       1264×800 (колонки в ряд, панель — лист), 1024×768 (лист справа) и 390×844 — снимки `f1-pipeline[-next]-<ширина>.png` и замеры
  *       `tests/e2e/side-panel-probe.cjs`: ширина — токен общей панели,
  *       рядом с доской от 1280 px, лист ниже; путь Esc → карточка → открыть
  *       карточкой → «Закрыть» → карточка. Нарушение — исключение.
@@ -957,8 +957,11 @@ async function f1() {
   const look = LOOK_NEXT ? "-next" : "";
   const lead = leadId(5);
   const failures = [];
+  // Доска: ещё 1264 px — колонки уже стоят в ряд (контейнер от 72rem), а панель
+  // до 1280 px окна — лист поверх них, доска не сворачивается.
+  const widths = [...probe.F1_WIDTHS.slice(0, 2), ["1264", { viewport: { width: 1264, height: 800 }, deviceScaleFactor: 1 }], ...probe.F1_WIDTHS.slice(2)];
   try {
-    for (const [width, context] of probe.F1_WIDTHS) {
+    for (const [width, context] of widths) {
       const browserContext = await browser.newContext(context);
       const page = await browserContext.newPage();
       const errors = [];
@@ -974,6 +977,8 @@ async function f1() {
         selected: `[data-testid="v3-pipeline-card"][aria-current="true"]`,
         returnSelector: card,
         reopen: () => page.locator(card).filter({ visible: true }).first().click(),
+        look: LOOK_NEXT ? "next" : "current",
+        scrolledPath: join(outDir, `f1-pipeline${look}-${width}-scrolled.png`),
       });
       if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
       const recoverable = await page.evaluate(() => window.__harness.recoverable);

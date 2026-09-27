@@ -242,7 +242,7 @@ test("the lead panel docks beside the board and never covers its own card", () =
   const dialog = tag(panel, /<dialog [^>]*>/u);
   assert.match(dialog, /open=""/u);
   assert.match(dialog, /data-testid="v3-pipeline-lead-panel" data-side-panel=""/u);
-  assert.match(classOf(dialog), /\bfixed inset-0\b[\s\S]*md:w-\[var\(--side-panel-width\)\][\s\S]*xl:w-\[var\(--side-panel-width\)\][\s\S]*xl:relative xl:h-full/u);
+  assert.match(classOf(dialog), /\bfixed inset-0\b[\s\S]*md:w-\[var\(--side-panel-width\)\][\s\S]*xl:relative xl:h-full/u);
   assert.match(panel, /<div class="relative flex min-w-0 flex-col @6xl:h-full @6xl:min-h-0 @6xl:flex-row @6xl:gap-2">/u);
   const source = read("src/components/v3/Pipeline.tsx");
   assert.match(source, /<SidePanel\s+closeHref=\{closeHref\}\s+onClose=\{onClose\}/u, "the board keeps ?lead= client-side");
@@ -297,7 +297,8 @@ test("a sales card opens the right panel with the existing decision form; the ca
   // The lead card returns to this board state (audit 26.09: the back link read
   // «К списку студентов»): the open panel is part of that state.
   assert.match(aside, /href="\/v3\/profile\?id=dddddddd-3333-4333-8333-000000000005&amp;returnTo=%2Fv3%2Fpipeline%3Flead%3Ddddddddd-3333-4333-8333-000000000005">Открыть карточку лида/u);
-  assert.match(panel, /<article data-testid="v3-pipeline-card" data-lead-id="dddddddd-3333-4333-8333-000000000005" aria-current="true" class="v3-choice /u);
+  // Э7: the card whose panel is open is selected like a list row — aria-current and surface-2.
+  assert.match(panel, /<article data-testid="v3-pipeline-card" data-lead-id="dddddddd-3333-4333-8333-000000000005" aria-current="true" class="v3-raised [^"]*\baria-\[current=true\]:bg-surface-2\b/u);
   assert.match(read("src/components/v3/Pipeline.tsx"), /window\.history\.pushState\(null, "", href\)/u, "opening stays client-side and URL-addressable");
 });
 

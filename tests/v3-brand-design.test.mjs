@@ -110,11 +110,12 @@ test("solid red stays for the main action and every selection shares one accent-
     // tabs into the Settings section list above.
     "src/components/v3/calendar/Calendar.tsx",
     "src/components/v3/calendar/grids.tsx",
-    // Boards 25.09: segments, the filter toggle and the open-lead card of both
-    // boards live in the shared Board primitive and the sales board.
+    // Boards 25.09: segments and the filter toggle of both boards live in the
+    // shared Board primitive. Э7 (27.09): the open-lead card of the sales board is
+    // selected like a list row beside the shared side panel — aria-current and
+    // surface-2 (tests/v3-e7-side-panel.test.mjs), not this tab/segment style.
     "src/components/v3/board/Board.tsx",
     "src/components/v3/board/BoardToolbar.tsx",
-    "src/components/v3/Pipeline.tsx",
     "src/app/(v3)/v3/admissions-pipeline/page.tsx",
     // «Задачи» (25.09.2026): вкладки, фильтры и срок в диалоге — примитивы очереди.
     "src/components/v3/queue/QueueViewTabs.tsx",

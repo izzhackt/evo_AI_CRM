@@ -2,7 +2,8 @@
  * OTH-1 «Воронка поступления» — curator kanban board.
  *
  * Reads platform.staff_admissions_pipeline_board_v1 and writes through
- * platform.move_case_pipeline_v1 (migration 187). This is a curator-owned
+ * platform.move_case_pipeline_v2 (migration 251: v1 of 187/244 plus an
+ * optional expected version for «Отменить»). This is a curator-owned
  * kanban position (`pipeline_stage`/`pipeline_hidden_at` on
  * platform.student_cases), fully decoupled from the fact-gated admissions
  * playbook: this module never calls platform.transition_case_admissions_v1
@@ -181,7 +182,7 @@ export async function readAdmissionsPipelineBoard(
 }
 
 // ---------------------------------------------------------------------------
-// Mutation: platform.move_case_pipeline_v1
+// Mutation: platform.move_case_pipeline_v2 (251)
 // ---------------------------------------------------------------------------
 
 export type MoveCasePipelineStatus =
@@ -189,15 +190,27 @@ export type MoveCasePipelineStatus =
   | "invalid"
   | "forbidden"
   | "request_conflict"
+  /** 251: the expected version is stale — someone moved the case in between. */
+  | "moved"
   | "unavailable";
+
+/** The board position the server reports: where the card really is. */
+export type AdmissionsPipelinePosition = Readonly<{
+  pipelineStage: AdmissionsPipelineStage;
+  pipelineHidden: boolean;
+  pipelineVersion: number;
+}>;
 
 export class PlatformAdmissionsPipelineMutationError extends Error {
   readonly status: MoveCasePipelineStatus;
+  /** Only for "moved": the current position from the refusal, when it decoded. */
+  readonly current: AdmissionsPipelinePosition | null;
 
-  constructor(status: MoveCasePipelineStatus) {
+  constructor(status: MoveCasePipelineStatus, current: AdmissionsPipelinePosition | null = null) {
     super(SAFE_MUTATION_ERROR_MESSAGE);
     this.name = "PlatformAdmissionsPipelineMutationError";
     this.status = status;
+    this.current = current;
   }
 }
 
@@ -208,6 +221,12 @@ function mutationFailure(status: MoveCasePipelineStatus): never {
 export type MoveCasePipelineInput = Readonly<{
   studentCaseId: string;
   requestId: string;
+  /**
+   * 251: the version of the caller's own move (its receipt). The server
+   * refuses with "moved" when the case has moved since — the undo never
+   * overwrites someone else's later move. Absent: last write wins, as v1.
+   */
+  expectedVersion?: number;
 }> &
   (
     | Readonly<{ remove: true; stage?: undefined }>
@@ -218,8 +237,15 @@ export type MoveCasePipelineReceipt = Readonly<{
   studentCaseId: string;
   pipelineStage: AdmissionsPipelineStage;
   pipelineHidden: boolean;
+  /** null only for a replayed receipt of the v1 command (no version in it). */
+  pipelineVersion: number | null;
   requestId: string;
 }>;
+
+function requiredVersion(value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) return invalidShape();
+  return value;
+}
 
 function normalizeMoveCasePipelineReceipt(value: unknown): MoveCasePipelineReceipt {
   // requiredUuid/requiredStage/requiredBoolean throw
@@ -232,6 +258,8 @@ function normalizeMoveCasePipelineReceipt(value: unknown): MoveCasePipelineRecei
       studentCaseId: requiredUuid(value.student_case_id),
       pipelineStage: requiredStage(value.pipeline_stage),
       pipelineHidden: requiredBoolean(value.pipeline_hidden),
+      // The v1 receipt (a request id first accepted by v1) has no version.
+      pipelineVersion: value.pipeline_version === undefined ? null : requiredVersion(value.pipeline_version),
       requestId: requiredUuid(value.request_id),
     });
   } catch {
@@ -239,10 +267,29 @@ function normalizeMoveCasePipelineReceipt(value: unknown): MoveCasePipelineRecei
   }
 }
 
-function moveCasePipelineErrorFromRpc(error: unknown): PlatformAdmissionsPipelineMutationError {
+/** DETAIL of case_pipeline_moved: the current position as JSON; anything else is null. */
+export function positionFromMovedDetail(details: unknown): AdmissionsPipelinePosition | null {
+  if (typeof details !== "string" || details.length > 500) return null;
+  try {
+    const value: unknown = JSON.parse(details);
+    if (!isRecord(value)) return null;
+    return Object.freeze({
+      pipelineStage: requiredStage(value.pipeline_stage),
+      pipelineHidden: requiredBoolean(value.pipeline_hidden),
+      pipelineVersion: requiredVersion(value.pipeline_version),
+    });
+  } catch {
+    return null;
+  }
+}
+
+export function moveCasePipelineErrorFromRpc(error: unknown): PlatformAdmissionsPipelineMutationError {
   if (!isRecord(error)) return new PlatformAdmissionsPipelineMutationError("unavailable");
   const code = typeof error.code === "string" ? error.code : null;
   const message = typeof error.message === "string" ? error.message.trim() : null;
+  if (code === "PT409" && message === "case_pipeline_moved") {
+    return new PlatformAdmissionsPipelineMutationError("moved", positionFromMovedDetail(error.details));
+  }
   const status: MoveCasePipelineStatus =
     code === "42501" && message === "case_pipeline_forbidden"
       ? "forbidden"
@@ -263,14 +310,16 @@ export async function moveCasePipeline(
   let organizationId: string;
   let studentCaseId: string;
   let requestId: string;
+  let expectedVersion: number | null;
   try {
     organizationId = requireAdmissionsOrganization(actor);
-    // The key move_case_pipeline_v1 checks per case (244); the broad
+    // The key move_case_pipeline_v2 checks per case (244, 251); the broad
     // admissions.write section also covers roles the server refuses.
     if (!staffHasPermission(actor, "case.update.append")) mutationFailure("forbidden");
     studentCaseId = requiredUuid(input.studentCaseId);
     requestId = requiredUuid(input.requestId);
     if (!input.remove) requiredStage(input.stage);
+    expectedVersion = input.expectedVersion === undefined ? null : requiredVersion(input.expectedVersion);
   } catch (error) {
     if (error instanceof PlatformAdmissionsPipelineMutationError) throw error;
     throw new PlatformAdmissionsPipelineMutationError("unavailable");
@@ -278,12 +327,13 @@ export async function moveCasePipeline(
 
   try {
     const client = await getPlatformClient();
-    const response = await client.schema("platform").rpc("move_case_pipeline_v1", {
+    const response = await client.schema("platform").rpc("move_case_pipeline_v2", {
       p_organization_id: organizationId,
       p_student_case_id: studentCaseId,
       p_stage: input.remove ? null : input.stage,
       p_remove: Boolean(input.remove),
       p_request_id: requestId,
+      p_expected_version: expectedVersion,
     });
     if (response.error) throw moveCasePipelineErrorFromRpc(response.error);
     return normalizeMoveCasePipelineReceipt(response.data);

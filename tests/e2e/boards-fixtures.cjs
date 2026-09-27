@@ -118,6 +118,36 @@ const ADMISSIONS_ROWS = [
 const queueItems = (count) => Array.from({ length: count }, (_, index) => ({ id: `q-${index}` }));
 
 /**
+ * Положение дел на доске поступления, как у сервера после 251: этап, «убрано»
+ * и версия положения (+1 при каждом перемещении). Подменённое действие
+ * перемещения ведёт его, как `move_case_pipeline_v2`: с ожидаемой версией
+ * отказывает `moved` и называет текущее положение. `moveElsewhere` — чужое
+ * перемещение (другой сотрудник) для сценария отказа отмены.
+ */
+const pipeline = new Map(ADMISSIONS_ROWS.map((one) => [one.studentCaseId, { stage: one.pipelineStage, hidden: false, version: 1 }]));
+const pipelineCalls = [];
+function movePipeline(input) {
+  pipelineCalls.push(input);
+  const current = pipeline.get(input.studentCaseId);
+  const base = { requestId: input.requestId, studentCaseId: input.studentCaseId };
+  if (!current) return { ...base, status: "invalid", pipelineStage: null, pipelineHidden: null, pipelineVersion: null };
+  if (input.expectedVersion !== undefined && input.expectedVersion !== current.version) {
+    return { ...base, status: "moved", pipelineStage: current.stage, pipelineHidden: current.hidden, pipelineVersion: current.version };
+  }
+  const next = input.remove ? { ...current, hidden: true } : { ...current, stage: input.stage, hidden: false };
+  const changed = next.stage !== current.stage || next.hidden !== current.hidden;
+  const saved = { ...next, version: current.version + (changed ? 1 : 0) };
+  pipeline.set(input.studentCaseId, saved);
+  return { ...base, status: "saved", pipelineStage: saved.stage, pipelineHidden: saved.hidden, pipelineVersion: saved.version };
+}
+function moveElsewhere(studentCaseId, stage) {
+  const current = pipeline.get(studentCaseId);
+  pipeline.set(studentCaseId, { stage, hidden: false, version: current.version + 1 });
+}
+// Браузер гидратации: сценарий зовёт чужое перемещение и читает вызовы.
+globalThis.__boardsFixture = { moveElsewhere, pipelineCalls };
+
+/**
  * Какой набор лидов читает доска (обычный или объёмный `sales-volume`) и
  * подтверждает ли подменённое серверное действие сохранение решения (только
  * в браузерной гидратации: там проверяется панель после обновления).
@@ -224,9 +254,14 @@ const STUBS = {
   // В браузере гидратации `process` — заглушка из баннера бандла; без `argv` — текущий облик.
   "@/lib/v3/look-preview": { readLookPreview: async () => (process.argv ?? []).includes("--look=next") },
   "@/lib/platform-admissions-pipeline": {
-    readAdmissionsPipelineBoard: async () => ({ rows: ADMISSIONS_ROWS, truncated: false }),
+    // Чтение доски — положение из того же состояния, что ведёт перемещение.
+    readAdmissionsPipelineBoard: async () => ({
+      rows: ADMISSIONS_ROWS.filter((one) => !pipeline.get(one.studentCaseId).hidden)
+        .map((one) => ({ ...one, pipelineStage: pipeline.get(one.studentCaseId).stage })),
+      truncated: false,
+    }),
   },
-  "@/lib/platform-admissions-pipeline-actions": { moveCasePipelineAction: async () => ({ status: "saved" }) },
+  "@/lib/platform-admissions-pipeline-actions": { moveCasePipelineAction: async (input) => movePipeline(input) },
   "@/lib/portal/application-documents-actions": {
     readStaffApplicationDocumentSubmissionQueueAction: async () => ({ ok: true, page: { protocolVersion: 1, items: queueItems(20), nextCursor: { sortAt: "2026-09-20T10:00:00Z", id: "x" } } }),
   },

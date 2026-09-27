@@ -221,7 +221,8 @@ test("undo lives in the top layer and only where a real reverse command exists",
   assert.match(toast, /^<div popover="manual" role="group" aria-label="Можно отменить" class="v3-toasts"/u, "top layer (popover)");
   assert.match(toast, /<p class="min-w-0 flex-1 break-words t-body-compact">Задача «Синтетическая задача» завершена\.<\/p><button type="button" data-queue-undo="" data-undo-row="staff:synthetic-1" class="v3-toast-action t-label">Отменить<\/button>/u);
   assert.match(blocks.get("toast-error"), /<p role="alert" class="w-full t-body-compact">Не удалось отменить\. Обновите страницу\.<\/p>/u);
-  // Только «Задачи»: отмена завершения рабочей задачи — та же команда смены состояния с версией.
+  // «Задачи» (отмена завершения рабочей задачи — та же команда смены состояния
+  // с версией) и доска поступления (Э7, 251: обратное перемещение с версией).
   const users = [];
   for (const root of ["src/app/(v3)", "src/components/v3"]) {
     for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
@@ -229,13 +230,18 @@ test("undo lives in the top layer and only where a real reverse command exists",
       if (/\.tsx?$/u.test(path) && /<UndoToast\b|import \{[^}]*\bUndoToast\b/u.test(read(path))) users.push(path);
     }
   }
-  assert.deepEqual(users, ["src/components/v3/tasks/TaskQueueList.tsx"]);
+  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/tasks/TaskQueueList.tsx"]);
   const list = read("src/components/v3/tasks/TaskQueueList.tsx");
   // Команда отмены — общая с «Сегодня» (useRecentCompletions, #1067).
   assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
   assert.match(list, /const toasts = isNextLook\(look\) \?/u, "new look only");
-  // У перемещения по доске поступления нет проверки версии (187/244) — «Отменить» там не появляется.
+  // Доска поступления: у v1 (187/244) проверки версии нет, поэтому отмена идёт
+  // через move_case_pipeline_v2 (251) с версией из квитанции своего перемещения.
   assert.match(read("supabase/migrations/244_platform_access_by_permissions.sql"), /Deliberately no optimistic version check/u);
+  assert.match(read("supabase/migrations/251_platform_pipeline_move_undo.sql"), /RAISE EXCEPTION 'case_pipeline_moved' USING ERRCODE = 'PT409'/u);
+  const board = read("src/components/v3/AdmissionsPipelineBoard.tsx");
+  assert.match(board, /stage: fromStage, expectedVersion: offer\.version/u, "reverse move with the version after the move");
+  assert.match(board, /\{next \? <UndoToast items=\{toasts\} onHold=\{hold\} \/> : null\}/u, "new look only on the board too");
   // Задача по студенту завершается с результатом, отмены у неё нет.
   assert.match(read("src/components/v3/profile/CaseTaskList.tsx"), /onCompleted=\{\(\) => \{\}\}/u);
 });

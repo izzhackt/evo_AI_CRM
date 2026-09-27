@@ -33,14 +33,22 @@ export type MoveCasePipelineActionInput = Readonly<{
   requestId: string;
   stage?: AdmissionsPipelineStage;
   remove?: boolean;
+  /**
+   * «Отменить» and «Вернуть в воронку» (251): the version from the receipt of
+   * the move being undone. The server refuses with "moved" when someone moved
+   * the case since. Ordinary moves send none (last write wins).
+   */
+  expectedVersion?: number;
 }>;
 
 export type MoveCasePipelineActionResult = Readonly<{
   status: MoveCasePipelineActionStatus;
   requestId: string;
   studentCaseId: string;
+  /** "saved": the receipt's position; "moved": where the case is now, when the server said so. */
   pipelineStage: AdmissionsPipelineStage | null;
   pipelineHidden: boolean | null;
+  pipelineVersion: number | null;
 }>;
 
 export async function moveCasePipelineAction(
@@ -51,17 +59,21 @@ export async function moveCasePipelineAction(
     studentCaseId: input.studentCaseId,
     pipelineStage: null,
     pipelineHidden: null,
+    pipelineVersion: null,
   } as const;
 
   if (
     !UUID_PATTERN.test(input.studentCaseId) ||
     !REQUEST_UUID_PATTERN.test(input.requestId) ||
-    (input.remove ? input.stage !== undefined : !input.stage)
+    (input.remove ? input.stage !== undefined : !input.stage) ||
+    (input.expectedVersion !== undefined &&
+      (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1))
   ) {
     return { ...fallback, status: "invalid" };
   }
 
   const actor = await requirePlatformMutationCapability("admissions.write", "/v3/admissions-pipeline");
+  const expected = input.expectedVersion === undefined ? {} : { expectedVersion: input.expectedVersion };
 
   try {
     const receipt = input.remove
@@ -69,11 +81,13 @@ export async function moveCasePipelineAction(
           studentCaseId: input.studentCaseId,
           requestId: input.requestId,
           remove: true,
+          ...expected,
         })
       : await moveCasePipeline(actor, {
           studentCaseId: input.studentCaseId,
           requestId: input.requestId,
           stage: input.stage as AdmissionsPipelineStage,
+          ...expected,
         });
     revalidatePath("/v3/admissions-pipeline");
     return {
@@ -82,10 +96,23 @@ export async function moveCasePipelineAction(
       studentCaseId: receipt.studentCaseId,
       pipelineStage: receipt.pipelineStage,
       pipelineHidden: receipt.pipelineHidden,
+      pipelineVersion: receipt.pipelineVersion,
     };
   } catch (error) {
-    const status: MoveCasePipelineActionStatus =
-      error instanceof PlatformAdmissionsPipelineMutationError ? error.status : "unavailable";
-    return { ...fallback, status };
+    if (!(error instanceof PlatformAdmissionsPipelineMutationError)) return { ...fallback, status: "unavailable" };
+    if (error.status === "moved") {
+      // The board is stale: read it again, and say where the case is now.
+      revalidatePath("/v3/admissions-pipeline");
+      return error.current
+        ? {
+            ...fallback,
+            status: "moved",
+            pipelineStage: error.current.pipelineStage,
+            pipelineHidden: error.current.pipelineHidden,
+            pipelineVersion: error.current.pipelineVersion,
+          }
+        : { ...fallback, status: "moved" };
+    }
+    return { ...fallback, status: error.status };
   }
 }

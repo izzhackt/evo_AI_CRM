@@ -6,10 +6,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * «Переписки» — Э5 плана редизайна 25.09.2026: один пункт меню, каналы
- * «Кабинет студента» и WhatsApp, очереди с числами, шапка переписки с
- * видимым переключателем состояния, шаблоны ответа в поле ответа и
- * следующая переписка в пустой правой части.
+ * Переписки: «Переписка со студентами» (`/v3/messages`, пункт «Поступления»)
+ * и WhatsApp (`/v3/inbox`, пункт «Продаж») — две отдельные страницы по
+ * решению владельца 27.09.2026 вместо одного пункта «Переписки» с каналами
+ * (Э5). Переписка со студентами сохраняет всё Э5: очереди с числами, шапку
+ * переписки с видимым переключателем состояния, шаблоны ответа в поле ответа
+ * и следующую переписку в пустой правой части; WhatsApp — честное «не
+ * подключён».
  *
  * Страницы строят НАСТОЯЩИЕ `v3/messages/page.tsx` и `v3/inbox/page.tsx`:
  * их чтения подменены синтетическими (актёр, чтение очередей 234 — через
@@ -25,15 +28,17 @@
  *   node tests/e2e/conversations-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — статическая разметка страниц
  *       (для tests/v3-conversations.test.mjs).
- *   node tests/e2e/conversations-static-render.cjs --screenshots [outDir] [--look=next]
+ *   node tests/e2e/conversations-static-render.cjs --screenshots [outDir] [--look=next] [--prefix=split]
  *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844: список со
  *       следующей перепиской, переписка с переключателем, открытый выбор
  *       шаблона (кнопкой и «/»), смена состояния с перечитанным списком,
- *       меню сообщения, «Все ответы даны», WhatsApp у Admin и у продаж (один
- *       канал — без вкладок); заголовок и каналы обеих страниц — на одном
- *       месте. По умолчанию outDir — .impeccable/review (не коммитится);
- *       файлы `e5-*.png`, с `--look=next` — суффикс `-next`. Проверки
- *       печатаются JSON-строками; при нарушении — код выхода 1.
+ *       меню сообщения, «Все ответы даны», WhatsApp у Admin, у продаж и у
+ *       куратора по прежней ссылке; у каждой страницы свой h1 и свой пункт
+ *       меню, вкладок каналов нет, заголовки обеих страниц — на одной высоте.
+ *       По умолчанию outDir — .impeccable/review (не коммитится); файлы
+ *       `e5-*.png` (`--prefix=` меняет начало имени), с `--look=next` —
+ *       суффикс `-next`. Проверки печатаются JSON-строками; при нарушении —
+ *       код выхода 1.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -113,10 +118,15 @@ const BASE_ACTOR = {
 const { staffRoleKeys } = require("./staff-role-templates.cjs");
 const ACTORS = {
   admin: { ...BASE_ACTOR, displayName: "Администратор (синтетический)", systemRole: "admin", presentationRole: null },
-  // Приглашённый сотрудник продаж (права шаблонов 173): каналов у него — только WhatsApp.
+  // Приглашённый сотрудник продаж (права шаблонов 173): переписки со студентами у него нет, WhatsApp — в «Продажах».
   sales: {
     ...BASE_ACTOR, displayName: "Менеджер продаж (синтетический)", systemRole: "staff", presentationRole: null,
     assignments: [{ label: "Sales Manager", scope: { kind: "own", key: null, resourceKind: null } }], permissionKeys: staffRoleKeys("sales-manager"),
+  },
+  // Куратор (права шаблонов 173): маршрут WhatsApp открыт, пункта в меню нет (правило D «Продаж»).
+  admissions: {
+    ...BASE_ACTOR, displayName: "Куратор (синтетический)", systemRole: "staff", presentationRole: null,
+    assignments: [{ label: "Admissions", scope: { kind: "own", key: null, resourceKind: null } }], permissionKeys: staffRoleKeys("admissions"),
   },
 };
 
@@ -210,10 +220,13 @@ const SCENARIOS = {
   "answered-awaiting": { actor: "admin", page: "messages", search: { queue: "awaiting_student" }, rows: ANSWERED_ROWS },
   // «Все»: отметки состояния в строках.
   all: { actor: "admin", page: "messages", search: { queue: "all" }, rows: ALL_ROWS },
-  // WhatsApp не подключён: оба канала у Admin, только WhatsApp — у продаж.
+  // WhatsApp не подключён — отдельная страница «Продаж»: у Admin, у продаж и у
+  // куратора, открывшего прежнюю ссылку (пункта в его меню нет).
   whatsapp: { actor: "admin", page: "inbox", search: {}, rows: ALL_ROWS },
   "whatsapp-sales": { actor: "sales", page: "inbox", search: {}, rows: ALL_ROWS },
+  "whatsapp-admissions": { actor: "admissions", page: "inbox", search: {}, rows: ALL_ROWS },
 };
+const TITLES = { messages: "Переписка со студентами", inbox: "WhatsApp" };
 
 const pathnameOf = (scenario) => (scenario.page === "messages" ? "/v3/messages" : "/v3/inbox");
 const searchOf = (scenario) => new URLSearchParams(scenario.search).toString();
@@ -400,7 +413,6 @@ function pageMetrics() {
   const box = (element) => { if (!visible(element)) return null; const rect = element.getBoundingClientRect(); return { top: Math.round(rect.top * 10) / 10, bottom: Math.round(rect.bottom * 10) / 10 }; };
   const paint = (element) => (element ? { bg: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color, tone: element.dataset.tone ?? null } : null);
   const h1 = [...document.querySelectorAll("h1")].find(visible);
-  const channelStrip = document.querySelector('nav[aria-label="Каналы переписки"] ul');
   const list = document.querySelector('nav[aria-label="Переписки кабинета студента"]');
   const header = document.querySelector('[data-testid="case-chat-thread-header"]');
   const composer = main ? [...main.querySelectorAll("textarea")].find(visible) : null;
@@ -417,10 +429,10 @@ function pageMetrics() {
     next: (() => { const pane = document.querySelector('[data-testid="case-chat-next"]'); return visible(pane) ? pane.textContent.trim() : null; })(),
     rows: [...document.querySelectorAll("[data-case-chat-row]")].filter(visible).map((element) => element.querySelector(".t-item")?.textContent.trim()),
     listEmpty: document.querySelector('nav[aria-label="Переписки кабинета студента"] [role="status"]')?.parentElement.textContent.trim() ?? null,
-    // Место заголовка и ряда каналов: одинаково у обоих каналов.
+    // Место заголовка: одна высота у обеих страниц переписки.
     // Шапка страницы, скрытая для глаз (`sr-only`), — корень в 1 px: h1 внутри сохраняет свой размер.
     h1Shown: h1 ? h1.parentElement.parentElement.getBoundingClientRect().height > 1 : false,
-    place: { h1: box(h1), channels: box(channelStrip) },
+    place: { h1: box(h1) },
     // Нажатое в переключателе состояния и в очереди: разный вид.
     awaitPressed: paint(document.querySelector('[data-testid="case-chat-await-control"] button[aria-pressed="true"]')),
     queuePressed: paint(visible(list) ? list.querySelector('[data-testid="case-chat-queues"] button[aria-pressed="true"]') : null),
@@ -432,8 +444,10 @@ function pageMetrics() {
       headerBottomFromMain: Math.round(header.getBoundingClientRect().bottom - main.getBoundingClientRect().top),
       backInNameRow: Boolean(header.querySelector('a[aria-label="К списку"]')?.parentElement?.querySelector("h2")),
     } : null,
-    menuConversations: nav.filter((link) => link.textContent.trim() === "Переписки" || link.getAttribute("aria-label") === "Переписки").map((link) => `${link.getAttribute("href")}${link.getAttribute("aria-current") ? "*" : ""}`),
-    menuRetired: nav.filter((link) => ["Сообщения", "WhatsApp"].includes(link.textContent.trim())).length,
+    // Видимые пункты меню и вкладки: «имя=адрес», «*» — текущий.
+    menu: nav.map((link) => `${link.getAttribute("aria-label") ?? link.textContent.trim()}=${link.getAttribute("href")}${link.getAttribute("aria-current") ? "*" : ""}`),
+    menuRetired: nav.filter((link) => ["Сообщения", "Переписки"].includes(link.getAttribute("aria-label") ?? link.textContent.trim())).length,
+    moreCurrent: document.querySelector('[data-testid="v3-shell-tabbar"] [data-shell-tab="more"]')?.hasAttribute("data-current-inside") ?? null,
     textUnder12: texts.filter((element) => parseFloat(getComputedStyle(element).fontSize) < 12).length,
     smallTargets: targets.filter((element) => { const box = element.getBoundingClientRect(); return box.height < 44 && !element.closest("[popover]") && element.tagName !== "TEXTAREA"; })
       .map((element) => element.getAttribute("aria-label") ?? element.textContent.trim().slice(0, 30)),
@@ -459,7 +473,8 @@ async function screenshots() {
   mkdirSync(outDir, { recursive: true });
   const look = process.argv.includes("--look=next") ? "next" : "current";
   const suffix = look === "next" ? "-next" : "";
-  const bundleName = "e5-conversations-client.js";
+  const prefix = process.argv.find((arg) => arg.startsWith("--prefix="))?.slice("--prefix=".length) || "e5";
+  const bundleName = `${prefix}-conversations-client.js`;
   const css = await compileCss();
   await buildClientBundle(join(outDir, bundleName));
   const failures = [];
@@ -474,11 +489,11 @@ async function screenshots() {
     const body = cabinet ? null : renderToStaticMarkup(withContexts(element, pathname, search));
     const markup = renderToString(shellTree({ actor, look, pathname, search, body, cabinet }));
     const data = JSON.stringify({ actor, look, pathname, search, body, cabinet, rows: scenario.rows, readAt: READ_AT }).replaceAll("<", "\\u003c");
-    const htmlPath = join(outDir, `e5-${name}${suffix}.html`);
+    const htmlPath = join(outDir, `${prefix}-${name}${suffix}.html`);
     writeFileSync(htmlPath, [
       "<!DOCTYPE html>",
       '<html lang="ru" data-theme="light" class="h-full antialiased">',
-      `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>Переписки — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+      `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>${TITLES[scenario.page]} — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
       `<body class="min-h-full"><div id="root">${markup}</div><script type="application/json" id="${FIXTURE_ID}">${data}</script><script src="${bundleName}"></script></body></html>`,
     ].join(""));
     htmlFor[name] = htmlPath;
@@ -508,30 +523,45 @@ async function screenshots() {
     await context.close();
     return harness;
   };
-  const common = (label, metrics, viewportKey) => {
+  const common = (label, metrics, viewportKey, scenario) => {
+    const title = TITLES[scenario.page];
+    const href = pathnameOf(scenario);
     check(metrics.overflowX === 0, `${label}: horizontal overflow ${metrics.overflowX}px`);
-    check(metrics.h1.length === 1 && metrics.h1[0] === "Переписки", `${label}: h1 ${JSON.stringify(metrics.h1)}`);
+    check(metrics.h1.length === 1 && metrics.h1[0] === title, `${label}: h1 ${JSON.stringify(metrics.h1)}`);
+    check(metrics.channels.length === 0, `${label}: channel tabs ${metrics.channels.join(" · ")}`);
     check(metrics.glyphs === 0, `${label}: ${metrics.glyphs} text glyphs standing in for icons`);
     check(metrics.textUnder12 === 0, `${label}: ${metrics.textUnder12} texts under 12px`);
     check(metrics.smallTargets.length === 0, `${label}: targets under 44px: ${metrics.smallTargets.join(", ")}`);
     check(metrics.solidRed <= 1, `${label}: ${metrics.solidRed} solid red controls`);
-    check(metrics.menuRetired === 0, `${label}: «Сообщения»/«WhatsApp» still in the menu`);
-    if (viewportKey !== "390") check(metrics.menuConversations.length === 1, `${label}: «Переписки» menu item ${JSON.stringify(metrics.menuConversations)}`);
+    check(metrics.menuRetired === 0, `${label}: «Сообщения»/«Переписки» still in the menu`);
+    // Свой пункт меню подсвечен; у куратора пункта WhatsApp нет — ничего не подсвечено.
+    // Прежний облик на телефоне прячет меню за кнопкой — пунктов разделов на виду нет.
+    const current = metrics.menu.filter((item) => item.endsWith("*"));
+    if (viewportKey === "390" && look !== "next") {
+      check(current.length === 0 && !metrics.menu.some((item) => /=\/v3\/(?:inbox|messages)/u.test(item)), `${label}: menu items on the phone ${JSON.stringify(metrics.menu)}`);
+    } else if (scenario.actor === "admissions" && scenario.page === "inbox") {
+      check(current.length === 0 && !metrics.menu.some((item) => item.includes("=/v3/inbox")), `${label}: WhatsApp in the curator menu ${JSON.stringify(metrics.menu)}`);
+    } else if (viewportKey !== "390" || scenario.page === "messages") {
+      check(JSON.stringify(current) === JSON.stringify([`${title}=${href}*`]), `${label}: current menu item ${JSON.stringify(current)}`);
+    } else {
+      // Телефон продаж и Admin: WhatsApp — в «Ещё», оно и подсвечено.
+      check(current.length === 0 && metrics.moreCurrent === true, `${label}: WhatsApp not in «Ещё» ${JSON.stringify({ current, more: metrics.moreCurrent })}`);
+    }
   };
 
-  // Место заголовка и каналов «Кабинета студента» и WhatsApp — для сравнения.
+  // Место заголовка переписки со студентами и WhatsApp — для сравнения.
   const places = {};
   try {
     for (const name of Object.keys(SCENARIOS)) {
       for (const viewportKey of Object.keys(VIEWPORTS)) {
         if ((name === "all" || name === "answered-awaiting") && viewportKey === "1280") continue;
-        const file = `e5-${name}-${viewportKey}${suffix}.png`;
+        const file = `${prefix}-${name}-${viewportKey}${suffix}.png`;
         const session = await open(htmlFor[name], viewportKey);
         const metrics = await session.page.evaluate(pageMetrics);
         await session.page.screenshot({ path: join(outDir, file) });
         await finish(session, file);
         report({ file, ...metrics });
-        common(file, metrics, viewportKey);
+        common(file, metrics, viewportKey, SCENARIOS[name]);
         places[`${name}:${viewportKey}`] = metrics.place;
         // Телефон, открытая переписка: заголовок страницы — только для читалки.
         const phoneThread = name === "thread" && viewportKey === "390";
@@ -546,7 +576,6 @@ async function screenshots() {
           check(JSON.stringify(metrics.queues) === JSON.stringify(["Нужен ответ3*", "Ждём студента2", "Все"]), `${file}: queue counts ${metrics.queues.join(" · ")}`);
           check(JSON.stringify(metrics.rows) === JSON.stringify(["Нурай Образцова", "Лейла Тестовая", "Данияр Макетов"]), `${file}: not oldest first ${metrics.rows.join(", ")}`);
           if (viewportKey !== "390") check(metrics.next === "Следующий: Нурай Образцова — ждёт 2 днОткрыть", `${file}: next pane «${metrics.next}»`);
-          check(JSON.stringify(metrics.channels) === JSON.stringify(["Кабинет студента*", "WhatsApp"]), `${file}: channels ${metrics.channels.join(" · ")}`);
         }
         // Пустая «Нужен ответ»: справа — «Все ответы даны», слева — без повтора.
         if (name === "answered") {
@@ -567,22 +596,18 @@ async function screenshots() {
           check(metrics.composer?.inViewport === true, `${file}: composer ${JSON.stringify(metrics.composer)}`);
           check(metrics.solidRed === 1, `${file}: ${metrics.solidRed} solid red controls (only «Отправить»)`);
         }
-        if (name === "whatsapp") check(JSON.stringify(metrics.channels) === JSON.stringify(["Кабинет студента", "WhatsApp*"]), `${file}: channels ${metrics.channels.join(" · ")}`);
-        if (name === "whatsapp-sales") {
-          // Один канал — без ряда вкладок: одна вкладка ничего не выбирает.
-          check(metrics.channels.length === 0, `${file}: channels ${metrics.channels.join(" · ")}`);
-          if (viewportKey !== "390") check(JSON.stringify(metrics.menuConversations) === JSON.stringify(["/v3/inbox*"]), `${file}: sales menu ${metrics.menuConversations}`);
-        }
+        // У продаж переписки со студентами нет: ни пункта, ни ссылки.
+        if (name === "whatsapp-sales") check(!metrics.menu.some((item) => item.includes("=/v3/messages")), `${file}: student chat in the sales menu`);
       }
     }
 
-    // Переход между каналами ничего не сдвигает: заголовок и ряд каналов
-    // «Кабинета студента» и WhatsApp стоят на одних местах.
+    // Переход между двумя страницами переписки не сдвигает заголовок: его
+    // верх у переписки со студентами и у WhatsApp — на одной высоте.
     for (const viewportKey of Object.keys(VIEWPORTS)) {
       const cabinet = places[`cabinet:${viewportKey}`];
       const whatsapp = places[`whatsapp:${viewportKey}`];
-      report({ journey: "channel-place", viewport: viewportKey, look, cabinet, whatsapp });
-      check(JSON.stringify(cabinet) === JSON.stringify(whatsapp) && cabinet?.channels !== null, `channels move between pages at ${viewportKey}: ${JSON.stringify({ cabinet, whatsapp })}`);
+      report({ journey: "title-place", viewport: viewportKey, look, cabinet, whatsapp });
+      check(cabinet?.h1 && whatsapp?.h1 && cabinet.h1.top === whatsapp.h1.top, `page titles at different heights at ${viewportKey}: ${JSON.stringify({ cabinet, whatsapp })}`);
     }
 
     // Выбор шаблона: кнопкой «Шаблон» (все окна) и «/» в пустом поле (1440).
@@ -598,7 +623,7 @@ async function screenshots() {
       await page.waitForSelector('[data-testid="case-chat-snippet-popover"]:popover-open');
       await page.waitForTimeout(100);
       const opened = await page.evaluate(pageMetrics);
-      const file = `e5-thread-picker-${via === "slash" ? "slash-" : ""}${viewportKey}${suffix}.png`;
+      const file = `${prefix}-thread-picker-${via === "slash" ? "slash-" : ""}${viewportKey}${suffix}.png`;
       await page.screenshot({ path: join(outDir, file) });
       await page.locator('[data-testid="case-chat-snippet-popover"] select').selectOption({ label: "Список документов для визы" });
       await page.locator('[data-testid="case-chat-snippet-popover"] button', { hasText: "Вставить в текст" }).click();
@@ -632,7 +657,7 @@ async function screenshots() {
         actions: window.__harness.actions,
       }));
       const metrics = await page.evaluate(pageMetrics);
-      const file = `e5-thread-await-1440${suffix}.png`;
+      const file = `${prefix}-thread-await-1440${suffix}.png`;
       await page.screenshot({ path: join(outDir, file) });
       await finish(session, file);
       report({ journey: "await", file, after, queues: metrics.queues, rows: metrics.rows, awaitPressed: metrics.awaitPressed });
@@ -659,7 +684,7 @@ async function screenshots() {
       await trigger.click();
       await page.waitForSelector('[id^="case-message-"] [popover]:popover-open');
       await page.waitForTimeout(100);
-      const file = `e5-thread-message-menu-${viewportKey}${suffix}.png`;
+      const file = `${prefix}-thread-message-menu-${viewportKey}${suffix}.png`;
       await page.screenshot({ path: join(outDir, file) });
       const menu = await page.evaluate(() => { const popover = document.querySelector("[popover]:popover-open"); const box = popover.getBoundingClientRect(); return { label: popover.getAttribute("aria-label"), inViewport: box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth }; });
       await page.locator("[popover]:popover-open button", { hasText: "Ответить с цитатой" }).click();

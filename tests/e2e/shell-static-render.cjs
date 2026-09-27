@@ -22,7 +22,7 @@
  *       разметка оболочки в прежнем и новом облике с простым телом (для
  *       tests/v3-shell-next.test.mjs).
  *   node tests/e2e/shell-static-render.cjs --screenshots [outDir]
- *     → страницы «Сегодня», Студенты, доска, Переписки, Задачи: оболочка —
+ *     → страницы «Сегодня», Студенты, доска, переписка роли, Задачи: оболочка —
  *       `renderToString` и `hydrateRoot` настоящими клиентскими компонентами
  *       (бандл esbuild); тело — статическая разметка настоящих экранов из
  *       students/tasks/boards-static-render.cjs --json и CaseChatWorkspace с
@@ -157,14 +157,19 @@ const ACTORS = {
   },
 };
 // Ожидаемые вкладки (решение владельца 26.09.2026): доступные имена — полные
-// имена разделов; видимая подпись «Воронки продаж» короче — «Воронка».
+// имена разделов; видимые подписи «Воронки продаж» и «Переписки со студентами»
+// (27.09.2026) короче — «Воронка» и «Переписка». WhatsApp продаж — в «Ещё».
 const EXPECTED_TABS = {
-  admin: ["Сегодня", "Студенты", "Задачи", "Переписки", "Ещё"],
-  admissions: ["Сегодня", "Студенты", "Задачи", "Переписки", "Ещё"],
-  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Переписки", "Ещё"],
+  admin: ["Сегодня", "Студенты", "Задачи", "Переписка со студентами", "Ещё"],
+  admissions: ["Сегодня", "Студенты", "Задачи", "Переписка со студентами", "Ещё"],
+  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Переписка со студентами", "Ещё"],
   sales: ["Сегодня", "Воронка продаж", "Заявки", "Задачи", "Ещё"],
 };
-const EXPECTED_TAB_TEXT = { ...EXPECTED_TABS, sales: ["Сегодня", "Воронка", "Заявки", "Задачи", "Ещё"] };
+const ADMISSIONS_TAB_TEXT = ["Сегодня", "Студенты", "Задачи", "Переписка", "Ещё"];
+const EXPECTED_TAB_TEXT = {
+  admin: ADMISSIONS_TAB_TEXT, admissions: ADMISSIONS_TAB_TEXT, "admissions-staff": ADMISSIONS_TAB_TEXT,
+  sales: ["Сегодня", "Воронка", "Заявки", "Задачи", "Ещё"],
+};
 
 const notificationId = (n) => `ffffffff-3333-4333-8333-${String(n).padStart(12, "0")}`;
 const NOTIFICATIONS = {
@@ -281,9 +286,9 @@ function mainOf(html) {
 }
 
 /**
- * «Переписки» → «Кабинет студента» (Э5) — настоящий CaseChatWorkspace в
- * настоящей обёртке страницы (`ConversationsMain`) с синтетической
- * перепиской. Он рендерится на сервере и гидратируется в браузере: поле ответа
+ * «Переписка со студентами» (Э5, отдельный пункт «Поступления» с 27.09.2026) —
+ * настоящий CaseChatWorkspace в настоящей обёртке страницы
+ * (`ConversationsMain`) с синтетической перепиской. Он рендерится на сервере и гидратируется в браузере: поле ответа
  * появляется только на клиенте (черновик из localStorage), поэтому его место
  * меряется после гидратации.
  */
@@ -311,13 +316,7 @@ function messagesFixture() {
   return {
     pathname: "/v3/messages", search: `case=${caseId(1)}`, body: null,
     messages: {
-      main: {
-        title: "Переписки", threadOpen: true, current: "cabinet", height: "window",
-        channels: [
-          { key: "cabinet", label: "Кабинет студента", href: "/v3/messages", route: "/v3/messages" },
-          { key: "whatsapp", label: "WhatsApp", href: "/v3/inbox", route: "/v3/inbox" },
-        ],
-      },
+      main: { title: "Переписка со студентами", threadOpen: true },
       props: {
         organizationId: ORG, membershipId: me,
         realtimeConfig: { url: "http://127.0.0.1:9", publishableKey: "synthetic-harness-key" },
@@ -330,7 +329,7 @@ function messagesFixture() {
   };
 }
 
-/** WhatsApp (у продаж нет «Сообщений»): настоящий loading.tsx — страница `fill` на высоту окна. */
+/** WhatsApp (у продаж нет переписки со студентами): настоящий loading.tsx — страница `fill` на высоту окна. */
 function whatsappBody() {
   const { default: InboxLoading } = require(join(ROOT, "src/app/(v3)/v3/inbox/loading.tsx"));
   return renderToStaticMarkup(withContexts(h(InboxLoading), "/v3/inbox", ""));
@@ -456,7 +455,7 @@ const page = ${JSON.stringify(NOTIFICATIONS)};
 export async function loadStaffNotificationsAction() { return { ok: true, page }; }
 export async function markStaffNotificationReadAction() { return { ok: true }; }
 export async function markAllStaffNotificationsReadAction() { return { ok: true }; }`;
-  // «Переписки» → «Кабинет студента»: чтения отвечают той же синтетической
+  // «Переписка со студентами»: чтения отвечают той же синтетической
   // перепиской, отправка честно недоступна — снимок ничего не пишет.
   const caseChatStub = `
 const fixture = () => JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent).messages.props;
@@ -634,7 +633,7 @@ async function pageFixtures() {
     board: (role) => role === "admissions" || role === "admissions-staff"
       ? { pathname: "/v3/admissions-pipeline", search: "", body: mainOf(boards.get("admissions")) }
       : { pathname: "/v3/pipeline", search: "", body: mainOf(boards.get("sales")) },
-    // Переписка роли: у продаж нет «Кабинета студента» — их «Переписки» — страница WhatsApp на высоту окна.
+    // Переписка роли: у продаж нет переписки со студентами — их переписка — страница WhatsApp на высоту окна.
     messages: (role) => role === "sales"
       ? { pathname: "/v3/inbox", search: "", body: whatsapp }
       : messages,
@@ -797,7 +796,7 @@ async function screenshots() {
       await session.page.screenshot({ path: join(outDir, file) });
       await finish(session, file);
       report({ file, page: "students", role: "admissions-staff", ...metrics });
-      if (PHONE.has(viewportKey)) check(JSON.stringify(metrics.tabbar?.labels) === JSON.stringify(EXPECTED_TABS["admissions-staff"]), `${file}: tabs ${metrics.tabbar?.labels.join(" · ")}`);
+      if (PHONE.has(viewportKey)) check(JSON.stringify(metrics.tabbar?.labels) === JSON.stringify(EXPECTED_TAB_TEXT["admissions-staff"]), `${file}: tabs ${metrics.tabbar?.labels.join(" · ")}`);
       check(metrics.overflowX === 0, `${file}: horizontal overflow`);
     }
 

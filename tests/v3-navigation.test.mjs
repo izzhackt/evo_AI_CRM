@@ -32,18 +32,19 @@ function links(model) {
 // "home"/"sales-report" and before "admissions-worklist" for admin and
 // admissions; Sales never sees it (no admissions.read, matching the group's
 // existing admissions-worklist/universities-only visibility for that role).
-// Э5 (27.09.2026): «Сообщения» (Поступление) and «WhatsApp» (Продажи or
-// common) became ONE common item «Переписки» (id conversations) right after
-// «Задачи»; it leads to the first channel the role opens — «Кабинет
-// студента» (/v3/messages, admissions.read) or WhatsApp (/v3/inbox,
-// messaging.read) — so Sales lands on WhatsApp.
+// Owner decision 27.09.2026 (replaces the one common «Переписки» item of Э5):
+// «WhatsApp» (id inbox, /v3/inbox, messaging.read) is the sales WhatsApp where
+// leads arrive and stands in «Продажи» right after the sales board;
+// «Переписка со студентами» (id messages, /v3/messages, admissions.read) is
+// the cabinet chat with existing students and stands in «Поступление» right
+// after the admissions board. Each page stands alone.
 // Э6 (27.09.2026): every destination has one place for all roles — roles only
 // hide items. «Заявки» are shared by sales and admissions and lead «Общее»,
 // never inside «Продажи».
 const expectedRoleLinks = {
-  admin: ["home", "pipeline", "sales-report", "admissions-pipeline", "admissions-worklist", "evo-docs", "universities", "requests", "tasks", "conversations", "team-chat", "calendar", "knowledge", "settings"],
-  sales: ["home", "pipeline", "sales-report", "admissions-worklist", "universities", "requests", "tasks", "conversations", "team-chat", "reply-snippets"],
-  admissions: ["home", "admissions-pipeline", "admissions-worklist", "evo-docs", "universities", "tasks", "conversations", "team-chat", "calendar", "documents", "reply-snippets"],
+  admin: ["home", "pipeline", "inbox", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "requests", "tasks", "team-chat", "calendar", "knowledge", "settings"],
+  sales: ["home", "pipeline", "inbox", "sales-report", "admissions-worklist", "universities", "requests", "tasks", "team-chat", "reply-snippets"],
+  admissions: ["home", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -52,13 +53,15 @@ for (const role of ["admin", "sales", "admissions"]) {
     assert.deepEqual(links(model).map((link) => link.id), expectedRoleLinks[role]);
     assert.ok(links(model).every((link) => fixedRoleCanAccessRoute(role, link.route)));
     assert.ok(model.groups.every((group) => group.links.length > 0));
-    // S6 (plan §3/§14) retired «Клиентские сообщения»; Э5 (27.09.2026)
-    // folds «Сообщения» and «WhatsApp» into one «Переписки».
+    // S6 (plan §3/§14) retired «Клиентские сообщения»; since 27.09.2026 no
+    // conversation stands in «Общее»: each lives in its department.
     assert.deepEqual(model.common.map((link) => link.label), role === "sales"
-      ? ["Заявки", "Задачи", "Переписки", "Командный чат", "Шаблоны ответов"]
-      : role === "admin" ? ["Заявки", "Задачи", "Переписки", "Командный чат", "Календарь", "База знаний"]
-      : ["Задачи", "Переписки", "Командный чат", "Календарь", "Документы", "Шаблоны ответов"]);
-    assert.equal(model.common.find((link) => link.id === "conversations")?.href, role === "sales" ? "/v3/inbox" : "/v3/messages");
+      ? ["Заявки", "Задачи", "Командный чат", "Шаблоны ответов"]
+      : role === "admin" ? ["Заявки", "Задачи", "Командный чат", "Календарь", "База знаний"]
+      : ["Задачи", "Командный чат", "Календарь", "Документы", "Шаблоны ответов"]);
+    const every = links(model);
+    assert.equal(every.find((link) => link.id === "inbox")?.href, role === "admissions" ? undefined : "/v3/inbox");
+    assert.equal(every.find((link) => link.id === "messages")?.href, role === "sales" ? undefined : "/v3/messages");
   });
 
   test(`Admin presentation preview of ${role} follows that role, not Admin authority`, () => {
@@ -76,14 +79,15 @@ test("the two disclosure groups use the approved destinations and worklist remai
   const model = navigation("admin");
   // «Сегодня» (Э3, 26.09.2026): the start page of every role, same id and address.
   assert.equal(model.home?.label, "Сегодня");
-  // «Продажи» holds the sales board and report only (Э6, 27.09.2026): «Заявки»
-  // are a shared destination in «Общее»; WhatsApp and «Сообщения» left the
-  // groups for «Переписки» (Э5). The two boards carry their department in the
-  // label (UX quick win 2, 2026-09-24): an Admin sees both groups, and two
-  // identical «Воронка» items were ambiguous.
+  // «Заявки» are a shared destination in «Общее» (Э6, 27.09.2026). Each
+  // department holds its board and then its own conversations (owner
+  // decision 27.09.2026): «Продажи» — WhatsApp, «Поступление» — «Переписка
+  // со студентами». The two boards carry their department in the label (UX
+  // quick win 2, 2026-09-24): an Admin sees both groups, and two identical
+  // «Воронка» items were ambiguous.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
-    ["Продажи", [["Воронка продаж", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"]]],
-    ["Поступление", [["Воронка поступления", "/v3/admissions-pipeline"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"]]],
+    ["Продажи", [["Воронка продаж", "/v3/pipeline"], ["WhatsApp", "/v3/inbox"], ["Отчёт продаж", "/v3/main?view=sales"]]],
+    ["Поступление", [["Воронка поступления", "/v3/admissions-pipeline"], ["Переписка со студентами", "/v3/messages"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["admissions"]);
@@ -112,9 +116,10 @@ test("Э6: every destination has one fixed place for all roles, and no role sees
     }
   }
   assert.equal(places.get("requests"), "common");
-  assert.equal(places.get("conversations"), "common");
+  assert.equal(places.get("inbox"), "sales");
+  assert.equal(places.get("messages"), "admissions");
   // The common list keeps one order for everyone: roles only drop items from it.
-  const order = ["requests", "tasks", "conversations", "team-chat", "calendar", "documents", "reply-snippets", "knowledge"];
+  const order = ["requests", "tasks", "team-chat", "calendar", "documents", "reply-snippets", "knowledge"];
   for (const role of ["admin", "sales", "admissions"]) {
     const common = navigation(role).common.map((link) => link.id);
     assert.deepEqual(common, order.filter((id) => common.includes(id)), role);
@@ -345,12 +350,13 @@ test("every role sees each sidebar label once and both boards name their departm
   for (const role of ["admin", "sales", "admissions"]) {
     const labels = links(navigation(role)).map((link) => link.label);
     assert.equal(new Set(labels).size, labels.length, `${role}: ${labels.join(", ")}`);
-    for (const retired of ["Воронка", "Inbox", "Входящие", "Сообщения", "WhatsApp"]) assert.ok(!labels.includes(retired), `${role}: ${retired}`);
+    for (const retired of ["Воронка", "Inbox", "Входящие", "Сообщения", "Переписки"]) assert.ok(!labels.includes(retired), `${role}: ${retired}`);
   }
   const admin = links(navigation("admin"));
   assert.equal(admin.find((link) => link.id === "pipeline")?.label, "Воронка продаж");
   assert.equal(admin.find((link) => link.id === "admissions-pipeline")?.label, "Воронка поступления");
-  assert.equal(admin.find((link) => link.id === "conversations")?.label, "Переписки");
+  assert.equal(admin.find((link) => link.id === "inbox")?.label, "WhatsApp");
+  assert.equal(admin.find((link) => link.id === "messages")?.label, "Переписка со студентами");
 });
 
 test("the browser tab names the sidebar item that the same address highlights", () => {
@@ -367,11 +373,11 @@ test("the browser tab names the sidebar item that the same address highlights", 
     ["/v3/profile?section=summary&period=month", "Студенты"],
     ["/v3/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b", "Университеты"],
     ["/v3/admissions-pipeline?view=documents", "Воронка поступления"],
-    // Э5: both channels of «Переписки» highlight the one item and share its tab name.
-    ["/v3/inbox", "Переписки"],
-    ["/v3/inbox?waiting=1", "Переписки"],
-    ["/v3/messages?queue=all", "Переписки"],
-    ["/v3/messages?case=record", "Переписки"],
+    // 27.09.2026: each conversation page highlights its own item and names its own tab.
+    ["/v3/inbox", "WhatsApp"],
+    ["/v3/inbox?waiting=1", "WhatsApp"],
+    ["/v3/messages?queue=all", "Переписка со студентами"],
+    ["/v3/messages?case=record", "Переписка со студентами"],
   ]) {
     assert.equal(sectionTitle(href), title, href);
     const model = navigation("admin", href);
@@ -415,11 +421,11 @@ test("each sidebar destination opens under a heading with the same words", () =>
   const headings = [
     ["home", `${V3}/main/page.tsx`, true], ["home", `${V3}/main/loading.tsx`, true],
     ["requests", `${V3}/requests/page.tsx`, true], ["requests", `${V3}/requests/loading.tsx`, true],
-    ["conversations", `${V3}/inbox/page.tsx`, true], ["conversations", `${V3}/inbox/loading.tsx`, true],
+    ["inbox", `${V3}/inbox/page.tsx`, true], ["inbox", `${V3}/inbox/loading.tsx`, true],
     ["pipeline", `${V3}/pipeline/page.tsx`, true], ["pipeline", `${V3}/pipeline/loading.tsx`, true],
     ["sales-report", "src/components/v3/SalesRegisterView.tsx", false],
     ["admissions-pipeline", `${V3}/admissions-pipeline/page.tsx`, false],
-    ["conversations", `${V3}/messages/page.tsx`, true],
+    ["messages", `${V3}/messages/page.tsx`, true],
     ["admissions-worklist", `${V3}/profile/page.tsx`, false], ["admissions-worklist", `${V3}/profile/loading.tsx`, true],
     ["evo-docs", `${V3}/profile/page.tsx`, false],
     ["universities", `${V3}/universities/page.tsx`, true], ["universities", `${V3}/universities/loading.tsx`, true],

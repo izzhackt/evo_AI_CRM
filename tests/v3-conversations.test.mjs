@@ -1,13 +1,16 @@
-// Э5 «Переписки» (план редизайна 25.09.2026, запись PLAN_CHANGES 27.09):
-// один пункт меню с каналами «Кабинет студента» и WhatsApp, очереди с
-// числами из того же чтения 234, видимый переключатель состояния (прежняя
-// команда set_await), шаблоны ответа в поле ответа без отправки и следующая
-// переписка в пустой правой части. Логика — чистые модули; разметка — из
-// настоящих страниц через tests/e2e/conversations-static-render.cjs --json с
-// синтетическими чтениями (живой Supabase и права сервера не проверяются).
+// Переписки. Э5 (план редизайна 25.09.2026, запись PLAN_CHANGES 27.09):
+// очереди с числами из того же чтения 234, видимый переключатель состояния
+// (прежняя команда set_await), шаблоны ответа в поле ответа без отправки и
+// следующая переписка в пустой правой части. Решение владельца 27.09.2026
+// заменило один пункт «Переписки» с каналами: WhatsApp (`/v3/inbox`) — пункт
+// «Продаж», «Переписка со студентами» (`/v3/messages`) — пункт
+// «Поступления», у каждой страницы свой h1. Логика — чистые модули; разметка
+// — из настоящих страниц через tests/e2e/conversations-static-render.cjs
+// --json с синтетическими чтениями (живой Supabase и права сервера не
+// проверяются).
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -21,8 +24,10 @@ import {
   CASE_CHAT_BODY_LIMIT, CASE_CHAT_QUEUE_ORDER, caseChatHref, parseCaseChatQueue,
 } from "../src/lib/platform-case-chat-contract.ts";
 import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
-import { buildV3Navigation, conversationChannels, v3SectionTitle } from "../src/lib/v3/navigation.ts";
-import { shellTabs } from "../src/lib/v3/shell-tabs.ts";
+import { decodeStaffNotifications } from "../src/lib/platform-staff-notifications-contract.ts";
+import { buildV3Navigation, v3SectionTitle } from "../src/lib/v3/navigation.ts";
+import { shellTabLabel, shellTabs } from "../src/lib/v3/shell-tabs.ts";
+import { todayChatItems } from "../src/lib/v3/today-queue.ts";
 import { staffRoleKeys } from "./e2e/staff-role-templates.cjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -131,55 +136,99 @@ test("the list opens on «Нужен ответ»; «Все» is an explicit ?qu
   assert.equal(parseCaseChatQueue("none"), null);
 });
 
-// --- меню: один пункт, прежние права каналов -----------------------------------
+// --- меню: два пункта в своих отделах, прежние права страниц -------------------
 
 const preview = (role) => ({ systemRole: "admin", presentationRole: role, platformAccessVersion: 1, assignments: [], permissionKeys: [] });
 const staff = (keys) => ({ systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: keys });
-const conversationsOf = (actor, href = "/v3/main") => {
+const menuOf = (actor, href = "/v3/main") => {
   const url = new URL(href, "https://conversations.test");
   const model = buildV3Navigation(actor, url.pathname, url.searchParams);
   const every = [...(model.home ? [model.home] : []), ...model.groups.flatMap((group) => group.links), ...model.common, ...(model.settings ? [model.settings] : [])];
-  return { model, every, item: every.filter((link) => link.id === "conversations") };
+  /** Где стоит пункт: отдел, «Общее» или null — пункта нет. */
+  const place = (id) => model.groups.find((group) => group.links.some((link) => link.id === id))?.id
+    ?? (model.common.some((link) => link.id === id) ? "common" : null);
+  return { model, every, place };
 };
 
-test("menu visibility per role: one «Переписки» item, only the channels the role opens, hidden without any", () => {
+test("menu per role: WhatsApp in «Продажи», «Переписка со студентами» in «Поступление», each behind its own route", () => {
   const cases = [
-    ["Admin", { ...preview(null) }, ["cabinet", "whatsapp"], "/v3/messages"],
-    ["preview: Приёмная", preview("admissions"), ["cabinet", "whatsapp"], "/v3/messages"],
-    ["preview: Продажи", preview("sales"), ["whatsapp"], "/v3/inbox"],
-    ["Admissions (173)", staff([...staffRoleKeys("admissions")]), ["cabinet", "whatsapp"], "/v3/messages"],
-    ["Sales Manager (173)", staff([...staffRoleKeys("sales-manager")]), ["whatsapp"], "/v3/inbox"],
-    ["case reader without WhatsApp", staff(["case.read.full"]), ["cabinet"], "/v3/messages"],
-    ["WhatsApp reader without cases", staff(["communication.read.full"]), ["whatsapp"], "/v3/inbox"],
-    ["team only", staff(["staff.task.read", "team.chat.general"]), [], null],
-    ["no rights", staff([]), [], null],
+    // [кто, актёр, место WhatsApp, место переписки со студентами]
+    ["Admin", preview(null), "sales", "admissions"],
+    ["preview: Приёмная", preview("admissions"), null, "admissions"],
+    ["preview: Продажи", preview("sales"), "sales", null],
+    ["Admissions (173)", staff([...staffRoleKeys("admissions")]), null, "admissions"],
+    ["Sales Manager (173)", staff([...staffRoleKeys("sales-manager")]), "sales", null],
+    ["case reader without WhatsApp", staff(["case.read.full"]), null, "admissions"],
+    // Правило D «Продаж»: без работы продаж WhatsApp не пункт меню, хотя маршрут открыт.
+    ["WhatsApp reader without sales work", staff(["communication.read.full"]), null, null],
+    ["WhatsApp reader with sales work", staff(["communication.read.full", "lead.sales.workflow.manage"]), "sales", null],
+    ["team only", staff(["staff.task.read", "team.chat.general"]), null, null],
+    ["no rights", staff([]), null, null],
   ];
-  for (const [label, actor, channels, href] of cases) {
-    assert.deepEqual(conversationChannels(actor).map((channel) => channel.key), channels, label);
-    // Каналы — те же проверки маршрутов, что у страниц (`requireV3PageActor`).
-    for (const channel of conversationChannels(actor)) assert.ok(staffCanAccessRoute(actor, channel.route), `${label}: ${channel.route}`);
-    const { every, item } = conversationsOf(actor);
-    assert.equal(item.length, href ? 1 : 0, `${label}: one item or none`);
-    if (href) assert.equal(item[0].href, href, label);
-    assert.equal(every.some((link) => link.label === "Сообщения" || link.label === "WhatsApp"), false, `${label}: no retired items`);
+  for (const [label, actor, whatsapp, students] of cases) {
+    const { every, place } = menuOf(actor);
+    assert.equal(place("inbox"), whatsapp, `${label}: WhatsApp`);
+    assert.equal(place("messages"), students, `${label}: «Переписка со студентами»`);
+    // Пункт есть — его страница открыта той же проверкой маршрута (`requireV3PageActor`).
+    if (whatsapp) assert.ok(staffCanAccessRoute(actor, "/v3/inbox"), `${label}: /v3/inbox`);
+    if (students) assert.ok(staffCanAccessRoute(actor, "/v3/messages"), `${label}: /v3/messages`);
+    const inbox = every.find((link) => link.id === "inbox");
+    const messages = every.find((link) => link.id === "messages");
+    if (inbox) assert.deepEqual([inbox.label, inbox.href], ["WhatsApp", "/v3/inbox"], label);
+    if (messages) assert.deepEqual([messages.label, messages.href], ["Переписка со студентами", "/v3/messages"], label);
+    assert.equal(every.some((link) => ["Переписки", "Сообщения"].includes(link.label)), false, `${label}: no retired items`);
   }
+  assert.equal(staffCanAccessRoute(staff(["communication.read.full"]), "/v3/inbox"), true, "the route itself is unchanged");
 });
 
-test("both channel addresses highlight «Переписки», and the phone tab slot is «Переписки» for admissions roles", () => {
-  for (const href of ["/v3/messages", "/v3/messages?queue=all&case=x", "/v3/inbox", "/v3/inbox?waiting=1"]) {
-    const { model } = conversationsOf(preview(null), href);
-    assert.equal(model.activeId, "conversations", href);
-    assert.equal(v3SectionTitle(new URL(href, "https://x").pathname), "Переписки", href);
+test("each page highlights its own item and names its own tab; old addresses and links land on their page", () => {
+  for (const [href, id, title] of [
+    ["/v3/messages", "messages", "Переписка со студентами"],
+    ["/v3/messages?queue=all&case=x", "messages", "Переписка со студентами"],
+    ["/v3/inbox", "inbox", "WhatsApp"],
+    ["/v3/inbox?waiting=1", "inbox", "WhatsApp"],
+  ]) {
+    const { model } = menuOf(preview(null), href);
+    assert.equal(model.activeId, id, href);
+    assert.equal(model.groups.find((group) => group.active)?.id, id === "inbox" ? "sales" : "admissions", href);
+    assert.equal(v3SectionTitle(new URL(href, "https://x").pathname), title, href);
   }
-  const admissionsTabs = shellTabs(conversationsOf(staff([...staffRoleKeys("admissions")])).model);
-  assert.equal(admissionsTabs.kind, "admissions");
-  assert.deepEqual(admissionsTabs.links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписки"]);
-  // Продажи: WhatsApp — их канал, но нижняя панель остаётся набором продаж.
-  const salesTabs = shellTabs(conversationsOf(staff([...staffRoleKeys("sales-manager")])).model);
-  assert.equal(salesTabs.kind, "sales");
+  // Э5 своих адресов не добавлял: перенаправлять нечего.
+  assert.equal(existsSync(new URL("../src/app/(v3)/v3/conversations", import.meta.url)), false);
+  assert.equal(v3SectionTitle("/v3/conversations"), undefined);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /const allowed = new Set\(\[\s*"q",\s*"waiting",\s*"conversation",/u, "no ?channel= on WhatsApp");
+  // «Сегодня» («Ждут ответа») и уведомления о сообщении по делу — на переписку со студентами.
+  const [chat] = todayChatItems([{ studentCaseId: caseId(1), studentDisplayName: "Студент (синтетика)", lastMessageSnippet: "текст",
+    lastMessageAt: "2026-09-27T05:00:00.000Z", lastMessageAuthorMembershipId: STUDENT, awaitState: "needs_reply", unread: true }]);
+  assert.equal(chat.band, "waiting");
+  assert.equal(chat.openHref, `/v3/messages?case=${caseId(1)}&queue=needs_reply`);
+  assert.match(read("src/lib/v3/today-queue.ts"), /all: \{ label: "Нужен ответ", href: "\/v3\/messages\?queue=needs_reply" \}/u);
+  const notification = decodeStaffNotifications({ unread_count: "1", items: [{
+    id: caseId(7), kind: "case_message", created_at: "2026-09-27T05:00:00.000Z", read_at: null, student_case_id: caseId(1),
+    actor_display_name: null, subject_title: null, student_display_name: null, subject_due_on: null, subject_due_at: null,
+  }] });
+  assert.equal(notification.items[0].href, `/v3/messages?case=${caseId(1)}`);
+  // «Нет доступа» называет разделы словами пунктов.
   const access = read("src/app/(v3)/access-denied/page.tsx");
-  assert.match(access, /"\/v3\/inbox": "Переписки",/u);
-  assert.match(access, /"\/v3\/messages": "Переписки",/u);
+  assert.match(access, /"\/v3\/inbox": "WhatsApp",/u);
+  assert.match(access, /"\/v3\/messages": "Переписка со студентами",/u);
+});
+
+test("phone tabs: admissions roles keep «Переписка» (full name «Переписка со студентами»); the sales WhatsApp lives in «Ещё»", () => {
+  for (const actor of [preview(null), preview("admissions"), staff([...staffRoleKeys("admissions")])]) {
+    const tabs = shellTabs(menuOf(actor).model);
+    assert.equal(tabs.kind, "admissions");
+    assert.deepEqual(tabs.links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписка со студентами"]);
+    assert.deepEqual(tabs.links.map((link) => shellTabLabel(link).text), ["Сегодня", "Студенты", "Задачи", "Переписка"]);
+    assert.equal(shellTabs(menuOf(actor, "/v3/messages").model).currentInMore, false);
+  }
+  for (const actor of [preview("sales"), staff([...staffRoleKeys("sales-manager")])]) {
+    const tabs = shellTabs(menuOf(actor).model);
+    assert.equal(tabs.kind, "sales");
+    assert.ok(tabs.links.length <= 4, "four slots plus «Ещё»");
+    assert.equal(tabs.links.some((link) => link.id === "inbox"), false, "WhatsApp is not a slot");
+    assert.equal(shellTabs(menuOf(actor, "/v3/inbox").model).currentInMore, true, "«Ещё» lights up on WhatsApp");
+  }
 });
 
 // --- переключатель состояния и шаблоны: прежние команда и данные ---------------
@@ -246,12 +295,14 @@ const page = (name) => {
   return item.html;
 };
 
-test("«Кабинет студента»: h1 «Переписки», channel tabs, queue segments with counts from the read and «Все» without one", () => {
+test("«Переписка со студентами»: its own h1, no channel tabs, queue segments with counts from the read and «Все» without one", () => {
   for (const look of ["", "-next"]) {
     const html = page(`cabinet${look}`);
     assert.equal([...html.matchAll(/<h1\b/gu)].length, 1);
-    assert.match(html, /<h1 class="t-page-title[^"]*">Переписки<\/h1>/u);
-    assert.match(html, /<nav [^>]*aria-label="Каналы переписки"[\s\S]*?aria-current="page"[^>]*href="\/v3\/messages"[^>]*>Кабинет студента<\/a>[\s\S]*?href="\/v3\/inbox"[^>]*>WhatsApp<\/a>/u);
+    assert.match(html, /<main aria-label="Переписка со студентами" data-conversations-main=""/u);
+    assert.match(html, /<h1 class="t-page-title[^"]*">Переписка со студентами<\/h1>/u);
+    // Страница стоит отдельно: ни ряда каналов, ни ссылки на WhatsApp продаж.
+    assert.doesNotMatch(html, /Каналы переписки|data-conversation-channels|href="\/v3\/inbox"|Кабинет студента<\/a>/u);
     const queues = html.slice(html.indexOf('data-testid="case-chat-queues"'), html.indexOf("</div>", html.indexOf('data-testid="case-chat-queues"')));
     assert.match(queues, /aria-pressed="true"[^>]*>Нужен ответ<span [^>]*data-queue-count="needs_reply">3<\/span>/u);
     assert.match(queues, /aria-pressed="false"[^>]*>Ждём студента<span [^>]*data-queue-count="awaiting_student">2<\/span>/u);
@@ -285,45 +336,44 @@ test("the thread header says with whom: name, direction · board stage, «Отк
   assert.doesNotMatch(current, /v3-stage|v3-initials|v3-chip/u, "blocks render only in the new look");
 });
 
-test("WhatsApp keeps its honest «не подключён» state under «Переписки»; a sales role sees only its own channel", () => {
-  const admin = page("whatsapp");
-  assert.match(admin, /WhatsApp не подключён к CRM — подключает Администратор/u);
-  assert.match(admin, /<h1 class="t-page-title[^"]*">Переписки<\/h1>/u);
-  assert.match(admin, /href="\/v3\/messages"[^>]*>Кабинет студента<\/a>[\s\S]*?aria-current="page"[^>]*href="\/v3\/inbox"[^>]*>WhatsApp<\/a>/u);
-  const sales = page("whatsapp-sales");
-  assert.doesNotMatch(sales, /Кабинет студента|href="\/v3\/messages"/u);
-  // Один канал — без ряда вкладок: одна вкладка ничего не выбирает.
-  assert.doesNotMatch(sales, /aria-label="Каналы переписки"|data-conversation-channels/u);
-  assert.match(sales, /<h1 class="t-page-title[^"]*">Переписки<\/h1>/u);
-  assert.doesNotMatch(sales, /Открыть настройки/u, "connecting stays with the Administrator");
+test("WhatsApp stands alone: h1 «WhatsApp», the honest «не подключён» state, no channel tabs, for Admin, sales and a curator on an old link", () => {
+  for (const name of ["whatsapp", "whatsapp-sales", "whatsapp-admissions"]) {
+    for (const look of ["", "-next"]) {
+      const html = page(`${name}${look}`);
+      assert.equal([...html.matchAll(/<h1\b/gu)].length, 1, name);
+      // Не подключён — считать нечего: числа у заголовка нет.
+      assert.match(html, /<h1 class="t-page-title flex flex-wrap items-baseline gap-2\.5 text-fg">WhatsApp<\/h1>/u, name);
+      assert.match(html, /WhatsApp не подключён к CRM — подключает Администратор/u, name);
+      assert.doesNotMatch(html, /Каналы переписки|data-conversation-channels|Кабинет студента|href="\/v3\/messages"/u, name);
+    }
+  }
+  assert.doesNotMatch(page("whatsapp-sales"), /Открыть настройки/u, "connecting stays with the Administrator");
 });
 
-test("both channels share one header: same title, tab row and content offsets, only the height differs", () => {
+test("each page has its own header: the student chat window-high, WhatsApp the shell column's height; no channel tabs anywhere", () => {
   const head = (html) => {
     const start = html.indexOf("<main");
-    return html.slice(start, html.indexOf("<nav", start));
+    return html.slice(start, html.indexOf("</h1>", start) + "</h1>".length);
   };
-  const common = '<main aria-label="Переписки" data-conversations-main="" class="mx-auto flex w-full min-h-0 max-w-[1240px] flex-col px-4 pb-4 pt-6 sm:px-6 ';
-  const tail = '"><div class="flex flex-wrap items-start justify-between gap-4"><div class="min-w-0"><h1 class="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">Переписки</h1></div></div><div class="mt-3 shrink-0" data-conversation-channels="">';
   for (const look of ["", "-next"]) {
-    // «Кабинет студента» — на высоту окна (правило 100dvh), WhatsApp — высота колонки оболочки.
-    assert.equal(head(page(`cabinet${look}`)), `${common}h-[calc(100dvh-150px)] md:h-[calc(100dvh-64px)]${tail}`);
-    assert.equal(head(page(`whatsapp${look}`)), `${common}md:flex-1${tail}`);
+    // Переписка со студентами — на высоту окна (правило 100dvh): поле ответа над панелью вкладок.
+    assert.equal(head(page(`cabinet${look}`)), '<main aria-label="Переписка со студентами" data-conversations-main="" class="mx-auto flex w-full min-h-0 max-w-[1240px] flex-col px-4 pb-4 pt-6 sm:px-6 h-[calc(100dvh-150px)] md:h-[calc(100dvh-64px)]"><div class="flex flex-wrap items-start justify-between gap-4"><div class="min-w-0"><h1 class="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">Переписка со студентами</h1>');
+    // WhatsApp — прежний PartShell `fill`: от 768 px высоту даёт колонка оболочки (`isFillRoute`).
+    assert.equal(head(page(`whatsapp${look}`)), '<main class="mx-auto w-full px-4 sm:px-6 max-w-[1240px] flex flex-col py-6 md:min-h-0 md:flex-1"><div class="flex flex-wrap items-start justify-between gap-4"><div class="min-w-0"><h1 class="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">WhatsApp</h1>');
   }
-  for (const file of ["src/app/(v3)/v3/messages/page.tsx", "src/app/(v3)/v3/inbox/page.tsx"]) {
-    const source = read(file);
-    assert.match(source, /<ConversationsMain title=\{TITLE\}/u, file);
-    assert.doesNotMatch(source, /<PartShell|<ConversationChannels/u, file);
-  }
-  const channels = read("src/components/v3/ConversationChannels.tsx");
-  assert.match(channels, /if \(channels\.length < 2\) return null;/u);
+  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /export const metadata = \{ title: "Переписка со студентами" \};\s*const TITLE = "Переписка со студентами";/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /export const metadata = \{ title: "WhatsApp" \};/u);
+  assert.match(read("src/app/(v3)/v3/inbox/loading.tsx"), /<PartShell title="WhatsApp" fill>/u);
+  assert.doesNotMatch(read("src/app/(v3)/v3/inbox/page.tsx"), /ConversationsMain|conversationChannels/u);
+  assert.equal(existsSync(new URL("../src/components/v3/ConversationChannels.tsx", import.meta.url)), false);
+  assert.doesNotMatch(read("src/components/v3/ConversationsMain.tsx"), /channels|QueueViewTabs/u);
 });
 
 test("a phone thread takes the screen: page title only for screen readers, no channel tabs, «К списку» on the name row", () => {
   const thread = page("thread");
-  assert.match(thread, /<div class="flex flex-wrap items-start justify-between gap-4 @max-2xl:sr-only"><div class="min-w-0"><h1 class="t-page-title[^"]*">Переписки<\/h1>/u);
-  assert.match(thread, /<div class="mt-3 shrink-0 @max-2xl:hidden" data-conversation-channels="">/u);
-  assert.doesNotMatch(page("cabinet"), /@max-2xl:sr-only|@max-2xl:hidden/u, "the list keeps its title and tabs");
+  assert.match(thread, /<div class="flex flex-wrap items-start justify-between gap-4 @max-2xl:sr-only"><div class="min-w-0"><h1 class="t-page-title[^"]*">Переписка со студентами<\/h1>/u);
+  assert.match(thread, /<\/h1><\/div><\/div><div class="mt-5 flex min-h-0 flex-1 flex-col @max-2xl:mt-0">/u);
+  assert.doesNotMatch(page("cabinet"), /@max-2xl:sr-only|@max-2xl:hidden/u, "the list keeps its title");
   const header = thread.slice(thread.indexOf('data-testid="case-chat-thread-header"'), thread.indexOf('data-testid="case-chat-await-control"'));
   assert.match(header, /<a [^>]*aria-label="К списку"[^>]*>[\s\S]*?<\/a>(?:<span [^>]*>[\s\S]*?<\/span>)?<div class="min-w-0"><h2 /u, "the back link sits in the name row");
   // Узко имя встаёт в две строки, а не обрезается до «Студент …».

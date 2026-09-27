@@ -307,19 +307,29 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.match(blocked, /<time dateTime="2026-09-26T08:15:00.000Z" class="font-mono tabular-nums text-fg">26\.09 14:15<\/time>/u);
 });
 
-// «Переписки» Э5 (WhatsApp и «Кабинет студента» одним пунктом) стоят в «Общем»
-// рядом с «Заявками»: ни один отдел не держит ни их, ни прежние пункты каналов.
-test("menu: «Заявки» and «Переписки» stand in «Общее» for Admin, admissions and sales, in both looks", () => {
+// «Заявки» стоят в «Общем» первыми (Э6). Переписки — в своих отделах (решение
+// владельца 27.09.2026 вместо одного пункта «Переписки» Э5): WhatsApp — в
+// «Продажах», «Переписка со студентами» — в «Поступлении»; в «Общем» их нет.
+test("menu: «Заявки» lead «Общее»; WhatsApp stands in «Продажи» and «Переписка со студентами» in «Поступление», in both looks", () => {
   for (const look of ["current", "next"]) {
     for (const role of ["admin", "admissions", "sales"]) {
       const html = page(`menu-${role}`, look);
       const common = html.match(/<section aria-label="Общее"[\s\S]*?<\/section>/u)?.[0] ?? assert.fail(`${role} ${look}: «Общее»`);
       const labels = [...common.matchAll(/<span class="min-w-0[^"]*">([^<]+)<\/span>/gu)].map((match) => match[1]);
-      assert.ok(labels.includes("Переписки"), `${role} ${look}: «Переписки» in «Общее» (${labels})`);
-      assert.equal(labels.includes("WhatsApp"), false, `${role} ${look}: no separate WhatsApp item (${labels})`);
+      for (const moved of ["Переписки", "WhatsApp", "Переписка со студентами"]) {
+        assert.equal(labels.includes(moved), false, `${role} ${look}: no «${moved}» in «Общее» (${labels})`);
+      }
       assert.equal(labels[0], "Заявки", `${role} ${look}: «Заявки» leads «Общее»`);
       const menu = html.slice(0, html.indexOf('aria-label="Общее"'));
-      assert.doesNotMatch(menu, /href="\/v3\/(?:requests|inbox|messages)"/u, `${role} ${look}: no department group holds them`);
+      assert.doesNotMatch(menu, /href="\/v3\/requests"/u, `${role} ${look}: no department group holds «Заявки»`);
+      // Отдел пункта — по порядку меню: WhatsApp — между «Воронкой продаж» и
+      // «Отчётом продаж», переписка со студентами — сразу после «Воронки поступления».
+      const order = [...menu.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
+      const after = (href, previous) => order.indexOf(href) === order.indexOf(previous) + 1;
+      if (role === "admissions") assert.equal(order.includes("/v3/inbox"), false, `${role} ${look}: the sales WhatsApp is not an admissions item`);
+      else assert.ok(after("/v3/inbox", "/v3/pipeline") && after("/v3/main?view=sales", "/v3/inbox"), `${role} ${look}: WhatsApp in «Продажи» (${order})`);
+      if (role === "sales") assert.equal(order.includes("/v3/messages"), false, `${role} ${look}: no student chat for sales`);
+      else assert.ok(after("/v3/messages", "/v3/admissions-pipeline"), `${role} ${look}: «Переписка со студентами» in «Поступление» (${order})`);
     }
   }
 });

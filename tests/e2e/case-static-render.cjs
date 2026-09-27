@@ -888,8 +888,14 @@ async function capture(pages, outDir, look, compareMarkup, leadMarkup) {
 // Бандл esbuild с настоящими `CaseAcceptDrawer` и `ProfileHandoffAcknowledgement`
 // (как стенд Э7); серверное действие ответа — заглушка в браузере, она записывает
 // поля формы, отвечает «сохранено» с новым ключом запроса и, как перечитанная
-// страница, кладёт ответ в снимок. Ждать ответа дело перестаёт только после
-// «принято» (`studentsHandoffPending`). Проверки печатаются; нарушение — код выхода 1.
+// страница, кладёт в снимок то, что вернёт чтение 130 после команды 182/249:
+// - «Нужно уточнить» — дело в работе у того же куратора, ответ — в снимке;
+// - «Принять дело» — ответ в снимке, ждать ответа дело перестаёт;
+// - «Отклонить» — назначение снято, дело снова ждёт куратора: у снимка нет
+//   назначения и текущего ответа, ответить больше нельзя (`assignmentEventId`
+//   и `current` — null, `canRespond` — false).
+// Кнопку с панелью страница рисует по тому же `studentsHandoffPending`, что и
+// `caseWorkParts`. Проверки печатаются; нарушение — код выхода 1.
 const DRAWER_ENTRY = `
 const React = require("react");
 const { createRoot } = require("react-dom/client");
@@ -898,6 +904,7 @@ const { CaseAcceptDrawer } = require("@/components/v3/profile/CaseAcceptDrawer")
 const { CaseTaskList } = require("@/components/v3/profile/CaseTaskList");
 const { FeedMore } = require("@/components/v3/profile/FeedMore");
 const { FeedEvent, FeedNote } = require("@/components/v3/profile/FeedRow");
+const { studentsHandoffPending } = require("@/components/v3/students/students-queue-view");
 const h = React.createElement;
 window.__s360 = { calls: [], refreshes: 0 };
 const router = { refresh() { window.__s360.refreshes += 1; }, push() {}, replace() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {} };
@@ -905,15 +912,17 @@ const fixture = JSON.parse(document.getElementById("s360-fixture").textContent);
 const snapshot = fixture.snapshot;
 function Page() {
   const [current, setCurrent] = React.useState(snapshot);
-  const [pending, setPending] = React.useState(true);
   window.__s360.answered = (fields, acknowledgementId) => {
-    setCurrent((previous) => ({ ...previous, current: { acknowledgementId, decision: fields.decision,
-      clarification: fields.clarification || null, agreedContactDate: fields.agreed_contact_date || null, createdAt: "2026-09-27T06:00:00.000Z" } }));
-    if (fields.decision === "accepted") setPending(false);
+    setCurrent((previous) => fields.decision === "declined"
+      ? { ...previous, assignmentEventId: null, canRespond: false, current: null }
+      : { ...previous, current: { acknowledgementId, decision: fields.decision,
+        clarification: fields.clarification || null, agreedContactDate: fields.agreed_contact_date || null, createdAt: "2026-09-27T06:00:00.000Z" } });
   };
+  const pending = studentsHandoffPending(current);
   return h("main", { className: "p-6 space-y-6" },
     h("h2", { id: "case-tasks-title", tabIndex: -1, "data-queue-heading": "", className: "t-section" }, "Задачи"),
-    pending ? h(CaseAcceptDrawer, { name: "Синтетический студент", snapshot: current, context: fixture.context }) : h("p", null, "Дело принято"),
+    pending ? h(CaseAcceptDrawer, { name: "Синтетический студент", snapshot: current, context: fixture.context })
+      : h("p", { "data-testid": "s360-after" }, current.assignmentEventId === null ? "Дело ждёт куратора" : "Дело принято"),
     // «Показать ещё» задач и ленты (review Э4): фокус переходит на первую открытую строку.
     h("section", { "data-testid": "s360-tasks" }, h(CaseTaskList, { tasks: fixture.tasks, permissions: fixture.permissions, nowIso: fixture.nowIso })),
     h("section", { "data-testid": "s360-feed" },
@@ -994,7 +1003,7 @@ async function drawerCheck() {
       const state = () => page.evaluate(() => {
         const dialog = document.querySelector('[data-testid="v3-case-accept-drawer"]');
         const active = document.activeElement;
-        return { modal: dialog ? dialog.matches(":modal") : null, focused: active ? `${active.tagName.toLowerCase()}:${active.textContent.trim()}` : null,
+        return { modal: dialog ? dialog.matches(":modal") : null, focused: active === document.body ? "body" : active ? `${active.tagName.toLowerCase()}:${active.textContent.trim()}` : null,
           pressed: [...document.querySelectorAll('[aria-pressed="true"]')].map((element) => element.textContent.trim()) };
       });
       const w = viewport.width;
@@ -1016,14 +1025,14 @@ async function drawerCheck() {
       await page.getByRole("button", { name: "Отмена" }).click();
       now = await state();
       check(now.modal === false && now.focused === "button:Принять дело", `${w}: «Отмена» closes the panel and returns focus`);
-      // Review 27.09 (голова 5e0d0e95): «Нужно уточнить» и «Отклонить» дело не принимают. Панель остаётся
-      // открытой: «Ответ сохранён.» видно, подтверждение — «Уже сохранено», «Текущий ответ» — новый,
-      // фокус — на выбранном решении в панели; Esc закрывает, фокус — на «Принять дело».
-      const answer = async ({ choice, field, value, submit, label, slug }, index) => {
+      // Review 27.09 (голова 5e0d0e95): «Нужно уточнить» дело не принимает, оно в работе у того же куратора.
+      // Панель остаётся открытой: «Ответ сохранён.» видно, подтверждение — «Уже сохранено», «Текущий ответ» —
+      // новый, фокус — на выбранном решении в панели; Esc закрывает, фокус — на «Принять дело».
+      const clarify = async (index) => {
         await trigger.click();
-        await page.getByRole("button", { name: choice, exact: true }).click();
-        await page.getByLabel(field).fill(value);
-        await page.getByRole("button", { name: submit, exact: true }).click();
+        await page.getByRole("button", { name: "Нужно уточнить", exact: true }).click();
+        await page.getByLabel("Что нужно уточнить у Sales").fill("Уточните, оплачен ли перевод аттестата.");
+        await page.getByRole("button", { name: "Сохранить уточнение", exact: true }).click();
         // Ждём вызова заглушки, не «Уже сохранено»: закрытая панель должна дать названную ошибку, а не тайм-аут.
         await page.waitForFunction((count) => window.__s360.calls.length === count, index + 1, { timeout: 5000 });
         await page.waitForTimeout(150);
@@ -1037,38 +1046,62 @@ async function drawerCheck() {
         });
         now = await state();
         check(now.modal === true && after.trigger && after.status === "Ответ сохранён." && after.submit === "Уже сохранено:disabled",
-          `${w}: saving «${choice}» keeps the panel open with a visible «Ответ сохранён.» and «Уже сохранено» (${after.status}; ${after.submit})`);
-        check(after.inside && now.focused === `button:${choice}` && now.pressed.join() === choice, `${w}: after «${choice}» focus stays in the panel, on the chosen decision (${now.focused})`);
+          `${w}: saving «Нужно уточнить» keeps the panel open with a visible «Ответ сохранён.» and «Уже сохранено» (${after.status}; ${after.submit})`);
+        check(after.inside && now.focused === "button:Нужно уточнить" && now.pressed.join() === "Нужно уточнить",
+          `${w}: after «Нужно уточнить» focus stays in the panel, on the chosen decision (${now.focused})`);
         const answerText = await page.getByTestId("v3-case-accept-context").innerText();
-        check(answerText.replace(/\s+/gu, " ").includes(`Текущий ответ ${label} ${value}`), `${w}: the panel's «Текущий ответ» is the saved answer (${label})`);
+        check(answerText.replace(/\s+/gu, " ").includes("Текущий ответ Нужно уточнение от Sales Уточните, оплачен ли перевод аттестата."),
+          `${w}: the panel's «Текущий ответ» is the saved clarification`);
         const calls = await page.evaluate(() => window.__s360.calls);
         const call = calls[index] ?? {};
-        check(calls.length === index + 1 && call.decision === (choice === "Отклонить" ? "declined" : "clarification_requested") && call.clarification === value
+        check(calls.length === index + 1 && call.decision === "clarification_requested" && call.clarification === "Уточните, оплачен ли перевод аттестата."
           && call.student_case_id === HANDOFF_PENDING.studentCaseId && call.assignment_event_id === HANDOFF_PENDING.assignmentEventId
-          && call.request_id === (index === 0 ? HANDOFF_PENDING.requestId : `${DRAWER_REQUEST}${index}`)
-          && call.expected_acknowledgement_id === (index === 0 ? "" : `${DRAWER_ACK}${index}`),
-        `${w}: «${submit}» sends the answer command once with the snapshot's ids, the fresh request id and the previous answer id`);
-        await page.screenshot({ path: join(outDir, `f3-drawer-${slug}-${w}.png`) });
+          && call.request_id === HANDOFF_PENDING.requestId && call.expected_acknowledgement_id === "",
+        `${w}: «Сохранить уточнение» sends the answer command once with the snapshot's ids and request id`);
+        await page.screenshot({ path: join(outDir, `f3-drawer-clarified-${w}.png`) });
         await page.keyboard.press("Escape");
         now = await state();
         check(now.modal === false && now.focused === "button:Принять дело", `${w}: the case still awaits acceptance — Esc returns focus to «Принять дело»`);
       };
-      await answer({ choice: "Нужно уточнить", field: "Что нужно уточнить у Sales", value: "Уточните, оплачен ли перевод аттестата.",
-        submit: "Сохранить уточнение", label: "Нужно уточнение от Sales", slug: "clarified" }, 0);
-      await answer({ choice: "Отклонить", field: "Причина отклонения", value: "Нагрузка выше нормы до конца октября.",
-        submit: "Отклонить назначение", label: "Назначение отклонено куратором", slug: "declined" }, 1);
+      await clarify(0);
+      // После уточнения — приём: тот же вызов с новым ключом запроса и id ответа-уточнения.
       await trigger.click();
       await page.getByRole("button", { name: "Принять дело" }).last().click();
       await page.getByRole("button", { name: "Подтвердить приём" }).click();
       await page.getByText("Дело принято").waitFor();
       await page.waitForTimeout(100);
-      const calls = await page.evaluate(() => window.__s360.calls);
-      const call = calls[2] ?? {};
-      check(calls.length === 3 && call.decision === "accepted" && call.student_case_id === HANDOFF_PENDING.studentCaseId && call.assignment_event_id === HANDOFF_PENDING.assignmentEventId
-        && call.request_id === `${DRAWER_REQUEST}2` && call.expected_acknowledgement_id === `${DRAWER_ACK}2`,
+      let calls = await page.evaluate(() => window.__s360.calls);
+      let call = calls[1] ?? {};
+      check(calls.length === 2 && call.decision === "accepted" && call.student_case_id === HANDOFF_PENDING.studentCaseId && call.assignment_event_id === HANDOFF_PENDING.assignmentEventId
+        && call.request_id === `${DRAWER_REQUEST}1` && call.expected_acknowledgement_id === `${DRAWER_ACK}1`,
       `${w}: confirm sends the same answer command once with the snapshot's ids, the fresh request id and the previous answer id`);
       now = await state();
-      check(now.modal === null && now.focused === "h2:Задачи", `${w}: after the answer the panel is gone and focus lands on «Задачи», not the page`);
+      check(now.modal === null && now.focused === "h2:Задачи", `${w}: after «Принять дело» the panel is gone and focus lands on «Задачи», not the page (${now.focused})`);
+      // Review 27.09 (голова 82d023c9): «Отклонить» снимает назначение (182/249): дело снова ждёт куратора,
+      // чтение 130 больше не даёт ответить. Перечитанная страница убирает кнопку вместе с открытой
+      // панелью, и фокус переходит на заголовок «Задачи», а не падает на страницу.
+      await page.reload({ waitUntil: "load" });
+      await trigger.waitFor();
+      await trigger.click();
+      await page.getByRole("button", { name: "Отклонить", exact: true }).click();
+      await page.getByLabel("Причина отклонения").fill("Нагрузка выше нормы до конца октября.");
+      await page.waitForTimeout(250); // переход цвета выбранного решения — 150 мс
+      await page.screenshot({ path: join(outDir, `f3-drawer-decline-${w}.png`) });
+      await page.getByRole("button", { name: "Отклонить назначение", exact: true }).click();
+      await page.waitForFunction(() => window.__s360.calls.length === 1, null, { timeout: 5000 });
+      await page.waitForTimeout(150);
+      calls = await page.evaluate(() => window.__s360.calls);
+      call = calls[0] ?? {};
+      check(calls.length === 1 && call.decision === "declined" && call.clarification === "Нагрузка выше нормы до конца октября."
+        && call.student_case_id === HANDOFF_PENDING.studentCaseId && call.assignment_event_id === HANDOFF_PENDING.assignmentEventId
+        && call.request_id === HANDOFF_PENDING.requestId && call.expected_acknowledgement_id === "",
+      `${w}: «Отклонить назначение» sends the answer command once with the snapshot's ids and request id`);
+      const declined = await page.evaluate(() => ({ trigger: document.querySelector('[data-testid="v3-case-primary"]') !== null,
+        after: document.querySelector('[data-testid="s360-after"]')?.textContent ?? null }));
+      now = await state();
+      check(now.modal === null && !declined.trigger && declined.after === "Дело ждёт куратора",
+        `${w}: after «Отклонить» the case awaits a curator — the button and its open panel are gone (${declined.after})`);
+      check(now.focused === "h2:Задачи", `${w}: after «Отклонить» focus lands on the «Задачи» heading, not the page (${now.focused})`);
       // «Показать ещё» с клавиатуры: кнопка уходит, фокус — на первой открытой строке, а не на странице.
       const focusAfter = async (section) => {
         await page.getByTestId(section).getByRole("button", { name: /^Показать ещё/u }).focus();

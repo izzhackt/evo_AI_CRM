@@ -21,6 +21,7 @@ import {
   caseFeed,
   casePrimaryAction,
 } from "../src/components/v3/profile/case-work-view.ts";
+import { studentsHandoffPending } from "../src/components/v3/students/students-queue-view.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
@@ -397,12 +398,22 @@ test("the accept panel decides with context: who handed off and when, direction,
   assert.match(parts, /sale: salesVisible && sales \? \{ manager: sales\.lead\.currentOwnerDisplayName, nextAction: sales\.lead\.nextActionText \} : null,/u);
 });
 
-test("«Нужно уточнить» or «Отклонить» does not accept the case: the panel stays open, the saved answer is on the page too", () => {
-  // Review 27.09 (голова 5e0d0e95): панель закрывается только после «принято» — иначе «Ответ сохранён.»
-  // оставался в закрытом окне, а фокус возвращался на ту же красную кнопку. Само поведение проверяет
-  // `case-static-render.cjs --drawer` в браузере (уточнение, отказ, затем приём).
+test("«Нужно уточнить» keeps the panel open; «Отклонить» ends the assignment and the panel goes with it", () => {
+  // Review 27.09 (голова 5e0d0e95): после «Нужно уточнить» дело в работе у того же куратора и ждёт приёма —
+  // панель остаётся открытой, иначе «Ответ сохранён.» оставался в закрытом окне.
+  // Review 27.09 (голова 82d023c9): «Отклонить» снимает назначение (182/249): чтение 130 после отказа не
+  // отдаёт ни назначения, ни ответа, и ответить нельзя — главного действия и панели больше нет. Любой
+  // записанный ответ отмечается, чтобы фокус с исчезнувшей кнопки ушёл на «Задачи», а не на страницу.
+  // Само поведение проверяет `case-static-render.cjs --drawer` в браузере (уточнение и приём; отказ).
+  const afterDecline = { assignmentEventId: null, canRespond: false, current: null };
+  assert.equal(studentsHandoffPending(afterDecline), false);
+  assert.equal(casePrimaryAction({ handoffPending: studentsHandoffPending(afterDecline), preview: false }), null);
   const drawerSource = read("src/components/v3/profile/CaseAcceptDrawer.tsx");
-  assert.match(drawerSource, /onSaved=\{\(decision\) => \{\n\s+if \(decision !== "accepted"\) return;\n\s+answered\.current = true;\n\s+close\(\);/u);
+  assert.match(drawerSource, /onSaved=\{\(decision\) => \{\n(?:\s+\/\/[^\n]*\n)*\s+answered\.current = true;\n\s+if \(decision === "accepted"\) close\(\);\n\s+\}\}/u,
+    "every saved answer is marked; only acceptance closes the panel");
+  assert.doesNotMatch(drawerSource, /if \(decision !== "accepted"\) return;/u);
+  assert.match(drawerSource, /useEffect\(\(\) => \(\) => \{\n\s+if \(!answered\.current\) return;[\s\S]{0,200}document\.getElementById\("case-tasks-title"\)/u,
+    "a vanished button hands focus to «Задачи»");
   const form = read("src/components/v3/profile/ProfileSalesTransition.tsx");
   assert.match(form, /if \(!inDrawer \|\| !saved\) return;[\s\S]{0,200}querySelector<HTMLElement>\('\[aria-pressed="true"\]'\)\?\.focus\(\);/u,
     "after the save focus goes back to the chosen decision, not the page");

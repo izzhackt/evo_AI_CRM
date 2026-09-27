@@ -538,9 +538,10 @@ export function ProfileHandoffAcknowledgement({ snapshot, onSaved, drawer }: {
     && (declining || current.agreedContactDate === (contactDate || null));
   const bodyRef = useRef<HTMLDivElement>(null);
   const inDrawer = drawer !== undefined;
-  // Панель остаётся открытой после «Нужно уточнить» и «Отклонить» (`CaseAcceptDrawer`):
-  // на время сохранения кнопки заблокированы, и фокус мог упасть на страницу или
-  // остаться на «Уже сохранено» — он переходит на выбранное решение панели.
+  // Панель остаётся открытой после «Нужно уточнить» (`CaseAcceptDrawer`; после «Отклонить»
+  // назначение снято и панель уходит со страницы): на время сохранения кнопки заблокированы,
+  // и фокус мог упасть на страницу или остаться на «Уже сохранено» — он переходит на
+  // выбранное решение панели.
   useEffect(() => {
     if (!inDrawer || !saved) return;
     const active = document.activeElement;

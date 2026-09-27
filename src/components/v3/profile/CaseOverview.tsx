@@ -199,8 +199,9 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
   const next = isNextLook(input.look);
   const handoff = input.handoff;
   const answered = handoff !== null && handoff.assignmentEventId !== null && !studentsHandoffPending(handoff);
-  // Куратор ответил «Нужно уточнить» или «Отклонить», а дело всё ещё ждёт приёма: ответ виден и
-  // на странице, не только в панели «Принять дело» (изменить его — там же, у заголовка).
+  // Куратор ответил «Нужно уточнить», а дело всё ещё ждёт приёма: ответ виден и на странице, не только
+  // в панели «Принять дело» (изменить его — там же, у заголовка). После «Отклонить» (182/249) чтение 130
+  // не отдаёт ни назначения, ни ответа — «Приёма дела» в «Сведениях» нет.
   const onRecord = answered || (handoff !== null && handoff.assignmentEventId !== null && handoff.current !== null);
   const { curator } = input;
   const payment = input.payment;

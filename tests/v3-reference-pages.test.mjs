@@ -307,16 +307,19 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.match(blocked, /<time dateTime="2026-09-26T08:15:00.000Z" class="font-mono tabular-nums text-fg">26\.09 14:15<\/time>/u);
 });
 
-test("menu: «Заявки» and WhatsApp stand in «Общее» for Admin, admissions and sales, in both looks", () => {
+// «Переписки» Э5 (WhatsApp и «Кабинет студента» одним пунктом) стоят в «Общем»
+// рядом с «Заявками»: ни один отдел не держит ни их, ни прежние пункты каналов.
+test("menu: «Заявки» and «Переписки» stand in «Общее» for Admin, admissions and sales, in both looks", () => {
   for (const look of ["current", "next"]) {
     for (const role of ["admin", "admissions", "sales"]) {
       const html = page(`menu-${role}`, look);
       const common = html.match(/<section aria-label="Общее"[\s\S]*?<\/section>/u)?.[0] ?? assert.fail(`${role} ${look}: «Общее»`);
       const labels = [...common.matchAll(/<span class="min-w-0[^"]*">([^<]+)<\/span>/gu)].map((match) => match[1]);
-      assert.ok(labels.includes("WhatsApp"), `${role} ${look}: WhatsApp in «Общее» (${labels})`);
+      assert.ok(labels.includes("Переписки"), `${role} ${look}: «Переписки» in «Общее» (${labels})`);
+      assert.equal(labels.includes("WhatsApp"), false, `${role} ${look}: no separate WhatsApp item (${labels})`);
       assert.equal(labels[0], "Заявки", `${role} ${look}: «Заявки» leads «Общее»`);
       const menu = html.slice(0, html.indexOf('aria-label="Общее"'));
-      assert.doesNotMatch(menu, /href="\/v3\/(?:requests|inbox)"/u, `${role} ${look}: no department group holds them`);
+      assert.doesNotMatch(menu, /href="\/v3\/(?:requests|inbox|messages)"/u, `${role} ${look}: no department group holds them`);
     }
   }
 });

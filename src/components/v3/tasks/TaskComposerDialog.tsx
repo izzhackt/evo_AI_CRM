@@ -13,6 +13,7 @@ import { readTaskCaseAssigneesAction } from "@/lib/v3/task-case-actions";
 import { readTaskComposerAssigneesAction } from "@/lib/v3/task-composer-actions";
 import { ComposerDeadlineField } from "./ComposerDeadlineField";
 import { TaskCasePicker } from "./TaskCasePicker";
+import { nextComposerRequestId } from "./composer-request-id";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import type { CalendarCaseOption, Day } from "../calendar/types";
 
@@ -308,8 +309,10 @@ function TaskComposerModal({
           clearDraft(draftContext);
           router.refresh();
         } else {
-          setState({ status: result.status === "saved" ? "unavailable" : result.status, href: null });
-          requestId.current = crypto.randomUUID();
+          const shown = result.status === "saved" ? "unavailable" : result.status;
+          setState({ status: shown, href: null });
+          // Не подтверждено — тот же ключ: повтор вернёт уже сохранённую задачу, а не создаст вторую.
+          requestId.current = nextComposerRequestId(shown, requestId.current);
         }
       } else {
         const form = new FormData();
@@ -336,11 +339,14 @@ function TaskComposerModal({
           clearDraft(draftContext);
           router.refresh();
         } else {
-          setState({ status: result.status === "saved" ? "unavailable" : result.status, href: null });
-          requestId.current = crypto.randomUUID();
+          const shown = result.status === "saved" ? "unavailable" : result.status;
+          setState({ status: shown, href: null });
+          // Не подтверждено — тот же ключ: повтор вернёт уже сохранённую задачу, а не создаст вторую.
+          requestId.current = nextComposerRequestId(shown, requestId.current);
         }
       }
     } catch {
+      // Ответ потерян — ключ остаётся прежним (см. nextComposerRequestId).
       setState({ status: "unavailable", href: null });
     } finally {
       setPending(false);

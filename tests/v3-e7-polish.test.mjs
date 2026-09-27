@@ -20,6 +20,7 @@ import * as dueBucket from "../src/components/v3/queue/due-bucket.ts";
 import * as queueButtons from "../src/components/v3/queue/queue-buttons.ts";
 import * as bulkRun from "../src/components/v3/queue/bulk-run.ts";
 import * as taskCommands from "../src/components/v3/tasks/task-commands.ts";
+import * as composerRequestId from "../src/components/v3/tasks/composer-request-id.ts";
 import * as nextStepInput from "../src/components/v3/students/next-step-input.ts";
 import * as studentsView from "../src/components/v3/students/students-queue-view.ts";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
@@ -91,6 +92,7 @@ const composer = compile("src/components/v3/tasks/TaskComposerDialog.tsx", (id) 
   if (id === "@/lib/v3/task-composer-actions") return { readTaskComposerAssigneesAction: forbiddenAction };
   if (id === "./ComposerDeadlineField") return deadlineField;
   if (id === "./TaskCasePicker") return casePicker;
+  if (id === "./composer-request-id") return composerRequestId;
   if (id === "../queue/queue-buttons") return queueButtons;
   return require(id);
 });
@@ -127,6 +129,39 @@ test("one composer: only TaskComposerDialog builds the create commands; the cale
   const createStaff = SOURCES.filter(({ text }) => /form\.set\("operation", "create"\)/u.test(text));
   assert.deepEqual(createStaff.map(({ path }) => path), ["src/components/v3/tasks/TaskComposerDialog.tsx"]);
   assert.deepEqual(SOURCES.filter(({ text }) => /CalendarCreateTaskForm|create-lifecycle/u.test(text)).map(({ path }) => path), []);
+});
+
+test("a retry after an unconfirmed save keeps its request id; only a spent key rotates", () => {
+  // Правило прежней формы календаря (удалённый тест «only confirmed saved state
+  // can offer a new attempt…»): «не подтверждено» — задача могла сохраниться,
+  // повтор с тем же ключом вернёт её же, а не создаст вторую.
+  const { nextComposerRequestId } = composerRequestId;
+  const kept = "40000000-0000-4000-8000-000000000001";
+  const fresh = () => "40000000-0000-4000-8000-000000000002";
+  for (const status of ["unavailable", "invalid", "forbidden", "stale", "idle"]) {
+    assert.equal(nextComposerRequestId(status, kept, fresh), kept, status);
+  }
+  for (const status of ["saved", "request_conflict"]) {
+    assert.equal(nextComposerRequestId(status, kept, fresh), fresh(), status);
+  }
+  assert.match(nextComposerRequestId("request_conflict", kept), /^[0-9a-f-]{36}$/u);
+  assert.notEqual(nextComposerRequestId("request_conflict", kept), kept);
+
+  // Обе команды диалога идут через это правило; безусловный новый ключ — только
+  // «Создать ещё» после подтверждённого сохранения; брошенная ошибка ключ не меняет.
+  const source = read("src/components/v3/tasks/TaskComposerDialog.tsx");
+  assert.equal([...source.matchAll(/requestId\.current = nextComposerRequestId\(shown, requestId\.current\);/gu)].length, 2);
+  assert.equal([...source.matchAll(/requestId\.current = crypto\.randomUUID\(\);/gu)].length, 1);
+  const createAnother = source.match(/function createAnother\(\) \{[\s\S]*?\n {2}\}/u)?.[0] ?? "";
+  assert.match(createAnother, /setState\(\{ status: "idle", href: null \}\);[\s\S]*requestId\.current = crypto\.randomUUID\(\);/u);
+  assert.match(source, /\} catch \{\s*(?:\/\/[^\n]*\n\s*)?setState\(\{ status: "unavailable", href: null \}\);\s*\} finally/u);
+
+  // Сервер отвечает тем же ключом на «не подтверждено»: дело — failureState, рабочая задача — failed().
+  const caseActions = read("src/lib/platform-admissions-task-actions.ts");
+  assert.match(caseActions, /status === "request_conflict"\s*\? randomUUID\(\)\s*: \(requestId \?\? randomUUID\(\)\)/u);
+  assert.match(caseActions, /return failureState\(form, "unavailable", null, requestId\);/u);
+  const staffActions = read("src/lib/platform-staff-task-actions.ts");
+  assert.match(staffActions, /const failed = \(status: StaffTaskActionState\["status"\]\): StaffTaskActionState => \(\{ status, requestId, taskId: null, version: null \}\);/u);
 });
 
 test("every entry point opens that one composer: menu, Ctrl+K, «Новая задача…», calendar, case, quick view, Lead 360", () => {

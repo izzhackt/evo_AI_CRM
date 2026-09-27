@@ -20,7 +20,8 @@
  *   node tests/e2e/e7-static-render.cjs --screenshots [outDir] [--look=next]
  *     → снимки `e7-*.png` (1440×900, 1280×800, 390×844); по умолчанию
  *       outDir — .impeccable/review (не коммитится). Проверки печатаются
- *       строкой на снимок; нарушение — код выхода 1.
+ *       строкой на снимок; нарушение — код выхода 1. После снимков — пути
+ *       клавиатуры, фокуса массовых действий и ключа повтора создания.
  */
 
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -649,6 +650,76 @@ async function bulkFocusProbe(browser, outDir, expect) {
   const partial = await page.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? document.activeElement?.tagName ?? null);
   expect("partial failure: focus returns to the action button", partial === "task-bulk-reschedule-trigger", { partial });
   process.stdout.write(`bulk focus: full success → row ${after.row === key ? "ok" : "MISSING"}, partial → ${partial}\n`);
+  await context.close();
+  await retryKeyProbe(browser, outDir, expect);
+}
+
+/**
+ * Ключ повтора создания (`request_id`): ответ «не подтверждено» — задача могла
+ * сохраниться, поэтому повтор обязан прийти с ТЕМ ЖЕ ключом (иначе вторая
+ * задача). Новый ключ — только после `request_conflict`. Заглушки отвечают так
+ * же, как настоящие действия: `unavailable` — с присланным ключом; у задачи по
+ * делу `request_conflict` — с новым случайным (failureState), у рабочей — с
+ * присланным (failed). Рабочая задача — из «Задач», задача по делу — из
+ * календаря («Студент/дело» → дело), как в найденном ревью случае.
+ */
+async function retryKeyProbe(browser, outDir, expect) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const submitReady = () => page.waitForFunction(() => {
+    const button = document.querySelector('[data-testid="v3-task-composer-dialog"][open] button[type="submit"]');
+    return button && !button.disabled;
+  });
+  const stub = () => page.evaluate(() => {
+    window.__keys = { staff: [], case: [] };
+    const answers = ["unavailable", "unavailable", "request_conflict", "unavailable"];
+    window.__e7Actions.mutateStaffTaskAction = async (_previous, form) => {
+      window.__keys.staff.push(form.get("request_id"));
+      const status = answers[Math.min(window.__keys.staff.length - 1, answers.length - 1)];
+      return { status, requestId: form.get("request_id"), taskId: null, version: null };
+    };
+    window.__e7Actions.createPlatformAdmissionsTaskAction = async (_previous, form) => {
+      window.__keys.case.push(form.get("request_id"));
+      const status = answers[Math.min(window.__keys.case.length - 1, answers.length - 1)];
+      return { status, requestId: status === "request_conflict" ? crypto.randomUUID() : form.get("request_id"), caseTaskId: null, version: null, changedAt: null };
+    };
+  });
+  const attempts = async (kind) => {
+    const dialog = page.getByTestId("v3-task-composer-dialog");
+    const notes = [];
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      await submitReady();
+      await dialog.locator('button[type="submit"]').click();
+      await page.waitForFunction(([name, count]) => window.__keys[name].length === count, [kind, attempt]);
+      await submitReady();
+      notes.push((await dialog.locator('p[role="alert"]').last().textContent())?.trim() ?? "");
+    }
+    return { keys: await page.evaluate((name) => window.__keys[name], kind), notes };
+  };
+  const check = (label, { keys, notes }) => {
+    expect(`${label}: «не подтверждено» is shown`, notes[0] === "Сохранение пока не подтверждено. Повторите отправку.", { notes });
+    expect(`${label}: a retry after «не подтверждено» sends the same request_id`, keys.length === 4 && keys[0] === keys[1] && keys[1] === keys[2], { keys });
+    expect(`${label}: only request_conflict gives the next attempt a new request_id`, keys[3] !== keys[2] && /^[0-9a-f-]{36}$/u.test(keys[3] ?? ""), { keys });
+    return keys.length === 4 && keys[0] === keys[1] && keys[1] === keys[2] && keys[3] !== keys[2];
+  };
+
+  await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}tasks.html`)).href, { waitUntil: "load" });
+  await page.waitForSelector("html[data-rendered]", { state: "attached" });
+  await stub();
+  await clickShellCreate(page);
+  await page.getByTestId("v3-task-composer-dialog").locator('input[name="title"]').fill("Проверить повтор без подтверждения");
+  const staff = check("staff task", await attempts("staff"));
+
+  await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}calendar.html`)).href, { waitUntil: "load" });
+  await page.waitForSelector("html[data-rendered]", { state: "attached" });
+  await stub();
+  await clickShellCreate(page);
+  const dialog = page.getByTestId("v3-task-composer-dialog");
+  await dialog.locator("summary").filter({ hasText: /^Студент\/дело/u }).click();
+  await dialog.getByRole("combobox", { name: "Студент", exact: true }).selectOption({ index: 1 });
+  await dialog.locator('input[name="title"]').fill("Проверить повтор задачи по делу");
+  const caseTask = check("calendar case task", await attempts("case"));
+  process.stdout.write(`retry key: staff ${staff ? "same key on retry, new after conflict" : "FAILED"}; calendar case ${caseTask ? "same key on retry, new after conflict" : "FAILED"}\n`);
   await context.close();
 }
 

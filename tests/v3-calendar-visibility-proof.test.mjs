@@ -11,6 +11,7 @@ import * as taskContract from "../src/lib/platform-admissions-task-contract.ts";
 import * as calendarTypes from "../src/components/v3/calendar/types.ts";
 import * as dueBucket from "../src/components/v3/queue/due-bucket.ts";
 import * as queueButtons from "../src/components/v3/queue/queue-buttons.ts";
+import * as composerRequestId from "../src/components/v3/tasks/composer-request-id.ts";
 
 /*
  * Э7 «Один способ создать задачу»: календарь создаёт задачу тем же диалогом
@@ -58,6 +59,7 @@ const composer = compile("src/components/v3/tasks/TaskComposerDialog.tsx", id =>
   if (id === "@/lib/v3/task-composer-actions") return { readTaskComposerAssigneesAction: unavailableAction };
   if (id === "./ComposerDeadlineField") return deadline;
   if (id === "./TaskCasePicker") return casePicker;
+  if (id === "./composer-request-id") return composerRequestId;
   if (id === "../queue/queue-buttons") return queueButtons;
   return require(id);
 });

@@ -275,11 +275,18 @@ function boardHarness(moveAction) {
   })[id]);
   const look = compile("src/components/v3/blocks/look.ts", () => undefined);
   const statusChip = compile("src/components/v3/blocks/StatusChip.tsx", () => undefined);
+  // «Отменить» (Э7, 251): строка верхнего слоя, срок после паузы и правила отмены — настоящие.
+  const undoToast = compile("src/components/v3/blocks/UndoToast.tsx", (id) => ({ react: hooks })[id]);
+  const undoDeadline = compile("src/components/v3/tasks/undo-deadline.ts", () => undefined);
+  const boardUndo = compile("src/components/v3/board/board-undo.ts", () => undefined);
   const board = compile("src/components/v3/AdmissionsPipelineBoard.tsx", (id) => ({
     react: hooks,
     "@/components/v3/blocks/Initials": initials,
     "@/components/v3/blocks/look": look,
     "@/components/v3/blocks/StatusChip": statusChip,
+    "@/components/v3/blocks/UndoToast": undoToast,
+    "@/components/v3/tasks/undo-deadline": undoDeadline,
+    "@/components/v3/board/board-undo": boardUndo,
     "next/link": { default: "a" },
     "next/navigation": { useRouter: () => ({ refresh() {} }) },
     "@/components/ui": ui,
@@ -438,4 +445,351 @@ test("card menu targets are at least 44px, labels at least 12px, and removal is 
     .filter((child) => child && typeof child === "object");
   assert.equal(menuChildren.at(-2).type, "hr", "a separator sets removal apart from moves and «Открыть дело»");
   assert.equal(menuChildren.at(-1), remove);
+});
+
+// --- «Отменить» с проверкой версии (Э7, миграция 251) -------------------------
+
+const undoMigration = source("supabase/migrations/251_platform_pipeline_move_undo.sql");
+const undoSuite = source("supabase/tests/platform_pipeline_move_undo.sql");
+const accessMigration = source("supabase/migrations/244_platform_access_by_permissions.sql");
+
+/** Сервер 251 в миниатюре: версия положения, отказ `moved` при чужом перемещении. */
+function fakeServer(initial = { stage: "documents", hidden: false, version: 7 }) {
+  const position = { ...initial };
+  const calls = [];
+  const action = async (input) => {
+    calls.push(input);
+    const base = { requestId: input.requestId, studentCaseId: input.studentCaseId };
+    if (input.expectedVersion !== undefined && input.expectedVersion !== position.version) {
+      return { ...base, status: "moved", pipelineStage: position.stage, pipelineHidden: position.hidden, pipelineVersion: position.version };
+    }
+    const changed = input.remove ? !position.hidden : position.hidden || position.stage !== input.stage;
+    if (input.remove) position.hidden = true; else { position.stage = input.stage; position.hidden = false; }
+    if (changed) position.version += 1;
+    return { ...base, status: "saved", pipelineStage: position.stage, pipelineHidden: position.hidden, pipelineVersion: position.version };
+  };
+  /** Другой сотрудник переместил дело. */
+  const elsewhere = (stage, hidden = false) => { position.stage = stage; position.hidden = hidden; position.version += 1; };
+  return { action, calls, elsewhere, position };
+}
+const stageCount = (tree, stage) => {
+  const [option] = allNodes(tree, (node) => node.type === "option" && node.props.value === stage);
+  return Number(textOf(option).match(/\((\d+)\)$/u)[1]);
+};
+const alertText = (tree) => allNodes(tree, (node) => node.props?.role === "alert").map(textOf).join("");
+/** Слова строки отказа без ссылки «Открыть в «…»» (она в той же строке). */
+const alertWords = (tree) => allNodes(tree, (node) => node.props?.role === "alert")
+  .flatMap((alert) => allNodes(alert, (node) => node.type === "p")).map(textOf).join("");
+const alertLinks = (tree) => allNodes(tree, (node) => node.props?.role === "alert")
+  .flatMap((alert) => allNodes(alert, (node) => node.type === "a")).map(textOf);
+const pickerStage = (tree) => allNodes(tree, (node) => node.type === "select")[0].props.value;
+const shownStatus = (tree) => allNodes(tree, (node) => node.props?.role === "status" && textOf(node) !== "" && node.props.className !== "sr-only")
+  .map(textOf);
+const toastNode = (tree) => allNodes(tree, (node) => node.props?.["data-testid"] === "v3-undo-toasts")[0];
+// Фокус в браузере ставят эффекты; здесь `document` нужен только для чтения
+// activeElement (и меню верхнего слоя ищет себя по id — здесь его нет).
+globalThis.document ??= { activeElement: null, body: {}, getElementById: () => null };
+
+test("a confirmed menu move offers «Отменить»; it sends the reverse move with the receipt's version and the card returns", async () => {
+  const server = fakeServer();
+  const render = boardHarness(server.action);
+  let tree = render(boardProps);
+  press(tree, "stage:ready_to_submit");
+  assert.equal(server.calls.length, 1);
+  assert.equal(server.calls[0].stage, "ready_to_submit");
+  assert.equal("expectedVersion" in server.calls[0], false, "an ordinary move sends no version: last write wins, as before");
+  tree = render(boardProps);
+  assert.equal(buttonsNamed(tree, "Отменить").length, 0, "no undo before the server confirmed the move");
+  await flush();
+  tree = render(boardProps);
+  // Прежний облик: строка уведомлений доски над колонками, вежливая живая область.
+  assert.equal(statusText(tree), "Дело «Студент Синтетический» перемещено в «stage:ready_to_submit».");
+  const [undoButton] = buttonsNamed(tree, "Отменить");
+  assert.equal(undoButton.props["data-board-undo"], "");
+  // The quiet neutral button of «Вернуть в воронку» (btnGhostCls: h-11, not the page's red).
+  assert.equal(undoButton.props.className, "ghost-button");
+  assert.equal(stageCount(tree, "ready_to_submit"), 1);
+  press(tree, "Отменить");
+  assert.deepEqual(server.calls[1], { studentCaseId: CASE_ID, requestId: server.calls[1].requestId, stage: "documents", expectedVersion: 8 },
+    "the reverse move carries the version of the own move's receipt");
+  assert.notEqual(server.calls[1].requestId, server.calls[0].requestId);
+  tree = render(boardProps);
+  // Карточка не прыгает до ответа: отмена может не пройти (дело переместили).
+  assert.equal(stageCount(tree, "ready_to_submit"), 1, "the card stays until the server answers");
+  assert.equal(stageCount(tree, "documents"), 0, "not moved back before the server");
+  assert.equal(buttonsNamed(tree, "Отменить")[0].props.disabled, true, "the button carries the wait");
+  await flush();
+  tree = render(boardProps);
+  assert.equal(statusText(tree), "Перемещение отменено: дело «Студент Синтетический» снова в «stage:documents».");
+  assert.equal(stageCount(tree, "documents"), 1, "back where the receipt says");
+  assert.equal(pickerStage(tree), "documents", "the phone picker shows the stage the card came back to");
+  assert.equal(buttonsNamed(tree, "Отменить").length, 0);
+  assert.equal(alertText(tree), "");
+  assert.equal(server.position.stage, "documents");
+});
+
+test("a drag move offers «Отменить» too", async () => {
+  const server = fakeServer();
+  const render = boardHarness(server.action);
+  let tree = render(boardProps);
+  const [column] = allNodes(tree, (node) => typeof node.props?.onDrop === "function"
+    && textOf(node).includes("stage:shortlist"));
+  assert.ok(column, "the shortlist column takes drops");
+  column.props.onDrop({ preventDefault() {}, dataTransfer: { getData: () => CASE_ID } });
+  await flush();
+  tree = render(boardProps);
+  assert.equal(statusText(tree), "Дело «Студент Синтетический» перемещено в «stage:shortlist».");
+  press(tree, "Отменить");
+  assert.equal(server.calls[1].expectedVersion, 8);
+  assert.equal(server.calls[1].stage, "documents");
+});
+
+test("someone moved the case in between: the undo is refused, the card sits where the server says, nothing is claimed", async () => {
+  const refused = "Дело уже переместили — отмена не выполнена.";
+  for (const [label, move, where, expect] of [
+    ["another stage of this tab", (server) => server.elsewhere("awaiting_decision"),
+      "Сейчас дело «Студент Синтетический» — в «stage:awaiting_decision».", (tree) => {
+        assert.equal(stageCount(tree, "awaiting_decision"), 1);
+        assert.deepEqual(cardIds(tree), [CASE_ID]);
+        assert.equal(pickerStage(tree), "awaiting_decision", "the phone picker shows the stage the server named");
+        assert.deepEqual(alertLinks(tree), []);
+      }],
+    ["removed from the board", (server) => server.elsewhere("ready_to_submit", true),
+      "Сейчас дело «Студент Синтетический» убрано из воронки.", (tree) => {
+        assert.deepEqual(cardIds(tree), [], "a hidden case leaves the board");
+        assert.deepEqual(alertLinks(tree), []);
+      }],
+    ["the other tab", (server) => server.elsewhere("visa"),
+      "Сейчас дело «Студент Синтетический» — в «stage:visa».", (tree) => {
+        assert.deepEqual(cardIds(tree), [], "the case is on the other tab now, not on this one");
+        assert.deepEqual(alertLinks(tree), ["Открыть в «tab:visa»"], "the link to where the case is now sits in the same line");
+        assert.equal(allNodes(tree, (node) => node.type === "a" && textOf(node) === "Открыть в «tab:visa»").length, 1,
+          "no second notice with the same link");
+      }],
+  ]) {
+    const server = fakeServer();
+    const render = boardHarness(server.action);
+    let tree = render(boardProps);
+    press(tree, "stage:ready_to_submit");
+    await flush();
+    tree = render(boardProps);
+    move(server);
+    press(tree, "Отменить");
+    assert.equal(server.calls[1].expectedVersion, 8, label);
+    await flush();
+    tree = render(boardProps);
+    // Одна строка на событие: отказ и где дело сейчас; второй строки нет.
+    assert.equal(alertWords(tree), `${refused} ${where}`, label);
+    assert.equal(statusText(tree), "", `${label}: no second notice, no success claimed`);
+    assert.equal(buttonsNamed(tree, "Отменить").length, 0, label);
+    expect(tree);
+  }
+});
+
+test("an undo without an answer is not reported as done: the card stays where the confirmed move left it", async () => {
+  let call = 0;
+  const render = boardHarness(async (input) => {
+    call += 1;
+    if (call > 1) throw new Error("network");
+    return { status: "saved", requestId: input.requestId, studentCaseId: input.studentCaseId, pipelineStage: input.stage, pipelineHidden: false, pipelineVersion: 3 };
+  });
+  let tree = render(boardProps);
+  press(tree, "stage:ready_to_submit");
+  await flush();
+  tree = render(boardProps);
+  press(tree, "Отменить");
+  await flush();
+  tree = render(boardProps);
+  assert.equal(alertText(tree), "Ответ сервера не получен. Перемещение не подтверждено — обновите страницу.");
+  assert.equal(stageCount(tree, "ready_to_submit"), 1);
+});
+
+test("a receipt without a version (the v1 command replayed) offers no «Отменить»", async () => {
+  const render = boardHarness(async (input) => ({ status: "saved", requestId: input.requestId, studentCaseId: input.studentCaseId,
+    pipelineStage: input.stage, pipelineHidden: false, pipelineVersion: null }));
+  let tree = render(boardProps);
+  press(tree, "stage:ready_to_submit");
+  await flush();
+  tree = render(boardProps);
+  assert.equal(buttonsNamed(tree, "Отменить").length, 0);
+});
+
+test("the new look shows «Дело «…» перемещено в «…» · Отменить» as the top-layer UndoToast, the words for the reader stay in the board", async () => {
+  const server = fakeServer();
+  const render = boardHarness(server.action);
+  const props = { ...boardProps, look: "next" };
+  let tree = render(props);
+  assert.equal(toastNode(tree).props.popover, "manual", "the undo row lives in the top layer");
+  assert.equal(allNodes(toastNode(tree), (node) => node.type === "li").length, 0, "empty until a move is confirmed");
+  press(tree, "stage:ready_to_submit");
+  await flush();
+  tree = render(props);
+  const toast = toastNode(tree);
+  const [row] = allNodes(toast, (node) => node.type === "li");
+  // Строка называет дело, как «Задачи» — свою задачу.
+  assert.equal(textOf(row), "Дело «Студент Синтетический» перемещено в «stage:ready_to_submit».Отменить");
+  assert.equal(buttonsNamed(tree, "Отменить").length, 1, "one «Отменить»: in the toast, not in the board line");
+  const [status] = allNodes(tree, (node) => node.props?.role === "status" && textOf(node) !== "");
+  assert.equal(status.props.className, "sr-only", "announced politely, not shown twice");
+  assert.equal(textOf(status), "Дело «Студент Синтетический» перемещено в «stage:ready_to_submit».");
+  press(toast, "Отменить");
+  assert.equal(server.calls[1].expectedVersion, 8);
+  tree = render(props);
+  assert.equal(stageCount(tree, "ready_to_submit"), 1, "the card waits for the server in the new look too");
+  assert.equal(buttonsNamed(toastNode(tree), "Отменить")[0].props.disabled, true);
+  await flush();
+  tree = render(props);
+  assert.equal(allNodes(toastNode(tree), (node) => node.type === "li").length, 0);
+  assert.equal(stageCount(tree, "documents"), 1);
+  // Итог отмены виден в обоих обликах, а не только читалке.
+  assert.deepEqual(shownStatus(tree), ["Перемещение отменено: дело «Студент Синтетический» снова в «stage:documents»."]);
+});
+
+test("«Вернуть в воронку» carries the removal receipt's version; a later move by someone else refuses it", async () => {
+  const server = fakeServer();
+  const render = boardHarness(server.action);
+  let tree = render(boardProps);
+  press(tree, "Убрать из воронки");
+  tree = render(boardProps);
+  press(tree, "Убрать");
+  await flush();
+  tree = render(boardProps);
+  server.elsewhere("shortlist");
+  press(tree, "Вернуть в воронку");
+  assert.deepEqual(server.calls[1], { studentCaseId: CASE_ID, requestId: server.calls[1].requestId, stage: "documents", expectedVersion: 8 });
+  await flush();
+  tree = render(boardProps);
+  assert.equal(alertWords(tree), "Дело уже переместили — отмена не выполнена. Сейчас дело «Студент Синтетический» — в «stage:shortlist».");
+  assert.equal(pickerStage(tree), "shortlist");
+  assert.equal(buttonsNamed(tree, "Вернуть в воронку").length, 0);
+  assert.deepEqual(cardIds(tree), [CASE_ID], "back on the board where the server says");
+  assert.equal(stageCount(tree, "shortlist"), 1);
+});
+
+test("the undo rules: the card goes where the server says, else where the confirmed move left it", () => {
+  const require = createRequire(import.meta.url);
+  void require;
+  const code = ts.transpileModule(source("src/components/v3/board/board-undo.ts"), { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const mod = { exports: {} };
+  new Function("module", "exports", code)(mod, mod.exports);
+  const { BOARD_UNDO_MS, boardUndoOffer, placeAfterRefusedUndo } = mod.exports;
+  assert.equal(BOARD_UNDO_MS, 6000, "about 6 seconds, as «Задачи»");
+  const offer = boardUndoOffer({ key: "k", row: boardRow, toStage: "visa", version: 4, focus: true }, 1_000);
+  assert.deepEqual({ pending: offer.pending, completedAt: offer.completedAt, expiresAt: offer.expiresAt }, { pending: false, completedAt: 1_000, expiresAt: 7_000 });
+  const other = { ...boardRow, studentCaseId: "00000000-0000-4000-8000-000000000002", pipelineStage: "new" };
+  const moved = [{ ...boardRow, pipelineStage: "documents" }, other];
+  assert.deepEqual(placeAfterRefusedUndo(moved, offer, { stage: "arrived", hidden: false }).map((row) => row.pipelineStage), ["arrived", "new"]);
+  assert.deepEqual(placeAfterRefusedUndo(moved, offer, { stage: "arrived", hidden: true }), [other]);
+  assert.deepEqual(placeAfterRefusedUndo(moved, offer, null).map((row) => row.pipelineStage), ["visa", "new"]);
+  assert.deepEqual(placeAfterRefusedUndo([other], offer, { stage: "visa", hidden: false }).map((row) => row.studentCaseId), [other.studentCaseId, CASE_ID]);
+});
+
+test("the conflict refusal decodes the current position; the pre-check refuses a bad version locally", async () => {
+  const pipelineModule = await import("../src/lib/platform-admissions-pipeline.ts");
+  const moved = pipelineModule.moveCasePipelineErrorFromRpc({ code: "PT409", message: "case_pipeline_moved",
+    details: JSON.stringify({ pipeline_stage: "visa", pipeline_hidden: false, pipeline_version: 6 }) });
+  assert.equal(moved.status, "moved");
+  assert.deepEqual({ ...moved.current }, { pipelineStage: "visa", pipelineHidden: false, pipelineVersion: 6 });
+  for (const details of [null, "not json", JSON.stringify({ pipeline_stage: "bogus", pipeline_hidden: false, pipeline_version: 6 }),
+    JSON.stringify({ pipeline_stage: "visa", pipeline_hidden: false, pipeline_version: 0 })]) {
+    const error = pipelineModule.moveCasePipelineErrorFromRpc({ code: "PT409", message: "case_pipeline_moved", details });
+    assert.equal(error.status, "moved");
+    assert.equal(error.current, null, `undecodable detail: ${details}`);
+  }
+  assert.equal(pipelineModule.moveCasePipelineErrorFromRpc({ code: "PT409", message: "other" }).status, "unavailable");
+  assert.equal(pipelineModule.moveCasePipelineErrorFromRpc({ code: "42501", message: "case_pipeline_forbidden" }).status, "forbidden");
+  const actor = { organizationId: "25100000-0000-4000-8000-000000000001", systemRole: "staff", permissionKeys: ["case.read.full", "case.update.append"] };
+  for (const expectedVersion of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    await assert.rejects(pipelineModule.moveCasePipeline(actor, { studentCaseId: CASE_ID, requestId: "25100000-0000-4000-8000-000000003001",
+      stage: "documents", expectedVersion }), (error) => error.status === "unavailable", String(expectedVersion));
+  }
+});
+
+test("the board writes only through v2 (251); the action checks the version and revalidates a stale board", () => {
+  assert.match(serverModule, /\.rpc\("move_case_pipeline_v2", \{[\s\S]*p_expected_version: expectedVersion,/u);
+  assert.doesNotMatch(serverModule, /move_case_pipeline_v1"/u);
+  assert.match(actions, /Number\.isSafeInteger\(input\.expectedVersion\) \|\| input\.expectedVersion < 1/u);
+  assert.match(actions, /if \(error\.status === "moved"\) \{\s*\/\/[^\n]*\n\s*revalidatePath\("\/v3\/admissions-pipeline"\);/u);
+  assert.match(board, /moveCasePipelineAction\(\{ studentCaseId, requestId, stage: fromStage, expectedVersion: offer\.version \}\)/u);
+  assert.match(board, /\{next \? <UndoToast items=\{toasts\} onHold=\{hold\} \/> : null\}/u);
+  assert.match(board, /expiresAt: resumedUndoDeadline\(current, since, now\)/u, "the deadline stands still while held (WCAG 2.2.1)");
+  assert.match(board, /if \(!undo \|\| undo\.pending \|\| held\) return;/u);
+  assert.match(board, /focus: via === "menu"/u, "a menu move puts focus on «Отменить», a drag does not");
+});
+
+test("after an undo answer focus goes to the card, else the inline link, else the line — never a browser ring", () => {
+  // Порядок целей: карточка там, где её назвал сервер → «Открыть в «…»» в строке
+  // отказа → сама строка отказа → строка уведомлений, только если в ней есть слова.
+  const effect = board.slice(board.indexOf("if (!refocus) return;"), board.indexOf("}, [refocus]);"));
+  const order = ["[data-student-case-id=", 'errorRef.current?.querySelector<HTMLElement>("a")', "errorRef.current,", "noticeRef.current?.textContent ? noticeRef.current : null"]
+    .map((needle) => effect.indexOf(needle));
+  assert.ok(order.every((index, position) => index > 0 && (position === 0 || index > order[position - 1])), `refocus order: ${order}`);
+  assert.equal((board.match(/setRefocus\(\{ studentCaseId \}\)/gu) ?? []).length, 3, "undo success, undo refusal and «Вернуть в воронку» refusal");
+  assert.doesNotMatch(board, /setRefocus\(\{ studentCaseId: null \}\)/u);
+  // Цели с tabIndex=-1: рамка строки отказа без кольца браузера; строка
+  // уведомлений — кольцо токенов доски.
+  assert.match(board, /role="alert"\s+className="[^"]*\boutline-none\b[^"]*"/u);
+  assert.match(board, /"outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:shadow-\[0_0_0_3px_var\(--focus-halo\)\]"/u);
+  // Телефон: выбор этапа следует за карточкой после ответа.
+  assert.match(board, /if \(admissionsPipelineTabOf\(stage\) === tab\) setNarrowStage\(stage\);/u);
+});
+
+test("migration 251 is forward-only and additive: a version column with its trigger and v2 beside the untouched v1", () => {
+  assert.match(undoMigration, /^BEGIN;$/mu);
+  assert.match(undoMigration, /^COMMIT;\s*$/mu);
+  // Outside the function bodies: no data change — the column default is the backfill.
+  const statements = undoMigration.replace(/\$([a-z0-9_]*)\$[\s\S]*?\$\1\$/gu, "");
+  assert.doesNotMatch(statements, /\bDROP\s+(?:FUNCTION|TABLE|TRIGGER|POLICY|COLUMN)\b|\bTRUNCATE\b|^\s*UPDATE\b|^\s*DELETE\b|^\s*INSERT\b/imu,
+    "no data change: the column default is the backfill");
+  assert.match(statements, /ALTER TABLE platform\.student_cases\s+ADD COLUMN pipeline_version/u);
+  assert.doesNotMatch(undoMigration, /CREATE OR REPLACE FUNCTION platform\.move_case_pipeline_v1/u, "v1 keeps working for the running release");
+  assert.match(undoMigration, /ADD COLUMN pipeline_version BIGINT NOT NULL DEFAULT 1\s+CONSTRAINT student_cases_pipeline_version_check CHECK \(pipeline_version >= 1\);/u);
+  assert.match(undoMigration, /CREATE TRIGGER student_cases_pipeline_version\s+BEFORE UPDATE ON platform\.student_cases\s+FOR EACH ROW\s+WHEN \(/u);
+  assert.match(undoMigration, /NEW\.pipeline_version := OLD\.pipeline_version \+ 1;/u);
+  assert.match(undoMigration, /NEW\.pipeline_version := OLD\.pipeline_version;/u);
+  assert.match(undoMigration, /a251_pipeline_move_source_drift/u, "fails closed if v1's body drifted");
+  const fn = undoMigration.slice(undoMigration.indexOf("CREATE FUNCTION platform.move_case_pipeline_v2("),
+    undoMigration.indexOf("REVOKE ALL ON FUNCTION platform.move_case_pipeline_v2"));
+  assert.match(fn, /p_expected_version BIGINT DEFAULT NULL\s*\) RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS \$\$/u);
+  // The gate and the lock are v1's after 244, byte for byte.
+  for (const line of [
+    "AND platform_private.staff_has_permission(a.organization_id, a.membership_id, 'case.update.append');",
+    "PERFORM pg_advisory_xact_lock(hashtextextended('case-pipeline:' || p_organization_id::TEXT || ':' || p_student_case_id::TEXT, 0));",
+    "'actor', actor.membership_id, 'case', p_student_case_id, 'stage', p_stage, 'remove', p_remove",
+  ]) {
+    assert.ok(fn.includes(line), line);
+    assert.ok(accessMigration.includes(line), `244: ${line}`);
+  }
+  assert.doesNotMatch(fn, /platform_role\s*(?:NOT\s+)?IN\s*\(|platform_role\s*<>|platform_role\s*=/u);
+  // Replay first, then the case check, then the version: a refused caller learns no position.
+  const replay = fn.indexOf("RETURN prior.receipt;");
+  const access = fn.indexOf("platform_private.staff_can_access(p_organization_id, actor.membership_id, 'case.update.append', 'student_case', p_student_case_id)");
+  const moved = fn.indexOf("RAISE EXCEPTION 'case_pipeline_moved' USING ERRCODE = 'PT409',");
+  assert.ok(replay > 0 && access > replay && moved > access, "replay → per-case access → version");
+  assert.match(fn, /DETAIL = jsonb_build_object\(\s*'pipeline_stage', case_row\.pipeline_stage,\s*'pipeline_hidden', case_row\.pipeline_hidden_at IS NOT NULL,\s*'pipeline_version', case_row\.pipeline_version\s*\)::TEXT;/u);
+  assert.match(fn, /'pipeline_version', case_row\.pipeline_version, 'request_id', p_request_id/u);
+  assert.match(undoMigration, /REVOKE ALL ON FUNCTION platform\.move_case_pipeline_v2\(UUID, UUID, TEXT, BOOLEAN, UUID, BIGINT\)\s*FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/u);
+  assert.match(undoMigration, /GRANT EXECUTE ON FUNCTION platform\.move_case_pipeline_v2\(UUID, UUID, TEXT, BOOLEAN, UUID, BIGINT\)\s*TO authenticated;/u);
+  assert.doesNotMatch(undoMigration, /GRANT [A-Z ,]+ TO (anon|service_role|PUBLIC)/u);
+});
+
+test("migration 251 continues the contiguous source ledger and runs its real-Postgres suite at its checkpoint", async () => {
+  const { expectedMigrationVersions } = await import("../scripts/fast-release-ledger-gate.mjs");
+  const { fileURLToPath } = await import("node:url");
+  const versions = expectedMigrationVersions(fileURLToPath(new URL("../supabase/migrations", import.meta.url)));
+  assert.ok(versions.includes("250") && versions.includes("251"));
+  assert.match(source("scripts/test-postgres-authorization.sh"),
+    /== 251_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_pipeline_move_undo\.sql/u);
+  assert.match(undoSuite, /^BEGIN;$/mu);
+  assert.match(undoSuite, /^ROLLBACK;\s*$/mu);
+  assert.match(undoSuite, /N251_PIPELINE_MOVE_UNDO_SUITE_PASS/u);
+  assert.match(undoSuite, /= ARRAY\[35, 36, 23, 12, 16\], 'role bundles have the production key counts/u);
+  assert.match(undoSuite, /"current_role" IS NULL AND current_bundle_id IS NULL/u);
+  assert.doesNotMatch(undoSuite, /@(?!example\.invalid)[a-z0-9-]+\.[a-z]/iu, "synthetic addresses only");
+  for (const claim of ["'case_pipeline_moved'", "away and back", "a direct write of the version is put back",
+    "an accepted undo replays its receipt before the version check", "a v1 move bumps the version (trigger)",
+    "'the Sales Manager cannot move (no case.update.append), even the case it sold'", "'anon cannot execute v2'"]) {
+    assert.ok(undoSuite.includes(claim), claim);
+  }
 });

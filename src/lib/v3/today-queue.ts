@@ -209,6 +209,8 @@ export type TodayQueue = Readonly<{
 }>;
 
 const TODAY_PATH = "/v3/main";
+/** «Заявки» (Э3): очередь разбора, по умолчанию «Ждут разбора». */
+const TODAY_REQUESTS_PATH = "/v3/requests";
 
 /**
  * Источники, чьи строки есть, а число — нет, даже при полном чтении. Переписки:
@@ -258,7 +260,7 @@ const SOURCE_COPY: Readonly<Record<TodaySource, SourceCopy>> = {
     partial: "Заявки без ответственного прочитаны не полностью: показана прочитанная часть, числа скрыты.",
     denied: "Заявки недоступны вашей роли.",
     preview: "При просмотре роли заявки не показываются.",
-    all: { label: "Без ответственного", href: "/v3/pipeline?assignment=unassigned" },
+    all: { label: "Все заявки", href: TODAY_REQUESTS_PATH },
   },
   chats: {
     error: "Сообщения не загрузились.",
@@ -450,11 +452,14 @@ export function todayLeadItems(leads: readonly PipelineLead[], today: string): r
 }
 
 /**
- * Заявки без ответственного — чтение доски продаж `assignment=unassigned`:
- * у RPC «Заявок» поля ответственного нет. Только рабочие этапы. Сколько
- * ждёт — только у новой заявки: дни на этапе «Новый» и есть дни с прихода.
- * У лида дальше по воронке дни этапа — не время без ответственного, поэтому
- * слова срока у него нет.
+ * Заявки без ответственного — чтение доски продаж `assignment=unassigned`.
+ * Только рабочие этапы. Сколько ждёт — только у новой заявки: дни на этапе
+ * «Новый» и есть дни с прихода. У лида дальше по воронке дни этапа — не время
+ * без ответственного, поэтому слова срока у него нет. Заявка с сайта и из
+ * WhatsApp открывает «Заявки» (Э3, 27.09): вкладку своего источника в
+ * «Ждут разбора» с панелью этого лида (`open=lead:<id>`), где его берут себе;
+ * лид не на первой странице — открыт список без панели. Лид из других
+ * источников в «Заявки» не входит и открывается, как раньше, в панели доски.
  */
 export function todayRequestItems(leads: readonly PipelineLead[]): readonly TodayItem[] {
   const items: TodayItem[] = [];
@@ -471,7 +476,9 @@ export function todayRequestItems(leads: readonly PipelineLead[]): readonly Toda
       due: null,
       since: null,
       waitingDays: lead.stageKey === "new" ? lead.stageAgeDays : null,
-      openHref: queueHref("/v3/pipeline", { lead: lead.id }),
+      openHref: lead.source === "website" || lead.source === "whatsapp"
+        ? queueHref(TODAY_REQUESTS_PATH, { source: lead.source, open: `lead:${lead.id}` })
+        : queueHref("/v3/pipeline", { lead: lead.id }),
       task: null,
     }));
   }

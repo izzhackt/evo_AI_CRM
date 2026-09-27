@@ -33,10 +33,12 @@ export function StudentApplicationAnswers({ application }: { application: Studen
  * Reused by both the Продажи «Заявки» queue and the lead-card «Доступ к
  * платформе» block, so it stays a small, self-contained form.
  */
-export function ApplicationDecision({ application, requestId, quiet = false }: {
+export function ApplicationDecision({ application, requestId, quiet = false, flat = false }: {
   application: StudentApplication; requestId: string;
   /** Lead 360 (Э4): спокойная кнопка — сплошной красный отдан главному действию страницы. */
   quiet?: boolean;
+  /** Правая панель «Заявок» (Э3): часть панели на волосяной линии, а не карточка в карточке. */
+  flat?: boolean;
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState<StudentApplicationActionState, FormData>(decideStudentApplicationAction, { status: "idle" });
@@ -56,7 +58,7 @@ export function ApplicationDecision({ application, requestId, quiet = false }: {
     : currentResult === "conflict" ? "Заявка уже изменилась или связана с существующим аккаунтом. Обновите данные перед решением."
     : currentResult === "unavailable" ? "Не удалось подтвердить сохранение. Повторите отправку с теми же данными."
     : "";
-  return <form action={action} className="space-y-4 rounded-[10px] border border-border bg-surface p-4" aria-label="Решение по заявке" aria-busy={pending}>
+  return <form action={action} className={flat ? "space-y-4 border-t border-border pt-4" : "space-y-4 rounded-[10px] border border-border bg-surface p-4"} aria-label="Решение по заявке" aria-busy={pending}>
     <input type="hidden" name="application_id" value={application.id} />
     <input type="hidden" name="expected_revision" value={application.revision} />
     <input type="hidden" name="request_id" value={draft.requestId} />

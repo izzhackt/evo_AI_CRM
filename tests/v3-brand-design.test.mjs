@@ -123,7 +123,8 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/MainHeader.tsx",
     "src/components/v3/profile/Profile.tsx",
     "src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx",
-    "src/app/(v3)/v3/requests/page.tsx",
+    // «Заявки» (Э3, 27.09): выбор — вкладки очереди (QueueViewTabs) и «Ждут
+    // разбора / Все» (BoardSegments), оба выше в этом списке.
     // «Студенты» (25.09.2026): срок в редакторе шага — тот же выбор, что в диалоге задачи.
     "src/components/v3/students/NextStepEditor.tsx",
   ];

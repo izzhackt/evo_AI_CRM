@@ -28,22 +28,34 @@ function useManualLeadDisclosure(): DisclosureState {
   return ctx;
 }
 
-export function ManualLeadTrigger() {
+/**
+ * `quiet` — второй вход в ту же форму (пустые «Заявки», Э3): тихая ссылка,
+ * потому что сплошной красный у страницы один — кнопка в шапке.
+ */
+export function ManualLeadTrigger({ quiet = false }: Readonly<{ quiet?: boolean }>) {
   const { open, toggle } = useManualLeadDisclosure();
   return (
-    <button type="button" className={btnCls} aria-expanded={open} aria-controls="manual-lead-panel" onClick={toggle}>
+    <button type="button" aria-expanded={open} aria-controls="manual-lead-panel" onClick={toggle}
+      className={quiet ? "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" : btnCls}>
       Добавить лида
     </button>
   );
 }
 
-export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[] }>) {
+/**
+ * `owners: null` — список ответственных не прочитан (сбой чтения): панель
+ * вместо полей говорит, что список не загрузился, а не «нет доступного
+ * ответственного» — это была бы неправда о доступе сотрудников.
+ */
+export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[] | null }>) {
   const { open } = useManualLeadDisclosure();
   const [requestId, setRequestId] = useState(props.requestId);
   if (!open) return null;
   return (
     <div id="manual-lead-panel" className="mt-5 rounded-card border border-border bg-surface p-4">
-      {props.owners.length ? <ManualLeadEditor key={requestId} {...props} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} />
+      {props.owners === null
+        ? <p role="status" className="text-sm text-fg-2">Список ответственных не загрузился, поэтому добавить лида сейчас нельзя. Обновите страницу.</p>
+        : props.owners.length ? <ManualLeadEditor key={requestId} {...props} owners={props.owners} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} />
         : <p role="status" className="text-sm text-fg-2">Нет доступного ответственного. Лида можно назначить активному администратору или сотруднику продаж. Проверьте доступ сотрудников в настройках команды и обновите страницу.</p>}
     </div>
   );

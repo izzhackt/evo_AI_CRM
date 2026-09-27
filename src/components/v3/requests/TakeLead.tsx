@@ -65,6 +65,7 @@ export function TakeLeadButton({
   requestId,
   personName,
   leadHref,
+  inPanel = false,
 }: Readonly<{
   leadId: string;
   take: RequestLeadTake;
@@ -72,6 +73,11 @@ export function TakeLeadButton({
   requestId: string;
   personName: string;
   leadHref: string;
+  /**
+   * В правой панели имя уже названо её заголовком (`aria-labelledby`), и у
+   * кнопки строки рядом то же имя: в панели доступное имя — сама надпись.
+   */
+  inPanel?: boolean;
 }>) {
   const router = useRouter();
   const announce = useContext(TakenContext)?.announce;
@@ -99,7 +105,7 @@ export function TakeLeadButton({
       <input type="hidden" name="next_action_due_date" value={take.nextActionDueDate ?? ""} />
       <input type="hidden" name="clear_next_action" value={clear ? "true" : "false"} />
       <input type="hidden" name="reason" value="" />
-      <button type="submit" disabled={pending || saved} aria-label={`${label}: ${personName}`} className={QUEUE_SECONDARY}>
+      <button type="submit" disabled={pending || saved} aria-label={inPanel ? undefined : `${label}: ${personName}`} className={QUEUE_SECONDARY}>
         {label}
       </button>
       {message ? (

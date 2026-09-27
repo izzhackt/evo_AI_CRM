@@ -42,13 +42,20 @@ export function ManualLeadTrigger({ quiet = false }: Readonly<{ quiet?: boolean 
   );
 }
 
-export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[] }>) {
+/**
+ * `owners: null` — список ответственных не прочитан (сбой чтения): панель
+ * вместо полей говорит, что список не загрузился, а не «нет доступного
+ * ответственного» — это была бы неправда о доступе сотрудников.
+ */
+export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[] | null }>) {
   const { open } = useManualLeadDisclosure();
   const [requestId, setRequestId] = useState(props.requestId);
   if (!open) return null;
   return (
     <div id="manual-lead-panel" className="mt-5 rounded-card border border-border bg-surface p-4">
-      {props.owners.length ? <ManualLeadEditor key={requestId} {...props} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} />
+      {props.owners === null
+        ? <p role="status" className="text-sm text-fg-2">Список ответственных не загрузился, поэтому добавить лида сейчас нельзя. Обновите страницу.</p>
+        : props.owners.length ? <ManualLeadEditor key={requestId} {...props} owners={props.owners} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} />
         : <p role="status" className="text-sm text-fg-2">Нет доступного ответственного. Лида можно назначить активному администратору или сотруднику продаж. Проверьте доступ сотрудников в настройках команды и обновите страницу.</p>}
     </div>
   );

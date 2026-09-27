@@ -14,6 +14,8 @@ import {
   REQUEST_SOURCE_WORDS,
   REQUEST_STATUS_LABELS,
   requestClosedKinds,
+  requestClosedLine,
+  requestEmptyWhat,
   requestLatestLine,
   requestReceived,
   requestTabs,
@@ -56,14 +58,6 @@ type ViewProps = Readonly<{
   decisionRequestId: string;
   look?: V3Look;
 }>;
-
-const EMPTY_WHAT: Readonly<Record<RequestSelection["source"], string>> = {
-  all: "Сюда приходят заявки с сайта и из WhatsApp, анкеты поступающих и запросы консультаций из кабинета студента.",
-  website: "Сюда приходят заявки с формы сайта.",
-  whatsapp: "Сюда приходят обращения из WhatsApp, когда он подключён.",
-  platform_application: "Сюда приходят анкеты поступающих с сайта.",
-  portal_consultation: "Сюда приходят запросы консультаций из кабинета студента.",
-};
 
 function leadCardHref(leadId: string, listHref: string): string {
   return `/v3/profile?id=${encodeURIComponent(leadId)}&returnTo=${encodeURIComponent(listHref)}`;
@@ -222,7 +216,7 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
           </dl>
           {row.kind === "lead" && triage.kind === "take" && row.take ? (
             <TakeLeadButton leadId={row.leadId} take={row.take} actorMembershipId={props.actorMembershipId}
-              requestId={props.takeRequestIds[row.leadId]} personName={row.personName} leadHref={leadCardHref(row.leadId, listHref)} />
+              requestId={props.takeRequestIds[row.leadId]} personName={row.personName} leadHref={leadCardHref(row.leadId, listHref)} inPanel />
           ) : null}
           {leadId ? <Link href={leadCardHref(leadId, listHref)} className={QUEUE_QUIET_LINK}>Открыть карточку лида</Link> : null}
         </header>
@@ -256,7 +250,11 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
   );
 }
 
-/** Пустая очередь: что пусто, что сюда приходит, когда пришла последняя и «Добавить лида». */
+/**
+ * Пустая очередь: что пусто, что сюда приходит (только читаемые ролью виды),
+ * когда пришла последняя и «Добавить лида». Закрытые роли виды у «Все» названы
+ * строкой над очередью, у своей вкладки — здесь.
+ */
 function RequestsEmpty({ queue, props, now }: Readonly<{
   queue: RequestsQueue; props: ViewProps; now: Date;
 }>) {
@@ -278,10 +276,11 @@ function RequestsEmpty({ queue, props, now }: Readonly<{
     );
   }
   const latest = requestLatestLine(queue.latestAt, now);
+  const what = requestEmptyWhat(queue, selection.source);
   return (
     <div role="status" className="flex flex-col items-center gap-2 border-t border-border py-12 text-center" data-testid="queue-empty">
       <p className="t-item text-fg">{selection.status === "waiting" ? "Новых заявок нет" : "Заявок нет"}</p>
-      <p className="max-w-[60ch] t-body-compact text-fg-2">{EMPTY_WHAT[selection.source]}</p>
+      {what ? <p className="max-w-[60ch] t-body-compact text-fg-2">{what}</p> : null}
       <p className="t-body-compact text-fg-2">{latest ?? "Заявок ещё не было."}</p>
       <div className="flex flex-wrap items-center justify-center gap-x-5">
         {props.canCreateLead ? <ManualLeadTrigger quiet /> : null}
@@ -318,6 +317,8 @@ export function RequestsQueueView(props: ViewProps) {
   // записи сохраняет её состояние.
   const panel = openRow ? <RequestDetail key={requestOpenKey(openRow)} row={openRow} props={props} listHref={listHref} now={now} /> : null;
   const selectedKind = selection.source === "all" ? null : requestKindOfSource(selection.source);
+  // «Все» у роли, которая читает не все виды: какие закрыты — одной тихой строкой.
+  const closedLine = queue && selection.source === "all" ? requestClosedLine(queue) : null;
 
   return (
     <TakeFeedback key={listHref}>
@@ -343,6 +344,7 @@ export function RequestsQueueView(props: ViewProps) {
               retryHref={read.status === "invalid" ? requestsHref({ ...selection, cursor: null }) : listHref} />
         ) : (
           <>
+            {closedLine ? <p className="t-body-compact text-fg-2" data-testid="requests-closed-kinds">{closedLine}</p> : null}
             <TakeStatus />
             {read.queue.rows.length === 0 ? <RequestsEmpty queue={read.queue} props={props} now={now} /> : (
               <div className="@container min-w-0">

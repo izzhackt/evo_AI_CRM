@@ -457,8 +457,9 @@ export function todayLeadItems(leads: readonly PipelineLead[], today: string): r
  * «Новый» и есть дни с прихода. У лида дальше по воронке дни этапа — не время
  * без ответственного, поэтому слова срока у него нет. Заявка с сайта и из
  * WhatsApp открывает «Заявки» (Э3, 27.09): вкладку своего источника в
- * «Ждут разбора», где её берут себе; лид из других источников в «Заявки» не
- * входит и открывается, как раньше, в панели доски.
+ * «Ждут разбора» с панелью этого лида (`open=lead:<id>`), где его берут себе;
+ * лид не на первой странице — открыт список без панели. Лид из других
+ * источников в «Заявки» не входит и открывается, как раньше, в панели доски.
  */
 export function todayRequestItems(leads: readonly PipelineLead[]): readonly TodayItem[] {
   const items: TodayItem[] = [];
@@ -476,7 +477,7 @@ export function todayRequestItems(leads: readonly PipelineLead[]): readonly Toda
       since: null,
       waitingDays: lead.stageKey === "new" ? lead.stageAgeDays : null,
       openHref: lead.source === "website" || lead.source === "whatsapp"
-        ? queueHref(TODAY_REQUESTS_PATH, { source: lead.source })
+        ? queueHref(TODAY_REQUESTS_PATH, { source: lead.source, open: `lead:${lead.id}` })
         : queueHref("/v3/pipeline", { lead: lead.id }),
       task: null,
     }));

@@ -106,11 +106,54 @@ export function requestTabs(selection: RequestSelection, queue: RequestsQueue | 
     }));
 }
 
+const KINDS: readonly RequestKind[] = ["lead", "application", "consultation"];
+function kindsOfSource(source: RequestSourceFilter): readonly RequestKind[] {
+  return source === "all" ? KINDS
+    : [source === "website" || source === "whatsapp" ? "lead" : source === "platform_application" ? "application" : "consultation"];
+}
+/** «а», «а{last}б», «а, б{last}в». */
+function listWords(words: readonly string[], last: string): string {
+  return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")}${last}${words.at(-1)}`;
+}
+
 /** Виды, закрытые роли, — строкой над очередью (не ошибка, а граница роли). */
 export function requestClosedKinds(queue: RequestsQueue, source: RequestSourceFilter): readonly string[] {
-  const kinds: readonly RequestKind[] = source === "all" ? ["lead", "application", "consultation"]
-    : [source === "website" || source === "whatsapp" ? "lead" : source === "platform_application" ? "application" : "consultation"];
-  return kinds.filter((kind) => queue.states[kind] === "forbidden").map((kind) => KIND_WORDS[kind]);
+  return kindsOfSource(source).filter((kind) => queue.states[kind] === "forbidden").map((kind) => KIND_WORDS[kind]);
+}
+
+/**
+ * Строка над «Все», когда роль читает не все виды: какие закрыты и что список
+ * и числа — без них. Иначе «Все 0» и пустая очередь выглядят как «анкет нет»,
+ * хотя роль их просто не видит (ревью PR #1084). Всё открыто — строки нет.
+ */
+export function requestClosedLine(queue: RequestsQueue): string | null {
+  const closed = requestClosedKinds(queue, "all");
+  if (!closed.length) return null;
+  const words = closed.map((word, index) => index ? word.charAt(0).toLowerCase() + word.slice(1) : word);
+  return `${listWords(words, " и ")} вашей роли недоступны: список и числа ниже — без них.`;
+}
+
+const ARRIVALS: Readonly<Record<Exclude<RequestSourceFilter, "all">, string>> = {
+  website: "заявки с формы сайта",
+  whatsapp: "обращения из WhatsApp, когда он подключён",
+  platform_application: "анкеты поступающих с сайта",
+  portal_consultation: "запросы консультаций из кабинета студента",
+};
+const KIND_ARRIVALS: Readonly<Record<RequestKind, string>> = {
+  lead: "заявки с сайта и из WhatsApp", application: "анкеты поступающих", consultation: "запросы консультаций из кабинета студента",
+};
+
+/**
+ * Пустая очередь: что сюда приходит — только из видов, которые роль читает.
+ * «Все» у Sales Manager без анкет не обещает анкет. Вид закрыт или закрыты
+ * все — null: о закрытом говорят строка над «Все» и пустота своей вкладки.
+ */
+export function requestEmptyWhat(queue: RequestsQueue, source: RequestSourceFilter): string | null {
+  const readable = kindsOfSource(source).filter((kind) => queue.states[kind] === "ready");
+  if (!readable.length) return null;
+  if (source !== "all") return `Сюда приходят ${ARRIVALS[source]}.`;
+  const words = readable.map((kind) => KIND_ARRIVALS[kind]);
+  return `Сюда приходят ${listWords(words, words.length === 2 ? ", а также " : " и ")}.`;
 }
 
 /** «Последняя пришла 24.09 в 14:02 (3 дн назад)» — только из чтения. */

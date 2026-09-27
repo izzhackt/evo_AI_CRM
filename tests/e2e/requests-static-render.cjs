@@ -30,6 +30,9 @@
  *   node tests/e2e/requests-static-render.cjs --panel-keys
  *     → stdout: JSON [{ open, key, row }] — ключ правой панели при переходах
  *       между записями (для tests/v3-requests-triage.test.mjs).
+ *   node tests/e2e/requests-static-render.cjs --manual-lead-owners
+ *     → stdout: JSON { read, failed } — что страница отдаёт форме «Добавить
+ *       лида», когда список ответственных прочитан и когда чтение упало.
  *   node tests/e2e/requests-static-render.cjs --switch [outDir] [--look=next]
  *     → смена записи в правой панели по-настоящему в Chromium: собранный
  *       esbuild RequestsQueueView, черновик решения, конфликт и ошибка
@@ -224,7 +227,7 @@ const STUBS = {
   },
   "@/lib/v3/look-preview": { readLookPreview: async () => LOOK_NEXT },
   "@/lib/v3/pipeline-source": {
-    readPipelineOwnerOptions: async () => ({ rows: [{ membershipId: ME, displayLabel: "Администратор (синтетический)" }, { membershipId: COLLEAGUE, displayLabel: "Бекболот Примеров" }], hasNext: false, nextCursor: null }),
+    readPipelineOwnerOptions: async () => current.ownersFail ? Promise.reject(new Error("synthetic owner read failure")) : ({ rows: [{ membershipId: ME, displayLabel: "Администратор (синтетический)" }, { membershipId: COLLEAGUE, displayLabel: "Бекболот Примеров" }], hasNext: false, nextCursor: null }),
   },
   "@/lib/v3/requests-queue-source": {
     RequestsQueueSourceError,
@@ -453,6 +456,25 @@ async function panelKeys() {
   process.stdout.write(JSON.stringify(out));
 }
 
+/**
+ * Список ответственных формы «Добавить лида»: прочитан — строки, чтение упало —
+ * null (форма говорит «не загрузился», а не «нет доступного ответственного»).
+ * Ревью PR #1084. Смотрит элемент `ManualLeadForm` настоящей страницы.
+ */
+async function manualLeadOwners() {
+  const { ManualLeadForm } = require(join(ROOT, "src/components/v3/ManualLeadForm.tsx"));
+  const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
+  const out = {};
+  for (const [name, ownersFail] of [["read", false], ["failed", true]]) {
+    current = { ...SCENARIOS.populated, ownersFail };
+    const content = await page({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(current.search))) });
+    const form = findElement(content, (element) => element.type === ManualLeadForm);
+    if (!form) throw new Error("the page renders no ManualLeadForm");
+    out[name] = form.props.owners;
+  }
+  process.stdout.write(JSON.stringify(out));
+}
+
 const SWITCH_ROOT_ID = "requests-client-root";
 const SWITCH_FIXTURE_ID = "requests-client-fixture";
 
@@ -654,11 +676,13 @@ if (process.argv.includes("--json")) {
   json().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--panel-keys")) {
   panelKeys().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--manual-lead-owners")) {
+  manualLeadOwners().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--switch")) {
   switchCheck().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--screenshots")) {
   screenshots().catch((error) => { console.error(error); process.exit(1); });
 } else {
-  console.error("usage: requests-static-render.cjs --json | --panel-keys | --switch [outDir] | --screenshots [outDir] [--look=next]");
+  console.error("usage: requests-static-render.cjs --json | --panel-keys | --manual-lead-owners | --switch [outDir] | --screenshots [outDir] [--look=next]");
   process.exit(2);
 }

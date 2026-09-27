@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { parseRequestSelection } from "../src/lib/requests-queue-contract.ts";
-import { requestLatestLine, requestReceived, requestTabs, requestTriage } from "../src/lib/v3/requests-view.ts";
+import { parseRequestSelection, requestsHref } from "../src/lib/requests-queue-contract.ts";
+import { requestClosedLine, requestEmptyWhat, requestLatestLine, requestReceived, requestTabs, requestTriage } from "../src/lib/v3/requests-view.ts";
 import { buildTodayQueue, todayRequestItems } from "../src/lib/v3/today-queue.ts";
 
 /**
@@ -165,6 +165,55 @@ test("one solid red: «Добавить лида» in the header; the empty queu
   assert.match(main(surfaces.get("sales-empty")), /Последняя пришла 24\.09 в 16:00 \(3 дн назад\)\./u);
 });
 
+test("a role that cannot read every kind: «Все» names the closed kinds and the empty queue promises only what it reads", () => {
+  // Ревью PR #1084: у Sales Manager анкеты закрыты (набор 250 — application_ready = FALSE
+  // у каждого Sales Manager), а пустое «Все» обещало «анкеты поступающих» и молчало,
+  // что «Анкеты» роли недоступны.
+  const salesEmpty = main(surfaces.get("sales-empty"));
+  assert.doesNotMatch(salesEmpty, /анкеты поступающих/u);
+  assert.match(salesEmpty, /Сюда приходят заявки с сайта и из WhatsApp, а также запросы консультаций из кабинета студента\./u);
+  const closedLine = /<p class="[^"]*" data-testid="requests-closed-kinds">Анкеты вашей роли недоступны: список и числа ниже — без них\.<\/p>/u;
+  assert.match(salesEmpty, closedLine);
+  // Строка стоит над очередью и остаётся, когда строки есть.
+  assert.ok(salesEmpty.indexOf('data-testid="requests-closed-kinds"') < salesEmpty.indexOf('data-testid="queue-empty"'));
+  const untakeable = main(surfaces.get("sales-untakeable"));
+  assert.match(untakeable, closedLine);
+  assert.ok(untakeable.indexOf('data-testid="requests-closed-kinds"') < untakeable.indexOf('data-testid="requests-rows"'));
+  // Всё читается — строки нет, пустое «Все» перечисляет все три вида.
+  for (const name of ["empty", "populated", "waiting", "preview", "error"]) {
+    assert.doesNotMatch(main(surfaces.get(name)), /requests-closed-kinds/u, name);
+  }
+  assert.match(main(surfaces.get("empty")),
+    /Сюда приходят заявки с сайта и из WhatsApp, анкеты поступающих и запросы консультаций из кабинета студента\./u);
+  // Чистые функции: только читаемые виды; вкладка своего вида — своя фраза; закрыто всё — ничего не обещаем.
+  const queue = (lead, application, consultation) => ({ states: { lead, application, consultation } });
+  assert.equal(requestEmptyWhat(queue("ready", "forbidden", "ready"), "all"),
+    "Сюда приходят заявки с сайта и из WhatsApp, а также запросы консультаций из кабинета студента.");
+  assert.equal(requestEmptyWhat(queue("ready", "forbidden", "forbidden"), "all"), "Сюда приходят заявки с сайта и из WhatsApp.");
+  assert.equal(requestEmptyWhat(queue("forbidden", "forbidden", "forbidden"), "all"), null);
+  assert.equal(requestEmptyWhat(queue("ready", "forbidden", "ready"), "platform_application"), null);
+  assert.equal(requestEmptyWhat(queue("ready", "ready", "ready"), "website"), "Сюда приходят заявки с формы сайта.");
+  assert.equal(requestClosedLine(queue("ready", "ready", "ready")), null);
+  assert.equal(requestClosedLine(queue("ready", "forbidden", "forbidden")),
+    "Анкеты и консультации из кабинета вашей роли недоступны: список и числа ниже — без них.");
+  // Закрытая вкладка своего вида — прежняя пустота «… вашей роли недоступны», без обещаний.
+  assert.match(read("src/components/v3/requests/RequestsQueueView.tsx"), /\{closed\[0\]\} вашей роли недоступны\./u);
+});
+
+test("the manual-lead form tells an owner-read failure apart from «no available owner»", () => {
+  // Ревью PR #1084: сбой чтения ответственных превращался в пустой список, и форма
+  // говорила «Нет доступного ответственного… Проверьте доступ сотрудников».
+  const owners = JSON.parse(execFileSync(
+    process.execPath,
+    [fileURLToPath(new URL("./e2e/requests-static-render.cjs", import.meta.url)), "--manual-lead-owners"],
+    { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+  ));
+  assert.equal(owners.read.length, 2);
+  assert.equal(owners.failed, null, "a failed read reaches the form as null, not as an empty list");
+  assert.match(read("src/components/v3/ManualLeadForm.tsx"),
+    /props\.owners === null\s*\? <p role="status"[^>]*>Список ответственных не загрузился, поэтому добавить лида сейчас нельзя\. Обновите страницу\.<\/p>\s*: props\.owners\.length \? <ManualLeadEditor/u);
+});
+
 test("the right panel holds the full questionnaire and the existing decision, quiet and flat", () => {
   const html = main(surfaces.get("drawer"));
   const panel = html.slice(html.indexOf('data-testid="queue-detail-panel"'));
@@ -180,6 +229,10 @@ test("the right panel holds the full questionnaire and the existing decision, qu
   assert.match(leadPanel, /Телефон<\/dt><dd[^>]*>\+996 555 000 101<\/dd><dt[^>]*>Почта<\/dt><dd[^>]*>elmira\.forma@example\.invalid/u);
   assert.match(leadPanel, /Взять себе/u);
   assert.match(leadPanel, /Открыть карточку лида/u);
+  // Имя у кнопки только в строке: в панели его называет заголовок диалога.
+  assert.equal(count(lead, /aria-label="Взять себе: Эльмира Формова"/gu), 1);
+  assert.doesNotMatch(leadPanel, /aria-label="Взять себе/u);
+  assert.match(lead, /<dialog[^>]*aria-labelledby="request-lead-dddddddd-3333-4333-8333-000000000001"[^>]*data-testid="queue-detail-panel"/u);
 });
 
 test("switching records gives the panel a new instance: no draft, conflict or take error carries to another record", () => {
@@ -209,7 +262,7 @@ test("switching records gives the panel a new instance: no draft, conflict or ta
   // Доступное имя «Взять себе» начинается с видимой надписи и в «Берём…», и во «Взято».
   const take = read("src/components/v3/requests/TakeLead.tsx");
   assert.match(take, /const label = pending \? "Берём…" : saved \? "Взято" : "Взять себе";/u);
-  assert.match(take, /aria-label=\{`\$\{label\}: \$\{personName\}`\}[^>]*>\s*\{label\}\s*<\/button>/u);
+  assert.match(take, /aria-label=\{inPanel \? undefined : `\$\{label\}: \$\{personName\}`\}[^>]*>\s*\{label\}\s*<\/button>/u);
 });
 
 test("«Сегодня»: website and WhatsApp requests open «Заявки», other unowned leads keep the board panel", () => {
@@ -221,8 +274,10 @@ test("«Сегодня»: website and WhatsApp requests open «Заявки», o
   });
   const items = todayRequestItems([lead(1, "website"), lead(2, "whatsapp"), lead(3, "phone_call")]);
   assert.deepEqual(items.map((item) => item.openHref), [
-    "/v3/requests?source=website", "/v3/requests?source=whatsapp", `/v3/pipeline?lead=${lead(3).id}`,
+    `/v3/requests?source=website&open=lead%3A${lead(1).id}`, `/v3/requests?source=whatsapp&open=lead%3A${lead(2).id}`, `/v3/pipeline?lead=${lead(3).id}`,
   ]);
+  // Тот же адрес, что у «Открыть» строки «Заявок»: панель этого лида.
+  assert.equal(items[0].openHref, requestsHref(parseRequestSelection({ source: "website" }), `lead:${lead(1).id}`));
   const queue = buildTodayQueue([{ source: "requests", state: "partial", items }], NOW);
   assert.deepEqual(queue.notices.find((notice) => notice.source === "requests").link, { label: "Все заявки", href: "/v3/requests" });
 });

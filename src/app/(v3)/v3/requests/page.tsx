@@ -44,6 +44,7 @@ export default async function RequestsPage({ searchParams }: {
       (queue): RequestsQueueRead => ({ status: "ready", queue }),
       (error): RequestsQueueRead => ({ status: error instanceof RequestsQueueSourceError ? error.code : "unavailable" }),
     ),
+    // Сбой чтения ответственных — null: форма скажет, что список не загрузился.
     canCreateLead ? readPipelineOwnerOptions(actor).catch(() => null) : null,
   ]);
   const takeRequestIds = read.status === "ready"
@@ -54,7 +55,7 @@ export default async function RequestsPage({ searchParams }: {
     <ManualLeadDisclosure>
       <PartShell title="Заявки" dense testId="v3-requests" action={canCreateLead ? <ManualLeadTrigger /> : undefined}>
         {canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
-          owners={(owners?.rows ?? []).map((owner) => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : null}
+          owners={owners ? owners.rows.map((owner) => ({ id: owner.membershipId, displayName: owner.displayLabel })) : null} /> : null}
         <RequestsQueueView
           selection={selection}
           read={read}

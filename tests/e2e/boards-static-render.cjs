@@ -51,7 +51,15 @@
  *       действие ведёт версию положения, как `move_case_pipeline_v2`
  *       (tests/e2e/boards-fixtures.cjs).
  *
- *   --look=next (с --json, --screenshots, --hydrate, --hydrate-close или --hydrate-undo) —
+ *   node tests/e2e/boards-static-render.cjs --f1 [outDir] [--look=next]
+ *     → Э7 «Одна боковая панель везде»: гидратированная «Воронка продаж» с
+ *       панелью лида, открытой по адресу (`?lead=`), на 1440×900, 1280×800,
+ *       1264×800 (колонки в ряд, панель — лист), 1024×768 (лист справа) и 390×844 — снимки `f1-pipeline[-next]-<ширина>.png` и замеры
+ *       `tests/e2e/side-panel-probe.cjs`: ширина — токен общей панели,
+ *       рядом с доской от 1280 px, лист ниже; путь Esc → карточка → открыть
+ *       карточкой → «Закрыть» → карточка. Нарушение — исключение.
+ *
+ *   --look=next (с --json, --screenshots, --hydrate, --hydrate-close, --hydrate-undo или --f1) —
  *       новый облик (Э1.1–Э1.3,
  *       предпросмотр Admin): `data-look="next"` на оболочке, страницы читают
  *       облик заглушкой `readLookPreview` — точка фазы у колонок, инициалы,
@@ -71,7 +79,7 @@ const ts = require("typescript");
 const ROOT = resolve(__dirname, "../..");
 const FIXTURES = join(__dirname, "boards-fixtures.cjs");
 const LOGO = join(ROOT, "public/brand/evo-logo.png");
-const HYDRATE = ["--hydrate", "--hydrate-close", "--hydrate-undo"].some((flag) => process.argv.includes(flag));
+const HYDRATE = ["--hydrate", "--hydrate-close", "--hydrate-undo", "--f1"].some((flag) => process.argv.includes(flag));
 const LOOK_NEXT = process.argv.includes("--look=next");
 
 // --- require-hook: .ts/.tsx компилируются TypeScript'ом в CJS ---------------
@@ -232,10 +240,12 @@ async function main() {
     await hydrateClose();
   } else if (process.argv.includes("--hydrate-undo")) {
     await hydrateUndo();
+  } else if (process.argv.includes("--f1")) {
+    await f1();
   } else if (HYDRATE) {
     await hydrate();
   } else {
-    console.error("usage: boards-static-render.cjs --json | --screenshots [outDir] | --hydrate [outDir]");
+    console.error("usage: boards-static-render.cjs --json | --screenshots [outDir] | --hydrate [outDir] | --f1 [outDir]");
     process.exit(2);
   }
 }
@@ -930,6 +940,70 @@ async function hydrate() {
  * `close-lead-*.png`; измерения — JSON-строки в stdout. Серверное действие
  * подменено фикстурой (tests/e2e/boards-fixtures.cjs).
  */
+/**
+ * Э7 «Одна боковая панель везде»: панель лида — общая `SidePanel`. Открыта по
+ * адресу (переход из «Сегодня», обновление): фокус на заголовке, рядом с
+ * доской от 1280 px шириной токена, ниже — модальный лист; Esc и «Закрыть»
+ * возвращают фокус на карточку; Esc в окне «Закрыть лид» поверх панели
+ * закрывает только окно. Замеры и путь — `side-panel-probe.cjs`.
+ */
+async function f1() {
+  const probe = require("./side-panel-probe.cjs");
+  const outDir = outDirArg("--f1");
+  setSaveSucceeds(true);
+  const [css, bundle] = await Promise.all([compileCss("/__fonts"), bundleHydration()]);
+  const { server, origin } = await startServer(css, bundle);
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const look = LOOK_NEXT ? "-next" : "";
+  const lead = leadId(5);
+  const failures = [];
+  // Доска: ещё 1264 px — колонки уже стоят в ряд (контейнер от 72rem), а панель
+  // до 1280 px окна — лист поверх них, доска не сворачивается.
+  const widths = [...probe.F1_WIDTHS.slice(0, 2), ["1264", { viewport: { width: 1264, height: 800 }, deviceScaleFactor: 1 }], ...probe.F1_WIDTHS.slice(2)];
+  try {
+    for (const [width, context] of widths) {
+      const browserContext = await browser.newContext(context);
+      const page = await browserContext.newPage();
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+      await page.goto(`${origin}/v3/pipeline?lead=${lead}`, { waitUntil: "load" });
+      await page.waitForSelector("html[data-hydrated=true]", { timeout: 15_000 });
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: join(outDir, `f1-pipeline${look}-${width}.png`) });
+      const card = `a[data-lead-link="${lead}"]`;
+      const result = await probe.journey(page, {
+        selected: `[data-testid="v3-pipeline-card"][aria-current="true"]`,
+        returnSelector: card,
+        reopen: () => page.locator(card).filter({ visible: true }).first().click(),
+        look: LOOK_NEXT ? "next" : "current",
+        scrolledPath: join(outDir, `f1-pipeline${look}-${width}-scrolled.png`),
+        // «⋯» → «Закрыть лид…»: Esc в окне закрывает только окно, `?lead=` и введённое остаются.
+        overlay: {
+          dialog: '[data-testid="v3-close-lead-dialog"]',
+          open: async () => {
+            await page.locator(probe.PANEL).getByRole("button", { name: "Ещё действия" }).click();
+            await page.waitForSelector('[data-testid="v3-lead-actions-menu"]:popover-open');
+            await page.getByRole("button", { name: "Закрыть лид…" }).click();
+          },
+        },
+      });
+      if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
+      const recoverable = await page.evaluate(() => window.__harness.recoverable);
+      if (recoverable.length) result.failures.push(`hydration: ${recoverable.join(" | ")}`);
+      probe.report({ screen: "pipeline", look: look || "-current", width, ...result });
+      failures.push(...result.failures.map((failure) => `pipeline${look} ${width}: ${failure}`));
+      await browserContext.close();
+    }
+  } finally {
+    await browser.close();
+    server.close();
+  }
+  if (failures.length) throw new Error(`side panel (pipeline): ${failures.length} failed:\n${failures.join("\n")}`);
+}
+
 async function hydrateClose() {
   const outDir = outDirArg("--hydrate-close");
   setSaveSucceeds(true);

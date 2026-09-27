@@ -11,7 +11,7 @@
  *
  * Рендерит НАСТОЯЩЕЕ дерево компонентов (TasksWorkspace с примитивами очереди,
  * TaskQueueList/TaskQueueRow, TaskQuickAdd с диалогом создания, TaskDetailPanel
- * на QueueDetailPanel; для снимков — ещё AppShell и PartShell; для календаря —
+ * на общей SidePanel; для снимков — ещё AppShell и PartShell; для календаря —
  * Calendar) с СИНТЕТИЧЕСКИМИ данными: задачи, имена и даты выдуманы для
  * проверки вёрстки и не являются записями EVO. Очередь собирает тот же
  * `buildTaskQueue`, что и страница. Живой Supabase, права и данные этот рендер
@@ -39,6 +39,14 @@
  *       Снимки `*-undo-keys-*` проверяют клавиши очереди при открытой строке
  *       «Отменить»: j/k от завершённой строки, «/», «?» и Esc панели работают,
  *       а строка остаётся открытой; иначе скрипт падает.
+ *   node tests/e2e/tasks-static-render.cjs --f1 [outDir] [--look=next]
+ *     → Э7 «Одна боковая панель везде»: «Задачи» с открытой панелью задачи
+ *       (`?task=`) на 1440×900, 1280×800, 1024×768 (лист справа) и 390×844 — снимки
+ *       `f1-tasks[-next]-<ширина>.png` и замеры `tests/e2e/side-panel-probe.cjs`
+ *       (ширина и место панели, режим, фокус). Адрес здесь — состояние
+ *       стенда: `router.push` открывает и закрывает панель, как сервер, и путь
+ *       Esc → строка → открыть → «Закрыть» → строка идёт по-настоящему в
+ *       React. Нарушение — исключение.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -683,14 +691,111 @@ async function screenshots() {
   }
 }
 
+// --- F1 (Э7): одна боковая панель — путь по гидратированным «Задачам» ---------
+// Тот же TasksWorkspace и TaskDetailPanel; адрес — состояние стенда: push
+// открывает панель той же задачи (`?task=`) и закрывает её, как сервер.
+const F1_ENTRY = `
+import { createElement, useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
+import { TasksWorkspace } from "../../src/components/v3/tasks/TasksWorkspace";
+import { TaskDetailPanel } from "../../src/components/v3/tasks/TaskDetailPanel";
+
+const fixture = JSON.parse(document.getElementById("${FIXTURE_ID}").textContent);
+const listeners = new Set();
+const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, replace() {}, prefetch() {},
+  push(href) { (globalThis.__staticPushes ||= []).push(String(href)); for (const listener of listeners) listener(String(href)); } };
+const task = fixture.panel.data.task.id;
+function Host() {
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    const listener = (href) => setOpen(new URL(href, "https://crm.invalid").searchParams.get("task") === task);
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+  }, []);
+  const panel = open ? createElement(TaskDetailPanel, { key: task, ...fixture.panel }) : null;
+  return createElement(TasksWorkspace, { ...fixture.props, selectedKey: open ? fixture.props.selectedKey : null, panel });
+}
+createRoot(document.getElementById("${CLIENT_ROOT_ID}")).render(
+  createElement(AppRouterContext.Provider, { value: router },
+    createElement(PathnameContext.Provider, { value: "/v3/tasks" },
+      createElement(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) }, createElement(Host)))),
+);
+requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.clientRendered = "1"; }));
+`;
+
+async function f1() {
+  const probe = require("./side-panel-probe.cjs");
+  const outIndex = process.argv.indexOf("--f1") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const look = LOOK_NEXT ? "-next" : "";
+  const bundleName = `f1-tasks${look}-client.js`;
+  await require("esbuild").build({
+    stdin: { contents: F1_ENTRY, resolveDir: __dirname, sourcefile: "tasks-f1-entry.js", loader: "js" },
+    bundle: true, outfile: join(outDir, bundleName), format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
+    tsconfig: join(ROOT, "tsconfig.json"), define: { "process.env.NODE_ENV": '"production"' },
+    banner: { js: "var process = globalThis.process || { env: {} };" }, plugins: [probe.linkShim(ROOT), browserStubs], logLevel: "error",
+  });
+  const scenario = "team-panel";
+  const key = SCENARIOS[scenario].props.selectedKey;
+  const htmlPath = join(outDir, `f1-tasks${look}.html`);
+  const html = renderTasksPage(scenario);
+  const css = await compileCss();
+  writeFileSync(htmlPath, [
+    "<!DOCTYPE html>",
+    '<html lang="ru" data-theme="light" class="h-full antialiased">',
+    `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Задачи — одна боковая панель (синтетические данные)</title><style>${css}</style></head>`,
+    `<body class="min-h-full">${html}<script type="application/json" id="${FIXTURE_ID}">${clientFixture(scenario)}</script><script src="${bundleName}"></script></body></html>`,
+  ].join(""));
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const failures = [];
+  try {
+    for (const [width, context] of probe.F1_WIDTHS) {
+      const browserContext = await browser.newContext(context);
+      const page = await browserContext.newPage();
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+      await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForSelector("html[data-client-rendered]", { state: "attached", timeout: 10_000 });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: join(outDir, `f1-tasks${look}-${width}.png`) });
+      const open = `[data-queue-row="${key}"] [data-queue-open]`;
+      const result = await probe.journey(page, {
+        selected: '[data-queue-row]:has([data-queue-open][aria-current="true"])',
+        returnSelector: open,
+        reopen: () => page.click(open),
+        look: LOOK_NEXT ? "next" : "current",
+        scrolledPath: join(outDir, `f1-tasks${look}-${width}-scrolled.png`),
+      });
+      if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
+      probe.report({ screen: "tasks", look: look || "-current", width, ...result });
+      failures.push(...result.failures.map((failure) => `tasks${look} ${width}: ${failure}`));
+      await browserContext.close();
+    }
+  } finally {
+    await browser.close();
+  }
+  if (failures.length) throw new Error(`side panel (tasks): ${failures.length} failed:\n${failures.join("\n")}`);
+}
+
 if (process.argv.includes("--json")) {
   process.stdout.write(JSON.stringify(Object.keys(SCENARIOS).map((name) => ({ name, html: renderWorkspace(name) }))));
+} else if (process.argv.includes("--f1")) {
+  f1().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 } else if (process.argv.includes("--screenshots")) {
   screenshots().catch((error) => {
     console.error(error);
     process.exit(1);
   });
 } else {
-  console.error("usage: tasks-static-render.cjs --json | --screenshots [outDir] [--look=next]");
+  console.error("usage: tasks-static-render.cjs --json | --screenshots [outDir] | --f1 [outDir] [--look=next]");
   process.exit(2);
 }

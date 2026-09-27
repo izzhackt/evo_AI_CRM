@@ -415,7 +415,11 @@ function stubSalesRegister() {
   });
   // Формы и просмотр записи в виде списка не рисуются; их серверные действия рендеру не нужны.
   stubModule("src/components/v3/SalesRegisterForms.tsx", { SalesRegisterForm: () => null, SalesTargetForm: () => null });
-  stubModule("src/components/v3/SalesRecordPreview.tsx", { SalesRecordPreview: () => null });
+  stubModule("src/components/v3/SalesRecordPreview.tsx", {
+    SalesRecordPreview: () => null,
+    // Шапка боковой панели записи (Э7): запись здесь не открывается, но отчёт импортирует функцию.
+    salesRecordPanelHeader: () => ({ title: "Запись продажи", context: null, open: null }),
+  });
 }
 
 async function buildReport(report) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import { nextQueueIndex, popoverBlocksQueueKeys, rowNeedsReveal } from "./queue-navigation";
 import { QUEUE_HELP_ID } from "./QueueKeyboardHelp";
@@ -74,25 +74,16 @@ export function revealQueueRow(key: string): boolean {
  * (обычная ссылка строки), Shift+Enter — вторая ссылка строки
  * (`data-queue-full`), «x» — отметить строку для массовых действий (Э7),
  * «?» — подсказка с клавишами; Esc закрывает панель
- * (`QueueDetailPanel`). Пока пользователь печатает, открыто всплывающее окно
+ * (`SidePanel`). Пока пользователь печатает, открыто всплывающее окно
  * (кроме строки «Отменить» — `openPopover`) или модальный диалог, клавиши не
  * перехватываются. Открытая запись видна в
- * списке (`revealQueueRow`) — и при переходе по ссылке, и после обновления;
- * после закрытия панели фокус возвращается на строку, которая была открыта.
+ * списке (`revealQueueRow`) — и при переходе по ссылке, и после обновления.
+ * Фокус после закрытия панели возвращает сама панель (`SidePanel`,
+ * `queueRowReturn`) — на строку, которая была открыта.
  */
 export function useQueueKeyboard({ openKey }: Readonly<{ openKey: string | null }>) {
-  const previousOpenKey = useRef(openKey);
-
   useEffect(() => {
-    const previous = previousOpenKey.current;
-    previousOpenKey.current = openKey;
-    if (openKey !== null) {
-      revealQueueRow(openKey);
-      return;
-    }
-    if (!previous) return;
-    const row = document.querySelector(`${QUEUE_ROW_SELECTOR}[data-queue-row="${CSS.escape(previous)}"] ${QUEUE_OPEN_SELECTOR}`);
-    if (row instanceof HTMLElement) row.focus();
+    if (openKey !== null) revealQueueRow(openKey);
   }, [openKey]);
 
   useEffect(() => {

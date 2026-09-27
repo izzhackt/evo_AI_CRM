@@ -289,7 +289,8 @@ test("lead card from the board panel returns to the same board state", () => {
   assert.equal(withPipelineReturn(`/v3/profile?id=${LEAD}`, board), `/v3/profile?id=${LEAD}&returnTo=${encodeURIComponent(board)}`);
 
   const pipeline = source("src/components/v3/Pipeline.tsx");
-  assert.match(pipeline, /<Link href=\{withPipelineReturn\(lead\.href, returnTo\)\}[^>]*>\s*Открыть карточку лида/u);
+  // Э7: «Открыть карточку лида» — ссылка шапки общей боковой панели (`SidePanel`).
+  assert.match(pipeline, /open=\{\{ href: withPipelineReturn\(lead\.href, returnTo\), label: "Открыть карточку лида", prefetch: false \}\}/u);
   assert.match(pipeline, /returnTo=\{pipelineReturnHref\(search\)\}/u);
   const profile = source("src/app/(v3)/v3/profile/page.tsx");
   assert.match(profile, /const pipelineReturnTo = requestsReturnTo \|\| studentsReturnTo \? null : parsePipelineReturnTo\(singleSearchParam\(params\.returnTo\)\);/u);

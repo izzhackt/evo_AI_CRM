@@ -19,17 +19,23 @@ const STATE_WORD = { done: "пройден", current: "текущий этап",
  *
  * `closed` — дело закрыто: этап больше не текущий. Дорожки и
  * `aria-current` нет — только слово этапа и «этап при закрытии».
+ *
+ * `caption={false}` — слово этапа уже стоит рядом строкой (строка контекста
+ * боковой панели лида, Э7): под дорожкой подписи нет, отрезки для читалки
+ * те же.
  */
 export function StageTrack({
   kind,
   current,
   className,
   closed = false,
+  caption = true,
 }: Readonly<{
   kind: StageTrackKind;
   current: string | null | undefined;
   className?: string;
   closed?: boolean;
+  caption?: boolean;
 }>) {
   const track = stageTrack(kind, current);
   if (!track) return null;
@@ -63,10 +69,12 @@ export function StageTrack({
           </li>
         ))}
       </ol>
-      <p className="v3-track-caption" aria-hidden="true">
-        <span className="t-body-compact text-fg">{track.current.title}</span>
-        <span className="t-meta text-fg-2">{STAGE_PHASE_TITLE[track.current.phase]}</span>
-      </p>
+      {caption ? (
+        <p className="v3-track-caption" aria-hidden="true">
+          <span className="t-body-compact text-fg">{track.current.title}</span>
+          <span className="t-meta text-fg-2">{STAGE_PHASE_TITLE[track.current.phase]}</span>
+        </p>
+      ) : null}
     </div>
   );
 }

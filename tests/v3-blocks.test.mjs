@@ -293,7 +293,7 @@ test("the queue keys keep working while the undo row is open", () => {
   assert.match(hook, /export function openPopover\(\): boolean \{\s*try \{ return popoverBlocksQueueKeys\(document\.querySelectorAll\(":popover-open"\)\); \} catch \{ return false; \}/u);
   assert.doesNotMatch(hook, /querySelector\(":popover-open"\)/u, "no «any popover» check is left");
   assert.match(hook, /if \(openPopover\(\) \|\| modalOpen\(\)\) return;/u);
-  assert.match(read("src/components/v3/queue/QueueDetailPanel.tsx"), /event\.key !== "Escape"[^\n]*openPopover\(\) \|\| modalOpen\(\)\) return;/u);
+  assert.match(read("src/components/v3/panel/SidePanel.tsx"), /event\.key !== "Escape"[^\n]*openPopover\(\) \|\| modalOpen\(\)\) return;/u);
   // j/k с «Отменить» продолжают от завершённой строки (data-undo-row), а не с начала списка.
   assert.match(hook, /active\.closest<HTMLElement>\("\[data-undo-row\]"\)\?\.dataset\.undoRow/u);
   assert.match(hook, /const current = focusedRowIndex\(links\);/u);
@@ -404,7 +404,8 @@ test("the current look renders none of the blocks; the new look renders them on 
   const boards = next.get("boards-static-render.cjs");
   // Колонки не подкрашиваются: у доски и вкладки одна фаза — точки над колонками нет.
   for (const name of ["sales", "admissions"]) assert.doesNotMatch(boards.get(name), /v3-phase-dot|v3-stage/u, `${name}: column headers are words`);
-  assert.match(boards.get("sales-panel"), /<div class="v3-track" data-track="sales">/u, "lead panel: stage track");
+  // Э7: the lead panel's track opens its header context line, which names the stage (no second caption).
+  assert.match(boards.get("sales-panel"), /data-side-panel-context=""><div class="v3-track [^"]*" data-track="sales"><ol [\s\S]*?<\/ol><\/div><p>Связались · Ответственный: /u, "lead panel: stage track");
   assert.match(boards.get("admissions"), /<a [^>]*class="v3-chip-link inline-flex" href="\/v3\/messages\?case=[^"]+"><span class="v3-chip t-caption" data-tone="danger" data-size="sm">нужен ответ<\/span><\/a>/u, "reply chip link");
   assert.match(boards.get("admissions"), /<span class="v3-initials t-caption" data-size="sm" title="[^"]+">/u, "card: curator initials with the name in the title");
   // Карточка продаж: дата, затем слово срока — как в «Задачах»; возраст этапа подписан.

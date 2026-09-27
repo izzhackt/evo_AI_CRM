@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { useRouter } from "next/navigation";
@@ -13,7 +13,8 @@ import { DeadlineFields } from "../calendar/TaskControls";
 import type { CalendarCaseTask, CalendarTaskCapabilities, Day } from "../calendar/types";
 import { queueDue } from "../queue/due-bucket";
 import { QUEUE_CONFIRM, QUEUE_FIELD, QUEUE_SECONDARY } from "../queue/queue-buttons";
-import { QueueDetailPanel } from "../queue/QueueDetailPanel";
+import { queueRowReturn } from "../panel/side-panel";
+import { SidePanel } from "../panel/SidePanel";
 import { CASE_ERROR_COPY, STAFF_ERROR_COPY, caseChangeForm, staffEditForm, staffStatusForm, type DeadlineFieldValues } from "./task-commands";
 
 type StaffTaskExtra = Readonly<{
@@ -50,10 +51,11 @@ const SECTION_TITLE = "t-item text-fg";
 const LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 
 /**
- * Подробности задачи в правой панели очереди. Заголовок — название, у задачи
- * по студенту «Открыть дело», срок и исполнитель; тело: завершение →
- * описание → результаты → свёрнутое «Перенести или передать» с прежней
- * формой. Каждая команда — существующее действие, сервер проверяет права.
+ * Подробности задачи в общей боковой панели (`SidePanel`, Э7). Шапка —
+ * название, чья задача (студент или «Рабочая задача») и у задачи по студенту
+ * «Открыть дело»; тело: срок и исполнитель → завершение → описание →
+ * результаты → свёрнутое «Перенести или передать» с прежней формой. Каждая
+ * команда — существующее действие, сервер проверяет права.
  */
 export function TaskDetailPanel({
   data,
@@ -74,7 +76,6 @@ export function TaskDetailPanel({
   readOnly?: boolean;
 }>) {
   const router = useRouter();
-  const headingId = useId();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -147,32 +148,32 @@ export function TaskDetailPanel({
   }
 
   return (
-    <QueueDetailPanel closeHref={closeHref} backLabel="К задачам" headingId={headingId}>
+    <SidePanel
+      closeHref={closeHref}
+      backLabel="К задачам"
+      title={title}
+      context={data.kind === "case"
+        ? `${data.task.person ?? "Студент"}${data.task.caseState === "closed" ? " · дело закрыто" : ""}`
+        : `Рабочая задача${data.task.sourceMessageId ? " · из чата" : ""}`}
+      open={data.kind === "case" ? { href: `/v3/profile?case=${encodeURIComponent(data.caseId)}`, label: "Открыть дело" } : null}
+      returnTo={queueRowReturn(`${data.kind}:${data.task.id}`)}
+    >
       <div className="space-y-5" data-testid="v3-task-detail-panel">
-        <header className="space-y-2">
-          <h2 id={headingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{title}</h2>
-          {data.kind === "case" ? (
-            <p className="flex flex-wrap items-center gap-x-3 t-body-compact text-fg-2">
-              <span>{data.task.person ?? "Студент"}{data.task.caseState === "closed" ? " · дело закрыто" : ""}</span>
-              <Link href={`/v3/profile?case=${encodeURIComponent(data.caseId)}`} className={LINK}>Открыть дело</Link>
-            </p>
-          ) : <p className="t-body-compact text-fg-2">Рабочая задача{data.task.sourceMessageId ? " · из чата" : ""}</p>}
-          <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1">
-            <dt className="t-caption text-fg-3">Срок</dt>
-            <dd className="t-body-compact text-fg">
-              {due ? <>
-                <time dateTime={due.dateTime} className={due.overdue ? "font-mono tabular-nums text-danger" : "font-mono tabular-nums"}>{due.text}</time>
-                {due.word ? <span className={due.overdue ? "text-danger" : "text-fg-2"}> · {due.word}</span> : null}
-              </> : <span className="text-fg-2">Без срока</span>}
-            </dd>
-            <dt className="t-caption text-fg-3">Исполнитель</dt>
-            <dd className="break-words t-body-compact text-fg">{currentAssigneeName}</dd>
-            {exception ? <>
-              <dt className="t-caption text-fg-3">Состояние</dt>
-              <dd className={`t-body-compact ${status === "blocked" ? "text-warn" : "text-fg-2"}`}>{exception}</dd>
-            </> : null}
-          </dl>
-        </header>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1">
+          <dt className="t-caption text-fg-3">Срок</dt>
+          <dd className="t-body-compact text-fg">
+            {due ? <>
+              <time dateTime={due.dateTime} className={due.overdue ? "font-mono tabular-nums text-danger" : "font-mono tabular-nums"}>{due.text}</time>
+              {due.word ? <span className={due.overdue ? "text-danger" : "text-fg-2"}> · {due.word}</span> : null}
+            </> : <span className="text-fg-2">Без срока</span>}
+          </dd>
+          <dt className="t-caption text-fg-3">Исполнитель</dt>
+          <dd className="break-words t-body-compact text-fg">{currentAssigneeName}</dd>
+          {exception ? <>
+            <dt className="t-caption text-fg-3">Состояние</dt>
+            <dd className={`t-body-compact ${status === "blocked" ? "text-warn" : "text-fg-2"}`}>{exception}</dd>
+          </> : null}
+        </dl>
 
         {!isDone && !readOnly ? (
           <form onSubmit={complete} className="space-y-3 border-t border-border pt-4">
@@ -257,6 +258,6 @@ export function TaskDetailPanel({
         <Feedback text={notice} tone="ok" />
         <Feedback text={error} tone="danger" />
       </div>
-    </QueueDetailPanel>
+    </SidePanel>
   );
 }

@@ -38,6 +38,14 @@
  *       esbuild RequestsQueueView, черновик решения, конфликт и ошибка
  *       «Взять себе» не переезжают в другую запись. Серверные действия —
  *       заглушки (конфликт, «Лид уже изменён»), ничего не сохраняют.
+ *   node tests/e2e/requests-static-render.cjs --f1 [outDir] [--look=next]
+ *     → Э7 «Одна боковая панель везде»: настоящая страница «Заявок» в
+ *       оболочке с открытым лидом (`?open=lead:…`) на 1440×900, 1280×800,
+ *       1024×768 (лист справа) и 390×844 — снимки `f1-requests[-next]-<ширина>.png` и замеры
+ *       `tests/e2e/side-panel-probe.cjs`. `RequestsQueueView` в браузере —
+ *       та же сборка esbuild; адрес — состояние стенда: `router.push`
+ *       открывает и закрывает панель по `open`, как сервер, и путь Esc →
+ *       строка → открыть → «Закрыть» → строка идёт по-настоящему в React.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -672,8 +680,147 @@ async function switchCheck() {
   if (failures.length) throw new Error(`panel switch: ${failures.length} failed:\n${failures.join("\n")}`);
 }
 
+// --- F1 (Э7): одна боковая панель — путь по гидратированным «Заявкам» --------
+// Настоящая страница в оболочке; `RequestsQueueView` обёрнут контейнером, в
+// котором браузерная сборка отрисовывает его заново с теми же свойствами.
+// Адрес — состояние стенда: push открывает запись из `open` или закрывает
+// панель, как сервер.
+const F1_ROOT_ID = "requests-f1-root";
+const F1_FIXTURE_ID = "requests-f1-fixture";
+const F1_ENTRY = `
+import { createElement, useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
+import { RequestsQueueView } from "../../src/components/v3/requests/RequestsQueueView";
+
+const fixture = JSON.parse(document.getElementById("${F1_FIXTURE_ID}").textContent);
+const listeners = new Set();
+const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, replace() {}, prefetch() {},
+  push(href) { (globalThis.__staticPushes ||= []).push(String(href)); for (const listener of listeners) listener(String(href)); } };
+function openAt(href) {
+  const value = new URL(href, "https://crm.invalid").searchParams.get("open");
+  if (!value) return null;
+  const [kind, id] = value.split(":");
+  return { kind, id };
+}
+function Host() {
+  const [open, setOpen] = useState(fixture.props.open);
+  useEffect(() => {
+    const listener = (href) => setOpen(openAt(href));
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+  }, []);
+  return createElement(RequestsQueueView, { ...fixture.props, open });
+}
+createRoot(document.getElementById("${F1_ROOT_ID}")).render(
+  createElement(AppRouterContext.Provider, { value: router },
+    createElement(PathnameContext.Provider, { value: "/v3/requests" },
+      createElement(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) }, createElement(Host)))),
+);
+requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.clientRendered = "1"; }));
+`;
+
+/** Элемент, найденный `match`, заменяется `replace` — остальное дерево то же. */
+function mapElement(node, match, replace) {
+  const { cloneElement, isValidElement } = require("react");
+  if (Array.isArray(node)) return node.map((child) => mapElement(child, match, replace));
+  if (!isValidElement(node)) return node;
+  if (match(node)) return replace(node);
+  const { children } = node.props;
+  if (children === undefined) return node;
+  // Дети — прежним порядком аргументов: как в JSX, без требования ключей.
+  return Array.isArray(children)
+    ? cloneElement(node, undefined, ...children.map((child) => mapElement(child, match, replace)))
+    : cloneElement(node, undefined, mapElement(children, match, replace));
+}
+
+async function f1() {
+  const probe = require("./side-panel-probe.cjs");
+  const outIndex = process.argv.indexOf("--f1") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const look = LOOK_NEXT ? "-next" : "";
+  const { RequestsQueueView } = require(join(ROOT, "src/components/v3/requests/RequestsQueueView.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
+  current = SCENARIOS["drawer-lead"];
+  const originalUuid = nodeCrypto.randomUUID;
+  const RealDate = Date;
+  nodeCrypto.randomUUID = syntheticUuids();
+  globalThis.Date = class extends RealDate {
+    constructor(...args) { if (args.length) super(...args); else super(NOW.getTime()); }
+    static now() { return NOW.getTime(); }
+  };
+  let html;
+  let props;
+  try {
+    const content = await page({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(current.search))) });
+    const wrapped = mapElement(content, (element) => element.type === RequestsQueueView, (element) => {
+      props = element.props;
+      return createElement("div", { id: F1_ROOT_ID }, element);
+    });
+    const tree = createElement("div", { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
+      createElement(AppShell, { actor: ACTORS[current.actor], initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, wrapped));
+    html = renderToStaticMarkup(withContexts(tree, current.search));
+  } finally {
+    nodeCrypto.randomUUID = originalUuid;
+    globalThis.Date = RealDate;
+  }
+  if (!props || !props.open) throw new Error("the page renders no RequestsQueueView with an open record");
+  const key = `${props.open.kind}:${props.open.id}`;
+  const bundleName = `f1-requests${look}-client.js`;
+  await require("esbuild").build({
+    stdin: { contents: F1_ENTRY, resolveDir: __dirname, sourcefile: "requests-f1-entry.js", loader: "js" },
+    bundle: true, outfile: join(outDir, bundleName), format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
+    tsconfig: join(ROOT, "tsconfig.json"), define: { "process.env.NODE_ENV": '"production"' },
+    banner: { js: "var process = globalThis.process || { env: {} };" }, plugins: [probe.linkShim(ROOT), switchStubs], logLevel: "error",
+  });
+  const htmlPath = join(outDir, `f1-requests${look}.html`);
+  writeFileSync(htmlPath, [
+    "<!DOCTYPE html>",
+    '<html lang="ru" data-theme="light" class="h-full antialiased">',
+    `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Заявки — одна боковая панель (синтетические данные)</title><style>${await compileCss()}</style></head>`,
+    `<body class="min-h-full">${html}<script type="application/json" id="${F1_FIXTURE_ID}">${JSON.stringify({ props, search: current.search }).replaceAll("<", "\\u003c")}</script><script src="${bundleName}"></script></body></html>`,
+  ].join(""));
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const failures = [];
+  try {
+    for (const [width, context] of probe.F1_WIDTHS) {
+      const browserContext = await browser.newContext(context);
+      const tab = await browserContext.newPage();
+      const errors = [];
+      tab.on("pageerror", (error) => errors.push(error.message));
+      tab.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+      await tab.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+      await tab.evaluate(() => document.fonts.ready);
+      await tab.waitForSelector("html[data-client-rendered]", { state: "attached", timeout: 10_000 });
+      await tab.waitForTimeout(400);
+      await tab.screenshot({ path: join(outDir, `f1-requests${look}-${width}.png`) });
+      const open = `[data-queue-row="${key}"] [data-queue-open]`;
+      const result = await probe.journey(tab, {
+        selected: '[data-queue-row]:has([data-queue-open][aria-current="true"])',
+        returnSelector: open,
+        reopen: () => tab.click(open),
+        look: LOOK_NEXT ? "next" : "current",
+        scrolledPath: join(outDir, `f1-requests${look}-${width}-scrolled.png`),
+      });
+      if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
+      probe.report({ screen: "requests", look: look || "-current", width, ...result });
+      failures.push(...result.failures.map((failure) => `requests${look} ${width}: ${failure}`));
+      await browserContext.close();
+    }
+  } finally {
+    await browser.close();
+  }
+  if (failures.length) throw new Error(`side panel (requests): ${failures.length} failed:\n${failures.join("\n")}`);
+}
+
 if (process.argv.includes("--json")) {
   json().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--f1")) {
+  f1().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--panel-keys")) {
   panelKeys().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--manual-lead-owners")) {
@@ -683,6 +830,6 @@ if (process.argv.includes("--json")) {
 } else if (process.argv.includes("--screenshots")) {
   screenshots().catch((error) => { console.error(error); process.exit(1); });
 } else {
-  console.error("usage: requests-static-render.cjs --json | --panel-keys | --manual-lead-owners | --switch [outDir] | --screenshots [outDir] [--look=next]");
+  console.error("usage: requests-static-render.cjs --json | --panel-keys | --manual-lead-owners | --switch [outDir] | --screenshots [outDir] | --f1 [outDir] [--look=next]");
   process.exit(2);
 }

@@ -15,7 +15,7 @@ import { SalesPeriodHeadline, salesHeadlinePeriod } from "./SalesPeriodHeadline"
 import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { SalesRegisterForm, SalesTargetForm } from "./SalesRegisterForms";
-import { SalesRecordPreview } from "./SalesRecordPreview";
+import { SalesRecordPreview, salesRecordPanelHeader } from "./SalesRecordPreview";
 import { salesDirectionControl } from "@/lib/sales-register-directions";
 import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 import {
@@ -25,7 +25,8 @@ import {
 
 import type { V3Look } from "./blocks/look";
 import { FilterMenu, type FilterOption } from "./queue/FilterMenu";
-import { QueueDetailPanel } from "./queue/QueueDetailPanel";
+import { attributeReturn, sidePanelSplit } from "./panel/side-panel";
+import { SidePanel } from "./panel/SidePanel";
 import { QueueFilterDisclosure } from "./queue/QueueFilterDisclosure";
 import { salesReportContext, type SalesReportQuery, type SalesSaleSlice } from "@/lib/sales-register-navigation";
 export type { SalesReportQuery } from "@/lib/sales-register-navigation";
@@ -392,6 +393,8 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
   const target = management.status === "ready" ? management.data.target : null;
   const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
   const panelOpen = viewingRecord && !creatingForm;
+  // Шапка общей боковой панели (Э7): имя, строка контекста и «Открыть …» — прежние тексты записи.
+  const panelHeader = panelOpen && workspace ? salesRecordPanelHeader(workspace.selected ?? null, editingRecord && canManage) : null;
 
   // Адреса строки инструментов: те же параметры, без страницы — выбор сразу применяется.
   const filterHref = (changes: Readonly<Record<string, string | null>>) => {
@@ -534,7 +537,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
         <p>{searchQuery === null ? "Введите поисковый запрос до 200 символов без переносов строк." : valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
         <Link href="/v3/main?view=sales" className={`${btnGhostCls} min-h-11`}>Открыть текущий месяц</Link>
-      </div> : <div className={panelOpen ? "mt-3 xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6" : "mt-3"}>
+      </div> : <div className={sidePanelSplit(panelOpen, "mt-3")}>
         <div className="min-w-0">
           {workspace.rows.length === 0 ? <div className="space-y-2 border-t border-border py-12 text-center">
             <p className="text-base font-medium text-fg">{offset > 0 ? "На этой странице записей нет." : hasFilters ? "По выбранным фильтрам записей не найдено." : "В выбранном периоде записей нет."}</p>
@@ -575,8 +578,10 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
             {workspace.hasMore ? <Link href={href({ offset: String(offset + 50) })} className={`${btnGhostCls} min-h-11`}>Далее</Link> : <span />}
           </nav>
         </div>
-        {panelOpen ? (
-          <QueueDetailPanel closeHref={href()} backLabel="К отчёту" headingId={PANEL_HEADING}>
+        {panelOpen && panelHeader ? (
+          <SidePanel key={query.record} closeHref={href()} backLabel="К отчёту" headingId={PANEL_HEADING}
+            title={panelHeader.title} context={panelHeader.context} open={panelHeader.open}
+            returnTo={query.record ? attributeReturn("id", `sale-${query.record}`, "a") : undefined}>
             {editingRecord && canManage ? (
               <SalesRegisterForm key={query.record} record={workspace.selected ?? null}
                 recordId={query.record ?? null} reportMonth={reportMonth} ownerOptions={workspace.ownerOptions}
@@ -586,7 +591,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
               <SalesRecordPreview record={workspace.selected ?? null} backHref={backHref} panelHeadingId={PANEL_HEADING}
                 editHref={canManage && workspace.selected ? href({ record: workspace.selected.id, edit: "true" }) : null} />
             )}
-          </QueueDetailPanel>
+          </SidePanel>
         ) : null}
       </div>}
       {/* «Поступления и возвраты за месяц» — прежние чтение, тексты и состояния; с Э4 — под записями,

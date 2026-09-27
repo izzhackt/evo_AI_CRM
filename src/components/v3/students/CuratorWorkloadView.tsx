@@ -1,9 +1,10 @@
 import Link from "next/link";
 
 import { CoverageDueTime } from "../profile/CoverageDueTime";
-import { CuratorCoveragePanel } from "../profile/CuratorCoveragePanel";
+import { CuratorCoverageFacts, CuratorCoveragePanel, curatorCoverageSubject } from "../profile/CuratorCoveragePanel";
 import { COVERAGE_VIEW_HREF, coverageHref, coverageWorkload, type StudentsCoverage } from "../profile/students-coverage-view";
-import { QueueDetailPanel } from "../queue/QueueDetailPanel";
+import { queueRowReturn, sidePanelSplit } from "../panel/side-panel";
+import { SidePanel } from "../panel/SidePanel";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
 import { QUEUE_QUIET_LINK } from "../queue/QueueStates";
 
@@ -16,8 +17,9 @@ const HEAD = "flex h-9 items-center px-2 text-start t-caption text-fg-2 first:ps
  * «Нагрузка кураторов» (право назначать кураторов, вне просмотра роли): таблица из чтения
  * `read_curator_coverage_workspace` — те же числа, что у прежней панели
  * замещения. Выбор куратора открывает в правой панели прежние
- * `CuratorCoveragePanel` и `CuratorCoverageForm`: поведение, команда и права
- * не меняются. Нет чтения — нет чисел.
+ * `CuratorCoveragePanel` и `CuratorCoverageForm` (общая `SidePanel`, Э7: имя и
+ * нагрузка — в её шапке): поведение, команда и права не меняются. Нет
+ * чтения — нет чисел.
  */
 export function CuratorWorkloadView({
   head,
@@ -34,17 +36,26 @@ export function CuratorWorkloadView({
   const workload = coverageWorkload(coverage);
   const selectedId = coverage.kind === "hidden" || coverage.kind === "invalid" ? null : coverage.curatorId;
   const selectedName = workload?.find((curator) => curator.id === selectedId)?.name ?? null;
+  const subject = curatorCoverageSubject(coverage, selectedName);
   const panel = selectedId ? (
-    <QueueDetailPanel closeHref={COVERAGE_VIEW_HREF} backLabel="К нагрузке" headingId="curator-coverage-title">
+    <SidePanel
+      key={selectedId}
+      closeHref={COVERAGE_VIEW_HREF}
+      backLabel="К нагрузке"
+      headingId="curator-coverage-title"
+      title={subject.name}
+      context={subject.selected ? <CuratorCoverageFacts selected={subject.selected} today={today} /> : null}
+      returnTo={queueRowReturn(selectedId)}
+    >
       <CuratorCoveragePanel coverage={coverage} fallbackName={selectedName} requestId={requestId} today={today} />
-    </QueueDetailPanel>
+    </SidePanel>
   ) : null;
 
   // Шапка (вкладки) — во всю ширину над таблицей и панелью, как у очереди дел.
   return (
     <div className="min-w-0 space-y-2">
       {head}
-      <div className={panel ? "xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6" : undefined}>
+      <div className={sidePanelSplit(panel !== null)}>
         <div className="min-w-0 space-y-3" data-testid="v3-curator-workload">
           <QueueKeyboard openKey={selectedId} />
           {coverage.kind === "hidden" ? (

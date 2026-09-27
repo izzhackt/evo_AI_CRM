@@ -29,7 +29,8 @@ import { Initials } from "../blocks/Initials";
 import { isNextLook, type V3Look } from "../blocks/look";
 import { StatusChip } from "../blocks/StatusChip";
 import { ManualLeadTrigger } from "../ManualLeadForm";
-import { QueueDetailPanel } from "../queue/QueueDetailPanel";
+import { queueRowReturn, sidePanelSplit } from "../panel/side-panel";
+import { SidePanel } from "../panel/SidePanel";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
 import { QUEUE_QUIET_LINK, QueueError } from "../queue/QueueStates";
 import { QueueViewTabs } from "../queue/QueueViewTabs";
@@ -185,14 +186,20 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
   const triage = requestTriage(row, { actorMembershipId: props.actorMembershipId, canAct: !props.readOnly });
   const leadId = rowLeadId(row);
   return (
-    <QueueDetailPanel closeHref={listHref} backLabel="К заявкам" headingId={headingId}>
+    <SidePanel
+      closeHref={listHref}
+      backLabel="К заявкам"
+      headingId={headingId}
+      title={row.personName}
+      context={<>
+        {REQUEST_SOURCE_WORDS[row.source]} · пришла{" "}
+        <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg">{received.text}</time>, {received.word}
+      </>}
+      open={leadId ? { href: leadCardHref(leadId, listHref), label: "Открыть карточку лида" } : null}
+      returnTo={queueRowReturn(requestOpenKey(row))}
+    >
       <div className="space-y-5" data-testid="requests-detail-panel">
-        <header className="space-y-2">
-          <h2 id={headingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{row.personName}</h2>
-          <p className="t-body-compact text-fg-2">
-            {REQUEST_SOURCE_WORDS[row.source]} · пришла{" "}
-            <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg">{received.text}</time>, {received.word}
-          </p>
+        <div className="space-y-2">
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1">
             {row.kind === "lead" ? <>
               {row.phone ? <><dt className={FACT_TERM}>Телефон</dt><dd className={FACT_VALUE}>{row.phone}</dd></> : null}
@@ -218,8 +225,7 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
             <TakeLeadButton leadId={row.leadId} take={row.take} actorMembershipId={props.actorMembershipId}
               requestId={props.takeRequestIds[row.leadId]} personName={row.personName} leadHref={leadCardHref(row.leadId, listHref)} inPanel />
           ) : null}
-          {leadId ? <Link href={leadCardHref(leadId, listHref)} className={QUEUE_QUIET_LINK}>Открыть карточку лида</Link> : null}
-        </header>
+        </div>
 
         {row.kind === "application" ? <>
           <section className={SECTION} aria-label="Заполнено поступающим">
@@ -246,7 +252,7 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
           </section>
         ) : null}
       </div>
-    </QueueDetailPanel>
+    </SidePanel>
   );
 }
 
@@ -322,55 +328,60 @@ export function RequestsQueueView(props: ViewProps) {
 
   return (
     <TakeFeedback key={listHref}>
-    <div className={panel ? "xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6" : undefined}>
-      {/*
-        THESIS: утренний разбор входящих — кто пришёл, откуда, когда и взял ли
-        кто-нибудь; не взятое берут одной кнопкой здесь же.
-        OWN-WORLD: рабочий стол EVO — строки на волосяных линиях без карточек,
-        Golos Text, время прихода JetBrains Mono «ДД.ММ ЧЧ:ММ»; сплошной
-        красный — только «Добавить лида» в шапке; «Взять себе» — спокойная
-        приподнятая кнопка; выбранное — `.v3-choice`.
-        FIRST VIEWPORT: 1440×900 — h1 и «Добавить лида», вкладки с числами,
-        «Ждут разбора / Все», затем строки по 57 px: имя, источник, когда,
-        разбор, «Открыть».
-      */}
-      <div className="min-w-0 space-y-3" data-testid="requests-queue">
-        <QueueViewTabs label="Источник заявки" tabs={tabs} />
-        <BoardSegments label="Состояние" items={statusItems} />
-        {read.status !== "ready" ? (
-          read.status === "forbidden"
-            ? <p role="status" className="border-y border-border py-8 t-body-compact text-fg-2">У вашей роли нет доступа к заявкам.</p>
-            : <QueueError text={read.status === "invalid" ? "Эта страница очереди больше не открывается." : "Заявки не загрузились. Список и числа сейчас неизвестны."}
-              retryHref={read.status === "invalid" ? requestsHref({ ...selection, cursor: null }) : listHref} />
-        ) : (
-          <>
-            {closedLine ? <p className="t-body-compact text-fg-2" data-testid="requests-closed-kinds">{closedLine}</p> : null}
-            <TakeStatus />
-            {read.queue.rows.length === 0 ? <RequestsEmpty queue={read.queue} props={props} now={now} /> : (
-              <div className="@container min-w-0">
-                <div aria-hidden="true" className={`hidden gap-x-3 border-b border-border py-2 ps-3 t-caption text-fg-3 @min-[56rem]:grid ${WIDE_COLUMNS}`}>
-                  <span>{selectedKind === "application" ? "Анкета" : selectedKind === "consultation" ? "Консультация" : "Заявка"}</span>
-                  <span>Источник</span>
-                  <span>Пришла</span>
-                  <span>Разбор</span>
-                  <span />
+    {/*
+      THESIS: утренний разбор входящих — кто пришёл, откуда, когда и взял ли
+      кто-нибудь; не взятое берут одной кнопкой здесь же.
+      OWN-WORLD: рабочий стол EVO — строки на волосяных линиях без карточек,
+      Golos Text, время прихода JetBrains Mono «ДД.ММ ЧЧ:ММ»; сплошной
+      красный — только «Добавить лида» в шапке; «Взять себе» — спокойная
+      приподнятая кнопка; выбранное — `.v3-choice`.
+      FIRST VIEWPORT: 1440×900 — h1 и «Добавить лида», вкладки с числами,
+      «Ждут разбора / Все», затем строки по 57 px: имя, источник, когда,
+      разбор, «Открыть».
+      Э7: вкладки и «Ждут разбора / Все» — во всю ширину над сеткой «список |
+      панель», как у «Студентов», «Нагрузки кураторов» и «Отчёта продаж»:
+      панель начинается рядом с первой строкой и не сдвигает вкладки.
+    */}
+    <div className="min-w-0 space-y-3" data-testid="requests-queue">
+      <QueueViewTabs label="Источник заявки" tabs={tabs} />
+      <BoardSegments label="Состояние" items={statusItems} />
+      <div className={sidePanelSplit(panel !== null)}>
+        <div className="min-w-0 space-y-3">
+          {read.status !== "ready" ? (
+            read.status === "forbidden"
+              ? <p role="status" className="border-y border-border py-8 t-body-compact text-fg-2">У вашей роли нет доступа к заявкам.</p>
+              : <QueueError text={read.status === "invalid" ? "Эта страница очереди больше не открывается." : "Заявки не загрузились. Список и числа сейчас неизвестны."}
+                retryHref={read.status === "invalid" ? requestsHref({ ...selection, cursor: null }) : listHref} />
+          ) : (
+            <>
+              {closedLine ? <p className="t-body-compact text-fg-2" data-testid="requests-closed-kinds">{closedLine}</p> : null}
+              <TakeStatus />
+              {read.queue.rows.length === 0 ? <RequestsEmpty queue={read.queue} props={props} now={now} /> : (
+                <div className="@container min-w-0">
+                  <div aria-hidden="true" className={`hidden gap-x-3 border-b border-border py-2 ps-3 t-caption text-fg-3 @min-[56rem]:grid ${WIDE_COLUMNS}`}>
+                    <span>{selectedKind === "application" ? "Анкета" : selectedKind === "consultation" ? "Консультация" : "Заявка"}</span>
+                    <span>Источник</span>
+                    <span>Пришла</span>
+                    <span>Разбор</span>
+                    <span />
+                  </div>
+                  <ul data-queue-list="" data-testid="requests-rows">
+                    {read.queue.rows.map((row) => <RequestRowView key={requestOpenKey(row)} row={row} props={props} listHref={listHref} now={now} />)}
+                  </ul>
                 </div>
-                <ul data-queue-list="" data-testid="requests-rows">
-                  {read.queue.rows.map((row) => <RequestRowView key={requestOpenKey(row)} row={row} props={props} listHref={listHref} now={now} />)}
-                </ul>
-              </div>
-            )}
-          </>
-        )}
-        {queue && (queue.previousCursor || queue.nextCursor) ? (
-          <nav aria-label="Страницы заявок" className="flex flex-wrap gap-x-5">
-            {queue.previousCursor ? <Link className={QUEUE_QUIET_LINK} href={requestsHref({ ...selection, cursor: queue.previousCursor })}>Предыдущая страница</Link> : null}
-            {queue.nextCursor ? <Link className={QUEUE_QUIET_LINK} href={requestsHref({ ...selection, cursor: queue.nextCursor })}>Следующая страница</Link> : null}
-          </nav>
-        ) : null}
+              )}
+            </>
+          )}
+          {queue && (queue.previousCursor || queue.nextCursor) ? (
+            <nav aria-label="Страницы заявок" className="flex flex-wrap gap-x-5">
+              {queue.previousCursor ? <Link className={QUEUE_QUIET_LINK} href={requestsHref({ ...selection, cursor: queue.previousCursor })}>Предыдущая страница</Link> : null}
+              {queue.nextCursor ? <Link className={QUEUE_QUIET_LINK} href={requestsHref({ ...selection, cursor: queue.nextCursor })}>Следующая страница</Link> : null}
+            </nav>
+          ) : null}
+        </div>
+        {panel}
+        <QueueKeyboard openKey={openRow ? requestOpenKey(openRow) : null} />
       </div>
-      {panel}
-      <QueueKeyboard openKey={openRow ? requestOpenKey(openRow) : null} />
     </div>
     </TakeFeedback>
   );

@@ -246,7 +246,7 @@ test("a deep-linked selected row is scrolled into view only when it is hidden", 
   assert.equal(rowNeedsReveal({ top: 460, bottom: 513 }, 900), false);
   assert.equal(rowNeedsReveal({ top: 48, bottom: 900 }, 900), false);
   const hook = read("src/components/v3/queue/useQueueKeyboard.ts");
-  assert.match(hook, /if \(openKey !== null\) \{\s*revealQueueRow\(openKey\);/u);
+  assert.match(hook, /if \(openKey !== null\) revealQueueRow\(openKey\);/u);
   assert.match(hook, /rowNeedsReveal\(row\.getBoundingClientRect\(\), window\.innerHeight\)[\s\S]*row\.scrollIntoView\(\{ block: "center" \}\)/u);
 });
 
@@ -402,8 +402,8 @@ test("the student name links to the case only for a mouse on a wide screen", () 
   const caseRow = row.slice(row.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
   assert.match(caseRow, /<a title="Тимур Абдылдаев" class="relative z-10 hidden h-6 min-w-0 items-center [^"]*md:pointer-fine:flex" href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000001">/u);
   assert.match(caseRow, /<span class="min-w-0 truncate md:pointer-fine:hidden">Тимур Абдылдаев<\/span>/u);
-  // Everywhere else the whole row opens the task; the panel carries «Открыть дело».
-  assert.match(surfaces.get("team-panel"), />Открыть дело<\/a>/u);
+  // Everywhere else the whole row opens the task; the panel header carries «Открыть дело».
+  assert.match(surfaces.get("team-panel"), /data-side-panel-open="" href="[^"]+">Открыть дело<svg[^>]*aria-hidden="true"/u);
 });
 
 test("closed tasks label their bare date as «срок»", () => {
@@ -445,7 +445,12 @@ test("the loading skeleton keeps the date column before the title", () => {
 
 test("the right panel pushes the list, marks the row and keeps the list URL", () => {
   const html = surfaces.get("team-panel");
-  assert.match(html, /^<div class="xl:grid xl:grid-cols-\[minmax\(0,1fr\)_26rem\] xl:items-start xl:gap-6">/u);
+  // Э7: tabs and the toolbar span the full width above the «list | panel» grid,
+  // so the panel starts level with the first queue row, as on «Студенты».
+  assert.match(html, /^<div class="min-w-0 space-y-3" data-testid="task-queue">/u);
+  const grid = html.indexOf('<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_var(--side-panel-width)] xl:items-start xl:gap-6">');
+  assert.ok(grid > html.indexOf('data-testid="queue-toolbar"') && html.indexOf('data-testid="queue-toolbar"') > 0, "the grid starts below the toolbar");
+  assert.ok(html.indexOf("data-queue-row=") > grid && html.indexOf("<dialog") > grid, "rows and the panel share the grid");
   const row = html.slice(html.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000005"'));
   assert.match(row, /^[^>]*class="[^"]*\bbg-surface-2\b/u);
   assert.match(row, /aria-current="true"[^>]*>Согласовать с семьёй список программ в Польше и Чехии<\/a>/u);
@@ -455,7 +460,7 @@ test("the right panel pushes the list, marks the row and keeps the list URL", ()
   assert.match(panel, /<h2 id="[^"]+" tabindex="-1" data-queue-heading="" class="t-record-title/u);
   // The script-focused heading names the record for a screen reader without a red focus frame.
   assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-queue-heading\]:focus-visible \{\s*outline: none;/u);
-  assert.match(panel, /href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000005"[^>]*>Открыть дело<\/a>/u);
+  assert.match(panel, /href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000005"[^>]*>Открыть дело<svg/u);
   assert.match(panel, />Обсудить<\/a>/u);
   assert.match(panel, /<details class="[^"]*"><summary[^>]*>Перенести или передать/u);
   assert.doesNotMatch(panel, /\bbg-accent\b/u, "«Завершить» is a dark neutral button, not a second red");

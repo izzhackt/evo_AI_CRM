@@ -12,19 +12,56 @@ function Amount({ minor, currency, raw }: { minor: number | null; currency: stri
   </>;
 }
 
+/** Карточка клиента записи продажи. */
+export function salesRecordLeadHref(leadId: string): string {
+  return `/v3/profile?id=${encodeURIComponent(leadId)}`;
+}
+
+/** Строка под именем записи: откуда сведения и где текущие. */
+export function salesRecordContext(record: SalesRegisterRow): string {
+  return `Сведения из записи отчёта.${record.leadId ? " Текущие данные клиента и условия — в его карточке." : ""}`;
+}
+
+/**
+ * Шапка боковой панели «Отчёта продаж» (Э7): заголовок, строка контекста и
+ * «Открыть …» — те же тексты, что рисовали просмотр записи и форма.
+ * Строка контекста одна у просмотра и формы (`salesRecordContext`): у каждой
+ * панели шапка — заголовок, контекст, «Открыть …». Форма показывает ссылку на
+ * карточку только у продажи, оформленной из карточки лида
+ * (`sourceKind: "pipeline"`), — как и раньше.
+ */
+export function salesRecordPanelHeader(record: SalesRegisterRow | null, editing: boolean): Readonly<{
+  title: string; context: string | null; open: Readonly<{ href: string; label: string }> | null;
+}> {
+  if (editing) {
+    return {
+      title: record?.applicantName || "Запись продажи",
+      context: record ? salesRecordContext(record) : null,
+      open: record?.sourceKind === "pipeline" && record.leadId ? { href: salesRecordLeadHref(record.leadId), label: "Открыть профиль студента" } : null,
+    };
+  }
+  if (!record) return { title: "Запись продажи", context: null, open: null };
+  return {
+    title: record.applicantName || "Имя не указано",
+    context: salesRecordContext(record),
+    open: record.leadId ? { href: salesRecordLeadHref(record.leadId), label: "Открыть карточку клиента" } : null,
+  };
+}
+
 /**
  * Запись продажи. `panelHeadingId` — Э4 (27.09.2026): запись открыта в правой
- * панели рядом со списком: заголовок — имя (h2, фокус панели), возврата «К
- * отчёту» нет (панель закрывается своей кнопкой), «Исправить запись» —
- * спокойная: сплошной красный отчёта — «Добавить продажу».
+ * панели рядом со списком, возврата «К отчёту» нет (панель закрывается своей
+ * кнопкой), «Исправить запись» — спокойная: сплошной красный отчёта —
+ * «Добавить продажу». С Э7 имя (заголовок, фокус панели), строка «Сведения
+ * из записи отчёта» и «Открыть карточку клиента» — шапка общей боковой панели
+ * (`SidePanel` в `SalesRegisterView`, `salesRecordPanelHeader`); раздел
+ * называет её заголовок `panelHeadingId`.
  */
 export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId }: {
   record: SalesRegisterRow | null; backHref: string; editHref: string | null; panelHeadingId?: string;
 }) {
   if (!record) return <section className={panelHeadingId ? "space-y-4" : "mt-6 max-w-[860px] space-y-4"}>
-    {panelHeadingId
-      ? <h2 id={panelHeadingId} tabIndex={-1} data-queue-heading="" className="t-record-title text-fg">Запись продажи</h2>
-      : <h1 className="t-page-title text-fg">Запись продажи</h1>}
+    {panelHeadingId ? null : <h1 className="t-page-title text-fg">Запись продажи</h1>}
     <p role="alert" className="text-sm text-fg-2">Не удалось открыть запись. Возможно, доступ изменился или соединение прервалось.</p>
     <Link href={backHref} className={`${btnGhostCls} min-h-11`}>К отчёту</Link>
   </section>;
@@ -49,18 +86,16 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId 
   return <section className={panel ? "space-y-6" : "mt-6 max-w-[860px] space-y-6"} aria-labelledby={panelHeadingId ?? "sale-preview-title"}>
     {panel ? null : <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>}
     <header className="space-y-3">
-      {panel ? (
-        <h2 id={panelHeadingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{record.applicantName || "Имя не указано"}</h2>
-      ) : <>
+      {panel ? null : <>
         <h1 id="sale-preview-title" className="t-page-title text-fg">Запись продажи</h1>
         <h2 className="t-record-title break-words text-fg">{record.applicantName || "Имя не указано"}</h2>
+        <p className="max-w-2xl text-sm leading-6 text-fg-2">{salesRecordContext(record)}</p>
       </>}
-      <p className="max-w-2xl text-sm leading-6 text-fg-2">Сведения из записи отчёта.{record.leadId ? " Текущие данные клиента и условия — в его карточке." : ""}</p>
       {record.archived ? <p className="text-sm text-fg-2">Запись в архиве и не входит в рабочие итоги.</p> : null}
       {record.needsReview ? <p className="text-sm font-medium text-fg-2">Требует проверки</p> : null}
       <div className="flex flex-wrap gap-3">
         {editHref ? <Link href={editHref} className={`${panel ? btnGhostCls : btnCls} min-h-11`}>{record.archived ? "Восстановление и исправление" : "Исправить запись"}</Link> : null}
-        {record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className={`${btnGhostCls} min-h-11`}>Открыть карточку клиента</Link> : null}
+        {record.leadId && !panel ? <Link href={salesRecordLeadHref(record.leadId)} className={`${btnGhostCls} min-h-11`}>Открыть карточку клиента</Link> : null}
       </div>
     </header>
     <dl className={`grid gap-x-8 gap-y-5 border-y border-border py-5 ${panel ? "" : "sm:grid-cols-2"}`}>

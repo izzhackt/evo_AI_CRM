@@ -43,6 +43,17 @@
  *       сервера, «Поступления и возвраты за месяц») в прежнем и новом облике, 1440×900, 1280×800 и 390×844 во
  *       весь рост: e4-<сценарий>[-next]-<ширина>.png, высота страницы, число
  *       сплошных красных и видимых месяцев отчёта на каждый снимок.
+ *   node tests/e2e/numbers-static-render.cjs --f1 [outDir]
+ *     → Э7 «Одна боковая панель везде»: «Отчёт продаж» с записью, открытой
+ *       по адресу (`?record=…&edit=true`), в прежнем и новом облике на
+ *       1440×900, 1280×800, 1024×768 (лист справа) и 390×844 — снимки `f1-report[-next]-<ширина>.png`
+ *       и замеры `tests/e2e/side-panel-probe.cjs`. Отчёт — серверный
+ *       компонент: список и тело записи остаются серверной разметкой, а
+ *       панель в браузере — настоящая `SidePanel` (сборка esbuild) с шапкой и
+ *       телом той же разметки. Адрес — состояние стенда: закрытие снимает
+ *       запись с адреса (строка теряет выбор, сетка — вторую колонку), ссылка
+ *       строки открывает её снова; путь Esc → строка → открыть → «Закрыть» →
+ *       строка идёт по-настоящему в React. Нарушение — исключение.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -686,7 +697,137 @@ async function e4Screenshots() {
   writeFileSync(join(outDir, "e4-metrics.json"), JSON.stringify(results, null, 2));
 }
 
-if (process.argv.includes("--json-e4")) {
+// --- F1 (Э7): одна боковая панель у «Отчёта продаж» ---------------------------
+const F1_FIXTURE_ID = "numbers-f1-fixture";
+const F1_ENTRY = `
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { SidePanel } from "../../src/components/v3/panel/SidePanel";
+
+const fixture = JSON.parse(document.getElementById("${F1_FIXTURE_ID}").textContent);
+// Шапка и тело — из серверной разметки открытой записи.
+const server = document.querySelector("dialog[data-side-panel]");
+const heading = server.querySelector("[data-queue-heading]");
+const openLink = server.querySelector("[data-side-panel-open]");
+const facts = {
+  title: heading.textContent,
+  headingId: heading.id,
+  context: server.querySelector("[data-side-panel-context]")?.textContent ?? null,
+  open: openLink ? { href: openLink.getAttribute("href"), label: openLink.textContent } : null,
+  closeHref: server.querySelector('[data-testid="queue-detail-close"]').getAttribute("href"),
+  body: server.querySelector("[data-side-panel-header]").nextElementSibling?.innerHTML ?? "",
+};
+const grid = server.parentElement;
+const split = [...grid.classList].filter((name) => name.startsWith("xl:"));
+const slot = document.createElement("div");
+slot.style.display = "contents";
+server.replaceWith(slot);
+const root = createRoot(slot);
+// Что делает сервер при смене адреса: выбор строки и вторая колонка сетки.
+function mark(open) {
+  for (const name of split) grid.classList.toggle(name, open);
+  const row = document.getElementById("sale-" + fixture.record);
+  row.toggleAttribute("data-selected", open);
+  row.classList.toggle("bg-surface-2", open);
+  row.classList.toggle("bg-surface", !open);
+  const link = row.querySelector("a");
+  if (open) link.setAttribute("aria-current", "true");
+  else link.removeAttribute("aria-current");
+}
+const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, replace() {}, prefetch() {},
+  push(href) { (globalThis.__staticPushes ||= []).push(String(href)); render(new URL(href, "https://crm.invalid").searchParams.get("record") === fixture.record); } };
+function render(open) {
+  mark(open);
+  root.render(createElement(AppRouterContext.Provider, { value: router }, open
+    ? createElement(SidePanel, {
+      key: fixture.record, closeHref: facts.closeHref, backLabel: fixture.backLabel, headingId: facts.headingId,
+      title: facts.title, context: facts.context, open: facts.open, returnTo: fixture.returnTo,
+    }, createElement("div", { dangerouslySetInnerHTML: { __html: facts.body } }))
+    : null));
+}
+// Ссылка строки на сервере — переход по адресу; здесь тот же адрес идёт в стенд.
+document.addEventListener("click", (event) => {
+  const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+  if (!link || link.closest("dialog") || event.button !== 0 || !new URL(link.href).searchParams.get("record")) return;
+  event.preventDefault();
+  router.push(link.getAttribute("href"));
+});
+render(true);
+requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.clientRendered = "1"; }));
+`;
+
+async function f1() {
+  const probe = require("./side-panel-probe.cjs");
+  const outIndex = process.argv.indexOf("--f1") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  await require("esbuild").build({
+    stdin: { contents: F1_ENTRY, resolveDir: __dirname, sourcefile: "numbers-f1-entry.js", loader: "js" },
+    bundle: true, outfile: join(outDir, "f1-report-client.js"), format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
+    tsconfig: join(ROOT, "tsconfig.json"), define: { "process.env.NODE_ENV": '"production"' },
+    banner: { js: "var process = globalThis.process || { env: {} };" },
+    plugins: [probe.linkShim(ROOT), {
+      name: "numbers-f1-css",
+      setup(build) { build.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" })); },
+    }],
+    logLevel: "error",
+  });
+  const css = await compileCss();
+  useE4Report();
+  const record = E4_ROWS[1].id;
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const failures = [];
+  try {
+    for (const look of [false, true]) {
+      const suffix = look ? "-next" : "";
+      const html = await reportPage({ record, edit: "true" }, { look });
+      const htmlPath = join(outDir, `f1-report${suffix}.html`);
+      const fixture = { record, backLabel: "К отчёту", returnTo: `[id="sale-${record}"] a` };
+      writeFileSync(htmlPath, [
+        "<!DOCTYPE html>",
+        '<html lang="ru" data-theme="light" class="h-full antialiased">',
+        `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Отчёт продаж — одна боковая панель (синтетические данные)</title><style>${css}</style></head>`,
+        `<body class="min-h-full">${html}<script type="application/json" id="${F1_FIXTURE_ID}">${JSON.stringify(fixture).replaceAll("<", "\\u003c")}</script><script src="f1-report-client.js"></script></body></html>`,
+      ].join(""));
+      for (const [width, context] of probe.F1_WIDTHS) {
+        const browserContext = await browser.newContext(context);
+        const page = await browserContext.newPage();
+        const errors = [];
+        page.on("pageerror", (error) => errors.push(error.message));
+        page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+        await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+        await page.evaluate(() => document.fonts.ready);
+        await page.waitForSelector("html[data-client-rendered]", { state: "attached", timeout: 10_000 });
+        await page.waitForTimeout(400);
+        await page.screenshot({ path: join(outDir, `f1-report${suffix}-${width}.png`) });
+        const row = `[id="sale-${record}"] a`;
+        const result = await probe.journey(page, {
+          selected: `[id="sale-${record}"][data-selected]`,
+          returnSelector: row,
+          reopen: () => page.click(row),
+          look: look ? "next" : "current",
+          scrolledPath: join(outDir, `f1-report${suffix}-${width}-scrolled.png`),
+        });
+        if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
+        probe.report({ screen: "report", look: suffix || "-current", width, ...result });
+        failures.push(...result.failures.map((failure) => `report${suffix} ${width}: ${failure}`));
+        await browserContext.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+  if (failures.length) throw new Error(`side panel (report): ${failures.length} failed:\n${failures.join("\n")}`);
+}
+
+if (process.argv.includes("--f1")) {
+  f1().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+} else if (process.argv.includes("--json-e4")) {
   // Э4 в обоих обликах: имена нового облика — с «-next» (для tests/v3-e4-work-surfaces.test.mjs).
   Promise.all([e4Pages(false), e4Pages(true)])
     .then(([current, next]) => process.stdout.write(JSON.stringify([...current, ...next.map((page) => ({ ...page, name: `${page.name}-next` }))])))
@@ -710,6 +851,6 @@ if (process.argv.includes("--json-e4")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: numbers-static-render.cjs --json | --json-e4 | --screenshots [outDir] | --e4-screenshots [outDir]");
+  console.error("usage: numbers-static-render.cjs --json | --json-e4 | --screenshots [outDir] | --e4-screenshots [outDir] | --f1 [outDir]");
   process.exit(2);
 }

@@ -61,10 +61,11 @@ type FormProps = Readonly<{
   ownMembershipId: string; ownLabel: string; requestId: string; archiveRequestId: string; backHref: string; readUnavailable: boolean;
   intakeOptions?: SalesRegisterIntakeOptions | null;
   /**
-   * Э4 (27.09.2026): запись открыта в правой панели рядом со списком —
-   * заголовок h2 с этим id (фокус панели), без «← К отчёту», поля в одну
-   * колонку, «Сохранить продажу» — тёмная нейтральная кнопка: сплошной
-   * красный отчёта — «Добавить продажу».
+   * Э4 (27.09.2026): запись открыта в правой панели рядом со списком — без
+   * «← К отчёту», поля в одну колонку, «Сохранить продажу» — тёмная
+   * нейтральная кнопка: сплошной красный отчёта — «Добавить продажу». С Э7
+   * имя (заголовок с этим id, фокус панели) и «Открыть профиль студента» —
+   * шапка общей боковой панели (`salesRecordPanelHeader`).
    */
   panelHeadingId?: string;
   /**
@@ -193,13 +194,11 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   </select></label>;
 
   return <div className="space-y-6">
-    {panel ? (
-      <h2 id={panelHeadingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{record?.applicantName || "Запись продажи"}</h2>
-    ) : <>
+    {panel ? null : <>
       <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
       <h1 className="t-page-title">{recordId ? "Запись продажи" : "Добавить продажу"}</h1>
     </>}
-    {record?.sourceKind === "pipeline" && record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Открыть профиль студента</Link> : null}
+    {!panel && record?.sourceKind === "pipeline" && record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Открыть профиль студента</Link> : null}
     {record?.archived ? <p className="text-sm text-fg-2">Эта запись в архиве и не входит в рабочие итоги. Для редактирования сначала восстановите её.</p> : null}
     <form action={action} aria-busy={pending} className="space-y-6" data-testid="sales-register-form">
       <input type="hidden" name="operation" value={recordId ? "update" : "create"} />

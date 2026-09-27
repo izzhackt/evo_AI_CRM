@@ -432,7 +432,7 @@ test("«Быстрый просмотр» is the queue panel: record heading, th
   // The head (tabs, toolbar) spans the full width above the grid, so opening the panel
   // neither wraps it nor moves the first row; list and panel share the grid from 1280 px.
   assert.match(html, /^<div class="min-w-0 space-y-2" data-testid="v3-student-case-directory"><div class="space-y-1\.5" data-testid="v3-students-queue-head">/u);
-  const grid = html.indexOf('<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6">');
+  const grid = html.indexOf('<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_var(--side-panel-width)] xl:items-start xl:gap-6">');
   assert.ok(grid > html.indexOf('data-testid="queue-toolbar"'), "the grid starts below the toolbar");
   assert.ok(html.indexOf("<dialog") > grid);
   const row = html.slice(html.indexOf(`data-queue-row="${CASE}"`));
@@ -442,7 +442,7 @@ test("«Быстрый просмотр» is the queue panel: record heading, th
   assert.match(panel, /^<dialog open="" aria-labelledby="([^"]+)" data-testid="queue-detail-panel"/u);
   assert.match(panel, /data-testid="queue-detail-close"[^>]*href="\/v3\/profile\?view=active"/u);
   assert.match(panel, /<h2 id="[^"]+" tabindex="-1" data-queue-heading="" class="t-record-title[^"]*">Нурсултан Бекмурзаевич Джумабаев-Осмоналиев<\/h2>/u);
-  assert.match(panel, new RegExp(`href="/v3/profile\\?case=${CASE}&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive%26open%3D${CASE}">Открыть дело</a>`, "u"));
+  assert.match(panel, new RegExp(`data-side-panel-open="" href="/v3/profile\\?case=${CASE}&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive%26open%3D${CASE}">Открыть дело<svg`, "u"));
   assert.match(panel, /<dt class="t-caption text-fg-2">Этап<\/dt><dd[^>]*>Подбор вузов<\/dd>/u);
   // Quick due choices: «Пт 25.09» appears because Friday is not tomorrow.
   assert.deepEqual([...panel.matchAll(/<button type="button" aria-pressed="(true|false)"[^>]*>([^<]+)<\/button>/gu)].map((match) => [match[2], match[1]]), [
@@ -457,7 +457,7 @@ test("«Быстрый просмотр» is the queue panel: record heading, th
   // A row that is not on this page is said plainly, with the case link.
   const missing = surfaces.get("panel-missing").slice(surfaces.get("panel-missing").indexOf("<dialog"));
   assert.match(missing, /Дела нет на этой странице списка/u);
-  assert.match(missing, /href="\/v3\/profile\?case=cccccccc-2222-4222-8222-000000000099&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive">Открыть дело<\/a>/u);
+  assert.match(missing, /data-side-panel-open="" href="\/v3\/profile\?case=cccccccc-2222-4222-8222-000000000099&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive">Открыть дело<svg/u);
 });
 
 test("toolbar: search «/», filters with counts inside menus, sort visible, «Сбросить» only when set", () => {
@@ -773,7 +773,7 @@ test("«Ожидает начала» is a queue view: pending cases, no due gro
 
 test("«Принять дело» in the panel reuses the case card, only for the curator who can answer", () => {
   const accept = surfaces.get("panel-accept");
-  const block = accept.match(/<div class="mt-4" data-testid="v3-students-panel-handoff">[\s\S]*$/u)?.[0] ?? "";
+  const block = accept.match(/<div class="mb-4" data-testid="v3-students-panel-handoff">[\s\S]*$/u)?.[0] ?? "";
   assert.match(block, /data-testid="v3-handoff-acknowledgement"/u, "the same «Приём дела» part as in the case card");
   assert.match(block, />Принять дело</u);
   assert.doesNotMatch(surfaces.get("admin-panel"), /v3-students-panel-handoff/u, "no block without a snapshot the curator can answer");

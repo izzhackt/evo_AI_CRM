@@ -283,8 +283,10 @@
 }
 
 /*
- * Единый вид «выбрано» (24.09.2026): вкладки, сегменты, навигация разделов,
- * чипы фильтров и карточка, чьи подробности открыты рядом. Сплошной красный
+ * Единый вид «выбрано» (24.09.2026): вкладки, сегменты, навигация разделов и
+ * чипы фильтров. Строка списка или карточка доски, чья запись открыта в
+ * боковой панели рядом, выбрана иначе — `aria-current` и подложка `surface-2`
+ * (Э7, 27.09: одна боковая панель везде). Сплошной красный
  * остаётся только главному действию экрана. Вид включается лишь объявленным
  * состоянием — aria-current, aria-pressed="true" или aria-expanded="true", —
  * поэтому выбранное нельзя показать одним цветом без смысла для читалки.
@@ -366,6 +368,39 @@
 .v3-world .v3-queue-row:has([data-queue-open]:focus-visible) {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
+}
+
+/*
+ * Одна боковая панель записи (Э7, `SidePanel`, оба облика). Ширина — один
+ * токен для сетки «список | панель», листа и доски (26rem = 416 px,
+ * `SIDE_PANEL_WIDTH_REM`). Уже 1280 px панель — модальный лист в верхнем
+ * слое: он коротко выезжает справа, затемнение проявляется; рядом со
+ * списком панель не движется. При `prefers-reduced-motion` движения нет.
+ */
+.v3-world {
+  --side-panel-width: 26rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world [data-side-panel]:modal {
+    animation: v3-side-sheet-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .v3-world [data-side-panel]:modal::backdrop {
+    animation: v3-side-backdrop-in 200ms ease-out;
+  }
+}
+
+@keyframes v3-side-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+}
+
+@keyframes v3-side-backdrop-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /*

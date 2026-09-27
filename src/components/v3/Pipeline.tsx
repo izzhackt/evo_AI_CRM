@@ -24,6 +24,8 @@ import { StageTrack } from "@/components/v3/blocks/StageTrack";
 import { dueWordOf, type DueWordView } from "@/components/v3/queue/due-bucket";
 import { PipelineDecisionForm } from "@/components/v3/PipelineDecisionForm";
 import { ClosedLine, CloseRecordMenu } from "@/components/v3/closure/Closure";
+import { attributeReturn } from "@/components/v3/panel/side-panel";
+import { SidePanel } from "@/components/v3/panel/SidePanel";
 import type { LeadClosureReceipt } from "@/lib/platform-closure-contract";
 import { closureWords } from "@/lib/v3/wording";
 import type {
@@ -228,7 +230,9 @@ function LeadCard({
       data-testid="v3-pipeline-card"
       data-lead-id={lead.id}
       aria-current={selected ? "true" : undefined}
-      className={`v3-choice ${BOARD_CARD_CLASS}`}
+      // Карточка, чья панель открыта рядом, выбрана как строка списка (Э7):
+      // `aria-current` и подложка `surface-2`, рамка — как у наведения.
+      className={`${BOARD_CARD_CLASS} aria-[current=true]:border-control-edge aria-[current=true]:bg-surface-2`}
     >
       <p className="flex min-w-0 items-baseline gap-2">
         {/* Вся карточка нажимается: ссылка растянута на неё псевдоэлементом. */}
@@ -278,6 +282,7 @@ function LeadPanel({
   requestId,
   closeHref,
   returnTo,
+  focusReturn,
   saved,
   onClose,
   onSaved,
@@ -298,42 +303,20 @@ function LeadPanel({
   closeHref: string;
   /** Текущее состояние доски — туда ведёт «К воронке продаж» из карточки. */
   returnTo: string;
+  /** Куда встаёт фокус после закрытия: карточка лида, иначе рейка её этапа. */
+  focusReturn: readonly string[] | undefined;
   saved: boolean;
   onClose: () => void;
   onSaved: () => void;
   /** «Закрыть лид» подтверждён сервером: лид уходит с доски. */
   onLeadClosed: (receipt: LeadClosureReceipt) => void;
 }) {
-  const headingId = useId();
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const savedRef = useRef<HTMLParagraphElement>(null);
-  // Закрытия, которые сделала сама панель при смене вида: событие `close`
-  // приходит позже задачей, и его нельзя принять за закрытие человеком.
-  const switchingCloses = useRef(0);
   const owner = lead.workflow.currentOwnerDisplayName;
-
-  // Широкий экран (контейнер от 72rem): панель — немодальный диалог в ряду с
-  // доской, доска остаётся рабочей. Уже — лист поверх страницы, поэтому
-  // модальный: страница за ним инертна, Escape закрывает его, где бы ни был
-  // фокус. Какой вид сейчас, говорит CSS самой панели (запрос контейнера),
-  // а не второе правило в JS.
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const sync = () => {
-      const sheet = getComputedStyle(dialog).position === "fixed";
-      if (dialog.open && dialog.matches(":modal") === sheet) return;
-      if (dialog.open) {
-        switchingCloses.current += 1;
-        dialog.close();
-      }
-      if (sheet) dialog.showModal();
-      else dialog.show();
-    };
-    sync();
-    window.addEventListener("resize", sync);
-    return () => window.removeEventListener("resize", sync);
-  }, []);
+  // Строка контекста шапки (Э7): этап и ответственный — из списка фактов
+  // панели, прежними словами. В новом облике над ней — дорожка этапа, без
+  // своей подписи: слово этапа уже в строке.
+  const contextLine = `${stageTitle} · ${owner ? `Ответственный: ${owner}` : "Ответственный не назначен"}`;
 
   // Итог сохранения появляется после обновления доски под кнопкой — панель
   // докручивается до него, если он оказался ниже края.
@@ -341,131 +324,103 @@ function LeadPanel({
     if (saved) savedRef.current?.scrollIntoView({ block: "nearest" });
   }, [saved]);
 
+  // Общая боковая панель (Э7): от 1280 px окна — в ряд с доской (`fill`:
+  // высотой доски, доска остаётся рабочей), уже — модальный лист поверх
+  // страницы. Закрытие — без запроса к серверу (`onClose`, `?lead=` уходит
+  // из адреса через history).
   return (
-    <dialog
-      ref={dialogRef}
-      open
-      aria-labelledby={headingId}
-      data-testid="v3-pipeline-lead-panel"
-      data-lead-id={lead.id}
-      onClose={() => {
-        if (switchingCloses.current > 0) {
-          switchingCloses.current -= 1;
-          return;
-        }
-        onClose();
-      }}
-      onKeyDown={(event) => {
-        if (event.key !== "Escape") return;
-        event.preventDefault();
-        onClose();
-      }}
-      className="fixed inset-y-0 end-0 start-auto z-40 m-0 hidden h-dvh max-h-none w-full max-w-[420px] flex-col border-s border-border bg-surface p-0 text-fg shadow-evo-lg backdrop:bg-black/45 open:flex @6xl:static @6xl:z-auto @6xl:h-full @6xl:w-[400px] @6xl:max-w-none @6xl:shrink-0 @6xl:rounded-card @6xl:border @6xl:shadow-none"
+    <SidePanel
+      closeHref={closeHref}
+      onClose={onClose}
+      backLabel="К воронке"
+      title={lead.name}
+      context={next ? (
+        <>
+          <StageTrack kind="sales" current={lead.stageKey} caption={false} className="mb-1.5 pt-1" />
+          <p>{contextLine}</p>
+        </>
+      ) : contextLine}
+      open={{ href: withPipelineReturn(lead.href, returnTo), label: "Открыть карточку лида", prefetch: false }}
+      // «⋯» лида: «Закрыть лид». Переданный лид — продажа: пункт недоступен
+      // и называет причину. Права — подсказка; решает сервер (246).
+      actions={!isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
+        <CloseRecordMenu
+          kind="lead"
+          subjectId={lead.workflow.leadId}
+          subjectName={lead.name}
+          expectedVersion={lead.workflow.workflowVersion}
+          blockedReason={terminal ? closureWords.lead.handedOff : null}
+          onClosed={onLeadClosed}
+        />
+      ) : null}
+      returnTo={focusReturn}
+      fill
+      testId="v3-pipeline-lead-panel"
+      data={{ "data-lead-id": lead.id }}
     >
-      <header className="flex shrink-0 items-start gap-2 border-b border-border py-2 pe-2 ps-4">
-        <h2 id={headingId} tabIndex={-1} className="t-record-title min-w-0 flex-1 break-words py-2 text-fg">
-          {lead.name}
-        </h2>
-        {/* «⋯» лида: «Закрыть лид». Переданный лид — продажа: пункт недоступен
-            и называет причину. Права — подсказка; решает сервер (246). */}
-        {!isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
-          <CloseRecordMenu
-            kind="lead"
-            subjectId={lead.workflow.leadId}
-            subjectName={lead.name}
-            expectedVersion={lead.workflow.workflowVersion}
-            blockedReason={terminal ? closureWords.lead.handedOff : null}
-            onClosed={onLeadClosed}
-          />
+      <dl className="t-body-compact grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-fg">
+        <dt className="t-caption pt-0.5 text-fg-3">Действие</dt>
+        <dd className={`break-words ${lead.nextAction ? "" : "text-fg-3"}`}>{lead.nextAction ?? "Без следующего действия"}</dd>
+        {lead.nextActionAt && lead.workflow.nextActionDueDate ? (
+          <>
+            <dt className="t-caption pt-0.5 text-fg-3">Срок</dt>
+            <dd className="flex items-baseline gap-2">
+              <time dateTime={lead.workflow.nextActionDueDate} className="font-mono tabular-nums">{lead.nextActionAt}</time>
+              {terminal ? null : next ? <DueWordBlock view={leadDueWord(lead, today)} /> : <DueWord due={lead.due} />}
+            </dd>
+          </>
         ) : null}
-        <Link
-          href={closeHref}
-          prefetch={false}
-          scroll={false}
-          aria-label="Закрыть"
-          onClick={(event) => {
-            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-            event.preventDefault();
-            onClose();
-          }}
-          className="flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg"
-        >
-          <Icon name="x" size={20} />
-        </Link>
-      </header>
+        {!terminal && lead.stageAgeDays !== null ? (
+          <>
+            <dt className="t-caption pt-0.5 text-fg-3">{next ? "На этапе" : "На стадии"}</dt>
+            <dd className="tabular-nums">{lead.stageAgeDays} {next ? "дн" : "дн."}</dd>
+          </>
+        ) : null}
+      </dl>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3">
-        <dl className="t-body-compact grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-fg">
-          <dt className="t-caption pt-0.5 text-fg-3">Этап</dt>
-          <dd>{next ? <StageTrack kind="sales" current={lead.stageKey} /> : stageTitle}</dd>
-          <dt className="t-caption pt-0.5 text-fg-3">Ответственный</dt>
-          <dd className={owner ? undefined : "text-fg-3"}>{owner ?? "Не назначен"}</dd>
-          <dt className="t-caption pt-0.5 text-fg-3">Действие</dt>
-          <dd className={`break-words ${lead.nextAction ? "" : "text-fg-3"}`}>{lead.nextAction ?? "Без следующего действия"}</dd>
-          {lead.nextActionAt && lead.workflow.nextActionDueDate ? (
-            <>
-              <dt className="t-caption pt-0.5 text-fg-3">Срок</dt>
-              <dd className="flex items-baseline gap-2">
-                <time dateTime={lead.workflow.nextActionDueDate} className="font-mono tabular-nums">{lead.nextActionAt}</time>
-                {terminal ? null : next ? <DueWordBlock view={leadDueWord(lead, today)} /> : <DueWord due={lead.due} />}
-              </dd>
-            </>
-          ) : null}
-          {!terminal && lead.stageAgeDays !== null ? (
-            <>
-              <dt className="t-caption pt-0.5 text-fg-3">{next ? "На этапе" : "На стадии"}</dt>
-              <dd className="tabular-nums">{lead.stageAgeDays} {next ? "дн" : "дн."}</dd>
-            </>
-          ) : null}
-        </dl>
-
+      {/* Ролям без права на задачи ссылка просто не показывается —
+          без постоянной строки-инструкции в каждой карточке. */}
+      {!isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read") ? (
         <p className="mt-2 flex flex-wrap gap-x-5">
-          <Link href={withPipelineReturn(lead.href, returnTo)} prefetch={false} className="t-item inline-flex min-h-11 items-center text-accent-text underline underline-offset-4">
-            Открыть карточку лида
+          <Link href={`/v3/tasks?lead=${lead.workflow.leadId}&create=staff`} prefetch={false} className="t-item inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
+            Задачи по лиду
           </Link>
-          {/* Ролям без права на задачи ссылка просто не показывается —
-              без постоянной строки-инструкции в каждой карточке. */}
-          {!isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read") ? (
-            <Link href={`/v3/tasks?lead=${lead.workflow.leadId}&create=staff`} prefetch={false} className="t-item inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
-              Задачи по лиду
-            </Link>
-          ) : null}
         </p>
+      ) : null}
 
-        {lead.latestNote ? (
-          <section aria-label="Последняя заметка" className="mt-3 border-t border-border pt-3">
-            <h3 className="t-caption text-fg-3">Последняя заметка</h3>
-            <p className="t-body-compact mt-1 line-clamp-6 whitespace-pre-wrap break-words text-fg-2">{lead.latestNote.body}</p>
-            <p className="t-meta mt-1 truncate text-fg-3">
-              {lead.latestNote.authorDisplayName}
-              {" · "}
-              <time dateTime={lead.latestNote.createdAt} className="font-mono tabular-nums">
-                {NOTE_TIME.format(new Date(lead.latestNote.createdAt))}
-              </time>
-            </p>
-          </section>
-        ) : null}
+      {lead.latestNote ? (
+        <section aria-label="Последняя заметка" className="mt-3 border-t border-border pt-3">
+          <h3 className="t-caption text-fg-3">Последняя заметка</h3>
+          <p className="t-body-compact mt-1 line-clamp-6 whitespace-pre-wrap break-words text-fg-2">{lead.latestNote.body}</p>
+          <p className="t-meta mt-1 truncate text-fg-3">
+            {lead.latestNote.authorDisplayName}
+            {" · "}
+            <time dateTime={lead.latestNote.createdAt} className="font-mono tabular-nums">
+              {NOTE_TIME.format(new Date(lead.latestNote.createdAt))}
+            </time>
+          </p>
+        </section>
+      ) : null}
 
-        {!terminal && !isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
-          <div className="mt-3 border-t border-border pt-3">
-            <PipelineDecisionForm
-              key={`${lead.workflow.leadId}:${lead.workflow.workflowVersion}`}
-              lead={lead.workflow}
-              stages={workflowStages}
-              ownerOptions={ownerOptions}
-              ownerOptionsHaveMore={ownerOptionsHaveMore}
-              actor={actor}
-              actorMembershipId={actorMembershipId}
-              requestId={requestId}
-              onSaved={onSaved}
-            />
-            {/* Итог — там же, где его показывала форма до обновления доски:
-                у кнопки, куда смотрит сотрудник. */}
-            {saved ? <p ref={savedRef} role="status" className="t-body-compact mt-2 text-ok">Решение сохранено.</p> : null}
-          </div>
-        ) : null}
-      </div>
-    </dialog>
+      {!terminal && !isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
+        <div className="mt-3 border-t border-border pt-3">
+          <PipelineDecisionForm
+            key={`${lead.workflow.leadId}:${lead.workflow.workflowVersion}`}
+            lead={lead.workflow}
+            stages={workflowStages}
+            ownerOptions={ownerOptions}
+            ownerOptionsHaveMore={ownerOptionsHaveMore}
+            actor={actor}
+            actorMembershipId={actorMembershipId}
+            requestId={requestId}
+            onSaved={onSaved}
+          />
+          {/* Итог — там же, где его показывала форма до обновления доски:
+              у кнопки, куда смотрит сотрудник. */}
+          {saved ? <p ref={savedRef} role="status" className="t-body-compact mt-2 text-ok">Решение сохранено.</p> : null}
+        </div>
+      ) : null}
+    </SidePanel>
   );
 }
 
@@ -510,8 +465,6 @@ export function Pipeline({
   // настоящий «Вернуть в работу» (обратная команда 246).
   // `reopened` — «Вернуть в работу» подтверждён: строка говорит итог, пока её не скроют.
   const [closedNotice, setClosedNotice] = useState<Readonly<{ name: string; receipt: LeadClosureReceipt; reopened: boolean }> | null>(null);
-  const focusPanel = useRef(false);
-  const returnFocusTo = useRef<Readonly<{ leadId: string; stage: PipelineStageKey | null }> | null>(null);
   // Сохранённое решение: лид и версия, с которой его сохранили. Пока доска
   // не обновилась, итог показывает сама форма; после обновления форма
   // пересоздаётся с новой версией, и итог остаётся строкой панели — без
@@ -544,39 +497,26 @@ export function Pipeline({
     ? stages.filter((stage) => !stage.terminal && !leads.some((lead) => lead.stageKey === stage.key))
     : [];
 
-  // Открытие с карточки переводит фокус в панель, закрытие — обратно на
-  // карточку. Открытие по адресу (обновление страницы) фокус не забирает.
-  useEffect(() => {
-    if (selected && focusPanel.current) {
-      focusPanel.current = false;
-      rootRef.current?.querySelector<HTMLElement>('[data-testid="v3-pipeline-lead-panel"] h2')?.focus();
-    }
-    if (!selected && returnFocusTo.current) {
-      const { leadId, stage } = returnFocusTo.current;
-      returnFocusTo.current = null;
-      // Карточка переданного лида уходит вместе с раскрытой рядом с панелью
-      // колонкой «Переданы» — тогда фокус встаёт на рейку её этапа.
-      const root = rootRef.current;
-      const shown = (element: HTMLElement) => element.getClientRects().length > 0;
-      const card = [...(root?.querySelectorAll<HTMLElement>(`[data-lead-link="${leadId}"]`) ?? [])].find(shown);
-      const rail = stage ? [...(root?.querySelectorAll<HTMLElement>(`[data-stage-rail="${stage}"]`) ?? [])].find(shown) : undefined;
-      (card ?? rail)?.focus();
-    }
-  }, [selected]);
+  // Открытие переводит фокус на заголовок панели — и с карточки, и по адресу
+  // (переход из «Сегодня»); закрытие возвращает его на карточку (`SidePanel`).
+  // Карточка переданного лида уходит вместе с раскрытой рядом с панелью
+  // колонкой «Переданы» — тогда фокус встаёт на рейку её этапа. Закрытый лид
+  // уходит с доски: фокус получает строка над доской, а не его карточка.
+  const closedHere = closedNotice !== null && !closedNotice.reopened && closedNotice.receipt.leadId === selected?.workflow.leadId;
+  const focusReturn = selected && !closedHere
+    ? [attributeReturn("data-lead-link", selected.id), attributeReturn("data-stage-rail", selected.stageKey)]
+    : undefined;
 
   const openLead = (lead: PipelineLead) => (event: MouseEvent<HTMLAnchorElement>) => {
     if (!pushBoardState(event, boardHref({ lead: lead.id }))) return;
-    focusPanel.current = true;
     if (saved?.leadId !== lead.id) setSaved(null);
   };
   const closePanel = () => {
-    returnFocusTo.current = selectedId ? { leadId: selectedId, stage: selected?.stageKey ?? null } : null;
     setSaved(null);
     if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
   };
   function leadClosed(name: string, receipt: LeadClosureReceipt) {
     setClosedNotice({ name, receipt, reopened: false });
-    returnFocusTo.current = null;
     setSaved(null);
     if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
     router.refresh();
@@ -697,8 +637,8 @@ export function Pipeline({
         </button>
       </div>
     ) : null}
-    {/* Широкий экран: доска и панель лида — один ряд, панель не перекрывает
-        колонки, а забирает у доски 408 px. */}
+    {/* От 1280 px окна доска и панель лида — один ряд, панель не перекрывает
+        колонки, а забирает у доски свою ширину (`--side-panel-width`) и 8 px. */}
     <div ref={rootRef} className="relative flex min-w-0 flex-col @6xl:h-full @6xl:min-h-0 @6xl:flex-row @6xl:gap-2">
       <div
         role="group"
@@ -826,6 +766,7 @@ export function Pipeline({
 
       {selected ? (
         <LeadPanel
+          key={selected.id}
           lead={selected}
           next={next}
           today={today}
@@ -839,6 +780,7 @@ export function Pipeline({
           requestId={requestIds[selected.id] ?? ""}
           closeHref={boardHref({ lead: null })}
           returnTo={pipelineReturnHref(search)}
+          focusReturn={focusReturn}
           saved={saved?.leadId === selected.id && saved.version !== selected.workflow.workflowVersion}
           onClose={closePanel}
           onSaved={() => setSaved({ leadId: selected.id, version: selected.workflow.workflowVersion })}

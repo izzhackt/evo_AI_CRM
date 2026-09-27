@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
 import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
+import { fixedRoleCanAccessRoute } from "../src/lib/fixed-role-policy.ts";
 import { staffDirectoryAccessSummary } from "../src/lib/v3/wording.ts";
 
 const actionSource = readFileSync(
@@ -121,10 +122,14 @@ test("V3 exposes the canonical audit export only on the Admin journal surface", 
     v3SettingsPageSource,
     /const isAdmin = actor\.systemRole === "admin" && actor\.presentationRole === null/,
   );
+  // Э6 (27.09.2026): the whole route is Admin-only (`admin.preview`), so the
+  // journal is a plain section of that route, without an «админ» mark.
   assert.match(
     v3SettingsTypesSource,
-    /\{ key: "journal", title: "Журнал действий", admin: true \}/,
+    /\{ key: "journal", view: null, title: "Журнал действий" \}/,
   );
+  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/settings"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/settings"), false);
   assert.match(v3SettingsSectionsSource, /data-testid="v3-audit-export"/);
   assert.match(v3SettingsPageSource, /normalizeJournalFilters\(\{/);
   assert.doesNotMatch(

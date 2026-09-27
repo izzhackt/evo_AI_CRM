@@ -3,30 +3,56 @@ import type { ProviderDisplayStatus } from "../provider-display-status.ts";
 import { settingsBlockedWahaDetail, settingsStatusWords } from "./wording.ts";
 
 /**
- * «Настройки → Состояние и Интеграции» из уже прочитанных фактов, без чтений.
+ * «Настройки → Интеграции» (Э6 плана редизайна, 27.09.2026): одна таблица из
+ * уже прочитанных фактов, без чтений. Раньше состояние интеграций стояло
+ * трижды — карточки «Состояния», список «Требует внимания» и карточки
+ * «Интеграций»; теперь это одна строка на сервис.
  *
- * «Требует внимания» — только то, что настроено и сломано или ждёт проверки
- * (аудит 26.09): проверка, которая не запускалась, — «не проверялось», а
- * провайдер, которого просто не настраивали, — «не используется»; ни то ни
- * другое не тревога. WhatsApp без данных о подключении — честное «не
- * подключён»: пункт меню WhatsApp есть, значит, это недоделанная работа.
+ * Предупреждение сверху (`blocksWork`) — только у настроенного и сломанного
+ * сервиса: работа, ради которой его настраивали, стоит. «Не используется»
+ * (не настраивали), «настроен, не проверен» и WhatsApp без данных о
+ * подключении — факты таблицы, а не тревога: вебхук WAHA снят сознательно
+ * (26.09), страница WhatsApp говорит «не подключён» сама. База данных —
+ * факт раздела «Платформа» (`databaseFact`), в таблице её нет.
+ *
+ * «Что сделать» (правка по ревью #1079): у действия всегда есть путь —
+ * ссылка внутри CRM или работа на сервере вместе с тем, кто её делает.
+ * Сервер и параметры провайдеров — работа технического специалиста (так же
+ * говорит «Эксплуатация» в «Платформе»): Admin передаёт её, а не ищет сам.
+ * Ссылок на runbook нет: процедуры `docs/runbooks/p7b-operations.md`
+ * помечены историческими и до пересмотра U11 не применяются.
  */
 
-export type Integration = Readonly<{
+export type IntegrationTone = "ok" | "warn" | "blocked" | "off";
+
+export type IntegrationRow = Readonly<{
+  key: "whatsapp" | "amocrm" | "gemini";
   name: string;
+  /** Состояние словом; значок и цвет его только подкрепляют. */
   state: string;
-  ok: boolean;
-  detail: string;
+  tone: IntegrationTone;
+  /** Причина словами (заблокированная сессия, неверные параметры); null — нечего добавить. */
+  detail: string | null;
+  /** Момент последнего наблюдения состояния; null — проверки не было. */
+  checkedAt: string | null;
+  /** «26.09 12:00» по Бишкеку; год — только если не текущий. */
+  checkedText: string | null;
+  /** Проверки у сервиса нет вовсе (читаются только параметры): «—», а не «нет данных». */
+  checkable: boolean;
+  /** Что не работает без сервиса, простыми словами; null — всё работает. */
+  without: string | null;
+  /**
+   * Что сделать; null — делать нечего. `handoff` — работа на сервере и кто её
+   * делает; `link` — страница CRM по этому сервису. Хотя бы одно из двух есть.
+   */
+  action: IntegrationAction | null;
+  /** Настроенный сервис сломан, работа стоит: единственное предупреждение страницы. */
+  blocksWork: boolean;
 }>;
 
-export type Health = Readonly<{
-  name: string;
-  state: string;
-  detail: string;
-  tone: "ok" | "warn" | "off";
-  /** null — в «Требует внимания» не входит. */
-  blocker: string | null;
-  where: string | null;
+export type IntegrationAction = Readonly<{
+  handoff: string | null;
+  link: Readonly<{ label: string; href: string }> | null;
 }>;
 
 type AmoBlockedReason = keyof typeof settingsStatusWords.amoBlocked;
@@ -35,22 +61,24 @@ export type SettingsAmoAvailability =
   | Readonly<{ status: "ready" }>
   | Readonly<{ status: "blocked"; reason: AmoBlockedReason }>;
 
-export type SettingsHealthFacts = Readonly<{
+export type SettingsIntegrationFacts = Readonly<{
   waha: Readonly<{
     display: ProviderDisplayStatus;
     /** Статус сессии из чтения; нужен только для заблокированной. */
     sessionStatus: string | undefined;
-    /** «Данные на … (Бишкек).» — время чтения состояния сессии. */
-    observed: string;
+    /** Когда состояние сессии наблюдалось; null — строки состояния нет. */
+    observedAt: string | null;
   }>;
   gemini: ProviderDisplayStatus;
   amo: SettingsAmoAvailability;
-  database: Readonly<{
-    /** Автоматическая проверка включена и запускалась при этом чтении. */
-    checked: boolean;
-    status: PlatformComponentStatus;
-    observed: string;
-  }>;
+}>;
+
+export type SettingsDatabaseFact = Readonly<{
+  /** Автоматическая проверка включена и запускалась при этом чтении. */
+  checked: boolean;
+  status: PlatformComponentStatus;
+  /** «Данные на … (Бишкек).» — время проверки. */
+  observed: string;
 }>;
 
 /** Не настраивали: выключено или нет параметров. Настроено и сломано — не сюда. */
@@ -59,109 +87,106 @@ const AMO_UNUSED: ReadonlySet<AmoBlockedReason> = new Set([
   "configuration_missing",
 ]);
 
-export function wahaIntegration(facts: SettingsHealthFacts["waha"]): Integration {
-  if (facts.display === "ready") {
-    return { name: "WhatsApp", state: "готова", ok: true, detail: `Подключение подтверждено. ${facts.observed}` };
-  }
-  if (facts.display === "blocked") {
+const WHATSAPP_WITHOUT = "Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя";
+/** Страница WhatsApp: там видно то же состояние, что у сотрудников. */
+const OPEN_WHATSAPP = { label: "Открыть WhatsApp", href: "/v3/inbox" } as const;
+/** Работа на сервере — у технического специалиста. */
+const handoff = (work: string): IntegrationAction => ({ handoff: `Передать техническому специалисту: ${work}`, link: null });
+const FIX_PARAMETERS = handoff("исправить параметры на сервере");
+
+/** «26.09 12:00» по Бишкеку; год двумя цифрами — только если он не текущий. */
+export function formatSettingsCheck(value: string | null, now: Date): string | null {
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || !Number.isFinite(parsed.valueOf()) || !Number.isFinite(now.valueOf())) return null;
+  const parts = (date: Date) => Object.fromEntries(new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Asia/Bishkek", year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date).map((part) => [part.type, part.value]));
+  const at = parts(parsed);
+  const year = at.year === parts(now).year ? "" : `.${at.year}`;
+  return `${at.day}.${at.month}${year} ${at.hour}:${at.minute}`;
+}
+
+function whatsappRow(waha: SettingsIntegrationFacts["waha"], now: Date): IntegrationRow {
+  const checked = { checkedAt: waha.observedAt, checkedText: formatSettingsCheck(waha.observedAt, now), checkable: true };
+  if (waha.display === "ready") {
     return {
-      name: "WhatsApp",
-      state: "заблокирована",
-      ok: false,
-      detail: `${settingsBlockedWahaDetail(facts.sessionStatus)} ${facts.observed}`,
+      key: "whatsapp", name: "WhatsApp", state: "подключён", tone: "ok", detail: null, ...checked,
+      without: null, action: { handoff: null, link: OPEN_WHATSAPP }, blocksWork: false,
     };
   }
-  return { name: "WhatsApp", state: settingsStatusWords.notConnected, ok: false, detail: "Нет данных о подключении." };
-}
-
-export function geminiIntegration(display: ProviderDisplayStatus): Integration {
-  const name = "Gemini · предложения";
-  if (display === "configured_not_verified") {
-    return { name, state: "настроен, не проверен", ok: false, detail: "Работа сервиса ещё не проверена." };
+  if (waha.display === "blocked") {
+    return {
+      key: "whatsapp", name: "WhatsApp", state: "заблокирован", tone: "blocked",
+      detail: settingsBlockedWahaDetail(waha.sessionStatus), ...checked,
+      without: WHATSAPP_WITHOUT,
+      action: { ...handoff("проверить подключение на сервере"), link: OPEN_WHATSAPP }, blocksWork: true,
+    };
   }
-  if (display === "blocked") {
-    return { name, state: "заблокирован", ok: false, detail: "Параметры подключения некорректны." };
-  }
-  return { name, state: settingsStatusWords.unused, ok: false, detail: "Подключение не настроено." };
-}
-
-export function amoIntegration(amo: SettingsAmoAvailability): Integration {
-  if (amo.status === "ready") {
-    return { name: "amoCRM", state: "настроена, не проверена", ok: false, detail: "Синхронизация ещё не проверена." };
-  }
+  // Строки состояния нет: WhatsApp к CRM не подключали (вебхук снят 26.09
+  // сознательно). Это не просьба подключить, а кто подключает, когда решат.
   return {
-    name: "amoCRM",
-    state: AMO_UNUSED.has(amo.reason) ? settingsStatusWords.unused : "заблокирована",
-    ok: false,
-    detail: settingsStatusWords.amoBlocked[amo.reason],
+    key: "whatsapp", name: "WhatsApp", state: settingsStatusWords.notConnected, tone: "off", detail: null, ...checked,
+    without: WHATSAPP_WITHOUT,
+    action: { handoff: "Подключает технический специалист на сервере: вебхук и вход по QR", link: OPEN_WHATSAPP }, blocksWork: false,
   };
 }
 
+function geminiRow(display: ProviderDisplayStatus): IntegrationRow {
+  const base = { key: "gemini", name: "Gemini · черновики ответов", checkedAt: null, checkedText: null, checkable: false } as const;
+  if (display === "configured_not_verified") {
+    return {
+      ...base, state: "настроен, не проверен", tone: "warn", detail: null,
+      without: "Черновики ответов могут не появляться", action: handoff("проверить работу сервиса на сервере"), blocksWork: false,
+    };
+  }
+  if (display === "blocked") {
+    return {
+      ...base, state: "заблокирован", tone: "blocked", detail: "Параметры подключения некорректны.",
+      without: "Черновики ответов AI не создаются", action: FIX_PARAMETERS, blocksWork: true,
+    };
+  }
+  if (display === "ready") {
+    return { ...base, state: "готов", tone: "ok", detail: null, without: null, action: null, blocksWork: false };
+  }
+  return {
+    ...base, state: settingsStatusWords.unused, tone: "off", detail: null,
+    without: "Черновики ответов AI не предлагаются", action: null, blocksWork: false,
+  };
+}
+
+function amoRow(amo: SettingsAmoAvailability): IntegrationRow {
+  const base = { key: "amocrm", name: "amoCRM", checkedAt: null, checkedText: null, checkable: false } as const;
+  if (amo.status === "ready") {
+    return {
+      ...base, state: "настроена, не проверена", tone: "warn", detail: null,
+      without: "Синхронизация может не выполняться", action: handoff("проверить синхронизацию на сервере"), blocksWork: false,
+    };
+  }
+  if (AMO_UNUSED.has(amo.reason)) {
+    return {
+      ...base, state: settingsStatusWords.unused, tone: "off", detail: null,
+      without: "Лиды не синхронизируются с amoCRM", action: null, blocksWork: false,
+    };
+  }
+  return {
+    ...base, state: "заблокирована", tone: "blocked", detail: settingsStatusWords.amoBlocked[amo.reason],
+    without: "Синхронизация с amoCRM не выполняется", action: FIX_PARAMETERS, blocksWork: true,
+  };
+}
+
+/** Строки таблицы «Интеграции»: WhatsApp, amoCRM, Gemini — в этом порядке. */
+export function settingsIntegrations(facts: SettingsIntegrationFacts, now: Date): readonly IntegrationRow[] {
+  return [whatsappRow(facts.waha, now), amoRow(facts.amo), geminiRow(facts.gemini)];
+}
+
+/** Сервисы, из-за которых работа стоит: имена для одного предупреждения сверху. */
+export function settingsBlockingIntegrations(rows: readonly IntegrationRow[]): readonly IntegrationRow[] {
+  return rows.filter((row) => row.blocksWork);
+}
+
 /** Слово о базе данных: без проверки — «не проверялось», без времени проверки. */
-export function databaseFact(database: SettingsHealthFacts["database"]): string {
+export function databaseFact(database: SettingsDatabaseFact): string {
   return database.checked
     ? `${settingsStatusWords.database[database.status]} · ${database.observed}`
     : settingsStatusWords.notChecked;
-}
-
-export function settingsHealth(facts: SettingsHealthFacts): readonly Health[] {
-  const whatsapp = wahaIntegration(facts.waha);
-  const gemini = geminiIntegration(facts.gemini);
-  const amo = amoIntegration(facts.amo);
-  const geminiUnused = facts.gemini === "not_configured";
-  const amoUnused = facts.amo.status === "blocked" && AMO_UNUSED.has(facts.amo.reason);
-  const { database } = facts;
-
-  return [
-    {
-      name: "WhatsApp",
-      state: whatsapp.state,
-      detail: whatsapp.detail,
-      tone: whatsapp.ok ? "ok" : "warn",
-      blocker: whatsapp.ok ? null
-        : facts.waha.display === "not_configured"
-          ? "Нужно подключить WhatsApp к CRM."
-          : "Нужна актуальная проверка подключения.",
-      where: whatsapp.ok ? null : "platform.staff_waha_session_health",
-    },
-    {
-      name: "Gemini · черновики ответов",
-      state: gemini.state,
-      detail: gemini.detail,
-      tone: gemini.ok ? "ok" : geminiUnused ? "off" : "warn",
-      blocker: gemini.ok || geminiUnused ? null
-        : facts.gemini === "configured_not_verified"
-          ? "Нужна проверка работы сервиса."
-          : "Нужно проверить настройки подключения.",
-      where: gemini.ok || geminiUnused ? null : "EVO_PLATFORM_GEMINI_API_KEY",
-    },
-    {
-      name: "amoCRM",
-      state: amo.state,
-      detail: amo.detail,
-      tone: amo.ok ? "ok" : amoUnused ? "off" : "warn",
-      blocker: amo.ok || amoUnused ? null
-        : facts.amo.status === "ready"
-          ? "Нужна проверка синхронизации."
-          : "Нужно проверить настройки синхронизации.",
-      where: amo.ok || amoUnused ? null : "canonical amoCRM command readiness",
-    },
-    !database.checked
-      ? {
-          name: "База данных",
-          state: settingsStatusWords.notChecked,
-          detail: "Автоматическая проверка выключена.",
-          tone: "off",
-          blocker: null,
-          where: null,
-        }
-      : {
-          name: "База данных",
-          state: settingsStatusWords.database[database.status],
-          detail: database.observed,
-          tone: database.status === "ready" ? "ok" : "warn",
-          blocker: database.status === "ready" ? null : "Проверка подключения к базе данных не прошла.",
-          where: database.status === "ready" ? null : "EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED",
-        },
-  ];
 }

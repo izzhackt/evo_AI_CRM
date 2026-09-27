@@ -833,6 +833,9 @@ async function screenshots() {
           moreAbove: scroller.hasAttribute("data-more-above"),
           moreBelow: scroller.hasAttribute("data-more-below"),
           shadow: getComputedStyle(scroller).boxShadow,
+          // Э6: у нижнего края — затухание (прилипший ::after) и тень над строкой аккаунта.
+          fade: getComputedStyle(scroller, "::after").backgroundImage,
+          accountShadow: getComputedStyle(document.querySelector("[data-shell-account]")).boxShadow,
           logoutInViewport: logout.top >= 0 && logout.bottom <= window.innerHeight,
           tasksVisible: (() => {
             const tasks = [...scroller.querySelectorAll("a")].find((link) => link.textContent.trim() === "Задачи");
@@ -864,7 +867,8 @@ async function screenshots() {
       }
       check(expanded.moreBelow === expanded.listScrolls && !expanded.moreAbove, `${file}: scroll cue ${JSON.stringify(expanded)}`);
       if (expanded.listScrolls) {
-        check(expanded.shadow.includes("inset"), `${file}: no cue at the clipped edge`);
+        check(expanded.fade.includes("linear-gradient") && expanded.accountShadow !== "none", `${file}: no cue at the clipped edge`);
+        check(scrolled.shadow.includes("inset") && scrolled.fade === "none" && scrolled.accountShadow === "none", `${file}: cue after scrolling to the end`);
         check(scrolled.moreAbove && !scrolled.moreBelow && scrolled.tasksVisible, `${file}: after scrolling ${JSON.stringify(scrolled)}`);
       }
     }

@@ -231,6 +231,9 @@ test("real catalogue content renders known facts without missing-field or uncert
     assert.ok(html.includes(`href="${escape(content.sourceUrl)}"`), `${key}: institutional source`);
     assert.ok(html.includes(`src="${escape(UNIVERSITY_PHOTOS[content.photoKey].path)}"`), `${key}: real photo markup`);
     assert.ok(html.includes(`href="${escape(UNIVERSITY_PHOTOS[content.photoKey].licenseUrl)}"`), `${key}: photo attribution`);
+    // Э6: one short Russian credit line — author, licence, «кадрировано»; no English licence notes.
+    assert.match(html, /data-photo-credit="">Фото: <a\b[^>]*>[^<]+<span class="sr-only">[^<]*<\/span><\/a> · <a\b[^>]*>[^<]+<span class="sr-only">[^<]*<\/span><\/a> · кадрировано</u, `${key}: credit line`);
+    assert.doesNotMatch(html, /embedding|no reuse license|All rights reserved|Public domain/u, `${key}: licence note translated`);
     const articles = [...html.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/g)].map((match) => match[1]);
     assert.equal(articles.length, content.programs.length, `${key}: authored programmes retained`);
     for (const [index, program] of content.programs.entries()) {
@@ -242,21 +245,23 @@ test("real catalogue content renders known facts without missing-field or uncert
       assert.equal(/<dt\b[^>]*>Язык обучения<\/dt>/.test(article), program.language !== null, `${key}/${program.id}: language row`);
       if (program.duration) assert.ok(article.includes(escape(program.duration)), `${key}/${program.id}: duration value`);
       if (program.language) assert.ok(article.includes(escape(program.language)), `${key}/${program.id}: language value`);
-      const shown = [...article.matchAll(/<h4\b[^>]*>([\s\S]*?)<\/h4>/g)].map((match) => match[1]);
+      // Э6: intakes are rows of the programme's table — the label is the row header.
+      const shown = [...article.matchAll(/<th role="rowheader" scope="row"[^>]*>([\s\S]*?)<\/th>/g)].map((match) => match[1]);
       const known = program.intakes.filter((intake) => ["announced", "open", "closed"].includes(intake.status));
       assert.deepEqual(shown, known.map((intake) => escape(intake.label)), `${key}/${program.id}: only known intakes`);
-      assert.equal([...article.matchAll(/<dt\b[^>]*>Начало обучения<\/dt>/g)].length, known.filter((intake) => intake.startDate || intake.startMonth).length, `${key}/${program.id}: start rows`);
-      assert.equal([...article.matchAll(/<dt\b[^>]*>Срок подачи<\/dt>/g)].length, known.filter((intake) => intake.applicationDeadline).length, `${key}/${program.id}: deadline rows`);
+      const cells = (name) => [...article.matchAll(new RegExp(`<td[^>]*data-cell="${name}"[^>]*>([\\s\\S]*?)</td>`, "g"))].map((match) => match[1]);
+      assert.equal(cells("start").filter((cell) => cell.includes("<time")).length, known.filter((intake) => intake.startDate || intake.startMonth).length, `${key}/${program.id}: start dates`);
+      assert.equal(cells("deadline").filter((cell) => cell.includes("<time")).length, known.filter((intake) => intake.applicationDeadline).length, `${key}/${program.id}: deadlines`);
     }
   }
   const apu = rendered.find((row) => row.key === "apu").html;
   assert.doesNotMatch(apu, /Ноябрь 2026 — уточнить день/);
-  assert.match(apu, /28 сентября 2026/);
+  assert.match(apu, /datetime="2026-09-28"/i);
   const utm = rendered.find((row) => row.key === "utm").html;
-  assert.match(utm, /17 июля 2026/);
+  assert.match(utm, /datetime="2026-07-17"/i);
   assert.match(utm, /Приём[^<]*закрыт/);
   const ecust = rendered.find((row) => row.key === "ecust").html;
-  assert.match(ecust, /10 июля 2026/);
+  assert.match(ecust, /datetime="2026-07-10"/i);
   assert.match(ecust, /self-sponsored/);
   assert.match(ecust, /30 апреля/);
   const macerata = rendered.find((row) => row.key === "university-of-macerata").html;
@@ -266,6 +271,6 @@ test("real catalogue content renders known facts without missing-field or uncert
   const ema = rendered.find((row) => row.key === "ecole-de-management-applique").html;
   assert.doesNotMatch(ema, /Язык обучения|язык группы уточнить/);
   const xisu = rendered.find((row) => row.key === "xi-an-international-studies-university").html;
-  assert.match(xisu, /31 марта 2026/);
+  assert.match(xisu, /datetime="2026-03-31"/i);
   assert.match(xisu, /Срок подачи относится к стипендиальному маршруту набора 2026/);
 });

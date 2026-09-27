@@ -102,6 +102,7 @@ test("the switch is Admin-only, kept per browser, and the shell sets the look on
   assert.match(action, /httpOnly: true,\s*sameSite: "strict",/u);
   const sections = read("src/components/v3/settings/sections.tsx");
   assert.match(sections, /<form action=\{setLookPreviewAction\}/u);
-  // The switch lives in «Платформа», a section only an Admin sees.
-  assert.match(read("src/components/v3/settings/types.ts"), /\{ key: "platform", title: "Платформа", admin: true \}/u);
+  // The switch lives in «Платформа», a section of the Admin-only settings route (Э6: no «админ» marks).
+  assert.match(read("src/components/v3/settings/types.ts"), /\{ key: "platform", view: null, title: "Платформа" \}/u);
+  assert.match(read("src/lib/platform-access.ts"), /"\/v3\/settings": \["admin\.preview"\]/u);
 });

@@ -24,7 +24,7 @@ import {
 } from "@/lib/v3/navigation";
 import { roleTitle } from "@/lib/v3/wording";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
-import { AppShellNext } from "@/components/v3/AppShellNext";
+import { AppShellNext, useScrollEdges } from "@/components/v3/AppShellNext";
 import type { StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 
 const LINK_ICONS = {
@@ -164,7 +164,7 @@ function NavigationGroup({
           )}
         </TopLayerMenu>
       ) : null}
-      <ul id={contentId} hidden={!open} className={cn("ms-8 mt-1 space-y-1", rail && "md:max-2xl:hidden")}>
+      <ul id={contentId} hidden={!open} className={cn("ms-8 mt-0.5 space-y-0.5", rail && "md:max-2xl:hidden")}>
         {group.links.map((link) => (
           <li key={link.id}>
             <NavigationLink link={link} activeId={activeId} nested onNavigate={onNavigate} />
@@ -187,6 +187,9 @@ function Sidebar({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [railHint, setRailHint] = useState<RailHint | null>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(scrollRef, listRef);
   const navigationId = useId();
   const { displayName, systemRole, presentationRole } = actor;
   const accessLabel = presentationRole !== null ? roleTitle(presentationRole)
@@ -250,34 +253,41 @@ function Sidebar({
         </button>
       </div>
 
+      {/* Список длиннее окна: у нижнего края — затухание (v3.css, `data-more-below`), пункт ниже края не пропадает молча (Э6). */}
       <div
+        ref={scrollRef}
         id={navigationId}
+        data-shell-scroll=""
+        data-more-above={edges.above ? "" : undefined}
+        data-more-below={edges.below ? "" : undefined}
         className={cn(
           `${mobileOpen ? "flex" : "hidden"} absolute inset-x-0 top-full max-h-[calc(100dvh-6rem)] min-w-0 flex-col overflow-y-auto border-b border-border bg-surface shadow-lg md:static md:flex md:max-h-none md:min-h-0 md:flex-1 md:border-b-0 md:shadow-none`,
           rail && "md:max-2xl:pt-3",
         )}
       >
-        <ul aria-label="Навигация по разделам" className={cn("space-y-1 px-3 pb-4", rail && "md:max-2xl:px-2")}>
-          {navigation.home ? (
-            <li>
-              <NavigationLink link={navigation.home} activeId={navigation.activeId} rail={rail} hint={hint(navigation.home.label)} onNavigate={closeMobileNavigation} />
-            </li>
-          ) : null}
-          {navigation.groups.map((group) => (
-            <NavigationGroup key={group.id} group={group} activeId={navigation.activeId} rail={rail} hint={hint} onNavigate={closeMobileNavigation} />
-          ))}
-        </ul>
-
-        <section aria-label="Общее" className={cn("mx-3 border-t border-border pb-4 pt-4", rail && "md:max-2xl:mx-2 md:max-2xl:pb-2 md:max-2xl:pt-2")}>
-          <h2 className={cn("t-caption mb-2 px-3 text-fg-3", rail && "md:max-2xl:sr-only")}>Общее</h2>
-          <ul className="space-y-1">
-            {navigation.common.map((link) => (
-              <li key={link.id}>
-                <NavigationLink link={link} activeId={navigation.activeId} rail={rail} hint={hint(link.label)} onNavigate={closeMobileNavigation} />
+        <div ref={listRef}>
+          <ul aria-label="Навигация по разделам" className={cn("space-y-0.5 px-3 pb-2", rail && "md:max-2xl:px-2")}>
+            {navigation.home ? (
+              <li>
+                <NavigationLink link={navigation.home} activeId={navigation.activeId} rail={rail} hint={hint(navigation.home.label)} onNavigate={closeMobileNavigation} />
               </li>
+            ) : null}
+            {navigation.groups.map((group) => (
+              <NavigationGroup key={group.id} group={group} activeId={navigation.activeId} rail={rail} hint={hint} onNavigate={closeMobileNavigation} />
             ))}
           </ul>
-        </section>
+
+          <section aria-label="Общее" className={cn("mx-3 border-t border-border pb-2 pt-2", rail && "md:max-2xl:mx-2")}>
+            <h2 className={cn("t-caption mb-1 px-3 pt-1 text-fg-3", rail && "md:max-2xl:sr-only")}>Общее</h2>
+            <ul className="space-y-0.5">
+              {navigation.common.map((link) => (
+                <li key={link.id}>
+                  <NavigationLink link={link} activeId={navigation.activeId} rail={rail} hint={hint(link.label)} onNavigate={closeMobileNavigation} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
 
         <div className="mt-auto">
           {navigation.settings ? (

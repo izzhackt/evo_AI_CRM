@@ -239,22 +239,25 @@ test("D: the role bundles are the production ones", () => {
   });
 });
 
+// Э6 (27.09.2026) keeps D — roles without sales work see no sales sections —
+// and adds one fixed place per destination: a role only hides items, it never
+// moves them. «Заявки» (platform questionnaires 177, cabinet consultations 197
+// and sales intake) are shared, so they stand in «Общее» for every role that
+// may open them, instead of «Продажи» for sales and «Поступление» for
+// admissions — next to «Переписки» of Э5, whose WhatsApp channel left
+// «Продажи» the same way.
 for (const label of ["Admissions", "Admissions Manager"]) {
-  test(`D: ${label} sees no sales work, only «Отчёт продаж» of #1067; «Заявки» under «Поступление», «Переписки» in the common sections`, () => {
+  test(`D: ${label} sees no sales work, only «Отчёт продаж» of #1067; «Заявки» and «Переписки» in «Общее»`, () => {
     const keys = [...bundles[label], ...bundles["Admissions common"]];
     const model = navigationFor(keys);
     // D hides WhatsApp and «Воронка продаж» in «Продажи»; «Отчёт продаж» keeps
     // its own rule of «Сегодня» (#1067): a lead reader without report
     // records opens «Динамика по дням» there, the charts of the former Главная.
-    // «Заявки» moves to «Поступление», last: the Admissions Manager reviews
-    // «Анкеты платформы» there (177: profile.read.full, profile.manage and
-    // case.curator.assign in the review department) and both roles handle
-    // the cabinet consultations (197: lead.read). No other surface lists
-    // them.
     assert.deepEqual(ids(model).groups, [
       ["sales", ["sales-report"]],
-      ["admissions", ["admissions-pipeline", "admissions-worklist", "evo-docs", "universities", "requests"]],
+      ["admissions", ["admissions-pipeline", "admissions-worklist", "evo-docs", "universities"]],
     ]);
+    assert.equal(ids(model).common[0], "requests", "«Заявки» leads «Общее»");
     // Э5 (27.09.2026): one «Переписки» item; both channels open (case.read.full
     // for «Кабинет студента», communication.read.full for WhatsApp), the item
     // leads to the first — «Кабинет студента».
@@ -265,7 +268,7 @@ for (const label of ["Admissions", "Admissions Manager"]) {
     assert.equal(everyLink.filter((link) => link.id === "requests").length, 1, "«Заявки» stands once");
     const requests = navigationFor(keys, "/v3/requests");
     assert.equal(requests.activeId, "requests");
-    assert.deepEqual(requests.groups.filter((group) => group.active).map((group) => group.id), ["admissions"]);
+    assert.deepEqual(requests.groups.filter((group) => group.active).map((group) => group.id), []);
     assert.equal(navigationFor(keys, "/v3/main?view=sales").activeId, "sales-report");
     // A lead card opened from a case highlights «Студенты», not a hidden board.
     assert.equal(navigationFor(keys, "/v3/profile?id=24800000-0000-4000-8000-000000000702").activeId, "admissions-worklist");
@@ -276,28 +279,51 @@ for (const label of ["Admissions", "Admissions Manager"]) {
 }
 
 for (const label of ["Sales Manager", "Sales"]) {
-  test(`D: ${label} keeps the whole «Продажи» group; WhatsApp is its channel of «Переписки»`, () => {
+  test(`D: ${label} keeps the sales board and report in «Продажи»; «Заявки» and «Переписки» in «Общее»`, () => {
     const keys = [...bundles[label], ...bundles["Sales common"]];
     const model = navigationFor(keys);
-    assert.deepEqual(ids(model).groups[0], ["sales", ["requests", "pipeline", "sales-report"]]);
-    assert.equal(ids(model).groups.slice(1).some(([, links]) => links.includes("requests")), false, "«Заявки» stands once");
+    assert.deepEqual(ids(model).groups[0], ["sales", ["pipeline", "sales-report"]]);
+    assert.equal(ids(model).groups.some(([, links]) => links.includes("requests") || links.includes("conversations")), false, "no group holds them");
+    assert.equal(ids(model).common[0], "requests");
     // Э5: no case.read.full / profile.read.full — «Кабинет студента» stays
     // closed, WhatsApp (communication.read.full) is the one channel.
     assert.deepEqual(conversationChannels(staffActor(keys)).map((channel) => channel.key), ["whatsapp"]);
+    assert.equal(model.common.filter((link) => link.id === "conversations").length, 1);
     assert.equal(model.common.find((link) => link.id === "conversations")?.href, "/v3/inbox");
   });
 }
 
-test("D: the Admin keeps both groups with «Заявки» in «Продажи» only; common roles without lead work see neither", () => {
+test("D: the Admin keeps both groups; «Заявки» and «Переписки» stand in «Общее» as for every role; common roles without lead work see neither", () => {
   const admin = navigationFor([], "/v3/main", "admin");
   assert.deepEqual(ids(admin).groups, [
-    ["sales", ["requests", "pipeline", "sales-report"]],
+    ["sales", ["pipeline", "sales-report"]],
     ["admissions", ["admissions-pipeline", "admissions-worklist", "evo-docs", "universities"]],
   ]);
+  assert.equal(ids(admin).common[0], "requests");
   assert.equal(ids(admin).common.filter((id) => id === "conversations").length, 1);
   for (const label of ["Sales common", "Admissions common"]) {
     const model = ids(navigationFor(bundles[label]));
     assert.equal(model.groups.some(([id]) => id === "sales"), false, label);
-    assert.equal(model.groups.some(([, links]) => links.includes("requests")), false, label);
+    assert.equal(model.common.includes("requests"), false, label);
   }
+});
+
+test("Э6: with the production bundles a destination stands in the same place for every role", () => {
+  const place = (model, id) => model.groups.find((group) => group.links.some((link) => link.id === id))?.id
+    ?? (model.common.some((link) => link.id === id) ? "common" : null);
+  const models = [
+    navigationFor([], "/v3/main", "admin"),
+    ...["Admissions", "Admissions Manager"].map((label) => navigationFor([...bundles[label], ...bundles["Admissions common"]])),
+    ...["Sales Manager", "Sales"].map((label) => navigationFor([...bundles[label], ...bundles["Sales common"]])),
+  ];
+  const seen = new Map();
+  for (const model of models) {
+    for (const link of [...model.groups.flatMap((group) => group.links), ...model.common]) {
+      const where = place(model, link.id);
+      if (seen.has(link.id)) assert.equal(where, seen.get(link.id), link.id);
+      else seen.set(link.id, where);
+    }
+  }
+  assert.equal(seen.get("requests"), "common");
+  assert.equal(seen.get("conversations"), "common");
 });

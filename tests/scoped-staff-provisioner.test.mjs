@@ -487,7 +487,7 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     },
     async click() {
       act(`click:${name}`);
-      if (name === "Роли и права") pageUrl = `${appOrigin}/v3/settings?section=staff&view=roles`;
+      if (name === "Роли и доступ") pageUrl = `${appOrigin}/v3/settings?section=staff&view=roles`;
       if (name === "Создать роль") {
         draft = emptyRole(ids[0]); operation = "create";
         for (let index = 0; index < mainFrameNavigations; index += 1) listeners.get("framenavigated")?.(mainFrame);

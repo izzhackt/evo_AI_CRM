@@ -37,9 +37,12 @@ function links(model) {
 // «Задачи»; it leads to the first channel the role opens — «Кабинет
 // студента» (/v3/messages, admissions.read) or WhatsApp (/v3/inbox,
 // messaging.read) — so Sales lands on WhatsApp.
+// Э6 (27.09.2026): every destination has one place for all roles — roles only
+// hide items. «Заявки» are shared by sales and admissions and lead «Общее»,
+// never inside «Продажи».
 const expectedRoleLinks = {
-  admin: ["home", "requests", "pipeline", "sales-report", "admissions-pipeline", "admissions-worklist", "evo-docs", "universities", "tasks", "conversations", "team-chat", "calendar", "knowledge", "settings"],
-  sales: ["home", "requests", "pipeline", "sales-report", "admissions-worklist", "universities", "tasks", "conversations", "team-chat", "reply-snippets"],
+  admin: ["home", "pipeline", "sales-report", "admissions-pipeline", "admissions-worklist", "evo-docs", "universities", "requests", "tasks", "conversations", "team-chat", "calendar", "knowledge", "settings"],
+  sales: ["home", "pipeline", "sales-report", "admissions-worklist", "universities", "requests", "tasks", "conversations", "team-chat", "reply-snippets"],
   admissions: ["home", "admissions-pipeline", "admissions-worklist", "evo-docs", "universities", "tasks", "conversations", "team-chat", "calendar", "documents", "reply-snippets"],
 };
 
@@ -52,8 +55,8 @@ for (const role of ["admin", "sales", "admissions"]) {
     // S6 (plan §3/§14) retired «Клиентские сообщения»; Э5 (27.09.2026)
     // folds «Сообщения» and «WhatsApp» into one «Переписки».
     assert.deepEqual(model.common.map((link) => link.label), role === "sales"
-      ? ["Задачи", "Переписки", "Командный чат", "Шаблоны ответов"]
-      : role === "admin" ? ["Задачи", "Переписки", "Командный чат", "Календарь", "База знаний"]
+      ? ["Заявки", "Задачи", "Переписки", "Командный чат", "Шаблоны ответов"]
+      : role === "admin" ? ["Заявки", "Задачи", "Переписки", "Командный чат", "Календарь", "База знаний"]
       : ["Задачи", "Переписки", "Командный чат", "Календарь", "Документы", "Шаблоны ответов"]);
     assert.equal(model.common.find((link) => link.id === "conversations")?.href, role === "sales" ? "/v3/inbox" : "/v3/messages");
   });
@@ -73,17 +76,49 @@ test("the two disclosure groups use the approved destinations and worklist remai
   const model = navigation("admin");
   // «Сегодня» (Э3, 26.09.2026): the start page of every role, same id and address.
   assert.equal(model.home?.label, "Сегодня");
-  // Order follows plan §3: Заявки, Воронка продаж, Отчёт продаж. The two
-  // boards carry their department in the label (UX quick win 2, 2026-09-24):
-  // an Admin sees both groups, and two identical «Воронка» items were
-  // ambiguous. WhatsApp and «Сообщения» left the groups for «Переписки» (Э5).
+  // «Продажи» holds the sales board and report only (Э6, 27.09.2026): «Заявки»
+  // are a shared destination in «Общее»; WhatsApp and «Сообщения» left the
+  // groups for «Переписки» (Э5). The two boards carry their department in the
+  // label (UX quick win 2, 2026-09-24): an Admin sees both groups, and two
+  // identical «Воронка» items were ambiguous.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
-    ["Продажи", [["Заявки", "/v3/requests"], ["Воронка продаж", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"]]],
+    ["Продажи", [["Воронка продаж", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"]]],
     ["Поступление", [["Воронка поступления", "/v3/admissions-pipeline"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["admissions"]);
   assert.equal(model.settings?.href, "/v3/settings");
+});
+
+/** Where a destination stands: a department group, «Общее», or the top/bottom of the menu. */
+function placeOf(model, id) {
+  if (model.home?.id === id) return "top";
+  if (model.settings?.id === id) return "bottom";
+  const group = model.groups.find((entry) => entry.links.some((link) => link.id === id));
+  if (group) return group.id;
+  return model.common.some((link) => link.id === id) ? "common" : null;
+}
+
+test("Э6: every destination has one fixed place for all roles, and no role sees it twice", () => {
+  const places = new Map();
+  for (const role of ["admin", "sales", "admissions"]) {
+    const model = navigation(role);
+    const ids = links(model).map((link) => link.id);
+    assert.equal(new Set(ids).size, ids.length, `${role}: no duplicate entries`);
+    for (const id of ids) {
+      const place = placeOf(model, id);
+      if (places.has(id)) assert.equal(place, places.get(id), `${id}: ${role} moves it`);
+      else places.set(id, place);
+    }
+  }
+  assert.equal(places.get("requests"), "common");
+  assert.equal(places.get("conversations"), "common");
+  // The common list keeps one order for everyone: roles only drop items from it.
+  const order = ["requests", "tasks", "conversations", "team-chat", "calendar", "documents", "reply-snippets", "knowledge"];
+  for (const role of ["admin", "sales", "admissions"]) {
+    const common = navigation(role).common.map((link) => link.id);
+    assert.deepEqual(common, order.filter((id) => common.includes(id)), role);
+  }
 });
 
 test("main and sales report have mutually exclusive, query-aware current links", () => {

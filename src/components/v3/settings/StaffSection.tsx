@@ -129,17 +129,19 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
 }) {
   const selectedMember = data.members.find((member) => member.membershipId === selectedMemberId);
   const selectedAccess = roles.members.find((member) => member.membershipId === selectedMemberId);
-  if (!data.available) return <p role="alert" className="rounded-card border border-border bg-surface p-5 text-sm leading-6">
-    Список сотрудников недоступен. Проверьте подключение, сеанс администратора и применение миграции рабочего пространства.</p>;
+  // «Сотрудники», «Роли и доступ» и «Отделы» — пункты списка разделов
+  // настроек (Э6, 27.09.2026): своего ряда вкладок здесь нет. Заголовок
+  // раздела (h2) ставит сам вид — с числом, где оно есть; Settings второго
+  // заголовка с тем же названием не ставит (ревью #1079).
+  if (!data.available) return <div className="space-y-3">
+    <h2 className="t-section">{view === "roles" ? "Роли и доступ" : view === "departments" ? "Отделы" : "Сотрудники"}</h2>
+    <p role="alert" className="rounded-card border border-border bg-surface p-5 text-sm leading-6">
+      Список сотрудников недоступен. Проверьте подключение, сеанс администратора и применение миграции рабочего пространства.</p>
+  </div>;
   return <div className="space-y-5">
-    <nav aria-label="Управление командой" className="flex flex-wrap gap-2 border-b border-border pb-3">
-      {([{ key: "people", label: "Сотрудники" }, { key: "roles", label: "Роли и доступ" }, { key: "departments", label: "Отделы" }] as const).map((entry) =>
-        <Link key={entry.key} href={`/v3/settings?section=staff&view=${entry.key}`} aria-current={view === entry.key ? "page" : undefined}
-          className="v3-choice inline-flex min-h-11 items-center rounded-nav px-4 text-sm font-semibold text-fg-2 hover:bg-surface-2">{entry.label}</Link>)}
-    </nav>
     {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="t-section">Сотрудники · {data.members.length}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <h2 className="t-section">Сотрудники · {data.members.length}</h2>
         <StaffDisclosure label="Создать аккаунт" className="w-full" buttonClassName="font-medium text-accent">
           <div className="pt-3"><StaffPasswordForm workspace={roles} organizationId={organizationId} /></div>
         </StaffDisclosure>
@@ -147,25 +149,21 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
           <div className="pt-3"><StaffInviteForm workspace={roles} organizationId={organizationId} /></div>
         </StaffDisclosure>
       </div>
-      <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
-        <div className={selectedMemberId ? "hidden min-w-0 @4xl:block" : "min-w-0"}>
-          <StaffDirectoryList members={data.members} accessMembers={roles.members} departments={data.departments} selectedMemberId={selectedMemberId} />
-        </div>
-        <div className={`${selectedMemberId ? "block" : "hidden @4xl:block"} min-w-0 @4xl:border-l @4xl:border-border @4xl:pl-6`}>
-          {selectedMember ? <StaffMemberDetails key={selectedMember.membershipId} member={selectedMember} access={selectedAccess} departments={data.departments}>
-            <StaffDisclosure label="Доступ" className="border-t border-border pt-2" buttonClassName="font-semibold">
-              <div className="space-y-4 pt-2">
-                {selectedAccess ? <StaffRoleAssignments member={selectedAccess} workspace={roles} organizationId={organizationId} />
-                  : <p role="alert" className="text-sm text-danger">Права сотрудника недоступны. Обновите страницу.</p>}
-                <StaffDangerZone member={selectedMember} /></div>
-            </StaffDisclosure>
-          </StaffMemberDetails> : <div className="space-y-3 py-5">
-            <p role={selectedMemberId ? "alert" : undefined} className="text-sm leading-6 text-fg-3">{selectedMemberId
-              ? "Сотрудник не найден или больше недоступен." : "Выберите сотрудника, чтобы посмотреть рабочие сведения и управление доступом."}</p>
-            {selectedMemberId ? <Link href="/v3/settings?section=staff&view=people" className={btnGhostCls}>К сотрудникам</Link> : null}
-          </div>}
-        </div>
-      </div>
+      {/* Поиск и фильтры — одной строкой над списком и карточкой (StaffDirectoryList). */}
+      <StaffDirectoryList members={data.members} accessMembers={roles.members} departments={data.departments} selectedMemberId={selectedMemberId}>
+        {selectedMember ? <StaffMemberDetails key={selectedMember.membershipId} member={selectedMember} access={selectedAccess} departments={data.departments}>
+          <StaffDisclosure label="Доступ" className="border-t border-border pt-2" buttonClassName="font-semibold">
+            <div className="space-y-4 pt-2">
+              {selectedAccess ? <StaffRoleAssignments member={selectedAccess} workspace={roles} organizationId={organizationId} />
+                : <p role="alert" className="text-sm text-danger">Права сотрудника недоступны. Обновите страницу.</p>}
+              <StaffDangerZone member={selectedMember} /></div>
+          </StaffDisclosure>
+        </StaffMemberDetails> : <div className="space-y-3 py-5">
+          <p role={selectedMemberId ? "alert" : undefined} className="text-sm leading-6 text-fg-3">{selectedMemberId
+            ? "Сотрудник не найден или больше недоступен." : "Выберите сотрудника, чтобы посмотреть рабочие сведения и управление доступом."}</p>
+          {selectedMemberId ? <Link href="/v3/settings?section=staff&view=people" className={btnGhostCls}>К сотрудникам</Link> : null}
+        </div>}
+      </StaffDirectoryList>
     </>}
     <StaffDisclosure label={`Журнал доступа · ${data.requests.length}`} className="border-t border-border pt-3" buttonClassName="font-semibold">
       <p className="mt-2 text-sm leading-6 text-fg-3">Проверка сверяет результат с сервисом входа. Повторное создание аккаунта или отправка письма не выполняются.</p>

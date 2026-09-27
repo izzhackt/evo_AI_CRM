@@ -106,7 +106,8 @@ test("solid red stays for the main action and every selection shares one accent-
   const selectable = [
     "src/components/v3/settings/Settings.tsx",
     "src/components/v3/settings/sections.tsx",
-    "src/components/v3/settings/StaffSection.tsx",
+    // Э6: «Сотрудники · Роли и доступ · Отделы» moved from StaffSection's own
+    // tabs into the Settings section list above.
     "src/components/v3/calendar/Calendar.tsx",
     "src/components/v3/calendar/grids.tsx",
     // Boards 25.09: segments, the filter toggle and the open-lead card of both
@@ -145,7 +146,8 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/MainHeader.tsx",
     // Both boards' search (Enter on desktop, «Найти» on the phone).
     "src/components/v3/board/Board.tsx",
-    "src/components/v3/universities/UniversityCatalogue.tsx",
+    // Э6: the catalogue applies its filters on change; «Найти» stays for a browser without scripts.
+    "src/components/v3/universities/UniversityToolbar.tsx",
   ];
   for (const path of filterSubmits) {
     const source = read(path);
@@ -297,9 +299,10 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   const pipelinePage = read("src/app/(v3)/v3/pipeline/page.tsx");
   assert.match(pipelinePage, /label="Ответственный"/u, "pipeline «Ответственный» filter label");
   assert.match(read("src/components/v3/board/Board.tsx"), /<span className="sr-only">Поиск<\/span>/u, "board search is named");
-  const catalogue = read("src/components/v3/universities/UniversityCatalogue.tsx");
-  for (const name of ["Название", "Страна", "Уровень"]) {
-    assert.match(catalogue, new RegExp(`<label className="t-label text-fg-2">${name}<`, "u"), `university «${name}» filter label`);
+  // Э6: one 44 px toolbar row — the field names are labels for the screen reader, the values say what is chosen.
+  const catalogue = read("src/components/v3/universities/UniversityToolbar.tsx");
+  for (const name of ["Название университета", "Страна", "Уровень"]) {
+    assert.match(catalogue, new RegExp(`<span className="t-label sr-only">${name}</span>`, "u"), `university «${name}» filter label`);
   }
   assert.match(read("src/components/v3/inbox/InboxMessageMedia.tsx"),
     /<label className="t-label flex flex-col gap-1">\s*<span>Документ в деле студента<\/span>/u);

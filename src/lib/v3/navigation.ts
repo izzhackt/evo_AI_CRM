@@ -77,10 +77,10 @@ const HOME: V3NavigationLink = {
 const SETTINGS: V3NavigationLink = {
   id: "settings", href: "/v3/settings", route: "/v3/settings", label: "Настройки",
 };
-// «Заявки» стоит ровно в одной группе (`buildV3Navigation`): в «Продажах» у
-// того, кто ведёт продажи, иначе в «Поступлении». Кроме обращений с сайта и
+// «Заявки» — общий раздел продаж и поступления: кроме обращений с сайта и
 // WhatsApp там разбирают «Анкеты платформы» (решение — отдел сопровождения,
-// 177) и консультации из кабинета студента (`lead.read`, 197).
+// 177) и консультации из кабинета студента (`lead.read`, 197). Поэтому пункт
+// стоит в «Общем» у всех, кому открыт маршрут (Э6, 27.09.2026).
 const REQUESTS: V3NavigationLink = {
   id: "requests", href: "/v3/requests", route: "/v3/requests", label: "Заявки",
 };
@@ -88,13 +88,12 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
   {
     id: "sales",
     label: "Продажи",
-    // Order follows plan §3: Заявки, Воронка продаж, Отчёт продаж. «Заявки»
-    // is the unified intake queue (S1); its own route already requires
-    // sales.read. WhatsApp left this group for «Переписки» in the common
-    // section (Э5, 27.09.2026). Each label equals its page h1 and
+    // Э6 (27.09.2026): у каждого раздела одно место для всех ролей, роль
+    // только скрывает пункты. «Заявки» — общие для продаж и поступления и
+    // стоят в «Общем» (COMMON), WhatsApp — канал «Переписок» там же (Э5);
+    // здесь — только доска и отчёт продаж. Each label equals its page h1 and
     // browser-tab section (UX quick win 2, 2026-09-24).
     links: [
-      REQUESTS,
       { id: "pipeline", href: "/v3/pipeline", route: "/v3/pipeline", label: "Воронка продаж" },
       { id: "sales-report", href: "/v3/main?view=sales", route: "/v3/main", label: "Отчёт продаж" },
     ],
@@ -120,20 +119,20 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       { id: "universities", href: "/v3/universities", route: "/v3/universities", label: "Университеты" },
       // «Сводка по направлениям» removed 2026-09-24: its counts are the facets
       // of «Студенты» now; `/v3/profile?section=summary` resolves to that page.
-      // «Заявки» — здесь только у ролей без работы продаж (D, 26.09.2026):
-      // Admissions Manager разбирает там анкеты платформы, обе роли
-      // поступления — консультации из кабинета. Последним: прежний порядок
-      // группы не меняется.
-      REQUESTS,
     ],
   },
 ];
-// «Переписки»: адрес и маршрут — первого канала роли (`conversationsLink`);
+// «Общее» — разделы обоих отделов, одно место у всех ролей (Э6, 27.09.2026).
+// Пунктов Э6 не убирает: у продаж и Admin «Заявки» вышли из сворачиваемых
+// «Продаж» в «Общее», которое открыто всегда (+1 строка). «Меньше пунктов»
+// плана дал Э5: «Сообщения» и WhatsApp стали одним пунктом «Переписки».
+// «Переписки» (Э5): адрес и маршрут — первого канала роли (`conversationsLink`);
 // здесь — место в порядке меню и адрес для вкладки браузера.
 const CONVERSATIONS: V3NavigationLink = {
   id: "conversations", href: "/v3/messages", route: "/v3/messages", label: CONVERSATIONS_LABEL,
 };
 const COMMON: readonly V3NavigationLink[] = [
+  REQUESTS,
   { id: "tasks", href: "/v3/tasks", route: "/v3/tasks", label: "Задачи" },
   CONVERSATIONS,
   { id: "team-chat", href: "/v3/team-chat", route: "/v3/team-chat", label: "Командный чат" },
@@ -227,19 +226,20 @@ export function buildV3Navigation(
   const settings = allowed(SETTINGS) ? SETTINGS : null;
   // Без работы продаж (D) в «Продажах» остаётся только «Отчёт продаж» по
   // своему правилу выше: читатель лидов без записей отчёта видит там
-  // «Динамику по дням» (Э3, #1067). «Воронка продаж» скрыта, «Заявки»
-  // переходят в «Поступление»: там разбирают анкеты платформы и
-  // консультации из кабинета, и другого пути к ним в приложении нет.
+  // «Динамику по дням» (Э3, #1067); «Воронка продаж» скрыта. Роль только
+  // скрывает пункты и никогда их не переносит (Э6): «Заявки» и «Переписки» —
+  // в «Общем» у всех, кому открыт их маршрут.
   const sales = salesWorkspace(actor);
-  const inGroup = (group: (typeof GROUPS)[number], link: V3NavigationLink) => link.id === "requests"
-    ? (group.id === "sales") === sales
-    : group.id !== "sales" || sales || link.id === "sales-report";
+  const inGroup = (group: (typeof GROUPS)[number], link: V3NavigationLink) =>
+    group.id !== "sales" || sales || link.id === "sales-report";
   const visibleGroups = GROUPS.map((group) => ({
     ...group,
     links: group.links.filter((link) => allowed(link) && inGroup(group, link)),
   })).filter((group) => group.links.length > 0);
   // «Переписки» — один пункт в общих разделах у каждого, кому открыт хотя
-  // бы один канал (Э5): «Кабинет студента» или WhatsApp.
+  // бы один канал (Э5): «Кабинет студента» или WhatsApp. «Документы» и
+  // «Шаблоны ответов» у того, кому открыта «База знаний», — внутри неё:
+  // пункт скрыт, а не задвоен.
   const common = COMMON.flatMap((link) => {
     const resolved = link.id === "conversations" ? conversationsLink(actor) : link;
     return resolved ? [resolved] : [];

@@ -36,11 +36,13 @@ const REFRESH_ON_STATUS = new Set<PrepareLeadCabinetActionState["status"]>([
  * with the lead permission sends it from this same «Доступ к порталу» card
  * after the refresh, the Admin also from the case.
  */
-export function PrepareLeadCabinetAction({ leadId, requestId, caseLink = true }: Readonly<{
+export function PrepareLeadCabinetAction({ leadId, requestId, caseLink = true, quiet = false }: Readonly<{
   leadId: string;
   requestId: string;
   /** «Открыть дело» — только тому, кто открывает дела (как в «Доступе к порталу»). */
   caseLink?: boolean;
+  /** Lead 360 (Э4): спокойная кнопка — сплошной красный отдан главному действию страницы. */
+  quiet?: boolean;
 }>) {
   const router = useRouter();
   const [state, action, pending] = useActionState(
@@ -67,7 +69,7 @@ export function PrepareLeadCabinetAction({ leadId, requestId, caseLink = true }:
       <input type="hidden" name="lead_id" value={leadId} />
       <input type="hidden" name="request_id" value={state.requestId} />
       <p className="text-sm text-fg-2">Анкета в платформе не заполнена. Можно подготовить кабинет вручную.</p>
-      <button type="submit" disabled={pending} className={cn(btnCls, "min-h-11")}>
+      <button type="submit" disabled={pending} className={cn(quiet ? btnGhostCls : btnCls, "min-h-11")}>
         {pending ? "Готовим…" : "Подготовить кабинет"}
       </button>
       {state.status !== "idle" && state.status !== "saved" ? (

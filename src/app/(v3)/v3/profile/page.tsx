@@ -12,6 +12,7 @@ import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
 import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
 import { caseWorkParts } from "@/components/v3/profile/CaseWorkParts";
+import { leadWorkParts } from "@/components/v3/profile/LeadWorkParts";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
 import { CloseRecordMenu } from "@/components/v3/closure/Closure";
 import { ClosedLeadView } from "@/components/v3/closure/ClosedLeadView";
@@ -57,6 +58,7 @@ import {
   type V3ProfileRouteLoadMode,
 } from "@/lib/v3/profile-route-load";
 import { readCaseWork } from "@/lib/v3/case-work-source";
+import { readPipelineOwnerOptions, readPipelineStages } from "@/lib/v3/pipeline-source";
 import { readCaseClosure, readClosedLeads, type CaseClosure, type ClosedLeadRow } from "@/lib/platform-closure";
 import { closureWords } from "@/lib/v3/wording";
 import { readLookPreview } from "@/lib/v3/look-preview";
@@ -363,12 +365,20 @@ export default async function ProfilePart({
   const caseTarget = view?.details.routeTarget.studentCaseId && view.details.admissions
     ? { studentCaseId: view.details.admissions.studentCaseId, studentDisplayName: view.profile.person, state: view.details.admissions.caseState }
     : null;
-  const [curatorOptions, queuePage, caseWork, caseClosureRead] = await Promise.all([
+  // Lead 360 (Э4, 27.09.2026): лид, а не дело. «Что дальше» правится прежней
+  // формой решения доски — ей нужны этапы и, тому, кто назначает
+  // ответственного, список сотрудников (то же чтение, что у доски).
+  const leadSales = view && !caseTarget && view.details.routeTarget.leadId ? view.sales : null;
+  const readsOwners = leadSales !== null && !isStaffPreview(actor)
+    && staffHasPermission(actor, "lead.sales.workflow.manage") && staffHasPermission(actor, "lead.sales.owner.assign");
+  const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners] = await Promise.all([
     curatorsRead,
     queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators), look) : null,
     caseTarget ? readCaseWork(actor, caseTarget, { overview: tab === "overview" }) : null,
     // «Завершить дело» и строка закрытого дела (246); сбой чтения — прежнее «Дело закрыто» без действия.
     caseTarget ? readCaseClosure(actor, caseTarget.studentCaseId).catch(() => null) : null,
+    // Сбой списка — форма остаётся с текущим ответственным (как у доски без списка).
+    readsOwners ? readPipelineOwnerOptions(actor).catch(() => null) : null,
   ]);
   const caseClosure = previewClosure(actor, caseClosureRead);
   const studentPortalCurators = curatorOptions.curators;
@@ -417,14 +427,37 @@ export default async function ProfilePart({
       // Задачи «Обзор» уже прочитал; на других вкладках числа нет — окно скажет правило без числа.
       openTasks={caseWork?.tasks.kind === "ready" ? caseWork.tasks.tasks.length : null} />
   ) : undefined;
-  // «⋯» лида в шапке Lead 360: «Закрыть лид» (246). Переданный лид — продажа:
-  // пункт недоступен и называет причину; решает сервер.
-  const leadMenu = view && !caseParts && view.sales && view.details.routeTarget.leadId && !isStaffPreview(actor)
-    && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
-      <CloseRecordMenu kind="lead" subjectId={view.sales.lead.leadId} subjectName={view.profile.person}
-        expectedVersion={view.sales.lead.workflowVersion}
-        blockedReason={view.sales.handoff.handedOffAt ? closureWords.lead.handedOff : null} />
-    ) : undefined;
+  // Lead 360 (Э4): шапка «Этап · Что дальше», действия у заголовка («⋯» с
+  // «Доступом к порталу» и «Закрыть лид» — 246) и «Обзор» в две колонки.
+  const leadParts = view && leadSales && view.details.routeTarget.leadId ? leadWorkParts({
+    actor,
+    profile: view.profile,
+    draft: view.details,
+    sales: leadSales,
+    notes: toProfileNotesSnapshot(view.notes.subject, view.notes.page),
+    notesOlderHref,
+    notesLatestHref,
+    requestIds: {
+      ...requestIds,
+      step: randomUUID(),
+      note: randomUUID(),
+      portal: view.details.admissions ? studentPortalProvisioningRequestId(actor.organizationId, view.details.admissions.studentCaseId) : "",
+      cabinetPortal: view.details.leadCabinetCase ? studentPortalProvisioningRequestId(actor.organizationId, view.details.leadCabinetCase.studentCaseId) : "",
+    },
+    stages: readPipelineStages().flatMap((stage) => stage.key === "handed_off" ? [] : [{ key: stage.key, title: stage.title }]),
+    ownerOptions: leadOwners?.rows ?? [],
+    ownerOptionsHaveMore: leadOwners?.hasNext ?? false,
+    curators: studentPortalCurators,
+    curatorsAvailable: studentPortalCuratorsAvailable,
+    submissions: !isStaffPreview(actor) ? (
+      <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем заявки с сайта…</p>}>
+        <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
+      </Suspense>
+    ) : null,
+    hrefFor,
+    now: new Date(),
+    look,
+  }) : null;
   // Закрытый лид детальное чтение 093 не отдаёт: Lead 360 читает его из
   // «Закрытых» (246) и показывает строку «Закрыт · причина · дата».
   const closedLead: ClosedLeadRow | null = missing && explicitTarget?.leadId && staffPresentationCan(actor, "sales.read")
@@ -440,6 +473,13 @@ export default async function ProfilePart({
   ) : undefined;
   // Закрытый лид: тот же возврат над заголовком, что у дела (не красная ссылка
   // в теле). Пришли из «Закрытых лидов» — туда и называем.
+  // Lead 360: возврат над заголовком, как у дела (не красная ссылка в теле).
+  const leadBack = leadParts ? (
+    <Link href={requestsReturnTo ?? pipelineBackHref ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
+      <Icon name="arrow-left" size={16} />
+      {requestsReturnTo ? "Заявки" : pipelineBackHref ? "Воронка продаж" : docsMode ? "EVO Docs" : "Студенты"}
+    </Link>
+  ) : undefined;
   const closedLeadBack = closedLead ? (
     <Link href={requestsReturnTo ?? pipelineBackHref ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
       <Icon name="arrow-left" size={16} />
@@ -450,10 +490,10 @@ export default async function ProfilePart({
   ) : undefined;
 
   return (
-    <PartShell title={caseParts && view ? view.profile.person : docsMode ? "EVO Docs" : view ? "Профиль"
+    <PartShell title={(caseParts || leadParts) && view ? view.profile.person : docsMode ? "EVO Docs" : view ? "Профиль"
       : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты"}
-      count={queuePage?.count ?? null} action={docsAction ?? caseAction} dense={queuePage !== null || caseParts !== null}
-      back={caseBack ?? closedLeadBack}>
+      count={queuePage?.count ?? null} action={docsAction ?? caseAction ?? leadParts?.actions} dense={queuePage !== null || caseParts !== null || leadParts !== null}
+      back={caseBack ?? leadBack ?? closedLeadBack}>
       <div className="space-y-6">
         {queuePage?.content ?? null}
         {directory ? (
@@ -461,13 +501,13 @@ export default async function ProfilePart({
         ) : null}
         {view ? (
           <>
-            {caseParts ? null : <Link
+            {caseParts || leadParts ? null : <Link
               className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
               href={requestsReturnTo ?? pipelineBackHref ?? directoryHref}
             >
               {requestsReturnTo ? "К списку заявок" : pipelineBackHref ? "К воронке продаж" : docsMode ? "К списку EVO Docs" : "К списку студентов"}
             </Link>}
-            {view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
+            {!leadParts && view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
               <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
             </Suspense> : null}
             <Profile
@@ -476,9 +516,8 @@ export default async function ProfilePart({
               profile={view.profile}
               universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details}
                 packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
-              caseHeader={caseParts?.header ?? undefined}
-              headerMenu={leadMenu}
-              caseOverview={caseParts?.overview ?? undefined}
+              caseHeader={caseParts?.header ?? leadParts?.header ?? undefined}
+              caseOverview={caseParts?.overview ?? leadParts?.overview ?? undefined}
               draft={view.details}
               sales={view.sales}
               actor={actor}

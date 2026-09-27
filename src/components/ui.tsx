@@ -211,7 +211,7 @@ export function PageHeader({
         {meta ? <p className="t-meta mt-1 text-fg-3">{meta}</p> : null}
         {description && <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">{description}</p>}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {action && <div className="max-w-full shrink-0">{action}</div>}
     </div>
   );
 }

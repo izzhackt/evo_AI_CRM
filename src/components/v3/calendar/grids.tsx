@@ -169,6 +169,8 @@ function DayNumberLink({
     >
       <span
         aria-hidden="true"
+        // Новый облик (Э6): «сегодня» — маленькая красная заливка (v3.css).
+        data-calendar-today={isToday ? "" : undefined}
         className={`grid h-6 min-w-6 place-items-center rounded-nav px-1 text-xs font-semibold tabular-nums ${
           isToday ? "bg-fg text-surface" : muted ? "text-fg-3" : "text-fg"
         }`}

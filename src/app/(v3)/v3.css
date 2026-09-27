@@ -593,6 +593,17 @@
   color: var(--on-accent);
 }
 
+/*
+ * «Календарь» (Э6): в новом облике «сегодня» — та же маленькая красная
+ * заливка с белой цифрой, что у слова срока (правило плана: сплошной красный
+ * — главное действие страницы и «сегодня»). Белый на #d70217 — 5.3:1.
+ * Прежний облик оставляет тёмное пятно.
+ */
+.v3-world[data-look="next"] [data-calendar-today] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
 .v3-world[data-look="next"] .v3-initials {
   display: inline-grid;
   flex: none;

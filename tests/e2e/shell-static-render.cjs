@@ -282,7 +282,7 @@ function mainOf(html) {
 
 /**
  * «Переписки» → «Кабинет студента» (Э5) — настоящий CaseChatWorkspace в
- * настоящей обёртке страницы (`CabinetConversationsMain`) с синтетической
+ * настоящей обёртке страницы (`ConversationsMain`) с синтетической
  * перепиской. Он рендерится на сервере и гидратируется в браузере: поле ответа
  * появляется только на клиенте (черновик из localStorage), поэтому его место
  * меряется после гидратации.
@@ -312,7 +312,7 @@ function messagesFixture() {
     pathname: "/v3/messages", search: `case=${caseId(1)}`, body: null,
     messages: {
       main: {
-        title: "Переписки", threadOpen: true,
+        title: "Переписки", threadOpen: true, current: "cabinet", height: "window",
         channels: [
           { key: "cabinet", label: "Кабинет студента", href: "/v3/messages", route: "/v3/messages" },
           { key: "whatsapp", label: "WhatsApp", href: "/v3/inbox", route: "/v3/inbox" },
@@ -340,7 +340,7 @@ function whatsappBody() {
 function shellTree({ actor, notifications, look, pathname, search, body, messages = null }) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const content = messages
-    ? h(require(join(ROOT, "src/components/v3/case-chat/CabinetConversationsMain.tsx")).CabinetConversationsMain, messages.main,
+    ? h(require(join(ROOT, "src/components/v3/ConversationsMain.tsx")).ConversationsMain, messages.main,
       h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, messages.props))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
@@ -425,7 +425,7 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { AppShell } = require("@/components/v3/AppShell");
-const { CabinetConversationsMain } = require("@/components/v3/case-chat/CabinetConversationsMain");
+const { ConversationsMain } = require("@/components/v3/ConversationsMain");
 const { CaseChatWorkspace } = require("@/components/v3/case-chat/CaseChatThread");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
@@ -441,7 +441,7 @@ const tree = h(AppRouterContext.Provider, { value: router },
         h("div", { className: "v3-world", "data-look": fixture.look === "next" ? "next" : undefined },
           h(AppShell, { actor: fixture.actor, initialNotifications: fixture.notifications, ...(fixture.look === "next" ? { look: "next" } : {}) },
             fixture.messages
-              ? h(CabinetConversationsMain, fixture.messages.main, h(CaseChatWorkspace, fixture.messages.props))
+              ? h(ConversationsMain, fixture.messages.main, h(CaseChatWorkspace, fixture.messages.props))
               : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } })))))));
 hydrateRoot(document.getElementById("root"), tree, {
   onRecoverableError: (error) => window.__harness.recoverable.push(String((error && error.message) || error)),
@@ -540,7 +540,16 @@ function shellMetrics() {
   const targets = chrome.flatMap((root) => [...root.querySelectorAll("a, button")]).filter(visible);
   const oldTopBar = [...document.querySelectorAll('[data-testid="v3-shell"] > div > div')].find((element) => element.className.includes("md:min-h-16") && visible(element));
   const tabbarTop = tabbar && visible(tabbar) ? tabbar.getBoundingClientRect().top : window.innerHeight;
-  const heading = [...document.querySelectorAll("[data-shell-content] h1")].find(visible);
+  // Заголовок, скрытый для глаз (`sr-only`: открытая переписка на телефоне, Э5), не меряется.
+  const shownToEye = (element) => {
+    for (let node = element; node && !node.matches("[data-shell-content]"); node = node.parentElement) {
+      if (getComputedStyle(node).display === "contents") continue;
+      const box = node.getBoundingClientRect();
+      if (box.width <= 1 || box.height <= 1) return false;
+    }
+    return true;
+  };
+  const heading = [...document.querySelectorAll("[data-shell-content] h1")].find((element) => visible(element) && shownToEye(element));
   const logo = [...document.querySelectorAll("[data-shell-menu] nav img")].find(visible);
   const lineCount = (element) => {
     const range = document.createRange();

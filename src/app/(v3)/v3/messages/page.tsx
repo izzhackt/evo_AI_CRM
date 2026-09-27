@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
 import { Card } from "@/components/ui";
-import { ConversationChannels } from "@/components/v3/ConversationChannels";
-import { PartShell } from "@/components/v3/PartShell";
-import { CabinetConversationsMain } from "@/components/v3/case-chat/CabinetConversationsMain";
+import { ConversationsMain } from "@/components/v3/ConversationsMain";
 import { CaseChatWorkspace, type CaseChatCaseFacts, type CaseChatSnippets } from "@/components/v3/case-chat/CaseChatThread";
 import { DIRECTION_LABELS } from "@/components/v3/profile/admissions-view";
 import { staffCan } from "@/lib/platform-access";
@@ -23,8 +21,8 @@ const TITLE = "Переписки";
 /**
  * «Переписки» → «Кабинет студента» (Э5 плана редизайна, 27.09.2026):
  * переписка по делу со студентом. Заголовок «Переписки» и вкладки каналов —
- * общие со страницей WhatsApp; очереди, шапка переписки и шаблоны — в
- * `CaseChatWorkspace`. Права — прежние: страница `admissions.read`, чтения и
+ * общая со страницей WhatsApp шапка `ConversationsMain`; очереди, шапка
+ * переписки и шаблоны — в `CaseChatWorkspace`. Права — прежние: страница `admissions.read`, чтения и
  * команды проверяет база.
  */
 export default async function MessagesPage({ searchParams }: {
@@ -49,13 +47,12 @@ export default async function MessagesPage({ searchParams }: {
   }
 
   if (!queueRead) {
-    return <PartShell title={TITLE}>
-      <div className="mb-4"><ConversationChannels channels={channels} current="cabinet" /></div>
+    return <ConversationsMain title={TITLE} channels={channels} current="cabinet" height="window">
       <Card>
         <p role="alert">{threadsFailure === "forbidden" ? "Доступ к перепискам изменился. Обновите страницу." : "Не удалось загрузить переписки. Обновите страницу."}</p>
         <a className="mt-4 inline-flex min-h-11 items-center text-accent-text underline" href={caseChatHref(query ?? "", queue, rawCase, parseCaseChatAttachParam(attach))}>Обновить страницу</a>
       </Card>
-    </PartShell>;
+    </ConversationsMain>;
   }
 
   let initialPage: Awaited<ReturnType<typeof readCaseChatPage>> | null = null;
@@ -102,7 +99,7 @@ export default async function MessagesPage({ searchParams }: {
 
   const realtimeConfig = getSupabasePublicConfig();
   return (
-    <CabinetConversationsMain title={TITLE} channels={channels} threadOpen={rawCase !== null}>
+    <ConversationsMain title={TITLE} channels={channels} current="cabinet" height="window" threadOpen={rawCase !== null}>
       <CaseChatWorkspace
         key={`${actor.membershipId}:${rawCase ?? "list"}`}
         organizationId={actor.organizationId}
@@ -117,6 +114,6 @@ export default async function MessagesPage({ searchParams }: {
         snippets={snippets}
         look={look}
       />
-    </CabinetConversationsMain>
+    </ConversationsMain>
   );
 }

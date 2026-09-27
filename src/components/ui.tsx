@@ -187,6 +187,7 @@ export function PageHeader({
   description,
   meta,
   action,
+  className,
 }: {
   title: string;
   /** Размер того, что показано рядом с заголовком. null/undefined — считать нечего. */
@@ -195,9 +196,11 @@ export function PageHeader({
   /** Второстепенная строка под заголовком (`t-meta`): например, дата «Сегодня». */
   meta?: ReactNode;
   action?: ReactNode;
+  /** Классы корня шапки (например, скрыть заголовок визуально на узком экране). */
+  className?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className={cn("flex flex-wrap items-start justify-between gap-4", className)}>
       <div className="min-w-0">
         <h1 className="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">
           {title}

@@ -28,8 +28,10 @@
  *   node tests/e2e/conversations-static-render.cjs --screenshots [outDir] [--look=next]
  *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844: список со
  *       следующей перепиской, переписка с переключателем, открытый выбор
- *       шаблона (кнопкой и «/»), «Все ответы даны», WhatsApp у Admin и у
- *       продаж. По умолчанию outDir — .impeccable/review (не коммитится);
+ *       шаблона (кнопкой и «/»), смена состояния с перечитанным списком,
+ *       меню сообщения, «Все ответы даны», WhatsApp у Admin и у продаж (один
+ *       канал — без вкладок); заголовок и каналы обеих страниц — на одном
+ *       месте. По умолчанию outDir — .impeccable/review (не коммитится);
  *       файлы `e5-*.png`, с `--look=next` — суффикс `-next`. Проверки
  *       печатаются JSON-строками; при нарушении — код выхода 1.
  */
@@ -225,8 +227,8 @@ async function buildPage(name, look) {
   const { default: Page } = require(join(ROOT, file));
   const element = await Page({ searchParams: Promise.resolve(scenario.search) });
   if (scenario.page === "messages") {
-    const { title, channels, threadOpen, children: workspace } = element.props;
-    return { actor, scenario, element, cabinet: { main: { title, channels, threadOpen }, workspace: workspace.props } };
+    const { children: workspace, ...main } = element.props;
+    return { actor, scenario, element, cabinet: { main, workspace: workspace.props } };
   }
   return { actor, scenario, element, cabinet: null };
 }
@@ -235,7 +237,7 @@ async function buildPage(name, look) {
 function shellTree({ actor, look, pathname, search, body, cabinet }) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const content = cabinet
-    ? h(require(join(ROOT, "src/components/v3/case-chat/CabinetConversationsMain.tsx")).CabinetConversationsMain, cabinet.main,
+    ? h(require(join(ROOT, "src/components/v3/ConversationsMain.tsx")).ConversationsMain, cabinet.main,
       h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, cabinet.workspace))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
@@ -289,7 +291,7 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { AppShell } = require("@/components/v3/AppShell");
-const { CabinetConversationsMain } = require("@/components/v3/case-chat/CabinetConversationsMain");
+const { ConversationsMain } = require("@/components/v3/ConversationsMain");
 const { CaseChatWorkspace } = require("@/components/v3/case-chat/CaseChatThread");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
@@ -299,7 +301,7 @@ const router = {
   refresh() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {},
 };
 const content = fixture.cabinet
-  ? h(CabinetConversationsMain, fixture.cabinet.main, h(CaseChatWorkspace, fixture.cabinet.workspace))
+  ? h(ConversationsMain, fixture.cabinet.main, h(CaseChatWorkspace, fixture.cabinet.workspace))
   : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } });
 const tree = h(AppRouterContext.Provider, { value: router },
   h(PathnameContext.Provider, { value: fixture.pathname },
@@ -316,23 +318,36 @@ requestAnimationFrame(() => requestAnimationFrame(() => { document.documentEleme
 async function buildClientBundle(outFile) {
   const esbuild = require("esbuild");
   // Чтения отвечают той же синтетикой через настоящий composeCaseChatQueue.
-  // Отправка честно недоступна. Смену состояния заглушка только записывает и
-  // подтверждает (базы нет — ничего не пишется), чтобы проверить, что
-  // переключатель зовёт прежнюю команду с нужным состоянием и обновляет список.
+  // Отправка честно недоступна. Смена состояния пишется в синтетические строки
+  // этой вкладки (базы нет — в EVO ничего не пишется): следующее чтение списка
+  // видит новое состояние, и снимок показывает, что переключатель зовёт
+  // прежнюю команду, а список перечитывается через onListChanged → refreshList.
   const caseChatStub = `
 import { composeCaseChatQueue } from "@/components/v3/case-chat/case-chat-queue";
 const fixture = () => JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
-export async function readCaseChatPageAction() { return { status: "ready", page: fixture().cabinet.workspace.initialPage }; }
+let store = null;
+const rows = () => (store ??= fixture().rows.map((item) => ({ ...item })));
+const threadStates = new Map();
+export async function readCaseChatPageAction(caseId) {
+  const page = fixture().cabinet.workspace.initialPage;
+  const state = threadStates.get(caseId);
+  return { status: "ready", page: state ? { ...page, thread: { ...page.thread, awaitState: state } } : page };
+}
 export async function loadStaffCaseChatThreadsAction(query, queue) {
   window.__harness.actions.push("load:" + queue);
   const needle = (query || "").trim().toLocaleLowerCase("ru");
-  const rows = fixture().rows.filter((item) => !needle || item.studentDisplayName.toLocaleLowerCase("ru").includes(needle));
-  return { status: "ready", read: composeCaseChatQueue({ all: { rows, truncated: false } }, queue, fixture().readAt) };
+  const found = rows().filter((item) => !needle || item.studentDisplayName.toLocaleLowerCase("ru").includes(needle));
+  return { status: "ready", read: composeCaseChatQueue({ all: { rows: found, truncated: false } }, queue, fixture().readAt) };
 }
 export async function markCaseChatReadAction() { return { status: "saved", requestId: null }; }
 export async function postCaseChatMessageAction() { window.__harness.actions.push("post"); return { status: "unavailable", requestId: null }; }
 export async function setCaseChatAwaitAction(_previous, form) {
-  window.__harness.actions.push("await:" + form.get("state") + ":" + form.get("case_id"));
+  const caseId = form.get("case_id");
+  const state = form.get("state");
+  window.__harness.actions.push("await:" + state + ":" + caseId);
+  const target = rows().find((item) => item.studentCaseId === caseId);
+  if (target) target.awaitState = state;
+  threadStates.set(caseId, state);
   return { status: "saved", requestId: form.get("request_id") };
 }`;
   const plugin = {
@@ -379,9 +394,15 @@ function pageMetrics() {
   const main = [...document.querySelectorAll("main")].find(visible);
   const inMain = main ? [...main.querySelectorAll("*")].filter(visible) : [];
   const texts = inMain.filter((element) => [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()));
-  // Содержимое закрытого <details> (меню «⋯» сообщения) не показано — его цели не меряются.
+  // Закрытые окна (popover) не показаны — их цели не меряются.
   const targets = main ? [...main.querySelectorAll("a, button, select, textarea, input:not([type=hidden])")]
     .filter((element) => visible(element) && !element.closest("details:not([open]) > :not(summary)")) : [];
+  const box = (element) => { if (!visible(element)) return null; const rect = element.getBoundingClientRect(); return { top: Math.round(rect.top * 10) / 10, bottom: Math.round(rect.bottom * 10) / 10 }; };
+  const paint = (element) => (element ? { bg: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color, tone: element.dataset.tone ?? null } : null);
+  const h1 = [...document.querySelectorAll("h1")].find(visible);
+  const channelStrip = document.querySelector('nav[aria-label="Каналы переписки"] ul');
+  const list = document.querySelector('nav[aria-label="Переписки кабинета студента"]');
+  const header = document.querySelector('[data-testid="case-chat-thread-header"]');
   const composer = main ? [...main.querySelectorAll("textarea")].find(visible) : null;
   const popover = document.querySelector("[popover]:popover-open");
   const nav = [...document.querySelectorAll('nav[aria-label="Разделы"] a, [data-shell-menu] a, [data-testid="v3-shell-tabbar"] a')].filter(visible);
@@ -396,6 +417,21 @@ function pageMetrics() {
     next: (() => { const pane = document.querySelector('[data-testid="case-chat-next"]'); return visible(pane) ? pane.textContent.trim() : null; })(),
     rows: [...document.querySelectorAll("[data-case-chat-row]")].filter(visible).map((element) => element.querySelector(".t-item")?.textContent.trim()),
     listEmpty: document.querySelector('nav[aria-label="Переписки кабинета студента"] [role="status"]')?.parentElement.textContent.trim() ?? null,
+    // Место заголовка и ряда каналов: одинаково у обоих каналов.
+    // Шапка страницы, скрытая для глаз (`sr-only`), — корень в 1 px: h1 внутри сохраняет свой размер.
+    h1Shown: h1 ? h1.parentElement.parentElement.getBoundingClientRect().height > 1 : false,
+    place: { h1: box(h1), channels: box(channelStrip) },
+    // Нажатое в переключателе состояния и в очереди: разный вид.
+    awaitPressed: paint(document.querySelector('[data-testid="case-chat-await-control"] button[aria-pressed="true"]')),
+    queuePressed: paint(visible(list) ? list.querySelector('[data-testid="case-chat-queues"] button[aria-pressed="true"]') : null),
+    awaitLabel: header ? [...header.querySelectorAll("span")].some((element) => visible(element) && element.textContent.trim() === "Состояние") : null,
+    listEdge: visible(list) ? getComputedStyle(list).borderInlineEndWidth : null,
+    glyphs: main ? [...main.querySelectorAll("*")].filter((element) => visible(element) && [...element.childNodes].some((node) => node.nodeType === 3 && /[⋯…]/u.test(node.textContent) && node.textContent.trim().length <= 2)).length : 0,
+    thread: header && visible(header) ? {
+      // Сколько экрана под верхом страницы уходит до начала ленты.
+      headerBottomFromMain: Math.round(header.getBoundingClientRect().bottom - main.getBoundingClientRect().top),
+      backInNameRow: Boolean(header.querySelector('a[aria-label="К списку"]')?.parentElement?.querySelector("h2")),
+    } : null,
     menuConversations: nav.filter((link) => link.textContent.trim() === "Переписки" || link.getAttribute("aria-label") === "Переписки").map((link) => `${link.getAttribute("href")}${link.getAttribute("aria-current") ? "*" : ""}`),
     menuRetired: nav.filter((link) => ["Сообщения", "WhatsApp"].includes(link.textContent.trim())).length,
     textUnder12: texts.filter((element) => parseFloat(getComputedStyle(element).fontSize) < 12).length,
@@ -475,6 +511,7 @@ async function screenshots() {
   const common = (label, metrics, viewportKey) => {
     check(metrics.overflowX === 0, `${label}: horizontal overflow ${metrics.overflowX}px`);
     check(metrics.h1.length === 1 && metrics.h1[0] === "Переписки", `${label}: h1 ${JSON.stringify(metrics.h1)}`);
+    check(metrics.glyphs === 0, `${label}: ${metrics.glyphs} text glyphs standing in for icons`);
     check(metrics.textUnder12 === 0, `${label}: ${metrics.textUnder12} texts under 12px`);
     check(metrics.smallTargets.length === 0, `${label}: targets under 44px: ${metrics.smallTargets.join(", ")}`);
     check(metrics.solidRed <= 1, `${label}: ${metrics.solidRed} solid red controls`);
@@ -482,6 +519,8 @@ async function screenshots() {
     if (viewportKey !== "390") check(metrics.menuConversations.length === 1, `${label}: «Переписки» menu item ${JSON.stringify(metrics.menuConversations)}`);
   };
 
+  // Место заголовка и каналов «Кабинета студента» и WhatsApp — для сравнения.
+  const places = {};
   try {
     for (const name of Object.keys(SCENARIOS)) {
       for (const viewportKey of Object.keys(VIEWPORTS)) {
@@ -493,9 +532,15 @@ async function screenshots() {
         await finish(session, file);
         report({ file, ...metrics });
         common(file, metrics, viewportKey);
+        places[`${name}:${viewportKey}`] = metrics.place;
+        // Телефон, открытая переписка: заголовок страницы — только для читалки.
+        const phoneThread = name === "thread" && viewportKey === "390";
+        check(metrics.h1Shown === !phoneThread, `${file}: h1 shown ${metrics.h1Shown}`);
         if (SCENARIOS[name].page === "messages") {
           check(metrics.overflowY <= 0, `${file}: page scrolls ${metrics.overflowY}px`);
-          if (viewportKey !== "390" || name !== "thread") check(metrics.queues.length === 3, `${file}: queues ${metrics.queues.join(" · ")}`);
+          if (!phoneThread) check(metrics.queues.length === 3, `${file}: queues ${metrics.queues.join(" · ")}`);
+          // Список на всю ширину телефона — без своей черты справа внутри скругления карточки.
+          if (!phoneThread) check(metrics.listEdge === (viewportKey === "390" ? "0px" : "1px"), `${file}: list edge ${metrics.listEdge}`);
         }
         if (name === "cabinet") {
           check(JSON.stringify(metrics.queues) === JSON.stringify(["Нужен ответ3*", "Ждём студента2", "Все"]), `${file}: queue counts ${metrics.queues.join(" · ")}`);
@@ -503,20 +548,41 @@ async function screenshots() {
           if (viewportKey !== "390") check(metrics.next === "Следующий: Нурай Образцова — ждёт 2 днОткрыть", `${file}: next pane «${metrics.next}»`);
           check(JSON.stringify(metrics.channels) === JSON.stringify(["Кабинет студента*", "WhatsApp"]), `${file}: channels ${metrics.channels.join(" · ")}`);
         }
-        if (name === "answered" && viewportKey !== "390") check(metrics.next === "" && metrics.listEmpty === "Все ответы даны.Показать все переписки", `${file}: list «${metrics.listEmpty}», pane «${metrics.next}»`);
+        // Пустая «Нужен ответ»: справа — «Все ответы даны», слева — без повтора.
+        if (name === "answered") {
+          check(metrics.listEmpty === "Нет переписок, ждущих ответа.Показать все переписки", `${file}: list «${metrics.listEmpty}»`);
+          if (viewportKey !== "390") check(metrics.next === "Все ответы даны", `${file}: pane «${metrics.next}»`);
+        }
         if (name === "answered-awaiting" && viewportKey !== "390") check(metrics.next === "Все ответы даны", `${file}: pane «${metrics.next}»`);
         if (name === "thread") {
           check(JSON.stringify(metrics.awaitControl) === JSON.stringify(["Нужен ответ*", "Ждём студента", "Не требуется"]), `${file}: await control ${metrics.awaitControl.join(" · ")}`);
+          check(metrics.awaitLabel === true, `${file}: no visible «Состояние» label`);
+          check(metrics.awaitPressed?.tone === "warn", `${file}: pressed «Нужен ответ» tone ${JSON.stringify(metrics.awaitPressed)}`);
+          // Запись состояния не выглядит как фильтр очереди рядом.
+          if (!phoneThread) check(metrics.queuePressed && metrics.awaitPressed.bg !== metrics.queuePressed.bg && metrics.awaitPressed.color !== metrics.queuePressed.color,
+            `${file}: state switch looks like the queue filter ${JSON.stringify([metrics.awaitPressed, metrics.queuePressed])}`);
+          check(metrics.thread?.backInNameRow === true, `${file}: «К списку» not on the name row`);
+          if (phoneThread) check(metrics.thread.headerBottomFromMain <= 190, `${file}: thread header ends ${metrics.thread.headerBottomFromMain}px below the page top`);
           check(metrics.facts === "Китай · Документы", `${file}: facts «${metrics.facts}»`);
           check(metrics.composer?.inViewport === true, `${file}: composer ${JSON.stringify(metrics.composer)}`);
           check(metrics.solidRed === 1, `${file}: ${metrics.solidRed} solid red controls (only «Отправить»)`);
         }
         if (name === "whatsapp") check(JSON.stringify(metrics.channels) === JSON.stringify(["Кабинет студента", "WhatsApp*"]), `${file}: channels ${metrics.channels.join(" · ")}`);
         if (name === "whatsapp-sales") {
-          check(JSON.stringify(metrics.channels) === JSON.stringify(["WhatsApp*"]), `${file}: channels ${metrics.channels.join(" · ")}`);
+          // Один канал — без ряда вкладок: одна вкладка ничего не выбирает.
+          check(metrics.channels.length === 0, `${file}: channels ${metrics.channels.join(" · ")}`);
           if (viewportKey !== "390") check(JSON.stringify(metrics.menuConversations) === JSON.stringify(["/v3/inbox*"]), `${file}: sales menu ${metrics.menuConversations}`);
         }
       }
+    }
+
+    // Переход между каналами ничего не сдвигает: заголовок и ряд каналов
+    // «Кабинета студента» и WhatsApp стоят на одних местах.
+    for (const viewportKey of Object.keys(VIEWPORTS)) {
+      const cabinet = places[`cabinet:${viewportKey}`];
+      const whatsapp = places[`whatsapp:${viewportKey}`];
+      report({ journey: "channel-place", viewport: viewportKey, look, cabinet, whatsapp });
+      check(JSON.stringify(cabinet) === JSON.stringify(whatsapp) && cabinet?.channels !== null, `channels move between pages at ${viewportKey}: ${JSON.stringify({ cabinet, whatsapp })}`);
     }
 
     // Выбор шаблона: кнопкой «Шаблон» (все окна) и «/» в пустом поле (1440).
@@ -550,25 +616,60 @@ async function screenshots() {
       check(!inserted.actions.includes("post"), `${file}: inserting a template sent the message`);
     }
     // Переключатель состояния — прежняя команда set_await: «Ждём студента»
-    // уходит с делом открытой переписки, выбранное меняется, список перечитан.
+    // уходит с делом открытой переписки, выбранное меняется, список
+    // перечитан (onListChanged → refreshList): дело ушло из «Нужен ответ»,
+    // числа 3 · 2 стали 2 · 3.
     {
       const session = await open(htmlFor.thread, "1440");
       const { page } = session;
       await page.evaluate(() => { window.__harness.actions.length = 0; });
       await page.locator('[data-testid="case-chat-await-control"] button', { hasText: "Ждём студента" }).click();
       await page.waitForFunction(() => document.querySelector('[data-testid="case-chat-await-control"] button[aria-pressed="true"]')?.textContent === "Ждём студента");
+      await page.waitForFunction(() => document.querySelector('[data-queue-count="needs_reply"]')?.textContent === "2", null, { timeout: 5_000 }).catch(() => {});
       await page.waitForTimeout(150);
       const after = await page.evaluate(() => ({
         pressed: [...document.querySelectorAll('[data-testid="case-chat-await-control"] button')].filter((button) => button.getAttribute("aria-pressed") === "true").map((button) => button.textContent),
         actions: window.__harness.actions,
       }));
+      const metrics = await page.evaluate(pageMetrics);
       const file = `e5-thread-await-1440${suffix}.png`;
       await page.screenshot({ path: join(outDir, file) });
       await finish(session, file);
-      report({ journey: "await", file, after });
+      report({ journey: "await", file, after, queues: metrics.queues, rows: metrics.rows, awaitPressed: metrics.awaitPressed });
       check(after.actions[0] === `await:awaiting_student:${caseId(1)}`, `${file}: command ${JSON.stringify(after.actions)}`);
       check(after.actions.some((action) => action.startsWith("load:")), `${file}: list not re-read after the change`);
       check(JSON.stringify(after.pressed) === JSON.stringify(["Ждём студента"]), `${file}: pressed ${after.pressed}`);
+      check(metrics.awaitPressed?.tone === "neutral", `${file}: pressed tone ${JSON.stringify(metrics.awaitPressed)}`);
+      check(JSON.stringify(metrics.queues) === JSON.stringify(["Нужен ответ2*", "Ждём студента3", "Все"]), `${file}: counts after the change ${metrics.queues.join(" · ")}`);
+      check(JSON.stringify(metrics.rows) === JSON.stringify(["Лейла Тестовая", "Данияр Макетов"]), `${file}: rows after the change ${metrics.rows.join(", ")}`);
+    }
+
+    // Действия с сообщением: знак из набора иконок в строке «автор · время»,
+    // меню — в верхнем слое; «Ответить с цитатой» ставит цитату в поле ответа.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open(htmlFor.thread, viewportKey);
+      const { page } = session;
+      const trigger = page.locator('[id^="case-message-"] button[aria-label="Действия с сообщением"]').last();
+      const placed = await trigger.evaluate((button) => {
+        const line = button.parentElement.querySelector("time").getBoundingClientRect();
+        const icon = button.querySelector("svg").getBoundingClientRect();
+        const bubble = button.closest('[id^="case-message-"] > div').getBoundingClientRect();
+        return { onNameLine: Math.abs((icon.top + icon.bottom) / 2 - (line.top + line.bottom) / 2) <= 3, insideBubble: icon.top >= bubble.top && icon.bottom <= bubble.bottom, height: Math.round(button.getBoundingClientRect().height) };
+      });
+      await trigger.click();
+      await page.waitForSelector('[id^="case-message-"] [popover]:popover-open');
+      await page.waitForTimeout(100);
+      const file = `e5-thread-message-menu-${viewportKey}${suffix}.png`;
+      await page.screenshot({ path: join(outDir, file) });
+      const menu = await page.evaluate(() => { const popover = document.querySelector("[popover]:popover-open"); const box = popover.getBoundingClientRect(); return { label: popover.getAttribute("aria-label"), inViewport: box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth }; });
+      await page.locator("[popover]:popover-open button", { hasText: "Ответить с цитатой" }).click();
+      await page.waitForTimeout(100);
+      const quoted = await page.evaluate(() => ({ open: Boolean(document.querySelector("[popover]:popover-open")), quote: document.querySelector('form[aria-label="Новое сообщение"] p.truncate')?.textContent ?? null, actions: window.__harness.actions }));
+      await finish(session, file);
+      report({ journey: "message-menu", file, placed, menu, quoted });
+      check(placed.onNameLine && placed.insideBubble && placed.height >= 44, `${file}: menu icon ${JSON.stringify(placed)}`);
+      check(menu.label === "Действия с сообщением" && menu.inViewport, `${file}: menu ${JSON.stringify(menu)}`);
+      check(!quoted.open && quoted.quote?.startsWith("Нурай Образцова: Добрый день!") && !quoted.actions.includes("post"), `${file}: quote ${JSON.stringify(quoted)}`);
     }
   } finally {
     await browser.close();

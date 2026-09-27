@@ -7,6 +7,8 @@ import { QueueViewTabs } from "./queue/QueueViewTabs";
  * страницы: «Кабинет студента» и WhatsApp — настоящие ссылки на свои
  * страницы с `aria-current="page"`. Только каналы, которые роль открывает
  * (`conversationChannels`); у каждой страницы своя серверная проверка.
+ * Вкладки — только когда каналов два: одна вкладка ничего не выбирает, и
+ * роль с одним каналом видит страницу без ряда вкладок.
  * Число — только у текущего канала и только если его дало чтение страницы.
  */
 export function ConversationChannels({
@@ -19,7 +21,7 @@ export function ConversationChannels({
   /** Число текущего канала из чтения его страницы; null — числа нет. */
   count?: number | null;
 }>) {
-  if (channels.length === 0) return null;
+  if (channels.length < 2) return null;
   return (
     <QueueViewTabs
       label="Каналы переписки"

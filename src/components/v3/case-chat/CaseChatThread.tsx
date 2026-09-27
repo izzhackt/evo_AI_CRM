@@ -328,12 +328,26 @@ function MountedCaseChatComposer({
 }
 
 /**
+ * Нажатая часть переключателя состояния — в тоне самого состояния, а не общим
+ * «выбрано» (`.v3-choice`): так запись состояния не читается как фильтр
+ * очереди рядом и никогда не красная. «Нужен ответ» — предупреждение
+ * (янтарь со словом), остальные — нейтрально: поднятая часть на подложке.
+ */
+const AWAIT_PRESSED: Readonly<Record<CaseChatAwaitState, string>> = {
+  needs_reply: "aria-pressed:border-warn/40 aria-pressed:bg-warn-weak aria-pressed:text-warn",
+  awaiting_student: "aria-pressed:border-border-strong aria-pressed:bg-surface aria-pressed:text-fg",
+  none: "aria-pressed:border-border-strong aria-pressed:bg-surface aria-pressed:text-fg",
+};
+
+/**
  * Шапка переписки (Э5): с кем переписка — имя, направление и этап словами
  * доски поступления, «Открыть дело»; состояние — видимым переключателем из
- * трёх (прежняя команда `set_await`), а не пунктом меню «⋯». После ответа
- * сотрудника «Ждём студента» ставит сама команда отправки (245); переключатель
- * — для ручных изменений. `awaitState` null — состояние не прочитано,
- * переключателя нет.
+ * трёх (прежняя команда `set_await`) с подписью «Состояние», а не пунктом
+ * меню «⋯». После ответа сотрудника «Ждём студента» ставит сама команда
+ * отправки (245); переключатель — для ручных изменений. `awaitState` null —
+ * состояние не прочитано, переключателя нет. На узком экране «К списку» —
+ * стрелка в строке имени (заголовок страницы и каналы тогда скрыты), чтобы
+ * лента начиналась как можно выше.
  */
 function ThreadHeader({
   name, facts, caseId, listHref, awaitState, onSetAwait, awaitPending, look,
@@ -347,15 +361,16 @@ function ThreadHeader({
   const direction = facts?.direction ?? null;
   return (
     <div className="flex flex-col gap-2 border-b border-border p-3" data-testid="case-chat-thread-header">
-      <Link href={listHref} scroll={false} className="-my-1 inline-flex min-h-11 w-fit items-center gap-1.5 t-label text-fg-2 underline decoration-transparent underline-offset-4 hover:decoration-inherit @2xl:hidden">
-        <Icon name="arrow-left" size={16} className="shrink-0" />
-        К списку
-      </Link>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2.5">
-          {next && name ? <span className="mt-0.5 shrink-0"><Initials name={name} decorative /></span> : null}
+      <div className="flex items-start justify-between gap-2 @2xl:gap-3">
+        <div className="flex min-w-0 items-start gap-1 @2xl:gap-2.5">
+          <Link href={listHref} scroll={false} aria-label="К списку" title="К списку"
+            className="-my-1 -ms-2 inline-flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg @2xl:hidden">
+            <Icon name="arrow-left" size={20} className="shrink-0" />
+          </Link>
+          {next && name ? <span className="mt-0.5 hidden shrink-0 @2xl:block"><Initials name={name} decorative /></span> : null}
           <div className="min-w-0">
-            <h2 className="t-section truncate text-fg">{name ?? "Переписка"}</h2>
+            {/* Узко имя встаёт в две строки, а не в «Студент …»: с кем переписка — главное. */}
+            <h2 className="t-section break-words text-fg @max-2xl:line-clamp-2 @2xl:truncate">{name ?? "Переписка"}</h2>
             {direction || stage ? (
               <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 t-body-compact text-fg-2" data-testid="case-chat-case-facts">
                 {direction ? <span>{direction}</span> : null}
@@ -370,17 +385,22 @@ function ThreadHeader({
         </Link>
       </div>
       {awaitState !== null ? (
-        /* Узко — три равные части на всю ширину (слово может встать в две
-           строки), широко — по ширине слов. */
-        <div role="group" aria-label="Состояние переписки" data-testid="case-chat-await-control"
-          className="grid grid-cols-3 gap-0.5 rounded-ctl border border-border p-0.5 @2xl:flex @2xl:w-fit">
-          {AWAIT_CONTROL_ORDER.map((value) => (
-            <button key={value} type="button" aria-pressed={awaitState === value} disabled={awaitPending}
-              onClick={() => { if (value !== awaitState) onSetAwait(value); }}
-              className="v3-choice inline-flex min-h-11 items-center justify-center rounded-nav px-1.5 text-center t-label text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring @2xl:whitespace-nowrap @2xl:px-3">
-              {caseChatAwaitChoice(value)}
-            </button>
-          ))}
+        /* Подпись «Состояние» отличает запись от фильтра очереди. Узко —
+           подпись над переключателем и три равные части на всю ширину (слово
+           может встать в две строки), широко — в строку, по ширине слов. */
+        <div className="flex flex-col gap-1 @2xl:flex-row @2xl:items-center @2xl:gap-3">
+          <span className="t-label text-fg-3" aria-hidden="true">Состояние</span>
+          <div role="group" aria-label="Состояние переписки" data-testid="case-chat-await-control"
+            className="grid grid-cols-3 gap-0.5 rounded-ctl border border-border bg-surface-2 p-0.5 @2xl:flex @2xl:w-fit">
+            {AWAIT_CONTROL_ORDER.map((value) => (
+              <button key={value} type="button" aria-pressed={awaitState === value} disabled={awaitPending}
+                onClick={() => { if (value !== awaitState) onSetAwait(value); }}
+                data-tone={awaitTone(value)}
+                className={`inline-flex min-h-11 items-center justify-center rounded-nav border border-transparent px-1.5 text-center t-label text-fg-2 hover:text-fg aria-pressed:font-semibold ${AWAIT_PRESSED[value]} disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring @2xl:whitespace-nowrap @2xl:px-3`}>
+                {caseChatAwaitChoice(value)}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
@@ -400,16 +420,33 @@ function AttachmentCard({ message, caseId }: Readonly<{ message: CaseChatMessage
   );
 }
 
+/**
+ * Сообщение ленты. «Действия с сообщением» — знак из набора иконок в строке
+ * «автор · время» самого пузыря (не отдельной строкой под ним и не символом
+ * «⋯»): цель 44 px, но строка пузыря от неё не растёт. Меню — в верхнем слое
+ * (popover), прокрутка ленты его не обрежет.
+ */
 function MessageRow({
   message, own, caseId, onReply,
 }: Readonly<{ message: CaseChatMessage; own: boolean; caseId: string; onReply: (message: CaseChatMessage) => void }>) {
+  const menu = useAnchoredPopover(own ? "end" : "start");
   return (
-    <div className={`flex flex-col gap-0.5 py-2 ${own ? "items-end" : "items-start"}`} id={`case-message-${message.id}`}>
+    <div className={`flex flex-col py-2 ${own ? "items-end" : "items-start"}`} id={`case-message-${message.id}`}>
       <div className={`max-w-[85%] min-w-0 rounded-ctl px-3 py-2 ${own ? "bg-accent/10" : "bg-surface-2"}`}>
-        <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-fg-3">
-          <span className="font-medium text-fg-2">{own ? "Вы" : message.authorName}</span>
-          <time dateTime={message.createdAt}>{TIME.format(new Date(message.createdAt))}</time>
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 text-xs text-fg-3">
+            <span className="font-medium text-fg-2">{own ? "Вы" : message.authorName}</span>
+            <time dateTime={message.createdAt}>{TIME.format(new Date(message.createdAt))}</time>
+          </p>
+          <button type="button" id={menu.triggerId} popoverTarget={menu.popoverId} style={menu.triggerStyle}
+            aria-label="Действия с сообщением"
+            className="group -my-3.5 -me-2.5 inline-flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-3 hover:text-fg">
+            {/* Цель — 44 px, подложка при наведении — только вокруг знака, внутри пузыря. */}
+            <span className="inline-flex size-7 items-center justify-center rounded-nav group-hover:bg-surface-3">
+              <Icon name="more-horizontal" size={16} className="shrink-0" />
+            </span>
+          </button>
+        </div>
         {message.quotedPreview ? (
           <p className="mt-1 truncate border-s-2 border-border ps-2 text-xs text-fg-3">
             {message.quotedPreview.authorName}: {message.quotedPreview.bodyPreview}
@@ -418,14 +455,13 @@ function MessageRow({
         {message.body ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-fg">{message.body}</p> : null}
         <AttachmentCard message={message} caseId={caseId} />
       </div>
-      <details className="relative col-start-2 row-start-1 justify-self-end">
-        <summary aria-label="Действия с сообщением" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-nav text-xs text-fg-3 hover:bg-surface-2 [&::-webkit-details-marker]:hidden">⋯</summary>
-        <div className="absolute end-0 z-20 mt-1 w-52 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
-          <button type="button" className="block w-full rounded-nav px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2" onClick={() => onReply(message)}>
-            Ответить с цитатой
-          </button>
-        </div>
-      </details>
+      <div id={menu.popoverId} popover="auto" role="group" aria-label="Действия с сообщением" style={menu.popoverStyle}
+        className={`v3-anchored ${own ? "v3-anchored-end" : ""} w-52 rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg`}>
+        <button type="button" className="flex min-h-11 w-full items-center rounded-nav px-2 text-left text-sm text-fg hover:bg-surface-2"
+          onClick={() => { document.getElementById(menu.popoverId)?.hidePopover(); onReply(message); }}>
+          Ответить с цитатой
+        </button>
+      </div>
     </div>
   );
 }
@@ -633,7 +669,7 @@ function CaseChatList({
   const router = useRouter();
   const next = isNextLook(look);
   return (
-    <nav aria-label="Переписки кабинета студента" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-e border-border @2xl:w-[360px] @2xl:shrink-0`}>
+    <nav aria-label="Переписки кабинета студента" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-border @2xl:w-[360px] @2xl:shrink-0 @2xl:border-e`}>
       <div className="flex flex-col gap-2 border-b border-border p-3">
         {/* Очереди на виду (Э5): число — из того же чтения, только из полного; «Все» без числа. */}
         <div role="group" aria-label="Очередь переписок" data-testid="case-chat-queues" className="flex flex-wrap gap-1">
@@ -668,7 +704,7 @@ function CaseChatList({
         {!loading && !failure && (threads.rows.length === 0 ? <div className="p-4">
           <p role="status" className="text-sm text-fg-3">{query.trim()
             ? queue === "all" ? "По вашему запросу переписок не найдено." : "В этой очереди нет переписок по вашему запросу."
-            : queue === "needs_reply" ? "Все ответы даны." : queue === "all" ? "Переписок пока нет." : "В этой очереди переписок нет."}</p>
+            : queue === "needs_reply" ? "Нет переписок, ждущих ответа." : queue === "all" ? "Переписок пока нет." : "В этой очереди переписок нет."}</p>
           {query.trim() ? <button type="button" onClick={() => onQuery("")} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
             Сбросить поиск
           </button> : queue !== "all" ? <button type="button" onClick={() => onQueue("all")} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
@@ -705,7 +741,9 @@ function CaseChatList({
 /**
  * Правая часть без открытой переписки (Э5): вместо «Выберите переписку
  * слева.» — следующая переписка, ждущая ответа, дольше всех ждущая (из
- * полного чтения), или тихое «Все ответы даны». Иначе — пусто.
+ * полного чтения), или тихое «Все ответы даны» — в любой очереди, в том
+ * числе в пустой «Нужен ответ» (список слева тогда говорит «Нет переписок,
+ * ждущих ответа.», без повтора). Иначе — пусто.
  */
 function NextThreadPane({ read, membershipId, query, queue, loading, failure }: Readonly<{
   read: CaseChatQueueRead; membershipId: string; query: string; queue: CaseChatQueue;
@@ -725,8 +763,7 @@ function NextThreadPane({ read, membershipId, query, queue, loading, failure }: 
             Открыть
           </Link>
         </>
-      ) : line.kind === "all-answered" && queue !== "needs_reply" ? (
-        // В очереди «Нужен ответ» это уже сказал пустой список слева.
+      ) : line.kind === "all-answered" ? (
         <p className="t-body text-fg-3">Все ответы даны</p>
       ) : null}
     </div>

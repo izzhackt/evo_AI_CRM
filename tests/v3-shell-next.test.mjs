@@ -288,13 +288,15 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   assert.match(shell, /grid h-\[var\(--shell-tabbar\)\]/u, "tab bar height is the variable");
   assert.match(shell, /max-md:pb-\[calc\(var\(--shell-tabbar\)\+var\(--shell-safe-bottom\)\)\]/u, "content clears the tab bar");
   // «Переписки» → «Кабинет студента» и «Командный чат» — страницы «на окно» под правилом.
-  assert.match(read("src/components/v3/case-chat/CabinetConversationsMain.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label=\{title\}>/u);
-  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<CabinetConversationsMain title=\{TITLE\}/u);
+  const conversations = read("src/components/v3/ConversationsMain.tsx");
+  assert.match(conversations, /height === "window" \? "h-\[calc\(100dvh-150px\)\] md:h-\[calc\(100dvh-64px\)\]" : "md:flex-1"/u);
+  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<ConversationsMain title=\{TITLE\} channels=\{channels\} current="cabinet" height="window" threadOpen=/u);
   assert.match(read("src/app/(v3)/v3/team-chat/page.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label="Командный чат">/u);
-  // WhatsApp (PartShell `fill`) своей высоты не задаёт: от 768 px её даёт
-  // колонка оболочки по `isFillRoute` — в новом облике так же, как в прежнем.
+  // WhatsApp (общая шапка «Переписок», `height="fill"`) своей высоты не задаёт:
+  // от 768 px её даёт колонка оболочки по `isFillRoute` — в новом облике так
+  // же, как в прежнем (и как у PartShell `fill`).
   assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="Переписки" fill>/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<ConversationsMain title=\{TITLE\} channels=\{conversationChannels\(actor\)\} current="whatsapp" height="fill"/u);
   assert.match(shell, /const fill = isFillRoute\(pathname\);/u);
   assert.match(shell, /fill && "md:flex md:h-dvh md:flex-col"/u, "the content column is window-high on fill routes");
   assert.match(shell, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
@@ -312,8 +314,9 @@ test("without a top bar every page title starts at one height, level with the lo
   // отдельный сдвиг заголовка «Сообщений» не нужен.
   assert.match(css, /\[data-shell-content\] main:has\(> div:first-child > div:first-child > h1\.t-page-title\) \{\s*padding-top: var\(--shell-page-top\);/u);
   assert.doesNotMatch(css, /main\[aria-label="Сообщения"\]/u);
-  assert.match(read("src/components/ui.tsx"), /<div className="flex flex-wrap items-start justify-between gap-4">\s*<div className="min-w-0">\s*<h1 className="t-page-title/u, "PageHeader keeps the structure the rule reads");
-  assert.match(read("src/components/v3/case-chat/CabinetConversationsMain.tsx"), /aria-label=\{title\}>\s*<PageHeader title=\{title\} \/>/u);
+  assert.match(read("src/components/ui.tsx"), /<div className=\{cn\("flex flex-wrap items-start justify-between gap-4", className\)\}>\s*<div className="min-w-0">\s*<h1 className="t-page-title/u, "PageHeader keeps the structure the rule reads");
+  // Обе страницы «Переписок»: PageHeader — первый ребёнок `main` (правило выше его находит).
+  assert.match(read("src/components/v3/ConversationsMain.tsx"), /\)\}\s*>\s*<PageHeader title=\{title\} className=/u);
   assert.doesNotMatch(read("src/components/v3/case-chat/CaseChatThread.tsx"), /<h1\b/u);
   // Логотип: `pt-3.5` + 51 px высоты — центр на 40 px, как у заголовка 24 + 32/2.
   assert.match(read("src/components/v3/AppShellNext.tsx"), /"hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex"/u);

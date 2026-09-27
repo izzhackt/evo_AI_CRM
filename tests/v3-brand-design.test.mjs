@@ -5,8 +5,8 @@ import { test } from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const css = read("src/app/(v3)/v3.css");
-// Базовый облик — первый блок `.v3-world { … }`; предпросмотр нового облика
-// (`[data-look="next"]`, Э1.1) проверяет tests/v3-look-preview.test.mjs.
+// Базовые значения — первый блок `.v3-world { … }` (их делит кабинет студента);
+// облик staff CRM (`[data-surface="staff"]`, Э1.5) проверяет tests/v3-staff-look.test.mjs.
 const baseBlock = css.slice(css.indexOf(".v3-world {"), css.indexOf("}", css.indexOf(".v3-world {")));
 const tokens = Object.fromEntries([...baseBlock.matchAll(/--([a-z0-9-]+):\s*(#[a-f0-9]{6});/gu)]
   .map((match) => [match[1], match[2]]));
@@ -130,7 +130,8 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/students/NextStepEditor.tsx",
   ];
   for (const path of selectable) {
-    const source = read(path);
+    // «Сегодня» в календаре — не выбор, а маленькая красная заливка (правило плана редизайна, Э6).
+    const source = read(path).replace('isToday ? "bg-accent text-on-accent"', "isToday ? TODAY_FILL");
     assert.match(source, /v3-choice/u, `${path} uses the shared selected style`);
     assert.doesNotMatch(source, /\?\s*"[^"]*\bbg-accent\b[^"]*\btext-on-accent\b/u, `${path} has no solid red selection`);
     assert.doesNotMatch(source, /border-b-2 border-accent/u, `${path} has no red underline selection`);

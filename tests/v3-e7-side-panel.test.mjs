@@ -162,9 +162,10 @@ test("one header: record title, context line, «Открыть …», actions an
   for (const [name, panel] of headers) assert.match(panel.match(/<header [\s\S]*?<\/header>/u)[0], /data-side-panel-context="">/u, `${name}: a context line`);
   assert.match(panelOf(tasks.get("team-panel")), /data-side-panel-context="">[^<]+<\/div>/u, "who the task is about");
   assert.match(panelOf(numbers.get("report-panel")), /data-side-panel-context="">Сведения из записи отчёта\.(?: Текущие данные клиента и условия — в его карточке\.)?<\/div>/u, "the report form: the same line as the record view");
-  // Доска: этап и ответственный переехали из списка фактов в строку контекста, не удвоились.
+  // Доска: этап и ответственный переехали из списка фактов в строку контекста, не удвоились;
+  // над строкой — дорожка этапа (Э1.4), без своей подписи.
   const lead = panelOf(boards.get("sales-panel"));
-  assert.match(lead, /data-side-panel-context="">Связались · Ответственный: [^<]+<\/div>/u);
+  assert.match(lead, /data-side-panel-context=""><div class="v3-track [^"]*" data-track="sales">[\s\S]*?<\/div><p>Связались · Ответственный: [^<]+<\/p><\/div>/u);
   assert.doesNotMatch(lead, /<dt [^>]*>(?:Этап|Ответственный)<\/dt>/u, "stage and owner are not repeated in the fact list");
   assert.match(lead, /<dt [^>]*>Действие<\/dt>/u);
   assert.match(panelOf(students.get("curators")), /data-side-panel-context=""><dl[^>]*><div><dt class="inline">Активных дел: <\/dt>/u, "curator workload as the context line");
@@ -282,7 +283,7 @@ test("phone and narrow windows: the same dialog becomes a modal sheet; Esc and c
     assert.match(read(`tests/e2e/${script}-static-render.cjs`), /--f1/u, script);
   }
   const probe = read("tests/e2e/side-panel-probe.cjs");
-  assert.match(probe, /async function journey\(page, \{ selected, returnSelector, reopen, look, scrolledPath, overlay = null \}\)/u);
+  assert.match(probe, /async function journey\(page, \{ selected, returnSelector, reopen, scrolledPath, overlay = null \}\)/u);
   assert.match(probe, /Esc in a dialog over the panel closes only that dialog: the panel, its address and the typed text stay/u);
   assert.match(read("tests/e2e/boards-static-render.cjs"), /overlay: \{\s*dialog: '\[data-testid="v3-close-lead-dialog"\]'/u, "board: Esc in «Закрыть лид» over the lead panel");
   assert.match(read("tests/e2e/students-static-render.cjs"), /dialog: '\[data-testid="v3-close-case-dialog"\]'[\s\S]*?\["students", "panel-close", OPEN_CASE, closeCase\]/u, "«Быстрый просмотр»: Esc in «Завершить дело»");
@@ -290,7 +291,7 @@ test("phone and narrow windows: the same dialog becomes a modal sheet; Esc and c
   assert.match(probe, /the first Esc in a panel field keeps the panel open and the typed text/u);
   assert.match(probe, /from 768px the header stays put while the body scrolls/u);
   assert.match(probe, /a click on the dimmed page closes the sheet and returns focus to the row/u);
-  assert.match(probe, /the page renders the expected look/u, "both looks are asserted, not assumed from the file name");
+  assert.match(probe, /the page renders inside the staff CRM root/u, "the staff root is asserted, not assumed from the file name");
 });
 
 test("one vertical start: tabs and toolbars span the page above the list | panel grid", () => {

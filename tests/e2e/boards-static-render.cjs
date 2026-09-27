@@ -39,10 +39,10 @@
  *       мутаций меню, исчезновение подписи после ухода курсора), меню дела
  *       и перетаскивание.
  *
- *   node tests/e2e/boards-static-render.cjs --hydrate-undo [outDir] [--look=next]
+ *   node tests/e2e/boards-static-render.cjs --hydrate-undo [outDir]
  *     → «Отменить» на доске поступления (Э7, миграция 251), гидратация как
  *       у --hydrate: перетаскивание → «Дело «…» перемещено в «…» · Отменить»
- *       → отмена (итог виден в обоих обликах); «⋯ → Переместить в…» → фокус
+ *       строкой в верхнем слое → отмена (итог виден строкой доски); «⋯ → Переместить в…» → фокус
  *       на «Отменить» → чужое перемещение → карточка ждёт ответа → отказ
  *       «Дело уже переместили — отмена не выполнена. Сейчас дело «…» — в «…».»
  *       одной строкой; срок ~6 с и пауза под указателем; путь только
@@ -51,20 +51,13 @@
  *       действие ведёт версию положения, как `move_case_pipeline_v2`
  *       (tests/e2e/boards-fixtures.cjs).
  *
- *   node tests/e2e/boards-static-render.cjs --f1 [outDir] [--look=next]
+ *   node tests/e2e/boards-static-render.cjs --f1 [outDir]
  *     → Э7 «Одна боковая панель везде»: гидратированная «Воронка продаж» с
  *       панелью лида, открытой по адресу (`?lead=`), на 1440×900, 1280×800,
- *       1264×800 (колонки в ряд, панель — лист), 1024×768 (лист справа) и 390×844 — снимки `f1-pipeline[-next]-<ширина>.png` и замеры
+ *       1264×800 (колонки в ряд, панель — лист), 1024×768 (лист справа) и 390×844 — снимки `f1-pipeline-<ширина>.png` и замеры
  *       `tests/e2e/side-panel-probe.cjs`: ширина — токен общей панели,
  *       рядом с доской от 1280 px, лист ниже; путь Esc → карточка → открыть
  *       карточкой → «Закрыть» → карточка. Нарушение — исключение.
- *
- *   --look=next (с --json, --screenshots, --hydrate, --hydrate-close, --hydrate-undo или --f1) —
- *       новый облик (Э1.1–Э1.3,
- *       предпросмотр Admin): `data-look="next"` на оболочке, страницы читают
- *       облик заглушкой `readLookPreview` — точка фазы у колонок, инициалы,
- *       чипы и срок словом в карточках, дорожка этапа в панели лида. Снимки —
- *       `boards-next-*.png`.
  *
  * По умолчанию outDir — .impeccable/review (не коммитится).
  */
@@ -80,7 +73,6 @@ const ROOT = resolve(__dirname, "../..");
 const FIXTURES = join(__dirname, "boards-fixtures.cjs");
 const LOGO = join(ROOT, "public/brand/evo-logo.png");
 const HYDRATE = ["--hydrate", "--hydrate-close", "--hydrate-undo", "--f1"].some((flag) => process.argv.includes(flag));
-const LOOK_NEXT = process.argv.includes("--look=next");
 
 // --- require-hook: .ts/.tsx компилируются TypeScript'ом в CJS ---------------
 const compile = (source) =>
@@ -214,8 +206,8 @@ async function renderPageTree(pageKey, search, { loading = false, rows = "defaul
       : await require(join(ROOT, module)).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) });
     const tree = createElement(
       "div",
-      { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
-      createElement(AppShell, { actor: ACTOR, initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, content),
+      { className: "v3-world", "data-surface": "staff" },
+      createElement(AppShell, { actor: ACTOR, initialNotifications: null }, content),
     );
     return withContexts(tree, pathname, search);
   } finally {
@@ -303,7 +295,6 @@ function measure() {
   const red = [...document.querySelectorAll("a, button")].filter((element) => visible(element)
     && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim());
   const main = [...document.querySelectorAll("main")].find(visible);
-  const topBar = main?.parentElement?.previousElementSibling;
   const panel = document.querySelector('[data-testid="v3-pipeline-lead-panel"]');
   const panelRect = panel && visible(panel) ? panel.getBoundingClientRect() : null;
   const selectedCard = panel ? document.querySelector(`[data-testid="v3-pipeline-card"][data-lead-id="${panel.dataset.leadId}"]`) : null;
@@ -317,7 +308,6 @@ function measure() {
     boardOverflowX: board ? board.scrollWidth - board.clientWidth : null,
     pageOverflowY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
     sidebarWidth: sidebar ? Math.round(sidebar.getBoundingClientRect().width) : null,
-    topBarHeight: topBar ? Math.round(topBar.getBoundingClientRect().height) : null,
     mainX: main ? Math.round(main.getBoundingClientRect().left) : null,
     boardX: board ? Math.round(board.getBoundingClientRect().left) : null,
     boardTop: board ? Math.round(board.getBoundingClientRect().top) : null,
@@ -375,7 +365,7 @@ async function screenshots() {
     for (const [shot, sizes] of shots) {
       const scenario = shot === "admissions-menu" ? "admissions" : shot === "rail-flyout" ? "sales" : shot;
       const { page: pageKey } = SCENARIOS[scenario];
-      const prefix = LOOK_NEXT ? "boards-next" : "boards";
+      const prefix = "boards";
       const htmlPath = join(outDir, `${prefix}-${scenario}.html`);
       if (!existsSync(htmlPath) || shot === scenario) {
         writeFileSync(htmlPath, [
@@ -482,9 +472,6 @@ const PAGES = {
 };
 const h = React.createElement;
 const IMAGE = { ...imageConfigDefault, unoptimized: true };
-// Облик — тот же, что отрисовал сервер (флаг --look=next): иначе React
-// пересоберёт дерево на клиенте в текущем облике.
-const LOOK_NEXT = ${JSON.stringify(LOOK_NEXT)};
 async function renderPage(pathname, search) {
   globalThis.__harnessUuid = fixtures.syntheticUuids();
   return PAGES[pathname]()({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) });
@@ -521,8 +508,8 @@ function Harness({ initial }) {
     h(PathnameContext.Provider, { value: view.pathname },
       h(SearchParamsContext.Provider, { value: searchParams },
         h(ImageConfigContext.Provider, { value: IMAGE },
-          h("div", { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
-            h(AppShell, { actor: fixtures.ACTOR, initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, view.content))))));
+          h("div", { className: "v3-world", "data-surface": "staff" },
+            h(AppShell, { actor: fixtures.ACTOR, initialNotifications: null }, view.content))))));
 }
 (async () => {
   window.__harness = { pushes: [], refreshes: [], recoverable: [] };
@@ -587,8 +574,7 @@ async function bundleHydration() {
     jsx: "automatic",
     tsconfig: join(ROOT, "tsconfig.json"),
     define: { "process.env.NODE_ENV": JSON.stringify("development") },
-    // `argv` несёт только флаг облика: заглушка `readLookPreview` читает его и в браузере.
-    banner: { js: `var process = globalThis.process || { env: { NODE_ENV: "development" }, argv: ${JSON.stringify(LOOK_NEXT ? ["--look=next"] : [])} };` },
+    banner: { js: `var process = globalThis.process || { env: { NODE_ENV: "development" } };` },
     plugins: [plugin],
     logLevel: "silent",
   });
@@ -955,7 +941,6 @@ async function f1() {
   const { server, origin } = await startServer(css, bundle);
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
-  const look = LOOK_NEXT ? "-next" : "";
   const lead = leadId(5);
   const failures = [];
   // Доска: ещё 1264 px — колонки уже стоят в ряд (контейнер от 72rem), а панель
@@ -972,14 +957,13 @@ async function f1() {
       await page.waitForSelector("html[data-hydrated=true]", { timeout: 15_000 });
       await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(400);
-      await page.screenshot({ path: join(outDir, `f1-pipeline${look}-${width}.png`) });
+      await page.screenshot({ path: join(outDir, `f1-pipeline-${width}.png`) });
       const card = `a[data-lead-link="${lead}"]`;
       const result = await probe.journey(page, {
         selected: `[data-testid="v3-pipeline-card"][aria-current="true"]`,
         returnSelector: card,
         reopen: () => page.locator(card).filter({ visible: true }).first().click(),
-        look: LOOK_NEXT ? "next" : "current",
-        scrolledPath: join(outDir, `f1-pipeline${look}-${width}-scrolled.png`),
+        scrolledPath: join(outDir, `f1-pipeline-${width}-scrolled.png`),
         // «⋯» → «Закрыть лид…»: Esc в окне закрывает только окно, `?lead=` и введённое остаются.
         overlay: {
           dialog: '[data-testid="v3-close-lead-dialog"]',
@@ -993,8 +977,8 @@ async function f1() {
       if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
       const recoverable = await page.evaluate(() => window.__harness.recoverable);
       if (recoverable.length) result.failures.push(`hydration: ${recoverable.join(" | ")}`);
-      probe.report({ screen: "pipeline", look: look || "-current", width, ...result });
-      failures.push(...result.failures.map((failure) => `pipeline${look} ${width}: ${failure}`));
+      probe.report({ screen: "pipeline", width, ...result });
+      failures.push(...result.failures.map((failure) => `pipeline ${width}: ${failure}`));
       await browserContext.close();
     }
   } finally {
@@ -1162,8 +1146,8 @@ async function hydrateClose() {
 
 /**
  * «Отменить» на доске поступления (Э7, миграция 251):
- *   node tests/e2e/boards-static-render.cjs --hydrate-undo [outDir] [--look=next]
- * Снимки `f2-<облик>-<шаг>-<ширина>.png`; измерения — JSON-строки в stdout,
+ *   node tests/e2e/boards-static-render.cjs --hydrate-undo [outDir]
+ * Снимки `f2-<шаг>-<ширина>.png`; измерения — JSON-строки в stdout,
  * нарушения — список `failures` и код выхода 1. Путь клавиатуры (`kbd-*`):
  * Tab до «⋯», Enter, Tab до этапа, Enter → кольцо на «Отменить» → Enter →
  * кольцо на вернувшейся карточке → отказ → кольцо на карточке там, где её
@@ -1171,20 +1155,19 @@ async function hydrateClose() {
  */
 async function hydrateUndo() {
   const outDir = outDirArg("--hydrate-undo");
-  const lookName = LOOK_NEXT ? "next" : "current";
   const [css, bundle] = await Promise.all([compileCss("/__fonts"), bundleHydration()]);
   const { server, origin } = await startServer(css, bundle);
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   const failures = [];
-  const check = (ok, label) => { if (!ok) failures.push(`${lookName}: ${label}`); };
+  const check = (ok, label) => { if (!ok) failures.push(label); };
   // Подсказка Next.js в режиме разработки о логотипе оболочки (LCP) к доске не относится.
   const pageErrors = (messages) => messages.filter((text) => !/Largest Contentful Paint/u.test(text));
-  const report = (entry) => process.stdout.write(`${JSON.stringify({ look: lookName, ...entry })}\n`);
+  const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
   // Снимок после появления строки (160 мс, v3.css): видно итоговое состояние, а не середину перехода.
   const shot = async (page, name, width) => {
     await page.waitForTimeout(250);
-    await page.screenshot({ path: join(outDir, `f2-${lookName}-${name}-${width}.png`) });
+    await page.screenshot({ path: join(outDir, `f2-${name}-${width}.png`) });
   };
   const open = async (viewport, mobile = false) => {
     const context = await browser.newContext({ viewport, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile });
@@ -1203,8 +1186,8 @@ async function hydrateUndo() {
     const board = document.querySelector('[data-testid="v3-admissions-pipeline-board"]');
     const toast = document.querySelector('[data-testid="v3-undo-toasts"]');
     const toastButton = toast && toast.matches(":popover-open") ? toast.querySelector("[data-undo-row]") : null;
-    const button = document.querySelector("[data-board-undo]") ?? toastButton;
-    const offerNode = toastButton ? toastButton.closest("li") : button?.closest("[data-board-undo-line]");
+    const button = toastButton;
+    const offerNode = toastButton ? toastButton.closest("li") : null;
     const rect = button?.getBoundingClientRect();
     const active = document.activeElement;
     const cardNode = document.querySelector(`[data-testid="v3-admissions-pipeline-card"][data-student-case-id="${id}"]`);
@@ -1252,9 +1235,7 @@ async function hydrateUndo() {
       lastCall: globalThis.__boardsFixture.pipelineCalls.at(-1) ?? null,
     };
   }, caseId(n));
-  const undoButton = (page) => (LOOK_NEXT
-    ? page.locator('[data-testid="v3-undo-toasts"] [data-undo-row]')
-    : page.locator("[data-board-undo]"));
+  const undoButton = (page) => page.locator('[data-testid="v3-undo-toasts"] [data-undo-row]');
   const waitOffer = (page) => undoButton(page).waitFor({ state: "visible", timeout: 5_000 });
   const noOffer = (page) => undoButton(page).waitFor({ state: "detached", timeout: 5_000 });
   const common = (label, entry) => {
@@ -1266,7 +1247,7 @@ async function hydrateUndo() {
     if (entry.offer) {
       check(entry.targetHeight >= 44, `${label}: «Отменить» target ${entry.target}`);
       check(entry.minFont >= 12, `${label}: offer text ≥ 12px (${entry.minFont})`);
-      check(entry.inTopLayer === LOOK_NEXT, `${label}: ${LOOK_NEXT ? "top-layer toast" : "board line"}`);
+      check(entry.inTopLayer, `${label}: top-layer toast`);
     }
   };
   /** Кольцо клавиатуры видно и оно токенов доски (solid, 2px). */
@@ -1307,7 +1288,7 @@ async function hydrateUndo() {
     check(chosen === stageLabel, `${label}: Tab reaches «${stageLabel}» in the menu (${chosen})`);
     await page.keyboard.press("Enter");
   };
-  const offerFocused = (page) => page.waitForFunction(() => document.activeElement?.matches("[data-board-undo], [data-undo-row]"));
+  const offerFocused = (page) => page.waitForFunction(() => document.activeElement?.matches("[data-undo-row]"));
   const movedText = (name, stage) => `Дело «${name}» перемещено в «${stage}».`;
   const undoneText = (name, stage) => `Перемещение отменено: дело «${name}» снова в «${stage}».`;
   const REFUSED = "Дело уже переместили — отмена не выполнена.";
@@ -1375,11 +1356,10 @@ async function hydrateUndo() {
       // Срок: без указателя строка уходит за ~6 с; под указателем стоит.
       await drag(page, 5, 1);
       await waitOffer(page);
-      await page.mouse.move(1300, 60); // вне строки «Отменить» в обоих обликах
+      await page.mouse.move(1300, 60); // вне строки «Отменить»
       const offeredAt = Date.now();
       await noOffer(page).catch(() => {});
-      await page.waitForFunction(() => !document.querySelector("[data-board-undo]")
-        && !document.querySelector('[data-testid="v3-undo-toasts"]:popover-open [data-undo-row]'), null, { timeout: 9_000 });
+      await page.waitForFunction(() => !document.querySelector('[data-testid="v3-undo-toasts"]:popover-open [data-undo-row]'), null, { timeout: 9_000 });
       const expiredAfter = Date.now() - offeredAt;
       check(expiredAfter >= 5_000 && expiredAfter <= 8_000, `the offer expires after ~6 s (${expiredAfter} ms)`);
       await drag(page, 6, 1);
@@ -1390,9 +1370,8 @@ async function hydrateUndo() {
       const held = await state(page, 6);
       check(held.offer !== null, "the offer stays while the pointer is on it");
       await shot(page, "held", 1440);
-      await page.mouse.move(1300, 60); // вне строки «Отменить» в обоих обликах
-      await page.waitForFunction(() => !document.querySelector("[data-board-undo]")
-        && !document.querySelector('[data-testid="v3-undo-toasts"]:popover-open [data-undo-row]'), null, { timeout: 9_000 });
+      await page.mouse.move(1300, 60); // вне строки «Отменить»
+      await page.waitForFunction(() => !document.querySelector('[data-testid="v3-undo-toasts"]:popover-open [data-undo-row]'), null, { timeout: 9_000 });
       report({ journey: "undo-1440", dragged, undone, menu, waiting: { column: waiting.column, pending: waiting.pending }, conflict, expiredAfter, held: { offer: held.offer },
         recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
       check(pageErrors(console_).length === 0, `console clean at 1440: ${pageErrors(console_).join(" | ")}`);

@@ -28,7 +28,7 @@
  *   node tests/e2e/conversations-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — статическая разметка страниц
  *       (для tests/v3-conversations.test.mjs).
- *   node tests/e2e/conversations-static-render.cjs --screenshots [outDir] [--look=next] [--prefix=split]
+ *   node tests/e2e/conversations-static-render.cjs --screenshots [outDir] [--prefix=split]
  *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844: список со
  *       следующей перепиской, переписка с переключателем, открытый выбор
  *       шаблона (кнопкой и «/»), смена состояния с перечитанным списком,
@@ -36,9 +36,8 @@
  *       куратора по прежней ссылке; у каждой страницы свой h1 и свой пункт
  *       меню, вкладок каналов нет, заголовки обеих страниц — на одной высоте.
  *       По умолчанию outDir — .impeccable/review (не коммитится); файлы
- *       `e5-*.png` (`--prefix=` меняет начало имени), с `--look=next` —
- *       суффикс `-next`. Проверки печатаются JSON-строками; при нарушении —
- *       код выхода 1.
+ *       `e5-*.png` (`--prefix=` меняет начало имени). Проверки печатаются
+ *       JSON-строками; при нарушении — код выхода 1.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -184,7 +183,7 @@ const QUEUE_ROW = {
 };
 
 // --- настоящие страницы с подменёнными чтениями -------------------------------------
-function stubReads({ actor, rows, look }) {
+function stubReads({ actor, rows }) {
   const guards = require(join(ROOT, "src/lib/platform-guards.ts"));
   guards.requireV3PageActor = async () => actor;
   const { readCaseChatQueueWith } = require(join(ROOT, "src/components/v3/case-chat/case-chat-queue.ts"));
@@ -197,7 +196,6 @@ function stubReads({ actor, rows, look }) {
   }, queue, () => new Date(READ_AT));
   chat.readCaseChatPage = async () => threadPage();
   require(join(ROOT, "src/lib/v3/case-work-source.ts")).readCaseQueueRow = async (_actor, target) => target.studentCaseId === QUEUE_ROW.studentCaseId ? QUEUE_ROW : null;
-  require(join(ROOT, "src/lib/v3/look-preview.ts")).readLookPreview = async () => look === "next";
   require(join(ROOT, "src/lib/v3/reply-snippets-source.ts")).readV3ReplySnippets = async () => SNIPPETS;
   require(join(ROOT, "src/lib/supabase/config.ts")).getSupabasePublicConfig = () => ({ url: "http://127.0.0.1:9", publishableKey: "synthetic-harness-key" });
   require(join(ROOT, "src/lib/i18n.ts")).getLocale = async () => "ru";
@@ -232,10 +230,10 @@ const pathnameOf = (scenario) => (scenario.page === "messages" ? "/v3/messages" 
 const searchOf = (scenario) => new URLSearchParams(scenario.search).toString();
 
 /** Дерево страницы: для «Кабинета студента» — разметка и пропсы для гидратации. */
-async function buildPage(name, look) {
+async function buildPage(name) {
   const scenario = SCENARIOS[name];
   const actor = ACTORS[scenario.actor];
-  stubReads({ actor, rows: scenario.rows, look });
+  stubReads({ actor, rows: scenario.rows });
   const file = scenario.page === "messages" ? "src/app/(v3)/v3/messages/page.tsx" : "src/app/(v3)/v3/inbox/page.tsx";
   const { default: Page } = require(join(ROOT, file));
   const element = await Page({ searchParams: Promise.resolve(scenario.search) });
@@ -247,15 +245,15 @@ async function buildPage(name, look) {
 }
 
 // --- оболочка -------------------------------------------------------------------
-function shellTree({ actor, look, pathname, search, body, cabinet }) {
+function shellTree({ actor, pathname, search, body, cabinet }) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const content = cabinet
     ? h(require(join(ROOT, "src/components/v3/ConversationsMain.tsx")).ConversationsMain, cabinet.main,
       h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, cabinet.workspace))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
-    h("div", { className: "v3-world", "data-look": look === "next" ? "next" : undefined },
-      h(AppShell, { actor, initialNotifications: null, ...(look === "next" ? { look: "next" } : {}) }, content)),
+    h("div", { className: "v3-world", "data-surface": "staff" },
+      h(AppShell, { actor, initialNotifications: null }, content)),
     pathname, search);
 }
 
@@ -320,8 +318,8 @@ const tree = h(AppRouterContext.Provider, { value: router },
   h(PathnameContext.Provider, { value: fixture.pathname },
     h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
       h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
-        h("div", { className: "v3-world", "data-look": fixture.look === "next" ? "next" : undefined },
-          h(AppShell, { actor: fixture.actor, initialNotifications: null, ...(fixture.look === "next" ? { look: "next" } : {}) }, content))))));
+        h("div", { className: "v3-world", "data-surface": "staff" },
+          h(AppShell, { actor: fixture.actor, initialNotifications: null }, content))))));
 hydrateRoot(document.getElementById("root"), tree, {
   onRecoverableError: (error) => window.__harness.recoverable.push(String((error && error.message) || error)),
 });
@@ -471,8 +469,6 @@ async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const look = process.argv.includes("--look=next") ? "next" : "current";
-  const suffix = look === "next" ? "-next" : "";
   const prefix = process.argv.find((arg) => arg.startsWith("--prefix="))?.slice("--prefix=".length) || "e5";
   const bundleName = `${prefix}-conversations-client.js`;
   const css = await compileCss();
@@ -483,13 +479,13 @@ async function screenshots() {
 
   const htmlFor = {};
   for (const name of Object.keys(SCENARIOS)) {
-    const { actor, scenario, element, cabinet } = await buildPage(name, look);
+    const { actor, scenario, element, cabinet } = await buildPage(name);
     const pathname = pathnameOf(scenario);
     const search = searchOf(scenario);
     const body = cabinet ? null : renderToStaticMarkup(withContexts(element, pathname, search));
-    const markup = renderToString(shellTree({ actor, look, pathname, search, body, cabinet }));
-    const data = JSON.stringify({ actor, look, pathname, search, body, cabinet, rows: scenario.rows, readAt: READ_AT }).replaceAll("<", "\\u003c");
-    const htmlPath = join(outDir, `${prefix}-${name}${suffix}.html`);
+    const markup = renderToString(shellTree({ actor, pathname, search, body, cabinet }));
+    const data = JSON.stringify({ actor, pathname, search, body, cabinet, rows: scenario.rows, readAt: READ_AT }).replaceAll("<", "\\u003c");
+    const htmlPath = join(outDir, `${prefix}-${name}.html`);
     writeFileSync(htmlPath, [
       "<!DOCTYPE html>",
       '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -535,11 +531,8 @@ async function screenshots() {
     check(metrics.solidRed <= 1, `${label}: ${metrics.solidRed} solid red controls`);
     check(metrics.menuRetired === 0, `${label}: «Сообщения»/«Переписки» still in the menu`);
     // Свой пункт меню подсвечен; у куратора пункта WhatsApp нет — ничего не подсвечено.
-    // Прежний облик на телефоне прячет меню за кнопкой — пунктов разделов на виду нет.
     const current = metrics.menu.filter((item) => item.endsWith("*"));
-    if (viewportKey === "390" && look !== "next") {
-      check(current.length === 0 && !metrics.menu.some((item) => /=\/v3\/(?:inbox|messages)/u.test(item)), `${label}: menu items on the phone ${JSON.stringify(metrics.menu)}`);
-    } else if (scenario.actor === "admissions" && scenario.page === "inbox") {
+    if (scenario.actor === "admissions" && scenario.page === "inbox") {
       check(current.length === 0 && !metrics.menu.some((item) => item.includes("=/v3/inbox")), `${label}: WhatsApp in the curator menu ${JSON.stringify(metrics.menu)}`);
     } else if (viewportKey !== "390" || scenario.page === "messages") {
       check(JSON.stringify(current) === JSON.stringify([`${title}=${href}*`]), `${label}: current menu item ${JSON.stringify(current)}`);
@@ -555,7 +548,7 @@ async function screenshots() {
     for (const name of Object.keys(SCENARIOS)) {
       for (const viewportKey of Object.keys(VIEWPORTS)) {
         if ((name === "all" || name === "answered-awaiting") && viewportKey === "1280") continue;
-        const file = `${prefix}-${name}-${viewportKey}${suffix}.png`;
+        const file = `${prefix}-${name}-${viewportKey}.png`;
         const session = await open(htmlFor[name], viewportKey);
         const metrics = await session.page.evaluate(pageMetrics);
         await session.page.screenshot({ path: join(outDir, file) });
@@ -606,7 +599,7 @@ async function screenshots() {
     for (const viewportKey of Object.keys(VIEWPORTS)) {
       const cabinet = places[`cabinet:${viewportKey}`];
       const whatsapp = places[`whatsapp:${viewportKey}`];
-      report({ journey: "title-place", viewport: viewportKey, look, cabinet, whatsapp });
+      report({ journey: "title-place", viewport: viewportKey, cabinet, whatsapp });
       check(cabinet?.h1 && whatsapp?.h1 && cabinet.h1.top === whatsapp.h1.top, `page titles at different heights at ${viewportKey}: ${JSON.stringify({ cabinet, whatsapp })}`);
     }
 
@@ -623,7 +616,7 @@ async function screenshots() {
       await page.waitForSelector('[data-testid="case-chat-snippet-popover"]:popover-open');
       await page.waitForTimeout(100);
       const opened = await page.evaluate(pageMetrics);
-      const file = `${prefix}-thread-picker-${via === "slash" ? "slash-" : ""}${viewportKey}${suffix}.png`;
+      const file = `${prefix}-thread-picker-${via === "slash" ? "slash-" : ""}${viewportKey}.png`;
       await page.screenshot({ path: join(outDir, file) });
       await page.locator('[data-testid="case-chat-snippet-popover"] select').selectOption({ label: "Список документов для визы" });
       await page.locator('[data-testid="case-chat-snippet-popover"] button', { hasText: "Вставить в текст" }).click();
@@ -657,7 +650,7 @@ async function screenshots() {
         actions: window.__harness.actions,
       }));
       const metrics = await page.evaluate(pageMetrics);
-      const file = `${prefix}-thread-await-1440${suffix}.png`;
+      const file = `${prefix}-thread-await-1440.png`;
       await page.screenshot({ path: join(outDir, file) });
       await finish(session, file);
       report({ journey: "await", file, after, queues: metrics.queues, rows: metrics.rows, awaitPressed: metrics.awaitPressed });
@@ -684,7 +677,7 @@ async function screenshots() {
       await trigger.click();
       await page.waitForSelector('[id^="case-message-"] [popover]:popover-open');
       await page.waitForTimeout(100);
-      const file = `${prefix}-thread-message-menu-${viewportKey}${suffix}.png`;
+      const file = `${prefix}-thread-message-menu-${viewportKey}.png`;
       await page.screenshot({ path: join(outDir, file) });
       const menu = await page.evaluate(() => { const popover = document.querySelector("[popover]:popover-open"); const box = popover.getBoundingClientRect(); return { label: popover.getAttribute("aria-label"), inViewport: box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth }; });
       await page.locator("[popover]:popover-open button", { hasText: "Ответить с цитатой" }).click();
@@ -709,11 +702,9 @@ async function screenshots() {
 
 async function json() {
   const out = [];
-  for (const look of ["current", "next"]) {
-    for (const name of Object.keys(SCENARIOS)) {
-      const { scenario, element } = await buildPage(name, look);
-      out.push({ name: `${name}${look === "next" ? "-next" : ""}`, html: renderToStaticMarkup(withContexts(element, pathnameOf(scenario), searchOf(scenario))) });
-    }
+  for (const name of Object.keys(SCENARIOS)) {
+    const { scenario, element } = await buildPage(name);
+    out.push({ name, html: renderToStaticMarkup(withContexts(element, pathnameOf(scenario), searchOf(scenario))) });
   }
   process.stdout.write(JSON.stringify(out));
 }
@@ -729,6 +720,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--look=next]");
+  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split]");
   process.exit(2);
 }

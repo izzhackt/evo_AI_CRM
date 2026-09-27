@@ -58,7 +58,7 @@ export type RequestTriage =
   | Readonly<{ kind: "take" }>
   | Readonly<{ kind: "untaken" }>
   | Readonly<{ kind: "handed" }>
-  | Readonly<{ kind: "state"; word: string; by: string | null; waiting: boolean }>;
+  | Readonly<{ kind: "state"; word: string; by: string | null }>;
 
 /**
  * «Взять себе» — только когда чтение сказало «можно взять» (сервер принял бы
@@ -76,13 +76,10 @@ export function requestTriage(row: RequestRow, options: Readonly<{ actorMembersh
   }
   if (row.kind === "application") {
     const status = row.application.status;
-    return {
-      kind: "state", word: status === "pending" ? "ждёт решения" : status === "approved" ? "одобрена" : "отклонена",
-      by: null, waiting: status === "pending",
-    };
+    return { kind: "state", word: status === "pending" ? "ждёт решения" : status === "approved" ? "одобрена" : "отклонена", by: null };
   }
   const handled = row.consultation.status === "handled";
-  return { kind: "state", word: handled ? "обработана" : "открыта", by: handled ? row.consultation.handledByName : null, waiting: !handled };
+  return { kind: "state", word: handled ? "обработана" : "открыта", by: handled ? row.consultation.handledByName : null };
 }
 
 export type RequestTabView = Readonly<{ key: RequestSourceFilter; label: string; href: string; count: number | null; current: boolean }>;

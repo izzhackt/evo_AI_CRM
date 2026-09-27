@@ -98,7 +98,8 @@ test("the V3 shell renders assigned permissions and a protected Admin preview", 
   assert.match(roleSettingsSource, /Посмотреть интерфейс роли/);
   assert.match(roleSettingsSource, /action=\{selectStaffRolePreviewAction\}/);
   assert.match(shellSource, /data-testid="preview-role-admin"/);
-  assert.match(shellSource, /Вернуться к Администратору/);
+  // Выход из просмотра роли — в меню оболочки (Э1.2; одна оболочка с Э1.5).
+  assert.match(shellSource, /Выйти из просмотра/);
   assert.match(shellSource, /selectStaffRolePreviewAction/);
   assert.match(shellSource, /logoutStaffAction/);
   assert.match(shellSource, /data-testid="staff-logout"/);

@@ -13,7 +13,6 @@ import { taskStatus } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
 import { Initials } from "../blocks/Initials";
-import { isNextLook, type V3Look } from "../blocks/look";
 import { StatusChip } from "../blocks/StatusChip";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
 import { shortPersonName } from "../queue/person-name";
@@ -93,9 +92,7 @@ export function TaskQueueRow({
   permissions,
   recent,
   onCompleted,
-  onUndo,
   announce,
-  look,
   select = null,
 }: Readonly<{
   task: QueueTask;
@@ -115,14 +112,7 @@ export function TaskQueueRow({
   permissions: TaskRowPermissions;
   recent: RecentCompletion | null;
   onCompleted: (completion: RecentCompletion) => void;
-  onUndo: (completion: RecentCompletion) => Promise<string | null>;
   announce: (text: string) => void;
-  /**
-   * Новый облик (Э1.3): срок словом (`DueWord`), инициалы исполнителя,
-   * слово-исключение чипом; «Отменить» — у списка строкой в верхнем слое.
-   * Без пропа — прежняя строка.
-   */
-  look?: V3Look;
   /** Колонка выбора для массовых действий; null — у списка их нет. */
   select?: TaskRowSelect | null;
 }>) {
@@ -138,12 +128,12 @@ export function TaskQueueRow({
   const now = new Date(nowIso);
   const can = taskRowAbilities(task, permissions, open, now);
   const due = queueDue(task, now, open);
-  const next = isNextLook(look);
+  // Э1.3: срок словом (`DueWord`), инициалы исполнителя, слово-исключение
+  // чипом; «Отменить» — у списка строкой в верхнем слое (UndoToast).
   const word = exceptionWord(task, open);
   const done = Boolean(recent);
   // Только что завершённая задача больше не «прошла» и не «сегодня»: слова срока нет.
-  const dueWord = next && !done ? dueWordOf(task, now, open) : null;
-  const undoId = `${result.triggerId}-undo`;
+  const dueWord = !done ? dueWordOf(task, now, open) : null;
 
   async function completeStaff() {
     if (busy.current) return;
@@ -156,10 +146,9 @@ export function TaskQueueRow({
         staffStatusForm(task, "done"),
       );
       if (state.status === "saved" && state.version) {
+        // Круг сменился отметкой; фокус переходит на «Отменить» строки UndoToast списка.
         onCompleted({ task, version: state.version, previousStatus: task.status, expired: false });
         announce(`Задача «${task.title}» завершена.`);
-        // Круг сменился отметкой: фокус переходит на «Отменить» в той же строке.
-        requestAnimationFrame(() => document.getElementById(undoId)?.focus());
       } else setError(STAFF_ERROR_COPY[state.status] ?? "Не удалось сохранить. Повторите.");
     } catch { setError("Не удалось сохранить. Повторите."); }
     finally { busy.current = false; setPending(false); }
@@ -210,7 +199,6 @@ export function TaskQueueRow({
   const [narrow, wide] = select
     ? [`${phoneHidden ? "[--row-lead:5.5rem] max-sm:[--row-lead:2.75rem]" : "[--row-lead:5.5rem]"} grid-cols-[var(--row-lead)_minmax(0,1fr)_2.75rem]`, "@min-[32rem]:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_2.75rem]"]
     : ["grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]", "@min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_2.75rem]"];
-  const caption = due ? due.word ?? due.caption : null;
   // Без имени студента после срока на узкой строке идут только «дело закрыто» и слово-исключение.
   const tail = task.caseState === "closed" || word !== null;
 
@@ -252,11 +240,10 @@ export function TaskQueueRow({
       <p className="hidden self-start pt-1 t-body-compact @min-[32rem]:block">
         {due ? <>
           {/* «24.09 14:30» помещается в 7rem; редкое «03.01.27 14:00» переносит время, а не наезжает на название. */}
-          <time dateTime={due.dateTime} className={`block font-mono tabular-nums ${due.overdue && !next ? "text-danger" : "text-fg"}`}>{due.text}</time>
-          {/* Новый облик: слово срока — блок `DueWord` (красный — только у прошедшего срока). */}
-          {next ? (dueWord ? <span className="flex min-h-6 items-center"><DueWord view={dueWord} /></span>
-            : due.caption ? <span className="flex min-h-6 items-center t-meta text-fg-3">{due.caption}</span> : null)
-            : caption ? <span className={`flex min-h-6 items-center t-meta ${due.overdue ? "text-danger" : "text-fg-3"}`}>{caption}</span> : null}
+          <time dateTime={due.dateTime} className="block font-mono tabular-nums text-fg">{due.text}</time>
+          {/* Слово срока — блок `DueWord` (красный — только у прошедшего срока). */}
+          {dueWord ? <span className="flex min-h-6 items-center"><DueWord view={dueWord} /></span>
+            : due.caption ? <span className="flex min-h-6 items-center t-meta text-fg-3">{due.caption}</span> : null}
         </> : null}
       </p>
 
@@ -272,24 +259,9 @@ export function TaskQueueRow({
           {task.title}
         </Link>
         {done && recent ? (
+          // «Отменить» — строкой списка в верхнем слое (UndoToast).
           <p className="relative z-10 flex w-fit items-center gap-1 t-meta text-fg-2">
             Завершено
-            {/* Новый облик: «Отменить» — строкой списка в верхнем слое (UndoToast). */}
-            {!recent.expired && !next ? <>
-              {" · "}
-              <button id={undoId} type="button" data-queue-undo="" onClick={() => {
-                if (busy.current) return;
-                busy.current = true;
-                void onUndo(recent).then((failure) => {
-                  busy.current = false;
-                  setError(failure);
-                  if (!failure) requestAnimationFrame(() => document.getElementById(result.triggerId)?.focus());
-                });
-              }}
-                className="relative inline-flex min-h-6 items-center t-caption text-fg underline underline-offset-2 before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:text-accent-text">
-                Отменить
-              </button>
-            </> : null}
           </p>
         ) : (
           <p className="flex min-h-6 min-w-0 items-center gap-x-1 overflow-hidden whitespace-nowrap t-meta text-fg-2 @min-[32rem]:overflow-visible">
@@ -299,8 +271,8 @@ export function TaskQueueRow({
                 ширине в строке нет ссылок, и рамке фокуса обрезаться нечему. */}
             {due ? (
               <span className="shrink-0 @min-[32rem]:hidden">
-                <span className={due.overdue && !next ? "text-danger" : undefined}>
-                  {due.caption ? `${due.caption} ` : null}<time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{next ? (dueWord ? <> <DueWord view={dueWord} /></> : null) : due.word ? ` ${due.word}` : null}
+                <span>
+                  {due.caption ? `${due.caption} ` : null}<time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{dueWord ? <> <DueWord view={dueWord} /></> : null}
                 </span>{hideStudent && !tail ? null : " ·"}
               </span>
             ) : null}
@@ -319,8 +291,7 @@ export function TaskQueueRow({
               {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">· из чата</span> : null}
             </>}
             {task.caseState === "closed" ? <span className="min-w-0 truncate">{hideStudent ? "" : "· "}дело закрыто</span> : null}
-            {word && next ? <span className="shrink-0">{hideStudent && task.caseState !== "closed" ? "" : "· "}<StatusChip label={word} tone={task.status === "blocked" ? "warn" : "neutral"} /></span>
-              : word ? <span className={`shrink-0 ${task.status === "blocked" ? "text-warn" : "text-fg-3"}`}>{hideStudent && task.caseState !== "closed" ? "" : "· "}{word}</span> : null}
+            {word ? <span className="shrink-0">{hideStudent && task.caseState !== "closed" ? "" : "· "}<StatusChip label={word} tone={task.status === "blocked" ? "warn" : "neutral"} /></span> : null}
             {/* Без своей колонки (32–48rem: панель открыта рядом) исполнитель
                 помечен «исп.» и сокращён — его не спутать со студентом или
                 источником; сжимается медленнее имени студента. */}
@@ -339,13 +310,11 @@ export function TaskQueueRow({
         ) : null}
       </div>
 
-      {showAssignee && next ? (
+      {showAssignee ? (
         <p className="hidden min-w-0 items-center gap-2 t-body-compact text-fg-2 @3xl:flex" title={task.assigneeDisplayName}>
           <Initials name={task.assigneeDisplayName} decorative />
           <span className="truncate">{task.assigneeDisplayName}</span>
         </p>
-      ) : showAssignee ? (
-        <p className="hidden truncate t-body-compact text-fg-2 @3xl:block" title={task.assigneeDisplayName}>{task.assigneeDisplayName}</p>
       ) : null}
 
       <div className="flex justify-end">

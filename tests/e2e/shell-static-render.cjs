@@ -6,11 +6,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * Оболочка нового облика — Э1.2 плана редизайна 25.09.2026: меню без верхней
- * панели, нижняя панель телефона и лист «Ещё» (AppShellNext.tsx; временное
- * сосуществование до Э1.5, izzhackt/evo_AI_CRM#1061).
+ * Оболочка staff CRM — Э1.2 плана редизайна 25.09.2026: меню без верхней
+ * панели, нижняя панель телефона и лист «Ещё» (AppShell.tsx; единственная
+ * оболочка с Э1.5).
  *
- * Рендерит НАСТОЯЩИЙ AppShell (оба облика) для Admin, для просмотра роли
+ * Рендерит НАСТОЯЩИЙ AppShell для Admin, для просмотра роли
  * «Приёмная» и для приглашённых сотрудников продаж и поступления — с
  * СИНТЕТИЧЕСКИМИ сотрудниками, уведомлениями и данными страниц: они выдуманы
  * для проверки вёрстки и не являются записями EVO. Ключи прав сотрудников —
@@ -18,9 +18,8 @@
  * сервера, серверные действия и маршрутизатор Next.js этот рендер не проверяет.
  *
  *   node tests/e2e/shell-static-render.cjs --json
- *     → stdout: JSON [{ name, role, look, pathname, html }] — статическая
- *       разметка оболочки в прежнем и новом облике с простым телом (для
- *       tests/v3-shell-next.test.mjs).
+ *     → stdout: JSON [{ name, role, pathname, html }] — статическая
+ *       разметка оболочки с простым телом (для tests/v3-shell.test.mjs).
  *   node tests/e2e/shell-static-render.cjs --screenshots [outDir]
  *     → страницы «Сегодня», Студенты, доска, переписка роли, Задачи: оболочка —
  *       `renderToString` и `hydrateRoot` настоящими клиентскими компонентами
@@ -145,7 +144,7 @@ const ADMISSIONS_KEYS = [
 ];
 const ACTORS = {
   admin: { ...BASE_ACTOR, displayName: "Администратор (синтетический)", systemRole: "admin", presentationRole: null },
-  // Admin смотрит интерфейс «Приёмной»: новый облик остаётся (Э1.2), владелец видит меню роли.
+  // Admin смотрит интерфейс «Приёмной» (просмотр роли): меню и вкладки роли.
   admissions: { ...BASE_ACTOR, displayName: "Администратор (синтетический)", systemRole: "admin", presentationRole: "admissions" },
   sales: {
     ...BASE_ACTOR, displayName: "Менеджер продаж (синтетический)", systemRole: "staff", presentationRole: null,
@@ -336,21 +335,21 @@ function whatsappBody() {
 }
 
 // --- оболочка -----------------------------------------------------------------
-function shellTree({ actor, notifications, look, pathname, search, body, messages = null }) {
+function shellTree({ actor, notifications, pathname, search, body, messages = null }) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const content = messages
     ? h(require(join(ROOT, "src/components/v3/ConversationsMain.tsx")).ConversationsMain, messages.main,
       h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, messages.props))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
-    h("div", { className: "v3-world", "data-look": look === "next" ? "next" : undefined },
-      h(AppShell, { actor, initialNotifications: notifications, ...(look === "next" ? { look: "next" } : {}) }, content)),
+    h("div", { className: "v3-world", "data-surface": "staff" },
+      h(AppShell, { actor, initialNotifications: notifications }, content)),
     pathname, search);
 }
 
 const notificationsFor = (actor) => (actor.presentationRole === null ? NOTIFICATIONS : null);
 
-/** Статическая разметка для модульного теста: обе оболочки, простое тело. */
+/** Статическая разметка для модульного теста: оболочка, простое тело. */
 function jsonScenarios() {
   const out = [];
   const paths = [
@@ -362,12 +361,10 @@ function jsonScenarios() {
   ];
   for (const role of Object.keys(ACTORS)) {
     for (const [page, pathname, search] of paths) {
-      for (const look of ["current", "next"]) {
-        const actor = ACTORS[role];
-        const body = `<main class="px-4 py-8"><h1 class="t-page-title">${page} (синтетика)</h1></main>`;
-        out.push({ name: `${page}-${role}-${look}`, role, look, pathname,
-          html: renderToStaticMarkup(shellTree({ actor, notifications: notificationsFor(actor), look, pathname, search, body })) });
-      }
+      const actor = ACTORS[role];
+      const body = `<main class="px-4 py-8"><h1 class="t-page-title">${page} (синтетика)</h1></main>`;
+      out.push({ name: `${page}-${role}`, role, pathname,
+        html: renderToStaticMarkup(shellTree({ actor, notifications: notificationsFor(actor), pathname, search, body })) });
     }
   }
   return out;
@@ -437,8 +434,8 @@ const tree = h(AppRouterContext.Provider, { value: router },
   h(PathnameContext.Provider, { value: fixture.pathname },
     h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
       h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
-        h("div", { className: "v3-world", "data-look": fixture.look === "next" ? "next" : undefined },
-          h(AppShell, { actor: fixture.actor, initialNotifications: fixture.notifications, ...(fixture.look === "next" ? { look: "next" } : {}) },
+        h("div", { className: "v3-world", "data-surface": "staff" },
+          h(AppShell, { actor: fixture.actor, initialNotifications: fixture.notifications },
             fixture.messages
               ? h(ConversationsMain, fixture.messages.main, h(CaseChatWorkspace, fixture.messages.props))
               : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } })))))));
@@ -525,7 +522,6 @@ function shellMetrics() {
     const box = element.getBoundingClientRect();
     return { top: Math.round(box.top), bottom: Math.round(box.bottom), left: Math.round(box.left), right: Math.round(box.right), width: Math.round(box.width), height: Math.round(box.height) };
   };
-  const shell = document.querySelector('[data-testid="v3-shell"]');
   const tabbar = document.querySelector('[data-testid="v3-shell-tabbar"]');
   const topbar = document.querySelector('[data-testid="v3-shell-topbar"]');
   const menu = document.querySelector("[data-shell-menu]");
@@ -537,7 +533,6 @@ function shellMetrics() {
   const texts = chrome.flatMap((root) => [...root.querySelectorAll("*")])
     .filter((element) => visible(element) && [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()));
   const targets = chrome.flatMap((root) => [...root.querySelectorAll("a, button")]).filter(visible);
-  const oldTopBar = [...document.querySelectorAll('[data-testid="v3-shell"] > div > div')].find((element) => element.className.includes("md:min-h-16") && visible(element));
   const tabbarTop = tabbar && visible(tabbar) ? tabbar.getBoundingClientRect().top : window.innerHeight;
   // Заголовок, скрытый для глаз (`sr-only`: открытая переписка на телефоне, Э5), не меряется.
   const shownToEye = (element) => {
@@ -557,10 +552,8 @@ function shellMetrics() {
   };
   return {
     viewport: `${window.innerWidth}x${window.innerHeight}`,
-    look: shell?.dataset.shellLook ?? "current",
     overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     overflowY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
-    oldTopBar: Boolean(oldTopBar),
     topRow: visible(topbar) ? rect(topbar) : null,
     sidebar: visible(menu) ? rect(menu) : null,
     tabbar: tabs.length ? {
@@ -657,11 +650,11 @@ async function screenshots() {
   const check = (condition, message) => { if (!condition) failures.push(message); };
   const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
 
-  const writePage = (name, role, look, fixture) => {
+  const writePage = (name, role, fixture) => {
     const actor = ACTORS[role];
     const notifications = notificationsFor(actor);
-    const markup = renderToString(shellTree({ actor, notifications, look, ...fixture }));
-    const data = JSON.stringify({ actor, notifications, look, ...fixture }).replaceAll("<", "\\u003c");
+    const markup = renderToString(shellTree({ actor, notifications, ...fixture }));
+    const data = JSON.stringify({ actor, notifications, ...fixture }).replaceAll("<", "\\u003c");
     const htmlPath = join(outDir, `shell-${name}.html`);
     writeFileSync(htmlPath, [
       "<!DOCTYPE html>",
@@ -689,7 +682,7 @@ async function screenshots() {
     await page.waitForTimeout(50);
     // Телефон: Chrome запоминает ширину первой (частичной) раскладки при
     // разборе HTML и расширяет по ней окно раскладки до следующего изменения
-    // окна (на 320 px — 331 px, и у прежнего облика с тем же телом). Ширина
+    // окна (на 320 px — 331 px, так же и у прежней оболочки). Ширина
     // первой раскладки пишется в отчёт, а проверки и снимок — по устоявшейся
     // раскладке: окно на 1 px шире и обратно, масштаб страницы снова 1.
     let firstLayoutWidth = null;
@@ -723,10 +716,9 @@ async function screenshots() {
     const htmlFor = {};
     for (const pageKey of pages) {
       for (const role of [...roles, "admissions-staff"]) {
-        htmlFor[`${pageKey}-${role}`] = writePage(`${pageKey}-${role}`, role, "next", fixtures[pageKey](role));
+        htmlFor[`${pageKey}-${role}`] = writePage(`${pageKey}-${role}`, role, fixtures[pageKey](role));
       }
     }
-    htmlFor["home-admin-current"] = writePage("home-admin-current", "admin", "current", fixtures.home("admin"));
 
     // 1. Все страницы × роли × окна.
     const headingTops = {};
@@ -745,9 +737,7 @@ async function screenshots() {
           if (metrics.logoCenter !== null && metrics.headingCenter !== null) {
             check(Math.abs(metrics.logoCenter - metrics.headingCenter) <= 2, `${label}: page title centre ${metrics.headingCenter} vs logo centre ${metrics.logoCenter}`);
           }
-          check(metrics.look === "next", `${label}: new shell not rendered`);
           check(metrics.overflowX === 0, `${label}: horizontal overflow ${metrics.overflowX}px`);
-          check(!metrics.oldTopBar, `${label}: old top bar is visible`);
           check(metrics.minFontPx === null || metrics.minFontPx >= 12, `${label}: shell text ${metrics.minFontPx}px`);
           check(metrics.smallTargets.length === 0, `${label}: targets under 44px: ${metrics.smallTargets.join(", ")}`);
           check(metrics.solidRedInChrome === 0, `${label}: solid red in the shell`);
@@ -798,17 +788,6 @@ async function screenshots() {
       report({ file, page: "students", role: "admissions-staff", ...metrics });
       if (PHONE.has(viewportKey)) check(JSON.stringify(metrics.tabbar?.labels) === JSON.stringify(EXPECTED_TAB_TEXT["admissions-staff"]), `${file}: tabs ${metrics.tabbar?.labels.join(" · ")}`);
       check(metrics.overflowX === 0, `${file}: horizontal overflow`);
-    }
-
-    // 1в. Прежний облик для сравнения («до»).
-    for (const viewportKey of ["1440", "390", "320"]) {
-      const file = `shell-current-home-admin-${viewportKey}.png`;
-      const session = await open(htmlFor["home-admin-current"], viewportKey);
-      const metrics = await session.page.evaluate(shellMetrics);
-      await session.page.screenshot({ path: join(outDir, file) });
-      await finish(session, file);
-      report({ file, page: "home", role: "admin", firstLayoutWidth: session.firstLayoutWidth, ...metrics });
-      check(metrics.look === "current" && metrics.tabbar === null, `${file}: current look changed`);
     }
 
     // 2. 1280×800, Admin: отделы открываются по одному (кроме отдела текущей

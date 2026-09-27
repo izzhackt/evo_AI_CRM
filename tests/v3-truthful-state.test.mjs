@@ -143,7 +143,6 @@ test("settings: the warning above the sections exists only when work stops, and 
     if (id === "@/components/icons") return { Icon: () => null };
     if (id === "@/components/ui") return { btnGhostCls: "" };
     if (id === "@/components/v3/Pill") return { Pill: function Pill() { return null; } };
-    if (id === "@/lib/v3/look-preview-actions") return { setLookPreviewAction: () => null };
     if (id === "@/lib/v3/wording") return { journalActor: String, journalEvent: String, journalObject: String };
     return undefined;
   });
@@ -234,7 +233,7 @@ test("WhatsApp page: settings link only for Admin outside role preview, no count
   assert.match(adapter, /return Object\.freeze\(\{ channelState: "unavailable", channelObservedAt: null \}\);/u);
 });
 
-test("WhatsApp fills the window under the top bar instead of 100dvh below it", () => {
+test("WhatsApp fills the window from the shell column instead of its own 100dvh", () => {
   assert.equal(isFillRoute("/v3/inbox"), true);
   assert.equal(isBoardRoute("/v3/inbox"), false, "no icon rail on WhatsApp");
   for (const board of ["/v3/pipeline", "/v3/admissions-pipeline"]) assert.equal(isFillRoute(board), true);
@@ -245,7 +244,8 @@ test("WhatsApp fills the window under the top bar instead of 100dvh below it", (
   const app = source("src/components/v3/AppShell.tsx");
   assert.match(app, /fill && "md:flex md:h-dvh md:flex-col"/u);
   assert.match(app, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
-  assert.match(app, /rail=\{board\}/u);
+  // Рейка 64 px — только у досок, не у WhatsApp (одна оболочка с Э1.5).
+  assert.match(app, /const rail = board;/u);
 });
 
 /* ----------------------------------------------------------- Календарь */

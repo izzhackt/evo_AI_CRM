@@ -5,12 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { mutateStaffTaskAction } from "@/lib/platform-staff-task-actions";
 
+import type { UndoToastItem } from "../blocks/UndoToast";
 import { queueFocusAfterRemoval } from "../queue/queue-navigation";
 import { STAFF_ERROR_COPY, staffStatusForm } from "./task-commands";
 import type { RecentCompletion } from "./TaskQueueRow";
 import { resumedUndoDeadline } from "./undo-deadline";
 
-/** Сколько строка держит «Завершено · Отменить» до обновления списка. */
+/** Сколько держится «Отменить» у завершённой строки до обновления списка. */
 export const TASK_UNDO_MS = 6000;
 
 /** Группа очереди с завершаемыми строками: у «Задач» строка — задача, у «Сегодня» — строка очереди. */
@@ -33,14 +34,14 @@ export type RecentEntry<Row> = Readonly<RecentCompletion & { row: Row; band: str
  * Фокус на «Отменить», срок которого вышел (`expiring`), переходит на соседнюю
  * остающуюся строку — не на страницу: кнопка исчезает сейчас, строка — с
  * обновлением списка. `gone` — все строки, которые уйдут с обновлением.
- * «Отменить» нового облика стоит не в строке, а в верхнем слое (UndoToast):
- * её строку называет `data-undo-row`.
+ * «Отменить» стоит не в строке, а в верхнем слое (UndoToast): её строку
+ * называет `data-undo-row`.
  */
 function keepFocusInList(gone: ReadonlySet<string>, expiring: ReadonlySet<string>) {
   const active = document.activeElement;
   const undo = active instanceof HTMLElement && active.matches("[data-queue-undo]") ? active : null;
   const rows = [...document.querySelectorAll<HTMLElement>("[data-queue-row]")];
-  const row = undo?.closest<HTMLElement>("[data-queue-row]") ?? rows.find((element) => element.dataset.queueRow === undo?.dataset.undoRow) ?? null;
+  const row = undo ? rows.find((element) => element.dataset.queueRow === undo.dataset.undoRow) ?? null : null;
   const current = row?.dataset.queueRow;
   if (!row || !current || !expiring.has(current)) return;
   const target = queueFocusAfterRemoval(rows.map((element) => element.dataset.queueRow ?? ""), current, gone);
@@ -64,7 +65,7 @@ export function useRecentCompletions<Row extends Readonly<{ key: string }>>(band
   const [recent, setRecent] = useState<Readonly<Record<string, RecentEntry<Row>>>>({});
   const [message, setMessage] = useState("");
   const [seenBands, setSeenBands] = useState(bands);
-  // Пауза сроков «Отменить» (новый облик, UndoToast): пока фокус или указатель
+  // Пауза сроков «Отменить» (UndoToast): пока фокус или указатель
   // на строке «Отменить», срок не идёт. `heldSince` — начало паузы, мс.
   const [held, setHeld] = useState(false);
   const heldSince = useRef<number | null>(null);
@@ -95,9 +96,9 @@ export function useRecentCompletions<Row extends Readonly<{ key: string }>>(band
 
   /**
    * Пауза и продолжение сроков «Отменить» (WCAG 2.2.1): строка «Отменить»
-   * нового облика держит паузу, пока в ней фокус или указатель. Каждый срок
-   * сдвигается на время паузы после своего завершения (`resumedUndoDeadline`).
-   * Прежний облик и «Сегодня» паузу не зовут.
+   * (UndoToast «Задач» и «Сегодня») держит паузу, пока в ней фокус или
+   * указатель. Каждый срок сдвигается на время паузы после своего завершения
+   * (`resumedUndoDeadline`).
    */
   const hold = useCallback((next: boolean) => {
     if (next) {
@@ -160,4 +161,42 @@ export function useRecentCompletions<Row extends Readonly<{ key: string }>>(band
   }
 
   return { recent, message, announce, undo, completed, shown, hold };
+}
+
+/**
+ * «Отменить» недавно завершённых задач строкой в верхнем слое (UndoToast,
+ * Э1.3) — одна у «Задач» и «Сегодня». Ответ сервера ждут и ошибку показывают
+ * в строке UndoToast. Состояние принадлежит одному завершению
+ * (`completedAt`): при новом завершении той же задачи прежняя ошибка не
+ * всплывает. После отмены фокус — на круг выполнения снова открытой задачи.
+ */
+export function useUndoToasts<Row>(
+  recent: Readonly<Record<string, RecentEntry<Row>>>,
+  undo: (completion: RecentCompletion) => Promise<string | null>,
+): UndoToastItem[] {
+  const [undoState, setUndoState] = useState<Readonly<Record<string, Readonly<{ completedAt: number; pending: boolean; error: string | null }>>>>({});
+  return Object.values(recent).filter((entry) => !entry.expired).map((entry) => {
+    const key = entry.task.key;
+    const { completedAt } = entry;
+    const state = undoState[key]?.completedAt === completedAt ? undoState[key] : undefined;
+    return {
+      key,
+      message: `Задача «${entry.task.title}» завершена.`,
+      pending: state?.pending ?? false,
+      error: state?.error ?? null,
+      focus: true,
+      onUndo: () => {
+        if (state?.pending) return;
+        setUndoState((current) => ({ ...current, [key]: { completedAt, pending: true, error: null } }));
+        void undo(entry).then((failure) => {
+          setUndoState((current) => ({ ...current, [key]: { completedAt, pending: false, error: failure } }));
+          // Задача снова открыта: фокус — на её круг выполнения.
+          if (!failure) {
+            requestAnimationFrame(() => document.querySelector<HTMLElement>(
+              `[data-queue-row="${CSS.escape(key)}"] button[aria-label^="Завершить"]`)?.focus());
+          }
+        });
+      },
+    };
+  });
 }

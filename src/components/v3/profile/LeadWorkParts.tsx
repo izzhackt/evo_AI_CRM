@@ -13,7 +13,6 @@ import { closureWords, source as sourceWord } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
 import { Initials } from "../blocks/Initials";
-import { isNextLook, type V3Look } from "../blocks/look";
 import { StageTrack } from "../blocks/StageTrack";
 import { dueWordOf } from "../queue/due-bucket";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
@@ -33,7 +32,6 @@ import {
   LEAD_STEP_DRAWER_ID,
   handoffGateForms,
   leadDay,
-  leadDueState,
   leadFeed,
   leadGroupSummaries,
   leadLastContact,
@@ -75,8 +73,6 @@ export type LeadWorkPartsInput = Readonly<{
   submissions: ReactNode;
   hrefFor: (tab: string) => string;
   now: Date;
-  /** Новый облик (Э1.3–Э1.4): дорожка этапа, срок словом, инициалы. */
-  look?: V3Look;
 }>;
 
 /** Текст с датами: слова — Golos, даты — JetBrains Mono. */
@@ -151,7 +147,7 @@ function portalSummary(draft: ProfileDraft): string {
  *
  * - `actions` — у заголовка: одно главное действие по состоянию
  *   (`leadPrimaryAction`), «Написать», «Создать задачу» и «⋯»;
- * - `header` — над вкладками: этап (слова доски; дорожка — в новом облике) и
+ * - `header` — над вкладками: этап (дорожка этапа со словами доски) и
  *   «Что дальше» с правкой прежней формой решения доски в выдвижной панели;
  * - `overview` — «Обзор»: от 1280 px слева лента (заметки и события) с
  *   заметкой в одну строку, справа «Сведения» с полосой «Передача» и
@@ -164,7 +160,6 @@ function portalSummary(draft: ProfileDraft): string {
 export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: ReactNode; overview: ReactNode; actions: ReactNode }> {
   const { actor, profile, draft, sales } = input;
   const preview = isStaffPreview(actor);
-  const next = isNextLook(input.look);
   const today = dayInOrganizationTimezone(input.now);
   const leadId = sales.lead.leadId;
   const stripRead = sales.strip.status === "available" ? sales.strip.strip : null;
@@ -242,8 +237,8 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
 
   // «Что дальше»: после передачи — строка передачи; до неё — действие и срок с правкой.
   const dueDate = sales.lead.nextActionText ? sales.lead.nextActionDueDate : null;
-  const dueState = leadDueState(dueDate, today);
-  const dueWord = next && dueDate ? dueWordOf({ dueOn: dueDate, dueAt: null }, new Date(`${today}T06:00:00.000Z`)) : null;
+  // Срок словом (`DueWord`, Э1.3).
+  const dueWord = dueDate ? dueWordOf({ dueOn: dueDate, dueAt: null }, new Date(`${today}T06:00:00.000Z`)) : null;
   const nextStep = handedOff ? (
     <p className="t-body-compact text-fg" data-testid="v3-lead-next-step">
       {strip?.summary ? <DatedText text={strip.summary} /> : "Передано в поступление"}
@@ -254,11 +249,9 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         ? <span className="min-w-0 break-words">{sales.lead.nextActionText}</span>
         : <span className="text-fg-2">Шаг не задан</span>}
       {dueDate ? (
-        <span className={dueState === "overdue" && !next ? "text-danger" : "text-fg-2"}>
+        <span className="text-fg-2">
           <time dateTime={dueDate} className="font-mono tabular-nums">{leadDay(dueDate, today)}</time>
-          {dueWord ? <> <DueWord view={dueWord} /></>
-            : dueState === "overdue" ? " прошёл"
-              : dueState === "today" ? <span className="text-warn"> сегодня</span> : null}
+          {dueWord ? <> <DueWord view={dueWord} /></> : null}
         </span>
       ) : null}
       {stepEditable ? (
@@ -274,7 +267,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
       <dl className="grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap">
         <HeaderFact term="Этап">
           {strip === null ? <span className="text-fg-2">не прочитан</span>
-            : next && trackStage ? <StageTrack kind="sales" current={trackStage} />
+            : trackStage ? <StageTrack kind="sales" current={trackStage} />
               : <span data-testid="v3-lead-stage">{strip.stageTitle}</span>}
         </HeaderFact>
         <HeaderFact term="Что дальше" wide>{nextStep}</HeaderFact>
@@ -306,7 +299,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
       <h2 id="lead-facts-title" className="t-section text-fg">Сведения</h2>
       <dl className="mt-1">
         <Fact term="Ответственный">
-          {owner ? (next ? <span className="inline-flex items-center gap-2"><Initials name={owner} decorative />{owner}</span> : owner)
+          {owner ? <span className="inline-flex items-center gap-2"><Initials name={owner} decorative />{owner}</span>
             : <span className="text-fg-2">не назначен</span>}
         </Fact>
         <Fact term="Источник">

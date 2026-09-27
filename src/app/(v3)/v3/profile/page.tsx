@@ -60,8 +60,6 @@ import { readCaseWork } from "@/lib/v3/case-work-source";
 import { readPipelineOwnerOptions, readPipelineStages } from "@/lib/v3/pipeline-source";
 import { readCaseClosure, readClosedLeads, type CaseClosure, type ClosedLeadRow } from "@/lib/platform-closure";
 import { closureWords } from "@/lib/v3/wording";
-import { readLookPreview } from "@/lib/v3/look-preview";
-import type { V3Look } from "@/components/v3/blocks/look";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
 import { readDocsPackages, readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
@@ -189,7 +187,6 @@ async function studentsQueuePage(
   parse: Exclude<ReturnType<typeof parseStudentsQueueParams>, Readonly<{ kind: "redirect" }>>,
   query: ProfileSearchParams,
   curatorsRead: Promise<readonly StudentPortalCuratorOption[]>,
-  look: V3Look | undefined,
 ) {
   const params = parse.params;
   const [reads, curators, packages] = await Promise.all([
@@ -223,7 +220,6 @@ async function studentsQueuePage(
     recordScopes: editor.recordScopes,
     createTask: !isStaffPreview(actor) && staffHasPermission(actor, "task.create"),
     requestIds: { nextStep: randomUUID(), coverage: randomUUID() },
-    look,
   });
 }
 
@@ -234,8 +230,6 @@ export default async function ProfilePart({
 }) {
   const actor = await requireV3PageActor("/v3/profile");
   const params = await searchParams;
-  // Новый облик (предпросмотр Admin, Э1.3): тот же признак, что `data-look` оболочки.
-  const look = (await readLookPreview(actor)) ? "next" as const : undefined;
   const directoryParams = parseV3ProfileCaseDirectoryParams(params);
   const docsMode = singleSearchParam(params.section) === "docs"
     && staffPresentationCan(actor, "admissions.read")
@@ -375,7 +369,7 @@ export default async function ProfilePart({
     && staffHasPermission(actor, "lead.sales.workflow.manage") && staffHasPermission(actor, "lead.sales.owner.assign");
   const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners] = await Promise.all([
     curatorsRead,
-    queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators), look) : null,
+    queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
     // Лента Student 360 (Э4): журнал дела — только на «Обзоре» и первой странице заметок.
     caseTarget ? readCaseWork(actor, caseTarget, { overview: tab === "overview", feed: tab === "overview" && noteCursor === null }) : null,
     // «Завершить дело» и строка закрытого дела (246); сбой чтения — прежнее «Дело закрыто» без действия.
@@ -415,7 +409,6 @@ export default async function ProfilePart({
       closure: caseClosure,
       hrefFor,
       salesDataOpen: singleSearchParam(params.panel) === "sales",
-      look,
       help: actor.presentationRole !== "sales" ? (
         <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем обращения студента…</p>}>
           <CaseHelpWorkspace actor={actor} caseId={caseTarget.studentCaseId} />
@@ -452,7 +445,6 @@ export default async function ProfilePart({
     ) : null,
     hrefFor,
     now: new Date(),
-    look,
   }) : null;
   // Закрытый лид детальное чтение 093 не отдаёт: Lead 360 читает его из
   // «Закрытых» (246) и показывает строку «Закрыт · причина · дата».

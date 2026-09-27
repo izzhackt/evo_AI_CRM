@@ -9,7 +9,6 @@ import { admissionsPipelineStage, taskStatus } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
 import { Initials } from "../blocks/Initials";
-import { isNextLook, type V3Look } from "../blocks/look";
 import { ProgressBar } from "../blocks/ProgressBar";
 import { StageTrack } from "../blocks/StageTrack";
 import { StatusChip } from "../blocks/StatusChip";
@@ -26,7 +25,6 @@ import { studentsDocumentsLine, type NextStepAccess, type StudentsHandoff, type 
 
 const SECTION = "space-y-2 border-t border-border pt-4";
 const LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
-const TONE = { danger: "text-danger", warn: "text-warn", muted: "text-fg-2" } as const;
 /** Сколько открытых задач показывает панель; остальные — в деле. */
 export const QUICK_VIEW_TASKS = 5;
 
@@ -70,7 +68,6 @@ export function StudentQuickView({
   onSaved,
   closure = null,
   onClosureChanged,
-  look,
 }: Readonly<{
   row: StudentCaseQueueRow;
   today: string;
@@ -86,13 +83,9 @@ export function StudentQuickView({
   closure?: CaseClosure | null;
   /** «Завершить дело» или «Вернуть в работу» подтверждены сервером. */
   onClosureChanged?: (receipt: CaseClosureReceipt) => void;
-  /**
-   * Новый облик (Э1.3–Э1.4): дорожка этапа, инициалы куратора, срок словом и
-   * полоса документов «N из M принято» из прочитанных чисел чек-листа.
-   */
-  look?: V3Look;
 }>) {
-  const next = isNextLook(look);
+  // Э1.3–Э1.4: дорожка этапа, инициалы куратора, срок словом и полоса
+  // документов «N из M принято» из прочитанных чисел чек-листа.
   const headingId = useId();
   // Квитанция последнего закрытия/возврата — до того, как придёт новое чтение.
   const [receipt, setReceipt] = useState<CaseClosureReceipt | null>(null);
@@ -119,7 +112,7 @@ export function StudentQuickView({
   const documents = studentsDocumentsLine(row.documents);
   // Шаг ведётся только у дела в работе: у закрытого и ожидающего начала дата без «прошёл».
   const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
-  const dueWord = next && due ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
+  const dueWord = due ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   const openTasks = tasks?.kind === "ready" ? tasks.tasks : [];
 
   return (
@@ -154,13 +147,13 @@ export function StudentQuickView({
       ) : null}
 
       <dl className="divide-y divide-border">
-        {stage ? <Fact term="Этап">{next ? <StageTrack kind="admissions" current={row.pipelineStage} closed={row.state === "closed"} /> : stage}</Fact> : null}
+        {stage ? <Fact term="Этап"><StageTrack kind="admissions" current={row.pipelineStage} closed={row.state === "closed"} /></Fact> : null}
         <Fact term="Куратор">
           {/* Отказ возможен только по переданному делу, поэтому после него дело ждёт куратора — как в строке списка. */}
           {answered === "declined" ? <span className="font-medium text-danger">нужен куратор</span>
-            : (next && row.currentCuratorDisplayName ? (
+            : (row.currentCuratorDisplayName ? (
               <span className="inline-flex items-center gap-2"><Initials name={row.currentCuratorDisplayName} decorative />{row.currentCuratorDisplayName}</span>
-            ) : row.currentCuratorDisplayName) ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
+            ) : null) ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
           {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}
         </Fact>
         {row.state === "closed" && closedFacts ? (
@@ -184,7 +177,7 @@ export function StudentQuickView({
             {row.nextAction ? (
               <p className="t-body-compact break-words text-fg">
                 {row.nextAction}
-                {due ? <> · <time dateTime={due.dateTime} className={`font-mono tabular-nums ${due.overdue && !next ? "text-danger" : ""}`}>{due.text}</time>{dueWord ? <> <DueWord view={dueWord} /></> : due.word ? <span className={due.overdue ? "text-danger" : "text-fg-2"}> {due.word}</span> : null}</> : null}
+                {due ? <> · <time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{dueWord ? <> <DueWord view={dueWord} /></> : null}</> : null}
               </p>
             ) : <p className="t-body-compact text-fg-3">Шаг не задан</p>}
             {access.reason ? <p className="t-body-compact text-fg-2">{access.reason}</p> : null}
@@ -213,13 +206,13 @@ export function StudentQuickView({
           <ul className="divide-y divide-border">
             {openTasks.slice(0, QUICK_VIEW_TASKS).map((task) => {
               const taskDue = queueDue({ dueOn: task.dueOn, dueAt: task.dueAt }, now);
-              const taskDueWord = next && taskDue ? dueWordOf({ dueOn: task.dueOn, dueAt: task.dueAt }, now) : null;
+              const taskDueWord = taskDue ? dueWordOf({ dueOn: task.dueOn, dueAt: task.dueAt }, now) : null;
               const word = task.status === "blocked" ? taskStatus(task.status) : null;
               return (
                 <li key={task.id} className="py-2">
                   <Link href={links.task(task.id)} className="block break-words t-body-compact text-fg underline-offset-4 hover:underline">{task.title}</Link>
                   <p className="t-meta text-fg-2">
-                    {taskDue ? <><time dateTime={taskDue.dateTime} className={`font-mono tabular-nums ${taskDue.overdue && !next ? "text-danger" : ""}`}>{taskDue.text}</time>{taskDueWord ? <> <DueWord view={taskDueWord} /></> : taskDue.word ? <span className={taskDue.overdue ? "text-danger" : undefined}> {taskDue.word}</span> : null}</> : "без срока"}
+                    {taskDue ? <><time dateTime={taskDue.dateTime} className="font-mono tabular-nums">{taskDue.text}</time>{taskDueWord ? <> <DueWord view={taskDueWord} /></> : null}</> : "без срока"}
                     {word ? <span className="text-warn"> · {word}</span> : null}
                     <span> · исп. {task.assigneeDisplayName}</span>
                   </p>
@@ -233,9 +226,9 @@ export function StudentQuickView({
 
       <section aria-label="Документы дела" className={`mt-4 ${SECTION}`}>
         <h3 className="t-item text-fg">Документы</h3>
-        {documents && next ? (
-          // Новый облик: полоса «N из M принято» — только из прочитанных чисел чек-листа;
-          // пустой чек-лист или числа, которые не сходятся, — прежняя строка, без полосы.
+        {documents ? (
+          // Полоса «N из M принято» — только из прочитанных чисел чек-листа;
+          // пустой чек-лист или числа, которые не сходятся, — строка итога, без полосы.
           <div className="space-y-2">
             <ProgressBar done={row.documents?.approved} total={row.documents?.total} word="принято"
               fallback={<p className="t-body-compact text-fg">{documents.summary}</p>} />
@@ -245,11 +238,6 @@ export function StudentQuickView({
               </p>
             ) : null}
           </div>
-        ) : documents ? (
-          <p className="t-body-compact text-fg">
-            {documents.summary}
-            {documents.parts.map((part) => <span key={part.key}><span className="text-fg-3"> · </span><span className={`font-medium ${TONE[part.tone]}`}>{part.text}</span></span>)}
-          </p>
         ) : <p className="t-body-compact text-fg-3">Нет доступа к документам этого дела.</p>}
         <Link href={links.documents} className={LINK}>Документы дела</Link>
       </section>

@@ -33,20 +33,20 @@
  *       outDir (по умолчанию .impeccable/review, не коммитится):
  *       numbers-<сценарий>-<ширина>.png и метрики на каждый снимок.
  *   node tests/e2e/numbers-static-render.cjs --json-e4
- *     → stdout: JSON [{ name, html }] страниц Э4 ниже в обоих обликах
+ *     → stdout: JSON [{ name, html }] страниц Э4 ниже
  *       (для tests/v3-e4-work-surfaces.test.mjs).
  *   node tests/e2e/numbers-static-render.cjs --e4-screenshots [outDir]
  *     → Э4 (27.09.2026): Lead 360 как рабочая карточка — лид на раннем этапе,
  *       «Потенциальный клиент», переданный лид — и «Отчёт продаж» (список,
  *       открытая запись в панели, «Весь 2026 год» — и с открытой записью,
  *       срез «записаны в другой месяц отчёта», больше 500 записей — суммы
- *       сервера, «Поступления и возвраты за месяц») в прежнем и новом облике, 1440×900, 1280×800 и 390×844 во
- *       весь рост: e4-<сценарий>[-next]-<ширина>.png, высота страницы, число
+ *       сервера, «Поступления и возвраты за месяц»), 1440×900, 1280×800 и 390×844 во
+ *       весь рост: e4-<сценарий>-<ширина>.png, высота страницы, число
  *       сплошных красных и видимых месяцев отчёта на каждый снимок.
  *   node tests/e2e/numbers-static-render.cjs --f1 [outDir]
  *     → Э7 «Одна боковая панель везде»: «Отчёт продаж» с записью, открытой
- *       по адресу (`?record=…&edit=true`), в прежнем и новом облике на
- *       1440×900, 1280×800, 1024×768 (лист справа) и 390×844 — снимки `f1-report[-next]-<ширина>.png`
+ *       по адресу (`?record=…&edit=true`), на
+ *       1440×900, 1280×800, 1024×768 (лист справа) и 390×844 — снимки `f1-report-<ширина>.png`
  *       и замеры `tests/e2e/side-panel-probe.cjs`. Отчёт — серверный
  *       компонент: список и тело записи остаются серверной разметкой, а
  *       панель в браузере — настоящая `SidePanel` (сборка esbuild) с шапкой и
@@ -398,19 +398,18 @@ function withContexts(node, pathname, search) {
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
-function shell(actor, title, body, look = false) {
+function shell(actor, title, body) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
-  // `look` — новый облик (предпросмотр Admin): слой `data-look` и оболочка Э1.2.
-  return createElement("div", { className: "v3-world", "data-look": look ? "next" : undefined },
-    createElement(AppShell, { actor, initialNotifications: null, ...(look ? { look: "next" } : {}) },
+  return createElement("div", { className: "v3-world", "data-surface": "staff" },
+    createElement(AppShell, { actor, initialNotifications: null },
       title === null ? body : createElement(PartShell, { title, count: null }, body)));
 }
 
 // --- Lead 360 ----------------------------------------------------------------
 // Как `profile/page.tsx` для `?id=`: имя — h1, возврат «Воронка продаж» над ним,
 // действия у заголовка, шапка «Этап · Что дальше» и «Обзор» из `leadWorkParts`.
-function leadPage(name, { look = false } = {}) {
+function leadPage(name) {
   const scenario = LEAD_SCENARIOS[name] ?? E4_LEADS[name];
   const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
   const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
@@ -446,7 +445,7 @@ function leadPage(name, { look = false } = {}) {
     requestIds: { ...requestIds, portal: "", cabinetPortal: "" },
     stages: ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential"].map((key) => ({ key, title: wording.salesStage(key) })),
     ownerOptions: [{ membershipId: ME, displayLabel: "Санжар Эскизов" }], ownerOptionsHaveMore: false, curators: [], curatorsAvailable: true,
-    submissions: null, hrefFor, now: new Date("2026-09-27T06:00:00.000Z"), ...(look ? { look: "next" } : {}),
+    submissions: null, hrefFor, now: new Date("2026-09-27T06:00:00.000Z"),
   });
   const body = createElement(Profile, {
     profile, draft, sales, actor: ADMIN, organizationId: ORG, studentPortalCurators: [], studentPortalCuratorsAvailable: true,
@@ -457,15 +456,15 @@ function leadPage(name, { look = false } = {}) {
     createElement(Icon, { name: "arrow-left", size: 16 }), "Воронка продаж");
   const page = createElement(PartShell, { title: profile.person, count: null, action: parts.actions, dense: true, back },
     createElement("div", { className: "space-y-6" }, body));
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, page, look), "/v3/profile", `id=${LEAD_ID}&tab=overview`));
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, page), "/v3/profile", `id=${LEAD_ID}&tab=overview`));
 }
 
 // --- «Отчёт продаж» ------------------------------------------------------------
-async function reportPage(extra = {}, { look = false } = {}) {
+async function reportPage(extra = {}) {
   const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
   const query = { view: "sales", year: "2026", month: "9", ...extra };
-  const element = await SalesRegisterView({ actor: ADMIN, query, ...(look ? { look: "next" } : {}) });
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element, look), "/v3/main", new URLSearchParams(query).toString()));
+  const element = await SalesRegisterView({ actor: ADMIN, query });
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", new URLSearchParams(query).toString()));
 }
 
 // --- «Динамика по дням»: когорта, «Продажи» периода и воронка по доске ----------
@@ -534,7 +533,8 @@ async function screenshots() {
         await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
         await page.evaluate(async () => {
           await document.fonts.ready;
-          await Promise.all([...document.images].map((image) => image.decode().catch(() => null)));
+          // Только видимые: скрытая копия логотипа (lazy) в оболочке не грузится, и её decode() не завершится.
+          await Promise.all([...document.images].filter((image) => image.checkVisibility()).map((image) => image.decode().catch(() => null)));
         });
         const target = name.startsWith("lead") ? '[data-testid="v3-lead-stage"]' : name.startsWith("report") ? "main h1" : "#sales-dynamics";
         // Lead 360 — во весь рост с шапкой профиля: этап, полоса и заметки на одном снимке.
@@ -578,29 +578,29 @@ async function screenshots() {
   }
 }
 
-// --- Э4: Lead 360 и «Отчёт продаж» в обоих обликах ---------------------------------
-async function e4Pages(look) {
+// --- Э4: Lead 360 и «Отчёт продаж» -------------------------------------------------
+async function e4Pages() {
   useE4Report();
   return [
-    { name: "lead-early", html: leadPage("early", { look }) },
-    { name: "lead-potential", html: leadPage("potential", { look }) },
-    { name: "lead-handed", html: leadPage("handed", { look }) },
-    { name: "report", html: await reportPage({}, { look }) },
-    { name: "report-panel", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }, { look }) },
+    { name: "lead-early", html: leadPage("early") },
+    { name: "lead-potential", html: leadPage("potential") },
+    { name: "lead-handed", html: leadPage("handed") },
+    { name: "report", html: await reportPage({}) },
+    { name: "report-panel", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }) },
     // Месяц отчёта в строке: «Весь 2026 год» (и с открытой записью — узкая строка при 1440)
     // и срез июля «записаны в другой месяц отчёта».
-    { name: "report-year", html: await reportPage({ month: "all" }, { look }) },
-    { name: "report-year-panel", html: await reportPage({ month: "all", record: E4_EARLIER_ROWS[1].id, edit: "true" }, { look }) },
-    { name: "report-elsewhere", html: await reportPage({ month: "7", sale: "filed_elsewhere" }, { look }) },
-    { name: "report-bulk", html: await (async () => { useE4BulkReport(); const html = await reportPage({}, { look }); useE4Report(); return html; })() },
+    { name: "report-year", html: await reportPage({ month: "all" }) },
+    { name: "report-year-panel", html: await reportPage({ month: "all", record: E4_EARLIER_ROWS[1].id, edit: "true" }) },
+    { name: "report-elsewhere", html: await reportPage({ month: "7", sale: "filed_elsewhere" }) },
+    { name: "report-bulk", html: await (async () => { useE4BulkReport(); const html = await reportPage({}); useE4Report(); return html; })() },
     // «Архив»: сколько записей — без сумм и без столбца «Остаток».
-    { name: "report-archive", html: await reportPage({ archived: "true" }, { look }) },
+    { name: "report-archive", html: await reportPage({ archived: "true" }) },
     // «Поступления и возвраты за месяц» под записями: сводка финансовых событий месяца (синтетика).
     { name: "report-cash", html: await (async () => {
       REPORT.cash = { status: "ready", totals: [
         { currency: "USD", paymentsMinor: "540000", refundsMinor: "60000", netMinor: "480000", eventCount: 7 },
         { currency: "KGS", paymentsMinor: "5000000", refundsMinor: "0", netMinor: "5000000", eventCount: 1 }] };
-      const html = await reportPage({}, { look });
+      const html = await reportPage({});
       delete REPORT.cash;
       return html;
     })() },
@@ -621,74 +621,72 @@ async function e4Screenshots() {
   };
   const results = [];
   try {
-    for (const look of [false, true]) {
-      for (const { name, html } of await e4Pages(look)) {
-        const file = `e4-${name}${look ? "-next" : ""}`;
-        const htmlPath = join(outDir, `${file}.html`);
-        writeFileSync(htmlPath, `<!DOCTYPE html><html lang="ru" data-theme="light" class="h-full antialiased"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Э4 — ${name} (синтетические данные)</title><style>${css}</style></head><body class="min-h-full">${html}</body></html>`);
-        for (const width of ["1440", "1280", "390"]) {
-          const context = await browser.newContext(SIZES[width]);
-          const page = await context.newPage();
-          const errors = [];
-          page.on("pageerror", (error) => errors.push(error.message));
-          await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
-          await page.evaluate(async () => {
-            await document.fonts.ready;
-            // Только видимые: скрытая копия логотипа (lazy) в оболочке нового облика не грузится, и её decode() не завершится.
-            await Promise.all([...document.images].filter((image) => image.checkVisibility()).map((image) => image.decode().catch(() => null)));
+    for (const { name, html } of await e4Pages()) {
+      const file = `e4-${name}`;
+      const htmlPath = join(outDir, `${file}.html`);
+      writeFileSync(htmlPath, `<!DOCTYPE html><html lang="ru" data-theme="light" class="h-full antialiased"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Э4 — ${name} (синтетические данные)</title><style>${css}</style></head><body class="min-h-full">${html}</body></html>`);
+      for (const width of ["1440", "1280", "390"]) {
+        const context = await browser.newContext(SIZES[width]);
+        const page = await context.newPage();
+        const errors = [];
+        page.on("pageerror", (error) => errors.push(error.message));
+        await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          // Только видимые: скрытая копия логотипа (lazy) в оболочке не грузится, и её decode() не завершится.
+          await Promise.all([...document.images].filter((image) => image.checkVisibility()).map((image) => image.decode().catch(() => null)));
+        });
+        // Во весь рост меню разделов — обычная колонка, а не липкая высотой в экран (как в case-static-render).
+        await page.addStyleTag({ content: 'nav[aria-label="Разделы"] { position: static !important; height: auto !important; }' });
+        if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
+        const metrics = await page.evaluate(() => {
+          const visible = (element) => element.checkVisibility();
+          const firstRow = document.querySelector('[aria-label="Записи продаж"] tbody tr');
+          return {
+            height: document.documentElement.scrollHeight,
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            // Шире окна, хотя страница не прокручивается вбок (оболочка режет переполнение): кроме лент и таблиц с прокруткой.
+            wide: [...document.querySelectorAll("main *")].filter((element) => visible(element)
+              && element.getBoundingClientRect().right > window.innerWidth + 1
+              && !element.closest('[data-tab-strip], [role="region"], [popover], dialog')).length,
+            solidRed: [...document.querySelectorAll("a, button")].filter((element) => visible(element)
+              && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim()),
+            smallText: [...document.querySelectorAll("main *")].filter((element) => visible(element)
+              && [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim())
+              && parseFloat(getComputedStyle(element).fontSize) < 12).length,
+            smallTargets: [...document.querySelectorAll("main a, main button, main summary")].filter((element) =>
+              visible(element) && element.getBoundingClientRect().height < 24).map((element) => element.textContent.trim().slice(0, 30)),
+            h1: [...document.querySelectorAll("h1")].map((element) => element.textContent.trim()),
+            firstRowTop: firstRow ? Math.round(firstRow.getBoundingClientRect().top + window.scrollY) : null,
+            firstRowHeight: firstRow ? Math.round(firstRow.getBoundingClientRect().height) : null,
+            // Месяц отчёта строки виден (столбец или строка под именем), а не только подсказкой; и не обрезан.
+            reportMonths: [...document.querySelectorAll("[data-report-month]")].filter((element) => visible(element)).length,
+            reportMonthCut: [...document.querySelectorAll("[data-report-month], [data-report-month] > time")].filter((element) => visible(element)
+              && element.scrollWidth > element.clientWidth + 1).length,
+          };
+        });
+        const shot = `${file}-${width}.png`;
+        await page.screenshot({ path: join(outDir, shot), fullPage: true });
+        results.push({ shot, ...metrics });
+        if (name === "lead-potential" && width !== "1280") {
+          // Открытая группа правки («Условия продажи») и панель «Что дальше» поверх страницы.
+          const red = () => page.evaluate(() => [...document.querySelectorAll("a, button")].filter((element) => element.checkVisibility()
+            && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").length);
+          await page.evaluate(() => { document.querySelector('[data-testid="v3-lead-group-sale"]').open = true; });
+          const groupShot = `${file}-group-${width}.png`;
+          await page.screenshot({ path: join(outDir, groupShot), fullPage: true });
+          process.stdout.write(`${groupShot}: solidRed=${await red()}\n`);
+          await page.evaluate(() => {
+            document.querySelector('[data-testid="v3-lead-group-sale"]').open = false;
+            window.scrollTo(0, 0);
+            document.getElementById("lead-next-step").showPopover();
           });
-          // Во весь рост меню разделов — обычная колонка, а не липкая высотой в экран (как в case-static-render).
-          await page.addStyleTag({ content: 'nav[aria-label="Разделы"] { position: static !important; height: auto !important; }' });
-          if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
-          const metrics = await page.evaluate(() => {
-            const visible = (element) => element.checkVisibility();
-            const firstRow = document.querySelector('[aria-label="Записи продаж"] tbody tr');
-            return {
-              height: document.documentElement.scrollHeight,
-              overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-              // Шире окна, хотя страница не прокручивается вбок (оболочка режет переполнение): кроме лент и таблиц с прокруткой.
-              wide: [...document.querySelectorAll("main *")].filter((element) => visible(element)
-                && element.getBoundingClientRect().right > window.innerWidth + 1
-                && !element.closest('[data-tab-strip], [role="region"], [popover], dialog')).length,
-              solidRed: [...document.querySelectorAll("a, button")].filter((element) => visible(element)
-                && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim()),
-              smallText: [...document.querySelectorAll("main *")].filter((element) => visible(element)
-                && [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim())
-                && parseFloat(getComputedStyle(element).fontSize) < 12).length,
-              smallTargets: [...document.querySelectorAll("main a, main button, main summary")].filter((element) =>
-                visible(element) && element.getBoundingClientRect().height < 24).map((element) => element.textContent.trim().slice(0, 30)),
-              h1: [...document.querySelectorAll("h1")].map((element) => element.textContent.trim()),
-              firstRowTop: firstRow ? Math.round(firstRow.getBoundingClientRect().top + window.scrollY) : null,
-              firstRowHeight: firstRow ? Math.round(firstRow.getBoundingClientRect().height) : null,
-              // Месяц отчёта строки виден (столбец или строка под именем), а не только подсказкой; и не обрезан.
-              reportMonths: [...document.querySelectorAll("[data-report-month]")].filter((element) => visible(element)).length,
-              reportMonthCut: [...document.querySelectorAll("[data-report-month], [data-report-month] > time")].filter((element) => visible(element)
-                && element.scrollWidth > element.clientWidth + 1).length,
-            };
-          });
-          const shot = `${file}-${width}.png`;
-          await page.screenshot({ path: join(outDir, shot), fullPage: true });
-          results.push({ shot, ...metrics });
-          if (name === "lead-potential" && width !== "1280") {
-            // Открытая группа правки («Условия продажи») и панель «Что дальше» поверх страницы.
-            const red = () => page.evaluate(() => [...document.querySelectorAll("a, button")].filter((element) => element.checkVisibility()
-              && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").length);
-            await page.evaluate(() => { document.querySelector('[data-testid="v3-lead-group-sale"]').open = true; });
-            const groupShot = `${file}-group-${width}.png`;
-            await page.screenshot({ path: join(outDir, groupShot), fullPage: true });
-            process.stdout.write(`${groupShot}: solidRed=${await red()}\n`);
-            await page.evaluate(() => {
-              document.querySelector('[data-testid="v3-lead-group-sale"]').open = false;
-              window.scrollTo(0, 0);
-              document.getElementById("lead-next-step").showPopover();
-            });
-            const drawerShot = `${file}-drawer-${width}.png`;
-            await page.screenshot({ path: join(outDir, drawerShot) });
-            process.stdout.write(`${drawerShot}: solidRed=${await red()}\n`);
-          }
-          process.stdout.write(`${shot}: height=${metrics.height} overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText} smallTargets=${metrics.smallTargets.length}${metrics.smallTargets.length ? ` (${metrics.smallTargets.join(" | ")})` : ""} h1=${metrics.h1.join("/")}${metrics.firstRowTop !== null ? ` firstRowTop=${metrics.firstRowTop} rowHeight=${metrics.firstRowHeight}` : ""}${metrics.reportMonths ? ` reportMonths=${metrics.reportMonths} reportMonthCut=${metrics.reportMonthCut}` : ""}\n`);
-          await context.close();
+          const drawerShot = `${file}-drawer-${width}.png`;
+          await page.screenshot({ path: join(outDir, drawerShot) });
+          process.stdout.write(`${drawerShot}: solidRed=${await red()}\n`);
         }
+        process.stdout.write(`${shot}: height=${metrics.height} overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText} smallTargets=${metrics.smallTargets.length}${metrics.smallTargets.length ? ` (${metrics.smallTargets.join(" | ")})` : ""} h1=${metrics.h1.join("/")}${metrics.firstRowTop !== null ? ` firstRowTop=${metrics.firstRowTop} rowHeight=${metrics.firstRowHeight}` : ""}${metrics.reportMonths ? ` reportMonths=${metrics.reportMonths} reportMonthCut=${metrics.reportMonthCut}` : ""}\n`);
+        await context.close();
       }
     }
   } finally {
@@ -780,41 +778,37 @@ async function f1() {
   const browser = await chromium.launch();
   const failures = [];
   try {
-    for (const look of [false, true]) {
-      const suffix = look ? "-next" : "";
-      const html = await reportPage({ record, edit: "true" }, { look });
-      const htmlPath = join(outDir, `f1-report${suffix}.html`);
-      const fixture = { record, backLabel: "К отчёту", returnTo: `[id="sale-${record}"] a` };
-      writeFileSync(htmlPath, [
-        "<!DOCTYPE html>",
-        '<html lang="ru" data-theme="light" class="h-full antialiased">',
-        `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Отчёт продаж — одна боковая панель (синтетические данные)</title><style>${css}</style></head>`,
-        `<body class="min-h-full">${html}<script type="application/json" id="${F1_FIXTURE_ID}">${JSON.stringify(fixture).replaceAll("<", "\\u003c")}</script><script src="f1-report-client.js"></script></body></html>`,
-      ].join(""));
-      for (const [width, context] of probe.F1_WIDTHS) {
-        const browserContext = await browser.newContext(context);
-        const page = await browserContext.newPage();
-        const errors = [];
-        page.on("pageerror", (error) => errors.push(error.message));
-        page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-        await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
-        await page.evaluate(() => document.fonts.ready);
-        await page.waitForSelector("html[data-client-rendered]", { state: "attached", timeout: 10_000 });
-        await page.waitForTimeout(400);
-        await page.screenshot({ path: join(outDir, `f1-report${suffix}-${width}.png`) });
-        const row = `[id="sale-${record}"] a`;
-        const result = await probe.journey(page, {
-          selected: `[id="sale-${record}"][data-selected]`,
-          returnSelector: row,
-          reopen: () => page.click(row),
-          look: look ? "next" : "current",
-          scrolledPath: join(outDir, `f1-report${suffix}-${width}-scrolled.png`),
-        });
-        if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
-        probe.report({ screen: "report", look: suffix || "-current", width, ...result });
-        failures.push(...result.failures.map((failure) => `report${suffix} ${width}: ${failure}`));
-        await browserContext.close();
-      }
+    const html = await reportPage({ record, edit: "true" });
+    const htmlPath = join(outDir, "f1-report.html");
+    const fixture = { record, backLabel: "К отчёту", returnTo: `[id="sale-${record}"] a` };
+    writeFileSync(htmlPath, [
+      "<!DOCTYPE html>",
+      '<html lang="ru" data-theme="light" class="h-full antialiased">',
+      `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Отчёт продаж — одна боковая панель (синтетические данные)</title><style>${css}</style></head>`,
+      `<body class="min-h-full">${html}<script type="application/json" id="${F1_FIXTURE_ID}">${JSON.stringify(fixture).replaceAll("<", "\\u003c")}</script><script src="f1-report-client.js"></script></body></html>`,
+    ].join(""));
+    for (const [width, context] of probe.F1_WIDTHS) {
+      const browserContext = await browser.newContext(context);
+      const page = await browserContext.newPage();
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+      await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForSelector("html[data-client-rendered]", { state: "attached", timeout: 10_000 });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: join(outDir, `f1-report-${width}.png`) });
+      const row = `[id="sale-${record}"] a`;
+      const result = await probe.journey(page, {
+        selected: `[id="sale-${record}"][data-selected]`,
+        returnSelector: row,
+        reopen: () => page.click(row),
+        scrolledPath: join(outDir, `f1-report-${width}-scrolled.png`),
+      });
+      if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
+      probe.report({ screen: "report", width, ...result });
+      failures.push(...result.failures.map((failure) => `report ${width}: ${failure}`));
+      await browserContext.close();
     }
   } finally {
     await browser.close();
@@ -828,9 +822,9 @@ if (process.argv.includes("--f1")) {
     process.exit(1);
   });
 } else if (process.argv.includes("--json-e4")) {
-  // Э4 в обоих обликах: имена нового облика — с «-next» (для tests/v3-e4-work-surfaces.test.mjs).
-  Promise.all([e4Pages(false), e4Pages(true)])
-    .then(([current, next]) => process.stdout.write(JSON.stringify([...current, ...next.map((page) => ({ ...page, name: `${page.name}-next` }))])))
+  // Э4 (для tests/v3-e4-work-surfaces.test.mjs).
+  e4Pages()
+    .then((pages) => process.stdout.write(JSON.stringify(pages)))
     .catch((error) => {
       console.error(error);
       process.exit(1);

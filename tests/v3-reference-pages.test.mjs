@@ -157,35 +157,33 @@ const pages = JSON.parse(execFileSync(
   [fileURLToPath(new URL("./e2e/reference-static-render.cjs", import.meta.url)), "--json"],
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
 ));
-const page = (name, look = "current") => pages.find((entry) => entry.name === name && entry.look === look)?.html ?? assert.fail(`${name} ${look}`);
+const page = (name) => pages.find((entry) => entry.name === name)?.html ?? assert.fail(name);
 const text = (html) => html.replace(/<svg[\s\S]*?<\/svg>/gu, "").replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ");
 
 test("«Университеты»: one dense table of 30 rows with the photo, the deadline column and an honest count", () => {
-  for (const look of ["current", "next"]) {
-    const html = page("universities-list", look);
-    assert.match(html, /<h1 class="t-page-title[^"]*">Университеты<span[^>]*>143<\/span><\/h1>/u, `${look}: count from the complete read`);
-    assert.match(html, /data-testid="v3-university-table"/u);
-    const rows = [...html.matchAll(/<tr role="row" data-university-row="[^"]+"[\s\S]*?<\/tr>/gu)].map((match) => match[0]);
-    assert.equal(rows.length, 30);
-    assert.deepEqual(text(html.match(/<thead[\s\S]*?<\/thead>/u)[0]).trim().split(" ").filter(Boolean),
-      ["Университет", "Страна", "Программы", "Ближайший", "срок", "Проверено"]);
-    // Deadlines first, in date order; the rest say so in words.
-    const deadlines = rows.map((row) => row.match(/data-deadline="([^"]+)"/u)[1]);
-    const dated = deadlines.filter((value) => value !== "none");
-    assert.ok(dated.length > 0);
-    assert.deepEqual(deadlines.slice(0, dated.length), [...dated].sort(), "deadline rows lead, nearest first");
-    assert.ok(deadlines.slice(dated.length).every((value) => value === "none"));
-    assert.ok(rows.filter((row) => row.includes('data-deadline="none"')).every((row) => row.includes(">Срок не подтверждён</p>")));
-    assert.ok(rows.every((row) => /<img[^>]*alt=""[^>]*class="size-full object-cover"|<span aria-hidden="true" class="grid size-12/u.test(row)), "a 48 px photo or its neutral place in each row");
-    assert.match(html, /<nav aria-label="Страницы каталога"[\s\S]*?1–30<\/span> из <span class="tabular-nums">143<\/span>/u);
-    assert.match(html, /href="\/v3\/universities\?offset=30"/u);
-    // «Управлять каталогом» is a quiet link, not the page's red action.
-    const end = html.indexOf("Управлять каталогом</a>");
-    assert.ok(end > 0, "manage link");
-    const manage = html.slice(html.lastIndexOf("<a ", end), end);
-    assert.doesNotMatch(manage, /bg-accent|btn/u);
-    assert.doesNotMatch(html, /Фото: |Photo by|Сроки подачи — в карточке/u, "no credits and no placeholders in the list");
-  }
+  const html = page("universities-list");
+  assert.match(html, /<h1 class="t-page-title[^"]*">Университеты<span[^>]*>143<\/span><\/h1>/u, "count from the complete read");
+  assert.match(html, /data-testid="v3-university-table"/u);
+  const rows = [...html.matchAll(/<tr role="row" data-university-row="[^"]+"[\s\S]*?<\/tr>/gu)].map((match) => match[0]);
+  assert.equal(rows.length, 30);
+  assert.deepEqual(text(html.match(/<thead[\s\S]*?<\/thead>/u)[0]).trim().split(" ").filter(Boolean),
+    ["Университет", "Страна", "Программы", "Ближайший", "срок", "Проверено"]);
+  // Deadlines first, in date order; the rest say so in words.
+  const deadlines = rows.map((row) => row.match(/data-deadline="([^"]+)"/u)[1]);
+  const dated = deadlines.filter((value) => value !== "none");
+  assert.ok(dated.length > 0);
+  assert.deepEqual(deadlines.slice(0, dated.length), [...dated].sort(), "deadline rows lead, nearest first");
+  assert.ok(deadlines.slice(dated.length).every((value) => value === "none"));
+  assert.ok(rows.filter((row) => row.includes('data-deadline="none"')).every((row) => row.includes(">Срок не подтверждён</p>")));
+  assert.ok(rows.every((row) => /<img[^>]*alt=""[^>]*class="size-full object-cover"|<span aria-hidden="true" class="grid size-12/u.test(row)), "a 48 px photo or its neutral place in each row");
+  assert.match(html, /<nav aria-label="Страницы каталога"[\s\S]*?1–30<\/span> из <span class="tabular-nums">143<\/span>/u);
+  assert.match(html, /href="\/v3\/universities\?offset=30"/u);
+  // «Управлять каталогом» is a quiet link, not the page's red action.
+  const end = html.indexOf("Управлять каталогом</a>");
+  assert.ok(end > 0, "manage link");
+  const manage = html.slice(html.lastIndexOf("<a ", end), end);
+  assert.doesNotMatch(manage, /bg-accent|btn/u);
+  assert.doesNotMatch(html, /Фото: |Photo by|Сроки подачи — в карточке/u, "no credits and no placeholders in the list");
 });
 
 test("«Университеты»: the toolbar applies filters on change and keeps «Найти» for a browser without scripts", () => {
@@ -207,7 +205,7 @@ test("«Университеты»: the toolbar applies filters on change and ke
 });
 
 test("catalogue read: offset 0 alone, then four at once, nothing past the end; one retry when the catalogue changes mid-read", () => {
-  const offsets = (name) => pages.find((entry) => entry.name === name && entry.look === "current").catalogueOffsets;
+  const offsets = (name) => pages.find((entry) => entry.name === name).catalogueOffsets;
   assert.deepEqual(offsets("universities-list"), [0, 30, 60, 90, 120], "143 universities: 5 calls, none past the end");
   assert.deepEqual(offsets("universities-list-filtered"), [0], "13 rows: one call");
   // A row seen twice (Admin publishes during the read) reads the catalogue once more instead of failing the page.
@@ -220,28 +218,26 @@ test("catalogue read: offset 0 alone, then four at once, nothing past the end; o
 });
 
 test("university page: programmes and intakes first, then the overview; the photo smaller at the side with one Russian credit line", () => {
-  for (const look of ["current", "next"]) {
-    const html = page("universities-detail", look);
-    const programs = html.indexOf('id="university-programs"');
-    const about = html.indexOf('id="university-about"');
-    const photo = html.indexOf('aria-label="Фото кампуса"');
-    assert.ok(programs > 0 && about > programs && photo > about, `${look}: programmes → overview → photo`);
-    // Name and place read as one unit: the place is the line under the h1, the Admin links come after it.
-    const h1 = html.indexOf("<h1");
-    const place = html.indexOf('<p class="t-meta mt-1 text-fg-3">Малайзия · Johor Bahru · <span class="tabular-nums">3</span> программы</p>');
-    assert.ok(h1 > 0 && place > h1 && html.indexOf(">Бланки университета</a>") > place && programs > place, `${look}: h1 → place → Admin links → programmes`);
-    assert.equal([...html.matchAll(/Малайзия · Johor Bahru/gu)].length, 1, `${look}: the place once`);
-    assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
-    assert.match(html, /data-photo-credit="">Фото: <a[^>]*>[^<]+<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>CC BY-SA 4\.0<span/u);
-    assert.match(html, /aspect-\[4\/3\]/u);
-    assert.match(html, /<th role="columnheader" scope="col" class="t-caption text-start text-fg-2">Срок подачи<\/th>/u);
-    assert.match(html, /<td role="cell" class="t-body-compact" data-cell="deadline">[\s\S]*?<time dateTime="2026-07-17" class="font-mono tabular-nums text-fg">17\.07<\/time>/u);
-    assert.match(html, />Приём закрыт по данным источника</u);
-    assert.match(html, />Проверено:<\/span><time dateTime="2026-09-10" class="font-mono tabular-nums">10\.09<\/time>/u);
-    assert.match(html, />Бланки университета<\/a>/u);
-    assert.match(html, />Предложить обновление<\/a>/u);
-    assert.doesNotMatch(html.slice(html.indexOf("<main"), html.indexOf("</main>")), /(?<![:\w-])bg-accent(?![\w-])/u, "no solid red on the reference page");
-  }
+  const html = page("universities-detail");
+  const programs = html.indexOf('id="university-programs"');
+  const about = html.indexOf('id="university-about"');
+  const photo = html.indexOf('aria-label="Фото кампуса"');
+  assert.ok(programs > 0 && about > programs && photo > about, "programmes → overview → photo");
+  // Name and place read as one unit: the place is the line under the h1, the Admin links come after it.
+  const h1 = html.indexOf("<h1");
+  const place = html.indexOf('<p class="t-meta mt-1 text-fg-3">Малайзия · Johor Bahru · <span class="tabular-nums">3</span> программы</p>');
+  assert.ok(h1 > 0 && place > h1 && html.indexOf(">Бланки университета</a>") > place && programs > place, "h1 → place → Admin links → programmes");
+  assert.equal([...html.matchAll(/Малайзия · Johor Bahru/gu)].length, 1, "the place once");
+  assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
+  assert.match(html, /data-photo-credit="">Фото: <a[^>]*>[^<]+<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>CC BY-SA 4\.0<span/u);
+  assert.match(html, /aspect-\[4\/3\]/u);
+  assert.match(html, /<th role="columnheader" scope="col" class="t-caption text-start text-fg-2">Срок подачи<\/th>/u);
+  assert.match(html, /<td role="cell" class="t-body-compact" data-cell="deadline">[\s\S]*?<time dateTime="2026-07-17" class="font-mono tabular-nums text-fg">17\.07<\/time>/u);
+  assert.match(html, />Приём закрыт по данным источника</u);
+  assert.match(html, />Проверено:<\/span><time dateTime="2026-09-10" class="font-mono tabular-nums">10\.09<\/time>/u);
+  assert.match(html, />Бланки университета<\/a>/u);
+  assert.match(html, />Предложить обновление<\/a>/u);
+  assert.doesNotMatch(html.slice(html.indexOf("<main"), html.indexOf("</main>")), /(?<![:\w-])bg-accent(?![\w-])/u, "no solid red on the reference page");
 });
 
 test("university page: each intake state is main's label — no deadline or zone reads «Срок приёма нужно уточнить»; the credit line is Russian (review #1079)", () => {
@@ -249,28 +245,24 @@ test("university page: each intake state is main's label — no deadline or zone
   const apu = JSON.parse(source("src/lib/server/university-catalog-reviewed-malaysia.json")).find((entry) => entry.key === "apu").content;
   const expected = apu.programs.flatMap((program) => shownIntakes(program.intakes)).map((one) => universityIntakeLabel(one, NOW));
   assert.ok(expected.includes("Срок приёма нужно уточнить"), "the card has an intake without a deadline");
-  for (const look of ["current", "next"]) {
-    const html = page("universities-detail-unconfirmed", look);
-    const states = [...html.matchAll(/<tr role="row" data-intake=""[\s\S]*?<\/tr>/gu)]
-      .map((row) => row[0].match(/<td role="cell" class="t-body-compact text-fg-2"><span[^>]*>Состояние:<\/span>([^<]*)<\/td>/u)?.[1]);
-    assert.deepEqual(states, expected, `${look}: states as on main`);
-    assert.doesNotMatch(html, />(?:Приём открыт|Набор объявлен)</u, `${look}: an undated intake is neither open nor announced`);
-    assert.match(html, /data-photo-credit="">Фото: <a[^>]*>Asia Pacific University of Technology &amp; Innovation — официальный сайт; фотограф не указан<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>с официального сайта, лицензия не указана<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · кадрировано<\/figcaption>/u);
-    assert.doesNotMatch(html.match(/data-photo-credit=""[\s\S]*?<\/figcaption>/u)[0], /photographer|official website|embedding|license/u);
-  }
+  const html = page("universities-detail-unconfirmed");
+  const states = [...html.matchAll(/<tr role="row" data-intake=""[\s\S]*?<\/tr>/gu)]
+    .map((row) => row[0].match(/<td role="cell" class="t-body-compact text-fg-2"><span[^>]*>Состояние:<\/span>([^<]*)<\/td>/u)?.[1]);
+  assert.deepEqual(states, expected, "states as on main");
+  assert.doesNotMatch(html, />(?:Приём открыт|Набор объявлен)</u, "an undated intake is neither open nor announced");
+  assert.match(html, /data-photo-credit="">Фото: <a[^>]*>Asia Pacific University of Technology &amp; Innovation — официальный сайт; фотограф не указан<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>с официального сайта, лицензия не указана<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · кадрировано<\/figcaption>/u);
+  assert.doesNotMatch(html.match(/data-photo-credit=""[\s\S]*?<\/figcaption>/u)[0], /photographer|official website|embedding|license/u);
 });
 
 test("«Настройки»: every staff view has one section heading — no hidden duplicate for Playwright strict mode (review #1079)", () => {
   const headings = (html) => [...html.slice(html.indexOf("<main"), html.indexOf("</main>")).matchAll(/<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/gu)]
     .map((match) => ({ level: Number(match[1]), hidden: /sr-only/u.test(match[2]), text: match[3].replace(/<[^>]+>/gu, "").trim() }));
-  for (const look of ["current", "next"]) {
-    for (const [name, title] of [["settings-staff", "Сотрудники · 5"], ["settings-roles", "Роли и доступ"], ["settings-departments", "Отделы · 2"], ["settings-integrations", "Интеграции"]]) {
-      const list = headings(page(name, look));
-      const texts = list.map((heading) => heading.text);
-      assert.deepEqual(list.filter((heading) => heading.level === 2), [{ level: 2, hidden: false, text: title }], `${name} ${look}: one visible h2`);
-      assert.equal(new Set(texts).size, texts.length, `${name} ${look}: no two headings share a name (${texts})`);
-      assert.ok(list.every((heading, index) => index === 0 || heading.level <= list[index - 1].level + 1), `${name} ${look}: no skipped level`);
-    }
+  for (const [name, title] of [["settings-staff", "Сотрудники · 5"], ["settings-roles", "Роли и доступ"], ["settings-departments", "Отделы · 2"], ["settings-integrations", "Интеграции"]]) {
+    const list = headings(page(name));
+    const texts = list.map((heading) => heading.text);
+    assert.deepEqual(list.filter((heading) => heading.level === 2), [{ level: 2, hidden: false, text: title }], `${name}: one visible h2`);
+    assert.equal(new Set(texts).size, texts.length, `${name}: no two headings share a name (${texts})`);
+    assert.ok(list.every((heading, index) => index === 0 || heading.level <= list[index - 1].level + 1), `${name}: no skipped level`);
   }
   // `verifyScopedStaffRoleEditor` waits for this exact heading: one element, not two.
   assert.equal([...page("settings-roles").matchAll(/<h[1-6][^>]*>Роли и доступ<\/h[1-6]>/gu)].length, 1);
@@ -310,33 +302,32 @@ test("«Настройки»: open on «Сотрудники», one section list
 // «Заявки» стоят в «Общем» первыми (Э6). Переписки — в своих отделах (решение
 // владельца 27.09.2026 вместо одного пункта «Переписки» Э5): WhatsApp — в
 // «Продажах», «Переписка со студентами» — в «Поступлении»; в «Общем» их нет.
-test("menu: «Заявки» lead «Общее»; WhatsApp stands in «Продажи» and «Переписка со студентами» in «Поступление», in both looks", () => {
-  for (const look of ["current", "next"]) {
-    for (const role of ["admin", "admissions", "sales"]) {
-      const html = page(`menu-${role}`, look);
-      const common = html.match(/<section aria-label="Общее"[\s\S]*?<\/section>/u)?.[0] ?? assert.fail(`${role} ${look}: «Общее»`);
-      const labels = [...common.matchAll(/<span class="min-w-0[^"]*">([^<]+)<\/span>/gu)].map((match) => match[1]);
-      for (const moved of ["Переписки", "WhatsApp", "Переписка со студентами"]) {
-        assert.equal(labels.includes(moved), false, `${role} ${look}: no «${moved}» in «Общее» (${labels})`);
-      }
-      assert.equal(labels[0], "Заявки", `${role} ${look}: «Заявки» leads «Общее»`);
-      const menu = html.slice(0, html.indexOf('aria-label="Общее"'));
-      assert.doesNotMatch(menu, /href="\/v3\/requests"/u, `${role} ${look}: no department group holds «Заявки»`);
-      // Отдел пункта — по порядку меню: WhatsApp — между «Воронкой продаж» и
-      // «Отчётом продаж», переписка со студентами — сразу после «Воронки поступления».
-      const order = [...menu.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
-      const after = (href, previous) => order.indexOf(href) === order.indexOf(previous) + 1;
-      if (role === "admissions") assert.equal(order.includes("/v3/inbox"), false, `${role} ${look}: the sales WhatsApp is not an admissions item`);
-      else assert.ok(after("/v3/inbox", "/v3/pipeline") && after("/v3/main?view=sales", "/v3/inbox"), `${role} ${look}: WhatsApp in «Продажи» (${order})`);
-      if (role === "sales") assert.equal(order.includes("/v3/messages"), false, `${role} ${look}: no student chat for sales`);
-      else assert.ok(after("/v3/messages", "/v3/admissions-pipeline"), `${role} ${look}: «Переписка со студентами» in «Поступление» (${order})`);
+test("menu: «Заявки» lead «Общее»; WhatsApp stands in «Продажи» and «Переписка со студентами» in «Поступление»", () => {
+  for (const role of ["admin", "admissions", "sales"]) {
+    const html = page(`menu-${role}`);
+    const common = html.match(/<section aria-label="Общее"[\s\S]*?<\/section>/u)?.[0] ?? assert.fail(`${role}: «Общее»`);
+    const labels = [...common.matchAll(/<span class="min-w-0[^"]*">([^<]+)<\/span>/gu)].map((match) => match[1]);
+    for (const moved of ["Переписки", "WhatsApp", "Переписка со студентами"]) {
+      assert.equal(labels.includes(moved), false, `${role}: no «${moved}» in «Общее» (${labels})`);
     }
+    assert.equal(labels[0], "Заявки", `${role}: «Заявки» leads «Общее»`);
+    const menu = html.slice(0, html.indexOf('aria-label="Общее"'));
+    assert.doesNotMatch(menu, /href="\/v3\/requests"/u, `${role}: no department group holds «Заявки»`);
+    // Отдел пункта — по порядку меню: WhatsApp — между «Воронкой продаж» и
+    // «Отчётом продаж», переписка со студентами — сразу после «Воронки поступления».
+    const order = [...menu.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
+    const after = (href, previous) => order.indexOf(href) === order.indexOf(previous) + 1;
+    if (role === "admissions") assert.equal(order.includes("/v3/inbox"), false, `${role}: the sales WhatsApp is not an admissions item`);
+    else assert.ok(after("/v3/inbox", "/v3/pipeline") && after("/v3/main?view=sales", "/v3/inbox"), `${role}: WhatsApp in «Продажи» (${order})`);
+    if (role === "sales") assert.equal(order.includes("/v3/messages"), false, `${role}: no student chat for sales`);
+    else assert.ok(after("/v3/messages", "/v3/admissions-pipeline"), `${role}: «Переписка со студентами» in «Поступление» (${order})`);
   }
 });
 
-test("«Календарь»: «сегодня» is a small red fill only in the new look", () => {
-  const css = source("src/app/(v3)/v3.css");
-  assert.match(css, /\.v3-world\[data-look="next"\] \[data-calendar-today\] \{\s*background: var\(--accent\);\s*color: var\(--on-accent\);\s*\}/u);
-  assert.doesNotMatch(css.replace(/\.v3-world\[data-look="next"\] \[data-calendar-today\]/gu, ""), /\[data-calendar-today\]/u, "the current look keeps its dark mark");
-  assert.match(source("src/components/v3/calendar/grids.tsx"), /data-calendar-today=\{isToday \? "" : undefined\}/u);
+test("«Календарь»: «сегодня» is a small red fill with a white figure", () => {
+  const grids = source("src/components/v3/calendar/grids.tsx");
+  assert.match(grids, /data-calendar-today=\{isToday \? "" : undefined\}/u);
+  assert.match(grids, /isToday \? "bg-accent text-on-accent" : muted \? "text-fg-3" : "text-fg"/u);
+  // Одна заливка — классом; своего правила в v3.css (прежнее тёмное пятно поверх) нет.
+  assert.doesNotMatch(source("src/app/(v3)/v3.css"), /\[data-calendar-today\]/u);
 });

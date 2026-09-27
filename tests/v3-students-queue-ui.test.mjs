@@ -267,11 +267,11 @@ test("the queue is one semantic table: caption, column headers, a row header per
     assert.match(body, new RegExp(`<a data-queue-full=""[^>]*href="/v3/profile\\?case=${id}&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive%26open%3D${id}"`, "u"), id);
     assert.doesNotMatch(body, /tab=route/u, id);
   }
-  // Stage uses the words of «Воронка поступления»; dates are mono with a word.
+  // Stage uses the words of «Воронка поступления»; dates are mono with a due word (Э1.3).
   assert.match(html, />Готовы к подаче</u);
   assert.doesNotMatch(html, /Индивидуальный этап сопровождения/u);
-  assert.match(html, /<time dateTime="2026-09-19" class="font-mono tabular-nums [^"]*text-danger">19\.09<\/time><span class="[^"]*text-danger">прошёл<\/span>/u);
-  assert.match(html, /<time dateTime="2026-09-24" class="font-mono tabular-nums [^"]*text-fg">24\.09<\/time><span class="[^"]*text-fg-3">завтра<\/span>/u);
+  assert.match(html, /<time dateTime="2026-09-19" class="font-mono tabular-nums [^"]*text-fg">19\.09<\/time><span class="[^"]*"><span class="v3-due t-caption" data-due="overdue">прошёл 4 дн<\/span><\/span>/u);
+  assert.match(html, /<time dateTime="2026-09-24" class="font-mono tabular-nums [^"]*text-fg">24\.09<\/time><span class="[^"]*"><span class="v3-due t-caption" data-due="upcoming">завтра<\/span><\/span>/u);
   assert.match(html, /<span class="t-meta text-fg-3[^"]*">без срока<\/span>/u);
   // Awaiting acceptance under the curator; a case without one says it needs one.
   assert.match(html, /<span class="font-medium text-warn @min-\[36rem\]\/students:block">ждёт принятия<\/span>/u);
@@ -284,13 +284,13 @@ test("the queue is one semantic table: caption, column headers, a row header per
   assert.match(html, /Ждём партнёра/u);
   // 245: the chat waits for a staff answer — «нужен ответ», red, on the row that says so, and on no other.
   assert.equal((html.match(/>нужен ответ</gu) ?? []).length, 1);
-  assert.match(html, /data-queue-row="cccccccc-2222-4222-8222-000000000021"[\s\S]*?text-danger">нужен ответ<[\s\S]*?<\/tr>/u);
-  // Signals are never cut: no clamp or ellipsis on the signals cell; each signal wraps whole.
+  assert.match(html, /data-queue-row="cccccccc-2222-4222-8222-000000000021"[\s\S]*?data-tone="danger">нужен ответ<[\s\S]*?<\/tr>/u);
+  // Signals are never cut: no clamp or ellipsis on the signals cell; each signal is a whole chip.
   const source = read("src/components/v3/students/StudentsQueueTable.tsx");
   const signalsCell = source.match(/function SignalsCell[\s\S]*?\n\}\n/u)?.[0] ?? "";
   assert.ok(signalsCell, "SignalsCell");
   assert.doesNotMatch(signalsCell, /line-clamp|truncate|text-ellipsis/u);
-  assert.match(signalsCell, /className=\{`inline-block max-w-full font-medium \$\{TONE\[signal\.tone\]\}`\}/u);
+  assert.match(signalsCell, /<span className="inline-flex max-w-full flex-wrap gap-1">\s*\{signals\.map\(\(signal\) => <StatusChip key=\{signal\.key\} label=\{signal\.text\} tone=\{CHIP_TONE\[signal\.tone\]\} \/>\)\}/u);
   // Rows settle at 44 px when the step fits one line: 4 px per cell from 60rem, the hairline is an inset shadow.
   assert.match(source, /const CELL = "min-w-0 px-3 @min-\[36rem\]\/students:px-2 @min-\[60rem\]\/students:py-1";/u);
   assert.match(source, /shadow-\[inset_0_-1px_0_var\(--border\)\][^`]*@min-\[60rem\]\/students:py-0/u);
@@ -367,7 +367,7 @@ test("the next-step editor is shown only where the RPC may allow it; others read
   assert.match(panel, /data-testid="v3-next-step-editor"/u);
   const preview = surfaces.get("preview-panel").slice(surfaces.get("preview-panel").indexOf("<dialog"));
   assert.doesNotMatch(preview, /data-testid="v3-next-step-editor"/u);
-  assert.match(preview, /Записать на визу X1 · <time dateTime="2026-09-23" class="font-mono tabular-nums ">23\.09<\/time><span class="text-fg-2"> сегодня<\/span>/u);
+  assert.match(preview, /Записать на визу X1 · <time dateTime="2026-09-23" class="font-mono tabular-nums">23\.09<\/time> <span class="v3-due t-caption" data-due="today">сегодня<\/span>/u);
   assert.match(preview, /В просмотре интерфейса роли шаг не меняется\./u);
   // Another curator's case: read-only without an invented reason; tasks unavailable, not «нет задач».
   const other = surfaces.get("curator-panel-other").slice(surfaces.get("curator-panel-other").indexOf("<dialog"));
@@ -443,7 +443,8 @@ test("«Быстрый просмотр» is the queue panel: record heading, th
   assert.match(panel, /data-testid="queue-detail-close"[^>]*href="\/v3\/profile\?view=active"/u);
   assert.match(panel, /<h2 id="[^"]+" tabindex="-1" data-queue-heading="" class="t-record-title[^"]*">Нурсултан Бекмурзаевич Джумабаев-Осмоналиев<\/h2>/u);
   assert.match(panel, new RegExp(`data-side-panel-open="" href="/v3/profile\\?case=${CASE}&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive%26open%3D${CASE}">Открыть дело<svg`, "u"));
-  assert.match(panel, /<dt class="t-caption text-fg-2">Этап<\/dt><dd[^>]*>Подбор вузов<\/dd>/u);
+  // Этап — дорожка этапа со словом доски и фазой (Э1.4).
+  assert.match(panel, /<dt class="t-caption text-fg-2">Этап<\/dt><dd[^>]*><div class="v3-track" data-track="admissions">[\s\S]*?<p class="v3-track-caption" aria-hidden="true"><span class="t-body-compact text-fg">Подбор вузов<\/span><span class="t-meta text-fg-2">Поступление<\/span><\/p>/u);
   // Quick due choices: «Пт 25.09» appears because Friday is not tomorrow.
   assert.deepEqual([...panel.matchAll(/<button type="button" aria-pressed="(true|false)"[^>]*>([^<]+)<\/button>/gu)].map((match) => [match[2], match[1]]), [
     ["Сегодня", "true"], ["Завтра", "false"], ["Пт 25.09", "false"], ["Дата…", "false"], ["Без срока", "false"],
@@ -453,7 +454,7 @@ test("«Быстрый просмотр» is the queue panel: record heading, th
   assert.match(panel, /href="\/v3\/tasks\?create=case&amp;case=cccccccc-2222-4222-8222-000000000003"[^>]*>\+ Задача<\/a>/u);
   assert.match(panel, /href="\/v3\/tasks\?task=ffffffff-5555-4555-8555-000000000001&amp;kind=case&amp;case=cccccccc-2222-4222-8222-000000000003"/u);
   assert.match(panel, /<span class="text-warn"> · заблокирована<\/span>/u);
-  assert.match(panel, /Документы<\/h3><p class="t-body-compact text-fg">6 из 10 принято/u);
+  assert.match(panel, /Документы<\/h3><div class="space-y-2"><span class="v3-progress" data-progress="6\/10"><span class="t-body-compact text-fg">6 из 10 принято<\/span>/u);
   // A row that is not on this page is said plainly, with the case link.
   const missing = surfaces.get("panel-missing").slice(surfaces.get("panel-missing").indexOf("<dialog"));
   assert.match(missing, /Дела нет на этой странице списка/u);

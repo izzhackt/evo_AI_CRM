@@ -21,7 +21,7 @@
  *   node tests/e2e/today-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — разметка страницы без оболочки
  *       (для tests/v3-today-queue.test.mjs).
- *   node tests/e2e/today-static-render.cjs --screenshots [outDir] [--look=next]
+ *   node tests/e2e/today-static-render.cjs --screenshots [outDir]
  *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844, Admin ещё 320 (reflow), во весь рост и
@@ -30,8 +30,7 @@
  *       записями: раздел «Динамика по дням» открыт (выбран период; 1440,
  *       1280, 390 во весь рост) и свёрнут по умолчанию под записями (1440 и
  *       390 во весь рост). По умолчанию outDir — .impeccable/review (не
- *       коммитится). `--look=next` — предпросмотр нового облика (Э1.1) с его
- *       оболочкой (Э1.2): имена файлов получают суффикс `-next`.
+ *       коммитится).
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -491,16 +490,14 @@ async function compileCss() {
   return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
 }
 
-async function renderFullPage(name, look) {
+async function renderFullPage(name) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const report = REPORTS[name];
   const { who, node } = report ? { who: report.leadsOnly ? ACTORS.admissions : ACTORS.sales, node: await buildReport(report) } : await buildPage(name);
   const page = createElement(
     "div",
-    // `--look=next` — предпросмотр нового облика (Э1.1), как у Admin с включённым переключателем;
-    // оболочка — как у layout после Э1.2: `AppShell` с `look="next"`.
-    { className: "v3-world", "data-look": look === "next" ? "next" : undefined },
-    createElement(AppShell, { actor: who, initialNotifications: null, ...(look === "next" ? { look: "next" } : {}) }, node),
+    { className: "v3-world", "data-surface": "staff" },
+    createElement(AppShell, { actor: who, initialNotifications: null }, node),
   );
   // Отчёт — `/v3/main?view=sales`: меню подсвечивает «Отчёт продаж», а не «Сегодня».
   return renderToStaticMarkup(withContexts(page, report ? reportSearch(report) : ""));
@@ -522,8 +519,6 @@ async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const look = process.argv.includes("--look=next") ? "next" : "current";
-  const suffix = look === "next" ? "-next" : "";
   const DESKTOP = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 };
   const LAPTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 };
   const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
@@ -533,8 +528,8 @@ async function screenshots() {
   const browser = await chromium.launch();
   try {
     for (const name of [...Object.keys(SCENARIOS), ...Object.keys(REPORTS)]) {
-      const html = await renderFullPage(name, look);
-      const htmlPath = join(outDir, `today-${name}${suffix}.html`);
+      const html = await renderFullPage(name);
+      const htmlPath = join(outDir, `today-${name}.html`);
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
         '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -542,18 +537,18 @@ async function screenshots() {
         `<body class="min-h-full">${html}</body></html>`,
       ].join(""));
       const shots = name === "report-dynamics" || name === "report-lead-read"
-        ? [[`today-${name}-1440${suffix}.png`, DESKTOP, true], [`today-${name}-1280${suffix}.png`, LAPTOP, true], [`today-${name}-390${suffix}.png`, PHONE, true]]
+        ? [[`today-${name}-1440.png`, DESKTOP, true], [`today-${name}-1280.png`, LAPTOP, true], [`today-${name}-390.png`, PHONE, true]]
         : name === "report-collapsed"
-          ? [[`today-${name}-1440${suffix}.png`, DESKTOP, true], [`today-${name}-390${suffix}.png`, PHONE, true]]
-          : [...widths.map(([width, context]) => [`today-${name}-${width}${suffix}.png`, context, false]),
-          ...(name === "admin" ? [[`today-${name}-1440-full${suffix}.png`, DESKTOP, true], [`today-${name}-390-full${suffix}.png`, PHONE, true],
+          ? [[`today-${name}-1440.png`, DESKTOP, true], [`today-${name}-390.png`, PHONE, true]]
+          : [...widths.map(([width, context]) => [`today-${name}-${width}.png`, context, false]),
+          ...(name === "admin" ? [[`today-${name}-1440-full.png`, DESKTOP, true], [`today-${name}-390-full.png`, PHONE, true],
             // Reflow 320 CSS px (WCAG 1.4.10): без горизонтальной прокрутки.
-            [`today-${name}-320${suffix}.png`, { ...PHONE, viewport: { width: 320, height: 700 } }, false],
+            [`today-${name}-320.png`, { ...PHONE, viewport: { width: 320, height: 700 } }, false],
             // Фокус клавиатуры: строка «Сегодня» (лид) и строка задачи — рамка всей строки.
-            [`today-focus-row-1440${suffix}.png`, DESKTOP, false, '[data-today-source="leads"] [data-queue-open]'],
-            [`today-focus-task-1440${suffix}.png`, DESKTOP, false, '[data-kind="staff"] [data-queue-open]'],
-            [`today-focus-row-390${suffix}.png`, PHONE, false, '[data-today-source="leads"] [data-queue-open]'],
-            [`today-focus-task-390${suffix}.png`, PHONE, false, '[data-kind="staff"] [data-queue-open]']] : [])];
+            [`today-focus-row-1440.png`, DESKTOP, false, '[data-today-source="leads"] [data-queue-open]'],
+            [`today-focus-task-1440.png`, DESKTOP, false, '[data-kind="staff"] [data-queue-open]'],
+            [`today-focus-row-390.png`, PHONE, false, '[data-today-source="leads"] [data-queue-open]'],
+            [`today-focus-task-390.png`, PHONE, false, '[data-kind="staff"] [data-queue-open]']] : [])];
       for (const [file, context, fullPage, focus] of shots) {
         const browserContext = await browser.newContext(context);
         const tab = await browserContext.newPage();
@@ -561,8 +556,8 @@ async function screenshots() {
         tab.on("pageerror", (error) => errors.push(error.message));
         await tab.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
         await tab.evaluate(() => document.fonts.ready);
-        // Логотип оболочки — картинка с диска: снимок после её загрузки. Оболочка нового облика
-        // держит логотип и в скрытой на этой ширине строке; ленивая картинка там не грузится.
+        // Логотип оболочки — картинка с диска: снимок после её загрузки. Оболочка держит
+        // логотип и в скрытой на этой ширине строке; ленивая картинка там не грузится.
         await tab.waitForFunction(() => [...document.images].every((image) => image.complete || image.getClientRects().length === 0));
         if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
         let focusFacts = "";
@@ -653,6 +648,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: today-static-render.cjs --json | --screenshots [outDir] [--look=next]");
+  console.error("usage: today-static-render.cjs --json | --screenshots [outDir]");
   process.exit(2);
 }

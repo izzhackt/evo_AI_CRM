@@ -12,7 +12,6 @@ import { Pill } from "../Pill";
 import { formatQueueDay } from "../queue/due-bucket";
 import { studentsDocumentsLine, studentsHandoffPending } from "../students/students-queue-view";
 import { Initials } from "../blocks/Initials";
-import { isNextLook, type V3Look } from "../blocks/look";
 import { ProgressBar } from "../blocks/ProgressBar";
 import { StatusChip } from "../blocks/StatusChip";
 import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
@@ -38,7 +37,6 @@ import { COVERAGE_VIEW_HREF, coverageHref } from "./students-coverage-view";
 const LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 /** Ссылка факта своей строкой под значением (блочная, 44 px): не прилипает к тексту значения. */
 const FACT_LINK = "flex min-h-11 w-fit items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
-const TONE = { danger: "text-danger", warn: "text-warn", muted: "text-fg-2" } as const;
 /** Раскрытие «Изменить ответ» в «Сведениях»: подпись-действие без маркера, 44 px. */
 const SUMMARY = "flex min-h-11 w-fit cursor-pointer list-none items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden";
 
@@ -73,8 +71,6 @@ export type CaseOverviewInput = Readonly<{
   notesOlderHref: string | null;
   notesLatestHref: string | null;
   hrefs: Readonly<{ documents: string | null; route: string | null; money: string | null; messages: string; history: string }>;
-  /** Новый облик (Э1.3): блоки в строках задач, инициалы куратора и полоса документов из прочитанных чисел. */
-  look?: V3Look;
 }>;
 
 /** Факт «Сведений»: строка на волосяной линии. */
@@ -119,7 +115,7 @@ function Tasks({ input }: Readonly<{ input: CaseOverviewInput }>) {
       ) : work.tasks.tasks.length === 0 ? (
         <p className="t-body-compact text-fg-2">Открытых задач нет.</p>
       ) : (
-        <CaseTaskList tasks={work.tasks.tasks} permissions={input.taskPermissions} nowIso={work.nowIso} look={input.look} />
+        <CaseTaskList tasks={work.tasks.tasks} permissions={input.taskPermissions} nowIso={work.nowIso} />
       )}
     </section>
   );
@@ -129,9 +125,9 @@ function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
   const line = studentsDocumentsLine(input.documents);
   return (
     <Fact term="Документы" testId="v3-case-documents">
-      {line && isNextLook(input.look) ? (
-        // Новый облик: «N из M принято» полосой — только из прочитанных чисел; пустой чек-лист
-        // или числа, которые не сходятся, — прежняя строка без полосы.
+      {line ? (
+        // «N из M принято» полосой (Э1.3) — только из прочитанных чисел; пустой чек-лист
+        // или числа, которые не сходятся, — строка итога без полосы.
         <div className="space-y-2">
           <ProgressBar done={input.documents?.approved} total={input.documents?.total} word="принято"
             fallback={<p className="t-body-compact text-fg">{line.summary}</p>} />
@@ -141,11 +137,6 @@ function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
             </p>
           ) : null}
         </div>
-      ) : line ? (
-        <p>
-          {line.summary}
-          {line.parts.map((part) => <span key={part.key}><span className="text-fg-3"> · </span><span className={`font-medium ${TONE[part.tone]}`}>{part.text}</span></span>)}
-        </p>
       ) : <span className="text-fg-2">нет доступа</span>}
       {input.hrefs.documents ? <Link href={input.hrefs.documents} className={FACT_LINK}>Документы дела</Link> : null}
     </Fact>
@@ -196,7 +187,6 @@ function ChatFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
  * переписка, оплата — всё из уже прочитанных данных; нет чтения — нет числа.
  */
 function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
-  const next = isNextLook(input.look);
   const handoff = input.handoff;
   const answered = handoff !== null && handoff.assignmentEventId !== null && !studentsHandoffPending(handoff);
   // Куратор ответил «Нужно уточнить», а дело всё ещё ждёт приёма: ответ виден и на странице, не только
@@ -212,9 +202,9 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
       <dl className="mt-1">
         <Fact term="Направление">{input.direction ? DIRECTION_LABELS[input.direction] : "Не выбрано"}</Fact>
         <Fact term="Куратор">
-          {(next && curator.name ? (
+          {(curator.name ? (
             <span className="inline-flex items-center gap-2"><Initials name={curator.name} decorative />{curator.name}</span>
-          ) : curator.name) ?? (input.work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
+          ) : null) ?? (input.work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
           {curator.coverage && !input.work.needsCurator ? (
             <Link href={curator.membershipId ? coverageHref(curator.membershipId, input.studentCaseId) : COVERAGE_VIEW_HREF}
               className={FACT_LINK}>

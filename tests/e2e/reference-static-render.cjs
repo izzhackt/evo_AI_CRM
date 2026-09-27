@@ -21,11 +21,10 @@
  * Supabase, права сервера и серверные действия этот рендер не проверяет.
  *
  *   node tests/e2e/reference-static-render.cjs --json
- *     → stdout: JSON [{ name, look, html }] — разметка страниц с оболочкой.
+ *     → stdout: JSON [{ name, html }] — разметка страниц с оболочкой.
  *   node tests/e2e/reference-static-render.cjs --screenshots [outDir]
- *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844 в обоих
- *       обликах (`-next` — предпросмотр нового облика с его оболочкой);
- *       меню ролей — с раскрытыми отделами (на телефоне — открытое меню).
+ *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844;
+ *       меню ролей — с раскрытыми отделами (на телефоне — лист «Ещё»).
  *       По умолчанию outDir — .impeccable/review (не коммитится). Проверки
  *       (прокрутка вбок, текст мельче 12 px, h1, сплошной красный) печатаются
  *       строками JSON.
@@ -224,7 +223,6 @@ function installStubs() {
     async readJournalFacets() { return { objectTypes: [] }; },
     async readPlatformFact() { return "не проверялось"; },
   });
-  stubModule("src/lib/v3/look-preview.ts", { async readLookPreview() { return false; } });
   stubModule("src/lib/v3/sales-register-source.ts", { async readSalesRegisterManagement() { return { status: "denied" }; } });
   stubModule("src/lib/v3/staff-workspace-source.ts", { async readStaffWorkspace() { return { members: MEMBERS, requests: [], available: true, departments: DEPARTMENTS }; } });
   stubModule("src/lib/server/staff-roles-service.ts", { async readStaffRoles() { return ROLE_WORKSPACE; } });
@@ -232,7 +230,6 @@ function installStubs() {
   const noop = async () => ({ status: "idle", message: "" });
   stubModule("src/lib/staff-workspace-actions.ts", new Proxy({}, { get: () => noop }));
   stubModule("src/lib/staff-roles-actions.ts", new Proxy({}, { get: () => noop }));
-  stubModule("src/lib/v3/look-preview-actions.ts", { setLookPreviewAction: noop });
 }
 
 // --- рендер ------------------------------------------------------------------
@@ -280,7 +277,7 @@ async function pageNode(pathname, search) {
   return Page({ searchParams: Promise.resolve(params) });
 }
 
-async function renderPage([name, role, path, search, providers], look) {
+async function renderPage([name, role, path, search, providers]) {
   who = ACTORS[role];
   providerScenario = providers;
   catalogueOffsets = [];
@@ -288,10 +285,10 @@ async function renderPage([name, role, path, search, providers], look) {
   const pathname = typeof path === "function" ? path() : path;
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const node = await pageNode(pathname, search);
-  const page = createElement("div", { className: "v3-world", "data-look": look === "next" ? "next" : undefined },
-    createElement(AppShell, { actor: who, initialNotifications: null, ...(look === "next" ? { look: "next" } : {}) }, node));
+  const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
+    createElement(AppShell, { actor: who, initialNotifications: null }, node));
   const html = renderToStaticMarkup(withContexts(page, pathname, search));
-  return { name, role, look, pathname, catalogueOffsets: catalogueOffsets.slice(), html };
+  return { name, role, pathname, catalogueOffsets: catalogueOffsets.slice(), html };
 }
 
 async function renderAll() {
@@ -299,9 +296,7 @@ async function renderAll() {
   const pages = [];
   global.Date = FixedDate;
   try {
-    for (const look of ["current", "next"]) {
-      for (const entry of PAGES) pages.push(await renderPage(entry, look));
-    }
+    for (const entry of PAGES) pages.push(await renderPage(entry));
   } finally {
     global.Date = RealDate;
   }
@@ -320,27 +315,20 @@ async function compileCss() {
   return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
 }
 
-/** Меню ролей: все отделы раскрыты; на телефоне — открытое меню (прежний облик) или лист «Ещё» (новый). */
-function openMenu({ phone, look }) {
+/** Меню ролей: все отделы раскрыты; на телефоне — лист «Ещё». */
+function openMenu({ phone }) {
   for (const list of document.querySelectorAll("nav ul[id][hidden]")) list.hidden = false;
   for (const button of document.querySelectorAll("nav button[aria-expanded]")) button.setAttribute("aria-expanded", "true");
   if (!phone) return;
-  if (look === "next") {
-    const menu = document.querySelector("[data-shell-menu]");
-    menu.classList.remove("hidden");
-    menu.classList.add("flex", "max-md:fixed", "max-md:inset-0", "max-md:z-50");
-    return;
-  }
-  const toggle = document.querySelector('nav[aria-label="Разделы"] button[aria-controls]');
-  const panel = document.getElementById(toggle.getAttribute("aria-controls"));
-  panel.classList.remove("hidden");
-  panel.classList.add("flex");
+  const menu = document.querySelector("[data-shell-menu]");
+  menu.classList.remove("hidden");
+  menu.classList.add("flex", "max-md:fixed", "max-md:inset-0", "max-md:z-50");
 }
 
 /**
  * Знак края меню. Разметка статическая, без гидратации, поэтому признак
  * `data-more-above` / `data-more-below` ставит сам снимок — тем же правилом,
- * что `useScrollEdges` (AppShellNext.tsx) после гидратации; сам хук с
+ * что `useScrollEdges` (AppShell.tsx) после гидратации; сам хук с
  * настоящей гидратацией проверяет `shell-static-render.cjs` (groups-1280).
  */
 function markMenuEdges() {
@@ -377,8 +365,7 @@ async function screenshots(pages) {
   try {
     for (const page of pages) {
       if (page.name.endsWith("-changed")) continue;
-      const suffix = page.look === "next" ? "-next" : "";
-      const htmlPath = join(outDir, `e6-${page.name}${suffix}.html`);
+      const htmlPath = join(outDir, `e6-${page.name}.html`);
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
         '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -394,9 +381,9 @@ async function screenshots(pages) {
         await tab.evaluate(() => document.fonts.ready);
         // Фото кампусов грузятся из источников: ждём, но не дольше 15 с (снимок честно покажет незагруженное).
         await tab.waitForFunction(() => [...document.images].every((image) => image.complete || image.getClientRects().length === 0), null, { timeout: 15_000 }).catch(() => {});
-        if (page.name.startsWith("menu-")) await tab.evaluate(openMenu, { phone: width === "390", look: page.look });
+        if (page.name.startsWith("menu-")) await tab.evaluate(openMenu, { phone: width === "390" });
         const menu = await tab.evaluate(markMenuEdges);
-        if (errors.length) { failed = true; console.error(`${page.name}${suffix} ${width}: ${errors.join("; ")}`); }
+        if (errors.length) { failed = true; console.error(`${page.name} ${width}: ${errors.join("; ")}`); }
         const metrics = await tab.evaluate(() => {
           const main = document.querySelector("main");
           const texts = [...document.querySelectorAll("body *")].filter((element) => {
@@ -425,7 +412,7 @@ async function screenshots(pages) {
         metrics.menu = menu;
         // Пункт меню за краем окна без знака края — ошибка снимка.
         if (menu.some((entry) => entry.hidden.length && !(entry.cue && entry.fade))) failed = true;
-        const file = `e6-${page.name}-${width}${suffix}.png`;
+        const file = `e6-${page.name}-${width}.png`;
         await tab.screenshot({ path: join(outDir, file) });
         // Во весь рост — страницы (не меню) на 1440 и на телефоне: видна длина страницы.
         if (!page.name.startsWith("menu-") && width !== "1280") {
@@ -441,7 +428,7 @@ async function screenshots(pages) {
             });
             return loaded.then(() => (image.naturalWidth > 0 ? image.decode().catch(() => {}) : null));
           })));
-          await tab.screenshot({ path: join(outDir, `e6-${page.name}-${width}-full${suffix}.png`), fullPage: true });
+          await tab.screenshot({ path: join(outDir, `e6-${page.name}-${width}-full.png`), fullPage: true });
         }
         console.log(JSON.stringify({ file, ...metrics }));
         if (metrics.overflowX > 0 || metrics.small > 0 || metrics.h1 !== 1) failed = true;

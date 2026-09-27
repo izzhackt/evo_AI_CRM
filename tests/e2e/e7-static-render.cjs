@@ -6,7 +6,7 @@
  * Э7 плана редизайна (27.09.2026): один диалог «Новая задача», массовые
  * действия, Ctrl+K и окно «?» — снимки настоящих компонентов в Chromium.
  *
- * Страница целиком — оболочка (`AppShell`, оба облика) и тело — рисуется в
+ * Страница целиком — оболочка (`AppShell`) и тело — рисуется в
  * браузере самим React (бандл esbuild), поэтому работают настоящие
  * `TaskComposerHost`, `CommandPalette`, `KeyboardHelpDialog`, строки выбора и
  * окна массовых действий. Данные СИНТЕТИЧЕСКИЕ: задачи, имена, дела и лиды
@@ -17,7 +17,7 @@
  * Живой Supabase, права сервера и маршрутизатор Next.js этот рендер не
  * проверяет.
  *
- *   node tests/e2e/e7-static-render.cjs --screenshots [outDir] [--look=next]
+ *   node tests/e2e/e7-static-render.cjs --screenshots [outDir]
  *     → снимки `e7-*.png` (1440×900, 1280×800, 390×844); по умолчанию
  *       outDir — .impeccable/review (не коммитится). Проверки печатаются
  *       строкой на снимок; нарушение — код выхода 1. После снимков — пути
@@ -30,7 +30,6 @@ const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 const ROOT = resolve(__dirname, "../..");
-const LOOK_NEXT = process.argv.includes("--look=next");
 const LOGO_URL = pathToFileURL(join(ROOT, "public/brand/evo-logo.png")).href;
 
 // --- браузерная точка входа ----------------------------------------------------
@@ -53,7 +52,6 @@ const { TaskComposerContextMark } = require("@/components/v3/tasks/task-composer
 const h = React.createElement;
 
 const fixture = JSON.parse(document.getElementById("e7-fixture").textContent);
-const look = fixture.look;
 window.__e7 = { pushes: [], calls: [] };
 const router = {
   push: (href) => { window.__e7.pushes.push(String(href)); }, replace: (href) => { window.__e7.pushes.push(String(href)); },
@@ -118,7 +116,6 @@ function tasksPage() {
     createdExcludesCases: false,
     composer: { participants: PARTICIPANTS, actorMembershipId: ME, actor: ACTOR, day: TODAY, staffAllowed: true, caseAllowed: true, initialCase: null, initialCaseAssignees: [] },
     composerKey: "standalone", canCreate: true, urlIntent: null, permissions: PERMISSIONS, selectedKey: null, panel: null,
-    ...(look === "next" ? { look: "next" } : {}),
   };
   return h(PartShell, { title: "Задачи", count: queue.rows.length }, h(TasksWorkspace, props));
 }
@@ -164,7 +161,6 @@ function studentsPage(search) {
     coverage: null, today: TODAY, curatorNames: [ME, B, C].map((membershipId) => ({ membershipId, displayName: NAMES[membershipId] })),
     editor: { admin: true, preview: false, routeManage: true, broadScope: true }, recordScopes: [], createTask: true,
     requestIds: { nextStep: "99999999-6666-4666-8666-000000000001", coverage: "99999999-6666-4666-8666-000000000002" },
-    ...(look === "next" ? { look: "next" } : {}),
   });
   return h(PartShell, { title: "Студенты", count: built.count, dense: true }, built.content);
 }
@@ -248,8 +244,8 @@ const tree = h(AppRouterContext.Provider, { value: router },
   h(PathnameContext.Provider, { value: fixture.pathname },
     h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
       h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
-        h("div", { className: "v3-world", "data-look": look === "next" ? "next" : undefined },
-          h(AppShell, { actor: ACTOR, initialNotifications: null, ...(look === "next" ? { look: "next" } : {}) }, pages[fixture.page]()))))));
+        h("div", { className: "v3-world", "data-surface": "staff" },
+          h(AppShell, { actor: ACTOR, initialNotifications: null }, pages[fixture.page]()))))));
 createRoot(document.getElementById("root")).render(tree);
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.rendered = "1"; }));
 `;
@@ -346,7 +342,7 @@ const PAGES = {
 
 const isPhone = (page) => page.viewportSize().width < 768;
 
-/** «Создать задачу» оболочки: на телефоне нового облика — в листе «Ещё». */
+/** «Создать задачу» оболочки: на телефоне — в листе «Ещё». */
 async function clickShellCreate(page) {
   const link = page.locator('a[href="/v3/tasks?create=staff"]').filter({ visible: true }).first();
   if (!(await link.count())) await page.locator('[data-shell-tab="more"]').click();
@@ -500,13 +496,12 @@ async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const bundle = LOOK_NEXT ? "e7-next-client.js" : "e7-client.js";
+  const bundle = "e7-client.js";
   await buildClientBundle(join(outDir, bundle));
   const css = await compileCss();
-  const look = LOOK_NEXT ? "next" : "current";
   for (const [name, config] of Object.entries(PAGES)) {
-    const fixture = JSON.stringify({ page: config.page ?? name, pathname: config.pathname, search: config.search, look, actor: config.actor ?? "admin" }).replaceAll("<", "\\u003c");
-    writeFileSync(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}${name}.html`), [
+    const fixture = JSON.stringify({ page: config.page ?? name, pathname: config.pathname, search: config.search, actor: config.actor ?? "admin" }).replaceAll("<", "\\u003c");
+    writeFileSync(join(outDir, `e7-${name}.html`), [
       "<!DOCTYPE html>",
       '<html lang="ru" data-theme="light" class="h-full antialiased">',
       `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>E7 ${name} — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
@@ -524,14 +519,14 @@ async function screenshots() {
   try {
     for (const [shot, pageFor, step] of SHOTS) {
       for (const [width, context] of VIEWPORTS) {
-        const file = `${shot.replace(/^e7-/u, LOOK_NEXT ? "e7-next-" : "e7-")}-${width}.png`;
+        const file = `${shot}-${width}.png`;
         const pageName = typeof pageFor === "function" ? pageFor(width) : pageFor;
         const browserContext = await browser.newContext(context);
         const page = await browserContext.newPage();
         const errors = [];
         page.on("pageerror", (error) => errors.push(error.message));
         page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-        await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}${pageName}.html`)).href, { waitUntil: "load" });
+        await page.goto(pathToFileURL(join(outDir, `e7-${pageName}.html`)).href, { waitUntil: "load" });
         await page.evaluate(() => document.fonts.ready);
         await page.waitForSelector("html[data-rendered]", { state: "attached", timeout: 15_000 });
         try {
@@ -572,7 +567,7 @@ async function screenshots() {
 async function keyboardProbe(browser, outDir, failures) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
-  await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}tasks.html`)).href, { waitUntil: "load" });
+  await page.goto(pathToFileURL(join(outDir, `e7-tasks.html`)).href, { waitUntil: "load" });
   await page.waitForSelector("html[data-rendered]", { state: "attached" });
   const expect = (label, ok, facts) => { if (!ok) failures.push(`keyboard: ${label}: ${JSON.stringify(facts)}`); };
   const firstRow = page.locator("[data-queue-row] [data-queue-open]").first();
@@ -626,7 +621,7 @@ async function keyboardProbe(browser, outDir, failures) {
 async function bulkFocusProbe(browser, outDir, expect) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
-  await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}tasks.html`)).href, { waitUntil: "load" });
+  await page.goto(pathToFileURL(join(outDir, `e7-tasks.html`)).href, { waitUntil: "load" });
   await page.waitForSelector("html[data-rendered]", { state: "attached" });
   const row = page.locator('[data-kind="staff"][data-queue-row]').first();
   const key = await row.getAttribute("data-queue-row");
@@ -715,14 +710,14 @@ async function retryKeyProbe(browser, outDir, expect) {
     return keys.length === 4 && keys[0] === keys[1] && keys[1] === keys[2] && keys[3] !== keys[2];
   };
 
-  await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}tasks.html`)).href, { waitUntil: "load" });
+  await page.goto(pathToFileURL(join(outDir, `e7-tasks.html`)).href, { waitUntil: "load" });
   await page.waitForSelector("html[data-rendered]", { state: "attached" });
   await stub();
   await clickShellCreate(page);
   await page.getByTestId("v3-task-composer-dialog").locator('input[name="title"]').fill("Проверить повтор без подтверждения");
   const staff = check("staff task", await attempts("staff"));
 
-  await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}calendar.html`)).href, { waitUntil: "load" });
+  await page.goto(pathToFileURL(join(outDir, `e7-calendar.html`)).href, { waitUntil: "load" });
   await page.waitForSelector("html[data-rendered]", { state: "attached" });
   await stub();
   await clickShellCreate(page);
@@ -769,7 +764,7 @@ async function draftProbe(browser, outDir, expect, width) {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}${pageName}.html`)).href, { waitUntil: "load" });
+    await page.goto(pathToFileURL(join(outDir, `e7-${pageName}.html`)).href, { waitUntil: "load" });
     await page.waitForSelector("html[data-rendered]", { state: "attached" });
     await page.evaluate(([prefix, seed]) => {
       localStorage.clear();
@@ -831,7 +826,7 @@ async function draftProbe(browser, outDir, expect, width) {
     await run(`type → pick case (spec order, ${entry}, ${seedName})`, async () => {
       const journey = `type → pick case (spec order, ${entry}, ${seedName})`;
       const { context, page, errors } = await open(pageName, seed);
-      // Как в сценарии: первая видимая из кнопки оболочки и своей кнопки календаря; на телефоне нового облика кнопка оболочки — в листе «Ещё».
+      // Как в сценарии: первая видимая из кнопки оболочки и своей кнопки календаря; на телефоне кнопка оболочки — в листе «Ещё».
       const entryButton = page.locator('a[href="/v3/tasks?create=staff"], [data-testid="v3-calendar-new-task"]').filter({ visible: true });
       if (await entryButton.count()) await entryButton.first().click();
       else await clickShellCreate(page);
@@ -939,6 +934,6 @@ if (process.argv.includes("--screenshots")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: e7-static-render.cjs --screenshots [outDir] [--look=next]");
+  console.error("usage: e7-static-render.cjs --screenshots [outDir]");
   process.exit(2);
 }

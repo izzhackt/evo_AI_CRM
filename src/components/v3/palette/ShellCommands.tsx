@@ -12,9 +12,8 @@ import { CommandPalette, openCommandPalette } from "./CommandPalette";
 import { KeyboardHelpDialog } from "./KeyboardHelpDialog";
 
 /**
- * Общие окна оболочки (Э7), одни в обоих обликах: диалог «Новая задача» для
- * «Создать задачу» и Ctrl+K, сам Ctrl+K и окно «?». Все три — в верхнем
- * слое и в DOM один раз.
+ * Общие окна оболочки (Э7): диалог «Новая задача» для «Создать задачу» и
+ * Ctrl+K, сам Ctrl+K и окно «?». Все три — в верхнем слое и в DOM один раз.
  */
 export function ShellCommands({ actor, navigation }: Readonly<{ actor: ActivePlatformActor; navigation: V3Navigation }>) {
   return (
@@ -35,8 +34,8 @@ export function ShellCommands({ actor, navigation }: Readonly<{ actor: ActivePla
 export function onCreateTaskClick(
   event: MouseEvent<HTMLAnchorElement>,
   fallback: () => void,
-  returnFocus: HTMLElement | null = null,
-  before: () => void = () => {},
+  returnFocus: HTMLElement | null,
+  before: () => void,
 ): void {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   event.preventDefault();
@@ -45,19 +44,17 @@ export function onCreateTaskClick(
 }
 
 /**
- * Кнопка Ctrl+K для мыши и телефона: тот же поиск, что по клавишам. В
- * верхней панели прежнего облика — «Поиск» рядом с «Создать задачу»; в меню
- * нового облика — строка «Поиск» с подсказкой клавиш (`menu`), в рейке —
- * только значок.
+ * Кнопка Ctrl+K для мыши и телефона: тот же поиск, что по клавишам. В меню —
+ * строка «Поиск» с подсказкой клавиш, в рейке — только значок.
  */
-export function PaletteButton({ className, label = false, shortcutClassName = null, labelClassName, hint }: Readonly<{
+export function PaletteButton({ className, shortcutClassName, labelClassName, hint }: Readonly<{
   className: string;
-  label?: boolean;
-  /** Подсказка «Ctrl K» справа (классы видимости) — в строке меню на компьютере; null — без неё. */
-  shortcutClassName?: string | null;
-  labelClassName?: string;
+  /** Подсказка «Ctrl K» справа: классы видимости (на компьютере, не в рейке). */
+  shortcutClassName: string;
+  /** Подпись «Поиск»: классы видимости (в рейке — только для чтения с экрана). */
+  labelClassName: string;
   /** Подсказка рейки (подпись при наведении и фокусе). */
-  hint?: Pick<ButtonHTMLAttributes<HTMLButtonElement>, "onPointerEnter" | "onPointerLeave" | "onFocus" | "onBlur">;
+  hint: Pick<ButtonHTMLAttributes<HTMLButtonElement>, "onPointerEnter" | "onPointerLeave" | "onFocus" | "onBlur">;
 }>) {
   return (
     <button
@@ -71,8 +68,8 @@ export function PaletteButton({ className, label = false, shortcutClassName = nu
       {...hint}
     >
       <Icon name="search" size={18} className="shrink-0" />
-      {label ? <span className={labelClassName ?? "hidden sm:inline"}>Поиск</span> : null}
-      {shortcutClassName !== null ? <kbd aria-hidden="true" className={`ms-auto rounded-nav border border-border bg-bg px-1.5 font-mono t-meta text-fg-2 ${shortcutClassName}`}>Ctrl K</kbd> : null}
+      <span className={labelClassName}>Поиск</span>
+      <kbd aria-hidden="true" className={`ms-auto rounded-nav border border-border bg-bg px-1.5 font-mono t-meta text-fg-2 ${shortcutClassName}`}>Ctrl K</kbd>
     </button>
   );
 }

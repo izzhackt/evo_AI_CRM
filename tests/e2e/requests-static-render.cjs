@@ -10,7 +10,7 @@
  *
  * Рисуется НАСТОЯЩАЯ страница `src/app/(v3)/v3/requests/page.tsx` в
  * настоящем `AppShell`; подменены только границы данных и прав: смотрящий,
- * облик, список сотрудников формы лида, серверные действия и чтение очереди.
+ * список сотрудников формы лида, серверные действия и чтение очереди.
  * Чтение отдаёт СИНТЕТИЧЕСКИЙ ответ в форме `staff_requests_queue_v2`
  * (миграция 250) и проходит через настоящий `parseRequestsQueue` с
  * настоящими декодерами анкеты и консультации — страница видит ровно то, что
@@ -18,30 +18,29 @@
  * вёрстки и не являются записями EVO. Живой Supabase, права и данные этот
  * рендер не проверяет.
  *
- *   node tests/e2e/requests-static-render.cjs --json [--look=next]
+ *   node tests/e2e/requests-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — разметка страницы в оболочке
  *       (для tests/v3-requests-triage.test.mjs).
- *   node tests/e2e/requests-static-render.cjs --screenshots [outDir] [--look=next]
+ *   node tests/e2e/requests-static-render.cjs --screenshots [outDir]
  *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844 (пусто,
  *       заполнено, открытая панель) и измерения: переполнение, текст мельче
  *       12 px, сплошной красный, высота строк. По умолчанию outDir —
- *       .impeccable/review (не коммитится), имена e3r-*.png; `--look=next` —
- *       суффикс `-next`.
+ *       .impeccable/review (не коммитится), имена e3r-*.png.
  *   node tests/e2e/requests-static-render.cjs --panel-keys
  *     → stdout: JSON [{ open, key, row }] — ключ правой панели при переходах
  *       между записями (для tests/v3-requests-triage.test.mjs).
  *   node tests/e2e/requests-static-render.cjs --manual-lead-owners
  *     → stdout: JSON { read, failed } — что страница отдаёт форме «Добавить
  *       лида», когда список ответственных прочитан и когда чтение упало.
- *   node tests/e2e/requests-static-render.cjs --switch [outDir] [--look=next]
+ *   node tests/e2e/requests-static-render.cjs --switch [outDir]
  *     → смена записи в правой панели по-настоящему в Chromium: собранный
  *       esbuild RequestsQueueView, черновик решения, конфликт и ошибка
  *       «Взять себе» не переезжают в другую запись. Серверные действия —
  *       заглушки (конфликт, «Лид уже изменён»), ничего не сохраняют.
- *   node tests/e2e/requests-static-render.cjs --f1 [outDir] [--look=next]
+ *   node tests/e2e/requests-static-render.cjs --f1 [outDir]
  *     → Э7 «Одна боковая панель везде»: настоящая страница «Заявок» в
  *       оболочке с открытым лидом (`?open=lead:…`) на 1440×900, 1280×800,
- *       1024×768 (лист справа) и 390×844 — снимки `f1-requests[-next]-<ширина>.png` и замеры
+ *       1024×768 (лист справа) и 390×844 — снимки `f1-requests-<ширина>.png` и замеры
  *       `tests/e2e/side-panel-probe.cjs`. `RequestsQueueView` в браузере —
  *       та же сборка esbuild; адрес — состояние стенда: `router.push`
  *       открывает и закрывает панель по `open`, как сервер, и путь Esc →
@@ -56,7 +55,6 @@ const { pathToFileURL } = require("node:url");
 const ts = require("typescript");
 
 const ROOT = resolve(__dirname, "../..");
-const LOOK_NEXT = process.argv.includes("--look=next");
 
 const compile = (source) =>
   ts.transpileModule(source, {
@@ -233,7 +231,6 @@ const STUBS = {
     requireV3PageActor: async () => ACTORS[current.actor],
     requirePlatformStaffActor: async () => ACTORS[current.actor],
   },
-  "@/lib/v3/look-preview": { readLookPreview: async () => LOOK_NEXT },
   "@/lib/v3/pipeline-source": {
     readPipelineOwnerOptions: async () => current.ownersFail ? Promise.reject(new Error("synthetic owner read failure")) : ({ rows: [{ membershipId: ME, displayLabel: "Администратор (синтетический)" }, { membershipId: COLLEAGUE, displayLabel: "Бекболот Примеров" }], hasNext: false, nextCursor: null }),
   },
@@ -316,8 +313,8 @@ async function renderScenario(name) {
   };
   try {
     const content = await page({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(current.search))) });
-    const tree = createElement("div", { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
-      createElement(AppShell, { actor: ACTORS[current.actor], initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, content));
+    const tree = createElement("div", { className: "v3-world", "data-surface": "staff" },
+      createElement(AppShell, { actor: ACTORS[current.actor], initialNotifications: null }, content));
     return renderToStaticMarkup(withContexts(tree, current.search));
   } finally {
     nodeCrypto.randomUUID = originalUuid;
@@ -341,7 +338,6 @@ async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const suffix = LOOK_NEXT ? "-next" : "";
   const WIDTHS = [
     ["1440", { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 }],
     ["1280", { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }],
@@ -353,7 +349,7 @@ async function screenshots() {
   try {
     for (const name of Object.keys(SCENARIOS)) {
       const html = await renderScenario(name);
-      const htmlPath = join(outDir, `e3r-${name}${suffix}.html`);
+      const htmlPath = join(outDir, `e3r-${name}.html`);
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
         '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -361,7 +357,7 @@ async function screenshots() {
         `<body class="min-h-full">${html}</body></html>`,
       ].join(""));
       for (const [width, context] of WIDTHS) {
-        const file = `e3r-${name}-${width}${suffix}.png`;
+        const file = `e3r-${name}-${width}.png`;
         const browserContext = await browser.newContext(context);
         const tab = await browserContext.newPage();
         const errors = [];
@@ -570,7 +566,7 @@ async function switchCheck() {
   const queue = await STUBS["@/lib/v3/requests-queue-source"].loadScopedRequestsQueue(ACTORS.admin, selection);
   const props = {
     selection, read: { status: "ready", queue }, actorMembershipId: ME, readOnly: false, canCreateLead: true,
-    nowIso: NOW.toISOString(), ...(LOOK_NEXT ? { look: "next" } : {}),
+    nowIso: NOW.toISOString(),
   };
   const bundle = join(outDir, "requests-switch-client.js");
   await require("esbuild").build({
@@ -584,7 +580,7 @@ async function switchCheck() {
     "<!DOCTYPE html>",
     '<html lang="ru" data-theme="light" class="h-full antialiased">',
     `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Заявки — смена записи (синтетические данные)</title><style>${await compileCss()}</style></head>`,
-    `<body class="min-h-full"><div class="v3-world"${LOOK_NEXT ? ' data-look="next"' : ""}><main class="p-6"><div id="${SWITCH_ROOT_ID}"></div></main></div>`,
+    `<body class="min-h-full"><div class="v3-world" data-surface="staff"><main class="p-6"><div id="${SWITCH_ROOT_ID}"></div></main></div>`,
     `<script type="application/json" id="${SWITCH_FIXTURE_ID}">${JSON.stringify({ props }).replaceAll("<", "\\u003c")}</script><script src="requests-switch-client.js"></script></body></html>`,
   ].join(""));
 
@@ -663,7 +659,7 @@ async function switchCheck() {
     const y = await state();
     expect("Y opens without X's error and with Y's own request_id",
       y.leadId === idOf(LEAD_Y) && y.takeAlert === null && y.takeButton === "Взять себе" && y.takeRequestId === y.takeIds[idOf(LEAD_Y)] && y.takeRequestId !== took.request_id, y);
-    await tab.screenshot({ path: join(outDir, `e3r-switch-1440${LOOK_NEXT ? "-next" : ""}.png`), fullPage: false });
+    await tab.screenshot({ path: join(outDir, "e3r-switch-1440.png"), fullPage: false });
 
     // Та же запись после обновления сервером — тот же экземпляр: своё состояние сохраняется.
     await panel.getByRole("button", { name: /Взять себе/u }).click();
@@ -740,7 +736,6 @@ async function f1() {
   const outIndex = process.argv.indexOf("--f1") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const look = LOOK_NEXT ? "-next" : "";
   const { RequestsQueueView } = require(join(ROOT, "src/components/v3/requests/RequestsQueueView.tsx"));
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
@@ -760,8 +755,8 @@ async function f1() {
       props = element.props;
       return createElement("div", { id: F1_ROOT_ID }, element);
     });
-    const tree = createElement("div", { className: "v3-world", "data-look": LOOK_NEXT ? "next" : undefined },
-      createElement(AppShell, { actor: ACTORS[current.actor], initialNotifications: null, ...(LOOK_NEXT ? { look: "next" } : {}) }, wrapped));
+    const tree = createElement("div", { className: "v3-world", "data-surface": "staff" },
+      createElement(AppShell, { actor: ACTORS[current.actor], initialNotifications: null }, wrapped));
     html = renderToStaticMarkup(withContexts(tree, current.search));
   } finally {
     nodeCrypto.randomUUID = originalUuid;
@@ -769,14 +764,14 @@ async function f1() {
   }
   if (!props || !props.open) throw new Error("the page renders no RequestsQueueView with an open record");
   const key = `${props.open.kind}:${props.open.id}`;
-  const bundleName = `f1-requests${look}-client.js`;
+  const bundleName = "f1-requests-client.js";
   await require("esbuild").build({
     stdin: { contents: F1_ENTRY, resolveDir: __dirname, sourcefile: "requests-f1-entry.js", loader: "js" },
     bundle: true, outfile: join(outDir, bundleName), format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
     tsconfig: join(ROOT, "tsconfig.json"), define: { "process.env.NODE_ENV": '"production"' },
     banner: { js: "var process = globalThis.process || { env: {} };" }, plugins: [probe.linkShim(ROOT), switchStubs], logLevel: "error",
   });
-  const htmlPath = join(outDir, `f1-requests${look}.html`);
+  const htmlPath = join(outDir, "f1-requests.html");
   writeFileSync(htmlPath, [
     "<!DOCTYPE html>",
     '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -797,18 +792,17 @@ async function f1() {
       await tab.evaluate(() => document.fonts.ready);
       await tab.waitForSelector("html[data-client-rendered]", { state: "attached", timeout: 10_000 });
       await tab.waitForTimeout(400);
-      await tab.screenshot({ path: join(outDir, `f1-requests${look}-${width}.png`) });
+      await tab.screenshot({ path: join(outDir, `f1-requests-${width}.png`) });
       const open = `[data-queue-row="${key}"] [data-queue-open]`;
       const result = await probe.journey(tab, {
         selected: '[data-queue-row]:has([data-queue-open][aria-current="true"])',
         returnSelector: open,
         reopen: () => tab.click(open),
-        look: LOOK_NEXT ? "next" : "current",
-        scrolledPath: join(outDir, `f1-requests${look}-${width}-scrolled.png`),
+        scrolledPath: join(outDir, `f1-requests-${width}-scrolled.png`),
       });
       if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
-      probe.report({ screen: "requests", look: look || "-current", width, ...result });
-      failures.push(...result.failures.map((failure) => `requests${look} ${width}: ${failure}`));
+      probe.report({ screen: "requests", width, ...result });
+      failures.push(...result.failures.map((failure) => `requests ${width}: ${failure}`));
       await browserContext.close();
     }
   } finally {
@@ -830,6 +824,6 @@ if (process.argv.includes("--json")) {
 } else if (process.argv.includes("--screenshots")) {
   screenshots().catch((error) => { console.error(error); process.exit(1); });
 } else {
-  console.error("usage: requests-static-render.cjs --json | --panel-keys | --manual-lead-owners | --switch [outDir] | --screenshots [outDir] | --f1 [outDir] [--look=next]");
+  console.error("usage: requests-static-render.cjs --json | --panel-keys | --manual-lead-owners | --switch [outDir] | --screenshots [outDir] | --f1 [outDir]");
   process.exit(2);
 }

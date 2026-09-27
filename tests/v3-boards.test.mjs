@@ -109,16 +109,17 @@ test("a focused stage keeps real counts on the folded rails and a way back", () 
 test("the sidebar folds to a 64px rail on board routes below 1536px and keeps names, state and groups", () => {
   const sales = surfaces.get("sales");
   assert.match(sales, /data-testid="v3-shell"[^>]*data-shell-layout="board"/u);
-  const nav = tag(sales, /<nav aria-label="Разделы"[^>]*>/u);
-  assert.match(classOf(nav), /\bmd:w-16\b/u);
-  assert.match(classOf(nav), /\b2xl:w-\[260px\]/u);
+  const menu = tag(sales, /<div id="[^"]+" data-shell-menu=""[^>]*>/u);
+  assert.match(classOf(menu), /\bmd:w-16\b/u);
+  assert.match(classOf(menu), /\b2xl:w-\[260px\]/u);
   assert.match(sales, /<span class="min-w-0 md:max-2xl:sr-only">Сегодня<\/span>/u, "labels stay for assistive tech");
   // Group structure: the expand toggle hides in the rail, a top-layer flyout takes over.
   assert.match(sales, /<button type="button" popoverTarget="[^"]+" aria-label="Продажи" aria-expanded="false" class="hidden [^"]*md:max-2xl:flex/u);
   assert.match(sales, /<div id="[^"]+" popover="auto" role="group" aria-label="Продажи"[^>]*>[\s\S]*?Воронка продаж/u);
   assert.match(sales, /aria-current="page"[^>]*href="\/v3\/pipeline"|href="\/v3\/pipeline"[^>]*aria-current="page"/u, "active item kept");
-  // The full logo moves to the top bar while the rail is on.
-  assert.match(sales, /class="me-auto hidden [^"]*md:max-2xl:inline-flex"/u);
+  // No top bar (Э1.2, one shell since Э1.5): the logo row hides in the rail — a full logo does not fit 64px.
+  assert.match(sales, /<div class="hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex md:max-2xl:hidden">/u);
+  assert.doesNotMatch(sales, /md:min-h-16/u);
   const shell = read("src/components/v3/AppShell.tsx");
   assert.match(shell, /const board = isBoardRoute\(pathname\);/u);
   assert.match(shell, /rail \? "md:w-16 2xl:w-\[260px\]" : "md:w-\[260px\]"/u, "other routes keep the 260px sidebar");
@@ -197,19 +198,21 @@ test("sales card: full-width name, owner beside the action, due word beside its 
   const lines = (n) => [...(cards.get(n) ?? "").matchAll(/<p class="([^"]*)">([\s\S]*?)<\/p>/gu)].map(([, className, body]) => ({ className, body }));
   // Line 1 is the name alone, so a narrow 1280px column never cuts it for a due word.
   assert.match(lines("01")[0].body, /^<a [^>]*class="t-item min-w-0 flex-1 truncate[^"]*"[^>]*>Айжан Примерова<\/a>$/u);
-  // Line 2: the next action and the owner's initials, full name in the title.
-  assert.match(lines("01")[1].body, /Позвонить и уточнить страну<\/span><abbr title="Менеджер Первый" class="shrink-0 no-underline">МП<\/abbr>$/u);
-  // Line 3: «прошёл 23.09» (word, then mono ДД.ММ), «сегодня» without a date, then «4 дн.».
-  assert.match(lines("01")[2].body, /^<span><span class="t-caption shrink-0 text-danger"><span class="sr-only">срок <\/span>прошёл<\/span> <time dateTime="\d{4}-\d{2}-\d{2}" class="font-mono tabular-nums">\d{2}\.\d{2}<\/time><\/span><span aria-hidden="true"> · <\/span><span title="4 дн\. на стадии">4 дн\.<span class="sr-only"> на стадии<\/span><\/span>$/u);
-  assert.match(lines("02")[2].body, /^<time dateTime="\d{4}-\d{2}-\d{2}"><span class="t-caption shrink-0 text-warn"><span class="sr-only">срок <\/span>сегодня<\/span><\/time>/u);
-  assert.doesNotMatch(cards.get("04"), /прошёл|сегодня/u, "a later date needs no word");
+  // Line 2: the next action and the owner's initials circle (Э1.3), full name in the title and for screen readers.
+  assert.match(lines("01")[1].body, /Позвонить и уточнить страну<\/span><span class="v3-initials t-caption" data-size="sm" title="Менеджер Первый"><span aria-hidden="true">МП<\/span><span class="sr-only">Менеджер Первый<\/span><\/span>$/u);
+  // Line 3: the date, then the due word («прошёл 2 дн», «сегодня», «через 3 дн»), then «на этапе 4 дн».
+  assert.equal(lines("01")[2].className, "v3-card-meta t-meta text-fg-3");
+  assert.match(lines("01")[2].body, /^<span class="v3-card-due"><time dateTime="\d{4}-\d{2}-\d{2}" class="font-mono tabular-nums">\d{2}\.\d{2}<\/time> <span class="v3-due t-caption" data-due="overdue">прошёл \d+ дн<\/span><\/span> <span class="v3-card-age"><span aria-hidden="true">· <\/span>на этапе 4 дн<\/span>$/u);
+  assert.match(lines("02")[2].body, /^<span class="v3-card-due"><time dateTime="\d{4}-\d{2}-\d{2}" class="font-mono tabular-nums">\d{2}\.\d{2}<\/time> <span class="v3-due t-caption" data-due="today">сегодня<\/span><\/span>/u);
+  assert.doesNotMatch(cards.get("04"), /прошёл|сегодня/u, "a later date is neutral");
+  assert.match(cards.get("04"), /data-due="upcoming">через \d+ дн</u);
   assert.match(cards.get("03"), /Без следующего действия/u);
   for (const n of ["01", "02", "03", "04", "05", "06"]) assert.ok(lines(n).length <= 3, `card ${n} has at most 3 lines`);
   assert.doesNotMatch(read("src/components/v3/Pipeline.tsx"), /rounded-full|DUE_MARK/u);
-  assert.doesNotMatch(tag(surfaces.get("sales-mine"), /<article data-testid="v3-pipeline-card"[\s\S]*?<\/article>/u), /<abbr/u, "no initials when only «Мои» are shown");
+  assert.doesNotMatch(tag(surfaces.get("sales-mine"), /<article data-testid="v3-pipeline-card"[\s\S]*?<\/article>/u), /v3-initials|<abbr/u, "no initials when only «Мои» are shown");
   // A handed-off lead with no action keeps its initials on the name line, not alone on a line.
   const handed = cardsOf("sales-handed").get("13");
-  assert.match(handed, /Алина Переданная<\/a><span class="t-meta text-fg-3"><abbr title="Менеджер Первый" class="shrink-0 no-underline">МП<\/abbr><\/span><\/p>$/u);
+  assert.match(handed, /Алина Переданная<\/a><span class="t-meta text-fg-3"><span class="v3-initials t-caption" data-size="sm" title="Менеджер Первый"><span aria-hidden="true">МП<\/span><span class="sr-only">Менеджер Первый<\/span><\/span><\/span><\/p>$/u);
 });
 
 test("focused stage and the lead's stage beside the panel lay cards out in a grid, not 1000px rows", () => {
@@ -355,19 +358,19 @@ test("mobile: grouped stage list with empty stages on one line and filters behin
   assert.match(read("src/components/v3/board/BoardToolbar.tsx"), /Фильтры\s*\{activeCount > 0 \? <span className="tabular-nums">\(\{activeCount\}\)<\/span> : null\}/u);
 });
 
-test("admissions card shares the sales grammar: words, not pills; curator initials; 3 lines", () => {
+test("admissions card shares the sales grammar: states are chips with words; curator initials; 3 lines", () => {
   const admissions = surfaces.get("admissions");
   const card = (n) => tag(admissions, new RegExp(`<article [^>]*data-student-case-id="[^"]*${n}"[\\s\\S]*?<div class="absolute end-0\\.5 top-0\\.5">`, "u"));
-  assert.match(card("06"), /<span class="min-w-0 flex-1 truncate text-fg-2" title="Малайзия · UCSI University">Малайзия · UCSI University<\/span><abbr title="Куратор Один" class="shrink-0 no-underline">КО<\/abbr>/u);
-  assert.match(card("06"), /<span class="t-caption text-danger">просрочено<\/span><span aria-hidden="true" class="text-fg-3"> · <\/span><a draggable="false" class="t-caption text-danger[^"]*" href="\/v3\/messages\?case=[^"]+">нужен ответ<\/a>/u);
-  assert.match(card("01"), /<span class="t-caption text-warn">ждёт принятия<\/span>/u);
+  assert.match(card("06"), /<span class="min-w-0 flex-1 truncate text-fg-2" title="Малайзия · UCSI University">Малайзия · UCSI University<\/span><span class="v3-initials t-caption" data-size="sm" title="Куратор Один"><span aria-hidden="true">КО<\/span><span class="sr-only">Куратор Один<\/span><\/span>/u);
+  assert.match(card("06"), /<p class="flex flex-wrap gap-1 py-px"><span class="v3-chip t-caption" data-tone="danger" data-size="sm">просрочено<\/span><a draggable="false" class="v3-chip-link inline-flex" href="\/v3\/messages\?case=[^"]+"><span class="v3-chip t-caption" data-tone="danger" data-size="sm">нужен ответ<\/span><\/a><\/p>/u);
+  assert.match(card("01"), /<span class="v3-chip t-caption" data-tone="warn" data-size="sm">ждёт принятия<\/span>/u);
   for (const n of ["01", "02", "03", "04", "05", "06", "07"]) {
     assert.ok(count(card(n), /<p class=/gu) <= 3, `case ${n} has at most 3 lines`);
   }
   const source = read("src/components/v3/AdmissionsPipelineBoard.tsx");
   assert.doesNotMatch(source, /<Pill\b|Ожидает принятия/u);
   assert.match(source, /const showCurator = query\.curator === null/u);
-  assert.equal(count(surfaces.get("admissions-curator"), /<abbr/gu), 0, "no curator initials once «Куратор» is chosen");
+  assert.equal(count(surfaces.get("admissions-curator"), /v3-initials|<abbr/gu), 0, "no curator initials once «Куратор» is chosen");
   assert.match(source, /<Icon name="chevron-down" size=\{16\} className=\{cn\("shrink-0 text-fg-3", otherOpen && "rotate-180"\)\} \/>/u, "inline disclosure, not a flyout chevron");
   // Queue links: one quiet wrapping line, also on a phone.
   const queues = tag(admissions, /<nav aria-label="Очереди на проверку"[^>]*>/u);
@@ -375,10 +378,11 @@ test("admissions card shares the sales grammar: words, not pills; curator initia
   assert.match(read("src/app/(v3)/v3/admissions-pipeline/page.tsx"), /const QUEUE_LINK_CLASS =\s*"t-meta inline-flex min-h-11 /u);
 });
 
-test("rail mode keeps the 64px top bar: the moved logo is sized to fit", () => {
-  assert.match(read("src/components/v3/AppShell.tsx"), /<EvoLogo width=\{100\} \/>/u);
-  // 100px wide at 1843×842 is 46px tall: + 2 × 8px padding + 1px border ≤ 64px.
-  assert.ok(Math.ceil((100 * 842) / 1843) + 16 + 1 <= 64);
+test("rail mode has no top bar: the logo row hides in the 64px rail, the menu keeps its items", () => {
+  const shell = read("src/components/v3/AppShell.tsx");
+  // A full logo does not read in 64px (Э1.2); the rail keeps icons with hints and the account.
+  assert.match(shell, /cn\("hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex", rail && "md:max-2xl:hidden"\)/u);
+  assert.doesNotMatch(shell, /md:min-h-16|EvoLogo width=\{100\}/u, "no top bar");
 });
 
 test("error copy names no provider and the admissions route has a board skeleton", () => {

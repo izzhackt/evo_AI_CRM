@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
 import { CloseRecordMenu, MENU_ITEM } from "../closure/Closure";
@@ -50,6 +51,7 @@ export function LeadMoreMenu({
   blockedReason,
   closable,
   portalGroupId,
+  portalHref,
 }: Readonly<{
   leadId: string;
   name: string;
@@ -58,7 +60,10 @@ export function LeadMoreMenu({
   closable: boolean;
   /** id группы «Доступ к порталу»; null — группы нет. */
   portalGroupId: string | null;
+  /** «Обзор» с якорем группы: на других вкладках группы на странице нет — переход к ней. */
+  portalHref: string;
 }>) {
+  const router = useRouter();
   return (
     <CloseRecordMenu
       kind="lead"
@@ -69,7 +74,7 @@ export function LeadMoreMenu({
       closable={closable}
       triggerClassName="flex size-11 shrink-0 items-center justify-center rounded-ctl border border-control-edge bg-surface text-fg-2 hover:bg-surface-2 hover:text-fg"
       items={portalGroupId ? (close) => (
-        <button type="button" className={MENU_ITEM} onClick={() => { close(); openLeadGroup(portalGroupId); }}>
+        <button type="button" className={MENU_ITEM} onClick={() => { close(); if (!openLeadGroup(portalGroupId)) router.push(portalHref); }}>
           Доступ к порталу
         </button>
       ) : undefined}

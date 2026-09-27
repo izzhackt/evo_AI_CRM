@@ -212,6 +212,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         blockedReason={sales.handoff.handedOffAt ? closureWords.lead.handedOff : null}
         closable={closable}
         portalGroupId={LEAD_PORTAL_GROUP_ID}
+        portalHref={`${input.hrefFor("overview")}#${LEAD_PORTAL_GROUP_ID}`}
       />
     </div>
   );

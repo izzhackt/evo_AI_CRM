@@ -14,6 +14,7 @@ import { readTaskComposerAssigneesAction } from "@/lib/v3/task-composer-actions"
 import { ComposerDeadlineField } from "./ComposerDeadlineField";
 import { TaskCasePicker } from "./TaskCasePicker";
 import { nextComposerRequestId } from "./composer-request-id";
+import { browserComposerDraftStore as drafts, composerDraftContext, EMPTY_COMPOSER_DRAFT, openComposerDraft, switchComposerDraft } from "./composer-draft";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import type { CalendarCaseOption, Day } from "../calendar/types";
 
@@ -32,31 +33,8 @@ const PRIORITY_LABEL: Record<PlatformCaseTaskPriority, string> = { low: "Низ�
 
 type ComposerStatus = "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable";
 type ComposerState = Readonly<{ status: ComposerStatus; href: string | null }>;
-type Draft = Readonly<{ title: string; description: string }>;
 type CaseAssignee = Readonly<{ membershipId: string; displayName: string }>;
 type StaffPeople = Readonly<{ status: "loading" | "ready" | "unavailable"; rows: readonly StaffParticipant[] }>;
-
-function draftStorageKey(context: string): string {
-  return `evo-task-composer-draft:${context}`;
-}
-function readDraft(context: string): Draft | null {
-  try {
-    const raw = window.localStorage.getItem(draftStorageKey(context));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<Draft>;
-    if (typeof parsed.title !== "string" || typeof parsed.description !== "string") return null;
-    return { title: parsed.title, description: parsed.description };
-  } catch { return null; }
-}
-function writeDraft(context: string, draft: Draft): void {
-  try {
-    if (!draft.title && !draft.description) { window.localStorage.removeItem(draftStorageKey(context)); return; }
-    window.localStorage.setItem(draftStorageKey(context), JSON.stringify(draft));
-  } catch { /* per-viewer convenience only; a blocked store must not break the form */ }
-}
-function clearDraft(context: string): void {
-  try { window.localStorage.removeItem(draftStorageKey(context)); } catch { /* see writeDraft */ }
-}
 
 /**
  * Единственный диалог создания задачи (Э7, «Один способ создать задачу»).
@@ -159,16 +137,14 @@ function TaskComposerModal({
   const [attachedCase, setAttachedCase] = useState(caseAllowed ? initialCase : null);
   const [caseSectionOpen, setCaseSectionOpen] = useState(Boolean(attachedCase) || !staffAllowed);
   const [caseId, setCaseId] = useState(attachedCase?.id ?? "");
-  // Keyed by the CURRENTLY SELECTED case (state), not the initialCase prop:
-  // the case picker can change caseId within one open dialog (TaskCasePicker
-  // -> onCaseChange), and a draft typed with case A selected must not leak
-  // into a later case-B or general session under a stale key.
-  const draftContext = caseId ? `case:${caseId}` : sourceMessageId ? `chat:${sourceMessageId}` : sourceLeadId ? `lead:${sourceLeadId}` : "general";
-  // Lazy initializers hydrate synchronously from the one draft this exact
-  // dialog instance owns -- an effect would set state right after mount for
-  // no benefit, since the dialog is freshly created per open() anyway.
-  const [title, setTitle] = useState(() => initialTitle.trim() || readDraft(draftContext)?.title || "");
-  const [description, setDescription] = useState(() => readDraft(draftContext)?.description ?? "");
+  const caseMode = caseAllowed && (caseSectionOpen || !staffAllowed);
+  // Черновик — под видом задачи, которую создала бы отправка сейчас
+  // (`composer-draft.ts`): дело считается, только пока задача идёт по делу.
+  const draftContext = composerDraftContext({ caseId: caseMode ? caseId : "", sourceMessageId, sourceLeadId });
+  // Поля входа читаются один раз: диалог создаётся заново при каждом открытии.
+  const [opened] = useState(() => openComposerDraft(drafts, draftContext, initialTitle));
+  const [title, setTitle] = useState(opened.title);
+  const [description, setDescription] = useState(opened.description);
   const [priority, setPriority] = useState<PlatformCaseTaskPriority>("normal");
   const [studentVisible, setStudentVisible] = useState(false);
   const [staffAssignee, setStaffAssignee] = useState(actorMembershipId);
@@ -194,17 +170,17 @@ function TaskComposerModal({
   useEffect(() => {
     if (state.status === "saved") return;
     if (previousDraftContext.current !== draftContext) {
-      // Case switched since the last run: move the in-progress draft to its
-      // previous key instead of leaking it under the new one on the next
-      // keystroke, then hydrate from whatever the new key already holds.
-      writeDraft(previousDraftContext.current, { title, description });
-      const next = readDraft(draftContext);
-      setTitle(next?.title ?? "");
-      setDescription(next?.description ?? "");
+      // Дело выбрано, убрано («Без дела») или раздел свёрнут: набранное
+      // остаётся в полях и переезжает на новый ключ; черновик нового ключа
+      // заполняет только пустые поля (`switchComposerDraft`).
+      const from = previousDraftContext.current;
       previousDraftContext.current = draftContext;
+      const next = switchComposerDraft(drafts, from, draftContext, { title, description });
+      if (next.title !== title) setTitle(next.title);
+      if (next.description !== description) setDescription(next.description);
       return;
     }
-    writeDraft(draftContext, { title, description });
+    drafts.write(draftContext, { title, description });
   }, [draftContext, title, description, state.status]);
 
   useEffect(() => {
@@ -238,7 +214,6 @@ function TaskComposerModal({
     return () => { cancelled = true; };
   }, [participants, staffAllowed, staffRead]);
 
-  const caseMode = caseAllowed && (caseSectionOpen || !staffAllowed);
   const candidatesReady = caseCandidates.caseId === caseId && caseCandidates.status === "ready";
   // Without "task.assign" the actor may only assign a case task to
   // themselves -- the same guard the case task command enforces.
@@ -306,7 +281,7 @@ function TaskComposerModal({
         );
         if (result.status === "saved" && result.caseTaskId) {
           setState({ status: "saved", href: `/v3/tasks?task=${result.caseTaskId}&kind=case&case=${caseId}` });
-          clearDraft(draftContext);
+          drafts.write(draftContext, EMPTY_COMPOSER_DRAFT);
           router.refresh();
         } else {
           const shown = result.status === "saved" ? "unavailable" : result.status;
@@ -336,7 +311,7 @@ function TaskComposerModal({
         const result = await mutateStaffTaskAction({ status: "idle", requestId: requestId.current, taskId: null, version: null }, form);
         if (result.status === "saved" && result.taskId) {
           setState({ status: "saved", href: `/v3/tasks?task=${result.taskId}` });
-          clearDraft(draftContext);
+          drafts.write(draftContext, EMPTY_COMPOSER_DRAFT);
           router.refresh();
         } else {
           const shown = result.status === "saved" ? "unavailable" : result.status;
@@ -395,6 +370,9 @@ function TaskComposerModal({
             {caseRemovable && staffAllowed ? <button type="button" className={`${QUIET} -ms-2`} disabled={locked} onClick={detachCase}>
               Без дела
             </button> : null}
+          </div> : !staffAllowed ? <div className="grid gap-3 sm:grid-cols-2" data-composer-context="case-search">
+            {/* Без права на рабочую задачу дело обязательно: поиск открыт сразу, без раскрытия «· необязательно», которое можно свернуть. */}
+            <TaskCasePicker initialCases={initialCases} initialHasMore={casesHaveMore} onCaseChange={setCaseId} disabled={locked} />
           </div> : <details open={caseSectionOpen} onToggle={(event) => setCaseSectionOpen(event.currentTarget.open)} className="group">
             <summary className={DISCLOSURE}>
               Студент/дело · необязательно

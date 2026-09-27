@@ -21,7 +21,8 @@
  *     → снимки `e7-*.png` (1440×900, 1280×800, 390×844); по умолчанию
  *       outDir — .impeccable/review (не коммитится). Проверки печатаются
  *       строкой на снимок; нарушение — код выхода 1. После снимков — пути
- *       клавиатуры, фокуса массовых действий и ключа повтора создания.
+ *       клавиатуры, фокуса массовых действий, ключа повтора создания и
+ *       черновика при смене дела (1440 и 390).
  */
 
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -73,6 +74,8 @@ const ACTOR = {
   authUserId: "bbbbbbbb-7777-4777-8777-000000000001", profileId: "bbbbbbbb-7777-4777-8777-000000000002",
   membershipId: ME, organizationId: ORG, displayName: "Администратор (синтетический)", systemRole: "admin",
   platformAccessVersion: 1, assignments: [], permissionKeys: [], email: "synthetic@example.invalid", presentationRole: null,
+  // «case» — сотрудник с задачами по студентам без staff.task.create: у него нет «Создать задачу» оболочки, есть своя кнопка календаря.
+  ...(fixture.actor === "case" ? { systemRole: "staff", displayName: "Сотрудник поступления (синтетический)", permissionKeys: ["case.read.full", "task.create", "task.assign"] } : {}),
 };
 const PARTICIPANTS = [ME, B, C].map((membershipId) => ({ membershipId, displayName: NAMES[membershipId], role: "admissions" }));
 
@@ -337,6 +340,7 @@ const PAGES = {
   students: { pathname: "/v3/profile", search: `view=active&open=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
   "students-plain": { page: "students", pathname: "/v3/profile", search: "view=active" },
   calendar: { pathname: "/v3/calendar", search: "view=week&date=2026-09-26" },
+  "calendar-case-only": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", actor: "case" },
   case: { pathname: "/v3/profile", search: `case=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
 };
 
@@ -381,6 +385,14 @@ const SHOTS = [
     await clickShellCreate(page);
     const due = await page.locator('[data-testid="v3-task-composer-dialog"] input[name="due_on"]').inputValue();
     if (due !== "2026-09-26") throw new Error(`the calendar day is not the default deadline: ${due}`);
+  }],
+  // Без staff.task.create: своя кнопка календаря; дело обязательно — поиск открыт сразу, без сворачиваемого раздела.
+  ["e7-composer-calendar-case-only", "calendar-case-only", async (page) => {
+    await page.getByTestId("v3-calendar-new-task").click();
+    const dialog = page.getByTestId("v3-task-composer-dialog");
+    await dialog.locator('[data-composer-context="case-search"]').waitFor();
+    const folds = await dialog.locator("summary").filter({ hasText: /^Студент\/дело/u }).count();
+    if (folds) throw new Error("a required case is shown as an optional, foldable section");
   }],
   ["e7-composer-quickadd", "tasks", async (page) => {
     await page.fill('[data-testid="task-quick-add"] input', "Позвонить семье после консультации");
@@ -493,7 +505,7 @@ async function screenshots() {
   const css = await compileCss();
   const look = LOOK_NEXT ? "next" : "current";
   for (const [name, config] of Object.entries(PAGES)) {
-    const fixture = JSON.stringify({ page: config.page ?? name, pathname: config.pathname, search: config.search, look }).replaceAll("<", "\\u003c");
+    const fixture = JSON.stringify({ page: config.page ?? name, pathname: config.pathname, search: config.search, look, actor: config.actor ?? "admin" }).replaceAll("<", "\\u003c");
     writeFileSync(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}${name}.html`), [
       "<!DOCTYPE html>",
       '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -721,6 +733,204 @@ async function retryKeyProbe(browser, outDir, expect) {
   const caseTask = check("calendar case task", await attempts("case"));
   process.stdout.write(`retry key: staff ${staff ? "same key on retry, new after conflict" : "FAILED"}; calendar case ${caseTask ? "same key on retry, new after conflict" : "FAILED"}\n`);
   await context.close();
+  for (const width of [1440, 390]) await draftProbe(browser, outDir, expect, width);
+}
+
+/**
+ * Набранное не теряется при смене дела (ревью bf378717, `composer-draft.ts`).
+ * Прежний диалог при выборе дела после ввода или при «Без дела» сохранял
+ * название под прежним ключом и ставил в поле черновик нового ключа — пусто
+ * или старый текст; обязательное название останавливало отправку. Здесь в
+ * хранилище заранее лежат старые черновики: у выбираемого дела, у другого дела
+ * и у рабочей задачи. Пути: сценарий `supabase-staff-auth.spec.ts` шаг в шаг
+ * (название → «Студент/дело» → дело → «Приоритет» → отправка) — кнопкой
+ * оболочки и своей кнопкой календаря (без staff.task.create); дело → ввод →
+ * другое дело → то же дело; страница дела: ввод → «Без дела». В каждом —
+ * название на месте, `checkValidity()` истина и команда создания вызвана с
+ * нужным делом (или без дела) и тем же названием.
+ */
+async function draftProbe(browser, outDir, expect, width) {
+  const PREFIX = "evo-task-composer-draft:";
+  const caseId = (n) => "cccccccc-2222-4222-8222-" + String(n).padStart(12, "0");
+  const PICKED = caseId(1);
+  const OTHER = caseId(2);
+  const PAGE_CASE = caseId(3);
+  const OWN = { title: "Старый черновик этого дела", description: "" };
+  const FOREIGN = { title: "Черновик другого дела", description: "" };
+  const GENERAL = { title: "Старый черновик рабочей задачи", description: "Старое описание" };
+  const phone = width < 768;
+  const label = (journey) => `draft ${width}: ${journey}`;
+  const viewport = phone
+    ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
+    : { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 };
+
+  const open = async (pageName, drafts) => {
+    const context = await browser.newContext(viewport);
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(pathToFileURL(join(outDir, `e7-${LOOK_NEXT ? "next-" : ""}${pageName}.html`)).href, { waitUntil: "load" });
+    await page.waitForSelector("html[data-rendered]", { state: "attached" });
+    await page.evaluate(([prefix, seed]) => {
+      localStorage.clear();
+      for (const [key, draft] of Object.entries(seed)) localStorage.setItem(prefix + key, JSON.stringify(draft));
+      window.__created = [];
+      window.__e7Actions.createPlatformAdmissionsTaskAction = async (_previous, form) => {
+        window.__created.push({ command: "create_case_task", ...Object.fromEntries(form.entries()) });
+        return { status: "saved", requestId: form.get("request_id"), caseTaskId: "cccccccc-9999-4999-8999-000000000001", version: "1", changedAt: new Date().toISOString() };
+      };
+      window.__e7Actions.mutateStaffTaskAction = async (_previous, form) => {
+        window.__created.push({ command: "mutate_staff_task", ...Object.fromEntries(form.entries()) });
+        return { status: "saved", requestId: form.get("request_id"), taskId: "bbbbbbbb-9999-4999-8999-000000000001", version: "1" };
+      };
+    }, [PREFIX, drafts]);
+    return { context, page, errors };
+  };
+  const facts = (page) => page.evaluate(() => {
+    const dialog = document.querySelector('[data-testid="v3-task-composer-dialog"][open]');
+    const form = dialog?.querySelector("form");
+    return {
+      title: dialog?.querySelector('input[name="title"]')?.value ?? null,
+      description: dialog?.querySelector("textarea")?.value ?? null,
+      valid: form ? form.checkValidity() : null,
+      mode: form?.getAttribute("data-composer-mode") ?? null,
+    };
+  });
+  const stored = (page) => page.evaluate((prefix) => Object.fromEntries(Object.keys(localStorage)
+    .filter((key) => key.startsWith(prefix)).map((key) => [key.slice(prefix.length), JSON.parse(localStorage.getItem(key))])), PREFIX);
+  const submitReady = (page) => page.waitForFunction(() => {
+    const button = document.querySelector('[data-testid="v3-task-composer-dialog"][open] button[type="submit"]');
+    return button && !button.disabled;
+  });
+  const submit = async (page) => {
+    const dialog = page.getByTestId("v3-task-composer-dialog");
+    await submitReady(page);
+    await dialog.locator('button[type="submit"]').click();
+    await dialog.getByRole("status").filter({ hasText: "Задача создана." }).waitFor({ timeout: 5_000 });
+    return page.evaluate(() => window.__created);
+  };
+  const expectTyped = async (page, journey, typed, mode) => {
+    const now = await facts(page);
+    expect(label(`${journey}: the typed title survives`), now.title === typed, now);
+    expect(label(`${journey}: the form passes the browser's validity check`), now.valid === true, now);
+    expect(label(`${journey}: composer mode is ${mode}`), now.mode === mode, now);
+    return now;
+  };
+  const ran = [];
+  const run = async (journey, body) => {
+    ran.push(journey);
+    try { await body(); } catch (error) { expect(label(`${journey}: step failed`), false, { error: error.message.split("\n")[0] }); }
+  };
+
+  // (1) Сценарий supabase-staff-auth.spec.ts шаг в шаг: «Создать задачу» оболочки
+  // (или своя кнопка календаря) → название → «Студент/дело» → дело → «Приоритет» → отправка.
+  // Чистое хранилище — как у живого сценария в новом браузере (там прежний диалог давал пустое название);
+  // со старыми черновиками — прежний диалог ставил в поле чужой текст и отправлял его.
+  const seeds = [["fresh storage", {}], ["stale drafts", { [`case:${PICKED}`]: OWN, [`case:${OTHER}`]: FOREIGN }]];
+  for (const [pageName, entry, [seedName, seed]] of [["calendar", "shell"], ["calendar-case-only", "calendar button"]].flatMap(([name, button]) => seeds.map((pair) => [name, button, pair]))) {
+    await run(`type → pick case (spec order, ${entry}, ${seedName})`, async () => {
+      const journey = `type → pick case (spec order, ${entry}, ${seedName})`;
+      const { context, page, errors } = await open(pageName, seed);
+      // Как в сценарии: первая видимая из кнопки оболочки и своей кнопки календаря; на телефоне нового облика кнопка оболочки — в листе «Ещё».
+      const entryButton = page.locator('a[href="/v3/tasks?create=staff"], [data-testid="v3-calendar-new-task"]').filter({ visible: true });
+      if (await entryButton.count()) await entryButton.first().click();
+      else await clickShellCreate(page);
+      const dialog = page.getByTestId("v3-task-composer-dialog");
+      await dialog.waitFor();
+      const ownButton = await page.getByTestId("v3-calendar-new-task").count();
+      expect(label(`${journey}: the entry is the expected button`), entry === "shell" ? ownButton === 0 : ownButton === 1, { ownButton });
+      const typed = "Синтетическая задача: проверить перевод аттестата";
+      await dialog.locator('input[name="title"]').fill(typed);
+      const caseSection = dialog.locator("summary").filter({ hasText: /^Студент\/дело/u });
+      if (await caseSection.count()) await caseSection.click();
+      await dialog.getByRole("combobox", { name: "Студент", exact: true }).selectOption(PICKED);
+      const picked = await dialog.locator('[name="student_case_id"]').inputValue();
+      expect(label(`${journey}: the case is selected`), picked === PICKED, { picked });
+      await expectTyped(page, journey, typed, "case");
+      const kind = await dialog.locator('input[name="deadline_kind"]').inputValue();
+      const due = await dialog.locator('input[name="due_on"]').inputValue();
+      expect(label(`${journey}: all-day deadline on the calendar day`), kind === "all_day" && due === "2026-09-26", { kind, due });
+      await dialog.locator("summary").filter({ hasText: /^Приоритет/u }).click();
+      await dialog.locator('select[name="priority"]').selectOption("high");
+      if (entry !== "shell") {
+        const visibility = await dialog.locator('select[name="student_visible"]').count();
+        expect(label(`${journey}: no visibility selector without task.visibility.manage`), visibility === 0, { visibility });
+      }
+      await expectTyped(page, journey, typed, "case");
+      const created = await submit(page);
+      const call = created[0] ?? {};
+      expect(label(`${journey}: create_case_task is invoked once with the case and the typed title`),
+        created.length === 1 && call.command === "create_case_task" && call.student_case_id === PICKED && call.title === typed
+          && call.priority === "high" && call.due_on === "2026-09-26" && (entry === "shell" || call.student_visible === "false"), { created });
+      const after = await stored(page);
+      expect(label(`${journey}: drafts after save: the case draft is cleared, the other case's draft is untouched, none leaked`),
+        !(`case:${PICKED}` in after) && !("general" in after) && JSON.stringify(after[`case:${OTHER}`]) === JSON.stringify(seed[`case:${OTHER}`]), { after });
+      if (errors.length) expect(label(`${journey}: no page errors`), false, { errors });
+      await context.close();
+    });
+  }
+
+  // (2) Дело → ввод: пустые поля получают черновик ЭТОГО дела (не другого); набранное
+  // переживает переход на другое дело и обратно.
+  await run("pick case → type", async () => {
+    const journey = "pick case → type";
+    const { context, page, errors } = await open("calendar", { [`case:${PICKED}`]: OWN, [`case:${OTHER}`]: FOREIGN });
+    await clickShellCreate(page);
+    const dialog = page.getByTestId("v3-task-composer-dialog");
+    const empty = await facts(page);
+    expect(label(`${journey}: the menu entry opens empty (no general draft)`), empty.title === "", empty);
+    await dialog.locator("summary").filter({ hasText: /^Студент\/дело/u }).click();
+    const student = dialog.getByRole("combobox", { name: "Студент", exact: true });
+    await student.selectOption(PICKED);
+    await page.waitForFunction((own) => document.querySelector('[data-testid="v3-task-composer-dialog"][open] input[name="title"]')?.value === own, OWN.title, { timeout: 2_000 }).catch(() => {});
+    const restored = await facts(page);
+    expect(label(`${journey}: an empty form takes this case's own draft`), restored.title === OWN.title, restored);
+    const typed = "Синтетическая задача: записать на собеседование";
+    await dialog.locator('input[name="title"]').fill(typed);
+    await expectTyped(page, journey, typed, "case");
+    await student.selectOption(OTHER);
+    await page.waitForTimeout(100);
+    const switched = await facts(page);
+    expect(label(`${journey}: another case's draft never replaces typed text`), switched.title === typed, switched);
+    await student.selectOption(PICKED);
+    await page.waitForTimeout(100);
+    await expectTyped(page, journey, typed, "case");
+    const created = await submit(page);
+    const call = created[0] ?? {};
+    expect(label(`${journey}: create_case_task is invoked with the picked case and the typed title`),
+      created.length === 1 && call.command === "create_case_task" && call.student_case_id === PICKED && call.title === typed, { created });
+    if (errors.length) expect(label(`${journey}: no page errors`), false, { errors });
+    await context.close();
+  });
+
+  // (3) Страница дела: ввод → «Без дела». У рабочей задачи лежит старый черновик с описанием.
+  await run("type → «Без дела»", async () => {
+    const journey = "type → «Без дела»";
+    const { context, page, errors } = await open("case", { general: GENERAL, [`case:${OTHER}`]: FOREIGN });
+    await clickShellCreate(page);
+    const dialog = page.getByTestId("v3-task-composer-dialog");
+    const typed = "Синтетическая задача: подготовить договор";
+    await dialog.locator('input[name="title"]').fill(typed);
+    await expectTyped(page, journey, typed, "case");
+    await dialog.locator('[data-composer-context="case"] button', { hasText: "Без дела" }).click();
+    await page.waitForTimeout(100);
+    const detached = await expectTyped(page, journey, typed, "staff");
+    expect(label(`${journey}: the stale general description does not appear`), detached.description === "", detached);
+    const midway = await stored(page);
+    expect(label(`${journey}: the typed text moved to the general key; the page case key is empty`),
+      midway.general?.title === typed && midway.general?.description === "" && !(`case:${PAGE_CASE}` in midway), { midway });
+    const created = await submit(page);
+    const call = created[0] ?? {};
+    expect(label(`${journey}: mutate_staff_task create is invoked with the typed title and no case or source`),
+      created.length === 1 && call.command === "mutate_staff_task" && call.operation === "create" && call.title === typed
+        && call.description === "" && call.source_lead_id === "" && call.source_message_id === "" && !("student_case_id" in call), { created });
+    const after = await stored(page);
+    expect(label(`${journey}: drafts after save: general cleared, the other case's draft untouched`),
+      !("general" in after) && JSON.stringify(after[`case:${OTHER}`]) === JSON.stringify(FOREIGN), { after });
+    if (errors.length) expect(label(`${journey}: no page errors`), false, { errors });
+    await context.close();
+  });
+  process.stdout.write(`draft ${width}: ran ${ran.join("; ")} — a failed check is listed under «E7 harness failures»\n`);
 }
 
 if (process.argv.includes("--screenshots")) {

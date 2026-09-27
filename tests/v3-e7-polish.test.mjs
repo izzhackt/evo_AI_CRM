@@ -21,6 +21,7 @@ import * as queueButtons from "../src/components/v3/queue/queue-buttons.ts";
 import * as bulkRun from "../src/components/v3/queue/bulk-run.ts";
 import * as taskCommands from "../src/components/v3/tasks/task-commands.ts";
 import * as composerRequestId from "../src/components/v3/tasks/composer-request-id.ts";
+import * as composerDraft from "../src/components/v3/tasks/composer-draft.ts";
 import * as nextStepInput from "../src/components/v3/students/next-step-input.ts";
 import * as studentsView from "../src/components/v3/students/students-queue-view.ts";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
@@ -93,6 +94,7 @@ const composer = compile("src/components/v3/tasks/TaskComposerDialog.tsx", (id) 
   if (id === "./ComposerDeadlineField") return deadlineField;
   if (id === "./TaskCasePicker") return casePicker;
   if (id === "./composer-request-id") return composerRequestId;
+  if (id === "./composer-draft") return composerDraft;
   if (id === "../queue/queue-buttons") return queueButtons;
   return require(id);
 });
@@ -162,6 +164,144 @@ test("a retry after an unconfirmed save keeps its request id; only a spent key r
   assert.match(caseActions, /return failureState\(form, "unavailable", null, requestId\);/u);
   const staffActions = read("src/lib/platform-staff-task-actions.ts");
   assert.match(staffActions, /const failed = \(status: StaffTaskActionState\["status"\]\): StaffTaskActionState => \(\{ status, requestId, taskId: null, version: null \}\);/u);
+});
+
+/** Хранилище черновиков в памяти: то же, что `localStorage`, с журналом записей. */
+function memoryDrafts(entries = {}) {
+  const map = new Map(Object.entries(entries));
+  const writes = [];
+  return {
+    map, writes,
+    read: (context) => map.get(context) ?? null,
+    write(context, draft) {
+      writes.push(context);
+      if (composerDraft.composerDraftIsEmpty(draft)) map.delete(context);
+      else map.set(context, { title: draft.title, description: draft.description });
+    },
+  };
+}
+
+test("composer drafts are keyed by the task a submit would create now", () => {
+  const { composerDraftContext } = composerDraft;
+  assert.equal(composerDraftContext({ caseId: CASE.id }), `case:${CASE.id}`);
+  assert.equal(composerDraftContext({ caseId: CASE.id, sourceLeadId: LEAD.id }), `case:${CASE.id}`);
+  assert.equal(composerDraftContext({ caseId: "", sourceMessageId: "m-1" }), "chat:m-1");
+  assert.equal(composerDraftContext({ caseId: "", sourceLeadId: LEAD.id }), `lead:${LEAD.id}`);
+  assert.equal(composerDraftContext({ caseId: "" }), "general");
+  // Дело считается, только пока задача идёт по делу: свёрнутый раздел «Студент/дело» — рабочая задача.
+  const source = read("src/components/v3/tasks/TaskComposerDialog.tsx");
+  assert.match(source, /const draftContext = composerDraftContext\(\{ caseId: caseMode \? caseId : "", sourceMessageId, sourceLeadId \}\);/u);
+  // Ключи прежние: черновики, набранные до этого среза, читаются.
+  assert.match(read("src/components/v3/tasks/composer-draft.ts"), /const STORAGE_PREFIX = "evo-task-composer-draft:";/u);
+});
+
+test("opening the composer: a title typed before opening beats the draft; otherwise the entry's own draft", () => {
+  const { openComposerDraft } = composerDraft;
+  const store = memoryDrafts({ general: { title: "Черновик меню", description: "Описание черновика" } });
+  assert.deepEqual(openComposerDraft(store, "general", "  Набрано в строке  "), { title: "Набрано в строке", description: "Описание черновика" });
+  assert.deepEqual(openComposerDraft(store, "general", ""), { title: "Черновик меню", description: "Описание черновика" });
+  assert.deepEqual(openComposerDraft(store, `case:${CASE.id}`, ""), { title: "", description: "" });
+  assert.deepEqual(store.writes, []);
+});
+
+test("switching the case keeps typed text: type → pick a case, and type → «Без дела», with stale drafts present", () => {
+  const { switchComposerDraft } = composerDraft;
+  const caseKey = `case:${CASE.id}`;
+  const otherKey = "case:20000000-0000-4000-8000-000000000099";
+  const stale = { title: "Старый черновик дела", description: "" };
+  const unrelated = { title: "Черновик другого дела", description: "" };
+
+  // Календарь / меню: набрали название, затем выбрали дело (у дела лежит старый черновик).
+  const typed = { title: "Позвонить семье", description: "Уточнить дату" };
+  const store = memoryDrafts({ general: typed, [caseKey]: stale, [otherKey]: unrelated });
+  const afterPick = switchComposerDraft(store, "general", caseKey, typed);
+  assert.equal(afterPick, typed, "typed fields are returned as they are — the caller does not touch them");
+  assert.deepEqual(store.map.get(caseKey), typed, "the typed text moves to the case key and replaces the stale draft");
+  assert.equal(store.map.has("general"), false, "the key the user left no longer holds the same text");
+  assert.deepEqual(store.map.get(otherKey), unrelated, "another case's draft is never touched");
+
+  // Страница дела: набрали название, затем «Без дела» (у рабочей задачи лежит старый черновик).
+  const caseTyped = { title: "Отправить перевод паспорта", description: "" };
+  const detach = memoryDrafts({ [caseKey]: caseTyped, general: { title: "Старый рабочий черновик", description: "Старое описание" } });
+  const afterDetach = switchComposerDraft(detach, caseKey, "general", caseTyped);
+  assert.equal(afterDetach, caseTyped);
+  assert.deepEqual(detach.map.get("general"), caseTyped);
+  assert.equal(detach.map.has(caseKey), false);
+
+  // Набрано только описание или только пробел — это тоже ввод: черновик нового ключа его не заменяет.
+  for (const current of [{ title: "", description: "Только описание" }, { title: " ", description: "" }]) {
+    const partial = memoryDrafts({ [caseKey]: stale });
+    assert.equal(switchComposerDraft(partial, "general", caseKey, current), current);
+    assert.deepEqual(partial.map.get(caseKey), current);
+  }
+});
+
+test("an empty composer takes the new key's own draft; nothing else ever fills the fields", () => {
+  const { switchComposerDraft, EMPTY_COMPOSER_DRAFT } = composerDraft;
+  const caseKey = `case:${CASE.id}`;
+  const own = { title: "Черновик этого дела", description: "" };
+  const store = memoryDrafts({ [caseKey]: own, "case:20000000-0000-4000-8000-000000000099": { title: "Черновик другого дела", description: "" } });
+  // Выбрали дело до ввода: пустые поля получают черновик того же дела, записи не меняются.
+  assert.deepEqual(switchComposerDraft(store, "general", caseKey, EMPTY_COMPOSER_DRAFT), own);
+  assert.deepEqual(store.writes, []);
+  // У нового ключа черновика нет — поля остаются пустыми, а не берут чужой.
+  assert.equal(switchComposerDraft(store, caseKey, "general", EMPTY_COMPOSER_DRAFT), EMPTY_COMPOSER_DRAFT);
+  // Тот же ключ — не смена.
+  const typed = { title: "x", description: "" };
+  assert.equal(switchComposerDraft(store, caseKey, caseKey, typed), typed);
+  assert.deepEqual(store.writes, []);
+});
+
+test("the dialog moves drafts only through switchComposerDraft and never overwrites typed fields", () => {
+  const source = read("src/components/v3/tasks/TaskComposerDialog.tsx");
+  const effect = source.match(/useEffect\(\(\) => \{\n\s+if \(state\.status === "saved"\) return;[\s\S]*?\n {2}\}, \[draftContext, title, description, state\.status\]\);/u)?.[0] ?? "";
+  assert.ok(effect, "the draft effect is present");
+  assert.match(effect, /const next = switchComposerDraft\(drafts, from, draftContext, \{ title, description \}\);/u);
+  assert.match(effect, /if \(next\.title !== title\) setTitle\(next\.title\);/u);
+  assert.match(effect, /if \(next\.description !== description\) setDescription\(next\.description\);/u);
+  // Прежняя ошибка: поля при смене дела заполнялись черновиком нового ключа или пустотой.
+  assert.doesNotMatch(source, /setTitle\(next\?\.title \?\? ""\)|readDraft\(/u);
+  assert.match(source, /const \[opened\] = useState\(\(\) => openComposerDraft\(drafts, draftContext, initialTitle\)\);/u);
+});
+
+test("without staff.task.create the case search is open and cannot be folded away (spec: «без него поиск дела открыт сразу»)", () => {
+  const caseOnly = renderComposer({ staffAllowed: false });
+  assert.match(caseOnly, /data-composer-mode="case"/u);
+  assert.match(caseOnly, /<div class="grid gap-3 sm:grid-cols-2" data-composer-context="case-search">/u);
+  assert.match(caseOnly, /<select id="[^"]+" name="student_case_id" required=""/u);
+  assert.doesNotMatch(caseOnly, /<summary[^>]*>Студент\/дело/u, "a required case is not an optional, foldable section");
+  // С правом на рабочую задачу дело — необязательный раздел, как прежде.
+  assert.match(renderComposer({}), /<summary[^>]*>Студент\/дело · необязательно/u);
+});
+
+test("the browser draft store tolerates a blocked or corrupt localStorage", () => {
+  const { browserComposerDraftStore: store } = composerDraft;
+  const previous = globalThis.window;
+  const data = new Map();
+  try {
+    globalThis.window = { localStorage: {
+      getItem: (key) => data.get(key) ?? null,
+      setItem: (key, value) => { data.set(key, String(value)); },
+      removeItem: (key) => { data.delete(key); },
+    } };
+    store.write("general", { title: "Черновик", description: "" });
+    assert.equal(data.get("evo-task-composer-draft:general"), JSON.stringify({ title: "Черновик", description: "" }));
+    assert.deepEqual(store.read("general"), { title: "Черновик", description: "" });
+    store.write("general", { title: "", description: "" });
+    assert.equal(data.has("evo-task-composer-draft:general"), false);
+    data.set("evo-task-composer-draft:general", "{not json");
+    assert.equal(store.read("general"), null);
+    data.set("evo-task-composer-draft:general", JSON.stringify({ title: 1, description: "" }));
+    assert.equal(store.read("general"), null);
+    globalThis.window = { localStorage: {
+      getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); }, removeItem() { throw new Error("blocked"); },
+    } };
+    assert.equal(store.read("general"), null);
+    assert.doesNotThrow(() => store.write("general", { title: "x", description: "" }));
+    assert.doesNotThrow(() => store.write("general", { title: "", description: "" }));
+  } finally {
+    if (previous === undefined) delete globalThis.window; else globalThis.window = previous;
+  }
 });
 
 test("every entry point opens that one composer: menu, Ctrl+K, «Новая задача…», calendar, case, quick view, Lead 360", () => {

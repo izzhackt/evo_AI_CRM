@@ -2,14 +2,17 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { StudentsHandoff, StudentsOpenTasks, StudentsQueueParams } from "@/components/v3/students/students-queue-view";
+import type { DocsPackagesRead, StudentsHandoff, StudentsOpenTasks, StudentsQueueParams } from "@/components/v3/students/students-queue-view";
 import {
+  readDocsPackagePages,
   studentsCountsView,
   studentsHandoffPending,
   studentsQueueRequest,
 } from "@/components/v3/students/students-queue-view";
 
+import { isStaffPreview, staffHasPermission } from "../platform-access";
 import { getPlatformAdmissionsTaskWorkspace } from "../platform-admissions-workspace";
+import { readStaffApplicationPackageQueueAction } from "../portal/application-packages-actions";
 import { getHandoffAcknowledgement } from "../platform-handoff-acknowledgement";
 import type { ActivePlatformActor } from "../platform-auth";
 import {
@@ -87,4 +90,17 @@ export async function readStudentsHandoff(actor: ActivePlatformActor, studentCas
   } catch {
     return null;
   }
+}
+
+/**
+ * Вкладка «Комплекты» EVO Docs (Э3, 27.09.2026): очередь «Комплекты на
+ * проверку» — то же чтение и то же условие, что у шапки доски поступления
+ * (`application_package_queue_v1`, до 3 страниц по 20 — `readDocsPackagePages`;
+ * `document.read.full`, не в просмотре роли). Без условия очередь не читается
+ * вовсе — вкладки нет; отказ сервера и сбой — разные состояния.
+ */
+export async function readDocsPackages(actor: ActivePlatformActor): Promise<DocsPackagesRead> {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "document.read.full")) return Object.freeze({ kind: "hidden" });
+  const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
+  return readDocsPackagePages((cursor) => readStaffApplicationPackageQueueAction(owner, cursor));
 }

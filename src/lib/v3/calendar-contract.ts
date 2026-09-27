@@ -105,8 +105,24 @@ export class CalendarContractError extends Error {
   }
 }
 
+/**
+ * Сервер отказал в чтении сроков поступления (42501): у роли нет права
+ * `application.manage`. Это не сбой — «Повторить» не поможет («Сегодня»
+ * называет его отказом, а не ошибкой).
+ */
+export class CalendarContractDeniedError extends CalendarContractError {
+  constructor() {
+    super();
+    this.name = "CalendarContractDeniedError";
+  }
+}
+
 function invalidShape(): never {
   throw new CalendarContractError();
+}
+
+function deniedResponse(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "42501";
 }
 
 function failClosed(error: unknown): never {
@@ -285,7 +301,9 @@ export function normalizeCalendarApplicationDeadlineRow(
     studentCaseId: requiredUuid(row.student_case_id),
     studentDisplayName: requiredText(row.student_display_name, 200),
     universityName: requiredText(row.university_name, 500),
-    programName: row.program_name === "" ? "" : requiredText(row.program_name, 500),
+    // Заявка без программы (с миграции 190 `program_name` может быть NULL) —
+    // строка без программы, а не отказ всего чтения.
+    programName: row.program_name === "" || row.program_name === null ? "" : requiredText(row.program_name, 500),
     status: row.application_status === null ? null : normalizeApplicationStatus(row.application_status),
     deadline: requiredDate(row.deadline),
   });
@@ -411,6 +429,7 @@ export async function listCalendarApplicationDeadlinePage(
       },
       { get: true },
     );
+    if (deniedResponse(response.error)) throw new CalendarContractDeniedError();
     if (
       response.error ||
       !Array.isArray(response.data) ||

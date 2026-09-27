@@ -870,16 +870,21 @@ async function f1() {
     banner: { js: "var process = globalThis.process || { env: {} };" }, plugins: [probe.linkShim(ROOT), browserStubs], logLevel: "error",
   });
   const css = await compileCss();
-  // [экран, сценарий, строка, куда вернуть фокус]
+  // [экран, сценарий, строка, куда вернуть фокус; окно поверх панели]. «Быстрый
+  // просмотр» — дело с «Завершить дело…» (246): Esc в его окне закрывает только окно.
+  const closeCase = (page) => ({
+    dialog: '[data-testid="v3-close-case-dialog"]',
+    open: () => page.locator(`${probe.PANEL} [data-testid="v3-close-case"]`).click(),
+  });
   const screens = [
-    ["students", "admin-panel", OPEN_CASE],
-    ["curators", "curators", CURATOR_B],
+    ["students", "panel-close", OPEN_CASE, closeCase],
+    ["curators", "curators", CURATOR_B, null],
   ];
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   const failures = [];
   try {
-    for (const [screenName, scenario, key] of screens) {
+    for (const [screenName, scenario, key, overlayFor] of screens) {
       const htmlPath = join(outDir, `f1-${screenName}${look}.html`);
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
@@ -905,6 +910,7 @@ async function f1() {
           reopen: () => page.click(open),
           look: look ? "next" : "current",
           scrolledPath: join(outDir, `f1-${screenName}${look}-${width}-scrolled.png`),
+          overlay: overlayFor ? overlayFor(page) : null,
         });
         if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
         probe.report({ screen: screenName, look: look || "-current", width, ...result });

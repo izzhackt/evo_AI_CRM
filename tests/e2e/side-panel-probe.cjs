@@ -19,7 +19,9 @@
  * прокручено тело (от 768 px; на телефоне — полоса «← К …»); Esc закрывает
  * панель и возвращает фокус на строку; открытие строкой — снова фокус на
  * заголовке; в поле панели первая Esc только выводит из поля (введённое
- * цело), вторая закрывает; закрытие ссылкой «Закрыть» / «← К …» — фокус снова
+ * цело), вторая закрывает; Esc в окне поверх панели («Закрыть лид»,
+ * «Завершить дело») закрывает только окно — панель, адрес и введённое
+ * остаются; закрытие ссылкой «Закрыть» / «← К …» — фокус снова
  * на строке; у модального листа фон инертен, а на планшете затемнение
  * закрывает лист, щелчок по самому листу — нет. Нарушение — исключение с
  * фактами.
@@ -177,6 +179,17 @@ const waitOpen = (page) => page.waitForSelector(PANEL, { state: "attached", time
 /** Поле ввода панели, в котором можно печатать: первое видимое и доступное. */
 const FIELD = `${PANEL} :is(textarea, input[type="text"], input[type="search"], input:not([type])):not([disabled]):not([readonly])`;
 
+/** Выполняется в странице: адрес стенда — `location` и переходы `router.push` (`__staticPushes`). */
+function addressFacts() {
+  return { href: location.href, pushes: (globalThis.__staticPushes || []).length };
+}
+
+/** Выполняется в странице: окно поверх панели — открыто ли и модально ли. */
+function overlayFacts(selector) {
+  const dialog = document.querySelector(selector);
+  return { present: Boolean(dialog), open: Boolean(dialog?.open), modal: Boolean(dialog?.matches(":modal")) };
+}
+
 /** Выполняется в странице: где фокус и что в поле после Esc. */
 function fieldFacts(marker) {
   const dialog = document.querySelector("dialog[data-side-panel]");
@@ -196,9 +209,11 @@ function fieldFacts(marker) {
  * телефоне) → фокус на строке; на планшете — ещё щелчок по листу (открыт) и
  * по затемнению (закрыт, фокус на строке). `returnSelector` — строка (ссылка
  * «Открыть»), куда панель возвращает фокус; `look` — ожидаемый облик
- * («current» или «next»); `scrolledPath` — снимок с прокрученным телом.
+ * («current» или «next»); `scrolledPath` — снимок с прокрученным телом;
+ * `overlay` — окно поверх панели: `open()` открывает его из панели,
+ * `dialog` — его селектор (поле → окно → Esc: закрыто только окно).
  */
-async function journey(page, { selected, returnSelector, reopen, look, scrolledPath }) {
+async function journey(page, { selected, returnSelector, reopen, look, scrolledPath, overlay = null }) {
   const failures = [];
   const expect = (label, ok, facts) => { if (!ok) failures.push(`${label}: ${JSON.stringify(facts)}`); };
   const settleOpen = async () => { await waitOpen(page); await page.waitForTimeout(250); };
@@ -281,6 +296,42 @@ async function journey(page, { selected, returnSelector, reopen, look, scrolledP
     await settleOpen();
   }
 
+  // Окно поверх панели: Esc закрывает только его — панель, её адрес и введённое остаются.
+  let over = null;
+  if (overlay) {
+    const overField = page.locator(FIELD).filter({ visible: true }).first();
+    const hasField = await overField.count() > 0;
+    const marker = " Э7 окно";
+    if (hasField) {
+      await page.evaluate(() => document.querySelector("[data-f1-field]")?.removeAttribute("data-f1-field"));
+      await overField.evaluate((element) => element.setAttribute("data-f1-field", ""));
+      await overField.click();
+      await page.keyboard.type(marker);
+    }
+    const address = await page.evaluate(addressFacts);
+    await overlay.open();
+    await page.waitForSelector(overlay.dialog, { state: "visible", timeout: 10_000 });
+    const shown = await page.evaluate(overlayFacts, overlay.dialog);
+    await page.keyboard.press("Escape");
+    await page.waitForSelector(overlay.dialog, { state: "detached", timeout: 5_000 }).catch(() => undefined);
+    await page.waitForTimeout(250);
+    const after = {
+      overlay: await page.evaluate(overlayFacts, overlay.dialog),
+      field: hasField ? await page.evaluate(fieldFacts, marker) : null,
+      panelOpen: await page.evaluate(() => Boolean(document.querySelector("dialog[data-side-panel]")?.open)),
+      address: await page.evaluate(addressFacts),
+      focus: await page.evaluate(focusFacts, returnSelector),
+    };
+    over = { hasField, address, shown, after };
+    expect("the overlay step first types into a panel field", hasField, over);
+    expect("the overlay opens as a modal dialog over the panel", shown.open && shown.modal, over);
+    expect("Esc in a dialog over the panel closes only that dialog: the panel, its address and the typed text stay",
+      !after.overlay.open && after.panelOpen && after.address.href === address.href && after.address.pushes === address.pushes
+        && Boolean(after.field?.kept), over);
+    // Нарушение уже записано: панель открывается снова, чтобы путь дошёл до конца.
+    if (!after.panelOpen) { await reopen(); await settleOpen(); }
+  }
+
   // «Закрыть» (от 768 px — крестик, на телефоне — «← К …»).
   await page.locator(`${PANEL} [data-testid="queue-detail-close"]`).click();
   await settleClosed();
@@ -306,7 +357,7 @@ async function journey(page, { selected, returnSelector, reopen, look, scrolledP
     expect("a click on the sheet itself keeps it open", stays, backdrop);
     expect("a click on the dimmed page closes the sheet and returns focus to the row", afterBackdrop.onReturnTarget, afterBackdrop);
   }
-  return { opened, inert, header, afterEsc, reopened: { headingFocused: reopened.headingFocused, modal: reopened.modal }, typing, afterClose, backdrop, failures };
+  return { opened, inert, header, afterEsc, reopened: { headingFocused: reopened.headingFocused, modal: reopened.modal }, typing, overlay: over, afterClose, backdrop, failures };
 }
 
 /**

@@ -944,7 +944,8 @@ async function hydrate() {
  * Э7 «Одна боковая панель везде»: панель лида — общая `SidePanel`. Открыта по
  * адресу (переход из «Сегодня», обновление): фокус на заголовке, рядом с
  * доской от 1280 px шириной токена, ниже — модальный лист; Esc и «Закрыть»
- * возвращают фокус на карточку. Замеры и путь — `side-panel-probe.cjs`.
+ * возвращают фокус на карточку; Esc в окне «Закрыть лид» поверх панели
+ * закрывает только окно. Замеры и путь — `side-panel-probe.cjs`.
  */
 async function f1() {
   const probe = require("./side-panel-probe.cjs");
@@ -979,6 +980,15 @@ async function f1() {
         reopen: () => page.locator(card).filter({ visible: true }).first().click(),
         look: LOOK_NEXT ? "next" : "current",
         scrolledPath: join(outDir, `f1-pipeline${look}-${width}-scrolled.png`),
+        // «⋯» → «Закрыть лид…»: Esc в окне закрывает только окно, `?lead=` и введённое остаются.
+        overlay: {
+          dialog: '[data-testid="v3-close-lead-dialog"]',
+          open: async () => {
+            await page.locator(probe.PANEL).getByRole("button", { name: "Ещё действия" }).click();
+            await page.waitForSelector('[data-testid="v3-lead-actions-menu"]:popover-open');
+            await page.getByRole("button", { name: "Закрыть лид…" }).click();
+          },
+        },
       });
       if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
       const recoverable = await page.evaluate(() => window.__harness.recoverable);

@@ -249,6 +249,10 @@ test("phone and narrow windows: the same dialog becomes a modal sheet; Esc and c
   assert.match(panel, /const media = window\.matchMedia\(SIDE_PANEL_WIDE_QUERY\);[\s\S]*?const modal = !media\.matches;[\s\S]*?if \(modal\) dialog\.showModal\(\);\s*else dialog\.show\(\);/u,
     "below 1280px showModal(): top layer, inert page, focus kept inside");
   assert.match(panel, /media\.addEventListener\("change", arrange\)/u, "resizing across 1280px switches the mode without remounting");
+  // `cancel` окна поверх панели («Закрыть лид», «Завершить дело») React доносит и до панели:
+  // он закрывает только своё окно — панель, адрес и введённое остаются.
+  assert.match(panel, /onCancel=\{\(event\) => \{(?:\s*\/\/[^\n]*)*\s*if \(event\.target !== event\.currentTarget\) return;/u,
+    "a nested dialog's cancel does not close the panel");
   assert.match(panel, /onCancel=\{\(event\) => \{[\s\S]*?const step = sidePanelEscape\(typingTarget\(active\), event\.currentTarget\.contains\(active\)\);\s*if \(step === "leave-field" && event\.cancelable\) \{\s*event\.preventDefault\(\);\s*leaveField\(event\.currentTarget\);\s*return;\s*\}\s*event\.preventDefault\(\);\s*closeRef\.current\(\);/u,
     "the sheet: the first Esc in a field leaves it and keeps the input; otherwise Esc closes through the page address");
   assert.match(panel, /if \(event\.key !== "Escape" \|\| event\.defaultPrevented \|\| openPopover\(\) \|\| modalOpen\(\)\) return;[\s\S]*?const step = sidePanelEscape\(typingTarget\(event\.target\), inPanel\);\s*if \(step === "ignore"\) return;\s*event\.preventDefault\(\);\s*if \(step === "leave-field"\) leaveField\(dialog\);\s*else closeRef\.current\(\);/u,
@@ -278,7 +282,10 @@ test("phone and narrow windows: the same dialog becomes a modal sheet; Esc and c
     assert.match(read(`tests/e2e/${script}-static-render.cjs`), /--f1/u, script);
   }
   const probe = read("tests/e2e/side-panel-probe.cjs");
-  assert.match(probe, /async function journey\(page, \{ selected, returnSelector, reopen, look, scrolledPath \}\)/u);
+  assert.match(probe, /async function journey\(page, \{ selected, returnSelector, reopen, look, scrolledPath, overlay = null \}\)/u);
+  assert.match(probe, /Esc in a dialog over the panel closes only that dialog: the panel, its address and the typed text stay/u);
+  assert.match(read("tests/e2e/boards-static-render.cjs"), /overlay: \{\s*dialog: '\[data-testid="v3-close-lead-dialog"\]'/u, "board: Esc in «Закрыть лид» over the lead panel");
+  assert.match(read("tests/e2e/students-static-render.cjs"), /dialog: '\[data-testid="v3-close-case-dialog"\]'[\s\S]*?\["students", "panel-close", OPEN_CASE, closeCase\]/u, "«Быстрый просмотр»: Esc in «Завершить дело»");
   assert.match(probe, /\["1024", \{ viewport: \{ width: 1024, height: 768 \}/u, "the tablet sheet is measured and captured");
   assert.match(probe, /the first Esc in a panel field keeps the panel open and the typed text/u);
   assert.match(probe, /from 768px the header stays put while the body scrolls/u);

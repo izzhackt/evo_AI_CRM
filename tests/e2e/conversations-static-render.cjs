@@ -6,13 +6,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * Переписки: «Переписка со студентами» (`/v3/messages`, пункт «Поступления»)
- * и WhatsApp (`/v3/inbox`, пункт «Продаж») — две отдельные страницы по
- * решению владельца 27.09.2026 вместо одного пункта «Переписки» с каналами
- * (Э5). Переписка со студентами сохраняет всё Э5: очереди с числами, шапку
- * переписки с видимым переключателем состояния, шаблоны ответа в поле ответа
- * и следующую переписку в пустой правой части; WhatsApp — честное «не
- * подключён».
+ * Переписки: «Переписка» (`/v3/messages`, пункт «Поступления»; до решения
+ * владельца 28.09.2026 — «Переписка со студентами») и WhatsApp (`/v3/inbox`,
+ * пункт «Продаж») — две отдельные страницы по решению владельца 27.09.2026
+ * вместо одного пункта «Переписки» с каналами (Э5). «Переписка» сохраняет
+ * всё Э5: очереди с числами, шапку переписки с видимым переключателем
+ * состояния, шаблоны ответа в поле ответа и следующую переписку в пустой
+ * правой части; WhatsApp — честное «не подключён».
  *
  * Страницы строят НАСТОЯЩИЕ `v3/messages/page.tsx` и `v3/inbox/page.tsx`:
  * их чтения подменены синтетическими (актёр, чтение очередей 234 — через
@@ -117,7 +117,7 @@ const BASE_ACTOR = {
 const { staffRoleKeys } = require("./staff-role-templates.cjs");
 const ACTORS = {
   admin: { ...BASE_ACTOR, displayName: "Администратор (синтетический)", systemRole: "admin", presentationRole: null },
-  // Приглашённый сотрудник продаж (права шаблонов 173): переписки со студентами у него нет, WhatsApp — в «Продажах».
+  // Приглашённый сотрудник продаж (права шаблонов 173): «Переписки» поступления у него нет, WhatsApp — в «Продажах».
   sales: {
     ...BASE_ACTOR, displayName: "Менеджер продаж (синтетический)", systemRole: "staff", presentationRole: null,
     assignments: [{ label: "Sales Manager", scope: { kind: "own", key: null, resourceKind: null } }], permissionKeys: staffRoleKeys("sales-manager"),
@@ -224,7 +224,7 @@ const SCENARIOS = {
   "whatsapp-sales": { actor: "sales", page: "inbox", search: {}, rows: ALL_ROWS },
   "whatsapp-admissions": { actor: "admissions", page: "inbox", search: {}, rows: ALL_ROWS },
 };
-const TITLES = { messages: "Переписка со студентами", inbox: "WhatsApp" };
+const TITLES = { messages: "Переписка", inbox: "WhatsApp" };
 
 const pathnameOf = (scenario) => (scenario.page === "messages" ? "/v3/messages" : "/v3/inbox");
 const searchOf = (scenario) => new URLSearchParams(scenario.search).toString();
@@ -542,7 +542,7 @@ async function screenshots() {
     }
   };
 
-  // Место заголовка переписки со студентами и WhatsApp — для сравнения.
+  // Место заголовка «Переписки» и WhatsApp — для сравнения.
   const places = {};
   try {
     for (const name of Object.keys(SCENARIOS)) {
@@ -589,13 +589,13 @@ async function screenshots() {
           check(metrics.composer?.inViewport === true, `${file}: composer ${JSON.stringify(metrics.composer)}`);
           check(metrics.solidRed === 1, `${file}: ${metrics.solidRed} solid red controls (only «Отправить»)`);
         }
-        // У продаж переписки со студентами нет: ни пункта, ни ссылки.
+        // У продаж «Переписки» поступления нет: ни пункта, ни ссылки.
         if (name === "whatsapp-sales") check(!metrics.menu.some((item) => item.includes("=/v3/messages")), `${file}: student chat in the sales menu`);
       }
     }
 
     // Переход между двумя страницами переписки не сдвигает заголовок: его
-    // верх у переписки со студентами и у WhatsApp — на одной высоте.
+    // верх у «Переписки» и у WhatsApp — на одной высоте.
     for (const viewportKey of Object.keys(VIEWPORTS)) {
       const cabinet = places[`cabinet:${viewportKey}`];
       const whatsapp = places[`whatsapp:${viewportKey}`];

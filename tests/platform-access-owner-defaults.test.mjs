@@ -245,10 +245,11 @@ test("D: the role bundles are the production ones", () => {
 // and sales intake) are shared, so they stand in «Общее» for every role that
 // may open them, instead of «Продажи» for sales and «Поступление» for
 // admissions. Owner decision 27.09.2026: WhatsApp — the sales WhatsApp where
-// leads arrive — stands in «Продажи» under D; «Переписка со студентами» —
-// the cabinet chat with existing students — in «Поступление».
+// leads arrive — stands in «Продажи» under D; «Переписка» (owner decision
+// 28.09.2026; formerly «Переписка со студентами») — the cabinet chat with
+// existing students — in «Поступление».
 for (const label of ["Admissions", "Admissions Manager"]) {
-  test(`D: ${label} sees no sales work, only «Отчёт продаж» of #1067; «Переписка со студентами» in «Поступление», «Заявки» in «Общее»`, () => {
+  test(`D: ${label} sees no sales work, only «Отчёт продаж» of #1067; «Переписка» in «Поступление», «Заявки» in «Общее»`, () => {
     const keys = [...bundles[label], ...bundles["Admissions common"]];
     const model = navigationFor(keys);
     // D hides WhatsApp and «Воронка продаж» in «Продажи»; «Отчёт продаж» keeps
@@ -262,7 +263,7 @@ for (const label of ["Admissions", "Admissions Manager"]) {
     // 27.09.2026: the student chat (case.read.full) is an admissions item. The
     // WhatsApp route stays open (communication.read.full) — old links work —
     // but the sales WhatsApp is not an admissions menu item.
-    assert.equal(model.groups[1].links.find((link) => link.id === "messages")?.label, "Переписка со студентами");
+    assert.equal(model.groups[1].links.find((link) => link.id === "messages")?.label, "Переписка");
     assert.equal(staffCanAccessRoute(staffActor(keys), "/v3/inbox"), true);
     const everyLink = [...model.groups.flatMap((group) => group.links), ...model.common];
     assert.equal(everyLink.some((link) => link.id === "inbox"), false, "WhatsApp");

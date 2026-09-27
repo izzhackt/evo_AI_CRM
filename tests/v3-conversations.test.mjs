@@ -3,11 +3,11 @@
 // (прежняя команда set_await), шаблоны ответа в поле ответа без отправки и
 // следующая переписка в пустой правой части. Решение владельца 27.09.2026
 // заменило один пункт «Переписки» с каналами: WhatsApp (`/v3/inbox`) — пункт
-// «Продаж», «Переписка со студентами» (`/v3/messages`) — пункт
-// «Поступления», у каждой страницы свой h1. Логика — чистые модули; разметка
-// — из настоящих страниц через tests/e2e/conversations-static-render.cjs
-// --json с синтетическими чтениями (живой Supabase и права сервера не
-// проверяются).
+// «Продаж», «Переписка» (`/v3/messages`; до решения владельца 28.09.2026 —
+// «Переписка со студентами») — пункт «Поступления», у каждой страницы свой
+// h1. Логика — чистые модули; разметка — из настоящих страниц через
+// tests/e2e/conversations-static-render.cjs --json с синтетическими
+// чтениями (живой Supabase и права сервера не проверяются).
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -150,9 +150,9 @@ const menuOf = (actor, href = "/v3/main") => {
   return { model, every, place };
 };
 
-test("menu per role: WhatsApp in «Продажи», «Переписка со студентами» in «Поступление», each behind its own route", () => {
+test("menu per role: WhatsApp in «Продажи», «Переписка» in «Поступление», each behind its own route", () => {
   const cases = [
-    // [кто, актёр, место WhatsApp, место переписки со студентами]
+    // [кто, актёр, место WhatsApp, место «Переписки»]
     ["Admin", preview(null), "sales", "admissions"],
     ["preview: Приёмная", preview("admissions"), null, "admissions"],
     ["preview: Продажи", preview("sales"), "sales", null],
@@ -168,14 +168,14 @@ test("menu per role: WhatsApp in «Продажи», «Переписка со �
   for (const [label, actor, whatsapp, students] of cases) {
     const { every, place } = menuOf(actor);
     assert.equal(place("inbox"), whatsapp, `${label}: WhatsApp`);
-    assert.equal(place("messages"), students, `${label}: «Переписка со студентами»`);
+    assert.equal(place("messages"), students, `${label}: «Переписка»`);
     // Пункт есть — его страница открыта той же проверкой маршрута (`requireV3PageActor`).
     if (whatsapp) assert.ok(staffCanAccessRoute(actor, "/v3/inbox"), `${label}: /v3/inbox`);
     if (students) assert.ok(staffCanAccessRoute(actor, "/v3/messages"), `${label}: /v3/messages`);
     const inbox = every.find((link) => link.id === "inbox");
     const messages = every.find((link) => link.id === "messages");
     if (inbox) assert.deepEqual([inbox.label, inbox.href], ["WhatsApp", "/v3/inbox"], label);
-    if (messages) assert.deepEqual([messages.label, messages.href], ["Переписка со студентами", "/v3/messages"], label);
+    if (messages) assert.deepEqual([messages.label, messages.href], ["Переписка", "/v3/messages"], label);
     assert.equal(every.some((link) => ["Переписки", "Сообщения"].includes(link.label)), false, `${label}: no retired items`);
   }
   assert.equal(staffCanAccessRoute(staff(["communication.read.full"]), "/v3/inbox"), true, "the route itself is unchanged");
@@ -183,8 +183,8 @@ test("menu per role: WhatsApp in «Продажи», «Переписка со �
 
 test("each page highlights its own item and names its own tab; old addresses and links land on their page", () => {
   for (const [href, id, title] of [
-    ["/v3/messages", "messages", "Переписка со студентами"],
-    ["/v3/messages?queue=all&case=x", "messages", "Переписка со студентами"],
+    ["/v3/messages", "messages", "Переписка"],
+    ["/v3/messages?queue=all&case=x", "messages", "Переписка"],
     ["/v3/inbox", "inbox", "WhatsApp"],
     ["/v3/inbox?waiting=1", "inbox", "WhatsApp"],
   ]) {
@@ -197,7 +197,7 @@ test("each page highlights its own item and names its own tab; old addresses and
   assert.equal(existsSync(new URL("../src/app/(v3)/v3/conversations", import.meta.url)), false);
   assert.equal(v3SectionTitle("/v3/conversations"), undefined);
   assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /const allowed = new Set\(\[\s*"q",\s*"waiting",\s*"conversation",/u, "no ?channel= on WhatsApp");
-  // «Сегодня» («Ждут ответа») и уведомления о сообщении по делу — на переписку со студентами.
+  // «Сегодня» («Ждут ответа») и уведомления о сообщении по делу — на «Переписку».
   const [chat] = todayChatItems([{ studentCaseId: caseId(1), studentDisplayName: "Студент (синтетика)", lastMessageSnippet: "текст",
     lastMessageAt: "2026-09-27T05:00:00.000Z", lastMessageAuthorMembershipId: STUDENT, awaitState: "needs_reply", unread: true }]);
   assert.equal(chat.band, "waiting");
@@ -211,15 +211,16 @@ test("each page highlights its own item and names its own tab; old addresses and
   // «Нет доступа» называет разделы словами пунктов.
   const access = read("src/app/(v3)/access-denied/page.tsx");
   assert.match(access, /"\/v3\/inbox": "WhatsApp",/u);
-  assert.match(access, /"\/v3\/messages": "Переписка со студентами",/u);
+  assert.match(access, /"\/v3\/messages": "Переписка",/u);
 });
 
-test("phone tabs: admissions roles keep «Переписка» (full name «Переписка со студентами»); the sales WhatsApp lives in «Ещё»", () => {
+test("phone tabs: admissions roles keep «Переписка» (the menu item's own name since 28.09.2026); the sales WhatsApp lives in «Ещё»", () => {
   for (const actor of [preview(null), preview("admissions"), staff([...staffRoleKeys("admissions")])]) {
     const tabs = shellTabs(menuOf(actor).model);
     assert.equal(tabs.kind, "admissions");
-    assert.deepEqual(tabs.links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписка со студентами"]);
+    assert.deepEqual(tabs.links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписка"]);
     assert.deepEqual(tabs.links.map((link) => shellTabLabel(link).text), ["Сегодня", "Студенты", "Задачи", "Переписка"]);
+    assert.equal(shellTabLabel(tabs.links[3]).name, undefined, "the visible label is the accessible name");
     assert.equal(shellTabs(menuOf(actor, "/v3/messages").model).currentInMore, false);
   }
   for (const actor of [preview("sales"), staff([...staffRoleKeys("sales-manager")])]) {
@@ -295,11 +296,11 @@ const page = (name) => {
   return item.html;
 };
 
-test("«Переписка со студентами»: its own h1, no channel tabs, queue segments with counts from the read and «Все» without one", () => {
+test("«Переписка»: its own h1, no channel tabs, queue segments with counts from the read and «Все» without one", () => {
   const html = page("cabinet");
   assert.equal([...html.matchAll(/<h1\b/gu)].length, 1);
-  assert.match(html, /<main aria-label="Переписка со студентами" data-conversations-main=""/u);
-  assert.match(html, /<h1 class="t-page-title[^"]*">Переписка со студентами<\/h1>/u);
+  assert.match(html, /<main aria-label="Переписка" data-conversations-main=""/u);
+  assert.match(html, /<h1 class="t-page-title[^"]*">Переписка<\/h1>/u);
   // Страница стоит отдельно: ни ряда каналов, ни ссылки на WhatsApp продаж.
   assert.doesNotMatch(html, /Каналы переписки|data-conversation-channels|href="\/v3\/inbox"|Кабинет студента<\/a>/u);
   const queues = html.slice(html.indexOf('data-testid="case-chat-queues"'), html.indexOf("</div>", html.indexOf('data-testid="case-chat-queues"')));
@@ -347,11 +348,11 @@ test("each page has its own header: the student chat window-high, WhatsApp the s
     const start = html.indexOf("<main");
     return html.slice(start, html.indexOf("</h1>", start) + "</h1>".length);
   };
-  // Переписка со студентами — на высоту окна (правило 100dvh): поле ответа над панелью вкладок.
-  assert.equal(head(page("cabinet")), '<main aria-label="Переписка со студентами" data-conversations-main="" class="mx-auto flex w-full min-h-0 max-w-[1240px] flex-col px-4 pb-4 pt-6 sm:px-6 h-[calc(100dvh-150px)] md:h-[calc(100dvh-64px)]"><div class="flex flex-wrap items-start justify-between gap-4"><div class="min-w-0"><h1 class="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">Переписка со студентами</h1>');
+  // «Переписка» — на высоту окна (правило 100dvh): поле ответа над панелью вкладок.
+  assert.equal(head(page("cabinet")), '<main aria-label="Переписка" data-conversations-main="" class="mx-auto flex w-full min-h-0 max-w-[1240px] flex-col px-4 pb-4 pt-6 sm:px-6 h-[calc(100dvh-150px)] md:h-[calc(100dvh-64px)]"><div class="flex flex-wrap items-start justify-between gap-4"><div class="min-w-0"><h1 class="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">Переписка</h1>');
   // WhatsApp — прежний PartShell `fill`: от 768 px высоту даёт колонка оболочки (`isFillRoute`).
   assert.equal(head(page("whatsapp")), '<main class="mx-auto w-full px-4 sm:px-6 max-w-[1240px] flex flex-col py-6 md:min-h-0 md:flex-1"><div class="flex flex-wrap items-start justify-between gap-4"><div class="min-w-0"><h1 class="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">WhatsApp</h1>');
-  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /export const metadata = \{ title: "Переписка со студентами" \};\s*const TITLE = "Переписка со студентами";/u);
+  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /export const metadata = \{ title: "Переписка" \};\s*const TITLE = "Переписка";/u);
   assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /export const metadata = \{ title: "WhatsApp" \};/u);
   assert.match(read("src/app/(v3)/v3/inbox/loading.tsx"), /<PartShell title="WhatsApp" fill>/u);
   assert.doesNotMatch(read("src/app/(v3)/v3/inbox/page.tsx"), /ConversationsMain|conversationChannels/u);
@@ -361,7 +362,7 @@ test("each page has its own header: the student chat window-high, WhatsApp the s
 
 test("a phone thread takes the screen: page title only for screen readers, no channel tabs, «К списку» on the name row", () => {
   const thread = page("thread");
-  assert.match(thread, /<div class="flex flex-wrap items-start justify-between gap-4 @max-2xl:sr-only"><div class="min-w-0"><h1 class="t-page-title[^"]*">Переписка со студентами<\/h1>/u);
+  assert.match(thread, /<div class="flex flex-wrap items-start justify-between gap-4 @max-2xl:sr-only"><div class="min-w-0"><h1 class="t-page-title[^"]*">Переписка<\/h1>/u);
   assert.match(thread, /<\/h1><\/div><\/div><div class="mt-5 flex min-h-0 flex-1 flex-col @max-2xl:mt-0">/u);
   assert.doesNotMatch(page("cabinet"), /@max-2xl:sr-only|@max-2xl:hidden/u, "the list keeps its title");
   const header = thread.slice(thread.indexOf('data-testid="case-chat-thread-header"'), thread.indexOf('data-testid="case-chat-await-control"'));

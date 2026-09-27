@@ -91,12 +91,15 @@ test("the staff queue source pins the migration-197 contract", () => {
   assert.match(action, /staffHasPermission\(actor, "lead\.read"\)/u);
 });
 
-test("the requests screen adds the consultation pill additively", () => {
+test("the requests screen keeps consultations as a tab and their command", () => {
   const page = source("src/app/(v3)/v3/requests/page.tsx");
-  assert.match(page, /portal_consultation: "Кабинет: консультации"/u);
-  // CRM-03 keeps the pill and command while consultations join «Все».
+  // Э3 (27.09): вкладка «Консультации» очереди разбора вместо обведённого чипа.
+  assert.match(source("src/lib/v3/requests-view.ts"), /portal_consultation: "Консультации"/u);
+  // CRM-03 keeps the command while consultations join «Все»; the details and
+  // «Обработано» live in the right panel of the queue.
   assert.match(page, /loadScopedRequestsQueue/u);
-  assert.match(page, /<PortalConsultationDetails row=\{row.consultation\} readOnly=\{readOnly\} refreshHref=\{currentHref\}/u);
+  assert.match(source("src/components/v3/requests/RequestsQueueView.tsx"),
+    /<PortalConsultationDetails row=\{row.consultation\} readOnly=\{props.readOnly\} refreshHref=\{listHref\}/u);
 });
 
 // Портальная сторона: карточка вуза передаёт institution_id, профиль — нет;

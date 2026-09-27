@@ -28,10 +28,15 @@ function useManualLeadDisclosure(): DisclosureState {
   return ctx;
 }
 
-export function ManualLeadTrigger() {
+/**
+ * `quiet` — второй вход в ту же форму (пустые «Заявки», Э3): тихая ссылка,
+ * потому что сплошной красный у страницы один — кнопка в шапке.
+ */
+export function ManualLeadTrigger({ quiet = false }: Readonly<{ quiet?: boolean }>) {
   const { open, toggle } = useManualLeadDisclosure();
   return (
-    <button type="button" className={btnCls} aria-expanded={open} aria-controls="manual-lead-panel" onClick={toggle}>
+    <button type="button" aria-expanded={open} aria-controls="manual-lead-panel" onClick={toggle}
+      className={quiet ? "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" : btnCls}>
       Добавить лида
     </button>
   );

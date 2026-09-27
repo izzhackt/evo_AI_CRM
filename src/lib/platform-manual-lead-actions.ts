@@ -26,7 +26,8 @@ export async function createManualLeadAction(previous: ManualLeadState, form: Fo
     || [...fields.values()].some(value => /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value))) return fail("invalid");
   try {
     const state = await createManualLead(actor, { requestId, name, phone, email, source, ownerId, direction, nextAction, dueDate } as ManualLeadInput);
-    if (state.status === "saved") revalidatePath("/v3/pipeline");
+    // «Заявки» (Э3) открывают ту же форму: лид с сайта сразу встаёт в очередь.
+    if (state.status === "saved") { revalidatePath("/v3/pipeline"); revalidatePath("/v3/requests"); }
     return state;
   } catch { return fail("unavailable"); }
 }

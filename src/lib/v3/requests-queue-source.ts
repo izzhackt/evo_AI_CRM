@@ -16,11 +16,11 @@ export class RequestsQueueSourceError extends Error {
 export async function loadScopedRequestsQueue(actor: ActivePlatformActor, selection: RequestSelection): Promise<RequestsQueue> {
   const client = await createSupabaseServerClient();
   // POST: no nullable timestamp/cursor strings in PostgREST's GET query.
-  const { data, error } = await client.schema("platform").rpc("staff_requests_queue_v1", {
+  // Миграция 250 (Э3): ответственный, «можно взять», «Ждут разбора / Все» и числа всех вкладок.
+  const { data, error } = await client.schema("platform").rpc("staff_requests_queue_v2", {
     p_organization_id: actor.organizationId,
     p_source: selection.source,
-    p_application_status: selection.applicationStatus,
-    p_consultation_status: selection.consultationStatus,
+    p_status: selection.status,
     p_limit: selection.limit,
     ...(selection.cursor ? { p_cursor: selection.cursor } : {}),
   });

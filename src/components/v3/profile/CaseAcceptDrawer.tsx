@@ -1,13 +1,34 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
 import { btnCls } from "@/components/ui";
 import type { HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
-import { ProfileHandoffAcknowledgement } from "./ProfileSalesTransition";
+import { HandoffResponseSummary, ProfileHandoffAcknowledgement } from "./ProfileSalesTransition";
+
+/**
+ * Контекст решения в панели (review Э4, 27.09) — только уже прочитанное
+ * страницей: кто и когда передал, направление, шаг дела, продажа (только тому,
+ * кому её отдаёт чтение продаж) и текущий ответ. Новых чтений нет.
+ */
+export type CaseAcceptContext = Readonly<{
+  handedOffBy: Readonly<{ name: string; at: string; label: string }> | null;
+  direction: string | null;
+  step: string | null;
+  sale: Readonly<{ manager: string | null; nextAction: string | null }> | null;
+}>;
+
+function Fact({ term, children }: Readonly<{ term: string; children: ReactNode }>) {
+  return (
+    <div className="min-w-0 border-b border-border py-2.5 last:border-b-0">
+      <dt className="t-caption text-fg-2">{term}</dt>
+      <dd className="mt-0.5 min-w-0 break-words t-body-compact text-fg">{children}</dd>
+    </div>
+  );
+}
 
 /** Решения — нейтральный переключатель: выбранное — рамка текста и серая подложка, не красный. */
 const CHOICE = `${QUEUE_SECONDARY} grow aria-pressed:border-fg aria-pressed:bg-surface-2 aria-pressed:text-fg`;
@@ -25,9 +46,10 @@ const CHOICE = `${QUEUE_SECONDARY} grow aria-pressed:border-fg aria-pressed:bg-s
  * кнопка с панелью уходят; фокус с исчезнувшей кнопки переходит на заголовок
  * «Задач» («Обзор») или на полосу вкладок, а не падает на страницу.
  */
-export function CaseAcceptDrawer({ name, snapshot }: Readonly<{
+export function CaseAcceptDrawer({ name, snapshot, context }: Readonly<{
   name: string;
   snapshot: HandoffAcknowledgement & Readonly<{ requestId: string }>;
+  context: CaseAcceptContext;
 }>) {
   const headingId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -81,7 +103,25 @@ export function CaseAcceptDrawer({ name, snapshot }: Readonly<{
           <Icon name="x" size={20} />
         </button>
       </div>
-      <div className="p-4">
+      <div className="space-y-4 p-4">
+        {/* Решение не вслепую: передача, направление, шаг, продажа и текущий ответ — над выбором. */}
+        <dl className="border-b border-border" data-testid="v3-case-accept-context">
+          {context.handedOffBy ? (
+            <Fact term="Передал">
+              {context.handedOffBy.name}
+              <span className="text-fg-2"> · <time dateTime={context.handedOffBy.at} className="font-mono tabular-nums">{context.handedOffBy.label}</time></span>
+            </Fact>
+          ) : null}
+          {context.direction ? <Fact term="Направление">{context.direction}</Fact> : null}
+          {context.step ? <Fact term="Что дальше">{context.step}</Fact> : null}
+          {context.sale ? (
+            <Fact term="Продажа">
+              <span className="block">{context.sale.manager ?? "Менеджер не назначен"}</span>
+              {context.sale.nextAction ? <span className="block text-fg-2">{context.sale.nextAction}</span> : null}
+            </Fact>
+          ) : null}
+          <Fact term="Текущий ответ"><HandoffResponseSummary current={snapshot.current} /></Fact>
+        </dl>
         <ProfileHandoffAcknowledgement
           snapshot={snapshot}
           drawer={{ onCancel: close, choiceClassName: CHOICE, confirmClassName: QUEUE_CONFIRM, cancelClassName: QUEUE_SECONDARY }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { QueueTask } from "@/lib/v3/task-queue";
 
@@ -20,7 +20,9 @@ function taskHref(task: QueueTask, move = false): string {
 /**
  * Открытые задачи дела строками «Задач» (`TaskQueueRow`): выполнение в строке
  * с результатом, «Перенести на завтра» и «Передать…» — те же команды и те же
- * права. Первые шесть видны сразу, остальные — по «Показать ещё».
+ * права. Первые шесть видны сразу, остальные — по «Показать ещё»: кнопка
+ * уходит, фокус переходит на заголовок первой открытой задачи, а не падает
+ * на страницу (review Э4, 27.09).
  */
 export function CaseTaskList({
   tasks,
@@ -36,11 +38,19 @@ export function CaseTaskList({
 }>) {
   const [all, setAll] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  const listRef = useRef<HTMLUListElement>(null);
+  const revealFrom = useRef<number | null>(null);
+  useEffect(() => {
+    if (!all || revealFrom.current === null) return;
+    const row = listRef.current?.children.item(revealFrom.current);
+    revealFrom.current = null;
+    row?.querySelector<HTMLElement>("[data-queue-open]")?.focus();
+  }, [all]);
   const shown = all ? tasks : tasks.slice(0, CASE_TASKS_SHOWN);
   const hidden = tasks.length - shown.length;
   return (
     <div className="@container min-w-0">
-      <ul className="border-t border-border" data-testid="v3-case-tasks">
+      <ul ref={listRef} className="border-t border-border" data-testid="v3-case-tasks">
         {shown.map((task) => (
           <TaskQueueRow
             key={task.key}
@@ -64,7 +74,7 @@ export function CaseTaskList({
         ))}
       </ul>
       {hidden > 0 ? (
-        <button type="button" onClick={() => setAll(true)} className={LINK}>
+        <button type="button" onClick={() => { revealFrom.current = shown.length; setAll(true); }} className={LINK}>
           Показать ещё {hidden}
         </button>
       ) : null}

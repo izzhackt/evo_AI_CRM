@@ -11,6 +11,7 @@ import type { V3Look } from "../blocks/look";
 import { studentsHandoffPending, type NextStepAccess } from "../students/students-queue-view";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { TaskComposerContextMark } from "../tasks/task-composer-context";
+import { DIRECTION_LABELS } from "./admissions-view";
 import { CaseAcceptDrawer } from "./CaseAcceptDrawer";
 import { CaseHeader } from "./CaseHeader";
 import { CaseMoreMenu } from "./CaseMoreMenu";
@@ -22,6 +23,7 @@ import {
   caseApplicationLines,
   caseChecklistCounts,
   caseFeed,
+  caseMomentLabel,
   casePortalStatus,
   casePrimaryAction,
   type CaseWorkRead,
@@ -122,9 +124,16 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
   const caseAssignees = work.tasks.kind === "ready" ? work.tasks.assignees : [];
   const taskAllowed = !preview && staffHasPermission(actor, "task.create");
   const closable = input.closure?.state === "active" && input.closure.canChange;
+  // Контекст панели «Принять дело» — из уже прочитанного (передача, направление, шаг, продажа).
+  const acceptContext = {
+    handedOffBy: draft.handedOffBy ? { ...draft.handedOffBy, label: caseMomentLabel(draft.handedOffBy.at, work.today) } : null,
+    direction: admissions.direction ? DIRECTION_LABELS[admissions.direction] : null,
+    step: work.row ? work.row.nextAction : profile.nextAction,
+    sale: salesVisible && sales ? { manager: sales.lead.currentOwnerDisplayName, nextAction: sales.lead.nextActionText } : null,
+  };
   const actions = (
     <div className="flex flex-wrap items-center gap-2" data-testid="v3-case-actions">
-      {primary === "accept" && handoff ? <CaseAcceptDrawer name={profile.person} snapshot={handoff} /> : null}
+      {primary === "accept" && handoff ? <CaseAcceptDrawer name={profile.person} snapshot={handoff} context={acceptContext} /> : null}
       {work.chat.kind !== "forbidden" ? (
         <Link href={messagesHref} className={ICON_ACTION} title="Написать">
           <Icon name="message-circle" size={18} className="shrink-0" />
@@ -181,6 +190,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
 
   // --- Лента ---------------------------------------------------------------
   const firstNotesPage = input.notesLatestHref === null;
+  const tabHref = (tab: (typeof tabs)[number]) => tabs.includes(tab) ? input.hrefFor(tab) : null;
+  const applicationLines = caseApplicationLines(admissions.applications);
   const feed = caseFeed({
     notes: input.notes.rows,
     firstPage: firstNotesPage,
@@ -188,6 +199,9 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
     documents: draft.access.documents ? draft.documents : null,
     handoffAnswer: handoff?.current ? { decision: handoff.current.decision, createdAt: handoff.current.createdAt } : null,
     chat: work.chat,
+    // Строка ленты ведёт к своему объекту: те же адреса вкладок с возвратом, что у «Сведений».
+    links: { route: tabHref("route"), money: tabHref("money"), documents: tabHref("documents"), messages: messagesHref },
+    applications: applicationLines,
   });
 
   const overview = (
@@ -201,7 +215,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
         caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
       }}
       documents={draft.access.documents ? caseChecklistCounts(draft.documents) : null}
-      applications={caseApplicationLines(admissions.applications)}
+      applications={applicationLines}
       payment={draft.access.finance ? { percent: draft.paidPercent, remaining: draft.remaining, financeStop: profile.financeStop } : null}
       contacts={{ phone: profile.phone, email: profile.email }}
       direction={admissions.direction}
@@ -226,9 +240,9 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       notesOlderHref={input.notesOlderHref}
       notesLatestHref={input.notesLatestHref}
       hrefs={{
-        documents: tabs.includes("documents") ? input.hrefFor("documents") : null,
-        route: tabs.includes("route") ? input.hrefFor("route") : null,
-        money: tabs.includes("money") ? input.hrefFor("money") : null,
+        documents: tabHref("documents"),
+        route: tabHref("route"),
+        money: tabHref("money"),
         messages: messagesHref,
         history: input.hrefFor("history"),
       }}

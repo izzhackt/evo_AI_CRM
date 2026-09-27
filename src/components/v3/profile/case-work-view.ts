@@ -211,11 +211,49 @@ export const CASE_FEED_SHOWN = 10;
 
 export type CaseFeedNote = Readonly<{ body: string; authorDisplayName: string; createdAt: string }>;
 
+/**
+ * Строка ленты. `href` — куда ведёт событие (его объект): вкладка, раздел
+ * этой страницы или переписка; null — отдельного объекта нет (само дело) или
+ * его негде открыть.
+ */
 export type CaseFeedItem =
   | Readonly<{ kind: "note"; at: string; note: CaseFeedNote }>
-  | Readonly<{ kind: "event"; at: string; key: string; text: string }>
-  | Readonly<{ kind: "chat"; at: string; author: string; text: string }>
+  | Readonly<{ kind: "event"; at: string; key: string; text: string; href: string | null }>
+  | Readonly<{ kind: "chat"; at: string; author: string; text: string; href: string }>
   | Readonly<{ kind: "older"; at: string }>;
+
+/** Якорь шапки дела («Этап», «Что дальше», «Состояние») — цель событий шага и состояния в ленте. */
+export const CASE_HEADER_ID = "case-header";
+/** Якорь «Сведений» (куратор, «Передал», «Приём дела», направление) — цель событий куратора и передачи. */
+export const CASE_FACTS_ID = "case-facts";
+
+/** Адреса объектов ленты: вкладки дела (null — вкладки у сотрудника нет) и переписка. */
+export type CaseFeedLinks = Readonly<{ route: string | null; money: string | null; documents: string | null; messages: string }>;
+
+/** События дела, которые меняют шапку («Что дальше», «Состояние»). */
+const HEADER_EVENTS: ReadonlySet<string> = new Set(["case.next.action.change", "case.lifecycle.change"]);
+/** События дела, которые видно в «Сведениях»: куратор, замещение, передача, ответ, маршрут. */
+const FACTS_EVENTS: ReadonlySet<string> = new Set([
+  "case.curator.set", "case.coverage.start", "case.coverage.return", "case.handoff.acknowledge",
+  "case.handoff.clarification", "lead.admissions.handoff.completed", "case.route.change",
+]);
+
+/**
+ * Куда ведёт событие журнала (Э4, review 27.09): заявки — «Вузы и программы»,
+ * деньги — «Договор и оплата» (ссылки вкладок с возвратом), переписка — адрес,
+ * который строит само чтение журнала (`href`), шаг и состояние — шапка,
+ * куратор и передача — «Сведения». «Дело заведено» — само дело, визовых
+ * карточек больше нет (S4): у них ссылки нет.
+ */
+export function caseEventLink(event: Pick<ProfileEvent, "transition" | "targetKind" | "href">, links: CaseFeedLinks): string | null {
+  if (event.targetKind === "money") return links.money;
+  if (event.targetKind === "conversation") return event.href ?? null;
+  if (event.targetKind !== "overview") return null;
+  if (event.transition.startsWith("application.")) return links.route;
+  if (HEADER_EVENTS.has(event.transition)) return `#${CASE_HEADER_ID}`;
+  if (FACTS_EVENTS.has(event.transition)) return `#${CASE_FACTS_ID}`;
+  return null;
+}
 
 /**
  * События журнала, которые идут в ленту: само дело, заявки, деньги (их
@@ -265,24 +303,37 @@ export function caseFeed(input: Readonly<{
   /** Текущий ответ на передачу: отказа нет в журнале 132, он берётся отсюда. */
   handoffAnswer: Readonly<{ decision: string; createdAt: string }> | null;
   chat: CaseWorkChat;
+  /** Адреса объектов событий; вкладки — те же ссылки с возвратом, что у «Сведений». */
+  links: CaseFeedLinks;
+  /**
+   * Уже прочитанные заявки дела: событие заявки журнала несёт её id
+   * (`targetId`) — по нему строка называет вуз и программу. Нет в списке —
+   * только слова события.
+   */
+  applications: readonly CaseApplicationLine[];
 }>): Readonly<{ items: readonly CaseFeedItem[]; eventsUnavailable: boolean }> {
   const items: CaseFeedItem[] = input.notes.map((note) => ({ kind: "note", at: note.createdAt, note }));
+  const applicationTitle = new Map(input.applications.map((application) => [application.id, application.title]));
   if (input.firstPage) {
     if (input.activity.kind === "ready") {
       for (const event of input.activity.events) {
         const text = journalEvent(event.transition);
         if (!text || !FEED_TARGETS.has(event.targetKind ?? "") || FEED_SKIPPED.has(event.transition) || !validMoment(event.occurredAt)) continue;
-        items.push({ kind: "event", at: event.occurredAt, key: `activity:${event.id}`, text });
+        const title = event.transition.startsWith("application.") && event.targetId ? applicationTitle.get(event.targetId) : undefined;
+        items.push({ kind: "event", at: event.occurredAt, key: `activity:${event.id}`, text: title ? `${text} · ${title}` : text,
+          href: caseEventLink(event, input.links) });
       }
       if (validMoment(input.activity.olderThan)) items.push({ kind: "older", at: input.activity.olderThan });
     }
-    for (const review of input.documents ? caseDocumentReviews(input.documents) : []) items.push({ kind: "event", ...review });
+    for (const review of input.documents ? caseDocumentReviews(input.documents) : []) {
+      items.push({ kind: "event", ...review, href: input.links.documents });
+    }
     if (input.handoffAnswer?.decision === "declined" && validMoment(input.handoffAnswer.createdAt)) {
-      items.push({ kind: "event", at: input.handoffAnswer.createdAt, key: "handoff:declined", text: "Куратор отклонил назначение" });
+      items.push({ kind: "event", at: input.handoffAnswer.createdAt, key: "handoff:declined", text: "Куратор отклонил назначение", href: `#${CASE_FACTS_ID}` });
     }
     if (input.chat.kind === "ready" && input.chat.last && validMoment(input.chat.last.createdAt)) {
       const last = input.chat.last;
-      items.push({ kind: "chat", at: last.createdAt, author: last.mine ? "Вы" : last.authorName, text: last.text });
+      items.push({ kind: "chat", at: last.createdAt, author: last.mine ? "Вы" : last.authorName, text: last.text, href: input.links.messages });
     }
   }
   // Стабильно: при равном времени заметка раньше события, порядок чтения сохраняется; срез журнала — последним.

@@ -21,7 +21,10 @@ import { CaseHandoffBlock } from "./CaseHandoffBlock";
 import { CaseTaskList } from "./CaseTaskList";
 import { LeadEditGroups } from "./LeadEditGroups";
 import { HandoffResponseSummary } from "./ProfileSalesTransition";
+import { FeedMore } from "./FeedMore";
+import { FEED_LINK, FeedChat, FeedEvent, FeedNote, FeedPointer } from "./FeedRow";
 import {
+  CASE_FACTS_ID,
   CASE_FEED_SHOWN,
   CASE_PORTAL_GROUP_ID,
   CASE_SALES_GROUP_ID,
@@ -199,7 +202,8 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
   const { curator } = input;
   const payment = input.payment;
   return (
-    <aside aria-labelledby="case-facts-title" className="min-w-0" data-testid="v3-case-facts">
+    // `#case-facts` — цель событий куратора и передачи в ленте.
+    <aside id={CASE_FACTS_ID} aria-labelledby="case-facts-title" className="min-w-0 scroll-mt-4" data-testid="v3-case-facts">
       <h2 id="case-facts-title" className="t-section text-fg">Сведения</h2>
       <dl className="mt-1">
         <Fact term="Направление">{input.direction ? DIRECTION_LABELS[input.direction] : "Не выбрано"}</Fact>
@@ -303,45 +307,24 @@ function Groups({ input }: Readonly<{ input: CaseOverviewInput }>) {
   );
 }
 
-function FeedItem({ item, today, historyHref }: Readonly<{ item: CaseFeedItem; today: string; historyHref: string }>) {
-  const time = <time dateTime={item.at} className="font-mono tabular-nums">{caseMomentLabel(item.at, today)}</time>;
+/** Строка ленты — общая разметка Lead 360 (`FeedRow`): одна метка в одной колонке, текст — от одного края. */
+function FeedItem({ item, today, historyHref, focusTarget = false }: Readonly<{ item: CaseFeedItem; today: string; historyHref: string; focusTarget?: boolean }>) {
+  const label = caseMomentLabel(item.at, today);
   if (item.kind === "older") {
     return (
-      <li className="py-2.5 t-body-compact text-fg-2" data-feed="older">
+      <FeedPointer focusTarget={focusTarget}>
         Более ранние события журнала дела — во вкладке{" "}
-        <Link href={historyHref} className="text-fg-2 underline underline-offset-4 hover:text-fg">«История»</Link>
-      </li>
+        <Link href={historyHref} className={FEED_LINK}>«История»</Link>
+      </FeedPointer>
     );
   }
   if (item.kind === "note") {
-    return (
-      <li className="py-3" data-feed="note">
-        <p className="whitespace-pre-wrap break-words t-body text-fg">{item.note.body}</p>
-        <p className="t-meta mt-1 text-fg-2">{item.note.authorDisplayName} · {time}</p>
-      </li>
-    );
+    return <FeedNote body={item.note.body} author={item.note.authorDisplayName} at={item.at} label={label} focusTarget={focusTarget} />;
   }
   if (item.kind === "chat") {
-    return (
-      <li className="flex gap-x-2 py-2.5" data-feed="chat">
-        <Icon name="message-circle" size={16} className="mt-0.5 shrink-0 text-fg-3" />
-        <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-baseline gap-x-2 t-body-compact text-fg-2">
-            <span className="min-w-0 flex-1">Переписка · {item.author}</span>
-            <span className="t-meta">{time}</span>
-          </p>
-          <p className="mt-0.5 break-words t-body-compact text-fg">{item.text}</p>
-        </div>
-      </li>
-    );
+    return <FeedChat author={item.author} text={item.text} at={item.at} label={label} href={item.href} focusTarget={focusTarget} />;
   }
-  return (
-    <li className="flex min-h-11 flex-wrap items-baseline gap-x-2 py-2.5 t-body-compact text-fg-2" data-feed="event">
-      <Icon name="circle" size={10} className="shrink-0 self-center text-fg-3" />
-      <span className="min-w-0 flex-1 break-words">{item.text}</span>
-      <span className="t-meta">{time}</span>
-    </li>
-  );
+  return <FeedEvent text={item.text} at={item.at} label={label} href={item.href} focusTarget={focusTarget} />;
 }
 
 /**
@@ -366,13 +349,11 @@ function Feed({ input }: Readonly<{ input: CaseOverviewInput }>) {
           {shown.map((item, index) => <FeedItem key={key(item, index)} item={item} today={input.work.today} historyHref={input.hrefs.history} />)}
         </ol>
         {rest.length > 0 ? (
-          // Остальное — тем же списком ниже по «Показать ещё» (без скрипта: раскрытие браузера).
-          <details className="group/more" data-testid="v3-case-feed-more">
-            <summary className={`${LINK} cursor-pointer list-none group-open/more:hidden [&::-webkit-details-marker]:hidden`}>Показать ещё {rest.length}</summary>
-            <ol start={shown.length + 1} className="divide-y divide-border border-b border-border">
-              {rest.map((item, index) => <FeedItem key={key(item, shown.length + index)} item={item} today={input.work.today} historyHref={input.hrefs.history} />)}
-            </ol>
-          </details>
+          // Остальное — тем же списком ниже по «Показать ещё»; фокус — на первую открытую строку.
+          <FeedMore count={rest.length} start={shown.length + 1} testId="v3-case-feed-more">
+            {rest.map((item, index) => <FeedItem key={key(item, shown.length + index)} item={item} today={input.work.today}
+              historyHref={input.hrefs.history} focusTarget={index === 0} />)}
+          </FeedMore>
         ) : null}
       </>) : (
         <p className="mt-3 border-t border-border pt-3 t-body-compact text-fg-2">Заметок и событий пока нет.</p>

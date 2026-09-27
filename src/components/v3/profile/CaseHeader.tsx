@@ -11,7 +11,7 @@ import { ClosedLine } from "../closure/Closure";
 import type { NextStepAccess } from "../students/students-queue-view";
 import { AssignCaseCuratorForm } from "./AssignCaseCuratorForm";
 import { CaseNextStep } from "./CaseNextStep";
-import type { CaseWorkRead } from "./case-work-view";
+import { CASE_HEADER_ID, type CaseWorkRead } from "./case-work-view";
 
 /** Факт шапки: подпись данных над значением; соседей разделяет волосяная линия (как у Lead 360). */
 function Fact({ term, wide = false, children }: Readonly<{ term: string; wide?: boolean; children: ReactNode }>) {
@@ -64,7 +64,9 @@ export function CaseHeader(input: CaseHeaderInput) {
     input.state === "pending" ? "Ожидает начала" : null,
   ].filter((word): word is string => word !== null);
   return (
-    <section className="flex flex-col gap-3" data-testid="v3-case-header" aria-label="Сведения дела">
+    // Имя области — не «Сведения»: так называется колонка фактов «Обзора» (две похожие области для читалки).
+    // `#case-header` — цель событий шага и состояния в ленте.
+    <section id={CASE_HEADER_ID} className="flex scroll-mt-4 flex-col gap-3" data-testid="v3-case-header" aria-label="Этап и следующий шаг">
       <dl className="grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap">
         {stage ? <Fact term="Этап">{next && row ? <StageTrack kind="admissions" current={row.pipelineStage} closed={input.state === "closed"} /> : stage}</Fact> : null}
         <Fact term="Что дальше" wide>

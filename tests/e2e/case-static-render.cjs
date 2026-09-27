@@ -109,6 +109,7 @@ const workView = require(join(ROOT, "src/components/v3/profile/case-work-view.ts
 const queueView = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
 const closureUi = require(join(ROOT, "src/components/v3/closure/Closure.tsx"));
 const { ClosedLeadView } = require(join(ROOT, "src/components/v3/closure/ClosedLeadView.tsx"));
+const { placeMenu } = require(join(ROOT, "src/components/v3/board/menu-position.ts"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сегодня» — среда 23.09.2026 по Бишкеку (как в статическом рендере «Студентов»).
@@ -181,8 +182,10 @@ const DOCUMENTS = [{ kind: "active", title: "Документы", items: [
 
 // Журнал дела (`staff_student_case_activity`, 132/241) — как его отдал бы readProfileActivity:
 // задачи, записи сообщений и документы без времени в ленту не идут (их проверяет тест).
-function activityEvent(n, transition, targetKind, occurredAt) {
-  return { id: uuid("abababab", n), transition, role: "", at: occurredAt ? "синтетика" : null, href: "/v3/profile", changedFields: [], targetKind, occurredAt };
+// `href` и `targetId` — как их строит readProfileActivity: у заявки — её id, у переписки — диалог во «Входящих».
+function activityEvent(n, transition, targetKind, occurredAt, targetId = CASE_ID) {
+  const href = targetKind === "conversation" ? `/v3/inbox?conversation=${targetId}` : `/v3/profile?case=${CASE_ID}&tab=${targetKind}`;
+  return { id: uuid("abababab", n), transition, role: "", at: occurredAt ? "синтетика" : null, href, changedFields: [], targetKind, occurredAt, targetId };
 }
 const HANDOFF_EVENTS = [
   activityEvent(1, "case.curator.set", "overview", "2026-08-30T06:05:00.000Z"),
@@ -193,10 +196,11 @@ const ACTIVITY = { kind: "ready", olderThan: null, events: [
   activityEvent(10, "case.next.action.change", "overview", "2026-09-22T05:10:00.000Z"),
   activityEvent(11, "task.create", "task", "2026-09-21T09:00:00.000Z"),
   activityEvent(12, "case.handoff.acknowledge", "overview", "2026-09-21T04:00:00.000Z"),
-  activityEvent(13, "communication.message.record", "conversation", "2026-09-19T12:00:00.000Z"),
-  activityEvent(14, "application.status.change", "overview", "2026-09-18T09:30:00.000Z"),
+  activityEvent(13, "communication.message.record", "conversation", "2026-09-19T12:00:00.000Z", uuid("67676767", 1)),
+  // Заявки — `targetId` заявки из APPLICATIONS: строка называет вуз и программу.
+  activityEvent(14, "application.status.change", "overview", "2026-09-18T09:30:00.000Z", uuid("66666666", 2)),
   activityEvent(15, "document.version.review", "documents", null),
-  activityEvent(16, "application.create", "overview", "2026-09-10T04:20:00.000Z"),
+  activityEvent(16, "application.create", "overview", "2026-09-10T04:20:00.000Z", uuid("66666666", 1)),
   ...HANDOFF_EVENTS,
 ] };
 const ACTIVITY_AWAITING = { kind: "ready", olderThan: null, events: HANDOFF_EVENTS };
@@ -263,7 +267,8 @@ function draft(fields = {}) {
   return {
     access: { documents: fields.documents ?? true, finance: fields.finance ?? false, studentProfile: true, contract: fields.contract ?? false },
     routeTarget: { leadId: null, studentCaseId: CASE_ID }, responsible: "Айгүл Осмонова", provider: null, person: [], study: [],
-    profileFields: null, studentApplication: fields.studentApplication ?? null, profileFieldSources: [], documents: fields.documents === false ? [] : DOCUMENTS,
+    profileFields: null, studentApplication: fields.studentApplication ?? null, profileFieldSources: [],
+    documents: fields.documents === false ? [] : fields.documentGroups ?? DOCUMENTS,
     otherFiles: [], budget: null, currency: null, payments: [], paid: fields.paid ?? null, remaining: fields.remaining ?? null,
     paidPercent: fields.paidPercent ?? null,
     admissions: {
@@ -347,7 +352,9 @@ const SCENARIOS = {
         submittedAt: "2026-08-20T04:00:00.000Z", decidedAt: "2026-08-21T04:00:00.000Z", decisionReason: null, studentCaseId: CASE_ID,
         admissionsDirection: "CN", canonicalLeadId: LEAD_ID } }),
     // Журнал длиннее страницы: на месте среза — строка со ссылкой на «Историю».
-    sales: SALES, work: work({ chat: CHAT.awaiting, activity: { ...ACTIVITY, olderThan: "2026-08-30T05:59:00.000Z" } }) },
+    sales: SALES, work: work({ chat: CHAT.awaiting, activity: { ...ACTIVITY, olderThan: "2026-08-30T05:59:00.000Z" } }),
+    // «⋯» Admin: «Доступ к порталу» и «Завершить дело…» (сервер подсказал право).
+    closure: { studentCaseId: CASE_ID, state: "active", admissionsVersion: "4", closedAt: null, outcome: null, note: null, closedByName: null, canChange: true } },
   // Admin после отказа куратора: в «Сведениях» — решение и причина отказа (ответить может только куратор).
   "admin-declined": { actor: ADMIN, profile: profile(), draft: draft({ handoff: HANDOFF_DECLINED }), sales: null,
     work: work({ activity: ACTIVITY_AWAITING }) },
@@ -361,6 +368,12 @@ const SCENARIOS = {
   // Журнал дела не прочитан: лента — заметки и строка о пробеле; дело не из продаж — «Передал» нет.
   "unread": { actor: CURATOR, profile: profile(), draft: draft({ documents: false, handedOffBy: null }), sales: null,
     work: work({ row: null, tasks: { kind: "unavailable" }, chat: { kind: "forbidden" }, activity: { kind: "unavailable" } }) },
+  // Только что принятое дело без записей: журнал прочитан и пуст, заметок нет, в чек-листе ничего не проверено,
+  // переписки нет — лента говорит «Заметок и событий пока нет.», а не рисует пустой список.
+  "fresh": { actor: CURATOR, profile: profile(), draft: draft({ documentGroups: [{ kind: "active", title: "Документы", items: [docItem(1, "required"), docItem(2, "required")] }] }),
+    sales: null, notes: { ...NOTES, rows: [] },
+    work: work({ row: queueRow({ stage: "new", flags: [], due: null }), tasks: { kind: "ready", tasks: [], assignees: [] },
+      chat: { kind: "ready", awaitState: "none", last: null }, activity: { kind: "ready", olderThan: null, events: [] } }) },
   // Более ранняя страница заметок: в ленте только заметки, событий нет (они — на первой странице).
   "notes-page": { actor: CURATOR, profile: profile(), draft: draft(), sales: null, work: work(),
     notesLatestHref: `/v3/profile?case=${CASE_ID}&tab=overview` },
@@ -391,7 +404,7 @@ function buildParts(name) {
       wishesCard: uuid("12121212", 8), educationCard: uuid("12121212", 9), conditionsCard: uuid("12121212", 10),
       step: uuid("12121212", 11), assignCurator: uuid("12121212", 12), portal: uuid("12121212", 13), note: uuid("12121212", 14),
     },
-    notes: NOTES, notesOlderHref: null, notesLatestHref: item.notesLatestHref ?? null, curators: [], curatorsAvailable: true, hrefFor,
+    notes: item.notes ?? NOTES, notesOlderHref: null, notesLatestHref: item.notesLatestHref ?? null, curators: [], curatorsAvailable: true, hrefFor,
     salesDataOpen: false, help: null, closure: item.closure ?? null,
     // Новый облик (Э1.3): дорожка этапа, срок словом, инициалы, полоса документов.
     ...(process.argv.includes("--look=next") ? { look: "next" } : {}),
@@ -638,6 +651,15 @@ async function screenshots() {
         ...["accept-1440", "accept-390"].map((suffix) => shot(suffix, { do: "accept" }))]],
       ["active", "curator", ["1440", "1440-full", "1280", "1280-full", "390", "390-full"].map((suffix) => shot(suffix))],
       ["closed", "closed-outcome", ["1440", "1440-full", "1280", "390", "390-full"].map((suffix) => shot(suffix))],
+      // Review 27.09: Admin со всеми фактами (контакты, оплата, портал, продажа), открытые «⋯» и группы правки;
+      // лента — строка о непрочитанном журнале, пустая, раскрытое «Показать ещё»; просмотр роли.
+      ["admin", "admin", [...["1440", "1440-full", "1280-full", "390-full"].map((suffix) => shot(suffix)),
+        shot("menu-1440", { do: "menu" }), shot("menu-390", { do: "menu" }),
+        shot("portal-1440", PORTAL), shot("sales-1440-full", SALES),
+        shot("more-1440-full", { do: "more" }), shot("more-1440", { do: "more", at: '[data-testid="v3-case-feed-more"]' })]],
+      ["feed-unread", "unread", ["1440", "390-full"].map((suffix) => shot(suffix))],
+      ["feed-empty", "fresh", ["1440", "390-full"].map((suffix) => shot(suffix))],
+      ["preview", "preview-awaiting", ["1440", "1440-full", "390"].map((suffix) => shot(suffix))],
     ];
     const f3Pages = F3.map(([state, scenario, shots]) => {
       const htmlPath = join(outDir, `f3-${lookName}-${state}.html`);
@@ -710,6 +732,33 @@ async function capture(pages, outDir, look, compareMarkup, leadMarkup) {
             dialog.querySelector('[aria-pressed="true"]')?.focus();
           });
         }
+        // «⋯» у заголовка: встроенный popover открывается щелчком и без гидратации; место — те же правила
+        // `placeMenu`, что у TopLayerMenu (снизу, по правому краю кнопки).
+        if (action === "menu") {
+          await page.click('[data-testid="v3-case-actions"] button[popovertarget]');
+          const boxes = await page.evaluate(() => {
+            const menu = document.querySelector('[data-testid="v3-case-actions-menu"]');
+            const rect = document.querySelector('[data-testid="v3-case-actions"] button[popovertarget]').getBoundingClientRect();
+            return { trigger: { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom },
+              menu: { width: menu.offsetWidth, height: menu.scrollHeight }, viewport: { width: window.innerWidth, height: window.innerHeight } };
+          });
+          const position = placeMenu(boxes.trigger, boxes.menu, boxes.viewport, "bottom-end");
+          await page.evaluate((at) => {
+            const menu = document.querySelector('[data-testid="v3-case-actions-menu"]');
+            Object.assign(menu.style, { top: `${at.top}px`, left: `${at.left}px`, maxHeight: `${at.maxHeight}px` });
+          }, position);
+        }
+        // «Показать ещё» ленты: то же, что делает FeedMore после щелчка (страница не гидратируется) — скрытые
+        // строки открыты, кнопка ушла, фокус с клавиатуры — на первой открытой строке. Само поведение
+        // проверяет `--drawer` в браузере с настоящим React.
+        if (action === "more") {
+          await page.evaluate(() => {
+            const box = document.querySelector('[data-testid="v3-case-feed-more"]');
+            box.querySelector("ol").hidden = false;
+            box.querySelector("button").remove();
+          });
+          await keyboardFocus(page, '[data-testid="v3-case-feed-more"] ol > [tabindex="-1"]');
+        }
         if (action === "close-dialog") {
           // Окно в верхнем слое, исход «Поступил» выбран — как после щелчка по «Завершить дело…».
           await page.evaluate(() => {
@@ -757,11 +806,17 @@ async function capture(pages, outDir, look, compareMarkup, leadMarkup) {
             factsColumn: box(facts),
             firstTaskBottom: firstTask ? Math.round(firstTask.getBoundingClientRect().bottom + window.scrollY) : null,
             overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            // Видимые элементы шире окна вне своих горизонтальных прокруток (полоса вкладок прокручивается сама).
+            wideElements: [...document.querySelectorAll("body *")].filter((element) => element.checkVisibility()
+              && !element.closest(".overflow-x-auto") && element.getBoundingClientRect().right > document.documentElement.clientWidth + 0.5).length,
             // Видно на странице: содержимое свёрнутого <details> и закрытого окна не считается.
             solidRed: [...document.querySelectorAll("a, button")].filter((element) => element.checkVisibility()
               && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").length,
             solidRedNames: [...document.querySelectorAll("a, button")].filter((element) => element.checkVisibility()
               && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim().slice(0, 24)).join("|"),
+            // Любая видимая сплошная красная заливка, не только кнопки: в новом облике — слово срока «сегодня» (DueWord).
+            solidRedFills: [...document.querySelectorAll("body *")].filter((element) => element.checkVisibility()
+              && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => `${element.tagName.toLowerCase()}:${element.textContent.trim().slice(0, 16)}`).join("|"),
             smallText: [...document.querySelectorAll("main *")].filter((element) => element.checkVisibility()
               && [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim())
               && parseFloat(getComputedStyle(element).fontSize) < 12).length,
@@ -786,6 +841,20 @@ async function capture(pages, outDir, look, compareMarkup, leadMarkup) {
         });
         const buffer = await page.screenshot({ path: join(outDir, file), fullPage: full });
         captured.set(`${name}-${suffix}`, buffer);
+        // Переполнение, которое снимок застал при первой вёрстке, пересчитывается после одной новой вёрстки
+        // (тело скрыто и возвращено) — review 27.09: при 320 px эмуляция телефона Chromium с полосой
+        // прокрутки 10 px (globals.css) и `body { min-width: 320px }` первой вёрсткой даёт 331 px.
+        if (metrics.overflow !== 0) {
+          metrics.overflowAfterRelayout = await page.evaluate(() => {
+            const root = document.documentElement;
+            const previous = document.body.style.display;
+            document.body.style.display = "none";
+            void root.offsetWidth;
+            document.body.style.display = previous;
+            void root.offsetWidth;
+            return root.scrollWidth - root.clientWidth;
+          });
+        }
         const facts = Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ");
         process.stdout.write(`${file}: ${facts}\n`);
         await browserContext.close();
@@ -812,16 +881,27 @@ const React = require("react");
 const { createRoot } = require("react-dom/client");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
 const { CaseAcceptDrawer } = require("@/components/v3/profile/CaseAcceptDrawer");
+const { CaseTaskList } = require("@/components/v3/profile/CaseTaskList");
+const { FeedMore } = require("@/components/v3/profile/FeedMore");
+const { FeedEvent, FeedNote } = require("@/components/v3/profile/FeedRow");
 const h = React.createElement;
 window.__s360 = { calls: [], refreshes: 0 };
 const router = { refresh() { window.__s360.refreshes += 1; }, push() {}, replace() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {} };
-const snapshot = JSON.parse(document.getElementById("s360-fixture").textContent);
+const fixture = JSON.parse(document.getElementById("s360-fixture").textContent);
+const snapshot = fixture.snapshot;
 function Page() {
   const [pending, setPending] = React.useState(true);
   window.__s360.answered = () => setPending(false);
-  return h("main", { className: "p-6" },
+  return h("main", { className: "p-6 space-y-6" },
     h("h2", { id: "case-tasks-title", tabIndex: -1, "data-queue-heading": "", className: "t-section" }, "Задачи"),
-    pending ? h(CaseAcceptDrawer, { name: "Синтетический студент", snapshot }) : h("p", null, "Дело принято"));
+    pending ? h(CaseAcceptDrawer, { name: "Синтетический студент", snapshot, context: fixture.context }) : h("p", null, "Дело принято"),
+    // «Показать ещё» задач и ленты (review Э4): фокус переходит на первую открытую строку.
+    h("section", { "data-testid": "s360-tasks" }, h(CaseTaskList, { tasks: fixture.tasks, permissions: fixture.permissions, nowIso: fixture.nowIso })),
+    h("section", { "data-testid": "s360-feed" },
+      h("ol", null, h(FeedEvent, { text: "Следующий шаг изменён", at: "2026-09-22T05:10:00.000Z", label: "22.09 11:10", href: "#case-header" })),
+      h(FeedMore, { count: 2, start: 2, testId: "s360-feed-more" },
+        h(FeedNote, { body: "Синтетическая заметка", author: "Сотрудник", at: "2026-09-12T10:10:00.000Z", label: "12.09 16:10", focusTarget: true }),
+        h(FeedEvent, { text: "Дело заведено", at: "2026-08-30T05:59:00.000Z", label: "30.08 11:59" }))));
 }
 createRoot(document.getElementById("root")).render(h(AppRouterContext.Provider, { value: router }, h("div", { className: "v3-world" }, h(Page))));
 `;
@@ -863,7 +943,14 @@ async function drawerCheck() {
     "<!DOCTYPE html>",
     '<html lang="ru" data-theme="light" class="h-full antialiased">',
     `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Принять дело — синтетические данные</title><style>${await compileCss()}</style></head>`,
-    `<body class="min-h-full"><div id="root"></div><script type="application/json" id="s360-fixture">${JSON.stringify(HANDOFF_PENDING)}</script><script src="f3-drawer-client.js"></script></body></html>`,
+    `<body class="min-h-full"><div id="root"></div><script type="application/json" id="s360-fixture">${JSON.stringify({
+      snapshot: HANDOFF_PENDING,
+      // Контекст панели — как его собирает caseWorkParts из уже прочитанного (синтетика).
+      context: { handedOffBy: { ...HANDED_OFF_BY, label: workView.caseMomentLabel(HANDED_OFF_BY.at, TODAY) }, direction: "Китай",
+        step: "Собрать апостиль на аттестат", sale: null },
+      tasks: workView.caseOpenTasks(TASKS, NAME, "active"), nowIso: NOW.toISOString(),
+      permissions: { actorMembershipId: ME, admin: false, preview: false, staffComplete: false, staffEdit: false, caseManage: true, caseAssign: false },
+    })}</script><script src="f3-drawer-client.js"></script></body></html>`,
   ].join(""));
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
@@ -888,6 +975,10 @@ async function drawerCheck() {
       await trigger.click();
       let now = await state();
       check(now.modal === true && now.focused === "button:Принять дело" && now.pressed.join() === "Принять дело", `${w}: «Принять дело» opens the modal panel, focus on the chosen decision`);
+      const contextText = await page.getByTestId("v3-case-accept-context").innerText();
+      check(/Передал\s+Эрмек Токтосунов · 30\.08 12:00\s+Направление\s+Китай\s+Что дальше\s+Собрать апостиль на аттестат\s+Текущий ответ\s+Ожидает ответа куратора/u.test(contextText)
+        && await page.getByTestId("v3-case-accept-context").evaluate((element) => element.compareDocumentPosition(document.querySelector('[role="group"][aria-label="Решение"]')) & Node.DOCUMENT_POSITION_FOLLOWING),
+        `${w}: the panel shows the handoff context above the choices (who handed off and when, direction, step, current answer)`);
       await page.screenshot({ path: join(outDir, `f3-drawer-open-${w}.png`) });
       await page.keyboard.press("Escape");
       now = await state();
@@ -910,6 +1001,24 @@ async function drawerCheck() {
         && call.request_id === HANDOFF_PENDING.requestId && call.expected_acknowledgement_id === "", `${w}: confirm sends the same answer command once with the snapshot's ids and request id`);
       now = await state();
       check(now.modal === null && now.focused === "h2:Задачи", `${w}: after the answer the panel is gone and focus lands on «Задачи», not the page`);
+      // «Показать ещё» с клавиатуры: кнопка уходит, фокус — на первой открытой строке, а не на странице.
+      const focusAfter = async (section) => {
+        await page.getByTestId(section).getByRole("button", { name: /^Показать ещё/u }).focus();
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(50);
+        return page.evaluate((id) => {
+          const active = document.activeElement;
+          return { gone: !document.querySelector(`[data-testid="${id}"] button`)?.textContent.startsWith("Показать ещё"),
+            where: active === document.body ? "body" : `${active.tagName.toLowerCase()}:${active.getAttribute("data-feed") ?? active.textContent.trim().slice(0, 40)}`,
+            ring: active.matches(":focus-visible") };
+        }, section);
+      };
+      const tasksMore = await focusAfter("s360-tasks");
+      check(tasksMore.where === "a:Сверить паспортные данные в анкете" && tasksMore.ring, `${w}: tasks «Показать ещё» moves focus to the first revealed task (${tasksMore.where})`);
+      const feedMore = await focusAfter("s360-feed");
+      const revealed = await page.getByTestId("s360-feed-more").locator("ol > li").count();
+      check(feedMore.gone && feedMore.where === "li:note" && feedMore.ring && revealed === 2 && await page.getByText("Синтетическая заметка").isVisible(),
+        `${w}: feed «Показать ещё» reveals the rows and moves focus to the first one (${feedMore.where})`);
       check(errors.length === 0, `${w}: no browser errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
       await context.close();
     }

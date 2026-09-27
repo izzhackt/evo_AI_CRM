@@ -538,7 +538,8 @@ export function ProfileHandoffAcknowledgement({ snapshot, onSaved, drawer }: {
     && (declining || current.agreedContactDate === (contactDate || null));
   const body = (
       <div className={drawer ? "flex flex-col gap-3" : "flex flex-col gap-3 p-4"} data-testid="v3-handoff-acknowledgement">
-        {drawer && current === null ? null : <HandoffResponseSummary current={current} />}
+        {/* В панели Student 360 текущий ответ стоит в её контексте над выбором (`CaseAcceptDrawer`). */}
+        {drawer ? null : <HandoffResponseSummary current={current} />}
         {snapshot.canRespond && drawer ? (
           <div role="group" aria-label="Решение" className="flex flex-wrap gap-2">
             {HANDOFF_CHOICES.map((choice) => (

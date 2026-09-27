@@ -72,6 +72,7 @@ export async function readProfileActivity(
       changedFields: fields,
       targetKind: kind as NonNullable<ProfileEvent["targetKind"]>,
       occurredAt: timestamp as string | null,
+      targetId,
     });
   });
   let nextCursor: ProfileActivityCursor | null = null;

@@ -10,11 +10,14 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  CASE_FACTS_ID,
   CASE_FEED_SHOWN,
+  CASE_HEADER_ID,
   CASE_PORTAL_GROUP_ID,
   CASE_SALES_GROUP_ID,
   caseChecklistCounts,
   caseDocumentReviews,
+  caseEventLink,
   caseFeed,
   casePrimaryAction,
 } from "../src/components/v3/profile/case-work-view.ts";
@@ -29,10 +32,11 @@ const render = (...flags) => new Map(JSON.parse(execFileSync(
 const current = render();
 const next = render("--look=next");
 
-/** Видно без раскрытия: без закрытых `<details>` и без закрытых `<dialog>` и `[popover]` (верхний слой). */
+/** Видно без раскрытия: без закрытых `<details>`, `<dialog>`, `[popover]` (верхний слой) и скрытых `hidden` списков («Показать ещё»). */
 function shown(html) {
   let out = html;
-  for (const [tag, open] of [["details", /<details(?![^>]*\bopen\b)[^>]*>/u], ["dialog", /<dialog(?![^>]*\bopen\b)[^>]*>/u], ["div", /<div[^>]*\bpopover="auto"[^>]*>/u]]) {
+  for (const [tag, open] of [["details", /<details(?![^>]*\bopen\b)[^>]*>/u], ["dialog", /<dialog(?![^>]*\bopen\b)[^>]*>/u], ["div", /<div[^>]*\bpopover="auto"[^>]*>/u],
+    ["ol", /<ol[^>]*\bhidden=""[^>]*>/u]]) {
     for (let match = open.exec(out); match; match = open.exec(out)) {
       let depth = 0;
       const pattern = new RegExp(`<${tag}\\b|</${tag}>`, "gu");
@@ -78,6 +82,7 @@ const DOCS = [
   { kind: "removed", title: "Удалённые", items: [{ id: "d5", name: "Старое", removedAt: "2026-09-21T05:00:00.000Z" }] },
 ];
 const CHAT = { kind: "ready", awaitState: "needs_reply", last: { authorName: "Студент", mine: false, text: "Можно в пятницу?", createdAt: "2026-09-22T08:00:00.000Z" } };
+const LINKS = { route: "/route", money: "/money", documents: "/documents", messages: "/v3/messages?case=c" };
 
 test("document events are review decisions from the documents already read — with the review time, never an upload", () => {
   assert.deepEqual(caseDocumentReviews(DOCS).map(({ key, text: words, at }) => [key, words, at]), [
@@ -102,6 +107,7 @@ test("the feed merges notes and events newest first; tasks, undated documents an
   const feed = caseFeed({
     notes: [NOTE("Заметка A", "2026-09-21T04:00:00.000Z"), NOTE("Заметка B", "2026-09-10T04:00:00.000Z")],
     firstPage: true, activity, documents: DOCS, handoffAnswer: { decision: "accepted", createdAt: "2026-09-21T04:00:00.000Z" }, chat: CHAT,
+    links: LINKS, applications: [],
   });
   assert.equal(feed.eventsUnavailable, false);
   assert.deepEqual(feed.items.map((item) => item.kind === "note" ? `note:${item.note.body}` : item.kind === "event" ? item.text : item.kind), [
@@ -116,11 +122,43 @@ test("the feed merges notes and events newest first; tasks, undated documents an
     "note:Заметка B",
     "Паспорт — принят",
   ]);
-  assert.deepEqual(feed.items[0], { kind: "chat", at: CHAT.last.createdAt, author: "Студент", text: "Можно в пятницу?" });
+  assert.deepEqual(feed.items[0], { kind: "chat", at: CHAT.last.createdAt, author: "Студент", text: "Можно в пятницу?", href: LINKS.messages });
+});
+
+test("each feed row leads to its object; the application is named only from what was read", () => {
+  // Журнал: заявки — «Вузы и программы», деньги — «Договор и оплата», переписка — адрес самого чтения,
+  // шаг и состояние — шапка, куратор и передача — «Сведения», само дело — без ссылки.
+  const at = "2026-09-25T05:00:00.000Z";
+  const link = (transition, targetKind, href = "/v3/profile") => caseEventLink({ transition, targetKind, href }, LINKS);
+  assert.equal(link("application.status.change", "overview"), "/route");
+  assert.equal(link("finance.payment.record", "money"), "/money");
+  assert.equal(link("communication.conversation.link", "conversation", "/v3/inbox?conversation=x"), "/v3/inbox?conversation=x");
+  assert.equal(link("case.next.action.change", "overview"), `#${CASE_HEADER_ID}`);
+  assert.equal(link("case.lifecycle.change", "overview"), `#${CASE_HEADER_ID}`);
+  for (const transition of ["case.curator.set", "case.handoff.acknowledge", "case.handoff.clarification", "case.coverage.start", "lead.admissions.handoff.completed", "case.route.change"]) {
+    assert.equal(link(transition, "overview"), `#${CASE_FACTS_ID}`, transition);
+  }
+  assert.equal(link("case.create", "overview"), null, "the case itself is this page");
+  assert.equal(link("visa.status.change", "overview"), null, "no visa card to open since S4");
+  assert.equal(caseEventLink({ transition: "finance.payment.record", targetKind: "money", href: "/x" }, { ...LINKS, money: null }), null, "no tab — no link");
+  const events = [
+    { ...EVENT(1, "application.status.change", "overview", at), targetId: "app-1" },
+    { ...EVENT(2, "application.create", "overview", at), targetId: "app-unknown" },
+  ];
+  const feed = caseFeed({ notes: [], firstPage: true, activity: { kind: "ready", olderThan: null, events }, documents: DOCS,
+    handoffAnswer: { decision: "declined", createdAt: "2026-09-24T05:00:00.000Z" }, chat: { kind: "forbidden" }, links: LINKS,
+    applications: [{ id: "app-1", title: "Университет · Программа", status: "ready", primary: true, deadlineOn: null }] });
+  const rows = feed.items.filter((item) => item.kind === "event").map((item) => [item.text, item.href]);
+  assert.deepEqual(rows.slice(0, 3), [
+    ["Статус заявки изменён · Университет · Программа", "/route"],
+    ["Заявка заведена", "/route"],
+    ["Куратор отклонил назначение", `#${CASE_FACTS_ID}`],
+  ]);
+  assert.ok(rows.slice(3).every(([words, href]) => / — /u.test(words) && href === "/documents"), "document reviews open the documents tab");
 });
 
 test("the feed is honest about what was not read and where the rest lives", () => {
-  const base = { notes: [NOTE("Заметка", "2026-09-10T04:00:00.000Z")], documents: DOCS, handoffAnswer: null, chat: CHAT };
+  const base = { notes: [NOTE("Заметка", "2026-09-10T04:00:00.000Z")], documents: DOCS, handoffAnswer: null, chat: CHAT, links: LINKS, applications: [] };
   // Журнал не прочитан: заметки, решения по документам и переписка остаются, пробел назван.
   const unread = caseFeed({ ...base, firstPage: true, activity: { kind: "unavailable" } });
   assert.equal(unread.eventsUnavailable, true);
@@ -192,13 +230,24 @@ test("awaiting acceptance: the one solid red is «Принять дело» at t
   assert.match(form, /const \[state, action, pending\] = useActionState<HandoffResponseActionState, FormData>\(\n\s+async \(previous, formData\) => \{\n\s+const next = await respondToHandoffAction\(previous, formData\);/u);
 });
 
-test("otherwise no solid red: active, closed, needs a curator, Admin, preview", () => {
+test("otherwise no red action: active, closed, needs a curator, Admin, preview — the new look's «сегодня» is the one other solid red", () => {
   for (const [look, surfaces] of [["current", current], ["next", next]]) {
-    for (const name of ["curator", "closed", "closed-outcome", "needs-curator", "admin", "admin-declined", "unread", "preview-awaiting", "notes-page"]) {
+    for (const name of ["curator", "closed", "closed-outcome", "needs-curator", "admin", "admin-declined", "unread", "preview-awaiting", "notes-page", "fresh"]) {
       assert.equal(solidRed(shown(surfaces.get(name))), 0, `${look} ${name}`);
       assert.doesNotMatch(surfaces.get(name), /data-testid="v3-case-primary"/u, `${look} ${name}`);
     }
   }
+  // Что видит пользователь (review 27.09): в новом облике у задачи со сроком «сегодня» слово срока —
+  // маленькая сплошная красная заливка (DueWord, правило плана: красный — главное действие и «сегодня»).
+  // Это не действие и оно есть только в строках «Задач»; в прежнем облике слов срока нет.
+  const active = next.get("curator");
+  const tasksPart = active.slice(active.indexOf('data-testid="v3-case-tasks-part"'), active.indexOf('data-testid="v3-case-facts"'));
+  const today = (html) => html.match(/class="v3-due t-caption" data-due="today"/gu)?.length ?? 0;
+  assert.ok(today(tasksPart) > 0, "the task due today shows «сегодня»");
+  assert.equal(today(active), today(tasksPart), "no «сегодня» fill outside the task rows");
+  assert.equal(today(current.get("curator")), 0, "the current look has no due-word fill");
+  assert.match(read("src/components/v3/blocks/DueWord.tsx"), /«сегодня» — маленькая красная заливка с белым текстом \(правило плана:\n \* сплошной красный — главное действие и «сегодня»\)/u);
+  assert.match(read("DESIGN.md"), /единственная другая сплошная\s+красная заливка — слово срока «сегодня»/u, "the docs name the exception");
 });
 
 test("no capability is lost: every action of the case overview is still on the page", () => {
@@ -257,12 +306,105 @@ test("the header: stage words in both looks, the track only in the new one; the 
   assert.match(plain, /xl:grid-cols-\[minmax\(0,1fr\)_22rem\] xl:grid-rows-\[auto_1fr\]/u);
   const order = ["v3-case-tasks-part", "v3-case-facts", "v3-case-feed"].map((id) => plain.indexOf(`data-testid="${id}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "work, facts, feed in reading order");
-  // Лента: видны первые строки, остальное — «Показать ещё» (раскрытие браузера).
+  // Лента: видны первые строки, остальное — скрытым списком под «Показать ещё»; первая скрытая строка —
+  // цель фокуса (`tabindex="-1"`), кнопка уходит (FeedMore, проверка в браузере — `case-static-render.cjs --drawer`).
   const admin = current.get("admin");
   const visibleItems = shown(admin).match(/data-feed="/gu)?.length ?? 0;
   assert.equal(visibleItems, CASE_FEED_SHOWN);
-  assert.match(admin, /data-testid="v3-case-feed-more"><summary[^>]*>Показать ещё \d+<\/summary>/u);
+  const more = admin.match(/data-testid="v3-case-feed-more"><ol start="(\d+)" hidden="" class="[^"]*">(<li [^>]*>)[\s\S]*?<\/ol><button type="button" class="[^"]*">Показать ещё (\d+)<\/button>/u);
+  assert.ok(more, "hidden rest and the button");
+  assert.equal(Number(more[1]), CASE_FEED_SHOWN + 1);
+  assert.match(more[2], /tabindex="-1"/iu, "the first hidden row takes the focus");
+  assert.equal((admin.match(/data-feed="[a-z]+" tabindex="-1"/giu) ?? []).length, 1, "only that row");
+  assert.doesNotMatch(admin, /group-open\/more:hidden/u, "no summary that hides itself while focused");
   assert.match(text(admin), /Более ранние события журнала дела — во вкладке «История»/u);
+});
+
+test("«Показать ещё» keeps the keyboard in place: tasks and feed move focus to the first revealed row", () => {
+  const feedMore = read("src/components/v3/profile/FeedMore.tsx");
+  assert.match(feedMore, /<ol ref=\{listRef\} start=\{start\} hidden=\{!open\}/u);
+  assert.match(feedMore, /onClick=\{\(\) => \{ moveFocus\.current = true; setOpen\(true\); \}\}/u);
+  assert.match(feedMore, /listRef\.current\?\.querySelector<HTMLElement>\(':scope > \[tabindex="-1"\]'\)\?\.focus\(\);/u);
+  const tasks = read("src/components/v3/profile/CaseTaskList.tsx");
+  assert.match(tasks, /onClick=\{\(\) => \{ revealFrom\.current = shown\.length; setAll\(true\); \}\}/u);
+  assert.match(tasks, /row\?\.querySelector<HTMLElement>\("\[data-queue-open\]"\)\?\.focus\(\);/u);
+  // Браузер с настоящим React проверяет то же с клавиатуры (Enter) и видимую рамку фокуса.
+  const harness = read("tests/e2e/case-static-render.cjs");
+  assert.match(harness, /tasks «Показать ещё» moves focus to the first revealed task/u);
+  assert.match(harness, /feed «Показать ещё» reveals the rows and moves focus to the first one/u);
+});
+
+test("feed rows lead to their objects on the page: tabs keep the way back, the step and the curator are anchors here", () => {
+  const admin = current.get("admin");
+  const row = (words) => admin.match(new RegExp(`<li class="[^"]*" data-feed="(?:event|chat)">(?:(?!</li>).)*?${words}(?:(?!</li>).)*?</li>`, "u"))?.[0] ?? "";
+  const back = "&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dmine";
+  assert.match(row("Статус заявки изменён · Чжэцзянский университет · Компьютерные науки"), new RegExp(`href="/v3/profile\\?case=cccccccc-2222-4222-8222-000000000001&amp;tab=route${back.replaceAll("?", "\\?")}"`, "u"));
+  assert.match(row("Заявка заведена · Шанхайский университет · Международная торговля"), /tab=route/u);
+  assert.match(row("План обучения — нужно исправить"), /tab=documents&amp;returnTo=/u);
+  assert.match(row("Следующий шаг изменён"), /href="#case-header"/u);
+  assert.match(row("Куратор принял передачу"), /href="#case-facts"/u);
+  assert.match(row("Дело передано в сопровождение"), /href="#case-facts"/u);
+  assert.match(row("Переписка</a> · Вы"), /href="\/v3\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
+  // Само дело — это страница: «Дело заведено» без ссылки. Якоря существуют.
+  assert.doesNotMatch(row("Дело заведено"), /<a /u);
+  assert.match(admin, /<section id="case-header" /u);
+  assert.match(admin, /<aside id="case-facts" /u);
+  assert.match(text(next.get("closed-outcome")), /Состояние дела изменено/u);
+  assert.match(next.get("closed-outcome"), /href="#case-header">Состояние дела изменено<\/a>/u, "the closing event points at the closed line in the header");
+  // Объект назван только из прочитанного: id заявки — из того же ответа журнала.
+  assert.match(read("src/lib/v3/profile-activity-source.ts"), /occurredAt: timestamp as string \| null,\n\s+targetId,/u);
+});
+
+test("one gutter, one text edge: Lead 360 and Student 360 draw feed rows with the same shared markup", () => {
+  for (const file of ["src/components/v3/profile/CaseOverview.tsx", "src/components/v3/profile/LeadWorkParts.tsx"]) {
+    const source = read(file);
+    assert.match(source, /from "\.\/FeedRow";/u, file);
+    assert.doesNotMatch(source, /data-feed=/u, `${file}: no own row markup`);
+  }
+  const rows = read("src/components/v3/profile/FeedRow.tsx");
+  assert.match(rows, /className=\{`flex \$\{link \? "h-6" : "h-\[1lh\]"\} w-4 shrink-0 items-center justify-center \$\{type\}`\}/u);
+  for (const [look, surfaces] of [["current", current], ["next", next]]) {
+    const html = surfaces.get("admin");
+    const items = html.match(/<li class="[^"]*" data-feed="(?:note|event|chat)"[^>]*>/gu) ?? [];
+    assert.ok(items.length > CASE_FEED_SHOWN, look);
+    // Каждая строка: метка в колонке 16 px, затем текст — один край для заметок, событий и переписки.
+    const marked = html.match(/data-feed="(?:note|event|chat)"[^>]*><span aria-hidden="true" class="flex (?:h-\[1lh\]|h-6) w-4 shrink-0 items-center justify-center t-body(?:-compact)?"><svg width="10" height="10"/gu) ?? [];
+    assert.equal(marked.length, items.length, `${look}: every row starts with the same mark`);
+    assert.match(html, /<li class="py-2\.5 ps-6 t-body-compact text-fg-2" data-feed="older"/u, `${look}: the pointer line starts at the same text edge`);
+  }
+});
+
+test("landmarks are named apart: the header region and the facts column", () => {
+  const html = current.get("curator");
+  assert.match(html, /<section id="case-header" class="[^"]*" data-testid="v3-case-header" aria-label="Этап и следующий шаг">/u);
+  assert.match(html, /<aside id="case-facts" aria-labelledby="case-facts-title"[^>]*>[\s\S]*?<h2 id="case-facts-title" class="t-section text-fg">Сведения<\/h2>/u);
+  assert.doesNotMatch(html, /aria-label="Сведения дела"/u);
+});
+
+test("the accept panel decides with context: who handed off and when, direction, step, the current answer — nothing new read", () => {
+  for (const [look, surfaces] of [["current", current], ["next", next]]) {
+    const html = surfaces.get("curator-accept");
+    const drawer = html.slice(html.indexOf("<dialog"), html.indexOf("</dialog>"));
+    const context = drawer.indexOf('data-testid="v3-case-accept-context"');
+    assert.ok(context > 0 && context < drawer.indexOf('aria-label="Решение"'), `${look}: context above the choices`);
+    assert.match(text(drawer), /Передал Эрмек Токтосунов · 30\.08 12:00 Направление Китай Что дальше Собрать апостиль на аттестат Текущий ответ Ожидает ответа куратора/u, look);
+    // Продажу куратору не читают — её в панели нет; ответ не повторяется ниже выбора.
+    assert.doesNotMatch(text(drawer), /Продажа/u, look);
+    assert.equal((text(drawer).match(/Ожидает ответа куратора/gu) ?? []).length, 1, look);
+  }
+  const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
+  assert.match(parts, /handedOffBy: draft\.handedOffBy \? \{ \.\.\.draft\.handedOffBy, label: caseMomentLabel\(draft\.handedOffBy\.at, work\.today\) \} : null,/u);
+  assert.match(parts, /sale: salesVisible && sales \? \{ manager: sales\.lead\.currentOwnerDisplayName, nextAction: sales\.lead\.nextActionText \} : null,/u);
+});
+
+test("the feed names what it could not read and says when there is nothing yet", () => {
+  assert.match(text(current.get("unread")), /Лента .*События журнала дела сейчас не прочитаны\. Обновите страницу, чтобы повторить\./u);
+  assert.match(text(current.get("fresh")), /Лента Новая заметка Добавить заметку Заметок и событий пока нет\./u);
+  assert.doesNotMatch(current.get("fresh"), /data-testid="v3-case-feed-items"/u);
+  // Просмотр роли: заметку не пишут — поля нет, лента читается.
+  const preview = current.get("preview-awaiting");
+  assert.doesNotMatch(preview, /data-testid="v3-lead-note-composer"/u);
+  assert.match(preview, /data-testid="v3-case-feed-items"/u);
 });
 
 test("no invented progress: the documents bar is the read checklist, and there is no bar without it", () => {

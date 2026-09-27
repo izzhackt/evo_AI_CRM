@@ -18,6 +18,7 @@ import { StageTrack } from "../blocks/StageTrack";
 import { dueWordOf } from "../queue/due-bucket";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { TaskComposerContextMark, type TaskComposerPageContext } from "../tasks/task-composer-context";
+import { FeedEvent, FeedNote } from "./FeedRow";
 import { handoffFootnote, handoffStripView, stripMoment, type StripText } from "./handoff-strip-view";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
@@ -404,21 +405,12 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
       </div>
       {feed.length > 0 ? (
         <ol className="mt-3 divide-y divide-border border-t border-border" data-testid="v3-lead-feed-items">
+          {/* Общая разметка строк с Student 360 (`FeedRow`): одна метка, один край текста. */}
           {feed.map((item, index) => item.kind === "note" ? (
-            <li key={`note:${item.at}:${index}`} className="py-3" data-feed="note">
-              <p className="whitespace-pre-wrap break-words t-body text-fg">{item.note.body}</p>
-              <p className="t-meta mt-1 text-fg-2">
-                {item.note.authorDisplayName}
-                {" · "}
-                <time dateTime={item.at} className="font-mono tabular-nums">{leadMoment(item.at, input.now)}</time>
-              </p>
-            </li>
+            <FeedNote key={`note:${item.at}:${index}`} body={item.note.body} author={item.note.authorDisplayName}
+              at={item.at} label={leadMoment(item.at, input.now)} />
           ) : (
-            <li key={`event:${item.event.key}`} className="flex min-h-11 flex-wrap items-baseline gap-x-2 py-2.5 t-body-compact text-fg-2" data-feed="event">
-              <Icon name="circle" size={10} className="shrink-0 self-center text-fg-3" />
-              <span className="min-w-0 flex-1 break-words">{item.event.text}</span>
-              <time dateTime={item.at} className="font-mono tabular-nums t-meta">{leadMoment(item.at, input.now)}</time>
-            </li>
+            <FeedEvent key={`event:${item.event.key}`} text={item.event.text} at={item.at} label={leadMoment(item.at, input.now)} />
           ))}
         </ol>
       ) : (

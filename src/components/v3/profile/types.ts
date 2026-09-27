@@ -117,6 +117,11 @@ export type ProfileEvent = Readonly<{
    */
   targetKind?: "overview" | "documents" | "money" | "task" | "conversation";
   occurredAt?: string | null;
+  /**
+   * Объект события из того же ответа журнала (`target_id`): у событий заявки —
+   * id заявки, по нему лента называет вуз и программу из уже прочитанных заявок.
+   */
+  targetId?: string;
 }>;
 
 /** Настоящие данные. */

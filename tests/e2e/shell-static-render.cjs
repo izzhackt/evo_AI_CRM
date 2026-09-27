@@ -22,7 +22,7 @@
  *       разметка оболочки в прежнем и новом облике с простым телом (для
  *       tests/v3-shell-next.test.mjs).
  *   node tests/e2e/shell-static-render.cjs --screenshots [outDir]
- *     → страницы «Сегодня», Студенты, доска, Сообщения, Задачи: оболочка —
+ *     → страницы «Сегодня», Студенты, доска, Переписки, Задачи: оболочка —
  *       `renderToString` и `hydrateRoot` настоящими клиентскими компонентами
  *       (бандл esbuild); тело — статическая разметка настоящих экранов из
  *       students/tasks/boards-static-render.cjs --json и CaseChatWorkspace с
@@ -159,9 +159,9 @@ const ACTORS = {
 // Ожидаемые вкладки (решение владельца 26.09.2026): доступные имена — полные
 // имена разделов; видимая подпись «Воронки продаж» короче — «Воронка».
 const EXPECTED_TABS = {
-  admin: ["Сегодня", "Студенты", "Задачи", "Сообщения", "Ещё"],
-  admissions: ["Сегодня", "Студенты", "Задачи", "Сообщения", "Ещё"],
-  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Сообщения", "Ещё"],
+  admin: ["Сегодня", "Студенты", "Задачи", "Переписки", "Ещё"],
+  admissions: ["Сегодня", "Студенты", "Задачи", "Переписки", "Ещё"],
+  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Переписки", "Ещё"],
   sales: ["Сегодня", "Воронка продаж", "Заявки", "Задачи", "Ещё"],
 };
 const EXPECTED_TAB_TEXT = { ...EXPECTED_TABS, sales: ["Сегодня", "Воронка", "Заявки", "Задачи", "Ещё"] };
@@ -281,15 +281,14 @@ function mainOf(html) {
 }
 
 /**
- * «Сообщения» — настоящий CaseChatWorkspace в обёртке страницы с синтетической
+ * «Переписки» → «Кабинет студента» (Э5) — настоящий CaseChatWorkspace в
+ * настоящей обёртке страницы (`CabinetConversationsMain`) с синтетической
  * перепиской. Он рендерится на сервере и гидратируется в браузере: поле ответа
  * появляется только на клиенте (черновик из localStorage), поэтому его место
  * меряется после гидратации.
  */
 function messagesFixture() {
-  const page = readFileSync(join(ROOT, "src/app/(v3)/v3/messages/page.tsx"), "utf8");
-  const mainClass = page.match(/<main className="([^"]+)" aria-label="Сообщения">/u)?.[1];
-  if (!mainClass) throw new Error("messages page <main> class not found");
+  const { composeCaseChatQueue } = require(join(ROOT, "src/components/v3/case-chat/case-chat-queue.ts"));
   const caseId = (n) => `dddddddd-2222-4222-8222-${String(n).padStart(12, "0")}`;
   const names = ["Студент А (синтетика)", "Студент Б (синтетика)", "Студент В (синтетика)", "Студент Г (синтетика)", "Студент Д (синтетика)", "Студент Е (синтетика)"];
   const rows = names.map((name, index) => ({
@@ -312,11 +311,18 @@ function messagesFixture() {
   return {
     pathname: "/v3/messages", search: `case=${caseId(1)}`, body: null,
     messages: {
-      mainClass,
+      main: {
+        title: "Переписки", threadOpen: true,
+        channels: [
+          { key: "cabinet", label: "Кабинет студента", href: "/v3/messages", route: "/v3/messages" },
+          { key: "whatsapp", label: "WhatsApp", href: "/v3/inbox", route: "/v3/inbox" },
+        ],
+      },
       props: {
         organizationId: ORG, membershipId: me,
         realtimeConfig: { url: "http://127.0.0.1:9", publishableKey: "synthetic-harness-key" },
-        initialThreads: { rows, truncated: false }, initialStudentDisplayName: names[0], selectedCaseId: caseId(1),
+        initialQueue: composeCaseChatQueue({ all: { rows, truncated: false } }, "needs_reply", "2026-09-26T06:00:00.000Z"),
+        initialStudentDisplayName: names[0], selectedCaseId: caseId(1),
         initialPage: { messages, cursor: "14", hasMore: false, thread: { awaitState: "needs_reply", lastMessageAt: messages[0].createdAt, lastMessageSequenceId: "14" }, readSequenceId: "14" },
         initialPageFailure: null,
       },
@@ -334,7 +340,7 @@ function whatsappBody() {
 function shellTree({ actor, notifications, look, pathname, search, body, messages = null }) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const content = messages
-    ? h("main", { className: messages.mainClass, "aria-label": "Сообщения" },
+    ? h(require(join(ROOT, "src/components/v3/case-chat/CabinetConversationsMain.tsx")).CabinetConversationsMain, messages.main,
       h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, messages.props))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
@@ -419,6 +425,7 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { AppShell } = require("@/components/v3/AppShell");
+const { CabinetConversationsMain } = require("@/components/v3/case-chat/CabinetConversationsMain");
 const { CaseChatWorkspace } = require("@/components/v3/case-chat/CaseChatThread");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
@@ -434,7 +441,7 @@ const tree = h(AppRouterContext.Provider, { value: router },
         h("div", { className: "v3-world", "data-look": fixture.look === "next" ? "next" : undefined },
           h(AppShell, { actor: fixture.actor, initialNotifications: fixture.notifications, ...(fixture.look === "next" ? { look: "next" } : {}) },
             fixture.messages
-              ? h("main", { className: fixture.messages.mainClass, "aria-label": "Сообщения" }, h(CaseChatWorkspace, fixture.messages.props))
+              ? h(CabinetConversationsMain, fixture.messages.main, h(CaseChatWorkspace, fixture.messages.props))
               : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } })))))));
 hydrateRoot(document.getElementById("root"), tree, {
   onRecoverableError: (error) => window.__harness.recoverable.push(String((error && error.message) || error)),
@@ -449,12 +456,12 @@ const page = ${JSON.stringify(NOTIFICATIONS)};
 export async function loadStaffNotificationsAction() { return { ok: true, page }; }
 export async function markStaffNotificationReadAction() { return { ok: true }; }
 export async function markAllStaffNotificationsReadAction() { return { ok: true }; }`;
-  // «Сообщения»: чтения отвечают той же синтетической перепиской, отправка
-  // честно недоступна — снимок ничего не пишет.
+  // «Переписки» → «Кабинет студента»: чтения отвечают той же синтетической
+  // перепиской, отправка честно недоступна — снимок ничего не пишет.
   const caseChatStub = `
 const fixture = () => JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent).messages.props;
 export async function readCaseChatPageAction() { return { status: "ready", page: fixture().initialPage }; }
-export async function loadStaffCaseChatThreadsAction() { return { status: "ready", list: fixture().initialThreads }; }
+export async function loadStaffCaseChatThreadsAction() { return { status: "ready", read: fixture().initialQueue }; }
 export async function markCaseChatReadAction() { return { status: "saved", requestId: null }; }
 export async function postCaseChatMessageAction() { return { status: "unavailable", requestId: null }; }
 export async function setCaseChatAwaitAction() { return { status: "unavailable", requestId: null }; }`;
@@ -618,7 +625,7 @@ async function pageFixtures() {
     board: (role) => role === "admissions" || role === "admissions-staff"
       ? { pathname: "/v3/admissions-pipeline", search: "", body: mainOf(boards.get("admissions")) }
       : { pathname: "/v3/pipeline", search: "", body: mainOf(boards.get("sales")) },
-    // Переписка роли: у продаж нет «Сообщений» — их страница на высоту окна WhatsApp.
+    // Переписка роли: у продаж нет «Кабинета студента» — их «Переписки» — страница WhatsApp на высоту окна.
     messages: (role) => role === "sales"
       ? { pathname: "/v3/inbox", search: "", body: whatsapp }
       : messages,

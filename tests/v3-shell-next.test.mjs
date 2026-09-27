@@ -53,8 +53,9 @@ const nav = (who, href = "/v3/main") => {
 };
 const ids = (links) => links.map((link) => link.id);
 
-test("tab slots per role follow the owner's order: admissions and Admin — Студенты · Задачи · Сообщения, sales — Воронка · Заявки · Задачи", () => {
-  const admissions = ["home", "admissions-worklist", "tasks", "messages"];
+test("tab slots per role follow the owner's order: admissions and Admin — Студенты · Задачи · Переписки, sales — Воронка · Заявки · Задачи", () => {
+  // Э5 (27.09.2026): «Переписки» stands where «Сообщения» stood.
+  const admissions = ["home", "admissions-worklist", "tasks", "conversations"];
   const sales = ["home", "pipeline", "requests", "tasks"];
   for (const [who, kind, expected] of [
     ["admin", "admissions", admissions],
@@ -67,8 +68,10 @@ test("tab slots per role follow the owner's order: admissions and Admin — Ст
     assert.equal(tabs.kind, kind, who);
     assert.deepEqual(ids(tabs.links), expected, who);
   }
-  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Сообщения"]);
+  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписки"]);
   assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => link.label), ["Сегодня", "Воронка продаж", "Заявки", "Задачи"]);
+  // WhatsApp alone (no «Кабинет студента») does not make a sales role an admissions one.
+  assert.equal(shellTabs(nav("sales-staff")).kind, "sales");
 });
 
 test("tabs come only from the role's visible navigation: never an item it cannot open, never more than four plus «Ещё»", () => {
@@ -112,7 +115,7 @@ test("every menu item of the new look has an icon from the existing set", () => 
   assert.match(read("src/components/v3/AppShell.tsx"), /const LINK_ICONS = \{\s*home: "sun",/u);
 });
 
-test("icons tell the rail items apart: one glyph per meaning, three conversations with three glyphs", () => {
+test("icons tell the rail items apart: one glyph per meaning, two conversation items with two glyphs", () => {
   // Обе воронки — один смысл, один знак; всё остальное — свой знак у каждого пункта.
   const byIcon = new Map();
   for (const [id, icon] of Object.entries(NEXT_LINK_ICONS)) byIcon.set(icon, [...(byIcon.get(icon) ?? []), id]);
@@ -120,9 +123,11 @@ test("icons tell the rail items apart: one glyph per meaning, three conversation
     if (icon === "funnel") assert.deepEqual(ids, ["pipeline", "admissions-pipeline"]);
     else assert.equal(ids.length, 1, `${icon} is shared by ${ids.join(", ")}`);
   }
-  assert.notEqual(NEXT_LINK_ICONS.inbox, "phone", "WhatsApp is a conversation, not a call");
+  // Э5: «Переписки» (кабинет студента и WhatsApp) — квадратный пузырь, «Командный чат» — два пузыря.
+  assert.equal(NEXT_LINK_ICONS.conversations, "message-square");
+  assert.notEqual(NEXT_LINK_ICONS.conversations, "phone", "conversations, not a call");
   assert.notEqual(NEXT_LINK_ICONS["reply-snippets"], "send", "templates are text, not a send action");
-  assert.deepEqual(new Set([NEXT_LINK_ICONS.messages, NEXT_LINK_ICONS.inbox, NEXT_LINK_ICONS["team-chat"]]).size, 3);
+  assert.deepEqual(new Set([NEXT_LINK_ICONS.conversations, NEXT_LINK_ICONS["team-chat"]]).size, 2);
   // Групп и «Ещё» это тоже касается: их знаки не совпадают с пунктами.
   for (const icon of [...Object.values(NEXT_GROUP_ICONS), "menu"]) assert.ok(!byIcon.has(icon), icon);
 });
@@ -140,7 +145,7 @@ test("tab labels fit one line: short label only where the full one does not, and
     }
   }
   assert.deepEqual(shellTabs(nav("sales-staff")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Воронка", "Заявки", "Задачи"]);
-  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Студенты", "Задачи", "Сообщения"]);
+  assert.deepEqual(shellTabs(nav("admin")).links.map((link) => shellTabLabel(link).text), ["Сегодня", "Студенты", "Задачи", "Переписки"]);
   assert.equal(shellTabLabel({ id: "pipeline", label: "Воронка продаж" }).name, "Воронка продаж");
 });
 
@@ -178,9 +183,9 @@ const surface = (name) => {
 };
 const count = (html, pattern) => [...html.matchAll(pattern)].length;
 const EXPECTED_TABS = {
-  admin: ["Сегодня", "Студенты", "Задачи", "Сообщения"],
-  admissions: ["Сегодня", "Студенты", "Задачи", "Сообщения"],
-  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Сообщения"],
+  admin: ["Сегодня", "Студенты", "Задачи", "Переписки"],
+  admissions: ["Сегодня", "Студенты", "Задачи", "Переписки"],
+  "admissions-staff": ["Сегодня", "Студенты", "Задачи", "Переписки"],
   sales: ["Сегодня", "Воронка", "Заявки", "Задачи"],
 };
 function tabbar(html) {
@@ -282,13 +287,14 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   assert.match(shell, /flex h-\[var\(--shell-top\)\] shrink-0/u, "top row height is the variable");
   assert.match(shell, /grid h-\[var\(--shell-tabbar\)\]/u, "tab bar height is the variable");
   assert.match(shell, /max-md:pb-\[calc\(var\(--shell-tabbar\)\+var\(--shell-safe-bottom\)\)\]/u, "content clears the tab bar");
-  // «Сообщения» и «Командный чат» — страницы «на окно» под правилом.
-  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label="Сообщения">/u);
+  // «Переписки» → «Кабинет студента» и «Командный чат» — страницы «на окно» под правилом.
+  assert.match(read("src/components/v3/case-chat/CabinetConversationsMain.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label=\{title\}>/u);
+  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<CabinetConversationsMain title=\{TITLE\}/u);
   assert.match(read("src/app/(v3)/v3/team-chat/page.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label="Командный чат">/u);
   // WhatsApp (PartShell `fill`) своей высоты не задаёт: от 768 px её даёт
   // колонка оболочки по `isFillRoute` — в новом облике так же, как в прежнем.
   assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{[^}]*\} fill>/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="Переписки" fill>/u);
   assert.match(shell, /const fill = isFillRoute\(pathname\);/u);
   assert.match(shell, /fill && "md:flex md:h-dvh md:flex-col"/u, "the content column is window-high on fill routes");
   assert.match(shell, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
@@ -301,11 +307,14 @@ test("without a top bar every page title starts at one height, level with the lo
   const css = read("src/app/(v3)/v3.css");
   assert.match(css, /\.v3-world\[data-look="next"\] \{[^}]*--shell-page-top: 1\.5rem;/u);
   assert.match(css, /@media \(width < 48rem\) \{\s*\.v3-world\[data-look="next"\] \{[^}]*--shell-page-top: 1\.25rem;/u);
-  // PageHeader страниц (PartShell, доски, WhatsApp) и заголовок «Сообщений» в шапке списка.
+  // PageHeader страниц (PartShell, доски, обе страницы «Переписок»): Э5 вынес
+  // заголовок «Кабинета студента» из шапки списка в PageHeader страницы, и
+  // отдельный сдвиг заголовка «Сообщений» не нужен.
   assert.match(css, /\[data-shell-content\] main:has\(> div:first-child > div:first-child > h1\.t-page-title\) \{\s*padding-top: var\(--shell-page-top\);/u);
-  assert.match(css, /main\[aria-label="Сообщения"\] h1\.t-page-title \{\s*margin-top: calc\(var\(--shell-page-top\) - 0\.8125rem\);/u);
+  assert.doesNotMatch(css, /main\[aria-label="Сообщения"\]/u);
   assert.match(read("src/components/ui.tsx"), /<div className="flex flex-wrap items-start justify-between gap-4">\s*<div className="min-w-0">\s*<h1 className="t-page-title/u, "PageHeader keeps the structure the rule reads");
-  assert.match(read("src/components/v3/case-chat/CaseChatThread.tsx"), /<div className="border-b border-border p-3">\s*<h1 className="t-page-title mb-2 text-fg">Сообщения<\/h1>/u);
+  assert.match(read("src/components/v3/case-chat/CabinetConversationsMain.tsx"), /aria-label=\{title\}>\s*<PageHeader title=\{title\} \/>/u);
+  assert.doesNotMatch(read("src/components/v3/case-chat/CaseChatThread.tsx"), /<h1\b/u);
   // Логотип: `pt-3.5` + 51 px высоты — центр на 40 px, как у заголовка 24 + 32/2.
   assert.match(read("src/components/v3/AppShellNext.tsx"), /"hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex"/u);
 });

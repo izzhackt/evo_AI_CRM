@@ -1,0 +1,289 @@
+// Э5 «Переписки» (план редизайна 25.09.2026, запись PLAN_CHANGES 27.09):
+// один пункт меню с каналами «Кабинет студента» и WhatsApp, очереди с
+// числами из того же чтения 234, видимый переключатель состояния (прежняя
+// команда set_await), шаблоны ответа в поле ответа без отправки и следующая
+// переписка в пустой правой части. Логика — чистые модули; разметка — из
+// настоящих страниц через tests/e2e/conversations-static-render.cjs --json с
+// синтетическими чтениями (живой Supabase и права сервера не проверяются).
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import {
+  caseChatNextLine, caseChatWaitingWord, composeCaseChatQueue, oldestFirst, readCaseChatQueueWith,
+} from "../src/components/v3/case-chat/case-chat-queue.ts";
+import {
+  insertReplySnippetWithinCodePointLimit, REPLY_MESSAGE_MAX_CODE_POINTS,
+} from "../src/components/v3/reply-snippets/insert-reply-snippet.ts";
+import {
+  CASE_CHAT_BODY_LIMIT, CASE_CHAT_QUEUE_ORDER, caseChatHref, parseCaseChatQueue,
+} from "../src/lib/platform-case-chat-contract.ts";
+import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
+import { buildV3Navigation, conversationChannels, v3SectionTitle } from "../src/lib/v3/navigation.ts";
+import { shellTabs } from "../src/lib/v3/shell-tabs.ts";
+import { staffRoleKeys } from "./e2e/staff-role-templates.cjs";
+
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+
+const ME = "aaaaaaaa-1111-4111-8111-000000000001";
+const STUDENT = "aaaaaaaa-1111-4111-8111-000000000099";
+const READ_AT = "2026-09-27T06:00:00.000Z"; // 12:00 в Бишкеке
+const caseId = (n) => `dddddddd-2222-4222-8222-${String(n).padStart(12, "0")}`;
+const row = (n, state, at, fields = {}) => ({
+  studentCaseId: caseId(n), studentDisplayName: `Студент ${n} (синтетика)`, lastMessageSnippet: at ? "текст" : null,
+  lastMessageAt: at, lastMessageAuthorMembershipId: at ? fields.author ?? STUDENT : null, awaitState: state, unread: false,
+});
+// Страница «Все» как из чтения 234: от новых к старым, без сообщений — в конце.
+const ALL = [
+  row(1, "needs_reply", "2026-09-27T05:00:00.000Z"),
+  row(2, "awaiting_student", "2026-09-26T10:00:00.000Z", { author: ME }),
+  row(3, "needs_reply", "2026-09-25T08:00:00.000Z"),
+  row(4, "none", "2026-09-20T07:00:00.000Z"),
+  row(5, "needs_reply", null),
+  row(6, "none", null),
+];
+const list = (rows, truncated = false) => ({ rows, truncated });
+const names = (read) => read.list.rows.map((item) => item.studentCaseId.slice(-1));
+
+// --- числа: только из полного чтения ------------------------------------------
+
+test("counts come from the same read: a complete «Все» page gives both numbers and its queue rows", () => {
+  const read = composeCaseChatQueue({ all: list(ALL) }, "needs_reply", READ_AT);
+  assert.deepEqual(read.counts, { needs_reply: 3, awaiting_student: 1 });
+  // Та же выборка, что у функции с p_await_state: без переписки (none) — не в очереди.
+  assert.deepEqual(names(read), ["3", "1", "5"], "oldest first, no messages last");
+  assert.equal(read.next.studentCaseId, caseId(3));
+  assert.equal(read.readAt, READ_AT);
+  assert.deepEqual(names(composeCaseChatQueue({ all: list(ALL) }, "awaiting_student", READ_AT)), ["2"]);
+  assert.deepEqual(names(composeCaseChatQueue({ all: list(ALL) }, "all", READ_AT)), ["1", "2", "3", "4", "5", "6"], "«Все» keeps the read order");
+});
+
+test("no invented numbers: a truncated read shows no count, and a truncated queue is not re-sorted", () => {
+  // «Все» обрезано (больше 200): очереди читаются сами; полная — с числом, обрезанная — без.
+  const needsReply = list([row(1, "needs_reply", "2026-09-27T05:00:00.000Z"), row(3, "needs_reply", "2026-09-25T08:00:00.000Z")], true);
+  const awaiting = list([row(2, "awaiting_student", "2026-09-26T10:00:00.000Z")]);
+  const read = composeCaseChatQueue({ all: list(ALL, true), needsReply, awaitingStudent: awaiting }, "needs_reply", READ_AT);
+  assert.deepEqual(read.counts, { needs_reply: null, awaiting_student: 1 });
+  assert.equal(read.list, needsReply, "the truncated page stays in read order: its oldest rows were not read");
+  assert.equal(read.next, null, "no «next» from an incomplete read");
+  assert.equal(caseChatNextLine(read, ME, "").kind, "none", "no «Все ответы даны» without a count");
+  // Без чтения очереди числа нет, а список этой очереди не подменяется «Всеми».
+  assert.deepEqual(composeCaseChatQueue({ all: list(ALL, true) }, "all", READ_AT).counts, { needs_reply: null, awaiting_student: null });
+  assert.throws(() => composeCaseChatQueue({ all: list(ALL, true) }, "needs_reply", READ_AT), /case_chat_queue_read_missing/u);
+  // Пустая, но полная очередь — честный ноль.
+  assert.deepEqual(composeCaseChatQueue({ all: list([]) }, "needs_reply", READ_AT).counts, { needs_reply: 0, awaiting_student: 0 });
+});
+
+test("the queue read asks for «Все» once and for each queue only when «Все» is truncated", async () => {
+  const calls = [];
+  const reader = (pages) => async (queue) => { calls.push(queue); return pages[queue]; };
+  const complete = await readCaseChatQueueWith(reader({ all: list(ALL) }), "needs_reply", () => new Date(READ_AT));
+  assert.deepEqual(calls, ["all"]);
+  assert.deepEqual(complete.counts, { needs_reply: 3, awaiting_student: 1 });
+  calls.length = 0;
+  const partial = await readCaseChatQueueWith(reader({
+    all: list(ALL, true), needs_reply: list([row(3, "needs_reply", "2026-09-25T08:00:00.000Z")]), awaiting_student: list([], true),
+  }), "awaiting_student", () => new Date(READ_AT));
+  assert.deepEqual(calls.sort(), ["all", "awaiting_student", "needs_reply"]);
+  assert.deepEqual(partial.counts, { needs_reply: 1, awaiting_student: null });
+  assert.equal(partial.next.studentCaseId, caseId(3));
+  // Сервер — то же чтение 234 с тем же поиском, без нового SQL.
+  const source = read("src/lib/v3/case-chat-source.ts");
+  assert.match(source, /return readCaseChatQueueWith\(\(filter\) => readStaffCaseChatThreads\(actor, query, filter\), queue\);/u);
+  assert.match(source, /rpc\("staff_case_chat_threads_v2"/u);
+  assert.match(read("src/lib/platform-case-chat-actions.ts"), /const read = await readStaffCaseChatQueue\(authorization\.actor, query, queue\);\s*return \{ status: "ready", read \};/u);
+});
+
+test("oldest first: by last message ascending, no messages last, ties by case id", () => {
+  const sorted = oldestFirst([row(2, "needs_reply", null), row(9, "needs_reply", "2026-09-25T08:00:00.000Z"), row(1, "needs_reply", "2026-09-25T08:00:00.000Z"), row(4, "needs_reply", "2026-09-20T00:00:00.000Z")]);
+  assert.deepEqual(sorted.map((item) => item.studentCaseId.slice(-1)), ["4", "1", "9", "2"]);
+});
+
+test("«ждёт N» counts Bishkek days like «Сегодня», hours only within the same day", () => {
+  assert.equal(caseChatWaitingWord("2026-09-25T08:00:00.000Z", READ_AT), "ждёт 2 дн");
+  // 26.09 19:30 в Бишкеке → вчера, хотя прошло 16,5 ч.
+  assert.equal(caseChatWaitingWord("2026-09-26T13:30:00.000Z", READ_AT), "ждёт 1 дн");
+  assert.equal(caseChatWaitingWord("2026-09-27T01:00:00.000Z", READ_AT), "ждёт 5 ч");
+  assert.equal(caseChatWaitingWord("2026-09-27T05:20:00.000Z", READ_AT), "ждёт меньше часа");
+  assert.equal(caseChatWaitingWord(null, READ_AT), null);
+  assert.equal(caseChatWaitingWord("not a date", READ_AT), null);
+});
+
+test("the empty pane: next thread with its wait, no wait on one's own last message, «Все ответы даны» only when fully read and unfiltered", () => {
+  const read = composeCaseChatQueue({ all: list(ALL) }, "all", READ_AT);
+  assert.deepEqual(caseChatNextLine(read, ME, ""), { kind: "next", row: ALL[2], waiting: "ждёт 2 дн" });
+  const mine = composeCaseChatQueue({ all: list([row(7, "needs_reply", "2026-09-25T08:00:00.000Z", { author: ME })]) }, "all", READ_AT);
+  assert.equal(caseChatNextLine(mine, ME, "").waiting, null, "a manual «Нужен ответ» after my own message is not the student waiting");
+  const answered = composeCaseChatQueue({ all: list([row(2, "awaiting_student", "2026-09-26T10:00:00.000Z")]) }, "all", READ_AT);
+  assert.equal(caseChatNextLine(answered, ME, "").kind, "all-answered");
+  assert.equal(caseChatNextLine(answered, ME, "Студент").kind, "none", "with a search, zero speaks only of the matches");
+});
+
+test("the list opens on «Нужен ответ»; «Все» is an explicit ?queue=all and older links keep working", () => {
+  assert.equal(parseCaseChatQueue(undefined), "needs_reply");
+  assert.deepEqual(CASE_CHAT_QUEUE_ORDER, ["needs_reply", "awaiting_student", "all"]);
+  assert.equal(caseChatHref("", "needs_reply"), "/v3/messages");
+  assert.equal(caseChatHref("", "all"), "/v3/messages?queue=all");
+  assert.equal(caseChatHref("", "awaiting_student", caseId(1)), `/v3/messages?case=${caseId(1)}&queue=awaiting_student`);
+  for (const value of ["needs_reply", "awaiting_student", "all"]) assert.equal(parseCaseChatQueue(value), value);
+  assert.equal(parseCaseChatQueue("none"), null);
+});
+
+// --- меню: один пункт, прежние права каналов -----------------------------------
+
+const preview = (role) => ({ systemRole: "admin", presentationRole: role, platformAccessVersion: 1, assignments: [], permissionKeys: [] });
+const staff = (keys) => ({ systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: keys });
+const conversationsOf = (actor, href = "/v3/main") => {
+  const url = new URL(href, "https://conversations.test");
+  const model = buildV3Navigation(actor, url.pathname, url.searchParams);
+  const every = [...(model.home ? [model.home] : []), ...model.groups.flatMap((group) => group.links), ...model.common, ...(model.settings ? [model.settings] : [])];
+  return { model, every, item: every.filter((link) => link.id === "conversations") };
+};
+
+test("menu visibility per role: one «Переписки» item, only the channels the role opens, hidden without any", () => {
+  const cases = [
+    ["Admin", { ...preview(null) }, ["cabinet", "whatsapp"], "/v3/messages"],
+    ["preview: Приёмная", preview("admissions"), ["cabinet", "whatsapp"], "/v3/messages"],
+    ["preview: Продажи", preview("sales"), ["whatsapp"], "/v3/inbox"],
+    ["Admissions (173)", staff([...staffRoleKeys("admissions")]), ["cabinet", "whatsapp"], "/v3/messages"],
+    ["Sales Manager (173)", staff([...staffRoleKeys("sales-manager")]), ["whatsapp"], "/v3/inbox"],
+    ["case reader without WhatsApp", staff(["case.read.full"]), ["cabinet"], "/v3/messages"],
+    ["WhatsApp reader without cases", staff(["communication.read.full"]), ["whatsapp"], "/v3/inbox"],
+    ["team only", staff(["staff.task.read", "team.chat.general"]), [], null],
+    ["no rights", staff([]), [], null],
+  ];
+  for (const [label, actor, channels, href] of cases) {
+    assert.deepEqual(conversationChannels(actor).map((channel) => channel.key), channels, label);
+    // Каналы — те же проверки маршрутов, что у страниц (`requireV3PageActor`).
+    for (const channel of conversationChannels(actor)) assert.ok(staffCanAccessRoute(actor, channel.route), `${label}: ${channel.route}`);
+    const { every, item } = conversationsOf(actor);
+    assert.equal(item.length, href ? 1 : 0, `${label}: one item or none`);
+    if (href) assert.equal(item[0].href, href, label);
+    assert.equal(every.some((link) => link.label === "Сообщения" || link.label === "WhatsApp"), false, `${label}: no retired items`);
+  }
+});
+
+test("both channel addresses highlight «Переписки», and the phone tab slot is «Переписки» for admissions roles", () => {
+  for (const href of ["/v3/messages", "/v3/messages?queue=all&case=x", "/v3/inbox", "/v3/inbox?waiting=1"]) {
+    const { model } = conversationsOf(preview(null), href);
+    assert.equal(model.activeId, "conversations", href);
+    assert.equal(v3SectionTitle(new URL(href, "https://x").pathname), "Переписки", href);
+  }
+  const admissionsTabs = shellTabs(conversationsOf(staff([...staffRoleKeys("admissions")])).model);
+  assert.equal(admissionsTabs.kind, "admissions");
+  assert.deepEqual(admissionsTabs.links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписки"]);
+  // Продажи: WhatsApp — их канал, но нижняя панель остаётся набором продаж.
+  const salesTabs = shellTabs(conversationsOf(staff([...staffRoleKeys("sales-manager")])).model);
+  assert.equal(salesTabs.kind, "sales");
+  const access = read("src/app/(v3)/access-denied/page.tsx");
+  assert.match(access, /"\/v3\/inbox": "Переписки",/u);
+  assert.match(access, /"\/v3\/messages": "Переписки",/u);
+});
+
+// --- переключатель состояния и шаблоны: прежние команда и данные ---------------
+
+test("the header state control is visible and calls the existing set_await command, never a «⋯» menu", () => {
+  const component = read("src/components/v3/case-chat/CaseChatThread.tsx");
+  assert.match(component, /const AWAIT_CONTROL_ORDER = \["needs_reply", "awaiting_student", "none"\] as const/u);
+  assert.match(component, /role="group" aria-label="Состояние переписки" data-testid="case-chat-await-control"/u);
+  assert.match(component, /aria-pressed=\{awaitState === value\} disabled=\{awaitPending\}\s*onClick=\{\(\) => \{ if \(value !== awaitState\) onSetAwait\(value\); \}\}/u);
+  assert.match(component, /onSetAwait=\{changeAwait\}/u);
+  assert.match(component, /form\.set\("request_id", crypto\.randomUUID\(\)\); form\.set\("case_id", caseId\); form\.set\("state", state\);\s*const result = await setCaseChatAwaitAction\(CASE_CHAT_INITIAL_ACTION, form\);/u);
+  assert.doesNotMatch(component, /Ответ не требуется|aria-label="Ещё"/u, "the state menu behind «⋯» is gone");
+  const actions = read("src/lib/platform-case-chat-actions.ts");
+  assert.match(actions, /runCaseChatCommand\(caseId, requestId, \{ mode: "set_await", state \}\)/u);
+  // «Нужен ответ» — предупреждение словом, не красный.
+  assert.match(component, /return state === "needs_reply" \? "warn" : "neutral";/u);
+  assert.match(read("src/lib/v3/wording.ts"), /const CASE_CHAT_AWAIT_CHOICE: Record<string, string> = \{\s*needs_reply: "Нужен ответ",\s*awaiting_student: "Ждём студента",\s*none: "Не требуется",\s*\};/u);
+});
+
+test("a template is inserted into the text without sending: the same picker, reader and permission as WhatsApp", () => {
+  // Предел переписки по делу — 8000; у WhatsApp остаётся 3000.
+  const long = "а".repeat(CASE_CHAT_BODY_LIMIT - 5);
+  assert.equal(insertReplySnippetWithinCodePointLimit(long, "12345", long.length, long.length, CASE_CHAT_BODY_LIMIT).accepted, true);
+  assert.equal(insertReplySnippetWithinCodePointLimit(long, "123456", long.length, long.length, CASE_CHAT_BODY_LIMIT).accepted, false);
+  assert.equal(insertReplySnippetWithinCodePointLimit("", "а".repeat(3001)).accepted, false, `WhatsApp keeps ${REPLY_MESSAGE_MAX_CODE_POINTS}`);
+  const inserted = insertReplySnippetWithinCodePointLimit("Здравствуйте! ", "Документы получили.", 14, 14, CASE_CHAT_BODY_LIMIT);
+  assert.deepEqual(inserted, { accepted: true, value: "Здравствуйте! Документы получили.", selectionStart: 33, selectionEnd: 33 });
+
+  const component = read("src/components/v3/case-chat/CaseChatThread.tsx");
+  const picker = component.slice(component.indexOf("<ReplySnippetPicker"), component.indexOf("/>", component.indexOf("<ReplySnippetPicker")));
+  assert.match(picker, /maxCodePoints=\{CASE_CHAT_BODY_LIMIT\}/u);
+  assert.match(picker, /onMessageTextChange=\{\(value\) => \{\s*persist\(\{ \.\.\.draft, body: value \}\);\s*document\.getElementById\(picker\.popoverId\)\?\.hidePopover\(\);\s*\}\}/u);
+  assert.doesNotMatch(picker, /postCaseChatMessageAction|requestSubmit|submit\(/u, "inserting never sends");
+  // «Шаблон» и «/» в пустом поле открывают одно окно в верхнем слое.
+  assert.match(component, /popoverTarget=\{picker\.popoverId\}/u);
+  assert.match(component, /popover="auto" role="dialog" aria-label="Шаблон ответа"/u);
+  assert.match(component, /if \(event\.key !== "\/" \|\| event\.ctrlKey \|\| event\.metaKey \|\| event\.altKey \|\| event\.nativeEvent\.isComposing\) return;\s*if \(!canPick \|\| draft\.body !== ""\) return;/u);
+  const page = read("src/app/(v3)/v3/messages/page.tsx");
+  assert.match(page, /staffCan\(actor, "snippets\.read"\)\s*\? readV3ReplySnippets\(actor\)/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /readV3ReplySnippets\(actor\)/u);
+  const shared = read("src/components/v3/reply-snippets/ReplySnippetPicker.tsx");
+  assert.match(shared, /maxCodePoints = REPLY_MESSAGE_MAX_CODE_POINTS,/u);
+  assert.doesNotMatch(shared, /type="submit"/u);
+});
+
+// --- разметка настоящих страниц -------------------------------------------------
+
+const pages = JSON.parse(execFileSync(
+  process.execPath,
+  [fileURLToPath(new URL("./e2e/conversations-static-render.cjs", import.meta.url)), "--json"],
+  { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+));
+const page = (name) => {
+  const item = pages.find((entry) => entry.name === name);
+  assert.ok(item, name);
+  return item.html;
+};
+
+test("«Кабинет студента»: h1 «Переписки», channel tabs, queue segments with counts from the read and «Все» without one", () => {
+  for (const look of ["", "-next"]) {
+    const html = page(`cabinet${look}`);
+    assert.equal([...html.matchAll(/<h1\b/gu)].length, 1);
+    assert.match(html, /<h1 class="t-page-title[^"]*">Переписки<\/h1>/u);
+    assert.match(html, /<nav [^>]*aria-label="Каналы переписки"[\s\S]*?aria-current="page"[^>]*href="\/v3\/messages"[^>]*>Кабинет студента<\/a>[\s\S]*?href="\/v3\/inbox"[^>]*>WhatsApp<\/a>/u);
+    const queues = html.slice(html.indexOf('data-testid="case-chat-queues"'), html.indexOf("</div>", html.indexOf('data-testid="case-chat-queues"')));
+    assert.match(queues, /aria-pressed="true"[^>]*>Нужен ответ<span [^>]*data-queue-count="needs_reply">3<\/span>/u);
+    assert.match(queues, /aria-pressed="false"[^>]*>Ждём студента<span [^>]*data-queue-count="awaiting_student">2<\/span>/u);
+    assert.match(queues, /aria-pressed="false"[^>]*>Все<\/button>/u);
+    assert.doesNotMatch(html, /Выберите переписку слева/u);
+    assert.doesNotMatch(html, /text-danger|data-tone="danger"|bg-danger/u, "no red on the list");
+  }
+});
+
+test("«Все» marks each row's state with its word: «Нужен ответ» as a warning, «Ждём студента» neutral", () => {
+  assert.match(page("all"), /<span class="t-caption inline-flex [^"]*bg-warn-weak text-warn">Нужен ответ<\/span>/u);
+  assert.match(page("all"), /<span class="t-caption inline-flex [^"]*bg-surface-2 text-fg-2">Ждём студента<\/span>/u);
+  assert.match(page("all-next"), /<span class="v3-chip t-caption" data-tone="warn">Нужен ответ<\/span>/u);
+  assert.match(page("all-next"), /<span class="v3-chip t-caption" data-tone="neutral">Ждём студента<\/span>/u);
+  // В очереди «Нужен ответ» у всех строк одно состояние — чип не повторяется.
+  assert.doesNotMatch(page("cabinet"), />Нужен ответ<\/span>/u);
+});
+
+test("the thread header says with whom: name, direction · board stage, «Открыть дело» and the three-way control", () => {
+  const current = page("thread");
+  assert.match(current, /<h2 class="t-section truncate text-fg">Нурай Образцова<\/h2>/u);
+  assert.match(current, /data-testid="case-chat-case-facts"><span>Китай<\/span><span aria-hidden="true" class="text-fg-3">·<\/span><span>Документы<\/span><\/p>/u);
+  assert.match(current, /href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000001"[^>]*>Открыть дело<\/a>/u);
+  const control = current.slice(current.indexOf('data-testid="case-chat-await-control"'));
+  assert.deepEqual([...control.matchAll(/aria-pressed="(true|false)"[^>]*>([^<]+)<\/button>/gu)].slice(0, 3).map((match) => `${match[2]}${match[1] === "true" ? "*" : ""}`),
+    ["Нужен ответ*", "Ждём студента", "Не требуется"]);
+  // Новый облик: этап — чип фазы доски, человек — нейтральные инициалы.
+  const next = page("thread-next");
+  assert.match(next, /<span class="v3-stage" data-phase="admission"><span class="v3-phase-dot" aria-hidden="true"><\/span><span class="min-w-0">Документы<\/span><\/span>/u);
+  assert.match(next, /<span class="v3-initials t-caption" aria-hidden="true">НО<\/span>/u);
+  assert.doesNotMatch(current, /v3-stage|v3-initials|v3-chip/u, "blocks render only in the new look");
+});
+
+test("WhatsApp keeps its honest «не подключён» state under «Переписки»; a sales role sees only its own channel", () => {
+  const admin = page("whatsapp");
+  assert.match(admin, /WhatsApp не подключён к CRM — подключает Администратор/u);
+  assert.match(admin, /<h1 class="t-page-title[^"]*">Переписки<\/h1>/u);
+  assert.match(admin, /href="\/v3\/messages"[^>]*>Кабинет студента<\/a>[\s\S]*?aria-current="page"[^>]*href="\/v3\/inbox"[^>]*>WhatsApp<\/a>/u);
+  const sales = page("whatsapp-sales");
+  assert.doesNotMatch(sales, /Кабинет студента|href="\/v3\/messages"/u);
+  assert.match(sales, /aria-current="page"[^>]*href="\/v3\/inbox"[^>]*>WhatsApp<\/a>/u);
+  assert.doesNotMatch(sales, /Открыть настройки/u, "connecting stays with the Administrator");
+});

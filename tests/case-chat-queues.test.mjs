@@ -8,7 +8,8 @@ import {
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("queue input distinguishes an absent filter from invalid or repeated values", () => {
-  assert.equal(parseCaseChatQueue(undefined), "all");
+  // Э5 «Переписки» (27.09.2026): без параметра — очередь «Нужен ответ»; «Все» — явным ?queue=all.
+  assert.equal(parseCaseChatQueue(undefined), "needs_reply");
   for (const queue of ["all", "needs_reply", "awaiting_student"]) assert.equal(parseCaseChatQueue(queue), queue);
   for (const invalid of [null, "", "none", "unread", "NEEDS_REPLY", ["needs_reply"], ["all", "needs_reply"], {}, 1]) {
     assert.equal(parseCaseChatQueue(invalid), null);
@@ -43,10 +44,13 @@ test("selected-case and return links round-trip a literal search and queue witho
     assert.equal(anotherCase.searchParams.get("case"), attachment.id);
     assert.equal(anotherCase.searchParams.has("attach"), false);
   }
-  assert.equal(caseChatHref("", "all"), "/v3/messages");
-  const reset = new URL(caseChatHref("", "needs_reply", id), "https://example.invalid");
+  assert.equal(caseChatHref("", "needs_reply"), "/v3/messages");
+  assert.equal(caseChatHref("", "all"), "/v3/messages?queue=all");
+  const reset = new URL(caseChatHref("", "awaiting_student", id), "https://example.invalid");
   assert.equal(reset.searchParams.has("q"), false);
-  assert.equal(reset.searchParams.get("queue"), "needs_reply");
+  assert.equal(reset.searchParams.get("queue"), "awaiting_student");
+  // Прежние ссылки «Сегодня» с явной очередью открывают ту же очередь.
+  assert.equal(parseCaseChatQueue(new URL("/v3/messages?case=x&queue=needs_reply", "https://example.invalid").searchParams.get("queue") ?? undefined), "needs_reply");
 });
 
 // These are source-contract guards, not SQL execution or authorization proof.

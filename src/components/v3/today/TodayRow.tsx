@@ -10,6 +10,7 @@ const SOURCE_ICON: Readonly<Record<Exclude<TodaySource, "tasks">, IconName>> = {
   leads: "funnel",
   requests: "file-check",
   chats: "message-square",
+  deadlines: "calendar",
 };
 
 /**
@@ -20,7 +21,8 @@ const SOURCE_ICON: Readonly<Record<Exclude<TodaySource, "tasks">, IconName>> = {
 const PIECE = "relative flex min-h-6 items-center gap-x-1 ps-3 before:absolute before:start-1 before:top-0 before:flex before:h-6 before:items-center before:text-fg-2 before:content-['·']";
 
 /**
- * Строка «Сегодня» без действия на месте: студент, лид, заявка или переписка.
+ * Строка «Сегодня» без действия на месте: студент, лид, заявка, переписка или
+ * срок вуза (название — вуз, причина — «срок подачи» и программа).
  * Та же сетка, что у строки «Задач» (`TaskQueueRow`): знак источника вместо
  * круга, срок своей колонкой перед названием (JetBrains Mono «ДД.ММ» и
  * слово), под названием — кто и почему. Действие одно — «Открыть»
@@ -39,9 +41,10 @@ const PIECE = "relative flex min-h-6 items-center gap-x-1 ps-3 before:absolute b
 export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: string }>) {
   const when = todayWhen(item, new Date(nowIso));
   const icon = item.source === "tasks" ? "check-square" : SOURCE_ICON[item.source];
-  // На узкой строке слово срока остаётся только у «Ближайших» и там, где даты
-  // нет: «прошёл» и «сегодня» повторили бы заголовок группы.
-  const phoneWord = when?.word && (item.band === "upcoming" || when.text === null) ? when.word : null;
+  // На узкой строке слово срока остаётся только у «Ближайших», у сроков вузов и
+  // там, где даты нет: «прошёл» и «сегодня» повторили бы заголовок группы, а
+  // заголовок «Сроки вузов» дня не называет.
+  const phoneWord = when?.word && (item.band === "upcoming" || item.band === "deadlines" || when.text === null) ? when.word : null;
   return (
     <li
       data-queue-row={item.key}

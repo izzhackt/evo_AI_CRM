@@ -75,6 +75,11 @@ export function Settings({
   selectedStaffRoleId?: string;
 }) {
   const current = SECTIONS.find((entry) => entry.key === section && (entry.view === null || entry.view === staffView)) ?? SECTIONS[0];
+  // Разделы сотрудников ставят свой видимый h2 с числом («Сотрудники · 5»,
+  // «Роли и доступ»): второй, скрытый заголовок с тем же названием дал бы два
+  // одинаковых заголовка (ревью #1079 — строгий режим Playwright у
+  // scoped-staff-provisioner). Здесь h2 — у остальных разделов.
+  const staffSection = current.key === "staff" && isAdmin && staff && staffRoles ? { staff, staffRoles } : null;
 
   return (
     <>
@@ -101,11 +106,9 @@ export function Settings({
         </nav>
 
         <div className="min-w-0">
-          {/* У разделов сотрудников видимый заголовок — свой, с числом («Сотрудники · 5»). */}
-          <h2 className={current.key === "staff" ? "sr-only" : "t-section mb-3 text-fg"}>{current.title}</h2>
-
-          {current.key === "staff" && isAdmin && staff && staffRoles ? <StaffSection data={staff} roles={staffRoles} organizationId={staffOrganizationId}
-            view={staffView} selectedMemberId={selectedStaffMemberId} selectedRoleId={selectedStaffRoleId} /> : null}
+          {staffSection ? <StaffSection data={staffSection.staff} roles={staffSection.staffRoles} organizationId={staffOrganizationId}
+            view={staffView} selectedMemberId={selectedStaffMemberId} selectedRoleId={selectedStaffRoleId} />
+            : <h2 className="t-section mb-3 text-fg">{current.title}</h2>}
           {current.key === "integrations" ? <IntegrationsSection rows={integrations} /> : null}
           {current.key === "journal" ? (
             <JournalSection

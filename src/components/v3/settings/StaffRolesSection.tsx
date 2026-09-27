@@ -238,9 +238,10 @@ export function StaffRolesSection({ workspace, selectedRoleId }: { workspace: St
   const [newRole, setNewRole] = useState<"new" | StaffEditableRole | null>(null);
   const selected = workspace.roles.find((role) => role.id === selectedRoleId);
   const visible = workspace.roles.filter((role) => (archived || role.status === "active") && `${role.label} ${role.description}`.toLocaleLowerCase("ru").includes(query.toLocaleLowerCase("ru").trim()));
-  if (newRole) return <RoleEditor sourceRole={newRole === "new" ? undefined : newRole} permissions={workspace.permissions} onClose={() => setNewRole(null)} />;
+  // Заголовок раздела — здесь (h2, Э6): пока бланк новой роли заменяет список, он остаётся для чтения с экрана.
+  if (newRole) return <><h2 className="sr-only">Роли и доступ</h2><RoleEditor sourceRole={newRole === "new" ? undefined : newRole} permissions={workspace.permissions} onClose={() => setNewRole(null)} /></>;
   return <StaffRoleControls>
-    <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="t-section">Роли и доступ</h3><button type="button" className={btnCls} onClick={() => setNewRole("new")}>Создать роль</button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="t-section">Роли и доступ</h2><button type="button" className={btnCls} onClick={() => setNewRole("new")}>Создать роль</button></div>
     <p className="text-sm leading-6 text-fg-3">Роль задаёт действия. Область — свои записи, отдел или направление — выбирается при назначении сотруднику.</p>
     <details className="border-b border-border pb-3" data-testid="staff-role-preview">
       <summary className="min-h-11 cursor-pointer content-center rounded-nav px-2 py-2 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">

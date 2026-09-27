@@ -129,14 +129,19 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
 }) {
   const selectedMember = data.members.find((member) => member.membershipId === selectedMemberId);
   const selectedAccess = roles.members.find((member) => member.membershipId === selectedMemberId);
-  if (!data.available) return <p role="alert" className="rounded-card border border-border bg-surface p-5 text-sm leading-6">
-    Список сотрудников недоступен. Проверьте подключение, сеанс администратора и применение миграции рабочего пространства.</p>;
   // «Сотрудники», «Роли и доступ» и «Отделы» — пункты списка разделов
-  // настроек (Э6, 27.09.2026): своего ряда вкладок здесь нет.
+  // настроек (Э6, 27.09.2026): своего ряда вкладок здесь нет. Заголовок
+  // раздела (h2) ставит сам вид — с числом, где оно есть; Settings второго
+  // заголовка с тем же названием не ставит (ревью #1079).
+  if (!data.available) return <div className="space-y-3">
+    <h2 className="t-section">{view === "roles" ? "Роли и доступ" : view === "departments" ? "Отделы" : "Сотрудники"}</h2>
+    <p role="alert" className="rounded-card border border-border bg-surface p-5 text-sm leading-6">
+      Список сотрудников недоступен. Проверьте подключение, сеанс администратора и применение миграции рабочего пространства.</p>
+  </div>;
   return <div className="space-y-5">
     {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
       <div className="flex flex-wrap items-center justify-between gap-x-3">
-        <h3 className="t-section">Сотрудники · {data.members.length}</h3>
+        <h2 className="t-section">Сотрудники · {data.members.length}</h2>
         <StaffDisclosure label="Создать аккаунт" className="w-full" buttonClassName="font-medium text-accent">
           <div className="pt-3"><StaffPasswordForm workspace={roles} organizationId={organizationId} /></div>
         </StaffDisclosure>

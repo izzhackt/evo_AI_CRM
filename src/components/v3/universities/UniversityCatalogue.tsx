@@ -11,7 +11,7 @@ import {
   formatCatalogueDay,
   intakeDeadlineView,
   intakeStartView,
-  intakeStateWord,
+  intakeStateLabel,
   programsWord,
   shownIntakes,
   type CataloguePage,
@@ -275,7 +275,7 @@ function Program({ program, now, today }: { program: UniversityProgram; now: Dat
                   </td>
                   <td role="cell" className="t-body-compact text-fg-2">
                     <StackLabel>Состояние</StackLabel>
-                    {intakeStateWord(intake, now)}
+                    {intakeStateLabel(intake, now)}
                   </td>
                   <td role="cell" className="t-body-compact text-fg-2">
                     <StackLabel>Проверено</StackLabel>

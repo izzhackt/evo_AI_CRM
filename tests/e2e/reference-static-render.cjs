@@ -8,7 +8,8 @@
 /**
  * Статический рендер Э6 плана редизайна (27.09.2026) — справочные и
  * служебные страницы: «Университеты» (список и страница вуза), «Настройки»
- * («Сотрудники», «Интеграции») и меню Admin, поступления и продаж.
+ * («Сотрудники», «Роли и доступ», «Отделы», «Интеграции») и меню Admin,
+ * поступления и продаж.
  *
  * Страницы — НАСТОЯЩИЕ `page.tsx` маршрутов (`universities`, `universities/[id]`,
  * `settings`) внутри настоящего `AppShell`; чтения подменены. Каталог —
@@ -244,8 +245,8 @@ function withContexts(node, pathname, search) {
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
 
-const DETAIL_KEY = "utm";
-const detailId = () => CATALOGUE.find((item) => item.key === DETAIL_KEY)?.id ?? CATALOGUE[0].id;
+/** Страница вуза по ключу карточки: utm — закрытый набор с датой; apu — объявленные наборы без срока (ревью #1079). */
+const idOf = (key) => CATALOGUE.find((item) => item.key === key)?.id ?? CATALOGUE[0].id;
 
 /** Страницы: [имя, роль, путь, поиск, сценарий сервисов]. */
 const PAGES = [
@@ -253,8 +254,11 @@ const PAGES = [
   ["universities-list-filtered", "admin", "/v3/universities", "country=MY&level=bachelor", "production"],
   // Только для проверки чтения (без снимков): Admin публикует карточку посреди полного чтения.
   ["universities-list-changed", "admin", "/v3/universities", "", "catalogue-changed"],
-  ["universities-detail", "admin", () => `/v3/universities/${detailId()}`, "", "production"],
+  ["universities-detail", "admin", () => `/v3/universities/${idOf("utm")}`, "", "production"],
+  ["universities-detail-unconfirmed", "admin", () => `/v3/universities/${idOf("apu")}`, "", "production"],
   ["settings-staff", "admin", "/v3/settings", "", "production"],
+  ["settings-roles", "admin", "/v3/settings", "section=staff&view=roles", "production"],
+  ["settings-departments", "admin", "/v3/settings", "section=staff&view=departments", "production"],
   ["settings-integrations", "admin", "/v3/settings", "section=integrations", "production"],
   ["settings-integrations-blocked", "admin", "/v3/settings", "section=integrations", "blocked"],
   ["menu-admin", "admin", "/v3/universities", "", "production"],

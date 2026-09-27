@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { UNIVERSITY_PHOTOS } from "../src/lib/platform-university-catalog.ts";
+import { UNIVERSITY_PHOTOS, universityIntakeLabel } from "../src/lib/platform-university-catalog.ts";
 import {
   UNIVERSITY_PAGE_SIZE,
   catalogueDueWord,
@@ -13,7 +13,8 @@ import {
   formatCatalogueDay,
   intakeDeadlineView,
   intakeStartView,
-  intakeStateWord,
+  intakeStateLabel,
+  photoAuthorRu,
   photoLicenseRu,
   programsWord,
   shownIntakes,
@@ -97,11 +98,26 @@ test("dates and words: dense day, year only when not current, the deadline word,
   assert.deepEqual(catalogueDueWord("2026-09-27", "2026-09-27"), { text: "сегодня", tone: "today" });
   assert.deepEqual(catalogueDueWord("2026-09-28", "2026-09-27"), { text: "завтра", tone: "upcoming" });
   assert.equal(catalogueDueWord("2026-09-26", "2026-09-27"), null);
-  assert.equal(intakeStateWord(intake({ status: "closed" }), NOW), "Приём закрыт");
-  assert.equal(intakeStateWord(intake({ applicationDeadline: "2026-09-01" }), NOW), "Срок прошёл");
-  assert.equal(intakeStateWord(intake({ applicationDeadline: "2026-12-01" }), NOW), "Приём открыт");
-  assert.equal(intakeStateWord(intake({ status: "announced" }), NOW), "Набор объявлен");
-  assert.equal(intakeStateWord(intake({ status: "unknown" }), NOW), null, "unconfirmed intakes are not shown (#729)");
+  // The intake state is main's `universityIntakeLabel`, unchanged (review #1079).
+  assert.equal(intakeStateLabel(intake({ status: "closed" }), NOW), "Приём закрыт по данным источника");
+  assert.equal(intakeStateLabel(intake({ applicationDeadline: "2026-09-01" }), NOW), "Опубликованный срок приёма прошёл");
+  assert.equal(intakeStateLabel(intake({ applicationDeadline: "2026-12-01" }), NOW), "Приём открыт по данным источника");
+  assert.equal(intakeStateLabel(intake({ applicationDeadline: "2026-12-01", status: "announced" }), NOW), "Набор объявлен");
+  // A missing deadline or time zone cannot establish either an open intake or expiry.
+  assert.equal(intakeStateLabel(intake({ status: "announced" }), NOW), "Срок приёма нужно уточнить");
+  assert.equal(intakeStateLabel(intake(), NOW), "Срок приёма нужно уточнить");
+  const unzoned = intake({ applicationDeadline: "2026-03-15", timezone: null });
+  assert.equal(intakeStateLabel(unzoned, NOW), "Срок приёма нужно уточнить", "a past date without a zone is not «open»");
+  assert.equal(intakeStateLabel({ ...unzoned, status: "announced" }, NOW), "Срок приёма нужно уточнить");
+  assert.equal(intakeDeadlineView(unzoned, NOW).word, null, "no countdown without a zone");
+  assert.equal(intakeStateLabel(intake({ status: "unknown" }), NOW), null, "unconfirmed intakes are not shown (#729)");
+  assert.equal(intakeStateLabel(intake({ status: "needs_reconfirmation" }), NOW), null);
+  for (const status of ["open", "announced", "closed"]) {
+    for (const fields of [{}, { applicationDeadline: "2026-09-01" }, { applicationDeadline: "2026-12-01" }, { applicationDeadline: "2026-03-15", timezone: null }]) {
+      const one = intake({ status, ...fields });
+      assert.equal(intakeStateLabel(one, NOW), universityIntakeLabel(one, NOW), `${status} ${JSON.stringify(fields)}`);
+    }
+  }
   assert.deepEqual(shownIntakes([intake({ status: "unknown" }), intake({ status: "needs_reconfirmation" }), intake({ status: "closed" })]).map((one) => one.status), ["closed"]);
   assert.deepEqual(intakeDeadlineView(intake({ applicationDeadline: "2026-10-01", deadlineTime: "17:00" }), NOW),
     { dateTime: "2026-10-01", text: "01.10", zone: "17:00, Asia/Shanghai", word: { text: "через 4 дн", tone: "upcoming" } });
@@ -113,11 +129,22 @@ test("dates and words: dense day, year only when not current, the deadline word,
     ["программа", "программы", "программ", "программ", "программ", "программа", "программы", "программ"]);
 });
 
-test("photo credit: every licence note of the library reads in Russian; licence names and authors stay as in the source", () => {
+test("photo credit: every licence note and author note of the library reads in Russian; licence names and author names stay as in the source", () => {
   for (const [key, photo] of Object.entries(UNIVERSITY_PHOTOS)) {
     const license = photoLicenseRu(photo.license);
     assert.doesNotMatch(license, /embedding|license|reserved|Public domain|Rights holder/u, `${key}: ${photo.license}`);
+    // Review #1079: 21 author strings carried «(photographer not named)» or «(official website; photographer not stated)».
+    const author = photoAuthorRu(photo.author);
+    assert.doesNotMatch(author, /photographer|official website|not stated|not named|Photographs by|Wikipedia user|at English Wikipedia/u, `${key}: ${photo.author}`);
+    const name = photo.author.replace(/\s*\([^)]*(?:photographer|official website)[^)]*\)$/u, "").replace(/^Photographs by\s+/u, "")
+      .replace(/^Czech Wikipedia user\s+/u, "").replace(/\s+at English Wikipedia$/u, "");
+    assert.ok(author.includes(name), `${key}: the author name stays as in the source (${name})`);
   }
+  assert.equal(photoAuthorRu("China Jiliang University (photographer not named)"), "China Jiliang University — фотограф не указан");
+  assert.equal(photoAuthorRu("Bilkent University (official website; photographer not stated)"), "Bilkent University — официальный сайт; фотограф не указан");
+  assert.equal(photoAuthorRu("Photographs by Radosław Drożdżewski (User:Zwiadowca21)"), "Radosław Drożdżewski (User:Zwiadowca21)");
+  assert.equal(photoAuthorRu("Chongkian"), "Chongkian");
+  assert.equal(photoAuthorRu("Some future (note)"), "Some future (note)", "an unknown note is shown as is");
   assert.equal(photoLicenseRu("CC BY-SA 4.0"), "CC BY-SA 4.0");
   assert.equal(photoLicenseRu("Official-source embedding; no reuse license stated"), "с официального сайта, лицензия не указана");
   assert.equal(photoLicenseRu("Some future note"), "Some future note", "an unknown note is shown as is, not guessed");
@@ -209,12 +236,47 @@ test("university page: programmes and intakes first, then the overview; the phot
     assert.match(html, /aspect-\[4\/3\]/u);
     assert.match(html, /<th role="columnheader" scope="col" class="t-caption text-start text-fg-2">Срок подачи<\/th>/u);
     assert.match(html, /<td role="cell" class="t-body-compact" data-cell="deadline">[\s\S]*?<time dateTime="2026-07-17" class="font-mono tabular-nums text-fg">17\.07<\/time>/u);
-    assert.match(html, />Приём закрыт</u);
+    assert.match(html, />Приём закрыт по данным источника</u);
     assert.match(html, />Проверено:<\/span><time dateTime="2026-09-10" class="font-mono tabular-nums">10\.09<\/time>/u);
     assert.match(html, />Бланки университета<\/a>/u);
     assert.match(html, />Предложить обновление<\/a>/u);
     assert.doesNotMatch(html.slice(html.indexOf("<main"), html.indexOf("</main>")), /(?<![:\w-])bg-accent(?![\w-])/u, "no solid red on the reference page");
   }
+});
+
+test("university page: each intake state is main's label — no deadline or zone reads «Срок приёма нужно уточнить»; the credit line is Russian (review #1079)", () => {
+  // apu: reviewed card whose announced intakes publish no deadline and no zone, and whose photo author carries an English note.
+  const apu = JSON.parse(source("src/lib/server/university-catalog-reviewed-malaysia.json")).find((entry) => entry.key === "apu").content;
+  const expected = apu.programs.flatMap((program) => shownIntakes(program.intakes)).map((one) => universityIntakeLabel(one, NOW));
+  assert.ok(expected.includes("Срок приёма нужно уточнить"), "the card has an intake without a deadline");
+  for (const look of ["current", "next"]) {
+    const html = page("universities-detail-unconfirmed", look);
+    const states = [...html.matchAll(/<tr role="row" data-intake=""[\s\S]*?<\/tr>/gu)]
+      .map((row) => row[0].match(/<td role="cell" class="t-body-compact text-fg-2"><span[^>]*>Состояние:<\/span>([^<]*)<\/td>/u)?.[1]);
+    assert.deepEqual(states, expected, `${look}: states as on main`);
+    assert.doesNotMatch(html, />(?:Приём открыт|Набор объявлен)</u, `${look}: an undated intake is neither open nor announced`);
+    assert.match(html, /data-photo-credit="">Фото: <a[^>]*>Asia Pacific University of Technology &amp; Innovation — официальный сайт; фотограф не указан<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>с официального сайта, лицензия не указана<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · кадрировано<\/figcaption>/u);
+    assert.doesNotMatch(html.match(/data-photo-credit=""[\s\S]*?<\/figcaption>/u)[0], /photographer|official website|embedding|license/u);
+  }
+});
+
+test("«Настройки»: every staff view has one section heading — no hidden duplicate for Playwright strict mode (review #1079)", () => {
+  const headings = (html) => [...html.slice(html.indexOf("<main"), html.indexOf("</main>")).matchAll(/<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/gu)]
+    .map((match) => ({ level: Number(match[1]), hidden: /sr-only/u.test(match[2]), text: match[3].replace(/<[^>]+>/gu, "").trim() }));
+  for (const look of ["current", "next"]) {
+    for (const [name, title] of [["settings-staff", "Сотрудники · 5"], ["settings-roles", "Роли и доступ"], ["settings-departments", "Отделы · 2"], ["settings-integrations", "Интеграции"]]) {
+      const list = headings(page(name, look));
+      const texts = list.map((heading) => heading.text);
+      assert.deepEqual(list.filter((heading) => heading.level === 2), [{ level: 2, hidden: false, text: title }], `${name} ${look}: one visible h2`);
+      assert.equal(new Set(texts).size, texts.length, `${name} ${look}: no two headings share a name (${texts})`);
+      assert.ok(list.every((heading, index) => index === 0 || heading.level <= list[index - 1].level + 1), `${name} ${look}: no skipped level`);
+    }
+  }
+  // `verifyScopedStaffRoleEditor` waits for this exact heading: one element, not two.
+  assert.equal([...page("settings-roles").matchAll(/<h[1-6][^>]*>Роли и доступ<\/h[1-6]>/gu)].length, 1);
+  const roles = source("src/components/v3/settings/StaffRolesSection.tsx");
+  assert.match(roles, /if \(newRole\) return <><h2 className="sr-only">Роли и доступ<\/h2><RoleEditor /u, "the new-role form keeps the section heading");
+  assert.doesNotMatch(source("src/components/v3/settings/Settings.tsx"), /className=\{current\.key === "staff" \? "sr-only"/u);
 });
 
 test("«Настройки»: open on «Сотрудники», one section list, no «админ» marks, one integrations table", () => {
@@ -224,7 +286,7 @@ test("«Настройки»: open on «Сотрудники», one section list
     ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Журнал действий", "Документы и передача", "Платформа"]);
   assert.match(nav, /<a aria-current="page"[^>]*href="\/v3\/settings\?section=staff&amp;view=people">Сотрудники<\/a>/u);
   assert.doesNotMatch(staff, /aria-label="Управление командой"|виден только администратору|>админ</u, "no second tab row, no admin marks");
-  assert.match(staff, /<h3 class="t-section">Сотрудники · 5<\/h3>/u);
+  assert.match(staff, /<h2 class="t-section">Сотрудники · 5<\/h2>/u);
   // Search, «Отдел» and «Доступ» in one toolbar row above the list and the card (review #1079).
   const toolbar = staff.match(/<div role="search" aria-label="Поиск сотрудников" class="flex flex-wrap items-center gap-2">[\s\S]*?<\/div>/u)?.[0] ?? assert.fail("staff toolbar row");
   assert.equal([...toolbar.matchAll(/<input type="search"|<select /gu)].length, 3);

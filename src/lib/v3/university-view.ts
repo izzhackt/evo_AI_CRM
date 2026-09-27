@@ -1,5 +1,6 @@
 import {
   universityDate,
+  universityIntakeLabel,
   type PublishedUniversity,
   type UniversityFilters,
   type UniversityIntake,
@@ -236,15 +237,16 @@ export function intakeDeadlinePassed(intake: UniversityIntake, now: Date): boole
 }
 
 /**
- * Состояние набора коротким словом. Неподтверждённые наборы (`unknown`,
- * `needs_reconfirmation`) в просмотре не показываются вовсе (решение
- * владельца 11.09, #729), поэтому слова для них нет.
+ * Состояние набора — прежняя подпись `universityIntakeLabel`, без изменений
+ * (ревью #1079): набор без срока или без пояса не может ни открыться, ни
+ * истечь по сроку — «Срок приёма нужно уточнить», как у main и в кабинете
+ * студента; «по данным источника» остаётся. Неподтверждённые наборы
+ * (`unknown`, `needs_reconfirmation`) в просмотре не показываются вовсе
+ * (решение владельца 11.09, #729), поэтому подписи для них нет.
  */
-export function intakeStateWord(intake: UniversityIntake, now: Date): string | null {
-  if (intake.status === "closed") return "Приём закрыт";
-  if (intake.status !== "open" && intake.status !== "announced") return null;
-  if (intakeDeadlinePassed(intake, now)) return "Срок прошёл";
-  return intake.status === "open" ? "Приём открыт" : "Набор объявлен";
+export function intakeStateLabel(intake: UniversityIntake, now: Date): string | null {
+  if (intake.status !== "open" && intake.status !== "announced" && intake.status !== "closed") return null;
+  return universityIntakeLabel(intake, now);
 }
 
 /** Наборы, которые показываются: известные по источнику. */
@@ -287,4 +289,22 @@ const LICENSE_RU: Readonly<Record<string, string>> = {
 
 export function photoLicenseRu(license: string): string {
   return LICENSE_RU[license] ?? license;
+}
+
+/**
+ * Автор фото по-русски (ревью #1079): имя автора или вуза — как в
+ * источнике, английские пометки при нём переведены по смыслу, тем же
+ * оборотом, что уже у русских записей библиотеки («— официальный сайт;
+ * фотограф не указан»). Неизвестная пометка показывается как есть.
+ */
+const AUTHOR_RU: readonly (readonly [RegExp, string])[] = [
+  [/\s*\(official website; photographer not stated\)$/u, " — официальный сайт; фотограф не указан"],
+  [/\s*\(photographer not named\)$/u, " — фотограф не указан"],
+  [/^Photographs by\s+/u, ""],
+  [/^Czech Wikipedia user\s+(.+)$/u, "$1, участник чешской Википедии"],
+  [/^(.+?)\s+at English Wikipedia$/u, "$1, участник английской Википедии"],
+];
+
+export function photoAuthorRu(author: string): string {
+  return AUTHOR_RU.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), author);
 }

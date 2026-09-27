@@ -2,7 +2,7 @@ import { Icon } from "@/components/icons";
 import { UniversityPhotoFrame } from "@/components/platform/universities/UniversityPhotoFrame";
 import { UNIVERSITY_PHOTOS, type UniversityContent } from "@/lib/platform-university-catalog";
 import { universityPhotoUrl } from "@/lib/university-photo-url";
-import { photoLicenseRu } from "@/lib/v3/university-view";
+import { photoAuthorRu, photoLicenseRu } from "@/lib/v3/university-view";
 
 /**
  * Реальное фото кампуса (Э6, 27.09.2026).
@@ -12,8 +12,9 @@ import { photoLicenseRu } from "@/lib/v3/university-view";
  *   университета, куда ведёт строка (ссылка на страницу с атрибуцией —
  *   допустимый для CC способ указать автора).
  * - `side` — сбоку на странице университета, меньше прежнего: под ним одна
- *   короткая строка авторства по-русски — автор со ссылкой на источник,
- *   лицензия со ссылкой, «кадрировано» (фото обрезано под рамку).
+ *   короткая строка авторства по-русски — автор со ссылкой на источник
+ *   (английские пометки при имени переведены), лицензия со ссылкой,
+ *   «кадрировано» (фото обрезано под рамку).
  */
 export function UniversityPhoto({ content, variant }: { content: Pick<UniversityContent, "photoKey">; variant: "thumb" | "side" }) {
   const photo = content.photoKey ? UNIVERSITY_PHOTOS[content.photoKey] : null;
@@ -35,7 +36,7 @@ export function UniversityPhoto({ content, variant }: { content: Pick<University
   return (
     <UniversityPhotoFrame src={src} alt={photo.caption} className="min-w-0" imageClassName="aspect-[4/3] w-full rounded-card border border-border bg-surface-2 object-cover" emptyClassName={emptyClassName} failedText="Не удалось загрузить фото кампуса">
       <figcaption className="t-meta mt-1.5 text-fg-3 [overflow-wrap:anywhere]" data-photo-credit="">
-        Фото: <a href={photo.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-fg">{photo.author}<span className="sr-only"> (в новой вкладке)</span></a>
+        Фото: <a href={photo.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-fg">{photoAuthorRu(photo.author)}<span className="sr-only"> (в новой вкладке)</span></a>
         {" · "}
         <a href={photo.licenseUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-fg">{photoLicenseRu(photo.license)}<span className="sr-only"> (в новой вкладке)</span></a>
         {" · кадрировано"}

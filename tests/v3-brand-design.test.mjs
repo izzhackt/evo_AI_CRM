@@ -331,8 +331,10 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
     assert.doesNotMatch(read(path), /font-mono/u, `${path}: counts are Golos tabular digits`);
   }
   const coveragePanel = read("src/components/v3/profile/CuratorCoveragePanel.tsx");
-  // Since 25.09 the coverage heading is the record heading of the queue panel.
-  assert.match(coveragePanel, /<h2 id="curator-coverage-title" tabIndex=\{-1\} data-queue-heading="" className="t-section text-fg xl:pe-10">/u);
+  // Since 25.09 the coverage heading is the record heading of the queue panel;
+  // Э7: it is the header of the shared side panel (t-record-title), which names the section.
+  assert.match(coveragePanel, /<section id="curator-coverage" aria-labelledby="curator-coverage-title"/u);
+  assert.match(read("src/components/v3/students/CuratorWorkloadView.tsx"), /headingId="curator-coverage-title"\s+title=\{subject\.name\}/u);
   assert.doesNotMatch(coveragePanel, /font-mono/u, "workload counts are Golos tabular digits");
   assert.match(read("src/components/v3/profile/CoverageDueTime.tsx"), /className="whitespace-nowrap font-mono tabular-nums"/u);
   for (const path of ["src/components/v3/profile/CuratorCoveragePanel.tsx", "src/components/v3/profile/CuratorCoverageForm.tsx"]) {

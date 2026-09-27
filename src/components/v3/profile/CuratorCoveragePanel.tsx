@@ -10,10 +10,34 @@ import { COVERAGE_VIEW_HREF, coverageHref as href, coverageWorkload, type Studen
  * в правой панели вида «Нагрузка кураторов» выбором куратора в его таблице.
  * Поведение и права прежние: раздел виден только при `case.curator.assign`,
  * чтение и перенос — те же `read_curator_coverage_workspace` и
- * `CuratorCoverageForm`. Заголовок — заголовок записи панели очереди.
+ * `CuratorCoverageForm`. С Э7 имя куратора и его нагрузка — шапка общей
+ * боковой панели (`SidePanel`, заголовок `curator-coverage-title`): их дают
+ * `curatorCoverageSubject` и `CuratorCoverageFacts`, а раздел называет
+ * заголовок панели.
  */
 
 const LINK = "inline-flex min-h-11 items-center text-sm font-medium text-fg underline decoration-border-strong underline-offset-4 hover:decoration-fg";
+
+type Curator = NonNullable<ReturnType<typeof coverageWorkload>>[number];
+
+/** Выбранный куратор и имя для шапки панели: из чтения нагрузки, иначе из списка. */
+export function curatorCoverageSubject(coverage: StudentsCoverage, fallbackName: string | null): Readonly<{ name: string; selected: Curator | null }> {
+  const curatorId = coverage.kind === "hidden" || coverage.kind === "invalid" ? null : coverage.curatorId;
+  const selected = coverageWorkload(coverage)?.find((curator) => curator.id === curatorId) ?? null;
+  return { name: selected?.name ?? fallbackName ?? "Выбранный куратор", selected };
+}
+
+/** Нагрузка выбранного куратора одной строкой — строка контекста шапки панели. */
+export function CuratorCoverageFacts({ selected, today }: Readonly<{ selected: Curator; today: string }>) {
+  return (
+    <dl className="flex flex-wrap gap-x-5 gap-y-1">
+      <div><dt className="inline">Активных дел: </dt><dd className="inline tabular-nums text-fg">{selected.active_case_count}</dd></div>
+      <div><dt className="inline">Открытых задач: </dt><dd className="inline tabular-nums text-fg">{selected.open_task_count}</dd></div>
+      <div><dt className="inline">Ближайший срок: </dt><dd className="inline text-fg"><CoverageDueTime value={selected.nearest_due} today={today} /></dd></div>
+      {!selected.active ? <div><dt className="sr-only">Назначение: </dt><dd className="inline">недоступен для нового назначения</dd></div> : null}
+    </dl>
+  );
+}
 
 export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today }: Readonly<{
   coverage: StudentsCoverage;
@@ -39,22 +63,13 @@ export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today 
   }
   const workspace = coverage.kind === "ready" ? coverage.workspace : null;
   const workload = coverageWorkload(coverage);
-  const selected = workload?.find((curator) => curator.id === curatorId) ?? null;
+  const { selected } = curatorCoverageSubject(coverage, fallbackName);
   // Нагрузка прочитана, а выбранного среди кураторов нет: замещать некого.
   // Раздел говорит это одной строкой, а не раскрывается пустым.
   const notCurator = workload !== null && !selected;
-  const name = selected?.name ?? fallbackName ?? "Выбранный куратор";
+  // Имя и нагрузка — в шапке боковой панели (CuratorWorkloadView): раздел называет её заголовок.
   return (
-    <section id="curator-coverage" aria-labelledby="curator-coverage-title" data-testid="v3-curator-coverage" className="border-b border-border pb-2">
-      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-        <h2 id="curator-coverage-title" tabIndex={-1} data-queue-heading="" className="t-section text-fg xl:pe-10">{name}</h2>
-        {selected ? <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-fg-2">
-          <div><dt className="inline">Активных дел: </dt><dd className="inline tabular-nums text-fg">{selected.active_case_count}</dd></div>
-          <div><dt className="inline">Открытых задач: </dt><dd className="inline tabular-nums text-fg">{selected.open_task_count}</dd></div>
-          <div><dt className="inline">Ближайший срок: </dt><dd className="inline text-fg"><CoverageDueTime value={selected.nearest_due} today={today} /></dd></div>
-          {!selected.active ? <div><dt className="sr-only">Назначение: </dt><dd className="inline">недоступен для нового назначения</dd></div> : null}
-        </dl> : null}
-      </div>
+    <section id="curator-coverage" aria-labelledby="curator-coverage-title" data-testid="v3-curator-coverage" className="pb-2">
       {!workload ? <p role="alert" className="py-2 text-sm text-fg-2">Нагрузка сейчас недоступна. Это не означает, что дел или задач нет. <Link href={href(curatorId, caseId ?? undefined, afterCaseId ?? undefined)} className="underline underline-offset-4">Повторить чтение</Link>.</p> : null}
       {/* One stable position for the form: a failed re-read keeps the open draft
           (CuratorCoverageForm holds its last read and blocks submission). */}

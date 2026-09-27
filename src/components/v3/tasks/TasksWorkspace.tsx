@@ -5,6 +5,7 @@ import type { TaskQueue, TaskQueueFilters, TaskQueueKind } from "@/lib/v3/task-q
 import { taskQueueNarrowing, taskQueueParams, TASK_QUEUE_WINDOWS } from "@/lib/v3/task-queue";
 
 import type { V3Look } from "../blocks/look";
+import { sidePanelSplit } from "../panel/side-panel";
 import { DUE_BUCKETS, DUE_FILTER_LABELS, dueBandLabel, type DueFilter } from "../queue/due-bucket";
 import { FilterMenu } from "../queue/FilterMenu";
 import { SELECT_KEY } from "../queue/keyboard-keys";
@@ -143,7 +144,7 @@ export function TasksWorkspace({
   }));
 
   return (
-    <div className={panel ? "xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6" : undefined}>
+    <div className={sidePanelSplit(Boolean(panel))}>
       {/*
         THESIS: день менеджера, а не устройство базы — одна очередь рабочих
         задач и задач по студентам, сгруппированная по сроку; «что просрочено и

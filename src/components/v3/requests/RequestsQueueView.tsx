@@ -29,7 +29,8 @@ import { Initials } from "../blocks/Initials";
 import { isNextLook, type V3Look } from "../blocks/look";
 import { StatusChip } from "../blocks/StatusChip";
 import { ManualLeadTrigger } from "../ManualLeadForm";
-import { QueueDetailPanel } from "../queue/QueueDetailPanel";
+import { queueRowReturn, sidePanelSplit } from "../panel/side-panel";
+import { SidePanel } from "../panel/SidePanel";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
 import { QUEUE_QUIET_LINK, QueueError } from "../queue/QueueStates";
 import { QueueViewTabs } from "../queue/QueueViewTabs";
@@ -185,14 +186,20 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
   const triage = requestTriage(row, { actorMembershipId: props.actorMembershipId, canAct: !props.readOnly });
   const leadId = rowLeadId(row);
   return (
-    <QueueDetailPanel closeHref={listHref} backLabel="К заявкам" headingId={headingId}>
+    <SidePanel
+      closeHref={listHref}
+      backLabel="К заявкам"
+      headingId={headingId}
+      title={row.personName}
+      context={<>
+        {REQUEST_SOURCE_WORDS[row.source]} · пришла{" "}
+        <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg">{received.text}</time>, {received.word}
+      </>}
+      open={leadId ? { href: leadCardHref(leadId, listHref), label: "Открыть карточку лида" } : null}
+      returnTo={queueRowReturn(requestOpenKey(row))}
+    >
       <div className="space-y-5" data-testid="requests-detail-panel">
-        <header className="space-y-2">
-          <h2 id={headingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{row.personName}</h2>
-          <p className="t-body-compact text-fg-2">
-            {REQUEST_SOURCE_WORDS[row.source]} · пришла{" "}
-            <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg">{received.text}</time>, {received.word}
-          </p>
+        <div className="space-y-2">
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1">
             {row.kind === "lead" ? <>
               {row.phone ? <><dt className={FACT_TERM}>Телефон</dt><dd className={FACT_VALUE}>{row.phone}</dd></> : null}
@@ -218,8 +225,7 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
             <TakeLeadButton leadId={row.leadId} take={row.take} actorMembershipId={props.actorMembershipId}
               requestId={props.takeRequestIds[row.leadId]} personName={row.personName} leadHref={leadCardHref(row.leadId, listHref)} inPanel />
           ) : null}
-          {leadId ? <Link href={leadCardHref(leadId, listHref)} className={QUEUE_QUIET_LINK}>Открыть карточку лида</Link> : null}
-        </header>
+        </div>
 
         {row.kind === "application" ? <>
           <section className={SECTION} aria-label="Заполнено поступающим">
@@ -246,7 +252,7 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
           </section>
         ) : null}
       </div>
-    </QueueDetailPanel>
+    </SidePanel>
   );
 }
 
@@ -322,7 +328,7 @@ export function RequestsQueueView(props: ViewProps) {
 
   return (
     <TakeFeedback key={listHref}>
-    <div className={panel ? "xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6" : undefined}>
+    <div className={sidePanelSplit(panel !== null)}>
       {/*
         THESIS: утренний разбор входящих — кто пришёл, откуда, когда и взял ли
         кто-нибудь; не взятое берут одной кнопкой здесь же.

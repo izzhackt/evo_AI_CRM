@@ -13,6 +13,7 @@ import type {
 } from "@/lib/platform-student-case-queue-contract";
 
 import type { V3Look } from "../blocks/look";
+import { sidePanelSplit } from "../panel/side-panel";
 import { BulkPickToggle, useBulkSelection } from "../queue/Bulk";
 import { QueueEmpty, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
@@ -227,7 +228,7 @@ export function StudentsQueueBody({
         не меньше десяти дел в первом экране.
       */}
       {head}
-      <div className={panel ? "xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start xl:gap-6" : undefined}>
+      <div className={sidePanelSplit(panel !== null)}>
         <div className="min-w-0 space-y-3">
           {bulk && !empty ? <BulkPickToggle selection={selection} /> : null}
           <div className="@container/students min-w-0" data-queue-list="">

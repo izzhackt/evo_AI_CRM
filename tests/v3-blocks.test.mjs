@@ -293,7 +293,7 @@ test("the queue keys keep working while the undo row is open", () => {
   assert.match(hook, /export function openPopover\(\): boolean \{\s*try \{ return popoverBlocksQueueKeys\(document\.querySelectorAll\(":popover-open"\)\); \} catch \{ return false; \}/u);
   assert.doesNotMatch(hook, /querySelector\(":popover-open"\)/u, "no «any popover» check is left");
   assert.match(hook, /if \(openPopover\(\) \|\| modalOpen\(\)\) return;/u);
-  assert.match(read("src/components/v3/queue/QueueDetailPanel.tsx"), /event\.key !== "Escape"[^\n]*openPopover\(\) \|\| modalOpen\(\)\) return;/u);
+  assert.match(read("src/components/v3/panel/SidePanel.tsx"), /event\.key !== "Escape"[^\n]*openPopover\(\) \|\| modalOpen\(\)\) return;/u);
   // j/k с «Отменить» продолжают от завершённой строки (data-undo-row), а не с начала списка.
   assert.match(hook, /active\.closest<HTMLElement>\("\[data-undo-row\]"\)\?\.dataset\.undoRow/u);
   assert.match(hook, /const current = focusedRowIndex\(links\);/u);

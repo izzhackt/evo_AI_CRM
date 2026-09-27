@@ -10,9 +10,11 @@ import ts from "typescript";
 import { BOARD_ROUTES, isBoardRoute } from "../src/lib/v3/board-layout.ts";
 import {
   BOARD_PANEL_FOLD_BELOW_PX,
+  BOARD_PANEL_PX,
   boardTracks,
   cappedBoardTracks,
 } from "../src/components/v3/board/board-tracks.ts";
+import { SIDE_PANEL_WIDTH_REM } from "../src/components/v3/panel/side-panel.ts";
 import { placeMenu } from "../src/components/v3/board/menu-position.ts";
 
 /**
@@ -219,28 +221,35 @@ test("focused stage and the lead's stage beside the panel lay cards out in a gri
 test("the lead panel docks beside the board and never covers its own card", () => {
   const panel = surfaces.get("sales-panel");
   const stages = ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential", "handed_off"];
-  // Six columns of 168px + the «Переданы» rail + gaps + the 400px panel + page padding.
-  assert.equal(BOARD_PANEL_FOLD_BELOW_PX, 6 * 168 + 44 + 6 * 8 + 400 + 8 + 48);
-  assert.ok(97.5 * 16 >= BOARD_PANEL_FOLD_BELOW_PX, "the container query threshold covers the computed width");
+  // Six columns of 168px + the «Переданы» rail + gaps + the panel + page padding.
+  // Э7: the panel is the shared side panel — one width token (26rem = 416px) on every screen.
+  assert.equal(BOARD_PANEL_PX, SIDE_PANEL_WIDTH_REM * 16);
+  assert.equal(BOARD_PANEL_FOLD_BELOW_PX, 6 * 168 + 44 + 6 * 8 + 416 + 8 + 48);
+  assert.ok(98.25 * 16 >= BOARD_PANEL_FOLD_BELOW_PX, "the container query threshold covers the computed width");
   const board = tag(panel, /<div role="group" aria-label="Воронка продаж"[^>]*>/u);
-  assert.match(board, /@6xl:@max-\[97\.5rem\]:\[grid-template-columns:var\(--board-tracks-panel\)\]/u);
+  assert.match(board, /@6xl:xl:@max-\[98\.25rem\]:\[grid-template-columns:var\(--board-tracks-panel\)\]/u);
   assert.equal(board.match(/--board-tracks-panel:([^;"]+)/u)?.[1], boardTracks(stages, "contacting", ["handed_off"]), "only the lead's stage stays open");
   // Folded columns hide their cards and show a rail that opens the stage and closes the panel.
   const folded = tag(panel, /<section aria-labelledby="[^"]*-new" data-testid="v3-pipeline-column"[\s\S]*?<\/section>/u);
-  assert.match(folded, /<header class="[^"]*@6xl:@max-\[97\.5rem\]:hidden">/u);
-  assert.match(folded, /<ul class="[^"]*@6xl:@max-\[97\.5rem\]:hidden">/u);
-  assert.match(folded, /<a title="Раскрыть этап «Новый»" class="[^"]*hidden @6xl:@max-\[97\.5rem\]:flex flex-1" href="\/v3\/pipeline\?stage=new">/u);
+  assert.match(folded, /<header class="[^"]*@6xl:xl:@max-\[98\.25rem\]:hidden">/u);
+  assert.match(folded, /<ul class="[^"]*@6xl:xl:@max-\[98\.25rem\]:hidden">/u);
+  assert.match(folded, /<a title="Раскрыть этап «Новый»" class="[^"]*hidden @6xl:xl:@max-\[98\.25rem\]:flex flex-1" href="\/v3\/pipeline\?stage=new">/u);
   const own = tag(panel, /<section aria-labelledby="[^"]*-contacting" data-testid="v3-pipeline-column"[\s\S]*?<\/section>/u);
-  assert.doesNotMatch(own, /@max-\[97\.5rem\]:hidden/u);
+  assert.doesNotMatch(own, /@max-\[98\.25rem\]:hidden/u);
   assert.doesNotMatch(tag(surfaces.get("sales"), /<div role="group" aria-label="Воронка продаж"[^>]*>/u), /board-tracks-panel/u, "no panel, no fold");
-  // The panel is a row track on wide screens and a modal sheet below them.
+  // Э7: the shared side panel — a row track from a 1280px window (board height,
+  // `fill`), a modal sheet below it; the same component and width token as every screen.
   const dialog = tag(panel, /<dialog [^>]*>/u);
   assert.match(dialog, /open=""/u);
-  assert.match(classOf(dialog), /\bfixed inset-y-0 end-0\b[\s\S]*\bopen:flex\b[\s\S]*@6xl:static[\s\S]*@6xl:w-\[400px\]/u);
+  assert.match(dialog, /data-testid="v3-pipeline-lead-panel" data-side-panel=""/u);
+  assert.match(classOf(dialog), /\bfixed inset-0\b[\s\S]*md:w-\[var\(--side-panel-width\)\][\s\S]*xl:w-\[var\(--side-panel-width\)\][\s\S]*xl:relative xl:h-full/u);
   assert.match(panel, /<div class="relative flex min-w-0 flex-col @6xl:h-full @6xl:min-h-0 @6xl:flex-row @6xl:gap-2">/u);
   const source = read("src/components/v3/Pipeline.tsx");
-  assert.match(source, /const sheet = getComputedStyle\(dialog\)\.position === "fixed";/u, "CSS decides the mode, JS follows it");
-  assert.match(source, /if \(sheet\) dialog\.showModal\(\);\s*else dialog\.show\(\);/u);
+  assert.match(source, /<SidePanel\s+closeHref=\{closeHref\}\s+onClose=\{onClose\}/u, "the board keeps ?lead= client-side");
+  assert.match(source, /\n\s+fill\n\s+testId="v3-pipeline-lead-panel"/u);
+  const sidePanel = read("src/components/v3/panel/SidePanel.tsx");
+  assert.match(sidePanel, /const media = window\.matchMedia\(SIDE_PANEL_WIDE_QUERY\);/u);
+  assert.match(sidePanel, /if \(modal\) dialog\.showModal\(\);\s*else dialog\.show\(\);/u);
   assert.match(source, /saved\?\.leadId === selected\.id && saved\.version !== selected\.workflow\.workflowVersion/u, "one «Решение сохранено.» at a time");
 });
 
@@ -249,18 +258,19 @@ test("a handed-off lead's panel folds the working stages and opens «Перед�
   const panel = surfaces.get("sales-panel-handed");
   const stages = ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential", "handed_off"];
   const board = tag(panel, /<div role="group" aria-label="Воронка продаж"[^>]*>/u);
-  assert.match(board, /@6xl:@max-\[97\.5rem\]:\[grid-template-columns:var\(--board-tracks-panel\)\]/u);
+  assert.match(board, /@6xl:xl:@max-\[98\.25rem\]:\[grid-template-columns:var\(--board-tracks-panel\)\]/u);
   assert.equal(board.match(/--board-tracks-panel:([^;"]+)/u)?.[1], boardTracks(stages, "handed_off", ["handed_off"]), "only the lead's stage stays open");
   for (const key of stages.slice(0, 6)) {
     const column = tag(panel, new RegExp(`<section aria-labelledby="[^"]*-${key}" data-testid="v3-pipeline-column"[\\s\\S]*?</section>`, "u"));
-    assert.match(column, /<header class="[^"]*@6xl:@max-\[97\.5rem\]:hidden">/u, key);
-    assert.match(column, new RegExp(`class="[^"]*hidden @6xl:@max-\\[97\\.5rem\\]:flex flex-1" href="/v3/pipeline\\?stage=${key}">`, "u"), `${key} folds to a rail`);
+    assert.match(column, /<header class="[^"]*@6xl:xl:@max-\[98\.25rem\]:hidden">/u, key);
+    assert.match(column, new RegExp(`class="[^"]*hidden @6xl:xl:@max-\\[98\\.25rem\\]:flex flex-1" href="/v3/pipeline\\?stage=${key}">`, "u"), `${key} folds to a rail`);
   }
-  // «Переданы»: its rail only while six columns fit beside the panel, a column with the lead's card otherwise.
+  // «Переданы»: its rail only while six columns fit beside the panel (or the panel is a
+  // sheet under 1280px), a column with the lead's card otherwise.
   const rail = tag(panel, /<a[^>]*data-testid="v3-pipeline-rail"[^>]*data-stage-rail="handed_off"[^>]*>/u);
-  assert.match(classOf(rail), /(?:^|\s)hidden @min-\[97\.5rem\]:flex(?:\s|$)/u);
+  assert.match(classOf(rail), /(?:^|\s)hidden @6xl:flex @6xl:xl:@max-\[98\.25rem\]:hidden(?:\s|$)/u);
   const handed = tag(panel, /<section aria-labelledby="[^"]*-handed_off" data-testid="v3-pipeline-column"[\s\S]*?<\/section>/u);
-  assert.match(classOf(tag(handed, /<section[^>]*>/u)), /(?:^|\s)hidden @6xl:@max-\[97\.5rem\]:flex(?:\s|$)/u);
+  assert.match(classOf(tag(handed, /<section[^>]*>/u)), /(?:^|\s)hidden @6xl:xl:@max-\[98\.25rem\]:flex(?:\s|$)/u);
   assert.match(handed, /<article data-testid="v3-pipeline-card" data-lead-id="dddddddd-3333-4333-8333-000000000013" aria-current="true"/u);
   assert.match(handed, /@6xl:grid @6xl:grid-cols-\[repeat\(auto-fill,minmax\(min\(240px,100%\),1fr\)\)\]/u, "cards in a grid, not one wide row");
   assert.match(tag(panel, /<dialog [^>]*>/u), /data-lead-id="dddddddd-3333-4333-8333-000000000013"/u);
@@ -268,8 +278,9 @@ test("a handed-off lead's panel folds the working stages and opens «Перед�
   const sales = surfaces.get("sales");
   assert.doesNotMatch(sales, /-handed_off" data-testid="v3-pipeline-column"/u);
   assert.match(classOf(tag(sales, /<a[^>]*data-stage-rail="handed_off"[^>]*>/u)), /(?:^|\s)hidden @6xl:flex(?:\s|$)/u);
-  // Closing the panel removes that column: focus falls back to the stage rail, never to <body>.
-  assert.match(read("src/components/v3/Pipeline.tsx"), /\(card \?\? rail\)\?\.focus\(\);/u);
+  // Closing the panel removes that column: focus falls back to the stage rail, never to <body>
+  // (the shared panel focuses the first shown of these on close).
+  assert.match(read("src/components/v3/Pipeline.tsx"), /\[attributeReturn\("data-lead-link", selected\.id\), attributeReturn\("data-stage-rail", selected\.stageKey\)\]/u);
 });
 
 test("a sales card opens the right panel with the existing decision form; the card has no form", () => {

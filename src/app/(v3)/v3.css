@@ -369,6 +369,39 @@
 }
 
 /*
+ * Одна боковая панель записи (Э7, `SidePanel`, оба облика). Ширина — один
+ * токен для сетки «список | панель», листа и доски (26rem = 416 px,
+ * `SIDE_PANEL_WIDTH_REM`). Уже 1280 px панель — модальный лист в верхнем
+ * слое: он коротко выезжает справа, затемнение проявляется; рядом со
+ * списком панель не движется. При `prefers-reduced-motion` движения нет.
+ */
+.v3-world {
+  --side-panel-width: 26rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world [data-side-panel]:modal {
+    animation: v3-side-sheet-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .v3-world [data-side-panel]:modal::backdrop {
+    animation: v3-side-backdrop-in 200ms ease-out;
+  }
+}
+
+@keyframes v3-side-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+}
+
+@keyframes v3-side-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
  * Шрифтовые роли staff CRM (24.09.2026, решение владельца: Golos Text для
  * интерфейса, JetBrains Mono только для технических значений).
  *

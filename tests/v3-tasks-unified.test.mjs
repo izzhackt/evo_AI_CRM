@@ -93,8 +93,10 @@ test("closing the panel returns to the same list URL with its filters and scroll
   // scroll={false} on the row links: opening/closing the panel must not
   // reset the list's scroll position via Next.js's default scroll-to-top.
   assert.match(taskRow, /<Link\s+href=\{href\}\s+scroll=\{false\}\s+data-queue-open=""/u);
-  const panel = source("src/components/v3/queue/QueueDetailPanel.tsx");
+  // Э7: the shared side panel (every host) closes to the same list URL.
+  const panel = source("src/components/v3/panel/SidePanel.tsx");
   assert.match(panel, /<Link\s+href=\{closeHref\}\s+scroll=\{false\}/u);
+  assert.match(panel, /router\.push\(closeHref, \{ scroll: false \}\)/u);
 });
 
 test("case tasks open in the same /v3/tasks panel, never a redirect to /v3/calendar", () => {

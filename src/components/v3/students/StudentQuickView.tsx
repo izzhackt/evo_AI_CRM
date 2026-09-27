@@ -15,7 +15,8 @@ import { StageTrack } from "../blocks/StageTrack";
 import { StatusChip } from "../blocks/StatusChip";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
-import { QueueDetailPanel } from "../queue/QueueDetailPanel";
+import { queueRowReturn } from "../panel/side-panel";
+import { SidePanel } from "../panel/SidePanel";
 import { ProfileHandoffAcknowledgement } from "../profile/ProfileSalesTransition";
 import { ClosedLine, CloseRecordButton } from "../closure/Closure";
 import { openTaskComposer, TaskComposerContextMark } from "../tasks/task-composer-context";
@@ -122,33 +123,37 @@ export function StudentQuickView({
   const openTasks = tasks?.kind === "ready" ? tasks.tasks : [];
 
   return (
-    <QueueDetailPanel closeHref={links.close} backLabel="К студентам" headingId={headingId}>
-      <header className="space-y-1 xl:pe-10">
-        <h2 ref={headingRef} id={headingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg">{row.studentDisplayName}</h2>
-        <p className="t-meta text-fg-2">{studentsRowMeta(row)}</p>
-      </header>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Link href={links.case} className={QUEUE_SECONDARY}>Открыть дело</Link>
-        {row.state === "active" && canChange && (known !== null || closure?.state === "active") ? (
+    <SidePanel
+      closeHref={links.close}
+      backLabel="К студентам"
+      headingId={headingId}
+      headingRef={headingRef}
+      title={row.studentDisplayName}
+      context={studentsRowMeta(row)}
+      open={{ href: links.case, label: "Открыть дело" }}
+      returnTo={queueRowReturn(row.studentCaseId)}
+    >
+      {row.state === "active" && canChange && (known !== null || closure?.state === "active") ? (
+        <div className="mb-4 flex flex-wrap gap-2">
           <CloseRecordButton kind="case" subjectId={row.studentCaseId} subjectName={row.studentDisplayName}
             expectedVersion={row.admissionsVersion} onClosed={changed} className={QUEUE_SECONDARY}
             openTasks={tasks?.kind === "ready" ? tasks.tasks.length : null} />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       {/* Принять дело — главное действие куратора по переданному делу: первым под шапкой. */}
       {handoff ? (
-        <div className="mt-4" data-testid="v3-students-panel-handoff">
+        <div className="mb-4" data-testid="v3-students-panel-handoff">
           <ProfileHandoffAcknowledgement snapshot={handoff} onSaved={(decision) => setAnswered(decision === "clarification_requested" ? null : decision)} />
         </div>
       ) : answered ? (
-        <p role="status" className="mt-4 t-body-compact text-fg" data-testid="v3-students-panel-handoff-answered">
+        <p role="status" className="mb-4 t-body-compact text-fg" data-testid="v3-students-panel-handoff-answered">
           {/* Отказ в той же записи возвращает дело в ожидание без куратора (182); вид не называем —
               куратору со своей областью дело без куратора не видно. */}
           {answered === "accepted" ? "Дело принято." : "Назначение отклонено. Дело снова ждёт куратора."}
         </p>
       ) : null}
 
-      <dl className="mt-4 divide-y divide-border border-t border-border">
+      <dl className="divide-y divide-border">
         {stage ? <Fact term="Этап">{next ? <StageTrack kind="admissions" current={row.pipelineStage} closed={row.state === "closed"} /> : stage}</Fact> : null}
         <Fact term="Куратор">
           {/* Отказ возможен только по переданному делу, поэтому после него дело ждёт куратора — как в строке списка. */}
@@ -248,18 +253,19 @@ export function StudentQuickView({
         ) : <p className="t-body-compact text-fg-3">Нет доступа к документам этого дела.</p>}
         <Link href={links.documents} className={LINK}>Документы дела</Link>
       </section>
-    </QueueDetailPanel>
+    </SidePanel>
   );
 }
 
 /** Панель для строки, которой нет на открытой странице списка (ссылка на другую страницу). */
 export function StudentQuickViewMissing({ closeHref, caseHref }: Readonly<{ closeHref: string; caseHref: string }>) {
-  const headingId = useId();
   return (
-    <QueueDetailPanel closeHref={closeHref} backLabel="К студентам" headingId={headingId}>
-      <h2 id={headingId} tabIndex={-1} data-queue-heading="" className="t-section text-fg xl:pe-10">Дела нет на этой странице списка</h2>
-      <p className="mt-2 t-body-compact text-fg-2">Оно в другом виде или на другой странице, либо недоступно вам.</p>
-      <div className="mt-3"><Link href={caseHref} className={QUEUE_SECONDARY}>Открыть дело</Link></div>
-    </QueueDetailPanel>
+    <SidePanel
+      closeHref={closeHref}
+      backLabel="К студентам"
+      title="Дела нет на этой странице списка"
+      context="Оно в другом виде или на другой странице, либо недоступно вам."
+      open={{ href: caseHref, label: "Открыть дело" }}
+    />
   );
 }

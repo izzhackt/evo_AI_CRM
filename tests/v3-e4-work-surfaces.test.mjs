@@ -13,8 +13,8 @@ import {
   leadLastContact, leadMoment, leadPrimaryAction, leadSaleHref,
 } from "../src/components/v3/profile/lead-work-view.ts";
 import {
-  groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps, salesRowRemainder, salesRowReview,
-  salesSummaryBasis, salesWord,
+  SALES_NO_REMAINDER_TEXT, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
+  salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, salesWord,
 } from "../src/lib/sales-register-view.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -115,10 +115,18 @@ test("«Отчёт продаж»: «Уточнить» names only what the reco
   assert.deepEqual(salesRowReview(row({ needsReview: true, paidCurrency: "KGS" })).reasons, ["оплата в другой валюте"]);
 
   assert.equal(salesRowRemainder(row()), 90000);
-  assert.equal(salesRowRemainder(row({ paidMinor: null, paidCurrency: null, paidRaw: "" })), 150000, "no payment in the record");
+  assert.equal(salesRowRemainder(row({ paidMinor: 0, paidRaw: "0" })), 150000, "a stated zero payment is a payment");
+  // Пустая оплата — неизвестна (подсказка формы, «Не уточнено» записи, `paid_minor IS NULL` сервера), не ноль.
+  assert.equal(salesRowRemainder(row({ paidMinor: null, paidCurrency: null, paidRaw: "" })), null, "unknown payment is not zero");
   assert.equal(salesRowRemainder(row({ paidMinor: null, paidCurrency: null, paidRaw: "половина" })), null);
   assert.equal(salesRowRemainder(row({ paidCurrency: "KGS" })), null, "no conversion");
   assert.equal(salesRowRemainder(row({ serviceCostMinor: null, serviceCostCurrency: null })), null);
+  assert.equal(salesRowRemainder(row({ archived: true })), null, "an archived record is outside the working totals");
+  assert.deepEqual([
+    row(), row({ archived: true }), row({ serviceCostMinor: null, serviceCostCurrency: null, paidMinor: null, paidCurrency: null, paidRaw: "" }),
+    row({ paidMinor: null, paidCurrency: null, paidRaw: "половина" }), row({ paidMinor: null, paidCurrency: null, paidRaw: " " }), row({ paidCurrency: "KGS" }),
+  ].map((one) => { const why = salesRowNoRemainder(one); return why && SALES_NO_REMAINDER_TEXT[why]; }),
+  [null, "в архиве", "нет стоимости", "оплата не разобрана", "оплата не указана", "оплата в другой валюте"]);
 
   const summary = salesMoneySummary([
     row(), row({ paidMinor: null, paidCurrency: null, paidRaw: "" }),
@@ -127,14 +135,19 @@ test("«Отчёт продаж»: «Уточнить» names only what the reco
     row({ serviceCostMinor: null, serviceCostCurrency: null }),
     row({ paidMinor: null, paidCurrency: null, paidRaw: "половина" }),
   ]);
+  // Запись без оплаты в строку USD не входит: ни стоимостью, ни «оплатой 0», ни остатком.
   assert.deepEqual(summary.lines, [
     { currency: "KGS", costMinor: 1200000, paidMinor: 500000, remainderMinor: 700000, count: 1 },
-    { currency: "USD", costMinor: 300000, paidMinor: 60000, remainderMinor: 240000, count: 2 },
+    { currency: "USD", costMinor: 150000, paidMinor: 60000, remainderMinor: 90000, count: 1 },
   ]);
   assert.deepEqual(summary.cross, [{ costCurrency: "USD", paidCurrency: "KGS", costMinor: 180000, paidMinor: 4500000, count: 1 }]);
   assert.equal(summary.noCost, 1);
   assert.equal(summary.paidUnclear, 1);
+  assert.equal(summary.paidMissing, 1);
   for (const line of summary.lines) assert.equal(line.costMinor - line.paidMinor, line.remainderMinor);
+  // Архивные записи в суммы не входят вовсе (и «Архив» сумм не показывает).
+  const archivedOnly = salesMoneySummary([row({ archived: true }), row({ archived: true, paidMinor: null, paidCurrency: null, paidRaw: "" })]);
+  assert.deepEqual([archivedOnly.lines, archivedOnly.cross, archivedOnly.noCost, archivedOnly.paidUnclear, archivedOnly.paidMissing], [[], [], 0, 0, 0]);
 
   // Основа сумм — записи месяца отчёта: сколько из них без даты продажи и с датой в другом периоде.
   const rows = [row(), row({ signingDate: null }), row({ signingDate: "2026-08-30" }), row({ signingDate: "2026-09-30" })];
@@ -266,12 +279,13 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
     assert.match(report, /<p class="t-meta text-fg-2" data-money-basis="9">Суммы по 9 записям месяца отчёта, из них 1 без даты продажи<\/p>/u);
     // Выровненная таблица: подписи столбцов один раз, строки валют; остаток — только внутри
     // одной валюты; оплата в другой валюте — своей строкой пары без остатка.
-    assert.match(text(report), /Валюта Стоимость Оплачено Остаток KGS 120 000 50 000 70 000 USD 10 000 5 800 4 200 USD → KGS : стоимость в USD, оплата в KGS, 1 запись 1 800 USD 45 000 KGS — остаток не считается/u);
+    // «Тимур Образцов» (1 500 USD, оплата не указана) в строку USD не входит: 8 500 − 5 800 = 2 700.
+    assert.match(text(report), /Валюта Стоимость Оплачено Остаток KGS 120 000 50 000 70 000 USD 8 500 5 800 2 700 USD → KGS : стоимость в USD, оплата в KGS, 1 запись 1 800 USD 45 000 KGS — остаток не считается/u);
     assert.match(report, /<tr data-money-cross="USD&gt;KGS">/u);
     // Сноска — одна строка.
     const money = report.slice(report.indexOf('data-testid="sales-money-summary"'), report.indexOf("</section>", report.indexOf('data-testid="sales-money-summary"')));
     assert.equal(money.match(/<p\b/gu)?.length, 2, "the basis line and one footnote");
-    assert.match(text(money), /USD → KGS — стоимость в USD, оплата в KGS \(1 запись\): остаток не считается\. Не вошли: без стоимости — 1 запись\. Валюты не пересчитываются; это записи отчёта, не поступления за месяц\./u);
+    assert.match(text(money), /USD → KGS — стоимость в USD, оплата в KGS \(1 запись\): остаток не считается\. Не вошли: без стоимости — 1 запись, оплата не указана — 1 запись\. Валюты не пересчитываются; это записи отчёта, не поступления за месяц\./u);
     // Одна строка инструментов, выбор применяется ссылкой; «Нужно уточнить · N» — из чтения.
     assert.match(report, /data-testid="sales-review-toggle" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;review=true">Нужно уточнить<span class="tabular-nums"> · 6<\/span><\/a>/u);
     assert.match(report, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;archived=true">Архив<\/a>/u);
@@ -285,9 +299,14 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
     // Строки в одну линию: причины «Уточнить» словами из записи или «Сверено».
     assert.match(text(report), /Студент Страна · программа Менеджер Дата Стоимость Оплачено Остаток Уточнить/u);
     assert.match(text(report), /Бекзат Тестов Малайзия · Бакалавриат Санжар Эскизов — 1 500 USD 600 USD остаток 900 USD нет даты продажи/u);
-    assert.match(text(report), /Руслан Прототипов Малайзия · Бакалавриат Айдана Макетова 03\.09 1 800 USD 45 000 KGS остаток — оплата в другой валюте/u);
+    assert.match(text(report), /Руслан Прототипов Малайзия · Бакалавриат Айдана Макетова 03\.09 1 800 USD 45 000 KGS остаток — \(оплата в другой валюте\) оплата в другой валюте/u);
     assert.match(text(report), /Айжан Примерова Малайзия · Бакалавриат санжар эскизов 20\.09 1 500 USD 600 USD остаток 900 USD причина не записана/u);
     assert.match(text(report), /Алина Переданная Малайзия · Бакалавриат Санжар Эскизов 22\.09 1 500 USD 600 USD остаток 900 USD Сверено/u);
+    // Оплата не указана — неизвестна: остатка нет, причина — подсказкой и для чтения с экрана, на узкой строке — словами.
+    assert.match(text(report), /Тимур Образцов Китай · Магистратура, экономика Айдана Макетова 14\.09 1 500 USD — остаток — \(оплата не указана\) причина не записана/u);
+    assert.match(report, /<span class="block truncate t-body-compact tabular-nums text-fg" title="оплата не указана" data-no-remainder="paid_missing">/u);
+    assert.doesNotMatch(text(report), /остаток 1 500 USD/u, "no remainder built on an unknown payment");
+    assert.match(report, /<p class="truncate t-meta tabular-nums text-fg-2">стоимость 1\s500\sUSD · оплата не указана<\/p>/u);
     assert.match(report, /<time dateTime="2026-09-22" class="t-body-compact text-fg-2 font-mono tabular-nums">22\.09<\/time>/u);
     // Узкая строка: дата — JetBrains Mono, «Уточнить» — своей строкой целиком, без многоточия.
     assert.match(report, /<p class="truncate t-meta text-fg-2"><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> · санжар эскизов · Малайзия · Бакалавриат<\/p>/u);
@@ -359,10 +378,29 @@ test("rendered «Отчёт продаж»: the report month stays visible where
     const money = bulk.slice(bulk.indexOf('data-testid="sales-money-summary"'), bulk.indexOf("</section>", bulk.indexOf('data-testid="sales-money-summary"')));
     assert.match(text(money), /Суммы по 520 записям месяца отчёта Стоимость, оплачено и остаток по валютам Валюта Стоимость Оплачено по записям USD/u);
     assert.doesNotMatch(money, />Остаток</u);
-    assert.match(text(money), /Остаток не посчитан: в выборке больше 500 записей — сузьте период или фильтры\. В денежные итоги не включены неуточнённые значения: стоимость — 75, оплата — 41\. Валюты не пересчитываются/u);
+    // Как 247: неуточнённая оплата — каждая запись без суммы оплаты (75 без стоимости и оплаты + 41 неразобранная).
+    assert.match(text(money), /Остаток не посчитан: в выборке больше 500 записей — сузьте период или фильтры\. В денежные итоги не включены неуточнённые значения: стоимость — 75, оплата — 116\. Валюты не пересчитываются/u);
   }
   const view = read("src/components/v3/SalesRegisterView.tsx");
   assert.match(view, /workspace\.unresolvedCostCount > 0 \|\| workspace\.unresolvedPaidCount > 0/u);
+});
+
+test("rendered «Отчёт продаж»: «Архив» shows how many records, with no sums and no remainder, as the server and main do", () => {
+  for (const look of ["", "-next"]) {
+    const page = pages.get(`report-archive${look}`);
+    assert.doesNotMatch(page, /sales-money-summary|sales-money-table|Суммы по/u, "no money summary for archived records");
+    assert.match(page, /<p class="mt-4 border-y border-border py-3 t-meta text-fg-2" data-testid="sales-archive-basis" data-archive-count="2">В архиве — 2 записи месяца отчёта\. Архивные записи не входят в рабочие итоги: суммы и остаток по ним не считаются\.<\/p>/u);
+    assert.match(text(page), /Студент Страна · программа Менеджер Дата Стоимость Оплачено Уточнить/u);
+    assert.doesNotMatch(page, />Остаток<|data-no-remainder|>остаток </u, "no remainder column or cell");
+    assert.equal(page.slice(page.indexOf("<colgroup"), page.indexOf("</colgroup>")).match(/<col\b/gu)?.length, 7);
+    // Строки — прежние стоимость и оплата по записи; неизвестная оплата — словами.
+    assert.match(text(page), /Ольга Архивная Малайзия · Бакалавриат Санжар Эскизов 08\.09 1 500 USD 600 USD В архиве/u);
+    assert.match(text(page), /Марат Отложенный Малайзия · Бакалавриат Санжар Эскизов 16\.09 1 500 USD — В архиве/u);
+    assert.match(page, /<a [^>]*aria-current="true" class="v3-choice[^"]*" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9">Архив<\/a>|href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9"[^>]*>Архив<\/a>/u);
+    assert.equal(solidRed(page), 1);
+  }
+  const view = read("src/components/v3/SalesRegisterView.tsx");
+  assert.match(view, /const summaryRead = workspace && !creatingForm && !archiveView \? await readSummaryRows\(/u, "no all-pages read for the archive");
 });
 
 test("rendered «Отчёт продаж»: «Поступления и возвраты за месяц» keeps its read, words and states, below the records", () => {

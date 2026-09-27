@@ -205,7 +205,7 @@ function e4Row(n, fields) {
     serviceCostCurrency: fields.cost === null ? null : fields.costCurrency ?? "USD",
     paidRaw: fields.paidRaw ?? (fields.paid === null ? "" : String((fields.paid ?? 60000) / 100)), paidMinor: fields.paid === undefined ? 60000 : fields.paid,
     paidCurrency: fields.paid === null ? null : fields.paidCurrency ?? "USD", needsReview: fields.review ?? false,
-    leadId: null, sourceKind: "manual" };
+    archived: fields.archived ?? false, leadId: null, sourceKind: "manual" };
 }
 const E4_ROWS = [
   e4Row(1, { name: "Алина Переданная", sale: "2026-09-22", review: false }),
@@ -217,6 +217,11 @@ const E4_ROWS = [
   e4Row(7, { name: "Эльвира Шаблонова", sale: "2026-09-12", cost: null, costRaw: "по договорённости", paid: null, review: true }),
   e4Row(8, { name: "Нурлан Черновой", sale: "2026-09-18", manager: "", paid: 150000, review: true }),
   e4Row(9, { name: "Асель Пробная", sale: "2026-09-25", manager: "Айдана Макетова", country: "Китай", direction: "China", program: "Foundation", cost: 250000, paid: 250000, review: false }),
+];
+// «Архив» сентября: в рабочие итоги не входят — ни в «Продажи», ни в суммы; в «Архиве» сумм нет (247).
+const E4_ARCHIVED_ROWS = [
+  e4Row(13, { name: "Ольга Архивная", sale: "2026-09-08", archived: true }),
+  e4Row(14, { name: "Марат Отложенный", sale: "2026-09-16", paid: null, archived: true }),
 ];
 // Записи других месяцев отчёта — для «Весь 2026 год» и среза «записаны в другой месяц отчёта»:
 // продажа 30.07 записана в августовский отчёт. В сентябрь не попадают, числа сентября прежние.
@@ -242,7 +247,7 @@ const E4_MANAGEMENT = { status: "ready", data: { reportMonth: "2026-09-01", canM
 /** Какой отчёт отдают подменённые чтения: прежние шесть записей Э2 или набор Э4. */
 const REPORT = { rows: REPORT_ROWS, count: SALES_COUNT, management: { status: "denied" }, directions: ["Малайзия"], managerLabels: ["Санжар Эскизов"] };
 function useE4Report() {
-  Object.assign(REPORT, { rows: [...E4_ROWS, ...E4_EARLIER_ROWS], count: countFor, management: E4_MANAGEMENT,
+  Object.assign(REPORT, { rows: [...E4_ROWS, ...E4_EARLIER_ROWS, ...E4_ARCHIVED_ROWS], count: countFor, management: E4_MANAGEMENT,
     directions: ["China", "Китай", "Малайзия", "малайзия "], managerLabels: ["Айдана Макетова", "Санжар Эскизов", " санжар эскизов", "Санжар  Эскизов"] });
 }
 // Больше 500 записей в выборке: остаток по всем страницам не читается, суммы — сервера по записям
@@ -285,11 +290,15 @@ function readReport(selection) {
       totals.set(row.paidCurrency, total);
     }
   }
+  // Как 247: неуточнённые — каждая запись без суммы (`paid_minor IS NULL`, пустая оплата тоже),
+  // а архиву сервер итогов не отдаёт: `IF p_archived THEN totals:='[]'; unresolved_*:=0`.
+  const archived = Boolean(selection.archived);
   return {
     year: selection.year, month: selection.month ?? null, totalCount: rows.length, rows: rows.slice(offset, offset + 50), offset, hasMore: offset + 50 < rows.length,
     selected: selection.recordId ? REPORT.rows.find((row) => row.id === selection.recordId) ?? null : null,
-    totals: [...totals.values()], unresolvedCostCount: rows.filter((row) => row.serviceCostMinor === null && row.serviceCostRaw).length,
-    unresolvedPaidCount: rows.filter((row) => row.paidMinor === null && row.paidRaw).length,
+    totals: archived ? [] : [...totals.values()],
+    unresolvedCostCount: archived ? 0 : rows.filter((row) => row.serviceCostMinor === null).length,
+    unresolvedPaidCount: archived ? 0 : rows.filter((row) => row.paidMinor === null).length,
     targets: [], managerLabels: REPORT.managerLabels, ownerOptions: [],
   };
 }
@@ -573,6 +582,8 @@ async function e4Pages(look) {
     { name: "report-year-panel", html: await reportPage({ month: "all", record: E4_EARLIER_ROWS[1].id, edit: "true" }, { look }) },
     { name: "report-elsewhere", html: await reportPage({ month: "7", sale: "filed_elsewhere" }, { look }) },
     { name: "report-bulk", html: await (async () => { useE4BulkReport(); const html = await reportPage({}, { look }); useE4Report(); return html; })() },
+    // «Архив»: сколько записей — без сумм и без столбца «Остаток».
+    { name: "report-archive", html: await reportPage({ archived: "true" }, { look }) },
     // «Поступления и возвраты за месяц» под записями: сводка финансовых событий месяца (синтетика).
     { name: "report-cash", html: await (async () => {
       REPORT.cash = { status: "ready", totals: [

@@ -80,15 +80,38 @@ export function salesRowReview(row: SalesRegisterRow): SalesRowReview {
 }
 
 /**
- * Остаток записи в её валюте: стоимость минус оплата. Оплаты в записи нет —
- * остаток равен стоимости. Нет стоимости, оплата не разобрана или в другой
- * валюте — остатка нет (null): валюты не пересчитываются.
+ * Почему у записи нет остатка; null — остаток считается. Пустая оплата —
+ * «неизвестна» (подсказка формы: «Если сумма неизвестна, оставьте сумму и
+ * валюту пустыми»; сервер считает её неуточнённой), а не ноль. Запись в
+ * архиве в рабочие итоги не входит — и остатка у неё нет.
+ */
+export type SalesNoRemainderReason = "archived" | "no_cost" | "paid_unclear" | "paid_missing" | "other_currency";
+
+export function salesRowNoRemainder(row: SalesRegisterRow): SalesNoRemainderReason | null {
+  if (row.archived) return "archived";
+  if (row.serviceCostMinor === null || row.serviceCostCurrency === null) return "no_cost";
+  if (row.paidMinor === null) return row.paidRaw.trim() ? "paid_unclear" : "paid_missing";
+  if (row.paidCurrency !== row.serviceCostCurrency) return "other_currency";
+  return null;
+}
+
+export const SALES_NO_REMAINDER_TEXT: Readonly<Record<SalesNoRemainderReason, string>> = {
+  archived: "в архиве",
+  no_cost: "нет стоимости",
+  paid_unclear: "оплата не разобрана",
+  paid_missing: "оплата не указана",
+  other_currency: "оплата в другой валюте",
+};
+
+/**
+ * Остаток записи в её валюте: стоимость минус указанная оплата (оплата 0 —
+ * тоже указанная). Нет стоимости, оплата не указана или не разобрана, в
+ * другой валюте, запись в архиве — остатка нет (null): неизвестное не
+ * считается нулём, валюты не пересчитываются.
  */
 export function salesRowRemainder(row: SalesRegisterRow): number | null {
-  if (row.serviceCostMinor === null || row.serviceCostCurrency === null) return null;
-  if (row.paidMinor === null) return row.paidRaw.trim() ? null : row.serviceCostMinor;
-  if (row.paidCurrency !== row.serviceCostCurrency) return null;
-  return row.serviceCostMinor - row.paidMinor;
+  if (salesRowNoRemainder(row) !== null) return null;
+  return row.serviceCostMinor! - row.paidMinor!;
 }
 
 export type SalesMoneyLine = Readonly<{ currency: string; costMinor: number; paidMinor: number; remainderMinor: number; count: number }>;
@@ -102,32 +125,48 @@ export type SalesMoneySummary = Readonly<{
   noCost: number;
   /** Сумма оплаты не разобрана. */
   paidUnclear: number;
+  /** Оплата не указана (неизвестна): не ноль, в суммы не входит. */
+  paidMissing: number;
 }>;
 
+/**
+ * Суммы по валютам — только из записей рабочего отчёта (не архива): строка
+ * валюты — записи с указанными стоимостью и оплатой в одной валюте, поэтому
+ * «Стоимость − Оплачено = Остаток»; оплата в другой валюте — парой без
+ * остатка; без стоимости, с неразобранной или неуказанной оплатой — не
+ * входят и названы числом.
+ */
 export function salesMoneySummary(rows: readonly SalesRegisterRow[]): SalesMoneySummary {
   const lines = new Map<string, { costMinor: number; paidMinor: number; remainderMinor: number; count: number }>();
   const cross = new Map<string, { costCurrency: string; paidCurrency: string; costMinor: number; paidMinor: number; count: number }>();
   let noCost = 0;
   let paidUnclear = 0;
+  let paidMissing = 0;
   for (const row of rows) {
-    if (row.serviceCostMinor === null || row.serviceCostCurrency === null) { noCost += 1; continue; }
-    if (row.paidMinor === null && row.paidRaw.trim()) { paidUnclear += 1; continue; }
-    if (row.paidMinor !== null && row.paidCurrency !== null && row.paidCurrency !== row.serviceCostCurrency) {
-      const key = `${row.serviceCostCurrency}>${row.paidCurrency}`;
-      const pair = cross.get(key) ?? { costCurrency: row.serviceCostCurrency, paidCurrency: row.paidCurrency, costMinor: 0, paidMinor: 0, count: 0 };
-      pair.costMinor += row.serviceCostMinor;
-      pair.paidMinor += row.paidMinor;
+    const why = salesRowNoRemainder(row);
+    if (why === "archived") continue;
+    if (why === "no_cost") { noCost += 1; continue; }
+    if (why === "paid_unclear") { paidUnclear += 1; continue; }
+    if (why === "paid_missing") { paidMissing += 1; continue; }
+    const costCurrency = row.serviceCostCurrency!;
+    const costMinor = row.serviceCostMinor!;
+    const paidMinor = row.paidMinor!;
+    if (why === "other_currency") {
+      const paidCurrency = row.paidCurrency ?? "";
+      const key = `${costCurrency}>${paidCurrency}`;
+      const pair = cross.get(key) ?? { costCurrency, paidCurrency, costMinor: 0, paidMinor: 0, count: 0 };
+      pair.costMinor += costMinor;
+      pair.paidMinor += paidMinor;
       pair.count += 1;
       cross.set(key, pair);
       continue;
     }
-    const paid = row.paidMinor ?? 0;
-    const line = lines.get(row.serviceCostCurrency) ?? { costMinor: 0, paidMinor: 0, remainderMinor: 0, count: 0 };
-    line.costMinor += row.serviceCostMinor;
-    line.paidMinor += paid;
-    line.remainderMinor += row.serviceCostMinor - paid;
+    const line = lines.get(costCurrency) ?? { costMinor: 0, paidMinor: 0, remainderMinor: 0, count: 0 };
+    line.costMinor += costMinor;
+    line.paidMinor += paidMinor;
+    line.remainderMinor += costMinor - paidMinor;
     line.count += 1;
-    lines.set(row.serviceCostCurrency, line);
+    lines.set(costCurrency, line);
   }
   return Object.freeze({
     lines: Object.freeze([...lines.entries()].map(([currency, line]) => Object.freeze({ currency, ...line }))
@@ -136,6 +175,7 @@ export function salesMoneySummary(rows: readonly SalesRegisterRow[]): SalesMoney
       .sort((a, b) => `${a.costCurrency}${a.paidCurrency}`.localeCompare(`${b.costCurrency}${b.paidCurrency}`))),
     noCost,
     paidUnclear,
+    paidMissing,
   });
 }
 

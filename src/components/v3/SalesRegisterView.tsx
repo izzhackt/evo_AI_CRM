@@ -20,7 +20,7 @@ import { salesDirectionControl } from "@/lib/sales-register-directions";
 import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 import {
   SALES_PAGE_SIZE, SALES_SUMMARY_MAX_PAGES, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
-  salesRowRemainder, salesRowReview, salesSummaryBasis, type SalesLabelGroup, type SalesMoneySummary,
+  SALES_NO_REMAINDER_TEXT, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, type SalesLabelGroup, type SalesMoneySummary,
 } from "@/lib/sales-register-view";
 
 import type { V3Look } from "./blocks/look";
@@ -140,7 +140,9 @@ async function readSummaryRows(
  * другой месяц отчёта» — продажи периода с другим месяцем отчёта), чтобы она
  * не спорила с «N продаж» заголовка (по дате продажи); сноска — одна строка.
  * Нет всех строк выборки — суммы сервера по записям, и неуточнённые значения,
- * которых в них нет, названы числом.
+ * которых в них нет, названы числом. Пустая оплата — неизвестна, не ноль:
+ * такие записи в суммы и остаток не входят и названы в сноске. В «Архиве»
+ * сумм нет (как на сервере, 247) — вместо них `ArchiveBasis`.
  */
 function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, filedElsewhere }: Readonly<{
   workspace: SalesRegisterWorkspace; summary: SalesMoneySummary | null;
@@ -158,12 +160,13 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, f
   const recordsOf = filedElsewhere
     ? yearOnly ? "с датой продажи в этом году и месяцем отчёта в другом году" : "с датой продажи в этом месяце и другим месяцем отчёта"
     : `${yearOnly ? "года" : "месяца"} отчёта`;
-  const caption = `Суммы по ${total.toLocaleString("ru-RU")} ${recordsDative(total)} ${recordsOf}${filtered ? `${filedElsewhere ? "," : ""} с фильтрами` : ""}${within ? `, из них ${within}` : ""}`;
+  const caption = `Суммы по ${total.toLocaleString("ru-RU")} ${recordsDative(total)} ${recordsOf}${filtered ? ", с фильтрами" : ""}${within ? `, из них ${within}` : ""}`;
   // Суммы сервера (`totals`) не включают неуточнённые стоимость и оплату — как и прежде, это сказано числом.
   const unresolved = !summary && (workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0)
     ? `В денежные итоги не включены неуточнённые значения: стоимость — ${workspace.unresolvedCostCount}, оплата — ${workspace.unresolvedPaidCount}.` : null;
   const left = summary ? [
     summary.noCost > 0 ? `без стоимости — ${summary.noCost} ${recordsWord(summary.noCost)}` : null,
+    summary.paidMissing > 0 ? `оплата не указана — ${summary.paidMissing} ${recordsWord(summary.paidMissing)}` : null,
     summary.paidUnclear > 0 ? `оплата не разобрана — ${summary.paidUnclear} ${recordsWord(summary.paidUnclear)}` : null,
   ].filter(Boolean).join(", ") : "";
   const cross = summary ? summary.cross.map((pair) => `${pair.costCurrency} → ${pair.paidCurrency} — стоимость в ${pair.costCurrency}, оплата в ${pair.paidCurrency} (${pair.count} ${recordsWord(pair.count)}): остаток не считается.`) : [];
@@ -224,17 +227,31 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, f
   );
 }
 
+/**
+ * «Архив»: сколько записей в архиве по выборке — без сумм и остатка. Сервер
+ * архиву итогов не отдаёт (247: `IF p_archived THEN totals:='[]'`), запись
+ * в архиве не входит в рабочие итоги; до Э4 здесь было «Записей в архиве N».
+ */
+function ArchiveBasis({ count, yearOnly, filtered }: Readonly<{ count: number; yearOnly: boolean; filtered: boolean }>) {
+  if (count === 0) return null;
+  const text = `В архиве — ${count.toLocaleString("ru-RU")} ${recordsWord(count)} ${yearOnly ? "года" : "месяца"} отчёта${filtered ? ", с фильтрами" : ""}. `
+    + "Архивные записи не входят в рабочие итоги: суммы и остаток по ним не считаются.";
+  return <p className="mt-4 border-y border-border py-3 t-meta text-fg-2" data-testid="sales-archive-basis" data-archive-count={count}>{text}</p>;
+}
+
 /** Строка записи: одна линия на широком контейнере, две–три строки на узком. */
-function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
+function SaleRow({ row, year, href, selected, showReportMonth, showRemainder }: Readonly<{
   row: SalesRegisterRow; year: number; href: string; selected: boolean; showReportMonth: boolean;
+  /** В «Архиве» столбца «Остаток» нет: архивные записи в рабочие итоги не входят. */
+  showRemainder: boolean;
 }>) {
   const review = salesRowReview(row);
   const cost = money(row.serviceCostMinor, row.serviceCostCurrency);
   const paid = money(row.paidMinor, row.paidCurrency);
   const remainderMinor = salesRowRemainder(row);
   const remainder = remainderMinor === null ? null : money(remainderMinor, row.serviceCostCurrency);
-  const remainderWhy = remainderMinor !== null ? null : row.serviceCostMinor === null ? "нет стоимости"
-    : row.paidMinor === null ? "оплата не разобрана" : "оплата в другой валюте";
+  const noRemainder = salesRowNoRemainder(row);
+  const remainderWhy = noRemainder === null ? null : SALES_NO_REMAINDER_TEXT[noRemainder];
   const place = [row.country, row.program].map((part) => tidy(part)).filter(Boolean).join(" · ");
   const manager = tidy(row.managerLabel);
   const reportMonth = showReportMonth ? reportMonthOf(row.reportMonth) : null;
@@ -265,11 +282,13 @@ function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
       {/* Суммы — узкие поля и подсказка с суммой: число не прячется за многоточием молча. */}
       <td role="cell" className={moneyCell}><span className="block truncate t-body-compact tabular-nums text-fg" title={cost ?? undefined}>{cost ?? "—"}</span></td>
       <td role="cell" className={moneyCell}><span className="block truncate t-body-compact tabular-nums text-fg-2" title={paid ?? undefined}>{paid ?? "—"}</span></td>
-      <td role="cell" className="self-center text-right @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:px-2 @min-[60rem]/sales-records:align-middle">
-        <span className="block truncate t-body-compact tabular-nums text-fg" title={remainderWhy ?? remainder ?? undefined}>
+      {/* Нет остатка — «—» и причина (подсказкой и для чтения с экрана): неизвестная оплата — не ноль. */}
+      {showRemainder ? <td role="cell" className="self-center text-right @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:px-2 @min-[60rem]/sales-records:align-middle">
+        <span className="block truncate t-body-compact tabular-nums text-fg" title={remainderWhy ?? remainder ?? undefined} data-no-remainder={noRemainder ?? undefined}>
           <span className="t-meta text-fg-2 @min-[60rem]/sales-records:sr-only">остаток </span>{remainder ?? "—"}
+          {remainderWhy ? <span className="sr-only"> ({remainderWhy})</span> : null}
         </span>
-      </td>
+      </td> : null}
       <td role="cell" className={`${cell} pe-4`}><span className={`block truncate t-body-compact ${reviewTone}`} title={reviewText}>{reviewText}</span></td>
       {/* Узкий контейнер: сведения строки под именем (широкий их не показывает); дата — JetBrains Mono,
           «Уточнить» — своей строкой целиком: причина не прячется за многоточием. */}
@@ -280,7 +299,8 @@ function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
         </p>
         {reportMonth ? <p className="truncate t-meta text-fg-2" data-report-month={reportMonth.dateTime}>Месяц отчёта: {reportMonth.words}</p> : null}
         {cost || paid ? <p className="truncate t-meta tabular-nums text-fg-2">
-          {[cost ? `стоимость ${cost}` : null, paid ? `оплачено ${paid}` : null].filter(Boolean).join(" · ")}
+          {[cost ? `стоимость ${cost}` : null, paid ? `оплачено ${paid}` : row.paidRaw.trim() ? null : SALES_NO_REMAINDER_TEXT.paid_missing]
+            .filter(Boolean).join(" · ")}
         </p> : null}
         <p className={`break-words t-meta ${reviewTone}`} data-row-review="">
           {review.state === "review" ? `Уточнить: ${reviewText}` : reviewText}
@@ -348,7 +368,9 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
     ]);
     reviewCount = query.review === "true" ? workspace?.totalCount ?? null : reviewRead;
   }
-  const summaryRead = workspace && !creatingForm ? await readSummaryRows(actor, workspace, offset, selection) : null;
+  const archiveView = query.archived === "true";
+  // «Архив» — без сумм и остатка (как на сервере и до Э4): все страницы для остатка не читаются.
+  const summaryRead = workspace && !creatingForm && !archiveView ? await readSummaryRows(actor, workspace, offset, selection) : null;
   const summary = summaryRead?.rows ? salesMoneySummary(summaryRead.rows) : null;
   const summaryBasis = summaryRead?.rows ? salesSummaryBasis(summaryRead.rows, { year, month }) : null;
   const management = await managementPromise;
@@ -363,7 +385,9 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
   const hasFilters = rowFilters || Boolean(saleSlice);
   // Во «Весь год» и в срезе «записаны в другой месяц отчёта» у строк разные месяцы отчёта — его видно в строке.
   const showReportMonth = month === undefined || saleSlice === "filed_elsewhere";
-  const recordColumns = showReportMonth ? RECORD_COLUMNS_WITH_REPORT_MONTH : RECORD_COLUMNS;
+  // В «Архиве» нет столбца «Остаток» (предпоследний): его место делят остальные.
+  const recordColumns = (showReportMonth ? RECORD_COLUMNS_WITH_REPORT_MONTH : RECORD_COLUMNS)
+    .filter((_, index, all) => !archiveView || index !== all.length - 2);
   const saved = !creatingForm && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
   const target = management.status === "ready" ? management.data.target : null;
   const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
@@ -494,9 +518,11 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
           {saved.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(saved.leadId)}`} className={`${btnGhostCls} min-h-11`}>Открыть дело</Link> : null}
         </div>
       </section> : null}
-      {workspace ? <MoneySummary workspace={workspace} summary={summary} basis={summaryBasis} yearOnly={month === undefined}
-        reason={summaryRead && summaryRead.rows === null ? summaryRead.reason : null}
-        filedElsewhere={saleSlice === "filed_elsewhere"} filtered={saleSlice === "filed_elsewhere" ? rowFilters : hasFilters} /> : null}
+      {workspace && archiveView ? <ArchiveBasis count={workspace.totalCount} yearOnly={month === undefined}
+        filtered={Boolean(searchQuery || query.manager || query.direction || query.review)} />
+        : workspace ? <MoneySummary workspace={workspace} summary={summary} basis={summaryBasis} yearOnly={month === undefined}
+          reason={summaryRead && summaryRead.rows === null ? summaryRead.reason : null}
+          filedElsewhere={saleSlice === "filed_elsewhere"} filtered={saleSlice === "filed_elsewhere" ? rowFilters : hasFilters} /> : null}
       {toolbar}
       {variantNote ? <p className="mt-2 t-meta text-fg-2" data-testid="sales-variant-note">
         Фильтр точный: показаны записи с выбранным написанием {variantNote}. Другие написания — в том же меню; сведение к сотрудникам и списку направлений — отдельный шаг.
@@ -532,13 +558,13 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
                     {showReportMonth ? <th role="columnheader" scope="col" className="px-2 py-2 font-medium">Месяц отчёта</th> : null}
                     <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Стоимость</th>
                     <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Оплачено</th>
-                    <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Остаток</th>
+                    {archiveView ? null : <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Остаток</th>}
                     <th role="columnheader" scope="col" className="py-2 ps-3 pe-4 font-medium">Уточнить</th>
                   </tr>
                 </thead>
                 <tbody role="rowgroup" className="block divide-y divide-border border-y border-border @min-[60rem]/sales-records:table-row-group">
                   {workspace.rows.map((row) => <SaleRow key={row.id} row={row} year={year} href={rowHref(row)}
-                    selected={row.id === (panelOpen ? query.record : saved?.id)} showReportMonth={showReportMonth} />)}
+                    selected={row.id === (panelOpen ? query.record : saved?.id)} showReportMonth={showReportMonth} showRemainder={!archiveView} />)}
                 </tbody>
               </table>
             </div>

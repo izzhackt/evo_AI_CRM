@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { CaseWorkChat, CaseWorkRead, CaseWorkRow, CaseWorkTasks } from "@/components/v3/profile/case-work-view";
+import type { CaseWorkActivity, CaseWorkChat, CaseWorkRead, CaseWorkRow, CaseWorkTasks } from "@/components/v3/profile/case-work-view";
 import { caseChatWork, caseOpenTasks } from "@/components/v3/profile/case-work-view";
 
 import { hasOpenAccountDeletionRequestForCase } from "../platform-account-deletion";
@@ -12,6 +12,7 @@ import type { ActivePlatformActor } from "../platform-auth";
 import { readStudentCaseQueue, STUDENT_CASE_QUEUE_PAGE_SIZE_MAX, STUDENT_CASE_QUEUE_QUERY_MAX_LENGTH } from "../platform-student-case-queue";
 import { dayInOrganizationTimezone } from "../platform-task-deadline";
 import { CaseChatReadError, readCaseChatPage } from "./case-chat-source";
+import { readProfileActivity } from "./profile-activity-source";
 
 export type CaseWorkTarget = Readonly<{
   studentCaseId: string;
@@ -68,25 +69,43 @@ async function readCaseChat(actor: ActivePlatformActor, target: CaseWorkTarget):
   }
 }
 
+/**
+ * Журнал дела для ленты Student 360 (Э4) — первая страница того же чтения,
+ * что у вкладки «История» (`staff_student_case_activity`, 132/241; права —
+ * те же). Сбой — «недоступно»: лента остаётся с заметками, страница не падает.
+ */
+async function readCaseActivity(actor: ActivePlatformActor, target: CaseWorkTarget): Promise<CaseWorkActivity> {
+  try {
+    const page = await readProfileActivity(actor, target.studentCaseId, null);
+    return Object.freeze({ kind: "ready", events: page.events, olderThan: page.nextCursor?.at ?? null });
+  } catch {
+    return Object.freeze({ kind: "unavailable" });
+  }
+}
+
 const NOT_READ = Object.freeze({ kind: "unavailable" } as const);
+const ACTIVITY_NOT_READ = Object.freeze({ kind: "not_read" } as const);
 
 /**
  * Всё, что вид дела читает сверх профиля, одним параллельным заходом. Каждое
  * чтение падает отдельно и называет своё «недоступно»; права проверяет
- * сервер — здесь только подсказки, какие чтения вообще имеют смысл. Строку
- * фактов видно на каждой вкладке; задачи и переписку показывает только
- * «Обзор», поэтому на других вкладках они не читаются.
+ * сервер — здесь только подсказки, какие чтения вообще имеют смысл. Шапку
+ * видно на каждой вкладке; задачи, переписку и ленту показывает только
+ * «Обзор», поэтому на других вкладках они не читаются. Журнал дела для ленты
+ * (`feed`) — только на первой странице заметок: на более ранних лента —
+ * одни заметки.
  */
 export async function readCaseWork(
   actor: ActivePlatformActor,
   target: CaseWorkTarget,
-  options: Readonly<{ overview: boolean }>,
+  options: Readonly<{ overview: boolean; feed?: boolean }>,
 ): Promise<CaseWorkRead> {
   const now = new Date();
-  const [row, tasks, chat, deletionRequested] = await Promise.all([
+  const [row, tasks, chat, activity, deletionRequested] = await Promise.all([
     readCaseQueueRow(actor, target),
     options.overview ? readCaseTasks(actor, target) : NOT_READ,
     options.overview ? readCaseChat(actor, target) : NOT_READ,
+    options.overview && options.feed ? readCaseActivity(actor, target) : ACTIVITY_NOT_READ,
     hasOpenAccountDeletionRequestForCase(actor, target.studentCaseId),
   ]);
   // «Нужен куратор» — флаг строки очереди (как в списке); без строки тот, кто назначает
@@ -96,7 +115,7 @@ export async function readCaseWork(
       ? (await readCaseAttentionFlags(actor, target.studentCaseId).catch((): readonly AdmissionsAttention[] => [])).includes("needs_curator")
       : false;
   return Object.freeze({
-    row, tasks, chat, needsCurator, deletionRequested,
+    row, tasks, chat, activity, needsCurator, deletionRequested,
     today: dayInOrganizationTimezone(now),
     nowIso: now.toISOString(),
   });

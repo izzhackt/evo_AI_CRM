@@ -425,7 +425,8 @@ test("the current look renders none of the blocks; the new look renders them on 
   assert.doesNotMatch(kase.get("closed"), /aria-current="step"/u);
   // Нет чтения документов — нет полосы.
   assert.doesNotMatch(kase.get("unread"), /v3-progress/u);
-  assert.match(kase.get("unread"), /Нет доступа к документам этого дела\./u);
+  // Student 360 (Э4): «Документы» — факт «Сведений»; без чтения — «нет доступа», без числа и полосы.
+  assert.match(kase.get("unread"), /<dt class="t-caption text-fg-2">Документы<\/dt><dd[^>]*><span class="text-fg-2">нет доступа<\/span>/u);
 });
 
 test("every chip, due word and stage in the new look has its word", () => {

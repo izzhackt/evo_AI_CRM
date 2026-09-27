@@ -5,7 +5,7 @@ import { isStaffPreview } from "@/lib/platform-access";
 
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { btnCls, btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
 import { Icon } from "@/components/icons";
@@ -483,16 +483,32 @@ export function ProfileSalesHandoffAcknowledgement({ snapshot }: { snapshot: Sal
   </Card>;
 }
 
-export function ProfileHandoffAcknowledgement({ snapshot, onSaved }: {
+/** Решения ответа на передачу — те же три кнопки у карточки и у панели Student 360. */
+const HANDOFF_CHOICES: readonly Readonly<{ decision: HandoffDecision; label: string }>[] = [
+  { decision: "accepted", label: "Принять дело" },
+  { decision: "clarification_requested", label: "Нужно уточнить" },
+  { decision: "declined", label: "Отклонить" },
+];
+
+export function ProfileHandoffAcknowledgement({ snapshot, onSaved, drawer }: {
   snapshot: HandoffAcknowledgement & Readonly<{ requestId: string }>;
   /**
    * Ответ записан сервером. Панель очереди убирает блок после «принято»
    * (перечитанный снимок больше не ждёт ответа) и называет итог сама.
    */
   onSaved?: (decision: HandoffDecision) => void;
+  /**
+   * Панель «Принять дело» у заголовка Student 360 (Э4, `CaseAcceptDrawer`):
+   * без своей карточки, форма открыта сразу с решением «Принять дело», три
+   * решения — переключатель над ней (выбранное — нейтральное), кнопки — классы
+   * панели (подтверждение — тёмное: сплошной красный — у кнопки, открывшей
+   * панель), «Отмена» закрывает панель. Действие, поля, ключ запроса и
+   * ожидаемые id — те же, что у карточки.
+   */
+  drawer?: Readonly<{ onCancel: () => void; choiceClassName: string; confirmClassName: string; cancelClassName: string }>;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(drawer !== undefined);
   const [decision, setDecision] = useState<HandoffDecision>("accepted");
   const [clarification, setClarification] = useState("");
   const [contactDate, setContactDate] = useState(snapshot.current?.agreedContactDate ?? "");
@@ -520,11 +536,33 @@ export function ProfileHandoffAcknowledgement({ snapshot, onSaved }: {
   const unchanged = current?.decision === decision
     && current.clarification === (decision === "accepted" ? null : clarification.trim())
     && (declining || current.agreedContactDate === (contactDate || null));
-  return (
-    <Card eyebrow title="Приём дела" id="handoff-acknowledgement">
-      <div className="flex flex-col gap-3 p-4" data-testid="v3-handoff-acknowledgement">
-        <HandoffResponseSummary current={current} />
-        {snapshot.canRespond && !open ? (
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const inDrawer = drawer !== undefined;
+  // Панель остаётся открытой после «Нужно уточнить» (`CaseAcceptDrawer`; после «Отклонить»
+  // назначение снято и панель уходит со страницы): на время сохранения кнопки заблокированы,
+  // и фокус мог упасть на страницу или остаться на «Уже сохранено» — он переходит на
+  // выбранное решение панели.
+  useEffect(() => {
+    if (!inDrawer || !saved) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body && !active.matches(":disabled")) return;
+    bodyRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+  }, [inDrawer, saved, state.acknowledgementId]);
+  const body = (
+      <div ref={bodyRef} className={drawer ? "flex flex-col gap-3" : "flex flex-col gap-3 p-4"} data-testid="v3-handoff-acknowledgement">
+        {/* В панели Student 360 текущий ответ стоит в её контексте над выбором (`CaseAcceptDrawer`). */}
+        {drawer ? null : <HandoffResponseSummary current={current} />}
+        {snapshot.canRespond && drawer ? (
+          <div role="group" aria-label="Решение" className="flex flex-wrap gap-2">
+            {HANDOFF_CHOICES.map((choice) => (
+              <button key={choice.decision} type="button" aria-pressed={decision === choice.decision} disabled={pending}
+                className={drawer.choiceClassName}
+                onClick={() => setDecision(choice.decision)}>
+                {choice.label}
+              </button>
+            ))}
+          </div>
+        ) : snapshot.canRespond && !open ? (
           <div className="flex flex-wrap gap-2">
             <button type="button" className={cn(btnCls, "min-h-11")} onClick={() => { setDecision("accepted"); setOpen(true); }}>
               Принять дело
@@ -577,13 +615,13 @@ export function ProfileHandoffAcknowledgement({ snapshot, onSaved }: {
               </label>
             )}
             <div className="flex flex-wrap gap-2">
-              <button type="submit" disabled={pending || needsRefresh || unchanged} className={cn(btnCls, "min-h-11")}>
+              <button type="submit" disabled={pending || needsRefresh || unchanged} className={drawer ? drawer.confirmClassName : cn(btnCls, "min-h-11")}>
                 {pending ? "Сохраняем…" : unchanged ? "Уже сохранено"
                   : decision === "accepted" ? "Подтвердить приём"
                   : declining ? "Отклонить назначение" : "Сохранить уточнение"}
               </button>
-              <button type="button" disabled={pending} className={cn(btnGhostCls, "min-h-11")}
-                onClick={() => setOpen(false)}>Отмена</button>
+              <button type="button" disabled={pending} className={drawer ? drawer.cancelClassName : cn(btnGhostCls, "min-h-11")}
+                onClick={() => (drawer ? drawer.onCancel() : setOpen(false))}>Отмена</button>
             </div>
           </form>
         ) : null}
@@ -596,6 +634,10 @@ export function ProfileHandoffAcknowledgement({ snapshot, onSaved }: {
           </button>
         ) : null}
       </div>
+  );
+  return drawer ? body : (
+    <Card eyebrow title="Приём дела" id="handoff-acknowledgement">
+      {body}
     </Card>
   );
 }

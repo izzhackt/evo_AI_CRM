@@ -14,7 +14,6 @@ import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
 import { caseWorkParts } from "@/components/v3/profile/CaseWorkParts";
 import { leadWorkParts } from "@/components/v3/profile/LeadWorkParts";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
-import { CloseRecordMenu } from "@/components/v3/closure/Closure";
 import { ClosedLeadView } from "@/components/v3/closure/ClosedLeadView";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
 import { buildStudentsQueueScreen } from "@/components/v3/students/StudentsQueueScreen";
@@ -377,7 +376,8 @@ export default async function ProfilePart({
   const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners] = await Promise.all([
     curatorsRead,
     queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators), look) : null,
-    caseTarget ? readCaseWork(actor, caseTarget, { overview: tab === "overview" }) : null,
+    // Лента Student 360 (Э4): журнал дела — только на «Обзоре» и первой странице заметок.
+    caseTarget ? readCaseWork(actor, caseTarget, { overview: tab === "overview", feed: tab === "overview" && noteCursor === null }) : null,
     // «Завершить дело» и строка закрытого дела (246); сбой чтения — прежнее «Дело закрыто» без действия.
     caseTarget ? readCaseClosure(actor, caseTarget.studentCaseId).catch(() => null) : null,
     // Сбой списка — форма остаётся с текущим ответственным (как у доски без списка).
@@ -423,13 +423,6 @@ export default async function ProfilePart({
       ) : null,
     });
   })() : null;
-  // «⋯» дела у заголовка: «Завершить дело» (246), пока дело в работе и сервер подсказал право.
-  const caseAction = caseParts && view && caseClosure?.state === "active" && caseClosure.canChange ? (
-    <CloseRecordMenu kind="case" subjectId={caseClosure.studentCaseId} subjectName={view.profile.person}
-      expectedVersion={caseClosure.admissionsVersion}
-      // Задачи «Обзор» уже прочитал; на других вкладках числа нет — окно скажет правило без числа.
-      openTasks={caseWork?.tasks.kind === "ready" ? caseWork.tasks.tasks.length : null} />
-  ) : undefined;
   // Lead 360 (Э4): шапка «Этап · Что дальше», действия у заголовка («⋯» с
   // «Доступом к порталу» и «Закрыть лид» — 246) и «Обзор» в две колонки.
   const leadParts = view && leadSales && view.details.routeTarget.leadId ? leadWorkParts({
@@ -495,7 +488,7 @@ export default async function ProfilePart({
   return (
     <PartShell title={(caseParts || leadParts) && view ? view.profile.person : docsMode ? "EVO Docs" : view ? "Профиль"
       : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты"}
-      count={queuePage?.count ?? null} action={docsAction ?? caseAction ?? leadParts?.actions} dense={queuePage !== null || caseParts !== null || leadParts !== null}
+      count={queuePage?.count ?? null} action={docsAction ?? caseParts?.actions ?? leadParts?.actions} dense={queuePage !== null || caseParts !== null || leadParts !== null}
       back={caseBack ?? leadBack ?? closedLeadBack}>
       <div className="space-y-6">
         {queuePage?.content ?? null}

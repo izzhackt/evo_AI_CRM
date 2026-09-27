@@ -429,7 +429,8 @@ test("the page wires Lead 360 through the board's reads and «Оформить �
   assert.match(page, /readsOwners \? readPipelineOwnerOptions\(actor\)\.catch\(\(\) => null\) : null,/u);
   assert.match(page, /staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\) && staffHasPermission\(actor, "lead\.sales\.owner\.assign"\)/u);
   assert.match(page, /stages: readPipelineStages\(\)\.flatMap\(\(stage\) => stage\.key === "handed_off" \? \[\] : \[\{ key: stage\.key, title: stage\.title \}\]\),/u);
-  assert.match(page, /action=\{docsAction \?\? caseAction \?\? leadParts\?\.actions\}/u);
+  // Student 360 (Э4): действия дела у заголовка — `caseParts.actions`, как у Lead 360.
+  assert.match(page, /action=\{docsAction \?\? caseParts\?\.actions \?\? leadParts\?\.actions\}/u);
   // Вкладка браузера остаётся «Лид — EVO CRM».
   assert.match(read("src/lib/v3/navigation.ts"), /isLeadProfile\(query\)\) return "Лид";/u);
   const drawer = read("src/components/v3/profile/LeadStepDrawer.tsx");

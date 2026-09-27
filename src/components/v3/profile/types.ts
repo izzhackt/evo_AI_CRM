@@ -110,6 +110,18 @@ export type ProfileEvent = Readonly<{
   at: string | null;
   href?: string;
   changedFields?: readonly string[];
+  /**
+   * Журнал дела (132): что затронуто и когда — момент ISO как его отдал
+   * сервер (у документов — null: 132 время загрузки не отдаёт). По ним лента
+   * Student 360 (Э4) ставит событие среди заметок; «История» их не рисует.
+   */
+  targetKind?: "overview" | "documents" | "money" | "task" | "conversation";
+  occurredAt?: string | null;
+  /**
+   * Объект события из того же ответа журнала (`target_id`): у событий заявки —
+   * id заявки, по нему лента называет вуз и программу из уже прочитанных заявок.
+   */
+  targetId?: string;
 }>;
 
 /** Настоящие данные. */
@@ -336,6 +348,12 @@ export type ProfileDraft = Readonly<{
    * событии.
    */
   contractSignedAt: string | null;
+  /**
+   * Кто и когда передал дело в сопровождение — из уже читаемого контекста
+   * передачи (`staff_student_case_handoff_context`); null — дело не из
+   * продаж или это не дело. «Передал» в «Сведениях» Student 360 (Э4).
+   */
+  handedOffBy?: Readonly<{ name: string; at: string }> | null;
 }>;
 
 export const TABS = [

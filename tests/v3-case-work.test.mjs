@@ -123,25 +123,26 @@ test("applications put the primary option first; portal status is read, never gu
   assert.equal(casePortalStatus({ status: "pending" }).tone, "warn");
 });
 
-test("the case view: facts under the name, «Что дальше» first, one solid red only while the case awaits acceptance", () => {
+test("the case view (Student 360, Э4): stage and «Что дальше» under the name, work first, one solid red only while the case awaits acceptance", () => {
   const html = surfaces.get("curator-accept");
   const shown = visible(html);
   const text = texts(html);
-  // Строка фактов: направление · этап словами «Воронки» · куратор · шаг со сроком и «Изменить».
-  assert.match(text, /Направление Китай Этап Документы Куратор Айгүл Осмонова ждёт принятия Следующий шаг Собрать апостиль на аттестат 20\.09 прошёл Изменить/u);
+  // Шапка: этап словами «Воронки» · «Что дальше» — шаг со сроком и «Изменить» · состояние.
+  assert.match(text, /Этап Документы Что дальше Собрать апостиль на аттестат 20\.09 прошёл Изменить/u);
+  assert.match(text, /Состояние ждёт принятия/u);
   assert.match(html, /<button id="queue-trigger-[^"]+" type="button" popovertarget="queue-popover-[^"]+"[^>]*aria-haspopup="dialog"[^>]*>Изменить<\/button>/iu);
   assert.match(html, /popover="auto"[^>]*role="dialog"[^>]*><h2[^>]*>Следующий шаг<\/h2>[\s\S]*?data-testid="v3-next-step-editor"/u);
-  // «Обзор» по порядку: Что дальше → Документы → Переписка → Заявки → Заметки.
+  // «Обзор» по порядку: Задачи → Сведения → Лента (на телефоне — так же; от 1280 px «Сведения» справа).
   let cursor = 0;
-  for (const title of ["Что дальше", "Документы Документы дела", "Переписка", "Заявки", "Заметки"]) {
+  for (const title of ["Задачи", "Сведения", "Лента"]) {
     const position = text.indexOf(`${title} `, cursor);
     assert.ok(position > cursor, `${title} after ${cursor}`);
     cursor = position;
   }
-  // «Принять дело» — первым в «Что дальше» и единственная сплошная красная кнопка.
+  // «Принять дело» — главное действие у заголовка и единственная сплошная красная кнопка;
   // «Все задачи дела» из «Быстрого просмотра» ведёт на `#case-tasks`.
-  assert.match(html, /<section id="case-tasks" aria-labelledby="case-next-title"/u);
-  assert.match(html, /data-testid="v3-case-next"[\s\S]*?data-testid="v3-case-handoff"[\s\S]*?>Принять дело<\/button>[\s\S]*?data-testid="v3-case-tasks"/u);
+  assert.match(html, /<section id="case-tasks" aria-labelledby="case-tasks-title"/u);
+  assert.match(html, /data-testid="v3-case-actions"><button type="button" aria-haspopup="dialog" class="[^"]*bg-accent[^"]*" data-testid="v3-case-primary">Принять дело<\/button>/u);
   assert.equal((shown.match(/bg-accent (?:px|text)/gu) ?? []).length, 1, "one solid red button");
   // Задачи: просроченные первыми, выполнение в строке, без имени студента в каждой строке.
   assert.match(text, /Проверить перевод аттестата у нотариуса.*Позвонить семье.*Отправить мотивационное письмо/u);
@@ -149,11 +150,13 @@ test("the case view: facts under the name, «Что дальше» first, one so
   assert.equal((html.match(/data-queue-row=/gu) ?? []).length, 6);
   assert.match(text, /Показать ещё 2/u);
   assert.doesNotMatch(texts(html.slice(html.indexOf('data-testid="v3-case-tasks"'))).split("Показать ещё")[0], /Айдана Сыдыкова/u);
-  // Документы, переписка, заявки — строками из прочитанных данных, со ссылками на вкладки.
-  assert.match(text, /Документы Документы дела 7 из 12 принято · 2 на проверке · 1 исправить · 2 не загружено/u);
-  assert.match(text, /Переписка Нужен ответ Открыть переписку Айдана Сыдыкова · 22\.09 14:14 Здравствуйте!/u);
+  // Документы, заявки, переписка — факты из прочитанных данных, со ссылками на вкладки.
+  assert.match(text, /Документы 7 из 12 принято · 2 на проверке · 1 исправить · 2 не загружено Документы дела/u);
+  assert.match(text, /Переписка Нужен ответ Открыть переписку/u);
   assert.match(html, /href="\/v3\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
   assert.match(text, /Шанхайский университет · Международная торговля — готовится · основной вариант · дедлайн 30\.11/u);
+  // Последнее сообщение переписки — в ленте.
+  assert.match(text, /Лента .*Переписка · Айдана Сыдыкова 22\.09 14:14 Здравствуйте!/u);
   // Прежние дубли ушли: ссылка дела на само себя, «Коротко», вторая «Создать задачу по студенту».
   assert.doesNotMatch(text, /Дело уже создано|Коротко|Создать задачу по студенту|Открыть дело/u);
   // Оплата не видна без права на неё; «Добавить заметку» — спокойная кнопка.
@@ -162,60 +165,62 @@ test("the case view: facts under the name, «Что дальше» first, one so
   assert.doesNotMatch(html, /bg-accent px-3 text-xs font-semibold text-white[^>]*>Добавить заметку/u);
 });
 
-test("after acceptance the answer moves to «Сведения»; nothing on the overview is solid red", () => {
+test("after acceptance the answer moves to «Сведения»; nothing on the page is solid red", () => {
   const html = surfaces.get("curator");
   assert.equal((visible(html).match(/bg-accent (?:px|text)/gu) ?? []).length, 0);
-  assert.doesNotMatch(html, /data-testid="v3-case-next"[\s\S]*?data-testid="v3-case-handoff"[\s\S]*?data-testid="v3-case-tasks"/u);
-  assert.match(texts(html), /Сведения Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026 Изменить ответ/u);
+  assert.doesNotMatch(html, /data-testid="v3-case-primary"/u);
+  assert.match(texts(html), /Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026 Изменить ответ/u);
 });
 
 test("«Приём дела» in «Сведения» keeps the curator's answer for those who cannot respond: decision, reason, agreed contact", () => {
   // Admin не отвечает на назначение: причина отказа куратора — та же, что в прежней карточке «Приём дела».
   const declined = surfaces.get("admin-declined");
-  assert.match(texts(declined), /Сведения Приём дела Назначение отклонено куратором Нагрузка выше нормы до конца октября, прошу назначить другого куратора\./u);
+  assert.match(texts(declined), /Приём дела Назначение отклонено куратором Нагрузка выше нормы до конца октября, прошу назначить другого куратора\./u);
   assert.doesNotMatch(texts(declined), /Изменить ответ|Принять дело/u);
-  assert.doesNotMatch(declined, /data-testid="v3-case-handoff"/u);
+  assert.doesNotMatch(declined, /data-testid="v3-case-accept-drawer"/u);
   // Тот же HandoffResponseSummary, что у карточки «Приём дела» на лиде и во вкладке «Вузы и программы».
   const overview = read("src/components/v3/profile/CaseOverview.tsx");
   assert.match(overview, /import \{ HandoffResponseSummary \} from "\.\/ProfileSalesTransition";/u);
   assert.match(overview, /<Fact term="Приём дела">[\s\S]*?<HandoffResponseSummary current=\{handoff\.current \? \{\n\s+decision: handoff\.current\.decision,\n\s+clarification: handoff\.current\.clarification,\n\s+agreedContactDate: handoff\.current\.agreedContactDate,/u);
 });
 
-test("Admin: sales forms leave the overview for a collapsed «Данные продажи»; contacts and portal are one line each", () => {
+test("Admin: sales forms and portal access are collapsed groups under «Сведения»; contacts are one fact", () => {
   const html = surfaces.get("admin");
   const shown = visible(html);
   const text = texts(html);
   assert.equal((shown.match(/bg-accent (?:px|text)/gu) ?? []).length, 0);
-  assert.match(html, /<details id="sales-data"[^>]*data-testid="v3-case-sales-data"><summary[^>]*>Данные продажи/u);
+  assert.match(html, /<details name="case-edit" id="sales-data" data-lead-group="" data-testid="v3-case-sales-data"[^>]*><summary[^>]*><span[^>]*><span class="t-item text-fg">Данные продажи<\/span>/u);
   for (const block of ["Условия продажи", "Договор и оплата", "Пожелания", "Образование", "Условия"]) {
     assert.doesNotMatch(texts(shown), new RegExp(`(?:^| )${block} .*Сохранить`, "u"), block);
   }
   assert.match(html, /id="sale-conditions"/u, "the sale conditions anchor still exists inside «Данные продажи»");
   // Раскрытые «Данные продажи» не добавляют красных: четыре «Сохранить» — спокойные кнопки.
-  const salesData = html.slice(html.indexOf('<details id="sales-data"'));
+  const salesData = html.slice(html.indexOf('id="sales-data"'));
   assert.equal((salesData.match(/bg-accent (?:px|text)/gu) ?? []).length, 0, "no solid red inside «Данные продажи»");
   assert.equal((salesData.match(/>(?:Сохранить|Сохранить условия)<\/button>/gu) ?? []).length, 4);
   assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet \/>/u);
-  assert.match(text, /Оплата Договор и оплата 40% оплачено · остаток 900 \$/u);
-  assert.match(text, /Доступ к порталу анкета одобрена Настроить/u);
-  assert.match(html, /aria-expanded="false" aria-controls="[^"]+"[^>]*>Настроить<\/button><\/div><div id="[^"]+" hidden=""/u);
-  assert.match(text, /Сведения Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026 Продажа Эрмек Токтосунов Передано в поступление/u);
-  assert.match(text, /Нагрузка кураторов/u);
+  assert.match(text, /Оплата 40% оплачено · остаток 900 \$ Договор и оплата/u);
+  assert.match(html, /<details name="case-edit" id="portal-access" data-lead-group="" data-testid="v3-case-portal"[^>]*>/u);
+  assert.match(text, /Доступ к порталу анкета одобрена/u);
+  assert.match(text, /Сведения Направление Китай Куратор Айгүл Осмонова Нагрузка кураторов Передал Эрмек Токтосунов · 30\.08 12:00 Продажа Эрмек Токтосунов Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
+  assert.match(html, /href="tel:\+996000000001"/u);
   assert.match(html, /href="\/v3\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000001&amp;coverage_case=cccccccc-2222-4222-8222-000000000001#curator-coverage"/u);
 });
 
-test("unread parts say so: no stage, no step editor, no invented task, chat or document numbers", () => {
+test("unread parts say so: no stage, no step editor, no invented task, chat, document numbers or events", () => {
   const text = texts(surfaces.get("unread"));
   assert.doesNotMatch(text, /Этап|Изменить|Задать шаг/u);
-  assert.match(text, /Следующий шаг Собрать апостиль на аттестат/u);
+  assert.match(text, /Что дальше Собрать апостиль на аттестат/u);
   assert.match(text, /Не удалось загрузить задачи\. Обновите страницу, чтобы повторить\./u);
-  assert.match(text, /Нет доступа к документам этого дела\./u);
-  assert.match(text, /Нет доступа к переписке этого дела\./u);
+  assert.match(text, /Документы нет доступа/u);
+  assert.match(text, /Переписка нет доступа/u);
+  assert.match(text, /События журнала дела сейчас не прочитаны\. Обновите страницу, чтобы повторить\./u);
+  assert.doesNotMatch(text, /Передал/u, "a case not from Sales has no «Передал»");
   assert.doesNotMatch(surfaces.get("unread"), /href="\/v3\/messages\?case=/u);
   const closed = texts(surfaces.get("closed"));
   assert.match(closed, /Состояние Дело закрыто/u);
   assert.doesNotMatch(closed, /Изменить|Задать шаг/u);
-  assert.match(closed, /Открытых задач нет\. .*Сообщений пока нет\./u);
+  assert.match(closed, /Открытых задач нет\. .*Переписка сообщений пока нет/u);
 });
 
 test("the page: name as h1, «Дело студента» tab title, back to the same list; the lead view keeps its own overview", () => {

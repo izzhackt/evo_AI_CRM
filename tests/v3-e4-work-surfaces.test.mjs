@@ -322,6 +322,68 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   }
 });
 
+test("rendered «Отчёт продаж»: the report month stays visible where rows differ in it, and the sums name their basis", () => {
+  const reportMonthCell = (month, words, compact) => new RegExp(`<td role="cell" class="[^"]*" data-report-month="${month}"><time dateTime="${month}" class="block truncate t-body-compact text-fg-2 font-mono tabular-nums" title="Месяц отчёта: ${words}">${compact.replace(".", "\\.")}</time></td>`, "u");
+  const reportMonthLine = (month, words) => `<p class="truncate t-meta text-fg-2" data-report-month="${month}">Месяц отчёта: ${words}</p>`;
+  for (const look of ["", "-next"]) {
+    // Месяц — один месяц отчёта: столбца и строки нет.
+    const month = pages.get(`report${look}`);
+    assert.doesNotMatch(month, /data-report-month|Месяц отчёта/u);
+    // «Весь 2026 год»: столбец «Месяц отчёта» (широкий контейнер) и строка «Месяц отчёта: …» (узкий:
+    // телефон и список рядом с открытой записью) у каждой записи — видимым текстом, не подсказкой.
+    for (const name of ["report-year", "report-year-panel"]) {
+      const year = pages.get(`${name}${look}`);
+      assert.match(text(year), /Студент Страна · программа Менеджер Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить/u);
+      assert.match(year, reportMonthCell("2026-08", "Август 2026", "08.2026"));
+      assert.match(year, reportMonthCell("2026-07", "Июль 2026", "07.2026"));
+      assert.ok(year.includes(reportMonthLine("2026-09", "Сентябрь 2026")));
+      assert.ok(year.includes(reportMonthLine("2026-07", "Июль 2026")));
+      assert.equal(year.match(/<p class="truncate t-meta text-fg-2" data-report-month=/gu)?.length, 12, "every row of the year");
+      assert.doesNotMatch(year, /<span class="sr-only">\. Месяц отчёта/u, "not a screen-reader-only copy");
+      assert.equal(year.slice(year.indexOf("<colgroup"), year.indexOf("</colgroup>")).match(/<col\b/gu)?.length, 9);
+      assert.match(year, /<p class="t-meta text-fg-2" data-money-basis="12">Суммы по 12 записям года отчёта, из них 1 без даты продажи<\/p>/u);
+    }
+    assert.match(pages.get(`report-year-panel${look}`), /data-testid="queue-detail-panel"/u);
+    // Срез июля «записаны в другой месяц отчёта»: у строки её месяц отчёта; основа сумм — эти продажи,
+    // а не «записи месяца отчёта».
+    const elsewhere = pages.get(`report-elsewhere${look}`);
+    assert.match(text(elsewhere), /Продажи периода, записанные в другой месяц отчёта — июль 2026\./u);
+    assert.match(elsewhere, /<p class="t-meta text-fg-2" data-money-basis="1">Суммы по 1 записи с датой продажи в этом месяце и другим месяцем отчёта<\/p>/u);
+    assert.doesNotMatch(elsewhere, /записи месяца отчёта|записям месяца отчёта/u);
+    assert.match(elsewhere, reportMonthCell("2026-08", "Август 2026", "08.2026"));
+    assert.ok(elsewhere.includes(reportMonthLine("2026-08", "Август 2026")));
+    assert.match(text(elsewhere), /Эрлан Выдуманный Малайзия · Бакалавриат Санжар Эскизов 30\.07 08\.2026 2 000 USD 2 000 USD/u);
+    // Больше 500 записей: остатка нет, суммы — сервера по записям, и неуточнённые значения,
+    // которых в них нет, названы числом (как до Э4).
+    const bulk = pages.get(`report-bulk${look}`);
+    const money = bulk.slice(bulk.indexOf('data-testid="sales-money-summary"'), bulk.indexOf("</section>", bulk.indexOf('data-testid="sales-money-summary"')));
+    assert.match(text(money), /Суммы по 520 записям месяца отчёта Стоимость, оплачено и остаток по валютам Валюта Стоимость Оплачено по записям USD/u);
+    assert.doesNotMatch(money, />Остаток</u);
+    assert.match(text(money), /Остаток не посчитан: в выборке больше 500 записей — сузьте период или фильтры\. В денежные итоги не включены неуточнённые значения: стоимость — 75, оплата — 41\. Валюты не пересчитываются/u);
+  }
+  const view = read("src/components/v3/SalesRegisterView.tsx");
+  assert.match(view, /workspace\.unresolvedCostCount > 0 \|\| workspace\.unresolvedPaidCount > 0/u);
+});
+
+test("rendered «Отчёт продаж»: «Поступления и возвраты за месяц» keeps its read, words and states, below the records", () => {
+  for (const look of ["", "-next"]) {
+    const page = pages.get(`report-cash${look}`);
+    const start = page.indexOf('data-testid="sales-cash-totals"');
+    assert.ok(start > page.indexOf('aria-label="Страницы отчёта"'), "below the records and their pages");
+    const cash = page.slice(start, page.indexOf("</section>", start));
+    assert.match(text(cash), /Поступления и возвраты за месяц Подтверждённые финансовые события всей организации по дате операции, время Бишкека\. Фильтры строк продаж на этот блок не влияют\. Расходы третьих сторон не являются выручкой EVO\./u);
+    assert.match(text(cash), /USD Получено 5 400,00 USD Возвращено 600,00 USD Итого 4 800,00 USD KGS Получено 50 000,00 KGS Возвращено 0,00 KGS Итого 50 000,00 KGS/u);
+    assert.equal(cash.match(/<dl\b/gu)?.length, 2, "a term list per currency, as before");
+    assert.equal(cash.match(/<dt>/gu)?.length, 6);
+    // Без сводки (роль её не читает) блока нет, как и прежде.
+    assert.doesNotMatch(pages.get(`report${look}`), /sales-cash-totals/u);
+  }
+  const view = read("src/components/v3/SalesRegisterView.tsx");
+  assert.match(view, /Не удалось загрузить финансовую сводку\. Обновите страницу, чтобы повторить\./u);
+  assert.match(view, /В этом месяце подтверждённых финансовых событий нет\./u);
+  assert.match(view, /\{workspace && cash && cash\.status !== "not_allowed" && month \?/u);
+});
+
 test("the page wires Lead 360 through the board's reads and «Оформить продажу» through the report's own search", () => {
   const page = read("src/app/(v3)/v3/profile/page.tsx");
   assert.match(page, /const leadSales = view && !caseTarget && view\.details\.routeTarget\.leadId \? view\.sales : null;/u);

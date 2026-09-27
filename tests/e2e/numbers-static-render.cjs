@@ -37,10 +37,12 @@
  *       (для tests/v3-e4-work-surfaces.test.mjs).
  *   node tests/e2e/numbers-static-render.cjs --e4-screenshots [outDir]
  *     → Э4 (27.09.2026): Lead 360 как рабочая карточка — лид на раннем этапе,
- *       «Потенциальный клиент», переданный лид — и «Отчёт продаж» (список и
- *       открытая запись в панели) в прежнем и новом облике, 1440×900,
- *       1280×800 и 390×844 во весь рост: e4-<сценарий>[-next]-<ширина>.png,
- *       высота страницы и число сплошных красных на каждый снимок.
+ *       «Потенциальный клиент», переданный лид — и «Отчёт продаж» (список,
+ *       открытая запись в панели, «Весь 2026 год» — и с открытой записью,
+ *       срез «записаны в другой месяц отчёта», больше 500 записей — суммы
+ *       сервера, «Поступления и возвраты за месяц») в прежнем и новом облике, 1440×900, 1280×800 и 390×844 во
+ *       весь рост: e4-<сценарий>[-next]-<ширина>.png, высота страницы, число
+ *       сплошных красных и видимых месяцев отчёта на каждый снимок.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -196,7 +198,7 @@ const SALES_COUNT = { status: "available", count: { from: "2026-09-01", to: "202
 // и остаток по валютам: одно имя менеджера в трёх написаниях, направление в двух,
 // оплата в другой валюте, запись без даты продажи и без стоимости.
 function e4Row(n, fields) {
-  return { ...saleRow(n, { name: fields.name, sale: fields.sale === undefined ? "2026-09-10" : fields.sale }),
+  return { ...saleRow(n, { name: fields.name, sale: fields.sale === undefined ? "2026-09-10" : fields.sale, month: fields.month }),
     id: uuid("78787878", n), managerLabel: fields.manager ?? "Санжар Эскизов", country: fields.country ?? "Малайзия",
     direction: fields.direction ?? "Малайзия", program: fields.program ?? "Бакалавриат",
     serviceCostRaw: fields.costRaw ?? String((fields.cost ?? 150000) / 100), serviceCostMinor: fields.cost === undefined ? 150000 : fields.cost,
@@ -216,24 +218,56 @@ const E4_ROWS = [
   e4Row(8, { name: "Нурлан Черновой", sale: "2026-09-18", manager: "", paid: 150000, review: true }),
   e4Row(9, { name: "Асель Пробная", sale: "2026-09-25", manager: "Айдана Макетова", country: "Китай", direction: "China", program: "Foundation", cost: 250000, paid: 250000, review: false }),
 ];
-const E4_COUNT = { status: "available", count: { from: "2026-09-01", to: "2026-09-30", sales: 8, undated: 1, otherSaleDate: 0, filedElsewhere: 0 } };
+// Записи других месяцев отчёта — для «Весь 2026 год» и среза «записаны в другой месяц отчёта»:
+// продажа 30.07 записана в августовский отчёт. В сентябрь не попадают, числа сентября прежние.
+const E4_EARLIER_ROWS = [
+  e4Row(10, { name: "Камила Условная", month: "2026-08-01", sale: "2026-08-19", review: false }),
+  e4Row(11, { name: "Эрлан Выдуманный", month: "2026-08-01", sale: "2026-07-30", cost: 200000, paid: 200000, review: false }),
+  e4Row(12, { name: "Жанна Модельная", month: "2026-07-01", sale: "2026-07-08", cost: 9000000, costCurrency: "KGS", paid: 3000000, paidCurrency: "KGS", review: true, manager: "Айдана Макетова" }),
+];
+// «Продажи» периода теми же тремя множествами, что staff_sales_count_v1 (247), — из записей набора.
+function countFor(period) {
+  const inPeriod = (date) => date !== null && date >= period.from && date <= period.to;
+  const rows = REPORT.rows.filter((row) => !row.archived);
+  const filed = (row) => inPeriod(row.reportMonth);
+  return { status: "available", count: { from: period.from, to: period.to,
+    sales: rows.filter((row) => inPeriod(row.signingDate)).length,
+    undated: rows.filter((row) => filed(row) && row.signingDate === null).length,
+    otherSaleDate: rows.filter((row) => filed(row) && row.signingDate !== null && !inPeriod(row.signingDate)).length,
+    filedElsewhere: rows.filter((row) => inPeriod(row.signingDate) && !filed(row)).length } };
+}
 const E4_MANAGEMENT = { status: "ready", data: { reportMonth: "2026-09-01", canManageTarget: true, canImport: false,
   target: { id: uuid("89898989", 1), version: 2, reportMonth: "2026-09-01", managerLabel: null, targetCount: 35 } } };
 
 /** Какой отчёт отдают подменённые чтения: прежние шесть записей Э2 или набор Э4. */
 const REPORT = { rows: REPORT_ROWS, count: SALES_COUNT, management: { status: "denied" }, directions: ["Малайзия"], managerLabels: ["Санжар Эскизов"] };
 function useE4Report() {
-  Object.assign(REPORT, { rows: E4_ROWS, count: E4_COUNT, management: E4_MANAGEMENT,
+  Object.assign(REPORT, { rows: [...E4_ROWS, ...E4_EARLIER_ROWS], count: countFor, management: E4_MANAGEMENT,
     directions: ["China", "Китай", "Малайзия", "малайзия "], managerLabels: ["Айдана Макетова", "Санжар Эскизов", " санжар эскизов", "Санжар  Эскизов"] });
+}
+// Больше 500 записей в выборке: остаток по всем страницам не читается, суммы — сервера по записям
+// (`totals`), а неуточнённые стоимость и оплата, которых в них нет, названы числом.
+function useE4BulkReport() {
+  const patterns = [{}, { cost: null, costRaw: "по договорённости", paid: null }, { paid: null, paidRaw: "половина" },
+    { cost: 12000000, costCurrency: "KGS", paid: 5000000, paidCurrency: "KGS" }, { paid: 4500000, paidCurrency: "KGS", cost: 180000 }];
+  const rows = Array.from({ length: 520 }, (_, index) => e4Row(100 + index, { name: `Синтетическая запись ${index + 1}`,
+    sale: `2026-09-${String(1 + (index % 28)).padStart(2, "0")}`, review: index % 3 === 0, ...patterns[index % 7 === 0 ? 1 : index % 11 === 0 ? 2 : index % 4 === 0 ? 3 : index % 9 === 0 ? 4 : 0] }));
+  Object.assign(REPORT, { rows, count: countFor, management: { status: "denied" } });
 }
 
 /** Ответ read_sales_register_v2/v3 по выборке — теми же правилами, что проверяет `readSalesRegisterWorkspace`. */
 function readReport(selection) {
+  // Период — как в 247: месяцы отчёта периода; срез 'filed_elsewhere' — продажи периода с другим месяцем отчёта.
+  const mm = selection.month ? String(selection.month).padStart(2, "0") : null;
+  const first = `${selection.year}-${mm ?? "01"}-01`;
+  const end = mm ? `${selection.year}-${mm}-31` : `${selection.year}-12-31`;
+  const inPeriod = (date) => date !== null && date >= first && date <= end;
   let rows = REPORT.rows.filter((row) => row.archived === Boolean(selection.archived));
-  if (selection.saleSlice) {
-    if (selection.saleSlice !== "undated") throw new Error(`harness: slice ${selection.saleSlice} is not modelled`);
-    rows = rows.filter((row) => row.signingDate === null);
-  }
+  rows = selection.saleSlice === "filed_elsewhere"
+    ? rows.filter((row) => inPeriod(row.signingDate) && !inPeriod(row.reportMonth))
+    : rows.filter((row) => inPeriod(row.reportMonth));
+  if (selection.saleSlice === "undated") rows = rows.filter((row) => row.signingDate === null);
+  else if (selection.saleSlice === "other_sale_date") rows = rows.filter((row) => row.signingDate !== null && !inPeriod(row.signingDate));
   if (selection.needsReview != null) rows = rows.filter((row) => row.needsReview === selection.needsReview);
   if (selection.manager) rows = rows.filter((row) => row.managerLabel === selection.manager);
   if (selection.direction) rows = rows.filter((row) => row.direction === selection.direction);
@@ -252,7 +286,7 @@ function readReport(selection) {
     }
   }
   return {
-    year: 2026, month: 9, totalCount: rows.length, rows: rows.slice(offset, offset + 50), offset, hasMore: offset + 50 < rows.length,
+    year: selection.year, month: selection.month ?? null, totalCount: rows.length, rows: rows.slice(offset, offset + 50), offset, hasMore: offset + 50 < rows.length,
     selected: selection.recordId ? REPORT.rows.find((row) => row.id === selection.recordId) ?? null : null,
     totals: [...totals.values()], unresolvedCostCount: rows.filter((row) => row.serviceCostMinor === null && row.serviceCostRaw).length,
     unresolvedPaidCount: rows.filter((row) => row.paidMinor === null && row.paidRaw).length,
@@ -281,10 +315,14 @@ const STUBS = {
     readSalesRegisterIntakeOptions: async () => null,
     readSalesRegisterWriteAccess: async () => "allowed",
     readSalesRegisterDirections: async () => REPORT.directions,
-    readSalesRegisterManagement: async () => REPORT.management,
+    // План — только у своего месяца отчёта (у Э4 — сентябрь); другой месяц или весь год — без плана.
+    readSalesRegisterManagement: async (_actor, reportMonth) => REPORT.management.status === "ready" && reportMonth !== REPORT.management.data.reportMonth
+      ? { status: "ready", data: { ...REPORT.management.data, reportMonth, target: null } } : REPORT.management,
   },
-  "@/lib/v3/finance-entry-source": { readMonthlyPaymentSummary: async () => ({ status: "not_allowed" }) },
-  "@/lib/v3/sales-numbers-source": { readSalesCount: async () => REPORT.count, readLeadHandoffStrip: async () => ({ status: "unavailable" }) },
+  // «Поступления и возвраты за месяц»: по умолчанию роль сводку не читает; сценарий Э4 `report-cash` — читает.
+  "@/lib/v3/finance-entry-source": { readMonthlyPaymentSummary: async () => REPORT.cash ?? { status: "not_allowed" } },
+  "@/lib/v3/sales-numbers-source": { readSalesCount: async (_actor, period) => typeof REPORT.count === "function" ? REPORT.count(period) : REPORT.count,
+    readLeadHandoffStrip: async () => ({ status: "unavailable" }) },
   "@/lib/platform-sales-stage-entries": {
     // Доказанный вход в «Квалифицирован» у лида 2 (он и на доске «Квалифицирован»);
     // у переданного лида 1 (stage_key 'new', как в production) входа нет — он
@@ -529,6 +567,21 @@ async function e4Pages(look) {
     { name: "lead-handed", html: leadPage("handed", { look }) },
     { name: "report", html: await reportPage({}, { look }) },
     { name: "report-panel", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }, { look }) },
+    // Месяц отчёта в строке: «Весь 2026 год» (и с открытой записью — узкая строка при 1440)
+    // и срез июля «записаны в другой месяц отчёта».
+    { name: "report-year", html: await reportPage({ month: "all" }, { look }) },
+    { name: "report-year-panel", html: await reportPage({ month: "all", record: E4_EARLIER_ROWS[1].id, edit: "true" }, { look }) },
+    { name: "report-elsewhere", html: await reportPage({ month: "7", sale: "filed_elsewhere" }, { look }) },
+    { name: "report-bulk", html: await (async () => { useE4BulkReport(); const html = await reportPage({}, { look }); useE4Report(); return html; })() },
+    // «Поступления и возвраты за месяц» под записями: сводка финансовых событий месяца (синтетика).
+    { name: "report-cash", html: await (async () => {
+      REPORT.cash = { status: "ready", totals: [
+        { currency: "USD", paymentsMinor: "540000", refundsMinor: "60000", netMinor: "480000", eventCount: 7 },
+        { currency: "KGS", paymentsMinor: "5000000", refundsMinor: "0", netMinor: "5000000", eventCount: 1 }] };
+      const html = await reportPage({}, { look });
+      delete REPORT.cash;
+      return html;
+    })() },
   ];
 }
 
@@ -585,6 +638,10 @@ async function e4Screenshots() {
               h1: [...document.querySelectorAll("h1")].map((element) => element.textContent.trim()),
               firstRowTop: firstRow ? Math.round(firstRow.getBoundingClientRect().top + window.scrollY) : null,
               firstRowHeight: firstRow ? Math.round(firstRow.getBoundingClientRect().height) : null,
+              // Месяц отчёта строки виден (столбец или строка под именем), а не только подсказкой; и не обрезан.
+              reportMonths: [...document.querySelectorAll("[data-report-month]")].filter((element) => visible(element)).length,
+              reportMonthCut: [...document.querySelectorAll("[data-report-month], [data-report-month] > time")].filter((element) => visible(element)
+                && element.scrollWidth > element.clientWidth + 1).length,
             };
           });
           const shot = `${file}-${width}.png`;
@@ -607,7 +664,7 @@ async function e4Screenshots() {
             await page.screenshot({ path: join(outDir, drawerShot) });
             process.stdout.write(`${drawerShot}: solidRed=${await red()}\n`);
           }
-          process.stdout.write(`${shot}: height=${metrics.height} overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText} smallTargets=${metrics.smallTargets.length}${metrics.smallTargets.length ? ` (${metrics.smallTargets.join(" | ")})` : ""} h1=${metrics.h1.join("/")}${metrics.firstRowTop !== null ? ` firstRowTop=${metrics.firstRowTop} rowHeight=${metrics.firstRowHeight}` : ""}\n`);
+          process.stdout.write(`${shot}: height=${metrics.height} overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText} smallTargets=${metrics.smallTargets.length}${metrics.smallTargets.length ? ` (${metrics.smallTargets.join(" | ")})` : ""} h1=${metrics.h1.join("/")}${metrics.firstRowTop !== null ? ` firstRowTop=${metrics.firstRowTop} rowHeight=${metrics.firstRowHeight}` : ""}${metrics.reportMonths ? ` reportMonths=${metrics.reportMonths} reportMonthCut=${metrics.reportMonthCut}` : ""}\n`);
           await context.close();
         }
       }

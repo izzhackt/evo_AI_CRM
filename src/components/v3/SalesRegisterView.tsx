@@ -40,6 +40,30 @@ const rowDate = (date: string, year: number) => {
   return Number(y) === year ? `${d}.${m}` : `${d}.${m}.${y.slice(2)}`;
 };
 const tidy = (value: string) => value.trim().replace(/\s+/gu, " ");
+/** Месяц отчёта записи: словами («Сентябрь 2026») и плотно для столбца («09.2026», JetBrains Mono). */
+const reportMonthOf = (value: string) => ({
+  words: `${MONTHS[Number(value.slice(5, 7)) - 1]} ${value.slice(0, 4)}`,
+  compact: `${value.slice(5, 7)}.${value.slice(0, 4)}`,
+  dateTime: value.slice(0, 7),
+});
+/**
+ * Ширины столбцов по содержимому: суммы — по «120 000 KGS» целиком, остальное —
+ * тексту. От 70rem (≈1440) имя, «Страна · программа», менеджер и причина
+ * помещаются; уже (≈1280) места на всё нет — сужается текст (подсказка с
+ * полным), а не суммы. Во «Весь год» и в срезе «записаны в другой месяц
+ * отчёта» есть столбец «Месяц отчёта»: его место берётся у текста, суммы те же.
+ */
+const RECORD_COLUMNS = [
+  "w-[16%]", "w-[20%] @min-[70rem]/sales-records:w-[21%]", "w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[10%] @min-[70rem]/sales-records:w-[8.5%]",
+  "w-[10%] @min-[70rem]/sales-records:w-[8.5%]", "w-[14%] @min-[70rem]/sales-records:w-[18%]",
+];
+const RECORD_COLUMNS_WITH_REPORT_MONTH = [
+  "w-[15%]", "w-[16%] @min-[70rem]/sales-records:w-[18%]", "w-[12%] @min-[70rem]/sales-records:w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
+  "w-[8%] @min-[70rem]/sales-records:w-[7%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[10%] @min-[70rem]/sales-records:w-[8.5%]",
+  "w-[10%] @min-[70rem]/sales-records:w-[8.5%]", "w-[12%] @min-[70rem]/sales-records:w-[15%]",
+];
 /** Что показывает таблица при срезе из заголовка «Продажи» (Э2). */
 const SALE_SLICE_TITLE: Record<SalesSaleSlice, string> = {
   undated: "Записи без даты продажи: в продажи не входят",
@@ -112,13 +136,18 @@ async function readSummaryRows(
  * Суммы выборки по валютам — выровненная таблица: подписи столбцов один раз,
  * числа по правому краю. Остаток — только внутри одной валюты; оплата в
  * другой валюте — отдельной строкой пары валют без остатка. Подпись над
- * таблицей называет основу сумм (записи месяца отчёта), чтобы она не спорила
- * с «N продаж» заголовка (по дате продажи); сноска — одна строка.
+ * таблицей называет основу сумм (записи месяца отчёта, а в срезе «записаны в
+ * другой месяц отчёта» — продажи периода с другим месяцем отчёта), чтобы она
+ * не спорила с «N продаж» заголовка (по дате продажи); сноска — одна строка.
+ * Нет всех строк выборки — суммы сервера по записям, и неуточнённые значения,
+ * которых в них нет, названы числом.
  */
-function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly }: Readonly<{
+function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, filedElsewhere }: Readonly<{
   workspace: SalesRegisterWorkspace; summary: SalesMoneySummary | null;
   basis: Readonly<{ total: number; undated: number; otherSaleDate: number }> | null;
   reason: "too_many" | "unavailable" | null; filtered: boolean; yearOnly: boolean;
+  /** Срез `sale=filed_elsewhere`: продажи периода, записанные в другой месяц отчёта. */
+  filedElsewhere: boolean;
 }>) {
   if (workspace.totalCount === 0) return null;
   const total = basis?.total ?? workspace.totalCount;
@@ -126,7 +155,13 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly }:
     basis && basis.undated > 0 ? `${basis.undated} без даты продажи` : null,
     basis && basis.otherSaleDate > 0 ? `${basis.otherSaleDate} с датой продажи в другом ${yearOnly ? "году" : "месяце"}` : null,
   ].filter(Boolean).join(" и ");
-  const caption = `Суммы по ${total.toLocaleString("ru-RU")} ${recordsDative(total)} ${yearOnly ? "года" : "месяца"} отчёта${filtered ? " с фильтрами" : ""}${within ? `, из них ${within}` : ""}`;
+  const recordsOf = filedElsewhere
+    ? yearOnly ? "с датой продажи в этом году и месяцем отчёта в другом году" : "с датой продажи в этом месяце и другим месяцем отчёта"
+    : `${yearOnly ? "года" : "месяца"} отчёта`;
+  const caption = `Суммы по ${total.toLocaleString("ru-RU")} ${recordsDative(total)} ${recordsOf}${filtered ? `${filedElsewhere ? "," : ""} с фильтрами` : ""}${within ? `, из них ${within}` : ""}`;
+  // Суммы сервера (`totals`) не включают неуточнённые стоимость и оплату — как и прежде, это сказано числом.
+  const unresolved = !summary && (workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0)
+    ? `В денежные итоги не включены неуточнённые значения: стоимость — ${workspace.unresolvedCostCount}, оплата — ${workspace.unresolvedPaidCount}.` : null;
   const left = summary ? [
     summary.noCost > 0 ? `без стоимости — ${summary.noCost} ${recordsWord(summary.noCost)}` : null,
     summary.paidUnclear > 0 ? `оплата не разобрана — ${summary.paidUnclear} ${recordsWord(summary.paidUnclear)}` : null,
@@ -137,6 +172,7 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly }:
     summary ? null : reason === "too_many"
       ? `Остаток не посчитан: в выборке больше ${SALES_PAGE_SIZE * SALES_SUMMARY_MAX_PAGES} записей — сузьте период или фильтры.`
       : "Остаток не посчитан: не удалось прочитать все записи выборки — обновите страницу.",
+    unresolved,
     left ? `Не вошли: ${left}.` : null,
     "Валюты не пересчитываются; это записи отчёта, не поступления за месяц.",
   ].filter(Boolean).join(" ");
@@ -201,7 +237,7 @@ function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
     : row.paidMinor === null ? "оплата не разобрана" : "оплата в другой валюте";
   const place = [row.country, row.program].map((part) => tidy(part)).filter(Boolean).join(" · ");
   const manager = tidy(row.managerLabel);
-  const reportMonth = showReportMonth ? `Месяц отчёта: ${MONTHS[Number(row.reportMonth.slice(5, 7)) - 1]} ${row.reportMonth.slice(0, 4)}` : null;
+  const reportMonth = showReportMonth ? reportMonthOf(row.reportMonth) : null;
   const reviewText = review.state === "review" ? review.reasons.join(", ") : review.state === "checked" ? "Сверено" : "В архиве";
   const reviewTone = review.state === "review" ? "text-fg-2" : "text-fg-3";
   const name = row.applicantName || "Имя не указано";
@@ -219,10 +255,13 @@ function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
       </th>
       <td role="cell" className={cell}><span className="block truncate t-body-compact text-fg-2" title={place || undefined}>{place || "—"}</span></td>
       <td role="cell" className={cell}><span className="block truncate t-body-compact text-fg-2" title={manager || undefined}>{manager || "—"}</span></td>
-      <td role="cell" className={`${cell} @min-[60rem]/sales-records:px-2`} title={reportMonth ?? undefined}>
+      <td role="cell" className={`${cell} @min-[60rem]/sales-records:px-2`}>
         {row.signingDate ? <time dateTime={row.signingDate} className={`t-body-compact text-fg-2 ${mono}`}>{rowDate(row.signingDate, year)}</time> : <span className="t-body-compact text-fg-3">—</span>}
-        {reportMonth ? <span className="sr-only">. {reportMonth}</span> : null}
       </td>
+      {/* Месяц отчёта — своим столбцом («Весь год», срез «в другой месяц отчёта»), плотно: «09.2026». */}
+      {reportMonth ? <td role="cell" className={`${cell} @min-[60rem]/sales-records:px-2`} data-report-month={reportMonth.dateTime}>
+        <time dateTime={reportMonth.dateTime} className={`block truncate t-body-compact text-fg-2 ${mono}`} title={`Месяц отчёта: ${reportMonth.words}`}>{reportMonth.compact}</time>
+      </td> : null}
       {/* Суммы — узкие поля и подсказка с суммой: число не прячется за многоточием молча. */}
       <td role="cell" className={moneyCell}><span className="block truncate t-body-compact tabular-nums text-fg" title={cost ?? undefined}>{cost ?? "—"}</span></td>
       <td role="cell" className={moneyCell}><span className="block truncate t-body-compact tabular-nums text-fg-2" title={paid ?? undefined}>{paid ?? "—"}</span></td>
@@ -239,6 +278,7 @@ function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
           {row.signingDate ? <time dateTime={row.signingDate} className="font-mono tabular-nums">{rowDate(row.signingDate, year)}</time> : "без даты"}
           {[manager, place].filter(Boolean).map((part) => ` · ${part}`).join("")}
         </p>
+        {reportMonth ? <p className="truncate t-meta text-fg-2" data-report-month={reportMonth.dateTime}>Месяц отчёта: {reportMonth.words}</p> : null}
         {cost || paid ? <p className="truncate t-meta tabular-nums text-fg-2">
           {[cost ? `стоимость ${cost}` : null, paid ? `оплачено ${paid}` : null].filter(Boolean).join(" · ")}
         </p> : null}
@@ -319,7 +359,11 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
   const showTargetForm = canTarget || (managementUnavailable && !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.target.manage"));
   const directions = await directionsPromise;
   const directionControl = salesDirectionControl(directions, query.direction);
-  const hasFilters = Boolean(searchQuery || query.manager || query.direction || query.review || query.archived === "true" || saleSlice);
+  const rowFilters = Boolean(searchQuery || query.manager || query.direction || query.review || query.archived === "true");
+  const hasFilters = rowFilters || Boolean(saleSlice);
+  // Во «Весь год» и в срезе «записаны в другой месяц отчёта» у строк разные месяцы отчёта — его видно в строке.
+  const showReportMonth = month === undefined || saleSlice === "filed_elsewhere";
+  const recordColumns = showReportMonth ? RECORD_COLUMNS_WITH_REPORT_MONTH : RECORD_COLUMNS;
   const saved = !creatingForm && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
   const target = management.status === "ready" ? management.data.target : null;
   const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
@@ -451,7 +495,8 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
         </div>
       </section> : null}
       {workspace ? <MoneySummary workspace={workspace} summary={summary} basis={summaryBasis} yearOnly={month === undefined}
-        reason={summaryRead && summaryRead.rows === null ? summaryRead.reason : null} filtered={hasFilters} /> : null}
+        reason={summaryRead && summaryRead.rows === null ? summaryRead.reason : null}
+        filedElsewhere={saleSlice === "filed_elsewhere"} filtered={saleSlice === "filed_elsewhere" ? rowFilters : hasFilters} /> : null}
       {toolbar}
       {variantNote ? <p className="mt-2 t-meta text-fg-2" data-testid="sales-variant-note">
         Фильтр точный: показаны записи с выбранным написанием {variantNote}. Другие написания — в том же меню; сведение к сотрудникам и списку направлений — отдельный шаг.
@@ -474,18 +519,9 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
             <div role="region" aria-label="Записи продаж" tabIndex={0} className="relative max-w-full overflow-x-auto border-t border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
               <table role="table" className="block w-full text-left @min-[60rem]/sales-records:table @min-[60rem]/sales-records:table-fixed">
                 <caption className="sr-only">{`Продажи: ${workspace.totalCount} ${recordsWord(workspace.totalCount)}`}</caption>
-                {/* Ширины по содержимому: суммы — по «120 000 KGS» целиком, остальное — тексту. От 70rem
-                    (≈1440) имя, «Страна · программа», менеджер и причина помещаются; уже (≈1280) места
-                    на всё нет — сужается текст (подсказка с полным), а не суммы. */}
+                {/* Ширины по содержимому (`RECORD_COLUMNS`): суммы целиком, сужается текст. */}
                 <colgroup className="hidden @min-[60rem]/sales-records:table-column-group">
-                  <col className="w-[16%]" />
-                  <col className="w-[20%] @min-[70rem]/sales-records:w-[21%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[6%] @min-[70rem]/sales-records:w-[5.5%]" />
-                  <col className="w-[11%] @min-[70rem]/sales-records:w-[9.5%]" />
-                  <col className="w-[10%] @min-[70rem]/sales-records:w-[8.5%]" />
-                  <col className="w-[10%] @min-[70rem]/sales-records:w-[8.5%]" />
-                  <col className="w-[14%] @min-[70rem]/sales-records:w-[18%]" />
+                  {recordColumns.map((width, index) => <col key={index} className={width} />)}
                 </colgroup>
                 <thead role="rowgroup" className="sr-only @min-[60rem]/sales-records:not-sr-only @min-[60rem]/sales-records:table-header-group">
                   <tr role="row" className="t-caption text-fg-2">
@@ -493,6 +529,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
                     <th role="columnheader" scope="col" className="truncate px-3 py-2 font-medium" title="Страна · программа">Страна · программа</th>
                     <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Менеджер</th>
                     <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Дата</th>
+                    {showReportMonth ? <th role="columnheader" scope="col" className="px-2 py-2 font-medium">Месяц отчёта</th> : null}
                     <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Стоимость</th>
                     <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Оплачено</th>
                     <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Остаток</th>
@@ -501,7 +538,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
                 </thead>
                 <tbody role="rowgroup" className="block divide-y divide-border border-y border-border @min-[60rem]/sales-records:table-row-group">
                   {workspace.rows.map((row) => <SaleRow key={row.id} row={row} year={year} href={rowHref(row)}
-                    selected={row.id === (panelOpen ? query.record : saved?.id)} showReportMonth={month === undefined || saleSlice === "filed_elsewhere"} />)}
+                    selected={row.id === (panelOpen ? query.record : saved?.id)} showReportMonth={showReportMonth} />)}
                 </tbody>
               </table>
             </div>
@@ -526,16 +563,18 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
           </QueueDetailPanel>
         ) : null}
       </div>}
-      {cash && cash.status !== "not_allowed" && month ? <section aria-labelledby="sales-cash-totals" className="mt-8 border-t border-border pt-4">
+      {/* «Поступления и возвраты за месяц» — прежние чтение, тексты и состояния; с Э4 — под записями,
+          строка на валюту вместо карточки. Как и прежде, только при прочитанном отчёте. */}
+      {workspace && cash && cash.status !== "not_allowed" && month ? <section aria-labelledby="sales-cash-totals" className="mt-8 border-t border-border pt-4" data-testid="sales-cash-totals">
         <h2 id="sales-cash-totals" className="t-section text-fg">Поступления и возвраты за месяц</h2>
         <p className="mt-1 t-meta text-fg-2">Подтверждённые финансовые события всей организации по дате операции, время Бишкека. Фильтры строк продаж на этот блок не влияют. Расходы третьих сторон не являются выручкой EVO.</p>
         {cash.status === "unavailable" ? <p role="alert" className="mt-3 text-sm text-fg-2">Не удалось загрузить финансовую сводку. Обновите страницу, чтобы повторить.</p> : cash.totals.length === 0 ? <p className="mt-3 text-sm text-fg-2">В этом месяце подтверждённых финансовых событий нет.</p> : <ul className="mt-2 divide-y divide-border border-y border-border">{cash.totals.map(total => <li key={total.currency} className="grid grid-cols-[2.75rem_minmax(0,1fr)] items-baseline gap-x-2 py-2 t-body-compact text-fg-2">
           <span className="t-item text-fg">{total.currency}</span>
-          <span className="flex flex-wrap gap-x-5 gap-y-0.5">
-            <span>Получено <span className="tabular-nums text-fg">{financeMoney(total.paymentsMinor, total.currency)}</span></span>
-            <span>Возвращено <span className="tabular-nums text-fg">{financeMoney(total.refundsMinor, total.currency)}</span></span>
-            <span className="font-semibold text-fg">Итого <span className="tabular-nums">{financeMoney(total.netMinor, total.currency)}</span></span>
-          </span>
+          <dl className="flex flex-wrap gap-x-5 gap-y-0.5">
+            <div className="flex gap-1"><dt>Получено</dt><dd className="tabular-nums text-fg">{financeMoney(total.paymentsMinor, total.currency)}</dd></div>
+            <div className="flex gap-1"><dt>Возвращено</dt><dd className="tabular-nums text-fg">{financeMoney(total.refundsMinor, total.currency)}</dd></div>
+            <div className="flex gap-1 font-semibold text-fg"><dt>Итого</dt><dd className="tabular-nums">{financeMoney(total.netMinor, total.currency)}</dd></div>
+          </dl>
         </li>)}</ul>}
       </section> : null}
       {dynamics}

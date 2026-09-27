@@ -533,7 +533,8 @@ async function screenshots() {
         await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
         await page.evaluate(async () => {
           await document.fonts.ready;
-          await Promise.all([...document.images].map((image) => image.decode().catch(() => null)));
+          // Только видимые: скрытая копия логотипа (lazy) в оболочке не грузится, и её decode() не завершится.
+          await Promise.all([...document.images].filter((image) => image.checkVisibility()).map((image) => image.decode().catch(() => null)));
         });
         const target = name.startsWith("lead") ? '[data-testid="v3-lead-stage"]' : name.startsWith("report") ? "main h1" : "#sales-dynamics";
         // Lead 360 — во весь рост с шапкой профиля: этап, полоса и заметки на одном снимке.

@@ -4,7 +4,6 @@ import type { ComponentProps, ReactNode } from "react";
 import type { TaskQueue, TaskQueueFilters, TaskQueueKind } from "@/lib/v3/task-queue";
 import { taskQueueNarrowing, taskQueueParams, TASK_QUEUE_WINDOWS } from "@/lib/v3/task-queue";
 
-import type { V3Look } from "../blocks/look";
 import { sidePanelSplit } from "../panel/side-panel";
 import { DUE_BUCKETS, DUE_FILTER_LABELS, dueBandLabel, type DueFilter } from "../queue/due-bucket";
 import { FilterMenu } from "../queue/FilterMenu";
@@ -65,7 +64,6 @@ export function TasksWorkspace({
   permissions,
   selectedKey,
   panel,
-  look,
 }: Readonly<{
   filters: TaskQueueFilters;
   queue: TaskQueue;
@@ -87,8 +85,6 @@ export function TasksWorkspace({
   selectedKey: string | null;
   /** Панель выбранной задачи (читает страница) или null. */
   panel: ReactNode;
-  /** Новый облик (Э1.3, предпросмотр Admin): общие блоки в строках и «Отменить» в верхнем слое. */
-  look?: V3Look;
 }>) {
   const listParams = taskQueueParams(filters);
   const listHref: Href = (overrides = {}) => queueHref("/v3/tasks", listParams, overrides);
@@ -193,7 +189,6 @@ export function TasksWorkspace({
               showAssignee={filters.view !== "mine"}
               nowIso={nowIso}
               permissions={permissions}
-              look={look}
             />}
           </div>
           {/* Пустое неполное чтение уже сказало это в пустом состоянии. */}

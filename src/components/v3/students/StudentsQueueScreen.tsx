@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import type { CaseClosure } from "@/lib/platform-closure-contract";
 import type { StudentCaseQueueCounts, StudentCaseQueuePage } from "@/lib/platform-student-case-queue-contract";
 
-import type { V3Look } from "../blocks/look";
 import type { StudentsCoverage } from "../profile/students-coverage-view";
 import { QueueEmpty, QueueError, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
@@ -53,8 +52,6 @@ export type StudentsQueueScreenInput = Readonly<{
   recordScopes: readonly string[];
   createTask: boolean;
   requestIds: Readonly<{ nextStep: string; coverage: string }>;
-  /** Новый облик (Э1.3, предпросмотр Admin): общие блоки в таблице и «Быстром просмотре». */
-  look?: V3Look;
   /** EVO Docs: очередь «Комплекты на проверку» (вкладка «Комплекты»); без неё — вкладки нет. */
   packages?: DocsPackagesRead;
 }>;
@@ -196,7 +193,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
         </QueueHead>
         {page === null ? <QueueError text="Не удалось загрузить дела для EVO Docs." retryHref={here} />
           : shown.length === 0 ? <QueueEmpty title={docsEmptyTitle(view, filtered, complete, documents)} />
-          : <StudentsDocsTable rows={shown} view={view} caption={`${STUDENTS_DOCS_VIEW_LABELS[view]}: ${shown.length} из прочитанных дел`} returnTo={here} look={input.look} />}
+          : <StudentsDocsTable rows={shown} view={view} caption={`${STUDENTS_DOCS_VIEW_LABELS[view]}: ${shown.length} из прочитанных дел`} returnTo={here} />}
         {page && (params.cursor || page.nextCursor) ? (
           <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
             {/* У 241 нет отбора по документам: вкладка проверки отбирает строки внутри чтения по 100 дел. */}
@@ -250,7 +247,6 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       closure={input.closure ?? null}
       createTask={input.createTask}
       requestId={input.requestIds.nextStep}
-      look={input.look}
       // «Назначить куратора» выбранным (Э7) — тому, кто назначает кураторов; список — то же чтение, что у фильтра «Куратор».
       curators={input.actor.coverage ? input.curatorNames : null}
     />,

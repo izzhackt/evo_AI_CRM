@@ -13,7 +13,6 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { isSalesImportQuery, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } from "@/lib/sales-register-navigation";
 import { PERIODS, periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
 import { v3SectionTitle } from "@/lib/v3/navigation";
-import { readLookPreview } from "@/lib/v3/look-preview";
 import { readSalesDynamics, type SalesDynamicsRead } from "@/lib/v3/sales-dynamics-source";
 import { buildTodayQueue, todayDateLabel } from "@/lib/v3/today-queue";
 import { readTodayQueue, todayLinks } from "@/lib/v3/today-source";
@@ -57,9 +56,7 @@ export default async function MainPart({
   if (query.view === "sales") {
     if (!canReadReport && !canReadSales) redirect("/access-denied?from=%2Fv3%2Fmain");
     if (canReadReport && isSalesImportQuery(query)) return <SalesRegisterImportView actor={actor} query={query} />;
-    // Новый облик (предпросмотр Admin, Э1.3): тот же признак, что `data-look` оболочки.
-    const look = (await readLookPreview(actor)) ? "next" as const : undefined;
-    if (!canReadSales) return <SalesRegisterView actor={actor} query={query} look={look} />;
+    if (!canReadSales) return <SalesRegisterView actor={actor} query={query} />;
     const period = resolvePeriod(query);
     const carry = salesDynamicsCarry(query);
     // «Период», когда он уже выбран, несёт разобранные даты: в адресе — тот
@@ -90,7 +87,7 @@ export default async function MainPart({
       </Suspense>
     );
     if (!canReadReport) return <SalesDynamicsReport dynamics={section} />;
-    return <SalesRegisterView actor={actor} query={query} dynamics={section} look={look} />;
+    return <SalesRegisterView actor={actor} query={query} dynamics={section} />;
   }
 
   const now = new Date();

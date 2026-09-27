@@ -42,20 +42,18 @@ import roleTemplates from "./e2e/staff-role-templates.cjs";
  * Э3 (27.09.2026): EVO Docs «Не хватает · Комплекты» и «Сегодня» со сроками
  * вузов на 14 дней. Логика вкладок, чисел, группы и прав проверяется
  * напрямую; разметка — настоящим рендером (tests/e2e/e3d-static-render.cjs
- * --json, оба облика) в отдельном node-процессе. Права самого чтения сроков
+ * --json) в отдельном node-процессе. Права самого чтения сроков
  * в обе стороны — набор supabase/tests/platform_today_university_deadlines.sql
  * на реальном Postgres (scripts/test-postgres-authorization.sh). Это не живая
  * проверка Supabase, прав или данных.
  */
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const render = (look) => new Map(JSON.parse(execFileSync(
+const surfaces = new Map(JSON.parse(execFileSync(
   process.execPath,
-  [fileURLToPath(new URL("./e2e/e3d-static-render.cjs", import.meta.url)), "--json", ...(look ? [`--look=${look}`] : [])],
+  [fileURLToPath(new URL("./e2e/e3d-static-render.cjs", import.meta.url)), "--json"],
   { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
 )).map((surface) => [surface.name, surface.html]));
-const surfaces = render(null);
-const next = render("next");
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
 const tabsOf = (html) => {
   const nav = html.match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
@@ -239,19 +237,17 @@ test("package row: on a narrow row the student heads it; the university and prog
   }
 });
 
-test("EVO Docs, new look: «N из M принято» is a bar only from read checklist numbers; the current look keeps its line", () => {
-  const current = surfaces.get("docs-missing");
-  assert.doesNotMatch(current, /v3-progress/u, "the current look is unchanged: no bar");
-  assert.match(current, /9 из 12 принято/u);
-  const html = next.get("docs-missing");
+test("EVO Docs: «N из M принято» is a bar only from read checklist numbers", () => {
+  const html = surfaces.get("docs-missing");
+  assert.match(html, /9 из 12 принято/u);
   const bars = [...html.matchAll(/<span class="v3-progress" data-progress="(\d+)\/(\d+)"><span class="t-body-compact text-fg">(\d+) из (\d+) принято<\/span>/gu)];
   assert.equal(bars.length, 5);
   for (const [, done, total, label, labelTotal] of bars) {
     assert.equal(done, label);
     assert.equal(total, labelTotal);
   }
-  // No numbers (an empty checklist): the previous line, no bar.
-  const all = next.get("docs-all");
+  // No numbers (an empty checklist): the summary line in words, no bar.
+  const all = surfaces.get("docs-all");
   assert.match(all, /Чек-лист не собран/u);
   assert.doesNotMatch(all, /data-progress="0\/0"/u);
   assert.equal([...all.matchAll(/class="v3-progress"/gu)].length, 6, "six of seven cases have a checklist");
@@ -490,31 +486,30 @@ test("calendar adapter: an application without a program is a row, and a 42501 i
 });
 
 test("static render: the deadlines band in «Сегодня» — mono date and word, university, student link, empty and failed states", () => {
-  for (const [look, html] of [["current", surfaces.get("today-deadlines")], ["next", next.get("today-deadlines")]]) {
-    const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>([\s\S]*?)<\/h2>/gu)].map((match) => text(match[1]));
-    assert.deepEqual(headers, ["Просрочено · 1", "Сегодня · вс 27.09 · 1", "Сроки вузов · 14 дней · 5", "Ближайшие 14 дней · 1"], look);
-    const band = html.slice(html.indexOf('id="today-band-deadlines"'), html.indexOf('id="today-band-upcoming"'));
-    const rows = [...band.matchAll(/<li data-queue-row="deadline:[^"]+" data-today-source="deadlines"[\s\S]*?<\/li>/gu)].map((match) => match[0]);
-    assert.equal(rows.length, 5, `${look}: the passport date is not a university deadline`);
-    // A missed deadline of an unsubmitted application: first, red date and «прошёл», on both widths.
-    assert.match(rows[0], /<time dateTime="2026-09-24" class="block font-mono tabular-nums text-danger">24\.09<\/time><span class="flex min-h-6 items-center t-meta text-danger">прошёл<\/span>/u);
-    assert.match(rows[0], /<span class="[^"]*@min-\[32rem\]:hidden text-danger"><time dateTime="2026-09-24" class="font-mono tabular-nums">24\.09<\/time><span>прошёл<\/span><\/span>/u);
-    // Due today and in 2 days: the word is a warning; the date stays ordinary.
-    assert.match(rows[1], /<time dateTime="2026-09-27" class="block font-mono tabular-nums text-fg">27\.09<\/time><span class="flex min-h-6 items-center t-meta text-warn">сегодня<\/span>/u);
-    assert.match(rows[1], /<p title="Университет Примера" class="[^"]*t-item[^"]*">Университет Примера<\/p>/u);
-    assert.match(rows[1], /href="\/v3\/profile\?case=cccccccc-3333-4333-8333-000000000001&amp;tab=overview"[^>]*><span class="truncate">Алина Образцова<\/span><\/a>/u);
-    assert.match(rows[1], /data-today-reason="">срок подачи<\/span><span [^>]*data-today-reason="">Foundation in Business<\/span>/u);
-    assert.match(rows[1], /aria-label="Открыть: Университет Примера — Алина Образцова"[^>]*href="\/v3\/profile\?case=cccccccc-3333-4333-8333-000000000001&amp;tab=route#applications"/u);
-    // On a narrow row the word stays (the band title does not name the day), in the same warning tone.
-    assert.match(rows[2], /<span class="[^"]*@min-\[32rem\]:hidden[^"]*"><time dateTime="2026-09-29" class="font-mono tabular-nums">29\.09<\/time><span class="text-warn">через 2 дн<\/span><\/span>/u);
-    assert.match(rows[2], /<span class="flex min-h-6 items-center t-meta text-warn">через 2 дн<\/span>/u);
-    for (const row of rows.slice(3)) {
-      assert.match(row, /<span class="flex min-h-6 items-center t-meta text-fg-3">через \d+ дн<\/span>/u, `${look}: later deadlines stay neutral`);
-      assert.doesNotMatch(row, /text-warn|text-danger/u);
-    }
-    assert.doesNotMatch(rows.slice(1).join(""), /text-danger/u, `${look}: red only on the missed deadline`);
-    assert.doesNotMatch(band, /bg-accent/u, `${look}: no solid red`);
+  const html = surfaces.get("today-deadlines");
+  const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>([\s\S]*?)<\/h2>/gu)].map((match) => text(match[1]));
+  assert.deepEqual(headers, ["Просрочено · 1", "Сегодня · вс 27.09 · 1", "Сроки вузов · 14 дней · 5", "Ближайшие 14 дней · 1"]);
+  const band = html.slice(html.indexOf('id="today-band-deadlines"'), html.indexOf('id="today-band-upcoming"'));
+  const rows = [...band.matchAll(/<li data-queue-row="deadline:[^"]+" data-today-source="deadlines"[\s\S]*?<\/li>/gu)].map((match) => match[0]);
+  assert.equal(rows.length, 5, "the passport date is not a university deadline");
+  // A missed deadline of an unsubmitted application: first, red date and «прошёл», on both widths.
+  assert.match(rows[0], /<time dateTime="2026-09-24" class="block font-mono tabular-nums text-danger">24\.09<\/time><span class="flex min-h-6 items-center t-meta text-danger">прошёл<\/span>/u);
+  assert.match(rows[0], /<span class="[^"]*@min-\[32rem\]:hidden text-danger"><time dateTime="2026-09-24" class="font-mono tabular-nums">24\.09<\/time><span>прошёл<\/span><\/span>/u);
+  // Due today and in 2 days: the word is a warning; the date stays ordinary.
+  assert.match(rows[1], /<time dateTime="2026-09-27" class="block font-mono tabular-nums text-fg">27\.09<\/time><span class="flex min-h-6 items-center t-meta text-warn">сегодня<\/span>/u);
+  assert.match(rows[1], /<p title="Университет Примера" class="[^"]*t-item[^"]*">Университет Примера<\/p>/u);
+  assert.match(rows[1], /href="\/v3\/profile\?case=cccccccc-3333-4333-8333-000000000001&amp;tab=overview"[^>]*><span class="truncate">Алина Образцова<\/span><\/a>/u);
+  assert.match(rows[1], /data-today-reason="">срок подачи<\/span><span [^>]*data-today-reason="">Foundation in Business<\/span>/u);
+  assert.match(rows[1], /aria-label="Открыть: Университет Примера — Алина Образцова"[^>]*href="\/v3\/profile\?case=cccccccc-3333-4333-8333-000000000001&amp;tab=route#applications"/u);
+  // On a narrow row the word stays (the band title does not name the day), in the same warning tone.
+  assert.match(rows[2], /<span class="[^"]*@min-\[32rem\]:hidden[^"]*"><time dateTime="2026-09-29" class="font-mono tabular-nums">29\.09<\/time><span class="text-warn">через 2 дн<\/span><\/span>/u);
+  assert.match(rows[2], /<span class="flex min-h-6 items-center t-meta text-warn">через 2 дн<\/span>/u);
+  for (const row of rows.slice(3)) {
+    assert.match(row, /<span class="flex min-h-6 items-center t-meta text-fg-3">через \d+ дн<\/span>/u, "later deadlines stay neutral");
+    assert.doesNotMatch(row, /text-warn|text-danger/u);
   }
+  assert.doesNotMatch(rows.slice(1).join(""), /text-danger/u, "red only on the missed deadline");
+  assert.doesNotMatch(band, /bg-accent/u, "no solid red");
   // Empty day, empty complete read: one empty state, the sentence under «На сегодня всё», no lone band.
   const empty = surfaces.get("today-deadlines-empty");
   assert.match(text(empty), /На сегодня всё Записанных сроков подачи на ближайшие 14 дней и прошедших без подачи за 7 дней нет\. Открыть студентов/u);

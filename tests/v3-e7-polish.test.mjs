@@ -306,12 +306,11 @@ test("the browser draft store tolerates a blocked or corrupt localStorage", () =
 
 test("every entry point opens that one composer: menu, Ctrl+K, «Новая задача…», calendar, case, quick view, Lead 360", () => {
   const source = (path) => SOURCES.find((file) => file.path === path)?.text ?? "";
-  // «Создать задачу» меню в обоих обликах: прежняя ссылка, обычное нажатие — диалог на месте.
-  for (const shell of ["src/components/v3/AppShell.tsx", "src/components/v3/AppShellNext.tsx"]) {
-    assert.match(source(shell), /href="\/v3\/tasks\?create=staff"/u, shell);
-    assert.match(source(shell), /onCreateTaskClick\(event,/u, shell);
-    assert.match(source(shell), /<ShellCommands actor=\{actor\} navigation=\{navigation\} \/>/u, shell);
-  }
+  // «Создать задачу» меню (одна оболочка с Э1.5): прежняя ссылка, обычное нажатие — диалог на месте.
+  const shell = source("src/components/v3/AppShell.tsx");
+  assert.match(shell, /href="\/v3\/tasks\?create=staff"/u);
+  assert.match(shell, /onCreateTaskClick\(event,/u);
+  assert.match(shell, /<ShellCommands actor=\{actor\} navigation=\{navigation\} \/>/u);
   const shellCommands = source("src/components/v3/palette/ShellCommands.tsx");
   assert.match(shellCommands, /<TaskComposerHost actor=\{actor\} \/>/u);
   assert.match(shellCommands, /if \(!openTaskComposer\(undefined, returnFocus\)\) fallback\(\);/u);
@@ -640,8 +639,9 @@ test("one create button per calendar screen: the shell opens the composer with t
   assert.match(host, /initialCases=\{access\.case \? context\.cases \?\? \[\] : \[\]\}/u);
   assert.match(host, /casesHaveMore=\{access\.case \? context\.casesHaveMore \?\? false : false\}/u);
   // Кнопка оболочки — у того же права, что и рабочая задача календаря.
-  assert.match(read("src/components/v3/AppShell.tsx"), /!previewing && staffHasPermission\(actor, "staff\.task\.create"\) \? <Link href="\/v3\/tasks\?create=staff"/u);
-  assert.match(read("src/components/v3/AppShellNext.tsx"), /const canCreateTask = !previewing && staffHasPermission\(actor, "staff\.task\.create"\);/u);
+  const shell = read("src/components/v3/AppShell.tsx");
+  assert.match(shell, /const canCreateTask = !previewing && staffHasPermission\(actor, "staff\.task\.create"\);/u);
+  assert.match(shell, /\{canCreateTask \? \(\s*<Link\s*href="\/v3\/tasks\?create=staff"/u);
 });
 
 const NOUN = { one: "дело", few: "дела", many: "дел" };

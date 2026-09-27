@@ -1,14 +1,18 @@
 /*
  * EVO workbench — owner-requested brand refresh, 09.09.2026.
  *
- * Направление: светлая нейтральная земля, белая плоская поверхность, тонкая
- * волосяная рамка вместо тени, маленькое скругление, много воздуха. Хрома
- * почти отсутствует: фирменный красный выделяет действия и навигацию.
- * Статусы сохраняют свои тона и всегда названы текстом.
+ * Два потребителя этого файла. Staff CRM — layout `(v3)` ставит на корень
+ * `.v3-world` атрибут `data-surface="staff"`, и облик сотрудников — блок
+ * `.v3-world[data-surface="staff"]` ниже (план редизайна 25.09, принят для
+ * всех 27.09, Э1.5). Кабинет студента (`(portal)`, `components/portal/Shell`)
+ * рисует прежние экраны в `.v3-world` без этого атрибута и живёт базовыми
+ * значениями этого блока — они не меняются вместе с обликом сотрудников.
  *
- * 09.09 заказчик завершил монохромную пробу и попросил вернуть бренд EVO.
- * Красный #d70217 взят из logobook; нейтральные панели сохраняют спокойную
- * рабочую среду без декоративных цветных подложек.
+ * Базовое направление: светлая нейтральная земля, белая плоская поверхность,
+ * тонкая волосяная рамка, маленькое скругление, много воздуха. Статусы
+ * сохраняют свои тона и всегда названы текстом. Красный #d70217 взят из
+ * logobook; нейтральные панели сохраняют спокойную рабочую среду без
+ * декоративных цветных подложек.
  *
  * Тёмной темы у этого мира нет. Референс — светлый, и держать тёмного близнеца
  * для пробы значило бы удваивать работу по контрасту ради того, чего в
@@ -74,12 +78,11 @@
 }
 
 /*
- * Новый облик — предпросмотр владельца (Э1.1 плана редизайна 25.09.2026,
- * docs/EVO_CRM_REDESIGN_PLAN_2026-09-25.md). Временное сосуществование:
- * `data-look="next"` ставит layout только Admin вне просмотра роли, когда он
- * включил предпросмотр в «Настройки → Платформа». После решения владельца
- * (Э1.5) эти значения переезжают в `.v3-world` выше, а атрибут, переключатель
- * и прежние значения удаляются (izzhackt/evo_AI_CRM#1061).
+ * Облик staff CRM — план редизайна 25.09.2026
+ * (docs/EVO_CRM_REDESIGN_PLAN_2026-09-25.md), для всех сотрудников с 27.09
+ * (Э1.5, решение владельца). Те же имена токенов, переопределённые на корне
+ * staff CRM (`data-surface="staff"` ставит layout `(v3)`); кабинет студента
+ * этих значений не получает.
  *
  * Правила плана: работа — белый лист на тёплом сером столе; красный текст —
  * только проблема (`--danger`), сплошной красный — главное действие страницы;
@@ -92,7 +95,7 @@
  * выбранное/лист 1.38, выбранное/стол 1.22, выбранное/наведение
  * (`--surface-2`) 1.12. Типографика не меняется (роли 24.09).
  */
-.v3-world[data-look="next"] {
+.v3-world[data-surface="staff"] {
   --bg: #f3f1ec;
   /* Мелкий тёмно-красный акцент становится обычным тёмным текстом. */
   --accent-text: #202020;
@@ -114,42 +117,41 @@
  * Без красного ссылка и текстовая кнопка-действие остаются узнаваемыми: они
  * подчёркнуты всегда. Выбранный пункт (`aria-current`, `aria-pressed`,
  * подложка `bg-accent-weak` — например, активный раздел меню) — не ссылка
- * «куда-то», его держит нейтральная подложка. Перевод текстовых действий в
- * настоящие кнопки — Э1.3.
+ * «куда-то», его держит нейтральная подложка.
  */
-.v3-world[data-look="next"] :is(a, button):is(.text-accent, .text-accent-text):not([aria-current], [aria-pressed="true"], .bg-accent-weak) {
+.v3-world[data-surface="staff"] :is(a, button):is(.text-accent, .text-accent-text):not([aria-current], [aria-pressed="true"], .bg-accent-weak) {
   text-decoration-line: underline;
   text-underline-offset: 4px;
 }
 
 /* Фокус клавиатуры сохраняет свой ореол (globals.css) — тень его не перекрывает. */
-.v3-world[data-look="next"] .v3-raised:not(:disabled):not(:focus-visible) {
+.v3-world[data-surface="staff"] .v3-raised:not(:disabled):not(:focus-visible) {
   box-shadow: var(--shadow-raised);
 }
 
 /*
- * Оболочка нового облика (Э1.2, AppShellNext.tsx; то же временное
- * сосуществование, izzhackt/evo_AI_CRM#1061). Верхней панели нет; на телефоне
+ * Оболочка staff CRM (Э1.2, AppShell.tsx). Верхней панели нет; на телефоне
  * (<768 px) сверху одна строка, снизу панель вкладок. Их высоты — одни
  * переменные в rem: строка, панель, отступ содержимого и высота страниц «на
  * окно» считаются в одних единицах и не расходятся при крупном корневом
  * шрифте. Страница «на окно» — `main` с высотой из 100dvh («Переписка со
  * студентами», «Командный чат»): её поле ответа стоит над панелью
- * вкладок, а на компьютере она занимает окно целиком. WhatsApp (PartShell `fill`) своей высоты не
- * задаёт: от 768 px её даёт колонка оболочки (`isFillRoute`), как и в прежнем
- * облике; на телефоне страница идёт обычным потоком над панелью вкладок.
+ * вкладок, а на компьютере она занимает окно целиком. WhatsApp (PartShell
+ * `fill`) своей высоты не задаёт: от 768 px её даёт колонка оболочки
+ * (`isFillRoute`); на телефоне страница идёт обычным потоком над панелью
+ * вкладок.
  */
-.v3-world[data-look="next"] {
+.v3-world[data-surface="staff"] {
   --shell-top: 0px;
   --shell-tabbar: 0px;
   --shell-safe-bottom: 0px;
   /* Отступ над заголовком страницы: один у всех разделов, центр заголовка —
-     на уровне центра логотипа в боковом меню (AppShellNext, `pt-3.5`). */
+     на уровне центра логотипа в боковом меню (AppShell, `pt-3.5`). */
   --shell-page-top: 1.5rem;
 }
 
 @media (width < 48rem) {
-  .v3-world[data-look="next"] {
+  .v3-world[data-surface="staff"] {
     --shell-top: 3.5rem;
     --shell-tabbar: 3.5rem;
     --shell-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -157,7 +159,7 @@
   }
 }
 
-.v3-world[data-look="next"] [data-shell-content] main:is(.h-dvh, [class*="100dvh"]) {
+.v3-world[data-surface="staff"] [data-shell-content] main:is(.h-dvh, [class*="100dvh"]) {
   height: calc(100dvh - var(--shell-top) - var(--shell-tabbar) - var(--shell-safe-bottom));
 }
 
@@ -166,7 +168,7 @@
  * разделов, переход «Задачи» → «Студенты» не прыгает. Страницы с PageHeader
  * (PartShell, доски, «Переписка со студентами») — отступ `main`.
  */
-.v3-world[data-look="next"] [data-shell-content] main:has(> div:first-child > div:first-child > h1.t-page-title) {
+.v3-world[data-surface="staff"] [data-shell-content] main:has(> div:first-child > div:first-child > h1.t-page-title) {
   padding-top: var(--shell-page-top);
 }
 
@@ -178,10 +180,8 @@
  * тень: пункт ниже края не пропадает молча. Прокрутили до конца — знака у
  * этого края нет. Затухание — прилипший псевдоэлемент внутри списка, поэтому
  * он стоит у края окна, а не у конца содержимого, и не ловит нажатия.
- * Прежний облик получает то же затухание: его строка аккаунта прокручивается
- * вместе со списком.
  */
-.v3-world[data-look="next"] [data-shell-scroll][data-more-above] {
+.v3-world[data-surface="staff"] [data-shell-scroll][data-more-above] {
   box-shadow: inset 0 8px 8px -6px rgb(0 0 0 / 0.16);
 }
 
@@ -197,7 +197,7 @@
   pointer-events: none;
 }
 
-.v3-world[data-look="next"] [data-shell-scroll][data-more-below] + [data-shell-account] {
+.v3-world[data-surface="staff"] [data-shell-scroll][data-more-below] + [data-shell-account] {
   position: relative;
   z-index: 1;
   box-shadow: 0 -6px 10px -6px rgb(0 0 0 / 0.24);
@@ -206,7 +206,7 @@
 /* Лист «Ещё»: строка и панель вкладок стоят на месте, содержимое появляется
    коротким подъёмом; при просьбе системы — без движения. */
 @media (prefers-reduced-motion: no-preference) {
-  .v3-world[data-look="next"] [data-shell-menu][data-sheet-open] > [data-shell-menu-body] {
+  .v3-world[data-surface="staff"] [data-shell-menu][data-sheet-open] > [data-shell-menu-body] {
     animation: v3-shell-sheet-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
@@ -371,7 +371,7 @@
 }
 
 /*
- * Одна боковая панель записи (Э7, `SidePanel`, оба облика). Ширина — один
+ * Одна боковая панель записи (Э7, `SidePanel`). Ширина — один
  * токен для сетки «список | панель», листа и доски (26rem = 416 px,
  * `SIDE_PANEL_WIDTH_REM`). Уже 1280 px панель — модальный лист в верхнем
  * слое: он коротко выезжает справа, затемнение проявляется; рядом со
@@ -548,11 +548,10 @@
 }
 
 /*
- * Общие блоки нового облика (Э1.3–Э1.4 плана редизайна, 26.09.2026;
- * src/components/v3/blocks/). Их рисуют только экраны с пропом `look="next"`,
- * и правила живут только под `data-look="next"` — то же временное
- * сосуществование, izzhackt/evo_AI_CRM#1061. Шрифт — роли `t-*` в разметке;
- * здесь только форма и цвет.
+ * Общие блоки staff CRM (Э1.3–Э1.4 плана редизайна, 26.09.2026;
+ * src/components/v3/blocks/). Правила — на корне staff CRM; кабинет
+ * студента блоков не рисует. Шрифт — роли `t-*` в разметке; здесь только
+ * форма и цвет.
  *
  * - `.v3-chip` — статус словом; цвет подкрепляет слово, красный — проблема.
  * - `.v3-stage` — этап: точка цвета фазы и слово доски; слово переносится.
@@ -564,7 +563,7 @@
  * - `.v3-toasts` — «Отменить» у нижнего края окна в верхнем слое.
  * Движение — до 200 мс и только при `prefers-reduced-motion: no-preference`.
  */
-.v3-world[data-look="next"] .v3-chip {
+.v3-world[data-surface="staff"] .v3-chip {
   display: inline-flex;
   max-width: 100%;
   min-height: 20px;
@@ -576,49 +575,49 @@
   color: var(--text-2);
   white-space: nowrap;
 }
-.v3-world[data-look="next"] .v3-chip[data-size="sm"] {
+.v3-world[data-surface="staff"] .v3-chip[data-size="sm"] {
   min-height: 18px;
   margin-block: -1px;
   padding: 0 6px;
 }
-.v3-world[data-look="next"] .v3-chip[data-tone="danger"] {
+.v3-world[data-surface="staff"] .v3-chip[data-tone="danger"] {
   border-color: transparent;
   background: var(--danger-weak);
   color: var(--danger);
 }
-.v3-world[data-look="next"] .v3-chip[data-tone="warn"] {
+.v3-world[data-surface="staff"] .v3-chip[data-tone="warn"] {
   border-color: transparent;
   background: var(--warn-weak);
   color: var(--warn);
 }
-.v3-world[data-look="next"] .v3-chip[data-tone="ok"] {
+.v3-world[data-surface="staff"] .v3-chip[data-tone="ok"] {
   border-color: transparent;
   background: var(--ok-weak);
   color: var(--ok);
 }
-.v3-world[data-look="next"] .v3-chip[data-tone="info"] {
+.v3-world[data-surface="staff"] .v3-chip[data-tone="info"] {
   border-color: transparent;
   background: var(--info-weak);
   color: var(--info);
 }
 
-.v3-world[data-look="next"] :is(.v3-stage, .v3-track-step)[data-phase="sales"] {
+.v3-world[data-surface="staff"] :is(.v3-stage, .v3-track-step)[data-phase="sales"] {
   --phase: var(--phase-sales);
 }
-.v3-world[data-look="next"] :is(.v3-stage, .v3-track-step)[data-phase="admission"] {
+.v3-world[data-surface="staff"] :is(.v3-stage, .v3-track-step)[data-phase="admission"] {
   --phase: var(--phase-admission);
 }
-.v3-world[data-look="next"] :is(.v3-stage, .v3-track-step)[data-phase="visa"] {
+.v3-world[data-surface="staff"] :is(.v3-stage, .v3-track-step)[data-phase="visa"] {
   --phase: var(--phase-visa);
 }
-.v3-world[data-look="next"] .v3-stage {
+.v3-world[data-surface="staff"] .v3-stage {
   display: inline-flex;
   max-width: 100%;
   align-items: baseline;
   gap: 6px;
   text-wrap: pretty;
 }
-.v3-world[data-look="next"] .v3-phase-dot {
+.v3-world[data-surface="staff"] .v3-phase-dot {
   flex: none;
   width: 8px;
   height: 8px;
@@ -628,33 +627,22 @@
   transform: translateY(-1px);
 }
 
-.v3-world[data-look="next"] .v3-due {
+.v3-world[data-surface="staff"] .v3-due {
   display: inline-block;
   color: var(--text-2);
   white-space: nowrap;
 }
-.v3-world[data-look="next"] .v3-due[data-due="overdue"] {
+.v3-world[data-surface="staff"] .v3-due[data-due="overdue"] {
   color: var(--danger);
 }
-.v3-world[data-look="next"] .v3-due[data-due="today"] {
+.v3-world[data-surface="staff"] .v3-due[data-due="today"] {
   border-radius: 4px;
   background: var(--accent);
   padding: 0 5px;
   color: var(--on-accent);
 }
 
-/*
- * «Календарь» (Э6): в новом облике «сегодня» — та же маленькая красная
- * заливка с белой цифрой, что у слова срока (правило плана: сплошной красный
- * — главное действие страницы и «сегодня»). Белый на #d70217 — 5.3:1.
- * Прежний облик оставляет тёмное пятно.
- */
-.v3-world[data-look="next"] [data-calendar-today] {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.v3-world[data-look="next"] .v3-initials {
+.v3-world[data-surface="staff"] .v3-initials {
   display: inline-grid;
   flex: none;
   width: 24px;
@@ -668,19 +656,19 @@
 }
 
 /* В строке карточки доски (16 px) круг 20 px не раздвигает строку. */
-.v3-world[data-look="next"] .v3-initials[data-size="sm"] {
+.v3-world[data-surface="staff"] .v3-initials[data-size="sm"] {
   width: 20px;
   height: 20px;
   margin-block: -2px;
 }
 
-.v3-world[data-look="next"] .v3-progress {
+.v3-world[data-surface="staff"] .v3-progress {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 4px;
 }
-.v3-world[data-look="next"] .v3-progress-track {
+.v3-world[data-surface="staff"] .v3-progress-track {
   display: block;
   width: min(100%, 16rem);
   height: 4px;
@@ -688,44 +676,44 @@
   border-radius: 999px;
   background: var(--surface-3);
 }
-.v3-world[data-look="next"] .v3-progress-fill {
+.v3-world[data-surface="staff"] .v3-progress-fill {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: var(--text-2);
 }
 
-.v3-world[data-look="next"] .v3-track {
+.v3-world[data-surface="staff"] .v3-track {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 6px;
 }
-.v3-world[data-look="next"] .v3-track-steps {
+.v3-world[data-surface="staff"] .v3-track-steps {
   display: flex;
   width: min(100%, 15rem);
   align-items: center;
   gap: 2px;
 }
-.v3-world[data-look="next"] .v3-track-step {
+.v3-world[data-surface="staff"] .v3-track-step {
   height: 6px;
   min-width: 8px;
   flex: 1 1 0;
   border-radius: 999px;
   background: var(--border-strong);
 }
-.v3-world[data-look="next"] .v3-track-step[data-phase-start] {
+.v3-world[data-surface="staff"] .v3-track-step[data-phase-start] {
   margin-inline-start: 6px;
 }
-.v3-world[data-look="next"] .v3-track-step[data-state="done"] {
+.v3-world[data-surface="staff"] .v3-track-step[data-state="done"] {
   background: color-mix(in srgb, var(--phase) 45%, var(--surface));
 }
-.v3-world[data-look="next"] .v3-track-step[data-state="current"] {
+.v3-world[data-surface="staff"] .v3-track-step[data-state="current"] {
   height: 10px;
   flex-grow: 2.5;
   background: var(--phase);
 }
-.v3-world[data-look="next"] .v3-track-caption {
+.v3-world[data-surface="staff"] .v3-track-caption {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -739,11 +727,11 @@
  * а не обрезается посреди слова (на 1280 px колонка ~150 px); она остаётся в
  * панели лида и для читалки.
  */
-.v3-world[data-look="next"] .v3-card-meta {
+.v3-world[data-surface="staff"] .v3-card-meta {
   height: 1lh;
   overflow: hidden;
 }
-.v3-world[data-look="next"] :is(.v3-card-due, .v3-card-age) {
+.v3-world[data-surface="staff"] :is(.v3-card-due, .v3-card-age) {
   white-space: nowrap;
 }
 
@@ -752,17 +740,17 @@
  * ссылка 16 px): зона нажатия 16 + 2 × 14 = 44 px по высоте — прозрачным
  * псевдоэлементом, строка карточки не раздвигается.
  */
-.v3-world[data-look="next"] .v3-chip-link {
+.v3-world[data-surface="staff"] .v3-chip-link {
   position: relative;
   border-radius: 999px;
 }
-.v3-world[data-look="next"] .v3-chip-link::after {
+.v3-world[data-surface="staff"] .v3-chip-link::after {
   content: "";
   position: absolute;
   inset: -14px -4px;
 }
 /* Слово чипа-ссылки подчёркнуто: рядом такой же чип «просрочено» — не ссылка. */
-.v3-world[data-look="next"] .v3-chip-link .v3-chip {
+.v3-world[data-surface="staff"] .v3-chip-link .v3-chip {
   text-decoration-line: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
@@ -772,9 +760,9 @@
  * «Отменить» у нижнего края окна: верхний слой (popover), над нижней панелью
  * телефона Э1.2, если она есть (`--shell-tabbar`). Тёмная нейтральная строка —
  * `--surface` на `--text` 16:1; рамка фокуса внутри светлая: тёмная рамка
- * нового облика на тёмной строке не видна.
+ * фокуса staff CRM на тёмной строке не видна.
  */
-.v3-world[data-look="next"] .v3-toasts {
+.v3-world[data-surface="staff"] .v3-toasts {
   inset: auto 0 calc(16px + var(--shell-tabbar, 0px) + var(--shell-safe-bottom, 0px)) 0;
   width: min(30rem, calc(100vw - 2rem));
   margin: 0 auto;
@@ -784,7 +772,7 @@
   padding: 0;
   color: inherit;
 }
-.v3-world[data-look="next"] .v3-toast {
+.v3-world[data-surface="staff"] .v3-toast {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -795,7 +783,7 @@
   color: var(--surface);
   box-shadow: var(--shadow-lg);
 }
-.v3-world[data-look="next"] .v3-toast-action {
+.v3-world[data-surface="staff"] .v3-toast-action {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
@@ -805,23 +793,23 @@
   text-decoration-line: underline;
   text-underline-offset: 4px;
 }
-.v3-world[data-look="next"] .v3-toast-action:hover:not(:disabled) {
+.v3-world[data-surface="staff"] .v3-toast-action:hover:not(:disabled) {
   background: rgb(255 255 255 / 0.14);
 }
-.v3-world[data-look="next"] .v3-toast-action:disabled {
+.v3-world[data-surface="staff"] .v3-toast-action:disabled {
   opacity: 1;
   text-decoration-line: none;
 }
-.v3-world[data-look="next"] .v3-toast-action:focus-visible {
+.v3-world[data-surface="staff"] .v3-toast-action:focus-visible {
   outline-color: var(--surface);
   outline-offset: -3px;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .v3-world[data-look="next"] .v3-toast {
+  .v3-world[data-surface="staff"] .v3-toast {
     animation: v3-toast-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .v3-world[data-look="next"] .v3-progress-fill {
+  .v3-world[data-surface="staff"] .v3-progress-fill {
     transition: width 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
@@ -836,7 +824,7 @@
 /*
  * Строка действий над выбранными строками очереди (Э7, «Задачи» и
  * «Студенты»): прилипает к нижнему краю окна, пока что-то выбрано, — прямо
- * на нижнюю панель телефона нового облика, если она есть, без зазора. Отступ
+ * на нижнюю панель телефона, если она есть, без зазора. Отступ
  * под строкой — полоса цвета земли (`bg-bg` у `.v3-bulk-dock`): текст списка
  * под ней не просвечивает.
  */

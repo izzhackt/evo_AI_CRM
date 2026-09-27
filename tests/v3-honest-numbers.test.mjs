@@ -345,7 +345,6 @@ test("the false red «ожидает условий» is gone: a neutral «Пе�
 test("«Продажи» headline: one number by sale date, discrepancies named, no number without a read", () => {
   const headline = compile("src/components/v3/SalesPeriodHeadline.tsx", (id) => {
     if (id === "@/lib/sales-register-view") return salesView;
-    if (id === "./blocks/look") return compile("src/components/v3/blocks/look.ts");
     if (id === "./blocks/progress") return compile("src/components/v3/blocks/progress.ts");
     return require(id);
   });
@@ -366,13 +365,13 @@ test("«Продажи» headline: one number by sale date, discrepancies named,
   }
   assert.doesNotMatch(full, /без фильтров/u);
   assert.match(plain(render(september, { filtered: true })), /по дате продажи за сентябрь 2026, без архива и без фильтров/u, "not to be read against the filtered rows");
-  // Э4: план месяца из чтения — «N продаж из плана M» и «осталось»; полоса — только в новом облике.
+  // Э4: план месяца из чтения — «N продаж из плана M», «осталось» и тонкая полоса «продажи из плана» (Э1.3).
   const planned = render(september, { target: 35 });
   assert.match(plain(planned), /^5 продаж из плана 35 по дате продажи за сентябрь 2026, без архива · осталось 30 /u);
-  assert.doesNotMatch(planned, /v3-progress-track/u);
-  assert.match(render(september, { target: 35, look: "next" }), /<span class="v3-progress-track mt-1\.5" aria-hidden="true"><span class="v3-progress-fill" style="width:14\.3%"><\/span><\/span>/u);
+  assert.match(planned, /<span class="v3-progress-track mt-1\.5" aria-hidden="true"><span class="v3-progress-fill" style="width:14\.3%"><\/span><\/span>/u);
+  assert.doesNotMatch(full, /v3-progress-track/u, "no plan read — no bar");
   assert.match(plain(render(september, { target: 5 })), /^5 продаж из плана 5 по дате продажи за сентябрь 2026, без архива · план выполнен/u);
-  assert.doesNotMatch(render(september, { target: 4, look: "next" }), /v3-progress-track/u, "no bar past the plan: 5 of 4 is not a share");
+  assert.doesNotMatch(render(september, { target: 4 }), /v3-progress-track/u, "no bar past the plan: 5 of 4 is not a share");
   assert.match(plain(render({ status: "available", count: { ...september.count, sales: 1 } })), /^1 продажа /u);
   assert.match(plain(render({ status: "available", count: { ...september.count, sales: 3 } })), /^3 продажи /u);
   assert.doesNotMatch(render(september, { sliceHref: undefined }), /<a /u, "without a target the words stay words");
@@ -422,7 +421,8 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   // Переданный лид как в production: этап доски, передача с датами, архивная запись названа словами.
   // Lead 360 (Э4): строка передачи — в шапке («Что дальше»), в «Сведениях» она не повторяется.
   const handed = pages.get("lead-handed");
-  assert.match(handed, /data-testid="v3-lead-stage">Переданы</u);
+  // Этап — дорожка из 7 этапов продаж (Э1.4), текущий — «Переданы».
+  assert.match(handed, /<div class="v3-track" data-track="sales">[\s\S]*?<span class="sr-only">Переданы, текущий этап, Продажи<\/span>/u);
   assert.match(text(handed), /Что дальше Передано 18\.09 · Айгерим Условная · принято 19\.09/u);
   assert.match(text(handed), /Передача Запись о продаже в архиве и в продажи не входит\. Открыть запись/u);
   assert.doesNotMatch(handed, /data-testid="v3-handoff-summary"/u);
@@ -441,7 +441,7 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   // До передачи: нейтрально, формы подтверждения спокойные — в свёрнутой группе «Подтверждение
   // договора и платежа» (не вкладка «Договор и оплата»), исключение Admin свёрнуто и в ней.
   const working = pages.get("lead-working");
-  assert.match(working, /data-testid="v3-lead-stage">Квалифицирован</u);
+  assert.match(working, /<span class="sr-only">Квалифицирован, текущий этап, Продажи<\/span>/u);
   assert.doesNotMatch(working, /v3-handoff-summary|v3-handoff-warnings/u);
   const contract = working.slice(working.indexOf('data-testid="v3-lead-group-contract"'));
   assert.match(contract, /^data-testid="v3-lead-group-contract"[^>]*><summary[^>]*>.*?Подтверждение договора и платежа.*?договор не подтверждён/u);

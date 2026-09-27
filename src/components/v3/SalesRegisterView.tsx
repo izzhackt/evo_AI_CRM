@@ -23,7 +23,6 @@ import {
   SALES_NO_REMAINDER_TEXT, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, type SalesLabelGroup, type SalesMoneySummary,
 } from "@/lib/sales-register-view";
 
-import type { V3Look } from "./blocks/look";
 import { FilterMenu, type FilterOption } from "./queue/FilterMenu";
 import { attributeReturn, sidePanelSplit } from "./panel/side-panel";
 import { SidePanel } from "./panel/SidePanel";
@@ -321,7 +320,7 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder }: 
  * (графики и воронка, Э3) для ролей, читающих продажи; стоит под записями и
  * не показывается рядом с формой новой продажи.
  */
-export async function SalesRegisterView({ actor, query, dynamics = null, look }: { actor: ActivePlatformActor; query: SalesReportQuery; dynamics?: ReactNode; look?: V3Look }) {
+export async function SalesRegisterView({ actor, query, dynamics = null }: { actor: ActivePlatformActor; query: SalesReportQuery; dynamics?: ReactNode }) {
   const now = new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit" }).formatToParts(new Date());
   const { year, month, offset, searchQuery, saleSlice, saleSliceHref, valid, reportMonth, params, href, clearFiltersHref, importHref } = salesReportContext(query, {
     year: Number(now.find(p => p.type === "year")!.value), month: Number(now.find(p => p.type === "month")!.value),
@@ -511,7 +510,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
     </div> : <>
       {salesCount && headlinePeriod ? <div className="mt-3">
         <SalesPeriodHeadline read={salesCount} label={headlinePeriod.label} retryHref={href()}
-          filtered={hasFilters} sliceHref={saleSliceHref} target={month && query.archived !== "true" ? target?.targetCount ?? null : null} look={look} />
+          filtered={hasFilters} sliceHref={saleSliceHref} target={month && query.archived !== "true" ? target?.targetCount ?? null : null} />
       </div> : null}
       {saved ? <section id="saved-sale" aria-labelledby="saved-sale-title" className="mt-4 scroll-mt-4 border-y border-border py-3">
         <h2 id="saved-sale-title" className="t-item text-fg">Продажа добавлена</h2>

@@ -17,7 +17,7 @@ import {
 } from "@/lib/v3/command-palette";
 import { searchCommandPaletteAction } from "@/lib/v3/command-palette-actions";
 import type { V3Navigation, V3NavigationLinkId } from "@/lib/v3/navigation";
-import { NEXT_LINK_ICONS } from "@/lib/v3/shell-tabs";
+import { LINK_ICONS } from "@/lib/v3/shell-tabs";
 
 import { openTaskComposer } from "../tasks/task-composer-context";
 import { taskComposerAccess } from "../tasks/TaskComposerHost";
@@ -40,7 +40,7 @@ type Remote = Readonly<{ query: string; status: "loading" | "done" | "failed"; r
 
 let opener: (() => void) | null = null;
 
-/** Открыть Ctrl+K кнопкой (оболочка нового облика, телефон — без клавиатуры). */
+/** Открыть Ctrl+K кнопкой (строка «Поиск» меню, телефон — без клавиатуры). */
 export function openCommandPalette(): boolean {
   if (!opener) return false;
   opener();
@@ -154,7 +154,7 @@ export function CommandPalette({ actor, navigation }: Readonly<{ actor: ActivePl
       key: `nav:${destination.id}`,
       label: destination.label,
       meta: destination.group || null,
-      icon: NEXT_LINK_ICONS[destination.id as V3NavigationLinkId] ?? "arrow-right",
+      icon: LINK_ICONS[destination.id as V3NavigationLinkId] ?? "arrow-right",
       target: { kind: "navigate", href: destination.href },
     }));
   const actions: Option[] = (composer.staff || composer.case) && paletteMatches(trimmed, "Создать задачу", "Новая задача")

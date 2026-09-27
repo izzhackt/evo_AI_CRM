@@ -12,9 +12,8 @@ import { CommandPalette, openCommandPalette } from "./CommandPalette";
 import { KeyboardHelpDialog } from "./KeyboardHelpDialog";
 
 /**
- * Общие окна оболочки (Э7), одни в обоих обликах: диалог «Новая задача» для
- * «Создать задачу» и Ctrl+K, сам Ctrl+K и окно «?». Все три — в верхнем
- * слое и в DOM один раз.
+ * Общие окна оболочки (Э7): диалог «Новая задача» для «Создать задачу» и
+ * Ctrl+K, сам Ctrl+K и окно «?». Все три — в верхнем слое и в DOM один раз.
  */
 export function ShellCommands({ actor, navigation }: Readonly<{ actor: ActivePlatformActor; navigation: V3Navigation }>) {
   return (
@@ -45,10 +44,8 @@ export function onCreateTaskClick(
 }
 
 /**
- * Кнопка Ctrl+K для мыши и телефона: тот же поиск, что по клавишам. В
- * верхней панели прежнего облика — «Поиск» рядом с «Создать задачу»; в меню
- * нового облика — строка «Поиск» с подсказкой клавиш (`menu`), в рейке —
- * только значок.
+ * Кнопка Ctrl+K для мыши и телефона: тот же поиск, что по клавишам. В меню —
+ * строка «Поиск» с подсказкой клавиш, в рейке — только значок.
  */
 export function PaletteButton({ className, label = false, shortcutClassName = null, labelClassName, hint }: Readonly<{
   className: string;

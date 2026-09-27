@@ -9,7 +9,6 @@ import { CASE_CHAT_FAILURE_COPY, caseChatHref, caseChatUuid, parseCaseChatAttach
 import { getPlatformStudentCaseView } from "@/lib/platform-admissions";
 import { CaseChatReadError, readCaseChatPage, readStaffCaseChatQueue } from "@/lib/v3/case-chat-source";
 import { readCaseQueueRow } from "@/lib/v3/case-work-source";
-import { readLookPreview } from "@/lib/v3/look-preview";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
@@ -62,7 +61,6 @@ export default async function MessagesPage({ searchParams }: {
   let caseState: "pending" | "active" | "closed" = "active";
   let caseFacts: CaseChatCaseFacts | null = null;
   let snippets: CaseChatSnippets = null;
-  const look = (await readLookPreview(actor)) ? "next" as const : undefined;
   if (rawCase) {
     try {
       initialPage = await readCaseChatPage(actor, rawCase, "latest");
@@ -111,7 +109,6 @@ export default async function MessagesPage({ searchParams }: {
         initialPageFailure={pageFailure}
         caseFacts={caseFacts}
         snippets={snippets}
-        look={look}
       />
     </ConversationsMain>
   );

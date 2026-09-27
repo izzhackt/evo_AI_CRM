@@ -4,19 +4,20 @@ import { useMemo } from "react";
 
 import type { TodayBandView, TodayItem } from "@/lib/v3/today-queue";
 
+import { UndoToast } from "../blocks/UndoToast";
 import { DueBands } from "../queue/DueBands";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
 import { taskPanelHref } from "../tasks/TaskQueueList";
 import { TaskQueueRow, type TaskRowPermissions } from "../tasks/TaskQueueRow";
-import { useRecentCompletions, type CompletionBand } from "../tasks/useRecentCompletions";
+import { useRecentCompletions, useUndoToasts, type CompletionBand } from "../tasks/useRecentCompletions";
 import { TodayRow } from "./TodayRow";
 
 /**
  * Тело «Сегодня»: группы по срочности (`DueBands`), в них строки всех
  * источников. Задача — настоящая строка «Задач»: круг завершения, 6 секунд
- * «Отменить» и «⋯» — те же команды и тот же жизненный цикл
- * (`useRecentCompletions`). Остальные строки — `TodayRow` с «Открыть».
- * Клавиатура очереди (↑/↓, j/k, Enter) — та же.
+ * «Отменить» строкой в верхнем слое (UndoToast) и «⋯» — те же команды и тот
+ * же жизненный цикл (`useRecentCompletions`, `useUndoToasts`). Остальные
+ * строки — `TodayRow` с «Открыть». Клавиатура очереди (↑/↓, j/k, Enter) — та же.
  */
 export function TodayQueueList({
   bands,
@@ -32,7 +33,8 @@ export function TodayQueueList({
   const completionBands = useMemo<readonly CompletionBand<TodayItem>[]>(() => bands.map((band) => ({
     key: band.band, label: band.label, count: band.count, danger: band.danger, rows: band.items,
   })), [bands]);
-  const { recent, message, announce, undo, completed, shown } = useRecentCompletions(completionBands);
+  const { recent, message, announce, undo, completed, shown, hold } = useRecentCompletions(completionBands);
+  const toasts = useUndoToasts(recent, undo);
   const notes = useMemo(() => new Map(bands.map((band) => [band.band as string, band.note])), [bands]);
   useQueueKeyboard({ openKey: null });
 
@@ -60,12 +62,12 @@ export function TodayQueueList({
               permissions={permissions}
               recent={recent[item.key] ?? null}
               announce={announce}
-              onUndo={undo}
               onCompleted={(completion) => completed(item, band, index, completion)}
             />
           ) : <TodayRow key={item.key} item={item} nowIso={nowIso} />),
         }))}
       />
+      <UndoToast items={toasts} onHold={hold} />
     </>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState, useTransition, type FocusEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { btnGhostCls, cn } from "@/components/ui";
 import { Icon } from "@/components/icons";
@@ -12,7 +12,6 @@ import {
   BoardColumn,
   BoardGrip,
   cappedBoardTracks,
-  ownerInitials,
 } from "@/components/v3/board/Board";
 import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
 import {
@@ -34,7 +33,6 @@ import {
 } from "@/lib/platform-admissions-pipeline-contract";
 import { admissionsPipelineStage, admissionsPipelineTab, caseChatAwaitState, country as countryLabel } from "@/lib/v3/wording";
 import { Initials } from "@/components/v3/blocks/Initials";
-import { isNextLook, type V3Look } from "@/components/v3/blocks/look";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { UndoToast } from "@/components/v3/blocks/UndoToast";
 import { resumedUndoDeadline } from "@/components/v3/tasks/undo-deadline";
@@ -269,25 +267,21 @@ function BoardCard({
   showCurator,
   onMove,
   onDragStart,
-  next = false,
 }: Readonly<{
   row: AdmissionsPipelineRow;
   tab: AdmissionsPipelineTab;
   showCurator: boolean;
   onMove: (target: MoveTarget) => void;
   onDragStart?: () => void;
-  /** Новый облик (Э1.3): куратор — круг инициалов, состояния — чипы со словом. */
-  next?: boolean;
 }>) {
   const secondLine = [countryLabel(row.targetCountry), row.primaryInstitutionName]
     .filter((value): value is string => Boolean(value))
     .join(" · ");
-  // Та же грамматика, что у карточки продаж: куратор — инициалами справа во
-  // второй строке (полное имя в подсказке), состояние — словом и цветом в
-  // третьей, а не плашками. Новый облик (Э1.3): круг инициалов и чипы со
-  // словом; дней просрочки нет — чтение доски даты шага не отдаёт.
+  // Та же грамматика, что у карточки продаж: куратор — круг инициалов справа
+  // во второй строке (полное имя в подсказке), состояние — чипы со словом в
+  // третьей (Э1.3); дней просрочки нет — чтение доски даты шага не отдаёт.
   const replyWord = caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU") ?? "";
-  const marks = next ? [
+  const marks = [
     row.overdue ? <StatusChip key="overdue" label="просрочено" tone="danger" size="sm" /> : null,
     row.needsReply ? (
       // Ссылка на переписку дела: чип 18 px, зона нажатия 44 px (`.v3-chip-link`, v3.css).
@@ -296,20 +290,6 @@ function BoardCard({
       </Link>
     ) : null,
     row.awaitingAck ? <StatusChip key="ack" label="ждёт принятия" tone="warn" size="sm" /> : null,
-  ].filter((mark) => mark !== null) : [
-    row.overdue ? <span key="overdue" className="t-caption text-danger">просрочено</span> : null,
-    row.needsReply ? (
-      <Link
-        key="reply"
-        href={`/v3/messages?case=${row.studentCaseId}`}
-        prefetch={false}
-        draggable={false}
-        className="t-caption text-danger underline-offset-4 hover:underline"
-      >
-        {caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU")}
-      </Link>
-    ) : null,
-    row.awaitingAck ? <span key="ack" className="t-caption text-warn">ждёт принятия</span> : null,
   ].filter((mark) => mark !== null);
   const curator = showCurator ? row.currentCuratorDisplayName : null;
   return (
@@ -339,19 +319,11 @@ function BoardCard({
       {secondLine || curator ? (
         <p className="t-meta flex min-w-0 items-baseline gap-2 pe-8 text-fg-3">
           <span className="min-w-0 flex-1 truncate text-fg-2" title={secondLine || undefined}>{secondLine}</span>
-          {curator && next ? <Initials name={curator} size="sm" /> : curator ? (
-            <abbr title={curator} className="shrink-0 no-underline">
-              {ownerInitials(curator)}
-            </abbr>
-          ) : null}
+          {curator ? <Initials name={curator} size="sm" /> : null}
         </p>
       ) : null}
-      {marks.length > 0 && next ? (
+      {marks.length > 0 ? (
         <p className="flex flex-wrap gap-1 py-px">{marks}</p>
-      ) : marks.length > 0 ? (
-        <p className="t-meta truncate whitespace-nowrap">
-          {marks.flatMap((mark, index) => (index === 0 ? [mark] : [<span key={`dot-${index}`} aria-hidden="true" className="text-fg-3"> · </span>, mark]))}
-        </p>
       ) : null}
       <div className="absolute end-0.5 top-0.5">
         <CardMenu row={row} tab={tab} onMove={onMove} />
@@ -367,7 +339,6 @@ export function AdmissionsPipelineBoard({
   tab,
   query,
   basePath = "/v3/admissions-pipeline",
-  look,
 }: Readonly<{
   rows: readonly AdmissionsPipelineRow[];
   truncated: boolean;
@@ -375,10 +346,7 @@ export function AdmissionsPipelineBoard({
   tab: AdmissionsPipelineTab;
   query: Readonly<{ q: string | null; country: string | null; curator: string | null }>;
   basePath?: string;
-  /** Новый облик (Э1.3, предпросмотр Admin): инициалы и чипы в карточках. */
-  look?: V3Look;
 }>) {
-  const next = isNextLook(look);
   const router = useRouter();
   const idPrefix = useId();
   const [retrying, startRetry] = useTransition();
@@ -391,7 +359,8 @@ export function AdmissionsPipelineBoard({
   const [crossTabHint, setCrossTabHint] = useState<CrossTabHint | null>(null);
   const [narrowStage, setNarrowStage] = useState<AdmissionsPipelineStage>(ADMISSIONS_PIPELINE_TAB_STAGES[tab][0]);
   // «Отменить» (Э7, 251): одно предложение — последнее подтверждённое
-  // перемещение; итог отмены — строкой (прежний облик) или для читалки.
+  // перемещение, строкой в верхнем слое (UndoToast); итог отмены — строкой
+  // уведомлений доски.
   const [undo, setUndo] = useState<BoardUndoOffer | null>(null);
   const [undoNote, setUndoNote] = useState<string | null>(null);
   const [held, setHeld] = useState(false);
@@ -456,15 +425,6 @@ export function AdmissionsPipelineBoard({
   useEffect(() => {
     if (!undo) hold(false);
   }, [undo, hold]);
-
-  // Прежний облик: «Отменить» — в строке уведомлений доски; после перемещения
-  // из меню фокус встаёт на неё (новый облик делает это сам — UndoToast).
-  const undoKey = undo?.key ?? null;
-  const undoFocus = Boolean(undo?.focus);
-  useEffect(() => {
-    if (next || !undoKey || !undoFocus) return;
-    noticeRef.current?.querySelector<HTMLElement>("[data-board-undo]")?.focus();
-  }, [next, undoKey, undoFocus]);
 
   useEffect(() => {
     if (!refocus) return;
@@ -680,32 +640,19 @@ export function AdmissionsPipelineBoard({
     boardHref(basePath, { tab: nextTab, q: query.q, country: query.country, curator: query.curator });
 
   // Строка уведомлений доски — две независимые строки: удаление с «Вернуть в
-  // воронку» и перемещение (переход в другой раздел, «Отменить» прежнего
-  // облика, итог отмены). Новый облик показывает «Отменить» строкой в верхнем
-  // слое, а слова перемещения здесь — только для читалки, пока нет ссылки на
-  // другой раздел; итог отмены видят оба облика. У каждой строки своя
-  // вежливая живая область.
+  // воронку» и перемещение (переход в другой раздел, итог отмены).
+  // «Отменить» — строкой в верхнем слое (UndoToast), а слова перемещения
+  // здесь — только для читалки, пока нет ссылки на другой раздел. У каждой
+  // строки своя вежливая живая область.
   const moved = undo
     ? { name: undo.row.studentDisplayName, stage: undo.toStage }
     : crossTabHint;
   const movedText = moved ? `Дело «${moved.name}» перемещено в «${admissionsPipelineStage(moved.stage)}».` : null;
   const moveText = undoNote ?? movedText;
-  const lineUndo = !next && undo ? undo : null;
-  const moveShown = Boolean(crossTabHint || undoNote || (!next && undo));
-  const holdHandlers = lineUndo
-    ? {
-        onFocus: () => hold(true),
-        onBlur: (event: FocusEvent<HTMLDivElement>) => {
-          if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-          hold(false);
-        },
-        onPointerEnter: () => hold(true),
-        onPointerLeave: () => hold(false),
-      }
-    : {};
+  const moveShown = Boolean(crossTabHint || undoNote);
   // Строка называет дело, как «Задачи» свою задачу: карточка ушла с видимого
   // этапа (телефон) или после перетаскивания её не видно среди других.
-  const toasts = next && undo && movedText
+  const toasts = undo && movedText
     ? [{
         key: undo.key,
         message: movedText,
@@ -754,26 +701,11 @@ export function AdmissionsPipelineBoard({
             </button>
           ) : null}
         </div>
-        <div
-          data-board-undo-line={lineUndo ? "" : undefined}
-          className={moveShown ? "flex flex-wrap items-center gap-x-3" : undefined}
-          {...holdHandlers}
-        >
+        <div className={moveShown ? "flex flex-wrap items-center gap-x-3" : undefined}>
           <p role="status" className={moveShown ? NOTICE_TEXT_CLASS : moveText ? "sr-only" : undefined}>
             {moveText}
           </p>
           {crossTabHint && !undoNote ? <CrossTabHintLink hint={crossTabHint} tabHref={tabHref} /> : null}
-          {lineUndo ? (
-            <button
-              type="button"
-              data-board-undo=""
-              disabled={lineUndo.pending}
-              className={btnGhostCls}
-              onClick={() => undoMove(lineUndo)}
-            >
-              Отменить
-            </button>
-          ) : null}
         </div>
       </div>
 
@@ -831,9 +763,9 @@ export function AdmissionsPipelineBoard({
                 <BoardColumn
                   key={stage}
                   headingId={`${idPrefix}-${stage}`}
-                  // Заголовок колонки — слово без точки фазы и в новом облике: на вкладке
-                  // одна фаза, точка повторяла бы один цвет над каждой колонкой (правило
-                  // плана «колонки не подкрашиваются»); фаза видна на вкладке.
+                  // Заголовок колонки — слово без точки фазы: на вкладке одна фаза, точка
+                  // повторяла бы один цвет над каждой колонкой (правило плана «колонки не
+                  // подкрашиваются»); фаза видна на вкладке.
                   title={<span className="truncate">{admissionsPipelineStage(stage)}</span>}
                   count={inStage.length}
                   emptyText={BOARD_EMPTY.cases}
@@ -851,7 +783,7 @@ export function AdmissionsPipelineBoard({
                 >
                   {inStage.map((row) => (
                     <li key={row.studentCaseId}>
-                      <BoardCard row={row} tab={tab} showCurator={showCurator} onMove={(target) => moveCard(row.studentCaseId, target, "menu")} next={next} />
+                      <BoardCard row={row} tab={tab} showCurator={showCurator} onMove={(target) => moveCard(row.studentCaseId, target, "menu")} />
                     </li>
                   ))}
                 </BoardColumn>
@@ -860,8 +792,8 @@ export function AdmissionsPipelineBoard({
           </div>
         </>
       )}
-      {/* Новый облик: «Отменить» строкой в верхнем слое (блок Э1.3). Последним — как у «Задач». */}
-      {next ? <UndoToast items={toasts} onHold={hold} /> : null}
+      {/* «Отменить» строкой в верхнем слое (блок Э1.3). Последним — как у «Задач». */}
+      <UndoToast items={toasts} onHold={hold} />
     </div>
   );
 }

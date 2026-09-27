@@ -21,7 +21,6 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { parseClosedLeadsCursor, readClosedLeads, type ClosedLeadsPage } from "@/lib/platform-closure";
 import { closureWords } from "@/lib/v3/wording";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
-import { readLookPreview } from "@/lib/v3/look-preview";
 import {
   PLATFORM_SALES_STAGES,
   type PlatformSalesStage,
@@ -78,8 +77,6 @@ export default async function PipelinePart({
   ]);
   if (params.view !== undefined) return closedLeadsPart(actor, params);
   const query = parseBoardQuery(params);
-  // Новый облик (предпросмотр Admin, Э1.3): тот же признак, что `data-look` оболочки.
-  const look = (await readLookPreview(actor)) ? "next" as const : undefined;
 
   const stages = readPipelineStages();
   // Фокус этапа (`?stage=`) — представление, а не фильтр чтения: доска читает
@@ -263,8 +260,7 @@ export default async function PipelinePart({
           requestIds={requestIds}
           handedExpanded={query.handed === "all"}
           showOwner={query.assignment !== "mine"}
-          look={look}
-          today={look ? dayInOrganizationTimezone(new Date()) : undefined}
+          today={dayInOrganizationTimezone(new Date())}
         />
       </div>
       </PartShell>

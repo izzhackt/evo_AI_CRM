@@ -19,12 +19,11 @@
  *   node tests/e2e/case-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — разметка сценариев без оболочки
  *       (для tests/v3-case-work.test.mjs).
- *   node tests/e2e/case-static-render.cjs --screenshots [outDir] [--look=next] [--compare-root=<dir>]
+ *   node tests/e2e/case-static-render.cjs --screenshots [outDir] [--compare-root=<dir>]
  *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844 в outDir (по умолчанию .impeccable/review,
- *       не коммитится); с `--look=next` — предпросмотр нового облика (Э1.1),
- *       файлы `case-next-*.png`. Страница не гидратируется: окно шага и
+ *       не коммитится), файлы `case-*.png`. Страница не гидратируется: окно шага и
  *       раскрытия работают на атрибутах браузера (popover, details).
  *
  *     Снимок делается после загрузки картинок (логотип next/image — lazy) и
@@ -416,8 +415,6 @@ function buildParts(name) {
     },
     notes: item.notes ?? NOTES, notesOlderHref: null, notesLatestHref: item.notesLatestHref ?? null, curators: [], curatorsAvailable: true, hrefFor,
     salesDataOpen: false, help: null, closure: item.closure ?? null,
-    // Новый облик (Э1.3): дорожка этапа, срок словом, инициалы, полоса документов.
-    ...(process.argv.includes("--look=next") ? { look: "next" } : {}),
   });
   return { item, parts, hrefFor };
 }
@@ -435,10 +432,6 @@ function caseBody(name, tab = "overview") {
 }
 
 // --- рендер ------------------------------------------------------------------
-// `--look=next`: слой нового облика и его оболочка Э1.2 (меню без верхней панели,
-// нижняя панель телефона) — как у Admin с включённым переключателем.
-const NEXT_LOOK = process.argv.includes("--look=next");
-const NEXT_SHELL = NEXT_LOOK ? { look: "next" } : {};
 const routerStub = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} };
 const SEARCH = `case=${CASE_ID}&tab=overview&returnTo=${encodeURIComponent(RETURN_TO)}`;
 
@@ -471,8 +464,8 @@ function renderPage(name, { closeDialog = false } = {}) {
   const dialog = closeDialog
     ? createElement(closureUi.ClosureDialog, { kind: "case", subjectId: CASE_ID, subjectName: NAME, expectedVersion: "4", openTasks, onClose() {}, onDone() {} })
     : null;
-  const page = createElement("div", { className: "v3-world", "data-look": NEXT_LOOK ? "next" : undefined },
-    createElement(AppShell, { actor: SCENARIOS[name].actor, initialNotifications: null, ...NEXT_SHELL },
+  const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
+    createElement(AppShell, { actor: SCENARIOS[name].actor, initialNotifications: null },
       createElement(PartShell, { title: NAME, count: null, dense: true, back, action: actions }, createElement("div", { className: "space-y-6" }, body))), dialog);
   return renderToStaticMarkup(withContexts(page));
 }
@@ -487,8 +480,8 @@ function renderClosedLeadPage() {
     closedAt: "2026-09-24T09:15:00.000Z", reason: "other_agency", note: null, closedByName: "Эрмек Токтосунов", canManage: true };
   const back = createElement("a", { href: "/v3/pipeline?view=closed", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), "К закрытым лидам");
-  const page = createElement("div", { className: "v3-world", "data-look": NEXT_LOOK ? "next" : undefined },
-    createElement(AppShell, { actor: ADMIN, initialNotifications: null, ...NEXT_SHELL },
+  const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
+    createElement(AppShell, { actor: ADMIN, initialNotifications: null },
       createElement(PartShell, { title: row.name, count: null, back },
         createElement("div", { className: "space-y-6" },
           createElement(ClosedLeadView, { row, readOnly: false })))));
@@ -531,9 +524,8 @@ function renderLeadPage(root) {
       headerMenu: root === ROOT ? createElement(closureUi.CloseRecordMenu, { kind: "lead", subjectId: LEAD_ID, subjectName: LEAD.profile.person,
         expectedVersion: LEAD.sales.lead.workflowVersion, blockedReason: null }) : undefined,
     }));
-  // Оболочка нового облика (Э1.2) — только у этой ветки: дерево сравнения рендерится, как раньше.
-  const page = createElement("div", { className: "v3-world", "data-look": NEXT_LOOK ? "next" : undefined },
-    createElement(AppShell, { actor: LEAD.actor, initialNotifications: null, ...(root === ROOT ? NEXT_SHELL : {}) },
+  const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
+    createElement(AppShell, { actor: LEAD.actor, initialNotifications: null },
       createElement(PartShell, { title: "Профиль", count: null }, body)));
   return renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: routerStub },
     createElement(PathnameContext.Provider, { value: "/v3/profile" },
@@ -568,7 +560,7 @@ async function settle(page) {
   await page.waitForLoadState("networkidle");
   const broken = await page.evaluate(async () => {
     await document.fonts.ready;
-    // Только видимые: скрытая копия логотипа (lazy) в оболочке нового облика не грузится, и её decode() не завершится.
+    // Только видимые: скрытая копия логотипа (lazy) в оболочке не грузится, и её decode() не завершится.
     const images = [...document.images].filter((image) => image.checkVisibility());
     await Promise.all(images.map((image) => image.decode().catch(() => null)));
     return images.filter((image) => !(image.complete && image.naturalWidth > 0)).map((image) => image.alt || image.src);
@@ -620,7 +612,7 @@ async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const look = process.argv.includes("--look=next") ? "case-next" : "case";
+  const filePrefix = "case";
   const DESKTOP = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 };
   const LAPTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 };
   const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
@@ -652,10 +644,9 @@ async function screenshots() {
     ["closed", ["1440", "1280", "390", "390-full"].map((suffix) => shot(suffix))],
   ];
   const css = await compileCss();
-  // `--f3` — Student 360 (Э4): три состояния дела в обоих обликах (облик — флагом `--look=next`),
-  // файлы `f3-<облик>-<состояние>-<ширина>.png`; «accept» — открытая панель «Принять дело».
+  // `--f3` — Student 360 (Э4): состояния дела, файлы `f3-<состояние>-<ширина>.png`;
+  // «accept» — открытая панель «Принять дело».
   if (process.argv.includes("--f3")) {
-    const lookName = look === "case" ? "current" : "next";
     const F3 = [
       ["awaiting", "curator-accept", [...["1440", "1440-full", "1280", "1280-full", "390", "390-full"].map((suffix) => shot(suffix)),
         ...["accept-1440", "accept-390"].map((suffix) => shot(suffix, { do: "accept" }))]],
@@ -674,26 +665,25 @@ async function screenshots() {
       ["preview", "preview-awaiting", ["1440", "1440-full", "390"].map((suffix) => shot(suffix))],
     ];
     const f3Pages = F3.map(([state, scenario, shots]) => {
-      const htmlPath = join(outDir, `f3-${lookName}-${state}.html`);
+      const htmlPath = join(outDir, `f3-${state}.html`);
       writeHtml(htmlPath, "Дело студента", css, renderPage(scenario));
-      return { name: `f3-${lookName}-${state}`, prefix: null, htmlPath, shots };
+      return { name: `f3-${state}`, prefix: null, htmlPath, shots };
     });
-    return capture(f3Pages, outDir, look, null, null);
+    return capture(f3Pages, outDir, filePrefix, null, null);
   }
   const pages = CASE_PAGES.map(([name, shots]) => {
-    const htmlPath = join(outDir, `${look}-${name}.html`);
+    const htmlPath = join(outDir, `${filePrefix}-${name}.html`);
     writeHtml(htmlPath, "Дело студента", css, renderPage(name));
     return { name, htmlPath, shots };
   });
   // Вид лида этой ветки и, если дано, дерева сравнения — те же данные, тот же снимок.
   const leadShots = ["1440", "1440-full"].map((suffix) => shot(suffix));
   const leadMarkup = renderLeadPage(ROOT);
-  pages.push({ name: "lead", htmlPath: join(outDir, `${look}-lead.html`), shots: leadShots });
+  pages.push({ name: "lead", htmlPath: join(outDir, `${filePrefix}-lead.html`), shots: leadShots });
   writeHtml(pages.at(-1).htmlPath, "Профиль", css, leadMarkup);
-  // Закрытие (246): окно «Завершить дело», дело с исходом, закрытый Lead 360 — файлы `close-*.png`
-  // (новый облик — `close-next-*.png`).
+  // Закрытие (246): окно «Завершить дело», дело с исходом, закрытый Lead 360 — файлы `close-*.png`.
   {
-    const close = look === "case" ? "close" : "close-next";
+    const close = "close";
     const dialogPage = { name: `${close}-case-360`, prefix: null, htmlPath: join(outDir, `${close}-case-360.html`),
       shots: [shot("1440"), shot("dialog-1440", { do: "close-dialog" }), shot("dialog-390", { do: "close-dialog" })] };
     writeHtml(dialogPage.htmlPath, "Дело студента", css, renderPage("curator", { closeDialog: true }));
@@ -710,20 +700,20 @@ async function screenshots() {
   let compareMarkup = null;
   if (COMPARE_ROOT) {
     compareMarkup = renderLeadPage(COMPARE_ROOT);
-    pages.push({ name: "lead-main", htmlPath: join(outDir, `${look}-lead-main.html`), shots: leadShots });
+    pages.push({ name: "lead-main", htmlPath: join(outDir, `${filePrefix}-lead-main.html`), shots: leadShots });
     writeHtml(pages.at(-1).htmlPath, "Профиль", await compileCss(COMPARE_ROOT), compareMarkup);
   }
-  return capture(pages, outDir, look, compareMarkup, leadMarkup);
+  return capture(pages, outDir, filePrefix, compareMarkup, leadMarkup);
 }
 
-async function capture(pages, outDir, look, compareMarkup, leadMarkup) {
+async function capture(pages, outDir, filePrefix, compareMarkup, leadMarkup) {
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   const captured = new Map();
   try {
     // `--only=имя,имя` — снять только эти страницы (например, `--only=close-case-360,close-lead-360`).
     const only = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length).split(",") ?? null;
-    for (const { name, htmlPath, shots, prefix = look } of pages.filter((one) => only === null || only.includes(one.name))) {
+    for (const { name, htmlPath, shots, prefix = filePrefix } of pages.filter((one) => only === null || only.includes(one.name))) {
       for (const { suffix, context, full, do: action, at, focus } of shots) {
         const file = prefix === null ? `${name}-${suffix}.png` : `${prefix}-${name}-${suffix}.png`;
         const browserContext = await browser.newContext(context);
@@ -826,7 +816,7 @@ async function capture(pages, outDir, look, compareMarkup, leadMarkup) {
               && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").length,
             solidRedNames: [...document.querySelectorAll("a, button")].filter((element) => element.checkVisibility()
               && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim().slice(0, 24)).join("|"),
-            // Любая видимая сплошная красная заливка, не только кнопки: в новом облике — слово срока «сегодня» (DueWord).
+            // Любая видимая сплошная красная заливка, не только кнопки: слово срока «сегодня» (DueWord) тоже.
             solidRedFills: [...document.querySelectorAll("body *")].filter((element) => element.checkVisibility()
               && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => `${element.tagName.toLowerCase()}:${element.textContent.trim().slice(0, 16)}`).join("|"),
             smallText: [...document.querySelectorAll("main *")].filter((element) => element.checkVisibility()
@@ -1142,6 +1132,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: case-static-render.cjs --json | --screenshots [outDir] [--look=next] [--only=page,…] [--f3] | --drawer [outDir]");
+  console.error("usage: case-static-render.cjs --json | --screenshots [outDir] [--only=page,…] [--f3] | --drawer [outDir]");
   process.exit(2);
 }

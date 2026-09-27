@@ -19,15 +19,14 @@
  * Живой Supabase, права и данные этот рендер не проверяет (права чтения сроков —
  * набор supabase/tests/platform_today_university_deadlines.sql).
  *
- *   node tests/e2e/e3d-static-render.cjs --json [--look=next]
+ *   node tests/e2e/e3d-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — разметка сценариев без оболочки
  *       (для tests/v3-e3-docs-deadlines.test.mjs).
- *   node tests/e2e/e3d-static-render.cjs --screenshots [outDir] [--look=next]
+ *   node tests/e2e/e3d-static-render.cjs --screenshots [outDir]
  *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
- *       1440×900, 1280×800 и 390×844 во весь рост: `e3d-<сценарий>-<ширина>.png`
- *       (с `--look=next` — суффикс `-next`). По умолчанию outDir —
- *       .impeccable/review (не коммитится).
+ *       1440×900, 1280×800 и 390×844 во весь рост: `e3d-<сценарий>-<ширина>.png`.
+ *       По умолчанию outDir — .impeccable/review (не коммитится).
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -89,7 +88,6 @@ const { TodayBoardLinks, TodayScreen } = require(join(ROOT, "src/components/v3/t
 const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
 const { staffRoleKeys } = require("./staff-role-templates.cjs");
 
-const LOOK = process.argv.includes("--look=next") ? "next" : undefined;
 
 // --- синтетические данные ---------------------------------------------------
 // «Сейчас» — воскресенье 27.09.2026, 10:00 по Бишкеку (04:00 UTC).
@@ -190,7 +188,7 @@ function docsScenario(search, { packages = { kind: "ready", queue: { protocolVer
       curatorNames: Object.entries(NAMES).map(([membershipId, displayName]) => ({ membershipId, displayName })),
       editor: { admin: true, preview: false, routeManage: true, broadScope: true }, recordScopes: [], createTask: true,
       requestIds: { nextStep: "99999999-6666-4666-8666-000000000001", coverage: "99999999-6666-4666-8666-000000000002" },
-      look: LOOK, packages,
+      packages,
     },
   };
 }
@@ -346,8 +344,8 @@ async function renderFullPage(name) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const { node, pathname, search } = await build(name);
   const who = DOCS_SCENARIOS[name] ? ADMIN : TODAY_ACTORS.admissions;
-  const page = createElement("div", { className: "v3-world", "data-look": LOOK },
-    createElement(AppShell, { actor: who, initialNotifications: null, ...(LOOK ? { look: LOOK } : {}) }, node));
+  const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
+    createElement(AppShell, { actor: who, initialNotifications: null }, node));
   return renderToStaticMarkup(withContexts(page, pathname, search));
 }
 
@@ -382,7 +380,6 @@ async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const suffix = LOOK ? "-next" : "";
   const CONTEXTS = {
     1440: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
     1280: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 },
@@ -394,7 +391,7 @@ async function screenshots() {
   try {
     for (const [name, widths] of Object.entries(SHOTS)) {
       const html = await renderFullPage(name);
-      const htmlPath = join(outDir, `e3d-${name}${suffix}.html`);
+      const htmlPath = join(outDir, `e3d-${name}.html`);
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
         '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -402,7 +399,7 @@ async function screenshots() {
         `<body class="min-h-full">${html}</body></html>`,
       ].join(""));
       for (const width of widths) {
-        const file = `e3d-${name}-${width}${suffix}.png`;
+        const file = `e3d-${name}-${width}.png`;
         const browserContext = await browser.newContext(CONTEXTS[width]);
         const tab = await browserContext.newPage();
         const errors = [];
@@ -468,6 +465,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: e3d-static-render.cjs --json | --screenshots [outDir] [--look=next]");
+  console.error("usage: e3d-static-render.cjs --json | --screenshots [outDir]");
   process.exit(2);
 }

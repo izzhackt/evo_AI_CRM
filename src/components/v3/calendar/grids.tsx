@@ -169,10 +169,12 @@ function DayNumberLink({
     >
       <span
         aria-hidden="true"
-        // Новый облик (Э6): «сегодня» — маленькая красная заливка (v3.css).
+        // «Сегодня» (Э6) — маленькая красная заливка с белой цифрой, как у слова
+        // срока (правило плана: сплошной красный — главное действие и «сегодня»);
+        // белый на #d70217 — 5.3:1.
         data-calendar-today={isToday ? "" : undefined}
         className={`grid h-6 min-w-6 place-items-center rounded-nav px-1 text-xs font-semibold tabular-nums ${
-          isToday ? "bg-fg text-surface" : muted ? "text-fg-3" : "text-fg"
+          isToday ? "bg-accent text-on-accent" : muted ? "text-fg-3" : "text-fg"
         }`}
       >
         {dayNumber(day)}

@@ -203,10 +203,10 @@ test("the composer freezes the exact submitted field values (not just the reques
   assert.doesNotMatch(component, /Это нужно для|Мы делаем это|Обратите внимание/u);
   // States distinguishable by text, not color alone. Э5 (27.09.2026): the
   // header shows the state as a visible three-way control with words, and a
-  // row chip always carries its word (Pill in the current look, StatusChip in
-  // the new one); «Нужен ответ» is a warning, not danger red.
+  // row chip (StatusChip, Э1.3) always carries its word; «Нужен ответ» is a
+  // warning, not danger red.
   assert.match(component, /\{caseChatAwaitChoice\(value\)\}/u);
-  assert.match(component, /return <Pill tone=\{tone\}>\{label\}<\/Pill>;/u);
+  assert.match(component, /return <StatusChip label=\{label\} tone=\{tone === "solid" \? "neutral" : tone\} \/>;/u);
   assert.match(component, /return state === "needs_reply" \? "warn" : "neutral";/u);
 });
 
@@ -247,11 +247,13 @@ test("the board decoder tolerates the new needs_reply key (field-picking, no exh
 
 test("the pipeline board renders needs_reply as a danger word with a link to the messages screen", () => {
   // Boards 25.09 (finish review): the card states its condition as a word in
-  // the shared card grammar, not a tinted Pill; the wording source is the same.
+  // the shared card grammar — a StatusChip with its word (Э1.3), linked to the
+  // case chat; the wording source is the same.
   const board = source("src/components/v3/AdmissionsPipelineBoard.tsx");
   assert.match(board, /row\.needsReply \?/u);
   assert.match(board, /href=\{`\/v3\/messages\?case=\$\{row\.studentCaseId\}`\}/u);
-  assert.match(board, /className="t-caption text-danger underline-offset-4 hover:underline"\s*>\s*\{caseChatAwaitState\("needs_reply"\)\?\.toLocaleLowerCase\("ru-RU"\)\}/u);
+  assert.match(board, /const replyWord = caseChatAwaitState\("needs_reply"\)\?\.toLocaleLowerCase\("ru-RU"\) \?\? "";/u);
+  assert.match(board, /className="v3-chip-link inline-flex">\s*<StatusChip label=\{replyWord\} tone="danger" size="sm" \/>/u);
 });
 
 test("the staff notification contract decodes case_message with an ids-only href to the messages screen", () => {

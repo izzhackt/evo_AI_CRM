@@ -3,8 +3,7 @@ import type { IconName } from "@/components/icons";
 import type { V3Navigation, V3NavigationGroup, V3NavigationLink, V3NavigationLinkId } from "./navigation.ts";
 
 /*
- * Оболочка нового облика (Э1.2 плана редизайна 25.09.2026) — временное
- * сосуществование до решения владельца (Э1.5, izzhackt/evo_AI_CRM#1061).
+ * Оболочка staff CRM (Э1.2 плана редизайна 25.09.2026; для всех с Э1.5).
  * Здесь — чистые правила без DOM: иконки пунктов и места нижней панели
  * телефона. Состав меню, адреса и права решает `buildV3Navigation`: панель
  * только выбирает из того, что роль уже видит.
@@ -17,8 +16,8 @@ import type { V3Navigation, V3NavigationGroup, V3NavigationLink, V3NavigationLin
  * квадратный пузырь, WhatsApp — круглый (его собственная форма), «Командный
  * чат» — два пузыря (решение владельца 27.09.2026 развело «Переписки» Э5).
  */
-export const NEXT_LINK_ICONS = {
-  // «Сегодня» (Э3): тот же знак, что в прежнем облике.
+export const LINK_ICONS = {
+  // «Сегодня» (Э3).
   home: "sun",
   requests: "file-check",
   pipeline: "funnel",
@@ -38,7 +37,7 @@ export const NEXT_LINK_ICONS = {
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
 
-export const NEXT_GROUP_ICONS = {
+export const GROUP_ICONS = {
   sales: "wallet",
   admissions: "circle-check",
 } as const satisfies Record<V3NavigationGroup["id"], IconName>;

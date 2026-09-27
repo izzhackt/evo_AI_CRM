@@ -4,7 +4,6 @@ import { admissionsPipelineStage } from "@/lib/v3/wording";
 
 import type { CaseClosure } from "@/lib/platform-closure-contract";
 
-import { isNextLook, type V3Look } from "../blocks/look";
 import { StageTrack } from "../blocks/StageTrack";
 import { Pill } from "../Pill";
 import { ClosedLine } from "../closure/Closure";
@@ -38,14 +37,12 @@ export type CaseHeaderInput = Readonly<{
   assignCuratorRequestId: string;
   /** Закрытие дела (246): исход, дата и «Вернуть в работу»; null — не прочитано. */
   closure?: CaseClosure | null;
-  /** Новый облик (Э1.3–Э1.4): дорожка этапа, срок шага словом. */
-  look?: V3Look;
 }>;
 
 /**
  * Шапка Student 360 (Э4, 27.09.2026) под именем (h1 страницы), на каждой
- * вкладке, как у Lead 360: «Этап» — дорожка этапа в новом облике, слово этапа
- * «Воронки поступления» — в обоих; «Что дальше» — шаг и срок с «Изменить»
+ * вкладке, как у Lead 360: «Этап» — дорожка этапа со словом этапа «Воронки
+ * поступления»; «Что дальше» — шаг и срок с «Изменить»
  * (редактор «Быстрого просмотра» #1059); «Состояние» — закрытое дело,
  * «Ожидает начала», «ждёт принятия». Этап и срок берутся из строки очереди
  * 241 — без неё этапа нет, а не «Новые» по умолчанию. Направление, куратор и
@@ -54,7 +51,6 @@ export type CaseHeaderInput = Readonly<{
  */
 export function CaseHeader(input: CaseHeaderInput) {
   const { work } = input;
-  const next = isNextLook(input.look);
   const row = work.row;
   const stage = row ? admissionsPipelineStage(row.pipelineStage) : null;
   const awaiting = row?.attentionFlags.includes("awaiting_ack") ?? false;
@@ -68,10 +64,10 @@ export function CaseHeader(input: CaseHeaderInput) {
     // `#case-header` — цель событий шага и состояния в ленте.
     <section id={CASE_HEADER_ID} className="flex scroll-mt-4 flex-col gap-3" data-testid="v3-case-header" aria-label="Этап и следующий шаг">
       <dl className="grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap">
-        {stage ? <Fact term="Этап">{next && row ? <StageTrack kind="admissions" current={row.pipelineStage} closed={input.state === "closed"} /> : stage}</Fact> : null}
+        {stage && row ? <Fact term="Этап"><StageTrack kind="admissions" current={row.pipelineStage} closed={input.state === "closed"} /></Fact> : null}
         <Fact term="Что дальше" wide>
           <CaseNextStep row={row} fallbackStep={input.fallbackStep} access={input.stepAccess}
-            today={work.today} nowIso={work.nowIso} requestId={input.stepRequestId} look={input.look} />
+            today={work.today} nowIso={work.nowIso} requestId={input.stepRequestId} />
         </Fact>
         {closed ? (
           <Fact term="Состояние" wide>

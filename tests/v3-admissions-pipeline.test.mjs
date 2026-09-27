@@ -268,12 +268,11 @@ function boardHarness(moveAction) {
   const topLayerMenu = compile("src/components/v3/board/TopLayerMenu.tsx", (id) => ({
     react: hooks, "@/components/v3/board/menu-position": menuPosition,
   })[id]);
-  // The new-look blocks (Э1.3) are production sources as well: compiled, not stubbed.
+  // The shared blocks (Э1.3) are production sources as well: compiled, not stubbed.
   const personName = compile("src/components/v3/queue/person-name.ts", () => undefined);
   const initials = compile("src/components/v3/blocks/Initials.tsx", (id) => ({
     "../queue/person-name": personName,
   })[id]);
-  const look = compile("src/components/v3/blocks/look.ts", () => undefined);
   const statusChip = compile("src/components/v3/blocks/StatusChip.tsx", () => undefined);
   // «Отменить» (Э7, 251): строка верхнего слоя, срок после паузы и правила отмены — настоящие.
   const undoToast = compile("src/components/v3/blocks/UndoToast.tsx", (id) => ({ react: hooks })[id]);
@@ -282,7 +281,6 @@ function boardHarness(moveAction) {
   const board = compile("src/components/v3/AdmissionsPipelineBoard.tsx", (id) => ({
     react: hooks,
     "@/components/v3/blocks/Initials": initials,
-    "@/components/v3/blocks/look": look,
     "@/components/v3/blocks/StatusChip": statusChip,
     "@/components/v3/blocks/UndoToast": undoToast,
     "@/components/v3/tasks/undo-deadline": undoDeadline,
@@ -502,12 +500,12 @@ test("a confirmed menu move offers «Отменить»; it sends the reverse mo
   assert.equal(buttonsNamed(tree, "Отменить").length, 0, "no undo before the server confirmed the move");
   await flush();
   tree = render(boardProps);
-  // Прежний облик: строка уведомлений доски над колонками, вежливая живая область.
+  // Слова перемещения — вежливой живой областью доски; «Отменить» — строкой в верхнем слое (UndoToast, Э1.3).
   assert.equal(statusText(tree), "Дело «Студент Синтетический» перемещено в «stage:ready_to_submit».");
   const [undoButton] = buttonsNamed(tree, "Отменить");
-  assert.equal(undoButton.props["data-board-undo"], "");
-  // The quiet neutral button of «Вернуть в воронку» (btnGhostCls: h-11, not the page's red).
-  assert.equal(undoButton.props.className, "ghost-button");
+  assert.equal(undoButton.props["data-queue-undo"], "", "the top-layer undo row");
+  // A quiet neutral action of the dark undo row, not the page's red.
+  assert.equal(undoButton.props.className, "v3-toast-action t-label");
   assert.equal(stageCount(tree, "ready_to_submit"), 1);
   press(tree, "Отменить");
   assert.deepEqual(server.calls[1], { studentCaseId: CASE_ID, requestId: server.calls[1].requestId, stage: "documents", expectedVersion: 8 },
@@ -614,10 +612,10 @@ test("a receipt without a version (the v1 command replayed) offers no «Отме
   assert.equal(buttonsNamed(tree, "Отменить").length, 0);
 });
 
-test("the new look shows «Дело «…» перемещено в «…» · Отменить» as the top-layer UndoToast, the words for the reader stay in the board", async () => {
+test("the board shows «Дело «…» перемещено в «…» · Отменить» as the top-layer UndoToast, the words for the reader stay in the board", async () => {
   const server = fakeServer();
   const render = boardHarness(server.action);
-  const props = { ...boardProps, look: "next" };
+  const props = boardProps;
   let tree = render(props);
   assert.equal(toastNode(tree).props.popover, "manual", "the undo row lives in the top layer");
   assert.equal(allNodes(toastNode(tree), (node) => node.type === "li").length, 0, "empty until a move is confirmed");
@@ -635,13 +633,13 @@ test("the new look shows «Дело «…» перемещено в «…» · �
   press(toast, "Отменить");
   assert.equal(server.calls[1].expectedVersion, 8);
   tree = render(props);
-  assert.equal(stageCount(tree, "ready_to_submit"), 1, "the card waits for the server in the new look too");
+  assert.equal(stageCount(tree, "ready_to_submit"), 1, "the card waits for the server");
   assert.equal(buttonsNamed(toastNode(tree), "Отменить")[0].props.disabled, true);
   await flush();
   tree = render(props);
   assert.equal(allNodes(toastNode(tree), (node) => node.type === "li").length, 0);
   assert.equal(stageCount(tree, "documents"), 1);
-  // Итог отмены виден в обоих обликах, а не только читалке.
+  // Итог отмены виден строкой доски, а не только читалке.
   assert.deepEqual(shownStatus(tree), ["Перемещение отменено: дело «Студент Синтетический» снова в «stage:documents»."]);
 });
 
@@ -712,7 +710,7 @@ test("the board writes only through v2 (251); the action checks the version and 
   assert.match(actions, /Number\.isSafeInteger\(input\.expectedVersion\) \|\| input\.expectedVersion < 1/u);
   assert.match(actions, /if \(error\.status === "moved"\) \{\s*\/\/[^\n]*\n\s*revalidatePath\("\/v3\/admissions-pipeline"\);/u);
   assert.match(board, /moveCasePipelineAction\(\{ studentCaseId, requestId, stage: fromStage, expectedVersion: offer\.version \}\)/u);
-  assert.match(board, /\{next \? <UndoToast items=\{toasts\} onHold=\{hold\} \/> : null\}/u);
+  assert.match(board, /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u);
   assert.match(board, /expiresAt: resumedUndoDeadline\(current, since, now\)/u, "the deadline stands still while held (WCAG 2.2.1)");
   assert.match(board, /if \(!undo \|\| undo\.pending \|\| held\) return;/u);
   assert.match(board, /focus: via === "menu"/u, "a menu move puts focus on «Отменить», a drag does not");

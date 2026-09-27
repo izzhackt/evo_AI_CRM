@@ -22,12 +22,12 @@ import {
 import { admissionsPipelineStage, admissionsPipelineTab } from "../src/lib/v3/wording.ts";
 
 /**
- * Э1.3–Э1.4 плана редизайна (26.09.2026): общие блоки нового облика — чип,
- * срок словом, инициалы, полоса прогресса, дорожка этапа, «Отменить» — и один
- * набор этапов. Чистая логика проверяется напрямую; разметка блоков —
- * рендером `tests/e2e/blocks-static-render.cjs --json`, экраны — теми же
- * статическими рендерами «Задач», «Студентов», досок и дела в прежнем и новом
- * облике (`--look=next`). Это не живая проверка данных и прав.
+ * Э1.3–Э1.4 плана редизайна (26.09.2026): общие блоки staff CRM — чип, срок
+ * словом, инициалы, полоса прогресса, дорожка этапа, «Отменить» — и один набор
+ * этапов; с Э1.5 (27.09) — единственный вид этих мест. Чистая логика
+ * проверяется напрямую; разметка блоков — рендером
+ * `tests/e2e/blocks-static-render.cjs --json`, экраны — теми же статическими
+ * рендерами «Задач», «Студентов», досок и дела. Это не живая проверка данных и прав.
  */
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -178,7 +178,7 @@ test("progress only from real counts: «N из M», nothing estimated", () => {
   for (const name of ["progress-unread", "progress-empty-checklist", "progress-inconsistent", "progress-fraction"]) {
     assert.equal(blocks.get(name), "", name);
   }
-  // Без полосы остаётся строка прежнего облика — прочитанные числа не пропадают.
+  // Без полосы остаётся строка итога словами — прочитанные числа не пропадают.
   assert.equal(blocks.get("progress-inconsistent-fallback"), '<p class="t-body-compact text-fg">8 из 7 принято</p>');
   assert.equal(blocks.get("progress-empty-fallback"), '<p class="t-body-compact text-fg">Чек-лист не собран</p>');
   for (const path of ["src/components/v3/profile/CaseOverview.tsx", "src/components/v3/students/StudentQuickView.tsx"]) {
@@ -221,8 +221,8 @@ test("undo lives in the top layer and only where a real reverse command exists",
   assert.match(toast, /^<div popover="manual" role="group" aria-label="Можно отменить" class="v3-toasts"/u, "top layer (popover)");
   assert.match(toast, /<p class="min-w-0 flex-1 break-words t-body-compact">Задача «Синтетическая задача» завершена\.<\/p><button type="button" data-queue-undo="" data-undo-row="staff:synthetic-1" class="v3-toast-action t-label">Отменить<\/button>/u);
   assert.match(blocks.get("toast-error"), /<p role="alert" class="w-full t-body-compact">Не удалось отменить\. Обновите страницу\.<\/p>/u);
-  // «Задачи» (отмена завершения рабочей задачи — та же команда смены состояния
-  // с версией) и доска поступления (Э7, 251: обратное перемещение с версией).
+  // «Задачи» и «Сегодня» (отмена завершения рабочей задачи — та же команда смены
+  // состояния с версией) и доска поступления (Э7, 251: обратное перемещение с версией).
   const users = [];
   for (const root of ["src/app/(v3)", "src/components/v3"]) {
     for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
@@ -230,18 +230,23 @@ test("undo lives in the top layer and only where a real reverse command exists",
       if (/\.tsx?$/u.test(path) && /<UndoToast\b|import \{[^}]*\bUndoToast\b/u.test(read(path))) users.push(path);
     }
   }
-  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/tasks/TaskQueueList.tsx"]);
-  const list = read("src/components/v3/tasks/TaskQueueList.tsx");
+  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
   // Команда отмены — общая с «Сегодня» (useRecentCompletions, #1067).
   assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
-  assert.match(list, /const toasts = isNextLook\(look\) \?/u, "new look only");
+  // Строки «Отменить» «Задач» и «Сегодня» собирает один хук; в строке списка своей «Отменить» нет.
+  for (const path of ["src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/today/TodayQueueList.tsx"]) {
+    assert.match(read(path), /const toasts = useUndoToasts\(recent, undo\);/u, path);
+    assert.match(read(path), /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u, path);
+  }
+  assert.doesNotMatch(read("src/components/v3/tasks/TaskQueueRow.tsx"), /data-queue-undo|onUndo/u, "no inline undo in the row");
   // Доска поступления: у v1 (187/244) проверки версии нет, поэтому отмена идёт
   // через move_case_pipeline_v2 (251) с версией из квитанции своего перемещения.
   assert.match(read("supabase/migrations/244_platform_access_by_permissions.sql"), /Deliberately no optimistic version check/u);
   assert.match(read("supabase/migrations/251_platform_pipeline_move_undo.sql"), /RAISE EXCEPTION 'case_pipeline_moved' USING ERRCODE = 'PT409'/u);
   const board = read("src/components/v3/AdmissionsPipelineBoard.tsx");
   assert.match(board, /stage: fromStage, expectedVersion: offer\.version/u, "reverse move with the version after the move");
-  assert.match(board, /\{next \? <UndoToast items=\{toasts\} onHold=\{hold\} \/> : null\}/u, "new look only on the board too");
+  assert.match(board, /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u, "the board's undo is the same top-layer row");
+  assert.doesNotMatch(board, /data-board-undo/u, "no second undo line on the board");
   // Задача по студенту завершается с результатом, отмены у неё нет.
   assert.match(read("src/components/v3/profile/CaseTaskList.tsx"), /onCompleted=\{\(\) => \{\}\}/u);
 });
@@ -261,8 +266,8 @@ test("the undo deadline stands still while focus or the pointer is on the undo r
   for (const handler of ["onFocus", "onBlur", "onPointerEnter", "onPointerLeave"]) assert.match(toast, new RegExp(`${handler}=\\{`, "u"), handler);
   assert.match(toast, /event\.currentTarget\.contains\(event\.relatedTarget\)\) return;/u, "focus moving inside the row keeps the pause");
   assert.match(toast, /items\.length === 0\s*\? \{ focus: false, pointer: false \}/u, "hidden rows release the pause");
-  // «Сегодня» и прежний облик паузу не зовут.
-  assert.doesNotMatch(read("src/components/v3/today/TodayQueueList.tsx"), /\bhold\b/u);
+  // «Сегодня» держит паузу той же строкой.
+  assert.match(read("src/components/v3/today/TodayQueueList.tsx"), /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u);
 });
 
 test("the queue keys keep working while the undo row is open", () => {
@@ -297,7 +302,7 @@ test("the queue keys keep working while the undo row is open", () => {
   // j/k с «Отменить» продолжают от завершённой строки (data-undo-row), а не с начала списка.
   assert.match(hook, /active\.closest<HTMLElement>\("\[data-undo-row\]"\)\?\.dataset\.undoRow/u);
   assert.match(hook, /const current = focusedRowIndex\(links\);/u);
-  // Живая проверка в Chromium — `tests/e2e/tasks-static-render.cjs --screenshots <dir> --look=next`:
+  // Живая проверка в Chromium — `tests/e2e/tasks-static-render.cjs --screenshots <dir>`:
   // снимки `*-undo-keys-1440` падают, если j/k, ↓, «?», «/» или Esc панели молчат при открытой строке.
   const harness = read("tests/e2e/tasks-static-render.cjs");
   assert.match(harness, /\["tasks-undo-keys-1440\.png", DESKTOP, false, "undo-keys"\]/u);
@@ -306,12 +311,12 @@ test("the queue keys keep working while the undo row is open", () => {
 });
 
 test("an undo error belongs to one completion and does not come back with the next", () => {
-  const list = read("src/components/v3/tasks/TaskQueueList.tsx");
+  const list = read("src/components/v3/tasks/useRecentCompletions.ts");
   assert.match(list, /const state = undoState\[key\]\?\.completedAt === completedAt \? undoState\[key\] : undefined;/u);
   assert.equal(list.match(/\[key\]: \{ completedAt, pending: (?:true|false), error: (?:null|failure) \}/gu)?.length, 2);
 });
 
-// --- CSS: только новый облик, движение, контраст ------------------------------
+// --- CSS: только корень staff CRM, движение, контраст --------------------------
 
 function luminance(hex) {
   const [r, g, b] = hex.slice(1).match(/../gu).map((part) => {
@@ -329,23 +334,24 @@ const tokens = (selector) => {
   return Object.fromEntries([...css.slice(start, css.indexOf("}", start)).matchAll(/--([a-z0-9-]+):\s*(#[a-f0-9]{6});/gu)].map((match) => [match[1], match[2]]));
 };
 
-test("block styles exist only in the new look, set no font sizes and keep contrast", () => {
+test("block styles live only under the staff CRM root, set no font sizes and keep contrast", () => {
   const plain = css.replace(/\/\*[\s\S]*?\*\//gu, "");
   const rules = [...plain.matchAll(/(?:^|[;}])\s*([^;{}@]+)\{/gu)].map((match) => match[1].trim()).filter((selector) => BLOCK_CLASSES.test(selector));
   assert.ok(rules.length >= 20, "the blocks have their rules");
   for (const selector of rules) {
     for (const part of selector.split(/,(?![^(]*\))/u)) {
-      assert.match(part.trim(), /^\.v3-world\[data-look="next"\] /u, `${part.trim()}: new look only`);
+      assert.match(part.trim(), /^\.v3-world\[data-surface="staff"\] /u, `${part.trim()}: staff CRM only`);
     }
   }
-  const blockCss = css.slice(css.indexOf("Общие блоки нового облика"));
+  const blockCss = css.slice(css.indexOf("Общие блоки staff CRM"));
+  assert.ok(blockCss.length > 0 && css.includes("Общие блоки staff CRM"));
   assert.doesNotMatch(blockCss, /font-size|font-weight|line-height/u, "type comes from the t-* roles in markup");
   const base = tokens(".v3-world");
-  const next = { ...base, ...tokens('.v3-world[data-look="next"]') };
+  const next = { ...base, ...tokens('.v3-world[data-surface="staff"]') };
   const phases = [next["phase-sales"], next["phase-admission"], next["phase-visa"]];
   assert.equal(new Set(phases).size, 3, "three phase colours");
   for (const phase of phases) {
-    assert.ok(phase, "phase colour defined in the new look");
+    assert.ok(phase, "phase colour defined for the staff CRM");
     for (const surface of ["surface", "bg", "surface-2", "surface-3", "accent-weak"]) {
       assert.ok(contrast(phase, next[surface]) >= 3, `${phase} on ${surface}`);
     }
@@ -354,21 +360,21 @@ test("block styles exist only in the new look, set no font sizes and keep contra
   assert.ok(contrast(next["on-accent"], next.accent) >= 4.5, "«сегодня»: white on red");
   assert.ok(contrast(next["text-2"], next["surface-2"]) >= 4.5, "initials letters");
   assert.ok(contrast(next.surface, next.text) >= 4.5, "undo row");
-  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-due\[data-due="today"\] \{[^}]*background: var\(--accent\);[^}]*color: var\(--on-accent\);/u);
-  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-due\[data-due="overdue"\] \{\s*color: var\(--danger\);/u);
-  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-toast-action \{[^}]*min-height: 44px;/u, "44 px target");
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-due\[data-due="today"\] \{[^}]*background: var\(--accent\);[^}]*color: var\(--on-accent\);/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-due\[data-due="overdue"\] \{\s*color: var\(--danger\);/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-toast-action \{[^}]*min-height: 44px;/u, "44 px target");
   // Чип-ссылка: чип 18 px с полями −1 px — ссылка 16 px; зона нажатия 16 + 2 × 14 = 44 px.
-  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-chip\[data-size="sm"\] \{\s*min-height: 18px;\s*margin-block: -1px;/u);
-  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-chip-link::after \{\s*content: "";\s*position: absolute;\s*inset: -14px -4px;/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-chip\[data-size="sm"\] \{\s*min-height: 18px;\s*margin-block: -1px;/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-chip-link::after \{\s*content: "";\s*position: absolute;\s*inset: -14px -4px;/u);
   // Чип-ссылка подчёркнут: рядом такой же чип «просрочено», который не ссылка.
-  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-chip-link \.v3-chip \{\s*text-decoration-line: underline;/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-chip-link \.v3-chip \{\s*text-decoration-line: underline;/u);
   // Третья строка карточки продаж — одна линия; не поместилось — уходит целиком.
-  assert.match(css, /\.v3-world\[data-look="next"\] \.v3-card-meta \{\s*height: 1lh;\s*overflow: hidden;/u);
-  assert.match(css, /\.v3-world\[data-look="next"\] :is\(\.v3-card-due, \.v3-card-age\) \{\s*white-space: nowrap;/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-card-meta \{\s*height: 1lh;\s*overflow: hidden;/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] :is\(\.v3-card-due, \.v3-card-age\) \{\s*white-space: nowrap;/u);
 });
 
 test("motion is short and only when the system allows it", () => {
-  const blockCss = css.slice(css.indexOf("Общие блоки нового облика"));
+  const blockCss = css.slice(css.indexOf("Общие блоки staff CRM"));
   const motion = blockCss.match(/@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/u);
   assert.ok(motion, "block motion sits behind prefers-reduced-motion: no-preference");
   const outside = blockCss.replace(motion[0], "");
@@ -377,7 +383,7 @@ test("motion is short and only when the system allows it", () => {
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.v3-world \*, \.v3-world \*::before, \.v3-world \*::after \{\s*animation: none !important;\s*transition: none !important;/u);
 });
 
-// --- экраны: прежний облик без блоков, новый — с блоками ---------------------
+// --- экраны: блоки на каждой первой поверхности --------------------------------
 
 const SCREENS = [
   ["tasks-static-render.cjs", ["team-view", "team-panel"]],
@@ -385,13 +391,9 @@ const SCREENS = [
   ["boards-static-render.cjs", ["sales", "sales-panel", "admissions"]],
   ["case-static-render.cjs", ["curator", "admin", "unread", "closed"]],
 ];
-const current = new Map(SCREENS.map(([script]) => [script, render(script)]));
-const next = new Map(SCREENS.map(([script]) => [script, render(script, "--look=next")]));
+const next = new Map(SCREENS.map(([script]) => [script, render(script)]));
 
-test("the current look renders none of the blocks; the new look renders them on every first surface", () => {
-  for (const [script] of SCREENS) {
-    for (const [name, html] of current.get(script)) assert.doesNotMatch(html, BLOCK_CLASSES, `${script} ${name}: current look unchanged`);
-  }
+test("the blocks render on every first surface", () => {
   const tasks = next.get("tasks-static-render.cjs").get("team-view");
   assert.match(tasks, /<span class="v3-due t-caption" data-due="overdue">прошёл \d+ дн<\/span>/u);
   assert.match(tasks, /<span class="v3-due t-caption" data-due="today">сегодня<\/span>/u);
@@ -416,8 +418,8 @@ test("the current look renders none of the blocks; the new look renders them on 
   assert.ok(lines.some((html) => /^<span class="v3-card-age">на этапе \d+ дн<\/span>$/u.test(html)), "no deadline: only the stage age");
   for (const html of lines) assert.doesNotMatch(html, /дн\./u, "one abbreviation: «дн»");
   assert.match(boards.get("sales-panel"), /<dt class="t-caption pt-0\.5 text-fg-3">На этапе<\/dt><dd class="tabular-nums">\d+ дн<\/dd>/u);
-  // Прежний облик — прежние слова.
-  assert.match(current.get("boards-static-render.cjs").get("sales"), /\d+ дн\.<span class="sr-only"> на стадии<\/span>/u);
+  // Одни слова: прежних «4 дн.» и «на стадии» больше нет.
+  assert.doesNotMatch(boards.get("sales"), /дн\.<span class="sr-only"> на стадии<\/span>/u);
   const kase = next.get("case-static-render.cjs");
   assert.match(kase.get("curator"), /<div class="v3-track" data-track="admissions">/u, "case header: stage track");
   assert.match(kase.get("curator"), /<span class="v3-due t-caption" data-due="[a-z]+">/u, "case header: step due word");
@@ -430,7 +432,7 @@ test("the current look renders none of the blocks; the new look renders them on 
   assert.match(kase.get("unread"), /<dt class="t-caption text-fg-2">Документы<\/dt><dd[^>]*><span class="text-fg-2">нет доступа<\/span>/u);
 });
 
-test("every chip, due word and stage in the new look has its word", () => {
+test("every chip, due word and stage has its word", () => {
   for (const [script] of SCREENS) {
     for (const [name, html] of next.get(script)) {
       for (const [element] of html.matchAll(/<span class="v3-(?:chip|due)[^"]*"[^>]*>[^<]*<\/span>/gu)) {

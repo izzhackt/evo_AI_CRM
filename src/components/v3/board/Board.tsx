@@ -50,17 +50,7 @@ export const BOARD_PANEL_FOLD = {
   column: "hidden @6xl:xl:@max-[98.25rem]:flex",
 } as const;
 
-/** «Айгүл Осмонова» → «АО»; полное имя остаётся в подсказке `title`. */
-export function ownerInitials(name: string): string {
-  return name
-    .split(/\s+/u)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => (Array.from(part)[0] ?? "").toLocaleUpperCase("ru-RU"))
-    .join("");
-}
-
-/** Оболочка карточки: одна рамка, наведение — край контрола; в новом облике — волосяная тень (`.v3-raised`). */
+/** Оболочка карточки: одна рамка, наведение — край контрола, волосяная тень (`.v3-raised`). */
 export const BOARD_CARD_CLASS =
   "v3-raised group relative min-w-0 rounded-ctl border border-border bg-surface px-3 py-2 hover:border-control-edge focus-within:border-control-edge";
 

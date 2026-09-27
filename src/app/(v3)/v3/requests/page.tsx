@@ -7,7 +7,6 @@ import { RequestsQueueView, type RequestsQueueRead } from "@/components/v3/reque
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { parseRequestOpen, parseRequestSelection, type RequestSelection } from "@/lib/requests-queue-contract";
-import { readLookPreview } from "@/lib/v3/look-preview";
 import { readPipelineOwnerOptions } from "@/lib/v3/pipeline-source";
 import { loadScopedRequestsQueue, RequestsQueueSourceError } from "@/lib/v3/requests-queue-source";
 
@@ -34,8 +33,6 @@ export default async function RequestsPage({ searchParams }: {
     </PartShell>;
   }
   const open = parseRequestOpen(params.open);
-  // Новый облик (предпросмотр Admin, Э1.3): тот же признак, что `data-look` оболочки.
-  const look = (await readLookPreview(actor)) ? "next" as const : undefined;
   const readOnly = isStaffPreview(actor);
   // Та же граница, что у «Добавить лида» на доске: форма и список ответственных.
   const canCreateLead = !readOnly && staffHasPermission(actor, "lead.sales.workflow.manage");
@@ -66,7 +63,6 @@ export default async function RequestsPage({ searchParams }: {
           nowIso={new Date().toISOString()}
           takeRequestIds={takeRequestIds}
           decisionRequestId={randomUUID()}
-          look={look}
         />
       </PartShell>
     </ManualLeadDisclosure>

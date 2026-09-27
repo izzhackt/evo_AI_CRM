@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * Статический рендер общих блоков нового облика (Э1.3–Э1.4 плана редизайна,
+ * Статический рендер общих блоков staff CRM (Э1.3–Э1.4 плана редизайна,
  * `src/components/v3/blocks/`): каждый блок в своих состояниях — со словом,
  * без слова, без чтения, с неизвестным этапом. Данные синтетические.
  *
@@ -92,7 +92,7 @@ const CASES = {
   "progress-empty-checklist": createElement(ProgressBar, { done: 0, total: 0, word: "принято" }),
   "progress-inconsistent": createElement(ProgressBar, { done: 8, total: 7, word: "принято" }),
   "progress-fraction": createElement(ProgressBar, { done: 2.5, total: 7, word: "принято" }),
-  // Числа прочитаны, но не сходятся: полосы нет, остаётся строка прежнего облика.
+  // Числа прочитаны, но не сходятся: полосы нет, остаётся строка итога словами.
   "progress-inconsistent-fallback": createElement(ProgressBar, {
     done: 8, total: 7, word: "принято", fallback: createElement("p", { className: "t-body-compact text-fg" }, "8 из 7 принято"),
   }),

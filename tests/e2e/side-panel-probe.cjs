@@ -8,7 +8,7 @@
  * (tests/e2e/*-static-render.cjs); снимки — `.impeccable/review/f1-*.png`
  * (не коммитятся), замеры — JSON-строки в stdout.
  *
- * Что меряется на открытой панели: облик страницы (`data-look`), ширина и
+ * Что меряется на открытой панели: корень staff CRM (`data-surface`), ширина и
  * положение (`--side-panel-width`), режим (рядом со списком — `show()`, уже
  * 1280 px — модальный `showModal()`), фокус на заголовке записи после
  * открытия, роль заголовка `t-record-title`, закрытие (от 768 px — крестик в
@@ -58,7 +58,7 @@ function measure(selectedSelector) {
   }).length;
   return {
     viewport: window.innerWidth,
-    look: document.querySelector(".v3-world")?.getAttribute("data-look") ?? "current",
+    surface: document.querySelector(".v3-world")?.getAttribute("data-surface") ?? null,
     modal: dialog.matches(":modal"),
     position: style.position,
     panel: panelBox,
@@ -208,19 +208,19 @@ function fieldFacts(marker) {
  * заголовке → поле: Esc, Esc → строка → открыть → «Закрыть» (или «← К …» на
  * телефоне) → фокус на строке; на планшете — ещё щелчок по листу (открыт) и
  * по затемнению (закрыт, фокус на строке). `returnSelector` — строка (ссылка
- * «Открыть»), куда панель возвращает фокус; `look` — ожидаемый облик
- * («current» или «next»); `scrolledPath` — снимок с прокрученным телом;
+ * «Открыть»), куда панель возвращает фокус; `scrolledPath` — снимок с
+ * прокрученным телом;
  * `overlay` — окно поверх панели: `open()` открывает его из панели,
  * `dialog` — его селектор (поле → окно → Esc: закрыто только окно).
  */
-async function journey(page, { selected, returnSelector, reopen, look, scrolledPath, overlay = null }) {
+async function journey(page, { selected, returnSelector, reopen, scrolledPath, overlay = null }) {
   const failures = [];
   const expect = (label, ok, facts) => { if (!ok) failures.push(`${label}: ${JSON.stringify(facts)}`); };
   const settleOpen = async () => { await waitOpen(page); await page.waitForTimeout(250); };
   const settleClosed = async () => { await waitClosed(page); await page.waitForTimeout(100); };
   await settleOpen();
   const opened = await page.evaluate(measure, selected);
-  expect("the page renders the expected look", opened.look === look, { look: opened.look, expected: look });
+  expect("the page renders inside the staff CRM root", opened.surface === "staff", { surface: opened.surface });
   expect("the panel takes focus on its record heading when opened by the address", opened.headingFocused, opened);
   expect("the heading is the record title role", opened.headingRole === "t-record-title", opened);
   const wide = opened.viewport >= 1280;

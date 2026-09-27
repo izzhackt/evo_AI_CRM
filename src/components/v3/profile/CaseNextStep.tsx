@@ -6,7 +6,6 @@ import { useEffect, useId, useState } from "react";
 import type { CaseNextActionReceipt, StudentCaseQueueRow } from "@/lib/platform-student-case-queue-contract";
 
 import { DueWord } from "../blocks/DueWord";
-import { isNextLook, type V3Look } from "../blocks/look";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
 import { useAnchoredPopover } from "../queue/useAnchoredPopover";
 import { NextStepEditor } from "../students/NextStepEditor";
@@ -32,7 +31,6 @@ export function CaseNextStep({
   today,
   nowIso,
   requestId,
-  look,
 }: Readonly<{
   row: StudentCaseQueueRow | null;
   fallbackStep: string | null;
@@ -40,11 +38,8 @@ export function CaseNextStep({
   today: string;
   nowIso: string;
   requestId: string;
-  /** Новый облик (Э1.3): срок словом (`DueWord`). */
-  look?: V3Look;
 }>) {
   const router = useRouter();
-  const next = isNextLook(look);
   const titleId = useId();
   const popover = useAnchoredPopover("start");
   const [row, setRow] = useState(initialRow);
@@ -58,7 +53,8 @@ export function CaseNextStep({
   const due = row?.nextAction && row.nextActionDueOn
     ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, new Date(nowIso), row.state === "active")
     : null;
-  const dueWord = next && due && row ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, new Date(nowIso), row.state === "active") : null;
+  // Срок словом (`DueWord`, Э1.3).
+  const dueWord = due && row ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, new Date(nowIso), row.state === "active") : null;
   const editable = row !== null && access.kind === "edit";
 
   // Окно открылось — фокус в поле шага; закрылось — браузер вернёт его на «Изменить».
@@ -88,7 +84,7 @@ export function CaseNextStep({
       <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 t-body-compact text-fg" data-testid="v3-case-next-step">
         {step ? <span className="min-w-0 break-words">{step}</span> : <span className="text-fg-2">Шаг не задан</span>}
         {due ? (
-          <span className={due.overdue && !next ? "text-danger" : "text-fg-2"}>
+          <span className="text-fg-2">
             <time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>
             {dueWord ? <> <DueWord view={dueWord} /></> : due.word ? ` ${due.word}` : null}
           </span>

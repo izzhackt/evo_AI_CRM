@@ -222,7 +222,8 @@ test("focus leaving with a completed row moves to the next remaining row, else t
   assert.match(list, /const expiresAt = Date\.now\(\) \+ TASK_UNDO_MS;/u);
   assert.match(list, /Math\.max\(0, Math\.min\(\.\.\.live\.map\(\(entry\) => entry\.expiresAt\)\) - Date\.now\(\)\)/u);
   assert.match(list, /keepFocusInList\(new Set\(Object\.keys\(recent\)\)/u);
-  assert.match(read("src/components/v3/tasks/TaskQueueRow.tsx"), /<button id=\{undoId\} type="button" data-queue-undo=""/u);
+  // «Отменить» — строка в верхнем слое (UndoToast, Э1.3; единственный вид с Э1.5): она называет свою строку.
+  assert.match(read("src/components/v3/blocks/UndoToast.tsx"), /data-queue-undo=""\s*data-undo-row=\{item\.key\}/u);
 });
 
 test("menus close on a choice, popovers carry a role, and a fast double press sends one command", () => {
@@ -234,7 +235,9 @@ test("menus close on a choice, popovers carry a role, and a fast double press se
   assert.match(row, /popover="auto" style=\{menu\.popoverStyle\} role="group"/u);
   assert.match(row, /<Link href=\{moveHref\} scroll=\{false\} onClick=\{\(\) => document\.getElementById\(menu\.popoverId\)\?\.hidePopover\(\)\}/u);
   // `pending` changes only after a render; the lock is synchronous.
-  assert.equal(row.match(/if \(busy\.current\) return;\s+busy\.current = true;/gu)?.length, 3, "complete, postpone and undo");
+  assert.equal(row.match(/if \(busy\.current\) return;\s+busy\.current = true;/gu)?.length, 2, "complete and postpone");
+  // Undo (UndoToast): a second press while the reverse command runs sends nothing.
+  assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /onUndo: \(\) => \{\s*if \(state\?\.pending\) return;/u);
   assert.match(read("src/components/v3/queue/QueueFieldPopover.tsx"), /if \(busy\.current\) return;[\s\S]*busy\.current = true;[\s\S]*await onSubmit\(value\)/u);
 });
 
@@ -357,13 +360,14 @@ test("the body groups rows under due bands and completes in the row", () => {
   const caseRow = html.slice(html.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
   assert.match(caseRow, /popoverTarget="(queue-popover-[^"]+)"[^>]*aria-haspopup="dialog" aria-label="Завершить с результатом: Подтвердить подачу в UCSI"/u);
   assert.match(caseRow, /<label for="[^"]+" id="[^"]+" class="block t-label text-fg-2">Результат<\/label>/u);
-  assert.match(caseRow, /<time dateTime="2026-09-20" class="block font-mono tabular-nums text-danger">20\.09<\/time><span class="flex min-h-6 items-center t-meta text-danger">прошёл<\/span>/u);
+  // Срок словом (Э1.3): дата — обычным текстом, красное — только слово.
+  assert.match(caseRow, /<time dateTime="2026-09-20" class="block font-mono tabular-nums text-fg">20\.09<\/time><span class="flex min-h-6 items-center"><span class="v3-due t-caption" data-due="overdue">прошёл 4 дн<\/span><\/span>/u);
   // The assignee column is hidden in «Мои» and the status word only marks exceptions.
   assert.doesNotMatch(html, /в работе/u);
-  assert.match(html, /· заблокирована/u);
+  assert.match(html, /· <span class="v3-chip t-caption" data-tone="warn">заблокирована<\/span>/u);
   assert.match(html, /data-testid="task-quick-add"[\s\S]*placeholder="Новая задача…"/u);
   assert.doesNotMatch(html, /Сроки указаны по времени Бишкека/u);
-  assert.doesNotMatch(html, /\bbg-accent\b/u, "the page itself has no solid red: «Создать задачу» lives in the top bar");
+  assert.doesNotMatch(html, /\bbg-accent\b/u, "the page itself has no solid red: «Создать задачу» lives in the shell menu");
 });
 
 test("«Срок» is its own column right before the title, not at the far edge", () => {
@@ -377,7 +381,7 @@ test("«Срок» is its own column right before the title, not at the far edge
   // DOM order = visual order: circle, date column, then the title link.
   assert.match(row, /^[^>]*><div class="flex">[\s\S]*?<\/div><p class="hidden self-start pt-1 t-body-compact @min-\[32rem\]:block"><time [^>]*>20\.09<\/time>[\s\S]*?<\/p><div class="min-w-0 py-0\.5"><a data-queue-open=""/u);
   // The narrow meta line leads with the same date.
-  assert.match(row, /<p class="flex min-h-6 min-w-0 items-center[^"]*"><span class="shrink-0 @min-\[32rem\]:hidden"><span class="text-danger"><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> прошёл<\/span> ·<\/span>/u);
+  assert.match(row, /<p class="flex min-h-6 min-w-0 items-center[^"]*"><span class="shrink-0 @min-\[32rem\]:hidden"><span><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> <span class="v3-due t-caption" data-due="overdue">прошёл 4 дн<\/span><\/span> ·<\/span>/u);
   const team = surfaces.get("team-view");
   assert.match(team, /@3xl:grid-cols-\[var\(--row-lead\)_7rem_minmax\(0,1fr\)_minmax\(0,11rem\)_2\.75rem\]/u);
   // Без права правки колонки выбора нет: прежняя сетка.
@@ -391,8 +395,8 @@ test("the assignee is marked wherever it has no column of its own", () => {
   assert.match(row, /<span class="hidden min-w-0 shrink-\[0\.5\] truncate @min-\[32rem\]:inline @3xl:hidden" title="Исполнитель: Айгүл Осмонова">· <span aria-hidden="true">исп\. Айгүл О\.<\/span><span class="sr-only">исполнитель Айгүл Осмонова<\/span><\/span>/u);
   // Phone: its own line with the full name.
   assert.match(row, /<p class="truncate pb-1 t-meta text-fg-2 @min-\[32rem\]:hidden" title="Исполнитель: Айгүл Осмонова"><span aria-hidden="true">исп\.<\/span><span class="sr-only">исполнитель<\/span> Айгүл Осмонова<\/p>/u);
-  // ≥48rem: its own column.
-  assert.match(row, /<p class="hidden truncate t-body-compact text-fg-2 @3xl:block" title="Айгүл Осмонова">Айгүл Осмонова<\/p>/u);
+  // ≥48rem: its own column — a neutral initials circle beside the full name (Э1.3).
+  assert.match(row, /<p class="hidden min-w-0 items-center gap-2 t-body-compact text-fg-2 @3xl:flex" title="Айгүл Осмонова"><span class="v3-initials t-caption" aria-hidden="true">АО<\/span><span class="truncate">Айгүл Осмонова<\/span><\/p>/u);
   // «Мои» shows no assignee at all.
   assert.doesNotMatch(surfaces.get("mine-default"), /исп\./u);
 });

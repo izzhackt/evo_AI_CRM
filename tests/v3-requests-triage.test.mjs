@@ -19,13 +19,11 @@ import { buildTodayQueue, todayRequestItems } from "../src/lib/v3/today-queue.ts
  */
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const render = (look) => new Map(JSON.parse(execFileSync(
+const surfaces = new Map(JSON.parse(execFileSync(
   process.execPath,
-  [fileURLToPath(new URL("./e2e/requests-static-render.cjs", import.meta.url)), "--json", ...(look ? ["--look=next"] : [])],
+  [fileURLToPath(new URL("./e2e/requests-static-render.cjs", import.meta.url)), "--json"],
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
 )).map((surface) => [surface.name, surface.html]));
-const surfaces = render(false);
-const next = render(true);
 /** Содержимое страницы без оболочки: от `<main data-testid="v3-requests">` до конца main. */
 const main = (html) => {
   const start = html.indexOf('data-testid="v3-requests"');
@@ -150,7 +148,7 @@ test("rows: name to Lead 360 with the way back, source, when it came without SLA
 });
 
 test("one solid red: «Добавить лида» in the header; the empty queue says what comes here and when the last came", () => {
-  for (const [name, html] of [...surfaces, ...next]) {
+  for (const [name, html] of surfaces) {
     if (name === "preview") continue;
     assert.equal(count(main(html), /border-accent bg-accent/gu), 1, `${name}: one solid red`);
   }

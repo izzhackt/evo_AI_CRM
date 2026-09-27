@@ -7,9 +7,8 @@ import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { startTransition, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/icons";
 import { Initials } from "@/components/v3/blocks/Initials";
-import { isNextLook, type V3Look } from "@/components/v3/blocks/look";
 import { StageChip, StatusChip } from "@/components/v3/blocks/StatusChip";
-import { Pill, type PillTone } from "@/components/v3/Pill";
+import type { PillTone } from "@/components/v3/Pill";
 import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { useAnchoredPopover } from "@/components/v3/queue/useAnchoredPopover";
 import { ReplySnippetPicker, type ReplySnippetPickerItem } from "@/components/v3/reply-snippets/ReplySnippetPicker";
@@ -50,10 +49,9 @@ function awaitTone(state: CaseChatAwaitState): PillTone {
   return state === "needs_reply" ? "warn" : "neutral";
 }
 
-/** Состояние словом: в новом облике — чип (Э1.3), в прежнем — `Pill`. Слово есть всегда. */
-function StateWord({ look, tone, label }: Readonly<{ look: V3Look | undefined; tone: PillTone; label: string }>) {
-  if (isNextLook(look)) return <StatusChip label={label} tone={tone === "solid" ? "neutral" : tone} />;
-  return <Pill tone={tone}>{label}</Pill>;
+/** Состояние словом — чип (Э1.3). Слово есть всегда. */
+function StateWord({ tone, label }: Readonly<{ tone: PillTone; label: string }>) {
+  return <StatusChip label={label} tone={tone === "solid" ? "neutral" : tone} />;
 }
 
 /** Порядок видимого переключателя состояния в шапке переписки. */
@@ -350,13 +348,12 @@ const AWAIT_PRESSED: Readonly<Record<CaseChatAwaitState, string>> = {
  * лента начиналась как можно выше.
  */
 function ThreadHeader({
-  name, facts, caseId, listHref, awaitState, onSetAwait, awaitPending, look,
+  name, facts, caseId, listHref, awaitState, onSetAwait, awaitPending,
 }: Readonly<{
   name: string | null; facts: CaseChatCaseFacts | null; caseId: string; listHref: string;
   awaitState: CaseChatAwaitState | null;
-  onSetAwait: (state: CaseChatAwaitState) => void; awaitPending: boolean; look: V3Look | undefined;
+  onSetAwait: (state: CaseChatAwaitState) => void; awaitPending: boolean;
 }>) {
-  const next = isNextLook(look);
   const stage = facts?.stage ? admissionsPipelineStage(facts.stage) : null;
   const direction = facts?.direction ?? null;
   return (
@@ -367,7 +364,7 @@ function ThreadHeader({
             className="-my-1 -ms-2 inline-flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg @2xl:hidden">
             <Icon name="arrow-left" size={20} className="shrink-0" />
           </Link>
-          {next && name ? <span className="mt-0.5 hidden shrink-0 @2xl:block"><Initials name={name} decorative /></span> : null}
+          {name ? <span className="mt-0.5 hidden shrink-0 @2xl:block"><Initials name={name} decorative /></span> : null}
           <div className="min-w-0">
             {/* Узко имя встаёт в две строки, а не в «Студент …»: с кем переписка — главное. */}
             <h2 className="t-section break-words text-fg @max-2xl:line-clamp-2 @2xl:truncate">{name ?? "Переписка"}</h2>
@@ -375,7 +372,7 @@ function ThreadHeader({
               <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 t-body-compact text-fg-2" data-testid="case-chat-case-facts">
                 {direction ? <span>{direction}</span> : null}
                 {direction && stage ? <span aria-hidden="true" className="text-fg-3">·</span> : null}
-                {stage ? (next ? <StageChip label={stage} phase={stagePhase("admissions", facts?.stage)} /> : <span>{stage}</span>) : null}
+                {stage ? <StageChip label={stage} phase={stagePhase("admissions", facts?.stage)} /> : null}
               </p>
             ) : null}
           </div>
@@ -468,13 +465,13 @@ function MessageRow({
 
 function CaseChatThreadView({
   caseId, initialPage, initialFailure, storageScope, membershipId, pendingAttachment, onAttachmentConsumed,
-  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged, facts, snippets, look,
+  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged, facts, snippets,
 }: Readonly<{
   caseId: string; initialPage: CaseChatPage | null; initialFailure: CaseChatFailure | null;
   storageScope: string; membershipId: string; pendingAttachment: CaseChatPendingAttachment | null;
   onAttachmentConsumed: () => void; organizationId: string; realtimeConfig: SupabasePublicConfig;
   studentDisplayName: string | null; listHref: string; onListChanged: () => void;
-  facts: CaseChatCaseFacts | null; snippets: CaseChatSnippets; look: V3Look | undefined;
+  facts: CaseChatCaseFacts | null; snippets: CaseChatSnippets;
 }>) {
   const [page, setPage] = useState<CaseChatPage | null>(initialPage);
   const [error, setError] = useState<CaseChatFailure | null>(initialFailure);
@@ -610,7 +607,7 @@ function CaseChatThreadView({
   if (!page) {
     return <div className="flex min-w-0 flex-1 flex-col">
       <ThreadHeader name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
-        awaitState={null} onSetAwait={() => {}} awaitPending={false} look={look} />
+        awaitState={null} onSetAwait={() => {}} awaitPending={false} />
       <p role="alert" className="p-4 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error ?? "unavailable"]}</p>
     </div>;
   }
@@ -620,7 +617,7 @@ function CaseChatThreadView({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ThreadHeader
         name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
-        awaitState={awaitState ?? page.thread.awaitState} onSetAwait={changeAwait} awaitPending={awaitPending} look={look} />
+        awaitState={awaitState ?? page.thread.awaitState} onSetAwait={changeAwait} awaitPending={awaitPending} />
       {error ? <p role="alert" className="px-3 pt-2 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error]}</p> : null}
       <div ref={viewport} className="min-h-0 flex-1 overflow-y-auto px-3" aria-label="История переписки">
         {page.hasMore ? <button type="button" disabled={busy} onClick={() => void loadOlder()} className="my-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg-2 hover:bg-surface-2">
@@ -658,16 +655,14 @@ function queueLabel(queue: CaseChatQueue): string {
 }
 
 function CaseChatList({
-  threads, counts, readAt, selectedCaseId, query, onQuery, queue, onQueue, membershipId, hidden, loading, failure, onRetry, look,
+  threads, counts, readAt, selectedCaseId, query, onQuery, queue, onQueue, membershipId, hidden, loading, failure, onRetry,
 }: Readonly<{
   threads: CaseChatThreadsList; counts: CaseChatQueueRead["counts"] | null; readAt: string;
   selectedCaseId: string | null; query: string; onQuery: (value: string) => void;
   queue: CaseChatQueue; onQueue: (value: CaseChatQueue) => void;
   membershipId: string; hidden: boolean; loading: boolean; failure: CaseChatFailure | null; onRetry: () => void;
-  look: V3Look | undefined;
 }>) {
   const router = useRouter();
-  const next = isNextLook(look);
   return (
     <nav aria-label="Переписки кабинета студента" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-border @2xl:w-[360px] @2xl:shrink-0 @2xl:border-e`}>
       <div className="flex flex-col gap-2 border-b border-border p-3">
@@ -718,7 +713,7 @@ function CaseChatList({
               aria-current={row.studentCaseId === selectedCaseId ? "page" : undefined}
               data-case-chat-row={row.studentCaseId}
               className={`flex w-full items-start gap-2.5 border-b border-border px-3 py-3 text-start hover:bg-surface-2 ${row.studentCaseId === selectedCaseId ? "bg-surface-2" : ""}`}>
-              {next ? <span className="mt-0.5 shrink-0"><Initials name={row.studentDisplayName} decorative /></span> : null}
+              <span className="mt-0.5 shrink-0"><Initials name={row.studentDisplayName} decorative /></span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="flex items-center justify-between gap-2">
                   <span className="truncate t-item text-fg">{row.studentDisplayName}</span>
@@ -727,7 +722,7 @@ function CaseChatList({
                 {row.lastMessageSnippet ? <span className="truncate text-sm text-fg-2">
                   {row.lastMessageAuthorMembershipId === membershipId ? "Вы: " : ""}{row.lastMessageSnippet}
                 </span> : <span className="text-sm text-fg-3">Нет сообщений</span>}
-                {badges.length ? <span className="mt-0.5 flex flex-wrap gap-1">{badges.map((badge) => <StateWord key={badge.text} look={look} tone={badge.tone} label={badge.text} />)}</span> : null}
+                {badges.length ? <span className="mt-0.5 flex flex-wrap gap-1">{badges.map((badge) => <StateWord key={badge.text} tone={badge.tone} label={badge.text} />)}</span> : null}
               </span>
             </button>
           );
@@ -772,7 +767,7 @@ function NextThreadPane({ read, membershipId, query, queue, loading, failure }: 
 
 export function CaseChatWorkspace({
   organizationId, membershipId, realtimeConfig, initialQueue, initialStudentDisplayName, selectedCaseId, initialPage,
-  initialPageFailure, caseFacts = null, snippets = null, look,
+  initialPageFailure, caseFacts = null, snippets = null,
 }: Readonly<{
   organizationId: string; membershipId: string; realtimeConfig: SupabasePublicConfig;
   initialQueue: CaseChatQueueRead; selectedCaseId: string | null;
@@ -781,7 +776,6 @@ export function CaseChatWorkspace({
   /** Направление и этап открытого дела (строка очереди 241); null — нет строки. */
   caseFacts?: CaseChatCaseFacts | null;
   snippets?: CaseChatSnippets;
-  look?: V3Look;
 }>) {
   const [queueRead, setQueueRead] = useState(initialQueue);
   const threads = queueRead.list;
@@ -885,14 +879,14 @@ export function CaseChatWorkspace({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 rounded-card border border-border bg-surface">
       <CaseChatList threads={threads} counts={counts} readAt={queueRead.readAt} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
-        queue={queue} onQueue={onQueue} look={look}
+        queue={queue} onQueue={onQueue}
         membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={refreshList} />
       {selectedCaseId ? (
         <CaseChatThreadView caseId={selectedCaseId} initialPage={initialPage} initialFailure={initialPageFailure}
           storageScope={`${organizationId}:${membershipId}`} membershipId={membershipId} pendingAttachment={attachment}
           onAttachmentConsumed={consumeAttachment} organizationId={organizationId} realtimeConfig={realtimeConfig}
           studentDisplayName={row?.studentDisplayName ?? initialStudentDisplayName} onListChanged={refreshList}
-          listHref={caseChatHref(query, queue)} facts={caseFacts} snippets={snippets} look={look} />
+          listHref={caseChatHref(query, queue)} facts={caseFacts} snippets={snippets} />
       ) : (
         <NextThreadPane read={queueRead} membershipId={membershipId} query={query} queue={queue} loading={loading} failure={failure} />
       )}

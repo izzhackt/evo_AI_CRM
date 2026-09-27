@@ -27,8 +27,8 @@ export function typingTarget(target: EventTarget | null): boolean {
 
 /**
  * Открыто всплывающее окно, в котором человек работает (меню, «Результат»,
- * подсказка «?»): клавиши очереди молчат. Строка «Отменить» нового облика
- * (`data-queue-passive`) их не выключает — `popoverBlocksQueueKeys`.
+ * подсказка «?»): клавиши очереди молчат. Строка «Отменить» (UndoToast,
+ * `data-queue-passive`) их не выключает — `popoverBlocksQueueKeys`.
  */
 export function openPopover(): boolean {
   try { return popoverBlocksQueueKeys(document.querySelectorAll(":popover-open")); } catch { return false; }

@@ -4,7 +4,6 @@ import type { SalesCountRead } from "@/lib/sales-numbers-contract";
 import type { SalesSaleSlice } from "@/lib/sales-register-navigation";
 import { salesWord } from "@/lib/sales-register-view";
 
-import { isNextLook, type V3Look } from "./blocks/look";
 import { progressOf } from "./blocks/progress";
 
 const MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
@@ -30,7 +29,7 @@ const NOTE_LINK = "inline-flex min-h-11 items-center text-fg-2 underline underli
  * решение владельца 26.09.2026): записи не в архиве с датой продажи в
  * выбранном месяце или году. Э4 (27.09.2026): «N продаж из плана M», если
  * план месяца прочитан (его отдаёт чтение управления отчётом), с тонкой
- * полосой в новом облике и словами «осталось N»; без плана — «N продаж».
+ * полосой и словами «осталось N»; без плана — «N продаж».
  * Таблица ниже собрана по «Месяцу отчёта»; всё, чем она расходится с этим
  * числом, названо словами и ведёт в таблицу к этим записям (`sale=<срез>`,
  * `read_sales_register_v3`): записи без даты продажи, записи с датой продажи
@@ -39,7 +38,7 @@ const NOTE_LINK = "inline-flex min-h-11 items-center text-fg-2 underline underli
  * фильтров»). Роль без чтения отчёта — ничего; чтение не удалось — так и
  * сказано.
  */
-export function SalesPeriodHeadline({ read, label, retryHref, filtered = false, sliceHref, target = null, look }: Readonly<{
+export function SalesPeriodHeadline({ read, label, retryHref, filtered = false, sliceHref, target = null }: Readonly<{
   read: SalesCountRead;
   /** «сентябрь 2026» или «2026 год». */
   label: string;
@@ -50,8 +49,6 @@ export function SalesPeriodHeadline({ read, label, retryHref, filtered = false, 
   sliceHref?: (slice: SalesSaleSlice) => string;
   /** План отдела на месяц из чтения; null — плана нет или он не читается. */
   target?: number | null;
-  /** Новый облик (Э1.3): тонкая полоса «продажи из плана». */
-  look?: V3Look;
 }>) {
   if (read.status === "denied") return null;
   if (read.status === "unavailable") {
@@ -70,7 +67,7 @@ export function SalesPeriodHeadline({ read, label, retryHref, filtered = false, 
     undated > 0 ? note("undated", `без даты продажи — ${records(undated)}`) : null,
     otherSaleDate > 0 ? note("other_sale_date", `дата продажи в другом месяце — ${records(otherSaleDate)}`) : null,
   ].filter((item) => item !== null);
-  const progress = target !== null && isNextLook(look) ? progressOf(sales, target) : null;
+  const progress = target !== null ? progressOf(sales, target) : null;
   return (
     <div className="min-w-0" data-testid="v3-sales-headline" data-sales={sales}>
       <p className="t-section text-fg">

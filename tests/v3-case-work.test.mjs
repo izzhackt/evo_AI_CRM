@@ -127,8 +127,8 @@ test("the case view (Student 360, Э4): stage and «Что дальше» under 
   const html = surfaces.get("curator-accept");
   const shown = visible(html);
   const text = texts(html);
-  // Шапка: этап словами «Воронки» · «Что дальше» — шаг со сроком и «Изменить» · состояние.
-  assert.match(text, /Этап Документы Что дальше Собрать апостиль на аттестат 20\.09 прошёл Изменить/u);
+  // Шапка: этап — дорожка со словами «Воронки» и фазой · «Что дальше» — шаг, срок словом и «Изменить» · состояние.
+  assert.match(text, /Этап Новые, пройден .*? Прибыл, впереди Документы Поступление Что дальше Собрать апостиль на аттестат 20\.09 прошёл 3 дн Изменить/u);
   assert.match(text, /Состояние ждёт принятия/u);
   assert.match(html, /<button id="queue-trigger-[^"]+" type="button" popovertarget="queue-popover-[^"]+"[^>]*aria-haspopup="dialog"[^>]*>Изменить<\/button>/iu);
   assert.match(html, /popover="auto"[^>]*role="dialog"[^>]*><h2[^>]*>Следующий шаг<\/h2>[\s\S]*?data-testid="v3-next-step-editor"/u);
@@ -151,7 +151,8 @@ test("the case view (Student 360, Э4): stage and «Что дальше» under 
   assert.match(text, /Показать ещё 2/u);
   assert.doesNotMatch(texts(html.slice(html.indexOf('data-testid="v3-case-tasks"'))).split("Показать ещё")[0], /Айдана Сыдыкова/u);
   // Документы, заявки, переписка — факты из прочитанных данных, со ссылками на вкладки.
-  assert.match(text, /Документы 7 из 12 принято · 2 на проверке · 1 исправить · 2 не загружено Документы дела/u);
+  // «N из M принято» — полоса из прочитанных чисел, остальное — чипы со словом (Э1.3).
+  assert.match(text, /Документы 7 из 12 принято 2 на проверке 1 исправить 2 не загружено Документы дела/u);
   assert.match(text, /Переписка Нужен ответ Открыть переписку/u);
   assert.match(html, /href="\/v3\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
   assert.match(text, /Шанхайский университет · Международная торговля — готовится · основной вариант · дедлайн 30\.11/u);
@@ -202,7 +203,7 @@ test("Admin: sales forms and portal access are collapsed groups under «Свед
   assert.match(text, /Оплата 40% оплачено · остаток 900 \$ Договор и оплата/u);
   assert.match(html, /<details name="case-edit" id="portal-access" data-lead-group="" data-testid="v3-case-portal"[^>]*>/u);
   assert.match(text, /Доступ к порталу анкета одобрена/u);
-  assert.match(text, /Сведения Направление Китай Куратор Айгүл Осмонова Нагрузка кураторов Передал Эрмек Токтосунов · 30\.08 12:00 Продажа Эрмек Токтосунов Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
+  assert.match(text, /Сведения Направление Китай Куратор АО Айгүл Осмонова Нагрузка кураторов Передал Эрмек Токтосунов · 30\.08 12:00 Продажа Эрмек Токтосунов Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
   assert.match(html, /href="tel:\+996000000001"/u);
   assert.match(html, /href="\/v3\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000001&amp;coverage_case=cccccccc-2222-4222-8222-000000000001#curator-coverage"/u);
 });

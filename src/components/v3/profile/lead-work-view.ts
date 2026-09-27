@@ -152,7 +152,7 @@ export function leadMoment(value: string, now: Date): string {
   return `${dayText} ${TIME.format(new Date(value))}`;
 }
 
-/** Срок следующего шага словом прежнего облика: «прошёл», «сегодня»; позже — без слова. */
+/** Состояние срока следующего шага: «прошёл», «сегодня»; позже — без слова (запасное слово, если срок словом не посчитан). */
 export function leadDueState(dueDate: string | null, today: string): "overdue" | "today" | "later" | null {
   if (dueDate === null) return null;
   return dueDate < today ? "overdue" : dueDate === today ? "today" : "later";

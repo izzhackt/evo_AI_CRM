@@ -26,7 +26,6 @@ import {
 import { ApplicationDecision } from "../admissions/StudentApplications";
 import { BoardSegments } from "../board/Board";
 import { Initials } from "../blocks/Initials";
-import { isNextLook, type V3Look } from "../blocks/look";
 import { StatusChip } from "../blocks/StatusChip";
 import { ManualLeadTrigger } from "../ManualLeadForm";
 import { queueRowReturn, sidePanelSplit } from "../panel/side-panel";
@@ -57,7 +56,6 @@ type ViewProps = Readonly<{
   takeRequestIds: Readonly<Record<string, string>>;
   /** request_id решения по анкете в панели. */
   decisionRequestId: string;
-  look?: V3Look;
 }>;
 
 function leadCardHref(leadId: string, listHref: string): string {
@@ -72,7 +70,6 @@ function rowLeadId(row: RequestRow): string | null {
 function TriageCell({ row, triage, props, listHref }: Readonly<{
   row: RequestRow; triage: RequestTriage; props: ViewProps; listHref: string;
 }>) {
-  const next = isNextLook(props.look);
   switch (triage.kind) {
     case "take":
       return row.kind === "lead" && row.take ? (
@@ -84,7 +81,7 @@ function TriageCell({ row, triage, props, listHref }: Readonly<{
         <span className="flex min-w-0 items-center gap-2 t-body-compact text-fg">
           {/* Без своей колонки ответственный помечен «отв.» — как «исп.» у «Задач». */}
           <span className="t-meta text-fg-3 @min-[56rem]:hidden">отв.</span>
-          {next && !triage.mine ? <Initials name={triage.name} decorative /> : null}
+          {!triage.mine ? <Initials name={triage.name} decorative /> : null}
           <span className="min-w-0 truncate" title={triage.name}>{triage.name}</span>
         </span>
       );
@@ -95,9 +92,7 @@ function TriageCell({ row, triage, props, listHref }: Readonly<{
     case "state":
       return (
         <span className="flex min-w-0 items-center gap-2">
-          {next
-            ? <StatusChip label={triage.word} tone="neutral" />
-            : <span className={`shrink-0 t-body-compact ${triage.waiting ? "text-fg" : "text-fg-2"}`}>{triage.word}</span>}
+          <StatusChip label={triage.word} tone="neutral" />
           {triage.by ? <span className="min-w-0 truncate t-meta text-fg-2" title={triage.by}>{triage.by}</span> : null}
         </span>
       );

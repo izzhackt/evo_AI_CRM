@@ -31,13 +31,11 @@
  *       нажимается по-настоящему. Серверное действие шага заменено заглушкой,
  *       которая отвечает конфликтом версии (снимок ничего не сохраняет);
  *       остальные действия отказывают.
- *   --look=next (с --json, --screenshots или --f1) — новый облик (Э1.1–Э1.3,
- *       предпросмотр Admin): `data-look="next"` и проп `look` экрана.
- *   node tests/e2e/students-static-render.cjs --f1 [outDir] [--look=next]
+ *   node tests/e2e/students-static-render.cjs --f1 [outDir]
  *     → Э7 «Одна боковая панель везде»: «Быстрый просмотр» (`?open=`) и
  *       «Нагрузка кураторов» (`?coverage_curator=`) на 1440×900, 1280×800,
- *       1024×768 (лист справа) и 390×844 — снимки `f1-students[-next]-<ширина>.png` и
- *       `f1-curators[-next]-<ширина>.png` и замеры
+ *       1024×768 (лист справа) и 390×844 — снимки `f1-students-<ширина>.png` и
+ *       `f1-curators-<ширина>.png` и замеры
  *       `tests/e2e/side-panel-probe.cjs`. Адрес — состояние стенда:
  *       `router.push` заново строит экран с новым `open` (или куратором), как
  *       сервер, и путь Esc → строка → открыть → «Закрыть» → строка идёт
@@ -460,15 +458,6 @@ function withContexts(node, pathname, search) {
   );
 }
 
-/**
- * `--look=next` — новый облик (Э1.3, предпросмотр Admin): экран получает проп
- * `look`, как от страницы; общие блоки — в таблице и «Быстром просмотре».
- * Тот же вход у браузерной сборки (`clientFixture`).
- */
-if (process.argv.includes("--look=next")) {
-  for (const item of Object.values(SCENARIOS)) if (item.input) item.input = { ...item.input, look: "next" };
-}
-
 function screen(name) {
   const item = SCENARIOS[name];
   if (item.kind === "sales") {
@@ -521,15 +510,12 @@ function renderPage(name) {
     : undefined;
   const page = createElement(
     "div",
-    // `--look=next` — снимки предпросмотра нового облика (Э1.1), как у Admin с включённым переключателем;
-    // с Э1.2 и оболочка нового облика (меню без верхней панели, нижняя панель телефона).
-    { className: "v3-world", "data-look": process.argv.includes("--look=next") ? "next" : undefined },
+    { className: "v3-world", "data-surface": "staff" },
     createElement(
       AppShell,
       {
         actor: item.actor === "curator" ? CURATOR_ACTOR : ACTOR,
         initialNotifications: null,
-        ...(process.argv.includes("--look=next") ? { look: "next" } : {}),
       },
       createElement(PartShell, { title: item.docsMode ? "EVO Docs" : "Студенты", count: built.count, action, dense: item.kind !== "sales" },
         createElement("div", { id: CLIENT_ROOT_ID }, built.content)),
@@ -861,8 +847,7 @@ async function f1() {
   const outIndex = process.argv.indexOf("--f1") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const look = process.argv.includes("--look=next") ? "-next" : "";
-  const bundleName = `f1-students${look}-client.js`;
+  const bundleName = "f1-students-client.js";
   await require("esbuild").build({
     stdin: { contents: F1_ENTRY, resolveDir: __dirname, sourcefile: "students-f1-entry.js", loader: "js" },
     bundle: true, outfile: join(outDir, bundleName), format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
@@ -885,7 +870,7 @@ async function f1() {
   const failures = [];
   try {
     for (const [screenName, scenario, key, overlayFor] of screens) {
-      const htmlPath = join(outDir, `f1-${screenName}${look}.html`);
+      const htmlPath = join(outDir, `f1-${screenName}.html`);
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
         '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -902,19 +887,18 @@ async function f1() {
         await page.evaluate(() => document.fonts.ready);
         await page.waitForSelector("html[data-client-rendered]", { state: "attached", timeout: 10_000 });
         await page.waitForTimeout(400);
-        await page.screenshot({ path: join(outDir, `f1-${screenName}${look}-${width}.png`) });
+        await page.screenshot({ path: join(outDir, `f1-${screenName}-${width}.png`) });
         const open = `[data-queue-row="${key}"] [data-queue-open]`;
         const result = await probe.journey(page, {
           selected: '[data-queue-row]:has([data-queue-open][aria-current="true"])',
           returnSelector: open,
           reopen: () => page.click(open),
-          look: look ? "next" : "current",
-          scrolledPath: join(outDir, `f1-${screenName}${look}-${width}-scrolled.png`),
+          scrolledPath: join(outDir, `f1-${screenName}-${width}-scrolled.png`),
           overlay: overlayFor ? overlayFor(page) : null,
         });
         if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
-        probe.report({ screen: screenName, look: look || "-current", width, ...result });
-        failures.push(...result.failures.map((failure) => `${screenName}${look} ${width}: ${failure}`));
+        probe.report({ screen: screenName, width, ...result });
+        failures.push(...result.failures.map((failure) => `${screenName} ${width}: ${failure}`));
         await browserContext.close();
       }
     }
@@ -937,6 +921,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: students-static-render.cjs --json | --screenshots [outDir] [--only=scenario,…] | --f1 [outDir] [--look=next]");
+  console.error("usage: students-static-render.cjs --json | --screenshots [outDir] [--only=scenario,…] | --f1 [outDir]");
   process.exit(2);
 }

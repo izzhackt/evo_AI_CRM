@@ -7,7 +7,6 @@ import { admissionsPipelineStage } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
 import { PHONE_HIDDEN, RowSelect } from "../queue/Bulk";
-import { isNextLook, type V3Look } from "../blocks/look";
 import { StageChip, StatusChip, type StatusChipTone } from "../blocks/StatusChip";
 import { DIRECTION_LABELS } from "../profile/admissions-view";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
@@ -54,12 +53,7 @@ const CELL = "min-w-0 px-3 @min-[36rem]/students:px-2 @min-[60rem]/students:py-1
 const HEAD = "flex h-8 items-center px-2 text-start t-caption text-fg-2 first:ps-3";
 /** Даты строки — срок шага и день обновления — JetBrains Mono с табличными цифрами. */
 const DATE = "font-mono tabular-nums";
-const TONE: Readonly<Record<StudentsSignal["tone"], string>> = {
-  danger: "text-danger",
-  warn: "text-warn",
-  muted: "text-fg-2",
-};
-/** Новый облик: сигнал — чип со словом того же тона. */
+/** Сигнал — чип со словом (Э1.3). */
 const CHIP_TONE: Readonly<Record<StudentsSignal["tone"], StatusChipTone>> = { danger: "danger", warn: "warn", muted: "neutral" };
 
 /**
@@ -85,17 +79,17 @@ export function studentsRowMeta(row: Pick<StudentCaseQueueRow, "admissionsDirect
  * занимает день изменения дела («обн. 22.09») — строки стоят по нему, и он
  * должен быть виден; просроченный шаг тогда назван в сигналах.
  */
-function DueCell({ row, now, today, sort, next }: Readonly<{ row: StudentCaseQueueRow; now: Date; today: string; sort: StudentCaseQueueSort; next: boolean }>) {
+function DueCell({ row, now, today, sort }: Readonly<{ row: StudentCaseQueueRow; now: Date; today: string; sort: StudentCaseQueueSort }>) {
   // Шаг ведётся только у дела в работе: у закрытого и ожидающего начала дата без «прошёл».
   const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   const updated = sort === "updated" ? studentsUpdatedDay(row.updatedAt, today) : null;
   const word = updated ? null : due?.word ?? due?.caption ?? null;
-  // Новый облик: слово срока — блок `DueWord`; у закрытого и ожидающего — прежняя подпись «срок».
-  const dueWord = next && due && !updated ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
+  // Слово срока — блок `DueWord` (Э1.3); у закрытого и ожидающего — подпись «срок».
+  const dueWord = due && !updated ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   return (
     <td role="cell" className={`${CELL} [grid-area:due] self-start text-end t-body-compact @min-[36rem]/students:text-start`}>
       {due ? <>
-        <time dateTime={due.dateTime} className={`${DATE} @min-[36rem]/students:block @min-[36rem]/students:leading-5 ${due.overdue && !next ? "text-danger" : "text-fg"}`}>{due.text}</time>
+        <time dateTime={due.dateTime} className={`${DATE} @min-[36rem]/students:block @min-[36rem]/students:leading-5 text-fg`}>{due.text}</time>
         {dueWord ? <span className="ms-1.5 @min-[36rem]/students:ms-0 @min-[36rem]/students:block"><DueWord view={dueWord} /></span>
           : word ? <span className={`ms-1.5 t-meta @min-[36rem]/students:ms-0 @min-[36rem]/students:block ${due.overdue ? "text-danger" : "text-fg-3"}`}>{word}</span> : null}
       </> : row.nextAction ? <span className="t-meta text-fg-3 @min-[36rem]/students:block @min-[36rem]/students:leading-5">без срока</span>
@@ -135,21 +129,15 @@ function CuratorCell({ row }: Readonly<{ row: StudentCaseQueueRow }>) {
   );
 }
 
-function SignalsCell({ signals, next }: Readonly<{ signals: readonly StudentsSignal[]; next: boolean }>) {
+function SignalsCell({ signals }: Readonly<{ signals: readonly StudentsSignal[] }>) {
   return (
     <td role="cell" className={`${CELL} [grid-area:signals] self-start t-body-compact @min-[36rem]/students:ps-3 @min-[60rem]/students:ps-2 ${signals.length ? "" : "@max-[60rem]/students:sr-only"}`}>
-      {signals.length && next ? (
-        // Новый облик: сигнал — чип со словом; перенос только между чипами.
+      {signals.length ? (
+        // Сигнал — чип со словом; перенос только между чипами.
         <span className="inline-flex max-w-full flex-wrap gap-1">
           {signals.map((signal) => <StatusChip key={signal.key} label={signal.text} tone={CHIP_TONE[signal.tone]} />)}
         </span>
-      ) : signals.length ? signals.map((signal, index) => (
-        // Сигнал переносится целиком (inline-block): строка рвётся между сигналами, не внутри.
-        <span key={signal.key}>
-          {index > 0 ? <span className="text-fg-3"> · </span> : null}
-          <span className={`inline-block max-w-full font-medium ${TONE[signal.tone]}`}>{signal.text}</span>
-        </span>
-      )) : <span className="sr-only">Нет</span>}
+      ) : <span className="sr-only">Нет</span>}
     </td>
   );
 }
@@ -162,7 +150,6 @@ export function StudentsQueueRow({
   curatorColumn,
   selected,
   links,
-  look,
   select = null,
 }: Readonly<{
   row: StudentCaseQueueRow;
@@ -175,16 +162,12 @@ export function StudentsQueueRow({
   curatorColumn: boolean;
   selected: boolean;
   links: StudentsRowLinks;
-  /**
-   * Новый облик (Э1.3–Э1.4): этап — точка фазы и слово, срок словом, сигналы —
-   * чипы. Куратор остаётся «Имя Ф.»: круг инициалов в узкой колонке обрезал
-   * бы имя (снимок 1280), а в «Быстром просмотре» он стоит рядом с полным именем.
-   */
-  look?: V3Look;
   /** Отметка строки для массовых действий; null — их нет. */
   select?: StudentsRowSelect | null;
 }>) {
-  const next = isNextLook(look);
+  // Э1.3–Э1.4: этап — точка фазы и слово, срок словом, сигналы — чипы.
+  // Куратор остаётся «Имя Ф.»: круг инициалов в узкой колонке обрезал бы имя
+  // (снимок 1280), а в «Быстром просмотре» он стоит рядом с полным именем.
   const meta = studentsRowMeta(row);
   // Неизвестный этап не показывается ключом базы (CLAUDE.md): слова нет — ячейка пустая.
   const stage = admissionsPipelineStage(row.pipelineStage);
@@ -234,12 +217,12 @@ export function StudentsQueueRow({
           ? <span className="line-clamp-2 break-words text-fg @min-[36rem]/students:line-clamp-1 @min-[60rem]/students:line-clamp-2" title={row.nextAction}>{row.nextAction}</span>
           : <span className="text-fg-3">Шаг не задан</span>}
       </td>
-      <DueCell row={row} now={now} today={today} sort={sort} next={next} />
+      <DueCell row={row} now={now} today={today} sort={sort} />
       <td role="cell" className={`${CELL} t-body-compact text-fg sr-only @min-[60rem]/students:not-sr-only @min-[60rem]/students:[grid-area:stage]`}>
-        {next ? <StageChip label={stage} phase={stagePhase("admissions", row.pipelineStage)} /> : stage}
+        <StageChip label={stage} phase={stagePhase("admissions", row.pipelineStage)} />
       </td>
       {curatorColumn ? <CuratorCell row={row} /> : null}
-      <SignalsCell signals={signals} next={next} />
+      <SignalsCell signals={signals} />
       <td role="cell" className="hidden [grid-area:link] @min-[36rem]/students:flex @min-[36rem]/students:items-center @min-[36rem]/students:justify-center">
         <Link
           href={links.case}
@@ -271,7 +254,6 @@ export function StudentsQueueTable({
   curatorColumn,
   selectedKey,
   links,
-  look,
   select = null,
 }: Readonly<{
   bands: readonly StudentsBand<StudentCaseQueueRow>[];
@@ -285,8 +267,6 @@ export function StudentsQueueTable({
   curatorColumn: boolean;
   selectedKey: string | null;
   links: (row: StudentCaseQueueRow) => StudentsRowLinks;
-  /** Новый облик (Э1.3): общие блоки в строках. */
-  look?: V3Look;
   /** Отметка строки для массовых действий (Э7); null — колонки нет. */
   select?: ((row: StudentCaseQueueRow) => StudentsRowSelect) | null;
 }>) {
@@ -327,7 +307,6 @@ export function StudentsQueueTable({
                 curatorColumn={curatorColumn}
                 selected={row.studentCaseId === selectedKey}
                 links={links(row)}
-                look={look}
                 select={select ? select(row) : null}
               />
             ))}

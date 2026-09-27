@@ -12,7 +12,6 @@ import type {
   StudentCaseQueueRow,
 } from "@/lib/platform-student-case-queue-contract";
 
-import type { V3Look } from "../blocks/look";
 import { sidePanelSplit } from "../panel/side-panel";
 import { BulkPickToggle, useBulkSelection } from "../queue/Bulk";
 import { QueueEmpty, QUEUE_QUIET_LINK } from "../queue/QueueStates";
@@ -80,7 +79,6 @@ export function StudentsQueueBody({
   closure = null,
   createTask,
   requestId,
-  look,
   curators = null,
 }: Readonly<{
   /** Вкладки, строка инструментов и заметки над таблицей (рисует сервер). */
@@ -102,8 +100,6 @@ export function StudentsQueueBody({
   /** Можно ли создать задачу по делу из панели. */
   createTask: boolean;
   requestId: string;
-  /** Новый облик (Э1.3): общие блоки в таблице и «Быстром просмотре». */
-  look?: V3Look;
   /**
    * Кураторы для «Назначить куратора» выбранным (Э7) — только тому, кто
    * назначает кураторов (`case.curator.assign`); null — действия нет.
@@ -196,7 +192,6 @@ export function StudentsQueueBody({
       onClosureChanged={onClosureChanged}
       requestId={requestId}
       onSaved={onSaved}
-      look={look}
       links={{
         close: closeHref,
         case: studentsCaseHref(openRow.studentCaseId, { returnTo: returnTo(openRow.studentCaseId) }),
@@ -248,7 +243,6 @@ export function StudentsQueueBody({
                 curatorColumn={params.view !== "mine"}
                 selectedKey={openKey}
                 links={links}
-                look={look}
                 select={bulk ? (row) => ({
                   available: selectable.has(row.studentCaseId),
                   checked: selection.has(row.studentCaseId),

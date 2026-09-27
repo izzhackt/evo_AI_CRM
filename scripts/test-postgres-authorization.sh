@@ -2764,6 +2764,21 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_decline_guard.sql
   fi
+
+  # Migration 250 (Э3 «Заявки», owner-accepted redesign plan 25.09): the
+  # requests queue v2 with the lead owner, «take», «Ждут разбора / Все», every
+  # tab's count and the newest request. Members modelled like production
+  # (coarse role NULL, the production bundles, as in 244's suite): rows and
+  # counts equal v1 for «Все», each tab's count equals its rows, «take»
+  # appears exactly where the real mutate_sales_lead_workflow accepts the
+  # actor as the owner (the command refuses the department Sales Manager and
+  # Admissions; a stale take is a version conflict), no visibility widening,
+  # students, callers without a membership and anon refused.
+  if [[ "$(basename "$migration")" == 250_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_requests_queue_triage.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -41771,3 +41771,33 @@ production-действий нет, SQL нет.
 - Проверка: статический рендер (синтетика) в обоих обликах 1440/1280/390;
   целевые node-тесты против `main`; typecheck; eslint затронутых; `git diff
   --check`.
+
+## 2026-09-27 — Э4: Lead 360 и «Отчёт продаж» — перенос на `main` после Э5 (#1077) (дополняет записи выше)
+
+Записи выше не переписываются. Пока срез ждал слияния, в main вошёл #1077
+(Э5 «Переписки»: один пункт меню вместо «Сообщений» и WhatsApp, счётчики,
+состояние на виду, шаблоны ответов). Срез перенесён на main `4e795801`;
+история переписана и отправлена с `--force-with-lease`. Объём среза и решения
+не меняются; SQL в срезе нет, production-действий нет.
+
+- **Обе стороны сохранены.** `docs/PLAN_CHANGES.md` — main байт в байт, записи
+  Э4 после записи Э5; `DESIGN.md` — раздел Э4 в начале и пункт Э5 «Переписки»
+  на своём месте. Меню срез не трогает: пункты «Переписки» Э5 остаются как в
+  main. «Написать» Lead 360 ведёт прежними адресами, которые Э5 сохранил:
+  связанная переписка WhatsApp (`/v3/inbox`, право `messaging.read`) или
+  «Кабинет студента» дела (`/v3/messages?case=…`). `PageHeader` несёт и
+  `className` Э5, и `max-w-full` у действия Э4.
+- **CI.** `test:frontend` несёт и `v3-conversations` (Э5), и
+  `v3-e4-work-surfaces` (Э4, группа без `react-server`); пины
+  `tests/ci-node-test-suite.test.mjs` — 365/226/192/263/221.
+
+Проверка на перенесённой голове: целевые node-тесты (Э4 — `v3-e4-work-surfaces`,
+`v3-honest-numbers`, `v3-lead-case-closure`, `v3-case-work`,
+`platform-access-owner-defaults`; Э5 и меню — `v3-conversations`,
+`v3-navigation`, `v3-shell-next`, `v3-case-chat`, `case-chat-queues`;
+`v3-blocks`, `v3-truthful-state`, `ci-node-test-suite`) — без падений;
+`run-node-test-suite.mjs --validate-only` для `ci` и `unit`; `npm run
+typecheck`; `npx eslint` по изменённым файлам; `git diff --check`; статический
+рендер Э4 (синтетика, оба облика, 1440/1280/390) — без переполнения, текста
+меньше 12 px и мелких целей. Живые данные, права и провайдеры переносом не
+проверяются.

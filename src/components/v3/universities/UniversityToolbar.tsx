@@ -13,6 +13,11 @@ import { Icon } from "@/components/icons";
  * выбрано; подпись поля — для читалки), «Сбросить» — только когда что-то
  * выбрано. Всё состояние — в адресе (`q`, `country`, `level`; страница
  * сбрасывается). Без скрипта это обычная форма GET, и для неё остаётся «Найти».
+ *
+ * Все три поля управляемые и не пересоздаются при переходе: фокус остаётся
+ * на поле, где его оставили (выбор «Страны» с клавиатуры не выбрасывает
+ * фокус на страницу). Значения приходят из адреса: «Сбросить» или «Назад»
+ * ставят их заново.
  */
 export type UniversityToolbarOption = Readonly<{ value: string; label: string }>;
 
@@ -46,6 +51,15 @@ export function UniversityToolbar({
     setShown(query);
     if (query !== sent) setText(query);
   }
+  // «Страна» и «Уровень» — то же правило: своё значение сразу, адрес — источник правды после перехода.
+  const [countryValue, setCountryValue] = useState(country);
+  const [levelValue, setLevelValue] = useState(level);
+  const [shownFilters, setShownFilters] = useState({ country, level });
+  if (country !== shownFilters.country || level !== shownFilters.level) {
+    setShownFilters({ country, level });
+    setCountryValue(country);
+    setLevelValue(level);
+  }
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
@@ -53,8 +67,8 @@ export function UniversityToolbar({
   const href = (next: Readonly<{ q?: string; country?: string; level?: string }>) => {
     const params = new URLSearchParams();
     const q = (next.q ?? text).trim();
-    const nextCountry = next.country ?? country;
-    const nextLevel = next.level ?? level;
+    const nextCountry = next.country ?? countryValue;
+    const nextLevel = next.level ?? levelValue;
     if (q) params.set("q", q);
     if (nextCountry) params.set("country", nextCountry);
     if (nextLevel) params.set("level", nextLevel);
@@ -98,14 +112,20 @@ export function UniversityToolbar({
       </label>
       <label className="min-w-40 flex-1 basis-40 sm:max-w-56">
         <span className="t-label sr-only">Страна</span>
-        <select key={country} name="country" defaultValue={country} onChange={(event) => router.push(href({ country: event.target.value }), { scroll: false })} className={`${CONTROL} px-3`}>
+        <select name="country" value={countryValue} onChange={(event) => {
+          setCountryValue(event.target.value);
+          router.push(href({ country: event.target.value }), { scroll: false });
+        }} className={`${CONTROL} px-3`}>
           <option value="">Все страны</option>
           {countries.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </label>
       <label className="min-w-40 flex-1 basis-40 sm:max-w-56">
         <span className="t-label sr-only">Уровень</span>
-        <select key={level} name="level" defaultValue={level} onChange={(event) => router.push(href({ level: event.target.value }), { scroll: false })} className={`${CONTROL} px-3`}>
+        <select name="level" value={levelValue} onChange={(event) => {
+          setLevelValue(event.target.value);
+          router.push(href({ level: event.target.value }), { scroll: false });
+        }} className={`${CONTROL} px-3`}>
           <option value="">Все уровни</option>
           {levels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>

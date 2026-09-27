@@ -168,12 +168,28 @@ test("«Университеты»: the toolbar applies filters on change and ke
   assert.match(html, /href="\/v3\/universities"[^>]*>Сбросить<\/a>/u, "«Сбросить» only when something is chosen");
   assert.doesNotMatch(page("universities-list"), />Сбросить<\/a>/u);
   const toolbar = source("src/components/v3/universities/UniversityToolbar.tsx");
-  assert.match(toolbar, /onChange=\{\(event\) => router\.push\(href\(\{ country: event\.target\.value \}\)/u);
-  assert.match(toolbar, /onChange=\{\(event\) => router\.push\(href\(\{ level: event\.target\.value \}\)/u);
+  // Controlled selects, no remount after a choice: keyboard focus stays on the select (review #1079).
+  assert.match(toolbar, /<select name="country" value=\{countryValue\} onChange=\{\(event\) => \{\s*setCountryValue\(event\.target\.value\);\s*router\.push\(href\(\{ country: event\.target\.value \}\)/u);
+  assert.match(toolbar, /<select name="level" value=\{levelValue\} onChange=\{\(event\) => \{\s*setLevelValue\(event\.target\.value\);\s*router\.push\(href\(\{ level: event\.target\.value \}\)/u);
+  assert.doesNotMatch(toolbar, /key=\{(?:country|level)\}|defaultValue=\{(?:country|level)\}/u);
+  assert.match(html, /<select name="country"[^>]*>[\s\S]*?<option value="MY" selected="">Малайзия<\/option>/u, "the address still sets the value");
   assert.match(toolbar, /setTimeout\(\(\) => search\(value, true\), LIVE_DELAY_MS\)/u, "search runs by itself after a pause");
   // Both Malaysian bachelor filters reached the read: 13 rows, no pagination.
   assert.equal([...html.matchAll(/data-university-row=/gu)].length, 13);
   assert.doesNotMatch(html, /aria-label="Страницы каталога"/u);
+});
+
+test("catalogue read: offset 0 alone, then four at once, nothing past the end; one retry when the catalogue changes mid-read", () => {
+  const offsets = (name) => pages.find((entry) => entry.name === name && entry.look === "current").catalogueOffsets;
+  assert.deepEqual(offsets("universities-list"), [0, 30, 60, 90, 120], "143 universities: 5 calls, none past the end");
+  assert.deepEqual(offsets("universities-list-filtered"), [0], "13 rows: one call");
+  // A row seen twice (Admin publishes during the read) reads the catalogue once more instead of failing the page.
+  assert.deepEqual(offsets("universities-list-changed"), [0, 30, 60, 90, 120, 0, 30, 60, 90, 120]);
+  const changed = page("universities-list-changed");
+  assert.doesNotMatch(changed, /Не удалось загрузить каталог/u);
+  assert.match(changed, /1–30<\/span> из <span class="tabular-nums">143<\/span>/u);
+  const reader = source("src/lib/v3/university-source.ts");
+  assert.match(reader, /if \(!\(error instanceof CatalogueChangedError\)\) throw error;\s*return readWholeCatalogue\(actor, filters\);/u, "one retry, then the error");
 });
 
 test("university page: programmes and intakes first, then the overview; the photo smaller at the side with one Russian credit line", () => {
@@ -183,6 +199,11 @@ test("university page: programmes and intakes first, then the overview; the phot
     const about = html.indexOf('id="university-about"');
     const photo = html.indexOf('aria-label="Фото кампуса"');
     assert.ok(programs > 0 && about > programs && photo > about, `${look}: programmes → overview → photo`);
+    // Name and place read as one unit: the place is the line under the h1, the Admin links come after it.
+    const h1 = html.indexOf("<h1");
+    const place = html.indexOf('<p class="t-meta mt-1 text-fg-3">Малайзия · Johor Bahru · <span class="tabular-nums">3</span> программы</p>');
+    assert.ok(h1 > 0 && place > h1 && html.indexOf(">Бланки университета</a>") > place && programs > place, `${look}: h1 → place → Admin links → programmes`);
+    assert.equal([...html.matchAll(/Малайзия · Johor Bahru/gu)].length, 1, `${look}: the place once`);
     assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
     assert.match(html, /data-photo-credit="">Фото: <a[^>]*>[^<]+<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>CC BY-SA 4\.0<span/u);
     assert.match(html, /aspect-\[4\/3\]/u);
@@ -204,13 +225,19 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.match(nav, /<a aria-current="page"[^>]*href="\/v3\/settings\?section=staff&amp;view=people">Сотрудники<\/a>/u);
   assert.doesNotMatch(staff, /aria-label="Управление командой"|виден только администратору|>админ</u, "no second tab row, no admin marks");
   assert.match(staff, /<h3 class="t-section">Сотрудники · 5<\/h3>/u);
+  // Search, «Отдел» and «Доступ» in one toolbar row above the list and the card (review #1079).
+  const toolbar = staff.match(/<div role="search" aria-label="Поиск сотрудников" class="flex flex-wrap items-center gap-2">[\s\S]*?<\/div>/u)?.[0] ?? assert.fail("staff toolbar row");
+  assert.equal([...toolbar.matchAll(/<input type="search"|<select /gu)].length, 3);
+  assert.match(toolbar, /Показано <span class="tabular-nums">5<\/span> из <span class="tabular-nums">5<\/span>/u);
+  assert.ok(staff.indexOf('aria-label="Поиск сотрудников"') < staff.indexOf('aria-label="Список сотрудников"'), "the row stands above the list");
 
   const integrations = page("settings-integrations");
   assert.match(integrations, /data-testid="v3-settings-integrations"/u);
   assert.deepEqual([...integrations.matchAll(/data-integration="([a-z]+)"/gu)].map((match) => match[1]), ["whatsapp", "amocrm", "gemini"]);
   assert.doesNotMatch(integrations, /data-testid="v3-settings-blocking"/u, "production facts are not a warning");
   assert.doesNotMatch(integrations, /Требует внимания|v3-edge-|border-s-2/u);
-  assert.match(text(integrations), /WhatsApp не подключён Последняя проверка: нет данных Что не работает: Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя Что сделать: Подключается на сервере: вебхук и вход по QR/u);
+  assert.match(text(integrations), /WhatsApp не подключён Последняя проверка: нет данных Что не работает: Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя Что сделать: Подключает технический специалист на сервере: вебхук и вход по QR Открыть WhatsApp/u);
+  assert.match(integrations, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/inbox">Открыть WhatsApp<\/a>/u);
 
   const blocked = page("settings-integrations-blocked");
   assert.equal([...blocked.matchAll(/data-testid="v3-settings-blocking"/gu)].length, 1, "one warning on top");

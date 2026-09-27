@@ -26,32 +26,61 @@ export async function readStaffUniversities(actor: ActivePlatformActor, filters 
 /** Страниц по 30 в полном чтении каталога для общего порядка по сроку (до 1 200 университетов). */
 const CATALOGUE_SORT_PAGES = 40;
 const CATALOGUE_SORT_BATCH = 4;
+const CATALOGUE_PAGE = 30;
 export type StaffUniversityCatalogue =
   | Readonly<{ kind: "complete"; items: readonly PublishedUniversity[] }>
   | Readonly<{ kind: "server"; page: UniversityPage }>;
-/**
- * Весь отфильтрованный каталог для «Университетов» сотрудников (Э6): порядок
- * по ближайшему сроку общий, поэтому страница читает все страницы того же
- * чтения `staff_university_catalog` (по 30, по четыре сразу) и делит их сама.
- * Каталог за пределом — прежняя страница сервера по названию, без общего
- * числа. Каталог, изменившийся посреди чтения (повтор строки), — ошибка
- * чтения, а не молча склеенный список.
- */
-export async function readStaffUniversityCatalogue(actor: ActivePlatformActor, filters: UniversityFilters): Promise<StaffUniversityCatalogue> {
+/** Каталог изменился посреди чтения (строка пришла дважды): чтение повторяется один раз. */
+class CatalogueChangedError extends Error {
+  constructor() { super("Catalogue changed during read"); }
+}
+async function readWholeCatalogue(actor: ActivePlatformActor, filters: UniversityFilters): Promise<StaffUniversityCatalogue> {
   const items: PublishedUniversity[] = [], seen = new Set<string>();
-  for (let first = 0; first < CATALOGUE_SORT_PAGES; first += CATALOGUE_SORT_BATCH) {
-    const offsets = Array.from({ length: CATALOGUE_SORT_BATCH }, (_, index) => (first + index) * 30);
+  /** true — страница последняя. */
+  const take = (page: UniversityPage, offset: number) => {
+    for (const item of page.items) {
+      if (seen.has(item.id)) throw new CatalogueChangedError();
+      seen.add(item.id); items.push(item);
+    }
+    if (page.nextOffset === null) return true;
+    if (page.nextOffset !== offset + CATALOGUE_PAGE) throw new Error("Catalogue pagination invalid");
+    return false;
+  };
+  // Первая страница — одна: каталог до 30 строк читается одним запросом.
+  if (take(await readStaffUniversities(actor, { ...filters, offset: 0 }), 0)) return { kind: "complete", items };
+  // Дальше — по четыре страницы сразу: 143 университета — 1 + 4 запроса.
+  for (let first = 1; first < CATALOGUE_SORT_PAGES; first += CATALOGUE_SORT_BATCH) {
+    const offsets = Array.from({ length: Math.min(CATALOGUE_SORT_BATCH, CATALOGUE_SORT_PAGES - first) }, (_, index) => (first + index) * CATALOGUE_PAGE);
     const pages = await Promise.all(offsets.map((offset) => readStaffUniversities(actor, { ...filters, offset })));
     for (const [index, page] of pages.entries()) {
-      for (const item of page.items) {
-        if (seen.has(item.id)) throw new Error("Catalogue changed during read");
-        seen.add(item.id); items.push(item);
-      }
-      if (page.nextOffset === null) return { kind: "complete", items };
-      if (page.nextOffset !== offsets[index] + 30) throw new Error("Catalogue pagination invalid");
+      if (take(page, offsets[index])) return { kind: "complete", items };
     }
   }
   return { kind: "server", page: await readStaffUniversities(actor, filters) };
+}
+/**
+ * Весь отфильтрованный каталог для «Университетов» сотрудников (Э6): порядок
+ * по ближайшему сроку общий, поэтому страница читает все страницы того же
+ * чтения `staff_university_catalog` и делит их сама. Первая страница читается
+ * одна, остальные — по четыре сразу, без чтений за концом каталога. Каталог
+ * за пределом — прежняя страница сервера по названию, без общего числа.
+ * Каталог, изменившийся посреди чтения (Admin публикует карточку, строка
+ * пришла дважды), читается ещё раз; второй сбой — ошибка чтения, а не молча
+ * склеенный список.
+ *
+ * Замер 27.09.2026 (локальный Supabase Postgres 17.6.1.143 из
+ * `resolve-postgres-test-image.sh`, 249 миграций, 143 проверенные карточки,
+ * опубликованные функциями stage/review; Apple M4 Max): один вызов
+ * `staff_university_catalog` — 4,1–4,8 мс, всё чтение из пяти вызовов —
+ * 19,5–23 мс на сервере. Сеть и PostgREST production не измерялись.
+ */
+export async function readStaffUniversityCatalogue(actor: ActivePlatformActor, filters: UniversityFilters): Promise<StaffUniversityCatalogue> {
+  try {
+    return await readWholeCatalogue(actor, filters);
+  } catch (error) {
+    if (!(error instanceof CatalogueChangedError)) throw error;
+    return readWholeCatalogue(actor, filters);
+  }
 }
 export async function readStaffUniversityCountries(actor: ActivePlatformActor) {
   if (!staffHasPermission(actor, "catalog.read")) throw new Error("Catalogue unavailable");

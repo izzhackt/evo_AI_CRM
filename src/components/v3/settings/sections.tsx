@@ -107,12 +107,22 @@ export function IntegrationsSection({ rows }: { rows: readonly IntegrationRow[] 
                   {row.without ?? <><span aria-hidden="true" className="text-fg-3">—</span><span className="sr-only">всё работает</span></>}
                 </td>
                 <td role="cell" className="min-w-0 t-body-compact">
-                  {row.action?.href ? (
-                    <Link href={row.action.href} className="inline-flex min-h-11 items-center font-medium text-fg underline underline-offset-4 hover:text-fg-2 @min-[40rem]/integrations:-my-2.5">
-                      {row.action.label}
-                    </Link>
-                  ) : row.action ? (
-                    <><StackLabel>Что сделать</StackLabel><span className="text-fg-2">{row.action.label}</span></>
+                  {/* Кто делает работу на сервере, затем страница CRM по сервису: у действия всегда есть путь. */}
+                  {row.action ? (
+                    <>
+                      <StackLabel>Что сделать</StackLabel>
+                      {row.action.handoff ? <span className="text-fg-2">{row.action.handoff}</span> : null}
+                      {row.action.link ? (
+                        <span className={row.action.handoff ? "block" : undefined}>
+                          <Link
+                            href={row.action.link.href}
+                            className={`inline-flex min-h-11 items-center font-medium text-fg underline underline-offset-4 hover:text-fg-2 ${row.action.handoff ? "" : "@min-[40rem]/integrations:-my-2.5"}`}
+                          >
+                            {row.action.link.label}
+                          </Link>
+                        </span>
+                      ) : null}
+                    </>
                   ) : (
                     <><span aria-hidden="true" className="text-fg-3 @max-[40rem]/integrations:hidden">—</span><span className="sr-only">ничего</span></>
                   )}

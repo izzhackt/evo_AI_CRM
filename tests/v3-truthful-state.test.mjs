@@ -75,6 +75,11 @@ test("settings: unconfigured providers, an unchecked check and a deliberately un
   assert.equal(rows.whatsapp.checkedText, null, "no session read: no check time is claimed");
   assert.equal(rows.whatsapp.checkable, true, "WhatsApp has a check — «нет данных», not «—»");
   assert.match(rows.whatsapp.without, /не приходят в CRM/u);
+  // Review #1079: who connects it, and the WhatsApp page that says the same.
+  assert.deepEqual(rows.whatsapp.action, {
+    handoff: "Подключает технический специалист на сервере: вебхук и вход по QR",
+    link: { label: "Открыть WhatsApp", href: "/v3/inbox" },
+  });
   for (const key of ["gemini", "amocrm"]) {
     assert.equal(rows[key].state, "не используется", key);
     assert.equal(rows[key].tone, "off", key);
@@ -103,6 +108,14 @@ test("settings: a configured but broken provider is the one warning, with its re
   assert.equal(rows.amocrm.state, "заблокирована");
   assert.equal(rows.amocrm.detail, "Доступ к аккаунту amoCRM не подтверждён.");
   assert.deepEqual(settingsBlockingIntegrations(Object.values(rows)).map((row) => row.key), ["whatsapp", "amocrm", "gemini"]);
+  // Every server-side step names who does it; none is left as bare «… на сервере».
+  assert.deepEqual(rows.whatsapp.action, {
+    handoff: "Передать техническому специалисту: проверить подключение на сервере",
+    link: { label: "Открыть WhatsApp", href: "/v3/inbox" },
+  });
+  for (const key of ["amocrm", "gemini"]) {
+    assert.deepEqual(rows[key].action, { handoff: "Передать техническому специалисту: исправить параметры на сервере", link: null }, key);
+  }
 
   const unverified = byKey(settingsIntegrations({
     waha: { display: "ready", sessionStatus: "WORKING", observedAt: "2026-09-27T03:59:00.000Z" },
@@ -110,7 +123,12 @@ test("settings: a configured but broken provider is the one warning, with its re
     amo: { status: "ready" },
   }, NOW));
   assert.equal(unverified.whatsapp.state, "подключён");
-  assert.deepEqual(unverified.whatsapp.action, { label: "Открыть WhatsApp", href: "/v3/inbox" });
+  assert.deepEqual(unverified.whatsapp.action, { handoff: null, link: { label: "Открыть WhatsApp", href: "/v3/inbox" } });
+  assert.equal(unverified.gemini.action.handoff, "Передать техническому специалисту: проверить работу сервиса на сервере");
+  assert.equal(unverified.amocrm.action.handoff, "Передать техническому специалисту: проверить синхронизацию на сервере");
+  for (const row of [...Object.values(rows), ...Object.values(unverified)]) {
+    if (row.action) assert.ok(row.action.link || /технический специалист|техническому специалисту/u.test(row.action.handoff), `${row.key}: a path or an owner`);
+  }
   assert.equal(unverified.whatsapp.without, null);
   assert.equal(unverified.gemini.state, "настроен, не проверен");
   assert.equal(unverified.amocrm.state, "настроена, не проверена");
@@ -137,6 +155,11 @@ test("settings: the warning above the sections exists only when work stops, and 
   const table = IntegrationsSection({ rows: blocked });
   const rows = findElements(table, (node) => node.props?.["data-integration"]);
   assert.deepEqual(rows.map((row) => row.props["data-integration"]), ["whatsapp", "amocrm", "gemini"]);
+  // «Что сделать» never ends at bare «… на сервере»: the owner, and for WhatsApp its page.
+  const whatsappCell = findElements(rows[0], (node) => node.type === "td").at(-1);
+  assert.match(textOf(whatsappCell), /Подключает технический специалист на сервере: вебхук и вход по QR/u);
+  assert.equal(findElements(whatsappCell, (node) => node.type?.name === "Link")[0].props.href, "/v3/inbox");
+  assert.match(textOf(findElements(rows[1], (node) => node.type === "td").at(-1)), /Передать техническому специалисту: исправить параметры на сервере/u);
   const settings = source("src/components/v3/settings/sections.tsx");
   assert.doesNotMatch(settings, /v3-edge-|border-s-2|Требует внимания/u, "no side-stripe cards, no second attention list");
   assert.doesNotMatch(source("src/components/v3/settings/Settings.tsx"), /виден только администратору|>\s*админ\s*</u);

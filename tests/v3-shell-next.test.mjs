@@ -322,14 +322,21 @@ test("without a top bar every page title starts at one height, level with the lo
   assert.match(read("src/components/v3/AppShellNext.tsx"), /"hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex"/u);
 });
 
-test("a menu list longer than the window shows a shadow at the clipped edge", () => {
+test("a menu list longer than the window shows a cue at the clipped edge", () => {
   const css = read("src/app/(v3)/v3.css");
-  assert.match(css, /\[data-shell-scroll\]\[data-more-below\] \{\s*box-shadow: inset 0 -8px 8px -6px/u);
+  // Э6 (27.09.2026): below — the last visible items fade into the menu and the
+  // account row carries a shadow; above — the inset shadow as before.
+  assert.match(css, /\.v3-world \[data-shell-scroll\]\[data-more-below\]::after \{[^}]*position: sticky;[^}]*bottom: 0;[^}]*background: linear-gradient\(to bottom, transparent, color-mix\(in srgb, var\(--surface\) 75%, transparent\)\);[^}]*pointer-events: none;/u);
+  assert.match(css, /\[data-shell-scroll\]\[data-more-below\] \+ \[data-shell-account\] \{[^}]*box-shadow: 0 -6px 10px -6px/u);
   assert.match(css, /\[data-shell-scroll\]\[data-more-above\] \{\s*box-shadow: inset 0 8px 8px -6px/u);
   const shell = read("src/components/v3/AppShellNext.tsx");
   assert.match(shell, /data-more-above=\{edges\.above \? "" : undefined\}\s*data-more-below=\{edges\.below \? "" : undefined\}/u);
   assert.match(shell, /const below = scroller\.scrollTop \+ scroller\.clientHeight < scroller\.scrollHeight - 1;/u);
   assert.match(shell, /observer\.observe\(scroller\);\s*observer\.observe\(content\);/u, "recomputed when a group opens or the window changes");
+  // The current look scrolls its whole panel and gets the same fade from the same edge rule.
+  const current = read("src/components/v3/AppShell.tsx");
+  assert.match(current, /const edges = useScrollEdges\(scrollRef, listRef\);/u);
+  assert.match(current, /data-shell-scroll=""\s*data-more-above=\{edges\.above \? "" : undefined\}\s*data-more-below=\{edges\.below \? "" : undefined\}/u);
 });
 
 test("the new look is chosen once by the layout and the current AppShell stays the default", () => {

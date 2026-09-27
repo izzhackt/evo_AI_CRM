@@ -555,11 +555,13 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
       && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual", "LOCAL_ROLE_EDITOR_ADMIN_UI_REQUIRED");
     stage = "SETTINGS";
     await page.goto(`${appOrigin}/v3/settings?section=staff`, { waitUntil: "domcontentloaded" });
-    const rolesTab = () => page.getByRole("navigation", { name: "Управление командой", exact: true })
-      .getByRole("link", { name: "Роли и права", exact: true });
+    // «Роли и доступ» — пункт списка разделов настроек (Э6, #1079): отдельного
+    // ряда вкладок «Управление командой» больше нет.
+    const rolesTab = () => page.getByRole("navigation", { name: "Разделы настроек", exact: true })
+      .getByRole("link", { name: "Роли и доступ", exact: true });
     await rolesTab().click();
     await page.waitForURL(`${appOrigin}/v3/settings?section=staff&view=roles`);
-    await page.getByRole("heading", { name: "Роли и права", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Роли и доступ", exact: true }).waitFor();
     const details = () => page.getByRole("region", { name: "Выбранная роль", exact: true });
     const editor = () => page.getByRole("form", { name: "Редактор роли", exact: true });
     const savedDraft = "Черновик роли сохранён. Для изменения доступа опубликуйте его.";

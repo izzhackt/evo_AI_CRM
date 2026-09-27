@@ -135,7 +135,7 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
   // настроек (Э6, 27.09.2026): своего ряда вкладок здесь нет.
   return <div className="space-y-5">
     {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
         <h3 className="t-section">Сотрудники · {data.members.length}</h3>
         <StaffDisclosure label="Создать аккаунт" className="w-full" buttonClassName="font-medium text-accent">
           <div className="pt-3"><StaffPasswordForm workspace={roles} organizationId={organizationId} /></div>
@@ -144,25 +144,21 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
           <div className="pt-3"><StaffInviteForm workspace={roles} organizationId={organizationId} /></div>
         </StaffDisclosure>
       </div>
-      <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
-        <div className={selectedMemberId ? "hidden min-w-0 @4xl:block" : "min-w-0"}>
-          <StaffDirectoryList members={data.members} accessMembers={roles.members} departments={data.departments} selectedMemberId={selectedMemberId} />
-        </div>
-        <div className={`${selectedMemberId ? "block" : "hidden @4xl:block"} min-w-0 @4xl:border-l @4xl:border-border @4xl:pl-6`}>
-          {selectedMember ? <StaffMemberDetails key={selectedMember.membershipId} member={selectedMember} access={selectedAccess} departments={data.departments}>
-            <StaffDisclosure label="Доступ" className="border-t border-border pt-2" buttonClassName="font-semibold">
-              <div className="space-y-4 pt-2">
-                {selectedAccess ? <StaffRoleAssignments member={selectedAccess} workspace={roles} organizationId={organizationId} />
-                  : <p role="alert" className="text-sm text-danger">Права сотрудника недоступны. Обновите страницу.</p>}
-                <StaffDangerZone member={selectedMember} /></div>
-            </StaffDisclosure>
-          </StaffMemberDetails> : <div className="space-y-3 py-5">
-            <p role={selectedMemberId ? "alert" : undefined} className="text-sm leading-6 text-fg-3">{selectedMemberId
-              ? "Сотрудник не найден или больше недоступен." : "Выберите сотрудника, чтобы посмотреть рабочие сведения и управление доступом."}</p>
-            {selectedMemberId ? <Link href="/v3/settings?section=staff&view=people" className={btnGhostCls}>К сотрудникам</Link> : null}
-          </div>}
-        </div>
-      </div>
+      {/* Поиск и фильтры — одной строкой над списком и карточкой (StaffDirectoryList). */}
+      <StaffDirectoryList members={data.members} accessMembers={roles.members} departments={data.departments} selectedMemberId={selectedMemberId}>
+        {selectedMember ? <StaffMemberDetails key={selectedMember.membershipId} member={selectedMember} access={selectedAccess} departments={data.departments}>
+          <StaffDisclosure label="Доступ" className="border-t border-border pt-2" buttonClassName="font-semibold">
+            <div className="space-y-4 pt-2">
+              {selectedAccess ? <StaffRoleAssignments member={selectedAccess} workspace={roles} organizationId={organizationId} />
+                : <p role="alert" className="text-sm text-danger">Права сотрудника недоступны. Обновите страницу.</p>}
+              <StaffDangerZone member={selectedMember} /></div>
+          </StaffDisclosure>
+        </StaffMemberDetails> : <div className="space-y-3 py-5">
+          <p role={selectedMemberId ? "alert" : undefined} className="text-sm leading-6 text-fg-3">{selectedMemberId
+            ? "Сотрудник не найден или больше недоступен." : "Выберите сотрудника, чтобы посмотреть рабочие сведения и управление доступом."}</p>
+          {selectedMemberId ? <Link href="/v3/settings?section=staff&view=people" className={btnGhostCls}>К сотрудникам</Link> : null}
+        </div>}
+      </StaffDirectoryList>
     </>}
     <StaffDisclosure label={`Журнал доступа · ${data.requests.length}`} className="border-t border-border pt-3" buttonClassName="font-semibold">
       <p className="mt-2 text-sm leading-6 text-fg-3">Проверка сверяет результат с сервисом входа. Повторное создание аккаунта или отправка письма не выполняются.</p>

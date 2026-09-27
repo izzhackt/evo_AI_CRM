@@ -145,6 +145,10 @@ function filterCatalogue(filters) {
  * `staff_university_catalog_countries`. Так рендер проходит и полное чтение
  * каталога страницами, и разбор ответа (`parseUniversityPage`).
  */
+/** Смещения чтений каталога за один рендер страницы (сколько запросов делает полное чтение). */
+let catalogueOffsets = [];
+/** Сценарий «каталог изменился посреди чтения»: первое чтение смещения 30 сдвинуто на строку назад (строка 30 приходит дважды). */
+let catalogueShiftOnce = false;
 const fakeSupabase = {
   schema() {
     return {
@@ -156,7 +160,9 @@ const fakeSupabase = {
         if (args.p_institution_id) return { data: { items: CATALOGUE.filter((item) => item.id === args.p_institution_id).map(published), nextOffset: null }, error: null };
         const all = filterCatalogue({ query: args.p_query ?? "", country: args.p_country ?? "", level: args.p_level ?? "" });
         const offset = args.p_offset;
-        return { data: { items: all.slice(offset, offset + 30).map(published), nextOffset: offset + 30 < all.length ? offset + 30 : null }, error: null };
+        catalogueOffsets.push(offset);
+        const start = catalogueShiftOnce && offset === 30 ? (catalogueShiftOnce = false, offset - 1) : offset;
+        return { data: { items: all.slice(start, start + 30).map(published), nextOffset: offset + 30 < all.length ? offset + 30 : null }, error: null };
       },
     };
   },
@@ -245,6 +251,8 @@ const detailId = () => CATALOGUE.find((item) => item.key === DETAIL_KEY)?.id ?? 
 const PAGES = [
   ["universities-list", "admin", "/v3/universities", "", "production"],
   ["universities-list-filtered", "admin", "/v3/universities", "country=MY&level=bachelor", "production"],
+  // Только для проверки чтения (без снимков): Admin публикует карточку посреди полного чтения.
+  ["universities-list-changed", "admin", "/v3/universities", "", "catalogue-changed"],
   ["universities-detail", "admin", () => `/v3/universities/${detailId()}`, "", "production"],
   ["settings-staff", "admin", "/v3/settings", "", "production"],
   ["settings-integrations", "admin", "/v3/settings", "section=integrations", "production"],
@@ -271,12 +279,15 @@ async function pageNode(pathname, search) {
 async function renderPage([name, role, path, search, providers], look) {
   who = ACTORS[role];
   providerScenario = providers;
+  catalogueOffsets = [];
+  catalogueShiftOnce = providers === "catalogue-changed";
   const pathname = typeof path === "function" ? path() : path;
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const node = await pageNode(pathname, search);
   const page = createElement("div", { className: "v3-world", "data-look": look === "next" ? "next" : undefined },
     createElement(AppShell, { actor: who, initialNotifications: null, ...(look === "next" ? { look: "next" } : {}) }, node));
-  return { name, role, look, pathname, html: renderToStaticMarkup(withContexts(page, pathname, search)) };
+  const html = renderToStaticMarkup(withContexts(page, pathname, search));
+  return { name, role, look, pathname, catalogueOffsets: catalogueOffsets.slice(), html };
 }
 
 async function renderAll() {
@@ -322,6 +333,30 @@ function openMenu({ phone, look }) {
   panel.classList.add("flex");
 }
 
+/**
+ * Знак края меню. Разметка статическая, без гидратации, поэтому признак
+ * `data-more-above` / `data-more-below` ставит сам снимок — тем же правилом,
+ * что `useScrollEdges` (AppShellNext.tsx) после гидратации; сам хук с
+ * настоящей гидратацией проверяет `shell-static-render.cjs` (groups-1280).
+ */
+function markMenuEdges() {
+  const menu = [];
+  for (const scroller of document.querySelectorAll("[data-shell-scroll]")) {
+    if (!scroller.getClientRects().length) continue;
+    scroller.toggleAttribute("data-more-above", scroller.scrollTop > 1);
+    scroller.toggleAttribute("data-more-below", scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1);
+    const view = scroller.getBoundingClientRect();
+    const bottom = Math.min(view.bottom, window.innerHeight);
+    const links = [...scroller.querySelectorAll("a")].filter((link) => link.getClientRects().length);
+    menu.push({
+      cue: scroller.hasAttribute("data-more-below"),
+      fade: getComputedStyle(scroller, "::after").backgroundImage.includes("linear-gradient"),
+      hidden: links.filter((link) => link.getBoundingClientRect().bottom > bottom + 1).map((link) => link.textContent.trim()),
+    });
+  }
+  return menu;
+}
+
 async function screenshots(pages) {
   const outIndex = process.argv.indexOf("--screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
@@ -337,6 +372,7 @@ async function screenshots(pages) {
   let failed = false;
   try {
     for (const page of pages) {
+      if (page.name.endsWith("-changed")) continue;
       const suffix = page.look === "next" ? "-next" : "";
       const htmlPath = join(outDir, `e6-${page.name}${suffix}.html`);
       writeFileSync(htmlPath, [
@@ -355,6 +391,7 @@ async function screenshots(pages) {
         // Фото кампусов грузятся из источников: ждём, но не дольше 15 с (снимок честно покажет незагруженное).
         await tab.waitForFunction(() => [...document.images].every((image) => image.complete || image.getClientRects().length === 0), null, { timeout: 15_000 }).catch(() => {});
         if (page.name.startsWith("menu-")) await tab.evaluate(openMenu, { phone: width === "390", look: page.look });
+        const menu = await tab.evaluate(markMenuEdges);
         if (errors.length) { failed = true; console.error(`${page.name}${suffix} ${width}: ${errors.join("; ")}`); }
         const metrics = await tab.evaluate(() => {
           const main = document.querySelector("main");
@@ -381,10 +418,27 @@ async function screenshots(pages) {
             main: Boolean(main),
           };
         });
+        metrics.menu = menu;
+        // Пункт меню за краем окна без знака края — ошибка снимка.
+        if (menu.some((entry) => entry.hidden.length && !(entry.cue && entry.fade))) failed = true;
         const file = `e6-${page.name}-${width}${suffix}.png`;
         await tab.screenshot({ path: join(outDir, file) });
         // Во весь рост — страницы (не меню) на 1440 и на телефоне: видна длина страницы.
-        if (!page.name.startsWith("menu-") && width !== "1280") await tab.screenshot({ path: join(outDir, `e6-${page.name}-${width}-full${suffix}.png`), fullPage: true });
+        if (!page.name.startsWith("menu-") && width !== "1280") {
+          // Во весь рост ленивые фото ниже окна иначе остались бы пустыми: грузим их до снимка
+          // и ждём загрузку или отказ каждого (не дольше 15 с — снимок честно покажет незагруженное).
+          // `decoding="async"`: загруженное фото ещё и декодируется до снимка, иначе кадр пустой.
+          await tab.evaluate(() => Promise.all([...document.images].map((image) => {
+            image.loading = "eager";
+            const loaded = image.naturalWidth > 0 ? Promise.resolve() : new Promise((done) => {
+              image.addEventListener("load", done, { once: true });
+              image.addEventListener("error", done, { once: true });
+              setTimeout(done, 15_000);
+            });
+            return loaded.then(() => (image.naturalWidth > 0 ? image.decode().catch(() => {}) : null));
+          })));
+          await tab.screenshot({ path: join(outDir, `e6-${page.name}-${width}-full${suffix}.png`), fullPage: true });
+        }
         console.log(JSON.stringify({ file, ...metrics }));
         if (metrics.overflowX > 0 || metrics.small > 0 || metrics.h1 !== 1) failed = true;
         await browserContext.close();

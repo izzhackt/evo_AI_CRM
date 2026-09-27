@@ -193,7 +193,7 @@ function MenuGroup({
           )}
         </TopLayerMenu>
       ) : null}
-      <ul id={contentId} hidden={!open} className={cn("ms-3 mt-1 space-y-1 border-s border-border ps-1", rail && "md:max-2xl:hidden")}>
+      <ul id={contentId} hidden={!open} className={cn("ms-3 border-s border-border ps-1", rail && "md:max-2xl:hidden")}>
         {group.links.map((link) => (
           <li key={link.id}>
             <MenuLink link={link} activeId={activeId} onNavigate={onNavigate} />
@@ -206,7 +206,10 @@ function MenuGroup({
 
 /**
  * Список разделов. Ключ — место назначения: при переходе раскрывается текущий
- * отдел. Отделы открываются по одному (`toggleMenuGroup`).
+ * отдел. Отделы открываются по одному (`toggleMenuGroup`). Строки по 44 px
+ * без зазоров между ними, между «Отделами» и «Общим» — одна волосяная линия
+ * с малым отступом (Э6): у Admin на 1280×800 в окне почти весь список, а
+ * остаток обозначен затуханием у нижнего края (v3.css, `data-more-below`).
  */
 function MenuLists({
   navigation,
@@ -224,7 +227,7 @@ function MenuLists({
 
   return (
     <>
-      <ul aria-label="Навигация по разделам" className={cn("space-y-1 px-3 pb-4", rail && "md:max-2xl:px-2")}>
+      <ul aria-label="Навигация по разделам" className={cn("px-3 pb-2", rail && "md:max-2xl:px-2")}>
         {navigation.home ? (
           <li>
             <MenuLink link={navigation.home} activeId={navigation.activeId} rail={rail} hint={hint(navigation.home.label)} onNavigate={onNavigate} />
@@ -244,9 +247,9 @@ function MenuLists({
         ))}
       </ul>
       {navigation.common.length ? (
-        <section aria-label="Общее" className={cn("mx-3 border-t border-border pb-4 pt-4", rail && "md:max-2xl:mx-2 md:max-2xl:pb-2 md:max-2xl:pt-2")}>
-          <h2 className={cn("t-caption mb-2 px-3 text-fg-3", rail && "md:max-2xl:sr-only")}>Общее</h2>
-          <ul className="space-y-1">
+        <section aria-label="Общее" className={cn("mx-3 border-t border-border pb-2 pt-2", rail && "md:max-2xl:mx-2")}>
+          <h2 className={cn("t-caption mb-1 px-3 pt-1 text-fg-3", rail && "md:max-2xl:sr-only")}>Общее</h2>
+          <ul>
             {navigation.common.map((link) => (
               <li key={link.id}>
                 <MenuLink link={link} activeId={navigation.activeId} rail={rail} hint={hint(link.label)} onNavigate={onNavigate} />
@@ -264,7 +267,7 @@ function MenuLists({
  * меняет высоту при раскрытии отдела и при смене окна, поэтому края
  * пересчитываются и при прокрутке, и при изменении размеров.
  */
-function useScrollEdges(scrollRef: RefObject<HTMLElement | null>, contentRef: RefObject<HTMLElement | null>): ScrollEdges {
+export function useScrollEdges(scrollRef: RefObject<HTMLElement | null>, contentRef: RefObject<HTMLElement | null>): ScrollEdges {
   const [edges, setEdges] = useState<ScrollEdges>({ above: false, below: false });
   useEffect(() => {
     const scroller = scrollRef.current;
@@ -599,7 +602,9 @@ export function AppShellNext({
             </div>
           ) : null}
 
-          {/* Тень у края, за которым есть ещё пункты: список не обрывается молча. */}
+          {/* Список — единственная прокручиваемая часть меню. У края, за которым
+              есть ещё пункты, — знак: сверху тень внутрь, снизу затухание
+              последних пунктов и тень над строкой аккаунта (v3.css). */}
           <div
             ref={scrollRef}
             data-shell-scroll=""

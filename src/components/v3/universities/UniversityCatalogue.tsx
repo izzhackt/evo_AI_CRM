@@ -299,15 +299,28 @@ function Program({ program, now, today }: { program: UniversityProgram; now: Dat
  * у Admin: сначала программы и наборы, затем «Об университете»; фото — сбоку
  * (от 56rem своего контейнера) или последним в стопке.
  */
-export function UniversityContentView({ content, now }: { content: UniversityContent; now: Date }) {
+/** «Малайзия · Johor Bahru · 3 программы» — место и размер вуза одной строкой. */
+export function UniversityPlace({ content }: { content: UniversityContent }) {
+  return (
+    <>
+      {universityCountry(content.country)}{content.city ? ` · ${content.city}` : ""} · <span className="tabular-nums">{content.programs.length}</span> {programsWord(content.programs.length)}
+    </>
+  );
+}
+
+/**
+ * Карточка вуза. `placeInHeader` — страница вуза ставит строку места сразу
+ * под заголовком (`PartShell meta`): название и место читаются одним целым,
+ * тихие ссылки Admin — после них. Проверка черновика заголовка вуза не
+ * имеет, и строка остаётся здесь.
+ */
+export function UniversityContentView({ content, now, placeInHeader = false }: { content: UniversityContent; now: Date; placeInHeader?: boolean }) {
   const today = dayInOrganizationTimezone(now);
   return (
     <div className="@container/university">
       <div className="grid gap-x-8 gap-y-6 @min-[56rem]/university:grid-cols-[minmax(0,1fr)_17rem] @min-[56rem]/university:items-start">
         <div className="min-w-0 space-y-6">
-          <p className="t-body-compact text-fg-2">
-            {universityCountry(content.country)}{content.city ? ` · ${content.city}` : ""} · <span className="tabular-nums">{content.programs.length}</span> {programsWord(content.programs.length)}
-          </p>
+          {placeInHeader ? null : <p className="t-body-compact text-fg-2"><UniversityPlace content={content} /></p>}
           <section aria-labelledby="university-programs">
             <h2 id="university-programs" className="t-section text-fg">Программы и наборы</h2>
             <div className="mt-1 divide-y divide-border border-b border-border">
@@ -341,10 +354,14 @@ export function UniversityBackLink() {
   );
 }
 
-/** Управление каталогом Admin на странице вуза — тихие ссылки: это редкая задача, не главное действие. */
+/**
+ * Управление каталогом Admin на странице вуза — тихие ссылки: это редкая
+ * задача, не главное действие. Цель нажатия — 44 px, а видимый зазор на
+ * телефоне меньше: поле ссылки заходит в воздух над и под строкой.
+ */
 export function UniversityManageLinks({ id, formsHref }: { id: string; formsHref?: string }) {
   return (
-    <div className="flex flex-wrap gap-x-4">
+    <div className="flex flex-wrap gap-x-4 max-sm:-my-2">
       {formsHref ? <Link className={QUIET_LINK} href={formsHref}>{universityFormWorkspace.title}</Link> : null}
       <Link className={QUIET_LINK} href={`/v3/universities/manage?edit=${id}`}>Предложить обновление</Link>
     </div>

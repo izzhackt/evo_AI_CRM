@@ -458,8 +458,11 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
   const act = (name) => { actions.push(name); if (name === failureAction) throw privateError; };
   const emptyRole = (id) => ({ id, label: "", description: "", version: 0, status: "active", bundleId: null,
     bundleVersion: null, permissionKeys: [], draftPermissionKeys: [], memberCount: 0 });
-  const locator = (name = "") => ({
-    getByRole: (_role, options = {}) => locator(options.name ?? ""), getByLabel: (label) => locator(label),
+  // The path keeps the role chain, so a renamed container or heading level
+  // breaks the sequence instead of passing on the leaf name alone.
+  const locator = (name = "", path = "") => ({
+    getByRole: (role, { name: roleName = "", level } = {}) => locator(roleName, `${path}/${role}${level ?? ""}:${roleName}`),
+    getByLabel: (label) => locator(label),
     getByText: (text) => locator(text), locator: (selector) => locator(selector),
     filter: ({ hasText }) => locator(`select:${hasText}`),
     async fill(value) {
@@ -487,7 +490,7 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     },
     async click() {
       act(`click:${name}`);
-      if (name === "Роли и доступ") pageUrl = `${appOrigin}/v3/settings?section=staff&view=roles`;
+      if (path === "/navigation:Разделы настроек/link:Роли и доступ") pageUrl = `${appOrigin}/v3/settings?section=staff&view=roles`;
       if (name === "Создать роль") {
         draft = emptyRole(ids[0]); operation = "create";
         for (let index = 0; index < mainFrameNavigations; index += 1) listeners.get("framenavigated")?.(mainFrame);
@@ -515,7 +518,12 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
       }
       if (selected) pageUrl = `${appOrigin}/v3/settings?section=staff&view=roles&role=${selected.id}`;
     },
-    async waitFor() { act(`wait:${name}`); },
+    async waitFor() {
+      act(`wait:${name}`);
+      // The roles view has exactly one heading with this title, the h2 of
+      // StaffRolesSection, so the wait carries no level (a level 3 never matches).
+      if (name === "Роли и доступ") assert.equal(path, "/heading:Роли и доступ");
+    },
     async getAttribute(attribute) { return attribute === "data-system-role" ? "admin" : "actual"; },
     async count() { if (observationFailure === "fixed-counts") throw privateError; return 0; },
   });
@@ -557,6 +565,8 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
 test("role editor coordinator uses UI commands, read-only canonical checks and no default artifacts", async () => {
   const fixture = roleEditorBoundary();
   const result = await verifyScopedStaffRoleEditor(fixture.input);
+  const rolesView = fixture.actions.indexOf("click:Роли и доступ");
+  assert.deepEqual(fixture.actions.slice(rolesView - 1, rolesView + 2), ["goto", "click:Роли и доступ", "wait:Роли и доступ"]);
   assert.deepEqual(fixture.actions.filter((name) => name.startsWith("command:")),
     ["command:create", "command:save", "command:publish", "command:copy", "command:archive", "command:restore"]);
   assert.ok(fixture.reads.every((name) => ["staff_access_snapshot", "staff_role_workspace", "staff_role_impact", "staff_role_archive_impact"].includes(name)));

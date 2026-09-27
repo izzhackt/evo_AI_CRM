@@ -2,7 +2,7 @@ import { staffHasPermission, isStaffPreview } from "../platform-access.ts";
 import "server-only";
 import type { ActivePlatformActor } from "../platform-auth";
 import type { ActiveStudentPortalActor } from "../student-portal-auth";
-import { parseUniversityContent, parseUniversityDrafts, parseUniversityPage, universityUuid, type UniversityFilters, type PublishedUniversity } from "../platform-university-catalog";
+import { parseUniversityContent, parseUniversityDrafts, parseUniversityPage, universityUuid, type UniversityFilters, type UniversityPage, type PublishedUniversity } from "../platform-university-catalog";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseStaffUniversityCountries } from "../university-staff-countries.ts";
 import { parseManageDraftPage, parseManageIndex, parseManageCursor, type ManageIndex } from "../university-manage-contract.ts";
@@ -22,6 +22,36 @@ export async function readStaffUniversities(actor: ActivePlatformActor, filters 
   const page = !error && parseUniversityPage(data);
   if (!page || (id !== null && page.items.some((item) => item.id !== id))) throw new Error("Catalogue unavailable");
   return page;
+}
+/** Страниц по 30 в полном чтении каталога для общего порядка по сроку (до 1 200 университетов). */
+const CATALOGUE_SORT_PAGES = 40;
+const CATALOGUE_SORT_BATCH = 4;
+export type StaffUniversityCatalogue =
+  | Readonly<{ kind: "complete"; items: readonly PublishedUniversity[] }>
+  | Readonly<{ kind: "server"; page: UniversityPage }>;
+/**
+ * Весь отфильтрованный каталог для «Университетов» сотрудников (Э6): порядок
+ * по ближайшему сроку общий, поэтому страница читает все страницы того же
+ * чтения `staff_university_catalog` (по 30, по четыре сразу) и делит их сама.
+ * Каталог за пределом — прежняя страница сервера по названию, без общего
+ * числа. Каталог, изменившийся посреди чтения (повтор строки), — ошибка
+ * чтения, а не молча склеенный список.
+ */
+export async function readStaffUniversityCatalogue(actor: ActivePlatformActor, filters: UniversityFilters): Promise<StaffUniversityCatalogue> {
+  const items: PublishedUniversity[] = [], seen = new Set<string>();
+  for (let first = 0; first < CATALOGUE_SORT_PAGES; first += CATALOGUE_SORT_BATCH) {
+    const offsets = Array.from({ length: CATALOGUE_SORT_BATCH }, (_, index) => (first + index) * 30);
+    const pages = await Promise.all(offsets.map((offset) => readStaffUniversities(actor, { ...filters, offset })));
+    for (const [index, page] of pages.entries()) {
+      for (const item of page.items) {
+        if (seen.has(item.id)) throw new Error("Catalogue changed during read");
+        seen.add(item.id); items.push(item);
+      }
+      if (page.nextOffset === null) return { kind: "complete", items };
+      if (page.nextOffset !== offsets[index] + 30) throw new Error("Catalogue pagination invalid");
+    }
+  }
+  return { kind: "server", page: await readStaffUniversities(actor, filters) };
 }
 export async function readStaffUniversityCountries(actor: ActivePlatformActor) {
   if (!staffHasPermission(actor, "catalog.read")) throw new Error("Catalogue unavailable");

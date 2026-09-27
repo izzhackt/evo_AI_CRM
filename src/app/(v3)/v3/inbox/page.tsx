@@ -138,8 +138,8 @@ export default async function InboxPart({
     : null;
 
   // WhatsApp — пункт «Продаж» (решение владельца 27.09.2026: WhatsApp
-  // продажников, куда приходят лиды); страница стоит отдельно от переписки
-  // со студентами, число диалогов — у заголовка, как до Э5.
+  // продажников, куда приходят лиды); страница стоит отдельно от «Переписки»
+  // поступления, число диалогов — у заголовка, как до Э5.
   return (
     <PartShell title="WhatsApp" count={notConnected ? null : view.conversations.length} fill>
       <Inbox

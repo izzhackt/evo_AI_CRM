@@ -166,7 +166,7 @@
 /*
  * Верх страницы без верхней панели: заголовок стоит на одной высоте у всех
  * разделов, переход «Задачи» → «Студенты» не прыгает. Страницы с PageHeader
- * (PartShell, доски, «Переписка со студентами») — отступ `main`.
+ * (PartShell, доски, «Переписка») — отступ `main`.
  */
 .v3-world[data-surface="staff"] [data-shell-content] main:has(> div:first-child > div:first-child > h1.t-page-title) {
   padding-top: var(--shell-page-top);

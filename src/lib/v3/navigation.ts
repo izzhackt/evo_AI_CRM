@@ -86,10 +86,12 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       // groups, never meets two identical «Воронка» items (UX quick win 2,
       // 2026-09-24); the sales board is «Воронка продаж».
       { id: "admissions-pipeline", href: "/v3/admissions-pipeline", route: "/v3/admissions-pipeline", label: "Воронка поступления" },
-      // Переписка по делу через кабинет студента — с теми, кто уже студент
+      // «Переписка» по делу через кабинет студента — с теми, кто уже студент
       // или клиент (решение владельца 27.09.2026), сразу после доски, как
       // «Сообщения» OTH-5. Маршрут — `admissions.read`: у продаж его нет.
-      { id: "messages", href: "/v3/messages", route: "/v3/messages", label: "Переписка со студентами" },
+      // Короткое имя — решение владельца 28.09.2026: «Переписка со
+      // студентами» вставала в меню 260 px в две строки.
+      { id: "messages", href: "/v3/messages", route: "/v3/messages", label: "Переписка" },
       // Plan §3: «Рабочий список» renamed to «Студенты» (id kept for stability).
       { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Студенты" },
       { id: "evo-docs", href: "/v3/profile?section=docs", route: "/v3/profile", label: "EVO Docs", capability: "admissions.read" },
@@ -102,7 +104,7 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
 // «Общее» — разделы обоих отделов, одно место у всех ролей (Э6, 27.09.2026).
 // Пунктов Э6 не убирает: у продаж и Admin «Заявки» вышли из сворачиваемых
 // «Продаж» в «Общее», которое открыто всегда (+1 строка). Переписки здесь
-// нет: WhatsApp — в «Продажах», переписка со студентами — в «Поступлении»
+// нет: WhatsApp — в «Продажах», «Переписка» — в «Поступлении»
 // (решение владельца 27.09.2026 вместо одного пункта «Переписки» Э5).
 const COMMON: readonly V3NavigationLink[] = [
   REQUESTS,

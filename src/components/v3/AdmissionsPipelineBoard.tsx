@@ -550,6 +550,9 @@ export function AdmissionsPipelineBoard({
         .catch(() => NO_RESPONSE).then((result) => {
           setUndo((current) => (current?.key === offer.key ? null : current));
           if (result.status === "saved") {
+            // Позднее перечитывание доски (от самого перемещения) могло вернуть
+            // карточку на прежнее место — ставим её туда, где она по квитанции.
+            setCards((current) => current.map((row) => (row.studentCaseId === studentCaseId ? { ...row, pipelineStage: fromStage } : row)));
             setCrossTabHint((hint) => (hint?.studentCaseId === studentCaseId ? null : hint));
             setUndoNote(`Перемещение отменено: дело «${name}» снова в «${admissionsPipelineStage(fromStage)}».`);
             if (hadFocus) setRefocus({ studentCaseId });

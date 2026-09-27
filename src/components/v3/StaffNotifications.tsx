@@ -75,9 +75,9 @@ function rowCopy(item: StaffNotification): string {
 export function StaffNotifications({ initialPage, onCountChange, triggerProps }: {
   initialPage: StaffNotificationPage | null;
   /** Число непрочитанных для «Ещё» нижней панели телефона. */
-  onCountChange?: (count: string | undefined) => void;
+  onCountChange: (count: string | undefined) => void;
   /** Подпись рейки при наведении и фокусе. */
-  triggerProps?: Pick<ButtonHTMLAttributes<HTMLButtonElement>, "onPointerEnter" | "onPointerLeave" | "onFocus" | "onBlur">;
+  triggerProps: Pick<ButtonHTMLAttributes<HTMLButtonElement>, "onPointerEnter" | "onPointerLeave" | "onFocus" | "onBlur">;
 }) {
   const router = useRouter();
   const id = useId();
@@ -153,7 +153,7 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
   }
   const count = page?.unreadCount;
   const failed = error !== null;
-  useEffect(() => { onCountChange?.(count); }, [count, onCountChange]);
+  useEffect(() => { onCountChange(count); }, [count, onCountChange]);
   // Панель в верхнем слое у своей кнопки — справа от бокового меню, на
   // телефоне — под кнопкой в листе «Ещё».
   const panel = useRef<HTMLElement | null>(null);

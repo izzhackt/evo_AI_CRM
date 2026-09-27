@@ -9,7 +9,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  LEAD_PORTAL_GROUP_ID, LEAD_STEP_DRAWER_ID, handoffGateForms, leadDay, leadDueState, leadFeed, leadGroupSummaries,
+  LEAD_PORTAL_GROUP_ID, LEAD_STEP_DRAWER_ID, handoffGateForms, leadDay, leadFeed, leadGroupSummaries,
   leadLastContact, leadMoment, leadPrimaryAction, leadSaleHref,
 } from "../src/components/v3/profile/lead-work-view.ts";
 import {
@@ -79,8 +79,6 @@ test("Lead 360: group lines, the feed, the last contact and dates come from what
   assert.equal(leadMoment("2025-12-31T10:00:00.000Z", now), "31.12.25 16:00", "another year keeps its two digits");
   assert.equal(leadDay("2026-09-29", "2026-09-27"), "29.09");
   assert.equal(leadDay("2027-01-03", "2026-09-27"), "03.01.27");
-  assert.deepEqual(["2026-09-26", "2026-09-27", "2026-09-28", null].map((day) => leadDueState(day, "2026-09-27")),
-    ["overdue", "today", "later", null]);
 });
 
 function row(fields = {}) {

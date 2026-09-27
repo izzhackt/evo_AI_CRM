@@ -267,7 +267,7 @@ function MenuLists({
  * меняет высоту при раскрытии отдела и при смене окна, поэтому края
  * пересчитываются и при прокрутке, и при изменении размеров.
  */
-export function useScrollEdges(scrollRef: RefObject<HTMLElement | null>, contentRef: RefObject<HTMLElement | null>): ScrollEdges {
+function useScrollEdges(scrollRef: RefObject<HTMLElement | null>, contentRef: RefObject<HTMLElement | null>): ScrollEdges {
   const [edges, setEdges] = useState<ScrollEdges>({ above: false, below: false });
   useEffect(() => {
     const scroller = scrollRef.current;
@@ -604,7 +604,6 @@ export function AppShell({
               «Создать задачу» сжали бы её подпись. */}
           <div className={cn("shrink-0 px-3 pb-2", rail && "md:max-2xl:px-2")}>
             <PaletteButton
-              label
               shortcutClassName={cn("hidden md:inline", rail && "md:max-2xl:hidden")}
               className={cn(SEARCH_ROW, rail && "md:max-2xl:justify-center md:max-2xl:px-0")}
               labelClassName={cn("min-w-0 flex-1 text-start", rail && "md:max-2xl:sr-only")}

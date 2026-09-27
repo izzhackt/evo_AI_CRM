@@ -32,7 +32,6 @@ import {
   LEAD_STEP_DRAWER_ID,
   handoffGateForms,
   leadDay,
-  leadDueState,
   leadFeed,
   leadGroupSummaries,
   leadLastContact,
@@ -238,7 +237,6 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
 
   // «Что дальше»: после передачи — строка передачи; до неё — действие и срок с правкой.
   const dueDate = sales.lead.nextActionText ? sales.lead.nextActionDueDate : null;
-  const dueState = leadDueState(dueDate, today);
   // Срок словом (`DueWord`, Э1.3).
   const dueWord = dueDate ? dueWordOf({ dueOn: dueDate, dueAt: null }, new Date(`${today}T06:00:00.000Z`)) : null;
   const nextStep = handedOff ? (
@@ -253,9 +251,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
       {dueDate ? (
         <span className="text-fg-2">
           <time dateTime={dueDate} className="font-mono tabular-nums">{leadDay(dueDate, today)}</time>
-          {dueWord ? <> <DueWord view={dueWord} /></>
-            : dueState === "overdue" ? " прошёл"
-              : dueState === "today" ? <span className="text-warn"> сегодня</span> : null}
+          {dueWord ? <> <DueWord view={dueWord} /></> : null}
         </span>
       ) : null}
       {stepEditable ? (

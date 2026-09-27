@@ -79,11 +79,11 @@ export function stageAgeCopy(days: number): string {
 /**
  * Срок лида словом (Э1.3) — «прошёл 3 дн», «сегодня», «через
  * 2 дн» — от полудня сегодняшнего дня Бишкека, который прочитала страница
- * (тот же день, что у `due` из pipeline-source). Без дня или срока — null.
+ * (тот же день, что у `due` из pipeline-source). Без срока — null.
  */
-function leadDueWord(lead: PipelineLead, today: string | undefined): DueWordView | null {
+function leadDueWord(lead: PipelineLead, today: string): DueWordView | null {
   const dueDate = lead.nextActionAt ? lead.workflow.nextActionDueDate : null;
-  if (!today || !dueDate) return null;
+  if (!dueDate) return null;
   return dueWordOf({ dueOn: dueDate, dueAt: null }, new Date(`${today}T06:00:00.000Z`));
 }
 
@@ -212,7 +212,7 @@ function LeadPanel({
 }: {
   lead: PipelineLead;
   /** Сегодня в Бишкеке (страница): день, от которого считается слово срока. */
-  today?: string;
+  today: string;
   stageTitle: string;
   terminal: boolean;
   workflowStages: readonly Readonly<{ key: PlatformSalesStage; title: string }>[];
@@ -371,7 +371,7 @@ export function Pipeline({
   /** Инициалы ответственного не нужны, когда показаны только «Мои». */
   showOwner: boolean;
   /** Сегодня в Бишкеке (страница): день, от которого считается слово срока. */
-  today?: string;
+  today: string;
 }) {
   const search = useSearchParams();
   const router = useRouter();

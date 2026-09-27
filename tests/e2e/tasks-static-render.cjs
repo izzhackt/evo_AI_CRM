@@ -280,7 +280,7 @@ const SCENARIOS = {
   "incomplete-limit": scenario("view=all&window=4", { complete: false, cutOff: ["staff", "case"] }),
   "incomplete-limit-mine": scenario("window=4", { complete: false, cutOff: ["staff"] }),
   "incomplete-limit-empty": scenario("q=студент&window=4", { complete: false, cutOff: ["case"], staff: [], cases: PAST_DONE_CASES }),
-  // Диалог создания открыт адресом (как кнопкой «Создать задачу» верхней панели).
+  // Диалог создания открыт адресом (как кнопкой «Создать задачу» в меню).
   composer: (() => {
     const base = scenario("");
     return { ...base, props: { ...base.props, urlIntent: "staff" } };

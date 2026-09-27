@@ -131,12 +131,9 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
   const selectedAccess = roles.members.find((member) => member.membershipId === selectedMemberId);
   if (!data.available) return <p role="alert" className="rounded-card border border-border bg-surface p-5 text-sm leading-6">
     Список сотрудников недоступен. Проверьте подключение, сеанс администратора и применение миграции рабочего пространства.</p>;
+  // «Сотрудники», «Роли и доступ» и «Отделы» — пункты списка разделов
+  // настроек (Э6, 27.09.2026): своего ряда вкладок здесь нет.
   return <div className="space-y-5">
-    <nav aria-label="Управление командой" className="flex flex-wrap gap-2 border-b border-border pb-3">
-      {([{ key: "people", label: "Сотрудники" }, { key: "roles", label: "Роли и доступ" }, { key: "departments", label: "Отделы" }] as const).map((entry) =>
-        <Link key={entry.key} href={`/v3/settings?section=staff&view=${entry.key}`} aria-current={view === entry.key ? "page" : undefined}
-          className="v3-choice inline-flex min-h-11 items-center rounded-nav px-4 text-sm font-semibold text-fg-2 hover:bg-surface-2">{entry.label}</Link>)}
-    </nav>
     {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="t-section">Сотрудники · {data.members.length}</h3>

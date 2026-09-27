@@ -1,6 +1,6 @@
 import { PartShell } from "@/components/v3/PartShell";
 import { Settings } from "@/components/v3/settings/Settings";
-import { isSectionKey } from "@/components/v3/settings/types";
+import { isSectionKey, staffViewOf, type SectionKey, type StaffView } from "@/components/v3/settings/types";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { redirect } from "next/navigation";
 
@@ -12,7 +12,6 @@ import { readStaffRoles } from "@/lib/server/staff-roles-service";
 import {
   readAuditExportEnabled,
   readGateFacts,
-  readHealth,
   readIntegrations,
   readJournal,
   readJournalFacets,
@@ -39,15 +38,18 @@ export default async function SettingsPart({
 }) {
   const params = await searchParams;
   if (params.section === "access") redirect("/v3/settings?section=staff&view=roles");
-  const section = isSectionKey(params.section) ? params.section : "state";
+  // «Состояние» стало таблицей «Интеграции» (Э6): прежний адрес ведёт туда.
+  if (params.section === "state") redirect("/v3/settings?section=integrations");
+  // Настройки открываются на «Сотрудниках» (Э6, 27.09.2026).
+  const section = isSectionKey(params.section) ? params.section : "staff";
+  const staffView = staffViewOf(params.view);
   const journalFilters = normalizeJournalFilters({
     objectType: params.object,
   });
   const actor = await requireV3PageActor("/v3/settings");
   const isAdmin = actor.systemRole === "admin" && actor.presentationRole === null;
 
-  const [health, integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, lookPreview] = await Promise.all([
-    readHealth(actor),
+  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, lookPreview] = await Promise.all([
     readIntegrations(actor),
     isAdmin
       ? readJournal(actor, journalFilters, {
@@ -91,11 +93,11 @@ export default async function SettingsPart({
     >
       <Settings
         section={section}
+        staffView={staffView}
         // Authority grants access; presentation role controls the exact
         // interface while an admin previews Sales or Admissions.
         isAdmin={isAdmin}
-        hrefFor={(next) => query({ section: next })}
-        health={health}
+        hrefFor={(next: SectionKey, view: StaffView | null) => query({ section: next, view: view ?? undefined })}
         integrations={integrations}
         journal={journal}
         auditExportEnabled={readAuditExportEnabled()}
@@ -125,7 +127,6 @@ export default async function SettingsPart({
         salesImportHref={salesManagement?.status === "ready" && salesManagement.data.canImport ? "/v3/main?view=sales&mode=import" : undefined}
         lookPreview={lookPreview}
         staff={staff}
-        staffView={params.view === "departments" ? "departments" : params.view === "roles" ? "roles" : "people"}
         staffRoles={staffRoles}
         staffOrganizationId={actor.organizationId}
         selectedStaffRoleId={params.role}

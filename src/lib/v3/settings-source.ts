@@ -27,19 +27,14 @@ import {
   type JournalFilters,
 } from "@/lib/v3/settings-journal-contract";
 import {
-  amoIntegration,
   databaseFact,
-  geminiIntegration,
-  settingsHealth,
-  wahaIntegration,
-  type Health,
-  type Integration,
-  type SettingsHealthFacts,
+  settingsIntegrations,
+  type IntegrationRow,
 } from "@/lib/v3/settings-health";
 
 export type { JournalFilters } from "@/lib/v3/settings-journal-contract";
 
-export type { Health, Integration } from "@/lib/v3/settings-health";
+export type { IntegrationRow } from "@/lib/v3/settings-health";
 
 const AUDIT_PAGE_SIZE = 100;
 const JOURNAL_PAGE_SIZE = 60;
@@ -91,42 +86,22 @@ function formatSettingsObservedAt(value: string | undefined): string {
   return `Данные на ${date} (Бишкек).`;
 }
 
-function wahaFacts(facts: ProviderFacts): SettingsHealthFacts["waha"] {
-  return {
-    display: facts.wahaDisplay,
-    sessionStatus: facts.waha?.status,
-    observed: formatSettingsObservedAt(facts.waha?.observedAt),
-  };
-}
-
-function healthFacts(
-  facts: ProviderFacts,
-  readiness: Awaited<ReturnType<typeof loadPlatformOperationsReadiness>>,
-): SettingsHealthFacts {
-  return {
-    waha: wahaFacts(facts),
-    gemini: facts.geminiDisplay,
-    amo: facts.amo,
-    database: {
-      // Выключенная проверка отдаёт ту же «состояние недоступно», что и
-      // упавшая; различает их только сам выключатель.
-      checked: isPlatformP7BObservabilityEnabled(),
-      status: readiness.components.supabase.status,
-      observed: formatSettingsObservedAt(readiness.observed_at),
-    },
-  };
-}
-
+/**
+ * «Настройки → Интеграции»: одна строка на сервис (Э6). Время последней
+ * проверки — момент наблюдения сессии WhatsApp; у amoCRM и Gemini читаются
+ * только параметры, проверки нет.
+ */
 export async function readIntegrations(
   actor: ActivePlatformActor,
-): Promise<readonly Integration[]> {
+  now: Date = new Date(),
+): Promise<readonly IntegrationRow[]> {
   assertAdminAuthority(actor);
   const facts = await readProviderFacts(actor);
-  return [
-    wahaIntegration(wahaFacts(facts)),
-    amoIntegration(facts.amo),
-    geminiIntegration(facts.geminiDisplay),
-  ];
+  return settingsIntegrations({
+    waha: { display: facts.wahaDisplay, sessionStatus: facts.waha?.status, observedAt: facts.waha?.observedAt ?? null },
+    gemini: facts.geminiDisplay,
+    amo: facts.amo,
+  }, now);
 }
 
 const readOperationsReadiness = cache(loadPlatformOperationsReadiness);
@@ -138,17 +113,6 @@ export async function readPlatformFact(): Promise<string> {
     status: readiness.components.supabase.status,
     observed: formatSettingsObservedAt(readiness.observed_at),
   });
-}
-
-export async function readHealth(
-  actor: ActivePlatformActor,
-): Promise<readonly Health[]> {
-  assertAdminAuthority(actor);
-  const [facts, readiness] = await Promise.all([
-    readProviderFacts(actor),
-    readOperationsReadiness(),
-  ]);
-  return settingsHealth(healthFacts(facts, readiness));
 }
 
 export type JournalEventEntry = Readonly<{

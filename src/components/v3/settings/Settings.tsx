@@ -1,40 +1,40 @@
 import Link from "next/link";
 
-import { Pill } from "@/components/v3/Pill";
 import { StaffSection } from "./StaffSection";
 import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
 
 import {
   DocumentsSection,
+  IntegrationsBanner,
   IntegrationsSection,
   JournalSection,
   PlatformSection,
-  StateSection,
 } from "./sections";
-import { SECTIONS, type GateFacts, type Health, type Integration, type JournalEntry, type SectionKey } from "./types";
+import { SECTIONS, type GateFacts, type IntegrationRow, type JournalEntry, type SectionKey, type StaffView } from "./types";
 
 /**
- * Настройки: рельс разделов слева, раздел справа.
+ * Настройки: список разделов слева, раздел справа.
  *
  * Выбрано заказчиком из трёх раскладок. Довод: журналу действий нужно место —
- * фильтры, список, объяснения, — и в свёрнутом блоке его нет. А два раздела
- * видны только администратору, и в рельсе это видно сразу, до нажатия.
+ * фильтры, список, объяснения, — и в свёрнутом блоке его нет.
  *
- * Раздел — ссылка, а не виджет: адрес несёт `?section=`, поэтому раздел можно
- * переслать, вернуться назад кнопкой браузера и открыть без JavaScript. То же
- * решение, что во вкладках профиля.
+ * Раздел — ссылка, а не виджет: адрес несёт `?section=` (у сотрудников ещё
+ * `&view=`), поэтому раздел можно переслать, вернуться назад кнопкой
+ * браузера и открыть без JavaScript. Э6 (27.09.2026): «Сотрудники», «Роли и
+ * доступ» и «Отделы» — пункты этого же списка, второго уровня вкладок нет;
+ * маршрут только для Admin, поэтому пометок «админ» нет.
  *
  * Состояние и настройки окружения доступны только для чтения. Все флаги живут в файлах
  * окружения на сервере с правами 0600; документация прямо запрещает менять их
- * из браузера. Поэтому рядом с каждым выключенным компонентом стоит не
- * тумблер, а адрес: где именно это лежит.
+ * из браузера. Поэтому в таблице «Интеграции» рядом с выключенным сервисом —
+ * не тумблер, а слова о том, что сделать на сервере.
  */
 export function Settings({
   section,
+  staffView,
   isAdmin,
   hrefFor,
-  health,
   integrations,
   journal,
   auditExportEnabled,
@@ -46,17 +46,16 @@ export function Settings({
   salesImportHref,
   lookPreview,
   staff,
-  staffView,
   selectedStaffMemberId,
   staffRoles,
   staffOrganizationId,
   selectedStaffRoleId,
 }: {
   section: SectionKey;
+  staffView: StaffView;
   isAdmin: boolean;
-  hrefFor: (section: string) => string;
-  health: readonly Health[];
-  integrations: readonly Integration[];
+  hrefFor: (section: SectionKey, view: StaffView | null) => string;
+  integrations: readonly IntegrationRow[];
   journal: readonly JournalEntry[];
   auditExportEnabled: boolean;
   journalFacets: Readonly<{
@@ -70,71 +69,57 @@ export function Settings({
   /** Предпросмотр нового облика включён (Э1.1; только Admin). */
   lookPreview: boolean;
   staff?: StaffWorkspaceData;
-  staffView: "people" | "departments" | "roles";
   selectedStaffMemberId?: string;
   staffRoles?: StaffRoleWorkspace;
   staffOrganizationId: string;
   selectedStaffRoleId?: string;
 }) {
-  const visible = SECTIONS.filter((s) => isAdmin || !s.admin);
-  const current = visible.find((s) => s.key === section) ?? visible[0];
+  const current = SECTIONS.find((entry) => entry.key === section && (entry.view === null || entry.view === staffView)) ?? SECTIONS[0];
 
   return (
-    <div className="grid gap-5 @4xl:grid-cols-[minmax(0,210px)_minmax(0,1fr)] lg:items-start">
-      {/* На узком экране рельс становится полосой с прокруткой: шесть
-          названий в столбик съели бы первый экран целиком. */}
-      <nav
-        aria-label="Разделы настроек"
-        tabIndex={0}
-        className="max-w-full overflow-x-auto lg:overflow-visible"
-      >
-        <ul className="flex w-max gap-1 @4xl:w-auto @4xl:flex-col">
-          {visible.map((entry) => {
-            const active = entry.key === current?.key;
-            return (
-              <li key={entry.key}>
+    <>
+      {/* Одно предупреждение над всеми разделами — только когда настроенный сервис сломан. */}
+      <IntegrationsBanner rows={integrations} href={section === "integrations" ? null : hrefFor("integrations", null)} />
+      <div className="grid gap-5 @4xl:grid-cols-[minmax(0,210px)_minmax(0,1fr)] lg:items-start">
+        {/* На узком экране список переносится строками: семь названий в
+            столбик съели бы первый экран, а в полосе с прокруткой текущий
+            раздел уходил за край (снимок 390 px, Э6). */}
+        <nav aria-label="Разделы настроек" className="min-w-0">
+          <ul className="flex flex-wrap gap-1 @4xl:flex-col @4xl:flex-nowrap">
+            {SECTIONS.map((entry) => (
+              <li key={`${entry.key}-${entry.view ?? ""}`}>
                 <Link
-                  href={hrefFor(entry.key)}
-                  aria-current={active ? "page" : undefined}
-                  className="v3-choice inline-flex min-h-9 w-full items-center gap-2 whitespace-nowrap rounded-nav px-3 text-sm text-fg-2 hover:bg-surface-2"
+                  href={hrefFor(entry.key, entry.view)}
+                  aria-current={entry === current ? "page" : undefined}
+                  className="v3-choice inline-flex min-h-11 w-full items-center whitespace-nowrap rounded-nav px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg"
                 >
                   {entry.title}
-                  {entry.admin ? (
-                    <span className="t-meta ms-auto rounded-nav bg-surface-2 px-1 text-fg-3">
-                      админ
-                    </span>
-                  ) : null}
                 </Link>
               </li>
-            );
-          })}
-        </ul>
-      </nav>
+            ))}
+          </ul>
+        </nav>
 
-      <div className="min-w-0">
-        <h2 className="t-section mb-3 flex flex-wrap items-center gap-2 text-fg">
-          {current?.title}
-          {current?.admin ? <Pill>виден только администратору</Pill> : null}
-        </h2>
+        <div className="min-w-0">
+          {/* У разделов сотрудников видимый заголовок — свой, с числом («Сотрудники · 5»). */}
+          <h2 className={current.key === "staff" ? "sr-only" : "t-section mb-3 text-fg"}>{current.title}</h2>
 
-        {current?.key === "staff" && staff && staffRoles ? <StaffSection data={staff} roles={staffRoles} organizationId={staffOrganizationId}
-          view={staffView} selectedMemberId={selectedStaffMemberId} selectedRoleId={selectedStaffRoleId} /> : null}
-        {current?.key === "state" ? <StateSection health={health} /> : null}
-        {current?.key === "integrations" ? (
-          <IntegrationsSection health={health} integrations={integrations} />
-        ) : null}
-        {current?.key === "journal" ? (
-          <JournalSection
-            entries={journal}
-            exportEnabled={auditExportEnabled}
-            facets={journalFacets}
-            active={journalFilters}
-            hrefFor={journalHrefFor}
-          />
-        ) : null}
-        {current?.key === "documents" ? <DocumentsSection gates={gates} /> : null}
-        {current?.key === "platform" ? <PlatformSection platform={platform} salesImportHref={salesImportHref} lookPreview={lookPreview} /> : null}
+          {current.key === "staff" && isAdmin && staff && staffRoles ? <StaffSection data={staff} roles={staffRoles} organizationId={staffOrganizationId}
+            view={staffView} selectedMemberId={selectedStaffMemberId} selectedRoleId={selectedStaffRoleId} /> : null}
+          {current.key === "integrations" ? <IntegrationsSection rows={integrations} /> : null}
+          {current.key === "journal" ? (
+            <JournalSection
+              entries={journal}
+              exportEnabled={auditExportEnabled}
+              facets={journalFacets}
+              active={journalFilters}
+              hrefFor={journalHrefFor}
+            />
+          ) : null}
+          {current.key === "documents" ? <DocumentsSection gates={gates} /> : null}
+          {current.key === "platform" ? <PlatformSection platform={platform} salesImportHref={salesImportHref} lookPreview={lookPreview} /> : null}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

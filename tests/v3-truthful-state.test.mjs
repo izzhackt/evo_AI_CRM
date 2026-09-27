@@ -12,7 +12,7 @@ import {
   pipelineReturnHref,
   withPipelineReturn,
 } from "../src/lib/v3/pipeline-return.ts";
-import { databaseFact, settingsHealth } from "../src/lib/v3/settings-health.ts";
+import { databaseFact, formatSettingsCheck, settingsBlockingIntegrations, settingsIntegrations } from "../src/lib/v3/settings-health.ts";
 
 /**
  * Трек A2 «честное состояние» (аудит production 26.09 только чтением): экран
@@ -55,70 +55,73 @@ function textOf(node) {
 /* ------------------------------------------------------------ Настройки */
 
 const OBSERVED = "Данные на 26.09.2026, 12:00 (Бишкек).";
+const NOW = new Date("2026-09-27T04:00:00.000Z");
+// Production 26–27.09: вебхук WAHA снят, Gemini и amoCRM не настраивали.
 const PRODUCTION_26_09 = Object.freeze({
-  waha: { display: "not_configured", sessionStatus: undefined, observed: "Время проверки неизвестно." },
+  waha: { display: "not_configured", sessionStatus: undefined, observedAt: null },
   gemini: "not_configured",
   amo: { status: "blocked", reason: "configuration_missing" },
-  database: { checked: false, status: "unavailable", observed: OBSERVED },
 });
-const byName = (rows) => Object.fromEntries(rows.map((row) => [row.name, row]));
+const byKey = (rows) => Object.fromEntries(rows.map((row) => [row.key, row]));
 
-test("settings: an unchecked database and unconfigured providers are facts, not attention", () => {
-  const rows = byName(settingsHealth(PRODUCTION_26_09));
-  const database = rows["База данных"];
-  assert.equal(database.state, "не проверялось");
-  assert.equal(database.blocker, null);
-  assert.equal(database.tone, "off");
-  assert.doesNotMatch(database.detail, /Данные на/u, "no check ran: no observation time is claimed");
-  for (const name of ["Gemini · черновики ответов", "amoCRM"]) {
-    assert.equal(rows[name].state, "не используется", name);
-    assert.equal(rows[name].blocker, null, name);
-    assert.equal(rows[name].tone, "off", name);
+// Э6 (27.09.2026): one «Интеграции» table instead of the «Состояние» cards,
+// the «Требует внимания» list and the «Интеграции» cards; one warning on top —
+// only when a configured provider is broken and work stops.
+test("settings: unconfigured providers, an unchecked check and a deliberately unconnected WhatsApp are facts, not a warning", () => {
+  const rows = byKey(settingsIntegrations(PRODUCTION_26_09, NOW));
+  assert.deepEqual(Object.keys(rows), ["whatsapp", "amocrm", "gemini"], "one row per provider, WhatsApp first");
+  assert.equal(rows.whatsapp.state, "не подключён");
+  assert.equal(rows.whatsapp.tone, "off");
+  assert.equal(rows.whatsapp.checkedText, null, "no session read: no check time is claimed");
+  assert.equal(rows.whatsapp.checkable, true, "WhatsApp has a check — «нет данных», not «—»");
+  assert.match(rows.whatsapp.without, /не приходят в CRM/u);
+  for (const key of ["gemini", "amocrm"]) {
+    assert.equal(rows[key].state, "не используется", key);
+    assert.equal(rows[key].tone, "off", key);
+    assert.equal(rows[key].checkable, false, key);
+    assert.equal(rows[key].action, null, key);
   }
-  assert.equal(rows.WhatsApp.state, "не подключён");
-  assert.equal(rows.WhatsApp.blocker, "Нужно подключить WhatsApp к CRM.");
-  // Production 26.09 showed «Требует внимания 4»; only WhatsApp is real work.
-  assert.deepEqual(settingsHealth(PRODUCTION_26_09).filter((row) => row.blocker !== null).map((row) => row.name), ["WhatsApp"]);
-  assert.equal(databaseFact(PRODUCTION_26_09.database), "не проверялось");
-});
-
-test("settings: configured-but-broken or unverified still counts, with the reason", () => {
-  const rows = byName(settingsHealth({
-    waha: { display: "blocked", sessionStatus: "FAILED", observed: OBSERVED },
-    gemini: "blocked",
-    amo: { status: "blocked", reason: "token_unavailable" },
-    database: { checked: true, status: "unavailable", observed: OBSERVED },
-  }));
-  assert.equal(rows.WhatsApp.state, "заблокирована");
-  assert.equal(rows.WhatsApp.blocker, "Нужна актуальная проверка подключения.");
-  assert.equal(rows["Gemini · черновики ответов"].state, "заблокирован");
-  assert.equal(rows["Gemini · черновики ответов"].blocker, "Нужно проверить настройки подключения.");
-  assert.equal(rows.amoCRM.state, "заблокирована");
-  assert.equal(rows.amoCRM.blocker, "Нужно проверить настройки синхронизации.");
-  assert.equal(rows["База данных"].state, "состояние недоступно");
-  assert.equal(rows["База данных"].blocker, "Проверка подключения к базе данных не прошла.");
-  assert.equal(rows["База данных"].detail, OBSERVED);
-
-  const ready = byName(settingsHealth({
-    waha: { display: "ready", sessionStatus: "WORKING", observed: OBSERVED },
-    gemini: "configured_not_verified",
-    amo: { status: "ready" },
-    database: { checked: true, status: "ready", observed: OBSERVED },
-  }));
-  assert.equal(ready.WhatsApp.blocker, null);
-  assert.equal(ready["База данных"].state, "доступна");
-  assert.equal(ready["База данных"].blocker, null);
-  assert.equal(ready["Gemini · черновики ответов"].blocker, "Нужна проверка работы сервиса.");
-  assert.equal(ready.amoCRM.blocker, "Нужна проверка синхронизации.");
+  // Production 26.09 showed «Требует внимания 4»; nothing here stops work.
+  assert.deepEqual(settingsBlockingIntegrations(settingsIntegrations(PRODUCTION_26_09, NOW)), []);
+  assert.equal(databaseFact({ checked: false, status: "unavailable", observed: OBSERVED }), "не проверялось");
   assert.equal(databaseFact({ checked: true, status: "ready", observed: OBSERVED }), `доступна · ${OBSERVED}`);
   // A disabled feature is «не используется» too.
-  const disabled = byName(settingsHealth({ ...PRODUCTION_26_09, amo: { status: "blocked", reason: "feature_disabled" } }));
-  assert.equal(disabled.amoCRM.blocker, null);
+  assert.equal(byKey(settingsIntegrations({ ...PRODUCTION_26_09, amo: { status: "blocked", reason: "feature_disabled" } }, NOW)).amocrm.blocksWork, false);
 });
 
-test("settings: «Требует внимания» has no alarm badge when nothing needs attention", () => {
-  const { StateSection } = compile("src/components/v3/settings/sections.tsx", (id) => {
-    if (id === "next/link") return { default: () => null };
+test("settings: a configured but broken provider is the one warning, with its reason; unverified is not", () => {
+  const rows = byKey(settingsIntegrations({
+    waha: { display: "blocked", sessionStatus: "SCAN_QR_CODE", observedAt: "2026-09-26T08:15:00.000Z" },
+    gemini: "blocked",
+    amo: { status: "blocked", reason: "token_unavailable" },
+  }, NOW));
+  assert.equal(rows.whatsapp.state, "заблокирован");
+  assert.equal(rows.whatsapp.detail, "Требуется подключение WhatsApp по QR-коду.");
+  assert.equal(rows.whatsapp.checkedText, "26.09 14:15", "Bishkek time, no year in the current year");
+  assert.equal(rows.gemini.state, "заблокирован");
+  assert.equal(rows.gemini.detail, "Параметры подключения некорректны.");
+  assert.equal(rows.amocrm.state, "заблокирована");
+  assert.equal(rows.amocrm.detail, "Доступ к аккаунту amoCRM не подтверждён.");
+  assert.deepEqual(settingsBlockingIntegrations(Object.values(rows)).map((row) => row.key), ["whatsapp", "amocrm", "gemini"]);
+
+  const unverified = byKey(settingsIntegrations({
+    waha: { display: "ready", sessionStatus: "WORKING", observedAt: "2026-09-27T03:59:00.000Z" },
+    gemini: "configured_not_verified",
+    amo: { status: "ready" },
+  }, NOW));
+  assert.equal(unverified.whatsapp.state, "подключён");
+  assert.deepEqual(unverified.whatsapp.action, { label: "Открыть WhatsApp", href: "/v3/inbox" });
+  assert.equal(unverified.whatsapp.without, null);
+  assert.equal(unverified.gemini.state, "настроен, не проверен");
+  assert.equal(unverified.amocrm.state, "настроена, не проверена");
+  assert.deepEqual(settingsBlockingIntegrations(Object.values(unverified)), [], "unverified is not blocked");
+  assert.equal(formatSettingsCheck("2025-12-31T10:00:00.000Z", NOW), "31.12.25 16:00", "another year is named");
+  assert.equal(formatSettingsCheck("not a date", NOW), null);
+});
+
+test("settings: the warning above the sections exists only when work stops, and the table has no side stripes", () => {
+  const { IntegrationsBanner, IntegrationsSection } = compile("src/components/v3/settings/sections.tsx", (id) => {
+    if (id === "next/link") return { default: function Link() { return null; } };
     if (id === "@/components/icons") return { Icon: () => null };
     if (id === "@/components/ui") return { btnGhostCls: "" };
     if (id === "@/components/v3/Pill") return { Pill: function Pill() { return null; } };
@@ -126,24 +129,27 @@ test("settings: «Требует внимания» has no alarm badge when noth
     if (id === "@/lib/v3/wording") return { journalActor: String, journalEvent: String, journalObject: String };
     return undefined;
   });
-  const quiet = settingsHealth({ ...PRODUCTION_26_09, waha: { display: "ready", sessionStatus: "WORKING", observed: OBSERVED } });
-  const tree = StateSection({ health: quiet });
-  const attention = findElements(tree, (node) => node.props?.title === "Требует внимания");
-  assert.equal(attention.length, 1);
-  assert.equal(attention[0].props.aside, undefined, "no «0» warn pill");
-  assert.match(textOf(attention[0]), /Ничего не требует внимания\./u);
-
-  const alarmed = findElements(StateSection({ health: settingsHealth(PRODUCTION_26_09) }),
-    (node) => node.props?.title === "Требует внимания")[0];
-  assert.equal(alarmed.props.aside.props.tone, "warn");
-  assert.equal(alarmed.props.aside.props.children, 1);
+  assert.equal(IntegrationsBanner({ rows: settingsIntegrations(PRODUCTION_26_09, NOW), href: "/v3/settings?section=integrations" }), null);
+  const blocked = settingsIntegrations({ ...PRODUCTION_26_09, amo: { status: "blocked", reason: "configuration_invalid" } }, NOW);
+  const banner = IntegrationsBanner({ rows: blocked, href: "/v3/settings?section=integrations" });
+  assert.match(textOf(banner), /Не работает: amoCRM — параметры подключения некорректны\./u);
+  assert.equal(findElements(banner, (node) => node.type?.name === "Link")[0].props.href, "/v3/settings?section=integrations");
+  const table = IntegrationsSection({ rows: blocked });
+  const rows = findElements(table, (node) => node.props?.["data-integration"]);
+  assert.deepEqual(rows.map((row) => row.props["data-integration"]), ["whatsapp", "amocrm", "gemini"]);
+  const settings = source("src/components/v3/settings/sections.tsx");
+  assert.doesNotMatch(settings, /v3-edge-|border-s-2|Требует внимания/u, "no side-stripe cards, no second attention list");
+  assert.doesNotMatch(source("src/components/v3/settings/Settings.tsx"), /виден только администратору|>\s*админ\s*</u);
 });
 
-test("settings source tells an unchecked database from a failed check by the switch itself", () => {
+test("settings source reads the integrations once and tells an unchecked database from a failed check by the switch", () => {
   const settings = source("src/lib/v3/settings-source.ts");
   assert.match(settings, /checked: isPlatformP7BObservabilityEnabled\(\),/u);
-  assert.match(settings, /return settingsHealth\(healthFacts\(facts, readiness\)\);/u);
-  assert.doesNotMatch(settings, /Нужна актуальная проверка подключения к базе данных/u);
+  assert.match(settings, /return settingsIntegrations\(\{/u);
+  assert.doesNotMatch(settings, /readHealth|settingsHealth/u);
+  const page = source("src/app/(v3)/v3/settings/page.tsx");
+  assert.match(page, /if \(params\.section === "state"\) redirect\("\/v3\/settings\?section=integrations"\);/u);
+  assert.match(page, /const section = isSectionKey\(params\.section\) \? params\.section : "staff";/u, "settings open on «Сотрудники»");
 });
 
 /* ------------------------------------------------------------ WhatsApp */

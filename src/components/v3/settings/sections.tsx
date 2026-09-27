@@ -2,12 +2,14 @@ import { randomUUID } from "node:crypto";
 
 import Link from "next/link";
 
-import { Icon } from "@/components/icons";
+import { Icon, type IconName } from "@/components/icons";
 import { btnGhostCls } from "@/components/ui";
 import { Pill } from "@/components/v3/Pill";
 import { setLookPreviewAction } from "@/lib/v3/look-preview-actions";
 
-import type { GateFacts, Health, Integration, JournalEntry } from "./types";
+import type { IntegrationTone } from "@/lib/v3/settings-health";
+
+import type { GateFacts, IntegrationRow, JournalEntry } from "./types";
 import { journalActor, journalEvent, journalObject } from "@/lib/v3/wording";
 
 export function Card({
@@ -39,105 +41,113 @@ function Note({ children }: { children: React.ReactNode }) {
   );
 }
 
-const TONE_EDGE: Record<Health["tone"], string> = {
-  ok: "v3-edge-ok",
-  warn: "v3-edge-warn",
-  off: "v3-edge-muted",
+/* --------------------------------------------------------- Интеграции */
+
+/** Значок состояния: только подкрепляет слово, у читалки остаётся слово. */
+const TONE_ICON: Record<IntegrationTone, { name: IconName; className: string }> = {
+  ok: { name: "circle-check", className: "text-ok" },
+  warn: { name: "alert", className: "text-warn" },
+  blocked: { name: "alert", className: "text-danger" },
+  off: { name: "circle", className: "text-fg-3" },
 };
 
-/* ---------------------------------------------------------- Состояние */
+/**
+ * Две раскладки по ширине своего контейнера (`@container/integrations`): от
+ * 40rem — строка таблицы (Сервис · Состояние · Последняя проверка · Что не
+ * работает · Что сделать); уже — стопка: сервис и состояние, под ними
+ * подписанные строки. Роли таблицы заданы явно: смена display иначе стирает
+ * её семантику в части браузеров.
+ */
+const INTEGRATION_GRID = "grid grid-cols-1 gap-x-4 gap-y-1 px-4 @min-[40rem]/integrations:grid-cols-[minmax(0,17fr)_minmax(0,17fr)_minmax(0,11fr)_minmax(0,27fr)_minmax(0,21fr)]";
+const INTEGRATION_ROW = `${INTEGRATION_GRID} border-b border-border py-3 last:border-b-0 @min-[40rem]/integrations:py-2.5`;
+const INTEGRATION_HEAD = "t-caption flex items-center text-start text-fg-2";
+const INTEGRATION_COLUMNS = ["Сервис", "Состояние", "Последняя проверка", "Что не работает", "Что сделать"] as const;
+/** В стопке у ячейки своя подпись: шапки колонок там нет. */
+function StackLabel({ children }: { children: string }) {
+  return <span className="t-caption me-1.5 text-fg-3 @min-[40rem]/integrations:sr-only">{children}:</span>;
+}
 
-export function StateSection({ health }: { health: readonly Health[] }) {
-  const blocked = health.filter((h) => h.blocker !== null);
-
+export function IntegrationsSection({ rows }: { rows: readonly IntegrationRow[] }) {
   return (
-    <div className="flex flex-col gap-4">
-      <ul className="grid gap-3 @lg:grid-cols-2 @6xl:grid-cols-3">
-        {health.map((item) => (
-          <li
-            key={item.name}
-            className={`flex flex-col gap-0.5 rounded-card border border-s-2 border-border bg-surface px-4 py-3 ${TONE_EDGE[item.tone]}`}
-          >
-            <span className="t-caption text-fg-3">
-              {item.name}
-            </span>
-            <span className="t-item text-fg">{item.state}</span>
-            <span className="t-meta text-fg-3">{item.detail}</span>
-          </li>
-        ))}
-      </ul>
-
-      {/* Считается только настроенное и сломанное или ждущее проверки:
-          «не проверялось» и «не используется» — факты, а не тревога. */}
-      <Card title="Требует внимания" aside={blocked.length > 0 ? <Pill tone="warn">{blocked.length}</Pill> : undefined}>
-        {blocked.length > 0 ? (
-          <>
-            <ul>
-              {blocked.map((item) => (
-                <li
-                  key={item.name}
-                  className="grid gap-x-4 gap-y-1 border-b border-border px-4 py-3 last:border-b-0 @4xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)]"
-                >
-                  <span className="text-sm font-semibold text-fg">{item.name}</span>
-                  <span className="t-body-compact text-fg-2">{item.blocker}</span>
-                </li>
-              ))}
-            </ul>
-            <Note>Для настройки подключений обратитесь к техническому специалисту.</Note>
-          </>
-        ) : (
-          <p className="t-body-compact px-4 py-3 text-fg-3">Ничего не требует внимания.</p>
-        )}
-      </Card>
+    <div className="@container/integrations">
+      <table role="table" className="block w-full overflow-hidden rounded-card border border-border bg-surface" data-testid="v3-settings-integrations">
+        <caption className="sr-only">Интеграции: состояние, последняя проверка и что не работает без сервиса</caption>
+        <thead role="rowgroup" className="sr-only @min-[40rem]/integrations:not-sr-only @min-[40rem]/integrations:block">
+          <tr role="row" className={`${INTEGRATION_GRID} border-b border-border py-2`}>
+            {INTEGRATION_COLUMNS.map((label) => (
+              <th key={label} role="columnheader" scope="col" className={INTEGRATION_HEAD}>{label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody role="rowgroup" className="block">
+          {rows.map((row) => {
+            const icon = TONE_ICON[row.tone];
+            return (
+              <tr key={row.key} role="row" data-integration={row.key} data-tone={row.tone} className={INTEGRATION_ROW}>
+                <th role="rowheader" scope="row" className="t-item min-w-0 text-start text-fg">{row.name}</th>
+                <td role="cell" className="min-w-0 t-body-compact">
+                  <span className="inline-flex items-start gap-1.5 text-fg">
+                    <Icon name={icon.name} size={16} className={`mt-0.5 shrink-0 ${icon.className}`} />
+                    <span className={row.tone === "blocked" ? "font-medium text-danger" : undefined}>{row.state}</span>
+                  </span>
+                  {row.detail ? <span className="t-meta block text-fg-2">{row.detail}</span> : null}
+                </td>
+                <td role="cell" className="min-w-0 t-body-compact text-fg-2">
+                  <StackLabel>Последняя проверка</StackLabel>
+                  {row.checkedAt && row.checkedText ? (
+                    <time dateTime={row.checkedAt} className="font-mono tabular-nums text-fg">{row.checkedText}</time>
+                  ) : row.checkable ? (
+                    <span className="text-fg-3">нет данных</span>
+                  ) : (
+                    <><span aria-hidden="true" className="text-fg-3">—</span><span className="sr-only">проверки нет</span></>
+                  )}
+                </td>
+                <td role="cell" className="min-w-0 t-body-compact text-fg">
+                  <StackLabel>Что не работает</StackLabel>
+                  {row.without ?? <><span aria-hidden="true" className="text-fg-3">—</span><span className="sr-only">всё работает</span></>}
+                </td>
+                <td role="cell" className="min-w-0 t-body-compact">
+                  {row.action?.href ? (
+                    <Link href={row.action.href} className="inline-flex min-h-11 items-center font-medium text-fg underline underline-offset-4 hover:text-fg-2 @min-[40rem]/integrations:-my-2.5">
+                      {row.action.label}
+                    </Link>
+                  ) : row.action ? (
+                    <><StackLabel>Что сделать</StackLabel><span className="text-fg-2">{row.action.label}</span></>
+                  ) : (
+                    <><span aria-hidden="true" className="text-fg-3 @max-[40rem]/integrations:hidden">—</span><span className="sr-only">ничего</span></>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-/* --------------------------------------------------------- Интеграции */
+const lowerFirst = (text: string) => text.charAt(0).toLocaleLowerCase("ru") + text.slice(1);
 
-export function IntegrationsSection({
-  health,
-  integrations,
-}: {
-  health: readonly Health[];
-  integrations: readonly Integration[];
-}) {
+/**
+ * Одно предупреждение над настройками — только когда настроенный сервис
+ * сломан и работа стоит (`blocksWork`). Нет таких — нет и строки: «не
+ * используется» и «не проверялось» — факты таблицы, не тревога.
+ */
+export function IntegrationsBanner({ rows, href }: { rows: readonly IntegrationRow[]; href: string | null }) {
+  const blocking = rows.filter((row) => row.blocksWork);
+  if (!blocking.length) return null;
   return (
-    <div className="flex flex-col gap-4">
-      {health
-        .filter((h) => h.blocker !== null && h.name !== "Хранилище документов")
-        .map((item) => (
-          <Card
-            key={item.name}
-            title={item.name}
-            aside={<Pill tone={item.tone === "ok" ? "ok" : "neutral"}>{item.state}</Pill>}
-          >
-            <dl>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5">
-                <dt className="t-caption w-40 shrink-0 text-fg-3">Подробности</dt>
-                <dd className="min-w-0 flex-1 text-sm text-fg">{item.detail}</dd>
-              </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5">
-                <dt className="t-caption w-40 shrink-0 text-fg-3">Что требуется</dt>
-                <dd className="min-w-0 flex-1 text-sm text-fg">{item.blocker}</dd>
-              </div>
-            </dl>
-          </Card>
-        ))}
-
-      <Card title="Подключения" aside={<Pill>{integrations.length}</Pill>}>
-        <ul>
-          {integrations.map((one) => (
-            <li
-              key={one.name}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 last:border-b-0"
-            >
-              <span className="min-w-0 flex-1 text-sm text-fg">{one.name}</span>
-              <span className="t-meta text-fg-3">{one.detail}</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+    <div role="status" data-testid="v3-settings-blocking" className="mb-5 flex flex-wrap items-start gap-x-3 gap-y-1 rounded-card border border-border bg-surface px-4 py-3">
+      <Icon name="alert" size={18} className="mt-0.5 shrink-0 text-danger" />
+      <p className="t-body-compact min-w-0 flex-1 text-fg">
+        <span className="font-medium text-danger">{blocking.length === 1 ? "Не работает" : "Не работают"}: </span>
+        {blocking.map((row) => `${row.name}${row.detail ? ` — ${lowerFirst(row.detail.replace(/\.$/u, ""))}` : ""}`).join("; ")}.
+      </p>
+      {href ? (
+        <Link href={href} className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4 hover:text-fg-2 sm:-my-2.5">
+          Открыть «Интеграции»
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -446,7 +456,8 @@ export function PlatformSection({ platform, salesImportHref, lookPreview }: { pl
         </Link>
       ) : null}
 
-      <Card title="Требует внимания">
+      {/* Факты эксплуатации (аудит 26.09), а не тревога: заголовок называет тему (Э6). */}
+      <Card title="Эксплуатация">
         <ul>
           {[
             ["Автоматические оповещения", "Не подключены. При сбое свяжитесь с техническим специалистом."],

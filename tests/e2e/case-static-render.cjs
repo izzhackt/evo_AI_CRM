@@ -250,6 +250,13 @@ const HANDOFF_DECLINED = {
     agreedContactDate: null, createdAt: "2026-09-21T04:00:00.000Z" },
 };
 
+// Куратор попросил уточнить у Sales, дело всё ещё ждёт приёма: ответ — в «Сведениях», «Принять дело» — у заголовка.
+const HANDOFF_CLARIFIED = {
+  ...HANDOFF_PENDING,
+  current: { acknowledgementId: uuid("33333333", 3), decision: "clarification_requested", clarification: "Уточните, оплачен ли перевод аттестата.",
+    agreedContactDate: null, createdAt: "2026-09-22T04:00:00.000Z" },
+};
+
 const CHAT = {
   needsReply: { kind: "ready", awaitState: "needs_reply", last: { authorName: NAME, mine: false, text: "Здравствуйте! Нотариус просит оригинал аттестата, можно принести в пятницу?", createdAt: "2026-09-22T08:14:00.000Z" } },
   awaiting: { kind: "ready", awaitState: "awaiting_student", last: { authorName: "Айгүл Осмонова", mine: true, text: "Да, в пятницу подойдёт. Возьмите также копию паспорта.", createdAt: "2026-09-22T09:02:00.000Z" } },
@@ -340,6 +347,9 @@ const CLOSED_ACTIVITY = { ...ACTIVITY, events: [activityEvent(20, "case.lifecycl
 const SCENARIOS = {
   // Куратор открывает переданное ему дело: «Принять дело» — единственная красная кнопка.
   "curator-accept": { actor: CURATOR, profile: profile(), draft: draft({ handoff: HANDOFF_PENDING }), sales: null,
+    work: work({ row: queueRow({ flags: ["overdue", "awaiting_ack"] }), activity: ACTIVITY_AWAITING }) },
+  // Куратор уже ответил «Нужно уточнить»: дело по-прежнему ждёт приёма, ответ виден на странице.
+  "curator-clarified": { actor: CURATOR, profile: profile(), draft: draft({ handoff: HANDOFF_CLARIFIED }), sales: null,
     work: work({ row: queueRow({ flags: ["overdue", "awaiting_ack"] }), activity: ACTIVITY_AWAITING }) },
   // Куратор в своём деле после принятия: шаг просрочен, задачи, переписка ждёт ответа.
   // «⋯» у заголовка — «Завершить дело» (246): сервер подсказал право.
@@ -649,6 +659,8 @@ async function screenshots() {
     const F3 = [
       ["awaiting", "curator-accept", [...["1440", "1440-full", "1280", "1280-full", "390", "390-full"].map((suffix) => shot(suffix)),
         ...["accept-1440", "accept-390"].map((suffix) => shot(suffix, { do: "accept" }))]],
+      // Review 27.09 (голова 5e0d0e95): ответ «Нужно уточнить» сохранён, дело всё ещё ждёт приёма.
+      ["clarified", "curator-clarified", ["1440", "390-full"].map((suffix) => shot(suffix))],
       ["active", "curator", ["1440", "1440-full", "1280", "1280-full", "390", "390-full"].map((suffix) => shot(suffix))],
       ["closed", "closed-outcome", ["1440", "1440-full", "1280", "390", "390-full"].map((suffix) => shot(suffix))],
       // Review 27.09: Admin со всеми фактами (контакты, оплата, портал, продажа), открытые «⋯» и группы правки;
@@ -875,7 +887,9 @@ async function capture(pages, outDir, look, compareMarkup, leadMarkup) {
 // --- `--drawer`: панель «Принять дело» (Э4) в браузере с настоящим React -------------
 // Бандл esbuild с настоящими `CaseAcceptDrawer` и `ProfileHandoffAcknowledgement`
 // (как стенд Э7); серверное действие ответа — заглушка в браузере, она записывает
-// поля формы и отвечает «сохранено». Проверки печатаются; нарушение — код выхода 1.
+// поля формы, отвечает «сохранено» с новым ключом запроса и, как перечитанная
+// страница, кладёт ответ в снимок. Ждать ответа дело перестаёт только после
+// «принято» (`studentsHandoffPending`). Проверки печатаются; нарушение — код выхода 1.
 const DRAWER_ENTRY = `
 const React = require("react");
 const { createRoot } = require("react-dom/client");
@@ -890,11 +904,16 @@ const router = { refresh() { window.__s360.refreshes += 1; }, push() {}, replace
 const fixture = JSON.parse(document.getElementById("s360-fixture").textContent);
 const snapshot = fixture.snapshot;
 function Page() {
+  const [current, setCurrent] = React.useState(snapshot);
   const [pending, setPending] = React.useState(true);
-  window.__s360.answered = () => setPending(false);
+  window.__s360.answered = (fields, acknowledgementId) => {
+    setCurrent((previous) => ({ ...previous, current: { acknowledgementId, decision: fields.decision,
+      clarification: fields.clarification || null, agreedContactDate: fields.agreed_contact_date || null, createdAt: "2026-09-27T06:00:00.000Z" } }));
+    if (fields.decision === "accepted") setPending(false);
+  };
   return h("main", { className: "p-6 space-y-6" },
     h("h2", { id: "case-tasks-title", tabIndex: -1, "data-queue-heading": "", className: "t-section" }, "Задачи"),
-    pending ? h(CaseAcceptDrawer, { name: "Синтетический студент", snapshot, context: fixture.context }) : h("p", null, "Дело принято"),
+    pending ? h(CaseAcceptDrawer, { name: "Синтетический студент", snapshot: current, context: fixture.context }) : h("p", null, "Дело принято"),
     // «Показать ещё» задач и ленты (review Э4): фокус переходит на первую открытую строку.
     h("section", { "data-testid": "s360-tasks" }, h(CaseTaskList, { tasks: fixture.tasks, permissions: fixture.permissions, nowIso: fixture.nowIso })),
     h("section", { "data-testid": "s360-feed" },
@@ -905,6 +924,10 @@ function Page() {
 }
 createRoot(document.getElementById("root")).render(h(AppRouterContext.Provider, { value: router }, h("div", { className: "v3-world" }, h(Page))));
 `;
+
+// Id ответа и новый ключ запроса заглушки: префикс + номер вызова (синтетика).
+const DRAWER_ACK = "33333333-5555-4555-8555-00000000000";
+const DRAWER_REQUEST = "44444444-5555-4555-8555-00000000000";
 
 async function drawerCheck() {
   const esbuild = require("esbuild");
@@ -917,14 +940,17 @@ async function drawerCheck() {
       build.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "empty" }));
       build.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
       build.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
-      // Серверные действия — заглушки: ответ на передачу записывает поля и отвечает «сохранено».
+      // Серверные действия — заглушки: ответ на передачу записывает поля и отвечает «сохранено»
+      // с новым ключом запроса (как `respondToHandoffAction`) и id ответа по номеру вызова.
       build.onLoad({ filter: /[\\/]src[\\/].+\.tsx?$/ }, (args) => {
         const source = readFileSync(args.path, "utf8");
         if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
         const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
         return {
           contents: names.map((name) => name === "respondToHandoffAction"
-            ? `export async function ${name}(previous, form) { window.__s360.calls.push(Object.fromEntries(form.entries())); window.__s360.answered(); return { status: "saved", requestId: previous.requestId, acknowledgementId: "33333333-5555-4555-8555-000000000009", submittedContext: null }; }`
+            ? `export async function ${name}(previous, form) { const fields = Object.fromEntries(form.entries()); const n = window.__s360.calls.push(fields); `
+              + `const acknowledgementId = "${DRAWER_ACK}" + n; window.__s360.answered(fields, acknowledgementId); `
+              + `return { status: "saved", requestId: "${DRAWER_REQUEST}" + n, acknowledgementId, submittedContext: null }; }`
             : `export async function ${name}() { throw new Error("s360 harness: ${name} is not available"); }`).join("\n"),
           loader: "ts",
         };
@@ -990,15 +1016,57 @@ async function drawerCheck() {
       await page.getByRole("button", { name: "Отмена" }).click();
       now = await state();
       check(now.modal === false && now.focused === "button:Принять дело", `${w}: «Отмена» closes the panel and returns focus`);
+      // Review 27.09 (голова 5e0d0e95): «Нужно уточнить» и «Отклонить» дело не принимают. Панель остаётся
+      // открытой: «Ответ сохранён.» видно, подтверждение — «Уже сохранено», «Текущий ответ» — новый,
+      // фокус — на выбранном решении в панели; Esc закрывает, фокус — на «Принять дело».
+      const answer = async ({ choice, field, value, submit, label, slug }, index) => {
+        await trigger.click();
+        await page.getByRole("button", { name: choice, exact: true }).click();
+        await page.getByLabel(field).fill(value);
+        await page.getByRole("button", { name: submit, exact: true }).click();
+        // Ждём вызова заглушки, не «Уже сохранено»: закрытая панель должна дать названную ошибку, а не тайм-аут.
+        await page.waitForFunction((count) => window.__s360.calls.length === count, index + 1, { timeout: 5000 });
+        await page.waitForTimeout(150);
+        const after = await page.evaluate(() => {
+          const dialog = document.querySelector('[data-testid="v3-case-accept-drawer"]');
+          const status = dialog?.querySelector('[role="status"]');
+          const submitButton = dialog?.querySelector('button[type="submit"]');
+          return { trigger: document.querySelector('[data-testid="v3-case-primary"]') !== null, inside: dialog?.contains(document.activeElement) ?? false,
+            status: status && status.checkVisibility() ? status.textContent.trim() : null,
+            submit: submitButton ? `${submitButton.textContent.trim()}:${submitButton.disabled ? "disabled" : "enabled"}` : null };
+        });
+        now = await state();
+        check(now.modal === true && after.trigger && after.status === "Ответ сохранён." && after.submit === "Уже сохранено:disabled",
+          `${w}: saving «${choice}» keeps the panel open with a visible «Ответ сохранён.» and «Уже сохранено» (${after.status}; ${after.submit})`);
+        check(after.inside && now.focused === `button:${choice}` && now.pressed.join() === choice, `${w}: after «${choice}» focus stays in the panel, on the chosen decision (${now.focused})`);
+        const answerText = await page.getByTestId("v3-case-accept-context").innerText();
+        check(answerText.replace(/\s+/gu, " ").includes(`Текущий ответ ${label} ${value}`), `${w}: the panel's «Текущий ответ» is the saved answer (${label})`);
+        const calls = await page.evaluate(() => window.__s360.calls);
+        const call = calls[index] ?? {};
+        check(calls.length === index + 1 && call.decision === (choice === "Отклонить" ? "declined" : "clarification_requested") && call.clarification === value
+          && call.student_case_id === HANDOFF_PENDING.studentCaseId && call.assignment_event_id === HANDOFF_PENDING.assignmentEventId
+          && call.request_id === (index === 0 ? HANDOFF_PENDING.requestId : `${DRAWER_REQUEST}${index}`)
+          && call.expected_acknowledgement_id === (index === 0 ? "" : `${DRAWER_ACK}${index}`),
+        `${w}: «${submit}» sends the answer command once with the snapshot's ids, the fresh request id and the previous answer id`);
+        await page.screenshot({ path: join(outDir, `f3-drawer-${slug}-${w}.png`) });
+        await page.keyboard.press("Escape");
+        now = await state();
+        check(now.modal === false && now.focused === "button:Принять дело", `${w}: the case still awaits acceptance — Esc returns focus to «Принять дело»`);
+      };
+      await answer({ choice: "Нужно уточнить", field: "Что нужно уточнить у Sales", value: "Уточните, оплачен ли перевод аттестата.",
+        submit: "Сохранить уточнение", label: "Нужно уточнение от Sales", slug: "clarified" }, 0);
+      await answer({ choice: "Отклонить", field: "Причина отклонения", value: "Нагрузка выше нормы до конца октября.",
+        submit: "Отклонить назначение", label: "Назначение отклонено куратором", slug: "declined" }, 1);
       await trigger.click();
       await page.getByRole("button", { name: "Принять дело" }).last().click();
       await page.getByRole("button", { name: "Подтвердить приём" }).click();
       await page.getByText("Дело принято").waitFor();
       await page.waitForTimeout(100);
       const calls = await page.evaluate(() => window.__s360.calls);
-      const call = calls[0] ?? {};
-      check(calls.length === 1 && call.decision === "accepted" && call.student_case_id === HANDOFF_PENDING.studentCaseId && call.assignment_event_id === HANDOFF_PENDING.assignmentEventId
-        && call.request_id === HANDOFF_PENDING.requestId && call.expected_acknowledgement_id === "", `${w}: confirm sends the same answer command once with the snapshot's ids and request id`);
+      const call = calls[2] ?? {};
+      check(calls.length === 3 && call.decision === "accepted" && call.student_case_id === HANDOFF_PENDING.studentCaseId && call.assignment_event_id === HANDOFF_PENDING.assignmentEventId
+        && call.request_id === `${DRAWER_REQUEST}2` && call.expected_acknowledgement_id === `${DRAWER_ACK}2`,
+      `${w}: confirm sends the same answer command once with the snapshot's ids, the fresh request id and the previous answer id`);
       now = await state();
       check(now.modal === null && now.focused === "h2:Задачи", `${w}: after the answer the panel is gone and focus lands on «Задачи», not the page`);
       // «Показать ещё» с клавиатуры: кнопка уходит, фокус — на первой открытой строке, а не на странице.

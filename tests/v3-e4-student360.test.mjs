@@ -397,6 +397,33 @@ test("the accept panel decides with context: who handed off and when, direction,
   assert.match(parts, /sale: salesVisible && sales \? \{ manager: sales\.lead\.currentOwnerDisplayName, nextAction: sales\.lead\.nextActionText \} : null,/u);
 });
 
+test("«Нужно уточнить» or «Отклонить» does not accept the case: the panel stays open, the saved answer is on the page too", () => {
+  // Review 27.09 (голова 5e0d0e95): панель закрывается только после «принято» — иначе «Ответ сохранён.»
+  // оставался в закрытом окне, а фокус возвращался на ту же красную кнопку. Само поведение проверяет
+  // `case-static-render.cjs --drawer` в браузере (уточнение, отказ, затем приём).
+  const drawerSource = read("src/components/v3/profile/CaseAcceptDrawer.tsx");
+  assert.match(drawerSource, /onSaved=\{\(decision\) => \{\n\s+if \(decision !== "accepted"\) return;\n\s+answered\.current = true;\n\s+close\(\);/u);
+  const form = read("src/components/v3/profile/ProfileSalesTransition.tsx");
+  assert.match(form, /if \(!inDrawer \|\| !saved\) return;[\s\S]{0,200}querySelector<HTMLElement>\('\[aria-pressed="true"\]'\)\?\.focus\(\);/u,
+    "after the save focus goes back to the chosen decision, not the page");
+  for (const [look, surfaces] of [["current", current], ["next", next]]) {
+    const html = surfaces.get("curator-clarified");
+    // Дело всё ещё ждёт приёма: одна красная кнопка — «Принять дело».
+    assert.equal(solidRed(shown(html)), 1, `${look}: one solid red`);
+    assert.match(html, /data-testid="v3-case-primary">Принять дело<\/button>/u, look);
+    const drawer = html.slice(html.indexOf("<dialog"), html.indexOf("</dialog>"));
+    assert.match(text(drawer), /Текущий ответ Нужно уточнение от Sales Уточните, оплачен ли перевод аттестата\./u, `${look}: the panel's current answer`);
+    // Ответ виден и без панели — в «Сведениях»; изменить его — в панели, второй формы на странице нет.
+    const page = shown(html);
+    const facts = page.slice(page.indexOf('data-testid="v3-case-facts"'));
+    assert.match(text(facts), /Приём дела Нужно уточнение от Sales Уточните, оплачен ли перевод аттестата\./u, `${look}: the answer in «Сведения»`);
+    assert.doesNotMatch(text(html), /Изменить ответ/u, look);
+    assert.equal((html.match(/name="assignment_event_id"/gu) ?? []).length, 1, `${look}: one answer form`);
+  }
+  // Ждёт ответа и ответа ещё нет — «Приёма дела» в «Сведениях» нет: главное действие у заголовка.
+  assert.doesNotMatch(text(shown(current.get("curator-accept"))), /Приём дела/u);
+});
+
 test("the feed names what it could not read and says when there is nothing yet", () => {
   assert.match(text(current.get("unread")), /Лента .*События журнала дела сейчас не прочитаны\. Обновите страницу, чтобы повторить\./u);
   assert.match(text(current.get("fresh")), /Лента Новая заметка Добавить заметку Заметок и событий пока нет\./u);

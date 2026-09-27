@@ -42,9 +42,12 @@ const CHOICE = `${QUEUE_SECONDARY} grow aria-pressed:border-fg aria-pressed:bg-s
  * ключ запроса и ожидаемые id): «Принять дело» выбрано сразу, «Нужно
  * уточнить» и «Отклонить» — рядом.
  *
- * После ответа сервер перечитывает страницу, дело больше не ждёт ответа, и
- * кнопка с панелью уходят; фокус с исчезнувшей кнопки переходит на заголовок
- * «Задач» («Обзор») или на полосу вкладок, а не падает на страницу.
+ * Дело перестаёт ждать ответа только после «Принять дело»: сервер
+ * перечитывает страницу, кнопка с панелью уходят, и фокус с исчезнувшей
+ * кнопки переходит на заголовок «Задач» («Обзор») или на полосу вкладок, а не
+ * падает на страницу. «Нужно уточнить» и «Отклонить» дело не принимают:
+ * панель остаётся открытой — «Ответ сохранён.», «Уже сохранено» и новый
+ * «Текущий ответ» из перечитанного снимка; закрывают её Esc, «Отмена» или ×.
  */
 export function CaseAcceptDrawer({ name, snapshot, context }: Readonly<{
   name: string;
@@ -125,7 +128,8 @@ export function CaseAcceptDrawer({ name, snapshot, context }: Readonly<{
         <ProfileHandoffAcknowledgement
           snapshot={snapshot}
           drawer={{ onCancel: close, choiceClassName: CHOICE, confirmClassName: QUEUE_CONFIRM, cancelClassName: QUEUE_SECONDARY }}
-          onSaved={() => {
+          onSaved={(decision) => {
+            if (decision !== "accepted") return;
             answered.current = true;
             close();
           }}

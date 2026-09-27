@@ -199,6 +199,9 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
   const next = isNextLook(input.look);
   const handoff = input.handoff;
   const answered = handoff !== null && handoff.assignmentEventId !== null && !studentsHandoffPending(handoff);
+  // Куратор ответил «Нужно уточнить» или «Отклонить», а дело всё ещё ждёт приёма: ответ виден и
+  // на странице, не только в панели «Принять дело» (изменить его — там же, у заголовка).
+  const onRecord = answered || (handoff !== null && handoff.assignmentEventId !== null && handoff.current !== null);
   const { curator } = input;
   const payment = input.payment;
   return (
@@ -242,7 +245,7 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
             ) : null}
           </Fact>
         ) : null}
-        {answered && handoff ? (
+        {onRecord && handoff ? (
           <Fact term="Приём дела">
             {/* Как прежняя карточка «Приём дела»: решение, текст куратора (уточнение или причина отказа)
                 и согласованный контакт — их видят и те, кто ответить не может (Admin, Admissions Manager). */}
@@ -251,7 +254,7 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
               clarification: handoff.current.clarification,
               agreedContactDate: handoff.current.agreedContactDate,
             } : null} />
-            {handoff.canRespond ? (
+            {answered && handoff.canRespond ? (
               <details>
                 <summary className={SUMMARY}>Изменить ответ</summary>
                 <div className="mt-1"><CaseHandoffBlock snapshot={handoff} headingId="case-tasks-title" /></div>

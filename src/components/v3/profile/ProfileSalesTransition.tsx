@@ -5,7 +5,7 @@ import { isStaffPreview } from "@/lib/platform-access";
 
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { btnCls, btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
 import { Icon } from "@/components/icons";
@@ -536,8 +536,19 @@ export function ProfileHandoffAcknowledgement({ snapshot, onSaved, drawer }: {
   const unchanged = current?.decision === decision
     && current.clarification === (decision === "accepted" ? null : clarification.trim())
     && (declining || current.agreedContactDate === (contactDate || null));
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const inDrawer = drawer !== undefined;
+  // Панель остаётся открытой после «Нужно уточнить» и «Отклонить» (`CaseAcceptDrawer`):
+  // на время сохранения кнопки заблокированы, и фокус мог упасть на страницу или
+  // остаться на «Уже сохранено» — он переходит на выбранное решение панели.
+  useEffect(() => {
+    if (!inDrawer || !saved) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body && !active.matches(":disabled")) return;
+    bodyRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+  }, [inDrawer, saved, state.acknowledgementId]);
   const body = (
-      <div className={drawer ? "flex flex-col gap-3" : "flex flex-col gap-3 p-4"} data-testid="v3-handoff-acknowledgement">
+      <div ref={bodyRef} className={drawer ? "flex flex-col gap-3" : "flex flex-col gap-3 p-4"} data-testid="v3-handoff-acknowledgement">
         {/* В панели Student 360 текущий ответ стоит в её контексте над выбором (`CaseAcceptDrawer`). */}
         {drawer ? null : <HandoffResponseSummary current={current} />}
         {snapshot.canRespond && drawer ? (

@@ -18,6 +18,7 @@ import * as wording from "../src/lib/v3/wording.ts";
 import * as stripView from "../src/components/v3/profile/handoff-strip-view.ts";
 const { handoffFootnote, handoffStripView, salesRecordHref, stripDay, stripPlain } = stripView;
 import { parseSalesSaleSlice, salesReportContext } from "../src/lib/sales-register-navigation.ts";
+import * as salesView from "../src/lib/sales-register-view.ts";
 
 const require = createRequire(import.meta.url);
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime.js");
@@ -342,7 +343,12 @@ test("the false red «ожидает условий» is gone: a neutral «Пе�
 });
 
 test("«Продажи» headline: one number by sale date, discrepancies named, no number without a read", () => {
-  const headline = compile("src/components/v3/SalesPeriodHeadline.tsx");
+  const headline = compile("src/components/v3/SalesPeriodHeadline.tsx", (id) => {
+    if (id === "@/lib/sales-register-view") return salesView;
+    if (id === "./blocks/look") return compile("src/components/v3/blocks/look.ts");
+    if (id === "./blocks/progress") return compile("src/components/v3/blocks/progress.ts");
+    return require(id);
+  });
   assert.deepEqual(headline.salesHeadlinePeriod(2026, 9), { from: "2026-09-01", to: "2026-09-30", label: "сентябрь 2026" });
   assert.deepEqual(headline.salesHeadlinePeriod(2028, 2), { from: "2028-02-01", to: "2028-02-29", label: "февраль 2028" });
   assert.deepEqual(headline.salesHeadlinePeriod(2026, undefined), { from: "2026-01-01", to: "2026-12-31", label: "2026 год" });
@@ -352,14 +358,23 @@ test("«Продажи» headline: one number by sale date, discrepancies named,
   const september = { status: "available", count: { from: "2026-09-01", to: "2026-09-30", sales: 5, undated: 1, otherSaleDate: 1, filedElsewhere: 1 } };
   const full = render(september);
   const plain = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
-  assert.match(full, /Продажи за сентябрь 2026: <strong class="[^"]*tabular-nums[^"]*">5<\/strong>/u);
-  assert.match(plain(full), /· по дате продажи, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись$/u);
+  assert.match(full, /<p class="t-section text-fg"><span class="tabular-nums">5<\/span> продаж<\/p>/u);
+  assert.match(plain(full), /^5 продаж по дате продажи за сентябрь 2026, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись$/u);
   // Each named discrepancy opens exactly those records (same period, no other filter), with a 44 px target.
   for (const [slice, words] of [["undated", "без даты продажи — 1 запись"], ["other_sale_date", "дата продажи в другом месяце — 1 запись"], ["filed_elsewhere", "1 запись"]]) {
     assert.match(full, new RegExp(`<a href="/v3/main\\?view=sales&amp;year=2026&amp;month=9&amp;sale=${slice}" class="inline-flex min-h-11 [^"]*" data-sale-slice="${slice}">${words}</a>`, "u"), slice);
   }
   assert.doesNotMatch(full, /без фильтров/u);
-  assert.match(plain(render(september, { filtered: true })), /· по дате продажи, без архива и без фильтров/u, "not to be read against «Найдено по фильтрам»");
+  assert.match(plain(render(september, { filtered: true })), /по дате продажи за сентябрь 2026, без архива и без фильтров/u, "not to be read against the filtered rows");
+  // Э4: план месяца из чтения — «N продаж из плана M» и «осталось»; полоса — только в новом облике.
+  const planned = render(september, { target: 35 });
+  assert.match(plain(planned), /^5 продаж из плана 35 по дате продажи за сентябрь 2026, без архива · осталось 30 /u);
+  assert.doesNotMatch(planned, /v3-progress-track/u);
+  assert.match(render(september, { target: 35, look: "next" }), /<span class="v3-progress-track mt-1\.5" aria-hidden="true"><span class="v3-progress-fill" style="width:14\.3%"><\/span><\/span>/u);
+  assert.match(plain(render(september, { target: 5 })), /^5 продаж из плана 5 по дате продажи за сентябрь 2026, без архива · план выполнен/u);
+  assert.doesNotMatch(render(september, { target: 4, look: "next" }), /v3-progress-track/u, "no bar past the plan: 5 of 4 is not a share");
+  assert.match(plain(render({ status: "available", count: { ...september.count, sales: 1 } })), /^1 продажа /u);
+  assert.match(plain(render({ status: "available", count: { ...september.count, sales: 3 } })), /^3 продажи /u);
   assert.doesNotMatch(render(september, { sliceHref: undefined }), /<a /u, "without a target the words stay words");
   assert.doesNotMatch(full, /font-mono/u, "counts are Golos tabular digits");
   const clean = render({ status: "available", count: { from: "2026-09-01", to: "2026-09-30", sales: 6, undated: 0, otherSaleDate: 0, filedElsewhere: 0 } });
@@ -405,27 +420,42 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
 
   // Переданный лид как в production: этап доски, передача с датами, архивная запись названа словами.
+  // Lead 360 (Э4): строка передачи — в шапке («Что дальше»), в «Сведениях» она не повторяется.
   const handed = pages.get("lead-handed");
   assert.match(handed, /data-testid="v3-lead-stage">Переданы</u);
-  assert.match(text(handed), /Передача Передано 18\.09 · Айгерим Условная · принято 19\.09 Запись о продаже в архиве и в продажи не входит\. Открыть запись/u);
+  assert.match(text(handed), /Что дальше Передано 18\.09 · Айгерим Условная · принято 19\.09/u);
+  assert.match(text(handed), /Передача Запись о продаже в архиве и в продажи не входит\. Открыть запись/u);
+  assert.doesNotMatch(handed, /data-testid="v3-handoff-summary"/u);
   assert.match(handed, /<a href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=12341234-5555-4555-8555-000000000001" class="-my-3 inline-flex min-h-11/u);
   assert.match(text(handed), /Первый платёж 600 USD, получен 17\.09/u);
   assert.doesNotMatch(handed, /ожидает условий|ожидается|Новый</u);
   // Продажа в уже открытое дело (208): дата по квитанции; договор и оплата — по той
   // же записи «Отчёта продаж» (22.09, 600 USD); ответа куратора не бывает — сказано словами.
   const sold = pages.get("lead-sold");
-  assert.match(text(sold), /Передано 23\.09 · Айгерим Условная Приём этой передачи в CRM не отмечается: продажа записана в уже открытый кабинет\./u);
+  assert.match(text(sold), /Что дальше Передано 23\.09 · Айгерим Условная Обзор/u);
+  assert.match(text(sold), /Передача Приём этой передачи в CRM не отмечается: продажа записана в уже открытый кабинет\./u);
   assert.match(text(sold), /Договор есть по отчёту 22\.09 Первый платёж есть по отчёту: оплачено 600 USD Запись в отчёте есть 22\.09/u);
   assert.doesNotMatch(text(sold), /ждёт принятия|ждёт ответа/u, "no pending step nobody can take");
   const report = pages.get("report");
-  assert.match(text(report), /Алина Переданная .*? 22\.09\.2026 .*? 600 USD/u, "the same record says the same numbers");
-  // До передачи: нейтрально, формы подтверждения спокойные, исключение Admin свёрнуто.
+  assert.match(text(report), /Алина Переданная Малайзия · Бакалавриат Санжар Эскизов 22\.09 1 500 USD 600 USD/u, "the same record says the same numbers");
+  // До передачи: нейтрально, формы подтверждения спокойные — в свёрнутой группе «Договор и оплата»,
+  // исключение Admin свёрнуто и в ней.
   const working = pages.get("lead-working");
   assert.match(working, /data-testid="v3-lead-stage">Квалифицирован</u);
   assert.doesNotMatch(working, /v3-handoff-summary|v3-handoff-warnings/u);
-  assert.match(working, /<details class="group border-t border-border px-4 py-1"><summary[^>]*>.*?Исключение Admin<\/summary>/u);
-  const transition = working.slice(working.indexOf('data-testid="v3-sales-transition"'));
-  assert.doesNotMatch(transition.slice(0, transition.indexOf("</section>")), /bg-accent/u, "no solid red in «Передача»");
+  const contract = working.slice(working.indexOf('data-testid="v3-lead-group-contract"'));
+  assert.match(contract, /^data-testid="v3-lead-group-contract"[^>]*><summary[^>]*>.*?Договор и оплата.*?договор не подтверждён/u);
+  assert.match(contract, /<details class="group py-1"><summary[^>]*>.*?Исключение Admin<\/summary>/u);
+  // Сплошной красный на странице один — главное действие; в «Передаче» и группах правки его нет.
+  const solidRed = (html) => html.match(/(?<![\w:-])bg-accent(?![\w-])/gu)?.length ?? 0;
+  assert.equal(solidRed(working), 1);
+  assert.match(working, /class="v3-raised [^"]*bg-accent [^"]*" data-testid="v3-lead-primary">Записать следующий шаг<\/button>/u);
+  for (const part of ["v3-lead-facts", "v3-lead-edit"]) {
+    const from = working.indexOf(`data-testid="${part}"`);
+    assert.ok(from > 0, part);
+    assert.equal(solidRed(working.slice(from, working.indexOf("</section>", from + 1) + 1 || undefined)), 0, part);
+  }
+  assert.equal(solidRed(handed), 0, "after a handoff «Открыть дело» is neutral");
 
   // Lead 360: «Добавить заметку» — спокойная кнопка 44 px; сплошной красный — одно главное действие.
   for (const page of [handed, sold, working]) {
@@ -436,14 +466,14 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   // «Отчёт продаж»: «Продажи» по дате продажи; таблица месяца (6 записей) сходится со словами,
   // а каждое расхождение ведёт к своим записям.
   assert.match(report, /data-testid="v3-sales-headline" data-sales="5"/u);
-  assert.match(text(report), /Продажи за сентябрь 2026: 5 · по дате продажи, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись/u);
+  assert.match(text(report), /5 продаж по дате продажи за сентябрь 2026, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись/u);
   assert.match(report, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;sale=undated"/u);
-  assert.match(text(report), /Найдено по фильтрам Записей продаж 6/u);
+  assert.match(text(report), /Продажи: 6 записей/u);
   // По ссылке «без даты продажи»: ровно эта запись, слова среза и «без фильтров» у числа.
   const undated = pages.get("report-undated");
-  assert.match(text(undated), /Продажи за сентябрь 2026: 5 · по дате продажи, без архива и без фильтров/u);
+  assert.match(text(undated), /5 продаж по дате продажи за сентябрь 2026, без архива и без фильтров/u);
   assert.match(text(undated), /Записи без даты продажи: в продажи не входят — сентябрь 2026\. Все записи периода/u);
-  assert.match(text(undated), /Найдено по фильтрам Записей продаж 1/u);
+  assert.match(text(undated), /Продажи: 1 запись/u);
   assert.match(text(undated), /Данияр Макетов/u);
   assert.doesNotMatch(text(undated), /Алина Переданная|Тимур Образцов/u);
 

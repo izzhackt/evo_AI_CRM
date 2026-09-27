@@ -182,6 +182,36 @@ test("the right panel holds the full questionnaire and the existing decision, qu
   assert.match(leadPanel, /Открыть карточку лида/u);
 });
 
+test("switching records gives the panel a new instance: no draft, conflict or take error carries to another record", () => {
+  // Ревью PR #1084: без ключа панель при «Открыть» другой записи оставалась тем
+  // же экземпляром, и причина отказа анкеты A уходила с application_id анкеты B,
+  // конфликт B запирал A, ошибка «Взять себе» лида X с его request_id — у лида Y.
+  // React пересоздаёт панель и её формы, только когда меняется ключ элемента;
+  // режим --panel-keys рисует НАСТОЯЩУЮ страницу для каждого перехода. Поведение
+  // в браузере — `node tests/e2e/requests-static-render.cjs --switch <dir>`
+  // (Chromium, собранные ApplicationDecision и TakeLeadButton).
+  const steps = JSON.parse(execFileSync(
+    process.execPath,
+    [fileURLToPath(new URL("./e2e/requests-static-render.cjs", import.meta.url)), "--panel-keys"],
+    { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+  ));
+  const [a, b, aAgain, x, y, yAgain] = steps;
+  for (const step of steps) {
+    assert.equal(step.row, step.open, "the panel shows the opened record");
+    assert.equal(step.key, step.open, "the panel is keyed by that record");
+  }
+  assert.ok(a.open.startsWith("application:") && b.open.startsWith("application:") && a.open !== b.open, "two pending questionnaires");
+  assert.notEqual(a.key, b.key, "A → B: a new decision form");
+  assert.notEqual(b.key, aAgain.key, "B → A: B's conflict stays with B");
+  assert.ok(x.open.startsWith("lead:") && y.open.startsWith("lead:") && x.open !== y.open, "two untaken leads");
+  assert.notEqual(x.key, y.key, "X → Y: a new take form with Y's own request_id");
+  assert.equal(y.key, yAgain.key, "the same record re-read keeps its instance and state");
+  // Доступное имя «Взять себе» начинается с видимой надписи и в «Берём…», и во «Взято».
+  const take = read("src/components/v3/requests/TakeLead.tsx");
+  assert.match(take, /const label = pending \? "Берём…" : saved \? "Взято" : "Взять себе";/u);
+  assert.match(take, /aria-label=\{`\$\{label\}: \$\{personName\}`\}[^>]*>\s*\{label\}\s*<\/button>/u);
+});
+
 test("«Сегодня»: website and WhatsApp requests open «Заявки», other unowned leads keep the board panel", () => {
   const lead = (n, source) => ({
     id: `ffffffff-2222-4222-8222-${String(n).padStart(12, "0")}`, name: `Лид ${n}`, stageKey: "new", source, nextAction: null, nextActionAt: null,

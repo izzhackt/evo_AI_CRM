@@ -312,7 +312,11 @@ export function RequestsQueueView(props: ViewProps) {
     active: selection.status === status,
   }));
   const openRow = queue && props.open ? queue.rows.find((row) => requestOpenKey(row) === requestOpenKey(props.open!)) ?? null : null;
-  const panel = openRow ? <RequestDetail row={openRow} props={props} listHref={listHref} now={now} /> : null;
+  // Ключ — запись: другая запись получает новую панель, и черновик решения,
+  // конфликт или ошибка «Взять себе» прежней записи с её request_id не
+  // переезжают (как у TaskDetailPanel и StudentQuickView). Обновление той же
+  // записи сохраняет её состояние.
+  const panel = openRow ? <RequestDetail key={requestOpenKey(openRow)} row={openRow} props={props} listHref={listHref} now={now} /> : null;
   const selectedKind = selection.source === "all" ? null : requestKindOfSource(selection.source);
 
   return (

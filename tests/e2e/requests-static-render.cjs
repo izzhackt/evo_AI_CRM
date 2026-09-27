@@ -27,6 +27,14 @@
  *       12 px, сплошной красный, высота строк. По умолчанию outDir —
  *       .impeccable/review (не коммитится), имена e3r-*.png; `--look=next` —
  *       суффикс `-next`.
+ *   node tests/e2e/requests-static-render.cjs --panel-keys
+ *     → stdout: JSON [{ open, key, row }] — ключ правой панели при переходах
+ *       между записями (для tests/v3-requests-triage.test.mjs).
+ *   node tests/e2e/requests-static-render.cjs --switch [outDir] [--look=next]
+ *     → смена записи в правой панели по-настоящему в Chromium: собранный
+ *       esbuild RequestsQueueView, черновик решения, конфликт и ошибка
+ *       «Взять себе» не переезжают в другую запись. Серверные действия —
+ *       заглушки (конфликт, «Лид уже изменён»), ничего не сохраняют.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -394,11 +402,263 @@ async function json() {
   process.stdout.write(JSON.stringify(out));
 }
 
+// --- смена записи в правой панели (ревью PR #1084) ---------------------------
+// Вторая анкета «на решении» и два не взятых лида: переход между записями
+// одного вида. Синтетика, как и всё выше.
+const SWITCH_ROWS = [...ALL_ROWS, applicationRow(10, { first: "Алия", last: "Условная", at: "2026-09-26T05:00:00Z", status: "pending" })];
+const SWITCH_STATES = { lead: "ready", application: "ready", consultation: "ready" };
+const APPLICATION_A = `application:${id("aaaaaaaa", 2)}`;
+const APPLICATION_B = `application:${id("aaaaaaaa", 10)}`;
+const LEAD_X = `lead:${id("dddddddd", 1)}`;
+const LEAD_Y = `lead:${id("dddddddd", 9)}`;
+/** Переходы «Открыть» по порядку: A → B → A, X → Y, и та же запись после обновления. */
+const PANEL_SWITCH = [APPLICATION_A, APPLICATION_B, APPLICATION_A, LEAD_X, LEAD_Y, LEAD_Y];
+
+function findElement(node, match) {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findElement(child, match);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (match(node)) return node;
+  return findElement(node.props?.children, match);
+}
+
+/**
+ * Ключ правой панели по открытой записи. Сервер при каждом «Открыть» заново
+ * рисует ту же страницу, а React сохраняет состояние клиентских форм панели
+ * (черновик решения, конфликт, ошибка «Взять себе»), пока совпадают место,
+ * тип и ключ элемента. Режим рисует НАСТОЯЩУЮ страницу для каждого перехода
+ * и отдаёт ключ элемента `RequestDetail` и запись, которую он показывает.
+ *
+ *   node tests/e2e/requests-static-render.cjs --panel-keys
+ *     → stdout: JSON [{ open, key, row }] (для tests/v3-requests-triage.test.mjs).
+ */
+async function panelKeys() {
+  const { RequestsQueueView } = require(join(ROOT, "src/components/v3/requests/RequestsQueueView.tsx"));
+  const { requestOpenKey } = require(join(ROOT, "src/lib/requests-queue-contract.ts"));
+  const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
+  const out = [];
+  for (const open of PANEL_SWITCH) {
+    current = { actor: "admin", search: `status=all&open=${open}`, rows: SWITCH_ROWS, states: SWITCH_STATES };
+    const content = await page({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(current.search))) });
+    const view = findElement(content, (element) => element.type === RequestsQueueView);
+    if (!view) throw new Error("the page renders no RequestsQueueView");
+    const panel = findElement(view.type(view.props), (element) => typeof element.type === "function" && element.type.name === "RequestDetail");
+    out.push({ open, key: panel ? panel.key : null, row: panel ? requestOpenKey(panel.props.row) : null });
+  }
+  process.stdout.write(JSON.stringify(out));
+}
+
+const SWITCH_ROOT_ID = "requests-client-root";
+const SWITCH_FIXTURE_ID = "requests-client-fixture";
+
+// Точка входа браузера: НАСТОЯЩИЙ RequestsQueueView (с ApplicationDecision и
+// TakeLeadButton), собранный esbuild. `__open(key)` делает то, что делает
+// сервер при «Открыть»: та же страница с новым `open` и новыми request_id
+// (`randomUUID` страницы) — React сверяет новое дерево со старым.
+const SWITCH_CLIENT_ENTRY = `
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
+import { RequestsQueueView } from "../../src/components/v3/requests/RequestsQueueView";
+
+const fixture = JSON.parse(document.getElementById("${SWITCH_FIXTURE_ID}").textContent);
+const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} };
+const root = createRoot(document.getElementById("${SWITCH_ROOT_ID}"));
+let serial = 0;
+const fresh = () => "99999999-5555-4555-8555-" + String((serial += 1)).padStart(12, "0");
+globalThis.__takeRequestIds = {};
+function render(key) {
+  const [kind, id] = key.split(":");
+  const takeRequestIds = Object.fromEntries(fixture.props.read.queue.rows.flatMap((row) => row.kind === "lead" && row.take ? [[row.leadId, fresh()]] : []));
+  globalThis.__takeRequestIds = takeRequestIds;
+  const search = new URLSearchParams("status=all&open=" + key);
+  root.render(
+    createElement(AppRouterContext.Provider, { value: router },
+      createElement(PathnameContext.Provider, { value: "/v3/requests" },
+        createElement(SearchParamsContext.Provider, { value: search },
+          createElement(RequestsQueueView, { ...fixture.props, open: { kind, id }, takeRequestIds, decisionRequestId: fresh() })))),
+  );
+}
+globalThis.__open = (key) => new Promise((done) => { render(key); requestAnimationFrame(() => requestAnimationFrame(done)); });
+`;
+
+/**
+ * Серверные действия в браузере: решение по анкете отвечает конфликтом,
+ * «Взять себе» — «Лид уже изменён»; отправленные поля записываются для
+ * проверки. Заглушки ничего не сохраняют. Фильтры esbuild — регулярные
+ * выражения Go: без флага `u`.
+ */
+const SWITCH_ACTIONS = {
+  decideStudentApplicationAction: "(globalThis.__decisions ||= []).push(Object.fromEntries(arguments[1])); return { status: \"conflict\", requestId: arguments[1].get(\"request_id\") };",
+  updatePlatformSalesWorkflowAction: "(globalThis.__takes ||= []).push(Object.fromEntries(arguments[1])); return { status: \"stale\", requestId: arguments[1].get(\"request_id\"), version: arguments[0].version, changedAt: null };",
+};
+const switchStubs = {
+  name: "requests-switch-stubs",
+  setup(build) {
+    build.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "empty" }));
+    build.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
+    build.onLoad({ filter: /\.module\.css$/ }, () => ({
+      contents: "export default new Proxy({}, { get: (_target, key) => (typeof key === 'string' ? key : undefined) });",
+      loader: "js",
+    }));
+    build.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
+    build.onLoad({ filter: /[\\/]src[\\/].+\.tsx?$/ }, (args) => {
+      const source = readFileSync(args.path, "utf8");
+      if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
+      const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
+      return {
+        contents: names.map((name) => `export async function ${name}() { ${SWITCH_ACTIONS[name] ?? `throw new Error("static render: server action ${name} is not available");`} }`).join("\n"),
+        loader: "ts",
+      };
+    });
+  },
+};
+
+/**
+ * Смена записи в правой панели в Chromium (1440×900: панель рядом со
+ * списком, тот же экземпляр места в дереве). Проверяет то, что нашло ревью
+ * PR #1084: (1) черновик «Отклонить» с причиной анкеты A не переезжает в
+ * анкету B и не уходит с её application_id; (2) конфликт анкеты B не
+ * запирает анкету A; (3) ошибка «Взять себе» лида X и его request_id не
+ * переезжают в панель лида Y. Нарушение — исключение с фактами.
+ *
+ *   node tests/e2e/requests-static-render.cjs --switch [outDir]
+ */
+async function switchCheck() {
+  const outIndex = process.argv.indexOf("--switch") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const { parseRequestSelection } = require(join(ROOT, "src/lib/requests-queue-contract.ts"));
+  const selection = parseRequestSelection({ status: "all" });
+  current = { actor: "admin", search: "status=all", rows: SWITCH_ROWS, states: SWITCH_STATES };
+  const queue = await STUBS["@/lib/v3/requests-queue-source"].loadScopedRequestsQueue(ACTORS.admin, selection);
+  const props = {
+    selection, read: { status: "ready", queue }, actorMembershipId: ME, readOnly: false, canCreateLead: true,
+    nowIso: NOW.toISOString(), ...(LOOK_NEXT ? { look: "next" } : {}),
+  };
+  const bundle = join(outDir, "requests-switch-client.js");
+  await require("esbuild").build({
+    stdin: { contents: SWITCH_CLIENT_ENTRY, resolveDir: __dirname, sourcefile: "requests-switch-entry.js", loader: "js" },
+    bundle: true, outfile: bundle, format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
+    tsconfig: join(ROOT, "tsconfig.json"), define: { "process.env.NODE_ENV": '"production"' },
+    banner: { js: "var process = globalThis.process || { env: {} };" }, plugins: [switchStubs], logLevel: "error",
+  });
+  const htmlPath = join(outDir, "e3r-switch.html");
+  writeFileSync(htmlPath, [
+    "<!DOCTYPE html>",
+    '<html lang="ru" data-theme="light" class="h-full antialiased">',
+    `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Заявки — смена записи (синтетические данные)</title><style>${await compileCss()}</style></head>`,
+    `<body class="min-h-full"><div class="v3-world"${LOOK_NEXT ? ' data-look="next"' : ""}><main class="p-6"><div id="${SWITCH_ROOT_ID}"></div></main></div>`,
+    `<script type="application/json" id="${SWITCH_FIXTURE_ID}">${JSON.stringify({ props }).replaceAll("<", "\\u003c")}</script><script src="requests-switch-client.js"></script></body></html>`,
+  ].join(""));
+
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const failures = [];
+  const expect = (label, ok, facts) => {
+    process.stdout.write(`${ok ? "ok  " : "FAIL"} ${label}${ok ? "" : ` ${JSON.stringify(facts)}`}\n`);
+    if (!ok) failures.push(label);
+  };
+  try {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+    const tab = await context.newPage();
+    const errors = [];
+    tab.on("pageerror", (error) => errors.push(error.message));
+    await tab.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+    const panel = tab.locator('[data-testid="requests-detail-panel"]');
+    const openRecord = (key) => tab.evaluate((value) => globalThis.__open(value), key);
+    const state = () => tab.evaluate(() => {
+      const root = document.querySelector('[data-testid="requests-detail-panel"]');
+      const field = (form, name) => form?.querySelector(`input[name="${name}"]`)?.value ?? null;
+      const decision = root?.querySelector('form[aria-label="Решение по заявке"]') ?? null;
+      const take = root?.querySelector('[data-testid="requests-take"]') ?? null;
+      return {
+        heading: root?.querySelector("h2")?.textContent ?? null,
+        applicationId: field(decision, "application_id"),
+        decision: decision?.querySelector('input[name="decision"]:checked')?.value ?? null,
+        reason: decision?.querySelector("textarea")?.value ?? null,
+        decisionRequestId: field(decision, "request_id"),
+        locked: decision?.querySelector("fieldset")?.disabled ?? null,
+        decisionMessage: decision?.querySelector('[role="status"]')?.textContent ?? null,
+        refresh: Boolean(decision && [...decision.querySelectorAll("button")].some((button) => button.textContent === "Обновить заявку")),
+        leadId: field(take, "lead_id"),
+        takeRequestId: field(take, "request_id"),
+        takeAlert: take?.querySelector('[role="alert"]')?.textContent ?? null,
+        takeButton: take?.querySelector('button[type="submit"]')?.textContent ?? null,
+        takeIds: { ...globalThis.__takeRequestIds },
+      };
+    });
+    const idOf = (key) => key.split(":")[1];
+    const REASON_A = "Причина для анкеты A (синтетическая)";
+
+    // (1) Черновик «Отклонить» анкеты A → анкета B.
+    await openRecord(APPLICATION_A);
+    await panel.getByLabel("Отклонить").check();
+    await panel.locator("textarea").fill(REASON_A);
+    const a = await state();
+    expect("A: the reject draft is typed into A's own form", a.applicationId === idOf(APPLICATION_A) && a.decision === "reject" && a.reason === REASON_A, a);
+    await openRecord(APPLICATION_B);
+    const b = await state();
+    expect("B opens with a fresh decision: «Одобрить», no reason, a request_id other than A's draft",
+      b.applicationId === idOf(APPLICATION_B) && b.decision === "approve" && b.reason === null && b.decisionRequestId !== a.decisionRequestId, b);
+
+    // (2) Решение по B отправляется с B и без причины A; конфликт B не запирает A.
+    await panel.locator('form[aria-label="Решение по заявке"] button[type="submit"]').click();
+    await panel.getByText("Заявка уже изменилась").waitFor();
+    const sent = await tab.evaluate(() => globalThis.__decisions.at(-1));
+    expect("B's submission carries B's id, «Одобрить» and no reason from A",
+      sent.application_id === idOf(APPLICATION_B) && sent.decision === "approve" && sent.reason === "" && sent.request_id === b.decisionRequestId, sent);
+    const conflicted = await state();
+    expect("B shows its own conflict, locked", conflicted.locked === true && conflicted.refresh, conflicted);
+    await openRecord(APPLICATION_A);
+    const again = await state();
+    expect("A reopens unlocked, without B's conflict or «Обновить заявку»",
+      again.applicationId === idOf(APPLICATION_A) && again.locked === false && !again.decisionMessage && !again.refresh && again.decision === "approve" && again.reason === null, again);
+
+    // (3) Ошибка «Взять себе» лида X → лид Y.
+    await openRecord(LEAD_X);
+    await panel.getByRole("button", { name: /Взять себе/u }).click();
+    await panel.getByText("Лид уже изменён").waitFor();
+    const x = await state();
+    const took = await tab.evaluate(() => globalThis.__takes.at(-1));
+    expect("X: the take is sent for X with X's request_id and shows X's error",
+      took.lead_id === idOf(LEAD_X) && took.request_id === x.takeIds[idOf(LEAD_X)] && x.takeAlert?.startsWith("Лид уже изменён"), { took, x });
+    await openRecord(LEAD_Y);
+    const y = await state();
+    expect("Y opens without X's error and with Y's own request_id",
+      y.leadId === idOf(LEAD_Y) && y.takeAlert === null && y.takeButton === "Взять себе" && y.takeRequestId === y.takeIds[idOf(LEAD_Y)] && y.takeRequestId !== took.request_id, y);
+    await tab.screenshot({ path: join(outDir, `e3r-switch-1440${LOOK_NEXT ? "-next" : ""}.png`), fullPage: false });
+
+    // Та же запись после обновления сервером — тот же экземпляр: своё состояние сохраняется.
+    await panel.getByRole("button", { name: /Взять себе/u }).click();
+    await panel.getByText("Лид уже изменён").waitFor();
+    await openRecord(LEAD_Y);
+    const same = await state();
+    expect("the same record re-read keeps its own state (one instance per record)", same.leadId === idOf(LEAD_Y) && same.takeAlert?.startsWith("Лид уже изменён"), same);
+
+    if (errors.length) failures.push(`browser errors: ${errors.join(" | ")}`);
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+  if (failures.length) throw new Error(`panel switch: ${failures.length} failed:\n${failures.join("\n")}`);
+}
+
 if (process.argv.includes("--json")) {
   json().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--panel-keys")) {
+  panelKeys().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--switch")) {
+  switchCheck().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--screenshots")) {
   screenshots().catch((error) => { console.error(error); process.exit(1); });
 } else {
-  console.error("usage: requests-static-render.cjs --json | --screenshots [outDir] [--look=next]");
+  console.error("usage: requests-static-render.cjs --json | --panel-keys | --switch [outDir] | --screenshots [outDir] [--look=next]");
   process.exit(2);
 }

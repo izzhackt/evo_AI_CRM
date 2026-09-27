@@ -86,6 +86,8 @@ export function TakeLeadButton({
   useEffect(() => { if (saved) reportSaved(); }, [saved, result.changedAt]);
   const clear = take.nextActionText === null;
   const message = result.status === "idle" || saved ? null : MESSAGES[result.status];
+  // Доступное имя начинается с видимой надписи (WCAG 2.5.3): «Берём…», «Взято».
+  const label = pending ? "Берём…" : saved ? "Взято" : "Взять себе";
   return (
     <form action={action} className="relative z-10 flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="requests-take">
       <input type="hidden" name="lead_id" value={leadId} />
@@ -97,8 +99,8 @@ export function TakeLeadButton({
       <input type="hidden" name="next_action_due_date" value={take.nextActionDueDate ?? ""} />
       <input type="hidden" name="clear_next_action" value={clear ? "true" : "false"} />
       <input type="hidden" name="reason" value="" />
-      <button type="submit" disabled={pending || saved} aria-label={`Взять себе: ${personName}`} className={QUEUE_SECONDARY}>
-        {pending ? "Берём…" : saved ? "Взято" : "Взять себе"}
+      <button type="submit" disabled={pending || saved} aria-label={`${label}: ${personName}`} className={QUEUE_SECONDARY}>
+        {label}
       </button>
       {message ? (
         <p role="alert" className="basis-full t-meta text-warn">

@@ -158,7 +158,9 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
     return { count: null, content: <div className={DIRECTORY} data-testid="v3-student-case-directory"><QueueForbidden docs={docs} coverageHref={coverageHref} /></div> };
   }
   const here = studentsQueueHref(params);
-  const toolbar = <StudentsToolbar params={params} counts={read.counts} curatorFilter={input.actor.coverage} curatorNames={input.curatorNames} />;
+  // «x» в окне «?» — у кого есть массовые действия (Э7): назначать кураторов или править шаг.
+  const selectKey = !docs && !input.editor.preview && (input.actor.coverage || input.editor.admin || input.editor.routeManage);
+  const toolbar = <StudentsToolbar params={params} counts={read.counts} curatorFilter={input.actor.coverage} curatorNames={input.curatorNames} selectKey={selectKey} />;
   // Список не прочитан — заметка «список работает» была бы неправдой.
   const countsNotice = read.counts || read.page === null ? null : <StudentsCountsUnavailable retryHref={here} />;
 
@@ -249,6 +251,8 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
       createTask={input.createTask}
       requestId={input.requestIds.nextStep}
       look={input.look}
+      // «Назначить куратора» выбранным (Э7) — тому, кто назначает кураторов; список — то же чтение, что у фильтра «Куратор».
+      curators={input.actor.coverage ? input.curatorNames : null}
     />,
   };
 }

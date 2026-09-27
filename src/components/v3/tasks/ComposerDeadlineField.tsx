@@ -6,19 +6,34 @@ import { formatQueueDay, nextFriday } from "../queue/due-bucket";
 import { QUEUE_FIELD } from "../queue/queue-buttons";
 import { shiftDay, type Day } from "../calendar/types";
 
-type Choice = "today" | "tomorrow" | "friday" | "date" | "none";
+export type Choice = "today" | "tomorrow" | "friday" | "date" | "none";
 
 const CHIP = "v3-choice inline-flex min-h-11 items-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 
+/** Быстрый вариант для дня по умолчанию: другой день — «Дата…» с этим днём. */
+export function composerDeadlineChoice(day: Day, defaultDay: Day | null): Choice {
+  if (defaultDay === null || defaultDay === day) return "today";
+  if (defaultDay === shiftDay(day, 1)) return "tomorrow";
+  if (defaultDay === nextFriday(day)) return "friday";
+  return "date";
+}
+
 /**
- * Срок в диалоге «Новая задача»: по умолчанию сегодня, на весь день. Быстрые
- * варианты — «Сегодня», «Завтра», ближайшая пятница, «Дата…» (день и, если
- * нужно, время по Бишкеку) и «Без срока». Поля формы — те же, что принимают
- * команды создания: `deadline_kind`, `due_on`, `due_at`.
+ * Срок в диалоге «Новая задача»: по умолчанию сегодня, на весь день; из
+ * календаря — выбранный день (Э7). Быстрые варианты — «Сегодня», «Завтра»,
+ * ближайшая пятница, «Дата…» (день и, если нужно, время по Бишкеку) и «Без
+ * срока». Поля формы — те же, что принимают команды создания:
+ * `deadline_kind`, `due_on`, `due_at`.
  */
-export function ComposerDeadlineField({ day, disabled = false }: Readonly<{ day: Day; disabled?: boolean }>) {
-  const [choice, setChoice] = useState<Choice>("today");
-  const [date, setDate] = useState(day);
+export function ComposerDeadlineField({ day, defaultDay = null, disabled = false }: Readonly<{
+  /** Сегодня в Бишкеке. */
+  day: Day;
+  /** День срока по умолчанию; null — сегодня. */
+  defaultDay?: Day | null;
+  disabled?: boolean;
+}>) {
+  const [choice, setChoice] = useState<Choice>(() => composerDeadlineChoice(day, defaultDay));
+  const [date, setDate] = useState(defaultDay ?? day);
   const [time, setTime] = useState("");
   const friday = nextFriday(day);
   const quickDay = choice === "today" ? day : choice === "tomorrow" ? shiftDay(day, 1) : choice === "friday" ? friday : null;

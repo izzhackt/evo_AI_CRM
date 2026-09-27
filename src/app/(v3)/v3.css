@@ -797,3 +797,26 @@
     transform: translateY(8px);
   }
 }
+
+/*
+ * Строка действий над выбранными строками очереди (Э7, «Задачи» и
+ * «Студенты»): прилипает к нижнему краю окна, пока что-то выбрано, — прямо
+ * на нижнюю панель телефона нового облика, если она есть, без зазора. Отступ
+ * под строкой — полоса цвета земли (`bg-bg` у `.v3-bulk-dock`): текст списка
+ * под ней не просвечивает.
+ */
+.v3-world .v3-bulk-dock {
+  bottom: calc(var(--shell-tabbar, 0px) + var(--shell-safe-bottom, 0px));
+}
+
+/*
+ * Поле Ctrl+K (Э7) — во всю ширину окна: рамка фокуса вокруг него резала бы
+ * края окна, поэтому фокус — линией цвета фокуса под строкой поиска.
+ */
+.v3-world .v3-palette-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.v3-world .v3-palette-field:has(.v3-palette-input:focus-visible) {
+  box-shadow: inset 0 -2px 0 var(--focus-ring);
+}

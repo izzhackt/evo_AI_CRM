@@ -16,6 +16,8 @@ import { Initials } from "../blocks/Initials";
 import { isNextLook, type V3Look } from "../blocks/look";
 import { StageTrack } from "../blocks/StageTrack";
 import { dueWordOf } from "../queue/due-bucket";
+import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
+import { TaskComposerContextMark, type TaskComposerPageContext } from "../tasks/task-composer-context";
 import { handoffFootnote, handoffStripView, stripMoment, type StripText } from "./handoff-strip-view";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
@@ -180,12 +182,16 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const writeHref = conversations[0]
     ? buildV3InboxHref({ conversationId: conversations[0].conversationId, filters: { query: null, waitingOnly: false } })
     : draft.admissions ? `/v3/messages?case=${encodeURIComponent(draft.admissions.studentCaseId)}` : null;
-  // «Создать задачу» — задача по делу (есть дело и право), иначе задача сотрудника по лиду, как в панели доски.
-  const taskCaseId = !preview && staffHasPermission(actor, "task.manage") ? draft.admissions?.studentCaseId ?? null : null;
-  const taskHref = taskCaseId
-    ? `/v3/tasks?create=case&case=${encodeURIComponent(taskCaseId)}`
-    : !preview && staffHasPermission(actor, "staff.task.read") ? `/v3/tasks?lead=${encodeURIComponent(leadId)}&create=staff` : null;
+  // Задача — тот же диалог «Новая задача», что у всех входов (Э7), на месте:
+  // по делу (есть дело и `task.create`), иначе рабочая задача по лиду
+  // (`staff.task.create`, версия процесса лида — для команды создания).
+  const taskCaseId = !preview && staffPresentationCan(actor, "admissions.read") && staffHasPermission(actor, "task.create")
+    ? draft.admissions?.studentCaseId ?? null : null;
+  const leadTaskAllowed = !taskCaseId && !preview && staffHasPermission(actor, "staff.task.create");
   const taskLabel = taskCaseId ? "Задача по делу" : "Задача по лиду";
+  const taskContext: TaskComposerPageContext | null = taskCaseId
+    ? { case: { id: taskCaseId, name: profile.person } }
+    : leadTaskAllowed ? { lead: { id: leadId, version: sales.lead.workflowVersion, name: profile.person } } : null;
   const closable = !preview && staffHasPermission(actor, "lead.sales.workflow.manage");
 
   const actions = (
@@ -205,13 +211,22 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           <span className="sr-only sm:not-sr-only">Написать</span>
         </Link>
       ) : null}
-      {taskHref ? (
-        // Не «Создать задачу»: так называется общее действие верхней строки в том же экране.
-        <Link href={taskHref} className={ICON_ACTION} title={taskLabel} data-testid="v3-lead-task">
-          <Icon name="check-square" size={18} className="shrink-0" />
-          <span className="sr-only sm:not-sr-only">{taskLabel}</span>
-        </Link>
-      ) : null}
+      {taskContext ? <>
+        {/* «Создать задачу» меню и Ctrl+K на этой странице — с тем же лидом или делом. */}
+        <TaskComposerContextMark value={taskContext} />
+        {/* Не «Создать задачу»: так называется общее действие меню в том же экране. */}
+        <TaskComposerDialog
+          actor={actor} actorMembershipId={actor.membershipId} day={today}
+          staffAllowed={leadTaskAllowed} caseAllowed={Boolean(taskCaseId)}
+          initialCase={taskContext.case ?? null}
+          sourceLeadId={taskContext.lead?.id} sourceLeadVersion={taskContext.lead?.version} sourceLeadName={taskContext.lead?.name ?? null}
+          triggerClassName={ICON_ACTION} triggerTitle={taskLabel} triggerTestId="v3-lead-task"
+          triggerChildren={<>
+            <Icon name="check-square" size={18} className="shrink-0" />
+            <span className="sr-only sm:not-sr-only">{taskLabel}</span>
+          </>}
+        />
+      </> : null}
       <LeadMoreMenu
         leadId={leadId}
         name={profile.person}

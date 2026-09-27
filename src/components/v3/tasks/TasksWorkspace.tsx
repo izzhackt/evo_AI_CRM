@@ -7,6 +7,7 @@ import { taskQueueNarrowing, taskQueueParams, TASK_QUEUE_WINDOWS } from "@/lib/v
 import type { V3Look } from "../blocks/look";
 import { DUE_BUCKETS, DUE_FILTER_LABELS, dueBandLabel, type DueFilter } from "../queue/due-bucket";
 import { FilterMenu } from "../queue/FilterMenu";
+import { SELECT_KEY } from "../queue/keyboard-keys";
 import { activeFilterCount, queueHref } from "../queue/queue-url";
 import { QueueEmpty, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { QueueToolbar } from "../queue/QueueToolbar";
@@ -168,6 +169,7 @@ export function TasksWorkspace({
           filters={filterMenus}
           activeCount={active}
           resetHref={active ? listHref({ type: null, due: null, q: null, status: null, window: null }) : null}
+          keys={filters.state === "open" && !permissions.preview && (permissions.staffEdit || permissions.caseManage) ? [SELECT_KEY] : []}
         /> : null}
         {createdExcludesCases ? <p className="t-body-compact text-fg-2">Здесь только рабочие задачи: автор задач по студентам в общем списке не читается.</p> : null}
         <div className="@container min-w-0">

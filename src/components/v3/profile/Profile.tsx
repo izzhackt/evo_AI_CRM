@@ -4,6 +4,8 @@ import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } fr
 import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
+import { TaskComposerDialog } from "@/components/v3/tasks/TaskComposerDialog";
+import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { personState } from "@/lib/v3/wording";
 
@@ -121,7 +123,9 @@ export function Profile({
     caseStatus: profile.caseStatus,
     leadStage: profile.stage,
   });
-  const taskCaseId = !isStaffPreview(actor) && staffHasPermission(actor, "task.manage") ? draft.admissions?.studentCaseId ?? null : null;
+  // Э7: тот же диалог «Новая задача» с делом, что у «+ Задача» дела; команда
+  // создания требует `task.create` (одного `task.manage` для неё мало).
+  const taskCaseId = !isStaffPreview(actor) && staffHasPermission(actor, "task.create") ? draft.admissions?.studentCaseId ?? null : null;
   const uploadAccess = draft.admissions?.caseState !== "active"
     ? "closed" as const
     : !isStaffPreview(actor) && staffHasPermission(actor, "document.upload")
@@ -144,12 +148,15 @@ export function Profile({
             <Pill tone="danger">финансовый стоп</Pill>
           ) : null}
           {taskCaseId ? (
-            <Link
-              href={`/v3/tasks?create=case&case=${encodeURIComponent(taskCaseId)}`}
-              className="ms-auto inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-            >
-              Создать задачу по студенту
-            </Link>
+            <span className="ms-auto">
+              <TaskComposerDialog
+                actor={actor} actorMembershipId={actor.membershipId} day={dayInOrganizationTimezone(new Date())}
+                staffAllowed={false} caseAllowed
+                initialCase={{ id: taskCaseId, name: profile.person }}
+                triggerLabel="Задача по студенту"
+                triggerClassName="inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              />
+            </span>
           ) : null}
           {headerMenu ? <div className={taskCaseId ? "self-center" : "ms-auto self-center"}>{headerMenu}</div> : null}
         </header>

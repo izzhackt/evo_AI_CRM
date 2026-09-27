@@ -6,6 +6,7 @@ import { stagePhase } from "@/lib/v3/stages";
 import { admissionsPipelineStage } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
+import { PHONE_HIDDEN, RowSelect } from "../queue/Bulk";
 import { isNextLook, type V3Look } from "../blocks/look";
 import { StageChip, StatusChip, type StatusChipTone } from "../blocks/StatusChip";
 import { DIRECTION_LABELS } from "../profile/admissions-view";
@@ -60,6 +61,12 @@ const TONE: Readonly<Record<StudentsSignal["tone"], string>> = {
 };
 /** Новый облик: сигнал — чип со словом того же тона. */
 const CHIP_TONE: Readonly<Record<StudentsSignal["tone"], StatusChipTone>> = { danger: "danger", warn: "warn", muted: "neutral" };
+
+/**
+ * Колонка выбора для массовых действий (Э7); у дела без подходящего действия —
+ * пустое место. На телефоне отметок нет, пока не нажато «Выбрать» (`revealed`).
+ */
+export type StudentsRowSelect = Readonly<{ available: boolean; checked: boolean; onToggle: () => void; revealed: boolean }>;
 
 export type StudentsRowLinks = Readonly<{
   /** Та же очередь с открытой строкой (`?open=`). */
@@ -156,6 +163,7 @@ export function StudentsQueueRow({
   selected,
   links,
   look,
+  select = null,
 }: Readonly<{
   row: StudentCaseQueueRow;
   /** Полдень сегодняшнего дня Бишкека из чтения 241 (`bishkekNoon`). */
@@ -173,6 +181,8 @@ export function StudentsQueueRow({
    * бы имя (снимок 1280), а в «Быстром просмотре» он стоит рядом с полным именем.
    */
   look?: V3Look;
+  /** Отметка строки для массовых действий; null — их нет. */
+  select?: StudentsRowSelect | null;
 }>) {
   const next = isNextLook(look);
   const meta = studentsRowMeta(row);
@@ -181,6 +191,24 @@ export function StudentsQueueRow({
   // Шаг ведётся только у дела в работе: у закрытого или вернувшегося в ожидание
   // «Шаг просрочен» был бы ложной тревогой (сохранённый шаг там не правится).
   const signals = studentsRowSignals(row, { curatorWords: !curatorColumn, overdueStep: sort === "updated" && row.state === "active" });
+  const phoneHidden = select !== null && !select.revealed;
+  const name = <>
+    {/* Вся строка открывает «Быстрый просмотр»: ссылка — имя, её область — строка. */}
+    <Link
+      href={links.open}
+      scroll={false}
+      data-queue-open=""
+      aria-current={selected ? "true" : undefined}
+      title={row.studentDisplayName}
+      className="block truncate t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline"
+    >
+      {row.studentDisplayName}
+    </Link>
+    <span className="block truncate t-meta text-fg-2" title={meta}>
+      {meta}
+      {stage ? <span aria-hidden="true" className="@min-[60rem]/students:hidden"> · {stage}</span> : null}
+    </span>
+  </>;
   return (
     <tr
       role="row"
@@ -189,24 +217,17 @@ export function StudentsQueueRow({
       data-access="full"
       data-student-case-id={row.studentCaseId}
       data-band={row.dueBand}
-      className={`v3-queue-row relative ${curatorColumn ? ROW_GRID : ROW_GRID_MINE} scroll-mt-9 py-2 shadow-[inset_0_-1px_0_var(--border)] @min-[30rem]/students:scroll-mt-[4.25rem] @min-[36rem]/students:py-1.5 @min-[60rem]/students:py-0 ${selected ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
+      data-selected={select?.checked ? "" : undefined}
+      className={`v3-queue-row relative ${curatorColumn ? ROW_GRID : ROW_GRID_MINE} scroll-mt-9 py-2 shadow-[inset_0_-1px_0_var(--border)] @min-[30rem]/students:scroll-mt-[4.25rem] @min-[36rem]/students:py-1.5 @min-[60rem]/students:py-0 ${selected || select?.checked ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
     >
-      <th role="rowheader" scope="row" className={`${CELL} [grid-area:student] text-start font-normal @min-[36rem]/students:ps-3`}>
-        {/* Вся строка открывает «Быстрый просмотр»: ссылка — имя, её область — строка. */}
-        <Link
-          href={links.open}
-          scroll={false}
-          data-queue-open=""
-          aria-current={selected ? "true" : undefined}
-          title={row.studentDisplayName}
-          className="block truncate t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline"
-        >
-          {row.studentDisplayName}
-        </Link>
-        <span className="block truncate t-meta text-fg-2" title={meta}>
-          {meta}
-          {stage ? <span aria-hidden="true" className="@min-[60rem]/students:hidden"> · {stage}</span> : null}
-        </span>
+      <th role="rowheader" scope="row" className={`${CELL} [grid-area:student] text-start font-normal ${select ? `flex items-start gap-1 ps-0 ${phoneHidden ? "max-sm:ps-3 " : ""}@min-[36rem]/students:ps-0` : "@min-[36rem]/students:ps-3"}`}>
+        {/* Отметка для массовых действий (Э7) — слева от имени, над ссылкой строки. */}
+        {select ? <>
+          {select.available
+            ? <RowSelect label={row.studentDisplayName} checked={select.checked} onToggle={select.onToggle} phoneHidden={phoneHidden} />
+            : <span aria-hidden="true" className={`size-11 shrink-0${phoneHidden ? ` ${PHONE_HIDDEN}` : ""}`} />}
+          <span className="min-w-0 flex-1 self-center">{name}</span>
+        </> : name}
       </th>
       <td role="cell" className={`${CELL} [grid-area:step] t-body-compact @min-[36rem]/students:ps-3 @min-[60rem]/students:ps-2`}>
         {row.nextAction
@@ -251,6 +272,7 @@ export function StudentsQueueTable({
   selectedKey,
   links,
   look,
+  select = null,
 }: Readonly<{
   bands: readonly StudentsBand<StudentCaseQueueRow>[];
   caption: string;
@@ -265,6 +287,8 @@ export function StudentsQueueTable({
   links: (row: StudentCaseQueueRow) => StudentsRowLinks;
   /** Новый облик (Э1.3): общие блоки в строках. */
   look?: V3Look;
+  /** Отметка строки для массовых действий (Э7); null — колонки нет. */
+  select?: ((row: StudentCaseQueueRow) => StudentsRowSelect) | null;
 }>) {
   const columns = curatorColumn
     ? (["Студент", "Следующий шаг", "Срок", "Этап", "Куратор", "Сигналы"] as const)
@@ -304,6 +328,7 @@ export function StudentsQueueTable({
                 selected={row.studentCaseId === selectedKey}
                 links={links(row)}
                 look={look}
+                select={select ? select(row) : null}
               />
             ))}
           </tbody>

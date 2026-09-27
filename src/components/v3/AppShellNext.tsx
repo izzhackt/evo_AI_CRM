@@ -41,6 +41,7 @@ import {
   type ShellTabs,
 } from "@/lib/v3/shell-tabs";
 import { roleTitle } from "@/lib/v3/wording";
+import { onCreateTaskClick, PaletteButton, ShellCommands } from "@/components/v3/palette/ShellCommands";
 
 /*
  * Оболочка нового облика — Э1.2 плана редизайна 25.09.2026
@@ -71,6 +72,8 @@ const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visi
 const ITEM = `v3-choice flex min-h-11 min-w-0 items-center gap-3 rounded-nav px-3 py-2 text-sm leading-5 text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 /** Нейтральная кнопка оболочки: красным остаётся только главное действие страницы. */
 const SHELL_BUTTON = `v3-raised inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
+/** Ctrl+K для мыши и телефона — строка меню «Поиск» (Э7), как пункт, без рамки. */
+const SEARCH_ROW = `flex min-h-11 w-full min-w-0 items-center gap-3 rounded-nav px-3 py-2 text-sm leading-5 text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 /** Тихая кнопка без рамки и тени: «Выйти» не спорит с «Создать задачу». */
 const QUIET_BUTTON = `inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-ctl px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -583,11 +586,10 @@ export function AppShellNext({
               {canCreateTask ? (
                 <Link
                   href="/v3/tasks?create=staff"
+                  // Э7: диалог «Новая задача» на месте, с контекстом страницы; из листа «Ещё» фокус потом — на «Ещё».
                   onClick={(event) => {
-                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                    event.preventDefault();
-                    closeSheet(false);
-                    router.push(`/v3/tasks?create=staff&open=${crypto.randomUUID()}`);
+                    const returnFocus = sheetOpen ? moreRef.current : null;
+                    onCreateTaskClick(event, () => router.push(`/v3/tasks?create=staff&open=${crypto.randomUUID()}`), returnFocus, () => closeSheet(false));
                   }}
                   className={cn(SHELL_BUTTON, "flex-1", rail && "md:max-2xl:w-11 md:max-2xl:flex-none md:max-2xl:px-0")}
                   {...hint("Создать задачу")}
@@ -601,6 +603,18 @@ export function AppShellNext({
               ) : null}
             </div>
           ) : null}
+
+          {/* Ctrl+K для мыши и телефона — строкой меню (Э7): кнопки рядом с
+              «Создать задачу» сжали бы её подпись. */}
+          <div className={cn("shrink-0 px-3 pb-2", rail && "md:max-2xl:px-2")}>
+            <PaletteButton
+              label
+              shortcutClassName={cn("hidden md:inline", rail && "md:max-2xl:hidden")}
+              className={cn(SEARCH_ROW, rail && "md:max-2xl:justify-center md:max-2xl:px-0")}
+              labelClassName={cn("min-w-0 flex-1 text-start", rail && "md:max-2xl:sr-only")}
+              hint={hint("Поиск")}
+            />
+          </div>
 
           {/* Список — единственная прокручиваемая часть меню. У края, за которым
               есть ещё пункты, — знак: сверху тень внутрь, снизу затухание
@@ -727,6 +741,7 @@ export function AppShellNext({
           <span className={TAB_LABEL}>Ещё</span>
         </button>
       </TabBar>
+      <ShellCommands actor={actor} navigation={navigation} />
     </div>
   );
 }

@@ -23,13 +23,12 @@ function canFocus(element: Element | null): element is HTMLElement {
 
 /** One DOM subtree: changing dialog mode must not reset a form or navigate. */
 export function CalendarPanel({
-  id, open, contentKey, title, create, navigationPending, onRequestClose, returnFocus, children,
+  id, open, contentKey, title, navigationPending, onRequestClose, returnFocus, children,
 }: Readonly<{
   id: string;
   open: boolean;
   contentKey: string;
   title: string;
-  create: boolean;
   navigationPending: boolean;
   onRequestClose: () => void;
   returnFocus: () => HTMLElement | null;
@@ -80,12 +79,11 @@ export function CalendarPanel({
           retainFocus.setSelectionRange(selection.start, selection.end, selection.direction ?? undefined);
         }
       } else if (opening || !previous.open || previous.contentKey !== contentKey || previous.desktop !== desktop) {
-        const input = create ? dialog.querySelector<HTMLInputElement>("[data-calendar-create-title]") : null;
-        (canFocus(input) ? input : headingRef.current)?.focus({ preventScroll: true });
+        headingRef.current?.focus({ preventScroll: true });
       }
     }
     applied.current = { open, desktop, contentKey };
-  }, [open, desktop, contentKey, create, navigationPending, returnFocus]);
+  }, [open, desktop, contentKey, navigationPending, returnFocus]);
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;

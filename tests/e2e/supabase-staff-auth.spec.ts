@@ -1902,31 +1902,36 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await page.goto("/v3/calendar?view=day&date=2099-09-12");
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Создать задачу$/ })
-    .click();
-  const createTask = page.getByTestId("v3-calendar-task-create-form");
+  // Э7: календарь создаёт задачу тем же диалогом «Новая задача», что и
+  // остальные входы, со сроком на выбранный день: «Создать задачу» оболочки
+  // (у кого есть staff.task.create), иначе своя кнопка календаря.
+  await page.locator('a[href="/v3/tasks?create=staff"], [data-testid="v3-calendar-new-task"]').filter({ visible: true }).first().click();
+  const createTask = page.getByTestId("v3-task-composer-dialog");
   await expect(createTask).toBeVisible();
+  await createTask
+    .locator('input[name="title"]')
+    .fill("P4 isolated Admissions task proof");
+  // С правом на рабочие задачи дело — необязательный раздел; без него поиск дела открыт сразу.
+  const caseSection = createTask.locator("summary").filter({ hasText: /^Студент\/дело/ });
+  if (await caseSection.count()) await caseSection.click();
   await createTask
     .getByRole("combobox", { name: "Студент", exact: true })
     .selectOption(studentCaseId);
   await expect(createTask.locator('[name="student_case_id"]')).toHaveValue(studentCaseId);
-  await createTask
-    .locator('input[name="title"]')
-    .fill("P4 isolated Admissions task proof");
-  await createTask.locator('select[name="deadline_kind"]').selectOption("all_day");
-  await createTask.locator('input[name="due_on"]').fill("2099-09-12");
+  await expect(createTask.locator('input[name="deadline_kind"]')).toHaveValue("all_day");
+  await expect(createTask.locator('input[name="due_on"]')).toHaveValue("2099-09-12");
   await createTask
     .locator("summary")
-    .filter({ hasText: /^Дополнительные настройки$/ })
+    .filter({ hasText: /^Приоритет/ })
     .click();
   await createTask.locator('select[name="priority"]').selectOption("high");
   // The preserved scoped Admissions baseline creates hidden tasks without the
-  // separate visibility-management grant. Assert the real control, not a select.
-  await expect(createTask.locator('input[type="hidden"][name="student_visible"]')).toHaveValue("false");
+  // separate visibility-management grant: no visibility selector is rendered,
+  // and the dialog sends student_visible=false (TaskComposerDialog).
   await expect(createTask.locator('select[name="student_visible"]')).toHaveCount(0);
   await createTask.locator('button[type="submit"]').click();
+  await expect(createTask.getByRole("status")).toContainText("Задача создана.");
+  await createTask.getByRole("button", { name: "Готово", exact: true }).click();
 
   const createdTask = page
     .locator('button[id^="task-"]')

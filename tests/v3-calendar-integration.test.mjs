@@ -18,6 +18,9 @@ function source(path) {
 const page = source("src/app/(v3)/v3/calendar/page.tsx");
 const calendar = source("src/components/v3/calendar/Calendar.tsx");
 const controls = source("src/components/v3/calendar/TaskControls.tsx");
+// Э7 «Один способ создать задачу»: календарь создаёт задачу тем же диалогом,
+// что и остальные входы; прежняя форма календаря удалена.
+const composer = source("src/components/v3/tasks/TaskComposerDialog.tsx");
 const grids = source("src/components/v3/calendar/grids.tsx");
 const types = source("src/components/v3/calendar/types.ts");
 const adapter = source("src/lib/v3/calendar-source.ts");
@@ -75,7 +78,8 @@ test("V3 calendar exhausts selected ranges and bounds undated history", () => {
   assert.match(page, /casesHaveMore=\{workspace\.casesHaveMore\}/);
   assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
   assert.match(page, /undatedContinuationPage=\{workspace\.access\.tasks && undatedCursor !== null\}/u);
-  assert.match(controls, /TaskCasePicker/);
+  assert.match(calendar, /initialCases=\{cases\} casesHaveMore=\{casesHaveMore\}/);
+  assert.match(composer, /<TaskCasePicker initialCases=\{initialCases\} initialHasMore=\{casesHaveMore\}/);
   assert.match(source("src/components/v3/tasks/TaskCasePicker.tsx"), /searchTaskCasesAction/);
   assert.match(source("src/lib/v3/task-case-actions.ts"), /cursor/);
   assert.equal(
@@ -101,8 +105,10 @@ test("personal calendar gates each permitted task branch and keeps creation sepa
   assert.doesNotMatch(calendar, /NearestApplicationDeadline|readAccess\.applicationDeadlines/);
   assert.match(calendar, /calendarAccessNotice\(readAccess\)/);
   assert.match(calendar, /calendarEmptyPeriodLabel\(readAccess\)/);
-  assert.match(calendar, /<CalendarCreateTaskForm/);
-  assert.match(controls, /!isStaffPreview\(actor\) && staffPresentationCan\(actor, "admissions\.read"\) && staffHasPermission\(actor, "task\.create"\)/);
+  assert.match(calendar, /<TaskComposerDialog/);
+  assert.doesNotMatch(calendar + controls, /CalendarCreateTaskForm/);
+  assert.equal(existsSync(new URL("../src/components/v3/calendar/create-lifecycle.ts", import.meta.url)), false);
+  assert.match(calendar, /const canCreate = staffPresentationCan\(actor, "admissions\.read"\) &&\s*!isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.create"\)/);
   assert.match(adapter, /task\.key !== target\.task\.key/);
 });
 
@@ -113,19 +119,35 @@ test("case task candidates follow exact selection and block submission until che
   assert.match(picker, /onCaseChange\?\.\(event\.target\.value\)/);
   assert.match(action, /getPlatformAdmissionsTaskWorkspace\(actor, caseId\)/);
   assert.match(action, /status: "unavailable"/);
-  assert.match(controls, /candidateState\.caseId === activeCaseId/);
-  assert.match(controls, /if \(!cancelled\) setCandidateState/);
-  assert.match(controls, /locked \|\| !candidateReady \|\| !eligibleAssignee/);
-  assert.match(controls, /staffHasPermission\(actor, "task\.create"\)/);
+  assert.match(composer, /const candidatesReady = caseCandidates\.caseId === caseId && caseCandidates\.status === "ready";/);
+  assert.match(composer, /if \(!cancelled\) setCaseCandidates/);
+  assert.match(composer, /\? !caseId \|\| !candidatesReady \|\| !eligibleCaseAssignee/);
+  assert.match(calendar, /staffHasPermission\(actor, "task\.create"\)/);
 });
 
 test("V3 calendar create, change, complete and cancel use versioned server actions", () => {
-  assert.match(controls, /useActionState\([\s\S]*?const next = await createPlatformAdmissionsTaskAction\(previous, form\)/);
-  assert.match(controls, /useActionState\(\s*changePlatformAdmissionsTaskAction/);
+  // Создание — единый диалог: ровно поля команды `create_case_task`, версия 0.
+  assert.match(composer, /const result = await createPlatformAdmissionsTaskAction\(/);
   for (const field of [
     "student_case_id",
     "task_type",
     "title",
+    "assignee_membership_id",
+    "priority",
+    "deadline_kind",
+    "due_on",
+    "due_at",
+    "status",
+    "student_visible",
+    "expected_version",
+    "request_id",
+  ]) {
+    assert.match(composer, new RegExp(`form\\.set\\("${field}"`));
+  }
+  assert.match(composer, /form\.set\("expected_version", "0"\)/);
+  assert.match(controls, /useActionState\(\s*changePlatformAdmissionsTaskAction/);
+  for (const field of [
+    "student_case_id",
     "assignee_membership_id",
     "priority",
     "deadline_kind",
@@ -143,7 +165,7 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
     2,
     "only forms changing an existing task identify a task",
   );
-  assert.match(controls, /name="expected_version" value="0"/);
+  assert.doesNotMatch(controls, /name="expected_version" value="0"/);
   assert.doesNotMatch(controls, /state\.caseTaskId \?\? caseTaskId/);
   assert.match(controls, /name="expected_version" value=\{task\.version\}/);
   assert.match(controls, /status="done"/);
@@ -152,7 +174,8 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.match(controls, /data-testid="v3-calendar-task-change-form"/);
   assert.match(controls, /data-testid=\{`v3-calendar-task-\$\{status\}-form`\}/);
   assert.match(controls, /<select name="priority"/);
-  assert.match(controls, /<select name="student_visible"/);
+  assert.match(controls, /<select\s+name="student_visible"/);
+  assert.match(composer, /<select name="student_visible"/);
   assert.match(controls, /<select[\s\S]*name="deadline_kind"/);
   assert.match(controls, /<option value="none">Без срока<\/option>/);
   assert.match(controls, /<option value="all_day">Весь день<\/option>/);
@@ -161,7 +184,9 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.match(types, /change: string/);
   assert.match(types, /complete: string/);
   assert.match(types, /cancel: string/);
-  assert.ok([...page.matchAll(/randomUUID\(\)/g)].length >= 4);
+  // Ключи изменения, завершения и отмены; ключ создания держит сам диалог (`requestId` в нём).
+  assert.ok([...page.matchAll(/randomUUID\(\)/g)].length >= 3);
+  assert.match(composer, /const requestId = useRef\(crypto\.randomUUID\(\)\);/);
   assert.doesNotMatch(controls, /return_to_case/);
   assert.match(controls, /name="reason" value=\{reason\}/);
 });
@@ -196,7 +221,9 @@ test("selected task controls and case navigation use only matching scoped target
   assert.match(calendar, /openCapabilities\?\.canReadCase \? <Link/);
   assert.match(calendar, /openCapabilities && taskRequestIds\[open\.key\]/);
   assert.match(calendar, /const canCreate = staffPresentationCan\(actor, "admissions\.read"\) &&\s*!isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.create"\)/);
-  assert.match(calendar, /canCreate \? <CalendarCreateTaskForm/);
+  // Э7: у кого `staff.task.create`, у того «Создать задачу» оболочки с днём календаря; своя кнопка — остальным создателям.
+  assert.match(calendar, /canCreate && !canCreateStaff \? <TaskComposerDialog/);
+  assert.match(calendar, /staffAllowed=\{canCreateStaff\} caseAllowed=\{canCreate\}/);
 });
 
 test("V3 calendar resolves the page actor before reading Admissions data", () => {
@@ -216,11 +243,13 @@ test("V3 calendar writes use live permission hints and remain keyboard-operable"
     /!isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.manage"\)/,
   );
   assert.match(calendar, /CalendarTaskControls/);
-  assert.match(controls, /!isStaffPreview\(actor\) && staffPresentationCan\(actor, "admissions\.read"\) && staffHasPermission\(actor, "task\.create"\)/);
-  assert.match(controls, /assignee\.membershipId === actorMembershipId/);
+  assert.match(calendar, /staffPresentationCan\(actor, "admissions\.read"\) &&\s*!isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.create"\)/);
+  // Без task.assign задачу по студенту можно поставить только себе; видимость — с отдельным правом.
+  assert.match(composer, /person\.membershipId === actorMembershipId/);
   assert.doesNotMatch(adapter, /assignee\.role !== "sales"/);
-  assert.match(controls, /staffHasPermission\(actor, "task\.assign"\)/);
-  assert.match(controls, /staffHasPermission\(actor, "task\.visibility\.manage"\)/);
+  assert.match(composer, /staffHasPermission\(actor, "task\.assign"\)/);
+  assert.match(composer, /staffHasPermission\(actor, "task\.visibility\.manage"\)/);
+  assert.match(composer, /canChangeVisibility && studentVisible \? "true" : "false"/);
   assert.match(controls, /state\.status === "saved" \|\| state\.status === "stale"/);
   assert.match(grids, /<button[\s\S]*id=\{`task-\$\{task\.key\}`\}/);
   assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);

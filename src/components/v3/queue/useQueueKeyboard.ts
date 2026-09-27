@@ -12,9 +12,17 @@ export const QUEUE_OPEN_SELECTOR = "[data-queue-open]";
 /** Необязательная вторая ссылка строки — запись целиком (Shift+Enter). */
 export const QUEUE_FULL_SELECTOR = "[data-queue-full]";
 
+/** Отметка строки (`data-queue-select`, Э7): «x» в строке ставит и снимает её. */
+export const QUEUE_SELECT_SELECTOR = "[data-queue-select]";
+
+/**
+ * Человек печатает: клавиши очереди молчат. Отметка строки и кнопки ввода не
+ * считаются — после щелчка по отметке j/k и «x» работают дальше.
+ */
 export function typingTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement
-    && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement && ["checkbox", "radio", "button", "submit", "reset"].includes(target.type)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
 
 /**
@@ -64,7 +72,8 @@ export function revealQueueRow(key: string): boolean {
 /**
  * Клавиатура очереди: «/» — поиск, ↑/↓ и j/k — строка, Enter — открыть
  * (обычная ссылка строки), Shift+Enter — вторая ссылка строки
- * (`data-queue-full`), «?» — подсказка с клавишами; Esc закрывает панель
+ * (`data-queue-full`), «x» — отметить строку для массовых действий (Э7),
+ * «?» — подсказка с клавишами; Esc закрывает панель
  * (`QueueDetailPanel`). Пока пользователь печатает, открыто всплывающее окно
  * (кроме строки «Отменить» — `openPopover`) или модальный диалог, клавиши не
  * перехватываются. Открытая запись видна в
@@ -112,6 +121,17 @@ export function useQueueKeyboard({ openKey }: Readonly<{ openKey: string | null 
         if (!help) return;
         event.preventDefault();
         help.togglePopover();
+        return;
+      }
+      // «x» (на русской раскладке — «ч», та же клавиша): отметить строку с фокусом для массовых действий.
+      if (!event.shiftKey && (event.key === "x" || event.code === "KeyX")) {
+        const target = event.target instanceof Element ? event.target : null;
+        const row = target?.closest(QUEUE_ROW_SELECTOR)
+          ?? document.querySelector(`${QUEUE_ROW_SELECTOR}:has(${QUEUE_OPEN_SELECTOR}[aria-current="true"])`);
+        const box = row?.querySelector<HTMLInputElement>(QUEUE_SELECT_SELECTOR);
+        if (!box || box.disabled) return;
+        event.preventDefault();
+        box.click();
         return;
       }
       const arrow = event.key === "ArrowDown" || event.key === "ArrowUp";

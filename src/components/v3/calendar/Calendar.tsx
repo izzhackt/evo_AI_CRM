@@ -12,13 +12,12 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { CalendarReadAccess } from "@/lib/v3/calendar-contract";
 import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 
+import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
+import { TaskComposerContextMark } from "../tasks/task-composer-context";
 import { CalendarPanel } from "./CalendarPanel";
 
 import { MonthGrid, TaskChip, TimeGrid, statePill, taskStateKey } from "./grids";
-import {
-  CalendarCreateTaskForm,
-  CalendarTaskControls,
-} from "./TaskControls";
+import { CalendarTaskControls } from "./TaskControls";
 import {
   type CalendarAssigneeOption,
   type CalendarCaseOption,
@@ -67,7 +66,6 @@ export function Calendar({
   assignees,
   actorMembershipId,
   actor,
-  createRequestId,
   taskRequestIds,
   basePath,
 }: {
@@ -90,7 +88,6 @@ export function Calendar({
   assignees: readonly CalendarAssigneeOption[];
   actorMembershipId: string;
   actor: ActivePlatformActor;
-  createRequestId: string;
   taskRequestIds: Readonly<Record<string, CalendarTaskRequestIds>>;
   basePath: string;
 }) {
@@ -107,10 +104,15 @@ export function Calendar({
   if (panel.targetKey !== targetKey) {
     setPanel({ targetKey, mode: targetKey ? "target" : "closed" });
   }
+  // Э7: одна форма создания задачи — `TaskComposerDialog`, как у всех входов.
+  // Задача по студенту — те же условия, что у прежней формы календаря;
+  // рабочая — у кого `staff.task.create`. У того же права — «Создать задачу»
+  // оболочки: она открывает этот диалог с выбранным днём, своей кнопки у
+  // календаря тогда нет (одна кнопка на экран).
   const canCreate = staffPresentationCan(actor, "admissions.read") &&
     !isStaffPreview(actor) && staffHasPermission(actor, "task.create");
-  const createOpen = panel.mode === "create" && canCreate;
-  const panelOpen = createOpen || (panel.mode === "target" && targetKey !== null);
+  const canCreateStaff = !isStaffPreview(actor) && staffHasPermission(actor, "staff.task.create");
+  const panelOpen = panel.mode === "target" && targetKey !== null;
   const trigger = useRef<HTMLElement | null>(null);
   const calendarHeading = useRef<HTMLHeadingElement>(null);
   const closing = useRef(false);
@@ -159,7 +161,7 @@ export function Calendar({
     if (closing.current || !panelOpen) return;
     closing.current = true;
     setPanel({ targetKey, mode: "closed" });
-    if (!createOpen && targetKey !== null) selectTask(null);
+    if (targetKey !== null) selectTask(null);
   };
   const returnFocus = () => {
     const previous = trigger.current;
@@ -187,10 +189,10 @@ export function Calendar({
     `${basePath}?view=${nextView}&date=${nextDay}`;
   const chip = {
     today,
-    selectedId: panelOpen && !createOpen ? open?.key ?? null : null,
-    panelId: panelOpen && !createOpen && open ? panelId : null,
+    selectedId: panelOpen ? open?.key ?? null : null,
+    panelId: panelOpen && open ? panelId : null,
     onSelect: (id: string) => {
-      if (initialTaskKey === id && panelOpen && !createOpen) closePanel();
+      if (initialTaskKey === id && panelOpen) closePanel();
       else selectTask(id);
     },
   };
@@ -250,16 +252,22 @@ export function Calendar({
             })}
           </ul>
         </nav>
-        {/* Единственный способ создать задачу по студенту прямо из календаря —
-            поэтому кнопка остаётся, но тихой: сплошной красный на странице один,
-            «Создать задачу» в верхней панели (решение владельца 25.09). */}
-        {canCreate ? <button type="button" aria-haspopup="dialog" aria-controls={panelId}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 hover:text-fg"
-          onClick={(event) => {
-            trigger.current = event.currentTarget;
-            closing.current = false;
-            setPanel({ targetKey, mode: "create" });
-          }}><Icon name="plus" size={16} />Задача по студенту</button> : null}
+        {/* Э7: «Создать задачу» оболочки открывает тот же диалог «Новая задача»
+            со сроком на выбранный день и с уже прочитанными делами
+            (`TaskComposerContextMark`) — второй кнопки на экране нет. Своя
+            кнопка календаря — только у того, у кого кнопки оболочки нет
+            (задачи по студентам без `staff.task.create`); тихая: сплошной
+            красный на странице один (решение владельца 25.09). */}
+        <TaskComposerContextMark value={{ dueDay: day, cases, casesHaveMore }} />
+        {canCreate && !canCreateStaff ? <TaskComposerDialog
+          participants={null} actor={actor} actorMembershipId={actorMembershipId}
+          day={today} defaultDueDay={day}
+          staffAllowed={canCreateStaff} caseAllowed={canCreate}
+          initialCases={cases} casesHaveMore={casesHaveMore}
+          triggerTestId="v3-calendar-new-task"
+          triggerClassName="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+          triggerChildren={<><Icon name="plus" size={16} />Создать задачу</>}
+        /> : null}
       </div>
 
       <div className={`grid min-w-0 items-start gap-4 ${panelOpen ? "lg:grid-cols-[minmax(0,1fr)_22rem]" : "grid-cols-1"}`}>
@@ -351,17 +359,10 @@ export function Calendar({
           </section> : null}
         </div>
         <CalendarPanel id={panelId} open={panelOpen}
-          contentKey={createOpen ? "create" : targetKey ?? "closed"}
-          title={createOpen ? "Задача по студенту" : open?.title ?? "Задача недоступна"}
-          create={createOpen} navigationPending={navigating} onRequestClose={closePanel} returnFocus={returnFocus}>
-          <div hidden={!createOpen}>
-            {canCreate ? <CalendarCreateTaskForm
-              cases={cases} casesHaveMore={casesHaveMore} assignees={assignees}
-              actorMembershipId={actorMembershipId} actor={actor}
-              requestId={createRequestId} day={day} navigationPending={navigating}
-            /> : null}
-          </div>
-          <div hidden={createOpen}>
+          contentKey={targetKey ?? "closed"}
+          title={open?.title ?? "Задача недоступна"}
+          navigationPending={navigating} onRequestClose={closePanel} returnFocus={returnFocus}>
+          <div>
             {unavailableTarget ? <div className="space-y-3">
               <p role="status" className="text-sm text-fg-2">Эта задача недоступна в вашем личном календаре.</p>
               <Link href={unavailableTarget.returnHref} className="inline-flex min-h-11 items-center text-sm text-brand">Вернуться в календарь</Link>

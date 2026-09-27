@@ -967,15 +967,43 @@ async function screenshots() {
       check(animation === "none", `reduced motion: sheet still animates (${animation})`);
     }
 
-    // 3в. Лист: «Создать задачу» закрывает лист и ведёт к форме задачи.
+    // 3в. Лист: «Создать задачу» закрывает лист и открывает диалог «Новая
+    //     задача» на месте (Э7, TaskComposerHost оболочки) — без перехода;
+    //     Esc закрывает диалог, фокус возвращается на «Ещё».
     {
       const session = await open(htmlFor["home-admin"], "390");
-      await session.page.locator('[data-shell-tab="more"]').click();
-      await session.page.getByRole("link", { name: "Создать задачу" }).click();
-      const state = await session.page.evaluate(() => ({ pushes: window.__harness.pushes, sheet: document.querySelector("[data-shell-menu]").getAttribute("role") }));
+      const { page } = session;
+      await page.locator('[data-shell-tab="more"]').click();
+      await page.getByRole("link", { name: "Создать задачу" }).click();
+      const shown = await page.waitForSelector('[data-testid="v3-task-composer-dialog"][open]', { timeout: 2000 }).then(() => true, () => false);
+      const opened = await page.evaluate(() => {
+        const dialog = document.querySelector('[data-testid="v3-task-composer-dialog"]');
+        return {
+          pushes: [...window.__harness.pushes],
+          sheet: document.querySelector("[data-shell-menu]").getAttribute("role"),
+          sheetHidden: getComputedStyle(document.querySelector("[data-shell-menu]")).display === "none",
+          composerOpen: Boolean(dialog?.open),
+          composerModal: dialog ? dialog.matches(":modal") : false,
+          focusOnTitle: document.activeElement === dialog?.querySelector('input[name="title"]'),
+        };
+      });
+      await page.keyboard.press("Escape");
+      const returned = await page.waitForFunction(() => document.activeElement === document.querySelector('[data-shell-tab="more"]'), null, { timeout: 2000 }).then(() => true, () => false);
+      const closed = await page.evaluate(() => ({
+        composerOpen: Boolean(document.querySelector('[data-testid="v3-task-composer-dialog"]')?.open),
+        focusOnMore: document.activeElement === document.querySelector('[data-shell-tab="more"]'),
+        focus: document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.tagName ?? null,
+        sheet: document.querySelector("[data-shell-menu]").getAttribute("role"),
+        pushes: [...window.__harness.pushes],
+      }));
       await finish(session, "sheet-create-task");
-      report({ journey: "sheet-create-task", ...state });
-      check(state.sheet === null && /^\/v3\/tasks\?create=staff&open=[0-9a-f-]{36}$/u.test(state.pushes[0] ?? ""), "sheet: «Создать задачу» did not close the sheet and open the task form");
+      report({ journey: "sheet-create-task", shown, opened, returned, closed });
+      check(opened.sheet === null && opened.sheetHidden, "sheet: «Создать задачу» did not close the sheet");
+      check(shown && opened.composerOpen && opened.composerModal, "sheet: «Создать задачу» did not open the task composer dialog in place");
+      check(opened.pushes.length === 0 && closed.pushes.length === 0, `sheet: «Создать задачу» navigated instead of opening the dialog (${opened.pushes.join(", ")})`);
+      check(opened.focusOnTitle, "sheet: task composer opened without focus on the title field");
+      check(!closed.composerOpen && closed.sheet === null, "sheet: Escape did not close the task composer");
+      check(returned && closed.focusOnMore, `sheet: focus did not return to «Ещё» after Escape (${closed.focus})`);
     }
 
     // 4. Уведомления в верхнем слое: 1440 справа от меню, телефон — в листе.

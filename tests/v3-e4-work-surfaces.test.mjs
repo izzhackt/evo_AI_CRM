@@ -200,7 +200,8 @@ test("rendered Lead 360: name as h1, stage and «Что дальше» in the he
     // верхней строки; на телефоне — значки 44 px, имя остаётся для чтения с экрана.
     const actions = potential.slice(potential.indexOf('data-testid="v3-lead-actions"'), potential.indexOf('data-testid="v3-lead-actions-menu"'));
     assert.match(actions, /title="Написать"[^>]*>.*?<span class="sr-only sm:not-sr-only">Написать<\/span><\/a>/u);
-    assert.match(actions, /title="Задача по лиду" data-testid="v3-lead-task"[^>]*>.*?<span class="sr-only sm:not-sr-only">Задача по лиду<\/span><\/a>/u);
+    // Э7: «Задача по лиду» открывает на месте тот же диалог «Новая задача», что у всех входов, — это кнопка.
+    assert.match(actions, /<button type="button" aria-haspopup="dialog" title="Задача по лиду" data-testid="v3-lead-task"[^>]*>.*?<span class="sr-only sm:not-sr-only">Задача по лиду<\/span><\/button>/u);
     assert.doesNotMatch(actions, />Создать задачу</u);
     // Итог сохранения шага — в строке состояния шапки, а не внутри закрытой панели.
     assert.match(potential, /<p role="status" aria-live="polite" class="sr-only" data-testid="v3-lead-step-status"><\/p><div id="lead-next-step" popover="auto"/u);

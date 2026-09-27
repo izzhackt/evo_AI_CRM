@@ -17,6 +17,7 @@ import { isNextLook, type V3Look } from "../blocks/look";
 import { StatusChip } from "../blocks/StatusChip";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
 import { shortPersonName } from "../queue/person-name";
+import { PHONE_HIDDEN, RowSelect } from "../queue/Bulk";
 import { QueueFieldPopover } from "../queue/QueueFieldPopover";
 import { useAnchoredPopover } from "../queue/useAnchoredPopover";
 import { CASE_ERROR_COPY, STAFF_ERROR_COPY, caseChangeForm, dueTomorrow, staffEditForm, staffStatusForm, tomorrowDeadline } from "./task-commands";
@@ -55,10 +56,21 @@ export function taskRowAbilities(task: QueueTask, permissions: TaskRowPermission
   const edit = live && (task.kind === "staff" ? permissions.staffEdit && authorStaff : permissions.caseManage);
   return {
     complete,
+    /** Правка срока и исполнителя — и «Перенести срок» выбранных (Э7). */
+    edit,
     postpone: edit && !dueTomorrow(task, now),
     transfer: edit && (task.kind === "staff" || permissions.caseAssign),
   };
 }
+
+/**
+ * Колонка выбора (Э7): у списка с массовыми действиями первая колонка шире —
+ * отметка и круг выполнения рядом. Строка, которую сотрудник не может
+ * править, держит место пустым: колонки остаются ровными. На телефоне
+ * отметок нет, пока не нажато «Выбрать» (`revealed`): круг выполнения не
+ * соседствует с отметкой, название не теряет 44 px.
+ */
+export type TaskRowSelect = Readonly<{ available: boolean; checked: boolean; onToggle: () => void; revealed: boolean }>;
 
 const ROW_BUTTON = "relative z-10 grid size-11 shrink-0 place-items-center rounded-full";
 const MENU_ITEM = "flex min-h-11 w-full items-center rounded-nav px-3 text-start t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
@@ -84,6 +96,7 @@ export function TaskQueueRow({
   onUndo,
   announce,
   look,
+  select = null,
 }: Readonly<{
   task: QueueTask;
   href: string;
@@ -110,6 +123,8 @@ export function TaskQueueRow({
    * Без пропа — прежняя строка.
    */
   look?: V3Look;
+  /** Колонка выбора для массовых действий; null — у списка их нет. */
+  select?: TaskRowSelect | null;
 }>) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -186,7 +201,15 @@ export function TaskQueueRow({
 
   // Срок — своя колонка сразу перед названием (не у правого края): дата и
   // задача читаются вместе при любой ширине. Исполнитель — колонкой от 48rem.
-  const layout = showAssignee ? "@3xl:grid-cols-[2.75rem_7rem_minmax(0,1fr)_minmax(0,11rem)_2.75rem]" : "";
+  // С колонкой выбора ширина первой колонки — переменная `--row-lead`: 5.5rem
+  // (отметка и круг), на телефоне без «Выбрать» — 2.75rem (только круг).
+  const phoneHidden = select !== null && !select.revealed;
+  const layout = showAssignee
+    ? select ? "@3xl:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_minmax(0,11rem)_2.75rem]" : "@3xl:grid-cols-[2.75rem_7rem_minmax(0,1fr)_minmax(0,11rem)_2.75rem]"
+    : "";
+  const [narrow, wide] = select
+    ? [`${phoneHidden ? "[--row-lead:5.5rem] max-sm:[--row-lead:2.75rem]" : "[--row-lead:5.5rem]"} grid-cols-[var(--row-lead)_minmax(0,1fr)_2.75rem]`, "@min-[32rem]:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_2.75rem]"]
+    : ["grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]", "@min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_2.75rem]"];
   const caption = due ? due.word ?? due.caption : null;
   // Без имени студента после срока на узкой строке идут только «дело закрыто» и слово-исключение.
   const tail = task.caseState === "closed" || word !== null;
@@ -195,9 +218,13 @@ export function TaskQueueRow({
     <li
       data-queue-row={task.key}
       data-kind={task.kind}
-      className={`v3-queue-row relative grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-2 border-b border-border @min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_2.75rem] ${layout}${layout ? " " : ""}${selected ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
+      data-selected={select?.checked ? "" : undefined}
+      className={`v3-queue-row relative grid ${narrow} items-center gap-x-2 border-b border-border ${wide} ${layout}${layout ? " " : ""}${selected || select?.checked ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
     >
       <div className="flex">
+        {select ? (select.available && !done
+          ? <RowSelect label={task.title} checked={select.checked} onToggle={select.onToggle} phoneHidden={phoneHidden} />
+          : <span aria-hidden="true" className={`size-11 shrink-0${phoneHidden ? ` ${PHONE_HIDDEN}` : ""}`} />) : null}
         {done ? (
           <span className={`${ROW_BUTTON} text-ok`}><Icon name="circle-check" size={22} /></span>
         ) : can.complete && task.kind === "staff" ? (
@@ -341,7 +368,7 @@ export function TaskQueueRow({
         </> : <span aria-hidden="true" className="size-11" />}
       </div>
 
-      {error ? <p role="alert" className="col-span-full pb-2 ps-[3.25rem] t-body-compact text-danger">{error}</p> : null}
+      {error ? <p role="alert" className={`col-span-full pb-2 t-body-compact text-danger ${select ? phoneHidden ? "ps-[6rem] max-sm:ps-[3.25rem]" : "ps-[6rem]" : "ps-[3.25rem]"}`}>{error}</p> : null}
 
       {task.kind === "case" && can.complete ? (
         <QueueFieldPopover

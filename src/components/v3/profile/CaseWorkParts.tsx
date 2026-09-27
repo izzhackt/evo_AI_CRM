@@ -8,6 +8,7 @@ import { ApplicationDecision } from "../admissions/StudentApplications";
 import type { V3Look } from "../blocks/look";
 import type { NextStepAccess } from "../students/students-queue-view";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
+import { TaskComposerContextMark } from "../tasks/task-composer-context";
 import { CaseHeader } from "./CaseHeader";
 import { CaseOverview } from "./CaseOverview";
 import { ProfileNotes } from "./ProfileNotes";
@@ -89,7 +90,13 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
     </div>
   ) : null;
 
-  const header = (
+  // «Создать задачу» меню и Ctrl+K на странице дела — с этим делом (Э7).
+  const caseAssignees = work.tasks.kind === "ready" ? work.tasks.assignees : [];
+  const header = (<>
+    <TaskComposerContextMark value={{
+      case: { id: caseId, name: profile.person },
+      caseAssignees: caseAssignees.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
+    }} />
     <CaseHeader
       studentCaseId={caseId}
       state={admissions.caseState}
@@ -106,7 +113,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       closure={input.closure ?? null}
       look={input.look}
     />
-  );
+  </>);
 
   const overview = (
     <CaseOverview
@@ -123,7 +130,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
           participants={[]} actorMembershipId={actor.membershipId} actor={actor} day={work.today}
           staffAllowed={false} caseAllowed
           initialCase={{ id: caseId, name: profile.person }}
-          initialCaseAssignees={work.tasks.kind === "ready" ? work.tasks.assignees : []}
+          initialCaseAssignees={caseAssignees}
           triggerLabel="+ Задача"
           triggerClassName={TASK_TRIGGER}
         />

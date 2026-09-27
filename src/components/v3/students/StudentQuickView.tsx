@@ -18,6 +18,7 @@ import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { QueueDetailPanel } from "../queue/QueueDetailPanel";
 import { ProfileHandoffAcknowledgement } from "../profile/ProfileSalesTransition";
 import { ClosedLine, CloseRecordButton } from "../closure/Closure";
+import { openTaskComposer, TaskComposerContextMark } from "../tasks/task-composer-context";
 import { NextStepEditor } from "./NextStepEditor";
 import { studentsRowMeta } from "./StudentsQueueTable";
 import { studentsDocumentsLine, type NextStepAccess, type StudentsHandoff, type StudentsOpenTasks } from "./students-queue-view";
@@ -34,7 +35,10 @@ export type QuickViewLinks = Readonly<{
   case: string;
   documents: string;
   tasks: string;
-  /** Глобальный диалог «Создать задачу» с выбранным делом; null — создавать нельзя. */
+  /**
+   * «+ Задача»: диалог «Новая задача» оболочки на месте с этим делом (Э7);
+   * адрес — прежний путь без скрипта и в новой вкладке. null — создавать нельзя.
+   */
   createTask: string | null;
   task: (taskId: string) => string;
 }>;
@@ -186,7 +190,13 @@ export function StudentQuickView({
       <section aria-label="Задачи дела" className={`mt-4 ${SECTION}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="t-item text-fg">Задачи</h3>
-          {links.createTask ? <Link href={links.createTask} className={LINK}>+ Задача</Link> : null}
+          {links.createTask ? <>
+            <TaskComposerContextMark value={{ case: { id: row.studentCaseId, name: row.studentDisplayName } }} />
+            <Link href={links.createTask} className={LINK} aria-haspopup="dialog" onClick={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              if (openTaskComposer({ case: { id: row.studentCaseId, name: row.studentDisplayName }, caseFixed: true })) event.preventDefault();
+            }}>+ Задача</Link>
+          </> : null}
         </div>
         {tasks === null || tasks.kind === "unavailable" ? (
           <p className="t-body-compact text-fg-2">

@@ -46,17 +46,23 @@ export function currentDeadline(task: Readonly<{ dueOn: string | null; dueAt: st
 }
 
 /**
- * «Перенести на завтра»: завтрашний день по Бишкеку. Срок на весь день и
- * задача без срока получают завтрашний день целиком, срок со временем —
- * то же время завтра (местное значение, сервер добавит +06:00).
+ * Перенос на день `day` (Бишкек): срок на весь день и задача без срока
+ * получают этот день целиком, срок со временем — то же время в этот день
+ * (местное значение, сервер добавит +06:00). `day === null` — «Без срока».
+ * Так переносят «Перенести на завтра» строки и «Перенести срок» выбранных (Э7).
  */
-export function tomorrowDeadline(task: Readonly<{ dueOn: string | null; dueAt: string | null }>, now: Date): DeadlineFieldValues {
-  const tomorrow = shiftDay(dayInOrganizationTimezone(now), 1);
+export function movedDeadline(task: Readonly<{ dueOn: string | null; dueAt: string | null }>, day: string | null, now: Date): DeadlineFieldValues {
+  if (day === null) return { deadlineKind: "none", dueOn: "", dueAt: "" };
   const deadline = projectPlatformTaskDeadline(task.dueOn, task.dueAt, now);
-  if (task.dueAt === null || deadline.minutes === null) return { deadlineKind: "all_day", dueOn: tomorrow, dueAt: "" };
+  if (task.dueAt === null || deadline.minutes === null) return { deadlineKind: "all_day", dueOn: day, dueAt: "" };
   const hours = String(Math.floor(deadline.minutes / 60)).padStart(2, "0");
   const minutes = String(deadline.minutes % 60).padStart(2, "0");
-  return { deadlineKind: "timed", dueOn: "", dueAt: `${tomorrow}T${hours}:${minutes}` };
+  return { deadlineKind: "timed", dueOn: "", dueAt: `${day}T${hours}:${minutes}` };
+}
+
+/** «Перенести на завтра»: завтрашний день по Бишкеку, время срока сохраняется. */
+export function tomorrowDeadline(task: Readonly<{ dueOn: string | null; dueAt: string | null }>, now: Date): DeadlineFieldValues {
+  return movedDeadline(task, shiftDay(dayInOrganizationTimezone(now), 1), now);
 }
 
 /** Уже стоит на завтра — «Перенести на завтра» ничего бы не изменил. */

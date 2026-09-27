@@ -2,24 +2,19 @@
 
 import { Icon } from "@/components/icons";
 
+import { KeyList } from "./KeyList";
+import { PALETTE_KEY, PALETTE_MAC_KEY, QUEUE_KEYS, type KeyHint } from "./keyboard-keys";
 import { useAnchoredPopover } from "./useAnchoredPopover";
 
 /** Один на странице: `useQueueKeyboard` открывает его клавишей «?». */
 export const QUEUE_HELP_ID = "queue-keyboard-help";
 
-export type QueueKey = readonly [readonly string[], string];
-
-const KEYS: readonly QueueKey[] = [
-  [["/"], "поиск"],
-  [["↑", "↓"], "выбрать строку"],
-  [["j", "k"], "то же"],
-  [["Enter"], "открыть"],
-  [["Esc"], "закрыть"],
-];
+export type QueueKey = KeyHint;
 
 /**
  * Сочетания клавиш очереди — в маленьком окне по кнопке «?», а не постоянным
- * текстом на странице (правило «Тихий интерфейс»).
+ * текстом на странице (правило «Тихий интерфейс»). Свои клавиши страницы
+ * (`extra`: Shift+Enter, x) — перед Ctrl+K, который работает везде (Э7).
  */
 export function QueueKeyboardHelp({ extra = [] }: Readonly<{ extra?: readonly QueueKey[] }> = {}) {
   const { triggerId, triggerStyle, popoverStyle } = useAnchoredPopover("end");
@@ -42,21 +37,10 @@ export function QueueKeyboardHelp({ extra = [] }: Readonly<{ extra?: readonly Qu
         style={popoverStyle}
         role="dialog"
         aria-label="Сочетания клавиш"
-        className="v3-anchored v3-anchored-end w-60 rounded-ctl border border-border bg-surface p-3 text-fg shadow-evo-lg"
+        className="v3-anchored v3-anchored-end w-72 rounded-ctl border border-border bg-surface p-3 text-fg shadow-evo-lg"
       >
         <p className="t-item text-fg">Клавиши</p>
-        <dl className="mt-2 grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5">
-          {[...KEYS, ...extra].map(([keys, action]) => (
-            <div key={keys.join("+")} className="contents">
-              <dt className="flex gap-1 t-meta">
-                {keys.map((key) => (
-                  <kbd key={key} className="inline-flex min-w-6 justify-center rounded-nav border border-border bg-bg px-1.5 font-mono text-fg">{key}</kbd>
-                ))}
-              </dt>
-              <dd className="t-body-compact text-fg-2">{action}</dd>
-            </div>
-          ))}
-        </dl>
+        <KeyList keys={[...QUEUE_KEYS, ...extra, PALETTE_KEY, PALETTE_MAC_KEY]} className="mt-2" />
       </div>
     </>
   );

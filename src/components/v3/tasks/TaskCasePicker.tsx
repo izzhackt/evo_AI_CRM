@@ -5,7 +5,8 @@ import type { PlatformAdmissionsCursor } from "@/lib/platform-admissions";
 import { searchTaskCasesAction } from "@/lib/v3/task-case-actions";
 import type { CalendarCaseOption } from "../calendar/types";
 
-const CONTROL = "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm focus:ring-2 focus:ring-accent/20";
+/** Поля поиска дела — те же роли текста, что у диалога задачи: поле `t-body`, подпись `t-label`. */
+const CONTROL = "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 t-body text-fg focus:ring-2 focus:ring-accent/20";
 export function TaskCasePicker({ initialCases, initialHasMore, selectedCase, onCaseChange, disabled = false }: Readonly<{
   initialCases: readonly CalendarCaseOption[]; initialHasMore: boolean; selectedCase?: CalendarCaseOption;
   onCaseChange?: (caseId: string) => void;
@@ -49,9 +50,9 @@ export function TaskCasePicker({ initialCases, initialHasMore, selectedCase, onC
       } catch { if (sequence.current === current) setStatus("unavailable"); }
     });
   }
-  if (selectedCase) return <div className="text-sm"><span className="text-fg-2">Студент: </span>{selectedCase.name}<input type="hidden" name="student_case_id" value={selectedCase.id} /></div>;
+  if (selectedCase) return <div className="t-body-compact"><span className="text-fg-2">Студент: </span>{selectedCase.name}<input type="hidden" name="student_case_id" value={selectedCase.id} /></div>;
   return <div className="space-y-2 md:col-span-2 xl:col-span-3">
-    <label htmlFor={`${id}-search`} className="text-sm font-medium text-fg-2">Найти активное дело студента</label>
+    <label htmlFor={`${id}-search`} className="t-label text-fg-2">Найти активное дело студента</label>
     <div className="flex flex-wrap gap-2">
       <input id={`${id}-search`} value={query} disabled={disabled} maxLength={200} onChange={(event) => {
         // A response belongs to the exact query that started it, including its cursor.
@@ -63,15 +64,15 @@ export function TaskCasePicker({ initialCases, initialHasMore, selectedCase, onC
       }}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); search(); } }}
         className={`${CONTROL} min-w-0 flex-1`} placeholder="Имя студента" />
-      <button type="button" disabled={disabled || pending} onClick={() => search()} className="min-h-11 rounded-ctl border border-control-edge px-3 text-sm">{pending ? "Ищем…" : "Найти"}</button>
+      <button type="button" disabled={disabled || pending} onClick={() => search()} className="min-h-11 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg">{pending ? "Ищем…" : "Найти"}</button>
     </div>
-    <label htmlFor={`${id}-case`} className="text-sm font-medium text-fg-2">Студент</label>
+    <label htmlFor={`${id}-case`} className="t-label text-fg-2">Студент</label>
     <select id={`${id}-case`} name="student_case_id" required disabled={disabled} value={selected} onChange={(event) => { selectedRef.current = event.target.value; setSelected(event.target.value); onCaseChange?.(event.target.value); }} className={CONTROL}>
       <option value="" disabled>Выберите дело</option>
       {rows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
     </select>
-    {hasMore ? <button type="button" disabled={disabled || pending} onClick={() => search(true)} className="min-h-11 text-sm text-accent-text underline">{cursor ? "Показать ещё" : "Открыть поиск с постраничной выборкой"}</button> : null}
-    {status === "ready" && rows.length === 0 ? <p role="status" className="text-sm text-fg-2">Активных дел по этому запросу нет.</p> : null}
-    {["unavailable", "forbidden", "invalid"].includes(status) ? <p role="alert" className="text-sm text-danger">Не удалось получить доступные дела. Повторите поиск или обновите страницу.</p> : null}
+    {hasMore ? <button type="button" disabled={disabled || pending} onClick={() => search(true)} className="min-h-11 t-label text-accent-text underline">{cursor ? "Показать ещё" : "Открыть поиск с постраничной выборкой"}</button> : null}
+    {status === "ready" && rows.length === 0 ? <p role="status" className="t-body-compact text-fg-2">Активных дел по этому запросу нет.</p> : null}
+    {["unavailable", "forbidden", "invalid"].includes(status) ? <p role="alert" className="t-body-compact text-danger">Не удалось получить доступные дела. Повторите поиск или обновите страницу.</p> : null}
   </div>;
 }

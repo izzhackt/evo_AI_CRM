@@ -2769,6 +2769,19 @@ done < <(
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
 )
 
+# «Сегодня» — сроки вузов на 14 дней (Э3, PLAN_CHANGES 27.09.2026): no
+# migration, the band reuses 145's admissions_deadline_page_v1. The suite runs
+# on the LATEST chain, after every migration, with members modelled like
+# production (coarse role NULL, the production bundles, as in 244's suite):
+# a curator reads the deadlines of the own active cases only, the Admissions
+# Manager those of its department, the Admin every active case; the Sales
+# Manager, a case reader without application.manage, the Student, no
+# membership and anon are refused; the window, the submitted and NULL-program
+# applications, and the read's definer, search_path and grants.
+docker exec "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+  -f /workspace/supabase/tests/platform_today_university_deadlines.sql
+
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
   -f /workspace/supabase/tests/authorization_policies.sql

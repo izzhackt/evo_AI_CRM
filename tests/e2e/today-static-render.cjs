@@ -12,6 +12,7 @@
  * Очередь собирается НАСТОЯЩИМ кодом: `readTodayQueue` (права по ролям,
  * независимые чтения, пределы страниц) с подставленными читателями, затем
  * `buildTodayQueue`; страница — настоящие `PartShell`, `TodayBoardLinks`,
+ * (сроки вузов — строки чтения 145 после адаптера, 27.09),
  * `TodayScreen` (строки задач — настоящая `TaskQueueRow`) внутри настоящего
  * `AppShell`. Данные СИНТЕТИЧЕСКИЕ: люди, задачи, лиды и переписки выдуманы
  * для проверки вёрстки и не являются записями EVO. Живой Supabase, права и
@@ -171,6 +172,21 @@ function lead(n, fields) {
   };
 }
 
+/**
+ * Срок поступления — строка чтения 145 (`admissions_deadline_page_v1`) после
+ * адаптера календаря: вид срока, вуз, программа (пустая — заявка без
+ * программы), студент и день.
+ */
+function deadline(n, fields) {
+  const applicationId = `eeeeeeee-7777-4777-8777-${String(n).padStart(12, "0")}`;
+  const kind = fields.kind ?? "application";
+  return {
+    sourceKey: `${kind === "application" ? "application" : "visa"}:${applicationId}:${kind}`, deadlineKind: kind, applicationId,
+    studentCaseId: caseId(fields.caseNo), studentDisplayName: fields.student, universityName: fields.university,
+    programName: fields.program ?? "", status: kind === "application" ? fields.status ?? "preparation" : null, deadline: fields.day,
+  };
+}
+
 function chat(n, fields) {
   return {
     studentCaseId: caseId(n), studentDisplayName: fields.name, lastMessageSnippet: "Когда будет готов перевод?",
@@ -216,6 +232,13 @@ const MY_LEADS = [
 const UNASSIGNED = [
   lead(6, { name: "Эльмира Формова", stage: "new", owner: null, source: "website", age: 0 }),
   lead(7, { name: "Амир Входящий", stage: "new", owner: null, source: "whatsapp", age: 3 }),
+];
+// Сроки вузов: сегодня, через 4 и 12 дней; срок паспорта в окне — другой вид, в группу не входит.
+const DEADLINES = [
+  deadline(1, { caseNo: 2, student: "Данияр Макетов", university: "Технический университет Демо", program: "Computer Science", day: TODAY }),
+  deadline(2, { caseNo: 7, student: "Руслан Черновиков", university: "Университет Примера", program: "Foundation in Business", day: "2026-09-30", status: "ready" }),
+  deadline(3, { caseNo: 8, student: "Софья Эскизова", university: "Школа бизнеса Макет", day: "2026-10-08" }),
+  deadline(4, { caseNo: 3, student: "Нурай Образцова", university: "Документы для поездки", kind: "passport_expiry", day: "2026-10-02" }),
 ];
 const CHATS = [
   chat(3, { name: "Нурай Образцова", at: "2026-09-25T12:00:00.000Z" }),
@@ -271,22 +294,26 @@ function readers(data) {
       fail("chats");
       return { rows: data.chats ?? [], truncated: false };
     },
+    async readDeadlines(_actor, options) {
+      fail("deadlines");
+      return { rows: (data.deadlines ?? []).filter((row) => row.deadline >= options.from && row.deadline <= options.to), nextCursor: null };
+    },
   };
 }
 
 const SCENARIOS = {
-  admin: { actor: "admin", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, leads: MY_LEADS, unassigned: UNASSIGNED, chats: CHATS } },
-  admissions: { actor: "admissions", data: { staff: STAFF_TASKS.slice(1, 3), cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, chats: CHATS } },
+  admin: { actor: "admin", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, leads: MY_LEADS, unassigned: UNASSIGNED, chats: CHATS, deadlines: DEADLINES } },
+  admissions: { actor: "admissions", data: { staff: STAFF_TASKS.slice(1, 3), cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, chats: CHATS, deadlines: DEADLINES } },
   sales: { actor: "sales", data: { staff: STAFF_TASKS, leads: MY_LEADS, unassigned: UNASSIGNED } },
   // Ошибка переписок и неполное «Требуют действия» (как у Admin, когда таких дел больше 100): остальные
   // источники видны, числа гаснут только у групп, которые от них зависят. Строки «Моих» сливаются со
   // строками «Требуют действия», поэтому неполное чтение гасит и «Без следующего шага» с «Ближайшими»;
   // «Просрочено» и «Сегодня» число сохраняют.
-  partial: { actor: "admissions", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, attentionPartial: true, chats: CHATS, fail: ["chats"] } },
+  partial: { actor: "admissions", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, attentionPartial: true, chats: CHATS, deadlines: DEADLINES, fail: ["chats"] } },
   // Пустой день продаж: всё прочитано, пора делать нечего, ближайший срок — лид на чт 01.10.
   empty: { actor: "sales", data: { staff: [staffTask(9, { title: "Подготовить вопросы к планёрке" })], leads: [MY_LEADS[3]], unassigned: [] } },
-  // Пустой день поступления без сроков: главное действие роли.
-  "empty-admissions": { actor: "admissions", data: { staff: [], cases: [], mine: [], attention: [], chats: [] } },
+  // Пустой день поступления без сроков: главное действие роли и пустая группа «Сроки вузов» (чтение полное).
+  "empty-admissions": { actor: "admissions", data: { staff: [], cases: [], mine: [], attention: [], chats: [], deadlines: [] } },
 };
 
 // --- рендер ------------------------------------------------------------------

@@ -215,7 +215,7 @@ test("bands follow urgency; one case from two reads is one row in its most urgen
     read("leads", todayLeadItems([lead(1, {}), lead(2, { action: "Встреча", due: "later", dueDate: "2026-09-29" })], TODAY)),
   ], NOW);
   assert.deepEqual(queue.bands.map((band) => band.band), ["overdue", "waiting", "no_step", "upcoming"]);
-  assert.deepEqual(TODAY_BANDS, ["overdue", "today", "waiting", "no_step", "upcoming"]);
+  assert.deepEqual(TODAY_BANDS, ["overdue", "today", "waiting", "no_step", "deadlines", "upcoming"]);
   const overdue = bandOf(queue, "overdue");
   assert.equal(overdue.items.length, 1);
   assert.equal(overdue.items[0].reason, "шаг просрочен · ждёт принятия");
@@ -374,13 +374,13 @@ test("role scoping: each role reads only its own sources, on the real 173 role t
   // Шаблон Admissions несёт lead.read (видеть лид дела), но продаж не ведёт: лидов и заявок у неё нет.
   assert.ok(ADMISSIONS.includes("lead.read") && !ADMISSIONS.includes("lead.sales.workflow.manage") && !ADMISSIONS.includes("sales.register.read"));
   assert.deepEqual(todayAccess(actor({ systemRole: "admin" })), {
-    sources: ["tasks", "students", "handoffs", "leads", "requests", "chats"], coverage: true, preview: false,
+    sources: ["tasks", "students", "handoffs", "leads", "requests", "chats", "deadlines"], coverage: true, preview: false,
   });
   assert.deepEqual(todayAccess(actor({ permissionKeys: ADMISSIONS })), {
-    sources: ["tasks", "students", "handoffs", "chats"], coverage: false, preview: false,
+    sources: ["tasks", "students", "handoffs", "chats", "deadlines"], coverage: false, preview: false,
   });
   assert.deepEqual(todayAccess(actor({ permissionKeys: ADMISSIONS_MANAGER })), {
-    sources: ["tasks", "students", "handoffs", "chats"], coverage: true, preview: false,
+    sources: ["tasks", "students", "handoffs", "chats", "deadlines"], coverage: true, preview: false,
   });
   assert.deepEqual(todayAccess(actor({ permissionKeys: SALES })), { sources: ["tasks", "leads", "requests"], coverage: false, preview: false });
   assert.deepEqual(todayAccess(actor({ permissionKeys: SALES_MANAGER })), { sources: ["tasks", "leads", "requests"], coverage: false, preview: false });
@@ -393,7 +393,7 @@ test("role scoping: each role reads only its own sources, on the real 173 role t
   assert.deepEqual(todayAccess(actor({ systemRole: "admin", presentationRole: "sales" })), {
     sources: ["tasks", "leads", "requests"], coverage: false, preview: true,
   });
-  assert.deepEqual(todayAccess(actor({ systemRole: "admin", presentationRole: "admissions" })).sources, ["tasks", "students", "handoffs", "chats"]);
+  assert.deepEqual(todayAccess(actor({ systemRole: "admin", presentationRole: "admissions" })).sources, ["tasks", "students", "handoffs", "chats", "deadlines"]);
 });
 
 test("header boards and the empty-day action follow the role's sources, not lead.read alone", () => {
@@ -441,6 +441,7 @@ function fakeReaders(overrides = {}) {
       },
       async readLeads(_actor, assignment) { calls.push(["leads", assignment]); return { leads: [], truncated: false }; },
       async readChats() { calls.push(["chats"]); return { rows: [], truncated: false }; },
+      async readDeadlines(_actor, options) { calls.push(["deadlines", options]); return { rows: [], nextCursor: null }; },
       ...overrides,
     },
   };
@@ -460,7 +461,10 @@ test("readTodayQueue: existing reads with their own limits, each failing on its 
   const { reads } = await readTodayQueue(admin, { now: NOW, readers });
   assert.deepEqual(reads.map((entry) => [entry.source, entry.state]), [
     ["tasks", "complete"], ["students", "partial"], ["handoffs", "denied"], ["leads", "complete"], ["requests", "complete"], ["chats", "error"],
+    ["deadlines", "complete"],
   ]);
+  // Сроки вузов — окно «сегодня … сегодня + 14 дней» по дню Бишкека, с первой страницы.
+  assert.deepEqual(calls.find(([kind]) => kind === "deadlines")[1], { from: TODAY, to: "2026-10-10", cursor: null });
   assert.deepEqual(calls.find(([kind]) => kind === "staff")[1], { view: "mine", status: "active", cursor: null });
   assert.deepEqual(calls.find(([kind]) => kind === "case")[1], { pageSize: 100, cursor: null, dueTo: "2026-10-10" });
   assert.deepEqual(calls.filter(([kind]) => kind === "leads").map(([, assignment]) => assignment).sort(), ["mine", "unassigned"]);
@@ -473,7 +477,7 @@ test("readTodayQueue: existing reads with their own limits, each failing on its 
   const sales = await readTodayQueue(actor({ permissionKeys: SALES }), { now: NOW, readers: endless.readers });
   assert.deepEqual(sales.reads.map((entry) => [entry.source, entry.state]), [["tasks", "partial"], ["leads", "complete"], ["requests", "complete"]]);
   assert.equal(staffPages, 4, "the same 4-page limit as «Задачи»");
-  assert.ok(!endless.calls.some(([kind]) => ["case", "students", "chats"].includes(kind)), "no read outside the role");
+  assert.ok(!endless.calls.some(([kind]) => ["case", "students", "chats", "deadlines"].includes(kind)), "no read outside the role");
 
   // Просмотр роли: доска продаж не читается, её проекция просмотру отказывает.
   const preview = fakeReaders();
@@ -527,7 +531,7 @@ test("static render: the page root, the dated heading and one queue for Admin", 
   assert.match(html, /<h1 class="t-page-title[^"]*">Сегодня<\/h1><p class="t-meta mt-1 text-fg-3"><time dateTime="2026-09-26">Суббота, 26 сентября<\/time><\/p>/u);
   assert.doesNotMatch(html, /Главная|Рабочий обзор|Лиды за период|data-dashboard-card/u);
   const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
-  assert.deepEqual(headers, ["Просрочено · 5", "Сегодня · сб 26.09 · 4", "Ждут ответа", "Без следующего шага · 2", "Ближайшие 14 дней · 4"]);
+  assert.deepEqual(headers, ["Просрочено · 5", "Сегодня · сб 26.09 · 4", "Ждут ответа", "Без следующего шага · 2", "Сроки вузов · 14 дней · 3", "Ближайшие 14 дней · 4"]);
   assert.match(html, /<\/h2><p class="[^"]*t-meta[^"]*">Без числа: часть переписок «Нужен ответ» может быть уже отвечена\.<\/p>/u);
   // Две доски: на телефоне короткие имена в строке заголовка, шире — полные; видимое слово и есть имя ссылки.
   assert.match(html, /aria-label="Доски"[\s\S]*href="\/v3\/pipeline"[^>]*><span class="sm:hidden">Продажи<\/span><span class="hidden sm:inline">Воронка продаж<\/span><\/a>[\s\S]*href="\/v3\/admissions-pipeline"[^>]*><span class="sm:hidden">Поступление<\/span><span class="hidden sm:inline">Воронка поступления<\/span><\/a>/u);
@@ -582,7 +586,8 @@ test("static render: a failed source is named in place and only the bands that d
   // Неполное «Требуют действия» гасит группы, куда его строка могла бы забрать дело из «Моих»;
   // «Просрочено» и «Сегодня» срочнее «Ждут ответа» и число сохраняют.
   const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
-  assert.deepEqual(headers, ["Просрочено · 4", "Сегодня · сб 26.09 · 3", "Ждут ответа", "Без следующего шага", "Ближайшие 14 дней"]);
+  // Сроки вузов — своё полное чтение: неполное «Требуют действия» их число не гасит.
+  assert.deepEqual(headers, ["Просрочено · 4", "Сегодня · сб 26.09 · 3", "Ждут ответа", "Без следующего шага", "Сроки вузов · 14 дней · 3", "Ближайшие 14 дней"]);
   assert.doesNotMatch(html, /data-queue-row="chat:/u, "the failed source draws no rows");
   assert.doesNotMatch(html, /На сегодня всё/u);
 });
@@ -594,7 +599,9 @@ test("static render: an empty day says so only after complete reads, with the ne
   assert.match(text(sales), /Ближайшие 14 дней · 1/u);
   const admissions = surfaces.get("empty-admissions");
   assert.match(admissions, /data-testid="queue-empty"[\s\S]*На сегодня всё[\s\S]*href="\/v3\/profile"[^>]*>Открыть студентов<\/a>/u);
-  assert.doesNotMatch(admissions, /<h2 id="today-band-/u);
+  // Единственная группа — пустые «Сроки вузов» полного чтения: без числа, словами.
+  assert.deepEqual([...admissions.matchAll(/<h2 id="(today-band-[a-z_]+)"/gu)].map((match) => match[1]), ["today-band-deadlines"]);
+  assert.match(admissions, /Сроки вузов · 14 дней<\/span><\/h2><p class="[^"]*t-meta[^"]*">Записанных сроков подачи на ближайшие 14 дней нет\.<\/p><ul><\/ul>/u);
 });
 
 test("report: the period cohort and the board never share a bare «Переданы»", () => {

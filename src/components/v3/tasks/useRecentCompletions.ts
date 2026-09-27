@@ -41,7 +41,7 @@ function keepFocusInList(gone: ReadonlySet<string>, expiring: ReadonlySet<string
   const active = document.activeElement;
   const undo = active instanceof HTMLElement && active.matches("[data-queue-undo]") ? active : null;
   const rows = [...document.querySelectorAll<HTMLElement>("[data-queue-row]")];
-  const row = undo?.closest<HTMLElement>("[data-queue-row]") ?? rows.find((element) => element.dataset.queueRow === undo?.dataset.undoRow) ?? null;
+  const row = undo ? rows.find((element) => element.dataset.queueRow === undo.dataset.undoRow) ?? null : null;
   const current = row?.dataset.queueRow;
   if (!row || !current || !expiring.has(current)) return;
   const target = queueFocusAfterRemoval(rows.map((element) => element.dataset.queueRow ?? ""), current, gone);

@@ -86,7 +86,7 @@ export function CaseNextStep({
         {due ? (
           <span className="text-fg-2">
             <time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>
-            {dueWord ? <> <DueWord view={dueWord} /></> : due.word ? ` ${due.word}` : null}
+            {dueWord ? <> <DueWord view={dueWord} /></> : null}
           </span>
         ) : null}
         {editable ? (

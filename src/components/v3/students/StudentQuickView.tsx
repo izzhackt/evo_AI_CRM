@@ -177,7 +177,7 @@ export function StudentQuickView({
             {row.nextAction ? (
               <p className="t-body-compact break-words text-fg">
                 {row.nextAction}
-                {due ? <> · <time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{dueWord ? <> <DueWord view={dueWord} /></> : due.word ? <span className={due.overdue ? "text-danger" : "text-fg-2"}> {due.word}</span> : null}</> : null}
+                {due ? <> · <time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{dueWord ? <> <DueWord view={dueWord} /></> : null}</> : null}
               </p>
             ) : <p className="t-body-compact text-fg-3">Шаг не задан</p>}
             {access.reason ? <p className="t-body-compact text-fg-2">{access.reason}</p> : null}
@@ -212,7 +212,7 @@ export function StudentQuickView({
                 <li key={task.id} className="py-2">
                   <Link href={links.task(task.id)} className="block break-words t-body-compact text-fg underline-offset-4 hover:underline">{task.title}</Link>
                   <p className="t-meta text-fg-2">
-                    {taskDue ? <><time dateTime={taskDue.dateTime} className="font-mono tabular-nums">{taskDue.text}</time>{taskDueWord ? <> <DueWord view={taskDueWord} /></> : taskDue.word ? <span className={taskDue.overdue ? "text-danger" : undefined}> {taskDue.word}</span> : null}</> : "без срока"}
+                    {taskDue ? <><time dateTime={taskDue.dateTime} className="font-mono tabular-nums">{taskDue.text}</time>{taskDueWord ? <> <DueWord view={taskDueWord} /></> : null}</> : "без срока"}
                     {word ? <span className="text-warn"> · {word}</span> : null}
                     <span> · исп. {task.assigneeDisplayName}</span>
                   </p>

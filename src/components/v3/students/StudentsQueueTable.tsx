@@ -83,7 +83,7 @@ function DueCell({ row, now, today, sort }: Readonly<{ row: StudentCaseQueueRow;
   // Шаг ведётся только у дела в работе: у закрытого и ожидающего начала дата без «прошёл».
   const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   const updated = sort === "updated" ? studentsUpdatedDay(row.updatedAt, today) : null;
-  const word = updated ? null : due?.word ?? due?.caption ?? null;
+  const caption = updated ? null : due?.caption ?? null;
   // Слово срока — блок `DueWord` (Э1.3); у закрытого и ожидающего — подпись «срок».
   const dueWord = due && !updated ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   return (
@@ -91,7 +91,7 @@ function DueCell({ row, now, today, sort }: Readonly<{ row: StudentCaseQueueRow;
       {due ? <>
         <time dateTime={due.dateTime} className={`${DATE} @min-[36rem]/students:block @min-[36rem]/students:leading-5 text-fg`}>{due.text}</time>
         {dueWord ? <span className="ms-1.5 @min-[36rem]/students:ms-0 @min-[36rem]/students:block"><DueWord view={dueWord} /></span>
-          : word ? <span className={`ms-1.5 t-meta @min-[36rem]/students:ms-0 @min-[36rem]/students:block ${due.overdue ? "text-danger" : "text-fg-3"}`}>{word}</span> : null}
+          : caption ? <span className="ms-1.5 t-meta @min-[36rem]/students:ms-0 @min-[36rem]/students:block text-fg-3">{caption}</span> : null}
       </> : row.nextAction ? <span className="t-meta text-fg-3 @min-[36rem]/students:block @min-[36rem]/students:leading-5">без срока</span>
         : <span className="sr-only">Нет</span>}
       {updated ? (

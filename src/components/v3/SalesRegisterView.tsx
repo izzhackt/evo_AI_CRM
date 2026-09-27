@@ -197,6 +197,7 @@ function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
   const reviewTone = review.state === "review" ? "text-fg-2" : "text-fg-3";
   const name = row.applicantName || "Имя не указано";
   const cell = "hidden min-w-0 px-3 align-middle @min-[60rem]/sales-records:table-cell";
+  const moneyCell = "hidden min-w-0 px-2 text-right align-middle @min-[60rem]/sales-records:table-cell";
   const mono = "font-mono tabular-nums";
   return (
     <tr role="row" id={`sale-${row.id}`} data-selected={selected ? "" : undefined}
@@ -213,10 +214,11 @@ function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
         {row.signingDate ? <time dateTime={row.signingDate} className={`t-body-compact text-fg-2 ${mono}`}>{rowDate(row.signingDate, year)}</time> : <span className="t-body-compact text-fg-3">—</span>}
         {reportMonth ? <span className="sr-only">. {reportMonth}</span> : null}
       </td>
-      <td role="cell" className={`${cell} text-right`}><span className="block truncate t-body-compact tabular-nums text-fg">{cost ?? "—"}</span></td>
-      <td role="cell" className={`${cell} text-right`}><span className="block truncate t-body-compact tabular-nums text-fg-2">{paid ?? "—"}</span></td>
-      <td role="cell" className="self-center text-right @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:px-3 @min-[60rem]/sales-records:align-middle">
-        <span className="block truncate t-body-compact tabular-nums text-fg" title={remainderWhy ?? undefined}>
+      {/* Суммы — узкие поля и подсказка с суммой: число не прячется за многоточием молча. */}
+      <td role="cell" className={moneyCell}><span className="block truncate t-body-compact tabular-nums text-fg" title={cost ?? undefined}>{cost ?? "—"}</span></td>
+      <td role="cell" className={moneyCell}><span className="block truncate t-body-compact tabular-nums text-fg-2" title={paid ?? undefined}>{paid ?? "—"}</span></td>
+      <td role="cell" className="self-center text-right @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:px-2 @min-[60rem]/sales-records:align-middle">
+        <span className="block truncate t-body-compact tabular-nums text-fg" title={remainderWhy ?? remainder ?? undefined}>
           <span className="t-meta text-fg-2 @min-[60rem]/sales-records:sr-only">остаток </span>{remainder ?? "—"}
         </span>
       </td>
@@ -457,18 +459,18 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
               <table role="table" className="block w-full text-left @min-[60rem]/sales-records:table @min-[60rem]/sales-records:table-fixed">
                 <caption className="sr-only">{`Продажи: ${workspace.totalCount} ${recordsWord(workspace.totalCount)}`}</caption>
                 <colgroup className="hidden @min-[60rem]/sales-records:table-column-group">
-                  <col className="w-[18%]" /><col className="w-[17%]" /><col className="w-[12%]" /><col className="w-[7%]" />
-                  <col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[16%]" />
+                  <col className="w-[19%]" /><col className="w-[13%]" /><col className="w-[10%]" /><col className="w-[7%]" />
+                  <col className="w-[11%]" /><col className="w-[11%]" /><col className="w-[11%]" /><col className="w-[18%]" />
                 </colgroup>
                 <thead role="rowgroup" className="sr-only @min-[60rem]/sales-records:not-sr-only @min-[60rem]/sales-records:table-header-group">
                   <tr role="row" className="t-caption text-fg-2">
                     <th role="columnheader" scope="col" className="py-2 ps-4 pe-3 font-medium">Студент</th>
-                    <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Страна · программа</th>
+                    <th role="columnheader" scope="col" className="truncate px-3 py-2 font-medium" title="Страна · программа">Страна · программа</th>
                     <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Менеджер</th>
                     <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Дата</th>
-                    <th role="columnheader" scope="col" className="px-3 py-2 text-right font-medium">Стоимость</th>
-                    <th role="columnheader" scope="col" className="px-3 py-2 text-right font-medium">Оплачено</th>
-                    <th role="columnheader" scope="col" className="px-3 py-2 text-right font-medium">Остаток</th>
+                    <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Стоимость</th>
+                    <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Оплачено</th>
+                    <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Остаток</th>
                     <th role="columnheader" scope="col" className="py-2 ps-3 pe-4 font-medium">Уточнить</th>
                   </tr>
                 </thead>

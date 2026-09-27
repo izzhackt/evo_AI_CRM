@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import type { HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
+import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import type { StudentCaseChecklistCounts } from "@/lib/platform-student-case-queue-contract";
 import { applicationStatus, caseChatAwaitState } from "@/lib/v3/wording";
 
@@ -10,19 +11,30 @@ import { Icon } from "@/components/icons";
 import { Pill } from "../Pill";
 import { formatQueueDay } from "../queue/due-bucket";
 import { studentsDocumentsLine, studentsHandoffPending } from "../students/students-queue-view";
+import { Initials } from "../blocks/Initials";
 import { isNextLook, type V3Look } from "../blocks/look";
 import { ProgressBar } from "../blocks/ProgressBar";
 import { StatusChip } from "../blocks/StatusChip";
 import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
-import { CaseDisclosure } from "./CaseDisclosure";
+import { DIRECTION_LABELS } from "./admissions-view";
 import { CaseHandoffBlock } from "./CaseHandoffBlock";
 import { CaseTaskList } from "./CaseTaskList";
+import { LeadEditGroups } from "./LeadEditGroups";
 import { HandoffResponseSummary } from "./ProfileSalesTransition";
-import { caseMomentLabel, type CaseApplicationLine, type CaseWorkRead } from "./case-work-view";
+import {
+  CASE_FEED_SHOWN,
+  CASE_PORTAL_GROUP_ID,
+  CASE_SALES_GROUP_ID,
+  caseMomentLabel,
+  type CaseApplicationLine,
+  type CaseFeedItem,
+  type CaseWorkRead,
+} from "./case-work-view";
+import { COVERAGE_VIEW_HREF, coverageHref } from "./students-coverage-view";
 
-const SECTION = "min-w-0 space-y-2 border-t border-border pt-4";
-const HEAD = "flex flex-wrap items-center justify-between gap-x-3";
 const LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
+/** Ссылка факта своей строкой под значением (блочная, 44 px): не прилипает к тексту значения. */
+const FACT_LINK = "flex min-h-11 w-fit items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 const TONE = { danger: "text-danger", warn: "text-warn", muted: "text-fg-2" } as const;
 /** Раскрытие «Изменить ответ» в «Сведениях»: подпись-действие без маркера, 44 px. */
 const SUMMARY = "flex min-h-11 w-fit cursor-pointer list-none items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden";
@@ -30,51 +42,75 @@ const SUMMARY = "flex min-h-11 w-fit cursor-pointer list-none items-center t-lab
 export type CaseOverviewInput = Readonly<{
   studentCaseId: string;
   work: CaseWorkRead;
-  /** Снимок «Приёма дела»; блок «Принять дело» — только пока куратор может ответить и дело не принято. */
+  /** Снимок «Приёма дела»: ответ куратора — в «Сведениях»; ждущий ответа — главное действие у заголовка. */
   handoff: (HandoffAcknowledgement & Readonly<{ requestId: string }>) | null;
   taskPermissions: TaskRowPermissions;
-  /** «+ Задача» — диалог создания задачи по делу; null — создавать нельзя. */
-  createTask: ReactNode;
   /** null — нет права читать документы дела (нет чтения — нет числа). */
   documents: StudentCaseChecklistCounts | null;
   applications: readonly CaseApplicationLine[];
   /** null — оплаты в этом деле этому сотруднику не видно. */
   payment: Readonly<{ percent: number | null; remaining: string | null; financeStop: string | null }> | null;
   contacts: Readonly<{ phone: string | null; email: string | null }>;
-  /** «Доступ к порталу»: строка состояния и раскрытие с прежней карточкой; null — строки нет. */
+  direction: AdmissionsDirection | null;
+  /** Куратор дела: имя из дела, id — из строки очереди (для «Нагрузки кураторов»). */
+  curator: Readonly<{ name: string | null; membershipId: string | null; coverage: boolean }>;
+  /** Кто и когда передал дело (контекст передачи); null — дело не из продаж. */
+  handedOffBy: Readonly<{ name: string; at: string }> | null;
+  /** «Доступ к порталу»: состояние словом и прежние формы в группе; null — строки нет. */
   portal: Readonly<{ text: string; tone: "muted" | "warn" | "ok"; settings: ReactNode }> | null;
   /** Продажа в «Сведениях»; null — у сотрудника нет чтения продаж. */
   sales: Readonly<{ manager: string | null; nextAction: string | null }> | null;
-  /** Формы продажи — свёрнутый раздел «Данные продажи»; null — раздела нет. */
+  /** Формы продажи — свёрнутая группа «Данные продажи»; null — группы нет. */
   salesData: ReactNode;
   salesDataOpen: boolean;
   help: ReactNode;
-  notes: ReactNode;
-  hrefs: Readonly<{ documents: string | null; route: string | null; money: string | null; messages: string }>;
-  /** Новый облик (Э1.3): блоки в строках задач и полоса документов из прочитанных чисел. */
+  /** Лента (`caseFeed`) и заметка в одну строку; null — писать заметки нельзя (просмотр роли). */
+  feed: Readonly<{ items: readonly CaseFeedItem[]; eventsUnavailable: boolean }>;
+  noteComposer: ReactNode;
+  notesOlderHref: string | null;
+  notesLatestHref: string | null;
+  hrefs: Readonly<{ documents: string | null; route: string | null; money: string | null; messages: string; history: string }>;
+  /** Новый облик (Э1.3): блоки в строках задач, инициалы куратора и полоса документов из прочитанных чисел. */
   look?: V3Look;
 }>;
 
-function Fact({ term, children }: Readonly<{ term: string; children: ReactNode }>) {
+/** Факт «Сведений»: строка на волосяной линии. */
+function Fact({ term, children, testId }: Readonly<{ term: string; children: ReactNode; testId?: string }>) {
   return (
-    <div className="min-w-0 border-b border-border py-2.5 last:border-b-0">
+    <div className="min-w-0 border-b border-border py-2.5 last:border-b-0" data-testid={testId}>
       <dt className="t-caption text-fg-2">{term}</dt>
       <dd className="mt-0.5 min-w-0 break-words t-body-compact text-fg">{children}</dd>
     </div>
   );
 }
 
-function Tasks({ input, headingId }: Readonly<{ input: CaseOverviewInput; headingId: string }>) {
+/**
+ * Группа правки: одна строка — название и состояние, раскрытие — прежние
+ * формы без своей карточки (как у Lead 360). `name` у групп один: открыта одна.
+ */
+function Group({ id, title, summary, open, testId, children }: Readonly<{
+  id: string; title: string; summary: ReactNode; open?: boolean; testId: string; children: ReactNode;
+}>) {
+  return (
+    <details name="case-edit" id={id} open={open} data-lead-group="" data-testid={testId} className="group scroll-mt-4 border-b border-border">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-nav py-1.5 [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3">
+          <span className="t-item text-fg">{title}</span>
+          <span className="min-w-28 flex-1 t-meta text-fg-2">{summary}</span>
+        </span>
+        <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
+      </summary>
+      <div className="pb-4 pt-1">{children}</div>
+    </details>
+  );
+}
+
+function Tasks({ input }: Readonly<{ input: CaseOverviewInput }>) {
   const { work } = input;
-  const pending = input.handoff !== null && studentsHandoffPending(input.handoff);
   return (
     // `#case-tasks` — адрес «Все задачи дела» из «Быстрого просмотра» (#1059).
-    <section id="case-tasks" aria-labelledby={headingId} className="min-w-0 scroll-mt-4 space-y-3" data-testid="v3-case-next">
-      <div className={HEAD}>
-        <h2 id={headingId} tabIndex={-1} data-queue-heading="" className="t-section text-fg">Что дальше</h2>
-        {input.createTask}
-      </div>
-      {pending && input.handoff ? <CaseHandoffBlock snapshot={input.handoff} headingId={headingId} /> : null}
+    <section id="case-tasks" aria-labelledby="case-tasks-title" className="min-w-0 scroll-mt-4 space-y-3" data-testid="v3-case-tasks-part">
+      <h2 id="case-tasks-title" tabIndex={-1} data-queue-heading="" className="t-section text-fg">Задачи</h2>
       {work.tasks.kind === "unavailable" ? (
         <p role="alert" className="t-body-compact text-danger">Не удалось загрузить задачи. Обновите страницу, чтобы повторить.</p>
       ) : work.tasks.tasks.length === 0 ? (
@@ -86,14 +122,10 @@ function Tasks({ input, headingId }: Readonly<{ input: CaseOverviewInput; headin
   );
 }
 
-function Documents({ input }: Readonly<{ input: CaseOverviewInput }>) {
+function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
   const line = studentsDocumentsLine(input.documents);
   return (
-    <section aria-labelledby="case-documents-title" className={SECTION}>
-      <div className={HEAD}>
-        <h2 id="case-documents-title" className="t-section text-fg">Документы</h2>
-        {input.hrefs.documents ? <Link href={input.hrefs.documents} className={LINK}>Документы дела</Link> : null}
-      </div>
+    <Fact term="Документы" testId="v3-case-documents">
       {line && isNextLook(input.look) ? (
         // Новый облик: «N из M принято» полосой — только из прочитанных чисел; пустой чек-лист
         // или числа, которые не сходятся, — прежняя строка без полосы.
@@ -107,56 +139,23 @@ function Documents({ input }: Readonly<{ input: CaseOverviewInput }>) {
           ) : null}
         </div>
       ) : line ? (
-        <p className="t-body-compact text-fg">
+        <p>
           {line.summary}
           {line.parts.map((part) => <span key={part.key}><span className="text-fg-3"> · </span><span className={`font-medium ${TONE[part.tone]}`}>{part.text}</span></span>)}
         </p>
-      ) : <p className="t-body-compact text-fg-2">Нет доступа к документам этого дела.</p>}
-    </section>
+      ) : <span className="text-fg-2">нет доступа</span>}
+      {input.hrefs.documents ? <Link href={input.hrefs.documents} className={FACT_LINK}>Документы дела</Link> : null}
+    </Fact>
   );
 }
 
-function Correspondence({ input }: Readonly<{ input: CaseOverviewInput }>) {
-  const chat = input.work.chat;
+function ApplicationsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
   return (
-    <section aria-labelledby="case-chat-title" className={SECTION}>
-      <div className={HEAD}>
-        <h2 id="case-chat-title" className="flex flex-wrap items-center gap-2 t-section text-fg">
-          Переписка
-          {chat.kind === "ready" && chat.awaitState === "needs_reply" ? <Pill tone="danger">{caseChatAwaitState("needs_reply")}</Pill> : null}
-          {chat.kind === "ready" && chat.awaitState === "awaiting_student" ? <Pill>{caseChatAwaitState("awaiting_student")}</Pill> : null}
-        </h2>
-        {chat.kind !== "forbidden" ? <Link href={input.hrefs.messages} className={LINK}>Открыть переписку</Link> : null}
-      </div>
-      {chat.kind === "forbidden" ? (
-        <p className="t-body-compact text-fg-2">Нет доступа к переписке этого дела.</p>
-      ) : chat.kind === "unavailable" ? (
-        <p className="t-body-compact text-fg-2">Переписку сейчас не удалось прочитать.</p>
-      ) : chat.last === null ? (
-        <p className="t-body-compact text-fg-2">Сообщений пока нет.</p>
-      ) : (
-        <p className="min-w-0 t-body-compact text-fg">
-          <span className="text-fg-2">{chat.last.mine ? "Вы" : chat.last.authorName} · </span>
-          <time dateTime={chat.last.createdAt} className="font-mono tabular-nums text-fg-2">{caseMomentLabel(chat.last.createdAt, input.work.today)}</time>
-          <span className="block break-words">{chat.last.text}</span>
-        </p>
-      )}
-      {input.help}
-    </section>
-  );
-}
-
-function Applications({ input }: Readonly<{ input: CaseOverviewInput }>) {
-  return (
-    <section aria-labelledby="case-applications-title" className={SECTION}>
-      <div className={HEAD}>
-        <h2 id="case-applications-title" className="t-section text-fg">Заявки</h2>
-        {input.hrefs.route ? <Link href={input.hrefs.route} className={LINK}>Вузы и программы</Link> : null}
-      </div>
-      {input.applications.length === 0 ? <p className="t-body-compact text-fg-2">Заявок пока нет.</p> : (
+    <Fact term="Заявки" testId="v3-case-applications">
+      {input.applications.length === 0 ? <span className="text-fg-2">пока нет</span> : (
         <ul className="divide-y divide-border">
           {input.applications.map((application) => (
-            <li key={application.id} className="py-1.5 t-body-compact">
+            <li key={application.id} className="py-1 first:pt-0">
               <span className="break-words font-medium text-fg">{application.title}</span>
               <span className="text-fg-2">
                 {" — "}{applicationStatus(application.status) ?? "статус не указан"}
@@ -167,70 +166,76 @@ function Applications({ input }: Readonly<{ input: CaseOverviewInput }>) {
           ))}
         </ul>
       )}
-    </section>
+      {input.hrefs.route ? <Link href={input.hrefs.route} className={FACT_LINK}>Вузы и программы</Link> : null}
+    </Fact>
   );
 }
 
-function Payment({ input }: Readonly<{ input: CaseOverviewInput }>) {
-  const payment = input.payment;
-  if (!payment) return null;
+function ChatFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
+  const chat = input.work.chat;
   return (
-    <section aria-labelledby="case-payment-title" className={SECTION}>
-      <div className={HEAD}>
-        <h2 id="case-payment-title" className="t-section text-fg">Оплата</h2>
-        {input.hrefs.money ? <Link href={input.hrefs.money} className={LINK}>Договор и оплата</Link> : null}
-      </div>
-      <p className="t-body-compact text-fg">
-        {payment.percent === null ? <span className="text-fg-2">Плана платежей нет</span> : (
-          <><span className="font-semibold tabular-nums">{payment.percent}%</span> оплачено{payment.remaining ? <span className="text-fg-2"> · остаток <span className="tabular-nums">{payment.remaining}</span></span> : null}</>
-        )}
-        {payment.financeStop ? <span className="block text-danger">Финансовый стоп: {payment.financeStop}</span> : null}
-      </p>
-    </section>
+    <Fact term="Переписка" testId="v3-case-chat">
+      <span className="flex flex-wrap items-center gap-x-3">
+        {chat.kind === "forbidden" ? <span className="text-fg-2">нет доступа</span>
+          : chat.kind === "unavailable" ? <span className="text-fg-2">не прочитана</span>
+            : chat.awaitState === "needs_reply" ? <Pill tone="danger">{caseChatAwaitState("needs_reply")}</Pill>
+              : chat.awaitState === "awaiting_student" ? <Pill>{caseChatAwaitState("awaiting_student")}</Pill>
+                : <span className="text-fg-2">{chat.last === null ? "сообщений пока нет" : "ответа не ждёт"}</span>}
+        {chat.kind !== "forbidden" ? <Link href={input.hrefs.messages} className={LINK}>Открыть переписку</Link> : null}
+      </span>
+    </Fact>
   );
 }
 
 /**
- * «Доступ к порталу» — строка состояния; «Настроить» раскрывает прежнюю
- * карточку (проверка и приглашение, решение по анкете) на всю ширину.
+ * «Сведения» справа от 1280 px (на телефоне — после работы): направление,
+ * куратор, кто передал, продажа, контакты, приём дела, документы, заявки,
+ * переписка, оплата — всё из уже прочитанных данных; нет чтения — нет числа.
  */
-function PortalAccess({ input }: Readonly<{ input: CaseOverviewInput }>) {
-  const portal = input.portal;
-  if (!portal) return null;
-  const header = <>
-    <h2 id="case-portal-title" className="t-section text-fg">Доступ к порталу</h2>
-    <span className={`t-body-compact ${portal.tone === "warn" ? "text-warn" : portal.tone === "ok" ? "text-fg" : "text-fg-2"}`}>{portal.text}</span>
-  </>;
-  return (
-    <section aria-labelledby="case-portal-title" className={SECTION} data-testid="v3-case-portal">
-      {portal.settings ? (
-        <CaseDisclosure header={header} openLabel="Настроить" closeLabel="Свернуть">
-          <div className="pt-1">{portal.settings}</div>
-        </CaseDisclosure>
-      ) : <div className="flex min-h-11 flex-wrap items-center gap-x-3">{header}</div>}
-    </section>
-  );
-}
-
-/** «Сведения» справа от 1280 px: контакты, приём дела и продажа. null — показывать нечего. */
-function hasFacts(input: CaseOverviewInput): boolean {
-  const handoff = input.handoff;
-  const answered = handoff !== null && handoff.assignmentEventId !== null && !studentsHandoffPending(handoff);
-  return Boolean(input.contacts.phone || input.contacts.email) || answered || input.sales !== null;
-}
-
 function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
+  const next = isNextLook(input.look);
   const handoff = input.handoff;
   const answered = handoff !== null && handoff.assignmentEventId !== null && !studentsHandoffPending(handoff);
-  const hasContacts = Boolean(input.contacts.phone || input.contacts.email);
+  const { curator } = input;
+  const payment = input.payment;
   return (
-    <aside aria-labelledby="case-facts-title" className="min-w-0 border-t border-border pt-4 xl:border-t-0 xl:border-s xl:ps-6 xl:pt-0" data-testid="v3-case-facts">
+    <aside aria-labelledby="case-facts-title" className="min-w-0" data-testid="v3-case-facts">
       <h2 id="case-facts-title" className="t-section text-fg">Сведения</h2>
       <dl className="mt-1">
-        {hasContacts ? (
+        <Fact term="Направление">{input.direction ? DIRECTION_LABELS[input.direction] : "Не выбрано"}</Fact>
+        <Fact term="Куратор">
+          {(next && curator.name ? (
+            <span className="inline-flex items-center gap-2"><Initials name={curator.name} decorative />{curator.name}</span>
+          ) : curator.name) ?? (input.work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
+          {curator.coverage && !input.work.needsCurator ? (
+            <Link href={curator.membershipId ? coverageHref(curator.membershipId, input.studentCaseId) : COVERAGE_VIEW_HREF}
+              className={FACT_LINK}>
+              Нагрузка кураторов
+            </Link>
+          ) : null}
+        </Fact>
+        {input.handedOffBy ? (
+          <Fact term="Передал">
+            {input.handedOffBy.name}
+            <span className="text-fg-2"> · <time dateTime={input.handedOffBy.at} className="font-mono tabular-nums">{caseMomentLabel(input.handedOffBy.at, input.work.today)}</time></span>
+          </Fact>
+        ) : null}
+        {input.sales ? (
+          <Fact term="Продажа">
+            <span className="block">{input.sales.manager ?? "Менеджер не назначен"}</span>
+            {input.sales.nextAction ? <span className="block text-fg-2">{input.sales.nextAction}</span> : null}
+          </Fact>
+        ) : null}
+        {input.contacts.phone || input.contacts.email ? (
           <Fact term="Контакты">
-            {input.contacts.phone ? <span className="block tabular-nums">{input.contacts.phone}</span> : null}
-            {input.contacts.email ? <span className="block break-all">{input.contacts.email}</span> : null}
+            {input.contacts.phone ? (
+              <a href={`tel:${input.contacts.phone.replace(/[^\d+]/gu, "")}`} className="flex min-h-11 w-fit items-center gap-1.5 tabular-nums text-fg underline-offset-4 hover:underline">
+                <Icon name="phone" size={16} className="shrink-0 text-fg-3" />{input.contacts.phone}
+              </a>
+            ) : null}
+            {input.contacts.email ? (
+              <a href={`mailto:${input.contacts.email}`} className="flex min-h-11 w-fit max-w-full items-center break-all text-fg underline-offset-4 hover:underline">{input.contacts.email}</a>
+            ) : null}
           </Fact>
         ) : null}
         {answered && handoff ? (
@@ -245,16 +250,25 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
             {handoff.canRespond ? (
               <details>
                 <summary className={SUMMARY}>Изменить ответ</summary>
-                <div className="mt-1"><CaseHandoffBlock snapshot={handoff} headingId="case-next-title" /></div>
+                <div className="mt-1"><CaseHandoffBlock snapshot={handoff} headingId="case-tasks-title" /></div>
               </details>
             ) : null}
           </Fact>
         ) : null}
-        {input.sales ? (
-          <Fact term="Продажа">
-            <span className="block">{input.sales.manager ?? "Менеджер не назначен"}</span>
-            {input.sales.nextAction ? <span className="block text-fg-2">{input.sales.nextAction}</span> : null}
+        <DocumentsFact input={input} />
+        <ApplicationsFact input={input} />
+        <ChatFact input={input} />
+        {payment ? (
+          <Fact term="Оплата" testId="v3-case-payment">
+            {payment.percent === null ? <span className="text-fg-2">Плана платежей нет</span> : (
+              <><span className="font-semibold tabular-nums">{payment.percent}%</span> оплачено{payment.remaining ? <span className="text-fg-2"> · остаток <span className="tabular-nums">{payment.remaining}</span></span> : null}</>
+            )}
+            {payment.financeStop ? <span className="block text-danger">Финансовый стоп: {payment.financeStop}</span> : null}
+            {input.hrefs.money ? <Link href={input.hrefs.money} className={FACT_LINK}>Договор и оплата</Link> : null}
           </Fact>
+        ) : null}
+        {input.portal && !input.portal.settings ? (
+          <Fact term="Портал" testId="v3-case-portal">{input.portal.text}</Fact>
         ) : null}
       </dl>
     </aside>
@@ -262,36 +276,139 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
 }
 
 /**
- * «Обзор» дела студента — сначала работа (решение владельца 26.09.2026):
- * «Что дальше» (приём дела, открытые задачи) → «Документы» → «Переписка» →
- * «Заявки» → «Оплата» → «Заметки». Каждая часть — строка из уже прочитанных
- * данных со ссылкой на свою вкладку; формы продажи — в свёрнутом разделе
- * «Данные продажи». От 1280 px справа — «Сведения»: контакты, приём дела
- * (решение, текст куратора, согласованный контакт) и продажа.
+ * Группы правки под лентой: «Доступ к порталу» и «Данные продажи» — прежние
+ * формы шириной рабочей колонки (в колонке «Сведений» формы продажи тесны);
+ * null — групп нет.
  */
-export function CaseOverview(input: CaseOverviewInput) {
-  const facts = hasFacts(input);
+function Groups({ input }: Readonly<{ input: CaseOverviewInput }>) {
+  const portal = input.portal?.settings ? input.portal : null;
+  if (!portal && !input.salesData) return null;
   return (
-    <div className={`grid gap-x-8 gap-y-6 ${facts ? "xl:grid-cols-[minmax(0,1fr)_18rem]" : ""}`} data-testid="v3-case-overview">
-      <div className="min-w-0 space-y-5">
-        <Tasks input={input} headingId="case-next-title" />
-        <Documents input={input} />
-        <Correspondence input={input} />
-        <Applications input={input} />
-        <Payment input={input} />
-        <PortalAccess input={input} />
-        <div className="border-t border-border pt-4">{input.notes}</div>
+    <div className="min-w-0 border-t border-border" data-testid="v3-case-groups">
+      <LeadEditGroups>
+        {portal ? (
+          <Group id={CASE_PORTAL_GROUP_ID} title="Доступ к порталу" testId="v3-case-portal"
+            summary={<span className={portal.tone === "warn" ? "text-warn" : portal.tone === "ok" ? "text-fg" : "text-fg-2"}>{portal.text}</span>}>
+            {portal.settings}
+          </Group>
+        ) : null}
         {input.salesData ? (
-          <details id="sales-data" open={input.salesDataOpen} className="group border-t border-border pt-2" data-testid="v3-case-sales-data">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 t-section text-fg [&::-webkit-details-marker]:hidden">
-              Данные продажи
-              <Icon name="chevron-down" size={18} className="text-fg-2 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
-            </summary>
-            <div className="mt-3 flex flex-col gap-4">{input.salesData}</div>
+          <Group id={CASE_SALES_GROUP_ID} title="Данные продажи" open={input.salesDataOpen} testId="v3-case-sales-data"
+            summary={input.sales?.manager ?? "менеджер не назначен"}>
+            <div className="flex flex-col gap-4">{input.salesData}</div>
+          </Group>
+        ) : null}
+      </LeadEditGroups>
+    </div>
+  );
+}
+
+function FeedItem({ item, today, historyHref }: Readonly<{ item: CaseFeedItem; today: string; historyHref: string }>) {
+  const time = <time dateTime={item.at} className="font-mono tabular-nums">{caseMomentLabel(item.at, today)}</time>;
+  if (item.kind === "older") {
+    return (
+      <li className="py-2.5 t-body-compact text-fg-2" data-feed="older">
+        Более ранние события журнала дела — во вкладке{" "}
+        <Link href={historyHref} className="text-fg-2 underline underline-offset-4 hover:text-fg">«История»</Link>
+      </li>
+    );
+  }
+  if (item.kind === "note") {
+    return (
+      <li className="py-3" data-feed="note">
+        <p className="whitespace-pre-wrap break-words t-body text-fg">{item.note.body}</p>
+        <p className="t-meta mt-1 text-fg-2">{item.note.authorDisplayName} · {time}</p>
+      </li>
+    );
+  }
+  if (item.kind === "chat") {
+    return (
+      <li className="flex gap-x-2 py-2.5" data-feed="chat">
+        <Icon name="message-circle" size={16} className="mt-0.5 shrink-0 text-fg-3" />
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-baseline gap-x-2 t-body-compact text-fg-2">
+            <span className="min-w-0 flex-1">Переписка · {item.author}</span>
+            <span className="t-meta">{time}</span>
+          </p>
+          <p className="mt-0.5 break-words t-body-compact text-fg">{item.text}</p>
+        </div>
+      </li>
+    );
+  }
+  return (
+    <li className="flex min-h-11 flex-wrap items-baseline gap-x-2 py-2.5 t-body-compact text-fg-2" data-feed="event">
+      <Icon name="circle" size={10} className="shrink-0 self-center text-fg-3" />
+      <span className="min-w-0 flex-1 break-words">{item.text}</span>
+      <span className="t-meta">{time}</span>
+    </li>
+  );
+}
+
+/**
+ * «Лента» — вниз по странице: заметка в одну строку, затем заметки и события
+ * из уже прочитанного (`caseFeed`), новые сверху; страницы заметок — «Ранее»
+ * и «К последним». Срез журнала дела — строка со ссылкой на «Историю».
+ */
+function Feed({ input }: Readonly<{ input: CaseOverviewInput }>) {
+  const { items, eventsUnavailable } = input.feed;
+  const key = (item: CaseFeedItem, index: number) => item.kind === "event" ? item.key : `${item.kind}:${item.at}:${index}`;
+  const shown = items.slice(0, CASE_FEED_SHOWN);
+  const rest = items.slice(CASE_FEED_SHOWN);
+  return (
+    <section id="case-feed" aria-labelledby="case-feed-title" className="min-w-0" data-testid="v3-case-feed">
+      <h2 id="case-feed-title" className="t-section text-fg">Лента</h2>
+      {input.noteComposer ? <div className="mt-2">{input.noteComposer}</div> : null}
+      {eventsUnavailable ? (
+        <p className="mt-2 t-body-compact text-fg-2" data-testid="v3-case-feed-unread">События журнала дела сейчас не прочитаны. Обновите страницу, чтобы повторить.</p>
+      ) : null}
+      {items.length > 0 ? (<>
+        <ol className="mt-3 divide-y divide-border border-y border-border" data-testid="v3-case-feed-items">
+          {shown.map((item, index) => <FeedItem key={key(item, index)} item={item} today={input.work.today} historyHref={input.hrefs.history} />)}
+        </ol>
+        {rest.length > 0 ? (
+          // Остальное — тем же списком ниже по «Показать ещё» (без скрипта: раскрытие браузера).
+          <details className="group/more" data-testid="v3-case-feed-more">
+            <summary className={`${LINK} cursor-pointer list-none group-open/more:hidden [&::-webkit-details-marker]:hidden`}>Показать ещё {rest.length}</summary>
+            <ol start={shown.length + 1} className="divide-y divide-border border-b border-border">
+              {rest.map((item, index) => <FeedItem key={key(item, shown.length + index)} item={item} today={input.work.today} historyHref={input.hrefs.history} />)}
+            </ol>
           </details>
         ) : null}
+      </>) : (
+        <p className="mt-3 border-t border-border pt-3 t-body-compact text-fg-2">Заметок и событий пока нет.</p>
+      )}
+      {input.notesOlderHref || input.notesLatestHref ? (
+        <nav aria-label="Страницы заметок" className="flex flex-wrap gap-x-5">
+          {input.notesLatestHref ? <Link href={input.notesLatestHref} prefetch={false} className={LINK}>К последним</Link> : null}
+          {input.notesOlderHref ? <Link href={input.notesOlderHref} prefetch={false} className={LINK}>Ранее</Link> : null}
+        </nav>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * «Обзор» Student 360 (Э4, 27.09.2026; по образцу Lead 360 #1078). От 1280 px
+ * две колонки: слева работа — «Задачи» (строки «Задач» с выполнением на месте),
+ * «Обращения студента» — и под ней «Лента» вниз по странице, за ней свёрнутые
+ * группы правки; справа за волосяной линией «Сведения». Ширина правой колонки
+ * — как у Lead 360; левая колонка не ждёт высоты правой: лента идёт сразу за
+ * работой. На телефоне: работа, «Сведения», «Лента», группы.
+ */
+export function CaseOverview(input: CaseOverviewInput) {
+  return (
+    <div className="grid gap-x-8 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[auto_1fr]" data-testid="v3-case-overview">
+      <div className="min-w-0 space-y-6 xl:col-start-1 xl:row-start-1">
+        <Tasks input={input} />
+        {input.help}
       </div>
-      {facts ? <Facts input={input} /> : null}
+      <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:border-s xl:border-border xl:ps-6">
+        <Facts input={input} />
+      </div>
+      <div className="flex min-w-0 flex-col gap-8 xl:col-start-1 xl:row-start-2">
+        <Feed input={input} />
+        <Groups input={input} />
+      </div>
     </div>
   );
 }

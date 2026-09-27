@@ -289,8 +289,9 @@ test("Student 360 and Lead 360: the closed line, and the lead view keeps its ove
   const closed = texts(closedHtml);
   assert.match(closed, /Состояние · Закрыто · Поступил · 22\.09\.2026 Вернуть в работу/u);
   assert.match(closedHtml, REOPEN_ROW);
-  // Шапка закрытого дела говорит то же, что «Быстрый просмотр»: шаг — последний, не живой.
-  assert.match(closed, /Следующий шаг Собрать апостиль на аттестат 20\.09 Дело закрыто: шаг не меняется\./u);
+  // Шапка закрытого дела говорит то же, что «Быстрый просмотр»: шаг — последний, не живой
+  // (Student 360, Э4: факт шапки называется «Что дальше», как у Lead 360).
+  assert.match(closed, /Что дальше Собрать апостиль на аттестат 20\.09 Дело закрыто: шаг не меняется\./u);
   assert.match(texts(surfaces.get("closed")), /Состояние Дело закрыто/u, "without the closure read the fact stays as before");
   // Закрытый лид: без красной ссылки и сырого text-sm; почему нет контактов — одной тихой строкой.
   const view = read("src/components/v3/closure/ClosedLeadView.tsx");
@@ -323,8 +324,9 @@ test("pages wire the reads, the hints and the preview rule", () => {
   assert.match(profile, /pipelineReturnTo && isClosedLeadsReturn\(pipelineReturnTo\) \? closureWords\.lead\.backToClosed/u);
   assert.match(profile, /back=\{caseBack \?\? leadBack \?\? closedLeadBack\}/u);
   assert.match(profile, /: closedLead \? closedLead\.name \?\? "Лид без имени"/u);
-  // Окно «Завершить дело» получает число открытых задач, прочитанное «Обзором» и панелью.
-  assert.match(profile, /openTasks=\{caseWork\?\.tasks\.kind === "ready" \? caseWork\.tasks\.tasks\.length : null\}/u);
+  // Окно «Завершить дело» получает число открытых задач, прочитанное «Обзором» и панелью
+  // (Student 360, Э4: «⋯» дела собирает `caseWorkParts`).
+  assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /openTasks=\{work\.tasks\.kind === "ready" \? work\.tasks\.tasks\.length : null\}/u);
   assert.match(read("src/components/v3/students/StudentQuickView.tsx"), /openTasks=\{tasks\?\.kind === "ready" \? tasks\.tasks\.length : null\}/u);
   // Строка доски после закрытия скрывается настоящей кнопкой 44 px; итог возврата — её же строка.
   assert.match(pipeline, /<button type="button" onClick=\{dismissNotice\} aria-label=\{closureWords\.dismiss\}/u);

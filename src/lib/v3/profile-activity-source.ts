@@ -70,6 +70,8 @@ export async function readProfileActivity(
       id, transition: row.action, role: "", at: timestamp === null ? null : DATE.format(new Date(timestamp as string)),
       href: `${kind === "task" ? "/v3/calendar" : kind === "conversation" ? "/v3/inbox" : "/v3/profile"}?${query}`,
       changedFields: fields,
+      targetKind: kind as NonNullable<ProfileEvent["targetKind"]>,
+      occurredAt: timestamp as string | null,
     });
   });
   let nextCursor: ProfileActivityCursor | null = null;

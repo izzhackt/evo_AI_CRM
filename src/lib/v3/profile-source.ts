@@ -658,6 +658,7 @@ function fullCaseDetails(
     // definition on this branch, so there is nothing left to "prepare".
     leadCabinetCase: null,
     contractSignedAt,
+    handedOffBy: data.handoff ? { name: data.handoff.actorDisplayName, at: data.handoff.handedOffAt } : null,
   };
 }
 

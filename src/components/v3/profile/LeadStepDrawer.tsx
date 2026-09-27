@@ -15,9 +15,12 @@ import { LEAD_STEP_DRAWER_ID } from "./lead-work-view";
  * причина; то же действие и `expected_version`), в выдвижной панели верхнего
  * слоя справа. Панель — popover: её открывают кнопки с `popoverTarget` в любом
  * месте страницы (главное действие у заголовка, «Изменить» в шапке), Esc и
- * щелчок мимо закрывают её, фокус возвращается на кнопку. Содержимое не
- * размонтируется при закрытии — набранное не теряется. После сохранения
- * страница перечитывается, форма встаёт на новую версию, итог — строкой вверху.
+ * щелчок мимо закрывают её, фокус возвращается на кнопку. Открытая панель
+ * ставит фокус на «Следующее действие» (нет шага — на «Без следующего
+ * действия»), а не на «Этап». Содержимое не размонтируется при закрытии —
+ * набранное не теряется. После сохранения панель закрывается, фокус
+ * возвращается на кнопку, открывшую её, а «Решение сохранено» говорит строка
+ * состояния шапки; страница перечитывается, форма встаёт на новую версию.
  */
 export function LeadStepDrawer({
   name,
@@ -38,23 +41,46 @@ export function LeadStepDrawer({
 }>) {
   const headingId = useId();
   const ref = useRef<HTMLDivElement>(null);
+  // Кнопка, открывшая панель: после сохранения фокус возвращается на неё
+  // (Safari не ставит фокус на кнопку по щелчку — запоминаем сам щелчок).
+  const invoker = useRef<HTMLElement | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const onToggle = (event: Event) => {
-      if ((event as ToggleEvent).newState === "open") {
-        element.querySelector<HTMLElement>("select, textarea, input:not([type=hidden])")?.focus();
-      } else {
-        setSaved(false);
-      }
+    const onClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>(`[popovertarget="${LEAD_STEP_DRAWER_ID}"]`) : null;
+      if (target && !element.contains(target)) invoker.current = target;
     };
+    const onToggle = (event: Event) => {
+      if ((event as ToggleEvent).newState !== "open") return;
+      setSaved(false);
+      (element.querySelector<HTMLElement>('textarea[name="next_action_text"]')
+        ?? element.querySelector<HTMLElement>('input[type="checkbox"]')
+        ?? element.querySelector<HTMLElement>("select, textarea, input:not([type=hidden])"))?.focus();
+    };
+    document.addEventListener("click", onClick, true);
     element.addEventListener("toggle", onToggle);
-    return () => element.removeEventListener("toggle", onToggle);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      element.removeEventListener("toggle", onToggle);
+    };
   }, []);
 
-  return (
+  const closeSaved = () => {
+    setSaved(true);
+    const element = ref.current;
+    if (element?.matches(":popover-open")) element.hidePopover();
+    const back = invoker.current;
+    if (back?.isConnected) back.focus();
+  };
+
+  return <>
+    {/* Строка состояния шапки: в дереве всегда (живой регион), видна — после сохранения. */}
+    <p role="status" aria-live="polite" className={saved ? "t-body-compact text-ok" : "sr-only"} data-testid="v3-lead-step-status">
+      {saved ? "Решение сохранено." : null}
+    </p>
     <div
       ref={ref}
       id={LEAD_STEP_DRAWER_ID}
@@ -77,7 +103,6 @@ export function LeadStepDrawer({
         </button>
       </div>
       <div className="p-4">
-        {saved ? <p role="status" className="t-body-compact mb-3 text-ok">Решение сохранено.</p> : null}
         <PipelineDecisionForm
           key={`${lead.leadId}:${lead.workflowVersion}`}
           lead={lead}
@@ -87,9 +112,9 @@ export function LeadStepDrawer({
           actor={actor}
           actorMembershipId={actor.membershipId}
           requestId={requestId}
-          onSaved={() => setSaved(true)}
+          onSaved={closeSaved}
         />
       </div>
     </div>
-  );
+  </>;
 }

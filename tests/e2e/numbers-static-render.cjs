@@ -155,8 +155,11 @@ const E4_LEADS = {
     notes: [note("Созвонились: интересует Малайзия, бюджет до 8 000 USD в год. Родители хотят консультацию.", "2026-09-25T09:40:00.000Z"),
       note("Пришла заявка с сайта, перезвонить вечером.", "2026-09-24T12:05:00.000Z")] },
   // «Потенциальный клиент»: условия заполнены, договора ещё нет — главное действие «Оформить продажу».
+  // Связанная переписка — «Написать» у заголовка (на телефоне — значком).
   potential: { strip: { ...STRIPS.working, stage: "potential" }, gate: GATE_BLOCKED, stageKey: "potential",
     next: "Подписать договор", due: "2026-09-26", conditions: CONDITIONS,
+    conversations: [{ conversationId: uuid("67676767", 1), subject: "Переписка с сайта (синтетическая)", queue: "sales", status: "open",
+      updatedAt: "2026-09-20T05:00:00.000Z" }],
     notes: [note("Встреча прошла, семья согласна на пакет «под ключ». Ждём подписи договора.", "2026-09-23T10:15:00.000Z"),
       note("Назначили встречу в офисе на 23.09.", "2026-09-19T07:30:00.000Z"),
       note("Квалифицирован: 11 класс, IELTS 6.0, Малайзия, осень 2027.", "2026-09-16T08:00:00.000Z")] },
@@ -375,7 +378,7 @@ function leadPage(name, { look = false } = {}) {
       nextActionText: scenario.next, nextActionDueDate: scenario.due ?? null, workflowVersion: "5" },
     leadCreatedAt: "2026-09-05T05:00:00.000Z",
     gate: scenario.gate, handoff: { caseId: null, canOpenCase: false, handedOffAt: scenario.strip.handoff?.completedAt ?? null, ...scenario.handoff },
-    strip: { status: "available", strip: scenario.strip }, linkedConversations: [],
+    strip: { status: "available", strip: scenario.strip }, linkedConversations: scenario.conversations ?? [],
   };
   const requestIds = Object.fromEntries(["contract", "firstPayment", "override", "handoff", "platformAccess", "saleConditions",
     "prepareLeadCabinet", "wishesCard", "educationCard", "conditionsCard", "step", "note"].map((key, index) => [key, uuid("13131313", index + 1)]));

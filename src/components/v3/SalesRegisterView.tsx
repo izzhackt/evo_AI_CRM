@@ -19,8 +19,8 @@ import { SalesRecordPreview } from "./SalesRecordPreview";
 import { salesDirectionControl } from "@/lib/sales-register-directions";
 import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 import {
-  SALES_PAGE_SIZE, SALES_SUMMARY_MAX_PAGES, groupSalesLabels, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
-  salesRowRemainder, salesRowReview, type SalesLabelGroup, type SalesMoneySummary,
+  SALES_PAGE_SIZE, SALES_SUMMARY_MAX_PAGES, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
+  salesRowRemainder, salesRowReview, salesSummaryBasis, type SalesLabelGroup, type SalesMoneySummary,
 } from "@/lib/sales-register-view";
 
 import type { V3Look } from "./blocks/look";
@@ -108,73 +108,82 @@ async function readSummaryRows(
   return { rows };
 }
 
-/** Суммы выборки по валютам: остаток — только внутри одной валюты, оплата в другой валюте — отдельно. */
-function MoneySummary({ workspace, summary, reason, filtered }: Readonly<{
-  workspace: SalesRegisterWorkspace; summary: SalesMoneySummary | null; reason: "too_many" | "unavailable" | null; filtered: boolean;
+/**
+ * Суммы выборки по валютам — выровненная таблица: подписи столбцов один раз,
+ * числа по правому краю. Остаток — только внутри одной валюты; оплата в
+ * другой валюте — отдельной строкой пары валют без остатка. Подпись над
+ * таблицей называет основу сумм (записи месяца отчёта), чтобы она не спорила
+ * с «N продаж» заголовка (по дате продажи); сноска — одна строка.
+ */
+function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly }: Readonly<{
+  workspace: SalesRegisterWorkspace; summary: SalesMoneySummary | null;
+  basis: Readonly<{ total: number; undated: number; otherSaleDate: number }> | null;
+  reason: "too_many" | "unavailable" | null; filtered: boolean; yearOnly: boolean;
 }>) {
   if (workspace.totalCount === 0) return null;
-  const amount = (minor: number, currency: string) => <span className="tabular-nums text-fg">{money(minor, currency)}</span>;
+  const total = basis?.total ?? workspace.totalCount;
+  const within = [
+    basis && basis.undated > 0 ? `${basis.undated} без даты продажи` : null,
+    basis && basis.otherSaleDate > 0 ? `${basis.otherSaleDate} с датой продажи в другом ${yearOnly ? "году" : "месяце"}` : null,
+  ].filter(Boolean).join(" и ");
+  const caption = `Суммы по ${total.toLocaleString("ru-RU")} ${recordsDative(total)} ${yearOnly ? "года" : "месяца"} отчёта${filtered ? " с фильтрами" : ""}${within ? `, из них ${within}` : ""}`;
+  const left = summary ? [
+    summary.noCost > 0 ? `без стоимости — ${summary.noCost} ${recordsWord(summary.noCost)}` : null,
+    summary.paidUnclear > 0 ? `оплата не разобрана — ${summary.paidUnclear} ${recordsWord(summary.paidUnclear)}` : null,
+  ].filter(Boolean).join(", ") : "";
+  const cross = summary ? summary.cross.map((pair) => `${pair.costCurrency} → ${pair.paidCurrency} — стоимость в ${pair.costCurrency}, оплата в ${pair.paidCurrency} (${pair.count} ${recordsWord(pair.count)}): остаток не считается.`) : [];
+  const footnote = [
+    ...cross,
+    summary ? null : reason === "too_many"
+      ? `Остаток не посчитан: в выборке больше ${SALES_PAGE_SIZE * SALES_SUMMARY_MAX_PAGES} записей — сузьте период или фильтры.`
+      : "Остаток не посчитан: не удалось прочитать все записи выборки — обновите страницу.",
+    left ? `Не вошли: ${left}.` : null,
+    "Валюты не пересчитываются; это записи отчёта, не поступления за месяц.",
+  ].filter(Boolean).join(" ");
+  const head = "pb-1 ps-4 text-right font-medium sm:ps-10";
+  const value = "py-1 ps-4 text-right align-baseline t-body-compact tabular-nums sm:ps-10";
+  const label = "py-1 pe-3 text-left align-baseline";
+  const lines = summary ? summary.lines.map((line) => ({ currency: line.currency, cost: line.costMinor, paid: line.paidMinor, rest: line.remainderMinor as number | null }))
+    : workspace.totals.map((line) => ({ currency: line.currency, cost: line.costMinor, paid: line.paidMinor, rest: null }));
   return (
     <section aria-labelledby="sales-money-title" className="mt-4 border-y border-border py-3" data-testid="sales-money-summary">
       <h2 id="sales-money-title" className="sr-only">Суммы по записям</h2>
-      {summary ? <>
-        {summary.lines.length > 0 ? (
-          <ul aria-label="Денежные итоги по валютам" className="space-y-1">
-            {summary.lines.map((line) => (
-              <li key={line.currency} className="grid grid-cols-[2.75rem_minmax(0,1fr)] items-baseline gap-x-2 t-body-compact text-fg-2" data-money-line={line.currency}>
-                <span className="t-item text-fg">{line.currency}</span>
-                <span className="flex flex-wrap gap-x-5 gap-y-0.5">
-                  <span>Стоимость {amount(line.costMinor, line.currency)}</span>
-                  <span>Оплачено {amount(line.paidMinor, line.currency)}</span>
-                  <span>Остаток {amount(line.remainderMinor, line.currency)}</span>
-                </span>
-              </li>
+      <p className="t-meta text-fg-2" data-money-basis={total}>{caption}</p>
+      {lines.length > 0 || (summary?.cross.length ?? 0) > 0 ? (
+        <table className="mt-1.5 w-full sm:w-auto" data-testid="sales-money-table">
+          <caption className="sr-only">Стоимость, оплачено и остаток по валютам</caption>
+          <thead>
+            <tr className="t-caption text-fg-2">
+              <th scope="col" className="pb-1 pe-3 text-left font-medium"><span className="sr-only">Валюта</span></th>
+              <th scope="col" className={head}>Стоимость</th>
+              <th scope="col" className={head}>{summary ? "Оплачено" : "Оплачено по записям"}</th>
+              {summary ? <th scope="col" className={head}>Остаток</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line) => (
+              <tr key={line.currency} data-money-line={line.currency}>
+                <th scope="row" className={`${label} t-item text-fg`}>{line.currency}</th>
+                <td className={`${value} text-fg`}>{number.format(line.cost / 100)}</td>
+                <td className={`${value} text-fg`}>{number.format(line.paid / 100)}</td>
+                {summary ? <td className={`${value} font-medium text-fg`}>{line.rest === null ? "—" : number.format(line.rest / 100)}</td> : null}
+              </tr>
             ))}
-          </ul>
-        ) : null}
-        {summary.cross.length > 0 ? (
-          <p className="mt-1.5 t-meta text-fg-2" data-money-cross="">
-            Оплата в другой валюте — в остаток не входит:{" "}
-            {summary.cross.map((pair, index) => (
-              <span key={`${pair.costCurrency}${pair.paidCurrency}`}>
-                {index > 0 ? "; " : null}
-                стоимость в {pair.costCurrency}, оплата в {pair.paidCurrency} — {pair.count} {recordsWord(pair.count)}:{" "}
-                <span className="tabular-nums">{money(pair.costMinor, pair.costCurrency)}</span>, оплачено{" "}
-                <span className="tabular-nums">{money(pair.paidMinor, pair.paidCurrency)}</span>
-              </span>
+            {summary?.cross.map((pair) => (
+              <tr key={`${pair.costCurrency}>${pair.paidCurrency}`} data-money-cross={`${pair.costCurrency}>${pair.paidCurrency}`}>
+                <th scope="row" className={`${label} whitespace-nowrap t-body-compact font-normal text-fg-2`}>
+                  {pair.costCurrency} → {pair.paidCurrency}
+                  <span className="sr-only">: стоимость в {pair.costCurrency}, оплата в {pair.paidCurrency}, {pair.count} {recordsWord(pair.count)}</span>
+                </th>
+                <td className={`${value} text-fg`}>{money(pair.costMinor, pair.costCurrency)}</td>
+                <td className={`${value} text-fg`}>{money(pair.paidMinor, pair.paidCurrency)}</td>
+                <td className={`${value} text-fg-3`}>—<span className="sr-only">остаток не считается</span></td>
+              </tr>
             ))}
-          </p>
-        ) : null}
-        {summary.noCost > 0 || summary.paidUnclear > 0 ? (
-          <p className="mt-1 t-meta text-fg-2">
-            Не вошли в суммы:{" "}
-            {[summary.noCost > 0 ? `без стоимости — ${summary.noCost} ${recordsWord(summary.noCost)}` : null,
-              summary.paidUnclear > 0 ? `оплата не разобрана — ${summary.paidUnclear} ${recordsWord(summary.paidUnclear)}` : null].filter(Boolean).join("; ")}.
-          </p>
-        ) : null}
-      </> : <>
-        {workspace.totals.length > 0 ? (
-          <ul aria-label="Денежные итоги по валютам" className="space-y-1">
-            {workspace.totals.map((total) => (
-              <li key={total.currency} className="grid grid-cols-[2.75rem_minmax(0,1fr)] items-baseline gap-x-2 t-body-compact text-fg-2">
-                <span className="t-item text-fg">{total.currency}</span>
-                <span className="flex flex-wrap gap-x-5 gap-y-0.5">
-                  <span>Стоимость {amount(total.costMinor, total.currency)}</span>
-                  <span>Оплачено по записям {amount(total.paidMinor, total.currency)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <p className="mt-1 t-meta text-fg-2">
-          {reason === "too_many"
-            ? `Остаток не посчитан: в выборке больше ${SALES_PAGE_SIZE * SALES_SUMMARY_MAX_PAGES} записей — сузьте период или фильтры.`
-            : "Остаток не посчитан: не удалось прочитать все записи выборки. Обновите страницу."}
-        </p>
-      </>}
-      <p className="mt-1 t-meta text-fg-3">
-        Суммы по записям {filtered ? "выборки" : "периода"}, не поступления за месяц; валюты не пересчитываются.
-      </p>
+          </tbody>
+        </table>
+      ) : null}
+      <p className="mt-1.5 t-meta text-fg-3">{footnote}</p>
     </section>
   );
 }
@@ -210,7 +219,7 @@ function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
       </th>
       <td role="cell" className={cell}><span className="block truncate t-body-compact text-fg-2" title={place || undefined}>{place || "—"}</span></td>
       <td role="cell" className={cell}><span className="block truncate t-body-compact text-fg-2" title={manager || undefined}>{manager || "—"}</span></td>
-      <td role="cell" className={cell} title={reportMonth ?? undefined}>
+      <td role="cell" className={`${cell} @min-[60rem]/sales-records:px-2`} title={reportMonth ?? undefined}>
         {row.signingDate ? <time dateTime={row.signingDate} className={`t-body-compact text-fg-2 ${mono}`}>{rowDate(row.signingDate, year)}</time> : <span className="t-body-compact text-fg-3">—</span>}
         {reportMonth ? <span className="sr-only">. {reportMonth}</span> : null}
       </td>
@@ -223,13 +232,18 @@ function SaleRow({ row, year, href, selected, showReportMonth }: Readonly<{
         </span>
       </td>
       <td role="cell" className={`${cell} pe-4`}><span className={`block truncate t-body-compact ${reviewTone}`} title={reviewText}>{reviewText}</span></td>
-      {/* Узкий контейнер: сведения строки — одной-двумя строками под именем (широкий их не показывает). */}
+      {/* Узкий контейнер: сведения строки под именем (широкий их не показывает); дата — JetBrains Mono,
+          «Уточнить» — своей строкой целиком: причина не прячется за многоточием. */}
       <td role="cell" className="col-span-2 min-w-0 pb-1 @min-[60rem]/sales-records:hidden">
         <p className="truncate t-meta text-fg-2">
-          {[row.signingDate ? rowDate(row.signingDate, year) : "без даты", manager || null, place || null].filter(Boolean).join(" · ")}
+          {row.signingDate ? <time dateTime={row.signingDate} className="font-mono tabular-nums">{rowDate(row.signingDate, year)}</time> : "без даты"}
+          {[manager, place].filter(Boolean).map((part) => ` · ${part}`).join("")}
         </p>
-        <p className="truncate t-meta text-fg-2">
-          {[cost ? `стоимость ${cost}` : null, paid ? `оплачено ${paid}` : null, reviewText].filter(Boolean).join(" · ")}
+        {cost || paid ? <p className="truncate t-meta tabular-nums text-fg-2">
+          {[cost ? `стоимость ${cost}` : null, paid ? `оплачено ${paid}` : null].filter(Boolean).join(" · ")}
+        </p> : null}
+        <p className={`break-words t-meta ${reviewTone}`} data-row-review="">
+          {review.state === "review" ? `Уточнить: ${reviewText}` : reviewText}
         </p>
       </td>
     </tr>
@@ -296,6 +310,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
   }
   const summaryRead = workspace && !creatingForm ? await readSummaryRows(actor, workspace, offset, selection) : null;
   const summary = summaryRead?.rows ? salesMoneySummary(summaryRead.rows) : null;
+  const summaryBasis = summaryRead?.rows ? salesSummaryBasis(summaryRead.rows, { year, month }) : null;
   const management = await managementPromise;
   const canTarget = management.status === "ready" && management.data.canManageTarget;
   const canImport = management.status === "ready" && management.data.canImport;
@@ -435,7 +450,8 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
           {saved.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(saved.leadId)}`} className={`${btnGhostCls} min-h-11`}>Открыть дело</Link> : null}
         </div>
       </section> : null}
-      {workspace ? <MoneySummary workspace={workspace} summary={summary} reason={summaryRead && summaryRead.rows === null ? summaryRead.reason : null} filtered={hasFilters} /> : null}
+      {workspace ? <MoneySummary workspace={workspace} summary={summary} basis={summaryBasis} yearOnly={month === undefined}
+        reason={summaryRead && summaryRead.rows === null ? summaryRead.reason : null} filtered={hasFilters} /> : null}
       {toolbar}
       {variantNote ? <p className="mt-2 t-meta text-fg-2" data-testid="sales-variant-note">
         Фильтр точный: показаны записи с выбранным написанием {variantNote}. Другие написания — в том же меню; сведение к сотрудникам и списку направлений — отдельный шаг.
@@ -458,9 +474,18 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
             <div role="region" aria-label="Записи продаж" tabIndex={0} className="relative max-w-full overflow-x-auto border-t border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
               <table role="table" className="block w-full text-left @min-[60rem]/sales-records:table @min-[60rem]/sales-records:table-fixed">
                 <caption className="sr-only">{`Продажи: ${workspace.totalCount} ${recordsWord(workspace.totalCount)}`}</caption>
+                {/* Ширины по содержимому: суммы — по «120 000 KGS» целиком, остальное — тексту. От 70rem
+                    (≈1440) имя, «Страна · программа», менеджер и причина помещаются; уже (≈1280) места
+                    на всё нет — сужается текст (подсказка с полным), а не суммы. */}
                 <colgroup className="hidden @min-[60rem]/sales-records:table-column-group">
-                  <col className="w-[19%]" /><col className="w-[13%]" /><col className="w-[10%]" /><col className="w-[7%]" />
-                  <col className="w-[11%]" /><col className="w-[11%]" /><col className="w-[11%]" /><col className="w-[18%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[20%] @min-[70rem]/sales-records:w-[21%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[6%] @min-[70rem]/sales-records:w-[5.5%]" />
+                  <col className="w-[11%] @min-[70rem]/sales-records:w-[9.5%]" />
+                  <col className="w-[10%] @min-[70rem]/sales-records:w-[8.5%]" />
+                  <col className="w-[10%] @min-[70rem]/sales-records:w-[8.5%]" />
+                  <col className="w-[14%] @min-[70rem]/sales-records:w-[18%]" />
                 </colgroup>
                 <thead role="rowgroup" className="sr-only @min-[60rem]/sales-records:not-sr-only @min-[60rem]/sales-records:table-header-group">
                   <tr role="row" className="t-caption text-fg-2">
@@ -516,7 +541,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null, look }:
       {dynamics}
       {(showTargetForm && month && query.archived !== "true") || canImport || managementUnavailable ? <div className="mt-8 space-y-5 border-t border-border pt-5">
         {managementUnavailable ? <p role="alert" className="text-sm text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null}
-        {showTargetForm && month && query.archived !== "true" ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Изменить план месяца</summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace || managementUnavailable} /></details> : null}
+        {showTargetForm && month && query.archived !== "true" ? <details className="group"><summary className="flex min-h-12 w-fit cursor-pointer list-none items-center gap-2 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">Изменить план месяца<Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" /></summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace || managementUnavailable} /></details> : null}
         {canImport ? <Link href={importHref} className={`${btnGhostCls} min-h-11`}>Перенос данных</Link> : null}
       </div> : null}
     </>}

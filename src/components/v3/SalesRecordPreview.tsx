@@ -49,10 +49,9 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId 
   return <section className={panel ? "space-y-6" : "mt-6 max-w-[860px] space-y-6"} aria-labelledby={panelHeadingId ?? "sale-preview-title"}>
     {panel ? null : <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>}
     <header className="space-y-3">
-      {panel ? <>
-        <p className="t-caption text-fg-2">Запись продажи</p>
+      {panel ? (
         <h2 id={panelHeadingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{record.applicantName || "Имя не указано"}</h2>
-      </> : <>
+      ) : <>
         <h1 id="sale-preview-title" className="t-page-title text-fg">Запись продажи</h1>
         <h2 className="t-record-title break-words text-fg">{record.applicantName || "Имя не указано"}</h2>
       </>}

@@ -24,7 +24,8 @@ const STATUS_COPY: Readonly<
 /**
  * Заметка ленты Lead 360 (Э4) в одну строку: то же действие
  * (`createCaseNoteAction`), тот же субъект и тот же предел 4000 знаков, что у
- * `ProfileNotes`. Поле растёт вниз, если текст длиннее строки; Ctrl/⌘+Enter
+ * `ProfileNotes`. Поле растёт вниз по тексту само (`field-sizing: content`,
+ * до 15rem); браузер без него оставляет ручку высоты. Ctrl/⌘+Enter
  * отправляет. Исправление — новой заметкой: записи не редактируются.
  */
 export function LeadNoteComposer({
@@ -82,7 +83,7 @@ export function LeadNoteComposer({
             }
           }}
           aria-describedby={lengthRejected ? "lead-note-body-length-error" : undefined}
-          className="min-h-11 min-w-0 flex-1 resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2.5 t-body text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:bg-surface-2 disabled:text-fg-3"
+          className="min-h-11 min-w-0 flex-1 resize-y supports-[field-sizing:content]:max-h-60 supports-[field-sizing:content]:resize-none supports-[field-sizing:content]:field-sizing-content rounded-ctl border border-control-edge bg-surface px-3 py-2.5 t-body text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:bg-surface-2 disabled:text-fg-3"
         />
         <button type="submit" disabled={pending || lengthRejected} className={QUEUE_SECONDARY}>
           {pending ? "Сохраняем…" : "Добавить заметку"}

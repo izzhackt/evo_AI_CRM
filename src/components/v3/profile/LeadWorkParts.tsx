@@ -16,7 +16,7 @@ import { Initials } from "../blocks/Initials";
 import { isNextLook, type V3Look } from "../blocks/look";
 import { StageTrack } from "../blocks/StageTrack";
 import { dueWordOf } from "../queue/due-bucket";
-import { handoffStripView, stripMoment, type StripText } from "./handoff-strip-view";
+import { handoffFootnote, handoffStripView, stripMoment, type StripText } from "./handoff-strip-view";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
 import { LeadNoteComposer } from "./LeadNoteComposer";
@@ -45,6 +45,8 @@ const ACTION_LINK = "inline-flex min-h-11 items-center gap-1.5 rounded-ctl borde
 /** Текстовая кнопка факта: 44 px по высоте, подчёркнута — без красного она остаётся действием. */
 const FACT_ACTION = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 const QUIET_LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
+/** Вторичное действие у заголовка: на телефоне — значок 44 px (имя остаётся для чтения с экрана), от `sm` — со словом. */
+const ICON_ACTION = `${ACTION_LINK} min-w-11 justify-center`;
 
 export type LeadWorkPartsInput = Readonly<{
   actor: ActivePlatformActor;
@@ -112,8 +114,11 @@ function EditGroup({ id, title, summary, testId, children }: Readonly<{
   return (
     <details name="lead-edit" id={id} data-lead-group="" data-testid={testId} className="group scroll-mt-4 border-b border-border">
       <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-nav py-1.5 [&::-webkit-details-marker]:hidden">
-        <span className="shrink-0 t-item text-fg">{title}</span>
-        <span className={`min-w-0 flex-1 truncate t-meta ${summary ? "text-fg-2" : "text-fg-3"}`} title={shown}>{shown}</span>
+        {/* Строка заполненного — рядом с названием, а если места меньше 7rem — под ним во всю ширину. */}
+        <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3">
+          <span className="t-item text-fg">{title}</span>
+          <span className={`min-w-28 flex-1 truncate t-meta ${summary ? "text-fg-2" : "text-fg-3"}`} title={shown}>{shown}</span>
+        </span>
         <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
       </summary>
       <div className="pb-4 pt-1">{children}</div>
@@ -180,6 +185,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const taskHref = taskCaseId
     ? `/v3/tasks?create=case&case=${encodeURIComponent(taskCaseId)}`
     : !preview && staffHasPermission(actor, "staff.task.read") ? `/v3/tasks?lead=${encodeURIComponent(leadId)}&create=staff` : null;
+  const taskLabel = taskCaseId ? "Задача по делу" : "Задача по лиду";
   const closable = !preview && staffHasPermission(actor, "lead.sales.workflow.manage");
 
   const actions = (
@@ -194,15 +200,16 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         <Link href={primary.href} className={ACTION_LINK} data-testid="v3-lead-primary">Открыть дело</Link>
       ) : null}
       {writeHref ? (
-        <Link href={writeHref} className={ACTION_LINK}>
+        <Link href={writeHref} className={ICON_ACTION} title="Написать">
           <Icon name="message-circle" size={18} className="shrink-0" />
-          Написать
+          <span className="sr-only sm:not-sr-only">Написать</span>
         </Link>
       ) : null}
       {taskHref ? (
-        <Link href={taskHref} className={ACTION_LINK}>
+        // Не «Создать задачу»: так называется общее действие верхней строки в том же экране.
+        <Link href={taskHref} className={ICON_ACTION} title={taskLabel} data-testid="v3-lead-task">
           <Icon name="check-square" size={18} className="shrink-0" />
-          Создать задачу
+          <span className="sr-only sm:not-sr-only">{taskLabel}</span>
         </Link>
       ) : null}
       <LeadMoreMenu
@@ -277,8 +284,9 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const lastContact = leadLastContact(firstNotesPage ? input.notes.rows[0]?.createdAt ?? null : null, conversations);
   const acknowledgement = draft.salesHandoffAcknowledgement;
   const curatorAnswer = draft.handoffAcknowledgement;
+  // Правая колонка от 1280 px — одна волосяная линия слева во весь рост, как у дела.
   const facts = (
-    <aside className="@container min-w-0 xl:col-start-2 xl:row-start-1" aria-labelledby="lead-facts-title" data-testid="v3-lead-facts">
+    <aside className="@container min-w-0 xl:col-start-2 xl:row-start-1 xl:border-s xl:border-border xl:ps-6" aria-labelledby="lead-facts-title" data-testid="v3-lead-facts">
       <h2 id="lead-facts-title" className="t-section text-fg">Сведения</h2>
       <dl className="mt-1">
         <Fact term="Ответственный">
@@ -332,11 +340,25 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           </Fact>
         ) : null}
       </dl>
-      <section aria-labelledby="lead-handoff-title" className="mt-4 border-t border-border pt-3">
-        <h3 id="lead-handoff-title" className="t-item text-fg">Передача</h3>
-        <HandoffStripBlock gate={sales.gate} view={strip} className="mt-1 space-y-3" summary={!handedOff} />
-      </section>
     </aside>
+  );
+
+  // «Передача»: пока ни одного доказательства нет, предупреждать не о чем и
+  // сноски нет — одна строка вместо пяти прочерков; первый факт — полоса.
+  const handoffEmpty = strip !== null && !handedOff && strip.warnings.length === 0
+    && strip.items.every((item) => item.state === "missing") && handoffFootnote(sales.gate, { now: input.now }) === null;
+  const handoff = (
+    <section aria-labelledby="lead-handoff-title" className="@container min-w-0 border-t border-border pt-3" data-testid="v3-lead-handoff">
+      {handoffEmpty ? (
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <h2 id="lead-handoff-title" className="t-item text-fg">Передача</h2>
+          <p className="t-body-compact text-fg-2" data-testid="v3-handoff-empty">ничего не подтверждено</p>
+        </div>
+      ) : <>
+        <h2 id="lead-handoff-title" className="t-item text-fg">Передача</h2>
+        <HandoffStripBlock gate={sales.gate} view={strip} className="mt-1 space-y-3" summary={!handedOff} />
+      </>}
+    </section>
   );
 
   // --- Лента ---------------------------------------------------------------
@@ -437,7 +459,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
       />
     ) : null;
   const groups = (
-    <section className="@container min-w-0 xl:col-start-2 xl:row-start-2" aria-labelledby="lead-edit-title" data-testid="v3-lead-edit">
+    <section className="@container min-w-0" aria-labelledby="lead-edit-title" data-testid="v3-lead-edit">
       <h2 id="lead-edit-title" className="t-section text-fg">Данные лида</h2>
       <LeadEditGroups>
         {conditions && summaries ? (
@@ -454,14 +476,15 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
               <LeadEducationCard leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.educationCard}
                 readOnly={conditionsReadOnly} quiet bare />
             </EditGroup>
-            <EditGroup title="Условия" summary={summaries.conditions} testId="v3-lead-group-conditions">
+            <EditGroup title="Бюджет и ограничения" summary={summaries.conditions} testId="v3-lead-group-conditions">
               <LeadConditionsCard leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.conditionsCard}
                 readOnly={conditionsReadOnly} quiet bare />
             </EditGroup>
           </SaleConditionsRevisionProvider>
         ) : null}
         {hasGateForms ? (
-          <EditGroup title="Договор и оплата" summary={gateSummary} testId="v3-lead-group-contract">
+          // Не «Договор и оплата»: так называется вкладка с договором и деньгами; здесь — подтверждения для передачи.
+          <EditGroup title="Подтверждение договора и платежа" summary={gateSummary} testId="v3-lead-group-contract">
             <HandoffGateForms actor={actor} gate={gate} requestIds={input.requestIds} bare />
           </EditGroup>
         ) : null}
@@ -483,11 +506,17 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     </section>
   );
 
+  // Порядок чтения на телефоне: «Сведения», лента с заметкой, «Передача», группы
+  // правки. От 1280 px лента — слева во весь рост, справа — остальное; вторая
+  // строка растягивается до конца ленты, и линия слева у колонки не рвётся.
   const overview = (
-    <div className="grid gap-x-8 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[auto_1fr]" data-testid="v3-lead-overview">
+    <div className="grid gap-x-8 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[auto_1fr] xl:gap-y-0" data-testid="v3-lead-overview">
       {facts}
       {feedPart}
-      {groups}
+      <div className="flex min-w-0 flex-col gap-6 xl:col-start-2 xl:row-start-2 xl:border-s xl:border-border xl:ps-6 xl:pt-6">
+        {handoff}
+        {groups}
+      </div>
     </div>
   );
 

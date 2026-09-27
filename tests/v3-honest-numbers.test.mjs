@@ -438,13 +438,13 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   assert.doesNotMatch(text(sold), /ждёт принятия|ждёт ответа/u, "no pending step nobody can take");
   const report = pages.get("report");
   assert.match(text(report), /Алина Переданная Малайзия · Бакалавриат Санжар Эскизов 22\.09 1 500 USD 600 USD/u, "the same record says the same numbers");
-  // До передачи: нейтрально, формы подтверждения спокойные — в свёрнутой группе «Договор и оплата»,
-  // исключение Admin свёрнуто и в ней.
+  // До передачи: нейтрально, формы подтверждения спокойные — в свёрнутой группе «Подтверждение
+  // договора и платежа» (не вкладка «Договор и оплата»), исключение Admin свёрнуто и в ней.
   const working = pages.get("lead-working");
   assert.match(working, /data-testid="v3-lead-stage">Квалифицирован</u);
   assert.doesNotMatch(working, /v3-handoff-summary|v3-handoff-warnings/u);
   const contract = working.slice(working.indexOf('data-testid="v3-lead-group-contract"'));
-  assert.match(contract, /^data-testid="v3-lead-group-contract"[^>]*><summary[^>]*>.*?Договор и оплата.*?договор не подтверждён/u);
+  assert.match(contract, /^data-testid="v3-lead-group-contract"[^>]*><summary[^>]*>.*?Подтверждение договора и платежа.*?договор не подтверждён/u);
   assert.match(contract, /<details class="group py-1"><summary[^>]*>.*?Исключение Admin<\/summary>/u);
   // Сплошной красный на странице один — главное действие; в «Передаче» и группах правки его нет.
   const solidRed = (html) => html.match(/(?<![\w:-])bg-accent(?![\w-])/gu)?.length ?? 0;

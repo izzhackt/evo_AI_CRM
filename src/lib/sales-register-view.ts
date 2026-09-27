@@ -139,6 +139,30 @@ export function salesMoneySummary(rows: readonly SalesRegisterRow[]): SalesMoney
   });
 }
 
+/**
+ * На чём стоят суммы: записи выборки по месяцу (или году) отчёта — не то же,
+ * что «N продаж» заголовка (по дате продажи). Сколько из них без даты продажи
+ * и сколько с датой продажи вне периода — чтобы два числа рядом не спорили.
+ */
+export function salesSummaryBasis(
+  rows: readonly Pick<SalesRegisterRow, "signingDate">[],
+  period: Readonly<{ year: number; month: number | undefined }>,
+): Readonly<{ total: number; undated: number; otherSaleDate: number }> {
+  const prefix = period.month === undefined ? `${period.year}-` : `${period.year}-${String(period.month).padStart(2, "0")}-`;
+  let undated = 0;
+  let otherSaleDate = 0;
+  for (const row of rows) {
+    if (row.signingDate === null) undated += 1;
+    else if (!row.signingDate.startsWith(prefix)) otherSaleDate += 1;
+  }
+  return { total: rows.length, undated, otherSaleDate };
+}
+
+/** «по 1 записи», «по 9 записям», «по 21 записи». */
+export function recordsDative(count: number): string {
+  return count % 10 === 1 && count % 100 !== 11 ? "записи" : "записям";
+}
+
 /** Сколько записей по выборке сервер отдаёт страницей; остаток читает все страницы до этого предела. */
 export const SALES_PAGE_SIZE = 50;
 export const SALES_SUMMARY_MAX_PAGES = 10;

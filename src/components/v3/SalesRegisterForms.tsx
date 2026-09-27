@@ -193,10 +193,9 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   </select></label>;
 
   return <div className="space-y-6">
-    {panel ? <div>
-      <p className="t-caption text-fg-2">Запись продажи</p>
+    {panel ? (
       <h2 id={panelHeadingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{record?.applicantName || "Запись продажи"}</h2>
-    </div> : <>
+    ) : <>
       <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
       <h1 className="t-page-title">{recordId ? "Запись продажи" : "Добавить продажу"}</h1>
     </>}

@@ -32,6 +32,17 @@
  *     → снимки Playwright Chromium 1440×900 и 390×844 (во весь рост) в
  *       outDir (по умолчанию .impeccable/review, не коммитится):
  *       numbers-<сценарий>-<ширина>.png и метрики на каждый снимок.
+ *   node tests/e2e/numbers-static-render.cjs --json-e4
+ *     → stdout: JSON [{ name, html }] страниц Э4 ниже в обоих обликах
+ *       (для tests/v3-e4-work-surfaces.test.mjs).
+ *   node tests/e2e/numbers-static-render.cjs --e4-screenshots [outDir]
+ *     → Э4 (27.09.2026): Lead 360 как рабочая карточка — лид на раннем этапе,
+ *       «Потенциальный клиент», переданный лид — и «Отчёт продаж» (список,
+ *       открытая запись в панели, «Весь 2026 год» — и с открытой записью,
+ *       срез «записаны в другой месяц отчёта», больше 500 записей — суммы
+ *       сервера, «Поступления и возвраты за месяц») в прежнем и новом облике, 1440×900, 1280×800 и 390×844 во
+ *       весь рост: e4-<сценарий>[-next]-<ширина>.png, высота страницы, число
+ *       сплошных красных и видимых месяцев отчёта на каждый снимок.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -125,6 +136,42 @@ const LEAD_SCENARIOS = {
   "lead-working": { strip: STRIPS.working, gate: GATE_BLOCKED, stageKey: "qualified", next: "Отправить договор на подпись" },
 };
 
+// Э4: условия продажи и заметки лида — синтетика той же формы, что читает Lead 360.
+const CONDITIONS = {
+  leadId: LEAD_ID, organizationId: ORG, revision: 3, serviceLabel: "Поступление в Малайзию «под ключ»", signingDate: null,
+  serviceCostRaw: "1500", serviceCostMinor: 150000, serviceCostCurrency: "USD", paidRaw: "", paidMinor: null, paidCurrency: null,
+  paymentNote: "", wishesCountries: "Малайзия", wishesStudyFields: "IT, бизнес", wishesEducationLevel: "Бакалавриат",
+  wishesIntakeYear: "2027", wishesIntakeSeason: "осень", wishesUniversities: "", educationCurrent: "11 класс", educationGrade: "",
+  educationMarks: "", educationEnglish: "IELTS 6.0", educationCertificates: "", conditionsBudgetRaw: "8000", conditionsBudgetMinor: 800000,
+  conditionsBudgetCurrency: "USD", conditionsBudgetPeriod: "year", conditionsScholarship: "", conditionsNote: "",
+  updatedByMembershipId: ME, updatedAt: "2026-09-20T05:00:00.000Z", linkedSalesRegister: null,
+};
+const EMPTY_CONDITIONS = { ...CONDITIONS, serviceLabel: "", serviceCostRaw: "", serviceCostMinor: null, serviceCostCurrency: null,
+  wishesStudyFields: "", wishesEducationLevel: "", wishesIntakeSeason: "", educationCurrent: "", educationEnglish: "",
+  conditionsBudgetRaw: "", conditionsBudgetMinor: null, conditionsBudgetCurrency: null, conditionsBudgetPeriod: null };
+const note = (body, at, author = "Санжар Эскизов") => ({ body, authorDisplayName: author, createdAt: at });
+const E4_LEADS = {
+  // Ранний этап: связались, следующий шаг с датой, условия почти пустые.
+  early: { strip: { ...STRIPS.working, stage: "contacting" }, gate: GATE_BLOCKED, stageKey: "contacting",
+    next: "Позвонить после консультации с родителями", due: "2026-09-29", conditions: EMPTY_CONDITIONS,
+    notes: [note("Созвонились: интересует Малайзия, бюджет до 8 000 USD в год. Родители хотят консультацию.", "2026-09-25T09:40:00.000Z"),
+      note("Пришла заявка с сайта, перезвонить вечером.", "2026-09-24T12:05:00.000Z")] },
+  // «Потенциальный клиент»: условия заполнены, договора ещё нет — главное действие «Оформить продажу».
+  // Связанная переписка — «Написать» у заголовка (на телефоне — значком).
+  potential: { strip: { ...STRIPS.working, stage: "potential" }, gate: GATE_BLOCKED, stageKey: "potential",
+    next: "Подписать договор", due: "2026-09-26", conditions: CONDITIONS,
+    conversations: [{ conversationId: uuid("67676767", 1), subject: "Переписка с сайта (синтетическая)", queue: "sales", status: "open",
+      updatedAt: "2026-09-20T05:00:00.000Z" }],
+    notes: [note("Встреча прошла, семья согласна на пакет «под ключ». Ждём подписи договора.", "2026-09-23T10:15:00.000Z"),
+      note("Назначили встречу в офисе на 23.09.", "2026-09-19T07:30:00.000Z"),
+      note("Квалифицирован: 11 класс, IELTS 6.0, Малайзия, осень 2027.", "2026-09-16T08:00:00.000Z")] },
+  // Передан: этап доски «Переданы», строка передачи вместо шага, «Открыть дело» — нейтральное.
+  handed: { strip: STRIPS.handed, gate: GATE_SATISFIED, stageKey: "new", next: "Передано в поступление", due: null,
+    conditions: { ...CONDITIONS, signingDate: "2026-09-17", paidRaw: "600", paidMinor: 60000, paidCurrency: "USD" },
+    handoff: { caseId: uuid("45454545", 1), canOpenCase: true },
+    notes: [note("Договор подписан, первый платёж получен. Передаём куратору.", "2026-09-17T11:20:00.000Z")] },
+};
+
 // «Отчёт продаж», сентябрь 2026: те же записи, что в SQL-наборе 247.
 function saleRow(n, fields) {
   return {
@@ -145,12 +192,116 @@ const REPORT_ROWS = [
   saleRow(5, { name: "Данияр Макетов", sale: null }),
   saleRow(6, { name: "Руслан Прототипов", sale: "2026-08-30" }),
 ];
-const WORKSPACE = {
-  year: 2026, month: 9, totalCount: REPORT_ROWS.length, rows: REPORT_ROWS, selected: null, offset: 0, hasMore: false,
-  totals: [{ currency: "USD", costMinor: 900000, paidMinor: 360000 }], unresolvedCostCount: 0, unresolvedPaidCount: 0,
-  targets: [], managerLabels: ["Санжар Эскизов"], ownerOptions: [],
-};
 const SALES_COUNT = { status: "available", count: { from: "2026-09-01", to: "2026-09-30", sales: 5, undated: 1, otherSaleDate: 1, filedElsewhere: 1 } };
+
+// Э4: отчёт с записями, по которым видно сведение фильтров, причины «Уточнить»
+// и остаток по валютам: одно имя менеджера в трёх написаниях, направление в двух,
+// оплата в другой валюте, запись без даты продажи и без стоимости.
+function e4Row(n, fields) {
+  return { ...saleRow(n, { name: fields.name, sale: fields.sale === undefined ? "2026-09-10" : fields.sale, month: fields.month }),
+    id: uuid("78787878", n), managerLabel: fields.manager ?? "Санжар Эскизов", country: fields.country ?? "Малайзия",
+    direction: fields.direction ?? "Малайзия", program: fields.program ?? "Бакалавриат",
+    serviceCostRaw: fields.costRaw ?? String((fields.cost ?? 150000) / 100), serviceCostMinor: fields.cost === undefined ? 150000 : fields.cost,
+    serviceCostCurrency: fields.cost === null ? null : fields.costCurrency ?? "USD",
+    paidRaw: fields.paidRaw ?? (fields.paid === null ? "" : String((fields.paid ?? 60000) / 100)), paidMinor: fields.paid === undefined ? 60000 : fields.paid,
+    paidCurrency: fields.paid === null ? null : fields.paidCurrency ?? "USD", needsReview: fields.review ?? false,
+    archived: fields.archived ?? false, leadId: null, sourceKind: "manual" };
+}
+const E4_ROWS = [
+  e4Row(1, { name: "Алина Переданная", sale: "2026-09-22", review: false }),
+  e4Row(2, { name: "Айжан Примерова", sale: "2026-09-20", manager: " санжар эскизов", review: true }),
+  e4Row(3, { name: "Тимур Образцов", sale: "2026-09-14", manager: "Айдана Макетова", country: "Китай", direction: "Китай", program: "Магистратура, экономика", paid: null, review: true }),
+  e4Row(4, { name: "Бекзат Тестов", sale: null, manager: "Санжар  Эскизов", review: true }),
+  e4Row(5, { name: "Данияр Макетов", sale: "2026-09-05", cost: 12000000, costCurrency: "KGS", paid: 5000000, paidCurrency: "KGS", direction: "малайзия ", review: false }),
+  e4Row(6, { name: "Руслан Прототипов", sale: "2026-09-03", manager: "Айдана Макетова", cost: 180000, paid: 4500000, paidCurrency: "KGS", review: true }),
+  e4Row(7, { name: "Эльвира Шаблонова", sale: "2026-09-12", cost: null, costRaw: "по договорённости", paid: null, review: true }),
+  e4Row(8, { name: "Нурлан Черновой", sale: "2026-09-18", manager: "", paid: 150000, review: true }),
+  e4Row(9, { name: "Асель Пробная", sale: "2026-09-25", manager: "Айдана Макетова", country: "Китай", direction: "China", program: "Foundation", cost: 250000, paid: 250000, review: false }),
+];
+// «Архив» сентября: в рабочие итоги не входят — ни в «Продажи», ни в суммы; в «Архиве» сумм нет (247).
+const E4_ARCHIVED_ROWS = [
+  e4Row(13, { name: "Ольга Архивная", sale: "2026-09-08", archived: true }),
+  e4Row(14, { name: "Марат Отложенный", sale: "2026-09-16", paid: null, archived: true }),
+];
+// Записи других месяцев отчёта — для «Весь 2026 год» и среза «записаны в другой месяц отчёта»:
+// продажа 30.07 записана в августовский отчёт. В сентябрь не попадают, числа сентября прежние.
+const E4_EARLIER_ROWS = [
+  e4Row(10, { name: "Камила Условная", month: "2026-08-01", sale: "2026-08-19", review: false }),
+  e4Row(11, { name: "Эрлан Выдуманный", month: "2026-08-01", sale: "2026-07-30", cost: 200000, paid: 200000, review: false }),
+  e4Row(12, { name: "Жанна Модельная", month: "2026-07-01", sale: "2026-07-08", cost: 9000000, costCurrency: "KGS", paid: 3000000, paidCurrency: "KGS", review: true, manager: "Айдана Макетова" }),
+];
+// «Продажи» периода теми же тремя множествами, что staff_sales_count_v1 (247), — из записей набора.
+function countFor(period) {
+  const inPeriod = (date) => date !== null && date >= period.from && date <= period.to;
+  const rows = REPORT.rows.filter((row) => !row.archived);
+  const filed = (row) => inPeriod(row.reportMonth);
+  return { status: "available", count: { from: period.from, to: period.to,
+    sales: rows.filter((row) => inPeriod(row.signingDate)).length,
+    undated: rows.filter((row) => filed(row) && row.signingDate === null).length,
+    otherSaleDate: rows.filter((row) => filed(row) && row.signingDate !== null && !inPeriod(row.signingDate)).length,
+    filedElsewhere: rows.filter((row) => inPeriod(row.signingDate) && !filed(row)).length } };
+}
+const E4_MANAGEMENT = { status: "ready", data: { reportMonth: "2026-09-01", canManageTarget: true, canImport: false,
+  target: { id: uuid("89898989", 1), version: 2, reportMonth: "2026-09-01", managerLabel: null, targetCount: 35 } } };
+
+/** Какой отчёт отдают подменённые чтения: прежние шесть записей Э2 или набор Э4. */
+const REPORT = { rows: REPORT_ROWS, count: SALES_COUNT, management: { status: "denied" }, directions: ["Малайзия"], managerLabels: ["Санжар Эскизов"] };
+function useE4Report() {
+  Object.assign(REPORT, { rows: [...E4_ROWS, ...E4_EARLIER_ROWS, ...E4_ARCHIVED_ROWS], count: countFor, management: E4_MANAGEMENT,
+    directions: ["China", "Китай", "Малайзия", "малайзия "], managerLabels: ["Айдана Макетова", "Санжар Эскизов", " санжар эскизов", "Санжар  Эскизов"] });
+}
+// Больше 500 записей в выборке: остаток по всем страницам не читается, суммы — сервера по записям
+// (`totals`), а неуточнённые стоимость и оплата, которых в них нет, названы числом.
+function useE4BulkReport() {
+  const patterns = [{}, { cost: null, costRaw: "по договорённости", paid: null }, { paid: null, paidRaw: "половина" },
+    { cost: 12000000, costCurrency: "KGS", paid: 5000000, paidCurrency: "KGS" }, { paid: 4500000, paidCurrency: "KGS", cost: 180000 }];
+  const rows = Array.from({ length: 520 }, (_, index) => e4Row(100 + index, { name: `Синтетическая запись ${index + 1}`,
+    sale: `2026-09-${String(1 + (index % 28)).padStart(2, "0")}`, review: index % 3 === 0, ...patterns[index % 7 === 0 ? 1 : index % 11 === 0 ? 2 : index % 4 === 0 ? 3 : index % 9 === 0 ? 4 : 0] }));
+  Object.assign(REPORT, { rows, count: countFor, management: { status: "denied" } });
+}
+
+/** Ответ read_sales_register_v2/v3 по выборке — теми же правилами, что проверяет `readSalesRegisterWorkspace`. */
+function readReport(selection) {
+  // Период — как в 247: месяцы отчёта периода; срез 'filed_elsewhere' — продажи периода с другим месяцем отчёта.
+  const mm = selection.month ? String(selection.month).padStart(2, "0") : null;
+  const first = `${selection.year}-${mm ?? "01"}-01`;
+  const end = mm ? `${selection.year}-${mm}-31` : `${selection.year}-12-31`;
+  const inPeriod = (date) => date !== null && date >= first && date <= end;
+  let rows = REPORT.rows.filter((row) => row.archived === Boolean(selection.archived));
+  rows = selection.saleSlice === "filed_elsewhere"
+    ? rows.filter((row) => inPeriod(row.signingDate) && !inPeriod(row.reportMonth))
+    : rows.filter((row) => inPeriod(row.reportMonth));
+  if (selection.saleSlice === "undated") rows = rows.filter((row) => row.signingDate === null);
+  else if (selection.saleSlice === "other_sale_date") rows = rows.filter((row) => row.signingDate !== null && !inPeriod(row.signingDate));
+  if (selection.needsReview != null) rows = rows.filter((row) => row.needsReview === selection.needsReview);
+  if (selection.manager) rows = rows.filter((row) => row.managerLabel === selection.manager);
+  if (selection.direction) rows = rows.filter((row) => row.direction === selection.direction);
+  const offset = selection.offset ?? 0;
+  const totals = new Map();
+  for (const row of rows) {
+    if (row.serviceCostMinor !== null) {
+      const total = totals.get(row.serviceCostCurrency) ?? { currency: row.serviceCostCurrency, costMinor: 0, paidMinor: 0 };
+      total.costMinor += row.serviceCostMinor;
+      totals.set(row.serviceCostCurrency, total);
+    }
+    if (row.paidMinor !== null) {
+      const total = totals.get(row.paidCurrency) ?? { currency: row.paidCurrency, costMinor: 0, paidMinor: 0 };
+      total.paidMinor += row.paidMinor;
+      totals.set(row.paidCurrency, total);
+    }
+  }
+  // Как 247: неуточнённые — каждая запись без суммы (`paid_minor IS NULL`, пустая оплата тоже),
+  // а архиву сервер итогов не отдаёт: `IF p_archived THEN totals:='[]'; unresolved_*:=0`.
+  const archived = Boolean(selection.archived);
+  return {
+    year: selection.year, month: selection.month ?? null, totalCount: rows.length, rows: rows.slice(offset, offset + 50), offset, hasMore: offset + 50 < rows.length,
+    selected: selection.recordId ? REPORT.rows.find((row) => row.id === selection.recordId) ?? null : null,
+    totals: archived ? [] : [...totals.values()],
+    unresolvedCostCount: archived ? 0 : rows.filter((row) => row.serviceCostMinor === null).length,
+    unresolvedPaidCount: archived ? 0 : rows.filter((row) => row.paidMinor === null).length,
+    targets: [], managerLabels: REPORT.managerLabels, ownerOptions: [],
+  };
+}
 
 // Доска продаж: четыре открытых лида, один из них передан (его stage_key — всё ещё 'new').
 function boardRow(n, stageKey, name) {
@@ -169,19 +320,18 @@ const HANDED = new Set([uuid("dddddddd", 1)]);
 const STUBS = {
   "@/lib/v3/sales-register-source": {
     // Срез «без даты продажи» — как read_sales_register_v3 с p_sale_slice => 'undated'.
-    readSalesRegisterWorkspace: async (_actor, selection) => {
-      if (!selection.saleSlice) return WORKSPACE;
-      if (selection.saleSlice !== "undated") throw new Error(`harness: slice ${selection.saleSlice} is not modelled`);
-      const rows = REPORT_ROWS.filter((row) => row.signingDate === null);
-      return { ...WORKSPACE, rows, totalCount: rows.length, totals: [{ currency: "USD", costMinor: 150000, paidMinor: 60000 }] };
-    },
+    readSalesRegisterWorkspace: async (_actor, selection) => readReport(selection),
     readSalesRegisterIntakeOptions: async () => null,
     readSalesRegisterWriteAccess: async () => "allowed",
-    readSalesRegisterDirections: async () => ["Малайзия"],
-    readSalesRegisterManagement: async () => ({ status: "denied" }),
+    readSalesRegisterDirections: async () => REPORT.directions,
+    // План — только у своего месяца отчёта (у Э4 — сентябрь); другой месяц или весь год — без плана.
+    readSalesRegisterManagement: async (_actor, reportMonth) => REPORT.management.status === "ready" && reportMonth !== REPORT.management.data.reportMonth
+      ? { status: "ready", data: { ...REPORT.management.data, reportMonth, target: null } } : REPORT.management,
   },
-  "@/lib/v3/finance-entry-source": { readMonthlyPaymentSummary: async () => ({ status: "not_allowed" }) },
-  "@/lib/v3/sales-numbers-source": { readSalesCount: async () => SALES_COUNT, readLeadHandoffStrip: async () => ({ status: "unavailable" }) },
+  // «Поступления и возвраты за месяц»: по умолчанию роль сводку не читает; сценарий Э4 `report-cash` — читает.
+  "@/lib/v3/finance-entry-source": { readMonthlyPaymentSummary: async () => REPORT.cash ?? { status: "not_allowed" } },
+  "@/lib/v3/sales-numbers-source": { readSalesCount: async (_actor, period) => typeof REPORT.count === "function" ? REPORT.count(period) : REPORT.count,
+    readLeadHandoffStrip: async () => ({ status: "unavailable" }) },
   "@/lib/platform-sales-stage-entries": {
     // Доказанный вход в «Квалифицирован» у лида 2 (он и на доске «Квалифицирован»);
     // у переданного лида 1 (stage_key 'new', как в production) входа нет — он
@@ -237,18 +387,26 @@ function withContexts(node, pathname, search) {
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
-function shell(actor, title, body) {
+function shell(actor, title, body, look = false) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
-  return createElement("div", { className: "v3-world" },
-    createElement(AppShell, { actor, initialNotifications: null }, title === null ? body : createElement(PartShell, { title, count: null }, body)));
+  // `look` — новый облик (предпросмотр Admin): слой `data-look` и оболочка Э1.2.
+  return createElement("div", { className: "v3-world", "data-look": look ? "next" : undefined },
+    createElement(AppShell, { actor, initialNotifications: null, ...(look ? { look: "next" } : {}) },
+      title === null ? body : createElement(PartShell, { title, count: null }, body)));
 }
 
 // --- Lead 360 ----------------------------------------------------------------
-function leadPage(name) {
-  const scenario = LEAD_SCENARIOS[name];
+// Как `profile/page.tsx` для `?id=`: имя — h1, возврат «Воронка продаж» над ним,
+// действия у заголовка, шапка «Этап · Что дальше» и «Обзор» из `leadWorkParts`.
+function leadPage(name, { look = false } = {}) {
+  const scenario = LEAD_SCENARIOS[name] ?? E4_LEADS[name];
   const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
   const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
+  const { leadWorkParts } = require(join(ROOT, "src/components/v3/profile/LeadWorkParts.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
+  const wording = require(join(ROOT, "src/lib/v3/wording.ts"));
   const hrefFor = (tab) => buildV3ProfileHref({ leadId: LEAD_ID, studentCaseId: null }, tab);
   const profile = {
     leadId: LEAD_ID, person: "Алина Переданная", email: "lead@example.invalid", phone: "+996 000 000 002", student: scenario.strip.handoff !== null,
@@ -260,31 +418,43 @@ function leadPage(name) {
     routeTarget: { leadId: LEAD_ID, studentCaseId: null }, responsible: "Санжар Эскизов", provider: null, person: [], study: [],
     profileFields: null, studentApplication: null, profileFieldSources: [], documents: [], otherFiles: [], budget: null, currency: null,
     payments: [], paid: null, remaining: null, paidPercent: null, admissions: null, contract: null, handoffAcknowledgement: null,
-    salesHandoffAcknowledgement: null, saleConditions: null, leadCabinetCase: null, contractSignedAt: null,
+    salesHandoffAcknowledgement: null, saleConditions: scenario.conditions ?? null, leadCabinetCase: null, contractSignedAt: null,
   };
   const sales = {
     lead: { leadId: LEAD_ID, currentOwnerMembershipId: ME, currentOwnerDisplayName: "Санжар Эскизов", stageKey: scenario.stageKey,
-      nextActionText: scenario.next, nextActionDueDate: null, workflowVersion: "5" },
-    gate: scenario.gate, handoff: { caseId: null, canOpenCase: false },
-    strip: { status: "available", strip: scenario.strip }, linkedConversations: [],
+      nextActionText: scenario.next, nextActionDueDate: scenario.due ?? null, workflowVersion: "5" },
+    leadCreatedAt: "2026-09-05T05:00:00.000Z",
+    gate: scenario.gate, handoff: { caseId: null, canOpenCase: false, handedOffAt: scenario.strip.handoff?.completedAt ?? null, ...scenario.handoff },
+    strip: { status: "available", strip: scenario.strip }, linkedConversations: scenario.conversations ?? [],
   };
   const requestIds = Object.fromEntries(["contract", "firstPayment", "override", "handoff", "platformAccess", "saleConditions",
-    "prepareLeadCabinet", "wishesCard", "educationCard", "conditionsCard"].map((key, index) => [key, uuid("13131313", index + 1)]));
+    "prepareLeadCabinet", "wishesCard", "educationCard", "conditionsCard", "step", "note"].map((key, index) => [key, uuid("13131313", index + 1)]));
+  const notes = { subject: { leadId: LEAD_ID, studentCaseId: null }, rows: scenario.notes ?? [] };
+  const parts = leadWorkParts({
+    actor: ADMIN, profile, draft, sales, notes, notesOlderHref: null, notesLatestHref: null,
+    requestIds: { ...requestIds, portal: "", cabinetPortal: "" },
+    stages: ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential"].map((key) => ({ key, title: wording.salesStage(key) })),
+    ownerOptions: [{ membershipId: ME, displayLabel: "Санжар Эскизов" }], ownerOptionsHaveMore: false, curators: [], curatorsAvailable: true,
+    submissions: null, hrefFor, now: new Date("2026-09-27T06:00:00.000Z"), ...(look ? { look: "next" } : {}),
+  });
   const body = createElement(Profile, {
     profile, draft, sales, actor: ADMIN, organizationId: ORG, studentPortalCurators: [], studentPortalCuratorsAvailable: true,
-    requestIds, noteRequestId: uuid("13131313", 20), notes: { subject: { leadId: LEAD_ID, studentCaseId: null }, rows: [] },
-    notesOlderHref: null, notesLatestHref: null, tab: "overview", hrefFor,
+    requestIds, noteRequestId: uuid("13131313", 20), notes, notesOlderHref: null, notesLatestHref: null, tab: "overview", hrefFor,
+    caseHeader: parts.header, caseOverview: parts.overview,
   });
-  return renderToStaticMarkup(withContexts(shell(ADMIN, "Профиль", createElement("div", { className: "space-y-6" }, body)),
-    "/v3/profile", `id=${LEAD_ID}&tab=overview`));
+  const back = createElement("a", { href: "/v3/pipeline", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
+    createElement(Icon, { name: "arrow-left", size: 16 }), "Воронка продаж");
+  const page = createElement(PartShell, { title: profile.person, count: null, action: parts.actions, dense: true, back },
+    createElement("div", { className: "space-y-6" }, body));
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, page, look), "/v3/profile", `id=${LEAD_ID}&tab=overview`));
 }
 
 // --- «Отчёт продаж» ------------------------------------------------------------
-async function reportPage(extra = {}) {
+async function reportPage(extra = {}, { look = false } = {}) {
   const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
   const query = { view: "sales", year: "2026", month: "9", ...extra };
-  const element = await SalesRegisterView({ actor: ADMIN, query });
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", new URLSearchParams(query).toString()));
+  const element = await SalesRegisterView({ actor: ADMIN, query, ...(look ? { look: "next" } : {}) });
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element, look), "/v3/main", new URLSearchParams(query).toString()));
 }
 
 // --- «Динамика по дням»: когорта, «Продажи» периода и воронка по доске ----------
@@ -397,7 +567,139 @@ async function screenshots() {
   }
 }
 
-if (process.argv.includes("--json")) {
+// --- Э4: Lead 360 и «Отчёт продаж» в обоих обликах ---------------------------------
+async function e4Pages(look) {
+  useE4Report();
+  return [
+    { name: "lead-early", html: leadPage("early", { look }) },
+    { name: "lead-potential", html: leadPage("potential", { look }) },
+    { name: "lead-handed", html: leadPage("handed", { look }) },
+    { name: "report", html: await reportPage({}, { look }) },
+    { name: "report-panel", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }, { look }) },
+    // Месяц отчёта в строке: «Весь 2026 год» (и с открытой записью — узкая строка при 1440)
+    // и срез июля «записаны в другой месяц отчёта».
+    { name: "report-year", html: await reportPage({ month: "all" }, { look }) },
+    { name: "report-year-panel", html: await reportPage({ month: "all", record: E4_EARLIER_ROWS[1].id, edit: "true" }, { look }) },
+    { name: "report-elsewhere", html: await reportPage({ month: "7", sale: "filed_elsewhere" }, { look }) },
+    { name: "report-bulk", html: await (async () => { useE4BulkReport(); const html = await reportPage({}, { look }); useE4Report(); return html; })() },
+    // «Архив»: сколько записей — без сумм и без столбца «Остаток».
+    { name: "report-archive", html: await reportPage({ archived: "true" }, { look }) },
+    // «Поступления и возвраты за месяц» под записями: сводка финансовых событий месяца (синтетика).
+    { name: "report-cash", html: await (async () => {
+      REPORT.cash = { status: "ready", totals: [
+        { currency: "USD", paymentsMinor: "540000", refundsMinor: "60000", netMinor: "480000", eventCount: 7 },
+        { currency: "KGS", paymentsMinor: "5000000", refundsMinor: "0", netMinor: "5000000", eventCount: 1 }] };
+      const html = await reportPage({}, { look });
+      delete REPORT.cash;
+      return html;
+    })() },
+  ];
+}
+
+async function e4Screenshots() {
+  const outIndex = process.argv.indexOf("--e4-screenshots") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const css = await compileCss();
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const SIZES = {
+    1440: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
+    1280: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 },
+    390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  };
+  const results = [];
+  try {
+    for (const look of [false, true]) {
+      for (const { name, html } of await e4Pages(look)) {
+        const file = `e4-${name}${look ? "-next" : ""}`;
+        const htmlPath = join(outDir, `${file}.html`);
+        writeFileSync(htmlPath, `<!DOCTYPE html><html lang="ru" data-theme="light" class="h-full antialiased"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Э4 — ${name} (синтетические данные)</title><style>${css}</style></head><body class="min-h-full">${html}</body></html>`);
+        for (const width of ["1440", "1280", "390"]) {
+          const context = await browser.newContext(SIZES[width]);
+          const page = await context.newPage();
+          const errors = [];
+          page.on("pageerror", (error) => errors.push(error.message));
+          await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+          await page.evaluate(async () => {
+            await document.fonts.ready;
+            // Только видимые: скрытая копия логотипа (lazy) в оболочке нового облика не грузится, и её decode() не завершится.
+            await Promise.all([...document.images].filter((image) => image.checkVisibility()).map((image) => image.decode().catch(() => null)));
+          });
+          // Во весь рост меню разделов — обычная колонка, а не липкая высотой в экран (как в case-static-render).
+          await page.addStyleTag({ content: 'nav[aria-label="Разделы"] { position: static !important; height: auto !important; }' });
+          if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
+          const metrics = await page.evaluate(() => {
+            const visible = (element) => element.checkVisibility();
+            const firstRow = document.querySelector('[aria-label="Записи продаж"] tbody tr');
+            return {
+              height: document.documentElement.scrollHeight,
+              overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+              // Шире окна, хотя страница не прокручивается вбок (оболочка режет переполнение): кроме лент и таблиц с прокруткой.
+              wide: [...document.querySelectorAll("main *")].filter((element) => visible(element)
+                && element.getBoundingClientRect().right > window.innerWidth + 1
+                && !element.closest('[data-tab-strip], [role="region"], [popover], dialog')).length,
+              solidRed: [...document.querySelectorAll("a, button")].filter((element) => visible(element)
+                && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim()),
+              smallText: [...document.querySelectorAll("main *")].filter((element) => visible(element)
+                && [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim())
+                && parseFloat(getComputedStyle(element).fontSize) < 12).length,
+              smallTargets: [...document.querySelectorAll("main a, main button, main summary")].filter((element) =>
+                visible(element) && element.getBoundingClientRect().height < 24).map((element) => element.textContent.trim().slice(0, 30)),
+              h1: [...document.querySelectorAll("h1")].map((element) => element.textContent.trim()),
+              firstRowTop: firstRow ? Math.round(firstRow.getBoundingClientRect().top + window.scrollY) : null,
+              firstRowHeight: firstRow ? Math.round(firstRow.getBoundingClientRect().height) : null,
+              // Месяц отчёта строки виден (столбец или строка под именем), а не только подсказкой; и не обрезан.
+              reportMonths: [...document.querySelectorAll("[data-report-month]")].filter((element) => visible(element)).length,
+              reportMonthCut: [...document.querySelectorAll("[data-report-month], [data-report-month] > time")].filter((element) => visible(element)
+                && element.scrollWidth > element.clientWidth + 1).length,
+            };
+          });
+          const shot = `${file}-${width}.png`;
+          await page.screenshot({ path: join(outDir, shot), fullPage: true });
+          results.push({ shot, ...metrics });
+          if (name === "lead-potential" && width !== "1280") {
+            // Открытая группа правки («Условия продажи») и панель «Что дальше» поверх страницы.
+            const red = () => page.evaluate(() => [...document.querySelectorAll("a, button")].filter((element) => element.checkVisibility()
+              && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").length);
+            await page.evaluate(() => { document.querySelector('[data-testid="v3-lead-group-sale"]').open = true; });
+            const groupShot = `${file}-group-${width}.png`;
+            await page.screenshot({ path: join(outDir, groupShot), fullPage: true });
+            process.stdout.write(`${groupShot}: solidRed=${await red()}\n`);
+            await page.evaluate(() => {
+              document.querySelector('[data-testid="v3-lead-group-sale"]').open = false;
+              window.scrollTo(0, 0);
+              document.getElementById("lead-next-step").showPopover();
+            });
+            const drawerShot = `${file}-drawer-${width}.png`;
+            await page.screenshot({ path: join(outDir, drawerShot) });
+            process.stdout.write(`${drawerShot}: solidRed=${await red()}\n`);
+          }
+          process.stdout.write(`${shot}: height=${metrics.height} overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText} smallTargets=${metrics.smallTargets.length}${metrics.smallTargets.length ? ` (${metrics.smallTargets.join(" | ")})` : ""} h1=${metrics.h1.join("/")}${metrics.firstRowTop !== null ? ` firstRowTop=${metrics.firstRowTop} rowHeight=${metrics.firstRowHeight}` : ""}${metrics.reportMonths ? ` reportMonths=${metrics.reportMonths} reportMonthCut=${metrics.reportMonthCut}` : ""}\n`);
+          await context.close();
+        }
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+  writeFileSync(join(outDir, "e4-metrics.json"), JSON.stringify(results, null, 2));
+}
+
+if (process.argv.includes("--json-e4")) {
+  // Э4 в обоих обликах: имена нового облика — с «-next» (для tests/v3-e4-work-surfaces.test.mjs).
+  Promise.all([e4Pages(false), e4Pages(true)])
+    .then(([current, next]) => process.stdout.write(JSON.stringify([...current, ...next.map((page) => ({ ...page, name: `${page.name}-next` }))])))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+} else if (process.argv.includes("--e4-screenshots")) {
+  e4Screenshots().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+} else if (process.argv.includes("--json")) {
   renderAll().then((pages) => process.stdout.write(JSON.stringify(pages))).catch((error) => {
     console.error(error);
     process.exit(1);
@@ -408,6 +710,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: numbers-static-render.cjs --json | --screenshots [outDir]");
+  console.error("usage: numbers-static-render.cjs --json | --json-e4 | --screenshots [outDir] | --e4-screenshots [outDir]");
   process.exit(2);
 }

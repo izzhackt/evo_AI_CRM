@@ -157,6 +157,8 @@ export function profileSalesHandoffSnapshot(
 
 export type ProfileSalesSnapshot = Readonly<{
   lead: PlatformSalesWorkflowLead;
+  /** Когда лид появился (`staff_sales_lead_detail`): первое событие ленты Lead 360 (Э4). */
+  leadCreatedAt?: string | null;
   gate: PlatformLeadAdmissionsGateSnapshot;
   handoff: ProfileSalesHandoffSnapshot;
   /**

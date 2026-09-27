@@ -77,6 +77,7 @@ export function LeadSaleConditions({
   requestId,
   readOnly = false,
   quiet = false,
+  bare = false,
 }: {
   leadId: string;
   conditions: LeadSaleConditionsSnapshot;
@@ -84,6 +85,11 @@ export function LeadSaleConditions({
   readOnly?: boolean;
   /** Дело студента, «Данные продажи»: «Сохранить условия» — спокойная кнопка, не второй красный. */
   quiet?: boolean;
+  /**
+   * Lead 360 (Э4): группа правки без своей карточки — заголовок и якорь
+   * `#sale-conditions` у раскрытия, которое её держит.
+   */
+  bare?: boolean;
 }) {
   const { revision, bump } = useSaleConditionsRevision();
   const [draft, setDraft] = useState(() => draftFrom(conditions));
@@ -123,9 +129,8 @@ export function LeadSaleConditions({
     </label>
   );
 
-  return (
-    <Card eyebrow title="Условия продажи" id="sale-conditions">
-      <div className="space-y-4 p-4" data-testid="v3-lead-sale-conditions">
+  const body = (
+      <div className={bare ? "space-y-4" : "space-y-4 p-4"} data-testid="v3-lead-sale-conditions">
         {conditions.linkedSalesRegister ? (
           <p className="text-sm text-fg-2" data-testid="v3-lead-sale-conditions-linked">
             Продажа в отчёте за {reportMonthLabel(conditions.linkedSalesRegister.reportMonth)}
@@ -233,6 +238,6 @@ export function LeadSaleConditions({
           ) : null}
         </form>
       </div>
-    </Card>
   );
+  return bare ? body : <Card eyebrow title="Условия продажи" id="sale-conditions">{body}</Card>;
 }

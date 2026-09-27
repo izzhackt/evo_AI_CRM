@@ -687,7 +687,10 @@ async function expectExactSupabaseSalesRead(
   }
   // Audit 26.09: the lead card returns to this exact board state, so the
   // panel link carries ?returnTo= with the open panel (?lead=), and the card
-  // offers «К воронке продаж» back to it instead of «К списку студентов».
+  // offers a way back to it instead of «К списку студентов». Э4 27.09: Lead
+  // 360 carries that return above the title as «Воронка продаж» (the case
+  // page's «Студенты» pattern); the side-menu link of the same name points
+  // at the bare board, so the assertion pins the exact return href.
   const boardHref = `/v3/pipeline?lead=${leadId}`;
   const leadCardSearch = `?id=${leadId}&returnTo=${encodeURIComponent(boardHref)}`;
   await leadPanel.locator(`a[href="/v3/profile${leadCardSearch}"]`).click();
@@ -698,9 +701,11 @@ async function expectExactSupabaseSalesRead(
     "data-lead-id",
     leadId,
   );
-  await expect(
-    page.getByRole("link", { name: "К воронке продаж", exact: true }),
-  ).toHaveAttribute("href", boardHref);
+  const boardBack = page
+    .getByRole("link", { name: "Воронка продаж", exact: true })
+    .and(page.locator(`a[href="${boardHref}"]`));
+  await expect(boardBack).toHaveCount(1);
+  await expect(boardBack).toBeVisible();
   await expect(
     page.getByRole("heading", {
       name: "EVO P2B Isolated Sales Proof",

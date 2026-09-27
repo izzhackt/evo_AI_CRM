@@ -265,6 +265,145 @@ function StripValue({ item }: { item: HandoffStripItem }) {
 }
 
 /**
+ * Полоса «Передача» без карточки: строка передачи, предупреждения словами,
+ * пять доказательств и строка первого платежа. В Lead 360 (Э4) стоит в
+ * «Сведениях» справа — узкий контейнер ставит доказательства столбцом.
+ */
+export function HandoffStripBlock({
+  gate,
+  view,
+  className = "space-y-3 p-4",
+  summary = true,
+}: {
+  gate: PlatformLeadAdmissionsGateSnapshot;
+  /** null — полоса не прочитана: ни этапа, ни галочек наугад. */
+  view: HandoffStripView | null;
+  className?: string;
+  /** false — строку «Передано ДД.ММ · …» уже показывает шапка Lead 360 («Что дальше»). */
+  summary?: boolean;
+}) {
+  const router = useRouter();
+  const footnote = handoffFootnote(gate, { now: new Date() });
+  // Линия над полосой — только когда над ней есть строка передачи или
+  // предупреждение; иначе она удваивает линию под заголовком карточки.
+  const ruleAbove = view !== null && ((summary && view.summary !== null) || view.warnings.length > 0);
+
+  return (
+    <div className={className} data-testid="v3-sales-gate">
+      {view === null ? (
+        <div role="alert" className="t-body-compact text-fg-2">
+          <p>Не удалось загрузить передачу.</p>
+          <button type="button" className={cn(btnGhostCls, "mt-2 min-h-11")} onClick={() => router.refresh()}>
+            Повторить
+          </button>
+        </div>
+      ) : (
+        <>
+          {summary && view.summary ? (
+            <p className="t-body-compact text-fg" data-testid="v3-handoff-summary"><StripLine text={view.summary} /></p>
+          ) : null}
+          {view.warnings.length > 0 ? (
+            <ul className="space-y-1" data-testid="v3-handoff-warnings">
+              {view.warnings.map((warning, index) => (
+                <li key={index} className="flex flex-wrap items-start gap-x-1.5 gap-y-1 t-body-compact text-warn">
+                  <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
+                  <span className="min-w-0 flex-[1_1_16rem]"><StripLine text={warning.text} /></span>
+                  {warning.href ? (
+                    // 44 px цели без лишней высоты строки: поле касания выходит за строку.
+                    <a href={warning.href} className="-my-3 inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
+                      Открыть запись
+                    </a>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <dl
+            className={cn(
+              "grid divide-y divide-border @2xl:grid-cols-5 @2xl:divide-x @2xl:divide-y-0",
+              ruleAbove && "border-t border-border",
+              footnote && "border-b border-border",
+            )}
+            data-testid="v3-handoff-strip"
+          >
+            {view.items.map((item) => (
+              <div
+                key={item.key}
+                data-handoff-item={item.key}
+                data-state={item.state}
+                className="flex min-h-11 min-w-0 items-center justify-between gap-x-4 gap-y-1 py-2 @2xl:flex-col @2xl:items-start @2xl:justify-start @2xl:px-3 @2xl:py-2.5 @2xl:first:ps-0"
+              >
+                <dt className="shrink-0 t-caption text-fg-3">{item.label}</dt>
+                <dd className="flex min-w-0 flex-wrap items-center justify-end gap-x-1.5 t-body-compact @2xl:justify-start">
+                  <StripValue item={item} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+      {footnote ? (
+        <p className="t-meta break-words text-fg-3" data-testid="v3-handoff-footnote"><StripLine text={footnote} /></p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Формы подтверждения договора и первого платежа и свёрнутое «Исключение
+ * Admin» — те же формы, действия и версии. `bare` — группа «Договор и
+ * оплата» в Lead 360 (Э4): без полей карточки, части разделены линией.
+ * Какие формы есть, знает и `handoffGateForms` (lead-work-view) — та же проверка.
+ */
+export function HandoffGateForms({
+  actor,
+  gate,
+  requestIds,
+  bare = false,
+}: {
+  actor: ActivePlatformActor;
+  gate: PlatformLeadAdmissionsGateSnapshot;
+  requestIds: ProfileSalesRequestIds;
+  bare?: boolean;
+}) {
+  // Та же проверка — `handoffGateForms` (lead-work-view) для строки группы Lead 360.
+  const preview = isStaffPreview(actor);
+  const contractForm = !preview && !gate.contractConfirmed && gate.canConfirmContract;
+  const paymentForm = !preview && gate.contractConfirmed && !gate.firstPaymentReceivedDate && gate.canConfirmFirstPayment;
+  const canOverride = !preview && gate.canOverrideGate && !gate.normalHandoffAllowed;
+  const part = bare ? "py-3 first:pt-0" : "border-t border-border p-4";
+  const forms = (
+    <>
+      {contractForm ? (
+        <div className={part}>
+          <h4 className="t-item text-fg">Подтвердить договор</h4>
+          <GateActionForm key={`contract:${gate.gateVersion}`} actionName="confirm_contract" gate={gate} requestId={requestIds.contract} />
+        </div>
+      ) : null}
+      {paymentForm ? (
+        <div className={part}>
+          <h4 className="t-item text-fg">Подтвердить первый платёж</h4>
+          <GateActionForm key={`payment:${gate.gateVersion}`} actionName="confirm_first_payment" gate={gate} requestId={requestIds.firstPayment} />
+        </div>
+      ) : null}
+      {canOverride ? (
+        // Редкий инструмент Admin — свёрнут: он не должен занимать карточку каждого лида.
+        <details className={bare ? "group py-1" : "group border-t border-border px-4 py-1"}>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">
+            <Icon name="chevron-right" size={16} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none" />
+            Исключение Admin
+          </summary>
+          <div className="pb-3">
+            <GateActionForm key={`override:${gate.gateVersion}`} actionName="override_gate" gate={gate} requestId={requestIds.override} />
+          </div>
+        </details>
+      ) : null}
+    </>
+  );
+  return bare ? <div className="divide-y divide-border" data-testid="v3-lead-gate-forms">{forms}</div> : forms;
+}
+
+/**
  * «Передача» (Э2 «Честные числа», решения владельца 26.09.2026) — вместо
  * красного «Договор и оплата: ожидает условий», который ничего не запрещал.
  * Условие передачи — доказательство, не запрет: до передачи полоса
@@ -285,100 +424,10 @@ function HandoffCard({
   view: HandoffStripView | null;
   requestIds: ProfileSalesRequestIds;
 }) {
-  const router = useRouter();
-  const preview = isStaffPreview(actor);
-  const contractForm = !preview && !gate.contractConfirmed && gate.canConfirmContract;
-  const paymentForm = !preview && gate.contractConfirmed && !gate.firstPaymentReceivedDate && gate.canConfirmFirstPayment;
-  const canOverride = !preview && gate.canOverrideGate && !gate.normalHandoffAllowed;
-  const footnote = handoffFootnote(gate, { now: new Date() });
-  // Линия над полосой — только когда над ней есть строка передачи или
-  // предупреждение; иначе она удваивает линию под заголовком карточки.
-  const ruleAbove = view !== null && (view.summary !== null || view.warnings.length > 0);
-
   return (
     <Card eyebrow title="Передача">
-      <div className="space-y-3 p-4" data-testid="v3-sales-gate">
-        {view === null ? (
-          <div role="alert" className="t-body-compact text-fg-2">
-            <p>Не удалось загрузить передачу.</p>
-            <button type="button" className={cn(btnGhostCls, "mt-2 min-h-11")} onClick={() => router.refresh()}>
-              Повторить
-            </button>
-          </div>
-        ) : (
-          <>
-            {view.summary ? (
-              <p className="t-body-compact text-fg" data-testid="v3-handoff-summary"><StripLine text={view.summary} /></p>
-            ) : null}
-            {view.warnings.length > 0 ? (
-              <ul className="space-y-1" data-testid="v3-handoff-warnings">
-                {view.warnings.map((warning, index) => (
-                  <li key={index} className="flex flex-wrap items-start gap-x-1.5 gap-y-1 t-body-compact text-warn">
-                    <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
-                    <span className="min-w-0 flex-[1_1_16rem]"><StripLine text={warning.text} /></span>
-                    {warning.href ? (
-                      // 44 px цели без лишней высоты строки: поле касания выходит за строку.
-                      <a href={warning.href} className="-my-3 inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
-                        Открыть запись
-                      </a>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <dl
-              className={cn(
-                "grid divide-y divide-border @2xl:grid-cols-5 @2xl:divide-x @2xl:divide-y-0",
-                ruleAbove && "border-t border-border",
-                footnote && "border-b border-border",
-              )}
-              data-testid="v3-handoff-strip"
-            >
-              {view.items.map((item) => (
-                <div
-                  key={item.key}
-                  data-handoff-item={item.key}
-                  data-state={item.state}
-                  className="flex min-h-11 min-w-0 items-center justify-between gap-x-4 gap-y-1 py-2 @2xl:flex-col @2xl:items-start @2xl:justify-start @2xl:px-3 @2xl:py-2.5 @2xl:first:ps-0"
-                >
-                  <dt className="shrink-0 t-caption text-fg-3">{item.label}</dt>
-                  <dd className="flex min-w-0 flex-wrap items-center justify-end gap-x-1.5 t-body-compact @2xl:justify-start">
-                    <StripValue item={item} />
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </>
-        )}
-        {footnote ? (
-          <p className="t-meta break-words text-fg-3" data-testid="v3-handoff-footnote"><StripLine text={footnote} /></p>
-        ) : null}
-      </div>
-
-      {contractForm ? (
-        <div className="border-t border-border p-4">
-          <h4 className="t-item text-fg">Подтвердить договор</h4>
-          <GateActionForm key={`contract:${gate.gateVersion}`} actionName="confirm_contract" gate={gate} requestId={requestIds.contract} />
-        </div>
-      ) : null}
-      {paymentForm ? (
-        <div className="border-t border-border p-4">
-          <h4 className="t-item text-fg">Подтвердить первый платёж</h4>
-          <GateActionForm key={`payment:${gate.gateVersion}`} actionName="confirm_first_payment" gate={gate} requestId={requestIds.firstPayment} />
-        </div>
-      ) : null}
-      {canOverride ? (
-        // Редкий инструмент Admin — свёрнут: он не должен занимать карточку каждого лида.
-        <details className="group border-t border-border px-4 py-1">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">
-            <Icon name="chevron-right" size={16} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none" />
-            Исключение Admin
-          </summary>
-          <div className="pb-3">
-            <GateActionForm key={`override:${gate.gateVersion}`} actionName="override_gate" gate={gate} requestId={requestIds.override} />
-          </div>
-        </details>
-      ) : null}
+      <HandoffStripBlock gate={gate} view={view} />
+      <HandoffGateForms actor={actor} gate={gate} requestIds={requestIds} />
     </Card>
   );
 }

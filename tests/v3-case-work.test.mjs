@@ -222,10 +222,11 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   const page = read("src/app/(v3)/v3/profile/page.tsx");
   assert.match(page, /if \(typeof caseParam === "string" && leadParam === undefined\) return \{ title: "Дело студента" \};/u);
   // Закрытый лид (246) — его имя, как у дела.
-  assert.match(page, /<PartShell title=\{caseParts && view \? view\.profile\.person : docsMode \? "EVO Docs" : view \? "Профиль"\n\s+: closedLead \? closedLead\.name \?\? "Лид без имени" : "Студенты"\}/u);
+  // Лид (Э4) — тоже по имени: `leadParts` — Lead 360 как рабочая карточка.
+  assert.match(page, /<PartShell title=\{\(caseParts \|\| leadParts\) && view \? view\.profile\.person : docsMode \? "EVO Docs" : view \? "Профиль"\n\s+: closedLead \? closedLead\.name \?\? "Лид без имени" : "Студенты"\}/u);
   assert.match(page, /<Link href=\{requestsReturnTo \?\? directoryHref\}[^>]*>\s*<Icon name="arrow-left" size=\{16\} \/>\s*\{requestsReturnTo \? "Заявки" : docsMode \? "EVO Docs" : "Студенты"\}/u);
   assert.match(page, /const caseTarget = view\?\.details\.routeTarget\.studentCaseId && view\.details\.admissions/u);
-  assert.match(page, /caseOverview=\{caseParts\?\.overview \?\? undefined\}/u);
+  assert.match(page, /caseOverview=\{caseParts\?\.overview \?\? leadParts\?\.overview \?\? undefined\}/u);
   // Права редактора шага — одни для «Быстрого просмотра» и дела.
   assert.match(page, /stepAccess: caseWork\.row \? nextStepAccess\(editor\.input, caseWork\.row, editor\.recordScopes\) : \{ kind: "read_only", reason: null \}/u);
   assert.match(page, /editor: editor\.input,\n    recordScopes: editor\.recordScopes,/u);

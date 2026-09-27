@@ -71,7 +71,8 @@ export function FilterMenu({
         style={popoverStyle}
         role="group"
         aria-label={label}
-        className="v3-anchored min-w-48 max-w-[min(20rem,calc(100vw-1rem))] rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg"
+        // Длинный список (направления «Отчёта продаж») прокручивается внутри окна, а не уходит за край.
+        className="v3-anchored max-h-[min(24rem,calc(100dvh-2rem))] min-w-48 max-w-[min(20rem,calc(100vw-1rem))] overflow-y-auto rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg"
       >
         <ul>
           {options.map((option) => (

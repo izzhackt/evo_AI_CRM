@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 
-import { btnCls, inputCls, fieldLabelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   manageStudentPortalAccessAction,
   type StudentPortalAccessActionState,
@@ -51,6 +51,7 @@ export function StudentPortalAccessControls({
   requestId,
   curatorOptions,
   curatorOptionsAvailable,
+  quiet = false,
 }: Readonly<{
   organizationId: string;
   studentCaseId: string;
@@ -62,7 +63,10 @@ export function StudentPortalAccessControls({
   requestId: string;
   curatorOptions: readonly CuratorOption[];
   curatorOptionsAvailable: boolean;
+  /** Lead 360 (Э4): спокойные кнопки — сплошной красный отдан главному действию страницы. */
+  quiet?: boolean;
 }>) {
+  const buttonCls = quiet ? btnGhostCls : btnCls;
   const [state, action, pending] = useActionState(
     manageStudentPortalAccessAction,
     null,
@@ -178,7 +182,7 @@ export function StudentPortalAccessControls({
             disabled={prepareUnavailable || pending}
           />
         </label>
-        <button className={btnCls} type="submit" disabled={!canPrepare || pending}>
+        <button className={buttonCls} type="submit" disabled={!canPrepare || pending}>
           {pending ? "Проверяем…" : "Проверить и подготовить доступ"}
         </button>
       </form>
@@ -199,7 +203,7 @@ export function StudentPortalAccessControls({
               defaultValue="Истёкшее приглашение не было принято студентом"
             />
           </label>
-          <button className={btnCls} type="submit" disabled={pending}>
+          <button className={buttonCls} type="submit" disabled={pending}>
             Явно подтвердить новое приглашение
           </button>
         </form>
@@ -227,7 +231,7 @@ export function StudentPortalAccessControls({
             name="reissue_request_id"
             value={state.reissueRequestId ?? ""}
           />
-          <button className={btnCls} type="submit" disabled={pending}>
+          <button className={buttonCls} type="submit" disabled={pending}>
             Проверить результат у провайдера
           </button>
         </form>

@@ -25,7 +25,7 @@ import { caseCloseOutcome, caseCloseOpenTasks, closureOutcome, closureWords, lea
 export type ClosureKind = "lead" | "case";
 type Receipt<K extends ClosureKind> = K extends "lead" ? LeadClosureReceipt : CaseClosureReceipt;
 
-const MENU_ITEM = "flex min-h-11 w-full items-center rounded-nav px-2 text-left t-body-compact text-fg hover:bg-surface-2";
+export const MENU_ITEM = "flex min-h-11 w-full items-center rounded-nav px-2 text-left t-body-compact text-fg hover:bg-surface-2";
 const DATE = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Bishkek" });
 
 function newRequestId(): string {
@@ -236,6 +236,8 @@ export function CloseRecordMenu<K extends ClosureKind>({
   openTasks = null,
   onClosed,
   triggerClassName,
+  items,
+  closable = true,
 }: Readonly<{
   kind: K;
   subjectId: string;
@@ -248,6 +250,13 @@ export function CloseRecordMenu<K extends ClosureKind>({
   /** После квитанции; по умолчанию страница перечитывается. */
   onClosed?: (receipt: Receipt<K>) => void;
   triggerClassName?: string;
+  /**
+   * Пункты «⋯» над закрытием (Lead 360, Э4: «Доступ к порталу»). Получают
+   * `close` — убрать меню перед своим действием.
+   */
+  items?: (close: () => void) => ReactNode;
+  /** false — права закрыть нет: в меню только `items`. */
+  closable?: boolean;
 }>) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -268,19 +277,22 @@ export function CloseRecordMenu<K extends ClosureKind>({
         menuClassName="w-72 max-w-[calc(100vw-2rem)] rounded-ctl border border-border bg-surface p-1 shadow-evo-lg"
         testId={kind === "lead" ? "v3-lead-actions-menu" : "v3-case-actions-menu"}
       >
-        {(close) => blockedReason ? (
-          <div className="px-2 py-1">
-            <button type="button" aria-disabled="true" aria-describedby={hintId}
-              className="flex min-h-11 w-full cursor-not-allowed items-center text-left t-body-compact text-fg-3">
-              {words.action}
+        {(close) => <>
+          {items ? items(close) : null}
+          {!closable ? null : blockedReason ? (
+            <div className="px-2 py-1">
+              <button type="button" aria-disabled="true" aria-describedby={hintId}
+                className="flex min-h-11 w-full cursor-not-allowed items-center text-left t-body-compact text-fg-3">
+                {words.action}
+              </button>
+              <p id={hintId} className="t-meta pb-1 text-fg-2">{blockedReason}</p>
+            </div>
+          ) : (
+            <button type="button" className={MENU_ITEM} onClick={() => { close(); setDialogOpen(true); }}>
+              {words.action}…
             </button>
-            <p id={hintId} className="t-meta pb-1 text-fg-2">{blockedReason}</p>
-          </div>
-        ) : (
-          <button type="button" className={MENU_ITEM} onClick={() => { close(); setDialogOpen(true); }}>
-            {words.action}…
-          </button>
-        )}
+          )}
+        </>}
       </TopLayerMenu>
       {dialogOpen ? (
         <ClosureDialog

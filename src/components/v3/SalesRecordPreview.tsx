@@ -12,11 +12,19 @@ function Amount({ minor, currency, raw }: { minor: number | null; currency: stri
   </>;
 }
 
-export function SalesRecordPreview({ record, backHref, editHref }: {
-  record: SalesRegisterRow | null; backHref: string; editHref: string | null;
+/**
+ * Запись продажи. `panelHeadingId` — Э4 (27.09.2026): запись открыта в правой
+ * панели рядом со списком: заголовок — имя (h2, фокус панели), возврата «К
+ * отчёту» нет (панель закрывается своей кнопкой), «Исправить запись» —
+ * спокойная: сплошной красный отчёта — «Добавить продажу».
+ */
+export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId }: {
+  record: SalesRegisterRow | null; backHref: string; editHref: string | null; panelHeadingId?: string;
 }) {
-  if (!record) return <section className="mt-6 max-w-[860px] space-y-4">
-    <h1 className="t-page-title text-fg">Запись продажи</h1>
+  if (!record) return <section className={panelHeadingId ? "space-y-4" : "mt-6 max-w-[860px] space-y-4"}>
+    {panelHeadingId
+      ? <h2 id={panelHeadingId} tabIndex={-1} data-queue-heading="" className="t-record-title text-fg">Запись продажи</h2>
+      : <h1 className="t-page-title text-fg">Запись продажи</h1>}
     <p role="alert" className="text-sm text-fg-2">Не удалось открыть запись. Возможно, доступ изменился или соединение прервалось.</p>
     <Link href={backHref} className={`${btnGhostCls} min-h-11`}>К отчёту</Link>
   </section>;
@@ -37,25 +45,30 @@ export function SalesRecordPreview({ record, backHref, editHref }: {
     ].filter(([, value]) => value.trim()),
   ];
 
-  return <section className="mt-6 max-w-[860px] space-y-6" aria-labelledby="sale-preview-title">
-    <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
+  const panel = Boolean(panelHeadingId);
+  return <section className={panel ? "space-y-6" : "mt-6 max-w-[860px] space-y-6"} aria-labelledby={panelHeadingId ?? "sale-preview-title"}>
+    {panel ? null : <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>}
     <header className="space-y-3">
-      <h1 id="sale-preview-title" className="t-page-title text-fg">Запись продажи</h1>
-      <h2 className="t-record-title break-words text-fg">{record.applicantName || "Имя не указано"}</h2>
+      {panel ? (
+        <h2 id={panelHeadingId} tabIndex={-1} data-queue-heading="" className="t-record-title break-words text-fg xl:pe-10">{record.applicantName || "Имя не указано"}</h2>
+      ) : <>
+        <h1 id="sale-preview-title" className="t-page-title text-fg">Запись продажи</h1>
+        <h2 className="t-record-title break-words text-fg">{record.applicantName || "Имя не указано"}</h2>
+      </>}
       <p className="max-w-2xl text-sm leading-6 text-fg-2">Сведения из записи отчёта.{record.leadId ? " Текущие данные клиента и условия — в его карточке." : ""}</p>
       {record.archived ? <p className="text-sm text-fg-2">Запись в архиве и не входит в рабочие итоги.</p> : null}
       {record.needsReview ? <p className="text-sm font-medium text-fg-2">Требует проверки</p> : null}
       <div className="flex flex-wrap gap-3">
-        {editHref ? <Link href={editHref} className={`${btnCls} min-h-11`}>{record.archived ? "Восстановление и исправление" : "Исправить запись"}</Link> : null}
+        {editHref ? <Link href={editHref} className={`${panel ? btnGhostCls : btnCls} min-h-11`}>{record.archived ? "Восстановление и исправление" : "Исправить запись"}</Link> : null}
         {record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className={`${btnGhostCls} min-h-11`}>Открыть карточку клиента</Link> : null}
       </div>
     </header>
-    <dl className="grid gap-x-8 gap-y-5 border-y border-border py-5 sm:grid-cols-2">
+    <dl className={`grid gap-x-8 gap-y-5 border-y border-border py-5 ${panel ? "" : "sm:grid-cols-2"}`}>
       <div className="min-w-0"><dt className="text-sm text-fg-2">Стоимость услуг</dt><dd className="t-section mt-1 break-words text-fg"><Amount minor={record.serviceCostMinor} currency={record.serviceCostCurrency} raw={record.serviceCostRaw} /></dd></div>
       <div className="min-w-0"><dt className="text-sm text-fg-2">Оплачено по записи</dt><dd className="t-section mt-1 break-words text-fg"><Amount minor={record.paidMinor} currency={record.paidCurrency} raw={record.paidRaw} /></dd></div>
     </dl>
     <p className="text-sm leading-6 text-fg-2">Оплата в записи — часть отчёта продажи, а не подтверждение поступления денег. Суммы в разных валютах не пересчитываются.</p>
-    <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="min-w-0">
+    <dl className={`grid gap-x-8 gap-y-5 ${panel ? "" : "sm:grid-cols-2"}`}>{fields.map(([label, value]) => <div key={label} className="min-w-0">
       <dt className="text-sm text-fg-2">{label}</dt><dd className="mt-1 break-words text-sm text-fg">{value || "Не указано"}</dd>
     </div>)}</dl>
     {record.notes ? <section className="space-y-2 border-t border-border pt-5" aria-labelledby="sale-preview-notes">

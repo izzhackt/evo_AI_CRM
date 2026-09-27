@@ -33,7 +33,11 @@ export function StudentApplicationAnswers({ application }: { application: Studen
  * Reused by both the Продажи «Заявки» queue and the lead-card «Доступ к
  * платформе» block, so it stays a small, self-contained form.
  */
-export function ApplicationDecision({ application, requestId }: { application: StudentApplication; requestId: string }) {
+export function ApplicationDecision({ application, requestId, quiet = false }: {
+  application: StudentApplication; requestId: string;
+  /** Lead 360 (Э4): спокойная кнопка — сплошной красный отдан главному действию страницы. */
+  quiet?: boolean;
+}) {
   const router = useRouter();
   const [state, action, pending] = useActionState<StudentApplicationActionState, FormData>(decideStudentApplicationAction, { status: "idle" });
   const [draft, setDraft] = useState({ decision: "approve", reason: "", requestId });
@@ -69,7 +73,9 @@ export function ApplicationDecision({ application, requestId }: { application: S
       </> : <label className="block text-sm text-fg-2">Причина отказа — её увидит студент
         <textarea name="reason" required minLength={3} maxLength={1000} rows={3} value={draft.reason} onChange={(event) => change({ reason: event.target.value })} className={inputClass} />
       </label>}
-      <button type="submit" className="min-h-11 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-50">
+      <button type="submit" className={quiet
+        ? "min-h-11 rounded-lg border border-control-edge bg-surface px-4 py-2 text-sm font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
+        : "min-h-11 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-50"}>
         {pending ? "Сохраняем…" : draft.decision === "approve" ? "Одобрить и открыть кабинет" : "Отклонить заявку"}
       </button>
     </fieldset>

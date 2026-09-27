@@ -889,6 +889,7 @@ async function readLeadProfile(
     details,
     sales: {
       lead,
+      leadCreatedAt: lead.createdAt,
       gate,
       handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)),
       strip,

@@ -305,7 +305,10 @@ test("pages wire the reads, the hints and the preview rule", () => {
   assert.match(profile, /params\.open \? readCaseClosure\(actor, params\.open\)\.catch\(\(\) => null\)/u);
   assert.match(profile, /closure && isStaffPreview\(actor\) \? \{ \.\.\.closure, canChange: false \} : closure/u);
   assert.match(profile, /staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\)/u);
-  assert.match(profile, /blockedReason=\{view\.sales\.handoff\.handedOffAt \? closureWords\.lead\.handedOff : null\}/u);
+  // «⋯» Lead 360 (Э4) — в действиях у заголовка, собранных `leadWorkParts`: то же право и та же причина.
+  const leadParts = read("src/components/v3/profile/LeadWorkParts.tsx");
+  assert.match(leadParts, /const closable = !preview && staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\);/u);
+  assert.match(leadParts, /blockedReason=\{sales\.handoff\.handedOffAt \? closureWords\.lead\.handedOff : null\}/u);
   assert.match(profile, /readClosedLeads\(actor, \{ leadId: explicitTarget\.leadId, limit: 1 \}\)/u);
   const pipeline = read("src/components/v3/Pipeline.tsx");
   assert.match(pipeline, /blockedReason=\{terminal \? closureWords\.lead\.handedOff : null\}/u);
@@ -318,7 +321,7 @@ test("pages wire the reads, the hints and the preview rule", () => {
   assert.equal(isClosedLeadsReturn("/v3/pipeline?view=closed"), true);
   assert.equal(isClosedLeadsReturn("/v3/pipeline?stage=new"), false);
   assert.match(profile, /pipelineReturnTo && isClosedLeadsReturn\(pipelineReturnTo\) \? closureWords\.lead\.backToClosed/u);
-  assert.match(profile, /back=\{caseBack \?\? closedLeadBack\}/u);
+  assert.match(profile, /back=\{caseBack \?\? leadBack \?\? closedLeadBack\}/u);
   assert.match(profile, /: closedLead \? closedLead\.name \?\? "Лид без имени"/u);
   // Окно «Завершить дело» получает число открытых задач, прочитанное «Обзором» и панелью.
   assert.match(profile, /openTasks=\{caseWork\?\.tasks\.kind === "ready" \? caseWork\.tasks\.tasks\.length : null\}/u);

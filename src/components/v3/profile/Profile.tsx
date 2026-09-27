@@ -73,11 +73,14 @@ export function Profile({
   profile: PersonProfile;
   /** «Вузы и программы» (unified workflow S4) — replaces the old «Маршрут» tab content. */
   universityProgramsTab?: React.ReactNode;
-  /** Сводка дела над вкладками для `?case=`-целей; заменяет обычную шапку профиля. */
+  /**
+   * Сводка над вкладками — дела (`?case=`) или лида (`?id=`, Lead 360 Э4:
+   * `leadWorkParts`); заменяет обычную шапку профиля.
+   */
   caseHeader?: React.ReactNode;
   /**
    * «Обзор» дела студента (`?case=`, решение владельца 26.09.2026): сначала
-   * работа. Вид лида (`?id=`) его не получает и остаётся прежним.
+   * работа. Вид лида (`?id=`) с Э4 (27.09.2026) получает свой — `leadWorkParts`.
    */
   caseOverview?: React.ReactNode;
   /** «⋯» лида в шапке (`?id=`): «Закрыть лид» (миграция 246). */
@@ -274,7 +277,8 @@ export function Profile({
       {current === "money" ? (
         <Money profile={profile} draft={draft} actor={actor} salesCaseId={sales?.handoff.caseId}
           // На деле студента условия продажи лежат в свёрнутом разделе «Данные продажи»: `panel=sales` раскрывает его.
-          saleConditionsHref={draft.saleConditions ? `${hrefFor("overview")}${caseOverview ? "&panel=sales" : ""}#sale-conditions` : null}
+          // В Lead 360 (Э4) якорь `#sale-conditions` раскрывает свою группу правки сам.
+          saleConditionsHref={draft.saleConditions ? `${hrefFor("overview")}${caseOverview && draft.routeTarget.studentCaseId ? "&panel=sales" : ""}#sale-conditions` : null}
           financeVisible={!profile.student || tabAccess.finance}
           contractWorkspace={draft.access.contract && draft.contract ? (
             <ProfileContractWorkspace

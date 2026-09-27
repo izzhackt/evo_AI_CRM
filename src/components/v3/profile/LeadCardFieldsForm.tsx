@@ -171,12 +171,17 @@ type SimpleField = Readonly<{
   selectOptions?: readonly string[];
 }>;
 
+/** Lead 360 (Э4): `bare` — группа правки без своей карточки, заголовок у раскрытия. */
+function Frame({ bare, title, children }: Readonly<{ bare: boolean; title: string; children: ReactNode }>) {
+  return bare ? children : <Card eyebrow title={title}>{children}</Card>;
+}
+
 function SimpleFieldsCard({
-  leadId, conditions, requestId, readOnly, title, testId, fields, fieldGroup, quiet,
+  leadId, conditions, requestId, readOnly, title, testId, fields, fieldGroup, quiet, bare,
 }: Readonly<{
   leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly: boolean;
   title: string; testId: string; fields: readonly SimpleField[];
-  fieldGroup: "wishes" | "education"; quiet: boolean;
+  fieldGroup: "wishes" | "education"; quiet: boolean; bare: boolean;
 }>) {
   const { state, action, pending, revision } = useCardFieldsAction(requestId);
   const base = allFieldValues(conditions);
@@ -185,8 +190,8 @@ function SimpleFieldsCard({
   const locked = readOnly || pending || state.status === "saved";
 
   return (
-    <Card eyebrow title={title}>
-      <div className="space-y-4 p-4" data-testid={testId}>
+    <Frame bare={bare} title={title}>
+      <div className={bare ? "space-y-4" : "space-y-4 p-4"} data-testid={testId}>
         <form action={action} className="space-y-4" aria-busy={pending}>
           <input type="hidden" name="lead_id" value={leadId} />
           <input type="hidden" name="expected_revision" value={revision} />
@@ -233,19 +238,20 @@ function SimpleFieldsCard({
           <StatusRow state={state} pending={pending} quiet={quiet} />
         </form>
       </div>
-    </Card>
+    </Frame>
   );
 }
 
 /** «Пожелания» (plan §5): страны, направления, уровень образования, интейк, вузы. */
 export function LeadWishesCard(props: Readonly<{
-  leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean; quiet?: boolean;
+  leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean; quiet?: boolean; bare?: boolean;
 }>) {
   return (
     <SimpleFieldsCard
       {...props}
       readOnly={props.readOnly ?? false}
       quiet={props.quiet ?? false}
+      bare={props.bare ?? false}
       title="Пожелания"
       fieldGroup="wishes"
       testId="v3-lead-wishes"
@@ -263,13 +269,14 @@ export function LeadWishesCard(props: Readonly<{
 
 /** «Образование» (plan §5): текущее образование, класс/курс, оценки, английский, сертификаты. */
 export function LeadEducationCard(props: Readonly<{
-  leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean; quiet?: boolean;
+  leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean; quiet?: boolean; bare?: boolean;
 }>) {
   return (
     <SimpleFieldsCard
       {...props}
       readOnly={props.readOnly ?? false}
       quiet={props.quiet ?? false}
+      bare={props.bare ?? false}
       title="Образование"
       fieldGroup="education"
       testId="v3-lead-education"
@@ -300,8 +307,8 @@ const BUDGET_PERIOD_LABEL: Record<ConditionsBudgetPeriod, string> = { year: "в 
 
 /** «Условия» (plan §5): бюджет с валютой и периодом, стипендия, пожелания/ограничения. */
 export function LeadConditionsCard({
-  leadId, conditions, requestId, readOnly = false, quiet = false,
-}: Readonly<{ leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean; quiet?: boolean }>) {
+  leadId, conditions, requestId, readOnly = false, quiet = false, bare = false,
+}: Readonly<{ leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean; quiet?: boolean; bare?: boolean }>) {
   const { state, action, pending, revision } = useCardFieldsAction(requestId);
   const base = allFieldValues(conditions);
   const [budgetAmount, setBudgetAmount] = useState(() => decimal(base.conditions_budget_minor));
@@ -312,8 +319,8 @@ export function LeadConditionsCard({
   const locked = readOnly || pending || state.status === "saved";
 
   return (
-    <Card eyebrow title="Условия">
-      <div className="space-y-4 p-4" data-testid="v3-lead-conditions">
+    <Frame bare={bare} title="Условия">
+      <div className={bare ? "space-y-4" : "space-y-4 p-4"} data-testid="v3-lead-conditions">
         <form action={action} className="space-y-4" aria-busy={pending}>
           <input type="hidden" name="lead_id" value={leadId} />
           <input type="hidden" name="expected_revision" value={revision} />
@@ -385,6 +392,6 @@ export function LeadConditionsCard({
           <StatusRow state={state} pending={pending} quiet={quiet} />
         </form>
       </div>
-    </Card>
+    </Frame>
   );
 }

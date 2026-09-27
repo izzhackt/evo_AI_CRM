@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { Icon, type IconName } from "@/components/icons";
-import { todayWhen, type TodayItem, type TodaySource } from "@/lib/v3/today-queue";
+import { todayDeadlineSoon, todayWhen, type TodayItem, type TodaySource } from "@/lib/v3/today-queue";
 
 /** Знак источника в колонке, где у задачи круг завершения: строка без действия на месте. */
 const SOURCE_ICON: Readonly<Record<Exclude<TodaySource, "tasks">, IconName>> = {
@@ -32,8 +32,10 @@ const PIECE = "relative flex min-h-6 items-center gap-x-1 ps-3 before:absolute b
  * человека — ссылка на его карточку только при мыши на широком экране (как у
  * «Задач»).
  *
- * Красный — только у просроченного срока и его слова; причина — обычный
- * текст (группа «Просрочено» уже названа красным). Причина не сокращается
+ * Красный — только у просроченного срока и его слова (у срока вуза —
+ * «прошёл»); причина — обычный текст (группа «Просрочено» уже названа
+ * красным). Срок вуза сегодня и в ближайшие 2 дня — слово предупреждением
+ * (`text-warn`): внешний срок рядом не выглядит как срок через 14 дней. Причина не сокращается
  * никогда: на узкой строке она идёт сразу за сроком, а имя — последним и
  * сокращается; если части или имени места нет, они переносятся целиком.
  * На широкой — «имя · причина»; имя сокращается, только если длиннее строки.
@@ -45,6 +47,7 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
   // там, где даты нет: «прошёл» и «сегодня» повторили бы заголовок группы, а
   // заголовок «Сроки вузов» дня не называет.
   const phoneWord = when?.word && (item.band === "upcoming" || item.band === "deadlines" || when.text === null) ? when.word : null;
+  const wordTone = when?.overdue ? "text-danger" : todayDeadlineSoon(item, new Date(nowIso)) ? "text-warn" : null;
   return (
     <li
       data-queue-row={item.key}
@@ -58,7 +61,7 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
       <p className="hidden self-start pt-1 t-body-compact @min-[32rem]:block">
         {when?.text ? <>
           <time dateTime={when.dateTime ?? undefined} className={`block font-mono tabular-nums ${when.overdue ? "text-danger" : "text-fg"}`}>{when.text}</time>
-          {when.word ? <span className={`flex min-h-6 items-center t-meta ${when.overdue ? "text-danger" : "text-fg-3"}`}>{when.word}</span> : null}
+          {when.word ? <span className={`flex min-h-6 items-center t-meta ${wordTone ?? "text-fg-3"}`}>{when.word}</span> : null}
         </> : when?.word ? <span className="block text-fg-2">{when.word}</span> : null}
       </p>
 
@@ -70,7 +73,7 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
             {when?.text || phoneWord ? (
               <span className={`${PIECE} shrink-0 whitespace-nowrap @min-[32rem]:hidden ${when?.overdue ? "text-danger" : ""}`}>
                 {when?.text ? <time dateTime={when.dateTime ?? undefined} className="font-mono tabular-nums">{when.text}</time> : null}
-                {phoneWord ? <span>{phoneWord}</span> : null}
+                {phoneWord ? <span className={wordTone === "text-warn" ? wordTone : undefined}>{phoneWord}</span> : null}
               </span>
             ) : null}
             {/* Причина «шаг просрочен · ждёт принятия» — по части на слово: на узкой

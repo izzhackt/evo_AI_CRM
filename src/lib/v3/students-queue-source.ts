@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import type { DocsPackagesRead, StudentsHandoff, StudentsOpenTasks, StudentsQueueParams } from "@/components/v3/students/students-queue-view";
 import {
+  readDocsPackagePages,
   studentsCountsView,
   studentsHandoffPending,
   studentsQueueRequest,
@@ -94,17 +95,12 @@ export async function readStudentsHandoff(actor: ActivePlatformActor, studentCas
 /**
  * Вкладка «Комплекты» EVO Docs (Э3, 27.09.2026): очередь «Комплекты на
  * проверку» — то же чтение и то же условие, что у шапки доски поступления
- * (`application_package_queue_v1`, первая страница; `document.read.full`, не
- * в просмотре роли). Без условия очередь не читается вовсе — вкладки нет;
- * отказ сервера и сбой — разные состояния.
+ * (`application_package_queue_v1`, до 3 страниц по 20 — `readDocsPackagePages`;
+ * `document.read.full`, не в просмотре роли). Без условия очередь не читается
+ * вовсе — вкладки нет; отказ сервера и сбой — разные состояния.
  */
 export async function readDocsPackages(actor: ActivePlatformActor): Promise<DocsPackagesRead> {
   if (isStaffPreview(actor) || !staffHasPermission(actor, "document.read.full")) return Object.freeze({ kind: "hidden" });
-  try {
-    const result = await readStaffApplicationPackageQueueAction({ organizationId: actor.organizationId, membershipId: actor.membershipId });
-    if (result.ok) return Object.freeze({ kind: "ready", queue: result.queue });
-    return Object.freeze({ kind: result.reason === "forbidden" ? "denied" : "error" });
-  } catch {
-    return Object.freeze({ kind: "error" });
-  }
+  const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
+  return readDocsPackagePages((cursor) => readStaffApplicationPackageQueueAction(owner, cursor));
 }

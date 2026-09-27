@@ -23,7 +23,9 @@ const NBSP = "\u00a0";
  * программа, число документов, набор и, если комплект собран по прежней
  * редакции требований, это предупреждение. Полосы «N из M» нет: принятых
  * документов комплекта очередь не отдаёт — только их число. От 48rem своей
- * ширины — таблица в одну строку, уже — стопка (как у `StudentsDocsTable`).
+ * ширины — таблица в одну строку, уже — стопка (как у `StudentsDocsTable`):
+ * в стопке голова строки — имя студента (t-item), вуз и программа под ним —
+ * обычным весом.
  */
 const COLUMNS = "@min-[48rem]/packages:grid-cols-[minmax(0,22fr)_minmax(0,50fr)_10rem_11rem] @min-[48rem]/packages:[grid-template-areas:'student_package_sent_open']";
 const ROW_GRID = `grid grid-cols-[minmax(0,1fr)] gap-x-3 [grid-template-areas:'student'_'package'_'sent'_'open'] ${COLUMNS}`;
@@ -83,7 +85,8 @@ export function StudentsPackagesTable({
                   <span className="block truncate t-item text-fg" title={item.studentDisplayName}>{item.studentDisplayName}</span>
                 </th>
                 <td role="cell" className={`${CELL} [grid-area:package] t-body-compact`}>
-                  <span className="line-clamp-2 break-words t-item text-fg" title={program}>{program}</span>
+                  {/* В стопке голова строки — студент: вуз и программа обычным весом; в таблице — своя колонка, как имя. */}
+                  <span className="line-clamp-2 break-words t-body-compact text-fg @min-[48rem]/packages:font-semibold" title={program}>{program}</span>
                   <span className="block text-fg-2">
                     {count}{NBSP}{russianPlural(count, "документ", "документа", "документов")}
                     <span className="text-fg-3"> · </span>

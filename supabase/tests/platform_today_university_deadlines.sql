@@ -27,8 +27,10 @@
 --     Admin sees every active case; closed and pending cases never appear;
 --  3. the application deadline of the band is the recorded
 --     university_deadline_on of an application in preparation or ready
---     (a submitted application no longer carries it), within the
---     p_due_from/p_due_to window the page asks for (today .. today + 14);
+--     (a submitted application no longer carries it, even once passed),
+--     within the p_due_from/p_due_to window the page asks for
+--     (today - 7 .. today + 14: a deadline that passed without submission
+--     stays in the band for a week, the finish review of 27.09);
 --     an application without a program (program_name NULL since 190) is a
 --     row with a NULL program — the adapter must accept it;
 --  4. the read keeps SECURITY DEFINER, the empty search_path and its grants.
@@ -64,16 +66,16 @@ $$;
 CREATE FUNCTION pg_temp.t3d_today() RETURNS DATE LANGUAGE SQL STABLE AS $$
   SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Bishkek')::DATE
 $$;
--- The band's call: today .. today + 14, first page of 100 (the adapter asks
--- for 101 to learn whether a next page exists). Returns sorted application
--- ids of the rows.
+-- The band's call: today - 7 .. today + 14, first page of 100 (the adapter
+-- asks for 101 to learn whether a next page exists). Returns sorted
+-- application ids of the rows.
 CREATE FUNCTION pg_temp.t3d_band() RETURNS UUID[] LANGUAGE SQL AS $$
   SELECT COALESCE(array_agg(d.application_id ORDER BY d.application_id), ARRAY[]::UUID[])
-  FROM platform.admissions_deadline_page_v1(101, NULL, NULL, pg_temp.t3d_today(), pg_temp.t3d_today() + 14) AS d
+  FROM platform.admissions_deadline_page_v1(101, NULL, NULL, pg_temp.t3d_today() - 7, pg_temp.t3d_today() + 14) AS d
 $$;
 CREATE FUNCTION pg_temp.t3d_band_error() RETURNS TEXT LANGUAGE SQL AS $$
   SELECT pg_temp.t3d_error(format('SELECT count(*) FROM platform.admissions_deadline_page_v1(101, NULL, NULL, %L, %L)',
-    pg_temp.t3d_today(), pg_temp.t3d_today() + 14))
+    pg_temp.t3d_today() - 7, pg_temp.t3d_today() + 14))
 $$;
 CREATE FUNCTION pg_temp.t3d_ids(VARIADIC n INTEGER[]) RETURNS UUID[] LANGUAGE SQL IMMUTABLE AS $$
   SELECT array_agg(pg_temp.t3d_id(x) ORDER BY pg_temp.t3d_id(x)) FROM unnest(n) AS x
@@ -152,7 +154,9 @@ FROM (VALUES (1, 304, 'active'), (2, 306, 'active'), (3, 301, 'active'), (4, 304
 -- 804 501 preparation +20 (outside the window); 805 502 preparation +2;
 -- 806 503 preparation +1; 807 504 (closed) preparation +4; 808 506
 -- (pending) preparation +4; 809 505 preparation today; 810 501 preparation
--- yesterday (before the window).
+-- yesterday (passed without submission: in the band); 811 501 submitted -3
+-- (passed, but submitted: out); 812 501 preparation -8 (before the window);
+-- 813 501 ready -7 (the window's first day).
 INSERT INTO platform.university_applications(id, organization_id, student_case_id, institution_name, program_name,
   status, latest_evidence_reference, created_by_membership_id, university_deadline_on, country, degree)
 SELECT pg_temp.t3d_id(800 + a.n), pg_temp.t3d_id(1), pg_temp.t3d_id(a.case_no), 'T3D University ' || a.n, a.program,
@@ -162,7 +166,8 @@ FROM (VALUES (1, 501, 'T3D Program 1', 'preparation', 3), (2, 501, 'T3D Program 
   (3, 501, NULL, 'ready', 10), (4, 501, 'T3D Program 4', 'preparation', 20), (5, 502, 'T3D Program 5', 'preparation', 2),
   (6, 503, 'T3D Program 6', 'preparation', 1), (7, 504, 'T3D Program 7', 'preparation', 4),
   (8, 506, 'T3D Program 8', 'preparation', 4), (9, 505, 'T3D Program 9', 'preparation', 0),
-  (10, 501, 'T3D Program 10', 'preparation', -1))
+  (10, 501, 'T3D Program 10', 'preparation', -1), (11, 501, 'T3D Program 11', 'submitted', -3),
+  (12, 501, 'T3D Program 12', 'preparation', -8), (13, 501, 'T3D Program 13', 'ready', -7))
   AS a(n, case_no, program, status, days);
 SET LOCAL session_replication_role = origin;
 -- The Student signs in to the organization and reads only the own case
@@ -255,25 +260,32 @@ SELECT pg_temp.t3d_as(4);
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.t3d_assert((SELECT count(*) = 1 AND bool_and(platform_role IS NULL AND membership_id = pg_temp.t3d_id(304))
   FROM platform.current_actor_authority()), 'Admissions A resolves with platform_role NULL');
-SELECT pg_temp.t3d_assert(pg_temp.t3d_band() = pg_temp.t3d_ids(801, 803, 809),
+SELECT pg_temp.t3d_assert(pg_temp.t3d_band() = pg_temp.t3d_ids(801, 803, 809, 810, 813),
   'Admissions A reads the deadlines of the own active cases only (501, 505): not 502, 503, closed 504 or pending 506');
 SELECT pg_temp.t3d_assert((SELECT bool_and(d.deadline_kind = 'application' AND d.student_case_id IN (pg_temp.t3d_id(501), pg_temp.t3d_id(505))
     AND d.source_key = 'application:' || d.application_id::TEXT || ':application')
-  FROM platform.admissions_deadline_page_v1(101, NULL, NULL, pg_temp.t3d_today(), pg_temp.t3d_today() + 14) AS d),
+  FROM platform.admissions_deadline_page_v1(101, NULL, NULL, pg_temp.t3d_today() - 7, pg_temp.t3d_today() + 14) AS d),
   'every band row is an application deadline with its stable source key');
 SELECT pg_temp.t3d_assert((SELECT d.program_name IS NULL AND d.university_name = 'T3D University 3'
     AND d.application_status = 'ready' AND d.deadline = pg_temp.t3d_today() + 10
-  FROM platform.admissions_deadline_page_v1(101, NULL, NULL, pg_temp.t3d_today(), pg_temp.t3d_today() + 14) AS d
+  FROM platform.admissions_deadline_page_v1(101, NULL, NULL, pg_temp.t3d_today() - 7, pg_temp.t3d_today() + 14) AS d
   WHERE d.application_id = pg_temp.t3d_id(803)), 'an application without a program is a row with a NULL program');
 SELECT pg_temp.t3d_assert((SELECT array_agg(d.application_id ORDER BY d.deadline, d.source_key COLLATE "C")
-  FROM platform.admissions_deadline_page_v1(101, NULL, NULL, pg_temp.t3d_today(), pg_temp.t3d_today() + 14) AS d)
-  = ARRAY[pg_temp.t3d_id(809), pg_temp.t3d_id(801), pg_temp.t3d_id(803)], 'rows come by deadline: today first');
+  FROM platform.admissions_deadline_page_v1(101, NULL, NULL, pg_temp.t3d_today() - 7, pg_temp.t3d_today() + 14) AS d)
+  = ARRAY[pg_temp.t3d_id(813), pg_temp.t3d_id(810), pg_temp.t3d_id(809), pg_temp.t3d_id(801), pg_temp.t3d_id(803)],
+  'rows come by deadline: passed ones first, then today');
 SELECT pg_temp.t3d_assert((SELECT COALESCE(array_agg(d.application_id ORDER BY d.application_id), ARRAY[]::UUID[])
   FROM platform.admissions_deadline_page_v1(101, NULL, NULL, NULL, NULL) AS d)
-  = pg_temp.t3d_ids(801, 803, 804, 809, 810),
-  'without a window the curator also reads the later and the passed deadline — the window is the page''s, the scope is the server''s');
+  = pg_temp.t3d_ids(801, 803, 804, 809, 810, 812, 813),
+  'without a window the curator also reads the later and the older passed deadline — the window is the page''s, the scope is the server''s');
 SELECT pg_temp.t3d_assert(NOT (pg_temp.t3d_id(802) = ANY (pg_temp.t3d_band())),
   'a submitted application no longer carries the application deadline');
+SELECT pg_temp.t3d_assert(pg_temp.t3d_id(810) = ANY (pg_temp.t3d_band()) AND pg_temp.t3d_id(813) = ANY (pg_temp.t3d_band()),
+  'a deadline passed without submission stays in the band for 7 days (today - 7 .. today + 14)');
+SELECT pg_temp.t3d_assert(NOT (pg_temp.t3d_id(811) = ANY (pg_temp.t3d_band())),
+  'a submitted application''s passed deadline stays out');
+SELECT pg_temp.t3d_assert(NOT (pg_temp.t3d_id(812) = ANY (pg_temp.t3d_band())),
+  'a deadline passed before the window stays out');
 RESET ROLE;
 
 SELECT pg_temp.t3d_as(6);
@@ -283,13 +295,13 @@ RESET ROLE;
 
 SELECT pg_temp.t3d_as(3);
 SET LOCAL ROLE authenticated;
-SELECT pg_temp.t3d_assert(pg_temp.t3d_band() = pg_temp.t3d_ids(801, 803, 805, 809),
+SELECT pg_temp.t3d_assert(pg_temp.t3d_band() = pg_temp.t3d_ids(801, 803, 805, 809, 810, 813),
   'the Admissions Manager reads the active cases curated in its department, not the Admin''s 503');
 RESET ROLE;
 
 SELECT pg_temp.t3d_as(1);
 SET LOCAL ROLE authenticated;
-SELECT pg_temp.t3d_assert(pg_temp.t3d_band() = pg_temp.t3d_ids(801, 803, 805, 806, 809),
+SELECT pg_temp.t3d_assert(pg_temp.t3d_band() = pg_temp.t3d_ids(801, 803, 805, 806, 809, 810, 813),
   'the Admin reads every active case; closed 504 and pending 506 never appear');
 RESET ROLE;
 

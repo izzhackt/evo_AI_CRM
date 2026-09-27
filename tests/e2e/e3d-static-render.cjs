@@ -159,12 +159,21 @@ const PACKAGES = [
   pkg(2, { caseNo: 5, name: "Камила Черновикова", university: "Технический университет Демо", program: "Master of Computer Science", intake: "Февраль 2027", at: "2026-09-25T09:40:00.000Z", items: 9 }),
   pkg(3, { caseNo: 3, name: "Нурай Демонстрова", university: "Школа бизнеса Макет", program: "Bachelor of Accounting", intake: "Март 2027", at: "2026-09-22T05:00:00.000Z", items: 7, current: false }),
 ];
-// Очередь длиннее первой страницы: 20 строк и продолжение — числа нет.
-const PACKAGES_MORE = Array.from({ length: 20 }, (_, index) => pkg(10 + index, {
+// Длинная очередь: страницы по 20, новые сверху. Вкладка читает её настоящим `readDocsPackagePages`.
+const QUEUE_LONG = Array.from({ length: 70 }, (_, index) => pkg(10 + index, {
   caseNo: (index % 7) + 1, name: DOCS_ROWS[index % 7].studentDisplayName, university: index % 2 ? "Университет Примера" : "Технический университет Демо",
   program: index % 2 ? "Foundation in Business" : "Bachelor of Engineering", intake: "Январь 2027",
-  at: `2026-09-${String(26 - Math.floor(index / 3)).padStart(2, "0")}T0${index % 9}:00:00.000Z`, items: 5 + (index % 4),
+  at: new Date(Date.parse("2026-09-27T03:00:00.000Z") - index * 5 * 3600 * 1000).toISOString(), items: 5 + (index % 4),
 }));
+/** Страницы очереди `application_package_queue_v1` (по 20) из синтетического списка. */
+function packagePages(all) {
+  return async (cursor) => {
+    const start = cursor ? all.findIndex((item) => item.package.packageId === cursor.id) + 1 : 0;
+    const items = all.slice(start, start + 20);
+    const last = items.at(-1);
+    return { ok: true, queue: { protocolVersion: 1, items, nextCursor: start + 20 < all.length ? { createdAt: last.package.submittedAt, id: last.package.packageId } : null } };
+  };
+}
 
 const DOCS_QUEUE_ACTOR = { admin: true, coverage: true };
 
@@ -198,6 +207,8 @@ function deadline(n, fields) {
 }
 
 const DEADLINES = [
+  // Прошёл 3 дня назад, заявление всё ещё «готово»: вверху группы, красным «прошёл», работа дня.
+  deadline(6, { caseNo: 5, student: "Камила Черновикова", university: "Технический университет Демо", program: "Master of Computer Science", day: "2026-09-24", status: "ready" }),
   deadline(1, { caseNo: 1, student: "Алина Образцова", university: "Университет Примера", program: "Foundation in Business", day: TODAY }),
   deadline(2, { caseNo: 2, student: "Данияр Макетов", university: "Технический университет Демо", program: "Bachelor of Engineering", day: "2026-09-29", status: "ready" }),
   deadline(3, { caseNo: 7, student: "Софья Эскизова", university: "Школа бизнеса Макет", day: "2026-10-06" }),
@@ -256,8 +267,10 @@ function todayReaders(data) {
 const TODAY_SCENARIOS = {
   // Куратор: свои шаги и сроки вузов по своим делам.
   "today-deadlines": { data: { mine: MINE, deadlines: DEADLINES } },
-  // Пустой день и пустая группа: чтение сроков полное, записанных сроков нет.
+  // Пустой день и пустое полное чтение сроков: одна пустота — «На сегодня всё» и слова о сроках под ним.
   "today-deadlines-empty": { data: { mine: [], deadlines: [] } },
+  // Пустое полное чтение сроков рядом с другими группами: своя группа со словами.
+  "today-deadlines-empty-queue": { data: { mine: MINE, deadlines: [] } },
   // Неполное чтение сроков: строки есть, числа нет, строка над очередью говорит почему.
   "today-deadlines-partial": { data: { mine: MINE, deadlines: DEADLINES, endless: true } },
   // Сбой чтения сроков: на месте, «Повторить»; остальная очередь видна.
@@ -270,7 +283,10 @@ const DOCS_SCENARIOS = {
   // «Все»: у дела без чек-листа полосы нет — прежняя строка «Чек-лист не собран».
   "docs-all": docsScenario("section=docs&view=all"),
   "docs-packages": docsScenario("section=docs&view=packages"),
-  "docs-packages-more": docsScenario("section=docs&view=packages", { packages: { kind: "ready", queue: { protocolVersion: 1, items: PACKAGES_MORE, nextCursor: { createdAt: "2026-09-20T00:00:00.000Z", id: "dddddddd-8888-4888-8888-000000000099" } } } }),
+  // Очередь в 3 страницы и ещё продолжение: 60 строк, числа нет, строка ведёт на доску.
+  "docs-packages-more": docsScenario("section=docs&view=packages", { packages: () => view.readDocsPackagePages(packagePages(QUEUE_LONG)) }),
+  // Очередь в 2 страницы (25): прочитана целиком — число есть, строки на доску нет.
+  "docs-packages-pages": docsScenario("section=docs&view=packages", { packages: () => view.readDocsPackagePages(packagePages(QUEUE_LONG.slice(0, 25))) }),
   "docs-packages-error": docsScenario("section=docs&view=packages", { packages: { kind: "error" } }),
   // Учётная запись без очереди комплектов (нет document.read.full или просмотр роли): вкладки нет.
   "docs-no-packages": docsScenario("section=docs", { packages: { kind: "hidden" } }),
@@ -289,9 +305,10 @@ function withContexts(node, pathname, search) {
 }
 
 /** EVO Docs — как `profile/page.tsx`: `PartShell` «EVO Docs» с числом вкладки и тихой ссылкой Admin. */
-function docsPage(name) {
+async function docsPage(name) {
   const item = DOCS_SCENARIOS[name];
-  const built = buildStudentsQueueScreen(item.input);
+  const packages = typeof item.input.packages === "function" ? await item.input.packages() : item.input.packages;
+  const built = buildStudentsQueueScreen({ ...item.input, packages });
   const action = createElement("a", { href: "/v3/universities", className: "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" }, "Университеты и бланки");
   return { node: createElement(PartShell, { title: "EVO Docs", count: built.count, action, dense: true }, createElement("div", { className: "space-y-6" }, built.content)), pathname: "/v3/profile", search: item.search };
 }
@@ -352,9 +369,11 @@ const SHOTS = {
   "docs-missing": ["1440", "1280", "390"],
   "docs-packages": ["1440", "1280", "390"],
   "docs-packages-more": ["1440", "390"],
+  "docs-packages-pages": ["1440"],
   "docs-missing-empty": ["1440"],
   "today-deadlines": ["1440", "1280", "390"],
   "today-deadlines-empty": ["1440", "1280", "390"],
+  "today-deadlines-empty-queue": ["1440", "390"],
   "today-deadlines-partial": ["1440", "390"],
   "today-deadlines-error": ["1440"],
 };

@@ -3,7 +3,8 @@
  * сделать, из существующих чтений: мои задачи, мои студенты (241/242), мои
  * лиды и заявки без ответственного (чтение доски продаж), переписки, ждущие
  * ответа («Сообщения»), и сроки вузов на 14 дней (27.09: записанные сроки
- * подачи заявлений, чтение 145 `admissions_deadline_page_v1`).
+ * подачи заявлений, чтение 145 `admissions_deadline_page_v1`; и прошедшие за
+ * 7 дней, пока заявление не подано).
  *
  * Чистая логика без React и без запросов: строки источников, группы по
  * срочности, слияние, числа групп и пустое состояние. По этим функциям рисует
@@ -45,6 +46,17 @@ export type TodayBand = (typeof TODAY_BANDS)[number];
  */
 export const TODAY_SOURCES = ["tasks", "students", "handoffs", "leads", "requests", "chats", "deadlines"] as const;
 export type TodaySource = (typeof TODAY_SOURCES)[number];
+
+/**
+ * Сроки вузов, которые уже прошли, а заявление всё ещё в «подготовке» или
+ * «готово»: столько дней назад они остаются в группе словом «прошёл» и
+ * считаются работой дня — иначе пропущенный срок исчезал бы на следующий
+ * день, и «Сегодня» говорило бы «На сегодня всё».
+ */
+export const TODAY_DEADLINE_PAST_DAYS = 7;
+
+/** Срок вуза не позже стольких дней от сегодня — предупреждение словом (`text-warn`). */
+export const TODAY_DEADLINE_SOON_DAYS = 2;
 
 /** «Ближайшие 14 дней»: срок после сегодняшнего дня и не дальше этого числа дней. */
 export const TODAY_HORIZON_DAYS = 14;
@@ -166,13 +178,22 @@ export type TodayNotice = Readonly<{
  * «записанных»: чтение знает только внесённые сроки, а не все сроки вузов.
  */
 export const TODAY_EMPTY_BANDS: Readonly<Partial<Record<TodayBand, Readonly<{ source: TodaySource; note: string }>>>> = {
-  deadlines: { source: "deadlines", note: "Записанных сроков подачи на ближайшие 14 дней нет." },
+  deadlines: { source: "deadlines", note: `Записанных сроков подачи на ближайшие 14 дней и прошедших без подачи за ${TODAY_DEADLINE_PAST_DAYS} дней нет.` },
 };
 
 export type TodayQueue = Readonly<{
   today: string;
-  /** Только непустые группы, в порядке `TODAY_BANDS`. */
+  /**
+   * Непустые группы в порядке `TODAY_BANDS` и пустые из `TODAY_EMPTY_BANDS`,
+   * когда рядом есть другие группы. Если пустая группа была бы единственной
+   * при пустом дне, её слова — в `emptyNote`, а группы нет.
+   */
   bands: readonly TodayBandView[];
+  /**
+   * Слова пустой группы полного чтения, которые встают в пустоту дня (под
+   * «На сегодня всё»), а не отдельной группой ниже; null — не нужно.
+   */
+  emptyNote: string | null;
   notices: readonly TodayNotice[];
   /** Хотя бы один источник относится к этой роли. */
   applicable: boolean;
@@ -180,7 +201,7 @@ export type TodayQueue = Readonly<{
   complete: boolean;
   /**
    * В группах действия («Просрочено» — «Без следующего шага») строк нет, и
-   * ни один срок вуза не приходится на сегодня.
+   * ни один срок вуза не приходится на сегодня и не прошёл без подачи.
    */
   actionEmpty: boolean;
   /** Ближайший срок из «Ближайших 14 дней»: «чт» и «02.10»; null — сроков нет. */
@@ -478,23 +499,33 @@ export function todayChatItems(rows: readonly CaseChatThreadRow[]): readonly Tod
   })));
 }
 
+/** Первый день окна сроков вузов: прошедшие без подачи за `TODAY_DEADLINE_PAST_DAYS` дней. */
+export function todayDeadlineFrom(today: string): string {
+  return shiftDay(today, -TODAY_DEADLINE_PAST_DAYS);
+}
+
 /**
  * Сроки вузов на 14 дней — чтение 145 (`admissions_deadline_page_v1`) по
  * делам в работе, которые смотрящий может читать. Только срок подачи
  * заявления (`application`: записанный срок заявки в состоянии «подготовка»
- * или «готово»); ответ партнёра, исправления, оффер и сроки документов
- * поездки — другие сроки, не «сроки вузов» этой группы. От сегодня до
- * сегодня + 14 дней по дню Бишкека. Строка: вуз (и программа), студент,
- * срок датой и словом; «Открыть» — заявки дела.
+ * или «готово» — у поданной заявки его нет); ответ партнёра, исправления,
+ * оффер и сроки документов поездки — другие сроки, не «сроки вузов» этой
+ * группы. От сегодня − 7 до сегодня + 14 дней по дню Бишкека: прошедший
+ * срок неподанного заявления остаётся словом «прошёл» вверху группы.
+ * Строка: вуз (и программа), студент, срок датой и словом; «Открыть» —
+ * заявки дела.
  */
 export function todayDeadlineItems(rows: readonly CalendarApplicationDeadlineRow[], today: string): readonly TodayItem[] {
+  const from = todayDeadlineFrom(today);
   const horizon = horizonDay(today);
   const seen = new Set<string>();
   const items: TodayItem[] = [];
   for (const row of rows) {
     if (seen.has(row.sourceKey)) throw new Error("Today queue received a duplicate deadline.");
     seen.add(row.sourceKey);
-    if (row.deadlineKind !== "application" || row.deadline < today || row.deadline > horizon) continue;
+    if (row.deadlineKind !== "application" || row.deadline < from || row.deadline > horizon) continue;
+    // 145 отдаёт этот вид только у заявлений в «подготовке» и «готово»; поданное — не работа по сроку.
+    if (row.status !== "preparation" && row.status !== "ready") continue;
     items.push(Object.freeze({
       key: `deadline:${row.sourceKey}`,
       source: "deadlines" as const,
@@ -626,6 +657,15 @@ export function buildTodayQueue(reads: readonly TodaySourceRead[], now: Date): T
     }));
   }
   const dueDay = (item: TodayItem) => item.due ? projectPlatformTaskDeadline(item.due.dueOn, item.due.dueAt, now).day : null;
+  // «Ближайшие» и сроки вузов после сегодня — горизонт, не работа дня; срок вуза сегодня или прошедший без подачи — работа дня.
+  const actionEmpty = !items.some((item) => {
+    if (item.band === "upcoming") return false;
+    if (item.band !== "deadlines") return true;
+    const day = dueDay(item);
+    return day !== null && day <= today;
+  });
+  // Пустая группа полного чтения — единственная при пустом дне: её слова встают в пустоту дня, а не отдельной группой.
+  const lone = actionEmpty && bands.length === 1 && bands[0].items.length === 0 ? bands[0] : null;
   // Ближайший срок после сегодня — свой шаг или срок вуза.
   const upcomingDays = items
     .filter((item) => item.band === "upcoming" || item.band === "deadlines")
@@ -635,12 +675,12 @@ export function buildTodayQueue(reads: readonly TodaySourceRead[], now: Date): T
   const nearestDay = upcomingDays[0] ?? null;
   return Object.freeze({
     today,
-    bands: Object.freeze(bands),
+    bands: Object.freeze(lone ? [] : bands),
+    emptyNote: lone?.note ?? null,
     notices: Object.freeze(reads.map(noticeFor).filter((notice): notice is TodayNotice => notice !== null)),
     applicable: reads.some((read) => read.state !== "denied" && read.state !== "preview"),
     complete: blocking.length === 0,
-    // «Ближайшие» и сроки вузов после сегодня — горизонт, не работа дня; срок вуза сегодня — работа дня.
-    actionEmpty: !items.some((item) => item.band !== "upcoming" && (item.band !== "deadlines" || dueDay(item) === today)),
+    actionEmpty,
     nearest: nearestDay ? {
       day: nearestDay,
       weekday: queueDayWithWeekday(nearestDay, today).split(" ")[0],
@@ -689,6 +729,20 @@ export function todayWhen(item: Pick<TodayItem, "due" | "since"> & Partial<Pick<
     return Object.freeze({ dateTime: null, text: null, word: days === 0 ? "сегодня" : `ждёт ${days} дн`, overdue: false });
   }
   return null;
+}
+
+/**
+ * Срок вуза сегодня или в ближайшие `TODAY_DEADLINE_SOON_DAYS` дня: слово
+ * срока — предупреждением (`text-warn`, как «исправить» и «отклонён»), чтобы
+ * внешний срок через 2 дня не выглядел как срок через 14. Прошедший —
+ * красный «прошёл» (`overdue`), не этот тон.
+ */
+export function todayDeadlineSoon(item: Pick<TodayItem, "band" | "due">, now: Date): boolean {
+  if (item.band !== "deadlines" || !item.due) return false;
+  const deadline = projectPlatformTaskDeadline(item.due.dueOn, item.due.dueAt, now);
+  if (deadline.day === null || deadline.overdue) return false;
+  const distance = dayDelta(dayInOrganizationTimezone(now), deadline.day);
+  return distance >= 0 && distance <= TODAY_DEADLINE_SOON_DAYS;
 }
 
 const DATE_LABEL = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });

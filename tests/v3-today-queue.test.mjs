@@ -463,8 +463,8 @@ test("readTodayQueue: existing reads with their own limits, each failing on its 
     ["tasks", "complete"], ["students", "partial"], ["handoffs", "denied"], ["leads", "complete"], ["requests", "complete"], ["chats", "error"],
     ["deadlines", "complete"],
   ]);
-  // Сроки вузов — окно «сегодня … сегодня + 14 дней» по дню Бишкека, с первой страницы.
-  assert.deepEqual(calls.find(([kind]) => kind === "deadlines")[1], { from: TODAY, to: "2026-10-10", cursor: null });
+  // Сроки вузов — окно «сегодня − 7 (прошедшие без подачи) … сегодня + 14 дней» по дню Бишкека, с первой страницы.
+  assert.deepEqual(calls.find(([kind]) => kind === "deadlines")[1], { from: "2026-09-19", to: "2026-10-10", cursor: null });
   assert.deepEqual(calls.find(([kind]) => kind === "staff")[1], { view: "mine", status: "active", cursor: null });
   assert.deepEqual(calls.find(([kind]) => kind === "case")[1], { pageSize: 100, cursor: null, dueTo: "2026-10-10" });
   assert.deepEqual(calls.filter(([kind]) => kind === "leads").map(([, assignment]) => assignment).sort(), ["mine", "unassigned"]);
@@ -599,9 +599,9 @@ test("static render: an empty day says so only after complete reads, with the ne
   assert.match(text(sales), /Ближайшие 14 дней · 1/u);
   const admissions = surfaces.get("empty-admissions");
   assert.match(admissions, /data-testid="queue-empty"[\s\S]*На сегодня всё[\s\S]*href="\/v3\/profile"[^>]*>Открыть студентов<\/a>/u);
-  // Единственная группа — пустые «Сроки вузов» полного чтения: без числа, словами.
-  assert.deepEqual([...admissions.matchAll(/<h2 id="(today-band-[a-z_]+)"/gu)].map((match) => match[1]), ["today-band-deadlines"]);
-  assert.match(admissions, /Сроки вузов · 14 дней<\/span><\/h2><p class="[^"]*t-meta[^"]*">Записанных сроков подачи на ближайшие 14 дней нет\.<\/p><ul><\/ul>/u);
+  // Пустые «Сроки вузов» полного чтения были бы единственной группой: их слова — в той же пустоте, под «На сегодня всё».
+  assert.doesNotMatch(admissions, /<h2 id="today-band-/u);
+  assert.match(admissions, /data-testid="queue-empty"[\s\S]*На сегодня всё[\s\S]*data-today-empty-note="">Записанных сроков подачи на ближайшие 14 дней и прошедших без подачи за 7 дней нет\.<\/p>[\s\S]*href="\/v3\/profile"[^>]*>Открыть студентов<\/a>/u);
 });
 
 test("report: the period cohort and the board never share a bare «Переданы»", () => {

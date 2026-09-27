@@ -14,6 +14,7 @@ import { CASE_QUEUE_PAGE_SIZE, TASK_QUEUE_READ_PAGES, taskQueueAccess } from "./
 import {
   TODAY_HORIZON_DAYS,
   todayChatItems,
+  todayDeadlineFrom,
   todayDeadlineItems,
   todayHandoffItems,
   todayLeadItems,
@@ -218,7 +219,8 @@ export type TodayRead = Readonly<{
  * дней). Студенты — одна страница вида «Мои» и одна «Требуют действия»
  * (241/242). Лиды и заявки — чтение доски продаж с `assignment=mine` и
  * `unassigned`; переписки — очередь «Нужен ответ» «Сообщений»; сроки вузов —
- * `admissions_deadline_page_v1` с сегодня до сегодня + 14 дней, 3 страницы по 100.
+ * `admissions_deadline_page_v1` с сегодня − 7 (прошедшие без подачи) до
+ * сегодня + 14 дней, 3 страницы по 100.
  */
 export async function readTodayQueue(
   actor: ActivePlatformActor,
@@ -272,7 +274,7 @@ export async function readTodayQueue(
         // Чтение отвечает областью настоящей учётной записи: у просмотра роли это были бы сроки всех дел Admin.
         if (access.preview) return { source, state: "preview" };
         const pages = await readPages(TODAY_DEADLINE_READ_PAGES, (cursor: CalendarApplicationDeadlineCursor | null) =>
-          readers.readDeadlines(actor, { from: today, to: shiftDay(today, TODAY_HORIZON_DAYS), cursor }));
+          readers.readDeadlines(actor, { from: todayDeadlineFrom(today), to: shiftDay(today, TODAY_HORIZON_DAYS), cursor }));
         return { source, state: pages.complete ? "complete" : "partial", items: todayDeadlineItems(pages.rows, today) };
       }
     }

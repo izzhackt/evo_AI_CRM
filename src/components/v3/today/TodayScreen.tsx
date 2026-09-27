@@ -53,7 +53,9 @@ export function TodayBoardLinks({ links }: Readonly<{ links: readonly TodayLink[
 /**
  * «Сегодня»: уведомления источников, честная пустота и одна очередь по
  * срочности. «На сегодня всё» — только когда все чтения роли полные; иначе
- * пустота называет прочитанную часть.
+ * пустота называет прочитанную часть. Пустая группа полного чтения, которая
+ * была бы единственной («Сроки вузов»), — строкой в той же пустоте, а не
+ * второй пустотой ниже (`queue.emptyNote`).
  */
 export function TodayScreen({
   queue,
@@ -67,23 +69,22 @@ export function TodayScreen({
   /** Главное действие роли для пустого дня; null — у роли его нет. */
   mainAction: TodayLink | null;
 }>) {
-  const action = mainAction ? <Link href={mainAction.href} className={QUEUE_QUIET_LINK}>{mainAction.label}</Link> : null;
+  const link = mainAction ? <Link href={mainAction.href} className={QUEUE_QUIET_LINK}>{mainAction.label}</Link> : null;
+  const note = queue.emptyNote ? <p className="t-body-compact text-fg-2" data-today-empty-note="">{queue.emptyNote}</p> : null;
+  const nearest = queue.nearest ? (
+    <p className="t-body-compact text-fg-2">
+      Ближайший срок — {queue.nearest.weekday} <time dateTime={queue.nearest.day} className="font-mono tabular-nums">{queue.nearest.date}</time>
+    </p>
+  ) : null;
   return (
     <div className="space-y-4">
       {queue.notices.length ? <TodayNotices notices={queue.notices} /> : null}
       {!queue.applicable ? (
-        <QueueEmpty title="Для вашей роли здесь пока нет очереди." action={action} />
+        <QueueEmpty title="Для вашей роли здесь пока нет очереди." action={link} />
       ) : queue.actionEmpty ? (
-        queue.complete ? (
-          <QueueEmpty
-            title="На сегодня всё"
-            action={queue.nearest
-              ? <p className="t-body-compact text-fg-2">
-                Ближайший срок — {queue.nearest.weekday} <time dateTime={queue.nearest.day} className="font-mono tabular-nums">{queue.nearest.date}</time>
-              </p>
-              : action}
-          />
-        ) : <QueueEmpty title="В прочитанной части на сегодня ничего нет." />
+        queue.complete
+          ? <QueueEmpty title="На сегодня всё" action={<>{note}{nearest ?? link}</>} />
+          : <QueueEmpty title="В прочитанной части на сегодня ничего нет." action={note} />
       ) : null}
       {queue.bands.length ? (
         <div className="@container min-w-0" data-today-queue="">

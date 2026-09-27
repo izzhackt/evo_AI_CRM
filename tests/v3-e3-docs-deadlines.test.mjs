@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  DOCS_PACKAGE_READ_PAGES,
   STUDENTS_DOCS_VIEWS,
   STUDENTS_DOCS_VIEW_LABELS,
   docsPackagesCount,
@@ -12,6 +13,7 @@ import {
   docsTabCounts,
   parseStudentsQueueParams,
   parseStudentsReturnTo,
+  readDocsPackagePages,
   studentsDocsCell,
   studentsDocsTabs,
 } from "../src/components/v3/students/students-queue-view.ts";
@@ -23,10 +25,13 @@ import {
 } from "../src/lib/v3/calendar-contract.ts";
 import {
   TODAY_BANDS,
+  TODAY_DEADLINE_PAST_DAYS,
+  TODAY_DEADLINE_SOON_DAYS,
   TODAY_EMPTY_BANDS,
   buildTodayQueue,
   todayBandsDependingOn,
   todayDeadlineItems,
+  todayDeadlineSoon,
   todayLeadItems,
   todayWhen,
 } from "../src/lib/v3/today-queue.ts";
@@ -139,15 +144,99 @@ test("«Комплекты» reuses the board's queue: number only without a nex
   assert.match(html, /<h1[^>]*>EVO Docs<span[^>]*>3<\/span><\/h1>/u);
 
   const more = surfaces.get("docs-packages-more");
-  assert.deepEqual(tabsOf(more)[3], ["Комплекты", null], "20 rows and a next page — no number");
+  assert.deepEqual(tabsOf(more)[3], ["Комплекты", null], "3 pages read and still a next page — no number");
+  assert.equal([...more.matchAll(/data-testid="v3-student-package-row"/gu)].length, 60);
   assert.doesNotMatch(more, /<h1[^>]*>EVO Docs<span/u);
-  assert.match(more, /Показаны последние 20 комплектов; вся очередь — на доске поступления\.[\s\S]*href="\/v3\/admissions-pipeline\?view=packages"[^>]*>Все комплекты на проверку<\/a>/u);
+  assert.match(more, /Показаны последние 60 комплектов; вся очередь — на доске поступления\.[\s\S]*href="\/v3\/admissions-pipeline\?view=packages"[^>]*>Все комплекты на проверку<\/a>/u);
+  // Two pages that end: the whole queue is read — the number shows and no board line.
+  const pages = surfaces.get("docs-packages-pages");
+  assert.deepEqual(tabsOf(pages)[3], ["Комплекты", "25"]);
+  assert.equal([...pages.matchAll(/data-testid="v3-student-package-row"/gu)].length, 25);
+  assert.match(pages, /<h1[^>]*>EVO Docs<span[^>]*>25<\/span><\/h1>/u);
+  assert.doesNotMatch(pages, /Показаны последние|Все комплекты на проверку/u);
   assert.match(surfaces.get("docs-packages-error"), /data-testid="queue-error"[\s\S]*Не удалось загрузить комплекты на проверку\./u);
   // The page reads the queue with the board's own gate and action.
   const source = read("src/lib/v3/students-queue-source.ts");
   assert.match(source, /if \(isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "document\.read\.full"\)\) return Object\.freeze\(\{ kind: "hidden" \}\);/u);
-  assert.match(source, /readStaffApplicationPackageQueueAction\(\{ organizationId: actor\.organizationId, membershipId: actor\.membershipId \}\)/u);
+  assert.match(source, /const owner = \{ organizationId: actor\.organizationId, membershipId: actor\.membershipId \};\n  return readDocsPackagePages\(\(cursor\) => readStaffApplicationPackageQueueAction\(owner, cursor\)\);/u);
   assert.match(read("src/app/(v3)/v3/profile/page.tsx"), /params\.mode === "docs" \? readDocsPackages\(actor\) : Promise\.resolve\(undefined\)/u);
+});
+
+const packageItem = (n) => ({ package: { packageId: `dddddddd-8888-4888-8888-${String(n).padStart(12, "0")}`, submittedAt: `2026-09-${String(27 - (n % 20)).padStart(2, "0")}T00:00:00.000Z`, itemCount: 3 } });
+/** Страницы очереди комплектов по 20 из синтетического списка; `fail` — номер страницы (с 0), которая не читается. */
+function packageReader(total, { fail = null, reason = "unavailable", throws = false } = {}) {
+  const calls = [];
+  const all = Array.from({ length: total }, (_, index) => packageItem(index + 1));
+  return {
+    calls,
+    read: async (cursor) => {
+      const page = calls.length;
+      calls.push(cursor);
+      if (page === fail) {
+        if (throws) throw new Error("synthetic failure");
+        return { ok: false, reason };
+      }
+      const start = page * 20;
+      const items = all.slice(start, start + 20);
+      return { ok: true, queue: { items, nextCursor: start + 20 < all.length ? { createdAt: items.at(-1).package.submittedAt, id: items.at(-1).package.packageId } : null } };
+    },
+  };
+}
+
+test("«Комплекты» reads up to 3 pages: the number after a complete multi-page read, none while a next page remains", async () => {
+  assert.equal(DOCS_PACKAGE_READ_PAGES, 3);
+  // 45 packages: three pages, the last without a next page — the whole queue, a number, oldest rows included.
+  const whole = packageReader(45);
+  const complete = await readDocsPackagePages(whole.read);
+  assert.equal(whole.calls.length, 3);
+  assert.equal(whole.calls[0], null, "the first page has no cursor");
+  assert.deepEqual(whole.calls[1], { createdAt: packageItem(20).package.submittedAt, id: packageItem(20).package.packageId });
+  assert.equal(complete.kind, "ready");
+  assert.equal(complete.queue.items.length, 45);
+  assert.equal(complete.queue.nextCursor, null);
+  assert.equal(docsPackagesCount(complete), 45);
+  // 61 packages: three pages and a next one — the read stops, the number stays hidden.
+  const longer = packageReader(61);
+  const partial = await readDocsPackagePages(longer.read);
+  assert.equal(longer.calls.length, 3, "never more than 3 pages");
+  assert.equal(partial.queue.items.length, 60);
+  assert.notEqual(partial.queue.nextCursor, null);
+  assert.equal(docsPackagesCount(partial), null);
+  // A single short page ends the read at once.
+  const short = packageReader(7);
+  assert.equal(docsPackagesCount(await readDocsPackagePages(short.read)), 7);
+  assert.equal(short.calls.length, 1);
+  // The first page refused or failed: its own state, never an empty queue.
+  assert.deepEqual(await readDocsPackagePages(packageReader(45, { fail: 0, reason: "forbidden" }).read), { kind: "denied" });
+  assert.deepEqual(await readDocsPackagePages(packageReader(45, { fail: 0 }).read), { kind: "error" });
+  assert.deepEqual(await readDocsPackagePages(packageReader(45, { fail: 0, throws: true }).read), { kind: "error" });
+  // A later page fails: the read part is shown without a number; the board line names the rest.
+  const broken = await readDocsPackagePages(packageReader(45, { fail: 1 }).read);
+  assert.equal(broken.kind, "ready");
+  assert.equal(broken.queue.items.length, 20);
+  assert.notEqual(broken.queue.nextCursor, null);
+  assert.equal(docsPackagesCount(broken), null);
+  // A package repeated on the next page is shown once.
+  let turn = 0;
+  const repeated = await readDocsPackagePages(async () => {
+    turn += 1;
+    return turn === 1
+      ? { ok: true, queue: { items: [packageItem(1), packageItem(2)], nextCursor: { createdAt: packageItem(2).package.submittedAt, id: packageItem(2).package.packageId } } }
+      : { ok: true, queue: { items: [packageItem(2), packageItem(3)], nextCursor: null } };
+  });
+  assert.deepEqual(repeated.queue.items.map((item) => item.package.packageId), [1, 2, 3].map((n) => packageItem(n).package.packageId));
+});
+
+test("package row: on a narrow row the student heads it; the university and program read as ordinary text", () => {
+  const html = surfaces.get("docs-packages");
+  const rows = [...html.matchAll(/data-testid="v3-student-package-row"[\s\S]*?<\/tr>/gu)].map((match) => match[0]);
+  assert.equal(rows.length, 3);
+  for (const row of rows) {
+    assert.match(row, /<span class="block truncate t-item text-fg" title="[^"]+">/u, "the student name is the row head");
+    // Regular weight in the stack; the semibold weight only in the wide table's own column.
+    assert.match(row, /<span class="line-clamp-2 break-words t-body-compact text-fg @min-\[48rem\]\/packages:font-semibold" title="[^"]+">/u);
+    assert.doesNotMatch(row, /line-clamp-2 break-words t-item/u);
+  }
 });
 
 test("EVO Docs, new look: «N из M принято» is a bar only from read checklist numbers; the current look keeps its line", () => {
@@ -182,23 +271,30 @@ const deadline = (n, fields) => {
   return {
     sourceKey: `${kind === "application" ? "application" : "visa"}:${applicationId}:${kind}`, deadlineKind: kind, applicationId,
     studentCaseId: caseId(fields.caseNo ?? n), studentDisplayName: fields.student ?? `Студент ${n}`, universityName: fields.university ?? `Университет ${n}`,
-    programName: fields.program ?? "", status: kind === "application" ? "preparation" : null, deadline: fields.day,
+    programName: fields.program ?? "", status: kind === "application" ? fields.status ?? "preparation" : null, deadline: fields.day,
   };
 };
 const readOf = (source, items, state = "complete") => ({ source, state, items });
 const bandOf = (queue, band) => queue.bands.find((entry) => entry.band === band) ?? null;
 
-test("deadline rows: application deadlines from today to today + 14, with university, student and the day", () => {
+test("deadline rows: application deadlines from today − 7 to today + 14, with university, student and the day", () => {
+  assert.equal(TODAY_DEADLINE_PAST_DAYS, 7);
   const items = todayDeadlineItems([
     deadline(1, { day: TODAY, university: "Университет Примера", program: "Foundation in Business", student: "Алина Образцова" }),
     deadline(2, { day: "2026-10-11" }), // ровно 14 дней
     deadline(3, { day: "2026-10-12" }), // дальше горизонта
-    deadline(4, { day: "2026-09-26" }), // вчера — это «Просрочен дедлайн» студента, не группа сроков
+    deadline(4, { day: "2026-09-26", status: "ready" }), // вчера, заявление не подано — «прошёл», в группе
     deadline(5, { day: "2026-09-30", kind: "passport_expiry" }), // срок паспорта — не срок вуза
     deadline(6, { day: "2026-10-01", kind: "offer" }), // ответ на оффер — не срок подачи
     deadline(7, { day: "2026-10-02" }), // без программы
+    deadline(8, { day: "2026-09-20" }), // ровно 7 дней назад — ещё в группе
+    deadline(9, { day: "2026-09-19" }), // 8 дней назад — за окном
+    deadline(10, { day: "2026-09-24", status: "submitted" }), // прошёл, но заявление подано — не работа по сроку
   ], TODAY);
-  assert.deepEqual(items.map((item) => [item.title, item.due.dueOn]), [["Университет Примера", TODAY], ["Университет 2", "2026-10-11"], ["Университет 7", "2026-10-02"]]);
+  assert.deepEqual(items.map((item) => [item.title, item.due.dueOn]), [
+    ["Университет Примера", TODAY], ["Университет 2", "2026-10-11"], ["Университет 4", "2026-09-26"], ["Университет 7", "2026-10-02"], ["Университет 8", "2026-09-20"],
+  ]);
+  assert.deepEqual(todayWhen(items[2], NOW), { dateTime: "2026-09-26", text: "26.09", word: "прошёл", overdue: true }, "a passed deadline says so in red");
   const first = items[0];
   assert.equal(first.key, `deadline:application:${"eeeeeeee-7777-4777-8777-000000000001"}:application`);
   assert.equal(first.band, "deadlines");
@@ -223,10 +319,27 @@ test("the «Сроки вузов · 14 дней» band: its own read decides it
   const partial = buildTodayQueue([readOf("deadlines", rows, "partial")], NOW);
   assert.equal(bandOf(partial, "deadlines").count, null);
   assert.deepEqual(partial.notices, [{ source: "deadlines", kind: "partial", text: "Сроки вузов прочитаны не полностью: показана прочитанная часть, число скрыто.", link: null }]);
-  // Empty complete read: the band stays, without a number, in words.
+  assert.equal(TODAY_EMPTY_BANDS.deadlines.note, "Записанных сроков подачи на ближайшие 14 дней и прошедших без подачи за 7 дней нет.");
+  // Empty complete read beside other bands: the band stays, without a number, in words.
+  const step = { key: "task:1", source: "tasks", band: "upcoming", title: "Шаг", who: null, reason: "шаг", due: { dueOn: "2026-10-01", dueAt: null }, since: null, waitingDays: null, openHref: "/v3/tasks", task: null };
+  const beside = buildTodayQueue([readOf("tasks", [step]), readOf("deadlines", [])], NOW);
+  assert.deepEqual(beside.bands.map((band) => band.band), ["deadlines", "upcoming"]);
+  assert.deepEqual(bandOf(beside, "deadlines"), { band: "deadlines", label: "Сроки вузов · 14 дней", count: null, danger: false, note: TODAY_EMPTY_BANDS.deadlines.note, items: [] });
+  assert.equal(beside.emptyNote, null);
+  const busy = buildTodayQueue([readOf("tasks", [{ ...step, band: "overdue", due: { dueOn: "2026-09-25", dueAt: null } }]), readOf("deadlines", [])], NOW);
+  assert.deepEqual(busy.bands.map((band) => band.band), ["overdue", "deadlines"], "work of the day keeps the empty band beside it");
+  assert.equal(busy.emptyNote, null);
+  // Empty day and an empty complete read: one empty state — the sentence goes under «На сегодня всё», no lone band.
   const empty = buildTodayQueue([readOf("deadlines", [])], NOW);
-  assert.deepEqual(empty.bands, [{ band: "deadlines", label: "Сроки вузов · 14 дней", count: null, danger: false, note: TODAY_EMPTY_BANDS.deadlines.note, items: [] }]);
-  assert.equal(TODAY_EMPTY_BANDS.deadlines.note, "Записанных сроков подачи на ближайшие 14 дней нет.");
+  assert.deepEqual(empty.bands, []);
+  assert.equal(empty.emptyNote, TODAY_EMPTY_BANDS.deadlines.note);
+  assert.equal(empty.actionEmpty, true);
+  assert.equal(empty.complete, true);
+  // The same with a partial other read: the sentence joins «В прочитанной части…» — the deadline read itself is complete.
+  const partialDay = buildTodayQueue([readOf("tasks", [], "partial"), readOf("deadlines", [])], NOW);
+  assert.deepEqual(partialDay.bands, []);
+  assert.equal(partialDay.complete, false);
+  assert.equal(partialDay.emptyNote, TODAY_EMPTY_BANDS.deadlines.note);
   // Empty partial, failed, denied or preview read: no band — nothing is claimed about deadlines.
   for (const state of ["partial"]) assert.equal(bandOf(buildTodayQueue([readOf("deadlines", [], state)], NOW), "deadlines"), null, state);
   for (const state of ["error", "denied", "preview"]) {
@@ -239,17 +352,45 @@ test("the «Сроки вузов · 14 дней» band: its own read decides it
   });
   // Without the source (a role it does not belong to) there is no band at all.
   assert.equal(bandOf(buildTodayQueue([readOf("tasks", [])], NOW), "deadlines"), null);
+  assert.equal(buildTodayQueue([readOf("tasks", [])], NOW).emptyNote, null);
+  for (const state of ["error", "denied", "preview"]) assert.equal(buildTodayQueue([{ source: "deadlines", state }], NOW).emptyNote, null, state);
+  assert.equal(buildTodayQueue([readOf("deadlines", [], "partial")], NOW).emptyNote, null, "an empty partial read claims nothing");
 });
 
-test("a university deadline today is work of the day; later ones are the horizon and feed «Ближайший срок»", () => {
+test("a university deadline today or passed without submission is work of the day; later ones are the horizon and feed «Ближайший срок»", () => {
   const today = buildTodayQueue([readOf("deadlines", todayDeadlineItems([deadline(1, { day: TODAY })], TODAY))], NOW);
   assert.equal(today.actionEmpty, false, "«На сегодня всё» is never said over a deadline due today");
+  // Passed yesterday and still «готово»: shown at the top of the band and it blocks «На сегодня всё».
+  const passed = buildTodayQueue([readOf("deadlines", todayDeadlineItems([
+    deadline(2, { day: "2026-10-03" }), deadline(1, { day: "2026-09-26", status: "ready" }),
+  ], TODAY))], NOW);
+  assert.equal(passed.actionEmpty, false, "«На сегодня всё» is never said over a missed deadline");
+  assert.deepEqual(bandOf(passed, "deadlines").items.map((item) => item.due.dueOn), ["2026-09-26", "2026-10-03"], "the passed one first");
+  assert.equal(bandOf(passed, "deadlines").count, 2);
+  assert.equal(bandOf(passed, "deadlines").danger, false, "the band title stays neutral: red is the row's «прошёл»");
+  assert.equal(bandOf(passed, "overdue"), null, "the deadline stays in its own band");
+  // A submitted application's passed deadline stays out (145 carries none; the rows guard it too).
+  const submitted = buildTodayQueue([readOf("deadlines", todayDeadlineItems([deadline(1, { day: "2026-09-26", status: "submitted" })], TODAY))], NOW);
+  assert.equal(submitted.actionEmpty, true);
+  assert.equal(submitted.emptyNote, TODAY_EMPTY_BANDS.deadlines.note);
   const later = buildTodayQueue([
     readOf("deadlines", todayDeadlineItems([deadline(1, { day: "2026-10-03" })], TODAY)),
     readOf("leads", todayLeadItems([], TODAY)),
   ], NOW);
   assert.equal(later.actionEmpty, true);
   assert.deepEqual(later.nearest, { day: "2026-10-03", weekday: "сб", date: "03.10" });
+});
+
+test("a university deadline today or within 2 days is a warning word; later ones are neutral, passed ones red", () => {
+  assert.equal(TODAY_DEADLINE_SOON_DAYS, 2);
+  const [passed, today, one, two, three] = todayDeadlineItems([
+    deadline(1, { day: "2026-09-26" }), deadline(2, { day: TODAY }), deadline(3, { day: "2026-09-28" }),
+    deadline(4, { day: "2026-09-29" }), deadline(5, { day: "2026-09-30" }),
+  ], TODAY);
+  assert.deepEqual([passed, today, one, two, three].map((item) => todayDeadlineSoon(item, NOW)), [false, true, true, true, false]);
+  assert.equal(todayWhen(passed, NOW).overdue, true, "passed is red, not a warning");
+  // Only the deadlines band carries this tone: an own step due tomorrow does not.
+  assert.equal(todayDeadlineSoon({ band: "upcoming", due: { dueOn: "2026-09-28", dueAt: null } }, NOW), false);
 });
 
 const actor = (fields) => ({
@@ -293,7 +434,7 @@ test("readTodayQueue: the deadline window, the 3-page limit, a server refusal an
   const complete = readers();
   const { reads } = await readTodayQueue(curator, { now: NOW, readers: complete.readers });
   assert.deepEqual(reads.find((entry) => entry.source === "deadlines").state, "complete");
-  assert.deepEqual(complete.calls, [{ from: TODAY, to: "2026-10-11", cursor: null }]);
+  assert.deepEqual(complete.calls, [{ from: "2026-09-20", to: "2026-10-11", cursor: null }], "from today − 7: a missed deadline stays visible");
 
   let pages = 0;
   const endless = readers({
@@ -351,25 +492,43 @@ test("calendar adapter: an application without a program is a row, and a 42501 i
 test("static render: the deadlines band in «Сегодня» — mono date and word, university, student link, empty and failed states", () => {
   for (const [look, html] of [["current", surfaces.get("today-deadlines")], ["next", next.get("today-deadlines")]]) {
     const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>([\s\S]*?)<\/h2>/gu)].map((match) => text(match[1]));
-    assert.deepEqual(headers, ["Просрочено · 1", "Сегодня · вс 27.09 · 1", "Сроки вузов · 14 дней · 4", "Ближайшие 14 дней · 1"], look);
+    assert.deepEqual(headers, ["Просрочено · 1", "Сегодня · вс 27.09 · 1", "Сроки вузов · 14 дней · 5", "Ближайшие 14 дней · 1"], look);
     const band = html.slice(html.indexOf('id="today-band-deadlines"'), html.indexOf('id="today-band-upcoming"'));
     const rows = [...band.matchAll(/<li data-queue-row="deadline:[^"]+" data-today-source="deadlines"[\s\S]*?<\/li>/gu)].map((match) => match[0]);
-    assert.equal(rows.length, 4, `${look}: the passport date is not a university deadline`);
-    assert.match(rows[0], /<time dateTime="2026-09-27" class="block font-mono tabular-nums text-fg">27\.09<\/time><span class="flex min-h-6 items-center t-meta text-fg-3">сегодня<\/span>/u);
-    assert.match(rows[0], /<p title="Университет Примера" class="[^"]*t-item[^"]*">Университет Примера<\/p>/u);
-    assert.match(rows[0], /href="\/v3\/profile\?case=cccccccc-3333-4333-8333-000000000001&amp;tab=overview"[^>]*><span class="truncate">Алина Образцова<\/span><\/a>/u);
-    assert.match(rows[0], /data-today-reason="">срок подачи<\/span><span [^>]*data-today-reason="">Foundation in Business<\/span>/u);
-    assert.match(rows[0], /aria-label="Открыть: Университет Примера — Алина Образцова"[^>]*href="\/v3\/profile\?case=cccccccc-3333-4333-8333-000000000001&amp;tab=route#applications"/u);
-    // On a narrow row the word stays: the band title does not name the day.
-    assert.match(rows[1], /<span class="[^"]*@min-\[32rem\]:hidden[^"]*"><time dateTime="2026-09-29" class="font-mono tabular-nums">29\.09<\/time><span>через 2 дн<\/span><\/span>/u);
-    assert.doesNotMatch(band, /text-danger|bg-accent/u, `${look}: nothing red in a band of future deadlines`);
+    assert.equal(rows.length, 5, `${look}: the passport date is not a university deadline`);
+    // A missed deadline of an unsubmitted application: first, red date and «прошёл», on both widths.
+    assert.match(rows[0], /<time dateTime="2026-09-24" class="block font-mono tabular-nums text-danger">24\.09<\/time><span class="flex min-h-6 items-center t-meta text-danger">прошёл<\/span>/u);
+    assert.match(rows[0], /<span class="[^"]*@min-\[32rem\]:hidden text-danger"><time dateTime="2026-09-24" class="font-mono tabular-nums">24\.09<\/time><span>прошёл<\/span><\/span>/u);
+    // Due today and in 2 days: the word is a warning; the date stays ordinary.
+    assert.match(rows[1], /<time dateTime="2026-09-27" class="block font-mono tabular-nums text-fg">27\.09<\/time><span class="flex min-h-6 items-center t-meta text-warn">сегодня<\/span>/u);
+    assert.match(rows[1], /<p title="Университет Примера" class="[^"]*t-item[^"]*">Университет Примера<\/p>/u);
+    assert.match(rows[1], /href="\/v3\/profile\?case=cccccccc-3333-4333-8333-000000000001&amp;tab=overview"[^>]*><span class="truncate">Алина Образцова<\/span><\/a>/u);
+    assert.match(rows[1], /data-today-reason="">срок подачи<\/span><span [^>]*data-today-reason="">Foundation in Business<\/span>/u);
+    assert.match(rows[1], /aria-label="Открыть: Университет Примера — Алина Образцова"[^>]*href="\/v3\/profile\?case=cccccccc-3333-4333-8333-000000000001&amp;tab=route#applications"/u);
+    // On a narrow row the word stays (the band title does not name the day), in the same warning tone.
+    assert.match(rows[2], /<span class="[^"]*@min-\[32rem\]:hidden[^"]*"><time dateTime="2026-09-29" class="font-mono tabular-nums">29\.09<\/time><span class="text-warn">через 2 дн<\/span><\/span>/u);
+    assert.match(rows[2], /<span class="flex min-h-6 items-center t-meta text-warn">через 2 дн<\/span>/u);
+    for (const row of rows.slice(3)) {
+      assert.match(row, /<span class="flex min-h-6 items-center t-meta text-fg-3">через \d+ дн<\/span>/u, `${look}: later deadlines stay neutral`);
+      assert.doesNotMatch(row, /text-warn|text-danger/u);
+    }
+    assert.doesNotMatch(rows.slice(1).join(""), /text-danger/u, `${look}: red only on the missed deadline`);
+    assert.doesNotMatch(band, /bg-accent/u, `${look}: no solid red`);
   }
+  // Empty day, empty complete read: one empty state, the sentence under «На сегодня всё», no lone band.
   const empty = surfaces.get("today-deadlines-empty");
-  assert.match(text(empty), /На сегодня всё Открыть студентов Сроки вузов · 14 дней Записанных сроков подачи на ближайшие 14 дней нет\./u);
-  assert.doesNotMatch(empty, /today-band-deadlines[^>]*>[\s\S]*?· 0/u, "an empty band says it in words, not «0»");
+  assert.match(text(empty), /На сегодня всё Записанных сроков подачи на ближайшие 14 дней и прошедших без подачи за 7 дней нет\. Открыть студентов/u);
+  assert.match(empty, /data-testid="queue-empty"[^>]*><p class="t-item text-fg">На сегодня всё<\/p><p class="t-body-compact text-fg-2" data-today-empty-note="">Записанных сроков/u);
+  assert.doesNotMatch(empty, /today-band-deadlines|<h2/u, "no second empty block below");
+  // Beside other bands, the empty band keeps its own words, without «0».
+  const beside = surfaces.get("today-deadlines-empty-queue");
+  const besideHeaders = [...beside.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>([\s\S]*?)<\/h2>/gu)].map((match) => text(match[1]));
+  assert.deepEqual(besideHeaders, ["Просрочено · 1", "Сегодня · вс 27.09 · 1", "Сроки вузов · 14 дней", "Ближайшие 14 дней · 1"]);
+  assert.match(beside, /Сроки вузов · 14 дней<\/span><\/h2><p class="[^"]*t-meta[^"]*">Записанных сроков подачи на ближайшие 14 дней и прошедших без подачи за 7 дней нет\.<\/p><ul><\/ul>/u);
+  assert.doesNotMatch(beside, /data-today-empty-note|На сегодня всё/u);
   const partial = surfaces.get("today-deadlines-partial");
   assert.match(partial, /data-today-notice="partial" data-today-source="deadlines"[^>]*><span class="text-fg-2">Сроки вузов прочитаны не полностью: показана прочитанная часть, число скрыто\.<\/span><\/p>/u);
-  assert.match(text(partial), /Сроки вузов · 14 дней 27\.09/u, "rows without a number");
+  assert.match(text(partial), /Сроки вузов · 14 дней 24\.09/u, "rows without a number");
   const failed = surfaces.get("today-deadlines-error");
   assert.match(failed, /data-today-notice="error" data-today-source="deadlines"[^>]*><span class="text-danger">Сроки вузов не загрузились\.<\/span><a [^>]*href="\/v3\/main"[^>]*>Повторить<\/a>/u);
   assert.doesNotMatch(failed, /today-band-deadlines|Записанных сроков/u, "a failed read claims nothing");
@@ -385,7 +544,11 @@ test("real-Postgres suite: the deadline read's authorization both ways runs on t
   assert.ok(loopEnd > 0 && run > loopEnd && run < policies, "after every migration, before the policy inventory");
   for (const proof of [
     /Admissions A resolves with platform_role NULL/u,
-    /t3d_band\(\) = pg_temp\.t3d_ids\(801, 803, 809\)/u,
+    /t3d_band\(\) = pg_temp\.t3d_ids\(801, 803, 809, 810, 813\)/u,
+    /pg_temp\.t3d_today\(\) - 7, pg_temp\.t3d_today\(\) \+ 14/u,
+    /a deadline passed without submission stays in the band for 7 days/u,
+    /a submitted application''s passed deadline stays out/u,
+    /a deadline passed before the window stays out/u,
     /Admissions B reads only the own case 502/u,
     /the Admissions Manager reads the active cases curated in its department/u,
     /the Admin reads every active case; closed 504 and pending 506 never appear/u,

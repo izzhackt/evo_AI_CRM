@@ -29,6 +29,7 @@ import {
   type StudentCaseQueueView,
 } from "../../../lib/platform-student-case-queue-contract.ts";
 import type { HandoffAcknowledgement } from "../../../lib/platform-handoff-acknowledgement.ts";
+import type { ApplicationDocumentCursor } from "../../../lib/portal/application-documents.ts";
 import type { ApplicationPackageQueue } from "../../../lib/portal/application-packages.ts";
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
 import { dueBucket, formatQueueDay, queueDayWithWeekday, weekEnd } from "../queue/due-bucket.ts";
@@ -432,9 +433,11 @@ export function docsTabCounts(
 
 /**
  * Очередь «Комплекты на проверку» для вкладки EVO Docs — то же чтение, что у
- * шапки доски поступления (`application_package_queue_v1`, первая страница).
- * `hidden` — учётная запись эту очередь не читает (нет `document.read.full`
- * или просмотр роли): вкладки нет; `denied` — сервер отказал; `error` — сбой.
+ * шапки доски поступления (`application_package_queue_v1`, до
+ * `DOCS_PACKAGE_READ_PAGES` страниц по 20). `hidden` — учётная запись эту
+ * очередь не читает (нет `document.read.full` или просмотр роли): вкладки
+ * нет; `denied` — сервер отказал; `error` — сбой. У `ready` `nextCursor` не
+ * null — очередь прочитана не вся.
  */
 export type DocsPackagesRead =
   | Readonly<{ kind: "hidden" }>
@@ -442,9 +445,56 @@ export type DocsPackagesRead =
   | Readonly<{ kind: "denied" }>
   | Readonly<{ kind: "error" }>;
 
-/** Число вкладки «Комплекты» — только когда очередь прочитана целиком (страница без продолжения). */
+/** Число вкладки «Комплекты» — только когда очередь прочитана целиком (последняя страница без продолжения). */
 export function docsPackagesCount(packages: DocsPackagesRead): number | null {
   return packages.kind === "ready" && packages.queue.nextCursor === null ? packages.queue.items.length : null;
+}
+
+/**
+ * Сколько страниц очереди комплектов (по 20, новые сверху) читает вкладка —
+ * как у чтений «Сегодня» (3 страницы): дольше всех ждущие комплекты и число
+ * вкладки видны чаще. Дальше — без числа, со ссылкой на всю очередь доски.
+ */
+export const DOCS_PACKAGE_READ_PAGES = 3;
+
+/** Страница очереди комплектов: ответ `readStaffApplicationPackageQueueAction`. */
+export type DocsPackagesPage =
+  | Readonly<{ ok: true; queue: Pick<ApplicationPackageQueue, "items" | "nextCursor"> }>
+  | Readonly<{ ok: false; reason: string }>;
+
+/**
+ * Чтение вкладки «Комплекты»: страницы очереди подряд, пока есть
+ * продолжение, но не больше `pages`. Отказ или сбой первой страницы — своё
+ * состояние; сбой следующей — прочитанная часть без числа (продолжение
+ * остаётся, строка ведёт на доску). Один комплект дважды не показывается.
+ */
+export async function readDocsPackagePages(
+  readPage: (cursor: ApplicationDocumentCursor | null) => Promise<DocsPackagesPage>,
+  pages: number = DOCS_PACKAGE_READ_PAGES,
+): Promise<DocsPackagesRead> {
+  const items: ApplicationPackageQueue["items"][number][] = [];
+  const seen = new Set<string>();
+  let cursor: ApplicationDocumentCursor | null = null;
+  for (let index = 0; index < pages; index += 1) {
+    let page: DocsPackagesPage;
+    try {
+      page = await readPage(cursor);
+    } catch {
+      page = { ok: false, reason: "unavailable" };
+    }
+    if (!page.ok) {
+      if (index === 0) return Object.freeze({ kind: page.reason === "forbidden" ? "denied" : "error" });
+      break;
+    }
+    for (const item of page.queue.items) {
+      if (seen.has(item.package.packageId)) continue;
+      seen.add(item.package.packageId);
+      items.push(item);
+    }
+    cursor = page.queue.nextCursor;
+    if (cursor === null) break;
+  }
+  return Object.freeze({ kind: "ready", queue: Object.freeze({ items: Object.freeze(items), nextCursor: cursor }) });
 }
 
 // --- Сроки ---------------------------------------------------------------

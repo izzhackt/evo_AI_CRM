@@ -312,7 +312,7 @@ const SCENARIOS = {
   partial: { actor: "admissions", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, attentionPartial: true, chats: CHATS, deadlines: DEADLINES, fail: ["chats"] } },
   // Пустой день продаж: всё прочитано, пора делать нечего, ближайший срок — лид на чт 01.10.
   empty: { actor: "sales", data: { staff: [staffTask(9, { title: "Подготовить вопросы к планёрке" })], leads: [MY_LEADS[3]], unassigned: [] } },
-  // Пустой день поступления без сроков: главное действие роли и пустая группа «Сроки вузов» (чтение полное).
+  // Пустой день поступления без сроков: главное действие роли и слова о сроках вузов (чтение полное) в той же пустоте.
   "empty-admissions": { actor: "admissions", data: { staff: [], cases: [], mine: [], attention: [], chats: [], deadlines: [] } },
 };
 

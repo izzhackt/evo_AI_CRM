@@ -7,7 +7,8 @@ import { btnCls, btnGhostCls, inputCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { getPlatformSalesLead } from "@/lib/platform-sales";
 import { parseSalesUuid, type SalesRegisterWorkspace, type SalesRegisterIntakeOptions, type SalesRegisterRow } from "@/lib/platform-sales-register-contract";
-import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess, readSalesRegisterDirections, readSalesRegisterManagement } from "@/lib/v3/sales-register-source";
+import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess, readSalesRegisterDirections, readSalesRegisterManagement, readSalesRecordLeadLink } from "@/lib/v3/sales-register-source";
+import { SalesRecordLeadFact, SalesRecordLeadMenu } from "./SalesRecordLeadLink";
 import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
 import { readSalesCount } from "@/lib/v3/sales-numbers-source";
 import type { SalesCountRead } from "@/lib/sales-numbers-contract";
@@ -505,6 +506,14 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
   const editing = editingRecord && canManage;
   // Шапка общей боковой панели (Э7): имя, строка контекста и «Открыть …» — прежние тексты записи.
   const panelHeader = panelOpen && workspace ? salesRecordPanelHeader(workspace.selected ?? null, editing) : null;
+  // «Связать с лидом» (Э8.7, 28.09.2026): только для просмотра импортированной
+  // записи; отдельное чтение — read_sales_register_v4 не трогаем. Не
+  // прочитано — строки нет вовсе, а не угаданное «не связана».
+  const linkedRecord = panelOpen && !editing ? workspace?.selected ?? null : null;
+  const showLeadLink = Boolean(linkedRecord && linkedRecord.sourceKind === "import");
+  const leadLinkRead = showLeadLink && linkedRecord ? await readSalesRecordLeadLink(actor, linkedRecord.id) : null;
+  const leadLink = leadLinkRead?.status === "ready" ? leadLinkRead.link : null;
+  const showLeadRow = showLeadLink && leadLinkRead?.status === "ready" && (leadLink !== null || canManage);
   // Запись открывается просмотром (Э8.6); «Исправить запись» — форма, «Отмена» формы — снова просмотр.
   const recordHref = workspace?.selected ? href({ record: workspace.selected.id }) : backHref;
 
@@ -704,6 +713,9 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
         {panelOpen && panelHeader ? (
           <SidePanel key={`${query.record}:${editing ? "edit" : "view"}`} closeHref={href()} backLabel="К отчёту" headingId={PANEL_HEADING}
             title={panelHeader.title} context={panelHeader.context} open={panelHeader.open}
+            actions={leadLink && leadLink.visible && canManage && linkedRecord ? (
+              <SalesRecordLeadMenu record={{ id: linkedRecord.id, version: linkedRecord.version }} leadName={leadLink.name} requestId={randomUUID()} />
+            ) : null}
             returnTo={query.record ? attributeReturn("id", `sale-${query.record}`, "a") : undefined}>
             {editing ? (
               <SalesRegisterForm key={query.record} record={workspace.selected ?? null}
@@ -713,7 +725,10 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
             ) : (
               <SalesRecordPreview record={workspace.selected ?? null} backHref={backHref} panelHeadingId={PANEL_HEADING}
                 managerName={workspace.selected ? managerName(workspace.selected) : null} year={year}
-                editHref={canManage && workspace.selected ? href({ record: workspace.selected.id, edit: "true" }) : null} />
+                editHref={canManage && workspace.selected ? href({ record: workspace.selected.id, edit: "true" }) : null}
+                leadRow={showLeadRow && linkedRecord ? (
+                  <SalesRecordLeadFact link={leadLink} canManage={canManage} record={{ id: linkedRecord.id, version: linkedRecord.version }} requestId={randomUUID()} />
+                ) : null} />
             )}
           </SidePanel>
         ) : null}

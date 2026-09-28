@@ -231,7 +231,7 @@ function GateActionForm({
  * Текст полосы: слова — Golos, даты — JetBrains Mono (один формат даты,
  * DESIGN.md). Слово перед датой не отрывается от неё переносом («принято 19.09»).
  */
-function StripLine({ text }: { text: StripText }) {
+export function StripLine({ text }: { text: StripText }) {
   return <>{text.map((part, index) => typeof part === "string"
     ? typeof text[index + 1] === "object" && part.endsWith(" ") ? `${part.slice(0, -1)}\u00a0` : part
     : <span key={index} className="whitespace-nowrap font-mono tabular-nums">{part.date}</span>)}</>;

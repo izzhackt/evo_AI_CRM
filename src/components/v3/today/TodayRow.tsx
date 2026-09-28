@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { Icon, type IconName } from "@/components/icons";
-import { todayDeadlineSoon, todayWhen, type TodayItem, type TodaySource } from "@/lib/v3/today-queue";
+import { todayWhen, type TodayItem, type TodaySource } from "@/lib/v3/today-queue";
 
 /** Знак источника в колонке, где у задачи круг завершения: строка без действия на месте. */
 const SOURCE_ICON: Readonly<Record<Exclude<TodaySource, "tasks">, IconName>> = {
@@ -10,7 +10,6 @@ const SOURCE_ICON: Readonly<Record<Exclude<TodaySource, "tasks">, IconName>> = {
   leads: "funnel",
   requests: "file-check",
   chats: "message-square",
-  deadlines: "calendar",
 };
 
 /**
@@ -32,10 +31,8 @@ const PIECE = "relative flex min-h-6 items-center gap-x-1 ps-3 before:absolute b
  * человека — ссылка на его карточку только при мыши на широком экране (как у
  * «Задач»).
  *
- * Красный — только у просроченного срока и его слова (у срока вуза —
- * «прошёл»); причина — обычный текст (группа «Просрочено» уже названа
- * красным). Срок вуза сегодня и в ближайшие 2 дня — слово предупреждением
- * (`text-warn`): внешний срок рядом не выглядит как срок через 14 дней. Причина не сокращается
+ * Красный — только у просроченного срока и его слова; причина — обычный
+ * текст (группа «Просрочено» уже названа красным). Причина не сокращается
  * никогда: на узкой строке она идёт сразу за сроком, а имя — последним и
  * сокращается; если части или имени места нет, они переносятся целиком.
  * На широкой — «имя · причина»; имя сокращается, только если длиннее строки.
@@ -43,11 +40,10 @@ const PIECE = "relative flex min-h-6 items-center gap-x-1 ps-3 before:absolute b
 export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: string }>) {
   const when = todayWhen(item, new Date(nowIso));
   const icon = item.source === "tasks" ? "check-square" : SOURCE_ICON[item.source];
-  // На узкой строке слово срока остаётся только у «Ближайших», у сроков вузов и
-  // там, где даты нет: «прошёл» и «сегодня» повторили бы заголовок группы, а
-  // заголовок «Сроки вузов» дня не называет.
-  const phoneWord = when?.word && (item.band === "upcoming" || item.band === "deadlines" || when.text === null) ? when.word : null;
-  const wordTone = when?.overdue ? "text-danger" : todayDeadlineSoon(item, new Date(nowIso)) ? "text-warn" : null;
+  // На узкой строке слово срока остаётся только у «Ближайших» и там, где даты
+  // нет: «прошёл» и «сегодня» повторили бы заголовок группы.
+  const phoneWord = when?.word && (item.band === "upcoming" || when.text === null) ? when.word : null;
+  const wordTone = when?.overdue ? "text-danger" : null;
   return (
     <li
       data-queue-row={item.key}
@@ -73,7 +69,7 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
             {when?.text || phoneWord ? (
               <span className={`${PIECE} shrink-0 whitespace-nowrap @min-[32rem]:hidden ${when?.overdue ? "text-danger" : ""}`}>
                 {when?.text ? <time dateTime={when.dateTime ?? undefined} className="font-mono tabular-nums">{when.text}</time> : null}
-                {phoneWord ? <span className={wordTone === "text-warn" ? wordTone : undefined}>{phoneWord}</span> : null}
+                {phoneWord ? <span>{phoneWord}</span> : null}
               </span>
             ) : null}
             {/* Причина «шаг просрочен · ждёт принятия» — по части на слово: на узкой

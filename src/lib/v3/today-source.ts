@@ -9,13 +9,10 @@ import type { CaseChatThreadRow } from "../platform-case-chat-contract.ts";
 import type { StaffTask, StaffTaskCursor } from "../platform-staff-task-contract.ts";
 import type { StudentCaseQueuePage, StudentCaseQueueRequest } from "../platform-student-case-queue-contract.ts";
 import { shiftDay } from "../../components/v3/calendar/types.ts";
-import type { CalendarApplicationDeadlineCursor, CalendarApplicationDeadlineRow } from "./calendar-contract.ts";
 import { CASE_QUEUE_PAGE_SIZE, TASK_QUEUE_READ_PAGES, taskQueueAccess } from "./staff-task-source.ts";
 import {
   TODAY_HORIZON_DAYS,
   todayChatItems,
-  todayDeadlineFrom,
-  todayDeadlineItems,
   todayHandoffItems,
   todayLeadItems,
   todayRequestItems,
@@ -28,10 +25,9 @@ import {
 
 /**
  * Чтения «Сегодня» — только существующие: те же функции и параметры, что у
- * «Задач», «Студентов» (241/242), доски продаж, «Сообщений» и сроков
- * поступления (145, прежний адаптер календаря). Каждый источник читается
- * независимо: ошибка одного не прячет остальные. Права — подсказка
- * интерфейса; строки отбирает сервер.
+ * «Задач», «Студентов» (241/242), доски продаж и «Сообщений». Каждый
+ * источник читается независимо: ошибка одного не прячет остальные. Права —
+ * подсказка интерфейса; строки отбирает сервер.
  */
 
 /** Сервер отказал в чтении (не сбой): источник не относится к роли, «Повторить» не поможет. */
@@ -52,26 +48,18 @@ export type TodayReaders = Readonly<{
   readLeads: (actor: ActivePlatformActor, assignment: "mine" | "unassigned") => Promise<Readonly<{ leads: readonly PipelineLead[]; truncated: boolean }>>;
   /** Отказ сервера — `TodaySourceDenied`. */
   readChats: (actor: ActivePlatformActor) => Promise<Readonly<{ rows: readonly CaseChatThreadRow[]; truncated: boolean }>>;
-  /** Страница сроков поступления в окне дат (145); отказ сервера — `TodaySourceDenied`. */
-  readDeadlines: (actor: ActivePlatformActor, options: Readonly<{ from: string; to: string; cursor: CalendarApplicationDeadlineCursor | null }>) =>
-    Promise<Readonly<{ rows: readonly CalendarApplicationDeadlineRow[]; nextCursor: CalendarApplicationDeadlineCursor | null }>>;
 }>;
 
 /** Одно чтение 241/242 на вид: 100 дел по сроку, как самая длинная страница очереди. */
 export const TODAY_STUDENT_PAGE_SIZE = 100;
 
-/** Сроки поступления: до 3 страниц по 100 строк окна (145 отдаёт и другие виды сроков); дальше — неполное чтение. */
-export const TODAY_DEADLINE_READ_PAGES = 3;
-export const TODAY_DEADLINE_PAGE_SIZE = 100;
-
 async function productionReaders(): Promise<TodayReaders> {
-  const [staff, workspace, queue, pipeline, chat, calendar] = await Promise.all([
+  const [staff, workspace, queue, pipeline, chat] = await Promise.all([
     import("../server/platform-staff-task-repository.ts"),
     import("../platform-admissions-workspace.ts"),
     import("../platform-student-case-queue.ts"),
     import("./pipeline-source.ts"),
     import("./case-chat-source.ts"),
-    import("./calendar-contract.ts"),
   ]);
   return {
     listStaffTasks: (actor, options) => staff.listStaffTasks(actor, options),
@@ -92,14 +80,6 @@ async function productionReaders(): Promise<TodayReaders> {
         return await chat.readStaffCaseChatThreads(actor, null, "needs_reply");
       } catch (error) {
         if (error instanceof chat.CaseChatReadError && error.status === "forbidden") throw new TodaySourceDenied();
-        throw error;
-      }
-    },
-    readDeadlines: async (actor, options) => {
-      try {
-        return await calendar.listCalendarApplicationDeadlinePage(actor, { ...options, pageSize: TODAY_DEADLINE_PAGE_SIZE });
-      } catch (error) {
-        if (error instanceof calendar.CalendarContractDeniedError) throw new TodaySourceDenied();
         throw error;
       }
     },
@@ -131,9 +111,7 @@ function worksSales(actor: ActivePlatformActor): boolean {
  * Какие источники относятся к смотрящему — по тем же правилам, что меню и
  * страницы: задачи — как у «Задач» (`taskQueueAccess`), студенты — как у
  * очереди «Студентов» (поступление и полное чтение дел), лиды и заявки —
- * тем, кто ведёт продажи, переписки — «Сообщения» (поступление), сроки
- * вузов — студентам с правом вести заявки (`application.manage`: вход чтения
- * 145, прежнее правило календаря).
+ * тем, кто ведёт продажи, переписки — «Сообщения» (поступление).
  */
 export function todayAccess(actor: ActivePlatformActor): TodayAccess {
   const tasks = taskQueueAccess(actor);
@@ -146,7 +124,6 @@ export function todayAccess(actor: ActivePlatformActor): TodayAccess {
   if (students) sources.push("students", "handoffs");
   if (sales) sources.push("leads", "requests");
   if (admissions) sources.push("chats");
-  if (students && staffHasPermission(actor, "application.manage")) sources.push("deadlines");
   return Object.freeze({
     sources: Object.freeze(sources),
     coverage: !preview && staffHasPermission(actor, "case.curator.assign"),
@@ -218,9 +195,7 @@ export type TodayRead = Readonly<{
  * (`staff_case_task_queue`, 3 страницы по 100 со сроком до сегодня + 14
  * дней). Студенты — одна страница вида «Мои» и одна «Требуют действия»
  * (241/242). Лиды и заявки — чтение доски продаж с `assignment=mine` и
- * `unassigned`; переписки — очередь «Нужен ответ» «Сообщений»; сроки вузов —
- * `admissions_deadline_page_v1` с сегодня − 7 (прошедшие без подачи) до
- * сегодня + 14 дней, 3 страницы по 100.
+ * `unassigned`; переписки — очередь «Нужен ответ» «Сообщений».
  */
 export async function readTodayQueue(
   actor: ActivePlatformActor,
@@ -269,13 +244,6 @@ export async function readTodayQueue(
       case "chats": {
         const threads = await readers.readChats(actor);
         return { source, state: threads.truncated ? "partial" : "complete", items: todayChatItems(threads.rows) };
-      }
-      case "deadlines": {
-        // Чтение отвечает областью настоящей учётной записи: у просмотра роли это были бы сроки всех дел Admin.
-        if (access.preview) return { source, state: "preview" };
-        const pages = await readPages(TODAY_DEADLINE_READ_PAGES, (cursor: CalendarApplicationDeadlineCursor | null) =>
-          readers.readDeadlines(actor, { from: todayDeadlineFrom(today), to: shiftDay(today, TODAY_HORIZON_DAYS), cursor }));
-        return { source, state: pages.complete ? "complete" : "partial", items: todayDeadlineItems(pages.rows, today) };
       }
     }
   });

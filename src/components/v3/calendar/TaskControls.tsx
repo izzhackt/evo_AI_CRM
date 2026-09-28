@@ -26,8 +26,10 @@ import type {
 } from "./types";
 import { taskDeadlineInputDefaults } from "./types";
 
+// h-11 без вертикальных отступов, как QUEUE_FIELD: поля t-body (16/24 px) и
+// выпадающие списки одной высоты 44 px и стоят в ряд без ступеньки.
 const CONTROL =
-  "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 t-body text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
+  "mt-1 h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
 const PRIMARY =
   "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 t-label text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
 const SECONDARY =

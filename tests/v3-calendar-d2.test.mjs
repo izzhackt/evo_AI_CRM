@@ -90,7 +90,7 @@ for (const [name, changes, expected] of [
   ["Admin Admissions preview", { systemRole: "admin", presentationRole: "admissions", permissionKeys: [] }, { caseTasks: true, staffTasks: true }],
   ["Admin Sales preview", { systemRole: "admin", presentationRole: "sales", permissionKeys: [] }, { caseTasks: false, staffTasks: true }],
   ["task.manage with case read", { permissionKeys: ["case.read.full", "task.manage"] }, { caseTasks: true, staffTasks: false }],
-  ["task.manage without admissions read", { permissionKeys: ["task.manage"] }, { caseTasks: true, staffTasks: false }],
+  ["task.manage without case read", { permissionKeys: ["task.manage"] }, { caseTasks: true, staffTasks: false }],
   ["staff tasks only", { permissionKeys: ["staff.task.read"] }, { caseTasks: false, staffTasks: true }],
   ["create-only", { permissionKeys: ["case.read.full", "profile.read.full", "task.create"] }, { caseTasks: false, staffTasks: false }],
   ["deadline reader", { permissionKeys: ["case.read.full", "application.manage"] }, { caseTasks: false, staffTasks: false }],

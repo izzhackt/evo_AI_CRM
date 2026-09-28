@@ -6,7 +6,7 @@ import type { StudentCaseQueueRow } from "@/lib/platform-student-case-queue-cont
 import { ProgressBar } from "../blocks/ProgressBar";
 import { DocsRowMenu } from "./DocsRowMenu";
 import { studentsRowMeta } from "./StudentsQueueTable";
-import { studentsCaseHref, studentsDocsCell, type StudentsDocsPart, type StudentsDocsView } from "./students-queue-view";
+import { docsWaiting, studentsCaseHref, studentsDocsCell, type DocsWaiting, type StudentsDocsPart, type StudentsDocsView } from "./students-queue-view";
 
 const TONE: Readonly<Record<StudentsDocsPart["tone"], string>> = { default: "text-fg", danger: "text-danger", warn: "text-warn", muted: "text-fg-2" };
 
@@ -22,19 +22,24 @@ function Parts({ parts, strong }: Readonly<{ parts: readonly StudentsDocsPart[];
  * Ячейка «Документы» (Э1.3, Э3): число вкладки («2 на проверке», «3 не
  * загружено»), полоса «N из M принято» из прочитанных чисел чек-листа и
  * остальные слова. Итог «N из M» рисует только полоса; без чисел (пустой
- * чек-лист) — строка итога словами.
+ * чек-лист) — строка итога словами. На «Документах дела» за числом — сколько
+ * ждёт проверки самый давний документ («ждёт 3 дн», Э8.5).
  */
-function DocumentsProgress({ row, lead, rest }: Readonly<{
+function DocumentsProgress({ row, lead, rest, waiting }: Readonly<{
   row: StudentCaseQueueRow;
   lead: readonly StudentsDocsPart[];
   rest: readonly StudentsDocsPart[];
+  waiting: DocsWaiting | null;
 }>) {
   const words = lead.filter((part) => part.key !== "summary");
   const others = rest.filter((part) => part.key !== "summary");
   const summary = [...lead, ...rest].find((part) => part.key === "summary");
   return (
     <span className="block space-y-1">
-      {words.length ? <span className="block t-item"><Parts parts={words} strong /></span> : null}
+      {words.length ? <span className="block t-item"><Parts parts={words} strong />{waiting ? <>
+        <span className="font-normal text-fg-3"> · </span>
+        <time dateTime={waiting.dateTime} title={`Загружен ${waiting.day}`} className={waiting.warn ? "font-medium text-warn" : "font-normal text-fg-2"}>{waiting.word}</time>
+      </> : null}</span> : null}
       <ProgressBar done={row.documents?.approved} total={row.documents?.total} word="принято"
         fallback={summary ? <span className="block text-fg">{summary.text}</span> : null} />
       {others.length ? <span className="block"><Parts parts={others} strong={false} /></span> : null}
@@ -47,8 +52,9 @@ function DocumentsProgress({ row, lead, rest }: Readonly<{
  * одно действие «Открыть документы →» и «⋯». От 48rem своей ширины — таблица в
  * одну строку, уже — стопка. Статусов работы (срок, этап, «ждёт принятия»)
  * здесь нет. «Документы» начинаются с числа, которое определяет вкладку
- * (t-item), остальное — строкой ниже. Порядок строк — последнее изменение
- * дела (у чтения 241 нет времени ожидания проверки), и он назван над таблицей.
+ * (t-item), остальное — строкой ниже. Порядок строк назван над таблицей: на
+ * «Документах дела» при полном чтении — сначала дольше всех ждущие проверки
+ * (время загрузки — миграция 252), иначе — последнее изменение дела.
  * «N из M принято» — полоса прогресса только из прочитанных чисел чек-листа
  * (без них — строка итога словами), число вкладки — над ней, остальные слова
  * состояния — под ней.
@@ -68,16 +74,24 @@ export function StudentsDocsTable({
   view,
   caption,
   returnTo,
+  today,
+  order,
 }: Readonly<{
   rows: readonly StudentCaseQueueRow[];
   view: StudentsDocsView;
   caption: string;
   /** Адрес этой очереди EVO Docs: «К списку EVO Docs» возвращает сюда. */
   returnTo: string;
+  /** Сегодня в Бишкеке — для «ждёт N дн». */
+  today: string;
+  /** `oldest` — «сначала дольше всех ждущие»; `partial` — «Документы дела» по порядку сервера, прочитано не всё. */
+  order: "oldest" | "updated" | "partial";
 }>) {
   return (
     <div className="@container/docs min-w-0 space-y-1" data-queue-list="">
-      <p className="t-meta text-fg-2">Порядок: сначала недавно изменённые дела</p>
+      <p className="t-meta text-fg-2">{order === "oldest" ? "Порядок: сначала дольше всех ждущие проверки"
+        : order === "partial" ? "Порядок: сначала недавно изменённые дела — прочитаны не все дела, поэтому не по ожиданию"
+          : "Порядок: сначала недавно изменённые дела"}</p>
       <table role="table" className="block w-full" data-testid="v3-student-case-table">
         <caption className="sr-only">{caption}</caption>
         <thead role="rowgroup" className="sr-only @min-[48rem]/docs:not-sr-only @min-[48rem]/docs:sticky @min-[48rem]/docs:top-0 @min-[48rem]/docs:z-30 @min-[48rem]/docs:block @min-[48rem]/docs:bg-bg">
@@ -107,7 +121,8 @@ export function StudentsDocsTable({
                   <span className="block truncate t-meta text-fg-2" title={meta}>{meta}</span>
                 </th>
                 <td role="cell" className={`${CELL} [grid-area:documents] t-body-compact`}>
-                  {documents ? <DocumentsProgress row={row} lead={documents.lead} rest={documents.rest} />
+                  {documents ? <DocumentsProgress row={row} lead={documents.lead} rest={documents.rest}
+                    waiting={view === "review" ? docsWaiting(row.documents?.oldestSubmittedAt, today) : null} />
                     : <span className="text-fg-3">Нет доступа к документам</span>}
                 </td>
                 <td role="cell" className={`${CELL} t-body-compact text-fg sr-only @min-[48rem]/docs:not-sr-only @min-[48rem]/docs:[grid-area:curator] @min-[48rem]/docs:self-center`}>

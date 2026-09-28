@@ -116,7 +116,8 @@ test("solid red stays for the main action and every selection shares one accent-
     // surface-2 (tests/v3-e7-side-panel.test.mjs), not this tab/segment style.
     "src/components/v3/board/Board.tsx",
     "src/components/v3/board/BoardToolbar.tsx",
-    "src/app/(v3)/v3/admissions-pipeline/page.tsx",
+    // Э8.5 (28.09): the admissions board has no «Разделы поступления» choice any
+    // more — its review queues are EVO Docs tabs (QueueViewTabs below).
     // «Задачи» (25.09.2026): вкладки, фильтры и срок в диалоге — примитивы очереди.
     "src/components/v3/queue/QueueViewTabs.tsx",
     "src/components/v3/queue/FilterMenu.tsx",

@@ -278,9 +278,7 @@ const STUBS = {
       { membershipId: CURATOR_B, displayName: "Куратор Два" },
     ],
   },
-  // Очереди документов рендерятся только в своих видах, не на доске.
-  "@/components/portal/applicationPackages/PackageQueue": { PackageQueue: () => null },
-  "@/components/v3/admissions/ProgramDocumentQueue": { ProgramDocumentQueue: () => null },
+  // Очередей документов на доске нет (Э8.5): шапка читает только их первые страницы для чисел.
 };
 
 /**

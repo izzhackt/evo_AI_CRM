@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { AdmissionsPipelineBoard } from "@/components/v3/AdmissionsPipelineBoard";
 import { BoardReset, BoardSearch, BoardSegments } from "@/components/v3/board/Board";
 import { BoardFilters, NavigateSelect } from "@/components/v3/board/BoardToolbar";
 import { PartShell } from "@/components/v3/PartShell";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
-import { PackageQueue } from "@/components/portal/applicationPackages/PackageQueue";
 import { readStaffApplicationPackageQueueAction } from "@/lib/portal/application-packages-actions";
-import { ProgramDocumentQueue } from "@/components/v3/admissions/ProgramDocumentQueue";
 import { readStaffApplicationDocumentSubmissionQueueAction } from "@/lib/portal/application-documents-actions";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
@@ -57,6 +55,16 @@ const QUEUE_LINK_CLASS =
   "t-meta inline-flex min-h-11 items-center gap-1 text-fg-2 underline-offset-4 hover:text-fg hover:underline";
 
 /**
+ * Очереди на проверку живут в EVO Docs (Э8.5, 28.09.2026): ссылки шапки и
+ * прежние адреса подстраниц доски `?view=documents|packages` ведут на вкладки
+ * «Документы программ» и «Комплекты».
+ */
+const EVO_DOCS_QUEUE_HREF = {
+  documents: "/v3/profile?section=docs&view=program",
+  packages: "/v3/profile?section=docs&view=packages",
+} as const;
+
+/**
  * Первая страница очереди (до 20 записей): число — только из прочитанного;
  * есть продолжение — «20+», чтение не удалось — без числа.
  */
@@ -73,35 +81,12 @@ export default async function AdmissionsPipelinePart({
     searchParams,
     requireV3PageActor("/v3/admissions-pipeline"),
   ]);
-  const query = parseBoardQuery(params);
   const view = singleValue(params.view);
   if (view !== undefined && view !== "documents" && view !== "packages") notFound();
+  // Прежние подстраницы доски — вкладки EVO Docs; права проверяет EVO Docs.
+  if (view !== undefined) redirect(EVO_DOCS_QUEUE_HREF[view]);
+  const query = parseBoardQuery(params);
   const canReadDocuments = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
-  const viewHref = (next: "documents" | "packages") => `${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=${next}`;
-  // Очереди — отдельные списки со своими заголовками; с их страниц обратно
-  // ведёт та же навигация, что и раньше.
-  const navigation = canReadDocuments ? <nav className="mb-5 flex flex-wrap gap-3" aria-label="Разделы поступления">
-    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={boardHref(query)} aria-current={view === undefined ? "page" : undefined}>Воронка поступления</Link>
-    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={viewHref("documents")} aria-current={view === "documents" ? "page" : undefined}>Документы на проверку</Link>
-    <Link className="v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-fg-2 hover:bg-surface-2" href={viewHref("packages")} aria-current={view === "packages" ? "page" : undefined}>Комплекты на проверку</Link>
-  </nav> : null;
-  if (view === "packages") {
-    if (!canReadDocuments) notFound();
-    const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
-    const result = await readStaffApplicationPackageQueueAction(owner);
-    return <PartShell title="Комплекты на проверку">{navigation}
-      <PackageQueue key={`${owner.organizationId}:${owner.membershipId}`} owner={owner} initial={result.ok ? result.queue : null} canReview={staffHasPermission(actor, "document.review")} />
-    </PartShell>;
-  }
-  if (view === "documents") {
-    if (!canReadDocuments) notFound();
-    const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
-    const result = await readStaffApplicationDocumentSubmissionQueueAction(owner);
-    return <PartShell title="Документы на проверку">{navigation}
-      <ProgramDocumentQueue key={`${owner.organizationId}:${owner.membershipId}`} owner={owner} initial={result.ok ? result.page : null}
-        canReview={staffHasPermission(actor, "document.review")} />
-    </PartShell>;
-  }
 
   const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
   const [boardResult, curatorsResult, documentsResult, packagesResult] = await Promise.allSettled([
@@ -116,8 +101,8 @@ export default async function AdmissionsPipelinePart({
     !isStaffPreview(actor) && staffHasPermission(actor, "case.curator.assign")
       ? listStudentPortalActiveCurators(actor)
       : Promise.resolve([]),
-    // Числа очередей в шапке — первые страницы тех же чтений, что у самих
-    // очередей; без права на документы очереди не читаются вовсе.
+    // Числа очередей в шапке — первые страницы тех же чтений, что у вкладок
+    // EVO Docs; без права на документы очереди не читаются вовсе.
     canReadDocuments
       ? readStaffApplicationDocumentSubmissionQueueAction(owner).then((result) => (result.ok ? result.page : null))
       : Promise.resolve(null),
@@ -140,12 +125,12 @@ export default async function AdmissionsPipelinePart({
     // Одна тихая строка и на телефоне: две ссылки столбиком отодвигали доску
     // на 180 px вниз.
     <nav aria-label="Очереди на проверку" className="flex flex-wrap items-center gap-x-2">
-      <Link className={QUEUE_LINK_CLASS} href={viewHref("documents")}>
+      <Link className={QUEUE_LINK_CLASS} href={EVO_DOCS_QUEUE_HREF.documents}>
         Документы на проверку
         {documentsCount !== null ? <span className="tabular-nums text-fg-3">{documentsCount}</span> : null}
       </Link>
       <span aria-hidden="true" className="t-meta text-fg-3">·</span>
-      <Link className={QUEUE_LINK_CLASS} href={viewHref("packages")}>
+      <Link className={QUEUE_LINK_CLASS} href={EVO_DOCS_QUEUE_HREF.packages}>
         Комплекты на проверку
         {packagesCount !== null ? <span className="tabular-nums text-fg-3">{packagesCount}</span> : null}
       </Link>

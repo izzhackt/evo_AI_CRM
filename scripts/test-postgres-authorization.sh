@@ -2794,6 +2794,20 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_pipeline_move_undo.sql
   fi
+
+  # Migration 252 (Э8.5 «Одна проверка документов — в EVO Docs», owner
+  # decisions 28.09): each case queue row's documents object gains
+  # oldest_submitted_at — the oldest current-version upload among waiting
+  # checklist slots. Members modelled like production (coarse role NULL, the
+  # production bundles, as in 244's suite): the wait counts from a re-upload,
+  # never from older versions, other statuses or removed slots, and is NULL
+  # when nothing waits; the six counts and the key set are exact; visibility,
+  # the document gate, counts equal rows, refusals, definer and grants unchanged.
+  if [[ "$(basename "$migration")" == 252_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_queue_document_wait.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

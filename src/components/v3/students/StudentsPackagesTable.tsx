@@ -3,19 +3,18 @@ import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { packageStrings } from "@/components/portal/applicationPackages/strings";
 import type { ApplicationPackageQueueItem } from "@/lib/portal/application-packages";
-import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 
-import { dayDelta } from "../calendar/types";
-import { formatQueueDay } from "../queue/due-bucket";
-import { russianPlural, studentsCaseHref } from "./students-queue-view";
+import { docsWaiting, russianPlural, studentsCaseHref } from "./students-queue-view";
 
 const NBSP = "\u00a0";
 
 /**
  * Вкладка «Комплекты» EVO Docs (Э3, 27.09.2026): комплекты, отправленные на
- * проверку EVO и ещё без решения, — строки того же чтения, что у очереди
- * «Комплекты на проверку» доски поступления (`application_package_queue_v1`,
- * новые сверху). Студент | Комплект | Отправлен | одно действие «Открыть
+ * проверку EVO и ещё без решения, — строки чтения очереди «Комплекты на
+ * проверку» (`application_package_queue_v1`). Порядок называет строка над
+ * таблицей: при полном чтении — сначала дольше всех ждущие (Э8.5), иначе —
+ * порядок сервера, новые сверху. Студент | Комплект | Отправлен («24.09 ·
+ * ждёт 3 дн», с двух дней — предупреждением) | одно действие «Открыть
  * документы →»: подготовка программы на вкладке дела «Вузы и программы»
  * (`#preparation-…`), где комплект открывается и проверяется.
  * Состояние у всех строк одно («отправлен на проверку EVO»: решения ещё нет) —
@@ -32,32 +31,28 @@ const ROW_GRID = `grid grid-cols-[minmax(0,1fr)] gap-x-3 [grid-template-areas:'s
 const CELL = "min-w-0 px-3 @min-[48rem]/packages:px-2 @min-[48rem]/packages:py-2";
 const HEAD = "flex h-9 items-center px-2 text-start t-caption text-fg-2 first:ps-3";
 
-/** День отправки по Бишкеку: «24.09» и слово «сегодня», «вчера», «3 дн назад». */
-export function packageSentDay(submittedAt: string, today: string): Readonly<{ dateTime: string; text: string; word: string }> | null {
-  const moment = new Date(submittedAt);
-  if (!Number.isFinite(moment.getTime())) return null;
-  const day = dayInOrganizationTimezone(moment);
-  const ago = dayDelta(day, today);
-  return { dateTime: submittedAt, text: formatQueueDay(day, today), word: ago <= 0 ? "сегодня" : ago === 1 ? "вчера" : `${ago}${NBSP}дн назад` };
-}
-
 export function StudentsPackagesTable({
   items,
   caption,
   returnTo,
   today,
+  oldestFirst,
 }: Readonly<{
   items: readonly ApplicationPackageQueueItem[];
   caption: string;
   /** Адрес этой вкладки EVO Docs: «К списку EVO Docs» возвращает сюда. */
   returnTo: string;
-  /** Сегодня в Бишкеке — для слова дня отправки. */
+  /** Сегодня в Бишкеке — для дня отправки и «ждёт N дн». */
   today: string;
+  /** Строки отсортированы «сначала дольше всех ждущие» (полное чтение); иначе — порядок сервера. */
+  oldestFirst: boolean;
 }>) {
   const words = packageStrings("ru");
   return (
     <div className="@container/packages min-w-0 space-y-1" data-queue-list="">
-      <p className="t-meta text-fg-2">Отправлены на проверку EVO, решения ещё нет. Порядок: сначала недавно отправленные</p>
+      <p className="t-meta text-fg-2">
+        Отправлены на проверку EVO, решения ещё нет. {oldestFirst ? "Порядок: сначала дольше всех ждущие" : "Порядок: сначала недавно отправленные — прочитана не вся очередь"}
+      </p>
       <table role="table" className="block w-full" data-testid="v3-student-package-table">
         <caption className="sr-only">{caption}</caption>
         <thead role="rowgroup" className="sr-only @min-[48rem]/packages:not-sr-only @min-[48rem]/packages:sticky @min-[48rem]/packages:top-0 @min-[48rem]/packages:z-30 @min-[48rem]/packages:block @min-[48rem]/packages:bg-bg">
@@ -70,7 +65,7 @@ export function StudentsPackagesTable({
           {items.map((item) => {
             const program = [item.program.universityTitle, item.program.programTitle].filter(Boolean).join(" · ");
             const count = item.package.itemCount;
-            const sent = packageSentDay(item.package.submittedAt, today);
+            const sent = docsWaiting(item.package.submittedAt, today);
             const href = `${studentsCaseHref(item.studentCaseId, { docs: true, tab: "route", returnTo })}#preparation-${item.applicationId}`;
             return (
               <tr
@@ -98,9 +93,9 @@ export function StudentsPackagesTable({
                 <td role="cell" className={`${CELL} [grid-area:sent] whitespace-nowrap t-body-compact @min-[48rem]/packages:self-center`}>
                   {sent ? <>
                     <span className="text-fg-2 @min-[48rem]/packages:hidden">Отправлен </span>
-                    <time dateTime={sent.dateTime} className="font-mono tabular-nums text-fg">{sent.text}</time>
+                    <time dateTime={sent.dateTime} className="font-mono tabular-nums text-fg">{sent.day}</time>
                     <span className="text-fg-3"> · </span>
-                    <span className="text-fg-2">{sent.word}</span>
+                    <span className={sent.warn ? "font-medium text-warn" : "text-fg-2"}>{sent.word}</span>
                   </> : null}
                 </td>
                 <td role="cell" className={`${CELL} [grid-area:open] @min-[48rem]/packages:self-center`}>

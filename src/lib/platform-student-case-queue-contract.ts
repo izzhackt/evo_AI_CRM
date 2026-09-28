@@ -84,6 +84,12 @@ export type StudentCaseChecklistCounts = Readonly<{
   rejected: number;
   approved: number;
   missing: number;
+  /**
+   * 252: the oldest upload among the checklist items waiting for review (the
+   * current version of each `submitted` slot); null when nothing waits.
+   * Absent from a read before 252 and from counts built elsewhere.
+   */
+  oldestSubmittedAt?: string | null;
 }>;
 
 export type StudentCaseQueueRow = Readonly<{
@@ -335,16 +341,22 @@ function attentionFlags(value: unknown): readonly AdmissionsAttention[] {
 function checklist(value: unknown): StudentCaseChecklistCounts | null {
   if (value === null) return null;
   if (!isRecord(value)) return invalid();
-  const counts = Object.freeze({
+  const counts = {
     total: count(value.total),
     submitted: count(value.submitted),
     correctionRequired: count(value.correction_required),
     rejected: count(value.rejected),
     approved: count(value.approved),
     missing: count(value.missing),
-  });
+  };
   const parts = counts.submitted + counts.correctionRequired + counts.rejected + counts.approved + counts.missing;
-  return parts <= counts.total ? counts : invalid();
+  if (parts > counts.total) return invalid();
+  // 252 adds the key; a read before 252 has none, and the counts stay as they were.
+  if (value.oldest_submitted_at === undefined) return Object.freeze(counts);
+  const oldestSubmittedAt = value.oldest_submitted_at === null ? null : requiredTimestamp(value.oldest_submitted_at);
+  // Every submitted slot has a current version (043's slot shape check): a wait exactly when something waits.
+  if ((oldestSubmittedAt === null) !== (counts.submitted === 0)) return invalid();
+  return Object.freeze({ ...counts, oldestSubmittedAt });
 }
 
 export function normalizeStudentCaseQueueRow(value: unknown, sort: StudentCaseQueueSort): StudentCaseQueueRow {

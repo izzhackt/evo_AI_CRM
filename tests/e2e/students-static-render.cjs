@@ -51,8 +51,10 @@ const ts = require("typescript");
 const ROOT = resolve(__dirname, "../..");
 
 // --- require-hook: .ts/.tsx компилируются TypeScript'ом в CJS ---------------
-const compile = (source) =>
+// Имя файла решает, .ts это или .tsx: в .ts обобщения вида `<T>(…)` — не JSX.
+const compile = (source, fileName) =>
   ts.transpileModule(source, {
+    fileName,
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2022,
@@ -63,12 +65,17 @@ const compile = (source) =>
 
 for (const extension of [".ts", ".tsx"]) {
   Module._extensions[extension] = (module, filename) => {
-    module._compile(compile(readFileSync(filename, "utf8")), filename);
+    module._compile(compile(readFileSync(filename, "utf8"), filename), filename);
   };
 }
 // Статический импорт логотипа: next/image получает объект как от сборщика.
 Module._extensions[".png"] = (module, filename) => {
   module.exports = { src: pathToFileURL(filename).href, width: 1843, height: 842 };
+};
+// CSS-модули (файл и решение «Документов программ» EVO Docs): имя класса —
+// сам ключ; `__esModule` нет, `import styles from` получает прокси как `default`.
+Module._extensions[".css"] = (module) => {
+  module.exports = new Proxy({}, { get: (_target, key) => (typeof key === "string" && key !== "__esModule" ? key : undefined) });
 };
 
 const originalResolve = Module._resolveFilename;
@@ -112,6 +119,12 @@ const docs = (total, approved, submitted = 0, correctionRequired = 0, rejected =
   total, approved, submitted, correctionRequired, rejected, missing: total - approved - submitted - correctionRequired - rejected,
 });
 
+/** 252: самая давняя загрузка, ждущая проверки, — у дел с документами на проверке (0–6 дней ожидания). */
+function withWait(n, documents) {
+  if (!documents) return documents;
+  return { ...documents, oldestSubmittedAt: documents.submitted > 0 ? new Date(Date.parse(`${TODAY}T03:00:00.000Z`) - ((n * 5) % 7) * 86_400_000).toISOString() : null };
+}
+
 function row(n, fields) {
   const curator = fields.curator === undefined ? ME : fields.curator;
   const nextAction = fields.step ?? null;
@@ -137,7 +150,7 @@ function row(n, fields) {
     attentionFlags: fields.flags ?? [],
     needsReply: fields.needsReply ?? false,
     overdueTaskCount: fields.overdueTasks ?? 0,
-    documents: fields.documents === undefined ? docs(10, 6, 1, 0, 0) : fields.documents,
+    documents: withWait(n, fields.documents === undefined ? docs(10, 6, 1, 0, 0) : fields.documents),
     updatedAt: fields.updatedAt ?? `2026-09-2${n % 3}T0${n % 9}:00:00.000000Z`,
     cursor: `due|${sortRank}|${nextActionDueOn ?? "infinity"}|${caseId(n)}`,
   };

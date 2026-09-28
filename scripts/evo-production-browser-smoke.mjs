@@ -269,7 +269,9 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       process.stdout.write('{"ok":true,"code":"production_admissions_pipeline_smoke_passed"}\n');
       // «Студенты» and EVO Docs (Э0 of the 25.09 redesign plan): each mode is
       // told apart by its own tab — «Все в работе» is not in EVO Docs,
-      // «На проверку» is only there.
+      // «Документы дела» (Э8.5, 28.09; formerly «На проверку») is only there.
+      // EVO Docs opens on its first non-empty tab; the «Документы дела» link is
+      // always in the row, current or not.
       checkpoint("students_queue");
       await visit(page, `${configuration.baseUrl}/v3/profile`);
       await verifyStudentsQueue(page, "students_queue", /^Все в работе/u);
@@ -277,7 +279,7 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       process.stdout.write('{"ok":true,"code":"production_students_queue_smoke_passed"}\n');
       checkpoint("evo_docs");
       await visit(page, `${configuration.baseUrl}/v3/profile?section=docs`);
-      await verifyStudentsQueue(page, "evo_docs_queue", /^На проверку/u);
+      await verifyStudentsQueue(page, "evo_docs_queue", /^Документы дела/u);
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_evo_docs_smoke_passed"}\n');
       checkpoint("team_chat");

@@ -224,22 +224,24 @@ test("counts come only from the counts read: tabs, bands, menus and the header g
   ]);
   // EVO Docs: review/fix tabs are filtered inside the read, so their numbers need a complete read.
   const rows = [{ documents: { submitted: 2, correctionRequired: 0, rejected: 0 } }, { documents: { submitted: 0, correctionRequired: 1, rejected: 1 } }, { documents: null }];
-  // «Не хватает» (Э3) — тот же отбор; «Комплекты» — своя очередь: без её чтения числа нет.
-  assert.deepEqual(docsTabCounts(rows, true, null), { review: 1, fix: 1, missing: 0, packages: null, all: 3 });
-  assert.deepEqual(docsTabCounts(rows, false, null), { review: null, fix: null, missing: null, packages: null, all: null });
-  assert.deepEqual(docsTabCounts(rows, false, { views: { active: 57 } }), { review: null, fix: null, missing: null, packages: null, all: 57 });
+  // «Не хватает» (Э3) — тот же отбор; «Документы программ» и «Комплекты» — свои очереди: без их чтения числа нет.
+  assert.deepEqual(docsTabCounts(rows, true, null), { review: 1, program: null, packages: null, fix: 1, missing: 0, all: 3 });
+  assert.deepEqual(docsTabCounts(rows, false, null), { review: null, program: null, packages: null, fix: null, missing: null, all: null });
+  assert.deepEqual(docsTabCounts(rows, false, { views: { active: 57 } }), { review: null, program: null, packages: null, fix: null, missing: null, all: 57 });
   assert.equal(docsRowMatches("review", rows[2]), false, "no document read, no document tab");
   assert.equal(docsRowMatches("all", rows[2]), true);
   const incomplete = surfaces.get("docs-incomplete");
   const docsNav = incomplete.match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
   assert.deepEqual([...docsNav.matchAll(/<a [^>]*>([^<]+)(?:<span class="tabular-nums text-fg-3">(\d+)<\/span>)?<\/a>/gu)].map((match) => [match[1], match[2] ?? null]), [
-    ["На проверку", null], ["Исправить", null], ["Не хватает", null], ["Все", "20"],
+    ["Документы дела", null], ["Исправить", null], ["Не хватает", null], ["Все", "20"],
   ]);
+  // Прочитаны не все дела: «Документы дела» в порядке сервера, и это сказано.
+  assert.match(incomplete, /Порядок: сначала недавно изменённые дела — прочитаны не все дела, поэтому не по ожиданию/u);
   assert.match(incomplete, /Проверены первые 20 дел в работе; числа вкладок — после полного чтения\./u);
 });
 
 test("view tabs are real links with exactly one aria-current page and the old summary anchor", () => {
-  for (const [name, current] of [["admin-active", "Все в работе"], ["admin-default", "Требуют действия"], ["curator-mine", "Мои"], ["curators", "Нагрузка кураторов"], ["docs-review", "На проверку"]]) {
+  for (const [name, current] of [["admin-active", "Все в работе"], ["admin-default", "Требуют действия"], ["curator-mine", "Мои"], ["curators", "Нагрузка кураторов"], ["docs-review", "Документы дела"]]) {
     const html = surfaces.get(name);
     const nav = html.match(/<nav id="admissions-summary" aria-label="Виды списка студентов"[\s\S]*?<\/nav>/u)?.[0];
     assert.ok(nav, name);
@@ -523,7 +525,8 @@ test("EVO Docs is a document review queue without work statuses", () => {
     assert.match(body, /^<th role="rowheader" scope="row"/u, id);
     // One row action; its hit area is the row. The former actions stay in «⋯».
     assert.equal([...body.matchAll(/data-queue-open=""/gu)].length, 1, id);
-    assert.match(body, new RegExp(`<a data-queue-open=""[^>]*href="/v3/profile\\?case=${id}&amp;tab=documents&amp;section=docs&amp;returnTo=%2Fv3%2Fprofile%3Fsection%3Ddocs">Открыть документы`, "u"), id);
+    // The case returns to the tab that was open (Э8.5: every EVO Docs address names its view).
+    assert.match(body, new RegExp(`<a data-queue-open=""[^>]*href="/v3/profile\\?case=${id}&amp;tab=documents&amp;section=docs&amp;returnTo=%2Fv3%2Fprofile%3Fsection%3Ddocs%26view%3Dreview">Открыть документы`, "u"), id);
     assert.match(body, /aria-label="Ещё по документам: [^"]+"/u, id);
     assert.match(body, /на проверке/u, id);
   }
@@ -534,7 +537,8 @@ test("EVO Docs is a document review queue without work statuses", () => {
   assert.match(surfaces.get("docs-all"), /Нет доступа к документам/u);
   // The row action looks like a link: text and arrow, underlined on row hover and on focus, one line.
   assert.match(menu, /className="inline-flex min-h-11 items-center gap-1\.5 whitespace-nowrap t-label text-fg underline-offset-4 before:absolute before:inset-0 before:content-\[''\] group-hover:underline focus-visible:underline"/u);
-  assert.match(html, /Порядок: сначала недавно изменённые дела/u, "the order is said, not implied");
+  assert.match(html, /Порядок: сначала дольше всех ждущие проверки/u, "the order is said, not implied");
+  assert.match(surfaces.get("docs-fix"), /Порядок: сначала недавно изменённые дела<\/p>/u);
   // The documents cell leads with the number that defines the tab.
   const documents = { total: 12, approved: 7, submitted: 2, correctionRequired: 1, rejected: 1, missing: 1 };
   assert.deepEqual(studentsDocsCell("review", documents).lead.map((part) => part.text), ["2\u00a0на проверке"]);
@@ -544,8 +548,8 @@ test("EVO Docs is a document review queue without work statuses", () => {
   assert.equal(studentsDocsCell("review", null), null);
   assert.match(surfaces.get("docs-fix"), /<span class="block t-item"><span><span class="inline-block font-medium text-warn">\d\u00a0(?:исправить|отклонён)/u);
   const tabs = html.match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
-  // Без чтения очереди комплектов (рендер его не подставляет) вкладки «Комплекты» нет.
-  assert.deepEqual([...tabs.matchAll(/<a [^>]*>([^<]+)/gu)].map((match) => match[1]), ["На проверку", "Исправить", "Не хватает", "Все"]);
+  // Без чтения очередей документов программ и комплектов (рендер их не подставляет) их вкладок нет.
+  assert.deepEqual([...tabs.matchAll(/<a [^>]*>([^<]+)/gu)].map((match) => match[1]), ["Документы дела", "Исправить", "Не хватает", "Все"]);
 });
 
 test("«Нагрузка кураторов» keeps the coverage read, form and permissions as an Admin view", () => {
@@ -710,11 +714,11 @@ test("EVO Docs does not say «нет» from a partial read or without document a
   assert.match(noAccess, /Нет доступа к документам дел — откройте «Все»/u);
   assert.doesNotMatch(noAccess, /Документов на проверку нет/u);
   // No readable documents: the review tabs and the header have no number, not «0».
-  assert.match(noAccess, /href="\/v3\/profile\?section=docs">На проверку<\/a>/u);
+  assert.match(noAccess, /href="\/v3\/profile\?section=docs&amp;view=review">Документы дела<\/a>/u);
   assert.match(noAccess, /href="\/v3\/profile\?section=docs&amp;view=fix">Исправить<\/a>/u);
   const blind = [{ documents: null }, { documents: null }];
-  assert.deepEqual(docsTabCounts(blind, true, { views: { active: 2 } }), { review: null, fix: null, missing: null, packages: null, all: 2 });
-  assert.deepEqual(docsTabCounts([], true, null), { review: 0, fix: 0, missing: 0, packages: null, all: 0 }, "no cases at all is a true zero");
+  assert.deepEqual(docsTabCounts(blind, true, { views: { active: 2 } }), { review: null, program: null, packages: null, fix: null, missing: null, all: 2 });
+  assert.deepEqual(docsTabCounts([], true, null), { review: 0, program: null, packages: null, fix: 0, missing: 0, all: 0 }, "no cases at all is a true zero");
 });
 
 test("«Закрытые» has no due groups and no add-a-step hint", () => {

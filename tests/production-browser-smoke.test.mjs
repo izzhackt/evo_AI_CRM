@@ -178,7 +178,7 @@ test("«Студенты» and EVO Docs smoke checks the real queue without depe
   assert.match(verify, /views\.getByRole\("link", \{ name: tab \}\)\.first\(\)\.waitFor\(\{ state: "visible", timeout: 30_000 \}\)/u);
   for (const [name, route, prefix, tab] of [
     ["students_queue", "/v3/profile`", "students_queue", "Все в работе"],
-    ["evo_docs", "/v3/profile?section=docs`", "evo_docs_queue", "На проверку"],
+    ["evo_docs", "/v3/profile?section=docs`", "evo_docs_queue", "Документы дела"],
   ]) {
     const check = smokeSource.split(`checkpoint("${name}");`)[1]?.split("checkpoint(")[0] ?? "";
     assert.ok(check.includes(`\${configuration.baseUrl}${route}`), `${name} visits ${route}`);
@@ -195,5 +195,5 @@ test("«Студенты» and EVO Docs smoke checks the real queue without depe
   assert.match(component("queue/QueueStates.tsx"), /data-testid="queue-error"/u);
   const labels = component("students/students-queue-view.ts");
   assert.match(labels, /active: "Все в работе"/u);
-  assert.match(labels, /review: "На проверку"/u);
+  assert.match(labels, /review: "Документы дела"/u);
 });

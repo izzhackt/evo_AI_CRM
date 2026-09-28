@@ -16,11 +16,15 @@ import { studentsRowSignals, studentsUpdatedDay, type StudentsBand, type Student
 /*
  * Три раскладки строки по ширине своего контейнера (`@container/students`):
  * от 60rem — таблица в одну строку (Э8.11: Студент не уже 14rem · Шаг · Срок
- * не уже 5.25rem · Этап 7.5rem · Куратор 6.5rem · Сигналы не уже 11rem, чтобы
- * чип «2 документа исправить» был целым · ссылка на дело 44 px; Этап и
- * Куратор — по своим словам, но постоянной ширины: каждая строка — своя
- * сетка, и `fit-content` развёл бы колонки строк; в «Мои» колонки «Куратор»
- * нет — её ширина у шага и сигналов); 36–60rem (рядом открыта панель, узкий
+ * не уже 5.25rem · Этап не уже 7.5rem · Куратор не уже 6.5rem · Сигналы не
+ * уже 11rem, чтобы чип «2 документа исправить» был целым · ссылка на дело
+ * 44 px). Этап и Куратор растут с таблицей долей .9fr: от окна 1366 px
+ * «ждёт принятия» стоит под именем куратора одной строкой, от 1440 — и
+ * «Готовы к подаче», «Ожидаем решения» в одну строку; на 1280 все колонки,
+ * кроме шага, на минимуме, и «ждёт принятия» переносится, как до Э8.11.
+ * Минимум и доля, а не ширина по словам: каждая строка — своя сетка, и
+ * `fit-content` развёл бы колонки строк. В «Мои» колонки «Куратор» нет — её
+ * ширина у шага и сигналов); 36–60rem (рядом открыта панель, узкий
  * ноутбук) — имя и «направление · уровень · этап», под ними шаг одной
  * строкой, под шагом — сигналы (и под сроком: он занимает две строки);
  * срок и куратор — колонками справа; уже —
@@ -31,8 +35,8 @@ import { studentsRowSignals, studentsUpdatedDay, type StudentsBand, type Student
  * никогда, перенос только между сигналами. Имя — до двух строк во всех
  * раскладках, не многоточие (Э8.11: на 1280 колонка была 163 px).
  */
-const WIDE_COLUMNS = "@min-[60rem]/students:grid-cols-[minmax(14rem,1.4fr)_minmax(0,1.5fr)_minmax(5.25rem,.5fr)_7.5rem_6.5rem_minmax(11rem,.9fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_step_due_stage_curator_signals_link']";
-const WIDE_COLUMNS_MINE = "@min-[60rem]/students:grid-cols-[minmax(14rem,1.4fr)_minmax(0,1.8fr)_minmax(5.25rem,.5fr)_7.5rem_minmax(11rem,1fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_step_due_stage_signals_link']";
+const WIDE_COLUMNS = "@min-[60rem]/students:grid-cols-[minmax(14rem,1.4fr)_minmax(0,1.5fr)_minmax(5.25rem,.5fr)_minmax(7.5rem,.9fr)_minmax(6.5rem,.9fr)_minmax(11rem,.9fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_step_due_stage_curator_signals_link']";
+const WIDE_COLUMNS_MINE = "@min-[60rem]/students:grid-cols-[minmax(14rem,1.4fr)_minmax(0,1.8fr)_minmax(5.25rem,.5fr)_minmax(7.5rem,.9fr)_minmax(11rem,1fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_step_due_stage_signals_link']";
 const MID_COLUMNS = "@min-[36rem]/students:grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,11rem)_2.75rem]";
 const MID_COLUMNS_MINE = "@min-[36rem]/students:grid-cols-[minmax(0,1fr)_6.5rem_2.75rem]";
 const PHONE = "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 [grid-template-areas:'student_student'_'step_due'_'curator_curator'_'signals_signals']";

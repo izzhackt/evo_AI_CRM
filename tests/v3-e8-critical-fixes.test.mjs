@@ -15,11 +15,13 @@ import { MANUAL_LEAD_SOURCE_REQUIRED, MANUAL_LEAD_SOURCES } from "../src/lib/pla
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("«Студенты»: the student column is at least 14rem and the name wraps to two lines instead of an ellipsis", () => {
+test("«Студенты»: the student column is at least 14rem, the name wraps to two lines, stage and curator grow from a fixed minimum", () => {
   const table = read("src/components/v3/students/StudentsQueueTable.tsx");
-  // Каждая строка — своя сетка, поэтому ширины постоянные (fit-content развёл бы колонки строк).
-  assert.match(table, /const WIDE_COLUMNS = "@min-\[60rem\]\/students:grid-cols-\[minmax\(14rem,1\.4fr\)_minmax\(0,1\.5fr\)_minmax\(5\.25rem,\.5fr\)_7\.5rem_6\.5rem_minmax\(11rem,\.9fr\)_2\.75rem\]/u);
-  assert.match(table, /const WIDE_COLUMNS_MINE = "@min-\[60rem\]\/students:grid-cols-\[minmax\(14rem,1\.4fr\)_minmax\(0,1\.8fr\)_minmax\(5\.25rem,\.5fr\)_7\.5rem_minmax\(11rem,1fr\)_2\.75rem\]/u);
+  // Каждая строка — своя сетка: у каждой колонки постоянный минимум и доля
+  // (fit-content развёл бы колонки строк). Этап и куратор растут с таблицей:
+  // от 1366 «ждёт принятия» помещается под именем куратора одной строкой.
+  assert.match(table, /const WIDE_COLUMNS = "@min-\[60rem\]\/students:grid-cols-\[minmax\(14rem,1\.4fr\)_minmax\(0,1\.5fr\)_minmax\(5\.25rem,\.5fr\)_minmax\(7\.5rem,\.9fr\)_minmax\(6\.5rem,\.9fr\)_minmax\(11rem,\.9fr\)_2\.75rem\]/u);
+  assert.match(table, /const WIDE_COLUMNS_MINE = "@min-\[60rem\]\/students:grid-cols-\[minmax\(14rem,1\.4fr\)_minmax\(0,1\.8fr\)_minmax\(5\.25rem,\.5fr\)_minmax\(7\.5rem,\.9fr\)_minmax\(11rem,1fr\)_2\.75rem\]/u);
   assert.doesNotMatch(table, /grid-cols-\[[^\]]*fit-content/u);
   // Имя-ссылка строки: до двух строк, полное имя — в подсказке.
   const link = table.match(/<Link\s+href=\{links\.open\}[\s\S]*?<\/Link>/u)?.[0] ?? "";
@@ -46,7 +48,7 @@ test("phone admissions board opens on the ?stage= stage, else the first stage wi
   assert.equal(admissionsNarrowStage("admission", rows("documents"), "<script>"), "documents");
 });
 
-test("phone admissions board: the page passes ?stage= and the picker writes it back without a server round trip", () => {
+test("phone admissions board: the page passes ?stage= and the picker (or a followed card) writes it back without a server round trip", () => {
   const page = read("src/app/(v3)/v3/admissions-pipeline/page.tsx");
   assert.match(page, /stage\?: string \| string\[\];/u);
   assert.match(page, /requestedStage=\{singleValue\(params\.stage\) \?\? null\}/u);
@@ -54,6 +56,8 @@ test("phone admissions board: the page passes ?stage= and the picker writes it b
   assert.match(board, /useState<AdmissionsPipelineStage>\(\(\) => admissionsNarrowStage\(tab, rows, requestedStage\)\)/u);
   assert.match(board, /setPreviousTab\(tab\);\s*setNarrowStage\(admissionsNarrowStage\(tab, rows, requestedStage\)\);/u);
   assert.match(board, /onChange=\{\(event\) => chooseNarrowStage\(event\.target\.value as AdmissionsPipelineStage\)\}/u);
+  // Список, последовавший за карточкой после ответа сервера, тоже пишет адрес.
+  assert.match(board, /function showStage\(stage: AdmissionsPipelineStage\) \{\s*if \(admissionsPipelineTabOf\(stage\) === tab\) chooseNarrowStage\(stage\);\s*\}/u);
   assert.match(board, /search\.set\("stage", next\);\s*window\.history\.replaceState\(null, "", `\$\{window\.location\.pathname\}\?\$\{search\.toString\(\)\}`\);/u);
   assert.doesNotMatch(board, /useState<AdmissionsPipelineStage>\(ADMISSIONS_PIPELINE_TAB_STAGES\[tab\]\[0\]\)/u);
 });

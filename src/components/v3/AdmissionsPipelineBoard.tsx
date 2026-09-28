@@ -473,14 +473,18 @@ export function AdmissionsPipelineBoard({
       || Boolean(active.closest("[data-testid='v3-undo-toasts']"));
   }
 
-  /** Ответ сервера поставил карточку на этап этого раздела — телефон показывает этот этап. */
+  /**
+   * Ответ сервера поставил карточку на этап этого раздела — телефон показывает
+   * этот этап, и адрес называет его (Э8.11).
+   */
   function showStage(stage: AdmissionsPipelineStage) {
-    if (admissionsPipelineTabOf(stage) === tab) setNarrowStage(stage);
+    if (admissionsPipelineTabOf(stage) === tab) chooseNarrowStage(stage);
   }
 
   /**
-   * Выбор этапа на телефоне пишется в адрес (`?stage=`) без запроса к серверу:
-   * обновление страницы открывает тот же этап (Э8.11).
+   * Этап телефона пишется в адрес (`?stage=`) без запроса к серверу — и
+   * выбранный в списке, и тот, за которым список последовал после ответа
+   * сервера: обновление страницы открывает тот же этап (Э8.11).
    */
   function chooseNarrowStage(next: AdmissionsPipelineStage) {
     setNarrowStage(next);

@@ -251,7 +251,7 @@ export function CloseRecordMenu<K extends ClosureKind>({
   onClosed?: (receipt: Receipt<K>) => void;
   triggerClassName?: string;
   /**
-   * Пункты «⋯» над закрытием (Lead 360, Э4: «Доступ к порталу»). Получают
+   * Пункты «⋯» над закрытием (Student 360: «Доступ к порталу»). Получают
    * `close` — убрать меню перед своим действием.
    */
   items?: (close: () => void) => ReactNode;

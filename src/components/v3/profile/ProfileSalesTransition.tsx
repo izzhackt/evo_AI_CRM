@@ -307,13 +307,16 @@ export function HandoffStripBlock({
           {view.warnings.length > 0 ? (
             <ul className="space-y-1" data-testid="v3-handoff-warnings">
               {view.warnings.map((warning, index) => (
-                <li key={index} className="flex flex-wrap items-start gap-x-1.5 gap-y-1 t-body-compact text-warn">
+                <li key={index} className="flex items-start gap-x-1.5 t-body-compact text-warn">
                   <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
-                  <span className="min-w-0 flex-[1_1_16rem]"><StripLine text={warning.text} /></span>
-                  {/* Предупреждение всегда ведёт к своему действию. 44 px цели без лишней высоты строки: поле касания выходит за строку. */}
-                  <a href={warning.href} className="-my-3 inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
-                    {warning.action}
-                  </a>
+                  {/* Текст и действие — одна колонка: перенесённое действие встаёт под текст, не под значок. */}
+                  <span className="flex min-w-0 flex-1 flex-wrap items-start gap-x-1.5 gap-y-1">
+                    <span className="min-w-0 flex-[1_1_16rem]"><StripLine text={warning.text} /></span>
+                    {/* Предупреждение всегда ведёт к своему действию. 44 px цели без лишней высоты строки: поле касания выходит за строку. */}
+                    <a href={warning.href} className="-my-3 inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
+                      {warning.action}
+                    </a>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -367,7 +370,7 @@ export function HandoffGateForms({
   requestIds: ProfileSalesRequestIds;
   bare?: boolean;
 }) {
-  // Та же проверка — `handoffGateForms` (lead-work-view) для строки группы Lead 360.
+  // Та же проверка — для вкладки «Договор и оплата» лида (`hasHandoffGateForms`, lead-work-view).
   const preview = isStaffPreview(actor);
   const contractForm = !preview && !gate.contractConfirmed && gate.canConfirmContract;
   const paymentForm = !preview && gate.contractConfirmed && !gate.firstPaymentReceivedDate && gate.canConfirmFirstPayment;

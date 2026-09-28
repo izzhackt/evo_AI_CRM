@@ -514,7 +514,7 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   assert.match(working, /<a class="inline-flex min-h-11 [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Изменить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Изменить<\/a>/u);
   const money = pages.get("lead-working-money");
   const gateSection = money.slice(money.indexOf('<section id="handoff-confirm"'));
-  assert.match(gateSection, /^<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate"><h2 id="handoff-confirm-title" class="t-section text-fg">Подтвердить вручную<\/h2>/u);
+  assert.match(gateSection, /^<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate"><h2 id="handoff-confirm-title" class="t-section text-fg">Подтверждение вручную<\/h2>/u);
   assert.match(gateSection, /<h3 class="t-item text-fg">Подтвердить договор<\/h3>.*?data-testid="v3-gate-contract-form"/u);
   assert.match(gateSection, /<details class="group py-1"><summary[^>]*>.*?Исключение Admin<\/summary>/u);
   // У лида без дела пустого «Все обязательства по делу» нет; сплошной красный — только главное действие.

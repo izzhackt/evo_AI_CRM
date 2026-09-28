@@ -287,7 +287,7 @@ export function Profile({
         // Подтверждение вручную (Э8.4) — одно место для договора и оплаты лида
         // вместе с полосой «Передача»: туда ведёт её «Изменить».
         <section id={LEAD_GATE_ANCHOR} aria-labelledby={`${LEAD_GATE_ANCHOR}-title`} className="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">
-          <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтвердить вручную</h2>
+          <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
           <p className="mt-1 t-body-compact text-fg-2">
             Договор, затем первый платёж — доказательства передачи в поступление, если их нет в деле и в отчёте продаж.
           </p>

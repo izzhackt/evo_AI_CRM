@@ -9,8 +9,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  LEAD_GATE_ANCHOR, LEAD_PORTAL_GROUP_ID, LEAD_STEP_DRAWER_ID, handoffGateForms, hasHandoffGateForms, leadDay, leadFeed, leadGroupSummaries,
-  leadLastContact, leadMoment, leadPrimaryAction, leadSaleHref,
+  LEAD_GATE_ANCHOR, LEAD_PORTAL_GROUP_ID, LEAD_STEP_DRAWER_ID, contractWorkspaceWritable, handoffGateForms, hasHandoffGateForms, leadDay, leadFeed,
+  leadGroupSummaries, leadLastContact, leadMoment, leadPrimaryAction, leadSaleHref,
 } from "../src/components/v3/profile/lead-work-view.ts";
 import { profileTabAccess, resolveTab, tabsFor } from "../src/components/v3/profile/types.ts";
 import {
@@ -50,6 +50,22 @@ test("Lead 360: the gate forms group follows the same check as the forms, and a 
   assert.equal(hasHandoffGateForms(gate, false), true);
   assert.equal(hasHandoffGateForms(gate, true), false);
   assert.equal(LEAD_GATE_ANCHOR, "handoff-confirm");
+});
+
+test("Lead 360 (Э8.4): «Изменить» leads to the contract workflow only when its write flags open a form there", () => {
+  const readOnly = { canManageTemplates: false, canGenerateContract: false, canReviewContract: false, canManagePostContract: false,
+    canReviewReport: false, drafts: [{ status: "draft" }], reports: [{ status: "draft" }] };
+  assert.equal(contractWorkspaceWritable(readOnly), false, "a readable workflow alone is nothing to change");
+  for (const flag of ["canManageTemplates", "canGenerateContract", "canManagePostContract"]) {
+    assert.equal(contractWorkspaceWritable({ ...readOnly, [flag]: true }), true, flag);
+  }
+  // Проверка — только у черновика: проверенный договор и отчёт изменить нечем.
+  assert.equal(contractWorkspaceWritable({ ...readOnly, canReviewContract: true }), true);
+  assert.equal(contractWorkspaceWritable({ ...readOnly, canReviewContract: true, drafts: [{ status: "approved" }] }), false);
+  assert.equal(contractWorkspaceWritable({ ...readOnly, canReviewReport: true }), true);
+  assert.equal(contractWorkspaceWritable({ ...readOnly, canReviewReport: true, reports: [] }), false);
+  const parts = read("src/components/v3/profile/LeadWorkParts.tsx");
+  assert.match(parts, /const contractWritable = !preview && actor\.presentationRole !== "sales" && draft\.access\.contract\s+&& draft\.contract !== null && contractWorkspaceWritable\(draft\.contract\.workspace\);/u);
 });
 
 test("Lead 360 (Э8.4): «Договор и оплата» exists for whoever has the gate forms, without opening the case's finances", () => {
@@ -306,7 +322,7 @@ test("rendered Lead 360 (Э8.4): contract and payment in one place — the strip
   // Вкладка «Договор и оплата» лида без дела: подтверждение вручную наверху, пустых обязательств нет.
   const money = pages.get("lead-money");
   assert.match(money, /<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">/u);
-  assert.match(text(money), /Подтвердить вручную Договор, затем первый платёж — доказательства передачи в поступление, если их нет в деле и в отчёте продаж\. Подтвердить договор/u);
+  assert.match(text(money), /Подтверждение вручную Договор, затем первый платёж — доказательства передачи в поступление, если их нет в деле и в отчёте продаж\. Подтвердить договор/u);
   assert.match(money, /<label class="block"><span[^>]*>Доказательство<\/span>/u);
   assert.doesNotMatch(money, /Все обязательства по делу/u);
   assert.equal(solidRed(money), 1, "the confirmations are quiet; red stays the page's main action");

@@ -76,6 +76,27 @@ export function hasHandoffGateForms(gate: GateFormsInput, preview: boolean): boo
   return forms.contract || forms.payment || forms.override;
 }
 
+type ContractWriteInput = Readonly<{
+  canManageTemplates: boolean;
+  canGenerateContract: boolean;
+  canReviewContract: boolean;
+  canManagePostContract: boolean;
+  canReviewReport: boolean;
+  drafts: ReadonlyArray<Readonly<{ status: string }>>;
+  reports: ReadonlyArray<Readonly<{ status: string }>>;
+}>;
+
+/**
+ * Есть ли в договорном процессе дела что изменить этому сотруднику — те же
+ * флаги, что открывают формы `ContractDraftReportWorkspace` (проверка —
+ * только у черновика): подсказка интерфейса, решает сервер.
+ */
+export function contractWorkspaceWritable(workspace: ContractWriteInput): boolean {
+  return workspace.canManageTemplates || workspace.canGenerateContract || workspace.canManagePostContract
+    || (workspace.canReviewContract && workspace.drafts.some((draft) => draft.status === "draft"))
+    || (workspace.canReviewReport && workspace.reports.some((report) => report.status === "draft"));
+}
+
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
 
 /** Сумма из минимальных единиц: «1 500 USD». */

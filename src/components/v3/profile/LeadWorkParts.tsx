@@ -32,6 +32,7 @@ import {
   LEAD_GATE_ANCHOR,
   LEAD_PORTAL_GROUP_ID,
   LEAD_STEP_DRAWER_ID,
+  contractWorkspaceWritable,
   hasHandoffGateForms,
   leadDay,
   leadFeed,
@@ -399,10 +400,12 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     && strip.items.every((item) => item.state === "missing") && handoffFootnote(sales.gate, { now: input.now }) === null;
   // «Изменить» — на вкладку «Договор и оплата», если она есть у этого
   // сотрудника и там есть что изменить: подтверждение вручную (тогда — к
-  // нему, якорем), договор и платежи дела или договорный процесс.
+  // нему, якорем), договор и платежи дела или договорный процесс — по его
+  // флагам записи; продажам процесс не рисуется (`ProfileContractWorkspace`).
   const moneyTab = tabsFor(profile.student, tabAccess, draft.admissions !== null).some((tab) => tab.key === "money");
   const agreementWritable = agreement !== null && agreement.canWrite && !preview;
-  const contractWritable = !preview && draft.access.contract && draft.contract !== null;
+  const contractWritable = !preview && actor.presentationRole !== "sales" && draft.access.contract
+    && draft.contract !== null && contractWorkspaceWritable(draft.contract.workspace);
   const moneyHref = moneyTab && (gateForms || agreementWritable || contractWritable)
     ? `${input.hrefFor("money")}${gateForms ? `#${LEAD_GATE_ANCHOR}` : ""}` : null;
   const handoff = (

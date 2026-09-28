@@ -11,17 +11,29 @@ export type SalesRegisterRow = Readonly<{
   needsReview: boolean; notes: string; archived: boolean; sourceKey: string | null;
   sourceKind: "manual" | "import" | "pipeline"; leadId: string | null; clientId: string | null;
   sourceSha256: string | null; sourceSheet: string | null; sourceRow: number | null; updatedAt: string;
+  /** «Оплачено в валюте договора» (253): сумму вводит менеджер, система ничего не пересчитывает. */
+  paidContractMinor: number | null; paidContractCurrency: SalesCurrency | null;
+  /** Почему запись помечена — ключи сервера (253), только пока она помечена. */
+  reviewReasons: readonly string[];
+  /** Пометки переноса данных — только строки пометок, без исходных ячеек. */
+  importFlags: readonly string[];
+  /** Ключ написания менеджера: регистр, пробелы, точки в конце. */
+  managerKey: string;
 }>;
 export type SalesRegisterTarget = Readonly<{
   id: string; version: number; reportMonth: string; managerLabel: string | null; targetCount: number;
 }>;
+/** Менеджер в меню отчёта (253): ключ, имя по таблице владельца или написание, число записей выборки. */
+export type SalesManagerOption = Readonly<{ key: string; name: string; count: number }>;
 export type SalesRegisterWorkspace = Readonly<{
   year: number; month: number | null; totalCount: number; rows: readonly SalesRegisterRow[];
   selected: SalesRegisterRow | null; offset: number; hasMore: boolean;
   totals: readonly Readonly<{ currency: SalesCurrency; costMinor: number; paidMinor: number }>[];
   unresolvedCostCount: number; unresolvedPaidCount: number;
-  targets: readonly SalesRegisterTarget[]; managerLabels: readonly string[];
+  targets: readonly SalesRegisterTarget[]; managerOptions: readonly SalesManagerOption[];
   ownerOptions: readonly Readonly<{ id: string; label: string }>[];
+  /** Нормализованный поиск и ключ менеджера, которые применил сервер. */
+  query: string | null; managerKey: string | null;
 }>;
 export type SalesRegisterIntakeOptions = Readonly<{
   curators: readonly Readonly<{ id: string; label: string }>[];
@@ -81,10 +93,20 @@ function currency(value: unknown): SalesCurrency {
 }
 function array(value: unknown, max: number): unknown[] { return Array.isArray(value) && value.length <= max ? value : fail(); }
 
+/** Ключи строки v1 (134) — строка v2 (253) добавляет к ним ровно четыре. */
+const ROW_V1_KEYS = ["id", "version", "report_month", "signing_date", "applicant_name", "phone", "country", "university", "program", "direction", "intake",
+  "contract_number", "manager_label", "status_raw", "owner_membership_id", "service_cost_raw", "service_cost_minor", "service_cost_currency", "paid_raw", "paid_minor",
+  "paid_currency", "needs_review", "notes", "archived", "source_kind", "lead_id", "client_id", "source_key", "source_sha256", "source_sheet", "source_row", "updated_at"] as const;
+const REVIEW_REASON = /^(signing_date_missing|service_cost_missing|paid_missing|contract_amount_missing|import:[a-z][a-z0-9_]{0,149})$/;
+const IMPORT_FLAG = /^[a-z][a-z0-9_]{0,149}$/;
+function textList(value: unknown, pattern: RegExp): readonly string[] {
+  const list = array(value, 40).map(item => typeof item === "string" && pattern.test(item) ? item : fail());
+  return new Set(list).size === list.length ? list : fail();
+}
+
+/** Строка `sales_register_row_v2` (253): строка v1 + «Оплачено в валюте договора», причины пометки, пометки переноса и ключ менеджера. */
 export function parseSalesRegisterRow(raw: unknown): SalesRegisterRow {
-  const r = exact(raw, ["id", "version", "report_month", "signing_date", "applicant_name", "phone", "country", "university", "program", "direction", "intake",
-    "contract_number", "manager_label", "status_raw", "owner_membership_id", "service_cost_raw", "service_cost_minor", "service_cost_currency", "paid_raw", "paid_minor",
-    "paid_currency", "needs_review", "notes", "archived", "source_kind", "lead_id", "client_id", "source_key", "source_sha256", "source_sheet", "source_row", "updated_at"]);
+  const r = exact(raw, [...ROW_V1_KEYS, "paid_contract", "review_reasons", "import_flags", "manager_key"]);
   const serviceCostMinor = r.service_cost_minor === null ? null : num(r.service_cost_minor, 1_000_000_000_000);
   const serviceCostCurrency = r.service_cost_currency === null ? null : currency(r.service_cost_currency);
   const paidMinor = r.paid_minor === null ? null : num(r.paid_minor, 1_000_000_000_000);
@@ -103,6 +125,12 @@ export function parseSalesRegisterRow(raw: unknown): SalesRegisterRow {
   const clientId = r.client_id === null ? null : uuid(r.client_id);
   if (sourceKind === "pipeline" ? leadId === null || clientId === null : leadId !== null || clientId !== null) fail();
   if ((sourceKind === "import") !== (sourceKey !== null) || (sourceKind !== "pipeline" && !str(r.applicant_name, 300).trim())) fail();
+  const contract = r.paid_contract === null ? null : exact(r.paid_contract, ["minor", "currency"]);
+  const importFlags = textList(r.import_flags, IMPORT_FLAG);
+  if (importFlags.length && sourceKind !== "import") fail();
+  const reviewReasons = textList(r.review_reasons, REVIEW_REASON);
+  if (reviewReasons.length && !r.needs_review) fail();
+  const managerKey = str(r.manager_key, 300);
   return {
     id: uuid(r.id), version, reportMonth: monthDate(r.report_month), signingDate: r.signing_date === null ? null : date(r.signing_date),
     applicantName: str(r.applicant_name, 300), phone: str(r.phone, 100), country: str(r.country, 200), university: str(r.university, 500),
@@ -111,11 +139,25 @@ export function parseSalesRegisterRow(raw: unknown): SalesRegisterRow {
     serviceCostRaw: str(r.service_cost_raw), serviceCostMinor, serviceCostCurrency,
     paidRaw: str(r.paid_raw), paidMinor, paidCurrency, needsReview: bool(r.needs_review), notes: str(r.notes),
     archived: bool(r.archived), sourceKind, leadId, clientId, sourceKey, sourceSha256, sourceSheet, sourceRow, updatedAt,
+    paidContractMinor: contract ? num(contract.minor, 1_000_000_000_000) : null, paidContractCurrency: contract ? currency(contract.currency) : null,
+    reviewReasons, importFlags, managerKey,
   };
 }
+/** Ответ `read_sales_register_v4` (253) — точные ключи; v1–v3 остаются на сервере для отката. */
 export function parseSalesRegisterWorkspace(raw: unknown, organizationId: string): SalesRegisterWorkspace {
-  const r = exact(raw, ["organization_id", "year", "month", "total_count", "rows", "selected", "offset", "has_more", "totals", "unresolved_cost_count", "unresolved_paid_count", "targets", "manager_labels", "owner_options"]);
+  const r = exact(raw, ["query", "manager_key", "organization_id", "year", "month", "total_count", "rows", "selected", "offset", "has_more", "totals",
+    "unresolved_cost_count", "unresolved_paid_count", "targets", "manager_options", "owner_options"]);
   if (r.organization_id !== organizationId) fail();
+  const query = r.query === null ? null : str(r.query, 200);
+  if (query !== null && (query === "" || query !== query.trim() || /[\u0000-\u001f\u007f]/.test(query))) fail();
+  const managerKey = r.manager_key === null ? null : str(r.manager_key, 300);
+  if (managerKey === "") fail();
+  const managerOptions = array(r.manager_options, 1000).map(value => {
+    const option = exact(value, ["key", "name", "count"]);
+    const key = str(option.key, 300); if (!key) fail();
+    return { key, name: str(option.name, 300), count: num(option.count) };
+  });
+  if (new Set(managerOptions.map(option => option.key)).size !== managerOptions.length) fail();
   const year = num(r.year, 2100); if (year < 1900) fail();
   const month = r.month === null ? null : num(r.month, 12); if (month === 0) fail();
   const rows = array(r.rows, 50).map(parseSalesRegisterRow);
@@ -127,7 +169,8 @@ export function parseSalesRegisterWorkspace(raw: unknown, organizationId: string
     unresolvedCostCount: num(r.unresolved_cost_count), unresolvedPaidCount: num(r.unresolved_paid_count),
     targets: array(r.targets, 1200).map(value => { const t = exact(value, ["id", "version", "report_month", "manager_label", "target_count"]); const version = num(t.version); if (!version) fail();
       return { id: uuid(t.id), version, reportMonth: monthDate(t.report_month), managerLabel: t.manager_label === null ? null : str(t.manager_label, 300), targetCount: num(t.target_count, 1000000) }; }),
-    managerLabels: array(r.manager_labels, 1000).map(value => str(value, 300)),
+    managerOptions,
     ownerOptions: array(r.owner_options, 1000).map(value => { const owner = exact(value, ["id", "label"]); return { id: uuid(owner.id), label: str(owner.label, 300) }; }),
+    query, managerKey,
   };
 }

@@ -425,7 +425,7 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
 
 /* ------------------------------------------------------------ Платформа */
 
-export function PlatformSection({ platform, salesImportHref }: { platform: string; salesImportHref?: string }) {
+export function PlatformSection({ platform, salesImportHref, salesManagersHref }: { platform: string; salesImportHref?: string; salesManagersHref?: string }) {
   return (
     <div className="flex flex-col gap-4">
       <Card title="Что сейчас запущено">
@@ -441,13 +441,18 @@ export function PlatformSection({ platform, salesImportHref }: { platform: strin
         </dl>
       </Card>
 
-      {salesImportHref ? (
-        <Link
-          href={salesImportHref}
-          className="inline-flex min-h-11 items-center self-start rounded-ctl text-sm font-medium text-accent underline underline-offset-4 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-        >
-          Перенос данных отчёта продаж
-        </Link>
+      {salesImportHref || salesManagersHref ? (
+        <div className="flex flex-wrap gap-x-6">
+          {[[salesImportHref, "Перенос данных отчёта продаж"], [salesManagersHref, "Менеджеры в отчёте продаж"]].map(([href, label]) => href ? (
+            <Link
+              key={label}
+              href={href}
+              className="inline-flex min-h-11 items-center self-start rounded-ctl text-sm font-medium text-accent underline underline-offset-4 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            >
+              {label}
+            </Link>
+          ) : null)}
+        </div>
       ) : null}
 
       {/* Факты эксплуатации (аудит 26.09), а не тревога: заголовок называет тему (Э6). */}

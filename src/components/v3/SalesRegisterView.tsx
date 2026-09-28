@@ -20,50 +20,111 @@ import { salesDirectionControl } from "@/lib/sales-register-directions";
 import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 import {
   SALES_PAGE_SIZE, SALES_SUMMARY_MAX_PAGES, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
-  SALES_NO_REMAINDER_TEXT, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, type SalesLabelGroup, type SalesMoneySummary,
+  SALES_NO_REMAINDER_TEXT, salesDay, salesDayParts, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis,
+  type SalesLabelGroup, type SalesMoneySummary,
 } from "@/lib/sales-register-view";
 
 import { FilterMenu, type FilterOption } from "./queue/FilterMenu";
 import { attributeReturn, sidePanelSplit } from "./panel/side-panel";
 import { SidePanel } from "./panel/SidePanel";
 import { QueueFilterDisclosure } from "./queue/QueueFilterDisclosure";
-import { salesReportContext, type SalesReportQuery, type SalesSaleSlice } from "@/lib/sales-register-navigation";
+import { salesManagersHref, salesReportContext, type SalesReportQuery, type SalesSaleSlice } from "@/lib/sales-register-navigation";
 export type { SalesReportQuery } from "@/lib/sales-register-navigation";
 
 const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
 const money = (minor: number | null, currency: string | null) => minor === null || !currency ? null : `${number.format(minor / 100)} ${currency}`;
 const dateLabel = (date: string | null) => date ? date.split("-").reverse().join(".") : "Дата не указана";
-/** Плотная дата строки: «ДД.ММ», другой год — «ДД.ММ.ГГ» (DESIGN.md). */
-const rowDate = (date: string, year: number) => {
-  const [y, m, d] = date.split("-");
-  return Number(y) === year ? `${d}.${m}` : `${d}.${m}.${y.slice(2)}`;
-};
+const rowDate = salesDay;
 const tidy = (value: string) => value.trim().replace(/\s+/gu, " ");
-/** Месяц отчёта записи: словами («Сентябрь 2026») и плотно для столбца («09.2026», JetBrains Mono). */
-const reportMonthOf = (value: string) => ({
-  words: `${MONTHS[Number(value.slice(5, 7)) - 1]} ${value.slice(0, 4)}`,
-  compact: `${value.slice(5, 7)}.${value.slice(0, 4)}`,
-  dateTime: value.slice(0, 7),
-});
+const reportMonthOf = salesReportMonth;
 /**
- * Ширины столбцов по содержимому: суммы — по «120 000 KGS» целиком, остальное —
- * тексту. От 70rem (≈1440) имя, «Страна · программа», менеджер и причина
- * помещаются; уже (≈1280) места на всё нет — сужается текст (подсказка с
- * полным), а не суммы. Во «Весь год» и в срезе «записаны в другой месяц
- * отчёта» есть столбец «Месяц отчёта»: его место берётся у текста, суммы те же.
+ * Ширины столбцов по содержимому: каждый столбец сумм — по «120 000 KGS»
+ * целиком (с полями около 103 px: от 60rem, 960 px, — 11%, от 70rem — 9,5%),
+ * остальное — тексту. От 70rem (≈1440) имя, «Страна · программа», менеджер и
+ * причина помещаются; уже (≈1280) места на всё нет — сужается текст
+ * (подсказка с полным), а не суммы. Во «Весь год» и в срезе «записаны в
+ * другой месяц отчёта» есть столбец «Месяц отчёта»: его место берётся у
+ * текста, суммы те же. «Дата» (и в коротком наборе) — по «ДД.ММ»: год
+ * продажи другого года — второй строкой под датой (12 px), а не «ДД.ММ.ГГ».
  */
 const RECORD_COLUMNS = [
-  "w-[16%]", "w-[20%] @min-[70rem]/sales-records:w-[21%]", "w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
-  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[10%] @min-[70rem]/sales-records:w-[8.5%]",
-  "w-[10%] @min-[70rem]/sales-records:w-[8.5%]", "w-[14%] @min-[70rem]/sales-records:w-[18%]",
+  "w-[17%] @min-[70rem]/sales-records:w-[16%]", "w-[17%] @min-[70rem]/sales-records:w-[19%]", "w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[11%] @min-[70rem]/sales-records:w-[9.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[14%] @min-[70rem]/sales-records:w-[18%]",
 ];
 const RECORD_COLUMNS_WITH_REPORT_MONTH = [
-  "w-[15%]", "w-[16%] @min-[70rem]/sales-records:w-[18%]", "w-[12%] @min-[70rem]/sales-records:w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
+  "w-[17%] @min-[70rem]/sales-records:w-[15%]", "w-[13%] @min-[70rem]/sales-records:w-[16%]", "w-[11%] @min-[70rem]/sales-records:w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
   "w-[8%] @min-[70rem]/sales-records:w-[7%]",
-  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[10%] @min-[70rem]/sales-records:w-[8.5%]",
-  "w-[10%] @min-[70rem]/sales-records:w-[8.5%]", "w-[12%] @min-[70rem]/sales-records:w-[15%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[11%] @min-[70rem]/sales-records:w-[9.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[12%] @min-[70rem]/sales-records:w-[15%]",
 ];
+/**
+ * Э8.6: при открытой записи список рядом с панелью остаётся таблицей с
+ * короткими столбцами «Студент · Дата · Стоимость · Оплачено · Остаток ·
+ * Уточнить» (страна, программа и менеджер — в панели). Колонка списка рядом с
+ * панелью — около 33rem при 1280 и 43rem от 1440; таблица — от 32rem, уже —
+ * строки стопкой. Сумма «120 000 KGS» с полями — около 99 px: от 32rem (512 px)
+ * это 19,5% колонки, от 42rem (672 px) — 15%, и суммы не режутся ни при какой
+ * ширине таблицы. Уже 42rem столбцу «Уточнить» места нет: у помеченной
+ * строки под именем — строка «Уточнить: …» (12 px, нейтральная), причина
+ * целиком — подсказкой и в панели записи.
+ */
+const COMPACT_COLUMNS = ["w-[30.5%] @min-[42rem]/sales-records:w-[25%]", "w-[11%] @min-[42rem]/sales-records:w-[8.5%]",
+  "w-[19.5%] @min-[42rem]/sales-records:w-[15%]", "w-[19.5%] @min-[42rem]/sales-records:w-[15%]",
+  "w-[19.5%] @min-[42rem]/sales-records:w-[15%]", "w-[0%] @min-[42rem]/sales-records:w-[21.5%]"];
+/**
+ * «Весь год» и срез «в другой месяц отчёта» рядом с открытой записью: месяц
+ * отчёта — второй строкой под датой («09.2026», 12 px, JetBrains Mono), а не
+ * своим столбцом: столбцу на 33rem места нет без того, чтобы резать суммы или
+ * имя. Столбцы те же, что у месяца; «Дата» чуть шире — под «09.2026».
+ */
+const COMPACT_COLUMNS_WITH_REPORT_MONTH = ["w-[29%] @min-[42rem]/sales-records:w-[25%]", "w-[12.5%] @min-[42rem]/sales-records:w-[10%]",
+  "w-[19.5%] @min-[42rem]/sales-records:w-[15%]", "w-[19.5%] @min-[42rem]/sales-records:w-[15%]",
+  "w-[19.5%] @min-[42rem]/sales-records:w-[15%]", "w-[0%] @min-[42rem]/sales-records:w-[20%]"];
+/**
+ * Классы строки для двух наборов столбцов: полный — таблица от 60rem
+ * контейнера, короткий (запись открыта) — от 32rem. Классы целиком: их
+ * находит сборщик Tailwind.
+ */
+const ROW_LAYOUT = {
+  full: {
+    table: "block w-full text-left @min-[60rem]/sales-records:table @min-[60rem]/sales-records:table-fixed",
+    colgroup: "hidden @min-[60rem]/sales-records:table-column-group",
+    thead: "sr-only @min-[60rem]/sales-records:not-sr-only @min-[60rem]/sales-records:table-header-group",
+    tbody: "block divide-y divide-border border-y border-border @min-[60rem]/sales-records:table-row-group",
+    row: "@min-[60rem]/sales-records:table-row @min-[60rem]/sales-records:p-0",
+    name: "@min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:ps-4 @min-[60rem]/sales-records:pe-3 @min-[60rem]/sales-records:align-middle",
+    cell: "hidden min-w-0 px-3 align-middle @min-[60rem]/sales-records:table-cell",
+    date: "@min-[60rem]/sales-records:px-2",
+    money: "hidden min-w-0 px-2 text-right align-middle @min-[60rem]/sales-records:table-cell",
+    rest: "@min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:px-2 @min-[60rem]/sales-records:align-middle",
+    restWord: "@min-[60rem]/sales-records:sr-only",
+    narrow: "@min-[60rem]/sales-records:hidden",
+    review: "hidden min-w-0 px-3 align-middle @min-[60rem]/sales-records:table-cell",
+    reviewHead: "",
+    reviewMark: "",
+  },
+  compact: {
+    table: "block w-full text-left @min-[32rem]/sales-records:table @min-[32rem]/sales-records:table-fixed",
+    colgroup: "hidden @min-[32rem]/sales-records:table-column-group",
+    thead: "sr-only @min-[32rem]/sales-records:not-sr-only @min-[32rem]/sales-records:table-header-group",
+    tbody: "block divide-y divide-border border-y border-border @min-[32rem]/sales-records:table-row-group",
+    row: "@min-[32rem]/sales-records:table-row @min-[32rem]/sales-records:p-0",
+    name: "@min-[32rem]/sales-records:table-cell @min-[32rem]/sales-records:ps-3 @min-[32rem]/sales-records:pe-2 @min-[32rem]/sales-records:align-middle",
+    cell: "hidden min-w-0 px-1.5 align-middle @min-[32rem]/sales-records:table-cell",
+    date: "",
+    money: "hidden min-w-0 px-1.5 text-right align-middle @min-[32rem]/sales-records:table-cell",
+    rest: "@min-[32rem]/sales-records:table-cell @min-[32rem]/sales-records:px-1.5 @min-[32rem]/sales-records:align-middle",
+    restWord: "@min-[32rem]/sales-records:sr-only",
+    narrow: "@min-[32rem]/sales-records:hidden",
+    review: "hidden min-w-0 ps-3 align-middle @min-[42rem]/sales-records:table-cell",
+    reviewHead: "hidden @min-[42rem]/sales-records:table-cell",
+    // Таблица без столбца «Уточнить» (32–42rem): помеченная строка говорит о себе под именем.
+    reviewMark: "hidden @min-[32rem]/sales-records:block @min-[42rem]/sales-records:hidden",
+  },
+} as const;
+type RowLayout = keyof typeof ROW_LAYOUT;
 /** Что показывает таблица при срезе из заголовка «Продажи» (Э2). */
 const SALE_SLICE_TITLE: Record<SalesSaleSlice, string> = {
   undated: "Записи без даты продажи: в продажи не входят",
@@ -96,7 +157,7 @@ export function SalesDynamicsReport({ dynamics }: { dynamics: ReactNode }) {
   </main>;
 }
 
-/** Меню варианта фильтра: одно имя на написания; у выбранной группы — её остальные написания. */
+/** Меню направления: одно имя на написания; у выбранной группы — её остальные написания. */
 function labelOptions(groups: readonly SalesLabelGroup[], selected: string | null, href: (value: string | null) => string): FilterOption[] {
   const group = salesLabelGroupOf(groups, selected);
   const options: FilterOption[] = [{ key: "all", label: "Все", href: href(null), selected: !selected }];
@@ -110,6 +171,25 @@ function labelOptions(groups: readonly SalesLabelGroup[], selected: string | nul
       }
     }
   }
+  return options;
+}
+
+/**
+ * Меню менеджера (Э8.6, 253): один пункт на ключ написания — имя по таблице
+ * владельца или самое частое написание — и число записей выборки после
+ * выбора. Выбор — ключ; у кого есть «Менеджеры в отчёте», последний пункт
+ * ведёт туда.
+ */
+function managerOptions(workspace: SalesRegisterWorkspace, selected: string | null, href: (value: string | null) => string, managersHref: string | null): FilterOption[] {
+  const options: FilterOption[] = [{ key: "all", label: "Все", href: href(null), selected: !selected }];
+  const current = workspace.managerKey;
+  if (selected && current !== null && !workspace.managerOptions.some((option) => option.key === current)) {
+    options.push({ key: "current", label: `Из фильтра: ${tidy(selected)}`, href: href(selected), selected: true });
+  }
+  for (const option of workspace.managerOptions) {
+    options.push({ key: option.key, label: option.name, href: href(option.key), selected: option.key === current, count: option.count });
+  }
+  if (managersHref) options.push({ key: "managers", label: "Менеджеры в отчёте →", href: managersHref, selected: false });
   return options;
 }
 
@@ -169,7 +249,7 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, f
     summary.paidMissing > 0 ? `оплата не указана — ${summary.paidMissing} ${recordsWord(summary.paidMissing)}` : null,
     summary.paidUnclear > 0 ? `оплата не разобрана — ${summary.paidUnclear} ${recordsWord(summary.paidUnclear)}` : null,
   ].filter(Boolean).join(", ") : "";
-  const cross = summary ? summary.cross.map((pair) => `${pair.costCurrency} → ${pair.paidCurrency} — стоимость в ${pair.costCurrency}, оплата в ${pair.paidCurrency} (${pair.count} ${recordsWord(pair.count)}): остаток не считается.`) : [];
+  const cross = summary ? summary.cross.map((pair) => `${pair.costCurrency} → ${pair.paidCurrency} — стоимость в ${pair.costCurrency}, оплата в ${pair.paidCurrency} без суммы в валюте договора (${pair.count} ${recordsWord(pair.count)}): остаток не считается.`) : [];
   const footnote = [
     ...cross,
     summary ? null : reason === "too_many"
@@ -185,7 +265,7 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, f
   const lines = summary ? summary.lines.map((line) => ({ currency: line.currency, cost: line.costMinor, paid: line.paidMinor, rest: line.remainderMinor as number | null }))
     : workspace.totals.map((line) => ({ currency: line.currency, cost: line.costMinor, paid: line.paidMinor, rest: null }));
   return (
-    <section aria-labelledby="sales-money-title" className="mt-4 border-y border-border py-3" data-testid="sales-money-summary">
+    <section aria-labelledby="sales-money-title" className="border-y border-border py-3" data-testid="sales-money-summary">
       <h2 id="sales-money-title" className="sr-only">Суммы по записям</h2>
       <p className="t-meta text-fg-2" data-money-basis={total}>{caption}</p>
       {lines.length > 0 || (summary?.cross.length ?? 0) > 0 ? (
@@ -236,70 +316,96 @@ function ArchiveBasis({ count, yearOnly, filtered }: Readonly<{ count: number; y
   if (count === 0) return null;
   const text = `В архиве — ${count.toLocaleString("ru-RU")} ${recordsWord(count)} ${yearOnly ? "года" : "месяца"} отчёта${filtered ? ", с фильтрами" : ""}. `
     + "Архивные записи не входят в рабочие итоги: суммы и остаток по ним не считаются.";
-  return <p className="mt-4 border-y border-border py-3 t-meta text-fg-2" data-testid="sales-archive-basis" data-archive-count={count}>{text}</p>;
+  return <p className="border-y border-border py-3 t-meta text-fg-2" data-testid="sales-archive-basis" data-archive-count={count}>{text}</p>;
 }
 
-/** Строка записи: одна линия на широком контейнере, две–три строки на узком. */
-function SaleRow({ row, year, href, selected, showReportMonth, showRemainder }: Readonly<{
+/**
+ * Строка записи: одна линия на широком контейнере, две–три строки на узком.
+ * `layout` — полный набор столбцов или короткий рядом с открытой записью (Э8.6).
+ */
+function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, manager, layout }: Readonly<{
   row: SalesRegisterRow; year: number; href: string; selected: boolean; showReportMonth: boolean;
   /** В «Архиве» столбца «Остаток» нет: архивные записи в рабочие итоги не входят. */
   showRemainder: boolean;
+  /** Имя менеджера по ключу (таблица владельца или написание), 253. */
+  manager: string;
+  layout: RowLayout;
 }>) {
+  const at = ROW_LAYOUT[layout];
+  const compact = layout === "compact";
   const review = salesRowReview(row);
   const cost = money(row.serviceCostMinor, row.serviceCostCurrency);
   const paid = money(row.paidMinor, row.paidCurrency);
+  const contractMinor = salesRowContractPaid(row);
+  const contract = contractMinor === null ? null : money(contractMinor, row.serviceCostCurrency);
   const remainderMinor = salesRowRemainder(row);
   const remainder = remainderMinor === null ? null : money(remainderMinor, row.serviceCostCurrency);
   const noRemainder = salesRowNoRemainder(row);
   const remainderWhy = noRemainder === null ? null : SALES_NO_REMAINDER_TEXT[noRemainder];
   const place = [row.country, row.program].map((part) => tidy(part)).filter(Boolean).join(" · ");
-  const manager = tidy(row.managerLabel);
   const reportMonth = showReportMonth ? reportMonthOf(row.reportMonth) : null;
+  const saleDay = row.signingDate ? salesDayParts(row.signingDate, year) : null;
   const reviewText = review.state === "review" ? review.reasons.join(", ") : review.state === "checked" ? "Сверено" : "В архиве";
   const reviewTone = review.state === "review" ? "text-fg-2" : "text-fg-3";
+  const reviewMark = compact && review.state === "review";
   const name = row.applicantName || "Имя не указано";
-  const cell = "hidden min-w-0 px-3 align-middle @min-[60rem]/sales-records:table-cell";
-  const moneyCell = "hidden min-w-0 px-2 text-right align-middle @min-[60rem]/sales-records:table-cell";
   const mono = "font-mono tabular-nums";
+  // Оплата в другой валюте с суммой в валюте договора: остаток — от неё, и это сказано подсказкой.
+  const remainderTitle = remainderWhy ?? (remainder && contract ? `${remainder}: стоимость ${cost} − оплачено в валюте договора ${contract}` : remainder);
   return (
     <tr role="row" id={`sale-${row.id}`} data-selected={selected ? "" : undefined}
-      className={`relative grid scroll-mt-24 grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-4 py-1.5 @min-[60rem]/sales-records:table-row @min-[60rem]/sales-records:p-0 ${selected ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
-      <th role="rowheader" scope="row" className="min-w-0 font-normal @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:ps-4 @min-[60rem]/sales-records:pe-3 @min-[60rem]/sales-records:align-middle">
+      className={`relative grid scroll-mt-24 grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-4 py-1.5 ${at.row} ${selected ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
+      <th role="rowheader" scope="row" className={`min-w-0 font-normal ${at.name}`}>
         <Link href={href} scroll={false} aria-current={selected ? "true" : undefined} title={name}
-          className="flex min-h-11 min-w-0 items-center t-item text-fg underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline">
+          className={`flex min-h-11 min-w-0 ${reviewMark ? "flex-col justify-center" : "items-center"} t-item text-fg underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline`}>
           <span className="truncate">{name}</span>
+          {/* Рядом с записью уже 42rem столбца «Уточнить» нет: помеченная строка — строкой под именем. */}
+          {reviewMark ? <span className={`truncate t-meta text-fg-2 ${at.reviewMark}`} title={`Уточнить: ${reviewText}`} data-row-review-mark="">
+            Уточнить: {reviewText}
+          </span> : null}
         </Link>
       </th>
-      <td role="cell" className={cell}><span className="block truncate t-body-compact text-fg-2" title={place || undefined}>{place || "—"}</span></td>
-      <td role="cell" className={cell}><span className="block truncate t-body-compact text-fg-2" title={manager || undefined}>{manager || "—"}</span></td>
-      <td role="cell" className={`${cell} @min-[60rem]/sales-records:px-2`}>
-        {row.signingDate ? <time dateTime={row.signingDate} className={`t-body-compact text-fg-2 ${mono}`}>{rowDate(row.signingDate, year)}</time> : <span className="t-body-compact text-fg-3">—</span>}
+      {compact ? null : <>
+        <td role="cell" className={at.cell}><span className="block truncate t-body-compact text-fg-2" title={place || undefined}>{place || "—"}</span></td>
+        <td role="cell" className={at.cell}><span className="block truncate t-body-compact text-fg-2" title={manager || undefined}>{manager || "—"}</span></td>
+      </>}
+      <td role="cell" className={`${at.cell} ${at.date}`}>
+        {/* Ячейке хватает «ДД.ММ»: год другой продажи — второй строкой под датой (12 px), не «28.12.25» поверх «Стоимости». */}
+        {saleDay ? <time dateTime={row.signingDate ?? undefined} className={`t-body-compact text-fg-2 ${mono}`}>{saleDay.day}{saleDay.year
+          ? <span className="block t-meta" data-sale-year={saleDay.year}><span className="sr-only">.</span>{saleDay.year}</span> : null}</time>
+          : <span className="t-body-compact text-fg-3">—</span>}
+        {/* Рядом с записью месяц отчёта — второй строкой под датой: своему столбцу там места нет. */}
+        {compact && reportMonth ? <time dateTime={reportMonth.dateTime} data-report-month={reportMonth.dateTime}
+          className={`block t-meta text-fg-2 ${mono}`} title={`Месяц отчёта: ${reportMonth.words}`}>
+          <span className="sr-only">месяц отчёта </span>{reportMonth.compact}
+        </time> : null}
       </td>
       {/* Месяц отчёта — своим столбцом («Весь год», срез «в другой месяц отчёта»), плотно: «09.2026». */}
-      {reportMonth ? <td role="cell" className={`${cell} @min-[60rem]/sales-records:px-2`} data-report-month={reportMonth.dateTime}>
+      {reportMonth && !compact ? <td role="cell" className={`${at.cell} ${at.date}`} data-report-month={reportMonth.dateTime}>
         <time dateTime={reportMonth.dateTime} className={`block truncate t-body-compact text-fg-2 ${mono}`} title={`Месяц отчёта: ${reportMonth.words}`}>{reportMonth.compact}</time>
       </td> : null}
       {/* Суммы — узкие поля и подсказка с суммой: число не прячется за многоточием молча. */}
-      <td role="cell" className={moneyCell}><span className="block truncate t-body-compact tabular-nums text-fg" title={cost ?? undefined}>{cost ?? "—"}</span></td>
-      <td role="cell" className={moneyCell}><span className="block truncate t-body-compact tabular-nums text-fg-2" title={paid ?? undefined}>{paid ?? "—"}</span></td>
+      <td role="cell" className={at.money}><span className="block truncate t-body-compact tabular-nums text-fg" title={cost ?? undefined}>{cost ?? "—"}</span></td>
+      <td role="cell" className={at.money}><span className="block truncate t-body-compact tabular-nums text-fg-2"
+        title={paid && contract ? `${paid}; в валюте договора ${contract}` : paid ?? undefined}>{paid ?? "—"}</span></td>
       {/* Нет остатка — «—» и причина (подсказкой и для чтения с экрана): неизвестная оплата — не ноль. */}
-      {showRemainder ? <td role="cell" className="self-center text-right @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:px-2 @min-[60rem]/sales-records:align-middle">
-        <span className="block truncate t-body-compact tabular-nums text-fg" title={remainderWhy ?? remainder ?? undefined} data-no-remainder={noRemainder ?? undefined}>
-          <span className="t-meta text-fg-2 @min-[60rem]/sales-records:sr-only">остаток </span>{remainder ?? "—"}
+      {showRemainder ? <td role="cell" className={`self-center text-right ${at.rest}`}>
+        <span className="block truncate t-body-compact tabular-nums text-fg" title={remainderTitle ?? undefined} data-no-remainder={noRemainder ?? undefined}>
+          <span className={`t-meta text-fg-2 ${at.restWord}`}>остаток </span>{remainder ?? "—"}
           {remainderWhy ? <span className="sr-only"> ({remainderWhy})</span> : null}
         </span>
       </td> : null}
-      <td role="cell" className={`${cell} pe-4`}><span className={`block truncate t-body-compact ${reviewTone}`} title={reviewText}>{reviewText}</span></td>
+      <td role="cell" className={`${at.review} pe-4`}><span className={`block truncate t-body-compact ${reviewTone}`} title={reviewText}>{reviewText}</span></td>
       {/* Узкий контейнер: сведения строки под именем (широкий их не показывает); дата — JetBrains Mono,
           «Уточнить» — своей строкой целиком: причина не прячется за многоточием. */}
-      <td role="cell" className="col-span-2 min-w-0 pb-1 @min-[60rem]/sales-records:hidden">
+      <td role="cell" className={`col-span-2 min-w-0 pb-1 ${at.narrow}`}>
         <p className="truncate t-meta text-fg-2">
           {row.signingDate ? <time dateTime={row.signingDate} className="font-mono tabular-nums">{rowDate(row.signingDate, year)}</time> : "без даты"}
           {[manager, place].filter(Boolean).map((part) => ` · ${part}`).join("")}
         </p>
         {reportMonth ? <p className="truncate t-meta text-fg-2" data-report-month={reportMonth.dateTime}>Месяц отчёта: {reportMonth.words}</p> : null}
         {cost || paid ? <p className="truncate t-meta tabular-nums text-fg-2">
-          {[cost ? `стоимость ${cost}` : null, paid ? `оплачено ${paid}` : row.paidRaw.trim() ? null : SALES_NO_REMAINDER_TEXT.paid_missing]
+          {[cost ? `стоимость ${cost}` : null, paid ? `оплачено ${paid}${contract ? ` (${contract} в валюте договора)` : ""}` : row.paidRaw.trim() ? null : SALES_NO_REMAINDER_TEXT.paid_missing]
             .filter(Boolean).join(" · ")}
         </p> : null}
         <p className={`break-words t-meta ${reviewTone}`} data-row-review="">
@@ -385,15 +491,22 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
   const hasFilters = rowFilters || Boolean(saleSlice);
   // Во «Весь год» и в срезе «записаны в другой месяц отчёта» у строк разные месяцы отчёта — его видно в строке.
   const showReportMonth = month === undefined || saleSlice === "filed_elsewhere";
-  // В «Архиве» нет столбца «Остаток» (предпоследний): его место делят остальные.
-  const recordColumns = (showReportMonth ? RECORD_COLUMNS_WITH_REPORT_MONTH : RECORD_COLUMNS)
-    .filter((_, index, all) => !archiveView || index !== all.length - 2);
   const saved = !creatingForm && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
   const target = management.status === "ready" ? management.data.target : null;
   const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
   const panelOpen = viewingRecord && !creatingForm;
+  // Рядом с открытой записью — короткий набор столбцов (Э8.6), иначе полный.
+  const layout: RowLayout = panelOpen ? "compact" : "full";
+  // В «Архиве» нет столбца «Остаток» (предпоследний): его место делят остальные.
+  const recordColumns = (panelOpen
+    ? showReportMonth ? COMPACT_COLUMNS_WITH_REPORT_MONTH : COMPACT_COLUMNS
+    : showReportMonth ? RECORD_COLUMNS_WITH_REPORT_MONTH : RECORD_COLUMNS)
+    .filter((_, index, all) => !archiveView || index !== all.length - 2);
+  const editing = editingRecord && canManage;
   // Шапка общей боковой панели (Э7): имя, строка контекста и «Открыть …» — прежние тексты записи.
-  const panelHeader = panelOpen && workspace ? salesRecordPanelHeader(workspace.selected ?? null, editingRecord && canManage) : null;
+  const panelHeader = panelOpen && workspace ? salesRecordPanelHeader(workspace.selected ?? null, editing) : null;
+  // Запись открывается просмотром (Э8.6); «Исправить запись» — форма, «Отмена» формы — снова просмотр.
+  const recordHref = workspace?.selected ? href({ record: workspace.selected.id }) : backHref;
 
   // Адреса строки инструментов: те же параметры, без страницы — выбор сразу применяется.
   const filterHref = (changes: Readonly<Record<string, string | null>>) => {
@@ -406,21 +519,22 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
     return `/v3/main?${next.toString()}`;
   };
   const periodHref = (nextYear: number, nextMonth: number | undefined) => filterHref({ year: String(nextYear), month: nextMonth ? String(nextMonth) : "all" });
-  // Запись открывается в панели: у того, кто исправляет продажи, — сразу форма записи.
-  const rowHref = (row: SalesRegisterRow) => href(canManage ? { record: row.id, edit: "true" } : { record: row.id });
-  const managerGroups = groupSalesLabels(workspace?.managerLabels ?? []);
+  const rowHref = (row: SalesRegisterRow) => href({ record: row.id });
+  const managersHref = canImport ? salesManagersHref(query) : null;
+  const managerName = (row: SalesRegisterRow) => workspace?.managerOptions.find((option) => option.key === row.managerKey)?.name ?? tidy(row.managerLabel);
   const directionGroups = groupSalesLabels(directions ?? []);
   const selectedManager = query.manager || null;
+  const selectedManagerName = workspace && workspace.managerKey !== null
+    ? workspace.managerOptions.find((option) => option.key === workspace!.managerKey)?.name ?? tidy(selectedManager ?? "") : selectedManager ? tidy(selectedManager) : null;
   const selectedDirection = directionControl.value || null;
-  const managerGroup = salesLabelGroupOf(managerGroups, selectedManager);
   const directionGroup = salesLabelGroupOf(directionGroups, selectedDirection);
-  const variantNote = managerGroup && managerGroup.variants.length > 1 ? "менеджера" : directionGroup && directionGroup.variants.length > 1 ? "направления" : null;
+  const variantNote = directionGroup && directionGroup.variants.length > 1;
   const activeCount = [query.manager, query.direction, query.review, query.archived === "true" ? "1" : "", saleSlice].filter(Boolean).length;
   const steps = salesPeriodSteps(year, month);
   const hidden = Object.fromEntries([...params.entries()].filter(([key]) => key !== "q" && key !== "offset"));
 
   const toolbar = workspace ? (
-    <div role="group" aria-label="Поиск и фильтры" className="mt-4 flex flex-wrap items-center gap-2" data-testid="sales-report-toolbar">
+    <div role="group" aria-label="Поиск и фильтры" className="mt-4 flex flex-wrap items-center gap-2 first:mt-0" data-testid="sales-report-toolbar">
       <form key={params.toString()} method="get" role="search" aria-label="Поиск по записям" className="min-w-48 flex-1 basis-48 md:max-w-xs">
         {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
         <label className="relative block">
@@ -432,8 +546,8 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
         </label>
       </form>
       <QueueFilterDisclosure activeCount={activeCount}>
-        <FilterMenu label="Менеджер" valueLabel={selectedManager ? tidy(selectedManager) : null}
-          options={labelOptions(managerGroups, selectedManager, (value) => filterHref({ manager: value }))}
+        <FilterMenu label="Менеджер" valueLabel={selectedManagerName}
+          options={managerOptions(workspace, selectedManager, (value) => filterHref({ manager: value }), managersHref)}
           clearHref={selectedManager ? filterHref({ manager: null }) : null} />
         {directionControl.kind === "select" ? (
           <FilterMenu label="Направление" valueLabel={selectedDirection ? tidy(selectedDirection) : null}
@@ -520,24 +634,27 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
           {saved.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(saved.leadId)}`} className={`${btnGhostCls} min-h-11`}>Открыть дело</Link> : null}
         </div>
       </section> : null}
-      {workspace && archiveView ? <ArchiveBasis count={workspace.totalCount} yearOnly={month === undefined}
-        filtered={Boolean(searchQuery || query.manager || query.direction || query.review)} />
-        : workspace ? <MoneySummary workspace={workspace} summary={summary} basis={summaryBasis} yearOnly={month === undefined}
-          reason={summaryRead && summaryRead.rows === null ? summaryRead.reason : null}
-          filedElsewhere={saleSlice === "filed_elsewhere"} filtered={saleSlice === "filed_elsewhere" ? rowFilters : hasFilters} /> : null}
-      {toolbar}
-      {variantNote ? <p className="mt-2 t-meta text-fg-2" data-testid="sales-variant-note">
-        Фильтр точный: показаны записи с выбранным написанием {variantNote}. Другие написания — в том же меню; сведение к сотрудникам и списку направлений — отдельный шаг.
-      </p> : null}
-      {saleSlice && headlinePeriod ? <p role="status" className="mt-2 flex flex-wrap items-center gap-x-3 t-body-compact text-fg-2" data-sale-slice={saleSlice}>
-        <span>{SALE_SLICE_TITLE[saleSlice]} — {headlinePeriod.label}.</span>
-        <Link href={clearFiltersHref} className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-fg">Все записи периода</Link>
-      </p> : null}
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
         <p>{searchQuery === null ? "Введите поисковый запрос до 200 символов без переносов строк." : valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
         <Link href="/v3/main?view=sales" className={`${btnGhostCls} min-h-11`}>Открыть текущий месяц</Link>
-      </div> : <div className={sidePanelSplit(panelOpen, "mt-3")}>
+      </div> : <div className={sidePanelSplit(panelOpen, "mt-4")}>
+        {/* Э8.6: суммы, строка инструментов и записи — одной колонкой рядом с панелью: открытая
+            запись начинается вровень со сводкой и держится рядом при прокрутке. */}
         <div className="min-w-0">
+          {archiveView ? <ArchiveBasis count={workspace.totalCount} yearOnly={month === undefined}
+            filtered={Boolean(searchQuery || query.manager || query.direction || query.review)} />
+            : <MoneySummary workspace={workspace} summary={summary} basis={summaryBasis} yearOnly={month === undefined}
+              reason={summaryRead && summaryRead.rows === null ? summaryRead.reason : null}
+              filedElsewhere={saleSlice === "filed_elsewhere"} filtered={saleSlice === "filed_elsewhere" ? rowFilters : hasFilters} />}
+          {toolbar}
+          {variantNote ? <p className="mt-2 t-meta text-fg-2" data-testid="sales-variant-note">
+            Фильтр направления точный: показаны записи с выбранным написанием. Другие написания — в том же меню; сведение к списку направлений — отдельный шаг.
+          </p> : null}
+          {saleSlice && headlinePeriod ? <p role="status" className="mt-2 flex flex-wrap items-center gap-x-3 t-body-compact text-fg-2" data-sale-slice={saleSlice}>
+            <span>{SALE_SLICE_TITLE[saleSlice]} — {headlinePeriod.label}.</span>
+            <Link href={clearFiltersHref} className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-fg">Все записи периода</Link>
+          </p> : null}
+          <div className="mt-3">
           {workspace.rows.length === 0 ? <div className="space-y-2 border-t border-border py-12 text-center">
             <p className="text-base font-medium text-fg">{offset > 0 ? "На этой странице записей нет." : hasFilters ? "По выбранным фильтрам записей не найдено." : "В выбранном периоде записей нет."}</p>
             <p className="text-sm text-fg-2">{offset > 0 ? "Вернитесь к началу списка с теми же фильтрами." : hasFilters ? "Измените или сбросьте фильтры. Выбранный период сохранится." : "Выберите другой месяц или весь год в переключателе выше."}</p>
@@ -545,32 +662,39 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
               : hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11`}>Сбросить фильтры</Link> : null}
           </div> : <div className="@container/sales-records">
             <div role="region" aria-label="Записи продаж" tabIndex={0} className="relative max-w-full overflow-x-auto border-t border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-              <table role="table" className="block w-full text-left @min-[60rem]/sales-records:table @min-[60rem]/sales-records:table-fixed">
+              <table role="table" className={ROW_LAYOUT[layout].table} data-layout={layout}>
                 <caption className="sr-only">{`Продажи: ${workspace.totalCount} ${recordsWord(workspace.totalCount)}`}</caption>
-                {/* Ширины по содержимому (`RECORD_COLUMNS`): суммы целиком, сужается текст. */}
-                <colgroup className="hidden @min-[60rem]/sales-records:table-column-group">
+                {/* Ширины по содержимому (`RECORD_COLUMNS`, рядом с записью — `COMPACT_COLUMNS`): суммы целиком, сужается текст. */}
+                <colgroup className={ROW_LAYOUT[layout].colgroup}>
                   {recordColumns.map((width, index) => <col key={index} className={width} />)}
                 </colgroup>
-                <thead role="rowgroup" className="sr-only @min-[60rem]/sales-records:not-sr-only @min-[60rem]/sales-records:table-header-group">
+                <thead role="rowgroup" className={ROW_LAYOUT[layout].thead}>
                   <tr role="row" className="t-caption text-fg-2">
-                    <th role="columnheader" scope="col" className="py-2 ps-4 pe-3 font-medium">Студент</th>
-                    <th role="columnheader" scope="col" className="truncate px-3 py-2 font-medium" title="Страна · программа">Страна · программа</th>
-                    <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Менеджер</th>
-                    <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Дата</th>
-                    {showReportMonth ? <th role="columnheader" scope="col" className="px-2 py-2 font-medium">Месяц отчёта</th> : null}
-                    <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Стоимость</th>
-                    <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Оплачено</th>
-                    {archiveView ? null : <th role="columnheader" scope="col" className="px-2 py-2 text-right font-medium">Остаток</th>}
-                    <th role="columnheader" scope="col" className="py-2 ps-3 pe-4 font-medium">Уточнить</th>
+                    <th role="columnheader" scope="col" className={`py-2 font-medium ${panelOpen ? "ps-3 pe-2" : "ps-4 pe-3"}`}>Студент</th>
+                    {panelOpen ? null : <>
+                      <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Страна · программа</th>
+                      <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Менеджер</th>
+                    </>}
+                    {/* Рядом с записью месяц отчёта — второй строкой под датой; так и в заголовке. */}
+                    {panelOpen && showReportMonth ? <th role="columnheader" scope="col" className="px-1.5 py-2 font-medium" title="Дата продажи и под ней месяц отчёта">
+                      Дата<span className="block">Месяц<span className="sr-only"> отчёта</span></span>
+                    </th> : <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-3"} py-2 font-medium`}>Дата</th>}
+                    {/* Узкий столбец: подпись переносится в две строки («Месяц / отчёта»), а не режется. */}
+                    {showReportMonth && !panelOpen ? <th role="columnheader" scope="col" className="px-2 py-2 font-medium">Месяц отчёта</th> : null}
+                    <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-2"} py-2 text-right font-medium`}>Стоимость</th>
+                    <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-2"} py-2 text-right font-medium`}>Оплачено</th>
+                    {archiveView ? null : <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-2"} py-2 text-right font-medium`}>Остаток</th>}
+                    <th role="columnheader" scope="col" className={`py-2 pe-4 ps-3 font-medium ${ROW_LAYOUT[layout].reviewHead}`}>Уточнить</th>
                   </tr>
                 </thead>
-                <tbody role="rowgroup" className="block divide-y divide-border border-y border-border @min-[60rem]/sales-records:table-row-group">
-                  {workspace.rows.map((row) => <SaleRow key={row.id} row={row} year={year} href={rowHref(row)}
+                <tbody role="rowgroup" className={ROW_LAYOUT[layout].tbody}>
+                  {workspace.rows.map((row) => <SaleRow key={row.id} row={row} year={year} href={rowHref(row)} layout={layout} manager={managerName(row)}
                     selected={row.id === (panelOpen ? query.record : saved?.id)} showReportMonth={showReportMonth} showRemainder={!archiveView} />)}
                 </tbody>
               </table>
             </div>
           </div>}
+          </div>
           <nav aria-label="Страницы отчёта" className="mt-3 flex flex-wrap items-center justify-between gap-3">
             {offset > 0 ? <Link href={href({ offset: String(Math.max(0, offset - 50)) })} className={`${btnGhostCls} min-h-11`}>Назад</Link> : <span />}
             <span className="t-meta text-fg-3">{workspace.rows.length ? `${offset + 1}–${offset + workspace.rows.length} из ${workspace.totalCount}` : ""}</span>
@@ -578,16 +702,17 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
           </nav>
         </div>
         {panelOpen && panelHeader ? (
-          <SidePanel key={query.record} closeHref={href()} backLabel="К отчёту" headingId={PANEL_HEADING}
+          <SidePanel key={`${query.record}:${editing ? "edit" : "view"}`} closeHref={href()} backLabel="К отчёту" headingId={PANEL_HEADING}
             title={panelHeader.title} context={panelHeader.context} open={panelHeader.open}
             returnTo={query.record ? attributeReturn("id", `sale-${query.record}`, "a") : undefined}>
-            {editingRecord && canManage ? (
+            {editing ? (
               <SalesRegisterForm key={query.record} record={workspace.selected ?? null}
                 recordId={query.record ?? null} reportMonth={reportMonth} ownerOptions={workspace.ownerOptions}
-                canChooseOwner={canManage} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={backHref} readUnavailable={false}
+                canChooseOwner={canManage} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={recordHref} readUnavailable={false}
                 ownMembershipId={actor.membershipId} ownLabel={actor.displayName} panelHeadingId={PANEL_HEADING} />
             ) : (
               <SalesRecordPreview record={workspace.selected ?? null} backHref={backHref} panelHeadingId={PANEL_HEADING}
+                managerName={workspace.selected ? managerName(workspace.selected) : null} year={year}
                 editHref={canManage && workspace.selected ? href({ record: workspace.selected.id, edit: "true" }) : null} />
             )}
           </SidePanel>
@@ -611,7 +736,10 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
       {(showTargetForm && month && query.archived !== "true") || canImport || managementUnavailable ? <div className="mt-8 space-y-5 border-t border-border pt-5">
         {managementUnavailable ? <p role="alert" className="text-sm text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null}
         {showTargetForm && month && query.archived !== "true" ? <details className="group"><summary className="flex min-h-12 w-fit cursor-pointer list-none items-center gap-2 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">Изменить план месяца<Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" /></summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace || managementUnavailable} /></details> : null}
-        {canImport ? <Link href={importHref} className={`${btnGhostCls} min-h-11`}>Перенос данных</Link> : null}
+        {canImport && managersHref ? <div className="flex flex-wrap gap-3">
+          <Link href={importHref} className={`${btnGhostCls} min-h-11`}>Перенос данных</Link>
+          <Link href={managersHref} className={`${btnGhostCls} min-h-11`}>Менеджеры в отчёте</Link>
+        </div> : null}
       </div> : null}
     </>}
   </main>;

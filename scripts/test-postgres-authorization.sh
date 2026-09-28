@@ -2808,6 +2808,21 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_queue_document_wait.sql
   fi
+
+  # Migration 253 (Э8.6 «Отчёт продаж», owner decisions 28.09):
+  # «Оплачено в валюте договора» as columns (never `fields`), row v2 with the
+  # reasons of a flag and the import's flag strings (never the snapshot),
+  # read_sales_register_v4 with the manager key and options, manage v2 and
+  # «Менеджеры в отчёте». Members modelled like production (coarse role NULL,
+  # the production bundles, the 208 Sales Manager binding): v1/v2/v3 keep
+  # their row keys, a currency difference flags only while the contract
+  # amount is missing, the same gates as v1, the mapping only with
+  # sales.register.import, and every other caller refused.
+  if [[ "$(basename "$migration")" == 253_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_sales_register_v4.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

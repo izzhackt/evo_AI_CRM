@@ -99,7 +99,8 @@ test("one look for every staff member: the staff layout marks its root, and the 
   // Карточки предпросмотра в «Настройки → Платформа» нет.
   const sections = read("src/components/v3/settings/sections.tsx");
   assert.doesNotMatch(sections, /v3-look-preview|предпросмотр/iu);
-  assert.match(sections, /export function PlatformSection\(\{ platform, salesImportHref \}: \{ platform: string; salesImportHref\?: string \}\)/u);
+  // «Платформа»: перенос данных и «Менеджеры в отчёте» (Э8.6) — ссылки, без предпросмотра облика.
+  assert.match(sections, /export function PlatformSection\(\{ platform, salesImportHref, salesManagersHref \}: \{ platform: string; salesImportHref\?: string; salesManagersHref\?: string \}\)/u);
 });
 
 test("the student portal keeps its look: it renders in .v3-world without the staff mark, on the unchanged base values", () => {

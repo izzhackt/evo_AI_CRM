@@ -44,6 +44,7 @@ export function Settings({
   gates,
   platform,
   salesImportHref,
+  salesManagersHref,
   staff,
   selectedStaffMemberId,
   staffRoles,
@@ -65,6 +66,8 @@ export function Settings({
   gates: GateFacts;
   platform: string;
   salesImportHref?: string;
+  /** «Менеджеры в отчёте» (Э8.6) — то же право, что у переноса данных. */
+  salesManagersHref?: string;
   staff?: StaffWorkspaceData;
   selectedStaffMemberId?: string;
   staffRoles?: StaffRoleWorkspace;
@@ -117,7 +120,7 @@ export function Settings({
             />
           ) : null}
           {current.key === "documents" ? <DocumentsSection gates={gates} /> : null}
-          {current.key === "platform" ? <PlatformSection platform={platform} salesImportHref={salesImportHref} /> : null}
+          {current.key === "platform" ? <PlatformSection platform={platform} salesImportHref={salesImportHref} salesManagersHref={salesManagersHref} /> : null}
         </div>
       </div>
     </>

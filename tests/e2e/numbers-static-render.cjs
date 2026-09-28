@@ -46,6 +46,19 @@
  *       сервера, «Поступления и возвраты за месяц»), 1440×900, 1280×800 и 390×844 во
  *       весь рост: e4-<сценарий>-<ширина>.png, высота страницы, число
  *       сплошных красных и видимых месяцев отчёта на каждый снимок.
+ *   node tests/e2e/numbers-static-render.cjs --e86-screenshots [outDir]
+ *     → Э8.6 (28.09.2026): запись открывается просмотром — «Требует проверки»
+ *       словами и «Исправить запись»; оплата в другой валюте без суммы и с
+ *       суммой в валюте договора (панель, форма, список); меню менеджера по
+ *       ключу; экран «Менеджеры в отчёте». 1440×900, 1280×800, 1024×768 и
+ *       390×844 во весь рост (у панели от 1280 — ещё снимок после прокрутки):
+ *       e86-<сценарий>-<ширина>.png, переполнение, сплошной красный, текст
+ *       мельче 12 px, цели ниже 44 px, верх панели относительно колонки
+ *       списка, вид таблицы записей, обрезанные имена и строки «Уточнить: …»
+ *       под именем; продажа другого года (28.12.2025) — год второй строкой
+ *       под датой. Ошибка — обрезанная сумма строки или заголовок столбца,
+ *       столбец сумм, в который не входит «120 000 KGS», и дата или месяц
+ *       отчёта, вышедшие за поле своей ячейки.
  *   node tests/e2e/numbers-static-render.cjs --f1 [outDir]
  *     → Э7 «Одна боковая панель везде»: «Отчёт продаж» с записью, открытой
  *       по адресу (`?record=…&edit=true`), на
@@ -208,6 +221,26 @@ const E4_LEADS = {
     notes: [note("Передали без записи в отчёте — оформить продажу.", "2026-09-18T07:00:00.000Z")] },
 };
 
+// Ключ написания менеджера — как platform_private.sales_manager_label_key (253):
+// пробелы по краям, повторные пробелы, точки в конце, регистр — и ничего больше.
+const managerKey = (label) => label.trim().replace(/\s+/gu, " ").replace(/[.\s]+$/u, "").toLowerCase();
+// Причины пометки — как sales_register_row_v2 (253): только у помеченной записи.
+function reviewReasonsOf(row) {
+  if (!row.needsReview) return [];
+  const reasons = [];
+  if (row.signingDate === null) reasons.push("signing_date_missing");
+  if (row.serviceCostMinor === null) reasons.push("service_cost_missing");
+  if (row.paidMinor === null) reasons.push("paid_missing");
+  if (row.serviceCostCurrency && row.paidCurrency && row.serviceCostCurrency !== row.paidCurrency
+    && row.paidContractCurrency !== row.serviceCostCurrency) reasons.push("contract_amount_missing");
+  for (const flag of row.importFlags) {
+    if (flag === "status_unspecified" && !["оплачено", "частично оплачено", "не оплачено"].includes(row.statusRaw.trim().toLowerCase())) reasons.push(`import:${flag}`);
+    if (flag === "phone_missing" && !row.phone.trim()) reasons.push(`import:${flag}`);
+  }
+  return reasons;
+}
+function withReasons(row) { return { ...row, reviewReasons: reviewReasonsOf(row) }; }
+
 // «Отчёт продаж», сентябрь 2026: те же записи, что в SQL-наборе 247.
 function saleRow(n, fields) {
   return {
@@ -218,6 +251,7 @@ function saleRow(n, fields) {
     paidMinor: 60000, paidCurrency: "USD", needsReview: false, notes: "", archived: false, sourceKey: null,
     sourceKind: fields.pipeline ? "pipeline" : "manual", leadId: fields.pipeline ? LEAD_ID : null, clientId: null,
     sourceSha256: null, sourceSheet: null, sourceRow: null, updatedAt: "2026-09-24T05:00:00.000Z",
+    paidContractMinor: null, paidContractCurrency: null, reviewReasons: [], importFlags: [], managerKey: managerKey("Санжар Эскизов"),
   };
 }
 const REPORT_ROWS = [
@@ -234,18 +268,24 @@ const SALES_COUNT = { status: "available", count: { from: "2026-09-01", to: "202
 // и остаток по валютам: одно имя менеджера в трёх написаниях, направление в двух,
 // оплата в другой валюте, запись без даты продажи и без стоимости.
 function e4Row(n, fields) {
-  return { ...saleRow(n, { name: fields.name, sale: fields.sale === undefined ? "2026-09-10" : fields.sale, month: fields.month }),
+  const imported = Boolean(fields.flags);
+  return withReasons({ ...saleRow(n, { name: fields.name, sale: fields.sale === undefined ? "2026-09-10" : fields.sale, month: fields.month }),
     id: uuid("78787878", n), managerLabel: fields.manager ?? "Санжар Эскизов", country: fields.country ?? "Малайзия",
     direction: fields.direction ?? "Малайзия", program: fields.program ?? "Бакалавриат",
     serviceCostRaw: fields.costRaw ?? String((fields.cost ?? 150000) / 100), serviceCostMinor: fields.cost === undefined ? 150000 : fields.cost,
     serviceCostCurrency: fields.cost === null ? null : fields.costCurrency ?? "USD",
     paidRaw: fields.paidRaw ?? (fields.paid === null ? "" : String((fields.paid ?? 60000) / 100)), paidMinor: fields.paid === undefined ? 60000 : fields.paid,
     paidCurrency: fields.paid === null ? null : fields.paidCurrency ?? "USD", needsReview: fields.review ?? false,
-    archived: fields.archived ?? false, leadId: null, sourceKind: "manual" };
+    archived: fields.archived ?? false, leadId: null, sourceKind: imported ? "import" : "manual",
+    // Перенесённая запись (253): пометки переноса — только строки пометок.
+    sourceKey: imported ? `synthetic:sheet:${n}` : null, sourceSha256: imported ? "ab".repeat(32) : null,
+    sourceSheet: imported ? "Сентябрь (синтетический лист)" : null, sourceRow: imported ? 10 + n : null,
+    importFlags: fields.flags ?? [], managerKey: managerKey(fields.manager ?? "Санжар Эскизов"),
+    paidContractMinor: fields.contract ?? null, paidContractCurrency: fields.contract == null ? null : fields.costCurrency ?? "USD" });
 }
 const E4_ROWS = [
   e4Row(1, { name: "Алина Переданная", sale: "2026-09-22", review: false }),
-  e4Row(2, { name: "Айжан Примерова", sale: "2026-09-20", manager: " санжар эскизов", review: true }),
+  e4Row(2, { name: "Айжан Примерова", sale: "2026-09-20", manager: " санжар эскизов", review: true, flags: ["status_unspecified"] }),
   e4Row(3, { name: "Тимур Образцов", sale: "2026-09-14", manager: "Айдана Макетова", country: "Китай", direction: "Китай", program: "Магистратура, экономика", paid: null, review: true }),
   e4Row(4, { name: "Бекзат Тестов", sale: null, manager: "Санжар  Эскизов", review: true }),
   e4Row(5, { name: "Данияр Макетов", sale: "2026-09-05", cost: 12000000, costCurrency: "KGS", paid: 5000000, paidCurrency: "KGS", direction: "малайзия ", review: false }),
@@ -281,10 +321,30 @@ const E4_MANAGEMENT = { status: "ready", data: { reportMonth: "2026-09-01", canM
   target: { id: uuid("89898989", 1), version: 2, reportMonth: "2026-09-01", managerLabel: null, targetCount: 35 } } };
 
 /** Какой отчёт отдают подменённые чтения: прежние шесть записей Э2 или набор Э4. */
-const REPORT = { rows: REPORT_ROWS, count: SALES_COUNT, management: { status: "denied" }, directions: ["Малайзия"], managerLabels: ["Санжар Эскизов"] };
+const REPORT = { rows: REPORT_ROWS, count: SALES_COUNT, management: { status: "denied" }, directions: ["Малайзия"], managerNames: {} };
 function useE4Report() {
   Object.assign(REPORT, { rows: [...E4_ROWS, ...E4_EARLIER_ROWS, ...E4_ARCHIVED_ROWS], count: countFor, management: E4_MANAGEMENT,
-    directions: ["China", "Китай", "Малайзия", "малайзия "], managerLabels: ["Айдана Макетова", "Санжар Эскизов", " санжар эскизов", "Санжар  Эскизов"] });
+    directions: ["China", "Китай", "Малайзия", "малайзия "], managerNames: {} });
+}
+// Э8.6: запись «Руслан Прототипов» (1 800 USD, оплачено 45 000 KGS) — с суммой в валюте договора,
+// как её сохранил бы менеджер через manage_sales_register_v2: 520 USD, отметки больше нет.
+function withContractAmount() {
+  const rows = REPORT.rows;
+  REPORT.rows = rows.map((row) => row.id === E4_ROWS[5].id
+    ? withReasons({ ...row, paidContractMinor: 52000, paidContractCurrency: "USD", needsReview: false }) : row);
+  return () => { REPORT.rows = rows; };
+}
+// Э8.6: продажа другого года в отчёте 2026 — «Айжан Примерова» с датой продажи 28.12.2025,
+// записанная в сентябрьский отчёт. Ячейке «Дата» хватает «ДД.ММ»: год — второй строкой под датой.
+const OTHER_YEAR_SALE = "2025-12-28";
+function withOtherYearSale() {
+  const rows = REPORT.rows;
+  REPORT.rows = rows.map((row) => row.id === E4_ROWS[1].id ? withReasons({ ...row, signingDate: OTHER_YEAR_SALE }) : row);
+  return () => { REPORT.rows = rows; };
+}
+async function otherYearPage(extra) {
+  const restore = withOtherYearSale();
+  try { return await reportPage(extra); } finally { restore(); }
 }
 // Больше 500 записей в выборке: остаток по всем страницам не читается, суммы — сервера по записям
 // (`totals`), а неуточнённые стоимость и оплата, которых в них нет, названы числом.
@@ -310,8 +370,23 @@ function readReport(selection) {
   if (selection.saleSlice === "undated") rows = rows.filter((row) => row.signingDate === null);
   else if (selection.saleSlice === "other_sale_date") rows = rows.filter((row) => row.signingDate !== null && !inPeriod(row.signingDate));
   if (selection.needsReview != null) rows = rows.filter((row) => row.needsReview === selection.needsReview);
-  if (selection.manager) rows = rows.filter((row) => row.managerLabel === selection.manager);
   if (selection.direction) rows = rows.filter((row) => row.direction === selection.direction);
+  // Варианты менеджера — как read_sales_register_v4: все ключи записей, имя по таблице владельца
+  // или самое частое написание, число — выборка без фильтра менеджера.
+  const spellings = new Map();
+  for (const row of REPORT.rows) {
+    const key = managerKey(row.managerLabel);
+    if (!key) continue;
+    const tidy = row.managerLabel.trim().replace(/\s+/gu, " ");
+    const counts = spellings.get(key) ?? new Map();
+    counts.set(tidy, (counts.get(tidy) ?? 0) + 1);
+    spellings.set(key, counts);
+  }
+  const managerOptions = [...spellings.entries()].map(([key, counts]) => ({ key,
+    name: REPORT.managerNames[key] ?? [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ru"))[0][0],
+    count: rows.filter((row) => row.managerKey === key).length })).sort((a, b) => a.name.localeCompare(b.name, "ru") || a.key.localeCompare(b.key));
+  const selectedKey = selection.manager ? managerKey(selection.manager) : null;
+  if (selectedKey) rows = rows.filter((row) => row.managerKey === selectedKey);
   const offset = selection.offset ?? 0;
   const totals = new Map();
   for (const row of rows) {
@@ -335,7 +410,7 @@ function readReport(selection) {
     totals: archived ? [] : [...totals.values()],
     unresolvedCostCount: archived ? 0 : rows.filter((row) => row.serviceCostMinor === null).length,
     unresolvedPaidCount: archived ? 0 : rows.filter((row) => row.paidMinor === null).length,
-    targets: [], managerLabels: REPORT.managerLabels, ownerOptions: [],
+    targets: [], managerOptions, ownerOptions: [], query: selection.query || null, managerKey: selectedKey,
   };
 }
 
@@ -353,6 +428,22 @@ const BOARD_ROWS = [boardRow(1, "new", "Алина Переданная"), board
   boardRow(3, "new", "Тимур Образцов"), boardRow(4, "contacting", "Бекзат Тестов")];
 const HANDED = new Set([uuid("dddddddd", 1)]);
 
+// «Менеджеры в отчёте» (Э8.6): синтетические написания — ключ с именем владельца и сотрудником,
+// ключ без имени (отчёт показывает самое частое написание), имя человека без аккаунта CRM и снятое имя.
+const MANAGER_LABELS = {
+  labels: [
+    { key: "айдана макетова", tidy: "Айдана Макетова", recordCount: 4, spellings: [{ spelling: "Айдана Макетова", count: 4 }],
+      mapping: { displayName: "Айдана Макетова", membershipId: uuid("aaaaaaaa", 2), version: 1, updatedAt: "2026-09-28T05:00:00.000Z" } },
+    { key: "нурлан ж", tidy: "Нурлан Ж.", recordCount: 3, spellings: [{ spelling: "Нурлан Ж.", count: 2 }, { spelling: "Нурлан Ж", count: 1 }],
+      mapping: { displayName: "Нурлан Жумабеков (без аккаунта)", membershipId: null, version: 2, updatedAt: "2026-09-28T05:10:00.000Z" } },
+    { key: "санжар эскизов", tidy: "Санжар Эскизов", recordCount: 9,
+      spellings: [{ spelling: "Санжар Эскизов", count: 7 }, { spelling: "санжар эскизов", count: 1 }, { spelling: "Санжар  Эскизов.", count: 1 }], mapping: null },
+    { key: "эльмира", tidy: "Эльмира", recordCount: 1, spellings: [{ spelling: "Эльмира", count: 1 }],
+      mapping: { displayName: null, membershipId: null, version: 3, updatedAt: "2026-09-28T05:20:00.000Z" } },
+  ],
+  staffOptions: [{ id: ME, label: "Администратор (синтетический)" }, { id: uuid("aaaaaaaa", 2), label: "Айдана Макетова (синтетический сотрудник)" }],
+};
+
 const STUBS = {
   "@/lib/v3/sales-register-source": {
     // Срез «без даты продажи» — как read_sales_register_v3 с p_sale_slice => 'undated'.
@@ -363,6 +454,8 @@ const STUBS = {
     // План — только у своего месяца отчёта (у Э4 — сентябрь); другой месяц или весь год — без плана.
     readSalesRegisterManagement: async (_actor, reportMonth) => REPORT.management.status === "ready" && reportMonth !== REPORT.management.data.reportMonth
       ? { status: "ready", data: { ...REPORT.management.data, reportMonth, target: null } } : REPORT.management,
+    // «Менеджеры в отчёте» (Э8.6) — то, что вернул бы read_sales_manager_labels_v1 по записям набора.
+    readSalesManagerLabels: async () => ({ status: "ready", data: MANAGER_LABELS }),
   },
   // «Поступления и возвраты за месяц»: по умолчанию роль сводку не читает; сценарий Э4 `report-cash` — читает.
   "@/lib/v3/finance-entry-source": { readMonthlyPaymentSummary: async () => REPORT.cash ?? { status: "not_allowed" } },
@@ -485,6 +578,14 @@ function leadPage(name, tab = "overview") {
 }
 
 // --- «Отчёт продаж» ------------------------------------------------------------
+// --- «Менеджеры в отчёте» (Э8.6) -------------------------------------------------
+async function managersPage() {
+  const { SalesManagerLabelsView } = require(join(ROOT, "src/components/v3/SalesManagerLabelsView.tsx"));
+  const query = { view: "sales", mode: "managers", year: "2026", month: "9" };
+  const element = await SalesManagerLabelsView({ actor: ADMIN, query });
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", new URLSearchParams(query).toString()));
+}
+
 async function reportPage(extra = {}) {
   const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
   const query = { view: "sales", year: "2026", month: "9", ...extra };
@@ -618,11 +719,33 @@ async function e4Pages() {
     { name: "lead-norecord", html: leadPage("norecord") },
     { name: "lead-money", html: leadPage("potential", "money") },
     { name: "report", html: await reportPage({}) },
-    { name: "report-panel", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }) },
+    // Строка открывает запись просмотром (Э8.6); правка — «Исправить запись» (`edit=true`).
+    { name: "report-panel", html: await reportPage({ record: E4_ROWS[1].id }) },
+    { name: "report-panel-edit", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }) },
+    // Оплата в другой валюте: без суммы в валюте договора — остатка нет, запись помечена;
+    // с суммой — остаток от неё, пометки нет; форма — поле «Оплачено в валюте договора».
+    { name: "report-panel-cross", html: await reportPage({ record: E4_ROWS[5].id }) },
+    { name: "report-panel-cross-edit", html: await reportPage({ record: E4_ROWS[5].id, edit: "true" }) },
+    { name: "report-panel-contract", html: await (async () => { const restore = withContractAmount(); const html = await reportPage({ record: E4_ROWS[5].id }); restore(); return html; })() },
+    { name: "report-panel-contract-list", html: await (async () => { const restore = withContractAmount(); const html = await reportPage({}); restore(); return html; })() },
+    // Меню менеджера: ключ вместо написания; у того, кто переносит данные, — пункт «Менеджеры в отчёте».
+    { name: "report-manager", html: await (async () => {
+      const management = REPORT.management;
+      REPORT.management = { status: "ready", data: { ...management.data, canImport: true } };
+      const html = await reportPage({ manager: "санжар эскизов" });
+      REPORT.management = management;
+      return html;
+    })() },
+    { name: "managers", html: await managersPage() },
     // Месяц отчёта в строке: «Весь 2026 год» (и с открытой записью — узкая строка при 1440)
     // и срез июля «записаны в другой месяц отчёта».
     { name: "report-year", html: await reportPage({ month: "all" }) },
-    { name: "report-year-panel", html: await reportPage({ month: "all", record: E4_EARLIER_ROWS[1].id, edit: "true" }) },
+    { name: "report-year-panel", html: await reportPage({ month: "all", record: E4_EARLIER_ROWS[1].id }) },
+    // Дата продажи другого года (Э8.6): полная таблица, таблица рядом с записью и «Весь год» рядом
+    // с записью — под датой год, под ним месяц отчёта.
+    { name: "report-other-year", html: await otherYearPage({}) },
+    { name: "report-other-year-panel", html: await otherYearPage({ record: E4_ROWS[1].id }) },
+    { name: "report-other-year-all-panel", html: await otherYearPage({ month: "all", record: E4_ROWS[1].id }) },
     { name: "report-elsewhere", html: await reportPage({ month: "7", sale: "filed_elsewhere" }) },
     { name: "report-bulk", html: await (async () => { useE4BulkReport(); const html = await reportPage({}); useE4Report(); return html; })() },
     // «Архив»: сколько записей — без сумм и без столбца «Остаток».
@@ -727,6 +850,129 @@ async function e4Screenshots() {
   writeFileSync(join(outDir, "e4-metrics.json"), JSON.stringify(results, null, 2));
 }
 
+// --- Э8.6: «Отчёт продаж» — запись в панели, сумма в валюте договора, менеджеры ----
+const E86_PAGES = ["report", "report-panel", "report-panel-edit", "report-panel-cross", "report-panel-cross-edit",
+  "report-panel-contract", "report-panel-contract-list", "report-manager", "report-year", "report-year-panel",
+  "report-other-year", "report-other-year-panel", "report-other-year-all-panel", "managers"];
+async function e86Screenshots() {
+  const outIndex = process.argv.indexOf("--e86-screenshots") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const css = await compileCss();
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const SIZES = {
+    1440: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
+    1280: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 },
+    1024: { viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 },
+    390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  };
+  const results = [];
+  const cut = [];
+  try {
+    for (const { name, html } of (await e4Pages()).filter((page) => E86_PAGES.includes(page.name))) {
+      const file = `e86-${name}`;
+      const htmlPath = join(outDir, `${file}.html`);
+      writeFileSync(htmlPath, `<!DOCTYPE html><html lang="ru" data-theme="light" class="h-full antialiased"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Э8.6 — ${name} (синтетические данные)</title><style>${css}</style></head><body class="min-h-full">${html}</body></html>`);
+      for (const width of ["1440", "1280", "1024", "390"]) {
+        const context = await browser.newContext(SIZES[width]);
+        const page = await context.newPage();
+        const errors = [];
+        page.on("pageerror", (error) => errors.push(error.message));
+        await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          await Promise.all([...document.images].filter((image) => image.checkVisibility()).map((image) => image.decode().catch(() => null)));
+        });
+        if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
+        const metrics = await page.evaluate(() => {
+          const visible = (element) => element.checkVisibility();
+          const box = (element) => element.getBoundingClientRect();
+          const dialog = document.querySelector("dialog[data-side-panel]");
+          const column = dialog?.parentElement ? [...dialog.parentElement.children].find((child) => child !== dialog && child.getClientRects().length > 0) : null;
+          const table = document.querySelector('[aria-label="Записи продаж"] table');
+          const firstRow = document.querySelector('[aria-label="Записи продаж"] tbody tr');
+          return {
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            wide: [...document.querySelectorAll("main *")].filter((element) => visible(element) && box(element).right > window.innerWidth + 1
+              && !element.closest('[data-tab-strip], [role="region"], [popover]')).length,
+            solidRed: [...document.querySelectorAll("body *")].filter((element) => visible(element)
+              && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim().slice(0, 30)),
+            smallText: [...document.querySelectorAll("body *")].filter((element) => visible(element)
+              && [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim())
+              && parseFloat(getComputedStyle(element).fontSize) < 12).map((element) => element.textContent.trim().slice(0, 30)),
+            // Цели нажатия ниже 44 px: ссылки, кнопки, раскрытия и поля (без скрытых и флажков внутри подписи 44 px).
+            under44: [...document.querySelectorAll("main a, main button, main summary, main select, main input:not([type=hidden]):not([type=checkbox]), main textarea")]
+              .filter((element) => visible(element) && box(element).height < 43.5).map((element) => `${element.tagName.toLowerCase()}:${(element.textContent || element.getAttribute("name") || "").trim().slice(0, 24)}:${Math.round(box(element).height)}`),
+            panelTopDelta: dialog && column && getComputedStyle(dialog).position !== "fixed" ? Math.round(box(dialog).top - box(column).top) : null,
+            tableDisplay: table ? getComputedStyle(table).display : null,
+            tableLayout: table?.dataset.layout ?? null,
+            firstRowHeight: firstRow ? Math.round(box(firstRow).height) : null,
+            // Суммы строк и заголовки столбцов не режутся (DESIGN.md: «суммы в строках не режутся раньше текста»).
+            moneyCut: table ? [...table.querySelectorAll("tbody td.text-right .truncate")].filter((element) => visible(element)
+              && element.scrollWidth > element.clientWidth).map((element) => element.textContent.trim().slice(0, 30)) : [],
+            headCut: table ? [...table.querySelectorAll("thead th")].filter((element) => visible(element)
+              && element.scrollWidth > element.clientWidth).map((element) => element.textContent.trim().slice(0, 30)) : [],
+            // Место под сумму в шесть знаков («120 000 KGS», как 135 000 KGS в отчёте) в каждом столбце сумм — не только под суммы стенда.
+            moneyRoom: table && getComputedStyle(table).display === "table" ? [...(table.querySelector("tbody tr")?.querySelectorAll("td.text-right .truncate") ?? [])]
+              .filter(visible).flatMap((span) => {
+                const probe = span.cloneNode(false);
+                probe.textContent = "120 000 KGS";
+                probe.style.cssText = "position:absolute;visibility:hidden;width:auto;white-space:nowrap";
+                span.parentElement.appendChild(probe);
+                const need = probe.getBoundingClientRect().width;
+                probe.remove();
+                return need > span.clientWidth ? [`${span.clientWidth}<${Math.ceil(need)}`] : [];
+              }) : [],
+            // Даты и месяц отчёта в ячейках таблицы не выходят за своё поле (дата другого года —
+            // «ДД.ММ» и год второй строкой, а не «28.12.25» поверх «Стоимости»): px сверх поля.
+            dateCut: table && getComputedStyle(table).display === "table" ? [...table.querySelectorAll("tbody td > time")].filter(visible).flatMap((time) => {
+              const cell = time.parentElement;
+              const edge = box(cell).right - parseFloat(getComputedStyle(cell).paddingRight);
+              // Видимый текст ячейки: подпись для чтения с экрана (`sr-only`) места не занимает.
+              const walker = document.createTreeWalker(time, NodeFilter.SHOW_TEXT);
+              const rights = [];
+              for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (!node.textContent.trim() || node.parentElement.closest(".sr-only")) continue;
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                rights.push(...[...range.getClientRects()].map((rect) => rect.right));
+              }
+              const right = Math.max(...rights);
+              return right > edge + 0.5 ? [`${time.textContent.trim()}+${Math.ceil(right - edge)}px`] : [];
+            }) : [],
+            // Имя сужается раньше сумм — сколько имён обрезано из видимых в строках таблицы.
+            names: table && getComputedStyle(table).display === "table" ? (() => {
+              const shown = [...table.querySelectorAll("tbody th a > span:first-child")].filter(visible);
+              return `${shown.filter((element) => element.scrollWidth > element.clientWidth).length}/${shown.length}`;
+            })() : null,
+            reviewMarks: document.querySelectorAll("[data-row-review-mark]").length
+              ? [...document.querySelectorAll("[data-row-review-mark]")].filter(visible).length : null,
+            height: document.documentElement.scrollHeight,
+          };
+        });
+        const shot = `${file}-${width}.png`;
+        await page.screenshot({ path: join(outDir, shot), fullPage: true });
+        results.push({ shot, ...metrics });
+        // Панель держится рядом со списком при прокрутке (от 1280 px — колонка).
+        if (name.startsWith("report-panel") && width !== "390") {
+          await page.evaluate(() => window.scrollTo({ top: 520, behavior: "instant" }));
+          await page.screenshot({ path: join(outDir, `${file}-${width}-scrolled.png`) });
+        }
+        process.stdout.write(`${shot}: overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText.length}${metrics.smallText.length ? ` (${metrics.smallText.join(" | ")})` : ""} under44=${metrics.under44.length}${metrics.under44.length ? ` (${metrics.under44.join(" | ")})` : ""}${metrics.panelTopDelta !== null ? ` panelTopDelta=${metrics.panelTopDelta}` : ""}${metrics.tableDisplay ? ` table=${metrics.tableLayout}/${metrics.tableDisplay} rowHeight=${metrics.firstRowHeight}` : ""}${metrics.names !== null ? ` namesCut=${metrics.names}` : ""}${metrics.reviewMarks !== null ? ` reviewMarks=${metrics.reviewMarks}` : ""} moneyCut=${metrics.moneyCut.length}${metrics.moneyCut.length ? ` (${metrics.moneyCut.join(" | ")})` : ""} dateCut=${metrics.dateCut.length}${metrics.dateCut.length ? ` (${metrics.dateCut.join(" | ")})` : ""} moneyRoom=${metrics.moneyRoom.length ? metrics.moneyRoom.join(" | ") : "ok"} headCut=${metrics.headCut.length}${metrics.headCut.length ? ` (${metrics.headCut.join(" | ")})` : ""}\n`);
+        if (metrics.moneyCut.length || metrics.moneyRoom.length || metrics.headCut.length || metrics.dateCut.length) {
+          cut.push(`${shot}: money ${JSON.stringify(metrics.moneyCut)}, room for «120 000 KGS» ${JSON.stringify(metrics.moneyRoom)}, headers ${JSON.stringify(metrics.headCut)}, dates ${JSON.stringify(metrics.dateCut)}`);
+        }
+        await context.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+  writeFileSync(join(outDir, "e86-metrics.json"), JSON.stringify(results, null, 2));
+  if (cut.length) throw new Error(`e86: cut amounts, no room for a six-digit amount, cut column headers or dates out of their cell:\n${cut.join("\n")}`);
+}
+
 // --- F1 (Э7): одна боковая панель у «Отчёта продаж» ---------------------------
 const F1_FIXTURE_ID = "numbers-f1-fixture";
 const F1_ENTRY = `
@@ -810,7 +1056,8 @@ async function f1() {
   const browser = await chromium.launch();
   const failures = [];
   try {
-    const html = await reportPage({ record, edit: "true" });
+    // Строка открывает запись просмотром (Э8.6): стенд — тот же адрес без `edit`.
+    const html = await reportPage({ record });
     const htmlPath = join(outDir, "f1-report.html");
     const fixture = { record, backLabel: "К отчёту", returnTo: `[id="sale-${record}"] a` };
     writeFileSync(htmlPath, [
@@ -838,7 +1085,11 @@ async function f1() {
         scrolledPath: join(outDir, `f1-report-${width}-scrolled.png`),
       });
       if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
-      probe.report({ screen: "report", width, ...result });
+      // Рядом с открытой записью (короткая таблица, Э8.6) суммы строк не режутся.
+      const moneyCut = await page.evaluate(() => [...document.querySelectorAll('[aria-label="Записи продаж"] tbody td.text-right .truncate')]
+        .filter((element) => element.checkVisibility() && element.scrollWidth > element.clientWidth).map((element) => element.textContent.trim()));
+      if (moneyCut.length) result.failures.push(`amounts cut beside the panel: ${JSON.stringify(moneyCut)}`);
+      probe.report({ screen: "report", width, moneyCut: moneyCut.length, ...result });
       failures.push(...result.failures.map((failure) => `report ${width}: ${failure}`));
       await browserContext.close();
     }
@@ -861,6 +1112,11 @@ if (process.argv.includes("--f1")) {
       console.error(error);
       process.exit(1);
     });
+} else if (process.argv.includes("--e86-screenshots")) {
+  e86Screenshots().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 } else if (process.argv.includes("--e4-screenshots")) {
   e4Screenshots().catch((error) => {
     console.error(error);
@@ -877,6 +1133,6 @@ if (process.argv.includes("--f1")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: numbers-static-render.cjs --json | --json-e4 | --screenshots [outDir] | --e4-screenshots [outDir] | --f1 [outDir]");
+  console.error("usage: numbers-static-render.cjs --json | --json-e4 | --screenshots [outDir] | --e4-screenshots [outDir] | --e86-screenshots [outDir] | --f1 [outDir]");
   process.exit(2);
 }

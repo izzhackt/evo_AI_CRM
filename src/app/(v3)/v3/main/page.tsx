@@ -5,12 +5,13 @@ import { Suspense, type ComponentProps } from "react";
 import type { PeriodChoice } from "@/components/v3/MainHeader";
 import { PartShell } from "@/components/v3/PartShell";
 import { SalesDynamics } from "@/components/v3/SalesDynamics";
+import { SalesManagerLabelsView } from "@/components/v3/SalesManagerLabelsView";
 import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
 import { SalesDynamicsReport, SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
 import { TodayBoardLinks, TodayScreen } from "@/components/v3/today/TodayScreen";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isSalesImportQuery, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } from "@/lib/sales-register-navigation";
+import { isSalesImportQuery, isSalesManagersQuery, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } from "@/lib/sales-register-navigation";
 import { PERIODS, periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { readSalesDynamics, type SalesDynamicsRead } from "@/lib/v3/sales-dynamics-source";
@@ -56,6 +57,8 @@ export default async function MainPart({
   if (query.view === "sales") {
     if (!canReadReport && !canReadSales) redirect("/access-denied?from=%2Fv3%2Fmain");
     if (canReadReport && isSalesImportQuery(query)) return <SalesRegisterImportView actor={actor} query={query} />;
+    // «Менеджеры в отчёте» (Э8.6): право проверяют чтение и сервер (перенос данных отчёта).
+    if (canReadReport && isSalesManagersQuery(query)) return <SalesManagerLabelsView actor={actor} query={query} />;
     if (!canReadSales) return <SalesRegisterView actor={actor} query={query} />;
     const period = resolvePeriod(query);
     const carry = salesDynamicsCarry(query);

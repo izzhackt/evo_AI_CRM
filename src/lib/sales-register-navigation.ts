@@ -29,6 +29,21 @@ export function isSalesImportQuery(query: Readonly<Record<string, unknown>>): bo
   return query.mode === "import" && ["record", "new", "edit", "saved"].every(key => query[key] === undefined);
 }
 
+/** «Менеджеры в отчёте» (Э8.6): тот же приоритет явной записи/формы, что у переноса данных. */
+export function isSalesManagersQuery(query: Readonly<Record<string, unknown>>): boolean {
+  return query.mode === "managers" && ["record", "new", "edit", "saved"].every(key => query[key] === undefined);
+}
+
+/** Адрес экрана «Менеджеры в отчёте»; из отчёта — с его периодом, чтобы «Вернуться к отчёту» вёл туда же. */
+export function salesManagersHref(query: Readonly<Record<string, unknown>> = {}): string {
+  const params = new URLSearchParams({ view: "sales", mode: "managers" });
+  for (const key of ["year", "month"] as const) {
+    const value = query[key];
+    if (typeof value === "string" && /^(\d{1,4}|all)$/.test(value)) params.set(key, value);
+  }
+  return `/v3/main?${params.toString()}`;
+}
+
 /** The caller supplies the current organization period; navigation never chooses another clock. */
 export function salesReportContext(query: Readonly<Record<string, unknown>>, current: Readonly<{ year: number; month: number }>) {
   const year = query.year === undefined ? current.year : typeof query.year === "string" ? Number(query.year) : NaN;

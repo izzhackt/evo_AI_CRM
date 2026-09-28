@@ -11,6 +11,7 @@ import {
   type SalesRegisterActionState, type SalesReportConditionsPreview,
 } from "@/lib/platform-sales-register-actions";
 import { SALES_CURRENCIES, type SalesRegisterRow, type SalesRegisterTarget, type SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
+import { salesManualReview, salesRowContractPaid } from "@/lib/sales-register-view";
 import type { LeadSaleConditions } from "@/lib/lead-sale-conditions-contract";
 
 const MESSAGES: Record<Exclude<SalesRegisterActionState["status"], "idle">, string> = {
@@ -29,7 +30,8 @@ const FIELD_LABELS: Record<string, string> = {
   direction: "Направление", intake: "Набор", contract_number: "Номер договора",
   manager_label: "Менеджер в отчёте", status_raw: "Статус в отчёте", owner_membership_id: "Ответственный сотрудник",
   cost: "Стоимость", service_cost_currency: "Валюта стоимости", service_cost_raw: "Исходная стоимость",
-  paid: "Оплачено по записи", paid_currency: "Валюта оплаты", paid_raw: "Исходная оплата",
+  paid: "Оплачено", paid_currency: "Валюта оплаты", paid_raw: "Исходная оплата",
+  paid_contract: "Оплачено в валюте договора",
   needs_review: "Нужно уточнить", notes: "Примечание",
 };
 function decimal(minor: number | null): string { return minor === null ? "" : `${Math.floor(minor / 100)}.${String(minor % 100).padStart(2, "0")}`; }
@@ -52,7 +54,9 @@ function fields(row: SalesRegisterRow | null, reportMonth: string, owner: string
     owner_membership_id: row ? row.ownerMembershipId ?? "" : owner,
     service_cost_raw: row?.serviceCostRaw ?? "", cost: decimal(row?.serviceCostMinor ?? null), service_cost_currency: row?.serviceCostCurrency ?? "",
     paid_raw: row?.paidRaw ?? "", paid: decimal(row?.paidMinor ?? null), paid_currency: row?.paidCurrency ?? "",
-    needs_review: String(row?.needsReview ?? true), notes: row?.notes ?? "",
+    paid_contract: decimal(row ? salesRowContractPaid(row) : null),
+    // Отметка в форме — ручная (253): пробелы, которые сервер отмечает сам, её заранее не ставят.
+    needs_review: String(row ? salesManualReview(row) : true), notes: row?.notes ?? "",
   };
 }
 type FormProps = Readonly<{
@@ -182,8 +186,12 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
     });
   });
   useEffect(() => { searchInitialLead(); }, []);
-  const wire: Draft = { ...draft, report_month: `${draft.report_month}-01`, service_cost_minor: minor(draft.cost), paid_minor: minor(draft.paid) };
-  delete wire.cost; delete wire.paid;
+  // «Оплачено в валюте договора» — только у оплаты в другой валюте и всегда в валюте стоимости (253).
+  const otherCurrency = Boolean(draft.service_cost_currency && draft.paid_currency && draft.paid_currency !== draft.service_cost_currency);
+  const contractMinor = otherCurrency ? minor(draft.paid_contract) : "";
+  const wire: Draft = { ...draft, report_month: `${draft.report_month}-01`, service_cost_minor: minor(draft.cost), paid_minor: minor(draft.paid),
+    paid_contract_minor: contractMinor, paid_contract_currency: contractMinor ? draft.service_cost_currency : "" };
+  delete wire.cost; delete wire.paid; delete wire.paid_contract;
   const input = (key: string, type = "text", required = false, maxLength = 200) => <label key={key} className="block min-w-0"><span className={fieldLabelCls}>{FIELD_LABELS[key]}</span>
     <input type={type} value={draft[key]} onChange={event => update(key, event.target.value)} required={required} maxLength={maxLength}
       min={type === "month" ? "1900-01" : type === "date" ? "1900-01-01" : undefined}
@@ -258,8 +266,18 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
             <label><span className={fieldLabelCls}>Стоимость услуг</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.cost} onChange={e => update("cost", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("service_cost_currency")}
           </div>{record?.serviceCostRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.serviceCostRaw}</p> : null}</div>
           <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
-            <label><span className={fieldLabelCls}>Оплачено по записи</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.paid} onChange={e => update("paid", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("paid_currency")}
-          </div>{record?.paidRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.paidRaw}</p> : null}</div>
+            <label><span className={fieldLabelCls}>Оплачено</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.paid} onChange={e => update("paid", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("paid_currency")}
+          </div>{record?.paidRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.paidRaw}</p> : null}
+          {/* Оплата в другой валюте: сколько это в валюте договора — вводит менеджер, система не пересчитывает (Э8.6). */}
+          {otherCurrency ? <div className="space-y-1" data-testid="sales-contract-amount">
+            <label className="block"><span className={fieldLabelCls}>Оплачено в валюте договора</span>
+              <span className="flex items-center gap-3">
+                <input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.paid_contract} onChange={e => update("paid_contract", e.target.value)}
+                  aria-describedby="sales-contract-amount-hint" className={`${inputCls} min-h-11 w-full min-w-0`} />
+                <span className="w-12 shrink-0 t-label text-fg-2">{draft.service_cost_currency}</span>
+              </span></label>
+            <p id="sales-contract-amount-hint" className="t-meta text-fg-2">Сколько оплачено в {draft.service_cost_currency}, валюте стоимости. Система валюты не пересчитывает; без этой суммы остатка нет и запись отмечается «Нужно уточнить».</p>
+          </div> : null}</div>
         </div>
         <p className="text-xs text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми.</p>
         <div className={pair}>{input("manager_label", "text", false, 300)}
@@ -271,7 +289,8 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
           {input("country")}{input("university", "text", false, 500)}{input("program", "text", false, 500)}{input("direction", "text", false, 500)}{input("intake")}{input("contract_number")}{input("status_raw", "text", false, 2000)}
         </div></details>
         <label className="block"><span className={fieldLabelCls}>Примечание</span><textarea value={draft.notes} onChange={e => update("notes", e.target.value)} maxLength={2000} rows={3} className={`${inputCls} w-full`} /></label>
-        <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={draft.needs_review === "true"} onChange={e => update("needs_review", String(e.target.checked))} className="h-5 w-5" />Нужно уточнить данные</label>
+        <div><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={draft.needs_review === "true"} onChange={e => update("needs_review", String(e.target.checked))} aria-describedby="sales-review-hint" className="h-5 w-5" />Нужно уточнить данные</label>
+          <p id="sales-review-hint" className="t-meta text-fg-2">Отметка ставится сама, пока нет даты продажи, стоимости, оплаты или суммы в валюте договора.</p></div>
         <label className="block"><span className={fieldLabelCls}>Причина изменения</span><input name="reason" value={reason} onChange={e => setReason(e.target.value)} required maxLength={1000} className={`${inputCls} min-h-11 w-full`} /></label>
         </> : null}
       </fieldset>
@@ -287,7 +306,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
         }}>Сверил изменения, продолжить с моим вводом</button>
       </div> : null}
       {status === "stale" || status === "unavailable" || readUnavailable ? <button type="button" className={`${btnGhostCls} min-h-11`} disabled={pending} onClick={() => router.refresh()}>Обновить данные без сброса ввода</button> : null}
-      <div className="flex flex-wrap gap-3"><button type="submit" disabled={!canSubmit} className={panel ? QUEUE_CONFIRM : `${btnCls} min-h-11`}>{pending ? "Сохраняем…" : recordId ? "Сохранить продажу" : "Сохранить"}</button><Link href={backHref} className={`${btnGhostCls} min-h-11`}>{status === "saved" ? "Готово — к отчёту" : "Отмена"}</Link></div>
+      <div className="flex flex-wrap gap-3"><button type="submit" disabled={!canSubmit} className={panel ? QUEUE_CONFIRM : `${btnCls} min-h-11`}>{pending ? "Сохраняем…" : recordId ? "Сохранить продажу" : "Сохранить"}</button><Link href={backHref} className={`${btnGhostCls} min-h-11`}>{status === "saved" ? panel ? "Готово" : "Готово — к отчёту" : "Отмена"}</Link></div>
     </form>
     {record ? <details className="border-t border-border pt-3"><summary className="cursor-pointer py-3 text-sm font-medium">Источник и архив</summary>
       {record.sourceSheet ? <p className="my-3 text-sm text-fg-3">Импорт: {record.sourceSheet}, строка {record.sourceRow}. Исходный файл не изменён.</p> : null}

@@ -5,9 +5,7 @@ import test from "node:test";
 import {
   assertCalendarDatedTaskPageOrder,
   CalendarContractError,
-  listCalendarApplicationDeadlinePage,
   listCalendarUndatedTaskPage,
-  normalizeCalendarApplicationDeadlineRow,
   parseCalendarUndatedTaskCursor,
 } from "../src/lib/v3/calendar-contract.ts";
 import * as calendarContract from "../src/lib/v3/calendar-contract.ts";
@@ -34,8 +32,6 @@ const ORGANIZATION_ID = "12400000-0000-4000-8000-000000000001";
 const TASK_ID = "12400000-0000-4000-8000-000000000101";
 const TASK_ID_2 = "12400000-0000-4000-8000-000000000102";
 const CASE_ID = "12400000-0000-4000-8000-000000000201";
-const APPLICATION_ID = "12400000-0000-4000-8000-000000000301";
-const APPLICATION_ID_2 = "12400000-0000-4000-8000-000000000302";
 const SENTINEL = "9999-12-31T00:00:00+00:00";
 
 const actor = Object.freeze({
@@ -60,14 +56,6 @@ test("calendar undated tasks require task.manage before making any RPC", async (
   await assert.rejects(listCalendarUndatedTaskPage(createOnly, {}, {
     client: { schema: () => ({ rpc: async (...args) => { calls.push(args); return { data: [], error: null }; } }) },
   }), CalendarContractError);
-  assert.deepEqual(calls, []);
-});
-
-test("the «Сегодня» deadline reader requires application.manage before RPC", async () => {
-  const calls = [];
-  const taskManager = { ...actor, permissionKeys: ["case.read.full", "task.manage"] };
-  const dependencies = { client: { schema: () => ({ rpc: async (...args) => { calls.push(args); return { data: [], error: null }; } }) } };
-  await assert.rejects(listCalendarApplicationDeadlinePage(taskManager, { from: "2026-09-01", to: "2026-09-30" }, dependencies), CalendarContractError);
   assert.deepEqual(calls, []);
 });
 
@@ -143,20 +131,6 @@ function undatedRow(id) {
 
 function taskIdAt(index) {
   return `12400000-0000-4000-8000-${String(index).padStart(12, "0")}`;
-}
-
-function applicationRow(id = APPLICATION_ID, deadline = "2026-09-10") {
-  return {
-    source_key: `application:${id}:application`,
-    deadline_kind: "application",
-    application_id: id,
-    student_case_id: CASE_ID,
-    student_display_name: "Алия Садыкова",
-    university_name: "University of Example",
-    program_name: "Computer Science",
-    application_status: "preparation",
-    deadline,
-  };
 }
 
 function rpcClient(resolver) {
@@ -256,69 +230,6 @@ test("D2 undated sentinel equality preserves PostgreSQL microseconds", async () 
   );
 });
 
-test("D2 deadline projection sends range and (deadline, source_key) cursor", async () => {
-  let call;
-  const page = await listCalendarApplicationDeadlinePage(
-    actor,
-    {
-      pageSize: 1,
-      from: "2026-09-01",
-      to: "2026-09-30",
-      cursor: { deadline: "2026-09-09", sourceKey: `application:${APPLICATION_ID}:application` },
-    },
-    {
-      client: rpcClient((name, args) => {
-        call = { name, args };
-        return {
-          data: [
-            applicationRow(APPLICATION_ID, "2026-09-10"),
-            applicationRow(APPLICATION_ID_2, "2026-09-11"),
-          ],
-          error: null,
-        };
-      }),
-    },
-  );
-
-  assert.deepEqual(call, {
-    name: "admissions_deadline_page_v1",
-    args: {
-      p_limit: 2,
-      p_due_from: "2026-09-01",
-      p_due_to: "2026-09-30",
-      p_after_deadline: "2026-09-09",
-      p_after_source_key: `application:${APPLICATION_ID}:application`,
-    },
-  });
-  assert.deepEqual(page.rows.map((row) => row.applicationId), [APPLICATION_ID]);
-  assert.deepEqual(page.nextCursor, {
-    deadline: "2026-09-10",
-    sourceKey: `application:${APPLICATION_ID}:application`,
-  });
-});
-
-test("D2 application row is an exact discriminated read contract", () => {
-  assert.deepEqual(normalizeCalendarApplicationDeadlineRow(applicationRow()), {
-    sourceKey: `application:${APPLICATION_ID}:application`,
-    deadlineKind: "application",
-    applicationId: APPLICATION_ID,
-    studentCaseId: CASE_ID,
-    studentDisplayName: "Алия Садыкова",
-    universityName: "University of Example",
-    programName: "Computer Science",
-    status: "preparation",
-    deadline: "2026-09-10",
-  });
-  assert.throws(
-    () => normalizeCalendarApplicationDeadlineRow({ ...applicationRow(), inferred: true }),
-    CalendarContractError,
-  );
-  assert.throws(
-    () => normalizeCalendarApplicationDeadlineRow({ ...applicationRow(), deadline: null }),
-    CalendarContractError,
-  );
-});
-
 test("D2 dated page ordering fails closed across rows and the supplied cursor", () => {
   const first = { sortAt: "2026-09-10T03:00:00+00:00", caseTaskId: TASK_ID };
   const second = { sortAt: "2026-09-10T03:00:00Z", caseTaskId: TASK_ID_2 };
@@ -391,7 +302,7 @@ test("D2 undated continuation is URL-backed and never silently claims completene
   assert.doesNotMatch(calendar, /Все задачи без срока показаны/u);
 });
 
-test("the calendar carries no university deadlines; «Сегодня» keeps its deadline reader (owner 28.09)", () => {
+test("the calendar carries no university deadlines, and «Сегодня» dropped its deadline group too (owner 28.09)", () => {
   assert.equal(existsSync(new URL("../src/components/v3/calendar/ApplicationDeadline.tsx", import.meta.url)), false);
   const calendarFiles = ["Calendar.tsx", "grids.tsx", "types.ts"].map((name) => source(`src/components/v3/calendar/${name}`)).join("\n");
   assert.doesNotMatch(calendarFiles, /ApplicationDeadline|application_deadline|deadlines=|deadlines\.filter|applicationDeadlines/u);
@@ -400,8 +311,12 @@ test("the calendar carries no university deadlines; «Сегодня» keeps its
   assert.equal("readCalendarWorkspaceBranches" in calendarContract, false);
   assert.equal("readNearestCalendarApplicationDeadline" in calendarContract, false);
   assert.doesNotMatch(source("src/lib/v3/personal-calendar-contract.ts"), /applicationDeadlines/u);
-  // «Сегодня · Сроки вузов» читает тот же контракт, что и раньше.
-  assert.match(source("src/lib/v3/today-source.ts"), /calendar\.listCalendarApplicationDeadlinePage\(/u);
+  // «Сегодня · Сроки вузов» ушло решением владельца 28.09: контракт больше не читается ни оттуда, ни отсюда.
+  assert.equal("listCalendarApplicationDeadlinePage" in calendarContract, false);
+  assert.equal("normalizeCalendarApplicationDeadlineRow" in calendarContract, false);
+  assert.equal("CalendarContractDeniedError" in calendarContract, false);
+  assert.doesNotMatch(source("src/lib/v3/today-source.ts"), /listCalendarApplicationDeadlinePage|readDeadlines|TODAY_DEADLINE/u);
+  assert.doesNotMatch(source("src/lib/v3/today-queue.ts"), /"deadlines"|todayDeadlineItems|TODAY_DEADLINE/u);
   assert.match(source("src/components/v3/calendar/Calendar.tsx"), /Без срока/u);
 });
 

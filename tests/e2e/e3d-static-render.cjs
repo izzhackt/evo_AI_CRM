@@ -8,18 +8,14 @@
 /**
  * Статический рендер среза Э3 (27.09.2026) и Э8.5 (28.09.2026): EVO Docs —
  * один центр проверки документов с вкладками «Документы дела · Документы
- * программ · Комплекты · Исправить · Не хватает · Все» — и «Сегодня» с группой
- * «Сроки вузов · 14 дней».
+ * программ · Комплекты · Исправить · Не хватает · Все».
  *
  * EVO Docs собирает НАСТОЯЩИЙ `buildStudentsQueueScreen` (разбор адреса
  * `parseStudentsQueueParams`, вкладка по умолчанию, вкладки, таблица дел,
- * документы программ с решением в строке, таблица комплектов);
- * «Сегодня» — настоящие `readTodayQueue` (права по ролям, пределы страниц) с
- * подставленными читателями, `buildTodayQueue` и `TodayScreen`. Страницы — в
- * настоящих `PartShell` и `AppShell`. Данные СИНТЕТИЧЕСКИЕ: люди, вузы, дела,
- * комплекты и сроки выдуманы для проверки вёрстки и не являются записями EVO.
- * Живой Supabase, права и данные этот рендер не проверяет (права чтения сроков —
- * набор supabase/tests/platform_today_university_deadlines.sql).
+ * документы программ с решением в строке, таблица комплектов) в настоящих
+ * `PartShell` и `AppShell`. Данные СИНТЕТИЧЕСКИЕ: люди, вузы, дела и
+ * комплекты выдуманы для проверки вёрстки и не являются записями EVO. Живой
+ * Supabase, права и данные этот рендер не проверяет.
  *
  *   node tests/e2e/e3d-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — разметка сценариев без оболочки
@@ -102,16 +98,11 @@ const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
 const { buildStudentsQueueScreen } = require(join(ROOT, "src/components/v3/students/StudentsQueueScreen.tsx"));
 const view = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
-const { readTodayQueue, todayLinks } = require(join(ROOT, "src/lib/v3/today-source.ts"));
-const { buildTodayQueue, todayDateLabel } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
-const { TodayBoardLinks, TodayScreen } = require(join(ROOT, "src/components/v3/today/TodayScreen.tsx"));
 const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
-const { staffRoleKeys } = require("./staff-role-templates.cjs");
 
 
 // --- синтетические данные ---------------------------------------------------
-// «Сейчас» — воскресенье 27.09.2026, 10:00 по Бишкеку (04:00 UTC).
-const NOW = new Date("2026-09-27T04:00:00.000Z");
+// «Сейчас» — воскресенье 27.09.2026 по Бишкеку.
 const TODAY = "2026-09-27";
 const ORG = "eeeeeeee-4444-4444-8444-000000000000";
 const ME = "aaaaaaaa-1111-4111-8111-000000000001";
@@ -265,88 +256,6 @@ function docsScenario(search, { packages = READY_PACKAGES, program = READY_PROGR
   };
 }
 
-// --- «Сегодня»: сроки вузов ---------------------------------------------------
-function deadline(n, fields) {
-  const applicationId = `eeeeeeee-7777-4777-8777-${String(n).padStart(12, "0")}`;
-  const kind = fields.kind ?? "application";
-  return {
-    sourceKey: `${kind === "application" ? "application" : "visa"}:${applicationId}:${kind}`, deadlineKind: kind, applicationId,
-    studentCaseId: caseId(fields.caseNo), studentDisplayName: fields.student, universityName: fields.university,
-    programName: fields.program ?? "", status: kind === "application" ? fields.status ?? "preparation" : null, deadline: fields.day,
-  };
-}
-
-const DEADLINES = [
-  // Прошёл 3 дня назад, заявление всё ещё «готово»: вверху группы, красным «прошёл», работа дня.
-  deadline(6, { caseNo: 5, student: "Камила Черновикова", university: "Технический университет Демо", program: "Master of Computer Science", day: "2026-09-24", status: "ready" }),
-  deadline(1, { caseNo: 1, student: "Алина Образцова", university: "Университет Примера", program: "Foundation in Business", day: TODAY }),
-  deadline(2, { caseNo: 2, student: "Данияр Макетов", university: "Технический университет Демо", program: "Bachelor of Engineering", day: "2026-09-29", status: "ready" }),
-  deadline(3, { caseNo: 7, student: "Софья Эскизова", university: "Школа бизнеса Макет", day: "2026-10-06" }),
-  deadline(4, { caseNo: 3, student: "Нурай Демонстрова", university: "Университет Примера", program: "Diploma in Nursing", day: "2026-10-11" }),
-  // Срок паспорта в окне — другой вид срока: в «Сроки вузов» не входит.
-  deadline(5, { caseNo: 4, student: "Тимур Шаблонов", university: "Документы для поездки", kind: "passport_expiry", day: "2026-10-01" }),
-];
-
-function studentRow(n, fields) {
-  const due = fields.due ?? null;
-  const band = !fields.step ? "no_step" : !due ? "undated" : due < TODAY ? "overdue" : due === TODAY ? "today" : "later";
-  const rank = !fields.step ? 2 : !due ? 1 : 0;
-  return {
-    ...caseRow(n, { name: fields.name, documents: null, step: fields.step }),
-    nextAction: fields.step ?? null, nextActionDueOn: fields.step ? due : null, dueBand: band, attentionFlags: fields.flags ?? [],
-    cursor: `due|${rank}|${due ?? "infinity"}|${caseId(n)}`,
-  };
-}
-
-const MINE = [
-  studentRow(2, { name: "Данияр Макетов", step: "Собрать апостиль на аттестат", due: "2026-09-25" }),
-  studentRow(7, { name: "Софья Эскизова", step: "Позвонить семье о бюджете на обучение", due: TODAY }),
-  studentRow(4, { name: "Тимур Шаблонов", step: "Отправить мотивационное письмо на проверку", due: "2026-10-02" }),
-];
-
-const TODAY_ACTORS = {
-  admissions: {
-    authUserId: "bbbbbbbb-7777-4777-8777-000000000001", profileId: "bbbbbbbb-7777-4777-8777-000000000002", membershipId: ME, organizationId: ORG,
-    platformAccessVersion: 1, email: "synthetic@example.invalid", presentationRole: null, displayName: "Куратор (синтетический)", systemRole: "staff",
-    assignments: [{ id: "99999999-1111-4111-8111-000000000001", roleId: "99999999-1111-4111-8111-000000000002", label: "Admissions", bundleId: "b", bundleVersion: 1, scope: { kind: "own", key: null, resourceKind: null } }],
-    permissionKeys: staffRoleKeys("admissions"),
-  },
-};
-
-function todayReaders(data) {
-  const fail = (key) => { if (data.fail?.includes(key)) throw new Error(`synthetic ${key} failure`); };
-  let deadlinePages = 0;
-  return {
-    async listStaffTasks() { return { rows: [], nextCursor: null }; },
-    async listCaseTasks() { return { rows: [], nextCursor: null }; },
-    async readStudentCaseQueue(_actor, request) {
-      return { view: request.view, sort: "due", today: TODAY, rows: request.view === "mine" ? data.mine ?? [] : [], nextCursor: null };
-    },
-    async readLeads() { return { leads: [], truncated: false }; },
-    async readChats() { return { rows: [], truncated: false }; },
-    async readDeadlines(_actor, options) {
-      fail("deadlines");
-      deadlinePages += 1;
-      const rows = (data.deadlines ?? []).filter((row) => row.deadline >= options.from && row.deadline <= options.to);
-      // Неполное чтение: у каждой страницы есть продолжение — после 3 страниц чтение останавливается.
-      return { rows: data.endless ? rows.slice(deadlinePages - 1, deadlinePages) : rows, nextCursor: data.endless ? { deadline: TODAY, sourceKey: rows[0].sourceKey } : null };
-    },
-  };
-}
-
-const TODAY_SCENARIOS = {
-  // Куратор: свои шаги и сроки вузов по своим делам.
-  "today-deadlines": { data: { mine: MINE, deadlines: DEADLINES } },
-  // Пустой день и пустое полное чтение сроков: одна пустота — «На сегодня всё» и слова о сроках под ним.
-  "today-deadlines-empty": { data: { mine: [], deadlines: [] } },
-  // Пустое полное чтение сроков рядом с другими группами: своя группа со словами.
-  "today-deadlines-empty-queue": { data: { mine: MINE, deadlines: [] } },
-  // Неполное чтение сроков: строки есть, числа нет, строка над очередью говорит почему.
-  "today-deadlines-partial": { data: { mine: MINE, deadlines: DEADLINES, endless: true } },
-  // Сбой чтения сроков: на месте, «Повторить»; остальная очередь видна.
-  "today-deadlines-error": { data: { mine: MINE, deadlines: DEADLINES, fail: ["deadlines"] } },
-};
-
 const DOCS_SCENARIOS = {
   // Без `view`: первая непустая вкладка — «Документы дела» (у двух дел документы на проверке).
   "docs-review": docsScenario("section=docs"),
@@ -402,25 +311,6 @@ async function docsPage(name) {
   return { node: createElement(PartShell, { title: "EVO Docs", count: built.count, action, dense: true }, createElement("div", { className: "space-y-6" }, built.content)), pathname: "/v3/profile", search: item.search };
 }
 
-/** «Сегодня» — как `main/page.tsx`: `PartShell` с датой, доски в шапке (`todayLinks`), `TodayScreen`. */
-async function todayPage(name) {
-  const who = TODAY_ACTORS.admissions;
-  const { access, reads } = await readTodayQueue(who, { now: NOW, readers: todayReaders(TODAY_SCENARIOS[name].data) });
-  const queue = buildTodayQueue(reads, NOW);
-  const { boards, mainAction } = todayLinks(who, access, { canReadReport: false });
-  const has = (key) => who.permissionKeys.includes(key);
-  const permissions = {
-    actorMembershipId: ME, admin: false, preview: false, staffComplete: has("staff.task.complete"), staffEdit: has("staff.task.edit"),
-    caseManage: has("task.manage"), caseAssign: has("task.assign"),
-  };
-  const node = createElement(PartShell, {
-    title: "Сегодня", testId: "v3-operational-dashboard",
-    meta: createElement("time", { dateTime: queue.today }, todayDateLabel(queue.today)),
-    action: createElement(TodayBoardLinks, { links: boards }),
-  }, createElement(TodayScreen, { queue, nowIso: NOW.toISOString(), permissions, mainAction }));
-  return { node, pathname: "/v3/main", search: "" };
-}
-
 const ADMIN = {
   authUserId: "bbbbbbbb-7777-4777-8777-000000000001", profileId: "bbbbbbbb-7777-4777-8777-000000000002", membershipId: ME, organizationId: ORG,
   displayName: "Администратор (синтетический)", systemRole: "admin", platformAccessVersion: 1, assignments: [], permissionKeys: [],
@@ -428,15 +318,14 @@ const ADMIN = {
 };
 
 async function build(name) {
-  return DOCS_SCENARIOS[name] ? docsPage(name) : todayPage(name);
+  return docsPage(name);
 }
 
 async function renderFullPage(name) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const { node, pathname, search } = await build(name);
-  const who = DOCS_SCENARIOS[name] ? ADMIN : TODAY_ACTORS.admissions;
   const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
-    createElement(AppShell, { actor: who, initialNotifications: null }, node));
+    createElement(AppShell, { actor: ADMIN, initialNotifications: null }, node));
   return renderToStaticMarkup(withContexts(page, pathname, search));
 }
 
@@ -466,11 +355,6 @@ const SHOTS = {
   "docs-packages-more": ["1440", "390"],
   "docs-packages-pages": ["1440"],
   "docs-missing-empty": ["1440"],
-  "today-deadlines": ["1440", "1280", "390"],
-  "today-deadlines-empty": ["1440", "1280", "390"],
-  "today-deadlines-empty-queue": ["1440", "390"],
-  "today-deadlines-partial": ["1440", "390"],
-  "today-deadlines-error": ["1440"],
 };
 
 async function screenshots() {
@@ -544,7 +428,7 @@ async function screenshots() {
 
 async function json() {
   const out = [];
-  for (const name of [...Object.keys(DOCS_SCENARIOS), ...Object.keys(TODAY_SCENARIOS)]) {
+  for (const name of Object.keys(DOCS_SCENARIOS)) {
     const { node, pathname, search } = await build(name);
     out.push({ name, html: renderToStaticMarkup(withContexts(node, pathname, search)) });
   }

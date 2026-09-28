@@ -13,6 +13,7 @@ import {
   type PlatformCaseBaselineChecklistActionState,
   type PlatformDocumentChecklistActionState,
 } from "@/lib/platform-document-checklist-actions";
+import type { PlatformDocumentSlotStatus } from "@/lib/platform-private-documents";
 
 import { caseMomentLabel } from "./case-work-view";
 import { ChecklistFeedback, useRefreshAfterSave } from "./DocumentChecklistFeedback";
@@ -29,6 +30,7 @@ import {
   type DocumentUploadResult,
   type DocumentUploadState,
 } from "./document-upload";
+import { documentMovedText, documentStateOf, type DocumentStateFilter } from "./documents-view";
 
 import type {
   ActiveDocumentGroup,
@@ -46,6 +48,14 @@ const ACCESS_MESSAGE: Record<Exclude<DocumentUploadAccess, "allowed">, string> =
 
 /** id области «+ Документ»: на странице одна вкладка «Документы». */
 const ADD_REGION_ID = "case-documents-add";
+
+/** Строка, ушедшая после загрузки или решения в другое состояние, чем выбранный фильтр. */
+type MovedDocument = Readonly<{
+  id: string;
+  name: string;
+  from: DocumentStateFilter;
+  to: Exclude<DocumentStateFilter, "all">;
+}>;
 
 function RemovedDocumentHistory({
   groups,
@@ -302,6 +312,8 @@ function CreateChecklistItem({
  * отправки — те же проверки, что у сервера; успех — только 201 с квитанцией
  * этого пункта, затем страница перечитывается. Итог живёт здесь, по id
  * пункта: строка с новой версией файла пересоздаётся, а слово остаётся.
+ * Под фильтром строка после загрузки или решения уходит в своё состояние —
+ * тогда вместо неё одна тихая фраза «Документ «…» перенесён в «…»».
  */
 export function ProfileDocumentsClient({
   groups,
@@ -315,6 +327,7 @@ export function ProfileDocumentsClient({
   baselineChecklistRequestId = null,
   recognition = null,
   today,
+  stateFilter = "all",
   progress = null,
   filter = null,
   checklistEmpty = false,
@@ -335,6 +348,8 @@ export function ProfileDocumentsClient({
   recognition?: DocumentRecognitionAccess | null;
   /** «Сегодня» по Бишкеку с сервера (даты строк). */
   today: string;
+  /** Выбранный фильтр по состоянию: строка, ушедшая из него, называет, куда. */
+  stateFilter?: DocumentStateFilter;
   /** «N из M принято» — только из прочитанного чек-листа; null — чисел нет. */
   progress?: ReactNode;
   /** Фильтр по состоянию (ссылки с числами); null — чек-лист пуст. */
@@ -350,12 +365,17 @@ export function ProfileDocumentsClient({
   const inFlight = useRef(new Set<string>());
   const canChangeChecklist = uploadAccess === "allowed" && studentCaseId !== null && createRequestId !== null;
   const [addOpen, setAddOpen] = useState(checklistEmpty);
+  const [moved, setMoved] = useState<MovedDocument | null>(null);
 
   function record(itemId: string, next: DocumentUploadResult | "sending", file: File | null) {
     const state: DocumentUploadState = next === "sending"
       ? { outcome: "sending", message: "Загружаем файл…", next: null, file }
       : { ...next, file: next.next === "retry" ? file : null };
     setUploads((current) => ({ ...current, [itemId]: state }));
+  }
+
+  function noteMoved(item: DocumentItem, status: PlatformDocumentSlotStatus) {
+    setMoved({ id: item.id, name: item.name, from: stateFilter, to: documentStateOf(status) });
   }
 
   async function upload(item: DocumentItem, file: File) {
@@ -391,6 +411,7 @@ export function ProfileDocumentsClient({
         return;
       }
       record(item.id, DOCUMENT_UPLOAD_SAVED, null);
+      noteMoved(item, "submitted");
       router.refresh();
     } catch {
       record(item.id, documentUploadFailure(null, null), file);
@@ -416,6 +437,11 @@ export function ProfileDocumentsClient({
         Шаблонов чек-листа пока нет — документы добавляются вручную.
       </p>
     ) : null;
+
+  // Только когда строка действительно ушла из списка (страница перечитана).
+  const movedText = moved && stateFilter !== "all" && moved.from === stateFilter && moved.to !== stateFilter
+    && !groups.some((group) => group.items.some((item) => item.id === moved.id))
+    ? documentMovedText(moved.name, moved.to) : null;
 
   return (
     <section aria-labelledby="case-documents-title" className="min-w-0 space-y-3" data-testid="v3-case-documents">
@@ -471,6 +497,10 @@ export function ProfileDocumentsClient({
 
       {filter}
 
+      {movedText ? (
+        <p className="t-body-compact text-fg-2" role="status" data-testid="v3-document-moved">{movedText}</p>
+      ) : null}
+
       {groups.length === 0 ? (
         <p className="py-4 t-body-compact text-fg-2" data-testid="v3-document-empty">
           {emptyText ?? "В чек-листе пока нет документов."}
@@ -494,6 +524,7 @@ export function ProfileDocumentsClient({
                     today={today}
                     upload={uploads[item.id] ?? DOCUMENT_UPLOAD_IDLE}
                     onUpload={(target, file) => void upload(target, file)}
+                    onReviewSaved={noteMoved}
                   />
                 ))}
               </ul>
@@ -502,8 +533,9 @@ export function ProfileDocumentsClient({
         </ul>
       )}
 
+      {/* Под списком черта последней строки уже отделяет раздел: своя не нужна. */}
       {recognition ? <DocumentRecognitionJobs key={recognition.studentCaseId}
-        access={recognition} sourceVersionId={null} sourceReady={false} /> : null}
+        access={recognition} sourceVersionId={null} sourceReady={false} ruled={groups.length === 0} /> : null}
 
       <RemovedDocumentHistory groups={historyGroups} today={today} />
     </section>

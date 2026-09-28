@@ -80,6 +80,7 @@ export function documentsView(input: DocumentsViewInput): ReactElement {
       baselineChecklistRequestId={input.baselineChecklistRequestId}
       recognition={input.recognition}
       today={input.today}
+      stateFilter={input.filter}
       progress={checklistEmpty ? null : (
         <ProgressBar done={counts.approved} total={counts.total} word="принято" />
       )}

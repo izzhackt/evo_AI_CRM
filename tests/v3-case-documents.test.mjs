@@ -89,6 +89,29 @@ test("the decision is in the row: dark «Принять» and «Вернуть�
   assert.doesNotMatch(html, /Сохранить решение|Проверить документ/u);
 });
 
+test("«Принять» and «Вернуть…» keep their place while «Просмотреть» waits for the file check", () => {
+  const html = rendered.get("all");
+  const rowOf = (n) => {
+    const start = html.indexOf(`<li id="document-88888888-5555-4555-8555-${String(n).padStart(12, "0")}"`);
+    return html.slice(start, html.indexOf("</li>", start));
+  };
+  assert.match(rowOf(3), /<span aria-hidden="true" class="invisible hidden @min-\[52rem\]\/documents:inline-flex" data-testid="v3-document-preview-slot">/u);
+  assert.doesNotMatch(rowOf(2), /v3-document-preview-slot/u, "a ready file shows the real «Просмотреть»");
+  assert.doesNotMatch(rowOf(1), /v3-document-preview-slot/u, "no slot without a decision");
+});
+
+test("a row that leaves the filter after an upload or a decision is named in one quiet line", () => {
+  assert.equal(view.documentMovedText("Аттестат", "accepted"), "Документ «Аттестат» перенесён в «Принято».");
+  assert.equal(view.documentMovedText("Паспорт", "review"), "Документ «Паспорт» перенесён в «На проверке».");
+  for (const html of rendered.values()) assert.doesNotMatch(html, /v3-document-moved/u, "nothing has moved before an action");
+});
+
+test("one rule between the checklist and the case recognition history", () => {
+  const section = (html) => html.match(/<section class="([^"]+)" data-testid="document-recognition">/u)?.[1];
+  assert.equal(section(rendered.get("all")), "mt-3 pt-1", "the last row's rule already separates it");
+  assert.match(section(rendered.get("empty")), /\bborder-t border-border\b/u, "without rows the section draws its own rule");
+});
+
 test("upload: a hidden field under a visible «Загрузить файл», the hint, no separate «Сохранить»", () => {
   const html = rendered.get("all");
   const forms = html.split('data-testid="v3-document-upload-form"').slice(1).map((part) => part.slice(0, part.indexOf("</form>")));

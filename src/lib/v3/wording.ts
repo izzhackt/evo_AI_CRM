@@ -299,9 +299,10 @@ const DOCUMENT_SLOT_STATUS: Record<PlatformDocumentSlotStatus, string> = {
 };
 
 // Same three words as the slot status above («принят» / «нужно исправить» /
-// «отклонён»), lowercase: this dictionary is also read mid-sentence
-// («Документ принят · …» in ProfileDocumentsClient.tsx), where a
-// mid-sentence capital would misread as a typo, not emphasis.
+// «отклонён»), lowercase: this dictionary is read mid-sentence
+// («Паспорт — принят» in the case feed, `caseDocumentReviews` in
+// case-work-view.ts), where a mid-sentence capital would misread as a typo,
+// not emphasis.
 const DOCUMENT_REVIEW_DECISION: Record<PlatformDocumentReviewDecision, string> = {
   approved: "принят",
   correction_required: "нужно исправить",
@@ -337,13 +338,11 @@ const TASK_STATUS: Record<string, string> = {
   overdue: "просрочена",
 };
 
-/** Product-level document state. The profile intentionally has only two. */
+/**
+ * Product-level document state. The profile intentionally has only two; it
+ * is a data attribute of the row, not a word — the row's word is the slot status.
+ */
 export type DocumentPresence = "absent" | "present";
-
-const DOCUMENT_PRESENCE: Record<DocumentPresence, string> = {
-  absent: "нет",
-  present: "есть",
-};
 
 /** Canonical finance-stop target; labels are shared by input and read views. */
 const FINANCE_BLOCKED_ACTION = {
@@ -502,7 +501,6 @@ export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_
 export const caseChatAwaitChoice = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE, v);
 export const portalConsultationStatus = (v: string | null | undefined) =>
   lookup(PORTAL_CONSULTATION_STATUS, v);
-export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];
 export const documentSlotStatus = (v: string | null | undefined) =>
   lookup(DOCUMENT_SLOT_STATUS, v);
 export const documentReviewDecision = (v: string | null | undefined) =>

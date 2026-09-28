@@ -94,6 +94,8 @@ test("V3 profile document row shows one state word, the version date and the rea
   assert.match(wording, /export type DocumentPresence = "absent" \| "present"/u);
   assert.match(row, /data-document-presence=\{item\.presence\}/u);
   assert.doesNotMatch(row, /documentPresence\(/u);
+  // The old «есть/нет» word is gone from the dictionary, not only unused.
+  assert.doesNotMatch(wording, /DOCUMENT_PRESENCE|documentPresence/u);
   assert.match(row, /const chip = documentStatusChip\(item\.status\);/u);
   assert.equal(row.match(/<StatusChip /gu)?.length, 1, "one state chip per row");
   assert.doesNotMatch(row, />\s*\{item\.status\}|>\s*\{[a-z.]*latestReview\.decision\}/u);
@@ -104,6 +106,27 @@ test("V3 profile document row shows one state word, the version date and the rea
   assert.match(row, /Причина для студента: <span className="text-fg">\{current\.latestReview\.reason\}<\/span>/u);
   // The dropped sentence and the old two-pill presence line are gone.
   assert.doesNotMatch(row, /Принятый файл доступен для скачивания/u);
+});
+
+test("V3 profile document decision follows the live item and names the refusal of «Принять»", () => {
+  const row = source("src/components/v3/profile/DocumentRow.tsx");
+  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  // The frozen key keeps a lost-response retry idempotent; the live key decides whether the buttons are shown.
+  assert.match(row, /const \[reviewRequestId\] = useState\(item\.presence === "present" \? item\.reviewRequestId : null\);/u);
+  assert.match(row, /current !== null\s*&& current\.reviewRequestId !== null && reviewRequestId !== null;/u);
+  // «Решение сохранено» ends once the re-read item has its new state (the chip names it).
+  assert.match(row, /review\.outcome === "saved" && item\.status !== "submitted" \? null : review\.outcome/u);
+  // «Принять» carries no reason: its «invalid» is a stale page, not a missing reason.
+  assert.match(row, /const APPROVE_INVALID = "Решение не принято сервером\. Обновите страницу\.";/u);
+  assert.match(row, /review\.outcome === "invalid" && review\.decision === "approved"/u);
+  assert.match(row, /invalid: "Укажите причину для студента — до 2000 символов\.",/u);
+  // A saved decision or upload tells the list; under a filter it names where the row went.
+  assert.match(row, /onReviewSaved\(item, attempt\.decision\);/u);
+  assert.match(client, /onReviewSaved=\{noteMoved\}/u);
+  assert.match(client, /noteMoved\(item, "submitted"\);/u);
+  assert.match(client, /data-testid="v3-document-moved">\{movedText\}/u);
+  // The checklist's last rule already separates the case recognition history.
+  assert.match(client, /sourceVersionId=\{null\} sourceReady=\{false\} ruled=\{groups\.length === 0\}/u);
 });
 
 test("V3 profile document upload fails closed and explains every failure class", async () => {
@@ -117,6 +140,7 @@ test("V3 profile document upload fails closed and explains every failure class",
   const words = new Map([
     ["401", upload.documentUploadFailure(401, "authentication_required")],
     ["403", upload.documentUploadFailure(403, "forbidden")],
+    ["403-item", upload.documentUploadFailure(403, "upload_not_authorized")],
     ["413", upload.documentUploadFailure(413, "file_too_large")],
     ["400-signature", upload.documentUploadFailure(400, "file_signature_mismatch")],
     ["400", upload.documentUploadFailure(400, "invalid_upload")],
@@ -130,10 +154,15 @@ test("V3 profile document upload fails closed and explains every failure class",
   ]);
   assert.equal(new Set([...words.values()].map((entry) => entry.message)).size, words.size - 1, "only 5xx and network share «Не удалось загрузить»");
   assert.equal(words.get("503").message, words.get("network").message);
-  assert.match(words.get("network").message, /^Не удалось загрузить\. Файл не отмечен как сохранённый\.$/u);
+  assert.match(words.get("network").message, /^Не удалось загрузить файл\. Повторите попытку\.$/u);
   assert.equal(words.get("network").next, "retry");
   assert.equal(words.get("429").next, "retry");
   assert.equal(words.get("409-request").next, "refresh");
+  // 403 from the database for this item (accepted, removed or no right) is not the role's 403.
+  assert.equal(words.get("403-item").message, "Загрузка в этот пункт недоступна: он уже принят, убран или у роли нет права. Обновите страницу.");
+  assert.equal(words.get("403-item").next, "refresh");
+  assert.equal(words.get("403").message, "У вашей роли нет права загружать этот документ.");
+  assert.equal(upload.documentUploadFailure(403, null).message, words.get("403").message, "a refusal before sending names the role");
   assert.equal(words.get("413").next, null);
   assert.match(words.get("413").message, /25 МБ/u);
   assert.match(words.get("422").message, /вирус/u);
@@ -435,6 +464,7 @@ test("V3 documents wrapper tells a failed baseline-options read apart from an em
 });
 
 const documentUpload = await import("../src/components/v3/profile/document-upload.ts");
+const documentsViewModule = await import("../src/components/v3/profile/documents-view.ts");
 
 function documentsClient(router) {
   return compile("src/components/v3/profile/ProfileDocumentsClient.tsx", (id) => {
@@ -467,6 +497,7 @@ function documentsClient(router) {
     if (id === "./DocumentRecognitionJobs") return { DocumentRecognitionJobs: () => null };
     if (id === "./DocumentRow") return { DocumentRow: () => null, useHydrated: () => true };
     if (id === "./document-upload") return documentUpload;
+    if (id === "./documents-view") return documentsViewModule;
     return undefined;
   });
 }

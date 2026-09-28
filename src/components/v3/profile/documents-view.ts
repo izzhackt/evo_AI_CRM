@@ -92,6 +92,14 @@ export function filterDocumentGroups(
     .filter((group) => group.items.length > 0));
 }
 
+/**
+ * Строка ушла из выбранного фильтра после загрузки или решения: одна тихая
+ * фраза на её месте называет, куда, — иначе строка пропала бы молча.
+ */
+export function documentMovedText(name: string, to: Exclude<DocumentStateFilter, "all">): string {
+  return `Документ «${name}» перенесён в «${FILTER_LABEL[to]}».`;
+}
+
 /** Пусто после фильтра — это не «чек-лист пуст»: называется выбранное состояние. */
 export function documentFilterEmptyText(filter: Exclude<DocumentStateFilter, "all">): string {
   return `Документов в состоянии «${FILTER_LABEL[filter]}» нет.`;

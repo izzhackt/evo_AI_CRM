@@ -336,8 +336,11 @@ async function compileCss() {
 
 // --- вкладка на настоящем React в браузере --------------------------------------
 // Серверные действия — заглушки: решение по документу записывается и отвечает
-// «сохранено»; команды чек-листа возвращают прежнее состояние. Загрузка —
-// заглушка `fetch`: ответ по плану пункта (синтетика), запрос записывается.
+// «сохранено» (или ответом из `__docs.reviewPlan` по пункту); команды чек-листа
+// возвращают прежнее состояние. Загрузка — заглушка `fetch`: ответ по плану
+// пункта (синтетика), запрос записывается. Перечтение страницы по умолчанию
+// данных не меняет; с `__docs.applyDecisions` сохранённое решение переводит
+// пункт в новое состояние без ключа решения — как настоящее перечтение.
 const CLIENT_ENTRY = `
 const React = require("react");
 const { createRoot } = require("react-dom/client");
@@ -346,8 +349,23 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { documentsView } = require("@/components/v3/profile/DocumentsView");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById("docs-fixture").textContent);
-window.__docs = { uploads: [], reviews: [], refreshes: 0 };
-const router = { refresh() { window.__docs.refreshes += 1; }, push() {}, replace() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {} };
+window.__docs = { uploads: [], reviews: [], refreshes: 0, reviewPlan: {}, applyDecisions: false };
+let input = fixture.input;
+function applyDecisions() {
+  const decided = new Map(window.__docs.reviews.filter((entry) => entry.outcome === "saved").map((entry) => [entry.document_slot_id, entry]));
+  input = { ...input, groups: input.groups.map((group) => group.kind !== "active" ? group : { ...group, items: group.items.map((item) => {
+    const entry = decided.get(item.id);
+    return entry ? { ...item, status: entry.decision, reviewRequestId: null, latestReview: { decision: entry.decision, reason: entry.reason || null,
+      reviewerMembershipId: "aaaaaaaa-1111-4111-8111-000000000001", reviewerDisplayName: "Куратор (синтетический)", reviewedAt: "2026-09-28T06:00:00.000Z" } } : item;
+  }) }) };
+}
+const router = {
+  refresh() {
+    window.__docs.refreshes += 1;
+    if (window.__docs.applyDecisions) { applyDecisions(); render(); }
+  },
+  push() {}, replace() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {},
+};
 window.fetch = async (url, init) => {
   const path = String(url);
   const upload = /\\/api\\/v2\\/document-slots\\/([^/]+)\\/versions$/.exec(path);
@@ -365,10 +383,14 @@ window.fetch = async (url, init) => {
   if (/document-recognition-jobs/.test(path)) return new Response(JSON.stringify({ jobs: [], next_cursor: null }), { status: 200 });
   throw new TypeError("offline harness: " + path);
 };
-createRoot(document.getElementById("${TAB_ROOT}")).render(
-  h(AppRouterContext.Provider, { value: router },
-    h(PathnameContext.Provider, { value: "/v3/profile" },
-      h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) }, documentsView(fixture.input)))));
+const root = createRoot(document.getElementById("${TAB_ROOT}"));
+function render() {
+  root.render(
+    h(AppRouterContext.Provider, { value: router },
+      h(PathnameContext.Provider, { value: "/v3/profile" },
+        h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) }, documentsView(input)))));
+}
+render();
 `;
 
 async function bundleClient(outDir) {
@@ -385,7 +407,7 @@ async function bundleClient(outDir) {
         const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
         return {
           contents: names.map((name) => name === "reviewPlatformDocumentAction"
-            ? `export async function ${name}(form) { window.__docs.reviews.push(Object.fromEntries(form.entries())); await new Promise((done) => setTimeout(done, 200)); return "saved"; }`
+            ? `export async function ${name}(form) { const entry = Object.fromEntries(form.entries()); window.__docs.reviews.push(entry); await new Promise((done) => setTimeout(done, 200)); entry.outcome = window.__docs.reviewPlan[entry.document_slot_id] ?? "saved"; return entry.outcome; }`
             : `export async function ${name}(previous) { return previous; }`).join("\n"),
           loader: "ts",
         };
@@ -595,6 +617,45 @@ async function screenshots() {
         `${width}: 413 and 503 get their own words, 503 offers «Повторить» (${words.join(" / ")})`);
       await shot(page, `docs-upload-${width}.png`, { at: `#document-${uuid("88888888", 6)}` });
       check(errors.length === 0, `${width}: no browser errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
+      await context.close();
+    }
+
+    // Перечтение после решения (1440): строка берёт новое состояние, под фильтром — уходит и называет, куда.
+    {
+      const { context, page, errors } = await open("all", 1440);
+      // «Принять» и «Вернуть…» стоят на одном месте и у строки, чей файл ещё проверяется (место «Просмотреть» держится).
+      const x = async (n, id) => Math.round((await row(page, n).getByTestId(id).boundingBox()).x);
+      check(await x(2, "v3-document-approve") === await x(3, "v3-document-approve") && await x(2, "v3-document-return") === await x(3, "v3-document-return"),
+        "1440: «Принять»/«Вернуть…» keep their x without «Просмотреть»");
+      await page.evaluate(() => { window.__docs.applyDecisions = true; });
+      await row(page, 2).getByTestId("v3-document-approve").click();
+      await page.locator(`#document-${uuid("88888888", 2)}[data-document-status="approved"]`).waitFor();
+      check(await row(page, 2).getByTestId("v3-document-approve").count() === 0 && await row(page, 2).getByText(/Решение сохранено/).count() === 0,
+        "1440: after the re-read the decided row shows its new state, no decision buttons and no «сохранено»");
+      check(errors.length === 0, `1440 re-read: no browser errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
+      await context.close();
+    }
+    {
+      const { context, page, errors } = await open("review", 1440);
+      await page.evaluate(() => { window.__docs.applyDecisions = true; });
+      await row(page, 2).getByTestId("v3-document-approve").click();
+      await page.getByTestId("v3-document-moved").waitFor();
+      const moved = await page.getByTestId("v3-document-moved").textContent();
+      check(moved === "Документ «Аттестат» перенесён в «Принято»." && await row(page, 2).count() === 0,
+        `1440 review: the decided row leaves the filter and one quiet line says where (${moved})`);
+      await shot(page, "docs-moved-1440.png", { at: "#case-documents-title" });
+      check(errors.length === 0, `1440 moved: no browser errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
+      await context.close();
+    }
+    {
+      // Отказ сервера в данных «Принять» — не просьба о причине.
+      const { context, page, errors } = await open("all", 1440);
+      await page.evaluate((slot) => { window.__docs.reviewPlan[slot] = "invalid"; }, uuid("88888888", 2));
+      await row(page, 2).getByTestId("v3-document-approve").click();
+      await row(page, 2).getByText("Решение не принято сервером. Обновите страницу.").waitFor();
+      check(await row(page, 2).getByText(/Укажите причину/).count() === 0 && await row(page, 2).getByRole("button", { name: "Обновить страницу", exact: true }).isVisible(),
+        "1440: an invalid «Принять» asks to refresh, not for a reason");
+      check(errors.length === 0, `1440 invalid: no browser errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
       await context.close();
     }
   } finally {

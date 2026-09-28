@@ -72,6 +72,11 @@ export function documentUploadFileProblem(file: Readonly<{ name: string; size: n
  */
 export function documentUploadFailure(status: number | null, code: string | null): DocumentUploadResult {
   if (status === 401) return result("forbidden", "Сессия закончилась. Войдите снова и повторите загрузку.");
+  // 403 `upload_not_authorized` — отказ базы по этому пункту (принят, убран или
+  // нет права); 403 `forbidden` и отказ до отправки (код null) — право роли.
+  if (status === 403 && code === "upload_not_authorized") {
+    return result("forbidden", "Загрузка в этот пункт недоступна: он уже принят, убран или у роли нет права. Обновите страницу.", "refresh");
+  }
   if (status === 403) return result("forbidden", "У вашей роли нет права загружать этот документ.");
   if (status === 413) return result("invalid", TOO_LARGE);
   if (status === 400 && code === "file_signature_mismatch") {
@@ -92,7 +97,7 @@ export function documentUploadFailure(status: number | null, code: string | null
   if (status !== null && status >= 400 && status < 500) {
     return result("invalid", "Сервер не принял файл: нужен PDF, JPEG или PNG до 25 МБ с именем до 255 знаков.");
   }
-  return result("unavailable", "Не удалось загрузить. Файл не отмечен как сохранённый.", "retry");
+  return result("unavailable", "Не удалось загрузить файл. Повторите попытку.", "retry");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

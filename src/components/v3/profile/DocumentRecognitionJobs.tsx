@@ -40,9 +40,11 @@ export function DocumentRecognitionJobList({ jobs, reviewHref, canRetry, onRetry
 /**
  * Only explicit commands enqueue. Opening, polling and pagination are GETs.
  * `initiallyOpen` — the row's «⋯» → «Распознавание» shows it already open (Э8.1).
+ * `ruled` — the section draws its own top rule; false right under the checklist,
+ * whose last row's rule already separates it (no doubled line).
  */
-export function DocumentRecognitionJobs({ access, sourceVersionId, sourceReady, initiallyOpen = false }: {
-  access: DocumentRecognitionAccess; sourceVersionId: string | null; sourceReady: boolean; initiallyOpen?: boolean;
+export function DocumentRecognitionJobs({ access, sourceVersionId, sourceReady, initiallyOpen = false, ruled = true }: {
+  access: DocumentRecognitionAccess; sourceVersionId: string | null; sourceReady: boolean; initiallyOpen?: boolean; ruled?: boolean;
 }) {
   const id = useId();
   const ready = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
@@ -100,7 +102,7 @@ export function DocumentRecognitionJobs({ access, sourceVersionId, sourceReady, 
     void dispatch(command);
   }
 
-  return <section className="mt-3 border-t border-border pt-1" data-testid="document-recognition">
+  return <section className={`mt-3 pt-1${ruled ? " border-t border-border" : ""}`} data-testid="document-recognition">
     <button type="button" className="flex min-h-11 w-full items-center justify-between gap-3 text-left t-item text-fg disabled:cursor-wait"
       disabled={!ready} aria-busy={!ready} aria-expanded={open} aria-controls={id}
       onClick={() => setOpen(value => !value)}>

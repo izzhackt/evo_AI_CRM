@@ -14,7 +14,7 @@ import {
 } from "react";
 
 import { Icon } from "@/components/icons";
-import { fieldLabelCls, inputCls } from "@/components/ui";
+import { btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { useAnchoredPopover } from "@/components/v3/queue/useAnchoredPopover";
@@ -27,7 +27,7 @@ import {
   type PlatformDocumentChecklistActionState,
 } from "@/lib/platform-document-checklist-actions";
 import { reviewPlatformDocumentAction, type DocumentReviewOutcome } from "@/lib/platform-document-review-action";
-import type { PlatformDocumentReviewDecision } from "@/lib/platform-private-documents";
+import type { PlatformDocumentReviewDecision, PlatformDocumentSlotStatus } from "@/lib/platform-private-documents";
 
 import { caseMomentLabel } from "./case-work-view";
 import { ChecklistFeedback, useRefreshAfterSave } from "./DocumentChecklistFeedback";
@@ -89,16 +89,21 @@ const REVIEW_MESSAGES: Readonly<Record<DocumentReviewOutcome, string>> = {
   unavailable: "Сервер не подтвердил результат. Повторите тот же запрос: решение и причина сохранены.",
 };
 
+/** У «Принять» причины нет: отказ сервера в данных команды — устаревшая страница, а не причина. */
+const APPROVE_INVALID = "Решение не принято сервером. Обновите страницу.";
+
 type ReviewAttempt = Readonly<{ decision: PlatformDocumentReviewDecision; reason: string }>;
 
 type ReviewState = Readonly<{
   pending: boolean;
   outcome: DocumentReviewOutcome | null;
+  /** Решение последней попытки: слово итога «invalid» у «Принять» и у «Вернуть…» разное. */
+  decision: PlatformDocumentReviewDecision | null;
   /** Попытка без подтверждённого ответа: «Повторить» отправляет её же с тем же ключом. */
   attempt: ReviewAttempt | null;
 }>;
 
-const REVIEW_IDLE: ReviewState = Object.freeze({ pending: false, outcome: null, attempt: null });
+const REVIEW_IDLE: ReviewState = Object.freeze({ pending: false, outcome: null, decision: null, attempt: null });
 
 function CaseLinkSummary({ item }: Readonly<{ item: DocumentItem }>) {
   const linkedTargets = item.caseLinkTargets.filter((target) => target.linked);
@@ -328,6 +333,7 @@ export function DocumentRow({
   today,
   upload,
   onUpload,
+  onReviewSaved,
 }: Readonly<{
   item: DocumentItem;
   studentCaseId: string | null;
@@ -338,6 +344,8 @@ export function DocumentRow({
   upload: DocumentUploadState;
   /** Загрузка идёт у списка: её итог переживает новую версию строки. */
   onUpload: (item: DocumentItem, file: File) => void;
+  /** Решение сохранено: под фильтром список назовёт, куда ушла строка. */
+  onReviewSaved: (item: DocumentItem, status: PlatformDocumentSlotStatus) => void;
 }>) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -365,7 +373,14 @@ export function DocumentRow({
   const uploadIdMissing = uploadAccess === "allowed" && item.status !== "approved" && item.uploadRequestId === null;
   const canEditItem = uploadAccess === "allowed" && studentCaseId !== null
     && item.metadataRequestId !== null && item.removalRequestId !== null;
-  const reviewable = uploadAccess === "allowed" && studentCaseId !== null && present && reviewRequestId !== null;
+  // Решать можно, пока и живой пункт выдаёт ключ решения (текущая версия ещё
+  // на проверке): после перечтения с чужим решением кнопки уходят, а не ждут отказа.
+  const reviewable = uploadAccess === "allowed" && studentCaseId !== null && current !== null
+    && current.reviewRequestId !== null && reviewRequestId !== null;
+  const deciding = reviewable && review.outcome !== "saved";
+  // Перечитанный пункт уже в новом состоянии (его называет чип строки): «сохранено» больше не нужно.
+  const reviewOutcome = review.outcome === "saved" && item.status !== "submitted" ? null : review.outcome;
+  const approveInvalid = review.outcome === "invalid" && review.decision === "approved";
   const reviewStale = review.outcome === "stale" || review.outcome === "request_conflict";
   const reviewUncertain = review.outcome === "unavailable" && review.attempt !== null;
   const reviewLocked = !hydrated || review.pending || reviewUncertain || reviewStale || review.outcome === "saved";
@@ -381,7 +396,7 @@ export function DocumentRow({
     if (!current || !studentCaseId || !reviewRequestId || reviewSending.current) return;
     if (review.outcome === "saved" || reviewStale) return;
     reviewSending.current = true;
-    setReview({ pending: true, outcome: null, attempt });
+    setReview({ pending: true, outcome: null, decision: attempt.decision, attempt });
     const form = new FormData();
     form.set("student_case_id", studentCaseId);
     form.set("document_slot_id", item.id);
@@ -391,13 +406,14 @@ export function DocumentRow({
     form.set("reason", attempt.decision === "approved" ? "" : attempt.reason);
     try {
       const result = await reviewPlatformDocumentAction(form);
-      setReview({ pending: false, outcome: result, attempt: result === "unavailable" ? attempt : null });
+      setReview({ pending: false, outcome: result, decision: attempt.decision, attempt: result === "unavailable" ? attempt : null });
       if (result === "saved") {
         setPanel(null);
+        onReviewSaved(item, attempt.decision);
         router.refresh();
       }
     } catch {
-      setReview({ pending: false, outcome: "unavailable", attempt });
+      setReview({ pending: false, outcome: "unavailable", decision: attempt.decision, attempt });
     } finally {
       reviewSending.current = false;
     }
@@ -472,7 +488,7 @@ export function DocumentRow({
           <CaseLinkSummary item={item} />
           {current && !current.downloadReady ? (
             <p className="t-meta text-fg-2" role="status">
-              {reviewable && review.outcome !== "saved"
+              {deciding
                 ? "Файл ещё проверяется: принять можно после проверки, вернуть студенту — уже сейчас."
                 : "Файл есть, но скачивание ещё не подтверждено хранилищем."}
             </p>
@@ -493,8 +509,13 @@ export function DocumentRow({
         <div className="flex min-w-0 flex-wrap items-center gap-2 [grid-area:actions]">
           {current?.downloadReady ? (
             <DocumentPreviewButton key={current.currentVersionId} versionId={current.currentVersionId} filename={current.currentFilename} versionNumber={current.currentVersionNumber} />
+          ) : deciding ? (
+            // Место «Просмотреть» держится, пока файл проверяется: «Принять» и «Вернуть…» — там же, где у соседних строк.
+            <span aria-hidden="true" className="invisible hidden @min-[52rem]/documents:inline-flex" data-testid="v3-document-preview-slot">
+              <span className={`${btnGhostCls} min-h-11`}>Просмотреть</span>
+            </span>
           ) : null}
-          {reviewable && review.outcome !== "saved" ? (
+          {deciding ? (
             <>
               <button
                 type="button"
@@ -590,12 +611,14 @@ export function DocumentRow({
         </div>
       ) : null}
 
-      {review.outcome ? (
+      {reviewOutcome ? (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <p role="status" className={`break-words t-body-compact ${review.outcome === "saved" ? "text-ok" : "text-danger"}`}>
-            {REVIEW_MESSAGES[review.outcome]}
+          <p role="status" className={`break-words t-body-compact ${reviewOutcome === "saved" ? "text-ok" : "text-danger"}`}>
+            {approveInvalid ? APPROVE_INVALID : REVIEW_MESSAGES[reviewOutcome]}
           </p>
-          {reviewUncertain && review.attempt ? (
+          {approveInvalid ? (
+            <button type="button" className={TEXT_BUTTON} onClick={() => router.refresh()}>Обновить страницу</button>
+          ) : reviewUncertain && review.attempt ? (
             <button type="button" className={QUEUE_SECONDARY} disabled={review.pending} onClick={() => review.attempt && void decide(review.attempt)}>
               Повторить тот же запрос
             </button>

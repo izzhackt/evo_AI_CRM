@@ -1,3 +1,4 @@
+import type { IconName } from "@/components/icons";
 import type { FixedRole } from "./fixed-role-policy.ts";
 import type { ActivePlatformActor } from "./platform-auth.ts";
 import { isStaffPreview, staffHasPermission } from "./platform-access.ts";
@@ -7,6 +8,15 @@ export type TeamChatChannelKey = (typeof TEAM_CHAT_CHANNELS)[number];
 export const TEAM_CHAT_LABELS: Record<TeamChatChannelKey, string> = {
   general: "Общий", sales: "Продажи", admissions: "Поступление",
 };
+/**
+ * Знак канала — знак его места в меню (Э8.9, 28.09.2026): «Общий» — пункт
+ * «Командный чат», «Продажи» и «Поступление» — группы меню. Нейтральный круг
+ * со знаком вместо первой буквы: у «Продаж» и «Поступления» она одна — «П».
+ * Совпадение с `LINK_ICONS`/`GROUP_ICONS` меню закреплено тестом.
+ */
+export const TEAM_CHAT_CHANNEL_ICONS = {
+  general: "messages-square", sales: "wallet", admissions: "circle-check",
+} as const satisfies Record<TeamChatChannelKey, IconName>;
 export const TEAM_CHAT_BODY_LIMIT = 8000;
 export const TEAM_CHAT_PAGE_MODES = ["latest", "before", "changes", "thread", "search", "message"] as const;
 export type TeamChatPageMode = (typeof TEAM_CHAT_PAGE_MODES)[number];

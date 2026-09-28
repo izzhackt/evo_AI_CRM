@@ -20,7 +20,7 @@ import { salesDirectionControl } from "@/lib/sales-register-directions";
 import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 import {
   SALES_PAGE_SIZE, SALES_SUMMARY_MAX_PAGES, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
-  SALES_NO_REMAINDER_TEXT, salesDay, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis,
+  SALES_NO_REMAINDER_TEXT, salesDay, salesDayParts, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis,
   type SalesLabelGroup, type SalesMoneySummary,
 } from "@/lib/sales-register-view";
 
@@ -45,7 +45,8 @@ const reportMonthOf = salesReportMonth;
  * причина помещаются; уже (≈1280) места на всё нет — сужается текст
  * (подсказка с полным), а не суммы. Во «Весь год» и в срезе «записаны в
  * другой месяц отчёта» есть столбец «Месяц отчёта»: его место берётся у
- * текста, суммы те же.
+ * текста, суммы те же. «Дата» (и в коротком наборе) — по «ДД.ММ»: год
+ * продажи другого года — второй строкой под датой (12 px), а не «ДД.ММ.ГГ».
  */
 const RECORD_COLUMNS = [
   "w-[17%] @min-[70rem]/sales-records:w-[16%]", "w-[17%] @min-[70rem]/sales-records:w-[19%]", "w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
@@ -343,6 +344,7 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
   const remainderWhy = noRemainder === null ? null : SALES_NO_REMAINDER_TEXT[noRemainder];
   const place = [row.country, row.program].map((part) => tidy(part)).filter(Boolean).join(" · ");
   const reportMonth = showReportMonth ? reportMonthOf(row.reportMonth) : null;
+  const saleDay = row.signingDate ? salesDayParts(row.signingDate, year) : null;
   const reviewText = review.state === "review" ? review.reasons.join(", ") : review.state === "checked" ? "Сверено" : "В архиве";
   const reviewTone = review.state === "review" ? "text-fg-2" : "text-fg-3";
   const reviewMark = compact && review.state === "review";
@@ -368,7 +370,10 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
         <td role="cell" className={at.cell}><span className="block truncate t-body-compact text-fg-2" title={manager || undefined}>{manager || "—"}</span></td>
       </>}
       <td role="cell" className={`${at.cell} ${at.date}`}>
-        {row.signingDate ? <time dateTime={row.signingDate} className={`t-body-compact text-fg-2 ${mono}`}>{rowDate(row.signingDate, year)}</time> : <span className="t-body-compact text-fg-3">—</span>}
+        {/* Ячейке хватает «ДД.ММ»: год другой продажи — второй строкой под датой (12 px), не «28.12.25» поверх «Стоимости». */}
+        {saleDay ? <time dateTime={row.signingDate ?? undefined} className={`t-body-compact text-fg-2 ${mono}`}>{saleDay.day}{saleDay.year
+          ? <span className="block t-meta" data-sale-year={saleDay.year}><span className="sr-only">.</span>{saleDay.year}</span> : null}</time>
+          : <span className="t-body-compact text-fg-3">—</span>}
         {/* Рядом с записью месяц отчёта — второй строкой под датой: своему столбцу там места нет. */}
         {compact && reportMonth ? <time dateTime={reportMonth.dateTime} data-report-month={reportMonth.dateTime}
           className={`block t-meta text-fg-2 ${mono}`} title={`Месяц отчёта: ${reportMonth.words}`}>

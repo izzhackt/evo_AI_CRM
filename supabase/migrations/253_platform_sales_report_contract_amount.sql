@@ -12,8 +12,8 @@
 -- never projected. The manager filter grouped 19 spellings of ~15 people by
 -- case and spaces only; there was no owner-approved mapping.
 --
--- Owner decisions 28.09 (session default of the owner's first option; the
--- owner may still choose «курс на дату оплаты» before this migration runs):
+-- Owner decisions 28.09 (the field «Оплачено в валюте договора» confirmed by
+-- the owner 28.09, not «курс на дату оплаты»):
 --  * «Оплачено в валюте договора» — the manager types the amount paid, in the
 --    contract (cost) currency; the system converts nothing;
 --  * a currency difference alone no longer flags a record once that amount

@@ -256,10 +256,20 @@ export function recordsDative(count: number): string {
 
 const MONTH_WORDS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 
-/** Плотная дата записи: «ДД.ММ», другой год (чем год отчёта) — «ДД.ММ.ГГ» (DESIGN.md). */
-export function salesDay(date: string, year: number): string {
+/**
+ * Дата записи для ячейки таблицы (Э8.6): «ДД.ММ» и год, только если он другой
+ * (чем год отчёта), — отдельно: ячейка «Дата» ставит его второй строкой под
+ * датой (12 px) и не шире «ДД.ММ».
+ */
+export function salesDayParts(date: string, year: number): Readonly<{ day: string; year: string | null }> {
   const [y, m, d] = date.split("-");
-  return Number(y) === year ? `${d}.${m}` : `${d}.${m}.${y.slice(2)}`;
+  return { day: `${d}.${m}`, year: Number(y) === year ? null : y };
+}
+
+/** Плотная дата записи одной строкой: «ДД.ММ», другой год (чем год отчёта) — «ДД.ММ.ГГ» (DESIGN.md). */
+export function salesDay(date: string, year: number): string {
+  const parts = salesDayParts(date, year);
+  return parts.year === null ? parts.day : `${parts.day}.${parts.year.slice(2)}`;
 }
 
 /** Месяц отчёта записи: словами («Сентябрь 2026») и плотно для столбца («09.2026», JetBrains Mono). */

@@ -55,8 +55,10 @@
  *       e86-<сценарий>-<ширина>.png, переполнение, сплошной красный, текст
  *       мельче 12 px, цели ниже 44 px, верх панели относительно колонки
  *       списка, вид таблицы записей, обрезанные имена и строки «Уточнить: …»
- *       под именем. Ошибка — обрезанная сумма строки или заголовок столбца
- *       и столбец сумм, в который не входит «120 000 KGS».
+ *       под именем; продажа другого года (28.12.2025) — год второй строкой
+ *       под датой. Ошибка — обрезанная сумма строки или заголовок столбца,
+ *       столбец сумм, в который не входит «120 000 KGS», и дата или месяц
+ *       отчёта, вышедшие за поле своей ячейки.
  *   node tests/e2e/numbers-static-render.cjs --f1 [outDir]
  *     → Э7 «Одна боковая панель везде»: «Отчёт продаж» с записью, открытой
  *       по адресу (`?record=…&edit=true`), на
@@ -331,6 +333,18 @@ function withContractAmount() {
   REPORT.rows = rows.map((row) => row.id === E4_ROWS[5].id
     ? withReasons({ ...row, paidContractMinor: 52000, paidContractCurrency: "USD", needsReview: false }) : row);
   return () => { REPORT.rows = rows; };
+}
+// Э8.6: продажа другого года в отчёте 2026 — «Айжан Примерова» с датой продажи 28.12.2025,
+// записанная в сентябрьский отчёт. Ячейке «Дата» хватает «ДД.ММ»: год — второй строкой под датой.
+const OTHER_YEAR_SALE = "2025-12-28";
+function withOtherYearSale() {
+  const rows = REPORT.rows;
+  REPORT.rows = rows.map((row) => row.id === E4_ROWS[1].id ? withReasons({ ...row, signingDate: OTHER_YEAR_SALE }) : row);
+  return () => { REPORT.rows = rows; };
+}
+async function otherYearPage(extra) {
+  const restore = withOtherYearSale();
+  try { return await reportPage(extra); } finally { restore(); }
 }
 // Больше 500 записей в выборке: остаток по всем страницам не читается, суммы — сервера по записям
 // (`totals`), а неуточнённые стоимость и оплата, которых в них нет, названы числом.
@@ -727,6 +741,11 @@ async function e4Pages() {
     // и срез июля «записаны в другой месяц отчёта».
     { name: "report-year", html: await reportPage({ month: "all" }) },
     { name: "report-year-panel", html: await reportPage({ month: "all", record: E4_EARLIER_ROWS[1].id }) },
+    // Дата продажи другого года (Э8.6): полная таблица, таблица рядом с записью и «Весь год» рядом
+    // с записью — под датой год, под ним месяц отчёта.
+    { name: "report-other-year", html: await otherYearPage({}) },
+    { name: "report-other-year-panel", html: await otherYearPage({ record: E4_ROWS[1].id }) },
+    { name: "report-other-year-all-panel", html: await otherYearPage({ month: "all", record: E4_ROWS[1].id }) },
     { name: "report-elsewhere", html: await reportPage({ month: "7", sale: "filed_elsewhere" }) },
     { name: "report-bulk", html: await (async () => { useE4BulkReport(); const html = await reportPage({}); useE4Report(); return html; })() },
     // «Архив»: сколько записей — без сумм и без столбца «Остаток».
@@ -833,7 +852,8 @@ async function e4Screenshots() {
 
 // --- Э8.6: «Отчёт продаж» — запись в панели, сумма в валюте договора, менеджеры ----
 const E86_PAGES = ["report", "report-panel", "report-panel-edit", "report-panel-cross", "report-panel-cross-edit",
-  "report-panel-contract", "report-panel-contract-list", "report-manager", "report-year", "report-year-panel", "managers"];
+  "report-panel-contract", "report-panel-contract-list", "report-manager", "report-year", "report-year-panel",
+  "report-other-year", "report-other-year-panel", "report-other-year-all-panel", "managers"];
 async function e86Screenshots() {
   const outIndex = process.argv.indexOf("--e86-screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
@@ -904,6 +924,23 @@ async function e86Screenshots() {
                 probe.remove();
                 return need > span.clientWidth ? [`${span.clientWidth}<${Math.ceil(need)}`] : [];
               }) : [],
+            // Даты и месяц отчёта в ячейках таблицы не выходят за своё поле (дата другого года —
+            // «ДД.ММ» и год второй строкой, а не «28.12.25» поверх «Стоимости»): px сверх поля.
+            dateCut: table && getComputedStyle(table).display === "table" ? [...table.querySelectorAll("tbody td > time")].filter(visible).flatMap((time) => {
+              const cell = time.parentElement;
+              const edge = box(cell).right - parseFloat(getComputedStyle(cell).paddingRight);
+              // Видимый текст ячейки: подпись для чтения с экрана (`sr-only`) места не занимает.
+              const walker = document.createTreeWalker(time, NodeFilter.SHOW_TEXT);
+              const rights = [];
+              for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (!node.textContent.trim() || node.parentElement.closest(".sr-only")) continue;
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                rights.push(...[...range.getClientRects()].map((rect) => rect.right));
+              }
+              const right = Math.max(...rights);
+              return right > edge + 0.5 ? [`${time.textContent.trim()}+${Math.ceil(right - edge)}px`] : [];
+            }) : [],
             // Имя сужается раньше сумм — сколько имён обрезано из видимых в строках таблицы.
             names: table && getComputedStyle(table).display === "table" ? (() => {
               const shown = [...table.querySelectorAll("tbody th a > span:first-child")].filter(visible);
@@ -922,9 +959,9 @@ async function e86Screenshots() {
           await page.evaluate(() => window.scrollTo({ top: 520, behavior: "instant" }));
           await page.screenshot({ path: join(outDir, `${file}-${width}-scrolled.png`) });
         }
-        process.stdout.write(`${shot}: overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText.length}${metrics.smallText.length ? ` (${metrics.smallText.join(" | ")})` : ""} under44=${metrics.under44.length}${metrics.under44.length ? ` (${metrics.under44.join(" | ")})` : ""}${metrics.panelTopDelta !== null ? ` panelTopDelta=${metrics.panelTopDelta}` : ""}${metrics.tableDisplay ? ` table=${metrics.tableLayout}/${metrics.tableDisplay} rowHeight=${metrics.firstRowHeight}` : ""}${metrics.names !== null ? ` namesCut=${metrics.names}` : ""}${metrics.reviewMarks !== null ? ` reviewMarks=${metrics.reviewMarks}` : ""} moneyCut=${metrics.moneyCut.length}${metrics.moneyCut.length ? ` (${metrics.moneyCut.join(" | ")})` : ""} moneyRoom=${metrics.moneyRoom.length ? metrics.moneyRoom.join(" | ") : "ok"} headCut=${metrics.headCut.length}${metrics.headCut.length ? ` (${metrics.headCut.join(" | ")})` : ""}\n`);
-        if (metrics.moneyCut.length || metrics.moneyRoom.length || metrics.headCut.length) {
-          cut.push(`${shot}: money ${JSON.stringify(metrics.moneyCut)}, room for «120 000 KGS» ${JSON.stringify(metrics.moneyRoom)}, headers ${JSON.stringify(metrics.headCut)}`);
+        process.stdout.write(`${shot}: overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText.length}${metrics.smallText.length ? ` (${metrics.smallText.join(" | ")})` : ""} under44=${metrics.under44.length}${metrics.under44.length ? ` (${metrics.under44.join(" | ")})` : ""}${metrics.panelTopDelta !== null ? ` panelTopDelta=${metrics.panelTopDelta}` : ""}${metrics.tableDisplay ? ` table=${metrics.tableLayout}/${metrics.tableDisplay} rowHeight=${metrics.firstRowHeight}` : ""}${metrics.names !== null ? ` namesCut=${metrics.names}` : ""}${metrics.reviewMarks !== null ? ` reviewMarks=${metrics.reviewMarks}` : ""} moneyCut=${metrics.moneyCut.length}${metrics.moneyCut.length ? ` (${metrics.moneyCut.join(" | ")})` : ""} dateCut=${metrics.dateCut.length}${metrics.dateCut.length ? ` (${metrics.dateCut.join(" | ")})` : ""} moneyRoom=${metrics.moneyRoom.length ? metrics.moneyRoom.join(" | ") : "ok"} headCut=${metrics.headCut.length}${metrics.headCut.length ? ` (${metrics.headCut.join(" | ")})` : ""}\n`);
+        if (metrics.moneyCut.length || metrics.moneyRoom.length || metrics.headCut.length || metrics.dateCut.length) {
+          cut.push(`${shot}: money ${JSON.stringify(metrics.moneyCut)}, room for «120 000 KGS» ${JSON.stringify(metrics.moneyRoom)}, headers ${JSON.stringify(metrics.headCut)}, dates ${JSON.stringify(metrics.dateCut)}`);
         }
         await context.close();
       }
@@ -933,7 +970,7 @@ async function e86Screenshots() {
     await browser.close();
   }
   writeFileSync(join(outDir, "e86-metrics.json"), JSON.stringify(results, null, 2));
-  if (cut.length) throw new Error(`e86: cut amounts, no room for a six-digit amount or cut column headers:\n${cut.join("\n")}`);
+  if (cut.length) throw new Error(`e86: cut amounts, no room for a six-digit amount, cut column headers or dates out of their cell:\n${cut.join("\n")}`);
 }
 
 // --- F1 (Э7): одна боковая панель у «Отчёта продаж» ---------------------------

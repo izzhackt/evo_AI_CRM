@@ -15,7 +15,7 @@ import {
 import { profileTabAccess, resolveTab, tabsFor } from "../src/components/v3/profile/types.ts";
 import {
   SALES_NO_REMAINDER_TEXT, groupSalesLabels, managersWord, recordsDative, recordsWord, salesImportFlagText, salesLabelGroupOf, salesManualReview,
-  salesMoneySummary, salesPeriodSteps, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, salesWord,
+  salesDay, salesDayParts, salesMoneySummary, salesPeriodSteps, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, salesWord,
 } from "../src/lib/sales-register-view.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -580,6 +580,31 @@ test("rendered «Отчёт продаж»: the report month stays visible where
   assert.match(text(money), /Остаток не посчитан: в выборке больше 500 записей — сузьте период или фильтры\. В денежные итоги не включены неуточнённые значения: стоимость — 75, оплата — 116\. Валюты не пересчитываются/u);
   const view = read("src/components/v3/SalesRegisterView.tsx");
   assert.match(view, /workspace\.unresolvedCostCount > 0 \|\| workspace\.unresolvedPaidCount > 0/u);
+});
+
+test("rendered «Отчёт продаж»: a sale of another year keeps «ДД.ММ» in the date cell, its year on a second 12 px mono line", () => {
+  assert.deepEqual(salesDayParts("2026-09-03", 2026), { day: "03.09", year: null });
+  assert.deepEqual(salesDayParts("2025-12-28", 2026), { day: "28.12", year: "2025" });
+  assert.equal(salesDay("2026-09-03", 2026), "03.09");
+  assert.equal(salesDay("2025-12-28", 2026), "28.12.25", "one line where there is room: the phone row and the panel");
+  // «Айжан Примерова» с датой продажи 28.12.2025 в отчёте 2026 (Э8.6): ячейке «Дата» (≈50 px рядом с записью,
+  // ≈72 px в полной таблице) хватает «ДД.ММ», год — второй строкой 12 px, а не «28.12.25» поверх «Стоимости».
+  const cell = '<time dateTime="2025-12-28" class="t-body-compact text-fg-2 font-mono tabular-nums">28.12<span class="block t-meta" data-sale-year="2025"><span class="sr-only">.</span>2025</span></time>';
+  const phoneLine = '<p class="truncate t-meta text-fg-2"><time dateTime="2025-12-28" class="font-mono tabular-nums">28.12.25</time> · Санжар Эскизов · Малайзия · Бакалавриат</p>';
+  for (const [name, layout] of [["report-other-year", "full"], ["report-other-year-panel", "compact"], ["report-other-year-all-panel", "compact"]]) {
+    const page = pages.get(name);
+    assert.match(page, new RegExp(`<table role="table" class="[^"]*" data-layout="${layout}">`, "u"), name);
+    assert.ok(page.includes(`">${cell}`), `${name}: the date cell`);
+    assert.equal(page.match(/data-sale-year=/gu)?.length, 1, `${name}: only the other-year sale`);
+    assert.doesNotMatch(page, /<td role="cell" class="[^"]*"><time dateTime="2025-12-28"[^>]*>28\.12\.25/u, `${name}: no «ДД.ММ.ГГ» in the cell`);
+    assert.ok(page.includes(phoneLine), `${name}: the phone row keeps one line`);
+  }
+  // «Весь год» рядом с записью: под датой — год, под ним — месяц отчёта.
+  assert.ok(pages.get("report-other-year-all-panel").includes(`${cell}<time dateTime="2026-09" data-report-month="2026-09" class="block t-meta text-fg-2 font-mono tabular-nums" title="Месяц отчёта: Сентябрь 2026"><span class="sr-only">месяц отчёта </span>09.2026</time></td>`));
+  // Панель записи — «Дата продажи» одной строкой: ширины хватает.
+  assert.ok(pages.get("report-other-year-panel").includes('<dt class="text-fg-2">Дата продажи</dt><dd class="min-w-0 break-words text-fg"><time dateTime="2025-12-28" class="font-mono tabular-nums">28.12.25</time></dd>'));
+  // Продажи года отчёта — одной строкой «ДД.ММ», как было.
+  for (const name of ["report", "report-panel", "report-year-panel"]) assert.doesNotMatch(pages.get(name), /data-sale-year=/u, name);
 });
 
 test("rendered «Отчёт продаж»: «Архив» shows how many records, with no sums and no remainder, as the server and main do", () => {

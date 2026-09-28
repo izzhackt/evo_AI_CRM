@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { Icon } from "@/components/icons";
+import { DueWord } from "@/components/v3/blocks/DueWord";
 import { Pill } from "@/components/v3/Pill";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { CalendarReadAccess } from "@/lib/v3/calendar-contract";
@@ -47,8 +48,9 @@ import {
  * Personal calendar over canonical case and staff tasks. The URL identifies the task inspector; every business
  * mutation crosses the server action boundary.
  */
-const GHOST =
-  "inline-flex min-h-11 items-center justify-center rounded-ctl px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
+const GHOST_BASE =
+  "inline-flex min-h-11 items-center justify-center rounded-ctl t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
+const GHOST = `${GHOST_BASE} px-3`;
 /** Ссылка в панели задачи: тёмный акцентный текст всегда подчёркнут (DESIGN.md). */
 const PANEL_LINK =
   "inline-flex min-h-11 items-center t-label text-accent-text underline underline-offset-4 hover:text-fg";
@@ -237,23 +239,17 @@ export function Calendar({
             срока» и сетка лежат на одной поверхности, а не отдельными
             карточками на столе. */}
         <div className="min-w-0 overflow-hidden rounded-card border border-border bg-surface" data-calendar-sheet="">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-2">
-            <div className="flex shrink-0 items-center gap-1">
-              <Link href={href(view, stepDay(view, day, -1))} className={`${GHOST} w-11 px-0`}>
-                <span className="sr-only">{stepLabel(view, -1)}</span>
-                <Icon name="chevron-right" size={16} className="rotate-180" />
-              </Link>
-              <Link href={href(view, today)} className={GHOST}>
-                Сегодня
-              </Link>
-              <Link href={href(view, stepDay(view, day, 1))} className={`${GHOST} w-11 px-0`}>
-                <span className="sr-only">{stepLabel(view, 1)}</span>
-                <Icon name="chevron-right" size={16} />
-              </Link>
-            </div>
-
-            <div className="min-w-0 flex-1 basis-40">
-              <p className="t-section text-fg">{periodTitle}</p>
+          {/* Строка периода. На телефоне (<768 px) сначала период, под ним
+              одной строкой стрелки с «Сегодня» и «День · Неделя · Месяц»
+              (поля уже, чтобы строка поместилась от 375 px); от 768 px —
+              прежний порядок: стрелки, период, вид. */}
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-1 py-2 pl-1 pr-2 md:gap-x-3 md:gap-y-2 md:p-2">
+            <div className="min-w-0 basis-full px-2 md:order-2 md:flex-1 md:basis-40 md:px-0">
+              <p className="flex flex-wrap items-center gap-x-2 t-section text-fg" data-calendar-period="">
+                <span>{periodTitle}</span>
+                {/* У дня нет шапки с числом: «сегодня» — слово срока у периода. */}
+                {view === "day" && day === today ? <DueWord view={{ text: "сегодня", tone: "today" }} /> : null}
+              </p>
               {/* На какой день «Создать задачу» поставит срок: у недели и
                   месяца это выбранный день адреса (он же отмечен нейтрально в
                   сетке); у дня его называет сама строка периода. */}
@@ -265,8 +261,22 @@ export function Calendar({
               ) : null}
             </div>
 
-            <nav aria-label="Вид календаря" className="shrink-0">
-              <ul className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center md:order-1 md:gap-1">
+              <Link href={href(view, stepDay(view, day, -1))} className={`${GHOST_BASE} w-11`}>
+                <span className="sr-only">{stepLabel(view, -1)}</span>
+                <Icon name="chevron-right" size={16} className="rotate-180" />
+              </Link>
+              <Link href={href(view, today)} className={`${GHOST_BASE} px-1.5 md:px-3`}>
+                Сегодня
+              </Link>
+              <Link href={href(view, stepDay(view, day, 1))} className={`${GHOST_BASE} w-11`}>
+                <span className="sr-only">{stepLabel(view, 1)}</span>
+                <Icon name="chevron-right" size={16} />
+              </Link>
+            </div>
+
+            <nav aria-label="Вид календаря" className="ml-auto shrink-0 md:order-3">
+              <ul className="flex items-center md:gap-1">
                 {VIEW_TITLES.map((entry) => {
                   const active = entry.key === view;
                   return (
@@ -274,7 +284,7 @@ export function Calendar({
                       <Link
                         href={href(entry.key, day)}
                         aria-current={active ? "true" : undefined}
-                        className="v3-choice flex min-h-11 items-center rounded-ctl px-3 t-label text-fg-2 hover:bg-surface-2"
+                        className="v3-choice flex min-h-11 min-w-11 items-center justify-center rounded-ctl px-1.5 t-label text-fg-2 hover:bg-surface-2 md:px-3"
                       >
                         {entry.title}
                       </Link>
@@ -296,7 +306,7 @@ export function Calendar({
               staffAllowed={canCreateStaff} caseAllowed={canCreate}
               initialCases={cases} casesHaveMore={casesHaveMore}
               triggerTestId="v3-calendar-new-task"
-              triggerClassName="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+              triggerClassName="ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg md:order-4 md:ml-0"
               triggerChildren={<><Icon name="plus" size={16} />Создать задачу</>}
             /> : null}
           </div>

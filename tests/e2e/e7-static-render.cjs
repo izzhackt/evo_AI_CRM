@@ -170,7 +170,8 @@ function studentsPage(search) {
  * чт 24.09, выбранный день адреса — сб 26.09): «week» — задачи со сроком и
  * одна без срока; «empty» — пустая неделя; «undated» — только задачи без
  * срока (одна выполнена); «month» — сентябрь, в одном дне больше трёх задач;
- * «day» — один день с задачами.
+ * «day» — один день с задачами; «panel» — неделя с открытой панелью задачи
+ * (управление задачей: «Выполнить», «Отменить задачу», «Изменить задачу»).
  */
 function calendarPage() {
   const variant = fixture.calendar ?? "week";
@@ -200,17 +201,21 @@ function calendarPage() {
     ...dated,
     task(20, { title: "Отправить документы в вуз", person: "Камила Усенова", dueOn: "2026-09-30", day: "2026-09-30" }),
   ];
-  const tasks = variant === "week" ? [...dated, undated[0]]
+  const tasks = variant === "week" || variant === "panel" ? [...dated, undated[0]]
     : variant === "undated" ? undated
     : variant === "month" ? month
     : variant === "day" ? dated.filter((row) => row.day === TODAY)
     : [];
+  const open = variant === "panel" ? dated[0] : null;
   return h(PartShell, { title: "Календарь" }, h(Calendar, {
-    initialTaskKey: null, unavailableTarget: null, taskCapabilities: null, view, day, today: TODAY, nowMinutes: 600,
+    initialTaskKey: open?.key ?? null, unavailableTarget: null, view, day, today: TODAY, nowMinutes: 600,
+    taskCapabilities: open ? { taskId: open.id, studentCaseId: open.studentCaseId, canAssign: true, canChangeVisibility: true, canReadCase: true } : null,
     days, tasks, readAccess: { caseTasks: true, staffTasks: true, tasks: true }, undatedContinuationPage: false,
     undatedNextHref: null, undatedCursor: null,
     cases: STUDENTS.slice(0, 5).map((row) => ({ id: row.studentCaseId, name: row.studentDisplayName })), casesHaveMore: false,
-    assignees: [], actorMembershipId: ME, actor: ACTOR, taskRequestIds: {}, basePath: "/v3/calendar",
+    assignees: open ? [ME, B, C].map((membershipId) => ({ membershipId, displayName: NAMES[membershipId] })) : [],
+    actorMembershipId: ME, actor: ACTOR, basePath: "/v3/calendar",
+    taskRequestIds: open ? { [open.key]: { change: id("eeeeeeee", 1), complete: id("eeeeeeee", 2), cancel: id("eeeeeeee", 3) } } : {},
   }));
 }
 
@@ -368,6 +373,7 @@ const PAGES = {
   "calendar-undated": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", calendar: "undated" },
   "calendar-month": { page: "calendar", pathname: "/v3/calendar", search: "view=month&date=2026-09-26", calendar: "month" },
   "calendar-day": { page: "calendar", pathname: "/v3/calendar", search: "view=day&date=2026-09-24", calendar: "day" },
+  "calendar-panel": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", calendar: "panel" },
   case: { pathname: "/v3/profile", search: `case=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
 };
 
@@ -491,6 +497,12 @@ const SHOTS = [
   }],
   ["e8-calendar-month", "calendar-month", async () => {}],
   ["e8-calendar-day", "calendar-day", async () => {}],
+  // Панель задачи: «Изменить задачу» — подчёркнутая тёмная ссылка `t-label`, поля и кнопки — роли `t-*`.
+  ["e8-task-panel", "calendar-panel", async (page) => {
+    const summary = page.locator("summary", { hasText: "Изменить задачу" });
+    await summary.click();
+    await summary.evaluate((element) => element.scrollIntoView({ block: "start" }));
+  }],
 ];
 
 /** Проверки на каждом снимке: прокрутки вбок нет, текст не мельче 12 px, фокус — в открытом окне. */

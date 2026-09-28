@@ -27,13 +27,13 @@ import type {
 import { taskDeadlineInputDefaults } from "./types";
 
 const CONTROL =
-  "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
+  "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 t-body text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
 const PRIMARY =
-  "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
+  "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 t-label text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
 const SECONDARY =
-  "inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-55";
+  "inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-55";
 const DANGER =
-  "inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:border-danger hover:bg-danger-weak hover:text-danger disabled:cursor-not-allowed disabled:opacity-55";
+  "inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:border-danger hover:bg-danger-weak hover:text-danger disabled:cursor-not-allowed disabled:opacity-55";
 
 const PRIORITY_OPTIONS: readonly Readonly<{
   value: PlatformCaseTaskPriority;
@@ -74,7 +74,7 @@ function Feedback({ state }: Readonly<{ state: PlatformAdmissionsTaskActionState
   const failed = state.status !== "saved";
   return (
     <p
-      className={`text-xs ${failed ? "text-danger" : "text-ok"}`}
+      className={`t-body-compact ${failed ? "text-danger" : "text-ok"}`}
       role={failed ? "alert" : "status"}
       aria-live="polite"
     >
@@ -161,7 +161,7 @@ export function DeadlineFields({
         <>
           <input type="hidden" name="due_on" value="" />
           <input type="hidden" name="due_at" value="" />
-          <p className="self-end pb-2.5 text-xs text-fg-3">
+          <p className="self-end pb-2.5 t-meta text-fg-3">
             Задача останется в разделе «Без срока».
           </p>
         </>
@@ -312,12 +312,15 @@ function CalendarChangeTaskForm({
 
   return (
     <details ref={detailsRef} className="border-t border-border pt-3">
-      <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-accent">
+      {/* Раскрытие — текстовое действие: тёмный акцент, подчёркнут, как ссылки панели (DESIGN.md). */}
+      <summary className="min-h-11 cursor-pointer py-3 t-label text-accent-text underline underline-offset-4 hover:text-fg">
         Изменить задачу
       </summary>
+      {/* Одна колонка: панель узкая (22rem), и поля 16 px в две колонки
+          обрезали имя ответственного и время срока. */}
       <form
         action={action}
-        className="grid gap-3 pt-3 sm:grid-cols-2"
+        className="grid gap-3 pt-3"
         data-testid="v3-calendar-task-change-form"
         aria-busy={pending}
       >
@@ -399,14 +402,14 @@ function CalendarChangeTaskForm({
               value={String(task.studentVisible)}
             />
         )}
-        <label className="t-label text-fg-2 sm:col-span-2">
+        <label className="t-label text-fg-2">
           Причина изменения
           <input name="reason" value={reason}
             onChange={(event) => setReason(event.target.value)}
             required maxLength={1000} className={CONTROL} autoComplete="off"
           />
         </label>
-        <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
+        <div className="flex flex-wrap items-end gap-2">
           <button type="submit" disabled={locked} className={PRIMARY}>
             {pending ? "Сохраняем…" : "Сохранить"}
           </button>
@@ -417,11 +420,11 @@ function CalendarChangeTaskForm({
           </button>
         </div>
         </fieldset>
-        <div className="sm:col-span-2">
+        <div>
           <Feedback state={state} />
           {state.status === "stale" && !staleAcknowledged ? (
             <div className="mt-3 space-y-2">
-              <p className="text-xs text-fg-2">
+              <p className="t-body-compact text-fg-2">
                 Ваши поля сохранены в форме. Сверьте их с обновлённой задачей выше
                 перед повтором: повторное сохранение применит именно ваши значения.
               </p>

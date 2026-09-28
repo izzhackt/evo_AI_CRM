@@ -25,6 +25,8 @@ import {
   calendarAccessNotice,
   calendarEmptyPeriodLabel,
 } from "../src/components/v3/calendar/types.ts";
+import { personalCalendarAccess } from "../src/lib/v3/personal-calendar-contract.ts";
+import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -77,6 +79,33 @@ test("task-only staff reads the actual bounded undated RPC without a case read g
   assert.deepEqual(result, { rows: [], nextCursor: null });
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], "staff_case_task_undated_page");
+});
+
+// Кто что видит в личном календаре — вместо таблицы веток прежнего
+// координатора (Э8.8 убрал сроки вузов): задачи по студентам — `task.manage`,
+// а в просмотре роли — ещё и `admissions.read` этой роли; рабочие задачи —
+// `staff.task.read` (у администратора — всегда).
+for (const [name, changes, expected] of [
+  ["Admin", { systemRole: "admin", permissionKeys: [] }, { caseTasks: true, staffTasks: true }],
+  ["Admin Admissions preview", { systemRole: "admin", presentationRole: "admissions", permissionKeys: [] }, { caseTasks: true, staffTasks: true }],
+  ["Admin Sales preview", { systemRole: "admin", presentationRole: "sales", permissionKeys: [] }, { caseTasks: false, staffTasks: true }],
+  ["task.manage with case read", { permissionKeys: ["case.read.full", "task.manage"] }, { caseTasks: true, staffTasks: false }],
+  ["task.manage without admissions read", { permissionKeys: ["task.manage"] }, { caseTasks: true, staffTasks: false }],
+  ["staff tasks only", { permissionKeys: ["staff.task.read"] }, { caseTasks: false, staffTasks: true }],
+  ["create-only", { permissionKeys: ["case.read.full", "profile.read.full", "task.create"] }, { caseTasks: false, staffTasks: false }],
+  ["deadline reader", { permissionKeys: ["case.read.full", "application.manage"] }, { caseTasks: false, staffTasks: false }],
+]) {
+  test(`personal calendar access: ${name}`, () => {
+    const access = personalCalendarAccess({ ...actor, ...changes });
+    assert.deepEqual({ ...access }, { ...expected, tasks: expected.caseTasks || expected.staffTasks });
+    assert.ok(Object.isFrozen(access));
+  });
+}
+
+test("Admin Sales preview never reaches the calendar: the route is closed before any task read", () => {
+  const salesPreview = { ...actor, systemRole: "admin", presentationRole: "sales", permissionKeys: [] };
+  assert.equal(staffCanAccessRoute(salesPreview, "/v3/calendar"), false);
+  assert.equal(staffCanAccessRoute({ ...salesPreview, presentationRole: "admissions" }, "/v3/calendar"), true);
 });
 
 test("personal calendar distinguishes denied access from an empty task period", () => {
@@ -433,13 +462,23 @@ test("Э8.8: calendar markup — one sheet, staff type roles, 44 px day links, n
   const grids = source("src/components/v3/calendar/grids.tsx");
   // Строка периода, пустой период, «Без срока» и сетка — один белый лист.
   assert.equal([...calendar.matchAll(/rounded-card border border-border bg-surface/gu)].length, 1);
-  assert.match(calendar, /<p className="t-section text-fg">\{periodTitle\}<\/p>/u);
-  assert.match(calendar, /v3-choice flex min-h-11 items-center rounded-ctl px-3 t-label text-fg-2/u);
+  assert.match(calendar, /<p className="flex flex-wrap items-center gap-x-2 t-section text-fg" data-calendar-period="">\s*<span>\{periodTitle\}<\/span>/u);
+  // У дня нет шапки с числом: сегодняшний день назван словом срока у периода.
+  assert.match(calendar, /\{view === "day" && day === today \? <DueWord view=\{\{ text: "сегодня", tone: "today" \}\} \/> : null\}/u);
+  // Телефон: период первым, под ним одной строкой стрелки с «Сегодня» и вид; от 768 px — стрелки, период, вид.
+  assert.match(calendar, /<div className="min-w-0 basis-full px-2 md:order-2 md:flex-1 md:basis-40 md:px-0">/u);
+  assert.match(calendar, /<div className="flex shrink-0 items-center md:order-1 md:gap-1">/u);
+  assert.match(calendar, /<nav aria-label="Вид календаря" className="ml-auto shrink-0 md:order-3">/u);
+  assert.match(calendar, /v3-choice flex min-h-11 min-w-11 items-center justify-center rounded-ctl px-1\.5 t-label text-fg-2 hover:bg-surface-2 md:px-3/u);
   // Пустой период — по задачам со сроком, строка не прячется из-за «Без срока».
   assert.match(calendar, /const emptyPeriodLabel = hasDated \? null : calendarEmptyPeriodLabel\(readAccess, view\);/u);
   // Ссылки панели: `text-brand` без токена заменены подчёркнутым тёмным акцентом.
   assert.doesNotMatch(calendar + grids, /text-brand|\btext-(?:xs|sm)\b|hover:border-accent/u);
   assert.match(calendar, /const PANEL_LINK =\s*"inline-flex min-h-11 items-center t-label text-accent-text underline underline-offset-4/u);
+  // Управление задачей в той же панели — роли `t-*`; «Изменить задачу» — такая же подчёркнутая тёмная ссылка, не красный текст.
+  const controls = source("src/components/v3/calendar/TaskControls.tsx");
+  assert.doesNotMatch(controls, /\btext-(?:xs|sm)\b|\bfont-semibold\b|\btext-accent(?![-\w])/u);
+  assert.match(controls, /<summary className="min-h-11 cursor-pointer py-3 t-label text-accent-text underline underline-offset-4 hover:text-fg">\s*Изменить задачу/u);
   // Дни — ссылки 44 px, «сегодня» — заливка 24 px внутри; выбранный день — нейтральный «выбрано».
   assert.match(grids, /\$\{selected \? "v3-choice " : ""\}inline-flex min-h-11 min-w-11 items-center justify-center/u);
   assert.match(grids, /t-item grid h-6 min-w-6 place-items-center rounded-nav px-1 tabular-nums/u);

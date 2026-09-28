@@ -11,7 +11,6 @@ import type { ApplicationDocumentOwner, ApplicationDocumentQueueItem } from "@/l
 import { getPortalStrings } from "@/lib/portal/i18n";
 
 import { formatQueueDay } from "../queue/due-bucket";
-import { ProgramDocsRecovery } from "./DocsQueueRecovery";
 import { docsWaiting, studentsCaseHref } from "./students-queue-view";
 
 /*
@@ -20,8 +19,9 @@ import { docsWaiting, studentsCaseHref } from "./students-queue-view";
  * очередь, которая жила на подстранице доски поступления. Строка: студент ·
  * документ, вуз и программа (прежнее требование — предупреждением, срок
  * требования), день отправки и «ждёт N дн», файл со «Скачать файл» и решение
- * в строке — тот же `ProgramDocumentReview` (и то же восстановление
- * незавершённых решений), что был в очереди доски. «Открыть программу» —
+ * в строке — тот же `ProgramDocumentReview`, что был в очереди доски
+ * (восстановление незавершённых решений — над таблицей, `ProgramDocsRecovery`,
+ * и при пустой очереди). «Открыть программу» —
  * подготовка программы на вкладке дела «Вузы и программы». От 48rem своей
  * ширины — колонки, уже — стопка. Строка не ссылка целиком: в ней файл и форма.
  */
@@ -32,15 +32,13 @@ const CELL = "min-w-0 px-3 @min-[48rem]/program:px-2";
 const HEAD = "flex h-9 items-center px-2 text-start t-caption text-fg-2 first:ps-3";
 /**
  * Файл и решение — общие компоненты документов программ (их CSS-модуль);
- * рамку и отступ раскрытия решения в строке очереди снимает правило
- * `[data-docs-decision]` в v3.css — рамка у строки.
- */
-const EVIDENCE = `${styles.root} t-body-compact`;
-/**
- * «Сохранить решение» — подтверждение в строке: тёмная нейтральная кнопка, как
+ * рамку и отступ раскрытия решения и отступы причин недоступного файла в
+ * строке очереди снимают правила `[data-docs-decision]` и `[data-docs-file]`
+ * в v3.css — рамка у строки. «Сохранить решение» — подтверждение в строке:
+ * `[data-docs-neutral]` в v3.css делает его тёмной нейтральной кнопкой, как
  * `QUEUE_CONFIRM`; сплошной красный остаётся главному действию страницы.
  */
-const NEUTRAL_CONFIRM = "[--doc-accent:var(--text)] [--doc-on-accent:var(--surface)]";
+const EVIDENCE = `${styles.root} t-body-compact`;
 
 function deadlineText(deadline: NonNullable<ApplicationDocumentQueueItem["deadline"]>, today: string): Readonly<{ short: string; full: string }> {
   const day = formatQueueDay(deadline.date, today);
@@ -76,6 +74,8 @@ export function StudentsProgramDocsTable({
         <div role="rowgroup" className="sr-only @min-[48rem]/program:not-sr-only @min-[48rem]/program:sticky @min-[48rem]/program:top-0 @min-[48rem]/program:z-30 @min-[48rem]/program:block @min-[48rem]/program:bg-bg">
           <div role="row" className={`grid gap-x-3 ${COLUMNS} shadow-[inset_0_-1px_0_var(--border)]`}>
             {(["Документ", "Файл", "Отправлен"] as const).map((label) => <span key={label} role="columnheader" className={HEAD}>{label}</span>)}
+            {/* Решение стоит под документом (своей колонки нет), но в строке это отдельная ячейка — у неё свой заголовок. */}
+            <span role="columnheader" className="sr-only">Решение</span>
             <span role="columnheader" className={HEAD}><span className="sr-only">Действие</span></span>
           </div>
         </div>
@@ -108,10 +108,10 @@ export function StudentsProgramDocsTable({
                     <span className="break-words">{program}</span>
                     {/* Документ отправлен по прежней редакции требований — это надо увидеть до решения. */}
                     {!item.isCurrentRequirement ? <><span className="text-fg-3"> · </span><span className="font-medium text-warn">{strings.olderRequirement}</span></> : null}
-                    {deadline ? <><span className="text-fg-3"> · </span><span title={deadline.full}>срок <time dateTime={item.deadline!.date} className="font-mono tabular-nums">{deadline.short}</time></span></> : null}
+                    {deadline ? <><span className="text-fg-3"> · </span><span title={deadline.full} className="whitespace-nowrap">срок <time dateTime={item.deadline!.date} className="font-mono tabular-nums">{deadline.short}</time></span></> : null}
                   </p>
                 </div>
-                <div role="cell" className={`${CELL} [grid-area:file] ${EVIDENCE}`}>
+                <div role="cell" data-docs-file="" className={`${CELL} [grid-area:file] ${EVIDENCE}`}>
                   <ProgramFileEvidence file={item.submission.file} target={target} audience="staff" strings={strings} />
                 </div>
                 <div role="cell" className={`${CELL} [grid-area:sent] self-start whitespace-nowrap t-body-compact`}>
@@ -122,10 +122,8 @@ export function StudentsProgramDocsTable({
                     <span className={waiting.warn ? "font-medium text-warn" : "text-fg-2"}>{waiting.word}</span>
                   </> : null}
                 </div>
-                <div role="cell" data-docs-decision="" className={`${CELL} [grid-area:decision] ${EVIDENCE} @min-[48rem]/program:ps-3`}>
-                  <div className={NEUTRAL_CONFIRM}>
-                    <ProgramDocumentReview scope={scope} submission={item.submission} strings={strings} canReview={canReview} onSaved={() => router.refresh()} />
-                  </div>
+                <div role="cell" data-docs-decision="" data-docs-neutral="" className={`${CELL} [grid-area:decision] ${EVIDENCE} @min-[48rem]/program:ps-3`}>
+                  <ProgramDocumentReview scope={scope} submission={item.submission} strings={strings} canReview={canReview} onSaved={() => router.refresh()} />
                 </div>
                 <div role="cell" className={`${CELL} [grid-area:open] self-start @min-[48rem]/program:-mt-2`}>
                   <Link
@@ -142,7 +140,6 @@ export function StudentsProgramDocsTable({
           })}
         </div>
       </div>
-      <ProgramDocsRecovery owner={owner} visibleSubmissions={items.map((item) => item.submission.submissionId)} />
     </div>
   );
 }

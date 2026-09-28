@@ -33,7 +33,7 @@
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const Module = require("node:module");
-const { join, resolve } = require("node:path");
+const { basename, join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 const ts = require("typescript");
 
@@ -61,14 +61,21 @@ for (const extension of [".ts", ".tsx"]) {
 Module._extensions[".png"] = (module, filename) => {
   module.exports = { src: pathToFileURL(filename).href, width: 1843, height: 842 };
 };
-// CSS-модули (файл и решение «Документов программ»): имя класса — сам ключ,
-// а текст модуля добавляется к CSS снимка (тот же приём, что в
-// conversations-static-render.cjs). `__esModule` нет: `import styles from`
+// CSS-модули (файл и решение «Документов программ»): в разметке для тестов
+// (--json) имя класса — сам ключ; текст модуля добавляется к CSS снимка (тот
+// же приём, что в conversations-static-render.cjs). Для снимков имена
+// получают префикс модуля, как хеш сборки: иначе одноимённые классы разных
+// модулей (`.details` документов программ и комплектов) смешались бы на
+// снимке, чего в сборке не бывает. `__esModule` нет: `import styles from`
 // после TypeScript получает сам прокси как `default`.
 const cssModules = new Map();
+const SCOPED_CSS_MODULES = process.argv.includes("--screenshots");
 Module._extensions[".css"] = (module, filename) => {
-  cssModules.set(filename, readFileSync(filename, "utf8"));
-  module.exports = new Proxy({}, { get: (_target, key) => (typeof key === "string" && key !== "__esModule" ? key : undefined) });
+  const prefix = SCOPED_CSS_MODULES ? `${basename(filename).replace(/\.module\.css$/u, "").replace(/\W/gu, "_")}__` : "";
+  const source = readFileSync(filename, "utf8");
+  // Селектор класса — точка и буква или «_»: дроби (`.875em`, `brightness(.94)`) не трогаются.
+  cssModules.set(filename, prefix ? source.replace(/\.(-?[_a-zA-Z][\w-]*)/gu, (_match, name) => `.${prefix}${name}`) : source);
+  module.exports = new Proxy({}, { get: (_target, key) => (typeof key === "string" && key !== "__esModule" ? `${prefix}${key}` : undefined) });
 };
 
 const originalResolve = Module._resolveFilename;
@@ -354,6 +361,12 @@ const DOCS_SCENARIOS = {
   // «Документы дела» пусты: одна строка и ссылка на следующую непустую («Не хватает: 1 →»).
   "docs-review-empty": docsScenario("section=docs&view=review", { rows: QUIET_ROWS, counts: { ...COUNTS, total: 2, views: { ...COUNTS.views, active: 2 } }, packages: EMPTY_QUEUE, program: EMPTY_QUEUE }),
   "docs-missing": docsScenario("section=docs&view=missing"),
+  // Поиск без `view` в адресе: у найденного дела документов на проверке нет, а
+  // очереди программ и комплектов поиск не сужает — вкладка остаётся «Документы дела».
+  "docs-search": docsScenario("section=docs&q=Нурай", {
+    rows: DOCS_ROWS.filter((row) => row.studentDisplayName === "Нурай Демонстрова"),
+    counts: { ...COUNTS, total: 1, views: { ...COUNTS.views, active: 1 } },
+  }),
   // «Все»: у дела без чек-листа полосы нет — прежняя строка «Чек-лист не собран».
   "docs-all": docsScenario("section=docs&view=all"),
   "docs-packages": docsScenario("section=docs&view=packages"),
@@ -448,6 +461,7 @@ const SHOTS = {
   "docs-review-empty": ["1440", "390"],
   "docs-program-more": ["1440", "390"],
   "docs-missing": ["1440", "1280", "390"],
+  "docs-search": ["1440", "390"],
   "docs-packages": ["1440", "1280", "390"],
   "docs-packages-more": ["1440", "390"],
   "docs-packages-pages": ["1440"],

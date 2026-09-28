@@ -75,7 +75,8 @@ test("directory filters reset native form state when applied URL filters change"
   assert.match(toolbar, /Object\.entries\(search\.hidden\)\.map\(\(\[name, value\]\) => value \? <input key=\{name\} type="hidden" name=\{name\} value=\{value\} \/> : null\)/u);
   assert.match(toolbar, /\{resetHref \? \([\s\S]*Сбросить[\s\S]*\) : null\}/u);
   const students = read("src/components/v3/students/StudentsQueueHead.tsx");
-  assert.match(students, /section: params\.mode === "docs" \? "docs" : null,\s*view: params\.view !== params\.defaultView \? params\.view : null,/u);
+  // EVO Docs always keeps its tab: an address without a view there means «first non-empty tab».
+  assert.match(students, /section: params\.mode === "docs" \? "docs" : null,\s*(?:\/\/[^\n]*\n\s*)?view: params\.mode === "docs" \|\| params\.view !== params\.defaultView \? params\.view : null,/u);
   assert.match(students, /resetHref=\{active \? studentsListHref\(params, \{ query: null, direction: null, curator: null, stage: null, sort: null \}\) : null\}/u);
   // The Sales list keeps the 078 parameters and the chosen section.
   const fallback = read("src/components/v3/students/StudentsDirectoryFallback.tsx");

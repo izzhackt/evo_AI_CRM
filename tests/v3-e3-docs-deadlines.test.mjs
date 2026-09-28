@@ -10,6 +10,7 @@ import {
   STUDENTS_DOCS_VIEWS,
   STUDENTS_DOCS_VIEW_LABELS,
   docsAutoView,
+  docsInitialView,
   docsNextNonEmpty,
   docsOldestFirst,
   docsPackagesCount,
@@ -288,6 +289,32 @@ test("Э8.5: without a view EVO Docs opens the first tab with work; unknown numb
   }
 });
 
+test("Э8.5: a search never leaves «Документы дела» for a queue tab it does not narrow", () => {
+  const shown = { program: true, packages: true };
+  const counts = { review: 0, program: 4, packages: 3, fix: 0, missing: 1, all: 1 };
+  const parse = (search) => parseStudentsQueueParams(search, "docs", { admin: true, coverage: true }).params;
+  // Queue numbers ignore the case search: without a filter they still choose the tab, with one they do not.
+  assert.equal(docsInitialView(parse({ section: "docs" }), counts, shown), "program");
+  for (const search of [{ q: "x" }, { direction: "MY" }, { curator: "aaaaaaaa-1111-4111-8111-000000000001" }]) {
+    const params = parse({ section: "docs", ...search });
+    assert.equal(params.autoView, true, JSON.stringify(search));
+    assert.equal(docsInitialView(params, counts, shown), "review", JSON.stringify(search));
+  }
+
+  // The search form on every EVO Docs tab keeps its tab — «Документы дела» included.
+  const formOf = (html) => html.match(/<form[^>]*action="\/v3\/profile"[\s\S]*?<\/form>/u)?.[0] ?? "";
+  for (const [name, view] of [["docs-review", "review"], ["docs-review-empty", "review"], ["docs-missing", "missing"], ["docs-search", "review"]]) {
+    assert.match(formOf(surfaces.get(name)), new RegExp(`<input type="hidden" name="view" value="${view}"/>`, "u"), name);
+  }
+  // An address with a search and no view (bookmarked before this fix) stays on «Документы дела».
+  const search = surfaces.get("docs-search");
+  assert.match(search, /aria-current="page"[^>]*href="\/v3\/profile\?section=docs&amp;view=review&amp;q=[^"]+">Документы дела/u);
+  assert.doesNotMatch(search, /data-testid="v3-program-document-row"/u);
+  // Its empty line names the next case tab the search narrows, not the queue it ignores.
+  assert.match(text(search), /Проверять нечего\. Исправить: 1/u);
+  assert.match(search, /data-testid="queue-empty">[\s\S]*?href="\/v3\/profile\?section=docs&amp;view=fix&amp;q=[^"]+"/u);
+});
+
 test("Э8.5: an empty tab is one line naming the next non-empty tab", () => {
   const shown = { program: true, packages: true };
   const counts = { review: 0, program: 0, packages: 2, fix: 0, missing: 1, all: 3 };
@@ -314,7 +341,10 @@ test("Э8.5: «Документы программ» is the board's program queu
   assert.match(html, /<time dateTime="2026-09-21T08:00:00.000Z" class="font-mono tabular-nums text-fg">21\.09<\/time><span class="text-fg-3"> · <\/span><span class="font-medium text-warn">ждёт 6 дн<\/span>/u);
   assert.match(html, /<span class="text-fg-2">ждёт 1 дн<\/span>/u, "a one-day wait is not a warning");
   assert.match(html, /<span class="font-medium text-warn">Прежнее требование<\/span>/u);
-  assert.match(html, /срок <time dateTime="2026-10-15" class="font-mono tabular-nums">15\.10<\/time>/u);
+  assert.match(html, /<span title="15\.10\.2026" class="whitespace-nowrap">срок <time dateTime="2026-10-15" class="font-mono tabular-nums">15\.10<\/time><\/span>/u, "«срок» never parts from its date");
+  // Five cells per row, five column headers: the decision below the document has its own (screen-reader) header.
+  assert.match(html, /<span role="columnheader" class="sr-only">Решение<\/span>/u);
+  assert.equal([...html.match(/data-testid="v3-program-document-table"[\s\S]*?<\/div><\/div>/u)[0].matchAll(/role="columnheader"/gu)].length, 5);
   // The file and the inline decision are the same components the board queue used.
   assert.equal([...html.matchAll(/<button type="button" class="secondary"[^>]*>Скачать файл<\/button>/gu)].length, 4);
   assert.equal([...html.matchAll(/<summary class="summary">Решение по отправленной версии<\/summary>/gu)].length, 4);
@@ -322,13 +352,27 @@ test("Э8.5: «Документы программ» is the board's program queu
   for (const [, caseId] of [...html.matchAll(/data-testid="v3-program-document-row" data-student-case-id="([^"]+)"/gu)]) {
     assert.match(html, new RegExp(`href="/v3/profile\\?case=${caseId}&amp;tab=route&amp;section=docs&amp;returnTo=%2Fv3%2Fprofile%3Fsection%3Ddocs%26view%3Dprogram#preparation-[0-9a-f-]{36}">Открыть программу`, "u"));
   }
-  // «Сохранить решение» is a confirmation in a row: dark neutral, not the page's solid red.
+  // «Сохранить решение» and the recovery retries are confirmations: dark neutral, not the page's solid red.
+  // The variables reach descendants too — the recovery section carries its own module `.root`.
   const table = read("src/components/v3/students/StudentsProgramDocsTable.tsx");
-  assert.match(table, /const NEUTRAL_CONFIRM = "\[--doc-accent:var\(--text\)\] \[--doc-on-accent:var\(--surface\)\]";/u);
+  const css = read("src/app/(v3)/v3.css");
+  assert.match(css, /\.v3-world\[data-surface="staff"\] :is\(\[data-docs-neutral\], \[data-docs-neutral\] \*\) \{\n  --doc-accent: var\(--text\);\n  --doc-on-accent: var\(--surface\);\n\}/u);
+  assert.equal([...html.matchAll(/data-docs-decision="" data-docs-neutral=""/gu)].length, 4);
+  assert.doesNotMatch(table, /--doc-accent/u, "one place for the neutral confirmation");
   assert.match(table, /<ProgramDocumentReview scope=\{scope\} submission=\{item\.submission\} strings=\{strings\} canReview=\{canReview\} onSaved=\{\(\) => router\.refresh\(\)\} \/>/u);
-  assert.match(read("src/components/v3/students/DocsQueueRecovery.tsx"), /listApplicationDocumentPendingScopes\(owner, "review"\)/u, "the owner-wide pending-review recovery moved with the queue");
+  const recovery = read("src/components/v3/students/DocsQueueRecovery.tsx");
+  assert.match(recovery, /listApplicationDocumentPendingScopes\(owner, "review"\)/u, "the owner-wide pending-review recovery moved with the queue");
+  assert.match(recovery, /return <div data-docs-neutral="">\{scopes\.map\(\(scope\) => <ProgramDocumentRecovery /u);
+  assert.match(recovery, /return <div data-docs-neutral="" className=\{`\$\{styles\.root\} t-body-compact`\}><PackageQueueRecovery /u);
+  // The recovery stands above the queue in both branches — also when the queue is empty (the last decision's lost reply).
+  const screen = read("src/components/v3/students/StudentsQueueScreen.tsx");
+  assert.match(screen, /<ProgramDocsRecovery owner=\{review\.owner\} visibleSubmissions=\{items\.map\(\(item\) => item\.submission\.submissionId\)\} \/>\n    \{items\.length === 0 \? empty : <>/u);
+  assert.doesNotMatch(table, /<ProgramDocsRecovery|import \{ ProgramDocsRecovery/u, "the table no longer carries the recovery");
   assert.match(read("src/app/(v3)/v3/profile/page.tsx"), /canReview: !isStaffPreview\(actor\) && staffHasPermission\(actor, "document\.review"\),/u);
-  assert.match(read("src/app/(v3)/v3.css"), /\.v3-world\[data-surface="staff"\] \[data-docs-decision\] details \{/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \[data-docs-decision\] details \{/u);
+  // Reasons for an unavailable file sit right under «Скачать файл», without the module list's 16px padding.
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \[data-docs-file\] li \{\n  padding-block: 0;/u);
+  assert.equal([...html.matchAll(/role="cell" data-docs-file=""/gu)].length, 4);
 
   const more = surfaces.get("docs-program-more");
   assert.deepEqual(tabsOf(more)[1], ["Документы программ", null], "3 pages and a next one: no number");

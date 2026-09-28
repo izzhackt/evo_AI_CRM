@@ -134,7 +134,8 @@ export function StudentsToolbar({
   const active = activeFilterCount([params.query, params.direction, params.curator, queue ? params.stage : null, sortable && params.sort === "updated" ? "updated" : null]);
   const hidden: Record<string, string | null> = {
     section: params.mode === "docs" ? "docs" : null,
-    view: params.view !== params.defaultView ? params.view : null,
+    // EVO Docs пишет вид всегда: адрес без `view` там — «первая непустая вкладка».
+    view: params.mode === "docs" || params.view !== params.defaultView ? params.view : null,
     direction: params.direction,
     curator: params.curator,
     stage: queue ? params.stage : null,

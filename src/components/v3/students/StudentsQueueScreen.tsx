@@ -10,7 +10,7 @@ import type { StudentsCoverage } from "../profile/students-coverage-view";
 import { QueueEmpty, QueueError, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
 import { CuratorWorkloadView } from "./CuratorWorkloadView";
-import { PackagesRecovery } from "./DocsQueueRecovery";
+import { PackagesRecovery, ProgramDocsRecovery } from "./DocsQueueRecovery";
 import { StudentsDocsTable } from "./StudentsDocsTable";
 import { StudentsPackagesTable } from "./StudentsPackagesTable";
 import { StudentsProgramDocsTable } from "./StudentsProgramDocsTable";
@@ -19,7 +19,7 @@ import { StudentsCountsUnavailable, StudentsFilterRejected, StudentsTabs, Studen
 import {
   STUDENTS_DOCS_PAGE_SIZE,
   STUDENTS_DOCS_VIEW_LABELS,
-  docsAutoView,
+  docsInitialView,
   docsNextNonEmpty,
   docsOldestFirst,
   docsReadable,
@@ -151,12 +151,15 @@ function ProgramView({ program, review, returnTo, today, empty }: Readonly<{
   }
   const { nextCursor } = program.queue;
   const { items, oldestFirst } = docsOldestFirst(program.queue.items, (item) => item.submission.submittedAt, (item) => item.submission.submissionId, nextCursor === null);
-  if (items.length === 0) return empty;
   return <>
-    <p className="t-meta text-fg-2">Отправлены на проверку EVO, решения ещё нет. {oldestFirst ? "Порядок: сначала дольше всех ждущие" : "Порядок: сначала недавно отправленные — прочитана не вся очередь"}</p>
-    <StudentsProgramDocsTable items={items} owner={review.owner} canReview={review.canReview} returnTo={returnTo} today={today}
-      caption={nextCursor ? `Документы программ: последние ${items.length} отправленных` : `Документы программ: ${items.length}`} />
-    {nextCursor ? <QueueRest shown={items.length} words={["документ", "документа", "документов"]} /> : null}
+    {/* Незавершённые решения по документам программ (прежняя очередь доски) — и при пустой очереди; решения по видимым строкам повторяет сама строка. */}
+    <ProgramDocsRecovery owner={review.owner} visibleSubmissions={items.map((item) => item.submission.submissionId)} />
+    {items.length === 0 ? empty : <>
+      <p className="t-meta text-fg-2">Отправлены на проверку EVO, решения ещё нет. {oldestFirst ? "Порядок: сначала дольше всех ждущие" : "Порядок: сначала недавно отправленные — прочитана не вся очередь"}</p>
+      <StudentsProgramDocsTable items={items} owner={review.owner} canReview={review.canReview} returnTo={returnTo} today={today}
+        caption={nextCursor ? `Документы программ: последние ${items.length} отправленных` : `Документы программ: ${items.length}`} />
+      {nextCursor ? <QueueRest shown={items.length} words={["документ", "документа", "документов"]} /> : null}
+    </>}
   </>;
 }
 
@@ -233,7 +236,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
     const coverageHref = !docs && input.actor.coverage ? studentsListHref(params, { view: "curators" }) : null;
     return { count: null, content: <div className={DIRECTORY} data-testid="v3-student-case-directory"><QueueForbidden docs={docs} coverageHref={coverageHref} /></div> };
   }
-  // EVO Docs: числа вкладок — из всех чтений сразу; без `view` в адресе открывается первая непустая вкладка.
+  // EVO Docs: числа вкладок — из всех чтений сразу; без `view` в адресе и без фильтров открывается первая непустая вкладка.
   const page = read.page;
   const rows = page?.rows ?? [];
   const complete = page !== null && input.params.cursor === null && page.nextCursor === null;
@@ -241,7 +244,7 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
   const program = input.program ?? { kind: "hidden" };
   const tabCounts = docs ? docsTabCounts(rows, complete, read.counts, packages, program) : null;
   const params = tabCounts && input.params.autoView
-    ? { ...input.params, view: docsAutoView(tabCounts, shown), autoView: false }
+    ? { ...input.params, view: docsInitialView(input.params, tabCounts, shown), autoView: false }
     : input.params;
   const here = studentsQueueHref(params);
   // «x» в окне «?» — у кого есть массовые действия (Э7): назначать кураторов или править шаг.
@@ -278,8 +281,11 @@ export function buildStudentsQueueScreen(input: StudentsQueueScreenInput): Reado
     const order = ordered.oldestFirst ? "oldest" as const : view === "review" && !complete ? "partial" as const : "updated" as const;
     const filtered = Boolean(params.query || params.direction || params.curator);
     const emptyTitle = docsEmptyTitle(view, filtered, complete, documents);
-    // Ссылка на следующую непустую — только у настоящей пустоты полного чтения.
-    const emptyNext = view !== "all" && documents && complete ? next : null;
+    // Ссылка на следующую непустую — только у настоящей пустоты полного чтения;
+    // с поиском или фильтром — только вкладки дел: очереди программ и комплектов они не сужают.
+    const emptyNext = view !== "all" && documents && complete
+      ? filtered ? docsNextNonEmpty(view, tabCounts, { program: false, packages: false }) : next
+      : null;
     return {
       count: null,
       content: <div className={DIRECTORY} data-testid="v3-student-case-directory">

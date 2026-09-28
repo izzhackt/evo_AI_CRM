@@ -38,16 +38,19 @@ export function ProgramDocsRecovery({ owner, visibleSubmissions }: Readonly<{
   }, () => "[]");
   const scopes = useMemo(() => snapshot === "unavailable" ? [] : JSON.parse(snapshot) as readonly ApplicationDocumentScope[], [snapshot]);
   if (snapshot === "unavailable") return <p className="t-body-compact text-danger" role="alert">{strings.storageUnavailable}</p>;
-  return scopes.map((scope) => <ProgramDocumentRecovery key={`${scope.studentCaseId}:${scope.applicationId}`} scope={scope} audience="staff"
-    currentItemIds={[]} currentSubmissionIds={visibleSubmissions} onlyReviews strings={strings} onSaved={() => router.refresh()} />);
+  if (scopes.length === 0) return null;
+  // Повтор решения — подтверждение: тёмный нейтральный (`[data-docs-neutral]` в v3.css), не сплошной красный.
+  return <div data-docs-neutral="">{scopes.map((scope) => <ProgramDocumentRecovery key={`${scope.studentCaseId}:${scope.applicationId}`} scope={scope} audience="staff"
+    currentItemIds={[]} currentSubmissionIds={visibleSubmissions} onlyReviews strings={strings} onSaved={() => router.refresh()} />)}</div>;
 }
 
 /**
  * Незавершённые решения по комплектам этой учётной записи — восстановление
- * очереди комплектов подстраницы доски поступления. Подтверждённый ответ
- * перечитывает вкладку.
+ * очереди комплектов подстраницы доски поступления. «Повторить сохранённое
+ * действие» — подтверждение: тёмная нейтральная кнопка (`[data-docs-neutral]`
+ * в v3.css). Подтверждённый ответ перечитывает вкладку.
  */
 export function PackagesRecovery({ owner }: Readonly<{ owner: ApplicationDocumentOwner }>) {
   const router = useRouter();
-  return <div className={`${styles.root} t-body-compact`}><PackageQueueRecovery owner={owner} strings={packageStrings("ru")} onSaved={() => router.refresh()} /></div>;
+  return <div data-docs-neutral="" className={`${styles.root} t-body-compact`}><PackageQueueRecovery owner={owner} strings={packageStrings("ru")} onSaved={() => router.refresh()} /></div>;
 }

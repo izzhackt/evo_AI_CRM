@@ -94,7 +94,8 @@ export type StudentsQueueParams = Readonly<{
   defaultView: StudentsQueueView | StudentsDocsView;
   /**
    * EVO Docs без `view` в адресе: экран после чтений откроет первую вкладку с
-   * известным числом больше нуля (`docsAutoView`), а пока вид — `defaultView`.
+   * известным числом больше нуля, а с поиском или фильтром — «Документы дела»
+   * (`docsInitialView`); а пока вид — `defaultView`.
    */
   autoView: boolean;
   query: string | null;
@@ -420,6 +421,21 @@ export function studentsDocsTabs(
  */
 export function docsAutoView(counts: Readonly<Record<StudentsDocsView, number | null>>, shown: DocsQueuesShown): StudentsDocsView {
   return STUDENTS_DOCS_WORK_VIEWS.find((view) => docsTabShown(view, shown) && (counts[view] ?? 0) > 0) ?? "review";
+}
+
+/**
+ * Вкладка, которую EVO Docs открывает по адресу без `view`: без поиска и
+ * фильтров — первая вкладка-работа (`docsAutoView`); с поиском, направлением
+ * или куратором — «Документы дела». Числа очередей программ и комплектов
+ * поиск и фильтры дел не сужают, и поиск не уводит на очередь, где его нет.
+ */
+export function docsInitialView(
+  params: StudentsQueueParams,
+  counts: Readonly<Record<StudentsDocsView, number | null>>,
+  shown: DocsQueuesShown,
+): StudentsDocsView {
+  if (params.query || params.direction || params.curator) return "review";
+  return docsAutoView(counts, shown);
 }
 
 /**

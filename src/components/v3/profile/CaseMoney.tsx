@@ -56,7 +56,13 @@ export function CaseMoneySection({
   // Якорь адреса внутри панели открывает её: при загрузке и при смене якоря.
   useEffect(() => {
     const sync = () => {
-      const id = decodeURIComponent(window.location.hash.slice(1));
+      // Якорь с битым %-кодом («#%E0») — не наш: страница не падает, панели не открываются.
+      let id: string;
+      try {
+        id = decodeURIComponent(window.location.hash.slice(1));
+      } catch {
+        return;
+      }
       if (!id) return;
       const panel = document.getElementById(id)?.closest<HTMLElement>("[data-money-panel]");
       if (!panel || !sectionRef.current?.contains(panel)) return;
@@ -72,7 +78,7 @@ export function CaseMoneySection({
     if (state.focus === "heading" && state.open) {
       const panel = document.getElementById(state.open);
       const target = state.target && state.target !== state.open ? document.getElementById(state.target) : null;
-      // Ссылка панели на свёрнутый раздел («Создать версию шаблона») раскрывает его.
+      // Ссылка панели на свёрнутый раздел («Шаблоны договора») раскрывает его.
       const section = target instanceof HTMLDetailsElement ? target : null;
       if (section) section.open = true;
       (target ?? panel)?.scrollIntoView({ block: "start" });

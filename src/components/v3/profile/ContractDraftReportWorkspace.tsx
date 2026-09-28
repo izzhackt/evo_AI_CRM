@@ -604,9 +604,12 @@ export function ContractDraftReportWorkspace({
       data-testid="platform-contract-draft-report-workspace"
       className="scroll-mt-24 space-y-4"
     >
-      <p className="max-w-[60ch] t-body-compact text-fg-2">
-        Выберите утверждённый шаблон, подготовьте черновик и передайте его на проверку.
-      </p>
+      {/* Подсказка о порядке — только когда есть что выбрать; иначе говорит предупреждение о шаблоне. */}
+      {approvedTemplates.length > 0 ? (
+        <p className="max-w-[60ch] t-body-compact text-fg-2">
+          Выберите утверждённый шаблон, подготовьте черновик и передайте его на проверку.
+        </p>
+      ) : null}
 
       {banner ? (
         <ContextBanner tone={banner.tone} title={banner.title} description={banner.description} />

@@ -26,8 +26,10 @@ import {
 
 /**
  * Строка сводки: термин, значение и (не всегда) действие строки. От 36rem
- * листа — три колонки на волосяной линии; уже — термин над значением,
- * действие справа от него или, если не помещается, строкой ниже.
+ * листа — три колонки на волосяной линии, прижатые к верху: термин и
+ * действие (цель 44 px) стоят на первой строке значения, многострочное
+ * значение (договор, прежние версии) растёт вниз. Уже — термин над
+ * значением, действие справа от него или, если не помещается, строкой ниже.
  */
 export function MoneyRow({ term, children, action, testId }: Readonly<{
   term: string;
@@ -35,13 +37,15 @@ export function MoneyRow({ term, children, action, testId }: Readonly<{
   action?: ReactNode;
   testId?: string;
 }>) {
+  // @xl: первая строка значения (t-body-compact, 21 px) и подпись термина
+  // (t-caption, 16 px) — по центру 44 px цели действия: отступы 12 и 14 px.
   return (
     <div
-      className="flex flex-wrap items-center gap-x-4 border-b border-border py-1.5 last:border-b-0 @xl:grid @xl:grid-cols-[9rem_minmax(0,1fr)_auto]"
+      className="flex flex-wrap items-center gap-x-4 border-b border-border py-1.5 last:border-b-0 @xl:grid @xl:grid-cols-[9rem_minmax(0,1fr)_auto] @xl:items-start @xl:py-0"
       data-testid={testId}
     >
-      <dt className="basis-full pt-1 t-caption text-fg-2 @xl:pt-0">{term}</dt>
-      <dd className="min-w-0 flex-1 basis-36 py-1 t-body-compact tabular-nums text-fg">{children}</dd>
+      <dt className="basis-full pt-1 t-caption text-fg-2 @xl:pt-3.5">{term}</dt>
+      <dd className="min-w-0 flex-1 basis-36 py-1 t-body-compact tabular-nums text-fg @xl:py-3">{children}</dd>
       {action ? <dd className="ms-auto flex min-w-0 items-center justify-end gap-x-4">{action}</dd> : null}
     </div>
   );
@@ -113,7 +117,8 @@ export async function CaseAgreementBlock({
 
 const MUTED = "text-fg-2";
 // Строки траншей и оплат: на узком листе — перенос по словам, от 42rem — колонки,
-// суммы выровнены по правому краю своей колонки.
+// суммы выровнены по правому краю своей колонки. У оплаты на узком листе
+// «Транш · кто» — своей строкой под датой и суммой, чек — справа на строке суммы.
 const TRANCHE_ROW = "flex flex-wrap items-center gap-x-4 border-b border-border py-1 @2xl:grid @2xl:grid-cols-[minmax(0,1fr)_8.5rem_5.5rem_minmax(0,15rem)_5rem]";
 const PAYMENT_ROW = "flex flex-wrap items-center gap-x-4 border-b border-border py-1 @2xl:grid @2xl:grid-cols-[4rem_8.5rem_minmax(0,1fr)_auto]";
 
@@ -249,7 +254,7 @@ export function CaseAgreementView({
                 {payment.eventType === "refund" ? "−" : ""}
                 {financeMoney(payment.amountMinor, payment.currency)}
               </span>
-              <span className="flex min-w-0 flex-1 basis-32 flex-wrap items-center gap-x-2 break-words t-meta text-fg-2">
+              <span className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-2 break-words pb-1 t-meta text-fg-2 @2xl:order-none @2xl:pb-0">
                 {payment.eventType === "refund" ? <StatusChip label="возврат" tone="warn" /> : null}
                 {[trancheLabel.get(payment.obligationId), payment.actorDisplayName].filter(Boolean).join(" · ")}
               </span>

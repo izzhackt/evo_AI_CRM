@@ -703,7 +703,9 @@ test("read-only browser inventory preserves exact provider and event counts", as
   );
   const admissionsAmoCrmPage = await captureAdminAmoCrmPage(
     page,
-    `/v3/profile?case=${studentCaseId}&tab=contract`,
+    // Э8.3: команда amoCRM — в панели «Служебные сведения» («⋯» листа); якорь открывает её.
+    // Метка маршрута в доказательстве остаётся прежней (её сверяет валидатор инвентаризации).
+    `/v3/profile?case=${studentCaseId}&tab=contract#money-service`,
     "admissions",
     "v3-profile",
   );

@@ -105,7 +105,10 @@ test("no cost: nothing is invented — no remaining, the reason in words", () =>
   assert.equal(none.costWithoutCurrency, false);
   assert.deepEqual(none.paid, []);
   assert.deepEqual(none.remaining, { values: [], note: "стоимость не указана" });
-  assert.equal(plainSummary(agreement({ costCurrency: null, remainingMinor: null })).costWithoutCurrency, true);
+  // Сумма есть, валюты нет — остаток не считается, и причина — именно валюта.
+  const noCurrency = plainSummary(agreement({ costCurrency: null, remainingMinor: null }));
+  assert.equal(noCurrency.costWithoutCurrency, true);
+  assert.deepEqual(noCurrency.remaining, { values: [], note: "валюта стоимости не указана" });
 });
 
 test("different currencies: each currency separately, cost currency first, no conversion, a settled currency not named", () => {
@@ -118,6 +121,13 @@ test("different currencies: each currency separately, cost currency first, no co
   assert.equal(cross.refunds, true);
   assert.deepEqual(cross.remaining, { values: ["20 000,00 KGS"], note: "по траншам, без пересчёта валют" });
   assert.equal(cross.tranchesAgainstCost, null);
+
+  // Переплата в одной из валют названа, как и при одной валюте, — с валютой.
+  const over = plainSummary(agreement({
+    currencyMismatch: true, remainingMinor: null,
+    tranches: [tranche(1, "60000", "USD", "-5000"), tranche(2, "5000000", "KGS", "2000000")],
+  }));
+  assert.deepEqual(over.remaining, { values: ["−50,00 USD", "20 000,00 KGS"], note: "по траншам, без пересчёта валют · переплата в USD" });
 });
 
 test("tranche state and dates: «оплачен», «просрочен» only with a remaining sum; ДД.ММ, year only when not this year", () => {
@@ -141,7 +151,9 @@ test("the template warning speaks to the viewer: who adds it, or what the Admin 
   const admin = { canManageTemplates: true };
   assert.match(caseContractTemplateNote(workspace(admin)).text, /проверенного источника пока нет/u);
   assert.equal(caseContractTemplateNote(workspace(admin)).link, null, "no link to a screen CRM does not have");
-  assert.deepEqual(caseContractTemplateNote(workspace({ ...admin, reviewedSources: [{}] })).link, { href: "#contract-template-create", label: "Создать версию шаблона" });
+  // Раскрытие «Создать версию шаблона» — прямо под предупреждением: слова указывают на него, второй ссылки нет.
+  assert.deepEqual(caseContractTemplateNote(workspace({ ...admin, reviewedSources: [{}] })),
+    { text: "Шаблона договора нет — создайте его в «Создать версию шаблона» ниже.", link: null });
   assert.deepEqual(caseContractTemplateNote(workspace({ ...admin, templates: [template("retired"), template("draft")] })).link,
     { href: "#contract-template-list", label: "Шаблоны договора" });
 });
@@ -204,10 +216,49 @@ test("the template warnings on the page address the viewer", () => {
   assert.match(text(sheet(pages.get("curator-template"))), /Шаблона договора нет — его добавляет Администратор\./u);
   assert.doesNotMatch(sheet(pages.get("curator-template")), /data-testid="platform-contract-template-create-panel"/u);
   assert.match(text(sheet(pages.get("admin-template"))), /Шаблона договора нет\. Создать его можно после проверки источника шаблона, а проверенного источника пока нет\./u);
-  assert.match(sheet(pages.get("admin-template-source")), /<a href="#contract-template-create"[^>]*>Создать версию шаблона<\/a>/u);
+  assert.doesNotMatch(sheet(pages.get("admin-template-source")), /<a href="#contract-template-create"/u, "no second «Создать версию шаблона»");
+  assert.match(text(sheet(pages.get("admin-template-source"))), /Шаблона договора нет — создайте его в «Создать версию шаблона» ниже\. Создать версию шаблона Ключ шаблона/u);
   assert.match(sheet(pages.get("admin-template-source")), /<details id="contract-template-create"/u);
+  // Без утверждённого шаблона выбирать нечего — подсказки «Выберите утверждённый шаблон…» нет.
+  for (const [name, html] of pages) assert.doesNotMatch(text(sheet(html)), /Выберите утверждённый шаблон/u, name);
+  assert.match(read("src/components/v3/profile/ContractDraftReportWorkspace.tsx"),
+    /\{approvedTemplates\.length > 0 \? \(\s*<p[^>]*>\s*Выберите утверждённый шаблон/u);
   // Кнопки подготовки — тёмные нейтральные, не красные.
   assert.doesNotMatch(read("src/components/v3/profile/ContractDraftReportWorkspace.tsx"), /\bbtnCls\b/u);
   assert.doesNotMatch(read("src/components/v3/profile/CaseAgreementForms.tsx"), /\bbtnCls\b/u);
   assert.doesNotMatch(read("src/components/v3/profile/FinanceEntryForms.tsx"), /\bbtnCls\b/u);
+});
+
+test("wide sheet: summary rows top-aligned, the term and the action on the value's first line; phone: «Транш · кто» on its own line", () => {
+  const money = sheet(pages.get("admin-same-currency"));
+  const row = money.match(/<div class="([^"]*@xl:grid[^"]*)" data-testid="v3-case-money-contract">/u)?.[1] ?? "";
+  assert.match(row, /(?:^| )@xl:items-start(?: |$)/u, "no vertical centering against a multi-line value");
+  assert.doesNotMatch(row, /@xl:items-center/u);
+  const contract = money.slice(money.indexOf('data-testid="v3-case-money-contract"'));
+  assert.match(contract, /^[^>]*><dt class="[^"]*@xl:pt-3\.5[^"]*">Договор<\/dt><dd class="[^"]*@xl:py-3[^"]*">/u);
+  // Оплата: «Транш · кто» — последней строкой на узком листе (basis-full), в колонке 3 от 42rem; чек — на строке суммы справа.
+  const payments = money.slice(money.indexOf('data-testid="v3-case-agreement-payment"'));
+  const meta = payments.match(/<span class="([^"]*)">Первый платёж · Айгүл Осмонова<\/span>/u)?.[1] ?? "";
+  for (const token of ["order-last", "basis-full", "@2xl:order-none"]) assert.ok(meta.split(" ").includes(token), token);
+  assert.match(payments, /<span class="ms-auto flex items-center justify-end gap-x-4">/u);
+});
+
+test("service panel: «Продажа: этап · источник» is the stored sale stage at handoff, never the board column «Переданы»", async () => {
+  const service = sheet(pages.get("admin-same-currency"));
+  const panel = service.slice(service.indexOf('<section id="money-service"'));
+  assert.match(text(panel), /Продажа: этап · источник Квалифицирован · сайт/u);
+  assert.doesNotMatch(text(panel), /Переданы/u);
+  // «handed_off» — производная колонка доски, не хранимый этап: чтение передачи его не пропускает (fail closed),
+  // обычная передача — только из «qualified».
+  const { PLATFORM_SALES_STAGES } = await import("../src/lib/platform-sales-contract.ts");
+  assert.ok(!PLATFORM_SALES_STAGES.includes("handed_off"));
+  const handoff = read("src/lib/platform-student-handoff.ts");
+  assert.match(handoff, /stageKey: oneOf\(row\.stage_key, PLATFORM_SALES_STAGES\)/u);
+  assert.match(handoff, /normalizedHandoffMode !== "sales_report" && salesContext\.stageKey !== "qualified"\) return failure\("unavailable"\)/u);
+});
+
+test("a malformed address anchor does not take the sheet down: the decode is guarded", () => {
+  const source = read("src/components/v3/profile/CaseMoney.tsx");
+  assert.match(source, /try \{\s*id = decodeURIComponent\(window\.location\.hash\.slice\(1\)\);\s*\} catch \{\s*return;\s*\}/u);
+  assert.equal((source.match(/decodeURIComponent\(/gu) ?? []).length, 1, "no unguarded decode elsewhere");
 });

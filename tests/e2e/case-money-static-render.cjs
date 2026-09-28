@@ -199,7 +199,9 @@ const HANDOFF = {
   handoffReason: "Договор и первый платёж подтверждены (синтетика).", handoffSource: "canonical_sales", handedOffAt: "2026-08-30T06:00:00.000Z",
   actorMembershipId: OTHER, actorDisplayName: "Эрмек Токтосунов", admissionsOwnerMembershipId: ME, admissionsOwnerDisplayName: "Айгүл Осмонова",
   gateVersion: "4", gateState: "passed", workflowVersion: "5",
-  salesContext: { stageKey: "handed_off", sourceKey: "website" }, clientContext: { clientId: uuid("77777777", 1) },
+  // Этап продажи на момент передачи — из шести хранимых (`PLATFORM_SALES_STAGES`); обычная передача — только
+  // из «qualified» (`platform-student-handoff.ts`). «handed_off» — колонка доски, чтение передачи его не пропускает.
+  salesContext: { stageKey: "qualified", sourceKey: "website" }, clientContext: { clientId: uuid("77777777", 1) },
   provenance: [], conversationLinks: [],
   starterTasks: [{ taskId: uuid("78787878", 1), title: "Первый звонок семье", assigneeDisplayName: "Айгүл Осмонова", status: "done" }],
 };

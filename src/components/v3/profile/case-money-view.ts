@@ -71,9 +71,18 @@ export function casePaidByCurrency(payments: readonly CaseAgreementPayment[], or
  * Валюта, где остатка нет, не называется; остатка нет нигде — один ноль.
  */
 export function caseOutstandingByCurrency(tranches: readonly CaseAgreementTranche[], order: readonly string[] = []): readonly string[] {
-  const sums = byCurrency(tranches.map((tranche) => ({ currency: tranche.currency, minor: BigInt(tranche.outstandingMinor) })), order);
+  const sums = outstandingSums(tranches, order);
   const open = sums.filter((sum) => sum.minor !== BigInt(0));
   return (open.length > 0 ? open : sums.slice(0, 1)).map((sum) => financeMoney(sum.minor.toString(), sum.currency));
+}
+
+/** Валюты, где остаток по траншам ниже нуля, — переплата; порядок тот же, что у остатка. */
+export function caseOverpaidCurrencies(tranches: readonly CaseAgreementTranche[], order: readonly string[] = []): readonly string[] {
+  return outstandingSums(tranches, order).filter((sum) => sum.minor < BigInt(0)).map((sum) => sum.currency);
+}
+
+function outstandingSums(tranches: readonly CaseAgreementTranche[], order: readonly string[]): readonly Sum[] {
+  return byCurrency(tranches.map((tranche) => ({ currency: tranche.currency, minor: BigInt(tranche.outstandingMinor) })), order);
 }
 
 export type CaseMoneySummary = Readonly<{
@@ -106,14 +115,20 @@ export function caseMoneySummary(agreement: CaseAgreement): CaseMoneySummary {
   const refunds = agreement.payments.some((payment) => payment.eventType === "refund");
   let remaining: CaseMoneySummary["remaining"];
   if (agreement.currencyMismatch) {
-    remaining = { values: caseOutstandingByCurrency(agreement.tranches, order), note: "по траншам, без пересчёта валют" };
+    // Переплата называется, как и при одной валюте, — с валютой: суммы разных валют не сравниваются.
+    const overpaid = caseOverpaidCurrencies(agreement.tranches, order);
+    remaining = {
+      values: caseOutstandingByCurrency(agreement.tranches, order),
+      note: `по траншам, без пересчёта валют${overpaid.length > 0 ? ` · переплата в ${overpaid.join(", ")}` : ""}`,
+    };
   } else if (agreement.remainingMinor !== null && agreement.costCurrency) {
     remaining = {
       values: [financeMoney(agreement.remainingMinor, agreement.costCurrency)],
       note: BigInt(agreement.remainingMinor) < BigInt(0) ? "переплата" : null,
     };
   } else {
-    remaining = { values: [], note: "стоимость не указана" };
+    // Сумма есть, валюты нет — остаток не считается, и сказано почему.
+    remaining = { values: [], note: agreement.costMinor !== null && !agreement.costCurrency ? "валюта стоимости не указана" : "стоимость не указана" };
   }
   return {
     cost,
@@ -142,7 +157,9 @@ export type CaseContractTemplateNote = Readonly<{
 /**
  * Предупреждение о шаблоне договора — тому, кто смотрит. Утверждённый шаблон
  * есть — предупреждать не о чем. Кто управляет шаблонами (Admin), получает
- * своё действие ссылкой внутри панели; без проверенного источника создать
+ * своё действие: утвердить — ссылкой на «Шаблоны договора» ниже; создать —
+ * словами о раскрытии «Создать версию шаблона» прямо под предупреждением,
+ * без второй ссылки с тем же названием. Без проверенного источника создать
  * шаблон нельзя, и экрана источников в CRM нет — это сказано прямо, без
  * ссылки. Остальным — кто это сделает.
  */
@@ -155,5 +172,5 @@ export function caseContractTemplateNote(workspace: PlatformCaseContractWorkspac
   }
   if (unapproved) return { text: words.unapprovedForAdmin, link: { href: "#contract-template-list", label: words.listLink } };
   if (workspace.reviewedSources.length === 0) return { text: words.missingNoSource, link: null };
-  return { text: words.missingForAdmin, link: { href: "#contract-template-create", label: words.createLink } };
+  return { text: words.missingForAdmin, link: null };
 }

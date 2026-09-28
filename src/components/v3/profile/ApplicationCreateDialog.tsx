@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 
+import { Icon } from "@/components/icons";
 import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   createPlatformUniversityApplicationAction,
@@ -64,16 +65,17 @@ function ApplicationCreateForm({
           (ProfileAdmissionsWorkspace.tsx, «Отметить статус»). */}
       <input type="hidden" name="status" value="preparation" />
       <fieldset disabled={locked} className="grid gap-3">
-        <ApplicationUniversitySelector key={workspace.studentCaseId} />
+        <ApplicationUniversitySelector key={workspace.studentCaseId} defaultManual />
         <label>
           <span className={fieldLabelCls}>Программа</span>
           <input name="program_name" maxLength={300} className={inputCls} />
           <span className="mt-1 block text-xs text-fg-3">Можно указать позже.</span>
         </label>
         <PrimaryApplicationField defaultChecked={false} />
-        <details>
-          <summary className="cursor-pointer text-sm font-medium text-accent">
+        <details className="group">
+          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 rounded-nav t-label text-fg-2 hover:text-fg [&::-webkit-details-marker]:hidden">
             Дополнительно
+            <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
           </summary>
           <div className="mt-3 grid gap-3">
             <label>
@@ -146,7 +148,13 @@ function ApplicationCreateDialogBody({
   );
 }
 
-/** Launcher button + the small search dialog it opens (see file header). */
+/**
+ * Launcher + the small dialog it opens (see file header). Э8.2: на
+ * «Вузах и программах» одна кнопка добавления — «+ Вуз из каталога»; ручной
+ * ввод — тихая ссылка «Добавить вручную» (каталог покрывает шесть стран).
+ * Окно так и открывается — с включённым «Ввести вручную»; связь с
+ * университетом каталога остаётся снятием флажка.
+ */
 export function ApplicationCreateDialog({
   workspace,
 }: Readonly<{ workspace: ProfileAdmissionsWorkspace }>) {
@@ -156,7 +164,7 @@ export function ApplicationCreateDialog({
     <>
       <button
         type="button"
-        className={btnGhostCls}
+        className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
         aria-haspopup="dialog"
         data-testid="v3-application-create-launcher"
         onClick={(event) => {
@@ -164,7 +172,7 @@ export function ApplicationCreateDialog({
           setOpen(true);
         }}
       >
-        Добавить вуз
+        Добавить вручную
       </button>
       {open ? (
         <ApplicationCreateDialogBody workspace={workspace} onClose={() => setOpen(false)} />

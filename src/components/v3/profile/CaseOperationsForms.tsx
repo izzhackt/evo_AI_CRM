@@ -7,6 +7,7 @@ import type { DocumentExportWorkspaceV2, DocumentPackageExportCommand, StoredDoc
 import { createDocumentPackageExport, downloadDocumentExport, readDocumentExportHistory, reconcileDocumentExport, updateDocumentExportHistory, type DocumentExportOutcome } from "@/lib/document-export-client";
 import { partnerPacketExport as words, studentProfileFileMessage } from "@/lib/v3/wording";
 import { StudentProfileExportList } from "./StudentProfileExportHistory";
+import { QUEUE_CONFIRM } from "../queue/queue-buttons";
 
 const INPUT = "min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg focus-visible:outline-2 focus-visible:outline-focus-ring";
 const BUTTON = "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50";
@@ -97,15 +98,26 @@ export function partnerPacketZipBlocker(packet: PartnerPacket, mode: "draft" | "
 }
 
 type PacketApplications = readonly { id: string; name: string }[];
-export function PreparePartnerPacketForm({ caseId, workspace, applications, active, disabled, action }: {
+export function PreparePartnerPacketForm({ caseId, workspace, applications, active, disabled, action, initialApplicationId = null }: {
   caseId: string; workspace: PacketWorkspace; applications: PacketApplications; active: boolean; disabled: boolean;
   action: (input: unknown) => Promise<CaseOperationResult>;
+  /** «⋯ → Пакет партнёру» строки вуза: заявка выбрана заранее, если она есть в списке. */
+  initialApplicationId?: string | null;
 }) {
   const hydrated = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
   const command = useCaseCommand(action);
-  const [applicationId, setApplicationId] = useState("");
+  const requested = applications.some(app => app.id === initialApplicationId) ? initialApplicationId! : "";
+  const [applicationId, setApplicationId] = useState(requested);
+  const [adopted, setAdopted] = useState(requested);
   const [versionIds, setVersionIds] = useState<string[]>([]);
   const [exportIds, setExportIds] = useState<string[]>([]);
+  // «⋯ → Пакет партнёру» другой строки меняет только свойство: страница и форма остаются смонтированными
+  // (пересоздание формы потеряло бы удержанный запрос и «Проверить сохранение»). Новая заявка выбирается,
+  // только когда форма свободна: пока запрос идёт, не подтверждён или показан его итог, выбор ждёт.
+  if (requested && requested !== adopted && !command.blocked) {
+    setAdopted(requested); setApplicationId(requested);
+    setExportIds(ids => ids.filter(id => { const file = workspace.generatedExports.find(item => item.id === id); return !file?.applicationId || file.applicationId === requested; }));
+  }
   const selection = partnerPacketSelection(workspace, applicationId, versionIds, exportIds);
   const uncertain = Boolean(command.result && !command.result.ok && command.result.code === "unavailable");
   const invalid = !active || !applications.some(app => app.id === applicationId) || Boolean(selection.error);
@@ -130,12 +142,13 @@ export function PreparePartnerPacketForm({ caseId, workspace, applications, acti
       }}>{words.removeMissing}</button> : null}
     </fieldset><Result command={command} />
     {command.result?.ok ? <button type="button" className={SECONDARY} disabled={disabled || command.pending} onClick={() => { setVersionIds([]); setExportIds([]); command.reset(); }}>{words.another}</button>
-      : <button className={BUTTON} disabled={blocked}>{command.pending ? words.preparing : uncertain ? words.retryPrepare : words.prepare}</button>}
+      : <button className={QUEUE_CONFIRM} disabled={blocked}>{command.pending ? words.preparing : uncertain ? words.retryPrepare : words.prepare}</button>}
   </form>;
 }
 
-export function PartnerPacketWorkspace({ caseId, active, applications, workspace }: {
+export function PartnerPacketWorkspace({ caseId, active, applications, workspace, initialApplicationId = null }: {
   caseId: string; active: boolean; applications: PacketApplications; workspace: PacketWorkspace;
+  initialApplicationId?: string | null;
 }) {
   const router = useRouter();
   const [history, setHistory] = useState<DocumentExportWorkspaceV2 | null>(null);
@@ -220,7 +233,7 @@ export function PartnerPacketWorkspace({ caseId, active, applications, workspace
   return <div className="space-y-5" aria-busy={busy}>
     <p className="text-sm leading-6 text-fg-2">{words.cap} {words.sizeHint}</p>
     <PreparePartnerPacketForm caseId={caseId} workspace={workspace} applications={applications} active={active}
-      disabled={busy || Boolean(unresolved) || uncertainReconciles.length > 0 || pending} action={prepare} />
+      disabled={busy || Boolean(unresolved) || uncertainReconciles.length > 0 || pending} action={prepare} initialApplicationId={initialApplicationId} />
     <div><h4 className="font-medium text-fg">{words.recent}</h4>{!workspace.packets.length ? <p className="mt-2 text-sm text-fg-3">{words.noPackets}</p> : <ul className="mt-3 space-y-3">{workspace.packets.map(packet => {
       const draftBlocker = partnerPacketZipBlocker(packet, "draft", workspace.maxArchiveBytes);
       const finalBlocker = partnerPacketZipBlocker(packet, "final", workspace.maxArchiveBytes);
@@ -228,14 +241,14 @@ export function PartnerPacketWorkspace({ caseId, active, applications, workspace
         <DownloadPacketManifest packet={packet} />
         <ul className="mt-3 divide-y divide-border">{packet.files.map(file => <li key={file.versionId} className="py-3 text-sm"><p className="break-words text-fg">{file.name} · {words.version} {file.versionNo}</p><a className="inline-flex min-h-11 items-center font-medium text-accent-text underline" href={`/api/v2/document-versions/${file.versionId}/download`}>{words.originalDownload}</a></li>)}
           {packet.generatedExports.map(file => <li key={file.id} className="break-words py-3 text-sm text-fg">{generatedLabel(file)}</li>)}</ul>
-        <div className="my-3 flex flex-wrap gap-2"><button className={BUTTON} type="button" disabled={!active || creationBlocked || Boolean(draftBlocker)} onClick={() => generate(packet, "draft")}>{words.createDraft}</button><button className={SECONDARY} type="button" disabled={!active || creationBlocked || Boolean(finalBlocker)} onClick={() => generate(packet, "final")}>{words.createFinal}</button></div>
+        <div className="my-3 flex flex-wrap gap-2"><button className={QUEUE_CONFIRM} type="button" disabled={!active || creationBlocked || Boolean(draftBlocker)} onClick={() => generate(packet, "draft")}>{words.createDraft}</button><button className={SECONDARY} type="button" disabled={!active || creationBlocked || Boolean(finalBlocker)} onClick={() => generate(packet, "final")}>{words.createFinal}</button></div>
         {draftBlocker || finalBlocker ? <p className="text-sm leading-6 text-fg-2">{draftBlocker ?? finalBlocker}</p> : null}
       </details></li>;
     })}</ul>}</div>
     <div className="space-y-3"><h4 className="font-medium text-fg">{words.history}</h4>
       {loading ? <p role="status" className="text-sm text-fg-2">{words.loading}</p> : readFailed ? <p role="alert" className="text-sm text-danger">{words.historyFailed}</p> : null}
       {message ? <p role="status" className="text-sm leading-6 text-fg-2">{message}</p> : null}
-      {unresolved ? <button type="button" className={BUTTON} disabled={busy || unresolved.caseId !== caseId} onClick={() => { if (unresolved.caseId === caseId) void execute(unresolved.command); }}>{words.retryCreate}</button> : null}
+      {unresolved ? <button type="button" className={QUEUE_CONFIRM} disabled={busy || unresolved.caseId !== caseId} onClick={() => { if (unresolved.caseId === caseId) void execute(unresolved.command); }}>{words.retryCreate}</button> : null}
       {pending ? <p className="text-sm leading-6 text-fg-2">{words.pending}</p> : null}
       <button type="button" className={SECONDARY} disabled={busy || Boolean(unresolved) || prepareUncertain || uncertainReconciles.length > 0} onClick={() => { setReadVersion(version => version + 1); router.refresh(); }}>{words.refresh}</button>
       {!loading && !readFailed ? artifacts.length ? <StudentProfileExportList artifacts={artifacts} busy={busy || Boolean(unresolved) || prepareUncertain} uncertainReconciles={uncertainReconciles} onDownload={artifact => { void download(artifact); }} onReconcile={artifact => { void reconcile(artifact); }} /> : <p className="text-sm text-fg-3">{words.emptyHistory}</p> : null}

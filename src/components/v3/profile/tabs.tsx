@@ -361,7 +361,7 @@ export function Overview({
       </a> : null}
 
       {draft.admissions ? (
-        <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} />
+        <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} nowIso={new Date().toISOString()} />
       ) : (
         <Card eyebrow title="Заявка">
           {application ? (

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { btnCls, btnGhostCls } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { btnGhostCls } from "@/components/ui";
 import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";
 import type { ApplicationPackageReadiness } from "@/lib/portal/application-packages";
 import { readStaffApplicationPackageReadinessAction } from "@/lib/portal/application-packages-actions";
@@ -16,6 +17,7 @@ import { PackagePreparation } from "@/components/portal/applicationPackages/Pack
 import { PackageRecovery } from "@/components/portal/applicationPackages/PackageRecovery";
 import { packageStrings } from "@/components/portal/applicationPackages/strings";
 import { EDITOR_PENDING_EVENT, readEditorPending } from "@/lib/portal/application-requirements-editor-pending";
+import { QUEUE_CONFIRM } from "../queue/queue-buttons";
 
 function subscribeHash(callback: () => void) {
   window.addEventListener("hashchange", callback);
@@ -65,8 +67,6 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
   const anchorOpen = hash === `#${id}`;
   const opened = explicitOpen || anchorOpen;
   const docsHref = `/v3/profile?case=${scope.studentCaseId}&tab=documents`;
-  const program = preparation.content.programs.find((item) => item.id === preparation.programId)!;
-  const intake = program.intakes.find((item) => item.id === preparation.intakeId)!;
   const load = useCallback(async () => {
     if (!canRead) return;
     const request = ++epoch.current;
@@ -108,10 +108,10 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
   const requirements = documents?.requirements ?? null;
   const documentScope = { ...scope, applicationId: preparation.applicationId };
   const documentStrings = getPortalStrings("programDocuments", "ru");
-  return <section id={id} className="mt-4 scroll-mt-6 border-t border-border pt-3" aria-label="Подготовка по выбранной программе">
-    <p className="text-sm text-fg-2">Набор: {intake.label}</p>
-    <p className="mt-1 text-sm text-fg-3">{preparation.deadlineStateAtSelection === "needs_confirmation" ? "Срок набора нужно подтвердить" : "Срок сохранён при выборе"}{intake.applicationDeadline ? ` · ${intake.applicationDeadline}` : ""}</p>
-    <button type="button" className={`${btnGhostCls} mt-3`} disabled={editorOpen} aria-expanded={opened} aria-controls={`${id}-documents`} onClick={() => {
+  // Э8.2: подготовка — раскрытие в строке вуза «Вузов и программ»; вуз, программа, набор и срок
+  // названы самой строкой. Якорь `#preparation-<id>` по-прежнему раскрывает её (только чтение).
+  return <section id={id} className="mt-1 scroll-mt-6" aria-label="Подготовка по выбранной программе">
+    <button type="button" className="group -ms-1 inline-flex min-h-11 items-center gap-1.5 rounded-nav px-1 t-label text-fg-2 hover:text-fg disabled:text-fg-3" disabled={editorOpen} aria-expanded={opened} aria-controls={`${id}-documents`} onClick={() => {
       setOpened(!opened);
       if (!opened) void load();
       else if (anchorOpen) {
@@ -119,13 +119,14 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
         window.dispatchEvent(new HashChangeEvent("hashchange"));
       }
     }}>
-      {opened ? "Скрыть подготовку" : "Открыть подготовку"}
+      Документы программы
+      <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-aria-expanded:rotate-180 motion-reduce:transition-none" />
     </button>
     <PackageRecovery scope={documentScope} audience="staff" strings={packageStrings("ru")} onSaved={() => void load()} />
-    {opened ? <div id={`${id}-documents`} className="mt-4 space-y-3" aria-busy={loading || pending}>
+    {opened ? <div id={`${id}-documents`} className="mt-2 space-y-3" aria-busy={loading || pending}>
       {editorOpen ? <StaffRequirementsEditor key={`${scope.organizationId}:${scope.membershipId}:${scope.studentCaseId}:${preparation.applicationId}`} scope={{ ...scope, applicationId: preparation.applicationId }} onSaved={() => { void load(); }} onClose={() => { setEditorOpen(false); requestAnimationFrame(() => editorButton.current?.focus()); }} /> : <>
       {canRead ? <PackagePreparation scope={documentScope} readiness={documents} loading={loading} audience="staff" strings={packageStrings("ru")} documentStrings={documentStrings} canReview={canReview} recovery={false} onSaved={() => void load()} epoch={historyEpoch} /> : null}
-      <h4 className="t-item text-fg">Документы программы</h4>
+      <h4 className="t-item text-fg">Перечень документов</h4>
       {requirements?.origin === "evo_starter" ? <p className="max-w-2xl text-sm leading-6 text-fg-2">Фото и паспорт — стартовые документы. Полный список для программы ещё нужно уточнить.</p> : null}
       {requirements?.configurationState === "confirmed" ? <p className="max-w-2xl text-sm leading-6 text-fg-2">Состав требований подтверждён сотрудником EVO. Файлы проверяются отдельно.</p> : null}
       {!canRead || view?.status === "forbidden" ? <p className="text-sm text-fg-2">Выбор программы сохранён. Нет доступа к чтению документов этого дела.</p> : <>
@@ -156,7 +157,7 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
         <ProgramDocumentHistory key={historyEpoch} scope={documentScope} target={{ studentCaseId: scope.studentCaseId, applicationId: preparation.applicationId }}
           requirementItemId={null} audience="staff" strings={documentStrings} canReview={canReview} onSaved={() => void load()} />
         {storageBlocked ? <p role="alert" className="text-sm text-danger">Не удалось прочитать сохранённый запрос. Новое действие не отправляется.</p> : null}
-        {canInitialize && (retained || requirements?.state === "uninitialized") ? <button type="button" disabled={pending || loading || storageBlocked} className={btnCls} onClick={() => void initialize()}>{pending ? "Подготавливаем…" : retained ? "Повторить сохранённый запрос" : "Продолжить подготовку"}</button> : null}
+        {canInitialize && (retained || requirements?.state === "uninitialized") ? <button type="button" disabled={pending || loading || storageBlocked} className={QUEUE_CONFIRM} onClick={() => void initialize()}>{pending ? "Подготавливаем…" : retained ? "Повторить сохранённый запрос" : "Продолжить подготовку"}</button> : null}
         <div className="flex flex-wrap gap-2"><button type="button" className={btnGhostCls} disabled={loading || pending} onClick={() => void load()}>Обновить документы</button><a href={docsHref} className={btnGhostCls}>Все документы дела</a></div>
         {canInitialize || hasEditorPending ? <button ref={editorButton} type="button" className={`${btnGhostCls} h-auto min-h-11 whitespace-normal py-2`} disabled={pending || !!retained || storageBlocked} onClick={() => setEditorOpen(true)}>{hasEditorPending ? "Проверить сохранение списка" : "Настроить список документов"}</button> : null}
         <p className="text-sm text-fg-3">{documentStrings.saveHint}</p>

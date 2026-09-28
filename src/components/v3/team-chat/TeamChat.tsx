@@ -6,7 +6,7 @@ import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { readTeamChatAction } from "@/lib/platform-team-chat-actions";
 import { readTeamChatTimelineV2Action } from "@/lib/platform-team-chat-v2-actions";
-import { TEAM_CHAT_LABELS, teamChatMergeMessages, type TeamChatChannelKey, type TeamChatFailure, type TeamChatPage } from "@/lib/platform-team-chat";
+import { TEAM_CHAT_CHANNEL_ICONS, TEAM_CHAT_LABELS, teamChatMergeMessages, type TeamChatChannelKey, type TeamChatFailure, type TeamChatPage } from "@/lib/platform-team-chat";
 import { emptyTeamChatReadErrors, hydrateTeamChatRefreshTail, reduceTeamChatReadErrors, teamChatReadFailureCopy, visibleTeamChatReadFailure, type TeamChatReadAttempt, type TeamChatReadEvent, type TeamChatReadOwner } from "@/lib/team-chat-read-errors";
 import type { TeamChatTimelineQuery } from "@/lib/platform-team-chat-timeline";
 import type { TeamChatTimelineV2Page } from "@/lib/platform-team-chat-timeline-v2";
@@ -40,6 +40,15 @@ function restoreAnchor(root: HTMLElement, anchor: TeamChatScrollAnchor | null) {
   if (row) root.scrollTop += row.getBoundingClientRect().top - root.getBoundingClientRect().top - anchor.offset;
 }
 const nearBottom = (root: HTMLElement | null) => Boolean(root && root.scrollHeight - root.scrollTop - root.clientHeight < 48);
+const dayFormat = (withYear: boolean) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", ...(withYear ? { year: "numeric" } : {}), timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+const DAY = dayFormat(false);
+const DAY_WITH_YEAR = dayFormat(true);
+const YEAR = new Intl.DateTimeFormat("en-CA", { year: "numeric", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+/** Разделитель дня по Бишкеку; год — только не текущего года. */
+function teamChatDay(value: string, currentYear: string): string {
+  const date = new Date(value);
+  return YEAR.format(date) === currentYear ? DAY.format(date) : DAY_WITH_YEAR.format(date);
+}
 
 export function TeamChat({ initial, channel, organizationId, membershipId, canModerate, realtimeConfig, initialMessageId = null, showChannelsInitially = false }: {
   initial: TeamChatFeedSnapshot; channel: TeamChatChannelKey; organizationId: string;
@@ -384,6 +393,8 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const rows = teamChatFeedRows(feed.store, feed.range);
   const currentChannel = channels.find((item) => item.key === channel);
   const continuations = teamChatMessageContinuations(rows, { highlightedId: highlighted, firstUnreadId: currentChannel?.firstUnreadId });
+  const currentYear = YEAR.format(new Date());
+  const days = rows.map((message) => teamChatDay(message.createdAt, currentYear));
   const transportLabel = forbidden ? "Доступ к каналу закрыт" : transport === "live" ? null : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
   const afterSave = () => { void refresh(); };
 
@@ -400,25 +411,29 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       </div> : null}
       {channels.map((item) => {
         const time = formatTeamChatChannelTime(item.latestPreviewCreatedAt);
-        return <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`} className={`${styles.channel} ${item.key === channel ? styles.selected : ""}`} aria-current={item.key === channel ? "page" : undefined}
+        return <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`} className={`v3-choice ${styles.channel}`} aria-current={item.key === channel ? "page" : undefined}
           onClick={(event) => { if (item.key === channel) { event.preventDefault(); setPanel("messages"); } }}>
-          <span className={styles.channelAvatar} data-channel={item.key} aria-hidden="true">{TEAM_CHAT_LABELS[item.key][0]}</span>
+          <span className={styles.channelAvatar} data-channel={item.key} aria-hidden="true"><Icon name={TEAM_CHAT_CHANNEL_ICONS[item.key]} size={20} /></span>
           <span className={styles.channelCopy}>
             <span className={styles.channelHeading}>
               <span className={styles.channelName}>{TEAM_CHAT_LABELS[item.key]}</span>
-              {time ? <time className={styles.channelTime} dateTime={time.dateTime} title={time.fullLabel}>
+              {time ? <time className={`font-mono ${styles.channelTime}`} dateTime={time.dateTime} title={time.fullLabel}>
                 <span aria-hidden="true">{time.label}</span><span className={styles.srOnly}>{time.fullLabel}</span>
               </time> : null}
             </span>
-            <span className={styles.channelPreview}>{teamChatChannelPreviewText(item.latestPreview, membershipId)}</span>
-          </span>{item.unreadCount ? <span className={styles.unread} aria-label={`${item.unreadCount} непрочитанных`}>{item.unreadCount}</span> : null}
+            {/* Счётчик — во второй строке: название и время не обрезаются. */}
+            <span className={styles.channelSummary}>
+              <span className={styles.channelPreview}>{teamChatChannelPreviewText(item.latestPreview, membershipId)}</span>
+              {item.unreadCount ? <span className="t-caption min-w-6 shrink-0 rounded-full bg-fg px-1.5 text-center tabular-nums text-surface" aria-label={`${item.unreadCount} непрочитанных`}>{item.unreadCount}</span> : null}
+            </span>
+          </span>
         </Link>;
       })}
     </nav>
     <section className={styles.conversation} aria-label={`Канал ${TEAM_CHAT_LABELS[channel]}`}>
       <div className={styles.conversationHeader}>
         <button type="button" className={`${styles.secondary} ${styles.mobileBack}`} onClick={() => setPanel("channels")}><Icon name="arrow-left" size={18} />Каналы</button>
-        <span className={styles.channelAvatar} data-channel={channel} aria-hidden="true">{TEAM_CHAT_LABELS[channel][0]}</span><h2>{TEAM_CHAT_LABELS[channel]}</h2>
+        <span className={styles.channelAvatar} data-channel={channel} aria-hidden="true"><Icon name={TEAM_CHAT_CHANNEL_ICONS[channel]} size={20} /></span><h2>{TEAM_CHAT_LABELS[channel]}</h2>
         <button type="button" className={styles.iconButton} disabled={forbidden} aria-label={searchOpen ? "Закрыть поиск" : "Поиск в этом канале"} aria-expanded={searchOpen} aria-controls="team-chat-search-form" onClick={() => {
           setSearchOpen((value) => !value);
           if (searchOpen) {
@@ -454,7 +469,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
           {view === "search" && search ? <>
             <p className={styles.muted}>Результаты: «{search.term}»</p>
             {search.page.messages.map((message) => <div key={message.id} data-chat-row={message.id} className={styles.searchResult}>
-              <strong>{message.authorName}</strong><p className={styles.body}><SearchText text={message.body} term={search.term} /></p>
+              <strong>{message.authorName}</strong><p className={`t-body-compact ${styles.body}`}><SearchText text={message.body} term={search.term} /></p>
               <button id={`team-search-${message.id}`} type="button" className={styles.textButton} disabled={busy} onClick={() => { void navigate({ channel, mode: "context", messageId: message.id }, true); }}>Показать в переписке</button>
             </div>)}
             {!search.page.messages.length ? <p className={styles.empty}>Сообщения не найдены.</p> : null}
@@ -462,9 +477,8 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
           </> : <>
             {feed.range.hasBefore ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => { void loadMore("before"); }}>Предыдущие сообщения</button> : null}
             {rows.map((message, index) => {
-              const date = new Date(message.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
-              const priorDate = index ? new Date(rows[index - 1].createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: PLATFORM_ORGANIZATION_TIMEZONE }) : null;
-              return <div key={message.id}>{date !== priorDate ? <div className={styles.dateDivider}><span>{date}</span></div> : null}
+              const date = days[index];
+              return <div key={message.id}>{date !== days[index - 1] ? <div className={styles.dateDivider}><span>{date}</span></div> : null}
                 <TeamChatMessageRow message={message} quote={message.quoteMessageId ? teamChatFeedQuote(feed.store, message.quoteMessageId) : null}
                   ownMembershipId={membershipId} canModerate={canModerate} participants={participants} highlighted={highlighted === message.id}
                   continuation={continuations[index]}

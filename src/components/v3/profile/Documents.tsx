@@ -1,23 +1,22 @@
 import { randomUUID } from "node:crypto";
 
-import { Pill } from "@/components/v3/Pill";
 import { staffHasPermission } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import {
   listCaseBaselineChecklistOptions,
   type PlatformCaseBaselineChecklistOption,
 } from "@/lib/platform-private-documents";
+import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 
-import { Card } from "@/components/ui";
 import type {
   ActiveDocumentGroup,
   BaselineChecklistOption,
   DocumentGroup,
   DocumentUploadAccess,
   DocumentRecognitionAccess,
-  RemovedDocumentGroup,
 } from "./document-types";
-import { ProfileDocumentsClient } from "./ProfileDocumentsClient";
+import type { DocumentStateFilter } from "./documents-view";
+import { documentsView } from "./DocumentsView";
 
 function baselineChecklistOptionLabel(
   option: PlatformCaseBaselineChecklistOption,
@@ -32,6 +31,8 @@ function baselineChecklistOptionLabel(
  * Server-backed projection of the canonical checklist and current private file.
  * The client child only reports success after the canonical route confirms the
  * Supabase Storage write; refreshing the route remains the read authority.
+ * The tab itself is the synchronous `documentsView` (Э8.1): this wrapper only
+ * reads the baseline options and issues the command ids.
  */
 export async function Documents({
   groups,
@@ -39,23 +40,19 @@ export async function Documents({
   studentCaseId,
   actor,
   recognition = null,
+  filter = "all",
+  tabHref,
 }: Readonly<{
   groups: readonly DocumentGroup[];
   uploadAccess: DocumentUploadAccess;
   studentCaseId: string | null;
   actor: ActivePlatformActor;
   recognition?: DocumentRecognitionAccess | null;
+  filter?: DocumentStateFilter;
+  tabHref: string;
 }>) {
   const activeGroups = groups.filter(
     (group): group is ActiveDocumentGroup => group.kind === "active",
-  );
-  const historyGroups = groups.filter(
-    (group): group is RemovedDocumentGroup => group.kind === "removed",
-  );
-  const total = activeGroups.reduce((count, group) => count + group.items.length, 0);
-  const present = activeGroups.reduce(
-    (count, group) => count + group.items.filter((item) => item.presence === "present").length,
-    0,
   );
   const createRequestId = uploadAccess === "allowed" && studentCaseId
     ? randomUUID()
@@ -95,22 +92,18 @@ export async function Documents({
       ? randomUUID()
       : null;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <Card eyebrow title="Чеклист" aside={<Pill>{present}/{total}</Pill>}>
-        <ProfileDocumentsClient
-          groups={activeGroups}
-          historyGroups={historyGroups}
-          uploadAccess={uploadAccess}
-          studentCaseId={studentCaseId}
-          createRequestId={createRequestId}
-          baselineOptions={baselineOptions}
-          baselineOptionsUnavailable={baselineOptionsUnavailable}
-          baselineTemplatesAbsent={baselineTemplatesAbsent}
-          baselineChecklistRequestId={baselineChecklistRequestId}
-          recognition={recognition}
-        />
-      </Card>
-    </div>
-  );
+  return documentsView({
+    groups,
+    uploadAccess,
+    studentCaseId,
+    recognition,
+    filter,
+    tabHref,
+    today: dayInOrganizationTimezone(new Date()),
+    createRequestId,
+    baselineOptions,
+    baselineOptionsUnavailable,
+    baselineTemplatesAbsent,
+    baselineChecklistRequestId,
+  });
 }

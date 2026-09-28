@@ -6,7 +6,8 @@ import { Icon } from "@/components/icons";
 
 import { useAnchoredPopover } from "../queue/useAnchoredPopover";
 
-const MENU_ITEM = "flex min-h-11 w-full items-center rounded-nav px-3 text-start t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
+/** Пункт «⋯» строки документов — и в EVO Docs, и в строке чек-листа дела (Э8.1). */
+export const MENU_ITEM = "flex min-h-11 w-full items-center rounded-nav px-3 text-start t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 
 /**
  * «⋯» строки EVO Docs: прежние действия «Анкета и формы» и «Пакет ZIP».

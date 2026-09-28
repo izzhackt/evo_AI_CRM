@@ -39,6 +39,8 @@ export type PresentDocumentItem = DocumentItemBase & Readonly<{
   currentVersionId: string;
   currentVersionNumber: number;
   currentFilename: string;
+  /** When the current version was uploaded (`document_versions.created_at`): the row's date (Э8.1). */
+  currentVersionCreatedAt: string;
   latestReview: PlatformDocumentReview | null;
   /** A new review is allowed only for the current submitted version. */
   reviewRequestId: string | null;

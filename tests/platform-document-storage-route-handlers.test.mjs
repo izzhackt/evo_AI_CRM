@@ -733,6 +733,69 @@ test("forbidden and malformed uploads fail before work while admitted Student at
   assert.equal(invalid.calls.length, 0);
 });
 
+function namedUploadRequest(filename) {
+  const form = new FormData();
+  form.set("file", new Blob([BYTES], { type: "application/pdf" }), filename);
+  form.set("request_id", REQUEST_IDS[0]);
+  return new Request("http://app.test/api/v2/document-slots/x/versions", { method: "POST", body: form });
+}
+
+test("a file name over 255 characters is refused before scanning, like the database would (Э8.1)", async () => {
+  // 255 characters is the database limit (`char_length`): an astral character counts once.
+  for (const [filename, accepted] of [
+    [`${"а".repeat(251)}.pdf`, true],
+    [`${"😀".repeat(251)}.pdf`, true],
+    [`${"а".repeat(252)}.pdf`, false],
+  ]) {
+    const { calls, dependencies } = uploadDependencies({
+      scanOutcomes: [{ result: SCAN_PROOF }, { result: STORED_SCAN_PROOF }],
+    });
+    const response = await createPlatformDocumentUploadHandler(dependencies)(
+      namedUploadRequest(filename),
+      { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+    );
+    if (accepted) {
+      assert.notEqual(response.status, 400, `${Array.from(filename).length} characters reach the upload`);
+      assert.ok(calls.some(([, name]) => name === "preflight_document_upload"));
+    } else {
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), { error: "invalid_upload" });
+      assert.equal(calls.length, 0, "no preflight, scan or write for an over-long name");
+    }
+  }
+});
+
+test("every failed upload writes one structured log line: code, status and the slot prefix only (Э8.1)", async (t) => {
+  const lines = [];
+  t.mock.method(console, "warn", (line) => lines.push(line));
+  const secretName = "Паспорт Иванова 1234.pdf";
+  const run = async (handler, request, documentSlotId = SLOT_ID) =>
+    handler(request, { params: Promise.resolve({ documentSlotId }) });
+
+  // Malware (422), an unknown slot (400), a refused session (403) and a success.
+  const infected = uploadDependencies({ scanError: new ClamdScanError("infected") });
+  assert.equal((await run(createPlatformDocumentUploadHandler(infected.dependencies), namedUploadRequest(secretName))).status, 422);
+  const invalid = uploadDependencies();
+  assert.equal((await run(createPlatformDocumentUploadHandler(invalid.dependencies), namedUploadRequest(secretName), "not-a-uuid")).status, 400);
+  const forbidden = uploadDependencies({ authorization: { status: "forbidden", actor: null } });
+  assert.equal((await run(createStudentPortalDocumentUploadHandler(forbidden.dependencies), uploadRequest())).status, 403);
+  const saved = uploadDependencies({ scanOutcomes: [{ result: SCAN_PROOF }, { result: STORED_SCAN_PROOF }] });
+  const savedResponse = await run(createPlatformDocumentUploadHandler(saved.dependencies), uploadRequest());
+  assert.equal(savedResponse.status, 201);
+  // The logged response body stays readable for the caller.
+  assert.equal((await savedResponse.json()).document.documentSlotId, SLOT_ID);
+
+  assert.equal(lines.length, 3, "one line per failed upload, none for a success");
+  assert.deepEqual(lines.map((line) => JSON.parse(line)), [
+    { event: "document_upload_failed", audience: "staff", code: "malware_detected", status: 422, slot: SLOT_ID.slice(0, 8) },
+    { event: "document_upload_failed", audience: "staff", code: "invalid_document_slot", status: 400, slot: null },
+    { event: "document_upload_failed", audience: "student", code: "forbidden", status: 403, slot: SLOT_ID.slice(0, 8) },
+  ]);
+  for (const line of lines) {
+    assert.doesNotMatch(line, /Паспорт|Иванова|proof\.pdf|admissions@example|3333-4333/u, "no file name, person or full id");
+  }
+});
+
 test("upload aborts a streamed oversized body even when content-length lies", async () => {
   const oversizedChunk = new Uint8Array(9 * 1024 * 1024);
   let emittedChunks = 0;

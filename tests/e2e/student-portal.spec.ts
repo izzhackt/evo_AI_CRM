@@ -571,31 +571,28 @@ test("mobile document review and curator replies persist through real Auth and d
     expect(profileResponse?.status(), "The complete synthetic handoff must render the real staff document route").toBe(200);
     const item = adminPage.getByTestId("v3-document-item").filter({ hasText: label });
     await expect(item).toBeVisible();
-    await item.getByText("Проверить документ", { exact: true }).click();
-    const review = item.locator("form").filter({ has: adminPage.getByRole("combobox", { name: "Решение", exact: true }) });
-    const decisionInput = review.getByRole("combobox", { name: "Решение", exact: true });
-    await expect(decisionInput).toBeVisible();
-    // Playwright retargets option disabled-state checks to its enabled select.
-    // Assert the native option flag and that keyboard selection skips approval.
-    await expect(review.getByRole("option", { name: "Принять", exact: true })).toHaveJSProperty("disabled", true);
-    await decisionInput.focus();
-    await adminPage.keyboard.press("Home");
-    await adminPage.keyboard.press("ArrowUp");
-    await expect(decisionInput).toHaveValue("correction_required");
-    await decisionInput.selectOption(decision);
+    // Э8.1: решение — в строке. Незавершённая проверка файла не даёт «Принять»,
+    // «Вернуть…» спрашивает причину, которую увидит студент.
+    await expect(item.getByTestId("v3-document-approve")).toBeDisabled();
+    await item.getByTestId("v3-document-return").click();
+    const review = item.getByTestId("v3-document-return-form");
+    const decisionButton = review.getByRole("button", {
+      name: decision === "rejected" ? "Отклонить" : "Вернуть на исправление",
+      exact: true,
+    });
     const reasonInput = review.getByRole("textbox", { name: "Что нужно исправить", exact: true });
     await expect(reasonInput).toHaveAttribute("required", "");
-    await review.getByRole("button", { name: "Сохранить решение", exact: true }).click();
+    await decisionButton.click();
     expect(await reasonInput.evaluate(element => (element as HTMLTextAreaElement).validity.valueMissing)).toBe(true);
     await reasonInput.fill(reason);
     expect(await adminPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
-    for (const control of await review.locator("select,textarea,button").all()) {
+    for (const control of await review.locator("textarea,button").all()) {
       expect((await control.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     }
     await screenshot(adminPage, "document-review");
-    await review.getByRole("button", { name: "Сохранить решение", exact: true }).click();
+    await decisionButton.click();
     await expect(item.getByText(canonicalReason, { exact: true })).toBeVisible();
-    await expect(item.getByText("Проверить документ", { exact: true })).toHaveCount(0);
+    await expect(item.getByTestId("v3-document-return")).toHaveCount(0);
     const [reviewProof] = await sql<{ decision: string; reason: string; reviews: string; projections: string; scan_count: string; legacy_unscanned: boolean }[]>`
       SELECT slot.status::TEXT AS decision, review.reason,
         (SELECT count(*)::TEXT FROM platform.document_reviews r WHERE r.document_slot_id = slot.id) AS reviews,

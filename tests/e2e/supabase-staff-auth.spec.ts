@@ -287,16 +287,28 @@ async function expectPrivatePreview(
   await expect(trigger).toBeFocused();
 }
 
-async function submitDocumentUpload(page: Page, within?: Locator) {
-  const root = within ?? page;
-  const form = root.getByTestId("v3-document-upload-form");
+// Э8.1: файл уходит сразу после выбора — отдельной кнопки отправки нет. До
+// гидратации поле выбора недоступно, поэтому сначала ждём, что оно доступно.
+async function uploadDocumentFile(
+  page: Page,
+  item: Locator,
+  file: Readonly<{ name: string; mimeType: string; buffer: Buffer }>,
+) {
+  const form = item.getByTestId("v3-document-upload-form");
   await expect(form.locator('input[name="request_id"]')).not.toHaveValue("");
-  await form.locator('button[type="submit"]').click();
-  await expect(root.getByTestId("v3-document-upload-status")).toHaveAttribute(
+  await expect(form.locator('input[name="file"]')).toBeEnabled();
+  await form.locator('input[name="file"]').setInputFiles(file);
+  await expect(item.getByTestId("v3-document-upload-status")).toHaveAttribute(
     "data-outcome",
     "saved",
   );
   await page.reload();
+}
+
+// Редкие действия строки документа — в «⋯» (Э8.1).
+async function chooseDocumentMenuItem(item: Locator, name: string) {
+  await item.getByTestId("v3-document-menu").click();
+  await item.getByRole("button", { name, exact: true }).click();
 }
 
 function writeP4AcceptanceResult(result: Readonly<Record<string, unknown>>) {
@@ -2464,34 +2476,33 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .getByTestId("v3-document-item")
     .filter({ hasText: "P4 real private Storage proof" });
   await expect(documentItem).toHaveAttribute("data-document-presence", "absent");
-  const firstUpload = documentItem.getByTestId("v3-document-upload-form");
-  await firstUpload.locator('input[name="file"]').setInputFiles({
+  await uploadDocumentFile(page, documentItem, {
     name: "p4-isolated-proof-v1.pdf",
     mimeType: "application/pdf",
     buffer: firstPdf,
   });
-  await submitDocumentUpload(page);
   await expect(documentItem).toHaveAttribute("data-document-presence", "present");
   await expect(documentItem).toContainText("p4-isolated-proof-v1.pdf");
-  await expect(documentItem).toContainText("версия 1");
+  // Первая версия номера не показывает (Э8.1): «версия N» — только с N > 1.
+  await expect(documentItem).not.toContainText("версия 1");
   const firstVersionHref = await documentItem
     .getByTestId("v3-document-download")
     .getAttribute("href");
   const firstDocumentVersionId = requireUuidValue(
     firstVersionHref?.split("/")[4],
   );
+  await documentItem.getByTestId("v3-document-menu").click();
   const firstDownloadPromise = page.waitForEvent("download");
   await documentItem.getByTestId("v3-document-download").click();
   expect(await readDownload(await firstDownloadPromise)).toEqual(firstPdf);
   await expectPrivatePreview(page, documentItem.getByTestId("v3-document-preview"), firstPdf, "pdf");
 
-  const secondUpload = documentItem.getByTestId("v3-document-upload-form");
-  await secondUpload.locator('input[name="file"]').setInputFiles({
+  // «⋯» → «Заменить файл» открывает выбор того же скрытого поля строки.
+  await uploadDocumentFile(page, documentItem, {
     name: "p4-isolated-proof-v2.png",
     mimeType: "image/png",
     buffer: secondImage,
   });
-  await submitDocumentUpload(page);
   await expect(documentItem).toContainText("p4-isolated-proof-v2.png");
   await expect(documentItem).toContainText("версия 2");
   const secondVersionHref = await documentItem
@@ -2501,6 +2512,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     secondVersionHref?.split("/")[4],
   );
   expect(secondDocumentVersionId).not.toBe(firstDocumentVersionId);
+  await documentItem.getByTestId("v3-document-menu").click();
   const secondDownloadPromise = page.waitForEvent("download");
   await documentItem.getByTestId("v3-document-download").click();
   expect(await readDownload(await secondDownloadPromise)).toEqual(secondImage);
@@ -2510,6 +2522,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   expect(await immutableFirstDownload.body()).toEqual(firstPdf);
 
   const createChecklistItem = page.getByTestId("v3-document-checklist-create");
+  // Формы пункта раскрывает тихая «+ Документ» (Э8.1).
+  await page.getByTestId("v3-document-add-toggle").click();
   await createChecklistItem.locator('input[name="label"]').fill("P4 custom bank statement");
   await createChecklistItem.locator('input[name="group_label"]').fill("P4 finance documents");
   await createChecklistItem.locator('button[type="submit"]').click();
@@ -2519,20 +2533,18 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(customDocumentItem).toHaveAttribute("data-document-intent", "custom");
   await expect(customDocumentItem).toHaveAttribute("data-document-presence", "absent");
 
-  const customUpload = customDocumentItem.getByTestId("v3-document-upload-form");
-  await customUpload.locator('input[name="file"]').setInputFiles({
+  await uploadDocumentFile(page, customDocumentItem, {
     name: "p4-custom-bank-statement.pdf",
     mimeType: "application/pdf",
     buffer: firstPdf,
   });
-  await submitDocumentUpload(page, customDocumentItem);
   await expect(customDocumentItem).toHaveAttribute("data-document-presence", "present");
   const customVersionHref = await customDocumentItem
     .getByTestId("v3-document-download")
     .getAttribute("href");
   requireUuidValue(customVersionHref?.split("/")[4]);
 
-  await customDocumentItem.getByText("Изменить пункт", { exact: true }).click();
+  await chooseDocumentMenuItem(customDocumentItem, "Изменить пункт");
   const editChecklistItem = customDocumentItem.getByTestId("v3-document-checklist-edit");
   await editChecklistItem.locator('input[name="label"]').fill("P4 renamed bank statement");
   await editChecklistItem.locator('input[name="group_label"]').fill("P4 renamed group");
@@ -2543,14 +2555,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(renamedDocumentItem).toBeVisible();
   await expect(page.getByText("P4 renamed group", { exact: true })).toBeVisible();
 
-  const renamedDocumentControls = renamedDocumentItem
-    .locator("details")
-    .filter({ has: page.getByTestId("v3-document-checklist-edit") });
+  // «Связи» — панель под строкой из «⋯»; после сохранения она остаётся открытой.
   const openRenamedDocumentControls = async () => {
-    if (!await renamedDocumentControls.evaluate(
-      (element) => (element as HTMLDetailsElement).open,
-    )) {
-      await renamedDocumentControls.getByText("Изменить пункт", { exact: true }).click();
+    if (!await renamedDocumentItem.getByTestId("v3-document-case-links").isVisible()) {
+      await chooseDocumentMenuItem(renamedDocumentItem, "Связи");
     }
   };
   await openRenamedDocumentControls();
@@ -2616,7 +2624,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     university_application_id: null,
   });
 
-  await openRenamedDocumentControls();
+  await chooseDocumentMenuItem(renamedDocumentItem, "Убрать из чек-листа…");
   await renamedDocumentItem
     .getByTestId("v3-document-checklist-remove")
     .locator('button[type="submit"]')

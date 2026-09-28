@@ -19,10 +19,13 @@
  * `TeamChat` рендерятся на сервере и гидратируются в браузере настоящими
  * клиентскими компонентами (бандл esbuild); серверные действия отвечают той
  * же синтетикой (чтение ленты и поиска, отметка просмотра), запись честно
- * недоступна; живые обновления — заглушка клиента Supabase, которая сразу
- * «подключена». Люди, каналы и сообщения ВЫДУМАНЫ для проверки вёрстки и не
- * являются записями EVO. Живой Supabase, права сервера, SQL и маршрутизатор
- * Next.js этот рендер не проверяет.
+ * недоступна — кроме путей удаления, где заглушка команды отвечает «сохранено»
+ * и следующие чтения отдают это сообщение удалённым (всё — в памяти вкладки,
+ * в EVO ничего не пишется); живые обновления — заглушка клиента Supabase,
+ * которая сразу «подключена» и даёт пути вызвать «invalidate». Люди, каналы и
+ * сообщения ВЫДУМАНЫ для проверки вёрстки и не являются записями EVO. Живой
+ * Supabase, права сервера, SQL и маршрутизатор Next.js этот рендер не
+ * проверяет.
  *
  *   node tests/e2e/team-chat-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — статическая разметка страниц.
@@ -30,10 +33,13 @@
  *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844: переписка с
  *       ответами, цитатами и удалёнными; каналы с непрочитанными (на
  *       телефоне — список каналов); канал, где удалено всё; ссылка на
- *       удалённое сообщение (как из задачи); «К непрочитанным» внутрь
- *       свёрнутой строки; поиск с подсветкой и переходом в переписку; окно
- *       подтверждения удаления; набранный текст — единственная красная
- *       кнопка. По умолчанию outDir — .impeccable/review (не коммитится).
+ *       удалённое сообщение (как из задачи); гонка «К непрочитанным» —
+ *       первое непрочитанное удалено после снимка каналов — внутрь свёрнутой
+ *       строки; поиск с подсветкой и переходом в переписку; окно
+ *       подтверждения удаления; удаление своего, модерация и удаление по
+ *       живому обновлению с клавиатуры — фокус остаётся у строки сообщения;
+ *       набранный текст — единственная красная кнопка. По умолчанию outDir —
+ *       .impeccable/review (не коммитится).
  *       Проверки печатаются JSON-строками; при нарушении — код выхода 1.
  */
 
@@ -184,7 +190,7 @@ const CONVERSATION = [
 ];
 // Канал, где удалено всё — как «Общий» после «удали их» 28.09 (только форма,
 // время выдумано): корень с ответом, ответ с цитатой и ещё четыре; номер 6 —
-// в другом канале.
+// в другом канале. Непрочитанных нет: миграция 239 считает только живые.
 const ALL_DELETED = [
   message(1, ME, "2026-09-11T09:00:00.000Z", "", { deleted: true, replies: 1 }),
   message(2, ME, "2026-09-11T09:30:00.000Z", "", { deleted: true, root: 1 }),
@@ -210,14 +216,23 @@ const SCENARIOS = {
   // Всё удалено: одна тихая строка, не «пустой канал».
   "all-deleted": {
     search: { channel: "general" }, messages: ALL_DELETED,
-    channels: [channel("general", ALL_DELETED.at(-1), { unread: 4, firstUnread: messageId(3) }), channel("sales", SALES_LATEST), channel("admissions", null)],
+    channels: [channel("general", ALL_DELETED.at(-1)), channel("sales", SALES_LATEST), channel("admissions", null)],
   },
   // Ссылка на первое удалённое (так ведёт ссылка «источник» у задачи).
   "all-deleted-link": {
     search: { channel: "general", message: messageId(1) }, messages: ALL_DELETED,
     channels: [channel("general", ALL_DELETED.at(-1)), channel("sales", SALES_LATEST), channel("admissions", null)],
   },
+  // Гонка: снимок каналов сделан, пока 15 было живым первым непрочитанным
+  // (15–21 — семь); потом 15 удалили, и лента уже показывает его свёрнутым.
+  // Без гонки миграция 239 не ведёт «К непрочитанным» к удалённому.
+  "unread-race": {
+    search: { channel: "general" }, messages: CONVERSATION,
+    channels: [channel("general", CONVERSATION.at(-1), { unread: 7, firstUnread: messageId(15) }), channel("sales", SALES_LATEST), channel("admissions", ADMISSIONS_LATEST)],
+  },
 };
+// Сценарии общего обхода (снимок на каждой ширине); «unread-race» — только в пути.
+const PAGES = ["conversation", "channels", "all-deleted", "all-deleted-link"];
 const PATHNAME = "/v3/team-chat";
 const searchOf = (scenario) => new URLSearchParams(scenario.search).toString();
 
@@ -290,7 +305,8 @@ module.exports.__esModule = true;
 const SUPABASE_SHIM = `
 export function createBrowserClient() {
   const subscription = {
-    on() { return subscription; },
+    // Путь «удалено по живому обновлению» вызывает «invalidate» сам.
+    on(_type, _filter, callback) { window.__harnessInvalidate = callback; return subscription; },
     subscribe(callback) { setTimeout(() => callback("SUBSCRIBED"), 0); return subscription; },
   };
   return {
@@ -313,7 +329,7 @@ const { AppShell } = require("@/components/v3/AppShell");
 const { TeamChat } = require("@/components/v3/team-chat/TeamChat");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
-window.__harness = { pushes: [], recoverable: [], errors: [], actions: [] };
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], deleted: [], commandSaves: false };
 const router = {
   push: (href) => { window.__harness.pushes.push(href); }, replace: (href) => { window.__harness.pushes.push(href); },
   refresh() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {},
@@ -335,7 +351,18 @@ async function buildClientBundle(outFile) {
   // Чтения отвечают синтетикой этой вкладки: «changes» — без новых строк,
   // поиск — по тексту живых сообщений, контекст — та же лента с фокусом.
   // Отправка, правка и удаление честно недоступны (в EVO ничего не пишется).
-  const fixture = `const fixture = () => JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);`;
+  // Удалённые путями этой вкладки (window.__harness.deleted) читаются удалёнными,
+  // с новой версией — как строки после команды delete/moderate.
+  const fixture = `const fixture = () => {
+  const data = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
+  const gone = new Set(window.__harness.deleted);
+  if (!gone.size) return data;
+  const at = "2026-09-28T06:00:00.000Z";
+  const bump = (version) => String(Number(version) + 1);
+  const drop = (row) => gone.has(row.id) ? { ...row, body: "", mentionedMembershipIds: [], editedAt: null, deletedAt: at, version: bump(row.version) } : row;
+  const dropQuote = (quote) => gone.has(quote.id) ? { ...quote, bodyPreview: "", deletedAt: at, version: bump(quote.version) } : quote;
+  return { ...data, messages: data.messages.map(drop), page: { ...data.page, messages: data.page.messages.map(drop), quotes: data.page.quotes.map(dropQuote) } };
+};`;
   const readStub = `${fixture}
 export async function readTeamChatAction(query) {
   window.__harness.actions.push("read:" + query.mode);
@@ -346,9 +373,23 @@ export async function readTeamChatAction(query) {
       .map(({ quoteMessageId, ...row }) => row);
     return { status: "ready", snapshot: { page: { messages, cursor: "0", watermark: "40", hasMore: false, latestMessageId: null, rootId: null }, channels: data.channels, participants: data.participants } };
   }
-  return { status: "ready", snapshot: { page: { messages: [], cursor: query.cursor ?? "40", watermark: query.cursor ?? "40", hasMore: false, latestMessageId: data.latestMessageId, rootId: null }, channels: data.channels, participants: data.participants } };
+  // «changes»: каждое удаление этой вкладки — одна новая версия после 40.
+  const cursor = Number(query.cursor ?? 40), head = 40 + window.__harness.deleted.length;
+  const changed = cursor < head ? data.messages.filter((row) => window.__harness.deleted.includes(row.id)).map(({ quoteMessageId, ...row }) => row) : [];
+  const next = String(Math.max(cursor, head));
+  return { status: "ready", snapshot: { page: { messages: changed, cursor: next, watermark: next, hasMore: false, latestMessageId: data.latestMessageId, rootId: null }, channels: data.channels, participants: data.participants } };
 }
-export async function teamChatCommandAction(_previous, form) { window.__harness.actions.push("command"); return { status: "unavailable", requestId: form.get("request_id"), messageId: null }; }`;
+export async function teamChatCommandAction(_previous, form) {
+  window.__harness.actions.push("command");
+  const input = JSON.parse(form.get("input"));
+  // Удаление «сохраняется» только в путях удаления — и только в памяти вкладки.
+  if (window.__harness.commandSaves && (input.operation === "delete" || input.operation === "moderate")) {
+    window.__harness.actions.push(input.operation + ":" + input.messageId);
+    window.__harness.deleted.push(input.messageId);
+    return { status: "saved", requestId: form.get("request_id"), messageId: input.messageId };
+  }
+  return { status: "unavailable", requestId: form.get("request_id"), messageId: null };
+}`;
   const timelineStub = `${fixture}
 export async function readTeamChatTimelineV2Action(input) {
   window.__harness.actions.push("timeline:" + input.mode + (input.messageId ? ":" + input.messageId : ""));
@@ -423,8 +464,8 @@ function pageMetrics() {
   const pageTopRaw = main ? getComputedStyle(main).getPropertyValue("--shell-page-top").trim() : "";
   const pageTop = pageTopRaw.endsWith("rem") ? parseFloat(pageTopRaw) * rootFont : parseFloat(pageTopRaw);
   const bubbles = [...document.querySelectorAll("[data-chat-row] [class*=bubble]")].filter(visible);
-  const own = bubbles.find((element) => element.closest("[class*=ownMessage]") && !element.closest("[class*=compactDeleted]"));
-  const other = bubbles.find((element) => !element.closest("[class*=ownMessage]") && !element.closest("[class*=compactDeleted]"));
+  const own = bubbles.find((element) => element.closest("[class*=ownMessage]") && !element.closest("[class*=deletedMessage]"));
+  const other = bubbles.find((element) => !element.closest("[class*=ownMessage]") && !element.closest("[class*=deletedMessage]"));
   const runs = [...document.querySelectorAll("[data-chat-deleted-run]")].filter(visible);
   const highlighted = [...document.querySelectorAll("[class*=highlighted]")].filter(visible)
     .map((element) => (element.matches("[data-chat-deleted-run]") ? element : element.querySelector("[class*=bubble]") ?? element));
@@ -562,7 +603,7 @@ async function screenshots() {
   };
 
   try {
-    for (const name of Object.keys(SCENARIOS)) {
+    for (const name of PAGES) {
       for (const viewportKey of Object.keys(VIEWPORTS)) {
         const file = `${prefix}-${name}-${viewportKey}.png`;
         const session = await open(htmlFor[name], viewportKey);
@@ -591,7 +632,9 @@ async function screenshots() {
           check(metrics.runs[0]?.anchors === 6 && metrics.rows.length === 6, `${file}: anchors ${JSON.stringify(metrics.runs)} rows ${metrics.rows.length}`);
           check(!metrics.empty && metrics.tombstones === 0, `${file}: empty ${metrics.empty}, tombstones ${metrics.tombstones}`);
           check(metrics.dividers.length === 1, `${file}: dividers ${metrics.dividers.join(" · ")}`);
-          if (name === "all-deleted") check(metrics.readActions.includes("К непрочитанным · 4"), `${file}: read actions ${metrics.readActions.join(" · ")}`);
+          // Удалено всё — непрочитанных нет (миграция 239 считает только живые).
+          const general = metrics.channels.find((item) => item.text === "Общий");
+          check(!metrics.readActions.some((action) => action.startsWith("К непрочитанным")) && !general?.badge, `${file}: unread ${metrics.readActions.join(" · ")} ${JSON.stringify(general?.badge)}`);
         }
         if (name === "all-deleted-link") {
           // Ссылка «источник» задачи: строка подсвечена, фокус — на ней, она на виду.
@@ -614,19 +657,20 @@ async function screenshots() {
       common(file, metrics, viewportKey);
     }
 
-    // «К непрочитанным» ведёт к удалённому внутри свёрнутой строки.
+    // Гонка: «К непрочитанным» ведёт к первому непрочитанному, которое удалили
+    // после снимка каналов, — внутрь свёрнутой строки; строка подсвечена и в фокусе.
     for (const viewportKey of ["1440", "390"]) {
-      const session = await open(htmlFor["all-deleted"], viewportKey);
+      const session = await open(htmlFor["unread-race"], viewportKey);
       const { page } = session;
-      await page.locator("[class*=readActions] button", { hasText: "К непрочитанным" }).click();
+      await page.locator("[class*=readActions] button", { hasText: "К непрочитанным · 7" }).click();
       await page.waitForFunction(() => document.querySelector("[data-chat-deleted-run][class*=highlighted]"), null, { timeout: 5_000 }).catch(() => {});
       await page.waitForTimeout(150);
       const metrics = await page.evaluate(pageMetrics);
-      const file = `${prefix}-all-deleted-unread-${viewportKey}.png`;
+      const file = `${prefix}-unread-race-${viewportKey}.png`;
       await page.screenshot({ path: join(outDir, file) });
       const harness = await finish(session, file);
-      report({ journey: "first-unread", file, actions: harness.actions, highlight: metrics.highlight, focus: metrics.focus, runs: metrics.runs });
-      check(harness.actions.includes(`timeline:context:${messageId(3)}`), `${file}: context read ${JSON.stringify(harness.actions)}`);
+      report({ journey: "first-unread-race", file, actions: harness.actions, highlight: metrics.highlight, focus: metrics.focus, runs: metrics.runs });
+      check(harness.actions.includes(`timeline:context:${messageId(15)}`), `${file}: context read ${JSON.stringify(harness.actions)}`);
       check(metrics.highlight.length === 1 && metrics.focus?.run === true && metrics.focus.inView === true, `${file}: first unread ${JSON.stringify({ highlight: metrics.highlight, focus: metrics.focus })}`);
       common(file, metrics, viewportKey);
     }
@@ -675,6 +719,59 @@ async function screenshots() {
       check(metrics.confirm?.text === "Подтвердить удаление" && metrics.confirm.bg === INK, `${file}: confirm ${JSON.stringify(metrics.confirm)}`);
       check(!harness.actions.includes("command"), `${file}: opening the confirmation sent a command`);
       common(file, metrics, viewportKey);
+    }
+
+    // Удаление с клавиатуры: после «Подтвердить удаление» (своё), модерации
+    // (чужое, с причиной) и удаления по живому обновлению сообщение
+    // сворачивается в строку «Удалено сообщений: N» — фокус у этой строки,
+    // не на <body>. 13 — новая строка с другим ключом (13–15), 16 — входит в
+    // строку 14–15 с прежним ключом, 12 — одно «Сообщение удалено».
+    const focusOf = (id) => page => page.evaluate((target) => {
+      const active = document.activeElement;
+      const view = document.querySelector('[aria-label="История сообщений"]').getBoundingClientRect();
+      const box = active.getBoundingClientRect();
+      return { tag: active.tagName, run: active.hasAttribute("data-chat-deleted-run"), holds: Boolean(active.querySelector(`[data-chat-row="${target}"]`)),
+        text: active.textContent.trim(), inView: box.top >= view.top - 1 && box.bottom <= view.bottom + 1 };
+    }, id);
+    const collapsed = (page, id) => page.waitForFunction((target) => document.getElementById(`team-message-channel-${target}`)?.closest("[data-chat-deleted-run]"), id, { timeout: 5_000 });
+    const deletions = [
+      { journey: "delete-own", viewports: ["1440", "390"], id: messageId(13), label: "Удалить", run: "Удалено сообщений: 3" },
+      { journey: "moderate", viewports: ["1440"], id: messageId(16), label: "Модерация", run: "Удалено сообщений: 3", reason: "Проверка вёрстки" },
+      { journey: "realtime-delete", viewports: ["1440"], id: messageId(12), run: "Сообщение удалено" },
+    ];
+    for (const deletion of deletions) {
+      for (const viewportKey of deletion.viewports) {
+        const session = await open(htmlFor.conversation, viewportKey);
+        const { page } = session;
+        const row = page.locator(`article[data-chat-row="${deletion.id}"]`);
+        if (deletion.label) {
+          await page.evaluate(() => { window.__harness.commandSaves = true; });
+          await row.locator('summary[aria-label="Действия с сообщением"]').focus();
+          await page.keyboard.press("Enter");
+          await row.locator("button", { hasText: deletion.label }).focus();
+          await page.keyboard.press("Enter");
+          await page.waitForSelector("form[data-chat-overlay]");
+          // Своё — фокус на «Подтвердить удаление»; модерация — в поле причины.
+          if (deletion.reason) await page.keyboard.type(deletion.reason);
+          await page.keyboard.press("Enter");
+        } else {
+          // Фокус на «Ответить» в строке, сообщение удаляет другой сотрудник.
+          await row.locator("button", { hasText: "Ответить" }).focus();
+          await page.evaluate((id) => { window.__harness.deleted.push(id); window.__harnessInvalidate(); }, deletion.id);
+        }
+        await collapsed(page, deletion.id).catch(() => {});
+        await page.waitForTimeout(250);
+        const focus = await focusOf(deletion.id)(page);
+        const metrics = await page.evaluate(pageMetrics);
+        const file = `${prefix}-${deletion.journey}-${viewportKey}.png`;
+        await page.screenshot({ path: join(outDir, file) });
+        const harness = await finish(session, file);
+        report({ journey: deletion.journey, file, focus, runs: metrics.runs, tombstones: metrics.tombstones, actions: harness.actions.filter((action) => !action.startsWith("seen:")) });
+        if (deletion.label) check(harness.actions.includes(`${deletion.label === "Удалить" ? "delete" : "moderate"}:${deletion.id}`), `${file}: command ${JSON.stringify(harness.actions)}`);
+        check(focus.run && focus.holds && focus.text === deletion.run && focus.inView, `${file}: focus after delete ${JSON.stringify(focus)}`);
+        check(metrics.rows.length === CONVERSATION.length && metrics.tombstones === 1, `${file}: ${metrics.rows.length} targets, ${metrics.tombstones} tombstones`);
+        common(file, metrics, viewportKey);
+      }
     }
 
     // Набранный текст: «Отправить» — единственная сплошная красная кнопка.

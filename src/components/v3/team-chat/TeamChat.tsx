@@ -41,6 +41,16 @@ function restoreAnchor(root: HTMLElement, anchor: TeamChatScrollAnchor | null) {
   if (row) root.scrollTop += row.getBoundingClientRect().top - root.getBoundingClientRect().top - anchor.offset;
 }
 const nearBottom = (root: HTMLElement | null) => Boolean(root && root.scrollHeight - root.scrollTop - root.clientHeight < 48);
+/** Цель сообщения в ленте: его строка, а у свёрнутого удалённого — строка «Удалено сообщений: N». */
+function chatRowTarget(id: string): HTMLElement | null {
+  const anchor = document.getElementById(`team-message-channel-${id}`);
+  return anchor?.closest<HTMLElement>("[data-chat-deleted-run]") ?? anchor;
+}
+/** Сообщение, в строке которого фокус: у строки удалённых — первое свёрнутое. */
+function chatRowId(element: Element): string | null {
+  const row = element.closest<HTMLElement>("[data-chat-row], [data-chat-deleted-run]");
+  return row?.dataset.chatRow ?? row?.querySelector<HTMLElement>("[data-chat-row]")?.dataset.chatRow ?? null;
+}
 const dayFormat = (withYear: boolean) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", ...(withYear ? { year: "numeric" } : {}), timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
 const DAY = dayFormat(false);
 const DAY_WITH_YEAR = dayFormat(true);
@@ -82,6 +92,10 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const [deletion, setDeletion] = useState<TeamChatDeletionAttempt | null>(null);
   const [deletionVisible, setDeletionVisible] = useState(false);
   const deletionFocus = useRef<HTMLElement | null>(null);
+  // Фокус в ленте запоминается по id сообщения: удалённое сворачивается в
+  // строку «Удалено сообщений: N» (или меняется ключ этой строки), и элемент
+  // с фокусом исчезает — фокус переходит к строке с этим id, а не на <body>.
+  const focusedRow = useRef<{ id: string; element: HTMLElement } | null>(null);
   const composer = useRef<TeamChatComposerHandle>(null);
   const watermark = useRef(initial.page.watermark);
   const latestId = useRef(initial.page.latestMessageId);
@@ -278,9 +292,14 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       if (requested.focusId) document.getElementById(requested.focusId)?.focus({ preventScroll: true });
     } else if (requested?.kind === "message") {
       // Свёрнутое удалённое сообщение — цель внутри строки «Удалено сообщений: N»: фокус у строки.
-      const anchor = document.getElementById(`team-message-channel-${requested.id}`);
-      const row = anchor?.closest<HTMLElement>("[data-chat-deleted-run]") ?? anchor;
+      const row = chatRowTarget(requested.id);
       if (row) { root.scrollTop += row.getBoundingClientRect().top - root.getBoundingClientRect().top - root.clientHeight / 3; row.focus({ preventScroll: true }); }
+    }
+    const lost = focusedRow.current;
+    if (lost && !lost.element.isConnected && (!document.activeElement || document.activeElement === document.body)) {
+      const row = chatRowTarget(lost.id);
+      focusedRow.current = row ? { id: lost.id, element: row } : null;
+      row?.focus({ preventScroll: true });
     }
     stableAnchor.current = captureAnchor(root); wasAtBottom.current = nearBottom(root);
   }, [feed, view, search, panel]);
@@ -402,6 +421,11 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const highlightedKey = highlighted?.toLowerCase() ?? null;
   const transportLabel = forbidden ? "Доступ к каналу закрыт" : transport === "live" ? null : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
   const afterSave = () => { void refresh(); };
+  /** После подтверждения или отмены — фокус к строке сообщения (её мог заменить свёрнутый ряд). */
+  const returnDeletionFocus = (id: string) => {
+    const saved = deletionFocus.current; deletionFocus.current = null;
+    (saved?.isConnected ? saved : chatRowTarget(id))?.focus();
+  };
 
   return <div ref={workspace} className={styles.workspace} data-panel={panel} aria-busy={busy}>
     <nav className={styles.channels} aria-label="Каналы команды">
@@ -467,6 +491,17 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         </form> : null}
         {returns.length ? <div className={styles.readActions}><button type="button" className={styles.textButton} onClick={back}><Icon name="arrow-left" size={18} />{returns.at(-1)?.view === "search" ? "К результатам поиска" : "Назад к сообщениям"}</button></div> : null}
         <div className={styles.history} ref={viewport} tabIndex={0} aria-label={view === "search" ? "Результаты поиска" : "История сообщений"}
+          onFocus={(event) => {
+            const id = chatRowId(event.target);
+            focusedRow.current = id ? { id, element: event.target } : null;
+          }}
+          onBlur={(event) => {
+            // Фокус ушёл из ленты сам (редактор, поиск, подтверждение, щелчок мимо) —
+            // возвращать его не нужно. Исчезнувший элемент к этому не относится.
+            const left = event.target;
+            if (event.relatedTarget) { if (!event.currentTarget.contains(event.relatedTarget)) focusedRow.current = null; }
+            else queueMicrotask(() => { if (left.isConnected && focusedRow.current?.element === left && document.activeElement !== left) focusedRow.current = null; });
+          }}
           onScroll={() => {
             stableAnchor.current = captureAnchor(viewport.current); wasAtBottom.current = nearBottom(viewport.current);
             if (wasAtBottom.current && !feed.range.hasAfter && view === "feed" && !returns.length) setNewMessages(false);
@@ -510,8 +545,8 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         </div>
         {seen.error ? <div role="alert" className={styles.error}>Не удалось сохранить просмотр {seen.queued} сообщений. <button className={styles.textButton} type="button" onClick={seen.retry}>Повторить</button></div> : null}
         {deletion ? <TeamChatDeleteConfirmation key={deletion.requestId} attempt={deletion} visible={deletionVisible} onFailure={reportFailure}
-          onCancel={(uncertain) => { setDeletionVisible(false); if (!uncertain) setDeletion(null); deletionFocus.current?.focus(); }}
-          onSaved={() => { setDeletionVisible(false); setDeletion(null); afterSave(); deletionFocus.current?.focus(); }} /> : null}
+          onCancel={(uncertain) => { setDeletionVisible(false); if (!uncertain) setDeletion(null); returnDeletionFocus(deletion.message.id); }}
+          onSaved={() => { setDeletionVisible(false); setDeletion(null); afterSave(); returnDeletionFocus(deletion.message.id); }} /> : null}
         <TeamChatComposer ref={composer} channel={channel} participants={participants} storageScope={`${organizationId}:${membershipId}`} quotes={feed.store.quotes}
           onSaved={afterSave} onFailure={reportFailure} onResumeEdit={resumeEdit} />
       </>}

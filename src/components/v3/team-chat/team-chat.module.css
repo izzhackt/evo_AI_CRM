@@ -50,9 +50,12 @@
    нейтральное «выбрано» (`--accent-weak`), без красного. */
 .bubble { margin-top: 4px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .ownMessage .bubble { border-color: transparent; background: var(--accent-weak); }
+/* Удалённое, которое остаётся своей строкой (от него может зависеть живой
+   ответ), — тихий текст без пузыря, как строка «Удалено сообщений: N»; автор
+   и время остаются — на них опираются ответы. */
+.deletedMessage .bubble { margin-top: 2px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.deletedMessage .bubble > p { margin: 0; }
 .compactDeleted { padding-block: 4px; }
-.compactDeleted .bubble { margin-top: 2px; padding: 0; border: 0; border-radius: 0; background: transparent; }
-.compactDeleted .bubble > p { margin: 0; }
 /* Подсветка сообщения по ссылке и из поиска — кольцо фокуса, не красный. */
 .highlighted .bubble, .deletedRun.highlighted { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 .messageHeader { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; color: var(--text-2); }
@@ -79,7 +82,9 @@
 .secondary { display: inline-flex; justify-content: center; align-items: center; border-radius: 8px; padding: 10px 14px; font-size: var(--type-label); line-height: var(--type-label-leading); text-decoration: none; text-align: center; background: var(--surface); color: var(--text); border: 1px solid var(--border); }
 .secondary:hover { background: var(--bg); }
 .composer { flex-shrink: 0; padding: 12px 24px 16px; border-top: 1px solid var(--border); background: var(--surface); }
-.quote { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-2); font: inherit; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); text-align: left; overflow-wrap: anywhere; }
+/* Цитата — кнопка «Перейти к сообщению»: свой белый лист и край контрола
+   (≥3:1) и в чужом, и в своём пузыре. */
+.quote { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--control-edge); border-radius: 8px; background: var(--surface); color: var(--text-2); font: inherit; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); text-align: left; overflow-wrap: anywhere; }
 .quote:hover { border-color: var(--accent-text); }
 .quote span, .composerQuote p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
 .composerQuote { display: flex; align-items: flex-start; gap: 8px; padding-bottom: 8px; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); color: var(--text-2); }

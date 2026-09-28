@@ -7,6 +7,7 @@ import * as access from "../src/lib/platform-access.ts";
 import * as jsxRuntime from "react/jsx-runtime";
 import * as chatFeed from "../src/lib/team-chat-feed.ts";
 import * as chatSeen from "../src/lib/platform-team-chat-seen.ts";
+import * as chatDeletedRuns from "../src/lib/team-chat-deleted-runs.ts";
 
 function loadSource(path, imports = {}, globals = {}) {
   const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -97,6 +98,7 @@ test("chat connects with supplied public config in an env-free browser and keeps
     "@/lib/platform-team-chat-actions": {},
     "@/lib/platform-team-chat-v2-actions": {},
     "@/lib/team-chat-feed": chatFeed,
+    "@/lib/team-chat-deleted-runs": chatDeletedRuns,
     "@/lib/platform-team-chat": loadSource("src/lib/platform-team-chat.ts"),
     "@/lib/supabase/config": loadSource("src/lib/supabase/config.ts", {}, { process: { env: {} } }),
     "./TeamChatComposer": { TeamChatComposer: "Composer" },
@@ -146,6 +148,7 @@ test("revocation remains terminal when an earlier context request rejects afterw
     "@/lib/platform-team-chat-v2-actions": { readTeamChatTimelineV2Action: () => contextResponse },
     "@/lib/platform-team-chat": loadSource("src/lib/platform-team-chat.ts"),
     "@/lib/team-chat-feed": chatFeed,
+    "@/lib/team-chat-deleted-runs": chatDeletedRuns,
     "@/lib/platform-organization-time": loadSource("src/lib/platform-organization-time.ts"),
     "@/components/icons": loadSource("src/components/icons.tsx", { "react/jsx-runtime": jsxRuntime }),
     "./TeamChatComposer": { TeamChatComposer: "Composer" },

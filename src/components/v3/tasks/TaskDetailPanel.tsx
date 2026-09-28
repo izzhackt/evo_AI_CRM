@@ -244,7 +244,9 @@ export function TaskDetailPanel({
                       {assigneeOptions.map((person) => <option key={person.membershipId} value={person.membershipId}>{person.displayName}</option>)}
                     </select>}
               </label>
-              <div className="grid gap-3 sm:grid-cols-2">
+              {/* Одна колонка, как форма «Изменить задачу» календаря: поля 16 px
+                  в две колонки (~185 px) обрезали минуты «Точного времени». */}
+              <div className="grid gap-3">
                 <DeadlineFields day={day} task={{ dueOn, dueAt, day: projection.day, minutes: projection.minutes }} defaultKind="none" />
               </div>
               {data.kind === "case" ? <label className="block t-label text-fg-2">Причина изменения

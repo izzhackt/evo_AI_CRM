@@ -390,7 +390,7 @@ function renderCalendarPage() {
   ];
   const body = createElement(Calendar, {
     initialTaskKey: null, unavailableTarget: null, taskCapabilities: null, view: "week", day: TODAY, today: TODAY, nowMinutes: 600,
-    days, tasks, readAccess: { caseTasks: true, staffTasks: true, tasks: true, applicationDeadlines: false }, undatedContinuationPage: false, undatedNextHref: null,
+    days, tasks, readAccess: { caseTasks: true, staffTasks: true, tasks: true }, undatedContinuationPage: false, undatedNextHref: null,
     undatedCursor: null, cases: [], casesHaveMore: false, assignees: [], actorMembershipId: ME, actor: ACTOR,
     createRequestId: "99999999-6666-4666-8666-000000000001", taskRequestIds: Object.fromEntries(tasks.map((item) => [item.key, {
       change: "99999999-6666-4666-8666-000000000002", complete: "99999999-6666-4666-8666-000000000003", cancel: "99999999-6666-4666-8666-000000000004",
@@ -596,7 +596,12 @@ async function screenshots() {
     ["tasks-done", renderTasksPage("done-view"), "done-view", [["tasks-done-1440.png", DESKTOP, false, null]]],
     ["tasks-loading", renderTasksLoadingPage(), null, [["tasks-loading-1440.png", DESKTOP, false, null]]],
     ["tasks-error", renderTasksErrorPage(), null, [["tasks-error-1440.png", DESKTOP, false, null]]],
-    ["calendar-week", renderCalendarPage(), null, [["tasks-calendar-week-1440.png", DESKTOP, true, null]]],
+    // Э8.8: неделя — сетка от 768 px, на телефоне — список по дням (серверная разметка без скриптов: переключает CSS).
+    ["calendar-week", renderCalendarPage(), null, [
+      ["tasks-calendar-week-1440.png", DESKTOP, true, null],
+      ["tasks-calendar-week-1280.png", LAPTOP, false, null],
+      ["tasks-calendar-week-390.png", PHONE, true, null],
+    ]],
   ];
   // CSS собирается после рендера страниц: CSS-модули календаря загружаются вместе с его компонентами.
   const css = await compileCss();

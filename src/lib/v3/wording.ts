@@ -460,6 +460,24 @@ export const leadStage = (v: string | null | undefined) => lookup(LEAD_STAGE, v)
 /** Название этапа продаж, как у колонки доски; `null` — не этап продаж. */
 export const salesStage = (v: string | null | undefined) => lookup(SALES_STAGE_TITLE, v);
 export const applicationStatus = (v: string | null | undefined) => lookup(APPLICATION_STATUS, v);
+
+/**
+ * Путь вуза дела на «Вузах и программах» (Э8.2, решение владельца 28.09):
+ * «вариант → заявка подана → решение». Шаг — по статусу заявки; отозванная
+ * и закрытая заявки с пути сходят (шага нет, остаётся слово статуса).
+ */
+export const APPLICATION_PATH_STEPS = ["вариант", "заявка подана", "решение"] as const;
+const APPLICATION_PATH_STEP: Readonly<Record<string, 0 | 1 | 2>> = {
+  preparation: 0, ready: 0, submitted: 1, under_review: 1, offer: 2, rejected: 2, enrolled: 2,
+};
+/** Слово текущего шага: у первых шагов — название шага пути, дальше — слово статуса. */
+const APPLICATION_PATH_WORD: Readonly<Record<string, string>> = { preparation: "вариант", submitted: "заявка подана" };
+export function applicationPathStep(value: string | null | undefined): 0 | 1 | 2 | null {
+  return value == null ? null : APPLICATION_PATH_STEP[value] ?? null;
+}
+export function applicationPathWord(value: string | null | undefined): string | null {
+  return value == null ? null : APPLICATION_PATH_WORD[value] ?? applicationStatus(value);
+}
 export function allDayDate(value: string | null | undefined): string | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
   if (!match) return null;

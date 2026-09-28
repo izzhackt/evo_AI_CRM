@@ -3,11 +3,12 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 
-
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useId, useState, type ReactNode } from "react";
 
-import { Pill, type PillTone } from "@/components/v3/Pill";
+import { Icon } from "@/components/icons";
+import { Pill } from "@/components/v3/Pill";
 import { btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import {
@@ -29,7 +30,7 @@ import {
   type PlatformFinanceStopFactorActionState,
 } from "@/lib/platform-case-operations-actions";
 import {
-  allDayDate,
+  APPLICATION_PATH_STEPS,
   applicationStatus,
   country as applicationCountry,
   degree as applicationDegree,
@@ -37,11 +38,14 @@ import {
   financeBlockedActionOptions,
 } from "@/lib/v3/wording";
 
-import { ApplicationCreateDialog } from "./ApplicationCreateDialog";
+import { DueWord } from "../blocks/DueWord";
+import { StatusChip } from "../blocks/StatusChip";
+import { useAnchoredPopover } from "../queue/useAnchoredPopover";
 import { StaffPreparationPanel } from "./StaffPreparationPanel";
 import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";
 import type { StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
 import type { ApplicationPartnerDetails, ProfileAdmissionsWorkspace } from "./types";
+import { partnerPacketHref, universityRows, type UniversityRow } from "./university-programs-view";
 
 export type ActionStatus =
   | PlatformUniversityApplicationActionState["status"]
@@ -55,13 +59,6 @@ const STATUS_COPY: Record<Exclude<ActionStatus, "idle">, string> = {
   request_conflict: "Этот запрос уже использован с другими данными. Повторите действие с новым идентификатором запроса.",
   unavailable: "Supabase не подтвердил изменение. Ничего не отмечено как сохранённое.",
 };
-
-function statusTone(status: string): PillTone {
-  if (status === "approved" || status === "enrolled" || status === "offer") return "ok";
-  if (status === "submitted" || status === "under_review" || status === "ready") return "info";
-  if (status === "rejected" || status === "withdrawn") return "danger";
-  return "neutral";
-}
 
 /** Exported for ApplicationCreateDialog.tsx, which reuses this same locked/refresh convention. */
 export function useCanonicalRefresh(status: ActionStatus): void {
@@ -130,23 +127,6 @@ export function ApplicationDegreeField({
         ))}
       </select>
     </label>
-  );
-}
-
-function ApplicationGeographySummary({
-  countryCode,
-  degreeKey,
-}: Readonly<{ countryCode: string | null; degreeKey: string | null }>) {
-  const countryLabel = applicationCountry(countryCode);
-  const degreeLabel = applicationDegree(degreeKey);
-  if (!countryLabel && !degreeLabel) return null;
-
-  return (
-    <p className="mt-2 text-xs text-fg-3">
-      {[countryLabel ? `Страна: ${countryLabel}` : null, degreeLabel ? `Ступень: ${degreeLabel}` : null]
-        .filter((value): value is string => value !== null)
-        .join(" · ")}
-    </p>
   );
 }
 
@@ -302,18 +282,17 @@ function ApplicationDetailsForm({
  * `platform.update_application_partner_details_v1` (migration 184) needs no
  * admissions_playbook_version_id, unlike the retired 137 write path — see
  * `readApplicationPartnerDetails` in `src/lib/v3/admissions-source.ts` for
- * the full history. Read-only fallback stays for staff without
- * `application.manage`, matching every other write control on this panel
- * (`canWriteApplications`); renders nothing when every field is empty AND
- * the actor cannot write — a quiet card, never a permanent placeholder.
+ * the full history. Э8.2: форму открывает «⋯ → Партнёр и решение» строки
+ * вуза (право `application.manage`); сохранённые сведения стоят в самой
+ * строке для всех, кто видит вкладку, — отдельной карточки только для
+ * чтения больше нет.
  */
 function ApplicationPartnerFacts({
-  workspace, application, details, canWrite,
+  workspace, application, details,
 }: Readonly<{
   workspace: ProfileAdmissionsWorkspace;
   application: PlatformApplicationQueueRow;
   details: ApplicationPartnerDetails | undefined;
-  canWrite: boolean;
 }>) {
   const initialState: PlatformUniversityApplicationActionState = {
     status: "idle",
@@ -326,7 +305,7 @@ function ApplicationPartnerFacts({
     initialState,
   );
   useCanonicalRefresh(state.status);
-  const locked = !canWrite || pending || state.status === "saved" || state.status === "stale";
+  const locked = pending || state.status === "saved" || state.status === "stale";
   const [draft, setDraft] = useState({
     partnerContact: details?.partnerContact ?? "",
     externalLink: details?.externalLink ?? "",
@@ -334,32 +313,8 @@ function ApplicationPartnerFacts({
     decisionNote: details?.decisionNote ?? "",
   });
 
-  if (!canWrite) {
-    const facts = [
-      { label: "Контакт партнёра", value: details?.partnerContact ?? null },
-      { label: "Ссылка", value: details?.externalLink ?? null },
-      { label: "Номер / ссылка решения", value: details?.decisionReference ?? null },
-      { label: "Заметка о решении", value: details?.decisionNote ?? null },
-    ].filter((fact) => fact.value);
-    if (facts.length === 0) return null;
-    return (
-      <div className="mt-3 rounded-nav border border-border p-3">
-        <h4 className="t-item text-fg">Партнёр и решение</h4>
-        <dl className="mt-2 grid gap-2 sm:grid-cols-2">
-          {facts.map((fact) => (
-            <div key={fact.label} className="min-w-0">
-              <dt className="text-xs text-fg-3">{fact.label}</dt>
-              <dd className="mt-0.5 break-words text-sm text-fg">{fact.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-    );
-  }
-
   return (
-    <form action={action} className="mt-3 space-y-3 rounded-nav border border-border p-3" aria-busy={pending}>
-      <h4 className="t-item text-fg">Партнёр и решение</h4>
+    <form action={action} className="mt-3 space-y-3" aria-busy={pending}>
       <input type="hidden" name="application_id" value={application.universityApplicationId} />
       <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
       <input type="hidden" name="request_id" value={state.requestId} />
@@ -521,17 +476,246 @@ function FinanceStopResolveForm({
   );
 }
 
+type RowPanel = "details" | "status" | "partner";
+const ROW_PANEL_TITLES: Readonly<Record<RowPanel, string>> = {
+  details: "Параметры заявки",
+  status: "Отметить статус",
+  partner: "Партнёр и решение",
+};
+/** Пункт «⋯» строки — как у «⋯» EVO Docs (`DocsRowMenu`). */
+const MENU_ITEM = "flex min-h-11 w-full items-center rounded-nav px-3 text-start t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
+
+/** Внешняя ссылка партнёра становится ссылкой только по http(s); остальное — текстом. */
+function webLink(value: string | null | undefined): string | null {
+  return value && /^https?:\/\//iu.test(value) ? value : null;
+}
+
+/**
+ * Путь «вариант → заявка подана → решение» (Э8.2): пройденные шаги — тихим
+ * текстом, текущий — одним словом `StatusChip` (слово статуса), следующие —
+ * самым тихим. Заявка, сошедшая с пути (отозвана, закрыта), — только слово.
+ */
+function UniversityPath({ row }: Readonly<{ row: UniversityRow }>) {
+  const chip = row.word ? <StatusChip label={row.word} tone={row.tone} /> : null;
+  if (row.step === null) return <p className="t-meta">{chip}</p>;
+  return (
+    <ol aria-label="Путь заявки" className="flex flex-wrap items-center gap-x-1.5 gap-y-1 t-meta" data-step={row.step}>
+      {APPLICATION_PATH_STEPS.map((label, index) => (
+        <li key={label} className="flex items-center gap-1.5" aria-current={index === row.step ? "step" : undefined}>
+          {index > 0 ? <span aria-hidden="true" className="text-fg-3">→</span> : null}
+          {index === row.step ? chip : <span className={index < row.step! ? "text-fg-2" : "text-fg-3"}>{label}</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/**
+ * Строка вуза (Э8.2): вуз · программа · набор, путь заявки, срок подачи и
+ * кто добавил; справа «⋯» — «Параметры заявки», «Отметить статус»,
+ * «Партнёр и решение» (право `application.manage` в активном деле) и
+ * «Пакет партнёру» (панель пакетов этой вкладки с выбранной заявкой).
+ * Формы — прежние команды; открытая форма стоит под строкой, одна за раз
+ * (скрытые остаются в разметке — введённое не теряется). Подготовка
+ * документов программы из каталога — раскрытием «Документы программы».
+ */
+function UniversityRowItem({
+  row,
+  workspace,
+  details,
+  canWrite,
+  packetsHref,
+  preparation,
+}: Readonly<{
+  row: UniversityRow;
+  workspace: ProfileAdmissionsWorkspace;
+  details: ApplicationPartnerDetails | undefined;
+  canWrite: boolean;
+  packetsHref: string | null;
+  preparation: ReactNode;
+}>) {
+  const [panel, setPanel] = useState<RowPanel | null>(null);
+  const menu = useAnchoredPopover("end");
+  const panelId = useId();
+  const application = row.application;
+  const writable = canWrite && application !== null;
+  const packet = packetsHref && application ? partnerPacketHref(packetsHref, application.universityApplicationId) : null;
+  const closeMenu = () => document.getElementById(menu.popoverId)?.hidePopover();
+  const openPanel = (next: RowPanel) => {
+    closeMenu();
+    setPanel(next);
+    // Фокус — на заголовок открытой формы: читалка называет, что открылось.
+    requestAnimationFrame(() => document.getElementById(`${panelId}-${next}`)?.focus());
+  };
+  const closePanel = () => {
+    setPanel(null);
+    requestAnimationFrame(() => document.getElementById(menu.triggerId)?.focus());
+  };
+  const partnerLink = webLink(details?.externalLink);
+  const partner = [
+    details?.partnerContact ? `Партнёр: ${details.partnerContact}` : null,
+    details?.externalLink && !partnerLink ? `Ссылка: ${details.externalLink}` : null,
+    details?.decisionReference ? `Решение: ${details.decisionReference}` : null,
+    details?.decisionNote ?? null,
+  ].filter((part): part is string => part !== null);
+  const meta = [...row.facts, row.addedBy ? `Добавил: ${row.addedBy}` : null].filter((part): part is string => part !== null);
+
+  const panels = writable && application ? (
+    [
+      ["details", <ApplicationDetailsForm
+        key={`details-${application.universityApplicationId}-${application.version}`}
+        workspace={workspace}
+        application={application}
+      />],
+      ["status", <ApplicationStatusForm
+        key={`status-${application.universityApplicationId}-${application.version}`}
+        workspace={workspace}
+        application={application}
+      />],
+      ["partner", <ApplicationPartnerFacts
+        key={`partner-${application.universityApplicationId}-${details?.version ?? application.version}`}
+        workspace={workspace}
+        application={application}
+        details={details}
+      />],
+    ] as const
+  ) : [];
+
+  return (
+    <li
+      className="py-3"
+      data-testid="v3-profile-application"
+      data-application-id={row.applicationId}
+      data-primary={row.primary ? "true" : "false"}
+    >
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 [grid-template-areas:'main_menu'_'path_path'] @min-[48rem]/unis:grid-cols-[minmax(0,1fr)_minmax(0,20rem)_auto] @min-[48rem]/unis:[grid-template-areas:'main_path_menu']">
+        <div className="min-w-0 [grid-area:main]">
+          <p className="break-words t-item text-fg">
+            {row.university}
+            {row.primary ? <span className="ms-2 whitespace-nowrap t-meta text-fg-2"><span aria-hidden="true">★ </span>основной</span> : null}
+          </p>
+          <p className="mt-0.5 break-words t-body-compact text-fg-2">
+            {row.program ?? "Программа не указана"}{row.intake ? ` · ${row.intake}` : ""}
+          </p>
+          {meta.length ? <p className="mt-0.5 break-words t-meta text-fg-2">{meta.join(" · ")}</p> : null}
+          {application?.latestEvidenceReference ? (
+            <p className="mt-0.5 break-words t-meta text-fg-2">Подтверждение: {application.latestEvidenceReference}</p>
+          ) : null}
+          {partner.length ? <p className="mt-0.5 break-words t-meta text-fg-2">{partner.join(" · ")}</p> : null}
+          {partnerLink ? (
+            <a href={partnerLink} target="_blank" rel="noopener noreferrer" className="-my-1.5 inline-flex min-h-11 items-center t-meta text-accent-text underline underline-offset-4">
+              Ссылка партнёра (откроется в новой вкладке)
+            </a>
+          ) : null}
+        </div>
+        <div className="min-w-0 space-y-1 [grid-area:path] @min-[48rem]/unis:pt-0.5">
+          <UniversityPath row={row} />
+          {row.deadline ? (
+            <p className="t-meta text-fg-2">
+              Срок подачи{" "}
+              <time dateTime={row.deadline.dateTime} className="font-mono tabular-nums text-fg">{row.deadline.text}</time>
+              {row.deadline.word ? <> <DueWord view={row.deadline.word} /></> : null}
+              {row.deadline.unconfirmed ? " · нужно подтвердить" : null}
+            </p>
+          ) : null}
+        </div>
+        {/* Колонка «⋯» — 44 px у каждой строки: путь и срок стоят на одной линии и там, где «⋯» нет. */}
+        <div className="-me-2 -mt-2.5 w-11 [grid-area:menu]">
+          {writable || packet ? (
+            <>
+              <button
+                id={menu.triggerId}
+                type="button"
+                popoverTarget={menu.popoverId}
+                style={menu.triggerStyle}
+                aria-label={`Ещё: ${row.university}`}
+                className="grid size-11 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg"
+              >
+                <Icon name="more-horizontal" size={20} />
+              </button>
+              <div
+                id={menu.popoverId}
+                popover="auto"
+                style={menu.popoverStyle}
+                role="group"
+                aria-label={`Ещё: ${row.university}`}
+                className="v3-anchored v3-anchored-end w-60 rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg"
+                data-testid="v3-application-menu"
+              >
+                {writable ? (Object.keys(ROW_PANEL_TITLES) as RowPanel[]).map((key) => (
+                  <button key={key} type="button" className={MENU_ITEM} aria-expanded={panel === key} onClick={() => openPanel(key)}>
+                    {ROW_PANEL_TITLES[key]}
+                  </button>
+                )) : null}
+                {packet ? (
+                  <Link
+                    href={packet}
+                    className={MENU_ITEM}
+                    onClick={() => {
+                      closeMenu();
+                      // Панель могли свернуть вручную: адрес с `panel=packets` её не раскроет второй раз.
+                      const packets = document.getElementById("partner-packets");
+                      if (packets instanceof HTMLDetailsElement) packets.open = true;
+                    }}
+                  >
+                    Пакет партнёру
+                  </Link>
+                ) : null}
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+      {preparation}
+      {panels.map(([key, form]) => (
+        <section
+          key={key}
+          hidden={panel !== key}
+          aria-labelledby={`${panelId}-${key}`}
+          className="mt-3 rounded-ctl border border-border p-3"
+          data-row-panel={key}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h3 id={`${panelId}-${key}`} tabIndex={-1} className="t-item text-fg focus:outline-none">{ROW_PANEL_TITLES[key]}</h3>
+            <button type="button" onClick={closePanel} className="inline-flex min-h-11 items-center px-2 t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+              Скрыть
+            </button>
+          </div>
+          {form}
+        </section>
+      ))}
+    </li>
+  );
+}
+
+/**
+ * «Вузы и программы» дела (Э8.2, решение владельца 28.09.2026): один список
+ * вузов дела вместо карточки «Заявки» и отдельного выбора из каталога. Строка
+ * — вариант из каталога или добавленный вручную вуз вместе с его заявкой
+ * (`universityRows`). Кнопки добавления (`toolbar`) передаёт вкладка; в
+ * запасном «Обзоре» профиля их нет. Права — подсказки интерфейса, каждую
+ * запись проверяет сервер.
+ */
 export function ProfileAdmissionsWorkspacePanel({
   actor,
   workspace,
   partnerDetails = [],
   preparations,
+  nowIso,
+  packetsHref = null,
+  toolbar = null,
 }: Readonly<{
   actor: ActivePlatformActor;
   workspace: ProfileAdmissionsWorkspace | null;
   /** «Партнёр и решение» facts, keyed by application — editable since unified workflow S7 (plan §8/§11). */
   partnerDetails?: readonly ApplicationPartnerDetails[];
   preparations?: StaffPreparationRead<readonly CatalogPreparation[]>;
+  /** Момент чтения страницы: слово срока одно и то же при рендере на сервере и в браузере. */
+  nowIso: string;
+  /** Адрес вкладки «Вузы и программы» с возвратом — для «Пакета партнёру»; null — пункта нет. */
+  packetsHref?: string | null;
+  /** «+ Вуз из каталога» и «Добавить вручную» — у заголовка списка. */
+  toolbar?: ReactNode;
 }>) {
   if (!workspace) return null;
   const canWrite = workspace.caseState === "active" && !isStaffPreview(actor);
@@ -541,120 +725,53 @@ export function ProfileAdmissionsWorkspacePanel({
   const canReadRequirements = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
   const canInitializeRequirements = canWrite && staffHasPermission(actor, "document.manage");
   const canReviewDocuments = canWrite && staffHasPermission(actor, "document.review");
+  const rows = universityRows(workspace.applications, saved, new Date(nowIso));
 
   return (
-    <div className="flex flex-col gap-4" data-testid="v3-profile-admissions-workspace">
-      <Card eyebrow id="applications" title="Заявки">
-        {preparations && preparations.status !== "ready" ? <p role="status" className="px-4 py-3 text-sm text-fg-2">{preparations.status === "forbidden" ? "Нет доступа к сохранённым подготовкам в текущем режиме." : "Не удалось прочитать сохранённые подготовки. Обновите страницу; существующие заявки сохранены."}</p> : null}
-        {workspace.applications.length === 0 && saved.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-fg-3">Заявок пока нет.</p>
-        ) : (
-          <div className="divide-y divide-border">
-            {workspace.applications.map((application) => {
-              const preparation = saved.find((item) => item.applicationId === application.universityApplicationId);
-              const selectedProgram = preparation?.content.programs.find((item) => item.id === preparation.programId);
-              return (
-              <article
-                key={application.universityApplicationId}
-                className="px-4 py-3"
-                data-testid="v3-profile-application"
-                data-primary={application.isPrimary ? "true" : "false"}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="break-words font-medium text-fg">{preparation?.content.name ?? application.institutionName}</p>
-                    {selectedProgram?.title || application.programName ? <p className="mt-0.5 break-words text-sm text-fg-3">{selectedProgram?.title ?? application.programName}</p> : null}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Pill tone={application.isPrimary ? "info" : "neutral"}>
-                      {application.isPrimary ? "Основной вариант" : "Обычный вариант"}
-                    </Pill>
-                    <Pill tone={statusTone(preparation?.applicationStatus ?? application.status)}>
-                      {applicationStatus(preparation?.applicationStatus ?? application.status) ?? "—"}
-                    </Pill>
-                  </div>
-                </div>
-                {!preparation ? <p className="mt-2 text-xs text-fg-3">
-                  Дедлайн от университета:{" "}
-                  {application.universityDeadlineOn ? (
-                    <time dateTime={application.universityDeadlineOn}>
-                      {allDayDate(application.universityDeadlineOn) ?? "не указан"}
-                    </time>
-                  ) : "не указан"}
-                </p> : null}
-                <ApplicationGeographySummary
-                  countryCode={application.country}
-                  degreeKey={application.degree}
-                />
-                {application.latestEvidenceReference ? (
-                  <p className="mt-2 break-all text-xs text-fg-3">
-                    {application.latestEvidenceReference}
-                  </p>
-                ) : null}
-                {application.createdByDisplayName ? (
-                  <p className="mt-2 text-xs text-fg-3">
-                    Добавил: {application.createdByDisplayName}
-                  </p>
-                ) : null}
-                <ApplicationPartnerFacts
-                  key={`partner-${application.universityApplicationId}-${
-                    partnerDetails.find((item) => item.applicationId === application.universityApplicationId)?.version
-                      ?? application.version
-                  }`}
-                  workspace={workspace}
-                  application={application}
-                  details={partnerDetails.find((item) => item.applicationId === application.universityApplicationId)}
-                  canWrite={canWriteApplications}
-                />
-                {canWriteApplications ? (
-                  <details className="mt-3">
-                    <summary className="cursor-pointer text-sm font-medium text-accent">
-                      Изменить параметры заявки
-                    </summary>
-                    <ApplicationDetailsForm
-                      key={`details-${application.universityApplicationId}-${application.version}`}
-                      workspace={workspace}
-                      application={application}
-                    />
-                  </details>
-                ) : null}
-                {canWriteApplications ? (
-                  <details className="mt-3">
-                    <summary className="cursor-pointer text-sm font-medium text-accent">
-                      Отметить статус
-                    </summary>
-                    <ApplicationStatusForm
-                      key={`status-${application.universityApplicationId}-${application.version}`}
-                      workspace={workspace}
-                      application={application}
-                    />
-                  </details>
-                ) : null}
-                {preparation ? <StaffPreparationPanel
-                  key={`${scope.organizationId}:${scope.membershipId}:${preparation.applicationId}`}
-                  preparation={preparation}
+    <section
+      id="applications"
+      aria-labelledby="applications-title"
+      className="@container/unis scroll-mt-4"
+      data-testid="v3-profile-admissions-workspace"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 id="applications-title" className="me-auto t-section text-fg">Вузы и программы</h2>
+        {toolbar}
+      </div>
+      {preparations && preparations.status !== "ready" ? (
+        <p role="status" className="mt-2 t-body-compact text-fg-2">
+          {preparations.status === "forbidden" ? "Нет доступа к сохранённым подготовкам в текущем режиме." : "Не удалось прочитать сохранённые подготовки. Обновите страницу; существующие заявки сохранены."}
+        </p>
+      ) : null}
+      {rows.length === 0 ? (
+        <p className="mt-3 border-y border-border py-4 t-body-compact text-fg-2" data-testid="v3-universities-empty">
+          {canWriteApplications ? "Вузов пока нет. Добавленный вуз — это вариант, а не подача документов." : "Вузов пока нет."}
+        </p>
+      ) : (
+        <ul className="mt-3 divide-y divide-border border-y border-border">
+          {rows.map((row) => (
+            <UniversityRowItem
+              key={row.applicationId}
+              row={row}
+              workspace={workspace}
+              details={partnerDetails.find((item) => item.applicationId === row.applicationId)}
+              canWrite={canWriteApplications}
+              packetsHref={packetsHref}
+              preparation={row.preparation ? (
+                <StaffPreparationPanel
+                  key={`${scope.organizationId}:${scope.membershipId}:${row.preparation.applicationId}`}
+                  preparation={row.preparation}
                   scope={scope}
                   canRead={canReadRequirements}
                   canReview={canReviewDocuments}
-                  canInitialize={canInitializeRequirements && preparation.applicationStatus === "preparation"}
-                /> : null}
-              </article>
-            ); })}
-            {saved.filter((preparation) => !workspace.applications.some((application) => application.universityApplicationId === preparation.applicationId)).map((preparation) => <article key={preparation.applicationId} className="px-4 py-3" data-testid="v3-profile-application">
-              <p className="break-words font-medium text-fg">{preparation.content.name}</p>
-              <p className="mt-1 break-words text-sm text-fg-3">{preparation.content.programs.find((program) => program.id === preparation.programId)?.title}</p>
-              <p className="mt-1 text-sm text-fg-2">{applicationStatus(preparation.applicationStatus)}</p>
-              <StaffPreparationPanel key={`${scope.organizationId}:${scope.membershipId}:${preparation.applicationId}`} preparation={preparation} scope={scope} canRead={canReadRequirements} canReview={canReviewDocuments} canInitialize={canInitializeRequirements && preparation.applicationStatus === "preparation"} />
-            </article>)}
-          </div>
-        )}
-        {canWriteApplications ? (
-          <div className="border-t border-border px-4 py-3">
-            <ApplicationCreateDialog workspace={workspace} />
-          </div>
-        ) : null}
-      </Card>
-    </div>
+                  canInitialize={canInitializeRequirements && row.preparation.applicationStatus === "preparation"}
+                />
+              ) : null}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

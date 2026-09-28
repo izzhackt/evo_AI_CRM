@@ -523,8 +523,9 @@ export default async function ProfilePart({
               key={[actor.organizationId, actor.authUserId, actor.systemRole, actor.presentationRole,
                 view.details.routeTarget.studentCaseId ? `case:${view.details.routeTarget.studentCaseId}` : `lead:${view.details.routeTarget.leadId}`].join(":")}
               profile={view.profile}
-              universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details}
-                packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
+              universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details} routeHref={hrefFor("route")}
+                packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"}
+                packetApplicationId={singleSearchParam(params.packet_application) ?? null} /> : undefined}
               caseHeader={caseParts?.header ?? leadParts?.header ?? undefined}
               caseOverview={caseParts?.overview ?? leadParts?.overview ?? undefined}
               draft={view.details}

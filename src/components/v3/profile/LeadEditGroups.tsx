@@ -1,15 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-import { CloseRecordMenu, MENU_ITEM } from "../closure/Closure";
+import { CloseRecordMenu } from "../closure/Closure";
 
 /**
- * Раскрыть группу правки Lead 360 и показать её: «⋯ → Доступ к порталу» и
- * адрес с якорем группы (`#sale-conditions` из отчёта и вкладки «Договор и
- * оплата»). Группы — `<details name>`: открыта одна, браузер закрывает
- * соседнюю сам.
+ * Раскрыть группу правки и показать её: «⋯ → Доступ к порталу» дела и адрес с
+ * якорем группы (`#sale-conditions` из отчёта и вкладки «Договор и оплата»,
+ * `#portal-access`). Группы — `<details name>`: открыта одна, браузер
+ * закрывает соседнюю сам.
  */
 export function openLeadGroup(id: string): boolean {
   const target = document.getElementById(id);
@@ -40,30 +39,22 @@ export function LeadEditGroups({ children }: Readonly<{ children: ReactNode }>) 
 }
 
 /**
- * «⋯» Lead 360: «Доступ к порталу» раскрывает свою группу справа, «Закрыть
- * лид…» — прежнее окно закрытия (246). Переданный лид закрыть нельзя — пункт
- * недоступен и называет причину; без права закрытия его нет вовсе.
+ * «⋯» Lead 360: «Закрыть лид…» — прежнее окно закрытия (246). Переданный лид
+ * закрыть нельзя — пункт недоступен и называет причину. Без права закрытия
+ * меню нет вовсе (решает `leadWorkParts`). «Доступ к порталу» — своя группа в
+ * «Данных лида», не пункт меню (Э8.4).
  */
 export function LeadMoreMenu({
   leadId,
   name,
   expectedVersion,
   blockedReason,
-  closable,
-  portalGroupId,
-  portalHref,
 }: Readonly<{
   leadId: string;
   name: string;
   expectedVersion: string;
   blockedReason: string | null;
-  closable: boolean;
-  /** id группы «Доступ к порталу»; null — группы нет. */
-  portalGroupId: string | null;
-  /** «Обзор» с якорем группы: на других вкладках группы на странице нет — переход к ней. */
-  portalHref: string;
 }>) {
-  const router = useRouter();
   return (
     <CloseRecordMenu
       kind="lead"
@@ -71,13 +62,7 @@ export function LeadMoreMenu({
       subjectName={name}
       expectedVersion={expectedVersion}
       blockedReason={blockedReason}
-      closable={closable}
       triggerClassName="flex size-11 shrink-0 items-center justify-center rounded-ctl border border-control-edge bg-surface text-fg-2 hover:bg-surface-2 hover:text-fg"
-      items={portalGroupId ? (close) => (
-        <button type="button" className={MENU_ITEM} onClick={() => { close(); if (!openLeadGroup(portalGroupId)) router.push(portalHref); }}>
-          Доступ к порталу
-        </button>
-      ) : undefined}
     />
   );
 }

@@ -37,7 +37,10 @@
  *       (для tests/v3-e4-work-surfaces.test.mjs).
  *   node tests/e2e/numbers-static-render.cjs --e4-screenshots [outDir]
  *     → Э4 (27.09.2026): Lead 360 как рабочая карточка — лид на раннем этапе,
- *       «Потенциальный клиент», переданный лид — и «Отчёт продаж» (список,
+ *       «Потенциальный клиент», переданный лид; Э8.4 (28.09): лид с делом,
+ *       где загружен договор и записан платёж (чтение 188 синтетикой),
+ *       переданный лид без записи отчёта и куратора, вкладка «Договор и
+ *       оплата» лида без дела — и «Отчёт продаж» (список,
  *       открытая запись в панели, «Весь 2026 год» — и с открытой записью,
  *       срез «записаны в другой месяц отчёта», больше 500 записей — суммы
  *       сервера, «Поступления и возвраты за месяц»), 1440×900, 1280×800 и 390×844 во
@@ -181,6 +184,28 @@ const E4_LEADS = {
     conditions: { ...CONDITIONS, signingDate: "2026-09-17", paidRaw: "600", paidMinor: 60000, paidCurrency: "USD" },
     handoff: { caseId: uuid("45454545", 1), canOpenCase: true },
     notes: [note("Договор подписан, первый платёж получен. Передаём куратору.", "2026-09-17T11:20:00.000Z")] },
+  // Э8.4: передан, у дела загружен договор и записан платёж (чтение 188); подтверждения вручную нет —
+  // полоса берёт договор и оплату из дела: «загружен 18.09», «оплачено 600 из 1 500 USD»; «Изменить» — на вкладку.
+  case: { strip: { ...STRIPS.handed, contract: { confirmed: false, confirmedAt: null }, firstPayment: { receivedDate: null },
+      report: { status: "available", record: { ...STRIPS.handed.report.record, archived: false, saleDate: "2026-09-18" } } },
+    gate: { ...GATE_BLOCKED, canConfirmContract: false, canConfirmFirstPayment: false, canOverrideGate: false },
+    stageKey: "new", next: "Передано в поступление", due: null, conditions: CONDITIONS,
+    handoff: { caseId: uuid("45454545", 2), canOpenCase: true },
+    agreement: { status: "ok", agreement: {
+      organizationId: ORG, studentCaseId: uuid("45454545", 2), costMinor: "150000", costCurrency: "USD",
+      contractCurrent: { id: uuid("78787878", 1), originalFilename: "dogovor-sinteticheskiy.pdf", uploadedAt: "2026-09-18T06:10:00.000Z",
+        uploadedByDisplayName: "Санжар Эскизов" },
+      contractHistory: [], tranches: [], trancheSumMinor: "150000", costMismatch: false,
+      payments: [{ id: uuid("79797979", 1), obligationId: uuid("80808080", 1), amountMinor: "60000", currency: "USD", occurredOn: "2026-09-18",
+        actorDisplayName: "Санжар Эскизов", eventType: "payment", receipts: [] }],
+      paidMinor: "60000", remainingMinor: "90000", currencyMismatch: false, canWrite: true } },
+    notes: [note("Договор загружен в дело, первый платёж 600 USD записан.", "2026-09-18T06:20:00.000Z")] },
+  // Э8.4: передан, а продажи в отчёте нет и куратор не назначен — предупреждения ведут к действиям:
+  // «Оформить продажу» и «Назначить куратора» (у Admin оба права).
+  norecord: { strip: { ...STRIPS.handed, report: { status: "available", record: null }, curator: null, acceptance: null },
+    gate: GATE_SATISFIED, stageKey: "new", next: "Передано в поступление", due: null, conditions: CONDITIONS,
+    handoff: { caseId: uuid("45454545", 3), canOpenCase: true },
+    notes: [note("Передали без записи в отчёте — оформить продажу.", "2026-09-18T07:00:00.000Z")] },
 };
 
 // «Отчёт продаж», сентябрь 2026: те же записи, что в SQL-наборе 247.
@@ -409,7 +434,7 @@ function shell(actor, title, body) {
 // --- Lead 360 ----------------------------------------------------------------
 // Как `profile/page.tsx` для `?id=`: имя — h1, возврат «Воронка продаж» над ним,
 // действия у заголовка, шапка «Этап · Что дальше» и «Обзор» из `leadWorkParts`.
-function leadPage(name) {
+function leadPage(name, tab = "overview") {
   const scenario = LEAD_SCENARIOS[name] ?? E4_LEADS[name];
   const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
   const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
@@ -445,18 +470,18 @@ function leadPage(name) {
     requestIds: { ...requestIds, portal: "", cabinetPortal: "" },
     stages: ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential"].map((key) => ({ key, title: wording.salesStage(key) })),
     ownerOptions: [{ membershipId: ME, displayLabel: "Санжар Эскизов" }], ownerOptionsHaveMore: false, curators: [], curatorsAvailable: true,
-    submissions: null, hrefFor, now: new Date("2026-09-27T06:00:00.000Z"),
+    agreement: scenario.agreement ?? null, submissions: null, hrefFor, now: new Date("2026-09-27T06:00:00.000Z"),
   });
   const body = createElement(Profile, {
     profile, draft, sales, actor: ADMIN, organizationId: ORG, studentPortalCurators: [], studentPortalCuratorsAvailable: true,
-    requestIds, noteRequestId: uuid("13131313", 20), notes, notesOlderHref: null, notesLatestHref: null, tab: "overview", hrefFor,
+    requestIds, noteRequestId: uuid("13131313", 20), notes, notesOlderHref: null, notesLatestHref: null, tab, hrefFor,
     caseHeader: parts.header, caseOverview: parts.overview,
   });
   const back = createElement("a", { href: "/v3/pipeline", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), "Воронка продаж");
   const page = createElement(PartShell, { title: profile.person, count: null, action: parts.actions, dense: true, back },
     createElement("div", { className: "space-y-6" }, body));
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, page), "/v3/profile", `id=${LEAD_ID}&tab=overview`));
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, page), "/v3/profile", `id=${LEAD_ID}&tab=${tab}`));
 }
 
 // --- «Отчёт продаж» ------------------------------------------------------------
@@ -492,6 +517,8 @@ async function funnelPage() {
 async function renderAll() {
   const out = [];
   for (const name of Object.keys(LEAD_SCENARIOS)) out.push({ name, html: leadPage(name) });
+  // Э8.4: вкладка «Договор и оплата» лида до передачи — подтверждение вручную наверху.
+  out.push({ name: "lead-working-money", html: leadPage("lead-working", "money") });
   out.push({ name: "report", html: await reportPage() });
   out.push({ name: "report-undated", html: await reportPage({ sale: "undated" }) });
   out.push({ name: "funnel", html: await funnelPage() });
@@ -585,6 +612,11 @@ async function e4Pages() {
     { name: "lead-early", html: leadPage("early") },
     { name: "lead-potential", html: leadPage("potential") },
     { name: "lead-handed", html: leadPage("handed") },
+    // Э8.4: договор и оплата дела в полосе; передача без записи отчёта и без куратора;
+    // вкладка «Договор и оплата» лида без дела — подтверждение вручную наверху.
+    { name: "lead-case", html: leadPage("case") },
+    { name: "lead-norecord", html: leadPage("norecord") },
+    { name: "lead-money", html: leadPage("potential", "money") },
     { name: "report", html: await reportPage({}) },
     { name: "report-panel", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }) },
     // Месяц отчёта в строке: «Весь 2026 год» (и с открытой записью — узкая строка при 1440)

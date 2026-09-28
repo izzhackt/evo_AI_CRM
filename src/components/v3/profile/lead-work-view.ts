@@ -11,8 +11,11 @@ import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.t
 /** id панели «Что дальше»: её открывают главное действие и «Изменить» в шапке (`popoverTarget`). */
 export const LEAD_STEP_DRAWER_ID = "lead-next-step";
 
-/** id группы «Доступ к порталу» — её раскрывает «⋯ → Доступ к порталу». */
+/** id группы «Доступ к порталу» в «Данных лида»: адрес с этим якорем раскрывает её. */
 export const LEAD_PORTAL_GROUP_ID = "portal-access";
+
+/** Якорь подтверждения вручную наверху вкладки «Договор и оплата» лида: туда ведёт «Изменить» полосы «Передача». */
+export const LEAD_GATE_ANCHOR = "handoff-confirm";
 
 /** Адрес формы «Добавить продажу» отчёта с уже выбранным лидом. */
 export function leadSaleHref(leadId: string): string {
@@ -45,23 +48,53 @@ export function leadPrimaryAction(input: Readonly<{
   return input.canManageWorkflow ? { kind: "step" } : null;
 }
 
-/**
- * Какие формы группы «Договор и оплата» есть у этого сотрудника — та же
- * проверка, что у `HandoffGateForms`: подсказка интерфейса, решает сервер.
- */
-export function handoffGateForms(gate: Readonly<{
+type GateFormsInput = Readonly<{
   contractConfirmed: boolean;
   firstPaymentReceivedDate: string | null;
   canConfirmContract: boolean;
   canConfirmFirstPayment: boolean;
   canOverrideGate: boolean;
   normalHandoffAllowed: boolean;
-}>, preview: boolean): Readonly<{ contract: boolean; payment: boolean; override: boolean }> {
+}>;
+
+/**
+ * Какие формы подтверждения вручную (верх вкладки «Договор и оплата» лида)
+ * есть у этого сотрудника — та же проверка, что у `HandoffGateForms`:
+ * подсказка интерфейса, решает сервер.
+ */
+export function handoffGateForms(gate: GateFormsInput, preview: boolean): Readonly<{ contract: boolean; payment: boolean; override: boolean }> {
   return {
     contract: !preview && !gate.contractConfirmed && gate.canConfirmContract,
     payment: !preview && gate.contractConfirmed && !gate.firstPaymentReceivedDate && gate.canConfirmFirstPayment,
     override: !preview && gate.canOverrideGate && !gate.normalHandoffAllowed,
   };
+}
+
+/** Есть ли у сотрудника хоть одна форма подтверждения вручную: тогда у лида есть вкладка «Договор и оплата». */
+export function hasHandoffGateForms(gate: GateFormsInput, preview: boolean): boolean {
+  const forms = handoffGateForms(gate, preview);
+  return forms.contract || forms.payment || forms.override;
+}
+
+type ContractWriteInput = Readonly<{
+  canManageTemplates: boolean;
+  canGenerateContract: boolean;
+  canReviewContract: boolean;
+  canManagePostContract: boolean;
+  canReviewReport: boolean;
+  drafts: ReadonlyArray<Readonly<{ status: string }>>;
+  reports: ReadonlyArray<Readonly<{ status: string }>>;
+}>;
+
+/**
+ * Есть ли в договорном процессе дела что изменить этому сотруднику — те же
+ * флаги, что открывают формы `ContractDraftReportWorkspace` (проверка —
+ * только у черновика): подсказка интерфейса, решает сервер.
+ */
+export function contractWorkspaceWritable(workspace: ContractWriteInput): boolean {
+  return workspace.canManageTemplates || workspace.canGenerateContract || workspace.canManagePostContract
+    || (workspace.canReviewContract && workspace.drafts.some((draft) => draft.status === "draft"))
+    || (workspace.canReviewReport && workspace.reports.some((report) => report.status === "draft"));
 }
 
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });

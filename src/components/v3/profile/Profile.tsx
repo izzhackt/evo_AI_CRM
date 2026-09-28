@@ -15,7 +15,11 @@ import { ProfileNotes } from "./ProfileNotes";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
 import { profileNotesSubjectKey } from "./profile-notes-view";
 import { Anketa, History, Money, Overview, PlatformAccessCard } from "./tabs";
+import { QueueTabStrip } from "../queue/QueueTabStrip";
+import { HandoffGateForms } from "./ProfileSalesTransition";
+import { LEAD_GATE_ANCHOR, hasHandoffGateForms } from "./lead-work-view";
 import {
+  profileTabAccess,
   tabsFor,
   type PersonProfile,
   type ProfileDraft,
@@ -107,12 +111,17 @@ export function Profile({
   tab: TabKey;
   hrefFor: (tab: string) => string;
 }) {
-  const tabAccess = {
-    ...draft.access,
-    finance: draft.access.finance || (!isStaffPreview(actor) && !!sales?.handoff.caseId
-      && staffHasPermission(actor, "finance.event.confirm")),
-  };
+  // Вид лида (`?id=`): формы подтверждения вручную — наверху «Договора и
+  // оплаты» (Э8.4), и вкладка есть у каждого, у кого они есть.
+  const leadGate = sales !== null && draft.routeTarget.leadId !== null && hasHandoffGateForms(sales.gate, isStaffPreview(actor))
+    ? sales.gate : null;
+  const tabAccess = profileTabAccess(draft.access, {
+    financeConfirm: !isStaffPreview(actor) && !!sales?.handoff.caseId && staffHasPermission(actor, "finance.event.confirm"),
+    gateForms: leadGate !== null,
+  });
   const tabs = tabsFor(profile.student, tabAccess, draft.admissions !== null);
+  // Лид без дела: договора и платежей дела нет — пустой блок «Все обязательства по делу» не рисуется.
+  const leadWithoutCase = draft.routeTarget.leadId !== null && !profile.student;
   const current = tabs.some((entry) => entry.key === tab) ? tab : "overview";
   if (current === "money" && draft.access.contract && draft.contract === null) {
     throw new Error("V3 contract section has no canonical contract workspace.");
@@ -162,33 +171,26 @@ export function Profile({
         </header>
       )}
 
-      {/* Полоса вкладок прокручивается на узком экране: названия разделов не
-          помещаются в 393px, а переносить их в две строки — терять шапку.
-          Прокрутка обрезает внешнюю рамку фокуса — `data-tab-strip` рисует её
+      {/* Вкладки — тот же ряд, что у вкладок-видов очередей (`QueueTabStrip`,
+          Э8.4): 44 px, не переносится, лишнее прокручивается вбок без полосы
+          прокрутки, у края с продолжением ряд гаснет, текущая вкладка видна.
+          Прокрутка обрезает внешнюю рамку фокуса — `focusable` рисует её
           внутри вкладки (v3.css). */}
-      <nav
-        aria-label="Разделы профиля"
-        tabIndex={0}
-        data-tab-strip=""
-        className="max-w-full overflow-x-auto border-b border-border"
-      >
-        <ul className="flex w-max gap-1 pb-2">
-          {tabs.map((entry) => {
-            const active = entry.key === current;
-            return (
-              <li key={entry.key}>
-                <Link
-                  href={hrefFor(entry.key)}
-                  aria-current={active ? "page" : undefined}
-                  className="v3-choice inline-flex min-h-10 items-center whitespace-nowrap rounded-nav px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg"
-                >
-                  {entry.title}
-                </Link>
-              </li>
-            );
-          })}
+      <QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">
+        <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
+          {tabs.map((entry) => (
+            <li key={entry.key}>
+              <Link
+                href={hrefFor(entry.key)}
+                aria-current={entry.key === current ? "page" : undefined}
+                className="v3-choice inline-flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+              >
+                {entry.title}
+              </Link>
+            </li>
+          ))}
         </ul>
-      </nav>
+      </QueueTabStrip>
 
       {current === "route" ? universityProgramsTab : null}
       {current === "overview" && caseOverview ? caseOverview : null}
@@ -281,7 +283,25 @@ export function Profile({
               reviewHref: hrefFor("anketa") } : null}
         />
       ) : null}
-      {current === "money" ? (
+      {current === "money" && leadGate ? (
+        // Подтверждение вручную (Э8.4) — одно место для договора и оплаты лида
+        // вместе с полосой «Передача»: туда ведёт её «Изменить».
+        <section id={LEAD_GATE_ANCHOR} aria-labelledby={`${LEAD_GATE_ANCHOR}-title`} className="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">
+          <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
+          <p className="mt-1 t-body-compact text-fg-2">
+            Договор, затем первый платёж — доказательства передачи в поступление, если их нет в деле и в отчёте продаж.
+          </p>
+          <div className="mt-3 border-t border-border pt-3">
+            <HandoffGateForms actor={actor} gate={leadGate} requestIds={requestIds} bare />
+          </div>
+        </section>
+      ) : null}
+      {current === "money" && leadWithoutCase && !leadGate ? (
+        <p className="t-body-compact text-fg-2" data-testid="v3-lead-money-empty">
+          Договор и платежи ведутся в деле студента; у этого лида дела пока нет.
+        </p>
+      ) : null}
+      {current === "money" && !leadWithoutCase ? (
         <Money profile={profile} draft={draft} actor={actor} salesCaseId={sales?.handoff.caseId}
           // На деле студента условия продажи лежат в свёрнутом разделе «Данные продажи»: `panel=sales` раскрывает его.
           // В Lead 360 (Э4) якорь `#sale-conditions` раскрывает свою группу правки сам.

@@ -175,8 +175,9 @@ function GateActionForm({
         <input type="hidden" name="received_date" value="" />
       )}
 
+      {/* Метка поля — блок: отступ формы (`space-y-3`) у строчной метки не работает, и кнопка прилипала к полю. */}
       {override ? (
-        <label>
+        <label className="block">
           <span className={fieldLabelCls}>Причина исключения</span>
           <textarea
             name="reason"
@@ -194,7 +195,7 @@ function GateActionForm({
       {override ? (
         <input type="hidden" name="evidence_reference" value="" />
       ) : (
-        <label>
+        <label className="block">
           <span className={fieldLabelCls}>Доказательство</span>
           <input
             name="evidence_reference"
@@ -265,9 +266,10 @@ function StripValue({ item }: { item: HandoffStripItem }) {
 }
 
 /**
- * Полоса «Передача» без карточки: строка передачи, предупреждения словами,
- * пять доказательств и строка первого платежа. В Lead 360 (Э4) стоит в
- * «Сведениях» справа — узкий контейнер ставит доказательства столбцом.
+ * Полоса «Передача» без карточки: строка передачи, предупреждения с их
+ * действиями, пять доказательств и строка ожидаемого платежа и ссылок на
+ * доказательства. В Lead 360 (Э4) стоит под «Сведениями» справа — узкий
+ * контейнер ставит доказательства столбцом.
  */
 export function HandoffStripBlock({
   gate,
@@ -305,15 +307,16 @@ export function HandoffStripBlock({
           {view.warnings.length > 0 ? (
             <ul className="space-y-1" data-testid="v3-handoff-warnings">
               {view.warnings.map((warning, index) => (
-                <li key={index} className="flex flex-wrap items-start gap-x-1.5 gap-y-1 t-body-compact text-warn">
+                <li key={index} className="flex items-start gap-x-1.5 t-body-compact text-warn">
                   <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
-                  <span className="min-w-0 flex-[1_1_16rem]"><StripLine text={warning.text} /></span>
-                  {warning.href ? (
-                    // 44 px цели без лишней высоты строки: поле касания выходит за строку.
+                  {/* Текст и действие — одна колонка: перенесённое действие встаёт под текст, не под значок. */}
+                  <span className="flex min-w-0 flex-1 flex-wrap items-start gap-x-1.5 gap-y-1">
+                    <span className="min-w-0 flex-[1_1_16rem]"><StripLine text={warning.text} /></span>
+                    {/* Предупреждение всегда ведёт к своему действию. 44 px цели без лишней высоты строки: поле касания выходит за строку. */}
                     <a href={warning.href} className="-my-3 inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
-                      Открыть запись
+                      {warning.action}
                     </a>
-                  ) : null}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -351,8 +354,9 @@ export function HandoffStripBlock({
 
 /**
  * Формы подтверждения договора и первого платежа и свёрнутое «Исключение
- * Admin» — те же формы, действия и версии. `bare` — группа «Договор и
- * оплата» в Lead 360 (Э4): без полей карточки, части разделены линией.
+ * Admin» — те же формы, действия и версии. `bare` — верх вкладки «Договор и
+ * оплата» лида (Э8.4): без полей карточки, части разделены линией, заголовки
+ * частей — h3 под заголовком раздела вкладки.
  * Какие формы есть, знает и `handoffGateForms` (lead-work-view) — та же проверка.
  */
 export function HandoffGateForms({
@@ -366,23 +370,24 @@ export function HandoffGateForms({
   requestIds: ProfileSalesRequestIds;
   bare?: boolean;
 }) {
-  // Та же проверка — `handoffGateForms` (lead-work-view) для строки группы Lead 360.
+  // Та же проверка — для вкладки «Договор и оплата» лида (`hasHandoffGateForms`, lead-work-view).
   const preview = isStaffPreview(actor);
   const contractForm = !preview && !gate.contractConfirmed && gate.canConfirmContract;
   const paymentForm = !preview && gate.contractConfirmed && !gate.firstPaymentReceivedDate && gate.canConfirmFirstPayment;
   const canOverride = !preview && gate.canOverrideGate && !gate.normalHandoffAllowed;
   const part = bare ? "py-3 first:pt-0" : "border-t border-border p-4";
+  const Heading = bare ? "h3" : "h4";
   const forms = (
     <>
       {contractForm ? (
         <div className={part}>
-          <h4 className="t-item text-fg">Подтвердить договор</h4>
+          <Heading className="t-item text-fg">Подтвердить договор</Heading>
           <GateActionForm key={`contract:${gate.gateVersion}`} actionName="confirm_contract" gate={gate} requestId={requestIds.contract} />
         </div>
       ) : null}
       {paymentForm ? (
         <div className={part}>
-          <h4 className="t-item text-fg">Подтвердить первый платёж</h4>
+          <Heading className="t-item text-fg">Подтвердить первый платёж</Heading>
           <GateActionForm key={`payment:${gate.gateVersion}`} actionName="confirm_first_payment" gate={gate} requestId={requestIds.firstPayment} />
         </div>
       ) : null}

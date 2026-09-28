@@ -23,10 +23,12 @@ import { UniversityProgramsTab } from "@/components/v3/profile/UniversityProgram
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
 import {
   buildV3ProfileHref,
+  profileTabAccess,
   resolveTab,
   type ProfileContractRetry,
   type ProfileRouteTarget,
 } from "@/components/v3/profile/types";
+import { hasHandoffGateForms } from "@/components/v3/profile/lead-work-view";
 import {
   PLATFORM_CONTRACT_MUTATION_OUTCOMES,
   PLATFORM_CONTRACT_RETRY_OPERATIONS,
@@ -56,6 +58,7 @@ import {
   loadV3ProfileRoute,
   type V3ProfileRouteLoadMode,
 } from "@/lib/v3/profile-route-load";
+import { readCaseAgreement } from "@/lib/v3/case-agreement-source";
 import { readCaseWork } from "@/lib/v3/case-work-source";
 import { readPipelineOwnerOptions, readPipelineStages } from "@/lib/v3/pipeline-source";
 import { readCaseClosure, readClosedLeads, type CaseClosure, type ClosedLeadRow } from "@/lib/platform-closure";
@@ -323,14 +326,16 @@ export default async function ProfilePart({
   // Вкладка приходит адресом, поэтому её нельзя брать на веру: чужое слово и
   // вкладка, которой у этого человека нет (`?tab=documents` у лида), открывают
   // обзор.
+  // «Договор и оплата» есть и у того, кто подтверждает сделку лида вручную
+  // (формы — наверху этой вкладки, Э8.4); та же сборка — в `Profile`.
+  const tabAccess = view ? profileTabAccess(view.details.access, {
+    financeConfirm: !isStaffPreview(actor) && !!view.sales?.handoff.caseId && staffHasPermission(actor, "finance.event.confirm"),
+    gateForms: Boolean(view.sales && view.details.routeTarget.leadId && hasHandoffGateForms(view.sales.gate, isStaffPreview(actor))),
+  }) : { documents: false, finance: false, studentProfile: false, contract: false };
   const tab = resolveTab(
     singleSearchParam(params.tab),
     Boolean(view?.profile.student),
-    view ? {
-      ...view.details.access,
-      finance: view.details.access.finance || (!isStaffPreview(actor) && !!view.sales?.handoff.caseId
-        && staffHasPermission(actor, "finance.event.confirm")),
-    } : { documents: false, finance: false, studentProfile: false, contract: false },
+    tabAccess,
     Boolean(view?.details.admissions),
   );
   const hrefFor = (next: string) => view
@@ -375,7 +380,12 @@ export default async function ProfilePart({
   const leadSales = view && !caseTarget && view.details.routeTarget.leadId ? view.sales : null;
   const readsOwners = leadSales !== null && !isStaffPreview(actor)
     && staffHasPermission(actor, "lead.sales.workflow.manage") && staffHasPermission(actor, "lead.sales.owner.assign");
-  const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners] = await Promise.all([
+  // «Передача» (Э8.4) учитывает договор и платежи дела лида — то же чтение
+  // 188 того же дела, что вкладка «Договор и оплата», и тому же, кому вкладка
+  // их показывает (финансы дела); права проверяет само чтение.
+  const leadAgreementCaseId = leadSales && tab === "overview" && tabAccess.finance
+    ? view?.details.admissions?.studentCaseId ?? leadSales.handoff.caseId : null;
+  const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners, leadAgreement] = await Promise.all([
     curatorsRead,
     queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
     // Лента Student 360 (Э4): журнал дела — только на «Обзоре» и первой странице заметок.
@@ -384,6 +394,8 @@ export default async function ProfilePart({
     caseTarget ? readCaseClosure(actor, caseTarget.studentCaseId).catch(() => null) : null,
     // Сбой списка — форма остаётся с текущим ответственным (как у доски без списка).
     readsOwners ? readPipelineOwnerOptions(actor).catch(() => null) : null,
+    // Сбой — полоса остаётся на подтверждении вручную и записи отчёта, ничего не угадывая.
+    leadAgreementCaseId ? readCaseAgreement(actor, leadAgreementCaseId).catch(() => ({ status: "unavailable" as const })) : null,
   ]);
   const caseClosure = previewClosure(actor, caseClosureRead);
   const studentPortalCurators = curatorOptions.curators;
@@ -424,8 +436,8 @@ export default async function ProfilePart({
       ) : null,
     });
   })() : null;
-  // Lead 360 (Э4): шапка «Этап · Что дальше», действия у заголовка («⋯» с
-  // «Доступом к порталу» и «Закрыть лид» — 246) и «Обзор» в две колонки.
+  // Lead 360 (Э4, Э8.4): шапка «Этап · Что дальше», действия у заголовка
+  // («⋯» — «Закрыть лид», 246) и «Обзор» в две колонки, как у дела.
   const leadParts = view && leadSales && view.details.routeTarget.leadId ? leadWorkParts({
     actor,
     profile: view.profile,
@@ -446,6 +458,7 @@ export default async function ProfilePart({
     ownerOptionsHaveMore: leadOwners?.hasNext ?? false,
     curators: studentPortalCurators,
     curatorsAvailable: studentPortalCuratorsAvailable,
+    agreement: leadAgreement,
     submissions: !isStaffPreview(actor) ? (
       <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем заявки с сайта…</p>}>
         <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />

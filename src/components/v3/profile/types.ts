@@ -381,6 +381,27 @@ export function buildV3ProfileHref(
 }
 
 /**
+ * Доступ к вкладкам профиля. `gateForms` — у сотрудника есть формы
+ * подтверждения вручную лида (Э8.4): они стоят наверху вкладки «Договор и
+ * оплата», поэтому вкладка есть и у переданного лида. Финансов дела это не
+ * открывает: `finance` не меняется.
+ */
+export type ProfileTabAccess = ProfileDraft["access"] & Readonly<{ gateForms?: boolean }>;
+
+/**
+ * Одна сборка доступа вкладок для адреса (`resolveTab` на странице), полосы
+ * вкладок (`Profile`) и «Изменить» в «Передаче» (`leadWorkParts`):
+ * `financeConfirm` — подтверждающий финансовые события видит вкладку дела,
+ * связанного с лидом.
+ */
+export function profileTabAccess(
+  access: ProfileDraft["access"],
+  extra: Readonly<{ financeConfirm: boolean; gateForms: boolean }>,
+): ProfileTabAccess {
+  return { ...access, finance: access.finance || extra.financeConfirm, gateForms: extra.gateForms };
+}
+
+/**
  * Вкладки этого человека.
  *
  * Документы и договор заводятся на дело студента. Пока человек лид, дела нет —
@@ -388,13 +409,13 @@ export function buildV3ProfileHref(
  */
 export function tabsFor(
   student: boolean,
-  access: ProfileDraft["access"],
+  access: ProfileTabAccess,
   hasAdmissions: boolean,
 ): readonly (typeof TABS)[number][] {
   return TABS.filter((tab) => {
     if (tab.key === "documents") return student && access.documents;
     if (tab.key === "anketa") return !student || access.studentProfile;
-    if (tab.key === "money") return !student || access.finance || access.contract;
+    if (tab.key === "money") return !student || access.finance || access.contract || access.gateForms === true;
     if (tab.key === "route") return student && hasAdmissions;
     return true;
   });
@@ -407,7 +428,7 @@ export function tabsFor(
 export function resolveTab(
   value: unknown,
   student: boolean,
-  access: ProfileDraft["access"],
+  access: ProfileTabAccess,
   hasAdmissions: boolean,
 ): TabKey {
   // Existing contract links keep their outcome/retry parameters in place.

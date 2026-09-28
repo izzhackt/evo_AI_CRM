@@ -1513,8 +1513,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   });
 
   await signIn(page, "sales");
-  await page.goto(`/v3/profile?id=${leadId}&tab=overview`);
-  await expect(page.getByTestId("v3-sales-transition")).toBeVisible();
+  // Э8.4: подтверждение вручную — наверху вкладки «Договор и оплата» лида.
+  // (Форма передачи ниже, `v3-sales-handoff-form`, снята в S2 — эта часть
+  // проверки устарела раньше Э8.4 и требует своей переделки.)
+  await page.goto(`/v3/profile?id=${leadId}&tab=money`);
+  await expect(page.getByTestId("v3-lead-gate")).toBeVisible();
 
   const contractForm = page.getByTestId("v3-gate-contract-form");
   await expect(contractForm).toBeVisible();

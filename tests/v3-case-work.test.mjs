@@ -240,8 +240,10 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   assert.match(profile, /\{current === "overview" && caseOverview \? caseOverview : null\}/u);
   assert.match(profile, /\{current === "overview" && !caseOverview \? \(/u);
   assert.match(profile, /<Overview\n/u);
-  // Полоса вкладок прокручивается и обрезала бы внешнюю рамку фокуса — у её вкладок рамка внутри.
-  assert.match(profile, /aria-label="Разделы профиля"\n\s+tabIndex=\{0\}\n\s+data-tab-strip=""/u);
+  // Полоса вкладок прокручивается и обрезала бы внешнюю рамку фокуса — у её вкладок рамка внутри
+  // (Э8.4: ряд вкладок очередей `QueueTabStrip`, `focusable` — `tabIndex` и `data-tab-strip`).
+  assert.match(profile, /<QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">/u);
+  assert.match(read("src/components/v3/queue/QueueTabStrip.tsx"), /tabIndex=\{focusable \? 0 : undefined\}\n\s+data-tab-strip=\{focusable \? "" : undefined\}/u);
   assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-tab-strip\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u);
   // Прежний «Обзор» лида рисует ту же часть продажи, что «Данные продажи» дела.
   assert.match(read("src/components/v3/profile/tabs.tsx"), /<SalesOverview profile=\{profile\} sales=\{sales\} draft=\{draft\} actor=\{actor\} requestIds=\{requestIds\} \/>/u);

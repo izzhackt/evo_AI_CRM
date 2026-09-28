@@ -9,7 +9,8 @@ import type { PlatformSalesOwnerOption, PlatformSalesStage } from "@/lib/platfor
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 import { stageTrack } from "@/lib/v3/stages";
-import { closureWords, source as sourceWord } from "@/lib/v3/wording";
+import type { CaseAgreementReadResult } from "@/lib/v3/case-agreement-source";
+import { closureWords, source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
 import { Initials } from "../blocks/Initials";
@@ -18,28 +19,39 @@ import { dueWordOf } from "../queue/due-bucket";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { TaskComposerContextMark, type TaskComposerPageContext } from "../tasks/task-composer-context";
 import { FeedEvent, FeedNote } from "./FeedRow";
-import { handoffFootnote, handoffStripView, stripMoment, type StripText } from "./handoff-strip-view";
+import { handoffFootnote, handoffStripView, stripCaseMoney, type StripCaseMoney, type StripText } from "./handoff-strip-view";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
 import { LeadNoteComposer } from "./LeadNoteComposer";
 import { LeadSaleConditions } from "./LeadSaleConditions";
 import { LeadStepDrawer } from "./LeadStepDrawer";
-import { HandoffGateForms, HandoffResponseSummary, HandoffStripBlock } from "./ProfileSalesTransition";
+import { HandoffResponseSummary, HandoffStripBlock } from "./ProfileSalesTransition";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
 import { PlatformAccessCard } from "./tabs";
 import {
+  LEAD_GATE_ANCHOR,
   LEAD_PORTAL_GROUP_ID,
   LEAD_STEP_DRAWER_ID,
-  handoffGateForms,
+  contractWorkspaceWritable,
+  hasHandoffGateForms,
   leadDay,
   leadFeed,
   leadGroupSummaries,
   leadLastContact,
   leadMoment,
   leadPrimaryAction,
+  leadSaleHref,
   type LeadFeedEvent,
 } from "./lead-work-view";
-import type { PersonProfile, ProfileDraft, ProfileNotesSnapshot, ProfileSalesRequestIds, ProfileSalesSnapshot } from "./types";
+import {
+  profileTabAccess,
+  tabsFor,
+  type PersonProfile,
+  type ProfileDraft,
+  type ProfileNotesSnapshot,
+  type ProfileSalesRequestIds,
+  type ProfileSalesSnapshot,
+} from "./types";
 
 /** Переход, который выглядит как спокойная кнопка: 44 px, рамка контрола, без красного. */
 const ACTION_LINK = "inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
@@ -69,6 +81,11 @@ export type LeadWorkPartsInput = Readonly<{
   ownerOptionsHaveMore: boolean;
   curators: readonly Readonly<{ membershipId: string; displayName: string }>[];
   curatorsAvailable: boolean;
+  /**
+   * Договор и платежи дела лида (чтение 188) для полосы «Передача» (Э8.4);
+   * null — дела нет или «Обзор» не открыт. Отказ и сбой — полоса без них.
+   */
+  agreement?: CaseAgreementReadResult | null;
   /** «Заявки с сайта» — своё чтение (`WebsiteLeadSubmissions`); null — не показываются. */
   submissions: ReactNode;
   hrefFor: (tab: string) => string;
@@ -146,12 +163,15 @@ function portalSummary(draft: ProfileDraft): string {
  * прочитанных данных собирает три части страницы:
  *
  * - `actions` — у заголовка: одно главное действие по состоянию
- *   (`leadPrimaryAction`), «Написать», «Создать задачу» и «⋯»;
+ *   (`leadPrimaryAction`), «Написать», «Задача по лиду» и «⋯» («Закрыть лид»);
  * - `header` — над вкладками: этап (дорожка этапа со словами доски) и
  *   «Что дальше» с правкой прежней формой решения доски в выдвижной панели;
- * - `overview` — «Обзор»: от 1280 px слева лента (заметки и события) с
- *   заметкой в одну строку, справа «Сведения» с полосой «Передача» и
- *   свёрнутые группы правки — по одной, «Сохранить» спокойное.
+ * - `overview` — «Обзор» как у дела (Э8.4): от 1280 px слева рабочая колонка —
+ *   лента (заметки и события) с заметкой в одну строку, под ней свёрнутые
+ *   группы «Данных лида» во всю её ширину, по одной, «Сохранить» спокойное;
+ *   справа только факты — «Сведения» и полоса «Передача» (договор и оплата —
+ *   одно место, «Изменить» ведёт на вкладку «Договор и оплата»). На телефоне:
+ *   «Сведения», «Передача», лента, группы.
  *
  * Права — подсказки интерфейса, те же, что у прежних блоков; каждую запись
  * проверяет сервер. Сборка без запросов: её вызывают страница и статический
@@ -163,12 +183,37 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const today = dayInOrganizationTimezone(input.now);
   const leadId = sales.lead.leadId;
   const stripRead = sales.strip.status === "available" ? sales.strip.strip : null;
-  const strip = stripRead ? handoffStripView(stripRead, { now: input.now }) : null;
   const handedOff = sales.handoff.handedOffAt !== null || stripRead?.handoff != null;
   const canManage = !preview && staffHasPermission(actor, "lead.sales.workflow.manage");
   const canRegisterSale = canManage && staffHasPermission(actor, "sales.register.manage");
   const caseId = draft.admissions?.studentCaseId ?? (sales.handoff.canOpenCase ? sales.handoff.caseId : null);
   const caseHref = caseId ? `/v3/profile?case=${encodeURIComponent(caseId)}` : null;
+  // Вкладка «Договор и оплата» и что на ней видно этому сотруднику — та же
+  // сборка, что у адреса вкладки и полосы вкладок (`profileTabAccess`).
+  const gateForms = hasHandoffGateForms(sales.gate, preview);
+  const tabAccess = profileTabAccess(draft.access, {
+    financeConfirm: !preview && !!sales.handoff.caseId && staffHasPermission(actor, "finance.event.confirm"),
+    gateForms,
+  });
+  const financeVisible = !profile.student || tabAccess.finance;
+  // Договор и оплата — одно место, полоса «Передача» (Э8.4): договор и платежи
+  // дела (188), если прочитаны и вкладка их показывает; без них — процент
+  // оплаты из финансов дела.
+  const agreement = financeVisible && input.agreement?.status === "ok" ? input.agreement.agreement : null;
+  const caseMoney: StripCaseMoney | null = agreement ? stripCaseMoney(agreement)
+    : draft.paidPercent !== null && draft.paidPercent > 0
+      ? { contractUploadedAt: null, firstPaymentOn: null, paidText: `оплачено ${draft.paidPercent}%` } : null;
+  // Предупреждение полосы ведёт к действию, которое этот сотрудник может сделать; нет действия — нет предупреждения.
+  const strip = stripRead ? handoffStripView(stripRead, {
+    now: input.now,
+    caseMoney,
+    firstPayment: { amount: sales.gate.firstPaymentAmount, currency: sales.gate.firstPaymentCurrency },
+    links: {
+      caseHref,
+      saleHref: canRegisterSale ? leadSaleHref(leadId) : null,
+      assignCurator: !preview && staffHasPermission(actor, "case.curator.assign"),
+    },
+  }) : null;
   const primary = leadPrimaryAction({ leadId, stage: sales.lead.stageKey, handedOff, caseHref, canManageWorkflow: canManage, canRegisterSale });
   const stepEditable = canManage && !handedOff;
 
@@ -223,15 +268,15 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           </>}
         />
       </> : null}
-      <LeadMoreMenu
-        leadId={leadId}
-        name={profile.person}
-        expectedVersion={sales.lead.workflowVersion}
-        blockedReason={sales.handoff.handedOffAt ? closureWords.lead.handedOff : null}
-        closable={closable}
-        portalGroupId={LEAD_PORTAL_GROUP_ID}
-        portalHref={`${input.hrefFor("overview")}#${LEAD_PORTAL_GROUP_ID}`}
-      />
+      {/* «⋯» — только «Закрыть лид» (246); «Доступ к порталу» — своя группа в «Данных лида» (Э8.4). */}
+      {closable ? (
+        <LeadMoreMenu
+          leadId={leadId}
+          name={profile.person}
+          expectedVersion={sales.lead.workflowVersion}
+          blockedReason={sales.handoff.handedOffAt ? closureWords.lead.handedOff : null}
+        />
+      ) : null}
     </div>
   );
 
@@ -291,11 +336,16 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const owner = sales.lead.currentOwnerDisplayName;
   const firstNotesPage = input.notesLatestHref === null;
   const lastContact = leadLastContact(firstNotesPage ? input.notes.rows[0]?.createdAt ?? null : null, conversations);
-  const acknowledgement = draft.salesHandoffAcknowledgement;
+  // «Приём дела» — только если к полосе есть что добавить: текст куратора,
+  // согласованный контакт или ответ в деле. Решение само по себе уже в «Принято».
   const curatorAnswer = draft.handoffAcknowledgement;
-  // Правая колонка от 1280 px — одна волосяная линия слева во весь рост, как у дела.
+  const answer = curatorAnswer?.current ?? draft.salesHandoffAcknowledgement?.current ?? null;
+  const answerHref = curatorAnswer?.canRespond && caseHref ? caseHref : null;
+  const answerFact = (curatorAnswer ?? draft.salesHandoffAcknowledgement) !== null
+    && (strip === null || Boolean(answer?.clarification) || Boolean(answer?.agreedContactDate) || answerHref !== null);
+  const arrivedDay = sales.leadCreatedAt ? leadDay(dayInOrganizationTimezone(new Date(sales.leadCreatedAt)), today) : null;
   const facts = (
-    <aside className="@container min-w-0 xl:col-start-2 xl:row-start-1 xl:border-s xl:border-border xl:ps-6" aria-labelledby="lead-facts-title" data-testid="v3-lead-facts">
+    <aside className="@container min-w-0" aria-labelledby="lead-facts-title" data-testid="v3-lead-facts">
       <h2 id="lead-facts-title" className="t-section text-fg">Сведения</h2>
       <dl className="mt-1">
         <Fact term="Ответственный">
@@ -303,8 +353,8 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
             : <span className="text-fg-2">не назначен</span>}
         </Fact>
         <Fact term="Источник">
-          {sourceWord(profile.source) ?? "неизвестно"}
-          {profile.arrived ? <span className="text-fg-2"> · с <span className="font-mono tabular-nums">{profile.arrived}</span></span> : null}
+          {sourceUnderLabel(profile.source) ?? "неизвестно"}
+          {arrivedDay ? <span className="text-fg-2"> · с <time dateTime={sales.leadCreatedAt ?? undefined} className="font-mono tabular-nums">{arrivedDay}</time></span> : null}
         </Fact>
         <Fact term="Контакты">
           {profile.phone || profile.email ? <>
@@ -334,18 +384,10 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
             ))}
           </Fact>
         ) : null}
-        {curatorAnswer ? (
+        {answerFact ? (
           <Fact term="Приём дела">
-            <HandoffResponseSummary current={curatorAnswer.current} />
-            {curatorAnswer.canRespond && caseHref ? <Link href={caseHref} className={`${QUIET_LINK} flex w-fit`}>Ответить в деле</Link> : null}
-          </Fact>
-        ) : acknowledgement ? (
-          <Fact term="Приём дела"><HandoffResponseSummary current={acknowledgement.current} /></Fact>
-        ) : null}
-        {draft.paidPercent !== null ? (
-          <Fact term="Оплата">
-            <span className="font-semibold tabular-nums">{draft.paidPercent}%</span> оплачено
-            {draft.remaining ? <span className="text-fg-2"> · остаток <span className="tabular-nums">{draft.remaining}</span></span> : null}
+            <HandoffResponseSummary current={answer} />
+            {answerHref ? <Link href={answerHref} className={`${QUIET_LINK} flex w-fit`}>Ответить в деле</Link> : null}
           </Fact>
         ) : null}
       </dl>
@@ -356,17 +398,27 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   // сноски нет — одна строка вместо пяти прочерков; первый факт — полоса.
   const handoffEmpty = strip !== null && !handedOff && strip.warnings.length === 0
     && strip.items.every((item) => item.state === "missing") && handoffFootnote(sales.gate, { now: input.now }) === null;
+  // «Изменить» — на вкладку «Договор и оплата», если она есть у этого
+  // сотрудника и там есть что изменить: подтверждение вручную (тогда — к
+  // нему, якорем), договор и платежи дела или договорный процесс — по его
+  // флагам записи; продажам процесс не рисуется (`ProfileContractWorkspace`).
+  const moneyTab = tabsFor(profile.student, tabAccess, draft.admissions !== null).some((tab) => tab.key === "money");
+  const agreementWritable = agreement !== null && agreement.canWrite && !preview;
+  const contractWritable = !preview && actor.presentationRole !== "sales" && draft.access.contract
+    && draft.contract !== null && contractWorkspaceWritable(draft.contract.workspace);
+  const moneyHref = moneyTab && (gateForms || agreementWritable || contractWritable)
+    ? `${input.hrefFor("money")}${gateForms ? `#${LEAD_GATE_ANCHOR}` : ""}` : null;
   const handoff = (
     <section aria-labelledby="lead-handoff-title" className="@container min-w-0 border-t border-border pt-3" data-testid="v3-lead-handoff">
-      {handoffEmpty ? (
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <h2 id="lead-handoff-title" className="t-item text-fg">Передача</h2>
-          <p className="t-body-compact text-fg-2" data-testid="v3-handoff-empty">ничего не подтверждено</p>
-        </div>
-      ) : <>
+      <div className="flex flex-wrap items-center gap-x-2">
         <h2 id="lead-handoff-title" className="t-item text-fg">Передача</h2>
-        <HandoffStripBlock gate={sales.gate} view={strip} className="mt-1 space-y-3" summary={!handedOff} />
-      </>}
+        {handoffEmpty ? <p className="t-body-compact text-fg-2" data-testid="v3-handoff-empty">ничего не подтверждено</p> : null}
+        {moneyHref ? (
+          <Link href={moneyHref} className={`${QUIET_LINK} ms-auto`} data-testid="v3-handoff-edit"
+            aria-label="Изменить договор и оплату">Изменить</Link>
+        ) : null}
+      </div>
+      {handoffEmpty ? null : <HandoffStripBlock gate={sales.gate} view={strip} className="mt-1 space-y-3" summary={!handedOff} />}
     </section>
   );
 
@@ -374,8 +426,9 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const gate = sales.gate;
   const events: LeadFeedEvent[] = [];
   if (sales.leadCreatedAt) events.push({ key: "created", at: sales.leadCreatedAt, text: `Лид создан · ${sourceWord(profile.source) ?? "источник неизвестен"}` });
-  if (gate.contractConfirmedAt) events.push({ key: "contract", at: gate.contractConfirmedAt, text: "Договор подтверждён" });
-  if (gate.firstPaymentConfirmedAt) events.push({ key: "payment", at: gate.firstPaymentConfirmedAt, text: "Первый платёж подтверждён" });
+  // Слова полосы «Передача»: «Договор — подтверждён вручную», «Оплата — первый платёж».
+  if (gate.contractConfirmedAt) events.push({ key: "contract", at: gate.contractConfirmedAt, text: "Договор подтверждён вручную" });
+  if (gate.firstPaymentConfirmedAt) events.push({ key: "payment", at: gate.firstPaymentConfirmedAt, text: "Первый платёж подтверждён вручную" });
   if (gate.overriddenAt) events.push({ key: "override", at: gate.overriddenAt, text: "Разрешено исключение из условий передачи" });
   if (stripRead?.handoff) events.push({ key: "handoff", at: stripRead.handoff.completedAt, text: "Передано в поступление" });
   if (stripRead?.curator?.assignedAt) events.push({ key: "curator", at: stripRead.curator.assignedAt, text: `Назначен куратор · ${stripRead.curator.displayName}` });
@@ -387,7 +440,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const feed = leadFeed(input.notes.rows, events, firstNotesPage);
   const notesWritable = !preview;
   const feedPart = (
-    <section className="min-w-0 xl:col-start-1 xl:row-span-2 xl:row-start-1" aria-labelledby="lead-feed-title" data-testid="v3-lead-feed">
+    <section className="min-w-0" aria-labelledby="lead-feed-title" data-testid="v3-lead-feed">
       <h2 id="lead-feed-title" className="t-section text-fg">Лента</h2>
       <div className="mt-2 space-y-3">
         {notesWritable ? (
@@ -422,12 +475,6 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const conditions = draft.saleConditions;
   const summaries = conditions ? leadGroupSummaries(conditions) : null;
   const conditionsReadOnly = preview || !staffHasPermission(actor, "lead.sales.workflow.manage");
-  const gateForms = handoffGateForms(gate, preview);
-  const hasGateForms = gateForms.contract || gateForms.payment || gateForms.override;
-  const gateSummary = [
-    gate.contractConfirmedAt ? `договор подтверждён ${stripMoment(gate.contractConfirmedAt, today)}` : "договор не подтверждён",
-    gate.firstPaymentReceivedDate ? `платёж получен ${leadDay(gate.firstPaymentReceivedDate, today)}` : null,
-  ].filter(Boolean).join(" · ");
   const portalControls = !preview && profile.student && draft.admissions
     && (actor.systemRole === "admin" || (draft.admissions.isCabinetCase && staffCan(actor, "sales.write"))) ? (
       <StudentPortalAccessControls
@@ -482,12 +529,6 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
             </EditGroup>
           </SaleConditionsRevisionProvider>
         ) : null}
-        {hasGateForms ? (
-          // Не «Договор и оплата»: так называется вкладка с договором и деньгами; здесь — подтверждения для передачи.
-          <EditGroup title="Подтверждение договора и платежа" summary={gateSummary} testId="v3-lead-group-contract">
-            <HandoffGateForms actor={actor} gate={gate} requestIds={input.requestIds} bare />
-          </EditGroup>
-        ) : null}
         <EditGroup id={LEAD_PORTAL_GROUP_ID} title="Доступ к порталу" summary={portalSummary(draft)} testId="v3-lead-group-portal">
           <PlatformAccessCard
             application={draft.studentApplication}
@@ -506,15 +547,18 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     </section>
   );
 
-  // Порядок чтения на телефоне: «Сведения», лента с заметкой, «Передача», группы
-  // правки. От 1280 px лента — слева во весь рост, справа — остальное; вторая
-  // строка растягивается до конца ленты, и линия слева у колонки не рвётся.
+  // Как «Обзор» дела (Э8.4): порядок чтения и телефона — «Сведения», «Передача»,
+  // лента с заметкой, группы правки. От 1280 px справа за волосяной линией во
+  // весь рост — только факты; слева рабочая колонка — лента и под ней группы
+  // во всю её ширину (в колонке «Сведений» формы тесны).
   const overview = (
-    <div className="grid gap-x-8 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[auto_1fr] xl:gap-y-0" data-testid="v3-lead-overview">
-      {facts}
-      {feedPart}
-      <div className="flex min-w-0 flex-col gap-6 xl:col-start-2 xl:row-start-2 xl:border-s xl:border-border xl:ps-6 xl:pt-6">
+    <div className="grid gap-x-8 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]" data-testid="v3-lead-overview">
+      <div className="flex min-w-0 flex-col gap-6 xl:col-start-2 xl:row-start-1 xl:border-s xl:border-border xl:ps-6" data-testid="v3-lead-side">
+        {facts}
         {handoff}
+      </div>
+      <div className="flex min-w-0 flex-col gap-8 xl:col-start-1 xl:row-start-1">
+        {feedPart}
         {groups}
       </div>
     </div>

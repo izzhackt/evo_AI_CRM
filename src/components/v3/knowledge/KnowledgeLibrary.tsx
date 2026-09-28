@@ -43,6 +43,8 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [folders, setFolders] = useState<KnowledgeItem[]>([]);
   const [folderRevision, setFolderRevision] = useState<number | null>(null);
+  // Ошибка чтения папок — своя: дерево показывает её с «Повторить», ошибки таблицы её не стирают.
+  const [folderError, setFolderError] = useState(false); const [folderAttempt, setFolderAttempt] = useState(0);
   const [page, setPage] = useState<KnowledgePage | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
@@ -105,10 +107,10 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
         if (next.hasMore && (!next.nextCursor || next.nextCursor.id === cursor?.id)) throw new Error("Не удалось загрузить все папки.");
         cursor = next.nextCursor;
       } while (cursor && !stopped);
-      if (!stopped) { setFolders(result); setFolderRevision(refresh); }
-    })().catch((cause) => { if (!stopped) setError(cause.message); });
+      if (!stopped) { setFolders(result); setFolderRevision(refresh); setFolderError(false); }
+    })().catch(() => { if (!stopped) setFolderError(true); });
     return () => { stopped = true; };
-  }, [refresh]);
+  }, [refresh, folderAttempt]);
   useEffect(() => {
     if (!itemId) return;
     const abort = new AbortController();
@@ -187,7 +189,8 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
     setRefresh((value) => value + 1);
   }, []);
   const toggleRow = (id: string) => setSelected((old) => { const next = new Set(old); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  const tree = (onNavigate?: () => void) => <KnowledgeTree folders={folderRevision === null ? null : folders} area={area} parentId={parentId} view={view} section={section} href={href} onNavigate={onNavigate} />;
+  const retryFolders = () => { setFolderError(false); setFolderAttempt((value) => value + 1); };
+  const tree = (onNavigate?: () => void) => <KnowledgeTree folders={folderRevision === null ? null : folders} folderError={folderError} onRetryFolders={retryFolders} area={area} parentId={parentId} view={view} section={section} href={href} onNavigate={onNavigate} />;
   const foldersButton = <button type="button" aria-haspopup="dialog" onClick={() => setTreeOpen(true)} className={`${QUEUE_SECONDARY} shrink-0 @3xl/kb:hidden`} data-testid="knowledge-tree-open">
     <Icon name="folder" size={18} />Папки
   </button>;
@@ -256,7 +259,8 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
             </>}
           </TopLayerMenu>
         </div>
-        {parentId ? <div role="group" aria-label="Где искать" className="mt-2 flex flex-wrap gap-2">
+        {/* «Где искать» — только когда есть что искать, и только внутри папки. */}
+        {parentId && search.trim() ? <div role="group" aria-label="Где искать" className="mt-2 flex flex-wrap gap-2">
           <button type="button" className={CHOICE} aria-pressed={searchScope === "all"} onClick={() => setSearchScope("all")}>Вся база</button>
           <button type="button" className={CHOICE} aria-pressed={searchScope === "folder"} onClick={() => setSearchScope("folder")}>Текущая папка</button>
         </div> : null}

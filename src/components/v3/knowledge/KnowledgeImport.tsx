@@ -22,7 +22,12 @@ export function KnowledgeImport({ open, onClose, onChanged, onRunningChange }: {
   const stop = useRef(false); const folders = useRef(new Map<string, string>());
   const [limit, setLimit] = useState("1");
   const modal = useRef<HTMLDialogElement>(null); const titleId = useId();
-  function setRunning(value: boolean) { setRunningState(value); onRunningChange?.(value); }
+  // «⋯» пишет «· идёт», пока идёт любой из двух переносов — обычный или защищённый.
+  // Флаги — в ref: оба переноса async и не должны читать устаревшее состояние соседа.
+  const active = useRef({ normal: false, protected: false });
+  function report() { onRunningChange?.(active.current.normal || active.current.protected); }
+  function setRunning(value: boolean) { setRunningState(value); active.current.normal = value; report(); }
+  function setProtectedRunning(value: boolean) { active.current.protected = value; report(); }
   useEffect(() => { if (open) modal.current?.showModal(); else modal.current?.close(); }, [open]);
   async function readPlan(file?: File) {
     if (!file) return;
@@ -109,7 +114,7 @@ export function KnowledgeImport({ open, onClose, onChanged, onRunningChange }: {
         {status && <p role="status" className="t-body-compact text-fg-2">{status}</p>}{error && <p className={KB_ERROR} role="alert">{error}</p>}
         <button type="button" className={QUEUE_SECONDARY} disabled={running || !plan} onClick={() => void reconcile()}>Сверить все источники</button>
         {failures.length > 0 && <ul className="space-y-1 border-y border-border py-2 t-body-compact text-danger" aria-label="Не перенесено">{failures.map((failure) => <li key={failure.path} className="[overflow-wrap:anywhere]">{failure.path}: {failure.reason}</li>)}</ul>}
-        <KnowledgeProtectedImport onChanged={onChanged} />
+        <KnowledgeProtectedImport onChanged={onChanged} onRunningChange={setProtectedRunning} />
       </div>
     </div>
   </dialog>;

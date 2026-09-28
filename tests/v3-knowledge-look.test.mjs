@@ -45,6 +45,8 @@ test("the staff look: tokens, neutral selection, no pink, no red checkboxes, no 
   // Отметки — нейтральные (RowSelect очереди и accent-fg).
   assert.match(library, /<RowSelect /u);
   assert.match(source["knowledge-look.ts"], /accent-fg/u);
+  // Редактор: группа «Вставить» отделена от переключателя «Режим» линией.
+  assert.match(source["KnowledgeEditor.tsx"], /role="group" aria-label="Вставить" className="flex flex-wrap gap-2 border-s border-border ps-2"/u);
 });
 
 test("every CSS-module class the components use is defined", () => {
@@ -67,8 +69,8 @@ test("one toolbar: search first, then «Создать ▾», then «⋯»; the 
   for (const name of ["KnowledgeLibrary.tsx", "KnowledgeImport.tsx", "KnowledgeProtectedImport.tsx", "KnowledgeExport.tsx"]) {
     assert.doesNotMatch(source[name], /<details|<summary/u, `${name} keeps a ▶ disclosure`);
   }
-  // Где искать — две кнопки выбора и только внутри папки.
-  assert.match(library, /\{parentId \? <div role="group" aria-label="Где искать"/u);
+  // Где искать — две кнопки выбора, только внутри папки и только при запросе поиска.
+  assert.match(library, /\{parentId && search\.trim\(\) \? <div role="group" aria-label="Где искать"/u);
   assert.doesNotMatch(library, /<select aria-label="Область поиска"/u);
 });
 
@@ -78,20 +80,33 @@ test("local import and «⋯» dialogs stay mounted in every view; export keeps 
   assert.match(root, /<KnowledgeExport open=\{exportOpen === "scope"\}/u);
   assert.match(root, /<KnowledgeExport open=\{exportOpen === "all"\}/u);
   assert.match(source["KnowledgeImport.tsx"], /<dialog ref=\{modal\}/u);
+  // «· идёт» в «⋯» — пока идёт любой из двух переносов.
+  assert.match(library, /onRunningChange=\{setImportRunning\}/u);
+  assert.match(source["KnowledgeImport.tsx"], /<KnowledgeProtectedImport onChanged=\{onChanged\} onRunningChange=\{setProtectedRunning\} \/>/u);
+  assert.match(source["KnowledgeImport.tsx"], /onRunningChange\?\.\(active\.current\.normal \|\| active\.current\.protected\)/u);
+  assert.match(source["KnowledgeProtectedImport.tsx"], /function setBusy\(value: boolean\) \{ setBusyState\(value\); onRunningChange\?\.\(value\); \}/u);
   const exporter = source["KnowledgeExport.tsx"];
+  assert.match(exporter, /<legend className="t-label text-fg-2">Включить в ZIP<\/legend>/u);
   assert.match(exporter, /export function KnowledgeExport\(\{ ids, area, caseIds, canonical, buttonClassName, label = "Выгрузить", open: openProp, onOpenChange \}/u);
   assert.match(exporter, /\{controlled \? null : <button type="button" aria-haspopup="dialog" className=\{buttonClassName \?\? QUEUE_SECONDARY\} onClick=\{\(\) => setOpen\(true\)\}>\{label\}<\/button>\}/u);
   assert.match(read("src/components/v3/FileManager.tsx"), /<KnowledgeExport canonical=\{folderExport\} label=\{current \? "Выгрузить папку" : "Выгрузить все документы"\} buttonClassName=\{btnGhostCls\} \/>/u);
 });
 
 test("the tree draws only open branches, rows are a 44 px button and a 44 px link, secrets never open by themselves", () => {
-  assert.equal([...tree.matchAll(/\{open \? <ul className="ps-3">/gu)].length, 2, "areas and folders render children only when open");
+  assert.match(tree, /\{open \? <ul className="ps-3">\{branch\(nodeArea, folder\.id, depth \+ 1\)\}<\/ul> : null\}/u, "folders render children only when open");
+  assert.match(tree, /\{open \? loading\s*\? <div className="ps-3">.*<KnowledgeTreeSkeleton rows=\{4\} \/><\/div>\s*: <ul className="ps-3">\{branch\(nodeArea, null, 1\)\}<\/ul> : null\}/u, "areas render children (or the skeleton) only when open");
   assert.doesNotMatch(tree, /<details|<summary/u);
   assert.match(tree, /const TOGGLE = "grid size-11 /u);
   assert.match(tree, /min-h-11/u);
   assert.match(tree, /isOpen\(`area:\$\{nodeArea\}`, !secrets && !section && nodeArea === area\)/u);
   assert.match(tree, /if \(!parentId \|\| area === "secrets" \|\| section\) return ids;/u);
   assert.match(tree, /secrets \? "mt-3 border-t border-border pt-3"/u);
+  // Четыре раздела видны всегда; скелет — только в раскрытой ветке; ошибка чтения — своя, с «Повторить».
+  assert.doesNotMatch(tree, /folders === null \? <KnowledgeTreeSkeleton/u);
+  assert.match(tree, /const loading = folders === null && !folderError;/u);
+  assert.match(tree, /\{folderError \? <div role="alert"[^>]*>\s*<p className="t-body-compact text-danger">Папки не загрузились\.<\/p>\s*<button type="button" onClick=\{onRetryFolders\} className=\{QUEUE_SECONDARY\}>Повторить<\/button>/u);
+  assert.match(library, /\}\)\(\)\.catch\(\(\) => \{ if \(!stopped\) setFolderError\(true\); \}\);\n\s*return \(\) => \{ stopped = true; \};\n\s*\}, \[refresh, folderAttempt\]\);/u, "a failed folders read sets its own error, not the table error");
+  assert.match(library, /folderError=\{folderError\} onRetryFolders=\{retryFolders\}/u);
   // «Секреты и доступы» — последний раздел.
   assert.deepEqual([...read("src/lib/knowledge-library-contract.ts").match(/KNOWLEDGE_AREAS = \[([^\]]+)\]/u)[1].matchAll(/"(\w+)"/gu)].map((match) => match[1]), ["internal", "clients", "raw", "secrets"]);
 });

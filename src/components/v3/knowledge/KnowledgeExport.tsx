@@ -72,7 +72,7 @@ export function KnowledgeExport({ ids, area, caseIds, canonical, buttonClassName
         </div>
         <div className={KB_DIALOG_BODY}>
           <fieldset>
-            <legend className="t-label text-fg-2">Добавить в архив</legend>
+            <legend className="t-label text-fg-2">Включить в ZIP</legend>
             <label className={KB_CHECK_ROW}><input type="checkbox" className={KB_CHECK} checked={archive} onChange={(e) => setArchive(e.target.checked)} />Архивные материалы</label>
             <label className={KB_CHECK_ROW}><input type="checkbox" className={KB_CHECK} checked={history} onChange={(e) => setHistory(e.target.checked)} />История версий</label>
             <label className={KB_CHECK_ROW}><input type="checkbox" className={KB_CHECK} checked={trash} onChange={(e) => setTrash(e.target.checked)} />Корзина</label>

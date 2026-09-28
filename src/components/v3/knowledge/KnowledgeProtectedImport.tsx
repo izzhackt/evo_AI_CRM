@@ -8,9 +8,10 @@ import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { KB_ERROR, KB_FILE, KB_LABEL } from "./knowledge-look";
 type Entry = { id: string; kind: "file" | "record"; file: string; folders: string[]; cipherSha256: string; cipherBytes: number };
 type Plan = { version: 1; format: "evo-protected-import-v1"; entries: Entry[] };
-export function KnowledgeProtectedImport({ onChanged }: { onChanged: () => void }) {
+export function KnowledgeProtectedImport({ onChanged, onRunningChange }: { onChanged: () => void; onRunningChange?: (running: boolean) => void }) {
   const [files, setFiles] = useState<Map<string, File>>(new Map()); const [plan, setPlan] = useState<Plan | null>(null);
-  const [busy, setBusy] = useState(false); const [status, setStatus] = useState(""); const [error, setError] = useState("");
+  const [busy, setBusyState] = useState(false); const [status, setStatus] = useState(""); const [error, setError] = useState("");
+  function setBusy(value: boolean) { setBusyState(value); onRunningChange?.(value); }
   const stop = useRef(false); const folders = useRef(new Map<string, string>());
   async function choose(selected: File[]) {
     setError(""); setPlan(null); setStatus("");

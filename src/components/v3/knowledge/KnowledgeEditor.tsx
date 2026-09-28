@@ -142,7 +142,7 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
             <button type="button" className={`v3-choice ${TOOL}`} aria-pressed={mode === "read"} onClick={() => setMode("read")}>Читать</button>
             {editable && <button type="button" className={`v3-choice ${TOOL}`} aria-pressed={mode === "edit"} onClick={() => setMode("edit")}>Редактировать</button>}
           </div>
-          {mode === "edit" && <div role="group" aria-label="Вставить" className="flex flex-wrap gap-2">
+          {mode === "edit" && <div role="group" aria-label="Вставить" className="flex flex-wrap gap-2 border-s border-border ps-2">
             <button type="button" className={TOOL} onClick={() => insert("\n## ")}>Заголовок</button>
             <button type="button" className={TOOL} onClick={() => insert("\n- ")}>Список</button>
             <button type="button" className={TOOL} onClick={() => insert("\n|  |  |\n| --- | --- |\n|  |  |\n")}>Таблица</button>

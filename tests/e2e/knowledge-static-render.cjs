@@ -42,7 +42,7 @@ const { FileManager } = require("@/components/v3/FileManager");
 const h = React.createElement;
 
 const fixture = JSON.parse(document.getElementById("kb-fixture").textContent);
-window.__kb = { pushes: [], requests: [] };
+window.__kb = { pushes: [], requests: [], folderFailures: 0 };
 const router = {
   push: (href) => { window.__kb.pushes.push(String(href)); }, replace: (href) => { window.__kb.pushes.push(String(href)); },
   refresh() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {},
@@ -180,6 +180,11 @@ window.fetch = async (input, init) => {
   const path = url.pathname.slice("/api/v3/knowledge/".length);
   window.__kb.requests.push(path + url.search);
   if (fixture.hang && path.startsWith("list")) return new Promise(() => {});
+  // Сценарий ошибки: первые чтения папок падают, «Повторить» читает заново.
+  if (fixture.failFolders > window.__kb.folderFailures && url.searchParams.get("mode") === "folders") {
+    window.__kb.folderFailures += 1;
+    return new Response(JSON.stringify({ error: "knowledge_unavailable" }), { status: 503, headers: { "Content-Type": "application/json" } });
+  }
   const body = respond(path, url.searchParams, init);
   return new Response(JSON.stringify(body ?? { error: "knowledge_not_found" }), { status: body ? 200 : 404, headers: { "Content-Type": "application/json" } });
 };
@@ -304,6 +309,7 @@ const PAGES = {
   big: { search: "area=raw&folder=@rawbig" },
   inbox: { search: "area=internal&view=inbox" },
   loading: { search: "area=internal", hang: true },
+  treeError: { search: "area=internal", failFolders: 1 },
   clients: { search: "area=clients" },
   editor: { search: "area=internal&folder=@bjdocs&item=@editor" },
   secret: { search: "area=secrets&folder=@secretsvps&item=@secret" },
@@ -364,6 +370,15 @@ const SHOTS = [
   }],
   ["kb-inbox", "inbox", async () => {}],
   ["kb-loading", "loading", async (page) => { await page.getByTestId("knowledge-skeleton-row").first().waitFor(); }],
+  // Папки не прочитаны: разделы на месте, в дереве — ошибка с «Повторить» (на телефоне — в листе «Папки»).
+  ["kb-tree-error", "treeError", async (page) => {
+    if (isPhone(page)) {
+      await page.getByTestId("knowledge-tree-open").click();
+      await page.waitForSelector('[data-testid="knowledge-tree-sheet"][open] [data-testid="knowledge-tree-error"]');
+      return;
+    }
+    await page.locator('aside [data-testid="knowledge-tree-error"]').waitFor();
+  }],
   ["kb-clients", "clients", async (page) => { await page.getByTestId("knowledge-dossiers").locator("a").first().waitFor(); }],
   ["kb-editor", "editor", async (page) => { await page.getByTestId("knowledge-editor").waitFor(); }],
   ["kb-editor-edit", "editor", async (page) => {
@@ -412,6 +427,10 @@ function probe() {
     smallTargets: small.length,
     small: small.slice(0, 6).join("; ") || null,
     treeLinks: treeLinks.length,
+    areas: [...document.querySelectorAll('[data-testid="knowledge-tree"] [data-knowledge-area] > div > a')].filter(visible).length,
+    treeSkeleton: [...document.querySelectorAll('[data-testid="knowledge-tree-skeleton"]')].filter(visible).length,
+    treeError: [...document.querySelectorAll('[data-testid="knowledge-tree-error"]')].filter(visible).length,
+    scopeGroup: document.querySelectorAll('[role="group"][aria-label="Где искать"]').length,
     secretsOpen: [...document.querySelectorAll('[data-knowledge-area="secrets"]')].some((area) => area.querySelector("ul")),
     current: [...document.querySelectorAll('[data-testid="knowledge-tree"] [aria-current="page"]')].map((element) => element.textContent.trim()).join("|") || null,
     dates: dates.slice(0, 3).map((element) => element.textContent).join(",") || null,
@@ -434,7 +453,7 @@ async function screenshots() {
   await buildClientBundle(join(outDir, bundle));
   const css = await compileCss();
   for (const [name, config] of Object.entries(PAGES)) {
-    const fixture = JSON.stringify({ search: config.search, hang: Boolean(config.hang) }).replaceAll("<", "\\u003c");
+    const fixture = JSON.stringify({ search: config.search, hang: Boolean(config.hang), failFolders: config.failFolders ?? 0 }).replaceAll("<", "\\u003c");
     writeFileSync(join(outDir, `kb-${name}.html`), [
       "<!DOCTYPE html>",
       '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -484,6 +503,13 @@ async function screenshots() {
         if (shot === "kb-tree" && facts.secretsOpen) failures.push(`${file}: «Секреты и доступы» opened by itself`);
         if (shot === "kb-sheet" && !isPhone(page) && !facts.secretsOpen) failures.push(`${file}: «Секреты и доступы» did not open on click`);
         if (shot === "kb-loading" && !facts.skeletonRows) failures.push(`${file}: no skeleton rows while loading`);
+        // Дерево видно сбоку (шире 768): разделы на месте и пока папки читаются, и когда чтение упало.
+        if (["kb-loading", "kb-tree-error"].includes(shot) && !isPhone(page) && facts.areas !== 4) failures.push(`${file}: ${facts.areas} of 4 areas in the tree`);
+        if (shot === "kb-loading" && !isPhone(page) && facts.treeSkeleton !== 1) failures.push(`${file}: ${facts.treeSkeleton} tree skeletons (expected one, inside the open area)`);
+        if (shot === "kb-tree-error" && (facts.treeError !== 1 || facts.treeSkeleton)) failures.push(`${file}: tree error ${facts.treeError}, skeletons ${facts.treeSkeleton}`);
+        // «Вся база / Текущая папка» — только при поиске внутри папки.
+        if (shot === "kb-tree" && facts.scopeGroup) failures.push(`${file}: «Где искать» is shown without a search query`);
+        if (shot === "kb-search" && facts.scopeGroup !== 1) failures.push(`${file}: «Где искать» is missing while searching in a folder`);
         if (shot === "kb-inbox") {
           // На телефоне дерево — в закрытом листе «Папки»: отметка стоит и в скрытой колонке.
           const current = await page.locator('nav[aria-label="Разделы базы знаний"] [aria-current="page"]').allTextContents();
@@ -497,6 +523,7 @@ async function screenshots() {
       }
     }
     if (!only || only.has("kb-tree")) await treeProbe(browser, outDir, failures);
+    if (!only || only.has("kb-tree-error")) await folderRetryProbe(browser, outDir, failures);
   } finally {
     await browser.close();
   }
@@ -540,6 +567,25 @@ async function treeProbe(browser, outDir, failures) {
   const focused = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
   if (focused !== "Ещё действия с базой знаний") failures.push(`focus after closing the import dialog is on «${focused}»`);
   process.stdout.write(`tree probe: ${shown} of ${total} folders rendered, current «${current}», focus after Esc «${focused}»\n`);
+  await context.close();
+}
+
+/** Чтение папок упало → «Повторить» читает их снова: ошибка уходит, ветки раскрываются. */
+async function folderRetryProbe(browser, outDir, failures) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  await page.goto(pathToFileURL(join(outDir, "kb-treeError.html")).href, { waitUntil: "load" });
+  await page.waitForSelector("html[data-rendered]", { state: "attached" });
+  const aside = page.locator("aside");
+  await aside.getByTestId("knowledge-tree-error").waitFor();
+  const togglesBefore = await aside.locator("[data-knowledge-area] button[aria-expanded]").count();
+  await aside.getByRole("button", { name: "Повторить", exact: true }).click();
+  await aside.getByRole("link", { name: "Страны и направления" }).waitFor();
+  const errorAfter = await aside.getByTestId("knowledge-tree-error").count();
+  if (togglesBefore) failures.push(`folder error: ${togglesBefore} area toggles while folders are unknown`);
+  if (errorAfter) failures.push("folder error stays after a successful retry");
+  const reads = await page.evaluate(() => window.__kb.requests.filter((request) => request.includes("mode=folders")).length);
+  process.stdout.write(`folder retry probe: toggles before ${togglesBefore}, error after ${errorAfter}, folder reads ${reads}\n`);
   await context.close();
 }
 

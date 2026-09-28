@@ -44,14 +44,20 @@ test("source and actions use cookie authority with no provider or elevated clien
   const source = readFileSync(new URL("../src/lib/v3/sales-register-source.ts", import.meta.url), "utf8");
   const actions = readFileSync(new URL("../src/lib/platform-sales-register-actions.ts", import.meta.url), "utf8");
   assert.match(source, /createSupabaseServerClient\(\)/);
-  assert.match(source, /rpc\("read_sales_register_v2"/);
+  // Э8.6 (253): отчёт читает v4, правка — manage v2; v1–v3 и manage v1 остаются на сервере для отката.
+  assert.match(source, /rpc\("read_sales_register_v4"/);
+  assert.doesNotMatch(source, /rpc\("read_sales_register_v[123]"/);
+  assert.match(source, /rpc\("read_sales_manager_labels_v1"/);
+  assert.match(actions, /rpc\("manage_sales_register_v2"/);
+  assert.match(actions, /rpc\("save_sales_manager_label_v1"/);
+  assert.doesNotMatch(actions, /rpc\("manage_sales_register_v1"/);
   assert.match(source, /p_organization_id: actor\.organizationId/);
   assert.doesNotMatch(source, /row\.ownerMembershipId !== actor\.membershipId|actor\.authorityRole/);
   assert.match(actions, /p_expected_version: version/);
   assert.match(actions, /data\.request_id !== requestId/);
   assert.doesNotMatch(source + actions, /createSupabaseAdmin|SERVICE_ROLE|SECRET_KEY|\.from\(/);
   assert.match(actions, /inserted \+ skipped \+ mismatches !== input\.sales\.length/);
-  assert.equal((actions.match(/revalidatePath\("\/v3\/main"\)/g) ?? []).length, 3);
+  assert.equal((actions.match(/revalidatePath\("\/v3\/main"\)/g) ?? []).length, 4);
 });
 
 // Unified workflow S2 (plan §6): «Отчёт продаж → Добавить продажу» narrows
@@ -71,8 +77,11 @@ test("saveSalesRegisterAction's create path takes lead+curator and lets the serv
   assert.match(actions, /const REASON = \["reason"\] as const;/);
   assert.match(
     actions,
-    /exactActionStringFields\(form, operation === "create" \? \[\.\.\.BASE, \.\.\.INTAKE\]\s*: operation === "update" \? \[\.\.\.BASE, \.\.\.REASON, \.\.\.EDIT\] : \[\.\.\.BASE, \.\.\.REASON\]\)/,
+    /exactActionStringFields\(form, operation === "create" \? \[\.\.\.BASE, \.\.\.INTAKE\]\s*: operation === "update" \? \[\.\.\.BASE, \.\.\.REASON, \.\.\.EDIT, \.\.\.CONTRACT\] : \[\.\.\.BASE, \.\.\.REASON\]\)/,
   );
+  // «Оплачено в валюте договора» (253) — отдельной парой, не в полях записи.
+  assert.match(actions, /const CONTRACT = \["paid_contract_minor", "paid_contract_currency"\] as const;/);
+  assert.match(actions, /p_paid_contract_minor: contractMinor,\s*p_paid_contract_currency: contractCurrency,/);
 });
 
 test("conditions-missing UX: a distinct status routes the create form back to the lead card, never a generic invalid message", () => {
@@ -89,4 +98,46 @@ test("conditions-missing UX: a distinct status routes the create form back to th
   assert.match(forms, /conditions\.serviceCostMinor === null/);
   // The «new student» mode (owner/email/direction inputs) is fully retired.
   assert.doesNotMatch(forms, /studentMode|interestDirection/);
+});
+
+// Э8.6 (253, owner decisions 28.09): «Оплачено в валюте договора» as columns, row v2, read v4, manage v2 and
+// «Менеджеры в отчёте». The real-Postgres proof is supabase/tests/platform_sales_register_v4.sql at its checkpoint.
+test("migration 253 continues the contiguous source ledger and runs its real-Postgres suite at its checkpoint", async () => {
+  const { expectedMigrationVersions } = await import("../scripts/fast-release-ledger-gate.mjs");
+  const { fileURLToPath } = await import("node:url");
+  // 252 is Э8.5's migration (merged first); the ledger stays contiguous only with both.
+  const versions = expectedMigrationVersions(fileURLToPath(new URL("../supabase/migrations", import.meta.url)));
+  assert.ok(versions.includes("252") && versions.includes("253"));
+  const script = readFileSync(new URL("../scripts/test-postgres-authorization.sh", import.meta.url), "utf8");
+  assert.match(script, /== 253_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_sales_register_v4\.sql/u);
+  const suite = readFileSync(new URL("../supabase/tests/platform_sales_register_v4.sql", import.meta.url), "utf8");
+  assert.match(suite, /^BEGIN;$/mu);
+  assert.match(suite, /^ROLLBACK;\s*$/mu);
+  assert.match(suite, /N253_SALES_REPORT_V4_SUITE_OK/u);
+  assert.doesNotMatch(suite, /@(?!example\.invalid)[a-z0-9-]+\.[a-z]/iu, "synthetic addresses only");
+});
+
+test("migration 253 adds columns outside `fields`, new versions only, and keeps the released reads byte-identical", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/253_platform_sales_report_contract_amount.sql", import.meta.url), "utf8");
+  assert.match(sql, /ADD COLUMN paid_contract_minor BIGINT,\s*ADD COLUMN paid_contract_currency TEXT,/u);
+  assert.match(sql, /CHECK \(\(paid_contract_minor IS NULL\) = \(paid_contract_currency IS NULL\)\)/u);
+  assert.match(sql, /paid_contract_currency IN \('USD','EUR','KGS'\)/u);
+  // Nothing new goes into `fields` (row v1 = fields || fixed keys would leak it into v1–v3), and no mass update.
+  assert.doesNotMatch(sql, /fields\s*\|\|\s*jsonb_build_object\('paid_contract/u);
+  assert.doesNotMatch(sql, /UPDATE platform_private\.sales_register SET[^;]*WHERE (?!id=old\.id)/u);
+  assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION/u, "released functions are never replaced");
+  assert.doesNotMatch(sql, /'source_snapshot'|source_snapshot\s*\)\s*$/mu, "the snapshot is never returned");
+  for (const signature of ["platform.read_sales_register_v1(", "platform.read_sales_register_v2(", "platform.read_sales_register_v3(",
+    "platform.manage_sales_register_v1(", "platform.staff_lead_handoff_strip_v1(", "platform_private.sales_register_row(platform_private.sales_register)"]) {
+    assert.ok(sql.includes(signature), `${signature} is compared before and after`);
+  }
+  assert.match(sql, /RAISE EXCEPTION 'a253_sales_report_verification_failed: a released read or command changed'/u);
+  // The mapping: FORCE RLS, no client grants, the data-transfer permission at organization scope.
+  assert.match(sql, /ALTER TABLE platform_private\.sales_manager_labels FORCE ROW LEVEL SECURITY;/u);
+  assert.equal((sql.match(/'sales\.register\.import', 'organization', p_organization_id\)/gu) ?? []).length, 2);
+  // manage v2 keeps v1's gates: the 208 Sales Manager guard twice (before and after the lock) and the record permission.
+  const manage = sql.slice(sql.indexOf("CREATE FUNCTION platform.manage_sales_register_v2"), sql.indexOf("CREATE FUNCTION platform.read_sales_manager_labels_v1"));
+  assert.equal((manage.match(/staff_is_sales_manager\(p_organization_id,actor\.membership_id\)/gu) ?? []).length, 2);
+  assert.match(manage, /'sales\.register\.manage', 'sales_register', old\.id\)/u);
+  assert.match(manage, /currency_gap:=cost_currency IS NOT NULL AND paid_currency IS NOT NULL AND cost_currency<>paid_currency\s+AND p_paid_contract_minor IS NULL;/u);
 });

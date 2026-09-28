@@ -129,7 +129,9 @@ test("URL-addressable: each page keeps its own parameter, and closing drops only
   assert.match(students.get("admin-panel"), /href="\/v3\/profile\?view=active&amp;open=cccccccc-2222-4222-8222-000000000003"/u);
   assert.match(students.get("curators"), /href="\/v3\/profile\?view=curators&amp;coverage_curator=[^"]+#curator-coverage"/u);
   assert.match(requests.get("drawer-lead"), /href="\/v3\/requests\?open=lead(?:%3A|:)dddddddd-3333-4333-8333-000000000001"/u);
-  assert.match(numbers.get("report-panel"), /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000001&amp;edit=true"/u);
+  // «Отчёт продаж»: строка открывает запись просмотром (Э8.6), правка — `&edit=true` из «Исправить запись».
+  assert.match(numbers.get("report-panel"), /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000001"/u);
+  assert.match(numbers.get("report-panel"), /data-testid="sales-record-edit" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true"/u);
   assert.match(boards.get("sales-panel"), /href="\/v3\/pipeline\?lead=dddddddd-3333-4333-8333-000000000005"/u);
   assert.match(read("src/components/v3/Pipeline.tsx"), /window\.history\.pushState\(null, "", href\)/u, "the board keeps ?lead= client-side");
   // Переход из «Сегодня» — те же адреса панелей.
@@ -146,7 +148,8 @@ test("one header: record title, context line, «Открыть …», actions an
     ["«Студенты»", panelOf(students.get("admin-panel")), "Открыть дело"],
     ["«Нагрузка кураторов»", panelOf(students.get("curators")), null],
     ["«Заявки»", panelOf(requests.get("drawer-lead")), "Открыть карточку лида"],
-    ["«Отчёт продаж» (форма)", panelOf(numbers.get("report-panel")), null],
+    ["«Отчёт продаж» (запись)", panelOf(numbers.get("report-panel")), null],
+    ["«Отчёт продаж» (форма)", panelOf(numbers.get("report-panel-edit")), null],
     ["«Воронка продаж»", panelOf(boards.get("sales-panel")), "Открыть карточку лида"],
   ];
   for (const [name, panel, open] of headers) {
@@ -161,7 +164,9 @@ test("one header: record title, context line, «Открыть …», actions an
   // Строка контекста — у каждой панели, и у доски, и у формы «Отчёта продаж».
   for (const [name, panel] of headers) assert.match(panel.match(/<header [\s\S]*?<\/header>/u)[0], /data-side-panel-context="">/u, `${name}: a context line`);
   assert.match(panelOf(tasks.get("team-panel")), /data-side-panel-context="">[^<]+<\/div>/u, "who the task is about");
-  assert.match(panelOf(numbers.get("report-panel")), /data-side-panel-context="">Сведения из записи отчёта\.(?: Текущие данные клиента и условия — в его карточке\.)?<\/div>/u, "the report form: the same line as the record view");
+  for (const name of ["report-panel", "report-panel-edit"]) {
+    assert.match(panelOf(numbers.get(name)), /data-side-panel-context="">Сведения из записи отчёта\.(?: Текущие данные клиента и условия — в его карточке\.)?<\/div>/u, `${name}: the report form and the record view share one line`);
+  }
   // Доска: этап и ответственный переехали из списка фактов в строку контекста, не удвоились;
   // над строкой — дорожка этапа (Э1.4), без своей подписи.
   const lead = panelOf(boards.get("sales-panel"));

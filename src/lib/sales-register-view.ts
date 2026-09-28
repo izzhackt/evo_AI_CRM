@@ -1,17 +1,19 @@
 /**
- * «Отчёт продаж» без коробок (Э4, 27.09.2026): чистая логика показа без
- * React — сведение вариантов фильтров для меню, причины «Уточнить» из полей
- * записи, остаток по валютам и шаги месяца. Данные не меняются: всё считается
- * из уже прочитанных строк; нет чтения — нет числа.
+ * «Отчёт продаж» без коробок (Э4, 27.09.2026; Э8.6, 28.09.2026): чистая
+ * логика показа без React — причины «Требует проверки» словами из ключей
+ * сервера, «Оплачено в валюте договора» в остатке, остаток по валютам и шаги
+ * месяца. Данные не меняются: всё считается из уже прочитанных строк; нет
+ * чтения — нет числа.
  */
 import type { SalesRegisterRow } from "./platform-sales-register-contract.ts";
 
 /**
- * Вариант фильтра в меню: одно имя на написания, которые отличаются только
- * пробелами по краям, двойными пробелами и регистром. Только показ: фильтр
- * отчёта по-прежнему точный, поэтому группа выбирает одно написание
- * (`value`), а остальные (`variants`) остаются выбираемыми. Сведение к
- * сотрудникам и списку направлений — позже, по таблице владельца.
+ * Вариант фильтра «Направление» в меню: одно имя на написания, которые
+ * отличаются только пробелами по краям, двойными пробелами и регистром.
+ * Только показ: фильтр направления по-прежнему точный, поэтому группа
+ * выбирает одно написание (`value`), а остальные (`variants`) остаются
+ * выбираемыми. Менеджеры с Э8.6 сводятся на сервере — ключом и таблицей
+ * владельца (миграция 253).
  */
 export type SalesLabelGroup = Readonly<{
   key: string;
@@ -62,21 +64,68 @@ export type SalesRowReview =
   | Readonly<{ state: "checked" }>
   | Readonly<{ state: "review"; reasons: readonly string[] }>;
 
+/** Поля записи, из которых «при переносе: …» называет пометку переноса. */
+const IMPORT_FIELD_TEXT: Readonly<Record<string, string>> = {
+  applicant_name: "имя", phone: "телефон", country: "страна", university: "университет", program: "программа",
+  direction: "направление", intake: "набор", contract_number: "номер договора", manager_label: "менеджер", status_raw: "статус оплаты",
+};
+
+/** Пометка переноса данных словами (ключи — `scripts/prepare-sales-register-import.py`). */
+export function salesImportFlagText(flag: string): string {
+  if (flag === "status_unspecified") return "статус оплаты не указан";
+  if (flag === "phone_missing") return "нет телефона";
+  if (flag === "signing_date_outside_report_month") return "дата продажи вне месяца отчёта";
+  const formula = /^([a-z_]+)_formula_not_evaluated$/u.exec(flag);
+  if (formula && IMPORT_FIELD_TEXT[formula[1]]) return `формула в поле «${IMPORT_FIELD_TEXT[formula[1]]}» не посчитана`;
+  return "пометка без расшифровки";
+}
+
 /**
- * «Уточнить» строки: причины — только то, чего не хватает в самой записи;
- * если запись отмечена «Нужно уточнить», а в полях всё есть, причина не
- * придумывается — «причина не записана».
+ * «Требует проверки»: причины — ключи сервера (миграция 253, `review_reasons`),
+ * только пока запись помечена. Чего не хватает в самой записи — словами; пометки
+ * переноса, чьё поле ещё не исправлено, — одной строкой «при переносе: …».
+ * Причин нет — «отмечено вручную» (или «отмечено при переносе»): причина не
+ * придумывается.
  */
 export function salesRowReview(row: SalesRegisterRow): SalesRowReview {
   if (row.archived) return { state: "archived" };
   if (!row.needsReview) return { state: "checked" };
   const reasons: string[] = [];
-  if (row.signingDate === null) reasons.push("нет даты продажи");
-  if (row.serviceCostMinor === null) reasons.push(row.serviceCostRaw.trim() ? "стоимость не разобрана" : "нет стоимости");
-  if (row.paidMinor === null && row.paidRaw.trim()) reasons.push("оплата не разобрана");
-  if (row.serviceCostCurrency && row.paidCurrency && row.serviceCostCurrency !== row.paidCurrency) reasons.push("оплата в другой валюте");
-  if (!row.managerLabel.trim()) reasons.push("нет менеджера");
-  return { state: "review", reasons: reasons.length ? reasons : ["причина не записана"] };
+  const fromImport: string[] = [];
+  for (const reason of row.reviewReasons) {
+    if (reason === "signing_date_missing") reasons.push("нет даты продажи");
+    else if (reason === "service_cost_missing") reasons.push(row.serviceCostRaw.trim() ? "стоимость не разобрана" : "нет стоимости");
+    else if (reason === "paid_missing") reasons.push(row.paidRaw.trim() ? "оплата не разобрана" : "оплата не указана");
+    else if (reason === "contract_amount_missing") reasons.push("нет суммы в валюте договора");
+    else if (reason.startsWith("import:")) {
+      const text = salesImportFlagText(reason.slice("import:".length));
+      if (!fromImport.includes(text)) fromImport.push(text);
+    }
+  }
+  if (fromImport.length) reasons.push(`при переносе: ${fromImport.join(", ")}`);
+  if (!reasons.length) reasons.push(row.importFlags.length ? "отмечено при переносе" : "отмечено вручную");
+  return { state: "review", reasons };
+}
+
+/**
+ * Причины, которые сервер ставит сам (253): нет даты, стоимости, оплаты или
+ * суммы в валюте договора. Отметка «Нужно уточнить» в форме — только ручная:
+ * если других причин нет, она не стоит заранее, и запись без этих пробелов
+ * перестаёт быть помеченной.
+ */
+export const SALES_AUTO_REVIEW_REASONS: readonly string[] = ["signing_date_missing", "service_cost_missing", "paid_missing", "contract_amount_missing"];
+export function salesManualReview(row: SalesRegisterRow): boolean {
+  return row.needsReview && !(row.reviewReasons.length > 0 && row.reviewReasons.every((reason) => SALES_AUTO_REVIEW_REASONS.includes(reason)));
+}
+
+/**
+ * «Оплачено в валюте договора», если она считается: запись оплачена в другой
+ * валюте, а сумма введена в валюте стоимости (253). Иначе null — система
+ * валюты не пересчитывает.
+ */
+export function salesRowContractPaid(row: SalesRegisterRow): number | null {
+  if (row.paidContractMinor === null || row.serviceCostCurrency === null || row.paidCurrency === null) return null;
+  return row.paidContractCurrency === row.serviceCostCurrency && row.paidCurrency !== row.serviceCostCurrency ? row.paidContractMinor : null;
 }
 
 /**
@@ -91,7 +140,7 @@ export function salesRowNoRemainder(row: SalesRegisterRow): SalesNoRemainderReas
   if (row.archived) return "archived";
   if (row.serviceCostMinor === null || row.serviceCostCurrency === null) return "no_cost";
   if (row.paidMinor === null) return row.paidRaw.trim() ? "paid_unclear" : "paid_missing";
-  if (row.paidCurrency !== row.serviceCostCurrency) return "other_currency";
+  if (row.paidCurrency !== row.serviceCostCurrency && salesRowContractPaid(row) === null) return "other_currency";
   return null;
 }
 
@@ -100,18 +149,19 @@ export const SALES_NO_REMAINDER_TEXT: Readonly<Record<SalesNoRemainderReason, st
   no_cost: "нет стоимости",
   paid_unclear: "оплата не разобрана",
   paid_missing: "оплата не указана",
-  other_currency: "оплата в другой валюте",
+  other_currency: "оплата в другой валюте без суммы в валюте договора",
 };
 
 /**
  * Остаток записи в её валюте: стоимость минус указанная оплата (оплата 0 —
- * тоже указанная). Нет стоимости, оплата не указана или не разобрана, в
- * другой валюте, запись в архиве — остатка нет (null): неизвестное не
- * считается нулём, валюты не пересчитываются.
+ * тоже указанная), а у оплаты в другой валюте — минус «Оплачено в валюте
+ * договора». Нет стоимости, оплата не указана или не разобрана, оплата в
+ * другой валюте без суммы в валюте договора, запись в архиве — остатка нет
+ * (null): неизвестное не считается нулём, валюты не пересчитываются.
  */
 export function salesRowRemainder(row: SalesRegisterRow): number | null {
   if (salesRowNoRemainder(row) !== null) return null;
-  return row.serviceCostMinor! - row.paidMinor!;
+  return row.serviceCostMinor! - (salesRowContractPaid(row) ?? row.paidMinor!);
 }
 
 export type SalesMoneyLine = Readonly<{ currency: string; costMinor: number; paidMinor: number; remainderMinor: number; count: number }>;
@@ -150,7 +200,8 @@ export function salesMoneySummary(rows: readonly SalesRegisterRow[]): SalesMoney
     if (why === "paid_missing") { paidMissing += 1; continue; }
     const costCurrency = row.serviceCostCurrency!;
     const costMinor = row.serviceCostMinor!;
-    const paidMinor = row.paidMinor!;
+    // Оплата в другой валюте с суммой в валюте договора входит в строку валюты стоимости этой суммой.
+    const paidMinor = salesRowContractPaid(row) ?? row.paidMinor!;
     if (why === "other_currency") {
       const paidCurrency = row.paidCurrency ?? "";
       const key = `${costCurrency}>${paidCurrency}`;
@@ -201,6 +252,23 @@ export function salesSummaryBasis(
 /** «по 1 записи», «по 9 записям», «по 21 записи». */
 export function recordsDative(count: number): string {
   return count % 10 === 1 && count % 100 !== 11 ? "записи" : "записям";
+}
+
+const MONTH_WORDS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+
+/** Плотная дата записи: «ДД.ММ», другой год (чем год отчёта) — «ДД.ММ.ГГ» (DESIGN.md). */
+export function salesDay(date: string, year: number): string {
+  const [y, m, d] = date.split("-");
+  return Number(y) === year ? `${d}.${m}` : `${d}.${m}.${y.slice(2)}`;
+}
+
+/** Месяц отчёта записи: словами («Сентябрь 2026») и плотно для столбца («09.2026», JetBrains Mono). */
+export function salesReportMonth(value: string): Readonly<{ words: string; compact: string; dateTime: string }> {
+  return {
+    words: `${MONTH_WORDS[Number(value.slice(5, 7)) - 1]} ${value.slice(0, 4)}`,
+    compact: `${value.slice(5, 7)}.${value.slice(0, 4)}`,
+    dateTime: value.slice(0, 7),
+  };
 }
 
 /** Сколько записей по выборке сервер отдаёт страницей; остаток читает все страницы до этого предела. */

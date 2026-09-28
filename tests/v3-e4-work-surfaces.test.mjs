@@ -14,8 +14,8 @@ import {
 } from "../src/components/v3/profile/lead-work-view.ts";
 import { profileTabAccess, resolveTab, tabsFor } from "../src/components/v3/profile/types.ts";
 import {
-  SALES_NO_REMAINDER_TEXT, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
-  salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, salesWord,
+  SALES_NO_REMAINDER_TEXT, groupSalesLabels, recordsDative, recordsWord, salesImportFlagText, salesLabelGroupOf, salesManualReview,
+  salesMoneySummary, salesPeriodSteps, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, salesWord,
 } from "../src/lib/sales-register-view.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -119,7 +119,8 @@ test("Lead 360: group lines, the feed, the last contact and dates come from what
 function row(fields = {}) {
   return {
     id: "r", signingDate: "2026-09-10", serviceCostRaw: "1500", serviceCostMinor: 150000, serviceCostCurrency: "USD",
-    paidRaw: "600", paidMinor: 60000, paidCurrency: "USD", managerLabel: "Менеджер", needsReview: false, archived: false, ...fields,
+    paidRaw: "600", paidMinor: 60000, paidCurrency: "USD", managerLabel: "Менеджер", needsReview: false, archived: false,
+    paidContractMinor: null, paidContractCurrency: null, reviewReasons: [], importFlags: [], ...fields,
   };
 }
 
@@ -138,14 +139,37 @@ test("«Отчёт продаж»: filter options are grouped for display only, 
   assert.equal(salesLabelGroupOf(groups, null), null);
 });
 
-test("«Отчёт продаж»: «Уточнить» names only what the record lacks, remainder stays within one currency", () => {
+test("«Отчёт продаж»: «Уточнить» names the server's reasons in words, remainder stays within one currency or the contract amount", () => {
   assert.deepEqual(salesRowReview(row()), { state: "checked" });
   assert.deepEqual(salesRowReview(row({ archived: true, needsReview: true })), { state: "archived" });
-  assert.deepEqual(salesRowReview(row({ needsReview: true })), { state: "review", reasons: ["причина не записана"] });
+  // Э8.6 (253): причины — ключи сервера словами; без причин причина не придумывается.
+  assert.deepEqual(salesRowReview(row({ needsReview: true })), { state: "review", reasons: ["отмечено вручную"] });
+  assert.deepEqual(salesRowReview(row({ needsReview: true, sourceKind: "import", importFlags: ["status_unspecified"] })).reasons, ["отмечено при переносе"]);
   assert.deepEqual(salesRowReview(row({ needsReview: true, signingDate: null, serviceCostMinor: null, serviceCostCurrency: null,
-    paidMinor: null, paidCurrency: null, paidRaw: "половина", managerLabel: " " })).reasons,
-  ["нет даты продажи", "стоимость не разобрана", "оплата не разобрана", "нет менеджера"]);
-  assert.deepEqual(salesRowReview(row({ needsReview: true, paidCurrency: "KGS" })).reasons, ["оплата в другой валюте"]);
+    serviceCostRaw: "1500 долл", paidMinor: null, paidCurrency: null, paidRaw: "половина",
+    reviewReasons: ["signing_date_missing", "service_cost_missing", "paid_missing", "import:status_unspecified", "import:phone_missing"] })).reasons,
+  ["нет даты продажи", "стоимость не разобрана", "оплата не разобрана", "при переносе: статус оплаты не указан, нет телефона"]);
+  assert.deepEqual(salesRowReview(row({ needsReview: true, paidMinor: null, paidCurrency: null, paidRaw: "", reviewReasons: ["paid_missing"] })).reasons,
+    ["оплата не указана"]);
+  assert.deepEqual(salesRowReview(row({ needsReview: true, paidCurrency: "KGS", reviewReasons: ["contract_amount_missing"] })).reasons,
+    ["нет суммы в валюте договора"]);
+  // Браузер причин не выводит из полей: только то, что назвал сервер.
+  assert.deepEqual(salesRowReview(row({ needsReview: true, paidCurrency: "KGS" })).reasons, ["отмечено вручную"]);
+  assert.equal(salesImportFlagText("university_formula_not_evaluated"), "формула в поле «университет» не посчитана");
+  assert.equal(salesImportFlagText("signing_date_outside_report_month"), "дата продажи вне месяца отчёта");
+  assert.equal(salesImportFlagText("something_new"), "пометка без расшифровки");
+  // Отметка формы — ручная: пробелы, которые сервер отмечает сам, её заранее не ставят.
+  assert.equal(salesManualReview(row({ needsReview: true, reviewReasons: ["paid_missing", "contract_amount_missing"] })), false);
+  assert.equal(salesManualReview(row({ needsReview: true, reviewReasons: ["paid_missing", "import:status_unspecified"] })), true);
+  assert.equal(salesManualReview(row({ needsReview: true })), true);
+  assert.equal(salesManualReview(row()), false);
+
+  // «Оплачено в валюте договора»: остаток от неё; устаревшая валюта или та же валюта оплаты — не считается.
+  const cross = { serviceCostMinor: 180000, paidMinor: 4500000, paidCurrency: "KGS" };
+  assert.equal(salesRowContractPaid(row({ ...cross, paidContractMinor: 52000, paidContractCurrency: "USD" })), 52000);
+  assert.equal(salesRowRemainder(row({ ...cross, paidContractMinor: 52000, paidContractCurrency: "USD" })), 128000);
+  assert.equal(salesRowRemainder(row({ ...cross, paidContractMinor: 52000, paidContractCurrency: "EUR" })), null, "a stale contract currency is ignored");
+  assert.equal(salesRowRemainder(row({ paidContractMinor: 1, paidContractCurrency: "USD" })), 90000, "same currency: the paid amount itself");
 
   assert.equal(salesRowRemainder(row()), 90000);
   assert.equal(salesRowRemainder(row({ paidMinor: 0, paidRaw: "0" })), 150000, "a stated zero payment is a payment");
@@ -159,7 +183,7 @@ test("«Отчёт продаж»: «Уточнить» names only what the reco
     row(), row({ archived: true }), row({ serviceCostMinor: null, serviceCostCurrency: null, paidMinor: null, paidCurrency: null, paidRaw: "" }),
     row({ paidMinor: null, paidCurrency: null, paidRaw: "половина" }), row({ paidMinor: null, paidCurrency: null, paidRaw: " " }), row({ paidCurrency: "KGS" }),
   ].map((one) => { const why = salesRowNoRemainder(one); return why && SALES_NO_REMAINDER_TEXT[why]; }),
-  [null, "в архиве", "нет стоимости", "оплата не разобрана", "оплата не указана", "оплата в другой валюте"]);
+  [null, "в архиве", "нет стоимости", "оплата не разобрана", "оплата не указана", "оплата в другой валюте без суммы в валюте договора"]);
 
   const summary = salesMoneySummary([
     row(), row({ paidMinor: null, paidCurrency: null, paidRaw: "" }),
@@ -178,6 +202,10 @@ test("«Отчёт продаж»: «Уточнить» names only what the reco
   assert.equal(summary.paidUnclear, 1);
   assert.equal(summary.paidMissing, 1);
   for (const line of summary.lines) assert.equal(line.costMinor - line.paidMinor, line.remainderMinor);
+  // С суммой в валюте договора запись входит в строку валюты стоимости этой суммой, пары валют нет.
+  const contract = salesMoneySummary([row(), row({ ...cross, paidContractMinor: 52000, paidContractCurrency: "USD" })]);
+  assert.deepEqual(contract.lines, [{ currency: "USD", costMinor: 330000, paidMinor: 112000, remainderMinor: 218000, count: 2 }]);
+  assert.deepEqual(contract.cross, []);
   // Архивные записи в суммы не входят вовсе (и «Архив» сумм не показывает).
   const archivedOnly = salesMoneySummary([row({ archived: true }), row({ archived: true, paidMinor: null, paidCurrency: null, paidRaw: "" })]);
   assert.deepEqual([archivedOnly.lines, archivedOnly.cross, archivedOnly.noCost, archivedOnly.paidUnclear, archivedOnly.paidMissing], [[], [], 0, 0, 0]);
@@ -364,44 +392,65 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   // Сноска — одна строка.
   const money = report.slice(report.indexOf('data-testid="sales-money-summary"'), report.indexOf("</section>", report.indexOf('data-testid="sales-money-summary"')));
   assert.equal(money.match(/<p\b/gu)?.length, 2, "the basis line and one footnote");
-  assert.match(text(money), /USD → KGS — стоимость в USD, оплата в KGS \(1 запись\): остаток не считается\. Не вошли: без стоимости — 1 запись, оплата не указана — 1 запись\. Валюты не пересчитываются; это записи отчёта, не поступления за месяц\./u);
+  assert.match(text(money), /USD → KGS — стоимость в USD, оплата в KGS без суммы в валюте договора \(1 запись\): остаток не считается\. Не вошли: без стоимости — 1 запись, оплата не указана — 1 запись\. Валюты не пересчитываются; это записи отчёта, не поступления за месяц\./u);
   // Одна строка инструментов, выбор применяется ссылкой; «Нужно уточнить · N» — из чтения.
   assert.match(report, /data-testid="sales-review-toggle" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;review=true">Нужно уточнить<span class="tabular-nums"> · 6<\/span><\/a>/u);
   assert.match(report, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;archived=true">Архив<\/a>/u);
-  // Менеджер: три написания одного имени — одна строка меню.
+  // Менеджер (Э8.6, 253): три написания одного имени — один ключ, одна строка меню с числом записей;
+  // выбор — ключ, а у того, кто переносит данные, последний пункт — «Менеджеры в отчёте».
   const managers = report.slice(report.indexOf('aria-label="Менеджер"'), report.indexOf('aria-label="Направление"'));
   assert.equal(managers.match(/>Санжар Эскизов</gu)?.length, 1);
   assert.doesNotMatch(managers, /другое написание/u);
+  assert.match(managers, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;manager=%D1%81%D0%B0%D0%BD%D0%B6%D0%B0%D1%80\+%D1%8D%D1%81%D0%BA%D0%B8%D0%B7%D0%BE%D0%B2"/u);
+  const menuItems = (menu) => text(menu.slice(menu.indexOf("<ul>"), menu.indexOf("</ul>")));
+  assert.equal(menuItems(managers), "Все Айдана Макетова 3 Санжар Эскизов 5");
+  assert.doesNotMatch(managers, /mode=managers/u, "no «Менеджеры в отчёте» without the data-transfer permission");
+  // Выбран ключ: меню называет имя ключа, строки — все написания этого ключа; с правом переноса данных —
+  // последний пункт ведёт на «Менеджеры в отчёте» с тем же периодом.
+  const chosen = pages.get("report-manager");
+  const chosenMenu = chosen.slice(chosen.indexOf('aria-label="Менеджер"'), chosen.indexOf('aria-label="Направление"'));
+  assert.equal(menuItems(chosenMenu), "Все Айдана Макетова 3 Санжар Эскизов 5 Менеджеры в отчёте →");
+  assert.match(chosenMenu, /<a aria-current="true"[^>]*href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;manager=%D1%81%D0%B0%D0%BD%D0%B6%D0%B0%D1%80\+%D1%8D%D1%81%D0%BA%D0%B8%D0%B7%D0%BE%D0%B2"/u);
+  assert.match(chosenMenu, /href="\/v3\/main\?view=sales&amp;mode=managers&amp;year=2026&amp;month=9"/u);
+  // Под записями — рядом с «Перенос данных», тем же спокойным видом.
+  assert.match(chosen, /href="\/v3\/main\?view=sales[^"]*&amp;mode=import">Перенос данных<\/a><a class="[^"]*" href="\/v3\/main\?view=sales&amp;mode=managers&amp;year=2026&amp;month=9">Менеджеры в отчёте<\/a>/u);
+  assert.equal(solidRed(chosen), 1);
+  assert.deepEqual([...chosen.matchAll(/<p class="truncate t-meta text-fg-2">(?:<time[^>]*>[^<]*<\/time>|без даты) · ([^·<]+) ·/gu)].map((match) => match[1].trim()),
+    ["Санжар Эскизов", "Санжар Эскизов", "Санжар Эскизов", "Санжар Эскизов", "Санжар Эскизов"]);
+  assert.doesNotMatch(report, /data-testid="sales-variant-note"/u);
   const directions = report.slice(report.indexOf('role="group" aria-label="Направление"'));
   assert.deepEqual([...directions.slice(0, directions.indexOf("</ul>")).matchAll(/<span class="min-w-0 flex-1">([^<]+)<\/span>/gu)].map((match) => match[1]),
     ["Все", "Китай", "Малайзия", "China"], "«China» and «Китай» stay apart: the mapping to the direction list is the owner's later step");
-  // Строки в одну линию: причины «Уточнить» словами из записи или «Сверено».
+  // Строки в одну линию: причины «Уточнить» словами из ключей сервера (253) или «Сверено»; менеджер — имя ключа.
   assert.match(text(report), /Студент Страна · программа Менеджер Дата Стоимость Оплачено Остаток Уточнить/u);
   assert.match(text(report), /Бекзат Тестов Малайзия · Бакалавриат Санжар Эскизов — 1 500 USD 600 USD остаток 900 USD нет даты продажи/u);
-  assert.match(text(report), /Руслан Прототипов Малайзия · Бакалавриат Айдана Макетова 03\.09 1 800 USD 45 000 KGS остаток — \(оплата в другой валюте\) оплата в другой валюте/u);
-  assert.match(text(report), /Айжан Примерова Малайзия · Бакалавриат санжар эскизов 20\.09 1 500 USD 600 USD остаток 900 USD причина не записана/u);
+  assert.match(text(report), /Руслан Прототипов Малайзия · Бакалавриат Айдана Макетова 03\.09 1 800 USD 45 000 KGS остаток — \(оплата в другой валюте без суммы в валюте договора\) нет суммы в валюте договора/u);
+  assert.match(text(report), /Айжан Примерова Малайзия · Бакалавриат Санжар Эскизов 20\.09 1 500 USD 600 USD остаток 900 USD при переносе: статус оплаты не указан/u);
   assert.match(text(report), /Алина Переданная Малайзия · Бакалавриат Санжар Эскизов 22\.09 1 500 USD 600 USD остаток 900 USD Сверено/u);
   // Оплата не указана — неизвестна: остатка нет, причина — подсказкой и для чтения с экрана, на узкой строке — словами.
-  assert.match(text(report), /Тимур Образцов Китай · Магистратура, экономика Айдана Макетова 14\.09 1 500 USD — остаток — \(оплата не указана\) причина не записана/u);
+  assert.match(text(report), /Тимур Образцов Китай · Магистратура, экономика Айдана Макетова 14\.09 1 500 USD — остаток — \(оплата не указана\) оплата не указана/u);
   assert.match(report, /<span class="block truncate t-body-compact tabular-nums text-fg" title="оплата не указана" data-no-remainder="paid_missing">/u);
   assert.doesNotMatch(text(report), /остаток 1 500 USD/u, "no remainder built on an unknown payment");
   assert.match(report, /<p class="truncate t-meta tabular-nums text-fg-2">стоимость 1\s500\sUSD · оплата не указана<\/p>/u);
   assert.match(report, /<time dateTime="2026-09-22" class="t-body-compact text-fg-2 font-mono tabular-nums">22\.09<\/time>/u);
   // Узкая строка: дата — JetBrains Mono, «Уточнить» — своей строкой целиком, без многоточия.
-  assert.match(report, /<p class="truncate t-meta text-fg-2"><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> · санжар эскизов · Малайзия · Бакалавриат<\/p>/u);
-  assert.match(report, /<p class="break-words t-meta text-fg-2" data-row-review="">Уточнить: причина не записана<\/p>/u);
+  assert.match(report, /<p class="truncate t-meta text-fg-2"><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> · Санжар Эскизов · Малайзия · Бакалавриат<\/p>/u);
+  assert.match(report, /<p class="break-words t-meta text-fg-2" data-row-review="">Уточнить: при переносе: статус оплаты не указан<\/p>/u);
+  assert.doesNotMatch(text(report), /причина не записана/u);
   assert.match(report, /<p class="break-words t-meta text-fg-3" data-row-review="">Сверено<\/p>/u);
   // Ширины столбцов: суммы — не шире нужного, место — тексту (от 70rem).
   assert.match(report, /<col class="w-\[11%\] @min-\[70rem\]\/sales-records:w-\[9\.5%\]"\/>/u);
   assert.match(report, /<col class="w-\[14%\] @min-\[70rem\]\/sales-records:w-\[18%\]"\/>/u);
   // «Изменить план месяца» — тем же шевроном, что группы правки, без знака браузера.
   assert.match(report, /<details class="group"><summary class="flex min-h-12 w-fit cursor-pointer list-none [^"]*\[&amp;::-webkit-details-marker\]:hidden">Изменить план месяца<svg/u);
-  // Клик по строке открывает запись в панели рядом со списком: у того, кто исправляет, — сразу форма.
-  assert.match(report, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000001&amp;edit=true"/u);
+  // Клик по строке открывает запись в панели рядом со списком — просмотром (Э8.6), и у того, кто исправляет.
+  assert.match(report, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000001"/u);
+  assert.doesNotMatch(report, /edit=true/u);
+  assert.match(report, /data-layout="full"/u);
   assert.doesNotMatch(report, /queue-detail-panel/u);
 });
 
-test("rendered «Отчёт продаж»: the record opens in the right panel next to the list, the form saves quietly", () => {
+test("rendered «Отчёт продаж»: the record opens in the right panel as a view first, next to a compact table; the form saves quietly", () => {
   const page = pages.get("report-panel");
   assert.equal(page.match(/<h1\b/gu)?.length, 1, "the page keeps its one h1");
   assert.equal(solidRed(page), 1, "«Добавить продажу» stays the only red");
@@ -410,11 +459,55 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   assert.match(page, /<h2 id="sale-panel-title" tabindex="-1" data-queue-heading="" class="t-record-title[^"]*">Айжан Примерова<\/h2>/u);
   // Без подписи над заголовком панели: имя несёт панель само.
   assert.doesNotMatch(page, /<p class="t-caption text-fg-2">Запись продажи<\/p>/u);
-  assert.match(page, /data-testid="sales-register-form"/u);
-  assert.match(page, /<button type="submit" class="v3-raised [^"]*bg-fg[^"]*"[^>]*>Сохранить продажу<\/button>/u);
+  // Э8.6: строка открывает просмотр — причина пометки словами, спокойная «Исправить запись», суммы с «Остатком».
+  assert.match(page, /data-testid="sales-record-preview"/u);
+  assert.doesNotMatch(page, /data-testid="sales-register-form"/u);
+  const panel = text(page.slice(page.indexOf("<dialog"), page.indexOf("</dialog>")));
+  assert.match(panel, /Требует проверки: при переносе: статус оплаты не указан Исправить запись Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
+  assert.match(panel, /Менеджер Санжар Эскизов в записи: « санжар эскизов»/u);
+  assert.match(page, /<a class="[^"]*" data-testid="sales-record-edit" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true">Исправить запись<\/a>/u);
+  assert.doesNotMatch(page.slice(page.indexOf("<dialog"), page.indexOf("</dialog>")), /(?<![\w:-])bg-(?:accent|fg)(?![\w-])/u, "a quiet «Исправить запись»");
   assert.match(page, /data-testid="queue-detail-close" [^>]*href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9"/u);
   assert.match(page, /data-selected="" class="[^"]*bg-surface-2/u);
   assert.doesNotMatch(page, /← К отчёту/u);
+  // Панель закреплена от сводки: суммы, строка инструментов и записи — в колонке сетки «список | панель».
+  const split = page.indexOf('class="mt-4 xl:grid xl:grid-cols-[minmax(0,1fr)_var(--side-panel-width)]');
+  assert.ok(split > 0 && split < page.indexOf('data-testid="sales-money-summary"')
+    && page.indexOf('data-testid="sales-money-summary"') < page.indexOf('data-testid="sales-report-toolbar"')
+    && page.indexOf('data-testid="sales-report-toolbar"') < page.indexOf('aria-label="Записи продаж"')
+    && page.indexOf('aria-label="Записи продаж"') < page.indexOf("<dialog"), "summary, toolbar and list share the column next to the panel");
+  // Рядом с открытой записью список — таблица с короткими столбцами, а не карточки.
+  assert.match(page, /<table role="table" class="block w-full text-left @min-\[32rem\]\/sales-records:table @min-\[32rem\]\/sales-records:table-fixed" data-layout="compact">/u);
+  assert.match(text(page), /Студент Дата Стоимость Оплачено Остаток Уточнить Алина Переданная/u);
+  assert.equal(page.slice(page.indexOf("<colgroup"), page.indexOf("</colgroup>")).match(/<col\b/gu)?.length, 6);
+
+  // «Исправить запись» — форма в той же панели; «Отмена» возвращает к просмотру записи.
+  const edit = pages.get("report-panel-edit");
+  assert.equal(solidRed(edit), 1);
+  assert.match(edit, /data-testid="sales-register-form"/u);
+  assert.match(edit, /<button type="submit" class="v3-raised [^"]*bg-fg[^"]*"[^>]*>Сохранить продажу<\/button>/u);
+  assert.match(edit, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002">Отмена<\/a>/u);
+  assert.doesNotMatch(edit, /data-testid="sales-contract-amount"/u, "one currency: no contract amount field");
+  assert.match(text(edit), /Нужно уточнить данные Отметка ставится сама, пока нет даты продажи, стоимости, оплаты или суммы в валюте договора\./u);
+
+  // Оплата в другой валюте без суммы в валюте договора: пометка словами, остатка нет — и почему.
+  const cross = text(pages.get("report-panel-cross").slice(pages.get("report-panel-cross").indexOf("<dialog")));
+  assert.match(cross, /Требует проверки: нет суммы в валюте договора Исправить запись Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора не указано Остаток — Остатка нет: оплата в другой валюте без суммы в валюте договора\./u);
+  // Форма: «Оплачено в валюте договора» — под «Оплачено», в валюте стоимости.
+  const crossEdit = pages.get("report-panel-cross-edit");
+  const field = crossEdit.indexOf('data-testid="sales-contract-amount"');
+  assert.ok(field > crossEdit.indexOf(">Оплачено</span>") && field < crossEdit.indexOf("Если сумма неизвестна"), "under «Оплачено»");
+  assert.match(text(crossEdit.slice(crossEdit.lastIndexOf("<div", field))), /^Оплачено в валюте договора USD Сколько оплачено в USD, валюте стоимости\. Система валюты не пересчитывает; без этой суммы остатка нет и запись отмечается «Нужно уточнить»\./u);
+  assert.match(crossEdit, /<input inputMode="decimal" pattern="\[0-9\]\+\(\[\.,\]\[0-9\]\{1,2\}\)\?" aria-describedby="sales-contract-amount-hint" class="[^"]*min-h-11[^"]*" value=""\/>/u);
+  // С суммой в валюте договора: остаток от неё, пометки нет; в списке — строка валюты стоимости, пары валют нет.
+  const contract = text(pages.get("report-panel-contract").slice(pages.get("report-panel-contract").indexOf("<dialog")));
+  assert.match(contract, /Руслан Прототипов Сведения из записи отчёта\. Исправить запись Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора 520 USD Остаток 1 280 USD/u);
+  assert.doesNotMatch(contract, /Требует проверки/u);
+  const list = pages.get("report-panel-contract-list");
+  assert.match(text(list), /Руслан Прототипов Малайзия · Бакалавриат Айдана Макетова 03\.09 1 800 USD 45 000 KGS остаток 1 280 USD Сверено/u);
+  assert.match(list, /title="45\s000\sKGS; в валюте договора 520\sUSD">45\s000\sKGS<\/span>/u);
+  assert.match(text(list), /Валюта Стоимость Оплачено Остаток KGS 120 000 50 000 70 000 USD 10 300 6 320 3 980 Не вошли/u);
+  assert.doesNotMatch(list, /data-money-cross/u);
 });
 
 test("rendered «Отчёт продаж»: the report month stays visible where rows differ in it, and the sums name their basis", () => {
@@ -423,18 +516,22 @@ test("rendered «Отчёт продаж»: the report month stays visible where
   // Месяц — один месяц отчёта: столбца и строки нет.
   const month = pages.get("report");
   assert.doesNotMatch(month, /data-report-month|Месяц отчёта/u);
-  // «Весь 2026 год»: столбец «Месяц отчёта» (широкий контейнер) и строка «Месяц отчёта: …» (узкий:
-  // телефон и список рядом с открытой записью) у каждой записи — видимым текстом, не подсказкой.
-  for (const name of ["report-year", "report-year-panel"]) {
+  // «Весь 2026 год»: столбец «Месяц отчёта» (широкий контейнер; рядом с открытой записью — в коротком
+  // наборе столбцов, Э8.6) и строка «Месяц отчёта: …» (узкий: телефон) у каждой записи — видимым
+  // текстом, не подсказкой.
+  for (const [name, head, columns] of [
+    ["report-year", "Студент Страна · программа Менеджер Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить", 9],
+    ["report-year-panel", "Студент Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить", 7],
+  ]) {
     const year = pages.get(name);
-    assert.match(text(year), /Студент Страна · программа Менеджер Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить/u);
+    assert.ok(text(year).includes(head), name);
     assert.match(year, reportMonthCell("2026-08", "Август 2026", "08.2026"));
     assert.match(year, reportMonthCell("2026-07", "Июль 2026", "07.2026"));
     assert.ok(year.includes(reportMonthLine("2026-09", "Сентябрь 2026")));
     assert.ok(year.includes(reportMonthLine("2026-07", "Июль 2026")));
     assert.equal(year.match(/<p class="truncate t-meta text-fg-2" data-report-month=/gu)?.length, 12, "every row of the year");
     assert.doesNotMatch(year, /<span class="sr-only">\. Месяц отчёта/u, "not a screen-reader-only copy");
-    assert.equal(year.slice(year.indexOf("<colgroup"), year.indexOf("</colgroup>")).match(/<col\b/gu)?.length, 9);
+    assert.equal(year.slice(year.indexOf("<colgroup"), year.indexOf("</colgroup>")).match(/<col\b/gu)?.length, columns);
     assert.match(year, /<p class="t-meta text-fg-2" data-money-basis="12">Суммы по 12 записям года отчёта, из них 1 без даты продажи<\/p>/u);
   }
   assert.match(pages.get("report-year-panel"), /data-testid="queue-detail-panel"/u);
@@ -462,7 +559,7 @@ test("rendered «Отчёт продаж»: the report month stays visible where
 test("rendered «Отчёт продаж»: «Архив» shows how many records, with no sums and no remainder, as the server and main do", () => {
   const page = pages.get("report-archive");
   assert.doesNotMatch(page, /sales-money-summary|sales-money-table|Суммы по/u, "no money summary for archived records");
-  assert.match(page, /<p class="mt-4 border-y border-border py-3 t-meta text-fg-2" data-testid="sales-archive-basis" data-archive-count="2">В архиве — 2 записи месяца отчёта\. Архивные записи не входят в рабочие итоги: суммы и остаток по ним не считаются\.<\/p>/u);
+  assert.match(page, /<p class="border-y border-border py-3 t-meta text-fg-2" data-testid="sales-archive-basis" data-archive-count="2">В архиве — 2 записи месяца отчёта\. Архивные записи не входят в рабочие итоги: суммы и остаток по ним не считаются\.<\/p>/u);
   assert.match(text(page), /Студент Страна · программа Менеджер Дата Стоимость Оплачено Уточнить/u);
   assert.doesNotMatch(page, />Остаток<|data-no-remainder|>остаток </u, "no remainder column or cell");
   assert.equal(page.slice(page.indexOf("<colgroup"), page.indexOf("</colgroup>")).match(/<col\b/gu)?.length, 7);
@@ -517,7 +614,8 @@ test("the page wires Lead 360 through the board's reads and «Оформить �
   const view = read("src/components/v3/SalesRegisterView.tsx");
   assert.match(view, /const leadId = creatingForm && typeof query\.lead === "string" \? parseSalesUuid\(query\.lead\) : null;/u);
   assert.match(view, /getPlatformSalesLead\(actor, leadId\)\.then\(\(lead\) => lead\?\.clientDisplayName \? \{ id: lead\.leadId, query: lead\.clientDisplayName \} : null, \(\) => null\)/u);
-  assert.match(view, /const rowHref = \(row: SalesRegisterRow\) => href\(canManage \? \{ record: row\.id, edit: "true" \} : \{ record: row\.id \}\);/u);
+  // Строка открывает запись просмотром (Э8.6); форма — «Исправить запись».
+  assert.match(view, /const rowHref = \(row: SalesRegisterRow\) => href\(\{ record: row\.id \}\);/u);
   const forms = read("src/components/v3/SalesRegisterForms.tsx");
   assert.match(forms, /const result = await searchSalesRegisterStudentsAction\(wanted\.query\)/u);
   assert.match(forms, /const lead = result\.leads\.find\(item => item\.id === wanted\.id\) \?\? null;\s+if \(lead\) chooseLead\(lead\);/u);

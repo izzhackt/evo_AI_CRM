@@ -26,6 +26,8 @@ const INTAKE = ["lead_id", "curator_membership_id"] as const;
 const EDIT = ["report_month", "signing_date", "applicant_name", "phone", "country", "university", "program", "direction", "intake",
   "contract_number", "manager_label", "status_raw", "owner_membership_id", "service_cost_raw", "service_cost_minor",
   "service_cost_currency", "paid_raw", "paid_minor", "paid_currency", "needs_review", "notes"] as const;
+// «Оплачено в валюте договора» (253): отдельной парой, не в полях записи.
+const CONTRACT = ["paid_contract_minor", "paid_contract_currency"] as const;
 function candidate(form: FormData, key: string): string | null {
   const entries = [...form.entries()].filter(([name]) => name === key || name === `_1_${key}`);
   return entries.length === 1 && typeof entries[0][1] === "string" ? entries[0][1] : null;
@@ -43,7 +45,7 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
   const operation = candidate(form, "operation");
   if (operation !== "create" && operation !== "update" && operation !== "archive" && operation !== "restore") return outcome(form, "invalid");
   const fields = exactActionStringFields(form, operation === "create" ? [...BASE, ...INTAKE]
-    : operation === "update" ? [...BASE, ...REASON, ...EDIT] : [...BASE, ...REASON]);
+    : operation === "update" ? [...BASE, ...REASON, ...EDIT, ...CONTRACT] : [...BASE, ...REASON]);
   if (!fields) return outcome(form, "invalid");
   const requestId = parseSalesUuid(fields.get("request_id"));
   const recordId = fields.get("record_id") === "" ? null : parseSalesUuid(fields.get("record_id"));
@@ -52,6 +54,8 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
     return outcome(form, "invalid");
   }
   const payload: Record<string, string | number | boolean | null> = {};
+  let contractMinor: number | null = null;
+  let contractCurrency: string | null = null;
   let leadId: string | null = null;
   let curatorId: string | null = null;
   let reason = "";
@@ -82,6 +86,13 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
         || (currency !== null && !SALES_CURRENCIES.includes(currency as typeof SALES_CURRENCIES[number]))) return outcome(form, "invalid");
       payload[`${prefix}_minor`] = amount; payload[`${prefix}_currency`] = currency;
     }
+    // Сумма в валюте договора — только у записи, оплаченной в другой валюте, и в валюте стоимости.
+    const contractRaw = fields.get("paid_contract_minor") ?? "";
+    contractMinor = contractRaw === "" ? null : parseSalesInteger(contractRaw, 1_000_000_000_000);
+    contractCurrency = fields.get("paid_contract_currency") || null;
+    if ((contractRaw !== "" && contractMinor === null) || (contractMinor === null) !== (contractCurrency === null)
+      || (contractCurrency !== null && (contractCurrency !== payload.service_cost_currency || payload.paid_currency === null
+        || payload.paid_currency === payload.service_cost_currency))) return outcome(form, "invalid");
     if (typeof payload.applicant_name !== "string" || !payload.applicant_name.trim()
       || Object.values(payload).some(value => typeof value === "string" && (value.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)))) return outcome(form, "invalid");
   }
@@ -94,9 +105,10 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
     const { data, error } = operation === "create" ? await client.schema("platform").rpc("create_sales_report_handoff", {
       p_organization_id: actor.organizationId, p_request_id: requestId, p_lead_id: leadId,
       p_curator_membership_id: curatorId,
-    }) : await client.schema("platform").rpc("manage_sales_register_v1", {
+    }) : await client.schema("platform").rpc("manage_sales_register_v2", {
       p_organization_id: actor.organizationId, p_operation: operation, p_record_id: recordId,
-      p_expected_version: version, p_fields: payload, p_reason: reason, p_request_id: requestId,
+      p_expected_version: version, p_fields: payload, p_paid_contract_minor: contractMinor,
+      p_paid_contract_currency: contractCurrency, p_reason: reason, p_request_id: requestId,
     });
     if (error) {
       if (error.code === "42501") return outcome(form, "forbidden");
@@ -235,5 +247,49 @@ export async function importSalesRegisterAction(_previous: SalesImportActionStat
       || inserted + skipped + mismatches !== input.sales.length || targetsInserted + targetsSkipped + targetsMismatched !== input.targets.length) return result("unavailable");
     revalidatePath("/v3/main");
     return { ...outcome(form, "saved"), importResult: { sourceSha256: input.source_sha256, inserted, skipped, mismatches, targetsInserted, targetsSkipped, targetsMismatched } };
+  } catch { return result("unavailable"); }
+}
+
+export type SalesManagerLabelActionState = Readonly<{
+  status: "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable";
+  requestId: string; key: string | null;
+}>;
+
+/**
+ * «Менеджеры в отчёте» (253): имя в отчёте для ключа написания и, по желанию,
+ * сотрудник CRM. Пустое имя без сотрудника снимает сопоставление. Проверки
+ * права, версии и ключа — на сервере (`save_sales_manager_label_v1`).
+ */
+export async function saveSalesManagerLabelAction(_previous: SalesManagerLabelActionState, form: FormData): Promise<SalesManagerLabelActionState> {
+  const fields = exactActionStringFields(form, ["request_id", "label_key", "expected_version", "display_name", "membership_id"]);
+  const requestId = parseSalesUuid(fields?.get("request_id"));
+  const key = fields?.get("label_key") ?? null;
+  const result = (status: SalesManagerLabelActionState["status"]): SalesManagerLabelActionState => ({
+    status, requestId: status === "saved" || status === "request_conflict" || !requestId ? randomUUID() : requestId, key,
+  });
+  const actor = await requirePlatformStaffActor();
+  if (!staffHasPermission(actor, "sales.register.import") || isStaffPreview(actor)) return result("forbidden");
+  const version = parseSalesInteger(fields?.get("expected_version"));
+  const displayName = fields?.get("display_name")?.trim() ?? "";
+  const membershipId = fields?.get("membership_id") ? parseSalesUuid(fields.get("membership_id")) : null;
+  if (!fields || !requestId || !key || key.length > 300 || version === null || displayName.length > 300
+    || /[\u0000-\u001f\u007f]/.test(key + displayName) || (fields.get("membership_id") && !membershipId)
+    || (membershipId && !displayName) || (!displayName && version === 0)) return result("invalid");
+  try {
+    const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("save_sales_manager_label_v1", {
+      p_organization_id: actor.organizationId, p_label_key: key, p_expected_version: version,
+      p_display_name: displayName || null, p_membership_id: membershipId, p_request_id: requestId,
+    });
+    if (error) {
+      if (error.code === "42501") return result("forbidden");
+      if (error.code === "PT409") return result("stale");
+      if (error.code === "22023" && /request_id/.test(error.message)) return result("request_conflict");
+      return result(error.code === "22023" ? "invalid" : "unavailable");
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data) || data.organization_id !== actor.organizationId
+      || data.operation !== "manager_label" || data.request_id !== requestId || data.label_key !== key
+      || parseSalesInteger(data.version) !== version + 1) return result("unavailable");
+    revalidatePath("/v3/main");
+    return result("saved");
   } catch { return result("unavailable"); }
 }

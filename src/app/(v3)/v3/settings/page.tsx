@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { normalizeJournalFilters } from "@/lib/v3/settings-journal-contract";
 import { readSalesRegisterManagement } from "@/lib/v3/sales-register-source";
+import { salesManagersHref } from "@/lib/sales-register-navigation";
 import { readStaffWorkspace } from "@/lib/v3/staff-workspace-source";
 import { readStaffRoles } from "@/lib/server/staff-roles-service";
 import {
@@ -123,6 +124,7 @@ export default async function SettingsPart({
         gates={gates}
         platform={platform}
         salesImportHref={salesManagement?.status === "ready" && salesManagement.data.canImport ? "/v3/main?view=sales&mode=import" : undefined}
+        salesManagersHref={salesManagement?.status === "ready" && salesManagement.data.canImport ? salesManagersHref() : undefined}
         staff={staff}
         staffRoles={staffRoles}
         staffOrganizationId={actor.organizationId}

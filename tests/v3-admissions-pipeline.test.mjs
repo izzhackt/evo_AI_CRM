@@ -323,6 +323,7 @@ function boardHarness(moveAction) {
   }
   const render = (props) => expand({ type: board.AdmissionsPipelineBoard, props });
   render.addresses = addresses;
+  render.location = address.location;
   return render;
 }
 function allNodes(tree, predicate) {
@@ -538,6 +539,23 @@ test("a confirmed menu move offers «Отменить»; it sends the reverse mo
   assert.equal(buttonsNamed(tree, "Отменить").length, 0);
   assert.equal(alertText(tree), "");
   assert.equal(server.position.stage, "documents");
+});
+
+test("an undo answer that arrives after the user left the board does not write ?stage= into the new page's address", async () => {
+  const server = fakeServer();
+  const render = boardHarness(server.action);
+  let tree = render(boardProps);
+  press(tree, "stage:ready_to_submit");
+  await flush();
+  tree = render(boardProps);
+  press(tree, "Отменить");
+  // Сотрудник ушёл в «Студенты» до ответа: там `?stage=` — фильтр «Этап».
+  render.location.pathname = "/v3/profile";
+  render.location.search = "?view=all";
+  await flush();
+  assert.equal(server.position.stage, "documents", "the undo itself went through");
+  assert.deepEqual(render.addresses, [], "no address written on a page the board no longer owns");
+  assert.equal(render.location.search, "?view=all");
 });
 
 test("a drag move offers «Отменить» too", async () => {

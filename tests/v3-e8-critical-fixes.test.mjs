@@ -58,6 +58,8 @@ test("phone admissions board: the page passes ?stage= and the picker (or a follo
   assert.match(board, /onChange=\{\(event\) => chooseNarrowStage\(event\.target\.value as AdmissionsPipelineStage\)\}/u);
   // Список, последовавший за карточкой после ответа сервера, тоже пишет адрес.
   assert.match(board, /function showStage\(stage: AdmissionsPipelineStage\) \{\s*if \(admissionsPipelineTabOf\(stage\) === tab\) chooseNarrowStage\(stage\);\s*\}/u);
+  // Поздний ответ сервера после ухода с доски не пишет `?stage=` в чужой адрес.
+  assert.match(board, /setNarrowStage\(next\);\s*if \(window\.location\.pathname !== basePath\) return;/u);
   assert.match(board, /search\.set\("stage", next\);\s*window\.history\.replaceState\(null, "", `\$\{window\.location\.pathname\}\?\$\{search\.toString\(\)\}`\);/u);
   assert.doesNotMatch(board, /useState<AdmissionsPipelineStage>\(ADMISSIONS_PIPELINE_TAB_STAGES\[tab\]\[0\]\)/u);
 });

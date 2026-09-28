@@ -484,10 +484,13 @@ export function AdmissionsPipelineBoard({
   /**
    * Этап телефона пишется в адрес (`?stage=`) без запроса к серверу — и
    * выбранный в списке, и тот, за которым список последовал после ответа
-   * сервера: обновление страницы открывает тот же этап (Э8.11).
+   * сервера: обновление страницы открывает тот же этап (Э8.11). Ответ мог
+   * прийти, когда сотрудник уже ушёл с доски: чужой адрес (в «Студентах»
+   * `?stage=` — фильтр «Этап») не трогаем.
    */
   function chooseNarrowStage(next: AdmissionsPipelineStage) {
     setNarrowStage(next);
+    if (window.location.pathname !== basePath) return;
     const search = new URLSearchParams(window.location.search);
     search.set("stage", next);
     window.history.replaceState(null, "", `${window.location.pathname}?${search.toString()}`);

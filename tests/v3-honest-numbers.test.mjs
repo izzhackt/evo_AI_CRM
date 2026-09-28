@@ -16,7 +16,7 @@ import { isWorkingSalesStage, resolveSalesStage, SALES_BOARD_STAGES } from "../s
 import * as access from "../src/lib/platform-access.ts";
 import * as wording from "../src/lib/v3/wording.ts";
 import * as stripView from "../src/components/v3/profile/handoff-strip-view.ts";
-const { handoffFootnote, handoffStripView, salesRecordHref, stripDay, stripPlain } = stripView;
+const { handoffFootnote, handoffStripView, salesRecordHref, stripCaseMoney, stripDay, stripPlain } = stripView;
 import { parseSalesSaleSlice, salesReportContext } from "../src/lib/sales-register-navigation.ts";
 import * as salesView from "../src/lib/sales-register-view.ts";
 
@@ -160,22 +160,62 @@ test("«Продажи»: the count parser keeps the four numbers and refuses a 
   assert.equal(parseSalesCount({ ...json, extra: "0" }, expected), null);
 });
 
-const warningTexts = (view) => view.warnings.map((warning) => stripPlain(warning.text));
+// Э8.4: куда ведут предупреждения — у Admin есть всё; у роли без действия предупреждения нет.
+const CASE_HREF = "/v3/profile?case=10000000-0000-4000-8000-000000000801";
+const SALE_HREF = `/v3/main?view=sales&new=true&lead=${LEAD}`;
+const ALL_LINKS = { caseHref: CASE_HREF, saleHref: SALE_HREF, assignCurator: true };
 
 test("Lead 360 «Передача»: after a handoff one line with dates and no warning", () => {
-  const view = handoffStripView(parse(HANDED_JSON), { now: NOW });
+  const view = handoffStripView(parse(HANDED_JSON), { now: NOW, links: ALL_LINKS });
   assert.equal(view.stageTitle, "Переданы");
   assert.equal(stripPlain(view.summary), "Передано 18.09 · Куратор Синтетический · принято 19.09");
   // Dates are their own parts: the card draws them in JetBrains Mono.
   assert.deepEqual(view.summary, ["Передано ", { date: "18.09" }, " · Куратор Синтетический", " · принято ", { date: "19.09" }]);
   assert.deepEqual(view.warnings, []);
+  // Э8.4: одни слова «Договор» и «Оплата»; подтверждение вручную так и названо.
   assert.deepEqual(view.items.map((item) => [item.label, item.state, item.text, item.date]), [
-    ["Договор", "done", null, "17.09"],
-    ["Первый платёж", "done", null, "17.09"],
+    ["Договор", "done", "подтверждён вручную", "17.09"],
+    ["Оплата", "done", "первый платёж", "17.09"],
     ["Запись в отчёте", "done", null, "17.09"],
     ["Куратор", "done", "Куратор Синтетический", "18.09"],
     ["Принято", "done", null, "19.09"],
   ]);
+  // Сумма первого платежа из подтверждения вручную — в самой «Оплате», а не второй строкой.
+  assert.deepEqual(handoffStripView(parse(HANDED_JSON), { now: NOW, firstPayment: { amount: 600, currency: "USD" } }).items[1],
+    { key: "payment", label: "Оплата", state: "done", text: "первый платёж 600\u00a0USD", date: "17.09" });
+});
+
+test("Lead 360 «Передача» (Э8.4): the case's uploaded contract and recorded payments (188) come first", () => {
+  const agreement = {
+    contractCurrent: { id: "c", originalFilename: "dogovor.pdf", uploadedAt: "2026-09-18T06:10:00Z", uploadedByDisplayName: null },
+    payments: [
+      { eventType: "payment", occurredOn: "2026-09-20" }, { eventType: "payment", occurredOn: "2026-09-18" }, { eventType: "refund", occurredOn: "2026-09-10" },
+    ],
+    paidMinor: "60000", costMinor: "150000", costCurrency: "USD", currencyMismatch: false,
+  };
+  assert.deepEqual(stripCaseMoney(agreement), { contractUploadedAt: "2026-09-18T06:10:00Z", paidText: "оплачено 600 из 1\u00a0500\u00a0USD", firstPaymentOn: "2026-09-18" });
+  // Разные валюты или нет стоимости — «N из M» не сказать: первый платёж с датой.
+  assert.deepEqual(stripCaseMoney({ ...agreement, currencyMismatch: true }).paidText, null);
+  assert.deepEqual(stripCaseMoney({ ...agreement, costMinor: null }).firstPaymentOn, "2026-09-18");
+  // Всё возвращено или платежей нет — оплаты нет; договора в деле нет — null.
+  assert.deepEqual(stripCaseMoney({ ...agreement, paidMinor: "0" }), { contractUploadedAt: "2026-09-18T06:10:00Z", paidText: null, firstPaymentOn: null });
+  assert.deepEqual(stripCaseMoney({ ...agreement, contractCurrent: null, payments: [], paidMinor: "0" }),
+    { contractUploadedAt: null, paidText: null, firstPaymentOn: null });
+
+  const bare = parse({ ...HANDED_JSON, contract: { confirmed: false, confirmed_at: null }, first_payment: { received_date: null },
+    report: { status: "available", record: null } });
+  const withCase = handoffStripView(bare, { now: NOW, caseMoney: stripCaseMoney(agreement) });
+  assert.deepEqual(withCase.items.slice(0, 2).map((item) => [item.label, item.state, item.text, item.date]), [
+    ["Договор", "done", "загружен", "18.09"],
+    ["Оплата", "done", "оплачено 600 из 1\u00a0500\u00a0USD", null],
+  ]);
+  // Дело важнее подтверждения вручную: договор в деле — «загружен», а не «подтверждён вручную».
+  assert.equal(handoffStripView(parse(HANDED_JSON), { now: NOW, caseMoney: stripCaseMoney(agreement) }).items[0].text, "загружен");
+  assert.deepEqual(handoffStripView(bare, { now: NOW, caseMoney: stripCaseMoney({ ...agreement, costMinor: null }) }).items[1],
+    { key: "payment", label: "Оплата", state: "done", text: "первый платёж", date: "18.09" });
+  // Процент из финансов дела, когда 188 не прочитано (Lead 360 передаёт `paidText` сам).
+  assert.equal(handoffStripView(bare, { now: NOW, caseMoney: { contractUploadedAt: null, paidText: "оплачено 40%", firstPaymentOn: null } })
+    .items[1].text, "оплачено 40%");
 });
 
 test("Lead 360 «Передача»: a sale saved through the report (208) takes contract and payment from its record", () => {
@@ -184,7 +224,7 @@ test("Lead 360 «Передача»: a sale saved through the report (208) takes
     handoff: { completed_at: "2026-09-23T03:00:00+00:00", evidence: "sales_report", acceptance_recordable: false },
     contract: { confirmed: false, confirmed_at: null }, first_payment: { received_date: null },
     report: { status: "available", record: { ...HANDED_JSON.report.record, sale_date: "2026-09-22", has_contract_number: false } },
-    acceptance: null }), { now: NOW });
+    acceptance: null }), { now: NOW, links: ALL_LINKS });
   assert.deepEqual(sold.items.map((item) => [item.key, item.state, item.text, item.date]), [
     ["contract", "done", "по отчёту", "22.09"],
     ["payment", "done", "по отчёту: оплачено 600\u00a0USD", null],
@@ -194,7 +234,8 @@ test("Lead 360 «Передача»: a sale saved through the report (208) takes
     ["accepted", "missing", "не отмечается", null],
   ]);
   assert.equal(stripPlain(sold.summary), "Передано 23.09 · Куратор Синтетический");
-  assert.deepEqual(warningTexts(sold), ["Приём этой передачи в CRM не отмечается: продажа записана в уже открытый кабинет."]);
+  // Э8.4: сделать с этим нечего — предупреждения нет, «не отмечается» остаётся словом в «Принято».
+  assert.deepEqual(sold.warnings, []);
   // Without a paid amount or a sale date the record proves nothing: «—», never a guessed tick.
   const bare = handoffStripView(parse({ ...HANDED_JSON, contract: { confirmed: false, confirmed_at: null }, first_payment: { received_date: null },
     report: { status: "available", record: { ...HANDED_JSON.report.record, sale_date: null, has_contract_number: false, paid: null } } }), { now: NOW });
@@ -213,51 +254,68 @@ test("Lead 360 «Передача»: a sale saved through the report (208) takes
     ["curator", "done", "Куратор Синтетический"], ["accepted", "missing", "не отмечается"],
   ]);
   // An 088 handoff not answered yet waits with one word, in the line and in the strip.
-  const waiting = handoffStripView(parse({ ...HANDED_JSON, acceptance: null }), { now: NOW });
+  const waiting = handoffStripView(parse({ ...HANDED_JSON, acceptance: null }), { now: NOW, links: ALL_LINKS });
   assert.equal(stripPlain(waiting.summary), "Передано 18.09 · Куратор Синтетический · ждёт ответа");
   assert.deepEqual(waiting.items.at(-1), { key: "accepted", label: "Принято", state: "missing", text: "ждёт ответа", date: null });
   assert.deepEqual(waiting.warnings, [], "contract and payment are evidence, not a ban");
 });
 
-test("Lead 360 «Передача»: a handoff lacking evidence says so in words, with the record to open", () => {
+test("Lead 360 «Передача» (Э8.4): each warning names its action and link; a warning nobody can act on is gone", () => {
   // Производственный лид: передан 18.09, запись о продаже в архиве.
-  const archived = handoffStripView(parse({ ...HANDED_JSON,
-    report: { status: "available", record: { ...HANDED_JSON.report.record, archived: true } } }), { now: NOW });
+  const archivedJson = { ...HANDED_JSON, report: { status: "available", record: { ...HANDED_JSON.report.record, archived: true } } };
+  const archived = handoffStripView(parse(archivedJson), { now: NOW });
   assert.equal(archived.stageTitle, "Переданы", "an archived sale does not return the lead to the working board");
-  assert.deepEqual(archived.warnings, [{ text: ["Запись о продаже в архиве и в продажи не входит."],
-    href: `/v3/main?view=sales&year=2026&month=9&record=${RECORD}` }]);
-  assert.equal(salesRecordHref({ id: RECORD, reportMonth: "2026-09-01" }), `/v3/main?view=sales&year=2026&month=9&record=${RECORD}`);
+  const recordHref = `/v3/main?view=sales&year=2026&month=9&record=${RECORD}`;
+  assert.deepEqual(archived.warnings, [{ text: ["Продажа в отчёте в архиве — в план месяца не считается"], href: recordHref, action: "Открыть запись" }]);
+  assert.equal(salesRecordHref({ id: RECORD, reportMonth: "2026-09-01" }), recordHref);
   assert.equal(archived.items.find((item) => item.key === "report").state, "attention");
-  assert.deepEqual(warningTexts(handoffStripView(parse({ ...HANDED_JSON, curator: null, acceptance: null }), { now: NOW })),
-    ["Куратор не назначен: дело ждёт назначения."]);
-  assert.deepEqual(handoffStripView(parse({ ...HANDED_JSON, report: { status: "available", record: null } }), { now: NOW }).warnings,
-    [{ text: ["Записи о продаже в отчёте нет."], href: null }]);
-  assert.deepEqual(warningTexts(handoffStripView(parse({ ...HANDED_JSON, report: { status: "available", record: { ...HANDED_JSON.report.record, sale_date: null } } }), { now: NOW })),
-    ["В записи отчёта нет даты продажи, поэтому в продажи она не входит."]);
-  const clarify = handoffStripView(parse({ ...HANDED_JSON, acceptance: { decision: "clarification_requested", at: "2026-09-19T03:30:00+00:00" } }), { now: NOW });
-  assert.deepEqual(warningTexts(clarify), ["Куратор просит уточнить передачу."]);
+  assert.deepEqual(handoffStripView(parse({ ...HANDED_JSON, report: { status: "available", record: { ...HANDED_JSON.report.record, sale_date: null } } }),
+    { now: NOW }).warnings, [{ text: ["В записи отчёта нет даты продажи — в план месяца не считается"], href: recordHref, action: "Открыть запись" }]);
+
+  // Нет записи о продаже: «Оформить продажу» — у того, кто записывает продажи; у остальных предупреждения нет.
+  const noRecord = parse({ ...HANDED_JSON, report: { status: "available", record: null } });
+  assert.deepEqual(handoffStripView(noRecord, { now: NOW, links: ALL_LINKS }).warnings,
+    [{ text: ["Продажа не записана в отчёт — в план месяца не считается"], href: SALE_HREF, action: "Оформить продажу" }]);
+  assert.deepEqual(handoffStripView(noRecord, { now: NOW, links: { ...ALL_LINKS, saleHref: null } }).warnings, []);
+  assert.equal(handoffStripView(noRecord, { now: NOW }).items.find((item) => item.key === "report").state, "missing");
+
+  // Куратора нет: «Назначить куратора» — в деле и только с `case.curator.assign`.
+  const noCurator = parse({ ...HANDED_JSON, curator: null, acceptance: null });
+  assert.deepEqual(handoffStripView(noCurator, { now: NOW, links: ALL_LINKS }).warnings,
+    [{ text: ["Куратор не назначен — дело ждёт назначения"], href: CASE_HREF, action: "Назначить куратора" }]);
+  assert.deepEqual(handoffStripView(noCurator, { now: NOW, links: { ...ALL_LINKS, assignCurator: false } }).warnings, []);
+  assert.deepEqual(handoffStripView(noCurator, { now: NOW, links: { ...ALL_LINKS, caseHref: null } }).warnings, [], "no case to open");
+
+  // Куратор просит уточнить: ответ — в деле; дела не открыть — предупреждения нет, слово остаётся в «Принято».
+  const clarifyJson = { ...HANDED_JSON, acceptance: { decision: "clarification_requested", at: "2026-09-19T03:30:00+00:00" } };
+  const clarify = handoffStripView(parse(clarifyJson), { now: NOW, links: ALL_LINKS });
+  assert.deepEqual(clarify.warnings, [{ text: ["Куратор просит уточнить передачу"], href: CASE_HREF, action: "Открыть дело" }]);
   assert.equal(stripPlain(clarify.summary), "Передано 18.09 · Куратор Синтетический · нужно уточнить 19.09");
+  assert.deepEqual(handoffStripView(parse(clarifyJson), { now: NOW }).warnings, []);
+  assert.equal(handoffStripView(parse(clarifyJson), { now: NOW }).items.at(-1).text, "нужно уточнить");
 });
 
-test("Lead 360 «Передача»: a declined handoff is a warning with its date, and the summary says «отклонено»", () => {
+test("Lead 360 «Передача»: a declined handoff is a warning with its date and «Назначить куратора», and the summary says «отклонено»", () => {
   // 182: a decline returns the case to «ждёт куратора» and clears the curator; the handoff stays a fact.
-  const declined = handoffStripView(parse({ ...HANDED_JSON, curator: null,
-    acceptance: { decision: "declined", at: "2026-09-20T04:00:00+00:00" } }), { now: NOW });
+  const json = { ...HANDED_JSON, curator: null, acceptance: { decision: "declined", at: "2026-09-20T04:00:00+00:00" } };
+  const declined = handoffStripView(parse(json), { now: NOW, links: ALL_LINKS });
   assert.equal(declined.stageTitle, "Переданы");
   assert.equal(stripPlain(declined.summary), "Передано 18.09 · отклонено 20.09");
-  assert.deepEqual(declined.warnings, [{ text: ["Куратор отклонил передачу ", { date: "20.09" }, ": дело ждёт нового куратора."], href: null }]);
+  assert.deepEqual(declined.warnings, [{ text: ["Куратор отклонил передачу ", { date: "20.09" }, " — дело ждёт нового куратора"],
+    href: CASE_HREF, action: "Назначить куратора" }]);
   assert.deepEqual(declined.items.slice(-2).map((item) => [item.key, item.state, item.text, item.date]), [
     ["curator", "missing", null, null], ["accepted", "attention", "отклонено", "20.09"],
   ]);
+  assert.deepEqual(handoffStripView(parse(json), { now: NOW, links: { ...ALL_LINKS, assignCurator: false } }).warnings, []);
 });
 
 test("Lead 360 «Передача»: before a handoff it is neutral; a role without the report has no report item", () => {
-  const working = handoffStripView(parse(WORKING_JSON), { now: NOW });
+  const working = handoffStripView(parse(WORKING_JSON), { now: NOW, links: ALL_LINKS });
   assert.equal(working.stageTitle, "Квалифицирован");
   assert.equal(working.summary, null);
   assert.deepEqual(working.warnings, []);
   assert.ok(working.items.every((item) => item.state === "missing"));
-  const denied = handoffStripView(parse({ ...HANDED_JSON, report: { status: "denied", record: null } }), { now: NOW });
+  const denied = handoffStripView(parse({ ...HANDED_JSON, report: { status: "denied", record: null } }), { now: NOW, links: ALL_LINKS });
   assert.deepEqual(denied.items.map((item) => item.key), ["contract", "payment", "curator", "accepted"]);
   assert.deepEqual(denied.warnings, []);
   assert.equal(handoffStripView(parse({ ...HANDED_JSON, stage: "closed" }), { now: NOW }).stageTitle, "Лид закрыт");
@@ -267,15 +325,16 @@ test("Lead 360 «Передача»: before a handoff it is neutral; a role with
   assert.equal(stripDay("2026-09-17", "2026-09-26"), "17.09");
 });
 
-test("Lead 360 «Передача»: the footnote says «получен ДД.ММ» once the payment is in, «ожидается ДД.ММ» before", () => {
+test("Lead 360 «Передача»: the footnote names only what the items do not — the expected payment and the evidence references", () => {
   const gate = { contractConfirmed: true, firstPaymentAmount: 600, firstPaymentCurrency: "USD", firstPaymentDueDate: "2026-09-20",
-    firstPaymentReceivedDate: "2026-09-17", contractEvidenceReference: "Договор синтетический", firstPaymentEvidenceReference: null };
-  assert.deepEqual(handoffFootnote(gate, { now: NOW }), ["Первый платёж 600 USD, получен ", { date: "17.09" }, " · ", "Договор: Договор синтетический"]);
-  assert.equal(stripPlain(handoffFootnote({ ...gate, firstPaymentReceivedDate: null, contractEvidenceReference: null }, { now: NOW })),
-    "Первый платёж 600 USD, ожидается 20.09");
-  assert.equal(stripPlain(handoffFootnote({ ...gate, firstPaymentReceivedDate: null, firstPaymentDueDate: "2027-01-03", contractEvidenceReference: null }, { now: NOW })),
-    "Первый платёж 600 USD, ожидается 03.01.27");
-  assert.equal(handoffFootnote({ ...gate, contractConfirmed: false, contractEvidenceReference: null }, { now: NOW }), null);
+    firstPaymentReceivedDate: "2026-09-17", contractEvidenceReference: "Договор синтетический", firstPaymentEvidenceReference: "Платёж синтетический" };
+  // Полученный платёж — в «Оплате» с суммой и датой; в сноске — только ссылки-доказательства, одними словами полосы.
+  assert.deepEqual(handoffFootnote(gate, { now: NOW }), ["Договор: Договор синтетический", " · ", "Оплата: Платёж синтетический"]);
+  assert.equal(stripPlain(handoffFootnote({ ...gate, firstPaymentReceivedDate: null, contractEvidenceReference: null, firstPaymentEvidenceReference: null },
+    { now: NOW })), "Первый платёж 600\u00a0USD, ожидается 20.09");
+  assert.equal(stripPlain(handoffFootnote({ ...gate, firstPaymentReceivedDate: null, firstPaymentDueDate: "2027-01-03", contractEvidenceReference: null,
+    firstPaymentEvidenceReference: null }, { now: NOW })), "Первый платёж 600\u00a0USD, ожидается 03.01.27");
+  assert.equal(handoffFootnote({ ...gate, contractConfirmed: false, contractEvidenceReference: null, firstPaymentEvidenceReference: null }, { now: NOW }), null);
 });
 
 const pill = compile("src/components/v3/Pill.tsx");
@@ -329,10 +388,14 @@ test("the false red «ожидает условий» is gone: a neutral «Пе�
   // The word before a date keeps it on its line (a no-break space).
   assert.match(after, new RegExp(`data-testid="v3-handoff-summary">Передано\u00a0${mono("18.09")} · Куратор Синтетический · принято\u00a0${mono("19.09")}</p>`, "u"));
   assert.match(after, /data-testid="v3-handoff-strip"[^>]*>/u);
-  assert.match(after, /class="grid [^"]*border-t border-border border-b border-border" data-testid="v3-handoff-strip"/u);
-  // The footnote: received, not «ожидается»; its date in the same mono format.
-  assert.match(after, new RegExp(`data-testid="v3-handoff-footnote">Первый платёж 600 USD, получен\u00a0${mono("17.09")}</p>`, "u"));
-  assert.doesNotMatch(after, /ожидается|20\.09\.2026/u);
+  // Э8.4: полученный платёж — в самой «Оплате»; без ссылок-доказательств сноски нет, и линии под полосой тоже.
+  assert.match(after, /class="grid [^"]*border-t border-border" data-testid="v3-handoff-strip"/u);
+  assert.doesNotMatch(after, /v3-handoff-footnote|ожидается|получен|20\.09\.2026/u);
+  const referenced = renderCard(handoffStripView(parse(HANDED_JSON), { now: NOW }),
+    { ...GATE, contractConfirmed: true, firstPaymentReceivedDate: "2026-09-17", normalHandoffAllowed: true, gateState: "satisfied",
+      contractEvidenceReference: "Договор синтетический", firstPaymentEvidenceReference: "Платёж синтетический" });
+  assert.match(referenced, /class="grid [^"]*border-t border-border border-b border-border" data-testid="v3-handoff-strip"/u);
+  assert.match(referenced, /data-testid="v3-handoff-footnote">Договор: Договор синтетический · Оплата: Платёж синтетический<\/p>/u);
   assert.doesNotMatch(after, /v3-handoff-warnings|text-warn/u);
   assert.equal((after.match(/data-state="done"/gu) ?? []).length, 5);
   assert.doesNotMatch(after, /<form\b/u, "nothing left to confirm");
@@ -424,31 +487,43 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   // Этап — дорожка из 7 этапов продаж (Э1.4), текущий — «Переданы».
   assert.match(handed, /<div class="v3-track" data-track="sales">[\s\S]*?<span class="sr-only">Переданы, текущий этап, Продажи<\/span>/u);
   assert.match(text(handed), /Что дальше Передано 18\.09 · Айгерим Условная · принято 19\.09/u);
-  assert.match(text(handed), /Передача Запись о продаже в архиве и в продажи не входит\. Открыть запись/u);
+  // Э8.4: предупреждение называет действие и ведёт к нему; слова «Договор» и «Оплата» — одни на полосе и в ленте.
+  assert.match(text(handed), /Передача Продажа в отчёте в архиве — в план месяца не считается Открыть запись/u);
   assert.doesNotMatch(handed, /data-testid="v3-handoff-summary"/u);
-  assert.match(handed, /<a href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=12341234-5555-4555-8555-000000000001" class="-my-3 inline-flex min-h-11/u);
-  assert.match(text(handed), /Первый платёж 600 USD, получен 17\.09/u);
-  assert.doesNotMatch(handed, /ожидает условий|ожидается|Новый</u);
+  assert.match(handed, /<a href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=12341234-5555-4555-8555-000000000001" class="-my-3 inline-flex min-h-11[^"]*">Открыть запись<\/a>/u);
+  assert.match(text(handed), /Договор есть подтверждён вручную 17\.09 Оплата есть первый платёж 600 USD 17\.09 Запись в отчёте в архиве/u);
+  assert.match(text(handed), /Договор: Договор № 0000 \(синтетический\) · Оплата: Платёж 0000 \(синтетический\)/u);
+  assert.match(text(handed), /Первый платёж подтверждён вручную 17\.09 12:00 Договор подтверждён вручную 17\.09 11:00/u);
+  assert.doesNotMatch(handed, /ожидает условий|ожидается|получен 17|Новый</u);
   // Продажа в уже открытое дело (208): дата по квитанции; договор и оплата — по той
   // же записи «Отчёта продаж» (22.09, 600 USD); ответа куратора не бывает — сказано словами.
   const sold = pages.get("lead-sold");
   assert.match(text(sold), /Что дальше Передано 23\.09 · Айгерим Условная Обзор/u);
-  assert.match(text(sold), /Передача Приём этой передачи в CRM не отмечается: продажа записана в уже открытый кабинет\./u);
-  assert.match(text(sold), /Договор есть по отчёту 22\.09 Первый платёж есть по отчёту: оплачено 600 USD Запись в отчёте есть 22\.09/u);
+  // Э8.4: приём в CRM не отмечается — это слово в «Принято»; предупреждения без действия нет.
+  assert.doesNotMatch(sold, /data-testid="v3-handoff-warnings"|не отмечается:/u);
+  assert.match(text(sold), /Договор есть по отчёту 22\.09 Оплата есть по отчёту: оплачено 600 USD Запись в отчёте есть 22\.09 .*? Принято — нет не отмечается/u);
   assert.doesNotMatch(text(sold), /ждёт принятия|ждёт ответа/u, "no pending step nobody can take");
   const report = pages.get("report");
   assert.match(text(report), /Алина Переданная Малайзия · Бакалавриат Санжар Эскизов 22\.09 1 500 USD 600 USD/u, "the same record says the same numbers");
-  // До передачи: нейтрально, формы подтверждения спокойные — в свёрнутой группе «Подтверждение
-  // договора и платежа» (не вкладка «Договор и оплата»), исключение Admin свёрнуто и в ней.
+  // До передачи: нейтрально. Э8.4: формы подтверждения — не в «Данных лида», а наверху вкладки
+  // «Договор и оплата»; полоса ведёт туда «Изменить» (якорь форм). Исключение Admin там свёрнуто.
   const working = pages.get("lead-working");
   assert.match(working, /<span class="sr-only">Квалифицирован, текущий этап, Продажи<\/span>/u);
   assert.doesNotMatch(working, /v3-handoff-summary|v3-handoff-warnings/u);
-  const contract = working.slice(working.indexOf('data-testid="v3-lead-group-contract"'));
-  assert.match(contract, /^data-testid="v3-lead-group-contract"[^>]*><summary[^>]*>.*?Подтверждение договора и платежа.*?договор не подтверждён/u);
-  assert.match(contract, /<details class="group py-1"><summary[^>]*>.*?Исключение Admin<\/summary>/u);
+  assert.doesNotMatch(working, /v3-lead-group-contract|v3-gate-contract-form|Подтверждение договора и платежа/u);
+  assert.match(working, /<a class="inline-flex min-h-11 [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Изменить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Изменить<\/a>/u);
+  const money = pages.get("lead-working-money");
+  const gateSection = money.slice(money.indexOf('<section id="handoff-confirm"'));
+  assert.match(gateSection, /^<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate"><h2 id="handoff-confirm-title" class="t-section text-fg">Подтвердить вручную<\/h2>/u);
+  assert.match(gateSection, /<h3 class="t-item text-fg">Подтвердить договор<\/h3>.*?data-testid="v3-gate-contract-form"/u);
+  assert.match(gateSection, /<details class="group py-1"><summary[^>]*>.*?Исключение Admin<\/summary>/u);
+  // У лида без дела пустого «Все обязательства по делу» нет; сплошной красный — только главное действие.
+  assert.doesNotMatch(money, /Все обязательства по делу|Обязательств пока нет/u);
+  assert.match(money, /aria-current="page" class="v3-choice inline-flex min-h-11 [^"]*" href="[^"]*tab=money">Договор и оплата<\/a>/u);
   // Сплошной красный на странице один — главное действие; в «Передаче» и группах правки его нет.
   const solidRed = (html) => html.match(/(?<![\w:-])bg-accent(?![\w-])/gu)?.length ?? 0;
   assert.equal(solidRed(working), 1);
+  assert.equal(solidRed(money), 1);
   assert.match(working, /class="v3-raised [^"]*bg-accent [^"]*" data-testid="v3-lead-primary">Записать следующий шаг<\/button>/u);
   for (const part of ["v3-lead-facts", "v3-lead-edit"]) {
     const from = working.indexOf(`data-testid="${part}"`);

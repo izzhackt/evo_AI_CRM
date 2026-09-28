@@ -499,6 +499,11 @@ export const country = (v: string | null | undefined) => lookup(COUNTRY, v);
 export const degree = (v: string | null | undefined) => lookup(DEGREE, v);
 export const role = (v: string | null | undefined) => lookup(ROLE, v);
 export const source = (v: string | null | undefined) => lookup(SOURCE, v);
+/**
+ * Источник под подписью «Источник» (Lead 360, Э8.4): «Источник: другой», а не
+ * «другой источник» — выбор менеджера тот же, слово «источник» уже в подписи.
+ */
+export const sourceUnderLabel = (v: string | null | undefined) => (v === "other" ? "другой" : source(v));
 
 /** «application.created» → «Заявка заведена». Неизвестное — `null`. */
 export function eventLabel(transition: string | null | undefined): string | null {

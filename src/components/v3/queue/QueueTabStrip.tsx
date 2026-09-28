@@ -8,8 +8,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * встаёт в видимую часть ряда, а у края, за которым есть ещё вкладки, ряд
  * плавно гаснет (`data-fade-start` / `data-fade-end`, маска в v3.css) — так
  * скрытые виды не пропадают без следа. Без скрипта ряд просто прокручивается.
+ *
+ * `focusable` — вкладки профиля (Lead 360 и Student 360, Э8.4): ряд сам
+ * принимает фокус (на него возвращается фокус после ответа на передачу), а
+ * рамка фокуса вкладки рисуется внутри (`data-tab-strip`, v3.css).
  */
-export function QueueTabStrip({ id, label, children }: Readonly<{ id?: string; label: string; children: ReactNode }>) {
+export function QueueTabStrip({ id, label, focusable = false, testId = "queue-view-tabs", children }: Readonly<{
+  id?: string; label: string; focusable?: boolean; testId?: string; children: ReactNode;
+}>) {
   const ref = useRef<HTMLElement>(null);
   const [edges, setEdges] = useState({ start: false, end: false });
 
@@ -45,10 +51,12 @@ export function QueueTabStrip({ id, label, children }: Readonly<{ id?: string; l
       ref={ref}
       id={id}
       aria-label={label}
+      tabIndex={focusable ? 0 : undefined}
+      data-tab-strip={focusable ? "" : undefined}
       data-fade-start={edges.start ? "" : undefined}
       data-fade-end={edges.end ? "" : undefined}
       className="v3-tab-strip -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0"
-      data-testid="queue-view-tabs"
+      data-testid={testId}
     >
       {children}
     </nav>

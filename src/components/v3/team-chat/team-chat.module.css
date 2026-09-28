@@ -50,25 +50,18 @@
    нейтральное «выбрано» (`--accent-weak`), без красного. */
 .bubble { margin-top: 4px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .ownMessage .bubble { border-color: transparent; background: var(--accent-weak); }
-/* Удалённое, которое остаётся своей строкой (от него может зависеть живой
-   ответ), — тихий текст без пузыря, как строка «Удалено сообщений: N»; автор
-   и время остаются — на них опираются ответы. */
-.deletedMessage .bubble { margin-top: 2px; padding: 0; border: 0; border-radius: 0; background: transparent; }
-.deletedMessage .bubble > p { margin: 0; }
 .compactDeleted { padding-block: 4px; }
-/* Подсветка сообщения по ссылке и из поиска — кольцо фокуса, не красный. */
-.highlighted .bubble, .deletedRun.highlighted { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.compactDeleted .bubble { margin-top: 4px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.compactDeleted .bubble > p { margin: 0; }
+/* Подсветка сообщения по ссылке и из поиска — кольцо фокуса, не красный; кольцо
+   не заходит на строку автора (t-meta): отступ 2 px не больше отступа пузыря 4 px. */
+.highlighted .bubble { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .messageHeader { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; color: var(--text-2); }
 .messageHeader strong { font-weight: 600; }
 .messageMetadata { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; color: var(--text-3); }
 .messageMetadata time { white-space: nowrap; }
 .messageFooter > button, .messageFooter > .messageMenu { flex-shrink: 0; }
 .body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-/* Подряд удалённые без живых ответов — одна тихая строка; каждая свёрнутая цель
-   ссылки занимает строку целиком. */
-.deletedRun { position: relative; width: fit-content; max-width: 100%; margin: 4px auto 12px; padding: 4px 12px; border-radius: 8px; color: var(--text-3); text-align: center; scroll-margin: 16px; }
-.deletedRun > p { margin: 0; }
-.deletedAnchor { position: absolute; inset: 0; pointer-events: none; }
 .messageActions, .readActions { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .readActions { padding: 0 20px; background: var(--bg); }
 .readActions:empty { display: none; }

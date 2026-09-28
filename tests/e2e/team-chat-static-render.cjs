@@ -10,9 +10,9 @@
  * нейтральный выбор канала, знаки отделов меню на нейтральных кругах вместо
  * букв, нейтральный счётчик непрочитанных, своё сообщение нейтральное,
  * подсветка кольцом фокуса, тёмное подтверждение удаления, красным остаётся
- * только «Отправить»; h1 — на высоте `--shell-page-top`. Подряд идущие
- * удалённые сообщения без живых ответов — одна тихая строка «Удалено
- * сообщений: N», и ссылка на любое из них попадает в эту строку.
+ * только «Отправить»; h1 — на высоте `--shell-page-top`. Удалённые
+ * сообщения — как A15 на main: каждое своей строкой «Сообщение удалено»
+ * (сворачивать подряд идущие владелец 28.09 отказался — «оставить как есть»).
  *
  * Страницу строит НАСТОЯЩИЙ `v3/team-chat/page.tsx`: его чтение подменено
  * синтетическим (актёр, лента V2, каналы, участники). Оболочка (`AppShell`) и
@@ -32,10 +32,11 @@
  *   node tests/e2e/team-chat-static-render.cjs --screenshots [outDir] [--prefix=e89]
  *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844: переписка с
  *       ответами, цитатами и удалёнными; каналы с непрочитанными (на
- *       телефоне — список каналов); канал, где удалено всё; ссылка на
- *       удалённое сообщение (как из задачи); гонка «К непрочитанным» —
- *       первое непрочитанное удалено после снимка каналов — внутрь свёрнутой
- *       строки; поиск с подсветкой и переходом в переписку; окно
+ *       телефоне — список каналов); канал, где удалено всё (строки A15);
+ *       ссылка на удалённое сообщение (как из задачи); гонка «К
+ *       непрочитанным» — первое непрочитанное удалено после снимка каналов —
+ *       к его строке «Сообщение удалено»; поиск с подсветкой и переходом в
+ *       переписку; окно
  *       подтверждения удаления; удаление своего, модерация и удаление по
  *       живому обновлению с клавиатуры — фокус остаётся у строки сообщения;
  *       набранный текст — единственная красная кнопка. По умолчанию outDir —
@@ -173,8 +174,9 @@ function channel(key, latest, { unread = 0, firstUnread = null } = {}) {
 }
 
 // Живая переписка «Общего»: ответы с цитатами, продолжения одного автора,
-// упоминание, ссылка, правка; два удалённых подряд (свернутся в одну строку)
-// и удалённое сообщение, на которое есть живой ответ (остаётся своей строкой).
+// упоминание, ссылка, правка; два удалённых подряд (каждое — своя тихая
+// строка «Сообщение удалено», A15) и удалённое сообщение, на которое есть
+// живой ответ (строка с пузырём).
 const CONVERSATION = [
   message(11, AIGERIM, "2026-09-26T03:10:00.000Z", "Доброе утро! Кто сегодня принимает звонки по Китаю?", { replies: 1 }),
   message(12, AIGERIM, "2026-09-26T03:12:00.000Z", "Нужен человек до обеда: в 11:00 созвон с родителями студентки."),
@@ -189,8 +191,9 @@ const CONVERSATION = [
   message(21, AIGERIM, "2026-09-28T05:03:00.000Z", "Лейла тоже придёт, документы по Шанхаю она принесёт с собой."),
 ];
 // Канал, где удалено всё — как «Общий» после «удали их» 28.09 (только форма,
-// время выдумано): корень с ответом, ответ с цитатой и ещё четыре; номер 6 —
-// в другом канале. Непрочитанных нет: миграция 239 считает только живые.
+// время выдумано): корень с ответом и ответ с цитатой — строки с пузырём,
+// ещё четыре — тихие строки «Сообщение удалено» (A15); номер 6 — в другом
+// канале. Непрочитанных нет: миграция 239 считает только живые.
 const ALL_DELETED = [
   message(1, ME, "2026-09-11T09:00:00.000Z", "", { deleted: true, replies: 1 }),
   message(2, ME, "2026-09-11T09:30:00.000Z", "", { deleted: true, root: 1 }),
@@ -203,7 +206,7 @@ const SALES_LATEST = message(30, TIMUR, "2026-09-28T05:40:00.000Z", "Лид из
 const ADMISSIONS_LATEST = message(31, LEILA, "2026-09-28T05:45:00.000Z", "Пакет документов для Шанхая собран, проверьте, пожалуйста.", { channel: "admissions" });
 
 const SCENARIOS = {
-  // Переписка: ответы и цитаты, свёрнутые удалённые, удалённое с живым ответом.
+  // Переписка: ответы и цитаты, удалённые подряд, удалённое с живым ответом.
   conversation: {
     search: { channel: "general" }, messages: CONVERSATION,
     channels: [channel("general", CONVERSATION.at(-1)), channel("sales", SALES_LATEST, { unread: 3, firstUnread: SALES_LATEST.id }), channel("admissions", ADMISSIONS_LATEST, { unread: 12, firstUnread: ADMISSIONS_LATEST.id })],
@@ -213,7 +216,7 @@ const SCENARIOS = {
     search: {}, messages: CONVERSATION,
     channels: [channel("general", CONVERSATION.at(-1), { unread: 2, firstUnread: messageId(20) }), channel("sales", SALES_LATEST, { unread: 3, firstUnread: SALES_LATEST.id }), channel("admissions", ADMISSIONS_LATEST, { unread: 12, firstUnread: ADMISSIONS_LATEST.id })],
   },
-  // Всё удалено: одна тихая строка, не «пустой канал».
+  // Всё удалено: каждое своей строкой «Сообщение удалено» (A15), не «пустой канал».
   "all-deleted": {
     search: { channel: "general" }, messages: ALL_DELETED,
     channels: [channel("general", ALL_DELETED.at(-1)), channel("sales", SALES_LATEST), channel("admissions", null)],
@@ -224,7 +227,7 @@ const SCENARIOS = {
     channels: [channel("general", ALL_DELETED.at(-1)), channel("sales", SALES_LATEST), channel("admissions", null)],
   },
   // Гонка: снимок каналов сделан, пока 15 было живым первым непрочитанным
-  // (15–21 — семь); потом 15 удалили, и лента уже показывает его свёрнутым.
+  // (15–21 — семь); потом 15 удалили, и лента уже показывает его удалённым.
   // Без гонки миграция 239 не ведёт «К непрочитанным» к удалённому.
   "unread-race": {
     search: { channel: "general" }, messages: CONVERSATION,
@@ -464,11 +467,12 @@ function pageMetrics() {
   const pageTopRaw = main ? getComputedStyle(main).getPropertyValue("--shell-page-top").trim() : "";
   const pageTop = pageTopRaw.endsWith("rem") ? parseFloat(pageTopRaw) * rootFont : parseFloat(pageTopRaw);
   const bubbles = [...document.querySelectorAll("[data-chat-row] [class*=bubble]")].filter(visible);
-  const own = bubbles.find((element) => element.closest("[class*=ownMessage]") && !element.closest("[class*=deletedMessage]"));
-  const other = bubbles.find((element) => !element.closest("[class*=ownMessage]") && !element.closest("[class*=deletedMessage]"));
-  const runs = [...document.querySelectorAll("[data-chat-deleted-run]")].filter(visible);
+  // Тихая строка «Сообщение удалено» (compactDeleted) — без пузыря, её не сравнивать с пузырями.
+  const own = bubbles.find((element) => element.closest("[class*=ownMessage]") && !element.closest("[class*=compactDeleted]"));
+  const other = bubbles.find((element) => !element.closest("[class*=ownMessage]") && !element.closest("[class*=compactDeleted]"));
+  const tombstones = [...document.querySelectorAll("article[data-chat-row]")].filter((element) => visible(element) && /Сообщение удалено/u.test(element.querySelector("[class*=bubble] > p")?.textContent ?? ""));
   const highlighted = [...document.querySelectorAll("[class*=highlighted]")].filter(visible)
-    .map((element) => (element.matches("[data-chat-deleted-run]") ? element : element.querySelector("[class*=bubble]") ?? element));
+    .map((element) => element.querySelector("[class*=bubble]") ?? element);
   return {
     overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     overflowY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
@@ -492,12 +496,20 @@ function pageMetrics() {
     other: other ? { ...paint(other), radius: getComputedStyle(other).borderTopLeftRadius, font: parseFloat(getComputedStyle(other.querySelector("p") ?? other).fontSize) } : null,
     authorAvatars: [...document.querySelectorAll("[class*=authorAvatar]")].filter(visible).map((element) => ({ text: element.textContent.trim(), size: parseFloat(getComputedStyle(element).fontSize), weight: getComputedStyle(element).fontWeight, bg: getComputedStyle(element).backgroundColor })).slice(0, 2),
     rows: [...document.querySelectorAll("[data-chat-row]")].map((element) => element.dataset.chatRow.slice(-2)),
-    runs: runs.map((run) => ({ text: run.textContent.trim(), anchors: run.querySelectorAll("[data-chat-row]").length, bg: getComputedStyle(run).backgroundColor, color: getComputedStyle(run).color })),
-    tombstones: [...document.querySelectorAll("article[data-chat-row]")].filter((element) => visible(element) && /Сообщение удалено/u.test(element.querySelector("[class*=bubble] > p")?.textContent ?? "")).length,
+    // A15: у каждого удалённого своя строка; тихая (compactDeleted) — без ответов, цитаты и корня.
+    tombstones: tombstones.map((element) => element.dataset.chatRow.slice(-2)),
+    compact: tombstones.filter((element) => /compactDeleted/u.test(element.className)).map((element) => element.dataset.chatRow.slice(-2)),
+    collapsed: Boolean(main && /Удалено сообщений/u.test(main.textContent)) || Boolean(document.querySelector("[data-chat-deleted-run]")),
     dividers: [...document.querySelectorAll("[class*=dateDivider]")].filter(visible).map((element) => element.textContent.trim()),
     empty: Boolean([...document.querySelectorAll("[class*=empty]")].find((element) => visible(element) && /пока нет сообщений/u.test(element.textContent))),
-    highlight: highlighted.map((element) => ({ outline: getComputedStyle(element).outlineColor, style: getComputedStyle(element).outlineStyle, width: getComputedStyle(element).outlineWidth })),
-    focus: document.activeElement ? { tag: document.activeElement.tagName, run: document.activeElement.hasAttribute("data-chat-deleted-run"), row: document.activeElement.dataset?.chatRow?.slice(-2) ?? null,
+    // clear — зазор между верхом кольца и строкой автора (px): кольцо не задевает имя.
+    highlight: highlighted.map((element) => {
+      const style = getComputedStyle(element);
+      const header = element.closest("[data-chat-row]")?.querySelector("[class*=messageHeader]");
+      const ringTop = element.getBoundingClientRect().top - parseFloat(style.outlineOffset) - parseFloat(style.outlineWidth);
+      return { outline: style.outlineColor, style: style.outlineStyle, width: style.outlineWidth, clear: visible(header) ? Math.round((ringTop - header.getBoundingClientRect().bottom) * 10) / 10 : null };
+    }),
+    focus: document.activeElement ? { tag: document.activeElement.tagName, row: document.activeElement.dataset?.chatRow?.slice(-2) ?? null,
       inView: history ? (() => { const box = document.activeElement.getBoundingClientRect(); const view = history.getBoundingClientRect(); return box.top >= view.top - 1 && box.bottom <= view.bottom + 1; })() : null } : null,
     marks: [...document.querySelectorAll("mark")].filter(visible).map((element) => paint(element).bg),
     readActions: [...document.querySelectorAll("[class*=readActions] button")].filter(visible).map((button) => button.textContent.trim()),
@@ -597,7 +609,7 @@ async function screenshots() {
     for (const avatar of metrics.authorAvatars) check(avatar.size === 12 && avatar.weight === "500", `${label}: author initials ${JSON.stringify(avatar)}`);
     if (metrics.own) check(metrics.own.bg === SELECTED, `${label}: own bubble ${JSON.stringify(metrics.own)}`);
     if (metrics.other) check(metrics.other.bg === "rgb(255, 255, 255)" && metrics.other.borderWidth === "1px", `${label}: other bubble ${JSON.stringify(metrics.other)}`);
-    for (const outline of metrics.highlight) check(outline.outline === INK && outline.style === "solid", `${label}: highlight ${JSON.stringify(outline)}`);
+    for (const outline of metrics.highlight) check(outline.outline === INK && outline.style === "solid" && (outline.clear === null || outline.clear >= 0), `${label}: highlight ${JSON.stringify(outline)}`);
     for (const bg of metrics.marks) check(bg === SELECTED, `${label}: search mark ${bg}`);
     if (!/390/u.test(viewportKey) || metrics.composer) check(metrics.composer?.inViewport !== false, `${label}: composer ${JSON.stringify(metrics.composer)}`);
   };
@@ -613,12 +625,13 @@ async function screenshots() {
         report({ file, ...metrics });
         common(file, metrics, viewportKey);
         const phoneList = viewportKey === "390" && name === "channels";
+        // Сворачивания нет нигде: «Удалено сообщений: N» не появляется.
+        check(!metrics.collapsed, `${file}: collapsed deleted run is shown`);
         if (name === "conversation" || (name === "channels" && !phoneList)) {
-          // 14 и 15 — одна строка; 17 с живым ответом — своя строка.
-          check(JSON.stringify(metrics.runs.map((run) => run.text)) === JSON.stringify(["Удалено сообщений: 2"]), `${file}: runs ${JSON.stringify(metrics.runs)}`);
-          check(metrics.runs[0]?.anchors === 2, `${file}: run anchors ${JSON.stringify(metrics.runs)}`);
-          check(metrics.tombstones === 1, `${file}: ${metrics.tombstones} tombstones (only the one with a live reply)`);
-          check(metrics.rows.length === CONVERSATION.length, `${file}: ${metrics.rows.length} message targets for ${CONVERSATION.length} messages`);
+          // A15: 14 и 15 — каждое своей тихой строкой; 17 с живым ответом — строка с пузырём.
+          check(JSON.stringify(metrics.tombstones) === JSON.stringify(["14", "15", "17"]), `${file}: tombstones ${JSON.stringify(metrics.tombstones)}`);
+          check(JSON.stringify(metrics.compact) === JSON.stringify(["14", "15"]), `${file}: compact tombstones ${JSON.stringify(metrics.compact)}`);
+          check(metrics.rows.length === CONVERSATION.length, `${file}: ${metrics.rows.length} message rows for ${CONVERSATION.length} messages`);
         }
         if (name === "conversation" && viewportKey !== "390") {
           const badges = metrics.channels.map((item) => item.badge?.text ?? null);
@@ -628,22 +641,24 @@ async function screenshots() {
           check(metrics.channels.length === 3 && metrics.channels.every((item) => item.badge), `${file}: phone channel list ${JSON.stringify(metrics.channels)}`);
         }
         if (name === "all-deleted" || name === "all-deleted-link") {
-          check(JSON.stringify(metrics.runs.map((run) => run.text)) === JSON.stringify(["Удалено сообщений: 6"]), `${file}: runs ${JSON.stringify(metrics.runs)}`);
-          check(metrics.runs[0]?.anchors === 6 && metrics.rows.length === 6, `${file}: anchors ${JSON.stringify(metrics.runs)} rows ${metrics.rows.length}`);
-          check(!metrics.empty && metrics.tombstones === 0, `${file}: empty ${metrics.empty}, tombstones ${metrics.tombstones}`);
-          check(metrics.dividers.length === 1, `${file}: dividers ${metrics.dividers.join(" · ")}`);
+          // A15: шесть строк «Сообщение удалено»; 1 (есть ответ) и 2 (ответ с цитатой) — с пузырём.
+          check(JSON.stringify(metrics.tombstones) === JSON.stringify(["01", "02", "03", "04", "05", "07"]) && metrics.rows.length === 6, `${file}: tombstones ${JSON.stringify(metrics.tombstones)} rows ${metrics.rows.length}`);
+          check(JSON.stringify(metrics.compact) === JSON.stringify(["03", "04", "05", "07"]), `${file}: compact tombstones ${JSON.stringify(metrics.compact)}`);
+          check(!metrics.empty, `${file}: empty state in a channel with deleted messages`);
+          // 11, 18 и 20 сентября по Бишкеку.
+          check(metrics.dividers.length === 3, `${file}: dividers ${metrics.dividers.join(" · ")}`);
           // Удалено всё — непрочитанных нет (миграция 239 считает только живые).
           const general = metrics.channels.find((item) => item.text === "Общий");
           check(!metrics.readActions.some((action) => action.startsWith("К непрочитанным")) && !general?.badge, `${file}: unread ${metrics.readActions.join(" · ")} ${JSON.stringify(general?.badge)}`);
         }
         if (name === "all-deleted-link") {
-          // Ссылка «источник» задачи: строка подсвечена, фокус — на ней, она на виду.
-          check(metrics.highlight.length === 1 && metrics.focus?.run === true && metrics.focus.inView === true, `${file}: permalink ${JSON.stringify({ highlight: metrics.highlight, focus: metrics.focus })}`);
+          // Ссылка «источник» задачи: строка 1 подсвечена, фокус — на ней, она на виду.
+          check(metrics.highlight.length === 1 && metrics.focus?.row === "01" && metrics.focus.inView === true, `${file}: permalink ${JSON.stringify({ highlight: metrics.highlight, focus: metrics.focus })}`);
         }
       }
     }
 
-    // Начало переписки: свёрнутые удалённые рядом с удалённым, у которого есть живой ответ.
+    // Начало переписки: тихие строки удалённых рядом с удалённым, у которого есть живой ответ.
     for (const viewportKey of ["1440", "390"]) {
       const session = await open(htmlFor.conversation, viewportKey);
       const { page } = session;
@@ -653,25 +668,25 @@ async function screenshots() {
       const file = `${prefix}-conversation-top-${viewportKey}.png`;
       await page.screenshot({ path: join(outDir, file) });
       await finish(session, file);
-      report({ journey: "conversation-top", file, runs: metrics.runs, tombstones: metrics.tombstones, dividers: metrics.dividers });
+      report({ journey: "conversation-top", file, tombstones: metrics.tombstones, compact: metrics.compact, dividers: metrics.dividers });
       common(file, metrics, viewportKey);
     }
 
     // Гонка: «К непрочитанным» ведёт к первому непрочитанному, которое удалили
-    // после снимка каналов, — внутрь свёрнутой строки; строка подсвечена и в фокусе.
+    // после снимка каналов, — к его строке «Сообщение удалено»; она подсвечена и в фокусе.
     for (const viewportKey of ["1440", "390"]) {
       const session = await open(htmlFor["unread-race"], viewportKey);
       const { page } = session;
       await page.locator("[class*=readActions] button", { hasText: "К непрочитанным · 7" }).click();
-      await page.waitForFunction(() => document.querySelector("[data-chat-deleted-run][class*=highlighted]"), null, { timeout: 5_000 }).catch(() => {});
+      await page.waitForFunction((id) => document.querySelector(`article[data-chat-row="${id}"][class*=highlighted]`), messageId(15), { timeout: 5_000 }).catch(() => {});
       await page.waitForTimeout(150);
       const metrics = await page.evaluate(pageMetrics);
       const file = `${prefix}-unread-race-${viewportKey}.png`;
       await page.screenshot({ path: join(outDir, file) });
       const harness = await finish(session, file);
-      report({ journey: "first-unread-race", file, actions: harness.actions, highlight: metrics.highlight, focus: metrics.focus, runs: metrics.runs });
+      report({ journey: "first-unread-race", file, actions: harness.actions, highlight: metrics.highlight, focus: metrics.focus, tombstones: metrics.tombstones });
       check(harness.actions.includes(`timeline:context:${messageId(15)}`), `${file}: context read ${JSON.stringify(harness.actions)}`);
-      check(metrics.highlight.length === 1 && metrics.focus?.run === true && metrics.focus.inView === true, `${file}: first unread ${JSON.stringify({ highlight: metrics.highlight, focus: metrics.focus })}`);
+      check(metrics.highlight.length === 1 && metrics.focus?.row === "15" && metrics.focus.inView === true, `${file}: first unread ${JSON.stringify({ highlight: metrics.highlight, focus: metrics.focus })}`);
       common(file, metrics, viewportKey);
     }
 
@@ -722,22 +737,23 @@ async function screenshots() {
     }
 
     // Удаление с клавиатуры: после «Подтвердить удаление» (своё), модерации
-    // (чужое, с причиной) и удаления по живому обновлению сообщение
-    // сворачивается в строку «Удалено сообщений: N» — фокус у этой строки,
-    // не на <body>. 13 — новая строка с другим ключом (13–15), 16 — входит в
-    // строку 14–15 с прежним ключом, 12 — одно «Сообщение удалено».
+    // (чужое, с причиной) и удаления по живому обновлению строка сообщения
+    // остаётся (A15) и показывает «Сообщение удалено»; фокус — у этой строки
+    // (у «Ответить» в ней — при живом обновлении), не на <body>. 13 — ответ с
+    // цитатой (строка с пузырём), 16 и 12 — тихие строки.
     const focusOf = (id) => page => page.evaluate((target) => {
       const active = document.activeElement;
       const view = document.querySelector('[aria-label="История сообщений"]').getBoundingClientRect();
       const box = active.getBoundingClientRect();
-      return { tag: active.tagName, run: active.hasAttribute("data-chat-deleted-run"), holds: Boolean(active.querySelector(`[data-chat-row="${target}"]`)),
-        text: active.textContent.trim(), inView: box.top >= view.top - 1 && box.bottom <= view.bottom + 1 };
+      const row = active.closest("[data-chat-row]");
+      return { tag: active.tagName, text: active.tagName === "ARTICLE" ? null : active.textContent.trim(), holds: row?.dataset.chatRow === target,
+        tombstone: row?.querySelector("[class*=bubble] > p")?.textContent ?? null, inView: box.top >= view.top - 1 && box.bottom <= view.bottom + 1 };
     }, id);
-    const collapsed = (page, id) => page.waitForFunction((target) => document.getElementById(`team-message-channel-${target}`)?.closest("[data-chat-deleted-run]"), id, { timeout: 5_000 });
+    const tombstoned = (page, id) => page.waitForFunction((target) => document.getElementById(`team-message-channel-${target}`)?.querySelector("[class*=bubble] > p")?.textContent === "Сообщение удалено", id, { timeout: 5_000 });
     const deletions = [
-      { journey: "delete-own", viewports: ["1440", "390"], id: messageId(13), label: "Удалить", run: "Удалено сообщений: 3" },
-      { journey: "moderate", viewports: ["1440"], id: messageId(16), label: "Модерация", run: "Удалено сообщений: 3", reason: "Проверка вёрстки" },
-      { journey: "realtime-delete", viewports: ["1440"], id: messageId(12), run: "Сообщение удалено" },
+      { journey: "delete-own", viewports: ["1440", "390"], id: messageId(13), label: "Удалить", focus: "ARTICLE", compact: false },
+      { journey: "moderate", viewports: ["1440"], id: messageId(16), label: "Модерация", focus: "ARTICLE", compact: true, reason: "Проверка вёрстки" },
+      { journey: "realtime-delete", viewports: ["1440"], id: messageId(12), focus: "BUTTON", compact: true },
     ];
     for (const deletion of deletions) {
       for (const viewportKey of deletion.viewports) {
@@ -759,17 +775,19 @@ async function screenshots() {
           await row.locator("button", { hasText: "Ответить" }).focus();
           await page.evaluate((id) => { window.__harness.deleted.push(id); window.__harnessInvalidate(); }, deletion.id);
         }
-        await collapsed(page, deletion.id).catch(() => {});
+        await tombstoned(page, deletion.id).catch(() => {});
         await page.waitForTimeout(250);
         const focus = await focusOf(deletion.id)(page);
         const metrics = await page.evaluate(pageMetrics);
         const file = `${prefix}-${deletion.journey}-${viewportKey}.png`;
         await page.screenshot({ path: join(outDir, file) });
         const harness = await finish(session, file);
-        report({ journey: deletion.journey, file, focus, runs: metrics.runs, tombstones: metrics.tombstones, actions: harness.actions.filter((action) => !action.startsWith("seen:")) });
+        report({ journey: deletion.journey, file, focus, tombstones: metrics.tombstones, compact: metrics.compact, actions: harness.actions.filter((action) => !action.startsWith("seen:")) });
         if (deletion.label) check(harness.actions.includes(`${deletion.label === "Удалить" ? "delete" : "moderate"}:${deletion.id}`), `${file}: command ${JSON.stringify(harness.actions)}`);
-        check(focus.run && focus.holds && focus.text === deletion.run && focus.inView, `${file}: focus after delete ${JSON.stringify(focus)}`);
-        check(metrics.rows.length === CONVERSATION.length && metrics.tombstones === 1, `${file}: ${metrics.rows.length} targets, ${metrics.tombstones} tombstones`);
+        check(focus.tag === deletion.focus && focus.holds && focus.tombstone === "Сообщение удалено" && focus.inView, `${file}: focus after delete ${JSON.stringify(focus)}`);
+        const expected = ["14", "15", "17", deletion.id.slice(-2)].sort();
+        check(metrics.rows.length === CONVERSATION.length && JSON.stringify(metrics.tombstones) === JSON.stringify(expected), `${file}: ${metrics.rows.length} rows, tombstones ${JSON.stringify(metrics.tombstones)}`);
+        check(metrics.compact.includes(deletion.id.slice(-2)) === deletion.compact && !metrics.collapsed, `${file}: compact ${JSON.stringify(metrics.compact)}, collapsed ${metrics.collapsed}`);
         common(file, metrics, viewportKey);
       }
     }

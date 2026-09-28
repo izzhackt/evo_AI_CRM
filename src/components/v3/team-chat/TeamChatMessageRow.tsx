@@ -7,7 +7,6 @@ import { TEAM_CHAT_INITIAL_ACTION, type TeamChatActionState, type TeamChatFailur
 import { TEAM_CHAT_COMMAND_FAILURE_COPY } from "@/lib/team-chat-command-feedback";
 import type { TeamChatQuote } from "@/lib/platform-team-chat-timeline";
 import { plainTextLinks } from "@/lib/plain-text-links";
-import { teamChatDeletedRunLabel } from "@/lib/team-chat-deleted-runs";
 import { Icon } from "@/components/icons";
 import { QUEUE_CONFIRM } from "@/components/v3/queue/queue-buttons";
 import styles from "./team-chat.module.css";
@@ -22,14 +21,13 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
   const menu = useRef<HTMLDetailsElement>(null);
   const isOwn = message.authorMembershipId === ownMembershipId;
   // replyCount counts legacy root children, not incoming direct quotes to a reply.
-  const deleted = Boolean(message.deletedAt);
-  const compactDeleted = deleted && message.parentMessageId === null
+  const compactDeleted = Boolean(message.deletedAt) && message.parentMessageId === null
     && message.replyCount === 0 && quote === null;
   const initials = message.authorName.trim().split(/\s+/u).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("ru-RU");
   const mentionedNames = message.mentionedMembershipIds.map((id) => participants.find((person) => person.membershipId === id)?.displayName ?? "Участник");
   function closeMenu() { if (menu.current) menu.current.open = false; }
   return <article id={`team-message-channel-${message.id}`} data-chat-row={message.id} tabIndex={-1}
-    className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""} ${continuation ? styles.continuation : ""} ${deleted ? styles.deletedMessage : ""} ${compactDeleted ? styles.compactDeleted : ""}`}>
+    className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""} ${continuation ? styles.continuation : ""} ${compactDeleted ? styles.compactDeleted : ""}`}>
     {!isOwn ? <span className={`t-caption ${styles.authorAvatar} ${continuation ? styles.continuationAvatar : ""}`} aria-hidden="true">{initials}</span> : null}
     <div className={styles.messageContent}>
       <div className={continuation ? styles.srOnly : `t-meta ${styles.messageHeader}`}>
@@ -61,20 +59,6 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
       </div>
     </div>
   </article>;
-}
-
-/**
- * Подряд удалённые сообщения без живых ответов — одна тихая строка (Э8.9,
- * `teamChatFeedItems`). У каждого свёрнутого сообщения остаётся своя цель
- * `team-message-channel-<id>`/`data-chat-row` на всю строку: ссылка на
- * сообщение, источник задачи, «К непрочитанным», подсветка и якоря прокрутки
- * приходят сюда. Фокус при переходе получает сама строка.
- */
-export function TeamChatDeletedRun({ messages, highlighted }: { messages: readonly TeamChatMessage[]; highlighted: boolean }) {
-  return <div className={`${styles.deletedRun} ${highlighted ? styles.highlighted : ""}`} data-chat-deleted-run={messages.length} tabIndex={-1}>
-    {messages.map((message) => <span key={message.id} id={`team-message-channel-${message.id}`} data-chat-row={message.id} className={styles.deletedAnchor} />)}
-    <p className="t-body-compact">{teamChatDeletedRunLabel(messages.length)}</p>
-  </div>;
 }
 
 /** Kept above the feed so context/search navigation cannot discard an unknown request. */

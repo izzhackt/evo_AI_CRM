@@ -104,7 +104,7 @@ test("personal calendar gates each permitted task branch and keeps creation sepa
   assert.match(page, /readAccess=\{workspace\.access\}/);
   assert.doesNotMatch(calendar, /NearestApplicationDeadline|readAccess\.applicationDeadlines/);
   assert.match(calendar, /calendarAccessNotice\(readAccess\)/);
-  assert.match(calendar, /calendarEmptyPeriodLabel\(readAccess\)/);
+  assert.match(calendar, /calendarEmptyPeriodLabel\(readAccess, view\)/);
   assert.match(calendar, /<TaskComposerDialog/);
   assert.doesNotMatch(calendar + controls, /CalendarCreateTaskForm/);
   assert.equal(existsSync(new URL("../src/components/v3/calendar/create-lifecycle.ts", import.meta.url)), false);
@@ -251,7 +251,9 @@ test("V3 calendar writes use live permission hints and remain keyboard-operable"
   assert.match(composer, /staffHasPermission\(actor, "task\.visibility\.manage"\)/);
   assert.match(composer, /canChangeVisibility && studentVisible \? "true" : "false"/);
   assert.match(controls, /state\.status === "saved" \|\| state\.status === "stale"/);
-  assert.match(grids, /<button[\s\S]*id=\{`task-\$\{task\.key\}`\}/);
+  // Э8.8: сетка и список телефона оба в разметке — у карточки списка свой префикс `id`.
+  assert.match(grids, /<button[\s\S]*id=\{`\$\{idPrefix\}-\$\{task\.key\}`\}/);
+  assert.match(grids, /idPrefix = "task",/);
   assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);
   assert.match(calendar, /\/v3\/profile\?case=/);
 });
@@ -262,7 +264,7 @@ test("V3 calendar preserves canonical task states and undated tasks", () => {
   assert.match(adapter, /state: row\.status/);
   assert.match(adapter, /version: row\.version/);
   assert.match(calendar, /tasks\.filter\(\(task\) => task\.day === null\)/);
-  assert.match(grids, /task\.day === null[\s\S]*?"без срока"/);
+  assert.match(grids, /task\.day === null[\s\S]*?<span>без срока<\/span>/);
   assert.match(grids, /blocked: "warn"/);
   assert.match(grids, /done: "ok"/);
   assert.match(grids, /task\.state === "in_progress"/);

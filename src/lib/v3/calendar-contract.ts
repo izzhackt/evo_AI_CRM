@@ -1,10 +1,10 @@
-import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
+import { staffCan, staffHasPermission } from "../platform-access.ts";
 import type { PlatformAdmissionsTaskQueueRow } from "../platform-admissions-task-contract.ts";
 import {
   normalizePlatformAdmissionsTaskQueueRow,
   parsePlatformAdmissionsTaskQueueCursor,
 } from "../platform-admissions-workspace.ts";
-import type { ActivePlatformActor, PlatformActor } from "../platform-auth.ts";
+import type { PlatformActor } from "../platform-auth.ts";
 import { platformTaskDeadlineSortTime } from "../platform-task-deadline.ts";
 import { ADMISSIONS_DEADLINE_LABELS, type AdmissionsDeadlineKind } from "../platform-admissions-deadline-contract.ts";
 
@@ -71,32 +71,12 @@ export type CalendarContractDependencies = Readonly<{
   client?: CalendarRpcClient;
 }>;
 
-export type CalendarReadAccess = Readonly<{ tasks: boolean; applicationDeadlines: boolean }>;
-
-/** Section hints only; every permitted reader still enforces canonical object scope. */
-export async function readCalendarWorkspaceBranches<TTasks, TDeadlines, TNearest, TCases>(
-  actor: ActivePlatformActor,
-  readers: Readonly<{
-    tasks: (actor: ActivePlatformActor) => Promise<TTasks>;
-    deadlines: (actor: ActivePlatformActor) => Promise<TDeadlines>;
-    nearest: (actor: ActivePlatformActor) => Promise<TNearest>;
-    cases: (actor: ActivePlatformActor) => Promise<TCases>;
-  }>,
-) {
-  const canReadCases = staffPresentationCan(actor, "admissions.read");
-  const access: CalendarReadAccess = Object.freeze({
-    tasks: staffHasPermission(actor, "task.manage") && (!isStaffPreview(actor) || canReadCases),
-    applicationDeadlines: canReadCases && staffHasPermission(actor, "application.manage"),
-  });
-  // Do not invoke a forbidden branch or disguise a failed authorized read as empty.
-  const [tasks, deadlines, nearest, cases] = await Promise.all([
-    access.tasks ? readers.tasks(actor) : null,
-    access.applicationDeadlines ? readers.deadlines(actor) : null,
-    access.applicationDeadlines ? readers.nearest(actor) : null,
-    canReadCases ? readers.cases(actor) : null,
-  ]);
-  return Object.freeze({ access, tasks, deadlines, nearest, cases });
-}
+/**
+ * Что календарь может читать. Сроков подачи в вузы в календаре нет (решение
+ * владельца 28.09: они только в «Университетах»); чтение сроков ниже служит
+ * «Сегодня» (`today-source.ts`).
+ */
+export type CalendarReadAccess = Readonly<{ tasks: boolean }>;
 
 export class CalendarContractError extends Error {
   constructor() {
@@ -474,32 +454,6 @@ export async function listCalendarApplicationDeadlinePage(
           })
         : null,
     });
-  } catch (error) {
-    return failClosed(error);
-  }
-}
-
-export async function readNearestCalendarApplicationDeadline(
-  actor: PlatformActor,
-  dependencies: CalendarContractDependencies = {},
-): Promise<CalendarApplicationDeadlineRow | null> {
-  try {
-    requireCalendarPermission(actor, "application.manage");
-    const client = dependencies.client ?? await getCalendarClient();
-    const response = await client.schema("platform").rpc(
-      "admissions_deadline_page_v1",
-      { p_limit: 1 },
-      { get: true },
-    );
-    if (
-      response.error ||
-      !Array.isArray(response.data) ||
-      response.data.length > 1
-    ) {
-      return invalidShape();
-    }
-    if (response.data.length === 0) return null;
-    return normalizeCalendarApplicationDeadlineRow(response.data[0]);
   } catch (error) {
     return failClosed(error);
   }

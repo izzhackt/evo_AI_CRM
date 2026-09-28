@@ -165,22 +165,49 @@ function studentsPage(search) {
   return h(PartShell, { title: "Студенты", count: built.count, dense: true }, built.content);
 }
 
+/**
+ * «Календарь» (Э8.8) — синтетические задачи на неделю 21–27.09 (сегодня —
+ * чт 24.09, выбранный день адреса — сб 26.09): «week» — задачи со сроком и
+ * одна без срока; «empty» — пустая неделя; «undated» — только задачи без
+ * срока (одна выполнена); «month» — сентябрь, в одном дне больше трёх задач;
+ * «day» — один день с задачами.
+ */
 function calendarPage() {
-  const day = "2026-09-26";
-  const days = gridDays("week", day);
+  const variant = fixture.calendar ?? "week";
+  const view = variant === "month" ? "month" : variant === "day" ? "day" : "week";
+  const day = variant === "day" ? TODAY : "2026-09-26";
+  const days = gridDays(view, day);
   const task = (n, fields) => ({
     kind: "case", key: "case:" + id("cccccccc", 40 + n), id: id("cccccccc", 40 + n), studentCaseId: id("dddddddd", 40 + n), taskType: "follow_up",
-    title: fields.title, details: null, dueOn: fields.dueOn ?? null, dueAt: fields.dueAt ?? null, day: fields.day, minutes: fields.minutes ?? null,
-    overdue: false, state: "open", cancelReason: null, person: fields.person, priority: "normal", studentVisible: false,
+    title: fields.title, details: null, dueOn: fields.dueOn ?? null, dueAt: fields.dueAt ?? null, day: fields.day ?? null, minutes: fields.minutes ?? null,
+    overdue: fields.overdue ?? false, state: fields.state ?? "open", cancelReason: null, person: fields.person, priority: "normal", studentVisible: false,
     assigneeMembershipId: ME, assigneeDisplayName: NAMES[ME], caseState: "active", version: "2",
   });
-  const tasks = [
+  const dated = [
     task(1, { title: "Записать на визу X1", person: "Мээрим Жолдошева", dueAt: "2026-09-24T08:30:00.000Z", day: "2026-09-24", minutes: 870 }),
     task(2, { title: "Собрать апостиль на аттестат", person: "Айдана Сыдыкова", dueOn: "2026-09-25", day: "2026-09-25" }),
+    task(3, { title: "Согласовать список программ", person: "Тимур Абдылдаев", dueAt: "2026-09-22T05:00:00.000Z", day: "2026-09-22", minutes: 660, overdue: true }),
   ];
+  const undated = [
+    task(4, { title: "Уточнить у семьи список документов", person: "Асель Бакирова" }),
+    task(5, { title: "Проверить перевод аттестата", person: "Данияр Мамытов" }),
+    task(6, { title: "Позвонить после консультации", person: "Камила Усенова", state: "done" }),
+  ];
+  const month = [
+    task(11, { title: "Подтвердить подачу в UCSI", person: "Тимур Абдылдаев", dueOn: "2026-09-03", day: "2026-09-03", state: "done" }),
+    ...["Перевести паспорт", "Заверить у нотариуса", "Отправить пакет партнёру", "Собрать справку об оплате"].map((title, index) =>
+      task(12 + index, { title, person: "Санжар Алиев", dueAt: "2026-09-15T0" + (3 + index) + ":00:00.000Z", day: "2026-09-15", minutes: 540 + index * 60 })),
+    ...dated,
+    task(20, { title: "Отправить документы в вуз", person: "Камила Усенова", dueOn: "2026-09-30", day: "2026-09-30" }),
+  ];
+  const tasks = variant === "week" ? [...dated, undated[0]]
+    : variant === "undated" ? undated
+    : variant === "month" ? month
+    : variant === "day" ? dated.filter((row) => row.day === TODAY)
+    : [];
   return h(PartShell, { title: "Календарь" }, h(Calendar, {
-    initialTaskKey: null, unavailableTarget: null, taskCapabilities: null, view: "week", day, today: TODAY, nowMinutes: 600,
-    days, tasks, readAccess: { caseTasks: true, staffTasks: true, tasks: true, applicationDeadlines: false }, undatedContinuationPage: false,
+    initialTaskKey: null, unavailableTarget: null, taskCapabilities: null, view, day, today: TODAY, nowMinutes: 600,
+    days, tasks, readAccess: { caseTasks: true, staffTasks: true, tasks: true }, undatedContinuationPage: false,
     undatedNextHref: null, undatedCursor: null,
     cases: STUDENTS.slice(0, 5).map((row) => ({ id: row.studentCaseId, name: row.studentDisplayName })), casesHaveMore: false,
     assignees: [], actorMembershipId: ME, actor: ACTOR, taskRequestIds: {}, basePath: "/v3/calendar",
@@ -337,6 +364,10 @@ const PAGES = {
   "students-plain": { page: "students", pathname: "/v3/profile", search: "view=active" },
   calendar: { pathname: "/v3/calendar", search: "view=week&date=2026-09-26" },
   "calendar-case-only": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", actor: "case" },
+  "calendar-empty": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", calendar: "empty" },
+  "calendar-undated": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", calendar: "undated" },
+  "calendar-month": { page: "calendar", pathname: "/v3/calendar", search: "view=month&date=2026-09-26", calendar: "month" },
+  "calendar-day": { page: "calendar", pathname: "/v3/calendar", search: "view=day&date=2026-09-24", calendar: "day" },
   case: { pathname: "/v3/profile", search: `case=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
 };
 
@@ -450,6 +481,16 @@ const SHOTS = [
     await page.locator("body").press("?");
     await page.waitForSelector("#queue-keyboard-help:popover-open");
   }],
+  // Э8.8 «Календарь»: неделя с задачами (и одной без срока), пустая неделя,
+  // только задачи без срока (список раскрыт), месяц и день. На телефоне
+  // неделя, месяц и день — список по дням; от 768 px — сетки.
+  ["e8-calendar-week", "calendar", async () => {}],
+  ["e8-calendar-empty", "calendar-empty", async () => {}],
+  ["e8-calendar-undated", "calendar-undated", async (page) => {
+    await page.getByRole("button", { name: /^Без срока/u }).click();
+  }],
+  ["e8-calendar-month", "calendar-month", async () => {}],
+  ["e8-calendar-day", "calendar-day", async () => {}],
 ];
 
 /** Проверки на каждом снимке: прокрутки вбок нет, текст не мельче 12 px, фокус — в открытом окне. */
@@ -487,8 +528,40 @@ function probe() {
     submitInView: submitBox ? submitBox.top >= 0 && submitBox.bottom <= innerHeight : null,
     dockGap: dock ? Math.round(floor - dock.getBoundingClientRect().bottom) : null,
     phoneBoxes: innerWidth < 640 ? [...document.querySelectorAll("[data-queue-select]")].filter(visible).length : null,
+    ...calendarFacts(visible),
     selected: document.querySelectorAll("[data-queue-select]:checked").length,
     calls: window.__e7.calls.length,
+  };
+}
+
+/**
+ * «Календарь» (Э8.8): цели нажатия меньше 44 px на листе календаря, все
+ * сплошные красные заливки (кнопки и ссылки — отдельно; «сегодня» — маленькая
+ * заливка), строка пустого периода, «Без срока», выбранный день и вид (сетка
+ * или список телефона). Функция уходит в браузер вместе с `probe`.
+ */
+function calendarFacts(visible) {
+  const root = document.querySelector("[data-calendar-root]");
+  if (!root || document.querySelector("dialog:modal")) return {};
+  const RED = "rgb(215, 2, 23)";
+  const targets = [...root.querySelectorAll("a, button, summary, select, input:not([type=hidden])")].filter(visible);
+  const small = targets.filter((element) => {
+    const box = element.getBoundingClientRect();
+    return box.height < 44 || box.width < 44;
+  }).map((element) => (element.textContent || element.getAttribute("aria-label") || element.tagName).replace(/\s+/gu, " ").trim().slice(0, 24));
+  const reds = [...document.querySelectorAll("*")].filter((element) => visible(element) && getComputedStyle(element).backgroundColor === RED);
+  const list = root.querySelector("[data-calendar-day-list]");
+  return {
+    calTargets: targets.length,
+    calSmallTargets: small.length ? small.join("|") : 0,
+    redFills: reds.length,
+    redActions: reds.filter((element) => element.matches("a, button")).length,
+    emptyLine: root.querySelector("[data-calendar-empty-period]")?.textContent ?? "-",
+    undated: [...root.querySelectorAll("section[aria-label='Задачи без срока'] button[aria-expanded]")].map((element) => element.textContent.trim())[0] ?? "-",
+    selectedDay: [...root.querySelectorAll("[data-calendar-selected-day]")].filter(visible).length,
+    createDay: root.querySelector("[data-calendar-create-day]")?.textContent ?? "-",
+    phoneList: list && visible(list) ? [...list.children].map((item) => item.firstElementChild?.textContent.replace(/\s+/gu, " ").trim().slice(0, 28)).join(" / ") : "-",
+    grid: [...root.querySelectorAll("[role=group][aria-label^='Сетка']")].some(visible),
   };
 }
 
@@ -500,7 +573,7 @@ async function screenshots() {
   await buildClientBundle(join(outDir, bundle));
   const css = await compileCss();
   for (const [name, config] of Object.entries(PAGES)) {
-    const fixture = JSON.stringify({ page: config.page ?? name, pathname: config.pathname, search: config.search, actor: config.actor ?? "admin" }).replaceAll("<", "\\u003c");
+    const fixture = JSON.stringify({ page: config.page ?? name, pathname: config.pathname, search: config.search, actor: config.actor ?? "admin", calendar: config.calendar ?? null }).replaceAll("<", "\\u003c");
     writeFileSync(join(outDir, `e7-${name}.html`), [
       "<!DOCTYPE html>",
       '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -535,13 +608,26 @@ async function screenshots() {
           failures.push(`${file}: step failed: ${error.message.split("\n")[0]}`);
         }
         await page.waitForTimeout(300);
-        const facts = await page.evaluate(probe);
+        const facts = await page.evaluate(`(${probe.toString().replace("...calendarFacts(visible),", `...(${calendarFacts.toString()})(visible),`)})()`);
         if (facts.overflow > 0) failures.push(`${file}: horizontal overflow ${facts.overflow}px`);
         if (facts.minText < 12) failures.push(`${file}: text smaller than 12px (${facts.minText}px)`);
         if (facts.focusInDialog === false) failures.push(`${file}: focus is outside the open dialog`);
         if (facts.submitInView === false) failures.push(`${file}: «Создать задачу» is outside the viewport`);
         if (facts.selectAll !== null && !/ · \d+$/u.test(facts.selectAll)) failures.push(`${file}: «Выбрать все» reads «${facts.selectAll}»`);
         if (shot === "e7-select-idle" && facts.phoneBoxes) failures.push(`${file}: ${facts.phoneBoxes} checkboxes before «Выбрать»`);
+        if (shot.startsWith("e8-calendar")) {
+          if (facts.calSmallTargets) failures.push(`${file}: calendar targets under 44px: ${facts.calSmallTargets}`);
+          if (facts.redActions > 1) failures.push(`${file}: ${facts.redActions} solid red actions`);
+          const phone = width === "390";
+          // Выбранный день отмечен в шапке недели, клетке месяца и строке списка; у дня и у телефона без задач со сроком отметки нет — день называет строка «Срок новой задачи».
+          const marks = shot === "e8-calendar-day" || (phone && ["e8-calendar-empty", "e8-calendar-undated"].includes(shot)) ? 0 : 1;
+          if (facts.selectedDay !== marks) failures.push(`${file}: selected day marks: ${facts.selectedDay}, expected ${marks}`);
+          if (phone === facts.grid) failures.push(`${file}: ${phone ? "phone shows the grid" : "desktop hides the grid"}`);
+          if (shot === "e8-calendar-empty" && facts.emptyLine !== "На этой неделе задач со сроком нет.") failures.push(`${file}: empty line «${facts.emptyLine}»`);
+          if (shot === "e8-calendar-undated" && (facts.emptyLine === "-" || facts.undated !== "Без срока — 2")) failures.push(`${file}: undated-only reads «${facts.emptyLine}» / «${facts.undated}»`);
+          if (shot === "e8-calendar-week" && (facts.emptyLine !== "-" || facts.undated !== "Без срока — 1")) failures.push(`${file}: dated week reads «${facts.emptyLine}» / «${facts.undated}»`);
+          if (shot === "e8-calendar-empty" && facts.undated !== "-") failures.push(`${file}: «Без срока» without open undated tasks`);
+        }
         const real = errors.filter((message) => !/server action .* is not available/u.test(message));
         if (real.length) failures.push(`${file}: browser errors: ${real.join(" | ")}`);
         await page.screenshot({ path: join(outDir, file), fullPage: false });

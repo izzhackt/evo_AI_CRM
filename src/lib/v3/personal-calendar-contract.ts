@@ -69,7 +69,7 @@ export function parsePersonalCalendarCursor(sortAt: unknown, taskKind: unknown, 
 export function personalCalendarAccess(actor: ActivePlatformActor) {
   const caseTasks = staffHasPermission(actor, "task.manage") && (!isStaffPreview(actor) || staffPresentationCan(actor, "admissions.read"));
   const staffTasks = staffHasPermission(actor, "staff.task.read");
-  return Object.freeze({ caseTasks, staffTasks, tasks: caseTasks || staffTasks, applicationDeadlines: false });
+  return Object.freeze({ caseTasks, staffTasks, tasks: caseTasks || staffTasks });
 }
 
 const COMMON_FIELDS = ["kind", "task_id", "organization_id", "version", "title", "details", "status", "priority", "due_on", "due_at", "sort_at", "assignee_membership_id", "assignee_display_name", "created_at", "updated_at"] as const;

@@ -22,11 +22,19 @@ export function calendarAccessNotice(access: CalendarReadAccess): string | null 
   return access.tasks ? null : "Нет доступа к личному списку задач.";
 }
 
-export function calendarEmptyPeriodLabel(access: CalendarReadAccess): string | null {
-  return access.tasks ? "На этот период вам не назначены задачи." : null;
-}
-
 export type CalendarView = "day" | "week" | "month";
+
+/**
+ * Строка пустого периода (Э8.8): говорит о задачах СО СРОКОМ в показанном
+ * периоде и не зависит от «Без срока» — прежде её прятала любая задача без
+ * срока, и пустая неделя стояла одиннадцатью пустыми часами без слов.
+ */
+export function calendarEmptyPeriodLabel(access: CalendarReadAccess, view: CalendarView): string | null {
+  if (!access.tasks) return null;
+  if (view === "day") return "В этот день задач со сроком нет.";
+  if (view === "month") return "В этом месяце задач со сроком нет.";
+  return "На этой неделе задач со сроком нет.";
+}
 
 /** Дата без времени, «2026-09-03». */
 export type Day = string;
@@ -73,23 +81,6 @@ export function calendarCapabilitiesForTask(
   return capabilities?.taskId === task.id && capabilities.studentCaseId === task.studentCaseId
     ? capabilities : null;
 }
-
-/**
- * An explicit all-day deadline from one canonical university application.
- * It is deliberately not a task: the calendar may link to the application,
- * but may not offer task completion, reassignment or deadline controls.
- */
-export type CalendarApplicationDeadline = Readonly<{
-  kind: "application_deadline";
-  deadlineKind: import("@/lib/platform-admissions-deadline-contract").AdmissionsDeadlineKind;
-  id: string;
-  studentCaseId: string;
-  studentDisplayName: string;
-  universityName: string;
-  programName: string;
-  status: "preparation" | "ready" | "submitted" | "under_review" | "offer" | null;
-  day: Day;
-}>;
 
 /**
  * Назначенная сотруднику задача из дела или рабочего раздела «Задачи».
@@ -151,15 +142,86 @@ export type CalendarStaffTask = CalendarTaskFields & Readonly<{
 export type CalendarTask = CalendarCaseTask | CalendarStaffTask;
 
 /**
- * Day/week grids share one all-day row between tasks without a time and
- * application deadlines. A deadline must keep that row visible even when the
- * selected period has no all-day task.
+ * Строка «весь день» у дня и недели есть, только когда в периоде есть задача
+ * со сроком без времени. Сроков подачи в вузы в календаре нет (решение
+ * владельца 28.09: они только в «Университетах»).
  */
-export function hasCalendarAllDayRow(
-  allDayTasks: readonly CalendarTask[],
-  deadlines: readonly CalendarApplicationDeadline[],
+export function hasCalendarAllDayRow(allDayTasks: readonly CalendarTask[]): boolean {
+  return allDayTasks.length > 0;
+}
+
+/** Открыта ли задача: выполненные и отменённые работой не считаются. */
+export function calendarTaskIsOpen(task: Pick<CalendarTask, "state">): boolean {
+  return task.state !== "done" && task.state !== "cancelled";
+}
+
+/**
+ * Дни, о которых говорит строка пустого периода: у месяца — дни самого
+ * месяца (хвосты соседних месяцев в сетке — чужие), у дня и недели — все
+ * клетки. Задача, открытая адресом из другого периода, сюда не входит.
+ */
+export function calendarPeriodDays(view: CalendarView, anchor: Day, days: readonly Day[]): readonly Day[] {
+  return view === "month" ? days.filter((day) => isSameMonth(day, anchor)) : days;
+}
+
+/** Есть ли в показанном периоде хоть одна задача со сроком. */
+export function calendarHasDatedTasks(
+  view: CalendarView,
+  anchor: Day,
+  days: readonly Day[],
+  tasks: readonly Pick<CalendarTask, "day">[],
 ): boolean {
-  return allDayTasks.length > 0 || deadlines.length > 0;
+  const period = new Set(calendarPeriodDays(view, anchor, days));
+  return tasks.some((task) => task.day !== null && period.has(task.day));
+}
+
+/** Задачи дня по порядку: сначала «весь день», затем по времени. */
+export function calendarTasksOfDay<T extends Pick<CalendarTask, "day" | "minutes">>(
+  tasks: readonly T[],
+  day: Day,
+): readonly T[] {
+  return tasks
+    .filter((task) => task.day === day)
+    .map((task, index) => ({ task, index }))
+    .sort((left, right) =>
+      (left.task.minutes ?? -1) - (right.task.minutes ?? -1) || left.index - right.index)
+    .map(({ task }) => task);
+}
+
+export type CalendarDayListEntry<T> =
+  | Readonly<{ kind: "day"; day: Day; tasks: readonly T[] }>
+  | Readonly<{ kind: "empty"; from: Day; to: Day }>;
+
+/**
+ * Телефон (<768 px, Э8.8): неделя и месяц — список по дням. День с задачами —
+ * своя группа; подряд идущие пустые дни сворачиваются в одну строку «с — по,
+ * задач нет». Сегодня и выбранный день (на него «Создать задачу» ставит срок)
+ * пустую полосу разрывают: их видно своей строкой.
+ */
+export function calendarDayList<T extends Pick<CalendarTask, "day" | "minutes">>(
+  days: readonly Day[],
+  tasks: readonly T[],
+  pinned: readonly Day[],
+): readonly CalendarDayListEntry<T>[] {
+  const entries: CalendarDayListEntry<T>[] = [];
+  let run: { from: Day; to: Day } | null = null;
+  const flush = () => {
+    if (run) entries.push(Object.freeze({ kind: "empty", ...run }));
+    run = null;
+  };
+  for (const day of days) {
+    const dayTasks = calendarTasksOfDay(tasks, day);
+    if (dayTasks.length > 0 || pinned.includes(day)) {
+      flush();
+      entries.push(Object.freeze({ kind: "day", day, tasks: dayTasks }));
+    } else if (run) {
+      run.to = day;
+    } else {
+      run = { from: day, to: day };
+    }
+  }
+  flush();
+  return Object.freeze(entries);
 }
 
 export type CalendarTaskDeadlineInputDefaults = Readonly<{
@@ -369,6 +431,11 @@ export function stepDay(view: CalendarView, day: Day, direction: 1 | -1): Day {
 
 export function timeLabel(minutes: number): string {
   return `${Math.floor(minutes / 60)}:${pad(minutes % 60)}`;
+}
+
+/** «09:30» — время срока в календаре, «ЧЧ:ММ» по Бишкеку (DESIGN.md). */
+export function clockLabel(minutes: number): string {
+  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
 
 /** «5 задач», «2 задачи», «1 задача» — для текста читалке. */

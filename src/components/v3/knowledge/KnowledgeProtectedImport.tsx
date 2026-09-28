@@ -4,12 +4,14 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { KNOWLEDGE_SHA256, KNOWLEDGE_UUID, type KnowledgeItem } from "@/lib/knowledge-library-contract";
 import { command, knowledgeFetch, knowledgeSourceKey } from "./client";
-import styles from "./KnowledgeLibrary.module.css";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
+import { KB_ERROR, KB_FILE, KB_LABEL } from "./knowledge-look";
 type Entry = { id: string; kind: "file" | "record"; file: string; folders: string[]; cipherSha256: string; cipherBytes: number };
 type Plan = { version: 1; format: "evo-protected-import-v1"; entries: Entry[] };
-export function KnowledgeProtectedImport({ onChanged }: { onChanged: () => void }) {
+export function KnowledgeProtectedImport({ onChanged, onRunningChange }: { onChanged: () => void; onRunningChange?: (running: boolean) => void }) {
   const [files, setFiles] = useState<Map<string, File>>(new Map()); const [plan, setPlan] = useState<Plan | null>(null);
-  const [busy, setBusy] = useState(false); const [status, setStatus] = useState(""); const [error, setError] = useState("");
+  const [busy, setBusyState] = useState(false); const [status, setStatus] = useState(""); const [error, setError] = useState("");
+  function setBusy(value: boolean) { setBusyState(value); onRunningChange?.(value); }
   const stop = useRef(false); const folders = useRef(new Map<string, string>());
   async function choose(selected: File[]) {
     setError(""); setPlan(null); setStatus("");
@@ -52,11 +54,13 @@ export function KnowledgeProtectedImport({ onChanged }: { onChanged: () => void 
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Защищённый перенос не выполнен."); }
     finally { setBusy(false); onChanged(); }
   }
-  return <details className={styles.importPanel}><summary>Защищённые источники и доступы</summary><div className={styles.importBody}>
-    <p>Выберите подготовленную папку с зашифрованными источниками. Ключ в CRM не загружается.</p>
-    <label>Папка защищённого переноса<input type="file" multiple {...{ webkitdirectory: "" }} disabled={busy} onChange={(event) => void choose(Array.from(event.target.files ?? []))} /></label>
-    {plan && <p>Источников: {plan.entries.filter((e) => e.kind === "file").length}. Записей доступа: {plan.entries.filter((e) => e.kind === "record").length}.</p>}
-    <div className={styles.actions}><button type="button" disabled={busy || !plan} onClick={() => void run()}>Начать / продолжить</button>{busy && <button type="button" onClick={() => { stop.current = true; }}>Остановить после записи</button>}</div>
-    {status && <p role="status">{status}</p>}{error && <p role="alert" className={styles.error}>{error}</p>}
-  </div></details>;
+  // Часть окна «Перенос локальной базы»: отдельный шаг под своим заголовком, без сворачиваемой строки.
+  return <section aria-labelledby="knowledge-protected-import" className="space-y-3 border-t border-border pt-4">
+    <h3 id="knowledge-protected-import" className="t-item">Защищённые источники и доступы</h3>
+    <p className="t-body-compact text-fg-2">Выберите подготовленную папку с зашифрованными источниками. Ключ в CRM не загружается.</p>
+    <label className={KB_LABEL}>Папка защищённого переноса<input type="file" multiple {...{ webkitdirectory: "" }} disabled={busy} className={KB_FILE} onChange={(event) => void choose(Array.from(event.target.files ?? []))} /></label>
+    {plan && <p className="t-body-compact text-fg-2">Источников: {plan.entries.filter((e) => e.kind === "file").length}. Записей доступа: {plan.entries.filter((e) => e.kind === "record").length}.</p>}
+    <div className="flex flex-wrap gap-2"><button type="button" className={QUEUE_CONFIRM} disabled={busy || !plan} onClick={() => void run()}>Начать / продолжить</button>{busy && <button type="button" className={QUEUE_SECONDARY} onClick={() => { stop.current = true; }}>Остановить после записи</button>}</div>
+    {status && <p role="status" className="t-body-compact text-fg-2">{status}</p>}{error && <p role="alert" className={KB_ERROR}>{error}</p>}
+  </section>;
 }

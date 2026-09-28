@@ -62,7 +62,7 @@ import { readCaseClosure, readClosedLeads, type CaseClosure, type ClosedLeadRow 
 import { closureWords } from "@/lib/v3/wording";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
-import { readDocsPackages, readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
+import { readDocsPackages, readDocsProgramDocuments, readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
 
 export const dynamic = "force-dynamic";
 
@@ -189,7 +189,7 @@ async function studentsQueuePage(
   curatorsRead: Promise<readonly StudentPortalCuratorOption[]>,
 ) {
   const params = parse.params;
-  const [reads, curators, packages] = await Promise.all([
+  const [reads, curators, packages, program] = await Promise.all([
     parse.kind === "invalid" ? null : Promise.all([
       readStudentsQueue(actor, params),
       params.open ? readStudentsOpenTasks(actor, params.open) : Promise.resolve(null),
@@ -202,6 +202,8 @@ async function studentsQueuePage(
     curatorsRead,
     // EVO Docs, вкладка «Комплекты» и её число (Э3): очередь «Комплекты на проверку».
     params.mode === "docs" ? readDocsPackages(actor) : Promise.resolve(undefined),
+    // EVO Docs, вкладка «Документы программ» и её число (Э8.5): очередь документов программ.
+    params.mode === "docs" ? readDocsProgramDocuments(actor) : Promise.resolve(undefined),
   ]);
   const editor = nextStepEditor(actor);
   return buildStudentsQueueScreen({
@@ -214,6 +216,12 @@ async function studentsQueuePage(
     handoff: reads?.[3] ?? null,
     closure: previewClosure(actor, reads?.[4] ?? null),
     packages,
+    program,
+    // Решение в строке «Документов программ» — то же условие, что у прежней очереди доски.
+    documentReview: params.mode === "docs" ? {
+      owner: { organizationId: actor.organizationId, membershipId: actor.membershipId },
+      canReview: !isStaffPreview(actor) && staffHasPermission(actor, "document.review"),
+    } : undefined,
     today: dayInOrganizationTimezone(new Date()),
     curatorNames: curators.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
     editor: editor.input,

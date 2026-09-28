@@ -395,6 +395,7 @@ test("the browser tab names the sidebar item that the same address highlights", 
     ["/v3/profile?case=record&tab=anketa&section=docs", "EVO Docs"],
     ["/v3/profile?section=summary&period=month", "Студенты"],
     ["/v3/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b", "Университеты"],
+    // The former board subpages redirect to EVO Docs; the address itself still names the board.
     ["/v3/admissions-pipeline?view=documents", "Воронка поступления"],
     // 27.09.2026: each conversation page highlights its own item and names its own tab.
     ["/v3/inbox", "WhatsApp"],
@@ -447,7 +448,8 @@ test("each sidebar destination opens under a heading with the same words", () =>
     ["inbox", `${V3}/inbox/page.tsx`, true], ["inbox", `${V3}/inbox/loading.tsx`, true],
     ["pipeline", `${V3}/pipeline/page.tsx`, true], ["pipeline", `${V3}/pipeline/loading.tsx`, true],
     ["sales-report", "src/components/v3/SalesRegisterView.tsx", false],
-    ["admissions-pipeline", `${V3}/admissions-pipeline/page.tsx`, false],
+    // Э8.5 (28.09): the board's review subpages are EVO Docs tabs — one heading again.
+    ["admissions-pipeline", `${V3}/admissions-pipeline/page.tsx`, true],
     ["messages", `${V3}/messages/page.tsx`, true],
     ["admissions-worklist", `${V3}/profile/page.tsx`, false], ["admissions-worklist", `${V3}/profile/loading.tsx`, true],
     ["evo-docs", `${V3}/profile/page.tsx`, false],
@@ -473,5 +475,6 @@ test("each sidebar destination opens under a heading with the same words", () =>
   // «Сегодня | Отчёт продаж» tabs are gone (Э3, 26.09.2026): the report keeps its own menu item.
   assert.equal(existsSync(new URL("../src/components/v3/SalesReportNavigation.tsx", import.meta.url)), false);
   assert.doesNotMatch(source("src/components/v3/SalesRegisterView.tsx"), /SalesReportNavigation|Раздел главной/u);
-  assert.match(source(`${V3}/admissions-pipeline/page.tsx`), />Воронка поступления<\/Link>/u);
+  // Э8.5 (28.09): no «Разделы поступления» nav and no subpage titles on the board page.
+  assert.doesNotMatch(source(`${V3}/admissions-pipeline/page.tsx`), /Разделы поступления|title="(?:Документы|Комплекты) на проверку"/u);
 });

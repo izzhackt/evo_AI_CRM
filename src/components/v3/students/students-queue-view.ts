@@ -29,9 +29,10 @@ import {
   type StudentCaseQueueView,
 } from "../../../lib/platform-student-case-queue-contract.ts";
 import type { HandoffAcknowledgement } from "../../../lib/platform-handoff-acknowledgement.ts";
-import type { ApplicationDocumentCursor } from "../../../lib/portal/application-documents.ts";
-import type { ApplicationPackageQueue } from "../../../lib/portal/application-packages.ts";
+import type { ApplicationDocumentCursor, ApplicationDocumentQueueItem } from "../../../lib/portal/application-documents.ts";
+import type { ApplicationPackageQueueItem } from "../../../lib/portal/application-packages.ts";
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
+import { dayDelta } from "../calendar/types.ts";
 import { dueBucket, formatQueueDay, queueDayWithWeekday, weekEnd } from "../queue/due-bucket.ts";
 import { shortPersonName } from "../queue/person-name.ts";
 
@@ -41,12 +42,16 @@ export const STUDENTS_PATH = "/v3/profile";
 export const STUDENTS_QUEUE_VIEWS = ["mine", "needs_action", "active", "pending", "needs_curator", "closed", "curators"] as const;
 export type StudentsQueueView = (typeof STUDENTS_QUEUE_VIEWS)[number];
 /**
- * Вкладки EVO Docs: одна очередь проверки (Э3, 27.09.2026). «На проверку»,
+ * Вкладки EVO Docs — один центр проверки документов (Э8.5, 28.09.2026).
+ * «Документы дела» (ключ адреса `review` — прежние ссылки работают),
  * «Исправить» и «Не хватает» отбирают дела по счётчикам чек-листа строки 241;
- * «Комплекты» — отдельное чтение очереди «Комплекты на проверку» (232).
+ * «Документы программ» — очередь документов требований программ (228),
+ * «Комплекты» — очередь «Комплекты на проверку» (232); «Все» — последней.
  */
-export const STUDENTS_DOCS_VIEWS = ["review", "fix", "missing", "packages", "all"] as const;
+export const STUDENTS_DOCS_VIEWS = ["review", "program", "packages", "fix", "missing", "all"] as const;
 export type StudentsDocsView = (typeof STUDENTS_DOCS_VIEWS)[number];
+/** Вкладки-работа EVO Docs в порядке ряда: из них выбирается вкладка по умолчанию и следующая непустая. */
+export const STUDENTS_DOCS_WORK_VIEWS = ["review", "program", "packages", "fix", "missing"] as const satisfies readonly StudentsDocsView[];
 
 /**
  * Виды назначения кураторов: «Ждут куратора» и «Нагрузка кураторов». Их видит
@@ -65,10 +70,11 @@ export const STUDENTS_VIEW_LABELS: Readonly<Record<StudentsQueueView, string>> =
   curators: "Нагрузка кураторов",
 };
 export const STUDENTS_DOCS_VIEW_LABELS: Readonly<Record<StudentsDocsView, string>> = {
-  review: "На проверку",
+  review: "Документы дела",
+  program: "Документы программ",
+  packages: "Комплекты",
   fix: "Исправить",
   missing: "Не хватает",
-  packages: "Комплекты",
   all: "Все",
 };
 
@@ -86,6 +92,12 @@ export type StudentsQueueParams = Readonly<{
   view: StudentsQueueView | StudentsDocsView;
   /** Вид, который открывается без `view` в адресе (зависит от роли). */
   defaultView: StudentsQueueView | StudentsDocsView;
+  /**
+   * EVO Docs без `view` в адресе: экран после чтений откроет первую вкладку с
+   * известным числом больше нуля, а с поиском или фильтром — «Документы дела»
+   * (`docsInitialView`); а пока вид — `defaultView`.
+   */
+  autoView: boolean;
   query: string | null;
   direction: StudentCaseQueueDirectionFilter | null;
   curator: string | null;
@@ -178,7 +190,7 @@ export function parseStudentsQueueParams(
 ): StudentsQueueParse {
   const defaultView = studentsDefaultView(mode, actor);
   const fallback: StudentsQueueParams = Object.freeze({
-    mode, view: defaultView, defaultView, query: null, direction: null, curator: null, stage: null,
+    mode, view: defaultView, defaultView, autoView: mode === "docs", query: null, direction: null, curator: null, stage: null,
     sort: mode === "docs" ? "updated" : "due", cursor: null, open: null, coverage: Object.freeze({}) as StudentsQueueParams["coverage"],
   });
   try {
@@ -215,7 +227,7 @@ export function parseStudentsQueueParams(
     const coverage = Object.freeze(Object.fromEntries(resolvedView === "curators" ? coverageEntries : [])) as StudentsQueueParams["coverage"];
 
     const params: StudentsQueueParams = Object.freeze({
-      mode, view: resolvedView, defaultView, query, direction: directionValue as StudentCaseQueueDirectionFilter | null,
+      mode, view: resolvedView, defaultView, autoView: mode === "docs" && view === null, query, direction: directionValue as StudentCaseQueueDirectionFilter | null,
       // В «Нагрузке кураторов» прежний `curator` был только синхронизацией фасета с замещением.
       curator: resolvedView === "curators" && curator !== null && curator === coverage.coverage_curator ? null : curator,
       stage: stageValue as AdmissionsPipelineStage | null, sort, cursor, open, coverage,
@@ -250,14 +262,18 @@ type HrefOverrides = Partial<{
 /**
  * Адрес очереди: порядок ключей постоянный, значения по умолчанию (вид по
  * роли, сортировка по сроку) не пишутся. `overrides` с `null` убирает ключ.
+ * EVO Docs пишет вид всегда: вкладка по умолчанию зависит от чисел, поэтому
+ * адрес без `view` означает «первая непустая», а не «Документы дела». Без
+ * `view` остаётся только адрес, где вид и не выбирали (`autoView`).
  */
 export function studentsQueueHref(params: StudentsQueueParams, overrides: HrefOverrides = {}): string {
   const value = <K extends keyof HrefOverrides>(key: K): StudentsQueueParams[K] | null =>
     Object.hasOwn(overrides, key) ? (overrides[key] ?? null) as StudentsQueueParams[K] | null : params[key];
   const query = new URLSearchParams();
   if (params.mode === "docs") query.set("section", "docs");
+  const chosen = Object.hasOwn(overrides, "view") ? overrides.view ?? null : params.autoView ? null : params.view;
   const view = value("view") ?? params.defaultView;
-  if (view !== params.defaultView) query.set("view", view);
+  if (params.mode === "docs" ? chosen !== null : view !== params.defaultView) query.set("view", view);
   const text = value("query");
   if (text) query.set("q", text);
   const direction = value("direction");
@@ -367,25 +383,79 @@ export function studentsQueueTabs(
     }));
 }
 
+/** Какие очереди документов учётная запись читает: без чтения своей вкладки нет. */
+export type DocsQueuesShown = Readonly<{ program: boolean; packages: boolean }>;
+
+/** Вкладка EVO Docs есть в ряду: очереди программ и комплектов — только тем, кто их читает (или если адрес их назвал). */
+function docsTabShown(view: StudentsDocsView, shown: DocsQueuesShown, current: StudentsQueueParams["view"] | null = null): boolean {
+  if (view === "program") return shown.program || current === "program";
+  if (view === "packages") return shown.packages || current === "packages";
+  return true;
+}
+
 /**
- * Вкладки EVO Docs: число «Все» — из чтения чисел; вкладки проверки — только
- * при полном чтении страницы; «Комплекты» — только при полном чтении своей
- * очереди. `packages: false` — вкладки «Комплекты» нет: очередь комплектов
- * этой учётной записи не читается (нет `document.read.full` или просмотр
- * роли), как ссылка на неё в шапке доски поступления.
+ * Вкладки EVO Docs: число «Все» — из чтения чисел; вкладки дел — только при
+ * полном чтении страницы; «Документы программ» и «Комплекты» — только при
+ * полном чтении своей очереди. Вкладок очередей программ и комплектов нет у
+ * того, кто их не читает (нет `document.read.full` или просмотр роли), — как
+ * ссылок на них в шапке доски поступления.
  */
 export function studentsDocsTabs(
   params: StudentsQueueParams,
   counts: Readonly<Record<StudentsDocsView, number | null>>,
-  options: Readonly<{ packages: boolean }> = { packages: true },
+  shown: DocsQueuesShown = { program: true, packages: true },
 ): readonly StudentsTab[] {
-  return STUDENTS_DOCS_VIEWS.filter((view) => view !== "packages" || options.packages || params.view === "packages").map((view) => ({
+  return STUDENTS_DOCS_VIEWS.filter((view) => docsTabShown(view, shown, params.view)).map((view) => ({
     key: view,
     label: STUDENTS_DOCS_VIEW_LABELS[view],
     href: studentsListHref(params, { view }),
     count: counts[view],
     current: params.view === view,
   }));
+}
+
+/**
+ * Вкладка EVO Docs без `view` в адресе: первая вкладка-работа с известным
+ * числом больше нуля. Неизвестные числа (неполное чтение, сбой) не
+ * угадываются — тогда «Документы дела». «Все» — не работа и сама не выбирается.
+ */
+export function docsAutoView(counts: Readonly<Record<StudentsDocsView, number | null>>, shown: DocsQueuesShown): StudentsDocsView {
+  return STUDENTS_DOCS_WORK_VIEWS.find((view) => docsTabShown(view, shown) && (counts[view] ?? 0) > 0) ?? "review";
+}
+
+/**
+ * Вкладка, которую EVO Docs открывает по адресу без `view`: без поиска и
+ * фильтров — первая вкладка-работа (`docsAutoView`); с поиском, направлением
+ * или куратором — «Документы дела». Числа очередей программ и комплектов
+ * поиск и фильтры дел не сужают, и поиск не уводит на очередь, где его нет.
+ */
+export function docsInitialView(
+  params: StudentsQueueParams,
+  counts: Readonly<Record<StudentsDocsView, number | null>>,
+  shown: DocsQueuesShown,
+): StudentsDocsView {
+  if (params.query || params.direction || params.curator) return "review";
+  return docsAutoView(counts, shown);
+}
+
+/**
+ * Пустая вкладка называет следующую непустую — по кругу ряда вкладок-работы,
+ * только с известным числом больше нуля. null — непустых вкладок нет.
+ */
+export function docsNextNonEmpty(
+  current: StudentsDocsView,
+  counts: Readonly<Record<StudentsDocsView, number | null>>,
+  shown: DocsQueuesShown,
+): Readonly<{ view: StudentsDocsView; label: string; count: number }> | null {
+  const order: readonly StudentsDocsView[] = STUDENTS_DOCS_WORK_VIEWS;
+  // «Все» не в ряду работы: с неё поиск начинается с первой вкладки.
+  const start = order.indexOf(current);
+  for (let step = 1; step <= order.length; step += 1) {
+    const view = order[(start + step) % order.length];
+    const count = counts[view];
+    if (view !== current && docsTabShown(view, shown) && count !== null && count > 0) return { view, label: STUDENTS_DOCS_VIEW_LABELS[view], count };
+  }
+  return null;
 }
 
 /**
@@ -397,86 +467,96 @@ export function studentsDocsTabs(
  */
 export function docsRowMatches(view: StudentsDocsView, row: Pick<StudentCaseQueueRow, "documents">): boolean {
   if (view === "all") return true;
-  if (view === "packages") return false;
+  if (view === "packages" || view === "program") return false;
   const documents = row.documents;
   if (documents === null) return false;
   if (view === "missing") return documents.missing > 0;
   return view === "review" ? documents.submitted > 0 : documents.correctionRequired + documents.rejected > 0;
 }
 
-/**
- * Числа вкладок EVO Docs. Вкладки проверки считаются по прочитанным строкам,
- * поэтому число есть только у полного чтения (первая страница без
- * продолжения); «Все» — число вида «Все в работе» из чтения чисел.
- */
-/** Документы прочитаны хотя бы у одного дела (или дел нет): без права на документы вкладкам проверки нечего считать. */
+/** Документы прочитаны хотя бы у одного дела (или дел нет): без права на документы вкладкам дел нечего считать. */
 export function docsReadable(rows: readonly Pick<StudentCaseQueueRow, "documents">[]): boolean {
   return rows.length === 0 || rows.some((row) => row.documents !== null);
 }
 
+/**
+ * Числа вкладок EVO Docs. Вкладки дел считаются по прочитанным строкам,
+ * поэтому число есть только у полного чтения (первая страница без
+ * продолжения); «Документы программ» и «Комплекты» — только у своей очереди,
+ * прочитанной целиком; «Все» — число вида «Все в работе» из чтения чисел.
+ */
 export function docsTabCounts(
   rows: readonly Pick<StudentCaseQueueRow, "documents">[],
   complete: boolean,
   counts: StudentCaseQueueCounts | null,
   packages: DocsPackagesRead = { kind: "hidden" },
+  program: DocsProgramRead = { kind: "hidden" },
 ): Readonly<Record<StudentsDocsView, number | null>> {
   // Число «0» без прочитанных документов было бы неправдой: неизвестно — null.
   const known = complete && docsReadable(rows);
   return {
     review: known ? rows.filter((row) => docsRowMatches("review", row)).length : null,
+    program: docsQueueCount(program),
+    packages: docsQueueCount(packages),
     fix: known ? rows.filter((row) => docsRowMatches("fix", row)).length : null,
     missing: known ? rows.filter((row) => docsRowMatches("missing", row)).length : null,
-    packages: docsPackagesCount(packages),
     all: counts ? counts.views.active : complete ? rows.length : null,
   };
 }
 
 /**
- * Очередь «Комплекты на проверку» для вкладки EVO Docs — то же чтение, что у
- * шапки доски поступления (`application_package_queue_v1`, до
- * `DOCS_PACKAGE_READ_PAGES` страниц по 20). `hidden` — учётная запись эту
- * очередь не читает (нет `document.read.full` или просмотр роли): вкладки
- * нет; `denied` — сервер отказал; `error` — сбой. У `ready` `nextCursor` не
- * null — очередь прочитана не вся.
+ * Очередь документов для вкладки EVO Docs: «Документы программ»
+ * (`staff_application_document_submission_queue_v1`) или «Комплекты»
+ * (`application_package_queue_v1`) — до `DOCS_QUEUE_READ_PAGES` страниц по
+ * 20, новые сверху. `hidden` — учётная запись эту очередь не читает (нет
+ * `document.read.full` или просмотр роли): вкладки нет; `denied` — сервер
+ * отказал; `error` — сбой. У `ready` `nextCursor` не null — очередь
+ * прочитана не вся.
  */
-export type DocsPackagesRead =
+export type DocsQueueRead<Item> =
   | Readonly<{ kind: "hidden" }>
-  | Readonly<{ kind: "ready"; queue: Pick<ApplicationPackageQueue, "items" | "nextCursor"> }>
+  | Readonly<{ kind: "ready"; queue: Readonly<{ items: readonly Item[]; nextCursor: ApplicationDocumentCursor | null }> }>
   | Readonly<{ kind: "denied" }>
   | Readonly<{ kind: "error" }>;
+export type DocsPackagesRead = DocsQueueRead<ApplicationPackageQueueItem>;
+export type DocsProgramRead = DocsQueueRead<ApplicationDocumentQueueItem>;
 
-/** Число вкладки «Комплекты» — только когда очередь прочитана целиком (последняя страница без продолжения). */
-export function docsPackagesCount(packages: DocsPackagesRead): number | null {
-  return packages.kind === "ready" && packages.queue.nextCursor === null ? packages.queue.items.length : null;
+/** Число вкладки очереди — только когда очередь прочитана целиком (последняя страница без продолжения). */
+export function docsQueueCount(read: DocsQueueRead<unknown>): number | null {
+  return read.kind === "ready" && read.queue.nextCursor === null ? read.queue.items.length : null;
 }
+export const docsPackagesCount = docsQueueCount;
 
 /**
- * Сколько страниц очереди комплектов (по 20, новые сверху) читает вкладка —
- * как у чтений «Сегодня» (3 страницы): дольше всех ждущие комплекты и число
- * вкладки видны чаще. Дальше — без числа, со ссылкой на всю очередь доски.
+ * Сколько страниц очереди (по 20, новые сверху) читает вкладка — как у чтений
+ * «Сегодня» (3 страницы): число вкладки и порядок «сначала дольше всех
+ * ждущие» есть, пока очередь не длиннее 60.
  */
-export const DOCS_PACKAGE_READ_PAGES = 3;
+export const DOCS_QUEUE_READ_PAGES = 3;
+export const DOCS_PACKAGE_READ_PAGES = DOCS_QUEUE_READ_PAGES;
 
-/** Страница очереди комплектов: ответ `readStaffApplicationPackageQueueAction`. */
-export type DocsPackagesPage =
-  | Readonly<{ ok: true; queue: Pick<ApplicationPackageQueue, "items" | "nextCursor"> }>
+/** Страница очереди: ответ действия чтения, приведённый к `queue`. */
+export type DocsQueuePage<Item> =
+  | Readonly<{ ok: true; queue: Readonly<{ items: readonly Item[]; nextCursor: ApplicationDocumentCursor | null }> }>
   | Readonly<{ ok: false; reason: string }>;
+export type DocsPackagesPage = DocsQueuePage<ApplicationPackageQueueItem>;
 
 /**
- * Чтение вкладки «Комплекты»: страницы очереди подряд, пока есть
- * продолжение, но не больше `pages`. Отказ или сбой первой страницы — своё
- * состояние; сбой следующей — прочитанная часть без числа (продолжение
- * остаётся, строка ведёт на доску). Один комплект дважды не показывается.
+ * Чтение вкладки очереди: страницы подряд, пока есть продолжение, но не
+ * больше `pages`. Отказ или сбой первой страницы — своё состояние; сбой
+ * следующей — прочитанная часть без числа (продолжение остаётся). Одна
+ * запись (`idOf`) дважды не показывается.
  */
-export async function readDocsPackagePages(
-  readPage: (cursor: ApplicationDocumentCursor | null) => Promise<DocsPackagesPage>,
-  pages: number = DOCS_PACKAGE_READ_PAGES,
-): Promise<DocsPackagesRead> {
-  const items: ApplicationPackageQueue["items"][number][] = [];
+export async function readDocsQueuePages<Item>(
+  readPage: (cursor: ApplicationDocumentCursor | null) => Promise<DocsQueuePage<Item>>,
+  idOf: (item: Item) => string,
+  pages: number = DOCS_QUEUE_READ_PAGES,
+): Promise<DocsQueueRead<Item>> {
+  const items: Item[] = [];
   const seen = new Set<string>();
   let cursor: ApplicationDocumentCursor | null = null;
   for (let index = 0; index < pages; index += 1) {
-    let page: DocsPackagesPage;
+    let page: DocsQueuePage<Item>;
     try {
       page = await readPage(cursor);
     } catch {
@@ -487,14 +567,77 @@ export async function readDocsPackagePages(
       break;
     }
     for (const item of page.queue.items) {
-      if (seen.has(item.package.packageId)) continue;
-      seen.add(item.package.packageId);
+      if (seen.has(idOf(item))) continue;
+      seen.add(idOf(item));
       items.push(item);
     }
     cursor = page.queue.nextCursor;
     if (cursor === null) break;
   }
   return Object.freeze({ kind: "ready", queue: Object.freeze({ items: Object.freeze(items), nextCursor: cursor }) });
+}
+
+/** «Комплекты»: страницы `readStaffApplicationPackageQueueAction`, комплект — по `packageId`. */
+export function readDocsPackagePages(
+  readPage: (cursor: ApplicationDocumentCursor | null) => Promise<DocsPackagesPage>,
+  pages: number = DOCS_QUEUE_READ_PAGES,
+): Promise<DocsPackagesRead> {
+  return readDocsQueuePages(readPage, (item) => item.package.packageId, pages);
+}
+
+/** «Документы программ»: страницы `readStaffApplicationDocumentSubmissionQueueAction`, документ — по `submissionId`. */
+export function readDocsProgramPages(
+  readPage: (cursor: ApplicationDocumentCursor | null) => Promise<DocsQueuePage<ApplicationDocumentQueueItem>>,
+  pages: number = DOCS_QUEUE_READ_PAGES,
+): Promise<DocsProgramRead> {
+  return readDocsQueuePages(readPage, (item) => item.submission.submissionId, pages);
+}
+
+// --- Ожидание проверки ----------------------------------------------------
+
+/** С какого дня ожидания слово — предупреждение (`text-warn`): два дня и дольше. */
+export const DOCS_WAIT_WARN_DAYS = 2;
+
+export type DocsWaiting = Readonly<{
+  /** Момент загрузки для `<time dateTime>`. */
+  dateTime: string;
+  /** День загрузки по Бишкеку: «25.09» (год — только не текущий). */
+  day: string;
+  /** «сегодня» или «ждёт 3 дн». */
+  word: string;
+  warn: boolean;
+}>;
+
+/**
+ * Сколько ждёт проверки — от последней загрузки до сегодняшнего дня
+ * Бишкека, днями (как «ждёт N дн» у переписки): загружено сегодня —
+ * «сегодня», раньше — «ждёт N дн», с двух дней — предупреждением. Нет
+ * времени — нет слова.
+ */
+export function docsWaiting(uploadedAt: string | null | undefined, today: string): DocsWaiting | null {
+  if (!uploadedAt) return null;
+  const moment = new Date(uploadedAt);
+  if (!Number.isFinite(moment.getTime())) return null;
+  const day = dayInOrganizationTimezone(moment);
+  const days = Math.max(0, dayDelta(day, today));
+  return { dateTime: uploadedAt, day: formatQueueDay(day, today), word: days === 0 ? "сегодня" : `ждёт${NBSP}${days}${NBSP}дн`, warn: days >= DOCS_WAIT_WARN_DAYS };
+}
+
+/**
+ * Порядок строк очереди документов: «сначала дольше всех ждущие» — только
+ * когда прочитано всё (иначе самые давние могли не попасть в прочитанную
+ * часть, и порядок сервера остаётся — об этом говорит строка над таблицей).
+ * Строка без времени ожидания оставляет порядок сервера целиком.
+ */
+export function docsOldestFirst<Item>(
+  items: readonly Item[],
+  uploadedAt: (item: Item) => string | null | undefined,
+  idOf: (item: Item) => string,
+  complete: boolean,
+): Readonly<{ items: readonly Item[]; oldestFirst: boolean }> {
+  if (!complete || items.some((item) => !uploadedAt(item) || !Number.isFinite(Date.parse(uploadedAt(item)!)))) return { items, oldestFirst: false };
+  const sorted = [...items].sort((a, b) => Date.parse(uploadedAt(a)!) - Date.parse(uploadedAt(b)!) || (idOf(a) < idOf(b) ? -1 : idOf(a) > idOf(b) ? 1 : 0));
+  return { items: sorted, oldestFirst: true };
 }
 
 // --- Сроки ---------------------------------------------------------------
@@ -679,7 +822,7 @@ export function studentsDocumentsLine(documents: StudentCaseChecklistCounts | nu
 
 /**
  * Ячейка «Документы» EVO Docs: первым — число, которое определяет вкладку
- * («2 на проверке» на «На проверку», «1 исправить · 1 отклонён» на
+ * («2 на проверке» на «Документах дела», «1 исправить · 1 отклонён» на
  * «Исправить», «3 не загружено» на «Не хватает»), затем остальное тише. На
  * «Все» первым идёт «7 из 12 принято».
  * null — нет права читать документы.

@@ -75,7 +75,8 @@ test("directory filters reset native form state when applied URL filters change"
   assert.match(toolbar, /Object\.entries\(search\.hidden\)\.map\(\(\[name, value\]\) => value \? <input key=\{name\} type="hidden" name=\{name\} value=\{value\} \/> : null\)/u);
   assert.match(toolbar, /\{resetHref \? \([\s\S]*Сбросить[\s\S]*\) : null\}/u);
   const students = read("src/components/v3/students/StudentsQueueHead.tsx");
-  assert.match(students, /section: params\.mode === "docs" \? "docs" : null,\s*view: params\.view !== params\.defaultView \? params\.view : null,/u);
+  // EVO Docs always keeps its tab: an address without a view there means «first non-empty tab».
+  assert.match(students, /section: params\.mode === "docs" \? "docs" : null,\s*(?:\/\/[^\n]*\n\s*)?view: params\.mode === "docs" \|\| params\.view !== params\.defaultView \? params\.view : null,/u);
   assert.match(students, /resetHref=\{active \? studentsListHref\(params, \{ query: null, direction: null, curator: null, stage: null, sort: null \}\) : null\}/u);
   // The Sales list keeps the 078 parameters and the chosen section.
   const fallback = read("src/components/v3/students/StudentsDirectoryFallback.tsx");
@@ -116,7 +117,8 @@ test("solid red stays for the main action and every selection shares one accent-
     // surface-2 (tests/v3-e7-side-panel.test.mjs), not this tab/segment style.
     "src/components/v3/board/Board.tsx",
     "src/components/v3/board/BoardToolbar.tsx",
-    "src/app/(v3)/v3/admissions-pipeline/page.tsx",
+    // Э8.5 (28.09): the admissions board has no «Разделы поступления» choice any
+    // more — its review queues are EVO Docs tabs (QueueViewTabs below).
     // «Задачи» (25.09.2026): вкладки, фильтры и срок в диалоге — примитивы очереди.
     "src/components/v3/queue/QueueViewTabs.tsx",
     "src/components/v3/queue/FilterMenu.tsx",

@@ -49,10 +49,21 @@ export function QueueSkeleton({ rows = 6, label = "Загружаем задач
   );
 }
 
-/** Честная пустота: что именно пусто и одно подходящее действие. */
-export function QueueEmpty({ title, action = null }: Readonly<{ title: string; action?: ReactNode }>) {
+/**
+ * Честная пустота: что именно пусто и одно подходящее действие. `inline` —
+ * действие в той же строке, что и слова (EVO Docs: «Проверять нечего. Не
+ * хватает: 1 →»); на узкой строке оно переносится целиком. `divider={false}`
+ * — без линии сверху, когда прямо над пустотой уже линия ряда вкладок.
+ */
+export function QueueEmpty({ title, action = null, inline = false, divider = true }: Readonly<{
+  title: string;
+  action?: ReactNode;
+  inline?: boolean;
+  divider?: boolean;
+}>) {
+  const layout = inline ? "flex flex-wrap items-center justify-center gap-x-3 gap-y-1" : "flex flex-col items-center gap-3";
   return (
-    <div role="status" className="flex flex-col items-center gap-3 border-t border-border py-12 text-center" data-testid="queue-empty">
+    <div role="status" className={`${layout} ${divider ? "border-t border-border " : ""}py-12 text-center`} data-testid="queue-empty">
       <p className="t-item text-fg">{title}</p>
       {action}
     </div>

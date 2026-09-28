@@ -346,6 +346,9 @@ test("one 44px toolbar: no «Стадия» chips, selects apply on change, «С
   const queues = tag(admissions, /<nav aria-label="Очереди на проверку"[\s\S]*?<\/nav>/u);
   assert.match(queues, /Документы на проверку<span class="tabular-nums text-fg-3">20\+<\/span>/u, "a continued page is a lower bound");
   assert.match(queues, /Комплекты на проверку<span class="tabular-nums text-fg-3">3<\/span>/u);
+  // Э8.5 (28.09): the queues live in EVO Docs — the links are deep links to its tabs.
+  assert.match(queues, /href="\/v3\/profile\?section=docs&amp;view=program">Документы на проверку/u);
+  assert.match(queues, /href="\/v3\/profile\?section=docs&amp;view=packages">Комплекты на проверку/u);
   assert.match(admissions, /<label class="t-label [^"]*">Страна<select/u);
   assert.match(admissions, /<label class="t-label [^"]*">Куратор<select/u);
 });

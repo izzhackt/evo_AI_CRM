@@ -32,6 +32,7 @@ const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "u
 const migration = source("supabase/migrations/241_platform_case_next_action_queue.sql");
 const pendingMigration = source("supabase/migrations/242_platform_case_queue_pending_view.sql");
 const signalsMigration = source("supabase/migrations/245_platform_case_work_signals.sql");
+const waitMigration = source("supabase/migrations/252_platform_case_queue_document_wait.sql");
 const suite = source("supabase/tests/platform_case_next_action_queue.sql");
 const actions = source("src/lib/platform-case-next-action-actions.ts");
 const serverModule = source("src/lib/platform-student-case-queue.ts");
@@ -219,6 +220,30 @@ test("a queue page decodes exactly and fails closed on any inconsistency", () =>
   assert.equal(normalizeStudentCaseQueuePage({ ...base, rows: [row({ needs_reply: false })] }, request).rows[0].needsReply, false);
   rejects(() => normalizeStudentCaseQueuePage({ ...base, rows: [row({ needs_reply: "true" })] }, request), "needs_reply must be boolean");
   rejects(() => normalizeStudentCaseQueuePage({ ...base, rows: [row({ needs_reply: null })] }, request), "needs_reply must be boolean");
+});
+
+test("252: documents.oldest_submitted_at — optional, consistent with the waiting count, ignored before 252", () => {
+  const request = { view: "mine", sort: "due", pageSize: 2 };
+  const base = { view: "mine", sort: "due", today: "2026-09-25", next_cursor: null };
+  const documents = (fields) => ({ total: 5, submitted: 1, correction_required: 1, rejected: 1, approved: 1, missing: 1, ...fields });
+  const decode = (fields) => normalizeStudentCaseQueuePage({ ...base, rows: [row({ documents: documents(fields) })] }, request).rows[0].documents;
+  // Before 252 the key is absent: the counts decode exactly as before (the running client's contract).
+  assert.deepEqual(decode({}), { total: 5, submitted: 1, correctionRequired: 1, rejected: 1, approved: 1, missing: 1 });
+  assert.equal(Object.hasOwn(decode({}), "oldestSubmittedAt"), false);
+  assert.equal(decode({ oldest_submitted_at: "2026-09-20T04:10:00.123456+00:00" }).oldestSubmittedAt, "2026-09-20T04:10:00.123456+00:00");
+  assert.equal(decode({ submitted: 0, missing: 2, oldest_submitted_at: null }).oldestSubmittedAt, null);
+  rejects(() => decode({ oldest_submitted_at: null }), "something waits but no wait");
+  rejects(() => decode({ submitted: 0, missing: 2, oldest_submitted_at: "2026-09-20T04:10:00Z" }), "a wait without anything waiting");
+  rejects(() => decode({ oldest_submitted_at: "20.09.2026" }), "not a timestamp");
+  // The migration: one additive key by self-verifying anchor replace inside the document gate; the counts read untouched.
+  assert.match(waitMigration, /anchor CONSTANT TEXT := \$q\$'missing', count\(\*\) FILTER \(WHERE slot\.status = 'required'\)\)\$q\$;/u);
+  assert.match(waitMigration, /'oldest_submitted_at', \(\n\s+SELECT min\(waiting_version\.created_at\)\n\s+FROM platform\.document_slots AS waiting_slot\n\s+JOIN platform\.document_versions AS waiting_version\n\s+ON waiting_version\.organization_id = waiting_slot\.organization_id\n\s+AND waiting_version\.id = waiting_slot\.current_version_id/u);
+  assert.match(waitMigration, /AND waiting_slot\.removed_at IS NULL\n\s+AND waiting_slot\.status = 'submitted'\)\)\$q\$;/u);
+  assert.match(waitMigration, /RAISE EXCEPTION 'student_case_queue_document_wait_anchor_drift: before';/u);
+  assert.match(waitMigration, /WHEN shown\.can_read_documents THEN \(/u, "the verification keeps the document gate");
+  assert.doesNotMatch(waitMigration, /staff_student_case_queue_counts_v1|CREATE (OR REPLACE )?FUNCTION|ALTER TABLE|DROP /u, "one read, no new objects");
+  assert.match(source("scripts/test-postgres-authorization.sh"), /== 252_\* \]\]; then\n\s+docker exec "\$container_name" \\\n\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\n\s+-f \/workspace\/supabase\/tests\/platform_case_queue_document_wait\.sql/u);
+  assert.match(source("supabase/tests/platform_case_queue_document_wait.sql"), /N252_CASE_QUEUE_DOCUMENT_WAIT_SUITE_OK/u);
 });
 
 test("counts decode only when the tab, total and bands agree", () => {

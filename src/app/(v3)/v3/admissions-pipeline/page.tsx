@@ -36,6 +36,8 @@ type SearchParams = Readonly<{
   country?: string | string[];
   curator?: string | string[];
   view?: string | string[];
+  /** Этап, открытый на телефоне (Э8.11); чужой или неизвестный — не учитывается. */
+  stage?: string | string[];
 }>;
 
 type BoardQuery = Readonly<{
@@ -211,6 +213,7 @@ export default async function AdmissionsPipelinePart({
           boardUnavailable={boardResult.status === "rejected"}
           tab={query.tab}
           query={{ q: query.q, country: query.country, curator: query.curator }}
+          requestedStage={singleValue(params.stage) ?? null}
         />
       </div>
     </PartShell>

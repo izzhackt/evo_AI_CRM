@@ -8,8 +8,8 @@
 /**
  * Статический рендер Э6 плана редизайна (27.09.2026) — справочные и
  * служебные страницы: «Университеты» (список и страница вуза), «Настройки»
- * («Сотрудники», «Роли и доступ», «Отделы», «Интеграции») и меню Admin,
- * поступления и продаж.
+ * («Сотрудники», «Роли и доступ», «Отделы», «Интеграции», с Э8.11 —
+ * «Журнал действий») и меню Admin, поступления и продаж.
  *
  * Страницы — НАСТОЯЩИЕ `page.tsx` маршрутов (`universities`, `universities/[id]`,
  * `settings`) внутри настоящего `AppShell`; чтения подменены. Каталог —
@@ -27,7 +27,7 @@
  *       меню ролей — с раскрытыми отделами (на телефоне — лист «Ещё»).
  *       По умолчанию outDir — .impeccable/review (не коммитится). Проверки
  *       (прокрутка вбок, текст мельче 12 px, h1, сплошной красный) печатаются
- *       строками JSON.
+ *       строками JSON. `--only=имя,имя` — только эти страницы.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -211,6 +211,21 @@ const PROVIDERS = {
 let providerScenario = "production";
 let who = ACTORS.admin;
 
+// «Журнал действий» (Э8.11): чтение выключено на сервере, не удалось, пусто,
+// пусто по фильтру и прочитано. События — СИНТЕТИЧЕСКИЕ.
+const JOURNAL_EVENTS = [
+  { kind: "event", id: "77777777-1111-4111-8111-000000000001", transition: "task.create", objectType: "case_task", objectId: "88888888-2222-4222-8222-000000000001", role: "Staff", at: "28.09 10:15", reason: null, profileHref: null },
+  { kind: "event", id: "77777777-1111-4111-8111-000000000002", transition: "task.change", objectType: "case_task", objectId: "88888888-2222-4222-8222-000000000001", role: "Staff", at: "28.09 09:40", reason: null, profileHref: null },
+];
+const JOURNAL_READS = {
+  "settings-journal": { status: "ready", entries: JOURNAL_EVENTS, facets: [{ key: "case_task", count: 2 }] },
+  "settings-journal-disabled": { status: "disabled", entries: [], facets: [] },
+  "settings-journal-unavailable": { status: "unavailable", entries: [], facets: [] },
+  "settings-journal-empty": { status: "ready", entries: [], facets: [] },
+  "settings-journal-filtered": { status: "ready", entries: [], facets: [{ key: "case_task", count: 2 }] },
+};
+let journalRead = JOURNAL_READS["settings-journal-empty"];
+
 function installStubs() {
   const { settingsIntegrations } = require(join(ROOT, "src/lib/v3/settings-health.ts"));
   stubModule("src/lib/platform-guards.ts", { async requireV3PageActor() { return who; } });
@@ -219,8 +234,8 @@ function installStubs() {
     readAuditExportEnabled: () => false,
     async readGateFacts() { return { handoffs: 3, overrides: 0, financeStops: 0, evidence: 5, documents: 1 }; },
     async readIntegrations() { return settingsIntegrations(PROVIDERS[providerScenario], new Date()); },
-    async readJournal() { return { entries: [], cursorHonored: true }; },
-    async readJournalFacets() { return { objectTypes: [] }; },
+    async readJournal() { return { entries: journalRead.entries, cursorHonored: true, status: journalRead.status }; },
+    async readJournalFacets() { return { objectTypes: journalRead.facets }; },
     async readPlatformFact() { return "не проверялось"; },
   });
   stubModule("src/lib/v3/sales-register-source.ts", { async readSalesRegisterManagement() { return { status: "denied" }; } });
@@ -258,6 +273,11 @@ const PAGES = [
   ["settings-departments", "admin", "/v3/settings", "section=staff&view=departments", "production"],
   ["settings-integrations", "admin", "/v3/settings", "section=integrations", "production"],
   ["settings-integrations-blocked", "admin", "/v3/settings", "section=integrations", "blocked"],
+  ["settings-journal", "admin", "/v3/settings", "section=journal", "production"],
+  ["settings-journal-disabled", "admin", "/v3/settings", "section=journal", "production"],
+  ["settings-journal-unavailable", "admin", "/v3/settings", "section=journal", "production"],
+  ["settings-journal-empty", "admin", "/v3/settings", "section=journal", "production"],
+  ["settings-journal-filtered", "admin", "/v3/settings", "section=journal&object=case_task", "production"],
   ["menu-admin", "admin", "/v3/universities", "", "production"],
   ["menu-admissions", "admissions", "/v3/universities", "", "production"],
   ["menu-sales", "sales", "/v3/universities", "", "production"],
@@ -280,6 +300,7 @@ async function pageNode(pathname, search) {
 async function renderPage([name, role, path, search, providers]) {
   who = ACTORS[role];
   providerScenario = providers;
+  journalRead = JOURNAL_READS[name] ?? JOURNAL_READS["settings-journal-empty"];
   catalogueOffsets = [];
   catalogueShiftOnce = providers === "catalogue-changed";
   const pathname = typeof path === "function" ? path() : path;
@@ -362,9 +383,12 @@ async function screenshots(pages) {
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   let failed = false;
+  // `--only=имя,имя` — снять только эти страницы (например, `--only=settings-journal-disabled`).
+  const only = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length).split(",") ?? null;
   try {
     for (const page of pages) {
       if (page.name.endsWith("-changed")) continue;
+      if (only !== null && !only.includes(page.name)) continue;
       const htmlPath = join(outDir, `e6-${page.name}.html`);
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",

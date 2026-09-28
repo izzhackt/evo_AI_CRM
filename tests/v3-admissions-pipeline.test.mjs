@@ -226,12 +226,13 @@ test("the new audit action is added to the p7a_safe_audit_actions allowlist, sam
 // through pure hooks. Not React DOM, a browser, Auth or the live server action.
 function boardHarness(moveAction) {
   const require = createRequire(import.meta.url);
-  const compile = (path, boundary) => {
+  const compile = (path, boundary, globals = {}) => {
     const code = ts.transpileModule(source(path), { compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
     } }).outputText;
     const compiled = { exports: {} };
-    new Function("require", "module", "exports", code)((id) => boundary(id) ?? require(id), compiled, compiled.exports);
+    new Function("require", "module", "exports", ...Object.keys(globals), code)(
+      (id) => boundary(id) ?? require(id), compiled, compiled.exports, ...Object.values(globals));
     return compiled.exports;
   };
   const pipelineContract = compile("src/lib/platform-admissions-pipeline-contract.ts", () => undefined);
@@ -278,6 +279,16 @@ function boardHarness(moveAction) {
   const undoToast = compile("src/components/v3/blocks/UndoToast.tsx", (id) => ({ react: hooks })[id]);
   const undoDeadline = compile("src/components/v3/tasks/undo-deadline.ts", () => undefined);
   const boardUndo = compile("src/components/v3/board/board-undo.ts", () => undefined);
+  // Адрес страницы (Э8.11): этап телефона пишется в `?stage=` через
+  // history.replaceState — здесь запись только запоминается.
+  const addresses = [];
+  const address = {
+    location: { pathname: "/v3/admissions-pipeline", search: "" },
+    history: { replaceState(_state, _unused, url) {
+      addresses.push(url);
+      address.location.search = url.slice(url.indexOf("?"));
+    } },
+  };
   const board = compile("src/components/v3/AdmissionsPipelineBoard.tsx", (id) => ({
     react: hooks,
     "@/components/v3/blocks/Initials": initials,
@@ -298,7 +309,7 @@ function boardHarness(moveAction) {
       admissionsPipelineStage: (stage) => `stage:${stage}`, admissionsPipelineTab: (tab) => `tab:${tab}`,
       caseChatAwaitState: () => "Ждёт ответа", country: (code) => code,
     },
-  })[id]);
+  })[id], { window: address });
   function expand(node, path = "root") {
     if (Array.isArray(node)) return node.map((child, index) => expand(child, `${path}/${index}`));
     if (!node || typeof node !== "object") return node;
@@ -310,7 +321,10 @@ function boardHarness(moveAction) {
     }
     return { ...node, props: { ...node.props, children: expand(node.props.children, `${path}/children`) } };
   }
-  return (props) => expand({ type: board.AdmissionsPipelineBoard, props });
+  const render = (props) => expand({ type: board.AdmissionsPipelineBoard, props });
+  render.addresses = addresses;
+  render.location = address.location;
+  return render;
 }
 function allNodes(tree, predicate) {
   if (Array.isArray(tree)) return tree.flatMap((item) => allNodes(item, predicate));
@@ -521,9 +535,27 @@ test("a confirmed menu move offers «Отменить»; it sends the reverse mo
   assert.equal(statusText(tree), "Перемещение отменено: дело «Студент Синтетический» снова в «stage:documents».");
   assert.equal(stageCount(tree, "documents"), 1, "back where the receipt says");
   assert.equal(pickerStage(tree), "documents", "the phone picker shows the stage the card came back to");
+  assert.deepEqual(render.addresses, ["/v3/admissions-pipeline?stage=documents"], "and the address names it: a reload opens the same stage");
   assert.equal(buttonsNamed(tree, "Отменить").length, 0);
   assert.equal(alertText(tree), "");
   assert.equal(server.position.stage, "documents");
+});
+
+test("an undo answer that arrives after the user left the board does not write ?stage= into the new page's address", async () => {
+  const server = fakeServer();
+  const render = boardHarness(server.action);
+  let tree = render(boardProps);
+  press(tree, "stage:ready_to_submit");
+  await flush();
+  tree = render(boardProps);
+  press(tree, "Отменить");
+  // Сотрудник ушёл в «Студенты» до ответа: там `?stage=` — фильтр «Этап».
+  render.location.pathname = "/v3/profile";
+  render.location.search = "?view=all";
+  await flush();
+  assert.equal(server.position.stage, "documents", "the undo itself went through");
+  assert.deepEqual(render.addresses, [], "no address written on a page the board no longer owns");
+  assert.equal(render.location.search, "?view=all");
 });
 
 test("a drag move offers «Отменить» too", async () => {
@@ -546,10 +578,11 @@ test("someone moved the case in between: the undo is refused, the card sits wher
   const refused = "Дело уже переместили — отмена не выполнена.";
   for (const [label, move, where, expect] of [
     ["another stage of this tab", (server) => server.elsewhere("awaiting_decision"),
-      "Сейчас дело «Студент Синтетический» — в «stage:awaiting_decision».", (tree) => {
+      "Сейчас дело «Студент Синтетический» — в «stage:awaiting_decision».", (tree, addresses) => {
         assert.equal(stageCount(tree, "awaiting_decision"), 1);
         assert.deepEqual(cardIds(tree), [CASE_ID]);
         assert.equal(pickerStage(tree), "awaiting_decision", "the phone picker shows the stage the server named");
+        assert.deepEqual(addresses, ["/v3/admissions-pipeline?stage=awaiting_decision"], "the address names that stage");
         assert.deepEqual(alertLinks(tree), []);
       }],
     ["removed from the board", (server) => server.elsewhere("ready_to_submit", true),
@@ -580,7 +613,7 @@ test("someone moved the case in between: the undo is refused, the card sits wher
     assert.equal(alertWords(tree), `${refused} ${where}`, label);
     assert.equal(statusText(tree), "", `${label}: no second notice, no success claimed`);
     assert.equal(buttonsNamed(tree, "Отменить").length, 0, label);
-    expect(tree);
+    expect(tree, render.addresses);
   }
 });
 
@@ -729,8 +762,8 @@ test("after an undo answer focus goes to the card, else the inline link, else th
   // уведомлений — кольцо токенов доски.
   assert.match(board, /role="alert"\s+className="[^"]*\boutline-none\b[^"]*"/u);
   assert.match(board, /"outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring focus-visible:shadow-\[0_0_0_3px_var\(--focus-halo\)\]"/u);
-  // Телефон: выбор этапа следует за карточкой после ответа.
-  assert.match(board, /if \(admissionsPipelineTabOf\(stage\) === tab\) setNarrowStage\(stage\);/u);
+  // Телефон: выбор этапа следует за карточкой после ответа, и адрес называет его (Э8.11).
+  assert.match(board, /if \(admissionsPipelineTabOf\(stage\) === tab\) chooseNarrowStage\(stage\);/u);
 });
 
 test("migration 251 is forward-only and additive: a version column with its trigger and v2 beside the untouched v1", () => {

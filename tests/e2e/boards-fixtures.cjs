@@ -254,8 +254,11 @@ const STUBS = {
   },
   "@/lib/platform-admissions-pipeline": {
     // Чтение доски — положение из того же состояния, что ведёт перемещение.
-    readAdmissionsPipelineBoard: async () => ({
+    // Фильтр «Страна» — как у настоящего чтения (Э8.11: на телефоне первый
+    // этап раздела бывает пуст).
+    readAdmissionsPipelineBoard: async (_actor, filters = {}) => ({
       rows: ADMISSIONS_ROWS.filter((one) => !pipeline.get(one.studentCaseId).hidden)
+        .filter((one) => !filters.country || one.targetCountry === filters.country)
         .map((one) => ({ ...one, pipelineStage: pipeline.get(one.studentCaseId).stage })),
       truncated: false,
     }),

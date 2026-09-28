@@ -12,6 +12,7 @@ import {
   PlatformSection,
 } from "./sections";
 import { SECTIONS, type GateFacts, type IntegrationRow, type JournalEntry, type SectionKey, type StaffView } from "./types";
+import type { JournalStatus } from "@/lib/v3/settings-journal-contract";
 
 /**
  * Настройки: список разделов слева, раздел справа.
@@ -37,6 +38,7 @@ export function Settings({
   hrefFor,
   integrations,
   journal,
+  journalStatus,
   auditExportEnabled,
   journalFacets,
   journalFilters,
@@ -57,6 +59,7 @@ export function Settings({
   hrefFor: (section: SectionKey, view: StaffView | null) => string;
   integrations: readonly IntegrationRow[];
   journal: readonly JournalEntry[];
+  journalStatus: JournalStatus;
   auditExportEnabled: boolean;
   journalFacets: Readonly<{
     objectTypes: readonly Readonly<{ key: string; count: number }>[];
@@ -113,6 +116,7 @@ export function Settings({
           {current.key === "journal" ? (
             <JournalSection
               entries={journal}
+              status={journalStatus}
               exportEnabled={auditExportEnabled}
               facets={journalFacets}
               active={journalFilters}

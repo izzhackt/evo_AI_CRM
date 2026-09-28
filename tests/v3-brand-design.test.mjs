@@ -328,7 +328,8 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   // JetBrains Mono — только даты срока и замещения куратора.
   const caseTable = read("src/components/v3/students/StudentsQueueTable.tsx");
   assert.match(caseTable, /const HEAD = "[^"]*\bt-caption text-fg-2\b[^"]*";/u);
-  assert.match(caseTable, /className="block truncate t-item text-fg before:absolute before:inset-0/u);
+  // Э8.11: имя — до двух строк, не многоточие.
+  assert.match(caseTable, /className="line-clamp-2 break-words t-item text-fg before:absolute before:inset-0/u);
   assert.match(caseTable, /<span className="block truncate t-meta text-fg-2" title=\{meta\}>/u);
   // The due band is opaque over its full height and owns its hairline (25.09 finish review).
   assert.match(caseTable, /className="flex flex-wrap items-baseline gap-x-1\.5 border-b border-border bg-bg py-1\.5 ps-3 text-start t-item"/u);

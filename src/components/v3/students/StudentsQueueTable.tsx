@@ -15,9 +15,16 @@ import { studentsRowSignals, studentsUpdatedDay, type StudentsBand, type Student
 
 /*
  * Три раскладки строки по ширине своего контейнера (`@container/students`):
- * от 60rem — таблица в одну строку (Студент 19 · Шаг 24 · Срок 9 · Этап 13 ·
- * Куратор 13 · Сигналы 22 · ссылка на дело 44 px; в «Мои» колонки «Куратор»
- * нет — её ширина у шага и сигналов); 36–60rem (рядом открыта панель, узкий
+ * от 60rem — таблица в одну строку (Э8.11: Студент не уже 14rem · Шаг · Срок
+ * не уже 5.25rem · Этап не уже 7.5rem · Куратор не уже 6.5rem · Сигналы не
+ * уже 11rem, чтобы чип «2 документа исправить» был целым · ссылка на дело
+ * 44 px). Этап и Куратор растут с таблицей долей .9fr: от окна 1366 px
+ * «ждёт принятия» стоит под именем куратора одной строкой, от 1440 — и
+ * «Готовы к подаче», «Ожидаем решения» в одну строку; на 1280 все колонки,
+ * кроме шага, на минимуме, и «ждёт принятия» переносится, как до Э8.11.
+ * Минимум и доля, а не ширина по словам: каждая строка — своя сетка, и
+ * `fit-content` развёл бы колонки строк. В «Мои» колонки «Куратор» нет — её
+ * ширина у шага и сигналов); 36–60rem (рядом открыта панель, узкий
  * ноутбук) — имя и «направление · уровень · этап», под ними шаг одной
  * строкой, под шагом — сигналы (и под сроком: он занимает две строки);
  * срок и куратор — колонками справа; уже —
@@ -25,10 +32,11 @@ import { studentsRowSignals, studentsUpdatedDay, type StudentsBand, type Student
  * заданы явно: смена display иначе стирает её семантику в части браузеров.
  * Этап в узких раскладках продолжает строку «направление · уровень», а его
  * ячейка остаётся для читалки. Сигналы — короткий словарь: не обрезаются
- * никогда, перенос только между сигналами.
+ * никогда, перенос только между сигналами. Имя — до двух строк во всех
+ * раскладках, не многоточие (Э8.11: на 1280 колонка была 163 px).
  */
-const WIDE_COLUMNS = "@min-[60rem]/students:grid-cols-[minmax(0,19fr)_minmax(0,24fr)_minmax(0,9fr)_minmax(0,13fr)_minmax(0,13fr)_minmax(0,22fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_step_due_stage_curator_signals_link']";
-const WIDE_COLUMNS_MINE = "@min-[60rem]/students:grid-cols-[minmax(0,20fr)_minmax(0,30fr)_minmax(0,9fr)_minmax(0,14fr)_minmax(0,27fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_step_due_stage_signals_link']";
+const WIDE_COLUMNS = "@min-[60rem]/students:grid-cols-[minmax(14rem,1.4fr)_minmax(0,1.5fr)_minmax(5.25rem,.5fr)_minmax(7.5rem,.9fr)_minmax(6.5rem,.9fr)_minmax(11rem,.9fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_step_due_stage_curator_signals_link']";
+const WIDE_COLUMNS_MINE = "@min-[60rem]/students:grid-cols-[minmax(14rem,1.4fr)_minmax(0,1.8fr)_minmax(5.25rem,.5fr)_minmax(7.5rem,.9fr)_minmax(11rem,1fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_step_due_stage_signals_link']";
 const MID_COLUMNS = "@min-[36rem]/students:grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,11rem)_2.75rem]";
 const MID_COLUMNS_MINE = "@min-[36rem]/students:grid-cols-[minmax(0,1fr)_6.5rem_2.75rem]";
 const PHONE = "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 [grid-template-areas:'student_student'_'step_due'_'curator_curator'_'signals_signals']";
@@ -183,7 +191,7 @@ export function StudentsQueueRow({
       data-queue-open=""
       aria-current={selected ? "true" : undefined}
       title={row.studentDisplayName}
-      className="block truncate t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline"
+      className="line-clamp-2 break-words t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline"
     >
       {row.studentDisplayName}
     </Link>

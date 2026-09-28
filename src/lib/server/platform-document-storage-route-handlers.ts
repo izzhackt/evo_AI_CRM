@@ -1008,10 +1008,15 @@ function authorizationResponse(status: DocumentAuthorization["status"]): Respons
   return errorResponse(503, "platform_unavailable");
 }
 
+// The database accepts `char_length(original_filename) <= 255` (046/116):
+// characters, not UTF-16 units. A longer name is refused here, before the
+// scanner and the preflight RPC, instead of by the database (Э8.1).
+const MAX_FILENAME_CHARACTERS = 255;
+
 function safeFilename(value: string): string | null {
   if (
     value.length < 1
-    || value.length > 512
+    || Array.from(value).length > MAX_FILENAME_CHARACTERS
     || value !== value.trim()
     || CONTROL_CHARACTER_PATTERN.test(value)
     || value.includes("/")
@@ -1225,7 +1230,66 @@ async function completeStudentScanAdmission(
   return operationResponse;
 }
 
+/**
+ * One structured line per failed upload (Э8.1): before this a refused upload
+ * left nothing in the server logs. Only the fixed server code, the HTTP status
+ * and the first 8 characters of a well-formed slot id — never the file name,
+ * the body or anything about the person.
+ */
+async function logDocumentUploadFailure(
+  failure: Response | "unhandled_exception",
+  responseAudience: UploadResponseAudience,
+  context: RouteContext<{ documentSlotId: string }>,
+): Promise<void> {
+  let code: string | null = failure === "unhandled_exception" ? failure : null;
+  if (failure !== "unhandled_exception") {
+    try {
+      const body: unknown = await failure.clone().json();
+      code = isRecord(body) && typeof body.error === "string" ? body.error : null;
+    } catch {
+      code = null;
+    }
+  }
+  let slot: string | null = null;
+  try {
+    slot = uuid((await context.params).documentSlotId)?.slice(0, 8) ?? null;
+  } catch {
+    slot = null;
+  }
+  console.warn(JSON.stringify({
+    event: "document_upload_failed",
+    audience: responseAudience,
+    code,
+    // An exception leaves the route; the framework answers it with 500.
+    status: failure === "unhandled_exception" ? 500 : failure.status,
+    slot,
+  }));
+}
+
 function createDocumentUploadHandler(
+  dependencies: PlatformDocumentStorageRouteDependencies,
+  responseAudience: UploadResponseAudience,
+) {
+  const operation = createDocumentUploadOperation(dependencies, responseAudience);
+  return async function POST(
+    request: Request,
+    context: RouteContext<{ documentSlotId: string }>,
+  ): Promise<Response> {
+    let response: Response;
+    try {
+      response = await operation(request, context);
+    } catch (error) {
+      await logDocumentUploadFailure("unhandled_exception", responseAudience, context);
+      throw error;
+    }
+    if (response.status >= 400) {
+      await logDocumentUploadFailure(response, responseAudience, context);
+    }
+    return response;
+  };
+}
+
+function createDocumentUploadOperation(
   dependencies: PlatformDocumentStorageRouteDependencies,
   responseAudience: UploadResponseAudience,
 ) {

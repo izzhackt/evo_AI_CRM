@@ -14,11 +14,11 @@ test("P4 SQL acceptance checks the filenames actually uploaded by its browser pr
   const browser = source("tests/e2e/supabase-staff-auth.spec.ts");
   const verifier = source("scripts/test-postgres-v2-foundation.sh");
 
+  // Э8.1: the file is chosen through one helper that uploads on choice; the
+  // proof document's first two uploads are its versions 1 and 2.
+  const uploads = [...browser.matchAll(/uploadDocumentFile\(page, documentItem, \{\s+name: "([^"]+)"/gu)];
   for (const [index, ordinal] of ["first", "second"].entries()) {
-    const uploaded = browser.match(new RegExp(
-      `${ordinal}Upload\\.locator\\([^\\n]+\\)\\.setInputFiles\\(\\{\\s+name: "([^"]+)"`,
-      "u",
-    ));
+    const uploaded = uploads[index];
     const expected = verifier.match(new RegExp(
       `versions\\[${index}\\]\\.original_filename !== "([^"]+)"`,
       "u",

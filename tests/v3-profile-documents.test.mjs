@@ -49,24 +49,29 @@ function textOf(node) {
 
 test("V3 profile documents use the canonical private Storage routes", () => {
   const wrapper = source("src/components/v3/profile/Documents.tsx");
+  const view = source("src/components/v3/profile/DocumentsView.tsx");
   const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const row = source("src/components/v3/profile/DocumentRow.tsx");
   const types = source("src/components/v3/profile/document-types.ts");
 
-  assert.match(wrapper, /<ProfileDocumentsClient/u);
-  assert.match(wrapper, /groups=\{activeGroups\}/u);
-  assert.match(wrapper, /historyGroups=\{historyGroups\}/u);
-  assert.match(wrapper, /uploadAccess=\{uploadAccess\}/u);
-  assert.match(wrapper, /studentCaseId=\{studentCaseId\}/u);
-  assert.match(wrapper, /createRequestId=\{createRequestId\}/u);
-  assert.match(wrapper, /item\.presence === "present"/u);
+  // The async wrapper only reads baseline options; the tab is the synchronous view (Э8.1).
+  assert.match(wrapper, /return documentsView\(\{/u);
+  assert.match(view, /<ProfileDocumentsClient/u);
+  assert.match(view, /groups=\{visibleGroups\}/u);
+  assert.match(view, /historyGroups=\{historyGroups\}/u);
+  assert.match(view, /uploadAccess=\{input\.uploadAccess\}/u);
+  assert.match(view, /studentCaseId=\{input\.studentCaseId\}/u);
+  assert.match(view, /createRequestId=\{input\.createRequestId\}/u);
   assert.match(client, /\/api\/v2\/document-slots\/\$\{item\.id\}\/versions/u);
-  assert.match(client, /\/api\/v2\/document-versions\/\$\{item\.currentVersionId\}\/download/u);
-  assert.match(client, /name="request_id" value=\{item\.uploadRequestId\}/u);
-  assert.match(client, /name="file"/u);
+  assert.match(row, /\/api\/v2\/document-versions\/\$\{current\.currentVersionId\}\/download/u);
+  assert.match(row, /name="request_id" value=\{uploadRequestId\}/u);
+  assert.match(row, /name="file"/u);
+  // Exactly the two fields the server accepts: the file and this slot's command id.
+  assert.match(client, /body\.set\("file", file\);\s*body\.set\("request_id", item\.uploadRequestId\);/u);
   assert.match(client, /response\.status !== 201/u);
-  assert.match(client, /uploadWasConfirmed\(payload, item\)/u);
+  assert.match(client, /documentUploadConfirmed\(payload, item\.id\)/u);
   assert.match(client, /router\.refresh\(\)/u);
-  assert.doesNotMatch(client, /URL\.createObjectURL|localStorage|sessionStorage/u);
+  for (const file of [client, row]) assert.doesNotMatch(file, /URL\.createObjectURL|localStorage|sessionStorage/u);
 
   assert.match(types, /presence: Extract<DocumentPresence, "absent">/u);
   assert.match(types, /currentVersionId: null/u);
@@ -75,54 +80,145 @@ test("V3 profile documents use the canonical private Storage routes", () => {
   assert.match(types, /currentVersionId: string/u);
   assert.match(types, /currentVersionNumber: number/u);
   assert.match(types, /currentFilename: string/u);
-  assert.match(client, /item\.currentFilename/u);
-  assert.match(client, /item\.currentVersionNumber/u);
+  assert.match(types, /currentVersionCreatedAt: string/u);
+  assert.match(row, /current\.currentFilename/u);
+  assert.match(row, /current\.currentVersionNumber > 1/u);
 });
 
-test("V3 profile keeps document presence separate from the canonical review decision", () => {
-  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  const activeChecklist = client.slice(client.indexOf("export function ProfileDocumentsClient"));
+test("V3 profile document row shows one state word, the version date and the reason the student sees", () => {
+  const row = source("src/components/v3/profile/DocumentRow.tsx");
   const wording = source("src/lib/v3/wording.ts");
+  const profileSource = source("src/lib/v3/profile-source.ts");
 
+  // Presence stays a data attribute; the row carries one state word (the shared slot-status dictionary).
   assert.match(wording, /export type DocumentPresence = "absent" \| "present"/u);
-  assert.match(wording, /absent: "нет"/u);
-  assert.match(wording, /present: "есть"/u);
-  assert.match(client, /documentPresence\(item\.presence\)/u);
-  assert.doesNotMatch(activeChecklist, /submittedBy|uploadedBy|createdAt|updatedAt/u);
-  assert.match(activeChecklist, /documentSlotStatus\(item\.status\)/u);
-  assert.match(activeChecklist, /documentReviewDecision\(item\.latestReview\.decision\)/u);
-  assert.match(activeChecklist, /item\.latestReview\.reason/u);
-  assert.match(activeChecklist, /historyDate\(item\.latestReview\.reviewedAt\)/u);
-  assert.doesNotMatch(activeChecklist, />\s*\{item\.status\}|>\s*\{item\.latestReview\.decision\}/u);
+  assert.match(row, /data-document-presence=\{item\.presence\}/u);
+  assert.doesNotMatch(row, /documentPresence\(/u);
+  // The old «есть/нет» word is gone from the dictionary, not only unused.
+  assert.doesNotMatch(wording, /DOCUMENT_PRESENCE|documentPresence/u);
+  assert.match(row, /const chip = documentStatusChip\(item\.status\);/u);
+  assert.equal(row.match(/<StatusChip /gu)?.length, 1, "one state chip per row");
+  assert.doesNotMatch(row, />\s*\{item\.status\}|>\s*\{[a-z.]*latestReview\.decision\}/u);
+  // The date is the current version's upload moment, in Bishkek time, mono.
+  assert.match(profileSource, /currentVersionCreatedAt: currentVersion\.createdAt,/u);
+  assert.match(row, /<time dateTime=\{current\.currentVersionCreatedAt\} className="font-mono tabular-nums">\s*\{caseMomentLabel\(current\.currentVersionCreatedAt, today\)\}/u);
+  assert.doesNotMatch(row, /submittedBy|uploadedBy|toLocale|Intl\.DateTimeFormat/u);
+  assert.match(row, /Причина для студента: <span className="text-fg">\{current\.latestReview\.reason\}<\/span>/u);
+  // The dropped sentence and the old two-pill presence line are gone.
+  assert.doesNotMatch(row, /Принятый файл доступен для скачивания/u);
 });
 
-test("V3 profile document upload fails closed and explains every failure class", () => {
+test("V3 profile document decision follows the live item and names the refusal of «Принять»", () => {
+  const row = source("src/components/v3/profile/DocumentRow.tsx");
   const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  // The frozen key keeps a lost-response retry idempotent; the live key decides whether the buttons are shown.
+  assert.match(row, /const \[reviewRequestId\] = useState\(item\.presence === "present" \? item\.reviewRequestId : null\);/u);
+  assert.match(row, /current !== null\s*&& current\.reviewRequestId !== null && reviewRequestId !== null;/u);
+  // «Решение сохранено» ends once the re-read item has its new state (the chip names it).
+  assert.match(row, /review\.outcome === "saved" && item\.status !== "submitted" \? null : review\.outcome/u);
+  // «Принять» carries no reason: its «invalid» is a stale page, not a missing reason.
+  assert.match(row, /const APPROVE_INVALID = "Решение не принято сервером\. Обновите страницу\.";/u);
+  assert.match(row, /review\.outcome === "invalid" && review\.decision === "approved"/u);
+  assert.match(row, /invalid: "Укажите причину для студента — до 2000 символов\.",/u);
+  // A saved decision or upload tells the list; under a filter it names where the row went.
+  assert.match(row, /onReviewSaved\(item, attempt\.decision\);/u);
+  assert.match(client, /onReviewSaved=\{noteMoved\}/u);
+  assert.match(client, /noteMoved\(item, "submitted"\);/u);
+  assert.match(client, /data-testid="v3-document-moved">\{movedText\}/u);
+  // The checklist's last rule already separates the case recognition history.
+  assert.match(client, /sourceVersionId=\{null\} sourceReady=\{false\} ruled=\{groups\.length === 0\}/u);
+});
 
-  assert.match(client, /status === 401 \|\| status === 403/u);
-  assert.match(client, /"invalid" \| "forbidden" \| "unavailable"/u);
+test("V3 profile document upload fails closed and explains every failure class", async () => {
+  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const row = source("src/components/v3/profile/DocumentRow.tsx");
+  const upload = await import("../src/components/v3/profile/document-upload.ts");
+
   assert.match(client, /!item\.uploadRequestId/u);
-  assert.match(client, /сервер не выдал безопасный идентификатор команды/u);
-  assert.match(client, /Файл не отмечен как сохранённый/u);
+  assert.match(row, /сервер не выдал безопасный идентификатор команды/u);
+  // Every server status class has its own words; unknown codes never reach the screen.
+  const words = new Map([
+    ["401", upload.documentUploadFailure(401, "authentication_required")],
+    ["403", upload.documentUploadFailure(403, "forbidden")],
+    ["403-item", upload.documentUploadFailure(403, "upload_not_authorized")],
+    ["413", upload.documentUploadFailure(413, "file_too_large")],
+    ["400-signature", upload.documentUploadFailure(400, "file_signature_mismatch")],
+    ["400", upload.documentUploadFailure(400, "invalid_upload")],
+    ["409-progress", upload.documentUploadFailure(409, "upload_in_progress")],
+    ["409-request", upload.documentUploadFailure(409, "request_conflict")],
+    ["409-scan", upload.documentUploadFailure(409, "scan_claim_expired")],
+    ["422", upload.documentUploadFailure(422, "malware_detected")],
+    ["429", upload.documentUploadFailure(429, "upload_rate_limited")],
+    ["503", upload.documentUploadFailure(503, "malware_scanner_unavailable")],
+    ["network", upload.documentUploadFailure(null, null)],
+  ]);
+  assert.equal(new Set([...words.values()].map((entry) => entry.message)).size, words.size - 1, "only 5xx and network share «Не удалось загрузить»");
+  assert.equal(words.get("503").message, words.get("network").message);
+  assert.match(words.get("network").message, /^Не удалось загрузить файл\. Повторите попытку\.$/u);
+  assert.equal(words.get("network").next, "retry");
+  assert.equal(words.get("429").next, "retry");
+  assert.equal(words.get("409-request").next, "refresh");
+  // 403 from the database for this item (accepted, removed or no right) is not the role's 403.
+  assert.equal(words.get("403-item").message, "Загрузка в этот пункт недоступна: он уже принят, убран или у роли нет права. Обновите страницу.");
+  assert.equal(words.get("403-item").next, "refresh");
+  assert.equal(words.get("403").message, "У вашей роли нет права загружать этот документ.");
+  assert.equal(upload.documentUploadFailure(403, null).message, words.get("403").message, "a refusal before sending names the role");
+  assert.equal(words.get("413").next, null);
+  assert.match(words.get("413").message, /25 МБ/u);
+  assert.match(words.get("422").message, /вирус/u);
+  assert.match(words.get("429").message, /Слишком много загрузок/u);
+  for (const entry of words.values()) assert.doesNotMatch(entry.message, /[a-z]+_[a-z]+/u, "no raw server code on screen");
+  assert.equal(upload.documentUploadFailure(418, "teapot").outcome, "invalid");
+
+  // Client checks before sending mirror the server and the database.
+  const file = (name, type = "application/pdf", size = 10) => ({ name, type, size });
+  assert.equal(upload.documentUploadFileProblem(file("scan.pdf")), null);
+  assert.match(upload.documentUploadFileProblem(file("IMG_1.HEIC", "image/heic")).message, /HEIC/u);
+  assert.match(upload.documentUploadFileProblem(file("scan.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")).message, /PDF, JPEG или PNG/u);
+  assert.match(upload.documentUploadFileProblem(file("big.pdf", "application/pdf", 25 * 1024 * 1024 + 1)).message, /25 МБ/u);
+  assert.equal(upload.documentUploadFileProblem(file("edge.pdf", "application/pdf", 25 * 1024 * 1024)), null);
+  assert.match(upload.documentUploadFileProblem(file("empty.pdf", "application/pdf", 0)).message, /пустой/u);
+  // 255 characters (code points, as `char_length`): an emoji counts once.
+  assert.equal(upload.documentUploadFileProblem(file(`${"а".repeat(251)}.pdf`)), null);
+  assert.equal(upload.documentUploadFileProblem(file(`${"😀".repeat(251)}.pdf`)), null);
+  assert.match(upload.documentUploadFileProblem(file(`${"а".repeat(252)}.pdf`)).message, /255 знаков/u);
+  assert.match(upload.documentUploadFileProblem(file(" scan.pdf")).message, /пробелы/u);
+  assert.equal(upload.DOCUMENT_UPLOAD_HINT, "PDF, JPEG, PNG · до 25 МБ");
+
+  assert.equal(upload.documentUploadConfirmed({ document: { documentSlotId: CASE_ID, documentVersionId: VERSION_ID, versionNumber: 1 } }, CASE_ID), true);
+  assert.equal(upload.documentUploadConfirmed({ document: { documentSlotId: VERSION_ID, documentVersionId: VERSION_ID, versionNumber: 1 } }, CASE_ID), false);
+  assert.equal(upload.documentUploadErrorCode({ error: "file_too_large" }), "file_too_large");
+  assert.equal(upload.documentUploadErrorCode("<html>"), null);
+});
+
+test("V3 profile document upload starts on file choice; the hint and the busy state are visible", () => {
+  const row = source("src/components/v3/profile/DocumentRow.tsx");
+  // A hidden file field under a visible label; no separate «Сохранить» sends it.
+  assert.match(row, /<label className=\{UPLOAD_LABEL\}>\s*<input\s+ref=\{fileRef\}\s+name="file"\s+type="file"[\s\S]*?className="sr-only"[\s\S]*?onChange=\{choose\}/u);
+  assert.match(row, /\{sending \? "Загружаем…" : "Загрузить файл"\}/u);
+  assert.match(row, /<span className="t-meta text-fg-2">\{DOCUMENT_UPLOAD_HINT\}<\/span>/u);
+  assert.doesNotMatch(row, /type="submit"[^>]*>\s*\{?[^<]*Сохранить[^<]*\}?\s*<\/button>\s*<\/form>\s*\) : null\}\s*<\/div>\s*<div className="flex justify-end/u);
+  assert.match(row, /if \(file\) onUpload\(item, file\);/u);
+  // Before hydration the handler does not exist yet: the field is unavailable, not silently dead.
+  assert.match(row, /disabled=\{!hydrated \|\| sending\}/u);
 });
 
 test("V3 profile mutates one canonical case checklist with versioned commands", () => {
   const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const row = source("src/components/v3/profile/DocumentRow.tsx");
+  const both = `${client}\n${row}`;
   const profileSource = source("src/lib/v3/profile-source.ts");
   const types = source("src/components/v3/profile/document-types.ts");
 
   assert.match(client, /createPlatformCustomDocumentSlotAction/u);
-  assert.match(client, /changePlatformDocumentSlotMetadataAction/u);
-  assert.match(client, /removePlatformDocumentSlotAction/u);
-  assert.match(client, /setPlatformDocumentCaseLinkAction/u);
-  assert.match(client, /name="student_case_id"/u);
-  assert.match(client, /name="document_slot_id"/u);
-  assert.match(client, /name="expected_version"/u);
-  assert.match(client, /name="group_label"/u);
-  assert.match(client, /name="reason"/u);
-  assert.match(client, /name="request_id"/u);
-  assert.match(client, /Файлы сохранятся в истории дела/u);
-  assert.match(client, /router\.refresh\(\)/u);
+  assert.match(row, /changePlatformDocumentSlotMetadataAction/u);
+  assert.match(row, /removePlatformDocumentSlotAction/u);
+  assert.match(row, /setPlatformDocumentCaseLinkAction/u);
+  for (const field of ["student_case_id", "document_slot_id", "expected_version", "group_label", "reason", "request_id"]) {
+    assert.match(both, new RegExp(`name="${field}"`, "u"));
+  }
+  assert.match(row, /Файлы сохранятся в истории дела/u);
+  assert.match(source("src/components/v3/profile/DocumentChecklistFeedback.tsx"), /router\.refresh\(\)/u);
 
   assert.match(profileSource, /new Map<string, ActiveGroup\["items"\]\[number\]\[\]>/u);
   assert.match(profileSource, /groups\.get\(slot\.groupLabel\)/u);
@@ -131,7 +227,7 @@ test("V3 profile mutates one canonical case checklist with versioned commands", 
 });
 
 test("V3 profile links documents to canonical applications or visa cases", () => {
-  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const client = source("src/components/v3/profile/DocumentRow.tsx");
   const profileSource = source("src/lib/v3/profile-source.ts");
   const types = source("src/components/v3/profile/document-types.ts");
 
@@ -163,8 +259,9 @@ test("V3 profile links documents to canonical applications or visa cases", () =>
   assert.match(client, /state\.version !== String\(item\.version\)/u);
   assert.doesNotMatch(client, /state\.status === "saved" \|\| requestId/u);
 
+  // The linked targets are read in the row; the link forms open under it from «⋯» → «Связи».
   const summaryCall = client.indexOf("<CaseLinkSummary item={item} />");
-  const writeControls = client.lastIndexOf('uploadAccess === "allowed" && studentCaseId');
+  const writeControls = client.indexOf('panel === "links" && canEditItem && studentCaseId');
   assert.ok(summaryCall > 0 && summaryCall < writeControls);
   assert.match(client, /data-testid="v3-document-linked-targets"/u);
   assert.match(client, /item\.caseLinkTargets\.filter\(\(target\) => target\.linked\)/u);
@@ -186,7 +283,7 @@ test("V3 profile renders removed checklist history as a separate read-only proje
   const types = source("src/components/v3/profile/document-types.ts");
   const historyComponent = client.slice(
     client.indexOf("function RemovedDocumentHistory"),
-    client.indexOf("function checklistMessage"),
+    client.indexOf("function ApplyBaselineChecklist"),
   );
   const historyItemType = types.slice(
     types.indexOf("export type RemovedDocumentItem"),
@@ -214,14 +311,15 @@ test("V3 profile renders removed checklist history as a separate read-only proje
 
 test("V3 profile offers staff a one-time baseline checklist seed above the custom-item form", () => {
   const wrapper = source("src/components/v3/profile/Documents.tsx");
+  const view = source("src/components/v3/profile/DocumentsView.tsx");
   const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
   const types = source("src/components/v3/profile/document-types.ts");
   const privateDocuments = source("src/lib/platform-private-documents.ts");
   const actions = source("src/lib/platform-document-checklist-actions.ts");
 
   assert.match(wrapper, /listCaseBaselineChecklistOptions\(actor, studentCaseId\)/u);
-  assert.match(wrapper, /baselineOptions=\{baselineOptions\}/u);
-  assert.match(wrapper, /baselineChecklistRequestId=\{baselineChecklistRequestId\}/u);
+  assert.match(view, /baselineOptions=\{input\.baselineOptions\}/u);
+  assert.match(view, /baselineChecklistRequestId=\{input\.baselineChecklistRequestId\}/u);
   assert.match(wrapper, /uploadAccess === "allowed" && studentCaseId/u);
 
   assert.match(types, /export type BaselineChecklistOption = Readonly<\{/u);
@@ -266,8 +364,9 @@ function DocumentsClientMarker() { return null; }
 function documentsWrapper(read) {
   const calls = [];
   const { Documents } = compile("src/components/v3/profile/Documents.tsx", (id) => {
-    if (id === "@/components/v3/Pill") return { Pill: () => null };
-    if (id === "@/components/ui") return { Card: ({ children }) => children };
+    if (id === "@/lib/platform-task-deadline") return { dayInOrganizationTimezone: () => "2026-09-28" };
+    // The synchronous tab view receives exactly what the wrapper read and issued.
+    if (id === "./DocumentsView") return { documentsView: (input) => ({ type: DocumentsClientMarker, props: input }) };
     if (id === "@/lib/platform-access") {
       return {
         staffHasPermission: (actor, key) =>
@@ -281,9 +380,6 @@ function documentsWrapper(read) {
           return read();
         },
       };
-    }
-    if (id === "./ProfileDocumentsClient") {
-      return { ProfileDocumentsClient: DocumentsClientMarker };
     }
     return undefined;
   });
@@ -302,6 +398,7 @@ async function wrapperClientProps(read, actor = MANAGER, groups = []) {
     uploadAccess: "allowed",
     studentCaseId: CASE_ID,
     actor,
+    tabHref: `/v3/profile?case=${CASE_ID}&tab=documents`,
   });
   const [client] = findElements(tree, (node) => node.type === DocumentsClientMarker);
   assert.ok(client, "Documents must render the documents client");
@@ -366,6 +463,9 @@ test("V3 documents wrapper tells a failed baseline-options read apart from an em
   assert.equal(uploadOnly.props.baselineChecklistRequestId, null);
 });
 
+const documentUpload = await import("../src/components/v3/profile/document-upload.ts");
+const documentsViewModule = await import("../src/components/v3/profile/documents-view.ts");
+
 function documentsClient(router) {
   return compile("src/components/v3/profile/ProfileDocumentsClient.tsx", (id) => {
     if (id === "react") {
@@ -373,35 +473,31 @@ function documentsClient(router) {
         useState: (initial) => [typeof initial === "function" ? initial() : initial, () => {}],
         useActionState: (action, initial) => [initial, action, false],
         useEffect: () => {},
+        useRef: (current) => ({ current }),
         useTransition: () => [false, (callback) => callback()],
       };
     }
     if (id === "next/link") return { default: () => null };
     if (id === "next/navigation") return { useRouter: () => router };
-    if (id === "@/components/v3/Pill") return { Pill: () => null };
+    if (id === "@/components/icons") return { Icon: () => null };
     if (id === "@/components/ui") {
-      return { btnCls: "btn", btnGhostCls: "btn-ghost", inputCls: "input", labelCls: "label" };
+      return { btnGhostCls: "btn-ghost", inputCls: "input", fieldLabelCls: "label" };
     }
+    if (id === "@/components/v3/queue/queue-buttons") return { QUEUE_CONFIRM: "confirm", QUEUE_SECONDARY: "secondary" };
     if (id === "@/lib/platform-document-checklist-actions") {
       const action = async (state) => state;
       return {
         applyCaseBaselineChecklistAction: action,
-        changePlatformDocumentSlotMetadataAction: action,
         createPlatformCustomDocumentSlotAction: action,
-        removePlatformDocumentSlotAction: action,
-        setPlatformDocumentCaseLinkAction: action,
       };
     }
-    if (id === "@/lib/v3/wording") {
-      return {
-        documentPresence: String,
-        documentReviewDecision: String,
-        documentSlotStatus: String,
-      };
-    }
-    if (id === "./DocumentReviewForm") return { DocumentReviewForm: () => null };
+    if (id === "./case-work-view") return { caseMomentLabel: () => "28.09 10:00" };
+    if (id === "./DocumentChecklistFeedback") return { ChecklistFeedback: () => null, useRefreshAfterSave: () => {} };
     if (id === "./DocumentPreviewButton") return { DocumentPreviewButton: () => null };
     if (id === "./DocumentRecognitionJobs") return { DocumentRecognitionJobs: () => null };
+    if (id === "./DocumentRow") return { DocumentRow: () => null, useHydrated: () => true };
+    if (id === "./document-upload") return documentUpload;
+    if (id === "./documents-view") return documentsViewModule;
     return undefined;
   });
 }
@@ -425,14 +521,16 @@ test("V3 documents client shows an honest retry for a failed read and a quiet li
     uploadAccess: "allowed",
     studentCaseId: CASE_ID,
     createRequestId: "33333333-3333-4333-8333-333333333333",
+    today: "2026-09-28",
+    checklistEmpty: true,
   };
 
   const failed = ProfileDocumentsClient({ ...base, baselineOptionsUnavailable: true });
   const failedSlot = baselineSlot(failed);
   assert.equal(failedSlot.unavailable.length, 1);
   assert.equal(failedSlot.apply.length, 0);
-  // The "no requirements assigned" state for the checklist itself is unchanged.
-  assert.match(textOf(failed), /требования к документам ещё не назначены/u);
+  // One empty state for the checklist itself (Э8.1), whatever the baseline read did.
+  assert.match(textOf(failed), /В чек-листе пока нет документов\./u);
 
   const notice = failedSlot.unavailable[0].type();
   const [alert] = findElements(notice, (node) => node.props.role === "alert");

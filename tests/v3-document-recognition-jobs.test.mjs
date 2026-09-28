@@ -7,6 +7,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import * as wording from "../src/lib/v3/wording.ts";
 import * as client from "../src/lib/document-recognition-client.ts";
+import * as deadline from "../src/lib/platform-task-deadline.ts";
+import * as caseWorkView from "../src/components/v3/profile/case-work-view.ts";
 import { DOCUMENT_RECOGNITION_STATES, DOCUMENT_RECOGNITION_CLEANUP_STATES } from "../src/lib/document-recognition.ts";
 
 const require = createRequire(import.meta.url);
@@ -15,7 +17,10 @@ const source = read("src/components/v3/profile/DocumentRecognitionJobs.tsx");
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 const compiled = { exports: {} };
 new Function("require", "module", "exports", code)(id => id === "@/lib/v3/wording" ? wording
-  : id === "@/lib/document-recognition-client" ? client : require(id), compiled, compiled.exports);
+  : id === "@/lib/document-recognition-client" ? client
+    : id === "@/lib/platform-task-deadline" ? deadline
+      : id === "./case-work-view" ? caseWorkView
+        : id === "@/components/icons" ? { Icon: () => null } : require(id), compiled, compiled.exports);
 const { DocumentRecognitionJobs, DocumentRecognitionJobList } = compiled.exports;
 const CASE = "10000000-0000-4000-8000-000000000001";
 const SOURCE = "10000000-0000-4000-8000-000000000002";
@@ -48,7 +53,10 @@ test("source and case history cannot accept a click before hydration", () => {
 
 test("unknown generation and cleanup remain distinct visible outcomes with an explicit retry choice", () => {
   const html = renderList([job], true);
-  assert.match(html, /Исход извлечения неизвестен/);
+  assert.match(html, /Исход распознавания неизвестен/);
+  // The job moment is Bishkek time in mono («13.09 18:00»), not a UTC string.
+  assert.match(html, /<time dateTime="2026-09-13T12:00:00Z" class="font-mono tabular-nums">13\.09(?:\.26)? 18:00<\/time>/);
+  assert.doesNotMatch(html, /UTC/);
   assert.match(html, /Отсутствие не подтверждено/);
   assert.match(html, /Выбрать для нового запуска/);
   assert.doesNotMatch(renderList([job]), /Выбрать для нового запуска/);
@@ -64,10 +72,20 @@ test("published proposals link existing human review and do not claim automatic 
 
 test("case history and absent profile expose no paid command", () => {
   const history = renderToStaticMarkup(createElement(DocumentRecognitionJobs, { access, sourceVersionId: null, sourceReady: false }));
-  assert.match(history, /История извлечения по делу/); assert.match(history, /включая заменённые файлы/);
-  assert.doesNotMatch(history, /Извлечь поля|Подтвердить запуск/);
+  assert.match(history, /История распознавания по делу/); assert.match(history, /включая заменённые файлы/);
+  assert.doesNotMatch(history, /Распознать поля|Подтвердить запуск/);
   const absent = renderToStaticMarkup(createElement(DocumentRecognitionJobs, { access: { ...access, profileRevision: null }, sourceVersionId: SOURCE, sourceReady: true }));
-  assert.match(absent, /Сначала начните анкету/); assert.doesNotMatch(absent, /Извлечь поля/);
+  assert.match(absent, /Сначала начните анкету/); assert.doesNotMatch(absent, /Распознать поля/);
+});
+
+test("the staff-facing word is «Распознавание», never «Извлечение»", () => {
+  const copy = JSON.stringify([wording.documentRecognitionCopy,
+    ...["generating", "generation_unknown"].map(wording.documentRecognitionState),
+    ...["document_not_eligible", "generation_unknown"].map(wording.documentRecognitionError)]);
+  assert.doesNotMatch(copy, /[Ии]звлеч|[Ии]звлек/u);
+  assert.equal(wording.documentRecognitionCopy.title, "Распознавание полей");
+  assert.equal(wording.documentRecognitionCopy.extract, "Распознать поля");
+  assert.equal(wording.documentRecognitionCopy.caseTitle, "История распознавания по делу");
 });
 
 test("all canonical states have shared human wording; internal keys have no fallback", () => {
@@ -83,7 +101,10 @@ test("existing document UI uses current authority hints, both histories and same
   assert.match(profile, /!isStaffPreview\(actor\)/); assert.match(profile, /"document\.extract"/);
   assert.match(profile, /draft\.profileFields\?\.profile\?\.revision/);
   const documents = read("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  assert.match(documents, /sourceVersionId=\{null\}/); assert.match(documents, /sourceVersionId=\{item\.currentVersionId\}/);
+  const row = read("src/components/v3/profile/DocumentRow.tsx");
+  assert.match(documents, /sourceVersionId=\{null\}/); assert.match(row, /sourceVersionId=\{current\.currentVersionId\}/);
+  // Э8.1: the row's «⋯» → «Распознавание» shows the version's recognition already open.
+  assert.match(row, /<DocumentRecognitionJobs key=\{current\.currentVersionId\} access=\{recognition\} initiallyOpen/);
   assert.match(source, /dispatch\(unresolved\)/); assert.match(source, /setCursor\(page\.next_cursor\)/);
   assert.match(source, /setTimeout\(load, 8000\)/); assert.doesNotMatch(source, /localStorage|sessionStorage|node:crypto/);
   assert.equal([...source.matchAll(/crypto\.randomUUID\(\)/g)].length, 1);

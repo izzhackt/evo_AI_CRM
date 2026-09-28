@@ -377,6 +377,7 @@ function profileDocuments(
         currentVersionId: currentVersion.documentVersionId,
         currentVersionNumber: currentVersion.versionNumber,
         currentFilename: currentVersion.originalFilename,
+        currentVersionCreatedAt: currentVersion.createdAt,
         latestReview: currentVersion.latestReview,
         reviewRequestId: allowReview && slot.status === "submitted" && currentVersion.storageFinalized
           ? randomUUID() : null,

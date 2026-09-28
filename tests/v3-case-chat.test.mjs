@@ -226,12 +226,10 @@ test("«Обсудить» links exist from the case card, task detail panel (ca
   const taskPanel = source("src/components/v3/tasks/TaskDetailPanel.tsx");
   assert.match(taskPanel, /href=\{`\/v3\/messages\?case=\$\{data\.caseId\}&attach=case_task:\$\{data\.task\.id\}`\}/u);
   assert.match(taskPanel, />\s*Обсудить\s*</u);
-  // Documents panel: header-level link only (not per-slot), a deliberate
-  // fallback per the task instructions — v3-profile-documents.test.mjs pins
-  // ProfileDocumentsClient.tsx's body with ~170 lines of exact regex on the
-  // per-slot checklist rows, too brittle to touch safely for a per-row hook.
+  // Documents tab: one tab-level link (not per-slot), a quiet text link in the
+  // tab's top line next to «+ Документ» (Э8.1, 28.09.2026).
   const documents = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  assert.match(documents, /studentCaseId \? \(\s*<p className="border-b border-border px-4 py-2\.5">\s*<Link href=\{`\/v3\/messages\?case=\$\{studentCaseId\}`\}/u);
+  assert.match(documents, /\{studentCaseId \? \(\s*<Link href=\{`\/v3\/messages\?case=\$\{studentCaseId\}`\} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">\s*Обсудить\s*<\/Link>/u);
 });
 
 test("the board decoder tolerates the new needs_reply key (field-picking, no exhaustive key check) — verified, not assumed", () => {

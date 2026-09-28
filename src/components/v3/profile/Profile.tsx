@@ -10,6 +10,7 @@ import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-
 import { personState } from "@/lib/v3/wording";
 
 import { Documents } from "./Documents";
+import type { DocumentStateFilter } from "./documents-view";
 import { ProfileContractWorkspace } from "./ProfileContractWorkspace";
 import { ProfileNotes } from "./ProfileNotes";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
@@ -75,6 +76,7 @@ export function Profile({
   caseHeader,
   caseOverview,
   headerMenu,
+  documentsFilter = "all",
 }: {
   profile: PersonProfile;
   /** «Вузы и программы» (unified workflow S4) — replaces the old «Маршрут» tab content. */
@@ -91,6 +93,8 @@ export function Profile({
   caseOverview?: React.ReactNode;
   /** «⋯» лида в шапке (`?id=`): «Закрыть лид» (миграция 246). */
   headerMenu?: React.ReactNode;
+  /** Фильтр «Документов» по состоянию из адреса (`doc_state`, Э8.1). */
+  documentsFilter?: DocumentStateFilter;
   /** Canonical projections not represented directly in `PersonProfile`. */
   draft: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
@@ -275,6 +279,8 @@ export function Profile({
           uploadAccess={uploadAccess}
           studentCaseId={draft.admissions?.studentCaseId ?? null}
           actor={actor}
+          filter={documentsFilter}
+          tabHref={hrefFor("documents")}
           recognition={!isStaffPreview(actor) && ["admin", "staff"].includes(actor.systemRole)
             && draft.admissions && ["case.read.full", "profile.read.full", "document.read.full"].every(key => staffHasPermission(actor, key))
             ? { studentCaseId: draft.admissions.studentCaseId, profileRevision: draft.profileFields?.profile?.revision ?? null,

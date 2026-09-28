@@ -2,159 +2,107 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState, useTransition, type FormEvent } from "react";
+import { useActionState, useRef, useState, useTransition, type ReactNode } from "react";
 
-import { Pill } from "@/components/v3/Pill";
-import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import {
   applyCaseBaselineChecklistAction,
-  changePlatformDocumentSlotMetadataAction,
   createPlatformCustomDocumentSlotAction,
-  removePlatformDocumentSlotAction,
-  setPlatformDocumentCaseLinkAction,
   type PlatformCaseBaselineChecklistActionState,
-  type PlatformDocumentCaseLinkActionState,
   type PlatformDocumentChecklistActionState,
 } from "@/lib/platform-document-checklist-actions";
-import { documentPresence, documentReviewDecision, documentSlotStatus } from "@/lib/v3/wording";
-import { DocumentReviewForm } from "./DocumentReviewForm";
+import type { PlatformDocumentSlotStatus } from "@/lib/platform-private-documents";
+
+import { caseMomentLabel } from "./case-work-view";
+import { ChecklistFeedback, useRefreshAfterSave } from "./DocumentChecklistFeedback";
 import { DocumentPreviewButton } from "./DocumentPreviewButton";
 import { DocumentRecognitionJobs } from "./DocumentRecognitionJobs";
+import { DocumentRow, useHydrated } from "./DocumentRow";
+import {
+  DOCUMENT_UPLOAD_IDLE,
+  DOCUMENT_UPLOAD_SAVED,
+  documentUploadConfirmed,
+  documentUploadErrorCode,
+  documentUploadFailure,
+  documentUploadFileProblem,
+  type DocumentUploadResult,
+  type DocumentUploadState,
+} from "./document-upload";
+import { documentMovedText, documentStateOf, type DocumentStateFilter } from "./documents-view";
 
 import type {
   ActiveDocumentGroup,
   BaselineChecklistOption,
-  DocumentCaseLinkTarget,
   DocumentItem,
   DocumentUploadAccess,
   DocumentRecognitionAccess,
   RemovedDocumentGroup,
 } from "./document-types";
 
-const ACCEPTED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-
-type UploadOutcome = "idle" | "sending" | "saved" | "invalid" | "forbidden" | "unavailable";
-
-type UploadState = Readonly<{
-  outcome: UploadOutcome;
-  message: string | null;
-}>;
-
-const IDLE_UPLOAD: UploadState = Object.freeze({ outcome: "idle", message: null });
-
-const HISTORY_DATE = new Intl.DateTimeFormat("ru-RU", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Asia/Bishkek",
-});
-
 const ACCESS_MESSAGE: Record<Exclude<DocumentUploadAccess, "allowed">, string> = {
   forbidden: "В режиме этой роли документы доступны только для просмотра.",
   closed: "Закрытое дело доступно только для просмотра.",
 };
 
-const OUTCOME_MESSAGE: Record<Exclude<UploadOutcome, "idle" | "sending">, string> = {
-  saved: "Файл сохранён в приватном хранилище.",
-  invalid: "Выберите PDF, JPEG или PNG размером до 25 MiB.",
-  forbidden: "У вашей роли нет права загружать этот документ.",
-  unavailable: "Хранилище не подтвердило загрузку. Файл не отмечен как сохранённый.",
-};
+/** id области «+ Документ»: на странице одна вкладка «Документы». */
+const ADD_REGION_ID = "case-documents-add";
 
-function uploadState(
-  states: Readonly<Record<string, UploadState>>,
-  itemId: string,
-): UploadState {
-  return states[itemId] ?? IDLE_UPLOAD;
-}
-
-function fileIsAccepted(value: FormDataEntryValue | null): value is File {
-  return value instanceof File
-    && value.size > 0
-    && value.size <= MAX_FILE_BYTES
-    && ACCEPTED_FILE_TYPES.some((type) => type === value.type);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function uploadWasConfirmed(value: unknown, item: DocumentItem): boolean {
-  if (!isRecord(value) || !isRecord(value.document)) return false;
-  const document = value.document;
-  return document.documentSlotId === item.id
-    && typeof document.documentVersionId === "string"
-    && document.documentVersionId.length > 0
-    && typeof document.versionNumber === "number"
-    && Number.isInteger(document.versionNumber)
-    && document.versionNumber > 0;
-}
-
-function responseOutcome(status: number): Extract<UploadOutcome, "invalid" | "forbidden" | "unavailable"> {
-  if (status === 401 || status === 403) return "forbidden";
-  return status >= 400 && status < 500 ? "invalid" : "unavailable";
-}
-
-function statusTone(item: DocumentItem): "neutral" | "ok" {
-  return item.presence === "present" ? "ok" : "neutral";
-}
-
-function historyDate(value: string): string {
-  return HISTORY_DATE.format(new Date(value));
-}
+/** Строка, ушедшая после загрузки или решения в другое состояние, чем выбранный фильтр. */
+type MovedDocument = Readonly<{
+  id: string;
+  name: string;
+  from: DocumentStateFilter;
+  to: Exclude<DocumentStateFilter, "all">;
+}>;
 
 function RemovedDocumentHistory({
   groups,
-}: Readonly<{ groups: readonly RemovedDocumentGroup[] }>) {
+  today,
+}: Readonly<{ groups: readonly RemovedDocumentGroup[]; today: string }>) {
   if (groups.length === 0) return null;
 
   return (
     <section
-      className="border-t border-border"
+      className="space-y-2 pt-2"
       aria-labelledby="removed-document-history-title"
       data-testid="v3-removed-document-history"
     >
-      <div className="bg-surface-2 px-4 py-3">
-        <h4 id="removed-document-history-title" className="t-item text-fg">
+      <div className="border-b border-border pb-2">
+        <h3 id="removed-document-history-title" className="t-item text-fg">
           История удалённых пунктов
-        </h4>
-        <p className="mt-1 text-xs text-fg-3">
+        </h3>
+        <p className="t-meta text-fg-2">
           Удалённые пункты и их файлы сохранены только для просмотра.
         </p>
       </div>
 
       <ul>
         {groups.map((group) => (
-          <li key={group.title} className="border-t border-border first:border-t-0">
-            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-              <h5 className="t-item text-fg">{group.title}</h5>
-              <span className="t-meta tabular-nums text-fg-3">{group.items.length}</span>
+          <li key={group.title}>
+            <div className="flex items-center justify-between gap-3 py-2">
+              <h4 className="t-caption text-fg-2">{group.title}</h4>
+              <span className="t-caption tabular-nums text-fg-2">{group.items.length}</span>
             </div>
             <ul>
               {group.items.map((item) => (
                 <li
                   key={item.id}
-                  className="border-t border-border px-4 py-3"
+                  className="border-t border-border py-3"
                   data-testid="v3-removed-document-item"
                   data-document-intent={item.intentKind}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-fg">{item.name}</p>
-                      <p className="mt-1 text-xs text-fg-3">
-                        Удалено {historyDate(item.removedAt)}
-                      </p>
-                      <p className="mt-1 text-xs text-fg-3">
-                        Причина: {item.removalReason}
-                      </p>
-                    </div>
-                    <Pill tone="neutral">только чтение</Pill>
-                  </div>
+                  <p className="t-item text-fg">{item.name}</p>
+                  <p className="t-meta text-fg-2">
+                    Удалено <time dateTime={item.removedAt} className="font-mono tabular-nums">{caseMomentLabel(item.removedAt, today)}</time>
+                    {" · "}Причина: {item.removalReason}
+                  </p>
 
                   {item.versions.length === 0 ? (
-                    <p className="mt-3 text-xs text-fg-3">Файлы к пункту не загружались.</p>
+                    <p className="mt-2 t-meta text-fg-2">Файлы к пункту не загружались.</p>
                   ) : (
-                    <ul className="mt-3 divide-y divide-border border-t border-border">
+                    <ul className="mt-2 divide-y divide-border border-t border-border">
                       {item.versions.map((version) => (
                         <li
                           key={version.id}
@@ -162,11 +110,11 @@ function RemovedDocumentHistory({
                           data-testid="v3-removed-document-version"
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-medium text-fg">
+                            <p className="truncate t-body-compact text-fg">
                               {version.filename} · версия {version.versionNumber}
                             </p>
-                            <p className="t-meta mt-0.5 text-fg-3">
-                              {version.submittedBy} · {historyDate(version.submittedAt)}
+                            <p className="t-meta text-fg-2">
+                              {version.submittedBy} · <time dateTime={version.submittedAt} className="font-mono tabular-nums">{caseMomentLabel(version.submittedAt, today)}</time>
                             </p>
                           </div>
                           {version.downloadReady ? (
@@ -181,7 +129,7 @@ function RemovedDocumentHistory({
                               </a>
                             </div>
                           ) : (
-                            <span className="t-meta text-fg-3">
+                            <span className="t-meta text-fg-2">
                               Скачивание недоступно
                             </span>
                           )}
@@ -196,140 +144,6 @@ function RemovedDocumentHistory({
         ))}
       </ul>
     </section>
-  );
-}
-
-function checklistMessage(status: PlatformDocumentChecklistActionState["status"]): string | null {
-  switch (status) {
-    case "idle":
-      return null;
-    case "saved":
-      return "Чек-лист сохранён.";
-    case "invalid":
-      return "Проверьте название и группу документа.";
-    case "forbidden":
-      return "У этой роли нет права изменять чек-лист.";
-    case "stale":
-      return "Пункт уже изменён другим сотрудником. Обновите страницу.";
-    case "request_conflict":
-      return "Эта команда уже использована с другими данными. Обновите страницу.";
-    case "unavailable":
-      return "База не подтвердила изменение. Чек-лист не изменён.";
-  }
-}
-
-function ChecklistFeedback({
-  state,
-}: Readonly<{ state: Readonly<{ status: PlatformDocumentChecklistActionState["status"] }> }>) {
-  const message = checklistMessage(state.status);
-  if (!message) return null;
-  return (
-    <p
-      className={state.status === "saved" ? "text-xs text-ok" : "text-xs text-danger"}
-      role="status"
-      data-testid="v3-document-checklist-status"
-      data-outcome={state.status}
-    >
-      {message}
-    </p>
-  );
-}
-
-function useRefreshAfterSave(status: PlatformDocumentChecklistActionState["status"]) {
-  const router = useRouter();
-  useEffect(() => {
-    if (status === "saved") router.refresh();
-  }, [router, status]);
-}
-
-function CaseLinkSummary({ item }: Readonly<{ item: DocumentItem }>) {
-  const linkedTargets = item.caseLinkTargets.filter((target) => target.linked);
-  if (linkedTargets.length === 0) return null;
-  return (
-    <div className="mt-3 border-t border-border pt-3" data-testid="v3-document-linked-targets">
-      <p className="text-xs font-semibold text-fg-2">Связано с</p>
-      <ul className="mt-1 space-y-1">
-        {linkedTargets.map((target) => (
-          <li key={`${target.kind}:${target.id}`} className="text-xs text-fg-3">
-            {target.label}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function CaseLinkTargetForm({
-  item,
-  studentCaseId,
-  target,
-}: Readonly<{
-  item: DocumentItem;
-  studentCaseId: string;
-  target: DocumentCaseLinkTarget;
-}>) {
-  const requestId = target.requestId ?? "";
-  const initialState: PlatformDocumentCaseLinkActionState = {
-    status: "idle",
-    requestId,
-    documentSlotId: item.id,
-    targetKind: target.kind,
-    targetId: target.id,
-    version: null,
-  };
-  const [state, action, pending] = useActionState(
-    setPlatformDocumentCaseLinkAction,
-    initialState,
-  );
-  useRefreshAfterSave(state.status);
-  const waitingForCanonicalRefresh = state.status === "saved"
-    && state.version !== String(item.version);
-  const locked = pending || waitingForCanonicalRefresh || requestId.length === 0;
-
-  return (
-    <form
-      action={action}
-      className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-      aria-busy={pending}
-      data-testid="v3-document-case-link-form"
-      data-target-kind={target.kind}
-      data-linked={target.linked}
-    >
-      <input type="hidden" name="student_case_id" value={studentCaseId} />
-      <input type="hidden" name="document_slot_id" value={item.id} />
-      <input type="hidden" name="target_kind" value={target.kind} />
-      <input type="hidden" name="target_id" value={target.id} />
-      <input type="hidden" name="enabled" value={target.linked ? "false" : "true"} />
-      <input type="hidden" name="expected_version" value={item.version} />
-      <input type="hidden" name="request_id" value={state.requestId || requestId} />
-      <label className="flex min-w-0 items-center gap-2 text-sm text-fg">
-        <input
-          type="checkbox"
-          className="size-4 shrink-0 rounded border-control-edge accent-fg"
-          checked={target.linked}
-          readOnly
-          disabled={locked}
-        />
-        <span className="min-w-0 truncate">{target.label}</span>
-      </label>
-      <button type="submit" className={btnGhostCls} disabled={locked}>
-        {pending ? "Сохраняем…" : target.linked ? "Убрать связь" : "Связать"}
-      </button>
-      <label className="sm:col-span-2 grid gap-1 text-xs text-fg-3">
-        Причина изменения
-        <input
-          required
-          name="reason"
-          className={inputCls}
-          maxLength={1000}
-          placeholder="Например: документ нужен для подачи"
-          disabled={locked}
-        />
-      </label>
-      <div className="sm:col-span-2">
-        <ChecklistFeedback state={state} />
-      </div>
-    </form>
   );
 }
 
@@ -360,7 +174,7 @@ function ApplyBaselineChecklist({
   return (
     <form
       action={action}
-      className="grid gap-3 border-b border-border bg-surface-2 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
+      className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
       aria-busy={pending}
       data-testid="v3-document-baseline-checklist"
     >
@@ -384,10 +198,10 @@ function ApplyBaselineChecklist({
           ))}
         </select>
       </label>
-      <button type="submit" className={btnCls} disabled={locked}>
+      <button type="submit" className={QUEUE_CONFIRM} disabled={locked}>
         {pending ? "Применяем…" : "Применить базовый чек-лист"}
       </button>
-      <p className="text-xs text-fg-3 md:col-span-2">
+      <p className="t-meta text-fg-2 md:col-span-2">
         Привязка версии требований выполняется один раз; страна и степень дела будут зафиксированы.
       </p>
       <div className="md:col-span-2">
@@ -408,16 +222,16 @@ function BaselineChecklistUnavailable() {
 
   return (
     <div
-      className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-2 px-4 py-4"
+      className="flex flex-wrap items-center justify-between gap-3"
       aria-busy={retrying}
       data-testid="v3-document-baseline-checklist-unavailable"
     >
-      <p role="alert" className="min-w-0 flex-1 text-sm text-danger">
+      <p role="alert" className="min-w-0 flex-1 t-body-compact text-danger">
         Не удалось загрузить базовые чек-листы. Это не значит, что их нет — повторите попытку.
       </p>
       <button
         type="button"
-        className={`${btnGhostCls} min-h-11`}
+        className={QUEUE_SECONDARY}
         disabled={retrying}
         onClick={() => startRetry(() => router.refresh())}
       >
@@ -450,7 +264,7 @@ function CreateChecklistItem({
   return (
     <form
       action={action}
-      className="grid gap-3 border-b border-border bg-surface-2 px-4 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_auto] md:items-end"
+      className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_auto] md:items-end"
       aria-busy={pending}
       data-testid="v3-document-checklist-create"
     >
@@ -478,7 +292,7 @@ function CreateChecklistItem({
           disabled={locked}
         />
       </label>
-      <button type="submit" className={btnCls} disabled={locked}>
+      <button type="submit" className={QUEUE_CONFIRM} disabled={locked}>
         {pending ? "Добавляем…" : "Добавить"}
       </button>
       <div className="md:col-span-3">
@@ -488,155 +302,19 @@ function CreateChecklistItem({
   );
 }
 
-function ChecklistItemControls({
-  item,
-  studentCaseId,
-}: Readonly<{
-  item: DocumentItem;
-  studentCaseId: string;
-}>) {
-  const metadataRequestId = item.metadataRequestId ?? "";
-  const removalRequestId = item.removalRequestId ?? "";
-  const baseVersion = String(item.version);
-  const initialMetadataState: PlatformDocumentChecklistActionState = {
-    status: "idle",
-    requestId: metadataRequestId,
-    documentSlotId: item.id,
-    version: baseVersion,
-  };
-  const initialRemovalState: PlatformDocumentChecklistActionState = {
-    status: "idle",
-    requestId: removalRequestId,
-    documentSlotId: item.id,
-    version: baseVersion,
-  };
-  const [metadataState, metadataAction, metadataPending] = useActionState(
-    changePlatformDocumentSlotMetadataAction,
-    initialMetadataState,
-  );
-  const [removalState, removalAction, removalPending] = useActionState(
-    removePlatformDocumentSlotAction,
-    initialRemovalState,
-  );
-  useRefreshAfterSave(metadataState.status);
-  useRefreshAfterSave(removalState.status);
-  const metadataLocked = metadataPending
-    || metadataState.status === "saved"
-    || metadataState.status === "stale";
-  const removalLocked = removalPending
-    || removalState.status === "saved"
-    || removalState.status === "stale";
-
-  return (
-    <details className="mt-3 rounded-card border border-border bg-surface-2 px-3 py-2">
-      <summary className="cursor-pointer text-xs font-semibold text-fg-2">
-        Изменить пункт
-      </summary>
-      <form
-        action={metadataAction}
-        className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_auto] md:items-end"
-        aria-busy={metadataPending}
-        data-testid="v3-document-checklist-edit"
-      >
-        <input type="hidden" name="student_case_id" value={studentCaseId} />
-        <input type="hidden" name="document_slot_id" value={item.id} />
-        <input
-          type="hidden"
-          name="expected_version"
-          value={metadataState.version ?? baseVersion}
-        />
-        <input
-          type="hidden"
-          name="request_id"
-          value={metadataState.requestId || metadataRequestId}
-        />
-        <input
-          type="hidden"
-          name="reason"
-          value="Обновление пункта чек-листа сотрудником"
-        />
-        <label>
-          <span className={fieldLabelCls}>Название</span>
-          <input
-            required
-            name="label"
-            maxLength={500}
-            className={inputCls}
-            defaultValue={item.name}
-            disabled={metadataLocked}
-          />
-        </label>
-        <label>
-          <span className={fieldLabelCls}>Группа</span>
-          <input
-            required
-            name="group_label"
-            maxLength={200}
-            className={inputCls}
-            defaultValue={item.groupLabel}
-            disabled={metadataLocked}
-          />
-        </label>
-        <button type="submit" className={btnGhostCls} disabled={metadataLocked}>
-          {metadataPending ? "Сохраняем…" : "Сохранить"}
-        </button>
-        <div className="md:col-span-3">
-          <ChecklistFeedback state={metadataState} />
-        </div>
-      </form>
-
-      {item.caseLinkTargets.length > 0 ? (
-        <div
-          className="mt-3 space-y-2 border-t border-border pt-3"
-          data-testid="v3-document-case-links"
-        >
-          <p className="text-xs font-semibold text-fg-2">Связи</p>
-          {item.caseLinkTargets.map((target) => (
-            <CaseLinkTargetForm
-              key={`${target.kind}:${target.id}`}
-              item={item}
-              studentCaseId={studentCaseId}
-              target={target}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      <form
-        action={removalAction}
-        className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3"
-        aria-busy={removalPending}
-        data-testid="v3-document-checklist-remove"
-      >
-        <input type="hidden" name="student_case_id" value={studentCaseId} />
-        <input type="hidden" name="document_slot_id" value={item.id} />
-        <input
-          type="hidden"
-          name="expected_version"
-          value={removalState.version ?? baseVersion}
-        />
-        <input
-          type="hidden"
-          name="request_id"
-          value={removalState.requestId || removalRequestId}
-        />
-        <input
-          type="hidden"
-          name="reason"
-          value="Удаление пункта из активного чек-листа сотрудником"
-        />
-        <p className="text-xs text-fg-3">Файлы сохранятся в истории дела.</p>
-        <button type="submit" className={btnGhostCls} disabled={removalLocked}>
-          {removalPending ? "Убираем…" : "Убрать из чек-листа"}
-        </button>
-        <div className="w-full">
-          <ChecklistFeedback state={removalState} />
-        </div>
-      </form>
-    </details>
-  );
-}
-
+/**
+ * Вкладка «Документы» дела (Э8.1). Сверху — «N из M принято» и фильтр по
+ * состоянию (их рисует сервер из того же чтения); «+ Документ» — тихая
+ * кнопка, раскрывающая формы пункта и базового чек-листа (сплошной красный на
+ * странице остаётся главному действию шапки). Строки — `DocumentRow`.
+ *
+ * Загрузка: файл уходит сразу после выбора (отдельной «Сохранить» нет), до
+ * отправки — те же проверки, что у сервера; успех — только 201 с квитанцией
+ * этого пункта, затем страница перечитывается. Итог живёт здесь, по id
+ * пункта: строка с новой версией файла пересоздаётся, а слово остаётся.
+ * Под фильтром строка после загрузки или решения уходит в своё состояние —
+ * тогда вместо неё одна тихая фраза «Документ «…» перенесён в «…»».
+ */
 export function ProfileDocumentsClient({
   groups,
   historyGroups,
@@ -648,7 +326,14 @@ export function ProfileDocumentsClient({
   baselineTemplatesAbsent = false,
   baselineChecklistRequestId = null,
   recognition = null,
+  today,
+  stateFilter = "all",
+  progress = null,
+  filter = null,
+  checklistEmpty = false,
+  emptyText = null,
 }: Readonly<{
+  /** Пункты, которые показывает выбранный фильтр (без фильтра — все). */
   groups: readonly ActiveDocumentGroup[];
   historyGroups: readonly RemovedDocumentGroup[];
   uploadAccess: DocumentUploadAccess;
@@ -661,252 +346,198 @@ export function ProfileDocumentsClient({
   baselineTemplatesAbsent?: boolean;
   baselineChecklistRequestId?: string | null;
   recognition?: DocumentRecognitionAccess | null;
+  /** «Сегодня» по Бишкеку с сервера (даты строк). */
+  today: string;
+  /** Выбранный фильтр по состоянию: строка, ушедшая из него, называет, куда. */
+  stateFilter?: DocumentStateFilter;
+  /** «N из M принято» — только из прочитанного чек-листа; null — чисел нет. */
+  progress?: ReactNode;
+  /** Фильтр по состоянию (ссылки с числами); null — чек-лист пуст. */
+  filter?: ReactNode;
+  /** В чек-листе нет ни одного пункта: формы «+ Документ» открыты сразу. */
+  checklistEmpty?: boolean;
+  /** Одно пустое состояние списка: пустой чек-лист или пустой фильтр. */
+  emptyText?: ReactNode;
 }>) {
   const router = useRouter();
-  const [uploads, setUploads] = useState<Readonly<Record<string, UploadState>>>({});
+  const hydrated = useHydrated();
+  const [uploads, setUploads] = useState<Readonly<Record<string, DocumentUploadState>>>({});
+  const inFlight = useRef(new Set<string>());
+  const canChangeChecklist = uploadAccess === "allowed" && studentCaseId !== null && createRequestId !== null;
+  const [addOpen, setAddOpen] = useState(checklistEmpty);
+  const [moved, setMoved] = useState<MovedDocument | null>(null);
 
-  function record(itemId: string, outcome: UploadOutcome, message: string | null) {
-    setUploads((current) => ({ ...current, [itemId]: { outcome, message } }));
+  function record(itemId: string, next: DocumentUploadResult | "sending", file: File | null) {
+    const state: DocumentUploadState = next === "sending"
+      ? { outcome: "sending", message: "Загружаем файл…", next: null, file }
+      : { ...next, file: next.next === "retry" ? file : null };
+    setUploads((current) => ({ ...current, [itemId]: state }));
   }
 
-  async function upload(event: FormEvent<HTMLFormElement>, item: DocumentItem) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const file = formData.get("file");
+  function noteMoved(item: DocumentItem, status: PlatformDocumentSlotStatus) {
+    setMoved({ id: item.id, name: item.name, from: stateFilter, to: documentStateOf(status) });
+  }
 
+  async function upload(item: DocumentItem, file: File) {
+    if (inFlight.current.has(item.id)) return;
     if (uploadAccess !== "allowed" || !item.uploadRequestId) {
-      record(item.id, "forbidden", OUTCOME_MESSAGE.forbidden);
+      record(item.id, documentUploadFailure(403, null), null);
       return;
     }
-    if (!fileIsAccepted(file)) {
-      record(item.id, "invalid", OUTCOME_MESSAGE.invalid);
+    const problem = documentUploadFileProblem(file);
+    if (problem) {
+      record(item.id, problem, null);
       return;
     }
 
-    record(item.id, "sending", null);
+    inFlight.current.add(item.id);
+    record(item.id, "sending", file);
+    // Ровно два поля, как требует сервер: файл и ключ запроса этого пункта.
+    const body = new FormData();
+    body.set("file", file);
+    body.set("request_id", item.uploadRequestId);
     try {
       const response = await fetch(`/api/v2/document-slots/${item.id}/versions`, {
         method: "POST",
-        body: formData,
+        body,
       });
-      if (response.status !== 201) {
-        const outcome = responseOutcome(response.status);
-        record(item.id, outcome, OUTCOME_MESSAGE[outcome]);
-        return;
-      }
-
       const payload: unknown = await response.json().catch(() => null);
-      if (!uploadWasConfirmed(payload, item)) {
-        record(item.id, "unavailable", OUTCOME_MESSAGE.unavailable);
+      if (response.status !== 201) {
+        record(item.id, documentUploadFailure(response.status, documentUploadErrorCode(payload)), file);
         return;
       }
-
-      form.reset();
-      record(item.id, "saved", OUTCOME_MESSAGE.saved);
+      if (!documentUploadConfirmed(payload, item.id)) {
+        record(item.id, documentUploadFailure(null, null), file);
+        return;
+      }
+      record(item.id, DOCUMENT_UPLOAD_SAVED, null);
+      noteMoved(item, "submitted");
       router.refresh();
     } catch {
-      record(item.id, "unavailable", OUTCOME_MESSAGE.unavailable);
+      record(item.id, documentUploadFailure(null, null), file);
+    } finally {
+      inFlight.current.delete(item.id);
     }
   }
 
+  const baseline = uploadAccess === "allowed" && studentCaseId && baselineOptionsUnavailable ? (
+    <BaselineChecklistUnavailable />
+  ) : uploadAccess === "allowed" && studentCaseId && baselineChecklistRequestId &&
+    baselineOptions.length > 0 ? (
+      <ApplyBaselineChecklist
+        key={baselineChecklistRequestId}
+        studentCaseId={studentCaseId}
+        options={baselineOptions}
+        requestId={baselineChecklistRequestId}
+      />
+    ) : uploadAccess === "allowed" && studentCaseId && createRequestId && baselineTemplatesAbsent ? (
+      // A quiet fact, not an error: the manual form right below is the way.
+      <p className="t-body-compact text-fg-2"
+        data-testid="v3-document-baseline-checklist-empty">
+        Шаблонов чек-листа пока нет — документы добавляются вручную.
+      </p>
+    ) : null;
+
+  // Только когда строка действительно ушла из списка (страница перечитана).
+  const movedText = moved && stateFilter !== "all" && moved.from === stateFilter && moved.to !== stateFilter
+    && !groups.some((group) => group.items.some((item) => item.id === moved.id))
+    ? documentMovedText(moved.name, moved.to) : null;
+
   return (
-    <>
-      {studentCaseId ? (
-        <p className="border-b border-border px-4 py-2.5">
-          <Link href={`/v3/messages?case=${studentCaseId}`} className="text-sm text-fg-2 underline decoration-transparent hover:decoration-inherit">
-            Обсудить
-          </Link>
-        </p>
+    <section aria-labelledby="case-documents-title" className="min-w-0 space-y-3" data-testid="v3-case-documents">
+      <h2 id="case-documents-title" className="sr-only">Документы дела</h2>
+
+      {progress || canChangeChecklist || studentCaseId ? (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">{progress}</div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {studentCaseId ? (
+              <Link href={`/v3/messages?case=${studentCaseId}`} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+                Обсудить
+              </Link>
+            ) : null}
+            {canChangeChecklist ? (
+              <button
+                type="button"
+                className={`${QUEUE_SECONDARY} v3-choice`}
+                aria-expanded={addOpen}
+                aria-controls={ADD_REGION_ID}
+                disabled={!hydrated}
+                onClick={() => setAddOpen((open) => !open)}
+                data-testid="v3-document-add-toggle"
+              >
+                <Icon name="plus" size={16} className="shrink-0" />
+                <span><span className="sr-only">Добавить </span>Документ</span>
+              </button>
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
       {uploadAccess !== "allowed" ? (
-        <p className="border-b border-border px-4 py-3 text-sm text-fg-3" role="status">
+        <p className="t-body-compact text-fg-2" role="status">
           {ACCESS_MESSAGE[uploadAccess]}
         </p>
-      ) : null}
-
-      {recognition ? <div className="px-4"><DocumentRecognitionJobs key={recognition.studentCaseId}
-        access={recognition} sourceVersionId={null} sourceReady={false} /></div> : null}
-
-      {uploadAccess === "allowed" && studentCaseId && baselineOptionsUnavailable ? (
-        <BaselineChecklistUnavailable />
-      ) : uploadAccess === "allowed" && studentCaseId && baselineChecklistRequestId &&
-        baselineOptions.length > 0 ? (
-          <ApplyBaselineChecklist
-            key={baselineChecklistRequestId}
-            studentCaseId={studentCaseId}
-            options={baselineOptions}
-            requestId={baselineChecklistRequestId}
-          />
-        ) : uploadAccess === "allowed" && studentCaseId && createRequestId && baselineTemplatesAbsent ? (
-          // A quiet fact, not an error: the manual form right below is the way.
-          <p className="t-body-compact border-b border-border px-4 py-3 text-fg-3"
-            data-testid="v3-document-baseline-checklist-empty">
-            Шаблонов чек-листа пока нет — документы добавляются вручную.
-          </p>
-        ) : null}
-
-      {uploadAccess === "allowed" && studentCaseId && createRequestId ? (
-        <CreateChecklistItem
-          key={createRequestId}
-          studentCaseId={studentCaseId}
-          requestId={createRequestId}
-        />
-      ) : uploadAccess === "allowed" ? (
-        <p className="border-b border-border px-4 py-3 text-sm text-danger" role="status">
+      ) : !canChangeChecklist ? (
+        <p className="t-body-compact text-danger" role="status">
           Изменение чек-листа недоступно: сервер не подтвердил дело или команду.
         </p>
       ) : null}
 
-      <ul>
-        {groups.length === 0 ? (
-          <li className="px-4 py-8 text-center text-sm text-fg-3">
-            Для этого дела требования к документам ещё не назначены.
-          </li>
-        ) : null}
-        {groups.map((group) => (
-          <li key={group.title} className="border-b border-border last:border-b-0">
-            <div className="flex items-center justify-between gap-3 bg-surface-2 px-4 py-2.5">
-              <h4 className="t-item text-fg">{group.title}</h4>
-              <span className="t-meta tabular-nums text-fg-3">{group.items.length}</span>
-            </div>
-            {group.items.length === 0 ? (
-              <p className="px-4 py-4 text-sm text-fg-3">Требований нет.</p>
-            ) : (
+      {canChangeChecklist && studentCaseId && createRequestId ? (
+        <div id={ADD_REGION_ID} hidden={!addOpen} className="space-y-4 border-y border-border py-4" data-testid="v3-document-add">
+          {baseline}
+          <CreateChecklistItem
+            key={createRequestId}
+            studentCaseId={studentCaseId}
+            requestId={createRequestId}
+          />
+        </div>
+      ) : null}
+
+      {filter}
+
+      {movedText ? (
+        <p className="t-body-compact text-fg-2" role="status" data-testid="v3-document-moved">{movedText}</p>
+      ) : null}
+
+      {groups.length === 0 ? (
+        <p className="py-4 t-body-compact text-fg-2" data-testid="v3-document-empty">
+          {emptyText ?? "В чек-листе пока нет документов."}
+        </p>
+      ) : (
+        <ul className="@container/documents min-w-0">
+          {groups.map((group) => (
+            <li key={group.title}>
+              <div className="flex items-center justify-between gap-3 border-b border-border pb-2 pt-3">
+                <h3 className="t-caption text-fg-2">{group.title}</h3>
+                <span className="t-caption tabular-nums text-fg-2">{group.items.length}</span>
+              </div>
               <ul>
-                {group.items.map((item) => {
-                  const state = uploadState(uploads, item.id);
-                  const canUpload = uploadAccess === "allowed" && item.uploadRequestId !== null && item.status !== "approved";
-                  return (
-                    <li
-                      key={item.id}
-                      id={`document-${item.id}`}
-                      className="border-t border-border px-4 py-3 first:border-t-0"
-                      data-testid="v3-document-item"
-                      data-document-presence={item.presence}
-                      data-document-intent={item.intentKind}
-                      data-document-slot-version={item.version}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-fg">{item.name}</p>
-                          {item.presence === "present" ? (
-                            <p className="mt-0.5 truncate text-xs text-fg-3">
-                              {item.currentFilename} · версия {item.currentVersionNumber}
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Pill tone={statusTone(item)}>{documentPresence(item.presence)}</Pill>
-                          {item.presence === "present" ? <Pill tone={item.status === "approved" ? "ok" : "neutral"}>{documentSlotStatus(item.status)}</Pill> : null}
-                          {item.presence === "present" && item.downloadReady ? (
-                            <>
-                              <DocumentPreviewButton key={item.currentVersionId} versionId={item.currentVersionId} filename={item.currentFilename} versionNumber={item.currentVersionNumber} />
-                              <a
-                                href={`/api/v2/document-versions/${item.currentVersionId}/download`}
-                                className={btnGhostCls}
-                                data-testid="v3-document-download"
-                              >
-                                Скачать
-                              </a>
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {item.presence === "present" && !item.downloadReady ? (
-                        <p className="mt-2 text-xs text-fg-3" role="status">
-                          Файл есть, но скачивание ещё не подтверждено хранилищем.
-                        </p>
-                      ) : null}
-
-                      <CaseLinkSummary item={item} />
-
-                      {canUpload ? (
-                        <form
-                          className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
-                          onSubmit={(event) => upload(event, item)}
-                          data-testid="v3-document-upload-form"
-                        >
-                          <input type="hidden" name="request_id" value={item.uploadRequestId} />
-                          <label>
-                            <span className={fieldLabelCls}>
-                              {item.presence === "present" ? "Заменить файл" : "Загрузить файл"}
-                            </span>
-                            <input
-                              required
-                              name="file"
-                              type="file"
-                              accept={ACCEPTED_FILE_TYPES.join(",")}
-                              className={inputCls}
-                              disabled={state.outcome === "sending"}
-                            />
-                          </label>
-                          <button
-                            type="submit"
-                            className={btnGhostCls}
-                            disabled={state.outcome === "sending"}
-                          >
-                            {state.outcome === "sending" ? "Загрузка…" : "Сохранить"}
-                          </button>
-                        </form>
-                      ) : uploadAccess === "allowed" && item.status === "approved" ? (
-                        <p className="mt-2 text-xs text-fg-3">Принятый файл доступен для скачивания.</p>
-                      ) : uploadAccess === "allowed" ? (
-                        <p className="mt-2 text-xs text-danger" role="status">
-                          Загрузка недоступна: сервер не выдал безопасный идентификатор команды.
-                        </p>
-                      ) : null}
-
-                      {state.message ? (
-                        <p
-                          className={
-                            state.outcome === "saved"
-                              ? "mt-2 text-xs text-ok"
-                              : state.outcome === "invalid"
-                                ? "mt-2 text-xs text-warn"
-                                : "mt-2 text-xs text-danger"
-                          }
-                          role="status"
-                          data-testid="v3-document-upload-status"
-                          data-outcome={state.outcome}
-                        >
-                          {state.message}
-                        </p>
-                      ) : null}
-
-                      {item.presence === "present" && item.latestReview ? (
-                        <div className="mt-2 space-y-1 text-xs text-fg-2">
-                          <p>Документ {documentReviewDecision(item.latestReview.decision)} · {historyDate(item.latestReview.reviewedAt)}</p>
-                          {item.latestReview.reason ? <p className="break-words">{item.latestReview.reason}</p> : null}
-                        </div>
-                      ) : null}
-                      {recognition && item.presence === "present" ? (
-                        <DocumentRecognitionJobs key={item.currentVersionId} access={recognition}
-                          sourceVersionId={item.currentVersionId} sourceReady={item.downloadReady} />
-                      ) : null}
-                      {uploadAccess === "allowed" && studentCaseId && item.presence === "present" && item.reviewRequestId ? (
-                        <DocumentReviewForm key={`${item.id}:${item.currentVersionId}`} item={item} studentCaseId={studentCaseId} />
-                      ) : null}
-
-                      {uploadAccess === "allowed" && studentCaseId
-                        && item.metadataRequestId && item.removalRequestId ? (
-                          <ChecklistItemControls
-                            key={`${item.id}:${item.version}`}
-                            item={item}
-                            studentCaseId={studentCaseId}
-                          />
-                        ) : null}
-                    </li>
-                  );
-                })}
+                {group.items.map((item) => (
+                  <DocumentRow
+                    key={`${item.id}:${item.currentVersionId ?? "none"}`}
+                    item={item}
+                    studentCaseId={studentCaseId}
+                    uploadAccess={uploadAccess}
+                    recognition={recognition}
+                    today={today}
+                    upload={uploads[item.id] ?? DOCUMENT_UPLOAD_IDLE}
+                    onUpload={(target, file) => void upload(target, file)}
+                    onReviewSaved={noteMoved}
+                  />
+                ))}
               </ul>
-            )}
-          </li>
-        ))}
-      </ul>
-      <RemovedDocumentHistory groups={historyGroups} />
-    </>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Под списком черта последней строки уже отделяет раздел: своя не нужна. */}
+      {recognition ? <DocumentRecognitionJobs key={recognition.studentCaseId}
+        access={recognition} sourceVersionId={null} sourceReady={false} ruled={groups.length === 0} /> : null}
+
+      <RemovedDocumentHistory groups={historyGroups} today={today} />
+    </section>
   );
 }

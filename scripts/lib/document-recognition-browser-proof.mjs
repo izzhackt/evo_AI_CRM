@@ -87,6 +87,8 @@ async function main() {
     const documentUrl = `${config.appOrigin}/v3/profile?case=${caseId}&tab=documents`;
     await page.goto(documentUrl, { waitUntil: "domcontentloaded" });
     const form = page.getByTestId("v3-document-checklist-create");
+    // Э8.1: формы пункта раскрывает «+ Документ» (у пустого чек-листа они уже открыты).
+    if (!await form.isVisible()) await page.getByTestId("v3-document-add-toggle").click();
     await form.locator('input[name="label"]').fill("D3 synthetic public EVO logo");
     await form.locator('input[name="group_label"]').fill("D3 technical acceptance");
     await form.locator('button[type="submit"]').click();
@@ -96,9 +98,11 @@ async function main() {
     const bytes = readFileSync(resolve(REPO, "public/brand/evo-logo.png"));
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const upload = row().getByTestId("v3-document-upload-form");
-    await upload.locator('input[name="file"]').setInputFiles({ name: "d3-synthetic-public-logo.png", mimeType: "image/png", buffer: bytes });
     await expect(upload.locator('input[name="request_id"]')).not.toHaveValue("");
-    await upload.locator('button[type="submit"]').click();
+    // Э8.1: файл уходит сразу после выбора — отдельной кнопки отправки нет;
+    // до гидратации поле выбора недоступно (выбор без обработчика потерялся бы).
+    await expect(upload.locator('input[name="file"]')).toBeEnabled();
+    await upload.locator('input[name="file"]').setInputFiles({ name: "d3-synthetic-public-logo.png", mimeType: "image/png", buffer: bytes });
     await expect(row().getByTestId("v3-document-upload-status")).toHaveAttribute("data-outcome", "saved");
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(row()).toHaveAttribute("data-document-presence", "present");
@@ -120,9 +124,14 @@ async function main() {
       && /^[1-9][0-9]{0,18}$/u.test(source.scanner_signature_version), "SCAN_STORAGE_PROOF_INVALID");
     const endpoint = `${config.appOrigin}/api/v3/student-cases/${caseId}/document-recognition-jobs`;
     const panel = () => row().getByTestId("document-recognition");
+    // Э8.1: «Распознавание» — в «⋯» строки; панель открывается уже раскрытой.
+    const openRecognition = async () => {
+      await row().getByTestId("v3-document-menu").click();
+      await row().getByRole("button", { name: "Распознавание", exact: true }).click();
+    };
     stage = "RECOGNITION_ENQUEUE_UI";
-    await panel().getByRole("button", { name: "Извлечение полей", exact: true }).click();
-    await panel().getByRole("button", { name: "Извлечь поля", exact: true }).click();
+    await openRecognition();
+    await panel().getByRole("button", { name: "Распознать поля", exact: true }).click();
     await panel().getByRole("checkbox").check();
     const responsePromise = page.waitForResponse(response => response.url() === endpoint && response.request().method() === "POST");
     await panel().getByRole("button", { name: "Подтвердить запуск", exact: true }).click();
@@ -142,8 +151,8 @@ async function main() {
     stage = "COLD_HISTORY_RELOAD";
     await page.reload({ waitUntil: "domcontentloaded" });
     stage = "COLD_HISTORY_TOGGLE";
-    const historyToggle = panel().getByRole("button", { name: "Извлечение полей", exact: true });
-    await historyToggle.click();
+    await openRecognition();
+    const historyToggle = panel().getByRole("button", { name: "Распознавание полей", exact: true });
     stage = "COLD_HISTORY_EXPANDED";
     await expect(historyToggle).toHaveAttribute("aria-expanded", "true");
     stage = "COLD_HISTORY_QUEUED_ROW";

@@ -20,6 +20,7 @@ import { buildStudentsQueueScreen } from "@/components/v3/students/StudentsQueue
 import { StudentsDirectoryFallback } from "@/components/v3/students/StudentsDirectoryFallback";
 import { nextStepAccess, parseStudentsQueueParams, parseStudentsReturnTo, type NextStepAccessInput } from "@/components/v3/students/students-queue-view";
 import { UniversityProgramsTab } from "@/components/v3/profile/UniversityProgramsTab";
+import { DOCUMENT_STATE_PARAM, parseDocumentStateFilter } from "@/components/v3/profile/documents-view";
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
 import {
   buildV3ProfileHref,
@@ -543,6 +544,7 @@ export default async function ProfilePart({
               contractRetry={contractRetry}
               tab={tab}
               hrefFor={hrefFor}
+              documentsFilter={parseDocumentStateFilter(singleSearchParam(params[DOCUMENT_STATE_PARAM]))}
             />
           </>
         ) : closedLead ? (

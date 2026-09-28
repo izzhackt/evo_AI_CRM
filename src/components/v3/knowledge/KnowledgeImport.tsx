@@ -1,18 +1,29 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { KnowledgeImportPlan } from "@/lib/knowledge-import-contract";
 import { KNOWLEDGE_SHA256 } from "@/lib/knowledge-library-contract";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { KnowledgeProtectedImport } from "./KnowledgeProtectedImport";
 import { reconcileKnowledgeImport } from "./reconcile";
 import { prepareKnowledgeStructure } from "./import-structure";
 import { importKnowledgeFile } from "./import";
-import styles from "./KnowledgeLibrary.module.css";
-export function KnowledgeImport({ onChanged }: { onChanged: () => void }) {
+import { KB_DIALOG, KB_DIALOG_BODY, KB_DIALOG_HEAD, KB_ERROR, KB_FIELD, KB_FILE, KB_LABEL } from "./knowledge-look";
+
+/**
+ * «Перенос локальной базы» — окно из «⋯» (Э8.10). Поля стоят столбиком (на
+ * телефоне поле файла не растягивает страницу). Компонент смонтирован всё
+ * время: закрытое окно не останавливает идущий перенос, а открытое снова
+ * показывает его ход.
+ */
+export function KnowledgeImport({ open, onClose, onChanged, onRunningChange }: { open: boolean; onClose: () => void; onChanged: () => void; onRunningChange?: (running: boolean) => void }) {
   const [plan, setPlan] = useState<KnowledgeImportPlan | null>(null); const [files, setFiles] = useState<Map<string, File>>(new Map());
-  const [running, setRunning] = useState(false); const [status, setStatus] = useState("");
+  const [running, setRunningState] = useState(false); const [status, setStatus] = useState("");
   const [error, setError] = useState(""); const [failures, setFailures] = useState<{ path: string; reason: string }[]>([]);
   const stop = useRef(false); const folders = useRef(new Map<string, string>());
   const [limit, setLimit] = useState("1");
+  const modal = useRef<HTMLDialogElement>(null); const titleId = useId();
+  function setRunning(value: boolean) { setRunningState(value); onRunningChange?.(value); }
+  useEffect(() => { if (open) modal.current?.showModal(); else modal.current?.close(); }, [open]);
   async function readPlan(file?: File) {
     if (!file) return;
     setError("");
@@ -79,21 +90,27 @@ export function KnowledgeImport({ onChanged }: { onChanged: () => void }) {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Сверка не завершена."); }
     finally { setRunning(false); }
   }
-  return <details className={styles.importPanel}><summary>Перенос локальной базы</summary>
-    <div className={styles.exportOptions}>
-      <label>План размещения<input type="file" accept="application/json,.json" disabled={running} onChange={(event) => void readPlan(event.target.files?.[0])} /></label>
-      <label>Исходная папка базы<input type="file" multiple {...{ webkitdirectory: "" }} disabled={running} onChange={(event) => {
-        const map = new Map<string, File>();
-        for (const file of Array.from(event.target.files ?? [])) map.set(file.webkitRelativePath.split("/").slice(1).join("/"), file);
-        setFiles(map);
-      }} /></label>
-      {plan && <p>В плане {plan.entries.length} записей. Защищённых источников: {plan.entries.filter((e) => e.action === "protected_import").length}. Ключи остаются вне CRM: {plan.entries.filter((e) => e.action === "retain_outside_crm").length}.</p>}
-      <label>Объём переноса<select disabled={running} value={limit} onChange={(e) => setLimit(e.target.value)}><option value="1">Первый файл</option><option value="10">Первые 10 файлов</option><option value="all">Все обычные материалы</option></select></label>
-      <div className={styles.actions}><button type="button" disabled={running || !plan || !files.size} onClick={() => void run()}>Начать / продолжить</button>{running && <button type="button" onClick={() => { stop.current = true; }}>Остановить после текущих файлов</button>}</div>
-      {status && <p role="status">{status}</p>}{error && <p className={styles.error} role="alert">{error}</p>}
-      <button type="button" disabled={running || !plan} onClick={() => void reconcile()}>Сверить все источники</button>
-      <KnowledgeProtectedImport onChanged={onChanged} />
-      {failures.length > 0 && <ul className={styles.error}>{failures.map((failure) => <li key={failure.path}>{failure.path}: {failure.reason}</li>)}</ul>}
+  return <dialog ref={modal} aria-labelledby={titleId} className={KB_DIALOG} onClose={onClose} data-testid="knowledge-import-dialog">
+    <div className="flex max-h-[85dvh] flex-col">
+      <div className={KB_DIALOG_HEAD}>
+        <h2 id={titleId} className="t-section">Перенос локальной базы</h2>
+        <button type="button" className={QUEUE_SECONDARY} onClick={onClose}>Закрыть</button>
+      </div>
+      <div className={KB_DIALOG_BODY}>
+        <label className={KB_LABEL}>План размещения<input type="file" accept="application/json,.json" disabled={running} className={KB_FILE} onChange={(event) => void readPlan(event.target.files?.[0])} /></label>
+        <label className={KB_LABEL}>Исходная папка базы<input type="file" multiple {...{ webkitdirectory: "" }} disabled={running} className={KB_FILE} onChange={(event) => {
+          const map = new Map<string, File>();
+          for (const file of Array.from(event.target.files ?? [])) map.set(file.webkitRelativePath.split("/").slice(1).join("/"), file);
+          setFiles(map);
+        }} /></label>
+        {plan && <p className="t-body-compact text-fg-2">В плане {plan.entries.length} записей. Защищённых источников: {plan.entries.filter((e) => e.action === "protected_import").length}. Ключи остаются вне CRM: {plan.entries.filter((e) => e.action === "retain_outside_crm").length}.</p>}
+        <label className={KB_LABEL}>Объём переноса<select disabled={running} value={limit} onChange={(e) => setLimit(e.target.value)} className={KB_FIELD}><option value="1">Первый файл</option><option value="10">Первые 10 файлов</option><option value="all">Все обычные материалы</option></select></label>
+        <div className="flex flex-wrap gap-2"><button type="button" className={QUEUE_CONFIRM} disabled={running || !plan || !files.size} onClick={() => void run()}>Начать / продолжить</button>{running && <button type="button" className={QUEUE_SECONDARY} onClick={() => { stop.current = true; }}>Остановить после текущих файлов</button>}</div>
+        {status && <p role="status" className="t-body-compact text-fg-2">{status}</p>}{error && <p className={KB_ERROR} role="alert">{error}</p>}
+        <button type="button" className={QUEUE_SECONDARY} disabled={running || !plan} onClick={() => void reconcile()}>Сверить все источники</button>
+        {failures.length > 0 && <ul className="space-y-1 border-y border-border py-2 t-body-compact text-danger" aria-label="Не перенесено">{failures.map((failure) => <li key={failure.path} className="[overflow-wrap:anywhere]">{failure.path}: {failure.reason}</li>)}</ul>}
+        <KnowledgeProtectedImport onChanged={onChanged} />
+      </div>
     </div>
-  </details>;
+  </dialog>;
 }

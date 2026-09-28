@@ -2,8 +2,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { KnowledgeCanonicalPage } from "@/lib/knowledge-canonical-search-contract";
+import { SkeletonBlock } from "@/components/ui";
+import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { knowledgeFetch } from "./client";
-import styles from "./KnowledgeLibrary.module.css";
+import { KB_ERROR, KB_QUIET } from "./knowledge-look";
 
 export function KnowledgeCanonicalSearch({ search, onOpen }: { search: string; onOpen: () => void }) {
   const [page, setPage] = useState<KnowledgeCanonicalPage | null>(null);
@@ -31,16 +33,16 @@ export function KnowledgeCanonicalSearch({ search, onOpen }: { search: string; o
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Не удалось загрузить продолжение."); }
     finally { setBusy(false); }
   }
-  return <section className={styles.dossiers} aria-label="Материалы CRM" aria-busy={busy}>
+  return <section className="space-y-2 pb-2" aria-label="Материалы CRM" aria-busy={busy} data-testid="knowledge-canonical-search">
     <h2 className="t-section">Материалы CRM</h2>
-    {error && <p role="alert" className={styles.error}>{error}<button type="button" onClick={() => setRetry((value) => value + 1)}>Повторить поиск</button></p>}
-    <ul className={styles.clientList}>{page?.items.map((item) => <li key={`${item.kind}:${item.id}`}>
-      <Link href={item.href} onClick={onOpen}>{item.title}</Link>
-      <span>{item.context}</span>
-      {item.downloadHref && <a href={item.downloadHref}>Скачать исходник</a>}
-    </li>)}</ul>
-    {busy && <p role="status">Поиск…</p>}
-    {!busy && !error && page?.items.length === 0 && <p>В материалах CRM ничего не найдено.</p>}
-    {page?.hasMore && <button type="button" disabled={busy} onClick={() => void more()}>Показать ещё материалы CRM</button>}
+    {error && <p role="alert" className={KB_ERROR}>{error}<button type="button" className={QUEUE_SECONDARY} onClick={() => setRetry((value) => value + 1)}>Повторить поиск</button></p>}
+    {page?.items.length ? <ul className="divide-y divide-border border-y border-border">{page.items.map((item) => <li key={`${item.kind}:${item.id}`} className="grid gap-x-3 py-1 @xl/kbl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] @xl/kbl:items-center">
+      <Link href={item.href} onClick={onOpen} className="flex min-h-11 items-center t-item text-fg underline-offset-4 hover:underline [overflow-wrap:anywhere]">{item.title}</Link>
+      <span className="t-body-compact text-fg-2">{item.context}</span>
+      {item.downloadHref ? <a href={item.downloadHref} className={KB_QUIET}>Скачать исходник</a> : <span />}
+    </li>)}</ul> : null}
+    {busy && !page?.items.length ? <><p role="status" className="sr-only">Ищем в материалах CRM…</p><ul aria-hidden="true" className="divide-y divide-border border-y border-border">{[0, 1, 2].map((index) => <li key={index} className="flex min-h-11 items-center py-2"><SkeletonBlock className={`h-3.5 rounded-nav ${index % 2 ? "w-1/3" : "w-1/2"}`} /></li>)}</ul></> : null}
+    {!busy && !error && page?.items.length === 0 && <p className="t-body-compact text-fg-2">В материалах CRM ничего не найдено.</p>}
+    {page?.hasMore && <button type="button" className={KB_QUIET} disabled={busy} onClick={() => void more()}>{busy ? "Загружаем…" : "Показать ещё материалы CRM"}</button>}
   </section>;
 }

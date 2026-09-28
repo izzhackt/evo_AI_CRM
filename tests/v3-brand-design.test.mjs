@@ -126,6 +126,12 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/MainHeader.tsx",
     "src/components/v3/profile/Profile.tsx",
     "src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx",
+    // «База знаний» (Э8.10, 28.09): дерево, «Вся база / Текущая папка», режим
+    // редактора и вкладки досье — общий нейтральный выбор, без розового.
+    "src/components/v3/knowledge/KnowledgeTree.tsx",
+    "src/components/v3/knowledge/KnowledgeLibrary.tsx",
+    "src/components/v3/knowledge/KnowledgeEditor.tsx",
+    "src/components/v3/knowledge/KnowledgeDossiers.tsx",
     // «Заявки» (Э3, 27.09): выбор — вкладки очереди (QueueViewTabs) и «Ждут
     // разбора / Все» (BoardSegments), оба выше в этом списке.
     // «Студенты» (25.09.2026): срок в редакторе шага — тот же выбор, что в диалоге задачи.

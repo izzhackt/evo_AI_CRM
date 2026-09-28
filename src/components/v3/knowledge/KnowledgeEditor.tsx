@@ -1,12 +1,18 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Icon } from "@/components/icons";
+import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { installKnowledgeEditorExitGuard } from "@/lib/knowledge-editor-exit-guard";
 import type { KnowledgeItem, KnowledgeVersion } from "@/lib/knowledge-library-contract";
 import { command, knowledgeFetch, KnowledgeClientError, uploadKnowledgeFile } from "./client";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { KnowledgeExport } from "./KnowledgeExport";
+import { KB_ERROR, KB_FIELD, KB_LABEL, KB_MENU, KB_MENU_ITEM, KB_QUIET, knowledgeMoment } from "./knowledge-look";
 import styles from "./KnowledgeLibrary.module.css";
+
+const TOOL = `${QUEUE_SECONDARY} px-2.5`;
 
 type Draft = { title: string; body: string; reviewQuestion: string };
 export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeItem; onClose: () => void; onSaved: (item: KnowledgeItem) => void }) {
@@ -20,6 +26,9 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
   const [moreHistory, setMoreHistory] = useState(false);
   const [conflict, setConflict] = useState<KnowledgeItem | null>(null);
   const [saveRevision, setSaveRevision] = useState(0);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [historyAt, setHistoryAt] = useState<Date | null>(null);
+  const moreId = useId();
   const draftRef = useRef(draft);
   const [savedDraft, setSavedDraft] = useState(JSON.stringify(draft));
   const savedRef = useRef(savedDraft);
@@ -66,7 +75,7 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
     try {
       const last = append ? versions.at(-1)?.version : undefined;
       const page = await knowledgeFetch<{ items: KnowledgeVersion[]; hasMore: boolean }>(`item/${item.id}/history${last ? `?before=${last}` : ""}`);
-      setVersions((old) => append ? [...old, ...page.items] : page.items); setMoreHistory(page.hasMore); setHistory(true);
+      setVersions((old) => append ? [...old, ...page.items] : page.items); setMoreHistory(page.hasMore); setHistory(true); setHistoryAt(new Date());
     } catch (cause) { setError(cause instanceof Error ? cause.message : "История недоступна."); }
   }
   function insert(value: string) {
@@ -87,79 +96,96 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
     if (dirty) { await save(); if (JSON.stringify(draftRef.current) !== savedRef.current) return; }
     onClose();
   }
-  return <section className={styles.editor} aria-label={item.title}>
-    <div className={styles.editorBar}>
-      <button type="button" onClick={() => void close()}>← К папке</button>
-      <span role="status" aria-live="polite">{state}</span>
-      <button type="button" onClick={() => { void navigator.clipboard.writeText(`${location.origin}/v3/knowledge?item=${item.id}`).then(() => setState("Ссылка скопирована"), () => setError("Не удалось скопировать ссылку.")); }}>Копировать ссылку</button>
-      {item.kind === "page" ? <KnowledgeExport ids={[item.id]} label="Выгрузить страницу" /> : <a href={`/api/v3/knowledge/download/${item.id}`}>Скачать</a>}
-      {editable && <button type="button" onClick={() => void loadHistory()}>История</button>}
+  // Облик Э8.10: автосохранение, защита выхода и конфликт версий — прежние; меняется только вид.
+  return <section className="p-4 @3xl/kb:p-5" aria-label={item.title} data-testid="knowledge-editor">
+    <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
+      <button type="button" className={KB_QUIET} onClick={() => void close()}><Icon name="arrow-left" size={16} />К папке</button>
+      <span role="status" aria-live="polite" className="me-auto t-meta text-fg-3">{state}</span>
+      {item.kind === "page" ? null : <a href={`/api/v3/knowledge/download/${item.id}`} className={QUEUE_SECONDARY}><Icon name="download" size={18} />Скачать</a>}
+      <TopLayerMenu label="Ещё действия с материалом" trigger={<Icon name="more-horizontal" size={20} />} triggerClassName={`${QUEUE_SECONDARY} w-11 px-0`} triggerProps={{ id: moreId }} menuClassName={KB_MENU} testId="knowledge-editor-menu">
+        {(closeMenu) => <>
+          <button type="button" className={KB_MENU_ITEM} onClick={() => { closeMenu(); void navigator.clipboard.writeText(`${location.origin}/v3/knowledge?item=${item.id}`).then(() => setState("Ссылка скопирована"), () => setError("Не удалось скопировать ссылку.")); }}>Копировать ссылку</button>
+          {item.kind === "page" ? <button type="button" className={KB_MENU_ITEM} onClick={() => { closeMenu(); setExportOpen(true); }}>Выгрузить страницу</button> : null}
+          {editable && <button type="button" className={KB_MENU_ITEM} onClick={() => { closeMenu(); void loadHistory(); }}>История версий</button>}
+        </>}
+      </TopLayerMenu>
+      {item.kind === "page" ? <KnowledgeExport open={exportOpen} onOpenChange={(open) => { setExportOpen(open); if (!open) requestAnimationFrame(() => document.getElementById(moreId)?.focus()); }} ids={[item.id]} label="Выгрузить страницу" /> : null}
     </div>
-    {exitWarning && dirty && <div className={styles.error} role="alert">
+    {exitWarning && dirty && <div className={KB_ERROR} role="alert">
       Изменения ещё не сохранены. Сохраните их или закройте материал без сохранения.
-      <button type="button" onClick={() => void save()}>Сохранить</button>
-      <button type="button" disabled={state === "Сохраняется"} onClick={() => {
+      <button type="button" className={QUEUE_CONFIRM} onClick={() => void save()}>Сохранить</button>
+      <button type="button" className={QUEUE_SECONDARY} disabled={state === "Сохраняется"} onClick={() => {
         if (busyRef.current) return;
         const previous: Draft = JSON.parse(savedRef.current);
         draftRef.current = previous; pendingRef.current = null; setDraft(previous); onClose();
       }}>Закрыть без сохранения</button>
     </div>}
-    {error && <div className={styles.error} role="alert">{error}{!conflict && <button type="button" onClick={() => void save()}>Повторить сохранение</button>}</div>}
-    {conflict && <div className={styles.conflict}>
-      <h3 className="t-item">Текущая версия</h3><pre>{item.kind === "page" ? conflict.body : conflict.review_question}</pre>
-      <button type="button" onClick={() => {
-        versionRef.current = conflict.version; pendingRef.current = null; setConflict(null); setError(""); void save();
-      }}>{item.kind === "page" ? "Сохранить мой текст" : "Сохранить мои изменения"}</button>
-      <button type="button" onClick={() => {
-        const next = { title: conflict.title, body: conflict.body ?? "", reviewQuestion: conflict.review_question };
-        versionRef.current = conflict.version; savedRef.current = JSON.stringify(next); setSavedDraft(savedRef.current); pendingRef.current = null;
-        setDraft(next); setConflict(null); setError(""); setState("Сохранено");
-      }}>Принять текущую</button>
+    {error && <div className={KB_ERROR} role="alert">{error}{!conflict && <button type="button" className={QUEUE_SECONDARY} onClick={() => void save()}>Повторить сохранение</button>}</div>}
+    {conflict && <div className="mt-3 space-y-3 rounded-card border border-border p-4" data-testid="knowledge-conflict">
+      <h3 className="t-item">Текущая версия</h3><pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-ctl bg-bg p-3 t-body-compact">{item.kind === "page" ? conflict.body : conflict.review_question}</pre>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={QUEUE_CONFIRM} onClick={() => {
+          versionRef.current = conflict.version; pendingRef.current = null; setConflict(null); setError(""); void save();
+        }}>{item.kind === "page" ? "Сохранить мой текст" : "Сохранить мои изменения"}</button>
+        <button type="button" className={QUEUE_SECONDARY} onClick={() => {
+          const next = { title: conflict.title, body: conflict.body ?? "", reviewQuestion: conflict.review_question };
+          versionRef.current = conflict.version; savedRef.current = JSON.stringify(next); setSavedDraft(savedRef.current); pendingRef.current = null;
+          setDraft(next); setConflict(null); setError(""); setState("Сохранено");
+        }}>Принять текущую</button>
+      </div>
     </div>}
-    <div className={styles.editorContent}>
-      {editable ? <input className={styles.titleInput} aria-label="Название страницы" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} maxLength={240} /> : <h2 className="t-record-title">{item.title}</h2>}
+    <div className="mx-auto mt-5 max-w-[51.25rem]">
+      {editable ? <input className={styles.titleInput} aria-label="Название страницы" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} maxLength={240} /> : <h2 className="t-record-title [overflow-wrap:anywhere]">{item.title}</h2>}
       {item.kind === "page" ? <>
-        <div className={styles.editorBar}>
-          <button type="button" className="v3-choice" aria-pressed={mode === "read"} onClick={() => setMode("read")}>Читать</button>
-          {editable && <button type="button" className="v3-choice" aria-pressed={mode === "edit"} onClick={() => setMode("edit")}>Редактировать</button>}
-          {mode === "edit" && <>
-            <button type="button" onClick={() => insert("\n## ")}>Заголовок</button>
-            <button type="button" onClick={() => insert("\n- ")}>Список</button>
-            <button type="button" onClick={() => insert("\n|  |  |\n| --- | --- |\n|  |  |\n")}>Таблица</button>
-            <button type="button" onClick={() => insert("[Название](https://)")}>Ссылка</button>
-            <button type="button" onClick={() => attachmentRef.current?.click()}>Вложение</button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="Режим" className="flex gap-2">
+            <button type="button" className={`v3-choice ${TOOL}`} aria-pressed={mode === "read"} onClick={() => setMode("read")}>Читать</button>
+            {editable && <button type="button" className={`v3-choice ${TOOL}`} aria-pressed={mode === "edit"} onClick={() => setMode("edit")}>Редактировать</button>}
+          </div>
+          {mode === "edit" && <div role="group" aria-label="Вставить" className="flex flex-wrap gap-2">
+            <button type="button" className={TOOL} onClick={() => insert("\n## ")}>Заголовок</button>
+            <button type="button" className={TOOL} onClick={() => insert("\n- ")}>Список</button>
+            <button type="button" className={TOOL} onClick={() => insert("\n|  |  |\n| --- | --- |\n|  |  |\n")}>Таблица</button>
+            <button type="button" className={TOOL} onClick={() => insert("[Название](https://)")}>Ссылка</button>
+            <button type="button" className={TOOL} onClick={() => attachmentRef.current?.click()}>Вложение</button>
             <input ref={attachmentRef} type="file" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void attach(file); event.target.value = ""; }} />
-          </>}
+          </div>}
         </div>
-        {mode === "edit" ? <textarea ref={textRef} className={styles.bodyInput} aria-label="Текст страницы" value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
+        {mode === "edit" ? <textarea ref={textRef} className="mt-4 block min-h-[50vh] w-full resize-y rounded-ctl border border-control-edge bg-surface p-3 t-body text-fg focus-visible:border-accent" aria-label="Текст страницы" value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
           : <div className={styles.markdown}><Markdown remarkPlugins={[remarkGfm]} skipHtml components={{ a: (props) => <a {...props} rel="noreferrer" /> }}>{draft.body}</Markdown></div>}
-        {item.source_blob_id && <a href={`/api/v3/knowledge/download/${item.id}?original=1`}>Скачать исходник</a>}
+        {item.source_blob_id && <a href={`/api/v3/knowledge/download/${item.id}?original=1`} className={KB_QUIET}>Скачать исходник</a>}
       </> : <>
         {["application/pdf", "image/png", "image/jpeg"].includes(item.mime_type) && item.area !== "raw" && item.area !== "secrets"
-          ? <iframe title={item.title} sandbox="" className={styles.preview} src={`/api/v3/knowledge/download/${item.id}?preview=1`} />
-          : <p>Предпросмотр этого формата недоступен. <a href={`/api/v3/knowledge/download/${item.id}`}>Скачать файл</a></p>}
+          ? <iframe title={item.title} sandbox="" className="mt-4 h-[65vh] w-full rounded-ctl border border-border" src={`/api/v3/knowledge/download/${item.id}?preview=1`} />
+          : <p className="mt-4 t-body text-fg-2">Предпросмотр этого формата недоступен. <a href={`/api/v3/knowledge/download/${item.id}`} className="underline underline-offset-4 hover:text-fg">Скачать файл</a></p>}
       </>}
-      {(canEditMetadata || draft.reviewQuestion) && <label className={styles.question}>Вопрос для уточнения
-        <input value={draft.reviewQuestion} readOnly={!canEditMetadata} onChange={(event) => setDraft({ ...draft, reviewQuestion: event.target.value })} maxLength={4000} />
-        {canEditMetadata && <span>Очистите поле, когда вопрос решён.</span>}
+      {(canEditMetadata || draft.reviewQuestion) && <label className={`${KB_LABEL} mt-8`}>Вопрос для уточнения
+        <input value={draft.reviewQuestion} readOnly={!canEditMetadata} onChange={(event) => setDraft({ ...draft, reviewQuestion: event.target.value })} maxLength={4000} className={KB_FIELD} />
+        {canEditMetadata && <span className="t-meta text-fg-3">Очистите поле, когда вопрос решён.</span>}
       </label>}
     </div>
-    {history && <aside className={styles.history} aria-label="История версий">
-      <div className={styles.editorBar}><h3 className="t-item">История версий</h3><button type="button" onClick={() => setHistory(false)}>Закрыть</button></div>
-      {versions.map((version) => <details key={version.version}>
-        <summary>Версия {version.version} · {new Date(version.created_at).toLocaleString("ru")}</summary>
-        <pre>{version.snapshot.body}</pre>
-        <button type="button" disabled={dirty} onClick={() => {
-          const key = `${item.id}:${versionRef.current}:${version.version}`;
-          if (restoreRequest.current?.key !== key) restoreRequest.current = { key, id: crypto.randomUUID() };
-          void command({ op: "restore_version", id: item.id, expectedVersion: versionRef.current, restoreVersion: version.version }, restoreRequest.current.id).then((restored) => {
-            restoreRequest.current = null;
-            const next = { title: restored.title, body: restored.body ?? "", reviewQuestion: restored.review_question };
-            versionRef.current = restored.version; savedRef.current = JSON.stringify(next); setSavedDraft(savedRef.current); setDraft(next); onSaved(restored); setHistory(false); setState("Версия восстановлена");
-          }).catch((cause) => setError(cause.message));
-        }}>Восстановить версию</button>
-      </details>)}
-      {moreHistory && <button type="button" onClick={() => void loadHistory(true)}>Показать ещё</button>}
+    {history && <aside className="mx-auto mt-6 max-w-[51.25rem] border-t border-border pt-4" aria-label="История версий" data-testid="knowledge-history">
+      <div className="flex items-center justify-between gap-2"><h3 className="t-item">История версий</h3><button type="button" className={QUEUE_SECONDARY} onClick={() => setHistory(false)}>Закрыть</button></div>
+      <ul className="mt-2 divide-y divide-border border-y border-border">{versions.map((version) => {
+        const at = historyAt ? knowledgeMoment(version.created_at, historyAt) : null;
+        return <li key={version.version}><details className="group">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 t-body-compact text-fg [&::-webkit-details-marker]:hidden">
+            <Icon name="chevron-right" size={16} className="shrink-0 text-fg-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+            Версия {version.version}{at ? <> · <time dateTime={version.created_at} className="font-mono tabular-nums text-fg-2">{at}</time></> : null}
+          </summary>
+          <pre className="mb-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-ctl bg-bg p-3 t-body-compact">{version.snapshot.body}</pre>
+          <button type="button" className={`${QUEUE_SECONDARY} mb-3`} disabled={dirty} onClick={() => {
+            const key = `${item.id}:${versionRef.current}:${version.version}`;
+            if (restoreRequest.current?.key !== key) restoreRequest.current = { key, id: crypto.randomUUID() };
+            void command({ op: "restore_version", id: item.id, expectedVersion: versionRef.current, restoreVersion: version.version }, restoreRequest.current.id).then((restored) => {
+              restoreRequest.current = null;
+              const next = { title: restored.title, body: restored.body ?? "", reviewQuestion: restored.review_question };
+              versionRef.current = restored.version; savedRef.current = JSON.stringify(next); setSavedDraft(savedRef.current); setDraft(next); onSaved(restored); setHistory(false); setState("Версия восстановлена");
+            }).catch((cause) => setError(cause.message));
+          }}>Восстановить версию</button>
+        </details></li>;
+      })}</ul>
+      {moreHistory && <button type="button" className={KB_QUIET} onClick={() => void loadHistory(true)}>Показать ещё</button>}
     </aside>}
   </section>;
 }

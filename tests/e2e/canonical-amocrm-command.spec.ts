@@ -195,7 +195,8 @@ test("Admissions amoCRM commands stay visibly disabled when the selected server 
   const studentCaseId = requireUuid("EVO_CANONICAL_STUDENT_CASE_ID");
   await signInAs(page, "admissions");
   await expectBlockedPanel(page, {
-    route: `/v3/profile?case=${studentCaseId}&tab=contract`,
+    // Э8.3: передача и команда amoCRM — панель «Служебные сведения» («⋯» листа); якорь открывает её.
+    route: `/v3/profile?case=${studentCaseId}&tab=contract#money-service`,
     scope: "admissions",
     targetField: "student_case_id",
     targetId: studentCaseId,
@@ -246,7 +247,8 @@ test("Admissions and Admin see the Admissions command only at canonical Student 
       role === "admin" ? "admin" : "staff",
     );
     await expectBlockedPanel(page, {
-      route: `/v3/profile?case=${studentCaseId}&tab=contract`,
+      // Э8.3: передача и команда amoCRM — панель «Служебные сведения» («⋯» листа); якорь открывает её.
+      route: `/v3/profile?case=${studentCaseId}&tab=contract#money-service`,
       scope: "admissions",
       targetField: "student_case_id",
       targetId: studentCaseId,
@@ -301,7 +303,8 @@ test("a prior Sales unknown survives Admin override handoff into active Admissio
   const studentCaseId = admissionsBlockingCaseId as string;
   await signInAs(page, "admissions");
   const panel = await expectBlockedPanel(page, {
-    route: `/v3/profile?case=${studentCaseId}&tab=contract`,
+    // Э8.3: передача и команда amoCRM — панель «Служебные сведения» («⋯» листа); якорь открывает её.
+    route: `/v3/profile?case=${studentCaseId}&tab=contract#money-service`,
     scope: "admissions",
     targetField: "student_case_id",
     targetId: studentCaseId,

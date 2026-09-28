@@ -2406,7 +2406,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   });
   const visaCaseId = requireUuidValue(persistedVisa?.visa_case_id);
 
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=money`);
+  // Э8.3: управление стопами — панель «Стопы» («⋯» листа «Договор и оплата»); якорь открывает её.
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=money#money-stops`);
   const admissionsObligation = page
     .getByTestId("v3-profile-finance-controls")
     .locator("article")
@@ -2712,7 +2713,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(adminDocumentItem).toContainText("p4-isolated-proof-v2.png");
   await expect(adminDocumentItem).toContainText("версия 2");
 
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=money`);
+  // Э8.3: управление стопами — панель «Стопы» («⋯» листа «Договор и оплата»); якорь открывает её.
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=money#money-stops`);
   const adminObligation = page
     .getByTestId("v3-profile-finance-controls")
     .locator("article")

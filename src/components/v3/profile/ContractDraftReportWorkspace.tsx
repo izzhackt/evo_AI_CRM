@@ -1,7 +1,5 @@
 import {
   Badge,
-  EmptyState,
-  btnCls,
   btnDangerGhostCls,
   btnGhostCls,
   cn,
@@ -14,6 +12,9 @@ import type {
   PlatformContractMutationOutcome,
 } from "@/lib/platform-contract-workflow";
 import { contractStatus, role as roleWord } from "@/lib/v3/wording";
+
+import { QUEUE_CONFIRM } from "../queue/queue-buttons";
+import { caseContractTemplateNote } from "./case-money-view";
 
 function StatusBadge({ value }: { value: string }) {
   const label = contractStatus(value);
@@ -136,6 +137,15 @@ const RESULT_COPY: Record<
 
 const textAreaCls = cn(inputCls, "h-auto min-h-24 resize-y py-2 font-mono text-xs");
 
+/**
+ * Пустой список панели — одна тихая строка. Формы, которыми нельзя
+ * воспользоваться (нет утверждённого шаблона, нет проверенного источника),
+ * не рисуются: что мешает — говорит предупреждение о шаблоне сверху.
+ */
+function Empty({ text }: Readonly<{ text: string }>) {
+  return <p className="t-body-compact text-fg-2">{text}</p>;
+}
+
 function HiddenContext({
   studentCaseId,
   requestId,
@@ -171,7 +181,7 @@ function EvidenceHash({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 border-b border-border pb-3">
       <dt className="t-caption text-fg-3">{label}</dt>
-      <dd className="mt-1 break-all font-mono text-xs text-fg-2">{value}</dd>
+      <dd className="mt-1 break-all font-mono t-meta text-fg-2">{value}</dd>
     </div>
   );
 }
@@ -191,12 +201,12 @@ function ArtifactMeta({
     <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
       <div className="min-w-0 border-b border-border pb-3">
         <dt className="t-caption text-fg-3">Создал</dt>
-        <dd className="mt-1 break-all font-mono text-xs text-fg-2">{createdBy}</dd>
+        <dd className="mt-1 break-all font-mono t-meta text-fg-2">{createdBy}</dd>
         <dd className="t-meta mt-1 font-mono text-fg-3">{createdAt}</dd>
       </div>
       <div className="min-w-0 border-b border-border pb-3">
         <dt className="t-caption text-fg-3">Проверил</dt>
-        <dd className="mt-1 break-all font-mono text-xs text-fg-2">{reviewedBy ?? "—"}</dd>
+        <dd className="mt-1 break-all font-mono t-meta text-fg-2">{reviewedBy ?? "—"}</dd>
         <dd className="t-meta mt-1 font-mono text-fg-3">{reviewedAt ?? "—"}</dd>
       </div>
     </dl>
@@ -271,8 +281,8 @@ function TemplateLifecycle({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="t-item text-fg">{template.title}</h4>
-          <p className="mt-1 font-mono text-xs text-fg-3">
+          <h5 className="t-item text-fg">{template.title}</h5>
+          <p className="mt-1 font-mono t-meta text-fg-2">
             {template.templateKey} · v{template.version}
           </p>
         </div>
@@ -281,7 +291,7 @@ function TemplateLifecycle({
       <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
         <div className="min-w-0 border-b border-border pb-3">
           <dt className="t-caption text-fg-3">Канонический источник</dt>
-          <dd className="mt-1 break-all text-xs text-fg-2">
+          <dd className="mt-1 break-all t-meta text-fg-2">
             {source ? (
               <a className="text-accent underline-offset-2 hover:underline" href={source.sourceUrl} target="_blank" rel="noreferrer">
                 {source.sourceUrl}
@@ -294,7 +304,7 @@ function TemplateLifecycle({
         </div>
       </dl>
       <details>
-        <summary className="min-h-11 cursor-pointer py-3 text-sm text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Служебные сведения о версии</summary>
+        <summary className="min-h-11 cursor-pointer py-3 t-label text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Служебные сведения о версии</summary>
       <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
         <EvidenceHash label="Шаблон · SHA-256" value={template.templateSha256} />
         <EvidenceHash label="Список работ · SHA-256" value={template.blueprintSha256} />
@@ -358,14 +368,14 @@ function DraftArtifact({
       data-draft-version={draft.version}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h4 className="t-item text-fg">Договор · v{draft.version}</h4>
+        <h5 className="t-item text-fg">Договор · v{draft.version}</h5>
         <StatusBadge value={draft.status} />
       </div>
-      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-nav border border-border bg-surface-2 p-4 font-mono text-xs leading-6 text-fg" data-testid="platform-contract-rendered-draft">
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-nav border border-border bg-surface-2 p-4 font-mono t-meta text-fg" data-testid="platform-contract-rendered-draft">
         {draft.renderedText}
       </pre>
       <details>
-        <summary className="min-h-11 cursor-pointer py-3 text-sm text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Служебные сведения о версии</summary>
+        <summary className="min-h-11 cursor-pointer py-3 t-label text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Служебные сведения о версии</summary>
       <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
         <EvidenceHash label="Исходные данные · SHA-256" value={draft.inputSha256} />
         <EvidenceHash label="Текст договора · SHA-256" value={draft.renderedSha256} />
@@ -484,10 +494,10 @@ function ReportArtifact({
       data-template-id={report.contractTemplateVersionId}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h4 className="t-item text-fg">Постдоговорный отчёт · v{report.version}</h4>
+        <h5 className="t-item text-fg">Постдоговорный отчёт · v{report.version}</h5>
         <StatusBadge value={report.status} />
       </div>
-      <p className="text-xs text-fg-3">
+      <p className="t-meta text-fg-2">
         Шаблон: {templateLabel(template, report.contractTemplateVersionId)}
       </p>
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -515,20 +525,20 @@ function ReportArtifact({
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="text-sm font-semibold text-fg">{item.label}</p>
+                <p className="t-item text-fg">{item.label}</p>
                 <StatusBadge value={item.status} />
               </div>
               <p className="t-meta mt-1 text-fg-3">
                 ответственный: {roleWord(item.ownerRole) ?? "—"} · правка {item.revision}
               </p>
             </div>
-            <dl className="grid gap-2 text-xs">
+            <dl className="grid gap-2 t-meta">
               <div>
-                <dt className="font-semibold text-fg-3">Подтверждение</dt>
+                <dt className="t-caption text-fg-2">Подтверждение</dt>
                 <dd className="mt-0.5 break-all text-fg-2">{item.evidenceRef ?? "—"}</dd>
               </div>
               <div>
-                <dt className="font-semibold text-fg-3">Следующее действие</dt>
+                <dt className="t-caption text-fg-2">Следующее действие</dt>
                 <dd className="mt-0.5 whitespace-pre-wrap text-fg-2">{item.nextAction ?? "—"}</dd>
               </div>
             </dl>
@@ -536,7 +546,7 @@ function ReportArtifact({
         ))}
       </ul>
       <details>
-        <summary className="min-h-11 cursor-pointer py-3 text-sm text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Служебные сведения о версии</summary>
+        <summary className="min-h-11 cursor-pointer py-3 t-label text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Служебные сведения о версии</summary>
       <dl>
         <EvidenceHash label="Отчёт · SHA-256" value={report.reportSha256} />
       </dl>
@@ -585,40 +595,38 @@ export function ContractDraftReportWorkspace({
   );
   const hasReviewedSource = workspace.reviewedSources.some((source) => source.reviewStatus === "reviewed");
   const banner = result ? RESULT_COPY[result] : undefined;
+  // Предупреждение о шаблоне — тому, кто смотрит (Э8.3): Admin получает действие, остальные — кто его сделает.
+  const templateNote = caseContractTemplateNote(workspace);
 
   return (
-    <section
+    <div
       id="contract-workflow"
       data-testid="platform-contract-draft-report-workspace"
-      aria-labelledby="contract-workflow-title"
-      className="scroll-mt-24 space-y-4 border-t border-border pt-4"
+      className="scroll-mt-24 space-y-4"
     >
-      <div>
-        <h2 id="contract-workflow-title" className="t-section mt-1 text-fg">
-          Подготовка договора и отчёты
-        </h2>
-        <p className="mt-1 max-w-[56ch] text-sm leading-5 text-fg-3">
+      {/* Подсказка о порядке — только когда есть что выбрать; иначе говорит предупреждение о шаблоне. */}
+      {approvedTemplates.length > 0 ? (
+        <p className="max-w-[60ch] t-body-compact text-fg-2">
           Выберите утверждённый шаблон, подготовьте черновик и передайте его на проверку.
         </p>
-      </div>
+      ) : null}
 
       {banner ? (
         <ContextBanner tone={banner.tone} title={banner.title} description={banner.description} />
       ) : null}
 
-      {!hasReviewedSource || approvedTemplates.length === 0 ? (
-        <ContextBanner
-          tone="warning"
-          title="Нужен утверждённый шаблон"
-          description={!hasReviewedSource
-            ? "Администратору нужно добавить и проверить источник шаблона."
-            : "Источник проверен. Утвердите версию шаблона, чтобы подготовить черновик."}
-        />
+      {templateNote ? (
+        <div data-testid="platform-contract-template-note">
+          <p className="t-body-compact text-fg">{templateNote.text}</p>
+          {templateNote.link ? (
+            <a href={templateNote.link.href} className="flex min-h-11 w-fit items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{templateNote.link.label}</a>
+          ) : null}
+        </div>
       ) : null}
 
-      {workspace.canManageTemplates ? (
-        <details className="min-w-0 border-t border-border pt-2" data-testid="platform-contract-template-create-panel">
-          <summary className="min-h-11 cursor-pointer py-2 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Создать версию шаблона</summary>
+      {workspace.canManageTemplates && hasReviewedSource ? (
+        <details id="contract-template-create" className="min-w-0 scroll-mt-24 border-t border-border pt-2" data-testid="platform-contract-template-create-panel">
+          <summary className="min-h-11 cursor-pointer py-2 t-item text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Создать версию шаблона</summary>
           <form
             action={actions.createTemplate}
             data-testid="platform-contract-template-create-form"
@@ -657,50 +665,50 @@ export function ContractDraftReportWorkspace({
             <label className={cn(fieldLabelCls, "sm:col-span-2")}>
               Текст шаблона
               <textarea name="template_text" required minLength={10} maxLength={20_000} rows={8} className={textAreaCls} aria-describedby="contract-template-text-hint" />
-              <span id="contract-template-text-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
+              <span id="contract-template-text-hint" className="mt-1 block t-meta text-fg-2">
                 Текст договора с полями подстановки, указанными в списке ниже.
               </span>
             </label>
             <label className={fieldLabelCls}>
               Манифест · по одной строке
               <textarea name="manifest_lines" required minLength={5} maxLength={10_000} rows={6} className={textAreaCls} aria-describedby="contract-manifest-hint" />
-              <span id="contract-manifest-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
+              <span id="contract-manifest-hint" className="mt-1 block t-meta text-fg-2">
                 field_key|source_path|value_type|required
               </span>
             </label>
             <label className={fieldLabelCls}>
               Схема чек-листа · по одной строке
               <textarea name="checklist_lines" required minLength={5} maxLength={10_000} rows={6} className={textAreaCls} aria-describedby="contract-checklist-hint" />
-              <span id="contract-checklist-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
+              <span id="contract-checklist-hint" className="mt-1 block t-meta text-fg-2">
                 item_key|label|owner_role|next_action
               </span>
             </label>
             <div className="sm:col-span-2">
               <ReasonField id="contract-template-create-reason" />
-              <button type="submit" className={btnCls} disabled={!hasReviewedSource}>Создать версию шаблона</button>
+              <button type="submit" className={cn(QUEUE_CONFIRM, "mt-3")} disabled={!hasReviewedSource}>Создать версию шаблона</button>
             </div>
           </form>
         </details>
       ) : null}
 
       <div className="space-y-4">
-        <details className="min-w-0 border-t border-border pt-2">
-          <summary id="contract-template-list-title" className="min-h-11 cursor-pointer py-2 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Шаблоны договора</summary>
+        <details id="contract-template-list" className="min-w-0 scroll-mt-24 border-t border-border pt-2">
+          <summary id="contract-template-list-title" className="min-h-11 cursor-pointer py-2 t-item text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Шаблоны договора</summary>
           <div className="mt-4 space-y-4" data-testid="platform-contract-template-list">
             {workspace.templates.length > 0 ? workspace.templates.map((template) => (
               <TemplateLifecycle key={template.contractTemplateVersionId} workspace={workspace} template={template} actions={actions} requestIdFor={requestIdFor} />
-            )) : <EmptyState text="Версий шаблона нет." />}
+            )) : <Empty text="Версий шаблона нет." />}
           </div>
         </details>
 
         <section className="min-w-0 border-t border-border pt-4" aria-labelledby="contract-draft-list-title">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 id="contract-draft-list-title" className="t-item text-fg">Черновики договора</h3>
-              <p className="mt-1 text-xs leading-4 text-fg-3">Новая генерация всегда создаёт новую версию.</p>
+              <h4 id="contract-draft-list-title" className="t-item text-fg">Черновики договора</h4>
+              <p className="mt-1 t-meta text-fg-2">Новая генерация всегда создаёт новую версию.</p>
             </div>
           </div>
-          {workspace.canGenerateContract ? (
+          {workspace.canGenerateContract && approvedTemplates.length > 0 ? (
             <form action={actions.generateDraft} data-testid="platform-contract-draft-generate-form" className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3">
               <HiddenContext studentCaseId={workspace.studentCaseId} requestId={requestIdFor("generate_draft", retrySubjectId)} />
               <label className={fieldLabelCls}>
@@ -716,21 +724,21 @@ export function ContractDraftReportWorkspace({
                 </select>
               </label>
               <ReasonField id="contract-draft-generate-reason" />
-              <button type="submit" className={btnCls} disabled={approvedTemplates.length === 0}>Подготовить черновик</button>
+              <button type="submit" className={cn(QUEUE_CONFIRM, "w-fit")} disabled={approvedTemplates.length === 0}>Подготовить черновик</button>
             </form>
           ) : null}
           <div className="mt-4 space-y-4" data-testid="platform-contract-draft-list">
             {workspace.drafts.length > 0 ? workspace.drafts.map((draft) => (
               <DraftArtifact key={draft.studentCaseContractDraftId} workspace={workspace} draft={draft} actions={actions} requestIdFor={requestIdFor} />
-            )) : <EmptyState text="Черновиков пока нет. Для подготовки нужны утверждённый шаблон и доступное для работы дело." />}
+            )) : <Empty text="Черновиков пока нет." />}
           </div>
         </section>
       </div>
 
       <details className="min-w-0 border-t border-border pt-2" open={workspace.items.length > 0 || Boolean(result)}>
-        <summary id="post-contract-items-title" className="min-h-11 cursor-pointer py-3 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Работа после договора</summary>
-        <p className="mt-1 text-xs leading-4 text-fg-3">«Выполнен» требует подтверждения; открытым пунктам нужны ответственный и следующее действие.</p>
-        {workspace.canManagePostContract ? (
+        <summary id="post-contract-items-title" className="min-h-11 cursor-pointer py-3 t-item text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Работа после договора</summary>
+        <p className="mt-1 t-meta text-fg-2">«Выполнен» требует подтверждения; открытым пунктам нужны ответственный и следующее действие.</p>
+        {workspace.canManagePostContract && approvedTemplates.length > 0 ? (
           <form action={actions.seedItems} data-testid="platform-post-contract-seed-form" className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <HiddenContext studentCaseId={workspace.studentCaseId} requestId={requestIdFor("seed_items", retrySubjectId)} />
             <label className={fieldLabelCls}>
@@ -761,7 +769,7 @@ export function ContractDraftReportWorkspace({
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h4 className="t-item text-fg">{item.label}</h4>
+                  <h5 className="t-item text-fg">{item.label}</h5>
                   <p className="t-meta mt-1 text-fg-3">
                     правка {item.revision} · {templateLabel(
                       templateById.get(item.contractTemplateVersionId),
@@ -772,20 +780,20 @@ export function ContractDraftReportWorkspace({
                 <StatusBadge value={item.status} />
               </div>
               <dl className="grid gap-3 sm:grid-cols-3">
-                <div><dt className={fieldLabelCls}>Ответственный</dt><dd className="text-xs text-fg-2">{roleWord(item.ownerRole) ?? "—"}</dd></div>
-                <div><dt className={fieldLabelCls}>Следующее действие</dt><dd className="max-w-[56ch] whitespace-pre-wrap text-xs text-fg-2">{item.nextAction ?? "—"}</dd></div>
-                <div><dt className={fieldLabelCls}>Подтверждение</dt><dd className="break-all text-xs text-fg-2">{item.evidenceRef ?? "—"}</dd></div>
+                <div><dt className={fieldLabelCls}>Ответственный</dt><dd className="t-body-compact text-fg-2">{roleWord(item.ownerRole) ?? "—"}</dd></div>
+                <div><dt className={fieldLabelCls}>Следующее действие</dt><dd className="max-w-[56ch] whitespace-pre-wrap t-body-compact text-fg-2">{item.nextAction ?? "—"}</dd></div>
+                <div><dt className={fieldLabelCls}>Подтверждение</dt><dd className="break-all t-body-compact text-fg-2">{item.evidenceRef ?? "—"}</dd></div>
               </dl>
               {workspace.canManagePostContract ? <PostContractItemForm workspace={workspace} item={item} action={actions.updateItem} requestIdFor={requestIdFor} /> : null}
             </article>
-          )) : <EmptyState text="Пункты ещё не созданы. Отчёт без валидного чек-листа недоступен." />}
+          )) : <Empty text="Пункты ещё не созданы. Отчёт без валидного чек-листа недоступен." />}
         </div>
       </details>
 
       <details className="min-w-0 border-t border-border pt-2" open={workspace.reports.length > 0 || Boolean(result)}>
-        <summary id="post-contract-report-title" className="min-h-11 cursor-pointer py-3 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Отчёты по делу</summary>
-        <p className="mt-1 text-xs leading-4 text-fg-3">Каждая версия фиксирует статусы пунктов, ответственных, подтверждения и следующие действия на момент генерации.</p>
-        {workspace.canManagePostContract ? (
+        <summary id="post-contract-report-title" className="min-h-11 cursor-pointer py-3 t-item text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Отчёты по делу</summary>
+        <p className="mt-1 t-meta text-fg-2">Каждая версия фиксирует статусы пунктов, ответственных, подтверждения и следующие действия на момент генерации.</p>
+        {workspace.canManagePostContract && reportableTemplates.length > 0 ? (
           <form action={actions.generateReport} data-testid="platform-post-contract-report-generate-form" className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <HiddenContext studentCaseId={workspace.studentCaseId} requestId={requestIdFor("generate_report", retrySubjectId)} />
             <label className={fieldLabelCls}>
@@ -805,15 +813,15 @@ export function ContractDraftReportWorkspace({
               </select>
             </label>
             <ReasonField id="post-contract-report-generate-reason" />
-            <button type="submit" className={btnCls} disabled={reportableTemplates.length === 0}>Создать новую версию отчёта</button>
+            <button type="submit" className={QUEUE_CONFIRM} disabled={reportableTemplates.length === 0}>Создать новую версию отчёта</button>
           </form>
         ) : null}
         <div className="mt-4 space-y-4" data-testid="platform-post-contract-report-list">
           {workspace.reports.length > 0 ? workspace.reports.map((report) => (
             <ReportArtifact key={report.postContractReportId} workspace={workspace} report={report} actions={actions} requestIdFor={requestIdFor} />
-          )) : <EmptyState text="Версий отчёта нет." />}
+          )) : <Empty text="Версий отчёта нет." />}
         </div>
       </details>
-    </section>
+    </div>
   );
 }

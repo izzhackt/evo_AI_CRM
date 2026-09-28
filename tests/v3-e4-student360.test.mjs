@@ -279,7 +279,8 @@ test("no capability is lost: every action of the case overview is still on the p
   const profile = read("src/components/v3/profile/Profile.tsx");
   assert.match(profile, /\{current === "route" \? universityProgramsTab : null\}/u);
   assert.match(read("src/components/v3/profile/UniversityProgramsTab.tsx"), /data-testid="v3-universities-programs"/u);
-  assert.match(read("src/components/v3/profile/ProfileContractWorkspace.tsx"), /data-testid="v3-profile-contract-workspace"/u);
+  // Э8.3: раздел договора — панели «⋯» листа «Договор и оплата»; testid проверки выпуска — на самом листе (он всегда виден).
+  assert.match(read("src/components/v3/profile/CaseMoney.tsx"), /data-testid=\{contractCaseId \? "v3-profile-contract-workspace" : undefined\}/u);
 });
 
 test("a role preview writes nothing: no answer, no task, no note — the stage and the facts stay", () => {

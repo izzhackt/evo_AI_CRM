@@ -213,9 +213,7 @@ function financeSummary(finance: PlatformCaseFinanceControl | null): FinanceSumm
         : obligation.overdue || obligation.status === "overdue"
           ? "overdue"
           : "due",
-      at: obligation.status === "paid"
-        ? `оплачен ${formatDate(obligation.lastPaymentAt) ?? ""}`.trim()
-        : `до ${formatDate(obligation.dueAt) ?? "не указано"}`,
+      at: obligation.status === "paid" ? obligation.lastPaymentAt : obligation.dueAt,
     })),
     paid: aggregateCurrency && paidMinor > 0
       ? formatMoney(paidMinor, aggregateCurrency)

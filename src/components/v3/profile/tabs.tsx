@@ -15,7 +15,12 @@ import {
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 
 import { Card } from "@/components/ui";
+import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
+import { caseMoneyWords } from "@/lib/v3/wording";
+import { StatusChip } from "../blocks/StatusChip";
 import { CaseAgreementBlock } from "./CaseAgreementBlock";
+import { CaseMoneyPanel, CaseMoneySection } from "./CaseMoney";
+import { CASE_MONEY_PANEL, moneyMomentDay, type CaseMoneyPanelEntry } from "./case-money-view";
 import { CaseHelpWorkspace } from "./CaseHelpWorkspace";
 import { CaseTasksPanel } from "./CaseTasksPanel";
 import { FinanceEntryWorkspace } from "./FinanceEntryWorkspace";
@@ -451,8 +456,16 @@ export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, docume
 
 /* ----------------------------------------------------------------- Деньги */
 
-const PAY_TONE: Record<string, PillTone> = { paid: "ok", due: "warn", overdue: "danger" };
-
+/**
+ * «Договор и оплата» (Э8.3, PLAN_CHANGES 28.09): один лист — сводка строками
+ * (стоимость · договор · оплачено · остаток · финансовый стоп), под ней
+ * транши и оплаты. Редкое — панели «⋯» заголовка: подготовка договора по
+ * шаблону и служебные сведения (из `contractWorkspace`), обязательства,
+ * стопы и дополнительные операции. Права прежние: сводка — чтение 189,
+ * обязательства и стопы — только прочитанный финансовый контроль дела,
+ * раздел договора — его собственный доступ (у роли продаж его нет).
+ * Тот же компонент — на странице лида (`salesCaseId`).
+ */
 export function Money({
   profile,
   draft,
@@ -470,82 +483,82 @@ export function Money({
   financeVisible: boolean;
   contractWorkspace: React.ReactNode;
 }) {
-  const financeCaseId = draft.admissions?.studentCaseId ?? salesCaseId;
+  const financeCaseId = draft.admissions?.studentCaseId ?? salesCaseId ?? null;
+  // Раздел договора: то же правило, что у ProfileContractWorkspace (у роли продаж его нет).
+  const contractCaseId = contractWorkspace && draft.contract && actor.presentationRole !== "sales"
+    ? draft.contract.workspace.studentCaseId : null;
   // Navigation to the shared section does not grant any financial read access.
-  if (!financeVisible) return contractWorkspace;
+  const finance = financeVisible && draft.admissions?.finance ? draft.admissions : null;
+  const operations = financeVisible && financeCaseId !== null && !isStaffPreview(actor)
+    && (staffPresentationCan(actor, "admissions.read") || staffHasPermission(actor, "finance.event.confirm"));
+  const words = caseMoneyWords.panels;
+  const today = dayInOrganizationTimezone(new Date());
+  const candidates: readonly (CaseMoneyPanelEntry | null)[] = [
+    contractCaseId ? { id: CASE_MONEY_PANEL.contract, label: words.contract } : null,
+    finance ? { id: CASE_MONEY_PANEL.obligations, label: words.obligations } : null,
+    finance ? { id: CASE_MONEY_PANEL.stops, label: words.stops } : null,
+    operations ? { id: CASE_MONEY_PANEL.operations, label: words.operations } : null,
+    contractCaseId && draft.contract?.handoff ? { id: CASE_MONEY_PANEL.service, label: words.service } : null,
+  ];
+  const panels = candidates.filter((panel): panel is CaseMoneyPanelEntry => panel !== null);
+
   return (
-    <div className="flex flex-col gap-4">
-      {/*
-       * OTH-3 «Договор и оплата»: one unified block, replacing the split
-       * money/contract surfaces (188_platform_case_agreement). Renders
-       * first, before the admin ledger tools below — it is the card's
-       * primary money surface now. Renders nothing on its own when there is
-       * no case yet or the read RPC refuses (no fake empty state).
-       */}
-      {financeCaseId ? (
+    <CaseMoneySection panels={panels} contractCaseId={contractCaseId}>
+      {!financeVisible ? (
+        <p className="py-3 t-body-compact text-fg-2">{caseMoneyWords.financeHidden}</p>
+      ) : financeCaseId ? (
         <CaseAgreementBlock
           actor={actor}
           studentCaseId={financeCaseId}
           saleConditionsHref={saleConditionsHref}
-          contractWorkspace={contractWorkspace}
+          financeStop={profile.financeStop}
+          stopsPanel={finance !== null}
         />
-      ) : contractWorkspace}
+      ) : (
+        <p className="py-3 t-body-compact text-fg-2">{caseMoneyWords.noCase}</p>
+      )}
 
-      {profile.financeStop ? (
-        <p className="v3-edge-danger flex flex-wrap items-start gap-2 rounded-card border border-border border-s-2 bg-surface px-4 py-3 text-sm leading-5 text-fg">
-          <Pill tone="danger">финансовый стоп</Pill>
-          <span className="min-w-0 flex-1">{profile.financeStop}</span>
-        </p>
-      ) : null}
+      {contractWorkspace}
 
-      <details className="rounded-card border border-border bg-surface">
-        <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-          Все обязательства по делу
-        </summary>
-        <div className="border-t border-border px-4 py-3">
-          <p className="mb-3 text-sm text-fg-2">Услуги EVO и другие расходы по делу.</p>
-          {draft.budget ? (
-            <div className="mb-3">
-              <p className="flex flex-wrap items-baseline gap-2">
-                <span className="text-sm text-fg-2">Всего по обязательствам</span>
-                <span className="font-semibold tabular-nums text-fg">
-                  {draft.budget}
-                </span>
-              </p>
-              {draft.paidPercent !== null ? (
-                  <p className="mt-1 text-sm text-fg-2">
-                    оплачено <span className="text-sm text-fg">{draft.paid}</span>
-                    {draft.remaining ? ` · остаток ${draft.remaining}` : ""}
-                  </p>
-              ) : null}
-            </div>
-          ) : null}
-          <ul>
+      {finance ? (
+        <CaseMoneyPanel id={CASE_MONEY_PANEL.obligations} label={words.obligations}>
+          <p className="t-body-compact text-fg-2">
+            Услуги EVO и другие расходы по делу.
+            {draft.budget ? <> Всего <span className="tabular-nums text-fg">{draft.budget}</span>
+              {draft.paid ? <> · оплачено <span className="tabular-nums text-fg">{draft.paid}</span></> : null}
+              {draft.remaining ? <> · остаток <span className="tabular-nums text-fg">{draft.remaining}</span></> : null}</> : null}
+          </p>
+          <ul className="mt-2 border-t border-border">
             {draft.payments.map((payment) => (
-              <li
-                key={payment.name}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border py-2.5 last:border-b-0"
-              >
-                <span className="min-w-0 flex-1 break-words text-sm text-fg">
-                  {payment.name}
+              <li key={payment.name} className="flex min-h-11 flex-wrap items-center gap-x-4 border-b border-border py-1.5">
+                <span className="min-w-0 flex-1 break-words t-body-compact text-fg">{payment.name}</span>
+                <span className="t-body-compact tabular-nums text-fg">{payment.amount}</span>
+                <span className="t-meta text-fg-2">
+                  {payment.at ? <>{payment.state === "paid" ? "оплачен" : "до"}{" "}
+                    <time dateTime={payment.at} className="font-mono tabular-nums">{moneyMomentDay(payment.at, today)}</time></>
+                    : payment.state === "paid" ? "оплачен" : "срок не указан"}
                 </span>
-                <span className="shrink-0 text-sm tabular-nums text-fg">
-                  {payment.amount}
-                </span>
-                <Pill tone={PAY_TONE[payment.state]}>{payment.at}</Pill>
+                {payment.state === "overdue" ? <StatusChip label="просрочено" tone="danger" /> : null}
               </li>
             ))}
             {draft.payments.length === 0 ? (
-              <li className="py-2 text-sm text-fg-2">Обязательств пока нет.</li>
+              <li className="border-b border-border py-2.5 t-body-compact text-fg-2">Обязательств пока нет.</li>
             ) : null}
           </ul>
-        </div>
-      </details>
+        </CaseMoneyPanel>
+      ) : null}
 
-      <ProfileFinanceControls actor={actor} workspace={draft.admissions} />
-      {financeCaseId && (staffPresentationCan(actor, "admissions.read") || staffHasPermission(actor, "finance.event.confirm"))
-        ? <FinanceEntryWorkspace caseId={financeCaseId} /> : null}
-    </div>
+      {finance ? (
+        <CaseMoneyPanel id={CASE_MONEY_PANEL.stops} label={words.stops}>
+          <ProfileFinanceControls actor={actor} workspace={finance} />
+        </CaseMoneyPanel>
+      ) : null}
+      {operations && financeCaseId ? (
+        <CaseMoneyPanel id={CASE_MONEY_PANEL.operations} label={words.operations}>
+          <FinanceEntryWorkspace caseId={financeCaseId} />
+        </CaseMoneyPanel>
+      ) : null}
+    </CaseMoneySection>
   );
 }
 

@@ -9,6 +9,7 @@ import { useActionState, useEffect, useState } from "react";
 
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import { btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
+import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import {
   changePlatformUniversityApplicationAction,
   updateApplicationPartnerDetailsAction,
@@ -657,6 +658,11 @@ export function ProfileAdmissionsWorkspacePanel({
   );
 }
 
+/**
+ * Панель «Стопы» вкладки «Договор и оплата» (Э8.3): заголовок — у панели.
+ * Активный стоп — строкой с чипом, без боковой полосы; «Поставить
+ * финансовый стоп» — тихая кнопка (красный текст — только проблема).
+ */
 export function ProfileFinanceControls({
   actor,
   workspace,
@@ -668,59 +674,55 @@ export function ProfileFinanceControls({
   const canCreate = workspace.caseState === "active" && !isStaffPreview(actor) && staffHasPermission(actor, "finance.stop.create");
   const canRelease = workspace.caseState === "active" && !isStaffPreview(actor) && staffHasPermission(actor, "finance.stop.manage");
 
-  return (
-    <Card eyebrow title="Управление стопами">
-      {workspace.finance.obligations.length === 0 ? (
-        <p className="px-4 py-3 text-sm text-fg-3">
-          Финансовых обязательств нет — ставить стоп не на что.
-        </p>
-      ) : (
-        <div className="divide-y divide-border" data-testid="v3-profile-finance-controls">
-          {workspace.finance.obligations.map((obligation) => (
-            <article key={obligation.paymentObligationId} className="px-4 py-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-medium text-fg">{obligation.label}</p>
-                  <p className="mt-0.5 text-xs text-fg-3">{obligation.nextAction}</p>
-                </div>
-                {obligation.activeStopFactors.length > 0 ? (
-                  <Pill tone="danger">стоп активен</Pill>
-                ) : (
-                  <Pill>без стопа</Pill>
-                )}
-              </div>
+  return workspace.finance.obligations.length === 0 ? (
+    <p className="py-2 t-body-compact text-fg-2">
+      Финансовых обязательств нет — ставить стоп не на что.
+    </p>
+  ) : (
+    <div className="border-t border-border" data-testid="v3-profile-finance-controls">
+      {workspace.finance.obligations.map((obligation) => (
+        <article key={obligation.paymentObligationId} className="border-b border-border py-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <div className="min-w-0">
+              <p className="t-item text-fg">{obligation.label}</p>
+              {obligation.nextAction ? <p className="t-meta text-fg-2">{obligation.nextAction}</p> : null}
+            </div>
+            {obligation.activeStopFactors.length > 0 ? (
+              <StatusChip label="стоп активен" tone="danger" />
+            ) : (
+              <StatusChip label="без стопа" />
+            )}
+          </div>
 
-              {obligation.activeStopFactors.map((stop) => (
-                <div key={stop.stopFactorId} className="v3-edge-danger mt-3 border-s-2 pl-3">
-                  <p className="text-sm text-fg">{stop.reason}</p>
-                  <p className="mt-0.5 text-xs text-fg-3">
-                    {financeBlockedAction(stop.blockedAction) ?? "—"} · следующий шаг: {stop.nextAction}
-                  </p>
-                  {canRelease ? (
-                    <FinanceStopResolveForm
-                      workspace={workspace}
-                      stopFactorId={stop.stopFactorId}
-                      version={stop.version}
-                    />
-                  ) : null}
-                </div>
-              ))}
-
-              {canCreate && obligation.status !== "paid" ? (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-medium text-danger">
-                    Поставить финансовый стоп
-                  </summary>
-                  <FinanceStopCreateForm
-                    workspace={workspace}
-                    obligationId={obligation.paymentObligationId}
-                  />
-                </details>
+          {obligation.activeStopFactors.map((stop) => (
+            <div key={stop.stopFactorId} className="mt-2 border-t border-border pt-2">
+              <p className="t-body-compact text-fg">{stop.reason}</p>
+              <p className="t-meta text-fg-2">
+                {financeBlockedAction(stop.blockedAction) ?? "—"} · следующий шаг: {stop.nextAction}
+              </p>
+              {canRelease ? (
+                <FinanceStopResolveForm
+                  workspace={workspace}
+                  stopFactorId={stop.stopFactorId}
+                  version={stop.version}
+                />
               ) : null}
-            </article>
+            </div>
           ))}
-        </div>
-      )}
-    </Card>
+
+          {canCreate && obligation.status !== "paid" ? (
+            <details className="mt-1">
+              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden">
+                Поставить финансовый стоп
+              </summary>
+              <FinanceStopCreateForm
+                workspace={workspace}
+                obligationId={obligation.paymentObligationId}
+              />
+            </details>
+          ) : null}
+        </article>
+      ))}
+    </div>
   );
 }

@@ -8,8 +8,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useState, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
-import { Pill } from "@/components/v3/Pill";
-import { btnGhostCls, Card, cn, inputCls, fieldLabelCls } from "@/components/ui";
+import { btnGhostCls, cn, inputCls, fieldLabelCls } from "@/components/ui";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import {
   changePlatformUniversityApplicationAction,
@@ -39,7 +38,6 @@ import {
 } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
-import { StatusChip } from "../blocks/StatusChip";
 import { useAnchoredPopover } from "../queue/useAnchoredPopover";
 import { StaffPreparationPanel } from "./StaffPreparationPanel";
 import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";

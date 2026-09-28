@@ -166,7 +166,9 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   assert.match(adapter, /if \(leadProfile\) return leadProfile/u);
   assert.match(adapter, /leadId: link\?\.leadId \?\? null/u);
   assert.doesNotMatch(adapter, /if \(!link[^\n]*\) return null/u);
-  assert.match(workspace, /<Card eyebrow id="applications" title="Заявки">/u);
+  // Э8.2: карточки «Заявки» нет — один список вузов дела с прежним якорем `#applications`.
+  assert.match(workspace, /<section\s+id="applications"/u);
+  assert.doesNotMatch(workspace, /title="Заявки"/u);
   // Unified workflow S4 (plan §11): the visa-case CRUD Card is retired —
   // no separate visa case, mandatory statuses or CRM-side visa workflow.
   // Visa rows/files stay in the database untouched; nothing renders them
@@ -247,14 +249,14 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   assert.match(controls, /application\.universityDeadlineOn/u);
   assert.match(controls, /type="checkbox"[\s\S]*name="is_primary"/u);
   assert.doesNotMatch(controls, /<select[^>]*name="is_primary"/u);
-  assert.match(controls, /data-primary=\{application\.isPrimary \? "true" : "false"\}/u);
+  assert.match(controls, /data-primary=\{row\.primary \? "true" : "false"\}/u);
   assert.match(controls, /details-\$\{application\.universityApplicationId\}-\$\{application\.version\}/u);
   assert.match(controls, /router\.refresh\(\)/u);
-  // Status still displays read-only, as secondary metadata (task's own
-  // allowance) — the DB column and PLATFORM_APPLICATION_STATUSES-backed
-  // label function stay; only the editable <select> is gone.
-  assert.match(controls, /Pill tone=\{statusTone\(application\.status\)\}/u);
-  assert.match(controls, /applicationStatus\(application\.status\)/u);
+  // Э8.2: статус строки — путь «вариант → заявка подана → решение» с одним
+  // словом `StatusChip` текущего шага (слова — `applicationPathWord` в
+  // wording.ts, строки — `universityRows`); сырой ключ не показывается.
+  assert.match(controls, /<StatusChip label=\{row\.word\} tone=\{row\.tone\} \/>/u);
+  assert.match(source("src/components/v3/profile/university-programs-view.ts"), /word: applicationPathWord\(status\)/u);
   assert.doesNotMatch(controls, /PLATFORM_APPLICATION_STATUSES/u);
   assert.doesNotMatch(controls, /PLATFORM_VISA_STATUSES/u);
   assert.doesNotMatch(controls, /createSupabase|supabase\.from|localStorage|sessionStorage/u);
@@ -279,8 +281,10 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   assert.match(partnerFacts, /name="decision_reference"/u);
   assert.match(partnerFacts, /name="decision_note"/u);
   assert.match(partnerFacts, /name="student_case_id" value=\{workspace\.studentCaseId\}/u);
-  // Read-only fallback (no `application.manage`) stays a plain fact list.
-  assert.match(partnerFacts, /if \(!canWrite\) \{/u);
+  // Э8.2: форму открывает «⋯ → Партнёр и решение» (право `application.manage`);
+  // сохранённые сведения — строкой вуза для всех, кто видит вкладку.
+  assert.doesNotMatch(partnerFacts, /if \(!canWrite\)/u);
+  assert.match(controls, /details\?\.partnerContact \? `Партнёр: \$\{details\.partnerContact\}` : null/u);
   assert.doesNotMatch(partnerFacts, /packageReference|offerConditions/u);
   assert.match(controls, /partnerDetails\?: readonly ApplicationPartnerDetails\[\]/u);
   assert.match(controls, /<ApplicationPartnerFacts/u);
@@ -309,9 +313,10 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   assert.match(createDialog, /Дополнительно/u);
   assert.match(controls, /<select name="country"/u);
   assert.match(controls, /<select name="degree"/u);
-  // Wording: launcher/dialog say «Добавить вуз» (plan §«Uni & knowledge
-  // base»: «Добавить вуз»), not the retired «Новая заявка»/«Добавить заявку».
-  assert.match(controls, /<ApplicationCreateDialog workspace=\{workspace\}\s*\/>/u);
+  // Wording: the dialog says «Добавить вуз» (plan §«Uni & knowledge base»),
+  // not the retired «Новая заявка»/«Добавить заявку». Э8.2: its launcher is
+  // the quiet «Добавить вручную» next to «+ Вуз из каталога» on the tab.
+  assert.match(source("src/components/v3/profile/UniversityProgramsTab.tsx"), /<ApplicationCreateDialog workspace=\{admissions\}\s*\/>/u);
   assert.doesNotMatch(controls, /Новая заявка|Добавить заявку/u);
   assert.match(createDialog, />\s*Добавить вуз\s*</u);
   assert.match(createDialog, /"Добавить"/u);
@@ -324,8 +329,8 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   assert.match(controls, /needsNote = nextStatus === "rejected" \|\| nextStatus === "withdrawn"/u);
   // Author attribution (plan: «Показывать автора добавления, когда он
   // известен»): quiet metadata line, only rendered when known.
-  assert.match(controls, /application\.createdByDisplayName \? \(/u);
-  assert.match(controls, /Добавил: \{application\.createdByDisplayName\}/u);
+  assert.match(source("src/components/v3/profile/university-programs-view.ts"), /addedBy: application\?\.createdByDisplayName \?\? null/u);
+  assert.match(controls, /row\.addedBy \? `Добавил: \$\{row\.addedBy\}` : null/u);
   assert.match(controls, /platformApplicationCountryEditOptions\(defaultValue \|\| null\)/u);
   assert.match(controls, /platformApplicationDegreeEditOptions\(defaultValue \|\| null\)/u);
   assert.match(controls, /applicationCountry\(countryCode\)/u);

@@ -2162,20 +2162,18 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(universityChoice).toHaveValue(catalogInstitutionId);
   await createApplication.locator('button[type="submit"]').click();
 
+  // Э8.2: one list of the case's universities — a row per university with the
+  // path, «Срок подачи ДД.ММ(.ГГ)», country · degree and the row «⋯» forms.
   const application = applications
-    .locator("article")
+    .getByTestId("v3-profile-application")
     .filter({ hasText: "P4 isolated technical university" });
   await expect(application).toHaveCount(1);
   await expect(application).toHaveAttribute("data-primary", "true");
-  await expect(application).toContainText("Основной вариант");
-  await expect(application).toContainText("Дедлайн от университета: 01.10.2099");
-  await expect(application).toContainText("Страна: Малайзия");
-  await expect(application).toContainText("Ступень: Бакалавриат");
-  await application
-    .locator("details")
-    .filter({ hasText: "Отметить статус" })
-    .locator("summary")
-    .click();
+  await expect(application).toContainText("★ основной");
+  await expect(application).toContainText("Срок подачи 01.10.99");
+  await expect(application).toContainText("Малайзия · Бакалавриат");
+  await application.getByRole("button", { name: /^Ещё:/u }).click();
+  await page.getByRole("button", { name: "Отметить статус", exact: true }).click();
   const changeApplication = application.locator(
     'form:has(select[name="status"])',
   );
@@ -2196,7 +2194,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .fill("p4://application-submitted");
   await changeApplication.locator('button[type="submit"]').click();
   await expect(
-    applications.locator("article").filter({ hasText: "P4 isolated technical university" }),
+    applications.getByTestId("v3-profile-application").filter({ hasText: "P4 isolated technical university" }),
   ).toContainText("p4://application-submitted");
 
   await page.reload();
@@ -2205,11 +2203,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .getByTestId("v3-profile-application")
     .filter({ hasText: "P4 isolated technical university" });
   await expect(refreshedFirstApplication).toHaveAttribute("data-primary", "true");
-  await expect(refreshedFirstApplication).toContainText(
-    "Дедлайн от университета: 01.10.2099",
-  );
-  await expect(refreshedFirstApplication).toContainText("Страна: Малайзия");
-  await expect(refreshedFirstApplication).toContainText("Ступень: Бакалавриат");
+  await expect(refreshedFirstApplication).toContainText("Срок подачи 01.10.99");
+  await expect(refreshedFirstApplication).toContainText("Малайзия · Бакалавриат");
 
   await refreshedApplications.getByTestId("v3-application-create-launcher").click();
   const createAlternativeApplication = refreshedApplications.getByTestId("v3-application-create");
@@ -2247,17 +2242,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .filter({ hasText: "P4 isolated alternative university" });
   await expect(alternativeApplication).toHaveCount(1);
   await expect(alternativeApplication).toHaveAttribute("data-primary", "false");
-  await expect(alternativeApplication).toContainText("Обычный вариант");
-  await expect(alternativeApplication).toContainText(
-    "Дедлайн от университета: 02.11.2099",
-  );
-  await expect(alternativeApplication).toContainText("Страна: Китай");
-  await expect(alternativeApplication).toContainText("Ступень: Фаундейшн");
-  await alternativeApplication
-    .locator("details")
-    .filter({ hasText: "Изменить параметры заявки" })
-    .locator("summary")
-    .click();
+  await expect(alternativeApplication).not.toContainText("★ основной");
+  await expect(alternativeApplication).toContainText("Срок подачи 02.11.99");
+  await expect(alternativeApplication).toContainText("Китай · Фаундейшн");
+  await alternativeApplication.getByRole("button", { name: /^Ещё:/u }).click();
+  await page.getByRole("button", { name: "Параметры заявки", exact: true }).click();
   const changeApplicationDetails = alternativeApplication.locator(
     'form:has(input[name="university_deadline_on"])',
   );
@@ -2285,14 +2274,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await changeApplicationDetails.locator('button[type="submit"]').click();
 
   await expect(alternativeApplication).toHaveAttribute("data-primary", "true");
-  await expect(alternativeApplication).toContainText("Основной вариант");
-  await expect(alternativeApplication).toContainText(
-    "Дедлайн от университета: 15.11.2099",
-  );
-  await expect(alternativeApplication).toContainText("Страна: Италия");
-  await expect(alternativeApplication).toContainText("Ступень: Языковые курсы");
+  await expect(alternativeApplication).toContainText("★ основной");
+  await expect(alternativeApplication).toContainText("Срок подачи 15.11.99");
+  await expect(alternativeApplication).toContainText("Италия · Языковые курсы");
   await expect(refreshedFirstApplication).toHaveAttribute("data-primary", "false");
-  await expect(refreshedFirstApplication).toContainText("Обычный вариант");
+  await expect(refreshedFirstApplication).not.toContainText("★ основной");
 
   await page.reload();
   const persistedApplications = page.locator("#applications");
@@ -2304,15 +2290,9 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .filter({ hasText: "P4 isolated alternative university" });
   await expect(persistedFirstApplication).toHaveAttribute("data-primary", "false");
   await expect(persistedAlternativeApplication).toHaveAttribute("data-primary", "true");
-  await expect(persistedAlternativeApplication).toContainText(
-    "Дедлайн от университета: 15.11.2099",
-  );
-  await expect(persistedFirstApplication).toContainText("Страна: Малайзия");
-  await expect(persistedFirstApplication).toContainText("Ступень: Бакалавриат");
-  await expect(persistedAlternativeApplication).toContainText("Страна: Италия");
-  await expect(persistedAlternativeApplication).toContainText(
-    "Ступень: Языковые курсы",
-  );
+  await expect(persistedAlternativeApplication).toContainText("Срок подачи 15.11.99");
+  await expect(persistedFirstApplication).toContainText("Малайзия · Бакалавриат");
+  await expect(persistedAlternativeApplication).toContainText("Италия · Языковые курсы");
 
   const [persistedFirstResult, persistedAlternativeResult] = await Promise.all([
     directPlatformRpc(

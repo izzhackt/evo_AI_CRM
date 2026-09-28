@@ -103,6 +103,12 @@ export type LeadHandoffStrip = Readonly<{
           hasContractNumber: boolean;
           /** «Оплачено по записи» больше нуля: сумма в минимальных единицах и валюта. */
           paid: Readonly<{ minor: number; currency: string }> | null;
+          /**
+           * `sale` — настоящая продажа pipeline (`lead_id`, 134); `link` —
+           * запись просто связана (254, `linked_lead_id`) и никогда не
+           * считается продажей и не подтверждает договор/оплату полосы.
+           */
+          link: "sale" | "linked";
         }> | null;
       }>;
   /** Текущий куратор дела этой передачи и когда его назначили. */
@@ -143,17 +149,18 @@ function parseReport(value: unknown): LeadHandoffStrip["report"] | undefined {
   if (row.status === "denied") return row.record === null ? Object.freeze({ status: "denied" as const }) : undefined;
   if (row.status !== "available") return undefined;
   if (row.record === null) return Object.freeze({ status: "available" as const, record: null });
-  const record = object(row.record, ["id", "report_month", "sale_date", "archived", "has_contract_number", "paid"]);
+  const record = object(row.record, ["id", "report_month", "sale_date", "archived", "has_contract_number", "paid", "link"]);
   const paid = record ? parsePaid(record.paid) : undefined;
   if (!record || typeof record.id !== "string" || !UUID.test(record.id) || !realDate(record.report_month)
     || record.report_month.slice(8) !== "01" || (record.sale_date !== null && !realDate(record.sale_date))
-    || typeof record.archived !== "boolean" || typeof record.has_contract_number !== "boolean" || paid === undefined) return undefined;
+    || typeof record.archived !== "boolean" || typeof record.has_contract_number !== "boolean" || paid === undefined
+    || (record.link !== "sale" && record.link !== "linked")) return undefined;
   return Object.freeze({
     status: "available" as const,
     record: Object.freeze({
       id: record.id.toLowerCase(), reportMonth: record.report_month,
       saleDate: record.sale_date as string | null, archived: record.archived,
-      hasContractNumber: record.has_contract_number, paid,
+      hasContractNumber: record.has_contract_number, paid, link: record.link,
     }),
   });
 }

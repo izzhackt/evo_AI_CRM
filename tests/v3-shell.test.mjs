@@ -55,6 +55,8 @@ const ids = (links) => links.map((link) => link.id);
 test("tab slots per role follow the owner's order: admissions and Admin — Студенты · Задачи · Переписка, sales — Воронка · Заявки · Задачи", () => {
   // 27.09.2026 (owner decision): «Переписка» (its short name since 28.09.2026)
   // stands where «Переписки» of Э5 stood; the sales WhatsApp takes no slot of its own.
+  // Slots follow destinations, not groups: «Заявки» moving from «Общее» to
+  // «Продажи» (owner decision 28.09.2026) changes no slot.
   const admissions = ["home", "admissions-worklist", "tasks", "messages"];
   const sales = ["home", "pipeline", "requests", "tasks"];
   for (const [who, kind, expected] of [
@@ -262,6 +264,46 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
   assert.match(surface("board-admin"), /data-shell-layout="board"/u);
   assert.match(surface("board-admin"), /md:w-16 2xl:w-\[260px\]/u);
   assert.match(surface("home-admin"), /md:w-\[260px\]/u);
+});
+
+// Решение владельца 28.09.2026: «Заявки» — первыми в «Продажах», а не в
+// «Общем». Меню компьютера и лист «Ещё» — одна разметка (MenuLists), поэтому
+// её проверка — проверка обоих. Места нижней панели выбираются по разделам и
+// не меняются (EXPECTED_TABS выше).
+const MENU_BY_ROLE = {
+  admin: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/knowledge"] },
+  // Просмотр «Приёмной»: у фиксированной роли нет sales.read — ни «Продаж», ни «Заявок», как и раньше.
+  admissions: { sales: null, common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
+  // Куратор с lead.read: правило D скрывает доску и WhatsApp, «Заявки» и «Отчёт продаж» остаются.
+  "admissions-staff": { sales: ["/v3/requests", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
+  sales: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/reply-snippets"] },
+};
+function menuOf(html) {
+  const list = html.slice(html.indexOf('<ul aria-label="Навигация по разделам"'), html.indexOf('<section aria-label="Общее"'));
+  const hrefs = (part) => [...part.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
+  // Раскрывающийся список отдела; в рейке досок те же пункты ещё и в списке верхнего слоя.
+  const group = (label) => {
+    const start = list.indexOf(`<span class="min-w-0 flex-1">${label}</span>`);
+    if (start < 0) return null;
+    const items = list.slice(start).match(/<ul id="[^"]+"[^>]*class="ms-3[^"]*">([\s\S]*?)<\/ul>/u)?.[1] ?? assert.fail(label);
+    const rail = list.slice(start).match(new RegExp(`^[\\s\\S]*?</button>(?:<button [^>]*>[\\s\\S]*?</button><div [^>]*role="group" aria-label="${label}"[^>]*>[\\s\\S]*?<ul [^>]*>([\\s\\S]*?)</ul>)?`, "u"))?.[1];
+    if (rail !== undefined) assert.deepEqual(hrefs(rail), hrefs(items), `${label}: rail list`);
+    return hrefs(items);
+  };
+  const common = html.match(/<section aria-label="Общее"[\s\S]*?<\/section>/u)?.[0] ?? "";
+  return { sales: group("Продажи"), common: hrefs(common), rail: /role="group" aria-label="Продажи"/u.test(list) };
+}
+
+test("menu per role: «Заявки» lead «Продажи» wherever the role may open them, «Общее» starts with «Задачи»", () => {
+  for (const { name, role, html } of surfaces) {
+    const { rail, ...menu } = menuOf(html);
+    assert.deepEqual(menu, MENU_BY_ROLE[role], name);
+    const everyMenuLink = html.slice(html.indexOf('<ul aria-label="Навигация по разделам"'), html.indexOf("</section>", html.indexOf('<section aria-label="Общее"')));
+    const lists = rail ? 2 : 1;
+    assert.equal(count(everyMenuLink, /href="\/v3\/requests"/gu), menu.sales?.includes("/v3/requests") ? lists : 0, `${name}: «Заявки» stand once in the menu`);
+  }
+  // Рейка досок ниже 1536 px показывает те же пункты отдела в верхнем слое.
+  assert.ok(menuOf(surface("board-admin")).rail, "board surfaces render the rail list");
 });
 
 test("the sheet is a modal dialog while open: inert page, Escape and «Закрыть» return focus to «Ещё», focus trapped", () => {

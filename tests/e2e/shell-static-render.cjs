@@ -166,6 +166,14 @@ const EXPECTED_TABS = {
   sales: ["Сегодня", "Воронка продаж", "Заявки", "Задачи", "Ещё"],
 };
 const ADMISSIONS_TAB_TEXT = ["Сегодня", "Студенты", "Задачи", "Переписка", "Ещё"];
+// Состав отделов меню (решение владельца 28.09.2026: «Заявки» — первыми в
+// «Продажах», не в «Общем»). null — отдела у роли нет. Просмотр «Приёмной» не
+// видит «Заявок» (у фиксированной роли нет sales.read); куратор с lead.read
+// видит «Заявки» и «Отчёт продаж» — правило D скрывает только доску и WhatsApp.
+const SALES_FULL = ["Заявки", "Воронка продаж", "WhatsApp", "Отчёт продаж"];
+const EXPECTED_SALES_GROUP = {
+  admin: SALES_FULL, admissions: null, "admissions-staff": ["Заявки", "Отчёт продаж"], sales: SALES_FULL,
+};
 const EXPECTED_TAB_TEXT = {
   admin: ADMISSIONS_TAB_TEXT, admissions: ADMISSIONS_TAB_TEXT, "admissions-staff": ADMISSIONS_TAB_TEXT,
   sales: ["Сегодня", "Воронка", "Заявки", "Задачи", "Ещё"],
@@ -556,6 +564,13 @@ function shellMetrics() {
     ? [...menu.querySelectorAll('[data-shell-menu-body] a[href^="/v3/"] > svg + span')].filter((span) => visible(span) && span.getBoundingClientRect().width > 1)
     : [];
   const messagesLabel = menuLabels.find((span) => span.parentElement.getAttribute("href") === "/v3/messages");
+  // Состав меню по разметке (раскрыт отдел или нет; на телефоне — лист «Ещё»).
+  const menuList = menu?.querySelector('ul[aria-label="Навигация по разделам"]');
+  const menuGroups = menuList ? [...menuList.querySelectorAll(":scope > li > button[aria-expanded]")].map((button) => ({
+    label: button.textContent.trim(),
+    items: [...(document.getElementById(button.getAttribute("aria-controls"))?.querySelectorAll("a") ?? [])].map((link) => link.textContent.trim()),
+  })) : [];
+  const menuCommon = menu ? [...menu.querySelectorAll('section[aria-label="Общее"] a')].map((link) => link.textContent.trim()) : [];
   return {
     viewport: `${window.innerWidth}x${window.innerHeight}`,
     overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -568,6 +583,8 @@ function shellMetrics() {
     messagesItem: messagesLabel
       ? { label: messagesLabel.textContent.trim(), lines: lineCount(messagesLabel), height: Math.round(messagesLabel.parentElement.getBoundingClientRect().height) }
       : null,
+    menuGroups,
+    menuCommon,
     tabbar: tabs.length ? {
       slots: tabs.length,
       labels: tabs.map((tab) => tab.querySelector(":scope > span:last-child").textContent.trim()),
@@ -753,6 +770,9 @@ async function screenshots() {
           check(metrics.minFontPx === null || metrics.minFontPx >= 12, `${label}: shell text ${metrics.minFontPx}px`);
           check(metrics.smallTargets.length === 0, `${label}: targets under 44px: ${metrics.smallTargets.join(", ")}`);
           check(metrics.solidRedInChrome === 0, `${label}: solid red in the shell`);
+          const salesGroup = metrics.menuGroups.find((group) => group.label === "Продажи")?.items ?? null;
+          check(JSON.stringify(salesGroup) === JSON.stringify(EXPECTED_SALES_GROUP[role]), `${label}: «Продажи» ${JSON.stringify(salesGroup)}`);
+          check(!metrics.menuCommon.includes("Заявки") && metrics.menuCommon[0] === "Задачи", `${label}: «Общее» ${metrics.menuCommon.join(" · ")}`);
           if (PHONE.has(viewportKey)) {
             check(metrics.tabbar !== null, `${label}: no tab bar on the phone`);
             check(metrics.sidebar === null, `${label}: sidebar visible on the phone`);
@@ -801,6 +821,8 @@ async function screenshots() {
       report({ file, page: "students", role: "admissions-staff", ...metrics });
       if (PHONE.has(viewportKey)) check(JSON.stringify(metrics.tabbar?.labels) === JSON.stringify(EXPECTED_TAB_TEXT["admissions-staff"]), `${file}: tabs ${metrics.tabbar?.labels.join(" · ")}`);
       check(metrics.overflowX === 0, `${file}: horizontal overflow`);
+      const salesGroup = metrics.menuGroups.find((group) => group.label === "Продажи")?.items ?? null;
+      check(JSON.stringify(salesGroup) === JSON.stringify(EXPECTED_SALES_GROUP["admissions-staff"]), `${file}: «Продажи» ${JSON.stringify(salesGroup)}`);
     }
 
     // 2. 1280×800, Admin: отделы открываются по одному (кроме отдела текущей

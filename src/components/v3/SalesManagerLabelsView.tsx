@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { btnGhostCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { recordsWord } from "@/lib/sales-register-view";
+import { managersWord, recordsWord } from "@/lib/sales-register-view";
 import { salesManagerLabelName } from "@/lib/sales-manager-labels";
 import { salesReportContext, type SalesReportQuery } from "@/lib/sales-register-navigation";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
@@ -41,7 +41,7 @@ export async function SalesManagerLabelsView({ actor, query }: { actor: ActivePl
     {read.status === "unavailable" ? <p role="alert" className="mt-6 t-body-compact text-fg-2">Не удалось загрузить написания менеджеров. Обновите страницу.</p> : null}
     {read.status === "ready" ? <>
       <p className="mt-4 t-meta text-fg-2" data-testid="sales-managers-count">
-        {labels.length ? `${labels.length} ${labels.length === 1 ? "менеджер" : labels.length < 5 ? "менеджера" : "менеджеров"} по написаниям, с именем от владельца — ${mapped}.`
+        {labels.length ? `${labels.length} ${managersWord(labels.length)} по написаниям, с именем от владельца — ${mapped}.`
           : "В отчёте пока нет менеджеров."}
       </p>
       {labels.length ? <section aria-label="Написания менеджеров" className="mt-3 border-t border-border" data-testid="sales-managers">

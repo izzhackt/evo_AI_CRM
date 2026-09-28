@@ -96,7 +96,7 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
   ].filter(({ value }) => value.trim() !== "");
   const details: { label: string; value: ReactNode }[] = [
     { label: "Менеджер", value: <>{manager || "Не указан"}
-      {raw && raw !== manager ? <span className="block t-meta text-fg-2">в записи: «{record.managerLabel}»</span> : null}</> },
+      {raw && raw !== manager ? <span className="block t-meta text-fg-2">в записи: «{raw}»</span> : null}</> },
     { label: "Дата продажи", value: record.signingDate
       ? <time dateTime={record.signingDate} className="font-mono tabular-nums">{salesDay(record.signingDate, year)}</time>
       : <span className="text-fg-2">не указана</span> },

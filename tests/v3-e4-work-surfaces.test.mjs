@@ -14,7 +14,7 @@ import {
 } from "../src/components/v3/profile/lead-work-view.ts";
 import { profileTabAccess, resolveTab, tabsFor } from "../src/components/v3/profile/types.ts";
 import {
-  SALES_NO_REMAINDER_TEXT, groupSalesLabels, recordsDative, recordsWord, salesImportFlagText, salesLabelGroupOf, salesManualReview,
+  SALES_NO_REMAINDER_TEXT, groupSalesLabels, managersWord, recordsDative, recordsWord, salesImportFlagText, salesLabelGroupOf, salesManualReview,
   salesMoneySummary, salesPeriodSteps, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, salesWord,
 } from "../src/lib/sales-register-view.ts";
 
@@ -224,6 +224,10 @@ test("«Отчёт продаж»: the month stepper crosses years, «весь �
   assert.deepEqual(salesPeriodSteps(2026, undefined), { previous: { year: 2025, month: undefined }, next: { year: 2027, month: undefined } });
   assert.deepEqual([0, 1, 2, 5, 11, 21, 22, 112].map(salesWord), ["продаж", "продажа", "продажи", "продаж", "продаж", "продажа", "продажи", "продаж"]);
   assert.deepEqual([1, 3, 5, 14, 101].map(recordsWord), ["запись", "записи", "записей", "записей", "запись"]);
+  // «Менеджеры в отчёте»: то же правило по остаткам от 10 и 100 — «21 менеджер», «22 менеджера», «111 менеджеров».
+  assert.deepEqual([1, 2, 5, 11, 21, 22, 25, 111, 124].map(managersWord),
+    ["менеджер", "менеджера", "менеджеров", "менеджеров", "менеджер", "менеджера", "менеджеров", "менеджеров", "менеджера"]);
+  assert.match(read("src/components/v3/SalesManagerLabelsView.tsx"), /\$\{labels\.length\} \$\{managersWord\(labels\.length\)\} по написаниям/u);
 });
 
 const pages = new Map(JSON.parse(execFileSync(process.execPath,
@@ -464,7 +468,8 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   assert.doesNotMatch(page, /data-testid="sales-register-form"/u);
   const panel = text(page.slice(page.indexOf("<dialog"), page.indexOf("</dialog>")));
   assert.match(panel, /Требует проверки: при переносе: статус оплаты не указан Исправить запись Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
-  assert.match(panel, /Менеджер Санжар Эскизов в записи: « санжар эскизов»/u);
+  // Написание в записи — опрятно (без пробелов по краям и двойных), без опечатки внутри кавычек.
+  assert.match(panel, /Менеджер Санжар Эскизов в записи: «санжар эскизов»/u);
   assert.match(page, /<a class="[^"]*" data-testid="sales-record-edit" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true">Исправить запись<\/a>/u);
   assert.doesNotMatch(page.slice(page.indexOf("<dialog"), page.indexOf("</dialog>")), /(?<![\w:-])bg-(?:accent|fg)(?![\w-])/u, "a quiet «Исправить запись»");
   assert.match(page, /data-testid="queue-detail-close" [^>]*href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9"/u);
@@ -480,6 +485,17 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   assert.match(page, /<table role="table" class="block w-full text-left @min-\[32rem\]\/sales-records:table @min-\[32rem\]\/sales-records:table-fixed" data-layout="compact">/u);
   assert.match(text(page), /Студент Дата Стоимость Оплачено Остаток Уточнить Алина Переданная/u);
   assert.equal(page.slice(page.indexOf("<colgroup"), page.indexOf("</colgroup>")).match(/<col\b/gu)?.length, 6);
+  // Суммы — не уже «120 000 KGS» при любой ширине колонки (19,5% от 32rem, 15% от 42rem); имя — шире, чем было.
+  assert.match(page, /<col class="w-\[19\.5%\] @min-\[42rem\]\/sales-records:w-\[15%\]"\/>/u);
+  assert.match(page, /<col class="w-\[30\.5%\] @min-\[42rem\]\/sales-records:w-\[25%\]"\/>/u);
+  // Уже 42rem столбца «Уточнить» нет: помеченная строка — строкой «Уточнить: …» под именем (12 px, нейтральная),
+  // только у помеченных записей; от 42rem и на телефоне (строки стопкой) её нет — там свой столбец и своя строка.
+  const mark = /<span class="truncate t-meta text-fg-2 hidden @min-\[32rem\]\/sales-records:block @min-\[42rem\]\/sales-records:hidden" title="Уточнить: ([^"]+)" data-row-review-mark="">Уточнить: ([^<]+)<\/span>/gu;
+  const marks = [...page.matchAll(mark)];
+  assert.equal(marks.length, 6, "one per flagged row of the month");
+  assert.ok(marks.every(([, title, words]) => title === words.trim()));
+  assert.ok(marks.some(([, title]) => title === "при переносе: статус оплаты не указан"));
+  assert.doesNotMatch(pages.get("report"), /data-row-review-mark/u, "the full table keeps its «Уточнить» column");
 
   // «Исправить запись» — форма в той же панели; «Отмена» возвращает к просмотру записи.
   const edit = pages.get("report-panel-edit");
@@ -513,20 +529,30 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
 test("rendered «Отчёт продаж»: the report month stays visible where rows differ in it, and the sums name their basis", () => {
   const reportMonthCell = (month, words, compact) => new RegExp(`<td role="cell" class="[^"]*" data-report-month="${month}"><time dateTime="${month}" class="block truncate t-body-compact text-fg-2 font-mono tabular-nums" title="Месяц отчёта: ${words}">${compact.replace(".", "\\.")}</time></td>`, "u");
   const reportMonthLine = (month, words) => `<p class="truncate t-meta text-fg-2" data-report-month="${month}">Месяц отчёта: ${words}</p>`;
+  // Рядом с открытой записью (Э8.6) месяц отчёта — второй строкой под датой, 12 px: своему столбцу там места нет.
+  const reportMonthUnderDate = (month, words, compact) => `<time dateTime="${month}" data-report-month="${month}" class="block t-meta text-fg-2 font-mono tabular-nums" title="Месяц отчёта: ${words}"><span class="sr-only">месяц отчёта </span>${compact}</time>`;
   // Месяц — один месяц отчёта: столбца и строки нет.
   const month = pages.get("report");
   assert.doesNotMatch(month, /data-report-month|Месяц отчёта/u);
-  // «Весь 2026 год»: столбец «Месяц отчёта» (широкий контейнер; рядом с открытой записью — в коротком
-  // наборе столбцов, Э8.6) и строка «Месяц отчёта: …» (узкий: телефон) у каждой записи — видимым
+  // «Весь 2026 год»: столбец «Месяц отчёта» (широкий контейнер; рядом с открытой записью — второй
+  // строкой под датой, Э8.6) и строка «Месяц отчёта: …» (узкий: телефон) у каждой записи — видимым
   // текстом, не подсказкой.
   for (const [name, head, columns] of [
     ["report-year", "Студент Страна · программа Менеджер Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить", 9],
-    ["report-year-panel", "Студент Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить", 7],
+    ["report-year-panel", "Студент Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить", 6],
   ]) {
     const year = pages.get(name);
     assert.ok(text(year).includes(head), name);
-    assert.match(year, reportMonthCell("2026-08", "Август 2026", "08.2026"));
-    assert.match(year, reportMonthCell("2026-07", "Июль 2026", "07.2026"));
+    if (name === "report-year") {
+      assert.match(year, reportMonthCell("2026-08", "Август 2026", "08.2026"));
+      assert.match(year, reportMonthCell("2026-07", "Июль 2026", "07.2026"));
+    } else {
+      assert.ok(year.includes(reportMonthUnderDate("2026-08", "Август 2026", "08.2026")));
+      assert.ok(year.includes(reportMonthUnderDate("2026-07", "Июль 2026", "07.2026")));
+      assert.equal(year.match(/<time dateTime="\d{4}-\d{2}" data-report-month=/gu)?.length, 12, "under the date of every row");
+      assert.doesNotMatch(year, /<td role="cell" class="[^"]*" data-report-month=/u, "no report-month column beside the record");
+      assert.match(year, /<th role="columnheader" scope="col" class="px-1\.5 py-2 font-medium" title="Дата продажи и под ней месяц отчёта">Дата<span class="block">Месяц<span class="sr-only"> отчёта<\/span><\/span><\/th>/u);
+    }
     assert.ok(year.includes(reportMonthLine("2026-09", "Сентябрь 2026")));
     assert.ok(year.includes(reportMonthLine("2026-07", "Июль 2026")));
     assert.equal(year.match(/<p class="truncate t-meta text-fg-2" data-report-month=/gu)?.length, 12, "every row of the year");

@@ -39,37 +39,48 @@ const rowDate = salesDay;
 const tidy = (value: string) => value.trim().replace(/\s+/gu, " ");
 const reportMonthOf = salesReportMonth;
 /**
- * Ширины столбцов по содержимому: суммы — по «120 000 KGS» целиком, остальное —
- * тексту. От 70rem (≈1440) имя, «Страна · программа», менеджер и причина
- * помещаются; уже (≈1280) места на всё нет — сужается текст (подсказка с
- * полным), а не суммы. Во «Весь год» и в срезе «записаны в другой месяц
- * отчёта» есть столбец «Месяц отчёта»: его место берётся у текста, суммы те же.
+ * Ширины столбцов по содержимому: каждый столбец сумм — по «120 000 KGS»
+ * целиком (с полями около 103 px: от 60rem, 960 px, — 11%, от 70rem — 9,5%),
+ * остальное — тексту. От 70rem (≈1440) имя, «Страна · программа», менеджер и
+ * причина помещаются; уже (≈1280) места на всё нет — сужается текст
+ * (подсказка с полным), а не суммы. Во «Весь год» и в срезе «записаны в
+ * другой месяц отчёта» есть столбец «Месяц отчёта»: его место берётся у
+ * текста, суммы те же.
  */
 const RECORD_COLUMNS = [
-  "w-[16%]", "w-[20%] @min-[70rem]/sales-records:w-[21%]", "w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
-  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[10%] @min-[70rem]/sales-records:w-[8.5%]",
-  "w-[10%] @min-[70rem]/sales-records:w-[8.5%]", "w-[14%] @min-[70rem]/sales-records:w-[18%]",
+  "w-[17%] @min-[70rem]/sales-records:w-[16%]", "w-[17%] @min-[70rem]/sales-records:w-[19%]", "w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[11%] @min-[70rem]/sales-records:w-[9.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[14%] @min-[70rem]/sales-records:w-[18%]",
 ];
 const RECORD_COLUMNS_WITH_REPORT_MONTH = [
-  "w-[15%]", "w-[16%] @min-[70rem]/sales-records:w-[18%]", "w-[12%] @min-[70rem]/sales-records:w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
+  "w-[17%] @min-[70rem]/sales-records:w-[15%]", "w-[13%] @min-[70rem]/sales-records:w-[16%]", "w-[11%] @min-[70rem]/sales-records:w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
   "w-[8%] @min-[70rem]/sales-records:w-[7%]",
-  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[10%] @min-[70rem]/sales-records:w-[8.5%]",
-  "w-[10%] @min-[70rem]/sales-records:w-[8.5%]", "w-[12%] @min-[70rem]/sales-records:w-[15%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[11%] @min-[70rem]/sales-records:w-[9.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[12%] @min-[70rem]/sales-records:w-[15%]",
 ];
 /**
  * Э8.6: при открытой записи список рядом с панелью остаётся таблицей с
  * короткими столбцами «Студент · Дата · Стоимость · Оплачено · Остаток ·
  * Уточнить» (страна, программа и менеджер — в панели). Колонка списка рядом с
  * панелью — около 33rem при 1280 и 43rem от 1440; таблица — от 32rem, уже —
- * строки стопкой. Уже 42rem причине «Уточнить» места нет (суммы не режутся):
- * столбец убирается, причина — в панели записи и в «Нужно уточнить».
+ * строки стопкой. Сумма «120 000 KGS» с полями — около 99 px: от 32rem (512 px)
+ * это 19,5% колонки, от 42rem (672 px) — 15%, и суммы не режутся ни при какой
+ * ширине таблицы. Уже 42rem столбцу «Уточнить» места нет: у помеченной
+ * строки под именем — строка «Уточнить: …» (12 px, нейтральная), причина
+ * целиком — подсказкой и в панели записи.
  */
-const COMPACT_COLUMNS = ["w-[28%] @min-[42rem]/sales-records:w-[21%]", "w-[10%] @min-[42rem]/sales-records:w-[8%]",
-  "w-[20.5%] @min-[42rem]/sales-records:w-[15%]", "w-[20.5%] @min-[42rem]/sales-records:w-[15%]",
-  "w-[21%] @min-[42rem]/sales-records:w-[15%]", "w-[0%] @min-[42rem]/sales-records:w-[26%]"];
-const COMPACT_COLUMNS_WITH_REPORT_MONTH = ["w-[19%] @min-[42rem]/sales-records:w-[17%]", "w-[10%] @min-[42rem]/sales-records:w-[8%]",
-  "w-[14%] @min-[42rem]/sales-records:w-[11%]", "w-[19%] @min-[42rem]/sales-records:w-[14%]", "w-[19%] @min-[42rem]/sales-records:w-[14%]",
-  "w-[19%] @min-[42rem]/sales-records:w-[14%]", "w-[0%] @min-[42rem]/sales-records:w-[22%]"];
+const COMPACT_COLUMNS = ["w-[30.5%] @min-[42rem]/sales-records:w-[25%]", "w-[11%] @min-[42rem]/sales-records:w-[8.5%]",
+  "w-[19.5%] @min-[42rem]/sales-records:w-[15%]", "w-[19.5%] @min-[42rem]/sales-records:w-[15%]",
+  "w-[19.5%] @min-[42rem]/sales-records:w-[15%]", "w-[0%] @min-[42rem]/sales-records:w-[21.5%]"];
+/**
+ * «Весь год» и срез «в другой месяц отчёта» рядом с открытой записью: месяц
+ * отчёта — второй строкой под датой («09.2026», 12 px, JetBrains Mono), а не
+ * своим столбцом: столбцу на 33rem места нет без того, чтобы резать суммы или
+ * имя. Столбцы те же, что у месяца; «Дата» чуть шире — под «09.2026».
+ */
+const COMPACT_COLUMNS_WITH_REPORT_MONTH = ["w-[29%] @min-[42rem]/sales-records:w-[25%]", "w-[12.5%] @min-[42rem]/sales-records:w-[10%]",
+  "w-[19.5%] @min-[42rem]/sales-records:w-[15%]", "w-[19.5%] @min-[42rem]/sales-records:w-[15%]",
+  "w-[19.5%] @min-[42rem]/sales-records:w-[15%]", "w-[0%] @min-[42rem]/sales-records:w-[20%]"];
 /**
  * Классы строки для двух наборов столбцов: полный — таблица от 60rem
  * контейнера, короткий (запись открыта) — от 32rem. Классы целиком: их
@@ -91,6 +102,7 @@ const ROW_LAYOUT = {
     narrow: "@min-[60rem]/sales-records:hidden",
     review: "hidden min-w-0 px-3 align-middle @min-[60rem]/sales-records:table-cell",
     reviewHead: "",
+    reviewMark: "",
   },
   compact: {
     table: "block w-full text-left @min-[32rem]/sales-records:table @min-[32rem]/sales-records:table-fixed",
@@ -105,8 +117,10 @@ const ROW_LAYOUT = {
     rest: "@min-[32rem]/sales-records:table-cell @min-[32rem]/sales-records:px-1.5 @min-[32rem]/sales-records:align-middle",
     restWord: "@min-[32rem]/sales-records:sr-only",
     narrow: "@min-[32rem]/sales-records:hidden",
-    review: "hidden min-w-0 px-1.5 align-middle @min-[42rem]/sales-records:table-cell",
+    review: "hidden min-w-0 ps-3 align-middle @min-[42rem]/sales-records:table-cell",
     reviewHead: "hidden @min-[42rem]/sales-records:table-cell",
+    // Таблица без столбца «Уточнить» (32–42rem): помеченная строка говорит о себе под именем.
+    reviewMark: "hidden @min-[32rem]/sales-records:block @min-[42rem]/sales-records:hidden",
   },
 } as const;
 type RowLayout = keyof typeof ROW_LAYOUT;
@@ -331,6 +345,7 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
   const reportMonth = showReportMonth ? reportMonthOf(row.reportMonth) : null;
   const reviewText = review.state === "review" ? review.reasons.join(", ") : review.state === "checked" ? "Сверено" : "В архиве";
   const reviewTone = review.state === "review" ? "text-fg-2" : "text-fg-3";
+  const reviewMark = compact && review.state === "review";
   const name = row.applicantName || "Имя не указано";
   const mono = "font-mono tabular-nums";
   // Оплата в другой валюте с суммой в валюте договора: остаток — от неё, и это сказано подсказкой.
@@ -340,8 +355,12 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
       className={`relative grid scroll-mt-24 grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-4 py-1.5 ${at.row} ${selected ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
       <th role="rowheader" scope="row" className={`min-w-0 font-normal ${at.name}`}>
         <Link href={href} scroll={false} aria-current={selected ? "true" : undefined} title={name}
-          className="flex min-h-11 min-w-0 items-center t-item text-fg underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline">
+          className={`flex min-h-11 min-w-0 ${reviewMark ? "flex-col justify-center" : "items-center"} t-item text-fg underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline`}>
           <span className="truncate">{name}</span>
+          {/* Рядом с записью уже 42rem столбца «Уточнить» нет: помеченная строка — строкой под именем. */}
+          {reviewMark ? <span className={`truncate t-meta text-fg-2 ${at.reviewMark}`} title={`Уточнить: ${reviewText}`} data-row-review-mark="">
+            Уточнить: {reviewText}
+          </span> : null}
         </Link>
       </th>
       {compact ? null : <>
@@ -350,9 +369,14 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
       </>}
       <td role="cell" className={`${at.cell} ${at.date}`}>
         {row.signingDate ? <time dateTime={row.signingDate} className={`t-body-compact text-fg-2 ${mono}`}>{rowDate(row.signingDate, year)}</time> : <span className="t-body-compact text-fg-3">—</span>}
+        {/* Рядом с записью месяц отчёта — второй строкой под датой: своему столбцу там места нет. */}
+        {compact && reportMonth ? <time dateTime={reportMonth.dateTime} data-report-month={reportMonth.dateTime}
+          className={`block t-meta text-fg-2 ${mono}`} title={`Месяц отчёта: ${reportMonth.words}`}>
+          <span className="sr-only">месяц отчёта </span>{reportMonth.compact}
+        </time> : null}
       </td>
       {/* Месяц отчёта — своим столбцом («Весь год», срез «в другой месяц отчёта»), плотно: «09.2026». */}
-      {reportMonth ? <td role="cell" className={`${at.cell} ${at.date}`} data-report-month={reportMonth.dateTime}>
+      {reportMonth && !compact ? <td role="cell" className={`${at.cell} ${at.date}`} data-report-month={reportMonth.dateTime}>
         <time dateTime={reportMonth.dateTime} className={`block truncate t-body-compact text-fg-2 ${mono}`} title={`Месяц отчёта: ${reportMonth.words}`}>{reportMonth.compact}</time>
       </td> : null}
       {/* Суммы — узкие поля и подсказка с суммой: число не прячется за многоточием молча. */}
@@ -643,15 +667,19 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
                   <tr role="row" className="t-caption text-fg-2">
                     <th role="columnheader" scope="col" className={`py-2 font-medium ${panelOpen ? "ps-3 pe-2" : "ps-4 pe-3"}`}>Студент</th>
                     {panelOpen ? null : <>
-                      <th role="columnheader" scope="col" className="truncate px-3 py-2 font-medium" title="Страна · программа">Страна · программа</th>
+                      <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Страна · программа</th>
                       <th role="columnheader" scope="col" className="px-3 py-2 font-medium">Менеджер</th>
                     </>}
-                    <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-3"} py-2 font-medium`}>Дата</th>
-                    {showReportMonth ? <th role="columnheader" scope="col" className={`truncate ${panelOpen ? "px-1.5" : "px-2"} py-2 font-medium`} title="Месяц отчёта">Месяц отчёта</th> : null}
+                    {/* Рядом с записью месяц отчёта — второй строкой под датой; так и в заголовке. */}
+                    {panelOpen && showReportMonth ? <th role="columnheader" scope="col" className="px-1.5 py-2 font-medium" title="Дата продажи и под ней месяц отчёта">
+                      Дата<span className="block">Месяц<span className="sr-only"> отчёта</span></span>
+                    </th> : <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-3"} py-2 font-medium`}>Дата</th>}
+                    {/* Узкий столбец: подпись переносится в две строки («Месяц / отчёта»), а не режется. */}
+                    {showReportMonth && !panelOpen ? <th role="columnheader" scope="col" className="px-2 py-2 font-medium">Месяц отчёта</th> : null}
                     <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-2"} py-2 text-right font-medium`}>Стоимость</th>
                     <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-2"} py-2 text-right font-medium`}>Оплачено</th>
                     {archiveView ? null : <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-2"} py-2 text-right font-medium`}>Остаток</th>}
-                    <th role="columnheader" scope="col" className={`py-2 pe-4 font-medium ${panelOpen ? "ps-1.5" : "ps-3"} ${ROW_LAYOUT[layout].reviewHead}`}>Уточнить</th>
+                    <th role="columnheader" scope="col" className={`py-2 pe-4 ps-3 font-medium ${ROW_LAYOUT[layout].reviewHead}`}>Уточнить</th>
                   </tr>
                 </thead>
                 <tbody role="rowgroup" className={ROW_LAYOUT[layout].tbody}>

@@ -50,11 +50,13 @@
  *     → Э8.6 (28.09.2026): запись открывается просмотром — «Требует проверки»
  *       словами и «Исправить запись»; оплата в другой валюте без суммы и с
  *       суммой в валюте договора (панель, форма, список); меню менеджера по
- *       ключу; экран «Менеджеры в отчёте». 1440×900, 1280×800 и 390×844 во
- *       весь рост (у панели от 1280 — ещё снимок после прокрутки):
+ *       ключу; экран «Менеджеры в отчёте». 1440×900, 1280×800, 1024×768 и
+ *       390×844 во весь рост (у панели от 1280 — ещё снимок после прокрутки):
  *       e86-<сценарий>-<ширина>.png, переполнение, сплошной красный, текст
  *       мельче 12 px, цели ниже 44 px, верх панели относительно колонки
- *       списка и вид таблицы записей.
+ *       списка, вид таблицы записей, обрезанные имена и строки «Уточнить: …»
+ *       под именем. Ошибка — обрезанная сумма строки или заголовок столбца
+ *       и столбец сумм, в который не входит «120 000 KGS».
  *   node tests/e2e/numbers-static-render.cjs --f1 [outDir]
  *     → Э7 «Одна боковая панель везде»: «Отчёт продаж» с записью, открытой
  *       по адресу (`?record=…&edit=true`), на
@@ -831,7 +833,7 @@ async function e4Screenshots() {
 
 // --- Э8.6: «Отчёт продаж» — запись в панели, сумма в валюте договора, менеджеры ----
 const E86_PAGES = ["report", "report-panel", "report-panel-edit", "report-panel-cross", "report-panel-cross-edit",
-  "report-panel-contract", "report-panel-contract-list", "report-manager", "report-year-panel", "managers"];
+  "report-panel-contract", "report-panel-contract-list", "report-manager", "report-year", "report-year-panel", "managers"];
 async function e86Screenshots() {
   const outIndex = process.argv.indexOf("--e86-screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
@@ -842,15 +844,17 @@ async function e86Screenshots() {
   const SIZES = {
     1440: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
     1280: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 },
+    1024: { viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 },
     390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
   };
   const results = [];
+  const cut = [];
   try {
     for (const { name, html } of (await e4Pages()).filter((page) => E86_PAGES.includes(page.name))) {
       const file = `e86-${name}`;
       const htmlPath = join(outDir, `${file}.html`);
       writeFileSync(htmlPath, `<!DOCTYPE html><html lang="ru" data-theme="light" class="h-full antialiased"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Э8.6 — ${name} (синтетические данные)</title><style>${css}</style></head><body class="min-h-full">${html}</body></html>`);
-      for (const width of ["1440", "1280", "390"]) {
+      for (const width of ["1440", "1280", "1024", "390"]) {
         const context = await browser.newContext(SIZES[width]);
         const page = await context.newPage();
         const errors = [];
@@ -884,6 +888,29 @@ async function e86Screenshots() {
             tableDisplay: table ? getComputedStyle(table).display : null,
             tableLayout: table?.dataset.layout ?? null,
             firstRowHeight: firstRow ? Math.round(box(firstRow).height) : null,
+            // Суммы строк и заголовки столбцов не режутся (DESIGN.md: «суммы в строках не режутся раньше текста»).
+            moneyCut: table ? [...table.querySelectorAll("tbody td.text-right .truncate")].filter((element) => visible(element)
+              && element.scrollWidth > element.clientWidth).map((element) => element.textContent.trim().slice(0, 30)) : [],
+            headCut: table ? [...table.querySelectorAll("thead th")].filter((element) => visible(element)
+              && element.scrollWidth > element.clientWidth).map((element) => element.textContent.trim().slice(0, 30)) : [],
+            // Место под сумму в шесть знаков («120 000 KGS», как 135 000 KGS в отчёте) в каждом столбце сумм — не только под суммы стенда.
+            moneyRoom: table && getComputedStyle(table).display === "table" ? [...(table.querySelector("tbody tr")?.querySelectorAll("td.text-right .truncate") ?? [])]
+              .filter(visible).flatMap((span) => {
+                const probe = span.cloneNode(false);
+                probe.textContent = "120 000 KGS";
+                probe.style.cssText = "position:absolute;visibility:hidden;width:auto;white-space:nowrap";
+                span.parentElement.appendChild(probe);
+                const need = probe.getBoundingClientRect().width;
+                probe.remove();
+                return need > span.clientWidth ? [`${span.clientWidth}<${Math.ceil(need)}`] : [];
+              }) : [],
+            // Имя сужается раньше сумм — сколько имён обрезано из видимых в строках таблицы.
+            names: table && getComputedStyle(table).display === "table" ? (() => {
+              const shown = [...table.querySelectorAll("tbody th a > span:first-child")].filter(visible);
+              return `${shown.filter((element) => element.scrollWidth > element.clientWidth).length}/${shown.length}`;
+            })() : null,
+            reviewMarks: document.querySelectorAll("[data-row-review-mark]").length
+              ? [...document.querySelectorAll("[data-row-review-mark]")].filter(visible).length : null,
             height: document.documentElement.scrollHeight,
           };
         });
@@ -895,7 +922,10 @@ async function e86Screenshots() {
           await page.evaluate(() => window.scrollTo({ top: 520, behavior: "instant" }));
           await page.screenshot({ path: join(outDir, `${file}-${width}-scrolled.png`) });
         }
-        process.stdout.write(`${shot}: overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText.length}${metrics.smallText.length ? ` (${metrics.smallText.join(" | ")})` : ""} under44=${metrics.under44.length}${metrics.under44.length ? ` (${metrics.under44.join(" | ")})` : ""}${metrics.panelTopDelta !== null ? ` panelTopDelta=${metrics.panelTopDelta}` : ""}${metrics.tableDisplay ? ` table=${metrics.tableLayout}/${metrics.tableDisplay} rowHeight=${metrics.firstRowHeight}` : ""}\n`);
+        process.stdout.write(`${shot}: overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText.length}${metrics.smallText.length ? ` (${metrics.smallText.join(" | ")})` : ""} under44=${metrics.under44.length}${metrics.under44.length ? ` (${metrics.under44.join(" | ")})` : ""}${metrics.panelTopDelta !== null ? ` panelTopDelta=${metrics.panelTopDelta}` : ""}${metrics.tableDisplay ? ` table=${metrics.tableLayout}/${metrics.tableDisplay} rowHeight=${metrics.firstRowHeight}` : ""}${metrics.names !== null ? ` namesCut=${metrics.names}` : ""}${metrics.reviewMarks !== null ? ` reviewMarks=${metrics.reviewMarks}` : ""} moneyCut=${metrics.moneyCut.length}${metrics.moneyCut.length ? ` (${metrics.moneyCut.join(" | ")})` : ""} moneyRoom=${metrics.moneyRoom.length ? metrics.moneyRoom.join(" | ") : "ok"} headCut=${metrics.headCut.length}${metrics.headCut.length ? ` (${metrics.headCut.join(" | ")})` : ""}\n`);
+        if (metrics.moneyCut.length || metrics.moneyRoom.length || metrics.headCut.length) {
+          cut.push(`${shot}: money ${JSON.stringify(metrics.moneyCut)}, room for «120 000 KGS» ${JSON.stringify(metrics.moneyRoom)}, headers ${JSON.stringify(metrics.headCut)}`);
+        }
         await context.close();
       }
     }
@@ -903,6 +933,7 @@ async function e86Screenshots() {
     await browser.close();
   }
   writeFileSync(join(outDir, "e86-metrics.json"), JSON.stringify(results, null, 2));
+  if (cut.length) throw new Error(`e86: cut amounts, no room for a six-digit amount or cut column headers:\n${cut.join("\n")}`);
 }
 
 // --- F1 (Э7): одна боковая панель у «Отчёта продаж» ---------------------------
@@ -1017,7 +1048,11 @@ async function f1() {
         scrolledPath: join(outDir, `f1-report-${width}-scrolled.png`),
       });
       if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
-      probe.report({ screen: "report", width, ...result });
+      // Рядом с открытой записью (короткая таблица, Э8.6) суммы строк не режутся.
+      const moneyCut = await page.evaluate(() => [...document.querySelectorAll('[aria-label="Записи продаж"] tbody td.text-right .truncate')]
+        .filter((element) => element.checkVisibility() && element.scrollWidth > element.clientWidth).map((element) => element.textContent.trim()));
+      if (moneyCut.length) result.failures.push(`amounts cut beside the panel: ${JSON.stringify(moneyCut)}`);
+      probe.report({ screen: "report", width, moneyCut: moneyCut.length, ...result });
       failures.push(...result.failures.map((failure) => `report ${width}: ${failure}`));
       await browserContext.close();
     }

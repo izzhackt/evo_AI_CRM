@@ -287,16 +287,24 @@ export function salesPeriodSteps(year: number, month: number | undefined): Reado
   };
 }
 
-/** «5 продаж», «1 продажа», «3 продажи». */
-export function salesWord(count: number): string {
+/** Русское число по остаткам от 10 и 100: 1, 21 — `one`; 2–4, 22–24 — `few`; 0, 5–20, 25… — `many`. */
+function russianPlural(count: number, one: string, few: string, many: string): string {
   const tens = count % 100;
   const ones = count % 10;
-  return tens >= 11 && tens <= 14 ? "продаж" : ones === 1 ? "продажа" : ones >= 2 && ones <= 4 ? "продажи" : "продаж";
+  return tens >= 11 && tens <= 14 ? many : ones === 1 ? one : ones >= 2 && ones <= 4 ? few : many;
+}
+
+/** «5 продаж», «1 продажа», «3 продажи». */
+export function salesWord(count: number): string {
+  return russianPlural(count, "продажа", "продажи", "продаж");
 }
 
 /** «1 запись», «3 записи», «5 записей». */
 export function recordsWord(count: number): string {
-  const tens = count % 100;
-  const ones = count % 10;
-  return tens >= 11 && tens <= 14 ? "записей" : ones === 1 ? "запись" : ones >= 2 && ones <= 4 ? "записи" : "записей";
+  return russianPlural(count, "запись", "записи", "записей");
+}
+
+/** «1 менеджер», «22 менеджера», «21 менеджер», «11 менеджеров» («Менеджеры в отчёте»). */
+export function managersWord(count: number): string {
+  return russianPlural(count, "менеджер", "менеджера", "менеджеров");
 }

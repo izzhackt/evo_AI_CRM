@@ -26,6 +26,7 @@ import {
 } from "@/lib/platform-admissions-pipeline-actions";
 import {
   ADMISSIONS_PIPELINE_TAB_STAGES,
+  admissionsNarrowStage,
   admissionsPipelineTabOf,
   type AdmissionsPipelineRow,
   type AdmissionsPipelineStage,
@@ -339,6 +340,7 @@ export function AdmissionsPipelineBoard({
   tab,
   query,
   basePath = "/v3/admissions-pipeline",
+  requestedStage = null,
 }: Readonly<{
   rows: readonly AdmissionsPipelineRow[];
   truncated: boolean;
@@ -346,6 +348,8 @@ export function AdmissionsPipelineBoard({
   tab: AdmissionsPipelineTab;
   query: Readonly<{ q: string | null; country: string | null; curator: string | null }>;
   basePath?: string;
+  /** `?stage=` адреса: этап, который телефон открывает первым (Э8.11). */
+  requestedStage?: string | null;
 }>) {
   const router = useRouter();
   const idPrefix = useId();
@@ -357,7 +361,9 @@ export function AdmissionsPipelineBoard({
   const errorRef = useRef<HTMLDivElement>(null);
   const [dragOverStage, setDragOverStage] = useState<AdmissionsPipelineStage | null>(null);
   const [crossTabHint, setCrossTabHint] = useState<CrossTabHint | null>(null);
-  const [narrowStage, setNarrowStage] = useState<AdmissionsPipelineStage>(ADMISSIONS_PIPELINE_TAB_STAGES[tab][0]);
+  // Телефон открывает этап из адреса или первый этап с делами, а не пустой
+  // первый (Э8.11).
+  const [narrowStage, setNarrowStage] = useState<AdmissionsPipelineStage>(() => admissionsNarrowStage(tab, rows, requestedStage));
   // «Отменить» (Э7, 251): одно предложение — последнее подтверждённое
   // перемещение, строкой в верхнем слое (UndoToast); итог отмены — строкой
   // уведомлений доски.
@@ -383,7 +389,7 @@ export function AdmissionsPipelineBoard({
   const [previousTab, setPreviousTab] = useState(tab);
   if (tab !== previousTab) {
     setPreviousTab(tab);
-    setNarrowStage(ADMISSIONS_PIPELINE_TAB_STAGES[tab][0]);
+    setNarrowStage(admissionsNarrowStage(tab, rows, requestedStage));
   }
 
   // A confirmed removal takes its card (and the menu that had focus) out of the
@@ -467,9 +473,27 @@ export function AdmissionsPipelineBoard({
       || Boolean(active.closest("[data-testid='v3-undo-toasts']"));
   }
 
-  /** Ответ сервера поставил карточку на этап этого раздела — телефон показывает этот этап. */
+  /**
+   * Ответ сервера поставил карточку на этап этого раздела — телефон показывает
+   * этот этап, и адрес называет его (Э8.11).
+   */
   function showStage(stage: AdmissionsPipelineStage) {
-    if (admissionsPipelineTabOf(stage) === tab) setNarrowStage(stage);
+    if (admissionsPipelineTabOf(stage) === tab) chooseNarrowStage(stage);
+  }
+
+  /**
+   * Этап телефона пишется в адрес (`?stage=`) без запроса к серверу — и
+   * выбранный в списке, и тот, за которым список последовал после ответа
+   * сервера: обновление страницы открывает тот же этап (Э8.11). Ответ мог
+   * прийти, когда сотрудник уже ушёл с доски: чужой адрес (в «Студентах»
+   * `?stage=` — фильтр «Этап») не трогаем.
+   */
+  function chooseNarrowStage(next: AdmissionsPipelineStage) {
+    setNarrowStage(next);
+    if (window.location.pathname !== basePath) return;
+    const search = new URLSearchParams(window.location.search);
+    search.set("stage", next);
+    window.history.replaceState(null, "", `${window.location.pathname}?${search.toString()}`);
   }
 
   /**
@@ -739,7 +763,7 @@ export function AdmissionsPipelineBoard({
             Этап
             <select
               value={narrowStage}
-              onChange={(event) => setNarrowStage(event.target.value as AdmissionsPipelineStage)}
+              onChange={(event) => chooseNarrowStage(event.target.value as AdmissionsPipelineStage)}
               className="min-h-11 flex-1 rounded-ctl border border-control-edge bg-surface px-2.5 text-sm font-normal text-fg"
             >
               {tabStages.map((stage) => (

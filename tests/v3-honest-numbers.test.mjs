@@ -45,7 +45,7 @@ const HANDED_JSON = {
   contract: { confirmed: true, confirmed_at: "2026-09-17T05:00:00+00:00" },
   first_payment: { received_date: "2026-09-17" },
   report: { status: "available", record: { id: RECORD, report_month: "2026-09-01", sale_date: "2026-09-17", archived: false,
-    has_contract_number: true, paid: { minor: "60000", currency: "USD" } } },
+    has_contract_number: true, paid: { minor: "60000", currency: "USD" }, link: "sale" } },
   curator: { display_name: "Куратор Синтетический", assigned_at: "2026-09-18T05:05:00+00:00" },
   acceptance: { decision: "accepted", at: "2026-09-19T03:30:00+00:00" },
 };
@@ -112,7 +112,7 @@ test("the strip parser accepts exactly the SQL payload and refuses anything it c
   assert.equal(strip.stage, "handed_off");
   assert.deepEqual(strip.handoff, { completedAt: "2026-09-18T05:00:00+00:00", evidence: "handoff", acceptanceRecordable: true });
   assert.deepEqual(strip.report, { status: "available", record: { id: RECORD, reportMonth: "2026-09-01", saleDate: "2026-09-17", archived: false,
-    hasContractNumber: true, paid: { minor: 60000, currency: "USD" } } });
+    hasContractNumber: true, paid: { minor: 60000, currency: "USD" }, link: "sale" } });
   // A 208 sale (no 088 row): the curator cannot answer; a declined handoff has no curator (182 cleared it).
   assert.equal(parse({ ...HANDED_JSON, handoff: { ...HANDED_JSON.handoff, evidence: "sales_report", acceptance_recordable: false }, acceptance: null })
     .handoff.acceptanceRecordable, false);
@@ -136,6 +136,7 @@ test("the strip parser accepts exactly the SQL payload and refuses anything it c
     ["a payment without a currency", { ...HANDED_JSON, report: { status: "available", record: { ...HANDED_JSON.report.record, paid: { minor: "60000", currency: "" } } } }],
     ["a record without the contract flag", { ...HANDED_JSON, report: { status: "available", record: Object.fromEntries(
       Object.entries(HANDED_JSON.report.record).filter(([key]) => key !== "has_contract_number")) } }],
+    ["a record with an unknown link", { ...HANDED_JSON, report: { status: "available", record: { ...HANDED_JSON.report.record, link: "pipeline" } } }],
     ["an unknown evidence", { ...HANDED_JSON, handoff: { ...HANDED_JSON.handoff, evidence: "case_exists" } }],
     ["a broken timestamp", { ...HANDED_JSON, handoff: { ...HANDED_JSON.handoff, completed_at: "18.09.2026" } }],
     ["a confirmed contract without a date", { ...HANDED_JSON, contract: { confirmed: true, confirmed_at: null } }],
@@ -258,6 +259,28 @@ test("Lead 360 «Передача»: a sale saved through the report (208) takes
   assert.equal(stripPlain(waiting.summary), "Передано 18.09 · Куратор Синтетический · ждёт ответа");
   assert.deepEqual(waiting.items.at(-1), { key: "accepted", label: "Принято", state: "missing", text: "ждёт ответа", date: null });
   assert.deepEqual(waiting.warnings, [], "contract and payment are evidence, not a ban");
+});
+
+test("Lead 360 «Передача» (Э8.7, 254): a merely linked record is never the recorded sale — it names itself next to «Оформить продажу» instead", () => {
+  // Not handed off, no pipeline record — only a plain link (254): the strip stays
+  // neutral («Запись в отчёте» missing, no warning), and `linkedRecord` names the day.
+  const linked = handoffStripView(parse({ ...WORKING_JSON,
+    report: { status: "available", record: { ...HANDED_JSON.report.record, archived: false, link: "linked", sale_date: "2026-09-18" } } }),
+    { now: NOW, links: ALL_LINKS });
+  assert.deepEqual(linked.items.slice(0, 3).map((item) => [item.key, item.state]), [
+    ["contract", "missing"], ["payment", "missing"], ["report", "missing"],
+  ]);
+  assert.deepEqual(linked.warnings, [], "a linked record is not evidence a handoff is missing something");
+  assert.deepEqual(linked.linkedRecord, {
+    text: ["Запись в отчёте — связана: ", { date: "18.09" }], href: `/v3/main?view=sales&year=2026&month=9&record=${RECORD}`, action: "Открыть запись",
+  });
+  // No sale date on the linked record: the line still names itself, without a date.
+  assert.deepEqual(handoffStripView(parse({ ...WORKING_JSON,
+    report: { status: "available", record: { ...HANDED_JSON.report.record, link: "linked", sale_date: null, has_contract_number: false } } }),
+    { now: NOW }).linkedRecord, { text: ["Запись в отчёте — связана"], href: `/v3/main?view=sales&year=2026&month=9&record=${RECORD}`, action: "Открыть запись" });
+  // A real pipeline sale: no linkedRecord line, the strip's own report item takes it as before.
+  assert.equal(handoffStripView(parse(HANDED_JSON), { now: NOW }).linkedRecord, null);
+  assert.equal(handoffStripView(parse(WORKING_JSON), { now: NOW }).linkedRecord, null, "no record at all");
 });
 
 test("Lead 360 «Передача» (Э8.4): each warning names its action and link; a warning nobody can act on is gone", () => {

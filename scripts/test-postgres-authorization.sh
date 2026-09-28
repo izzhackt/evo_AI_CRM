@@ -2823,6 +2823,23 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_sales_register_v4.sql
   fi
+
+  # Migration 254 (Э8.7 «Отчёт продаж»: связь строк отчёта с лидами, owner
+  # decision 28.09.2026): a plain context link (linked_lead_id), never a
+  # pipeline sale. Members modelled like production (coarse role NULL, the
+  # production bundles, the 208 Sales Manager binding, as in 253's suite):
+  # search excludes a lead with a pipeline sale or an existing link and
+  # out-of-scope leads; link/unlink share manage_sales_register_v2's gates
+  # plus lead.read on the touched lead; refuses a manual or archived record, a
+  # lead with a pipeline sale, a double link and a caller without lead.read;
+  # optimistic version, replay, conflict; the panel read never guesses a name
+  # without lead.read; strip v2 prefers a pipeline sale over a linked row and
+  # v1 keeps its exact six record keys.
+  if [[ "$(basename "$migration")" == 254_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_sales_record_lead_link.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

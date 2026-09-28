@@ -37,7 +37,8 @@
  *       1536 px), модальный лист на телефоне, подпись рейки при фокусе
  *       клавиатуры и при наведении мыши (линия иконки и центр пункта, число
  *       мутаций меню, исчезновение подписи после ухода курсора), меню дела
- *       и перетаскивание.
+ *       и перетаскивание; телефон доски поступления (Э8.11): первый этап с
+ *       делами, выбор этапа в адресе `?stage=` и обновление страницы.
  *
  *   node tests/e2e/boards-static-render.cjs --hydrate-undo [outDir]
  *     → «Отменить» на доске поступления (Э7, миграция 251), гидратация как
@@ -188,6 +189,10 @@ const SCENARIOS = {
   // Фильтр «Куратор»: инициалы куратора на карточках не нужны.
   "admissions-curator": { page: "admissions", search: "curator=aaaaaaaa-1111-4111-8111-000000000011" },
   "admissions-loading": { page: "admissions", search: "", loading: true },
+  // Э8.11, телефон: первый этап («Новые») пуст — открыт первый этап с делами;
+  // `?stage=` из адреса (обновление страницы) — открыт он.
+  "admissions-first-empty": { page: "admissions", search: "country=AE" },
+  "admissions-stage": { page: "admissions", search: "stage=ready_to_submit" },
 };
 
 /**
@@ -357,6 +362,8 @@ async function screenshots() {
     ["admissions-visa", ["1920"]],
     ["admissions-menu", ["1440", "1280"]],
     ["admissions-loading", ["1440"]],
+    ["admissions-first-empty", ["390"]],
+    ["admissions-stage", ["390"]],
     ["rail-flyout", ["1280"]],
   ];
   const { chromium } = require("playwright");
@@ -908,6 +915,32 @@ async function hydrate() {
       await page.screenshot({ path: join(outDir, "boards-hydrated-handed-all-1536.png") });
       report({ journey: "sales-handed-all-1280", allStages, closed, reloaded1536,
         recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
+      await context.close();
+    }
+
+    // 7. Поступление, телефон 390 (Э8.11): первый этап пуст — открыт первый
+    // этап с делами; выбор этапа пишется в адрес без запроса к серверу, и
+    // обновление страницы открывает тот же этап.
+    {
+      const { context, page, console_ } = await open({ width: 390, height: 844 }, "/v3/admissions-pipeline?country=AE", true);
+      const shown = () => page.evaluate(() => ({
+        select: document.querySelector('[data-testid="v3-admissions-pipeline-board"] select')?.value ?? null,
+        column: [...document.querySelectorAll('[data-testid="v3-admissions-pipeline-column"]')]
+          .filter((column) => column.getClientRects().length).map((column) => column.querySelector("h2")?.textContent),
+        search: location.search,
+      }));
+      const opened = await shown();
+      await page.locator('[data-testid="v3-admissions-pipeline-board"] select').selectOption("ready_to_submit");
+      await page.waitForTimeout(100);
+      const chosen = { ...(await shown()), pushes: await page.evaluate(() => window.__harness.pushes), refreshes: await page.evaluate(() => window.__harness.refreshes) };
+      await page.reload({ waitUntil: "load" });
+      await page.waitForSelector("html[data-hydrated=true]");
+      const reloaded = await shown();
+      await page.screenshot({ path: join(outDir, "boards-hydrated-stage-reload-390.png") });
+      report({ journey: "admissions-stage-390", opened, chosen, reloaded,
+        recoverable: await page.evaluate(() => window.__harness.recoverable), console: console_ });
+      if (opened.select !== "documents" || chosen.search !== "?country=AE&stage=ready_to_submit" || chosen.pushes.length || chosen.refreshes.length
+        || reloaded.select !== "ready_to_submit" || reloaded.column.join() !== "Готовы к подаче") process.exitCode = 1;
       await context.close();
     }
   } finally {

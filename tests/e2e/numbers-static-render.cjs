@@ -118,7 +118,7 @@ const STRIPS = {
     handoff: { completedAt: "2026-09-18T05:00:00.000Z", evidence: "handoff", acceptanceRecordable: true },
     contract: { confirmed: true, confirmedAt: "2026-09-17T05:00:00.000Z" }, firstPayment: { receivedDate: "2026-09-17" },
     report: { status: "available", record: { id: uuid("12341234", 1), reportMonth: "2026-09-01", saleDate: "2026-09-17", archived: true,
-      hasContractNumber: true, paid: { minor: 60000, currency: "USD" } } },
+      hasContractNumber: true, paid: { minor: 60000, currency: "USD" }, link: "sale" } },
     curator: { displayName: CURATOR_NAME, assignedAt: "2026-09-18T05:05:00.000Z" },
     acceptance: { decision: "accepted", at: "2026-09-19T03:30:00.000Z" },
   },
@@ -131,7 +131,7 @@ const STRIPS = {
     handoff: { completedAt: "2026-09-23T03:00:00.000Z", evidence: "sales_report", acceptanceRecordable: false },
     contract: { confirmed: false, confirmedAt: null }, firstPayment: { receivedDate: null },
     report: { status: "available", record: { id: uuid("56565656", 1), reportMonth: "2026-09-01", saleDate: "2026-09-22", archived: false,
-      hasContractNumber: false, paid: { minor: 60000, currency: "USD" } } },
+      hasContractNumber: false, paid: { minor: 60000, currency: "USD" }, link: "sale" } },
     curator: { displayName: CURATOR_NAME, assignedAt: "2026-09-23T03:00:00.000Z" }, acceptance: null,
   },
   // До передачи: квалифицирован, договора ещё нет.
@@ -192,6 +192,15 @@ const E4_LEADS = {
     notes: [note("Встреча прошла, семья согласна на пакет «под ключ». Ждём подписи договора.", "2026-09-23T10:15:00.000Z"),
       note("Назначили встречу в офисе на 23.09.", "2026-09-19T07:30:00.000Z"),
       note("Квалифицирован: 11 класс, IELTS 6.0, Малайзия, осень 2027.", "2026-09-16T08:00:00.000Z")] },
+  // Э8.7 (254): «Потенциальный клиент» с записью отчёта, просто связанной с этим
+  // лидом (владелец: «можно связать, но это не рабочее место, просто связать»).
+  // «Оформить продажу» остаётся главным действием; рядом — «Запись в отчёте —
+  // связана: ДД.ММ». Полоса «Передача» саму запись продажей не считает.
+  linked: { strip: { ...STRIPS.working, stage: "potential", report: { status: "available", record: {
+      id: uuid("56565656", 9), reportMonth: "2026-09-01", saleDate: "2026-09-18", archived: false,
+      hasContractNumber: false, paid: null, link: "linked" } } },
+    gate: GATE_BLOCKED, stageKey: "potential", next: "Подписать договор", due: "2026-09-26", conditions: CONDITIONS,
+    notes: [note("Похожая запись уже есть в отчёте продаж — связали с лидом для контекста.", "2026-09-20T09:00:00.000Z")] },
   // Передан: этап доски «Переданы», строка передачи вместо шага, «Открыть дело» — нейтральное.
   handed: { strip: STRIPS.handed, gate: GATE_SATISFIED, stageKey: "new", next: "Передано в поступление", due: null,
     conditions: { ...CONDITIONS, signingDate: "2026-09-17", paidRaw: "600", paidMinor: 60000, paidCurrency: "USD" },
@@ -321,7 +330,23 @@ const E4_MANAGEMENT = { status: "ready", data: { reportMonth: "2026-09-01", canM
   target: { id: uuid("89898989", 1), version: 2, reportMonth: "2026-09-01", managerLabel: null, targetCount: 35 } } };
 
 /** Какой отчёт отдают подменённые чтения: прежние шесть записей Э2 или набор Э4. */
-const REPORT = { rows: REPORT_ROWS, count: SALES_COUNT, management: { status: "denied" }, directions: ["Малайзия"], managerNames: {} };
+const REPORT = { rows: REPORT_ROWS, count: SALES_COUNT, management: { status: "denied" }, directions: ["Малайзия"], managerNames: {},
+  // «Связать с лидом» (Э8.7): id записи → { visible, leadId, name } | { visible: false } | не задано (не связана).
+  leadLinks: {},
+  // Варианты поиска «Связать с лидом» (sales_record_lead_options_v1): id, имя, этап, день создания.
+  leadOptions: [] };
+// Э8.7 (28.09.2026): лид «Данияр Макетов», ещё не связанный ни с одной записью — цель поиска и связи.
+const LEAD_LINK_ID = uuid("67676767", 30);
+REPORT.leadOptions = [
+  { id: LEAD_LINK_ID, name: "Данияр Макетов", stage: "potential", createdOn: "2026-09-10" },
+  { id: uuid("67676767", 31), name: "Дана Макетова", stage: "qualified", createdOn: "2026-09-12" },
+];
+/** Запись `recordId` связана с лидом (по умолчанию — видимым, «Данияр Макетов»). */
+function withLeadLink(recordId, link = { visible: true, leadId: LEAD_LINK_ID, name: "Данияр Макетов" }) {
+  const links = REPORT.leadLinks;
+  REPORT.leadLinks = { ...links, [recordId]: link };
+  return () => { REPORT.leadLinks = links; };
+}
 function useE4Report() {
   Object.assign(REPORT, { rows: [...E4_ROWS, ...E4_EARLIER_ROWS, ...E4_ARCHIVED_ROWS], count: countFor, management: E4_MANAGEMENT,
     directions: ["China", "Китай", "Малайзия", "малайзия "], managerNames: {} });
@@ -456,6 +481,9 @@ const STUBS = {
       ? { status: "ready", data: { ...REPORT.management.data, reportMonth, target: null } } : REPORT.management,
     // «Менеджеры в отчёте» (Э8.6) — то, что вернул бы read_sales_manager_labels_v1 по записям набора.
     readSalesManagerLabels: async () => ({ status: "ready", data: MANAGER_LABELS }),
+    // «Связать с лидом» (Э8.7): то, что вернул бы sales_record_lead_link_v1 для открытой записи.
+    readSalesRecordLeadLink: async (_actor, recordId) => ({ status: "ready", link: REPORT.leadLinks?.[recordId] ?? null }),
+    searchSalesRecordLeadOptions: async (_actor, query) => (REPORT.leadOptions ?? []).filter((option) => option.name.toLowerCase().includes(query.trim().toLowerCase())),
   },
   // «Поступления и возвраты за месяц»: по умолчанию роль сводку не читает; сценарий Э4 `report-cash` — читает.
   "@/lib/v3/finance-entry-source": { readMonthlyPaymentSummary: async () => REPORT.cash ?? { status: "not_allowed" } },
@@ -712,6 +740,8 @@ async function e4Pages() {
   return [
     { name: "lead-early", html: leadPage("early") },
     { name: "lead-potential", html: leadPage("potential") },
+    // Э8.7 (254): запись отчёта просто связана с этим лидом — «Оформить продажу» рядом с «Запись в отчёте — связана».
+    { name: "lead-linked", html: leadPage("linked") },
     { name: "lead-handed", html: leadPage("handed") },
     // Э8.4: договор и оплата дела в полосе; передача без записи отчёта и без куратора;
     // вкладка «Договор и оплата» лида без дела — подтверждение вручную наверху.
@@ -722,6 +752,13 @@ async function e4Pages() {
     // Строка открывает запись просмотром (Э8.6); правка — «Исправить запись» (`edit=true`).
     { name: "report-panel", html: await reportPage({ record: E4_ROWS[1].id }) },
     { name: "report-panel-edit", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }) },
+    // Э8.7 (254): запись связана с лидом — имя ссылкой и «Отвязать от лида» в «⋯».
+    { name: "report-panel-linked", html: await (async () => {
+      const restore = withLeadLink(E4_ROWS[1].id);
+      const html = await reportPage({ record: E4_ROWS[1].id });
+      restore();
+      return html;
+    })() },
     // Оплата в другой валюте: без суммы в валюте договора — остатка нет, запись помечена;
     // с суммой — остаток от неё, пометки нет; форма — поле «Оплачено в валюте договора».
     { name: "report-panel-cross", html: await reportPage({ record: E4_ROWS[5].id }) },
@@ -839,6 +876,15 @@ async function e4Screenshots() {
           const drawerShot = `${file}-drawer-${width}.png`;
           await page.screenshot({ path: join(outDir, drawerShot) });
           process.stdout.write(`${drawerShot}: solidRed=${await red()}\n`);
+        }
+        if (name === "report-panel") {
+          // Э8.7 (254): «Связать с лидом» открывает маленький поиск — popovertarget
+          // нативно открывает окно без гидратации React.
+          await page.click('[data-testid="sales-record-link-lead-open"]');
+          const searchShot = `${file}-search-${width}.png`;
+          await page.screenshot({ path: join(outDir, searchShot) });
+          const searchOpen = await page.evaluate(() => document.querySelector('[data-testid="sales-record-link-lead-search"]')?.matches(":popover-open") ?? false);
+          process.stdout.write(`${searchShot}: open=${searchOpen}\n`);
         }
         process.stdout.write(`${shot}: height=${metrics.height} overflow=${metrics.overflow} wide=${metrics.wide} solidRed=${metrics.solidRed.length}${metrics.solidRed.length ? ` (${metrics.solidRed.join(" | ")})` : ""} smallText=${metrics.smallText} smallTargets=${metrics.smallTargets.length}${metrics.smallTargets.length ? ` (${metrics.smallTargets.join(" | ")})` : ""} h1=${metrics.h1.join("/")}${metrics.firstRowTop !== null ? ` firstRowTop=${metrics.firstRowTop} rowHeight=${metrics.firstRowHeight}` : ""}${metrics.reportMonths ? ` reportMonths=${metrics.reportMonths} reportMonthCut=${metrics.reportMonthCut}` : ""}\n`);
         await context.close();

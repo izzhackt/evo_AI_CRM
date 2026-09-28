@@ -38,11 +38,13 @@ export async function readSalesCount(
 }
 
 /**
- * Полоса «Передача» в Lead 360 (`staff_lead_handoff_strip_v1`, миграция 247):
- * этап по правилу доски, дата передачи и чем она доказана, договор, первый
- * платёж, запись в отчёте, куратор и его ответ — всё из настоящих строк.
- * При просмотре роли запись отчёта показывается, только если показываемая
- * роль читает продажи — как сам «Отчёт продаж».
+ * Полоса «Передача» в Lead 360 (`staff_lead_handoff_strip_v2`, миграция 254 —
+ * v1 остаётся на сервере для отката): этап по правилу доски, дата передачи и
+ * чем она доказана, договор, первый платёж, запись в отчёте (найденная по
+ * продаже pipeline ИЛИ по простой связи 254, с полем `link`), куратор и его
+ * ответ — всё из настоящих строк. При просмотре роли запись отчёта
+ * показывается, только если показываемая роль читает продажи — как сам
+ * «Отчёт продаж».
  */
 export async function readLeadHandoffStrip(
   actor: ActivePlatformActor,
@@ -51,7 +53,7 @@ export async function readLeadHandoffStrip(
   if (!staffHasPermission(actor, "lead.read")) return { status: "unavailable" };
   try {
     const { data, error } = await (await createSupabaseServerClient())
-      .schema("platform").rpc("staff_lead_handoff_strip_v1", {
+      .schema("platform").rpc("staff_lead_handoff_strip_v2", {
         p_organization_id: actor.organizationId,
         p_lead_id: leadId,
       });

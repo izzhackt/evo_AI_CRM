@@ -31,6 +31,22 @@ export function admissionsPipelineTabOf(stage: AdmissionsPipelineStage): Admissi
   return ADMISSIONS_PIPELINE_TAB_STAGES.admission.includes(stage) ? "admission" : "visa";
 }
 
+/**
+ * Этап, который телефон (одна колонка доски) показывает при открытии (Э8.11):
+ * этап из адреса (`?stage=`), если он из этого раздела, — обновление страницы
+ * его сохраняет; иначе первый этап с делами; все этапы пусты — первый.
+ */
+export function admissionsNarrowStage(
+  tab: AdmissionsPipelineTab,
+  rows: readonly Readonly<{ pipelineStage: AdmissionsPipelineStage }>[],
+  requested: string | null | undefined,
+): AdmissionsPipelineStage {
+  const stages = ADMISSIONS_PIPELINE_TAB_STAGES[tab];
+  return stages.find((stage) => stage === requested)
+    ?? stages.find((stage) => rows.some((row) => row.pipelineStage === stage))
+    ?? stages[0];
+}
+
 export type AdmissionsPipelineRow = Readonly<{
   studentCaseId: string;
   studentDisplayName: string;

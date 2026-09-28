@@ -7,10 +7,11 @@ import { requirePlatformStaffActor } from "./platform-guards";
 import { createSupabaseServerClient } from "./supabase/server";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { parseSalesDate, parseSalesInteger, parseSalesUuid, SALES_CURRENCIES } from "./platform-sales-register-contract";
-import { readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess } from "./v3/sales-register-source";
+import { readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess, searchSalesRecordLeadOptions } from "./v3/sales-register-source";
 import { readLeadSaleConditions } from "./v3/lead-sale-conditions-source";
 import type { LeadSaleConditions } from "./lead-sale-conditions-contract";
 import { refreshConfirmedSelfHandoffSession } from "./server/self-handoff-session";
+import { parseSalesRecordLeadLinkReceipt, type SalesRecordLeadLinkActionState, type SalesRecordLeadOption } from "./sales-record-lead-contract";
 
 export type SalesRegisterActionState = Readonly<{
   status: "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable" | "already_transferred" | "conditions_missing";
@@ -167,6 +168,62 @@ export async function searchSalesRegisterStudentsAction(query: string) {
     const options = await readSalesRegisterIntakeOptions(actor, query);
     return { status: "ready" as const, leads: options.leads };
   } catch { return { status: "unavailable" as const, leads: [] }; }
+}
+
+/** «Связать с лидом» (254): поиск в маленьком окне панели записи. */
+export async function searchSalesRecordLeadOptionsAction(query: string): Promise<
+  Readonly<{ status: "ready" | "invalid" | "unavailable"; options: readonly SalesRecordLeadOption[] }>
+> {
+  const actor = await requirePlatformStaffActor();
+  if (isStaffPreview(actor) || typeof query !== "string" || query.trim().length < 2) return { status: "invalid", options: [] };
+  try {
+    return { status: "ready", options: await searchSalesRecordLeadOptions(actor, query) };
+  } catch { return { status: "unavailable", options: [] }; }
+}
+
+/**
+ * «Связать с лидом» / «Отвязать от лида» (254): те же ворота, что запись
+ * отчёта (`sales.register.manage` на записи, страж 208 Sales Manager), плюс
+ * `lead.read` на затрагиваемом лиде — проверяет сервер. `lead_id` пусто —
+ * отвязка.
+ */
+export async function linkSalesRecordLeadAction(_previous: SalesRecordLeadLinkActionState, form: FormData): Promise<SalesRecordLeadLinkActionState> {
+  const actor = await requirePlatformStaffActor();
+  const outcome = (status: SalesRecordLeadLinkActionState["status"], recordId?: string): SalesRecordLeadLinkActionState => ({
+    status, requestId: status === "saved" || status === "request_conflict" ? randomUUID() : parseSalesUuid(candidate(form, "request_id")) ?? randomUUID(),
+    recordId: recordId ?? parseSalesUuid(candidate(form, "record_id")),
+  });
+  if (!staffHasPermission(actor, "sales.register.manage") || isStaffPreview(actor)) return outcome("forbidden");
+  const fields = exactActionStringFields(form, ["request_id", "record_id", "expected_version", "lead_id"]);
+  if (!fields) return outcome("invalid");
+  const requestId = parseSalesUuid(fields.get("request_id"));
+  const recordId = parseSalesUuid(fields.get("record_id"));
+  const version = parseSalesInteger(fields.get("expected_version"));
+  const leadIdRaw = fields.get("lead_id") ?? "";
+  const leadId = leadIdRaw === "" ? null : parseSalesUuid(leadIdRaw);
+  if (!requestId || !recordId || version === null || version < 1 || (leadIdRaw !== "" && !leadId)) return outcome("invalid");
+  try {
+    const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("link_sales_record_lead_v1", {
+      p_organization_id: actor.organizationId, p_record_id: recordId, p_expected_version: version, p_lead_id: leadId, p_request_id: requestId,
+    });
+    if (error) {
+      if (error.code === "42501") return outcome("forbidden");
+      if (error.code === "PT409") {
+        if (error.message.includes("sales_register_lead_has_sale")) return outcome("lead_has_sale");
+        if (error.message.includes("sales_register_lead_already_linked")) return outcome("lead_already_linked");
+        return outcome("stale");
+      }
+      if (error.code === "22023" && /request_id/.test(error.message)) return outcome("request_conflict");
+      return outcome(error.code === "22023" ? "invalid" : "unavailable");
+    }
+    const savedVersion = parseSalesRecordLeadLinkReceipt(data, {
+      organizationId: actor.organizationId, recordId, requestId, expectedVersion: version, operation: leadId === null ? "unlink" : "link",
+    });
+    if (savedVersion === null) return outcome("unavailable");
+    revalidatePath("/v3/main");
+    revalidatePath("/v3/profile");
+    return outcome("saved", recordId);
+  } catch { return outcome("unavailable"); }
 }
 
 export async function saveSalesTargetAction(_previous: SalesRegisterActionState, form: FormData): Promise<SalesRegisterActionState> {

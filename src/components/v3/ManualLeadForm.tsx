@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
-import { createContext, useActionState, useContext, useRef, useState } from "react";
+import { createContext, useActionState, useContext, useId, useRef, useState } from "react";
 import { btnCls, inputCls, fieldLabelCls } from "@/components/ui";
 import { createManualLeadAction } from "@/lib/platform-manual-lead-actions";
-import { LEAD_DIRECTIONS, MANUAL_LEAD_SOURCES, type ManualLeadState } from "@/lib/platform-manual-lead-contract";
+import { LEAD_DIRECTIONS, MANUAL_LEAD_SOURCE_REQUIRED, MANUAL_LEAD_SOURCES, type ManualLeadState } from "@/lib/platform-manual-lead-contract";
 
 type DisclosureState = Readonly<{ open: boolean; toggle: () => void }>;
 const ManualLeadDisclosureContext = createContext<DisclosureState | null>(null);
@@ -63,6 +63,10 @@ export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: str
 function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[]; onAnother: () => void }>) {
   const frozen = useRef<FormData | null>(null);
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
+  // Источник не выбран — браузер не отправляет форму и говорит «Выберите
+  // источник» под полем (Э8.11); сервер отвечает тем же словом.
+  const [sourceMissing, setSourceMissing] = useState(false);
+  const sourceErrorId = useId();
   const [state, action, pending] = useActionState(async (previous: ManualLeadState, form: FormData): Promise<ManualLeadState> => {
     const submitted = frozen.current ?? form;
     frozen.current = submitted;
@@ -76,7 +80,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
     || (state.status === "request_conflict" && currentRequestId === state.requestId);
   const messages: Record<ManualLeadState["status"], string> = {
     idle: "", saved: "Лид сохранён. Сообщения и приглашения не отправлялись.", duplicate: "Такой контакт уже есть. Откройте существующего лида; если ссылка недоступна, попросите Admin проверить контакт.",
-    invalid: "Проверьте имя, контакт и дату следующего действия.", forbidden: "Нет права на это действие. Обновите страницу после проверки доступа.",
+    invalid: "Проверьте имя, контакт и дату следующего действия.", source_required: `${MANUAL_LEAD_SOURCE_REQUIRED}.`, forbidden: "Нет права на это действие. Обновите страницу после проверки доступа.",
     request_conflict: "Запрос уже использован с другими данными. Сначала проверьте воронку.", unavailable: "Результат пока неизвестен. Данные сохранены в форме; безопасно повторите тот же запрос.",
   };
   return <form action={action} className="max-w-3xl space-y-4" aria-busy={pending}>
@@ -86,7 +90,19 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
         <label><span className={fieldLabelCls}>Имя</span><input name="name" required maxLength={300} className={inputCls} /></label>
         <label><span className={fieldLabelCls}>Телефон</span><input name="phone" type="tel" maxLength={50} className={inputCls} /></label>
         <label><span className={fieldLabelCls}>Email, если телефона нет</span><input name="email" type="email" maxLength={320} className={inputCls} /></label>
-        <label><span className={fieldLabelCls}>Источник</span><select name="source" className={inputCls}>{Object.entries(MANUAL_LEAD_SOURCES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
+        <label><span className={fieldLabelCls}>Источник</span><select name="source" required defaultValue=""
+          aria-invalid={sourceMissing || undefined} aria-describedby={sourceMissing ? sourceErrorId : undefined}
+          onInvalid={(event) => {
+            // Одно сообщение — строка под полем, без всплывающей подсказки браузера поверх неё.
+            event.preventDefault();
+            event.currentTarget.setCustomValidity(MANUAL_LEAD_SOURCE_REQUIRED);
+            event.currentTarget.focus();
+            setSourceMissing(true);
+          }}
+          onChange={(event) => { event.currentTarget.setCustomValidity(""); setSourceMissing(false); }}
+          className={`${inputCls} aria-[invalid=true]:border-danger`}>
+          <option value="">Не выбрано</option>{Object.entries(MANUAL_LEAD_SOURCES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
+        </select>{sourceMissing ? <span id={sourceErrorId} role="alert" className="mt-1 block t-body-compact text-danger">{MANUAL_LEAD_SOURCE_REQUIRED}</span> : null}</label>
         <label><span className={fieldLabelCls}>Ответственный</span><select name="owner_id" defaultValue={ownerId} required className={inputCls}>{owners.map(owner => <option key={owner.id} value={owner.id}>{owner.displayName}</option>)}</select></label>
         <label><span className={fieldLabelCls}>Направление</span><select name="direction" className={inputCls}><option value="">Пока не выбрано</option>{Object.entries(LEAD_DIRECTIONS).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
       </div>

@@ -8,6 +8,7 @@ import { parseSalesManagerLabels, type SalesManagerLabelsRead } from "../sales-m
 import { parseSalesRegisterDirection, parseSalesRegisterDirections } from "../sales-register-directions";
 import { parseSalesRegisterManagement, type SalesRegisterManagementRead } from "../sales-register-management";
 import type { SalesSaleSlice } from "../sales-register-navigation";
+import { parseSalesRecordLeadLink, parseSalesRecordLeadOptions, type SalesRecordLeadLink, type SalesRecordLeadOption } from "../sales-record-lead-contract";
 
 /** Authority and the selected department target come from the same snapshot. */
 export async function readSalesRegisterManagement(actor: ActivePlatformActor, reportMonth: string | null): Promise<SalesRegisterManagementRead> {
@@ -99,6 +100,44 @@ export async function readSalesRegisterWorkspace(actor: PlatformActor, selection
       || (result.managerKey !== null && row.managerKey !== result.managerKey) || (direction !== "" && row.direction !== direction)
       || (selection.needsReview != null && row.needsReview !== selection.needsReview))) throw unavailable();
   return result;
+}
+
+export type SalesRecordLeadLinkRead =
+  | Readonly<{ status: "ready"; link: SalesRecordLeadLink }>
+  | Readonly<{ status: "denied" }>
+  | Readonly<{ status: "unavailable" }>;
+
+/**
+ * «Связать с лидом» (254): связь записи для панели — только импортированная
+ * запись, которую этот актёр читает. Имя лида приходит, только если у актёра
+ * есть `lead.read` на него; иначе — «связано, но не видно», без прочерка наугад.
+ */
+export async function readSalesRecordLeadLink(actor: ActivePlatformActor, recordId: string): Promise<SalesRecordLeadLinkRead> {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "sales.register.read")) return { status: "denied" };
+  const id = parseSalesUuid(recordId);
+  if (!id) return { status: "unavailable" };
+  try {
+    const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("sales_record_lead_link_v1", {
+      p_organization_id: actor.organizationId, p_record_id: id,
+    });
+    if (error) return { status: error.code === "42501" ? "denied" : "unavailable" };
+    return { status: "ready", link: parseSalesRecordLeadLink(data, actor.organizationId, id) };
+  } catch { return { status: "unavailable" }; }
+}
+
+/**
+ * «Связать с лидом» (254): поиск лидов для связи — только `lead.read`,
+ * никакого права отчёта не требуется. Запрос короче 2 символов не отправляется.
+ */
+export async function searchSalesRecordLeadOptions(actor: ActivePlatformActor, query: string): Promise<readonly SalesRecordLeadOption[]> {
+  const trimmed = query.trim();
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "lead.read") || trimmed.length < 2 || trimmed.length > 200
+    || /[\u0000-\u001f\u007f]/u.test(trimmed)) throw new Error("Sales record lead options are unavailable.");
+  const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("sales_record_lead_options_v1", {
+    p_organization_id: actor.organizationId, p_query: trimmed,
+  });
+  if (error) throw new Error("Sales record lead options are unavailable.");
+  return parseSalesRecordLeadOptions(data, actor.organizationId);
 }
 
 /**

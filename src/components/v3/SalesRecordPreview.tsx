@@ -63,12 +63,19 @@ function Amount({ minor, currency, raw }: { minor: number | null; currency: stri
  * клиента» — шапка общей боковой панели (`SidePanel`, `salesRecordPanelHeader`);
  * раздел называет её заголовок `panelHeadingId`.
  */
-export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId, managerName, year }: {
+export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId, managerName, year, leadRow }: {
   record: SalesRegisterRow | null; backHref: string; editHref: string | null; panelHeadingId: string;
   /** Имя менеджера по ключу написания (таблица владельца или написание). */
   managerName: string | null;
   /** Год отчёта: дата этого года — «ДД.ММ», другого — «ДД.ММ.ГГ», как в строке. */
   year: number;
+  /**
+   * «Лид» (Э8.7): связанный лид ссылкой, «связано, но недоступно» или
+   * спокойная «Связать с лидом» — только для импортированной записи, и
+   * только когда есть что показать или что сделать (`SalesRecordLeadFact`).
+   * null — строки нет вовсе.
+   */
+  leadRow?: ReactNode | null;
 }) {
   if (!record) return <section className="space-y-4" aria-labelledby={panelHeadingId}>
     <p role="alert" className="t-body-compact text-fg-2">Не удалось открыть запись. Возможно, доступ изменился или соединение прервалось.</p>
@@ -101,6 +108,7 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
       ? <time dateTime={record.signingDate} className="font-mono tabular-nums">{salesDay(record.signingDate, year)}</time>
       : <span className="text-fg-2">не указана</span> },
     { label: "Месяц отчёта", value: <time dateTime={month.dateTime}>{month.words}</time> },
+    ...(leadRow != null ? [{ label: "Лид", value: leadRow }] : []),
     ...facts,
   ];
 

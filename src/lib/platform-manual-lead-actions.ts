@@ -19,6 +19,8 @@ export async function createManualLeadAction(previous: ManualLeadState, form: Fo
   const source = text("source"), direction = text("direction") || null;
   const ownerId = parseSalesUuid(text("owner_id")), nextAction = text("next_action") || null;
   const rawDue = text("due_date"), dueDate = rawDue ? parseSalesDate(rawDue) : null;
+  // «Не выбрано» (Э8.11): отдельный ответ «Выберите источник», а не общий «Проверьте…».
+  if (!source) return fail("source_required");
   if (!name || name.length > 300 || (!phone && !email) || (phone && (phone.length > 50 || !/^\+?[\d\s().-]{7,40}$/.test(phone)))
     || (email && (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))
     || !Object.hasOwn(MANUAL_LEAD_SOURCES, source) || (direction && !Object.hasOwn(LEAD_DIRECTIONS, direction))

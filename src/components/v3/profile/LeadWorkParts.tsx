@@ -25,7 +25,7 @@ import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
 import { LeadNoteComposer } from "./LeadNoteComposer";
 import { LeadSaleConditions } from "./LeadSaleConditions";
 import { LeadStepDrawer } from "./LeadStepDrawer";
-import { HandoffResponseSummary, HandoffStripBlock } from "./ProfileSalesTransition";
+import { HandoffResponseSummary, HandoffStripBlock, StripLine } from "./ProfileSalesTransition";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
 import { PlatformAccessCard } from "./tabs";
 import {
@@ -242,7 +242,17 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           Записать следующий шаг
         </button>
       ) : primary?.kind === "sale" ? (
-        <Link href={primary.href} className={btnCls} data-testid="v3-lead-primary">Оформить продажу</Link>
+        <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Link href={primary.href} className={btnCls} data-testid="v3-lead-primary">Оформить продажу</Link>
+          {/* «Связать с лидом» (Э8.7): рядом с «Оформить продажу» — запись отчёта не
+              заменяет продажу, только называет, что уже есть связанная запись. */}
+          {strip?.linkedRecord ? (
+            <a href={strip.linkedRecord.href} className="t-meta text-fg-2 underline underline-offset-4 hover:text-fg" data-testid="v3-lead-linked-record">
+              <StripLine text={strip.linkedRecord.text} />
+              {" · "}{strip.linkedRecord.action}
+            </a>
+          ) : null}
+        </span>
       ) : primary?.kind === "case" ? (
         <Link href={primary.href} className={ACTION_LINK} data-testid="v3-lead-primary">Открыть дело</Link>
       ) : null}

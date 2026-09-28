@@ -65,6 +65,13 @@ export type HandoffStripView = Readonly<{
   items: readonly HandoffStripItem[];
   /** Чего не хватает переданному лиду и что с этим сделать; до передачи пусто. */
   warnings: readonly HandoffStripWarning[];
+  /**
+   * «Связать с лидом» (254): запись отчёта просто связана с этим лидом (не
+   * продажа pipeline) — «Запись в отчёте — связана: ДД.ММ», рядом с
+   * «Оформить продажу», а не в самой полосе (та остаётся на настоящей
+   * продаже). null — связанной записи нет.
+   */
+  linkedRecord: HandoffStripWarning | null;
 }>;
 
 /**
@@ -171,11 +178,22 @@ export function handoffStripView(
   const items: HandoffStripItem[] = [];
   const warnings: HandoffStripWarning[] = [];
   const handedOff = strip.handoff !== null;
-  const record = strip.report.status === "available" ? strip.report.record : null;
+  const found = strip.report.status === "available" ? strip.report.record : null;
+  // 254: связанная запись (link: 'linked') — не продажа. Она никогда не
+  // отвечает за «Запись в отчёте», договор или оплату этой полосы; своё
+  // место — `linkedRecord`, рядом с «Оформить продажу».
+  const record = found?.link === "sale" ? found : null;
+  const linkedFound = found?.link === "linked" ? found : null;
   // Запись не в архиве — это продажа; её поля — доказательство договора и оплаты.
   const sale = record && !record.archived ? record : null;
   // Передачу доказала запись отчёта, а роль отчёт не читает: доказательство есть, но не здесь.
   const inUnreadReport = strip.report.status === "denied" && strip.handoff?.evidence === "sales_report";
+  const linkedRecord: HandoffStripWarning | null = linkedFound ? {
+    text: linkedFound.saleDate
+      ? ["Запись в отчёте — связана: ", { date: stripDay(linkedFound.saleDate, today) }]
+      : ["Запись в отчёте — связана"],
+    href: salesRecordHref(linkedFound), action: "Открыть запись",
+  } : null;
 
   // Договор: загруженный в дело, подтверждённый вручную, по записи отчёта — именно в этом порядке.
   if (caseMoney?.contractUploadedAt) {
@@ -275,6 +293,7 @@ export function handoffStripView(
     summary,
     items: Object.freeze(items.map((item) => Object.freeze(item))),
     warnings: Object.freeze(warnings.map((warning) => Object.freeze(warning))),
+    linkedRecord,
   });
 }
 

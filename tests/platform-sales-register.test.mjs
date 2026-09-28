@@ -57,7 +57,9 @@ test("source and actions use cookie authority with no provider or elevated clien
   assert.match(actions, /data\.request_id !== requestId/);
   assert.doesNotMatch(source + actions, /createSupabaseAdmin|SERVICE_ROLE|SECRET_KEY|\.from\(/);
   assert.match(actions, /inserted \+ skipped \+ mismatches !== input\.sales\.length/);
-  assert.equal((actions.match(/revalidatePath\("\/v3\/main"\)/g) ?? []).length, 4);
+  // 254 adds linkSalesRecordLeadAction's own revalidation (report panel + Lead 360).
+  assert.equal((actions.match(/revalidatePath\("\/v3\/main"\)/g) ?? []).length, 5);
+  assert.match(actions, /rpc\("link_sales_record_lead_v1"/);
 });
 
 // Unified workflow S2 (plan §6): «Отчёт продаж → Добавить продажу» narrows
@@ -140,4 +142,51 @@ test("migration 253 adds columns outside `fields`, new versions only, and keeps 
   assert.equal((manage.match(/staff_is_sales_manager\(p_organization_id,actor\.membership_id\)/gu) ?? []).length, 2);
   assert.match(manage, /'sales\.register\.manage', 'sales_register', old\.id\)/u);
   assert.match(manage, /currency_gap:=cost_currency IS NOT NULL AND paid_currency IS NOT NULL AND cost_currency<>paid_currency\s+AND p_paid_contract_minor IS NULL;/u);
+});
+
+// Э8.7 (254, owner decision 28.09: «можно связать, но это не рабочее место,
+// просто связать»). The real-Postgres proof is
+// supabase/tests/platform_sales_record_lead_link.sql at its checkpoint.
+test("migration 254 continues the contiguous source ledger and runs its real-Postgres suite at its checkpoint", async () => {
+  const { expectedMigrationVersions } = await import("../scripts/fast-release-ledger-gate.mjs");
+  const { fileURLToPath } = await import("node:url");
+  const versions = expectedMigrationVersions(fileURLToPath(new URL("../supabase/migrations", import.meta.url)));
+  assert.ok(versions.includes("253") && versions.includes("254"));
+  const script = readFileSync(new URL("../scripts/test-postgres-authorization.sh", import.meta.url), "utf8");
+  assert.match(script, /== 254_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_sales_record_lead_link\.sql/u);
+  const suite = readFileSync(new URL("../supabase/tests/platform_sales_record_lead_link.sql", import.meta.url), "utf8");
+  assert.match(suite, /^BEGIN;$/mu);
+  assert.match(suite, /^ROLLBACK;\s*$/mu);
+  assert.match(suite, /N254_SALES_RECORD_LEAD_LINK_SUITE_OK/u);
+  assert.doesNotMatch(suite, /@(?!example\.invalid)[a-z0-9-]+\.[a-z]/iu, "synthetic addresses only");
+});
+
+test("migration 254 adds a plain lead link outside `lead_id`, never a pipeline sale, and keeps v4/manage v2/row v2/strip v1 byte-identical", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/254_platform_sales_record_lead_link.sql", import.meta.url), "utf8");
+  assert.match(sql, /ADD COLUMN linked_lead_id UUID,/u);
+  assert.match(sql, /FOREIGN KEY \(organization_id, linked_lead_id\)\s*\n\s*REFERENCES platform\.leads\(organization_id, id\)/u);
+  assert.match(sql, /CHECK \(source_kind <> 'pipeline' OR linked_lead_id IS NULL\)/u);
+  assert.match(sql, /CREATE UNIQUE INDEX sales_register_linked_lead_unique_idx\s*\n\s*ON platform_private\.sales_register \(organization_id, linked_lead_id\)\s*\n\s*WHERE linked_lead_id IS NOT NULL;/u);
+  assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION/u, "released functions are never replaced");
+  for (const signature of ["platform.read_sales_register_v4(", "platform.manage_sales_register_v2(",
+    "platform_private.sales_register_row_v2(platform_private.sales_register)", "platform.staff_lead_handoff_strip_v1("]) {
+    assert.ok(sql.includes(signature), `${signature} is compared before and after`);
+  }
+  assert.match(sql, /RAISE EXCEPTION 'a254_sales_record_lead_verification_failed: a released read or command changed'/u);
+  // link/unlink share manage_sales_register_v2's write gates: the 208 guard before and after the lock,
+  // the record permission, and lead.read on the touched lead.
+  const link = sql.slice(sql.indexOf("CREATE FUNCTION platform.link_sales_record_lead_v1"), sql.indexOf("CREATE FUNCTION platform.sales_record_lead_link_v1"));
+  assert.equal((link.match(/staff_is_sales_manager\(p_organization_id, actor\.membership_id\)/gu) ?? []).length, 2);
+  assert.match(link, /'sales\.register\.manage', 'sales_register', old\.id\)/u);
+  assert.match(link, /staff_can_access\(p_organization_id, actor\.membership_id, 'lead\.read', 'lead', lead_check\)/u);
+  assert.match(link, /IF old\.source_kind <> 'import' OR old\.archived THEN/u);
+  assert.match(link, /sales_register_lead_has_sale/u);
+  assert.match(link, /sales_register_lead_already_linked/u);
+  // The panel read never guesses: visible only with lead.read on the linked lead.
+  const panelRead = sql.slice(sql.indexOf("CREATE FUNCTION platform.sales_record_lead_link_v1"), sql.indexOf("CREATE FUNCTION platform.staff_lead_handoff_strip_v2"));
+  assert.match(panelRead, /'visible', false, 'lead_id', NULL, 'name', NULL/u);
+  // Strip v2 prefers a pipeline sale (lead_id) over a merely linked row.
+  const stripV2 = sql.slice(sql.indexOf("CREATE FUNCTION platform.staff_lead_handoff_strip_v2"));
+  assert.match(stripV2, /ORDER BY \(r\.lead_id IS NOT DISTINCT FROM p_lead_id\) DESC/u);
+  assert.match(stripV2, /CASE WHEN r\.lead_id = p_lead_id THEN 'sale' ELSE 'linked' END AS link/u);
 });

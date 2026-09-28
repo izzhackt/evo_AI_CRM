@@ -144,6 +144,9 @@ test("settings: the warning above the sections exists only when work stops, and 
     if (id === "@/components/ui") return { btnGhostCls: "" };
     if (id === "@/components/v3/Pill") return { Pill: function Pill() { return null; } };
     if (id === "@/lib/v3/wording") return { journalActor: String, journalEvent: String, journalObject: String };
+    // Журнал (Э8.11) здесь не рисуется: его слова проверяет v3-settings-journal-contract.
+    if (id === "@/lib/v3/settings-journal-contract") return { journalNotice: () => null };
+    if (id === "@/components/v3/queue/QueueStates") return { QUEUE_QUIET_LINK: "" };
     return undefined;
   });
   assert.equal(IntegrationsBanner({ rows: settingsIntegrations(PRODUCTION_26_09, NOW), href: "/v3/settings?section=integrations" }), null);

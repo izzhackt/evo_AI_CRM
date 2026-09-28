@@ -9,6 +9,8 @@ import type { IntegrationTone } from "@/lib/v3/settings-health";
 
 import type { GateFacts, IntegrationRow, JournalEntry } from "./types";
 import { journalActor, journalEvent, journalObject } from "@/lib/v3/wording";
+import { journalNotice, type JournalStatus } from "@/lib/v3/settings-journal-contract";
+import { QUEUE_QUIET_LINK } from "@/components/v3/queue/QueueStates";
 
 export function Card({
   title,
@@ -177,12 +179,15 @@ function pluralRu(n: number, one: string, few: string, many: string): string {
 
 export function JournalSection({
   entries,
+  status,
   exportEnabled,
   facets,
   active,
   hrefFor,
 }: {
   entries: readonly JournalEntry[];
+  /** Выключенный или недоступный журнал — словами, без числа (Э8.11). */
+  status: JournalStatus;
   exportEnabled: boolean;
   facets: Readonly<{
     objectTypes: readonly Readonly<{ key: string; count: number }>[];
@@ -206,6 +211,7 @@ export function JournalSection({
     (entry) => journalEvent(entry.transition) !== null,
   );
   const unnamed = events.length - named.length;
+  const notice = journalNotice(status, active, events.length);
   const exportEndAt = new Date();
   const exportStartAt = new Date(exportEndAt.getTime() - 30 * 24 * 60 * 60 * 1_000);
   const chip =
@@ -284,7 +290,9 @@ export function JournalSection({
 
       <Card
         title="События"
-        aside={<Pill>{nextPage ? `${events.length}+` : events.length}</Pill>}
+        // Число — только у прочитанного журнала: выключенный или
+        // недоступный журнал не «0» (Э8.11).
+        aside={status === "ready" ? <Pill>{nextPage ? `${events.length}+` : events.length}</Pill> : undefined}
       >
         <div
           role="group"
@@ -326,9 +334,24 @@ export function JournalSection({
                 </li>
               );
             })}
-            {events.length === 0 ? (
-              <li className="px-4 py-8 text-center text-sm text-fg-3">
-                По этому фильтру событий нет.
+            {notice ? (
+              <li
+                data-testid="v3-journal-notice"
+                data-journal-status={status}
+                className="flex flex-col items-center gap-1 px-4 py-8 text-center"
+              >
+                <p
+                  role={notice.retry ? "alert" : undefined}
+                  className={notice.retry ? "t-item text-danger" : status === "disabled" ? "t-item text-fg" : "text-sm text-fg-3"}
+                >
+                  {notice.text}
+                </p>
+                {notice.detail ? <p className="t-meta text-fg-3">{notice.detail}</p> : null}
+                {notice.retry ? (
+                  <Link href={hrefFor({ objectType: active.objectType })} className={QUEUE_QUIET_LINK}>
+                    Повторить
+                  </Link>
+                ) : null}
               </li>
             ) : null}
           </ul>

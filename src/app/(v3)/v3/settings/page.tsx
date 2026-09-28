@@ -58,7 +58,7 @@ export default async function SettingsPart({
           cursorCreatedAt: params.cursor,
           cursorId: params.cursorId,
         })
-      : Promise.resolve({ entries: [], cursorHonored: true }),
+      : Promise.resolve({ entries: [], cursorHonored: true, status: "ready" as const }),
     isAdmin
       ? readJournalFacets(actor)
       : Promise.resolve({ objectTypes: [] }),
@@ -99,6 +99,7 @@ export default async function SettingsPart({
         hrefFor={(next: SectionKey, view: StaffView | null) => query({ section: next, view: view ?? undefined })}
         integrations={integrations}
         journal={journal}
+        journalStatus={journalRead.status}
         auditExportEnabled={readAuditExportEnabled()}
         journalFacets={journalFacets}
         journalFilters={journalFilters}

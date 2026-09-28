@@ -25,6 +25,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   normalizeJournalFilters,
   type JournalFilters,
+  type JournalStatus,
 } from "@/lib/v3/settings-journal-contract";
 import {
   databaseFact,
@@ -194,9 +195,10 @@ type AuditPage = Readonly<{
   nextCursorId: string | null;
   /** false — присланный курсор протух, и страница прочитана с начала. */
   cursorHonored: boolean;
+  status: JournalStatus;
 }>;
 
-const EMPTY_AUDIT_PAGE: AuditPage = Object.freeze({
+const EMPTY_AUDIT_PAGE = Object.freeze({
   rows: [],
   hasMore: false,
   snapshotCreatedAt: null,
@@ -235,15 +237,18 @@ async function loadAuditRows(
       nextCursorCreatedAt: result.nextCursorCreatedAt,
       nextCursorId: result.nextCursorId,
       cursorHonored: true,
+      status: "ready",
     };
   } catch (error) {
     // The canonical audit is feature-gated. Disabled/unavailable yields no
-    // projection here; it never falls back to a legacy journal.
+    // projection here; it never falls back to a legacy journal. Э8.11: the
+    // page tells the two apart — a switched-off journal and a failed read are
+    // not «0 событий».
     if (
       error instanceof PlatformAuditActionError &&
       error.kind === "unavailable"
     ) {
-      return EMPTY_AUDIT_PAGE;
+      return { ...EMPTY_AUDIT_PAGE, status: isPlatformP7AAuditEnabled() ? "unavailable" : "disabled" };
     }
     // Форму курсора мы проверили, но снимок мог протухнуть на стороне
     // репозитория. Чужое слово из адреса не роняет страницу — журнал
@@ -283,6 +288,8 @@ export type JournalRead = Readonly<{
    * адрес, который врёт о содержимом, хуже потерянной позиции.
    */
   cursorHonored: boolean;
+  /** Выключенный или недоступный журнал — не пустой (Э8.11). */
+  status: JournalStatus;
 }>;
 
 export async function readJournal(
@@ -327,7 +334,7 @@ export async function readJournal(
       cursorId: page.nextCursorId,
     });
   }
-  return { entries, cursorHonored: page.cursorHonored };
+  return { entries, cursorHonored: page.cursorHonored, status: page.status };
 }
 
 export async function readJournalFacets(

@@ -32,6 +32,12 @@
  *   node tests/e2e/requests-static-render.cjs --manual-lead-owners
  *     → stdout: JSON { read, failed } — что страница отдаёт форме «Добавить
  *       лида», когда список ответственных прочитан и когда чтение упало.
+ *   node tests/e2e/requests-static-render.cjs --manual-lead-form [outDir]
+ *     → форма «Добавить лида» в Chromium (Э8.11): источник по умолчанию
+ *       «Не выбрано», без него браузер форму не отправляет и говорит
+ *       «Выберите источник» под полем; с выбранным источником уходит его
+ *       ключ. Серверное действие — заглушка, записывает поля и ничего не
+ *       сохраняет. Снимки `e811-manual-lead-*.png` на 1440 и 390.
  *   node tests/e2e/requests-static-render.cjs --switch [outDir]
  *     → смена записи в правой панели по-настоящему в Chromium: собранный
  *       esbuild RequestsQueueView, черновик решения, конфликт и ошибка
@@ -521,6 +527,8 @@ globalThis.__open = (key) => new Promise((done) => { render(key); requestAnimati
  * выражения Go: без флага `u`.
  */
 const SWITCH_ACTIONS = {
+  // Э8.11: форма лида — только запись отправленных полей; ответ «такой контакт уже есть», ничего не сохраняется.
+  createManualLeadAction: "(globalThis.__manualLeads ||= []).push(Object.fromEntries(arguments[1])); return { status: \"duplicate\", requestId: arguments[1].get(\"request_id\"), leadId: null };",
   decideStudentApplicationAction: "(globalThis.__decisions ||= []).push(Object.fromEntries(arguments[1])); return { status: \"conflict\", requestId: arguments[1].get(\"request_id\") };",
   updatePlatformSalesWorkflowAction: "(globalThis.__takes ||= []).push(Object.fromEntries(arguments[1])); return { status: \"stale\", requestId: arguments[1].get(\"request_id\"), version: arguments[0].version, changedAt: null };",
 };
@@ -676,6 +684,113 @@ async function switchCheck() {
   if (failures.length) throw new Error(`panel switch: ${failures.length} failed:\n${failures.join("\n")}`);
 }
 
+// --- Э8.11: источник в форме «Добавить лида» ----------------------------------
+const MANUAL_LEAD_ROOT_ID = "manual-lead-root";
+const MANUAL_LEAD_ENTRY = `
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "../../src/components/v3/ManualLeadForm";
+
+createRoot(document.getElementById("${MANUAL_LEAD_ROOT_ID}")).render(
+  createElement(ManualLeadDisclosure, null,
+    createElement("div", { className: "flex items-center justify-between gap-3" },
+      createElement("h1", { className: "t-page-title text-fg" }, "Воронка продаж"),
+      createElement(ManualLeadTrigger)),
+    createElement(ManualLeadForm, {
+      requestId: "99999999-5555-4555-8555-000000000001",
+      ownerId: "${ME}",
+      owners: [{ id: "${ME}", displayName: "Айгүл Осмонова (синтетика)" }],
+    })),
+);
+`;
+
+/**
+ * Форма «Добавить лида» (Э8.11) в Chromium: настоящий `ManualLeadForm`,
+ * собранный esbuild. Нарушение — исключение с фактами.
+ */
+async function manualLeadForm() {
+  const outIndex = process.argv.indexOf("--manual-lead-form") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const bundle = join(outDir, "requests-manual-lead-client.js");
+  await require("esbuild").build({
+    stdin: { contents: MANUAL_LEAD_ENTRY, resolveDir: __dirname, sourcefile: "requests-manual-lead-entry.js", loader: "js" },
+    bundle: true, outfile: bundle, format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
+    tsconfig: join(ROOT, "tsconfig.json"), define: { "process.env.NODE_ENV": '"production"' },
+    banner: { js: "var process = globalThis.process || { env: {} };" }, plugins: [switchStubs], logLevel: "error",
+  });
+  const htmlPath = join(outDir, "e811-manual-lead.html");
+  writeFileSync(htmlPath, [
+    "<!DOCTYPE html>",
+    '<html lang="ru" data-theme="light" class="h-full antialiased">',
+    `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Добавить лида (синтетические данные)</title><style>${await compileCss()}</style></head>`,
+    `<body class="min-h-full bg-bg"><div class="v3-world" data-surface="staff"><main class="p-4 md:p-6"><div id="${MANUAL_LEAD_ROOT_ID}"></div></main></div>`,
+    `<script src="requests-manual-lead-client.js"></script></body></html>`,
+  ].join(""));
+
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const failures = [];
+  const expect = (label, ok, facts) => {
+    process.stdout.write(`${ok ? "ok  " : "FAIL"} ${label}${ok ? "" : ` ${JSON.stringify(facts)}`}\n`);
+    if (!ok) failures.push(label);
+  };
+  try {
+    for (const [width, context] of [
+      ["1440", { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 }],
+      ["390", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
+    ]) {
+      const browserContext = await browser.newContext(context);
+      const tab = await browserContext.newPage();
+      const errors = [];
+      tab.on("pageerror", (error) => errors.push(error.message));
+      await tab.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+      await tab.evaluate(() => document.fonts.ready);
+      await tab.getByRole("button", { name: "Добавить лида" }).click();
+      const source = tab.locator('select[name="source"]');
+      const field = () => source.evaluate((select) => ({
+        value: select.value,
+        options: [...select.options].map((option) => [option.value, option.textContent]),
+        required: select.required,
+        invalid: select.getAttribute("aria-invalid"),
+        message: select.validationMessage,
+        error: select.parentElement.querySelector('[role="alert"]')?.textContent ?? null,
+        focused: document.activeElement === select,
+        height: Math.round(select.getBoundingClientRect().height),
+      }));
+      const opened = await field();
+      expect(`${width}: the source opens on «Не выбрано», required, with the five existing keys`,
+        opened.value === "" && opened.required && JSON.stringify(opened.options) === JSON.stringify([
+          ["", "Не выбрано"], ["office", "Встреча в офисе"], ["phone_call", "Звонок"], ["referral", "Рекомендация"], ["website", "Сайт"], ["other", "Другой источник"],
+        ]) && opened.height >= 44, opened);
+      await tab.screenshot({ path: join(outDir, `e811-manual-lead-open-${width}.png`), fullPage: true });
+
+      await tab.locator('input[name="name"]').fill("Тест Синтетический");
+      await tab.locator('input[name="phone"]').fill("+996 555 000 000");
+      await tab.getByRole("button", { name: "Сохранить лида" }).click();
+      await tab.waitForTimeout(150);
+      const blocked = { ...(await field()), sent: await tab.evaluate(() => (globalThis.__manualLeads ?? []).length) };
+      expect(`${width}: without a source nothing is sent and the field says «Выберите источник»`,
+        blocked.sent === 0 && blocked.invalid === "true" && blocked.message === "Выберите источник" && blocked.error === "Выберите источник" && blocked.focused, blocked);
+      await tab.screenshot({ path: join(outDir, `e811-manual-lead-required-${width}.png`), fullPage: true });
+
+      await source.selectOption("phone_call");
+      const chosen = await field();
+      expect(`${width}: choosing a source clears the error`, chosen.invalid === null && chosen.message === "" && chosen.error === null, chosen);
+      await tab.getByRole("button", { name: "Сохранить лида" }).click();
+      await tab.waitForFunction(() => (globalThis.__manualLeads ?? []).length === 1, null, { timeout: 5_000 }).catch(() => {});
+      const sent = await tab.evaluate(() => globalThis.__manualLeads ?? []);
+      expect(`${width}: the chosen key is what the form sends`, sent.length === 1 && sent[0].source === "phone_call", sent);
+
+      if (errors.length) failures.push(`${width} browser errors: ${errors.join(" | ")}`);
+      await browserContext.close();
+    }
+  } finally {
+    await browser.close();
+  }
+  if (failures.length) throw new Error(`manual lead form: ${failures.length} failed:\n${failures.join("\n")}`);
+}
+
 // --- F1 (Э7): одна боковая панель — путь по гидратированным «Заявкам» --------
 // Настоящая страница в оболочке; `RequestsQueueView` обёрнут контейнером, в
 // котором браузерная сборка отрисовывает его заново с теми же свойствами.
@@ -819,11 +934,13 @@ if (process.argv.includes("--json")) {
   panelKeys().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--manual-lead-owners")) {
   manualLeadOwners().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--manual-lead-form")) {
+  manualLeadForm().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--switch")) {
   switchCheck().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--screenshots")) {
   screenshots().catch((error) => { console.error(error); process.exit(1); });
 } else {
-  console.error("usage: requests-static-render.cjs --json | --panel-keys | --manual-lead-owners | --switch [outDir] | --screenshots [outDir] | --f1 [outDir]");
+  console.error("usage: requests-static-render.cjs --json | --panel-keys | --manual-lead-owners | --manual-lead-form [outDir] | --switch [outDir] | --screenshots [outDir] | --f1 [outDir]");
   process.exit(2);
 }

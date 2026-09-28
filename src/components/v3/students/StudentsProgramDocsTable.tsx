@@ -125,7 +125,8 @@ export function StudentsProgramDocsTable({
                 <div role="cell" data-docs-decision="" data-docs-neutral="" className={`${CELL} [grid-area:decision] ${EVIDENCE} @min-[48rem]/program:ps-3`}>
                   <ProgramDocumentReview scope={scope} submission={item.submission} strings={strings} canReview={canReview} onSaved={() => router.refresh()} />
                 </div>
-                <div role="cell" className={`${CELL} [grid-area:open] self-start @min-[48rem]/program:-mt-2`}>
+                {/* В стопке `-mt-1` снимает зазор ряда: ссылка встаёт вплотную под «Решение», обе цели — 44 px без наложения. */}
+                <div role="cell" className={`${CELL} [grid-area:open] self-start -mt-1 @min-[48rem]/program:-mt-2`}>
                   <Link
                     href={href}
                     data-queue-open=""

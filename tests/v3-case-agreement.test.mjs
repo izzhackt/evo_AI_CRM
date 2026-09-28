@@ -26,6 +26,7 @@ const paymentsViewSource = source("src/components/portal/admission/PaymentsView.
 const tabsSource = source("src/components/v3/profile/tabs.tsx");
 const profileSource = source("src/components/v3/profile/Profile.tsx");
 const sourceSource = source("src/lib/v3/case-agreement-source.ts");
+const viewSource = source("src/components/v3/profile/case-money-view.ts");
 
 test("migration 189 is transactional and fails closed on source drift, like 181/184/185", () => {
   assert.match(sql, /^BEGIN;$/mu);
@@ -428,9 +429,10 @@ test("FIX 4: the parser decodes a refund fixture row and rejects an unknown even
   );
 });
 
-test("FIX 4: CaseAgreementBlock renders a «Возврат» Pill and a minus-prefixed amount for refund rows, financeMoney still carries only the magnitude", () => {
-  assert.match(blockSource, /import \{ Pill \} from "@\/components\/v3\/Pill";/u);
-  assert.match(blockSource, /payment\.eventType === "refund" \? <Pill tone="warn">Возврат<\/Pill> : null/u);
+test("FIX 4: CaseAgreementBlock renders a «возврат» chip and a minus-prefixed amount for refund rows, financeMoney still carries only the magnitude", () => {
+  // Э8.3: статус словом — общий чип StatusChip вместо Pill.
+  assert.match(blockSource, /import \{ StatusChip \} from "\.\.\/blocks\/StatusChip";/u);
+  assert.match(blockSource, /payment\.eventType === "refund" \? <StatusChip label="возврат" tone="warn" \/> : null/u);
   assert.match(blockSource, /payment\.eventType === "refund" \? "−" : ""/u);
   assert.match(blockSource, /\{financeMoney\(payment\.amountMinor, payment\.currency\)\}/u);
 });
@@ -464,14 +466,23 @@ test("FIX 6: readCaseAgreement returns a discriminated ok/forbidden/unavailable 
   assert.doesNotMatch(sourceSource, /export async function readCaseAgreement[\s\S]*?: Promise<CaseAgreement \| null>/u);
 });
 
-test("CaseAgreementBlock preserves its independent contract slot when finance is forbidden or unavailable", () => {
-  assert.match(blockSource, /if \(result\.status === "forbidden"\) return contractWorkspace;/u);
-  assert.match(blockSource, /if \(result\.status === "unavailable"\) \{/u);
-  assert.match(blockSource, /role="alert" className="px-4 py-3 text-sm text-fg-2"/u);
-  const unavailableStart = blockSource.indexOf('if (result.status === "unavailable")');
-  const unavailableEnd = blockSource.indexOf('const agreement =', unavailableStart);
-  assert.ok(unavailableStart >= 0 && unavailableEnd > unavailableStart);
-  assert.match(blockSource.slice(unavailableStart, unavailableEnd), /\{contractWorkspace\}/u);
+test("the contract slot no longer depends on the agreement read: Money renders it beside CaseAgreementBlock; forbidden shows no sums, unavailable says so", () => {
+  // Э8.3: раздел договора — панели «⋯» листа, их кладёт Money рядом со сводкой, а не CaseAgreementBlock.
+  assert.doesNotMatch(blockSource, /contractWorkspace/u);
+  const failedStart = blockSource.indexOf('if (result.status !== "ok") {');
+  const failedEnd = blockSource.indexOf("<CaseAgreementView", failedStart);
+  assert.ok(failedStart >= 0 && failedEnd > failedStart);
+  const failed = blockSource.slice(failedStart, failedEnd);
+  assert.match(failed, /role=\{result\.status === "unavailable" \? "alert" : undefined\}/u);
+  assert.match(failed, /result\.status === "unavailable" \? caseMoneyWords\.financeUnavailable : caseMoneyWords\.financeHidden/u);
+  assert.doesNotMatch(failed, /financeMoney|agreement\./u, "a refused or failed read shows no sums");
+  const moneyStart = tabsSource.indexOf("export function Money(");
+  const money = tabsSource.slice(moneyStart, tabsSource.indexOf("/* --------------------------------------------------------------- История */", moneyStart));
+  const agreementAt = money.indexOf("<CaseAgreementBlock");
+  const slotAt = money.indexOf("{contractWorkspace}");
+  assert.ok(agreementAt >= 0 && slotAt > agreementAt, "the contract slot renders after the summary, outside CaseAgreementBlock");
+  assert.match(money, /!financeVisible \? \(\s*<p className="py-3 t-body-compact text-fg-2">\{caseMoneyWords\.financeHidden\}<\/p>/u,
+    "navigation to the shared section does not grant any financial read access");
 });
 
 // ---------------------------------------------------------------------------
@@ -497,15 +508,15 @@ test("FIX 7: CaseAgreementStatus/MESSAGES carry the tranche_paid status and its 
 // FIX 8: currency-mismatch header honesty.
 // ---------------------------------------------------------------------------
 
-test("FIX 8: the currency-mismatch branch is explicitly labeled and never renders Оплачено/Остаток numbers", () => {
-  assert.match(blockSource, /Транши по валютам: \{perCurrency\.map/u);
-  const mismatchStart = blockSource.indexOf("agreement.currencyMismatch ? (");
+test("FIX 8 (Э8.3): different currencies are never converted — paid and remaining per currency, the server's mixed totals unused", () => {
+  // Решение Э8.3: при разных валютах «Оплачено» и «Остаток» — по каждой валюте отдельно.
+  const mismatchStart = viewSource.indexOf("if (agreement.currencyMismatch) {");
   assert.ok(mismatchStart >= 0, "mixed currency branch must exist");
-  const mismatchEnd = blockSource.indexOf(") : agreement.costMismatch", mismatchStart);
-  assert.ok(mismatchEnd > mismatchStart, "mixed currency branch must be nonempty");
-  const mismatchBranch = blockSource.slice(mismatchStart, mismatchEnd);
-  assert.doesNotMatch(mismatchBranch, /paidMinor/u);
-  assert.doesNotMatch(mismatchBranch, /remainingMinor/u);
+  const mismatchBranch = viewSource.slice(mismatchStart, viewSource.indexOf("} else if", mismatchStart));
+  assert.match(mismatchBranch, /caseOutstandingByCurrency\(agreement\.tranches, order\)/u);
+  assert.match(mismatchBranch, /по траншам, без пересчёта валют/u);
+  assert.doesNotMatch(mismatchBranch, /paidMinor|remainingMinor/u);
+  assert.doesNotMatch(viewSource, /agreement\.paidMinor/u, "paid is always summed per currency from the payment events");
 });
 
 // ---------------------------------------------------------------------------

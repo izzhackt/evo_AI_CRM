@@ -287,7 +287,8 @@ export type Payment = Readonly<{
   amount: string;
   /** Оплачен, ждёт срока, просрочен. */
   state: "paid" | "due" | "overdue";
-  at: string;
+  /** Момент последней оплаты (оплачен) или срок (иначе); null — не указан. Дату рисует вкладка («ДД.ММ» по Бишкеку). */
+  at: string | null;
 }>;
 
 export type Fact = Readonly<{ label: string; value: string | null }>;

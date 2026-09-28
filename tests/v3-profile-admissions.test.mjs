@@ -126,7 +126,9 @@ test("application selector owns stale reads and search Enter without changing ap
   // deliberate pin move, not a drop. Program is optional here (plan: "программу
   // указать сразу либо позже"), so the old `required` pin is gone too.
   const createDialog = source("src/components/v3/profile/ApplicationCreateDialog.tsx");
-  assert.match(createDialog, /<ApplicationUniversitySelector key=\{workspace\.studentCaseId\} \/>/u);
+  // Э8.2: the dialog is opened by «Вуза нет в каталоге? Добавить вручную» — manual entry is preselected.
+  assert.match(createDialog, /<ApplicationUniversitySelector key=\{workspace\.studentCaseId\} defaultManual \/>/u);
+  assert.match(selector, /const \[manual, setManual\] = useState\(defaultManual\);/u);
   assert.match(createDialog, /name="program_name" maxLength=\{300\}/u);
   assert.doesNotMatch(createDialog, /name="program_name" required/u);
   assert.match(createDialog, /name="request_id" value=\{state\.requestId\}/u);

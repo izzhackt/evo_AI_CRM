@@ -2134,7 +2134,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator('input[name="evidence_reference"]')
     .fill("p4://application-created");
   const universitySelector = createApplication.getByTestId("v3-application-university-selector");
-  await expect(universitySelector.getByRole("checkbox", { name: "Ввести вручную" })).not.toBeChecked();
+  // Э8.2: «Вуза нет в каталоге? Добавить вручную» opens the dialog in manual entry;
+  // unchecking it links the application to a catalogue university instead.
+  const manualEntry = universitySelector.getByRole("checkbox", { name: "Ввести вручную" });
+  await expect(manualEntry).toBeChecked();
+  await manualEntry.uncheck();
   const universitySearch = universitySelector.getByRole("textbox", { name: "Поиск университета" });
   await universitySearch.fill("P4 isolated technical university");
   await universitySelector.getByRole("button", { name: "Найти", exact: true }).click();
@@ -2213,7 +2217,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .filter({ hasText: "Дополнительно" })
     .locator("summary")
     .click();
-  await createAlternativeApplication.getByRole("checkbox", { name: "Ввести вручную" }).check();
+  await expect(createAlternativeApplication.getByRole("checkbox", { name: "Ввести вручную" })).toBeChecked();
   await createAlternativeApplication
     .locator('input[name="institution_name"]')
     .fill("P4 isolated alternative university");

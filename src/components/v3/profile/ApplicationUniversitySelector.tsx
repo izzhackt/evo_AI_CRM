@@ -8,8 +8,12 @@ import {
 } from "@/lib/platform-admissions-actions";
 import { applicationUniversitySelector as words, country } from "@/lib/v3/wording";
 
-export function ApplicationUniversitySelector() {
-  const [manual, setManual] = useState(false);
+/**
+ * `defaultManual` — окно открыто ссылкой «Вуза нет в каталоге? Добавить вручную» (Э8.2): ручной ввод
+ * уже включён, поиск по каталогу — снятием флажка.
+ */
+export function ApplicationUniversitySelector({ defaultManual = false }: Readonly<{ defaultManual?: boolean }> = {}) {
+  const [manual, setManual] = useState(defaultManual);
   const [manualName, setManualName] = useState("");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
@@ -48,7 +52,7 @@ export function ApplicationUniversitySelector() {
 
   return (
     <div className="space-y-3 md:col-span-2" data-testid="v3-application-university-selector" aria-busy={loading}>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex min-h-11 items-center gap-2 text-sm">
         <input type="checkbox" checked={manual} onChange={(event) => {
           invalidate();
           setManual(event.target.checked);

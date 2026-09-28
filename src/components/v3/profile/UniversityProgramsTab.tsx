@@ -64,8 +64,9 @@ export async function UniversityProgramsTab({
  * - одна кнопка добавления «+ Вуз из каталога» (прежний выбор программы и
  *   набора в окне); сплошная красная — только когда у заголовка дела нет
  *   «Принять дело» (одно главное действие на странице), иначе нейтральная;
- *   ручной ввод — тихой ссылкой «Добавить вручную» (каталог — шесть стран);
- * - пакеты партнёру — раскрытием под списком.
+ *   ручной ввод — тихой ссылкой «Добавить вручную» (каталог — шесть стран),
+ *   на узком экране она под кнопкой;
+ * - пакеты партнёру — раскрытием под списком, если у дела есть заявления.
  *
  * «Приём дела» здесь только на странице лида (`?id=`): там у заголовка нет
  * «Принять дело», и ответить на передачу больше негде. На странице дела
@@ -115,8 +116,9 @@ export function UniversityProgramsView({
 
   const toolbar = canWriteApplications ? (
     <>
-      {/* Не <p>: окно ручного ввода (<dialog>) рисуется рядом со своей кнопкой. */}
-      <div className="flex flex-wrap items-center gap-x-1.5 t-body-compact text-fg-2">
+      {/* Не <p>: окно ручного ввода (<dialog>) рисуется рядом со своей кнопкой. Узкий экран: сначала
+          главная кнопка, тихая ссылка — под ней; с 48rem — ссылка перед кнопкой в одной строке. */}
+      <div className="order-last flex flex-wrap items-center gap-x-1.5 t-body-compact text-fg-2 @min-[48rem]/unis:order-none">
         {canSelect ? <span>Вуза нет в каталоге?</span> : null}
         <ApplicationCreateDialog workspace={admissions} />
       </div>
@@ -145,14 +147,17 @@ export function UniversityProgramsView({
         packetsHref={routeHref}
         toolbar={toolbar}
       />
-      <PartnerPacketsPanel
-        caseId={caseId}
-        active={active}
-        applications={applications}
-        workspace={packets}
-        initiallyOpen={packetsInitiallyOpen}
-        initialApplicationId={applications.some((application) => application.id === packetApplicationId) ? packetApplicationId : null}
-      />
+      {/* Без заявлений пакет собрать не из чего — раскрытия нет. */}
+      {applications.length ? (
+        <PartnerPacketsPanel
+          caseId={caseId}
+          active={active}
+          applications={applications}
+          workspace={packets}
+          initiallyOpen={packetsInitiallyOpen}
+          initialApplicationId={applications.some((application) => application.id === packetApplicationId) ? packetApplicationId : null}
+        />
+      ) : null}
     </div>
   );
 }

@@ -483,21 +483,35 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { ProfileAdmissionsWorkspacePanel } = require("@/components/v3/profile/ProfileAdmissionsWorkspace");
 const { ApplicationCreateDialog } = require("@/components/v3/profile/ApplicationCreateDialog");
 const { CatalogPreparationLauncher } = require("@/components/v3/profile/StaffCatalogPreparationPicker");
+const { PartnerPacketsPanel } = require("@/components/v3/profile/PartnerPacketsPanel");
 const h = React.createElement;
-window.__route = { calls: [], refreshes: 0 };
+window.__route = { calls: [], refreshes: 0, navigate: null };
 // Страница — файл: переход по ссылке CRM здесь не выполняется (после обработчиков React, как клиентский переход).
-window.addEventListener("click", (event) => { if (event.target.closest && event.target.closest("a[href^='/v3/']")) event.preventDefault(); });
+// Адрес с \`packet_application\` — как переход Next по той же странице: дерево остаётся смонтированным,
+// меняются только свойства (layout-router не учитывает параметры адреса в ключе страницы).
+window.addEventListener("click", (event) => {
+  const link = event.target.closest ? event.target.closest("a[href^='/v3/']") : null;
+  if (!link) return;
+  event.preventDefault();
+  const packet = new URL(link.getAttribute("href"), "https://crm.invalid").searchParams.get("packet_application");
+  if (packet && window.__route.navigate) window.__route.navigate(packet);
+});
 const router = { refresh() { window.__route.refreshes += 1; }, push() {}, replace() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {} };
 const fixture = JSON.parse(document.getElementById("route-fixture").textContent);
 const scope = { organizationId: fixture.actor.organizationId, membershipId: fixture.actor.membershipId, studentCaseId: fixture.workspace.studentCaseId };
 const toolbar = h(React.Fragment, null,
-  h("div", { className: "flex flex-wrap items-center gap-x-1.5 t-body-compact text-fg-2" }, h("span", null, "Вуза нет в каталоге?"), h(ApplicationCreateDialog, { workspace: fixture.workspace })),
+  h("div", { className: "order-last flex flex-wrap items-center gap-x-1.5 t-body-compact text-fg-2 @min-[48rem]/unis:order-none" }, h("span", null, "Вуза нет в каталоге?"), h(ApplicationCreateDialog, { workspace: fixture.workspace })),
   h(CatalogPreparationLauncher, { primary: true, scope, canSelect: true, canInitialize: true, initialPreparations: fixture.preparations }));
-createRoot(document.getElementById("root")).render(h(AppRouterContext.Provider, { value: router },
-  h("div", { className: "v3-world", "data-surface": "staff" }, h("main", { className: "p-6 space-y-6" },
+function Page() {
+  const [packetApplication, setPacketApplication] = React.useState(null);
+  React.useEffect(() => { window.__route.navigate = setPacketApplication; return () => { window.__route.navigate = null; }; }, []);
+  return h("div", { className: "v3-world", "data-surface": "staff" }, h("main", { className: "p-6 space-y-6" },
     h(ProfileAdmissionsWorkspacePanel, { actor: fixture.actor, workspace: fixture.workspace, partnerDetails: fixture.partner,
       preparations: fixture.preparations, nowIso: fixture.nowIso, packetsHref: fixture.packetsHref, toolbar }),
-    h("details", { id: "partner-packets" }, h("summary", null, "Пакеты документов партнёру"))))));
+    h(PartnerPacketsPanel, { caseId: fixture.workspace.studentCaseId, active: true, applications: fixture.applications, workspace: fixture.packets,
+      initialApplicationId: fixture.applications.some((application) => application.id === packetApplication) ? packetApplication : null })));
+}
+createRoot(document.getElementById("root")).render(h(AppRouterContext.Provider, { value: router }, h(Page)));
 `;
 
 async function clientCheck() {
@@ -522,7 +536,9 @@ async function clientCheck() {
           contents: names.map((name) => name === "changePlatformUniversityApplicationAction"
             ? `export async function ${name}(previous, form) { window.__route.calls.push({ name: "${name}", fields: Object.fromEntries(form.entries()) }); `
               + `return { status: "saved", requestId: "99999999-5555-4555-8555-000000000001", universityApplicationId: form.get("application_id"), version: "4" }; }`
-            : `export async function ${name}() { window.__route.calls.push({ name: "${name}" }); throw new Error("route harness: ${name} is not available"); }`).join("\n"),
+            // Остальные — запись вызова с первым аргументом (как ушёл бы на сервер) и ошибка: ответ не получен.
+            : `export async function ${name}(input) { window.__route.calls.push({ name: "${name}", input: JSON.parse(JSON.stringify(input ?? null)) }); `
+              + `throw new Error("route harness: ${name} is not available"); }`).join("\n"),
           loader: "ts",
         };
       });
@@ -545,7 +561,8 @@ async function clientCheck() {
     `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Вузы и программы — синтетические данные</title><style>${await compileCss()}</style></head>`,
     `<body class="min-h-full"><div id="root"></div><script type="application/json" id="route-fixture">${JSON.stringify({
       actor: CURATOR, workspace: details.admissions, partner: item.partner, preparations: { status: "ready", value: item.preparations },
-      nowIso: NOW.toISOString(), packetsHref: routeHref,
+      nowIso: NOW.toISOString(), packetsHref: routeHref, packets: PACKETS,
+      applications: item.applications.map((row) => ({ id: row.universityApplicationId, name: row.programName ? `${row.institutionName} · ${row.programName}` : row.institutionName })),
     }).replaceAll("<", "\\u003c")}</script><script src="route-client.js"></script></body></html>`,
   ].join(""));
   const { chromium } = require("playwright");
@@ -597,6 +614,33 @@ async function clientCheck() {
         `${w}: «Пакет партнёру» links to the packets panel with this application`);
       await packet.click();
       check(await page.evaluate(() => document.getElementById("partner-packets").open), `${w}: «Пакет партнёру» opens the packets panel`);
+      const packets = page.locator("#partner-packets");
+      const packetSelect = packets.getByRole("combobox", { name: "Заявление" });
+      await page.waitForTimeout(100);
+      check(await packetSelect.inputValue() === submitted.universityApplicationId, `${w}: «Пакет партнёру» preselects the row's application in the packet form`);
+      // «Зафиксировать пакет» без подтверждённого ответа, затем «Пакет партнёру» другой строки: форма не
+      // пересоздаётся — «Проверить сохранение» остаётся, выбор заперт, повтор уходит тем же запросом.
+      await packets.getByRole("checkbox").first().check();
+      await packets.getByRole("button", { name: "Зафиксировать пакет" }).click();
+      const retryPrepare = packets.getByRole("button", { name: "Проверить сохранение" });
+      await retryPrepare.waitFor({ timeout: 5000 });
+      await page.getByTestId("v3-profile-application").nth(2).getByRole("button", { name: /^Ещё:/u }).click();
+      await page.getByRole("link", { name: "Пакет партнёру" }).filter({ visible: true }).click();
+      await page.waitForTimeout(150);
+      const retryKept = await retryPrepare.isVisible();
+      check(retryKept && await retryPrepare.isEnabled() && await packetSelect.inputValue() === submitted.universityApplicationId && await packetSelect.isDisabled(),
+        `${w}: an uncertain «Зафиксировать пакет» survives «Пакет партнёру» of another row — the retry stays, the choice stays locked`);
+      check(await packets.getByRole("button", { name: "Обновить историю и составы" }).isDisabled(), `${w}: while the packet result is uncertain, the history stays blocked`);
+      if (retryKept) {
+        await retryPrepare.click();
+        await page.waitForFunction(() => window.__route.calls.filter((call) => call.name === "preparePartnerPacketAction").length === 2, null, { timeout: 5000 });
+        await retryPrepare.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: join(outDir, `route-client-packet-uncertain-${w}.png`) });
+      }
+      const prepares = (await page.evaluate(() => window.__route.calls)).filter((entry) => entry.name === "preparePartnerPacketAction");
+      check(prepares.length === 2 && prepares[0].input.applicationId === submitted.universityApplicationId
+        && JSON.stringify(prepares[1].input) === JSON.stringify(prepares[0].input),
+        `${w}: «Проверить сохранение» resends the retained payload with the same requestId (${prepares.map((entry) => entry.input?.requestId).join(", ")})`);
       // «Документы программы»: раскрытие в строке, чтение документов (заглушка отвечает ошибкой — это видно словами).
       const disclosure = page.getByTestId("v3-profile-application").first().getByRole("button", { name: "Документы программы" });
       await disclosure.click();
@@ -615,7 +659,10 @@ async function clientCheck() {
         `${w}: Esc closes the picker, focus back on «Вуз из каталога»`);
       // «Добавить вручную» — прежнее окно ручного ввода.
       await page.getByTestId("v3-application-create-launcher").click();
-      check(await page.getByTestId("v3-application-create-dialog").isVisible(), `${w}: «Добавить вручную» opens the manual application window`);
+      check(await page.getByTestId("v3-application-create-dialog").isVisible()
+        && await page.getByTestId("v3-application-create-dialog").getByRole("checkbox", { name: "Ввести вручную" }).isChecked(),
+        `${w}: «Добавить вручную» opens the manual application window with manual entry preselected`);
+      await page.screenshot({ path: join(outDir, `route-client-manual-${w}.png`) });
       await page.keyboard.press("Escape");
       // Запросы без подтверждённого результата: выбор из каталога и подготовка документов.
       await page.evaluate(({ selectionKey, requirementsKey, selection, requirements }) => {
@@ -639,6 +686,13 @@ async function clientCheck() {
       await page.waitForTimeout(150);
       check(await page.getByTestId("v3-profile-application").first().getByRole("button", { name: "Повторить сохранённый запрос" }).isVisible(),
         `${w}: a retained programme-documents request stays reachable inside the row`);
+      // Хранилище с нечитаемым запросом — не «выбор не подтверждён», а «не удалось прочитать».
+      await page.evaluate((key) => sessionStorage.setItem(key, "{"), selectionKey);
+      await page.reload({ waitUntil: "load" });
+      await page.getByTestId("v3-profile-admissions-workspace").waitFor();
+      const storageLine = page.getByTestId("v3-profile-admissions-workspace").locator('p[role="status"]').filter({ hasText: "Проверить" });
+      check(await storageLine.textContent() === "Не удалось прочитать сохранённый запрос. Проверить",
+        `${w}: an unreadable stored selection is named as such next to the button`);
       check(errors.length === 0, `${w}: no page errors (${errors.join("; ")})`);
       await context.close();
     }

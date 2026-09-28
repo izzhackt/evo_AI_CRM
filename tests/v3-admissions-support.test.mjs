@@ -138,7 +138,10 @@ const historyUI = compile("src/components/v3/profile/StudentProfileExportHistory
   if (id === "./UniversityFormExportPanel") return universityPanel;
   return common(id);
 });
-const ui = compile("src/components/v3/profile/CaseOperationsForms.tsx", id => id === "./StudentProfileExportHistory" ? historyUI : common(id));
+// Э8.2: подтверждения пакетов партнёру — общая тёмная кнопка очереди `QUEUE_CONFIRM`.
+const queueButtons = compile("src/components/v3/queue/queue-buttons.ts");
+const ui = compile("src/components/v3/profile/CaseOperationsForms.tsx", id => id === "./StudentProfileExportHistory" ? historyUI
+  : id === "../queue/queue-buttons" ? queueButtons : common(id));
 const words = wording.partnerPacketExport;
 const CASE = "64016900-0000-4000-8000-000000000001";
 const APP = "64016900-0000-4000-8000-000000000002";

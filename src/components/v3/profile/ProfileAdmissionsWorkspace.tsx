@@ -559,6 +559,7 @@ function UniversityRowItem({
     details?.decisionNote ?? null,
   ].filter((part): part is string => part !== null);
   const meta = [...row.facts, row.addedBy ? `Добавил: ${row.addedBy}` : null].filter((part): part is string => part !== null);
+  const more = Boolean(application?.latestEvidenceReference) || partner.length > 0 || partnerLink !== null;
 
   const panels = writable && application ? (
     [
@@ -588,7 +589,11 @@ function UniversityRowItem({
       data-application-id={row.applicationId}
       data-primary={row.primary ? "true" : "false"}
     >
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 [grid-template-areas:'main_menu'_'path_path'] @min-[48rem]/unis:grid-cols-[minmax(0,1fr)_minmax(0,20rem)_auto] @min-[48rem]/unis:[grid-template-areas:'main_path_menu']">
+      {/* Порядок чтения: вуз · программа, путь и срок, затем подтверждение и партнёр. На узком экране так
+          и стоят строками; с 48rem путь и срок — колонкой справа, подтверждение и партнёр — под вузом. */}
+      <div className={more
+        ? "grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 [grid-template-areas:'main_menu'_'path_path'_'more_more'] @min-[48rem]/unis:grid-cols-[minmax(0,1fr)_minmax(0,20rem)_auto] @min-[48rem]/unis:grid-rows-[auto_1fr] @min-[48rem]/unis:[grid-template-areas:'main_path_menu'_'more_path_menu']"
+        : "grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 [grid-template-areas:'main_menu'_'path_path'] @min-[48rem]/unis:grid-cols-[minmax(0,1fr)_minmax(0,20rem)_auto] @min-[48rem]/unis:[grid-template-areas:'main_path_menu']"}>
         <div className="min-w-0 [grid-area:main]">
           <p className="break-words t-item text-fg">
             {row.university}
@@ -598,15 +603,6 @@ function UniversityRowItem({
             {row.program ?? "Программа не указана"}{row.intake ? ` · ${row.intake}` : ""}
           </p>
           {meta.length ? <p className="mt-0.5 break-words t-meta text-fg-2">{meta.join(" · ")}</p> : null}
-          {application?.latestEvidenceReference ? (
-            <p className="mt-0.5 break-words t-meta text-fg-2">Подтверждение: {application.latestEvidenceReference}</p>
-          ) : null}
-          {partner.length ? <p className="mt-0.5 break-words t-meta text-fg-2">{partner.join(" · ")}</p> : null}
-          {partnerLink ? (
-            <a href={partnerLink} target="_blank" rel="noopener noreferrer" className="-my-1.5 inline-flex min-h-11 items-center t-meta text-accent-text underline underline-offset-4">
-              Ссылка партнёра (откроется в новой вкладке)
-            </a>
-          ) : null}
         </div>
         <div className="min-w-0 space-y-1 [grid-area:path] @min-[48rem]/unis:pt-0.5">
           <UniversityPath row={row} />
@@ -619,6 +615,19 @@ function UniversityRowItem({
             </p>
           ) : null}
         </div>
+        {more ? (
+          <div className="min-w-0 space-y-0.5 [grid-area:more]">
+            {application?.latestEvidenceReference ? (
+              <p className="break-words t-meta text-fg-2">Подтверждение: {application.latestEvidenceReference}</p>
+            ) : null}
+            {partner.length ? <p className="break-words t-meta text-fg-2">{partner.join(" · ")}</p> : null}
+            {partnerLink ? (
+              <a href={partnerLink} target="_blank" rel="noopener noreferrer" className="-my-1.5 inline-flex min-h-11 items-center t-meta text-accent-text underline underline-offset-4">
+                Ссылка партнёра (откроется в новой вкладке)
+              </a>
+            ) : null}
+          </div>
+        ) : null}
         {/* Колонка «⋯» — 44 px у каждой строки: путь и срок стоят на одной линии и там, где «⋯» нет. */}
         <div className="-me-2 -mt-2.5 w-11 [grid-area:menu]">
           {writable || packet ? (

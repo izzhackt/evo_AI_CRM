@@ -65,7 +65,7 @@ function ApplicationCreateForm({
           (ProfileAdmissionsWorkspace.tsx, «Отметить статус»). */}
       <input type="hidden" name="status" value="preparation" />
       <fieldset disabled={locked} className="grid gap-3">
-        <ApplicationUniversitySelector key={workspace.studentCaseId} />
+        <ApplicationUniversitySelector key={workspace.studentCaseId} defaultManual />
         <label>
           <span className={fieldLabelCls}>Программа</span>
           <input name="program_name" maxLength={300} className={inputCls} />
@@ -149,9 +149,11 @@ function ApplicationCreateDialogBody({
 }
 
 /**
- * Launcher + the small search dialog it opens (see file header). Э8.2: на
+ * Launcher + the small dialog it opens (see file header). Э8.2: на
  * «Вузах и программах» одна кнопка добавления — «+ Вуз из каталога»; ручной
  * ввод — тихая ссылка «Добавить вручную» (каталог покрывает шесть стран).
+ * Окно так и открывается — с включённым «Ввести вручную»; связь с
+ * университетом каталога остаётся снятием флажка.
  */
 export function ApplicationCreateDialog({
   workspace,

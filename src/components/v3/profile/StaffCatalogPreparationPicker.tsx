@@ -64,7 +64,8 @@ export function CatalogPreparationLauncher({ primary, ...picker }: PickerProps &
   };
   return <>
     {retained || blocked ? <p role="status" className="order-last basis-full t-body-compact text-fg-2">
-      Выбор из каталога не подтверждён.{" "}
+      {/* Хранилище браузера не читается — это ещё не неподтверждённый выбор; слова — как в окне. */}
+      {retained ? "Выбор из каталога не подтверждён." : "Не удалось прочитать сохранённый запрос."}{" "}
       <button type="button" className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4" onClick={open}>Проверить</button>
     </p> : null}
     <button ref={triggerRef} type="button" className={primary ? btnCls : QUEUE_SECONDARY} aria-haspopup="dialog" onClick={open} data-testid="v3-catalog-preparation-launcher">

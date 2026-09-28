@@ -153,6 +153,9 @@ test("one list, one add button: the catalogue is the page's main action unless �
   assert.match(lead, /id="handoff-acknowledgement"[\s\S]*?Принять дело/u, "lead: «Приём дела» stays");
   assert.match(lead, /<button[^>]*class="v3-raised [^"]*bg-surface[^"]*"[^>]*data-testid="v3-catalog-preparation-launcher"/u, "lead: the catalogue button is neutral");
   assert.match(surfaces.get("empty"), /data-testid="v3-universities-empty">Вузов пока нет\. Добавленный вуз — это вариант, а не подача документов\.<\/p>/u);
+  assert.doesNotMatch(surfaces.get("empty"), /id="partner-packets"/u, "empty: no packets panel — nothing to build a packet from");
+  // Телефон: главная кнопка первой, тихая ссылка под ней; с 48rem ссылка — перед кнопкой в строке.
+  assert.match(surfaces.get("decision"), /<div class="order-last flex flex-wrap items-center gap-x-1\.5 t-body-compact text-fg-2 @min-\[48rem\]\/unis:order-none"><span>Вуза нет в каталоге\?<\/span>/u);
 });
 
 test("a row: university · program · intake, the path with one chip, the deadline and who added it", () => {
@@ -162,8 +165,11 @@ test("a row: university · program · intake, the path with one chip, the deadli
   const [main, submitted, decided] = rows.map((row) => text(visible(row)));
   assert.match(rows[0], /data-primary="true"/u);
   assert.match(main, /^Шанхайский университет ★ основной Международная торговля · Осень 2027 Китай · Бакалавриат · Добавил: Айгүл Осмонова вариант → заявка подана → решение Срок подачи 30\.11 через 68 дн Документы программы$/u);
-  assert.match(submitted, /Подтверждение: Номер заявления 0000 \(синтетика\) вариант → заявка подана → решение Срок подачи 30\.09$/u);
-  assert.match(decided, /Партнёр: Партнёр «Синтетика» · Решение: Оффер № 0000 Ссылка партнёра \(откроется в новой вкладке\) вариант → заявка подана → получен оффер Срок подачи 15\.08$/u);
+  // Порядок чтения: путь и срок — до подтверждения и партнёра (на телефоне это и порядок строк).
+  assert.match(submitted, /Добавил: Айгүл Осмонова вариант → заявка подана → решение Срок подачи 30\.09 Подтверждение: Номер заявления 0000 \(синтетика\)$/u);
+  assert.match(decided, /вариант → заявка подана → получен оффер Срок подачи 15\.08 Партнёр: Партнёр «Синтетика» · Решение: Оффер № 0000 Ссылка партнёра \(откроется в новой вкладке\)$/u);
+  assert.match(rows[1].replaceAll("&#x27;", "'"), /\[grid-template-areas:'main_menu'_'path_path'_'more_more'\][^"]*@min-\[48rem\]\/unis:\[grid-template-areas:'main_path_menu'_'more_path_menu'\]/u);
+  assert.doesNotMatch(rows[0], /more_more|\[grid-area:more\]/u, "a row without evidence or partner has no second area");
   // Текущий шаг — одно слово-чип; остальные шаги — текст.
   for (const row of rows) assert.equal([...row.matchAll(/class="v3-chip t-caption"/gu)].length, 1);
   assert.match(rows[1], /<li class="flex items-center gap-1\.5" aria-current="step"><span aria-hidden="true" class="text-fg-3">→<\/span><span class="v3-chip t-caption" data-tone="neutral">заявка подана<\/span><\/li>/u);
@@ -223,4 +229,27 @@ test("the page wires the tab address and a validated packet preselection; reads 
   assert.match(panel, /useStaffPending\(scope, "requirements", preparation\.applicationId\)/u);
   assert.match(panel, /const anchorOpen = hash === `#\$\{id\}`;/u);
   assert.match(panel, /className=\{QUEUE_CONFIRM\} onClick=\{\(\) => void initialize\(\)\}/u, "the recovery confirm is dark, not a second red");
+  // Строка у кнопки: неподтверждённый выбор и нечитаемое хранилище браузера названы по-разному.
+  assert.match(picker, /\{retained \? "Выбор из каталога не подтверждён\." : "Не удалось прочитать сохранённый запрос\."\}/u);
+  // Редактор списка документов открывается в строке вуза: его подтверждения — тёмные, не второй красный.
+  const editor = read("src/components/v3/profile/StaffRequirementsEditor.tsx");
+  assert.doesNotMatch(editor, /\bbtnCls\b/u);
+  assert.match(editor, /className=\{QUEUE_CONFIRM\} disabled=\{sending \|\| retained\.blocked\} onClick=\{\(\) => void save\(true\)\}/u);
+  assert.match(editor, /<button type="submit" className=\{QUEUE_CONFIRM\} disabled=\{locked \|\| loading\}>/u);
+});
+
+test("the packet form is not recreated by «⋯ → Пакет партнёру»: an uncertain prepare keeps its retry", () => {
+  const forms = read("src/components/v3/profile/CaseOperationsForms.tsx");
+  // Одна тёмная кнопка очереди, без копии.
+  assert.doesNotMatch(forms, /const CONFIRM =/u);
+  assert.equal([...forms.matchAll(/className=\{QUEUE_CONFIRM\}/gu)].length, 3);
+  // Без ключа по выбранной заявке: пересоздание формы теряло удержанный запрос (`frozen`) и повтор.
+  assert.match(forms, /<PreparePartnerPacketForm caseId=\{caseId\}/u);
+  assert.doesNotMatch(forms, /<PreparePartnerPacketForm key=/u);
+  // Новая заявка выбирается только свободной формой: не во время запроса, не при неизвестном итоге.
+  assert.match(forms, /if \(requested && requested !== adopted && !command\.blocked\) \{/u);
+  assert.match(forms, /const payload = frozen\.current \?\? input; frozen\.current = payload;/u);
+  // Поведение в браузере с настоящим React — tests/e2e/case-route-static-render.cjs --client.
+  const harness = read("tests/e2e/case-route-static-render.cjs");
+  assert.match(harness, /an uncertain «Зафиксировать пакет» survives «Пакет партнёру» of another row/u);
 });

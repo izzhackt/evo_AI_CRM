@@ -299,24 +299,33 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.match(blocked, /<time dateTime="2026-09-26T08:15:00.000Z" class="font-mono tabular-nums text-fg">26\.09 14:15<\/time>/u);
 });
 
-// «Заявки» стоят в «Общем» первыми (Э6). Переписки — в своих отделах (решение
-// владельца 27.09.2026 вместо одного пункта «Переписки» Э5): WhatsApp — в
-// «Продажах», «Переписка» (28.09.2026) — в «Поступлении»; в «Общем» их нет.
-test("menu: «Заявки» lead «Общее»; WhatsApp stands in «Продажи» and «Переписка» in «Поступление»", () => {
+// «Заявки» — первыми в «Продажах» (решение владельца 28.09.2026; с Э6 до него
+// — первыми в «Общем»), у каждой из трёх ролей: у куратора поступления тоже —
+// маршрут ему открыт (`lead.read`), а D скрывает только доску и WhatsApp.
+// Переписки — в своих отделах (решение владельца 27.09.2026 вместо одного
+// пункта «Переписки» Э5): WhatsApp — в «Продажах», «Переписка» (28.09.2026) — в
+// «Поступлении»; в «Общем» их нет.
+test("menu: «Заявки» lead «Продажи»; WhatsApp stands in «Продажи» and «Переписка» in «Поступление»", () => {
   for (const role of ["admin", "admissions", "sales"]) {
     const html = page(`menu-${role}`);
     const common = html.match(/<section aria-label="Общее"[\s\S]*?<\/section>/u)?.[0] ?? assert.fail(`${role}: «Общее»`);
     const labels = [...common.matchAll(/<span class="min-w-0[^"]*">([^<]+)<\/span>/gu)].map((match) => match[1]);
-    for (const moved of ["Переписки", "WhatsApp", "Переписка"]) {
+    for (const moved of ["Переписки", "WhatsApp", "Переписка", "Заявки"]) {
       assert.equal(labels.includes(moved), false, `${role}: no «${moved}» in «Общее» (${labels})`);
     }
-    assert.equal(labels[0], "Заявки", `${role}: «Заявки» leads «Общее»`);
+    assert.equal(labels[0], "Задачи", `${role}: «Задачи» lead «Общее»`);
     const menu = html.slice(0, html.indexOf('aria-label="Общее"'));
-    assert.doesNotMatch(menu, /href="\/v3\/requests"/u, `${role}: no department group holds «Заявки»`);
+    // «Продажи» — группа с кнопкой отдела; её первый пункт — «Заявки».
+    const salesGroup = menu.match(/<span class="min-w-0 flex-1">Продажи<\/span>[\s\S]*?<\/button><ul [^>]*>([\s\S]*?)<\/ul>/u)?.[1] ?? assert.fail(`${role}: «Продажи»`);
+    const salesItems = [...salesGroup.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
+    assert.equal(salesItems[0], "/v3/requests", `${role}: «Заявки» lead «Продажи» (${salesItems})`);
+    assert.equal([...menu.matchAll(/href="\/v3\/requests"/gu)].length, 1, `${role}: «Заявки» stand once`);
     // Отдел пункта — по порядку меню: WhatsApp — между «Воронкой продаж» и
     // «Отчётом продаж», «Переписка» — сразу после «Воронки поступления».
     const order = [...menu.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
     const after = (href, previous) => order.indexOf(href) === order.indexOf(previous) + 1;
+    if (role === "admissions") assert.ok(after("/v3/main?view=sales", "/v3/requests"), `${role}: D leaves «Заявки» and «Отчёт продаж» (${order})`);
+    else assert.ok(after("/v3/pipeline", "/v3/requests"), `${role}: the board follows «Заявки» (${order})`);
     if (role === "admissions") assert.equal(order.includes("/v3/inbox"), false, `${role}: the sales WhatsApp is not an admissions item`);
     else assert.ok(after("/v3/inbox", "/v3/pipeline") && after("/v3/main?view=sales", "/v3/inbox"), `${role}: WhatsApp in «Продажи» (${order})`);
     if (role === "sales") assert.equal(order.includes("/v3/messages"), false, `${role}: no student chat for sales`);

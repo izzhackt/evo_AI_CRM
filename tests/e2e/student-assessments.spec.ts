@@ -25,8 +25,15 @@ async function login(page: Page, kind = "STUDENT") {
   await expect(page).toHaveURL(kind === "ADMIN" ? /\/v3\/main$/ : /\/portal$/);
 }
 
+// PORT-2 (#867): «Выйти» lives in the account menu of the portal top bar.
+async function logout(page: Page) {
+  await page.getByRole("banner").locator("details.pt-user-menu > summary").click();
+  await page.getByRole("button", { name: "Выйти", exact: true }).click();
+}
+
 async function saved(page: Page) {
-  await expect(page.getByRole("status")).toHaveText("Все ответы сохранены", { timeout: 30_000 });
+  // The portal shell has its own status regions (notifications, pending nav).
+  await expect(page.getByTestId("assessment-runner").getByRole("status")).toHaveText("Все ответы сохранены", { timeout: 30_000 });
 }
 
 async function screenshot(page: Page, name: string) {
@@ -42,6 +49,8 @@ async function screenshot(page: Page, name: string) {
 }
 
 async function quality(page: Page) {
+  // The route's streamed loading fallback is also a <main> until it is revealed.
+  await expect(page.locator('main[aria-busy="true"]')).toHaveCount(0);
   await expect(page.locator("main")).toBeVisible();
   await expect(page.locator("nextjs-portal [data-nextjs-dialog]")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
@@ -92,7 +101,7 @@ test("English: actual UI save, logout/resume, immutable completion and owner-onl
   await quality(page); await screenshot(page, "assessments-desktop-english-question.png");
   await page.getByRole("button", { name: "Сохранить и выйти" }).click();
   await expect(page).toHaveURL(/\/portal\/tests$/);
-  await page.getByRole("button", { name: "Выйти", exact: true }).click();
+  await logout(page);
   await login(page);
   await page.goto(attemptUrl);
   await expect(page.getByRole("heading", { name: "Задание 4 из 36", exact: true })).toBeVisible();
@@ -173,7 +182,7 @@ test("unsaved answers survive immediate portal navigation, logout and browser Ba
     await expect(page).toHaveURL(attemptUrl);
     await expect(page.getByTestId("assessment-runner").getByRole("alert")).toContainText("Переход остановлен");
     await expect(last).toBeChecked();
-    await page.getByRole("button", { name: "Выйти", exact: true }).click();
+    await logout(page);
     await expect(page).toHaveURL(attemptUrl); await expect(last).toBeChecked();
     // The previous entry was a full document navigation. Explicitly choose
     // "stay": Playwright auto-accepts beforeunload when no handler is present.

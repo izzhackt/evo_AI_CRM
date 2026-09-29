@@ -126,6 +126,9 @@ chmod 600 "$supabase_log" "$provision_log" "$second_provision_log" "$app_log" "$
 cp -R "$repo_root/src" "$repo_root/public" "$app_root/"
 mkdir -p "$app_root/supabase"
 cp -R "$repo_root/supabase/assessment-content" "$app_root/supabase/"
+# src/lib/university-photo-url.ts imports this manifest at build time (#939).
+mkdir -p "$app_root/scripts/portal"
+cp "$repo_root/scripts/portal/university-photos-manifest.json" "$app_root/scripts/portal/"
 for config_file in package.json package-lock.json tsconfig.json next.config.ts postcss.config.mjs; do
   cp "$repo_root/$config_file" "$app_root/$config_file"
 done

@@ -53,6 +53,10 @@ test("the Student workspace preserves four portal pages, private tests and publi
     "src/app/(portal)/portal/messages/page.tsx",
     "src/app/(portal)/portal/notifications/[notificationId]/page.tsx",
     "src/app/(portal)/portal/notifications/page.tsx",
+    // c47a8137c (#1000, 2026-09-21): package workflows add their own
+    // notification deep-link and a standalone recovery entry point.
+    "src/app/(portal)/portal/package-notifications/[notificationId]/page.tsx",
+    "src/app/(portal)/portal/package-recovery/page.tsx",
     "src/app/(portal)/portal/page.tsx",
     "src/app/(portal)/portal/payments/page.tsx",
     "src/app/(portal)/portal/preparations/[applicationId]/page.tsx",
@@ -95,13 +99,15 @@ test("the Student workspace preserves four portal pages, private tests and publi
 
 test("the portal uses the Student guard and never mounts the staff shell", () => {
   const layout = source("src/app/(portal)/layout.tsx");
-  // PORT-2: the layout mounts the new portal Shell and derives the access
-  // tier from caseState with the exact semantics PORT-1a will move server-side.
+  // PORT-2: the layout mounts the new portal Shell. PORT-1a (#928, d1404aef1)
+  // moved the access-tier derivation server-side into the authority read
+  // itself, so the layout now just forwards actor.accessTier.
   const shell = source("src/components/portal/Shell.tsx");
+  const authority = source("src/lib/supabase/student-portal-authority.ts");
 
   assert.match(layout, /requireStudentPortalActor\(\)/u);
-  assert.match(layout, /<Shell displayName=\{actor\.displayName\} accessTier=\{accessTier\} locale=\{locale\}>/u);
-  assert.match(layout, /actor\.caseState === "pending" \? "approved" : "assisted"/u);
+  assert.match(layout, /<Shell displayName=\{actor\.displayName\} accessTier=\{actor\.accessTier\} locale=\{locale\}>/u);
+  assert.match(authority, /accessTier: portalCase\.case_state === "pending" \? "approved" : "assisted"/u);
   assert.match(shell, /logoutStudentPortalAction/u);
   assert.doesNotMatch(
     `${layout}\n${shell}`,
@@ -182,7 +188,16 @@ test("every page passes the direct strict E2 result to its view", () => {
     // PORT-6a: страницы дополнительно читают locale (тем же Promise.all) и
     // передают его view — RU/KY словарь admission резолвится на сервере.
     if (resultName === "overview") {
-      assert.match(page, /const \[overview, actor, locale\] = await Promise\.all\(\[readStudentPortalOverview\(\), requireStudentPortalActor\(\), getLocale\(\)\]\)/u);
+      // 17c60966f (#967, 2026-09-21): overview stopped being a same-Promise.all
+      // strict read — the reader now gets its own honest `.catch(() => undefined)`
+      // (paired with readStudentCatalogPreparations) so a failed E2 call shows
+      // the honest overviewUnavailable state instead of throwing the whole page.
+      assert.match(page, /const \[actor, locale\] = await Promise\.all\(\[requireStudentPortalActor\(\), getLocale\(\)\]\)/u);
+      assert.match(
+        page,
+        /const \[overview, preparations\] = await Promise\.all\(\[\s*readStudentPortalOverview\(\)\.catch\(\(\) => undefined\),\s*readStudentCatalogPreparations\(actor\.studentCaseId\)\.catch\(\(\) => null\),\s*\]\)/u,
+      );
+      assert.match(page, /overview === undefined \? <p className="pt-prep-error" role="status">\{preparationStrings\.overviewUnavailable\}<\/p> : </u);
       assert.match(page, /<CaseHelpWorkspace actor=\{actor\} caseId=\{actor\.studentCaseId\} student/u);
       assert.match(page, /pending=\{actor\.caseState === "pending"\}/u);
     } else {
@@ -566,14 +581,14 @@ test("Student stage wording matches the exact schema and published OZO lifecycle
 test("existing case portal views stay presentation-only and never render raw status keys", () => {
   // PORT-5d: экраны «Моего поступления» живут в portal/admission. PORT-8c:
   // экраны тестов переехали в portal/tests (их клиентский раннер сохраняет
-  // useEffect-механику и закреплён tests/student-assessments.test.mjs);
-  // Уведомления перенесены в Atlas header; admission views остаются presentation-only.
-  const componentFiles = [
-    ...filesUnder("src/components/v3/portal/")
-      .filter((path) => path.endsWith(".tsx")),
-    ...filesUnder("src/components/portal/admission/")
-      .filter((path) => path.endsWith(".tsx")),
-  ];
+  // useEffect-механику и закреплён tests/student-assessments.test.mjs).
+  // d1404aef1 (#928, 2026-09-20) увёл последний файл из
+  // src/components/v3/portal/ (PortalNotificationUpdates.tsx) в
+  // src/components/portal/ — каталог src/components/v3/portal/ не существует
+  // вовсе (проверено ниже), поэтому сканируем только portal/admission.
+  assert.equal(existsSync(new URL("src/components/v3/portal/", ROOT)), false);
+  const componentFiles = filesUnder("src/components/portal/admission/")
+    .filter((path) => path.endsWith(".tsx"));
   const components = componentFiles.map(source).join("\n");
 
   assert.doesNotMatch(
@@ -584,10 +599,23 @@ test("existing case portal views stay presentation-only and never render raw sta
     components,
     /createClient|supabase|sqlite|drizzle|Realtime|Fixture|Legacy|Connected/u,
   );
+  // PortalNotificationUpdates.tsx (live poller, useEffect by design) now
+  // lives at src/components/portal/ — outside this admission/-only scan, so
+  // it needs no exclusion here any more; it is checked separately below.
+  // PortalNotificationReadForm.tsx (436865af5, #1015, 2026-09-21) is a
+  // client form wrapper, not a view: its useEffect only restores keyboard
+  // focus after a failed submit and touches no read model — the actual
+  // views (OverviewView, DocumentsView, PaymentsView, NotificationsView,
+  // PortalStatus, presentation.ts) still may not use it.
   const presentationViews = componentFiles
-    .filter(path => !path.endsWith("/PortalNotificationUpdates.tsx"))
+    .filter((path) => !path.endsWith("/PortalNotificationReadForm.tsx"))
     .map(source).join("\n");
   assert.doesNotMatch(presentationViews, /useEffect/u);
+  // Исключение узкое: ровно один эффект, и он только возвращает фокус.
+  const readForm = source("src/components/portal/admission/PortalNotificationReadForm.tsx");
+  assert.equal(readForm.match(/useEffect\(/gu)?.length, 1);
+  assert.match(readForm, /useEffect\(\(\) => \{\s*if \(!failed \|\| pending \|\| !restoreFocusRef\.current\) return;[\s\S]*?\?\.focus\(\);\s*\}\s*\}, \[/u);
+  assert.doesNotMatch(readForm, /@\/lib\/|fetch\(|setInterval|router\.refresh/u);
   const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
   assert.match(updates, /loadStudentPortalNotificationState/u);
   assert.match(source("src/lib/student-portal-notification-updates.ts"), /requireStudentPortalActor/u);

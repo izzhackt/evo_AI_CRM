@@ -44109,4 +44109,53 @@ prod server allowlist идентичен demo (133/56). Если флаг вкл
   Серверные фасет-счётчики требуют миграции — вне объёма, пока P7A выключен в
   production.
 
-Регрессия и проверки — заполняется по факту прогона ниже.
+Регрессия — новый real-Postgres suite на реальном пути:
+`supabase/tests/platform_audit_journal_contract.sql` запускается на
+ПОСЛЕДНЕЙ цепочке миграций (`scripts/test-postgres-authorization.sh`, сразу
+после `platform_today_university_deadlines.sql`): вставляет один
+`platform.audit_events` на каждое текущее server-safe действие
+(`platform_private.p7a_safe_audit_actions()`), читает их постранично через
+реальный `platform.search_audit_events()` от имени настоящего Platform
+Admin (`is_system_admin`, смоделирован по 155, как в admin-фикстуре
+`platform_today_university_deadlines.sql`), проверяет, что множество
+прочитанных действий точно совпадает с серверным, и печатает живой
+серверный контракт и каждую прочитанную страницу для
+`scripts/check-platform-audit-journal-contract.mjs` — тот прогоняет
+настоящий `normalizePlatformAuditSearchResult` по каждой странице и
+сравнивает action/resource-type/field-code множества TS и сервера (только
+node builtins + `--experimental-strip-types`, без `npm ci` — подходит для
+быстрого PR job «Migration boundary»).
+
+RED/GREEN чекера: прогон против captured-данных демо-БД (ledger 254) со
+scratch-копией `origin/main`'ного `src/lib/platform-audit.ts` называет ровно
+23 отсутствующих действия, 5 отсутствующих типов объектов, 15 отсутствующих
+кодов и рушится на первой странице (`normalizePlatformAuditSearchResult`
+бросает); с исправленным файлом расхождений нет, все захваченные строки
+`recognized: true` (50/50 на файле без фильтра, воспроизводящем исходный
+дефект: `repro/search-no-filter.json`).
+
+Полный прогон: `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries`
+(254 миграции + все привязанные suite, включая новый) — зелёный:
+«P7A journal contract check passed: 133 actions, 56 resource types, 2
+page(s), 133 rows, all recognized.», завершается «Verified disposable
+authorization database».
+
+Другие проверки:
+- `npm run typecheck` — зелёный.
+- `eslint` изменённых файлов — зелёный (без предупреждений после
+  intersection-фикса `PlatformAuditCsvRow`).
+- `npm run build` (полная сборка) — зелёный.
+- `node --conditions=react-server --experimental-strip-types --test
+  tests/platform-audit.test.mjs tests/platform-audit-csv.test.mjs
+  tests/platform-audit-export-route.test.mjs
+  tests/v3-settings-journal-contract.test.mjs
+  tests/v3-e8-critical-fixes.test.mjs` — все зелёные (38/38).
+- `git diff --check` — чисто; новые файлы проверены на висячие пробелы
+  вручную (grep).
+
+Не проверено:
+- Реальный браузерный проход по `/v3/settings?section=journal` на
+  авторизованной staff-сессии — правка подтверждена юнит-тестами и
+  реал-Postgres suite, не браузером.
+- Production: `EVO_PLATFORM_P7A_AUDIT_ENABLED` выключен, поэтому живого
+  влияния на пользователей нет; в production не входили.

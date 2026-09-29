@@ -340,11 +340,22 @@ export async function readJournal(
 export async function readJournalFacets(
   actor: ActivePlatformActor,
 ): Promise<Readonly<{
-  objectTypes: readonly Readonly<{ key: string; count: number }>[];
+  objectTypes: readonly Readonly<{ key: string; count: number | null }>[];
 }>> {
   const result = await loadAuditRows(actor, undefined, AUDIT_PAGE_SIZE);
-  // Counts over a truncated page would look exact. Omit the facets instead.
-  if (result.hasMore) return { objectTypes: [] };
+  if (result.hasMore) {
+    // A count over a truncated page would look exact when it is not. The
+    // chip still names every object type seen on this newest page — a type
+    // that only occurs further back has no chip until it is read again on a
+    // complete page — just without a number.
+    const seen = new Set<string>();
+    for (const row of result.rows) seen.add(row.resourceType);
+    return {
+      objectTypes: [...seen]
+        .sort((left, right) => left.localeCompare(right))
+        .map((key) => ({ key, count: null })),
+    };
+  }
 
   const counts = new Map<string, number>();
   for (const row of result.rows) {

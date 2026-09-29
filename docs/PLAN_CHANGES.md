@@ -44408,3 +44408,217 @@ project only by the checkout folder name and random TEMP ids (the Sources and
 Resources set is identical), so the project file is not regenerated. Real
 simulator walkthrough of the transitions above is still pending, as is the
 exit-while-read-required confirmation, which unit tests do not exercise.
+
+## 2026-09-29 — «Журнал действий»: серверный allowlist аудита расширен на 72 действия (предложение, миграция 255)
+
+Причина: `docs/EVO_LAUNCH_PLAN.md` — следующий шаг журнала. Канонический
+Supabase уже пишет `platform.audit_events` для намного большего числа
+действий, чем допускает серверный allowlist `platform_private.p7a_safe_audit_actions()`/
+`p7a_safe_audit_resource_types()` (071, расширялся 14 раз до 191, ledger
+254): продажи, реестр продаж, роли сотрудников, задачи сотрудников,
+командный чат, файлы компании, экспорты анкеты студента/документов,
+передача/замещение куратора и другие — пишутся, но `platform.search_audit_events()`/
+`export_audit_events()` их не проецируют, поэтому в «Журнале действий»
+(`/v3/settings?section=journal`) их не видно вовсе, даже при включённом
+`EVO_PLATFORM_P7A_AUDIT_ENABLED`. Из 101 действия, которое пишется, но не
+allowlist-нуто (перечень предоставлен лидом), это предложение расширяет
+allowlist на 72 действия/15 типов объектов; 28 действий остаются намеренно
+невидимыми, и одно (`case.contract_file.upload`) отложено — независимый
+ранее не пойманный дефект уже применённой миграции 189, найденный при
+проверке этой задачи — таблицы и причины ниже.
+
+**Это ПРЕДЛОЖЕНИЕ. Миграция 255 не применена ни к одной базе** — ни к
+production, ни к disposable Postgres проверки (та проверка накатывает
+миграцию во временный контейнер и удаляет его; см. «Полный прогон» ниже).
+`EVO_PLATFORM_P7A_AUDIT_ENABLED` выключен в production. Применение схемы
+(миграция 255) и выпуск приложения — отдельные gate-ы владельца из
+`docs/EVO_LAUNCH_PLAN.md`; слияние этой ветки в `main` подвинуло бы
+репозиторий впереди production ledger (сейчас 254), поэтому мержить можно
+только вместе с одобренным владельцем применением миграции, не раньше.
+
+Агрегаты (даны лидом по более раннему read-only срезу, здесь заново не
+измерялись — цитирую как есть): в production ~44 таких события
+(`team.chat.post`, `company.file.*`, `sales.register.*` …) не входят в
+серверный allowlist и в журнал не попадают; на локальной демо-БД (тот же
+ledger 254, синтетические данные) — 357 таких строк (`lead.sales.workflow.changed`
+×102, `staff.task.create` ×19, `team.chat.post` ×17 …).
+
+Решение — перечень исполнителя-successor (я), 72 INCLUDE / 28 EXCLUDE / 1
+DEFERRED (101 = 72 + 28 + 1, сходится):
+
+**INCLUDE (72), сгруппировано по writer-файлу:**
+
+| Действия | Writer | Тип объекта |
+|---|---|---|
+| `application.document.review` | 228 (staff-only: `application_document_actor` блокирует `document.review` для `platform_role='student'`, 228:90-91) | `university_application` |
+| `application.requirements.save` | 226 (только `staff_save_application_requirements_v1`, `p_student=FALSE` жёстко) | `university_application` |
+| `case.coverage.start`, `case.coverage.return` | 133 (`require_admin_actor 'case.curator.assign'`) | `student_case` |
+| `case.handoff.acknowledge`, `case.handoff.clarification`, `case.handoff.decline` | 182 | `student_case` |
+| `case.next.action.change` | 241 (явно staff-only с 241: «Student projections return NULL for it») | `student_case` |
+| `docs.student.create` | 176 (`require_domain_actor 'profile.manage'` + `case.read.full`) | `student_case` |
+| `case.payment.receipt.upload` | 229/230 (`actor_kind='system'`; **переименовано 230** из `case.payment_receipt.upload` — см. «Расхождения» ниже) | `payment_receipt_file` *(новый)* |
+| `case.tranche.save` | 189 (`staff_can_access 'case.update.append'` или Sales-владелец pending-дела) | `payment_obligation` |
+| `lead.lifecycle.change` | 246 | `lead` |
+| `lead.manual.create` | 143 | `lead` |
+| `lead.sale.conditions.save` | 213 (`platform_role IS DISTINCT FROM 'student'`) | `lead` |
+| `lead.sales.workflow.changed` | 086 | `lead` |
+| `lead.website.receive` | 240 (`actor_kind='service'`, evo-website) | `lead` |
+| `sales.register.create/update/archive/restore` | 134, v2 в 253 (`staff_is_sales_manager`) | `sales_register` *(новый)* |
+| `sales.register.pipeline` | 134 | `sales_register` |
+| `sales.register.lead.link/unlink` | 254 (`platform_role IS DISTINCT FROM 'student'`) | `sales_register` |
+| `sales.register.import` | 134 | `sales_register_import` *(новый)* |
+| `sales.register.target` | 134 | `sales_register_target` *(новый)* |
+| `sales.register.manager.label` | 253 (`staff_can_access 'sales.register.import'`) | `sales_manager_label` *(новый)* |
+| `staff.role.create/copy/save/archive/restore/publish` | 155 | `staff_role` *(новый)* |
+| `staff.role.assignments`, `staff.system.admin` | 155 | `membership` *(новый — отличен от существующего `organization_membership`)* |
+| `staff.task.create/edit/status` | 140 (`platform_role IN ('admin','sales','curator')`) | `staff_task` *(новый)* |
+| `team.chat.post/edit/delete/moderate` | 171 (`team_chat_can_access` → `staff_can_access_for_actor`) | `team_chat_message` *(новый)* |
+| `company.file.folder.create/rename/move/archive` | 109 (`auth.jwt()->>'platform_role' IN ('admin','curator')` — только эти две роли) | `company_file_folder` *(новый)* |
+| `company.file.file.create/rename/move/archive` | 109 | `company_file` *(новый)* |
+| `company.file.upload.reserve/finalize` | 109 | `company_file_version` *(новый)* |
+| `company.file.download.grant` | 109 | `company_file_version` |
+| `student.profile.start` | 159 (`require_case_operator 'profile.manage'`) | `student_profile` |
+| `student.profile.field.review` | 160 (`require_case_operator 'profile.manage'`) | `student_profile` |
+| `student.profile.export.attempted/generated/failed` | 161 (`staff_can_access 'profile.read.full'+'document.download'`; RPC только для `service_role`, но действует от имени staff-актора) | `student_profile` |
+| `student.profile.recognition.publish` | 162 (`document_recognition_require_actor` → `staff_membership_identity`+`staff_can_access`) | `student_profile` |
+| `document.export.prepared/begun/sealed/reconciled/ready/failed/unknown`, `download.verified/failed` (9) | 164 (`staff_can_access_for_actor 'profile.read.full'+'document.download'`) | `student_profile` (уже allowlist-нут) |
+| `document.slot.scaninvalidate` | 115 — **одноразовый deploy-бэкфилл**, см. «Расхождения» ниже | `document_slot` (уже allowlist-нут) |
+| `prompt.artifact.publish/retire` | 054 (`require_bw4_admin_actor`) | `ai_prompt_artifact_version` *(новый)* |
+| `work.review.resolve` | 045 (`require_p2f_admin_actor 'workreview.resolve'`) | `work_review_case` *(новый)* |
+| `media.download.grant` | 062 (`require_domain_actor_read 'communication.read.full'`) | `communication_media` *(новый)* |
+
+15 новых типов объектов (выведены из фактических `INSERT INTO
+platform.audit_events`, не из приблизительного списка задания;
+`case_contract_file` исключён вместе с `case.contract_file.upload` — см.
+DEFERRED ниже, оно единственное действие, которое писало бы этот тип):
+`ai_prompt_artifact_version`, `communication_media`,
+`company_file`, `company_file_folder`, `company_file_version`, `membership`,
+`payment_receipt_file`, `sales_manager_label`, `sales_register`,
+`sales_register_import`, `sales_register_target`, `staff_role`,
+`staff_task`, `team_chat_message`, `work_review_case`.
+
+**DEFERRED (1) — не INCLUDE и не EXCLUDE, найдено этой задачей:**
+
+| Действие | Причина |
+|---|---|
+| `case.contract_file.upload` | Независимый от этой задачи, ранее не пойманный дефект уже применённой миграции 189 (`platform.record_case_contract_file_metadata`, 189:472-584): действие содержит подчёркивание («contract_file»), а `platform.audit_events.action` проверяется `CHECK (action ~ '^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+\$')` (041:281) — сегмент с `_` не проходит. Реальный (не replay) вызов всегда падал бы с ошибкой ограничения при попытке записать аудит; ни один существующий тест это не ловит — `supabase/tests/platform_case_agreement.sql:505-521` проверяет только отказ НЕ-service_role вызывающему (42501) и никогда не доходит до реальной записи. Найдено при первом полном прогоне `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries` для этой миграции: универсальная P7A-фикстура (одна строка аудита на каждое текущее safe-действие, `supabase/tests/platform_audit_journal_contract.sql:89-95`, не изменена этой задачей) впервые попыталась записать буквально это действие и упала — `ERROR: new row for relation "audit_events" violates check constraint "audit_events_action_check"`. Чинить 189 или ослаблять CHECK — вне объёма этой задачи (уже применённая миграция, продуктовый код); действие и его единственный тип объекта (`case_contract_file`) не включены в allowlist. Резервируется до отдельного решения владельца — либо починка 189, либо переименование действия по образцу 230 (`case.payment_receipt.upload` → `case.payment.receipt.upload`). |
+
+**EXCLUDE (28) — остаются невидимыми журналу:**
+
+| Действие(я) | Причина |
+|---|---|
+| `student.application.approve`, `student.application.reject` | pre-account applicant intake (`platform_private.student_applications`; анкета несёт самозаявленные баллы экзамена английского, email, привязку auth); ни один staff-маршрут не резолвит id |
+| `application.document.submit` | Student-writable (228:88-92); проекция подписывает каждого `'user'`-актора «сотрудник» — заявка студента отобразилась бы как действие сотрудника |
+| `staff.auth.prepare`, `staff.auth.recovery.observed` | внутренности восстановления учётных данных (`staff_auth_request`); нужен отдельный security review |
+| 19 действий машинной разводки без решения человека: `work.enqueue`, `work.enqueue.deduplicate`, `work.claim`, `work.lease.extend`, `work.retry.schedule`, `work.dead.letter`, `work.succeed`, `work.unknown.review`, `work.conflict.review`, `communication.leadagent.sessionstatus`, `communication.leadagent.sync`, `communication.webhook.persist`, `media.archive.claim`, `media.archive.finish`, `media.download.consume`, `company.file.download.consume`, `integration.amocrm.mapping.discovery.persist`, `configuration.waha.provision`, `platform.observability.probe` | большой объём, нет решения человека за строкой |
+| `lead.sales.stage.normalized`, `staff.roles.migrated` | одноразовые deploy-бэкфиллы |
+| `application.catalog.select` | **найдено при повторной сверке, не было в исходном перечне лида как исключение**: Student-writable — 214:296-306, публичная обёртка `platform.student_select_catalog_intake_v1` (`GRANT EXECUTE … TO authenticated`), пишет `actor_kind='user'` независимо от `p_student` → проекция подписала бы студенческое действие «сотрудник», тот же класс дефекта, что уже исключённый `application.document.submit` |
+| `application.requirements.initialize` | **то же, найдено при сверке**: Student-writable — 218:644-659, публичная обёртка `platform.student_initialize_application_requirements_v1` (`GRANT EXECUTE … TO authenticated`), тот же дефект |
+
+Никогда не добавляются 4 типа объектов: `student_application`,
+`staff_auth_request`, `waha_session_observation`, `provider_webhook_event`.
+
+**Расхождения с точным перечнем задания, найденные при обязательной сверке
+с последними writer'ами (задокументированы, не исправлены молча):**
+
+1. `case.payment_receipt.upload` (перечень задания) был переименован
+   миграцией 230 (`230_platform_payment_receipt_audit_action.sql`) в
+   `case.payment.receipt.upload` (доменная грамматика 041: действие —
+   только точки, без подчёркивания). Подчёркнутая форма нигде больше не
+   пишется; в код вошла актуальная дотированная форма.
+2. `application.catalog.select` и `application.requirements.initialize` —
+   в исходном перечне лида они были в INCLUDE (категория A); при сверке с
+   последними writer'ами (214, 218) оба оказались Student-writable через
+   публичные `student_*_v1`-обёртки, `GRANT EXECUTE … TO authenticated`,
+   `actor_kind='user'` независимо от актора → перенесены в EXCLUDE (см.
+   таблицу выше).
+3. `document.slot.scaninvalidate` (категория L лида) при чтении писавшей
+   миграции (115) оказался ОДНОРАЗОВЫМ deploy-бэкфиллом внутри `DO $$ … $$`
+   (актор `'system'`, `'service:migration-115'`), больше нигде не пишется —
+   по форме тот же класс, что уже исключённые `lead.sales.stage.normalized`/
+   `staff.roles.migrated` (X5). В задании лид явно выделил его отдельной
+   INCLUDE-категорией L; полномочия переносить действие в EXCLUDE даны
+   только по признакам Student-writable/Student-private данных, которых
+   здесь нет — оставлено в INCLUDE по прямому указанию, отмечено здесь для
+   повторной сверки владельцем.
+4. `case.contract_file.upload` (категория C лида) прошёл все проверки на
+   бумаге (actor_kind, resource_type, Student-writability — все чистые), но
+   **живой прогон реальной disposable Postgres нашёл то, что чтение кода не
+   могло показать**: его единственный писатель (189) сам нарушает
+   `audit_events_action_check` (см. таблицу DEFERRED выше) — ни один
+   существующий тест не проверял его реальный (не 42501-отказанный) путь.
+   Это не входило ни в один из явно заданных критериев переноса в EXCLUDE, и
+   лид не давал полномочий на «третью корзину» — решение отложить его
+   (не INCLUDE, не EXCLUDE) принято здесь как наименее рискованное:
+   включение сломало бы каждый будущий прогон полной цепочки миграций,
+   ровно то, что этот прогон обязан проверять. Итог: 72 INCLUDE + 28
+   EXCLUDE + 1 DEFERRED = 101, по-прежнему сходится.
+
+`platform_private.p7a_changed_field_codes(TEXT)` не тронута — ни одно из 72
+действий не требует новой ветки: 10 действий `document.export.*`/
+`document.slot.scaninvalidate` уже попадают под существующую ветку
+`p_action LIKE 'document.%'` (→ `ARRAY['document_status']`), остальные 62 —
+под `ELSE` (→ `ARRAY['record_status']`); `src/lib/platform-audit.ts`
+зеркалит это тем же путём (существующая ветка `action.startsWith("document.")`
+плюс существующий дефолт), новых веток в `expectedChangedFieldCodes` не
+понадобилось.
+
+Русские подписи для всех 72 новых действий и 15 новых типов объектов
+добавлены в `src/lib/v3/wording.ts` (`JOURNAL_EVENT_WORD`/`JOURNAL_OBJECT_WORD`),
+`docs/design/v3/frontend-rules.md` прочитан перед добавлением; переиспользованы
+существующие продуктовые существительные, где они уже есть в интерфейсе
+(«Отчёт продаж» — не «Реестр продаж», это исправленное предположение;
+«Роли и доступ», «Командный чат», «Транш», «Договор», «Чек» и т.д. — сверено
+отдельным исследованием по `src/components/v3/**`).
+
+Регрессия:
+- `tests/platform-audit.test.mjs`: `P7A_WRAPPER_MIGRATIONS` дополнен записью
+  `["255_platform_audit_journal_allowlist_widen.sql", "journal_widen"]`;
+  существующий тест «browser-safe allowlists match the SQL authority plus
+  bounded extensions» пересчитывает `PLATFORM_AUDIT_ACTIONS`/
+  `PLATFORM_AUDIT_RESOURCE_TYPES` из ВСЕХ migration-файлов заново — обновлён
+  без ручного дублирования списка. Добавлен отдельный статический тест,
+  закрепляющий, что все 28 исключённых действий и 4 «никогда не добавляемых»
+  типа объектов отсутствуют в `PLATFORM_AUDIT_ACTIONS`/`PLATFORM_AUDIT_RESOURCE_TYPES`;
+  отдельным вторым тестом закреплено, что `case.contract_file.upload`/
+  `case_contract_file` (DEFERRED, не EXCLUDE) там тоже отсутствуют, до
+  отдельной починки 189.
+- `supabase/tests/platform_audit_journal_contract.sql` (реальная Postgres,
+  прогоняется на последней цепочке миграций): добавлен privacy-пин —
+  (i) ни одно из 28 исключённых действий не входит в
+  `p7a_safe_audit_actions()`, ни один из 4 «никогда не добавляемых» типов
+  не входит в `p7a_safe_audit_resource_types()` (`RAISE EXCEPTION` при
+  нарушении); (ii) засеяны строки аудита для нескольких исключённых действий
+  (`student.application.approve`/`student_application`,
+  `application.document.submit`/`university_application`,
+  `staff.auth.prepare`/`staff_auth_request`, `work.claim`/`durable_work_item`)
+  в той же фикстурной организации, и подтверждено, что
+  `search_audit_events()` от имени фикстурного Admin их не возвращает —
+  существующие проверки количества строк/множества действий не задеты,
+  засеянные исключённые строки просто не появляются ни на одной странице.
+
+Полный прогон: `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries`
+(001→255, вся цепочка + все привязанные suite, включая обновлённую P7A
+suite и новый privacy-пин). **Первый прогон упал** — не на логике этой
+миграции, а на независимом дефекте уже применённой 189, см. DEFERRED выше
+(`case.contract_file.upload`); после исключения этого действия из
+allowlist-а (72 вместо 73) второй прогон — зелёный целиком:
+`Verified disposable authorization database with
+public.ecr.aws/supabase/postgres@sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453 (sha256:80d7b27c3e8d).`
+и `P7A journal contract check passed: 205 actions, 71 resource types, 3
+page(s), 205 rows, all recognized.` (133+72 действий, 56+15 типов объектов —
+сходится с TS). Реальный exit code процесса — `0` (проверен отдельно от
+`npm run`, не через `| tee`, который иначе маскирует код завершения). Сама
+suite (`platform_audit_journal_contract.sql`, включая обе новые
+privacy-pin-проверки — статическую и seeded-строки) печатает в отдельный
+временный лог, который скрипт удаляет по выходу; поимённые
+`p7aj_assert`-сообщения не сохранились отдельно, но `ON_ERROR_STOP=1` на
+каждом psql-вызове означает, что нарушение любого из них (включая новые)
+остановило бы весь прогон — чего не произошло.
+
+Не проверено:
+- Реальный браузерный проход по `/v3/settings?section=journal` — вне
+  объёма этой задачи (не запрошен лидом; журнал по-прежнему выключен в
+  production флагом).
+- Production: изменений нет и не будет до отдельного одобрения владельцем;
+  миграция не применялась ни к какой базе, включая production.

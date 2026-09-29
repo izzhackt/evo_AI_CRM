@@ -265,7 +265,8 @@ async function expectPortalGeometry(page: Page, context: string) {
     // Known #1118: under mobile emulation at 320 px the layout viewport is
     // sometimes 331 px (also on /login) while no box crosses the edge; since
     // html/body clip horizontal overflow, the document width then equals that
-    // viewport. Tolerate it only at ≤ 320 px, up to the observed 331 px, when
+    // viewport. Tolerate it only at ≤ 320 px, up to the observed 331 px (+1 px
+    // rounding), when
     // the document is exactly the inflated viewport, no box crosses the edge
     // except the clipped account summary (#1114, pinned by its own test) or
     // the still-fixed tab bar (#1113), and the body's content is no wider

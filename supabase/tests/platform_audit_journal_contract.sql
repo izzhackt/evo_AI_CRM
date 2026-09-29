@@ -17,6 +17,18 @@
 -- scripts/check-platform-audit-journal-contract.mjs to replay through the
 -- REAL src/lib/platform-audit.ts normalizer (see that script's own header).
 --
+-- Extended by migration 255 (proposal, not applied — PLAN_CHANGES.md
+-- «2026-09-29 — «Журнал действий»: серверный allowlist аудита расширен на
+-- 73 действия») with one privacy pin: a hardcoded list of the 28 actions and
+-- 4 resource types 255 deliberately did NOT allowlist (see 255's own header
+-- for the per-action reasons), asserted absent from
+-- p7a_safe_audit_actions()/p7a_safe_audit_resource_types(), plus four seeded
+-- excluded-action rows proven absent from a real search_audit_events() read.
+-- This is the one intentional exception to the "no hardcoded list" rule
+-- above: it exists to catch a future migration accidentally re-adding one of
+-- these, not to re-derive the INCLUDE contract this suite already proves
+-- live.
+--
 -- Fixture: one organization + one Platform Admin membership, modelled like
 -- production per 155 (platform_private.staff_membership_identity,
 -- staff_context_can_access lines ~299-322 and ~746-770): is_system_admin =
@@ -104,6 +116,76 @@ SELECT pg_temp.p7aj_assert(
   'every fixture row has a distinct action — no action was inserted twice');
 
 -- ---------------------------------------------------------------------------
+-- Privacy pin (255's own header + PLAN_CHANGES.md «2026-09-29 — «Журнал
+-- действий»: серверный allowlist аудита расширен на 73 действия»): the
+-- actions 255 deliberately did NOT allowlist (student.application.approve/
+-- reject, application.document.submit, application.catalog.select,
+-- application.requirements.initialize, staff.auth.prepare/recovery.observed,
+-- 19 machine-plumbing work.*/communication.*/media.*/company.file.download.
+-- consume/integration.*/configuration.*/platform.observability.probe
+-- actions, and the two one-off deploy backfills) and the 4 resource types
+-- that must never be allowlisted (student_application, staff_auth_request,
+-- waha_session_observation, provider_webhook_event) stay out of the LIVE
+-- server contract. (i) is a static check against the allowlist functions
+-- themselves; (ii) below seeds real rows for a representative sample and
+-- proves the real platform.search_audit_events() never returns them to the
+-- fixture Admin, the same way an ineligible action already fails the exact
+-- action-set assertions after this suite's page loop.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.p7aj_assert(
+  NOT (platform_private.p7a_safe_audit_actions() && ARRAY[
+    'student.application.approve', 'student.application.reject',
+    'application.document.submit', 'application.catalog.select',
+    'application.requirements.initialize',
+    'staff.auth.prepare', 'staff.auth.recovery.observed',
+    'work.enqueue', 'work.enqueue.deduplicate', 'work.claim', 'work.lease.extend',
+    'work.retry.schedule', 'work.dead.letter', 'work.succeed', 'work.unknown.review',
+    'work.conflict.review', 'communication.leadagent.sessionstatus',
+    'communication.leadagent.sync', 'communication.webhook.persist',
+    'media.archive.claim', 'media.archive.finish', 'media.download.consume',
+    'company.file.download.consume', 'integration.amocrm.mapping.discovery.persist',
+    'configuration.waha.provision', 'platform.observability.probe',
+    'lead.sales.stage.normalized', 'staff.roles.migrated'
+  ]::TEXT[]),
+  'none of the 28 deliberately-excluded actions is in p7a_safe_audit_actions()');
+SELECT pg_temp.p7aj_assert(
+  NOT (platform_private.p7a_safe_audit_resource_types() && ARRAY[
+    'student_application', 'staff_auth_request', 'waha_session_observation',
+    'provider_webhook_event'
+  ]::TEXT[]),
+  'none of the 4 never-add resource types is in p7a_safe_audit_resource_types()');
+
+-- (ii) Seed one row per representative excluded action, same fixture
+-- organization, inserted AFTER the exact-count assertions above so they
+-- never affect the "one row per current server-safe action" counts. Each
+-- uses the resource_type its real writer uses (228, 177/216-class pre-account
+-- intake, staff_auth_request internals, 045 durable work queue) — two of the
+-- four are otherwise-safe resource types (university_application,
+-- durable_work_item), proving the ACTION exclusion alone hides the row, not
+-- merely an unsafe resource type riding along with it. actor_kind='system'
+-- throughout (not 'user'): platform.audit_events_actor_check (041) requires
+-- a real actor_profile_id whenever actor_kind='user', and this suite has no
+-- second (Student) profile fixture to attach — irrelevant to what this pin
+-- tests, which is action/resource-type exclusion, not actor attribution.
+INSERT INTO platform.audit_events(
+  organization_id, actor_kind, actor_principal, action, resource_type, resource_id,
+  after_state, reason, request_id
+)
+VALUES
+  (pg_temp.p7aj_id(1), 'system', 'P7AJ excluded fixture actor',
+    'student.application.approve', 'student_application', gen_random_uuid(),
+    '{}'::JSONB, 'P7AJ synthetic excluded-action fixture row', gen_random_uuid()),
+  (pg_temp.p7aj_id(1), 'system', 'P7AJ excluded fixture actor',
+    'application.document.submit', 'university_application', gen_random_uuid(),
+    '{}'::JSONB, 'P7AJ synthetic excluded-action fixture row', gen_random_uuid()),
+  (pg_temp.p7aj_id(1), 'system', 'P7AJ excluded fixture actor',
+    'staff.auth.prepare', 'staff_auth_request', gen_random_uuid(),
+    '{}'::JSONB, 'P7AJ synthetic excluded-action fixture row', gen_random_uuid()),
+  (pg_temp.p7aj_id(1), 'system', 'P7AJ excluded fixture actor',
+    'work.claim', 'durable_work_item', gen_random_uuid(),
+    '{}'::JSONB, 'P7AJ synthetic excluded-action fixture row', gen_random_uuid());
+
+-- ---------------------------------------------------------------------------
 -- Read back as the Admin, through the REAL platform.search_audit_events(),
 -- paging (100 per page, snapshot+cursor) until has_more = false.
 -- ---------------------------------------------------------------------------
@@ -169,6 +251,22 @@ SELECT pg_temp.p7aj_assert(
   (SELECT bool_and((page ->> 'has_more')::BOOLEAN = (page_index <> (SELECT max(page_index) FROM p7aj_pages)))
     FROM p7aj_pages),
   'has_more is true on every page except the last');
+
+-- Privacy pin (ii): the exact action-set equality above (line ~233) already
+-- proves this implicitly — any leaked excluded row would add an action
+-- outside platform_private.p7a_safe_audit_actions() and fail it — but the
+-- excluded seed is asserted explicitly here too, by name, so this suite
+-- documents and fails on exactly what it is testing rather than relying on
+-- an indirect equality.
+SELECT pg_temp.p7aj_assert(
+  NOT EXISTS (
+    SELECT 1 FROM p7aj_pages, jsonb_array_elements(page -> 'rows') AS r
+    WHERE r ->> 'action' IN (
+      'student.application.approve', 'application.document.submit',
+      'staff.auth.prepare', 'work.claim'
+    )
+  ),
+  'none of the 4 seeded excluded-action rows was returned by search_audit_events() to the fixture Admin');
 
 -- ---------------------------------------------------------------------------
 -- Emit the live server contract and every captured page as single-line JSON

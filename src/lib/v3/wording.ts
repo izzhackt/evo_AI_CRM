@@ -758,10 +758,84 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "workflow.version.approve": "Версия процесса утверждена",
   "workflow.version.create": "Версия процесса создана",
   "workflow.version.retire": "Версия процесса отозвана",
-} satisfies Readonly<Record<PlatformAuditAction |
-  "case.handoff.acknowledge" | "case.handoff.clarification" |
-  "case.coverage.start" | "case.coverage.return" | "case.next.action.change" |
-  "lead.manual.create", string>>;
+
+  // Миграция 255 (предложение, не применена — PLAN_CHANGES.md «2026-09-29 —
+  // «Журнал действий»: серверный allowlist аудита расширен на 72 действия»):
+  // 66 новых действий (case.contract_file.upload из исходных 73 оставлено вне
+  // allowlist-а — независимый дефект уже применённой 189, см. 255's header).
+  // Ещё 6 действий этого расширения (case.coverage.start,
+  // case.coverage.return, case.handoff.acknowledge, case.handoff.clarification,
+  // case.next.action.change, lead.manual.create) уже были здесь выше —
+  // добавлены заранее как отдельные ключи в union-типе до того, как стали
+  // настоящими PlatformAuditAction; теперь это просто ключи объекта, тип ниже
+  // не несёт для них отдельного union-члена.
+  "application.document.review": "Документ заявки проверен",
+  "application.requirements.save": "Требования заявки сохранены",
+  "case.handoff.decline": "Куратор отклонил назначение",
+  "docs.student.create": "Дело заведено в EVO Docs",
+  "case.payment.receipt.upload": "Чек об оплате загружен",
+  "case.tranche.save": "Транш сохранён",
+  "lead.lifecycle.change": "Состояние лида изменено",
+  "lead.sale.conditions.save": "Условия сделки по лиду сохранены",
+  "lead.sales.workflow.changed": "Этап работы с лидом изменён",
+  "lead.website.receive": "Лид получен с сайта",
+  "sales.register.create": "Запись отчёта продаж создана",
+  "sales.register.update": "Запись отчёта продаж изменена",
+  "sales.register.archive": "Запись отчёта продаж архивирована",
+  "sales.register.restore": "Запись отчёта продаж восстановлена",
+  "sales.register.pipeline": "Запись отчёта продаж создана из карточки клиента",
+  "sales.register.lead.link": "Лид привязан к записи отчёта продаж",
+  "sales.register.lead.unlink": "Лид отвязан от записи отчёта продаж",
+  "sales.register.import": "Отчёт продаж перенесён",
+  "sales.register.target": "План отчёта продаж изменён",
+  "sales.register.manager.label": "Написание менеджера сохранено",
+  "staff.role.create": "Роль создана",
+  "staff.role.copy": "Роль скопирована",
+  "staff.role.save": "Роль сохранена",
+  "staff.role.archive": "Роль перенесена в архив",
+  "staff.role.restore": "Роль восстановлена",
+  "staff.role.publish": "Роль опубликована",
+  "staff.role.assignments": "Назначения ролей сотрудника изменены",
+  "staff.system.admin": "Доступ администратора изменён",
+  "staff.task.create": "Рабочая задача создана",
+  "staff.task.edit": "Рабочая задача изменена",
+  "staff.task.status": "Статус рабочей задачи изменён",
+  "team.chat.post": "Сообщение в командном чате отправлено",
+  "team.chat.edit": "Сообщение в командном чате изменено",
+  "team.chat.delete": "Сообщение в командном чате удалено",
+  "team.chat.moderate": "Сообщение в командном чате удалено модератором",
+  "company.file.folder.create": "Папка файлов компании создана",
+  "company.file.folder.rename": "Папка файлов компании переименована",
+  "company.file.folder.move": "Папка файлов компании перемещена",
+  "company.file.folder.archive": "Папка файлов компании перенесена в архив",
+  "company.file.file.create": "Файл компании создан",
+  "company.file.file.rename": "Файл компании переименован",
+  "company.file.file.move": "Файл компании перемещён",
+  "company.file.file.archive": "Файл компании перенесён в архив",
+  "company.file.upload.reserve": "Загрузка файла компании начата",
+  "company.file.upload.finalize": "Файл компании загружен",
+  "company.file.download.grant": "Выдан доступ к скачиванию файла компании",
+  "student.profile.start": "Анкета студента начата",
+  "student.profile.field.review": "Поле анкеты студента проверено",
+  "student.profile.export.attempted": "Экспорт анкеты студента запрошен",
+  "student.profile.export.generated": "Экспорт анкеты студента сформирован",
+  "student.profile.export.failed": "Экспорт анкеты студента не удался",
+  "student.profile.recognition.publish": "Предложения распознавания анкеты опубликованы",
+  "document.export.prepared": "Экспорт документа анкеты подготовлен",
+  "document.export.begun": "Экспорт документа анкеты начат",
+  "document.export.sealed": "Экспорт документа анкеты сохранён",
+  "document.export.reconciled": "Экспорт документа анкеты сверен",
+  "document.export.ready": "Экспорт документа анкеты готов",
+  "document.export.failed": "Экспорт документа анкеты не удался",
+  "document.export.unknown": "Итог экспорта документа анкеты не определён",
+  "document.export.download.verified": "Скачивание экспорта анкеты подтверждено",
+  "document.export.download.failed": "Скачивание экспорта анкеты не подтверждено",
+  "document.slot.scaninvalidate": "Документ возвращён на исправление после проверки безопасности",
+  "prompt.artifact.publish": "Версия промпта ИИ опубликована",
+  "prompt.artifact.retire": "Версия промпта ИИ отозвана",
+  "work.review.resolve": "Разбор фоновой задачи закрыт",
+  "media.download.grant": "Выдан доступ к скачиванию вложения",
+} satisfies Readonly<Record<PlatformAuditAction, string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   ai_draft: "Черновик ИИ",
@@ -820,6 +894,24 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   workflow_contract: "Контракт процесса",
   workflow_contract_version: "Версия контракта процесса",
   workflow_contract_version_source: "Источник контракта процесса",
+
+  // Миграция 255 (предложение, не применена — см. комментарий над
+  // JOURNAL_EVENT_WORD выше): 15 новых типов объектов.
+  ai_prompt_artifact_version: "Версия промпта ИИ",
+  communication_media: "Вложение переписки",
+  company_file: "Файл компании",
+  company_file_folder: "Папка файлов компании",
+  company_file_version: "Версия файла компании",
+  membership: "Доступ сотрудника",
+  payment_receipt_file: "Чек об оплате",
+  sales_manager_label: "Написание менеджера",
+  sales_register: "Запись отчёта продаж",
+  sales_register_import: "Перенос отчёта продаж",
+  sales_register_target: "План отчёта продаж",
+  staff_role: "Роль",
+  staff_task: "Рабочая задача",
+  team_chat_message: "Сообщение в командном чате",
+  work_review_case: "Разбор фоновой задачи",
 } satisfies Readonly<Record<PlatformAuditResourceType, string>>;
 
 /** Категория актора безопасного журнала; персональных данных в нём нет. */

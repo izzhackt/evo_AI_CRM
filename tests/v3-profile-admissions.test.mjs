@@ -154,7 +154,17 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   assert.match(types, /query\.set\("id", target\.leadId\)/u);
   assert.match(types, /query\.set\("case", target\.studentCaseId\)/u);
   assert.match(types, /student && access.documents/u);
-  assert.match(page, /view\?\.details\.access/u);
+  // Э8.4 (#1098, 28.09): the inline `view?.details.access` spread/finance
+  // override moved from page.tsx into `profileTabAccess` (types.ts), which
+  // still reads the server access snapshot straight off `view.details.access`
+  // before merging in two purely computed grants (finance-confirm, gate
+  // forms) — the same access-gating invariant, one call site.
+  assert.match(page, /const tabAccess = view \? profileTabAccess\(view\.details\.access, \{/u);
+  assert.match(
+    page,
+    /resolveTab\(\s*singleSearchParam\(params\.tab\),\s*Boolean\(view\?\.profile\.student\),\s*tabAccess,/u,
+  );
+  assert.match(types, /return \{ \.\.\.access, finance: access\.finance \|\| extra\.financeConfirm, gateForms: extra\.gateForms \};/u);
   assert.doesNotMatch(types, /query\.set\("case_id"/u);
   assert.match(adapter, /rpc\("staff_case_access_snapshot"/u);
   assert.match(adapter, /if \(sectionResponse\.error\) throw/u);

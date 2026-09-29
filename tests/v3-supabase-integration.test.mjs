@@ -13,6 +13,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     .sort();
   assert.deepEqual(typescriptFiles, [
     "admissions-source.ts",
+    "board-layout.ts", // #1053 (25.09.2026)
     "calendar-contract.ts",
     "calendar-source.ts",
     "case-access-contract.ts",
@@ -20,6 +21,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "case-chat-source.ts",
     "case-operations-source.ts",
     "case-work-source.ts",
+    "command-palette-actions.ts", // #1085 (27.09.2026)
+    "command-palette.ts", // #1085 (27.09.2026)
     "current-sales-funnel-source.ts",
     "finance-entry-source.ts",
     "funnel-source.ts",
@@ -27,14 +30,19 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "inbox-media.ts",
     "inbox-profile-link.ts",
     "inbox-source.ts",
+    "knowledge-library-source.ts", // #906 (20.09.2026)
     "knowledge-source.ts",
     "knowledge-surface.ts",
     "lead-cabinet-source.ts",
     "lead-sale-conditions-source.ts",
     "manual-lead-source.ts",
     "navigation.ts",
-    "operations-source.ts",
+    // operations-source.ts retired by #1067 (26.09.2026): replaced by
+    // today-source.ts / today-queue.ts / sales-dynamics-source.ts /
+    // sales-board-funnel.ts below.
     "period.ts",
+    "personal-calendar-contract.ts", // #963 (21.09.2026)
+    "pipeline-return.ts", // #1064 (26.09.2026)
     "pipeline-source.ts",
     "portal-source.ts",
     "profile-activity-source.ts",
@@ -44,25 +52,37 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "requests-queue-source.ts",
     "requests-source.ts",
     "requests-view.ts",
+    "sales-board-funnel.ts", // #1067 (26.09.2026)
+    "sales-dynamics-source.ts", // #1067 (26.09.2026)
     "sales-handoff-source.ts",
     "sales-numbers-source.ts",
     "sales-register-source.ts",
     "sales-stage.ts",
+    "settings-health.ts", // #1064 (26.09.2026)
     "settings-journal-contract.ts",
     "settings-source.ts",
+    "shell-tabs.ts", // #1068 (26.09.2026)
+    "staff-catalog-preparation-actions.ts", // #967 (21.09.2026)
     "staff-invitation-access.ts",
     "staff-notification-actions.ts",
     "staff-notification-source.ts",
+    "staff-requirements-editor-actions.ts", // #988 (21.09.2026)
     "staff-roles-contract.ts",
     "staff-task-source.ts",
     "staff-workspace-contract.ts",
     "staff-workspace-source.ts",
+    "stages.ts", // #1070 (27.09.2026)
     "student-application-source.ts",
     "student-assessment-source.ts",
+    "students-coverage-source.ts", // #1050 (24.09.2026)
+    "students-coverage.ts", // #1050 (24.09.2026)
     "students-queue-source.ts",
     "task-case-actions.ts",
+    "task-composer-actions.ts", // #1085 (27.09.2026)
     "task-queue.ts",
     "team-chat-source.ts",
+    "today-queue.ts", // #1067 (26.09.2026)
+    "today-source.ts", // #1067 (26.09.2026)
     "university-form-source.ts",
     "university-source.ts",
     "university-view.ts",
@@ -84,11 +104,13 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "finance-entry-source.ts",
     "funnel-source.ts",
     "inbox-source.ts",
+    "knowledge-library-source.ts", // #906 (20.09.2026)
     "knowledge-source.ts",
     "lead-cabinet-source.ts",
     "lead-sale-conditions-source.ts",
     "manual-lead-source.ts",
-    "operations-source.ts",
+    // operations-source.ts retired by #1067 (26.09.2026): see the file
+    // inventory above.
     "pipeline-source.ts",
     "portal-source.ts",
     "profile-activity-source.ts",
@@ -96,7 +118,12 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "reply-snippets-source.ts",
     "requests-queue-source.ts",
     "requests-source.ts",
-    "requests-view.ts",
+    // requests-view.ts is excluded here on purpose: it does not end in
+    // "-source.ts" (see the filter above), same as university-view.ts.
+    // Its earlier presence in this list (#1084/#1092) was a copy-paste bug —
+    // it never matched the filtered `adapterFiles` and always failed this
+    // assertion regardless of any inventory drift.
+    "sales-dynamics-source.ts", // #1067 (26.09.2026)
     "sales-handoff-source.ts",
     "sales-numbers-source.ts",
     "sales-register-source.ts",
@@ -106,8 +133,10 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "staff-workspace-source.ts",
     "student-application-source.ts",
     "student-assessment-source.ts",
+    "students-coverage-source.ts", // #1050 (24.09.2026)
     "students-queue-source.ts",
     "team-chat-source.ts",
+    "today-source.ts", // #1067 (26.09.2026)
     "university-form-source.ts",
     "university-source.ts",
     "website-lead-source.ts",
@@ -137,6 +166,11 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
   const layout = source("src/app/(v3)/layout.tsx");
   const profilePage = source("src/app/(v3)/v3/profile/page.tsx");
   const knowledgePage = source("src/app/(v3)/v3/knowledge/page.tsx");
+  // #906 (2e72d5ad0, 20.09.2026) rebuilt "/v3/knowledge" around the Admin
+  // library and removed the FileManager-based student documents view from
+  // page.tsx; #915 (1635d01ef) brought it back as KnowledgeDocuments.tsx
+  // (extracted from the documents page), truncation notice included.
+  const knowledgeDocuments = source("src/components/v3/knowledge/KnowledgeDocuments.tsx");
 
   assert.match(layout, /requirePlatformStaffActor/);
   assert.doesNotMatch(profilePage, /PROFILE_SAMPLE|\.\/sample/);
@@ -145,8 +179,17 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
     knowledgePage,
     /requireV3PageActor\("\/v3\/knowledge"\)/,
   );
-  assert.match(knowledgePage, /v3-knowledge-student-documents-limited/);
-  assert.match(knowledgePage, /studentDocuments\.complete/);
+  // The notice's own data-testid ("v3-knowledge-student-documents-limited")
+  // was dropped in that move and is not referenced by any other test or e2e
+  // spec (grepped repo-wide); the safety invariant it guarded — a truncated
+  // student-documents list must say so, never pretend to be complete — is
+  // still enforced here by the same studentDocuments.complete flag and a
+  // role="alert" notice with the same warning text.
+  assert.match(knowledgePage, /<KnowledgeDocuments actor=\{actor\} embedded \/>/);
+  assert.match(
+    knowledgeDocuments,
+    /\{!studentDocuments\.complete && <p role="alert">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране\.<\/p>\}/,
+  );
   assert.equal(
     existsSync(new URL("../src/app/(v3)/v3/profile/sample.ts", import.meta.url)),
     false,

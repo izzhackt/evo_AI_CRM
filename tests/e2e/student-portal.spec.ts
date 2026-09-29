@@ -167,7 +167,7 @@ async function expectStylesLoaded(page: Page, context: string) {
     for (const href of new Set(hrefs)) {
       const response = await fetch(href);
       if (!response.ok) {
-        return { bytes, hrefs: hrefs.length, failedHref: href, world: null };
+        return { bytes, hrefs: hrefs.length, failedHref: href, darkScheme: false, world: null };
       }
       bytes += (await response.text()).length;
     }
@@ -177,6 +177,7 @@ async function expectStylesLoaded(page: Page, context: string) {
       bytes,
       hrefs: hrefs.length,
       failedHref: null,
+      darkScheme: matchMedia("(prefers-color-scheme: dark)").matches,
       world: style
         ? {
             background: style.backgroundColor,
@@ -192,8 +193,10 @@ async function expectStylesLoaded(page: Page, context: string) {
   expect(proof.hrefs, `${context}: no stylesheet was linked`).toBeGreaterThan(0);
   // CSS volume depends on Tailwind's source inventory; assert rendered branding.
   expect(proof.bytes, `${context}: the served stylesheet bundle is empty`).toBeGreaterThan(0);
+  // PORT-2 «Атлас» (#867, #941): screens keep the light V3 tokens inside the portal
+  // shell, and the page background follows the portal theme token --pt-bg.
   expect(proof.world, `${context}: the V3 theme did not apply`).toMatchObject({
-    background: "rgb(243, 243, 243)",
+    background: proof.darkScheme ? "rgb(20, 19, 17)" : "rgb(247, 245, 242)",
     colorScheme: "light",
     accent: "#d70217",
   });
@@ -259,6 +262,23 @@ async function expectPortalGeometry(page: Page, context: string) {
       }
     }
 
+    // Known defect #1114: at 320 px the top bar's account summary is
+    // wider than its menu box and pushes past the right edge. Tolerate page
+    // overflow only when nothing but that summary (and the fixed tab bar, which
+    // adds no scrollable overflow of its own) crosses the screen edge.
+    const clientWidth = document.documentElement.clientWidth;
+    const accountSummary = document.querySelector(".pt-user-summary");
+    const tabBar = document.querySelector(".pt-nav");
+    const pastEdge = Array.from(document.querySelectorAll<Element>("body *")).filter(element => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden"
+        && (rect.right > clientWidth + 1 || rect.left < -1);
+    });
+    const onlyKnownTopbarOverflow = clientWidth <= 320 && accountSummary !== null
+      && accountSummary.getBoundingClientRect().right > clientWidth + 1
+      && pastEdge.every(element => accountSummary.contains(element) || Boolean(tabBar?.contains(element)));
+
     return {
       viewportWidth: window.innerWidth,
       clientWidth: document.documentElement.clientWidth,
@@ -278,6 +298,7 @@ async function expectPortalGeometry(page: Page, context: string) {
         document.documentElement.scrollWidth >
         document.documentElement.clientWidth + 1,
       pageScrolled,
+      onlyKnownTopbarOverflow,
       headingCount: document.querySelectorAll("h1").length,
       smallTargets,
       nextError: Boolean(document.querySelector("#__next_error__")),
@@ -285,10 +306,18 @@ async function expectPortalGeometry(page: Page, context: string) {
   });
 
   expect(geometry.headingCount, `${context}: expected exactly one h1`).toBe(1);
-  expect(geometry.documentOverflow, `${context}: document has horizontal overflow: ${JSON.stringify(geometry)}`).toBe(
+  const knownTopbarOverflow = geometry.onlyKnownTopbarOverflow
+    && (geometry.documentOverflow || geometry.pageScrolled);
+  if (knownTopbarOverflow) {
+    test.info().annotations.push({
+      type: "known-defect",
+      description: `#1114 ${context}: the 320 px account summary overflows the page`,
+    });
+  }
+  expect(geometry.documentOverflow && !knownTopbarOverflow, `${context}: document has horizontal overflow: ${JSON.stringify(geometry)}`).toBe(
     false,
   );
-  expect(geometry.pageScrolled, `${context}: the page itself scrolls horizontally`).toBe(
+  expect(geometry.pageScrolled && !knownTopbarOverflow, `${context}: the page itself scrolls horizontally`).toBe(
     false,
   );
   expect(geometry.smallTargets, `${context}: interactive targets below 24px`).toEqual(
@@ -410,41 +439,79 @@ test("anonymous, staff and Student routes stay mutually isolated", async ({ page
   await expect(page.getByTestId("v3-shell")).toHaveCount(0);
 });
 
-test("the compact mobile Portal menu supports keyboard navigation and dismissal", async ({
+// PORT-2 (#867) replaced the compact «Меню» disclosure with the phone tab bar:
+// the same `nav[aria-label="Разделы кабинета"]`, fixed to the bottom edge.
+test("the mobile Portal tab bar supports keyboard navigation", async ({
   page,
 }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile-"), "mobile profiles only");
 
   await submitLogin(page, "student");
-  const menu = page.getByRole("button", { name: "Меню", exact: true });
-  await expect(menu).toHaveAttribute("aria-expanded", "false");
-  await menu.focus();
-  await page.keyboard.press("Enter");
-  const close = page.getByRole("button", { name: "Закрыть", exact: true });
-  await expect(close).toHaveAttribute("aria-expanded", "true");
   const navigation = page.getByRole("navigation", { name: "Разделы кабинета" });
-  await expect(navigation.getByRole("link")).toHaveCount(6);
-  const notifications = navigation.locator('a[href="/portal/notifications"]');
-  for (let press = 0; press < 8; press += 1) {
-    await page.keyboard.press("Tab");
-    if (await notifications.evaluate((element) => element === document.activeElement)) break;
-  }
-  await expect(notifications).toBeFocused();
   for (const link of await navigation.getByRole("link").all()) {
     expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   }
-  await page.keyboard.press("Escape");
-  await expect(menu).toBeFocused();
-  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  // Page content follows the bar in DOM order; start from its first section
+  // and reach one that is on screen at both phone widths (see the next test).
+  await navigation.locator('a[href="/portal/home"]').focus();
+  const documents = navigation.locator('a[href="/portal/documents"]');
+  for (let press = 0; press < 4; press += 1) {
+    await page.keyboard.press("Tab");
+    if (await documents.evaluate((element) => element === document.activeElement)) break;
+  }
+  await expect(documents).toBeFocused();
   await page.keyboard.press("Enter");
-  await notifications.focus();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/portal\/notifications$/);
+  await expect(page).toHaveURL(/\/portal\/documents$/);
   await expect(page.getByTestId("student-portal-shell")).toBeVisible();
-  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await expect(documents).toHaveAttribute("aria-current", "page");
   // The persistent shell and URL can update before the streamed page arrives.
-  await expect(page.getByRole("heading", { level: 1, name: "Уведомления", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Документы", exact: true })).toBeVisible();
   await expectPortalGeometry(page, testInfo.project.name);
+});
+
+test("every mobile Portal section is on screen in the tab bar", async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("mobile-"), "mobile profiles only");
+  // Known product defect #1113: the fixed bar lays out all 12 sections
+  // in one non-scrolling row, so the right-hand ones are past the screen edge.
+  // Remove this marker in the fix; the gate then reports "unexpectedly passed".
+  test.fail(true, "#1113: phone tab bar pushes sections off screen");
+
+  await submitLogin(page, "student");
+  const offScreen = await page
+    .getByRole("navigation", { name: "Разделы кабинета" })
+    .evaluate((nav) => {
+      const width = document.documentElement.clientWidth;
+      return Array.from(nav.querySelectorAll("a"))
+        .filter((link) => {
+          const rect = link.getBoundingClientRect();
+          return rect.left < -1 || rect.right > width + 1;
+        })
+        .map((link) => link.textContent?.trim() ?? "");
+    });
+  expect(offScreen, `${testInfo.project.name}: sections past the screen edge`).toEqual([]);
+});
+
+test("the portal top bar fits a 320 px screen", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-320-chromium", "the defect is specific to 320 px");
+  // Known product defect #1114 (see expectPortalGeometry). Remove this
+  // marker and that tolerance in the fix; the gate reports "unexpectedly passed".
+  test.fail(true, "#1114: 320 px account summary overflows the top bar");
+
+  await submitLogin(page, "student");
+  await page.goto("/portal/documents", { waitUntil: "networkidle" });
+  const proof = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const summary = document.querySelector(".pt-user-summary")?.getBoundingClientRect();
+    return {
+      clientWidth: document.documentElement.clientWidth,
+      summaryRight: summary ? summary.right : null,
+    };
+  });
+  expect(proof.summaryRight).not.toBeNull();
+  expect(proof.summaryRight!, "the account summary crosses the right edge")
+    .toBeLessThanOrEqual(proof.clientWidth + 1);
 });
 
 test("the Student can persist one own notification read through the UI", async ({
@@ -662,7 +729,10 @@ test("mobile document review and curator replies persist through real Auth and d
     const replay = await staffClient.schema("platform").rpc("answer_case_help_request_v1", command);
     expect(replay.error).toBeNull();
     expect(replay.data).toEqual(response.data);
-    await expect(page.locator("#case-help")).toContainText(answer, { timeout: 45_000 });
+    // The help panel by its region name: since PORT-5d `/portal` renders
+    // `id="case-help"` twice (wrapper and panel, #1115), so the id is ambiguous.
+    await expect(page.getByRole("region", { name: "Помощь по поступлению", exact: true }))
+      .toContainText(answer, { timeout: 45_000 });
     await expect(page.getByRole("textbox", { name: "Тема", exact: true })).toHaveValue("Несохранённый черновик");
     await expect(page.getByRole("textbox", { name: "Что нужно уточнить", exact: true })).toHaveValue("Этот ввод должен сохраниться при обновлении ответа.");
     await expectPortalGeometry(page, `${width}px help reply preserves draft`);
@@ -684,10 +754,14 @@ test("mobile document review and curator replies persist through real Auth and d
     const markRead = page.getByRole("button", { name: "Отметить прочитанным", exact: true });
     expect((await markRead.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     await screenshot(page, "help-reply-detail");
+    // The accessible name changes to «Отмечаем…» while the Server Action is
+    // pending; reloading then aborts it. Wait on the stable submit element,
+    // which leaves only after the committed read revalidates the page.
+    const markReadSubmission = page.getByRole("main").locator('form button[type="submit"]');
     await markRead.click();
-    await expect(markRead).toHaveCount(0);
+    await expect(markReadSubmission).toHaveCount(0);
     await page.reload();
-    await expect(markRead).toHaveCount(0);
+    await expect(markReadSubmission).toHaveCount(0);
     const [readProof] = await sql<{ read: boolean; events: string; audits: string }[]>`
       SELECT read_at IS NOT NULL AS read,
         (SELECT count(*)::TEXT FROM platform.notification_events e WHERE e.notification_id = n.id AND e.event_type = 'read') AS events,

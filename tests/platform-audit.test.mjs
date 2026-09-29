@@ -51,6 +51,30 @@ const STAFF_ORGANIZATION_MIGRATION_SOURCE = readFileSync(
   "utf8",
 );
 
+// Every later action/resource-type addition follows the same rename-and-union
+// wrapper convention 154 established (ALTER FUNCTION ... RENAME TO
+// <fn>_pre_<slug>; CREATE FUNCTION <fn>() ... <fn>_pre_<slug>() ||
+// ARRAY[...]::TEXT[]). One (file, slug) entry per migration that extends the
+// P7A action/resource-type projection.
+const P7A_WRAPPER_MIGRATIONS = [
+  ["087_platform_contract_payment_gate.sql", "u5"],
+  ["088_platform_sales_admissions_handoff.sql", "u6"],
+  ["091_platform_u9_gemini_human_review.sql", "u9"],
+  ["092_platform_u10_pilot_cohort_legacy_isolation.sql", "u10"],
+  ["117_platform_case_notes.sql", "case_notes"],
+  ["120_platform_reply_snippets.sql", "reply_snippets"],
+  ["121_platform_message_media_case_attach.sql", "message_media_attach"],
+  ["126_platform_student_portal_provisioning.sql", "student_portal_e1"],
+  ["179_platform_case_baseline_checklist.sql", "case_baseline_checklist"],
+  ["181_platform_lead_sale_conditions.sql", "lead_sale_conditions"],
+  ["184_platform_card_fields_and_partner_details.sql", "card_fields_and_partner_details"],
+  ["187_platform_admissions_pipeline_board.sql", "admissions_pipeline_board"],
+  ["191_platform_case_chat.sql", "case_chat"],
+].map(([file, slug]) => ({
+  slug,
+  source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
+}));
+
 const SAFE_ROW = {
   audit_event_id: EVENT_ID,
   created_at: "2026-08-13T08:15:00.000Z",
@@ -87,19 +111,29 @@ function sqlTextArray(functionName) {
   );
 }
 
-function staffOrganizationSqlExtension(functionName) {
+// Generic form of the rename-and-union wrapper 154 established: ALTER
+// FUNCTION ... RENAME TO <fn>_pre_<slug>; CREATE FUNCTION <fn>() ... RETURN
+// <fn>_pre_<slug>() || ARRAY[...]::TEXT[]. Returns [] (not a failure) when a
+// given migration does not touch that particular function — not every P7A
+// migration renames all three (e.g. 117/121/126/179/181/184/187/191 only
+// extend actions, never resource types).
+function wrapperSqlExtension(source, functionName, slug) {
   const startMarker = `CREATE FUNCTION platform_private.${functionName}()`;
-  const start = STAFF_ORGANIZATION_MIGRATION_SOURCE.indexOf(startMarker);
-  assert.notEqual(start, -1, `${functionName} must exist in migration 154`);
+  const start = source.indexOf(startMarker);
+  if (start === -1) return [];
 
-  const bodyEnd = STAFF_ORGANIZATION_MIGRATION_SOURCE.indexOf("$$;", start);
+  const bodyEnd = source.indexOf("$$;", start);
   assert.notEqual(bodyEnd, -1, `${functionName} must have a complete SQL body`);
-  const functionBody = STAFF_ORGANIZATION_MIGRATION_SOURCE.slice(start, bodyEnd);
+  const functionBody = source.slice(start, bodyEnd);
   const extension = functionBody.match(new RegExp(
-    `platform_private\\.${functionName}_pre_staff_organization\\(\\)\\s*\\|\\|\\s*ARRAY\\[([\\s\\S]*?)\\]::TEXT\\[\\]`,
+    `platform_private\\.${functionName}_pre_${slug}\\(\\)\\s*\\|\\|\\s*ARRAY\\[([\\s\\S]*?)\\]::TEXT\\[\\]`,
   ));
-  assert.ok(extension, `${functionName} must append its bounded array to the prior SQL authority`);
+  assert.ok(extension, `${functionName} must append its bounded array to the prior SQL authority (slug ${slug})`);
   return [...extension[1].matchAll(/'([^']+)'/g)].map(([, value]) => value);
+}
+
+function staffOrganizationSqlExtension(functionName) {
+  return wrapperSqlExtension(STAFF_ORGANIZATION_MIGRATION_SOURCE, functionName, "staff_organization");
 }
 
 test("browser-safe allowlists match the SQL authority plus bounded extensions", () => {
@@ -135,6 +169,53 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "staff.organization.details.change",
   ]);
   assert.deepEqual(staffOrganizationResources, ["staff_department", "staff_organizational_details"]);
+
+  // 087 (U5 contract/first-payment gate) through 191 (case chat): each
+  // migration's own bounded extension, verified against the live server
+  // allowlist by the real-Postgres suite (platform_audit_journal_contract.sql
+  // + check-platform-audit-journal-contract.mjs), not re-derived here.
+  const laterActions = [];
+  const laterResourceTypes = [];
+  for (const { slug, source } of P7A_WRAPPER_MIGRATIONS) {
+    laterActions.push(...wrapperSqlExtension(source, "p7a_safe_audit_actions", slug));
+    laterResourceTypes.push(...wrapperSqlExtension(source, "p7a_safe_audit_resource_types", slug));
+  }
+  assert.deepEqual([...laterActions].sort(), [
+    "ai.proposal.review",
+    "application.partner.details.update",
+    "case.chat.await",
+    "case.chat.post",
+    "case.pipeline.move",
+    "case.sales.owner.sync",
+    "document.checklist.baseline.seed",
+    "document.media.attach.complete",
+    "document.media.attach.reserve",
+    "lead.admissions.gate.contract.confirmed",
+    "lead.admissions.gate.firstpayment.confirmed",
+    "lead.admissions.gate.overridden",
+    "lead.admissions.handoff.completed",
+    "lead.cabinet.prepare",
+    "note.create",
+    "pilot.cohort.configured",
+    "pilot.cohort.member.automatic",
+    "pilot.cohort.member.excluded",
+    "pilot.cohort.member.included",
+    "snippet.archive",
+    "snippet.create",
+    "snippet.update",
+    "student.portal.authority.activate",
+  ]);
+  assert.deepEqual([...laterResourceTypes].sort(), [
+    "gemini_proposal_review",
+    "lead",
+    "pilot_cohort_configuration",
+    "pilot_cohort_membership",
+    "reply_snippet",
+    // 088's own extension is ["student_case"] — already in the 071 baseline,
+    // so it disappears once the final list is de-duplicated by Set below.
+    "student_case",
+  ]);
+
   assert.deepEqual(
     PLATFORM_AUDIT_ACTIONS,
     [
@@ -144,11 +225,16 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
       ...v3FDocumentLinkActions,
       "application.details.update",
       ...staffOrganizationActions,
+      ...laterActions,
     ].sort(),
   );
   assert.deepEqual(
     PLATFORM_AUDIT_RESOURCE_TYPES,
-    [...sqlTextArray("p7a_safe_audit_resource_types"), ...staffOrganizationResources].sort(),
+    [...new Set([
+      ...sqlTextArray("p7a_safe_audit_resource_types"),
+      ...staffOrganizationResources,
+      ...laterResourceTypes,
+    ])].sort(),
   );
 });
 
@@ -292,7 +378,7 @@ test("microsecond filter ordering compares numeric time instead of variable-leng
   );
 });
 
-test("safe row parsing rejects unknown private fields, unsafe labels and non-allowlisted codes", () => {
+test("safe row parsing rejects unknown private fields and unsafe labels; a well-formed but non-allowlisted code degrades instead of failing the page", () => {
   const base = {
     filters: {
       start_at: null,
@@ -314,10 +400,21 @@ test("safe row parsing rejects unknown private fields, unsafe labels and non-all
     { ...SAFE_ROW, actor_display_label: "Administrator +996 555 000 000" },
     { ...SAFE_ROW, actor_kind: "provider" },
     { ...SAFE_ROW, reason_code: "free text" },
-    { ...SAFE_ROW, changed_field_codes: ["phone_number"] },
   ]) {
     assertContractError(() => normalizePlatformAuditSearchResult({ ...base, rows: [row] }));
   }
+
+  // "phone_number" has the right SHAPE (lowercase, underscores, <=26 chars) —
+  // it is not a code this file knows for case.curator.set — so the row is
+  // kept, unrecognized, with plain strings rather than dropped. Dropping
+  // would make the journal and the CSV export silently incomplete.
+  const degraded = normalizePlatformAuditSearchResult({
+    ...base,
+    rows: [{ ...SAFE_ROW, changed_field_codes: ["phone_number"] }],
+  }).rows[0];
+  assert.equal(degraded.recognized, false);
+  assert.equal(degraded.action, "case.curator.set");
+  assert.deepEqual(degraded.changedFieldCodes, ["phone_number"]);
 });
 
 test("empty search uses a null snapshot and export result verifies exact safe receipt shape", () => {
@@ -370,7 +467,7 @@ test("empty search uses a null snapshot and export result verifies exact safe re
   assert.equal(result.rowSetSha256, "a".repeat(64));
 });
 
-test("safe rows require the exact fixed reason and changed-code mapping for their action", () => {
+test("safe rows require the exact fixed reason for their action (structural); a mismatched code ORDER degrades instead of failing the page", () => {
   const base = {
     filters: {
       start_at: null,
@@ -391,19 +488,111 @@ test("safe rows require the exact fixed reason and changed-code mapping for thei
     resource_type: "organization",
     changed_field_codes: ["record_status", "actor_role", "assignment"],
   };
-  assert.equal(
-    normalizePlatformAuditSearchResult({ ...base, rows: [organizationRow] })
-      .rows[0].action,
-    "organization.bootstrap",
+  const recognized = normalizePlatformAuditSearchResult({ ...base, rows: [organizationRow] })
+    .rows[0];
+  assert.equal(recognized.action, "organization.bootstrap");
+  assert.equal(recognized.recognized, true);
+
+  // reason_code/action pairing is structural — it stays fail-closed
+  // regardless of whether the action itself is recognized.
+  assertContractError(() =>
+    normalizePlatformAuditSearchResult({
+      ...base,
+      rows: [{ ...organizationRow, reason_code: "audit_export_requested" }],
+    }),
   );
-  for (const row of [
-    { ...organizationRow, changed_field_codes: ["actor_role", "assignment", "record_status"] },
-    { ...organizationRow, reason_code: "audit_export_requested" },
+
+  // Same three codes, different ORDER: well-formed, but not exactly what
+  // expectedChangedFieldCodes("organization.bootstrap") returns — the row is
+  // kept, unrecognized, not dropped.
+  const reordered = normalizePlatformAuditSearchResult({
+    ...base,
+    rows: [{ ...organizationRow, changed_field_codes: ["actor_role", "assignment", "record_status"] }],
+  }).rows[0];
+  assert.equal(reordered.recognized, false);
+  assert.deepEqual(reordered.changedFieldCodes, ["actor_role", "assignment", "record_status"]);
+});
+
+test("an unknown well-formed action/resource type page reads cleanly (the #1109-class defect); malformed values still fail closed", () => {
+  const base = {
+    filters: {
+      start_at: null,
+      end_at: null,
+      actions: null,
+      resource_types: null,
+      resource_id: null,
+    },
+    snapshot_created_at: "2026-08-13T09:00:00Z",
+    snapshot_id: SNAPSHOT_ID,
+    next_cursor_created_at: null,
+    next_cursor_id: null,
+    has_more: false,
+  };
+  const row = (overrides) => ({ ...SAFE_ROW, ...overrides });
+  const oneRow = (overrides) => ({ ...base, rows: [row(overrides)] });
+
+  // An action the server has started emitting but this file has not (yet)
+  // learned about no longer fails the whole page (src/lib/platform-audit.ts,
+  // the defect this PR fixes — 29.09, snippet.create/reply_snippet on the
+  // demo DB before this file learned those literals).
+  const unknownAction = normalizePlatformAuditSearchResult(
+    oneRow({ action: "snippet.publish", changed_field_codes: ["record_status"] }),
+  ).rows[0];
+  assert.equal(unknownAction.recognized, false);
+  assert.equal(unknownAction.action, "snippet.publish");
+  assert.equal(typeof unknownAction.action, "string");
+
+  // Malformed actions still throw — recognition never widens the STRUCTURAL
+  // shape a value must have.
+  for (const action of [
+    "Case.Create", // uppercase
+    "case create", // space
+    "case.create!", // punctuation
+    "case", // no dot-segment at all
+    "a." + "b".repeat(70), // over 64 chars
+    "case.créate", // non-ASCII
   ]) {
-    assertContractError(() =>
-      normalizePlatformAuditSearchResult({ ...base, rows: [row] }),
-    );
+    assertContractError(() => normalizePlatformAuditSearchResult(oneRow({ action })));
   }
+
+  // An unknown resource type degrades the same way an unknown action does.
+  const unknownResourceType = normalizePlatformAuditSearchResult(
+    oneRow({ resource_type: "phone_number" }),
+  ).rows[0];
+  assert.equal(unknownResourceType.recognized, false);
+  assert.equal(unknownResourceType.resourceType, "phone_number");
+
+  // reason_code is derived from the action alone — an unknown action still
+  // must carry 'restricted', never 'audit_export_requested'.
+  assertContractError(() =>
+    normalizePlatformAuditSearchResult(
+      oneRow({
+        action: "snippet.publish",
+        reason_code: "audit_export_requested",
+        changed_field_codes: ["record_status"],
+      }),
+    ),
+  );
+
+  // The export result normalizer shares parseSafeRow/parseRows — same
+  // recognized/unrecognized semantics apply to an export row.
+  const exportResult = normalizePlatformAuditExportResult({
+    request_id: REQUEST_ID,
+    filters: {
+      start_at: "2026-08-01T00:00:00Z",
+      end_at: "2026-08-14T00:00:00Z",
+      actions: null,
+      resource_types: null,
+      resource_id: null,
+    },
+    snapshot_created_at: "2026-08-13T09:00:00Z",
+    snapshot_id: SNAPSHOT_ID,
+    row_count: 1,
+    row_set_sha256: "a".repeat(64),
+    rows: [row({ action: "snippet.publish", changed_field_codes: ["record_status"] })],
+  });
+  assert.equal(exportResult.rows[0].recognized, false);
+  assert.equal(exportResult.rows[0].action, "snippet.publish");
 });
 
 function rpcClient(response, calls) {

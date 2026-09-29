@@ -18,7 +18,10 @@ export async function readPortalCaseMessages(
   const { data, error } = await client
     .schema("platform")
     .rpc("portal_case_chat_page_v1", {
-      p_before_sequence_id: beforeSequenceId,
+      // GET переносит аргументы в query string, и null превращается в текст
+      // "null" (22P02 для BIGINT), поэтому первая страница не передаёт
+      // параметр и срабатывает DEFAULT NULL функции.
+      p_before_sequence_id: beforeSequenceId ?? undefined,
     }, { get: true });
   const page = !error && parsePortalCaseMessagesPage(data);
   if (!page) throw new Error("Case messages unavailable");

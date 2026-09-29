@@ -340,6 +340,41 @@ test("all four Student Portal routes pass the real authenticated quality gate", 
   }
 });
 
+test("the Student's case message thread loads instead of the unavailable alert", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "one browser profile is sufficient");
+
+  // Regression for the GET-serialization defect fixed in messages-source.ts:
+  // the first page load and the 30s poll both called readPortalCaseMessages
+  // with a literal null cursor, which PostgREST rejected (22P02) and the page
+  // caught into the honest-but-wrong "unavailable" alert below.
+  await submitLogin(page, "student");
+  const response = await page.goto("/portal/messages", { waitUntil: "networkidle" });
+  expect(response?.status()).toBe(200);
+  expect(new URL(page.url()).pathname).toBe("/portal/messages");
+  await expect(page.getByTestId("student-portal-shell")).toBeVisible();
+
+  const unavailableAlert = page.locator('[role="alert"]', {
+    hasText: "Не удалось загрузить сообщения. Обновите страницу. Переписка не потеряна.",
+  });
+  await expect(unavailableAlert).toHaveCount(0);
+
+  // The composer is MessagesThread's stable anchor: it renders whenever the
+  // real page (not the caught-error branch) mounted, independent of whether
+  // the case already has messages.
+  await expect(
+    page.getByRole("textbox", { name: "Сообщение команде EVO", exact: true }),
+  ).toBeVisible();
+
+  const screenshotDirectory = process.env.EVO_STUDENT_PORTAL_SCREENSHOT_DIR;
+  if (screenshotDirectory) {
+    const screenshotPath = join(screenshotDirectory, `${testInfo.project.name}-portal-messages-thread.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+    await chmod(screenshotPath, 0o600);
+  }
+});
+
 test("anonymous, staff and Student routes stay mutually isolated", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "one browser profile is sufficient");
 

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { test } from "node:test";
+
+import { createClient } from "@supabase/supabase-js";
 
 import {
   mergePortalCaseMessages,
@@ -186,4 +189,93 @@ test("the portal chat test file is registered exactly once", () => {
     .filter((command) => command.includes("tests/portal-messages.test.mjs"));
   assert.equal(registrations.length, 1);
   assert.match(packageJson.scripts["test:frontend"], /tests\/portal-messages\.test\.mjs/u);
+});
+
+// Regression for the GET-serialization defect: @supabase/postgrest-js 2.111.0
+// stringifies every RPC arg for a GET call and only drops `undefined`, so a
+// literal `null` cursor became the text "null" in the query string and
+// PostgreSQL rejected it for the function's BIGINT parameter (22P02). This
+// exercises the real `readPortalCaseMessages` against a real
+// `@supabase/supabase-js` client whose `fetch` is swapped for a capturing
+// stub — no network, no mock of the transport's own serialization.
+const portalMessagesSourceHarness = {
+  calls: [],
+  response: {
+    messages: [message(2), message(1)],
+    cursor: "1",
+    hasMore: false,
+    awaitState: "none",
+  },
+};
+globalThis.__portalMessagesSourceHarness = portalMessagesSourceHarness;
+
+portalMessagesSourceHarness.createClient = () =>
+  createClient("http://127.0.0.1:9", "dummy-anon-key-for-tests", {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: {
+      fetch: async (input, init) => {
+        portalMessagesSourceHarness.calls.push({
+          url: String(input),
+          method: init?.method ?? "GET",
+          headers: new Headers(init?.headers ?? {}),
+        });
+        return new Response(JSON.stringify(portalMessagesSourceHarness.response), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    },
+  });
+
+// Scoped to messages-source.ts only, so it cannot affect any other test in
+// this file: real "./messages" parser, a stand-in "../supabase/server" that
+// hands back the real Supabase client built above.
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (!context.parentURL?.endsWith("/messages-source.ts")) {
+      return nextResolve(specifier, context);
+    }
+    if (specifier === "./messages") {
+      return {
+        shortCircuit: true,
+        url: new URL("../src/lib/portal/messages.ts", import.meta.url).href,
+      };
+    }
+    if (specifier === "../supabase/server") {
+      return {
+        shortCircuit: true,
+        url: `data:text/javascript,${encodeURIComponent(
+          "export async function createSupabaseServerClient() { return globalThis.__portalMessagesSourceHarness.createClient(); }",
+        )}`,
+      };
+    }
+    return nextResolve(specifier, context);
+  },
+});
+
+const { readPortalCaseMessages } = await import("../src/lib/portal/messages-source.ts");
+
+test("readPortalCaseMessages() omits the GET cursor param instead of sending the literal \"null\"", async () => {
+  portalMessagesSourceHarness.calls = [];
+  const page = await readPortalCaseMessages();
+  assert.equal(portalMessagesSourceHarness.calls.length, 1);
+  const [call] = portalMessagesSourceHarness.calls;
+  assert.equal(call.method, "GET");
+  const url = new URL(call.url);
+  assert.match(url.pathname, /\/rest\/v1\/rpc\/portal_case_chat_page_v1$/u);
+  assert.equal(url.searchParams.has("p_before_sequence_id"), false);
+  assert.equal(call.url.includes("null"), false);
+  assert.equal(call.headers.get("Accept-Profile"), "platform");
+  assert.deepEqual(page.messages.map((entry) => entry.sequenceId), ["2", "1"]);
+});
+
+test("readPortalCaseMessages(\"11\") forwards the numeric cursor as a GET query param", async () => {
+  portalMessagesSourceHarness.calls = [];
+  const page = await readPortalCaseMessages("11");
+  assert.equal(portalMessagesSourceHarness.calls.length, 1);
+  const [call] = portalMessagesSourceHarness.calls;
+  const url = new URL(call.url);
+  assert.equal(url.searchParams.get("p_before_sequence_id"), "11");
+  assert.equal(call.headers.get("Accept-Profile"), "platform");
+  assert.deepEqual(page.messages.map((entry) => entry.sequenceId), ["2", "1"]);
 });

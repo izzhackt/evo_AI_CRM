@@ -43830,3 +43830,55 @@ PR нет; сами выпуски, миграции и удаление тес�
 
 Проверка: `git diff --check`; префиксы `docs/EVO_LAUNCH_PLAN.md` и
 `docs/PLAN_CHANGES.md` байт в байт совпадают с `origin/main` `a8796d86`.
+
+## 2026-09-29 — «Сообщения» кабинета: курсор null в GET-чтении треда (исправление дефекта)
+
+Дефект найден 29.09 независимой проверкой локального демо-стенда на
+`origin/main` `3e20cc7b`: `/portal/messages` всегда показывает «Не удалось
+загрузить сообщения. Обновите страницу. Переписка не потеряна.» и не
+показывает тред.
+
+Причина подтверждена на изолированном локальном Supabase (миграции
+001–254, PostgREST v16.1, `@supabase/supabase-js` 2.111.0).
+`readPortalCaseMessages` (`src/lib/portal/messages-source.ts`) читает
+`platform.portal_case_chat_page_v1` запросом GET и передаёт
+`p_before_sequence_id: null`. postgrest-js при GET переносит аргументы в query
+string и отбрасывает только `undefined`, поэтому уходит
+`?p_before_sequence_id=null`, а PostgREST отвечает 400 `22P02` (`invalid input
+syntax for type bigint: "null"`) ещё до гейта функции. Без параметра, а также
+POST с JSON `null` — 200. Затронуты первая загрузка страницы и опрос раз в
+30 с (`loadPortalCaseMessagesAction(null)`); «Показать раньше» передаёт число
+и работал. Приложение iOS вызывает ту же RPC через POST с JSON-телом и, по
+коду, не затронуто.
+
+Production (только чтение кода и состояния выпусков, без входа в
+production): запрос не менялся с #892 (`2216404b`). Первый выпуск с ним —
+`50c932c6` (19.09), текущий — `a8796d86` (r148), та же версия postgrest-js.
+Дымовая проверка выпуска `/portal/messages` не открывает. Значит,
+production, по всей видимости, затронут с 19.09. Живой ответ production не
+проверялся, и версия PostgREST там не сверялась.
+
+Решение, минимальное: `p_before_sequence_id: beforeSequenceId ?? undefined`,
+GET сохраняется (тот же приём, что в `platform-admissions-pipeline.ts`).
+Проверка остальных GET-вызовов RPC в `src/` других вызовов с `null` не нашла.
+Интерфейс и SQL не меняются; облик страницы тоже, поэтому проход Impeccable
+не требуется, результат проверен через реальный UI.
+
+Регрессия:
+- `tests/portal-messages.test.mjs` вызывает настоящий `readPortalCaseMessages`
+  через настоящий клиент supabase-js с перехватом `fetch`. На старой строке
+  тест падает, на исправлении проходит, в CI входит через существующий
+  манифест.
+- `tests/e2e/student-portal.spec.ts` проверяет, что `/portal/messages`
+  показывает тред, а не предупреждение. Тест прогнан браузером (`next dev`)
+  на изолированном локальном стенде с реальной Auth/PostgREST и студентом с
+  активным делом: на `origin/main` падает (предупреждение видно), с
+  исправлением проходит (видно сообщение, отправленное через
+  `portal_case_chat_post_v1`).
+
+Не проверено и вне объёма: сам гейт
+`scripts/test-e4-student-portal-browser.sh` на текущем `main` не
+провиженится. После миграции 155 фикстуре нужен `is_system_admin`, а ветка
+`EVO_E4_REVIEW_UI_FIXTURE=1` падает с `42501 sales_register_forbidden`.
+Починка гейта — отдельная задача, здесь он не менялся. Сборка production
+(`next build`) с TLS-прокси локально не запускалась.

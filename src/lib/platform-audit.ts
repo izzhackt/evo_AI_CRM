@@ -10,16 +10,19 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // baseline extended by the wrapper chain through migration 255 (proposal,
 // not yet applied to any database — see 255's own header and
 // docs/PLAN_CHANGES.md «2026-09-29 — «Журнал действий»: серверный allowlist
-// аудита расширен на 72 действия»). Migration 191 (ledger 254) is the latest
-// APPLIED wrapper; 255 widens the allowlist by 72 actions / 15 resource
-// types that are already written by canonical Supabase but were never
-// projected — a 73rd action researched for 255 (`case.contract_file.upload`,
-// 189) turned out to violate `platform.audit_events`'s own
+// аудита расширен на 71 действие» and the lead's PR #1120 head 170efb75
+// correction). Migration 191 (ledger 254) is the latest APPLIED wrapper;
+// 255 widens the allowlist by 71 actions / 15 resource types that are
+// already written by canonical Supabase but were never projected. Two
+// actions researched for 255 are deliberately left out: `case.contract_file.upload`
+// (189) turned out to violate `platform.audit_events`'s own
 // `audit_events_action_check` CHECK (a pre-existing, independent defect in
 // already-applied migration 189, unrelated to this widening: the literal
-// contains an underscore the CHECK's `[a-z][a-z0-9]*` segments forbid) and
-// is deliberately left out — see 255's own header for the full evidence. A
-// later migration that adds a P7A action/resource type/field
+// contains an underscore the CHECK's `[a-z][a-z0-9]*` segments forbid), and
+// `document.slot.scaninvalidate` turned out to be a one-off deploy backfill
+// (its only writer is a `DO $$ … $$` block inside already-applied migration
+// 115, not a live function) — see 255's own header for the full evidence on
+// both. A later migration that adds a P7A action/resource type/field
 // code always wraps the previous
 // `platform_private.p7a_safe_*`/`p7a_changed_field_codes` function
 // (rename-and-union, see e.g. 191's `p7a_safe_audit_actions_pre_case_chat`
@@ -33,8 +36,8 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // (yet) in these lists is not rejected outright: `parseSafeRow` keeps it with
 // `recognized: false` rather than dropping it or failing the whole page —
 // dropping would make the journal and the CSV export silently incomplete.
-// `expectedChangedFieldCodes` below needed no new branch for 255's 72
-// actions: 10 `document.*` actions already hit the existing
+// `expectedChangedFieldCodes` below needed no new branch for 255's 71
+// actions: 9 `document.export.*` actions already hit the existing
 // `action.startsWith("document.")` branch (mirroring the server's
 // `p7a_changed_field_codes` `document.%` LIKE branch, itself unchanged by
 // 255) and the remaining 62 fall through to the existing `["record_status"]`
@@ -142,7 +145,6 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "document.slot.custom.create",
   "document.slot.metadata.change",
   "document.slot.remove",
-  "document.slot.scaninvalidate",
   "document.slot.visa.link",
   "document.slot.visa.unlink",
   "document.upload.finalize",

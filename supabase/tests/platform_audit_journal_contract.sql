@@ -19,10 +19,11 @@
 --
 -- Extended by migration 255 (proposal, not applied — PLAN_CHANGES.md
 -- «2026-09-29 — «Журнал действий»: серверный allowlist аудита расширен на
--- 73 действия») with one privacy pin: a hardcoded list of the 28 actions and
--- 4 resource types 255 deliberately did NOT allowlist (see 255's own header
--- for the per-action reasons), asserted absent from
--- p7a_safe_audit_actions()/p7a_safe_audit_resource_types(), plus four seeded
+-- 71 действие» and the lead's PR #1120 head 170efb75 correction) with one
+-- privacy pin: a hardcoded list of the 29 actions and 4 resource types 255
+-- deliberately did NOT allowlist (see 255's own header for the per-action
+-- reasons), asserted absent from
+-- p7a_safe_audit_actions()/p7a_safe_audit_resource_types(), plus five seeded
 -- excluded-action rows proven absent from a real search_audit_events() read.
 -- This is the one intentional exception to the "no hardcoded list" rule
 -- above: it exists to catch a future migration accidentally re-adding one of
@@ -145,9 +146,13 @@ SELECT pg_temp.p7aj_assert(
     'media.archive.claim', 'media.archive.finish', 'media.download.consume',
     'company.file.download.consume', 'integration.amocrm.mapping.discovery.persist',
     'configuration.waha.provision', 'platform.observability.probe',
-    'lead.sales.stage.normalized', 'staff.roles.migrated'
+    'lead.sales.stage.normalized', 'staff.roles.migrated',
+    -- Lead's correction (PR #1120, head 170efb75): moved here from a draft
+    -- INCLUDE — same X5 one-off-backfill class, its only writer is the
+    -- DO $$ ... $$ block inside already-applied migration 115 (115:611-690).
+    'document.slot.scaninvalidate'
   ]::TEXT[]),
-  'none of the 28 deliberately-excluded actions is in p7a_safe_audit_actions()');
+  'none of the 29 deliberately-excluded actions is in p7a_safe_audit_actions()');
 SELECT pg_temp.p7aj_assert(
   NOT (platform_private.p7a_safe_audit_resource_types() && ARRAY[
     'student_application', 'staff_auth_request', 'waha_session_observation',
@@ -159,10 +164,11 @@ SELECT pg_temp.p7aj_assert(
 -- organization, inserted AFTER the exact-count assertions above so they
 -- never affect the "one row per current server-safe action" counts. Each
 -- uses the resource_type its real writer uses (228, 177/216-class pre-account
--- intake, staff_auth_request internals, 045 durable work queue) — two of the
--- four are otherwise-safe resource types (university_application,
--- durable_work_item), proving the ACTION exclusion alone hides the row, not
--- merely an unsafe resource type riding along with it. actor_kind='system'
+-- intake, staff_auth_request internals, 045 durable work queue, 115 document
+-- slot scan invalidation) — three of the five are otherwise-safe resource
+-- types (university_application, durable_work_item, document_slot),
+-- proving the ACTION exclusion alone hides the row, not merely an unsafe
+-- resource type riding along with it. actor_kind='system'
 -- throughout (not 'user'): platform.audit_events_actor_check (041) requires
 -- a real actor_profile_id whenever actor_kind='user', and this suite has no
 -- second (Student) profile fixture to attach — irrelevant to what this pin
@@ -183,6 +189,9 @@ VALUES
     '{}'::JSONB, 'P7AJ synthetic excluded-action fixture row', gen_random_uuid()),
   (pg_temp.p7aj_id(1), 'system', 'P7AJ excluded fixture actor',
     'work.claim', 'durable_work_item', gen_random_uuid(),
+    '{}'::JSONB, 'P7AJ synthetic excluded-action fixture row', gen_random_uuid()),
+  (pg_temp.p7aj_id(1), 'system', 'P7AJ excluded fixture actor',
+    'document.slot.scaninvalidate', 'document_slot', gen_random_uuid(),
     '{}'::JSONB, 'P7AJ synthetic excluded-action fixture row', gen_random_uuid());
 
 -- ---------------------------------------------------------------------------
@@ -263,10 +272,10 @@ SELECT pg_temp.p7aj_assert(
     SELECT 1 FROM p7aj_pages, jsonb_array_elements(page -> 'rows') AS r
     WHERE r ->> 'action' IN (
       'student.application.approve', 'application.document.submit',
-      'staff.auth.prepare', 'work.claim'
+      'staff.auth.prepare', 'work.claim', 'document.slot.scaninvalidate'
     )
   ),
-  'none of the 4 seeded excluded-action rows was returned by search_audit_events() to the fixture Admin');
+  'none of the 5 seeded excluded-action rows was returned by search_audit_events() to the fixture Admin');
 
 -- ---------------------------------------------------------------------------
 -- Emit the live server contract and every captured page as single-line JSON

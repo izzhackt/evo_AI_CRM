@@ -225,7 +225,6 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "document.export.unknown",
     "document.media.attach.complete",
     "document.media.attach.reserve",
-    "document.slot.scaninvalidate",
     "lead.admissions.gate.contract.confirmed",
     "lead.admissions.gate.firstpayment.confirmed",
     "lead.admissions.gate.overridden",
@@ -370,6 +369,11 @@ const P7A_EXCLUDED_ACTIONS = [
   // X5 — one-off deploy backfills.
   "lead.sales.stage.normalized",
   "staff.roles.migrated",
+  // Lead's correction (PR #1120, head 170efb75): document.slot.scaninvalidate
+  // moved here from a draft INCLUDE — same X5 class, its only writer is the
+  // DO $$ ... $$ block inside already-applied migration 115 (115:611-690),
+  // not a live function.
+  "document.slot.scaninvalidate",
 ];
 const P7A_NEVER_ADD_RESOURCE_TYPES = [
   "student_application",
@@ -379,7 +383,7 @@ const P7A_NEVER_ADD_RESOURCE_TYPES = [
 ];
 
 test("excluded audit actions and never-add resource types stay out of the browser-safe allowlists", () => {
-  assert.equal(P7A_EXCLUDED_ACTIONS.length, 28);
+  assert.equal(P7A_EXCLUDED_ACTIONS.length, 29);
   for (const action of P7A_EXCLUDED_ACTIONS) {
     assert.equal(
       PLATFORM_AUDIT_ACTIONS.includes(action),

@@ -1,9 +1,9 @@
--- «Журнал действий»: серверный allowlist аудита расширен на 72 действия и
+-- «Журнал действий»: серверный allowlist аудита расширен на 71 действие и
 -- 15 типов объектов, которые уже пишутся канонической схемой, но раньше не
 -- проецировались в platform.search_audit_events()/export_audit_events()
 -- (071, платформа P7A). docs/PLAN_CHANGES.md «2026-09-29 — «Журнал
--- действий»: серверный allowlist аудита расширен на 72 действия
--- (предложение, миграция 255)».
+-- действий»: серверный allowlist аудита расширен на 71 действие
+-- (предложение, миграция 255)» и правка лида (PR #1120, head 170efb75).
 --
 -- Тот же приём rename-and-union, что и во всех предыдущих расширениях этого
 -- allowlist-а (083 → … → 191, шаблон формы взят из 191:725-742 и
@@ -18,9 +18,9 @@
 -- существующие ветки-фолбэки этой функции (по умолчанию ARRAY['record_status'];
 -- 'document.%' — уже существующая ветка для document.export.*/document.slot.*).
 --
--- Включены 72 действия, которые УЖЕ пишет канонический Supabase (см. writer
+-- Включены 71 действие, которые УЖЕ пишет канонический Supabase (см. writer
 -- file:line ниже), но которые ни разу не заходили в этот allowlist ни в
--- одной из миграций 071→191. Явно НЕ включены 28 действий, которые остаются
+-- одной из миграций 071→191. Явно НЕ включены 29 действий, которые остаются
 -- невидимыми журналу по одной из причин: pre-account applicant intake без
 -- staff-маршрута к идентификатору (student.application.approve/reject),
 -- Student-writable путь, который проекция подписала бы «сотрудник»
@@ -31,14 +31,15 @@
 -- большим объёмом (work.*, communication.leadagent.*,
 -- communication.webhook.persist, media.archive.*, media.download.consume,
 -- company.file.download.consume, integration.amocrm.mapping.discovery.persist,
--- configuration.waha.provision, platform.observability.probe), и два
+-- configuration.waha.provision, platform.observability.probe), и три
 -- одноразовых деплой-бэкфилла (lead.sales.stage.normalized,
--- staff.roles.migrated). Полная таблица INCLUDE/EXCLUDE с причинами — в
+-- staff.roles.migrated, document.slot.scaninvalidate — перенесено сюда
+-- правкой лида, см. ниже). Полная таблица INCLUDE/EXCLUDE с причинами — в
 -- PLAN_CHANGES.md записи выше.
 --
 -- Пересчёт лида (заказ этой миграции) по «101 действие пишется, но не
 -- allowlist-нуто» не совпал с последними writer'ами в трёх местах —
--- задокументировано здесь, а не тихо исправлено. 72 INCLUDE + 28 EXCLUDE +
+-- задокументировано здесь, а не тихо исправлено. 71 INCLUDE + 29 EXCLUDE +
 -- 1 DEFERRED (ниже) = 101.
 --  * `case.payment_receipt.upload` был переименован миграцией 230
 --    (230_platform_payment_receipt_audit_action.sql) в
@@ -80,8 +81,18 @@
 --    которой цепочка полных проверок красная. Резервируется до отдельного
 --    решения владельца о починке 189 или переименовании действия по образцу
 --    230 (`case.payment_receipt.upload` → `case.payment.receipt.upload`).
+--  * **Правка лида (PR #1120, head 170efb75)**: `document.slot.scaninvalidate`
+--    перенесено из INCLUDE в EXCLUDE под X5. Изначальный черновик этой
+--    миграции включил его отдельной категорией L по прямому указанию лида,
+--    несмотря на то, что оно — тот же класс одноразового deploy-бэкфилла,
+--    что уже исключённые `lead.sales.stage.normalized`/`staff.roles.migrated`
+--    (X5): весь его единственный writer — `DO $$ … $$` блок внутри самой
+--    миграции 115 (115:611-690), не публичная функция; лид подтвердил, что
+--    другого писателя нет, и что первоначальный вызов оставить его в
+--    INCLUDE опирался на ошибочно указанное место записи. Убрано из
+--    allowlist ниже.
 --
--- INCLUDE (72 действия, writer file:line на момент этой миграции):
+-- INCLUDE (71 действие, writer file:line на момент этой миграции):
 --  application.document.review — 228:283-288,328-350 (staff-only:
 --    application_document_actor блокирует 'document.review' для
 --    platform_role='student', 228:90-91)
@@ -142,13 +153,6 @@
 --    download.verified/download.failed — 164:260-587
 --    (staff_can_access_for_actor 'profile.read.full'+'document.download';
 --    resource_type='student_profile', already allowlisted)
---  document.slot.scaninvalidate — 115:611-680: ОДНОРАЗОВЫЙ deploy-бэкфилл
---    внутри DO $$ … $$ этой же миграции (actor_kind='system',
---    'service:migration-115'), больше нигде не пишется — по форме тот же
---    класс, что уже исключённые lead.sales.stage.normalized/
---    staff.roles.migrated (X5), но лид явно указал включить его отдельной
---    категорией L; включено по прямому решению, отмечено для повторной
---    сверки владельцем.
 --  prompt.artifact.publish/retire — 054:1143-1461 (require_bw4_admin_actor)
 --  work.review.resolve — 045:3031-3090 (require_p2f_admin_actor
 --    'workreview.resolve')
@@ -219,7 +223,6 @@ AS $$
     'document.export.reconciled',
     'document.export.sealed',
     'document.export.unknown',
-    'document.slot.scaninvalidate',
     'lead.lifecycle.change',
     'lead.manual.create',
     'lead.sale.conditions.save',

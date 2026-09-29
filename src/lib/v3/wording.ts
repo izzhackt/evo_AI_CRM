@@ -760,9 +760,13 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "workflow.version.retire": "Версия процесса отозвана",
 
   // Миграция 255 (предложение, не применена — PLAN_CHANGES.md «2026-09-29 —
-  // «Журнал действий»: серверный allowlist аудита расширен на 72 действия»):
-  // 66 новых действий (case.contract_file.upload из исходных 73 оставлено вне
-  // allowlist-а — независимый дефект уже применённой 189, см. 255's header).
+  // «Журнал действий»: серверный allowlist аудита расширен на 71 действие»
+  // и правка лида, PR #1120 head 170efb75): 65 новых действий
+  // (case.contract_file.upload из исходных 73 оставлено вне allowlist-а —
+  // независимый дефект уже применённой 189, см. 255's header;
+  // document.slot.scaninvalidate перенесено в EXCLUDE правкой лида — тот же
+  // класс одноразового deploy-бэкфилла, что и уже исключённые
+  // lead.sales.stage.normalized/staff.roles.migrated).
   // Ещё 6 действий этого расширения (case.coverage.start,
   // case.coverage.return, case.handoff.acknowledge, case.handoff.clarification,
   // case.next.action.change, lead.manual.create) уже были здесь выше —
@@ -830,7 +834,6 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "document.export.unknown": "Итог экспорта документа анкеты не определён",
   "document.export.download.verified": "Скачивание экспорта анкеты подтверждено",
   "document.export.download.failed": "Скачивание экспорта анкеты не подтверждено",
-  "document.slot.scaninvalidate": "Документ возвращён на исправление после проверки безопасности",
   "prompt.artifact.publish": "Версия промпта ИИ опубликована",
   "prompt.artifact.retire": "Версия промпта ИИ отозвана",
   "work.review.resolve": "Разбор фоновой задачи закрыт",

@@ -44640,3 +44640,53 @@ student-only 128:812-923), `document.upload.reserve` (116:151 резолвер
 Student-writable. Найдено фоновым read-only исследованием при этой задаче
 по прямому требованию лида «сообщить, без починки»; чинить эти четыре —
 отдельная работа.
+
+### Правка лида (PR #1120, head `170efb75`)
+
+1. `document.slot.scaninvalidate` перенесено из INCLUDE в EXCLUDE под X5
+   (одноразовые deploy-бэкфиллы). Лид подтвердил, что единственный writer —
+   `DO $$ … $$` блок внутри уже применённой миграции 115 (115:611-690), не
+   публичная функция; исходное решение включить его отдельной категорией L
+   опиралось на неверно указанное место записи. Итог: **71 INCLUDE / 29
+   EXCLUDE / 1 DEFERRED = 101** (было 72/28/1).
+2. `supabase/migrations/255_platform_audit_journal_allowlist_widen.sql`:
+   действие убрано из массива `p7a_safe_audit_actions`, заголовок обновлён
+   (счётчики 71/29, новый абзац «Правка лида» рядом с уже описанными
+   расхождениями по `case.payment_receipt.upload` и DEFERRED
+   `case.contract_file.upload`). Тип объекта `document_slot` не менялся —
+   он уже был в allowlist-е до 255 (071 baseline), поэтому список из 15
+   новых типов объектов не сократился.
+3. `src/lib/platform-audit.ts`: `PLATFORM_AUDIT_ACTIONS` — 204 записи
+   (было 205). Отдельной ветки в `expectedChangedFieldCodes` для этого
+   действия не было (оно уже попадало под общую `action.startsWith("document.")`,
+   которую по-прежнему используют 9 действий `document.export.*`) — менять
+   нечего, только счётчики в комментарии (10 → 9 «document.*» действий).
+4. `src/lib/v3/wording.ts`: подпись `"document.slot.scaninvalidate": "Документ
+   возвращён на исправление после проверки безопасности"` убрана из
+   `JOURNAL_EVENT_WORD`; счётчик в комментарии — 66 → 65 новых действий.
+5. `tests/platform-audit.test.mjs`: убрано из пересчитываемого
+   `laterActions` (тест «browser-safe allowlists…» подтягивает это
+   автоматически из самой миграции); добавлено в `P7A_EXCLUDED_ACTIONS`
+   (категория X5), счётчик — 28 → 29.
+6. `supabase/tests/platform_audit_journal_contract.sql`: добавлено в
+   статический privacy-пин (i) (29 действий вместо 28) и как пятая seeded
+   строка в (ii) (`resource_type='document_slot'`, уже безопасный тип —
+   тот же приём, что и `work.claim`/`durable_work_item`, доказывающий, что
+   именно исключение действия прячет строку, а не тип объекта); явная
+   проверка чтения дополнена этим действием (5 вместо 4).
+
+Проверки после правки: `node --conditions=react-server
+--experimental-strip-types --test tests/platform-audit.test.mjs` — 19/19;
+`npm run typecheck` — зелёный; `eslint` на
+`src/lib/platform-audit.ts src/lib/v3/wording.ts tests/platform-audit.test.mjs`
+— без предупреждений; `git diff --check` — чисто. Полная пересборка
+(`npm run build`) для удаления одной записи из списка не перезапускалась —
+прежний зелёный `npm run build` этой сессии остаётся в силе, изменение не
+трогает типы вне уже проверенных `satisfies`-словарей.
+`DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries`
+перепрогнан целиком — зелёный: `Verified disposable authorization database
+with public.ecr.aws/supabase/postgres@sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453
+(sha256:80d7b27c3e8d).` и `P7A journal contract check passed: 204 actions,
+71 resource types, 3 page(s), 204 rows, all recognized.` (133+71=204
+действия, 56+15=71 тип объекта — сходится с TS; реальный exit code
+процесса — `0`, проверен отдельно от `npm run`).

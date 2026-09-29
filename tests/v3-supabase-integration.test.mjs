@@ -167,9 +167,9 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
   const profilePage = source("src/app/(v3)/v3/profile/page.tsx");
   const knowledgePage = source("src/app/(v3)/v3/knowledge/page.tsx");
   // #906 (2e72d5ad0, 20.09.2026) rebuilt "/v3/knowledge" around the Admin
-  // library (KnowledgeLibrary) and moved the old FileManager-based student
-  // documents view — including its truncation notice — out of page.tsx and
-  // into KnowledgeDocuments.tsx.
+  // library and removed the FileManager-based student documents view from
+  // page.tsx; #915 (1635d01ef) brought it back as KnowledgeDocuments.tsx
+  // (extracted from the documents page), truncation notice included.
   const knowledgeDocuments = source("src/components/v3/knowledge/KnowledgeDocuments.tsx");
 
   assert.match(layout, /requirePlatformStaffActor/);

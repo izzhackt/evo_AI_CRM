@@ -99,9 +99,9 @@ test("the Student workspace preserves four portal pages, private tests and publi
 
 test("the portal uses the Student guard and never mounts the staff shell", () => {
   const layout = source("src/app/(portal)/layout.tsx");
-  // PORT-2: the layout mounts the new portal Shell. PORT-1a (#928, d1404aef1)
-  // moved the access-tier derivation server-side into the authority read
-  // itself, so the layout now just forwards actor.accessTier.
+  // PORT-2: the layout mounts the new portal Shell. PORT-1a (#869, 7da92e73a)
+  // derives the access tier in the authority read itself; #928 (d1404aef1)
+  // dropped the layout's duplicate ternary, so it just forwards actor.accessTier.
   const shell = source("src/components/portal/Shell.tsx");
   const authority = source("src/lib/supabase/student-portal-authority.ts");
 

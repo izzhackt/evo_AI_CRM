@@ -310,7 +310,7 @@ type PlatformAuditSafeRowEnvelope = Readonly<{
  * apply. `recognized: false` — the server emitted a value this file has not
  * (yet) learned about; every STRUCTURAL shape is still enforced (envelope
  * keys, UUIDs, UTC timestamps, actor kind/label pairing, the reason-code/
- * action pairing, 1-6 unique bounded codes each matching the field-code
+ * action pairing, 1-16 unique bounded codes each matching the field-code
  * shape), but the row is kept with plain-string `action`/`resourceType`/
  * `changedFieldCodes` rather than dropped: dropping a row would make the
  * journal and the CSV export silently incomplete. The UI never shows the raw
@@ -715,20 +715,19 @@ function parseBoundedPatternString(
   return value;
 }
 
-// The server's widest row today is lead.admissions.handoff.completed's 6
-// codes (088); the pre-fix bound of 3 came from the 071 baseline, where
-// audit.export/membership.provision/organization.bootstrap (3 codes) were the
-// widest rows. Raising it here is a deliberate, evidenced correction, not a
-// loosening for its own sake: with the old bound of 3 still in place, a
-// well-formed row for any of the four lead.admissions.* actions (5-6 codes)
-// would throw and fail the WHOLE page again — reproducing exactly the defect
-// this file fixes, just for a narrower set of actions.
-const PLATFORM_AUDIT_MAX_CHANGED_FIELD_CODES = 6;
-// The pre-fix bound of 25 came from the 071 baseline's longest code,
-// export_row_set_sha256 (21). 087's first_payment_confirmation is 26 —
-// another evidenced correction, for the same reason as the count above: a
-// stale bound here would throw on a well-formed row instead of degrading it.
-const PLATFORM_AUDIT_MAX_CHANGED_FIELD_CODE_LENGTH = 26;
+// A generous STRUCTURAL sanity bound against malformed data, not a mirror of
+// today's server maximum: this file no longer fails the whole page when the
+// server adds an action with a wider changed_field_codes array (the defect
+// this file fixes was exactly that — a stale bound throwing on a well-formed
+// row). Whether specific codes are the ones this file KNOWS for a given
+// action is what `recognized` decides, in parseSafeRow, not this bound.
+// Today's widest row is 6 codes (lead.admissions.handoff.completed, 088);
+// 16 leaves real headroom for the server to grow without another PR here.
+const PLATFORM_AUDIT_MAX_CHANGED_FIELD_CODES = 16;
+// Same reasoning as the count above, and the same bound the action/resource
+// type patterns already use: a generous sanity ceiling, not today's longest
+// code (first_payment_confirmation, 26 chars).
+const PLATFORM_AUDIT_MAX_CHANGED_FIELD_CODE_LENGTH = 64;
 
 function parseChangedFieldCodes(value: unknown): readonly string[] {
   if (

@@ -595,6 +595,55 @@ test("an unknown well-formed action/resource type page reads cleanly (the #1109-
   assert.equal(exportResult.rows[0].action, "snippet.publish");
 });
 
+test("changed_field_codes count/length bounds are generous structural sanity ceilings, not today's server maximum", () => {
+  const base = {
+    filters: {
+      start_at: null,
+      end_at: null,
+      actions: null,
+      resource_types: null,
+      resource_id: null,
+    },
+    snapshot_created_at: "2026-08-13T09:00:00Z",
+    snapshot_id: SNAPSHOT_ID,
+    next_cursor_created_at: null,
+    next_cursor_id: null,
+    has_more: false,
+  };
+  const manyCodesRow = (count) => ({
+    ...SAFE_ROW,
+    changed_field_codes: Array.from({ length: count }, (_, index) => `code_${index}`),
+  });
+
+  // 7 well-formed, unique, but unknown codes: within the sanity bound, not
+  // the exact codes this file expects for case.curator.set — degrades.
+  const seven = normalizePlatformAuditSearchResult({ ...base, rows: [manyCodesRow(7)] })
+    .rows[0];
+  assert.equal(seven.recognized, false);
+  assert.deepEqual(seven.changedFieldCodes, Array.from({ length: 7 }, (_, i) => `code_${i}`));
+
+  // 17 codes exceeds the 16-code sanity bound — structural, throws.
+  assertContractError(() =>
+    normalizePlatformAuditSearchResult({ ...base, rows: [manyCodesRow(17)] }),
+  );
+
+  // A single 65-character code exceeds the 64-character sanity bound —
+  // structural, throws.
+  assertContractError(() =>
+    normalizePlatformAuditSearchResult({
+      ...base,
+      rows: [{ ...SAFE_ROW, changed_field_codes: ["a".repeat(65)] }],
+    }),
+  );
+
+  // A 64-character code is within bounds — well-formed, just unrecognized.
+  const sixtyFour = normalizePlatformAuditSearchResult({
+    ...base,
+    rows: [{ ...SAFE_ROW, changed_field_codes: ["a".repeat(64)] }],
+  }).rows[0];
+  assert.equal(sixtyFour.recognized, false);
+});
+
 function rpcClient(response, calls) {
   return {
     schema(schemaName) {

@@ -6,8 +6,20 @@ export const PLATFORM_AUDIT_MAX_FILTER_VALUES = 32;
 export const PLATFORM_AUDIT_MAX_EXPORT_ROWS = 5_000;
 export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 
-// These projection allowlists intentionally mirror migration 071. Expanding
-// either side is a reviewed contract change; unknown values fail closed.
+// These projection allowlists mirror the server's final projection: 071's
+// baseline extended by the wrapper chain through migration 191 (ledger 254).
+// A later migration that adds a P7A action/resource type/field code always
+// wraps the previous `platform_private.p7a_safe_*`/`p7a_changed_field_codes`
+// function (rename-and-union, see e.g. 191's `p7a_safe_audit_actions_pre_case_chat`)
+// rather than replacing it, so the server list only ever grows. Drift between
+// this file and the live server allowlists is caught by the real-Postgres
+// suite `supabase/tests/platform_audit_journal_contract.sql` (run on the
+// latest migration chain by `scripts/test-postgres-authorization.sh`, checked
+// by `scripts/check-platform-audit-journal-contract.mjs`), not by a build-time
+// type. A row whose action, resource type or changed-field-codes are not
+// (yet) in these lists is not rejected outright: `parseSafeRow` keeps it with
+// `recognized: false` rather than dropping it or failing the whole page —
+// dropping would make the journal and the CSV export silently incomplete.
 export const PLATFORM_AUDIT_ACTIONS = [
   "ai.control.set",
   "ai.draft.generate",
@@ -18,18 +30,24 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "ai.draft.review",
   "ai.fact.record",
   "ai.memory.record",
+  "ai.proposal.review",
   "ai.qualification.record",
   "ai.retrieval.preview",
   "application.create",
   "application.details.update",
+  "application.partner.details.update",
   "application.status.change",
   "audit.export",
   "autonomous.reply.control.set",
+  "case.chat.await",
+  "case.chat.post",
   "case.create",
   "case.curator.set",
   "case.handoff.create",
   "case.lifecycle.change",
+  "case.pipeline.move",
   "case.route.change",
+  "case.sales.owner.sync",
   "case.update.append",
   "catalog.import.batch.create",
   "catalog.import.batch.review",
@@ -61,8 +79,11 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "country.requirement.version.retire",
   "decision.backlog.create",
   "decision.backlog.transition",
+  "document.checklist.baseline.seed",
   "document.download.grant",
   "document.download.sign.authorize",
+  "document.media.attach.complete",
+  "document.media.attach.reserve",
   "document.requirement.create",
   "document.requirement.retire",
   "document.slot.application.link",
@@ -85,6 +106,11 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "knowledge.chunkset.publish",
   "knowledge.version.publish",
   "knowledge.version.retire",
+  "lead.admissions.gate.contract.confirmed",
+  "lead.admissions.gate.firstpayment.confirmed",
+  "lead.admissions.gate.overridden",
+  "lead.admissions.handoff.completed",
+  "lead.cabinet.prepare",
   "membership.permission.change",
   "membership.provision",
   "membership.role.change",
@@ -92,20 +118,29 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "membership.scope.organization.revoke",
   "membership.status.change",
   "messaging.integration.health.record",
+  "note.create",
   "notification.consent.set",
   "notification.create",
   "notification.read",
   "organization.bootstrap",
+  "pilot.cohort.configured",
+  "pilot.cohort.member.automatic",
+  "pilot.cohort.member.excluded",
+  "pilot.cohort.member.included",
   "post.contract.item.update",
   "post.contract.items.seed",
   "post.contract.report.generate",
   "post.contract.report.review",
   "rbac.bundle.upgrade",
+  "snippet.archive",
+  "snippet.create",
+  "snippet.update",
   "staff.department.archive",
   "staff.department.create",
   "staff.department.restore",
   "staff.department.update",
   "staff.organization.details.change",
+  "student.portal.authority.activate",
   "student.profile.upsert",
   "task.change",
   "task.create",
@@ -147,6 +182,8 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "document_slot",
   "document_version",
   "durable_work_item",
+  "gemini_proposal_review",
+  "lead",
   "manual_send_authorization",
   "messaging_integration_health_event",
   "notification",
@@ -155,10 +192,13 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "organization_membership",
   "payment_event",
   "payment_obligation",
+  "pilot_cohort_configuration",
+  "pilot_cohort_membership",
   "post_contract_item",
   "post_contract_item_set",
   "post_contract_report",
   "provider_reconciliation_event",
+  "reply_snippet",
   "source_registry",
   "staff_department",
   "staff_organizational_details",
@@ -183,6 +223,7 @@ export const PLATFORM_AUDIT_REASON_CODES = [
 export const PLATFORM_AUDIT_CHANGED_FIELD_CODES = [
   "access_version",
   "actor_role",
+  "admissions_owner",
   "ai_control",
   "ai_status",
   "assignment",
@@ -192,15 +233,29 @@ export const PLATFORM_AUDIT_CHANGED_FIELD_CODES = [
   "case_status",
   "communication_status",
   "consent_status",
+  "contract_confirmation",
   "document_status",
   "export_filters",
   "export_row_count",
   "export_row_set_sha256",
   "finance_status",
+  "first_payment_confirmation",
+  "first_payment_expectation",
+  "gate_state",
+  "gate_version",
+  "handoff_mode",
+  "handoff_reason",
+  "handoff_state",
+  "inherited_sales_context",
   "notification_status",
+  "pilot_configuration",
+  "pilot_cutoff",
+  "pilot_membership",
+  "pilot_write_boundary",
   "record_status",
   "review_status",
   "sensitive_permission",
+  "starter_tasks",
   "work_status",
 ] as const;
 
@@ -239,15 +294,53 @@ export type PlatformAuditExportInput = PlatformAuditFilters &
     snapshotId: string | null;
   }>;
 
-export type PlatformAuditSafeRow = PlatformAuditCsvRow &
+type PlatformAuditSafeRowEnvelope = Readonly<{
+  auditEventId: string;
+  createdAt: string;
+  resourceId: string;
+  actorKind: PlatformAuditActorKind;
+  actorDisplayLabel: "Staff" | "Service" | "System";
+  requestId: string;
+  reasonCode: PlatformAuditReasonCode;
+}>;
+
+/**
+ * `recognized: true` — the row's action, resource type and changed-field
+ * codes are all in the current allowlists above; the narrow literal types
+ * apply. `recognized: false` — the server emitted a value this file has not
+ * (yet) learned about; every STRUCTURAL shape is still enforced (envelope
+ * keys, UUIDs, UTC timestamps, actor kind/label pairing, the reason-code/
+ * action pairing, 1-16 unique bounded codes each matching the field-code
+ * shape), but the row is kept with plain-string `action`/`resourceType`/
+ * `changedFieldCodes` rather than dropped: dropping a row would make the
+ * journal and the CSV export silently incomplete. The UI never shows the raw
+ * strings of an unrecognized row — `wording.ts` returns `null` for an
+ * unknown key, and the caller draws nothing for it. Both branches intersect
+ * `PlatformAuditCsvRow` directly, so `serializePlatformAuditCsv()` keeps
+ * exporting codes for every row, recognized or not — checked here, not just
+ * hoped for, because the intersection fails to compile otherwise.
+ */
+export type PlatformAuditRecognizedSafeRow = PlatformAuditSafeRowEnvelope &
+  PlatformAuditCsvRow &
   Readonly<{
+    recognized: true;
     action: PlatformAuditAction;
     resourceType: PlatformAuditResourceType;
-    actorKind: PlatformAuditActorKind;
-    actorDisplayLabel: "Staff" | "Service" | "System";
-    reasonCode: PlatformAuditReasonCode;
     changedFieldCodes: readonly PlatformAuditChangedFieldCode[];
   }>;
+
+export type PlatformAuditUnrecognizedSafeRow = PlatformAuditSafeRowEnvelope &
+  PlatformAuditCsvRow &
+  Readonly<{
+    recognized: false;
+    action: string;
+    resourceType: string;
+    changedFieldCodes: readonly string[];
+  }>;
+
+export type PlatformAuditSafeRow =
+  | PlatformAuditRecognizedSafeRow
+  | PlatformAuditUnrecognizedSafeRow;
 
 export type PlatformAuditSearchResult = Readonly<{
   filters: PlatformAuditFilters;
@@ -432,21 +525,6 @@ function parseEnum<T extends string>(
   return value as T;
 }
 
-function parseBoundedAsciiEnum<T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-  maxLength: number,
-): T {
-  if (
-    typeof value !== "string" ||
-    value.length > maxLength ||
-    !/^[\x20-\x7e]+$/u.test(value)
-  ) {
-    invalid();
-  }
-  return parseEnum(value, allowed);
-}
-
 function parseCanonicalOutputList<T extends string>(
   value: unknown,
   allowed: readonly T[],
@@ -614,12 +692,57 @@ export function normalizePlatformAuditExportInput(
   };
 }
 
-function parseChangedFieldCodes(
+// Structural shape only — NOT an enum membership check. A row whose action
+// is not (yet) in PLATFORM_AUDIT_ACTIONS still carries changed-field codes
+// that must look like codes (so a corrupted/oversized/malformed value still
+// fails closed); whether they are the SPECIFIC codes this file knows about
+// is a `recognized` question, decided in parseSafeRow, not a parse error.
+const CHANGED_FIELD_CODE_PATTERN = /^[a-z][a-z0-9_]*$/u;
+
+function parseBoundedPatternString(
   value: unknown,
-): readonly PlatformAuditChangedFieldCode[] {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 3) invalid();
+  pattern: RegExp,
+  maxLength: number,
+): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > maxLength ||
+    !pattern.test(value)
+  ) {
+    invalid();
+  }
+  return value;
+}
+
+// A generous STRUCTURAL sanity bound against malformed data, not a mirror of
+// today's server maximum: this file no longer fails the whole page when the
+// server adds an action with a wider changed_field_codes array (the defect
+// this file fixes was exactly that — a stale bound throwing on a well-formed
+// row). Whether specific codes are the ones this file KNOWS for a given
+// action is what `recognized` decides, in parseSafeRow, not this bound.
+// Today's widest row is 6 codes (lead.admissions.handoff.completed, 088);
+// 16 leaves real headroom for the server to grow without another PR here.
+const PLATFORM_AUDIT_MAX_CHANGED_FIELD_CODES = 16;
+// Same reasoning as the count above, and the same bound the action/resource
+// type patterns already use: a generous sanity ceiling, not today's longest
+// code (first_payment_confirmation, 26 chars).
+const PLATFORM_AUDIT_MAX_CHANGED_FIELD_CODE_LENGTH = 64;
+
+function parseChangedFieldCodes(value: unknown): readonly string[] {
+  if (
+    !Array.isArray(value) ||
+    value.length < 1 ||
+    value.length > PLATFORM_AUDIT_MAX_CHANGED_FIELD_CODES
+  ) {
+    invalid();
+  }
   const codes = value.map((code) =>
-    parseBoundedAsciiEnum(code, PLATFORM_AUDIT_CHANGED_FIELD_CODES, 25),
+    parseBoundedPatternString(
+      code,
+      CHANGED_FIELD_CODE_PATTERN,
+      PLATFORM_AUDIT_MAX_CHANGED_FIELD_CODE_LENGTH,
+    ),
   );
   if (new Set(codes).size !== codes.length) invalid();
   return codes;
@@ -699,9 +822,42 @@ function expectedChangedFieldCodes(
     return ["ai_control"];
   }
   if (action.startsWith("ai.")) {
-    return action === "ai.draft.review"
+    return action === "ai.draft.review" || action === "ai.proposal.review"
       ? ["ai_status", "review_status"]
       : ["ai_status"];
+  }
+  if (
+    action === "lead.admissions.gate.contract.confirmed" ||
+    action === "lead.admissions.gate.firstpayment.confirmed" ||
+    action === "lead.admissions.gate.overridden"
+  ) {
+    return [
+      "contract_confirmation",
+      "first_payment_expectation",
+      "first_payment_confirmation",
+      "gate_state",
+      "gate_version",
+    ];
+  }
+  if (action === "lead.admissions.handoff.completed") {
+    return [
+      "admissions_owner",
+      "handoff_mode",
+      "handoff_state",
+      "handoff_reason",
+      "inherited_sales_context",
+      "starter_tasks",
+    ];
+  }
+  if (action === "pilot.cohort.configured") {
+    return ["pilot_configuration", "pilot_cutoff"];
+  }
+  if (
+    action === "pilot.cohort.member.automatic" ||
+    action === "pilot.cohort.member.excluded" ||
+    action === "pilot.cohort.member.included"
+  ) {
+    return ["pilot_membership", "pilot_write_boundary"];
   }
   if (
     action.startsWith("communication.") ||
@@ -710,6 +866,21 @@ function expectedChangedFieldCodes(
     return ["communication_status"];
   }
   return ["record_status"];
+}
+
+// Structural shape only. `action`'s segment separator keeps the server's
+// dot-joined convention; a segment may start with a digit or underscore
+// (looser than the DB's own CHECK) because recognition — not this pattern —
+// is what decides whether a value is drawn on screen.
+const ACTION_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$/u;
+const RESOURCE_TYPE_PATTERN = /^[a-z][a-z0-9_]*$/u;
+
+function isKnownAction(value: string): value is PlatformAuditAction {
+  return (PLATFORM_AUDIT_ACTIONS as readonly string[]).includes(value);
+}
+
+function isKnownResourceType(value: string): value is PlatformAuditResourceType {
+  return (PLATFORM_AUDIT_RESOURCE_TYPES as readonly string[]).includes(value);
 }
 
 function parseSafeRow(value: unknown): PlatformAuditSafeRow {
@@ -726,44 +897,47 @@ function parseSafeRow(value: unknown): PlatformAuditSafeRow {
     system: "System",
   }[actorKind];
   if (actorDisplayLabel !== expectedLabel) invalid();
-  if (
-    typeof value.action !== "string" ||
-    value.action.length > 64 ||
-    !/^[\x20-\x7e]+$/u.test(value.action) ||
-    typeof value.resource_type !== "string" ||
-    value.resource_type.length > 64 ||
-    !/^[\x20-\x7e]+$/u.test(value.resource_type)
-  ) {
-    invalid();
-  }
-  const action = parseBoundedAsciiEnum(value.action, PLATFORM_AUDIT_ACTIONS, 64);
-  const resourceType = parseBoundedAsciiEnum(
+
+  const action = parseBoundedPatternString(value.action, ACTION_PATTERN, 64);
+  const resourceType = parseBoundedPatternString(
     value.resource_type,
-    PLATFORM_AUDIT_RESOURCE_TYPES,
+    RESOURCE_TYPE_PATTERN,
     64,
   );
-  const reasonCode = parseBoundedAsciiEnum(
-    value.reason_code,
-    PLATFORM_AUDIT_REASON_CODES,
-    22,
-  );
+  const expectedReasonCode: PlatformAuditReasonCode =
+    action === "audit.export" ? "audit_export_requested" : "restricted";
+  if (value.reason_code !== expectedReasonCode) invalid();
+  const reasonCode = expectedReasonCode;
   const changedFieldCodes = parseChangedFieldCodes(value.changed_field_codes);
-  if (
-    reasonCode !== (action === "audit.export" ? "audit_export_requested" : "restricted") ||
-    !sameStringList(changedFieldCodes, expectedChangedFieldCodes(action))
-  ) {
-    invalid();
-  }
-  return {
+
+  const envelope: PlatformAuditSafeRowEnvelope = {
     auditEventId: parseUuid(value.audit_event_id)!,
     createdAt: parseUtcTimestamp(value.created_at)!,
-    action,
-    resourceType,
     resourceId: parseUuid(value.resource_id)!,
     actorKind,
     actorDisplayLabel,
     requestId: parseUuid(value.request_id)!,
     reasonCode,
+  };
+
+  if (
+    isKnownAction(action) &&
+    isKnownResourceType(resourceType) &&
+    sameStringList(changedFieldCodes, expectedChangedFieldCodes(action))
+  ) {
+    return {
+      ...envelope,
+      recognized: true,
+      action,
+      resourceType,
+      changedFieldCodes: changedFieldCodes as readonly PlatformAuditChangedFieldCode[],
+    };
+  }
+  return {
+    ...envelope,
+    recognized: false,
+    action,
+    resourceType,
     changedFieldCodes,
   };
 }

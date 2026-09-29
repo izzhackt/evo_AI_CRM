@@ -340,20 +340,29 @@ export async function readJournal(
 export async function readJournalFacets(
   actor: ActivePlatformActor,
 ): Promise<Readonly<{
-  objectTypes: readonly Readonly<{ key: string; count: number }>[];
+  objectTypes: readonly Readonly<{ key: string; count: number | null }>[];
 }>> {
   const result = await loadAuditRows(actor, undefined, AUDIT_PAGE_SIZE);
-  // Counts over a truncated page would look exact. Omit the facets instead.
-  if (result.hasMore) return { objectTypes: [] };
 
   const counts = new Map<string, number>();
   for (const row of result.rows) {
     counts.set(row.resourceType, (counts.get(row.resourceType) ?? 0) + 1);
   }
+  // Same order either way — most-seen type first, key breaks ties — so the
+  // chip order does not jump when a page fills in later. A count over a
+  // truncated page would look exact when it is not, so it is used only to
+  // order the chips here, never shown: the chip still names every object
+  // type seen on this newest page — a type that only occurs further back has
+  // no chip until it is read again on a complete page — just without a
+  // number.
+  const ordered = [...counts.entries()].sort(
+    (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+  );
   return {
-    objectTypes: [...counts.entries()]
-      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-      .map(([key, count]) => ({ key, count })),
+    objectTypes: ordered.map(([key, count]) => ({
+      key,
+      count: result.hasMore ? null : count,
+    })),
   };
 }
 

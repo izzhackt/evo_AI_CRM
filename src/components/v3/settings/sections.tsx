@@ -190,7 +190,7 @@ export function JournalSection({
   status: JournalStatus;
   exportEnabled: boolean;
   facets: Readonly<{
-    objectTypes: readonly Readonly<{ key: string; count: number }>[];
+    objectTypes: readonly Readonly<{ key: string; count: number | null }>[];
   }>;
   active: Readonly<{ objectType?: string }>;
   hrefFor: (next: Readonly<{
@@ -242,9 +242,11 @@ export function JournalSection({
                   className={chip}
                 >
                   {word}
-                  <span className={active.objectType === type.key ? "tabular-nums" : "tabular-nums text-fg-3"}>
-                    {type.count}
-                  </span>
+                  {type.count !== null ? (
+                    <span className={active.objectType === type.key ? "tabular-nums" : "tabular-nums text-fg-3"}>
+                      {type.count}
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             );

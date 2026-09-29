@@ -26,6 +26,7 @@ p6d_concurrency_worker_b_log="$(mktemp -t evo-p6d-concurrency-b.XXXXXX)"
 p6d_concurrency_assert_log="$(mktemp -t evo-p6d-concurrency-assert.XXXXXX)"
 p6d_concurrency_worker_a_pid=""
 p8r4_cutover_guard_log="$(mktemp -t evo-p8r4-cutover-guard.XXXXXX)"
+p7aj_journal_contract_log="$(mktemp -t evo-p7aj-journal-contract.XXXXXX)"
 u2_concurrency_worker_a_log="$(mktemp -t evo-u2-concurrency-a.XXXXXX)"
 u2_concurrency_worker_b_log="$(mktemp -t evo-u2-concurrency-b.XXXXXX)"
 u2_concurrency_assert_log="$(mktemp -t evo-u2-concurrency-assert.XXXXXX)"
@@ -97,6 +98,7 @@ cleanup() {
     "$p6d_concurrency_worker_b_log" \
     "$p6d_concurrency_assert_log" \
     "$p8r4_cutover_guard_log" \
+    "$p7aj_journal_contract_log" \
     "$u2_concurrency_worker_a_log" \
     "$u2_concurrency_worker_b_log" \
     "$u2_concurrency_assert_log" \
@@ -2857,6 +2859,24 @@ done < <(
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
   -f /workspace/supabase/tests/platform_today_university_deadlines.sql
+
+# P7A journal contract (fix for PLAN_CHANGES 29.09.2026 — «Журнал действий»:
+# контракт аудита отстал от сервера): proves src/lib/platform-audit.ts's
+# allowlists against the LIVE platform_private.p7a_safe_audit_actions/
+# p7a_safe_audit_resource_types/p7a_changed_field_codes on the latest chain,
+# by inserting one platform.audit_events row per current server-safe action,
+# reading them back through the real platform.search_audit_events() as a
+# Platform Admin, and printing the server contract plus every read page to
+# stdout for scripts/check-platform-audit-journal-contract.mjs to replay
+# through the real TS normalizer. See the suite's own header for the full
+# proof.
+docker exec "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+  -f /workspace/supabase/tests/platform_audit_journal_contract.sql \
+  >"$p7aj_journal_contract_log"
+node --experimental-strip-types \
+  "$repo_root/scripts/check-platform-audit-journal-contract.mjs" \
+  "$p7aj_journal_contract_log"
 
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \

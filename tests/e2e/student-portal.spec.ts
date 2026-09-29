@@ -262,12 +262,14 @@ async function expectPortalGeometry(page: Page, context: string) {
       }
     }
 
-    // Two known 320 px issues may widen the document here: #1114, the top
-    // bar's account summary crosses the right edge; #1118, the mobile layout
-    // viewport widens (to 331 px) with no box past the edge at all. Tolerate
-    // page overflow only at ≤ 320 px, only when no box other than that summary
-    // or the still-fixed tab bar crosses the edge, and only when the body's
-    // own content is no wider than the summary's edge.
+    // Known #1118: under mobile emulation at 320 px the layout viewport is
+    // sometimes 331 px (also on /login) while no box crosses the edge; since
+    // html/body clip horizontal overflow, the document width then equals that
+    // viewport. Tolerate it only at ≤ 320 px, up to the observed 331 px, when
+    // the document is exactly the inflated viewport, no box crosses the edge
+    // except the clipped account summary (#1114, pinned by its own test) or
+    // the still-fixed tab bar (#1113), and the body's content is no wider
+    // than that summary's edge.
     const clientWidth = document.documentElement.clientWidth;
     const accountSummary = document.querySelector(".pt-user-summary");
     const summaryRight = accountSummary?.getBoundingClientRect().right ?? 0;
@@ -282,11 +284,9 @@ async function expectPortalGeometry(page: Page, context: string) {
     const knownOverflowOnly = clientWidth <= 320
       && pastEdge.every(element => Boolean(accountSummary?.contains(element))
         || (fixedTabBar && Boolean(tabBar?.contains(element))))
-      && document.body.scrollWidth <= Math.max(clientWidth, Math.ceil(summaryRight)) + 1;
-    const knownIssues = [
-      ...(summaryRight > clientWidth + 1 ? ["#1114"] : []),
-      ...(window.innerWidth > Math.max(clientWidth, Math.ceil(summaryRight)) + 1 ? ["#1118"] : []),
-    ];
+      && document.body.scrollWidth <= Math.max(clientWidth, Math.ceil(summaryRight)) + 1
+      && document.documentElement.scrollWidth <= clientWidth + 12
+      && document.documentElement.scrollWidth === window.innerWidth;
 
     return {
       viewportWidth: window.innerWidth,
@@ -308,7 +308,6 @@ async function expectPortalGeometry(page: Page, context: string) {
         document.documentElement.clientWidth + 1,
       pageScrolled,
       knownOverflowOnly,
-      knownIssues,
       headingCount: document.querySelectorAll("h1").length,
       smallTargets,
       nextError: Boolean(document.querySelector("#__next_error__")),
@@ -321,7 +320,7 @@ async function expectPortalGeometry(page: Page, context: string) {
   if (knownOverflow) {
     test.info().annotations.push({
       type: "known-defect",
-      description: `${geometry.knownIssues.join(" ")} ${context}: tolerated 320 px page overflow`,
+      description: `#1118 ${context}: tolerated ${geometry.viewportWidth} px layout viewport at ${geometry.clientWidth} px`,
     });
   }
   expect(geometry.documentOverflow && !knownOverflow, `${context}: document has horizontal overflow: ${JSON.stringify(geometry)}`).toBe(
@@ -505,9 +504,9 @@ test("every mobile Portal section is on screen in the tab bar", async ({
 
 test("the portal top bar fits a 320 px screen", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-320-chromium", "the defect is specific to 320 px");
-  // Known product defect #1114 (see expectPortalGeometry). Remove this marker
-  // and its part of that tolerance in the fix; the gate reports "unexpectedly
-  // passed". #1118 is unattributed and nondeterministic, so it has no pin.
+  // Known product defect #1114: the account summary is wider than its menu
+  // box and is clipped at the right edge (html/body clip overflow-x). Remove
+  // this marker in the fix; the gate then reports "unexpectedly passed".
   test.fail(true, "#1114: 320 px account summary overflows the top bar");
 
   await submitLogin(page, "student");

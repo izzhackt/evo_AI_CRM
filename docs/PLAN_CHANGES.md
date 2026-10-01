@@ -45091,6 +45091,9 @@ Admin, строка с несовпадающим `actor_membership_id`, про�
 
 ### Проверки (результат, head `b5fd076d`)
 
+На этом head миграция ещё называлась `256_platform_audit_journal_student_actor.sql`
+— номера ниже даны как было; перенумерация — в следующем подразделе.
+
 - `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries` на этой
   ветке (OrbStack; цепочка 001–254 + 256) — exit 0 за 270 с: «P7A journal
   contract check passed: 133 actions, 56 resource types, 3 page(s), 144 rows,
@@ -45125,4 +45128,42 @@ Admin, строка с несовпадающим `actor_membership_id`, про�
 
 Не проверено: браузерный проход журнала со строкой Студента (флаг в
 production выключен; доказательство — real-Postgres suite и прогон страницы
-через настоящий TS-разбор); применение 256 к любой базе не выполнялось.
+через настоящий TS-разбор); применение этой миграции к любой базе не
+выполнялось.
+
+### Перенумерация 256 → 257 и повторные проверки (head `bb57e31b`)
+
+Перед публикацией ветки найден черновик #1121
+(`izzhackt/contract-file-audit-action`, открыт 01.10 в 08:11 UTC): его
+миграция `256_platform_case_contract_file_audit_action.sql` чинит CHECK
+аудита у загрузки файла договора (189) и занимает 256. Эта миграция
+перенумерована в `257_platform_audit_journal_student_actor.sql`; тело SQL
+побайтно прежнее (между `b5fd076d` и `bb57e31b` в файле изменились только
+строки комментариев), поменялись имя файла, заголовок миграции и ссылки на
+номер в комментариях, в названии теста и в этой записи.
+
+- `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries` на этой
+  ветке (цепочка 001–254 + 257) — exit 0 за 259 с, тот же итог чекера: «133
+  actions, 56 resource types, 3 page(s), 144 rows, all recognized.»,
+  «Verified disposable authorization database …».
+- Сочетание всех трёх черновиков (одноразовая локальная ветка, не пушилась:
+  #1120 `24b3184b` + #1121 `5bf38c2c` + эта ветка `bb57e31b`): цепочка
+  001–257 непрерывна (`expectedMigrationVersions` → 255, 256, 257), все три
+  файла миграций побайтно совпадают с ветками-источниками. Текстовые
+  конфликты — только этот журнал (все записи сохранены, порядок #1120,
+  #1121, эта); `scripts/test-postgres-authorization.sh` слился сам (крюк
+  #1121 на `256_*`). Прогон — exit 0 за 261 с: «204 actions, 71 resource
+  types, 4 page(s), 215 rows, all recognized.»; suite #1121 отработала на
+  своём checkpoint (до 256 — фиксирует дефект `23514
+  audit_events_action_check`, после 256 — проходит); маркеры
+  `P7AJ_JOURNAL_CONTRACT_SUITE_START`/`_PASS`; метки 811–814 `Student`,
+  815–816 `Staff`, 817–819 `User`, 820 `Service`, 821 `System`. Node-тесты
+  журнала на сочетании — 38/38.
+- Node-тесты журнала на этой ветке — 36/36, `eslint`, `git diff --check` —
+  чисто; `npm run build` на `bb57e31b` — зелёный (Next + TypeScript).
+- Ожидаемо красные на этой ветке одной — те же проверки непрерывности ledger
+  (теперь 254 → 257). Не связаны с правкой и красные и на чистом `main`
+  `2c410147` (workflow и тесты не менялись): два структурных pin-а
+  `.github/workflows/evo-fast-pr-checks.yml` в `tests/p6d-release-candidate.test.mjs`
+  и `tests/staff-roles-sales-handoff-migrations.test.mjs` — вынесены
+  отдельной задачей.

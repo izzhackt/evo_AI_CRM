@@ -375,7 +375,7 @@ export const PLATFORM_AUDIT_CHANGED_FIELD_CODES = [
   "work_status",
 ] as const;
 
-// Actor CATEGORY codes of the server's safe projection (071). Migration 256
+// Actor CATEGORY codes of the server's safe projection (071). Migration 257
 // splits a 'user' actor by the side of its membership — Staff or Student — or
 // the neutral User when that side cannot be resolved honestly. A category,
 // never an identity: no id, name or role travels with it.

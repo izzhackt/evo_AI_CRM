@@ -647,7 +647,7 @@ test("safe row parsing rejects unknown private fields and unsafe labels; a well-
   assert.deepEqual(degraded.changedFieldCodes, ["phone_number"]);
 });
 
-test("a 'user' actor is Staff, Student or the neutral User by its membership side (256); service and system keep one label; every other pairing fails closed", () => {
+test("a 'user' actor is Staff, Student or the neutral User by its membership side (257); service and system keep one label; every other pairing fails closed", () => {
   assert.deepEqual(
     [...PLATFORM_AUDIT_ACTOR_DISPLAY_LABELS],
     ["Staff", "Student", "User", "Service", "System"],

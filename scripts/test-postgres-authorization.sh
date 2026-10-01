@@ -2894,7 +2894,7 @@ docker exec "$container_name" \
 # reading them back through the real platform.search_audit_events() as a
 # Platform Admin, and printing the server contract plus every read page to
 # stdout for scripts/check-platform-audit-journal-contract.mjs to replay
-# through the real TS normalizer. Since migration 256 it also proves the
+# through the real TS normalizer. Since migration 257 it also proves the
 # actor label of 'user' rows (Student / Staff / the neutral User, by the side
 # of the actor's membership) and replays that page through the same
 # normalizer. See the suite's own header for the full proof.

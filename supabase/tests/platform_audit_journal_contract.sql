@@ -55,7 +55,7 @@
 -- (bundle content itself is irrelevant here). Modelled after
 -- platform_today_university_deadlines.sql's admin fixture (actor 1 there).
 --
--- Actor label (migration 256): after those per-action assertions the suite
+-- Actor label (migration 257): after those per-action assertions the suite
 -- adds a Student, a staff member with no coarse role, a profile whose only
 -- membership is in another organization and a Student whose side once changed,
 -- writes audit rows for them the way the real writers do (the Student's rows
@@ -447,7 +447,7 @@ SELECT pg_temp.p7aj_assert(
   'search_audit_events() returned exactly one row per real-writer pair');
 
 -- ---------------------------------------------------------------------------
--- Actor label (migration 256). platform_private.p7a_safe_audit_row signs a
+-- Actor label (migration 257). platform_private.p7a_safe_audit_row signs a
 -- 'user' actor by the side of its membership in the row's organization:
 --   'Student' -- the membership's current_role is 'student';
 --   'Staff'   -- any other membership, a staff coarse role or NULL (staff

@@ -26,7 +26,7 @@ test("V3 journal filters carry no actor filter", () => {
 });
 
 test("V3 journal draws the five actor categories as words and never a raw or unknown value", () => {
-  // Категория актора серверной проекции (миграция 256), а не личность.
+  // Категория актора серверной проекции (миграция 257), а не личность.
   assert.deepEqual(
     ["Staff", "Student", "User", "Service", "System"].map((label) => journalActor(label)),
     ["сотрудник", "студент", "пользователь", "сервис", "система"],

@@ -336,6 +336,17 @@ SQL
       -f /workspace/supabase/tests/platform_malware_scanning_pre115.sql
   fi
 
+  # Pin the 189 contract-file defect immediately before 256: the canonical
+  # body is in place and the route's service-role call fails on
+  # audit_events_action_check without leaving a row. The same suite proves the
+  # repair after 256 below.
+  if [[ "$(basename "$migration")" == 256_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v p256_pre=1 \
+      -f /workspace/supabase/tests/platform_case_contract_file_audit_action.sql
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -2841,6 +2852,21 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_sales_record_lead_link.sql
+  fi
+
+  # Migration 256 («Договор и оплата»: файл договора, PLAN_CHANGES
+  # 01.10.2026): 189's contract-file metadata command audits the dotted
+  # 'case.contract.file.upload', as 230 did for receipts. Replaying the
+  # contract upload route, the case's own Sales rep (coarse role NULL) reads a
+  # writable block, the service role records the stored file and the block
+  # shows it: exactly one current row and one system audit event, replay
+  # without a second write, a reused request_id refused, a newer contract
+  # superseding the old, a direct Admin call refused 42501, and the function's
+  # owner, grants, definer, search_path and volatility unchanged.
+  if [[ "$(basename "$migration")" == 256_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_contract_file_audit_action.sql
   fi
 done < <(
   cd "$repo_root"

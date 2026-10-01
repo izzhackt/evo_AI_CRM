@@ -254,6 +254,7 @@ struct AssessmentRunnerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isExiting = false
     @State private var confirmReload = false
+    @State private var confirmDiscardExit = false
     // A11y (9b): буллеты инструкции масштабируются с Dynamic Type вместо
     // фиксированных 5pt.
     @ScaledMetric(relativeTo: .subheadline) private var bulletSize: CGFloat = 5
@@ -314,8 +315,20 @@ struct AssessmentRunnerView: View {
         }
     }
 
+    /// Пока чтение сохранённой попытки не удалось (`reloadRequired`), запись
+    /// заблокирована и «сохранить» нечего: выход — только явный отказ от
+    /// ответов на экране (подтверждение), иначе при недоступном чтении
+    /// пользователь не мог бы ни повторить, ни выйти.
+    private var exitSavesFirst: Bool {
+        model.attempt?.isDraft == true && !model.reloadRequired
+    }
+
     private var exitButton: some View {
         Button {
+            if model.reloadRequired {
+                confirmDiscardExit = true
+                return
+            }
             Task {
                 isExiting = true
                 if await model.flushBeforeExit() {
@@ -326,15 +339,25 @@ struct AssessmentRunnerView: View {
         } label: {
             if isExiting {
                 ProgressView()
-            } else if model.attempt?.isDraft == true {
+            } else if exitSavesFirst {
                 Text("runner_save_exit")
             } else {
                 Text("runner_close")
             }
         }
-        .disabled(isExiting || model.isWriting || model.isReloading || model.reloadRequired)
+        .disabled(isExiting || model.isWriting || model.isReloading)
+        .confirmationDialog(
+            "english_exit_dirty_title",
+            isPresented: $confirmDiscardExit,
+            titleVisibility: .visible
+        ) {
+            Button("english_exit_discard", role: .destructive) { dismiss() }
+            Button("cancel_button", role: .cancel) {}
+        } message: {
+            Text("english_exit_dirty_message")
+        }
         // A11y (9b): во время выхода label — ProgressView без текста.
-        .accessibilityLabel(model.attempt?.isDraft == true
+        .accessibilityLabel(exitSavesFirst
             ? Text("runner_save_exit")
             : Text("runner_close"))
     }
@@ -468,22 +491,25 @@ struct AssessmentRunnerView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(failureMessage(failure.kind))
                     .font(.footnote)
-                switch failure.kind {
-                case .network:
-                    if model.reloadRequired {
-                        Button("runner_load_saved") {
-                            Task { await model.reloadSavedAttempt() }
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isReloading)
-                    } else {
-                        Button("runner_retry_save") {
-                            Task { await model.write(complete: false) }
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isWriting)
+                switch LearningRunnerPolicy.recoveryAction(
+                    after: failure.kind.learningKind,
+                    reloadRequired: model.reloadRequired
+                ) {
+                case .retryWrite:
+                    Button("runner_retry_save") {
+                        Task { await model.write(complete: false) }
                     }
-                case .conflict:
+                    .buttonStyle(.bordered)
+                    .disabled(model.isWriting)
+                case .reloadSaved:
+                    // Повтор чтения, которое пользователь уже выбрал: запись
+                    // заблокирована до его успеха, при любом классе ошибки.
+                    Button("runner_load_saved") {
+                        Task { await model.reloadSavedAttempt() }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isReloading)
+                case .confirmReload:
                     Button("runner_load_saved") {
                         confirmReload = true
                     }
@@ -498,7 +524,7 @@ struct AssessmentRunnerView: View {
                             Task { await model.reloadSavedAttempt() }
                         }
                     }
-                case .denied, .rejected:
+                case .none:
                     EmptyView()
                 }
             }
@@ -643,5 +669,17 @@ struct AssessmentRunnerView: View {
         }
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private extension AssessmentRunnerModel.WriteFailureKind {
+    /// Те же четыре класса, что у раннера урока, — общая чистая политика.
+    var learningKind: LearningWriteFailureKind {
+        switch self {
+        case .network: return .network
+        case .conflict: return .conflict
+        case .denied: return .denied
+        case .rejected: return .rejected
+        }
     }
 }

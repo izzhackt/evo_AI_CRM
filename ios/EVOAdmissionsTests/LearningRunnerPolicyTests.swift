@@ -76,6 +76,44 @@ final class LearningRunnerPolicyTests: XCTestCase {
         XCTAssertFalse(PendingLearningWrite.isRetryable(after: .rejected))
     }
 
+    func testFailedReadRecoveryAlwaysOffersTheReadAgain() {
+        // Пока чтение сохранённой попытки не удалось (reloadRequired), запись
+        // заблокирована: при ЛЮБОМ классе ошибки карточка обязана оставить
+        // повтор чтения, иначе тупик без кнопок (review #1040).
+        for kind in [LearningWriteFailureKind.network, .denied, .rejected] {
+            XCTAssertEqual(
+                LearningRunnerPolicy.recoveryAction(after: kind, reloadRequired: true),
+                .reloadSaved,
+                "\(kind)"
+            )
+        }
+        // Конфликт — первый раз: замена локального ввода только с подтверждением.
+        XCTAssertEqual(
+            LearningRunnerPolicy.recoveryAction(after: .conflict, reloadRequired: true),
+            .confirmReload
+        )
+    }
+
+    func testWriteFailureWithoutPendingReadKeepsItsOwnRecovery() {
+        XCTAssertEqual(
+            LearningRunnerPolicy.recoveryAction(after: .network, reloadRequired: false),
+            .retryWrite
+        )
+        XCTAssertEqual(
+            LearningRunnerPolicy.recoveryAction(after: .conflict, reloadRequired: false),
+            .confirmReload
+        )
+        // denied/rejected без блокировки записи: состояние не меняем.
+        XCTAssertEqual(
+            LearningRunnerPolicy.recoveryAction(after: .denied, reloadRequired: false),
+            .none
+        )
+        XCTAssertEqual(
+            LearningRunnerPolicy.recoveryAction(after: .rejected, reloadRequired: false),
+            .none
+        )
+    }
+
     // MARK: - Matching draft (permutation invariant, 198:644-645)
 
     func testMatchingDraftBuildsPayloadOnlyWhenComplete() {

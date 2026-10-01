@@ -518,14 +518,25 @@ struct LessonRunnerView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(failureMessage(failure))
                     .font(.footnote)
-                switch failure {
-                case .network:
+                switch LearningRunnerPolicy.recoveryAction(
+                    after: failure,
+                    reloadRequired: model.reloadRequired
+                ) {
+                case .retryWrite:
                     Button("retry_button") {
                         Task { await model.retryPending() }
                     }
                     .buttonStyle(.bordered)
                     .disabled(model.isWriting || model.isReloading)
-                case .conflict:
+                case .reloadSaved:
+                    // Повтор чтения, которое пользователь уже выбрал: запись
+                    // заблокирована до его успеха, при любом классе ошибки.
+                    Button("english_reload_draft") {
+                        Task { await model.reloadSavedAttempt() }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isReloading)
+                case .confirmReload:
                     Button("english_reload_draft") {
                         confirmReload = true
                     }
@@ -540,7 +551,7 @@ struct LessonRunnerView: View {
                             Task { await model.reloadSavedAttempt() }
                         }
                     }
-                case .denied, .rejected:
+                case .none:
                     EmptyView()
                 }
             }

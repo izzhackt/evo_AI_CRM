@@ -106,3 +106,41 @@ unlock unavailable. No installation, app launch, Auth, relay, database or
 changed-path UI execution followed. Compile is not actual recovery acceptance.
 ROOT coordinates the next exclusive window after ordinary Mac unlock;
 accepted #1026/#980 are not reopened by this work.
+
+## Review follow-up — 1 October 2026
+
+Rebased onto main `2c410147` (three commits). Independent
+review of the previous head found two things to fix before ready:
+
+- iOS unit suite was red: three `UniversityIntakeStatusTests` fixtures gave an
+  intake a deadline but no timezone. The product rule (since #967) is that a
+  deadline without a valid IANA zone is `needsConfirmation`, never an expiry
+  computed by assuming UTC; the web `universityIntakeStatusKey` and
+  `tests/platform-university-catalog.test.mjs` assert the same rule. Code is
+  correct and unchanged; fixtures now carry `Asia/Kuala_Lumpur`, and a
+  regression test covers no zone, `CET`, `not/a-timezone`, `posix/UTC` on an
+  open/announced intake (`needsConfirmation`) while an explicit closed intake
+  stays closed.
+- Dead end after a failed explicit read: a read failure classified denied or
+  rejected left the Assessment failure card without any control while exit and
+  input stayed blocked by the read-required flag. Scope change recorded here:
+  the failure card now takes its single next step from the shared pure policy
+  `LearningRunnerPolicy.recoveryAction` (`LearningRunnerModels.swift`); while
+  the read is required, every failure kind offers the read again, using the
+  existing `runner_load_saved` / `english_reload_draft` copy. In the
+  Assessment, exit while the read is required is labelled with the existing
+  "Close" copy and asks the existing discard confirmation (the same exit the
+  Lesson already has), because no write can succeed before a read does.
+  No new copy, layout, RPC or server contract.
+
+Unchanged by design: Save and Exit confirming an older snapshot while newer
+answers are visible does not dismiss and writes nothing extra; the existing
+`runner_unsaved` status already shows in the progress card (no failure is set,
+the answers differ from the saved fingerprint), and a second tap confirms B.
+
+Validation: `xcodebuild test -only-testing:EVOAdmissionsTests` on iPhone 17
+Pro, 145 tests, 0 failures. `xcodegen generate` differs from the checked-in
+project only by the checkout folder name and random TEMP ids (the Sources and
+Resources set is identical), so the project file is not regenerated. Real
+simulator walkthrough of the transitions above is still pending, as is the
+exit-while-read-required confirmation, which unit tests do not exercise.

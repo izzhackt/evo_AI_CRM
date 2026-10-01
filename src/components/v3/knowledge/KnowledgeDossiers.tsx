@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlatformStudentCaseQueueRow } from "@/lib/platform-admissions";
 import type { PlatformCaseDocumentWorkspace } from "@/lib/platform-private-documents";
-import type { CaseChatPage } from "@/lib/platform-case-chat-contract";
+import { appendOlderCaseChatPage, type CaseChatPage } from "@/lib/platform-case-chat-contract";
 import type { ProfileEvent } from "@/components/v3/profile/types";
 import { Icon } from "@/components/icons";
 import { SkeletonBlock } from "@/components/ui";
@@ -56,7 +56,7 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
       } else if (tab === "chat" && chat?.hasMore) {
         const next = await knowledgeFetch<CaseChatPage>(`clients/${caseId}/chat?before=${encodeURIComponent(chat.cursor)}`);
         if (next.hasMore && next.cursor === chat.cursor) throw new Error("Переписка не продолжилась. Обновите страницу.");
-        setChat({ ...next, messages: [...next.messages, ...chat.messages] });
+        setChat(appendOlderCaseChatPage(chat, next));
       } else if (tab === "history" && history?.nextCursor) {
         const next = await knowledgeFetch<History>(`clients/${caseId}/history?${new URLSearchParams({ beforeAt: history.nextCursor.at, beforeId: history.nextCursor.id })}`);
         setHistory({ ...next, events: [...history.events, ...next.events] });

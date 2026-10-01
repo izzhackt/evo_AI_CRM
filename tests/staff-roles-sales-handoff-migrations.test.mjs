@@ -21,7 +21,8 @@ test("staff fast path accepts only the complete exact added 173–175 boundary d
   assert.ok(workflow.includes('if [[ "$boundary_diff" == "$staff_diff" ]]; then'));
   assert.ok(workflow.includes('git diff --name-status --no-renames origin/main...HEAD -- supabase/migrations/ supabase/tests/ scripts/test-postgres-authorization.sh'));
   assert.match(workflow, /echo "scoped_staff_handoff=true" >> "\$GITHUB_OUTPUT"\n\s+else\n\s+echo "scoped_staff_handoff=false"/u);
-  assert.ok(workflow.includes("if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' }}"));
+  // #836, #830, #841 and #858 added the exact 176/177/178/186 lanes to the same skip condition.
+  assert.ok(workflow.includes("if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' && steps.migration-scope.outputs.scoped_student_intake != 'true' && steps.migration-scope.outputs.scoped_student_conflicts != 'true' && steps.migration-scope.outputs.scoped_invite_conflicts != 'true' }}"));
   assert.match(workflow, /run: npm run test:database:migration-boundaries/u);
   assert.ok(workflow.includes("if [[ \"$boundary_diff\" == $'A\\tsupabase/migrations/171_platform_team_chat_remove_mute.sql' ]]; then"));
   assert.match(workflow, /node --test tests\/staff-roles-sales-handoff-migrations\.test\.mjs/u);

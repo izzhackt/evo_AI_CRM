@@ -44259,3 +44259,52 @@ Node-манифест с #821 в CI не запускается.
 Проверка: файл без флага и с флагами манифеста; соседние `v3-calendar-d2`,
 `v3-calendar-integration` и `v3-e3-docs-deadlines`; eslint по файлу;
 `git diff --check`. Сборка и браузер не нужны: продуктовый код не меняется.
+
+## 2026-10-01 — Два устаревших пина `evo-fast-pr-checks.yml` в p6d- и staff-тестах (только тесты)
+
+Состояние до правки: на `origin/main` `2c410147` команда
+`node --conditions=react-server --experimental-strip-types --test
+tests/p6d-release-candidate.test.mjs
+tests/staff-roles-sales-handoff-migrations.test.mjs` даёт 10 pass / 2 fail.
+Обе упавшие проверки читают `.github/workflows/evo-fast-pr-checks.yml`, и ни
+один workflow их не запускает: Node-манифест с #821 в CI не идёт, release-лейн
+`evo-platform-ci.yml` берёт из p6d-файла по имени только «CI and the exact-SHA
+gate…», а staff-файл вызывают лишь scoped-шаги точных диффов 172 и 173–175,
+которые на `main` больше не возникнут.
+
+Что сломало проверки. Каждая проверка запущена на родителе коммита и на нём
+самом: на родителе ok, на коммите not ok.
+- «active release authority has no executable legacy topology» — #938
+  (`7b0cfc7e`, 20.09, блок A-1 плана A) добавил job `lead_agent_dependencies`
+  со строкой `working-directory: evo-lead-agent`. Тест разрешает legacy-привязки
+  каталогов только внутри проверенного job `inbox_dependencies`. #938 обновил
+  `fast-release-control` и `classify-pr-changes`, этот файл — нет.
+- «staff fast path accepts only the complete exact added 173–175 boundary
+  diff» — #836 (`39999cc2`, 18.09) дописал в `if:` шага «Test migration
+  boundary» условие `scoped_docs_intake`. Затем #830 (177), #841 (178) и #858
+  (186) добавили ещё по одному. Тест держал точный текст с тремя условиями.
+
+Нынешнее поведение workflow задумано, поэтому workflow не меняется.
+Lead-agent lane описан в записи «Parallel A/B execution — 2026-09-20» (A-1:
+lane для `evo-lead-agent/pyproject.toml` и `uv.lock`, locked Python 3.13,
+реальный локальный HTTP smoke, без деплоя и credentials, неизвестные пути
+fail-closed) и в `docs/qa/lead-agent-dependency-ci-2026-09-20.md`; через него
+прошёл dependabot #847. Узкие lane-ы 176/177/178/186 описаны в записях своих
+PR: точный добавленный файл получает узкую source/evidence-проверку, любой
+другой дифф миграций остаётся на общем boundary-гейте.
+
+Решение: правятся только два тестовых файла. Оба пина закрепляются на текущем
+тексте, ни одна проверка не снимается.
+- p6d: для `lead_agent_dependencies` тот же механизм исключения, что для Inbox.
+  Job должен существовать, пройти тот же запрет (`secrets.`, docker, ssh,
+  `npm run start|dev|seed|preflight`, continue-on-error) и содержать ровно одну
+  строку `working-directory: evo-lead-agent`. Из скана исключается только она,
+  любая другая legacy-ссылка в десяти release-файлах по-прежнему валит тест.
+  Цикл впервые с #938 доходит до восьми файлов после workflow; они чисты.
+- staff: точный текст `if:` шага «Test migration boundary» с семью условиями
+  (171, 173–175, 172, 176, 177, 178, 186). Инвариант прежний: полный
+  boundary-набор пропускается только на точном scoped-диффе. Новый scoped-lane
+  снова потребует перезакрепления; с #858 (19.09) их не добавляли.
+
+Проверка: оба файла зелёные, `git diff --check`. Сборка и браузерные проверки
+не нужны: продуктовый код и workflow не меняются.

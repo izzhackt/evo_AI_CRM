@@ -45086,3 +45086,41 @@ node-тесты, `git diff --check`.
 Не делается: применение 256 к любой базе, выпуск, включение флага; правка
 писателей (заполнять `actor_membership_id` у ~146 живых писателей — отдельный
 объём, для этой правки не нужный).
+
+### Проверки (результат, head `b5fd076d`)
+
+- `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries` на этой
+  ветке (OrbStack; цепочка 001–254 + 256) — exit 0 за 270 с: «P7A journal
+  contract check passed: 133 actions, 56 resource types, 3 page(s), 144 rows,
+  all recognized.» (133 строки по действиям + 11 строк новой секции меток),
+  «Verified disposable authorization database …». Первая попытка упала на
+  скачивании образа — OrbStack был остановлен; запущен по AGENTS.md
+  (`orb start`, `orb status` = `Running`, контекст `orbstack`), прогон повторён.
+- Сочетание с #1120: одноразовая локальная ветка (merge `24b3184b` #1120 +
+  `b5fd076d`, не пушилась), цепочка 001–256 непрерывна, 256 побайтно та же.
+  Текстовый конфликт один — этот журнал (обе записи сохранены); suite,
+  `platform-audit.ts`, `wording.ts` и тесты слились без конфликтов. Тот же
+  прогон — exit 0 за 258 с: «204 actions, 71 resource types, 4 page(s), 215
+  rows, all recognized.»; маркеры `P7AJ_JOURNAL_CONTRACT_SUITE_START`/`_PASS`;
+  на странице меток — 811–814 `Student`, 815–816 `Staff`, 817–819 `User`,
+  820 `Service`, 821 `System`, у каждой строки ровно десять безопасных ключей.
+  Node-тесты на сочетании — 38/38, `npm run typecheck` — зелёный.
+- `npm run build` (полная сборка: Next 16.3.4 + TypeScript и три
+  вспомогательные сборки) — зелёный.
+- `node --conditions=react-server --experimental-strip-types --test
+  tests/platform-audit.test.mjs tests/platform-audit-csv.test.mjs
+  tests/platform-audit-export-route.test.mjs
+  tests/v3-settings-journal-contract.test.mjs` — 36/36; `eslint` изменённых
+  файлов и `git diff --check` — чисто.
+- Ожидаемо красные на этой ветке одной: 10 node-тестов в 8 файлах с
+  проверкой непрерывности ledger (`expectedMigrationVersions`: 254 → 256) —
+  по построению, пока 255 не в `main`; в CI их нет; на сочетании с 255
+  ledger непрерывен.
+- Не связано с правкой: `tests/v3-admissions-support.test.mjs` красный и на
+  чистом `main` `2c410147` (устаревший структурный pin календаря на
+  `admissions_deadline_page_v1`) — вынесено отдельной задачей, здесь не
+  трогается.
+
+Не проверено: браузерный проход журнала со строкой Студента (флаг в
+production выключен; доказательство — real-Postgres suite и прогон страницы
+через настоящий TS-разбор); применение 256 к любой базе не выполнялось.

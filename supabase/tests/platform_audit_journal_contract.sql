@@ -55,6 +55,17 @@
 -- (bundle content itself is irrelevant here). Modelled after
 -- platform_today_university_deadlines.sql's admin fixture (actor 1 there).
 --
+-- Actor label (migration 256): after those per-action assertions the suite
+-- adds a Student, a staff member with no coarse role, a profile whose only
+-- membership is in another organization and a Student whose side once changed,
+-- writes audit rows for them the way the real writers do (the Student's rows
+-- leave actor_membership_id NULL, bar one that records it), reads them back
+-- through the same real platform.search_audit_events() and proves the
+-- actor_display_label of every row: Student, Staff, the neutral User, Service
+-- and System, with no key outside the ten safe ones. That page is emitted too,
+-- so the checker script replays it through the real TS normalizer -- the proof
+-- that the TS parser accepts Student/User for a 'user' actor.
+--
 -- Isolated synthetic SQL fixture only -- no Auth invitation, real person,
 -- provider or production action. Everything below runs inside one
 -- transaction and is rolled back at the end.
@@ -436,6 +447,192 @@ SELECT pg_temp.p7aj_assert(
   'search_audit_events() returned exactly one row per real-writer pair');
 
 -- ---------------------------------------------------------------------------
+-- Actor label (migration 256). platform_private.p7a_safe_audit_row signs a
+-- 'user' actor by the side of its membership in the row's organization:
+--   'Student' -- the membership's current_role is 'student';
+--   'Staff'   -- any other membership, a staff coarse role or NULL (staff
+--                invited since 157 have no coarse role);
+--   'User'    -- neutral, when the side cannot be resolved honestly: no
+--                membership in that organization, a recorded
+--                actor_membership_id that is a different membership, or a
+--                membership whose side changed per
+--                platform.membership_role_history.
+-- 'service' -> 'Service' and 'system' -> 'System' are unchanged. The Student
+-- rows are written the way the real writers write them (200's case.chat.post,
+-- 046's document.download.grant, 116's document.upload.reserve): no
+-- actor_membership_id. The notification.read row is deliberately NOT that
+-- shape -- its real writers (068, 153) record no membership id either -- but
+-- records the Student's own membership, the shape of the writers that do
+-- record one (086, 087, 140, 241, 246 ...), to prove the "a recorded
+-- membership must be the actor's own" branch reads the same label.
+-- Every row shares one resource id, so the read below is filtered to them and
+-- the page assertions above stay untouched.
+-- ---------------------------------------------------------------------------
+CREATE FUNCTION pg_temp.p7aj_bundle(p_role platform.business_role) RETURNS UUID LANGUAGE SQL STABLE AS $$
+  SELECT id FROM platform.role_bundle_versions WHERE role = p_role AND status = 'published' ORDER BY version DESC LIMIT 1
+$$;
+SELECT pg_temp.p7aj_assert(
+  pg_temp.p7aj_bundle('student') IS NOT NULL AND pg_temp.p7aj_bundle('curator') IS NOT NULL,
+  'a published student bundle and a published curator bundle exist');
+
+-- Fixture, as postgres, in organization 1 unless stated: a Student (202), a
+-- staff member without a coarse role (203), a profile whose only membership is
+-- in organization 2 (204) and a Student whose side once changed (205, a
+-- pre-155 curator-to-student history entry; 155 froze "current_role" since).
+-- The Student 202 carries the provisioning history entry the real
+-- provisioning writes (126: no previous role), which is not a side change.
+INSERT INTO platform.organizations(id, name) VALUES (pg_temp.p7aj_id(2), 'P7AJ Fictional organization 2');
+INSERT INTO auth.users(id, email, raw_user_meta_data) VALUES
+  (pg_temp.p7aj_id(102), 'p7aj-student@example.invalid', '{}'::JSONB),
+  (pg_temp.p7aj_id(103), 'p7aj-staff@example.invalid', '{}'::JSONB),
+  (pg_temp.p7aj_id(104), 'p7aj-other-organization@example.invalid', '{}'::JSONB),
+  (pg_temp.p7aj_id(105), 'p7aj-side-changed@example.invalid', '{}'::JSONB);
+INSERT INTO platform.profiles(id, auth_user_id, display_name, status, access_version) VALUES
+  (pg_temp.p7aj_id(202), pg_temp.p7aj_id(102), 'P7AJ Student', 'active', 1),
+  (pg_temp.p7aj_id(203), pg_temp.p7aj_id(103), 'P7AJ Staff without coarse role', 'active', 1),
+  (pg_temp.p7aj_id(204), pg_temp.p7aj_id(104), 'P7AJ Member of organization 2 only', 'active', 1),
+  (pg_temp.p7aj_id(205), pg_temp.p7aj_id(105), 'P7AJ Student whose side changed', 'active', 1);
+INSERT INTO platform.organization_memberships(id, organization_id, profile_id, status, "current_role", current_bundle_id) VALUES
+  (pg_temp.p7aj_id(302), pg_temp.p7aj_id(1), pg_temp.p7aj_id(202), 'active', 'student', pg_temp.p7aj_bundle('student')),
+  (pg_temp.p7aj_id(303), pg_temp.p7aj_id(1), pg_temp.p7aj_id(203), 'active', NULL, NULL),
+  (pg_temp.p7aj_id(304), pg_temp.p7aj_id(2), pg_temp.p7aj_id(204), 'active', NULL, NULL),
+  (pg_temp.p7aj_id(305), pg_temp.p7aj_id(1), pg_temp.p7aj_id(205), 'active', 'student', pg_temp.p7aj_bundle('student'));
+INSERT INTO platform.membership_role_history(organization_id, membership_id, profile_id, role_version,
+  previous_role, new_role, previous_bundle_id, new_bundle_id, actor_kind, actor_profile_id, reason, request_id) VALUES
+  (pg_temp.p7aj_id(1), pg_temp.p7aj_id(302), pg_temp.p7aj_id(202), 1,
+    NULL, 'student', NULL, pg_temp.p7aj_bundle('student'),
+    'system', NULL, 'P7AJ synthetic provisioning', pg_temp.p7aj_id(904)),
+  (pg_temp.p7aj_id(1), pg_temp.p7aj_id(305), pg_temp.p7aj_id(205), 1,
+    'curator', 'student', pg_temp.p7aj_bundle('curator'), pg_temp.p7aj_bundle('student'),
+    'system', NULL, 'P7AJ synthetic pre-155 side change', pg_temp.p7aj_id(905));
+
+SELECT pg_temp.p7aj_assert(
+  (SELECT m."current_role" = 'student' AND m.current_bundle_id IS NOT NULL AND m.status = 'active'
+    FROM platform.organization_memberships m
+    WHERE m.id = pg_temp.p7aj_id(302) AND m.organization_id = pg_temp.p7aj_id(1) AND m.profile_id = pg_temp.p7aj_id(202))
+    AND NOT EXISTS (SELECT 1 FROM platform.membership_role_history h
+      WHERE h.membership_id = pg_temp.p7aj_id(302) AND h.previous_role IS NOT NULL),
+  'the fixture Student is an active student membership of organization 1 whose only history entry is its provisioning');
+SELECT pg_temp.p7aj_assert(
+  (SELECT m."current_role" IS NULL AND m.current_bundle_id IS NULL AND m.status = 'active' AND NOT m.is_system_admin
+    FROM platform.organization_memberships m
+    WHERE m.id = pg_temp.p7aj_id(303) AND m.organization_id = pg_temp.p7aj_id(1) AND m.profile_id = pg_temp.p7aj_id(203)),
+  'the fixture staff member is an active membership of organization 1 with no coarse role');
+SELECT pg_temp.p7aj_assert(
+  (SELECT m.organization_id = pg_temp.p7aj_id(2)
+    FROM platform.organization_memberships m
+    WHERE m.id = pg_temp.p7aj_id(304) AND m.profile_id = pg_temp.p7aj_id(204))
+    AND NOT EXISTS (SELECT 1 FROM platform.organization_memberships m
+      WHERE m.organization_id = pg_temp.p7aj_id(1) AND m.profile_id = pg_temp.p7aj_id(204)),
+  'the fixture profile 204 is a member of organization 2 only, never of organization 1');
+SELECT pg_temp.p7aj_assert(
+  (SELECT m."current_role" = 'student' AND m.organization_id = pg_temp.p7aj_id(1)
+    FROM platform.organization_memberships m
+    WHERE m.id = pg_temp.p7aj_id(305) AND m.profile_id = pg_temp.p7aj_id(205))
+    AND (SELECT count(*) = 1 FROM platform.membership_role_history h
+      WHERE h.membership_id = pg_temp.p7aj_id(305) AND h.previous_role = 'curator' AND h.new_role = 'student'),
+  'the fixture side-changed Student is a student membership with one curator-to-student history entry');
+
+-- The cases. n is the suffix of the row's p7aj_id audit event id (its request
+-- id is n + 40); the actor columns are suffixes of p7aj_id profile and
+-- membership ids, NULL when absent; the last column is the expected label.
+CREATE TEMP TABLE p7aj_actor_cases(
+  n INTEGER PRIMARY KEY,
+  action TEXT NOT NULL,
+  actor_kind TEXT NOT NULL,
+  actor_profile_n INTEGER,
+  actor_membership_n INTEGER,
+  expected_label TEXT NOT NULL
+);
+INSERT INTO p7aj_actor_cases(n, action, actor_kind, actor_profile_n, actor_membership_n, expected_label) VALUES
+  -- The Student's own actions as the real writers record them (no membership
+  -- id), and one that records the Student's own membership.
+  (811, 'case.chat.post',          'user',    202,  NULL, 'Student'),
+  (812, 'notification.read',       'user',    202,  302,  'Student'),
+  (813, 'document.download.grant', 'user',    202,  NULL, 'Student'),
+  (814, 'document.upload.reserve', 'user',    202,  NULL, 'Student'),
+  -- Staff: no coarse role (NULL) and the Admin.
+  (815, 'case.chat.post',          'user',    203,  NULL, 'Staff'),
+  (816, 'case.chat.post',          'user',    201,  301,  'Staff'),
+  -- Neutral: the recorded membership is another one (the Admin's, on the
+  -- Student's row); no membership in this organization; the side changed.
+  (817, 'case.chat.post',          'user',    202,  301,  'User'),
+  (818, 'case.chat.post',          'user',    204,  NULL, 'User'),
+  (819, 'case.chat.post',          'user',    205,  NULL, 'User'),
+  -- Not 'user' actors: one label each, whatever else is true.
+  (820, 'case.chat.post',          'service', NULL, NULL, 'Service'),
+  (821, 'case.chat.post',          'system',  NULL, NULL, 'System');
+
+INSERT INTO platform.audit_events(
+  id, organization_id, actor_kind, actor_profile_id, actor_membership_id, actor_principal,
+  action, resource_type, resource_id, after_state, reason, request_id
+)
+SELECT pg_temp.p7aj_id(c.n), pg_temp.p7aj_id(1), c.actor_kind::platform.audit_actor_kind,
+  pg_temp.p7aj_id(c.actor_profile_n), pg_temp.p7aj_id(c.actor_membership_n),
+  'P7AJ synthetic actor-label fixture', c.action, 'student_case', pg_temp.p7aj_id(700), '{}'::JSONB,
+  'P7AJ synthetic actor-label fixture row', pg_temp.p7aj_id(c.n + 40)
+FROM p7aj_actor_cases c;
+
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(*) FROM platform.audit_events
+    WHERE organization_id = pg_temp.p7aj_id(1) AND resource_id = pg_temp.p7aj_id(700)) = 11
+    AND (SELECT count(*) FROM p7aj_actor_cases) = 11,
+  'eleven actor-label fixture rows share the dedicated resource id');
+
+-- Read them back as the Admin through the REAL platform.search_audit_events(),
+-- filtered to the dedicated resource id, and keep the page for the assertions
+-- and for the checker script.
+SET LOCAL request.jwt.claims TO :'p7aj_admin_claims';
+SET LOCAL ROLE authenticated;
+SELECT platform.search_audit_events(
+  NULL, NULL, NULL, NULL, pg_temp.p7aj_id(700), 100, NULL, NULL, NULL, NULL
+)::TEXT AS p7aj_actor_page \gset
+RESET ROLE;
+
+CREATE TEMP TABLE p7aj_actor_rows AS
+  SELECT r.row_json FROM jsonb_array_elements(:'p7aj_actor_page'::JSONB -> 'rows') AS r(row_json);
+CREATE TEMP TABLE p7aj_actor_read_back AS
+  SELECT c.n, c.expected_label, e.actor_kind::TEXT AS inserted_kind,
+    r.row_json ->> 'actor_display_label' AS read_label, r.row_json ->> 'actor_kind' AS read_kind
+  FROM p7aj_actor_cases c
+  JOIN platform.audit_events e ON e.id = pg_temp.p7aj_id(c.n)
+  JOIN p7aj_actor_rows r ON r.row_json ->> 'audit_event_id' = e.id::TEXT;
+
+SELECT pg_temp.p7aj_assert(
+  (:'p7aj_actor_page'::JSONB ->> 'has_more')::BOOLEAN IS FALSE,
+  'actor labels: has_more is false, every fixture row fits one page');
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(*) FROM p7aj_actor_rows) = 11,
+  'actor labels: the page has exactly the 11 fixture rows');
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(*) FROM p7aj_actor_read_back) = 11 AND (SELECT count(DISTINCT n) FROM p7aj_actor_read_back) = 11,
+  'actor labels: every fixture audit event is read back exactly once');
+SELECT pg_temp.p7aj_assert(
+  NOT EXISTS (SELECT 1 FROM p7aj_actor_read_back WHERE read_label IS DISTINCT FROM expected_label),
+  'actor labels: actor_display_label differs from the expected one for: ' || COALESCE((
+    SELECT string_agg(n::TEXT || ' expected ' || expected_label || ' read ' || COALESCE(read_label, 'NULL'), '; ' ORDER BY n)
+    FROM p7aj_actor_read_back WHERE read_label IS DISTINCT FROM expected_label), 'none'));
+SELECT pg_temp.p7aj_assert(
+  NOT EXISTS (SELECT 1 FROM p7aj_actor_read_back WHERE read_kind IS DISTINCT FROM inserted_kind),
+  'actor labels: actor_kind differs from the inserted one for: ' || COALESCE((
+    SELECT string_agg(n::TEXT || ' inserted ' || inserted_kind || ' read ' || COALESCE(read_kind, 'NULL'), '; ' ORDER BY n)
+    FROM p7aj_actor_read_back WHERE read_kind IS DISTINCT FROM inserted_kind), 'none'));
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(DISTINCT r.row_json ->> 'actor_display_label') = 5
+      AND bool_and(r.row_json ->> 'actor_display_label' IN ('Student', 'Staff', 'User', 'Service', 'System'))
+    FROM p7aj_actor_rows r),
+  'actor labels: the page carries exactly the five labels Student, Staff, User, Service and System');
+SELECT pg_temp.p7aj_assert(
+  (SELECT bool_and(
+      (SELECT count(*) FROM jsonb_object_keys(r.row_json)) = 10
+      AND NOT EXISTS (
+        SELECT 1 FROM jsonb_object_keys(r.row_json) AS k
+        WHERE k NOT IN ('audit_event_id', 'created_at', 'action', 'resource_type', 'resource_id',
+          'actor_kind', 'actor_display_label', 'request_id', 'reason_code', 'changed_field_codes')))
+    FROM p7aj_actor_rows r),
+  'actor labels: every row carries exactly the ten safe keys and nothing else, no actor profile or membership id');
+
+-- ---------------------------------------------------------------------------
 -- Emit the live server contract and every captured page as single-line JSON
 -- for scripts/check-platform-audit-journal-contract.mjs. Unaligned,
 -- tuples-only output: each SELECT below prints exactly one prefixed line.
@@ -454,6 +651,9 @@ SELECT 'P7A_JOURNAL_CONTRACT ' || jsonb_build_object(
 
 SELECT 'P7A_JOURNAL_PAGE ' || page::TEXT FROM p7aj_pages ORDER BY page_index;
 SELECT 'P7A_JOURNAL_PAGE ' || page::TEXT FROM p7aj_pair_pages;
+-- The actor-label page too: the checker replays it through the real TS
+-- normalizer, which must accept Student and User for a 'user' actor.
+SELECT 'P7A_JOURNAL_PAGE ' || :'p7aj_actor_page';
 
 \pset tuples_only off
 \pset format aligned

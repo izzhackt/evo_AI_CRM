@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { journalNotice, normalizeJournalFilters } from "../src/lib/v3/settings-journal-contract.ts";
+import { journalActor } from "../src/lib/v3/wording.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -22,6 +23,18 @@ test("V3 journal filters carry no actor filter", () => {
     normalizeJournalFilters({ objectType: "visa_case", role: "Staff" }),
     { objectType: "visa_case" },
   );
+});
+
+test("V3 journal draws the five actor categories as words and never a raw or unknown value", () => {
+  // Категория актора серверной проекции (миграция 256), а не личность.
+  assert.deepEqual(
+    ["Staff", "Student", "User", "Service", "System"].map((label) => journalActor(label)),
+    ["сотрудник", "студент", "пользователь", "сервис", "система"],
+  );
+  // Сырое и неизвестное значение не рисуется: `null`, а не ключ из базы.
+  for (const raw of ["Administrator", "student", null, undefined]) {
+    assert.equal(journalActor(raw), null);
+  }
 });
 
 test("Э8.11: a switched-off or unreadable journal is never «0 / по этому фильтру событий нет»", () => {

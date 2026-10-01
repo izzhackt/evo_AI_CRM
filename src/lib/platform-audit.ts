@@ -375,6 +375,18 @@ export const PLATFORM_AUDIT_CHANGED_FIELD_CODES = [
   "work_status",
 ] as const;
 
+// Actor CATEGORY codes of the server's safe projection (071). Migration 256
+// splits a 'user' actor by the side of its membership — Staff or Student — or
+// the neutral User when that side cannot be resolved honestly. A category,
+// never an identity: no id, name or role travels with it.
+export const PLATFORM_AUDIT_ACTOR_DISPLAY_LABELS = [
+  "Staff",
+  "Student",
+  "User",
+  "Service",
+  "System",
+] as const;
+
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];
 export type PlatformAuditResourceType =
   (typeof PLATFORM_AUDIT_RESOURCE_TYPES)[number];
@@ -383,6 +395,8 @@ export type PlatformAuditReasonCode =
 export type PlatformAuditChangedFieldCode =
   (typeof PLATFORM_AUDIT_CHANGED_FIELD_CODES)[number];
 export type PlatformAuditActorKind = "user" | "service" | "system";
+export type PlatformAuditActorDisplayLabel =
+  (typeof PLATFORM_AUDIT_ACTOR_DISPLAY_LABELS)[number];
 
 export type PlatformAuditFilters = Readonly<{
   startAt: string | null;
@@ -415,7 +429,7 @@ type PlatformAuditSafeRowEnvelope = Readonly<{
   createdAt: string;
   resourceId: string;
   actorKind: PlatformAuditActorKind;
-  actorDisplayLabel: "Staff" | "Service" | "System";
+  actorDisplayLabel: PlatformAuditActorDisplayLabel;
   requestId: string;
   reasonCode: PlatformAuditReasonCode;
 }>;
@@ -999,20 +1013,27 @@ function isKnownResourceType(value: string): value is PlatformAuditResourceType 
   return (PLATFORM_AUDIT_RESOURCE_TYPES as readonly string[]).includes(value);
 }
 
+// The kind/label pairing stays fail-closed: free text, a label of another kind
+// or any unknown code throws PlatformAuditContractError — the journal must
+// never show an identity or an unchecked label.
+const ACTOR_DISPLAY_LABELS_BY_KIND: Readonly<
+  Record<PlatformAuditActorKind, readonly PlatformAuditActorDisplayLabel[]>
+> = {
+  user: ["Staff", "Student", "User"],
+  service: ["Service"],
+  system: ["System"],
+};
+
 function parseSafeRow(value: unknown): PlatformAuditSafeRow {
   if (!isRecord(value) || !hasExactKeys(value, SAFE_ROW_KEYS)) invalid();
   const actorKind = parseEnum(value.actor_kind, ["user", "service", "system"]);
-  const actorDisplayLabel = parseEnum(value.actor_display_label, [
-    "Staff",
-    "Service",
-    "System",
-  ]);
-  const expectedLabel = {
-    user: "Staff",
-    service: "Service",
-    system: "System",
-  }[actorKind];
-  if (actorDisplayLabel !== expectedLabel) invalid();
+  const actorDisplayLabel = parseEnum(
+    value.actor_display_label,
+    PLATFORM_AUDIT_ACTOR_DISPLAY_LABELS,
+  );
+  if (!ACTOR_DISPLAY_LABELS_BY_KIND[actorKind].includes(actorDisplayLabel)) {
+    invalid();
+  }
 
   const action = parseBoundedPatternString(value.action, ACTION_PATTERN, 64);
   const resourceType = parseBoundedPatternString(

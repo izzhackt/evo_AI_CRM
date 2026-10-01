@@ -15,6 +15,7 @@
 
 import type {
   PlatformAuditAction,
+  PlatformAuditActorDisplayLabel,
   PlatformAuditResourceType,
 } from "../platform-audit.ts";
 import type {
@@ -923,12 +924,18 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   work_review_case: "Разбор фоновой задачи",
 } satisfies Readonly<Record<PlatformAuditResourceType, string>>;
 
-/** Категория актора безопасного журнала; персональных данных в нём нет. */
+/**
+ * Категория актора безопасного журнала; персональных данных в нём нет.
+ * Студент и сотрудник различаются по стороне членства (миграция 256),
+ * «пользователь» — сторона не определена.
+ */
 const JOURNAL_ACTOR_WORD: Readonly<Record<string, string>> = {
   Staff: "сотрудник",
+  Student: "студент",
+  User: "пользователь",
   Service: "сервис",
   System: "система",
-};
+} satisfies Readonly<Record<PlatformAuditActorDisplayLabel, string>>;
 
 export const journalEvent = (v: string | null | undefined) =>
   lookup(JOURNAL_EVENT_WORD, v);

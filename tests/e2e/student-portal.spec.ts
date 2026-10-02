@@ -211,6 +211,11 @@ async function expectStylesLoaded(page: Page, context: string) {
 }
 
 async function expectNoAutomatedWcagViolations(page: Page, context: string) {
+  // Анимации кабинета (вход, стаггер) — не нарушение: axe оценивает контраст
+  // уже установившегося состояния, а не кадр с полупрозрачным текстом.
+  await page.waitForFunction(() =>
+    document.getAnimations().every((animation) =>
+      animation.playState !== "running" || animation.effect?.getComputedTiming().iterations === Infinity));
   const results = await new AxeBuilder({ page })
     .withTags([...WCAG_TAGS])
     .analyze();

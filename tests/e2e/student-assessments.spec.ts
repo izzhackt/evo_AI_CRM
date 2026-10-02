@@ -54,6 +54,11 @@ async function quality(page: Page) {
   await expect(page.locator("main")).toBeVisible();
   await expect(page.locator("nextjs-portal [data-nextjs-dialog]")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  // Анимации кабинета (вход, стаггер) — не нарушение: axe оценивает контраст
+  // уже установившегося состояния, а не кадр с полупрозрачным текстом.
+  await page.waitForFunction(() =>
+    document.getAnimations().every((animation) =>
+      animation.playState !== "running" || animation.effect?.getComputedTiming().iterations === Infinity));
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(axe.violations.map(v => ({ id: v.id, impact: v.impact, count: v.nodes.length }))).toEqual([]);
 }

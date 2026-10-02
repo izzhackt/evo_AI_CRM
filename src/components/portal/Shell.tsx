@@ -2,7 +2,15 @@
 
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FocusEvent,
+  type RefObject,
+} from "react";
 
 import { PortalNotificationUpdates } from "./PortalNotificationUpdates";
 
@@ -29,6 +37,12 @@ import type { Theme } from "@/lib/theme";
  * одни и те же для рейла и для телефона (по одной на раздел, в порядке рейла):
  * первый список — вкладки, второй — лист; на широком экране оба рисуются
  * подряд как обычный рейл, а «Ещё» скрыта.
+ *
+ * Движение (анимации кабинета студента, PLAN_CHANGES 02.10): страница в
+ * `#portal-content` оборачивается в `display: contents`-обёртку с key=pathname —
+ * узлы страницы создаются заново на каждой смене маршрута и проигрывают вход
+ * (portal.css, раздел «Движение»); один индикатор активной вкладки переезжает
+ * между пунктами по CSS-переменным, которые считает `useActiveTabIndicator`.
  *
  * Смоук-якоря production-прогона (scripts/evo-production-browser-smoke.mjs +
  * tests/production-browser-smoke.test.mjs): data-testid="student-portal-shell"
@@ -77,6 +91,69 @@ const SECTIONS = [
  * уходили за край экрана.
  */
 const PHONE_TAB_COUNT = 3;
+
+/**
+ * Индикатор активной вкладки. Один элемент `.pt-nav-indicator` переезжает между
+ * пунктами нижней панели телефона (по горизонтали) и рейла (по вертикали)
+ * transform-переходом из portal.css; Shell только считает положение активного
+ * пункта (offset-значения, на них не влияют transform нажатия) и кладёт его в
+ * --pt-ind-x/-y/-w/-h на <nav>. data-indicator на <nav> включает индикатор и
+ * прячет прежние статические планки ::before: до гидрации и без скрипта вкладка
+ * отмечена ими, так что смена не мигает. Первая постановка, смена размера окна
+ * и возврат с неотмеченного маршрута ставят индикатор мгновенно (snap), едет он
+ * только при смене активного пункта.
+ */
+function useActiveTabIndicator(navRef: RefObject<HTMLElement | null>, pathname: string, sectionCount: number) {
+  const placeRef = useRef<(snap: boolean) => void>(() => {});
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const place = (snap: boolean) => {
+      const wide = window.matchMedia("(min-width: 768px)").matches;
+      // Телефон: вкладки панели или «Ещё»; ссылки листа скрыты и индикатору не
+      // принадлежат. Широкий экран: рейл — все ссылки подряд.
+      const target = nav.querySelector<HTMLElement>(
+        wide
+          ? '.pt-nav-link[aria-current="page"]'
+          : '.pt-nav-bar .pt-nav-link[aria-current="page"], .pt-nav-more-toggle[data-current-inside]',
+      );
+      const instant = snap || nav.getAttribute("data-indicator") !== "ready";
+      if (instant) nav.setAttribute("data-indicator-snap", "");
+      if (target) {
+        nav.style.setProperty("--pt-ind-x", String(target.offsetLeft));
+        nav.style.setProperty("--pt-ind-y", String(target.offsetTop));
+        nav.style.setProperty("--pt-ind-w", String(target.offsetWidth));
+        nav.style.setProperty("--pt-ind-h", String(target.offsetHeight));
+      }
+      nav.setAttribute("data-indicator", target ? "ready" : "none");
+      if (instant) {
+        // Принудительный пересчёт стиля с transition: none, затем снимаем snap.
+        void nav.offsetWidth;
+        nav.removeAttribute("data-indicator-snap");
+      }
+    };
+    placeRef.current = place;
+    place(false);
+  }, [navRef, pathname, sectionCount]);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav || typeof ResizeObserver === "undefined") return;
+    // Первое уведомление ResizeObserver приходит сразу после observe() и
+    // отменило бы переход, начатый сменой маршрута: пропускаем его.
+    let initial = true;
+    const observer = new ResizeObserver(() => {
+      if (initial) {
+        initial = false;
+        return;
+      }
+      placeRef.current(true);
+    });
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, [navRef]);
+}
 
 function NavigationLabel({ label, opening }: { label: string; opening: string }) {
   const { pending } = useLinkStatus();
@@ -187,6 +264,7 @@ export function Shell({
   const moreOpen = openAt === pathname;
   const navRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  useActiveTabIndicator(navRef, pathname, sections.length);
 
   // Лист не диалог: страница под ним доступна. Закрывают его Escape (фокус
   // возвращается на «Ещё»), касание вне панели и уход фокуса с панели.
@@ -317,6 +395,7 @@ export function Shell({
               {moreSections.map(renderSection)}
             </ul>
           ) : null}
+          <span aria-hidden="true" className="pt-nav-indicator" />
         </nav>
 
         {/*
@@ -324,7 +403,10 @@ export function Shell({
           slice'ов — v3-world здесь сознательно, это не staff-shell.
         */}
         <div id="portal-content" tabIndex={-1} className="pt-content v3-world">
-          {children}
+          {/* key=pathname: вход содержимого на каждой смене маршрута (portal.css, «Движение»). */}
+          <div key={pathname} className="pt-route">
+            {children}
+          </div>
         </div>
       </div>
     </div>

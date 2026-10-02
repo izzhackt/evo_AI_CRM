@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useRef, useState, useTransition } from "react";
 
+import { CheckMark } from "@/components/portal/CheckMark";
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
 
@@ -82,6 +83,10 @@ export function PortalDocumentControls({
       : state.status === "success"
         ? `${state.message}${refreshing ? ` ${strings.uploadRefreshing}` : ""}`
         : state.status === "error" ? state.message : "";
+
+  const feedbackTone = state.status === "error"
+    ? "pt-doc-feedback-error"
+    : state.status === "success" ? "pt-doc-feedback-ok" : "";
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -207,8 +212,9 @@ export function PortalDocumentControls({
         role={state.status === "error" ? "alert" : "status"}
         aria-live="polite"
         aria-atomic="true"
-        className={`pt-doc-feedback ${state.status === "error" ? "pt-doc-feedback-error" : ""}`}
+        className={`pt-doc-feedback ${feedbackTone}`}
       >
+        {state.status === "success" ? <CheckMark fresh /> : null}
         {feedback}
       </p>
     </div>

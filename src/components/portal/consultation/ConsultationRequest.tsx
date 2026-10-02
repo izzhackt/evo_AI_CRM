@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { CheckMark } from "@/components/portal/CheckMark";
 import {
   CONSULTATION_NOTE_LIMIT,
   type ConsultationReceipt,
@@ -48,16 +49,19 @@ export function ConsultationRequest({
   if (openRequest !== null) {
     // A11y (PORT-6a): успех размонтирует форму вместе с кнопкой отправки,
     // на которой стоял фокус, — без переноса он молча падал на <body>.
-    // Фокусируем статус только когда запрос отправлен в этой сессии.
+    // Фокусируем статус только когда запрос отправлен в этой сессии; тогда же
+    // галочка дорисовывается (fresh), а уже сохранённый запрос показан сразу.
+    const fresh = openRequest !== initialOpenRequest;
     return (
       <p
         role="status"
         tabIndex={-1}
         ref={(node) => {
-          if (node && openRequest !== initialOpenRequest) node.focus();
+          if (node && fresh) node.focus();
         }}
         className="pt-consult-sent"
       >
+        <CheckMark fresh={fresh} />
         {strings.sent}
       </p>
     );

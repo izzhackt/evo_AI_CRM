@@ -107,7 +107,13 @@ code of ours involved.
   (заполнение scaleX, не frame), `MotionTransition.step` (шаг анкеты и вопрос
   теста: новый въезжает со стороны движения), `motionBounce` /
   `motionSymbolSwap` / `motionBounceOnAppear` (SF Symbols `symbolEffect`).
-- Только transform + opacity; ничего не зацикливается; общий потолок 400 мс.
+- Только transform + opacity; ничего не зацикливается; потолок 400 мс — для
+  анимаций `Motion.*` (задержка + длительность, `MotionPolicy.ceiling`).
+  Системные эффекты SF Symbols (`bounce`, `replace`, около 0,4–0,5 с) этим
+  потолком не управляются; их длительность задаёт система.
+- Секции с загрузкой (Home, «Моё поступление»): после `.motionStagger(…)`
+  ставится `.id(phase)`, чтобы загруженные строки получили собственное
+  появление, а не унаследовали «уже показано» от индикатора загрузки.
 - Reduce Motion (`accessibilityReduceMotion`): появление — только fade, без
   подъёма и задержек; нажатие — затемнение вместо scale; прогресс — мгновенно;
   шаги — только fade-in; symbol-эффекты не играют.

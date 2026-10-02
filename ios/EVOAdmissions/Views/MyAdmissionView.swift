@@ -142,6 +142,13 @@ struct MyAdmissionView: View {
 
     // MARK: - Следующий шаг (обзор 131 + очередь действий)
 
+    /// Stable name of the load state. Used as the section content's identity
+    /// (`.id` after `motionStagger`) so the loaded rows get a fresh entrance
+    /// instead of inheriting the spinner's already-shown state.
+    private var nextStepPhase: String {
+        model.isLoaded ? "loaded" : (model.loadFailed ? "failed" : "loading")
+    }
+
     @ViewBuilder
     private var nextStepSection: some View {
         Section {
@@ -173,7 +180,8 @@ struct MyAdmissionView: View {
                     ProgressView()
                 }
             }
-            .motionStagger(index: 1, key: "admission.next.\(model.isLoaded ? "loaded" : (model.loadFailed ? "failed" : "loading"))")
+            .motionStagger(index: 1, key: "admission.next.\(nextStepPhase)")
+            .id(nextStepPhase)
         } header: {
             Text("adm_next_step_heading")
         } footer: {

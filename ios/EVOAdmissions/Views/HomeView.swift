@@ -6,7 +6,9 @@ private enum HomeRead<Value> {
     case failed
 
     /// Stable name of the state — keys the one-time entrance of a section so
-    /// the loaded rows ease in once, not the spinner they replace.
+    /// the loaded rows ease in once, not the spinner they replace. Call sites
+    /// also use it as `.id(phase)` placed after `.motionStagger`, so the
+    /// loaded content is a new view with a fresh entrance state.
     var phase: String {
         switch self {
         case .loading: return "loading"
@@ -164,6 +166,7 @@ struct HomeView: View {
                 }
             }
             .motionStagger(index: 1, key: "home.admission.\(admissionPhase)")
+            .id(admissionPhase)
         }
     }
 
@@ -198,6 +201,7 @@ struct HomeView: View {
                 }
             }
             .motionStagger(index: 2, key: "home.learning.\(model.lessons.phase)")
+            .id(model.lessons.phase)
         }
     }
 
@@ -230,6 +234,7 @@ struct HomeView: View {
                 }
             }
             .motionStagger(index: 3, key: "home.tests.\(model.tests.phase)")
+            .id(model.tests.phase)
         }
     }
 
@@ -257,6 +262,7 @@ struct HomeView: View {
                 }
             }
             .motionStagger(index: 4, key: "home.application.\(model.application.phase)")
+            .id(model.application.phase)
         }
     }
 
@@ -289,6 +295,7 @@ struct HomeView: View {
                 }
             }
             .motionStagger(index: 5, key: "home.favorites.\(model.favorites.phase)")
+            .id(model.favorites.phase)
         }
     }
 

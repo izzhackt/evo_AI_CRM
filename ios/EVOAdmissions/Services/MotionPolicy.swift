@@ -7,7 +7,9 @@ import Foundation
 /// `src/app/(portal)/portal.css`).
 ///
 /// Principles (PLAN_CHANGES «2026-10-02 — анимации кабинета студента»):
-/// purposeful and calm; 100–300 ms; nothing above 400 ms end to end;
+/// purposeful and calm; 100–300 ms; nothing above 400 ms end to end (this
+/// ceiling covers the `Motion.*` animations; system SF Symbol effects keep
+/// their own ~0.4–0.5 s duration);
 /// ease-out only; transform and opacity only (progress is a scale, not a frame
 /// change); nothing loops; every motion is removed or reduced under Reduce
 /// Motion. The SwiftUI side lives in `Views/Motion.swift`.

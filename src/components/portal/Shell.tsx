@@ -2,6 +2,7 @@
 
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent } from "react";
 
 import { PortalNotificationUpdates } from "./PortalNotificationUpdates";
 
@@ -18,7 +19,14 @@ import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
  * Портальный shell (PORT-2, дизайн-контракт
  * docs/design/portal/design-contract.md): верхняя полоса с логотипом,
  * колокольчиком и меню аккаунта; слева рейл разделов, на узком экране —
- * нижние вкладки. Стили — только pt-классы из src/app/(portal)/portal.css.
+ * нижняя панель вкладок. Стили — только pt-классы из
+ * src/app/(portal)/portal.css.
+ *
+ * Телефон (#1113): в панели первые PHONE_TAB_COUNT разделов уровня доступа и
+ * «Ещё»; остальные разделы открывает лист «Ещё» над панелью. Ссылки в DOM
+ * одни и те же для рейла и для телефона (по одной на раздел, в порядке рейла):
+ * первый список — вкладки, второй — лист; на широком экране оба рисуются
+ * подряд как обычный рейл, а «Ещё» скрыта.
  *
  * Смоук-якоря production-прогона (scripts/evo-production-browser-smoke.mjs +
  * tests/production-browser-smoke.test.mjs): data-testid="student-portal-shell"
@@ -59,6 +67,14 @@ const SECTIONS = [
   key: keyof PortalStrings<"shell">;
   tiers: readonly PortalAccessTier[];
 }[];
+
+/**
+ * Сколько разделов нижняя панель телефона показывает до «Ещё»: подпись 12 px
+ * в Golos («Поступление» ≈ 79 px) должна помещаться в колонку при четырёх
+ * колонках уже от ~360 px; с двенадцатью колонками (#1113) 7–8 разделов
+ * уходили за край экрана.
+ */
+const PHONE_TAB_COUNT = 3;
 
 function NavigationLabel({ label, opening }: { label: string; opening: string }) {
   const { pending } = useLinkStatus();
@@ -112,6 +128,21 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
   );
 }
 
+function MoreIcon() {
+  return (
+    <svg
+      className="pt-nav-icon"
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path d="M4.5 10h.01M10 10h.01M15.5 10h.01" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function Shell({
   children,
   displayName,
@@ -127,6 +158,70 @@ export function Shell({
   const strings = getPortalStrings("shell", locale);
   const sections = SECTIONS.filter((section) =>
     (section.tiers as readonly PortalAccessTier[]).includes(accessTier));
+  const tabSections = sections.slice(0, PHONE_TAB_COUNT);
+  const moreSections = sections.slice(PHONE_TAB_COUNT);
+
+  const isActive = (section: (typeof SECTIONS)[number]) =>
+    pathname === section.href
+    || (section.href !== "/portal" && pathname.startsWith(`${section.href}/`));
+  const currentInMore = moreSections.some(isActive);
+
+  // Лист «Ещё» открыт для одного адреса: переход закрывает его сам, а «Назад»
+  // на тот же адрес не открывает его снова (состояние хранит адрес, не флаг).
+  const sheetId = useId();
+  const [openAt, setOpenAt] = useState<string | null>(null);
+  const moreOpen = openAt === pathname;
+  const navRef = useRef<HTMLElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
+  // Лист не диалог: страница под ним доступна. Закрывают его Escape (фокус
+  // возвращается на «Ещё»), касание вне панели и уход фокуса с панели.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpenAt(null);
+      toggleRef.current?.focus();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && navRef.current?.contains(event.target)) return;
+      setOpenAt(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [moreOpen]);
+
+  const closeWhenFocusLeaves = (event: FocusEvent<HTMLElement>) => {
+    const next = event.relatedTarget;
+    if (moreOpen && next instanceof Node && !event.currentTarget.contains(next)) setOpenAt(null);
+  };
+
+  const renderSection = (section: (typeof SECTIONS)[number]) => {
+    const label = strings[section.key];
+    const active = isActive(section);
+    return (
+      <li key={section.href}>
+        <Link
+          href={section.href}
+          aria-current={active ? "page" : undefined}
+          className="pt-nav-link"
+          onClick={() => {
+            if (section.href === pathname) setOpenAt(null);
+          }}
+        >
+          <SectionIcon section={section.key} />
+          <NavigationLabel
+            label={label}
+            opening={formatPortalString(strings.openingSection, { label })}
+          />
+        </Link>
+      </li>
+    );
+  };
 
   return (
     <div className="pt-shell" data-testid="student-portal-shell">
@@ -169,29 +264,43 @@ export function Shell({
 
       <div className="pt-body">
         {/* Смоук-якорь: aria-label не локализуется до совместного PR со смоук-скриптом. */}
-        <nav aria-label="Разделы кабинета" className="pt-nav">
-          <ul className="pt-nav-list">
-            {sections.map((section) => {
-              const active = pathname === section.href
-                || (section.href !== "/portal" && pathname.startsWith(`${section.href}/`));
-              const label = strings[section.key];
-              return (
-                <li key={section.href}>
-                  <Link
-                    href={section.href}
-                    aria-current={active ? "page" : undefined}
-                    className="pt-nav-link"
-                  >
-                    <SectionIcon section={section.key} />
-                    <NavigationLabel
-                      label={label}
-                      opening={formatPortalString(strings.openingSection, { label })}
-                    />
-                  </Link>
-                </li>
-              );
-            })}
+        <nav
+          ref={navRef}
+          aria-label="Разделы кабинета"
+          className="pt-nav"
+          onBlur={closeWhenFocusLeaves}
+        >
+          <ul
+            className="pt-nav-list pt-nav-bar"
+            style={{ "--pt-tab-count": tabSections.length } as CSSProperties}
+          >
+            {tabSections.map(renderSection)}
+            {moreSections.length > 0 ? (
+              <li className="pt-nav-more-item">
+                <button
+                  ref={toggleRef}
+                  type="button"
+                  className="pt-nav-more-toggle"
+                  aria-expanded={moreOpen}
+                  aria-controls={sheetId}
+                  data-current-inside={currentInMore ? "" : undefined}
+                  onClick={() => setOpenAt(moreOpen ? null : pathname)}
+                >
+                  <MoreIcon />
+                  <span className="pt-nav-label">{strings["nav.more"]}</span>
+                </button>
+              </li>
+            ) : null}
           </ul>
+          {moreSections.length > 0 ? (
+            <ul
+              id={sheetId}
+              className="pt-nav-list pt-nav-sheet"
+              data-open={moreOpen ? "" : undefined}
+            >
+              {moreSections.map(renderSection)}
+            </ul>
+          ) : null}
         </nav>
 
         {/*

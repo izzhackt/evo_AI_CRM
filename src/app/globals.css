@@ -291,6 +291,25 @@ table th,
   background-clip: content-box;
 }
 
+/*
+ * #1118: на устройствах с касанием правило `::-webkit-scrollbar` выше
+ * расширяет layout viewport мобильного Chromium на 11 px: на 320 px
+ * `innerWidth` равен 331 при `clientWidth` 320 (а `innerHeight` 764 вместо
+ * 740), хотя ни один элемент за край не выходит. Подтверждено перебором CSS
+ * на реальной сборке: без этого правила или с `scrollbar-width: thin|none` на
+ * `html` viewport остаётся 320. `scrollbar-width` отключает
+ * `::-webkit-scrollbar` и возвращает системную накладную полосу. Правило
+ * стоит здесь, а не в portal.css: то же правило в CSS группы маршрутов не
+ * помогло (гейт E4 всё равно получил 331 px на /portal/documents), а раздутый
+ * viewport потом не сжимается. С мышью и тачпадом (pointer: fine) кастомная
+ * полоса остаётся.
+ */
+@media (pointer: coarse) {
+  html {
+    scrollbar-width: thin;
+  }
+}
+
 .evo-iso-field {
   position: absolute;
   /* A corner wedge, not a full-bleed wash. Two reasons, and the second is

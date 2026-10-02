@@ -2868,6 +2868,22 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_contract_file_audit_action.sql
   fi
+
+  # Migration 258 (issue #1075, owner decision 01.10.2026, option 1): a sale
+  # saved from the report into an already open cabinet writes the same
+  # completed 088 handoff as the ordinary branch. Members modelled like
+  # production (coarse role NULL, the production bundles, the 208 Sales Manager
+  # binding); every case is created by the REAL sale command and answered by
+  # the REAL 182 command: the 088 row, three starter tasks and audit exist, one
+  # report record and no second record-creating audit, the curator accepts /
+  # clarifies / declines, replay and a second sale are safe, the ordinary
+  # branch is unchanged, the helper refuses a foreign case or a lead without a
+  # sale, and the backfill restores exactly the receipt-proven cases once.
+  if [[ "$(basename "$migration")" == 258_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_pending_case_handoff.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

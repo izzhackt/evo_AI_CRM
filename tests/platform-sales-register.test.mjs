@@ -190,3 +190,56 @@ test("migration 254 adds a plain lead link outside `lead_id`, never a pipeline s
   assert.match(stripV2, /ORDER BY \(r\.lead_id IS NOT DISTINCT FROM p_lead_id\) DESC/u);
   assert.match(stripV2, /CASE WHEN r\.lead_id = p_lead_id THEN 'sale' ELSE 'linked' END AS link/u);
 });
+
+// 258 (issue #1075, owner decision 01.10.2026, option 1): a sale saved into an
+// already open cabinet (208 `pending_case`) writes the same completed 088
+// handoff as the ordinary branch. The real-Postgres proof is
+// supabase/tests/platform_pending_case_handoff.sql at its checkpoint. Deliberately
+// absent: an `expectedMigrationVersions` contiguity assertion — 255–257 belong to
+// other PRs that merge first, and the older ledger tests above already own that proof.
+test("migration 258 patches the released sale command by one verified anchor and runs its real-Postgres suite at its checkpoint", () => {
+  const script = readFileSync(new URL("../scripts/test-postgres-authorization.sh", import.meta.url), "utf8");
+  assert.match(script, /== 258_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_pending_case_handoff\.sql/u);
+  const suite = readFileSync(new URL("../supabase/tests/platform_pending_case_handoff.sql", import.meta.url), "utf8");
+  assert.match(suite, /^BEGIN;$/mu);
+  assert.match(suite, /^ROLLBACK;\s*$/mu);
+  assert.match(suite, /N258_PENDING_CASE_HANDOFF_SUITE_OK/u);
+  assert.doesNotMatch(suite, /@(?!example\.invalid)[a-z0-9-]+\.[a-z]/iu, "synthetic addresses only");
+  // The suite drives the REAL commands: the sale into a pending cabinet and 182's answer.
+  assert.match(suite, /SELECT platform\.create_sales_report_handoff\(/u);
+  assert.match(suite, /SELECT platform\.respond_student_case_handoff\(/u);
+  assert.match(suite, /restore_pending_case_sales_handoffs\(\)/u);
+
+  const sql = readFileSync(new URL("../supabase/migrations/258_platform_pending_case_handoff.sql", import.meta.url), "utf8");
+  assert.match(sql, /^BEGIN;$/mu);
+  assert.match(sql, /^COMMIT;\s*$/mu);
+  // The released function is patched in place under md5 guards, never blindly replaced.
+  assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION/u);
+  assert.match(sql, /pg_catalog\.md5\(old_source\) <> 'efa824316e4ca3675c2cb2e9331db74c'/u);
+  assert.match(sql, /pg_catalog\.md5\(new_source\) <> '2151ceb8f28993beefb471af86af5a0a'/u);
+  assert.match(sql, /EXECUTE pg_catalog\.replace\(definition, old_anchor, new_anchor\);/u);
+  assert.match(sql, /new_attributes IS DISTINCT FROM old_attributes/u);
+  // The one call comes right after the report record, so 134's trigger finds it and writes no second one.
+  assert.match(sql, /RETURNING \* INTO sale;\n\s+-- 258[^\n]*\n(?:\s+--[^\n]*\n)+\s+PERFORM platform_private\.record_pending_case_sales_handoff\(p_organization_id,p_lead_id,case_id,/u);
+  // Triggers and RLS stay on: the backfill writes through the same constraints as the command.
+  assert.doesNotMatch(sql, /DISABLE\s+(?:ROW LEVEL SECURITY|TRIGGER)|session_replication_role/iu);
+  // The helper writes exactly what the ordinary branch writes: the 088 row, three starter tasks, their events and audit.
+  assert.match(sql, /'sales_report', 'completed', 'canonical_sales'/u);
+  for (const key of ["u6.sales-context-review", "u6.study-route-confirmation", "u6.document-request-plan"]) {
+    assert.ok(sql.includes(`'${key}'`), key);
+  }
+  assert.match(sql, /'lead\.admissions\.handoff\.completed'/u);
+  assert.match(sql, /RAISE EXCEPTION 'pending_case_handoff_requires_sale_record'/u);
+  assert.match(sql, /RAISE EXCEPTION 'pending_case_handoff_case_mismatch'/u);
+  // The backfill requires BOTH proofs 247 uses, and is idempotent (a second pass must find nothing).
+  assert.match(sql, /r\.source_snapshot->>'activation' = 'pending_case'/u);
+  assert.match(sql, /request\.receipt->>'operation' = 'create'/u);
+  assert.match(sql, /AND NOT EXISTS \(\s+SELECT 1 FROM platform\.sales_admissions_handoffs AS h/u);
+  assert.match(sql, /a258_pending_case_handoff_backfill_not_idempotent/u);
+  // Neither helper is reachable from a client role.
+  assert.match(sql, /REVOKE ALL ON FUNCTION\s+platform_private\.record_pending_case_sales_handoff\([^)]*\),\s+platform_private\.restore_pending_case_sales_handoffs\(\)\s+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/u);
+  assert.match(sql, /SECURITY DEFINER SET search_path = ''/u);
+  // 182 and 130 stay untouched: the fix is on the writing side (the code, comments aside, never names them).
+  const code = sql.split("\n").filter((line) => !/^\s*--/u.test(line)).join("\n");
+  assert.doesNotMatch(code, /respond_student_case_handoff|ALTER TABLE platform\.student_case_handoff_acknowledgements/u);
+});

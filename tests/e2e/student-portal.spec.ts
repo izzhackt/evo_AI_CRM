@@ -262,31 +262,15 @@ async function expectPortalGeometry(page: Page, context: string) {
       }
     }
 
-    // Known #1118: under mobile emulation at 320 px the layout viewport is
-    // sometimes 331 px (also on /login) while no box crosses the edge; since
-    // html/body clip horizontal overflow, the document width then equals that
-    // viewport. Tolerate it only at ≤ 320 px, up to the observed 331 px (+1 px
-    // rounding), when the document is exactly the inflated viewport, no box
-    // crosses the edge except the clipped account summary (#1114, pinned by
-    // its own test) or the still-fixed tab bar (#1113), and the body's
-    // content is no wider than that summary's edge.
-    const clientWidth = document.documentElement.clientWidth;
-    const accountSummary = document.querySelector(".pt-user-summary");
-    const summaryRight = accountSummary?.getBoundingClientRect().right ?? 0;
-    const tabBar = document.querySelector(".pt-nav");
-    const fixedTabBar = tabBar !== null && getComputedStyle(tabBar).position === "fixed";
-    const pastEdge = Array.from(document.querySelectorAll<Element>("body *")).filter(element => {
-      const rect = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden"
-        && (rect.right > clientWidth + 1 || rect.left < -1);
-    });
-    const knownOverflowOnly = clientWidth <= 320
-      && pastEdge.every(element => Boolean(accountSummary?.contains(element))
-        || (fixedTabBar && Boolean(tabBar?.contains(element))))
-      && document.body.scrollWidth <= Math.max(clientWidth, Math.ceil(summaryRight)) + 1
-      && document.documentElement.scrollWidth <= clientWidth + 12
-      && document.documentElement.scrollWidth === window.innerWidth;
+    // Ids must be unique per document (#1115): anchors such as #case-help
+    // would otherwise resolve to the wrong element.
+    const idCounts = new Map<string, number>();
+    for (const element of document.querySelectorAll("[id]")) {
+      idCounts.set(element.id, (idCounts.get(element.id) ?? 0) + 1);
+    }
+    const duplicateIds = Array.from(idCounts)
+      .filter(([, count]) => count > 1)
+      .map(([id, count]) => `${id} x${count}`);
 
     return {
       viewportWidth: window.innerWidth,
@@ -307,7 +291,7 @@ async function expectPortalGeometry(page: Page, context: string) {
         document.documentElement.scrollWidth >
         document.documentElement.clientWidth + 1,
       pageScrolled,
-      knownOverflowOnly,
+      duplicateIds,
       headingCount: document.querySelectorAll("h1").length,
       smallTargets,
       nextError: Boolean(document.querySelector("#__next_error__")),
@@ -315,20 +299,17 @@ async function expectPortalGeometry(page: Page, context: string) {
   });
 
   expect(geometry.headingCount, `${context}: expected exactly one h1`).toBe(1);
-  const knownOverflow = geometry.knownOverflowOnly
-    && (geometry.documentOverflow || geometry.pageScrolled);
-  if (knownOverflow) {
-    test.info().annotations.push({
-      type: "known-defect",
-      description: `#1118 ${context}: tolerated ${geometry.viewportWidth} px layout viewport at ${geometry.clientWidth} px`,
-    });
-  }
-  expect(geometry.documentOverflow && !knownOverflow, `${context}: document has horizontal overflow: ${JSON.stringify(geometry)}`).toBe(
+  // No tolerance for a layout viewport wider than the screen (#1118): the
+  // inflated 331 px viewport at 320 px (document scrollWidth 331 over
+  // clientWidth 320) came from the global custom scrollbar and is fixed in
+  // globals.css, so any horizontal overflow fails the gate again.
+  expect(geometry.documentOverflow, `${context}: document has horizontal overflow: ${JSON.stringify(geometry)}`).toBe(
     false,
   );
-  expect(geometry.pageScrolled && !knownOverflow, `${context}: the page itself scrolls horizontally`).toBe(
+  expect(geometry.pageScrolled, `${context}: the page itself scrolls horizontally`).toBe(
     false,
   );
+  expect(geometry.duplicateIds, `${context}: duplicate element ids`).toEqual([]);
   expect(geometry.smallTargets, `${context}: interactive targets below 24px`).toEqual(
     [],
   );
@@ -372,7 +353,19 @@ test("all four Student Portal routes pass the real authenticated quality gate", 
     if (screenshotDirectory) {
       const routeName = route.path.replaceAll("/", "-").replace(/^-/, "");
       const screenshotPath = join(screenshotDirectory, `${testInfo.project.name}-${routeName}.png`);
-      await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+      // A full-page screenshot drops the touch emulation of the page it is
+      // taken on (`pointer: fine`, no touch points). The global custom
+      // scrollbar then returns and the next navigation of that page gets a
+      // 331 px layout viewport at 320 px (#1118), which no real phone has.
+      // Capture on a throwaway page so the geometry checks keep running on
+      // the page with intact emulation.
+      const capture = await page.context().newPage();
+      try {
+        await capture.goto(route.path, { waitUntil: "networkidle" });
+        await capture.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+      } finally {
+        await capture.close();
+      }
       await chmod(screenshotPath, 0o600);
     }
   }
@@ -478,36 +471,113 @@ test("the mobile Portal tab bar supports keyboard navigation", async ({
   await expectPortalGeometry(page, testInfo.project.name);
 });
 
-test("every mobile Portal section is on screen in the tab bar", async ({
+// Every section of the assisted Student's navigation, in rail order (#1113).
+const ASSISTED_SECTION_PATHS = [
+  "/portal/home",
+  "/portal",
+  "/portal/documents",
+  "/portal/messages",
+  "/portal/universities",
+  "/portal/professions",
+  "/portal/english",
+  "/portal/favorites",
+  "/portal/payments",
+  "/portal/notifications",
+  "/portal/tests",
+  "/portal/profile",
+] as const;
+
+test("every mobile Portal section is reachable on screen from the tab bar and «Ещё»", async ({
   page,
 }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile-"), "mobile profiles only");
-  // Known product defect #1113: the fixed bar lays out all 12 sections
-  // in one non-scrolling row, so the right-hand ones are past the screen edge.
-  // Remove this marker in the fix; the gate then reports "unexpectedly passed".
-  test.fail(true, "#1113: phone tab bar pushes sections off screen");
 
   await submitLogin(page, "student");
-  const offScreen = await page
-    .getByRole("navigation", { name: "Разделы кабинета" })
-    .evaluate((nav) => {
-      const width = document.documentElement.clientWidth;
-      return Array.from(nav.querySelectorAll("a"))
-        .filter((link) => {
-          const rect = link.getBoundingClientRect();
-          return rect.left < -1 || rect.right > width + 1;
-        })
-        .map((link) => link.textContent?.trim() ?? "");
+  const navigation = page.getByRole("navigation", { name: "Разделы кабинета" });
+  const more = navigation.getByRole("button", { name: "Ещё", exact: true });
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+
+  // The bar shows the first sections and «Ещё»; the rest open in a sheet. A
+  // section counts as reachable when its 44 px target is fully inside the screen.
+  const unreachable: string[] = [];
+  for (const path of ASSISTED_SECTION_PATHS) {
+    const link = navigation.locator(`a[href="${path}"]`);
+    await expect(link, `${path}: one link per section`).toHaveCount(1);
+    if (!(await link.isVisible())) {
+      if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
+      await expect(link, `${path}: visible after opening «Ещё»`).toBeVisible();
+    }
+    const box = await link.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        height: rect.height,
+        width: document.documentElement.clientWidth,
+        viewportHeight: window.innerHeight,
+      };
     });
-  expect(offScreen, `${testInfo.project.name}: sections past the screen edge`).toEqual([]);
+    if (
+      box.left < -1 || box.right > box.width + 1
+      || box.top < -1 || box.bottom > box.viewportHeight + 1
+      || box.height < 44
+    ) {
+      unreachable.push(`${path} ${JSON.stringify(box)}`);
+    }
+  }
+  expect(unreachable, `${testInfo.project.name}: sections outside the screen`).toEqual([]);
+
+  // Escape closes the sheet and returns focus to «Ещё».
+  await page.keyboard.press("Escape");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(more).toBeFocused();
+
+  // A tap on a section inside «Ещё» navigates, closes the sheet and marks «Ещё» current.
+  await more.click();
+  await navigation.locator('a[href="/portal/tests"]').click();
+  await expect(page).toHaveURL(/\/portal\/tests$/);
+  // The shell and URL can update before the streamed page arrives.
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(navigation.locator('a[href="/portal/tests"]')).toBeHidden();
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(more).toHaveAttribute("data-current-inside", "");
+  await expectPortalGeometry(page, `${testInfo.project.name} /portal/tests`);
+
+  // The sheet belongs to the page where it was opened: coming back to that page
+  // never reopens it by itself. The shell lives in the shared layout, so its
+  // state survives navigation (regression: a stale "opened at /portal/home").
+  const home = navigation.locator('a[href="/portal/home"]');
+  await home.click();
+  await expect(page).toHaveURL(/\/portal\/home$/);
+  await expect(home).toHaveAttribute("aria-current", "page");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await more.click();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await navigation.locator('a[href="/portal/tests"]').click();
+  await expect(page).toHaveURL(/\/portal\/tests$/);
+  await expect(more).toHaveAttribute("data-current-inside", "");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  // Back to the page where the sheet was opened, by the bar tab ...
+  await home.click();
+  await expect(page).toHaveURL(/\/portal\/home$/);
+  await expect(home).toHaveAttribute("aria-current", "page");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  // ... and by browser history, in both directions.
+  await more.click();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/portal\/tests$/);
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await page.goForward();
+  await expect(page).toHaveURL(/\/portal\/home$/);
+  await expect(home).toHaveAttribute("aria-current", "page");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
 });
 
 test("the portal top bar fits a 320 px screen", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-320-chromium", "the defect is specific to 320 px");
-  // Known product defect #1114: the account summary is wider than its menu
-  // box and is clipped at the right edge (html/body clip overflow-x). Remove
-  // this marker in the fix; the gate then reports "unexpectedly passed".
-  test.fail(true, "#1114: 320 px account summary overflows the top bar");
+  test.skip(testInfo.project.name !== "mobile-320-chromium", "the check is specific to 320 px");
 
   await submitLogin(page, "student");
   await page.goto("/portal/documents", { waitUntil: "networkidle" });
@@ -522,6 +592,18 @@ test("the portal top bar fits a 320 px screen", async ({ page }, testInfo) => {
   expect(proof.summaryRight).not.toBeNull();
   expect(proof.summaryRight!, "the account summary crosses the right edge")
     .toBeLessThanOrEqual(proof.clientWidth + 1);
+});
+
+test("the dark Portal logo sits on a light plate", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "forced-dark-chromium", "dark theme profile only");
+
+  // #1116: the original lockup has black lettering, so on the dark top bar it
+  // needs the light brand plate to stay readable in both themes.
+  await submitLogin(page, "student");
+  const plate = await page.locator(".pt-topbar-logo").evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  expect(plate).toBe("rgb(255, 255, 255)");
 });
 
 test("the Student can persist one own notification read through the UI", async ({
@@ -739,8 +821,8 @@ test("mobile document review and curator replies persist through real Auth and d
     const replay = await staffClient.schema("platform").rpc("answer_case_help_request_v1", command);
     expect(replay.error).toBeNull();
     expect(replay.data).toEqual(response.data);
-    // The help panel by its region name: since PORT-5d `/portal` renders
-    // `id="case-help"` twice (wrapper and panel, #1115), so the id is ambiguous.
+    // The help panel by its region name (the `#case-help` anchor itself is
+    // unique since #1115, which expectPortalGeometry also enforces).
     await expect(page.getByRole("region", { name: "Помощь по поступлению", exact: true }))
       .toContainText(answer, { timeout: 45_000 });
     await expect(page.getByRole("textbox", { name: "Тема", exact: true })).toHaveValue("Несохранённый черновик");

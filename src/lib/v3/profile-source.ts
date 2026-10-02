@@ -790,8 +790,10 @@ async function readLeadProfile(
   const visa = fullCase?.visa ?? null;
   const finance = fullCase?.finance ?? null;
   const strip = await stripRead;
-  // A sale saved into an already open cabinet (208) has no 088 row, so the
-  // handoff snapshot has no date; the strip dates it by its create receipt.
+  // A sale saved into an already open cabinet (208) writes its 088 row since
+  // migration 258 (and that migration restored the earlier ones). A case that
+  // still has none has no handoff snapshot date; the strip dates it by its
+  // create receipt.
   const handedOffAt = handoff.handedOffAt
     ?? (strip.status === "available" ? strip.strip.handoff?.completedAt ?? null : null);
 

@@ -249,7 +249,9 @@ export function handoffStripView(
   const curator = strip.curator;
   const acceptance = strip.acceptance;
   const declined = acceptance?.decision === "declined";
-  // Ответ записать нельзя (путь 208): «ждёт ответа» было бы шагом, который никто не сделает.
+  // Ответ записать нельзя (у дела нет строки 088): «ждёт ответа» было бы шагом, который никто
+  // не сделает. С миграции 258 продажа в открытый кабинет (путь 208) пишет эту строку, так что
+  // здесь остаётся только дело без неё и без доказательства, из которого её можно восстановить.
   const unrecordable = strip.handoff !== null && !strip.handoff.acceptanceRecordable;
   // Назначить куратора — в деле, у того, кто назначает (`case.curator.assign`).
   const assignHref = links?.assignCurator ? links.caseHref : null;

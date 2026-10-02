@@ -219,6 +219,27 @@ test("Lead 360 «Передача» (Э8.4): the case's uploaded contract and re
     .items[1].text, "оплачено 40%");
 });
 
+test("Lead 360 «Передача»: a sale into an open cabinet (208) is answerable since 258 — the normal «ждёт ответа»", () => {
+  // 258: the 208 branch writes the 088 row 182 needs, so the SQL strip says acceptance_recordable
+  // true for it, whichever evidence (the 088 row or the report receipt) dates the handoff.
+  for (const evidence of ["sales_report", "handoff"]) {
+    const waiting = handoffStripView(parse({ ...HANDED_JSON,
+      handoff: { completed_at: "2026-09-23T03:00:00+00:00", evidence, acceptance_recordable: true },
+      contract: { confirmed: false, confirmed_at: null }, first_payment: { received_date: null },
+      report: { status: "available", record: { ...HANDED_JSON.report.record, sale_date: "2026-09-22", has_contract_number: false } },
+      acceptance: null }), { now: NOW, links: ALL_LINKS });
+    assert.deepEqual(waiting.items.at(-1), { key: "accepted", label: "Принято", state: "missing", text: "ждёт ответа", date: null }, evidence);
+    assert.equal(stripPlain(waiting.summary), "Передано 23.09 · Куратор Синтетический · ждёт ответа", evidence);
+    assert.deepEqual(waiting.warnings, [], "the wait is a step, not a warning");
+  }
+  // The same sale after the curator's answer reads like any other handoff.
+  const answered = handoffStripView(parse({ ...HANDED_JSON,
+    handoff: { completed_at: "2026-09-23T03:00:00+00:00", evidence: "sales_report", acceptance_recordable: true },
+    acceptance: { decision: "accepted", at: "2026-09-24T03:00:00+00:00" } }), { now: NOW, links: ALL_LINKS });
+  assert.deepEqual(answered.items.at(-1), { key: "accepted", label: "Принято", state: "done", text: null, date: "24.09" });
+  assert.equal(stripPlain(answered.summary), "Передано 23.09 · Куратор Синтетический · принято 24.09");
+});
+
 test("Lead 360 «Передача»: a sale saved through the report (208) takes contract and payment from its record", () => {
   // The gate row confirms nothing on this path; the record has the sale date and the paid amount.
   const sold = handoffStripView(parse({ ...HANDED_JSON,

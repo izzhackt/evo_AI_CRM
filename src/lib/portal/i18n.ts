@@ -25,6 +25,8 @@ const shellRu = {
   notificationsRetry: "Повторить",
   account: "Ваш аккаунт",
   logout: "Выйти",
+  // Кнопка «солнце/луна»: имя постоянное, состояние — aria-pressed.
+  "theme.dark": "Тёмная тема",
   openingSection: "Открываем раздел «{label}»",
   "nav.more": "Ещё",
   "nav.home": "Главная",
@@ -53,6 +55,8 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   notificationsRetry: "Кайталоо",
   account: "Сиздин аккаунт",
   logout: "Чыгуу",
+  // KY: носитель языка вычитывает в PR.
+  "theme.dark": "Караңгы тема",
   openingSection: "«{label}» бөлүмүн ачып жатабыз",
   "nav.more": "Дагы",
   "nav.home": "Башкы бет",

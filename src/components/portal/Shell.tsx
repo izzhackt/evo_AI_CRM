@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent
 import { PortalNotificationUpdates } from "./PortalNotificationUpdates";
 
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Locale } from "@/lib/i18n-data";
 import {
   formatPortalString,
@@ -14,6 +15,7 @@ import {
   type PortalStrings,
 } from "@/lib/portal/i18n";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
+import type { Theme } from "@/lib/theme";
 
 /**
  * Портальный shell (PORT-2, дизайн-контракт
@@ -148,11 +150,13 @@ export function Shell({
   displayName,
   accessTier,
   locale,
+  theme,
 }: {
   children: React.ReactNode;
   displayName: string;
   accessTier: PortalAccessTier;
   locale: Locale;
+  theme: Theme;
 }) {
   const pathname = usePathname();
   const strings = getPortalStrings("shell", locale);
@@ -237,6 +241,8 @@ export function Shell({
         </Link>
         <div className="pt-topbar-actions">
           {accessTier === "assisted" ? <PortalNotificationUpdates locale={locale} /> : null}
+          {/* Тема — одна кнопка на виду и на телефоне (решение владельца 02.10). */}
+          <ThemeToggle locale={locale} initialTheme={theme} />
           <details className="pt-user-menu">
             <summary className="pt-user-summary">
               <span className="pt-user-summary-name">{displayName}</span>

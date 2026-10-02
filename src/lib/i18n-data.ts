@@ -16,7 +16,6 @@ const ru: Dict = {
   "role.admin": "Руководство",
   "role.sales": "Продажи",
   "role.admissions": "Поступление",
-  toggleTheme: "Сменить тему",
 };
 
 const ky: Dict = {
@@ -26,7 +25,6 @@ const ky: Dict = {
   "role.admin": "Жетекчилик",
   "role.sales": "Сатуу",
   "role.admissions": "Кабыл алуу",
-  toggleTheme: "Теманы алмаштыруу",
 };
 
 const en: Dict = {
@@ -36,7 +34,6 @@ const en: Dict = {
   "role.admin": "Management",
   "role.sales": "Sales",
   "role.admissions": "Admissions",
-  toggleTheme: "Toggle theme",
 };
 
 export const DICTS: Record<Locale, Dict> = { ru, ky, en };

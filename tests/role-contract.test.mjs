@@ -21,7 +21,6 @@ test("the product role policy exposes only the three fixed staff roles", () => {
     "role.admin",
     "role.sales",
     "role.admissions",
-    "toggleTheme",
   ].sort();
 
   for (const locale of LOCALES) {

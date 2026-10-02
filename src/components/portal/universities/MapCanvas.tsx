@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import type { UniversityMapPin } from "@/lib/portal/universities";
+import { readDocumentTheme, type Theme } from "@/lib/theme";
 
 import type { UniversitiesMapStrings } from "./MapView";
 
@@ -24,12 +25,18 @@ import type { UniversitiesMapStrings } from "./MapView";
  * мини-карточку со ссылкой на карточку вуза.
  *
  * prefers-reduced-motion: без анимаций fitBounds и fade тайлов.
+ *
+ * Тема (решение владельца 02.10): стиль берётся из <html data-theme>, а не
+ * из темы ОС, и меняется на лету при нажатии «солнце/луна» — setStyle на
+ * той же карте, без пересоздания (маркеры — DOM-элементы и остаются).
+ * Светлая — спокойный positron того же провайдера (тёплая бумага кабинета
+ * и красные пины не спорят с насыщенными заливками liberty); тёмная — dark.
  */
 
-const TILE_STYLES = {
-  light: "https://tiles.openfreemap.org/styles/liberty",
+const TILE_STYLES: Readonly<Record<Theme, string>> = {
+  light: "https://tiles.openfreemap.org/styles/positron",
   dark: "https://tiles.openfreemap.org/styles/dark",
-} as const;
+};
 
 const ATTRIBUTION =
   '<a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors';
@@ -63,9 +70,7 @@ export function MapCanvas({ pins, base, strings, onReady, onFail }: MapCanvasPro
     try {
       map = new MapLibreMap({
         container,
-        style: window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? TILE_STYLES.dark
-          : TILE_STYLES.light,
+        style: TILE_STYLES[readDocumentTheme()],
         center: [58, 32],
         zoom: 1.7,
         attributionControl: false,
@@ -92,7 +97,19 @@ export function MapCanvas({ pins, base, strings, onReady, onFail }: MapCanvasPro
       // MapLibre переживает сам.
       if (!loaded) onFail();
     });
+    let theme = readDocumentTheme();
+    const themeObserver = new MutationObserver(() => {
+      const next = readDocumentTheme();
+      if (next === theme) return;
+      theme = next;
+      map.setStyle(TILE_STYLES[next]);
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
     return () => {
+      themeObserver.disconnect();
       for (const marker of markersRef.current) marker.remove();
       markersRef.current = [];
       mapRef.current = null;

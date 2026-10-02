@@ -5,9 +5,10 @@ import { LoginForm } from "@/components/AuthForms";
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { getT } from "@/lib/i18n";
+import { getLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import { buildRouteMetadata } from "@/lib/route-metadata";
+import { readRequestTheme } from "@/lib/theme-server";
 import {
   platformAudienceForHost,
   PRODUCTION_STAFF_ORIGIN,
@@ -101,7 +102,8 @@ function firstQueryValue(value: string | string[] | undefined): string | null {
 export default async function LoginPage({
   searchParams,
 }: Readonly<{ searchParams: LoginPageSearchParams }>) {
-  const { t, locale } = await getT();
+  const locale = await getLocale();
+  const theme = await readRequestTheme();
   const audience = platformAudienceForHost((await headers()).get("host"));
   const audienceCopy = audience ? AUDIENCE_COPY[locale][audience] : null;
   const copy = { ...COPY[locale], ...audienceCopy };
@@ -119,7 +121,8 @@ export default async function LoginPage({
     <main className="flex min-h-dvh flex-col bg-bg px-4 py-6 sm:px-6">
       <div className="flex min-h-11 items-center justify-end gap-3">
         <LangSwitcher current={locale} />
-        <ThemeToggle label={t("toggleTheme")} />
+        {/* Хост сотрудников только светлый — кнопки темы там нет. */}
+        {audience !== "staff" && <ThemeToggle locale={locale} initialTheme={theme} />}
       </div>
 
       <div className="flex flex-1 items-center justify-center py-8 sm:py-12">

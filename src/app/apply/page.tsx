@@ -6,6 +6,7 @@ import { SignupConfirmationPending } from "@/components/student-application/Sign
 import { SignupConfirmationFrame } from "@/components/student-application/SignupConfirmationFrame";
 import { readPendingStudentSignup } from "@/lib/server/student-signup-confirmation-web";
 import { getLocale } from "@/lib/i18n";
+import { readRequestTheme } from "@/lib/theme-server";
 import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "@/lib/student-application-contract";
 import { createStudentInviteSessionRuntime } from "@/lib/server/student-invite-session-runtime";
 import { readVerifiedStudentInviteSession } from "@/lib/server/student-invite-session";
@@ -33,7 +34,7 @@ export const metadata: Metadata = { title: { absolute: "Начните пост�
 export default async function ApplyPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   // PORT-8c: язык анкеты — существующий механизм cookie `locale` (getLocale —
   // async; до создания аккаунта персистить язык больше некуда).
-  const [query, locale] = await Promise.all([searchParams, getLocale()]);
+  const [query, locale, theme] = await Promise.all([searchParams, getLocale(), readRequestTheme()]);
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
   if (error && error.name !== "AuthSessionMissingError") throw new Error("Student registration is unavailable.");
@@ -69,5 +70,5 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
     const pending = await readPendingStudentSignup();
     if (pending) return <SignupConfirmationFrame><SignupConfirmationPending initial={pending} locale={locale} restored /></SignupConfirmationFrame>;
   }
-  return <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} />;
+  return <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} theme={theme} />;
 }

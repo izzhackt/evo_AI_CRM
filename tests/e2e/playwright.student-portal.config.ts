@@ -52,11 +52,24 @@ export default defineConfig({
       },
     },
     {
+      // 02.10: тёмная — выбор студента (cookie `theme`), тема ОС не читается.
       name: "forced-dark-chromium",
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1360, height: 1000 },
-        colorScheme: "dark",
+        storageState: {
+          cookies: [{
+            name: "theme",
+            value: "dark",
+            domain: new URL(baseURL).hostname,
+            path: "/",
+            expires: -1,
+            httpOnly: false,
+            secure: false,
+            sameSite: "Lax",
+          }],
+          origins: [],
+        },
       },
     },
   ],

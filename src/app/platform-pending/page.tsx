@@ -10,6 +10,7 @@ import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import { requirePlatformActor } from "@/lib/platform-guards";
 import { buildRouteMetadata } from "@/lib/route-metadata";
+import { readRequestTheme, themeToggleAllowed } from "@/lib/theme-server";
 
 const COPY: Record<
   Locale,
@@ -55,6 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PlatformPendingPage() {
   const actor = await requirePlatformActor();
   const { t, locale } = await getT();
+  const [theme, showThemeToggle] = await Promise.all([readRequestTheme(), themeToggleAllowed()]);
   const copy = COPY[locale];
   const canOpenInbox =
     staffPresentationCan(actor, "messaging.read");
@@ -72,7 +74,7 @@ export default async function PlatformPendingPage() {
       </div>
       <div className="absolute right-5 top-5 flex items-center gap-2.5">
         <LangSwitcher current={locale} />
-        <ThemeToggle label={t("toggleTheme")} />
+        {showThemeToggle && <ThemeToggle locale={locale} initialTheme={theme} />}
       </div>
 
       <section

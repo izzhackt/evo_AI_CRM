@@ -16447,3 +16447,74 @@ React-стриминговом `div[hidden][id^="S:"]`); открытая по �
 
 Реальных записей через новые экраны на production по-прежнему не было;
 перенос сентябрьских строк отчёта продаж владелец выполнит сам позже.
+
+## 2026-09-22 — native learning: read recovery and confirmed exit
+
+Before coding, ROOT authorizes a bounded correction of three source-confirmed
+iPhone learning defects on b4fc3f91. In AssessmentRunner and LessonRunner,
+a failed explicit read retains its operation and can only retry that read;
+a transport failure of a write retains its exact payload/request ID. Conflict
+recovery must preserve the visible draft while unsuccessful and block writes
+until the explicit authorized read succeeds. Assessment Save and Exit may
+dismiss only when the latest visible answers match confirmed saved state,
+not merely when an older pending request replays successfully.
+
+Preserve existing EVO copy/layout, RPCs, permissions, normal Supabase/Swift
+path, start/save/complete semantics and native logout/email acceptance.
+Impeccable Operate/harden/native guidance: controls must express the operation
+they repeat; pending recovery must not silently overwrite local input. No
+redesign, new fixtures, mock acceptance, schema changes or production actions.
+Source implementation and a minimal real-local validation plan come first;
+actual Auth/Simulator/DB work waits for ROOT's exclusive QA window. Low disk
+precludes an uncoordinated native build or dependency installation. See
+[bounded receipt](qa/native-learning-recovery-2026-09-22.md); actual acceptance
+is pending. #1026/#980 owner acceptance is not reopened.
+
+
+## 2026-09-22 — native learning compile checkpoint
+
+Native learning recovery productdc5b627f independently source-reviewed and compiled
+for the existing iOS Simulator using cached packages. Setup-only failed attempts
+and private bundle correction are preserved; no product changes after review.
+Fresh CUA observation found Mac locked. Real lesson/assessment recovery remains
+pending ROOT-exclusive QA; no install/Auth/relay or new attempt occurred. See
+`docs/qa/native-learning-recovery-2026-09-22.md`. Accepted1026/980 remain closed.
+
+## 2026-10-01 — native learning recovery: review follow-up
+
+Rebased onto main `2c410147` (three commits; both append-only logs keep every
+earlier section, this PR's sections are appended after main's). Independent
+review of the previous head found two things to fix before ready:
+
+- iOS unit suite was red: three `UniversityIntakeStatusTests` fixtures gave an
+  intake a deadline but no timezone. The product rule (since #967) is that a
+  deadline without a valid IANA zone is `needsConfirmation`, never an expiry
+  computed by assuming UTC; the web `universityIntakeStatusKey` and
+  `tests/platform-university-catalog.test.mjs` assert the same rule. Code is
+  correct and unchanged; fixtures now carry `Asia/Kuala_Lumpur`, and a
+  regression test covers no zone, `CET`, `not/a-timezone`, `posix/UTC` on an
+  open/announced intake (`needsConfirmation`) while an explicit closed intake
+  stays closed.
+- Dead end after a failed explicit read: a read failure classified denied or
+  rejected left the Assessment failure card without any control while exit and
+  input stayed blocked by the read-required flag. Scope change recorded here:
+  the failure card now takes its single next step from the shared pure policy
+  `LearningRunnerPolicy.recoveryAction` (`LearningRunnerModels.swift`); while
+  the read is required, every failure kind offers the read again, using the
+  existing `runner_load_saved` / `english_reload_draft` copy. In the
+  Assessment, exit while the read is required is labelled with the existing
+  "Close" copy and asks the existing discard confirmation (the same exit the
+  Lesson already has), because no write can succeed before a read does.
+  No new copy, layout, RPC or server contract.
+
+Unchanged by design: Save and Exit confirming an older snapshot while newer
+answers are visible does not dismiss and writes nothing extra; the existing
+`runner_unsaved` status already shows in the progress card (no failure is set,
+the answers differ from the saved fingerprint), and a second tap confirms B.
+
+Validation: `xcodebuild test -only-testing:EVOAdmissionsTests` on iPhone 17
+Pro, 145 tests, 0 failures. `xcodegen generate` differs from the checked-in
+project only by the checkout folder name and random TEMP ids (the Sources and
+Resources set is identical), so the project file is not regenerated. Real
+simulator walkthrough of the transitions above is still pending, as is the
+exit-while-read-required confirmation, which unit tests do not exercise.

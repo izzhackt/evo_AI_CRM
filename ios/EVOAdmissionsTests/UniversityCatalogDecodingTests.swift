@@ -205,7 +205,7 @@ final class UniversityIntakeStatusTests: XCTestCase {
     func testPastDeadlineReadsClosedEvenWhenSourceSaysOpen() {
         XCTAssertEqual(
             universityIntakeDisplayStatus(
-                intake(deadline: "2026-09-01", status: "open"),
+                intake(deadline: "2026-09-01", timezone: "Asia/Kuala_Lumpur", status: "open"),
                 now: now
             ),
             .closed
@@ -231,17 +231,45 @@ final class UniversityIntakeStatusTests: XCTestCase {
     func testFutureDeadlineKeepsSourceStatus() {
         XCTAssertEqual(
             universityIntakeDisplayStatus(
-                intake(deadline: "2026-12-01", status: "open"),
+                intake(deadline: "2026-12-01", timezone: "Asia/Kuala_Lumpur", status: "open"),
                 now: now
             ),
             .open
         )
         XCTAssertEqual(
             universityIntakeDisplayStatus(
-                intake(deadline: "2026-12-01", status: "announced"),
+                intake(deadline: "2026-12-01", timezone: "Asia/Kuala_Lumpur", status: "announced"),
                 now: now
             ),
             .announced
+        )
+    }
+
+    /// Same rule as web `universityIntakeStatusKey` (tests/platform-university-
+    /// catalog.test.mjs): a deadline without a valid IANA zone is a fact to
+    /// confirm, never an expiry computed by assuming UTC.
+    func testDeadlineWithoutValidTimezoneNeedsConfirmation() {
+        for timezone in [nil, "CET", "not/a-timezone", "posix/UTC"] as [String?] {
+            for status in ["open", "announced"] {
+                XCTAssertEqual(
+                    universityIntakeDisplayStatus(
+                        intake(deadline: "2026-09-01", timezone: timezone, status: status),
+                        now: now
+                    ),
+                    .needsConfirmation,
+                    "timezone \(timezone ?? "nil"), status \(status)"
+                )
+            }
+        }
+    }
+
+    func testExplicitClosedStaysClosedWithoutTimezone() {
+        XCTAssertEqual(
+            universityIntakeDisplayStatus(
+                intake(deadline: "2026-09-01", timezone: nil, status: "closed"),
+                now: now
+            ),
+            .closed
         )
     }
 

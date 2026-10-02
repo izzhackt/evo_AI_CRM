@@ -265,6 +265,33 @@ enum LearningRunnerPolicy {
     static func showsTheoryFirst(answeredCount: Int) -> Bool {
         answeredCount == 0
     }
+
+    /// What the failure card offers next. While `reloadRequired` the writes
+    /// are blocked until an explicit read of the saved attempt succeeds, so
+    /// a failed read must always leave that read retryable — whatever kind
+    /// the failure was classified as (denied/rejected included); otherwise
+    /// the card is a dead end with every control disabled.
+    static func recoveryAction(
+        after kind: LearningWriteFailureKind,
+        reloadRequired: Bool
+    ) -> LearningRecoveryAction {
+        switch kind {
+        case .conflict:
+            return .confirmReload
+        case .network:
+            return reloadRequired ? .reloadSaved : .retryWrite
+        case .denied, .rejected:
+            return reloadRequired ? .reloadSaved : .none
+        }
+    }
+}
+
+/// The single next step the failure card shows (see `recoveryAction`).
+enum LearningRecoveryAction: Equatable {
+    case retryWrite      // repeat the same frozen request (transport failure)
+    case reloadSaved     // retry the explicit read the user already chose
+    case confirmReload   // conflict: replace local input only after confirmation
+    case none            // nothing to repeat; state is left unchanged
 }
 
 /// In-progress form state for one exercise and the pure builder of its wire

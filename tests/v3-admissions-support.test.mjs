@@ -45,9 +45,8 @@ test("all recorded Admissions deadline types share one scoped cursor projection"
   assert.match(deadlines, /private\.platform_can_read_student_case\(c\.organization_id,c\.id\)/u);
   assert.match(deadlines, /d\.source_key COLLATE "C"/u);
   assert.doesNotMatch(deadlines.slice(0, deadlines.indexOf("-- Preserve")), /primary_application_id/u);
-  const calendar = source("src/lib/v3/calendar-contract.ts");
-  assert.match(calendar, /admissions_deadline_page_v1/u);
-  assert.doesNotMatch(calendar, /staff_application_deadline_page|staff_nearest_application_deadline/u);
+  // Читателя в приложении нет намеренно: сроки подачи только в «Университетах» (владелец 28.09; календарь — #1103, «Сегодня» — #1109).
+  // Функция остаётся в базе с EXECUTE для authenticated, поэтому выше закреплена она сама; календарь и «Сегодня» без сроков — tests/v3-calendar-d2.test.mjs.
 });
 
 test("a packet fixes approved verified private versions and requires write authority", () => {

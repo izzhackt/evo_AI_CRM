@@ -53,8 +53,20 @@ test("portal motion tokens form one vocabulary: 100/160/200/240 ms and an ease-o
   assert.match(shell, /--pt-rise:\s*8px;/u);
   assert.match(shell, /--pt-stagger:\s*30ms;/u);
   assert.match(shell, /--pt-press-scale:\s*0\.98;/u);
-  // Шесть элементов со сдвигом 30 мс: последний стартует на 150 мс и укладывается в 400 мс.
-  assert.ok(5 * 30 + 240 <= 400);
+  assert.match(shell, /--pt-enter-floor:\s*0\.55;/u);
+  // Стаггер читается из CSS: самая поздняя задержка плюс длительность входа карточки укладывается в 400 мс.
+  const multipliers = [...MOTION_SECTION.matchAll(/animation-delay:\s*calc\(var\(--pt-stagger\) \* (\d+)\)/gu)].map((match) => Number(match[1]));
+  assert.deepEqual([...multipliers].sort((a, b) => a - b), [1, 2, 3, 4, 5], "items 2..6 are staggered, the rest are instant");
+  assert.match(MOTION_SECTION, /> :nth-child\(-n \+ 6\) \{\s*animation: pt-enter var\(--pt-motion-base\)/u);
+  assert.ok(Math.max(...multipliers) * 30 + 200 <= 400, "the last staggered card finishes within 400 ms");
+});
+
+test("the page entrance never starts from a blank frame, and the check mark stays on the sentence's line", () => {
+  // Пол непрозрачности: страница и скелетон входят не с нуля, иначе смена маршрута мигает пустым кадром.
+  assert.match(MOTION_SECTION, /@keyframes pt-enter-page \{\s*from \{\s*opacity: var\(--pt-enter-floor\);\s*transform: translateY\(calc\(var\(--pt-rise\) \* 0\.75\)\);/u);
+  assert.match(MOTION_SECTION, /@keyframes pt-skeleton-in \{\s*from \{\s*opacity: var\(--pt-enter-floor\);/u);
+  // Tailwind preflight делает svg блочным; без display галочка встаёт отдельной строкой над текстом.
+  assert.match(MOTION_SECTION, /\.pt-check \{[^}]*display: inline-block;/u);
 });
 
 test("portal motion moves only transform and opacity, never loops, never exceeds 400 ms", () => {
@@ -103,6 +115,16 @@ test("prefers-reduced-motion zeroes the tokens and switches every entrance off",
   }
   assert.match(reduced, /animation: none;/u);
   assert.match(reduced, /\.pt-nav-indicator \{\s*transition: none;/u);
+  // Вендорные псевдоэлементы не смешаны с обычными селекторами в одном списке.
+  const reducedBlock = reduced.slice(reduced.indexOf("{") + 1);
+  for (const rule of reducedBlock.matchAll(/([^{}]+)\{[^{}]*\}/gu)) {
+    const selectors = rule[1].replace(/\/\*[\s\S]*?\*\//gu, "").split(",").map((selector) => selector.trim()).filter(Boolean);
+    const vendor = selectors.filter((selector) => /::-(?:webkit|moz)-/u.test(selector));
+    if (vendor.length === 0) continue;
+    const engines = new Set(vendor.map((selector) => /::-(webkit|moz)-/u.exec(selector)[1]));
+    assert.equal(vendor.length, selectors.length, `a vendor-pseudo rule holds only vendor selectors: ${rule[1].trim()}`);
+    assert.equal(engines.size, 1, `one engine per rule: ${rule[1].trim()}`);
+  }
 
   assert.match(
     WIZARD_CSS,
@@ -153,6 +175,9 @@ test("the anketa step transition keeps leaving fields out of the form", () => {
   assert.match(wizard, /<fieldset disabled className=\{styles\.ghostFields\}>\{renderStep\(leavingStep, false\)\}<\/fieldset>/u);
   assert.match(wizard, /ref=\{live \? heading : undefined\}/u, "only the live step takes the heading focus ref");
   assert.match(wizard, /setTravel\(next > step \? "forward" : "back"\)/u);
+  // При reduced motion уходящий шаг не создаётся вовсе (не только скрыт CSS).
+  assert.match(wizard, /window\.matchMedia\("\(prefers-reduced-motion: reduce\)"\)\.matches/u);
+  assert.match(wizard, /setLeavingStep\(reduceMotion \? null : step\)/u);
   // Выход заканчивается таймером, а не animationend: при reduced motion события не будет.
   assert.match(wizard, /setTimeout\(\(\) => setLeavingStep\(null\), 260\)/u);
   assert.doesNotMatch(wizard, /onAnimationEnd/u);

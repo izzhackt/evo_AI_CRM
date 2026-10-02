@@ -88,6 +88,8 @@
   --pt-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   /* Подъём элемента при входе; страница поднимается на 3/4 этой величины. */
   --pt-rise: 8px;
+  /* Начальная непрозрачность входа страницы и скелетона: смена не мигает пустым кадром. */
+  --pt-enter-floor: 0.55;
   /* Шаг стаггера карточек и масштаб при нажатии. */
   --pt-stagger: 30ms;
   --pt-press-scale: 0.98;
@@ -3937,17 +3939,22 @@ main.pt-page > .pt-card {
   }
 }
 
+/*
+ * Вход страницы не с нуля: смена маршрута и «скелетон → содержимое» не должны
+ * мигать пустым кадром (на ease-out 0 → 1 первый кадр почти прозрачен). Пол
+ * непрозрачности — --pt-enter-floor, подъём 6 px сохраняется.
+ */
 @keyframes pt-enter-page {
   from {
-    opacity: 0;
+    opacity: var(--pt-enter-floor);
     transform: translateY(calc(var(--pt-rise) * 0.75));
   }
 }
 
-/* Скелетон: не с нуля, чтобы смена страницы не мигала пустым экраном. */
+/* Скелетон: тот же пол, чтобы смена страницы не мигала пустым экраном. */
 @keyframes pt-skeleton-in {
   from {
-    opacity: 0.4;
+    opacity: var(--pt-enter-floor);
   }
 }
 
@@ -3969,7 +3976,7 @@ main.pt-page > .pt-card {
 
 /*
  * Скелетон загрузки сменяет прежнюю страницу сразу и проявляется за 160 мс с
- * непрозрачности 0.4 (без пустого экрана между страницами). Настоящий
+ * пола --pt-enter-floor (без пустого экрана между страницами). Настоящий
  * кросс-фейд «скелетон → содержимое» требует React <ViewTransition>, которого
  * нет в стабильном React 19.2: скелетон исчезает сразу, а содержимое входит
  * плавно (.pt-route > * выше). Скелетон не пульсирует: ничто не
@@ -4204,6 +4211,8 @@ main.pt-page > .pt-card {
  * сразу. Сердечко избранного «щёлкает» один раз за 240 мс при добавлении.
  */
 .pt-check {
+  /* Tailwind preflight делает svg блочным: без этого галочка встаёт отдельной строкой над текстом. */
+  display: inline-block;
   flex: none;
   vertical-align: -3px;
   margin-inline-end: 6px;
@@ -4260,14 +4269,22 @@ main.pt-page > .pt-card {
     .pt-adm-list,
     .pt-lesson-list
   ) > *,
+  .pt-check[data-fresh] .pt-check-path,
+  .pt-favorite-icon[data-pop] {
+    animation: none;
+  }
+
+  /* Вендорные псевдоэлементы — отдельными правилами: в другом движке один
+     неизвестный селектор обнулил бы весь список. */
   .pt-progress::-webkit-progress-value,
   .pt-res-meter::-webkit-meter-optimum-value,
   .pt-res-meter::-webkit-meter-suboptimum-value,
-  .pt-res-meter::-webkit-meter-even-less-good-value,
+  .pt-res-meter::-webkit-meter-even-less-good-value {
+    animation: none;
+  }
+
   .pt-progress::-moz-progress-bar,
-  .pt-res-meter::-moz-meter-bar,
-  .pt-check[data-fresh] .pt-check-path,
-  .pt-favorite-icon[data-pop] {
+  .pt-res-meter::-moz-meter-bar {
     animation: none;
   }
 

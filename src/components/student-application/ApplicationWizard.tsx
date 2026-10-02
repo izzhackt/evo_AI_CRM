@@ -143,7 +143,10 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
   }
   function changeStep(next: number) {
     moved.current = true; setError("");
-    setTravel(next > step ? "forward" : "back"); setLeavingStep(step);
+    // При prefers-reduced-motion выхода нет: уходящий шаг не создаём вовсе (вызов из
+    // обработчика — на клиенте, гидратации это не касается).
+    const reduceMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setTravel(next > step ? "forward" : "back"); setLeavingStep(reduceMotion ? null : step);
     setStep(next);
   }
   // Уходящий шаг живёт столько, сколько длится выход, и не дольше: таймер, а не

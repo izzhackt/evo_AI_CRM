@@ -1,4 +1,4 @@
-// «Сообщения» (/v3/messages): страницы переписки приходят от новых к старым
+// «Сообщения» (/v3/messages) и досье клиента в «Базе знаний»: страницы переписки приходят от новых к старым
 // (191: ORDER BY sequence_id DESC). «Показать более ранние» должно ставить
 // более раннюю страницу после загруженной, чтобы лента после разворота для
 // показа читалась от старых к новым. Раньше ранняя страница вставала впереди,
@@ -41,4 +41,20 @@ test("переписка склеивает страницы только чер
   const component = readFileSync(new URL("../src/components/v3/case-chat/CaseChatThread.tsx", import.meta.url), "utf8");
   assert.match(component, /appendOlderCaseChatPage\(previous, result\.page\)/u);
   assert.doesNotMatch(component, /\.\.\.result\.page\.messages,\s*\.\.\.previous\.messages/u);
+});
+
+// Досье клиента (/v3/knowledge, вкладка «Переписка») рисует список как есть,
+// от новых к старым, без разворота (#1060). Догруженная страница обязана встать
+// под уже показанными: 10, 9, 8, затем 7, 6, 5. Раньше выходило 7, 6, 5, 10, 9, 8.
+test("досье клиента: догруженная страница идёт подряд после показанной, от новых к старым", () => {
+  const merged = appendOlderCaseChatPage(page(10, 8, true), page(7, 5, false));
+  assert.deepEqual(merged.messages.map((item) => Number(item.sequenceId)), [10, 9, 8, 7, 6, 5]);
+  assert.equal(merged.cursor, "5");
+  assert.equal(merged.hasMore, false);
+});
+
+test("досье клиента склеивает страницы только через appendOlderCaseChatPage", () => {
+  const component = readFileSync(new URL("../src/components/v3/knowledge/KnowledgeDossiers.tsx", import.meta.url), "utf8");
+  assert.match(component, /setChat\(appendOlderCaseChatPage\(chat, next\)\)/u);
+  assert.doesNotMatch(component, /\.\.\.next\.messages,\s*\.\.\.chat\.messages/u);
 });

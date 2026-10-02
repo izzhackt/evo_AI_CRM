@@ -44947,3 +44947,223 @@ PAT из Keychain только в памяти, endpoint `/database/query/read-o
 загрузки и браузер локально не прогонялись: обработчик и экран не менялись,
 меняется только тело SQL-функции. Загрузку в production не выполняли — она
 создала бы настоящую запись договора.
+
+## 2026-10-01 — «Журнал действий»: действие Студента подписано «студент», а не «сотрудник» (предложение, миграция 257)
+
+Запись до кода. Дефект найден 29.09 при подготовке предложения #1120
+(миграция 255, ветка `izzhackt/audit-allowlist-widen`); там же
+Student-writable `application.document.submit` (228:88-92),
+`application.catalog.select` и `application.requirements.initialize`
+оставлены вне allowlist-а именно по этой причине.
+
+Дефект: `platform_private.p7a_safe_audit_row` (071:408-447) подписывает
+каждого актора `actor_kind='user'` кодом `Staff` (071:435-439), на экране —
+«сотрудник» (`JOURNAL_ACTOR_WORD`, `src/lib/v3/wording.ts`). Четыре действия,
+которые УЖЕ входят в серверный allowlist P7A, пишет и Студент от своего имени:
+
+- `case.chat.post` — `platform.portal_case_chat_post_v1` (200:59-62 пускает
+  только Студента, вставка 200:121-127); staff-писатель того же действия —
+  `platform.case_chat_command` (191:313-317).
+- `notification.read` — `mark_own_student_portal_notification_read_v1`
+  (068:610-758, гейт 068:640, вставка 068:730-755) и `_v2` (069:793-909;
+  живое тело — 153:210-333, гейт 153:233-241, вставка 153:320-330), а также
+  обёртка `platform.mark_own_notification_read` (153:334-371) над
+  `platform_private.mark_own_notification_read_legacy_043` (043:5767-5792) —
+  тоже только Студент-получатель.
+- `document.download.grant` — общая вставка 046:2021-2046
+  (`private.grant_document_download_pre_e5`, 128:758-761); её вызывают
+  staff-only `private.grant_staff_document_download` (128:775-810),
+  Student-only `private.grant_student_portal_document_download`
+  (128:812-923, гейт 128:843-845) и общий
+  `platform.grant_application_document_download_v1` (228:568-591).
+- `document.upload.reserve` — `platform.reserve_document_upload_after_ingress_scan`
+  (116:167-504; резолвер актора 116:151, живой 156:600-632, пускает и
+  Студента; вставка 116:490-500) и её клон
+  `platform_private.application_document_reserve_step` (228:443-456).
+
+Проверка `actor_membership_id` (вопрос задачи): ни один живой писатель этих
+действий (и `application.document.submit`, хелпер 228:283-288) его не
+заполняет — колонки нет в списке INSERT (сверено по тексту 200:121-127,
+153:320-330, 046:2021-2046, 116:490-500); триггера или дефолта, который
+заполнял бы её, нет (единственное изменение таблицы — 086:68-78). Из ~158
+живых INSERT с `actor_kind='user'` её пишут 12 (086, 087, 088/174, 092, 117,
+140, 182, 241, 246). Правило «по `actor_membership_id`» оставило бы
+неразрешимой каждую историческую строку Студента. Колонку «сторона актора
+на момент записи» добавить можно, но исторические строки ею не заполнить:
+`platform.audit_events` — append-only (041:565-572, 55000).
+
+Решение — только проекция, одна функция. Миграция 257 (номер — см.
+«Перенумерация» ниже)
+(`CREATE OR REPLACE platform_private.p7a_safe_audit_row`: та же сигнатура,
+тот же возврат, те же гранты):
+
+- сторона актора `user` — сторона его членства в организации строки, ровно
+  определение staff-идентичности 155 (`staff_membership_identity`,
+  155:299-312: `"current_role" IS DISTINCT FROM 'student'`);
+- членство находится детерминированно, без догадки: `UNIQUE (organization_id,
+  profile_id)` (041:156-157) и `actor_profile_id NOT NULL` у каждой строки
+  `user` (041:292-295); если `actor_membership_id` записан (086), он обязан
+  совпасть с найденным членством;
+- `'student'` → код `Student` («студент»); роль сотрудника или NULL
+  (приглашённые с 157 сотрудники без грубой роли, 244) → `Staff`
+  («сотрудник»);
+- нейтральный код `User` («пользователь») — членство не найдено,
+  `actor_membership_id` указывает на другое членство, или сторона членства
+  хоть раз менялась. Это честное «не знаем», а не догадка.
+
+Почему сегодняшнее членство честно и для исторических строк: с 155 сторона
+членства неизменна — триггер `staff_legacy_role_frozen` (155:1244-1253)
+отклоняет любое изменение `"current_role"`, ни одна миграция его не снимает;
+членства не удаляются (живого DELETE нет, FK RESTRICT). До 155 роль менял
+ровно один оператор — `platform.change_membership_role` (UPDATE 041:2406,
+обёртка `change_pilot_staff_role` 083:546), и он же писал
+`platform.membership_role_history` (041:2465). Переход между сторонами виден
+по истории — такие членства получают `User`.
+
+Новых идентификационных данных нет: проекция по-прежнему отдаёт только код
+категории актора — ни id членства или профиля, ни имени, ни роли. Не
+меняются: состав allowlist-ов (их расширяет #1120/255), писатели аудита,
+схема `platform.audit_events`, `search_audit_events`/`export_audit_events`,
+гранты.
+
+Production, только чтение (01.10: агрегаты через read-only endpoint
+Management API, без входа в production и без SSH; только счётчики): ledger
+254; строк `user` 1128 из 1140; по новому правилу — `Staff` 1126, `Student` 2
+(обе — `case.chat.post`), `User` 0; строк `user` без членства в организации —
+0, несовпадений `actor_membership_id` — 0; переходов между сторонами в
+`membership_role_history` — 0; триггер `staff_legacy_role_frozen` включён;
+членств — 1 Студент и 5 сотрудников (4 без грубой роли); сохранённых
+повторов экспорта (`platform_private.audit_export_replays`) — 0. На реальных
+данных миграция переподпишет ровно 2 строки.
+
+Клиент:
+
+- `src/lib/platform-audit.ts`: список кодов `PLATFORM_AUDIT_ACTOR_DISPLAY_LABELS`
+  и тип; пара kind/label остаётся fail-closed: `user` → `Staff`, `Student`
+  или `User`; `service` → `Service`; `system` → `System`; всё прочее (в том
+  числе свободный текст) — `PlatformAuditContractError`, как и раньше.
+- `src/lib/v3/wording.ts`: `Student` — «студент», `User` — «пользователь»;
+  карта типизирована `satisfies Record<PlatformAuditActorDisplayLabel, string>`,
+  новый код без русского слова не соберётся.
+
+Порядок выката: разбор до этой правки принимает для `user` только `Staff` —
+приложение без неё отклонит страницу журнала со строкой `Student`/`User`
+(«Журнал недоступен»). Сегодня это недостижимо:
+`EVO_PLATFORM_P7A_AUDIT_ENABLED` выключен в production, а с выключенным
+флагом ни чтение журнала, ни экспорт RPC не вызывают
+(`src/lib/platform-audit-actions.ts`). Поэтому 257 можно применять при
+выключенном флаге в любом порядке с выпуском; включать флаг — только на
+приложении, где уже есть этот разбор; откат приложения ниже этого коммита
+при включённом флаге и применённой 257 снова уронит журнал.
+
+Повтор экспорта: `export_audit_events` на повторе того же `request_id`
+заново проецирует сохранённые события и сверяет sha256 (071:774-800).
+Повтор экспорта, сделанного до 257 и содержащего строку Студента, после 257
+честно откажет (55000): содержимое проекции изменилось. Новый экспорт (новый
+`request_id` даёт каждый рендер формы, `sections.tsx`) работает. В production
+повторов 0, экспорт выключен вместе с флагом (503).
+
+Номер и координация с #1120 и #1121: 257 — следующий свободный после 255
+(#1120) и 256 (#1121); ни 255, ни 256 эту функцию не трогают, миграции
+функционально независимы. Если какая-то из них не войдёт в `main` раньше,
+при слиянии перенумеровать в следующий свободный номер (непрерывность
+ledger). С #1120 эта ветка правит одни и те же файлы (`platform-audit.ts`,
+`wording.ts`, suite, `tests/platform-audit.test.mjs`, этот журнал) — при
+втором слиянии ожидаемы текстовые конфликты. После 257 причина, по которой #1120 исключил
+Student-writable `application.document.submit`/`application.catalog.select`/
+`application.requirements.initialize`, отпадает; включать ли их — решение
+#1120 и владельца, здесь allowlist не меняется.
+
+Проверки (план): `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries`
+— suite `supabase/tests/platform_audit_journal_contract.sql` на последней
+цепочке получает фикстуру: Студент (членство `student`) по образцу реальных
+писателей (без `actor_membership_id`) и с ним, сотрудник без грубой роли,
+Admin, строка с несовпадающим `actor_membership_id`, профиль без членства в
+организации; строки читаются реальным `platform.search_audit_events()` от
+имени Admin, метка проверяется у каждой строки, страница уходит в чекер и
+проходит через настоящий `normalizePlatformAuditSearchResult`. Тот же прогон
+— на сочетании с веткой #1120 (255 + эта миграция). Плюс `npm run build`,
+затронутые node-тесты, `git diff --check`.
+
+Не делается: применение 257 к любой базе, выпуск, включение флага; правка
+писателей (заполнять `actor_membership_id` у ~146 живых писателей — отдельный
+объём, для этой правки не нужный).
+
+### Проверки (результат, head `b5fd076d`)
+
+На этом head миграция ещё называлась `256_platform_audit_journal_student_actor.sql`
+— номера ниже даны как было; перенумерация — в следующем подразделе.
+
+- `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries` на этой
+  ветке (OrbStack; цепочка 001–254 + 256) — exit 0 за 270 с: «P7A journal
+  contract check passed: 133 actions, 56 resource types, 3 page(s), 144 rows,
+  all recognized.» (133 строки по действиям + 11 строк новой секции меток),
+  «Verified disposable authorization database …». Первая попытка упала на
+  скачивании образа — OrbStack был остановлен; запущен по AGENTS.md
+  (`orb start`, `orb status` = `Running`, контекст `orbstack`), прогон повторён.
+- Сочетание с #1120: одноразовая локальная ветка (merge `24b3184b` #1120 +
+  `b5fd076d`, не пушилась), цепочка 001–256 непрерывна, 256 побайтно та же.
+  Текстовый конфликт один — этот журнал (обе записи сохранены); suite,
+  `platform-audit.ts`, `wording.ts` и тесты слились без конфликтов. Тот же
+  прогон — exit 0 за 258 с: «204 actions, 71 resource types, 4 page(s), 215
+  rows, all recognized.»; маркеры `P7AJ_JOURNAL_CONTRACT_SUITE_START`/`_PASS`;
+  на странице меток — 811–814 `Student`, 815–816 `Staff`, 817–819 `User`,
+  820 `Service`, 821 `System`, у каждой строки ровно десять безопасных ключей.
+  Node-тесты на сочетании — 38/38, `npm run typecheck` — зелёный.
+- `npm run build` (полная сборка: Next 16.3.4 + TypeScript и три
+  вспомогательные сборки) — зелёный.
+- `node --conditions=react-server --experimental-strip-types --test
+  tests/platform-audit.test.mjs tests/platform-audit-csv.test.mjs
+  tests/platform-audit-export-route.test.mjs
+  tests/v3-settings-journal-contract.test.mjs` — 36/36; `eslint` изменённых
+  файлов и `git diff --check` — чисто.
+- Ожидаемо красные на этой ветке одной: 10 node-тестов в 8 файлах с
+  проверкой непрерывности ledger (`expectedMigrationVersions`: 254 → 256) —
+  по построению, пока 255 не в `main`; в CI их нет; на сочетании с 255
+  ledger непрерывен.
+- Не связано с правкой: `tests/v3-admissions-support.test.mjs` красный и на
+  чистом `main` `2c410147` (устаревший структурный pin календаря на
+  `admissions_deadline_page_v1`) — вынесено отдельной задачей, здесь не
+  трогается.
+
+Не проверено: браузерный проход журнала со строкой Студента (флаг в
+production выключен; доказательство — real-Postgres suite и прогон страницы
+через настоящий TS-разбор); применение этой миграции к любой базе не
+выполнялось.
+
+### Перенумерация 256 → 257 и повторные проверки (head `bb57e31b`)
+
+Перед публикацией ветки найден черновик #1121
+(`izzhackt/contract-file-audit-action`, открыт 01.10 в 08:11 UTC): его
+миграция `256_platform_case_contract_file_audit_action.sql` чинит CHECK
+аудита у загрузки файла договора (189) и занимает 256. Эта миграция
+перенумерована в `257_platform_audit_journal_student_actor.sql`; тело SQL
+побайтно прежнее (между `b5fd076d` и `bb57e31b` в файле изменились только
+строки комментариев), поменялись имя файла, заголовок миграции и ссылки на
+номер в комментариях, в названии теста и в этой записи.
+
+- `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries` на этой
+  ветке (цепочка 001–254 + 257) — exit 0 за 259 с, тот же итог чекера: «133
+  actions, 56 resource types, 3 page(s), 144 rows, all recognized.»,
+  «Verified disposable authorization database …».
+- Сочетание всех трёх черновиков (одноразовая локальная ветка, не пушилась:
+  #1120 `24b3184b` + #1121 `5bf38c2c` + эта ветка `bb57e31b`): цепочка
+  001–257 непрерывна (`expectedMigrationVersions` → 255, 256, 257), все три
+  файла миграций побайтно совпадают с ветками-источниками. Текстовые
+  конфликты — только этот журнал (все записи сохранены, порядок #1120,
+  #1121, эта); `scripts/test-postgres-authorization.sh` слился сам (крюк
+  #1121 на `256_*`). Прогон — exit 0 за 261 с: «204 actions, 71 resource
+  types, 4 page(s), 215 rows, all recognized.»; suite #1121 отработала на
+  своём checkpoint (до 256 — фиксирует дефект `23514
+  audit_events_action_check`, после 256 — проходит); маркеры
+  `P7AJ_JOURNAL_CONTRACT_SUITE_START`/`_PASS`; метки 811–814 `Student`,
+  815–816 `Staff`, 817–819 `User`, 820 `Service`, 821 `System`. Node-тесты
+  журнала на сочетании — 38/38.
+- Node-тесты журнала на этой ветке — 36/36, `eslint`, `git diff --check` —
+  чисто; `npm run build` на `bb57e31b` — зелёный (Next + TypeScript).
+- Ожидаемо красные на этой ветке одной — те же проверки непрерывности ledger
+  (теперь 254 → 257). Не связаны с правкой и красные и на чистом `main`
+  `2c410147` (workflow и тесты не менялись): два структурных pin-а
+  `.github/workflows/evo-fast-pr-checks.yml` в `tests/p6d-release-candidate.test.mjs`
+  и `tests/staff-roles-sales-handoff-migrations.test.mjs` — вынесены
+  отдельной задачей.

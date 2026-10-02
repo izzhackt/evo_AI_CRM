@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   PLATFORM_AUDIT_ACTIONS,
+  PLATFORM_AUDIT_ACTOR_DISPLAY_LABELS,
   PLATFORM_AUDIT_RESOURCE_TYPES,
   PlatformAuditContractError,
   normalizePlatformAuditExportInput,
@@ -644,6 +645,68 @@ test("safe row parsing rejects unknown private fields and unsafe labels; a well-
   assert.equal(degraded.recognized, false);
   assert.equal(degraded.action, "case.curator.set");
   assert.deepEqual(degraded.changedFieldCodes, ["phone_number"]);
+});
+
+test("a 'user' actor is Staff, Student or the neutral User by its membership side (257); service and system keep one label; every other pairing fails closed", () => {
+  assert.deepEqual(
+    [...PLATFORM_AUDIT_ACTOR_DISPLAY_LABELS],
+    ["Staff", "Student", "User", "Service", "System"],
+  );
+
+  const base = {
+    filters: {
+      start_at: null,
+      end_at: null,
+      actions: null,
+      resource_types: null,
+      resource_id: null,
+    },
+    snapshot_created_at: "2026-08-13T09:00:00Z",
+    snapshot_id: SNAPSHOT_ID,
+    next_cursor_created_at: null,
+    next_cursor_id: null,
+    has_more: false,
+    rows: [SAFE_ROW],
+  };
+  const parse = (actorKind, actorDisplayLabel) =>
+    normalizePlatformAuditSearchResult({
+      ...base,
+      rows: [
+        {
+          ...SAFE_ROW,
+          actor_kind: actorKind,
+          actor_display_label: actorDisplayLabel,
+        },
+      ],
+    });
+
+  for (const [actorKind, actorDisplayLabel] of [
+    ["user", "Staff"],
+    ["user", "Student"],
+    ["user", "User"],
+    ["service", "Service"],
+    ["system", "System"],
+  ]) {
+    const row = parse(actorKind, actorDisplayLabel).rows[0];
+    assert.equal(row.actorKind, actorKind);
+    assert.equal(row.actorDisplayLabel, actorDisplayLabel);
+  }
+
+  for (const [actorKind, actorDisplayLabel] of [
+    ["user", "Service"],
+    ["user", "System"],
+    ["service", "Staff"],
+    ["service", "Student"],
+    ["service", "User"],
+    ["system", "Staff"],
+    ["system", "Student"],
+    ["system", "User"],
+    ["user", "student"],
+    ["user", "Студент"],
+    ["user", ""],
+  ]) {
+    assertContractError(() => parse(actorKind, actorDisplayLabel));
+  }
 });
 
 test("empty search uses a null snapshot and export result verifies exact safe receipt shape", () => {

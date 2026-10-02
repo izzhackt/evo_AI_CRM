@@ -145,6 +145,12 @@ function MoreIcon() {
   );
 }
 
+/** Инициалы аккаунта: первые буквы двух первых слов имени («Айбек Токтогулов» → «АТ»). */
+function accountInitials(name: string): string {
+  const letters = name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((word) => Array.from(word)[0] ?? "");
+  return letters.join("").toLocaleUpperCase() || "?";
+}
+
 export function Shell({
   children,
   displayName,
@@ -245,6 +251,8 @@ export function Shell({
           <ThemeToggle locale={locale} initialTheme={theme} />
           <details className="pt-user-menu">
             <summary className="pt-user-summary">
+              {/* На узком телефоне — инициалы вместо обрезанного имени; полное имя остаётся доступным именем и в меню. */}
+              <span className="pt-user-initials" aria-hidden="true">{accountInitials(displayName)}</span>
               <span className="pt-user-summary-name">{displayName}</span>
               <svg
                 className="pt-user-chevron"

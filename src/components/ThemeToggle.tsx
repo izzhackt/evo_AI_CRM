@@ -26,6 +26,7 @@ function subscribe(onChange: () => void): () => void {
 }
 
 const SWITCHING_MS = 200;
+const EN_LABEL = "Dark theme";
 
 export function applyTheme(next: Theme): void {
   const root = document.documentElement;
@@ -47,7 +48,8 @@ export function ThemeToggle({
   initialTheme: Theme;
 }) {
   const theme = useSyncExternalStore(subscribe, readDocumentTheme, () => initialTheme);
-  const label = getPortalStrings("shell", locale)["theme.dark"];
+  // Словарь кабинета — RU/KY; /login предлагает и EN, поэтому EN — здесь.
+  const label = locale === "en" ? EN_LABEL : getPortalStrings("shell", locale)["theme.dark"];
   const dark = theme === "dark";
 
   return (

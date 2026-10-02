@@ -595,6 +595,10 @@ test("the portal top bar fits a 320 px screen", async ({ page }, testInfo) => {
   expect(proof.summaryRight).not.toBeNull();
   expect(proof.summaryRight!, "the account summary crosses the right edge")
     .toBeLessThanOrEqual(proof.clientWidth + 1);
+  // Узкий телефон: инициалы вместо обрезанного имени, полное имя — доступное имя плашки.
+  const summary = page.locator(".pt-user-summary");
+  await expect(summary.locator(".pt-user-initials")).toBeVisible();
+  await expect(summary).toHaveAccessibleName(/E4 Browser Student/);
 });
 
 test("the theme is light by default, ignores the OS and the sun/moon button remembers the choice", async ({

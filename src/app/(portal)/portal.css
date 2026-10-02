@@ -304,6 +304,50 @@
   white-space: nowrap;
 }
 
+/* Инициалы — только на узком телефоне (ниже). */
+.pt-user-initials {
+  display: none;
+}
+
+/*
+ * До 400 px кнопка темы (44 px) оставляла имени 1–10 букв («E…»,
+ * «Айбек Ток…»). Здесь плашка — инициалы в круге и шеврон; имя уходит в
+ * визуально скрытый текст и остаётся доступным именем кнопки, а полностью
+ * видно в открытом меню.
+ */
+@media (max-width: 399.98px) {
+  .pt-user-summary {
+    gap: 6px;
+    padding: 0 8px 0 6px;
+  }
+
+  .pt-user-initials {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--pt-radius-chip);
+    background: var(--pt-bg);
+    box-shadow: inset 0 0 0 1px var(--pt-line);
+    color: var(--pt-text);
+    font-size: var(--pt-size-caption);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .pt-user-summary-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 .pt-user-chevron {
   flex-shrink: 0;
   transition: transform var(--pt-motion-fast) var(--pt-ease);
@@ -2622,8 +2666,39 @@
   line-height: var(--pt-leading);
 }
 
+/*
+ * «Нужна помощь» и «Мои обращения и ответы» — общие v3-компоненты
+ * (CaseHelpPanel/CaseOperationsForms) на v3-токенах, а .v3-world всегда
+ * светлый: в тёмной теме это были два белых острова на главном экране.
+ * Обёртка есть только в кабинете студента, поэтому v3-токены здесь
+ * пересчитаны на портальные --pt-* — компоненты и облик сотрудников не
+ * меняются. Контраст: текст и кнопки — пары --pt-*, уже посчитанные выше;
+ * граница поля — --pt-control-edge (≥3:1 в обеих темах).
+ */
 .pt-adm-case-help {
   margin-top: 32px;
+  color-scheme: var(--pt-scheme);
+  --surface: var(--pt-surface);
+  --border: var(--pt-line);
+  --control-edge: var(--pt-control-edge);
+  --text: var(--pt-text);
+  --text-2: var(--pt-text-2);
+  --text-3: var(--pt-text-2);
+  --accent: var(--pt-accent);
+  --accent-text: var(--pt-accent);
+  --on-accent: var(--pt-on-accent);
+  --danger: var(--pt-error);
+  --focus-ring: var(--pt-accent);
+}
+
+/* Карточки обращений — материал кабинета: радиус и тень карточки «Атласа». */
+.pt-adm-case-help .rounded-card {
+  border-radius: var(--pt-radius-card);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-adm-case-help .rounded-ctl {
+  border-radius: var(--pt-radius-control);
 }
 
 /* Якорь #case-help — панель внутри обёртки (#1115); отступ под липкую полосу. */

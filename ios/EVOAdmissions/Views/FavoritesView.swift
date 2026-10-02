@@ -14,6 +14,8 @@ struct FavoriteHeartButton: View {
         } label: {
             Image(systemName: favored ? "heart.fill" : "heart")
                 .foregroundStyle(favored ? Color("AccentColor") : Color.secondary)
+                .motionSymbolSwap(on: favored)
+                .motionBounce(whenOn: favored)
         }
         .buttonStyle(.borderless)
         .accessibilityLabel(favored ? Text("favorite_remove") : Text("favorite_add"))
@@ -123,9 +125,10 @@ struct FavoritesView: View {
     }
 
     private var favoritesList: some View {
-        List {
+        let rows = visibleItems
+        return List {
             Section {
-                ForEach(visibleItems) { item in
+                ForEach(rows) { item in
                     HStack(spacing: 12) {
                         Button {
                             toggleCompare(item.id)
@@ -134,6 +137,8 @@ struct FavoritesView: View {
                                 ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(compareSelection.contains(item.id)
                                     ? Color("AccentColor") : Color.secondary)
+                                .motionSymbolSwap(on: compareSelection.contains(item.id))
+                                .motionBounce(whenOn: compareSelection.contains(item.id))
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel(Text(String(
@@ -159,6 +164,10 @@ struct FavoritesView: View {
                         FavoriteHeartButton(institutionId: item.id, store: store)
                     }
                     .padding(.vertical, 2)
+                    .motionStagger(
+                        index: MotionPolicy.staggerIndex(of: item, in: rows),
+                        key: "favorites.\(item.id)"
+                    )
                 }
             } header: {
                 Text(String(
@@ -187,6 +196,8 @@ struct FavoritesView: View {
             }
         }
         .refreshable { await model.load(store: store) }
+        // Un-favouriting: the row eases out of the list instead of vanishing.
+        .motionAnimated(value: rows.map(\.id))
         .navigationDestination(for: UUID.self) { institutionId in
             UniversityDetailView(
                 institutionId: institutionId,

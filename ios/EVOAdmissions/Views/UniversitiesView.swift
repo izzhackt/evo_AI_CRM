@@ -457,6 +457,10 @@ struct UniversitiesView: View {
                             Task { await model.loadNextPage() }
                         }
                     }
+                    .motionStagger(
+                        index: MotionPolicy.staggerIndex(of: item, in: model.items),
+                        key: "universities.\(item.id)"
+                    )
                 }
 
                 if model.hasMore {

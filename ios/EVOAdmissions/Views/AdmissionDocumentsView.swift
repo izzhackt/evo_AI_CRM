@@ -356,7 +356,7 @@ struct AdmissionDocumentsView: View {
                 ))
                 .font(.subheadline.weight(.semibold))
             }
-            ProgressView(value: Double(approved), total: Double(max(total, 1)))
+            MotionProgressBar(value: Double(approved), total: Double(max(total, 1)))
             Text(approved == total ? "adm_accepted_all" : "adm_accepted_after_review")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -574,9 +574,15 @@ private struct DocumentSlotRow: View {
             }
         case .success(let filename):
             VStack(alignment: .leading, spacing: 4) {
-                Text(String(format: String(localized: "adm_upload_success"), filename))
-                    .font(.caption)
-                    .foregroundStyle(.green)
+                HStack(spacing: 4) {
+                    // Decorative: the text carries the confirmation for VoiceOver.
+                    Image(systemName: "checkmark.circle.fill")
+                        .accessibilityHidden(true)
+                        .motionBounceOnAppear()
+                    Text(String(format: String(localized: "adm_upload_success"), filename))
+                }
+                .font(.caption)
+                .foregroundStyle(.green)
                 pickButton
             }
         case .failed(let failure):

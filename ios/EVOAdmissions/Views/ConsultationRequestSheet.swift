@@ -126,6 +126,7 @@ struct ConsultationRequestSheet: View {
                                 systemImage: "checkmark.circle"
                             )
                             .font(.subheadline)
+                            .motionBounceOnAppear()
                             if let date = PostgresTimestamp.dayLabel(
                                 from: receipt.requestedAt,
                                 locale: AppLocale.current

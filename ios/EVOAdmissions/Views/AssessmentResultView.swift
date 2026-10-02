@@ -191,8 +191,7 @@ struct AssessmentResultView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                    ProgressView(value: max(scale.mean - 1, 0), total: 4)
-                        .tint(Color("AccentColor"))
+                    MotionProgressBar(value: max(scale.mean - 1, 0), total: 4, fillsOnAppear: true)
                     if let description = meta?.description {
                         Text(description)
                             .font(.footnote)

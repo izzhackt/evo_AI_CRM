@@ -4,6 +4,16 @@ private enum HomeRead<Value> {
     case loading
     case loaded(Value)
     case failed
+
+    /// Stable name of the state — keys the one-time entrance of a section so
+    /// the loaded rows ease in once, not the spinner they replace.
+    var phase: String {
+        switch self {
+        case .loading: return "loading"
+        case .loaded: return "loaded"
+        case .failed: return "failed"
+        }
+    }
 }
 
 /// Independent real read paths: a failed section never becomes a false empty state.
@@ -67,6 +77,7 @@ struct HomeView: View {
             List {
                 Section {
                     Text(session.authority.displayName).font(.title2.bold())
+                        .motionStagger(index: 0, key: "home.greeting")
                 }
                 if session.accessTier == .assisted && admissionNeedsAttention { admissionSection }
                 if hasTestDraft {
@@ -122,142 +133,162 @@ struct HomeView: View {
         return catalog.instruments.contains { $0.draftAttemptId != nil }
     }
 
+    private var admissionPhase: String {
+        if admission.loadFailed { return "failed" }
+        return admission.isLoaded ? "loaded" : "loading"
+    }
+
     private var admissionSection: some View {
         Section("home_admission_heading") {
-            if admission.loadFailed {
-                retryRow("adm_section_unavailable") { await admission.load() }
-            } else if !admission.isLoaded {
-                ProgressView()
-            } else {
-                if let stage = admission.overview.flatMap({ AdmissionStageLabel.key(for: $0.operationalStage) }) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("adm_stage_label").font(.caption).foregroundStyle(.secondary)
-                        Text(stage).font(.headline)
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-                if let action = admission.primaryAction {
-                    AdmissionActionRow(action: action, isPrimary: true)
+            Group {
+                if admission.loadFailed {
+                    retryRow("adm_section_unavailable") { await admission.load() }
+                } else if !admission.isLoaded {
+                    ProgressView()
                 } else {
-                    Text(admission.overview == nil ? "adm_calm_no_plan" : "adm_calm_done")
-                        .foregroundStyle(.secondary)
+                    if let stage = admission.overview.flatMap({ AdmissionStageLabel.key(for: $0.operationalStage) }) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("adm_stage_label").font(.caption).foregroundStyle(.secondary)
+                            Text(stage).font(.headline)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                    if let action = admission.primaryAction {
+                        AdmissionActionRow(action: action, isPrimary: true)
+                    } else {
+                        Text(admission.overview == nil ? "adm_calm_no_plan" : "adm_calm_done")
+                            .foregroundStyle(.secondary)
+                    }
+                    Button("home_open_admission") { selectedTab = .admission }
+                        .tint(linkTint)
                 }
-                Button("home_open_admission") { selectedTab = .admission }
-                    .tint(linkTint)
             }
+            .motionStagger(index: 1, key: "home.admission.\(admissionPhase)")
         }
     }
 
     private var learningSection: some View {
         Section("home_learning_heading") {
-            switch model.lessons {
-            case .loading: ProgressView()
-            case .failed:
-                retryRow("english_unavailable") { await model.loadLessons() }
-            case .loaded(let modules):
-                if let picked = Self.pickLesson(modules) {
-                    NavigationLink {
-                        LessonContentView(lessonId: picked.lesson.lessonId)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(AppLocale.pick(ru: picked.lesson.metadata.titleRu, ky: picked.lesson.metadata.titleKy))
-                                .font(.headline)
-                            Text(String(format: String(localized: "home_module_progress"), picked.module.lessonsCompleted, picked.module.lessonsTotal))
-                                .font(.subheadline).foregroundStyle(.secondary)
-                            Text(picked.lesson.draftAttemptId == nil ? "home_start_lesson" : "home_resume_lesson")
-                                .foregroundStyle(linkTint)
+            Group {
+                switch model.lessons {
+                case .loading: ProgressView()
+                case .failed:
+                    retryRow("english_unavailable") { await model.loadLessons() }
+                case .loaded(let modules):
+                    if let picked = Self.pickLesson(modules) {
+                        NavigationLink {
+                            LessonContentView(lessonId: picked.lesson.lessonId)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(AppLocale.pick(ru: picked.lesson.metadata.titleRu, ky: picked.lesson.metadata.titleKy))
+                                    .font(.headline)
+                                Text(String(format: String(localized: "home_module_progress"), picked.module.lessonsCompleted, picked.module.lessonsTotal))
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                                Text(picked.lesson.draftAttemptId == nil ? "home_start_lesson" : "home_resume_lesson")
+                                    .foregroundStyle(linkTint)
+                            }
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
+                    } else {
+                        Text(modules.contains { !$0.lessons.isEmpty } ? "home_lessons_done" : "english_empty_title")
+                            .foregroundStyle(.secondary)
                     }
-                } else {
-                    Text(modules.contains { !$0.lessons.isEmpty } ? "home_lessons_done" : "english_empty_title")
-                        .foregroundStyle(.secondary)
+                    Button("home_open_english") { selectedTab = .english }
+                        .tint(linkTint)
                 }
-                Button("home_open_english") { selectedTab = .english }
-                    .tint(linkTint)
             }
+            .motionStagger(index: 2, key: "home.learning.\(model.lessons.phase)")
         }
     }
 
     private var testsSection: some View {
         Section("tab_tests") {
-            switch model.tests {
-            case .loading: ProgressView()
-            case .failed:
-                retryRow("tests_unavailable") { await model.loadTests() }
-            case .loaded(let catalog):
-                if let instrument = catalog.instruments.first(where: { $0.draftAttemptId != nil }) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(instrument.metadata.title ?? instrument.instrumentKey).font(.headline)
-                        if let attempt = catalog.attempts.first(where: { $0.attemptId == instrument.draftAttemptId }) {
-                            Text(String(format: String(localized: "home_test_progress"), attempt.answeredCount, attempt.questionCount))
-                                .font(.subheadline).foregroundStyle(.secondary)
+            Group {
+                switch model.tests {
+                case .loading: ProgressView()
+                case .failed:
+                    retryRow("tests_unavailable") { await model.loadTests() }
+                case .loaded(let catalog):
+                    if let instrument = catalog.instruments.first(where: { $0.draftAttemptId != nil }) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(instrument.metadata.title ?? instrument.instrumentKey).font(.headline)
+                            if let attempt = catalog.attempts.first(where: { $0.attemptId == instrument.draftAttemptId }) {
+                                Text(String(format: String(localized: "home_test_progress"), attempt.answeredCount, attempt.questionCount))
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            Button {
+                                runContext = AssessmentRunContext(instrument: instrument, draftAttemptId: instrument.draftAttemptId)
+                            } label: {
+                                Text("tests_continue")
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        Button {
-                            runContext = AssessmentRunContext(instrument: instrument, draftAttemptId: instrument.draftAttemptId)
-                        } label: {
-                            Text("tests_continue")
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }
-                        .buttonStyle(.borderedProminent)
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
+                    NavigationLink { TestsContentView() } label: { Text("home_open_tests") }
                 }
-                NavigationLink { TestsContentView() } label: { Text("home_open_tests") }
             }
+            .motionStagger(index: 3, key: "home.tests.\(model.tests.phase)")
         }
     }
 
     private var applicationSection: some View {
         Section("apply_status_kicker") {
-            switch model.application {
-            case .loading: ProgressView()
-            case .failed:
-                retryRow("home_application_unavailable") { await model.loadApplication() }
-            case .loaded(let application):
-                if let application {
-                    NavigationLink {
-                        ApplicationStatusView(router: router, application: application)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(LocalizedStringKey("apply_status_\(application.status.rawValue)_title"))
-                                .font(.headline)
-                            Text("home_open_application").foregroundStyle(.secondary)
+            Group {
+                switch model.application {
+                case .loading: ProgressView()
+                case .failed:
+                    retryRow("home_application_unavailable") { await model.loadApplication() }
+                case .loaded(let application):
+                    if let application {
+                        NavigationLink {
+                            ApplicationStatusView(router: router, application: application)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(LocalizedStringKey("apply_status_\(application.status.rawValue)_title"))
+                                    .font(.headline)
+                                Text("home_open_application").foregroundStyle(.secondary)
+                            }
                         }
+                    } else {
+                        Text("home_application_absent").foregroundStyle(.secondary)
                     }
-                } else {
-                    Text("home_application_absent").foregroundStyle(.secondary)
                 }
             }
+            .motionStagger(index: 4, key: "home.application.\(model.application.phase)")
         }
     }
 
     private var favoritesSection: some View {
         Section("favorites_title") {
-            switch model.favorites {
-            case .loading: ProgressView()
-            case .failed:
-                retryRow("favorites_unavailable") { await model.loadFavorites() }
-            case .loaded(let items):
-                if items.isEmpty {
-                    Text("favorites_empty_title").foregroundStyle(.secondary)
-                    Button("tab_universities") { selectedTab = .universities }
-                        .tint(linkTint)
-                }
-                ForEach(items) { item in
-                    NavigationLink {
-                        UniversityDetailView(institutionId: item.id, initialItem: item)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(item.content.name).font(.headline)
-                            Text(nearestIntakeLabel(item.content, now: Date()))
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
+            Group {
+                switch model.favorites {
+                case .loading: ProgressView()
+                case .failed:
+                    retryRow("favorites_unavailable") { await model.loadFavorites() }
+                case .loaded(let items):
+                    if items.isEmpty {
+                        Text("favorites_empty_title").foregroundStyle(.secondary)
+                        Button("tab_universities") { selectedTab = .universities }
+                            .tint(linkTint)
                     }
+                    ForEach(items) { item in
+                        NavigationLink {
+                            UniversityDetailView(institutionId: item.id, initialItem: item)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(item.content.name).font(.headline)
+                                Text(nearestIntakeLabel(item.content, now: Date()))
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    NavigationLink { FavoritesView() } label: { Text("home_all_favorites") }
                 }
-                NavigationLink { FavoritesView() } label: { Text("home_all_favorites") }
             }
+            .motionStagger(index: 5, key: "home.favorites.\(model.favorites.phase)")
         }
     }
 

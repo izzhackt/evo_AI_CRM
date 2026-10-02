@@ -40,7 +40,12 @@ final class AssessmentRunnerModel: ObservableObject {
     @Published private(set) var isReloading = false
     @Published private(set) var reloadRequired = false
     @Published var failure: WriteFailure?
-    @Published var pageIndex = 0
+    /// Направление последней смены страницы для перехода (didSet срабатывает
+    /// до перерисовки, поэтому покрывает и «Назад/Далее», и прыжки из обзора).
+    private(set) var stepDirection: StepDirection = .forward
+    @Published var pageIndex = 0 {
+        didSet { stepDirection = StepDirection(from: oldValue, to: pageIndex) }
+    }
     @Published private(set) var completing = false
     @Published var loadFailedMessage: String?
 
@@ -252,6 +257,7 @@ struct AssessmentRunnerView: View {
 
     @StateObject private var model = AssessmentRunnerModel()
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isExiting = false
     @State private var confirmReload = false
     @State private var confirmDiscardExit = false
@@ -440,15 +446,28 @@ struct AssessmentRunnerView: View {
             VStack(alignment: .leading, spacing: 16) {
                 progressCard(total: total)
                 failureCard
-                if review {
-                    reviewCard(total: total)
-                } else if model.pageIndex < total {
-                    questionCard(attempt.questions[model.pageIndex], total: total)
+                // Вопрос → вопрос: новый въезжает с той стороны, куда идёт
+                // пользователь (Reduce Motion — только fade-in); прежний
+                // убирается сразу — экраны разной высоты.
+                ZStack(alignment: .top) {
+                    pageContent(attempt, total: total, review: review)
+                        .id(model.pageIndex)
+                        .transition(MotionTransition.step(model.stepDirection, reduceMotion: reduceMotion))
                 }
+                .animation(reduceMotion ? Motion.fast : Motion.base, value: model.pageIndex)
             }
             .padding(20)
         }
         .scrollDismissesKeyboard(.immediately)
+    }
+
+    @ViewBuilder
+    private func pageContent(_ attempt: AssessmentAttempt, total: Int, review: Bool) -> some View {
+        if review {
+            reviewCard(total: total)
+        } else if model.pageIndex < total {
+            questionCard(attempt.questions[model.pageIndex], total: total)
+        }
     }
 
     private func progressCard(total: Int) -> some View {
@@ -462,8 +481,7 @@ struct AssessmentRunnerView: View {
                 Spacer()
                 saveStateLabel
             }
-            ProgressView(value: Double(model.answeredCount), total: Double(max(total, 1)))
-                .tint(Color("AccentColor"))
+            MotionProgressBar(value: Double(model.answeredCount), total: Double(max(total, 1)))
         }
         .padding(14)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -599,6 +617,8 @@ struct AssessmentRunnerView: View {
             HStack {
                 Image(systemName: selected ? "largecircle.fill.circle" : "circle")
                     .foregroundStyle(selected ? Color("AccentColor") : Color.secondary)
+                    .motionSymbolSwap(on: selected)
+                    .motionBounce(whenOn: selected)
                     // A11y (9b): кружок — декорация, состояние несёт trait.
                     .accessibilityHidden(true)
                 Text(option.label)
@@ -614,7 +634,7 @@ struct AssessmentRunnerView: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .disabled(model.completing || model.reloadRequired || model.isReloading)
         // A11y (9b): выбранность варианта — не только цвет/иконка.
         .accessibilityAddTraits(selected ? [.isSelected] : [])

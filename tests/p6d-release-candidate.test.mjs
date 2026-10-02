@@ -38,7 +38,16 @@ test("active release authority has no executable legacy topology", async () => {
         assert.equal(maintenance.split(line).length - 1, 1);
         directoryBindingsRemoved = directoryBindingsRemoved.replace(line, "");
       }
-      value = value.replace(maintenance, directoryBindingsRemoved);
+      // A function replacer keeps "$'" or "$&" in the job text literal.
+      value = value.replace(maintenance, () => directoryBindingsRemoved);
+      // The isolated lead-agent lock lane (#938, A-1) gets the same exception:
+      // one directory binding, only inside that reviewed job (up to the next job).
+      const leadAgentLane = value.match(/^  lead_agent_dependencies:\n[\s\S]*?(?=^  \S)/mu)?.[0];
+      assert.ok(leadAgentLane, "the isolated lead-agent dependency lane is explicit");
+      assert.doesNotMatch(leadAgentLane, /secrets\.|docker|ssh|npm run (?:start|dev|seed|preflight)|continue-on-error/u);
+      const leadAgentBinding = "        working-directory: evo-lead-agent\n";
+      assert.equal(leadAgentLane.split(leadAgentBinding).length - 1, 1);
+      value = value.replace(leadAgentLane, () => leadAgentLane.replace(leadAgentBinding, ""));
     }
     const executableLines = value
       .split(/\r?\n/u)

@@ -18,17 +18,31 @@
 -- REAL src/lib/platform-audit.ts normalizer (see that script's own header).
 --
 -- Extended by migration 255 (proposal, not applied — PLAN_CHANGES.md
--- «2026-09-29 — «Журнал действий»: серверный allowlist аудита расширен на
--- 71 действие» and the lead's PR #1120 head 170efb75 correction) with one
--- privacy pin: a hardcoded list of the 29 actions and 4 resource types 255
--- deliberately did NOT allowlist (see 255's own header for the per-action
--- reasons), asserted absent from
--- p7a_safe_audit_actions()/p7a_safe_audit_resource_types(), plus five seeded
--- excluded-action rows proven absent from a real search_audit_events() read.
--- This is the one intentional exception to the "no hardcoded list" rule
--- above: it exists to catch a future migration accidentally re-adding one of
--- these, not to re-derive the INCLUDE contract this suite already proves
--- live.
+-- «2026-09-29 — «Журнал действий»: серверный allowlist аудита расширен на 72
+-- действия (предложение, миграция 255)», whose «Правка лида» (PR #1120, head
+-- 170efb75) sub-section corrects the count to 71 and whose «Правка по ревью»
+-- (head 24b3184b) sub-section adds the 16th resource type document_export)
+-- with two additions to the "no hardcoded list" rule above:
+--
+--  (1) a privacy pin: a hardcoded list of the 29 actions and 4 resource types
+--      255 deliberately did NOT allowlist (see 255's own header for the
+--      per-action reasons), asserted absent from
+--      p7a_safe_audit_actions()/p7a_safe_audit_resource_types(), plus five
+--      seeded excluded-action rows proven absent from a real
+--      search_audit_events() read. It exists to catch a future migration
+--      accidentally re-adding one of these, not to re-derive the INCLUDE
+--      contract this suite already proves live.
+--  (2) a real-writer pair check: the per-action fixture above gives every
+--      action the same resource type ('organization'), so it proves the two
+--      allowlists independently but never an (action, resource_type) PAIR as
+--      a real writer produces it. search_audit_events() keeps a row only when
+--      BOTH are allowlisted, so a missing resource type hides a whole action
+--      without failing any other assertion — which is how the 9
+--      document.export.* actions were once half visible (university-form and
+--      partner-package exports write 'document_export'). The hardcoded list
+--      of the 80 real pairs of the 71 actions 255 added is seeded and every
+--      pair must be read back; that page is emitted too, so the checker
+--      script replays it through the real TS normalizer.
 --
 -- Fixture: one organization + one Platform Admin membership, modelled like
 -- production per 155 (platform_private.staff_membership_identity,
@@ -118,7 +132,8 @@ SELECT pg_temp.p7aj_assert(
 
 -- ---------------------------------------------------------------------------
 -- Privacy pin (255's own header + PLAN_CHANGES.md «2026-09-29 — «Журнал
--- действий»: серверный allowlist аудита расширен на 73 действия»): the
+-- действий»: серверный allowlist аудита расширен на 72 действия (предложение,
+-- миграция 255)», итог по «Правке лида» — 71): the
 -- actions 255 deliberately did NOT allowlist (student.application.approve/
 -- reject, application.document.submit, application.catalog.select,
 -- application.requirements.initialize, staff.auth.prepare/recovery.observed,
@@ -278,6 +293,149 @@ SELECT pg_temp.p7aj_assert(
   'none of the 5 seeded excluded-action rows was returned by search_audit_events() to the fixture Admin');
 
 -- ---------------------------------------------------------------------------
+-- Real-writer pairs (PR #1120 review correction, head 24b3184b). Each pair is
+-- (action, resource_type) exactly as the LATEST writer of that action in the
+-- migration chain writes it; the resource types were read off the
+-- INSERT INTO platform.audit_events of each writer function in the built
+-- chain (not guessed from the action name). The 9 document.export.* actions
+-- appear with both of their real types: 'student_profile' for a profile
+-- export and 'document_export' for a university-form or partner-package
+-- artifact (169: record_document_export_event / complete_document_export_
+-- download). Seeded AFTER the page loop and its exact-count assertions above,
+-- so the per-action contract is unaffected, with one shared resource_id so a
+-- single resource-filtered search_audit_events() page (80 rows < 100) returns
+-- exactly these rows when — and only when — each pair passes BOTH allowlists.
+-- actor_kind='system' for the same reason as the excluded-action seed above.
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE p7aj_pairs(action TEXT NOT NULL, resource_type TEXT NOT NULL, PRIMARY KEY (action, resource_type));
+INSERT INTO p7aj_pairs(action, resource_type) VALUES
+    ('application.document.review', 'university_application'),
+    ('application.requirements.save', 'university_application'),
+    ('case.coverage.return', 'student_case'),
+    ('case.coverage.start', 'student_case'),
+    ('case.handoff.acknowledge', 'student_case'),
+    ('case.handoff.clarification', 'student_case'),
+    ('case.handoff.decline', 'student_case'),
+    ('case.next.action.change', 'student_case'),
+    ('case.payment.receipt.upload', 'payment_receipt_file'),
+    ('case.tranche.save', 'payment_obligation'),
+    ('company.file.download.grant', 'company_file_version'),
+    ('company.file.file.archive', 'company_file'),
+    ('company.file.file.create', 'company_file'),
+    ('company.file.file.move', 'company_file'),
+    ('company.file.file.rename', 'company_file'),
+    ('company.file.folder.archive', 'company_file_folder'),
+    ('company.file.folder.create', 'company_file_folder'),
+    ('company.file.folder.move', 'company_file_folder'),
+    ('company.file.folder.rename', 'company_file_folder'),
+    ('company.file.upload.finalize', 'company_file_version'),
+    ('company.file.upload.reserve', 'company_file_version'),
+    ('docs.student.create', 'student_case'),
+    ('document.export.begun', 'student_profile'),
+    ('document.export.begun', 'document_export'),
+    ('document.export.download.failed', 'student_profile'),
+    ('document.export.download.failed', 'document_export'),
+    ('document.export.download.verified', 'student_profile'),
+    ('document.export.download.verified', 'document_export'),
+    ('document.export.failed', 'student_profile'),
+    ('document.export.failed', 'document_export'),
+    ('document.export.prepared', 'student_profile'),
+    ('document.export.prepared', 'document_export'),
+    ('document.export.ready', 'student_profile'),
+    ('document.export.ready', 'document_export'),
+    ('document.export.reconciled', 'student_profile'),
+    ('document.export.reconciled', 'document_export'),
+    ('document.export.sealed', 'student_profile'),
+    ('document.export.sealed', 'document_export'),
+    ('document.export.unknown', 'student_profile'),
+    ('document.export.unknown', 'document_export'),
+    ('lead.lifecycle.change', 'lead'),
+    ('lead.manual.create', 'lead'),
+    ('lead.sale.conditions.save', 'lead'),
+    ('lead.sales.workflow.changed', 'lead'),
+    ('lead.website.receive', 'lead'),
+    ('media.download.grant', 'communication_media'),
+    ('prompt.artifact.publish', 'ai_prompt_artifact_version'),
+    ('prompt.artifact.retire', 'ai_prompt_artifact_version'),
+    ('sales.register.archive', 'sales_register'),
+    ('sales.register.create', 'sales_register'),
+    ('sales.register.import', 'sales_register_import'),
+    ('sales.register.lead.link', 'sales_register'),
+    ('sales.register.lead.unlink', 'sales_register'),
+    ('sales.register.manager.label', 'sales_manager_label'),
+    ('sales.register.pipeline', 'sales_register'),
+    ('sales.register.restore', 'sales_register'),
+    ('sales.register.target', 'sales_register_target'),
+    ('sales.register.update', 'sales_register'),
+    ('staff.role.archive', 'staff_role'),
+    ('staff.role.assignments', 'membership'),
+    ('staff.role.copy', 'staff_role'),
+    ('staff.role.create', 'staff_role'),
+    ('staff.role.publish', 'staff_role'),
+    ('staff.role.restore', 'staff_role'),
+    ('staff.role.save', 'staff_role'),
+    ('staff.system.admin', 'membership'),
+    ('staff.task.create', 'staff_task'),
+    ('staff.task.edit', 'staff_task'),
+    ('staff.task.status', 'staff_task'),
+    ('student.profile.export.attempted', 'student_profile'),
+    ('student.profile.export.failed', 'student_profile'),
+    ('student.profile.export.generated', 'student_profile'),
+    ('student.profile.field.review', 'student_profile'),
+    ('student.profile.recognition.publish', 'student_profile'),
+    ('student.profile.start', 'student_profile'),
+    ('team.chat.delete', 'team_chat_message'),
+    ('team.chat.edit', 'team_chat_message'),
+    ('team.chat.moderate', 'team_chat_message'),
+    ('team.chat.post', 'team_chat_message'),
+    ('work.review.resolve', 'work_review_case');
+
+INSERT INTO platform.audit_events(
+  organization_id, actor_kind, actor_principal, action, resource_type, resource_id,
+  after_state, reason, request_id
+)
+SELECT pg_temp.p7aj_id(1), 'system', 'P7AJ synthetic real-writer pair fixture actor', action, resource_type,
+  pg_temp.p7aj_id(901), '{}'::JSONB, 'P7AJ synthetic real-writer pair fixture row', gen_random_uuid()
+FROM p7aj_pairs;
+
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(DISTINCT action) FROM p7aj_pairs) = 71
+    AND (SELECT count(*) FROM p7aj_pairs) = 80,
+  'the real-writer pair list covers the 71 actions 255 added (80 pairs: 9 document.export.* carry two resource types)');
+
+SET LOCAL ROLE authenticated;
+CREATE TEMP TABLE p7aj_pair_pages(page JSONB);
+INSERT INTO p7aj_pair_pages(page)
+  SELECT platform.search_audit_events(NULL, NULL, NULL, NULL, pg_temp.p7aj_id(901), 100);
+RESET ROLE;
+
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(*) FROM p7aj_pair_pages) = 1
+    AND (SELECT (page ->> 'has_more')::BOOLEAN FROM p7aj_pair_pages) = FALSE,
+  'the real-writer pairs fit one search_audit_events() page');
+SELECT pg_temp.p7aj_assert(
+  NOT EXISTS (
+    SELECT action, resource_type FROM p7aj_pairs
+    EXCEPT
+    SELECT r ->> 'action', r ->> 'resource_type'
+    FROM p7aj_pair_pages, jsonb_array_elements(page -> 'rows') AS r
+  ),
+  'real-writer (action, resource_type) pairs hidden by search_audit_events(): '
+    || COALESCE((
+      SELECT string_agg(m.action || '/' || m.resource_type, ', ' ORDER BY m.action, m.resource_type)
+      FROM (
+        SELECT action, resource_type FROM p7aj_pairs
+        EXCEPT
+        SELECT r ->> 'action', r ->> 'resource_type'
+        FROM p7aj_pair_pages, jsonb_array_elements(page -> 'rows') AS r
+      ) AS m
+    ), ''));
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(*) FROM p7aj_pair_pages, jsonb_array_elements(page -> 'rows'))
+    = (SELECT count(*) FROM p7aj_pairs),
+  'search_audit_events() returned exactly one row per real-writer pair');
+
+-- ---------------------------------------------------------------------------
 -- Emit the live server contract and every captured page as single-line JSON
 -- for scripts/check-platform-audit-journal-contract.mjs. Unaligned,
 -- tuples-only output: each SELECT below prints exactly one prefixed line.
@@ -295,6 +453,7 @@ SELECT 'P7A_JOURNAL_CONTRACT ' || jsonb_build_object(
 )::TEXT;
 
 SELECT 'P7A_JOURNAL_PAGE ' || page::TEXT FROM p7aj_pages ORDER BY page_index;
+SELECT 'P7A_JOURNAL_PAGE ' || page::TEXT FROM p7aj_pair_pages;
 
 \pset tuples_only off
 \pset format aligned

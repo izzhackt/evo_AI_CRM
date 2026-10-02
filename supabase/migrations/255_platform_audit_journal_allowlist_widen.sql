@@ -1,9 +1,12 @@
 -- «Журнал действий»: серверный allowlist аудита расширен на 71 действие и
--- 15 типов объектов, которые уже пишутся канонической схемой, но раньше не
+-- 16 типов объектов, которые уже пишутся канонической схемой, но раньше не
 -- проецировались в platform.search_audit_events()/export_audit_events()
 -- (071, платформа P7A). docs/PLAN_CHANGES.md «2026-09-29 — «Журнал
--- действий»: серверный allowlist аудита расширен на 71 действие
--- (предложение, миграция 255)» и правка лида (PR #1120, head 170efb75).
+-- действий»: серверный allowlist аудита расширен на 72 действия
+-- (предложение, миграция 255)» (заголовок append-only и остался «72»; итог
+-- 71 исправлен подразделом «Правка лида (PR #1120, head `170efb75`)») и
+-- подраздел «Правка по ревью (PR #1120, head `24b3184b`)» (15 → 16 типов
+-- объектов: добавлен document_export).
 --
 -- Тот же приём rename-and-union, что и во всех предыдущих расширениях этого
 -- allowlist-а (083 → … → 191, шаблон формы взят из 191:725-742 и
@@ -150,26 +153,47 @@
 --    (document_recognition_require_actor → staff_membership_identity +
 --    staff_can_access)
 --  document.export.prepared/begun/sealed/reconciled/ready/failed/unknown,
---    download.verified/download.failed — 164:260-587
---    (staff_can_access_for_actor 'profile.read.full'+'document.download';
---    resource_type='student_profile', already allowlisted)
+--    download.verified/download.failed — последние writer'ы
+--    platform_private.record_document_export_event (169:418-436, до него
+--    167:680-697, 164:325-340) и platform.complete_document_export_download
+--    (169:572-615, до него 167:637-678, 164:551-587): гейт
+--    staff_can_access_for_actor 'profile.read.full'+'document.download'
+--    (164:247-248, 167:278-279/317-319, 169:185-190), Student-пути нет.
+--    resource_type зависит от artifact.kind: 'student_profile' для
+--    kind='student_profile' (уже в allowlist) и 'document_export' для
+--    kind='university_form'/'package' (167/169; ЭТОТ тип в allowlist не
+--    входил — исправлено ревью, см. ниже). Проекция отдаёт только id
+--    артефакта (resource_id), тип, действие и фиксированные коды.
 --  prompt.artifact.publish/retire — 054:1143-1461 (require_bw4_admin_actor)
 --  work.review.resolve — 045:3031-3090 (require_p2f_admin_actor
 --    'workreview.resolve')
 --  media.download.grant — 062:1500-1664 (require_domain_actor_read
 --    'communication.read.full')
 --
--- Новые типы объектов (15, выведены из фактических INSERT INTO
+-- Новые типы объектов (16, выведены из фактических INSERT INTO
 -- platform.audit_events выше, не из приблизительного списка задания;
 -- case_contract_file исключён вместе с case.contract_file.upload — см.
 -- DEFERRED выше, оно единственное действие, которое писало бы этот тип):
 -- ai_prompt_artifact_version, communication_media,
--- company_file, company_file_folder, company_file_version, membership,
--- payment_receipt_file, sales_manager_label, sales_register,
+-- company_file, company_file_folder, company_file_version, document_export,
+-- membership, payment_receipt_file, sales_manager_label, sales_register,
 -- sales_register_import, sales_register_target, staff_role, staff_task,
 -- team_chat_message, work_review_case. НЕ добавлены (остаются невидимыми):
 -- student_application, staff_auth_request, waha_session_observation,
 -- provider_webhook_event.
+--
+-- Правка по ревью (PR #1120, head 24b3184b): первый вариант этого файла
+-- считал, что все 9 document.export.* пишут только 'student_profile' (так
+-- было в 164). Независимое ревью на реальной Postgres показало, что
+-- последние writer'ы (167, 169) пишут 'document_export' для экспортов
+-- университетских форм и партнёрских пакетов — самых чувствительных с точки
+-- зрения передачи данных. Тип не был ни в старом allowlist-е, ни среди
+-- первоначальных 15, поэтому search_audit_events()/export_audit_events()
+-- молча скрывали бы эти события (безопасное направление, но тихая
+-- неполнота журнала — ровно тот отказ, которого журнал не должен допускать).
+-- Добавлен 16-м типом; действия не менялись (71). Реальная Postgres-suite
+-- теперь засевает каждое включённое действие парой (action, resource_type)
+-- своего реального writer'а, поэтому пропущенная пара роняет проверку.
 --
 -- Это ПРЕДЛОЖЕНИЕ: миграция не применена ни к одной базе (ни production, ни
 -- disposable — путь применения ниже документирован в PLAN_CHANGES.md).
@@ -285,6 +309,7 @@ AS $$
     'company_file',
     'company_file_folder',
     'company_file_version',
+    'document_export',
     'membership',
     'payment_receipt_file',
     'sales_manager_label',

@@ -11,6 +11,7 @@ import {
   normalizePlatformAuditSearchInput,
   normalizePlatformAuditSearchResult,
 } from "../src/lib/platform-audit.ts";
+import { journalEvent, journalObject } from "../src/lib/v3/wording.ts";
 import {
   createPlatformAuditRepository,
   PlatformAuditRepositoryError,
@@ -174,7 +175,8 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
   // 087 (U5 contract/first-payment gate) through 255 (journal widen,
   // proposal — not applied to any database, see 255's own header and
   // PLAN_CHANGES.md «2026-09-29 — «Журнал действий»: серверный allowlist
-  // аудита расширен на 73 действия»): each migration's own bounded
+  // аудита расширен на 72 действия (предложение, миграция 255)» with its
+  // «Правка лида» and «Правка по ревью» sub-sections): each migration's own bounded
   // extension, verified against the live server allowlist by the
   // real-Postgres suite (platform_audit_journal_contract.sql +
   // check-platform-audit-journal-contract.mjs), not re-derived here.
@@ -286,6 +288,9 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "company_file",
     "company_file_folder",
     "company_file_version",
+    // Review correction (PR #1120, head 24b3184b): the university-form and
+    // partner-package exports (167/169) write document.export.* with this type.
+    "document_export",
     "gemini_proposal_review",
     "lead",
     "membership",
@@ -329,7 +334,8 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
 });
 
 // Privacy pin (255's own header + PLAN_CHANGES.md «2026-09-29 — «Журнал
-// действий»: серверный allowlist аудита расширен на 73 действия»): every
+// действий»: серверный allowlist аудита расширен на 72 действия (предложение,
+// миграция 255)», итог по «Правке лида» — 71): every
 // action 255 deliberately did NOT allowlist, and the 4 resource types that
 // must never be allowlisted, stay out of the browser-safe TS lists. Reasons
 // per action are in 255's header comment and the PLAN_CHANGES.md table; kept
@@ -416,6 +422,49 @@ test("excluded audit actions and never-add resource types stay out of the browse
 test("case.contract_file.upload stays out of the browser-safe allowlists until 189's action-check defect is fixed", () => {
   assert.equal(PLATFORM_AUDIT_ACTIONS.includes("case.contract_file.upload"), false);
   assert.equal(PLATFORM_AUDIT_RESOURCE_TYPES.includes("case_contract_file"), false);
+});
+
+// Review correction (PR #1120, head 24b3184b): the 9 document.export.* actions
+// are written by platform_private.record_document_export_event and
+// platform.complete_document_export_download. Their latest definitions (169)
+// write resource_type 'student_profile' for a profile export and
+// 'document_export' for a university-form or partner-package artifact. A
+// pair whose resource type is not allowlisted is silently dropped by
+// search_audit_events()/export_audit_events() (the journal's own failure
+// mode), so both types must be allowlisted — with Russian wording, so no raw
+// code is shown to staff and the neutral event wording does not claim that
+// every export is a profile.
+test("document.export.* is fully visible: both real resource types are allowlisted and worded", () => {
+  const writers = readFileSync(
+    new URL("../supabase/migrations/169_platform_persisted_partner_packages.sql", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    writers.includes(
+      "CASE WHEN p_artifact.kind='student_profile' THEN 'student_profile' ELSE 'document_export' END",
+    ),
+    "169's record_document_export_event no longer writes the student_profile/document_export pair",
+  );
+  assert.ok(
+    writers.includes(
+      "CASE WHEN a.kind='student_profile' THEN 'student_profile' ELSE 'document_export' END",
+    ),
+    "169's complete_document_export_download no longer writes the student_profile/document_export pair",
+  );
+  for (const resourceType of ["student_profile", "document_export"]) {
+    assert.ok(
+      PLATFORM_AUDIT_RESOURCE_TYPES.includes(resourceType),
+      `${resourceType} must be allowlisted for document.export.*`,
+    );
+    assert.equal(typeof journalObject(resourceType), "string");
+  }
+  const exportActions = PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("document.export."));
+  assert.equal(exportActions.length, 9);
+  for (const action of exportActions) {
+    const word = journalEvent(action);
+    assert.equal(typeof word, "string", `${action} has no journal wording`);
+    assert.equal(word.includes("анкеты"), false, `${action} wording must not assume a profile export`);
+  }
 });
 
 test("search input canonicalizes exact allowlisted filters and stable cursor pairs", () => {

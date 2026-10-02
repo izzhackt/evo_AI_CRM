@@ -44690,3 +44690,110 @@ with public.ecr.aws/supabase/postgres@sha256:80d7b27c3e8d77cfa7226eee9508671796d
 71 resource types, 3 page(s), 204 rows, all recognized.` (133+71=204
 действия, 56+15=71 тип объекта — сходится с TS; реальный exit code
 процесса — `0`, проверен отдельно от `npm run`).
+
+### Правка по ревью (PR #1120, head `24b3184b`)
+
+Независимое ревью (FAIL, один средний нефункционально-безопасный пункт)
+показало, что 9 действий `document.export.*` были видны лишь наполовину.
+
+1. **Находка.** Таблица INCLUDE выше (строка `document.export.*`) и заголовок
+   миграции исходили из writer'а 164, где эти действия пишут только
+   `resource_type='student_profile'` (уже в allowlist). 164 давно
+   заменён: последние writer'ы
+   `platform_private.record_document_export_event` (169:418-436) и
+   `platform.complete_document_export_download` (169:572-615; до них 167)
+   пишут `student_profile` для экспорта анкеты и **`document_export`** для
+   экспортов университетских форм и партнёрских пакетов
+   (`CASE WHEN kind='student_profile' THEN 'student_profile' ELSE
+   'document_export' END`). `document_export` не входил ни в прежний
+   allowlist типов, ни в первоначальные 15 добавленных, поэтому
+   `search_audit_events()`/`export_audit_events()` (отбрасывают строку, если
+   не allowlist-нуты ОБА — действие и тип) молча скрывали бы именно эти
+   события — самые чувствительные с точки зрения передачи данных. Это
+   безопасное направление (скрытие), но тихая неполнота журнала — ровно тот
+   отказ, которого журнал допускать не должен. Ревьюер воспроизвёл это на
+   реальной Postgres на цепочке 001-255: из засеянных строк 71 действия плюс
+   двух строк `document_export` скрылись ровно две.
+2. **Решение.** `document_export` добавлен **16-м типом объекта** (предпочтительный
+   вариант ревьюера; альтернативу «намеренный EXCLUDE» отклоняю — экспорты
+   форм вузов и пакетов — это то, что журнал обязан показывать). Итог
+   allowlist-а: **204 действия, 72 типа объектов** (было 133/56 до 255; 56+16=72).
+   Действия не менялись: 71 INCLUDE / 29 EXCLUDE / 1 DEFERRED = 101.
+   Миграция 255 не применена ни к одной базе, поэтому правится на месте.
+3. **Что изменено.**
+   - `supabase/migrations/255_platform_audit_journal_allowlist_widen.sql`:
+     `'document_export'` в массиве `p7a_safe_audit_resource_types`; в
+     заголовке исправлено утверждение про writer'ы `document.export.*`
+     (169/167 вместо 164, оба реальных типа), «15» → «16» типов, абзац
+     «Правка по ревью»; ссылки на заголовок PLAN_CHANGES приведены к
+     фактическому тексту.
+   - `src/lib/platform-audit.ts`: `document_export` в
+     `PLATFORM_AUDIT_RESOURCE_TYPES` (72 записи), комментарий.
+   - `src/lib/v3/wording.ts`: `document_export` → «Файл экспорта документа»
+     в `JOURNAL_OBJECT_WORD`; подписи 9 `document.export.*` стали нейтральными
+     («Экспорт документа …», не «… документа анкеты» — те же действия пишут
+     и экспорты форм вузов/пакетов). Заодно по пожеланию ревьюера «промпт» →
+     «инструкция ИИ» в трёх подписях (`prompt.artifact.*`,
+     `ai_prompt_artifact_version`).
+   - `tests/platform-audit.test.mjs`: `document_export` в закреплённом
+     `laterResourceTypes`; новый тест «document.export.* is fully visible»
+     пинит оба реальных типа в writer'ах 169, оба типа в allowlist-е с
+     русскими подписями и нейтральность подписей действий.
+   - `supabase/tests/platform_audit_journal_contract.sql`: новый блок
+     «real-writer pairs». Прежняя фикстура давала каждому действию один и тот
+     же тип `organization`, доказывая два списка независимо, но не пару
+     `(действие, тип)` так, как её пишет настоящий writer. Теперь засеяны 80
+     реальных пар 71 нового действия (типы считаны с `INSERT INTO
+     platform.audit_events` каждого writer'а в собранной цепочке; для 9
+     `document.export.*` — оба типа), и suite читает их через настоящий
+     `platform.search_audit_events()` под Admin-ом: пропущенная пара роняет
+     проверку с перечнем скрытых пар. Страница с этими строками также
+     печатается, и `check-platform-audit-journal-contract.mjs` проигрывает её
+     через настоящий TS-нормализатор (все 284 строки «recognized»).
+4. **RED/GREEN на реальной Postgres.** Новый suite против прежнего 255 (без
+   `document_export`) падает: `real-writer (action, resource_type) pairs hidden
+   by search_audit_events(): document.export.begun/document_export,
+   document.export.download.failed/document_export, … document.export.unknown/
+   document_export` (ровно 9 пар). Против исправленного 255 — зелёный:
+   `P7A journal contract check passed: 204 actions, 72 resource types, 4
+   page(s), 284 rows, all recognized.`
+5. **Косметика.** Ссылки на заголовок раздела в комментариях (миграция, три
+   тестовых/кодовых файла) приведены к фактическому тексту: заголовок
+   append-only и остался «72 действия», итог 71 исправлен подразделом
+   «Правка лида». История не переписывалась: места выше этого подраздела,
+   где сказано «15 типов объектов», «56+15=71» и «`document.export.*` →
+   `student_profile`», читать как «16», «56+16=72» и «`student_profile` и
+   `document_export`».
+6. **Совместимость с 256 (#1121) и 257 (#1122).** Порядок применения 255 → 256
+   → 257. Правка не меняет имён и сигнатур функций 255 и не трогает
+   `p7a_safe_audit_row` (её заменяет 257 через `CREATE OR REPLACE`, независимо
+   от 255). Текстовые конфликты этих PR с #1120 (`docs/PLAN_CHANGES.md`,
+   `scripts/test-postgres-authorization.sh`,
+   `supabase/tests/platform_audit_journal_contract.sql`, комментарии в
+   `src/lib/platform-audit.ts`/`wording.ts`) разрешаются сохранением всех
+   сторон; семантических конфликтов нет.
+7. **Проверки после правки.**
+   `DOCKER_CONTEXT=orbstack npm run test:database:migration-boundaries`
+   (`scripts/test-postgres-authorization.sh`, полная цепочка 001→255 на
+   одноразовом контейнере, который скрипт сам создаёт и удаляет) — реальный
+   exit code процесса `0`: `Verified disposable authorization database with
+   public.ecr.aws/supabase/postgres@sha256:80d7b27c3e8d… ` и `P7A journal
+   contract check passed: 204 actions, 72 resource types, 4 page(s), 284 rows,
+   all recognized.` (204 строки по одной на действие + 80 реальных пар).
+   Составляющая 255 → 256 → 257: на отдельной одноразовой БД поверх ledger
+   254 последовательно применены 255 (эта правка), 256 (#1121, head
+   `5bf38c2c`) и 257 (#1122, head `e56b2fd6`), с объединённым (union-
+   разрешение текстовых конфликтов в `docs/PLAN_CHANGES.md` и
+   `supabase/tests/platform_audit_journal_contract.sql`) контрактным suite:
+   все три применились, `P7A journal contract check passed: 204 actions, 72
+   resource types, 5 page(s), 295 rows, all recognized.` (204 + 80 пар + 11
+   строк страницы actor-label). Это одноразовый локальный прогон, в ветку
+   не коммитился. Точечные node-тесты (`platform-audit`,
+   `platform-audit-csv`, `platform-audit-export-route`,
+   `v3-settings-journal-contract`, `v3-e8-critical-fixes`,
+   `v3-profile-activity`, `v3-students-queue`, `v3-truthful-state`) — 37/37 и
+   39/39 зелёные; `npm run typecheck` — exit 0; `npx eslint` на изменённых
+   `src/lib/platform-audit.ts src/lib/v3/wording.ts tests/platform-audit.test.mjs`
+   — exit 0; `git diff --check` — чисто. Не проверено: браузерный проход по
+   `/v3/settings?section=journal` (журнал выключен в production),
+   production-применение (не выполнялось и не разрешено).

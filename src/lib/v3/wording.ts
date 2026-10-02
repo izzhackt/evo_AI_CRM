@@ -760,8 +760,9 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "workflow.version.retire": "Версия процесса отозвана",
 
   // Миграция 255 (предложение, не применена — PLAN_CHANGES.md «2026-09-29 —
-  // «Журнал действий»: серверный allowlist аудита расширен на 71 действие»
-  // и правка лида, PR #1120 head 170efb75): 65 новых действий
+  // «Журнал действий»: серверный allowlist аудита расширен на 72 действия
+  // (предложение, миграция 255)», итог 71 — подраздел «Правка лида»,
+  // PR #1120 head 170efb75): 65 новых действий
   // (case.contract_file.upload из исходных 73 оставлено вне allowlist-а —
   // независимый дефект уже применённой 189, см. 255's header;
   // document.slot.scaninvalidate перенесено в EXCLUDE правкой лида — тот же
@@ -825,17 +826,20 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "student.profile.export.generated": "Экспорт анкеты студента сформирован",
   "student.profile.export.failed": "Экспорт анкеты студента не удался",
   "student.profile.recognition.publish": "Предложения распознавания анкеты опубликованы",
-  "document.export.prepared": "Экспорт документа анкеты подготовлен",
-  "document.export.begun": "Экспорт документа анкеты начат",
-  "document.export.sealed": "Экспорт документа анкеты сохранён",
-  "document.export.reconciled": "Экспорт документа анкеты сверен",
-  "document.export.ready": "Экспорт документа анкеты готов",
-  "document.export.failed": "Экспорт документа анкеты не удался",
-  "document.export.unknown": "Итог экспорта документа анкеты не определён",
-  "document.export.download.verified": "Скачивание экспорта анкеты подтверждено",
-  "document.export.download.failed": "Скачивание экспорта анкеты не подтверждено",
-  "prompt.artifact.publish": "Версия промпта ИИ опубликована",
-  "prompt.artifact.retire": "Версия промпта ИИ отозвана",
+  // Экспорт документа — не только анкета студента: те же 9 действий пишут
+  // экспорты форм вузов и партнёрских пакетов (тип объекта document_export),
+  // поэтому подписи нейтральные («документа», не «документа анкеты»).
+  "document.export.prepared": "Экспорт документа подготовлен",
+  "document.export.begun": "Экспорт документа начат",
+  "document.export.sealed": "Экспорт документа сохранён",
+  "document.export.reconciled": "Экспорт документа сверен",
+  "document.export.ready": "Экспорт документа готов",
+  "document.export.failed": "Экспорт документа не удался",
+  "document.export.unknown": "Итог экспорта документа не определён",
+  "document.export.download.verified": "Скачивание экспорта документа подтверждено",
+  "document.export.download.failed": "Скачивание экспорта документа не подтверждено",
+  "prompt.artifact.publish": "Версия инструкции ИИ опубликована",
+  "prompt.artifact.retire": "Версия инструкции ИИ отозвана",
   "work.review.resolve": "Разбор фоновой задачи закрыт",
   "media.download.grant": "Выдан доступ к скачиванию вложения",
 } satisfies Readonly<Record<PlatformAuditAction, string>>;
@@ -899,12 +903,14 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   workflow_contract_version_source: "Источник контракта процесса",
 
   // Миграция 255 (предложение, не применена — см. комментарий над
-  // JOURNAL_EVENT_WORD выше): 15 новых типов объектов.
-  ai_prompt_artifact_version: "Версия промпта ИИ",
+  // JOURNAL_EVENT_WORD выше): 16 новых типов объектов (16-й, document_export,
+  // добавлен правкой по ревью PR #1120, head 24b3184b).
+  ai_prompt_artifact_version: "Версия инструкции ИИ",
   communication_media: "Вложение переписки",
   company_file: "Файл компании",
   company_file_folder: "Папка файлов компании",
   company_file_version: "Версия файла компании",
+  document_export: "Файл экспорта документа",
   membership: "Доступ сотрудника",
   payment_receipt_file: "Чек об оплате",
   sales_manager_label: "Написание менеджера",

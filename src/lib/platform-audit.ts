@@ -10,10 +10,17 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // baseline extended by the wrapper chain through migration 255 (proposal,
 // not yet applied to any database — see 255's own header and
 // docs/PLAN_CHANGES.md «2026-09-29 — «Журнал действий»: серверный allowlist
-// аудита расширен на 71 действие» and the lead's PR #1120 head 170efb75
-// correction). Migration 191 (ledger 254) is the latest APPLIED wrapper;
-// 255 widens the allowlist by 71 actions / 15 resource types that are
-// already written by canonical Supabase but were never projected. Two
+// аудита расширен на 72 действия (предложение, миграция 255)», whose
+// sub-sections correct the count to 71 actions (lead's PR #1120 head
+// 170efb75 correction) and add the 16th resource type `document_export`
+// (review correction, head 24b3184b)). Migration 191 (ledger 254) is the
+// latest APPLIED wrapper; 255 widens the allowlist by 71 actions / 16
+// resource types that are already written by canonical Supabase but were
+// never projected. `document_export` is the resource type of the
+// university-form and partner-package exports (167/169): the 9
+// `document.export.*` actions write `student_profile` for a profile export
+// and `document_export` for those artifacts, so both types are needed for
+// the 9 actions to be fully visible. Two
 // actions researched for 255 are deliberately left out: `case.contract_file.upload`
 // (189) turned out to violate `platform.audit_events`'s own
 // `audit_events_action_check` CHECK (a pre-existing, independent defect in
@@ -276,6 +283,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "country_requirement_version",
   "country_requirement_version_source",
   "decision_backlog",
+  "document_export",
   "document_requirement",
   "document_slot",
   "document_version",

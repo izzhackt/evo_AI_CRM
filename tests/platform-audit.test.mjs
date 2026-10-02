@@ -11,6 +11,7 @@ import {
   normalizePlatformAuditSearchInput,
   normalizePlatformAuditSearchResult,
 } from "../src/lib/platform-audit.ts";
+import { journalEvent, journalObject } from "../src/lib/v3/wording.ts";
 import {
   createPlatformAuditRepository,
   PlatformAuditRepositoryError,
@@ -70,6 +71,7 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["184_platform_card_fields_and_partner_details.sql", "card_fields_and_partner_details"],
   ["187_platform_admissions_pipeline_board.sql", "admissions_pipeline_board"],
   ["191_platform_case_chat.sql", "case_chat"],
+  ["255_platform_audit_journal_allowlist_widen.sql", "journal_widen"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -170,10 +172,14 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
   ]);
   assert.deepEqual(staffOrganizationResources, ["staff_department", "staff_organizational_details"]);
 
-  // 087 (U5 contract/first-payment gate) through 191 (case chat): each
-  // migration's own bounded extension, verified against the live server
-  // allowlist by the real-Postgres suite (platform_audit_journal_contract.sql
-  // + check-platform-audit-journal-contract.mjs), not re-derived here.
+  // 087 (U5 contract/first-payment gate) through 255 (journal widen,
+  // proposal — not applied to any database, see 255's own header and
+  // PLAN_CHANGES.md «2026-09-29 — «Журнал действий»: серверный allowlist
+  // аудита расширен на 72 действия (предложение, миграция 255)» with its
+  // «Правка лида» and «Правка по ревью» sub-sections): each migration's own bounded
+  // extension, verified against the live server allowlist by the
+  // real-Postgres suite (platform_audit_journal_contract.sql +
+  // check-platform-audit-journal-contract.mjs), not re-derived here.
   const laterActions = [];
   const laterResourceTypes = [];
   for (const { slug, source } of P7A_WRAPPER_MIGRATIONS) {
@@ -182,12 +188,43 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
   }
   assert.deepEqual([...laterActions].sort(), [
     "ai.proposal.review",
+    "application.document.review",
     "application.partner.details.update",
+    "application.requirements.save",
     "case.chat.await",
     "case.chat.post",
+    "case.coverage.return",
+    "case.coverage.start",
+    "case.handoff.acknowledge",
+    "case.handoff.clarification",
+    "case.handoff.decline",
+    "case.next.action.change",
+    "case.payment.receipt.upload",
     "case.pipeline.move",
     "case.sales.owner.sync",
+    "case.tranche.save",
+    "company.file.download.grant",
+    "company.file.file.archive",
+    "company.file.file.create",
+    "company.file.file.move",
+    "company.file.file.rename",
+    "company.file.folder.archive",
+    "company.file.folder.create",
+    "company.file.folder.move",
+    "company.file.folder.rename",
+    "company.file.upload.finalize",
+    "company.file.upload.reserve",
+    "docs.student.create",
     "document.checklist.baseline.seed",
+    "document.export.begun",
+    "document.export.download.failed",
+    "document.export.download.verified",
+    "document.export.failed",
+    "document.export.prepared",
+    "document.export.ready",
+    "document.export.reconciled",
+    "document.export.sealed",
+    "document.export.unknown",
     "document.media.attach.complete",
     "document.media.attach.reserve",
     "lead.admissions.gate.contract.confirmed",
@@ -195,25 +232,83 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "lead.admissions.gate.overridden",
     "lead.admissions.handoff.completed",
     "lead.cabinet.prepare",
+    "lead.lifecycle.change",
+    "lead.manual.create",
+    "lead.sale.conditions.save",
+    "lead.sales.workflow.changed",
+    "lead.website.receive",
+    "media.download.grant",
     "note.create",
     "pilot.cohort.configured",
     "pilot.cohort.member.automatic",
     "pilot.cohort.member.excluded",
     "pilot.cohort.member.included",
+    "prompt.artifact.publish",
+    "prompt.artifact.retire",
+    "sales.register.archive",
+    "sales.register.create",
+    "sales.register.import",
+    "sales.register.lead.link",
+    "sales.register.lead.unlink",
+    "sales.register.manager.label",
+    "sales.register.pipeline",
+    "sales.register.restore",
+    "sales.register.target",
+    "sales.register.update",
     "snippet.archive",
     "snippet.create",
     "snippet.update",
+    "staff.role.archive",
+    "staff.role.assignments",
+    "staff.role.copy",
+    "staff.role.create",
+    "staff.role.publish",
+    "staff.role.restore",
+    "staff.role.save",
+    "staff.system.admin",
+    "staff.task.create",
+    "staff.task.edit",
+    "staff.task.status",
     "student.portal.authority.activate",
+    "student.profile.export.attempted",
+    "student.profile.export.failed",
+    "student.profile.export.generated",
+    "student.profile.field.review",
+    "student.profile.recognition.publish",
+    "student.profile.start",
+    "team.chat.delete",
+    "team.chat.edit",
+    "team.chat.moderate",
+    "team.chat.post",
+    "work.review.resolve",
   ]);
   assert.deepEqual([...laterResourceTypes].sort(), [
+    "ai_prompt_artifact_version",
+    "communication_media",
+    "company_file",
+    "company_file_folder",
+    "company_file_version",
+    // Review correction (PR #1120, head 24b3184b): the university-form and
+    // partner-package exports (167/169) write document.export.* with this type.
+    "document_export",
     "gemini_proposal_review",
     "lead",
+    "membership",
+    "payment_receipt_file",
     "pilot_cohort_configuration",
     "pilot_cohort_membership",
     "reply_snippet",
+    "sales_manager_label",
+    "sales_register",
+    "sales_register_import",
+    "sales_register_target",
+    "staff_role",
+    "staff_task",
     // 088's own extension is ["student_case"] — already in the 071 baseline,
     // so it disappears once the final list is de-duplicated by Set below.
     "student_case",
+    "team_chat_message",
+    "work_review_case",
   ]);
 
   assert.deepEqual(
@@ -236,6 +331,140 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
       ...laterResourceTypes,
     ])].sort(),
   );
+});
+
+// Privacy pin (255's own header + PLAN_CHANGES.md «2026-09-29 — «Журнал
+// действий»: серверный allowlist аудита расширен на 72 действия (предложение,
+// миграция 255)», итог по «Правке лида» — 71): every
+// action 255 deliberately did NOT allowlist, and the 4 resource types that
+// must never be allowlisted, stay out of the browser-safe TS lists. Reasons
+// per action are in 255's header comment and the PLAN_CHANGES.md table; kept
+// here as a single static pin so a future edit cannot silently re-add one.
+const P7A_EXCLUDED_ACTIONS = [
+  // X1 — pre-account applicant intake; no staff route resolves the id.
+  "student.application.approve",
+  "student.application.reject",
+  // Student-writable → the projection would label the row "сотрудник"
+  // (actor_kind='user' regardless of who actually called the RPC).
+  "application.document.submit",
+  "application.catalog.select",
+  "application.requirements.initialize",
+  // X3 — credential-recovery internals, needs its own security review.
+  "staff.auth.prepare",
+  "staff.auth.recovery.observed",
+  // X4 — machine plumbing, no human decision, high volume.
+  "work.enqueue",
+  "work.enqueue.deduplicate",
+  "work.claim",
+  "work.lease.extend",
+  "work.retry.schedule",
+  "work.dead.letter",
+  "work.succeed",
+  "work.unknown.review",
+  "work.conflict.review",
+  "communication.leadagent.sessionstatus",
+  "communication.leadagent.sync",
+  "communication.webhook.persist",
+  "media.archive.claim",
+  "media.archive.finish",
+  "media.download.consume",
+  "company.file.download.consume",
+  "integration.amocrm.mapping.discovery.persist",
+  "configuration.waha.provision",
+  "platform.observability.probe",
+  // X5 — one-off deploy backfills.
+  "lead.sales.stage.normalized",
+  "staff.roles.migrated",
+  // Lead's correction (PR #1120, head 170efb75): document.slot.scaninvalidate
+  // moved here from a draft INCLUDE — same X5 class, its only writer is the
+  // DO $$ ... $$ block inside already-applied migration 115 (115:611-690),
+  // not a live function.
+  "document.slot.scaninvalidate",
+];
+const P7A_NEVER_ADD_RESOURCE_TYPES = [
+  "student_application",
+  "staff_auth_request",
+  "waha_session_observation",
+  "provider_webhook_event",
+];
+
+test("excluded audit actions and never-add resource types stay out of the browser-safe allowlists", () => {
+  assert.equal(P7A_EXCLUDED_ACTIONS.length, 29);
+  for (const action of P7A_EXCLUDED_ACTIONS) {
+    assert.equal(
+      PLATFORM_AUDIT_ACTIONS.includes(action),
+      false,
+      `${action} must stay out of PLATFORM_AUDIT_ACTIONS (see 255's header / PLAN_CHANGES.md for the reason)`,
+    );
+  }
+  for (const resourceType of P7A_NEVER_ADD_RESOURCE_TYPES) {
+    assert.equal(
+      PLATFORM_AUDIT_RESOURCE_TYPES.includes(resourceType),
+      false,
+      `${resourceType} must never enter PLATFORM_AUDIT_RESOURCE_TYPES`,
+    );
+  }
+});
+
+// Distinct from the privacy pin above: `case.contract_file.upload` is not a
+// privacy exclusion — 255 researched it as a 73rd INCLUDE candidate, but its
+// only writer (189's platform.record_case_contract_file_metadata) contains
+// an underscore ("contract_file") that platform.audit_events' own
+// audit_events_action_check CHECK (041:281, `^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$`)
+// rejects — a pre-existing, independent defect in already-applied migration
+// 189, confirmed by `DOCKER_CONTEXT=orbstack npm run
+// test:database:migration-boundaries` failing with "violates check
+// constraint \"audit_events_action_check\"" the first time anything (255's
+// own P7A fixture) tried to write that literal. Out of scope to fix here
+// (already-applied migration, product code); left out of both allowlists
+// until a separate fix lands. Pinned so a future edit does not silently
+// re-add it without also fixing 189.
+test("case.contract_file.upload stays out of the browser-safe allowlists until 189's action-check defect is fixed", () => {
+  assert.equal(PLATFORM_AUDIT_ACTIONS.includes("case.contract_file.upload"), false);
+  assert.equal(PLATFORM_AUDIT_RESOURCE_TYPES.includes("case_contract_file"), false);
+});
+
+// Review correction (PR #1120, head 24b3184b): the 9 document.export.* actions
+// are written by platform_private.record_document_export_event and
+// platform.complete_document_export_download. Their latest definitions (169)
+// write resource_type 'student_profile' for a profile export and
+// 'document_export' for a university-form or partner-package artifact. A
+// pair whose resource type is not allowlisted is silently dropped by
+// search_audit_events()/export_audit_events() (the journal's own failure
+// mode), so both types must be allowlisted — with Russian wording, so no raw
+// code is shown to staff and the neutral event wording does not claim that
+// every export is a profile.
+test("document.export.* is fully visible: both real resource types are allowlisted and worded", () => {
+  const writers = readFileSync(
+    new URL("../supabase/migrations/169_platform_persisted_partner_packages.sql", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    writers.includes(
+      "CASE WHEN p_artifact.kind='student_profile' THEN 'student_profile' ELSE 'document_export' END",
+    ),
+    "169's record_document_export_event no longer writes the student_profile/document_export pair",
+  );
+  assert.ok(
+    writers.includes(
+      "CASE WHEN a.kind='student_profile' THEN 'student_profile' ELSE 'document_export' END",
+    ),
+    "169's complete_document_export_download no longer writes the student_profile/document_export pair",
+  );
+  for (const resourceType of ["student_profile", "document_export"]) {
+    assert.ok(
+      PLATFORM_AUDIT_RESOURCE_TYPES.includes(resourceType),
+      `${resourceType} must be allowlisted for document.export.*`,
+    );
+    assert.equal(typeof journalObject(resourceType), "string");
+  }
+  const exportActions = PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("document.export."));
+  assert.equal(exportActions.length, 9);
+  for (const action of exportActions) {
+    const word = journalEvent(action);
+    assert.equal(typeof word, "string", `${action} has no journal wording`);
+    assert.equal(word.includes("анкеты"), false, `${action} wording must not assume a profile export`);
+  }
 });
 
 test("search input canonicalizes exact allowlisted filters and stable cursor pairs", () => {

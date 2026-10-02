@@ -7,19 +7,48 @@ export const PLATFORM_AUDIT_MAX_EXPORT_ROWS = 5_000;
 export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 
 // These projection allowlists mirror the server's final projection: 071's
-// baseline extended by the wrapper chain through migration 191 (ledger 254).
-// A later migration that adds a P7A action/resource type/field code always
-// wraps the previous `platform_private.p7a_safe_*`/`p7a_changed_field_codes`
-// function (rename-and-union, see e.g. 191's `p7a_safe_audit_actions_pre_case_chat`)
-// rather than replacing it, so the server list only ever grows. Drift between
-// this file and the live server allowlists is caught by the real-Postgres
-// suite `supabase/tests/platform_audit_journal_contract.sql` (run on the
-// latest migration chain by `scripts/test-postgres-authorization.sh`, checked
-// by `scripts/check-platform-audit-journal-contract.mjs`), not by a build-time
+// baseline extended by the wrapper chain through migration 255 (proposal,
+// not yet applied to any database — see 255's own header and
+// docs/PLAN_CHANGES.md «2026-09-29 — «Журнал действий»: серверный allowlist
+// аудита расширен на 72 действия (предложение, миграция 255)», whose
+// sub-sections correct the count to 71 actions (lead's PR #1120 head
+// 170efb75 correction) and add the 16th resource type `document_export`
+// (review correction, head 24b3184b)). Migration 191 (ledger 254) is the
+// latest APPLIED wrapper; 255 widens the allowlist by 71 actions / 16
+// resource types that are already written by canonical Supabase but were
+// never projected. `document_export` is the resource type of the
+// university-form and partner-package exports (167/169): the 9
+// `document.export.*` actions write `student_profile` for a profile export
+// and `document_export` for those artifacts, so both types are needed for
+// the 9 actions to be fully visible. Two
+// actions researched for 255 are deliberately left out: `case.contract_file.upload`
+// (189) turned out to violate `platform.audit_events`'s own
+// `audit_events_action_check` CHECK (a pre-existing, independent defect in
+// already-applied migration 189, unrelated to this widening: the literal
+// contains an underscore the CHECK's `[a-z][a-z0-9]*` segments forbid), and
+// `document.slot.scaninvalidate` turned out to be a one-off deploy backfill
+// (its only writer is a `DO $$ … $$` block inside already-applied migration
+// 115, not a live function) — see 255's own header for the full evidence on
+// both. A later migration that adds a P7A action/resource type/field
+// code always wraps the previous
+// `platform_private.p7a_safe_*`/`p7a_changed_field_codes` function
+// (rename-and-union, see e.g. 191's `p7a_safe_audit_actions_pre_case_chat`
+// or 255's `p7a_safe_audit_actions_pre_journal_widen`) rather than replacing
+// it, so the server list only ever grows. Drift between this file and the
+// live server allowlists is caught by the real-Postgres suite
+// `supabase/tests/platform_audit_journal_contract.sql` (run on the latest
+// migration chain by `scripts/test-postgres-authorization.sh`, checked by
+// `scripts/check-platform-audit-journal-contract.mjs`), not by a build-time
 // type. A row whose action, resource type or changed-field-codes are not
 // (yet) in these lists is not rejected outright: `parseSafeRow` keeps it with
 // `recognized: false` rather than dropping it or failing the whole page —
 // dropping would make the journal and the CSV export silently incomplete.
+// `expectedChangedFieldCodes` below needed no new branch for 255's 71
+// actions: 9 `document.export.*` actions already hit the existing
+// `action.startsWith("document.")` branch (mirroring the server's
+// `p7a_changed_field_codes` `document.%` LIKE branch, itself unchanged by
+// 255) and the remaining 62 fall through to the existing `["record_status"]`
+// default, exactly matching the server's own `ELSE` branch.
 export const PLATFORM_AUDIT_ACTIONS = [
   "ai.control.set",
   "ai.draft.generate",
@@ -35,19 +64,29 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "ai.retrieval.preview",
   "application.create",
   "application.details.update",
+  "application.document.review",
   "application.partner.details.update",
+  "application.requirements.save",
   "application.status.change",
   "audit.export",
   "autonomous.reply.control.set",
   "case.chat.await",
   "case.chat.post",
+  "case.coverage.return",
+  "case.coverage.start",
   "case.create",
   "case.curator.set",
+  "case.handoff.acknowledge",
+  "case.handoff.clarification",
   "case.handoff.create",
+  "case.handoff.decline",
   "case.lifecycle.change",
+  "case.next.action.change",
+  "case.payment.receipt.upload",
   "case.pipeline.move",
   "case.route.change",
   "case.sales.owner.sync",
+  "case.tranche.save",
   "case.update.append",
   "catalog.import.batch.create",
   "catalog.import.batch.review",
@@ -67,6 +106,17 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "communication.waha.history.project",
   "communication.waha.project",
   "communication.waha.project.retry",
+  "company.file.download.grant",
+  "company.file.file.archive",
+  "company.file.file.create",
+  "company.file.file.move",
+  "company.file.file.rename",
+  "company.file.folder.archive",
+  "company.file.folder.create",
+  "company.file.folder.move",
+  "company.file.folder.rename",
+  "company.file.upload.finalize",
+  "company.file.upload.reserve",
   "contract.draft.generate",
   "contract.draft.review",
   "contract.template.version.approve",
@@ -79,9 +129,19 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "country.requirement.version.retire",
   "decision.backlog.create",
   "decision.backlog.transition",
+  "docs.student.create",
   "document.checklist.baseline.seed",
   "document.download.grant",
   "document.download.sign.authorize",
+  "document.export.begun",
+  "document.export.download.failed",
+  "document.export.download.verified",
+  "document.export.failed",
+  "document.export.prepared",
+  "document.export.ready",
+  "document.export.reconciled",
+  "document.export.sealed",
+  "document.export.unknown",
   "document.media.attach.complete",
   "document.media.attach.reserve",
   "document.requirement.create",
@@ -111,6 +171,12 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "lead.admissions.gate.overridden",
   "lead.admissions.handoff.completed",
   "lead.cabinet.prepare",
+  "lead.lifecycle.change",
+  "lead.manual.create",
+  "lead.sale.conditions.save",
+  "lead.sales.workflow.changed",
+  "lead.website.receive",
+  "media.download.grant",
   "membership.permission.change",
   "membership.provision",
   "membership.role.change",
@@ -131,7 +197,19 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "post.contract.items.seed",
   "post.contract.report.generate",
   "post.contract.report.review",
+  "prompt.artifact.publish",
+  "prompt.artifact.retire",
   "rbac.bundle.upgrade",
+  "sales.register.archive",
+  "sales.register.create",
+  "sales.register.import",
+  "sales.register.lead.link",
+  "sales.register.lead.unlink",
+  "sales.register.manager.label",
+  "sales.register.pipeline",
+  "sales.register.restore",
+  "sales.register.target",
+  "sales.register.update",
   "snippet.archive",
   "snippet.create",
   "snippet.update",
@@ -140,12 +218,34 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "staff.department.restore",
   "staff.department.update",
   "staff.organization.details.change",
+  "staff.role.archive",
+  "staff.role.assignments",
+  "staff.role.copy",
+  "staff.role.create",
+  "staff.role.publish",
+  "staff.role.restore",
+  "staff.role.save",
+  "staff.system.admin",
+  "staff.task.create",
+  "staff.task.edit",
+  "staff.task.status",
   "student.portal.authority.activate",
+  "student.profile.export.attempted",
+  "student.profile.export.failed",
+  "student.profile.export.generated",
+  "student.profile.field.review",
+  "student.profile.recognition.publish",
+  "student.profile.start",
   "student.profile.upsert",
   "task.change",
   "task.create",
+  "team.chat.delete",
+  "team.chat.edit",
+  "team.chat.moderate",
+  "team.chat.post",
   "visa.create",
   "visa.status.change",
+  "work.review.resolve",
   "workflow.contract.create",
   "workflow.source.link",
   "workflow.source.register",
@@ -160,6 +260,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "ai_draft",
   "ai_draft_request",
   "ai_draft_request_knowledge_selection",
+  "ai_prompt_artifact_version",
   "ai_retrieval_request",
   "approved_knowledge_chunk_set",
   "approved_knowledge_version",
@@ -168,7 +269,11 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "catalog_import_batch",
   "catalog_import_candidate",
   "communication_conversation",
+  "communication_media",
   "communication_message",
+  "company_file",
+  "company_file_folder",
+  "company_file_version",
   "contract_template_version",
   "conversation_ai_control",
   "conversation_ai_fact",
@@ -178,6 +283,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "country_requirement_version",
   "country_requirement_version_source",
   "decision_backlog",
+  "document_export",
   "document_requirement",
   "document_slot",
   "document_version",
@@ -185,6 +291,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "gemini_proposal_review",
   "lead",
   "manual_send_authorization",
+  "membership",
   "messaging_integration_health_event",
   "notification",
   "notification_consent",
@@ -192,6 +299,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "organization_membership",
   "payment_event",
   "payment_obligation",
+  "payment_receipt_file",
   "pilot_cohort_configuration",
   "pilot_cohort_membership",
   "post_contract_item",
@@ -199,17 +307,25 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "post_contract_report",
   "provider_reconciliation_event",
   "reply_snippet",
+  "sales_manager_label",
+  "sales_register",
+  "sales_register_import",
+  "sales_register_target",
   "source_registry",
   "staff_department",
   "staff_organizational_details",
+  "staff_role",
+  "staff_task",
   "stop_factor",
   "student_case",
   "student_case_contract_draft",
   "student_case_update",
   "student_profile",
+  "team_chat_message",
   "university_application",
   "visa_case",
   "waha_history_reconciliation_run",
+  "work_review_case",
   "workflow_contract",
   "workflow_contract_version",
   "workflow_contract_version_source",

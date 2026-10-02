@@ -166,10 +166,14 @@ export function Shell({
     || (section.href !== "/portal" && pathname.startsWith(`${section.href}/`));
   const currentInMore = moreSections.some(isActive);
 
-  // Лист «Ещё» открыт для одного адреса: переход закрывает его сам, а «Назад»
-  // на тот же адрес не открывает его снова (состояние хранит адрес, не флаг).
+  // Лист «Ещё» принадлежит одному адресу: любая смена адреса — тап по разделу,
+  // «Назад», «Вперёд» — закрывает его, и возврат на тот же адрес его не
+  // открывает (Shell живёт в общем layout, состояние переживает навигацию).
+  // Сброс при смене адреса делается прямо в рендере, без эффекта: лист не
+  // успевает мигнуть открытым.
   const sheetId = useId();
   const [openAt, setOpenAt] = useState<string | null>(null);
+  if (openAt !== null && openAt !== pathname) setOpenAt(null);
   const moreOpen = openAt === pathname;
   const navRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -209,9 +213,7 @@ export function Shell({
           href={section.href}
           aria-current={active ? "page" : undefined}
           className="pt-nav-link"
-          onClick={() => {
-            if (section.href === pathname) setOpenAt(null);
-          }}
+          onClick={() => setOpenAt(null)}
         >
           <SectionIcon section={section.key} />
           <NavigationLabel

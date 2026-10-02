@@ -544,6 +544,36 @@ test("every mobile Portal section is reachable on screen from the tab bar and «
   await expect(more).toHaveAttribute("aria-expanded", "false");
   await expect(more).toHaveAttribute("data-current-inside", "");
   await expectPortalGeometry(page, `${testInfo.project.name} /portal/tests`);
+
+  // The sheet belongs to the page where it was opened: coming back to that page
+  // never reopens it by itself. The shell lives in the shared layout, so its
+  // state survives navigation (regression: a stale "opened at /portal/home").
+  const home = navigation.locator('a[href="/portal/home"]');
+  await home.click();
+  await expect(page).toHaveURL(/\/portal\/home$/);
+  await expect(home).toHaveAttribute("aria-current", "page");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await more.click();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await navigation.locator('a[href="/portal/tests"]').click();
+  await expect(page).toHaveURL(/\/portal\/tests$/);
+  await expect(more).toHaveAttribute("data-current-inside", "");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  // Back to the page where the sheet was opened, by the bar tab ...
+  await home.click();
+  await expect(page).toHaveURL(/\/portal\/home$/);
+  await expect(home).toHaveAttribute("aria-current", "page");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  // ... and by browser history, in both directions.
+  await more.click();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/portal\/tests$/);
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await page.goForward();
+  await expect(page).toHaveURL(/\/portal\/home$/);
+  await expect(home).toHaveAttribute("aria-current", "page");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
 });
 
 test("the portal top bar fits a 320 px screen", async ({ page }, testInfo) => {

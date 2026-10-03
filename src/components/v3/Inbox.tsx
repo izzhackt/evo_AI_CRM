@@ -46,9 +46,10 @@ export type InboxSelectedConversation = InboxConversation &
     olderMessagesHref: string | null;
     /**
      * `not_connected` — сессии WhatsApp для CRM нет вовсе; `unknown` — диалог
-     * из прежней сессии, о которой CRM состояния не знает.
+     * из прежней сессии, о которой CRM состояния не знает; `intake_off` —
+     * сессия работает, но приём сообщений выключен на сервере.
      */
-    channelState: "ready" | "attention" | "not_connected" | "unknown" | "unavailable";
+    channelState: "ready" | "attention" | "not_connected" | "unknown" | "unavailable" | "intake_off";
     channelObservedAt: string | null;
     canonicalContext: InboxCanonicalContext;
   }>;
@@ -70,6 +71,7 @@ function channelLabel(
   state: InboxSelectedConversation["channelState"],
 ): string {
   if (state === "ready") return "WhatsApp подключён";
+  if (state === "intake_off") return "Приём сообщений выключен на сервере";
   if (state === "attention") return "WhatsApp требует проверки";
   if (state === "unavailable") return "Не удалось получить состояние WhatsApp";
   if (state === "not_connected") return "WhatsApp не подключён к CRM";

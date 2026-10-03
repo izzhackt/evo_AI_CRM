@@ -21,6 +21,8 @@ import {
   platformWahaHealthDisplayStatus,
   readPlatformGeminiProviderAvailability,
 } from "@/lib/server/platform-provider-readiness";
+import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress-config";
+import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   normalizeJournalFilters,
@@ -61,10 +63,16 @@ type ProviderFacts = Readonly<{
 
 const readProviderFacts = cache(
   async (actor: ActivePlatformActor): Promise<ProviderFacts> => {
-    const [waha, amo] = await Promise.all([
+    const [recordedWaha, amo] = await Promise.all([
       getPlatformWahaSessionHealth(actor, "crm_primary"),
       readCanonicalAmoCrmCommandAvailability(),
     ]);
+    // The recorded status only says when the session last changed; the live
+    // probe says what it is now, so the integrations table does not go stale.
+    const waha = await withLivePlatformWahaHealth(
+      actor.organizationId,
+      recordedWaha,
+    );
     return {
       waha,
       wahaDisplay: platformWahaHealthDisplayStatus(waha),
@@ -99,7 +107,12 @@ export async function readIntegrations(
   assertAdminAuthority(actor);
   const facts = await readProviderFacts(actor);
   return settingsIntegrations({
-    waha: { display: facts.wahaDisplay, sessionStatus: facts.waha?.status, observedAt: facts.waha?.observedAt ?? null },
+    waha: {
+      display: facts.wahaDisplay,
+      sessionStatus: facts.waha?.status,
+      observedAt: facts.waha?.observedAt ?? null,
+      ingressEnabled: isPlatformWahaIngressEnabled(),
+    },
     gemini: facts.geminiDisplay,
     amo: facts.amo,
   }, now);

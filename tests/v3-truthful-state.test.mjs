@@ -167,6 +167,54 @@ test("settings: the warning above the sections exists only when work stops, and 
   assert.doesNotMatch(source("src/components/v3/settings/Settings.tsx"), /виден только администратору|>\s*админ\s*</u);
 });
 
+test("settings: a working WhatsApp session with intake switched off says so plainly instead of «подключён»", () => {
+  const working = { display: "ready", sessionStatus: "WORKING", observedAt: "2026-09-27T03:59:00.000Z" };
+  const off = byKey(settingsIntegrations({ ...PRODUCTION_26_09, waha: { ...working, ingressEnabled: false } }, NOW)).whatsapp;
+  assert.equal(off.state, "приём выключен");
+  assert.equal(off.tone, "warn");
+  assert.match(off.detail, /Приём сообщений выключен на сервере\./u);
+  assert.match(off.detail, /Входящие не попадают в CRM/u);
+  assert.equal(off.blocksWork, false, "a staged setup is not an alarm");
+  assert.deepEqual(off.action, {
+    handoff: "Передать техническому специалисту: включить приём сообщений на сервере",
+    link: { label: "Открыть WhatsApp", href: "/v3/inbox" },
+  });
+  // Switched on, or the fact not passed at all: «подключён» as before.
+  for (const ingressEnabled of [true, undefined]) {
+    const on = byKey(settingsIntegrations({ ...PRODUCTION_26_09, waha: { ...working, ingressEnabled } }, NOW)).whatsapp;
+    assert.equal(on.state, "подключён");
+    assert.equal(on.detail, null);
+  }
+  // A broken or missing session keeps its own state and adds the intake fact.
+  const blocked = byKey(settingsIntegrations({
+    ...PRODUCTION_26_09,
+    waha: { display: "blocked", sessionStatus: "SCAN_QR_CODE", observedAt: working.observedAt, ingressEnabled: false },
+  }, NOW)).whatsapp;
+  assert.equal(blocked.state, "заблокирован");
+  assert.equal(blocked.detail, "Требуется подключение WhatsApp по QR-коду. Приём сообщений выключен на сервере.");
+  const missing = byKey(settingsIntegrations({
+    ...PRODUCTION_26_09,
+    waha: { display: "not_configured", sessionStatus: undefined, observedAt: null, ingressEnabled: false },
+  }, NOW)).whatsapp;
+  assert.equal(missing.state, "не подключён");
+  assert.equal(missing.detail, "Приём сообщений выключен на сервере.");
+});
+
+test("WhatsApp page: the banner says intake is off when the session works but the server does not receive", () => {
+  const { Inbox } = inboxModule();
+  const view = { ...EMPTY_VIEW, channelState: "intake_off", channelObservedAt: "03.10 10:00" };
+  const page = Inbox({ view, profileHref: null, settingsHref: null });
+  assert.equal(page.props["data-testid"], "v3-inbox", "not the «не подключён» page: the session is connected");
+  const banner = findElements(page, (node) => node.props?.["data-testid"] === "v3-inbox-channel-status");
+  assert.equal(banner.length, 1);
+  assert.match(textOf(banner[0]), /Приём сообщений выключен на сервере/u);
+  assert.doesNotMatch(textOf(banner[0]), /WhatsApp подключён/u);
+  const adapter = source("src/lib/v3/inbox-source.ts");
+  assert.match(adapter, /channelState === "ready" && !isPlatformWahaIngressEnabled\(\)\s*\? "intake_off"/u);
+  assert.match(source("src/lib/v3/settings-source.ts"), /ingressEnabled: isPlatformWahaIngressEnabled\(\),/u);
+  assert.match(source("src/lib/server/platform-waha-ingress-config.ts"), /EVO_PLATFORM_WAHA_INGRESS_ENABLED === "1"/u);
+});
+
 test("settings source reads the integrations once and tells an unchecked database from a failed check by the switch", () => {
   const settings = source("src/lib/v3/settings-source.ts");
   assert.match(settings, /checked: isPlatformP7BObservabilityEnabled\(\),/u);

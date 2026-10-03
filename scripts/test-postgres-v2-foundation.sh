@@ -1199,6 +1199,7 @@ start_app() {
       EVO_PLATFORM_ORGANIZATION_ID="$platform_organization_id" \
       EVO_STUDENT_INVITE_LOCAL_ORIGIN="http://127.0.0.1:$app_port" \
       EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID="$platform_intake_sales_membership_id" \
+      EVO_PLATFORM_WAHA_INGRESS_ENABLED=1 \
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
       EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
       EVO_CLAMD_HOST="$clamd_host" \
@@ -1262,6 +1263,7 @@ start_app() {
       -u EVO_PLATFORM_P7A_AUDIT_ENABLED \
       -u SUPABASE_SERVICE_ROLE_KEY \
       NODE_ENV=development \
+      EVO_PLATFORM_WAHA_INGRESS_ENABLED=1 \
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
       EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
       EVO_CLAMD_HOST="$clamd_host" \

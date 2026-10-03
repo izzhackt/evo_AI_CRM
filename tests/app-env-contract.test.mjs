@@ -26,6 +26,7 @@ import {
 } from "../scripts/evo-app-env-contract.mjs";
 
 const TEST_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+const TEST_SALES_MEMBERSHIP_ID = "22222222-2222-4222-8222-222222222222";
 const TEST_SECRET_KEY = "sb_secret_ssssssssssssssssssssssss";
 const TEST_SUPABASE_PROJECT_REF = "aaaaaaaaaaaaaaaaaaaa";
 
@@ -38,6 +39,7 @@ EVO_PLATFORM_ORGANIZATION_ID=replace-with-organization-uuid
 EVO_PLATFORM_SUPABASE_SECRET_KEY=replace-with-server-secret-key
 EVO_PLATFORM_WAHA_INGRESS_ENABLED=0
 EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET=
+EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID=
 EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0
 EVO_PLATFORM_P7B_OBSERVABILITY_SECRET=
 ANTHROPIC_API_KEY=
@@ -53,6 +55,7 @@ function valid(overrides = {}) {
     EVO_PLATFORM_SUPABASE_SECRET_KEY: TEST_SECRET_KEY,
     EVO_PLATFORM_WAHA_INGRESS_ENABLED: "0",
     EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "",
+    EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: "",
     EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "0",
     EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "",
     ANTHROPIC_API_KEY: "",
@@ -284,6 +287,7 @@ test("enabled observability and WAHA ingress require complete server-only config
         EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "o".repeat(32),
         EVO_PLATFORM_WAHA_INGRESS_ENABLED: "1",
         EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "w".repeat(32),
+        EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: TEST_SALES_MEMBERSHIP_ID,
       }),
       expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
     }),
@@ -303,6 +307,63 @@ test("enabled observability and WAHA ingress require complete server-only config
     }),
     { ok: true, code: "valid" },
   );
+});
+
+test("enabled WAHA ingress requires the intake Sales membership UUID, and the example lists its name", () => {
+  const ingress = {
+    EVO_PLATFORM_WAHA_INGRESS_ENABLED: "1",
+    EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "w".repeat(32),
+  };
+  for (const membership of [
+    undefined,
+    "",
+    "not-a-uuid",
+    "00000000-0000-0000-0000-000000000000",
+  ]) {
+    expectInvalid(
+      valid({
+        ...ingress,
+        EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: membership ?? "",
+      }),
+      "enabled_feature_configuration_missing",
+    );
+  }
+  assert.deepEqual(
+    validateAppEnvironmentContract({
+      exampleText: example,
+      actualText: valid({
+        ...ingress,
+        EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: TEST_SALES_MEMBERSHIP_ID,
+      }),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+    }),
+    { ok: true, code: "valid" },
+  );
+
+  // A staged setup is valid: the secret and the intake owner are in place while
+  // the runtime switch is still off.
+  assert.deepEqual(
+    validateAppEnvironmentContract({
+      exampleText: example,
+      actualText: valid({
+        EVO_PLATFORM_WAHA_INGRESS_ENABLED: "0",
+        EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "w".repeat(32),
+        EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: TEST_SALES_MEMBERSHIP_ID,
+      }),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+    }),
+    { ok: true, code: "valid" },
+  );
+
+  // Ingress off: the name must still be present (empty is fine).
+  expectInvalid(
+    valid().replace(/^EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID=.*\n/mu, ""),
+    "required_env_name_missing",
+  );
+  // The shipped example carries the name, so a production env file without it
+  // is rejected before release.
+  const shipped = readFileSync("deploy/env.production.example", "utf8");
+  assert.match(shipped, /^EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID=$/mu);
 });
 
 test("closed CLI validates private files without printing their values", () => {

@@ -317,6 +317,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Label("profile_delete_requested", systemImage: "checkmark.circle")
                         .font(.subheadline)
+                        .motionBounceOnAppear()
                     if let date = PostgresTimestamp.dayLabel(
                         from: requestedAt,
                         locale: AppLocale.current

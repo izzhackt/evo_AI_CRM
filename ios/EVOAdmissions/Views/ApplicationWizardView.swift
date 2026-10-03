@@ -28,6 +28,9 @@ final class ApplicationWizardViewModel: ObservableObject {
     @Published var resendNotBefore: Date?
 
     let mode: Mode
+    /// Направление последней смены шага для анимации перехода; выставляется
+    /// прямо перед сменой шага, поэтому перерисовка уже видит его.
+    private(set) var stepDirection: StepDirection = .forward
     /// Свежий requestId на сессию мастера — как randomUUID() на рендер
     /// /apply (apply/page.tsx:65); ретраи отправки идемпотентны по нему.
     let requestId = UUID().uuidString.lowercased()
@@ -134,6 +137,7 @@ final class ApplicationWizardViewModel: ObservableObject {
         guard let previous = ApplicationWizardStep(rawValue: step.rawValue - 1) else { return }
         errorKey = nil
         conflictHint = false
+        stepDirection = .backward
         step = previous
         persistDraft()
     }
@@ -153,6 +157,7 @@ final class ApplicationWizardViewModel: ObservableObject {
             return
         }
         errorKey = nil
+        stepDirection = .forward
         step = ApplicationWizardStep(rawValue: step.rawValue + 1) ?? .account
         persistDraft()
     }
@@ -296,6 +301,7 @@ func applyCountryFlag(_ code: String) -> String {
 struct ApplicationWizardView: View {
     @ObservedObject var router: SessionRouter
     @StateObject private var model: ApplicationWizardViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let onSignIn: (() -> Void)?
 
     init(
@@ -326,9 +332,9 @@ struct ApplicationWizardView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if model.confirmation != nil || model.confirmationTerminal {
                     confirmationContent
+                        .motionEntrance()
                 } else {
-                    header
-                    stepContent
+                    wizardBlock
                 }
                 if let errorText {
                     VStack(alignment: .leading, spacing: 8) {
@@ -382,7 +388,11 @@ struct ApplicationWizardView: View {
         }
     }
 
-    private var header: some View {
+    /// Прогресс остаётся на месте и плавно заполняется (scale, не frame);
+    /// заголовок вопроса, подсказка и поля шага сменяются переходом с учётом
+    /// направления: новый шаг въезжает вперёд — справа, назад — слева
+    /// (Reduce Motion — только fade-in); прежний убирается сразу.
+    private var wizardBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(applyString("apply_step_\(stepKey(model.step))"))
@@ -393,19 +403,29 @@ struct ApplicationWizardView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            ProgressView(value: Double(model.step.rawValue + 1), total: 9)
-                .tint(Color("AccentColor"))
+            MotionProgressBar(value: Double(model.step.rawValue + 1), total: 9)
                 .accessibilityLabel(Text("apply_progress_label"))
                 .accessibilityValue(Text(String(format: applyString("apply_step_of"), model.step.rawValue + 1)))
-            Text(model.step == .account && model.signedInEmail != nil
-                ? applyString("apply_contacts_heading")
-                : applyString("apply_question_\(stepKey(model.step))"))
-                .font(.title2.bold())
-            if let copy = stepCopy {
-                Text(copy)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            ZStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(model.step == .account && model.signedInEmail != nil
+                            ? applyString("apply_contacts_heading")
+                            : applyString("apply_question_\(stepKey(model.step))"))
+                            .font(.title2.bold())
+                        if let copy = stepCopy {
+                            Text(copy)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    stepContent
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .id(model.step)
+                .transition(MotionTransition.step(model.stepDirection, reduceMotion: reduceMotion))
             }
+            .animation(reduceMotion ? Motion.fast : Motion.base, value: model.step)
         }
     }
 
@@ -454,6 +474,8 @@ struct ApplicationWizardView: View {
                 Spacer()
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(selected ? Color("AccentColor") : Color.secondary)
+                    .motionSymbolSwap(on: selected)
+                    .motionBounce(whenOn: selected)
             }
             .padding(14)
             .background(
@@ -461,7 +483,7 @@ struct ApplicationWizardView: View {
                     .fill(selected ? Color("AccentColor").opacity(0.12) : Color(.secondarySystemBackground))
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityLabel(Text(label))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }

@@ -32,11 +32,14 @@ struct ApplicationStatusView: View {
                 Text("apply_status_kicker")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
+                    .motionStagger(index: 0, key: "status.kicker")
                 Text(LocalizedStringKey(titleKey))
                     .font(.title.bold())
+                    .motionStagger(index: 1, key: "status.title")
                 Text(LocalizedStringKey(leadKey))
                     .font(.body)
                     .foregroundStyle(.secondary)
+                    .motionStagger(index: 2, key: "status.lead")
                 if let reason = application.decisionReason, !reason.isEmpty {
                     Text(reason)
                         .font(.subheadline)
@@ -48,6 +51,7 @@ struct ApplicationStatusView: View {
                 }
 
                 actions
+                    .motionStagger(index: 3, key: "status.actions")
 
                 Divider().padding(.vertical, 4)
 

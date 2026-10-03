@@ -939,6 +939,8 @@ struct RunnerOptionButton: View {
             HStack {
                 Image(systemName: selected ? "largecircle.fill.circle" : "circle")
                     .foregroundStyle(selected ? Color("AccentColor") : Color.secondary)
+                    .motionSymbolSwap(on: selected)
+                    .motionBounce(whenOn: selected)
                     // A11y (9b): кружок — декорация, состояние несёт trait.
                     .accessibilityHidden(true)
                 Text(label)
@@ -954,7 +956,7 @@ struct RunnerOptionButton: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .disabled(disabled)
         // A11y (9b): выбранность варианта — не только цвет/иконка.
         .accessibilityAddTraits(selected ? [.isSelected] : [])
@@ -977,6 +979,7 @@ struct ExplainPanelView: View {
             )
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(entry.correct ? Color.green : Color("AccentColor"))
+            .motionBounceOnAppear(if: entry.correct)
 
             switch exercise.type {
             case "choice": choiceExplain

@@ -64,30 +64,33 @@ struct MyAdmissionView: View {
         NavigationStack {
             List {
                 Section {
-                    LabeledContent {
-                        Text(statusKey)
-                    } label: {
-                        Text("home_case_status_label")
-                    }
-                    if let stage = model.overview.flatMap({ AdmissionStageLabel.key(for: $0.operationalStage) }) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("adm_stage_label")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(stage)
-                                .font(.headline)
+                    Group {
+                        LabeledContent {
+                            Text(statusKey)
+                        } label: {
+                            Text("home_case_status_label")
                         }
-                        .accessibilityElement(children: .combine)
-                    }
-                    if let nextAction = session.portalCase.nextAction, !nextAction.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("home_next_action_label")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(nextAction)
-                                .font(.subheadline)
+                        if let stage = model.overview.flatMap({ AdmissionStageLabel.key(for: $0.operationalStage) }) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("adm_stage_label")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(stage)
+                                    .font(.headline)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                        if let nextAction = session.portalCase.nextAction, !nextAction.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("home_next_action_label")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(nextAction)
+                                    .font(.subheadline)
+                            }
                         }
                     }
+                    .motionStagger(index: 0, key: "admission.status")
                 }
 
                 nextStepSection
@@ -97,26 +100,29 @@ struct MyAdmissionView: View {
                 evoSection
 
                 Section {
-                    NavigationLink {
-                        AdmissionDocumentsView()
-                    } label: {
-                        Label("adm_documents_title", systemImage: "doc.text")
+                    Group {
+                        NavigationLink {
+                            AdmissionDocumentsView()
+                        } label: {
+                            Label("adm_documents_title", systemImage: "doc.text")
+                        }
+                        NavigationLink {
+                            AdmissionPaymentsView()
+                        } label: {
+                            Label("adm_payments_title", systemImage: "creditcard")
+                        }
+                        NavigationLink {
+                            AdmissionNotificationsView(session: session)
+                        } label: {
+                            Label("adm_notifications_title", systemImage: "bell")
+                        }
+                        NavigationLink {
+                            MessagesThreadView()
+                        } label: {
+                            Label("messages_title", systemImage: "bubble.left.and.text.bubble.right")
+                        }
                     }
-                    NavigationLink {
-                        AdmissionPaymentsView()
-                    } label: {
-                        Label("adm_payments_title", systemImage: "creditcard")
-                    }
-                    NavigationLink {
-                        AdmissionNotificationsView(session: session)
-                    } label: {
-                        Label("adm_notifications_title", systemImage: "bell")
-                    }
-                    NavigationLink {
-                        MessagesThreadView()
-                    } label: {
-                        Label("messages_title", systemImage: "bubble.left.and.text.bubble.right")
-                    }
+                    .motionStagger(index: 2, key: "admission.links")
                 } footer: {
                     Text("messages_section_note")
                 }
@@ -136,35 +142,46 @@ struct MyAdmissionView: View {
 
     // MARK: - Следующий шаг (обзор 131 + очередь действий)
 
+    /// Stable name of the load state. Used as the section content's identity
+    /// (`.id` after `motionStagger`) so the loaded rows get a fresh entrance
+    /// instead of inheriting the spinner's already-shown state.
+    private var nextStepPhase: String {
+        model.isLoaded ? "loaded" : (model.loadFailed ? "failed" : "loading")
+    }
+
     @ViewBuilder
     private var nextStepSection: some View {
         Section {
-            if model.isLoaded {
-                if let primary = model.primaryAction {
-                    AdmissionActionRow(action: primary, isPrimary: true)
-                } else {
-                    // Честное «спокойное» состояние: план есть, действий нет —
-                    // или обзор ещё не опубликован (нет строки).
-                    Text(model.overview == nil ? "adm_calm_no_plan" : "adm_calm_done")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(Array(model.remainingActions.enumerated()), id: \.offset) { _, action in
-                    AdmissionActionRow(action: action, isPrimary: false)
-                }
-            } else if model.loadFailed {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("adm_section_unavailable")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Button("retry_button") {
-                        Task { await model.load() }
+            Group {
+                if model.isLoaded {
+                    if let primary = model.primaryAction {
+                        AdmissionActionRow(action: primary, isPrimary: true)
+                    } else {
+                        // Честное «спокойное» состояние: план есть, действий нет —
+                        // или обзор ещё не опубликован (нет строки).
+                        Text(model.overview == nil ? "adm_calm_no_plan" : "adm_calm_done")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                    .font(.subheadline)
+                    ForEach(Array(model.remainingActions.enumerated()), id: \.offset) { _, action in
+                        AdmissionActionRow(action: action, isPrimary: false)
+                    }
+                } else if model.loadFailed {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("adm_section_unavailable")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button("retry_button") {
+                            Task { await model.load() }
+                        }
+                        .font(.subheadline)
+                    }
+                } else {
+                    ProgressView()
                 }
-            } else {
-                ProgressView()
             }
+            .motionStagger(index: 1, key: "admission.next.\(nextStepPhase)")
+            .id(nextStepPhase)
         } header: {
             Text("adm_next_step_heading")
         } footer: {

@@ -85,6 +85,11 @@ struct EnglishView: View {
                         NavigationLink(value: lesson.lessonId) {
                             LessonRow(lesson: lesson)
                         }
+                        .motionStagger(
+                            index: module.id == model.modules.first?.id
+                                ? MotionPolicy.staggerIndex(of: lesson, in: module.lessons) : nil,
+                            key: "english.\(lesson.id)"
+                        )
                     }
 
                     // Повторение ошибок модуля (198: learning_review_v1) —

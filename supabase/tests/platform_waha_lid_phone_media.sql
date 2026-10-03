@@ -121,7 +121,8 @@ BEGIN
   IF p_event = 'message.ack' THEN
     proj := platform.project_claimed_waha_observation(org, work, attempt, pg_temp.n259_id(301), pg_temp.n259_id(2000 + p_n * 10 + 3));
     fin := platform.finish_waha_event_projection(org, work, attempt, (proj ->> 'disposition')::platform.durable_work_finish_outcome,
-      proj ->> 'error_code', proj ->> 'evidence_ref', NULL, pg_temp.n259_id(2000 + p_n * 10 + 4));
+      proj ->> 'error_code', proj ->> 'evidence_ref', CASE WHEN proj ->> 'disposition' = 'retryable_error' THEN 30 END,
+      pg_temp.n259_id(2000 + p_n * 10 + 4));
   ELSE
     proj := platform.project_claimed_waha_event(org, work, attempt, pg_temp.n259_id(301), pg_temp.n259_id(2000 + p_n * 10 + 3));
     fin := platform.finish_waha_webhook_work(org, work, attempt, (proj ->> 'disposition')::platform.durable_work_finish_outcome,
@@ -432,6 +433,8 @@ SELECT pg_temp.n259_assert(
   pg_temp.n259_bodies(pg_temp.n259_conv('79990000040@c.us')) =
     ARRAY['outbound:Первое исходящее', 'outbound:Второе исходящее', 'inbound:Ответ клиента'],
   'the first customer message creates the conversation and the earlier phone-sent messages are in it, in provider order');
+SELECT pg_temp.n259_assert(:'r'::JSONB -> 'deferred_phone_sent' = '{"deferred":2,"projected":2,"dropped":0}'::JSONB,
+  'the projection result records how many deferred messages were found, projected and dropped');
 SELECT pg_temp.n259_assert(
   (SELECT count(*) = 1 FROM platform.communication_conversations c
    WHERE c.id = pg_temp.n259_conv('79990000040@c.us') AND c.canonical_lead_id IS NOT NULL)
@@ -459,6 +462,51 @@ SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'disposition' = 'succeeded' AND :'r':
        JOIN platform_private.waha_message_bindings b ON b.communication_message_id = a.communication_message_id
        WHERE b.raw_message_id = 'true_79990000001@c.us_P1'),
   'an ACK of a phone-sent message is recorded');
+
+-- 4g. More than 200 deferred messages: the 200 MOST RECENT are projected in chronological order
+-- and the rest are counted as dropped, not silently lost.
+SELECT count(pg_temp.n259_run(199 + k, 'message.any', pg_temp.n259_out('true_79990000200@c.us_B' || k, '79990000200@c.us',
+  jsonb_build_object('body', 'D' || k)), TIMESTAMPTZ '2026-10-02 00:00:00+00' + k * INTERVAL '1 minute')) AS deferred_runs
+FROM generate_series(1, 205) AS k \gset
+SELECT pg_temp.n259_run(405, 'message.any', pg_temp.n259_in('false_79990000200@c.us_B0', '79990000200@c.us', '{"body":"Первый ответ клиента"}'),
+  TIMESTAMPTZ '2026-10-03 00:00:00+00') AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB -> 'deferred_phone_sent' = '{"deferred":205,"projected":200,"dropped":5}'::JSONB,
+  'beyond 200 deferred messages the drop is counted in the projection result');
+SELECT pg_temp.n259_assert(
+  (SELECT count(*) = 201 AND min(m.body_text) FILTER (WHERE m.direction = 'outbound') = 'D10'
+     AND (array_agg(m.body_text ORDER BY m.created_at, m.id))[1] = 'D6'
+     AND (array_agg(m.body_text ORDER BY m.created_at, m.id))[200] = 'D205'
+     AND (array_agg(m.body_text ORDER BY m.created_at, m.id))[201] = 'Первый ответ клиента'
+   FROM platform.communication_messages m WHERE m.conversation_id = pg_temp.n259_conv('79990000200@c.us')),
+  'the newest 200 (D6..D205) are in the conversation in chronological order, D1..D5 are not');
+
+-- 4h. ACKs with no message to update are observed, not retried; an ACK that may still find its binding is.
+-- A deferred phone-sent message (its chat has no conversation) ...
+SELECT pg_temp.n259_run(410, 'message.any', pg_temp.n259_out('true_79990000300@c.us_AD1', '79990000300@c.us', '{"body":"Deferred, then acked"}')) AS r \gset
+SELECT pg_temp.n259_assert((:'r'::JSONB ->> 'deferred')::BOOLEAN, 'the message is deferred');
+SELECT pg_temp.n259_run(411, 'message.ack', jsonb_build_object('id', 'true_79990000300@c.us_AD1', 'fromMe', true, 'ack', 2, 'ackName', 'DEVICE',
+  'to', '79990000300@c.us')) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'disposition' = 'succeeded' AND :'r'::JSONB ->> 'finish_state' = 'succeeded'
+  AND :'r'::JSONB ->> 'ignored' = 'ack_without_projected_message'
+  AND NOT EXISTS (SELECT 1 FROM platform_private.waha_event_projection_effects e WHERE e.work_item_id = (:'r'::JSONB ->> 'work_item_id')::UUID),
+  'an ACK of a deferred phone-sent message is observed: no retry, no effect row');
+-- ... and an id manual send already bound (the CRM's own send) are never retried.
+SELECT pg_temp.n259_run(412, 'message.ack', jsonb_build_object('id', 'true_79990000001@c.us_MB1', 'fromMe', true, 'ack', 3, 'ackName', 'READ',
+  'to', '79990000001@c.us')) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'disposition' = 'succeeded' AND :'r'::JSONB ->> 'ignored' = 'ack_without_projected_message',
+  'an ACK of a manual-send-bound id is observed, not retried');
+-- An ACK whose message has no evidence at all, or whose original event was a CRM API send that is not bound yet,
+-- keeps the retry (the binding may still appear).
+SELECT pg_temp.n259_run(413, 'message.ack', jsonb_build_object('id', 'true_79990000001@c.us_UNKNOWN', 'fromMe', true, 'ack', 1, 'ackName', 'SERVER',
+  'to', '79990000001@c.us')) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'disposition' = 'retryable_error' AND :'r'::JSONB ->> 'error_code' = 'waha_ack_binding_pending',
+  'an ACK with no evidence of its message stays retryable');
+SELECT pg_temp.n259_event(414, 'message.any', pg_temp.n259_out('true_79990000001@c.us_APIPEND', '79990000001@c.us',
+  '{"body":"CRM send, binding not visible yet","source":"api"}')) AS ev_apipend \gset
+SELECT pg_temp.n259_run(415, 'message.ack', jsonb_build_object('id', 'true_79990000001@c.us_APIPEND', 'fromMe', true, 'ack', 1, 'ackName', 'SERVER',
+  'to', '79990000001@c.us')) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'error_code' = 'waha_ack_binding_pending',
+  'an ACK of a CRM API send whose binding is not visible yet stays retryable');
 
 -- ---------------------------------------------------------------------------
 -- 5. Constraints and catalog.

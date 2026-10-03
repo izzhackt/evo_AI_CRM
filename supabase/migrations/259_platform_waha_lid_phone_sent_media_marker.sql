@@ -29,7 +29,9 @@
 --     conversation, binding or lead (every lead/conversation reader requires the
 --     binding's source event to be an inbound customer message): it is recorded
 --     as a deferred result and projected, in order, when the customer's first
---     inbound message creates the conversation (at most 200 per chat).
+--     inbound message creates the conversation (the 200 most recent per chat;
+--     how many were deferred, projected and dropped is kept in that
+--     projection's result).
 --  3. Typed media marker: «📎 Фото|Видео|Голосовое сообщение|Аудио|Стикер —
 --     откройте в WhatsApp продаж» or «📎 Файл: <имя> — откройте в WhatsApp
 --     продаж», the caption on the next line. Media is never downloaded. A
@@ -49,8 +51,12 @@
 --  * Phone-alternative and push-name field names follow the WAHA release notes
 --    and issues cited above and are engine specific; when none is present the
 --    safe fallbacks (no phone, «WhatsApp контакт») apply.
---  * A phone-sent message is deferred without a time limit and at most 200 per
---    chat are projected into the conversation a customer message creates.
+--  * A phone-sent message is deferred without a time limit; the 200 most recent
+--    per chat are projected into the conversation a customer message creates
+--    and the rest are counted as dropped in that projection's result.
+--  * ACKs of a phone-sent message that was deferred (or of a CRM API send whose
+--    provider id manual send already bound) are answered as observed instead of
+--    retried: no projected message exists for them to update.
 --  * Groups, Status, broadcast lists and channels are never conversations.
 -- ============================================================
 
@@ -549,8 +555,10 @@ END
 $$;
 
 -- A phone-sent message may be acknowledged like any other bound outbound
--- message. Insert the new source into the one allow-list of the ACK projector;
--- its owner, grants, definer, search_path and volatility must not change.
+-- message: the new source joins the ACK projector's allow-list. An ACK with no
+-- message to update (a deferred phone-sent message, a manual-send-bound id) is
+-- answered as observed. The projector's owner, grants, definer, search_path and
+-- volatility must not change.
 DO $ack_phone_sent$
 DECLARE
   target CONSTANT REGPROCEDURE :=
@@ -560,15 +568,29 @@ DECLARE
     E'''private_waha_binding'',\n          ''private_waha_history_binding''\n        )';
   replacement CONSTANT TEXT :=
     E'''private_waha_binding'',\n          ''private_waha_history_binding'',\n          ''private_waha_phone_binding''\n        )';
+  -- An ACK for a message that has no private message binding is retried while
+  -- the binding may still appear (a send racing its own binding). It is not
+  -- retried when there is nothing to bind: the message is a phone-sent one
+  -- that was deferred (no conversation yet) or never projected, or its id is
+  -- already bound by manual send, whose ACK state is read back by the exact
+  -- reconciliation, not by this projector.
+  pending_needle CONSTANT TEXT :=
+    E'      IF message_binding.id IS NULL THEN\n        error_code := ''waha_ack_binding_pending'';';
+  pending_replacement CONSTANT TEXT :=
+    E'      IF message_binding.id IS NULL\n        AND (\n          EXISTS (\n            SELECT 1\n            FROM platform_private.manual_send_provider_bindings AS manual_binding\n            WHERE manual_binding.organization_id = p_organization_id\n              AND manual_binding.waha_session_name = source_event.waha_session_name\n              AND manual_binding.raw_message_id = ack_raw_message_id\n          )\n          OR EXISTS (\n            SELECT 1\n            FROM platform_private.provider_webhook_events AS original\n            WHERE original.organization_id = p_organization_id\n              AND original.provider = ''waha''\n              AND original.waha_session_name = source_event.waha_session_name\n              AND original.verification_status = ''verified''\n              AND original.event_type IN (''message'', ''message.any'')\n              AND original.payload_id = ack_raw_message_id\n              AND original.raw_payload #> ''{payload,fromMe}'' = ''true''::JSONB\n              AND lower(COALESCE(original.raw_payload #>> ''{payload,source}'', '''')) = ''app''\n          )\n        )\n      THEN\n        evidence_ref := ''waha-observation:'' || source_event.id::TEXT\n          || '':ack_without_projected_message'';\n        result := platform_private.p5b_projection_result(\n          p_organization_id,\n          p_work_item_id,\n          p_attempt_id,\n          ''succeeded'',\n          evidence_ref,\n          NULL\n        ) || jsonb_build_object(\n          ''ignored'', ''ack_without_projected_message''\n        );\n        -- An effect for an ACK must name its message; there is none.\n        persist_effect := FALSE;\n        EXIT project_observation;\n      END IF;\n\n' || pending_needle;
   before_contract RECORD;
   after_contract RECORD;
 BEGIN
   IF (
     pg_catalog.length(definition)
     - pg_catalog.length(pg_catalog.replace(definition, needle, ''))
-  ) <> pg_catalog.length(needle) THEN
+  ) <> pg_catalog.length(needle)
+  OR (
+    pg_catalog.length(definition)
+    - pg_catalog.length(pg_catalog.replace(definition, pending_needle, ''))
+  ) <> pg_catalog.length(pending_needle) THEN
     RAISE EXCEPTION
-      'The ACK projector allow-list is not the expected single occurrence'
+      'The ACK projector allow-list or pending-binding branch is not the expected single occurrence'
       USING ERRCODE = '55000';
   END IF;
 
@@ -579,7 +601,11 @@ BEGIN
   FROM pg_catalog.pg_proc AS routine
   WHERE routine.oid = target::OID;
 
-  EXECUTE pg_catalog.replace(definition, needle, replacement);
+  EXECUTE pg_catalog.replace(
+    pg_catalog.replace(definition, needle, replacement),
+    pending_needle,
+    pending_replacement
+  );
 
   SELECT routine.proowner, routine.proacl, routine.prosecdef,
     routine.proconfig, routine.provolatile, routine.proleakproof,
@@ -1021,36 +1047,51 @@ $$;
 
 -- Phone-sent messages that arrived before the conversation existed were
 -- recorded as deferred results. When the customer's first message creates the
--- conversation they are projected in provider order (at most 200 per chat).
+-- conversation, the 200 MOST RECENT of them are projected in chronological
+-- order. Anything older is not projected; the count is returned so the
+-- projection can keep it in its result (evidence, not a silent drop).
 CREATE FUNCTION platform_private.backfill_waha_deferred_phone_sent(
   p_organization_id UUID,
   p_conversation_id UUID,
   p_sales_participant_id UUID,
   p_chat_ids TEXT[]
 )
-RETURNS INTEGER
+RETURNS JSONB
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
+  backfill_limit CONSTANT INTEGER := 200;
   deferred RECORD;
+  deferred_count INTEGER;
   projected_count INTEGER := 0;
 BEGIN
+  SELECT count(DISTINCT effect.source_webhook_event_id)
+  INTO deferred_count
+  FROM platform_private.waha_work_projection_effects AS effect
+  WHERE effect.organization_id = p_organization_id
+    AND effect.result ? 'deferred_chat_ids'
+    AND (effect.result -> 'deferred_chat_ids') ?| p_chat_ids;
+
   FOR deferred IN
-    SELECT DISTINCT
-      event.id AS event_id,
-      event.provider_occurred_at
-    FROM platform_private.waha_work_projection_effects AS effect
-    JOIN platform_private.provider_webhook_events AS event
-      ON event.organization_id = effect.organization_id
-     AND event.id = effect.source_webhook_event_id
-    WHERE effect.organization_id = p_organization_id
-      AND effect.result ? 'deferred_chat_ids'
-      AND (effect.result -> 'deferred_chat_ids') ?| p_chat_ids
-    ORDER BY event.provider_occurred_at, event.id
-    LIMIT 200
+    SELECT recent.event_id
+    FROM (
+      SELECT DISTINCT
+        event.id AS event_id,
+        event.provider_occurred_at AS occurred_at
+      FROM platform_private.waha_work_projection_effects AS effect
+      JOIN platform_private.provider_webhook_events AS event
+        ON event.organization_id = effect.organization_id
+       AND event.id = effect.source_webhook_event_id
+      WHERE effect.organization_id = p_organization_id
+        AND effect.result ? 'deferred_chat_ids'
+        AND (effect.result -> 'deferred_chat_ids') ?| p_chat_ids
+      ORDER BY event.provider_occurred_at DESC, event.id DESC
+      LIMIT backfill_limit
+    ) AS recent
+    ORDER BY recent.occurred_at, recent.event_id
   LOOP
     IF platform_private.project_waha_phone_sent_message(
         p_organization_id,
@@ -1063,7 +1104,11 @@ BEGIN
     END IF;
   END LOOP;
 
-  RETURN projected_count;
+  RETURN jsonb_build_object(
+    'deferred', deferred_count,
+    'projected', projected_count,
+    'dropped', GREATEST(deferred_count - backfill_limit, 0)
+  );
 END
 $$;
 
@@ -1129,6 +1174,7 @@ DECLARE
   conversation_subject TEXT;
   lock_key TEXT;
   outbound_result JSONB;
+  deferred_backfill JSONB;
 BEGIN
   PERFORM platform_private.require_p2g_service();
 
@@ -1633,7 +1679,7 @@ BEGIN
 
         -- Messages the sales team sent from the phone before this first
         -- customer message belong to the same conversation.
-        PERFORM platform_private.backfill_waha_deferred_phone_sent(
+        deferred_backfill := platform_private.backfill_waha_deferred_phone_sent(
           p_organization_id,
           created_conversation_id,
           created_sales_participant_id,
@@ -1883,7 +1929,10 @@ BEGIN
         'sales_participant_id', sales_participant.id,
         'human_review_required', human_review_required,
         'handoff_event_id', handoff_event_id
-      );
+      ) || CASE
+        WHEN deferred_backfill IS NULL THEN '{}'::JSONB
+        ELSE jsonb_build_object('deferred_phone_sent', deferred_backfill)
+      END;
     ELSE
       error_code := 'waha_event_type_unsupported';
       evidence_ref := 'waha-projection:' || source_event.id::TEXT

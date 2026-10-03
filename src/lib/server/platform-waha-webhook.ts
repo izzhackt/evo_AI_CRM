@@ -78,7 +78,7 @@ type WahaEventDescriptor = Readonly<{
 
 type WahaIgnoredEvent = Readonly<{
   ignored: true;
-  reason: "non_direct_chat" | "empty_message";
+  reason: "non_direct_chat" | "system_notice";
 }>;
 
 type PersistedEvent = Readonly<{
@@ -148,6 +148,30 @@ function isNonDirectChatEvent(payload: JsonObject): boolean {
     data?.to,
     dataId?.remote,
   ].some(isNonDirectChatId);
+}
+
+// WEBJS reports WhatsApp's own notices through `message.any` with these
+// `_data.type` values (whatsapp-web.js MessageTypes): the end-to-end
+// encryption banner, template notifications, group notifications, protocol
+// messages and revoked-message stubs. They carry nothing a customer wrote, so
+// they are the only text-less events that are ignored. Every other direct
+// event without text or media (a location pin, a contact card, a poll, an
+// undecryptable message, ...) is a customer message the staff must see: it
+// reaches the projection, which stores the generic review notice and a handoff.
+const SYSTEM_MESSAGE_TYPES = new Set([
+  "e2e_notification",
+  "notification_template",
+  "gp2",
+  "protocol",
+  "revoked",
+]);
+
+function isSystemNotice(payload: JsonObject): boolean {
+  const data = isObject(payload._data) ? payload._data : null;
+  return (
+    typeof data?.type === "string" &&
+    SYSTEM_MESSAGE_TYPES.has(data.type.trim().toLowerCase())
+  );
 }
 
 // WAHA reports media as `hasMedia: true` and/or a `media` object; the caption
@@ -276,11 +300,12 @@ function parseMessageAny(
     if (hasText && (payload.body as string).length > 4_000) {
       return reject(400, "invalid_message_body");
     }
-    // A media-only message has no text. It must still reach the projection,
-    // which stores the fixed staff-review marker; the media is not downloaded.
-    // An event with neither text nor media carries nothing to store.
-    if (!hasText && !carriesMedia(payload)) {
-      return { ignored: true, reason: "empty_message" };
+    // A message without text (media, a location pin, a contact card, ...) must
+    // still reach the projection, which stores a typed media marker or the
+    // generic staff-review notice with a handoff; nothing is downloaded. Only
+    // WhatsApp's own notices are ignored.
+    if (!hasText && !carriesMedia(payload) && isSystemNotice(payload)) {
+      return { ignored: true, reason: "system_notice" };
     }
   }
   const occurredAt = parseOccurredAt(body.timestamp ?? payload.timestamp);
@@ -527,6 +552,15 @@ export function createPlatformWahaWebhookHandler(
   dependencies: PlatformWahaWebhookDependencies = defaultDependencies,
 ): (request: Request) => Promise<Response> {
   return async (request: Request) => {
+    // The ingress is inert unless the owner switched it on with exactly "1":
+    // refused before the body is read, the signature checked, the secret or
+    // the backend configuration touched, or any Supabase call made, so a
+    // present secret alone never opens the route. 503 is the same answer every
+    // other "not configured" state gives.
+    if (process.env.EVO_PLATFORM_WAHA_INGRESS_ENABLED !== "1") {
+      return errorResponse(503, "waha_webhook_unavailable");
+    }
+
     try {
       const rawBody = new Uint8Array(await request.arrayBuffer());
       if (rawBody.byteLength === 0) return errorResponse(400, "invalid_json");

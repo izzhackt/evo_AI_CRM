@@ -14,6 +14,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function configureEnvironment() {
+  process.env.EVO_PLATFORM_WAHA_INGRESS_ENABLED = "1";
   process.env.EVO_PLATFORM_ORGANIZATION_ID = ORGANIZATION_ID;
   process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
   process.env.EVO_PLATFORM_SUPABASE_SECRET_KEY =
@@ -1052,41 +1053,136 @@ test("POST stores a media-only message through the projection without downloadin
   }
 });
 
-test("POST answers 200 ignored for a direct event that has neither text nor media", async () => {
+test("POST projects a direct event with neither text nor media for staff review and ignores only WhatsApp's own notices", async () => {
   configureEnvironment();
-  const calls = [];
-  const handler = createPlatformWahaWebhookHandler({
-    createServiceClient: () => platformClient(recordingRpc(calls)),
-  });
-  for (const payload of [
+  const reviewed = [
     { body: "" },
     { body: "   " },
     { body: null },
     {},
     { hasMedia: false, body: "" },
-  ]) {
+    // A location pin, a contact card and a poll are customer messages.
+    { body: "", location: { latitude: 42.87, longitude: 74.59 } },
+    { body: "", vCards: ["BEGIN:VCARD"], _data: { type: "vcard" } },
+    { body: "", _data: { type: "poll_creation" } },
+    { body: "", _data: { type: "ciphertext" } },
+  ];
+  for (const payload of reviewed) {
+    const calls = [];
+    const handler = createPlatformWahaWebhookHandler({
+      createServiceClient: () => platformClient(recordingRpc(calls)),
+    });
+    const event = {
+      id: "evt-no-text",
+      event: "message.any",
+      session: "crm_primary",
+      timestamp: 1_727_745_026,
+      payload: {
+        id: "false_79990000000@c.us_NOTEXT",
+        from: "79990000000@c.us",
+        fromMe: false,
+        ...payload,
+      },
+    };
+    const response = await handler(signedRequest(event));
+    assert.equal(response.status, 200, JSON.stringify(payload));
+    assert.equal((await response.json()).status, "projected", JSON.stringify(payload));
+    // The event is kept as received and reaches the projection.
+    assert.deepEqual(calls[0].args.p_raw_payload, event);
+    assert.equal(
+      calls.some((call) => call.name === "project_claimed_waha_event"),
+      true,
+    );
+  }
+
+  const notices = ["e2e_notification", "notification_template", "gp2", "protocol", "revoked"];
+  for (const type of notices) {
+    const calls = [];
+    const handler = createPlatformWahaWebhookHandler({
+      createServiceClient: () => platformClient(recordingRpc(calls)),
+    });
     const response = await handler(
       signedRequest({
-        id: "evt-empty",
+        id: `evt-${type}`,
         event: "message.any",
         session: "crm_primary",
         timestamp: 1_727_745_026,
         payload: {
-          id: "false_79990000000@c.us_EMPTY",
+          id: `false_79990000000@c.us_${type}`,
           from: "79990000000@c.us",
           fromMe: false,
-          ...payload,
+          body: "",
+          _data: { type },
         },
       }),
     );
-    assert.equal(response.status, 200, JSON.stringify(payload));
+    assert.equal(response.status, 200, type);
     assert.deepEqual(await response.json(), {
       ok: true,
       status: "ignored",
-      reason: "empty_message",
+      reason: "system_notice",
     });
+    assert.deepEqual(calls, [], type);
   }
-  assert.deepEqual(calls, []);
+});
+
+test("POST is inert unless EVO_PLATFORM_WAHA_INGRESS_ENABLED is exactly 1, even with a valid signature and a present secret", async () => {
+  configureEnvironment();
+  const body = {
+    id: "evt-gated",
+    event: "message.any",
+    session: "crm_primary",
+    timestamp: 1_727_745_026,
+    payload: {
+      id: "false_79990000000@c.us_GATED",
+      from: "79990000000@c.us",
+      fromMe: false,
+      body: "private applicant text",
+    },
+  };
+  for (const value of [undefined, "", "0", "true", " 1", "1 ", "01", "yes"]) {
+    if (value === undefined) delete process.env.EVO_PLATFORM_WAHA_INGRESS_ENABLED;
+    else process.env.EVO_PLATFORM_WAHA_INGRESS_ENABLED = value;
+    let clientCreations = 0;
+    const handler = createPlatformWahaWebhookHandler({
+      createServiceClient: () => {
+        clientCreations += 1;
+        throw new Error("Supabase must not be called");
+      },
+    });
+    // A signed event, an unsigned one and garbage get the same answer and no side effect.
+    for (const request of [
+      signedRequest(body),
+      new Request("http://localhost/api/v2/whatsapp/inbound", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      new Request("http://localhost/api/v2/whatsapp/inbound", {
+        method: "POST",
+        body: "not json",
+      }),
+    ]) {
+      const response = await handler(request);
+      const serialized = await response.text();
+      assert.equal(response.status, 503, String(value));
+      assert.deepEqual(JSON.parse(serialized), {
+        ok: false,
+        error: "waha_webhook_unavailable",
+      });
+      assert.equal(serialized.includes("private applicant text"), false);
+      assert.equal(request.bodyUsed, false, "the body is not even read");
+    }
+    assert.equal(clientCreations, 0, String(value));
+  }
+
+  // Exactly "1" opens it again.
+  process.env.EVO_PLATFORM_WAHA_INGRESS_ENABLED = "1";
+  const calls = [];
+  const handler = createPlatformWahaWebhookHandler({
+    createServiceClient: () => platformClient(recordingRpc(calls)),
+  });
+  assert.equal((await handler(signedRequest(body))).status, 200);
 });
 
 test("POST still rejects an oversized text and a malformed direct sender with 400", async () => {

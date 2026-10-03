@@ -17,10 +17,12 @@ struct SignInView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("evo_admissions_app_name")
                     .font(.largeTitle.bold())
+                    .motionStagger(index: 0, key: "signin.title")
 
                 Text("sign_in_title")
                     .font(.title3)
                     .foregroundStyle(.secondary)
+                    .motionStagger(index: 1, key: "signin.subtitle")
 
                 VStack(alignment: .leading, spacing: 12) {
                     TextField("sign_in_email_placeholder", text: $email)
@@ -36,6 +38,7 @@ struct SignInView: View {
                         .padding(12)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
                 }
+                .motionStagger(index: 2, key: "signin.form")
 
                 if let signInError = router.signInError {
                     Text(signInError)
@@ -61,6 +64,7 @@ struct SignInView: View {
                 // A11y (9b): во время входа label кнопки — ProgressView без
                 // текста; VoiceOver должен по-прежнему слышать «Войти».
                 .accessibilityLabel(Text("sign_in_button"))
+                .motionStagger(index: 3, key: "signin.button")
 
                 // PORT-9a (план §4 «Не зарегистрирован»): анкета и приём
                 // приглашения доступны рядом со входом.
@@ -89,6 +93,7 @@ struct SignInView: View {
                     .disabled(isAuthenticating)
                     .accessibilityLabel(Text("apply_invite_entry_button"))
                 }
+                .motionStagger(index: 4, key: "signin.secondary")
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)

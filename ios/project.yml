@@ -102,6 +102,7 @@ targets:
       - path: EVOAdmissions/Services/ApplicationIntakeModels.swift
       - path: EVOAdmissions/Services/ApplicationIntakePolicy.swift
       - path: EVOAdmissions/Services/ApplicationIntakeTransfer.swift
+      - path: EVOAdmissions/Services/MotionPolicy.swift
       - path: ../src/lib/university-photo-library.json
         buildPhase: resources
       - path: ../src/lib/university-geo-library.json

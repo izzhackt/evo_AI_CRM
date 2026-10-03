@@ -92,6 +92,35 @@ passes no custom `auth.storage`, so a signed-in session is written to the
 Keychain (service `supabase.gotrue.swift`) and survives relaunches with no
 code of ours involved.
 
+## Анимации (02.10.2026)
+
+Единый словарь движения кабинета студента — те же значения, что у веб-токенов
+`--pt-motion-*` (160/200/240 мс, ease-out `cubic-bezier(0, 0, 0.2, 1)`), см.
+запись `docs/PLAN_CHANGES.md` «2026-10-02 — анимации кабинета студента».
+
+- `Services/MotionPolicy.swift` — числа и правила без SwiftUI (длительности,
+  сдвиг 6 pt, шаг стаггера 30 мс для первых 6 карточек, `progressFraction`,
+  `StepDirection`, `MotionHistory`); покрыт `MotionPolicyTests`.
+- `Views/Motion.swift` — `Motion.*` (Animation), `motionEntrance` /
+  `motionStagger` (fade + подъём 6 pt, один раз за сессию на ключ),
+  `PressableButtonStyle` (`.pressable`, scale 0.98), `MotionProgressBar`
+  (заполнение scaleX, не frame), `MotionTransition.step` (шаг анкеты и вопрос
+  теста: новый въезжает со стороны движения), `motionBounce` /
+  `motionSymbolSwap` / `motionBounceOnAppear` (SF Symbols `symbolEffect`).
+- Только transform + opacity; ничего не зацикливается; потолок 400 мс — для
+  анимаций `Motion.*` (задержка + длительность, `MotionPolicy.ceiling`).
+  Системные эффекты SF Symbols (`bounce`, `replace`, около 0,4–0,5 с) этим
+  потолком не управляются; их длительность задаёт система.
+- Секции с загрузкой (Home, «Моё поступление»): после `.motionStagger(…)`
+  ставится `.id(phase)`, чтобы загруженные строки получили собственное
+  появление, а не унаследовали «уже показано» от индикатора загрузки.
+- Reduce Motion (`accessibilityReduceMotion`): появление — только fade, без
+  подъёма и задержек; нажатие — затемнение вместо scale; прогресс — мгновенно;
+  шаги — только fade-in; symbol-эффекты не играют.
+- Новый экран со списком: `ForEach` → `.motionStagger(index:
+  MotionPolicy.staggerIndex(of: item, in: items), key: "…")`; не придумывайте
+  собственные длительности — берите `Motion.*`.
+
 ## Bundle identifier
 
 `com.evoadmissions.app` is **provisional**, set for this foundation slice so

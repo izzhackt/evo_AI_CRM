@@ -120,14 +120,18 @@ struct ProfessionsContentView: View {
                     .padding(14)
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
 
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(model.cards) { card in
                         NavigationLink(value: card.cardId) {
                             ProfessionTile(card: card)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
+                        .motionStagger(
+                            index: MotionPolicy.staggerIndex(of: card, in: model.cards),
+                            key: "professions.\(card.cardId)"
+                        )
                     }
                 }
             }

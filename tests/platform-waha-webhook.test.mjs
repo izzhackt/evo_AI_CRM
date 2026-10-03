@@ -1115,3 +1115,132 @@ test("POST still rejects an oversized text and a malformed direct sender with 40
   assert.equal(malformed.status, 400);
   assert.equal((await malformed.json()).error, "invalid_message_sender");
 });
+
+test("POST accepts a customer reported by a LID, with and without a phone alternative, and stores the event as received", async () => {
+  configureEnvironment();
+  const calls = [];
+  const handler = createPlatformWahaWebhookHandler({
+    createServiceClient: () => platformClient(recordingRpc(calls)),
+  });
+  const lidEvents = [
+    {
+      id: "evt-lid-plain",
+      event: "message.any",
+      session: "crm_primary",
+      timestamp: 1_727_745_026,
+      payload: {
+        id: "false_123456789012345@lid_PLAIN",
+        from: "123456789012345@lid",
+        fromMe: false,
+        source: "app",
+        body: "Hello from a LID",
+      },
+    },
+    {
+      id: "evt-lid-phone",
+      event: "message.any",
+      session: "crm_primary",
+      timestamp: 1_727_745_027,
+      payload: {
+        id: "false_223456789012345@lid_PHONE",
+        from: "223456789012345@lid",
+        fromMe: false,
+        source: "app",
+        body: "Hello with a phone",
+        _data: {
+          Info: { SenderAlt: "79990000000@s.whatsapp.net", PushName: "Anna" },
+        },
+      },
+    },
+    {
+      id: "evt-lid-media",
+      event: "message.any",
+      session: "crm_primary",
+      timestamp: 1_727_745_028,
+      payload: {
+        id: "false_323456789012345@lid_MEDIA",
+        from: "323456789012345@lid",
+        fromMe: false,
+        source: "app",
+        body: "",
+        hasMedia: true,
+        media: { mimetype: "audio/ogg; codecs=opus", filename: null },
+      },
+    },
+  ];
+
+  for (const event of lidEvents) {
+    calls.length = 0;
+    const response = await handler(signedRequest(event));
+    assert.equal(response.status, 200, event.id);
+    assert.deepEqual(await response.json(), {
+      ok: true,
+      status: "projected",
+      eventType: "message.any",
+      deduplicated: false,
+    });
+    assert.equal(calls[0].name, "persist_provider_webhook_event");
+    assert.deepEqual(calls[0].args.p_raw_payload, event);
+    assert.equal(calls[0].args.p_payload_id, event.payload.id);
+    assert.equal(calls.at(-1).name, "finish_waha_webhook_work");
+  }
+
+  // Not a direct customer id at all: still a 400.
+  const malformed = await handler(
+    signedRequest({
+      ...lidEvents[0],
+      payload: { ...lidEvents[0].payload, from: "12@lid" },
+    }),
+  );
+  assert.equal(malformed.status, 400);
+});
+
+test("POST enqueues only a message the sales team sent from the phone or app; the CRM's own sends and unverified origins stay evidence", async () => {
+  configureEnvironment();
+  const sent = (id, extra) => ({
+    id: `evt-${id}`,
+    event: "message.any",
+    session: "crm_primary",
+    timestamp: 1_727_745_026,
+    payload: {
+      id: `true_79990000000@c.us_${id}`,
+      from: "79990000001@c.us",
+      to: "79990000000@c.us",
+      fromMe: true,
+      body: "Ответ с телефона",
+      ...extra,
+    },
+  });
+
+  for (const [label, event, status] of [
+    ["phone/app text", sent("APP1", { source: "app" }), "projected"],
+    ["phone/app to a LID chat", sent("APP2", { source: "app", to: "123456789012345@lid" }), "projected"],
+    ["phone/app to an @s.whatsapp.net chat", sent("APP3", { source: "app", to: "79990000000@s.whatsapp.net" }), "projected"],
+    ["phone/app media", sent("APP4", { source: "app", body: "", hasMedia: true, media: { mimetype: "image/jpeg" } }), "projected"],
+    ["the CRM's own API send", sent("API1", { source: "api" }), "observed"],
+    ["no source", sent("NOSRC1", {}), "observed"],
+    ["phone/app with nothing to store", sent("EMPTY1", { source: "app", body: "" }), "observed"],
+    ["phone/app without a target", sent("NOTO1", { source: "app", to: undefined }), "observed"],
+  ]) {
+    const calls = [];
+    const handler = createPlatformWahaWebhookHandler({
+      createServiceClient: () => platformClient(recordingRpc(calls)),
+    });
+    const response = await handler(signedRequest(event));
+    assert.equal(response.status, status === "projected" ? 200 : 202, label);
+    assert.equal((await response.json()).status, status, label);
+    assert.deepEqual(
+      calls.map((call) => call.name),
+      status === "projected"
+        ? [
+            "persist_provider_webhook_event",
+            "enqueue_verified_webhook_work",
+            "claim_waha_webhook_work_item",
+            "project_claimed_waha_event",
+            "finish_waha_webhook_work",
+          ]
+        : ["persist_provider_webhook_event"],
+      label,
+    );
+  }
+});

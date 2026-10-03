@@ -31,6 +31,10 @@ const UUID_PATTERN =
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const DIRECT_CHAT_PATTERN =
   /^[1-9][0-9]{6,14}@(c\.us|s\.whatsapp\.net)$/;
+// WhatsApp may report a customer by an opaque LID instead of the phone JID
+// (https://waha.devlike.pro/docs/how-to/contacts/, LID section). The chat id
+// WAHA reports is the one a reply is sent to; the projection keeps it as is.
+const DIRECT_LID_PATTERN = /^[1-9][0-9]{4,31}@lid$/;
 // Groups, Status (`status@broadcast`), broadcast lists and channels are not
 // sales conversations. WAHA documents these chat-id suffixes at
 // https://waha.devlike.pro/docs/how-to/receive-messages/ and
@@ -118,6 +122,13 @@ function errorResponse(status: number, code: string): Response {
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isDirectChatId(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    (DIRECT_CHAT_PATTERN.test(value) || DIRECT_LID_PATTERN.test(value))
+  );
 }
 
 function isNonDirectChatId(value: unknown): boolean {
@@ -226,6 +237,23 @@ function providerRequestId(body: JsonObject): string {
   return `local-waha-delivery:${randomUUID()}`;
 }
 
+// A message the sales team sent from the phone or the WhatsApp app: WAHA marks
+// its origin `source: "app"` (the CRM's own API sends are `api`). Only such a
+// message to one direct chat, with text or media, is projected into the
+// conversation; the CRM's own sends and everything else stay evidence only.
+function isPhoneSentDirectMessage(payload: JsonObject): boolean {
+  if (payload.fromMe !== true) return false;
+  if (
+    typeof payload.source !== "string" ||
+    payload.source.trim().toLowerCase() !== "app"
+  ) {
+    return false;
+  }
+  const hasText =
+    typeof payload.body === "string" && payload.body.trim().length > 0;
+  return isDirectChatId(payload.to) && (hasText || carriesMedia(payload));
+}
+
 function parseMessageAny(
   body: JsonObject,
   payload: JsonObject,
@@ -240,7 +268,7 @@ function parseMessageAny(
   }
   if (payload.fromMe === false) {
     const from = boundedIdentifier(payload.from, "invalid_message_sender");
-    if (!DIRECT_CHAT_PATTERN.test(from)) {
+    if (!isDirectChatId(from)) {
       return reject(400, "invalid_message_sender");
     }
     const hasText =
@@ -267,7 +295,8 @@ function parseMessageAny(
     businessKeySha256: sha256(
       `waha:${PLATFORM_WAHA_SESSION_NAME}:message:${payloadId}`,
     ),
-    shouldEnqueue: payload.fromMe === false,
+    shouldEnqueue:
+      payload.fromMe === false || isPhoneSentDirectMessage(payload),
     shouldSynchronizeSession: false,
   };
 }

@@ -403,3 +403,45 @@ test("invalid Vault runtime fails before HTTP and does not echo the key", async 
   );
   assert.equal(calls, 0);
 });
+
+test("a reply to a conversation bound on a LID chat goes to that LID chat, and its acknowledgement reads back from it", async () => {
+  const LID_RECIPIENT = "123456789012345@lid";
+  const LID_REPLY_TO = "false_123456789012345@lid_SOURCE1";
+  const LID_MESSAGE_ID = "false_123456789012345@lid_PROVIDER1";
+  const calls = [];
+  const provider = createPlatformWahaProvider(RUNTIME, {
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return new Response(
+        JSON.stringify(
+          providerMessage({ id: LID_MESSAGE_ID, to: LID_RECIPIENT }),
+        ),
+        { status: 200 },
+      );
+    },
+    now: () => new Date(ACK_OBSERVED_AT),
+  });
+
+  const sent = await provider.sendText({
+    recipientId: LID_RECIPIENT,
+    text: TEXT,
+    replyTo: LID_REPLY_TO,
+  });
+  assert.equal(sent.providerMessageId, LID_MESSAGE_ID);
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    session: "crm_primary",
+    chatId: LID_RECIPIENT,
+    text: TEXT,
+    reply_to: LID_REPLY_TO,
+  });
+
+  await provider.getMessage({
+    recipientId: LID_RECIPIENT,
+    providerMessageId: LID_MESSAGE_ID,
+    expectedText: TEXT,
+  });
+  assert.match(
+    calls[1].url,
+    /\/api\/crm_primary\/chats\/123456789012345%40lid\/messages\//u,
+  );
+});

@@ -33,6 +33,7 @@ import {
   type PlatformStaffGeminiProposal,
 } from "@/lib/platform-provider-workflows";
 import { isFreshWorkingWahaSession } from "@/lib/provider-display-status";
+import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 import { toV3InboxMessageMedia } from "@/lib/v3/inbox-media";
@@ -111,7 +112,12 @@ async function readInboxChannelStatus(
   actor: ActivePlatformActor,
 ): Promise<InboxChannelStatus> {
   try {
-    const health = await getPlatformWahaSessionHealth(actor, "crm_primary");
+    // The recorded status only says when the session last changed; the live
+    // probe says what it is now, so the banner does not go stale.
+    const health = await withLivePlatformWahaHealth(
+      actor.organizationId,
+      await getPlatformWahaSessionHealth(actor, "crm_primary"),
+    );
     return Object.freeze({
       // Нет строки о сессии CRM — WhatsApp к CRM не подключали (чтение
       // прошло; сбой чтения — ниже, «unavailable»).

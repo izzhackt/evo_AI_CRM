@@ -64,8 +64,14 @@ for (const name of EXPECTED_SURFACES) {
     test(`portal surface ${name} has no WCAG violations (${colorScheme})`, async ({ page }) => {
       const surface = surfaces.find((candidate) => candidate.name === name);
       if (!surface) throw new Error(`missing surface ${name}`);
-      await page.emulateMedia({ colorScheme });
-      await page.setContent(surface.html, { waitUntil: "domcontentloaded" });
+      // Тема — выбор студента (<html data-theme>, решение владельца 02.10),
+      // не тема ОС: ОС нарочно ставится противоположной, чтобы рендер её
+      // не читал.
+      await page.emulateMedia({ colorScheme: colorScheme === "dark" ? "light" : "dark" });
+      await page.setContent(
+        surface.html.replace('<html lang="ru">', `<html lang="ru" data-theme="${colorScheme}">`),
+        { waitUntil: "domcontentloaded" },
+      );
       const results = await new AxeBuilder({ page })
         .withTags([...WCAG_TAGS])
         .analyze();

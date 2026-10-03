@@ -7,17 +7,25 @@
  * префикс pt-. Экраны внутри shell пока рендерятся в v3-мире без изменений;
  * их перевод на --pt-* — работа следующих slice'ов (PORT-3…5).
  *
- * Светлая тема — базовые значения, тёмная — через prefers-color-scheme
- * (обе обязательны по контракту).
+ * Светлая тема — базовые значения и тема по умолчанию; тёмная — только по
+ * выбору студента: :root[data-theme="dark"] (корневой layout ставит атрибут
+ * из cookie `theme`, тема ОС не читается — решение владельца 02.10). Обе
+ * обязательны по контракту; каждое значение ниже — пара светлая/тёмная.
  */
 
 .pt-shell {
   /* Цвет, светлая: тёплая бумага. */
+  --pt-scheme: light;
   --pt-bg: #f7f5f2;
   --pt-surface: #ffffff;
   --pt-text: #191714;
   --pt-text-2: #6b6660;
-  --pt-line: #e7e3dd;
+  /* Волосяная линия-разделитель (декор): 1.33:1 на белом. */
+  --pt-line: #e4dfd7;
+  /* Граница поля ввода/селекта — 3.73:1 на белом, 3.51:1 на бумаге (1.4.11). */
+  --pt-control-edge: #8c8378;
+  /* Скелет загрузки: тон бумаги на шаг темнее. */
+  --pt-skeleton: #ebe6df;
   --pt-accent: #d70217;
   --pt-on-accent: #ffffff;
   --pt-ok: #177245;
@@ -43,9 +51,23 @@
   --pt-radius-control: 10px;
   --pt-radius-chip: 999px;
 
-  /* Тени. */
-  --pt-shadow-card: 0 1px 3px rgb(0 0 0 / 0.07);
-  --pt-shadow-raised: 0 6px 24px rgb(0 0 0 / 0.1);
+  /*
+   * Тени светлой: тёплые (тон бумаги, не нейтральный чёрный), с отступом и
+   * мягким размытием — карточка отделяется от бумаги, всплывающее — над ней.
+   */
+  --pt-shadow-card: 0 1px 2px rgb(54 38 22 / 0.06), 0 3px 12px -4px rgb(54 38 22 / 0.1);
+  --pt-shadow-raised: 0 2px 6px rgb(54 38 22 / 0.06), 0 18px 40px -12px rgb(54 38 22 / 0.24);
+  /* Нижняя панель телефона: тень вверх, контент уходит под панель. */
+  --pt-shadow-bar: 0 -8px 20px -14px rgb(54 38 22 / 0.28);
+
+  /*
+   * Атмосфера заголовочной зоны «Атласа»: тёплый свет сверху-слева, едва
+   * тронутый фирменным красным, гаснет к ~420 px. Только фон страницы;
+   * поверхности и текст его не получают.
+   */
+  --pt-wash:
+    radial-gradient(70% 460px at 8% -160px, rgb(215 2 23 / 0.05), transparent 72%),
+    linear-gradient(180deg, #f0eae1 0, rgb(240 234 225 / 0) 420px);
 
   /* Движение: 160–240ms ease-out. */
   --pt-motion-fast: 160ms;
@@ -66,32 +88,40 @@
   --pt-logo-plate: transparent;
 }
 
-@media (prefers-color-scheme: dark) {
-  .pt-shell {
-    --pt-bg: #141311;
-    --pt-surface: #1e1c19;
-    --pt-text: #f2efe9;
-    --pt-text-2: #a39d94;
-    --pt-line: #2c2925;
-    /* Тот же бренд, поднятая светлота для контраста на тёмном. */
-    --pt-accent: #ff4a57;
-    --pt-on-accent: #141311;
-    --pt-ok: #4cc38a;
-    --pt-warn: #e5a445;
-    --pt-error: #ff8177;
-    /* В тёмной глубина — через светлую линию, не тень. */
-    --pt-shadow-card: 0 0 0 1px var(--pt-line);
-    --pt-shadow-raised: 0 0 0 1px var(--pt-line);
-    /*
-     * Оригинальный lockup (чёрные «EVO»/«ADMISSIONS» + красный знак) без
-     * фильтров нельзя перекрасить под тёмный фон: на --pt-surface чёрный
-     * текст сливается (#1116). Инверсия в logobook (стр. 11–12) есть только
-     * на фирменном красном, версии для нейтрального тёмного фона нет.
-     * Поэтому lockup остаётся оригинальным на белой подложке, как в /apply
-     * (bg-white p-2). Белый моно-вариант на тёмном — решение владельца бренда.
-     */
-    --pt-logo-plate: #ffffff;
-  }
+/* Тёмная — только по выбору студента (кнопка «солнце/луна»). */
+:root[data-theme="dark"] .pt-shell {
+  --pt-scheme: dark;
+  --pt-bg: #141311;
+  --pt-surface: #1e1c19;
+  --pt-text: #f2efe9;
+  --pt-text-2: #a39d94;
+  --pt-line: #2c2925;
+  /* 3.63:1 на поверхности, 3.96:1 на фоне. */
+  --pt-control-edge: #7a7369;
+  --pt-skeleton: #262420;
+  /* Тот же бренд, поднятая светлота для контраста на тёмном. */
+  --pt-accent: #ff4a57;
+  --pt-on-accent: #141311;
+  --pt-ok: #4cc38a;
+  --pt-warn: #e5a445;
+  --pt-error: #ff8177;
+  /* В тёмной глубина — через светлую линию, не тень. */
+  --pt-shadow-card: 0 0 0 1px var(--pt-line);
+  --pt-shadow-raised: 0 0 0 1px var(--pt-line), 0 18px 40px -12px rgb(0 0 0 / 0.55);
+  --pt-shadow-bar: none;
+  /* Та же атмосфера на тёмном: тёплый подъём и тень бренда, без свечения. */
+  --pt-wash:
+    radial-gradient(70% 460px at 8% -160px, rgb(255 74 87 / 0.07), transparent 72%),
+    linear-gradient(180deg, #1b1916 0, rgb(27 25 22 / 0) 420px);
+  /*
+   * Оригинальный lockup (чёрные «EVO»/«ADMISSIONS» + красный знак) без
+   * фильтров нельзя перекрасить под тёмный фон: на --pt-surface чёрный
+   * текст сливается (#1116). Инверсия в logobook (стр. 11–12) есть только
+   * на фирменном красном, версии для нейтрального тёмного фона нет.
+   * Поэтому lockup остаётся оригинальным на белой подложке, как в /apply
+   * (bg-white p-2). Белый моно-вариант на тёмном — решение владельца бренда.
+   */
+  --pt-logo-plate: #ffffff;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -109,6 +139,7 @@
   min-height: 100dvh;
   min-width: 0;
   flex-direction: column;
+  color-scheme: var(--pt-scheme);
   background: var(--pt-bg);
   color: var(--pt-text);
   font-family: var(--pt-font-sans);
@@ -128,9 +159,13 @@
   outline: none;
 }
 
-/* Legacy components keep v3 tokens; the page background follows portal theme. */
+/*
+ * Legacy components keep v3 tokens; the page background follows portal theme.
+ * Заголовочная зона каждой страницы получает тихую подсветку --pt-wash
+ * (прокручивается вместе со страницей, гаснет к ~420 px).
+ */
 .pt-content.v3-world {
-  background: var(--pt-bg);
+  background: var(--pt-wash), var(--pt-bg);
 }
 
 /* ---------- Скрытый текст и skip-link ---------- */
@@ -267,6 +302,50 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Инициалы — только на узком телефоне (ниже). */
+.pt-user-initials {
+  display: none;
+}
+
+/*
+ * До 400 px кнопка темы (44 px) оставляла имени 1–10 букв («E…»,
+ * «Айбек Ток…»). Здесь плашка — инициалы в круге и шеврон; имя уходит в
+ * визуально скрытый текст и остаётся доступным именем кнопки, а полностью
+ * видно в открытом меню.
+ */
+@media (max-width: 399.98px) {
+  .pt-user-summary {
+    gap: 6px;
+    padding: 0 8px 0 6px;
+  }
+
+  .pt-user-initials {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--pt-radius-chip);
+    background: var(--pt-bg);
+    box-shadow: inset 0 0 0 1px var(--pt-line);
+    color: var(--pt-text);
+    font-size: var(--pt-size-caption);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .pt-user-summary-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 .pt-user-chevron {
@@ -470,6 +549,7 @@
     z-index: 40;
     background: var(--pt-surface);
     border-top: 1px solid var(--pt-line);
+    box-shadow: var(--pt-shadow-bar);
     padding: 4px max(4px, env(safe-area-inset-left))
       max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-right));
   }
@@ -568,6 +648,35 @@
 
 /* ---------- Фокус ---------- */
 
+/* ---------- Границы маршрута: загрузка и ошибка ---------- */
+
+.pt-boundary {
+  color-scheme: var(--pt-scheme);
+  color: var(--pt-text);
+}
+
+.pt-boundary-muted {
+  color: var(--pt-text-2);
+}
+
+@keyframes pt-skeleton-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.pt-skeleton {
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-skeleton);
+  animation: pt-skeleton-pulse 1.6s var(--pt-ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-skeleton {
+    animation: none;
+  }
+}
+
 .pt-skip-link:focus-visible,
 .pt-topbar-logo:focus-visible,
 .pt-bell:focus-visible,
@@ -585,9 +694,9 @@
  * ================================================================ */
 
 .pt-page {
-  /* Каталог dark-capable: UA-виджеты следуют системной теме, в отличие от
+  /* Каталог dark-capable: UA-виджеты следуют выбранной теме, в отличие от
      соседних v3-экранов, которые остаются светлыми до своих slice'ов. */
-  color-scheme: light dark;
+  color-scheme: var(--pt-scheme);
   max-width: var(--pt-content-max);
   margin-inline: auto;
   padding: 28px var(--pt-gutter) 48px;
@@ -759,7 +868,7 @@
   min-height: 44px;
   width: 100%;
   padding: 0 12px;
-  border: 1px solid var(--pt-line);
+  border: 1px solid var(--pt-control-edge);
   border-radius: var(--pt-radius-control);
   background: var(--pt-surface);
   color: var(--pt-text);
@@ -1480,7 +1589,7 @@
   width: 100%;
   min-height: 88px;
   padding: 10px 12px;
-  border: 1px solid var(--pt-line);
+  border: 1px solid var(--pt-control-edge);
   border-radius: var(--pt-radius-control);
   background: var(--pt-surface);
   color: var(--pt-text);
@@ -2557,8 +2666,39 @@
   line-height: var(--pt-leading);
 }
 
+/*
+ * «Нужна помощь» и «Мои обращения и ответы» — общие v3-компоненты
+ * (CaseHelpPanel/CaseOperationsForms) на v3-токенах, а .v3-world всегда
+ * светлый: в тёмной теме это были два белых острова на главном экране.
+ * Обёртка есть только в кабинете студента, поэтому v3-токены здесь
+ * пересчитаны на портальные --pt-* — компоненты и облик сотрудников не
+ * меняются. Контраст: текст и кнопки — пары --pt-*, уже посчитанные выше;
+ * граница поля — --pt-control-edge (≥3:1 в обеих темах).
+ */
 .pt-adm-case-help {
   margin-top: 32px;
+  color-scheme: var(--pt-scheme);
+  --surface: var(--pt-surface);
+  --border: var(--pt-line);
+  --control-edge: var(--pt-control-edge);
+  --text: var(--pt-text);
+  --text-2: var(--pt-text-2);
+  --text-3: var(--pt-text-2);
+  --accent: var(--pt-accent);
+  --accent-text: var(--pt-accent);
+  --on-accent: var(--pt-on-accent);
+  --danger: var(--pt-error);
+  --focus-ring: var(--pt-accent);
+}
+
+/* Карточки обращений — материал кабинета: радиус и тень карточки «Атласа». */
+.pt-adm-case-help .rounded-card {
+  border-radius: var(--pt-radius-card);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-adm-case-help .rounded-ctl {
+  border-radius: var(--pt-radius-control);
 }
 
 /* Якорь #case-help — панель внутри обёртки (#1115); отступ под липкую полосу. */

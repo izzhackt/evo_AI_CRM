@@ -106,7 +106,8 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
   const authority = source("src/lib/supabase/student-portal-authority.ts");
 
   assert.match(layout, /requireStudentPortalActor\(\)/u);
-  assert.match(layout, /<Shell displayName=\{actor\.displayName\} accessTier=\{actor\.accessTier\} locale=\{locale\}>/u);
+  // 02.10: Shell получает тему запроса для кнопки «солнце/луна».
+  assert.match(layout, /<Shell displayName=\{actor\.displayName\} accessTier=\{actor\.accessTier\} locale=\{locale\} theme=\{theme\}>/u);
   assert.match(authority, /accessTier: portalCase\.case_state === "pending" \? "approved" : "assisted"/u);
   assert.match(shell, /logoutStudentPortalAction/u);
   assert.doesNotMatch(
@@ -820,7 +821,10 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
   assert.match(portalCss, /@media \(min-width: 768px\)/u);
   assert.match(portalCss, /@media \(max-width: 767px\)/u);
   assert.match(portalCss, /min-height: 44px/u);
-  assert.match(portalCss, /@media \(prefers-color-scheme: dark\)/u);
+  // 02.10: тёмная — только выбор студента (<html data-theme>), тема ОС не
+  // читается: светлая — база, тёмные токены — на :root[data-theme="dark"].
+  assert.match(portalCss, /:root\[data-theme="dark"\] \.pt-shell \{/u);
+  assert.doesNotMatch(portalCss, /prefers-color-scheme/u);
   assert.match(portalCss, /@media \(prefers-reduced-motion: reduce\)/u);
   // PORT-5d: адаптивность «Моего поступления» живёт в pt-классах, не в
   // tailwind-утилитах: двухколоночный обзор схлопывается на узком экране,

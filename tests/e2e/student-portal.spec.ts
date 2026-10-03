@@ -139,7 +139,8 @@ function credentials(kind: "admin" | "student") {
 
 async function submitLogin(page: Page, kind: "admin" | "student") {
   const identity = credentials(kind);
-  await page.context().clearCookies();
+  // Сессия сбрасывается, выбор темы этого устройства (cookie `theme`) — нет.
+  await page.context().clearCookies({ name: /^(?!theme$)/u });
   await page.goto("/login");
   await page.locator("#staff-email").fill(identity.email);
   await page.locator("#staff-password").fill(identity.password);
@@ -177,7 +178,8 @@ async function expectStylesLoaded(page: Page, context: string) {
       bytes,
       hrefs: hrefs.length,
       failedHref: null,
-      darkScheme: matchMedia("(prefers-color-scheme: dark)").matches,
+      // 02.10: тема — выбор студента в <html data-theme>, не тема ОС.
+      darkScheme: document.documentElement.getAttribute("data-theme") === "dark",
       world: style
         ? {
             background: style.backgroundColor,
@@ -326,9 +328,10 @@ test("all four Student Portal routes pass the real authenticated quality gate", 
   });
 
   await submitLogin(page, "student");
-  if (testInfo.project.name === "forced-dark-chromium") {
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  }
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-theme",
+    testInfo.project.name === "forced-dark-chromium" ? "dark" : "light",
+  );
 
   for (const route of PORTAL_ROUTES) {
     const errorCountBeforeNavigation = browserErrors.length;
@@ -592,6 +595,50 @@ test("the portal top bar fits a 320 px screen", async ({ page }, testInfo) => {
   expect(proof.summaryRight).not.toBeNull();
   expect(proof.summaryRight!, "the account summary crosses the right edge")
     .toBeLessThanOrEqual(proof.clientWidth + 1);
+  // Узкий телефон: инициалы вместо обрезанного имени, полное имя — доступное имя плашки.
+  const summary = page.locator(".pt-user-summary");
+  await expect(summary.locator(".pt-user-initials")).toBeVisible();
+  await expect(summary).toHaveAccessibleName(/E4 Browser Student/);
+});
+
+test("the theme is light by default, ignores the OS and the sun/moon button remembers the choice", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "one theme-switch proof");
+
+  // Решение владельца 02.10: «Всегда светлая» — тёмная тема ОС не учитывается.
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.context().clearCookies();
+  await submitLogin(page, "student");
+  const html = page.locator("html");
+  await expect(html).toHaveAttribute("data-theme", "light");
+
+  const toggle = page.locator(".pt-topbar").getByRole("button", { name: "Тёмная тема" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  const box = await toggle.boundingBox();
+  expect(box?.width).toBeGreaterThanOrEqual(44);
+  expect(box?.height).toBeGreaterThanOrEqual(44);
+  const shellBefore = await page.locator(".pt-content").boundingBox();
+
+  await toggle.click();
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  // Только цвета: раскладка не сдвигается.
+  expect(await page.locator(".pt-content").boundingBox()).toEqual(shellBefore);
+  const cookie = (await page.context().cookies()).find((item) => item.name === "theme");
+  expect(cookie?.value).toBe("dark");
+  expect(cookie?.sameSite).toBe("Lax");
+
+  // Без вспышки: сервер уже отдаёт тёмную разметку.
+  const response = await page.request.get("/portal/universities");
+  expect(await response.text()).toMatch(/<html[^>]*data-theme="dark"/u);
+  await page.goto("/portal/universities", { waitUntil: "networkidle" });
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator(".pt-shell")).toHaveCSS("background-color", "rgb(20, 19, 17)");
+
+  await page.locator(".pt-topbar").getByRole("button", { name: "Тёмная тема" }).click();
+  await expect(html).toHaveAttribute("data-theme", "light");
+  await expect(page.locator(".pt-shell")).toHaveCSS("background-color", "rgb(247, 245, 242)");
 });
 
 test("the dark Portal logo sits on a light plate", async ({ page }, testInfo) => {

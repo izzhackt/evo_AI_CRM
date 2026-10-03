@@ -16,6 +16,8 @@ import { registerStudentAction } from "@/lib/student-signup-actions";
 import { SignupConfirmationPending } from "./SignupConfirmationPending";
 import { getSignupConfirmationStrings } from "@/lib/portal/signup-confirmation-i18n";
 import { ApplyLangSwitcher } from "./ApplyLangSwitcher";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import type { Theme } from "@/lib/theme";
 
 const STORAGE_KEY = "evo-application-draft-v1";
 const INPUT = "min-h-12 w-full rounded-ctl border border-control-edge bg-surface px-3.5 py-3 text-base text-fg outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring/25";
@@ -76,8 +78,8 @@ function Choice({ selected, children, onClick }: { selected: boolean; children: 
   </button>;
 }
 
-export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, namePrefill = null, year, locale = "ru" }: {
-  requestId: string; draft?: StudentApplicationDraft | null; signedInEmail?: string | null; draftOwnerId?: string | null; expectedRevision?: number; namePrefill?: ApplicationNamePrefill | null; year: number; locale?: Locale;
+export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, namePrefill = null, year, locale = "ru", theme = "light" }: {
+  requestId: string; draft?: StudentApplicationDraft | null; signedInEmail?: string | null; draftOwnerId?: string | null; expectedRevision?: number; namePrefill?: ApplicationNamePrefill | null; year: number; locale?: Locale; theme?: Theme;
 }) {
   const strings = getPortalStrings("apply", locale);
   // Доменные подписи опций: как прежний `LABELS[key] ?? key`, но из словаря.
@@ -186,6 +188,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
       <Link href="/apply" aria-label={strings.logoAria} className="rounded-ctl bg-white p-2"><EvoLogo width={146} /></Link>
       <div className="flex flex-wrap items-center justify-end gap-3">
         <ApplyLangSwitcher current={locale} label={strings.languageAria} />
+        <ThemeToggle locale={locale} initialTheme={theme} />
         <Link href={signedInEmail ? "/apply/status" : "/login"} className="inline-flex min-h-11 items-center text-sm font-medium text-fg-2 underline-offset-4 hover:underline">{signedInEmail ? strings.myApplication : strings.loginLink}</Link>
       </div>
     </header>

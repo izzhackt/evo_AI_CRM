@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import "@fontsource-variable/golos-text/wght.css";
 import "@fontsource-variable/jetbrains-mono/wght.css";
 import "./globals.css";
 import { getLocale } from "@/lib/i18n";
-
-// Runs before paint: applies saved theme (cookie) or system preference.
-const THEME_INIT = `(function(){try{var m=document.cookie.match(/(?:^|; )theme=(dark|light)/);var t=m?m[1]:((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
+import { readRequestTheme } from "@/lib/theme-server";
 
 export const metadata: Metadata = {
   title: {
@@ -21,17 +18,19 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locale = await getLocale();
-  // Only the confirmation proxy sets this nonce and its enforced CSP.
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  // Тема ставится на сервере в самой разметке, до первой отрисовки: без
+  // вспышки и без скрипта. Без cookie — светлая, тема ОС не читается
+  // (решение владельца 02.10); хост сотрудников всегда светлый.
+  const [locale, theme] = await Promise.all([getLocale(), readRequestTheme()]);
   return (
     <html
       lang={locale}
+      data-theme={theme}
+      style={{ colorScheme: theme }}
       suppressHydrationWarning
       className="h-full antialiased"
     >
       <body className="min-h-full">
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         {children}
       </body>
     </html>

@@ -102,18 +102,15 @@ BEGIN
 END
 $$;
 
--- One verified WAHA event through the real chain; returns the projection result
--- plus the finish state. `p_n` makes every id unique.
-CREATE FUNCTION pg_temp.n259_run(p_n INTEGER, p_event TEXT, p_payload JSONB,
-  p_occurred TIMESTAMPTZ DEFAULT NULL) RETURNS JSONB LANGUAGE plpgsql AS $$
+-- Enqueue, claim, project and finish one already inserted event (the real chain); returns the
+-- projection result plus the finish state.
+CREATE FUNCTION pg_temp.n259_work(p_n INTEGER, p_event TEXT, p_event_id UUID, p_payload JSONB) RETURNS JSONB LANGUAGE plpgsql AS $$
 DECLARE
   org CONSTANT UUID := pg_temp.n259_id(1);
-  event_id UUID;
   enq JSONB; claim JSONB; proj JSONB; fin JSONB; work UUID; attempt UUID;
 BEGIN
   PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', TRUE);
-  event_id := pg_temp.n259_event(p_n, p_event, p_payload, p_occurred);
-  enq := platform.enqueue_verified_webhook_work(org, event_id,
+  enq := platform.enqueue_verified_webhook_work(org, p_event_id,
     encode(sha256(convert_to('n259-' || p_event || '-' || (p_payload ->> 'id'), 'UTF8')), 'hex'), 8, pg_temp.n259_id(2000 + p_n * 10 + 1));
   work := (enq ->> 'work_item_id')::UUID;
   claim := platform.claim_waha_webhook_work_item(org, work, 60, 'n259', pg_temp.n259_id(2000 + p_n * 10 + 2));
@@ -128,7 +125,16 @@ BEGIN
     fin := platform.finish_waha_webhook_work(org, work, attempt, (proj ->> 'disposition')::platform.durable_work_finish_outcome,
       proj ->> 'error_code', proj ->> 'evidence_ref', NULL, pg_temp.n259_id(2000 + p_n * 10 + 4));
   END IF;
-  RETURN proj || jsonb_build_object('finish_state', fin ->> 'state', 'work_item_id', work, 'event_id', event_id);
+  RETURN proj || jsonb_build_object('finish_state', fin ->> 'state', 'work_item_id', work, 'event_id', p_event_id);
+END
+$$;
+
+-- One verified WAHA event through the real chain; returns the projection result
+-- plus the finish state. `p_n` makes every id unique.
+CREATE FUNCTION pg_temp.n259_run(p_n INTEGER, p_event TEXT, p_payload JSONB,
+  p_occurred TIMESTAMPTZ DEFAULT NULL) RETURNS JSONB LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN pg_temp.n259_work(p_n, p_event, pg_temp.n259_event(p_n, p_event, p_payload, p_occurred), p_payload);
 END
 $$;
 
@@ -507,6 +513,36 @@ SELECT pg_temp.n259_run(415, 'message.ack', jsonb_build_object('id', 'true_79990
   'to', '79990000001@c.us')) AS r \gset
 SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'error_code' = 'waha_ack_binding_pending',
   'an ACK of a CRM API send whose binding is not visible yet stays retryable');
+
+-- 4i. A phone-sent message to an EXISTING conversation whose ACK arrives before the message is projected:
+-- the message is only not projected YET, so the ACK is retried (not observed and lost), and applied once the
+-- message is bound. Only an original that the projection recorded as deferred answers an ACK as observed.
+SELECT pg_temp.n259_out('true_79990000001@c.us_EARLY1', '79990000001@c.us', '{"body":"ACK arrives first"}') AS early_payload \gset
+SELECT pg_temp.n259_event(420, 'message.any', :'early_payload'::JSONB, TIMESTAMPTZ '2026-10-03 12:00:00+00') AS ev_early \gset
+SELECT pg_temp.n259_run(421, 'message.ack', jsonb_build_object('id', 'true_79990000001@c.us_EARLY1', 'fromMe', true, 'ack', 2, 'ackName', 'DEVICE',
+  'to', '79990000001@c.us')) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'disposition' = 'retryable_error' AND :'r'::JSONB ->> 'error_code' = 'waha_ack_binding_pending'
+  AND :'r'::JSONB ->> 'finish_state' = 'retry_wait',
+  'an ACK of a phone-sent message that is merely not projected yet is retried, not observed');
+SELECT (:'r'::JSONB ->> 'work_item_id')::UUID AS early_ack_work \gset
+SELECT pg_temp.n259_work(422, 'message.any', :'ev_early'::UUID, :'early_payload'::JSONB) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'direction' = 'outbound'
+  AND (:'r'::JSONB ->> 'communication_conversation_id')::UUID = pg_temp.n259_conv('79990000001@c.us'),
+  'the message is then projected into its existing conversation');
+-- The retry of the same ACK work item now finds the binding and applies the acknowledgement.
+UPDATE platform_private.durable_work_items SET available_at = clock_timestamp() - INTERVAL '1 second' WHERE id = :'early_ack_work';
+UPDATE pgmq.q_platform_work_v1 SET vt = clock_timestamp() - INTERVAL '1 second'
+  WHERE msg_id = (SELECT queue_message_id FROM platform_private.durable_work_items WHERE id = :'early_ack_work');
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', TRUE) AS jwt_claims \gset
+SELECT platform.claim_waha_webhook_work_item(pg_temp.n259_id(1), :'early_ack_work', 60, 'n259', pg_temp.n259_id(9101)) AS retry_claim \gset
+SELECT pg_temp.n259_assert((:'retry_claim'::JSONB ->> 'claimed')::BOOLEAN, 'the retried ACK work item is claimed again');
+SELECT platform.project_claimed_waha_observation(pg_temp.n259_id(1), :'early_ack_work', (:'retry_claim'::JSONB ->> 'attempt_id')::UUID,
+  pg_temp.n259_id(301), pg_temp.n259_id(9102)) AS retry_proj \gset
+SELECT pg_temp.n259_assert(:'retry_proj'::JSONB ->> 'disposition' = 'succeeded' AND :'retry_proj'::JSONB ->> 'ignored' IS NULL
+  AND (SELECT a.waha_ack_name = 'DEVICE' FROM platform.waha_message_ack_current a
+       JOIN platform_private.waha_message_bindings b ON b.communication_message_id = a.communication_message_id
+       WHERE b.raw_message_id = 'true_79990000001@c.us_EARLY1'),
+  'after the message is bound the retried ACK is applied to it');
 
 -- ---------------------------------------------------------------------------
 -- 5. Constraints and catalog.

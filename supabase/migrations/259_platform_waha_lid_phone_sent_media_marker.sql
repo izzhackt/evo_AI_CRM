@@ -54,9 +54,12 @@
 --  * A phone-sent message is deferred without a time limit; the 200 most recent
 --    per chat are projected into the conversation a customer message creates
 --    and the rest are counted as dropped in that projection's result.
---  * ACKs of a phone-sent message that was deferred (or of a CRM API send whose
---    provider id manual send already bound) are answered as observed instead of
---    retried: no projected message exists for them to update.
+--  * ACKs of a phone-sent message whose projection recorded it as deferred (or
+--    of a CRM API send whose provider id manual send already bound) are answered
+--    as observed instead of retried: no projected message exists for them to
+--    update, and they are not replayed when the message is backfilled, so a
+--    backfilled message may show no delivery state. An ACK of a message that is
+--    only not projected yet keeps the retry.
 --  * Groups, Status, broadcast lists and channels are never conversations.
 -- ============================================================
 
@@ -571,13 +574,15 @@ DECLARE
   -- An ACK for a message that has no private message binding is retried while
   -- the binding may still appear (a send racing its own binding). It is not
   -- retried when there is nothing to bind: the message is a phone-sent one
-  -- that was deferred (no conversation yet) or never projected, or its id is
-  -- already bound by manual send, whose ACK state is read back by the exact
-  -- reconciliation, not by this projector.
+  -- whose projection RECORDED it as deferred (no conversation yet), or its id
+  -- is already bound by manual send, whose ACK state is read back by the exact
+  -- reconciliation, not by this projector. A phone-sent message that is merely
+  -- not projected yet (in flight, awaiting a retry) has no such record, so its
+  -- ACK keeps the retry and is applied once the message is bound.
   pending_needle CONSTANT TEXT :=
     E'      IF message_binding.id IS NULL THEN\n        error_code := ''waha_ack_binding_pending'';';
   pending_replacement CONSTANT TEXT :=
-    E'      IF message_binding.id IS NULL\n        AND (\n          EXISTS (\n            SELECT 1\n            FROM platform_private.manual_send_provider_bindings AS manual_binding\n            WHERE manual_binding.organization_id = p_organization_id\n              AND manual_binding.waha_session_name = source_event.waha_session_name\n              AND manual_binding.raw_message_id = ack_raw_message_id\n          )\n          OR EXISTS (\n            SELECT 1\n            FROM platform_private.provider_webhook_events AS original\n            WHERE original.organization_id = p_organization_id\n              AND original.provider = ''waha''\n              AND original.waha_session_name = source_event.waha_session_name\n              AND original.verification_status = ''verified''\n              AND original.event_type IN (''message'', ''message.any'')\n              AND original.payload_id = ack_raw_message_id\n              AND original.raw_payload #> ''{payload,fromMe}'' = ''true''::JSONB\n              AND lower(COALESCE(original.raw_payload #>> ''{payload,source}'', '''')) = ''app''\n          )\n        )\n      THEN\n        evidence_ref := ''waha-observation:'' || source_event.id::TEXT\n          || '':ack_without_projected_message'';\n        result := platform_private.p5b_projection_result(\n          p_organization_id,\n          p_work_item_id,\n          p_attempt_id,\n          ''succeeded'',\n          evidence_ref,\n          NULL\n        ) || jsonb_build_object(\n          ''ignored'', ''ack_without_projected_message''\n        );\n        -- An effect for an ACK must name its message; there is none.\n        persist_effect := FALSE;\n        EXIT project_observation;\n      END IF;\n\n' || pending_needle;
+    E'      IF message_binding.id IS NULL\n        AND (\n          EXISTS (\n            SELECT 1\n            FROM platform_private.manual_send_provider_bindings AS manual_binding\n            WHERE manual_binding.organization_id = p_organization_id\n              AND manual_binding.waha_session_name = source_event.waha_session_name\n              AND manual_binding.raw_message_id = ack_raw_message_id\n          )\n          OR EXISTS (\n            SELECT 1\n            FROM platform_private.provider_webhook_events AS original\n            JOIN platform_private.waha_work_projection_effects AS deferred_effect\n              ON deferred_effect.organization_id = original.organization_id\n             AND deferred_effect.source_webhook_event_id = original.id\n            WHERE original.organization_id = p_organization_id\n              AND original.provider = ''waha''\n              AND original.waha_session_name = source_event.waha_session_name\n              AND original.verification_status = ''verified''\n              AND original.event_type IN (''message'', ''message.any'')\n              AND original.payload_id = ack_raw_message_id\n              AND original.raw_payload #> ''{payload,fromMe}'' = ''true''::JSONB\n              AND lower(COALESCE(original.raw_payload #>> ''{payload,source}'', '''')) = ''app''\n              AND deferred_effect.result ? ''deferred_chat_ids''\n          )\n        )\n      THEN\n        evidence_ref := ''waha-observation:'' || source_event.id::TEXT\n          || '':ack_without_projected_message'';\n        result := platform_private.p5b_projection_result(\n          p_organization_id,\n          p_work_item_id,\n          p_attempt_id,\n          ''succeeded'',\n          evidence_ref,\n          NULL\n        ) || jsonb_build_object(\n          ''ignored'', ''ack_without_projected_message''\n        );\n        -- An effect for an ACK must name its message; there is none.\n        persist_effect := FALSE;\n        EXIT project_observation;\n      END IF;\n\n' || pending_needle;
   before_contract RECORD;
   after_contract RECORD;
 BEGIN

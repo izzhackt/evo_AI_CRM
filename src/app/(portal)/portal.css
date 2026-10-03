@@ -69,11 +69,30 @@
     radial-gradient(70% 460px at 8% -160px, rgb(215 2 23 / 0.05), transparent 72%),
     linear-gradient(180deg, #f0eae1 0, rgb(240 234 225 / 0) 420px);
 
-  /* Движение: 160–240ms ease-out. */
+  /*
+   * Движение: единый словарь кабинета (анимации кабинета студента, решение
+   * владельца 02.10; docs/PLAN_CHANGES.md). Нажатие 100, обратная связь 160,
+   * вход и переходы 200, верхняя граница входа 240 мс; ничего длиннее 400 мс,
+   * включая задержки стаггера. Двигаем только transform и opacity, раскладку не
+   * трогаем. Приложение iPhone держит тот же словарь (отдельный PR).
+   */
+  --pt-motion-press: 100ms;
   --pt-motion-fast: 160ms;
-  --pt-motion: 200ms;
+  --pt-motion-base: 200ms;
   --pt-motion-slow: 240ms;
+  /* Прежнее имя средней длительности. */
+  --pt-motion: var(--pt-motion-base);
+  /* Цвет и тень: стандартное замедление. */
   --pt-ease: cubic-bezier(0, 0, 0.2, 1);
+  /* Появление и перенос: мягкое замедление в конце, без отскока. */
+  --pt-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Подъём элемента при входе; страница поднимается на 3/4 этой величины. */
+  --pt-rise: 8px;
+  /* Начальная непрозрачность входа страницы и скелетона: смена не мигает пустым кадром. */
+  --pt-enter-floor: 0.55;
+  /* Шаг стаггера карточек и масштаб при нажатии. */
+  --pt-stagger: 30ms;
+  --pt-press-scale: 0.98;
 
   /* Сетка: контент 1200px max, боковой отступ 24 (моб. 16). */
   --pt-content-max: 1200px;
@@ -124,11 +143,21 @@
   --pt-logo-plate: #ffffff;
 }
 
+/*
+ * Уменьшенное движение: всё мгновенно. Длительности и сдвиги обнуляются
+ * токенами, а вход страницы, стаггер, скелетон и штрих галочки в разделе
+ * «Движение» в конце файла отключены явно. Подтверждения остаются видимыми
+ * без движения.
+ */
 @media (prefers-reduced-motion: reduce) {
   .pt-shell {
+    --pt-motion-press: 0ms;
     --pt-motion-fast: 0ms;
-    --pt-motion: 0ms;
+    --pt-motion-base: 0ms;
     --pt-motion-slow: 0ms;
+    --pt-rise: 0px;
+    --pt-stagger: 0ms;
+    --pt-press-scale: 1;
   }
 }
 
@@ -428,7 +457,12 @@
   text-decoration: none;
   transition:
     background-color var(--pt-motion-fast) var(--pt-ease),
-    color var(--pt-motion-fast) var(--pt-ease);
+    color var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-nav-link:active {
+  transform: scale(var(--pt-press-scale));
 }
 
 .pt-nav-link:hover {
@@ -482,7 +516,12 @@
   cursor: pointer;
   transition:
     background-color var(--pt-motion-fast) var(--pt-ease),
-    color var(--pt-motion-fast) var(--pt-ease);
+    color var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-nav-more-toggle:active {
+  transform: scale(var(--pt-press-scale));
 }
 
 .pt-nav-more-toggle:hover,
@@ -659,23 +698,10 @@
   color: var(--pt-text-2);
 }
 
-@keyframes pt-skeleton-pulse {
-  50% {
-    opacity: 0.55;
-  }
-}
-
-.pt-skeleton {
-  border-radius: var(--pt-radius-card);
-  background: var(--pt-skeleton);
-  animation: pt-skeleton-pulse 1.6s var(--pt-ease) infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pt-skeleton {
-    animation: none;
-  }
-}
+/*
+ * Форма и цвет скелета (токен --pt-skeleton, пара светлая/тёмная) заданы в
+ * разделе «Движение» ниже: там же его вход; скелет не пульсирует.
+ */
 
 .pt-skip-link:focus-visible,
 .pt-topbar-logo:focus-visible,
@@ -772,7 +798,14 @@
   cursor: pointer;
   transition:
     background-color var(--pt-motion-fast) var(--pt-ease),
-    color var(--pt-motion-fast) var(--pt-ease);
+    color var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+/* Нажатие: кнопка чуть «садится» на 100 мс; отключённая не реагирует. */
+.pt-btn:active:not(:disabled):not([aria-disabled="true"]),
+.pt-btn-ghost:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: scale(var(--pt-press-scale));
 }
 
 .pt-btn {
@@ -905,18 +938,6 @@
   list-style: none;
 }
 
-@keyframes pt-card-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 .pt-uni-card {
   display: flex;
   flex-direction: column;
@@ -926,13 +947,16 @@
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   box-shadow: var(--pt-shadow-card);
-  animation: pt-card-rise var(--pt-motion-slow) var(--pt-ease) both;
-  transition: box-shadow var(--pt-motion-fast) var(--pt-ease);
+  transition:
+    box-shadow var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
 }
 
 .pt-uni-card:hover {
   box-shadow: var(--pt-shadow-raised);
 }
+
+/* Появление карточек — стаггер каталога в разделе «Движение» (конец файла). */
 
 .pt-uni-card-body {
   display: flex;
@@ -1039,7 +1063,9 @@
   border-radius: var(--pt-radius-control);
   color: var(--pt-text-2);
   cursor: pointer;
-  transition: color var(--pt-motion-fast) var(--pt-ease);
+  transition:
+    color var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
 }
 
 .pt-favorite-btn:hover,
@@ -1237,7 +1263,13 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color var(--pt-motion-fast) var(--pt-ease);
+  transition:
+    background-color var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-btn-danger:active:not(:disabled) {
+  transform: scale(var(--pt-press-scale));
 }
 
 .pt-btn-danger:hover {
@@ -1610,6 +1642,8 @@
 }
 
 .pt-consult-sent {
+  display: flex;
+  align-items: center;
   margin: 0;
   color: var(--pt-ok);
   font-weight: 500;
@@ -1808,6 +1842,8 @@
 }
 
 .pt-consult-sent {
+  display: flex;
+  align-items: center;
   margin: 0;
   color: var(--pt-ok);
   font-weight: 500;
@@ -2941,6 +2977,11 @@ main.pt-page > .pt-card {
   color: var(--pt-error);
 }
 
+.pt-doc-feedback-ok {
+  color: var(--pt-ok);
+  font-weight: 500;
+}
+
 /* Оплата. */
 
 .pt-pay-item {
@@ -3880,4 +3921,374 @@ main.pt-page > .pt-card {
   .pt-prep-selection .pt-btn { width: 100%; }
   .pt-prep-state-list > div { grid-template-columns: 1fr; gap: 4px; }
   .pt-prep-section-heading { align-items: flex-start; }
+}
+
+/* ================================================================
+ * Движение кабинета студента (решение владельца 02.10, PLAN_CHANGES).
+ * Словарь — токены --pt-motion-*, --pt-ease-out, --pt-rise, --pt-stagger в
+ * начале файла. Только transform и opacity (прогресс — scaleX), ничего не
+ * зацикливается, состояние по умолчанию — видимое: без CSS-анимации или при
+ * сбое скрипта контент на месте. При prefers-reduced-motion — блок в конце
+ * раздела отключает всё явно.
+ * ================================================================ */
+
+@keyframes pt-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--pt-rise));
+  }
+}
+
+/*
+ * Вход страницы не с нуля: смена маршрута и «скелетон → содержимое» не должны
+ * мигать пустым кадром (на ease-out 0 → 1 первый кадр почти прозрачен). Пол
+ * непрозрачности — --pt-enter-floor, подъём 6 px сохраняется.
+ */
+@keyframes pt-enter-page {
+  from {
+    opacity: var(--pt-enter-floor);
+    transform: translateY(calc(var(--pt-rise) * 0.75));
+  }
+}
+
+/* Скелетон: тот же пол, чтобы смена страницы не мигала пустым экраном. */
+@keyframes pt-skeleton-in {
+  from {
+    opacity: var(--pt-enter-floor);
+  }
+}
+
+/*
+ * Вход содержимого при смене маршрута. Shell оборачивает страницу в
+ * display: contents-обёртку с key=pathname: раскладка та же, а на каждой
+ * смене маршрута узлы страницы создаются заново и проигрывают вход. Двигается
+ * только содержимое; рейл, верхняя полоса и нижняя панель стоят на месте.
+ * fill-mode backwards: после входа у узла нет ни transform, ни opacity — нет
+ * лишнего stacking context и containing block для fixed-потомков.
+ */
+.pt-route {
+  display: contents;
+}
+
+.pt-route > * {
+  animation: pt-enter-page var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+/*
+ * Скелетон загрузки сменяет прежнюю страницу сразу и проявляется за 160 мс с
+ * пола --pt-enter-floor (без пустого экрана между страницами). Настоящий
+ * кросс-фейд «скелетон → содержимое» требует React <ViewTransition>, которого
+ * нет в стабильном React 19.2: скелетон исчезает сразу, а содержимое входит
+ * плавно (.pt-route > * выше). Скелетон не пульсирует: ничто не
+ * зацикливается.
+ */
+.pt-route > [data-pt-loading] {
+  animation: pt-skeleton-in var(--pt-motion-fast) var(--pt-ease-out) backwards;
+}
+
+.pt-skeleton {
+  display: block;
+  background: var(--pt-skeleton);
+  border-radius: var(--pt-radius-item);
+}
+
+.pt-skeleton-kicker {
+  width: 112px;
+  height: 13px;
+}
+
+.pt-skeleton-title {
+  width: 280px;
+  max-width: 100%;
+  height: 32px;
+  margin-top: 12px;
+}
+
+.pt-skeleton-lead {
+  width: 460px;
+  max-width: 100%;
+  height: 18px;
+  margin-top: 14px;
+}
+
+.pt-skeleton-card {
+  height: 176px;
+  border-radius: var(--pt-radius-card);
+}
+
+.pt-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--pt-card-min), 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+
+/*
+ * Стаггер при первом показе: первые шесть элементов карточных списков и сеток
+ * входят с шагом 30 мс (последний стартует на 150 мс и заканчивает к 350 мс),
+ * остальные — сразу, без анимации. Каталог и избранное (.pt-uni-grid),
+ * профессии, тесты, «Главная», блоки «Моего поступления» (.pt-adm-grid,
+ * .pt-adm-list) и список уроков.
+ */
+:is(
+  .pt-uni-grid,
+  .pt-prof-grid,
+  .pt-tests-grid,
+  .pt-home-grid,
+  .pt-home-fav-list,
+  .pt-adm-grid,
+  .pt-adm-list,
+  .pt-lesson-list
+) > :nth-child(-n + 6) {
+  animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+:is(
+  .pt-uni-grid,
+  .pt-prof-grid,
+  .pt-tests-grid,
+  .pt-home-grid,
+  .pt-home-fav-list,
+  .pt-adm-grid,
+  .pt-adm-list,
+  .pt-lesson-list
+) > :nth-child(2) {
+  animation-delay: calc(var(--pt-stagger) * 1);
+}
+
+:is(
+  .pt-uni-grid,
+  .pt-prof-grid,
+  .pt-tests-grid,
+  .pt-home-grid,
+  .pt-home-fav-list,
+  .pt-adm-grid,
+  .pt-adm-list,
+  .pt-lesson-list
+) > :nth-child(3) {
+  animation-delay: calc(var(--pt-stagger) * 2);
+}
+
+:is(
+  .pt-uni-grid,
+  .pt-prof-grid,
+  .pt-tests-grid,
+  .pt-home-grid,
+  .pt-home-fav-list,
+  .pt-adm-grid,
+  .pt-adm-list,
+  .pt-lesson-list
+) > :nth-child(4) {
+  animation-delay: calc(var(--pt-stagger) * 3);
+}
+
+:is(
+  .pt-uni-grid,
+  .pt-prof-grid,
+  .pt-tests-grid,
+  .pt-home-grid,
+  .pt-home-fav-list,
+  .pt-adm-grid,
+  .pt-adm-list,
+  .pt-lesson-list
+) > :nth-child(5) {
+  animation-delay: calc(var(--pt-stagger) * 4);
+}
+
+:is(
+  .pt-uni-grid,
+  .pt-prof-grid,
+  .pt-tests-grid,
+  .pt-home-grid,
+  .pt-home-fav-list,
+  .pt-adm-grid,
+  .pt-adm-list,
+  .pt-lesson-list
+) > :nth-child(6) {
+  animation-delay: calc(var(--pt-stagger) * 5);
+}
+
+/*
+ * Нажатие на карточку: когда нажата её главная ссылка, вся карточка «садится»
+ * на 100 мс. :has() — улучшение; без него остаются hover и нажатие самой ссылки.
+ */
+.pt-prof-card {
+  transition: transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-uni-card:has(.pt-uni-card-action:active),
+.pt-prof-card:has(.pt-prof-title a:active) {
+  transform: scale(var(--pt-press-scale));
+}
+
+/*
+ * Прогресс и меры: заливка вырастает из нуля один раз при первом показе —
+ * scaleX у внутренней части нативных <progress> и <meter>, ширина не
+ * анимируется. Смена значения (следующий вопрос) остаётся мгновенной.
+ */
+@keyframes pt-fill-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.pt-progress::-webkit-progress-value,
+.pt-res-meter::-webkit-meter-optimum-value,
+.pt-res-meter::-webkit-meter-suboptimum-value,
+.pt-res-meter::-webkit-meter-even-less-good-value {
+  transform-origin: left center;
+  animation: pt-fill-grow var(--pt-motion-slow) var(--pt-ease-out) backwards;
+}
+
+.pt-progress::-moz-progress-bar,
+.pt-res-meter::-moz-meter-bar {
+  transform-origin: left center;
+  animation: pt-fill-grow var(--pt-motion-slow) var(--pt-ease-out) backwards;
+}
+
+/*
+ * Активная вкладка: один индикатор переезжает между пунктами нижней панели
+ * телефона (по горизонтали) и рейла (по вертикали). Положение считает Shell
+ * (--pt-ind-x/-y/-w/-h в px) и ставит data-indicator на <nav>; до этого (SSR,
+ * без скрипта) работают прежние статические планки ::before.
+ */
+.pt-nav-indicator {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--pt-accent);
+  border-radius: var(--pt-radius-chip);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.pt-nav[data-indicator] .pt-nav-indicator {
+  display: block;
+  transition:
+    transform var(--pt-motion-base) var(--pt-ease-out),
+    opacity var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-nav[data-indicator="none"] .pt-nav-indicator {
+  opacity: 0;
+}
+
+/* Пересчёт при изменении размера окна ставит индикатор мгновенно. */
+.pt-nav[data-indicator-snap] .pt-nav-indicator {
+  transition: none;
+}
+
+.pt-nav[data-indicator] .pt-nav-link[aria-current="page"]::before,
+.pt-nav[data-indicator] .pt-nav-more-toggle[data-current-inside]::before {
+  content: none;
+}
+
+@media (min-width: 768px) {
+  .pt-nav-indicator {
+    width: 3px;
+    height: 100px;
+    transform:
+      translateY(calc(var(--pt-ind-y, 0) * 1px + 8px))
+      scaleY(calc((var(--pt-ind-h, 0) - 16) / 100));
+  }
+}
+
+@media (max-width: 767px) {
+  .pt-nav-indicator {
+    width: 100px;
+    height: 3px;
+    transform:
+      translateX(calc(var(--pt-ind-x, 0) * 1px + var(--pt-ind-w, 0) * 0.25px))
+      scaleX(calc(var(--pt-ind-w, 0) * 0.5 / 100));
+  }
+}
+
+/*
+ * Подтверждения. Штрих галочки (документ загружен, консультация запрошена)
+ * дорисовывается за 200 мс и только когда успех случился в этой сессии
+ * (data-fresh); уже сохранённое состояние при загрузке страницы показывается
+ * сразу. Сердечко избранного «щёлкает» один раз за 240 мс при добавлении.
+ */
+.pt-check {
+  /* Tailwind preflight делает svg блочным: без этого галочка встаёт отдельной строкой над текстом. */
+  display: inline-block;
+  flex: none;
+  vertical-align: -3px;
+  margin-inline-end: 6px;
+}
+
+.pt-check-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+@keyframes pt-check-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+.pt-check[data-fresh] .pt-check-path {
+  animation: pt-check-draw var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+@keyframes pt-heart-pop {
+  0% {
+    transform: scale(0.82);
+  }
+
+  55% {
+    transform: scale(1.16);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pt-favorite-icon[data-pop] {
+  animation: pt-heart-pop var(--pt-motion-slow) var(--pt-ease-out);
+}
+
+.pt-favorite-btn:active:not(:disabled) {
+  transform: scale(var(--pt-press-scale));
+}
+
+/* Уменьшенное движение: входы, стаггер, скелетон и штрихи отключены явно. */
+@media (prefers-reduced-motion: reduce) {
+  .pt-route > *,
+  .pt-route > [data-pt-loading],
+  :is(
+    .pt-uni-grid,
+    .pt-prof-grid,
+    .pt-tests-grid,
+    .pt-home-grid,
+    .pt-home-fav-list,
+    .pt-adm-grid,
+    .pt-adm-list,
+    .pt-lesson-list
+  ) > *,
+  .pt-check[data-fresh] .pt-check-path,
+  .pt-favorite-icon[data-pop] {
+    animation: none;
+  }
+
+  /* Вендорные псевдоэлементы — отдельными правилами: в другом движке один
+     неизвестный селектор обнулил бы весь список. */
+  .pt-progress::-webkit-progress-value,
+  .pt-res-meter::-webkit-meter-optimum-value,
+  .pt-res-meter::-webkit-meter-suboptimum-value,
+  .pt-res-meter::-webkit-meter-even-less-good-value {
+    animation: none;
+  }
+
+  .pt-progress::-moz-progress-bar,
+  .pt-res-meter::-moz-meter-bar {
+    animation: none;
+  }
+
+  .pt-nav-indicator {
+    transition: none;
+  }
 }

@@ -28,6 +28,10 @@ export function FavoriteToggle({
   strings: FavoriteToggleStrings;
 }) {
   const [favored, setFavored] = useState(initialFavored);
+  // «Щелчок» сердечка (portal.css, [data-pop]) — только после нажатия в этой
+  // сессии и только при добавлении: сохранённое состояние при загрузке стоит
+  // без движения, снятие отметки тоже тихое.
+  const [popped, setPopped] = useState(false);
   const [failed, setFailed] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -45,6 +49,7 @@ export function FavoriteToggle({
           const previous = favored;
           const next = !previous;
           setFavored(next);
+          setPopped(next);
           setFailed(false);
           startTransition(async () => {
             const result = await setUniversityFavoriteAction(institutionId, next);
@@ -52,6 +57,7 @@ export function FavoriteToggle({
               setFavored(result.favored);
             } else {
               setFavored(previous);
+              setPopped(false);
               setFailed(true);
             }
           });
@@ -63,6 +69,7 @@ export function FavoriteToggle({
           height="20"
           viewBox="0 0 20 20"
           aria-hidden="true"
+          data-pop={favored && popped ? "" : undefined}
         >
           <path
             d="M10 16.6 3.9 10.7a3.9 3.9 0 0 1 0-5.6 4 4 0 0 1 5.6 0l.5.5.5-.5a4 4 0 0 1 5.6 0 3.9 3.9 0 0 1 0 5.6z"

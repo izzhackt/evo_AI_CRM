@@ -1,0 +1,152 @@
+/*
+ * Анкета /apply: движение шагов (анимации кабинета студента, решение владельца
+ * 02.10, docs/PLAN_CHANGES.md). Анкета живёт вне группы маршрутов (portal) и не
+ * подключает portal.css, поэтому словарь движения здесь — те же значения, что
+ * --pt-motion-* кабинета: выход 100 мс (быстрее входа), затем вход 200 мс —
+ * «fade through», всего 300 мс; нажатие 100 мс, кривая с замедлением в конце.
+ * Только transform и opacity; смещение
+ * 16 px меньше бокового отступа карточки анкеты (20 px на телефоне), поэтому
+ * движущийся шаг не выходит за её рамку. Ничего не зацикливается.
+ */
+
+.motion {
+  --apply-motion-press: 100ms;
+  --apply-motion-fast: 160ms;
+  --apply-motion-base: 200ms;
+  --apply-ease: cubic-bezier(0, 0, 0.2, 1);
+  --apply-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --apply-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --apply-shift: 16px;
+  --apply-shift-out: 12px;
+  /* Входящий шаг стартует, когда уходящий уже погас: тексты двух шагов не накладываются. */
+  --apply-enter-delay: 100ms;
+}
+
+.stage {
+  position: relative;
+}
+
+/* Входящий шаг: вперёд — справа, «Назад» — слева, первый показ — подъём. */
+.enterForward {
+  animation: enter-forward var(--apply-motion-base) var(--apply-ease-out) var(--apply-enter-delay) backwards;
+}
+
+.enterBack {
+  animation: enter-back var(--apply-motion-base) var(--apply-ease-out) var(--apply-enter-delay) backwards;
+}
+
+.enterInitial {
+  animation: enter-initial var(--apply-motion-base) var(--apply-ease-out) backwards;
+}
+
+/*
+ * Уходящий шаг: копия предыдущего содержимого поверх живого (позиция absolute,
+ * в раскладке места не занимает), недоступна и для указателя, и для клавиатуры
+ * (inert, fieldset disabled — поля не попадают ни в FormData, ни в проверку
+ * формы). Гаснет и уезжает в сторону, противоположную входящему шагу.
+ */
+.ghost {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ghostForward {
+  animation: exit-forward var(--apply-motion-press) var(--apply-ease-in) forwards;
+}
+
+.ghostBack {
+  animation: exit-back var(--apply-motion-press) var(--apply-ease-in) forwards;
+}
+
+.ghostFields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+@keyframes enter-forward {
+  from {
+    opacity: 0;
+    transform: translateX(var(--apply-shift));
+  }
+}
+
+@keyframes enter-back {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--apply-shift) * -1));
+  }
+}
+
+@keyframes enter-initial {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--apply-shift) / 2));
+  }
+}
+
+@keyframes exit-forward {
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--apply-shift-out) * -1));
+  }
+}
+
+@keyframes exit-back {
+  to {
+    opacity: 0;
+    transform: translateX(var(--apply-shift-out));
+  }
+}
+
+/* Сегмент прогресса: заливка растёт и убывает через scaleX, ширина не меняется. */
+.fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--apply-motion-base) var(--apply-ease-out);
+}
+
+.filled {
+  transform: scaleX(1);
+}
+
+/* Нажатие: «Продолжить», «Назад» и карточки выбора садятся на 100 мс. */
+.press {
+  transition:
+    color var(--apply-motion-fast) var(--apply-ease),
+    background-color var(--apply-motion-fast) var(--apply-ease),
+    border-color var(--apply-motion-fast) var(--apply-ease),
+    transform var(--apply-motion-press) var(--apply-ease-out);
+}
+
+.press:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Уменьшенное движение: шаги меняются мгновенно, «призрака» нет. */
+@media (prefers-reduced-motion: reduce) {
+  .enterForward,
+  .enterBack,
+  .enterInitial {
+    animation: none;
+  }
+
+  .ghost {
+    display: none;
+  }
+
+  .fill,
+  .press {
+    transition: none;
+  }
+
+  .press:active:not(:disabled) {
+    transform: none;
+  }
+}

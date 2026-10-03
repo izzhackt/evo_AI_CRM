@@ -778,3 +778,340 @@ test("POST maps a thrown Supabase transport failure to the same safe unavailable
   assert.equal(serialized.includes(WEBHOOK_SECRET), false);
   assert.equal(serialized.includes("private provider body"), false);
 });
+
+function recordingRpc(calls) {
+  return async (name, args) => {
+    calls.push({ name, args });
+    switch (name) {
+      case "persist_provider_webhook_event":
+        return {
+          data: {
+            provider_webhook_event_id: PROVIDER_EVENT_ID,
+            deduplicated: false,
+          },
+          error: null,
+        };
+      case "enqueue_verified_webhook_work":
+        return { data: { work_item_id: WORK_ITEM_ID }, error: null };
+      case "claim_waha_webhook_work_item":
+        return {
+          data: {
+            claimed: true,
+            completed: false,
+            requested_work_item_id: WORK_ITEM_ID,
+            organization_id: ORGANIZATION_ID,
+            work_item_id: WORK_ITEM_ID,
+            attempt_id: ATTEMPT_ID,
+            source_webhook_event_id: PROVIDER_EVENT_ID,
+            kind: "provider_webhook_process",
+            event_type: "message.any",
+            queue: "platform_work_v1",
+            attempt_number: 1,
+            max_attempts: 8,
+            lease_expires_at: "2026-09-02T10:00:00Z",
+          },
+          error: null,
+        };
+      case "project_claimed_waha_event":
+        return {
+          data: {
+            organization_id: ORGANIZATION_ID,
+            work_item_id: WORK_ITEM_ID,
+            attempt_id: ATTEMPT_ID,
+            disposition: "succeeded",
+            evidence_ref: `waha-inbound-projected:${PROVIDER_EVENT_ID}`,
+            error_code: null,
+          },
+          error: null,
+        };
+      case "finish_waha_webhook_work":
+        return {
+          data: {
+            organization_id: ORGANIZATION_ID,
+            work_item_id: WORK_ITEM_ID,
+            attempt_id: ATTEMPT_ID,
+            outcome: "succeeded",
+            state: "succeeded",
+          },
+          error: null,
+        };
+      default:
+        throw new Error(`Unexpected RPC: ${name}`);
+    }
+  };
+}
+
+test("POST answers 200 ignored, writes nothing and never 4xx for group, status, broadcast and channel events", async () => {
+  configureEnvironment();
+  const calls = [];
+  const handler = createPlatformWahaWebhookHandler({
+    createServiceClient: () => platformClient(recordingRpc(calls)),
+  });
+  const message = (id, payload) => ({
+    id: `evt-${id}`,
+    event: "message.any",
+    session: "crm_primary",
+    timestamp: 1_727_745_026,
+    payload: { id: `${id}-message`, ...payload },
+  });
+  const events = [
+    message("group-in", {
+      from: "120363000000000001@g.us",
+      participant: "79990000000@c.us",
+      fromMe: false,
+      body: "group text",
+    }),
+    message("group-out", {
+      from: "79990000001@c.us",
+      to: "120363000000000001@g.us",
+      fromMe: true,
+      body: "sent from the phone to a group",
+    }),
+    message("status", {
+      from: "status@broadcast",
+      participant: "79990000000@c.us",
+      fromMe: false,
+      hasMedia: true,
+      body: "",
+    }),
+    message("broadcast-list", {
+      from: "1727745026@broadcast",
+      fromMe: false,
+      body: "list text",
+    }),
+    message("channel", {
+      from: "120363000000000002@newsletter",
+      fromMe: false,
+      body: "channel post",
+    }),
+    // Engine-specific nesting is checked too; the top-level `from` is absent.
+    message("data-remote", {
+      fromMe: false,
+      body: "group text",
+      _data: { id: { remote: "120363000000000003@g.us" } },
+    }),
+    {
+      id: "evt-group-ack",
+      event: "message.ack",
+      session: "crm_primary",
+      timestamp: 1_727_745_026,
+      payload: {
+        id: "true_120363000000000001@g.us_ACK",
+        to: "120363000000000001@g.us",
+        fromMe: true,
+        ack: 2,
+        ackName: "DEVICE",
+      },
+    },
+    {
+      id: "evt-status-ack",
+      event: "message.ack",
+      session: "crm_primary",
+      timestamp: 1_727_745_026,
+      payload: {
+        id: "true_status@broadcast_ACK",
+        to: "status@broadcast",
+        fromMe: true,
+        ack: 1,
+        ackName: "SERVER",
+      },
+    },
+  ];
+
+  for (const event of events) {
+    const response = await handler(signedRequest(event));
+    const serialized = await response.text();
+    assert.equal(response.status, 200, event.id);
+    assert.deepEqual(JSON.parse(serialized), {
+      ok: true,
+      status: "ignored",
+      reason: "non_direct_chat",
+    });
+    assert.equal(serialized.includes("group text"), false);
+  }
+  assert.deepEqual(calls, [], "ignored events must not touch Supabase");
+});
+
+test("POST keeps rejecting an unsigned group event with 401 and a wrong-session group event with 403", async () => {
+  configureEnvironment();
+  const handler = createPlatformWahaWebhookHandler({
+    createServiceClient: () => {
+      throw new Error("Supabase must not be called");
+    },
+  });
+  const group = {
+    id: "evt-group-denied",
+    event: "message.any",
+    session: "crm_primary",
+    timestamp: 1_727_745_026,
+    payload: {
+      id: "group-denied-message",
+      from: "120363000000000001@g.us",
+      fromMe: false,
+      body: "group text",
+    },
+  };
+  const unsigned = await handler(
+    new Request("http://localhost/api/v2/whatsapp/inbound", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(group),
+    }),
+  );
+  assert.equal(unsigned.status, 401);
+  const wrongSession = await handler(
+    signedRequest({ ...group, session: "default" }),
+  );
+  assert.equal(wrongSession.status, 403);
+});
+
+test("POST stores a media-only message through the projection without downloading media and without a 400", async () => {
+  configureEnvironment();
+  const calls = [];
+  const handler = createPlatformWahaWebhookHandler({
+    createServiceClient: () => platformClient(recordingRpc(calls)),
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("The webhook must not fetch media");
+  };
+  try {
+    const mediaOnly = {
+      id: "evt-photo",
+      event: "message.any",
+      session: "crm_primary",
+      timestamp: 1_727_745_026,
+      payload: {
+        id: "false_79990000000@c.us_PHOTO",
+        from: "79990000000@c.us",
+        fromMe: false,
+        body: "",
+        hasMedia: true,
+        media: {
+          url: "http://waha.invalid/api/files/PHOTO.jpg",
+          mimetype: "image/jpeg",
+          filename: null,
+        },
+      },
+    };
+    const photo = await handler(signedRequest(mediaOnly));
+    assert.equal(photo.status, 200);
+    assert.deepEqual(await photo.json(), {
+      ok: true,
+      status: "projected",
+      eventType: "message.any",
+      deduplicated: false,
+    });
+    assert.deepEqual(
+      calls.map((call) => call.name),
+      [
+        "persist_provider_webhook_event",
+        "enqueue_verified_webhook_work",
+        "claim_waha_webhook_work_item",
+        "project_claimed_waha_event",
+        "finish_waha_webhook_work",
+      ],
+    );
+    // The stored provider evidence is the original event, unmodified.
+    assert.deepEqual(calls[0].args.p_raw_payload, mediaOnly);
+
+    // A document without `body` at all, and a captioned photo, take the same route.
+    for (const payload of [
+      {
+        id: "false_79990000000@c.us_DOC",
+        from: "79990000000@c.us",
+        fromMe: false,
+        hasMedia: true,
+        media: { mimetype: "application/pdf", filename: "passport-scan.pdf" },
+      },
+      {
+        id: "false_79990000000@c.us_CAPTION",
+        from: "79990000000@c.us",
+        fromMe: false,
+        hasMedia: true,
+        body: "Вот мой диплом",
+        media: { mimetype: "image/jpeg", filename: null },
+      },
+    ]) {
+      calls.length = 0;
+      const response = await handler(
+        signedRequest({
+          id: `evt-${payload.id}`,
+          event: "message.any",
+          session: "crm_primary",
+          timestamp: 1_727_745_026,
+          payload,
+        }),
+      );
+      assert.equal(response.status, 200, payload.id);
+      assert.equal(calls[0].name, "persist_provider_webhook_event");
+      assert.equal(calls.at(-1).name, "finish_waha_webhook_work");
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("POST answers 200 ignored for a direct event that has neither text nor media", async () => {
+  configureEnvironment();
+  const calls = [];
+  const handler = createPlatformWahaWebhookHandler({
+    createServiceClient: () => platformClient(recordingRpc(calls)),
+  });
+  for (const payload of [
+    { body: "" },
+    { body: "   " },
+    { body: null },
+    {},
+    { hasMedia: false, body: "" },
+  ]) {
+    const response = await handler(
+      signedRequest({
+        id: "evt-empty",
+        event: "message.any",
+        session: "crm_primary",
+        timestamp: 1_727_745_026,
+        payload: {
+          id: "false_79990000000@c.us_EMPTY",
+          from: "79990000000@c.us",
+          fromMe: false,
+          ...payload,
+        },
+      }),
+    );
+    assert.equal(response.status, 200, JSON.stringify(payload));
+    assert.deepEqual(await response.json(), {
+      ok: true,
+      status: "ignored",
+      reason: "empty_message",
+    });
+  }
+  assert.deepEqual(calls, []);
+});
+
+test("POST still rejects an oversized text and a malformed direct sender with 400", async () => {
+  configureEnvironment();
+  const handler = createPlatformWahaWebhookHandler({
+    createServiceClient: () => {
+      throw new Error("Supabase must not be called");
+    },
+  });
+  const request = (payload) =>
+    signedRequest({
+      id: "evt-bad",
+      event: "message.any",
+      session: "crm_primary",
+      timestamp: 1_727_745_026,
+      payload: { id: "false_79990000000@c.us_BAD", fromMe: false, ...payload },
+    });
+  const oversized = await handler(
+    request({ from: "79990000000@c.us", body: "x".repeat(4_001) }),
+  );
+  assert.equal(oversized.status, 400);
+  assert.equal((await oversized.json()).error, "invalid_message_body");
+  const malformed = await handler(
+    request({ from: "not-a-chat", body: "text" }),
+  );
+  assert.equal(malformed.status, 400);
+  assert.equal((await malformed.json()).error, "invalid_message_sender");
+});

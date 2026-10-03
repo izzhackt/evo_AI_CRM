@@ -31,6 +31,11 @@ const UUID_PATTERN =
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const DIRECT_CHAT_PATTERN =
   /^[1-9][0-9]{6,14}@(c\.us|s\.whatsapp\.net)$/;
+// Groups, Status (`status@broadcast`), broadcast lists and channels are not
+// sales conversations. WAHA documents these chat-id suffixes at
+// https://waha.devlike.pro/docs/how-to/receive-messages/ and
+// https://waha.devlike.pro/docs/how-to/events/ .
+const NON_DIRECT_CHAT_PATTERN = /@(g\.us|broadcast|newsletter)$/i;
 const WAHA_ACK_NAMES = new Map<number, string>([
   [-1, "ERROR"],
   [0, "PENDING"],
@@ -65,6 +70,11 @@ type WahaEventDescriptor = Readonly<{
   businessKeySha256: string;
   shouldEnqueue: boolean;
   shouldSynchronizeSession: boolean;
+}>;
+
+type WahaIgnoredEvent = Readonly<{
+  ignored: true;
+  reason: "non_direct_chat" | "empty_message";
 }>;
 
 type PersistedEvent = Readonly<{
@@ -108,6 +118,31 @@ function errorResponse(status: number, code: string): Response {
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonDirectChatId(value: unknown): boolean {
+  return typeof value === "string" && NON_DIRECT_CHAT_PATTERN.test(value.trim());
+}
+
+// Mirrors the chat-id candidates the projection reads, plus `to`, which carries
+// the chat for messages sent from the phone or from the API.
+function isNonDirectChatEvent(payload: JsonObject): boolean {
+  const data = isObject(payload._data) ? payload._data : null;
+  const dataId = data !== null && isObject(data.id) ? data.id : null;
+  return [
+    payload.from,
+    payload.to,
+    payload.chatId,
+    data?.from,
+    data?.to,
+    dataId?.remote,
+  ].some(isNonDirectChatId);
+}
+
+// WAHA reports media as `hasMedia: true` and/or a `media` object; the caption
+// travels in `body` (https://waha.devlike.pro/docs/how-to/receive-messages/).
+function carriesMedia(payload: JsonObject): boolean {
+  return payload.hasMedia === true || isObject(payload.media);
 }
 
 function boundedIdentifier(value: unknown, code: string): string {
@@ -195,7 +230,10 @@ function parseMessageAny(
   body: JsonObject,
   payload: JsonObject,
   requestId: string,
-): WahaEventDescriptor {
+): WahaEventDescriptor | WahaIgnoredEvent {
+  if (isNonDirectChatEvent(payload)) {
+    return { ignored: true, reason: "non_direct_chat" };
+  }
   const payloadId = boundedIdentifier(payload.id, "invalid_message_id");
   if (typeof payload.fromMe !== "boolean") {
     return reject(400, "invalid_message_direction");
@@ -205,12 +243,16 @@ function parseMessageAny(
     if (!DIRECT_CHAT_PATTERN.test(from)) {
       return reject(400, "invalid_message_sender");
     }
-    if (
-      typeof payload.body !== "string" ||
-      payload.body.trim().length === 0 ||
-      payload.body.length > 4_000
-    ) {
+    const hasText =
+      typeof payload.body === "string" && payload.body.trim().length > 0;
+    if (hasText && (payload.body as string).length > 4_000) {
       return reject(400, "invalid_message_body");
+    }
+    // A media-only message has no text. It must still reach the projection,
+    // which stores the fixed staff-review marker; the media is not downloaded.
+    // An event with neither text nor media carries nothing to store.
+    if (!hasText && !carriesMedia(payload)) {
+      return { ignored: true, reason: "empty_message" };
     }
   }
   const occurredAt = parseOccurredAt(body.timestamp ?? payload.timestamp);
@@ -235,7 +277,10 @@ function parseMessageAck(
   payload: JsonObject,
   requestId: string,
   rawPayloadSha256: string,
-): WahaEventDescriptor {
+): WahaEventDescriptor | WahaIgnoredEvent {
+  if (isNonDirectChatEvent(payload)) {
+    return { ignored: true, reason: "non_direct_chat" };
+  }
   const rawMessageId = boundedIdentifier(payload.id, "invalid_message_id");
   if (payload.fromMe !== true) {
     return reject(400, "invalid_ack_direction");
@@ -308,7 +353,7 @@ function parseSessionStatus(
 function parseEvent(
   body: JsonObject,
   rawPayloadSha256: string,
-): WahaEventDescriptor | null {
+): WahaEventDescriptor | WahaIgnoredEvent | null {
   if (body.session !== PLATFORM_WAHA_SESSION_NAME) {
     return reject(403, "invalid_session");
   }
@@ -475,6 +520,14 @@ export function createPlatformWahaWebhookHandler(
       const descriptor = parseEvent(body, rawPayloadSha256);
       if (descriptor === null) {
         return json(202, { ok: true, status: "ignored" });
+      }
+      // Answer 200, never 4xx: this is not a failure and must not be retried.
+      if ("ignored" in descriptor) {
+        return json(200, {
+          ok: true,
+          status: "ignored",
+          reason: descriptor.reason,
+        });
       }
 
       const client = dependencies.createServiceClient(config);

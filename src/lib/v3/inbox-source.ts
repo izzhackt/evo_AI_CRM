@@ -33,6 +33,7 @@ import {
   type PlatformStaffGeminiProposal,
 } from "@/lib/platform-provider-workflows";
 import { isFreshWorkingWahaSession } from "@/lib/provider-display-status";
+import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress-config";
 import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
@@ -118,15 +119,21 @@ async function readInboxChannelStatus(
       actor.organizationId,
       await getPlatformWahaSessionHealth(actor, "crm_primary"),
     );
+    // Нет строки о сессии CRM — WhatsApp к CRM не подключали (чтение
+    // прошло; сбой чтения — ниже, «unavailable»).
+    const channelState: InboxChannelStatus["channelState"] =
+      health === null
+        ? "not_connected"
+        : isFreshWorkingWahaSession(health)
+          ? "ready"
+          : "attention";
     return Object.freeze({
-      // Нет строки о сессии CRM — WhatsApp к CRM не подключали (чтение
-      // прошло; сбой чтения — ниже, «unavailable»).
+      // Сессия работает, но приём выключен на сервере: «подключён» было бы
+      // неправдой — входящие в CRM не попадают.
       channelState:
-        health === null
-          ? "not_connected"
-          : isFreshWorkingWahaSession(health)
-            ? "ready"
-            : "attention",
+        channelState === "ready" && !isPlatformWahaIngressEnabled()
+          ? "intake_off"
+          : channelState,
       channelObservedAt: health ? formatInboxTime(health.observedAt) : null,
     });
   } catch {

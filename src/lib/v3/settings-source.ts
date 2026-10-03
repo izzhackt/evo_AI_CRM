@@ -21,6 +21,7 @@ import {
   platformWahaHealthDisplayStatus,
   readPlatformGeminiProviderAvailability,
 } from "@/lib/server/platform-provider-readiness";
+import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress-config";
 import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -106,7 +107,12 @@ export async function readIntegrations(
   assertAdminAuthority(actor);
   const facts = await readProviderFacts(actor);
   return settingsIntegrations({
-    waha: { display: facts.wahaDisplay, sessionStatus: facts.waha?.status, observedAt: facts.waha?.observedAt ?? null },
+    waha: {
+      display: facts.wahaDisplay,
+      sessionStatus: facts.waha?.status,
+      observedAt: facts.waha?.observedAt ?? null,
+      ingressEnabled: isPlatformWahaIngressEnabled(),
+    },
     gemini: facts.geminiDisplay,
     amo: facts.amo,
   }, now);

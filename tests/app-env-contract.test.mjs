@@ -340,6 +340,21 @@ test("enabled WAHA ingress requires the intake Sales membership UUID, and the ex
     { ok: true, code: "valid" },
   );
 
+  // A staged setup is valid: the secret and the intake owner are in place while
+  // the runtime switch is still off.
+  assert.deepEqual(
+    validateAppEnvironmentContract({
+      exampleText: example,
+      actualText: valid({
+        EVO_PLATFORM_WAHA_INGRESS_ENABLED: "0",
+        EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "w".repeat(32),
+        EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: TEST_SALES_MEMBERSHIP_ID,
+      }),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+    }),
+    { ok: true, code: "valid" },
+  );
+
   // Ingress off: the name must still be present (empty is fine).
   expectInvalid(
     valid().replace(/^EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID=.*\n/mu, ""),

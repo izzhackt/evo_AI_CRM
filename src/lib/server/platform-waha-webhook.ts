@@ -15,6 +15,7 @@ import {
   PlatformMessagingBackendConfigurationError,
   type PlatformMessagingBackendConfig,
 } from "./platform-messaging-backend-config.ts";
+import { isPlatformWahaIngressEnabled } from "./platform-waha-ingress-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 import {
   PlatformWahaProjectorError,
@@ -557,7 +558,7 @@ export function createPlatformWahaWebhookHandler(
     // the backend configuration touched, or any Supabase call made, so a
     // present secret alone never opens the route. 503 is the same answer every
     // other "not configured" state gives.
-    if (process.env.EVO_PLATFORM_WAHA_INGRESS_ENABLED !== "1") {
+    if (!isPlatformWahaIngressEnabled()) {
       return errorResponse(503, "waha_webhook_unavailable");
     }
 

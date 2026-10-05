@@ -20,7 +20,7 @@ WAHA → CRM (`/api/v2/whatsapp/inbound`), lead-agent на этом пути н�
 Метки доказательств: **[doc]** — документация WAHA (URL рядом);
 **[src]** — исходники WAHA на теге 2026.9.2 (и 2026.7.1), прочитаны 2026-10-05,
 не запускались; **[repo]** — этот репозиторий, `origin/main` `01247bc8b`, либо
-#1137 на head `9f19a85a9`; **[live ✗]** — не проверялось на реальных WAHA и
+draft-PR #1137 (SHA его head меняется — сверять по самому PR; на 2026-10-05 это `a57fb607d`); **[live ✗]** — не проверялось на реальных WAHA и
 WhatsApp; **[??]** — не проверено нигде. Всё, что отмечено только [live ✗] или
 [??], на go-live проверяется глазами, а не принимается на веру.
 
@@ -141,9 +141,12 @@ pairing, а не после. Причина: WAHA считает ошибкой 
    `waha`, `admin`, 32 нуля или 32 единицы и т. п.) — это и есть случай цикла
    перезапусков [src]
    `src/core/auth/config.ts` `ReportGeneratedValue`. Кроме того, при
-   `WAHA_PRINT_QR` не `false` в лог пишется сканируемый QR. Поэтому
-   `docker logs` WAHA запускать **только** через `waha_logs_safe` (ниже), никогда
-   напрямую и никогда `docker compose logs waha` / `docker logs -f` без него.
+   `WAHA_PRINT_QR` не `false` в лог пишется сканируемый QR; `waha_logs_safe`
+   его **не** скрывает (псевдографика проходит как есть) — единственная защита
+   `WAHA_PRINT_QR=false` (ставит D3, проверяет D5). `docker logs` WAHA запускать
+   **только** через `waha_logs_safe` (ниже: он маскирует ключи, пароли, токены и
+   номера), никогда напрямую и никогда `docker compose logs waha` /
+   `docker logs -f` без него.
 
 Вспомогательные функции (вставить в ssh-сессию один раз; секреты не попадают
 в argv, заголовок ключа лежит на tmpfs с правами 0600 и удаляется, тело ответа
@@ -183,10 +186,14 @@ _waha() {          # _waha METHOD PATH FILTER [curl-аргументы]: без 
 }
 waha()      { _waha "$1" "$2" "${3:-}"; }                                                                  # waha METHOD PATH [JQ_FILTER]
 waha_json() { _waha "$1" "$2" "${3:-}" -H 'Content-Type: application/json' --data-binary @-; }            # тело запроса из stdin
-waha_logs_safe() { # stdin → stdout: значения WAHA_*/WHATSAPP_* и строки «NAME (поле): '…'», токены от 32 знаков и номера (от 7 цифр) скрыты
-  sed -E \
+waha_logs_safe() { # stdin → stdout: скрыты значения WAHA_*/WHATSAPP_*, кавычные значения в «NAME (поле): '…'», на строках WHATSAPP_HOOK_, в value: и 12 строк после customHeaders, токены от 32 знаков и номера (от 7 цифр); QR НЕ скрывается (WAHA_PRINT_QR=false)
+  awk '/[Cc]ustom_?[Hh]eaders|CUSTOM_HEADERS/{n=12} n>0{gsub(/\047[^\047]*\047/,"\047<скрыто>\047"); gsub(/"[^"]*"/,"\"<скрыто>\""); n--} {print}' \
+  | sed -E \
     -e 's/((WAHA|WHATSAPP)_[A-Z0-9_]+)=[^[:space:]]*/\1=<скрыто>/g' \
     -e "/(WAHA|WHATSAPP)_[A-Z0-9_]+ \(/ s/'[^']*'/'<скрыто>'/g" \
+    -e "/WHATSAPP_HOOK_/ s/'[^']*'/'<скрыто>'/g" \
+    -e '/WHATSAPP_HOOK_/ s/"[^"]*"/"<скрыто>"/g' \
+    -e "s/(value[\"']?[[:space:]]*:[[:space:]]*)('[^']*'|\"[^\"]*\")/\1'<скрыто>'/g" \
     -e 's|[A-Za-z0-9_+=-]{32,}|<токен>|g' \
     -e 's/[0-9]{7,}/<n>/g' | cut -c1-160
 }
@@ -201,16 +208,22 @@ waha_logs_safe() { # stdin → stdout: значения WAHA_*/WHATSAPP_* и с�
 Файл заголовка с plain-ключом удаляет `trap` на `EXIT`/`HUP`/`INT`: на
 интерактивном `bash -i` в pty (macOS bash 3.2 и Debian bash 5.2, `/dev/shm`)
 файл исчезает и при `exit`, и при внезапном закрытии терминала, как при обрыве
-ssh; Ctrl-C на долгой команде в интерактивной shell сеанс не завершает и
-файл не трогает. При `SIGKILL` или потере питания `trap` не срабатывает,
+ssh. Ctrl-C на долгой команде (`sleep`, `curl`) сеанс не завершает и файл не
+трогает, но Ctrl-C **на пустом приглашении или в `read -rs`** (ввод секрета)
+запускает `trap` на `INT` и файл удаляет (проверено на тех же bash 3.2 и 5.2) —
+это безопасное поведение (fail closed): после этого `waha` печатает «нет
+заголовка с ключом», нужно снова `waha_open`. При `SIGKILL` или потере питания `trap` не срабатывает,
 поэтому в новом сеансе первым делом `rm -f /dev/shm/wahahdr.* /dev/shm/wahaout.*`
 (если параллельно не идёт другой сеанс оператора); если файл всё же удалён,
 `waha` печатает «нет заголовка с ключом» — снова `waha_open`.
 `waha_logs_safe` проверен на синтетическом блоке «Generated credentials» в
 формате WAHA 2026.9.2 плюс строках с поддельными HMAC, номером и токеном, на
-macOS (BSD sed) и Debian (GNU sed 4.9): значения ключа, паролей и логинов,
-токены от 32 знаков и номера из вывода исчезают, имена переменных остаются;
-на настоящем логе WAHA не запускался **[live ✗]**.
+macOS (BSD sed/awk) и Debian (GNU sed 4.9, mawk 1.3.4): значения ключа, паролей и
+логинов, токены от 32 знаков и номера из вывода исчезают, имена переменных остаются;
+то же для строк `WHATSAPP_HOOK_*` (значения в одинарных и двойных кавычках),
+`value: '…'`/`"value": "…"` и 12 строк после `customHeaders` (запас с избытком: безобидные
+строки в этом окне тоже теряют кавычные значения; дальше текст не трогается).
+QR фильтр не скрывает. На настоящем логе WAHA не запускался **[live ✗]**.
 
 ---
 
@@ -228,7 +241,7 @@ docker run --rm --pull never --entrypoint sh -v "$VOL":/s:ro "$(docker inspect -
 Имена переменных WAHA в `.env.waha`, от которых зависит go-live (значения не
 печатаются: `sed` оставляет только имя):
 ```bash
-FOUND=$(grep -E '^[[:space:]]*(export[[:space:]]+)?(WHATSAPP_RESTART_ALL_SESSIONS|WHATSAPP_START_SESSION|WAHA_WORKER_RESTART_SESSIONS|WHATSAPP_DEFAULT_ENGINE|WHATSAPP_API_KEY|WAHA_PRINT_QR|WHATSAPP_HOOK_[A-Z0-9_]+)[[:space:]]*=' "$R/.env.waha" \
+FOUND=$(grep -E '^[[:space:]]*(export[[:space:]]+)?(WHATSAPP_RESTART_ALL_SESSIONS|WHATSAPP_START_SESSION|WAHA_WORKER_RESTART_SESSIONS|WHATSAPP_DEFAULT_ENGINE|WHATSAPP_API_KEY|WAHA_PRINT_QR|WHATSAPP_HOOK_[A-Z0-9_]+)[[:space:]]*[:=]' "$R/.env.waha" \
   | sed -E 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z0-9_]+).*/\2/')
 echo "${FOUND:-нет ни одной}"
 ```
@@ -340,8 +353,9 @@ env-файлах с настоящим валидатором #1137: строк�
 из интернета по `crm.evoadmissions.com`: Caddy пропускает для хоста тело до
 105 MB (`request_body max_size 105MB`), `proxyClientMaxBodySize: "105mb"` в
 `next.config.ts` заставляет Next буферизовать тело до такого размера, и только
-потом срабатывает лимит обработчика (`MAX_BODY_BYTES = 256 * 1024`, #1137 на
-head `a57fb607d`) **[repo]**. WAHA ходит к приложению приватно
+потом срабатывает лимит обработчика (`MAX_BODY_BYTES = 256 * 1024` в
+`src/lib/server/platform-waha-webhook.ts` draft-PR #1137: тело читается потоком
+и обрывается при превышении, подпись проверяется до разбора JSON) **[repo]**. WAHA ходит к приложению приватно
 (`http://evo-crm-app:3000`), публичный путь не нужен. Правка в репозитории —
 `agent-lead2-inbox/deploy/Caddyfile.evo-edge`: в `@private` сниппета `(evo_app)`
 (его импортирует блок `crm.evoadmissions.com, app.evoadmissions.com`; там же
@@ -366,29 +380,43 @@ Caddy v2.11.3; образ живого контейнера не сверялс�
 Чтение 2026-10-05 (`docker inspect evo-edge-caddy`, только чтение): Caddyfile
 смонтирован одним файлом, `ro`, из
 `/opt/evo-releases/<sha>/repo/agent-lead2-inbox/deploy/Caddyfile.evo-edge`
-(каталог релиза, не `/opt/evo-crm`). Одиночный bind-mount привязан к inode: файл
-перезаписывается **на месте** (`cat … >`), а не заменяется через `mv`/`cp --remove-destination`;
-иначе контейнер продолжит видеть старый файл. Запись меняет файл в каталоге
-релиза, и тот перестаёт совпадать со своим коммитом; после слияния репозиторий
-уже содержит ту же строку.
+(каталог релиза, не `/opt/evo-crm`). Одиночный bind-mount привязан к inode, поэтому
+файл перезаписывается **на месте**: `cp` в существующий файл (GNU coreutils)
+открывает его с усечением и пишет в тот же inode; `mv`/`cp --remove-destination`
+дали бы новый inode, и контейнер остался бы на старом файле. Проверено на Linux
+(coreutils 9.1, одиночный файл тома, смонтированный в соседний контейнер):
+после `cp` inode прежний и контейнер видит новое содержимое, после `mv` inode
+новый и контейнер видит старое. Усечение происходит при открытии, поэтому
+источник проверяется на непустоту непосредственно перед записью (`c5_check`,
+`[ -s ]`): `cat "$NEW" > "$LIVE"` при пустом или неустановленном `NEW`/`BK`
+обнулил бы живой файл, и следующий перезапуск общего edge не поднялся бы
+(воспроизведено на ревью). Запись меняет файл в каталоге релиза, и тот перестаёт
+совпадать со своим коммитом; после слияния репозиторий уже содержит ту же строку.
 
 1. С вашей машины (чекаут с влитым `main`) — хэш и копия на VPS:
    ```bash
    git show origin/main:agent-lead2-inbox/deploy/Caddyfile.evo-edge | shasum -a 256     # запомнить хэш → SHA ниже
    git show origin/main:agent-lead2-inbox/deploy/Caddyfile.evo-edge | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/Caddyfile.reviewed'
    ```
-2. На VPS, только чтение: путь, хэши, разница с живым файлом:
+2. На VPS, только чтение: путь, хэши, разница с живым файлом. Здесь же
+   определяется `c5_check` — проверка без записи, которую п. 4 вызывает заново
+   непосредственно перед бэкапом и перед записью (в новой ssh-сессии п. 2
+   выполнить снова и ввести `SHA`: без функции и без `SHA` п. 4 ничего не пишет):
    ```bash
    E=evo-edge-caddy; B=/root/evo-config-backups; NEW=/root/evo-golive/Caddyfile.reviewed
    SHA='<хэш из п. 1>'
-   echo "$SHA  $NEW" | sha256sum -c - || echo "СТОП: файл на VPS не тот, что был проверен"
-   LIVE=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}' "$E"); printf '%s\n' "$LIVE"
-   [ -f "$LIVE" ] || echo "СТОП: источник Caddyfile — не обычный файл"
-   ls -li "$LIVE"; sha256sum "$LIVE"; docker exec "$E" sha256sum /etc/caddy/Caddyfile   # оба хэша равны: контейнер видит тот же inode
-   docker inspect -f 'id={{.Id}} restarts={{.RestartCount}} started={{.State.StartedAt}}' "$E"   # запомнить
-   diff "$LIVE" "$NEW"
-   [ "$(diff "$LIVE" "$NEW" | grep -c '^[<>]')" = 2 ] && diff "$LIVE" "$NEW" | grep -q '^> .*@private.*/api/v2/whatsapp/inbound/\*' \
-     || echo "СТОП: различий не ровно одна строка @private — не перезаписывать; решение владельца (live ↔ репозиторий сверяются отдельно)"
+   c5_check() {   # 0 — только если всё на месте и разница с живым файлом ровно одна строка @private
+     LIVE=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}' "$E" 2>/dev/null)
+     [[ ${SHA:-} =~ ^[0-9a-f]{64}$ ]] || { echo "СТОП: SHA не задан (64 hex-знака из п. 1)"; return 1; }
+     [ -n "$LIVE" ] && [ -f "$LIVE" ] && [ -s "$LIVE" ] || { echo "СТОП: источник Caddyfile не найден или пуст"; return 1; }
+     [ -s "${NEW:-}" ] && echo "$SHA  $NEW" | sha256sum -c - >/dev/null 2>&1 || { echo "СТОП: нет файла $NEW, он пуст или не совпал с SHA"; return 1; }
+     [ "$(sha256sum "$LIVE" | cut -d' ' -f1)" = "$(docker exec "$E" sha256sum /etc/caddy/Caddyfile | cut -d' ' -f1)" ] \
+       || { echo "СТОП: контейнер видит не тот файл, что $LIVE"; return 1; }
+     [ "$(diff "$LIVE" "$NEW" | grep -c '^[<>]')" = 2 ] && diff "$LIVE" "$NEW" | grep -q '^> .*@private.*/api/v2/whatsapp/inbound/\*' \
+       || { echo "СТОП: различий с живым файлом не ровно одна строка @private — не перезаписывать; решение владельца (live ↔ репозиторий сверяются отдельно)"; return 1; }
+   }
+   c5_check && { echo "п. 2: OK, источник: $LIVE"; ls -li "$LIVE"; diff "$LIVE" "$NEW"
+                 docker inspect -f 'id={{.Id}} restarts={{.RestartCount}} started={{.State.StartedAt}}' "$E"; }   # запомнить id/restarts/started
    ```
    Ожидается ровно одна пара строк `<`/`>`: `@private` в `(evo_app)`. Любое другое
    различие — чужая правка в живом файле или расхождение с `main`: **стоп**.
@@ -403,22 +431,34 @@ Caddy v2.11.3; образ живого контейнера не сверялс�
    }
    smoke | tee /root/evo-golive/edge-smoke.before     # ожидается: health 200, сайты как обычно, POST …/inbound = 503 (ingress 0)
    ```
-4. Резервная копия, запись на месте, `validate`, `reload`:
+4. Резервная копия, запись на месте, `validate`, `reload`. Каждый блок
+   останавливается на первой неудаче и без `c5_check` (то есть без `SHA`, `NEW`,
+   `LIVE`) ничего не пишет. Сначала бэкап — без бэкапа запись не начинается:
    ```bash
-   install -d -m 700 "$B"; BK=$B/Caddyfile.evo-edge.$(date -u +%Y%m%dT%H%M%SZ)
-   cp -p "$LIVE" "$BK" && cmp "$LIVE" "$BK" && echo "бэкап: $BK" \
-    && cat "$NEW" > "$LIVE" \
+   BK=; WROTE=
+   c5_check \
+    && install -d -m 700 "$B" && BK=$B/Caddyfile.evo-edge.$(date -u +%Y%m%dT%H%M%SZ) \
+    && cp -p "$LIVE" "$BK" && [ -s "$BK" ] && cmp -s "$LIVE" "$BK" && echo "бэкап: $BK" \
+    || { BK=; echo "СТОП: проверка или бэкап не прошли — ничего не записано, дальше не идти"; }
+   ```
+   Запись: `c5_check` (в том числе «разница ровно одна строка») повторяется
+   непосредственно перед `cp`; если живой файл успел измениться — записи нет.
+   ```bash
+   [ -n "$BK" ] && [ -s "$BK" ] && c5_check \
+    && cp "$NEW" "$LIVE" && WROTE=1 \
     && [ "$(sha256sum "$LIVE" | cut -d' ' -f1)" = "$SHA" ] \
     && [ "$(docker exec "$E" sha256sum /etc/caddy/Caddyfile | cut -d' ' -f1)" = "$SHA" ] \
     && docker exec "$E" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
     && echo "validate: OK" \
-    || echo "СТОП: бэкап, запись или validate не прошли — reload НЕ выполнять; восстановить файл (откат ниже). Причина: docker exec $E caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 5"
+    || { [ -n "$WROTE" ] && echo "СТОП: файл уже записан, проверка не прошла — reload НЕ выполнять, откат п. 6 (BK=$BK). Причина: docker exec $E caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 5" \
+         || echo "СТОП: ничего не записано (нет бэкапа или проверка не прошла)"; }
    ```
    Только после `validate: OK` — graceful reload (контейнер не перезапускается,
    открытые соединения завершаются):
    ```bash
-   docker exec "$E" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 3
-   [ "${PIPESTATUS[0]}" = 0 ] || echo "СТОП: reload не прошёл — прежний конфиг продолжает работать; восстановить файл (откат ниже)"
+   [ -n "$WROTE" ] && [ "$(docker exec "$E" sha256sum /etc/caddy/Caddyfile | cut -d' ' -f1)" = "$SHA" ] \
+    && docker exec "$E" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 3
+   [ "${PIPESTATUS[0]}" = 0 ] || echo "СТОП: reload не выполнен или не прошёл — прежний конфиг продолжает работать; откат п. 6"
    docker inspect -f 'id={{.Id}} restarts={{.RestartCount}} started={{.State.StartedAt}}' "$E"   # те же id, restarts и started, что до правки
    ```
 5. Проверка:
@@ -432,17 +472,28 @@ Caddy v2.11.3; образ живого контейнера не сверялс�
    прежними кодами, приватный путь изнутри WAHA отвечает (503/401, не 404 и не
    `fetch error`). Если `fetch error` — сеть/имя: проверить, что WAHA в
    `evo_crm_private`; на публичный edge это не влияет.
-6. Откат (возвращает прежнее поведение; публичный маршрут снова открыт;
-   `BK` — файл из п. 4, в новой сессии взять его из `$B`):
+6. Откат (возвращает прежнее поведение; публичный маршрут снова открыт). Блок
+   самодостаточен (новая ssh-сессия не мешает) и ничего не пишет, пока `BK` не
+   указывает на непустой бэкап с хостом `crm.evoadmissions.com`; `smoke` и файл
+   `edge-smoke.before` — из п. 3:
    ```bash
-   cat "$BK" > "$LIVE" && cmp "$LIVE" "$BK" \
-    && docker exec "$E" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
-    && docker exec "$E" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 3
+   E=evo-edge-caddy; B=/root/evo-config-backups
+   LIVE=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}' "$E" 2>/dev/null)
+   [ -n "${BK:-}" ] || { echo "BK не задан; бэкапы (новые сверху):"; ls -1t "$B"/Caddyfile.evo-edge.* 2>/dev/null | head -5; echo "задать BK=<нужный файл> и повторить блок"; }
+   [ -n "$LIVE" ] && [ -f "$LIVE" ] && [ -n "${BK:-}" ] && [ -s "$BK" ] && grep -q 'crm[.]evoadmissions[.]com' "$BK" \
+    && cp "$BK" "$LIVE" && cmp -s "$BK" "$LIVE" && echo "файл восстановлен из $BK" \
+    && docker exec "$E" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 && echo "validate: OK" \
+    || echo "СТОП: восстановление не выполнено или validate не прошёл — ничего больше не делать вслепую, сообщить владельцу (общий edge)"
+   ```
+   Затем reload (если п. 4 не дошёл до reload, работающий конфиг не менялся —
+   достаточно восстановленного файла, но reload безвреден):
+   ```bash
+   docker exec "$E" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 3
+   [ "${PIPESTATUS[0]}" = 0 ] || echo "СТОП: reload не прошёл — прежний конфиг продолжает работать"
    smoke | diff /root/evo-golive/edge-smoke.before -        # без различий
    ```
-   Если `reload` ещё не выполнялся, достаточно восстановить файл и сверить хэш:
-   работающий конфиг не менялся. Откат после фазы G снова открывает публичный
-   приём: сразу решать — повторить правку или выключить ingress (см. «Откат»).
+   Откат после фазы G снова открывает публичный приём: сразу решать — повторить
+   правку или выключить ingress (см. «Откат»).
 
 ## D. Пересоздание WAHA: GOWS, образ 2026.9.2
 
@@ -493,7 +544,7 @@ f=$R/.env.waha
 BAD='WHATSAPP_RESTART_ALL_SESSIONS|WHATSAPP_START_SESSION|WHATSAPP_API_KEY|WHATSAPP_HOOK_[A-Z0-9_]+'
 if [ ! -f "$f" ]; then
   echo "СТОП: нет файла $f."
-elif FOUND=$(grep -E "^[[:space:]]*(export[[:space:]]+)?($BAD)[[:space:]]*=" "$f" \
+elif FOUND=$(grep -E "^[[:space:]]*(export[[:space:]]+)?($BAD)[[:space:]]*[:=]" "$f" \
      | sed -E 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z0-9_]+).*/\2/' | sort -u | tr '\n' ' '); [ -n "$FOUND" ]; then
   echo "СТОП: в .env.waha есть: $FOUND— не продолжать, спросить владельца (WHATSAPP_HOOK_* и WHATSAPP_API_KEY нужно убрать до D3)."
 else
@@ -514,7 +565,7 @@ fi
 разрешённые имена):
 ```bash
 RE='WHATSAPP_HOOK_[A-Z0-9_]*'      # например, WHATSAPP_HOOK_[A-Z0-9_]*|WHATSAPP_API_KEY
-t=$(mktemp) && awk -v re="^[ \t]*(export[ \t]+)?($RE)[ \t]*=" '$0 !~ re' "$f" > "$t" && cat "$t" > "$f"; rm -f -- "$t"
+t=$(mktemp) && awk -v re="^[ \t]*(export[ \t]+)?($RE)[ \t]*[:=]" '$0 !~ re' "$f" > "$t" && cat "$t" > "$f"; rm -f -- "$t"
 ```
 (Вывод D3 — только имена переменных, значения замаскированы; комментарии не
 печатаются. Охрана, правка и команда удаления прогнаны на синтетических
@@ -619,19 +670,26 @@ fi
 ```bash
 docker inspect -f 'image={{.Config.Image}} restarts={{.RestartCount}} mem={{.HostConfig.Memory}} ports={{json .HostConfig.PortBindings}}' "$WAHA_C"
 docker exec "$WAHA_C" printenv WHATSAPP_DEFAULT_ENGINE WAHA_PRINT_QR     # GOWS и false (значения не секретны)
-EXTRA=$(docker exec "$WAHA_C" printenv | grep -oE '^(WHATSAPP_HOOK_[A-Z0-9_]*|WHATSAPP_API_KEY|WHATSAPP_START_SESSION|WHATSAPP_RESTART_ALL_SESSIONS)=' | sed 's/=$//')
-echo "${EXTRA:-лишних имён нет}"          # печатаются только имена
+D5_ENV=
+EXTRA=$(docker exec "$WAHA_C" printenv | grep -oE '^(WHATSAPP_HOOK_[A-Z0-9_]*|WHATSAPP_API_KEY|WHATSAPP_START_SESSION|WHATSAPP_RESTART_ALL_SESSIONS)=' | sed 's/=$//' | sort -u | tr '\n' ' ')
+if [ -n "$EXTRA" ]; then   # печатаются только имена
+  echo "СТОП: в живом env WAHA есть: $EXTRA— дальше (ключ, сессии) не идти; решение владельца: правка .env.waha (D3) и повтор D4 либо откат WAHA (§ Откат)"
+else D5_ENV=ok; echo "лишних имён нет"; fi
 docker inspect -f '{{json .NetworkSettings.Networks}}' "$WAHA_C" | grep -o '"evo_[a-z_]*"' | sort -u    # только evo_crm_private
 ```
 Нужно: `image=devlikeapro/waha@$NEW`, `restarts=0`, `mem=2147483648`, портов нет,
 движок `GOWS`, `WAHA_PRINT_QR=false`, «лишних имён нет» (`WHATSAPP_HOOK_*`,
 `WHATSAPP_API_KEY`, автостарт не попали в живой env контейнера), одна приватная
-сеть. Затем доступ с ключом и список сессий
-(только имя, статус, воркер; тело ответа целиком не печатается):
+сеть. Любое имя в «СТОП» (`WHATSAPP_HOOK_*`, `WHATSAPP_API_KEY`, автостарт) —
+остановка: следующий блок не выполняется (он сам проверяет `D5_ENV=ok`). Затем
+доступ с ключом и список сессий (только имя, статус, воркер; тело ответа целиком не печатается):
 ```bash
-WAHA_IP=$(docker inspect -f '{{(index .NetworkSettings.Networks "evo_crm_private").IPAddress}}' "$WAHA_C")
-WAHA_KEY=$KEY; WAHA_BASE=http://$WAHA_IP:3000; waha_open     # не export: переменные нужны только функциям этой shell
-waha GET '/api/sessions?all=true' '.[] | "\(.name) \(.status) assigned=\(.assignedWorker | tojson)"'
+if [ "${D5_ENV:-}" != ok ]; then echo "СТОП: проверка живого env D5 не пройдена или не выполнялась — ключ не использовать"
+else
+  WAHA_IP=$(docker inspect -f '{{(index .NetworkSettings.Networks "evo_crm_private").IPAddress}}' "$WAHA_C")
+  WAHA_KEY=$KEY; WAHA_BASE=http://$WAHA_IP:3000; waha_open     # не export: переменные нужны только функциям этой shell
+  waha GET '/api/sessions?all=true' '.[] | "\(.name) \(.status) assigned=\(.assignedWorker | tojson)"'
+fi
 ```
 Все сессии должны быть `STOPPED` (ничего не стартовало само). Лог на сообщения
 об ошибках старта: `docker logs --since 10m "$WAHA_C" 2>&1 | waha_logs_safe | grep -iE 'error|fail' | head`
@@ -913,12 +971,13 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 
 ### Допущения #1137, которые проверяет приёмка
 
-Из описания PR (head `9f19a85a9`) — названия полей и списки зависят от движка
+Из описания и кода #1137 (draft-PR; сверять по самому PR, а не по SHA) — названия полей и списки зависят от движка
 и не проверены на живом потоке GOWS: телефон-альтернатива LID
 (`_data.Info.SenderAlt` / `RecipientAlt`, NOWEB `_data.key.remoteJidAlt`);
 имя профиля (`_data.Info.PushName`, `_data.notifyName`, `_data.pushName`); какие
 `_data.type` — служебные уведомления (список взят из WEBJS); разбор исходящего
-с телефона (`fromMe`, `source: app`) при `to = null`; лимит тела 64 KiB;
+с телефона (`fromMe`, `source: app`) при `to = null`; лимит тела 256 KiB (`MAX_BODY_BYTES`: поток обрывается при превышении,
+подпись проверяется до разбора JSON — не 64 KiB из прежнего описания PR);
 идемпотентность и терпимость к порядку при запоздалых повторах WAHA (окно
 ~68 минут для политики фазы E, § «Порядок фаз»).
 Исправления по этим пунктам ведутся отдельно в #1137.

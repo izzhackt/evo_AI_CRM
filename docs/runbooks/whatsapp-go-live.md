@@ -67,7 +67,7 @@ pairing, а не после. Причина: WAHA повторяет webhook п�
    pairing идёт в реальном времени.
 2. #1137 переоснован на текущий `main`, на его точном head есть независимый
    review и исправления по реальным формам GOWS (см. § Допущения #1137).
-   Этот PR уже влит в `main` **до release №1**: скрипт входит в образ.
+   Этот PR (#1138) влит в `main` **до release №1**: скрипт входит в образ.
 3. Владелец проверил на телефоне отдела продаж (**[??]** — точные пункты меню и
    лимиты WhatsApp сверить в актуальной справке WhatsApp; здесь не проверялись):
    тип аккаунта (личный или Business); есть свободный слот «Связанные
@@ -108,7 +108,7 @@ set_env_value() {  # NEWVAL=… set_env_value FILE NAME — строка NAME= �
     && cat "$tmp" > "$f"; local rc=$?; rm -f "$tmp"; return $rc
 }
 waha_open() {      # нужны WAHA_KEY и WAHA_BASE
-  local old; old=$(umask); umask 077
+  waha_close; local old; old=$(umask); umask 077
   WAHA_HDR=$(mktemp /dev/shm/wahahdr.XXXXXX 2>/dev/null || mktemp) || { umask "$old"; return 1; }
   umask "$old"; printf 'X-Api-Key: %s\n' "$WAHA_KEY" > "$WAHA_HDR"
 }
@@ -128,11 +128,13 @@ waha_json() { curl -sS -m 30 -X "$1" -H @"$WAHA_HDR" -H 'Accept: application/jso
 ```bash
 WAHA_C=$(waha_cid); [ "$(printf '%s' "$WAHA_C" | wc -w)" = 1 ] || echo "СТОП: ожидался один контейнер waha"
 docker inspect -f '{{.Name}} image={{.Config.Image}} health={{.State.Health.Status}} restarts={{.RestartCount}} mem={{.HostConfig.Memory}} ports={{json .HostConfig.PortBindings}}' "$WAHA_C" "$APP"
-gh variable get EVO_WAHA_IMAGE_DIGEST --repo izzhackt/evo_AI_CRM        # должен совпасть с digest в image=…@sha256:…
 free -k | awk '/^Mem:/{print "available_kb="$7}'; df -k /var/lib/docker | tail -1
 VOL=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/.sessions"}}{{.Name}}{{end}}{{end}}' "$WAHA_C")
 docker run --rm --pull never --entrypoint sh -v "$VOL":/s:ro "$(docker inspect -f '{{.Image}}' "$WAHA_C")" -c 'ls -la /s; du -sk /s/* 2>/dev/null'
 ```
+
+Параллельно с вашей машины (`gh` — там): `gh variable get EVO_WAHA_IMAGE_DIGEST --repo izzhackt/evo_AI_CRM`
+должен совпасть с digest в `image=…@sha256:…`.
 
 Ожидаемо: WAHA и app `healthy`, `restarts=0`, `ports=null` или `{}`;
 `mem=2147483648` (compose уже задаёт `mem_limit: 2048m`, `cpus 2.00`, `pids 512`
@@ -163,12 +165,17 @@ stat -c '%a %U:%G' "$f"                                          # права/в
 # локально:
 git show <HEAD_SHA_1137>:scripts/evo-app-env-contract.mjs | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
 git show <HEAD_SHA_1137>:deploy/env.production.example   | ssh hermes-vps 'cat > /root/evo-golive/env.production.example'
-REF=$(gh variable get EVO_SUPABASE_PROJECT_REF --repo izzhackt/evo_AI_CRM)
-# на VPS (без --verify-supabase-keys: сеть и ключи не трогаются):
+gh variable get EVO_SUPABASE_PROJECT_REF --repo izzhackt/evo_AI_CRM        # 20 символов, не секрет
+# на VPS: REF=<это значение> (без --verify-supabase-keys: сеть и ключи не трогаются; пути абсолютные):
 node /root/evo-golive/evo-app-env-contract.mjs --example /root/evo-golive/env.production.example --env /opt/evo-crm/.env.production --supabase-project-ref "$REF"
 ```
 
-Ожидается `ok: true`, код выхода 0. Правка `.env.production` вступает в силу
+Ожидается `{"ok":true,"code":"valid"}`, код выхода 0 (без шага 0 —
+`{"ok":false,"code":"app_env_contract_invalid"}`, код 1; пути только
+абсолютные, права файла env 0600/0640). Проверено офлайн на синтетических
+env-файлах с настоящим валидатором #1137: строки нет → отказ, пустая строка и
+`INGRESS=0` → valid, `INGRESS=1` без секрета/intake или с секретом короче
+32 → отказ, `INGRESS=1` с секретом 64 hex и UUID → valid. Правка `.env.production` вступает в силу
 только через release (контроллер запечатывает snapshot). Env запущенного
 контейнера и snapshot-файлы не править: контроллер сверяет revision и image id
 рантайма со snapshot (`runtime_environment_identity_drift`).
@@ -311,7 +318,8 @@ waha GET '/api/sessions?all=true' | node -e 'let s="";process.stdin.on("data",d=
 **D6. Digest в GitHub в ногу.** Release-контроллер сверяет `.Config.Image` WAHA
 с `repository@${EVO_WAHA_IMAGE_DIGEST}`; расхождение — `runtime_waha_image_drift`,
 а `RestartCount>0` — `runtime_service_unhealthy` [repo] `evo-fast-release.sh`.
-Только теперь, до любого следующего release:
+Только теперь, до любого следующего release (с вашей машины, подставив `NEW`
+с VPS — это digest, не секрет):
 ```bash
 gh variable set EVO_WAHA_IMAGE_DIGEST --repo izzhackt/evo_AI_CRM --body "$NEW"
 gh variable get EVO_WAHA_IMAGE_DIGEST --repo izzhackt/evo_AI_CRM        # = $NEW
@@ -369,7 +377,9 @@ printf '%s' "$KEY" | $S provision --key-stdin               # повтор: {"ac
 ```
 Коды выхода: 0 — ок, 1 — ошибка (на stderr одна строка
 `{"ok":false,"error_code":"…"}`), 2 — неверные аргументы, 3 — `check` видит
-binding не готовым. `waha_session_status` на этом этапе — `STOPPED`: это ожидаемо.
+binding не готовым. `waha_session_status` на этом этапе — `STOPPED`, а
+`waha_engine` — `UNKNOWN` (WAHA отдаёт движок только у запущенной сессии
+[src] `fetchEngineInfo`): это ожидаемо.
 Ротация: новый ключ → новый хэш в `.env.waha` → recreate WAHA (фаза D4–D5) →
 тот же `provision` (`action: rotated`, версия +1). Это единственный
 поддерживаемый путь записи ключа; plain-ключ нигде больше не хранится.
@@ -415,7 +425,7 @@ NEWVAL=1       set_env_value "$f" EVO_PLATFORM_WAHA_INGRESS_ENABLED
 NEWVAL=$HMAC   set_env_value "$f" EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET
 NEWVAL=$INTAKE set_env_value "$f" EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID
 awk -F= '$1=="EVO_PLATFORM_WAHA_INGRESS_ENABLED"{print $1"="$2} $1=="EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET"||$1=="EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID"{print $1" длина="length($2)}' "$f"
-node /root/evo-golive/evo-app-env-contract.mjs --example <env.production.example на SHA main> --env "$f" --supabase-project-ref "$REF"   # ok:true
+node /root/evo-golive/evo-app-env-contract.mjs --example /root/evo-golive/env.production.example --env "$f" --supabase-project-ref "$REF"   # {"ok":true,"code":"valid"}
 ```
 Контракт с `INGRESS=1` требует секрет ≥ 32 символов и UUID не нулевой.
 
@@ -454,10 +464,10 @@ https://waha.devlike.pro/docs/how-to/sessions/ (Get pairing code,
    waha GET /api/sessions/crm_primary | sed '$d' | jq '{status, engine:.engine.engine}'     # WORKING / GOWS
    waha GET /api/sessions/crm_primary/me | sed '$d' | jq 'has("id")'                        # true (сам номер не печатать)
    ```
-   Первая попытка кода не удалась — нормальный случай, [doc]: «код работает не
-   всегда», резервный путь — QR (`GET /api/crm_primary/auth/qr`), который
-   владелец сканирует; для QR на экране оператора нужен приватный канал
-   (ssh-туннель) — **[live ✗]**.
+   Если код не подошёл: документация предупреждает, что pairing-код доступен
+   не всегда, и советует держать QR как запасной путь (`GET /api/crm_primary/auth/qr`,
+   владелец сканирует); показать QR оператору можно только по приватному
+   каналу (ssh-туннель) — **[live ✗]**.
 
 **Ветка passkey** (если статус `PASSKEY_REQUIRED`/`PASSKEY_CONFIRMATION_REQUIRED`;
 поддерживает только GOWS, появилось в 2026.7.1) — [doc]
@@ -488,7 +498,7 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 2. **Входящее.** Владелец пишет с личного номера на номер отдела продаж:
    «тест-1». В течение минуты сообщение видно в разделе WhatsApp CRM, создан
    клиент и лид (триггер на подтверждённом входящем) **[live ✗]**.
-3. **Ответ из CRM.** Сотрудник с правом отправки (admin или admissions) отвечает
+3. **Ответ из CRM.** Сотрудник, у которого в CRM есть право отправки WhatsApp, отвечает
    из CRM «тест-ответ-1»; сообщение приходит владельцу. Галочки доставки в CRM
    не ждать: `message.ack` не подписан.
 4. **Нет дублей.** Агрегатные запросы (только счётчики, без текстов) в SQL Editor:

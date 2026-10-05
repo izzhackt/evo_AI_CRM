@@ -45390,3 +45390,33 @@ PR нет; выпуск уже выполнен отдельной операц�
 
 Проверка: `git diff --check`; префиксы `docs/EVO_LAUNCH_PLAN.md` и
 `docs/PLAN_CHANGES.md` байт в байт совпадают с `origin/main` `bb6c17d9`.
+
+## 2026-10-05 — go-live WhatsApp: runbook и скрипт записи ключа WAHA в Vault (скрипт, образ, документы; production не затронут)
+
+Запись сделана до слияния. Решения владельца не менялись: «давай» на go-live
+ещё нет, замена движка и перезапуск WAHA отложены (03.10), #1137 не трогается.
+PR добавляет только то, что нужно подготовить заранее:
+
+- `scripts/waha-runtime-binding.mjs` — оператор-CLI внутри контейнера app
+  (`check`, `check --verify-key`, `provision [--dry-run]`). Заменяет удалённые в
+  `97984fc6d` (29.08) `provision-/check-platform-manual-send-waha-runtime.mjs`:
+  ключ WAHA только из stdin или env, не из argv; ничего секретного не печатает
+  (нет и хэша); работает только с `crm_primary` и `http://evo-crm-waha:3000`
+  (миграция 102 сузила прежний `evo-inbox`); идемпотентен; перед записью
+  спрашивает WAHA, принимает ли тот ключ. Копируется в образ как есть
+  (`Dockerfile`, без бандла: только `node:`-встроенные модули).
+- `docs/runbooks/whatsapp-go-live.md` — точный порядок go-live. Два осознанных
+  решения: (1) release с `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1` стоит **до**
+  pairing, потому что WAHA повторяет webhook 15 раз по ~2 с (исходники 2026.9.2)
+  и события за время release при ответе 503 пропали бы; (2) первый старт WAHA
+  под GOWS идёт с `WAHA_WORKER_RESTART_SESSIONS=false`, чтобы `china_curator` и
+  старый `crm_primary` без `ignore` не поднялись сами; цена — после
+  перезапуска контейнера сессию поднимает оператор. Движок WAHA общий на
+  контейнер, поэтому перед recreate нужен ответ владельца про `china_curator`.
+- Тесты: `tests/waha-runtime-binding.test.mjs` (30, мок Supabase и WAHA; входит в
+  `npm run test:fast-release`), `npm run test:waha-runtime-binding:postgres`
+  (по запросу, не в CI: настоящие SQL, Vault и PostgREST на одноразовой БД).
+
+Не сделано и не проверено: `docker build` образа целиком; production Supabase и
+настоящий WAHA; ветка passkey, pairing, формы живых GOWS-payload (перечень в
+runbook, раздел «Допущения #1137»). Миграций и изменений схемы нет.

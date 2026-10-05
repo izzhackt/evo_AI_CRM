@@ -38,14 +38,19 @@
 //    session.gows.core.ts:2731.
 //  * filter.timestamp.gte / .lte are inclusive Unix SECONDS: src/structures/
 //    chats.dto.ts:35 and :44; GOWS passes them to the store at session.gows.core.ts:2749-2756.
-//  * limit defaults to 10 (chats.dto.ts:106), so limit is always sent; sortBy and
+//  * limit defaults to 10 (chats.dto.ts:106), so limit is always sent (it has no
+//    upper bound in the DTO, chats.dto.ts:102-123); sortBy and
 //    sortOrder: chats.dto.ts:114 and src/structures/pagination.dto.ts; downloadMedia:
 //    chats.dto.ts:123 (always false here).
 //  * Reactions, poll votes, protocol and key-distribution messages are dropped
 //    AFTER the SQL LIMIT/OFFSET (session.gows.core.ts:2785 with :2950-2976), so a
-//    page can be short or even empty in the middle of the window: the offset
-//    advances by the requested limit and the scan ends only after two empty pages
-//    in a row or when a page lies entirely beyond the window.
+//    page can be short or even empty in the middle of the window.
+//  * The gows-plus store (WAHA 2026.9.2 pins v1.0.48; read at v1.0.47) sorts by
+//    the whole-second timestamp ONLY (src/storage/sqlstorage/message.go:83-84),
+//    so rows with equal timestamps can change places between two requests and
+//    offset paging can lose or repeat them. The scan therefore never pages by
+//    offset: see scanWindow (disjoint time slices at offset 0, settled by two
+//    consecutive limits returning the same ids).
 //  * In a direct chat GOWS reports from = the chat in BOTH directions and
 //    to = null (session.gows.core.ts:3487-3495); source is app|api by device
 //    (:3186-3195); the raw id is built from fromMe, chat and message id (:3506-3514).
@@ -95,8 +100,13 @@ export const RPC_PAGE_MAX_BYTES = 3 * 1024 * 1024;
 const DEFAULT_WAHA_PAUSE_MS = 150;
 const DEFAULT_RPC_PAUSE_MS = 100;
 const DEFAULT_MAX_WINDOW_MESSAGES = 200_000;
-const MAX_SCAN_PAGES = 5_000;
-const EMPTY_PAGES_TO_STOP = 2;
+// Window scan: disjoint time slices, each read at offset 0 with a growing limit
+// until two consecutive limits return the same ids (see scanWindow).
+export const DEFAULT_WAHA_SLICE_SECONDS = 3600;
+const SCAN_LIMIT_FACTOR = 5;
+export const SCAN_MAX_LIMIT = 12_500;
+const MAX_SCAN_REQUESTS = 40_000;
+const DUPLICATE_RESPONSE_RETRIES = 2;
 const MAX_LID_LOOKUPS = 5_000;
 const MAX_LIST_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_WAHA_RESPONSE_BYTES = 48 * 1024 * 1024;
@@ -123,8 +133,10 @@ const WAHA_STATUSES = new Set([
   "PASSKEY_CONFIRMATION_REQUIRED",
 ]);
 const WAHA_ENGINES = new Set(["WEBJS", "WPP", "NOWEB", "GOWS"]);
-// WEBJS/WPP keep only what the browser has loaded and cannot list every chat.
-const HISTORY_ENGINES = new Set(["GOWS", "NOWEB"]);
+// Only GOWS is read: chats/all/messages is implemented and checked for it; WEBJS/WPP
+// keep only what the browser has loaded, and NOWEB's in-memory store cannot list
+// every chat (NOWEB's SQL/Mongo stores can, but nothing here has verified them).
+const HISTORY_ENGINES = new Set(["GOWS"]);
 const CHAT_OUTCOMES = new Set([
   "import_new",
   "import_existing",
@@ -184,7 +196,10 @@ const ERROR_MESSAGES = Object.freeze({
   waha_request_forbidden: "refusing a WAHA request outside the read-only allow-list",
   session_not_working: "the WAHA session is not WORKING",
   session_me_missing: "WAHA did not report the session's own account",
-  engine_unsupported: "history can only be read from the GOWS or NOWEB engine",
+  engine_unsupported: "history can only be read from the GOWS engine",
+  scan_unstable: "WAHA returned an inconsistent history (duplicate or unsettled rows); nothing was imported from this scan",
+  window_to_required: "a real import needs an explicit --window-to (pin the same value on every step)",
+  list_file_empty: "a chat list file names no chat; use --all-chats to select every chat explicitly",
   window_invalid: "the history window is invalid",
   window_too_large: "the history window holds too many messages; use a shorter window",
   out_file_exists: "the output file already exists; delete it first",
@@ -193,7 +208,7 @@ const ERROR_MESSAGES = Object.freeze({
   list_ref_unmatched: "a listed chat is not in this window",
   list_window_mismatch: "the list was made for another window; use the same --window-to",
   chat_not_reviewed: "a chat of this window is not in the preview file",
-  selection_required: "name the chats to import (--only-chats-file, --exclude-chats-file, --max-chats or --all-chats)",
+  selection_required: "name the chats to import (--only-chats-file, --exclude-chats-file or --all-chats; --max-chats only limits a selection)",
   unfinished_run_exists: "an unfinished history run exists; resume it with --resume <run_id>",
   resume_mismatch: "the unfinished run does not match --resume",
   ref_collision: "two chats produced the same reference",
@@ -214,6 +229,9 @@ export class WahaHistoryImportError extends Error {
       typeof detail.runId === "string" && CANONICAL_UUID.test(detail.runId)
         ? detail.runId
         : null;
+    // The opaque reference (an HMAC, never the chat id) of the chat whose page failed.
+    this.chatRef =
+      typeof detail.chatRef === "string" && CHAT_REF.test(detail.chatRef) ? detail.chatRef : null;
   }
 }
 
@@ -935,49 +953,149 @@ export function createChatIndex({ ownIds = new Set(), fromSeconds, toSeconds, re
   return Object.freeze({ add, finalize, stats, chats });
 }
 
+class SliceSaturated extends Error {}
+
+function trimmedId(raw) {
+  return isObject(raw) && typeof raw.id === "string" && raw.id.trim() !== "" ? raw.id.trim() : null;
+}
+
+function sameIds(left, right) {
+  if (left.size !== right.size) return false;
+  for (const id of left) if (!right.has(id)) return false;
+  return true;
+}
+
 /**
- * Read the whole window through chats/all/messages. The offset advances by the
- * requested limit (WAHA filters reactions/protocol messages after the SQL LIMIT,
- * so pages can be short); the scan ends after two empty pages in a row or when a
- * page lies entirely beyond the window.
+ * Read the whole window through chats/all/messages, tie-safe and without relying
+ * on offset paging.
+ *
+ * Why not offset paging: WAHA/gows-plus sorts by the whole-second timestamp only,
+ * so rows with equal timestamps can change places between two requests (rows are
+ * lost or repeated at a page boundary), and reactions, poll votes and protocol
+ * rows are dropped AFTER the SQL LIMIT, so a page can be short or empty in the
+ * middle of the window and its true row count is invisible.
+ *
+ * What is done instead: the window is cut into disjoint slices of whole seconds
+ * (every request is gte = slice start, lte = slice end, offset 0, so equal
+ * timestamps inside a slice are returned together in any order). A slice is
+ * accepted only when two consecutive requests, the second with a 5x larger limit,
+ * return exactly the same ids; if not (the limit cut the slice, or hidden
+ * non-message rows pushed real rows out), the limit grows again, and a slice that
+ * is still unsettled at the largest limit (or whose response is too large) is
+ * split in two. A single second that cannot settle, a row that appears in two
+ * slices, a row repeated inside one response, or a response outside the slice
+ * (a server that ignores the filter) fails with an error instead of importing a
+ * partial window. There is no stop-on-empty rule: every second of the window is
+ * covered by exactly one slice. Residual risk (documented): hundreds of
+ * consecutive non-message rows inside one slice hiding real rows from both of two
+ * consecutive limits.
  */
 export async function scanWindow({
   waha,
   index,
   fromSeconds,
   toSeconds,
-  pageSize,
+  baseLimit,
+  sliceSeconds = DEFAULT_WAHA_SLICE_SECONDS,
+  maxLimit = SCAN_MAX_LIMIT,
   maxMessages,
   signal,
 }) {
-  let offset = 0;
-  let emptyRun = 0;
-  let pages = 0;
-  for (;;) {
-    if (signal?.aborted) fail("interrupted");
-    if (pages >= MAX_SCAN_PAGES) fail("window_too_large");
-    const rows = await waha.getWindowPage({
-      fromSeconds,
-      toSeconds,
-      limit: pageSize,
-      offset,
-    });
-    pages += 1;
-    if (rows.length === 0) {
-      emptyRun += 1;
-      if (emptyRun >= EMPTY_PAGES_TO_STOP) break;
-    } else {
-      emptyRun = 0;
-      let beyond = 0;
-      for (const raw of rows) {
-        if (index.add(raw) === "beyond") beyond += 1;
+  const stats = { requests: 0, slices: 0, splits: 0, retries: 0 };
+  const seen = new Set();
+
+  async function fetchSlice(start, end, limit) {
+    for (let attempt = 0; ; attempt += 1) {
+      if (signal?.aborted) fail("interrupted");
+      if (stats.requests >= MAX_SCAN_REQUESTS) fail("window_too_large");
+      stats.requests += 1;
+      let rows;
+      try {
+        rows = await waha.getWindowPage({
+          fromSeconds: start,
+          toSeconds: end,
+          limit,
+          offset: 0,
+        });
+      } catch (error) {
+        if (error instanceof WahaHistoryImportError && error.code === "waha_response_too_large") {
+          throw new SliceSaturated();
+        }
+        throw error;
       }
-      if (beyond === rows.length) break;
-      if (index.stats.rows > maxMessages) fail("window_too_large");
+      const ids = new Map();
+      const anonymous = [];
+      let repeated = false;
+      for (const raw of rows) {
+        if (
+          isObject(raw) &&
+          typeof raw.timestamp === "number" &&
+          Number.isFinite(raw.timestamp) &&
+          (raw.timestamp < start || raw.timestamp >= end + 1)
+        ) {
+          // The server did not apply the window filter: nothing it returns can be trusted to be complete.
+          fail("waha_response_invalid");
+        }
+        const id = trimmedId(raw);
+        if (id === null) {
+          anonymous.push(raw);
+        } else if (ids.has(id)) {
+          repeated = true;
+        } else {
+          ids.set(id, raw);
+        }
+      }
+      if (!repeated) return { ids, anonymous };
+      stats.retries += 1;
+      if (attempt >= DUPLICATE_RESPONSE_RETRIES) fail("scan_unstable");
     }
-    offset += pageSize;
   }
-  return { pages };
+
+  async function readSlice(start, end) {
+    const union = new Map();
+    let previous = null;
+    let limit = baseLimit;
+    for (;;) {
+      const { ids, anonymous } = await fetchSlice(start, end, limit);
+      const current = new Set(ids.keys());
+      for (const [id, raw] of ids) if (!union.has(id)) union.set(id, raw);
+      if (previous !== null && sameIds(previous, current)) return [...union.values(), ...anonymous];
+      previous = current;
+      if (limit >= maxLimit) throw new SliceSaturated();
+      limit = Math.min(limit * SCAN_LIMIT_FACTOR, maxLimit);
+    }
+  }
+
+  async function processSlice(start, end) {
+    let rows;
+    try {
+      rows = await readSlice(start, end);
+    } catch (error) {
+      if (!(error instanceof SliceSaturated)) throw error;
+      if (start >= end) fail("scan_unstable");
+      stats.splits += 1;
+      const middle = Math.floor((start + end) / 2);
+      await processSlice(start, middle);
+      await processSlice(middle + 1, end);
+      return;
+    }
+    stats.slices += 1;
+    for (const raw of rows) {
+      const id = trimmedId(raw);
+      if (id !== null) {
+        // Slices are disjoint: one id in two slices means the timestamps are not stable.
+        if (seen.has(id)) fail("scan_unstable");
+        seen.add(id);
+      }
+      index.add(raw);
+    }
+    if (index.stats.rows > maxMessages) fail("window_too_large");
+  }
+
+  for (let start = fromSeconds; start <= toSeconds; start += sliceSeconds) {
+    await processSlice(start, Math.min(start + sliceSeconds - 1, toSeconds));
+  }
+  return { requests: stats.requests, slices: stats.slices, splits: stats.splits, retries: stats.retries };
 }
 
 // ---------------------------------------------------------------------------
@@ -1043,7 +1161,10 @@ function readChatListFile(path) {
     if (error instanceof WahaHistoryImportError) throw error;
     fail("list_file_invalid");
   }
-  return parseChatList(text);
+  const list = parseChatList(text);
+  // An empty or comment-only file would select (or exclude) nothing without saying so.
+  if (list.refs.size === 0) fail("list_file_empty");
+  return list;
 }
 
 function checkListWindow(list, window) {
@@ -1177,6 +1298,7 @@ async function readWindow({
   session,
   window,
   pageSize,
+  sliceSeconds,
   maxMessages,
   signal,
   retain,
@@ -1192,7 +1314,8 @@ async function readWindow({
     index,
     fromSeconds: window.fromSeconds,
     toSeconds: window.toSeconds,
-    pageSize,
+    baseLimit: pageSize,
+    sliceSeconds,
     maxMessages,
     signal,
   });
@@ -1382,6 +1505,7 @@ export async function syncStatus({
   watch,
   intervalSeconds,
   pageSize,
+  sliceSeconds,
   maxMessages,
   wahaPauseMs,
   signal,
@@ -1409,6 +1533,7 @@ export async function syncStatus({
       session,
       window,
       pageSize,
+      sliceSeconds,
       maxMessages,
       signal,
       retain: false,
@@ -1423,7 +1548,9 @@ export async function syncStatus({
         inbound: chats.reduce((sum, chat) => sum + chat.inbound, 0),
         outbound: chats.reduce((sum, chat) => sum + chat.outbound, 0),
         non_direct_messages: index.stats.non_direct,
-        scan_pages: scan.pages,
+        scan_requests: scan.requests,
+      scan_slices: scan.slices,
+      scan_splits: scan.splits,
       },
     };
   }
@@ -1491,6 +1618,7 @@ export async function previewCommand({
   leadMode,
   pageSize,
   wahaPageSize,
+  sliceSeconds,
   maxMessages,
   wahaPauseMs,
   rpcPauseMs,
@@ -1506,6 +1634,7 @@ export async function previewCommand({
     session,
     window,
     pageSize: wahaPageSize,
+    sliceSeconds,
     maxMessages,
     signal,
     retain: true,
@@ -1583,7 +1712,9 @@ export async function previewCommand({
       out_file_lines: lines.length,
       out_file_mode: outMode,
       ...localStats(index, chats, includeOutboundOnly),
-      scan_pages: scan.pages,
+      scan_requests: scan.requests,
+      scan_slices: scan.slices,
+      scan_splits: scan.splits,
       totals: {
         ...totals,
         by_outcome: sortedObject(totals.by_outcome),
@@ -1720,15 +1851,17 @@ export async function applyCommand({
   resumeRunId,
   pageSize,
   wahaPageSize,
+  sliceSeconds,
   maxMessages,
   wahaPauseMs,
   rpcPauseMs,
   signal,
   progress,
 }) {
-  const hasSelection =
-    onlyChatsFile !== null || excludeChatsFile !== null || maxChats !== null || allChats === true;
+  // --max-chats only limits a selection; alone it would pick "the freshest chats", personal ones included.
+  const hasSelection = onlyChatsFile !== null || excludeChatsFile !== null || allChats === true;
   if (!dryRun && !hasSelection) fail("selection_required");
+  if (!dryRun && (windowTo === null || windowTo === undefined)) fail("window_to_required");
   if (resumeRunId !== null) {
     requireCanonicalUuid(resumeRunId, "usage");
     if (windowTo === null || windowTo === undefined) fail("usage");
@@ -1753,6 +1886,7 @@ export async function applyCommand({
     session,
     window,
     pageSize: wahaPageSize,
+    sliceSeconds,
     maxMessages,
     signal,
     retain: true,
@@ -1790,7 +1924,9 @@ export async function applyCommand({
     include_outbound_only: options.include_outbound_only,
     lead_mode: options.lead_mode,
     ...localStats(index, chats, includeOutboundOnly),
-    scan_pages: scan.pages,
+    scan_requests: scan.requests,
+      scan_slices: scan.slices,
+      scan_splits: scan.splits,
     selection: {
       only_list: only !== null,
       exclude_list: exclude !== null,
@@ -2044,21 +2180,31 @@ async function sendPage({ context, runId, chat, page, next }) {
     next.message,
     contentSha,
   );
-  const response = await callRpc(
-    context,
-    RPC.page,
-    {
-      p_organization_id: context.organizationId,
-      p_run_id: runId,
-      p_waha_session_name: TARGET_SESSION,
-      p_raw_chat_id: chat.key,
-      p_messages: page.messages,
-      p_next_chat_offset: next.chat,
-      p_next_message_offset: next.message,
-      p_request_id: requestId,
-    },
-    { timeoutMs: RPC_PAGE_TIMEOUT_MS },
-  );
+  let response;
+  try {
+    response = await callRpc(
+      context,
+      RPC.page,
+      {
+        p_organization_id: context.organizationId,
+        p_run_id: runId,
+        p_waha_session_name: TARGET_SESSION,
+        p_raw_chat_id: chat.key,
+        p_messages: page.messages,
+        p_next_chat_offset: next.chat,
+        p_next_message_offset: next.message,
+        p_request_id: requestId,
+      },
+      { timeoutMs: RPC_PAGE_TIMEOUT_MS },
+    );
+  } catch (error) {
+    // Name the failing chat by its opaque reference so the operator can find it
+    // in the preview file; the chat id itself never leaves this process.
+    if (error instanceof WahaHistoryImportError && error.chatRef === null && CHAT_REF.test(chat.ref)) {
+      error.chatRef = chat.ref;
+    }
+    throw error;
+  }
   return validatePageResponse(response);
 }
 
@@ -2069,18 +2215,20 @@ async function sendPage({ context, runId, chat, page, next }) {
 export const USAGE = `Usage:
   node scripts/waha-history-import.mjs sync-status [--working-since ISO] [--watch] [--interval-seconds N] [window]
   node scripts/waha-history-import.mjs preview --out FILE [--include-outbound-only] [window]
-  node scripts/waha-history-import.mjs apply [selection] [--dry-run] [--include-outbound-only] [--lead-mode promote|none] [window]
-  node scripts/waha-history-import.mjs apply --resume RUN_ID --window-to ISO [selection] ...
+  node scripts/waha-history-import.mjs apply selection [--include-outbound-only] [--lead-mode promote|none] --window-to ISO [--days N]
+  node scripts/waha-history-import.mjs apply --dry-run [selection] [window]
+  node scripts/waha-history-import.mjs apply --resume RUN_ID --window-to ISO selection ...
 
-window:     --days N (1-31, default ${DEFAULT_DAYS})  --window-to ISO (default: now)
-selection:  --only-chats-file F | --exclude-chats-file F | --max-chats N | --all-chats
+window:     --days N (1-31, default ${DEFAULT_DAYS})  --window-to ISO (default: now; REQUIRED for a real apply)
+selection:  --only-chats-file F | --exclude-chats-file F | --all-chats   (a list file must name at least one chat)
+            --max-chats N  limits a selection (alone it selects nothing)
             --preview-file F  (every chat of the window must be in the reviewed preview file)
-tuning:     --page-size N (database page, 1-500, default ${DEFAULT_RPC_PAGE_SIZE})  --waha-page-size N (default ${DEFAULT_WAHA_PAGE_SIZE})
-            --waha-pause-ms N  --rpc-pause-ms N  --max-window-messages N
+tuning:     --page-size N (database page, 1-500, default ${DEFAULT_RPC_PAGE_SIZE})  --waha-page-size N (first read limit, default ${DEFAULT_WAHA_PAGE_SIZE})
+            --waha-slice-seconds N (default ${DEFAULT_WAHA_SLICE_SECONDS})  --waha-pause-ms N  --rpc-pause-ms N  --max-window-messages N
 
-Read-only against WAHA (GET only, downloadMedia=false). The history cannot be
-removed from the CRM afterwards: run preview, review it, pilot with
---only-chats-file or --max-chats, then import the rest.
+Read-only against WAHA (GET only, downloadMedia=false; GOWS engine). The history
+cannot be removed from the CRM afterwards: run preview, review it, pilot with
+--only-chats-file (or --exclude-chats-file with --max-chats), then import the rest.
 --window-to must not be later than the moment WhatsApp intake was enabled (and
 not later than the first message the CRM sent); pin the same value for every
 step. Output: one JSON line (counts only; no chat id, number, name or text).
@@ -2103,6 +2251,7 @@ const VALUE_FLAGS = new Set([
   "--page-size",
   "--waha-page-size",
   "--waha-pause-ms",
+  "--waha-slice-seconds",
   "--rpc-pause-ms",
   "--max-window-messages",
   "--working-since",
@@ -2166,7 +2315,14 @@ function flagValue(flags, name) {
 }
 
 function allowedFlags(command) {
-  const common = ["--days", "--window-to", "--waha-page-size", "--waha-pause-ms", "--max-window-messages"];
+  const common = [
+    "--days",
+    "--window-to",
+    "--waha-page-size",
+    "--waha-slice-seconds",
+    "--waha-pause-ms",
+    "--max-window-messages",
+  ];
   if (command === "sync-status") {
     return new Set([...common, "--working-since", "--watch", "--interval-seconds"]);
   }
@@ -2241,6 +2397,9 @@ export async function runCli({
       wahaPageSize: flags.has("--waha-page-size")
         ? parseInteger(flags.get("--waha-page-size"), 1, 500)
         : DEFAULT_WAHA_PAGE_SIZE,
+      sliceSeconds: flags.has("--waha-slice-seconds")
+        ? parseInteger(flags.get("--waha-slice-seconds"), 1, 86_400)
+        : DEFAULT_WAHA_SLICE_SECONDS,
       wahaPauseMs: flags.has("--waha-pause-ms")
         ? parseInteger(flags.get("--waha-pause-ms"), 0, 60_000)
         : DEFAULT_WAHA_PAUSE_MS,
@@ -2308,6 +2467,7 @@ export async function runCli({
     const body = { ok: false, error_code: code };
     if (known && error.sqlstate !== null) body.sqlstate = error.sqlstate;
     if (known && error.runId !== null) body.run_id = error.runId;
+    if (known && error.chatRef !== null) body.chat_ref = error.chatRef;
     try {
       stderr.write(`${JSON.stringify(body)}\n`);
     } catch {

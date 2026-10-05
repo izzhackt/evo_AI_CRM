@@ -27,6 +27,7 @@ import {
   LID_3,
   ME,
   defaultSession,
+  filteredRow,
   makeBaseRows,
   message,
   row,
@@ -43,7 +44,8 @@ if (!["preview", "pilot", "interrupted", "resume", "rerun", "dryrun"].includes(p
 const nowSeconds = Math.floor(Date.parse(now) / 1000);
 
 // The base dataset plus one chat with 260 messages (several pages at --page-size 100),
-// starting with an outbound message so the first page must reach the customer's first message.
+// in groups of 20 with the SAME timestamp (ties), with reactions interleaved that WAHA drops
+// after the LIMIT; the mock WAHA also puts equal timestamps in a new random order on every request.
 const CHAT_E = "15550000106@c.us";
 const rows = makeBaseRows(nowSeconds);
 for (let index = 0; index < 260; index += 1) {
@@ -52,16 +54,18 @@ for (let index = 0; index < 260; index += 1) {
       message({
         chat: CHAT_E,
         fromMe: index % 2 === 0,
-        ts: nowSeconds - 5 * DAY + index * 30,
+        ts: nowSeconds - 5 * DAY + Math.floor(index / 20) * 30,
         body: `E-body-${index}`,
         name: "Emil Test",
         id: `${index % 2 === 0}_${CHAT_E}_E${index}`,
       }),
     ),
   );
+  if (index % 10 === 9) rows.push(filteredRow(nowSeconds - 5 * DAY + Math.floor(index / 20) * 30));
 }
 
 const waha = await startMockWaha({
+  shuffleTies: 7,
   rows,
   lids: { [LID_1]: PHONE_OF_LID_1, [LID_2]: ME.id, [LID_3]: null },
   session: defaultSession(),
@@ -77,13 +81,13 @@ function refOf(name) {
 
 const preview = join(directory, "preview.jsonl");
 const window = ["--window-to", now];
-const common = ["--page-size", "100", "--waha-pause-ms", "0", "--rpc-pause-ms", "0"];
+const common = ["--page-size", "100", "--waha-page-size", "50", "--waha-pause-ms", "0", "--rpc-pause-ms", "0"];
 let argv;
 let signal;
 let fetchImpl = fetch;
 
 if (phase === "preview") {
-  argv = ["preview", ...window, "--out", preview, "--waha-pause-ms", "0", "--rpc-pause-ms", "0", "--page-size", "100"];
+  argv = ["preview", ...window, "--out", preview, "--waha-page-size", "50", "--waha-pause-ms", "0", "--rpc-pause-ms", "0", "--page-size", "100"];
 } else if (phase === "pilot") {
   writeFileSync(join(directory, "pilot.txt"), `# pilot\n${refOf("Aigul Test")}\n`);
   argv = ["apply", ...window, "--only-chats-file", join(directory, "pilot.txt"), ...common];

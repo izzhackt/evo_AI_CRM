@@ -147,8 +147,44 @@ export async function listen(handler) {
   };
 }
 
-export async function startMockWaha({ rows = [], lids = {}, session = defaultSession(), ignoreFilter = false } = {}) {
-  const state = { rows, lids, session, requests: [], ignoreFilter, rejectKey: false };
+// A small seeded generator (mulberry32) so a tie-shuffling server is reproducible.
+function makeRandom(seed) {
+  let value = seed >>> 0;
+  return () => {
+    value = (value + 0x6d2b79f5) >>> 0;
+    let t = value;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Options: `shuffleTies` (a seed) puts rows with EQUAL timestamps in a new random
+ * order on EVERY request, exactly the instability of a store that sorts by the
+ * whole-second timestamp only; rows marked `filtered` are dropped AFTER the
+ * LIMIT/OFFSET, as the GOWS engine drops reactions/protocol rows; `ignoreFilter`
+ * answers without applying the window; `duplicateInResponse` repeats the first
+ * row of a response (always, or the given number of times).
+ */
+export async function startMockWaha({
+  rows = [],
+  lids = {},
+  session = defaultSession(),
+  ignoreFilter = false,
+  shuffleTies = null,
+  duplicateInResponse = 0,
+} = {}) {
+  const state = {
+    rows,
+    lids,
+    session,
+    requests: [],
+    ignoreFilter,
+    rejectKey: false,
+    duplicateInResponse,
+    random: shuffleTies === null ? null : makeRandom(shuffleTies),
+  };
   const listener = await listen((request, response) => {
     const url = new URL(request.url, "http://mock");
     const record = {
@@ -176,7 +212,8 @@ export async function startMockWaha({ rows = [], lids = {}, session = defaultSes
       if (query.downloadMedia !== "false") return json(400, { error: "downloadMedia must be false" });
       const limit = query.limit === undefined ? 10 : Number(query.limit);
       const offset = Number(query.offset ?? 0);
-      if (!(limit >= 1 && limit <= 500) || !(offset >= 0)) return json(400, { error: "paging" });
+      // WAHA's DTO has no upper bound for limit (src/structures/chats.dto.ts:102-123).
+      if (!(limit >= 1 && limit <= 100_000) || !(offset >= 0)) return json(400, { error: "paging" });
       const gte = Number(query["filter.timestamp.gte"]);
       const lte = Number(query["filter.timestamp.lte"]);
       let list = state.rows.filter(
@@ -190,11 +227,27 @@ export async function startMockWaha({ rows = [], lids = {}, session = defaultSes
         .sort((left, right) =>
           direction * (left.entry.message.timestamp - right.entry.message.timestamp) || left.position - right.position)
         .map(({ entry }) => entry);
+      if (state.random) {
+        // Equal timestamps change places between requests.
+        for (let start = 0; start < list.length; ) {
+          let end = start + 1;
+          while (end < list.length && list[end].message.timestamp === list[start].message.timestamp) end += 1;
+          for (let k = end - 1; k > start; k -= 1) {
+            const swap = start + Math.floor(state.random() * (k - start + 1));
+            [list[k], list[swap]] = [list[swap], list[k]];
+          }
+          start = end;
+        }
+      }
       const page = list.slice(offset, offset + limit).filter((entry) => !entry.filtered);
-      return json(200, page.map((entry) => entry.message));
+      const body = page.map((entry) => entry.message);
+      if (state.duplicateInResponse && body.length > 0) {
+        if (state.duplicateInResponse !== true) state.duplicateInResponse -= 1;
+        body.push(body[0]);
+      }
+      return json(200, body);
     }
     return json(404, { error: "not found" });
   });
   return { ...listener, state, requests: state.requests };
 }
-

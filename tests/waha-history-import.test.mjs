@@ -11,10 +11,14 @@ import {
   buildPages,
   chatKeyOf,
   chatRef,
+  SCAN_MAX_LIMIT,
   computeWindow,
+  createChatIndex,
+  createWahaClient,
   isAllowedWahaPath,
   parseChatList,
   runCli,
+  scanWindow,
   slimMessage,
   withPhoneAlternative,
 } from "../scripts/waha-history-import.mjs";
@@ -402,12 +406,22 @@ async function startMockDb({ bindingMissing = false, bindingBaseUrl = TARGET_BAS
 // Harness
 // ---------------------------------------------------------------------------
 
-async function setup({ rows = baseRows(), lids, session, dbOptions, ignoreFilter = false } = {}) {
+async function setup({
+  rows = baseRows(),
+  lids,
+  session,
+  dbOptions,
+  ignoreFilter = false,
+  shuffleTies = null,
+  duplicateInResponse = 0,
+} = {}) {
   const waha = await startMockWaha({
     rows,
     lids: lids ?? { [LID_1]: PHONE_OF_LID_1, [LID_2]: ME.id, [LID_3]: null },
     session,
     ignoreFilter,
+    shuffleTies,
+    duplicateInResponse,
   });
   const db = await startMockDb(dbOptions);
   const environment = {
@@ -424,6 +438,8 @@ async function setup({ rows = baseRows(), lids, session, dbOptions, ignoreFilter
   async function run(args, extra = {}) {
     const command = args[0];
     const fast = ["--waha-pause-ms", "0"];
+    // One-day slices keep the loopback scans short; the slice tests choose their own.
+    if (!args.includes("--waha-slice-seconds")) fast.push("--waha-slice-seconds", "86400");
     if (command === "preview" || command === "apply") fast.push("--rpc-pause-ms", "0");
     const out = [];
     const err = [];
@@ -448,10 +464,21 @@ async function setup({ rows = baseRows(), lids, session, dbOptions, ignoreFilter
     return { code, stdout, stderr, json: parseLine(stdout), error: parseLine(stderr) };
   }
 
+  // A client for the mock WAHA, for tests that drive scanWindow directly.
+  const client = () =>
+    createWahaClient({
+      baseUrl: TARGET_BASE_URL,
+      apiKey: WAHA_KEY,
+      fetchImpl: wahaFetchImpl,
+      sleep: async () => {},
+      pauseMs: 0,
+    });
+
   return {
     waha,
     db,
     environment,
+    client,
     run,
     outputs,
     directory,
@@ -487,38 +514,49 @@ const messagesRequests = (waha) =>
 // WAHA reading: parameters, paging, window
 // ---------------------------------------------------------------------------
 
-test("reads the window with the verified WAHA parameters and pages by the requested limit", async () => {
-  // 450 real messages of one chat, with reactions/protocol rows interleaved that the engine drops AFTER LIMIT/OFFSET:
-  // short pages, plus a page that is entirely dropped in the middle of the window.
+test("reads the window in disjoint slices at offset 0 with the verified WAHA parameters, each settled by two equal consecutive limits", async () => {
   const rows = [];
   let ts = at(1);
   for (let index = 0; index < 450; index += 1) {
     rows.push(row(message({ chat: CHAT_A, fromMe: index % 2 === 1, ts, body: `m${index}`, id: `${index % 2 === 1}_A_${index}` })));
     ts += 10;
     if (index % 7 === 0) rows.push(filteredRow(ts));
-    if (index === 200) for (let k = 0; k < 150; k += 1) rows.push(filteredRow(ts + k));
   }
   await withHarness({ rows }, async (harness) => {
-    const result = await harness.run(["sync-status", ...windowArgs, "--waha-page-size", "100"]);
+    const result = await harness.run(["sync-status", ...windowArgs, "--waha-page-size", "100", "--waha-slice-seconds", "3600"]);
     assert.equal(result.code, 3, "a single snapshot is not stable");
     assert.equal(result.json.counts.kept_messages, 450);
     assert.equal(result.json.counts.direct_chats, 1);
     const requests = messagesRequests(harness.waha);
-    assert.ok(requests.length >= 6);
     const from = NOW_S - 7 * DAY;
-    requests.forEach((request, position) => {
+    for (const request of requests) {
       assert.equal(request.method, "GET");
-      assert.equal(request.query.limit, "100", "limit is always sent (WAHA's default is 10)");
-      assert.equal(request.query.offset, String(position * 100), "the offset advances by the requested limit");
+      assert.equal(request.query.offset, "0", "never offset paging: ties may change places between requests");
+      assert.ok(["100", "500", "2500"].includes(request.query.limit), `limit ${request.query.limit} is always sent (WAHA's default is 10)`);
       assert.equal(request.query.sortBy, "timestamp");
       assert.equal(request.query.sortOrder, "asc");
       assert.equal(request.query.downloadMedia, "false");
-      assert.equal(request.query["filter.timestamp.gte"], String(from));
-      assert.equal(request.query["filter.timestamp.lte"], String(NOW_S));
       assert.equal(request.key, WAHA_KEY);
+    }
+    // The slices are disjoint, abut and cover [from, to] exactly; each is read with limit 100 then 500.
+    const slices = new Map();
+    for (const request of requests) {
+      const key = `${request.query["filter.timestamp.gte"]}:${request.query["filter.timestamp.lte"]}`;
+      slices.set(key, [...(slices.get(key) ?? []), request.query.limit]);
+    }
+    const ordered = [...slices.keys()].map((key) => key.split(":").map(Number)).sort((left, right) => left[0] - right[0]);
+    assert.equal(ordered[0][0], from);
+    assert.equal(ordered.at(-1)[1], NOW_S);
+    ordered.forEach(([start, end], position) => {
+      assert.equal(end - start + 1 <= 3600, true);
+      if (position > 0) assert.equal(start, ordered[position - 1][1] + 1, "no gap and no overlap between slices");
     });
-    const total = harness.waha.state.rows.length;
-    assert.equal(requests.length, Math.ceil(total / 100) + 2, "stops after two empty pages in a row, not at the first one");
+    for (const limits of slices.values()) assert.deepEqual(limits.slice(0, 2), ["100", "500"]);
+    // The busy hours (more than 100 rows) needed a third, larger limit to settle; the quiet ones did not.
+    assert.ok([...slices.values()].some((limits) => limits.length === 3));
+    assert.ok([...slices.values()].some((limits) => limits.length === 2));
+    assert.equal(result.json.counts.scan_requests, requests.length);
+    assert.equal(result.json.counts.scan_splits, 0);
   });
 });
 
@@ -528,8 +566,9 @@ test("the window is a closed interval of Unix seconds computed from --days and -
     const result = await harness.run(["sync-status", "--days", "3", "--window-to", to]);
     const requests = messagesRequests(harness.waha);
     const toSeconds = Date.parse(to) / 1000;
-    assert.equal(requests[0].query["filter.timestamp.lte"], String(toSeconds));
-    assert.equal(requests[0].query["filter.timestamp.gte"], String(toSeconds - 3 * DAY));
+    const bounds = requests.map((request) => [Number(request.query["filter.timestamp.gte"]), Number(request.query["filter.timestamp.lte"])]);
+    assert.equal(Math.min(...bounds.map((pair) => pair[0])), toSeconds - 3 * DAY);
+    assert.equal(Math.max(...bounds.map((pair) => pair[1])), toSeconds);
     assert.equal(result.json.window_to, "2026-10-04T08:30:15.000Z");
     assert.equal(result.json.window_from, "2026-10-01T08:30:15.000Z");
   });
@@ -541,17 +580,107 @@ test("the window is a closed interval of Unix seconds computed from --days and -
   assert.equal(defaulted.toSeconds - defaulted.fromSeconds, 7 * DAY);
 });
 
-test("a server that ignores the window filter cannot widen the import; a page entirely beyond the window ends the scan", async () => {
+test("a server that ignores the window filter fails the scan instead of importing a partial window", async () => {
   const rows = [
     row(message({ chat: CHAT_A, ts: NOW_S - 9 * DAY, body: "too old", id: "false_old" })),
     ...[1, 2, 3, 4].map((hour) => row(message({ chat: CHAT_A, ts: at(hour), body: `in${hour}`, id: `false_in${hour}` }))),
-    ...Array.from({ length: 10 }, (_, k) => row(message({ chat: CHAT_A, ts: NOW_S + 3600 + k, body: "future", id: `false_future${k}` }))),
   ];
   await withHarness({ rows, ignoreFilter: true }, async (harness) => {
-    const result = await harness.run(["sync-status", ...windowArgs, "--waha-page-size", "5"]);
-    assert.equal(result.json.counts.kept_messages, 4);
-    // The old row is the first of page 1; the future rows fill page 2 and 3 completely: the scan stops there.
-    assert.ok(messagesRequests(harness.waha).length <= 4);
+    const result = await harness.run(["sync-status", ...windowArgs]);
+    assert.equal(result.code, 1);
+    assert.equal(result.error.error_code, "waha_response_invalid");
+  });
+});
+
+// A scan helper for the tie and filter tests: the ids kept per chat, read with a tie-shuffling server.
+async function scanIds(harness, options) {
+  const index = createChatIndex({ fromSeconds: NOW_S - 7 * DAY, toSeconds: NOW_S, retain: true });
+  const scan = await scanWindow({
+    waha: harness.client(),
+    index,
+    fromSeconds: NOW_S - 7 * DAY,
+    toSeconds: NOW_S,
+    baseLimit: 20,
+    sliceSeconds: 3600,
+    maxMessages: 1_000_000,
+    ...options,
+  });
+  const ids = index.finalize().flatMap((chat) => chat.messages.map((item) => item.id));
+  return { ids, scan, stats: index.stats };
+}
+
+test("tie-safe scan: equal timestamps that change places between requests, and rows dropped after the LIMIT, lose and repeat nothing", async () => {
+  // 600 messages on 25 distinct seconds (24 per second, ties everywhere), reactions interleaved, and a run of 450
+  // consecutive dropped rows in the middle of the window that hides the real messages behind it from a small limit.
+  const rows = [];
+  const expected = [];
+  for (let second = 0; second < 25; second += 1) {
+    for (let k = 0; k < 24; k += 1) {
+      const id = `false_${CHAT_A}_T${second}_${k}`;
+      expected.push(id);
+      rows.push(row(message({ chat: k % 2 === 0 ? CHAT_A : CHAT_B, ts: at(2) + second, body: `t${second}-${k}`, id })));
+      if (k % 5 === 0) rows.push(filteredRow(at(2) + second));
+    }
+    if (second === 11) for (let k = 0; k < 450; k += 1) rows.push(filteredRow(at(2) + second));
+  }
+  for (let seed = 1; seed <= 12; seed += 1) {
+    await withHarness({ rows, shuffleTies: seed }, async (harness) => {
+      const { ids, scan, stats } = await scanIds(harness, {});
+      assert.equal(ids.length, 600, `seed ${seed}: ${ids.length} messages`);
+      assert.deepEqual([...new Set(ids)].sort(), [...expected].sort(), `seed ${seed}: the exact id set`);
+      assert.equal(stats.duplicate, 0);
+      assert.ok(scan.requests >= 2 * 168, "every slice of the window is asked for, none is skipped");
+    });
+  }
+  // The CLI reaches the same answer end to end.
+  await withHarness({ rows, shuffleTies: 99 }, async (harness) => {
+    const result = await harness.run(["sync-status", ...windowArgs, "--waha-page-size", "20", "--waha-slice-seconds", "3600"]);
+    assert.equal(result.json.counts.kept_messages, 600);
+  });
+});
+
+test("a slice that is too big for the largest limit is split; a second that cannot settle fails closed", async () => {
+  const rows = [];
+  for (let second = 0; second < 200; second += 1) {
+    rows.push(row(message({ chat: CHAT_A, ts: at(5) + second, body: `s${second}`, id: `false_split_${second}` })));
+  }
+  await withHarness({ rows, shuffleTies: 3 }, async (harness) => {
+    const { ids, scan } = await scanIds(harness, { baseLimit: 10, maxLimit: 50 });
+    assert.equal(new Set(ids).size, 200);
+    assert.ok(scan.splits > 0, "the hour was split until each part settled");
+  });
+  const same = Array.from({ length: 80 }, (_, k) => row(message({ chat: CHAT_B, ts: at(6), body: `x${k}`, id: `false_same_${k}` })));
+  await withHarness({ rows: same, shuffleTies: 4 }, async (harness) => {
+    await assert.rejects(scanIds(harness, { baseLimit: 10, maxLimit: 50 }), { code: "scan_unstable" });
+    // With the real limits the same second settles.
+    const { ids } = await scanIds(harness, { baseLimit: 20 });
+    assert.equal(new Set(ids).size, 80);
+  });
+  assert.ok(SCAN_MAX_LIMIT >= 5000);
+});
+
+test("a row repeated inside one response is retried and then fails; one id in two slices fails", async () => {
+  const rows = [
+    row(message({ chat: CHAT_A, ts: at(5), body: "one", id: "false_dup_1" })),
+    row(message({ chat: CHAT_A, ts: at(6), body: "two", id: "false_dup_2" })),
+  ];
+  await withHarness({ rows, duplicateInResponse: 1 }, async (harness) => {
+    const { ids, scan } = await scanIds(harness, {});
+    assert.equal(ids.length, 2);
+    assert.equal(scan.retries, 1, "a transient repeat is re-requested");
+  });
+  await withHarness({ rows, duplicateInResponse: true }, async (harness) => {
+    await assert.rejects(scanIds(harness, {}), { code: "scan_unstable" });
+    const result = await harness.run(["preview", ...windowArgs, "--out", harness.path("never.jsonl")]);
+    assert.equal(result.error.error_code, "scan_unstable");
+    assert.equal(harness.db.calls.some((call) => call.name === RPC.preview), false, "nothing is previewed from an unsettled scan");
+  });
+  const twice = [
+    row(message({ chat: CHAT_A, ts: at(5), body: "same id, hour one", id: "false_twice" })),
+    row(message({ chat: CHAT_A, ts: at(8), body: "same id, hour two", id: "false_twice" })),
+  ];
+  await withHarness({ rows: twice }, async (harness) => {
+    await assert.rejects(scanIds(harness, {}), { code: "scan_unstable" });
   });
 });
 
@@ -721,6 +850,27 @@ test("apply needs an explicit selection; a dry run does not", async () => {
     assert.equal(refused.code, 1);
     assert.equal(refused.error.error_code, "selection_required");
     assert.equal(harness.waha.requests.length, 0, "refused before any network call");
+    // --max-chats only limits a selection: alone it would pick "the freshest chats", personal ones included.
+    const limitOnly = await harness.run(["apply", ...windowArgs, "--max-chats", "3"]);
+    assert.equal(limitOnly.error.error_code, "selection_required");
+    // A real import pins its window: no default of "now".
+    const noWindow = await harness.run(["apply", "--all-chats"]);
+    assert.equal(noWindow.error.error_code, "window_to_required");
+    assert.equal(harness.waha.requests.length, 0);
+    // A list file that names no chat selects (or excludes) nothing silently: refused; --all-chats is the explicit form.
+    for (const [name, content] of [["empty.txt", ""], ["comments.txt", "# nobody\n\n   \n# still nobody\n"]]) {
+      const emptyFile = harness.file(name, content);
+      for (const flag of ["--exclude-chats-file", "--only-chats-file"]) {
+        const result = await harness.run(["apply", ...windowArgs, flag, emptyFile]);
+        assert.equal(result.error.error_code, "list_file_empty", `${flag} ${name}`);
+      }
+    }
+    assert.equal(harness.waha.requests.length, 0);
+    assert.equal(harness.db.calls.some((call) => call.name === RPC.begin), false);
+    const dryWithoutWindow = await harness.run(["apply", "--dry-run"]);
+    assert.equal(dryWithoutWindow.code, 0, "a dry run may default the window");
+    assert.equal(dryWithoutWindow.json.window_to_defaulted, true);
+    harness.waha.requests.length = 0;
     const dry = await harness.run(["apply", ...windowArgs, "--dry-run"]);
     assert.equal(dry.code, 0);
     assert.equal(dry.json.mode, "apply-dry-run");
@@ -813,7 +963,7 @@ test("list files are validated: unmatched refs, another window, unreviewed chats
 
 test("--max-chats limits the number of imported chats (pilot)", async () => {
   await withHarness({}, async (harness) => {
-    const result = await harness.run(["apply", ...windowArgs, "--max-chats", "2"]);
+    const result = await harness.run(["apply", ...windowArgs, "--all-chats", "--max-chats", "2"]);
     assert.equal(result.code, 0, result.stderr);
     assert.equal(result.json.totals.chats_imported, 2);
     assert.equal(new Set(harness.db.state.imported.map((item) => item.chat)).size, 2);
@@ -965,7 +1115,7 @@ test("an interrupted run is paused and resumes from its durable cursor; an unfin
     const wrong = await harness.run(["apply", ...windowArgs, "--all-chats", "--resume", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]);
     assert.equal(wrong.error.error_code, "resume_mismatch");
     const needsWindow = await harness.run(["apply", "--all-chats", "--resume", runId]);
-    assert.equal(needsWindow.code, 2, "--resume requires an explicit --window-to");
+    assert.equal(needsWindow.error.error_code, "window_to_required", "--resume requires an explicit --window-to");
 
     const before = pageCalls(harness.db).length;
     const resumed = await harness.run(["apply", ...windowArgs, "--all-chats", "--resume", runId]);
@@ -1008,6 +1158,10 @@ test("a transient database failure is retried with the same request id; a lost a
     assert.equal(result.error.error_code, "rpc_rejected");
     assert.equal(result.error.sqlstate, "22023");
     assert.match(result.error.run_id, /^[0-9a-f-]{36}$/u);
+    // The failing chat is named by its opaque reference (an HMAC, found in the preview file), never by its id.
+    const failed = pageCalls(harness.db)[0].body.p_raw_chat_id;
+    assert.equal(result.error.chat_ref, chatRef(SERVICE_CREDENTIAL, failed));
+    assert.equal(result.stderr.includes(failed), false);
     assert.equal(pageCalls(harness.db).length, 1, "not retried");
     assert.equal(harness.db.state.runs[0].state, "paused", "the run is paused so it can be resumed");
     assert.equal(result.stderr.includes(harness.db.state.errorBodyLeak), false);
@@ -1042,9 +1196,10 @@ test("refuses an unsupported engine, a session that is not WORKING, a missing or
     assert.equal(result.error.error_code, "waha_key_rejected");
     assert.equal(harness.db.calls.some((call) => call.name === RPC.preview), false);
   });
-  // NOWEB can list every chat as well.
+  // NOWEB's in-memory store cannot list every chat (chatId=all): refused, like WEBJS and WPP.
   await withHarness({ session: defaultSession({ engine: { engine: "NOWEB" } }) }, async (harness) => {
-    assert.equal((await harness.run(["apply", ...windowArgs, "--dry-run"])).code, 0);
+    assert.equal((await harness.run(["apply", ...windowArgs, "--dry-run"])).error.error_code, "engine_unsupported");
+    assert.equal(messagesRequests(harness.waha).length, 0);
   });
 });
 
@@ -1119,7 +1274,7 @@ test("sync-status is stable only after 10 minutes of WORKING and two identical c
 test("WAHA is only read: GET on three allow-listed paths, never downloadMedia=true, read, seen or send", async () => {
   await withHarness({}, async (harness) => {
     const { map } = await refsByName(harness);
-    await harness.run(["apply", ...windowArgs, "--max-chats", "2"]);
+    await harness.run(["apply", ...windowArgs, "--all-chats", "--max-chats", "2"]);
     await harness.run(["apply", ...windowArgs, "--exclude-chats-file", harness.file("none.txt", `${map.get("Dana Test")}\n`)]);
     await harness.run(["sync-status", ...windowArgs]);
     assert.ok(harness.waha.requests.length > 10);

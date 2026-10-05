@@ -1,5 +1,26 @@
 # P5C WAHA history reconciliation
 
+> **Update 2026-10-05 (migration 260, PR "WhatsApp: history import - database
+> lane"):** the v1 routines described below (`begin_waha_history_reconciliation`,
+> `project_waha_history_page`, `finish_waha_history_reconciliation`) are
+> superseded and no application role can execute them any more. They were
+> `c.us`-only, kept normalized fields only, used another advisory-lock
+> namespace than the live projection and aborted a whole page on an id that live
+> had already bound. Their evidence class, runs, observations and checkpoints
+> are reused by the window lane for the `crm_primary` session:
+> `platform.begin_waha_history_window_run`,
+> `platform.project_waha_history_window_page`,
+> `platform.finish_waha_history_window_run` and the counts-only
+> `platform.preview_waha_history_window_chat`. The window lane imports a fixed
+> time window (default 7 days, at most 31) of direct `@c.us` and `@lid` chats,
+> allow-lists the stored message copy, keeps `history.message` / `missing` /
+> `api_history` evidence and the `private_waha_history_binding` identity in both
+> directions, never creates a client or lead itself (a later verified live
+> message promotes the conversation), and skips and counts what live would not
+> project. The REST client (part 2) is a separate change. See
+> `docs/PLAN_CHANGES.md`, entry 2026-10-05, for the design, the options and
+> their defaults.
+
 ## Outcome
 
 P5C adds a disabled-by-default, server-only and read-only reconciliation lane

@@ -2900,6 +2900,27 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_waha_lid_phone_media.sql
   fi
+
+  # Migration 260: the WhatsApp history import, database lane. Real service
+  # RPCs (begin, page, finish, preview) and the real live projection chain with
+  # a synthetic organization: a window of REST history becomes live-shaped
+  # conversations under history.message / missing / api_history evidence and the
+  # private_waha_history_binding identity (never a verified webhook, never the
+  # phone-sent identity), message times as created_at, no client, lead or
+  # handoff, typed media markers; skipped and counted (outbound-only chats,
+  # groups, own chat, CRM sends, API inbound, empty, out of window, malformed,
+  # ids already bound); idempotent re-runs; import-then-live (promotion to
+  # exactly one client and lead from the LIVE event, lead readers list the
+  # conversation, an imported raw id arriving live is tolerated) and
+  # live-then-import; lead_mode none never promotes; forgery guards; a counts-only
+  # preview that equals the import; Inbox order by last message; one summary
+  # realtime invalidation per page; the same advisory lock keys as live; the
+  # service-only catalog and the revoked v1 routines.
+  if [[ "$(basename "$migration")" == 260_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_history_import.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

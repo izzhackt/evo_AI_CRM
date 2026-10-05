@@ -1369,6 +1369,13 @@ const OWN_ME = {
   jid: "79990000000:12@s.whatsapp.net",
   pushName: "EVO Sales",
 };
+// WAHA 2026.9.2 (GOWS getSourceDeviceByMsg) labels a message `api` exactly when
+// the device in `_data.Info.Sender` is the session's own linked device (the
+// device of me.jid, 12 here) and `app` for any other own device. A message the
+// sales team sent from the phone therefore comes from the primary phone, device
+// 0 (a whatsmeow JID writes device 0 without a suffix), never from device 12.
+const OWN_PHONE_DEVICE_JID = "79990000000@s.whatsapp.net";
+const OWN_OTHER_LINKED_DEVICE_JID = "79990000000:5@s.whatsapp.net";
 
 function rawJid(chat) {
   return chat.replace(/@c\.us$/, "@s.whatsapp.net");
@@ -1412,14 +1419,21 @@ function gowsDirectPayload({
   hasMedia = false,
   media = null,
 }) {
-  const ownSender = fromMe ? OWN_ME.jid : rawJid(chat);
+  const origin = source ?? "app";
+  // The sender follows the origin, as in WAHA: the session's own device sent an
+  // `api` message, the phone an `app` one.
+  const ownSender = fromMe
+    ? origin === "api"
+      ? OWN_ME.jid
+      : OWN_PHONE_DEVICE_JID
+    : rawJid(chat);
   const content = message ?? (body ? { conversation: body } : {});
   return {
     id: `${fromMe}_${chat}_${id}`,
     timestamp: 1_727_745_026,
     from: chat,
     fromMe,
-    source: source ?? "app",
+    source: origin,
     ...(body === undefined ? {} : { body }),
     to: null,
     participant: null,
@@ -1545,7 +1559,8 @@ test("POST resolves a GOWS direct chat in both directions: from is the chat, to 
       }),
       "projected",
     ],
-    // The CRM's own API send echoing back, and an unverified origin: evidence only.
+    // The CRM's own API send echoing back (sent by the session's own linked device,
+    // Info.Sender = me.jid, device 12), and an unverified origin: evidence only.
     ["GOWS CRM API send echo", gowsDirectPayload({ chat: customer, fromMe: true, id: "G8", body: "From the CRM", source: "api" }), "observed"],
     ["GOWS phone-sent without a source", withoutSource(gowsDirectPayload({ chat: customer, fromMe: true, id: "G9", body: "x" })), "observed"],
     ["GOWS phone-sent with nothing to store", gowsDirectPayload({ chat: customer, fromMe: true, id: "G10", body: "", source: "app" }), "observed"],
@@ -1806,11 +1821,8 @@ test("POST accepts a realistic GOWS media event up to 256 KiB and answers 413 ab
   assert.deepEqual(rejected.calls, []);
 });
 
-test("POST projects the observation of a GOWS acknowledgement (from = chat, to = null, fromMe reversed by WAHA)", async () => {
-  configureEnvironment();
-  const customer = "79990000019@c.us";
-  const calls = [];
-  const rpc = async (name, args) => {
+function recordingAckRpc(calls) {
+  return async (name, args) => {
     calls.push({ name, args });
     switch (name) {
       case "persist_provider_webhook_event":
@@ -1844,6 +1856,13 @@ test("POST projects the observation of a GOWS acknowledgement (from = chat, to =
         throw new Error(`Unexpected RPC: ${name}`);
     }
   };
+}
+
+test("POST projects the observation of a GOWS acknowledgement (from = chat, to = null, fromMe reversed by WAHA)", async () => {
+  configureEnvironment();
+  const customer = "79990000019@c.us";
+  const calls = [];
+  const rpc = recordingAckRpc(calls);
   const handler = createPlatformWahaWebhookHandler({ createServiceClient: () => platformClient(rpc) });
   const ack = {
     id: `true_${customer}_ACK1`,
@@ -1871,4 +1890,398 @@ test("POST projects the observation of a GOWS acknowledgement (from = chat, to =
   assert.equal(ignored.status, 200);
   assert.deepEqual(await ignored.json(), { ok: true, status: "ignored", reason: "non_direct_chat" });
   assert.deepEqual(groupCalls, []);
+});
+
+// ---------------------------------------------------------------------------
+// Review round 3: the public route is bounded while the body is read, the
+// signature is checked over the raw bytes before anything is parsed, an ACK of
+// the own chat is ignored, GOWS wrappers are peeled like WAHA does, and a
+// phone-sent GOWS message comes from a phone device, not from the session's.
+// ---------------------------------------------------------------------------
+const MAX_BODY = 256 * 1024;
+const INBOUND_URL = "http://localhost/api/v2/whatsapp/inbound";
+
+function sign(raw) {
+  return createHmac("sha512", WEBHOOK_SECRET).update(raw).digest("hex");
+}
+
+// A request whose body is a stream the test controls. `nextChunk()` returns a
+// Uint8Array, or null to end the body. `state` shows how much was really pulled.
+function streamedRequest(nextChunk, headers = {}) {
+  const state = { pulls: 0, bytes: 0, cancelled: false };
+  const stream = new ReadableStream(
+    {
+      pull(controller) {
+        state.pulls += 1;
+        const chunk = nextChunk();
+        if (chunk === null) {
+          controller.close();
+          return;
+        }
+        state.bytes += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        state.cancelled = true;
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const request = new Request(INBOUND_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: stream,
+    duplex: "half",
+  });
+  return { request, state };
+}
+
+// Raw bytes delivered as a stream in fixed-size chunks (no Content-Length).
+function chunkedRequest(raw, headers = {}, chunkSize = 16 * 1024) {
+  const bytes = Buffer.from(raw);
+  let offset = 0;
+  return streamedRequest(() => {
+    if (offset >= bytes.byteLength) return null;
+    const chunk = bytes.subarray(offset, offset + chunkSize);
+    offset += chunk.byteLength;
+    return new Uint8Array(chunk);
+  }, headers);
+}
+
+// A valid message event whose serialized size is exactly `bytes`.
+function eventOfExactSize(bytes) {
+  const event = {
+    id: "evt-exact-size",
+    event: "message.any",
+    session: "crm_primary",
+    timestamp: 1_727_745_026,
+    metadata: { pad: "" },
+    payload: {
+      id: "false_79990000022@c.us_EXACT1",
+      from: "79990000022@c.us",
+      fromMe: false,
+      body: "Hello EVO",
+    },
+  };
+  const base = Buffer.byteLength(JSON.stringify(event));
+  event.metadata.pad = "x".repeat(bytes - base);
+  const raw = JSON.stringify(event);
+  assert.equal(Buffer.byteLength(raw), bytes);
+  return raw;
+}
+
+async function settle() {
+  await new Promise((resolve) => setImmediate(resolve));
+}
+
+function forbiddenClient() {
+  return {
+    createServiceClient: () => {
+      throw new Error("Supabase must not be called");
+    },
+  };
+}
+
+test("POST answers 413 for a Content-Length above the cap before reading a byte of the body", async () => {
+  configureEnvironment();
+  const handler = createPlatformWahaWebhookHandler(forbiddenClient());
+  for (const declared of [String(MAX_BODY + 1), ` ${MAX_BODY + 1} `, "99999999999999999999"]) {
+    const { request, state } = streamedRequest(
+      () => {
+        throw new Error("the body must not be read");
+      },
+      { "content-length": declared },
+    );
+    const response = await handler(request);
+    assert.equal(response.status, 413, declared);
+    assert.deepEqual(await response.json(), { ok: false, error: "payload_too_large" });
+    assert.equal(state.pulls, 0, "not a single pull");
+    assert.equal(request.bodyUsed, false, "the body is not even locked");
+  }
+});
+
+test("POST bounds a body with no Content-Length or a false one while it is read: the upload is cancelled at the cap", async () => {
+  configureEnvironment();
+  const handler = createPlatformWahaWebhookHandler(forbiddenClient());
+  const chunk = new Uint8Array(64 * 1024).fill(0x20);
+  for (const headers of [
+    {}, // chunked: no Content-Length at all
+    { "content-length": "10" }, // lies low
+    { "content-length": "not-a-number" }, // malformed: not trusted either way
+    { "x-webhook-hmac": "0".repeat(128), "x-webhook-hmac-algorithm": "sha512" }, // even a well-formed signature header
+  ]) {
+    // An endless body: only a bounded read can answer it.
+    const { request, state } = streamedRequest(() => chunk, headers);
+    const response = await handler(request);
+    await settle();
+    assert.equal(response.status, 413, JSON.stringify(headers));
+    assert.deepEqual(await response.json(), { ok: false, error: "payload_too_large" });
+    assert.equal(state.cancelled, true, "the upload is cancelled");
+    // 256 KiB is 4 chunks of 64 KiB; the 5th passes the cap and stops the read.
+    assert.ok(state.pulls <= 5, `pulled ${state.pulls} chunks of an endless body`);
+    assert.ok(state.bytes <= MAX_BODY + 64 * 1024, `read ${state.bytes} bytes`);
+  }
+});
+
+test("POST accepts a streamed body of exactly 256 KiB and refuses one byte more", async () => {
+  configureEnvironment();
+  const calls = [];
+  const handler = createPlatformWahaWebhookHandler({
+    createServiceClient: () => platformClient(recordingRpc(calls)),
+  });
+  const signedHeaders = (raw) => ({
+    "x-webhook-hmac": sign(raw),
+    "x-webhook-hmac-algorithm": "sha512",
+  });
+
+  const exact = eventOfExactSize(MAX_BODY);
+  const accepted = await handler(chunkedRequest(exact, signedHeaders(exact)).request);
+  assert.equal(accepted.status, 200);
+  assert.equal((await accepted.json()).status, "projected");
+  // The same bytes with an honest Content-Length at the cap pass too.
+  const honest = await handler(
+    chunkedRequest(exact, { ...signedHeaders(exact), "content-length": String(MAX_BODY) }).request,
+  );
+  assert.equal(honest.status, 200);
+
+  const calls413 = calls.length;
+  const over = eventOfExactSize(MAX_BODY + 1);
+  const rejected = await handler(chunkedRequest(over, signedHeaders(over)).request);
+  assert.equal(rejected.status, 413);
+  assert.deepEqual(await rejected.json(), { ok: false, error: "payload_too_large" });
+  assert.equal(calls.length, calls413, "an oversized body writes nothing");
+});
+
+test("POST verifies the HMAC over the raw bytes before JSON.parse: an unsigned or wrongly signed body is never parsed", async () => {
+  configureEnvironment();
+  const handler = createPlatformWahaWebhookHandler(forbiddenClient());
+  const marker = "PARSE-MARKER-7f3a";
+  const parsed = [];
+  const originalParse = JSON.parse;
+  JSON.parse = function parse(text, ...rest) {
+    parsed.push(String(text));
+    return originalParse.call(this, text, ...rest);
+  };
+  let results;
+  try {
+    const headers = (raw, signature = sign(raw)) => ({
+      "x-webhook-hmac": signature,
+      "x-webhook-hmac-algorithm": "sha512",
+    });
+    const send = async (raw, extraHeaders) => {
+      const response = await handler(
+        new Request(INBOUND_URL, { method: "POST", headers: extraHeaders, body: raw }),
+      );
+      return response.status;
+    };
+    const validJson = JSON.stringify({ event: "message.any", session: "crm_primary", note: marker, payload: {} });
+    const notJson = `not json ${marker}`;
+    results = {
+      // Malformed JSON with a wrong signature is a 401, never the 400 a parse would give.
+      notJsonWrongSignature: await send(notJson, headers(notJson, "0".repeat(128))),
+      notJsonUnsigned: await send(notJson, {}),
+      // Valid JSON with a signature of other bytes.
+      validJsonWrongSignature: await send(validJson, headers(validJson, sign(`${validJson} `))),
+      validJsonUnsigned: await send(validJson, {}),
+      // A signature over a different algorithm label.
+      validJsonWrongAlgorithm: await send(validJson, { "x-webhook-hmac": sign(validJson), "x-webhook-hmac-algorithm": "sha256" }),
+    };
+  } finally {
+    JSON.parse = originalParse;
+  }
+  assert.deepEqual(results, {
+    notJsonWrongSignature: 401,
+    notJsonUnsigned: 401,
+    validJsonWrongSignature: 401,
+    validJsonUnsigned: 401,
+    validJsonWrongAlgorithm: 401,
+  });
+  assert.deepEqual(
+    parsed.filter((text) => text.includes(marker)),
+    [],
+    "no unauthenticated body reached JSON.parse",
+  );
+
+  // Once the raw bytes are authenticated, malformed JSON is a 400 as before.
+  const notJson = `not json ${marker}`;
+  const signedGarbage = await handler(
+    new Request(INBOUND_URL, {
+      method: "POST",
+      headers: { "x-webhook-hmac": sign(notJson), "x-webhook-hmac-algorithm": "sha512" },
+      body: notJson,
+    }),
+  );
+  assert.equal(signedGarbage.status, 400);
+  assert.deepEqual(await signedGarbage.json(), { ok: false, error: "invalid_json" });
+  // An empty body keeps its 400.
+  const empty = await handler(new Request(INBOUND_URL, { method: "POST", body: "" }));
+  assert.equal(empty.status, 400);
+});
+
+test("POST ignores an ACK of the own chat (200 ignored own_chat, nothing written) and still projects an ACK of a customer chat", async () => {
+  configureEnvironment();
+  const customer = "79990000023@c.us";
+  const gowsAck = (chat, id, extra = {}) => ({
+    id: `true_${chat}_${id}`,
+    from: chat,
+    to: null,
+    participant: null,
+    fromMe: true,
+    ack: 3,
+    ackName: "READ",
+    _data: { Chat: rawJid(chat), Sender: rawJid(chat), IsFromMe: false, IsGroup: false, MessageIDs: [id], Type: "read" },
+    ...extra,
+  });
+  // WEBJS: from is the own number whatever the chat, to is the chat.
+  const webjsAck = (chat, id) => ({
+    id: `true_${chat}_${id}`,
+    from: OWN_PHONE,
+    to: chat,
+    participant: null,
+    fromMe: true,
+    ack: 2,
+    ackName: "DEVICE",
+  });
+  const idOnlyAck = (chat, id) => ({ id: `true_${chat}_${id}`, fromMe: true, ack: 1, ackName: "SERVER" });
+
+  const ignored = [
+    ["GOWS receipt, own phone chat", gowsEnvelope("OA1", gowsAck(OWN_PHONE, "OA1"), { event: "message.ack" })],
+    ["GOWS receipt, own LID chat", gowsEnvelope("OA2", gowsAck(OWN_LID, "OA2"), { event: "message.ack" })],
+    ["WEBJS ack, to = own phone", webjsEnvelope("OA3", webjsAck(OWN_PHONE, "OA3"), "message.ack")],
+    ["WEBJS ack, to = own LID", webjsEnvelope("OA4", webjsAck(OWN_LID, "OA4"), "message.ack")],
+    ["id-only ack, own chat in the message id", gowsEnvelope("OA5", idOnlyAck(OWN_PHONE, "OA5"), { event: "message.ack" })],
+    [
+      "GOWS ack with the own chat only in _data.Info.Chat",
+      gowsEnvelope("OA6", { ...idOnlyAck("79990000024@c.us", "OA6"), _data: { Info: { Chat: rawJid(OWN_PHONE) } } }, { event: "message.ack" }),
+    ],
+  ];
+  for (const [label, event] of ignored) {
+    const calls = [];
+    const handler = createPlatformWahaWebhookHandler({
+      createServiceClient: () => platformClient(recordingAckRpc(calls)),
+    });
+    const response = await handler(signedRequest(event));
+    assert.equal(response.status, 200, label);
+    assert.deepEqual(await response.json(), { ok: true, status: "ignored", reason: "own_chat" }, label);
+    assert.deepEqual(calls, [], label);
+  }
+
+  const projected = [
+    ["GOWS receipt, customer chat", gowsEnvelope("CA1", gowsAck(customer, "CA1"), { event: "message.ack" })],
+    // from is the own number in EVERY WEBJS ack: it must not make the chat the own one.
+    ["WEBJS ack, from = own, to = customer", webjsEnvelope("CA2", webjsAck(customer, "CA2"), "message.ack")],
+    ["id-only ack, customer chat", gowsEnvelope("CA3", idOnlyAck(customer, "CA3"), { event: "message.ack" })],
+    // The own account is not known (no me): nothing proves the chat is the own one.
+    ["id-only ack, own-looking chat but no me", gowsEnvelope("CA4", idOnlyAck(OWN_PHONE, "CA4"), { event: "message.ack", me: null })],
+  ];
+  for (const [label, event] of projected) {
+    const calls = [];
+    const handler = createPlatformWahaWebhookHandler({
+      createServiceClient: () => platformClient(recordingAckRpc(calls)),
+    });
+    const response = await handler(signedRequest(event));
+    assert.equal(response.status, 200, label);
+    assert.equal((await response.json()).status, "projected", label);
+    assert.equal(calls[0].name, "persist_provider_webhook_event", label);
+    assert.equal(calls[1].name, "enqueue_verified_webhook_work", label);
+  }
+});
+
+test("POST peels GOWS ephemeral, view-once and document-with-caption wrappers before classifying, like WAHA's own filter", async () => {
+  configureEnvironment();
+  const customer = "79990000025@c.us";
+  const send = (id, message) =>
+    gowsEnvelope(id, gowsDirectPayload({ chat: customer, id, message }));
+  const nest = (depth, inner, wrapper = "ephemeralMessage") => {
+    let message = inner;
+    for (let level = 0; level < depth; level += 1) message = { [wrapper]: { message } };
+    return message;
+  };
+  const revoke = { protocolMessage: { key: { ID: "OLD1" }, type: 0 } };
+  const reaction = { reactionMessage: { key: { ID: "OLD2" }, text: "👍" } };
+
+  const notices = [
+    ["ephemeral revoke", { ephemeralMessage: { message: revoke } }],
+    ["ephemeral reaction next to a message context", { messageContextInfo: {}, ephemeralMessage: { message: reaction } }],
+    ["viewOnceMessage protocol", { viewOnceMessage: { message: revoke } }],
+    ["viewOnceMessageV2 reaction", { viewOnceMessageV2: { message: reaction } }],
+    ["viewOnceMessageV2Extension poll vote", { viewOnceMessageV2Extension: { message: { pollUpdateMessage: { pollCreationMessageKey: { ID: "OLD3" } } } } }],
+    ["documentWithCaptionMessage protocol", { documentWithCaptionMessage: { message: revoke } }],
+    ["editedMessage edit", { editedMessage: { message: { protocolMessage: { key: { ID: "OLD4" }, type: 14, editedMessage: { conversation: "fixed" } } } } }],
+    ["ephemeral around key distribution only", { ephemeralMessage: { message: { senderKeyDistributionMessage: { groupID: "x" }, messageContextInfo: {} } } }],
+    ["two levels: ephemeral > edited > protocol", { ephemeralMessage: { message: { editedMessage: { message: revoke } } } }],
+    ["five levels (the same cap as Baileys)", nest(5, revoke)],
+  ];
+  for (const [label, message] of notices) {
+    const { response, body, calls } = await deliver(send(`W-${label}`, message));
+    assert.equal(response.status, 200, label);
+    assert.deepEqual(body, { ok: true, status: "ignored", reason: "system_notice" }, label);
+    assert.deepEqual(calls, [], label);
+  }
+
+  const kept = [
+    ["ephemeral location", { ephemeralMessage: { message: { locationMessage: { degreesLatitude: 42.87 } } } }],
+    ["viewOnceMessageV2 image", { viewOnceMessageV2: { message: { imageMessage: { mimetype: "image/jpeg" } } } }],
+    ["documentWithCaptionMessage document", { documentWithCaptionMessage: { message: { documentMessage: { fileName: "a.pdf", caption: "см." } } } }],
+    ["ephemeral text", { ephemeralMessage: { message: { conversation: "text in a disappearing chat" } } }],
+    // A protocol key next to real content inside the wrapper is not a notice.
+    ["protocol next to a location inside a wrapper", { ephemeralMessage: { message: { protocolMessage: { type: 0 }, locationMessage: { degreesLatitude: 1 } } } }],
+    // A wrapper next to other content is not a pure wrapper.
+    ["wrapper next to a location", { ephemeralMessage: { message: revoke }, locationMessage: { degreesLatitude: 1 } }],
+    // An empty or malformed wrapper hides nothing a customer wrote.
+    ["wrapper without a message", { ephemeralMessage: {} }],
+    ["wrapper with a null message", { ephemeralMessage: { message: null } }],
+    ["wrapper with a string message", { ephemeralMessage: { message: "x" } }],
+    ["wrapper that is not an object", { viewOnceMessage: "x" }],
+    ["empty message inside a wrapper", { ephemeralMessage: { message: {} } }],
+    // Past the cap the wrapper stays a wrapper, as in Baileys: customer content.
+    ["six levels", nest(6, revoke)],
+    // An unknown wrapper is unknown content.
+    ["unknown wrapper", { futureProofMessage: { message: revoke } }],
+  ];
+  for (const [label, message] of kept) {
+    const event = send(`WK-${label}`, message);
+    const { response, body, calls } = await deliver(event);
+    assert.equal(response.status, 200, label);
+    assert.equal(body.status, "projected", label);
+    assert.deepEqual(calls[0].args.p_raw_payload, event, label);
+  }
+});
+
+test("POST tells the phone from the session's own linked device: only a phone device's source app is phone-sent, the session's own api send is a CRM echo", async () => {
+  configureEnvironment();
+  const customer = "79990000026@c.us";
+  const phone = gowsDirectPayload({ chat: customer, fromMe: true, id: "D1", body: "Ответ с телефона", source: "app" });
+  const web = gowsDirectPayload({
+    chat: customer,
+    fromMe: true,
+    id: "D2",
+    body: "Ответ из WhatsApp Web",
+    source: "app",
+    info: { Sender: OWN_OTHER_LINKED_DEVICE_JID },
+  });
+  const crm = gowsDirectPayload({ chat: customer, fromMe: true, id: "D3", body: "From the CRM", source: "api" });
+  // The fixtures follow WAHA's own labelling rule: device 12 (me.jid) is api.
+  assert.equal(phone._data.Info.Sender, OWN_PHONE_DEVICE_JID);
+  assert.equal(web._data.Info.Sender, OWN_OTHER_LINKED_DEVICE_JID);
+  assert.equal(crm._data.Info.Sender, OWN_ME.jid);
+  const deviceOf = (jid) => /:(\d+)@/.exec(jid)?.[1] ?? null;
+  assert.equal(deviceOf(phone._data.Info.Sender), null);
+  assert.notEqual(deviceOf(web._data.Info.Sender), deviceOf(OWN_ME.jid));
+  assert.equal(deviceOf(crm._data.Info.Sender), deviceOf(OWN_ME.jid));
+
+  for (const [label, payload, status] of [
+    ["phone (device 0), source app", phone, "projected"],
+    ["another linked device, source app", web, "projected"],
+    ["the session's own linked device, source api: a CRM echo", crm, "observed"],
+  ]) {
+    const { response, body, calls } = await deliver(gowsEnvelope(payload.id, payload));
+    assert.equal(response.status, status === "projected" ? 200 : 202, label);
+    assert.equal(body.status, status, label);
+    assert.deepEqual(
+      calls.map((call) => call.name),
+      status === "projected" ? PROJECTED_CALLS : ["persist_provider_webhook_event"],
+      label,
+    );
+  }
 });

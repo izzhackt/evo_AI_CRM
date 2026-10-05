@@ -33,6 +33,13 @@ import {
 // size check on it (no CHECK, no length test in the persist routine). The route
 // is public at the edge but HMAC-authenticated and inert unless the owner enabled
 // it. Source citations: the PR description.
+//
+// The route is reachable on the public host, so the bound is enforced while the
+// body is read, not after it: a declared Content-Length above it is refused
+// before a single byte is read, and a body with no (or a false) Content-Length,
+// such as a chunked one, is read as a stream and the upload is cancelled as soon
+// as it passes the bound. The signature is checked over the raw bytes before
+// they are parsed.
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_IDENTIFIER_BYTES = 256;
 const MIN_WEBHOOK_SECRET_BYTES = 32;
@@ -260,9 +267,50 @@ const GOWS_KEY_DISTRIBUTION_KEYS = new Set([
   "fastRatchetKeySenderKeyDistributionMessage",
 ]);
 
+// WAHA classifies a GOWS message only after Baileys `normalizeMessageContent`
+// (devlikeapro/Baileys fork-master-2026-04-28, src/Utils/messages.ts, the
+// package WAHA 2026.9.2 pins) has peeled the "future proof" wrappers off it, up
+// to five levels, so a reaction or a protocol message inside a disappearing
+// message (`ephemeralMessage`) is dropped like a bare one. The same wrappers,
+// the same depth. A level is peeled only when the wrapper is its single content
+// key (companion keys aside) and holds an object `message`; a wrapper next to
+// other content, an empty wrapper or one with no inner message is not a notice
+// and is left for staff review.
+const GOWS_WRAPPER_MESSAGE_KEYS = new Set([
+  "ephemeralMessage",
+  "viewOnceMessage",
+  "documentWithCaptionMessage",
+  "viewOnceMessageV2",
+  "viewOnceMessageV2Extension",
+  "editedMessage",
+  "associatedChildMessage",
+  "groupStatusMessage",
+  "groupStatusMessageV2",
+  "lottieStickerMessage",
+]);
+const GOWS_MAX_WRAPPER_DEPTH = 5;
+
+function peelGowsWrappers(message: JsonObject): JsonObject {
+  let current = message;
+  for (let depth = 0; depth < GOWS_MAX_WRAPPER_DEPTH; depth += 1) {
+    const content = Object.keys(current).filter(
+      (key) => !GOWS_COMPANION_MESSAGE_KEYS.has(key),
+    );
+    if (content.length !== 1 || !GOWS_WRAPPER_MESSAGE_KEYS.has(content[0])) {
+      break;
+    }
+    const wrapper = current[content[0]];
+    const inner = isObject(wrapper) ? wrapper.message : null;
+    if (!isObject(inner)) break;
+    current = inner;
+  }
+  return current;
+}
+
 function isGowsSystemMessage(data: JsonObject | null): boolean {
-  const message = data !== null && isObject(data.Message) ? data.Message : null;
-  if (message === null) return false;
+  const outer = data !== null && isObject(data.Message) ? data.Message : null;
+  if (outer === null) return false;
+  const message = peelGowsWrappers(outer);
   const all = Object.keys(message);
   const content = all.filter((key) => !GOWS_COMPANION_MESSAGE_KEYS.has(key));
   if (content.length === 0) {
@@ -313,6 +361,43 @@ function readWebhookSecret(environment: NodeJS.ProcessEnv): string {
     throw new PlatformWahaWebhookConfigurationError();
   }
   return secret;
+}
+
+// True only for a well-formed Content-Length above the bound. A malformed
+// value is not trusted either way; the streaming bound still applies.
+function declaredLengthExceedsBound(request: Request): boolean {
+  const declared = request.headers.get("content-length")?.trim();
+  return (
+    declared !== undefined &&
+    /^[0-9]+$/.test(declared) &&
+    Number(declared) > MAX_BODY_BYTES
+  );
+}
+
+// The raw body, or null once it has passed the bound (the upload is cancelled
+// at that point, so an endless or oversized body is never buffered).
+async function readBoundedBody(request: Request): Promise<Uint8Array | null> {
+  if (request.body === null) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > MAX_BODY_BYTES) {
+      void reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const rawBody = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    rawBody.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return rawBody;
 }
 
 function verifySignature(request: Request, rawBody: Uint8Array, secret: string) {
@@ -466,6 +551,33 @@ function parseMessageAny(
   };
 }
 
+// The chat an acknowledgement is about, as the engines report it: WEBJS `to` is
+// the customer (`from` is the own number whatever the chat), GOWS has `to` null
+// and the chat in `_data.Chat` (a receipt) or `_data.Info.Chat`, and both build
+// the message id as `<fromMe>_<chat>_<ID>`. `from` is deliberately not read: it
+// is the own number in every WEBJS acknowledgement. Null when nothing names a
+// direct chat.
+const ACK_MESSAGE_ID_CHAT_PATTERN = /^(?:true|false)_([^_]+)_/;
+
+function ackChat(payload: JsonObject): string | null {
+  const data = isObject(payload._data) ? payload._data : null;
+  const fromMessageId =
+    typeof payload.id === "string"
+      ? ACK_MESSAGE_ID_CHAT_PATTERN.exec(payload.id)?.[1]
+      : undefined;
+  const candidates: unknown[] = [
+    payload.to,
+    data?.Chat,
+    messageInfo(payload)?.Chat,
+    fromMessageId,
+  ];
+  for (const candidate of candidates) {
+    const chat = normalizedDirectJid(candidate);
+    if (chat !== null) return chat;
+  }
+  return null;
+}
+
 function parseMessageAck(
   body: JsonObject,
   payload: JsonObject,
@@ -494,6 +606,13 @@ function parseMessageAck(
     parsedOccurredAt === null
       ? `local-message-ack-delivery:${rawPayloadSha256}:${sha256(requestId)}`
       : rawMessageId;
+  // An acknowledgement of a message in the own chat (a note to self) belongs to
+  // a message that is never projected; enqueued, it would only be retried as
+  // `waha_ack_binding_pending`. Nothing to observe, nothing to retry.
+  const chat = ackChat(payload);
+  if (chat !== null && ownChatIds(body, payload).has(chat)) {
+    return { ignored: true, reason: "own_chat" };
+  }
   const variant = expectedName.toLowerCase();
 
   return {
@@ -702,12 +821,22 @@ export function createPlatformWahaWebhookHandler(
     }
 
     try {
-      const rawBody = new Uint8Array(await request.arrayBuffer());
-      if (rawBody.byteLength === 0) return errorResponse(400, "invalid_json");
-      if (rawBody.byteLength > MAX_BODY_BYTES) {
+      // Cheapest refusals first: a declared size above the bound is answered
+      // before the body is touched, and an unconfigured route before anything
+      // is buffered.
+      if (declaredLengthExceedsBound(request)) {
         return errorResponse(413, "payload_too_large");
       }
+      const config = getPlatformMessagingBackendConfig();
+      const secret = readWebhookSecret(process.env);
 
+      const rawBody = await readBoundedBody(request);
+      if (rawBody === null) return errorResponse(413, "payload_too_large");
+      if (rawBody.byteLength === 0) return errorResponse(400, "invalid_json");
+
+      // Authenticate the raw bytes before they are parsed: an unsigned or wrongly
+      // signed body never reaches JSON.parse.
+      verifySignature(request, rawBody, secret);
       let body: unknown;
       try {
         body = JSON.parse(Buffer.from(rawBody).toString("utf8"));
@@ -716,9 +845,6 @@ export function createPlatformWahaWebhookHandler(
       }
       if (!isObject(body)) return errorResponse(400, "invalid_json");
 
-      const config = getPlatformMessagingBackendConfig();
-      const secret = readWebhookSecret(process.env);
-      verifySignature(request, rawBody, secret);
       const rawPayloadSha256 = sha256(rawBody);
       const descriptor = parseEvent(body, rawPayloadSha256);
       if (descriptor === null) {

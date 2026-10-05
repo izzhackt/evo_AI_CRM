@@ -567,6 +567,10 @@ $$;
 CREATE FUNCTION pg_temp.n259_rawjid(p_chat TEXT) RETURNS TEXT LANGUAGE SQL IMMUTABLE AS $$
   SELECT replace(p_chat, '@c.us', '@s.whatsapp.net')
 $$;
+-- WAHA 2026.9.2 (GOWS getSourceDeviceByMsg) labels a message `api` exactly when the device in
+-- `_data.Info.Sender` is the session's own linked device (the device of me.jid, 12 here) and `app` for any other
+-- own device. So a message sent from the phone (`app`, the default) comes from the primary phone, device 0 (a
+-- whatsmeow JID writes device 0 without a suffix), and only an `api` message comes from device 12.
 CREATE FUNCTION pg_temp.n259_gows(p_id TEXT, p_chat TEXT, p_from_me BOOLEAN, p_extra JSONB DEFAULT '{}',
   p_info JSONB DEFAULT '{}', p_message JSONB DEFAULT '{}') RETURNS JSONB LANGUAGE SQL AS $$
   SELECT jsonb_build_object('id', p_from_me::TEXT || '_' || p_chat || '_' || p_id, 'timestamp', 1788343200,
@@ -574,7 +578,9 @@ CREATE FUNCTION pg_temp.n259_gows(p_id TEXT, p_chat TEXT, p_from_me BOOLEAN, p_e
     'hasMedia', FALSE, 'media', NULL::TEXT,
     '_data', jsonb_build_object(
       'Info', jsonb_build_object('Chat', pg_temp.n259_rawjid(p_chat),
-        'Sender', CASE WHEN p_from_me THEN '79990000000:12@s.whatsapp.net' ELSE pg_temp.n259_rawjid(p_chat) END,
+        'Sender', CASE WHEN NOT p_from_me THEN pg_temp.n259_rawjid(p_chat)
+                       WHEN lower(COALESCE(p_extra ->> 'source', 'app')) = 'api' THEN '79990000000:12@s.whatsapp.net'
+                       ELSE '79990000000@s.whatsapp.net' END,
         'IsFromMe', p_from_me, 'IsGroup', FALSE, 'SenderAlt', '', 'RecipientAlt', '', 'ID', p_id, 'PushName', '') || p_info,
       'Message', p_message)) || p_extra
 $$;
@@ -814,6 +820,26 @@ SELECT pg_temp.n259_assert(
     ARRAY[]::TEXT[]) = '79990000000@c.us'
   AND platform_private.waha_payload_phone_chat_id('{"_data":{"Info":{"SenderAlt":""}}}'::JSONB, FALSE, ARRAY[]::TEXT[]) IS NULL,
   'an alternative equal to the own number is ignored (the next alternative is still read); with no own account nothing is hidden; an empty one is no phone');
+
+-- 5n. The session's own linked device sending through the API (Info.Sender = me.jid, device 12, which WAHA labels
+-- `api`) is the CRM's own send echoing back, not the phone: the queue refuses it and the projection guard stores
+-- nothing. The same message labelled `app` from the phone (device 0) is the phone-sent one (5d).
+SELECT pg_temp.n259_assert(
+  pg_temp.n259_gows('A626', '79990000601@c.us', TRUE, '{"body":"x","source":"api"}') #>> '{_data,Info,Sender}'
+    = '79990000000:12@s.whatsapp.net'
+  AND pg_temp.n259_gows('A626', '79990000601@c.us', TRUE, '{"body":"x"}') #>> '{_data,Info,Sender}'
+    = '79990000000@s.whatsapp.net',
+  'the fixture follows WAHA''s labelling: device 12 sends api, the phone (device 0) sends app');
+SELECT pg_temp.n259_event(626, 'message.any', pg_temp.n259_gows('A626', '79990000601@c.us', TRUE,
+  '{"body":"Sent from the CRM (GOWS)","source":"api"}'), NULL, pg_temp.n259_me()) AS ev_gapi \gset
+SELECT pg_temp.n259_assert(pg_temp.n259_enqueue(:'ev_gapi') = '22023',
+  'the queue refuses a GOWS message from the session''s own linked device (source api)');
+SELECT pg_temp.n259_assert(
+  platform_private.project_waha_phone_sent_message(pg_temp.n259_id(1), :'ev_gapi', pg_temp.n259_conv('79990000601@c.us'),
+    (SELECT p.id FROM platform.conversation_participants p WHERE p.conversation_id = pg_temp.n259_conv('79990000601@c.us')
+       AND p.participant_kind = 'sales')) ->> 'outcome' = 'crm_send_echo'
+  AND NOT EXISTS (SELECT 1 FROM platform.communication_messages m WHERE m.body_text = 'Sent from the CRM (GOWS)'),
+  'the projection guard: a GOWS api echo from the session''s own device is the CRM''s send and stores nothing');
 
 -- ---------------------------------------------------------------------------
 -- 6. Constraints and catalog.

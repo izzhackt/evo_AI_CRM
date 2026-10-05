@@ -1026,6 +1026,48 @@ SELECT pg_temp.n260_assert(
   'the lead of that promotion is owned by the live intake member; the conversation keeps its imported owner');
 
 -- ---------------------------------------------------------------------------
+-- 11d. An identity conflict during promotion (a unique, check or foreign key violation) does not lose the live message
+-- either: the sub-transaction is rolled back (no half-made client), the message stays stored, and the next verified
+-- customer message promotes the chat. The conflict is provoked by a trigger that refuses the lead insert (a stand-in
+-- for any such constraint failure) and dropped afterwards.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.n260_finish(:'run_d', 6) AS fin_d \gset
+SELECT pg_temp.n260_begin(60) AS re \gset
+SELECT (:'re'::JSONB ->> 'run_id')::UUID AS run_e \gset
+SELECT pg_temp.n260_page(:'run_e', 1, '79990001201@c.us', jsonb_build_array(
+  pg_temp.n260_msg('false_79990001201@c.us_C1', '79990001201@c.us', FALSE, :t0 + 9000, 'Imported before the conflict'))) AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'chat_outcome' = 'import_new'
+  AND (:'re'::JSONB ->> 'run_id')::UUID <> :'run_d', 'a new run imported the chat that the conflict test promotes');
+SELECT pg_temp.n260_finish(:'run_e', 1) AS fin_e \gset
+CREATE FUNCTION pg_temp.n260_refuse_lead() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'synthetic identity conflict' USING ERRCODE = '23505';
+END
+$$;
+CREATE TRIGGER n260_refuse_lead BEFORE INSERT ON platform.leads
+  FOR EACH ROW EXECUTE FUNCTION pg_temp.n260_refuse_lead();
+SELECT pg_temp.n260_counts() AS before_conflict_promo \gset
+SELECT pg_temp.n260_live(51, pg_temp.n260_live_in('false_79990001201@c.us_LIVE1', '79990001201@c.us', 'Live message during a conflict'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '51 minutes') AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'disposition' = 'succeeded' AND :'r'::JSONB ->> 'finish_state' = 'succeeded'
+  AND :'r'::JSONB ->> 'error_code' IS NULL
+  AND :'r'::JSONB ->> 'identity_promotion_skipped' = 'identity_conflict' AND :'r'::JSONB -> 'identity_promoted' IS NULL
+  AND (pg_temp.n260_bodies(pg_temp.n260_conv('79990001201@c.us')))[2] = 'inbound:Live message during a conflict'
+  AND (pg_temp.n260_counts() ->> 'messages')::INT = (:'before_conflict_promo'::JSONB ->> 'messages')::INT + 1
+  AND (pg_temp.n260_counts() ->> 'clients') = (:'before_conflict_promo'::JSONB ->> 'clients')
+  AND (pg_temp.n260_counts() ->> 'leads') = (:'before_conflict_promo'::JSONB ->> 'leads')
+  AND (SELECT c.canonical_client_id IS NULL AND c.canonical_lead_id IS NULL FROM platform.communication_conversations c
+       WHERE c.id = pg_temp.n260_conv('79990001201@c.us')),
+  'a unique violation while promoting is caught: the live message is stored, no client or lead is left behind, the result says so');
+DROP TRIGGER n260_refuse_lead ON platform.leads;
+SELECT pg_temp.n260_live(52, pg_temp.n260_live_in('false_79990001201@c.us_LIVE2', '79990001201@c.us', 'Live message after the conflict'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '52 minutes') AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'finish_state' = 'succeeded' AND (:'r'::JSONB ->> 'identity_promoted')::BOOLEAN
+  AND :'r'::JSONB -> 'identity_promotion_skipped' IS NULL
+  AND (pg_temp.n260_counts() ->> 'leads')::INT = (:'before_conflict_promo'::JSONB ->> 'leads')::INT + 1,
+  'the next verified customer message promotes the chat once the conflict is gone');
+
+-- ---------------------------------------------------------------------------
 -- 12. Catalog.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.n260_assert(

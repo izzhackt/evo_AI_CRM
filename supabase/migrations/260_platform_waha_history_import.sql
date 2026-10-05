@@ -46,9 +46,13 @@
 -- readers that required a verified-inbound binding source also accept the
 -- history source, so the promoted lead lists its conversation. Promotion runs
 -- only after the live inbound message passed its conflict check and is stored,
--- and never blocks live ingestion: the lead owner is the imported owner while
--- still eligible, else the live intake member, else promotion is skipped and the
--- message stays stored (result key identity_promotion_skipped). (The alternative,
+-- and does not lose the live message on the failures that are known: the lead
+-- owner is the imported owner while still eligible, else the live intake member,
+-- else promotion is skipped; a unique/check/foreign-key violation while acquiring
+-- the identity is caught in a sub-transaction. In both cases the message stays
+-- stored, the result carries identity_promotion_skipped, and the next verified
+-- customer message retries (any other error fails the event like any projection
+-- error). (The alternative,
 -- a staging map that adopts imported messages at the first live message, would
 -- add a table and block replies until adoption; this change is smaller.)
 --
@@ -298,7 +302,7 @@ DECLARE
   options JSONB := COALESCE(p_options, '{}'::JSONB);
   include_outbound_only BOOLEAN := FALSE;
   lead_mode TEXT := 'promote';
-  me JSONB := NULL;
+  me JSONB;
   me_key TEXT;
   me_value TEXT;
 BEGIN
@@ -342,24 +346,19 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  IF options ? 'me' AND jsonb_typeof(options -> 'me') <> 'null' THEN
-    IF jsonb_typeof(options -> 'me') <> 'object' THEN
-      RAISE EXCEPTION 'me must be an object' USING ERRCODE = '22023';
+  me := '{}'::JSONB;
+  FOR me_key IN SELECT me_entry.value FROM jsonb_object_keys(options -> 'me') AS me_entry(value)
+  LOOP
+    me_value := options -> 'me' ->> me_key;
+    IF me_key NOT IN ('id', 'lid', 'jid')
+      OR jsonb_typeof(options -> 'me' -> me_key) <> 'string'
+      OR me_value !~ '^[0-9]{5,32}(:[0-9]{1,5})?@(c[.]us|lid|s[.]whatsapp[.]net)$'
+    THEN
+      RAISE EXCEPTION 'me may name only the own id, lid and jid'
+        USING ERRCODE = '22023';
     END IF;
-    me := '{}'::JSONB;
-    FOR me_key IN SELECT me_entry.value FROM jsonb_object_keys(options -> 'me') AS me_entry(value)
-    LOOP
-      me_value := options -> 'me' ->> me_key;
-      IF me_key NOT IN ('id', 'lid', 'jid')
-        OR jsonb_typeof(options -> 'me' -> me_key) <> 'string'
-        OR me_value !~ '^[0-9]{5,32}(:[0-9]{1,5})?@(c[.]us|lid|s[.]whatsapp[.]net)$'
-      THEN
-        RAISE EXCEPTION 'me may name only the own id, lid and jid'
-          USING ERRCODE = '22023';
-      END IF;
-      me := me || jsonb_build_object(me_key, me_value);
-    END LOOP;
-  END IF;
+    me := me || jsonb_build_object(me_key, me_value);
+  END LOOP;
 
   RETURN jsonb_build_object(
     'include_outbound_only', include_outbound_only,
@@ -1329,7 +1328,7 @@ $needle$
     $replacement$
   deferred_backfill JSONB;
   identity_promoted BOOLEAN := FALSE;
-  promotion_skipped BOOLEAN := FALSE;
+  promotion_skipped TEXT;
   promotion_owner UUID;
 BEGIN
 $replacement$,
@@ -1352,11 +1351,14 @@ $replacement$,
       -- history created without a client or lead. It runs only here, after the
       -- inbound conflict check passed and the message is stored (an inbound
       -- whose raw id was imported as outbound ends the event above and never
-      -- promotes), and it must never block live ingestion: the lead owner is the
-      -- imported owner when still eligible, else the live intake member (already
-      -- proven eligible for this event), else promotion is skipped and the
-      -- message stays stored. The identity evidence is this live event; the
-      -- history rows stay history.
+      -- promotes). The lead owner is the imported owner when still eligible, else
+      -- the live intake member (already proven eligible for this event), else
+      -- promotion is skipped and the message stays stored; an identity conflict
+      -- (unique, check or foreign key violation) is caught the same way, so these
+      -- known failures do not lose the live message and the promotion is retried
+      -- by the next verified customer message. Any other error still fails the
+      -- event like any projection error. The identity evidence is this live
+      -- event; the history rows stay history.
       IF binding.id IS NOT NULL
         AND conversation.canonical_client_id IS NULL
         AND conversation.canonical_lead_id IS NULL
@@ -1377,14 +1379,24 @@ $replacement$,
         END;
 
         IF promotion_owner IS NULL THEN
-          promotion_skipped := TRUE;
+          promotion_skipped := 'no_eligible_owner';
         ELSE
-          identity_promoted := platform_private.acquire_waha_canonical_identity(
-            p_organization_id,
-            binding.id,
-            source_event.id,
-            promotion_owner
-          );
+          -- A conflict while acquiring the identity (a unique, check or foreign
+          -- key violation) must not lose the live message: the sub-transaction
+          -- is rolled back (no half-made client), the message stays stored and
+          -- the next verified customer message tries the promotion again.
+          BEGIN
+            identity_promoted := platform_private.acquire_waha_canonical_identity(
+              p_organization_id,
+              binding.id,
+              source_event.id,
+              promotion_owner
+            );
+          EXCEPTION
+            WHEN unique_violation OR check_violation OR foreign_key_violation THEN
+              identity_promoted := FALSE;
+              promotion_skipped := 'identity_conflict';
+          END;
         END IF;
       END IF;
 
@@ -1398,8 +1410,8 @@ $replacement$,
         WHEN identity_promoted THEN jsonb_build_object('identity_promoted', TRUE)
         ELSE '{}'::JSONB
       END || CASE
-        WHEN promotion_skipped
-          THEN jsonb_build_object('identity_promotion_skipped', 'no_eligible_owner')
+        WHEN promotion_skipped IS NOT NULL
+          THEN jsonb_build_object('identity_promotion_skipped', promotion_skipped)
         ELSE '{}'::JSONB
       END;
 $replacement$

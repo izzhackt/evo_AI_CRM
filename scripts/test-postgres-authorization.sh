@@ -347,6 +347,44 @@ SQL
       -f /workspace/supabase/tests/platform_case_contract_file_audit_action.sql
   fi
 
+  # Migration 260 replaces two of 259's routines wholesale and pins their 259
+  # source by md5. Prove that an edited 259 definition makes 260 fail closed
+  # (with its own reason), for each of the two, inside a transaction that the
+  # failure rolls back; the ordinary apply below then proves nothing was kept.
+  if [[ "$(basename "$migration")" == 260_* ]]; then
+    for pinned_function in \
+      'platform_private.require_private_waha_message_binding()' \
+      'platform_private.bind_waha_chat_to_canonical(uuid,uuid)'; do
+      n260_tamper_log="$(mktemp -t evo-n260-pin-tamper.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$pinned_function" \
+        -v "migration_file=/workspace/$migration" \
+        >"$n260_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef(:'pinned_function'::regprocedure),
+  'BEGIN',
+  'BEGIN /* tampered after migration 259 */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 260 accepted an edited $pinned_function" >&2
+        exit 1
+      fi
+      if ! grep -Fq \
+        "is not the migration 259 definition it was written against" \
+        "$n260_tamper_log"; then
+        echo "migration 260 failed for the wrong pre-image reason ($pinned_function)" >&2
+        sed -n '1,60p' "$n260_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$n260_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"

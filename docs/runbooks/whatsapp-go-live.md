@@ -10,6 +10,13 @@ release, WAHA), выполняется только после явного «д
 (не менять отсюда). Код записи ключа WAHA в Vault — этот PR:
 `scripts/waha-runtime-binding.mjs` (см. [§ Скрипт](#скрипт-vault-binding)).
 
+Для сессии `crm_primary` процедура **заменяет** указание «новую конфигурацию
+WAHA направлять на приватный webhook lead-agent» из `AGENTS.md`
+(§ «WhatsApp And Lead-Agent Boundary»): решение владельца — прямой приём
+WAHA → CRM (`/api/v2/whatsapp/inbound`), lead-agent на этом пути не участвует.
+Сам раздел `AGENTS.md` обновляется отдельным docs-PR после go-live, не здесь;
+до тех пор webhook не «исправлять» под старый текст.
+
 Метки доказательств: **[doc]** — документация WAHA (URL рядом);
 **[src]** — исходники WAHA на теге 2026.9.2 (и 2026.7.1), прочитаны 2026-10-05,
 не запускались; **[repo]** — этот репозиторий, `origin/main` `01247bc8b`, либо
@@ -52,12 +59,24 @@ CRM (ручной ответ, проба статуса) ──► http://evo-cr
 | I | Приёмка | сообщение владельца → ответ из CRM |
 
 **Отступление от черновика чек-листа.** Release с `INGRESS=1` стоит *до*
-pairing, а не после. Причина: WAHA повторяет webhook по умолчанию 15 раз с
-задержкой 2 с и считает ошибкой любой не-2xx ответ [src]
-`src/modules/waha-webhook/WebhookPlugin.sender.ts` (`DEFAULT_RETRY_ATTEMPTS=15`,
-`retryCondition: () => true`), то есть ~30 с. Пока маршрут отвечает 503
-(ingress 0), входящие и `session.status` за время release пропали бы. Без
-привязанного номера принимать нечего, поэтому включить приём заранее безопасно.
+pairing, а не после. Причина: WAHA считает ошибкой любой не-2xx ответ и
+повторяет доставку ограниченное число раз [src]
+`src/modules/waha-webhook/WebhookPlugin.sender.ts` (`retryCondition: () => true`).
+Окно повторов зависит от политики: по умолчанию в WAHA — константа 2 с × 15 раз
+(~30 с); **политика этой процедуры — фаза E** (`exponential`, `delaySeconds: 2`,
+`attempts: 10`). В 2026.9.2 `exponentialDelay` считает `2^n × delay`, где n
+начинается с 1 (axios-retry), то есть паузы 4, 8, 16 … 2048 с: **~68 минут** до
+отказа от события, плюс до 20 % случайной добавки к каждой паузе (≈ 82 минуты
+в худшем случае). Прочитано в исходниках, на живом WAHA не запускалось
+**[live ✗]**. Пока маршрут отвечает 503 (ingress 0), входящие и `session.status`
+за время release иначе терялись бы или приходили бы позже. Без привязанного
+номера принимать нечего, поэтому включить приём заранее безопасно.
+
+Следствие длинного окна: событие, получившее 503 (release, откат, выключенный
+приём), WAHA доставит позже — через минуты, вне порядка с более новыми и,
+если ответ 2xx потерялся по дороге, повторно. Приём (#1137) обязан быть
+идемпотентным по идентификатору события/сообщения и терпимым к порядку; это
+проверяется приёмкой (§ I, п. 4) и входит в «Допущения #1137».
 
 ---
 
@@ -94,10 +113,20 @@ pairing, а не после. Причина: WAHA повторяет webhook п�
 8. Гигиена оператора: SSH `hermes-vps`, `gh` с правом менять переменные
    репозитория. Секреты (ключ WAHA, HMAC, коды pairing) не печатать, не
    вставлять в чат/тикеты/PR, не писать в файлы репозитория; в ssh-сессии
-   `set +o history; umask 077`, без `set -x`.
+   `set +o history; umask 077`, без `set -x`. Ответ WAHA по сессии
+   (`POST/PUT /api/sessions…`, `…/start|stop|restart`, `GET /api/sessions/…`)
+   содержит `config` вместе с HMAC-ключом webhook, а у запущенной сессии ещё
+   `me.id` (номер отдела продаж) и `pushName` — **WAHA не маскирует их**
+   [src] `SessionRuntimeInfoPlugin.ts` (`config: session.sessionConfig`), `manager.core.ts` (остановленные сессии отдают сохранённую `config`). Поэтому хелперы ниже
+   по умолчанию **отбрасывают тело ответа** и печатают только `[http NNN]`;
+   читать можно лишь через явный `jq`-фильтр, выбирающий безопасные поля.
+   Не вызывать `curl` к WAHA вручную и не убирать фильтр. Ключ в
+   `docker exec -e` не передавать никогда: он попадёт в argv хоста,
+   `docker inspect` и историю; только stdin.
 
 Вспомогательные функции (вставить в ssh-сессию один раз; секреты не попадают
-в argv, заголовок ключа лежит на tmpfs с правами 0600 и удаляется):
+в argv, заголовок ключа лежит на tmpfs с правами 0600 и удаляется, тело ответа
+WAHA не печатается без фильтра):
 
 ```bash
 R=/opt/evo-crm; APP=evo-crm-app-1
@@ -107,31 +136,62 @@ set_env_value() {  # NEWVAL=… set_env_value FILE NAME — строка NAME= �
   NAME="$n" awk 'BEGIN{FS=OFS="="} $1==ENVIRON["NAME"]{hit++; print ENVIRON["NAME"] "=" ENVIRON["NEWVAL"]; next} {print} END{if(hit!=1)exit 3}' "$f" > "$tmp" \
     && cat "$tmp" > "$f"; local rc=$?; rm -f "$tmp"; return $rc
 }
+env_put() {        # env_put FILE NAME VALUE — заменить единственную строку NAME= или добавить её, если нет
+  if grep -q "^$2=" "$1"; then NEWVAL=$3 set_env_value "$1" "$2"
+  else { [ -z "$(tail -c1 "$1")" ] || printf '\n' >> "$1"; } && printf '%s=%s\n' "$2" "$3" >> "$1"; fi
+}
 waha_open() {      # нужны WAHA_KEY и WAHA_BASE
   waha_close; local old; old=$(umask); umask 077
   WAHA_HDR=$(mktemp /dev/shm/wahahdr.XXXXXX 2>/dev/null || mktemp) || { umask "$old"; return 1; }
   umask "$old"; printf 'X-Api-Key: %s\n' "$WAHA_KEY" > "$WAHA_HDR"
 }
 waha_close() { [ -z "${WAHA_HDR:-}" ] || rm -f -- "$WAHA_HDR"; unset WAHA_HDR; }
-waha()      { curl -sS -m 30 -X "$1" -H @"$WAHA_HDR" -H 'Accept: application/json' -w '\n[http %{http_code}]\n' "$WAHA_BASE$2"; }
-waha_json() { curl -sS -m 30 -X "$1" -H @"$WAHA_HDR" -H 'Accept: application/json' -H 'Content-Type: application/json' --data-binary @- -w '\n[http %{http_code}]\n' "$WAHA_BASE$2"; }
+_waha() {          # _waha METHOD PATH FILTER [curl-аргументы]: без FILTER печатает только «[http NNN]», тело выбрасывается
+  local m=$1 p=$2 flt=$3 out code rc; shift 3
+  out=$(mktemp /dev/shm/wahaout.XXXXXX 2>/dev/null || mktemp) || return 1
+  code=$(curl -sS -m 30 -X "$m" -H @"$WAHA_HDR" -H 'Accept: application/json' "$@" -o "$out" -w '%{http_code}' "$WAHA_BASE$p"); rc=$?
+  if [ "$rc" -ne 0 ]; then rm -f -- "$out"; printf '[curl exit %s]\n' "$rc" >&2; return 1; fi
+  if [ -z "$flt" ]; then printf '[http %s]\n' "$code"; rc=0
+  else case $code in
+    2??) jq -r "$flt" < "$out" 2>/dev/null; rc=$?; [ "$rc" -eq 0 ] || printf '[фильтр jq не применился]\n' >&2;;   # ошибка jq цитирует кусок данных: stderr jq глушим
+    *)   printf '[http %s]\n' "$code" >&2; rc=22;;
+  esac; fi
+  rm -f -- "$out"; return "$rc"
+}
+waha()      { _waha "$1" "$2" "${3:-}"; }                                                                  # waha METHOD PATH [JQ_FILTER]
+waha_json() { _waha "$1" "$2" "${3:-}" -H 'Content-Type: application/json' --data-binary @-; }            # тело запроса из stdin
 ```
 
-(`set_env_value`, `waha_open/waha`/`waha_json` проверены локально против
-синтетического сервера: ключ не попадает в argv, тело идёт через stdin, файл
-заголовка удаляется; на WAHA не запускались.)
+(`waha_open`/`waha`/`waha_json` проверены локально против синтетического
+сервера, в ответах которого были поддельные HMAC, номер и pushName: ни в stdout,
+ни в stderr, ни в argv (во время зависшего запроса) их нет; тело запроса идёт
+через stdin; при неверном ключе и при 404 печатается только `[http NNN]`;
+ошибка `jq` не цитирует данные; файлы заголовка и ответа удаляются, права
+заголовка 0600. На настоящем WAHA не запускались **[live ✗]**.)
 
 ---
 
 ## A. Разведка read-only
 
 ```bash
+for c in jq curl openssl sha512sum awk; do command -v "$c" >/dev/null || echo "СТОП: на VPS нет $c (ставить пакеты — только с ведома владельца)"; done
 WAHA_C=$(waha_cid); [ "$(printf '%s' "$WAHA_C" | wc -w)" = 1 ] || echo "СТОП: ожидался один контейнер waha"
 docker inspect -f '{{.Name}} image={{.Config.Image}} health={{.State.Health.Status}} restarts={{.RestartCount}} mem={{.HostConfig.Memory}} ports={{json .HostConfig.PortBindings}}' "$WAHA_C" "$APP"
 free -k | awk '/^Mem:/{print "available_kb="$7}'; df -k /var/lib/docker | tail -1
 VOL=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/.sessions"}}{{.Name}}{{end}}{{end}}' "$WAHA_C")
 docker run --rm --pull never --entrypoint sh -v "$VOL":/s:ro "$(docker inspect -f '{{.Image}}' "$WAHA_C")" -c 'ls -la /s; du -sk /s/* 2>/dev/null'
 ```
+
+Имена переменных старта WAHA в `.env.waha` (значения не печатаются):
+```bash
+grep -oE '^(WHATSAPP_RESTART_ALL_SESSIONS|WHATSAPP_START_SESSION|WAHA_WORKER_RESTART_SESSIONS|WHATSAPP_DEFAULT_ENGINE)=' "$R/.env.waha" || echo "нет ни одной"
+```
+`WHATSAPP_RESTART_ALL_SESSIONS` и `WHATSAPP_START_SESSION` должны отсутствовать:
+первая проверяется в WAHA *раньше* `WAHA_WORKER_RESTART_SESSIONS` и поднимает
+**все** сохранённые сессии, вторая стартует перечисленные при каждом запуске
+контейнера [src] `manager.core.ts` (`restartSessions`, `startPredefinedSessions`),
+`config.service.ts`. Если какая-то есть — **стоп**: фаза D3 не пойдёт (см. там),
+решение за владельцем.
 
 Параллельно с вашей машины (`gh` — там): `gh variable get EVO_WAHA_IMAGE_DIGEST --repo izzhackt/evo_AI_CRM`
 должен совпасть с digest в `image=…@sha256:…`.
@@ -227,27 +287,61 @@ OLD_IMAGE=$(docker inspect -f '{{.Image}}' "$WAHA_C"); TS=$(date -u +%Y%m%dT%H%M
 install -d -m 700 /root/evo-backups
 docker stop -t 60 "$WAHA_C"
 docker run --rm --pull never --entrypoint tar -v "$VOL":/s:ro -v /root/evo-backups:/b "$OLD_IMAGE" -czf "/b/waha-sessions-$TS.tgz" -C /s .
-sha256sum "/root/evo-backups/waha-sessions-$TS.tgz"; ls -l "/root/evo-backups/waha-sessions-$TS.tgz"
+chmod 600 "/root/evo-backups/waha-sessions-$TS.tgz"       # tar в контейнере пишет под root с umask по умолчанию (0644)
+sha256sum "/root/evo-backups/waha-sessions-$TS.tgz"; ls -l "/root/evo-backups/waha-sessions-$TS.tgz"     # ожидается -rw-------
 ```
 (`tar` в образе WAHA — Debian-база **[??]**; если нет — `docker run … busybox tar`.)
-Снимок содержит токены входа: права 0600, каталог 0700, не копировать с сервера.
+Снимок содержит токены входа: права 0600 (выставляются явным `chmod`, не полагаясь
+на каталог), каталог 0700, не копировать с сервера.
 
 **D3. Новый ключ API и `.env.waha`.** Plain-ключ существует только в памяти
 этой shell-сессии (и потом в Vault); на диск не писать. WAHA хранит только
 хэш: `WAHA_API_KEY=sha512:{SHA512_HEX_HASH}`, клиент шлёт plain в `X-Api-Key`
 — [doc] https://waha.devlike.pro/docs/how-to/security/#api-security .
+Если в `.env.waha` есть `WHATSAPP_RESTART_ALL_SESSIONS` или
+`WHATSAPP_START_SESSION` (при любом значении, включая `false` и пустое: не
+гадать), блок ничего не меняет и останавливается: иначе WAHA
+стартовала бы сессии на первой загрузке GOWS до `ignore` и webhook (проверка
+фазы A, повторена здесь, потому что файл мог измениться). Снять эти строки —
+отдельное решение владельца (резервная копия фазы B).
 ```bash
-KEY=$(openssl rand -hex 32)
-HASH=$(printf '%s' "$KEY" | sha512sum | awk '{print $1}')
-f=$R/.env.waha; NEWVAL="sha512:$HASH" set_env_value "$f" WAHA_API_KEY
-for kv in WHATSAPP_DEFAULT_ENGINE=GOWS \
-          WAHA_API_DOWNLOAD_MEDIA=false WAHA_EVENTS_DOWNLOAD_MEDIA=false WHATSAPP_DOWNLOAD_MEDIA=false \
-          WAHA_WORKER_RESTART_SESSIONS=false; do
-  n=${kv%%=*}; v=${kv#*=}
-  if grep -q "^$n=" "$f"; then NEWVAL=$v set_env_value "$f" "$n"; else printf '%s=%s\n' "$n" "$v" >> "$f"; fi
-done
-sed -E 's/=.*/=<…>/' "$f"        # проверить набор имён, значения маскированы
+f=$R/.env.waha
+if grep -qE '^(WHATSAPP_RESTART_ALL_SESSIONS|WHATSAPP_START_SESSION)=' "$f"; then
+  echo "СТОП: в .env.waha есть WHATSAPP_RESTART_ALL_SESSIONS и/или WHATSAPP_START_SESSION. Не продолжать, спросить владельца."
+else
+  KEY=$(openssl rand -hex 32) && HASH=$(printf '%s' "$KEY" | sha512sum | awk '{print $1}') \
+    && env_put "$f" WAHA_API_KEY "sha512:$HASH" \
+    && env_put "$f" WHATSAPP_DEFAULT_ENGINE GOWS \
+    && env_put "$f" WAHA_API_DOWNLOAD_MEDIA false \
+    && env_put "$f" WAHA_EVENTS_DOWNLOAD_MEDIA false \
+    && env_put "$f" WHATSAPP_DOWNLOAD_MEDIA false \
+    && env_put "$f" WAHA_WORKER_RESTART_SESSIONS false \
+    && { grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$f" | sed -E 's/=.*/=<…>/'; } \
+    || echo "СТОП: правка .env.waha не удалась (имя продублировано или файл недоступен). Не продолжать: восстановить файл из /root/evo-config-backups/env.waha.<метка> фазы B."
+fi
 ```
+(Вывод — только имена переменных, значения замаскированы; комментарии не печатаются.)
+
+**Хранение и потеря секретов.** Где живёт каждое значение: plain-ключ WAHA —
+только в памяти этой ssh-сессии, затем в Vault (его туда кладёт один `provision`);
+в `.env.waha` лежит лишь хэш; HMAC — в конфигурации сессии WAHA (читается
+обратно) и затем в `.env.production`. В чат, логи, PR, Git, файлы репозитория и
+заметки значения не попадают никогда. Резервная копия plain-ключа и HMAC
+допустима **только** в существующем SOPS-процессе «Секреты и доступы ЭВО»
+(`EVO_Знания`, как требует `AGENTS.md`): владелец сам вносит значения в
+зашифрованный файл со своей машины; показать значение на экране для переноса
+можно только в личном терминале владельца, не в сессии агента и не при записи
+экрана. Агент значения не печатает и не архивирует.
+
+Без архива потеря = **ротация**. Plain-ключ восстановить нельзя (на диске хэш),
+оборванный ssh-сеанс теряет `KEY`: новый сеанс начинается с
+`set +o history; umask 077` и повторной вставки хелперов, затем D3–D5 с новым
+ключом (старый хэш просто заменяется), затем E (PUT) и F. Потерянный `HMAC` при
+живом `KEY` не страшен: прочитать обратно без печати —
+`HMAC=$(waha GET /api/sessions/crm_primary '.config.webhooks[0].hmac.key')`
+(WAHA отдаёт его в открытом виде) — либо сгенерировать новый и выполнить E
+заново (`PUT`), а затем G2.
+
 Что и почему:
 
 - `WHATSAPP_DEFAULT_ENGINE=GOWS` — [doc] https://waha.devlike.pro/docs/engines/gows/ ;
@@ -297,23 +391,36 @@ docker compose --ansi never --project-name evo-crm --file "$CF" \
 (Форма повторяет `compose_with_app_env` release-контроллера; нужна, потому что
 compose требует `EVO_RELEASE_*` для всего файла. Не запускалась **[live ✗]**.)
 
-**D5. Проверка** (все пункты, пока не выполнены — переменную GitHub не менять):
+**D5. Проверка** (все пункты, пока не выполнены — переменную GitHub не менять).
+Ожидание здоровья ограничено 3 минутами: неверное значение в `.env.waha`
+(парсер bool WAHA бросает исключение при старте) даёт цикл перезапусков, и
+бесконечное ожидание зависло бы без вывода.
 ```bash
-WAHA_C=$(waha_cid); until [ "$(docker inspect -f '{{.State.Health.Status}}' "$WAHA_C")" = healthy ]; do sleep 5; done
+WAHA_C=$(waha_cid); ok=0
+for i in $(seq 1 36); do [ "$(docker inspect -f '{{.State.Health.Status}}' "$WAHA_C")" = healthy ] && { ok=1; break; }; sleep 5; done
+if [ "$ok" = 1 ]; then echo "WAHA healthy"
+else echo "СТОП: WAHA не стала healthy за 3 минуты; дальше не идти, откат — § Откат (откат WAHA)"
+     docker inspect -f 'status={{.State.Status}} restarts={{.RestartCount}}' "$WAHA_C"
+     docker logs --tail 30 "$WAHA_C" 2>&1 | sed -E 's/[0-9]{7,}/<n>/g' | cut -c1-160     # длинные цифры (номера, LID) замаскированы
+fi
+```
+Если вышло «СТОП», остальное в D5 не выполнять. Иначе:
+```bash
 docker inspect -f 'image={{.Config.Image}} restarts={{.RestartCount}} mem={{.HostConfig.Memory}} ports={{json .HostConfig.PortBindings}}' "$WAHA_C"
 docker exec "$WAHA_C" printenv WHATSAPP_DEFAULT_ENGINE
 docker inspect -f '{{json .NetworkSettings.Networks}}' "$WAHA_C" | grep -o '"evo_[a-z_]*"' | sort -u    # только evo_crm_private
 ```
 Нужно: `image=devlikeapro/waha@$NEW`, `restarts=0`, `mem=2147483648`, портов нет,
-движок `GOWS`, одна приватная сеть. Затем доступ с ключом и список сессий:
+движок `GOWS`, одна приватная сеть. Затем доступ с ключом и список сессий
+(только имя, статус, воркер; тело ответа целиком не печатается):
 ```bash
 WAHA_IP=$(docker inspect -f '{{(index .NetworkSettings.Networks "evo_crm_private").IPAddress}}' "$WAHA_C")
 WAHA_KEY=$KEY; WAHA_BASE=http://$WAHA_IP:3000; waha_open     # не export: переменные нужны только функциям этой shell
-waha GET '/api/sessions?all=true' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s.split("\n[http")[0]);for(const x of a)console.log(x.name,x.status,"assigned="+JSON.stringify(x.assignedWorker))})'
+waha GET '/api/sessions?all=true' '.[] | "\(.name) \(.status) assigned=\(.assignedWorker | tojson)"'
 ```
 Все сессии должны быть `STOPPED` (ничего не стартовало само). Лог на сообщения
-об ошибках старта: `docker logs --since 10m "$WAHA_C" 2>&1 | grep -iE 'error|fail' | cut -c1-160 | head` (в
-лог могут попасть номера — не копировать).
+об ошибках старта: `docker logs --since 10m "$WAHA_C" 2>&1 | grep -iE 'error|fail' | sed -E 's/[0-9]{7,}/<n>/g' | cut -c1-160 | head`
+(номера и LID замаскированы; имена и тексты в вывод всё равно могут попасть — не копировать).
 
 **D6. Digest в GitHub в ногу.** Release-контроллер сверяет `.Config.Image` WAHA
 с `repository@${EVO_WAHA_IMAGE_DIGEST}`; расхождение — `runtime_waha_image_drift`,
@@ -337,20 +444,26 @@ https://waha.devlike.pro/docs/how-to/events/#retries .
 
 ```bash
 HMAC=$(openssl rand -hex 32)       # 64 hex-символа; только в памяти shell и затем в .env.production (фаза G)
-waha GET /api/sessions/crm_primary | tail -1       # [http 200] — сессия уже есть → PUT; [http 404] — POST
 BODY_CONFIG=$(HMAC=$HMAC jq -n '{ignore:{status:true,groups:true,channels:true,broadcast:true},
   webhooks:[{url:"http://evo-crm-app:3000/api/v2/whatsapp/inbound",events:["message.any","session.status"],
              hmac:{key:env.HMAC},retries:{policy:"exponential",delaySeconds:2,attempts:10}}]}')
-# 404 → создать СТОПНУТОЙ (start:false):
-printf '%s' "$BODY_CONFIG" | jq '{name:"crm_primary",start:false,config:.}' | waha_json POST /api/sessions
-# 200 → заменить конфигурацию (остановленная сессия остаётся остановленной) [src] SessionService.updateSession:
-printf '%s' "$BODY_CONFIG" | jq '{config:.}' | waha_json PUT /api/sessions/crm_primary
+CODE=$(waha GET /api/sessions/crm_primary | tail -1)       # «[http 200]» — сессия уже есть; «[http 404]» — нет
+case "$CODE" in
+  "[http 404]")   # создать СТОПНУТОЙ (start:false); ответ WAHA содержит config с HMAC и НЕ печатается — только статус
+    printf '%s' "$BODY_CONFIG" | jq '{name:"crm_primary",start:false,config:.}' | waha_json POST /api/sessions ;;
+  "[http 200]")   # заменить конфигурацию (остановленная сессия остаётся остановленной) [src] SessionService.updateSession
+    printf '%s' "$BODY_CONFIG" | jq '{config:.}' | waha_json PUT /api/sessions/crm_primary ;;
+  *) echo "СТОП: неожиданный ответ WAHA $CODE" ;;
+esac                                                       # ожидается [http 2xx]
 ```
-`retries` — решение этой процедуры (экспоненциально, 10 попыток), не рекомендация
-WAHA; в примере документации `constant/2/15`. Проверка без вывода секретов:
+`retries` — решение этой процедуры (`exponential`, `delaySeconds` 2, 10
+попыток), не рекомендация WAHA; в примере документации `constant/2/15`.
+Реальное окно повторов этой политики — **~68 минут** (+ до 20 % случайной
+добавки к паузам), а не секунды: расчёт и следствия — в «Порядок фаз и почему
+так». Проверка без вывода секретов (ответ WAHA печатается только через фильтр):
 ```bash
-waha GET /api/sessions/crm_primary | sed '$d' | jq '{status, ignore:.config.ignore, events:.config.webhooks[0].events, url:.config.webhooks[0].url, has_hmac:(.config.webhooks[0].hmac.key!=null), device_name_unset:(.config.client.deviceName==null)}'
-[ "$(waha GET /api/sessions/crm_primary | sed '$d' | jq -r '.config.webhooks[0].hmac.key' | sha256sum)" = "$(printf '%s\n' "$HMAC" | sha256sum)" ] && echo hmac_matches
+waha GET /api/sessions/crm_primary '{status, ignore:.config.ignore, events:.config.webhooks[0].events, url:.config.webhooks[0].url, has_hmac:(.config.webhooks[0].hmac.key!=null), device_name_unset:(.config.client.deviceName==null)}'
+[ "$(waha GET /api/sessions/crm_primary '.config.webhooks[0].hmac.key' | sha256sum)" = "$(printf '%s\n' "$HMAC" | sha256sum)" ] && echo hmac_matches || echo "СТОП: hmac не совпал"
 ```
 Нужно: `status=STOPPED`, все четыре `ignore` = `true`, события ровно
 `message.any`, `session.status`, `has_hmac=true`, `hmac_matches`. Подписка на
@@ -360,7 +473,10 @@ waha GET /api/sessions/crm_primary | sed '$d' | jq '{status, ignore:.config.igno
 ## F. Vault-binding (скрипт в контейнере app)
 
 Скрипт читает ключ **только** из stdin (`--key-stdin`) или env
-`EVO_PLATFORM_MANUAL_SEND_WAHA_API_KEY`, никогда из argv; ничего секретного не
+`EVO_PLATFORM_MANUAL_SEND_WAHA_API_KEY`, никогда из argv. На go-live — **только
+stdin**; env-источник нужен для запуска не через `docker exec` (тесты), а
+`docker exec -e EVO_PLATFORM_MANUAL_SEND_WAHA_API_KEY=…` запрещён: ключ попал бы
+в argv хоста, в `docker inspect` и в историю shell. Скрипт ничего секретного не
 печатает (JSON с булевыми значениями, enum и `binding_version`, без хэша ключа);
 принимает только сессию `crm_primary` и URL `http://evo-crm-waha:3000`;
 использует `NEXT_PUBLIC_SUPABASE_URL`, `EVO_PLATFORM_SUPABASE_SECRET_KEY`,
@@ -368,12 +484,18 @@ waha GET /api/sessions/crm_primary | sed '$d' | jq '{status, ignore:.config.igno
 спрашивает WAHA (`GET /api/sessions/crm_primary`, чтение), принимает ли тот
 ключ, и не пишет в Vault ключ, который WAHA отверг.
 
+Шаги цепочкой: ошибка любого останавливает остальные.
 ```bash
 S="docker exec -i evo-crm-app-1 node scripts/waha-runtime-binding.mjs"
-printf '%s' "$KEY" | $S provision --key-stdin --dry-run     # план: {"action":"would_create",…}; запись не выполняется
-printf '%s' "$KEY" | $S provision --key-stdin               # {"action":"created","ready":true,"binding_version":1,…}
-printf '%s' "$KEY" | $S check --verify-key --key-stdin      # ready:true, key_matches_stored_binding:true, waha_key_accepted:true
-printf '%s' "$KEY" | $S provision --key-stdin               # повтор: {"action":"unchanged"} — идемпотентно
+printf '%s' "$KEY" | $S provision --key-stdin --dry-run \
+  && printf '%s' "$KEY" | $S provision --key-stdin \
+  && printf '%s' "$KEY" | $S check --verify-key --key-stdin \
+  && printf '%s' "$KEY" | $S provision --key-stdin \
+  || echo "СТОП: шаг не прошёл (код ошибки — выше, на stderr); дальше не идти"
+# 1) dry-run: {"action":"would_create",…}, запись не выполняется
+# 2) {"action":"created","ready":true,"binding_version":1,…}
+# 3) ready:true, key_matches_stored_binding:true, waha_key_accepted:true
+# 4) повтор: {"action":"unchanged"} — идемпотентно
 ```
 Коды выхода: 0 — ок, 1 — ошибка (на stderr одна строка
 `{"ok":false,"error_code":"…"}`), 2 — неверные аргументы, 3 — `check` видит
@@ -417,15 +539,19 @@ production не читались.) Если `false` — **стоп**: без д�
 проекция отвечает ошибкой на каждое сообщение [repo] env-контракт #1137. Условия
 взяты из миграции 082 и 077; не пересверялись с миграциями после 258 **[??]**.
 
-**G2. Править `.env.production`** (резервная копия из фазы B уже есть; свежая — `cp -p` ещё раз):
+**G2. Править `.env.production`** (резервная копия из фазы B уже есть; свежая — `cp -p` ещё раз).
+Шаги цепочкой: если имя не встречается ровно один раз, `set_env_value`
+возвращает ошибку, и остальное не выполняется.
 ```bash
 read -rs INTAKE; echo          # вставить UUID из G1 (ввод не отображается)
 f=$R/.env.production
-NEWVAL=1       set_env_value "$f" EVO_PLATFORM_WAHA_INGRESS_ENABLED
-NEWVAL=$HMAC   set_env_value "$f" EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET
-NEWVAL=$INTAKE set_env_value "$f" EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID
-awk -F= '$1=="EVO_PLATFORM_WAHA_INGRESS_ENABLED"{print $1"="$2} $1=="EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET"||$1=="EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID"{print $1" длина="length($2)}' "$f"
-node /root/evo-golive/evo-app-env-contract.mjs --example /root/evo-golive/env.production.example --env "$f" --supabase-project-ref "$REF"   # {"ok":true,"code":"valid"}
+NEWVAL=1       set_env_value "$f" EVO_PLATFORM_WAHA_INGRESS_ENABLED \
+ && NEWVAL=$HMAC   set_env_value "$f" EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET \
+ && NEWVAL=$INTAKE set_env_value "$f" EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID \
+ && awk -F= '$1=="EVO_PLATFORM_WAHA_INGRESS_ENABLED"{print $1"="$2} $1=="EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET"||$1=="EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID"{print $1" длина="length($2)}' "$f" \
+ && node /root/evo-golive/evo-app-env-contract.mjs --example /root/evo-golive/env.production.example --env "$f" --supabase-project-ref "$REF" \
+ || echo "СТОП: правка или контракт не прошли — release №2 не запускать; восстановить файл из /root/evo-config-backups/env.production.<метка> (фаза B)"
+# ожидается {"ok":true,"code":"valid"}
 ```
 Контракт с `INGRESS=1` требует секрет ≥ 32 символов и UUID не нулевой.
 
@@ -435,6 +561,8 @@ node /root/evo-golive/evo-app-env-contract.mjs --example /root/evo-golive/env.pr
 
 **G4. Проверка:** «Настройки → Интеграции» больше не пишет «приём выключен»;
 статус сессии честно показывает остановленную (WAHA ещё не стартовала).
+Запоздалые повторы WAHA (окно ~68 минут, § «Порядок фаз») возможны только у
+уже привязанной сессии; до pairing их нет.
 
 ## H. Pairing кодом по номеру
 
@@ -444,16 +572,17 @@ node /root/evo-golive/evo-app-env-contract.mjs --example /root/evo-golive/env.pr
 https://waha.devlike.pro/docs/how-to/sessions/ (Get pairing code,
 `POST /api/{session}/auth/request-code`, тело `{"phoneNumber":"…"}`).
 
-1. Запустить сессию и дождаться `SCAN_QR_CODE`:
+1. Запустить сессию и дождаться `SCAN_QR_CODE` (ответы WAHA печатаются только
+   через фильтр: тело содержит `config` с HMAC, а у запущенной сессии — номер):
    ```bash
-   waha POST /api/sessions/crm_primary/start | tail -1
-   for i in $(seq 1 30); do st=$(waha GET /api/sessions/crm_primary | sed '$d' | jq -r .status); [ "$st" = SCAN_QR_CODE ] && break; sleep 2; done; echo "status=$st"
-   waha GET /api/sessions/crm_primary | sed '$d' | jq '{status, engine:.engine.engine}'     # engine = "GOWS"
+   waha POST /api/sessions/crm_primary/start                                 # [http 2xx]
+   for i in $(seq 1 30); do st=$(waha GET /api/sessions/crm_primary '.status'); [ "$st" = SCAN_QR_CODE ] && break; sleep 2; done; echo "status=$st"
+   waha GET /api/sessions/crm_primary '{status, engine:.engine.engine}'     # engine = "GOWS"
    ```
 2. Запросить код и показать его **только владельцу на экране оператора**
    (одноразовый, живёт ограниченное время, срок в документации не указан **[??]**; не писать в лог/чат):
    ```bash
-   printf '{"phoneNumber":"%s"}' "$SALES_MSISDN" | waha_json POST /api/crm_primary/auth/request-code | sed '$d' | jq -r .code
+   printf '{"phoneNumber":"%s"}' "$SALES_MSISDN" | waha_json POST /api/crm_primary/auth/request-code '.code'    # печатает только код
    ```
 3. Владелец вводит код в WhatsApp: «Связанные устройства → Привязать
    устройство → по номеру телефона» (**[??]** названия пунктов — по актуальной
@@ -461,13 +590,15 @@ https://waha.devlike.pro/docs/how-to/sessions/ (Get pairing code,
    [doc sessions, Session Status].
 4. Проверить без вывода персональных данных:
    ```bash
-   waha GET /api/sessions/crm_primary | sed '$d' | jq '{status, engine:.engine.engine}'     # WORKING / GOWS
-   waha GET /api/sessions/crm_primary/me | sed '$d' | jq 'has("id")'                        # true (сам номер не печатать)
+   waha GET /api/sessions/crm_primary '{status, engine:.engine.engine}'     # WORKING / GOWS
+   waha GET /api/sessions/crm_primary/me 'has("id")'                        # true (сам номер не печатать)
    ```
    Если код не подошёл: документация предупреждает, что pairing-код доступен
    не всегда, и советует держать QR как запасной путь (`GET /api/crm_primary/auth/qr`,
-   владелец сканирует); показать QR оператору можно только по приватному
-   каналу (ssh-туннель) — **[live ✗]**.
+   владелец сканирует). **QR запрашивать только с отдельного подтверждения
+   владельца в чате** (правило `AGENTS.md`: не вызывать QR/logout без отдельного
+   разрешения; общее «давай» на go-live его не включает). Показать QR оператору
+   можно только по приватному каналу (ssh-туннель) — **[live ✗]**.
 
 **Ветка passkey** (если статус `PASSKEY_REQUIRED`/`PASSKEY_CONFIRMATION_REQUIRED`;
 поддерживает только GOWS, появилось в 2026.7.1) — [doc]
@@ -482,11 +613,12 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 Вызов подписи живёт ограниченное время (в примере документации 60 000 мс);
 при `PASSKEY_CONFIRMATION_REQUIRED` владелец сверяет код на экране телефона и
 подтверждает. Если владелец не готов — **остановить** сессию
-(`POST /api/sessions/crm_primary/stop`), не `logout`, и вернуться к паре позже.
+(`waha POST /api/sessions/crm_primary/stop`, печатает только статус), не `logout`,
+и вернуться к паре позже.
 Эта ветка **[live ✗]** целиком.
 
-Если сессия ушла в `FAILED`: `POST /api/sessions/crm_primary/restart`, затем
-заново пп. 1–3. `logout` — только с отдельного разрешения владельца: он
+Если сессия ушла в `FAILED`: `waha POST /api/sessions/crm_primary/restart`
+(печатает только статус; сырой ответ не смотреть), затем заново пп. 1–3. `logout` — только с отдельного разрешения владельца: он
 удаляет устройство из «Связанных устройств» [doc sessions, Logout].
 
 ## I. Приёмка
@@ -560,23 +692,26 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 (`_data.Info.SenderAlt` / `RecipientAlt`, NOWEB `_data.key.remoteJidAlt`);
 имя профиля (`_data.Info.PushName`, `_data.notifyName`, `_data.pushName`); какие
 `_data.type` — служебные уведомления (список взят из WEBJS); разбор исходящего
-с телефона (`fromMe`, `source: app`) при `to = null`; лимит тела 64 KiB.
+с телефона (`fromMe`, `source: app`) при `to = null`; лимит тела 64 KiB;
+идемпотентность и терпимость к порядку при запоздалых повторах WAHA (окно
+~68 минут для политики фазы E, § «Порядок фаз»).
 Исправления по этим пунктам ведутся отдельно в #1137.
 
 ## Откат и остановка
 
 | Ситуация | Действие |
 |---|---|
-| Срочно остановить приём, не теряя привязку | `waha POST /api/sessions/crm_primary/stop` (сессия остаётся привязанной; снимает «назначение» воркера [src]). **Не** `logout`. Позже — `…/start`. |
-| Выключить приём в CRM | release с `EVO_PLATFORM_WAHA_INGRESS_ENABLED=0` (правка `.env.production` → arm → CI → disarm, как C3). Маршрут снова отвечает 503; события WAHA при этом повторяются ограниченное число раз и могут пропасть — сначала остановить сессию. |
+| Срочно остановить приём, не теряя привязку | `waha POST /api/sessions/crm_primary/stop` (хелпер печатает только `[http NNN]`; сессия остаётся привязанной; снимает «назначение» воркера [src]). **Не** `logout`. Позже — `…/start`. |
+| Выключить приём в CRM | release с `EVO_PLATFORM_WAHA_INGRESS_ENABLED=0` (правка `.env.production` → arm → CI → disarm, как C3). Маршрут снова отвечает 503; WAHA повторяет такие события по политике фазы E (~68 минут, паузы растут) и доставит их позже, вне порядка, а после окна откажется от них — сначала остановить сессию. При последующем включении приёма запоздалые повторы идемпотентны только если #1137 такой, см. § «Допущения». |
 | Откат WAHA на прежний образ | старый digest `sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c` ([repo] `docs/platform/p8d4-current-main-staff-pilot.md`) + прежний движок WEBJS: восстановить `.env.waha` из `/root/evo-config-backups/…`, **оставив новую строку `WAHA_API_KEY=sha512:…`** (иначе ключ в Vault перестанет подходить), убрать `WHATSAPP_DEFAULT_ENGINE=GOWS`, `compose up --force-recreate waha` как D4 со старым digest, вернуть `EVO_WAHA_IMAGE_DIGEST`. Том не откатывать, если он цел; снимок — на случай порчи. **Привязка не восстанавливается:** вход GOWS и вход WEBJS независимы, считать, что нужен новый pairing **[live ✗]**. |
 | Ключ WAHA скомпрометирован | ротация: D3 (новый ключ/хэш) → D4–D5 → фаза F `provision` (`rotated`). |
-| Pairing не удался | `stop`, не `logout`; повтор в другое окно. `FAILED` → `restart`. |
+| Pairing не удался | `waha POST …/stop`, не `logout`; повтор в другое окно. `FAILED` → `waha POST …/restart`. |
 | WAHA с `RestartCount>0` перед release | release откажется; `compose up --force-recreate waha` (D4) даёт `restarts=0`, сессия сохраняется в томе. |
 
 ## Чего НЕ делать
 
-- Не вызывать `logout`, не сбрасывать QR/сессию без отдельного разрешения владельца.
+- Не вызывать `logout`, не запрашивать QR и не сбрасывать сессию без отдельного разрешения владельца в чате.
+- Не передавать ключ WAHA через `docker exec -e` и argv; не печатать сырой ответ WAHA (в нём HMAC и номер): только хелперы с фильтром.
 - Не включать автоответы, рассылки, Gemini-подсказки/ассистента, любые исходящие по расписанию.
 - Не импортировать историю чатов: это отдельный будущий шаг (миграция и импортёр, owner-решение). История, которую GOWS получает при pairing, остаётся в хранилище WAHA, в CRM не попадает **[live ✗]**.
 - Не публиковать порт WAHA, панель или Swagger; не переводить WAHA и lead-agent из приватной сети.

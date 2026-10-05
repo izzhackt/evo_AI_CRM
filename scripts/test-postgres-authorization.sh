@@ -355,6 +355,9 @@ SQL
     for pinned_function in \
       'platform_private.require_private_waha_message_binding()' \
       'platform_private.bind_waha_chat_to_canonical(uuid,uuid)'; do
+      # The routine's own name, as migration 260 prints it in its refusal.
+      pinned_name="${pinned_function#platform_private.}"
+      pinned_name="${pinned_name%%(*}"
       n260_tamper_log="$(mktemp -t evo-n260-pin-tamper.XXXXXX)"
       if docker exec -i "$container_name" \
         psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
@@ -375,7 +378,7 @@ SQL
         exit 1
       fi
       if ! grep -Fq \
-        "is not the migration 259 definition it was written against" \
+        "replaces ${pinned_name}(), which is not the migration 259 definition it was written against" \
         "$n260_tamper_log"; then
         echo "migration 260 failed for the wrong pre-image reason ($pinned_function)" >&2
         sed -n '1,60p' "$n260_tamper_log" >&2

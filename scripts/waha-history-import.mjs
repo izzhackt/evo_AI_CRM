@@ -45,7 +45,7 @@
 //  * Reactions, poll votes, protocol and key-distribution messages are dropped
 //    AFTER the SQL LIMIT/OFFSET (session.gows.core.ts:2785 with :2950-2976), so a
 //    page can be short or even empty in the middle of the window.
-//  * The gows-plus store (WAHA 2026.9.2 pins v1.0.48; read at v1.0.47) sorts by
+//  * The gows-plus store (WAHA 2026.9.2 pins v1.0.48; read at that tag) sorts by
 //    the whole-second timestamp ONLY (src/storage/sqlstorage/message.go:83-84),
 //    so rows with equal timestamps can change places between two requests and
 //    offset paging can lose or repeat them. The scan therefore never pages by
@@ -208,6 +208,7 @@ const ERROR_MESSAGES = Object.freeze({
   list_ref_unmatched: "a listed chat is not in this window",
   list_window_mismatch: "the list was made for another window; use the same --window-to",
   chat_not_reviewed: "a chat of this window is not in the preview file",
+  all_chats_with_max_chats: "--max-chats cannot be combined with --all-chats (a capped import of unreviewed chats); use a list file",
   selection_required: "name the chats to import (--only-chats-file, --exclude-chats-file or --all-chats; --max-chats only limits a selection)",
   unfinished_run_exists: "an unfinished history run exists; resume it with --resume <run_id>",
   resume_mismatch: "the unfinished run does not match --resume",
@@ -976,8 +977,12 @@ function sameIds(left, right) {
  * middle of the window and its true row count is invisible.
  *
  * What is done instead: the window is cut into disjoint slices of whole seconds
- * (every request is gte = slice start, lte = slice end, offset 0, so equal
- * timestamps inside a slice are returned together in any order). A slice is
+ * (every request is gte = slice start, lte = slice end + 1, offset 0, so equal
+ * timestamps inside a slice are returned together in any order). A row belongs to
+ * the second floor(timestamp), as the database reads it: the "+ 1" reaches a
+ * timestamp with a fraction inside the last second of a slice (the integer-only
+ * bounds cannot express "< end + 1"), and a row at exactly end + 1 is left to the
+ * next slice, so sub-second timestamps are neither lost nor read twice. A slice is
  * accepted only when two consecutive requests, the second with a 5x larger limit,
  * return exactly the same ids; if not (the limit cut the slice, or hidden
  * non-message rows pushed real rows out), the limit grows again, and a slice that
@@ -1013,7 +1018,7 @@ export async function scanWindow({
       try {
         rows = await waha.getWindowPage({
           fromSeconds: start,
-          toSeconds: end,
+          toSeconds: end + 1,
           limit,
           offset: 0,
         });
@@ -1027,14 +1032,15 @@ export async function scanWindow({
       const anonymous = [];
       let repeated = false;
       for (const raw of rows) {
-        if (
-          isObject(raw) &&
-          typeof raw.timestamp === "number" &&
-          Number.isFinite(raw.timestamp) &&
-          (raw.timestamp < start || raw.timestamp >= end + 1)
-        ) {
-          // The server did not apply the window filter: nothing it returns can be trusted to be complete.
-          fail("waha_response_invalid");
+        if (isObject(raw) && typeof raw.timestamp === "number" && Number.isFinite(raw.timestamp)) {
+          // A row belongs to the second floor(timestamp), exactly as the database reads it. The request
+          // asks up to end + 1 (an integer bound, which also reaches a fractional timestamp inside
+          // the last second); a row at or after end + 1 belongs to the next slice and is skipped here.
+          if (raw.timestamp < start || raw.timestamp > end + 1) {
+            // The server did not apply the window filter: nothing it returns can be trusted to be complete.
+            fail("waha_response_invalid");
+          }
+          if (raw.timestamp >= end + 1) continue;
         }
         const id = trimmedId(raw);
         if (id === null) {
@@ -1549,8 +1555,8 @@ export async function syncStatus({
         outbound: chats.reduce((sum, chat) => sum + chat.outbound, 0),
         non_direct_messages: index.stats.non_direct,
         scan_requests: scan.requests,
-      scan_slices: scan.slices,
-      scan_splits: scan.splits,
+        scan_slices: scan.slices,
+        scan_splits: scan.splits,
       },
     };
   }
@@ -1861,6 +1867,8 @@ export async function applyCommand({
   // --max-chats only limits a selection; alone it would pick "the freshest chats", personal ones included.
   const hasSelection = onlyChatsFile !== null || excludeChatsFile !== null || allChats === true;
   if (!dryRun && !hasSelection) fail("selection_required");
+  // A cap on top of "every chat" would import the freshest chats unreviewed (personal ones included).
+  if (allChats === true && maxChats !== null) fail("all_chats_with_max_chats");
   if (!dryRun && (windowTo === null || windowTo === undefined)) fail("window_to_required");
   if (resumeRunId !== null) {
     requireCanonicalUuid(resumeRunId, "usage");
@@ -1925,8 +1933,8 @@ export async function applyCommand({
     lead_mode: options.lead_mode,
     ...localStats(index, chats, includeOutboundOnly),
     scan_requests: scan.requests,
-      scan_slices: scan.slices,
-      scan_splits: scan.splits,
+    scan_slices: scan.slices,
+    scan_splits: scan.splits,
     selection: {
       only_list: only !== null,
       exclude_list: exclude !== null,
@@ -2221,14 +2229,14 @@ export const USAGE = `Usage:
 
 window:     --days N (1-31, default ${DEFAULT_DAYS})  --window-to ISO (default: now; REQUIRED for a real apply)
 selection:  --only-chats-file F | --exclude-chats-file F | --all-chats   (a list file must name at least one chat)
-            --max-chats N  limits a selection (alone it selects nothing)
+            --max-chats N  limits a list selection (alone it selects nothing; not with --all-chats)
             --preview-file F  (every chat of the window must be in the reviewed preview file)
 tuning:     --page-size N (database page, 1-500, default ${DEFAULT_RPC_PAGE_SIZE})  --waha-page-size N (first read limit, default ${DEFAULT_WAHA_PAGE_SIZE})
             --waha-slice-seconds N (default ${DEFAULT_WAHA_SLICE_SECONDS})  --waha-pause-ms N  --rpc-pause-ms N  --max-window-messages N
 
 Read-only against WAHA (GET only, downloadMedia=false; GOWS engine). The history
 cannot be removed from the CRM afterwards: run preview, review it, pilot with
---only-chats-file (or --exclude-chats-file with --max-chats), then import the rest.
+--only-chats-file with refs the owner chose, then import the rest.
 --window-to must not be later than the moment WhatsApp intake was enabled (and
 not later than the first message the CRM sent); pin the same value for every
 step. Output: one JSON line (counts only; no chat id, number, name or text).

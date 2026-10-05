@@ -689,55 +689,6 @@ test("a slice that is too big for the largest limit is split; a second that cann
   assert.ok(SCAN_MAX_LIMIT >= 5000);
 });
 
-test("sub-second timestamps are read as floor(timestamp) like the database: none lost at a slice boundary or in the last second, none read twice", async () => {
-  const from = NOW_S - 7 * DAY;
-  const boundary = from + 3600 * 10;
-  const mk = (id, ts) => row(message({ chat: CHAT_A, ts, body: id, id }));
-  const rows = [
-    mk("false_frac_before_boundary", boundary - 0.5),
-    mk("false_frac_on_boundary", boundary),
-    mk("false_frac_after_boundary", boundary + 0.5),
-    mk("false_frac_end_of_slice", boundary + 3599.5),
-    mk("false_frac_end_of_window", NOW_S + 0.5),
-    mk("false_frac_outside_before", from - 0.5),
-    mk("false_frac_outside_after", NOW_S + 1),
-  ];
-  await withHarness({ rows, shuffleTies: 5 }, async (harness) => {
-    const { ids } = await scanIds(harness, {});
-    assert.deepEqual(
-      [...ids].sort(),
-      [
-        "false_frac_after_boundary",
-        "false_frac_before_boundary",
-        "false_frac_end_of_slice",
-        "false_frac_end_of_window",
-        "false_frac_on_boundary",
-      ],
-      "floor(timestamp) inside the window, each exactly once",
-    );
-  });
-});
-
-test("a slice that is too big for the largest limit is split; a second that cannot settle fails closed", async () => {
-  const rows = [];
-  for (let second = 0; second < 200; second += 1) {
-    rows.push(row(message({ chat: CHAT_A, ts: at(5) + second, body: `s${second}`, id: `false_split_${second}` })));
-  }
-  await withHarness({ rows, shuffleTies: 3 }, async (harness) => {
-    const { ids, scan } = await scanIds(harness, { baseLimit: 10, maxLimit: 50 });
-    assert.equal(new Set(ids).size, 200);
-    assert.ok(scan.splits > 0, "the hour was split until each part settled");
-  });
-  const same = Array.from({ length: 80 }, (_, k) => row(message({ chat: CHAT_B, ts: at(6), body: `x${k}`, id: `false_same_${k}` })));
-  await withHarness({ rows: same, shuffleTies: 4 }, async (harness) => {
-    await assert.rejects(scanIds(harness, { baseLimit: 10, maxLimit: 50 }), { code: "scan_unstable" });
-    // With the real limits the same second settles.
-    const { ids } = await scanIds(harness, { baseLimit: 20 });
-    assert.equal(new Set(ids).size, 80);
-  });
-  assert.ok(SCAN_MAX_LIMIT >= 5000);
-});
-
 test("a row repeated inside one response is retried and then fails; one id in two slices fails", async () => {
   const rows = [
     row(message({ chat: CHAT_A, ts: at(5) + 10, body: "one", id: "false_dup_1" })),
@@ -1040,20 +991,28 @@ test("list files are validated: unmatched refs, another window, unreviewed chats
   assert.throws(() => parseChatList("15550000101@c.us\n"), { code: "list_file_invalid" });
 });
 
-test("--max-chats limits a list selection; it cannot be combined with --all-chats", async () => {
+test("--max-chats only caps an --only-chats-file selection; with --exclude-chats-file or --all-chats it is refused", async () => {
   await withHarness({}, async (harness) => {
     const { map } = await refsByName(harness);
     const personal = harness.file("personal.txt", `${map.get("Dana Test")}\n`);
+    const chosen = harness.file(
+      "chosen.txt",
+      `${["Aigul Test", "Boris Test", "Lida Test"].map((name) => map.get(name)).join("\n")}\n`,
+    );
     harness.waha.requests.length = 0;
-    const capped = await harness.run(["apply", ...windowArgs, "--all-chats", "--max-chats", "2"]);
-    assert.equal(capped.error.error_code, "all_chats_with_max_chats");
+    for (const selection of [["--all-chats"], ["--exclude-chats-file", personal]]) {
+      const capped = await harness.run(["apply", ...windowArgs, ...selection, "--max-chats", "2"]);
+      assert.equal(capped.error.error_code, "max_chats_needs_only_list", selection.join(" "));
+    }
+    const dry = await harness.run(["apply", ...windowArgs, "--dry-run", "--all-chats", "--max-chats", "2"]);
+    assert.equal(dry.error.error_code, "max_chats_needs_only_list");
     assert.equal(harness.waha.requests.length, 0, "refused before any network call");
     assert.equal(harness.db.calls.some((call) => call.name === RPC.begin), false);
-    const result = await harness.run(["apply", ...windowArgs, "--exclude-chats-file", personal, "--max-chats", "2"]);
+    const result = await harness.run(["apply", ...windowArgs, "--only-chats-file", chosen, "--max-chats", "2"]);
     assert.equal(result.code, 0, result.stderr);
     assert.equal(result.json.totals.chats_imported, 2);
     assert.equal(new Set(harness.db.state.imported.map((item) => item.chat)).size, 2);
-    assert.equal(harness.db.state.imported.some((item) => item.chat === CHAT_D), false, "the excluded chat is never taken");
+    assert.equal(harness.db.state.imported.some((item) => item.chat === CHAT_D), false, "a chat outside the list is never taken");
     assert.equal(harness.db.state.runs[0].state, "completed");
   });
 });
@@ -1361,7 +1320,7 @@ test("sync-status is stable only after 10 minutes of WORKING and two identical c
 test("WAHA is only read: GET on three allow-listed paths, never downloadMedia=true, read, seen or send", async () => {
   await withHarness({}, async (harness) => {
     const { map } = await refsByName(harness);
-    await harness.run(["apply", ...windowArgs, "--exclude-chats-file", harness.file("none.txt", `${map.get("Dana Test")}\n`), "--max-chats", "2"]);
+    await harness.run(["apply", ...windowArgs, "--only-chats-file", harness.file("some.txt", `${map.get("Aigul Test")}\n${map.get("Boris Test")}\n`), "--max-chats", "1"]);
     await harness.run(["apply", ...windowArgs, "--exclude-chats-file", harness.file("none.txt", `${map.get("Dana Test")}\n`)]);
     await harness.run(["sync-status", ...windowArgs]);
     assert.ok(harness.waha.requests.length > 10);

@@ -166,9 +166,10 @@ $CLI apply $WINDOW --only-chats-file /tmp/pilot.txt
 Пилот делается **только** через `--only-chats-file` со ссылками, которые выбрал
 владелец. Импорт необратим, а «самые свежие чаты» вполне могут оказаться личными, —
 поэтому ограничение числа чатов не заменяет выбор человеком: `--max-chats` один
-выбора не делает (`selection_required`), с `--all-chats` не сочетается
-(`all_chats_with_max_chats`: ограниченный импорт непросмотренных чатов), а как
-пилот не рекомендуется вовсе (он нужен лишь чтобы ограничить прогон по списку).
+выбора не делает (`selection_required`) и допускается **только вместе с
+`--only-chats-file`** (урезает список владельца); с `--exclude-chats-file` и
+`--all-chats` он отвергается (`max_chats_needs_only_list`): ограниченный импорт
+непросмотренных чатов невозможен.
 
 ### 4. Владелец проверяет пилот в CRM
 
@@ -221,7 +222,7 @@ rm -f history-preview.jsonl personal.txt pilot.txt   # копии на хост�
 | все | `--days N` (7), `--window-to ISO` (обязателен для реального `apply`), `--waha-page-size N` (первый предел чтения среза, 200), `--waha-slice-seconds N` (срез окна, 3600), `--waha-pause-ms N` (150), `--max-window-messages N` (200000) |
 | `sync-status` | `--working-since ISO`, `--watch`, `--interval-seconds N` (180) |
 | `preview` | `--out FILE` (обязателен), `--include-outbound-only`, `--lead-mode`, `--page-size N`, `--rpc-pause-ms N` |
-| `apply` | `--only-chats-file`, `--exclude-chats-file`, `--preview-file`, `--all-chats`, `--max-chats N` (только ограничивает выбор по списку; не вместе с `--all-chats`), `--dry-run`, `--include-outbound-only`, `--lead-mode promote\|none`, `--resume RUN_ID`, `--page-size N` (200, максимум 500), `--rpc-pause-ms N` (100) |
+| `apply` | `--only-chats-file`, `--exclude-chats-file`, `--preview-file`, `--all-chats`, `--max-chats N` (только вместе с `--only-chats-file`), `--dry-run`, `--include-outbound-only`, `--lead-mode promote\|none`, `--resume RUN_ID`, `--page-size N` (200, максимум 500), `--rpc-pause-ms N` (100) |
 
 Окружение (уже есть в контейнере): `NEXT_PUBLIC_SUPABASE_URL`,
 `EVO_PLATFORM_SUPABASE_SECRET_KEY`, `EVO_PLATFORM_ORGANIZATION_ID`,

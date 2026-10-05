@@ -208,7 +208,7 @@ const ERROR_MESSAGES = Object.freeze({
   list_ref_unmatched: "a listed chat is not in this window",
   list_window_mismatch: "the list was made for another window; use the same --window-to",
   chat_not_reviewed: "a chat of this window is not in the preview file",
-  all_chats_with_max_chats: "--max-chats cannot be combined with --all-chats (a capped import of unreviewed chats); use a list file",
+  max_chats_needs_only_list: "--max-chats is only allowed together with --only-chats-file (a capped import of unreviewed chats is refused)",
   selection_required: "name the chats to import (--only-chats-file, --exclude-chats-file or --all-chats; --max-chats only limits a selection)",
   unfinished_run_exists: "an unfinished history run exists; resume it with --resume <run_id>",
   resume_mismatch: "the unfinished run does not match --resume",
@@ -1867,8 +1867,9 @@ export async function applyCommand({
   // --max-chats only limits a selection; alone it would pick "the freshest chats", personal ones included.
   const hasSelection = onlyChatsFile !== null || excludeChatsFile !== null || allChats === true;
   if (!dryRun && !hasSelection) fail("selection_required");
-  // A cap on top of "every chat" would import the freshest chats unreviewed (personal ones included).
-  if (allChats === true && maxChats !== null) fail("all_chats_with_max_chats");
+  // A cap on top of "every chat" or of an exclusion list would import the freshest chats
+  // unreviewed (personal ones included); it only trims a list the owner chose.
+  if (maxChats !== null && onlyChatsFile === null) fail("max_chats_needs_only_list");
   if (!dryRun && (windowTo === null || windowTo === undefined)) fail("window_to_required");
   if (resumeRunId !== null) {
     requireCanonicalUuid(resumeRunId, "usage");
@@ -2229,7 +2230,7 @@ export const USAGE = `Usage:
 
 window:     --days N (1-31, default ${DEFAULT_DAYS})  --window-to ISO (default: now; REQUIRED for a real apply)
 selection:  --only-chats-file F | --exclude-chats-file F | --all-chats   (a list file must name at least one chat)
-            --max-chats N  limits a list selection (alone it selects nothing; not with --all-chats)
+            --max-chats N  caps an --only-chats-file selection (refused with --exclude-chats-file or --all-chats)
             --preview-file F  (every chat of the window must be in the reviewed preview file)
 tuning:     --page-size N (database page, 1-500, default ${DEFAULT_RPC_PAGE_SIZE})  --waha-page-size N (first read limit, default ${DEFAULT_WAHA_PAGE_SIZE})
             --waha-slice-seconds N (default ${DEFAULT_WAHA_SLICE_SECONDS})  --waha-pause-ms N  --rpc-pause-ms N  --max-window-messages N

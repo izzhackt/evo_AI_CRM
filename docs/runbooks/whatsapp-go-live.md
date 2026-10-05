@@ -111,18 +111,37 @@ pairing, а не после. Причина: WAHA считает ошибкой 
    Если она нужна — **стоп**, решение владельца (повторный pairing или второй
    контейнер WAHA отдельным PR).
 8. Гигиена оператора: SSH `hermes-vps`, `gh` с правом менять переменные
-   репозитория. Секреты (ключ WAHA, HMAC, коды pairing) не печатать, не
-   вставлять в чат/тикеты/PR, не писать в файлы репозитория; в ssh-сессии
-   `set +o history; umask 077`, без `set -x`. Ответ WAHA по сессии
+   репозитория. Секреты (ключ WAHA, HMAC, пароли и ключи из `.env.waha`) не
+   печатать, не вставлять в чат/тикеты/PR, не писать в файлы репозитория; в
+   ssh-сессии `set +o history; umask 077`, без `set -x`. Единственное
+   намеренное исключение — pairing-код фазы H (п. 2): он короткоживущий и
+   одноразовый (нужен телефон владельца), его печатает один вызов ровно для
+   того, чтобы оператор показал его владельцу; дальше экрана он не идёт (не
+   копировать в чат, тикет, PR, файлы). Если фазу H ведёт агент через свой
+   инструмент, код неизбежно окажется в его транскрипте — лучше, чтобы этот
+   один шаг оператор выполнил в собственном терминале. Ответ WAHA по сессии
    (`POST/PUT /api/sessions…`, `…/start|stop|restart`, `GET /api/sessions/…`)
-   содержит `config` вместе с HMAC-ключом webhook, а у запущенной сессии ещё
-   `me.id` (номер отдела продаж) и `pushName` — **WAHA не маскирует их**
-   [src] `SessionRuntimeInfoPlugin.ts` (`config: session.sessionConfig`), `manager.core.ts` (остановленные сессии отдают сохранённую `config`). Поэтому хелперы ниже
-   по умолчанию **отбрасывают тело ответа** и печатают только `[http NNN]`;
-   читать можно лишь через явный `jq`-фильтр, выбирающий безопасные поля.
+   содержит `config` вместе с HMAC-ключом webhook и сохранённые `me.id` (номер
+   отдела продаж) и `pushName` (после первого pairing — и у **остановленной**
+   сессии тоже, не только у работающей) — **WAHA не маскирует их**
+   [src] `SessionRuntimeInfoPlugin.ts` (`config: session.sessionConfig`),
+   `manager.core.ts` `getOfflineSessions` (для STOPPED возвращает сохранённые
+   `config` и `me`). Поэтому хелперы ниже по умолчанию **отбрасывают тело
+   ответа** и печатают только `[http NNN]`; читать можно лишь через явный
+   `jq`-фильтр, выбирающий безопасные поля, — и для остановленных сессий тоже.
    Не вызывать `curl` к WAHA вручную и не убирать фильтр. Ключ в
    `docker exec -e` не передавать никогда: он попадёт в argv хоста,
    `docker inspect` и историю; только stdin.
+   **Логи WAHA — тоже не безопасны.** При каждом старте (через ~4 с) WAHA
+   печатает в stdout `WAHA_API_KEY`, `WAHA_DASHBOARD_USERNAME/PASSWORD`,
+   `WHATSAPP_SWAGGER_USERNAME/PASSWORD` открытым текстом (блок «Generated
+   credentials»), если значение не задано или «обычное» (пустое, `123`, `321`,
+   `waha`, `admin`, 32 нуля или 32 единицы и т. п.) — это и есть случай цикла
+   перезапусков [src]
+   `src/core/auth/config.ts` `ReportGeneratedValue`. Кроме того, при
+   `WAHA_PRINT_QR` не `false` в лог пишется сканируемый QR. Поэтому
+   `docker logs` WAHA запускать **только** через `waha_logs_safe` (ниже), никогда
+   напрямую и никогда `docker compose logs waha` / `docker logs -f` без него.
 
 Вспомогательные функции (вставить в ssh-сессию один раз; секреты не попадают
 в argv, заголовок ключа лежит на tmpfs с правами 0600 и удаляется, тело ответа
@@ -146,8 +165,10 @@ waha_open() {      # нужны WAHA_KEY и WAHA_BASE
   umask "$old"; printf 'X-Api-Key: %s\n' "$WAHA_KEY" > "$WAHA_HDR"
 }
 waha_close() { [ -z "${WAHA_HDR:-}" ] || rm -f -- "$WAHA_HDR"; unset WAHA_HDR; }
+trap waha_close EXIT HUP INT   # файл с plain-ключом исчезает при выходе из shell, обрыве ssh (HUP) и прерывании скрипта (INT)
 _waha() {          # _waha METHOD PATH FILTER [curl-аргументы]: без FILTER печатает только «[http NNN]», тело выбрасывается
   local m=$1 p=$2 flt=$3 out code rc; shift 3
+  [ -r "${WAHA_HDR:-}" ] || { printf '[нет заголовка с ключом: выполнить waha_open]\n' >&2; return 1; }
   out=$(mktemp /dev/shm/wahaout.XXXXXX 2>/dev/null || mktemp) || return 1
   code=$(curl -sS -m 30 -X "$m" -H @"$WAHA_HDR" -H 'Accept: application/json' "$@" -o "$out" -w '%{http_code}' "$WAHA_BASE$p"); rc=$?
   if [ "$rc" -ne 0 ]; then rm -f -- "$out"; printf '[curl exit %s]\n' "$rc" >&2; return 1; fi
@@ -160,6 +181,13 @@ _waha() {          # _waha METHOD PATH FILTER [curl-аргументы]: без 
 }
 waha()      { _waha "$1" "$2" "${3:-}"; }                                                                  # waha METHOD PATH [JQ_FILTER]
 waha_json() { _waha "$1" "$2" "${3:-}" -H 'Content-Type: application/json' --data-binary @-; }            # тело запроса из stdin
+waha_logs_safe() { # stdin → stdout: значения WAHA_*/WHATSAPP_* и строки «NAME (поле): '…'», токены от 32 знаков и номера (от 7 цифр) скрыты
+  sed -E \
+    -e 's/((WAHA|WHATSAPP)_[A-Z0-9_]+)=[^[:space:]]*/\1=<скрыто>/g' \
+    -e "/(WAHA|WHATSAPP)_[A-Z0-9_]+ \(/ s/'[^']*'/'<скрыто>'/g" \
+    -e 's|[A-Za-z0-9_+=-]{32,}|<токен>|g' \
+    -e 's/[0-9]{7,}/<n>/g' | cut -c1-160
+}
 ```
 
 (`waha_open`/`waha`/`waha_json` проверены локально против синтетического
@@ -168,6 +196,19 @@ waha_json() { _waha "$1" "$2" "${3:-}" -H 'Content-Type: application/json' --dat
 через stdin; при неверном ключе и при 404 печатается только `[http NNN]`;
 ошибка `jq` не цитирует данные; файлы заголовка и ответа удаляются, права
 заголовка 0600. На настоящем WAHA не запускались **[live ✗]**.)
+Файл заголовка с plain-ключом удаляет `trap` на `EXIT`/`HUP`/`INT`: на
+интерактивном `bash -i` в pty (macOS bash 3.2 и Debian bash 5.2, `/dev/shm`)
+файл исчезает и при `exit`, и при внезапном закрытии терминала, как при обрыве
+ssh; Ctrl-C на долгой команде в интерактивной shell сеанс не завершает и
+файл не трогает. При `SIGKILL` или потере питания `trap` не срабатывает,
+поэтому в новом сеансе первым делом `rm -f /dev/shm/wahahdr.* /dev/shm/wahaout.*`
+(если параллельно не идёт другой сеанс оператора); если файл всё же удалён,
+`waha` печатает «нет заголовка с ключом» — снова `waha_open`.
+`waha_logs_safe` проверен на синтетическом блоке «Generated credentials» в
+формате WAHA 2026.9.2 плюс строках с поддельными HMAC, номером и токеном, на
+macOS (BSD sed) и Debian (GNU sed 4.9): значения ключа, паролей и логинов,
+токены от 32 знаков и номера из вывода исчезают, имена переменных остаются;
+на настоящем логе WAHA не запускался **[live ✗]**.
 
 ---
 
@@ -182,16 +223,42 @@ VOL=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/.sessions"}
 docker run --rm --pull never --entrypoint sh -v "$VOL":/s:ro "$(docker inspect -f '{{.Image}}' "$WAHA_C")" -c 'ls -la /s; du -sk /s/* 2>/dev/null'
 ```
 
-Имена переменных старта WAHA в `.env.waha` (значения не печатаются):
+Имена переменных WAHA в `.env.waha`, от которых зависит go-live (значения не
+печатаются: `sed` оставляет только имя):
 ```bash
-grep -oE '^(WHATSAPP_RESTART_ALL_SESSIONS|WHATSAPP_START_SESSION|WAHA_WORKER_RESTART_SESSIONS|WHATSAPP_DEFAULT_ENGINE)=' "$R/.env.waha" || echo "нет ни одной"
+FOUND=$(grep -E '^[[:space:]]*(export[[:space:]]+)?(WHATSAPP_RESTART_ALL_SESSIONS|WHATSAPP_START_SESSION|WAHA_WORKER_RESTART_SESSIONS|WHATSAPP_DEFAULT_ENGINE|WHATSAPP_API_KEY|WAHA_PRINT_QR|WHATSAPP_HOOK_[A-Z0-9_]+)[[:space:]]*=' "$R/.env.waha" \
+  | sed -E 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z0-9_]+).*/\2/')
+echo "${FOUND:-нет ни одной}"
 ```
-`WHATSAPP_RESTART_ALL_SESSIONS` и `WHATSAPP_START_SESSION` должны отсутствовать:
-первая проверяется в WAHA *раньше* `WAHA_WORKER_RESTART_SESSIONS` и поднимает
-**все** сохранённые сессии, вторая стартует перечисленные при каждом запуске
-контейнера [src] `manager.core.ts` (`restartSessions`, `startPredefinedSessions`),
-`config.service.ts`. Если какая-то есть — **стоп**: фаза D3 не пойдёт (см. там),
-решение за владельцем.
+Из найденного **не должно быть** `WHATSAPP_RESTART_ALL_SESSIONS`,
+`WHATSAPP_START_SESSION`, `WHATSAPP_API_KEY` и ни одного `WHATSAPP_HOOK_*`;
+`WAHA_WORKER_RESTART_SESSIONS`, `WHATSAPP_DEFAULT_ENGINE` и `WAHA_PRINT_QR`
+фаза D3 всё равно выставляет сама. Почему:
+- `WHATSAPP_RESTART_ALL_SESSIONS` проверяется в WAHA *раньше*
+  `WAHA_WORKER_RESTART_SESSIONS` и поднимает **все** сохранённые сессии;
+  `WHATSAPP_START_SESSION` стартует перечисленные при каждом запуске
+  контейнера [src] `manager.core.ts` (`restartSessions`, `startPredefinedSessions`),
+  `config.service.ts`.
+- `WHATSAPP_HOOK_URL`, `WHATSAPP_HOOK_EVENTS`, `WHATSAPP_HOOK_HMAC_KEY`,
+  `WHATSAPP_HOOK_RETRIES_*`, `WHATSAPP_HOOK_CUSTOM_HEADERS` — **глобальный**
+  webhook WAHA: в 2026.9.2 `WebhookPlugin.webhooks()` добавляет его к вебхукам
+  **каждой** сессии, поэтому он получал бы все события `crm_primary` рядом с
+  прямым приёмом фазы E. Он действует, когда заданы и URL, и события [src]
+  `src/modules/waha-webhook/webhook.config.ts`, `WebhookPlugin.ts`. Такая
+  строка могла остаться от выведенного из эксплуатации lead-agent
+  (`/webhooks/waha`), который по правилам владельца не должен автоматически
+  отвечать и запускать автоматику. PUT фазы E меняет только конфигурацию
+  сессии, но не env, поэтому снять её можно только правкой `.env.waha`.
+- `WHATSAPP_API_KEY` — устаревшее имя, **перекрывающее** `WAHA_API_KEY` [src]
+  `src/core/auth/config.ts`: хэш из D3 был бы молча проигнорирован, D5 дал бы
+  `[http 401]`.
+- `WAHA_PRINT_QR` по умолчанию `true` [src] `EngineConfigService.ts`: без
+  `false` сканируемый QR печатается в лог контейнера при `SCAN_QR_CODE`
+  (`deploy/env.waha.example` задаёт `false`).
+
+Если найдено что-то из `RESTART_ALL`/`START_SESSION`, `WHATSAPP_HOOK_*`,
+`WHATSAPP_API_KEY` — **стоп**: фаза D3 не пойдёт (см. там), решение за
+владельцем.
 
 Параллельно с вашей машины (`gh` — там): `gh variable get EVO_WAHA_IMAGE_DIGEST --repo izzhackt/evo_AI_CRM`
 должен совпасть с digest в `image=…@sha256:…`.
@@ -298,20 +365,30 @@ sha256sum "/root/evo-backups/waha-sessions-$TS.tgz"; ls -l "/root/evo-backups/wa
 этой shell-сессии (и потом в Vault); на диск не писать. WAHA хранит только
 хэш: `WAHA_API_KEY=sha512:{SHA512_HEX_HASH}`, клиент шлёт plain в `X-Api-Key`
 — [doc] https://waha.devlike.pro/docs/how-to/security/#api-security .
-Если в `.env.waha` есть `WHATSAPP_RESTART_ALL_SESSIONS` или
-`WHATSAPP_START_SESSION` (при любом значении, включая `false` и пустое: не
-гадать), блок ничего не меняет и останавливается: иначе WAHA
-стартовала бы сессии на первой загрузке GOWS до `ignore` и webhook (проверка
-фазы A, повторена здесь, потому что файл мог измениться). Снять эти строки —
-отдельное решение владельца (резервная копия фазы B).
+Если в `.env.waha` есть `WHATSAPP_RESTART_ALL_SESSIONS`, `WHATSAPP_START_SESSION`
+(при любом значении, включая `false` и пустое: не гадать), `WHATSAPP_API_KEY`
+или любое `WHATSAPP_HOOK_*`, блок ничего не меняет и останавливается, печатая
+только найденные **имена** (проверка фазы A, повторена здесь, потому что файл мог
+измениться). Первые две: WAHA стартовала бы сессии на первой загрузке GOWS до
+`ignore` и webhook. `WHATSAPP_API_KEY` перекрыл бы новый хэш. `WHATSAPP_HOOK_*` —
+глобальный webhook, который WAHA добавляет к каждой сессии: он дублировал бы все
+события `crm_primary` по адресу, который мог остаться от выведенного из
+эксплуатации lead-agent. Снять эти строки — отдельное решение владельца
+(резервная копия фазы B); после его подтверждения оператор убирает их (команда
+ниже), не выводя значений, и повторяет D3 с начала:
 ```bash
 f=$R/.env.waha
-if grep -qE '^(WHATSAPP_RESTART_ALL_SESSIONS|WHATSAPP_START_SESSION)=' "$f"; then
-  echo "СТОП: в .env.waha есть WHATSAPP_RESTART_ALL_SESSIONS и/или WHATSAPP_START_SESSION. Не продолжать, спросить владельца."
+BAD='WHATSAPP_RESTART_ALL_SESSIONS|WHATSAPP_START_SESSION|WHATSAPP_API_KEY|WHATSAPP_HOOK_[A-Z0-9_]+'
+if [ ! -f "$f" ]; then
+  echo "СТОП: нет файла $f."
+elif FOUND=$(grep -E "^[[:space:]]*(export[[:space:]]+)?($BAD)[[:space:]]*=" "$f" \
+     | sed -E 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z0-9_]+).*/\2/' | sort -u | tr '\n' ' '); [ -n "$FOUND" ]; then
+  echo "СТОП: в .env.waha есть: $FOUND— не продолжать, спросить владельца (WHATSAPP_HOOK_* и WHATSAPP_API_KEY нужно убрать до D3)."
 else
   KEY=$(openssl rand -hex 32) && HASH=$(printf '%s' "$KEY" | sha512sum | awk '{print $1}') \
     && env_put "$f" WAHA_API_KEY "sha512:$HASH" \
     && env_put "$f" WHATSAPP_DEFAULT_ENGINE GOWS \
+    && env_put "$f" WAHA_PRINT_QR false \
     && env_put "$f" WAHA_API_DOWNLOAD_MEDIA false \
     && env_put "$f" WAHA_EVENTS_DOWNLOAD_MEDIA false \
     && env_put "$f" WHATSAPP_DOWNLOAD_MEDIA false \
@@ -320,12 +397,30 @@ else
     || echo "СТОП: правка .env.waha не удалась (имя продублировано или файл недоступен). Не продолжать: восстановить файл из /root/evo-config-backups/env.waha.<метка> фазы B."
 fi
 ```
-(Вывод — только имена переменных, значения замаскированы; комментарии не печатаются.)
+Убрать строки, на удаление которых владелец дал согласие (значения не
+печатаются, файл правится на месте, права сохраняются; в `RE` — только
+разрешённые имена):
+```bash
+RE='WHATSAPP_HOOK_[A-Z0-9_]*'      # например, WHATSAPP_HOOK_[A-Z0-9_]*|WHATSAPP_API_KEY
+t=$(mktemp) && awk -v re="^[ \t]*(export[ \t]+)?($RE)[ \t]*=" '$0 !~ re' "$f" > "$t" && cat "$t" > "$f"; rm -f -- "$t"
+```
+(Вывод D3 — только имена переменных, значения замаскированы; комментарии не
+печатаются. Охрана, правка и команда удаления прогнаны на синтетических
+`.env.waha` (macOS и Debian: bash 5.2, GNU sed, mawk): `WHATSAPP_HOOK_*`,
+`WHATSAPP_API_KEY`, пустой `WHATSAPP_START_SESSION`, `export`-строка с отступом —
+СТОП с печатью только имён, файл не изменён; закомментированная строка
+`# WHATSAPP_HOOK_URL=…` не мешает; `WAHA_PRINT_QR=true` становится `false`; права
+файла сохраняются; несуществующий файл не создаётся. На настоящем файле не
+запускались **[live ✗]**.)
 
 **Хранение и потеря секретов.** Где живёт каждое значение: plain-ключ WAHA —
-только в памяти этой ssh-сессии, затем в Vault (его туда кладёт один `provision`);
-в `.env.waha` лежит лишь хэш; HMAC — в конфигурации сессии WAHA (читается
-обратно) и затем в `.env.production`. В чат, логи, PR, Git, файлы репозитория и
+в памяти этой ssh-сессии и, пока открыт `waha_open`, в файле заголовка `0600`
+на tmpfs `/dev/shm` (его удаляют `waha_close` и `trap`; жёсткий обрыв —
+`SIGKILL`, потеря питания — оставляет файл до перезагрузки, а при наличии swap
+его страницы могут уйти туда: поэтому в новом сеансе
+`rm -f /dev/shm/wahahdr.* /dev/shm/wahaout.*`), затем в Vault (его туда кладёт
+один `provision`); в `.env.waha` лежит лишь хэш; HMAC — в конфигурации сессии
+WAHA (читается обратно) и затем в `.env.production`. В чат, логи, PR, Git, файлы репозитория и
 заметки значения не попадают никогда. Резервная копия plain-ключа и HMAC
 допустима **только** в существующем SOPS-процессе «Секреты и доступы ЭВО»
 (`EVO_Знания`, как требует `AGENTS.md`): владелец сам вносит значения в
@@ -346,6 +441,10 @@ fi
 
 - `WHATSAPP_DEFAULT_ENGINE=GOWS` — [doc] https://waha.devlike.pro/docs/engines/gows/ ;
   движок общий для контейнера [src].
+- `WAHA_PRINT_QR=false` — по умолчанию `true` [src] `EngineConfigService.ts`:
+  при `SCAN_QR_CODE` WAHA рисует сканируемый QR в логе контейнера, и любой, кто
+  читает `docker logs`, мог бы привязать устройство. Pairing в этом runbook
+  идёт по коду (фаза H); QR — только по отдельному разрешению владельца.
 - Медиа **выключены**: по умолчанию WAHA скачивает медиа. В 2026.9.2 есть
   `WAHA_API_DOWNLOAD_MEDIA`/`WAHA_EVENTS_DOWNLOAD_MEDIA` (и их `*_MIMETYPES`),
   `WHATSAPP_DOWNLOAD_MEDIA` — устаревший общий fallback; в 2026.7.x читается
@@ -401,17 +500,21 @@ for i in $(seq 1 36); do [ "$(docker inspect -f '{{.State.Health.Status}}' "$WAH
 if [ "$ok" = 1 ]; then echo "WAHA healthy"
 else echo "СТОП: WAHA не стала healthy за 3 минуты; дальше не идти, откат — § Откат (откат WAHA)"
      docker inspect -f 'status={{.State.Status}} restarts={{.RestartCount}}' "$WAHA_C"
-     docker logs --tail 30 "$WAHA_C" 2>&1 | sed -E 's/[0-9]{7,}/<n>/g' | cut -c1-160     # длинные цифры (номера, LID) замаскированы
+     docker logs --tail 30 "$WAHA_C" 2>&1 | waha_logs_safe     # только так: при старте WAHA печатает пароли/ключ в лог, фильтр скрывает их
 fi
 ```
 Если вышло «СТОП», остальное в D5 не выполнять. Иначе:
 ```bash
 docker inspect -f 'image={{.Config.Image}} restarts={{.RestartCount}} mem={{.HostConfig.Memory}} ports={{json .HostConfig.PortBindings}}' "$WAHA_C"
-docker exec "$WAHA_C" printenv WHATSAPP_DEFAULT_ENGINE
+docker exec "$WAHA_C" printenv WHATSAPP_DEFAULT_ENGINE WAHA_PRINT_QR     # GOWS и false (значения не секретны)
+EXTRA=$(docker exec "$WAHA_C" printenv | grep -oE '^(WHATSAPP_HOOK_[A-Z0-9_]*|WHATSAPP_API_KEY|WHATSAPP_START_SESSION|WHATSAPP_RESTART_ALL_SESSIONS)=' | sed 's/=$//')
+echo "${EXTRA:-лишних имён нет}"          # печатаются только имена
 docker inspect -f '{{json .NetworkSettings.Networks}}' "$WAHA_C" | grep -o '"evo_[a-z_]*"' | sort -u    # только evo_crm_private
 ```
 Нужно: `image=devlikeapro/waha@$NEW`, `restarts=0`, `mem=2147483648`, портов нет,
-движок `GOWS`, одна приватная сеть. Затем доступ с ключом и список сессий
+движок `GOWS`, `WAHA_PRINT_QR=false`, «лишних имён нет» (`WHATSAPP_HOOK_*`,
+`WHATSAPP_API_KEY`, автостарт не попали в живой env контейнера), одна приватная
+сеть. Затем доступ с ключом и список сессий
 (только имя, статус, воркер; тело ответа целиком не печатается):
 ```bash
 WAHA_IP=$(docker inspect -f '{{(index .NetworkSettings.Networks "evo_crm_private").IPAddress}}' "$WAHA_C")
@@ -419,8 +522,9 @@ WAHA_KEY=$KEY; WAHA_BASE=http://$WAHA_IP:3000; waha_open     # не export: пе
 waha GET '/api/sessions?all=true' '.[] | "\(.name) \(.status) assigned=\(.assignedWorker | tojson)"'
 ```
 Все сессии должны быть `STOPPED` (ничего не стартовало само). Лог на сообщения
-об ошибках старта: `docker logs --since 10m "$WAHA_C" 2>&1 | grep -iE 'error|fail' | sed -E 's/[0-9]{7,}/<n>/g' | cut -c1-160 | head`
-(номера и LID замаскированы; имена и тексты в вывод всё равно могут попасть — не копировать).
+об ошибках старта: `docker logs --since 10m "$WAHA_C" 2>&1 | waha_logs_safe | grep -iE 'error|fail' | head`
+(фильтр идёт **до** `grep`: значения `WAHA_*`/`WHATSAPP_*`, токены и номера
+скрыты; имена и тексты в вывод всё равно могут попасть — не копировать).
 
 **D6. Digest в GitHub в ногу.** Release-контроллер сверяет `.Config.Image` WAHA
 с `repository@${EVO_WAHA_IMAGE_DIGEST}`; расхождение — `runtime_waha_image_drift`,
@@ -437,6 +541,9 @@ gh variable get EVO_WAHA_IMAGE_DIGEST --repo izzhackt/evo_AI_CRM        # = $NEW
 
 Три вещи должны быть заданы в конфигурации ещё до pairing: `config.ignore`
 (иначе группы/статусы/каналы попадают в хранилище и в webhook), webhook и HMAC.
+Глобального webhook WAHA (`WHATSAPP_HOOK_*` в env) при этом быть не должно: он
+добавляется к каждой сессии и получал бы те же события рядом с этим webhook;
+фазы A, D3 и D5 это проверяют, а PUT ниже меняет только конфигурацию сессии.
 Источники: [doc] https://waha.devlike.pro/docs/how-to/sessions/#ignore (поля
 `status`, `groups`, `channels`, `broadcast`; «хранилище не сохраняет сообщения»
 для GOWS/NOWEB; отправка не ограничивается), https://waha.devlike.pro/docs/how-to/events/#hmac-authentication ,
@@ -579,8 +686,11 @@ https://waha.devlike.pro/docs/how-to/sessions/ (Get pairing code,
    for i in $(seq 1 30); do st=$(waha GET /api/sessions/crm_primary '.status'); [ "$st" = SCAN_QR_CODE ] && break; sleep 2; done; echo "status=$st"
    waha GET /api/sessions/crm_primary '{status, engine:.engine.engine}'     # engine = "GOWS"
    ```
-2. Запросить код и показать его **только владельцу на экране оператора**
-   (одноразовый, живёт ограниченное время, срок в документации не указан **[??]**; не писать в лог/чат):
+2. Запросить код и показать его **только владельцу на экране оператора** —
+   это единственный сознательно печатаемый «секрет» (гигиена, п. 8):
+   одноразовый, живёт ограниченное время (срок в документации не указан
+   **[??]**), без телефона владельца бесполезен; копировать в лог, чат, тикет,
+   PR не нужно (предпочтительно выполнить шаг в собственном терминале оператора):
    ```bash
    printf '{"phoneNumber":"%s"}' "$SALES_MSISDN" | waha_json POST /api/crm_primary/auth/request-code '.code'    # печатает только код
    ```
@@ -718,7 +828,9 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 - Не включать `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1` без HMAC-секрета, intake-владельца и проверки G1.
 - Не править `.env.production` и env контейнеров мимо release; не менять compose (`compose_drift`).
 - Не трогать Arcadis/acadis и чужие сессии: `china_curator` не стартовать и не останавливать без решения владельца.
-- Не записывать в репозиторий, PR, чат и логи: ключ WAHA, HMAC, коды pairing, номера, JID, тексты сообщений, реальные UUID.
+- Не записывать в репозиторий, PR, чат и логи: ключ WAHA, HMAC, пароли и ключи из `.env.waha`, номера, JID, тексты сообщений, реальные UUID. Pairing-код (фаза H, п. 2) показывается один раз владельцу на экране оператора и дальше не копируется.
+- Не запускать `docker logs`/`docker compose logs` WAHA без `waha_logs_safe` (старт печатает ключ и пароли открытым текстом); не оставлять `WAHA_PRINT_QR` не равным `false`.
+- Не оставлять в `.env.waha` `WHATSAPP_HOOK_*`, `WHATSAPP_API_KEY`, `WHATSAPP_START_SESSION`, `WHATSAPP_RESTART_ALL_SESSIONS` (D3 останавливается на них).
 
 ## Скрипт Vault-binding
 

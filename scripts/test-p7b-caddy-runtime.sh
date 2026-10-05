@@ -228,6 +228,8 @@ for private_path in \
   /api/internal/p7b \
   /api/public/website-leads \
   /api/public/website-leads/near \
+  /api/v2/whatsapp/inbound \
+  /api/v2/whatsapp/inbound/near \
   /admin/p7b; do
   status="$(
     curl --silent --show-error \

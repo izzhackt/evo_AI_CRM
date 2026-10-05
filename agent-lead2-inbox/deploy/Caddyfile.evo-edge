@@ -5,7 +5,7 @@
 }
 
 (evo_app) {
-	@private path /api/internal /api/internal/* /api/readiness /api/readiness/* /admin /admin/* /metrics /metrics/* /api/public/website-leads /api/public/website-leads/*
+	@private path /api/internal /api/internal/* /api/readiness /api/readiness/* /admin /admin/* /metrics /metrics/* /api/public/website-leads /api/public/website-leads/* /api/v2/whatsapp/inbound /api/v2/whatsapp/inbound/*
 	respond @private 404
 
 	@health path /api/health

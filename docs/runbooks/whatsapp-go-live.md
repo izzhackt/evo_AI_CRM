@@ -30,7 +30,7 @@ WhatsApp; **[??]** — не проверено нигде. Всё, что отм
 телефон отдела продаж ── WhatsApp ── WAHA (GOWS, сессия crm_primary)
                                         │ webhook, HMAC sha512, message.any + session.status
                                         ▼
-                         http://evo-crm-app:3000/api/v2/whatsapp/inbound   (приватная сеть evo_crm_private)
+                         http://evo-crm-app:3000/api/v2/whatsapp/inbound   (приватная сеть evo_crm_private; публично закрыт на edge — C5)
 CRM (ручной ответ, проба статуса) ──► http://evo-crm-waha:3000   ключ WAHA берётся из Supabase Vault
 ```
 
@@ -51,6 +51,7 @@ CRM (ручной ответ, проба статуса) ──► http://evo-cr
 | A | Разведка read-only | ничего не меняет |
 | B | Шаг 0: пустая строка в `.env.production` | **до** merge #1137, иначе release падает на env-контракте |
 | C | merge, ledger 259, release №1 (ingress 0) | кладёт в образ #1137 и скрипт; WhatsApp ещё не подключён |
+| C5 | Edge Caddy: публичный `/api/v2/whatsapp/inbound` → 404 | общий edge, отдельное «давай» владельца, **до** G |
 | D | Пересоздание WAHA: GOWS 2026.9.2 | новый ключ, медиа выключены, ничего не стартует само |
 | E | Сессия `crm_primary` (STOPPED) + webhook + ignore | **до** pairing |
 | F | Vault-binding через скрипт | ручные ответы и проба статуса |
@@ -83,7 +84,8 @@ pairing, а не после. Причина: WAHA считает ошибкой 
 ## 1. Условия (все обязательны)
 
 1. Явное «давай» владельца на этот go-live в чате. Для фаз D–I владелец рядом:
-   pairing идёт в реальном времени.
+   pairing идёт в реальном времени. Правка общего edge (C5) — отдельное «давай»
+   в окне: она затрагивает и чужие хосты в том же Caddy.
 2. #1137 переоснован на текущий `main`, на его точном head есть независимый
    review и исправления по реальным формам GOWS (см. § Допущения #1137).
    Этот PR (#1138) влит в `main` **до release №1**: скрипт входит в образ.
@@ -331,6 +333,116 @@ env-файлах с настоящим валидатором #1137: строк�
    docker exec evo-crm-app-1 node scripts/waha-runtime-binding.mjs check; echo "exit=$?"
    # ожидается: {"ok":true,"mode":"check","ready":false,"reason_code":"missing_binding",…}, exit=3
    ```
+
+### C5. Edge Caddy: закрыть публичный маршрут приёма (до фазы G)
+
+Зачем. Маршрут приёма `/api/v2/whatsapp/inbound` (#1137) без этого шага достижим
+из интернета по `crm.evoadmissions.com`: Caddy пропускает для хоста тело до
+105 MB (`request_body max_size 105MB`), `proxyClientMaxBodySize: "105mb"` в
+`next.config.ts` заставляет Next буферизовать тело до такого размера, и только
+потом срабатывает лимит обработчика (`MAX_BODY_BYTES = 256 * 1024`, #1137 на
+head `a57fb607d`) **[repo]**. WAHA ходит к приложению приватно
+(`http://evo-crm-app:3000`), публичный путь не нужен. Правка в репозитории —
+`agent-lead2-inbox/deploy/Caddyfile.evo-edge`: в `@private` сниппета `(evo_app)`
+(его импортирует блок `crm.evoadmissions.com, app.evoadmissions.com`; там же
+`respond @private 404`) добавлены `/api/v2/whatsapp/inbound` и
+`/api/v2/whatsapp/inbound/*`. Устаревший хост `evo-crm.….sslip.io` мутации и так
+не пропускает (405) **[repo]**. Локально проверено: `caddy validate` на
+закреплённом образе (digest из `docs/archive/v1/production-release.md`,
+Caddy v2.11.3; образ живого контейнера не сверялся) и `scripts/test-p7b-caddy-runtime.sh` (пути добавлены в список
+запретных, 404) — на production не запускалось **[live ✗]**.
+
+**Общий edge.** `evo-edge-caddy` обслуживает не только EVO: в том же Caddy
+хосты `soodacloser.com`, `olympiadai…`, `invite-bishkek…`, `codex…`. Шаг делается
+только по **отдельному явному «давай» владельца в окне**, меняется ровно одна
+строка `@private`; чужие хосты не трогать. Запрещено: `compose up/down`,
+`docker restart`, пересоздание контейнера (порты 80/443 общие; см. комментарий в
+`docker-compose.edge.yml`) — только graceful `caddy reload` внутри работающего
+контейнера (порядок как в `docs/design/v3/references/2026-09-16-website-edge.md`).
+Не печатать адаптированный JSON Caddy и admin API: в нём header-ключ сайта.
+Порядок: **после C4** (маршрут уже в образе и отвечает 503 — до правки это видно
+снаружи) и **до G**.
+
+Чтение 2026-10-05 (`docker inspect evo-edge-caddy`, только чтение): Caddyfile
+смонтирован одним файлом, `ro`, из
+`/opt/evo-releases/<sha>/repo/agent-lead2-inbox/deploy/Caddyfile.evo-edge`
+(каталог релиза, не `/opt/evo-crm`). Одиночный bind-mount привязан к inode: файл
+перезаписывается **на месте** (`cat … >`), а не заменяется через `mv`/`cp --remove-destination`;
+иначе контейнер продолжит видеть старый файл. Запись меняет файл в каталоге
+релиза, и тот перестаёт совпадать со своим коммитом; после слияния репозиторий
+уже содержит ту же строку.
+
+1. С вашей машины (чекаут с влитым `main`) — хэш и копия на VPS:
+   ```bash
+   git show origin/main:agent-lead2-inbox/deploy/Caddyfile.evo-edge | shasum -a 256     # запомнить хэш → SHA ниже
+   git show origin/main:agent-lead2-inbox/deploy/Caddyfile.evo-edge | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/Caddyfile.reviewed'
+   ```
+2. На VPS, только чтение: путь, хэши, разница с живым файлом:
+   ```bash
+   E=evo-edge-caddy; B=/root/evo-config-backups; NEW=/root/evo-golive/Caddyfile.reviewed
+   SHA='<хэш из п. 1>'
+   echo "$SHA  $NEW" | sha256sum -c - || echo "СТОП: файл на VPS не тот, что был проверен"
+   LIVE=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}' "$E"); printf '%s\n' "$LIVE"
+   [ -f "$LIVE" ] || echo "СТОП: источник Caddyfile — не обычный файл"
+   ls -li "$LIVE"; sha256sum "$LIVE"; docker exec "$E" sha256sum /etc/caddy/Caddyfile   # оба хэша равны: контейнер видит тот же inode
+   docker inspect -f 'id={{.Id}} restarts={{.RestartCount}} started={{.State.StartedAt}}' "$E"   # запомнить
+   diff "$LIVE" "$NEW"
+   [ "$(diff "$LIVE" "$NEW" | grep -c '^[<>]')" = 2 ] && diff "$LIVE" "$NEW" | grep -q '^> .*@private.*/api/v2/whatsapp/inbound/\*' \
+     || echo "СТОП: различий не ровно одна строка @private — не перезаписывать; решение владельца (live ↔ репозиторий сверяются отдельно)"
+   ```
+   Ожидается ровно одна пара строк `<`/`>`: `@private` в `(evo_app)`. Любое другое
+   различие — чужая правка в живом файле или расхождение с `main`: **стоп**.
+3. Базовые коды до правки (запросы без тела и без данных; чужие хосты — только
+   `GET /`):
+   ```bash
+   smoke() {
+     for u in https://crm.evoadmissions.com/api/health https://app.evoadmissions.com/api/health https://evoadmissions.com/ https://soodacloser.com/; do
+       printf 'GET %s %s\n' "$u" "$(curl -sS -m 15 -o /dev/null -w '%{http_code}' "$u" || echo curl-error)"; done
+     for h in crm app; do u=https://$h.evoadmissions.com/api/v2/whatsapp/inbound
+       printf 'POST %s %s\n' "$u" "$(curl -sS -m 15 -o /dev/null -w '%{http_code}' -X POST "$u" || echo curl-error)"; done
+   }
+   smoke | tee /root/evo-golive/edge-smoke.before     # ожидается: health 200, сайты как обычно, POST …/inbound = 503 (ingress 0)
+   ```
+4. Резервная копия, запись на месте, `validate`, `reload`:
+   ```bash
+   install -d -m 700 "$B"; BK=$B/Caddyfile.evo-edge.$(date -u +%Y%m%dT%H%M%SZ)
+   cp -p "$LIVE" "$BK" && cmp "$LIVE" "$BK" && echo "бэкап: $BK" \
+    && cat "$NEW" > "$LIVE" \
+    && [ "$(sha256sum "$LIVE" | cut -d' ' -f1)" = "$SHA" ] \
+    && [ "$(docker exec "$E" sha256sum /etc/caddy/Caddyfile | cut -d' ' -f1)" = "$SHA" ] \
+    && docker exec "$E" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
+    && echo "validate: OK" \
+    || echo "СТОП: бэкап, запись или validate не прошли — reload НЕ выполнять; восстановить файл (откат ниже). Причина: docker exec $E caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 5"
+   ```
+   Только после `validate: OK` — graceful reload (контейнер не перезапускается,
+   открытые соединения завершаются):
+   ```bash
+   docker exec "$E" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 3
+   [ "${PIPESTATUS[0]}" = 0 ] || echo "СТОП: reload не прошёл — прежний конфиг продолжает работать; восстановить файл (откат ниже)"
+   docker inspect -f 'id={{.Id}} restarts={{.RestartCount}} started={{.State.StartedAt}}' "$E"   # те же id, restarts и started, что до правки
+   ```
+5. Проверка:
+   ```bash
+   smoke | tee /root/evo-golive/edge-smoke.after; diff /root/evo-golive/edge-smoke.before /root/evo-golive/edge-smoke.after
+   # ожидается: различаются ровно две строки POST …/api/v2/whatsapp/inbound (crm и app): было 503, стало 404; остальные коды прежние
+   docker exec "$(waha_cid)" node -e 'fetch("http://evo-crm-app:3000/api/v2/whatsapp/inbound",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}).then(r=>console.log("[http "+r.status+"]"),e=>console.log("[fetch error "+String((e.cause&&e.cause.code)||e.name).slice(0,40)+"]"))'
+   # приватный путь изнутри WAHA, без подписи и без данных: [http 503] пока ingress 0; [http 401] после фазы G
+   ```
+   Публичный `POST …/inbound` = 404, остальные маршруты CRM и чужие хосты — с
+   прежними кодами, приватный путь изнутри WAHA отвечает (503/401, не 404 и не
+   `fetch error`). Если `fetch error` — сеть/имя: проверить, что WAHA в
+   `evo_crm_private`; на публичный edge это не влияет.
+6. Откат (возвращает прежнее поведение; публичный маршрут снова открыт;
+   `BK` — файл из п. 4, в новой сессии взять его из `$B`):
+   ```bash
+   cat "$BK" > "$LIVE" && cmp "$LIVE" "$BK" \
+    && docker exec "$E" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
+    && docker exec "$E" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 3
+   smoke | diff /root/evo-golive/edge-smoke.before -        # без различий
+   ```
+   Если `reload` ещё не выполнялся, достаточно восстановить файл и сверить хэш:
+   работающий конфиг не менялся. Откат после фазы G снова открывает публичный
+   приём: сразу решать — повторить правку или выключить ingress (см. «Откат»).
 
 ## D. Пересоздание WAHA: GOWS, образ 2026.9.2
 
@@ -615,6 +727,9 @@ binding не готовым. `waha_session_status` на этом этапе — 
 
 ## G. Release №2 — приём включён (до pairing)
 
+**Условие:** C5 выполнен — публичный `POST https://crm.evoadmissions.com/api/v2/whatsapp/inbound`
+отвечает 404. Иначе `INGRESS=1` откроет приём в интернет (см. C5).
+
 **G1. Intake-владелец.** Нужен UUID membership «Руководитель продаж»; перед
 использованием проверить допустимость (только чтение, Supabase SQL Editor).
 Реальные UUID в репозиторий, чат и PR не записывать.
@@ -668,6 +783,7 @@ NEWVAL=1       set_env_value "$f" EVO_PLATFORM_WAHA_INGRESS_ENABLED \
 
 **G4. Проверка:** «Настройки → Интеграции» больше не пишет «приём выключен»;
 статус сессии честно показывает остановленную (WAHA ещё не стартовала).
+Повторить пробы C5 п. 5: публичный `POST …/inbound` — 404, приватный изнутри WAHA — 401 (без подписи).
 Запоздалые повторы WAHA (окно ~68 минут, § «Порядок фаз») возможны только у
 уже привязанной сессии; до pairing их нет.
 
@@ -814,6 +930,7 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 | Срочно остановить приём, не теряя привязку | `waha POST /api/sessions/crm_primary/stop` (хелпер печатает только `[http NNN]`; сессия остаётся привязанной; снимает «назначение» воркера [src]). **Не** `logout`. Позже — `…/start`. |
 | Выключить приём в CRM | release с `EVO_PLATFORM_WAHA_INGRESS_ENABLED=0` (правка `.env.production` → arm → CI → disarm, как C3). Маршрут снова отвечает 503; WAHA повторяет такие события по политике фазы E (~68 минут, паузы растут) и доставит их позже, вне порядка, а после окна откажется от них — сначала остановить сессию. При последующем включении приёма запоздалые повторы идемпотентны только если #1137 такой, см. § «Допущения». |
 | Откат WAHA на прежний образ | старый digest `sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c` ([repo] `docs/platform/p8d4-current-main-staff-pilot.md`) + прежний движок WEBJS: восстановить `.env.waha` из `/root/evo-config-backups/…`, **оставив новую строку `WAHA_API_KEY=sha512:…`** (иначе ключ в Vault перестанет подходить), убрать `WHATSAPP_DEFAULT_ENGINE=GOWS`, `compose up --force-recreate waha` как D4 со старым digest, вернуть `EVO_WAHA_IMAGE_DIGEST`. Том не откатывать, если он цел; снимок — на случай порчи. **Привязка не восстанавливается:** вход GOWS и вход WEBJS независимы, считать, что нужен новый pairing **[live ✗]**. |
+| Откат правки edge (C5) | восстановить бэкап в тот же inode, `caddy validate`, `caddy reload` внутри `evo-edge-caddy` (C5 п. 6); без `compose up/down` и `docker restart`. Публичный маршрут снова открыт — при `INGRESS=1` сразу решить: повторить правку или выключить ingress. |
 | Ключ WAHA скомпрометирован | ротация: D3 (новый ключ/хэш) → D4–D5 → фаза F `provision` (`rotated`). |
 | Pairing не удался | `waha POST …/stop`, не `logout`; повтор в другое окно. `FAILED` → `waha POST …/restart`. |
 | WAHA с `RestartCount>0` перед release | release откажется; `compose up --force-recreate waha` (D4) даёт `restarts=0`, сессия сохраняется в томе. |
@@ -825,6 +942,7 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 - Не включать автоответы, рассылки, Gemini-подсказки/ассистента, любые исходящие по расписанию.
 - Не импортировать историю чатов: это отдельный будущий шаг (миграция и импортёр, owner-решение). История, которую GOWS получает при pairing, остаётся в хранилище WAHA, в CRM не попадает **[live ✗]**.
 - Не публиковать порт WAHA, панель или Swagger; не переводить WAHA и lead-agent из приватной сети.
+- Не включать `INGRESS=1` до C5 (публичный `/api/v2/whatsapp/inbound` должен отвечать 404); не пересоздавать и не перезапускать `evo-edge-caddy` ради C5 — только `caddy reload`; не печатать адаптированный JSON Caddy.
 - Не включать `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1` без HMAC-секрета, intake-владельца и проверки G1.
 - Не править `.env.production` и env контейнеров мимо release; не менять compose (`compose_drift`).
 - Не трогать Arcadis/acadis и чужие сессии: `china_curator` не стартовать и не останавливать без решения владельца.

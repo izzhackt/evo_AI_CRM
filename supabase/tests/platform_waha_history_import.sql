@@ -118,6 +118,10 @@ $$;
 CREATE FUNCTION pg_temp.n260_me() RETURNS JSONB LANGUAGE SQL IMMUTABLE AS $$
   SELECT '{"id":"79990000000@c.us","lid":"900000000000001@lid"}'::JSONB
 $$;
+-- The default run options as text: the own account is REQUIRED.
+CREATE FUNCTION pg_temp.n260_opts() RETURNS TEXT LANGUAGE SQL IMMUTABLE AS $$
+  SELECT jsonb_build_object('me', pg_temp.n260_me())::TEXT
+$$;
 CREATE FUNCTION pg_temp.n260_begin(p_n INTEGER, p_options JSONB DEFAULT NULL, p_from TIMESTAMPTZ DEFAULT NULL,
   p_to TIMESTAMPTZ DEFAULT NULL) RETURNS JSONB LANGUAGE plpgsql AS $$
 BEGIN
@@ -270,8 +274,8 @@ SELECT pg_temp.n260_assert(
 -- Replay of the same request returns the stored answer; the same id with another input is refused.
 SELECT pg_temp.n260_assert(pg_temp.n260_begin(1) = :'r'::JSONB, 'a replayed begin returns the stored response');
 SELECT pg_temp.n260_assert(
-  pg_temp.n260_message(format($sql$SELECT platform.begin_waha_history_window_run(%L, 'crm_primary', 'WEBJS', %L, %L, %L, '{}', %L)$sql$,
-    pg_temp.n260_id(1), pg_temp.n260_id(301), :'w_from', :'w_to', pg_temp.n260_id(4001))) LIKE '22023%',
+  pg_temp.n260_message(format($sql$SELECT platform.begin_waha_history_window_run(%L, 'crm_primary', 'WEBJS', %L, %L, %L, %L, %L)$sql$,
+    pg_temp.n260_id(1), pg_temp.n260_id(301), :'w_from', :'w_to', pg_temp.n260_opts(), pg_temp.n260_id(4001))) LIKE '22023%',
   'a request id reused with another input is refused');
 -- Resuming: the same window, options, engine and owner under a new request id returns the same run.
 SELECT pg_temp.n260_begin(2) AS r2 \gset
@@ -290,11 +294,22 @@ SELECT pg_temp.n260_assert(
   AND pg_temp.n260_message($sql$SELECT pg_temp.n260_begin(9, '{"me":{"id":"not-a-jid"}}')$sql$) LIKE '22023%'
   AND pg_temp.n260_message($sql$SELECT pg_temp.n260_begin(10, '{"me":{"phone":"79990000000@c.us"}}')$sql$) LIKE '22023%',
   'window over 31 days, a future window, an inverted window, an unknown option, a bad lead_mode and a bad own account are refused');
+-- The own account is required: a run or a preview without it could import the own number as a customer.
 SELECT pg_temp.n260_assert(
-  pg_temp.n260_message(format($sql$SELECT platform.begin_waha_history_window_run(%L, 'evo-inbox', 'GOWS', %L, %L, %L, '{}', %L)$sql$,
-    pg_temp.n260_id(1), pg_temp.n260_id(301), :'w_from', :'w_to', pg_temp.n260_id(4011))) LIKE '22023%'
-  AND pg_temp.n260_message(format($sql$SELECT platform.begin_waha_history_window_run(%L, 'crm_primary', 'BAILEYS', %L, %L, %L, '{}', %L)$sql$,
-    pg_temp.n260_id(1), pg_temp.n260_id(301), :'w_from', :'w_to', pg_temp.n260_id(4012))) LIKE '22023%',
+  pg_temp.n260_message($sql$SELECT pg_temp.n260_begin(11, '{}')$sql$) LIKE '22023%'
+  AND pg_temp.n260_message($sql$SELECT pg_temp.n260_begin(12, '{"lead_mode":"none","include_outbound_only":true}')$sql$) LIKE '22023%'
+  AND pg_temp.n260_message($sql$SELECT pg_temp.n260_begin(13, '{"me":{}}')$sql$) LIKE '22023%'
+  AND pg_temp.n260_message($sql$SELECT pg_temp.n260_begin(14, '{"me":{"lid":"900000000000001@lid"}}')$sql$) LIKE '22023%'
+  AND pg_temp.n260_message($sql$SELECT pg_temp.n260_begin(15, '{"me":null}')$sql$) LIKE '22023%'
+  AND pg_temp.n260_message($sql$SELECT pg_temp.n260_preview('79990000101@c.us', '[]', '{}')$sql$) LIKE '22023%'
+  AND (SELECT count(*) FROM platform_private.waha_history_reconciliation_runs r
+       WHERE r.organization_id = pg_temp.n260_id(1)) = 1,
+  'run options without the own account (me.id) are refused by begin and preview; no run was created');
+SELECT pg_temp.n260_assert(
+  pg_temp.n260_message(format($sql$SELECT platform.begin_waha_history_window_run(%L, 'evo-inbox', 'GOWS', %L, %L, %L, %L, %L)$sql$,
+    pg_temp.n260_id(1), pg_temp.n260_id(301), :'w_from', :'w_to', pg_temp.n260_opts(), pg_temp.n260_id(4011))) LIKE '22023%'
+  AND pg_temp.n260_message(format($sql$SELECT platform.begin_waha_history_window_run(%L, 'crm_primary', 'BAILEYS', %L, %L, %L, %L, %L)$sql$,
+    pg_temp.n260_id(1), pg_temp.n260_id(301), :'w_from', :'w_to', pg_temp.n260_opts(), pg_temp.n260_id(4012))) LIKE '22023%',
   'only the crm_primary session and a known engine are accepted');
 -- Not a service caller: refused before anything else.
 SELECT set_config('request.jwt.claims', '{"role":"authenticated"}', TRUE);
@@ -548,11 +563,17 @@ SELECT pg_temp.n260_assert(
   pg_temp.n260_message(format($sql$SELECT pg_temp.n260_page(%L, 11, '79990000401@c.us', jsonb_build_array(
     pg_temp.n260_msg('dup', '79990000401@c.us', FALSE, %s, 'a'), pg_temp.n260_msg('dup', '79990000401@c.us', FALSE, %s, 'b')))$sql$,
     :'run_a', :t0 + 1, :t0 + 2)) LIKE '22023%'
+  AND pg_temp.n260_message(format($sql$SELECT pg_temp.n260_page(%L, 12, '79990000401@c.us', jsonb_build_array(
+    pg_temp.n260_msg('ws', '79990000401@c.us', FALSE, %s, 'a'), pg_temp.n260_msg(' ws ', '79990000401@c.us', FALSE, %s, 'b')))$sql$,
+    :'run_a', :t0 + 1, :t0 + 2)) LIKE '22023%'
+  AND pg_temp.n260_message(format($sql$SELECT pg_temp.n260_preview('79990000401@c.us', jsonb_build_array(
+    pg_temp.n260_msg('ws', '79990000401@c.us', FALSE, %s, 'a'), pg_temp.n260_msg(' ws', '79990000401@c.us', FALSE, %s, 'b')))$sql$,
+    :t0 + 1, :t0 + 2)) LIKE '22023%'
   AND pg_temp.n260_message(format($sql$SELECT pg_temp.n260_page(%L, 8, '79990000401@c.us', '[]')$sql$, :'run_a')) LIKE '22023%'
   AND pg_temp.n260_message(format($sql$SELECT pg_temp.n260_page(%L, 1, '79990000401@c.us', '{}')$sql$, :'run_a')) LIKE '22023%'
   AND pg_temp.n260_message(format($sql$SELECT pg_temp.n260_page(%L, 11, '79990000401@c.us', (SELECT jsonb_agg(pg_temp.n260_msg('b' || g, '79990000401@c.us', FALSE, %s, 'x')) FROM generate_series(1, 501) g))$sql$,
     :'run_a', :t0 + 5)) LIKE '22023%',
-  'a repeated raw id, a cursor that does not advance, a non-array and an oversized page are refused');
+  'a repeated raw id (also as whitespace variants, in the page and the preview), a cursor that does not advance, a non-array and an oversized page are refused');
 
 -- ---------------------------------------------------------------------------
 -- 5. Idempotency.
@@ -797,6 +818,17 @@ SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'direction' = 'outbound' AND :'r'::JS
   AND (SELECT c.canonical_lead_id IS NULL FROM platform.communication_conversations c WHERE c.id = pg_temp.n260_conv('79990000701@c.us'))
   AND (pg_temp.n260_counts() ->> 'leads') = (:'before_out_live'::JSONB ->> 'leads'),
   'a live outbound message never promotes an imported chat');
+-- An inbound event whose raw id was imported as an OUTBOUND message is a conflict (terminal) and must not promote the chat.
+SELECT pg_temp.n260_counts() AS before_conflict \gset
+SELECT pg_temp.n260_live(41, pg_temp.n260_live_in('true_79990000701@c.us_Q2', '79990000701@c.us', 'Answer without a source field'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '41 minutes') AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'error_code' = 'waha_inbound_message_conflict' AND :'r'::JSONB -> 'identity_promoted' IS NULL
+  AND (SELECT c.canonical_lead_id IS NULL AND c.canonical_client_id IS NULL FROM platform.communication_conversations c
+       WHERE c.id = pg_temp.n260_conv('79990000701@c.us'))
+  AND (pg_temp.n260_counts() ->> 'clients') = (:'before_conflict'::JSONB ->> 'clients')
+  AND (pg_temp.n260_counts() ->> 'leads') = (:'before_conflict'::JSONB ->> 'leads')
+  AND (pg_temp.n260_counts() ->> 'messages') = (:'before_conflict'::JSONB ->> 'messages'),
+  'an inbound event of a raw id imported as outbound is a conflict and never promotes the chat');
 
 -- ---------------------------------------------------------------------------
 -- 9. Forgery guards: history is never verified evidence.
@@ -952,7 +984,7 @@ INSERT INTO platform.membership_scope_assignments(organization_id, membership_id
 SELECT pg_temp.n260_finish(:'run_c', 4) AS fin_c \gset
 SELECT pg_temp.n260_svc();
 SELECT (platform.begin_waha_history_window_run(pg_temp.n260_id(1), 'crm_primary', 'GOWS', pg_temp.n260_id(302), :'w_from'::TIMESTAMPTZ,
-  :'w_to'::TIMESTAMPTZ, '{}', pg_temp.n260_id(4100)) ->> 'run_id')::UUID AS run_d \gset
+  :'w_to'::TIMESTAMPTZ, pg_temp.n260_opts()::JSONB, pg_temp.n260_id(4100)) ->> 'run_id')::UUID AS run_d \gset
 SELECT pg_temp.n260_page(:'run_d', 1, '79990001101@c.us', jsonb_build_array(
   pg_temp.n260_msg('false_79990001101@c.us_E1', '79990001101@c.us', FALSE, :t0 + 8000, 'Owner is eligible'))) AS r \gset
 SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'projected' = '1'
@@ -963,9 +995,35 @@ UPDATE platform.organization_memberships SET status = 'suspended' WHERE id = pg_
 SELECT pg_temp.n260_assert(
   pg_temp.n260_message(format($sql$SELECT pg_temp.n260_page(%L, 2, '79990001101@c.us', jsonb_build_array(
     pg_temp.n260_msg('false_79990001101@c.us_E2', '79990001101@c.us', FALSE, %s, 'Owner suspended')))$sql$, :'run_d', :t0 + 8100)) LIKE '42501%'
-  AND pg_temp.n260_message(format($sql$SELECT platform.begin_waha_history_window_run(%L, 'crm_primary', 'GOWS', %L, %L, %L, '{}', %L)$sql$,
-    pg_temp.n260_id(1), pg_temp.n260_id(302), :'w_from', :'w_to', pg_temp.n260_id(4101))) LIKE '42501%',
+  AND pg_temp.n260_message(format($sql$SELECT platform.begin_waha_history_window_run(%L, 'crm_primary', 'GOWS', %L, %L, %L, %L, %L)$sql$,
+    pg_temp.n260_id(1), pg_temp.n260_id(302), :'w_from', :'w_to', pg_temp.n260_opts(), pg_temp.n260_id(4101))) LIKE '42501%',
   'a suspended intake owner can neither begin nor continue an import');
+
+-- ---------------------------------------------------------------------------
+-- 11c. Promotion with an ineligible imported owner never blocks live ingestion: the
+-- chat was imported for member 302 (now suspended); the customer's first live
+-- message is stored, the chat is promoted and the lead is owned by the live
+-- intake member (301), whom the live projection has just proven eligible.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.n260_counts() AS before_inel \gset
+SELECT pg_temp.n260_live(50, pg_temp.n260_live_in('false_79990001101@c.us_LIVE', '79990001101@c.us', 'Live message, owner gone'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '50 minutes') AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'disposition' = 'succeeded' AND :'r'::JSONB ->> 'finish_state' = 'succeeded'
+  AND :'r'::JSONB ->> 'error_code' IS NULL
+  AND (:'r'::JSONB ->> 'communication_conversation_id')::UUID = pg_temp.n260_conv('79990001101@c.us')
+  AND (pg_temp.n260_bodies(pg_temp.n260_conv('79990001101@c.us')))[array_length(pg_temp.n260_bodies(pg_temp.n260_conv('79990001101@c.us')), 1)]
+    = 'inbound:Live message, owner gone'
+  AND (:'r'::JSONB ->> 'identity_promoted')::BOOLEAN AND :'r'::JSONB -> 'identity_promotion_skipped' IS NULL
+  AND (pg_temp.n260_counts() ->> 'messages')::INT = (:'before_inel'::JSONB ->> 'messages')::INT + 1,
+  'a live inbound in a chat imported for a suspended owner is STORED (never 23503) and promotes the chat');
+SELECT pg_temp.n260_assert(
+  (SELECT l.current_owner_membership_id = pg_temp.n260_id(301)
+     AND c.responsible_sales_membership_id = pg_temp.n260_id(302)
+   FROM platform.communication_conversations c JOIN platform.leads l ON l.id = c.canonical_lead_id
+   WHERE c.id = pg_temp.n260_conv('79990001101@c.us'))
+  AND (pg_temp.n260_counts() ->> 'clients')::INT = (:'before_inel'::JSONB ->> 'clients')::INT + 1
+  AND (pg_temp.n260_counts() ->> 'leads')::INT = (:'before_inel'::JSONB ->> 'leads')::INT + 1,
+  'the lead of that promotion is owned by the live intake member; the conversation keeps its imported owner');
 
 -- ---------------------------------------------------------------------------
 -- 12. Catalog.

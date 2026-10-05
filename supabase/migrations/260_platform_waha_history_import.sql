@@ -44,7 +44,11 @@
 -- the default; 'none' keeps imported chats conversation-only). The identity
 -- evidence is the live verified event, never the history row. The three lead
 -- readers that required a verified-inbound binding source also accept the
--- history source, so the promoted lead lists its conversation. (The alternative,
+-- history source, so the promoted lead lists its conversation. Promotion runs
+-- only after the live inbound message passed its conflict check and is stored,
+-- and never blocks live ingestion: the lead owner is the imported owner while
+-- still eligible, else the live intake member, else promotion is skipped and the
+-- message stays stored (result key identity_promotion_skipped). (The alternative,
 -- a staging map that adopts imported messages at the first live message, would
 -- add a table and block replies until adoption; this change is smaller.)
 --
@@ -78,7 +82,12 @@
 --
 -- Written against migration 259 as of PR #1137 head 362fff638; if that
 -- migration changes, the needle guards below fail closed instead of patching a
--- different definition.
+-- different definition, and the two routines this migration replaces wholesale
+-- (require_private_waha_message_binding, bind_waha_chat_to_canonical) are pinned
+-- by the md5 of their 259 source and refuse to be replaced if it differs.
+--
+-- The run options must name the own account (`me`, at least its id): the own
+-- number is never imported as a customer chat.
 -- ============================================================
 
 BEGIN;
@@ -122,6 +131,21 @@ DECLARE
   before_contract RECORD;
   after_contract RECORD;
 BEGIN
+  -- This routine is replaced wholesale below, so its pre-image is pinned: the
+  -- body must be exactly the one migration 259 left (PR #1137 head 362fff638).
+  -- If 259's forgery guard is edited later, this fails closed instead of the
+  -- edit being silently overwritten: re-derive the replacement from the new 259
+  -- and update the digest in the same change.
+  IF (
+    SELECT pg_catalog.md5(routine.prosrc)
+    FROM pg_catalog.pg_proc AS routine
+    WHERE routine.oid = target::OID
+  ) IS DISTINCT FROM '7160e60decbaae5db0885b8bdd06c6d9' THEN
+    RAISE EXCEPTION
+      'Migration 260 replaces require_private_waha_message_binding(), which is not the migration 259 definition it was written against; re-derive it from the current definition'
+      USING ERRCODE = '55000';
+  END IF;
+
   SELECT routine.proowner, routine.proacl, routine.prosecdef,
     routine.proconfig, routine.provolatile, routine.proleakproof,
     routine.proparallel
@@ -258,8 +282,9 @@ $$;
 
 -- The run options, validated and normalised: a closed set of keys, so a typo is
 -- refused instead of silently ignored. `me` is the session's own account
--- (GET /api/sessions/<name> `me`: `id`, `lid`, `jid`); with it the own number is
--- never a customer and never a customer's phone, exactly as for live events.
+-- (GET /api/sessions/<name> `me`: `id`, `lid`, `jid`) and is REQUIRED (at least its
+-- id): with it the own number is never a customer and never a customer's phone,
+-- exactly as for live events.
 CREATE FUNCTION platform_private.normalize_waha_history_options(
   p_options JSONB
 )
@@ -305,6 +330,16 @@ BEGIN
         USING ERRCODE = '22023';
     END IF;
     lead_mode := options ->> 'lead_mode';
+  END IF;
+
+  -- The own account is REQUIRED: without it the own number could be imported as
+  -- a customer chat. The importer always reads it from the session.
+  IF NOT (options ? 'me')
+    OR jsonb_typeof(options -> 'me') <> 'object'
+    OR NOT (options -> 'me' ? 'id')
+  THEN
+    RAISE EXCEPTION 'me (the own account, at least its id) is required'
+      USING ERRCODE = '22023';
   END IF;
 
   IF options ? 'me' AND jsonb_typeof(options -> 'me') <> 'null' THEN
@@ -886,7 +921,8 @@ FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 CREATE FUNCTION platform_private.acquire_waha_canonical_identity(
   p_organization_id UUID,
   p_binding_id UUID,
-  p_source_event_id UUID
+  p_source_event_id UUID,
+  p_owner_membership_id UUID DEFAULT NULL
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -907,6 +943,7 @@ DECLARE
   source_ref TEXT;
   resolved_client_id UUID;
   resolved_lead_id UUID;
+  lead_owner_membership_id UUID;
 BEGIN
   IF p_organization_id IS NULL
     OR p_binding_id IS NULL
@@ -984,6 +1021,14 @@ BEGIN
     RETURN FALSE;
   END IF;
 
+  -- The lead owner is the conversation's responsible member, or, for a promotion
+  -- whose imported owner is no longer eligible, the live intake member the caller
+  -- already proved eligible.
+  lead_owner_membership_id := COALESCE(
+    p_owner_membership_id,
+    conversation.responsible_sales_membership_id
+  );
+
   IF binding.normalized_chat_id LIKE '%@c.us' THEN
     phone_digits := regexp_replace(
       split_part(binding.normalized_chat_id, '@', 1),
@@ -1036,7 +1081,7 @@ BEGIN
   resolved_lead_id := platform_private.create_or_link_lead(
     binding.organization_id,
     resolved_client_id,
-    conversation.responsible_sales_membership_id,
+    lead_owner_membership_id,
     'new',
     'whatsapp',
     'waha',
@@ -1075,7 +1120,7 @@ END
 $$;
 
 REVOKE ALL ON FUNCTION
-  platform_private.acquire_waha_canonical_identity(UUID, UUID, UUID)
+  platform_private.acquire_waha_canonical_identity(UUID, UUID, UUID, UUID)
 FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 DO $bind_wrapper$
@@ -1085,6 +1130,17 @@ DECLARE
   before_contract RECORD;
   after_contract RECORD;
 BEGIN
+  -- Replaced wholesale below: pin the pre-image (see the provenance guard above).
+  IF (
+    SELECT pg_catalog.md5(routine.prosrc)
+    FROM pg_catalog.pg_proc AS routine
+    WHERE routine.oid = target::OID
+  ) IS DISTINCT FROM '48a88db060fbfab6892ecc96838b08ae' THEN
+    RAISE EXCEPTION
+      'Migration 260 replaces bind_waha_chat_to_canonical(), which is not the migration 259 definition it was written against; re-derive it from the current definition'
+      USING ERRCODE = '55000';
+  END IF;
+
   SELECT routine.proowner, routine.proacl, routine.prosecdef,
     routine.proconfig, routine.provolatile, routine.proleakproof,
     routine.proparallel
@@ -1255,12 +1311,12 @@ $needle$,
           )
 $needle$,
     $needle$
-        IF customer_participant.id IS NULL OR sales_participant.id IS NULL THEN
-          RAISE EXCEPTION
-            'Bound WAHA conversation participants are incomplete'
-            USING ERRCODE = '55000';
-        END IF;
+        -- Queue activity is derived from the append-only message history below.
+        -- Do not weaken the reviewed link/handoff/close transition guard merely
+        -- to touch the parent conversation timestamp.
       END IF;
+
+      IF human_review_required THEN
 $needle$,
     $needle$
       ) || CASE
@@ -1273,6 +1329,8 @@ $needle$
     $replacement$
   deferred_backfill JSONB;
   identity_promoted BOOLEAN := FALSE;
+  promotion_skipped BOOLEAN := FALSE;
+  promotion_owner UUID;
 BEGIN
 $replacement$,
     $replacement$
@@ -1285,30 +1343,52 @@ $replacement$,
           )
 $replacement$,
     $replacement$
-        IF customer_participant.id IS NULL OR sales_participant.id IS NULL THEN
-          RAISE EXCEPTION
-            'Bound WAHA conversation participants are incomplete'
-            USING ERRCODE = '55000';
-        END IF;
+        -- Queue activity is derived from the append-only message history below.
+        -- Do not weaken the reviewed link/handoff/close transition guard merely
+        -- to touch the parent conversation timestamp.
+      END IF;
 
-        -- PROMOTION: a verified customer message in a conversation that history
-        -- created without a client or lead. The identity evidence is this live
-        -- event; the history rows stay history.
-        IF NOT from_me
-          AND conversation.canonical_client_id IS NULL
-          AND conversation.canonical_lead_id IS NULL
-          AND platform_private.waha_history_binding_promotable(
+      -- PROMOTION: a verified customer message in a bound conversation that
+      -- history created without a client or lead. It runs only here, after the
+      -- inbound conflict check passed and the message is stored (an inbound
+      -- whose raw id was imported as outbound ends the event above and never
+      -- promotes), and it must never block live ingestion: the lead owner is the
+      -- imported owner when still eligible, else the live intake member (already
+      -- proven eligible for this event), else promotion is skipped and the
+      -- message stays stored. The identity evidence is this live event; the
+      -- history rows stay history.
+      IF binding.id IS NOT NULL
+        AND conversation.canonical_client_id IS NULL
+        AND conversation.canonical_lead_id IS NULL
+        AND platform_private.waha_history_binding_promotable(
+          p_organization_id,
+          binding.id
+        )
+      THEN
+        promotion_owner := CASE
+          WHEN platform_private.staff_intake_owner_is_eligible(
             p_organization_id,
-            binding.id
-          )
-        THEN
+            conversation.responsible_sales_membership_id
+          ) THEN conversation.responsible_sales_membership_id
+          WHEN platform_private.staff_intake_owner_is_eligible(
+            p_organization_id,
+            p_intake_sales_membership_id
+          ) THEN p_intake_sales_membership_id
+        END;
+
+        IF promotion_owner IS NULL THEN
+          promotion_skipped := TRUE;
+        ELSE
           identity_promoted := platform_private.acquire_waha_canonical_identity(
             p_organization_id,
             binding.id,
-            source_event.id
+            source_event.id,
+            promotion_owner
           );
         END IF;
       END IF;
+
+      IF human_review_required THEN
 $replacement$,
     $replacement$
       ) || CASE
@@ -1316,6 +1396,10 @@ $replacement$,
         ELSE jsonb_build_object('deferred_phone_sent', deferred_backfill)
       END || CASE
         WHEN identity_promoted THEN jsonb_build_object('identity_promoted', TRUE)
+        ELSE '{}'::JSONB
+      END || CASE
+        WHEN promotion_skipped
+          THEN jsonb_build_object('identity_promotion_skipped', 'no_eligible_owner')
         ELSE '{}'::JSONB
       END;
 $replacement$
@@ -1917,12 +2001,21 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  -- Identifiers are compared the way the preparation normalises them (trimmed),
+  -- so two whitespace variants of one id are refused here, with a clear reason,
+  -- instead of failing later on the unique raw-id binding.
   IF EXISTS (
     SELECT 1
     FROM jsonb_array_elements(p_messages) AS item(value)
     WHERE jsonb_typeof(item.value) = 'object'
-      AND jsonb_typeof(item.value -> 'id') = 'string'
-    GROUP BY item.value ->> 'id'
+      AND NULLIF(
+        btrim(platform_private.waha_history_text(item.value -> 'id', 1001)),
+        ''
+      ) IS NOT NULL
+    GROUP BY NULLIF(
+      btrim(platform_private.waha_history_text(item.value -> 'id', 1001)),
+      ''
+    )
     HAVING count(*) > 1
   ) THEN
     RAISE EXCEPTION 'A history page cannot repeat a raw message identifier'
@@ -2814,6 +2907,24 @@ BEGIN
   THEN
     RAISE EXCEPTION
       'Valid organization, the crm_primary session, a bounded message page and a window of at most 31 days are required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(p_messages) AS item(value)
+    WHERE jsonb_typeof(item.value) = 'object'
+      AND NULLIF(
+        btrim(platform_private.waha_history_text(item.value -> 'id', 1001)),
+        ''
+      ) IS NOT NULL
+    GROUP BY NULLIF(
+      btrim(platform_private.waha_history_text(item.value -> 'id', 1001)),
+      ''
+    )
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'A history page cannot repeat a raw message identifier'
       USING ERRCODE = '22023';
   END IF;
 

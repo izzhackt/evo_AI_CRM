@@ -26,7 +26,17 @@
 --     client, no lead) and projected in order when the customer's first message
 --     creates the conversation, ACKs update its status, and an unverified
 --     origin is refused;
---  5. constraints and catalog: an outbound row needs a manual authorization or
+--  5. engine shapes (derived from the upstream source, see the PR description):
+--     GOWS reports a direct chat with `from` = the chat in BOTH directions,
+--     `to` = null and `_data.Info.{Chat,Sender,IsFromMe,SenderAlt,RecipientAlt,
+--     PushName}`; WEBJS reports `from` = the own number and `to` = the customer
+--     for a message sent from the phone. The customer chat of a phone-sent
+--     message resolves from `to`, else `_data.Info.Chat`, else `from`; the own
+--     number (the signed envelope's `me`, or an own device's `Info.Sender`) is
+--     never a customer and never a customer's phone, also when an alternative
+--     JID names it (devlikeapro/waha#2241); GOWS media kinds come from
+--     `_data.Message`;
+--  6. constraints and catalog: an outbound row needs a manual authorization or
 --     the phone-sent identity AND its verified fromMe/app evidence; the new
 --     private routines are definer, empty search_path and callable by no client
 --     role, the touched ones keep their ACL; reply routing reads the bound id.
@@ -85,7 +95,7 @@ UPDATE pgmq.q_platform_work_v1 SET vt = pg_catalog.clock_timestamp() + INTERVAL 
 
 -- Insert one verified WAHA event row (what persist_provider_webhook_event stores).
 CREATE FUNCTION pg_temp.n259_event(p_n INTEGER, p_event TEXT, p_payload JSONB,
-  p_occurred TIMESTAMPTZ DEFAULT NULL) RETURNS UUID LANGUAGE plpgsql AS $$
+  p_occurred TIMESTAMPTZ DEFAULT NULL, p_me JSONB DEFAULT NULL) RETURNS UUID LANGUAGE plpgsql AS $$
 DECLARE
   event_id CONSTANT UUID := pg_temp.n259_id(1000 + p_n);
 BEGIN
@@ -96,7 +106,8 @@ BEGIN
   VALUES (event_id, pg_temp.n259_id(1), 'waha', 'waha:crm_primary', NULL,
     CASE WHEN p_event = 'message.ack' THEN lower(p_payload ->> 'ackName') END, 'n259-' || p_n, 'crm_primary',
     p_payload ->> 'id', p_event, COALESCE(p_occurred, TIMESTAMPTZ '2026-10-03 07:00:00+00' + p_n * INTERVAL '1 second'),
-    'verified', jsonb_build_object('event', p_event, 'session', 'crm_primary', 'payload', p_payload),
+    'verified', jsonb_build_object('event', p_event, 'session', 'crm_primary', 'payload', p_payload)
+      || CASE WHEN p_me IS NULL THEN '{}'::JSONB ELSE jsonb_build_object('me', p_me) END,
     '{"hmac_verified":true}', 'synthetic:n259:' || p_n, lpad(to_hex(p_n), 64, '0'), pg_temp.n259_id(1500 + p_n));
   RETURN event_id;
 END
@@ -132,9 +143,9 @@ $$;
 -- One verified WAHA event through the real chain; returns the projection result
 -- plus the finish state. `p_n` makes every id unique.
 CREATE FUNCTION pg_temp.n259_run(p_n INTEGER, p_event TEXT, p_payload JSONB,
-  p_occurred TIMESTAMPTZ DEFAULT NULL) RETURNS JSONB LANGUAGE plpgsql AS $$
+  p_occurred TIMESTAMPTZ DEFAULT NULL, p_me JSONB DEFAULT NULL) RETURNS JSONB LANGUAGE plpgsql AS $$
 BEGIN
-  RETURN pg_temp.n259_work(p_n, p_event, pg_temp.n259_event(p_n, p_event, p_payload, p_occurred), p_payload);
+  RETURN pg_temp.n259_work(p_n, p_event, pg_temp.n259_event(p_n, p_event, p_payload, p_occurred, p_me), p_payload);
 END
 $$;
 
@@ -545,7 +556,267 @@ SELECT pg_temp.n259_assert(:'retry_proj'::JSONB ->> 'disposition' = 'succeeded' 
   'after the message is bound the retried ACK is applied to it');
 
 -- ---------------------------------------------------------------------------
--- 5. Constraints and catalog.
+-- 5. Engine shapes. Synthetic payloads built from the upstream source: GOWS
+-- (WAHA getFromToParticipant over whatsmeow events.Message) reports a direct chat
+-- with from = the CHAT in both directions, to = null and `_data.Info`; WEBJS
+-- reports from = own, to = customer for a message sent from the phone.
+-- ---------------------------------------------------------------------------
+CREATE FUNCTION pg_temp.n259_me() RETURNS JSONB LANGUAGE SQL IMMUTABLE AS $$
+  SELECT '{"id":"79990000000@c.us","lid":"900000000000001@lid","jid":"79990000000:12@s.whatsapp.net","pushName":"EVO Sales"}'::JSONB
+$$;
+CREATE FUNCTION pg_temp.n259_rawjid(p_chat TEXT) RETURNS TEXT LANGUAGE SQL IMMUTABLE AS $$
+  SELECT replace(p_chat, '@c.us', '@s.whatsapp.net')
+$$;
+CREATE FUNCTION pg_temp.n259_gows(p_id TEXT, p_chat TEXT, p_from_me BOOLEAN, p_extra JSONB DEFAULT '{}',
+  p_info JSONB DEFAULT '{}', p_message JSONB DEFAULT '{}') RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT jsonb_build_object('id', p_from_me::TEXT || '_' || p_chat || '_' || p_id, 'timestamp', 1788343200,
+    'from', p_chat, 'to', NULL::TEXT, 'participant', NULL::TEXT, 'fromMe', p_from_me, 'source', 'app',
+    'hasMedia', FALSE, 'media', NULL::TEXT,
+    '_data', jsonb_build_object(
+      'Info', jsonb_build_object('Chat', pg_temp.n259_rawjid(p_chat),
+        'Sender', CASE WHEN p_from_me THEN '79990000000:12@s.whatsapp.net' ELSE pg_temp.n259_rawjid(p_chat) END,
+        'IsFromMe', p_from_me, 'IsGroup', FALSE, 'SenderAlt', '', 'RecipientAlt', '', 'ID', p_id, 'PushName', '') || p_info,
+      'Message', p_message)) || p_extra
+$$;
+SELECT pg_temp.n259_id(1) AS org \gset
+
+-- 5a. A GOWS customer message: from = chat, to = null, Info.Chat the same chat as a raw JID.
+SELECT pg_temp.n259_run(600, 'message.any', pg_temp.n259_gows('G600', '79990000601@c.us', FALSE,
+  '{"body":"Здравствуйте (GOWS)"}', '{}', '{"conversation":"Здравствуйте (GOWS)"}'), NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'disposition' = 'succeeded' AND :'r'::JSONB ->> 'finish_state' = 'succeeded'
+  AND pg_temp.n259_conv('79990000601@c.us') IS NOT NULL
+  AND pg_temp.n259_bodies(pg_temp.n259_conv('79990000601@c.us')) = ARRAY['inbound:Здравствуйте (GOWS)']
+  AND (SELECT cl.display_name = 'WhatsApp ••••0601' AND cl.phone = '+79990000601'
+       FROM platform.communication_conversations c JOIN platform.clients cl ON cl.id = c.canonical_client_id
+       WHERE c.id = pg_temp.n259_conv('79990000601@c.us')),
+  'GOWS inbound c.us: from and Info.Chat agree, same client and conversation as any other engine');
+
+-- 5b. A GOWS LID customer whose Info names the phone (with a device suffix): the phone is the client phone.
+SELECT pg_temp.n259_run(601, 'message.any', pg_temp.n259_gows('G601', '623456789012345@lid', FALSE,
+  '{"body":"LID with a phone"}', '{"SenderAlt":"79990000602:7@s.whatsapp.net","PushName":"Anna","AddressingMode":"lid"}'),
+  NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'finish_state' = 'succeeded' AND pg_temp.n259_conv('623456789012345@lid') IS NOT NULL
+  AND (SELECT cl.phone = '+79990000602' AND c.subject = 'WhatsApp ••••0602'
+       FROM platform.communication_conversations c JOIN platform.clients cl ON cl.id = c.canonical_client_id
+       WHERE c.id = pg_temp.n259_conv('623456789012345@lid')),
+  'GOWS LID with SenderAlt: bound on the LID, the phone comes from the alternative JID');
+
+-- 5c. A GOWS LID customer whose SenderAlt is the empty string (what a Go empty JID marshals to): NO phone.
+SELECT pg_temp.n259_run(602, 'message.any', pg_temp.n259_gows('G602', '723456789012346@lid', FALSE,
+  '{"body":"LID without a phone"}', '{"PushName":"Борис"}'), NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'finish_state' = 'succeeded'
+  AND (SELECT c.subject LIKE 'Борис #____' AND cl.phone IS NULL AND cl.normalized_phone IS NULL
+       FROM platform.communication_conversations c JOIN platform.clients cl ON cl.id = c.canonical_client_id
+       WHERE c.id = pg_temp.n259_conv('723456789012346@lid')),
+  'GOWS LID with an empty SenderAlt: named by the push name, no phone');
+
+-- 5d. A message sent from the phone, GOWS shape (to = null, the chat in Info.Chat), to a bound chat, a bound LID chat,
+-- and a LID chat whose RecipientAlt names the phone of a bound chat.
+SELECT pg_temp.n259_run(603, 'message.any', pg_temp.n259_gows('P603', '79990000601@c.us', TRUE, '{"body":"Ответ с телефона (GOWS)"}'),
+  TIMESTAMPTZ '2026-10-04 10:00:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'direction' = 'outbound'
+  AND (:'r'::JSONB ->> 'communication_conversation_id')::UUID = pg_temp.n259_conv('79990000601@c.us')
+  AND (SELECT m.message_identity_source = 'private_waha_phone_binding' FROM platform.communication_messages m
+       WHERE m.id = (:'r'::JSONB ->> 'communication_message_id')::UUID),
+  'GOWS phone-sent to a bound c.us chat: outbound, own identity, same conversation');
+SELECT pg_temp.n259_run(604, 'message.any', pg_temp.n259_gows('P604', '623456789012345@lid', TRUE, '{"body":"К LID (GOWS)"}'),
+  TIMESTAMPTZ '2026-10-04 10:01:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'direction' = 'outbound'
+  AND (:'r'::JSONB ->> 'communication_conversation_id')::UUID = pg_temp.n259_conv('623456789012345@lid'),
+  'GOWS phone-sent to a bound LID chat lands in the LID conversation');
+SELECT pg_temp.n259_run(605, 'message.any', pg_temp.n259_gows('P605', '823456789012347@lid', TRUE, '{"body":"Через RecipientAlt"}',
+  '{"RecipientAlt":"79990000601@s.whatsapp.net"}'), TIMESTAMPTZ '2026-10-04 10:02:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert((:'r'::JSONB ->> 'communication_conversation_id')::UUID = pg_temp.n259_conv('79990000601@c.us')
+  AND pg_temp.n259_conv('823456789012347@lid') IS NULL,
+  'GOWS RecipientAlt resolves an unbound LID target to the bound phone chat');
+SELECT pg_temp.n259_assert(
+  pg_temp.n259_bodies(pg_temp.n259_conv('79990000601@c.us')) =
+    ARRAY['inbound:Здравствуйте (GOWS)', 'outbound:Ответ с телефона (GOWS)', 'outbound:Через RecipientAlt'],
+  'the GOWS conversation holds the customer message and both phone-sent messages in order');
+
+-- 5e. A GOWS phone-sent message to a chat with no conversation is deferred; the customer's GOWS message projects it.
+SELECT pg_temp.n259_run(606, 'message.any', pg_temp.n259_gows('P606', '79990000611@c.us', TRUE, '{"body":"Раньше (GOWS)"}'),
+  TIMESTAMPTZ '2026-10-04 08:00:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert((:'r'::JSONB ->> 'deferred')::BOOLEAN AND pg_temp.n259_conv('79990000611@c.us') IS NULL
+  AND :'r'::JSONB -> 'deferred_chat_ids' = '["79990000611@c.us"]'::JSONB,
+  'GOWS phone-sent to an unknown chat is deferred on that chat (nothing created)');
+SELECT pg_temp.n259_run(607, 'message.any', pg_temp.n259_gows('G607', '79990000611@c.us', FALSE, '{"body":"Позже (GOWS)"}'),
+  TIMESTAMPTZ '2026-10-04 08:30:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(
+  pg_temp.n259_bodies(pg_temp.n259_conv('79990000611@c.us')) = ARRAY['outbound:Раньше (GOWS)', 'inbound:Позже (GOWS)']
+  AND :'r'::JSONB -> 'deferred_phone_sent' = '{"deferred":1,"projected":1,"dropped":0}'::JSONB,
+  'the GOWS customer message creates the conversation and the deferred phone-sent message follows in order');
+
+-- 5f. The own number is never a customer's phone. WAHA 2026.8.1 mapped the own number to FOREIGN LIDs
+-- (devlikeapro/waha#2241): a foreign LID arrives with the own phone as SenderAlt. With the own account known,
+-- the alternative is ignored: each LID keeps its own client, none carries the own phone.
+SELECT pg_temp.n259_run(608, 'message.any', pg_temp.n259_gows('G608', '923456789012341@lid', FALSE, '{"body":"Foreign 1"}',
+  '{"SenderAlt":"79990000000:12@s.whatsapp.net","PushName":"Foreign One","AddressingMode":"lid"}'), NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_run(609, 'message.any', pg_temp.n259_gows('G609', '923456789012342@lid', FALSE, '{"body":"Foreign 2"}',
+  '{"SenderAlt":"79990000000@s.whatsapp.net","PushName":"Foreign Two","AddressingMode":"lid"}'), NULL, pg_temp.n259_me()) AS r2 \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'finish_state' = 'succeeded' AND :'r2'::JSONB ->> 'finish_state' = 'succeeded'
+  AND pg_temp.n259_conv('923456789012341@lid') IS NOT NULL AND pg_temp.n259_conv('923456789012342@lid') IS NOT NULL
+  AND pg_temp.n259_conv('79990000000@c.us') IS NULL,
+  'a foreign LID whose SenderAlt is the own number is bound on its LID, never on the own phone chat');
+SELECT pg_temp.n259_assert(
+  (SELECT count(DISTINCT c.canonical_client_id) = 2 AND bool_and(cl.phone IS NULL AND cl.normalized_phone IS NULL)
+     AND bool_and(c.subject LIKE 'Foreign % #____')
+   FROM platform.communication_conversations c JOIN platform.clients cl ON cl.id = c.canonical_client_id
+   WHERE c.id IN (pg_temp.n259_conv('923456789012341@lid'), pg_temp.n259_conv('923456789012342@lid'))),
+  'two foreign LIDs with the own phone as alternative are two clients, none with a phone');
+SELECT pg_temp.n259_assert(
+  NOT EXISTS (SELECT 1 FROM platform.clients cl WHERE cl.organization_id = :'org' AND (cl.phone LIKE '%79990000000%' OR cl.normalized_phone LIKE '%79990000000%')),
+  'no client anywhere carries the own number');
+-- A phone-sent message to such a LID whose RecipientAlt is the own number still lands in that LID's conversation,
+-- and a deferred one is deferred on the LID only (the own phone chat is not a deferral target).
+SELECT pg_temp.n259_run(610, 'message.any', pg_temp.n259_gows('P610', '923456789012341@lid', TRUE, '{"body":"К Foreign 1"}',
+  '{"RecipientAlt":"79990000000:12@s.whatsapp.net"}'), TIMESTAMPTZ '2026-10-04 11:00:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert((:'r'::JSONB ->> 'communication_conversation_id')::UUID = pg_temp.n259_conv('923456789012341@lid'),
+  'phone-sent to a foreign LID with the own phone as RecipientAlt lands in that LID conversation');
+SELECT pg_temp.n259_run(611, 'message.any', pg_temp.n259_gows('P611', '923456789012343@lid', TRUE, '{"body":"К Foreign 3"}',
+  '{"RecipientAlt":"79990000000@s.whatsapp.net"}'), TIMESTAMPTZ '2026-10-04 11:01:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert((:'r'::JSONB ->> 'deferred')::BOOLEAN AND :'r'::JSONB -> 'deferred_chat_ids' = '["923456789012343@lid"]'::JSONB,
+  'a deferral names the LID only, never the own phone chat');
+
+-- 5g. The own number is never a customer chat: a note to self or a peer message is ignored (nothing to retry, nothing created).
+SELECT count(*) AS own_conversations_before FROM platform.communication_conversations WHERE organization_id = :'org' \gset
+SELECT pg_temp.n259_run(612, 'message.any', pg_temp.n259_gows('S612', '79990000000@c.us', TRUE, '{"body":"note to self"}'),
+  NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'ignored' = 'own_chat' AND :'r'::JSONB ->> 'disposition' = 'succeeded'
+  AND :'r'::JSONB ->> 'finish_state' = 'succeeded', 'GOWS note to self (own phone chat) is ignored, not an error');
+SELECT pg_temp.n259_run(613, 'message.any', pg_temp.n259_gows('S613', '900000000000001@lid', TRUE, '{"body":"note to self"}'),
+  NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'ignored' = 'own_chat', 'GOWS note to self (own LID chat) is ignored');
+-- Without `me` the own account is still known from the message itself: an own device is the sender (Info.Sender).
+SELECT pg_temp.n259_run(614, 'message.any', pg_temp.n259_gows('S614', '79990000000@c.us', TRUE, '{"body":"note to self"}')) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'ignored' = 'own_chat', 'a note to self is recognised from Info.Sender when the envelope has no me');
+-- WEBJS note to self: to = own. A customer-side event whose sender is the own number is ignored too.
+SELECT pg_temp.n259_run(615, 'message.any', pg_temp.n259_out('true_79990000000@c.us_S615', '79990000000@c.us', '{"body":"note to self"}'),
+  NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'ignored' = 'own_chat', 'WEBJS note to self (to = own) is ignored');
+SELECT pg_temp.n259_run(616, 'message.any', pg_temp.n259_gows('S616', '79990000000@c.us', FALSE, '{"body":"from the own number"}'),
+  NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'ignored' = 'own_chat' AND :'r'::JSONB ->> 'finish_state' = 'succeeded',
+  'an inbound event from the own number never creates a conversation');
+SELECT pg_temp.n259_assert(
+  (SELECT count(*) FROM platform.communication_conversations WHERE organization_id = :'org') = :own_conversations_before
+  AND pg_temp.n259_conv('79990000000@c.us') IS NULL AND pg_temp.n259_conv('900000000000001@lid') IS NULL,
+  'no conversation or binding for the own account');
+
+-- 5h. `from` is the last resort for a phone-sent message with neither `to` nor Info.Chat, and only with a known own
+-- account that it is not.
+SELECT pg_temp.n259_run(617, 'message.any', jsonb_build_object('id', 'true_79990000601@c.us_FB1', 'timestamp', 1788343200,
+  'from', '79990000601@c.us', 'fromMe', true, 'source', 'app', 'body', 'Только from'), TIMESTAMPTZ '2026-10-04 12:00:00+00',
+  pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert((:'r'::JSONB ->> 'communication_conversation_id')::UUID = pg_temp.n259_conv('79990000601@c.us')
+  AND :'r'::JSONB ->> 'direction' = 'outbound', 'from is used for a phone-sent message with no other chat field when the own account is known');
+SELECT pg_temp.n259_run(618, 'message.any', jsonb_build_object('id', 'true_79990000601@c.us_FB2', 'timestamp', 1788343200,
+  'from', '79990000601@c.us', 'fromMe', true, 'source', 'app', 'body', 'Только from, me неизвестен')) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'error_code' = 'waha_outbound_chat_required',
+  'with no own account known `from` is not trusted: no chat');
+SELECT pg_temp.n259_run(619, 'message.any', jsonb_build_object('id', 'true_79990000000@c.us_FB3', 'timestamp', 1788343200,
+  'from', '79990000000@c.us', 'fromMe', true, 'source', 'app', 'body', 'from is own'), NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'ignored' = 'own_chat', 'from that is the own number is never a customer');
+
+-- 5i. WEBJS shapes are unchanged with the own account known: from = own is not a candidate for a phone-sent message.
+SELECT pg_temp.n259_run(620, 'message.any', pg_temp.n259_out('true_79990000601@c.us_W1', '79990000601@c.us',
+  '{"body":"WEBJS с телефона"}'), TIMESTAMPTZ '2026-10-04 12:05:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert((:'r'::JSONB ->> 'communication_conversation_id')::UUID = pg_temp.n259_conv('79990000601@c.us')
+  AND :'r'::JSONB ->> 'direction' = 'outbound', 'WEBJS phone-sent (from = own, to = customer) with the own account known');
+SELECT pg_temp.n259_run(621, 'message.any', pg_temp.n259_in('false_79990000601@c.us_W2', '79990000601@c.us',
+  jsonb_build_object('body', 'WEBJS входящее', 'to', '79990000000@c.us', '_data', jsonb_build_object('id',
+    jsonb_build_object('fromMe', false, 'remote', '79990000601@c.us'), 'to', '79990000000@c.us', 'type', 'chat'))),
+  TIMESTAMPTZ '2026-10-04 12:06:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'finish_state' = 'succeeded'
+  AND (:'r'::JSONB ->> 'communication_conversation_id')::UUID = pg_temp.n259_conv('79990000601@c.us'),
+  'WEBJS inbound (to = own) with the own account known');
+
+-- 5j. Different chats of one kind in from and Info.Chat conflict, as for every other pair of chat fields.
+SELECT pg_temp.n259_run(622, 'message.any', pg_temp.n259_gows('X622', '79990000621@c.us', FALSE, '{"body":"x"}',
+  '{"Chat":"79990000622@s.whatsapp.net"}'), NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'error_code' = 'waha_inbound_chat_conflict', 'from and Info.Chat that disagree are a conflict');
+
+-- 5k. GOWS media: no `_data.type`; the kind comes from `_data.Message`, the name from `media.filename`
+-- (WAHA reports {url: null, mimetype, filename} with downloadMedia off, `media` is null without media).
+SELECT pg_temp.n259_assert(
+  platform_private.waha_message_content(pg_temp.n259_gows('K1', '79990000630@c.us', FALSE,
+    '{"hasMedia":true,"media":{"url":null,"mimetype":"image/jpeg","filename":null}}', '{}',
+    '{"imageMessage":{"mimetype":"image/jpeg","JPEGThumbnail":"AAEC"}}')) ->> 'body' = '📎 Фото — откройте в WhatsApp продаж'
+  AND platform_private.waha_message_content(pg_temp.n259_gows('K2', '79990000630@c.us', FALSE,
+    '{"body":"Мой диплом","hasMedia":true,"media":{"url":null,"mimetype":"image/jpeg","filename":null}}', '{}',
+    '{"imageMessage":{"mimetype":"image/jpeg","caption":"Мой диплом"}}')) ->> 'body' = E'📎 Фото — откройте в WhatsApp продаж\nМой диплом'
+  AND platform_private.waha_message_content(pg_temp.n259_gows('K3', '79990000630@c.us', FALSE,
+    '{"hasMedia":true,"media":{"url":null,"mimetype":"audio/ogg; codecs=opus","filename":null}}', '{}',
+    '{"audioMessage":{"mimetype":"audio/ogg; codecs=opus","PTT":true}}')) ->> 'body' = '📎 Голосовое сообщение — откройте в WhatsApp продаж'
+  AND platform_private.waha_message_content(pg_temp.n259_gows('K4', '79990000630@c.us', FALSE,
+    '{"hasMedia":true,"media":{"url":null,"mimetype":"audio/ogg","filename":null}}', '{}',
+    '{"audioMessage":{"mimetype":"audio/ogg"}}')) ->> 'body' = '📎 Аудио — откройте в WhatsApp продаж'
+  AND platform_private.waha_message_content(pg_temp.n259_gows('K5', '79990000630@c.us', FALSE,
+    '{"hasMedia":true,"media":{"url":null,"mimetype":"image/webp","filename":null}}', '{}',
+    '{"stickerMessage":{"mimetype":"image/webp","isAnimated":false}}')) ->> 'body' = '📎 Стикер — откройте в WhatsApp продаж'
+  AND platform_private.waha_message_content(pg_temp.n259_gows('K6', '79990000630@c.us', FALSE,
+    '{"hasMedia":true,"media":{"url":null,"mimetype":"video/mp4","filename":null}}', '{}',
+    '{"videoMessage":{"mimetype":"video/mp4","gifPlayback":true}}')) ->> 'body' = '📎 Видео — откройте в WhatsApp продаж'
+  AND platform_private.waha_message_content(pg_temp.n259_gows('K7', '79990000630@c.us', FALSE,
+    '{"hasMedia":true,"media":{"url":null,"mimetype":"video/mp4","filename":null}}', '{}',
+    '{"ptvMessage":{"mimetype":"video/mp4"}}')) ->> 'body' = '📎 Видео — откройте в WhatsApp продаж'
+  -- A document whose mime type is an image is still a file (nothing downloads, the name is shown).
+  AND platform_private.waha_message_content(pg_temp.n259_gows('K8', '79990000630@c.us', FALSE,
+    '{"hasMedia":true,"media":{"url":null,"mimetype":"image/jpeg","filename":"passport scan.jpg"}}', '{}',
+    '{"documentMessage":{"mimetype":"image/jpeg","fileName":"passport scan.jpg"}}')) ->> 'body' = '📎 Файл: passport scan.jpg — откройте в WhatsApp продаж'
+  -- WEBJS keeps its `_data.type`, which wins when both are present.
+  AND platform_private.waha_message_content('{"hasMedia":true,"media":{"mimetype":"audio/ogg"},"_data":{"type":"ptt"}}') ->> 'body'
+    = '📎 Голосовое сообщение — откройте в WhatsApp продаж',
+  'GOWS media kinds come from _data.Message; WEBJS _data.type is unchanged');
+-- Through the real chain: a media-only GOWS photo keeps the staff handoff, a captioned one does not.
+SELECT pg_temp.n259_run(623, 'message.any', pg_temp.n259_gows('K9', '79990000630@c.us', FALSE,
+  '{"hasMedia":true,"media":{"url":null,"mimetype":"application/pdf","filename":"cv.pdf"}}', '{}',
+  '{"documentMessage":{"mimetype":"application/pdf","fileName":"cv.pdf","JPEGThumbnail":"AAEC"}}'), NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(pg_temp.n259_last_body(pg_temp.n259_conv('79990000630@c.us')) = '📎 Файл: cv.pdf — откройте в WhatsApp продаж'
+  AND (:'r'::JSONB ->> 'human_review_required')::BOOLEAN AND pg_temp.n259_handoffs(pg_temp.n259_conv('79990000630@c.us')) = 1,
+  'GOWS media-only file: marker with the name and the staff handoff');
+SELECT pg_temp.n259_run(624, 'message.any', pg_temp.n259_gows('K10', '79990000630@c.us', FALSE,
+  '{"body":"Резюме","hasMedia":true,"media":{"url":null,"mimetype":"application/pdf","filename":"cv.pdf"}}', '{}',
+  '{"documentMessage":{"mimetype":"application/pdf","fileName":"cv.pdf","caption":"Резюме"}}'), NULL, pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(pg_temp.n259_last_body(pg_temp.n259_conv('79990000630@c.us')) = E'📎 Файл: cv.pdf — откройте в WhatsApp продаж\nРезюме'
+  AND NOT (:'r'::JSONB ->> 'human_review_required')::BOOLEAN, 'GOWS captioned file: marker, caption on a new line, no extra handoff');
+
+-- 5l. The ACK of a GOWS phone-sent message (WAHA reports from = chat, to = null, fromMe true) is recorded.
+SELECT pg_temp.n259_run(625, 'message.ack', jsonb_build_object('id', 'true_79990000601@c.us_P603', 'from', '79990000601@c.us',
+  'to', NULL::TEXT, 'participant', NULL::TEXT, 'fromMe', true, 'ack', 3, 'ackName', 'READ',
+  '_data', jsonb_build_object('Chat', '79990000601@s.whatsapp.net', 'IsFromMe', false, 'Type', 'read')),
+  TIMESTAMPTZ '2026-10-04 12:10:00+00', pg_temp.n259_me()) AS r \gset
+SELECT pg_temp.n259_assert(:'r'::JSONB ->> 'disposition' = 'succeeded' AND :'r'::JSONB ->> 'finish_state' = 'succeeded'
+  AND (SELECT a.waha_ack_name = 'READ' FROM platform.waha_message_ack_current a
+       JOIN platform_private.waha_message_bindings b ON b.communication_message_id = a.communication_message_id
+       WHERE b.raw_message_id = 'true_79990000601@c.us_P603'),
+  'the ACK of a GOWS phone-sent message is recorded');
+
+-- 5m. The helpers themselves.
+SELECT pg_temp.n259_assert(
+  platform_private.waha_own_chat_ids(pg_temp.n259_me(), '{}'::JSONB, FALSE) = ARRAY['79990000000@c.us', '900000000000001@lid']
+  AND platform_private.waha_own_chat_ids(NULL, '{}'::JSONB, FALSE) = ARRAY[]::TEXT[]
+  AND platform_private.waha_own_chat_ids('{"id":"not-a-jid"}'::JSONB, '{}'::JSONB, FALSE) = ARRAY[]::TEXT[]
+  AND platform_private.waha_own_chat_ids(NULL, '{"_data":{"Info":{"IsFromMe":true,"Sender":"79990000000:12@s.whatsapp.net"}}}'::JSONB, TRUE)
+    = ARRAY['79990000000@c.us']
+  -- The sender counts only for a message an own device sent.
+  AND platform_private.waha_own_chat_ids(NULL, '{"_data":{"Info":{"IsFromMe":true,"Sender":"79990000000:12@s.whatsapp.net"}}}'::JSONB, FALSE)
+    = ARRAY[]::TEXT[]
+  AND platform_private.waha_own_chat_ids(NULL, '{"_data":{"Info":{"IsFromMe":false,"Sender":"79990000999@s.whatsapp.net"}}}'::JSONB, TRUE)
+    = ARRAY[]::TEXT[],
+  'own account ids: me.id, me.lid, me.jid with the device removed, and the sender of an own-device message only');
+SELECT pg_temp.n259_assert(
+  platform_private.waha_payload_phone_chat_id('{"_data":{"Info":{"SenderAlt":"79990000000:12@s.whatsapp.net"}}}'::JSONB, FALSE,
+    ARRAY['79990000000@c.us']) IS NULL
+  AND platform_private.waha_payload_phone_chat_id('{"_data":{"Info":{"SenderAlt":"79990000000@s.whatsapp.net"},"key":{"remoteJidAlt":"79990000777@s.whatsapp.net"}}}'::JSONB,
+    FALSE, ARRAY['79990000000@c.us']) = '79990000777@c.us'
+  AND platform_private.waha_payload_phone_chat_id('{"_data":{"Info":{"SenderAlt":"79990000000@s.whatsapp.net"}}}'::JSONB, FALSE,
+    ARRAY[]::TEXT[]) = '79990000000@c.us'
+  AND platform_private.waha_payload_phone_chat_id('{"_data":{"Info":{"SenderAlt":""}}}'::JSONB, FALSE, ARRAY[]::TEXT[]) IS NULL,
+  'an alternative equal to the own number is ignored (the next alternative is still read); with no own account nothing is hidden; an empty one is no phone');
+
+-- ---------------------------------------------------------------------------
+-- 6. Constraints and catalog.
 -- ---------------------------------------------------------------------------
 -- An outbound row needs a manual authorization or the phone-sent identity ...
 SELECT pg_temp.n259_assert(
@@ -579,14 +850,14 @@ SET CONSTRAINTS ALL DEFERRED;
 
 -- The new private routines are definer, empty search_path, owner postgres and callable by no client role.
 SELECT pg_temp.n259_assert(
-  (SELECT count(*) = 7 FROM pg_proc p WHERE p.pronamespace = 'platform_private'::REGNAMESPACE
-     AND p.proname IN ('normalize_waha_conversation_chat_id', 'waha_payload_phone_chat_id', 'waha_payload_push_name',
+  (SELECT count(*) = 8 FROM pg_proc p WHERE p.pronamespace = 'platform_private'::REGNAMESPACE
+     AND p.proname IN ('normalize_waha_conversation_chat_id', 'waha_own_chat_ids', 'waha_payload_phone_chat_id', 'waha_payload_push_name',
        'resolve_waha_conversation_chat', 'waha_message_content', 'project_waha_phone_sent_message', 'backfill_waha_deferred_phone_sent')
      AND p.prosecdef AND p.proconfig = ARRAY['search_path=""'] AND pg_get_userbyid(p.proowner) = 'postgres'
      AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
      AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE') AND NOT has_function_privilege('supabase_auth_admin', p.oid, 'EXECUTE')
      AND NOT has_function_privilege('public'::NAME, p.oid, 'EXECUTE')),
-  'the seven new private routines: SECURITY DEFINER, empty search_path, owner postgres, no client role can execute');
+  'the eight new private routines: SECURITY DEFINER, empty search_path, owner postgres, no client role can execute');
 -- The touched routines keep their contract: the projector stays service-only, the private ones stay private.
 SELECT pg_temp.n259_assert(
   has_function_privilege('service_role', 'platform.project_claimed_waha_event(uuid,uuid,uuid,uuid,uuid)', 'EXECUTE')

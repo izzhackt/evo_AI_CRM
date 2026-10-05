@@ -32,6 +32,16 @@
 --     inbound message creates the conversation (the 200 most recent per chat;
 --     how many were deferred, projected and dropped is kept in that
 --     projection's result).
+--     Engine-neutral chat resolution: WEBJS reports a direct chat with `from` =
+--     the customer and `to` = the own number for a customer message and the
+--     reverse for one sent from the phone; GOWS reports `from` = the CHAT (the
+--     customer) in BOTH directions with `to` = null, and `_data.Info.Chat` the
+--     same chat. The customer chat of a phone-sent message is therefore `to`,
+--     else `_data.Info.Chat`, else `from`, and `from` only when the own account
+--     is known (the signed envelope's `me`) and it is not the own number. The
+--     own number is never a customer (`own_chat`: a note to self, a peer
+--     message) and never a customer's phone: an alternative JID equal to the own
+--     number is ignored (devlikeapro/waha#2241).
 --  3. Typed media marker: «📎 Фото|Видео|Голосовое сообщение|Аудио|Стикер —
 --     откройте в WhatsApp продаж» or «📎 Файл: <имя> — откройте в WhatsApp
 --     продаж», the caption on the next line. Media is never downloaded. A
@@ -49,8 +59,13 @@
 --    payload also names the LID; otherwise it is a separate conversation whose
 --    client the existing duplicate-candidate review can flag by phone.
 --  * Phone-alternative and push-name field names follow the WAHA release notes
---    and issues cited above and are engine specific; when none is present the
---    safe fallbacks (no phone, «WhatsApp контакт») apply.
+--    and issues cited above and the upstream source (see the PR description:
+--    WEBJS, NOWEB and GOWS payload shapes). They are derived from source, not
+--    from a live stream; when none is present the safe fallbacks (no phone,
+--    «WhatsApp контакт») apply.
+--  * The own-number guard needs the signed envelope's `me` (or, for a GOWS
+--    message an own device sent, `_data.Info.Sender`). Without them an own number
+--    reported as a customer's alternative phone cannot be recognised.
 --  * A phone-sent message is deferred without a time limit; the 200 most recent
 --    per chat are projected into the conversation a customer message creates
 --    and the rest are counted as dropped in that projection's result.
@@ -87,12 +102,64 @@ AS $$
   END
 $$;
 
--- The phone JID of a LID chat, taken only from the explicit alternative
--- fields. For a message sent from the phone the sender is the sales account
--- itself, so only the recipient/remote alternatives are read.
-CREATE FUNCTION platform_private.waha_payload_phone_chat_id(
+-- The session's own account as the signed envelope (`me`: `id` phone chat id,
+-- `lid`, `jid` with a device) and the message itself name it, each in the one
+-- form the CRM compares (device suffix removed, `@s.whatsapp.net` as `@c.us`).
+-- For a message an own device sent, GOWS `_data.Info.Sender` is the own JID too.
+-- The own number is never a customer and never a customer's phone: WAHA
+-- 2026.8.1 mapped the own number to foreign LIDs (devlikeapro/waha#2241, guarded
+-- in gows-plus v1.0.46), so a foreign LID can arrive with the own phone as its
+-- `SenderAlt`. An unknown own account (no `me`) yields an empty list: the guard
+-- cannot act and the other rules stand.
+CREATE FUNCTION platform_private.waha_own_chat_ids(
+  p_me JSONB,
   p_payload JSONB,
   p_from_me BOOLEAN
+)
+RETURNS TEXT[]
+LANGUAGE plpgsql
+IMMUTABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  candidate TEXT;
+  normalized TEXT;
+  own_ids TEXT[] := ARRAY[]::TEXT[];
+BEGIN
+  FOREACH candidate IN ARRAY ARRAY[
+    CASE WHEN jsonb_typeof(p_me) = 'object' THEN p_me ->> 'id' END,
+    CASE WHEN jsonb_typeof(p_me) = 'object' THEN p_me ->> 'lid' END,
+    CASE WHEN jsonb_typeof(p_me) = 'object' THEN p_me ->> 'jid' END,
+    CASE
+      WHEN p_from_me IS TRUE
+        AND p_payload #> '{_data,Info,IsFromMe}' = 'true'::JSONB
+        THEN p_payload #>> '{_data,Info,Sender}'
+    END
+  ]
+  LOOP
+    IF candidate IS NOT NULL THEN
+      normalized := platform_private.normalize_waha_conversation_chat_id(
+        regexp_replace(btrim(candidate), ':[0-9]+@', '@')
+      );
+      IF normalized IS NOT NULL AND NOT (normalized = ANY (own_ids)) THEN
+        own_ids := own_ids || normalized;
+      END IF;
+    END IF;
+  END LOOP;
+
+  RETURN own_ids;
+END
+$$;
+
+-- The phone JID of a LID chat, taken only from the explicit alternative
+-- fields. For a message sent from the phone the sender is the sales account
+-- itself, so only the recipient/remote alternatives are read. An alternative
+-- that is the session's own number is ignored (see waha_own_chat_ids).
+CREATE FUNCTION platform_private.waha_payload_phone_chat_id(
+  p_payload JSONB,
+  p_from_me BOOLEAN,
+  p_own_ids TEXT[]
 )
 RETURNS TEXT
 LANGUAGE plpgsql
@@ -121,7 +188,9 @@ BEGIN
       normalized := platform_private.normalize_waha_direct_chat_id(
         regexp_replace(btrim(candidate), ':[0-9]+@', '@')
       );
-      IF normalized ~ '^[1-9][0-9]{6,14}@c[.]us$' THEN
+      IF normalized ~ '^[1-9][0-9]{6,14}@c[.]us$'
+        AND NOT (normalized = ANY (COALESCE(p_own_ids, ARRAY[]::TEXT[])))
+      THEN
         RETURN normalized;
       END IF;
     END IF;
@@ -172,13 +241,21 @@ AS $$
 $$;
 
 -- The one direct chat a message belongs to. `chat_id` is the id WAHA reports
--- (`from` for a customer message, `to` for one sent from the phone); that is
--- the id the binding is kept on and replies are sent to. `alt_chat_id` is the
+-- (for a customer message `from`, `chatId` or GOWS `_data.Info.Chat`; for one sent
+-- from the phone `to`, `chatId`, `_data.to`, `_data.id.remote` or GOWS
+-- `_data.Info.Chat`); that is the id the binding is kept on and replies are sent
+-- to. GOWS reports a direct chat with `from` = the chat in BOTH directions and
+-- `to` = null, and WEBJS reports `from` = the own number for a message sent from
+-- the phone, so for a phone-sent message `from` is used only as a last resort,
+-- only when the own account is known (`p_me`, the signed envelope's `me`), and
+-- never when it is the own number. A chat that is the own account (a note to
+-- self, a peer message) is `own_chat`, never a customer. `alt_chat_id` is the
 -- same person's other form when the payload itself carries it (a LID chat with a
 -- phone, or a phone chat with a LID); candidates of the same kind must agree.
 CREATE FUNCTION platform_private.resolve_waha_conversation_chat(
   p_payload JSONB,
-  p_from_me BOOLEAN
+  p_from_me BOOLEAN,
+  p_me JSONB
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -187,6 +264,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
+  own_ids TEXT[];
   candidates TEXT[];
   candidate TEXT;
   normalized TEXT;
@@ -194,20 +272,31 @@ DECLARE
   lid_chat TEXT;
   phone_chat TEXT;
 BEGIN
+  own_ids := platform_private.waha_own_chat_ids(p_me, p_payload, p_from_me);
+
   candidates := CASE
     WHEN p_from_me IS TRUE THEN ARRAY[
       NULLIF(btrim(p_payload ->> 'to'), ''),
       NULLIF(btrim(p_payload ->> 'chatId'), ''),
       NULLIF(btrim(p_payload #>> '{_data,to}'), ''),
-      NULLIF(btrim(p_payload #>> '{_data,id,remote}'), '')
+      NULLIF(btrim(p_payload #>> '{_data,id,remote}'), ''),
+      NULLIF(btrim(p_payload #>> '{_data,Info,Chat}'), '')
     ]
     ELSE ARRAY[
       NULLIF(btrim(p_payload ->> 'from'), ''),
       NULLIF(btrim(p_payload ->> 'chatId'), ''),
       NULLIF(btrim(p_payload #>> '{_data,from}'), ''),
-      NULLIF(btrim(p_payload #>> '{_data,id,remote}'), '')
+      NULLIF(btrim(p_payload #>> '{_data,id,remote}'), ''),
+      NULLIF(btrim(p_payload #>> '{_data,Info,Chat}'), '')
     ]
   END;
+
+  IF p_from_me IS TRUE
+    AND cardinality(own_ids) > 0
+    AND NOT EXISTS (SELECT 1 FROM unnest(candidates) AS c(value) WHERE c.value IS NOT NULL)
+  THEN
+    candidates := ARRAY[NULLIF(btrim(p_payload ->> 'from'), '')];
+  END IF;
 
   FOREACH candidate IN ARRAY candidates LOOP
     IF candidate IS NULL THEN
@@ -219,6 +308,9 @@ BEGIN
     );
     IF normalized IS NULL THEN
       RETURN jsonb_build_object('error', 'unsupported_chat');
+    END IF;
+    IF normalized = ANY (own_ids) THEN
+      RETURN jsonb_build_object('error', 'own_chat');
     END IF;
 
     IF primary_chat IS NULL THEN
@@ -245,7 +337,8 @@ BEGIN
   IF phone_chat IS NULL THEN
     phone_chat := platform_private.waha_payload_phone_chat_id(
       p_payload,
-      p_from_me
+      p_from_me,
+      own_ids
     );
   END IF;
 
@@ -313,7 +406,25 @@ BEGIN
       ''
     )
   );
-  data_type := lower(COALESCE(NULLIF(btrim(p_payload #>> '{_data,type}'), ''), ''));
+  -- The kind of media: WEBJS `_data.type`; GOWS has none, its content is
+  -- `_data.Message` (whatsmeow waE2E.Message as JSON), so the kind is read from
+  -- which message it holds (`PTT` marks a voice message, `gifPlayback` a GIF).
+  data_type := lower(
+    COALESCE(
+      NULLIF(btrim(p_payload #>> '{_data,type}'), ''),
+      CASE
+        WHEN p_payload #> '{_data,Message,stickerMessage}' IS NOT NULL THEN 'sticker'
+        WHEN p_payload #> '{_data,Message,documentMessage}' IS NOT NULL THEN 'document'
+        WHEN p_payload #>> '{_data,Message,audioMessage,PTT}' = 'true' THEN 'ptt'
+        WHEN p_payload #> '{_data,Message,audioMessage}' IS NOT NULL THEN 'audio'
+        WHEN p_payload #> '{_data,Message,imageMessage}' IS NOT NULL THEN 'image'
+        WHEN p_payload #>> '{_data,Message,videoMessage,gifPlayback}' = 'true' THEN 'gif'
+        WHEN p_payload #> '{_data,Message,videoMessage}' IS NOT NULL
+          OR p_payload #> '{_data,Message,ptvMessage}' IS NOT NULL THEN 'video'
+      END,
+      ''
+    )
+  );
   file_name := NULLIF(
     btrim(
       left(
@@ -371,9 +482,10 @@ $$;
 
 REVOKE ALL ON FUNCTION
   platform_private.normalize_waha_conversation_chat_id(TEXT),
-  platform_private.waha_payload_phone_chat_id(JSONB, BOOLEAN),
+  platform_private.waha_own_chat_ids(JSONB, JSONB, BOOLEAN),
+  platform_private.waha_payload_phone_chat_id(JSONB, BOOLEAN, TEXT[]),
   platform_private.waha_payload_push_name(JSONB),
-  platform_private.resolve_waha_conversation_chat(JSONB, BOOLEAN),
+  platform_private.resolve_waha_conversation_chat(JSONB, BOOLEAN, JSONB),
   platform_private.waha_message_content(JSONB)
 FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
@@ -757,7 +869,11 @@ BEGIN
     RETURN;
   END IF;
 
-  chat := platform_private.resolve_waha_conversation_chat(payload, FALSE);
+  chat := platform_private.resolve_waha_conversation_chat(
+    payload,
+    FALSE,
+    source_event.raw_payload -> 'me'
+  );
 
   IF source_event.waha_session_name <> binding.waha_session_name
     OR chat ? 'error'
@@ -1444,7 +1560,23 @@ BEGIN
         human_review_required := TRUE;
       END IF;
 
-      chat := platform_private.resolve_waha_conversation_chat(payload, from_me);
+      chat := platform_private.resolve_waha_conversation_chat(
+        payload,
+        from_me,
+        source_event.raw_payload -> 'me'
+      );
+      IF chat ->> 'error' = 'own_chat' THEN
+        -- The own account is not a customer (a note to self, a peer message):
+        -- nothing to project, and nothing to retry.
+        evidence_ref := CASE WHEN from_me
+          THEN 'waha-outbound-ignored:' ELSE 'waha-inbound-ignored:'
+        END || source_event.id::TEXT || ':own_chat';
+        result := platform_private.p5b_projection_result(
+          p_organization_id, p_work_item_id, p_attempt_id,
+          'succeeded', evidence_ref, NULL
+        ) || jsonb_build_object('ignored', 'own_chat');
+        EXIT project_event;
+      END IF;
       IF chat ? 'error' THEN
         error_code := CASE WHEN from_me THEN 'waha_outbound_' ELSE 'waha_inbound_' END
           || (chat ->> 'error');

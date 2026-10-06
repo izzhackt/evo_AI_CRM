@@ -1193,7 +1193,7 @@ test("POST is inert unless EVO_PLATFORM_WAHA_INGRESS_ENABLED is exactly 1, even 
   assert.equal((await handler(signedRequest(body))).status, 200);
 });
 
-test("POST still rejects an oversized text and a malformed direct sender with 400", async () => {
+test("POST still rejects a malformed direct sender with 400", async () => {
   configureEnvironment();
   const handler = createPlatformWahaWebhookHandler({
     createServiceClient: () => {
@@ -1208,11 +1208,6 @@ test("POST still rejects an oversized text and a malformed direct sender with 40
       timestamp: 1_727_745_026,
       payload: { id: "false_79990000000@c.us_BAD", fromMe: false, ...payload },
     });
-  const oversized = await handler(
-    request({ from: "79990000000@c.us", body: "x".repeat(4_001) }),
-  );
-  assert.equal(oversized.status, 400);
-  assert.equal((await oversized.json()).error, "invalid_message_body");
   const malformed = await handler(
     request({ from: "not-a-chat", body: "text" }),
   );
@@ -2284,4 +2279,67 @@ test("POST tells the phone from the session's own linked device: only a phone de
       label,
     );
   }
+});
+
+test("POST stores a long text in full instead of refusing it: customer and phone-sent, WEBJS and GOWS, while a GOWS event above the 256 KiB cap is still 413", async () => {
+  configureEnvironment();
+  const customer = "79990000013@c.us";
+  // Synthetic texts. Up to 4,000 characters were accepted before; a longer one
+  // was answered 400, which WAHA retries unchanged and then drops.
+  const sized = (unit, length) => unit.repeat(Math.ceil(length / unit.length)).slice(0, length);
+  const justOver = sized("Long customer question. ", 4_001);
+  const latinMax = sized("Lorem ipsum dolor sit amet, consectetur. ", 65_536);
+  const cyrillic = sized("Здравствуйте, у меня вопрос о поступлении и документах.\n", 40_000);
+  const phoneReply = sized("Ответ менеджера с телефона: список документов и сроки.\n", 30_000);
+  const webjs = {
+    id: "evt-long-webjs",
+    event: "message.any",
+    session: "crm_primary",
+    timestamp: 1_727_745_026,
+    payload: { id: `false_${customer}_LONG1`, from: customer, fromMe: false, body: justOver },
+  };
+  const gows = (id, text, extra = {}) => {
+    const payload = gowsDirectPayload({ chat: customer, id, body: text, ...extra });
+    return gowsEnvelope(payload.id, payload);
+  };
+  for (const [label, event, text] of [
+    ["WEBJS customer text just over the former 4,000 limit", webjs, justOver],
+    // GOWS carries the text three times: body, _data.Message, _data.RawMessage.
+    ["GOWS customer text of 65,536 Latin characters", gows("LONG2", latinMax), latinMax],
+    ["GOWS customer text of 40,000 Cyrillic characters", gows("LONG3", cyrillic), cyrillic],
+    [
+      "GOWS phone-sent text of 30,000 Cyrillic characters",
+      gows("LONG4", phoneReply, { fromMe: true, source: "app" }),
+      phoneReply,
+    ],
+  ]) {
+    assert.ok(Buffer.byteLength(JSON.stringify(event)) < MAX_BODY, label);
+    const { response, body, calls } = await deliver(event);
+    assert.equal(response.status, 200, label);
+    assert.equal(body.status, "projected", label);
+    assert.deepEqual(calls.map((call) => call.name), PROJECTED_CALLS, label);
+    // The evidence the projection reads keeps the whole text, not a cut.
+    assert.equal(calls[0].args.p_raw_payload.payload.body, text, label);
+    assert.equal(calls[0].args.p_raw_payload.payload.body.length, text.length, label);
+  }
+
+  // The one bound left: a GOWS event whose three copies pass 256 KiB.
+  const tooLarge = JSON.stringify(gows("LONG5", sized("Очень длинный текст. ", 65_536)));
+  assert.ok(Buffer.byteLength(tooLarge) > MAX_BODY);
+  const handler = createPlatformWahaWebhookHandler(forbiddenClient());
+  const signature = createHmac("sha512", WEBHOOK_SECRET).update(tooLarge).digest("hex");
+  const response = await handler(
+    new Request("http://localhost/api/v2/whatsapp/inbound", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(tooLarge)),
+        "x-webhook-hmac": signature,
+        "x-webhook-hmac-algorithm": "sha512",
+      },
+      body: tooLarge,
+    }),
+  );
+  assert.equal(response.status, 413);
+  assert.deepEqual(await response.json(), { ok: false, error: "payload_too_large" });
 });

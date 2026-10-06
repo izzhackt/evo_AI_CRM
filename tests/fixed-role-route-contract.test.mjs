@@ -690,14 +690,23 @@ test("receipt routes use exact handler UUIDs and remain staff-cookie routes", ()
     for (const path of paths(id)) assert.equal(isConnectedPlatformApi(path), false, path);
   }
   for (const path of ["/api/v2/payment-receipts", "/api/v2/payment-receipt-files",
-    `/api/v2/payment-receipt-files/${caseId}/download`, `/api/v2/case-contract-files/${caseId}`]) {
+    `/api/v2/payment-receipt-files/${caseId}/download`]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
   }
 });
 
-const INBOX_CONVERSATION_ID = "10000000-0000-4000-8000-000000000001";
-const inboxOlderMessagesPath = (id) => `/api/v3/inbox/conversations/${id}/messages`;
-const INBOX_NEAR_MISS_PATHS = [
+const STAFF_API_ID = "10000000-0000-4000-8000-000000000001";
+const STAFF_API_CASE_ID = "20000000-0000-4000-8000-000000000002";
+// Browser APIs connected after #1157 (chat refresh/older page) and the older
+// chat-media and contract-file routes that had never been connected.
+const staffCookieApiPaths = (id) => [
+  `/api/v3/inbox/conversations/${id}/messages`,
+  `/api/v3/communication-media/${id}`,
+  `/api/v2/case-contract-files/${id}`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${id}/download`,
+  `/api/v2/case-contract-files/${id}/${STAFF_API_CASE_ID}/download`,
+];
+const STAFF_API_NEAR_MISS_PATHS = [
   "/api/v3/inbox",
   "/api/v3/inbox/",
   "/api/v3/inbox/pulse/",
@@ -705,25 +714,44 @@ const INBOX_NEAR_MISS_PATHS = [
   "/api/v3/inbox/pulses",
   "/api/v3/inbox/pulse.json",
   "/api/v3/inbox/conversations",
-  `/api/v3/inbox/conversations/${INBOX_CONVERSATION_ID}`,
-  `${inboxOlderMessagesPath(INBOX_CONVERSATION_ID)}/`,
-  `${inboxOlderMessagesPath(INBOX_CONVERSATION_ID)}/extra`,
-  `/api/v3/inbox/conversations/${INBOX_CONVERSATION_ID}/send`,
-  `/api/v3/inbox/conversations/${INBOX_CONVERSATION_ID}/attempts`,
-  inboxOlderMessagesPath("not-a-uuid"),
-  inboxOlderMessagesPath("00000000-0000-0000-0000-000000000000"),
-  inboxOlderMessagesPath("10000000-0000-7000-8000-000000000001"),
-  inboxOlderMessagesPath("10000000-0000-4000-7000-000000000001"),
-  inboxOlderMessagesPath(`${INBOX_CONVERSATION_ID}%2Fextra`),
-  `/api/v3/inbox/conversations/${INBOX_CONVERSATION_ID}/${INBOX_CONVERSATION_ID}/messages`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/messages/`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/messages/extra`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/send`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/attempts`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/${STAFF_API_ID}/messages`,
+  "/api/v3/communication-media",
+  "/api/v3/communication-media/",
+  `/api/v3/communication-media/${STAFF_API_ID}/`,
+  `/api/v3/communication-media/${STAFF_API_ID}/download`,
+  `/api/v3/communication-media/${STAFF_API_ID}/${STAFF_API_ID}`,
+  "/api/v2/case-contract-files",
+  "/api/v2/case-contract-files/",
+  `/api/v2/case-contract-files/${STAFF_API_ID}/`,
+  `/api/v2/case-contract-files/${STAFF_API_ID}/download`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${STAFF_API_ID}`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${STAFF_API_ID}/download/`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${STAFF_API_ID}/download/extra`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${STAFF_API_ID}/upload`,
+  // Transcription is off: its routes stay outside the contract.
+  "/api/transcription/jobs",
+  `/api/transcription/jobs/${STAFF_API_ID}`,
+  `/api/transcription/jobs/${STAFF_API_ID}/events`,
+  `/api/transcription/jobs/${STAFF_API_ID}/improve`,
+  ...[
+    "not-a-uuid",
+    "00000000-0000-0000-0000-000000000000",
+    "10000000-0000-7000-8000-000000000001",
+    "10000000-0000-4000-7000-000000000001",
+    `${STAFF_API_ID}%2Fextra`,
+  ].flatMap(staffCookieApiPaths),
 ];
 
-test("WhatsApp chat pulse and older-page APIs are exact staff-cookie routes", () => {
-  const connected = ["/api/v3/inbox/pulse"];
+test("chat, chat-media and contract-file APIs are exact staff-cookie routes", () => {
+  const connected = ["/api/v3/inbox/pulse", ...staffCookieApiPaths(STAFF_API_ID)];
   for (const version of [1, 2, 3, 4, 5]) {
-    connected.push(inboxOlderMessagesPath(`ABCDEF00-0000-${version}000-A000-000000000002`));
+    connected.push(...staffCookieApiPaths(`ABCDEF00-0000-${version}000-A000-000000000002`));
   }
-  connected.push(inboxOlderMessagesPath(INBOX_CONVERSATION_ID));
   for (const path of connected) {
     assert.equal(isConnectedPlatformApi(path), true, path);
     assert.equal(isConnectedPlatformPrivateApi(path), false, path);
@@ -734,12 +762,12 @@ test("WhatsApp chat pulse and older-page APIs are exact staff-cookie routes", ()
       assert.equal(isPublicStudentRegistrationApi(path, method), false, `${method} ${path}`);
     }
   }
-  for (const path of INBOX_NEAR_MISS_PATHS) {
+  for (const path of STAFF_API_NEAR_MISS_PATHS) {
     assert.equal(isConnectedPlatformApi(path), false, path);
   }
 });
 
-test("real proxy sends WhatsApp chat APIs through the staff session gate and blocks near misses", async () => {
+test("real proxy sends chat, chat-media and contract-file APIs through the staff session gate and blocks near misses", async () => {
   const proxy = await loadBundledProxy();
   const saved = {
     url: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -752,23 +780,30 @@ test("real proxy sends WhatsApp chat APIs through the staff session gate and blo
   const request = (path, method = "GET") => new NextRequest(`https://crm.evoadmissions.com${path}`, {
     method, headers: { host: "crm.evoadmissions.com" },
   });
+  const [olderPage, media, contractUpload, contractDownload] = staffCookieApiPaths(STAFF_API_ID);
   try {
-    for (const path of ["/api/v3/inbox/pulse?list=1", `${inboxOlderMessagesPath(INBOX_CONVERSATION_ID)}?before_at=x`]) {
-      for (const method of ["GET", "HEAD"]) {
-        const response = await proxy(request(path, method));
-        // Connected: the anonymous caller reaches the live session gate (401),
-        // not the platform_route_not_connected refusal (403).
-        assert.equal(response.status, 401, `${method} ${path}`);
-        assert.equal(response.headers.get("x-middleware-next"), null, `${method} ${path}`);
-        if (method === "GET") {
-          assert.deepEqual(await response.json(), { error: "authentication_required" }, path);
-        }
+    for (const [method, path] of [
+      ["GET", "/api/v3/inbox/pulse?list=1"], ["HEAD", "/api/v3/inbox/pulse"],
+      ["GET", `${olderPage}?before_at=x`], ["HEAD", olderPage],
+      ["GET", media], ["GET", `${media}?download=1`], ["HEAD", media],
+      ["POST", contractUpload],
+      ["GET", contractDownload], ["HEAD", contractDownload],
+    ]) {
+      const response = await proxy(request(path, method));
+      // Connected: the anonymous caller reaches the live session gate (401),
+      // not the platform_route_not_connected refusal (403).
+      assert.equal(response.status, 401, `${method} ${path}`);
+      assert.equal(response.headers.get("x-middleware-next"), null, `${method} ${path}`);
+      if (method !== "HEAD") {
+        assert.deepEqual(await response.json(), { error: "authentication_required" }, `${method} ${path}`);
       }
     }
-    for (const path of INBOX_NEAR_MISS_PATHS) {
-      const response = await proxy(request(path));
-      assert.equal(response.status, 403, path);
-      assert.equal((await response.json()).error, "platform_route_not_connected", path);
+    for (const path of STAFF_API_NEAR_MISS_PATHS) {
+      for (const method of ["GET", "POST"]) {
+        const response = await proxy(request(path, method));
+        assert.equal(response.status, 403, `${method} ${path}`);
+        assert.equal((await response.json()).error, "platform_route_not_connected", `${method} ${path}`);
+      }
     }
   } finally {
     if (saved.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;

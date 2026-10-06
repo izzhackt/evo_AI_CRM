@@ -3219,6 +3219,40 @@ SQL
       psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f "/workspace/$migration" >/dev/null
   fi
+  # A database that applied an earlier 275 has no ai_autosend_log
+  # final_reason_code (CREATE TABLE IF NOT EXISTS skips the table). Simulated
+  # in one rolled-back transaction: drop the column, re-run 275 (without its
+  # own BEGIN/COMMIT), and require the column and both CHECKs back with their
+  # exact definitions.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_autosend_schema.sql ]]; then
+    {
+      cat <<'SQL'
+BEGIN;
+CREATE TEMP TABLE ai275_final_reason_before ON COMMIT DROP AS
+  SELECT c.conname, pg_catalog.pg_get_constraintdef(c.oid) AS def FROM pg_catalog.pg_constraint c
+  WHERE c.conrelid = 'platform_private.ai_autosend_log'::REGCLASS
+    AND c.conname IN ('ai_autosend_log_final_reason_code_check', 'ai_autosend_log_final_reason_check');
+ALTER TABLE platform_private.ai_autosend_log DROP COLUMN final_reason_code;
+SQL
+      sed -e '/^BEGIN;$/d' -e '/^COMMIT;$/d' "$repo_root/$migration"
+      cat <<'SQL'
+DO $ai275_earlier_rerun$
+BEGIN
+  IF (SELECT count(*) FROM ai275_final_reason_before) <> 2
+    OR (SELECT count(*) FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'platform_private.ai_autosend_log'::REGCLASS
+      AND a.attname = 'final_reason_code' AND NOT a.attisdropped AND a.atttypid = 'text'::REGTYPE) <> 1
+    OR EXISTS (SELECT b.conname, b.def FROM ai275_final_reason_before b
+      EXCEPT SELECT c.conname, pg_catalog.pg_get_constraintdef(c.oid) FROM pg_catalog.pg_constraint c
+      WHERE c.conrelid = 'platform_private.ai_autosend_log'::REGCLASS) THEN
+    RAISE EXCEPTION 'ai275_final_reason_code_not_restored';
+  END IF;
+END
+$ai275_earlier_rerun$;
+ROLLBACK;
+SQL
+    } | docker exec -i "$container_name" \
+      psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" >/dev/null
+  fi
   if [[ "$(basename "$migration")" == *_platform_ai_agent_autosend_rpc.sql ]]; then
     ai_agent_memory_migration="$(
       cd "$repo_root"

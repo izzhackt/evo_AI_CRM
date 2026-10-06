@@ -85,7 +85,14 @@
 --     cancelled decision; maintenance closes an authorized decision without a
 --     recorded outcome from its work state 10 minutes on (sent / failed /
 --     unknown), never touching the work; commit keeps the agent's reason for
---     a final phrase.
+--     a final phrase;
+-- 10. round-3 review fixes: «плат»/«плач» share one prefix set, after «не»
+--     too (неоплата, неуплата, недоплата, неуплаченный, расплатиться),
+--     overpaid/underpaid, bank details, KY «акысы»/«акылуу» stop while the
+--     usual «акы…» words pass (patterns v4); every rendering of the shipped
+--     final phrases (2 253 texts) passes; maintenance closes count in the
+--     send-error streak like a recorded outcome, and a third error in a row
+--     pauses send_errors (system).
 BEGIN;
 
 DO $p4_auth_role$
@@ -399,8 +406,23 @@ SELECT pg_temp.p4_assert(platform_private.ai_autosend_text_reason('Ребёно�
   AND platform_private.ai_autosend_text_reason('Prepare your passport and school certificate.') IS NULL
   AND platform_private.ai_autosend_text_reason('Рассмотрение заявки занимает две недели, расписание пришлём.') IS NULL
   AND platform_private.ai_autosend_text_reason('Площадь кампуса большая, есть плавательный бассейн.') IS NULL
-  AND platform_private.ai_autosend_patterns() ->> 'version' = '3',
-  'rule 7: «плачет» stops (harmless: the final phrase); «prepare», «рассмотрение», «плавательный» pass; patterns version 3');
+  AND platform_private.ai_autosend_patterns() ->> 'version' = '4',
+  'rule 7: «плачет» stops (harmless: the final phrase); «prepare», «рассмотрение», «плавательный» pass; patterns version 4');
+-- Round 3 (review of #1168): «плат» and «плач» share one prefix set, after
+-- «не» too; overpaid/underpaid, bank details; KY «акысы» (fee) and «акылуу»
+-- (paid). One assertion per form, so a failure names it.
+SELECT pg_temp.p4_assert(COALESCE(platform_private.ai_autosend_text_reason(w), 'none') = 'stop_word',
+  format('rule 7 (round 3): «%s» stops', w))
+FROM unnest(ARRAY['неоплата', 'Неоплата обучения', 'неуплата', 'недоплата', 'неуплаченный', 'неуплачено', 'недоплачено',
+  'неоплаченный остаток', 'невыплата', 'неплатёж', 'расплатиться', 'расплата', 'приплата', 'приплачивать', 'отплатить',
+  'предоплата', 'оплата', 'overpaid', 'underpaid', 'overpay', 'underpayment', 'bank details', 'Bank detail',
+  'bank account details', 'окуу акысы', 'Окуу акысын билесизби', 'акысына', 'акысынан', 'акысыз', 'акылуу окуу']) w;
+-- …and the KY stem stays narrow: the usual answer words starting with «акы»
+-- (last, finally, mind, smart, poet, truth, slowly), «неплохо», a bank
+-- statement (a document) and «details» pass.
+SELECT pg_temp.p4_assert(platform_private.ai_autosend_text_reason(w) IS NULL, format('rule 7 (round 3): «%s» passes', w))
+FROM unnest(ARRAY['Акыркы мөөнөт жума күнү', 'акыры', 'Акыл-кеңеш берем', 'акылдуу', 'акын', 'акыйкат', 'акырын',
+  'Это неплохой вариант', 'Bring a bank statement and your passport.', 'More details tomorrow.']) w;
 -- Every final phrase (each variant and day word) and every disclosure line, alone
 -- and as the first reply of the interval, still passes the text checks.
 SELECT pg_temp.p4_assert(bool_and(platform_private.ai_autosend_text_reason(x.t) IS NULL) AND count(*) > 60,
@@ -413,6 +435,43 @@ FROM (SELECT ph.t FROM (SELECT pg_temp.p4_phrase(l, at) ->> 'text' AS t
   UNION ALL SELECT d.value ->> 'text' FROM jsonb_each((platform_private.ai_autosend_settings_row(pg_temp.p4_id(1))).disclosure) d
   UNION ALL SELECT (s.disclosure -> l ->> 'text') || E'\n' || (pg_temp.p4_phrase(l, '2026-10-09 21:00+06') ->> 'text')
   FROM unnest(ARRAY['ru', 'ky', 'en']) l, platform_private.ai_autosend_settings_row(pg_temp.p4_id(1)) s) x;
+-- Every text a shipped final phrase can render (round 3): each language × the
+-- tomorrow variant, «today», the seven weekdays and every date word of a leap
+-- year (366), rendered by the real ai_autosend_final_phrase, each alone and
+-- after the disclosure line, plus the three disclosure lines: 2 253 texts, all
+-- distinct, none stopped.
+CREATE FUNCTION pg_temp.p4_phrase_on(p_lang TEXT, p_at TIMESTAMPTZ, p_days SMALLINT[]) RETURNS JSONB LANGUAGE plpgsql AS $$
+DECLARE s platform_private.ai_autosend_settings;
+BEGIN
+  s := platform_private.ai_autosend_settings_row(pg_temp.p4_id(1));
+  s.date_overrides := '[]'::JSONB;
+  s.working_days := p_days;
+  RETURN platform_private.ai_autosend_final_phrase(s, p_lang, p_at);
+END
+$$;
+CREATE TEMP TABLE p4_rendered AS
+  SELECT l, 'tomorrow' AS kind, pg_temp.p4_phrase_on(l, TIMESTAMPTZ '2026-10-12 12:00+06', '{1,2,3,4,5}') AS ph
+  FROM unnest(ARRAY['ru', 'ky', 'en']) l
+  UNION ALL SELECT l, 'today', pg_temp.p4_phrase_on(l, TIMESTAMPTZ '2026-10-12 08:00+06', '{1,2,3,4,5}')
+  FROM unnest(ARRAY['ru', 'ky', 'en']) l
+  UNION ALL SELECT l, 'weekday', pg_temp.p4_phrase_on(l, ((DATE '2026-10-12' + i - 3) + TIME '12:00') AT TIME ZONE 'Asia/Bishkek',
+    ARRAY[extract(isodow FROM DATE '2026-10-12' + i)]::SMALLINT[])
+  FROM unnest(ARRAY['ru', 'ky', 'en']) l, generate_series(0, 6) i
+  UNION ALL SELECT l, 'date', pg_temp.p4_phrase_on(l, ((d::DATE - 7) + TIME '12:00') AT TIME ZONE 'Asia/Bishkek',
+    ARRAY[extract(isodow FROM d)]::SMALLINT[])
+  FROM unnest(ARRAY['ru', 'ky', 'en']) l, generate_series(DATE '2028-01-01', DATE '2028-12-31', INTERVAL '1 day') d;
+SELECT pg_temp.p4_assert(bool_and(platform_private.ai_autosend_text_reason(x.t) IS NULL)
+    AND count(*) = 2253 AND count(DISTINCT x.t) = 2253
+    AND (SELECT bool_and(CASE r.kind WHEN 'tomorrow' THEN r.ph ->> 'variant' = 'tomorrow'
+        WHEN 'today' THEN r.ph ->> 'day' IN ('Сегодня', 'Бүгүн', 'today')
+        WHEN 'weekday' THEN r.ph ->> 'variant' = 'day' AND r.ph ->> 'day' !~ '[0-9]'
+        ELSE r.ph ->> 'variant' = 'day' AND r.ph ->> 'day' ~ '^(on )?[0-9]{1,2}[ -]' END)
+      AND count(DISTINCT r.ph ->> 'day') = 3 + 21 + 1098 FROM p4_rendered r),
+  'rules 7/13: all 2 253 renderings of the shipped final phrases (every day word, alone and after the disclosure) and the disclosure lines pass')
+FROM (SELECT r.ph ->> 'text' AS t FROM p4_rendered r
+  UNION ALL SELECT (s.disclosure -> r.l ->> 'text') || E'\n' || (r.ph ->> 'text')
+  FROM p4_rendered r, platform_private.ai_autosend_settings_row(pg_temp.p4_id(1)) s
+  UNION ALL SELECT d.value ->> 'text' FROM jsonb_each((platform_private.ai_autosend_settings_row(pg_temp.p4_id(1))).disclosure) d) x;
 SELECT pg_temp.p4_assert(bool_and(COALESCE(platform_private.ai_autosend_text_reason(w), 'none') = 'link'),
   'rule 13: every link pattern stops (any label.tld, shorteners, look-alike dots and letters)')
 FROM unnest(ARRAY['http://x.example', 'https://y.example', 'www.y', 'wa.me/996', 't.me/evo', 'evo.kg', 'site.com', 'a.ru',
@@ -426,7 +485,7 @@ SELECT pg_temp.p4_assert(platform_private.ai_autosend_text_reason(repeat('а', 1
   AND platform_private.ai_autosend_text_reason('Учёба на онлайн-платформе, второй раунд набора.') IS NULL
   AND platform_private.ai_autosend_text_reason('Перечисленные документы нужны для визы; student visa and permit.') IS NULL
   AND platform_private.ai_autosend_text_reason('Офис в г.Бишкек. Учёба 1.5 года, т.е. три семестра.') IS NULL
-  AND (SELECT jsonb_array_length(platform_private.ai_autosend_patterns() -> 'stems')) = 71
+  AND (SELECT jsonb_array_length(platform_private.ai_autosend_patterns() -> 'stems')) = 69
   AND platform_private.ai_autosend_patterns() ->> 'maxLength' = '1000',
   'rules 7/13: 1001 characters, [n] markers; a question and look-alike words pass; one pattern source');
 SELECT pg_temp.p4_assert((SELECT array_agg(t.token || CASE WHEN t.pct THEN '%' ELSE '' END ORDER BY t.token)
@@ -1696,15 +1755,18 @@ SELECT pg_temp.p4_finish(:'cl_s6', 'succeeded', NULL, 'true_79967700113@c.us_AI2
 SELECT pg_temp.p4_assert(:'fin_s3' = 'succeeded' AND :'fin_s4' = 'dead_lettered' AND :'fin_s5' = 'unknown_manual_review'
   AND :'fin_s6' = 'succeeded',
   'the six works: two leased, three finished (succeeded, rejected, unknown), one just finished');
--- The CRM died: S1's lease ran out 11 minutes ago, S2's 5 minutes ago; S3–S5
--- finished 11 minutes ago without a record, S6 a moment ago.
-UPDATE platform_private.durable_work_items SET leased_until = clock_timestamp() - INTERVAL '11 minutes'
+-- The CRM died: S1's lease ran out 14 minutes ago, S2's 5 minutes ago; S3,
+-- S4, S5 finished 13, 12, 11 minutes ago without a record, S6 a moment ago.
+-- The send-error streak starts clean.
+UPDATE platform_private.durable_work_items SET leased_until = clock_timestamp() - INTERVAL '14 minutes'
   WHERE id = (:'cl_s1'::JSONB ->> 'work_item_id')::UUID;
 UPDATE platform_private.durable_work_items SET leased_until = clock_timestamp() - INTERVAL '5 minutes'
   WHERE id = (:'cl_s2'::JSONB ->> 'work_item_id')::UUID;
-UPDATE platform_private.durable_work_items SET completed_at = clock_timestamp() - INTERVAL '11 minutes'
-  WHERE id IN ((:'cl_s3'::JSONB ->> 'work_item_id')::UUID, (:'cl_s4'::JSONB ->> 'work_item_id')::UUID,
-    (:'cl_s5'::JSONB ->> 'work_item_id')::UUID);
+UPDATE platform_private.durable_work_items i SET completed_at = clock_timestamp() - make_interval(mins => c.mins)
+  FROM (VALUES ((:'cl_s3'::JSONB ->> 'work_item_id')::UUID, 13), ((:'cl_s4'::JSONB ->> 'work_item_id')::UUID, 12),
+    ((:'cl_s5'::JSONB ->> 'work_item_id')::UUID, 11)) c(id, mins)
+  WHERE i.id = c.id;
+UPDATE platform_private.ai_autosend_settings SET send_error_streak = 0 WHERE organization_id = pg_temp.p4_id(1);
 CREATE TEMP TABLE p4_work_before AS SELECT i.id, i.state, i.attempt_count, i.leased_until, i.completed_at,
   (SELECT count(*) FROM platform_private.durable_work_attempts a WHERE a.work_item_id = i.id) AS attempts
   FROM platform_private.durable_work_items i
@@ -1727,8 +1789,18 @@ SELECT pg_temp.p4_assert((:'mnt_s'::JSONB ->> 'autosendAuthorizedReconciled')::I
       OR (SELECT count(*) FROM platform_private.durable_work_attempts a WHERE a.work_item_id = i.id) <> b.attempts)
   AND (SELECT count(*) = 4 FROM platform.audit_events e WHERE e.action = 'ai.agent.autosend.reconcile'
     AND e.actor_kind = 'system' AND e.organization_id = pg_temp.p4_id(1) AND NOT e.after_state::TEXT LIKE '%P4 клиент%'
-    AND NOT e.after_state::TEXT LIKE '%страна%'),
-  'maintenance closes authorized decisions from their work 10 minutes on: lease ran out → unknown, succeeded → sent, rejected → failed, unknown review → unknown; younger ones wait; the work is untouched; audited without text');
+    AND NOT e.after_state::TEXT LIKE '%страна%')
+  -- Each close counts in the send-error streak like a recorded outcome, in
+  -- the order the work ended: S1 unknown 1, S3 sent 0, S4 failed 1, S5 unknown 2.
+  AND ARRAY(SELECT (e.after_state ->> 'sendErrorStreak')::INTEGER
+    FROM unnest(ARRAY[:'cl_s1', :'cl_s3', :'cl_s4', :'cl_s5']::JSONB[]) WITH ORDINALITY c(j, o)
+    JOIN platform.audit_events e ON e.action = 'ai.agent.autosend.reconcile'
+      AND e.after_state ->> 'decisionId' = c.j ->> 'decisionId'
+    ORDER BY c.o) = ARRAY[1, 0, 1, 2]
+  AND (SELECT s.send_error_streak = 2 AND s.pause_code IS NULL
+    FROM platform_private.ai_autosend_settings_row(pg_temp.p4_id(1)) s)
+  AND (:'mnt_s'::JSONB ->> 'autosendSendErrorPauses')::INTEGER = 0,
+  'maintenance closes authorized decisions from their work 10 minutes on: lease ran out → unknown, succeeded → sent, rejected → failed, unknown review → unknown; younger ones wait; the work is untouched; audited without text; each close counts in the send-error streak (sent resets it)');
 SELECT pg_temp.p4_assert(pg_temp.p4_authorize((:'cl_s1'::JSONB ->> 'decisionId')::UUID) ->> 'decision_status' = 'unknown'
   AND (pg_temp.p4_authorize((:'cl_s1'::JSONB ->> 'decisionId')::UUID) ->> 'replayed')::BOOLEAN
   AND (pg_temp.p4_service(format('SELECT platform.ai_autosend_record_v1(%L, %L, %L, %L, %L)', pg_temp.p4_id(1),
@@ -1739,6 +1811,32 @@ SELECT pg_temp.p4_assert(pg_temp.p4_authorize((:'cl_s1'::JSONB ->> 'decisionId')
   AND (SELECT count(*) = 6 FROM platform_private.durable_work_attempts a
     WHERE a.work_item_id IN (SELECT id FROM p4_work_before)),
   'after the close: a CRM replay reads it as finished (no claim), the CRM''s own late record replays or conflicts (409), maintenance closes once, no new attempt');
+-- A third error in a row closed by maintenance pauses like a recorded one
+-- (round 3): S2's lease ran out too (S4 failed, S5 unknown, S2 unknown) →
+-- pause send_errors by the system, once; a second sweep changes nothing.
+UPDATE platform_private.durable_work_items SET leased_until = clock_timestamp() - INTERVAL '11 minutes'
+  WHERE id = (:'cl_s2'::JSONB ->> 'work_item_id')::UUID;
+SELECT pg_temp.p4_agent('SELECT platform_ai_agent.maintenance_v1()') AS mnt_s2 \gset
+SELECT pg_temp.p4_assert((:'mnt_s2'::JSONB ->> 'autosendAuthorizedReconciled')::INTEGER = 1
+  AND (:'mnt_s2'::JSONB ->> 'autosendSendErrorPauses')::INTEGER = 1
+  AND (SELECT r.status = 'unknown' AND r.outcome_code = 'lease_expired'
+    FROM pg_temp.p4_row((:'cl_s2'::JSONB ->> 'decisionId')::UUID) r)
+  AND (SELECT s.send_error_streak = 3 AND s.pause_code = 'send_errors' AND s.pause_by_kind = 'system'
+      AND s.paused_by IS NULL
+    FROM platform_private.ai_autosend_settings_row(pg_temp.p4_id(1)) s)
+  AND (SELECT (m ->> 'autosendAuthorizedReconciled')::INTEGER = 0 AND (m ->> 'autosendSendErrorPauses')::INTEGER = 0
+    FROM pg_temp.p4_agent('SELECT platform_ai_agent.maintenance_v1()') m)
+  AND (SELECT count(*) = 1 FROM platform.audit_events e WHERE e.action = 'ai.agent.autosend.pause'
+    AND e.organization_id = pg_temp.p4_id(1) AND e.actor_kind = 'system'
+    AND e.actor_principal = 'ai-autosend-maintenance' AND e.after_state ->> 'pauseCode' = 'send_errors')
+  AND (SELECT count(*) = 6 FROM platform_private.durable_work_attempts a
+    WHERE a.work_item_id IN (SELECT id FROM p4_work_before)),
+  'maintenance: a third send error in a row (closed by the sweep) pauses send_errors as the system, once; no new attempt');
+SELECT pg_temp.p4_staff(2, format('SELECT platform.ai_agent_autosend_pause_v1(%L, %L, %s, %L)',
+  pg_temp.p4_id(1), 'resume', pg_temp.p4_version(), pg_temp.p4_id(3110)));
+SELECT pg_temp.p4_assert((SELECT s.pause_code IS NULL AND s.send_error_streak = 0
+    FROM platform_private.ai_autosend_settings_row(pg_temp.p4_id(1)) s),
+  'a human resumes after the sweep''s send_errors pause (the streak starts again)');
 SELECT pg_temp.p4_sched(pg_temp.p4_conv(55), :'u5') AS d_u5 \gset
 UPDATE platform_private.ai_autosend_settings SET shadow_mode = TRUE WHERE organization_id = pg_temp.p4_id(1);
 SELECT pg_temp.p4_assert(pg_temp.p4_authorize(:'d_u5') ->> 'reason' = 'shadow_mode',

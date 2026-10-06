@@ -121,24 +121,31 @@ $$;
 -- http(s), www, wa.me и t.me с пробелами.
 CREATE OR REPLACE FUNCTION platform_private.ai_autosend_patterns()
 RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
-  SELECT jsonb_build_object('version', 3,
+  SELECT jsonb_build_object('version', 4,
     'stems', jsonb_build_array(
       -- Обещания.
       'гарант', 'обеща', 'скидк', 'акци', 'бесплатн', 'промокод', 'возврат',
-      -- Оплата, деньги, способы оплаты. «плач» — формы глагола «платить»
-      -- («оплачивается», «доплачу», «уплачено»); «плачет» тоже стоп — это
+      -- Оплата, деньги, способы оплаты. «плат» и «плач» (формы глагола
+      -- «платить»: «оплачивается», «доплачу», «уплачено») — с одними и теми
+      -- же приставками, в том числе после «не» («неоплата», «неуплата»,
+      -- «недоплата», «неуплаченный», «неплатёж»); «плачет» тоже стоп — это
       -- лишь финальная фраза вместо ответа, отправки он не открывает.
-      'оплат', 'предоплат', '(за|до|вы|у|пере|по)?плат(?!форм)', '(не|пред)?оплач', '(за|до|вы|у|пере|рас)?плач',
+      '(не)?(за|до|вы|у|пере|по|рас|при|от|о|предо)?плат(?!форм)',
+      '(не)?(за|до|вы|у|пере|по|рас|при|от|о|предо)?плач',
       'рассрочк', 'квитанц', 'взнос', 'аванс', 'залог', 'реквизит', 'сч[её]т',
       'карт(а|у|ой|е|ы|очк)', 'перевод', 'переведите', 'перев[её]д', 'перевест', 'перечисл(?!енн)', 'деньг', 'денеж',
       'наличн', 'касс(а|у|е|ы|ир|ов)', 'kaspi', 'mbank', 'элсом', 'elsom', 'элкарт', 'elcart', 'master\s*card',
       'мастер\s*кард', 'visa\s*/\s*master', 'qiwi', 'megapay', 'мегапэй', 'o!\s*dengi', 'odengi', 'юмани', 'yoomoney',
       'unistream', 'юнистрим', 'western\s*union', 'золот(ая|ой|ую)\s+корон',
-      -- Кыргызский.
-      'кепилд', 'арзандат', 'акысыз', 'төлө', 'акча', 'накталай',
+      -- Кыргызский. «акы» (плата) — только «акысы…» (окуу акысы, акысын,
+      -- акысыз) и «акылуу» (платный): голое «акы» задело бы обычные слова
+      -- ответа — «акыркы» (последний), «акыры», «акыл», «акылдуу», «акын»,
+      -- «акыйкат», «акырын».
+      'кепилд', 'арзандат', 'акы(сы|луу)', 'төлө', 'акча', 'накталай',
       -- Английский.
-      'guarantee', 'discount', 'free', 'refund', 'pay', '(pre|re)pay', '(pre|un|re)?paid', 'instal{1,2}ment',
-      'invoice', 'card', 'transfer', 'iban', 'cash', 'deposit', 'money', 'fees?(?![a-z])'),
+      'guarantee', 'discount', 'free', 'refund', 'pay', '(pre|re|over|under)pay', '(pre|un|re|over|under)?paid',
+      'instal{1,2}ment', 'invoice', 'card', 'transfer', 'iban', 'cash', 'deposit', 'money', 'fees?(?![a-z])',
+      'bank\s*(account\s*)?details?'),
     'links', jsonb_build_array('https?:/', 'www\.', 'wa\s*\.?\s*me\s*/', 't\s*\.\s*me\s*/',
       '[0-9a-zа-яёәөүңһ][0-9a-zа-яёәөүңһ-]*\s?\.(?:[a-z]{2,24}(?![0-9a-z])|(?:рф|рус|бел|укр|қаз|срб|мкд|мон|орг|ком|сайт|онлайн|дети|москва)(?![а-яё]))'),
     'marker', '\[[0-9]{1,3}\]',
@@ -350,7 +357,8 @@ CREATE TABLE IF NOT EXISTS platform_private.ai_autosend_log (
   reason_ru TEXT CHECK (char_length(reason_ru) BETWEEN 1 AND 200),
   -- Почему агент сказал финальную фразу вместо ответа (код агента, только
   -- у kind = final_phrase); reason_code — причина пропуска или отмены.
-  final_reason_code TEXT CHECK (final_reason_code ~ '^[a-z][a-z0-9_]{0,63}$'),
+  final_reason_code TEXT CONSTRAINT ai_autosend_log_final_reason_code_check
+    CHECK (final_reason_code ~ '^[a-z][a-z0-9_]{0,63}$'),
   language TEXT CHECK (language IN ('ru', 'ky', 'en')),
   body TEXT CHECK (char_length(body) BETWEEN 1 AND 1000),
   text TEXT CHECK (char_length(text) BETWEEN 1 AND 1000 AND text = btrim(text)),
@@ -398,6 +406,24 @@ CREATE TABLE IF NOT EXISTS platform_private.ai_autosend_log (
     OR (reason_code IS NOT NULL AND reason_ru IS NOT NULL)),
   CONSTRAINT ai_autosend_log_lease_check CHECK ((lease_owner IS NULL) = (lease_expires_at IS NULL))
 );
+-- final_reason_code появился во втором раунде 275: база с более ранней 275
+-- (CREATE TABLE IF NOT EXISTS её не трогает) получает колонку и обе проверки
+-- здесь; повторный запуск ничего не меняет (как 271 и 276).
+ALTER TABLE platform_private.ai_autosend_log ADD COLUMN IF NOT EXISTS final_reason_code TEXT;
+DO $ai275_log_final_reason$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'platform_private.ai_autosend_log'::REGCLASS
+    AND conname = 'ai_autosend_log_final_reason_code_check') THEN
+    ALTER TABLE platform_private.ai_autosend_log ADD CONSTRAINT ai_autosend_log_final_reason_code_check
+      CHECK (final_reason_code ~ '^[a-z][a-z0-9_]{0,63}$');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'platform_private.ai_autosend_log'::REGCLASS
+    AND conname = 'ai_autosend_log_final_reason_check') THEN
+    ALTER TABLE platform_private.ai_autosend_log ADD CONSTRAINT ai_autosend_log_final_reason_check
+      CHECK (final_reason_code IS NULL OR kind = 'final_phrase');
+  END IF;
+END
+$ai275_log_final_reason$;
 CREATE INDEX IF NOT EXISTS ai_autosend_log_conversation_idx
   ON platform_private.ai_autosend_log (organization_id, conversation_id, interval_start, committed_at);
 CREATE INDEX IF NOT EXISTS ai_autosend_log_committed_idx

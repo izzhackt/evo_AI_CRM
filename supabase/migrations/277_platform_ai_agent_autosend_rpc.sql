@@ -34,7 +34,9 @@
 --    снята с очереди, cancelled; отменённые, чья работа осталась в очереди, —
 --    работа снимается снова; авторизованные без итога, чья работа
 --    завершилась или чья аренда истекла больше 10 минут назад, — итог по
---    состоянию работы (sent / failed / unknown), без повторной отправки;
+--    состоянию работы (sent / failed / unknown), без повторной отправки,
+--    в серии ошибок как итог record (третья ошибка подряд — пауза
+--    send_errors);
 --    просроченные scheduled (send_at + 10 мин) → cancelled, брошенные
 --    considering → skipped, строки журнала без ссылок и сводки старше 180
 --    дней удаляются.
@@ -820,7 +822,8 @@ RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS
 DECLARE v_tickets INTEGER; v_answers INTEGER; v_rates INTEGER; v_calls INTEGER; v_reservations INTEGER;
   v_sessions INTEGER; v_expired INTEGER; v_proposals INTEGER; v_memory INTEGER; v_leases INTEGER;
   v_send_expired INTEGER; v_considering INTEGER; v_log_deleted INTEGER; v_summaries_deleted INTEGER;
-  v_unclaimed INTEGER := 0; v_org UUID; v_stale RECORD; v_retired INTEGER := 0; v_reconciled INTEGER;
+  v_unclaimed INTEGER := 0; v_org UUID; v_stale RECORD; v_retired INTEGER := 0; v_reconciled INTEGER := 0;
+  v_streak INTEGER; v_paused BOOLEAN; v_pause JSONB; v_send_error_pauses INTEGER := 0;
 BEGIN
   -- Первым (до замков строк журнала): авторизованные, но не взятые claim за 2
   -- минуты автоответы (CRM упал между authorize и claim) снимаются с очереди —
@@ -863,40 +866,64 @@ BEGIN
   -- аренду, как и раньше, переводит в ручную проверку следующий claim, а
   -- сверка ручной отправки остаётся сотруднику (unknown → sent в
   -- ai_autosend_record_v1 по-прежнему допускается).
-  WITH stuck AS (
-    SELECT l.id, i.state::TEXT AS work_state,
-      CASE WHEN i.state = 'succeeded' AND b.durable_work_item_id IS NOT NULL THEN 'sent'
-        WHEN i.state = 'dead_lettered' THEN 'failed' ELSE 'unknown' END AS outcome,
-      CASE WHEN i.state = 'succeeded' AND b.durable_work_item_id IS NOT NULL THEN NULL
-        WHEN i.state = 'dead_lettered' THEN 'send_failed'
-        WHEN i.state = 'leased' THEN 'lease_expired' ELSE 'send_unknown' END AS code
-    FROM platform_private.ai_autosend_log l
+  -- Итог уборки считается в серии ошибок, как итог ai_autosend_record_v1:
+  -- sent обнуляет счётчик, failed/unknown прибавляют; третья ошибка подряд —
+  -- пауза send_errors (system). Иначе CRM, который падает на каждой отправке
+  -- до записи итога, слал бы ночью без паузы. По организации: замок claim —
+  -- первым (как в record и паузе), решения — по времени окончания работы.
+  FOR v_org IN SELECT DISTINCT l.organization_id FROM platform_private.ai_autosend_log l
     JOIN platform_private.durable_work_items i ON i.organization_id = l.organization_id AND i.id = l.work_item_id
-    LEFT JOIN LATERAL (SELECT pb.durable_work_item_id FROM platform_private.manual_send_provider_bindings pb
-      WHERE pb.organization_id = l.organization_id AND pb.durable_work_item_id = l.work_item_id LIMIT 1) b ON TRUE
     WHERE l.status = 'authorized'
       AND ((i.state IN ('succeeded', 'dead_lettered', 'unknown_manual_review', 'conflict_manual_review')
           AND i.completed_at < clock_timestamp() - INTERVAL '10 minutes')
         OR (i.state = 'leased' AND i.leased_until < clock_timestamp() - INTERVAL '10 minutes'))
-    ORDER BY l.id LIMIT 5000
-    FOR UPDATE OF l SKIP LOCKED
-  ), closed AS (
-    UPDATE platform_private.ai_autosend_log l SET status = s.outcome, outcome_code = s.code,
-      finished_at = clock_timestamp(), updated_at = clock_timestamp()
-    FROM stuck s WHERE l.id = s.id AND l.status = 'authorized'
-    RETURNING l.id, l.organization_id, l.manual_send_authorization_id, l.work_item_id, l.status, l.outcome_code,
-      s.work_state
-  )
-  INSERT INTO platform.audit_events (organization_id, actor_kind, actor_profile_id, actor_principal, action,
-    resource_type, resource_id, before_state, after_state, reason, request_id)
-  SELECT c.organization_id, 'system', NULL, 'ai-autosend-maintenance', 'ai.agent.autosend.reconcile',
-    'manual_send_authorization', c.manual_send_authorization_id, jsonb_build_object('status', 'authorized'),
-    jsonb_build_object('decisionId', c.id, 'status', c.status, 'outcomeCode', c.outcome_code,
-      'workItemId', c.work_item_id, 'workState', c.work_state),
-    'ИИ-агент: итог автоответа закрыт уборкой по состоянию работы (без повторной отправки)',
-    platform_private.p3c_request_child_id(c.id, 'ai-autosend-reconcile')
-  FROM closed c;
-  GET DIAGNOSTICS v_reconciled = ROW_COUNT;
+    ORDER BY 1 LOOP
+    PERFORM platform_private.ai_autosend_claim_lock(v_org);
+    v_paused := FALSE;
+    FOR v_stale IN SELECT l.id, l.manual_send_authorization_id, l.work_item_id, i.state::TEXT AS work_state,
+        CASE WHEN i.state = 'succeeded' AND b.durable_work_item_id IS NOT NULL THEN 'sent'
+          WHEN i.state = 'dead_lettered' THEN 'failed' ELSE 'unknown' END AS outcome,
+        CASE WHEN i.state = 'succeeded' AND b.durable_work_item_id IS NOT NULL THEN NULL
+          WHEN i.state = 'dead_lettered' THEN 'send_failed'
+          WHEN i.state = 'leased' THEN 'lease_expired' ELSE 'send_unknown' END AS code
+      FROM platform_private.ai_autosend_log l
+      JOIN platform_private.durable_work_items i ON i.organization_id = l.organization_id AND i.id = l.work_item_id
+      LEFT JOIN LATERAL (SELECT pb.durable_work_item_id FROM platform_private.manual_send_provider_bindings pb
+        WHERE pb.organization_id = l.organization_id AND pb.durable_work_item_id = l.work_item_id LIMIT 1) b ON TRUE
+      WHERE l.organization_id = v_org AND l.status = 'authorized'
+        AND ((i.state IN ('succeeded', 'dead_lettered', 'unknown_manual_review', 'conflict_manual_review')
+            AND i.completed_at < clock_timestamp() - INTERVAL '10 minutes')
+          OR (i.state = 'leased' AND i.leased_until < clock_timestamp() - INTERVAL '10 minutes'))
+      ORDER BY CASE WHEN i.state = 'leased' THEN i.leased_until ELSE i.completed_at END, l.id LIMIT 5000
+      FOR UPDATE OF l SKIP LOCKED LOOP
+      UPDATE platform_private.ai_autosend_log l SET status = v_stale.outcome, outcome_code = v_stale.code,
+        finished_at = clock_timestamp(), updated_at = clock_timestamp()
+      WHERE l.id = v_stale.id AND l.status = 'authorized';
+      CONTINUE WHEN NOT FOUND;
+      PERFORM platform_private.ai_autosend_settings_row(v_org);
+      UPDATE platform_private.ai_autosend_settings s SET
+        send_error_streak = CASE WHEN v_stale.outcome = 'sent' THEN 0 ELSE s.send_error_streak + 1 END,
+        updated_at = clock_timestamp()
+      WHERE s.organization_id = v_org RETURNING s.send_error_streak INTO v_streak;
+      INSERT INTO platform.audit_events (organization_id, actor_kind, actor_profile_id, actor_principal, action,
+        resource_type, resource_id, before_state, after_state, reason, request_id)
+      VALUES (v_org, 'system', NULL, 'ai-autosend-maintenance', 'ai.agent.autosend.reconcile',
+        'manual_send_authorization', v_stale.manual_send_authorization_id, jsonb_build_object('status', 'authorized'),
+        jsonb_build_object('decisionId', v_stale.id, 'status', v_stale.outcome, 'outcomeCode', v_stale.code,
+          'workItemId', v_stale.work_item_id, 'workState', v_stale.work_state, 'sendErrorStreak', v_streak),
+        'ИИ-агент: итог автоответа закрыт уборкой по состоянию работы (без повторной отправки)',
+        platform_private.p3c_request_child_id(v_stale.id, 'ai-autosend-reconcile'));
+      v_reconciled := v_reconciled + 1;
+      IF v_stale.outcome <> 'sent' AND v_streak >= 3 AND NOT v_paused THEN
+        v_pause := platform_private.ai_autosend_pause(v_org, 'send_errors', 'system', NULL, NULL,
+          'ai-autosend-maintenance', platform_private.p3c_request_child_id(v_stale.id, 'ai-autosend-reconcile-pause'));
+        v_paused := TRUE;
+        IF (v_pause ->> 'changed')::BOOLEAN THEN
+          v_send_error_pauses := v_send_error_pauses + 1;
+        END IF;
+      END IF;
+    END LOOP;
+  END LOOP;
   DELETE FROM platform_private.ai_tickets t WHERE t.token_sha256 IN (SELECT o.token_sha256
     FROM platform_private.ai_tickets o WHERE o.expires_at < clock_timestamp() - INTERVAL '1 day' LIMIT 5000);
   GET DIAGNOSTICS v_tickets = ROW_COUNT;
@@ -958,8 +985,8 @@ BEGIN
     'labProposalsExpired', v_expired, 'labProposalsDeleted', v_proposals, 'memoryDeleted', v_memory,
     'memoryLeasesCleared', v_leases, 'autosendSendExpired', v_send_expired, 'autosendUnclaimedCancelled', v_unclaimed,
     'autosendCancelledWorkRetired', v_retired, 'autosendAuthorizedReconciled', v_reconciled,
-    'autosendConsideringExpired', v_considering, 'autosendLogDeleted', v_log_deleted,
-    'autosendSummariesDeleted', v_summaries_deleted);
+    'autosendSendErrorPauses', v_send_error_pauses, 'autosendConsideringExpired', v_considering,
+    'autosendLogDeleted', v_log_deleted, 'autosendSummariesDeleted', v_summaries_deleted);
 END
 $$;
 

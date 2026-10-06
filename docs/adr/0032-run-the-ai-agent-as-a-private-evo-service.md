@@ -35,8 +35,12 @@ SoodaCloser.
 
 1. **Сервис.** Приватный репозиторий `izzhackt/evo-ai-agent`: форк движка
    SoodaCloser, Python. Две службы — `ai-agent-api` и `ai-agent-worker` — в
-   compose-проекте `evo-crm`, только в сети `evo_crm_private`, без портов
-   наружу и без доступа к WAHA. Образ берётся из приватного GHCR только по
+   compose-проекте `evo-crm`, только в своей сети `evo_crm_ai` (bridge проекта
+   с выходом в интернет к Gemini и Supabase), без портов наружу и без доступа
+   к WAHA. В сети агента кроме него только приложение, и то лишь пока агент
+   включён; в `evo_crm_private` агента нет, так что WAHA, ClamAV и lead-agent
+   закрыты от него сетью, а не одним ключом (уточнено 2026-10-06 по ревью
+   выпуска, `docs/PLAN_CHANGES.md`). Образ берётся из приватного GHCR только по
    digest (`EVO_AI_AGENT_IMAGE_DIGEST`); release controller проверяет и
    откатывает его так же, как digest WAHA.
 2. **Данные.** Только в Supabase EVO: таблицы `platform_private.ai_*`, RLS

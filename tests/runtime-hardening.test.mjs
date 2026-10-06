@@ -21,9 +21,9 @@ function serviceBlock(value, name) {
 }
 
 for (const file of ["docker-compose.prod.yml"]) {
-  test(`${file} is exactly the hardened app, private scanner and private-WAHA successor`, async () => {
+  test(`${file} is exactly the hardened app, private scanner, private WAHA and off-by-default AI agent`, async () => {
     const value = await read(file);
-    assert.deepEqual(serviceNames(value), ["app", "clamav", "waha"]);
+    assert.deepEqual(serviceNames(value), ["app", "clamav", "waha", "ai-agent-api", "ai-agent-worker"]);
     assert.doesNotMatch(value, forbiddenRuntime);
     assert.doesNotMatch(value, /image:\s*["']?[^@\n"']+:latest/iu);
 
@@ -45,7 +45,31 @@ for (const file of ["docker-compose.prod.yml"]) {
     assert.match(waha, /127\.0\.0\.1:3000\/ping/u);
     assert.doesNotMatch(waha, /^\s+ports:/mu);
 
-    for (const block of [app, clamav, waha]) {
+    const agentApi = serviceBlock(value, "ai-agent-api");
+    const agentWorker = serviceBlock(value, "ai-agent-worker");
+    for (const block of [agentApi, agentWorker]) {
+      // Plan §4.2/§4.6: compose profile, private GHCR digest, private network only, hardened.
+      assert.match(block, /^    profiles: \["ai-agent"\]$/mu);
+      assert.match(block, /^    image: "ghcr\.io\/izzhackt\/evo-ai-agent@\$\{EVO_AI_AGENT_IMAGE_DIGEST:-\}"$/mu);
+      assert.match(block, /platform: linux\/amd64/u);
+      assert.match(block, /read_only: true/u);
+      assert.match(block, /user: "10001:10001"/u);
+      assert.match(block, /cap_drop:\n      - ALL/u);
+      assert.match(block, /no-new-privileges:true/u);
+      assert.match(block, /\$\{EVO_CRM_AI_AGENT_ENV_FILE:-\.env\.ai-agent\}/u);
+      assert.match(block, /\/tmp:rw,noexec,nosuid,nodev,size=256m/u);
+      assert.match(block, /stop_grace_period: 30s/u);
+      assert.doesNotMatch(block, /^\s+(?:ports|volumes|privileged|network_mode|depends_on):/mu);
+      assert.doesNotMatch(block, /\bweb\b|waha|:latest/iu);
+    }
+    assert.match(agentApi, /cpus: "0\.50"\n    mem_limit: 512m/u);
+    assert.match(agentApi, /aliases:\n          - evo-ai-agent/u);
+    assert.match(agentApi, /127\.0\.0\.1:8080\/v1\/health/u);
+    assert.match(agentWorker, /cpus: "1\.00"\n    mem_limit: 1536m\n    pids_limit: 256/u);
+    assert.match(agentWorker, /command: \["python", "-m", "evo_ai_agent\.worker"\]/u);
+    assert.match(agentWorker, /"evo_ai_agent\.worker", "--check"/u);
+
+    for (const block of [app, clamav, waha, agentApi, agentWorker]) {
       assert.match(block, /cpus:/u);
       assert.match(block, /mem_limit:/u);
       assert.match(block, /pids_limit:/u);

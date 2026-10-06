@@ -16,6 +16,15 @@ readonly SUPABASE_PROJECT_REF_RE='^[a-z0-9]{20}$'
 readonly ABSOLUTE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 readonly HEALTH_URL_RE='^(https://crm\.evoadmissions\.com|http://127\.0\.0\.1:[0-9]{1,5})/api/health$'
 readonly CLAMAV_IMAGE='clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9'
+# «ИИ-агент» (plan §4.2/§4.6, ADR 0032): two services of one private GHCR image under the
+# compose profile `ai-agent`. They exist in a release only when EVO_AI_AGENT_ENABLED=true;
+# otherwise every command below behaves exactly as before the profile was added.
+readonly AI_AGENT_IMAGE_RE='^ghcr\.io/izzhackt/evo-ai-agent@sha256:[0-9a-f]{64}$'
+readonly AI_AGENT_REPOSITORY='ghcr.io/izzhackt/evo-ai-agent'
+readonly AI_AGENT_SOURCE='https://github.com/izzhackt/evo-ai-agent'
+readonly AI_AGENT_MEMORY_LIMIT_KB=2097152
+# The profile is passed explicitly when enabled; an inherited value must not enable it.
+unset COMPOSE_PROFILES
 
 command_name=${1:-}
 candidate_expected_image_id=''
@@ -44,6 +53,17 @@ bound_candidate_container_id=''
 release_mutation_armed=false
 release_mutation_state=''
 release_mutation_evidence_dir=''
+ai_agent_enabled=false
+ai_agent_image=''
+compose_profile_args=()
+current_ai_agent_present=false
+current_ai_agent_services=''
+expected_ai_agent_image=''
+accepted_ai_agent_recorded=false
+accepted_ai_agent_image=''
+rollback_previous_ai_agent_present=false
+rollback_previous_ai_agent_image=''
+recovery_ai_agent_count=0
 
 fail() {
   local code=$1
@@ -125,13 +145,24 @@ safe_status() {
   require_command jq
   require_variable EVO_RELEASE_PROJECT_NAME
   require_match "$EVO_RELEASE_PROJECT_NAME" "$PROJECT_NAME_RE" "project_name_invalid"
+  case "${EVO_AI_AGENT_ENABLED-}" in
+    ''|false) ;;
+    true) ai_agent_enabled=true ;;
+    *) fail "ai_agent_enabled_invalid" ;;
+  esac
   verify_current_runtime
-  local container image health restarts revision version
+  local container image health restarts revision version ai_agent_status=absent service
   container=$(app_container_id) || fail "app_container_unavailable"
   [[ -n $current_clamav_container_id ]] || fail "scanner_container_unavailable"
   verify_runtime_clamav_pinned_image
   verify_private_service_ports clamav
   verify_private_service_ports waha
+  if [[ $current_ai_agent_present == true ]]; then
+    for service in $current_ai_agent_services; do
+      verify_private_service_ports "$service"
+    done
+    ai_agent_status=healthy
+  fi
   image=$(docker inspect --format '{{.Image}}' "$container")
   health=$(container_health "$container")
   restarts=$(docker inspect --format '{{.RestartCount}}' "$container")
@@ -145,7 +176,9 @@ safe_status() {
     --arg image "$image" \
     --arg revision "$revision" \
     --arg version "$version" \
-    '{ok:true,command:"status",health:"healthy",restarts:0,image:$image,revision:$revision,version:$version,scanner:"healthy"}'
+    --argjson aiAgentEnabled "$ai_agent_enabled" \
+    --arg aiAgent "$ai_agent_status" \
+    '{ok:true,command:"status",health:"healthy",restarts:0,image:$image,revision:$revision,version:$version,scanner:"healthy"} + (if $aiAgentEnabled then {aiAgent:$aiAgent} else {} end)'
 }
 
 load_configuration() {
@@ -180,6 +213,47 @@ load_configuration() {
   fi
 
   export EVO_CRM_WAHA_ENV_FILE=${EVO_CRM_WAHA_ENV_FILE:-$EVO_RELEASE_ROOT/.env.waha}
+  load_ai_agent_configuration
+}
+
+# Names only: a value is never printed, compared or copied anywhere.
+ai_agent_env_has_required_names() {
+  awk '
+    /^[[:space:]]*(#|$)/ { next }
+    {
+      line = $0
+      sub(/^[[:space:]]*export[[:space:]]+/, "", line)
+      separator = index(line, "=")
+      if (separator < 2) next
+      name = substr(line, 1, separator - 1)
+      value = substr(line, separator + 1)
+      if (value != "" && value != "\"\"" && value != "'\'''\''") present[name] = 1
+    }
+    END {
+      exit !(present["EVO_AI_AGENT_GEMINI_API_KEY"] && present["EVO_AI_AGENT_DATABASE_URL"] && present["EVO_AI_AGENT_INTERNAL_SECRET"])
+    }
+  ' "$1" 2>/dev/null
+}
+
+load_ai_agent_configuration() {
+  ai_agent_enabled=false
+  ai_agent_image=''
+  compose_profile_args=()
+  case "${EVO_AI_AGENT_ENABLED-}" in
+    ''|false) return 0 ;;
+    true) ;;
+    *) fail "ai_agent_enabled_invalid" ;;
+  esac
+  require_variable EVO_AI_AGENT_IMAGE_DIGEST
+  require_match "$EVO_AI_AGENT_IMAGE_DIGEST" "$SHA256_RE" "ai_agent_digest_invalid"
+  export EVO_CRM_AI_AGENT_ENV_FILE=${EVO_CRM_AI_AGENT_ENV_FILE:-$EVO_RELEASE_ROOT/.env.ai-agent}
+  require_absolute_path "$EVO_CRM_AI_AGENT_ENV_FILE" "ai_agent_env_path_invalid"
+  require_file "$EVO_CRM_AI_AGENT_ENV_FILE" "ai_agent_env_missing"
+  [[ $(file_mode "$EVO_CRM_AI_AGENT_ENV_FILE") == 600 ]] || fail "ai_agent_env_permissions_invalid"
+  ai_agent_env_has_required_names "$EVO_CRM_AI_AGENT_ENV_FILE" || fail "ai_agent_env_incomplete"
+  ai_agent_enabled=true
+  ai_agent_image="${AI_AGENT_REPOSITORY}@${EVO_AI_AGENT_IMAGE_DIGEST}"
+  compose_profile_args=(--profile ai-agent)
 }
 
 load_candidate_configuration() {
@@ -249,6 +323,7 @@ compose_with_app_env() {
     --project-name "$EVO_RELEASE_PROJECT_NAME" \
     --file "$compose_file" \
     --env-file "$app_env_snapshot" \
+    ${compose_profile_args[@]+"${compose_profile_args[@]}"} \
     "$@"
 }
 
@@ -330,9 +405,10 @@ verify_current_runtime_identity() {
   local ids id service services
   ids=$(docker ps -aq \
     --filter "label=com.docker.compose.project=${EVO_RELEASE_PROJECT_NAME}")
-  local service_count
+  local service_count maximum_services=3
+  [[ $ai_agent_enabled != true ]] || maximum_services=5
   service_count=$(printf '%s\n' "$ids" | count_nonempty_lines)
-  [[ $service_count -ge 1 && $service_count -le 3 ]] || fail "runtime_service_contract_invalid"
+  [[ $service_count -ge 1 && $service_count -le $maximum_services ]] || fail "runtime_service_contract_invalid"
   services=''
   while IFS= read -r id; do
     [[ -n $id ]] || continue
@@ -340,6 +416,15 @@ verify_current_runtime_identity() {
     services+="${service}"$'\n'
   done <<<"$ids"
   services=$(printf '%s' "$services" | awk 'NF' | LC_ALL=C sort -u)
+  current_ai_agent_present=false
+  current_ai_agent_services=''
+  # Only when enabled, and only as the complete pair; any other agent runtime fails below.
+  local ai_agent_prefix=$'ai-agent-api\nai-agent-worker\n'
+  if [[ $ai_agent_enabled == true && $services == "$ai_agent_prefix"* ]]; then
+    current_ai_agent_present=true
+    current_ai_agent_services='ai-agent-api ai-agent-worker'
+    services=${services#"$ai_agent_prefix"}
+  fi
   [[ $services == waha \
     || $services == $'clamav\nwaha' \
     || $services == $'app\nwaha' \
@@ -367,12 +452,59 @@ verify_current_runtime() {
   if [[ -n $current_app_container_id ]]; then
     runtime_services=(app "${runtime_services[@]}")
   fi
+  for service in $current_ai_agent_services; do
+    runtime_services+=("$service")
+  done
   for service in "${runtime_services[@]}"; do
     id=$(service_container_id "$service") || fail "runtime_service_contract_invalid"
     health=$(container_health "$id")
     restarts=$(docker inspect --format '{{.RestartCount}}' "$id")
     [[ $health == healthy && $restarts == 0 ]] || fail "runtime_service_unhealthy"
   done
+}
+
+# The running agent pair must be exactly the expected digest pin, as rendered by the compose
+# file in use, and must publish no port (plan §4.6: like WAHA's digest).
+verify_runtime_ai_agent_image() {
+  local expected_image=$1 service id configured_image actual_image
+  require_match "$expected_image" "$AI_AGENT_IMAGE_RE" "ai_agent_image_invalid"
+  [[ $current_ai_agent_present == true ]] || fail "ai_agent_runtime_missing"
+  for service in ai-agent-api ai-agent-worker; do
+    configured_image=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+      EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+      compose config --format json 2>/dev/null \
+      | jq -er --arg service "$service" '.services[$service].image') \
+      || fail "compose_ai_agent_image_invalid"
+    [[ $configured_image == "$expected_image" ]] || fail "compose_ai_agent_image_invalid"
+    id=$(service_container_id "$service") || fail "runtime_service_contract_invalid"
+    actual_image=$(docker inspect --format '{{.Config.Image}}' "$id")
+    [[ $actual_image == "$expected_image" ]] || fail "runtime_ai_agent_image_drift"
+    verify_private_service_ports "$service"
+  done
+}
+
+# True when both agent containers already run the image, healthy and never restarted.
+ai_agent_runtime_is() {
+  local expected_image=$1 service id
+  for service in ai-agent-api ai-agent-worker; do
+    id=$(service_container_id "$service") || return 1
+    [[ $(docker inspect --format '{{.Config.Image}}' "$id" 2>/dev/null || true) == "$expected_image" ]] \
+      || return 1
+    [[ $(container_health "$id" 2>/dev/null || true) == healthy ]] || return 1
+    [[ $(docker inspect --format '{{.RestartCount}}' "$id" 2>/dev/null || true) == 0 ]] || return 1
+  done
+}
+
+# The image both running agent containers use; empty when the pair is absent.
+current_ai_agent_runtime_image() {
+  [[ $current_ai_agent_present == true ]] || return 0
+  local api_id worker_id api_image worker_image
+  api_id=$(service_container_id ai-agent-api) || return 1
+  worker_id=$(service_container_id ai-agent-worker) || return 1
+  api_image=$(docker inspect --format '{{.Config.Image}}' "$api_id") || return 1
+  worker_image=$(docker inspect --format '{{.Config.Image}}' "$worker_id") || return 1
+  [[ $api_image =~ $AI_AGENT_IMAGE_RE && $worker_image == "$api_image" ]] || return 1
+  printf '%s\n' "$api_image"
 }
 
 verify_runtime_waha_image() {
@@ -421,6 +553,9 @@ verify_networks() {
   if [[ -n $current_app_container_id ]]; then
     runtime_services=(app "${runtime_services[@]}")
   fi
+  for service in $current_ai_agent_services; do
+    runtime_services+=("$service")
+  done
   for service in "${runtime_services[@]}"; do
     container=$(service_container_id "$service") || fail "runtime_service_contract_invalid"
     networks=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' "$container")
@@ -473,6 +608,11 @@ verify_transition_runtime_identity() (
   fi
   verify_runtime_waha_image
   verify_private_service_ports waha
+  if [[ -n $expected_ai_agent_image ]]; then
+    verify_runtime_ai_agent_image "$expected_ai_agent_image"
+  else
+    [[ $current_ai_agent_present != true ]] || fail "unexpected_ai_agent_runtime"
+  fi
   verify_networks
 
   container=$(app_container_id) || fail "runtime_service_contract_invalid"
@@ -505,6 +645,10 @@ verify_capacity() {
   local minimum_memory=${EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB:-4194304}
   [[ $minimum_memory =~ ^[0-9]+$ && $minimum_memory -ge 4194304 ]] \
     || fail "memory_capacity_contract_invalid"
+  if [[ $ai_agent_enabled == true ]]; then
+    # Plan §4.8: the agent adds 2 GiB of limits (api 512 MiB, worker 1.5 GiB); hermes has no swap.
+    minimum_memory=$((minimum_memory + AI_AGENT_MEMORY_LIMIT_KB))
+  fi
   local available_memory docker_memory_bytes
   if [[ -r /proc/meminfo ]]; then
     available_memory=$(awk '$1 == "MemAvailable:" { print $2 }' /proc/meminfo)
@@ -533,7 +677,13 @@ verify_compose() {
     EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
     compose config --services 2>/dev/null | awk 'NF' | LC_ALL=C sort -u) \
     || fail "compose_service_contract_invalid"
-  [[ $services == $'app\nclamav\nwaha' ]] || fail "compose_service_contract_invalid"
+  if [[ $ai_agent_enabled == true ]]; then
+    [[ $services == $'ai-agent-api\nai-agent-worker\napp\nclamav\nwaha' ]] \
+      || fail "compose_service_contract_invalid"
+    verify_compose_ai_agent
+  else
+    [[ $services == $'app\nclamav\nwaha' ]] || fail "compose_service_contract_invalid"
+  fi
   app_image=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
     EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
     compose config --format json 2>/dev/null | jq -er '.services.app.image') \
@@ -551,6 +701,75 @@ verify_compose() {
   [[ $waha_image == *@"${EVO_WAHA_IMAGE_DIGEST}" ]] \
     || fail "compose_waha_image_invalid"
   [[ $clamav_image == "$CLAMAV_IMAGE" ]] || fail "compose_clamav_image_invalid"
+}
+
+# Plan §4.2: digest-pinned, private network only, no published port or mount, read-only,
+# non-root, every capability dropped.
+verify_compose_ai_agent() {
+  EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+  EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+  compose config --format json 2>/dev/null | jq -e --arg image "$ai_agent_image" '
+    [.services["ai-agent-api"], .services["ai-agent-worker"]] | all(.[];
+      type == "object" and
+      .image == $image and
+      .profiles == ["ai-agent"] and
+      .read_only == true and
+      .user == "10001:10001" and
+      ((.ports // []) | length) == 0 and
+      ((.volumes // []) | length) == 0 and
+      ((.networks // {}) | keys) == ["private"] and
+      any((.cap_drop // [])[]; . == "ALL") and
+      (.privileged // false) == false and
+      (.network_mode // "") == "" and
+      (.healthcheck | type) == "object"
+    )' >/dev/null 2>&1 || fail "compose_ai_agent_contract_invalid"
+}
+
+# The private image is pulled by digest with the host's read-only GHCR credential (runbook
+# docs/runbooks/ai-agent-enable.md) before any runtime change, so a missing token or a
+# foreign image stops the release while the current runtime is untouched.
+provision_ai_agent_image() {
+  [[ $ai_agent_enabled == true ]] || return 0
+  local image_os image_arch image_source image_revision
+  if ! docker image inspect "$ai_agent_image" >/dev/null 2>&1; then
+    EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+    EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+    compose pull --quiet ai-agent-api >/dev/null 2>&1 || fail "ai_agent_image_pull_failed"
+  fi
+  image_os=$(docker image inspect --format '{{.Os}}' "$ai_agent_image" 2>/dev/null || true)
+  image_arch=$(docker image inspect --format '{{.Architecture}}' "$ai_agent_image" 2>/dev/null || true)
+  image_source=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$ai_agent_image" 2>/dev/null || true)
+  image_revision=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$ai_agent_image" 2>/dev/null || true)
+  [[ $image_os == linux && $image_arch == amd64 ]] || fail "ai_agent_image_platform_invalid"
+  [[ $image_source == "$AI_AGENT_SOURCE" ]] || fail "ai_agent_image_source_invalid"
+  require_match "$image_revision" "$SHA40_RE" "ai_agent_image_revision_invalid"
+}
+
+deploy_ai_agent_runtime() {
+  [[ $ai_agent_enabled == true ]] || return 0
+  EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+  EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+  compose up --detach --no-deps --no-build --pull never --wait --wait-timeout 300 \
+    ai-agent-api ai-agent-worker >/dev/null || return 1
+}
+
+# Plan §4.6 release smoke: /v1/ready (database reachable as evo_ai_agent, queue present)
+# from inside the private network; no Gemini call and no data in the answer.
+verify_ai_agent_ready() {
+  [[ $ai_agent_enabled == true ]] || return 0
+  local id attempts=${EVO_AI_AGENT_READY_ATTEMPTS:-12} attempt=1
+  [[ $attempts =~ ^[1-9][0-9]?$ ]] || return 1
+  id=$(service_container_id ai-agent-api) || return 1
+  while :; do
+    if docker exec "$id" python -c \
+      'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8080/v1/ready", timeout=5)' \
+      >/dev/null 2>&1; then
+      return 0
+    fi
+    [[ $attempt -lt $attempts ]] || return 1
+    attempt=$((attempt + 1))
+    sleep 5
+  done
 }
 
 provision_scanner_runtime() {
@@ -838,16 +1057,28 @@ load_accepted_v3_source() {
   [[ $(file_mode "$record") == 600 ]] || fail "accepted_record_permissions_invalid"
   actual_hash=$(sha256sum "$record" | awk '{print $1}') || fail "accepted_record_hash_invalid"
   [[ $actual_hash == "$record_hash" ]] || fail "accepted_record_hash_mismatch"
-  jq -e '
+  jq -e --arg agentImage "$AI_AGENT_IMAGE_RE" '
     type == "object" and
-    keys == ["actorId", "appEnvSha256", "appEnvSnapshot", "archiveSha256", "artifactDigest", "artifactId", "browserReceiptSha256", "candidateContainerId", "composeSha256", "composeSnapshot", "currentMainRevision", "generation", "imageConfigDigest", "imageId", "imageSource", "preparedEvidence", "previous", "releaseId", "releaseRunId", "repository", "revision", "schema", "upstreamCiRunAttempt", "upstreamCiRunId", "version", "workflowRunAttempt", "workflowRunId"] and
+    (keys - ["aiAgent"]) == ["actorId", "appEnvSha256", "appEnvSnapshot", "archiveSha256", "artifactDigest", "artifactId", "browserReceiptSha256", "candidateContainerId", "composeSha256", "composeSnapshot", "currentMainRevision", "generation", "imageConfigDigest", "imageId", "imageSource", "preparedEvidence", "previous", "releaseId", "releaseRunId", "repository", "revision", "schema", "upstreamCiRunAttempt", "upstreamCiRunId", "version", "workflowRunAttempt", "workflowRunId"] and
     .schema == "evo-v3-acceptance-record/v1" and
     .preparedEvidence == true and
     .generation == "v3" and
     .appEnvSnapshot == "candidate-app.env" and
     .composeSnapshot == "docker-compose.candidate.yml" and
-    (.previous | type) == "object"
+    (.previous | type) == "object" and
+    ((has("aiAgent") | not) or (
+      (.aiAgent | type) == "object" and
+      (.aiAgent | keys) == ["image", "previousImage", "previousPresent"] and
+      (.aiAgent.image | type == "string" and test($agentImage))
+    ))
   ' "$record" >/dev/null 2>&1 || fail "accepted_record_contract_invalid"
+  accepted_ai_agent_recorded=false
+  accepted_ai_agent_image=''
+  if jq -e 'has("aiAgent")' "$record" >/dev/null 2>&1; then
+    accepted_ai_agent_recorded=true
+    accepted_ai_agent_image=$(jq -er '.aiAgent.image' "$record") \
+      || fail "accepted_record_contract_invalid"
+  fi
   [[ $(jq -er '.releaseId' "$record") == "$release_id" ]] \
     || fail "accepted_record_identity_mismatch"
   [[ $(jq -er '.revision' "$record") == "$revision" ]] \
@@ -899,6 +1130,10 @@ verify_rollback_source() {
   rollback_previous_pointer_sha256=''
   rollback_previous_scanner_present=false
   rollback_previous_scanner_image=''
+  rollback_previous_ai_agent_present=false
+  rollback_previous_ai_agent_image=''
+  accepted_ai_agent_recorded=false
+  accepted_ai_agent_image=''
 
   local pending_pointer=$EVO_RELEASE_EVIDENCE_ROOT/pending-current.json
   [[ ! -e $pending_pointer ]] || fail "unresolved_pending_release"
@@ -906,6 +1141,7 @@ verify_rollback_source() {
   if [[ -z $current_app_container_id ]]; then
     [[ ! -e $accepted_pointer ]] || fail "accepted_runtime_missing"
     [[ -z $current_clamav_container_id ]] || fail "scanner_without_active_app"
+    [[ $current_ai_agent_present != true ]] || fail "ai_agent_without_active_app"
     rollback_previous_generation=none
     rollback_previous_release_id=none
     return
@@ -925,6 +1161,23 @@ verify_rollback_source() {
   fi
   if [[ $rollback_previous_generation == v3 && $rollback_previous_scanner_present != true ]]; then
     fail "accepted_scanner_missing"
+  fi
+
+  if [[ $current_ai_agent_present == true ]]; then
+    rollback_previous_ai_agent_present=true
+    rollback_previous_ai_agent_image=$(current_ai_agent_runtime_image) \
+      || fail "current_ai_agent_image_invalid"
+    [[ $(docker image inspect --format '{{.Os}}' "$rollback_previous_ai_agent_image" 2>/dev/null || true) == linux ]] \
+      || fail "current_ai_agent_image_missing"
+  fi
+  if [[ $ai_agent_enabled == true && $rollback_previous_generation == v3 ]]; then
+    # Like WAHA: the accepted runtime is the only recognised agent; a hand-made change is drift.
+    if [[ $accepted_ai_agent_recorded == true ]]; then
+      [[ $rollback_previous_ai_agent_image == "$accepted_ai_agent_image" ]] \
+        || fail "runtime_ai_agent_image_drift"
+    else
+      [[ $rollback_previous_ai_agent_present != true ]] || fail "runtime_ai_agent_image_drift"
+    fi
   fi
 
   local current_image current_revision current_version
@@ -1066,6 +1319,10 @@ run_preflight_checks() {
   fi
   verify_runtime_waha_image
   verify_private_service_ports waha
+  local service
+  for service in $current_ai_agent_services; do
+    verify_private_service_ports "$service"
+  done
   verify_networks
   verify_archive
   verify_rollback_source
@@ -1209,6 +1466,13 @@ create_rollback_wrapper() {
     printf 'export EVO_RELEASE_EXTERNAL_HEALTH_URL=%q\n' "$EVO_RELEASE_EXTERNAL_HEALTH_URL"
     printf 'export EVO_SUPABASE_PROJECT_REF=%q\n' "$EVO_SUPABASE_PROJECT_REF"
     printf 'export EVO_WAHA_IMAGE_DIGEST=%q\n' "$EVO_WAHA_IMAGE_DIGEST"
+    if [[ $ai_agent_enabled == true ]]; then
+      printf 'export EVO_AI_AGENT_ENABLED=true\n'
+      printf 'export EVO_AI_AGENT_IMAGE_DIGEST=%q\n' "$EVO_AI_AGENT_IMAGE_DIGEST"
+      printf 'export EVO_CRM_AI_AGENT_ENV_FILE=%q\n' "$EVO_CRM_AI_AGENT_ENV_FILE"
+    else
+      printf 'export EVO_AI_AGENT_ENABLED=false\n'
+    fi
     printf 'export EVO_RELEASE_ROLLBACK_STATE=%q\n' "$directory/state.json"
     printf 'export EVO_RELEASE_ROLLBACK_EXPECTED_RELEASE_ID=%q\n' "$EVO_RELEASE_ID"
     printf '%s\n' \
@@ -1331,7 +1595,11 @@ create_rollback_state() {
     --argjson previousAppPresent "$previous_app_present" \
     --arg previousScannerImage "$rollback_previous_scanner_image" \
     --argjson previousScannerPresent "$rollback_previous_scanner_present" \
-    '{schema:"evo-fast-release-state/v3",generation:"v3",repository:$repository,releaseId:$releaseId,releaseRunId:$releaseRunId,workflowRunId:$workflowRunId,workflowRunAttempt:$workflowRunAttempt,upstreamCiRunId:$upstreamCiRunId,upstreamCiRunAttempt:$upstreamCiRunAttempt,artifactId:$artifactId,artifactDigest:$artifactDigest,revision:$revision,version:$version,imageId:$imageId,imageConfigDigest:$imageConfigDigest,imageSource:$imageSource,archiveSha256:$archiveSha256,composeSnapshot:"docker-compose.candidate.yml",composeSha256:$composeSha256,appEnvSnapshot:"candidate-app.env",appEnvSha256:$appEnvSha256,controllerSha256:$controllerSha256,rollbackWrapperSha256:$rollbackWrapperSha256,rollbackTag:$rollbackTag,previous:{generation:$previousGeneration,releaseId:$previousReleaseId,appPresent:$previousAppPresent,imageId:$previousImage,revision:$previousRevision,version:$previousVersion,scannerPresent:$previousScannerPresent,scannerImage:$previousScannerImage,composeSnapshot:(if $previousAppPresent then "docker-compose.previous.yml" else "" end),composeSha256:$previousComposeSha256,appEnvSnapshot:(if $previousAppPresent then "rollback-app.env" else "" end),appEnvSha256:$previousAppEnvSha256,acceptedPointerSnapshot:(if $previousGeneration == "v3" then "previous-current-v3-accepted.json" else "" end),acceptedPointerSha256:$previousPointerSha256}}') \
+    --argjson aiAgentEnabled "$ai_agent_enabled" \
+    --arg aiAgentImage "$ai_agent_image" \
+    --argjson aiAgentPreviousPresent "$rollback_previous_ai_agent_present" \
+    --arg aiAgentPreviousImage "$rollback_previous_ai_agent_image" \
+    '{schema:"evo-fast-release-state/v3",generation:"v3",repository:$repository,releaseId:$releaseId,releaseRunId:$releaseRunId,workflowRunId:$workflowRunId,workflowRunAttempt:$workflowRunAttempt,upstreamCiRunId:$upstreamCiRunId,upstreamCiRunAttempt:$upstreamCiRunAttempt,artifactId:$artifactId,artifactDigest:$artifactDigest,revision:$revision,version:$version,imageId:$imageId,imageConfigDigest:$imageConfigDigest,imageSource:$imageSource,archiveSha256:$archiveSha256,composeSnapshot:"docker-compose.candidate.yml",composeSha256:$composeSha256,appEnvSnapshot:"candidate-app.env",appEnvSha256:$appEnvSha256,controllerSha256:$controllerSha256,rollbackWrapperSha256:$rollbackWrapperSha256,rollbackTag:$rollbackTag,previous:{generation:$previousGeneration,releaseId:$previousReleaseId,appPresent:$previousAppPresent,imageId:$previousImage,revision:$previousRevision,version:$previousVersion,scannerPresent:$previousScannerPresent,scannerImage:$previousScannerImage,composeSnapshot:(if $previousAppPresent then "docker-compose.previous.yml" else "" end),composeSha256:$previousComposeSha256,appEnvSnapshot:(if $previousAppPresent then "rollback-app.env" else "" end),appEnvSha256:$previousAppEnvSha256,acceptedPointerSnapshot:(if $previousGeneration == "v3" then "previous-current-v3-accepted.json" else "" end),acceptedPointerSha256:$previousPointerSha256}} + (if $aiAgentEnabled then {aiAgent:{image:$aiAgentImage,previousPresent:$aiAgentPreviousPresent,previousImage:$aiAgentPreviousImage}} else {} end)') \
     || fail "release_state_create_failed"
   create_once_json "$directory/state.json" "$state_payload" \
     || fail "release_state_create_failed"
@@ -1356,9 +1624,19 @@ verify_rollback_state_contract() {
   local state_file=$1
   [[ -f $state_file && ! -L $state_file ]] || return 1
   [[ $(file_mode "$state_file") == 600 ]] || return 1
-  jq -e '
+  jq -e --arg agentImage "$AI_AGENT_IMAGE_RE" '
     type == "object" and
-    keys == ["appEnvSha256", "appEnvSnapshot", "archiveSha256", "artifactDigest", "artifactId", "composeSha256", "composeSnapshot", "controllerSha256", "generation", "imageConfigDigest", "imageId", "imageSource", "previous", "releaseId", "releaseRunId", "repository", "revision", "rollbackTag", "rollbackWrapperSha256", "schema", "upstreamCiRunAttempt", "upstreamCiRunId", "version", "workflowRunAttempt", "workflowRunId"] and
+    ((has("aiAgent") | not) or (
+      (.aiAgent | type) == "object" and
+      (.aiAgent | keys) == ["image", "previousImage", "previousPresent"] and
+      (.aiAgent.image | type == "string" and test($agentImage)) and
+      (.aiAgent.previousPresent | type) == "boolean" and
+      (if .aiAgent.previousPresent
+        then (.aiAgent.previousImage | type == "string" and test($agentImage))
+        else .aiAgent.previousImage == "" end) and
+      (if .aiAgent.previousPresent then .previous.appPresent else true end)
+    )) and
+    (keys - ["aiAgent"]) == ["appEnvSha256", "appEnvSnapshot", "archiveSha256", "artifactDigest", "artifactId", "composeSha256", "composeSnapshot", "controllerSha256", "generation", "imageConfigDigest", "imageId", "imageSource", "previous", "releaseId", "releaseRunId", "repository", "revision", "rollbackTag", "rollbackWrapperSha256", "schema", "upstreamCiRunAttempt", "upstreamCiRunId", "version", "workflowRunAttempt", "workflowRunId"] and
     .schema == "evo-fast-release-state/v3" and
     .generation == "v3" and
     .appEnvSnapshot == "candidate-app.env" and
@@ -1445,9 +1723,18 @@ verify_recovery_runtime_for_state() {
 
   ids=$(docker ps -aq \
     --filter "label=com.docker.compose.project=${EVO_RELEASE_PROJECT_NAME}")
-  local service_count
+  local service_count maximum_services=3 state_ai_agent=false
+  local state_ai_agent_image='' previous_ai_agent_image='' agent_image
+  if jq -e 'has("aiAgent")' "$state_file" >/dev/null 2>&1; then
+    state_ai_agent=true
+    maximum_services=5
+    state_ai_agent_image=$(jq -er '.aiAgent.image' "$state_file") \
+      || fail "rollback_state_contract_invalid"
+    previous_ai_agent_image=$(jq -r '.aiAgent.previousImage' "$state_file") \
+      || fail "rollback_state_contract_invalid"
+  fi
   service_count=$(printf '%s\n' "$ids" | count_nonempty_lines)
-  [[ $service_count -ge 1 && $service_count -le 3 ]] \
+  [[ $service_count -ge 1 && $service_count -le $maximum_services ]] \
     || fail "rollback_runtime_service_contract_invalid"
   services=''
   while IFS= read -r id; do
@@ -1456,6 +1743,26 @@ verify_recovery_runtime_for_state() {
     services+="${service}"$'\n'
   done <<<"$ids"
   services=$(printf '%s' "$services" | awk 'NF' | LC_ALL=C sort -u)
+  # An interrupted agent change may leave none, one or both agent containers, each on the
+  # candidate or the previous pin; anything else is foreign and stops the recovery.
+  recovery_ai_agent_count=0
+  current_ai_agent_present=false
+  current_ai_agent_services=''
+  if [[ $state_ai_agent == true ]]; then
+    for service in ai-agent-api ai-agent-worker; do
+      [[ $'\n'"$services"$'\n' == *$'\n'"$service"$'\n'* ]] || continue
+      id=$(service_container_id "$service") || fail "rollback_runtime_service_contract_invalid"
+      agent_image=$(docker inspect --format '{{.Config.Image}}' "$id")
+      [[ $agent_image == "$state_ai_agent_image" \
+        || ( -n $previous_ai_agent_image && $agent_image == "$previous_ai_agent_image" ) ]] \
+        || fail "rollback_ai_agent_mismatch"
+      verify_private_service_ports "$service"
+      recovery_ai_agent_count=$((recovery_ai_agent_count + 1))
+      current_ai_agent_services+="${current_ai_agent_services:+ }$service"
+    done
+    [[ $recovery_ai_agent_count -ne 2 ]] || current_ai_agent_present=true
+    services=$(printf '%s\n' "$services" | awk '$0 != "ai-agent-api" && $0 != "ai-agent-worker"')
+  fi
   [[ $services == waha \
     || $services == $'clamav\nwaha' \
     || $services == $'app\nwaha' \
@@ -1499,7 +1806,25 @@ rollback_from_state() {
   local previous_pointer_hash actual_hash override previous_compose previous_app_env current_image current_revision current_version
   local previous_pointer='' pointer_payload=''
   local candidate_compose_file candidate_app_env_snapshot candidate_app_env_sha256
+  local state_ai_agent=false state_ai_agent_image='' previous_ai_agent_present=false previous_ai_agent_image=''
   verify_rollback_state_contract "$state_file" || return 1
+  # The sealed state, not the caller's environment, decides the agent's part of a rollback.
+  if jq -e 'has("aiAgent")' "$state_file" >/dev/null 2>&1; then
+    state_ai_agent=true
+    state_ai_agent_image=$(jq -er '.aiAgent.image' "$state_file") || return 1
+    previous_ai_agent_present=$(jq -r '.aiAgent.previousPresent' "$state_file") || return 1
+    previous_ai_agent_image=$(jq -r '.aiAgent.previousImage' "$state_file") || return 1
+    ai_agent_enabled=true
+    ai_agent_image=$state_ai_agent_image
+    compose_profile_args=(--profile ai-agent)
+    export EVO_CRM_AI_AGENT_ENV_FILE=${EVO_CRM_AI_AGENT_ENV_FILE:-$EVO_RELEASE_ROOT/.env.ai-agent}
+    export EVO_AI_AGENT_IMAGE_DIGEST=${state_ai_agent_image#*@}
+  else
+    ai_agent_enabled=false
+    ai_agent_image=''
+    compose_profile_args=()
+  fi
+  expected_ai_agent_image=''
   release_id=$(jq -er '.releaseId' "$state_file") || return 1
   target_image=$(jq -er '.imageId' "$state_file") || return 1
   target_revision=$(jq -er '.revision' "$state_file") || return 1
@@ -1603,9 +1928,17 @@ rollback_from_state() {
       compose_with_app_env "$candidate_app_env_snapshot" "$candidate_app_env_sha256" "$candidate_compose_file" \
         rm --stop --force clamav >/dev/null || return 1
     fi
+    if [[ $state_ai_agent == true ]]; then
+      [[ $previous_ai_agent_present == false ]] || return 1
+      if [[ $mode == pending && $recovery_ai_agent_count -gt 0 ]]; then
+        compose_with_app_env "$candidate_app_env_snapshot" "$candidate_app_env_sha256" "$candidate_compose_file" \
+          rm --stop --force ai-agent-api ai-agent-worker >/dev/null || return 1
+      fi
+    fi
     verify_current_runtime || return 1
     [[ -z $current_app_container_id ]] || return 1
     [[ -z $current_clamav_container_id ]] || return 1
+    [[ $current_ai_agent_present != true ]] || return 1
   else
     compose_hash=$(jq -er '.previous.composeSha256' "$state_file") || return 1
     app_env_hash=$(jq -er '.previous.appEnvSha256' "$state_file") || return 1
@@ -1661,6 +1994,24 @@ rollback_from_state() {
       compose_with_app_env "$candidate_app_env_snapshot" "$candidate_app_env_sha256" "$candidate_compose_file" \
         rm --stop --force clamav >/dev/null || return 1
     fi
+    if [[ $state_ai_agent == true ]]; then
+      if [[ $previous_ai_agent_present == true ]]; then
+        # Back to the previous pin, rendered by the previous compose snapshot.
+        docker image inspect "$previous_ai_agent_image" >/dev/null 2>&1 || return 1
+        export EVO_AI_AGENT_IMAGE_DIGEST=${previous_ai_agent_image#*@}
+        if ! ai_agent_runtime_is "$previous_ai_agent_image"; then
+          EVO_RELEASE_REVISION=$previous_revision EVO_RELEASE_VERSION=$previous_version \
+            compose_with_app_env "$previous_app_env" "$app_env_hash" "$previous_compose" \
+              up --detach --no-deps --no-build --pull never --force-recreate --wait --wait-timeout 300 \
+              ai-agent-api ai-agent-worker >/dev/null || return 1
+        fi
+        expected_ai_agent_image=$previous_ai_agent_image
+      elif [[ $recovery_ai_agent_count -gt 0 ]]; then
+        # The release introduced the agent: rollback leaves it absent again.
+        compose_with_app_env "$candidate_app_env_snapshot" "$candidate_app_env_sha256" "$candidate_compose_file" \
+          rm --stop --force ai-agent-api ai-agent-worker >/dev/null || return 1
+      fi
+    fi
     verify_transition_runtime \
       "$previous_compose" "$previous_revision" "$previous_version" "$previous_image" \
       "$previous_app_env" "$app_env_hash" "$previous_scanner_present" verified-previous || return 1
@@ -1712,6 +2063,14 @@ load_bound_release_state() {
       || fail "release_state_identity_mismatch"
   done
   [[ $(jq -er '.generation' "$state_file") == v3 ]] || fail "release_generation_invalid"
+  if jq -e 'has("aiAgent")' "$state_file" >/dev/null 2>&1; then
+    [[ $ai_agent_enabled == true && $(jq -er '.aiAgent.image' "$state_file") == "$ai_agent_image" ]] \
+      || fail "ai_agent_release_mismatch"
+    expected_ai_agent_image=$ai_agent_image
+  else
+    [[ $ai_agent_enabled != true ]] || fail "ai_agent_release_mismatch"
+    expected_ai_agent_image=''
+  fi
   candidate_app_env_snapshot=$release_evidence_dir/candidate-app.env
   candidate_app_env_sha256=$(jq -er '.appEnvSha256' "$state_file") \
     || fail "release_state_contract_invalid"
@@ -1804,7 +2163,7 @@ pointer_names_bound_acceptance() {
   [[ $actual_hash == $(jq -er '.acceptanceRecordSha256' "$pointer") ]] || return 1
   jq -e --arg releaseId "$EVO_RELEASE_ID" --arg revision "$EVO_RELEASE_REVISION" '
     type == "object" and
-    keys == ["actorId", "appEnvSha256", "appEnvSnapshot", "archiveSha256", "artifactDigest", "artifactId", "browserReceiptSha256", "candidateContainerId", "composeSha256", "composeSnapshot", "currentMainRevision", "generation", "imageConfigDigest", "imageId", "imageSource", "preparedEvidence", "previous", "releaseId", "releaseRunId", "repository", "revision", "schema", "upstreamCiRunAttempt", "upstreamCiRunId", "version", "workflowRunAttempt", "workflowRunId"] and
+    (keys - ["aiAgent"]) == ["actorId", "appEnvSha256", "appEnvSnapshot", "archiveSha256", "artifactDigest", "artifactId", "browserReceiptSha256", "candidateContainerId", "composeSha256", "composeSnapshot", "currentMainRevision", "generation", "imageConfigDigest", "imageId", "imageSource", "preparedEvidence", "previous", "releaseId", "releaseRunId", "repository", "revision", "schema", "upstreamCiRunAttempt", "upstreamCiRunId", "version", "workflowRunAttempt", "workflowRunId"] and
     .schema == "evo-v3-acceptance-record/v1" and
     .preparedEvidence == true and
     .generation == "v3" and
@@ -1843,6 +2202,7 @@ derive_acceptance_payload() {
     --arg browserReceiptSha256 "$EVO_RELEASE_BROWSER_RECEIPT_SHA256" \
     --arg candidateContainerId "$bound_candidate_container_id" \
     --arg currentMainRevision "$EVO_RELEASE_CURRENT_MAIN_REVISION" '
+      . as $state |
       {
         schema:"evo-v3-acceptance-record/v1",
         preparedEvidence:true,
@@ -1871,7 +2231,7 @@ derive_acceptance_payload() {
         browserReceiptSha256:$browserReceiptSha256,
         currentMainRevision:$currentMainRevision,
         previous:.previous
-      }
+      } + (if $state | has("aiAgent") then {aiAgent:$state.aiAgent} else {} end)
     ' "$state_file"
 }
 
@@ -2009,6 +2369,7 @@ deploy() {
   prepare_candidate_generation "$release_evidence_dir"
   run_preflight_checks
   load_candidate_image
+  provision_ai_agent_image
   create_rollback_wrapper "$release_evidence_dir"
   create_rollback_state "$release_evidence_dir"
 
@@ -2020,7 +2381,9 @@ deploy() {
     local installed_container
     installed_container=$(app_container_id) || fail "candidate_container_missing"
     record_candidate_container "$release_evidence_dir/state.json" "$installed_container"
-    if verify_transition_runtime \
+    expected_ai_agent_image=$ai_agent_image
+    if deploy_ai_agent_runtime \
+      && verify_transition_runtime \
       "$candidate_compose_file" \
       "$EVO_RELEASE_REVISION" \
       "$EVO_RELEASE_VERSION" \
@@ -2028,7 +2391,8 @@ deploy() {
       "$candidate_app_env_snapshot" \
       "$candidate_app_env_sha256" \
       true \
-      && verify_external_health; then
+      && verify_external_health \
+      && verify_ai_agent_ready; then
       write_result "$release_evidence_dir" "pending" "verified" false
       disarm_release_mutation_trap
       jq -cn --arg evidenceDir "$release_evidence_dir" --arg releaseId "$EVO_RELEASE_ID" \

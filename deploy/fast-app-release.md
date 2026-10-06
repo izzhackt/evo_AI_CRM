@@ -251,6 +251,11 @@ Required non-secret variables:
 - `EVO_WAHA_IMAGE_DIGEST` — the reviewed immutable digest; and
 - `EVO_SUPABASE_PROJECT_REF`.
 
+Optional «ИИ-агент» variables: `EVO_AI_AGENT_ENABLED` (unset, empty or `false`
+keeps today's release exactly; `true` adds the `ai-agent` compose profile) and
+`EVO_AI_AGENT_IMAGE_DIGEST` (required only with `true`). Owner steps, release
+behaviour and rollback: [`docs/runbooks/ai-agent-enable.md`](../docs/runbooks/ai-agent-enable.md).
+
 The [domain cutover](README.md#canonical-domain-cutover) and these inputs were
 verified with managed release `35167122534` on 2026-09-17. The browser smoke
 derives its exact staff login origin from this health URL; Student and old

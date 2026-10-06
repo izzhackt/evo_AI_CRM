@@ -18,8 +18,11 @@ const baseEnvironment = {
   EVO_WAHA_IMAGE_REPOSITORY: "devlikeapro/waha",
   EVO_CRM_APP_ENV_FILE: "/dev/null",
   EVO_CRM_WAHA_ENV_FILE: "/dev/null",
+  EVO_CRM_AI_AGENT_ENV_FILE: "/dev/null",
   EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT: "/tmp/evo-recovery-evidence",
 };
+const agentDigest = `sha256:${"b".repeat(64)}`;
+const agentServices = ["ai-agent-api", "ai-agent-worker"];
 
 function sorted(values) {
   return [...values].sort((left, right) => left.localeCompare(right));
@@ -81,12 +84,45 @@ function assertServiceContract(file, config) {
   assert.doesNotMatch(JSON.stringify(config), forbidden);
 }
 
+// «ИИ-агент» (plan §4.2/§4.6): rendered only with the `ai-agent` profile.
+function assertAiAgentContract(file, config) {
+  assert.deepEqual(sorted(Object.keys(config.services ?? {})), sorted(["app", "clamav", "waha", ...agentServices]));
+  const expected = {
+    "ai-agent-api": { cpus: 0.5, mem_limit: "536870912", pids_limit: 128 },
+    "ai-agent-worker": { cpus: 1, mem_limit: "1610612736", pids_limit: 256 },
+  };
+  for (const name of agentServices) {
+    const service = config.services[name];
+    assert.equal(service.image, `ghcr.io/izzhackt/evo-ai-agent@${agentDigest}`, `${file} ${name} image`);
+    assert.deepEqual(service.profiles, ["ai-agent"]);
+    assert.equal(service.platform, "linux/amd64");
+    assert.equal(service.read_only, true);
+    assert.equal(service.init, true);
+    assert.equal(service.user, "10001:10001");
+    assert.deepEqual(service.cap_drop, ["ALL"]);
+    assert.deepEqual(service.security_opt, ["no-new-privileges:true"]);
+    assert.equal(service.cpus, expected[name].cpus);
+    assert.equal(service.mem_limit, expected[name].mem_limit);
+    assert.equal(service.pids_limit, expected[name].pids_limit);
+    assert.equal(service.stop_grace_period, "30s");
+    assert.deepEqual(Object.keys(service.networks ?? {}), ["private"]);
+    assert.deepEqual(service.ports ?? [], [], `${file} ${name} must not publish a port`);
+    assert.equal(service.volumes, undefined, `${file} ${name} must not mount anything`);
+    assert.equal(service.depends_on, undefined);
+    assert.equal(service.logging?.options?.["max-size"], "10m");
+    assert.equal(service.healthcheck?.test?.[0], "CMD");
+    assert.equal(service.labels?.["com.evo.image.provenance"], "private-ghcr-digest");
+  }
+  assert.deepEqual(config.services["ai-agent-api"].networks.private.aliases, ["evo-ai-agent"]);
+  assert.deepEqual(config.services["ai-agent-worker"].command, ["python", "-m", "evo_ai_agent.worker"]);
+}
+
 for (const file of composeFiles) {
   const source = readFileSync(file, "utf8");
   assert.doesNotMatch(source, /image:\s*["']?[^@\n"']+:latest/iu);
   assert.doesNotMatch(source, forbidden);
   for (const key of ["mem_limit:", "cpus:", "pids_limit:", "logging:", "healthcheck:"]) {
-    assert.equal((source.match(new RegExp(key, "gu")) ?? []).length, 3);
+    assert.equal((source.match(new RegExp(key, "gu")) ?? []).length, 5);
   }
 
   if (process.argv.includes("--compose")) {
@@ -101,7 +137,13 @@ for (const file of composeFiles) {
       { env: environment, encoding: "utf8" },
     );
     assertServiceContract(file, JSON.parse(rendered));
+    const withAgent = execFileSync(
+      "docker",
+      ["compose", "--file", file, "--profile", "ai-agent", "config", "--format", "json"],
+      { env: { ...environment, EVO_AI_AGENT_IMAGE_DIGEST: agentDigest }, encoding: "utf8" },
+    );
+    assertAiAgentContract(file, JSON.parse(withAgent));
   }
 }
 
-console.log(JSON.stringify({ ok: true, services: ["app", "clamav", "waha"], checked: composeFiles }));
+console.log(JSON.stringify({ ok: true, services: ["app", "clamav", "waha"], profiles: { "ai-agent": agentServices }, checked: composeFiles }));

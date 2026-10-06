@@ -46511,3 +46511,19 @@ SQL — `supabase/tests/platform_marketing_m1.sql`; приложение — `te
 Проверка: `git diff --check`; префиксы `docs/EVO_LAUNCH_PLAN.md` и
 `docs/PLAN_CHANGES.md` байт в байт совпадают с `origin/main` `8fe0671a3`;
 персональных данных и секретов в записи нет.
+
+## 2026-10-06 — из edge Caddyfile убраны два неиспользуемых блока хостов
+
+Записи выше не переписываются. Владелец: два блока «не нужны».
+
+- В `agent-lead2-inbox/deploy/Caddyfile.evo-edge` удалены только блоки
+  `invite-bishkek.72.62.119.112.sslip.io` и `inbox.72.62.119.112.sslip.io`
+  (в живом файле их не было). Production не менялся, `caddy reload` не делался.
+- Это снимает пункт «сохранить два блока как отдельно проверенное изменение»
+  из раздела про сверку production-релиза выше. Остальные расхождения
+  репозиторного файла с живым (`codex…`, `invite-bishkek-site…`, блоки
+  `soodacloser.com`) остаются открытым пунктом владельца, см. C5 в
+  `docs/runbooks/whatsapp-go-live.md`.
+
+Проверка: `git diff --check`; префиксы `docs/EVO_LAUNCH_PLAN.md` и
+`docs/PLAN_CHANGES.md` байт в байт совпадают с `origin/main`; секретов нет.

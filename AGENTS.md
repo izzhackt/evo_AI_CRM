@@ -376,7 +376,8 @@ check the live checkpoint in `docs/design/v3/run-plan.md` and #552 before acting
   containers, `evo-inbox-app-1` and `evo-inbox-waha`. Preserve companion volumes
   (including WAHA sessions), images, configuration and historical evidence.
   Do not restart the companion or use it as a V3 fallback. The separate
-  `inbox.72.62.119.112.sslip.io` route is not a retirement target.
+  `inbox.72.62.119.112.sslip.io` route is not a retirement target (it was never
+  in the live edge file; its repo block was removed 2026-10-06 as unused).
 - The shared `evo-edge-caddy` proxy and `evo_public_web` network remain active.
   Their source files are the explicit active exception in this frozen tree:
   `agent-lead2-inbox/deploy/docker-compose.edge.yml` and

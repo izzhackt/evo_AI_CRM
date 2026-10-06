@@ -11,6 +11,7 @@ import {
   deleteAiDocumentAction,
   recordAiConsentAction,
   retryAiDocumentAction,
+  saveAiMemoryAction,
 } from "@/lib/platform-ai-agent-actions";
 import type { AiAgentStatus } from "@/lib/server/ai-agent-route-handlers";
 import {
@@ -31,6 +32,7 @@ import {
   type AiSettings,
   type AiSpend,
 } from "@/lib/v3/ai-agent";
+import { AI_MEMORY_SETTINGS_COPY } from "@/lib/v3/ai-agent-memory";
 import type { AiRead } from "@/lib/v3/ai-agent-source";
 
 import { AiActionForm } from "./AiActionForm";
@@ -532,6 +534,7 @@ export function AiSpendView({
   preview,
   capRequestId,
   revokeRequestId,
+  memoryRequestId,
   retryHref,
 }: Readonly<{
   spend: AiRead<AiSpend>;
@@ -540,6 +543,7 @@ export function AiSpendView({
   preview: boolean;
   capRequestId: string;
   revokeRequestId: string;
+  memoryRequestId: string;
   retryHref: string;
 }>) {
   const status = agentStatusLine(agentStatus);
@@ -672,10 +676,91 @@ export function AiSpendView({
                   </details>
                 ) : null}
               </div>
+              <AiMemorySettings settings={data} preview={preview} requestId={memoryRequestId} />
             </>
           );
         })()}
       </section>
     </div>
+  );
+}
+
+/**
+ * «Память о клиенте» (P3, план §9; Q9 — включает и выключает любой сотрудник
+ * с ai.agent.manage, Q12 — без согласия на Gemini не включается). Выключение
+ * удаляет сводки всех клиентов — поэтому подтверждение раскрытием, как у
+ * отзыва согласия. Кнопки тихие: у «Расходов» нет красного действия.
+ */
+function AiMemorySettings({ settings, preview, requestId }: Readonly<{ settings: AiSettings; preview: boolean; requestId: string }>) {
+  const copy = AI_MEMORY_SETTINGS_COPY;
+  const enabled = settings.memoryEnabled;
+  const consent = settings.consent.recorded;
+  const fields = (action: "enable" | "disable") => ({ memory_action: action, expected_version: String(settings.version) });
+  const messages = { conflict: "Настройки уже изменились — обновите страницу.", forbidden: "Нет права менять память о клиенте." };
+  return (
+    <section
+      id="ai-memory"
+      className="scroll-mt-20 space-y-2 border-t border-border pt-4"
+      aria-labelledby="ai-memory-title"
+      data-testid="v3-ai-memory-settings"
+      data-enabled={enabled}
+    >
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h3 id="ai-memory-title" className="t-item text-fg">{copy.title}</h3>
+        <StatusChip label={enabled ? copy.on : copy.off} tone={enabled ? "ok" : "neutral"} />
+      </div>
+      <p className="max-w-[70ch] text-pretty t-body-compact text-fg-2">{copy.about}</p>
+      {enabled && !consent ? (
+        <p className="flex items-start gap-2 t-body-compact text-warn" data-testid="v3-ai-memory-no-consent">
+          <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
+          Без согласия на Gemini память не работает: сводки не собираются.
+        </p>
+      ) : null}
+      {settings.canManage && !preview ? (
+        !enabled && !consent ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="v3-ai-memory-blocked">
+            <button
+              type="button"
+              className={`${btnGhostCls} aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-surface aria-disabled:hover:text-fg-2 aria-disabled:active:scale-100`}
+              aria-disabled="true"
+              aria-describedby="ai-memory-consent-hint"
+            >
+              {copy.enable}
+            </button>
+            <p id="ai-memory-consent-hint" className="t-body-compact text-fg-2">{copy.noConsent}</p>
+          </div>
+        ) : !enabled ? (
+          <AiActionForm
+            requestId={requestId}
+            action={saveAiMemoryAction}
+            fields={fields("enable")}
+            label={copy.enable}
+            pendingLabel="Включаю…"
+            buttonClassName={btnGhostCls}
+            messages={{ ...messages, saved: copy.enabled }}
+            testId="v3-ai-memory-enable"
+          />
+        ) : (
+          <details className="group" data-testid="v3-ai-memory-disable">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center t-label text-fg underline decoration-fg-3 underline-offset-4 hover:decoration-fg [&::-webkit-details-marker]:hidden">
+              {copy.disable}
+            </summary>
+            <div className="space-y-1 pb-2">
+              <p className="t-body-compact text-fg">{copy.disableConfirm}</p>
+              <AiActionForm
+                requestId={requestId}
+                action={saveAiMemoryAction}
+                fields={fields("disable")}
+                label={copy.disableSubmit}
+                pendingLabel="Выключаю…"
+                buttonClassName={btnGhostCls}
+                messages={{ ...messages, saved: copy.disabled }}
+                testId="v3-ai-memory-disable-form"
+              />
+            </div>
+          </details>
+        )
+      ) : null}
+    </section>
   );
 }

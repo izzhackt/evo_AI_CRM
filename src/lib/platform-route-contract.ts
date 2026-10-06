@@ -111,6 +111,11 @@ const AI_AGENT_ANSWER_PATH =
   /^\/api\/v3\/ai-agent\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/answer$/i;
 const AI_AGENT_INSERT_PATH =
   /^\/api\/v3\/ai-agent\/answers\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/insert$/i;
+// «Что ИИ знает о клиенте» (P3, §9): GET — память диалога и карточка лида,
+// DELETE — «Забыть сводку». Строгий UUID: строчные, версия 1–8, вариант 8–b
+// (как `gen_random_uuid()` у диалогов); остальное — 403 прокси.
+const AI_AGENT_MEMORY_PATH =
+  /^\/api\/v3\/ai-agent\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/memory$/;
 // «ИИ-агент» P2 (план ИИ-агента §4.5, §7, §8): загрузка файла в «Информацию
 // для агента», картинка страницы и вырезка «Листа сверки» (обе — через сессию
 // и ai_agent_document_v1), «Лаборатория» (состояние, вопрос, «Что не так?»,
@@ -275,6 +280,7 @@ export function isConnectedPlatformApi(path: string): boolean {
     UNIVERSITY_TEMPLATE_SOURCE_PATH.test(path) ||
     AI_AGENT_ANSWER_PATH.test(path) ||
     AI_AGENT_INSERT_PATH.test(path) ||
+    AI_AGENT_MEMORY_PATH.test(path) ||
     path === AI_AGENT_DOCUMENTS_PATH ||
     AI_AGENT_PAGE_IMAGE_PATH.test(path) ||
     AI_AGENT_CROP_PATH.test(path) ||

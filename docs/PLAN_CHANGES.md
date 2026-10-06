@@ -46121,3 +46121,151 @@ H2 назван единственным намеренно печатаемым
 Дополнение после адверсариальной проверки (docs, 2026-10-05): C5 ставит `WROTE=1` до `cp` и при любом обрыве записи требует немедленный откат, `c5_check` принимает только строку «прежняя `@private` + два пути приёма», перед записью бэкап обязан быть байт-в-байт равен живому файлу, `reload` механически требует `VALIDATED` = хэш текущего файла; D5 закрывается при сбое чтения env живого WAHA; `waha_logs_safe` скрывает значения в кавычках с пробелами и `\"` и `value:` без кавычек, окно `customHeaders` — 12 строк (сама строка и 11 следующих); код, тесты и production не менялись.
 
 Дополнение после слияния #1137, #1139, #1141 (docs, 2026-10-06): ветка влита с `origin/main` `67ec56098` (конфликты в `Dockerfile` — обе строки `COPY` операторских скриптов, `waha-history-import.mjs` из `main` и `waha-runtime-binding.mjs` отсюда; в `package.json` — оба теста в `test:fast-release`; здесь — записи `main` идут первыми, затем эта). В runbook `docs/runbooks/whatsapp-go-live.md` обновлены устаревшие факты: #1137 слит (`f3a60db90`, дерево равно head `a57fb607d`, по которому читался код), вместо ссылок на head draft-PR; шаг 0 фазы B нужен до любого следующего release, так как #1137 уже в `main`; фаза C покрывает миграции 259–261 — по сообщению оркестратора 259 и 260 применены в production 2026-10-06 через `evo-schema-ledger`, 261 не применена (из production не перечитывалось; ledger-gate требует точного совпадения 001–261). Код, тесты и production не менялись; go-live и ledger этим PR не выполняются.
+
+## 2026-10-06 — приём заявок сайта: receive_website_lead падает с 42702, миграция 262 (исправление дефекта, запись до кода)
+
+Дефект. `platform.receive_website_lead` (последнее тело — 240, раньше 231 и
+170; другой функции с этим именем нет) объявляет PL/pgSQL-переменную
+`normalized_phone`. Так же называется колонка `platform.clients.normalized_phone`
+(084). При `plpgsql.variable_conflict = error` (значение по умолчанию) поиск
+контакта
+`... WHERE c.organization_id=p_organization_id AND c.lifecycle_state='active' AND c.normalized_phone=normalized_phone;`
+падает с 42702 «column reference "normalized_phone" is ambiguous». Эта строка
+выполняется на каждой корректной заявке: после проверки квитанции и строк
+лимита, до создания клиента и лида. Вся RPC откатывается, обработчик
+`src/lib/server/website-lead-intake.ts` отвечает 503 `unavailable`. Дефект
+существует с 170: ни одна заявка с сайта не могла дойти до CRM. Ни один
+существующий SQL-набор не вызывал эту функцию до конца:
+`scripts/check-website-intake-schema.sh` проверяет только схему и права.
+
+Production — только чтение, 06.10.2026, через одобренный владельцем путь
+Management API, только агрегаты, без apply и без выпуска:
+- `platform_private.website_lead_receipts` — 0 строк за всё время;
+- `platform.leads` с `source_key = 'website'` — 0;
+- живое тело функции содержит строку `c.normalized_phone=normalized_phone`;
+- в журнале Postgres есть ошибка 42702 на 2026-10-01 05:37:21 UTC.
+Вывод: каждая заявка с сайта после запуска получила 503 и потеряна. В базе
+восстановить нечего: при откате не сохраняется ничего, включая строки лимита.
+
+Решение — минимальное:
+- Миграция `262_platform_website_lead_phone_variable_fix.sql`.
+  `CREATE OR REPLACE FUNCTION platform.receive_website_lead` с той же
+  сигнатурой из 11 аргументов. Тело байт в байт как в 240, кроме переменной:
+  `normalized_phone` → `contact_phone` в объявлении и во всех семи
+  использованиях. Ссылка на колонку `c.normalized_phone` не меняется.
+  SECURITY DEFINER, `search_path=''`, владелец и волатильность сохраняются.
+  ACL из 231 подтверждается заново (`REVOKE ALL ... FROM PUBLIC,anon,authenticated,service_role`,
+  `GRANT EXECUTE ... TO service_role`); результат тот же:
+  `{postgres=X/postgres,service_role=X/postgres}`.
+- Перед заменой DO-блок требует md5 живого тела 240
+  (`a99e227c0eb7020b2e039eff3bd269d9`), иначе миграция отказывает. После
+  замены DO-блок проверяет: тот же oid и аргументы, все атрибуты `pg_proc`,
+  кроме тела, не изменились, ACL ровно postgres и service_role, в теле есть
+  `contact_phone` и нет `c.normalized_phone=normalized_phone`, md5 нового тела
+  `7dc77f2607cc62b1f644572481d850e6`.
+- Данные не меняются. Проверка входа, список стран, лимиты, повтор по
+  `requestId`, привязка к открытому лиду по телефону и аудит остаются как в 240.
+
+Порядок. 262 идёт после миграций WhatsApp 259–261, они уже в `main`. Маркетинг
+М1 (ветка в работе) сдвигается на номера 263–265: ряд миграций должен
+оставаться сплошным, а `supabase db push` в `evo-schema-ledger.yml` запускается
+без `--include-all`.
+
+Проверка (план): одноразовый Postgres того же образа, что у гейта «Migration
+boundary», миграции 001–261. Новая suite
+`supabase/tests/platform_website_lead_intake_fix.sql` работает в двух фазах. В
+`scripts/test-postgres-authorization.sh` два хука: перед 262 с `-v p262_pre=1`
+(красная фаза: 42702 и ни одной строки) и после 262 без флага (зелёная фаза:
+принятая заявка создаёт клиента, открытый лид `website`, квитанцию и аудит;
+повтор, конфликт, тот же телефон, вуз, неизвестная страна, владелец без прав
+продаж, отказ authenticated, каталог функции). Владелец смоделирован как в
+production: приглашённый сотрудник с coarse role NULL и ролью Sales Manager
+на отдел с ключами production.
+
+От чего зависит путь успеха в production (проверить только чтением до
+объявления исправления):
+- env приложения CRM: `EVO_WEBSITE_INTAKE_EDGE_KEY`, `EVO_PLATFORM_ORGANIZATION_ID`,
+  `EVO_WEBSITE_INTAKE_OWNER_MEMBERSHIP_ID`, конфигурация service role Supabase.
+  Без них обработчик отвечает 503 до RPC. Ошибка 42702 от 01.10 показывает, что
+  тогда они были заданы;
+- `platform.organizations` с этим id и `status = 'active'`;
+- владелец: `platform_private.staff_can_receive_assignment(org, owner, 'lead.read', 'lead', NULL)`
+  и то же для `'lead.sales.workflow.manage'` — оба TRUE (активное членство,
+  активный профиль, назначенная роль с обоими ключами). Иначе RPC отвечает
+  `unavailable`, а маршрут — 503. Это тоже выглядит как «заявка потеряна»;
+- один запрос чтения до apply:
+  `SELECT proacl, pg_get_userbyid(proowner), md5(prosrc) FROM pg_proc WHERE oid='platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb)'::regprocedure;`
+  Ожидается `{postgres=X/postgres,service_role=X/postgres}`, `postgres`,
+  `a99e227c0eb7020b2e039eff3bd269d9`. Другой md5 или владелец — 262 откажет
+  при apply. EXECUTE у PUBLIC, anon или authenticated 262 снимет сама. Любой
+  другой получатель EXECUTE (кроме владельца и service_role) остановит apply
+  целиком, с откатом; его нужно сначала разобрать;
+- `platform_private.website_intake_limits`: лимит организации 100 в час,
+  лимит IP 5 за 10 минут. Ожидается 0 строк: откаты их не сохраняли;
+- не больше одного активного клиента с тем же `normalized_phone`. Иначе ответ
+  `unavailable`.
+
+Не доказано: путь успеха в production не выполнялся ни разу. После apply 262
+через ledger владелец отправляет одну настоящую заявку через форму сайта или
+разрешает тестовую. Проверить квитанцию, лид `website` у владельца и событие
+`lead.website.receive`. HTTP-маршрут, сайт и браузер локально не
+прогонялись: меняется только тело SQL-функции.
+
+### Проверка и результат (запись после кода)
+
+Локально, на реальной цепочке: OrbStack, закреплённый образ
+`public.ecr.aws/supabase/postgres@sha256:80d7b27c…`, bootstrap и миграции
+001–261 так же, как в гейте. Только синтетические данные, всё откатывается.
+- До 262 md5 тела — `a99e227c0eb7020b2e039eff3bd269d9`, байт в байт как
+  текст 240. Красная фаза: корректная заявка от service_role даёт
+  `42702:column reference "normalized_phone" is ambiguous`, PL/pgSQL line 71.
+  Квитанций, клиентов, лидов, аудита и строк лимита нет. Красная фаза проходит.
+- `pg_get_functiondef` до и после 262 отличается ровно семью строками: в
+  каждой `normalized_phone` → `contact_phone`. Строка поиска стала
+  `c.normalized_phone=contact_phone`. После 262 md5 —
+  `7dc77f2607cc62b1f644572481d850e6`. ACL
+  `{postgres=X/postgres,service_role=X/postgres}`, SECURITY DEFINER,
+  `search_path=""` и волатильность `v` не изменились. Проверочный DO-блок 262
+  прошёл.
+- Зелёная фаза проходит целиком: принятие, клиент, лид `website` с
+  направлением `MY`, квитанция, аудит, чтение заявки владельцем, повтор,
+  конфликт, тот же телефон, вуз (`EU`), отказ 22023 для неизвестной страны,
+  `unavailable` для владельца без прав продаж и неизвестного владельца, 42501
+  для authenticated, каталог.
+- Контрольные проверки: зелёная фаза на 261 падает с тем же 42702; красная
+  фаза после 262 падает («not the 240 body»); повторный прогон 262 отказывает
+  («not the migration 240 definition it was written against»).
+- Полный `bash scripts/test-postgres-authorization.sh`
+  (`npm run test:database:migration-boundaries`) локально: exit 0 за 5:10, оба
+  хука 262 выполнены, итог — «Verified disposable authorization database».
+- `git diff --check` чистый.
+
+Не сделано: apply через ledger, выпуск и проверка в production — шлюзы
+владельца. Чтение конфигурации production из списка выше — за оркестратором.
+
+### Независимый review и правка (запись после кода)
+
+Review нашёл два замечания уровня minor, блокеров и major нет.
+- Проверка ACL в 262 требовала ровно
+  `{postgres=X/postgres,service_role=X/postgres}` в этом порядке, а сравнение
+  атрибутов «до/после» включало `proacl`. Правка: литерал убран, `proacl`
+  исключён из снимка атрибутов. Вместо литерала — проверка без учёта порядка:
+  EXECUTE есть только у владельца и `service_role` (через `aclexplode`).
+  Остались проверки `has_function_privilege` для anon, authenticated и
+  service_role и владелец `postgres`. Запрос чтения ACL, владельца и md5
+  добавлен в список проверок до apply.
+- Ветка была на 67ec56098. Перенесена на `origin/main` 484247965 (#1138).
+  Начало `PLAN_CHANGES.md`, 3 294 037 байт, совпадает с main байт в байт;
+  запись 262 только дописана в конец. В #1138 нет миграций.
+
+Повторная проверка, локально, на закреплённом образе `sha256:80d7b27c…`:
+- полный `bash scripts/test-postgres-authorization.sh`: exit 0 за 5:08,
+  итог — «Verified disposable authorization database». Красная фаза перед 262:
+  `42702:column reference "normalized_phone" is ambiguous`. Зелёная после 262:
+  `{"status": "accepted", …0701}`, все проверки прошли;
+- контрольные базы на цепочке 001–261, синтетические. Обычный ACL: 262
+  применяется, ACL `{postgres=X/postgres,service_role=X/postgres}`, md5
+  `7dc77f26…`. Лишний EXECUTE у anon и authenticated: 262 применяется и
+  снимает его, ACL как выше. Лишний EXECUTE у `supabase_auth_admin`: 262
+  отказывает («service-only ACL»), откат, тело и ACL прежние (md5 `a99e227c…`);
+- `bash -n` и `git diff --check` чистые.

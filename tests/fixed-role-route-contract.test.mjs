@@ -34,6 +34,16 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
+async function loadBundledProxy() {
+  const bundled = await build({
+    entryPoints: [fileURLToPath(new URL("../src/proxy.ts", import.meta.url))],
+    bundle: true, packages: "external", platform: "node", format: "cjs", write: false,
+  });
+  const loaded = { exports: {} };
+  new Function("require", "module", "exports", bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
+  return loaded.exports.proxy;
+}
+
 test("login POST reaches credential verification for every previous session and host", () => {
   for (const host of ["crm.evoadmissions.com", "app.evoadmissions.com", "localhost:3000", null]) {
     for (const session of ["staff", "student", "missing", "invalid", "unavailable", "authenticated_without_product"]) {
@@ -71,13 +81,7 @@ test("login navigation permits opposite audience without changing same-audience 
 });
 
 test("real proxy forwards exact login POST unchanged while rejecting cross-audience action routes", async () => {
-  const bundled = await build({
-    entryPoints: [fileURLToPath(new URL("../src/proxy.ts", import.meta.url))],
-    bundle: true, packages: "external", platform: "node", format: "cjs", write: false,
-  });
-  const loaded = { exports: {} };
-  new Function("require", "module", "exports", bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
-  const { proxy } = loaded.exports;
+  const proxy = await loadBundledProxy();
   for (const host of ["app.evoadmissions.com", "crm.evoadmissions.com", "localhost:3000"]) {
     for (const actionHeader of [null, "routing-boundary-only"]) {
       const headers = { host, origin: `https://${host}`, "x-forwarded-host": host,
@@ -686,7 +690,125 @@ test("receipt routes use exact handler UUIDs and remain staff-cookie routes", ()
     for (const path of paths(id)) assert.equal(isConnectedPlatformApi(path), false, path);
   }
   for (const path of ["/api/v2/payment-receipts", "/api/v2/payment-receipt-files",
-    `/api/v2/payment-receipt-files/${caseId}/download`, `/api/v2/case-contract-files/${caseId}`]) {
+    `/api/v2/payment-receipt-files/${caseId}/download`]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});
+
+const STAFF_API_ID = "10000000-0000-4000-8000-000000000001";
+const STAFF_API_CASE_ID = "20000000-0000-4000-8000-000000000002";
+// Browser APIs connected after #1157 (chat refresh/older page) and the older
+// chat-media and contract-file routes that had never been connected.
+const staffCookieApiPaths = (id) => [
+  `/api/v3/inbox/conversations/${id}/messages`,
+  `/api/v3/communication-media/${id}`,
+  `/api/v2/case-contract-files/${id}`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${id}/download`,
+  `/api/v2/case-contract-files/${id}/${STAFF_API_CASE_ID}/download`,
+];
+const STAFF_API_NEAR_MISS_PATHS = [
+  "/api/v3/inbox",
+  "/api/v3/inbox/",
+  "/api/v3/inbox/pulse/",
+  "/api/v3/inbox/pulse/extra",
+  "/api/v3/inbox/pulses",
+  "/api/v3/inbox/pulse.json",
+  "/api/v3/inbox/conversations",
+  `/api/v3/inbox/conversations/${STAFF_API_ID}`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/messages/`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/messages/extra`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/send`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/attempts`,
+  `/api/v3/inbox/conversations/${STAFF_API_ID}/${STAFF_API_ID}/messages`,
+  "/api/v3/communication-media",
+  "/api/v3/communication-media/",
+  `/api/v3/communication-media/${STAFF_API_ID}/`,
+  `/api/v3/communication-media/${STAFF_API_ID}/download`,
+  `/api/v3/communication-media/${STAFF_API_ID}/${STAFF_API_ID}`,
+  "/api/v2/case-contract-files",
+  "/api/v2/case-contract-files/",
+  `/api/v2/case-contract-files/${STAFF_API_ID}/`,
+  `/api/v2/case-contract-files/${STAFF_API_ID}/download`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${STAFF_API_ID}`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${STAFF_API_ID}/download/`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${STAFF_API_ID}/download/extra`,
+  `/api/v2/case-contract-files/${STAFF_API_CASE_ID}/${STAFF_API_ID}/upload`,
+  // Transcription is off: its routes stay outside the contract.
+  "/api/transcription/jobs",
+  `/api/transcription/jobs/${STAFF_API_ID}`,
+  `/api/transcription/jobs/${STAFF_API_ID}/events`,
+  `/api/transcription/jobs/${STAFF_API_ID}/improve`,
+  ...[
+    "not-a-uuid",
+    "00000000-0000-0000-0000-000000000000",
+    "10000000-0000-7000-8000-000000000001",
+    "10000000-0000-4000-7000-000000000001",
+    `${STAFF_API_ID}%2Fextra`,
+  ].flatMap(staffCookieApiPaths),
+];
+
+test("chat, chat-media and contract-file APIs are exact staff-cookie routes", () => {
+  const connected = ["/api/v3/inbox/pulse", ...staffCookieApiPaths(STAFF_API_ID)];
+  for (const version of [1, 2, 3, 4, 5]) {
+    connected.push(...staffCookieApiPaths(`ABCDEF00-0000-${version}000-A000-000000000002`));
+  }
+  for (const path of connected) {
+    assert.equal(isConnectedPlatformApi(path), true, path);
+    assert.equal(isConnectedPlatformPrivateApi(path), false, path);
+    assert.equal(isConnectedPlatformPage(path), false, path);
+    assert.equal(isRetiredPlatformRoute(path), false, path);
+    for (const method of ["GET", "HEAD", "POST"]) {
+      assert.equal(isConnectedStudentPortalApi(path, method), false, `${method} ${path}`);
+      assert.equal(isPublicStudentRegistrationApi(path, method), false, `${method} ${path}`);
+    }
+  }
+  for (const path of STAFF_API_NEAR_MISS_PATHS) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});
+
+test("real proxy sends chat, chat-media and contract-file APIs through the staff session gate and blocks near misses", async () => {
+  const proxy = await loadBundledProxy();
+  const saved = {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  };
+  // Routing-boundary values only: without a session cookie the Auth client
+  // answers «missing» locally, so no network request is made.
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:45421";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_routing-boundary-only";
+  const request = (path, method = "GET") => new NextRequest(`https://crm.evoadmissions.com${path}`, {
+    method, headers: { host: "crm.evoadmissions.com" },
+  });
+  const [olderPage, media, contractUpload, contractDownload] = staffCookieApiPaths(STAFF_API_ID);
+  try {
+    for (const [method, path] of [
+      ["GET", "/api/v3/inbox/pulse?list=1"], ["HEAD", "/api/v3/inbox/pulse"],
+      ["GET", `${olderPage}?before_at=x`], ["HEAD", olderPage],
+      ["GET", media], ["GET", `${media}?download=1`], ["HEAD", media],
+      ["POST", contractUpload],
+      ["GET", contractDownload], ["HEAD", contractDownload],
+    ]) {
+      const response = await proxy(request(path, method));
+      // Connected: the anonymous caller reaches the live session gate (401),
+      // not the platform_route_not_connected refusal (403).
+      assert.equal(response.status, 401, `${method} ${path}`);
+      assert.equal(response.headers.get("x-middleware-next"), null, `${method} ${path}`);
+      if (method !== "HEAD") {
+        assert.deepEqual(await response.json(), { error: "authentication_required" }, `${method} ${path}`);
+      }
+    }
+    for (const path of STAFF_API_NEAR_MISS_PATHS) {
+      for (const method of ["GET", "POST"]) {
+        const response = await proxy(request(path, method));
+        assert.equal(response.status, 403, `${method} ${path}`);
+        assert.equal((await response.json()).error, "platform_route_not_connected", `${method} ${path}`);
+      }
+    }
+  } finally {
+    if (saved.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = saved.url;
+    if (saved.key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = saved.key;
   }
 });

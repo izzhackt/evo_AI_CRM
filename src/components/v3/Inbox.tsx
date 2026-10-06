@@ -1,9 +1,9 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
 import { btnGhostCls } from "@/components/ui";
 import { StageChip } from "@/components/v3/blocks/StatusChip";
+import type { InboxAssistantConfig } from "@/components/v3/inbox/InboxAiAssistant";
 import { InboxChat, type InboxChatData } from "@/components/v3/inbox/InboxChat";
 import { InboxListPulse } from "@/components/v3/inbox/InboxListPulse";
 import { Pill } from "@/components/v3/Pill";
@@ -105,7 +105,7 @@ export function Inbox({
   storageScope,
   replySnippets = null,
   mediaAttachmentContext = null,
-  assistantSlot = null,
+  assistant = null,
 }: Readonly<{
   view: InboxView;
   profileHref: string | null;
@@ -117,8 +117,8 @@ export function Inbox({
   storageScope: string;
   replySnippets?: readonly ReplySnippetPickerItem[] | null;
   mediaAttachmentContext?: V3InboxMediaAttachmentContext | null;
-  /** Окно ИИ появится позже (справа внизу ленты); сейчас слот пуст. */
-  assistantSlot?: ReactNode;
+  /** Окно ИИ (план ИИ-агента §12.1): null — у сотрудника нет права ai.agent.use. */
+  assistant?: InboxAssistantConfig | null;
 }>) {
   const open = view.selected;
   const hasConversations = view.conversations.length > 0;
@@ -370,7 +370,7 @@ export function Inbox({
             storageScope={storageScope}
             replySnippets={replySnippets}
             mediaAttachmentContext={mediaAttachmentContext}
-            assistant={assistantSlot}
+            assistant={assistant}
           />
         </section>
       ) : hasConversations ? (

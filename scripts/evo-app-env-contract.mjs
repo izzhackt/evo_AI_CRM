@@ -35,6 +35,15 @@ const REQUIRED_RUNTIME_VALUES = Object.freeze([
   "EVO_PLATFORM_ORGANIZATION_ID",
   "EVO_PLATFORM_SUPABASE_SECRET_KEY",
 ]);
+// Names documented in the example that a release may leave out entirely: the
+// feature behind each is off while its value is missing or empty, so the CRM
+// stays releasable before the owner adds it. A present, non-empty value must
+// still be well-formed.
+//  - EVO_AI_AGENT_INTERNAL_SECRET: HMAC of CRM → private «ИИ-агент» requests
+//    (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §4.3, §4.7; ADR 0032), 32–256
+//    printable characters without whitespace, distinct from every WAHA and
+//    lead-agent secret.
+const OPTIONAL_RUNTIME_NAMES = Object.freeze(["EVO_AI_AGENT_INTERNAL_SECRET"]);
 const FORBIDDEN_SUCCESSOR_RUNTIME_VALUES = Object.freeze([
   "AUTH_SECRET",
   "EVO_SECRET_ENCRYPTION_KEY",
@@ -285,6 +294,17 @@ function validateEnabledFeatureConfiguration(entries) {
   }
 }
 
+function validateOptionalFeatureConfiguration(entries) {
+  const aiAgentSecret = entries.get("EVO_AI_AGENT_INTERNAL_SECRET");
+  if (
+    aiAgentSecret !== undefined &&
+    aiAgentSecret !== "" &&
+    !/^[\x21-\x7e]{32,256}$/u.test(aiAgentSecret)
+  ) {
+    fail("optional_feature_configuration_invalid");
+  }
+}
+
 export function validateAppEnvironmentContract({
   exampleText,
   actualText,
@@ -293,7 +313,9 @@ export function validateAppEnvironmentContract({
   const exampleEntries = parseEnvironmentText(exampleText);
   const actualEntries = parseEnvironmentText(actualText);
   for (const name of exampleEntries.keys()) {
-    if (!actualEntries.has(name)) fail("required_env_name_missing");
+    if (!actualEntries.has(name) && !OPTIONAL_RUNTIME_NAMES.includes(name)) {
+      fail("required_env_name_missing");
+    }
   }
   for (const value of actualEntries.values()) {
     if (value !== "" && PLACEHOLDER.test(value)) {
@@ -318,6 +340,7 @@ export function validateAppEnvironmentContract({
   validatePublicSupabase(actualEntries, expectedSupabaseProjectRef);
   validateFeatureFlags(actualEntries);
   validateEnabledFeatureConfiguration(actualEntries);
+  validateOptionalFeatureConfiguration(actualEntries);
   return Object.freeze({ ok: true, code: "valid" });
 }
 

@@ -137,6 +137,26 @@ RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   ORDER BY m.created_at DESC, m.id DESC LIMIT 1
 $$;
 
+CREATE OR REPLACE FUNCTION platform_private.ai_latest_outbound(p_organization_id UUID, p_conversation_id UUID)
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT m.id FROM platform.communication_messages m
+  WHERE m.organization_id = p_organization_id AND m.conversation_id = p_conversation_id
+    AND m.direction = 'outbound'
+  ORDER BY m.created_at DESC, m.id DESC LIMIT 1
+$$;
+
+-- Якорь ответа ещё действует: его входящее — последнее входящее диалога, а у
+-- «продолжения» (followup) его исходящее — последнее исходящее. Новое
+-- сообщение сотрудника (в том числе отправленное продолжение) делает
+-- продолжение устаревшим, как новое сообщение клиента — ответ.
+CREATE OR REPLACE FUNCTION platform_private.ai_answer_anchored(p_answer platform_private.ai_answers)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT p_answer.source_message_id IS NOT DISTINCT FROM
+      platform_private.ai_latest_inbound(p_answer.organization_id, p_answer.conversation_id)
+    AND (p_answer.intent <> 'followup' OR p_answer.source_outbound_message_id IS NOT DISTINCT FROM
+      platform_private.ai_latest_outbound(p_answer.organization_id, p_answer.conversation_id))
+$$;
+
 CREATE OR REPLACE FUNCTION platform_private.ai_require_consent(p_settings platform_private.ai_settings)
 RETURNS VOID LANGUAGE plpgsql STABLE SET search_path = '' AS $$
 BEGIN
@@ -221,6 +241,27 @@ RETURNS NUMERIC LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   ORDER BY p.effective_from DESC LIMIT 1
 $$;
 
+-- Модель оценена в этот день: генерирующей нужны цены входа и выхода, модели
+-- эмбеддингов — цена embedding. Вызов модели без цены не попал бы в месячный
+-- лимит (§10), поэтому такую модель нельзя выбрать в настройках и под неё не
+-- резервируется бюджет.
+CREATE OR REPLACE FUNCTION platform_private.ai_model_priced(p_model TEXT, p_embedding BOOLEAN, p_day DATE)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT CASE WHEN p_embedding THEN platform_private.ai_price(p_model, 'embedding', p_day) IS NOT NULL
+    ELSE platform_private.ai_price(p_model, 'input', p_day) IS NOT NULL
+      AND platform_private.ai_price(p_model, 'output', p_day) IS NOT NULL END
+$$;
+
+-- Модели настроек без цены на этот день (пустой массив — все оценены).
+CREATE OR REPLACE FUNCTION platform_private.ai_unpriced_models(p_settings platform_private.ai_settings, p_day DATE)
+RETURNS TEXT[] LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT COALESCE(array_agg(DISTINCT m.model ORDER BY m.model), '{}') FROM (VALUES
+    (p_settings.answer_model, FALSE), (p_settings.fast_model, FALSE), (p_settings.vision_model, FALSE),
+    (p_settings.arbiter_model, FALSE), (p_settings.arbiter_fallback_model, FALSE),
+    (p_settings.embedding_model, TRUE)) m(model, embedding)
+  WHERE NOT platform_private.ai_model_priced(m.model, m.embedding, p_day)
+$$;
+
 CREATE OR REPLACE FUNCTION platform_private.ai_purpose_group(p_purpose TEXT)
 RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT CASE
@@ -298,8 +339,9 @@ BEGIN
   FOR f IN SELECT p.oid::REGPROCEDURE FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'platform_private' AND p.proname IN ('ai_settings_row', 'ai_knowledge_fingerprint',
       'ai_fingerprint', 'ai_local_day', 'ai_staff_actor', 'ai_admin_actor', 'ai_conversation_allowed',
-      'ai_latest_inbound', 'ai_require_consent', 'ai_request_replay', 'ai_request_finish', 'ai_bump_knowledge',
-      'ai_enqueue', 'ai_price', 'ai_purpose_group', 'ai_redemption', 'ai_rate_take', 'ai_document_json') LOOP
+      'ai_latest_inbound', 'ai_latest_outbound', 'ai_answer_anchored', 'ai_require_consent', 'ai_request_replay',
+      'ai_request_finish', 'ai_bump_knowledge', 'ai_enqueue', 'ai_price', 'ai_model_priced', 'ai_unpriced_models',
+      'ai_purpose_group', 'ai_redemption', 'ai_rate_take', 'ai_document_json') LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', f);
   END LOOP;
 END
@@ -328,6 +370,14 @@ BEGIN
     RAISE EXCEPTION 'ai_ticket_invalid_message' USING ERRCODE = '22023';
   END IF;
   PERFORM platform_private.ai_require_consent(platform_private.ai_settings_row(p_organization_id));
+  -- Не больше 60 билетов в минуту на сотрудника (ответов — 20/мин, §6.8).
+  PERFORM pg_advisory_xact_lock(hashtextextended('ai_ticket:' || p_organization_id::TEXT || ':'
+    || v_actor.membership_id::TEXT, 269));
+  IF (SELECT count(*) FROM (SELECT 1 FROM platform_private.ai_tickets t
+      WHERE t.organization_id = p_organization_id AND t.membership_id = v_actor.membership_id
+        AND t.issued_at > v_now - INTERVAL '60 seconds' LIMIT 60) x) >= 60 THEN
+    RAISE EXCEPTION 'ai_ticket_rate_limited' USING ERRCODE = 'PT429';
+  END IF;
 
   -- Чистка билетов старше суток (ограниченно, без отдельного cron).
   DELETE FROM platform_private.ai_tickets t WHERE t.token_sha256 IN (
@@ -373,10 +423,11 @@ BEGIN
     RETURN jsonb_build_object('answer', NULL, 'latestInboundMessageId', v_latest,
       'lastMessageDirection', v_last_direction, 'consentRecorded', v_settings.gemini_consent_at IS NOT NULL);
   END IF;
-  v_current := v_answer.status = 'ready' AND v_answer.source_message_id IS NOT DISTINCT FROM v_latest
+  v_current := v_answer.status = 'ready' AND platform_private.ai_answer_anchored(v_answer)
     AND v_answer.knowledge_fingerprint = v_fingerprint;
   RETURN jsonb_build_object('answer', jsonb_build_object('answerId', v_answer.id, 'status', v_answer.status,
       'intent', v_answer.intent, 'sourceMessageId', v_answer.source_message_id,
+      'sourceOutboundMessageId', v_answer.source_outbound_message_id,
       'result', CASE WHEN v_answer.status = 'ready' THEN v_answer.result END,
       'errorCode', v_answer.error_code, 'model', v_answer.model, 'createdAt', v_answer.created_at,
       'insertedAt', v_answer.inserted_at, 'current', v_current),
@@ -403,8 +454,7 @@ BEGIN
     RAISE EXCEPTION 'ai_answer_unavailable' USING ERRCODE = '42501';
   END IF;
   v_settings := platform_private.ai_settings_row(p_organization_id);
-  IF v_answer.status <> 'ready'
-    OR v_answer.source_message_id IS DISTINCT FROM platform_private.ai_latest_inbound(p_organization_id, v_answer.conversation_id)
+  IF v_answer.status <> 'ready' OR NOT platform_private.ai_answer_anchored(v_answer)
     OR v_answer.knowledge_fingerprint <> platform_private.ai_knowledge_fingerprint(v_settings) THEN
     RAISE EXCEPTION 'stale_answer' USING ERRCODE = 'PT409';
   END IF;
@@ -777,11 +827,7 @@ BEGIN
     'models', jsonb_build_object('answer', v_settings.answer_model, 'fast', v_settings.fast_model,
       'vision', v_settings.vision_model, 'arbiter', v_settings.arbiter_model,
       'arbiterFallback', v_settings.arbiter_fallback_model, 'embedding', v_settings.embedding_model),
-    'unpricedModels', (SELECT COALESCE(jsonb_agg(m ORDER BY m), '[]'::JSONB) FROM (SELECT DISTINCT m FROM unnest(ARRAY[
-      v_settings.answer_model, v_settings.fast_model, v_settings.vision_model, v_settings.arbiter_model,
-      v_settings.arbiter_fallback_model, v_settings.embedding_model]) m
-      WHERE NOT EXISTS (SELECT 1 FROM platform_private.ai_prices p WHERE p.model = m AND p.effective_from <= v_today
-        AND (p.effective_to IS NULL OR p.effective_to >= v_today))) x),
+    'unpricedModels', to_jsonb(platform_private.ai_unpriced_models(v_settings, v_today)),
     'embeddingDim', v_settings.embedding_dim, 'monthlyCapUsd', v_settings.monthly_cap_usd,
     'ratePerMemberMinute', v_settings.rate_per_member_minute, 'timezone', v_settings.timezone,
     'rerankMode', v_settings.rerank_mode, 'precomputeEnabled', v_settings.precompute_enabled,
@@ -801,7 +847,7 @@ CREATE OR REPLACE FUNCTION platform.ai_agent_settings_save_v1(p_organization_id 
   p_patch JSONB, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_actor RECORD; v_fp TEXT; v_replay JSONB; v_old platform_private.ai_settings;
-  v_new platform_private.ai_settings; v_key TEXT;
+  v_new platform_private.ai_settings; v_key TEXT; v_today DATE;
 BEGIN
   SELECT * INTO v_actor FROM platform_private.ai_staff_actor(p_organization_id, 'ai.agent.manage');
   IF p_patch IS NULL OR jsonb_typeof(p_patch) <> 'object' OR p_patch = '{}'::JSONB
@@ -832,6 +878,19 @@ BEGIN
       WHERE c.organization_id = p_organization_id AND c.embedding IS NOT NULL) THEN
     RAISE EXCEPTION 'ai_embedding_model_locked' USING ERRCODE = '22023';
   END IF;
+  -- Новую модель можно выбрать, только если у неё есть цена на сегодня:
+  -- иначе её вызовы записывались бы по 0 и месячный лимит не работал (§10).
+  v_today := platform_private.ai_local_day(clock_timestamp());
+  FOREACH v_key IN ARRAY ARRAY['answerModel', 'fastModel', 'visionModel', 'arbiterModel', 'arbiterFallbackModel',
+    'embeddingModel'] LOOP
+    IF p_patch ? v_key AND (p_patch ->> v_key) IS DISTINCT FROM (CASE v_key
+        WHEN 'answerModel' THEN v_old.answer_model WHEN 'fastModel' THEN v_old.fast_model
+        WHEN 'visionModel' THEN v_old.vision_model WHEN 'arbiterModel' THEN v_old.arbiter_model
+        WHEN 'arbiterFallbackModel' THEN v_old.arbiter_fallback_model ELSE v_old.embedding_model END)
+      AND NOT platform_private.ai_model_priced(p_patch ->> v_key, v_key = 'embeddingModel', v_today) THEN
+      RAISE EXCEPTION 'ai_settings_unpriced_model' USING ERRCODE = '22023', DETAIL = p_patch ->> v_key;
+    END IF;
+  END LOOP;
   UPDATE platform_private.ai_settings s SET
     monthly_cap_usd = COALESCE((p_patch ->> 'monthlyCapUsd')::NUMERIC, s.monthly_cap_usd),
     answer_model = COALESCE(p_patch ->> 'answerModel', s.answer_model),
@@ -1261,7 +1320,7 @@ CREATE OR REPLACE FUNCTION platform_ai_agent.answer_claim_v1(p_redemption_id UUI
   p_flight_owner TEXT)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_ticket platform_private.ai_tickets; v_settings platform_private.ai_settings; v_latest UUID;
-  v_fp TEXT; v_answer platform_private.ai_answers; v_exists BOOLEAN;
+  v_latest_out UUID; v_fp TEXT; v_answer platform_private.ai_answers; v_exists BOOLEAN;
 BEGIN
   v_ticket := platform_private.ai_redemption(p_redemption_id, 'answer');
   IF p_intent IS NULL OR p_intent NOT IN ('reply', 'followup') OR p_flight_owner IS NULL
@@ -1272,11 +1331,14 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended('ai_answer:' || v_ticket.organization_id::TEXT || ':'
     || v_ticket.conversation_id::TEXT || ':' || p_intent, 269));
   v_latest := platform_private.ai_latest_inbound(v_ticket.organization_id, v_ticket.conversation_id);
+  -- Продолжение привязано и к последнему исходящему (ai_answer_anchored).
+  v_latest_out := CASE WHEN p_intent = 'followup'
+    THEN platform_private.ai_latest_outbound(v_ticket.organization_id, v_ticket.conversation_id) END;
   -- Ответы для прежних сообщений устарели.
   UPDATE platform_private.ai_answers a SET status = 'superseded', updated_at = clock_timestamp()
   WHERE a.organization_id = v_ticket.organization_id AND a.conversation_id = v_ticket.conversation_id
     AND a.intent = p_intent AND a.status IN ('pending', 'ready')
-    AND a.source_message_id IS DISTINCT FROM v_latest;
+    AND (a.source_message_id IS DISTINCT FROM v_latest OR a.source_outbound_message_id IS DISTINCT FROM v_latest_out);
   IF v_ticket.ref_id IS DISTINCT FROM v_latest THEN
     RAISE EXCEPTION 'superseded' USING ERRCODE = 'PT409';
   END IF;
@@ -1285,7 +1347,7 @@ BEGIN
   SELECT * INTO v_answer FROM platform_private.ai_answers a
   WHERE a.organization_id = v_ticket.organization_id AND a.conversation_id = v_ticket.conversation_id
     AND a.intent = p_intent AND a.source_message_id IS NOT DISTINCT FROM v_latest
-    AND a.knowledge_fingerprint = v_fp
+    AND a.source_outbound_message_id IS NOT DISTINCT FROM v_latest_out AND a.knowledge_fingerprint = v_fp
   FOR UPDATE;
   v_exists := FOUND;
   IF v_exists AND v_answer.status = 'ready' THEN
@@ -1303,19 +1365,23 @@ BEGIN
       updated_at = clock_timestamp()
     WHERE a.id = v_answer.id RETURNING * INTO v_answer;
   ELSE
-    INSERT INTO platform_private.ai_answers (organization_id, conversation_id, source_message_id, intent,
-      knowledge_fingerprint, status, flight_owner, heartbeat_at, requested_by)
-    VALUES (v_ticket.organization_id, v_ticket.conversation_id, v_latest, p_intent, v_fp, 'pending',
+    INSERT INTO platform_private.ai_answers (organization_id, conversation_id, source_message_id,
+      source_outbound_message_id, intent, knowledge_fingerprint, status, flight_owner, heartbeat_at, requested_by)
+    VALUES (v_ticket.organization_id, v_ticket.conversation_id, v_latest, v_latest_out, p_intent, v_fp, 'pending',
       btrim(p_flight_owner), clock_timestamp(), v_ticket.membership_id)
     RETURNING * INTO v_answer;
   END IF;
   RETURN jsonb_build_object('status', 'claimed', 'answerId', v_answer.id, 'sourceMessageId', v_answer.source_message_id,
-    'fingerprint', v_fp);
+    'sourceOutboundMessageId', v_answer.source_outbound_message_id, 'fingerprint', v_fp);
 END
 $$;
 
--- Heartbeat генератора (каждые 8 с): если пришло новое входящее, ответ
--- помечается superseded и поток завершается кодом superseded (409).
+-- Heartbeat генератора (каждые 8 с): если пришло новое входящее (у
+-- продолжения — и новое исходящее), ответ помечается superseded и поток
+-- завершается кодом superseded (409). Heartbeat и finish принимают только
+-- (answer_id, flight_owner) владельца генерации, без погашенного билета и без
+-- повторной проверки доступа и согласия: они возвращают только статус, не
+-- текст диалога; доступ и согласие проверялись при claim.
 CREATE OR REPLACE FUNCTION platform_ai_agent.answer_heartbeat_v1(p_answer_id UUID, p_flight_owner TEXT)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_answer platform_private.ai_answers;
@@ -1324,8 +1390,7 @@ BEGIN
   IF NOT FOUND OR v_answer.status <> 'pending' OR v_answer.flight_owner IS DISTINCT FROM btrim(p_flight_owner) THEN
     RAISE EXCEPTION 'ai_answer_not_owned' USING ERRCODE = '42501';
   END IF;
-  IF v_answer.source_message_id IS DISTINCT FROM
-    platform_private.ai_latest_inbound(v_answer.organization_id, v_answer.conversation_id) THEN
+  IF NOT platform_private.ai_answer_anchored(v_answer) THEN
     UPDATE platform_private.ai_answers a SET status = 'superseded', updated_at = clock_timestamp()
     WHERE a.id = v_answer.id;
     RETURN jsonb_build_object('status', 'superseded', 'answerId', v_answer.id);
@@ -1336,8 +1401,11 @@ END
 $$;
 
 -- Завершение генерации. Маркер [n] в ответе может указывать только на
--- клиентский фрагмент этой организации; источники и внутренние ID guard —
--- только на фрагменты этой организации.
+-- клиентский фрагмент этой организации из действующего документа (ready или
+-- review, не заменён — как в поиске); источники — только на фрагменты
+-- действующих документов этой организации; внутренние ID guard — на
+-- фрагменты этой организации. Что фрагмент был в выдаче поиска, БД не
+-- проверяет: выдача не хранится.
 CREATE OR REPLACE FUNCTION platform_ai_agent.answer_finish_v1(p_answer_id UUID, p_flight_owner TEXT,
   p_status TEXT, p_result JSONB, p_model TEXT, p_cost_usd NUMERIC, p_timings JSONB, p_error_code TEXT)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -1369,25 +1437,31 @@ BEGIN
         WHERE jsonb_typeof(e) <> 'number' OR e::TEXT !~ '^[0-9]{1,18}$') THEN
       RAISE EXCEPTION 'ai_answer_invalid_result' USING ERRCODE = '22023';
     END IF;
-    -- Маркеры [n]: только клиентские фрагменты этой организации.
+    -- Маркеры [n]: только клиентские фрагменты действующих документов этой организации.
     SELECT COALESCE(array_agg(DISTINCT (e ->> 'chunk_id')::BIGINT), '{}') INTO v_ids
     FROM jsonb_array_elements(COALESCE(p_result -> 'citations', '[]'::JSONB)) e;
     IF (SELECT count(*) FROM platform_private.ai_chunks c JOIN platform_private.ai_documents d ON d.id = c.document_id
-        WHERE c.id = ANY (v_ids) AND c.organization_id = v_answer.organization_id AND d.audience = 'client')
+        WHERE c.id = ANY (v_ids) AND c.organization_id = v_answer.organization_id AND d.audience = 'client'
+          AND d.status IN ('ready', 'review') AND d.superseded_by_id IS NULL)
       <> cardinality(v_ids) THEN
       RAISE EXCEPTION 'ai_citation_invalid' USING ERRCODE = '22023';
     END IF;
-    SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO v_ids FROM (
-      SELECT (e ->> 'chunk_id')::BIGINT AS x FROM jsonb_array_elements(COALESCE(p_result -> 'sources', '[]'::JSONB)) e
-      UNION SELECT e::TEXT::BIGINT FROM jsonb_array_elements(COALESCE(p_result #> '{guard,internal_chunk_ids}', '[]'::JSONB)) e) s;
+    -- Источники: фрагменты действующих документов этой организации.
+    SELECT COALESCE(array_agg(DISTINCT (e ->> 'chunk_id')::BIGINT), '{}') INTO v_ids
+    FROM jsonb_array_elements(COALESCE(p_result -> 'sources', '[]'::JSONB)) e;
+    IF (SELECT count(*) FROM platform_private.ai_chunks c JOIN platform_private.ai_documents d ON d.id = c.document_id
+        WHERE c.id = ANY (v_ids) AND c.organization_id = v_answer.organization_id
+          AND d.status IN ('ready', 'review') AND d.superseded_by_id IS NULL) <> cardinality(v_ids) THEN
+      RAISE EXCEPTION 'ai_citation_invalid' USING ERRCODE = '22023';
+    END IF;
+    SELECT COALESCE(array_agg(DISTINCT e::TEXT::BIGINT), '{}') INTO v_ids
+    FROM jsonb_array_elements(COALESCE(p_result #> '{guard,internal_chunk_ids}', '[]'::JSONB)) e;
     IF (SELECT count(*) FROM platform_private.ai_chunks c
         WHERE c.id = ANY (v_ids) AND c.organization_id = v_answer.organization_id) <> cardinality(v_ids) THEN
       RAISE EXCEPTION 'ai_citation_invalid' USING ERRCODE = '22023';
     END IF;
   END IF;
-  v_final := CASE WHEN v_answer.source_message_id IS DISTINCT FROM
-      platform_private.ai_latest_inbound(v_answer.organization_id, v_answer.conversation_id) THEN 'superseded'
-    ELSE p_status END;
+  v_final := CASE WHEN NOT platform_private.ai_answer_anchored(v_answer) THEN 'superseded' ELSE p_status END;
   v_result := CASE WHEN p_status = 'ready' THEN p_result || jsonb_build_object('answer_id', v_answer.id,
     'source_message_id', v_answer.source_message_id, 'intent', v_answer.intent,
     'created_at', clock_timestamp()) END;
@@ -1412,7 +1486,9 @@ END
 $$;
 
 -- Резерв стоимости под месячный лимит EVO (как 162): потрачено за месяц +
--- открытые резервы последних 15 минут + оценка ≤ monthly_cap_usd.
+-- открытые резервы последних 15 минут + оценка ≤ monthly_cap_usd. Пока у
+-- модели из настроек нет цены на сегодня, резерв не выдаётся (PT402
+-- ai_model_unpriced): её вызовы не попали бы в лимит.
 CREATE OR REPLACE FUNCTION platform_ai_agent.budget_reserve_v1(p_organization_id UUID, p_purpose TEXT,
   p_estimate_usd NUMERIC)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -1430,6 +1506,10 @@ BEGIN
   PERFORM platform_private.ai_require_consent(v_settings);
   PERFORM pg_advisory_xact_lock(hashtextextended('ai_budget:' || p_organization_id::TEXT, 269));
   v_today := platform_private.ai_local_day(clock_timestamp());
+  IF cardinality(platform_private.ai_unpriced_models(v_settings, v_today)) > 0 THEN
+    RAISE EXCEPTION 'ai_model_unpriced' USING ERRCODE = 'PT402',
+      DETAIL = array_to_string(platform_private.ai_unpriced_models(v_settings, v_today), ',');
+  END IF;
   SELECT COALESCE(sum(u.cost_usd), 0) INTO v_spent FROM platform_private.ai_usage_daily u
   WHERE u.organization_id = p_organization_id AND u.day BETWEEN date_trunc('month', v_today)::DATE AND v_today;
   SELECT COALESCE(sum(b.usd), 0) INTO v_reserved FROM platform_private.ai_budget_reservations b
@@ -1448,6 +1528,8 @@ $$;
 -- Журнал расходов: каждый вызов Gemini. Стоимость считается по цене дня
 -- (Asia/Bishkek): (вход − кэш) × вход + кэш × кэш + (выход + thinking) ×
 -- выход; для эмбеддингов — цена embedding. Повтор call_id не считается.
+-- Вызов модели без цены записывается по сумме его резерва (оценка), а не по
+-- 0, чтобы месячный лимит рос; без резерва — 0 и пометка unpriced.
 CREATE OR REPLACE FUNCTION platform_ai_agent.usage_record_v1(p_organization_id UUID, p_call_id UUID,
   p_purpose TEXT, p_model TEXT, p_input_tokens BIGINT, p_cached_tokens BIGINT, p_output_tokens BIGINT,
   p_thinking_tokens BIGINT, p_estimated BOOLEAN, p_answer BOOLEAN DEFAULT FALSE,
@@ -1455,6 +1537,7 @@ CREATE OR REPLACE FUNCTION platform_ai_agent.usage_record_v1(p_organization_id U
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_day DATE; v_membership UUID; v_in_price NUMERIC; v_out_price NUMERIC; v_cached_price NUMERIC;
   v_unpriced BOOLEAN; v_cost NUMERIC; v_est NUMERIC; v_existing NUMERIC; v_ticket platform_private.ai_tickets;
+  v_reserved NUMERIC;
 BEGIN
   IF p_call_id IS NULL OR p_purpose IS NULL OR platform_private.ai_purpose_group(p_purpose) IS NULL
     OR p_model IS NULL OR p_model !~ '^gemini-[a-z0-9][a-z0-9.-]{0,70}$' OR p_estimated IS NULL OR p_answer IS NULL
@@ -1474,16 +1557,21 @@ BEGIN
     END IF;
     v_membership := v_ticket.membership_id;
   END IF;
+  IF p_reservation_id IS NOT NULL THEN
+    SELECT b.usd INTO v_reserved FROM platform_private.ai_budget_reservations b
+    WHERE b.id = p_reservation_id AND b.organization_id = p_organization_id AND b.settled_at IS NULL
+    FOR UPDATE;
+  END IF;
   v_day := platform_private.ai_local_day(clock_timestamp());
   v_in_price := platform_private.ai_price(p_model,
     CASE WHEN p_purpose IN ('embed_query', 'embed_document') THEN 'embedding' ELSE 'input' END, v_day);
   v_out_price := platform_private.ai_price(p_model, 'output', v_day);
   v_cached_price := COALESCE(platform_private.ai_price(p_model, 'cached', v_day), v_in_price);
   v_unpriced := v_in_price IS NULL OR (p_output_tokens + p_thinking_tokens > 0 AND v_out_price IS NULL);
-  v_cost := CASE WHEN v_unpriced THEN 0 ELSE round(((p_input_tokens - p_cached_tokens) * v_in_price
+  v_cost := CASE WHEN v_unpriced THEN COALESCE(v_reserved, 0) ELSE round(((p_input_tokens - p_cached_tokens) * v_in_price
     + p_cached_tokens * v_cached_price + (p_output_tokens + p_thinking_tokens) * COALESCE(v_out_price, 0))
     / 1000000.0, 6) END;
-  v_est := CASE WHEN p_estimated THEN v_cost ELSE 0 END;
+  v_est := CASE WHEN p_estimated OR v_unpriced THEN v_cost ELSE 0 END;
 
   INSERT INTO platform_private.ai_usage_calls (organization_id, call_id, day, cost_usd)
   VALUES (p_organization_id, p_call_id, v_day, v_cost)

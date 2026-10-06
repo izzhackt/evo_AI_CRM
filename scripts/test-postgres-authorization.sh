@@ -3058,10 +3058,13 @@ SQL
   # error), then the suite proves on the real chain: the role reads no table and
   # executes only the 18 agent functions; the rights grant (new bundle
   # versions, moved assignments, idempotent); tickets (consent, access,
-  # single use, 60 s, purpose); no dialog text without a redemption for every
-  # agent function; the admin-only seed allowlist; worker indexing through the
-  # queue; hybrid search; one generator per answer, supersede/409 and stale
-  # insert; 20/min rate limit; spend sums, prices by day and the budget cap.
+  # single use, 60 s, purpose, 60 per member per minute); no dialog text
+  # without a redemption for every agent function; the admin-only seed
+  # allowlist; worker indexing through the queue; hybrid search; one generator
+  # per answer, citations to live client documents only, supersede/409, stale
+  # insert and a follow-up stale after a newer staff message; 20/min rate
+  # limit; spend sums, prices by day and the budget cap, which an unpriced
+  # model cannot bypass.
   if [[ "$(basename "$migration")" == *_platform_ai_agent_rpc.sql ]]; then
     while IFS= read -r ai_agent_migration; do
       docker exec "$container_name" \

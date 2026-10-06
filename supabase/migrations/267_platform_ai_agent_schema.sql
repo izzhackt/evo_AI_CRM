@@ -321,12 +321,15 @@ CREATE TABLE IF NOT EXISTS platform_private.ai_golden_examples (
   CONSTRAINT ai_golden_examples_question_key UNIQUE (organization_id, question_key)
 );
 
--- Ответы и их кэш (хранятся 90 дней).
+-- Ответы и их кэш (хранятся 90 дней). Якорь ответа — последнее входящее;
+-- у «продолжения» (followup) ещё и последнее исходящее: после нового
+-- сообщения сотрудника продолжение устаревает.
 CREATE TABLE IF NOT EXISTS platform_private.ai_answers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES platform.organizations(id),
   conversation_id UUID NOT NULL,
   source_message_id UUID,
+  source_outbound_message_id UUID,
   intent TEXT NOT NULL CHECK (intent IN ('reply', 'followup')),
   knowledge_fingerprint TEXT NOT NULL CHECK (knowledge_fingerprint ~ '^[0-9a-f]{64}$'),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'ready', 'failed', 'superseded')),
@@ -343,7 +346,8 @@ CREATE TABLE IF NOT EXISTS platform_private.ai_answers (
   created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
   CONSTRAINT ai_answers_identity_key UNIQUE NULLS NOT DISTINCT
-    (organization_id, conversation_id, intent, source_message_id, knowledge_fingerprint),
+    (organization_id, conversation_id, intent, source_message_id, source_outbound_message_id, knowledge_fingerprint),
+  CONSTRAINT ai_answers_outbound_anchor_check CHECK (intent = 'followup' OR source_outbound_message_id IS NULL),
   CONSTRAINT ai_answers_ready_check CHECK (status <> 'ready' OR result IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS ai_answers_conversation_idx
@@ -367,6 +371,9 @@ CREATE TABLE IF NOT EXISTS platform_private.ai_tickets (
   CONSTRAINT ai_tickets_answer_check CHECK (purpose <> 'answer' OR conversation_id IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS ai_tickets_expires_idx ON platform_private.ai_tickets (expires_at);
+-- Лимит выдачи билетов на сотрудника (ai_agent_ticket_v1).
+CREATE INDEX IF NOT EXISTS ai_tickets_member_issued_idx
+  ON platform_private.ai_tickets (organization_id, membership_id, issued_at);
 
 -- Датированные цены (USD за 1 млн токенов), общие для организаций.
 CREATE TABLE IF NOT EXISTS platform_private.ai_prices (

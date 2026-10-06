@@ -26,7 +26,8 @@
 --     ai.agent.use, without access to the conversation, for a curator-queue
 --     chat, a Student, another organization and anon; a ticket is 64 hex, only
 --     its SHA-256 is stored, it lives 60 s, redeems once, not after expiry and
---     not for another purpose;
+--     not for another purpose; at most 60 tickets per member per minute
+--     (PT429 ai_ticket_rate_limited);
 --  4. no dialog text without a ticket: every one of the 18 agent functions
 --     called without a valid redemption raises or returns no message text and
 --     no phone; a redemption older than 5 minutes or of a member who lost access
@@ -41,12 +42,17 @@
 --  6. worker indexing through the queue, search (client chunks only in the
 --     client list, internal branch, FTS fallback, open review items);
 --  7. one generator per answer key, cache hit without a rate take, citations
---     only to client chunks, supersede on a new inbound (claim PT409,
---     heartbeat/finish → superseded), stale insert PT409, fingerprint change by
---     a rules save;
+--     only to client chunks of live documents (not superseded), supersede on a
+--     new inbound (claim PT409, heartbeat/finish → superseded), stale insert
+--     PT409, fingerprint change by a rules save; a follow-up is anchored to the
+--     last outbound message too and is stale after a newer staff message;
 --  8. rate limit 20/min (21st PT429, one take per redemption);
 --  9. spend: prices by day (Flash doubles on 2027-01-01), costs, replay, unpriced
---     model, spend_v1 sums equal SUM over ai_usage_daily, budget cap PT402;
+--     model, spend_v1 sums equal SUM over ai_usage_daily, budget cap PT402; the
+--     cap cannot be bypassed with an unpriced model: settings refuse a model
+--     without today's price (22023), a reservation is refused while a
+--     configured model is unpriced (PT402 ai_model_unpriced), and an unpriced
+--     call is booked at its reservation, not at 0;
 -- 10. settings, rules (append-only), documents, consent revoke.
 BEGIN;
 
@@ -389,6 +395,11 @@ END
 $$;
 CREATE FUNCTION pg_temp.ai_in(p_id TEXT, p_from TEXT, p_body TEXT, p_ts BIGINT) RETURNS JSONB LANGUAGE SQL AS $$
   SELECT jsonb_build_object('id', p_id, 'timestamp', p_ts, 'from', p_from, 'fromMe', false, 'source', 'app', 'body', p_body)
+$$;
+-- A message sent from the phone (fromMe) projects as an outbound staff message.
+CREATE FUNCTION pg_temp.ai_out(p_id TEXT, p_to TEXT, p_body TEXT, p_ts BIGINT) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT jsonb_build_object('id', p_id, 'timestamp', p_ts, 'from', '79967000000@c.us', 'to', p_to, 'fromMe', true,
+    'source', 'app', 'body', p_body)
 $$;
 CREATE FUNCTION pg_temp.ai_conv(p_chat TEXT) RETURNS UUID LANGUAGE SQL AS $$
   SELECT binding.conversation_id FROM platform_private.waha_direct_chat_bindings binding
@@ -768,6 +779,19 @@ SELECT pg_temp.ai_assert(pg_temp.ai_err(format($q$SELECT platform_ai_agent.answe
   jsonb_build_object('reply', 'Скидка 15%%', 'citations', jsonb_build_array(jsonb_build_object('n', 1, 'chunk_id', %s))),
   'gemini-3.8-flash', 0.001, '{}', NULL)$q$, :'answer_a', :'chunk_internal')) LIKE '22023:ai_citation_invalid%',
   'a citation marker on an internal chunk is refused');
+RESET ROLE;
+UPDATE platform_private.ai_documents SET status = 'superseded' WHERE id = :'doc1';
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.ai_assert(pg_temp.ai_err(format($q$SELECT platform_ai_agent.answer_finish_v1(%L, 'flight-a', 'ready',
+    jsonb_build_object('reply', 'Обучение стоит 5000 [1]', 'citations', jsonb_build_array(jsonb_build_object('n', 1, 'chunk_id', %s))),
+    'gemini-3.8-flash', 0.001, '{}', NULL)$q$, :'answer_a', :'chunk_client')) LIKE '22023:ai_citation_invalid%'
+  AND pg_temp.ai_err(format($q$SELECT platform_ai_agent.answer_finish_v1(%L, 'flight-a', 'ready',
+    jsonb_build_object('reply', 'Обучение стоит 5000', 'sources', jsonb_build_array(jsonb_build_object('n', 1, 'chunk_id', %s))),
+    'gemini-3.8-flash', 0.001, '{}', NULL)$q$, :'answer_a', :'chunk_client')) LIKE '22023:ai_citation_invalid%',
+  'a citation or source in a superseded document is refused');
+RESET ROLE;
+UPDATE platform_private.ai_documents SET status = 'ready' WHERE id = :'doc1';
+SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.ai_assert((platform_ai_agent.answer_finish_v1(:'answer_a', 'flight-a', 'ready',
   jsonb_build_object('reply', 'Обучение стоит 5000 долларов в год [1].', 'reason', 'Из прайса', 'question', 'На какой уровень?',
     'citations', jsonb_build_array(jsonb_build_object('n', 1, 'chunk_id', :'chunk_client'::BIGINT)),
@@ -876,6 +900,56 @@ SELECT pg_temp.ai_assert(NOT (platform.ai_agent_answer_current_v1(pg_temp.ai_id(
   AND pg_temp.ai_err(format('SELECT platform.ai_agent_answer_insert_v1(%L, %L)', pg_temp.ai_id(1), :'answer_f'))
     LIKE 'PT409:stale_answer%', 'new rules change the fingerprint: the answer is stale');
 RESET ROLE;
+-- A follow-up («Подготовить продолжение», staff wrote last) is anchored to the
+-- last inbound AND the last outbound message: after a newer staff message
+-- (e.g. the follow-up itself was sent) it is stale, refused 409 and not reused.
+SELECT pg_temp.ai_run(6, pg_temp.ai_out('true_79967000001@c.us_AI267BBBBBBBBBBBBBB6', '79967000001@c.us',
+  'Добрый день! Вы успели посмотреть программы?', 1791270006)) AS r6 \gset
+SELECT pg_temp.ai_assert((:'r6'::JSONB ->> 'disposition') = 'succeeded' AND (:'r6'::JSONB ->> 'direction') = 'outbound'
+  AND (:'r6'::JSONB ->> 'communication_conversation_id')::UUID = :'c1'::UUID, 'a staff message from the phone is outbound in c1');
+SELECT (:'r6'::JSONB ->> 'communication_message_id') AS o6 \gset
+SET LOCAL request.jwt.claims TO :'ai267_sales';
+SET LOCAL ROLE authenticated;
+INSERT INTO ai267_tickets(label, ticket) SELECT 'f1', platform.ai_agent_ticket_v1(pg_temp.ai_id(1), 'answer', :'c1', :'m5') ->> 'ticket';
+RESET ROLE;
+SET LOCAL ROLE evo_ai_agent;
+UPDATE ai267_tickets SET redemption = (platform_ai_agent.redeem_ticket_v1(ticket, 'answer') ->> 'redemptionId')::UUID
+  WHERE label = 'f1';
+SELECT redemption AS red_f1 FROM ai267_tickets WHERE label = 'f1' \gset
+SELECT platform_ai_agent.answer_claim_v1(:'red_f1', 'followup', 'flight-g') AS ai267_claim_g \gset
+SELECT pg_temp.ai_assert((:'ai267_claim_g'::JSONB ->> 'status') = 'claimed' AND (:'ai267_claim_g'::JSONB ->> 'sourceMessageId') = :'m5'
+  AND (:'ai267_claim_g'::JSONB ->> 'sourceOutboundMessageId') = :'o6',
+  'a follow-up is anchored to the last inbound and the last outbound message');
+SELECT (:'ai267_claim_g'::JSONB ->> 'answerId') AS answer_g \gset
+SELECT pg_temp.ai_assert((platform_ai_agent.answer_finish_v1(:'answer_g', 'flight-g', 'ready', '{"reply":"Напомню о программах."}',
+  'gemini-3.8-flash', 0.001, NULL, NULL) ->> 'status') = 'ready', 'the follow-up is ready');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'ai267_sales';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ai_assert((platform.ai_agent_answer_current_v1(pg_temp.ai_id(1), :'c1', 'followup') #>> '{answer,current}')::BOOLEAN,
+  'the follow-up is current while staff wrote nothing newer');
+RESET ROLE;
+SELECT pg_temp.ai_run(7, pg_temp.ai_out('true_79967000001@c.us_AI267BBBBBBBBBBBBBB7', '79967000001@c.us',
+  'Напомню о программах.', 1791270007)) AS r7 \gset
+SELECT (:'r7'::JSONB ->> 'communication_message_id') AS o7 \gset
+SET LOCAL request.jwt.claims TO :'ai267_sales';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ai_assert(NOT (platform.ai_agent_answer_current_v1(pg_temp.ai_id(1), :'c1', 'followup') #>> '{answer,current}')::BOOLEAN
+  AND pg_temp.ai_err(format('SELECT platform.ai_agent_answer_insert_v1(%L, %L)', pg_temp.ai_id(1), :'answer_g'))
+    LIKE 'PT409:stale_answer%', 'after a newer staff message the follow-up is stale and its insert is refused 409');
+INSERT INTO ai267_tickets(label, ticket) SELECT 'f2', platform.ai_agent_ticket_v1(pg_temp.ai_id(1), 'answer', :'c1', :'m5') ->> 'ticket';
+RESET ROLE;
+SET LOCAL ROLE evo_ai_agent;
+UPDATE ai267_tickets SET redemption = (platform_ai_agent.redeem_ticket_v1(ticket, 'answer') ->> 'redemptionId')::UUID
+  WHERE label = 'f2';
+SELECT redemption AS red_f2 FROM ai267_tickets WHERE label = 'f2' \gset
+SELECT platform_ai_agent.answer_claim_v1(:'red_f2', 'followup', 'flight-h') AS ai267_claim_h \gset
+SELECT pg_temp.ai_assert((:'ai267_claim_h'::JSONB ->> 'status') = 'claimed'
+  AND (:'ai267_claim_h'::JSONB ->> 'sourceOutboundMessageId') = :'o7'
+  AND (:'ai267_claim_h'::JSONB ->> 'answerId') <> :'answer_g', 'a new follow-up is generated, not the stale one reused');
+RESET ROLE;
+SELECT pg_temp.ai_assert((SELECT status = 'superseded' FROM platform_private.ai_answers WHERE id = :'answer_g'),
+  'the stale follow-up is marked superseded');
 
 -- ---------------------------------------------------------------------------
 -- 12. Rate limit: 20 answers per minute per member; the 21st is PT429.
@@ -911,6 +985,18 @@ RESET ROLE;
 SELECT pg_temp.ai_assert((SELECT sum(hits) = 20 FROM platform_private.ai_rate_limits WHERE membership_id = pg_temp.ai_id(301))
   AND (SELECT count(*) = 20 FROM platform_private.ai_tickets t JOIN ai267_tickets x ON x.redemption = t.id
     WHERE x.label LIKE 'rate%' AND t.rate_taken_at IS NOT NULL), 'exactly 20 slots and 20 marked redemptions');
+-- Ticket issuance: at most 60 per member per minute (the CRM route cannot flood ai_tickets).
+SET LOCAL request.jwt.claims TO :'ai267_sales';
+SET LOCAL ROLE authenticated;
+SELECT count(*) FILTER (WHERE x.o = 'ok') AS tickets_ok,
+  count(*) FILTER (WHERE x.o LIKE 'PT429:ai_ticket_rate_limited%') AS tickets_limited
+FROM (SELECT pg_temp.ai_err(format('SELECT platform.ai_agent_ticket_v1(%L, ''answer'', %L, %L)', pg_temp.ai_id(1), :'c1', :'m5')) AS o
+  FROM generate_series(1, 70)) x \gset
+RESET ROLE;
+SELECT pg_temp.ai_assert(:'tickets_ok'::INTEGER BETWEEN 1 AND 60 AND :'tickets_ok'::INTEGER + :'tickets_limited'::INTEGER = 70
+  AND (SELECT count(*) <= 60 FROM platform_private.ai_tickets WHERE membership_id = pg_temp.ai_id(302)
+    AND issued_at > clock_timestamp() - INTERVAL '60 seconds'),
+  'at most 60 tickets per member per minute; the rest PT429 ai_ticket_rate_limited');
 
 -- ---------------------------------------------------------------------------
 -- 13. Spend and budget.
@@ -993,6 +1079,61 @@ SELECT pg_temp.ai_assert((platform_ai_agent.usage_record_v1(pg_temp.ai_id(1), ge
 RESET ROLE;
 SELECT pg_temp.ai_assert((SELECT settled_at IS NOT NULL FROM platform_private.ai_budget_reservations WHERE id = :'reservation'),
   'the reservation is settled');
+-- The cap cannot be bypassed with an unpriced model (review of 8bbc66759).
+-- (a) Settings refuse a newly chosen model without a price valid today: a
+-- generating model needs input and output prices, the embedding model the
+-- embedding price (also a renamed id such as gemini-embedding-2-preview);
+-- a priced model is accepted.
+SET LOCAL request.jwt.claims TO :'ai267_sales';
+SET LOCAL ROLE authenticated;
+SELECT (platform.ai_agent_settings_v1(pg_temp.ai_id(1)) ->> 'version')::BIGINT AS settings_version2 \gset
+SELECT pg_temp.ai_assert(pg_temp.ai_err(format('SELECT platform.ai_agent_settings_save_v1(%L, %s, ''{"answerModel":"gemini-2.5-pro","monthlyCapUsd":1}'', %L)',
+    pg_temp.ai_id(1), :'settings_version2', pg_temp.ai_id(3306))) LIKE '22023:ai_settings_unpriced_model%'
+  AND pg_temp.ai_err(format('SELECT platform.ai_agent_settings_save_v1(%L, %s, ''{"answerModel":"gemini-embedding-2"}'', %L)',
+    pg_temp.ai_id(1), :'settings_version2', pg_temp.ai_id(3307))) LIKE '22023:ai_settings_unpriced_model%'
+  AND pg_temp.ai_err(format('SELECT platform.ai_agent_settings_save_v1(%L, %s, ''{"embeddingModel":"gemini-embedding-2-preview"}'', %L)',
+    pg_temp.ai_id(1), :'settings_version2', pg_temp.ai_id(3308))) LIKE '22023:ai_embedding_model_locked%',
+  'a model without today''s price (or without an output price) cannot be chosen');
+SELECT pg_temp.ai_assert((platform.ai_agent_settings_save_v1(pg_temp.ai_id(1), :'settings_version2',
+    '{"arbiterFallbackModel":"gemini-3.1-pro-preview"}', pg_temp.ai_id(3309)) ->> 'status') = 'applied'
+  AND (platform.ai_agent_settings_v1(pg_temp.ai_id(1)) -> 'unpricedModels') = '[]'::JSONB,
+  'a priced model is accepted; no configured model is unpriced');
+RESET ROLE;
+-- Without vectors (organization 2) a renamed embedding id is refused for its missing price.
+SET LOCAL request.jwt.claims TO :'ai267_other_admin';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ai_assert(pg_temp.ai_err(format('SELECT platform.ai_agent_settings_save_v1(%L, %s, ''{"embeddingModel":"gemini-embedding-2-preview"}'', %L)',
+    pg_temp.ai_id(2), (platform.ai_agent_settings_v1(pg_temp.ai_id(2)) ->> 'version')::BIGINT, pg_temp.ai_id(3310)))
+    LIKE '22023:ai_settings_unpriced_model%',
+  'a renamed embedding id without a price is refused (deviation 8)');
+RESET ROLE;
+-- (b) A call of an unpriced model is booked at its reservation, not at 0.
+SELECT COALESCE(sum(cost_usd), 0) AS month_before FROM platform_private.ai_usage_daily
+  WHERE organization_id = pg_temp.ai_id(1) AND day >= date_trunc('month', :'today'::DATE) \gset
+SET LOCAL ROLE evo_ai_agent;
+SELECT platform_ai_agent.budget_reserve_v1(pg_temp.ai_id(1), 'enrich', 0.003) ->> 'reservationId' AS reservation_u \gset
+SELECT platform_ai_agent.usage_record_v1(pg_temp.ai_id(1), gen_random_uuid(), 'enrich', 'gemini-9-unknown', 5000000, 0,
+  2000000, 0, FALSE, FALSE, NULL, :'reservation_u') AS ai267_usage_u \gset
+RESET ROLE;
+SELECT pg_temp.ai_assert((:'ai267_usage_u'::JSONB ->> 'costUsd')::NUMERIC = 0.003 AND (:'ai267_usage_u'::JSONB ->> 'unpriced')::BOOLEAN
+  AND (:'ai267_usage_u'::JSONB ->> 'estimated')::BOOLEAN
+  AND (SELECT settled_at IS NOT NULL FROM platform_private.ai_budget_reservations WHERE id = :'reservation_u')
+  AND (SELECT sum(cost_usd) FROM platform_private.ai_usage_daily WHERE organization_id = pg_temp.ai_id(1)
+    AND day >= date_trunc('month', :'today'::DATE)) = :'month_before'::NUMERIC + 0.003,
+  'an unpriced call is booked at its reservation estimate and the month grows');
+-- (c) While a configured model has no price today (a price period ended, a
+-- legacy value), no budget is reserved, and «Настройки» name the model.
+UPDATE platform_private.ai_settings SET answer_model = 'gemini-2.5-pro' WHERE organization_id = pg_temp.ai_id(1);
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.ai_assert(pg_temp.ai_err(format('SELECT platform_ai_agent.budget_reserve_v1(%L, ''answer'', 0.0001)', pg_temp.ai_id(1)))
+  LIKE 'PT402:ai_model_unpriced%', 'no reservation while a configured model is unpriced (PT402)');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'ai267_sales';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ai_assert((platform.ai_agent_settings_v1(pg_temp.ai_id(1)) -> 'unpricedModels') = '["gemini-2.5-pro"]'::JSONB,
+  'the settings name the unpriced model');
+RESET ROLE;
+UPDATE platform_private.ai_settings SET answer_model = 'gemini-3.8-flash' WHERE organization_id = pg_temp.ai_id(1);
 
 -- ---------------------------------------------------------------------------
 -- 14. Rules, documents, settings reads.

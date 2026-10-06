@@ -363,9 +363,10 @@ Tesseract `rus+kir+eng` на странице на hermes; цель «3 стра
 | `ai_documents` | Материалы «Информации для агента» | `kind` (`text`, `docx`, `xlsx`, `csv`, `pdf`, `image`, `knowledge`); `audience` (`client`, `internal`); `autosend_allowed` (false); `status` (`queued`, `processing`, `review`, `ready`, `failed`, `superseded`); `stage`, `progress`, `error_code`; `storage_path`; `byte_sha256` (уникален среди не заменённых); `content_md` (нормализованный текст для правок Лаборатории); `replaces_id`, `superseded_by_id`; `source` (`upload`, `seed_kb`, `lab`) и `source_ref` (узел и версия KB); `edited_in_lab` |
 | `ai_document_pages` | Страницы и листы | `page_no`, `sheet_name`, `image_path`, размеры, `method` (`text`, `ocr`), `confidence`, `text_md` |
 | `ai_chunks` | Фрагменты для поиска | `id bigint identity`; `position`, `section_path` («Прайс 2026 › Тарифы»), `content`, `context` (контекстный заголовок), `lang`, `index_text` (перевод на русский, если текст не на русском), `page_from`/`page_to`, `sheet_name`, `boxes`, `tokens`; `embedding halfvec(1536)` — HNSW `halfvec_cosine_ops` (`m` 16, `ef_construction` 64); `fts tsvector` GENERATED: `russian`, веса A у `section_path`, C у `context`, B у `coalesce(index_text, content)`; GIN по `fts` |
-| `ai_review_items` | «Лист сверки» | `document_id`, `page_no`, `bbox`, `crop_path`, `kind` (`number`, `text`), `candidates` (`tesseract`, `vision`, `arbiter`, `arbiter_model`), `proposed`, `value`, `anchor`, `value_index`, `status` (`open`, `resolved`, `dismissed`), кто и когда решил |
-| `ai_golden_examples` | Подтверждённые примеры ответов | `question_key` (уникален в организации), `question`, `answer`, `feedback`, `embedding halfvec(1536)`, `knowledge_version`, `source_document_ids`, `client_only`, кто подтвердил |
-| `ai_lab_sessions` | Текущая проверка в Лаборатории | Одна на сотрудника, `payload jsonb`, `expires_at`. Только незавершённая работа, не история |
+| `ai_review_items` | «Лист сверки» | `document_id`, `page_no`, `bbox`, `crop_path`, `kind` (`number`, `text`), `candidates` (`tesseract`, `vision`, `arbiter`, `arbiter_model`), `proposed`, `value`, `anchor`, `value_index`, `context_label`, `status` (`open`, `applying`, `resolved`, `dismissed`), `resolution` (`confirm`, `correct`, `dismiss`), `error_code` (например `anchor_ambiguous`), кто и когда решил |
+| `ai_golden_examples` | Подтверждённые примеры ответов | `question_key` (уникален в организации), `question`, `answer`, `feedback`, `embedding halfvec(1536)`, `rules_version_id`, `answer_model`, `source_doc_versions` (`{документ: {v, a}}`), `source_document_ids`, `client_only`, кто подтвердил. Пример действует, только пока совпадают правила, модель ответа и версия с аудиторией каждого документа-источника (P2, 273; фильтр P1 по `knowledge_version` снят) |
+| `ai_lab_sessions` | Текущая проверка в Лаборатории | Одна на сотрудника, `revision`, `payload jsonb` ≤ 256 KB, `expires_at` (2 ч). Только незавершённая работа, не история |
+| `ai_lab_proposals` | Предложение «было/стало» | Одно `proposed` на сотрудника; `kind` (`document`, `knowledge`, `rules`, `example`); цель закреплена версией и SHA текста документа или версией правил; `before`/`after` ≤ 6000; эталонный ответ, вопрос, «что не так», источники; `status` (`proposed`, `applied`, `rejected`, `expired`, `conflict`); содержимое неизменяемо |
 | `ai_client_memory` | Память о клиенте (P3) | PK `conversation_id`; `interest` ≤ 140 символов; `summary`; `covered_message_id`; `covered_count`; `updated_at` |
 | `ai_answers` | Ответы и их кэш | `conversation_id`, `source_message_id` (последнее входящее на момент запроса), `source_outbound_message_id` (у `followup` — последнее исходящее на момент запроса), `intent` (`reply`, `followup`), `knowledge_fingerprint`, `status` (`pending`, `ready`, `failed`, `superseded`), `result jsonb` (§6.3), `flight_owner` и `heartbeat_at` (один генератор на ключ), `requested_by`, `model`, `cost_usd`, `timings`, `inserted_at`/`inserted_by`. Уникальность по (организация, диалог, intent, сообщение, исходящее, fingerprint). Хранится 90 дней |
 | `ai_tickets` | Одноразовые билеты CRM → агент | SHA-256 токена, сотрудник, цель, диалог, ссылка, `expires_at`, `used_at`. Чистится через сутки |
@@ -386,8 +387,13 @@ Tesseract `rus+kir+eng` на странице на hermes; цель «3 стра
   `stale_answer`, если ответ устарел;
 - `ai_agent_documents_v1`, `ai_agent_document_upload_v1`,
   `ai_agent_document_update_v1` (аудитория, разрешение для автоответчика,
-  название), `ai_agent_document_delete_v1`, `ai_agent_document_retry_v1`;
+  название), `ai_agent_document_delete_v1`, `ai_agent_document_retry_v1`,
+  `ai_agent_document_v1`, `ai_agent_document_page_v1` (просмотрщик),
+  `ai_agent_document_confirm_company_v1` («Это материал компании —
+  продолжить»);
 - `ai_agent_review_v1`, `ai_agent_review_resolve_v1`;
+- `ai_agent_lab_v1`, `ai_agent_lab_discard_v1`, `ai_agent_lab_reject_v1`
+  («Не менять»), `ai_agent_examples_v1`, `ai_agent_example_delete_v1`;
 - `ai_agent_rules_v1`, `ai_agent_rules_save_v1`, `ai_agent_rules_confirm_v1`;
 - `ai_agent_spend_v1`, `ai_agent_settings_v1`, `ai_agent_settings_save_v1`;
 - `ai_agent_consent_record_v1` — только admin (§13);
@@ -399,6 +405,9 @@ Tesseract `rus+kir+eng` на странице на hermes; цель «3 стра
 Для сервера CRM (`platform`, `EXECUTE` только у `service_role`, ключ есть
 только у CRM):
 
+- `ai_agent_storage_authorize_v1(organization_id, document_id, worker,
+  op, path)` — разрешение брокера хранилища (§4.5) на один объект
+  документа под арендой воркера (P2);
 - `ai_autosend_authorize_v1(organization_id, decision_id, request_id)` —
   единственная точка ночной отправки (§11, правило 9, P4).
 
@@ -415,9 +424,14 @@ Tesseract `rus+kir+eng` на странице на hermes; цель «3 стра
   (возврат резерва ответа, оборвавшегося до вызова Gemini);
 - `document_claim_v1`, `document_stage_v1`, `document_index_v1` (одна
   транзакция: заменить фрагменты, выставить `ready` или `review`, увеличить
-  `knowledge_version`, сменить версию документа), `review_items_put_v1`.
-  Документы агента — материалы компании, не диалоги;
-- `lab_*`;
+  `knowledge_version`, сменить версию документа), `review_items_put_v1`,
+  `document_content_put_v1`, `document_pages_put_v1`,
+  `document_reindex_claim_v1`, `document_reindex_v1` (исправления «Листа
+  сверки» на прежнем SHA текста). Документы агента — материалы компании, не
+  диалоги;
+- `lab_*` (`lab_session_get_v1`, `lab_session_put_v1`, `lab_documents_v1`,
+  `lab_proposal_put_v1`, `lab_apply_prepare_v1`, `lab_apply_v1`) — по
+  билету `laboratory` или `lab_apply`;
 - `work_claim_v1`, `work_extend_v1`, `work_finish_v1`.
 
 Фоновые функции агента читают диалоги без билета, поэтому каждая проверяет

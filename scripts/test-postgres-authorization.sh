@@ -27,6 +27,7 @@ p6d_concurrency_assert_log="$(mktemp -t evo-p6d-concurrency-assert.XXXXXX)"
 p6d_concurrency_worker_a_pid=""
 p8r4_cutover_guard_log="$(mktemp -t evo-p8r4-cutover-guard.XXXXXX)"
 p7aj_journal_contract_log="$(mktemp -t evo-p7aj-journal-contract.XXXXXX)"
+ai_agent_p2_stale_rerun_log="$(mktemp -t evo-ai-agent-p2-stale-rerun.XXXXXX)"
 u2_concurrency_worker_a_log="$(mktemp -t evo-u2-concurrency-a.XXXXXX)"
 u2_concurrency_worker_b_log="$(mktemp -t evo-u2-concurrency-b.XXXXXX)"
 u2_concurrency_assert_log="$(mktemp -t evo-u2-concurrency-assert.XXXXXX)"
@@ -99,6 +100,7 @@ cleanup() {
     "$p6d_concurrency_assert_log" \
     "$p8r4_cutover_guard_log" \
     "$p7aj_journal_contract_log" \
+    "$ai_agent_p2_stale_rerun_log" \
     "$u2_concurrency_worker_a_log" \
     "$u2_concurrency_worker_b_log" \
     "$u2_concurrency_assert_log" \
@@ -3092,6 +3094,56 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_agent_answer_sources.sql
+  fi
+
+  # «ИИ-агент» P2 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §4.5, §7, §8, §13,
+  # §15 P2): files, «Лист сверки», Laboratory. Matched by name, not number.
+  # Each of the three migrations is applied a SECOND time right after itself
+  # (production-safe re-run at its own point of the chain: no new bucket,
+  # policy, column, constraint or error). After the Laboratory migration a
+  # stale re-run of the review migration must be refused by its exact
+  # function inventory (it would otherwise downgrade search_v1), and the suite
+  # proves on the real chain: the private bucket and its RESTRICTIVE policy
+  # even under a permissive probe policy; 27 staff and 30 agent functions,
+  # hardened, the broker authorization for service_role only, the agent role
+  # with no table privilege; uploads (rights, company-material and client
+  # confirmations, type, ClamAV proof, duplicate PT409 with the title, replay,
+  # replacement rules); content/pages/review items only under the lease; the
+  # broker authorization per object; swap-when-ready including a failed new
+  # version; the personal-document stop and its override; deletion mid-
+  # processing; the viewer; the review sheet (rights, expected status,
+  # confirm/correct/dismiss/reopen, applying unverified in search and
+  # sources); reindex on the base SHA with reused chunk IDs and vectors and
+  # anchor_ambiguous; Laboratory ticket isolation both ways, the 20/min limit,
+  # session revisions, `before` exactly once, apply of a document edit, a new
+  # fragment, rules and an example, conflict PT409 and status, «Не менять»,
+  # example validity by rules, model and document versions, maintenance.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_files.sql \
+    || "$(basename "$migration")" == *_platform_ai_agent_review.sql \
+    || "$(basename "$migration")" == *_platform_ai_agent_lab.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >/dev/null
+  fi
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_lab.sql ]]; then
+    ai_agent_review_migration="$(
+      cd "$repo_root"
+      find supabase/migrations -maxdepth 1 -type f -name '*_platform_ai_agent_review.sql' | sort | head -n 1
+    )"
+    if docker exec "$container_name" \
+      psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$ai_agent_review_migration" >"$ai_agent_p2_stale_rerun_log" 2>&1; then
+      echo "the AI agent review migration re-ran after the Laboratory migration" >&2
+      exit 1
+    fi
+    if ! grep -Fq "ai_agent_function_inventory_drift" "$ai_agent_p2_stale_rerun_log"; then
+      echo "the stale AI agent review re-run failed for the wrong reason" >&2
+      sed -n '1,40p' "$ai_agent_p2_stale_rerun_log" >&2
+      exit 1
+    fi
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_p2.sql
   fi
 done < <(
   cd "$repo_root"

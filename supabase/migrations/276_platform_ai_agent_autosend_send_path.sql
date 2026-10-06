@@ -406,8 +406,16 @@ BEGIN
     CONTINUE WHEN v_item.state <> 'queued' OR v_item.attempt_count <> 0
       OR EXISTS (SELECT 1 FROM platform_private.durable_work_attempts a
         WHERE a.organization_id = v_item.organization_id AND a.work_item_id = v_item.id);
-    PERFORM platform_private.p2g_dead_letter_work(v_item.id, NULL, 'ai_autosend_cancelled',
-      'ai-autosend:' || p_reason, platform_private.p3c_request_child_id(v_pending.id, 'ai-autosend-cancel'));
+    -- Выключатель не должен падать из-за уборки: если снять работу с
+    -- очереди нельзя (например, нет её сообщения PGMQ), решение всё равно
+    -- cancelled — повтор authorize его не отдаст, а без authorize работу
+    -- никто не берёт (точный claim ждёт её id из ответа authorize).
+    BEGIN
+      PERFORM platform_private.p2g_dead_letter_work(v_item.id, NULL, 'ai_autosend_cancelled',
+        'ai-autosend:' || p_reason, platform_private.p3c_request_child_id(v_pending.id, 'ai-autosend-cancel'));
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
     UPDATE platform_private.ai_autosend_log l SET status = 'cancelled', reason_code = p_reason,
       reason_ru = platform_private.ai_autosend_reason_ru(p_reason), lease_owner = NULL, lease_expires_at = NULL,
       finished_at = clock_timestamp(), updated_at = clock_timestamp()

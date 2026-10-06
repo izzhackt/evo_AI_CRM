@@ -64,7 +64,8 @@
 --     60 s, provider down) and takes the item off the queue (dead letter,
 --     decision cancelled, the exact claim gets nothing); pause, disable,
 --     exclusion, the shadow switch and maintenance take such items off too;
---     a claimed item replays as already_claimed; the live-test list and
+--     a claimed item replays as already_claimed; the off switch applies even
+--     when cleanup cannot dead-letter an item; the live-test list and
 --     live_test mode need three shadow nights; a night counts only with a
 --     shadow answer and within 30 days; shadow rows do not suppress the
 --     disclosure line of the first live reply; links (any label.tld,
@@ -1458,6 +1459,19 @@ SELECT pg_temp.p4_agent('SELECT platform_ai_agent.maintenance_v1()') AS mnt_r12 
 SELECT pg_temp.p4_assert((:'mnt_r12'::JSONB ->> 'autosendUnclaimedCancelled')::INTEGER = 1
   AND pg_temp.p4_taken_off(:'d_r12', 'send_expired'),
   'maintenance takes an autoresponse nobody claimed within 2 minutes off the queue');
+-- The off switch never fails on cleanup: a work item whose PGMQ message is
+-- gone cannot be dead-lettered, yet the pause applies and the decision is
+-- cancelled (a replay refuses it, so nobody claims the item).
+SELECT pg_temp.p4_live(93, 'R13', 6113) AS d_r13 \gset
+DELETE FROM pgmq.q_platform_work_v1 q USING platform_private.durable_work_items i
+  WHERE i.id = (pg_temp.p4_row(:'d_r13')).work_item_id AND q.msg_id = i.queue_message_id;
+SELECT pg_temp.p4_assert((pg_temp.p4_staff(2, format('SELECT platform.ai_agent_autosend_pause_v1(%L, %L, %s, %L)',
+    pg_temp.p4_id(1), 'pause', pg_temp.p4_version(), pg_temp.p4_id(3108))) ->> 'pauseCode') = 'manual'
+  AND (pg_temp.p4_row(:'d_r13')).status = 'cancelled' AND (pg_temp.p4_row(:'d_r13')).reason_code = 'paused'
+  AND pg_temp.p4_authorize(:'d_r13') ->> 'reason' = 'not_scheduled',
+  'a pause applies even when an unclaimed item cannot be dead-lettered; the decision is cancelled');
+SELECT pg_temp.p4_staff(2, format('SELECT platform.ai_agent_autosend_pause_v1(%L, %L, %s, %L)',
+  pg_temp.p4_id(1), 'resume', pg_temp.p4_version(), pg_temp.p4_id(3109)));
 SELECT pg_temp.p4_sched(pg_temp.p4_conv(55), :'u5') AS d_u5 \gset
 UPDATE platform_private.ai_autosend_settings SET shadow_mode = TRUE WHERE organization_id = pg_temp.p4_id(1);
 SELECT pg_temp.p4_assert(pg_temp.p4_authorize(:'d_u5') ->> 'reason' = 'shadow_mode',

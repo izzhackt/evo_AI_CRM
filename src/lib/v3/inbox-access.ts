@@ -1,10 +1,10 @@
-import { staffHasPermission } from "../platform-access.ts";
-import type { ActivePlatformActor, PlatformActor } from "../platform-auth.ts";
+import { isStaffPreview, staffCan } from "../platform-access.ts";
+import type { ActivePlatformActor } from "../platform-auth.ts";
 
 /**
- * Two presentation decisions of the WhatsApp page that depend only on the
- * actor. The database stays the authority: which conversations a member sees
- * and may answer is decided by the scoped evaluator (migration 261 opens the
+ * Presentation decisions of the WhatsApp page that depend only on the actor.
+ * The database stays the authority: which conversations a member sees and
+ * may answer is decided by the scoped evaluator (migration 261 opens the
  * sales queue to every holder of `communication.read.full` /
  * `communication.manual.send`); nothing here grants or widens anything.
  */
@@ -22,11 +22,15 @@ export function inboxPresentationQueue(
 }
 
 /**
- * The Gemini proposal readers need `ai.draft.review` besides the right to read
- * the conversation (migrations 091/096). A role that may read and answer
- * WhatsApp without AI drafts must still open the transcript, so the page asks
- * for the AI block only when the actor holds that key (the Admin always does).
+ * Whether the composer is offered at all (06.10.2026, the chat replaces the
+ * «Ответ и отправка» block). A role preview never sends — the server action
+ * refuses it too — and a member without `communication.manual.send` reads
+ * only. The chat's own facts (a customer message, the session, open) are
+ * decided by the page from the read model.
  */
-export function inboxReadsGeminiDrafts(actor: PlatformActor): boolean {
-  return staffHasPermission(actor, "ai.draft.review");
+export function inboxReplyActor(
+  actor: ActivePlatformActor,
+): "allowed" | "preview" | "no_permission" {
+  if (isStaffPreview(actor)) return "preview";
+  return staffCan(actor, "messaging.send") ? "allowed" : "no_permission";
 }

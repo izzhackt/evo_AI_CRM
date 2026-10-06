@@ -38,34 +38,14 @@ test("the active Platform amoCRM command panel remains on Admissions Student 360
   assert.match(admissions, /blockingAttempt=/);
 });
 
-test("the V3 Inbox mounts the same Supabase-backed Sales amoCRM command path", () => {
+test("the sales WhatsApp chat no longer mounts the amoCRM command panel (owner decision 06.10.2026)", () => {
+  // «amocrm убирай просто, пока не надо в чате продаж»: the panel and its
+  // readers stay for the profile (ProfileAmoCrmCommandSection) and settings.
   const inboxPage = source("src/app/(v3)/v3/inbox/page.tsx");
   const inboxSource = source("src/lib/v3/inbox-source.ts");
-
-  assert.match(inboxPage, /CanonicalAmoCrmCommandPanel/);
-  assert.match(inboxSource, /readPlatformBlockingAmoCrmCommand/);
-  assert.match(inboxSource, /createSupabaseServerClient\(\)/);
-  assert.match(inboxSource, /getPlatformConversationCommandContext/);
-  assert.match(inboxSource, /\? "sales_pre_handoff"\s*:\s*"admissions_post_handoff"/);
-  assert.match(inboxSource, /workflowLeadId:\s*leadId/);
-  assert.match(inboxSource, /studentCaseId:\s*scope === "sales" \? null : studentCaseId/);
-  assert.match(inboxSource, /personId:\s*clientId/);
-  assert.match(inboxSource, /leadId,/);
-  assert.match(inboxPage, /<CanonicalAmoCrmCommandPanel/);
-  assert.match(inboxPage, /blockingAttempt=\{command\.blockingAttempt\}/);
-  assert.match(inboxPage, /scope=\{command\.scope\}/);
-  assert.match(inboxPage, /leadId=\{command\.leadId\}/);
-  assert.match(inboxPage, /data-testid="v3-inbox-amocrm"/);
-  assert.match(
-    inboxPage,
-    /Запись через другой путь не выполняется/,
-  );
-  for (const retired of [
-    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
-    "src/app/(staff)/sales/[id]/PlatformSalesAmoCrmCommandSection.tsx",
-  ]) {
-    assert.equal(existsSync(new URL(retired, root)), false, retired);
-  }
+  assert.doesNotMatch(inboxPage, /CanonicalAmoCrmCommandPanel|v3-inbox-amocrm/u);
+  assert.doesNotMatch(inboxSource, /readPlatformBlockingAmoCrmCommand|readCanonicalAmoCrmCommandAvailability/u);
+  assert.match(source("src/components/v3/profile/ProfileAmoCrmCommandSection.tsx"), /CanonicalAmoCrmCommandPanel/u);
 });
 
 test("the panel exposes exact inputs, honest states, per-step evidence, and explicit unknown reconciliation", () => {

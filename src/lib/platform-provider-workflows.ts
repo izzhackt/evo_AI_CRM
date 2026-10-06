@@ -45,6 +45,44 @@ export class PlatformProviderWorkflowError extends Error {
   }
 }
 
+/**
+ * The database refused a manual-send request before anything was recorded
+ * (migrations 050/266). Only the reason travels; the database message and
+ * SQLSTATE stay on the server.
+ */
+export type PlatformManualSendRefusalReason =
+  | "stale_source"
+  | "duplicate"
+  | "not_ready"
+  | "forbidden"
+  | "invalid";
+
+export class PlatformManualSendRefusedError extends PlatformProviderWorkflowError {
+  readonly reason: PlatformManualSendRefusalReason;
+
+  constructor(reason: PlatformManualSendRefusalReason) {
+    super();
+    this.name = "PlatformManualSendRefusedError";
+    this.reason = reason;
+  }
+}
+
+/** SQLSTATE and message of the manual-send request → the one reason staff can act on. */
+export function classifyManualSendRefusal(
+  error: unknown,
+): PlatformManualSendRefusalReason | null {
+  if (typeof error !== "object" || error === null) return null;
+  const code = (error as { code?: unknown }).code;
+  const message = String((error as { message?: unknown }).message ?? "");
+  if (code === "42501") return "forbidden";
+  if (code === "22023") return "invalid";
+  if (code !== "55000") return null;
+  if (message.startsWith("duplicate_of_unresolved")) return "duplicate";
+  if (/integration is not fresh provider-observed ready/u.test(message)) return "not_ready";
+  if (/latest inbound message/u.test(message)) return "stale_source";
+  return null;
+}
+
 export type PlatformGeminiProposalOutcome =
   | "proposal_ready"
   | "human_review";
@@ -358,10 +396,6 @@ function requiredPrintableProviderId(value: unknown): string {
 function requiredErrorCode(value: unknown): string {
   const code = requiredTrimmedText(value, 2, 64);
   return ERROR_CODE_PATTERN.test(code) ? code : unavailable();
-}
-
-function optionalErrorCode(value: unknown): string | null {
-  return value === null ? null : requiredErrorCode(value);
 }
 
 function requiredEnum<T extends string>(
@@ -1213,20 +1247,34 @@ export async function requestManualWhatsAppSendWithAuthorization(
   const aiDraftId = optionalUuid(input.aiDraftId);
   const finalText = requiredTrimmedText(input.finalText, 1, 16_000);
   const businessKeySha256 = requiredSha256(input.businessKeySha256);
-  const row = await callRpc(
-    client,
-    "request_manual_whatsapp_send_with_authorization",
-    {
-      p_organization_id: organizationId,
-      p_conversation_id: conversationId,
-      p_source_message_id: sourceMessageId,
-      p_ai_draft_id: aiDraftId,
-      p_final_text: finalText,
-      p_reason: requiredReason(input.reason),
-      p_business_key_sha256: businessKeySha256,
-      p_request_id: requiredUuid(input.requestId),
-    },
-  );
+  const args = {
+    p_organization_id: organizationId,
+    p_conversation_id: conversationId,
+    p_source_message_id: sourceMessageId,
+    p_ai_draft_id: aiDraftId,
+    p_final_text: finalText,
+    p_reason: requiredReason(input.reason),
+    p_business_key_sha256: businessKeySha256,
+    p_request_id: requiredUuid(input.requestId),
+  };
+  let response: PlatformProviderRpcResponse;
+  try {
+    response = await client.schema("platform").rpc(
+      "request_manual_whatsapp_send_with_authorization",
+      args,
+    );
+  } catch {
+    return unavailable();
+  }
+  if (!isRecord(response) || !("data" in response) || !("error" in response)) {
+    return unavailable();
+  }
+  if (response.error !== null) {
+    const reason = classifyManualSendRefusal(response.error);
+    if (reason !== null) throw new PlatformManualSendRefusedError(reason);
+    return unavailable();
+  }
+  const row = response.data;
   if (!isRecord(row) || !hasExactKeys(row, MANUAL_SEND_AUTHORIZATION_KEYS)) {
     return unavailable();
   }
@@ -1555,12 +1603,6 @@ export async function finishManualWhatsAppSend(
   return result;
 }
 
-export type PlatformManualWhatsAppAttemptStatus =
-  | "prepared"
-  | "accepted"
-  | "unknown"
-  | "rejected";
-
 export type PlatformWhatsAppProviderSource = "api" | "app";
 
 export type PlatformWhatsAppAckName =
@@ -1581,62 +1623,6 @@ export type PlatformManualWhatsAppReconciliationOutcome =
   | "message_not_found"
   | "delivery_refreshed";
 
-export type PlatformManualWhatsAppSendAttempt = Readonly<{
-  attemptId: string;
-  workItemId: string;
-  conversationId: string;
-  manualSendAuthorizationId: string;
-  finalText: string;
-  authorizedByMembershipId: string;
-  authorizedByName: string;
-  status: PlatformManualWhatsAppAttemptStatus;
-  reconciliationRequired: boolean;
-  providerSource: PlatformWhatsAppProviderSource | null;
-  ackName: PlatformWhatsAppAckName | null;
-  providerObservedAt: string | null;
-  ackObservedAt: string | null;
-  failureCode: string | null;
-  attemptNumber: 1;
-  authorizedAt: string;
-  claimedAt: string;
-  settledAt: string | null;
-  lastReconciledAt: string | null;
-  latestReconciliationKind: PlatformManualWhatsAppReconciliationKind | null;
-  latestReconciliationOutcome:
-    | PlatformManualWhatsAppReconciliationOutcome
-    | null;
-}>;
-
-const MANUAL_SEND_ATTEMPT_KEYS = Object.freeze([
-  "attempt_id",
-  "work_item_id",
-  "conversation_id",
-  "manual_send_authorization_id",
-  "final_text",
-  "authorized_by_membership_id",
-  "authorized_by_name",
-  "status",
-  "reconciliation_required",
-  "provider_source",
-  "ack_name",
-  "provider_observed_at",
-  "ack_observed_at",
-  "failure_code",
-  "attempt_number",
-  "authorized_at",
-  "claimed_at",
-  "settled_at",
-  "last_reconciled_at",
-  "latest_reconciliation_kind",
-  "latest_reconciliation_outcome",
-] as const);
-
-const MANUAL_SEND_ATTEMPT_STATUSES = Object.freeze([
-  "prepared",
-  "accepted",
-  "unknown",
-  "rejected",
-] as const);
 const PROVIDER_SOURCES = Object.freeze(["api", "app"] as const);
 const WAHA_ACK_NAMES = Object.freeze([
   "ERROR",
@@ -1662,78 +1648,6 @@ function optionalEnum<T extends string>(
   allowed: readonly T[],
 ): T | null {
   return value === null ? null : requiredEnum(value, allowed);
-}
-
-function normalizeManualSendAttempt(
-  value: unknown,
-): PlatformManualWhatsAppSendAttempt {
-  if (!isRecord(value) || !hasExactKeys(value, MANUAL_SEND_ATTEMPT_KEYS)) {
-    return unavailable();
-  }
-  const result: PlatformManualWhatsAppSendAttempt = Object.freeze({
-    attemptId: requiredUuid(value.attempt_id),
-    workItemId: requiredUuid(value.work_item_id),
-    conversationId: requiredUuid(value.conversation_id),
-    manualSendAuthorizationId: requiredUuid(
-      value.manual_send_authorization_id,
-    ),
-    finalText: requiredTrimmedText(value.final_text, 1, 16_000),
-    authorizedByMembershipId: requiredUuid(
-      value.authorized_by_membership_id,
-    ),
-    authorizedByName: requiredTrimmedText(value.authorized_by_name, 1, 200),
-    status: requiredEnum(value.status, MANUAL_SEND_ATTEMPT_STATUSES),
-    reconciliationRequired: requiredBoolean(value.reconciliation_required),
-    providerSource: optionalEnum(value.provider_source, PROVIDER_SOURCES),
-    ackName: optionalEnum(value.ack_name, WAHA_ACK_NAMES),
-    providerObservedAt: optionalTimestamp(value.provider_observed_at),
-    ackObservedAt: optionalTimestamp(value.ack_observed_at),
-    failureCode: optionalErrorCode(value.failure_code),
-    attemptNumber: requiredInteger(value.attempt_number, 1, 1) as 1,
-    authorizedAt: requiredTimestamp(value.authorized_at),
-    claimedAt: requiredTimestamp(value.claimed_at),
-    settledAt: optionalTimestamp(value.settled_at),
-    lastReconciledAt: optionalTimestamp(value.last_reconciled_at),
-    latestReconciliationKind: optionalEnum(
-      value.latest_reconciliation_kind,
-      RECONCILIATION_KINDS,
-    ),
-    latestReconciliationOutcome: optionalEnum(
-      value.latest_reconciliation_outcome,
-      RECONCILIATION_OUTCOMES,
-    ),
-  });
-  if (
-    result.reconciliationRequired !== (result.status === "unknown") ||
-    (result.ackName === null) !== (result.ackObservedAt === null) ||
-    (result.latestReconciliationKind === null) !==
-      (result.latestReconciliationOutcome === null) ||
-    (result.latestReconciliationKind === null) !==
-      (result.lastReconciledAt === null)
-  ) {
-    return unavailable();
-  }
-  return result;
-}
-
-export async function readLatestManualWhatsAppSendAttempt(
-  client: PlatformProviderRpcClient,
-  input: Readonly<{ organizationId: string; conversationId: string }>,
-): Promise<PlatformManualWhatsAppSendAttempt | null> {
-  const conversationId = requiredUuid(input.conversationId);
-  const data = await callRpc(
-    client,
-    "staff_latest_manual_whatsapp_send_attempt",
-    {
-      p_organization_id: requiredUuid(input.organizationId),
-      p_conversation_id: conversationId,
-    },
-    { get: true },
-  );
-  if (!Array.isArray(data) || data.length > 1) return unavailable();
-  if (data.length === 0) return null;
-  const result = normalizeManualSendAttempt(data[0]);
-  return result.conversationId === conversationId ? result : unavailable();
 }
 
 export type PlatformManualWhatsAppReconciliationRequest = Readonly<{
@@ -1875,6 +1789,31 @@ export async function getManualWhatsAppReconciliationContext(
     return unavailable();
   }
   return result;
+}
+
+/** At most this many provider ids are excluded from one readback (migration 266). */
+const BOUND_MESSAGE_ID_LIMIT = 200;
+
+/**
+ * Provider ids of the chat's OTHER accepted CRM sends around the readback
+ * window (migration 266, service role only). The bounded readback never takes
+ * one of them for the attempt it checks: with several replies in a row the
+ * same short text is likely to have been sent twice within the window.
+ */
+export async function getManualWhatsAppReconciliationBoundMessageIds(
+  client: PlatformProviderRpcClient,
+  reconciliationRequestId: string,
+): Promise<readonly string[]> {
+  const data = await callRpc(
+    client,
+    "manual_whatsapp_reconciliation_bound_message_ids",
+    { p_reconciliation_request_id: requiredUuid(reconciliationRequestId) },
+  );
+  if (!Array.isArray(data) || data.length > BOUND_MESSAGE_ID_LIMIT) {
+    return unavailable();
+  }
+  const ids = data.map((value) => requiredPrintableProviderId(value));
+  return new Set(ids).size === ids.length ? Object.freeze(ids) : unavailable();
 }
 
 export type PlatformWhatsAppAckState =

@@ -8,6 +8,7 @@ import {
   finishGeminiProposal,
   finishManualWhatsAppReconciliation,
   finishManualWhatsAppSend,
+  getManualWhatsAppReconciliationBoundMessageIds,
   getManualWhatsAppReconciliationContext,
   requestManualWhatsAppReconciliation,
   resolveManualSendWahaRuntime,
@@ -440,6 +441,7 @@ export async function executePlatformManualWhatsAppSend(
   dependencies: Readonly<{
     createWahaProvider?: PlatformWahaProviderFactory;
   }> = {},
+  options: Readonly<{ quoteSource?: boolean }> = {},
 ): Promise<PlatformManualWhatsAppSendExecutionResult> {
   const authorization = input.authorization;
   const claim = await claimManualWhatsAppSendItem(serviceClient, {
@@ -455,7 +457,36 @@ export async function executePlatformManualWhatsAppSend(
       workItemId: claim.requestedWorkItemId,
     });
   }
+  return sendClaimedManualWhatsApp(
+    serviceClient,
+    claim,
+    authorization,
+    input.completionRequestId,
+    dependencies,
+    options,
+  );
+}
 
+/**
+ * The provider call and the durable finish of one exactly claimed send. The
+ * claim is the authority for one irreversible provider call; whatever the
+ * provider answers is written back by the finish (accepted, rejected or
+ * unknown). `quoteSource: false` sends a plain chat message instead of a
+ * WhatsApp reply quoting the customer message (migration 266, D3).
+ */
+export async function sendClaimedManualWhatsApp(
+  serviceClient: PlatformProviderRpcClient,
+  claim: Extract<
+    Awaited<ReturnType<typeof claimManualWhatsAppSendItem>>,
+    { claimed: true }
+  >,
+  authorization: PlatformManualWhatsAppSendAuthorization,
+  completionRequestId: string,
+  dependencies: Readonly<{
+    createWahaProvider?: PlatformWahaProviderFactory;
+  }> = {},
+  options: Readonly<{ quoteSource?: boolean }> = {},
+): Promise<Extract<PlatformManualWhatsAppSendExecutionResult, { status: "finished" }>> {
   let finishInput: Parameters<typeof finishManualWhatsAppSend>[1];
   if (!claimMatchesAuthorization(claim, authorization)) {
     finishInput = {
@@ -467,7 +498,7 @@ export async function executePlatformManualWhatsAppSend(
       errorCode: "authorization_mismatch",
       providerMessageId: null,
       providerObservedAt: null,
-      requestId: input.completionRequestId,
+      requestId: completionRequestId,
     };
   } else {
     try {
@@ -482,7 +513,7 @@ export async function executePlatformManualWhatsAppSend(
       const providerResult = await provider.sendText({
         recipientId: claim.rawChatId,
         text: claim.finalText,
-        replyTo: claim.rawReplyTo,
+        replyTo: options.quoteSource === false ? null : claim.rawReplyTo,
       });
       finishInput = {
         organizationId: claim.organizationId,
@@ -493,7 +524,7 @@ export async function executePlatformManualWhatsAppSend(
         errorCode: null,
         providerMessageId: providerResult.providerMessageId,
         providerObservedAt: providerResult.providerObservedAt,
-        requestId: input.completionRequestId,
+        requestId: completionRequestId,
       };
     } catch (error) {
       const failure = manualSendFailure(error);
@@ -506,7 +537,7 @@ export async function executePlatformManualWhatsAppSend(
         errorCode: failure.errorCode,
         providerMessageId: null,
         providerObservedAt: null,
-        requestId: input.completionRequestId,
+        requestId: completionRequestId,
       };
     }
   }
@@ -595,11 +626,19 @@ export async function executePlatformManualWhatsAppReconciliation(
         expectedText: context.finalText,
       });
     } else {
+      // Messages of the chat's other CRM sends are never this attempt's
+      // (the same short text sent twice within the window, migration 266).
+      const excludeProviderMessageIds =
+        await getManualWhatsAppReconciliationBoundMessageIds(
+          serviceClient,
+          receipt.reconciliationRequestId,
+        );
       providerMessage = await provider.findUniqueMessage({
         recipientId: context.rawChatId,
         expectedText: context.finalText,
         windowStart: context.providerWindowStart,
         windowEnd: context.providerWindowEnd,
+        excludeProviderMessageIds,
       });
     }
   } catch (error) {

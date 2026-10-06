@@ -164,6 +164,37 @@
 }
 
 /*
+ * «Продажи → WhatsApp» на телефоне (решение владельца 06.10.2026): открытый
+ * чат забирает экран между строкой логотипа и панелью вкладок, как
+ * «Переписка». Заголовок страницы остаётся только для читалки, лента
+ * прокручивается сама, поле ответа всегда внизу над вкладками.
+ */
+@media (width < 48rem) {
+  .v3-world[data-surface="staff"] [data-shell-content] main:has(> div:first-child > div:first-child > h1.t-page-title):has([data-inbox-open]) {
+    padding: 0;
+  }
+  .v3-world[data-surface="staff"] [data-shell-content] main:has([data-inbox-open]) > div:first-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .v3-world[data-surface="staff"] [data-shell-content] main > div:has(> .v3-inbox[data-inbox-open]) {
+    margin-top: 0;
+  }
+  .v3-world[data-surface="staff"] .v3-inbox[data-inbox-open] {
+    /* `flex-1` would size it to its content in the page's column. */
+    flex: none;
+    height: calc(100dvh - var(--shell-top) - var(--shell-tabbar) - var(--shell-safe-bottom));
+    border-radius: 0;
+    border-inline: 0;
+    border-top: 0;
+  }
+}
+
+/*
  * Верх страницы без верхней панели: заголовок стоит на одной высоте у всех
  * разделов, переход «Задачи» → «Студенты» не прыгает. Страницы с PageHeader
  * (PartShell, доски, «Переписка») — отступ `main`.
@@ -265,6 +296,17 @@
  */
 .v3-world [data-tab-strip] .v3-choice:focus-visible {
   outline-offset: -2px;
+}
+
+/*
+ * Поле ответа чата WhatsApp: полосу фокуса рисует его рамка (вместе с кнопкой
+ * «Шаблон» и «Отправить»), иначе внутри рамки появлялась вторая — у самого
+ * textarea (снимок connection-lost-390, ревью 06.10.2026).
+ */
+.v3-world [data-composer-input]:focus-visible {
+  outline: none;
+  /* и ореол фокуса полей формы (globals.css) — его тоже рисовала бы вторая рамка */
+  box-shadow: none;
 }
 
 /*

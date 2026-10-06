@@ -234,6 +234,9 @@ function inboxModule() {
     if (id === "@/components/ui") return { btnGhostCls: "" };
     if (id === "@/components/v3/inbox/InboxMessageMedia") return { InboxMessageMedia: () => null };
     if (id === "@/components/v3/Pill") return { Pill: () => null };
+    if (id === "@/components/v3/blocks/StatusChip") return { StageChip: () => null };
+    if (id === "@/components/v3/inbox/InboxChat") return { InboxChat: () => null };
+    if (id === "@/components/v3/inbox/InboxListPulse") return { InboxListPulse: () => null };
     return undefined;
   });
 }
@@ -241,7 +244,7 @@ function inboxModule() {
 const EMPTY_VIEW = Object.freeze({
   conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
   searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1",
-  channelState: "not_connected", channelObservedAt: null,
+  channelState: "not_connected", channelObservedAt: null, listPulse: null,
 });
 
 test("WhatsApp not connected: one honest state instead of «не подтверждено» and an empty list", () => {

@@ -1,85 +1,58 @@
 import "server-only";
 
-import { exactActionStringFields } from "./server/action-form-fields.ts";
+/**
+ * Exact staff intent of the «Продажи → WhatsApp» chat (owner decision
+ * 06.10.2026, migration 266). The browser names only the chat, the customer
+ * message the reply answers, its own idempotency key and the final text; it
+ * never names a recipient, session or provider id. Anything else — an extra
+ * key, a non-UUID, the nil UUID, text with control characters or over the
+ * limit — is refused before the database is asked.
+ */
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
-const UNSAFE_CONTROL_CHARACTER_PATTERN =
-  /[\u0000-\u0009\u000b-\u001f\u007f]/;
+// Line feeds are message content; every other control character is refused.
+const UNSAFE_CONTROL_CHARACTER_PATTERN = /[\u0000-\u0009\u000b-\u001f\u007f]/;
+export const PLATFORM_WHATSAPP_TEXT_LIMIT = 3_000;
 
-const GEMINI_REQUEST_FIELDS = [
-  "conversation_id",
-  "source_message_id",
-  "request_id",
-] as const;
-const GEMINI_REVIEW_FIELDS = [
-  "conversation_id",
-  "proposal_request_id",
-  "review_request_id",
-  "decision",
-  "edited_reply_text",
-  "reason",
-] as const;
-const WHATSAPP_SEND_FIELDS = [
-  "conversation_id",
-  "source_message_id",
-  "send_request_id",
-  "message_text",
-  "confirm_send",
-] as const;
-const WHATSAPP_RECONCILE_FIELDS = [
-  "conversation_id",
-  "attempt_id",
-  "reconcile_request_id",
-] as const;
+const SEND_KEYS = Object.freeze(["conversationId", "sourceMessageId", "requestId", "text"]);
+const RECONCILE_KEYS = Object.freeze(["conversationId", "attemptId", "requestId"]);
 
-export type PlatformGeminiRequestForm = Readonly<{
+export type PlatformWhatsAppChatSendInput = Readonly<{
   conversationId: string;
   sourceMessageId: string;
   requestId: string;
+  text: string;
 }>;
 
-export type PlatformGeminiReviewForm = Readonly<{
-  conversationId: string;
-  proposalRequestId: string;
-  reviewRequestId: string;
-  decision: "accepted" | "edited" | "rejected";
-  editedReplyText: string | null;
-  reason: string | null;
-}>;
-
-export type PlatformWhatsAppSendForm = Readonly<{
-  conversationId: string;
-  sourceMessageId: string;
-  requestId: string;
-  messageText: string;
-}>;
-
-export type PlatformWhatsAppReconcileForm = Readonly<{
+export type PlatformWhatsAppChatReconcileInput = Readonly<{
   conversationId: string;
   attemptId: string;
   requestId: string;
 }>;
 
-function normalizedUuid(value: string | undefined): string | null {
-  if (value === undefined || !UUID_PATTERN.test(value)) return null;
+function exactRecord(value: unknown, keys: readonly string[]): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return null;
+  const record = value as Record<string, unknown>;
+  const actual = Object.keys(record);
+  return actual.length === keys.length && keys.every((key) => Object.hasOwn(record, key)) ? record : null;
+}
+
+function normalizedUuid(value: unknown): string | null {
+  if (typeof value !== "string" || !UUID_PATTERN.test(value)) return null;
   const normalized = value.toLowerCase();
   return normalized === NIL_UUID ? null : normalized;
 }
 
-function exactText(
-  value: string | undefined,
-  minimumLength: number,
-  maximumLength: number,
-  lengthOf: (text: string) => number = (text) => text.length,
-): string | null {
-  const length = value === undefined ? 0 : lengthOf(value);
+function exactMessageText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const length = Array.from(value).length;
   if (
-    value === undefined ||
     value !== value.trim() ||
-    length < minimumLength ||
-    length > maximumLength ||
+    length < 1 ||
+    length > PLATFORM_WHATSAPP_TEXT_LIMIT ||
     UNSAFE_CONTROL_CHARACTER_PATTERN.test(value)
   ) {
     return null;
@@ -87,103 +60,29 @@ function exactText(
   return value;
 }
 
-function optionalText(
-  value: string | undefined,
-  maximumLength: number,
-): string | null | undefined {
-  if (value === "") return null;
-  if (value === undefined) return undefined;
-  return exactText(value, 1, maximumLength) ?? undefined;
-}
-
-export function parsePlatformGeminiRequestForm(
-  form: FormData,
-): PlatformGeminiRequestForm | null {
-  const fields = exactActionStringFields(form, GEMINI_REQUEST_FIELDS);
-  if (fields === null) return null;
-  const conversationId = normalizedUuid(fields.get("conversation_id"));
-  const sourceMessageId = normalizedUuid(fields.get("source_message_id"));
-  const requestId = normalizedUuid(fields.get("request_id"));
-  if (conversationId === null || sourceMessageId === null || requestId === null) {
+export function parsePlatformWhatsAppChatSendInput(
+  value: unknown,
+): PlatformWhatsAppChatSendInput | null {
+  const record = exactRecord(value, SEND_KEYS);
+  if (record === null) return null;
+  const conversationId = normalizedUuid(record.conversationId);
+  const sourceMessageId = normalizedUuid(record.sourceMessageId);
+  const requestId = normalizedUuid(record.requestId);
+  const text = exactMessageText(record.text);
+  if (conversationId === null || sourceMessageId === null || requestId === null || text === null) {
     return null;
   }
-  return Object.freeze({ conversationId, sourceMessageId, requestId });
+  return Object.freeze({ conversationId, sourceMessageId, requestId, text });
 }
 
-export function parsePlatformGeminiReviewForm(
-  form: FormData,
-): PlatformGeminiReviewForm | null {
-  const fields = exactActionStringFields(form, GEMINI_REVIEW_FIELDS);
-  if (fields === null) return null;
-  const conversationId = normalizedUuid(fields.get("conversation_id"));
-  const proposalRequestId = normalizedUuid(fields.get("proposal_request_id"));
-  const reviewRequestId = normalizedUuid(fields.get("review_request_id"));
-  const decision = fields.get("decision");
-  const reason = optionalText(fields.get("reason"), 1_000);
-  const editedReplyText = optionalText(fields.get("edited_reply_text"), 3_000);
-  if (
-    conversationId === null ||
-    proposalRequestId === null ||
-    reviewRequestId === null ||
-    (decision !== "accepted" && decision !== "edited" && decision !== "rejected") ||
-    reason === undefined ||
-    editedReplyText === undefined ||
-    (decision === "edited" && editedReplyText === null) ||
-    (decision !== "edited" && editedReplyText !== null) ||
-    (decision === "rejected" && reason === null)
-  ) {
-    return null;
-  }
-  return Object.freeze({
-    conversationId,
-    proposalRequestId,
-    reviewRequestId,
-    decision,
-    editedReplyText,
-    reason,
-  });
-}
-
-export function parsePlatformWhatsAppSendForm(
-  form: FormData,
-): PlatformWhatsAppSendForm | null {
-  const fields = exactActionStringFields(form, WHATSAPP_SEND_FIELDS);
-  if (fields === null || fields.get("confirm_send") !== "1") return null;
-  const conversationId = normalizedUuid(fields.get("conversation_id"));
-  const sourceMessageId = normalizedUuid(fields.get("source_message_id"));
-  const requestId = normalizedUuid(fields.get("send_request_id"));
-  const messageText = exactText(
-    fields.get("message_text"),
-    1,
-    3_000,
-    (text) => Array.from(text).length,
-  );
-  if (
-    conversationId === null ||
-    sourceMessageId === null ||
-    requestId === null ||
-    messageText === null
-  ) {
-    return null;
-  }
-  return Object.freeze({
-    conversationId,
-    sourceMessageId,
-    requestId,
-    messageText,
-  });
-}
-
-export function parsePlatformWhatsAppReconcileForm(
-  form: FormData,
-): PlatformWhatsAppReconcileForm | null {
-  const fields = exactActionStringFields(form, WHATSAPP_RECONCILE_FIELDS);
-  if (fields === null) return null;
-  const conversationId = normalizedUuid(fields.get("conversation_id"));
-  const attemptId = normalizedUuid(fields.get("attempt_id"));
-  const requestId = normalizedUuid(fields.get("reconcile_request_id"));
-  if (conversationId === null || attemptId === null || requestId === null) {
-    return null;
-  }
+export function parsePlatformWhatsAppChatReconcileInput(
+  value: unknown,
+): PlatformWhatsAppChatReconcileInput | null {
+  const record = exactRecord(value, RECONCILE_KEYS);
+  if (record === null) return null;
+  const conversationId = normalizedUuid(record.conversationId);
+  const attemptId = normalizedUuid(record.attemptId);
+  const requestId = normalizedUuid(record.requestId);
+  if (conversationId === null || attemptId === null || requestId === null) return null;
   return Object.freeze({ conversationId, attemptId, requestId });
 }

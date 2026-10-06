@@ -39,6 +39,20 @@
  *       По умолчанию outDir — .impeccable/review (не коммитится); файлы
  *       `e5-*.png` (`--prefix=` меняет начало имени). Проверки печатаются
  *       JSON-строками; при нарушении — код выхода 1.
+ *   node tests/e2e/conversations-static-render.cjs --whatsapp-chat [outDir]
+ *     → «Продажи → WhatsApp» как чат (решение владельца 06.10.2026, миграция
+ *       266): настоящая страница `v3/inbox/page.tsx` с синтетическим чтением,
+ *       гидратированная клиентским чатом. Снимки 1440×900 и 390×844: лента со
+ *       всеми происхождениями (клиент, из CRM, с телефона, история), разделители
+ *       дней, состояния отправок (неизвестен — «Проверить»; не найдено после
+ *       проверки через 5 мин — «Проверить» и «Вернуть текст в поле»; отклонено;
+ *       не ушло — отправка прервалась), окно шаблонов, «Отправляется…» и «Связь
+ *       прервалась», чат без сообщений клиента, только чтение, список и
+ *       телефон. Тёмной темы у
+ *       хоста сотрудников нет (решение владельца 02.10.2026, layout.tsx).
+ *       Серверные действия и опрос отвечают синтетикой этой вкладки: ничего не
+ *       отправляется. По умолчанию outDir —
+ *       docs/design/evo-platform/implementation-screenshots/whatsapp-chat.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -185,7 +199,13 @@ const QUEUE_ROW = {
 };
 
 // --- настоящие страницы с подменёнными чтениями -------------------------------------
-function stubReads({ actor, rows }) {
+const NOT_CONNECTED_VIEW = Object.freeze({
+  conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
+  searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState: "not_connected", channelObservedAt: null,
+  listPulse: null,
+});
+
+function stubReads({ actor, rows, inbox = NOT_CONNECTED_VIEW }) {
   const guards = require(join(ROOT, "src/lib/platform-guards.ts"));
   guards.requireV3PageActor = async () => actor;
   const { readCaseChatQueueWith } = require(join(ROOT, "src/components/v3/case-chat/case-chat-queue.ts"));
@@ -201,13 +221,8 @@ function stubReads({ actor, rows }) {
   require(join(ROOT, "src/lib/v3/reply-snippets-source.ts")).readV3ReplySnippets = async () => SNIPPETS;
   require(join(ROOT, "src/lib/supabase/config.ts")).getSupabasePublicConfig = () => ({ url: "http://127.0.0.1:9", publishableKey: "synthetic-harness-key" });
   require(join(ROOT, "src/lib/i18n.ts")).getLocale = async () => "ru";
-  require(join(ROOT, "src/lib/v3/inbox-source.ts")).readInbox = async () => ({
-    view: {
-      conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
-      searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState: "not_connected", channelObservedAt: null,
-    },
-    providerWorkflow: null, amoCrmCommand: null,
-  });
+  require(join(ROOT, "src/lib/v3/inbox-source.ts")).readInbox = async () => ({ view: inbox });
+  require(join(ROOT, "src/lib/v3/inbox-media.ts")).readV3InboxMediaAttachmentContext = async () => null;
 }
 
 const SCENARIOS = {
@@ -248,9 +263,12 @@ async function buildPage(name) {
 }
 
 // --- оболочка -------------------------------------------------------------------
-function shellTree({ actor, pathname, search, body, cabinet }) {
+function shellTree({ actor, pathname, search, body, cabinet, chatApp = null }) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const content = cabinet
+  const content = chatApp
+    ? h(require(join(ROOT, "src/components/v3/PartShell.tsx")).PartShell, chatApp.main,
+      h(require(join(ROOT, "src/components/v3/Inbox.tsx")).Inbox, chatApp.inbox))
+    : cabinet
     ? h(require(join(ROOT, "src/components/v3/ConversationsMain.tsx")).ConversationsMain, cabinet.main,
       h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, cabinet.workspace))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
@@ -307,14 +325,31 @@ const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { AppShell } = require("@/components/v3/AppShell");
 const { ConversationsMain } = require("@/components/v3/ConversationsMain");
 const { CaseChatWorkspace } = require("@/components/v3/case-chat/CaseChatThread");
+const { PartShell } = require("@/components/v3/PartShell");
+const { Inbox } = require("@/components/v3/Inbox");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
-window.__harness = { pushes: [], recoverable: [], errors: [], actions: [] };
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], refreshes: 0, polls: 0 };
+// Опрос и «Показать ранее» отвечают синтетикой этой вкладки (сети нет).
+const originalFetch = window.fetch;
+window.fetch = async (input, init) => {
+  const url = String(input);
+  if (url.startsWith("/api/v3/inbox/pulse")) {
+    window.__harness.polls += 1;
+    return new Response(JSON.stringify(fixture.pulse || { list: null, chat: null }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+  if (url.startsWith("/api/v3/inbox/conversations/")) {
+    return new Response(JSON.stringify(fixture.older || { messages: [], hasOlder: false }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+  return originalFetch(input, init);
+};
 const router = {
   push: (href) => { window.__harness.pushes.push(href); }, replace: (href) => { window.__harness.pushes.push(href); },
-  refresh() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {},
+  refresh() { window.__harness.refreshes += 1; }, back() {}, forward() {}, prefetch() {}, hmrRefresh() {},
 };
-const content = fixture.cabinet
+const content = fixture.chatApp
+  ? h(PartShell, fixture.chatApp.main, h(Inbox, fixture.chatApp.inbox))
+  : fixture.cabinet
   ? h(ConversationsMain, fixture.cabinet.main, h(CaseChatWorkspace, fixture.cabinet.workspace))
   : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } });
 const tree = h(AppRouterContext.Provider, { value: router },
@@ -364,6 +399,21 @@ export async function setCaseChatAwaitAction(_previous, form) {
   threadStates.set(caseId, state);
   return { status: "saved", requestId: form.get("request_id") };
 }`;
+  // Чат WhatsApp: отправка честно не доходит — сервер «молчит» 1,5 с, затем
+  // связь «прерывается» (состояние «Повторить»); проверка результата не
+  // удаётся. В WhatsApp и в базу ничего не уходит.
+  const whatsappStub = `
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export async function sendPlatformWhatsAppMessageAction(input) {
+  window.__harness.actions.push("send:" + input.requestId);
+  await wait(window.__harness.sendDelay ?? 1500);
+  return { status: "unavailable", workItemId: null, attemptId: null, messageId: null };
+}
+export async function reconcilePlatformWhatsAppSendAction(input) {
+  window.__harness.actions.push("check:" + input.attemptId);
+  await wait(window.__harness.checkDelay ?? 1200);
+  return { status: "readback_failed" };
+}`;
   const plugin = {
     name: "conversations-harness",
     setup(build) {
@@ -379,6 +429,7 @@ export async function setCaseChatAwaitAction(_previous, form) {
         const source = readFileSync(args.path, "utf8");
         if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
         if (args.path.endsWith("platform-case-chat-actions.ts")) return { contents: caseChatStub, loader: "ts", resolveDir: ROOT };
+        if (args.path.endsWith("platform-provider-actions.ts")) return { contents: whatsappStub, loader: "ts", resolveDir: ROOT };
         const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
         return {
           contents: names.map((name) => `export async function ${name}() { window.__harness.errors.push("server action ${name}"); throw new Error("harness: server action ${name} is not available"); }`).join("\n"),
@@ -701,6 +752,294 @@ async function screenshots() {
   process.stdout.write(`${JSON.stringify({ ok: true })}\n`);
 }
 
+// --- «Продажи → WhatsApp» как чат (решение владельца 06.10.2026) ------------------
+// Люди, номера, сообщения и шаблоны ВЫДУМАНЫ для проверки вёрстки и не являются
+// записями EVO. «Сейчас» — 06.10.2026, 14:00 по Бишкеку (08:00 UTC).
+const WA_READ_AT = "2026-10-06T08:00:00.000Z";
+const waId = (n) => `ffffffff-6666-4666-8666-${String(n).padStart(12, "0")}`;
+const WA_CONVERSATION = waId(1);
+const waRow = (n, person, updatedAt, waitingSince = null, awaitingReplyFor = null) => ({
+  id: waId(n), person, queue: "sales", status: "open", updatedAt, waitingSince, awaitingReplyFor,
+  href: `/v3/inbox?conversation=${waId(n)}`,
+});
+const WA_ROWS = [
+  waRow(1, "Аружан Примерова", "06.10 13:40", "06.10 13:40", "20 мин"),
+  // Клиент сюда ещё не писал: чат не «ждёт ответа».
+  waRow(2, "WhatsApp ••••4821", "06.10 12:05"),
+  waRow(3, "Тимур Макетов", "06.10 09:12"),
+  waRow(4, "Мадина Условная", "05.10 18:30"),
+  waRow(5, "WhatsApp ••••0937", "05.10 11:02"),
+  waRow(6, "Эльдар Эскизов", "04.10 16:45"),
+  waRow(7, "Жанна Вымыслова", "03.10 10:20"),
+];
+const waMessage = (n, inbound, createdAt, body, extra = {}) => ({
+  id: waId(100 + n), inbound, body, createdAt, origin: inbound ? "client" : "phone", senderName: null,
+  senderIsViewer: false, ack: inbound ? null : "READ", media: [], ...extra,
+});
+const WA_MESSAGES = [
+  waMessage(1, true, "2026-10-04T05:10:00.000Z", "Здравствуйте! Интересует бакалавриат в Малайзии.", { origin: "history" }),
+  waMessage(2, false, "2026-10-04T05:24:00.000Z", "Здравствуйте! Подскажите, какую специальность рассматриваете?", { origin: "history", ack: null }),
+  waMessage(3, true, "2026-10-05T04:02:00.000Z", "Компьютерные науки. Сколько стоит обучение в год?"),
+  waMessage(4, false, "2026-10-05T04:15:00.000Z", "Отправил подборку из трёх вузов с ценами, посмотрите 👇", { ack: "READ" }),
+  waMessage(5, true, "2026-10-05T04:31:00.000Z", "📎 Документ", {
+    media: [{ mediaId: "ffffffff-6666-4666-8666-000000000901", kindLabel: "Документ", fileName: "Аттестат_скан.pdf", mimeType: "application/pdf",
+      fileSizeLabel: "1,2 МБ", state: "available", stateLabel: "Доступно", previewHref: "#preview", downloadHref: "#download", attachable: false }],
+  }),
+  waMessage(6, true, "2026-10-06T04:12:00.000Z", "Добрый день! А можно поступить без IELTS?"),
+  waMessage(7, false, "2026-10-06T04:20:00.000Z", "Да, в двух вузах из подборки есть подготовительный курс английского — его можно пройти перед первым семестром.", {
+    origin: "crm", senderName: "Айгерим Синтетическая", ack: "READ",
+  }),
+  waMessage(8, false, "2026-10-06T04:21:00.000Z", "Список требований пришлю сегодня до вечера.", { origin: "crm", senderName: "Менеджер продаж (синтетический)", senderIsViewer: true, ack: "DEVICE" }),
+  waMessage(9, true, "2026-10-06T07:40:00.000Z", "Спасибо! Жду 🙏"),
+];
+const waAttempt = (n, status, at, text, extra = {}) => ({
+  attemptId: status === "queued" ? null : waId(300 + n), workItemId: waId(400 + n), requestId: waId(500 + n), status,
+  reconciliationRequired: status === "unknown", text, authorName: "Менеджер продаж (синтетический)", authorIsViewer: true,
+  at, claimedAt: status === "queued" ? null : at, sourceMessageId: waId(109),
+  failureCode: status === "rejected" ? "message_rejected" : null, readback: null, readbackSettled: false, ...extra,
+});
+const WA_ATTEMPTS = [
+  waAttempt(1, "unknown", "2026-10-06T07:45:00.000Z", "Требования: аттестат с приложением, паспорт, мотивационное письмо на английском."),
+  waAttempt(2, "rejected", "2026-10-06T07:46:00.000Z", "Анкета: заполните, пожалуйста, до пятницы.", { authorName: "Айгерим Синтетическая", authorIsViewer: false }),
+  // Записана 13 минут назад и никем не взята: действие автора оборвалось — «не ушло».
+  waAttempt(3, "queued", "2026-10-06T07:47:00.000Z", "И ещё: можно записаться на консультацию в четверг.", { authorName: "Айгерим Синтетическая", authorIsViewer: false }),
+  // Проверка через 5 минут после отправки ничего не нашла: «Проверить» и «Вернуть текст в поле».
+  waAttempt(4, "unknown", "2026-10-06T07:48:00.000Z", "Стоимость общежития пришлю отдельно.", { readback: "message_not_found", readbackSettled: true }),
+];
+function waChat(overrides = {}) {
+  return {
+    messages: WA_MESSAGES, hasOlder: true, attempts: WA_ATTEMPTS, latestInboundMessageId: waId(109),
+    replyAccess: "allowed", stage: { label: "Квалифицирован", phase: "sales" }, readAt: WA_READ_AT, pulse: "0000000000000001",
+    ...overrides,
+  };
+}
+function waView({ selected = true, chat = {}, row = 0, channelState = "ready" } = {}) {
+  return {
+    conversations: WA_ROWS,
+    selected: selected ? {
+      ...WA_ROWS[row], channelState, channelObservedAt: "06.10 13:58",
+      canonicalContext: { leadId: "ffffffff-6666-4666-8666-000000000700", clientId: "ffffffff-6666-4666-8666-000000000701", studentCaseId: null },
+      chat: waChat(chat),
+    } : null,
+    queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: "/v3/inbox?before_at=x&before_id=y",
+    searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState, channelObservedAt: "06.10 13:58",
+    listPulse: "0000000000000002",
+  };
+}
+const WA_SCENARIOS = {
+  "chat": { actor: "sales", search: { conversation: WA_CONVERSATION }, inbox: waView(), viewports: ["1440", "390"] },
+  "list": { actor: "sales", search: {}, inbox: waView({ selected: false }), viewports: ["1440", "390"] },
+  "no-client-message": {
+    // Открыт тот же чат, что выбран в списке (••••4821), и он не «ждёт ответа».
+    actor: "sales", search: { conversation: waId(2) }, viewports: ["1440"],
+    inbox: waView({ row: 1, chat: {
+      messages: [waMessage(1, false, "2026-10-06T05:00:00.000Z", "Здравствуйте! Это EVO Admissions, вы оставляли заявку на сайте."), waMessage(2, false, "2026-10-06T05:01:00.000Z", "Когда вам удобно поговорить?", { ack: "SERVER" })],
+      hasOlder: false, attempts: [], latestInboundMessageId: null, replyAccess: "no_client_message", stage: null,
+    } }),
+  },
+  "read-only": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1440"], inbox: waView({ chat: { replyAccess: "no_permission", attempts: [] } }) },
+  "attention": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1440"], inbox: waView({ channelState: "attention", chat: { replyAccess: "attention", attempts: [] } }) },
+};
+
+async function buildWhatsAppPage(name) {
+  const scenario = WA_SCENARIOS[name];
+  const actor = ACTORS[scenario.actor];
+  stubReads({ actor, rows: ALL_ROWS, inbox: scenario.inbox });
+  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/inbox/page.tsx"));
+  const element = await Page({ searchParams: Promise.resolve(scenario.search) });
+  const { children: inbox, ...main } = element.props;
+  return { actor, scenario, chatApp: { main, inbox: inbox.props } };
+}
+
+function whatsappMetrics() {
+  const visible = (element) => {
+    if (!element) return false;
+    const style = getComputedStyle(element);
+    const box = element.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && box.width > 0 && box.height > 0;
+  };
+  const main = [...document.querySelectorAll("main")].find(visible);
+  const inMain = main ? [...main.querySelectorAll("*")].filter(visible) : [];
+  const texts = inMain.filter((element) => [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()));
+  const targets = main ? [...main.querySelectorAll("a, button, select, input:not([type=hidden])")].filter((element) => visible(element) && !element.closest("[popover]")) : [];
+  const composer = document.querySelector('[data-testid="v3-inbox-composer"]');
+  const feed = document.querySelector('[role="log"]');
+  return {
+    overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    // Шапка страницы, скрытая для глаз, — корень в 1 px: h1 внутри сохраняет свой размер.
+    h1Visible: [...document.querySelectorAll("h1")].some((h1) => h1.parentElement.parentElement.getBoundingClientRect().height > 1),
+    textUnder12: texts.filter((element) => parseFloat(getComputedStyle(element).fontSize) < 12).map((element) => element.textContent.trim().slice(0, 20)),
+    smallTargets: targets.filter((element) => element.getBoundingClientRect().height < 44).map((element) => element.getAttribute("aria-label") ?? element.textContent.trim().slice(0, 30)),
+    solidRed: [...document.querySelectorAll("main a, main button")].filter((element) => visible(element) && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").length,
+    composer: visible(composer) ? { top: Math.round(composer.getBoundingClientRect().top), bottom: Math.round(composer.getBoundingClientRect().bottom), inViewport: composer.getBoundingClientRect().bottom <= window.innerHeight } : null,
+    feedAtBottom: feed ? Math.round(feed.scrollHeight - feed.scrollTop - feed.clientHeight) : null,
+    days: [...document.querySelectorAll('[data-testid="v3-inbox-messages"] > li > span.t-meta')].map((element) => element.textContent.trim()),
+    origins: [...document.querySelectorAll('[data-testid="v3-inbox-message"]')].map((element) => element.dataset.origin),
+    outgoing: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"]')].map((element) => element.dataset.state),
+    checks: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Проверить").length,
+    returns: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Вернуть текст в поле").length,
+    selectedRow: document.querySelector('[data-testid="v3-inbox-row"] a[aria-current="page"] .t-item')?.textContent.trim() ?? null,
+    waitingPill: /Ждёт ответа/u.test(document.querySelector('[data-testid="v3-inbox-thread"] header')?.textContent ?? ""),
+    unavailable: document.querySelector('[data-testid="v3-inbox-reply-unavailable"]')?.textContent.trim() ?? null,
+    popover: (() => { const open = document.querySelector("[popover]:popover-open"); if (!open) return null; const box = open.getBoundingClientRect();
+      return { label: open.getAttribute("aria-label"), inViewport: box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth }; })(),
+  };
+}
+
+async function whatsappScreenshots() {
+  const outIndex = process.argv.indexOf("--whatsapp-chat") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--")
+    ? process.argv[outIndex] : join(ROOT, "docs/design/evo-platform/implementation-screenshots/whatsapp-chat"));
+  // Страницы и бандл — во временной папке: в репозиторий попадают только снимки.
+  const workDir = join(require("node:os").tmpdir(), "evo-whatsapp-chat-render");
+  mkdirSync(outDir, { recursive: true });
+  mkdirSync(workDir, { recursive: true });
+  const bundleName = "whatsapp-chat-client.js";
+  const css = await compileCss();
+  await buildClientBundle(join(workDir, bundleName));
+  const failures = [];
+  const check = (condition, message) => { if (!condition) failures.push(message); };
+  const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
+
+  const htmlFor = {};
+  for (const name of Object.keys(WA_SCENARIOS)) {
+    const { actor, scenario, chatApp } = await buildWhatsAppPage(name);
+    const pathname = "/v3/inbox";
+    const search = searchOf(scenario);
+    const markup = renderToString(shellTree({ actor, pathname, search, body: null, cabinet: null, chatApp }));
+    const data = JSON.stringify({
+      actor, pathname, search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
+      pulse: { list: scenario.inbox.listPulse, chat: scenario.inbox.selected?.chat.pulse ?? null },
+      older: { messages: [], hasOlder: false },
+    }).replaceAll("<", "\\u003c");
+    const htmlPath = join(workDir, `${name}.html`);
+    writeFileSync(htmlPath, [
+      "<!DOCTYPE html>",
+      `<html lang="ru" data-theme="${scenario.theme ?? "light"}" class="h-full antialiased">`,
+      `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>WhatsApp — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+      `<body class="min-h-full"><div id="root">${markup}</div><script type="application/json" id="${FIXTURE_ID}">${data}</script><script src="${bundleName}"></script></body></html>`,
+    ].join(""));
+    htmlFor[name] = htmlPath;
+  }
+
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const open = async (name, viewportKey) => {
+    const context = await browser.newContext({ ...VIEWPORTS[viewportKey], colorScheme: WA_SCENARIOS[name].theme ?? "light" });
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    await page.goto(pathToFileURL(htmlFor[name]).href, { waitUntil: "load" });
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
+    await page.waitForTimeout(200);
+    return { context, page, errors };
+  };
+  const close = async ({ context, page, errors }, label) => {
+    const harness = await page.evaluate(() => window.__harness);
+    const problems = [...errors.filter((message) => !/Failed to load resource|ERR_FILE_NOT_FOUND|#preview|#download/u.test(message)),
+      ...harness.recoverable.map((message) => `recoverable: ${message}`), ...harness.errors];
+    check(problems.length === 0, `${label}: browser errors: ${problems.join(" | ")}`);
+    await context.close();
+    return harness;
+  };
+  const shot = async (session, file) => {
+    await session.page.screenshot({ path: join(outDir, file) });
+    const metrics = await session.page.evaluate(whatsappMetrics);
+    report({ file, ...metrics });
+    check(metrics.overflowX === 0, `${file}: horizontal overflow ${metrics.overflowX}px`);
+    check(metrics.textUnder12.length === 0, `${file}: texts under 12px ${metrics.textUnder12.join(", ")}`);
+    check(metrics.smallTargets.length === 0, `${file}: targets under 44px: ${metrics.smallTargets.join(", ")}`);
+    check(metrics.solidRed <= 1, `${file}: ${metrics.solidRed} solid red controls`);
+    return metrics;
+  };
+
+  try {
+    for (const name of Object.keys(WA_SCENARIOS)) {
+      for (const viewportKey of WA_SCENARIOS[name].viewports) {
+        const file = `${name}-${viewportKey}.png`;
+        const session = await open(name, viewportKey);
+        const metrics = await shot(session, file);
+        if (WA_SCENARIOS[name].inbox.selected) {
+          check(metrics.feedAtBottom !== null && metrics.feedAtBottom <= 2, `${file}: the feed does not open on the newest message (${metrics.feedAtBottom})`);
+          check(viewportKey !== "390" || !metrics.h1Visible, `${file}: the phone chat keeps the page title visible`);
+        }
+        if (name === "chat") {
+          check(metrics.composer?.inViewport === true, `${file}: composer not in the viewport ${JSON.stringify(metrics.composer)}`);
+          check(JSON.stringify(metrics.days) === JSON.stringify(["4 октября", "Вчера", "Сегодня"]), `${file}: days ${JSON.stringify(metrics.days)}`);
+          check(JSON.stringify(metrics.outgoing) === JSON.stringify(["unknown", "rejected", "stalled", "unknown"]), `${file}: outgoing ${JSON.stringify(metrics.outgoing)}`);
+          // «Проверить» — у обоих неизвестных (и после «не найдено»); «Вернуть текст в поле» — у отклонённого и у проверенного через 5 минут.
+          check(metrics.checks === 2 && metrics.returns === 2, `${file}: «Проверить» ${metrics.checks}, «Вернуть текст в поле» ${metrics.returns}`);
+          check(["history", "client", "phone", "crm"].every((origin) => metrics.origins.includes(origin)), `${file}: origins ${JSON.stringify(metrics.origins)}`);
+        }
+        if (name === "no-client-message") {
+          check(/Клиент ещё не писал в этот чат/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
+          check(metrics.selectedRow === "WhatsApp ••••4821" && !metrics.waitingPill, `${file}: list selection ${metrics.selectedRow}, waiting pill ${metrics.waitingPill}`);
+        }
+        if (name === "read-only") check(/Только просмотр/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
+        await close(session, file);
+      }
+    }
+
+    // Окно шаблонов кнопкой «Шаблон» и «/» в пустом поле; вставка — без отправки.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open("chat", viewportKey);
+      const { page } = session;
+      await page.locator('[data-testid="v3-inbox-composer"] textarea').click();
+      await page.keyboard.press("/");
+      await page.waitForTimeout(150);
+      const metrics = await shot(session, `picker-${viewportKey}.png`);
+      check(metrics.popover?.label === "Шаблон ответа" && metrics.popover.inViewport, `picker-${viewportKey}: ${JSON.stringify(metrics.popover)}`);
+      await page.getByRole("button", { name: "Вставить в текст" }).click();
+      await page.waitForTimeout(150);
+      const value = await page.locator('[data-testid="v3-inbox-composer"] textarea').inputValue();
+      const harness = await close(session, `picker-${viewportKey}`);
+      check(value.startsWith("Документы получили") && !harness.actions.some((action) => action.startsWith("send:")), `picker-${viewportKey}: inserted ${JSON.stringify(value.slice(0, 30))} ${JSON.stringify(harness.actions)}`);
+    }
+
+    // Отправка: Enter → «Отправляется…» → связь прервалась → «Повторить» тем же запросом.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open("chat", viewportKey);
+      const { page } = session;
+      const field = page.locator('[data-testid="v3-inbox-composer"] textarea');
+      await field.click();
+      await field.fill("Хорошо, тогда пришлю список вечером.");
+      if (viewportKey === "1440") await page.keyboard.press("Enter");
+      else await page.getByRole("button", { name: "Отправить" }).click();
+      await page.waitForTimeout(200);
+      const sending = await shot(session, `sending-${viewportKey}.png`);
+      check(sending.outgoing.at(-1) === "sending", `sending-${viewportKey}: ${JSON.stringify(sending.outgoing)}`);
+      check(await field.inputValue() === "", `sending-${viewportKey}: the field is not cleared`);
+      await page.waitForTimeout(1700);
+      const lost = await shot(session, `connection-lost-${viewportKey}.png`);
+      check(lost.outgoing.at(-1) === "lost", `connection-lost-${viewportKey}: ${JSON.stringify(lost.outgoing)}`);
+      await page.getByRole("button", { name: "Повторить" }).click();
+      await page.waitForTimeout(100);
+      const harness = await page.evaluate(() => window.__harness.actions);
+      const sends = harness.filter((action) => action.startsWith("send:"));
+      check(sends.length === 2 && sends[0] === sends[1], `retry-${viewportKey}: the retry must reuse the request id ${JSON.stringify(sends)}`);
+      // «Проверить» у неизвестного результата: «Проверяем…», затем честная неудача.
+      if (viewportKey === "1440") {
+        await page.getByRole("button", { name: /Проверить результат сообщения от/u }).first().click();
+        await page.waitForTimeout(150);
+        await shot(session, "checking-1440.png");
+        await page.waitForTimeout(1300);
+        await shot(session, "check-failed-1440.png");
+      }
+      await close(session, `send-${viewportKey}`);
+    }
+  } finally {
+    await browser.close();
+  }
+
+  if (failures.length) {
+    process.stderr.write(`whatsapp chat checks failed:\n${failures.map((failure) => `- ${failure}`).join("\n")}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(`${JSON.stringify({ ok: true, outDir })}\n`);
+}
+
 async function json() {
   const out = [];
   for (const name of Object.keys(SCENARIOS)) {
@@ -715,12 +1054,17 @@ if (process.argv.includes("--json")) {
     console.error(error);
     process.exit(1);
   });
+} else if (process.argv.includes("--whatsapp-chat")) {
+  whatsappScreenshots().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 } else if (process.argv.includes("--screenshots")) {
   screenshots().catch((error) => {
     console.error(error);
     process.exit(1);
   });
 } else {
-  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split]");
+  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split] | --whatsapp-chat [outDir]");
   process.exit(2);
 }

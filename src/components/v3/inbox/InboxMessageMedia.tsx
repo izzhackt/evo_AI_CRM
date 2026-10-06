@@ -36,7 +36,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex min-h-9 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-xs font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-xs font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Добавляем…" : "В дело студента"}
     </button>
@@ -96,7 +96,7 @@ function MediaAttachmentForm({
           name="document_slot_id"
           value={selectedSlotId}
           onChange={(event) => setSelectedSlotId(event.currentTarget.value)}
-          className="min-h-10 w-full rounded-ctl border border-border bg-surface px-2 text-xs text-fg"
+          className="min-h-11 w-full rounded-ctl border border-border bg-surface px-2 text-xs text-fg"
           required
         >
           <option value="">Выберите документ</option>
@@ -142,7 +142,9 @@ export function InboxMessageMedia({
         const requestId = item.mediaId === null
           ? null
           : attachmentContext?.requestIdsByMediaId[item.mediaId] ?? null;
-        const statusTone = inbound ? "text-fg-3" : "text-on-accent";
+        // Наши пузыри с 06.10.2026 — светлое «выбрано» (`--accent-weak`), не
+        // красная заливка: приглушённый текст один для обеих сторон.
+        const statusTone = inbound ? "text-fg-3" : "text-fg-2";
         return (
           <li
             key={item.mediaId ?? `unavailable-media-${index}`}
@@ -164,14 +166,14 @@ export function InboxMessageMedia({
                   target="_blank"
                   rel="noreferrer"
                   aria-label={`Открыть вложение ${item.fileName ?? item.kindLabel}`}
-                  className="inline-flex min-h-9 items-center rounded-ctl border border-current px-2.5 hover:opacity-80"
+                  className="inline-flex min-h-11 items-center rounded-ctl border border-current px-2.5 hover:opacity-80"
                 >
                   Открыть
                 </a>
                 <a
                   href={item.downloadHref}
                   aria-label={`Скачать вложение ${item.fileName ?? item.kindLabel}`}
-                  className="inline-flex min-h-9 items-center rounded-ctl border border-current px-2.5 hover:opacity-80"
+                  className="inline-flex min-h-11 items-center rounded-ctl border border-current px-2.5 hover:opacity-80"
                 >
                   Скачать
                 </a>

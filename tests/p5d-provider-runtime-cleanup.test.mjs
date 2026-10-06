@@ -20,7 +20,7 @@ const ACTIVE_PROVIDER_RUNTIME_PATHS = [
   "src/lib/v3/settings-source.ts",
   "src/components/v3/AppShell.tsx",
   "src/app/(v3)/v3/inbox/page.tsx",
-  "src/components/v3/InboxProviderWorkflowControls.tsx",
+  "src/components/v3/inbox/InboxChat.tsx",
   "src/app/api/internal/platform-messaging/waha/work/route.ts",
   "scripts/test-postgres-v2-foundation.sh",
   "scripts/prepare-connected-amocrm-validation.mjs",

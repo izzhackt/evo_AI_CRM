@@ -285,8 +285,11 @@ test("Inbox integrates media for both directions without provider calls or byte 
     adapter,
     /studentCaseId: thread\.conversation\.studentCaseId/u,
   );
-  assert.match(inbox, /items=\{message\.media\}/u);
-  assert.match(inbox, /inbound=\{message\.inbound\}/u);
+  // 06.10.2026: the bubbles live in the chat (InboxChat), media unchanged.
+  const chat = source("src/components/v3/inbox/InboxChat.tsx");
+  assert.match(inbox, /mediaAttachmentContext=\{mediaAttachmentContext\}/u);
+  assert.match(chat, /items=\{message\.media\}/u);
+  assert.match(chat, /inbound=\{message\.inbound\}/u);
   assert.match(page, /readV3InboxMediaAttachmentContext\(actor,/u);
   assert.match(component, /data-testid="v3-inbox-message-media"/u);
   assert.match(component, /aria-label="Вложения к сообщению"/u);

@@ -219,7 +219,8 @@ const SCENARIOS = {
   // «Все»: отметки состояния в строках.
   all: { actor: "admin", page: "messages", search: { queue: "all" }, rows: ALL_ROWS },
   // WhatsApp не подключён — отдельная страница «Продаж»: у Admin, у продаж и у
-  // куратора, открывшего прежнюю ссылку (пункта в его меню нет).
+  // куратора (решение владельца 06.10.2026, «нет, все могут»: пункт есть и у
+  // ролей поступления, диалоги и ответы решает база — миграция 261).
   whatsapp: { actor: "admin", page: "inbox", search: {}, rows: ALL_ROWS },
   "whatsapp-sales": { actor: "sales", page: "inbox", search: {}, rows: ALL_ROWS },
   "whatsapp-admissions": { actor: "admissions", page: "inbox", search: {}, rows: ALL_ROWS },
@@ -530,11 +531,9 @@ async function screenshots() {
     check(metrics.smallTargets.length === 0, `${label}: targets under 44px: ${metrics.smallTargets.join(", ")}`);
     check(metrics.solidRed <= 1, `${label}: ${metrics.solidRed} solid red controls`);
     check(metrics.menuRetired === 0, `${label}: «Сообщения»/«Переписки» still in the menu`);
-    // Свой пункт меню подсвечен; у куратора пункта WhatsApp нет — ничего не подсвечено.
+    // Свой пункт меню подсвечен; пункт WhatsApp есть и у куратора (06.10.2026).
     const current = metrics.menu.filter((item) => item.endsWith("*"));
-    if (scenario.actor === "admissions" && scenario.page === "inbox") {
-      check(current.length === 0 && !metrics.menu.some((item) => item.includes("=/v3/inbox")), `${label}: WhatsApp in the curator menu ${JSON.stringify(metrics.menu)}`);
-    } else if (viewportKey !== "390" || scenario.page === "messages") {
+    if (viewportKey !== "390" || scenario.page === "messages") {
       check(JSON.stringify(current) === JSON.stringify([`${title}=${href}*`]), `${label}: current menu item ${JSON.stringify(current)}`);
     } else {
       // Телефон продаж и Admin: WhatsApp — в «Ещё», оно и подсвечено.

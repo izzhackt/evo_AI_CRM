@@ -186,10 +186,26 @@ test("261 does not touch migrations 259/260 and is independent of 260's needles"
   }
 });
 
+test("the send form tells a second employee that a colleague may already have answered (one reply per inbound message)", () => {
+  const controls = source("src/components/v3/InboxProviderWorkflowControls.tsx");
+  assert.match(controls, /unavailable:\s*"Отправка недоступна\. Внешний повтор не выполнялся\. Если на это сообщение уже ответил коллега, обновите страницу\."/u);
+  // The action keeps one generic failure state: no new state, no new right, no retry.
+  const actions = source("src/lib/platform-provider-actions.ts");
+  assert.match(actions, /status: "unavailable" \}\);\s*\}\s*\}\s*export async function reconcilePlatformWhatsAppSendAction/u);
+});
+
 test("the Postgres harness runs the real-chain suite right after migration 261", () => {
   const harness = source("scripts/test-postgres-authorization.sh");
   assert.match(harness, /if \[\[ "\$\(basename "\$migration"\)" == 261_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_whatsapp_team_inbox\.sql\s+fi/u);
   const suite = source("supabase/tests/platform_whatsapp_team_inbox.sql");
   assert.match(suite, /N261_WHATSAPP_TEAM_INBOX_SUITE_START/u);
   assert.match(suite, /^ROLLBACK;$/mu, "the suite leaves no rows");
+  // Two different non-owners answer one conversation (4b), and the identity and
+  // assignment filters still bind (4c evaluator, 4d real RPCs with a valid JWT).
+  assert.match(suite, /-- 4b\. Two DIFFERENT non-owners reply in the same conversation/u);
+  assert.match(suite, /two different non-owners answered in one conversation/u);
+  for (const state of ["membership inactive", "membership blocked", "membership invited", "profile blocked", "role archived", "assignment revoked"]) {
+    assert.ok(suite.includes(`'${state}'`), state);
+  }
+  assert.match(suite, /revoked assignment, valid JWT: the send request is refused/u);
 });

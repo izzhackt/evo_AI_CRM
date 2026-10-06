@@ -28,15 +28,27 @@
 --     record-scoped reader sees exactly the granted conversation; a handed-off
 --     (curator-queue) conversation stays owner-scoped (the curator, and the
 --     department of the owner as before, only); every other conversation
---     permission (read.summary, ai.draft.*, decision.*) and every other resource
---     (lead, student case) stays owner-scoped; no cross-tenant match;
+--     permission in the EVALUATOR (read.summary, ai.draft.*, decision.*) and every
+--     other resource (lead, student case) stays owner-scoped; no cross-tenant
+--     match. NOTE: the direct-SELECT RLS policies of the AI draft tables and the
+--     Gemini readers do not use that evaluator key (044/091/096): they gate on
+--     communication.read.full of the conversation (and, for the readers, on
+--     ai.draft.review as a plain permission), so a holder of ai.draft.review who
+--     reads a sales chat reads its drafts; AI is off, to be decided before it is
+--     switched on (docs/PLAN_CHANGES.md, 2026-10-06 clarification);
 --  4. a non-owner replies: the request is authorized, the authority trigger
 --     records the access version, the exact claim creates the sender participant
 --     of THAT member (kind sales) and finish stores the outbound message with
 --     that participant; the audit event names the member's profile; a second
---     member cannot reply to the same inbound message; a member without
+--     member cannot reply to the same inbound message, yet a second member does
+--     answer the customer's NEXT message with its own participant (4b); a member without
 --     communication.manual.send, a curator-queue conversation, a Student and a
 --     foreign-organization Admin are refused 42501;
+--  4c/4d. the identity and assignment filters still bind: inactive/blocked/invited
+--     membership, blocked profile, archived role and revoked assignment lose both
+--     keys at the evaluator, and a revoked assignment with a still-valid JWT is
+--     refused by the real readers and the send request (positive control around
+--     each case);
 --  5. the evaluator is still a hardened definer nobody can execute directly, the
 --     sibling matcher is byte-identical to migration 155, and the Gemini readers
 --     keep requiring ai.draft.review (the page guards that coupling).
@@ -714,6 +726,69 @@ SELECT pg_temp.n261_assert((SELECT count(*) = 0 FROM platform.manual_send_author
   AND pg_temp.n261_rls_message_conversations() = ARRAY[]::UUID[], 'a keyless member sees neither the authorization nor the messages');
 RESET ROLE;
 
+-- ---------------------------------------------------------------------------
+-- 4b. Two DIFFERENT non-owners reply in the same conversation (placed before the
+--     no-AI member's request, whose queued work item would otherwise be the queue
+--     head the exact claim insists on): the customer
+--     writes again; the Admissions Manager (not the owner, not the member who
+--     answered first) answers the new message. Each reply carries its own
+--     participant, message sender and audit event.
+-- ---------------------------------------------------------------------------
+-- The projection writes the message before its provider binding (the binding
+-- check is a deferred constraint trigger); section 4 left the constraints
+-- IMMEDIATE, so defer them again for the chain and check them right after.
+SET CONSTRAINTS ALL DEFERRED;
+SELECT pg_temp.n261_run(4, pg_temp.n261_in('false_79961000001@c.us_N261AAAAAAAAAAAAAAA4', '79961000001@c.us', 'Второе сообщение первого клиента')) AS r4 \gset
+SELECT pg_temp.n261_assert((:'r4'::JSONB ->> 'disposition') = 'succeeded', 'the customer''s second message projects through the real chain');
+SELECT m.id AS m4 FROM platform.communication_messages m
+  WHERE m.conversation_id = :'c1' AND m.direction = 'inbound' AND m.id <> :'m1' \gset
+SELECT pg_temp.n261_assert((SELECT count(*) = 1 FROM platform.communication_messages m
+  WHERE m.conversation_id = :'c1' AND m.direction = 'inbound' AND m.id = :'m4'::UUID), 'one new inbound message to answer');
+
+SET LOCAL request.jwt.claims TO :'n261_adm_mgr';
+SET LOCAL ROLE authenticated;
+SELECT platform.request_manual_whatsapp_send_with_authorization(pg_temp.n261_id(1), :'c1', :'m4', NULL,
+  'Ответ второго сотрудника', 'staff_confirmed_manual_send', pg_temp.n261_key(:'c1', :'m4'), pg_temp.n261_id(3301))::TEXT AS n261_req2 \gset
+RESET ROLE;
+SELECT :'n261_req2'::JSONB ->> 'manual_send_authorization_id' AS n261_authz2, :'n261_req2'::JSONB ->> 'work_item_id' AS n261_work2 \gset
+SELECT pg_temp.n261_assert((:'n261_req2'::JSONB ->> 'authorized_by_membership_id') = pg_temp.n261_id(303)::TEXT
+  AND (:'n261_req2'::JSONB ->> 'state') = 'manual_send_authorized' AND :'n261_work2' IS NOT NULL,
+  'the second reply is authorized by the Admissions Manager');
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', TRUE);
+SET LOCAL ROLE service_role;
+SELECT platform.claim_manual_whatsapp_send_item(pg_temp.n261_id(1), :'n261_work2'::UUID, 60, 'n261-worker',
+  pg_temp.n261_wid(4011))::TEXT AS n261_claim2 \gset
+RESET ROLE;
+SELECT :'n261_claim2'::JSONB ->> 'attempt_id' AS n261_attempt2 \gset
+SELECT pg_temp.n261_assert((:'n261_claim2'::JSONB ->> 'claimed')::BOOLEAN
+  AND (:'n261_claim2'::JSONB ->> 'manual_send_authorization_id') = :'n261_authz2', 'the exact claim leases the second reply');
+SELECT statement_timestamp()::TEXT AS n261_observed2 \gset
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', TRUE);
+SET LOCAL ROLE service_role;
+SELECT platform.finish_manual_whatsapp_send(pg_temp.n261_id(1), :'n261_work2'::UUID, :'n261_attempt2'::UUID, :'n261_authz2'::UUID,
+  'succeeded', NULL, 'true_79961000001@c.us_N261BBBBBBBBBBBBBBB2', :'n261_observed2', pg_temp.n261_wid(4012))::TEXT AS n261_finish2 \gset
+RESET ROLE;
+SET CONSTRAINTS ALL IMMEDIATE;
+SELECT pg_temp.n261_assert((:'n261_finish2'::JSONB ->> 'state') = 'succeeded', 'the second reply finishes');
+SELECT pg_temp.n261_assert((SELECT count(*) = 2 AND count(DISTINCT m.sender_participant_id) = 2
+    AND array_agg(p.membership_id ORDER BY p.membership_id) = ARRAY[pg_temp.n261_id(302), pg_temp.n261_id(303)]
+    AND bool_and(m.manual_send_authorization_id IS NOT NULL AND p.participant_kind::TEXT = 'sales')
+  FROM platform.communication_messages m
+  JOIN platform.conversation_participants p ON p.organization_id = m.organization_id AND p.id = m.sender_participant_id
+  WHERE m.conversation_id = :'c1'::UUID AND m.direction = 'outbound'),
+  'two different non-owners answered in one conversation: each outbound message has its own sender participant');
+SELECT pg_temp.n261_assert((SELECT count(*) = 1 FROM platform.conversation_participants
+    WHERE conversation_id = :'c1'::UUID AND membership_id = pg_temp.n261_id(303) AND participant_kind::TEXT = 'sales')
+  AND (SELECT count(*) = 1 FROM platform.conversation_participants
+    WHERE conversation_id = :'c1'::UUID AND membership_id = pg_temp.n261_id(302) AND participant_kind::TEXT = 'sales'),
+  'each replying member has exactly one participant row; the first one was not reused for the second');
+SELECT pg_temp.n261_assert((SELECT count(*) = 1 FROM platform.audit_events
+  WHERE action = 'communication.manual.authorize' AND resource_id = :'n261_authz2'::UUID
+    AND actor_profile_id = pg_temp.n261_id(203)), 'the audit event of the second reply names the Admissions Manager''s profile');
+SELECT pg_temp.n261_assert((SELECT count(*) = 0 FROM platform.conversation_participants
+    WHERE conversation_id = :'c1'::UUID AND membership_id IN (pg_temp.n261_id(304), pg_temp.n261_id(305), pg_temp.n261_id(306))),
+  'members who only read or did not reply got no participant row');
+
 -- A member with read + send but no AI review (a custom role) replies to the third customer.
 SET LOCAL request.jwt.claims TO :'n261_wa_no_ai';
 SET LOCAL ROLE authenticated;
@@ -722,6 +797,85 @@ SELECT pg_temp.n261_assert(pg_temp.n261_request(:'c3', :'m3', 'Ответ без
 RESET ROLE;
 SELECT pg_temp.n261_assert((SELECT count(*) = 1 AND bool_and(authorized_by_membership_id = pg_temp.n261_id(305))
   FROM platform.manual_send_authorizations WHERE conversation_id = :'c3'::UUID), 'recorded as the no-AI member');
+
+-- ---------------------------------------------------------------------------
+-- 4c. Identity and assignment filters still bind: the member that holds both
+--     keys at `own` (305, «WhatsApp without AI review») loses every sales chat
+--     the moment its membership is not active, its profile is blocked, its role
+--     is archived or its assignment is revoked. Each state is applied with
+--     triggers off (the production code path bumps the access version; here the
+--     version is deliberately left unchanged, i.e. the JWT stays valid) and
+--     undone, with a positive control before and after.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.n261_assert(pg_temp.n261_can(5, 'communication.read.full', 'conversation', :'c1')
+  AND pg_temp.n261_can(5, 'communication.manual.send', 'conversation', :'c1'), 'control: the member holds both keys on a sales chat');
+SELECT set_config('n261.c1', :'c1', TRUE);
+SET LOCAL session_replication_role = replica;
+DO $n261_identity$
+DECLARE
+  c1 CONSTANT UUID := current_setting('n261.c1')::UUID;
+  steps CONSTANT TEXT[][] := ARRAY[
+    ARRAY['membership inactive', format('UPDATE platform.organization_memberships SET status = %L WHERE id = %L', 'inactive', pg_temp.n261_id(305)),
+      format('UPDATE platform.organization_memberships SET status = %L WHERE id = %L', 'active', pg_temp.n261_id(305))],
+    ARRAY['membership blocked', format('UPDATE platform.organization_memberships SET status = %L WHERE id = %L', 'blocked', pg_temp.n261_id(305)),
+      format('UPDATE platform.organization_memberships SET status = %L WHERE id = %L', 'active', pg_temp.n261_id(305))],
+    ARRAY['membership invited', format('UPDATE platform.organization_memberships SET status = %L WHERE id = %L', 'invited', pg_temp.n261_id(305)),
+      format('UPDATE platform.organization_memberships SET status = %L WHERE id = %L', 'active', pg_temp.n261_id(305))],
+    ARRAY['profile blocked', format('UPDATE platform.profiles SET status = %L WHERE id = %L', 'blocked', pg_temp.n261_id(205)),
+      format('UPDATE platform.profiles SET status = %L WHERE id = %L', 'active', pg_temp.n261_id(205))],
+    ARRAY['role archived', format('UPDATE platform.staff_role_definitions SET status = %L WHERE id = %L', 'archived', pg_temp.n261_id(1106)),
+      format('UPDATE platform.staff_role_definitions SET status = %L WHERE id = %L', 'active', pg_temp.n261_id(1106))],
+    ARRAY['assignment revoked', format('UPDATE platform.staff_role_assignments SET revoked_at = clock_timestamp() WHERE membership_id = %L AND revoked_at IS NULL', pg_temp.n261_id(305)),
+      format('UPDATE platform.staff_role_assignments SET revoked_at = NULL WHERE membership_id = %L', pg_temp.n261_id(305))]
+  ];
+  i INTEGER;
+BEGIN
+  FOR i IN 1..array_length(steps, 1) LOOP
+    EXECUTE steps[i][2];
+    IF pg_temp.n261_can(5, 'communication.read.full', 'conversation', c1) OR pg_temp.n261_can(5, 'communication.manual.send', 'conversation', c1) THEN
+      RAISE EXCEPTION 'N261: still has access with state %', steps[i][1];
+    END IF;
+    EXECUTE steps[i][3];
+    IF NOT (pg_temp.n261_can(5, 'communication.read.full', 'conversation', c1) AND pg_temp.n261_can(5, 'communication.manual.send', 'conversation', c1)) THEN
+      RAISE EXCEPTION 'N261: access did not come back after undoing %', steps[i][1];
+    END IF;
+  END LOOP;
+END
+$n261_identity$;
+SET LOCAL session_replication_role = origin;
+
+-- 4d. The real RPCs with a stale-but-valid JWT: Admissions A's assignment is
+--     revoked without an access-version bump (the token still looks current).
+--     Every reader and the send request are refused at once, nothing is left
+--     behind, and the member is back after the assignment is restored.
+SELECT m.id AS m2b FROM platform.communication_messages m WHERE m.conversation_id = :'c2' AND m.direction = 'inbound' \gset
+SET LOCAL session_replication_role = replica;
+UPDATE platform.staff_role_assignments SET revoked_at = clock_timestamp()
+  WHERE membership_id = pg_temp.n261_id(302) AND role_id = pg_temp.n261_id(1101) AND revoked_at IS NULL;
+SET LOCAL session_replication_role = origin;
+SET LOCAL request.jwt.claims TO :'n261_adm_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n261_assert(pg_temp.n261_error('SELECT pg_temp.n261_page()') = '42501'
+  AND pg_temp.n261_rls_conversations() = ARRAY[]::UUID[] AND pg_temp.n261_rls_message_conversations() = ARRAY[]::UUID[],
+  'revoked assignment, valid JWT: the queue is refused and the direct selects are empty');
+SELECT pg_temp.n261_assert(pg_temp.n261_reader('page', :'c1') = '42501' AND pg_temp.n261_reader('context', :'c1') = '42501'
+  AND pg_temp.n261_reader('page', :'c2') = '42501', 'revoked assignment, valid JWT: no transcript of a sales chat or of its own handed-off chat');
+SELECT pg_temp.n261_assert(pg_temp.n261_request(:'c2', :'m2b', 'N261 refused after revoke', 3401) = '42501'
+  AND pg_temp.n261_request(:'c1', :'m4', 'N261 refused after revoke', 3402) = '42501',
+  'revoked assignment, valid JWT: the send request is refused');
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+UPDATE platform.staff_role_assignments SET revoked_at = NULL
+  WHERE membership_id = pg_temp.n261_id(302) AND role_id = pg_temp.n261_id(1101);
+SET LOCAL session_replication_role = origin;
+SET LOCAL request.jwt.claims TO :'n261_adm_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n261_assert(pg_temp.n261_page() = pg_temp.n261_sorted(:'c1', :'c2', :'c3'),
+  'control: with the assignment restored Admissions A lists the chats again');
+RESET ROLE;
+SELECT pg_temp.n261_assert((SELECT count(*) = 2 FROM platform.manual_send_authorizations WHERE conversation_id = :'c1'::UUID)
+  AND (SELECT count(*) = 0 FROM platform.manual_send_authorizations WHERE conversation_id = :'c2'::UUID),
+  'the refused requests left no authorization behind');
 
 -- ---------------------------------------------------------------------------
 -- 5. The evaluator is still a hardened definer nobody can execute; its sibling is untouched.

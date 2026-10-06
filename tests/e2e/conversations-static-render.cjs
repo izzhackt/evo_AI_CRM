@@ -81,7 +81,9 @@
  *       проверки», пауза и «Отправка выключена на сервере», отвечает, только
  *       чтение, журнал (и фильтр), утренняя сводка (и пустая), строка паузы в
  *       другом подразделе; настройки вживую (ошибки до записи, «Проверено»
- *       снимается с изменённой фразы, запись с версией); лента с подписью
+ *       снимается с изменённой фразы, запись с версией); режим вживую
+ *       («Отвечает» — только после подтверждения плашкой, «Отмена» без
+ *       записи, фокус туда и обратно); лента с подписью
  *       «Автоответчик» и чипом «Ночью отвечает автоответчик»; в окне ИИ —
  *       «Автоответчик в этом чате» (включён, исключение, проверка без
  *       отправки, пауза, сбой и «Повторить», выключен в организации — полосы
@@ -2232,6 +2234,27 @@ createRoot(document.getElementById("root")).render(
   h("div", { className: "v3-world", "data-surface": "staff" }, h("main", { className: "mx-auto max-w-6xl p-4 sm:p-6" }, h(Page))));
 `;
 
+// Режим вживую: настоящий переключатель, запись — синтетическая (разметка раздела в снимках выше статична).
+const MODE_ENTRY = `
+const React = require("react");
+const { createRoot } = require("react-dom/client");
+const { AiAutosendModeSwitch } = require("@/components/v3/ai-agent/AiAutosendModeSwitch");
+const h = React.createElement;
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], autosend: [], refreshes: 0, polls: 0 };
+const action = async (_previous, form) => {
+  window.__harness.actions.push(["mode", form.get("mode"), form.get("expected_version")].join("|"));
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  return { status: "saved", requestId: form.get("request_id") };
+};
+function Page() {
+  React.useEffect(() => { document.documentElement.dataset.hydrated = "true"; }, []);
+  return h("section", { className: "rounded-card border border-border bg-surface px-4 py-5 sm:px-6", "data-testid": "v3-ai-autosend-header", "data-mode": "shadow" },
+    h(AiAutosendModeSwitch, { mode: "shadow", lock: null, version: 7, requestId: "27700000-0000-4000-8000-000000000072", action }));
+}
+createRoot(document.getElementById("root")).render(
+  h("div", { className: "v3-world", "data-surface": "staff" }, h("main", { className: "mx-auto max-w-6xl p-4 sm:p-6" }, h(Page))));
+`;
+
 function autosendMetrics() {
   const text = (selector) => document.querySelector(selector)?.textContent.replace(/\s+/gu, " ").trim() ?? null;
   const strip = document.querySelector('[data-testid="v3-ai-autosend-chat"]');
@@ -2244,6 +2267,8 @@ function autosendMetrics() {
     enable: text('[data-testid="v3-ai-autosend-enable"]'),
     enableDisabled: document.querySelector('[data-testid="v3-ai-autosend-enable"] button')?.getAttribute("aria-disabled") === "true",
     liveDisabled: document.querySelector('[data-testid="v3-ai-autosend-mode"] [data-mode="live"]')?.getAttribute("aria-disabled") === "true",
+    liveConfirm: text('[data-testid="v3-ai-autosend-live-confirm"]'),
+    focused: document.activeElement?.textContent?.trim() ?? null,
     overnight: [...document.querySelectorAll('[data-testid="v3-ai-autosend-overnight"]')].map((element) => element.textContent.trim()),
     unconfirmed: document.querySelectorAll('[data-testid^="v3-ai-autosend-phrase-"][data-confirmed="false"]').length,
     journal: [...document.querySelectorAll('[data-testid="v3-ai-autosend-journal-row"]')].map((row) => row.dataset.status),
@@ -2286,6 +2311,7 @@ async function aiP4Screenshots() {
   const css = await compileCss();
   await buildClientBundle(join(workDir, bundleName));
   await buildClientBundle(join(workDir, "ai-agent-p4-settings.js"), SETTINGS_ENTRY);
+  await buildClientBundle(join(workDir, "ai-agent-p4-mode.js"), MODE_ENTRY);
   const failures = [];
   const check = (condition, message) => { if (!condition) failures.push(message); };
   const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
@@ -2315,6 +2341,7 @@ async function aiP4Screenshots() {
     htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/v3/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
   }
   htmlFor["settings-live"] = page("settings-live", "Автоответчик", "", { settings: AUTOSEND_SETTINGS }, "ai-agent-p4-settings.js");
+  htmlFor["mode-live"] = page("mode-live", "Автоответчик", "", {}, "ai-agent-p4-mode.js");
 
   const { chromium } = require("playwright");
   // Русский интерфейс браузера: поля времени — 24 часа, как у сотрудников EVO.
@@ -2386,6 +2413,28 @@ async function aiP4Screenshots() {
         check(sectionChecks[name](metrics.autosend), `${name}-${viewportKey}: ${JSON.stringify(metrics.autosend)}`);
         await close(session, `${name}-${viewportKey}`);
       }
+    }
+
+    // «Отвечает» (настоящие ответы клиентам) пишет только после подтверждения; «Отмена» — без записи, фокус обратно.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open("mode-live", viewportKey);
+      const live = session.page.locator('[data-testid="v3-ai-autosend-mode"] [data-mode="live"]');
+      await live.click();
+      await session.page.waitForTimeout(150);
+      const confirm = await shot(session, `mode-live-confirm-${viewportKey}.png`);
+      check(confirm.autosend.liveConfirm?.startsWith("Автоответчик начнёт отвечать клиентам в WhatsApp") && confirm.autosend.focused === "Отвечать клиентам",
+        `mode-live-confirm-${viewportKey}: ${JSON.stringify({ c: confirm.autosend.liveConfirm, f: confirm.autosend.focused })}`);
+      await session.page.getByRole("button", { name: "Отмена", exact: true }).click();
+      await session.page.waitForTimeout(100);
+      const cancelled = await session.page.evaluate(autosendMetrics);
+      const noWrite = await session.page.evaluate(() => window.__harness.actions.length);
+      check(cancelled.liveConfirm === null && cancelled.focused === "Отвечает" && noWrite === 0,
+        `mode-live-cancel-${viewportKey}: ${JSON.stringify({ c: cancelled.liveConfirm, f: cancelled.focused, noWrite })}`);
+      await live.click();
+      await session.page.getByRole("button", { name: "Отвечать клиентам", exact: true }).click();
+      await session.page.waitForTimeout(300);
+      const harness = await close(session, `mode-live-${viewportKey}`);
+      check(JSON.stringify(harness.actions) === JSON.stringify(["mode|live|7"]), `mode-live-write-${viewportKey}: ${JSON.stringify(harness.actions)}`);
     }
 
     // Настройки вживую: неверная фраза → ошибки до записи; исправить → запись с ожидаемой версией.

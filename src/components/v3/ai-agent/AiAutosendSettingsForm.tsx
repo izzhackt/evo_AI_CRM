@@ -6,7 +6,7 @@ import { Icon } from "@/components/icons";
 import { btnCls } from "@/components/ui";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
-import type { AiActionState } from "@/lib/platform-ai-agent-actions";
+import type { AiAutosendSaveState } from "@/lib/platform-ai-agent-autosend-actions";
 import {
   AI_AUTOSEND_COPY,
   AI_AUTOSEND_DAY_LABEL,
@@ -25,6 +25,7 @@ import {
   aiAutosendConversationFromLink,
   aiAutosendOvernight,
   aiAutosendSettingsIssues,
+  aiAutosendTrimmed,
   type AiAutosendDay,
   type AiAutosendIssue,
   type AiAutosendLanguage,
@@ -34,7 +35,7 @@ import {
   type AiAutosendSpan,
 } from "@/lib/v3/ai-agent-autosend";
 
-type Status = AiActionState["status"];
+type Status = AiAutosendSaveState["status"];
 
 const MESSAGES: Readonly<Record<Exclude<Status, "idle">, string>> = {
   saved: "Настройки сохранены.",
@@ -43,6 +44,8 @@ const MESSAGES: Readonly<Record<Exclude<Status, "idle">, string>> = {
   invalid: "Проверьте отмеченные поля.",
   consent_required: "База не приняла настройки — обновите страницу.",
   unavailable: "Результат пока неизвестен — безопасно сохраните ещё раз.",
+  sender_required: "Чаты живого теста меняет только тот, кто сам отвечает клиентам в WhatsApp. Верните список как был — остальное сохранится.",
+  chat_unavailable: "Один из чатов живого теста вам недоступен — уберите его из списка.",
 };
 
 /** Номера дней недели ISO (1 — понедельник): так их хранит база (`working_days`). */
@@ -121,7 +124,7 @@ function PhraseField({
     <div className="space-y-1.5" data-testid={testId} data-confirmed={phrase.confirmed}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <label htmlFor={id} className="t-label text-fg-2">{label}</label>
-        {phrase.confirmed ? null : <StatusChip label={AI_AUTOSEND_COPY.check} tone="warn" />}
+        {phrase.confirmed ? null : <StatusChip label={AI_AUTOSEND_COPY.unchecked} tone="warn" />}
       </div>
       <textarea
         id={id}
@@ -171,7 +174,7 @@ export function AiAutosendSettingsForm({
   /** Просмотр роли или чтение без записи: поля видны, но не меняются. */
   readOnly: boolean;
   requestId: string;
-  action: (previous: AiActionState, form: FormData) => Promise<AiActionState>;
+  action: (previous: AiAutosendSaveState, form: FormData) => Promise<AiAutosendSaveState>;
 }>) {
   const formId = useId();
   const [draft, setDraft] = useState<AiAutosendSettings>(initial);
@@ -184,7 +187,7 @@ export function AiAutosendSettingsForm({
   const shown = tried ? issues : [];
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 
-  const [state, run, pending] = useActionState(async (previous: AiActionState, form: FormData): Promise<AiActionState> => {
+  const [state, run, pending] = useActionState(async (previous: AiAutosendSaveState, form: FormData): Promise<AiAutosendSaveState> => {
     try {
       const result = await action(previous, form);
       if (result.status === "saved" || result.status === "conflict" || result.status === "invalid") setRequestId(crypto.randomUUID());
@@ -237,7 +240,9 @@ export function AiAutosendSettingsForm({
     >
       <input type="hidden" name="request_id" value={requestId} />
       <input type="hidden" name="expected_version" value={String(version)} />
-      <input type="hidden" name="settings" value={JSON.stringify(draft)} />
+      {/* Пробелы по краям фраз не уходят в базу (275: text = btrim(text)); baseline — для записи только изменённого. */}
+      <input type="hidden" name="settings" value={JSON.stringify(aiAutosendTrimmed(draft))} />
+      <input type="hidden" name="baseline" value={JSON.stringify(initial)} />
 
       <fieldset disabled={readOnly} className="@container min-w-0">
         <Row title="Расписание" hint="По Бишкеку (Asia/Bishkek), не меняется" testId="v3-ai-autosend-schedule">

@@ -7,7 +7,8 @@
 // ни агента, ни Gemini, ни WhatsApp. Что сотрудник может прочитать и изменить,
 // решает база (275–277, supabase/tests/platform_ai_agent_p4.sql в ветке P4 SQL).
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -18,6 +19,8 @@ import { NextRequest } from "next/server.js";
 import {
   AI_AUTOSEND_COPY,
   AI_AUTOSEND_LIMIT_CEILING,
+  AI_AUTOSEND_OUTCOME_RU,
+  AI_AUTOSEND_SETTINGS_KEYS,
   aiAutosendAnswersHere,
   aiAutosendChatLine,
   aiAutosendConversationFromLink,
@@ -27,6 +30,8 @@ import {
   aiAutosendOvernight,
   aiAutosendPauseReason,
   aiAutosendSettingsIssues,
+  aiAutosendSettingsPatch,
+  aiAutosendTrimmed,
   aiAutosendWindowLine,
   nightsWord,
   normalizeAiAutosendChat,
@@ -171,6 +176,74 @@ test("settings checks mirror 275: phrases one line, no digits or links, exactly 
   assert.equal(aiAutosendConversationFromLink(`/v3/inbox?conversation=${ID(5)}&q=x`), ID(5));
   assert.equal(aiAutosendConversationFromLink(ID(6)), ID(6));
   for (const bad of ["", "чат Айгерим", `/v3/messages?conversation=${ID(5)}`, "/v3/inbox?conversation=x"]) assert.equal(aiAutosendConversationFromLink(bad), null, bad);
+});
+
+test("save: only the changed keys go to 277 — the live-test list only when it changed; phrases are written trimmed", () => {
+  const base = normalizeAiAutosendSettings({ ...SETTINGS, liveTestConversationIds: [ID(2), ID(1)] });
+  assert.deepEqual(Object.keys(aiAutosendSettingsPatch(base, base)), [], "nothing changed — nothing to write");
+  // Сотрудник без права отправки меняет только лимит: список живого теста в записи не появляется
+  // (277 при любом его наличии требует communication.manual.send и доступ к чатам).
+  assert.deepEqual(aiAutosendSettingsPatch(base, { ...base, limitChatHour: 3 }), { limitChatHour: 3 });
+  assert.deepEqual(Object.keys(aiAutosendSettingsPatch(base, { ...base, liveTestConversationIds: [ID(1), ID(2)] })), [],
+    "the same chats in another order are the same list (277 stores it sorted)");
+  assert.deepEqual(Object.keys(aiAutosendSettingsPatch(base, { ...base, workingDays: [5, 4, 3, 2, 1] })), []);
+  assert.deepEqual(aiAutosendSettingsPatch(base, { ...base, liveTestConversationIds: [ID(1)] }), { liveTestConversationIds: [ID(1)] });
+  const phrases = { ...base.phrases, ru: { ...base.phrases.ru, tomorrow: { text: base.phrases.ru.tomorrow.text, confirmed: false } } };
+  assert.deepEqual(Object.keys(aiAutosendSettingsPatch(base, { ...base, phrases, delayMaxSeconds: 120 })), ["delayMaxSeconds", "phrases"]);
+  assert.deepEqual([...AI_AUTOSEND_SETTINGS_KEYS].sort(), Object.keys(base).sort(), "every settings key is compared");
+  // 275: text = btrim(text). Пробел по краям проходит проверку CRM (она смотрит на обрезанный текст) — пишется обрезанным.
+  const spaced = { ...base, phrases: { ...base.phrases, ru: { ...base.phrases.ru, day: { text: " {day} в рабочее время вам позвонит наш руководитель. ", confirmed: true } } },
+    disclosure: { ...base.disclosure, en: { text: "This is the EVO automatic assistant. ", confirmed: true } } };
+  assert.deepEqual(aiAutosendSettingsIssues(spaced), []);
+  const trimmed = aiAutosendTrimmed(spaced);
+  assert.equal(trimmed.phrases.ru.day.text, "{day} в рабочее время вам позвонит наш руководитель.");
+  assert.equal(trimmed.disclosure.en.text, "This is the EVO automatic assistant.");
+  assert.deepEqual(aiAutosendTrimmed(base), base, "already trimmed settings are unchanged");
+  assert.deepEqual(Object.keys(aiAutosendSettingsPatch(base, aiAutosendTrimmed({ ...base, phrases: {
+    ...base.phrases, ru: { ...base.phrases.ru, tomorrow: { ...base.phrases.ru.tomorrow, text: `${base.phrases.ru.tomorrow.text}  ` } } } }))), [],
+    "a trailing space alone is no change");
+  // Действие и форма: форма шлёт обрезанные настройки и исходные; действие ещё раз обрезает и пишет разницу.
+  const action = read("src/lib/platform-ai-agent-autosend-actions.ts");
+  assert.match(action, /exactActionStringFields\(form, \["request_id", "expected_version", "settings", "baseline"\]\)/u);
+  assert.match(action, /settings = aiAutosendTrimmed\(normalizeAiAutosendSettings\(JSON\.parse\(raw\)\)\);/u);
+  assert.match(action, /const patch = aiAutosendSettingsPatch\(baseline, settings\);/u);
+  const form = read("src/components/v3/ai-agent/AiAutosendSettingsForm.tsx");
+  assert.match(form, /name="settings" value=\{JSON\.stringify\(aiAutosendTrimmed\(draft\)\)\}/u);
+  assert.match(form, /name="baseline" value=\{JSON\.stringify\(initial\)\}/u);
+  // Отказы списка живого теста — своим текстом, не «Нет права менять настройки».
+  const source = read("src/lib/v3/ai-agent-autosend-source.ts");
+  assert.match(source, /code === "42501" && message === "ai_autosend_sender_required"\) return "sender_required";/u);
+  assert.match(source, /code === "42501" && message === "ai_conversation_unavailable"\) return "chat_unavailable";/u);
+  assert.match(source, /p_patch: input\.patch,/u);
+  assert.match(form, /sender_required: "Чаты живого теста меняет только тот, кто сам отвечает клиентам в WhatsApp\./u);
+});
+
+test("RPC names the CRM calls exist in the P4 schema (275–277): the chat read is ai_agent_autosend_conversation_v1", (t) => {
+  const files = ["src/lib/server/ai-agent-route-handlers.ts", "src/lib/v3/ai-agent-autosend-source.ts", "src/lib/server/ai-agent-send.ts"];
+  const called = new Set(files.flatMap((file) => [...read(file).matchAll(/"(ai_(?:agent_)?autosend[a-z_]*_v1)"/gu)].map((match) => match[1])));
+  assert.ok(called.has("ai_agent_autosend_conversation_v1") && !called.has("ai_agent_autosend_chat_v1"));
+  const migrations = ["275_platform_ai_agent_autosend_schema.sql", "276_platform_ai_agent_autosend_send_path.sql", "277_platform_ai_agent_autosend_rpc.sql"];
+  // Ветка схемы P4 ещё не под этой (стек нелинейный): после посадки — файлы репозитория, до неё — git show ветки схемы.
+  const ref = process.env.EVO_AI_P4_SCHEMA_REF ?? "origin/izzhackt/ai-agent-p4-schema";
+  let sql;
+  if (migrations.every((name) => existsSync(new URL(`../supabase/migrations/${name}`, import.meta.url)))) {
+    sql = migrations.map((name) => read(`supabase/migrations/${name}`)).join("\n");
+  } else {
+    try {
+      sql = migrations.map((name) => execFileSync("git", ["show", `${ref}:supabase/migrations/${name}`], {
+        cwd: fileURLToPath(new URL("..", import.meta.url)), encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 16 * 1024 * 1024,
+      })).join("\n");
+    } catch {
+      t.skip(`P4 schema migrations are neither in this tree nor readable at ${ref}`);
+      return;
+    }
+  }
+  const defined = new Set([...sql.matchAll(/CREATE OR REPLACE FUNCTION platform\.(ai_(?:agent_)?autosend[a-z_]*_v1)\(/gu)].map((match) => match[1]));
+  for (const name of called) assert.ok(defined.has(name), `${name} is not a platform function of 275–277`);
+  // Коды итога, которые пишет маршрут отправки, имеют слова в журнале.
+  for (const code of ["provider_restricted", "authorization_expired", "provider_down", "send_failed", "send_unknown"]) {
+    assert.equal(typeof AI_AUTOSEND_OUTCOME_RU[code], "string", code);
+  }
 });
 
 test("«Отвечает» lock: three shadow nights, confirmed RU phrases and disclosure, no pause — the same order 277 refuses in", () => {
@@ -557,7 +630,7 @@ test("UI copy: the spec's Russian words, one red action, switch semantics, AI-wi
   const mode = read("src/components/v3/ai-agent/AiAutosendModeSwitch.tsx");
   const contract = read("src/lib/v3/ai-agent-autosend.ts");
   for (const phrase of ["Проверка без отправки", "Отвечает", "Нужно ещё ${nightsWord(left)} проверки", "след. дня", "Включён весь день",
-    "Выключен", "Проверить", "Проверено", "Настройки изменились — обновите страницу", "Автоответчик на паузе", "Снять паузу",
+    "Выключен", "нужна проверка", "Проверено", "Настройки изменились — обновите страницу", "Автоответчик на паузе", "Снять паузу",
     "Отправка выключена на сервере", "Ночью отвечает автоответчик", "Автоответчик в этом чате"]) {
     assert.ok(contract.includes(phrase), phrase);
   }
@@ -568,6 +641,11 @@ test("UI copy: the spec's Russian words, one red action, switch semantics, AI-wi
   assert.doesNotMatch(view, /btnCls\b/u, "enable, pause and disable are never red");
   assert.match(mode, /aria-pressed=\{selected\}/u);
   assert.match(mode, /aria-disabled=\{locked \|\| pending \|\| undefined\}/u);
+  // «Отвечает» — настоящие ответы клиентам: только после подтверждения плашкой; «Проверка без отправки» — сразу.
+  assert.match(mode, /if \(next === "shadow"\) \{ submit\("shadow"\); return; \}/u);
+  assert.match(mode, /data-testid="v3-ai-autosend-live-confirm"/u);
+  assert.match(mode, /submit\("live"\);/u);
+  assert.equal((mode.match(/submit\("live"\)/gu) ?? []).length, 1, "the only live write is the confirm button");
   const toggle = read("src/components/v3/inbox/InboxAiAutosend.tsx");
   assert.match(toggle, /role="switch"/u);
   assert.match(toggle, /aria-checked=\{on\}/u);

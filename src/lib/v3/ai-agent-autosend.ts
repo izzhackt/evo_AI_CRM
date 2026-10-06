@@ -322,6 +322,8 @@ export const AI_AUTOSEND_COPY = Object.freeze({
   enable: "Включить автоответчик",
   disable: "Выключить автоответчик",
   disableConfirm: "Ответы, которые ждут отправки, отменятся.",
+  liveConfirm: "Автоответчик начнёт отвечать клиентам в WhatsApp от имени ответственного — ночью, по расписанию.",
+  liveConfirmAction: "Отвечать клиентам",
   firstEnable: "Первое включение — «Проверка без отправки»: решения пишутся в журнал, клиентам ничего не уходит.",
   noConsent: "Сначала администратор записывает согласие на Gemini.",
   noSendRight: "Включает сотрудник с правом отвечать в WhatsApp — он становится ответственным.",
@@ -329,7 +331,8 @@ export const AI_AUTOSEND_COPY = Object.freeze({
   chatToggle: "Автоответчик в этом чате",
   chip: "Ночью отвечает автоответчик",
   transcript: "Автоответчик",
-  check: "Проверить",
+  /** Состояние фразы, а не действие: подтверждают отметкой «Проверено» рядом (как «нужна проверка» в P1). */
+  unchecked: "нужна проверка",
   checked: "Проверено",
   nextDay: "след. дня",
   dayOn: "Включён весь день",
@@ -409,6 +412,46 @@ function phraseIssues(field: string, raw: string, limit: number, day: boolean | 
   if (day === true && (tokens !== 1 || strayBraces)) issues.push({ field, message: "Ровно одно {day} — на его место встанет день." });
   if (day !== true && (tokens > 0 || strayBraces)) issues.push({ field, message: "{day} — только во второй фразе." });
   return issues;
+}
+
+/**
+ * Фразы и строка о помощнике — без пробелов по краям: 275 требует
+ * `text = btrim(text)`, а проверка выше смотрит на обрезанный текст. Записывается
+ * ровно то, что проверено.
+ */
+export function aiAutosendTrimmed(settings: AiAutosendSettings): AiAutosendSettings {
+  const trim = (phrase: AiAutosendPhrase): AiAutosendPhrase => Object.freeze({ text: phrase.text.trim(), confirmed: phrase.confirmed });
+  return Object.freeze({
+    ...settings,
+    phrases: Object.freeze(Object.fromEntries(AI_AUTOSEND_LANGUAGES.map((language) => [language, Object.freeze({
+      tomorrow: trim(settings.phrases[language].tomorrow), day: trim(settings.phrases[language].day),
+    })])) as AiAutosendPhrases),
+    disclosure: Object.freeze(Object.fromEntries(AI_AUTOSEND_LANGUAGES.map((language) => [language, trim(settings.disclosure[language])])) as AiAutosendDisclosure),
+  });
+}
+
+/** Ключи настроек 277 (`ai_agent_autosend_save_v1` принимает любое их подмножество). */
+export const AI_AUTOSEND_SETTINGS_KEYS = Object.freeze([
+  "schedule", "dateOverrides", "workingDays", "delayMinSeconds", "delayMaxSeconds", "limitChatHour", "limitChatNight",
+  "limitNumberHour", "phrases", "disclosureEnabled", "disclosure", "liveTestConversationIds",
+] as const satisfies readonly (keyof AiAutosendSettings)[]);
+/** Списки, которые база хранит множеством (отсортированы и без повторов). */
+const SET_KEYS: readonly (keyof AiAutosendSettings)[] = ["workingDays", "liveTestConversationIds"];
+
+/**
+ * Запись — только изменённые ключи. Полный набор каждый раз нельзя: 277
+ * проверяет список живого теста при КАЖДОЙ записи, где он есть (право
+ * отправлять, доступ к чатам), и сотрудник без права отправки не смог бы
+ * сохранить даже расписание, пока в списке есть чат. Пустой результат —
+ * менять нечего.
+ */
+export function aiAutosendSettingsPatch(baseline: AiAutosendSettings, settings: AiAutosendSettings): Partial<AiAutosendSettings> {
+  const patch: Partial<Record<keyof AiAutosendSettings, unknown>> = {};
+  for (const key of AI_AUTOSEND_SETTINGS_KEYS) {
+    const shape = (value: unknown) => JSON.stringify(SET_KEYS.includes(key) ? [...new Set(value as readonly (string | number)[])].sort() : value);
+    if (shape(baseline[key]) !== shape(settings[key])) patch[key] = settings[key];
+  }
+  return Object.freeze(patch) as Partial<AiAutosendSettings>;
 }
 
 /** Проверка до записи — те же правила, что CHECK базы (275); база всё равно решает сама. */
@@ -501,7 +544,8 @@ export type AiAutosendJournalFilter = (typeof AI_AUTOSEND_JOURNAL_FILTERS)[numbe
 /** Код исхода отправки (CRM, `ai_autosend_record_v1`) словами журнала. */
 export const AI_AUTOSEND_OUTCOME_RU: Readonly<Record<string, string>> = Object.freeze({
   provider_restricted: "WhatsApp ограничил номер (463 или 475)",
-  not_claimed: "Отправку не взяли — впереди в чате была другая",
+  authorization_expired: "Не отправлено: отправка не началась в течение минуты после проверки",
+  provider_down: "Не отправлено: сессия WhatsApp не в работе",
   provider_rejected: "WhatsApp отклонил сообщение",
   message_rejected: "WhatsApp отклонил сообщение",
   provider_timeout: "WhatsApp не ответил вовремя — итог проверяется",

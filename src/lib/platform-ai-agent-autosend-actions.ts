@@ -8,6 +8,8 @@ import { parseSalesUuid } from "./platform-sales-register-contract";
 import { exactActionStringFields } from "./server/action-form-fields";
 import {
   aiAutosendSettingsIssues,
+  aiAutosendSettingsPatch,
+  aiAutosendTrimmed,
   normalizeAiAutosendSettings,
   type AiAutosendSettings,
 } from "./v3/ai-agent-autosend";
@@ -16,7 +18,7 @@ import {
   pauseAiAutosend,
   saveAiAutosendSettings,
   setAiAutosendShadow,
-  type AiAutosendWriteStatus,
+  type AiAutosendSaveStatus,
 } from "./v3/ai-agent-autosend-source";
 
 /**
@@ -26,6 +28,8 @@ import {
  * решение базы (277); здесь только форма ввода.
  */
 export type AiAutosendActionState = AiActionState;
+/** «Сохранить настройки»: те же состояния и два отказа списка живого теста со своим текстом. */
+export type AiAutosendSaveState = Readonly<{ status: "idle" | AiAutosendSaveStatus; requestId: string | null }>;
 
 const VERSION = /^(?:0|[1-9]\d{0,14})$/u;
 /** Настройки целиком — несколько килобайт JSON; больше — не наша форма. */
@@ -36,29 +40,40 @@ async function actorFor() {
   return staffCanAccessRoute(actor, "/v3/ai-agent") ? actor : null;
 }
 
-function done(status: AiAutosendWriteStatus, requestId: string): AiAutosendActionState {
+function done<S extends AiAutosendSaveStatus>(status: S, requestId: string): Readonly<{ status: S; requestId: string }> {
   if (status === "saved") revalidatePath("/v3/ai-agent");
   return { status, requestId };
 }
 
-/** «Сохранить настройки»: все настройки одной записью с ожидаемой версией (PT409 — «обновите страницу»). */
-export async function saveAiAutosendSettingsAction(previous: AiAutosendActionState, form: FormData): Promise<AiAutosendActionState> {
-  const fields = exactActionStringFields(form, ["request_id", "expected_version", "settings"]);
+/**
+ * «Сохранить настройки»: форма присылает настройки, какими их видит
+ * сотрудник, и исходные (`baseline`, прочитанные при той же версии); в базу
+ * уходят только изменённые ключи с ожидаемой версией (PT409 — «обновите
+ * страницу»). Повтор того же ввода даёт тот же набор ключей — та же квитанция.
+ */
+export async function saveAiAutosendSettingsAction(previous: AiAutosendSaveState, form: FormData): Promise<AiAutosendSaveState> {
+  const fields = exactActionStringFields(form, ["request_id", "expected_version", "settings", "baseline"]);
   const requestId = fields && parseSalesUuid(fields.get("request_id"));
   if (!fields || !requestId) return { status: "invalid", requestId: previous.requestId };
   const expected = fields.get("expected_version")!;
   const raw = fields.get("settings")!;
-  if (!VERSION.test(expected) || raw.length > SETTINGS_JSON_LIMIT) return { status: "invalid", requestId };
+  const rawBaseline = fields.get("baseline")!;
+  if (!VERSION.test(expected) || raw.length > SETTINGS_JSON_LIMIT || rawBaseline.length > SETTINGS_JSON_LIMIT) return { status: "invalid", requestId };
   let settings: AiAutosendSettings;
+  let baseline: AiAutosendSettings;
   try {
-    settings = normalizeAiAutosendSettings(JSON.parse(raw));
+    settings = aiAutosendTrimmed(normalizeAiAutosendSettings(JSON.parse(raw)));
+    baseline = normalizeAiAutosendSettings(JSON.parse(rawBaseline));
   } catch {
     return { status: "invalid", requestId };
   }
   if (aiAutosendSettingsIssues(settings).length > 0) return { status: "invalid", requestId };
   const actor = await actorFor();
   if (!actor) return { status: "forbidden", requestId };
-  return done(await saveAiAutosendSettings(actor, { settings, expectedVersion: Number(expected), requestId }), requestId);
+  const patch = aiAutosendSettingsPatch(baseline, settings);
+  // Менять нечего (правка свелась к пробелам по краям): база пустую запись не принимает.
+  if (Object.keys(patch).length === 0) return { status: "saved", requestId };
+  return done(await saveAiAutosendSettings(actor, { patch, expectedVersion: Number(expected), requestId }), requestId);
 }
 
 /**

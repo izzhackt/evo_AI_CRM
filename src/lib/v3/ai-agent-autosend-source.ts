@@ -105,6 +105,13 @@ export function readAiAutosendChat(actor: ActivePlatformActor, conversationId: s
 }
 
 export type AiAutosendWriteStatus = AiWriteStatus;
+/**
+ * Отказы записи настроек со своим текстом (277, оба — 42501): список живого
+ * теста задаёт только тот, кто сам может отправлять в WhatsApp
+ * (`ai_autosend_sender_required`), и только из чатов, которые он читает
+ * (`ai_conversation_unavailable`).
+ */
+export type AiAutosendSaveStatus = AiAutosendWriteStatus | "sender_required" | "chat_unavailable";
 
 function writeStatus(error: RpcError): AiAutosendWriteStatus {
   if (error.code === "PT409" || error.code === "23505") return "conflict";
@@ -124,11 +131,27 @@ async function write(actor: ActivePlatformActor, name: string, args: Record<stri
   }
 }
 
-/** Все настройки одной записью; ожидаемая версия — против гонки двух сотрудников (PT409). */
-export function saveAiAutosendSettings(actor: ActivePlatformActor, input: Readonly<{ settings: AiAutosendSettings; expectedVersion: number; requestId: string }>) {
-  return write(actor, "ai_agent_autosend_save_v1", {
-    p_expected_version: input.expectedVersion, p_patch: input.settings, p_request_id: input.requestId,
-  });
+/**
+ * Настройки одной записью — только изменённые ключи (`aiAutosendSettingsPatch`);
+ * ожидаемая версия — против гонки двух сотрудников (PT409).
+ */
+export async function saveAiAutosendSettings(
+  actor: ActivePlatformActor,
+  input: Readonly<{ patch: Partial<AiAutosendSettings>; expectedVersion: number; requestId: string }>,
+): Promise<AiAutosendSaveStatus> {
+  if (isStaffPreview(actor)) return "forbidden";
+  try {
+    const { error } = await rpc("ai_agent_autosend_save_v1", {
+      p_organization_id: actor.organizationId, p_expected_version: input.expectedVersion, p_patch: input.patch, p_request_id: input.requestId,
+    });
+    if (!error) return "saved";
+    const { code, message } = error as RpcError;
+    if (code === "42501" && message === "ai_autosend_sender_required") return "sender_required";
+    if (code === "42501" && message === "ai_conversation_unavailable") return "chat_unavailable";
+    return writeStatus(error as RpcError);
+  } catch {
+    return "unavailable";
+  }
 }
 
 /**

@@ -581,7 +581,7 @@ export type AiAutosendChatRouteDependencies = Readonly<{
 const defaultAutosendChatDependencies: AiAutosendChatRouteDependencies = {
   authorize: defaultAuthorize,
   async readChat(actor, conversationId) {
-    const { data, error } = await (await rpcClient()).rpc("ai_agent_autosend_chat_v1", {
+    const { data, error } = await (await rpcClient()).rpc("ai_agent_autosend_conversation_v1", {
       p_organization_id: actor.organizationId, p_conversation_id: conversationId,
     });
     if (error) {

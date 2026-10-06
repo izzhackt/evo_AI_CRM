@@ -61,6 +61,17 @@ export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: str
     </div>
   );
 }
+/**
+ * Что сказать про «Откуда узнал» после ответа: выбор пишется отдельным вызовом, и он может не записаться;
+ * у повторного контакта канал уже мог быть записан раньше — его правят в карточке, а не новым выбором.
+ */
+function touchNote(state: ManualLeadState): string {
+  if (state.touch === "forbidden") return " «Откуда узнал» не записано: нет права менять этого лида.";
+  if (state.touch === "failed") return " «Откуда узнал» не записалось — укажите его в карточке лида.";
+  if (state.status === "duplicate") return state.leadId ? " «Откуда узнал» уточняйте в карточке лида." : " «Откуда узнал» для него не записано.";
+  return "";
+}
+
 function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[]; onAnother: () => void }>) {
   const frozen = useRef<FormData | null>(null);
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
@@ -131,7 +142,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
       </div></details>
       <button className={btnCls} disabled={locked}>{pending ? "Сохраняем…" : "Сохранить лида"}</button>
     </fieldset>
-    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="text-sm leading-relaxed text-fg-2">{messages[state.status]}{state.touch === "failed" ? " «Откуда узнал» не записалось — укажите его в карточке лида." : ""}</p> : null}
+    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="text-sm leading-relaxed text-fg-2">{messages[state.status]}{touchNote(state)}</p> : null}
     {state.leadId ? <Link className="inline-flex min-h-11 items-center text-accent-text underline" href={`/v3/profile?id=${state.leadId}`}>Открыть лида</Link> : null}
     {state.status === "unavailable" ? <button type="submit" className={btnCls} disabled={pending}>Повторить тот же запрос</button> : null}
     {state.status === "saved" ? <button type="button" className="min-h-11 text-sm underline" onClick={onAnother}>Добавить ещё одного</button> : null}

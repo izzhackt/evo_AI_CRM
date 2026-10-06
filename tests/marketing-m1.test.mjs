@@ -19,7 +19,7 @@ import {
   marketingLeadFilterParams, parseMarketingLeadFilters, parseMarketingLeads, parseMarketingOverview, parseSpendCancelled, parseSpendSaved,
 } from "../src/lib/marketing-contract.ts";
 import {
-  costPerLead, formatMinor, formatPerLead, marketingHref, marketingSignals, parseMarketingView, parseSpendAmount, shareText, shiftIsoDate, stageWord,
+  costPerLead, formatMinor, formatPerLead, marketingHref, marketingSignals, parseMarketingView, parseSpendAmount, shareText, shiftIsoDate, stageWord, unknownSource,
 } from "../src/lib/marketing-view.ts";
 import { isStaffPreview, staffCanAccessRoute } from "../src/lib/platform-access.ts";
 import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
@@ -80,7 +80,7 @@ function overviewJson(over = {}) {
   return {
     organization_id: ORG, from: FROM, to: TO, time_zone: "Asia/Bishkek",
     cohort: {
-      total: 23, open_count: 20, source_keys: { website: 11, instagram: 12 }, repeat_submissions: 3,
+      total: 23, open_count: 20, cabinet_forms: 0, source_keys: { website: 11, instagram: 12 }, repeat_submissions: 3,
       totals: { leads: 23, qualified: 7, handed_off: 2, contract: 2, contract_linked: 1, paid: 1, paid_without_amount: 0 },
       channels,
     },
@@ -266,6 +266,9 @@ test("overview parsing refuses any deviation instead of drawing a number", () =>
   bad((j) => { j.cohort.open_count = 24; }, "open more than all");
   bad((j) => { j.cohort.totals.leads = 22; }, "totals disagree");
   bad((j) => { j.cohort.source_keys.website = 99; }, "source keys disagree");
+  bad((j) => { delete j.cohort.cabinet_forms; }, "cabinet forms missing");
+  bad((j) => { j.cohort.cabinet_forms = 13; }, "more cabinet forms than the unknown row holds");
+  bad((j) => { j.cohort.cabinet_forms = "1"; }, "cabinet forms as a string");
   bad((j) => { j.cohort.channels[0].paid_amounts[0].amount_minor = 600; }, "money as number");
   bad((j) => { j.cohort.channels[0].paid_amounts[0].currency = "usd"; }, "currency shape");
   bad((j) => { j.sales.channels.pop(); }, "six sales rows");
@@ -350,6 +353,7 @@ test("the lead-channel read is exactly {channel, basis, corrected, at} and corre
     assert.equal(parseLeadChannelRead(bad), null, JSON.stringify(bad));
   }
   assert.equal(leadChannelText({ channel: "instagram_ads", basis: "utm" }), "Instagram — реклама · по метке");
+  assert.equal(leadChannelText({ channel: "unknown", basis: "unknown" }), "Не известно", "no «не известно · не известно»");
   assert.deepEqual(Object.values(LEAD_CHANNEL_BASES), ["по метке", "по ссылке", "со слов клиента", "исправлено", "не известно"]);
 });
 
@@ -377,15 +381,21 @@ test("cost per lead: three levels, one currency, never a divided zero", () => {
   const cost = costPerLead(overview);
   assert.equal(cost.status, "single");
   assert.equal(cost.currency, "USD");
-  assert.deepEqual(cost.levels.map((level) => [level.key, level.leads, level.perLeadMinor]), [
-    ["tagged", 4, 30000], ["by_word", 6, 20000], ["with_unknown", 18, 120000 / 18],
+  // Меньше 10 заявок в знаменателе — только число заявок, цены нет (как у долей); от 10 — цена.
+  assert.deepEqual(cost.levels.map((level) => [level.key, level.leads, level.perLeadMinor, level.fewLeads]), [
+    ["tagged", 4, null, true], ["by_word", 6, null, true], ["with_unknown", 18, 120000 / 18, false],
   ]);
+  const ten = overviewJson();
+  ten.cohort.channels[0].leads = 10; ten.cohort.channels[5].leads = 8; ten.cohort.channels[2].leads = 5;
+  ten.cohort.total = 23; ten.cohort.source_keys = { website: 11, instagram: 12 };
+  assert.deepEqual(costPerLead(parseOverview(ten)).levels.map((level) => [level.leads, level.perLeadMinor, level.fewLeads]),
+    [[4, null, true], [10, 12000, false], [18, 120000 / 18, false]], "ten leads is enough for a price, nine is not");
   // Нет заявок рекламы — знаменатель 0, «—», а не деление на ноль.
   const noAds = overviewJson();
   noAds.cohort.channels[0] = channelRow("instagram_ads");
   noAds.cohort.channels[2].leads = 11; noAds.cohort.channels[2].basis.referrer = 11;
   const empty = costPerLead(parseOverview(noAds));
-  assert.deepEqual(empty.levels.map((level) => [level.leads, level.perLeadMinor]), [[0, null], [0, null], [12, 10000]]);
+  assert.deepEqual(empty.levels.map((level) => [level.leads, level.perLeadMinor, level.fewLeads]), [[0, null, false], [0, null, false], [12, 10000, false]]);
   // Расход в двух валютах: цена не считается, суммы не складываются.
   const mixed = overviewJson();
   mixed.spend.inside_totals = [{ currency: "KGS", amount_minor: "500000" }, { currency: "USD", amount_minor: "120000" }];
@@ -414,6 +424,27 @@ test("signals: only «spend and no leads for 3 days» and «unknown above 40% of
   edge.cohort.total = 30; edge.cohort.totals.leads = 30; edge.cohort.channels[1] = channelRow("instagram", { leads: 7 });
   edge.cohort.source_keys = { website: 30 };
   assert.deepEqual(marketingSignals(parseOverview(edge), { leads: 1, spendRows: 1 }), []);
+});
+
+test("cabinet applications sit in «Не известно» but do not count as an unknown source", () => {
+  const json = overviewJson();
+  json.cohort.cabinet_forms = 5; json.cohort.source_keys = { website: 6, platform_application: 5, instagram: 12 };
+  const overview = parseOverview(json);
+  assert.deepEqual(unknownSource(overview), { unknown: 7, whole: 18 });
+  // 12 из 23 дало бы сигнал; без анкет кабинета — 7 из 18, это 39 %, ниже порога.
+  assert.deepEqual(marketingSignals(overview, { leads: 4, spendRows: 1 }), []);
+  assert.deepEqual(marketingSignals(parseOverview(overviewJson()), { leads: 4, spendRows: 1 }).map((s) => s.key), ["unknown_share"]);
+  assert.equal(costPerLead(overview).levels[2].leads, 6 + 7, "«включая неизвестные» counts the unknown without cabinet applications");
+  const load = loader({ "./MarketingSpendPanel": { MarketingSpendPanel: () => null } });
+  const { MarketingOverviewView } = load("src/components/v3/marketing/MarketingOverviewView.tsx");
+  const html = renderToStaticMarkup(createElement(MarketingOverviewView, {
+    read: { status: "available", overview }, recent: null, period: { from: FROM, to: TO }, retryHref: "/v3/marketing",
+  }));
+  assert.match(html, /Источник не известен — <span class="tabular-nums">7 из 18 · 39\u00a0%<\/span>/u);
+  assert.match(html, /Анкеты на платформе \(5\) в эту долю не входят/u);
+  assert.match(html, /анкеты на платформе 5/u, "named in the unknown row");
+  assert.match(html, /Заявок: <span class="tabular-nums">23<\/span>/u, "the total keeps them");
+  assert.match(html, /data-testid="marketing-repeats"[^>]*>\s*Повторные обращения: <span class="tabular-nums">3<\/span>/u, "repeat submissions are a line of their own");
 });
 
 test("addresses carry period and filter keys only: no names, phones or cursor", () => {
@@ -458,7 +489,8 @@ test("the overview draws two titled blocks, the unknown line, reconciliation and
   assert.match(html, /по метке 4 · со слов клиента 1 · исправлено 1/u);
   assert.match(html, /ИИ-ассистент 2/u);
   assert.match(html, /data-testid="marketing-signals"/u);
-  assert.match(html, /data-cost-level="tagged"[^>]*>[\s\S]*?300 USD[\s\S]*?на 4 лида/u);
+  assert.match(html, /data-cost-level="tagged"[^>]*>[\s\S]*?мало заявок для цены: 4 лида/u, "fewer than ten leads: the count, no price");
+  assert.match(html, /data-cost-level="with_unknown"[^>]*>[\s\S]*?66,67 USD[\s\S]*?на 18 лидов/u, "eighteen leads: a price");
   assert.doesNotMatch(html, /NaN|undefined|Infinity/u);
   assert.doesNotMatch(html, RED_ACTION, "no red action on the page");
   assert.match(html, /<span class="block t-body-compact text-fg">2\u00a0500\u00a0USD<span class="text-fg-2"> · 2 договора<\/span>/u, "sales amounts read as figures, not as captions");
@@ -537,6 +569,26 @@ test("«Откуда узнал» in Lead 360: label and basis from the read, a 
   const fact = read("src/components/v3/profile/LeadChannelFact.tsx");
   assert.match(fact, /readLeadChannel\(actor, leadId\)/u);
   assert.match(fact, /!isStaffPreview\(actor\) && staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\)/u);
+});
+
+test("recordLeadTouch refuses role preview and a missing right in the data layer, before any RPC", async () => {
+  const calls = [];
+  const client = { schema: () => ({ rpc: async (name) => { calls.push(name); return { data: null, error: { code: "XX000", message: "x" } }; } }) };
+  const { recordLeadTouch } = loader({ "../supabase/server.ts": { createSupabaseServerClient: async () => client } })("src/lib/v3/lead-channel-source.ts");
+  const input = { leadId: LEAD, channel: "other", kind: "staff_correction", requestId: "70000000-0000-4000-8000-000000000001" };
+  const manager = { ...admin, permissionKeys: ["lead.sales.workflow.manage"] };
+  assert.deepEqual(await recordLeadTouch({ ...manager, presentationRole: "sales" }, input), { status: "forbidden" }, "role preview");
+  assert.deepEqual(await recordLeadTouch({ ...manager, systemRole: null, permissionKeys: ["lead.read"] }, input), { status: "forbidden" }, "no right");
+  assert.deepEqual(calls, [], "neither reaches the database");
+  assert.deepEqual(await recordLeadTouch(manager, input), { status: "unavailable" });
+  assert.deepEqual(calls, ["record_lead_touch"]);
+});
+
+test("the correction select is remounted with the saved value, so the form reset cannot bring the old one back", () => {
+  const source = read("src/components/v3/profile/LeadChannelCorrection.tsx");
+  assert.match(source, /<select key=\{epoch\} name="channel"/u);
+  assert.match(source, /setSavedChannel\(result\.read\.channel\)/u);
+  assert.match(source, /disabled=\{pending \|\| choice === saved\}/u, "«Сохранить» compares with what is saved now, not with what the card opened with");
 });
 
 test("spend actions validate on the server and refuse role preview; the minor amount is exact", async () => {

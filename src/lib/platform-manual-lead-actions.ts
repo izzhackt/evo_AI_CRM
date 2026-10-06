@@ -41,7 +41,7 @@ export async function createManualLeadAction(previous: ManualLeadState, form: Fo
         leadId: state.leadId, channel: channel as LeadChannel, kind: "staff_manual",
         requestId: leadTouchRequestId(requestId, "staff_manual"),
       });
-      return { ...state, touch: touch.status === "saved" ? "saved" : "failed" };
+      return { ...state, touch: touch.status === "saved" ? "saved" : touch.status === "forbidden" ? "forbidden" : "failed" };
     }
     return state;
   } catch { return fail("unavailable"); }

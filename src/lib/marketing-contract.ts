@@ -109,6 +109,11 @@ export type MarketingOverview = Readonly<{
   organizationId: string; from: string; to: string;
   cohort: Readonly<{
     total: number; openCount: number;
+    /**
+     * Анкеты кабинета (`source_key = platform_application`) без канала: у них нет формы с метками и слов
+     * сотрудника, они лежат в «Не известно», но не говорят о качестве источников; входят в `total`.
+     */
+    cabinetForms: number;
     /** Сколько лидов когорты по каналу связи (`source_key`). */
     sourceKeys: Readonly<Record<string, number>>;
     repeatSubmissions: number;
@@ -186,13 +191,14 @@ export function parseMarketingOverview(
   const root = object(value, ["organization_id", "from", "to", "time_zone", "cohort", "sales", "spend"]);
   if (!root || root.organization_id !== expected.organizationId || root.from !== expected.from || root.to !== expected.to
     || root.time_zone !== "Asia/Bishkek") return null;
-  const cohort = object(root.cohort, ["total", "open_count", "source_keys", "repeat_submissions", "totals", "channels"]);
+  const cohort = object(root.cohort, ["total", "open_count", "cabinet_forms", "source_keys", "repeat_submissions", "totals", "channels"]);
   const sales = object(root.sales, ["total", "channels", "reconciliation"]);
   const spend = object(root.spend, ["inside_period", "inside_totals", "partially_overlapping"]);
   if (!cohort || !sales || !spend) return null;
 
   const total = count(cohort.total), open = count(cohort.open_count), repeat = count(cohort.repeat_submissions);
-  if (total === null || open === null || repeat === null || open > total) return null;
+  const cabinetForms = count(cohort.cabinet_forms);
+  if (total === null || open === null || repeat === null || cabinetForms === null || open > total || cabinetForms > total) return null;
   if (typeof cohort.source_keys !== "object" || cohort.source_keys === null || Array.isArray(cohort.source_keys)) return null;
   const sourceKeys: Record<string, number> = {};
   for (const [key, one] of Object.entries(cohort.source_keys)) {
@@ -206,7 +212,7 @@ export function parseMarketingOverview(
   if (Object.values(totals).some((one) => one === null) || totals.leads !== total) return null;
   const channels = list(cohort.channels, parseCohortRow, 6);
   if (!channels || channels.length !== LEAD_CHANNEL_KEYS.length || channels.some((row, index) => row.channel !== LEAD_CHANNEL_KEYS[index])
-    || channels.reduce((sum, row) => sum + row.leads, 0) !== total
+    || channels.reduce((sum, row) => sum + row.leads, 0) !== total || cabinetForms > channels[channels.length - 1].leads
     || Object.values(sourceKeys).reduce((sum, n) => sum + n, 0) !== total) return null;
 
   const salesTotal = count(sales.total);
@@ -227,7 +233,7 @@ export function parseMarketingOverview(
   return Object.freeze({
     organizationId: expected.organizationId, from: expected.from, to: expected.to,
     cohort: Object.freeze({
-      total, openCount: open, sourceKeys: Object.freeze(sourceKeys), repeatSubmissions: repeat,
+      total, openCount: open, cabinetForms, sourceKeys: Object.freeze(sourceKeys), repeatSubmissions: repeat,
       totals: Object.freeze({
         leads: totals.leads!, qualified: totals.qualified!, handedOff: totals.handed_off!, contract: totals.contract!,
         contractLinked: totals.contract_linked!, paid: totals.paid!, paidWithoutAmount: totals.paid_without_amount!,

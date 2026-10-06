@@ -9,7 +9,9 @@
 --
 -- Определения не изобретаются, а переиспользуются:
 --  * Заявки — лиды по created_at (дата Asia/Bishkek), ЛЮБОЙ lifecycle_state; open_count — для
---    сверки с «Пришло лидов» воронки (open-лиды того же периода);
+--    сверки с «Пришло лидов» воронки (open-лиды того же периода); cabinet_forms — сколько из лидов
+--    когорты анкеты кабинета (platform_application) без канала: они входят в total, но не говорят
+--    о качестве источников, и приложение не считает их «источник не известен»;
 --  * Квалифицированы — доказанный вход в qualified (квитанция + аудит, как 111) или передача
 --    (сам вход в qualified у переданного мог не записаться, как funnel-source.ts); Переданы —
 --    platform_private.sales_lead_handoffs (247);
@@ -18,9 +20,11 @@
 --  * Продажи периода — запись не в архиве с signing_date в периоде (staff_sales_count_v1, 247);
 --    сумма «по каналам» + «без привязки к лиду» сверяется с ним в самом ответе;
 --  * Оплатили — цепочка handoffStripView: платежи дела (189, evo_service_fee не в архиве, за
---    вычетом возвратов, net > 0) → first_payment_received_date подтверждения вручную →
+--    вычетом возвратов ПО КАЖДОЙ валюте отдельно, net > 0 хотя бы в одной) → first_payment_received_date подтверждения вручную →
 --    paid_minor > 0 с валютой ^[A-Z]{3}$ записи отчёта этого лида (lead_id, не в архиве; связанная
---    запись оплату не подтверждает). Разница с полосой названа в контракте;
+--    запись оплату не подтверждает). Разница с полосой названа в контракте и в плане §5 (платежи дела —
+--    по каждой валюте отдельно, по всем делам лида; любая запись отчёта лида, не одна «первая»;
+--    без запасного пути paidPercent);
 --  * канал — platform_private.lead_channels (264), одно правило на все чтения.
 -- Деньги — минорные единицы строкой и валюта; валюты не складываются.
 BEGIN;
@@ -109,18 +113,23 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
         WHERE r.organization_id=p_organization_id AND NOT r.archived AND r.linked_lead_id IN (SELECT cc.id FROM cohort cc)
     ) x WHERE x.signing_date IS NOT NULL
     ORDER BY x.lead_id,x.linked,x.signing_date
-  ), case_money AS MATERIALIZED (
-    SELECT sc.canonical_lead_id AS lead_id,
+  ), case_money_by_currency AS MATERIALIZED (
+    -- Net of payments minus refunds per currency: currencies are never added together, so one
+    -- currency's refund cannot cancel another currency's payment.
+    SELECT sc.canonical_lead_id AS lead_id,e.currency,
       coalesce(sum(e.amount_minor) FILTER (WHERE e.event_type='payment'),0)
-        -coalesce(sum(e.amount_minor) FILTER (WHERE e.event_type='refund'),0) AS net,
-      count(*) FILTER (WHERE e.event_type='payment') AS payments,
-      count(DISTINCT e.currency) AS currencies,min(e.currency) AS currency
+        -coalesce(sum(e.amount_minor) FILTER (WHERE e.event_type='refund'),0) AS net
     FROM platform.student_cases sc
     JOIN platform.payment_events e ON e.organization_id=sc.organization_id AND e.student_case_id=sc.id
     JOIN platform.payment_obligations o ON o.organization_id=e.organization_id AND o.id=e.payment_obligation_id
       AND o.category='evo_service_fee' AND o.archived_at IS NULL
     WHERE sc.organization_id=p_organization_id AND sc.canonical_lead_id IN (SELECT cc.id FROM cohort cc)
-    GROUP BY sc.canonical_lead_id
+    GROUP BY sc.canonical_lead_id,e.currency
+  ), case_money AS MATERIALIZED (
+    -- paid: some currency has a positive net; the amount is named only when exactly one does.
+    SELECT m.lead_id,count(*) FILTER (WHERE m.net>0) AS paid_currencies,
+      sum(m.net) FILTER (WHERE m.net>0) AS net,min(m.currency) FILTER (WHERE m.net>0) AS currency
+    FROM case_money_by_currency m GROUP BY m.lead_id
   ), gate AS MATERIALIZED (
     SELECT g.lead_id,g.first_payment_amount,g.first_payment_currency FROM platform.lead_admissions_gates g
     WHERE g.organization_id=p_organization_id AND g.lead_id IN (SELECT cc.id FROM cohort cc)
@@ -140,23 +149,23 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
     platform_private.sales_lead_stage(c.lifecycle_state,c.stage_key,h.lead_id IS NOT NULL),
     ch.channel,ch.basis,ch.corrected,ch.ai_assistant,
     (SELECT t.utm_campaign FROM platform_private.lead_attribution_touches t
-      WHERE t.organization_id=p_organization_id AND t.lead_id=c.id AND t.touch_kind='website_form'
+      WHERE t.organization_id=p_organization_id AND t.lead_id=c.id AND t.touch_kind='website_form' AND NOT t.is_repeat
         AND t.utm_campaign IS NOT NULL ORDER BY t.created_at,t.id LIMIT 1),
     (SELECT t.landing_path FROM platform_private.lead_attribution_touches t
-      WHERE t.organization_id=p_organization_id AND t.lead_id=c.id AND t.touch_kind='website_form'
+      WHERE t.organization_id=p_organization_id AND t.lead_id=c.id AND t.touch_kind='website_form' AND NOT t.is_repeat
         AND t.landing_path IS NOT NULL ORDER BY t.created_at,t.id LIMIT 1),
     eq.lead_id IS NOT NULL OR h.lead_id IS NOT NULL,
     h.lead_id IS NOT NULL,
     s.signing_date,
     coalesce(s.linked,FALSE),
-    (cm.payments>0 AND cm.net>0) OR g.lead_id IS NOT NULL OR rp.lead_id IS NOT NULL,
-    CASE WHEN cm.payments>0 AND cm.net>0 THEN CASE WHEN cm.currencies=1 THEN cm.net END
+    coalesce(cm.paid_currencies,0)>0 OR g.lead_id IS NOT NULL OR rp.lead_id IS NOT NULL,
+    CASE WHEN coalesce(cm.paid_currencies,0)>0 THEN CASE WHEN cm.paid_currencies=1 THEN cm.net END
       WHEN g.lead_id IS NOT NULL THEN round(g.first_payment_amount*100)::BIGINT
       WHEN rp.lead_id IS NOT NULL THEN rp.minor END,
-    CASE WHEN cm.payments>0 AND cm.net>0 THEN CASE WHEN cm.currencies=1 THEN cm.currency END
+    CASE WHEN coalesce(cm.paid_currencies,0)>0 THEN CASE WHEN cm.paid_currencies=1 THEN cm.currency END
       WHEN g.lead_id IS NOT NULL THEN g.first_payment_currency
       WHEN rp.lead_id IS NOT NULL THEN rp.currency END,
-    CASE WHEN cm.payments>0 AND cm.net>0 THEN 'case' WHEN g.lead_id IS NOT NULL THEN 'gate'
+    CASE WHEN coalesce(cm.paid_currencies,0)>0 THEN 'case' WHEN g.lead_id IS NOT NULL THEN 'gate'
       WHEN rp.lead_id IS NOT NULL THEN 'report' END
   FROM cohort c
   LEFT JOIN handoffs h ON h.lead_id=c.id
@@ -308,6 +317,7 @@ BEGIN
     'cohort',jsonb_build_object(
       'total',(SELECT count(*) FROM cohort),
       'open_count',(SELECT count(*) FROM cohort c WHERE c.lifecycle_state='open'),
+      'cabinet_forms',(SELECT count(*) FROM cohort c WHERE c.source_key='platform_application' AND c.channel='unknown'),
       'source_keys',coalesce((SELECT jsonb_object_agg(x.source_key,x.n) FROM (SELECT c.source_key,count(*) AS n FROM cohort c GROUP BY c.source_key) x),'{}'::JSONB),
       'repeat_submissions',(SELECT count(*) FROM platform_private.website_lead_receipts r
         JOIN platform.leads l ON l.organization_id=r.organization_id AND l.id=r.lead_id

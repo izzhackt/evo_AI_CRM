@@ -8,8 +8,8 @@ import { formatBishkekMoment, formatIsoDay, formatMinor, stageWord } from "@/lib
 import { loadMoreMarketingLeadsAction } from "@/lib/platform-marketing-actions";
 import { SALES_STAGE_TITLE, source as sourceWord } from "@/lib/v3/wording";
 
-const TH = "whitespace-nowrap px-3 py-2 text-left t-caption font-medium text-fg-2";
-const TD = "px-3 py-2.5 align-top t-body-compact text-fg";
+const TH = "whitespace-nowrap px-2 py-2 text-left t-caption font-medium text-fg-2";
+const TD = "px-2 py-2.5 align-top t-body-compact text-fg";
 const META = "block t-meta text-fg-2";
 const PAID_SOURCE = { case: "по платежам дела", gate: "подтверждено вручную", report: "по записи отчёта" } as const;
 
@@ -22,15 +22,15 @@ function connectionWord(sourceKey: string): string {
 function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
   return (
     <tr className="border-b border-border" data-lead-id={row.leadId}>
-      <th scope="row" className={`${TD} min-w-40 text-left font-medium`}>
+      <th scope="row" className={`${TD} min-w-32 text-left font-medium`}>
         <Link href={`/v3/profile?id=${row.leadId}`} className="underline-offset-4 hover:underline">{row.name ?? "Лид без имени"}</Link>
       </th>
       <td className={`${TD} whitespace-nowrap tabular-nums`}>{row.phone ?? <span className="text-fg-2">—</span>}</td>
       <td className={`${TD} whitespace-nowrap tabular-nums`}>{formatBishkekMoment(row.createdAt)}</td>
       <td className={TD}>{connectionWord(row.sourceKey)}</td>
-      <td className={`${TD} min-w-44`}>{leadChannelText(row)}{row.aiAssistant ? <span className={META}>{LEAD_CHANNEL_AI_NOTE}</span> : null}</td>
-      <td className={`${TD} break-words`}>{row.campaign ?? <span className="text-fg-2">—</span>}</td>
-      <td className={`${TD} break-all`}>{row.landingPath ?? <span className="text-fg-2">—</span>}</td>
+      <td className={`${TD} min-w-36`}>{leadChannelText(row)}{row.aiAssistant ? <span className={META}>{LEAD_CHANNEL_AI_NOTE}</span> : null}</td>
+      <td className={`${TD} max-w-32 break-words`}>{row.campaign ?? <span className="text-fg-2">—</span>}</td>
+      <td className={`${TD} max-w-40 break-all`}>{row.landingPath ?? <span className="text-fg-2">—</span>}</td>
       <td className={`${TD} whitespace-nowrap`}>{stageWord(row.stage, row.lifecycleState, SALES_STAGE_TITLE)}</td>
       <td className={`${TD} whitespace-nowrap tabular-nums`}>
         {row.contractSignedOn ? formatIsoDay(row.contractSignedOn) : <span className="text-fg-2">—</span>}
@@ -44,7 +44,7 @@ function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
           : <span className="text-fg-2">—</span>}
         {row.paid ? <span className={META}>{PAID_SOURCE[row.paid.source]}</span> : null}
       </td>
-      <td className={TD}>{row.owner?.name ?? <span className="text-fg-2">не назначен</span>}</td>
+      <td className={`${TD} min-w-28`}>{row.owner?.name ?? <span className="text-fg-2">не назначен</span>}</td>
     </tr>
   );
 }
@@ -87,7 +87,7 @@ export function MarketingLeadsTable({ initial, request }: Readonly<{
       </p>
       {rows.length === 0 ? <p className="mt-3 t-body-compact text-fg-2">За этот период заявок по фильтрам нет.</p> : (
         <div className="mt-2 overflow-x-auto">
-          <table className="min-w-[72rem] w-full border-collapse">
+          <table className="min-w-[60rem] w-full border-collapse">
             <caption className="sr-only">Заявки периода: кто пришёл, откуда и что с ними стало</caption>
             <thead>
               <tr className="border-b border-border">

@@ -114,7 +114,8 @@ test("every other validation is unchanged: unknown top-level keys still answer 4
     assert.equal(response.status, 400, JSON.stringify(extra));
     assert.deepEqual(await response.json(), { error: "invalid_request" });
   }
-  const { website: _website, ...missing } = LEGACY;
+  const missing = { ...LEGACY };
+  delete missing.website;
   assert.equal((await post({ ...missing, attribution: { v: 1, utm_source: "instagram" } })).status, 400);
   assert.equal((await post({ ...LEGACY, consent: false, attribution: { v: 1, utm_source: "instagram" } })).status, 400);
   assert.equal((await post({ ...LEGACY, website: "bot", attribution: { v: 1, utm_source: "instagram" } })).status, 400);

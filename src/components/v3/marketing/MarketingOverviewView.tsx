@@ -1,6 +1,6 @@
 import { LEAD_CHANNEL_AI_NOTE, LEAD_CHANNEL_BASES, LEAD_CHANNELS, type LeadChannelBasis } from "@/lib/lead-channel-contract";
 import type { CohortChannelRow, MarketingOverview, MarketingOverviewRead, MoneyCount, SalesChannelRow } from "@/lib/marketing-contract";
-import { costPerLead, formatMinor, formatPerLead, marketingSignals, shareText, type MarketingSignal } from "@/lib/marketing-view";
+import { costPerLead, formatMinor, formatPerLead, marketingSignals, shareText, unknownSource, type MarketingSignal } from "@/lib/marketing-view";
 import { MarketingSpendPanel } from "./MarketingSpendPanel";
 
 const TH = "px-3 py-2 text-left t-caption font-medium text-fg-2";
@@ -35,9 +35,11 @@ function plural(count: number, one: string, few: string, many: string): string {
 const leadsWord = (count: number) => plural(count, "лид", "лида", "лидов");
 const contractsWord = (count: number) => plural(count, "договор", "договора", "договоров");
 
-function channelBasisLine(row: CohortChannelRow): string | null {
+function channelBasisLine(row: CohortChannelRow, cabinetForms: number): string | null {
   const parts = BASIS_ORDER.filter((key) => row.basis[key] > 0 && !(row.channel === "unknown" && key === "unknown"))
     .map((key) => `${LEAD_CHANNEL_BASES[key]} ${n(row.basis[key])}`);
+  // Анкеты кабинета в «Не известно» названы отдельно: у них нет формы с метками и слов сотрудника.
+  if (row.channel === "unknown" && cabinetForms > 0) parts.push(`анкеты на платформе ${n(cabinetForms)}`);
   if (row.aiAssistant > 0) parts.push(`${LEAD_CHANNEL_AI_NOTE} ${n(row.aiAssistant)}`);
   return parts.length ? parts.join(" · ") : null;
 }
@@ -59,13 +61,12 @@ function CohortCells({ row }: Readonly<{ row: Pick<CohortChannelRow, "leads" | "
 
 function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
   const { cohort } = overview;
-  const unknown = cohort.channels.find((row) => row.channel === "unknown");
+  const { unknown: unknownLeads, whole: unknownOf } = unknownSource(overview);
   return (
     <section aria-labelledby="mk-cohort" data-testid="marketing-cohort">
       <h2 id="mk-cohort" className="t-section text-fg">Заявки периода — что с ними стало на сегодня</h2>
       <p className="mt-1 t-meta text-fg-2">
         Заявок: <span className="tabular-nums">{n(cohort.total)}</span>, из них открыты <span className="tabular-nums" data-marketing-open={cohort.openCount}>{n(cohort.openCount)}</span>.
-        {" "}Повторные обращения: <span className="tabular-nums">{n(cohort.repeatSubmissions)}</span>.
       </p>
       <div className="mt-3 overflow-x-auto">
         <table className={SECTION_TABLE}>
@@ -85,7 +86,7 @@ function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
               <tr key={row.channel} className="border-b border-border" data-channel={row.channel}>
                 <th scope="row" className={`${TD} text-left font-medium`}>
                   {LEAD_CHANNELS[row.channel]}
-                  {channelBasisLine(row) ? <span className={`${META} font-normal`}>{channelBasisLine(row)}</span> : null}
+                  {channelBasisLine(row, cohort.cabinetForms) ? <span className={`${META} font-normal`}>{channelBasisLine(row, cohort.cabinetForms)}</span> : null}
                 </th>
                 <td className={TD}>{n(row.leads)}</td>
                 <CohortCells row={row} />
@@ -102,7 +103,12 @@ function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
         </table>
       </div>
       <p className="mt-2 t-body-compact text-fg" data-testid="marketing-unknown-line">
-        Источник не известен — <span className="tabular-nums">{shareText(unknown?.leads ?? 0, cohort.total)}</span>
+        Источник не известен — <span className="tabular-nums">{shareText(unknownLeads, unknownOf)}</span>
+        {cohort.cabinetForms > 0 ? <span className={META}>Анкеты на платформе ({n(cohort.cabinetForms)}) в эту долю не входят: у них нет источника заявки.</span> : null}
+      </p>
+      <p className="mt-1 t-body-compact text-fg" data-testid="marketing-repeats">
+        Повторные обращения: <span className="tabular-nums">{n(cohort.repeatSubmissions)}</span>
+        <span className={META}>Это не новые лиды: канал лида они не меняют.</span>
       </p>
     </section>
   );
@@ -163,8 +169,10 @@ function CostBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
           {cost.levels.map((level) => (
             <li key={level.key} className="t-body-compact text-fg" data-cost-level={level.key}>
               <span className="text-fg-2">{level.title}: </span>
-              {level.perLeadMinor === null
+              {level.leads === 0
                 ? <>— <span className="text-fg-2">заявок нет</span></>
+                : level.perLeadMinor === null
+                ? <>— <span className="text-fg-2">мало заявок для цены: {leadsWord(level.leads)}</span></>
                 : <><span className="tabular-nums">{formatPerLead(level.perLeadMinor, cost.currency)}</span> <span className="text-fg-2">на {leadsWord(level.leads)}</span></>}
             </li>
           ))}

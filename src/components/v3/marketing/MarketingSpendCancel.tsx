@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useState } from "react";
-import { btnDangerGhostCls, btnGhostCls } from "@/components/ui";
+import { btnGhostCls } from "@/components/ui";
 import type { SpendCancelState } from "@/lib/marketing-contract";
 import { cancelMarketingSpendAction } from "@/lib/platform-marketing-actions";
 
@@ -30,7 +30,7 @@ export function MarketingSpendCancel({ spendId, requestId }: Readonly<{ spendId:
           <input type="hidden" name="request_id" value={requestId} />
           <input type="hidden" name="spend_id" value={spendId} />
           <span className="t-body-compact text-fg-2">Отменить эту запись?</span>
-          <button className={btnDangerGhostCls} disabled={pending}>{pending ? "Отменяем…" : "Да, отменить"}</button>
+          <button className={btnGhostCls} disabled={pending}>{pending ? "Отменяем…" : "Да, отменить"}</button>
           <button type="button" className={btnGhostCls} disabled={pending} onClick={() => setConfirming(false)}>Нет</button>
         </form>
       ) : (

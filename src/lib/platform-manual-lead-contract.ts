@@ -23,7 +23,8 @@ export type ManualLeadState = Readonly<{
   requestId: string; leadId: string | null;
   /**
    * «Откуда узнал» пишется отдельным вызовом после создания лида (миграция 264):
-   * `failed` — лид есть, а выбор не записан, его ставят в Lead 360.
+   * `failed` — лид есть, а выбор не записан, его ставят в Lead 360; `forbidden` — у сотрудника нет права
+   * менять именно этого лида (повторный контакт чужого лида), в карточке он тоже не сможет.
    */
-  touch?: "saved" | "failed";
+  touch?: "saved" | "failed" | "forbidden";
 }>;

@@ -19,7 +19,9 @@
 --     вычисления `joined`; миграция отказывается выполняться, если живое тело не равно телу
 --     262 (md5). Метки не попадают в payload квитанции; повтор с тем же
 --     requestId и другими метками — обычный accepted без второго касания (первая запись
---     побеждает); заявка, присоединённая к открытому лиду (240), добавляет касание этому лиду.
+--     побеждает); заявка, присоединённая к открытому лиду (240), добавляет касание этому лиду с
+--     признаком is_repeat: такое касание записывается и видно, но первым (решающим для канала) быть
+--     не может — у лида, чья первая форма пришла без меток, канал не меняется от повторной заявки.
 BEGIN;
 
 CREATE TABLE platform_private.lead_attribution_touches (
@@ -39,10 +41,14 @@ CREATE TABLE platform_private.lead_attribution_touches (
   referrer_host TEXT CHECK (length(referrer_host) BETWEEN 1 AND 253),
   landing_path TEXT CHECK (length(landing_path) BETWEEN 1 AND 200 AND landing_path !~ '[?#]'),
   seen_at TIMESTAMPTZ,
+  -- TRUE: the form was submitted again by the phone of an already open lead (it joined that lead).
+  -- Such a touch is kept, but is never the FIRST touch that decides the channel (264, plan §3.2 п. 4).
+  is_repeat BOOLEAN NOT NULL DEFAULT FALSE,
   request_id UUID NOT NULL,
   created_by UUID REFERENCES platform.organization_memberships(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
   FOREIGN KEY (organization_id,lead_id) REFERENCES platform.leads(organization_id,id),
+  CONSTRAINT lead_attribution_touches_repeat_is_website CHECK (NOT is_repeat OR touch_kind='website_form'),
   -- A website touch is measured data from the form: no staff fields. A staff touch is only
   -- what staff asserted: a channel and an author, never form data.
   CONSTRAINT lead_attribution_touches_shape CHECK (
@@ -140,7 +146,7 @@ CREATE FUNCTION platform.receive_website_lead(
 ) RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $$
 DECLARE receipt platform_private.website_lead_receipts%ROWTYPE;
   contact_phone TEXT; payload JSONB; resolved_client UUID; resolved_lead UUID;
-  matching_clients INTEGER; attempts INTEGER; direction TEXT; touch JSONB;
+  matching_clients INTEGER; attempts INTEGER; direction TEXT; touch JSONB; joined BOOLEAN:=FALSE;
 BEGIN
   IF auth.role() IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'website_intake_forbidden' USING ERRCODE='42501';
@@ -218,6 +224,8 @@ BEGIN
     resolved_client:=platform_private.create_or_link_client(p_organization_id,btrim(p_name),NULL,contact_phone,
       'evo_website','client',p_request_id::TEXT,'website_submitted',statement_timestamp(),NULL,NULL);
   END IF;
+  -- An open lead found by the phone: this submission joins it (a repeat), it does not open the lead.
+  joined:=resolved_lead IS NOT NULL;
   IF resolved_lead IS NULL THEN
     resolved_lead:=platform_private.create_or_link_lead(p_organization_id,resolved_client,p_owner_membership_id,
       'new','website','evo_website','lead',p_request_id::TEXT,'website_submitted',statement_timestamp(),NULL,NULL);
@@ -237,13 +245,13 @@ BEGIN
   touch:=platform_private.sanitize_lead_attribution(p_attribution,statement_timestamp());
   IF touch IS NOT NULL THEN
     INSERT INTO platform_private.lead_attribution_touches(organization_id,lead_id,touch_kind,evidence,
-      utm_source,utm_medium,utm_campaign,utm_content,utm_term,utm_id,has_fbclid,referrer_host,landing_path,seen_at,request_id)
+      utm_source,utm_medium,utm_campaign,utm_content,utm_term,utm_id,has_fbclid,referrer_host,landing_path,seen_at,is_repeat,request_id)
     VALUES(p_organization_id,resolved_lead,'website_form',
       CASE WHEN touch ?| ARRAY['utm_source','utm_medium','utm_campaign','utm_content','utm_term','utm_id','has_fbclid']
         THEN 'utm_tagged' ELSE 'referrer' END,
       touch->>'utm_source',touch->>'utm_medium',touch->>'utm_campaign',touch->>'utm_content',touch->>'utm_term',
       touch->>'utm_id',coalesce((touch->>'has_fbclid')::BOOLEAN,FALSE),touch->>'referrer_host',touch->>'landing_path',
-      (touch->>'seen_at')::TIMESTAMPTZ,p_request_id)
+      (touch->>'seen_at')::TIMESTAMPTZ,joined,p_request_id)
     ON CONFLICT(touch_kind,request_id) DO NOTHING;
   END IF;
   INSERT INTO platform.audit_events(organization_id,actor_kind,actor_principal,action,resource_type,resource_id,after_state,reason,request_id)

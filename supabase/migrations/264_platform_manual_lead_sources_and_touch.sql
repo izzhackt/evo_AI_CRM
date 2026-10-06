@@ -9,9 +9,10 @@
 --     неё не попадают (Э8.11); сам 'whatsapp' в ручной список по-прежнему не добавляется.
 --  b) platform_private.attribution_signal и platform_private.lead_channels — ОДНО правило канала
 --     (§3.2), которым пользуются все чтения: последнее staff_correction сильнее всего; иначе
---     ПЕРВОЕ касание (staff_manual или website_form) по времени записи; у автоматического касания
---     канал даёт метка (utm), без метки — хост реферера, иначе «не известно». Повторная заявка
---     сайта добавляет касание, но канал не меняет. Меняется без переписывания данных.
+--     ПЕРВОЕ касание (staff_manual или website_form, кроме is_repeat) по времени записи; у
+--     автоматического касания канал даёт метка (utm), без метки — хост реферера, иначе «не известно».
+--     Повторная заявка сайта (is_repeat, 263) добавляет касание, но канал не меняет — даже у лида,
+--     у которого касаний до неё не было: он остаётся «не известно». Меняется без переписывания данных.
 --  c) platform.record_lead_touch(lead, channel, kind, request_id): сотрудник пишет «Откуда
 --     узнал» отдельным вызовом после создания лида (сигнатура create_manual_sales_lead не
 --     меняется). Право — staff_can_access(..., 'lead.sales.workflow.manage', 'lead', id): те же
@@ -95,7 +96,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
     ORDER BY t.lead_id,t.created_at DESC,t.id DESC
   ), firsts AS (
     SELECT DISTINCT ON (t.lead_id) t.* FROM platform_private.lead_attribution_touches t JOIN scoped s ON s.id=t.lead_id
-    WHERE t.organization_id=p_organization_id AND t.touch_kind IN ('website_form','staff_manual')
+    WHERE t.organization_id=p_organization_id AND t.touch_kind IN ('website_form','staff_manual') AND NOT t.is_repeat
     ORDER BY t.lead_id,t.created_at,t.id
   )
   SELECT s.id,
@@ -218,7 +219,7 @@ END
 $a264_verify$;
 
 COMMENT ON FUNCTION platform_private.lead_channels(UUID,UUID[]) IS
-  'Единое правило канала (264, §3.2 плана «Маркетинг»): последнее исправление сотрудника, иначе первое касание; метка, затем реферер, иначе не известно. Все чтения идут через него.';
+  'Единое правило канала (264, §3.2 плана «Маркетинг»): последнее исправление сотрудника, иначе первое касание (повторная заявка не в счёт); метка, затем реферер, иначе не известно. Все чтения идут через него.';
 COMMENT ON FUNCTION platform.record_lead_touch(UUID,TEXT,TEXT,UUID) IS
   '«Откуда узнал» (264): касание сотрудника staff_manual/staff_correction; право lead.sales.workflow.manage на лиде, повтор по request_id безопасен.';
 COMMENT ON FUNCTION platform.read_lead_channel_v1(UUID) IS

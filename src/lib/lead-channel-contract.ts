@@ -72,7 +72,7 @@ export function parseLeadChannelRead(value: unknown): LeadChannelRead | null {
   return Object.freeze({ channel: row.channel, basis: row.basis, corrected: row.corrected, at: row.at });
 }
 
-/** «Instagram — реклама · по метке». */
+/** «Instagram — реклама · по метке»; для «Не известно» основание то же слово, его не повторяем. */
 export function leadChannelText(read: Pick<LeadChannelRead, "channel" | "basis">): string {
-  return `${LEAD_CHANNELS[read.channel]} · ${LEAD_CHANNEL_BASES[read.basis]}`;
+  return read.channel === "unknown" ? LEAD_CHANNELS.unknown : `${LEAD_CHANNELS[read.channel]} · ${LEAD_CHANNEL_BASES[read.basis]}`;
 }

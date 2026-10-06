@@ -4,7 +4,10 @@
  *  - знаменатель всегда виден: «7 из 23»; доля в процентах — только при знаменателе от 10;
  *  - знаменатель 0 — «—», а не 0 %;
  *  - деньги — минорные единицы и своя валюта, валюты не складываются;
- *  - цена заявки — три уровня и только при одной валюте расхода за период, иначе «—» с причиной.
+ *  - цена заявки — три уровня и только при одной валюте расхода за период, иначе «—» с причиной;
+ *    при знаменателе меньше 10 — только число заявок, без цены (как доли);
+ *  - анкеты кабинета (`cabinetForms`) лежат в «Не известно», но источником заявки не являются: в долю
+ *    «источник не известен», сигнал и цену «включая неизвестные» они не входят.
  */
 import type { MarketingOverview, MoneyTotal, MarketingLeadFilters } from "./marketing-contract.ts";
 import { marketingLeadFilterParams } from "./marketing-contract.ts";
@@ -37,13 +40,22 @@ function minorNumber(amountMinor: string): number {
   return Number(amountMinor);
 }
 
+/** Неизвестный источник среди заявок, у которых источник вообще мог быть назван: без анкет кабинета. */
+export function unknownSource(overview: MarketingOverview): Readonly<{ unknown: number; whole: number }> {
+  const { cabinetForms, total, channels } = overview.cohort;
+  const unknown = channels.find((row) => row.channel === "unknown")?.leads ?? 0;
+  return { unknown: Math.max(unknown - cabinetForms, 0), whole: Math.max(total - cabinetForms, 0) };
+}
+
 export type CostLevel = Readonly<{
   key: "tagged" | "by_word" | "with_unknown";
   title: string;
   /** Заявок в знаменателе этого уровня. */
   leads: number;
-  /** Цена одной заявки в минорных единицах (с долями); null — знаменатель 0. */
+  /** Цена одной заявки в минорных единицах (с долями); null — знаменатель 0 или меньше 10 заявок. */
   perLeadMinor: number | null;
+  /** Заявок меньше порога: называем количество, цену — нет. */
+  fewLeads: boolean;
 }>;
 export type CostPerLead =
   | Readonly<{ status: "no_spend" }>
@@ -71,14 +83,15 @@ export function costPerLead(overview: MarketingOverview): CostPerLead {
   const unknown = overview.cohort.channels.find((row) => row.channel === "unknown");
   if (!ads || !unknown) return { status: "no_spend" };
   const level = (key: CostLevel["key"], title: string, leads: number): CostLevel => ({
-    key, title, leads, perLeadMinor: leads > 0 ? minorNumber(spend.amountMinor) / leads : null,
+    key, title, leads, fewLeads: leads > 0 && leads < MARKETING_MIN_FOR_SHARE,
+    perLeadMinor: leads >= MARKETING_MIN_FOR_SHARE ? minorNumber(spend.amountMinor) / leads : null,
   });
   return {
     status: "single", currency: spend.currency, spendMinor: spend.amountMinor,
     levels: [
       level("tagged", "по метке", ads.basis.utm),
       level("by_word", "со слов клиента", ads.leads),
-      level("with_unknown", "включая неизвестные", ads.leads + unknown.leads),
+      level("with_unknown", "включая неизвестные", ads.leads + unknownSource(overview).unknown),
     ],
   };
 }
@@ -99,10 +112,9 @@ export function marketingSignals(
   if (recent && recent.spendRows > 0 && recent.leads === 0) {
     signals.push({ key: "spend_without_leads", text: `Расход вводился, а заявок за последние ${RECENT_DAYS_FOR_SIGNAL} дня нет.` });
   }
-  const total = overview.cohort.total;
-  const unknown = overview.cohort.channels.find((row) => row.channel === "unknown")?.leads ?? 0;
-  if (total >= MARKETING_MIN_FOR_SHARE && unknown * 100 > UNKNOWN_SHARE_SIGNAL_PERCENT * total) {
-    signals.push({ key: "unknown_share", text: `Источник не известен — ${shareText(unknown, total)}.` });
+  const { unknown, whole } = unknownSource(overview);
+  if (whole >= MARKETING_MIN_FOR_SHARE && unknown * 100 > UNKNOWN_SHARE_SIGNAL_PERCENT * whole) {
+    signals.push({ key: "unknown_share", text: `Источник не известен — ${shareText(unknown, whole)}.` });
   }
   return signals;
 }

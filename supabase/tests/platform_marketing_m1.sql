@@ -291,7 +291,7 @@ SELECT pg_temp.m1_assert((SELECT to_jsonb(t) - 'id' - 'created_at' - 'seen_at' F
     'touch_kind', 'website_form', 'evidence', 'utm_tagged', 'staff_channel', NULL, 'utm_source', 'instagram',
     'utm_medium', 'paid_social', 'utm_campaign', 'Весна 2026', 'utm_content', 'video-1', 'utm_term', 'adset-1',
     'utm_id', '120210000000000123', 'has_fbclid', TRUE, 'referrer_host', 'l.instagram.com',
-    'landing_path', '/ru/universities/alpha/', 'request_id', pg_temp.m1_id(5002), 'created_by', NULL)
+    'landing_path', '/ru/universities/alpha/', 'is_repeat', FALSE, 'request_id', pg_temp.m1_id(5002), 'created_by', NULL)
   AND (SELECT seen_at FROM platform_private.lead_attribution_touches t JOIN m1_web w ON w.lead_id = t.lead_id WHERE w.n = 2)
     BETWEEN now() - INTERVAL '25 hours' AND now() - INTERVAL '23 hours'
   AND NOT EXISTS (SELECT 1 FROM platform_private.lead_attribution_touches t WHERE to_jsonb(t)::TEXT ~ 'IwAR'),
@@ -301,7 +301,7 @@ SELECT pg_temp.m1_assert((SELECT to_jsonb(t) - 'id' - 'created_at' - 'organizati
     FROM platform_private.lead_attribution_touches t JOIN m1_web w ON w.lead_id = t.lead_id WHERE w.n = 3)
   = jsonb_build_object('touch_kind', 'website_form', 'evidence', 'referrer', 'staff_channel', NULL, 'utm_source', NULL,
     'utm_medium', NULL, 'utm_campaign', NULL, 'utm_content', NULL, 'utm_term', NULL, 'utm_id', NULL, 'has_fbclid', FALSE,
-    'referrer_host', 'www.google.com', 'landing_path', NULL, 'seen_at', NULL, 'created_by', NULL),
+    'referrer_host', 'www.google.com', 'landing_path', NULL, 'seen_at', NULL, 'is_repeat', FALSE, 'created_by', NULL),
   'W3: e-mail like source, phone-like term, a path with a query and a future seen_at are dropped; the referrer stays');
 SELECT pg_temp.m1_assert((SELECT count(*) FROM platform_private.lead_attribution_touches t JOIN m1_web w ON w.lead_id = t.lead_id
     WHERE w.n = 4 AND t.referrer_host = 'chatgpt.com' AND t.evidence = 'referrer') = 1
@@ -354,6 +354,20 @@ SELECT pg_temp.m1_assert(:'m1_attach_tagged' = 'accepted' AND :'m1_attach_first'
   AND (SELECT count(*) FROM platform_private.lead_attribution_touches WHERE lead_id = (SELECT lead_id FROM m1_web WHERE n = 2)) = 2
   AND (SELECT count(*) FROM platform_private.lead_attribution_touches WHERE lead_id = (SELECT lead_id FROM m1_web WHERE n = 1)) = 1,
   'a repeated submission attaches to the open lead (no new lead) and adds a touch to it');
+-- A repeat is kept (is_repeat) but is never the FIRST touch: W1 had no touch at all, the later form from yandex.ru
+-- does not give it a channel (it stays «unknown»), while W2 keeps its own first (tagged) touch.
+SELECT pg_temp.m1_assert((SELECT is_repeat FROM platform_private.lead_attribution_touches WHERE request_id = pg_temp.m1_id(5012))
+  AND (SELECT is_repeat FROM platform_private.lead_attribution_touches WHERE request_id = pg_temp.m1_id(5011))
+  AND NOT (SELECT is_repeat FROM platform_private.lead_attribution_touches WHERE request_id = pg_temp.m1_id(5002))
+  AND (SELECT (c.channel, c.basis, c.touch_at IS NULL)::TEXT FROM platform_private.lead_channels(pg_temp.m1_id(1),
+      ARRAY[(SELECT lead_id FROM m1_web WHERE n = 1)]) c) = '(unknown,unknown,t)'
+  AND (SELECT (c.channel, c.basis)::TEXT FROM platform_private.lead_channels(pg_temp.m1_id(1),
+      ARRAY[(SELECT lead_id FROM m1_web WHERE n = 2)]) c) = '(instagram_ads,utm)',
+  'a repeat touch is flagged and never decides the channel: a lead with no first touch stays unknown; a tagged first touch is kept');
+SELECT pg_temp.m1_error(format($q$INSERT INTO platform_private.lead_attribution_touches(organization_id,lead_id,touch_kind,evidence,
+    staff_channel,request_id,created_by,is_repeat) VALUES (%L::UUID,%L::UUID,'staff_manual','staff_asserted','other',%L::UUID,%L::UUID,TRUE)$q$,
+    pg_temp.m1_id(1), (SELECT lead_id FROM m1_web WHERE n = 1), pg_temp.m1_id(5990), pg_temp.m1_id(302))) AS m1_repeat_staff \gset
+SELECT pg_temp.m1_assert(:'m1_repeat_staff' = '23514', 'is_repeat exists only on a website_form touch (CHECK)');
 
 -- A client role can call neither intake nor read touches.
 SET LOCAL request.jwt.claims TO :'m1_admin';
@@ -1071,6 +1085,71 @@ SELECT pg_temp.m1_assert((:'m1_ov_today'::JSONB -> 'cohort' ->> 'total') = '10' 
 SELECT pg_temp.m1_assert((SELECT count(*) FROM jsonb_array_elements(:'m1_unknown_today'::JSONB -> 'rows') e) = 4
   AND (SELECT bool_and(e ->> 'channel' = 'unknown') FROM jsonb_array_elements(:'m1_unknown_today'::JSONB -> 'rows') e),
   'the «источник не известен» filter is the work queue of leads still to be asked');
+
+-- ---------------------------------------------------------------------------
+-- 12. Bishkek day boundaries and cabinet forms (a separate synthetic July, so the September numbers above stay as they are).
+--   741 created 30.06 23:59:00+06 -> June (out)        742 created 01.07 00:00:00+06 -> July (in)
+--   743 created 31.07 23:59:59+06 -> July (in)          744 created 01.08 00:00:00+06 -> August (out)
+--   745 a cabinet application (platform_application) 15.07 -> in, no channel of its own
+--   Receipts after the lead's creation (repeat submissions): 741 +30s (June, out), 742 +30s (in), 743 +0.5s (in),
+--   744 +30s (August, out), 745 at the same instant as the lead (not a repeat).
+-- ---------------------------------------------------------------------------
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.clients(id, organization_id, display_name, normalized_name, phone, normalized_phone)
+SELECT pg_temp.m1_id(700 + k), pg_temp.m1_id(1), 'M1 Client ' || k, platform_private.normalize_person_name('M1 Client ' || k),
+  '+99655510' || lpad(k::TEXT, 4, '0'), platform_private.normalize_person_phone('+99655510' || lpad(k::TEXT, 4, '0'))
+FROM generate_series(41, 45) AS k;
+INSERT INTO platform.leads(id, organization_id, client_id, current_owner_membership_id, stage_key, source_key,
+  lifecycle_state, created_at, updated_at)
+SELECT pg_temp.m1_id(700 + f.k), pg_temp.m1_id(1), pg_temp.m1_id(700 + f.k), pg_temp.m1_id(302), 'new', f.source,
+  'open'::platform.lead_lifecycle_state, f.created::TIMESTAMPTZ, f.created::TIMESTAMPTZ
+FROM (VALUES
+  (41, 'office', '2026-06-30 23:59:00+06'), (42, 'office', '2026-07-01 00:00:00+06'),
+  (43, 'office', '2026-07-31 23:59:59+06'), (44, 'office', '2026-08-01 00:00:00+06'),
+  (45, 'platform_application', '2026-07-15 10:00:00+06')) AS f(k, source, created);
+INSERT INTO platform_private.website_lead_receipts(request_id, organization_id, lead_id, payload, created_at)
+SELECT pg_temp.m1_id(5400 + f.k), pg_temp.m1_id(1), pg_temp.m1_id(700 + f.k), '{}'::JSONB, f.received::TIMESTAMPTZ
+FROM (VALUES
+  (41, '2026-06-30 23:59:30+06'), (42, '2026-07-01 00:00:30+06'), (43, '2026-07-31 23:59:59.5+06'),
+  (44, '2026-08-01 00:00:30+06'), (45, '2026-07-15 10:00:00+06')) AS f(k, received);
+SET LOCAL session_replication_role = origin;
+SET LOCAL request.jwt.claims TO :'m1_admin';
+SET LOCAL ROLE authenticated;
+SELECT platform.marketing_overview_v1(DATE '2026-07-01', DATE '2026-07-31')::TEXT AS m1_ov_july \gset
+SELECT platform.marketing_leads_v1(DATE '2026-07-01', DATE '2026-07-31')::TEXT AS m1_list_july \gset
+RESET ROLE;
+SELECT pg_temp.m1_assert((:'m1_ov_july'::JSONB -> 'cohort' ->> 'total') = '3'
+  AND (SELECT array_agg(e ->> 'lead_id' ORDER BY e ->> 'lead_id') FROM jsonb_array_elements(:'m1_list_july'::JSONB -> 'rows') e)
+    = ARRAY[pg_temp.m1_id(742), pg_temp.m1_id(743), pg_temp.m1_id(745)]::TEXT[]
+  AND (:'m1_list_july'::JSONB ->> 'total') = '3',
+  'day boundaries (Asia/Bishkek): 23:59:00 on 30.06 is June, 00:00:00 on 01.07 and 23:59:59 on 31.07 are July, 00:00:00 on 01.08 is August');
+SELECT pg_temp.m1_assert((:'m1_ov_july'::JSONB -> 'cohort' ->> 'repeat_submissions') = '2',
+  'repeat submissions use the same day boundaries: only the receipts of 742 (01.07 00:00:30) and 743 (31.07 23:59:59.5) fall in July; one at the lead''s own instant is not a repeat');
+-- The cabinet application has no marks and no staff word: «unknown», counted apart as cabinet_forms; the total is not reduced.
+SELECT pg_temp.m1_assert((:'m1_ov_july'::JSONB -> 'cohort' ->> 'cabinet_forms') = '1'
+  AND (:'m1_ov_july'::JSONB -> 'cohort' -> 'source_keys') = '{"office": 2, "platform_application": 1}'::JSONB
+  AND (pg_temp.m1_row(:'m1_ov_july'::JSONB, 'cohort', 'unknown') ->> 'leads') = '3'
+  AND (:'m1_ov'::JSONB -> 'cohort' ->> 'cabinet_forms') = '0',
+  'cabinet applications: unknown by channel but reported as cabinet_forms (1 of 3 in July, 0 in September); the total keeps them');
+
+-- ---------------------------------------------------------------------------
+-- 13. «Оплатили» per currency: a refund in ANOTHER currency cannot cancel the payment (currencies are never added).
+--     L1 has 100.00 USD paid through its case; a 100.00 KGS refund is added to the same case. Summed, the net would be 0
+--     («not paid»); per currency L1 is still paid, with its USD amount, source «case».
+-- ---------------------------------------------------------------------------
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.payment_events(id, organization_id, student_case_id, payment_obligation_id, event_type, referenced_payment_event_id,
+  amount_minor, currency, occurred_at, source_key, actor_membership_id, request_id)
+VALUES (pg_temp.m1_id(814), pg_temp.m1_id(1), pg_temp.m1_id(501), pg_temp.m1_id(811), 'refund', pg_temp.m1_id(812), 10000, 'KGS',
+  '2026-09-13 12:00+06', 'm1-synthetic', pg_temp.m1_id(302), pg_temp.m1_id(815));
+SET LOCAL session_replication_role = origin;
+SET LOCAL request.jwt.claims TO :'m1_admin';
+SET LOCAL ROLE authenticated;
+SELECT platform.marketing_leads_v1(DATE '2026-09-01', DATE '2026-09-30', p_channel => 'instagram_ads')::TEXT AS m1_list_mixed_refund \gset
+RESET ROLE;
+SELECT pg_temp.m1_assert((SELECT e -> 'paid' FROM jsonb_array_elements(:'m1_list_mixed_refund'::JSONB -> 'rows') e WHERE e ->> 'lead_id' = pg_temp.m1_id(711)::TEXT)
+  = '{"amount_minor":"10000","currency":"USD","source":"case"}'::JSONB,
+  'paid per currency: a KGS refund does not cancel the USD payment of the same case');
 
 SELECT 'M1_MARKETING_SUITE_OK' AS m1_suite_marker;
 ROLLBACK;

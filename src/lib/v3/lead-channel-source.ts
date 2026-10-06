@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { staffHasPermission } from "../platform-access.ts";
-import type { PlatformActor } from "../platform-auth.ts";
+import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
+import type { ActivePlatformActor, PlatformActor } from "../platform-auth.ts";
 import {
   isLeadChannel, parseLeadChannelRead,
   type LeadChannel, type LeadChannelRead, type LeadChannelState,
@@ -48,10 +48,11 @@ export function leadTouchRequestId(formRequestId: string, kind: LeadTouchKind): 
  * (`lead.sales.workflow.manage` на этом лиде); отказ «нет лида» и «нет доступа» там не различается.
  */
 export async function recordLeadTouch(
-  actor: PlatformActor,
+  actor: ActivePlatformActor,
   input: Readonly<{ leadId: string; channel: LeadChannel; kind: LeadTouchKind; requestId: string }>,
 ): Promise<LeadTouchResult> {
-  if (!staffHasPermission(actor, "lead.sales.workflow.manage")) return { status: "forbidden" };
+  // Режим просмотра роли для базы неотличим от admin: отказ — здесь, чтобы будущий вызов не обошёл действие.
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage")) return { status: "forbidden" };
   const leadId = parseSalesUuid(input.leadId), requestId = parseSalesUuid(input.requestId);
   if (!leadId || !requestId || !isLeadChannel(input.channel)) return { status: "invalid" };
   try {

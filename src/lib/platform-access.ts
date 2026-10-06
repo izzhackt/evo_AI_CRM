@@ -41,7 +41,7 @@ export function staffPresentationCan(actor: ActivePlatformActor, capability: Fix
     ? fixedRoleCan(actor.presentationRole, capability) : staffCan(actor, capability);
 }
 export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRoleRoute): boolean {
-  if (route === "/v3/knowledge") return actor.systemRole === "admin" && !isStaffPreview(actor);
+  if (route === "/v3/knowledge" || route === "/v3/marketing") return actor.systemRole === "admin" && !isStaffPreview(actor);
   if (isStaffPreview(actor) && actor.presentationRole !== null) return fixedRoleCanAccessRoute(actor.presentationRole, route);
   if (route === "/v3/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");
   if (route === "/v3/calendar") return staffCan(actor, "admissions.read") || staffHasPermission(actor, "task.manage") || staffHasPermission(actor, "staff.task.read");
@@ -61,6 +61,7 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
     "/v3/messages": ["admissions.read"],
     "/v3/universities": ["catalog.read"],
     "/v3/knowledge": ["knowledge.read", "documents.read", "snippets.read"],
+    "/v3/marketing": ["admin.preview"],
     "/v3/documents": ["documents.read"],
     "/v3/reply-snippets": ["snippets.read"],
     "/v3/settings": ["admin.preview"],

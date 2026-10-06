@@ -22,6 +22,7 @@ export type V3NavigationLinkId =
   | "documents"
   | "reply-snippets"
   | "knowledge"
+  | "marketing"
   | "settings";
 
 export type V3NavigationLink = Readonly<{
@@ -119,6 +120,8 @@ const COMMON: readonly V3NavigationLink[] = [
   { id: "documents", href: "/v3/documents", route: "/v3/documents", label: "Документы" },
   { id: "reply-snippets", href: "/v3/reply-snippets", route: "/v3/reply-snippets", label: "Шаблоны ответов" },
   { id: "knowledge", href: "/v3/knowledge", route: "/v3/knowledge", label: "База знаний" },
+  // Только настоящий администратор, не просмотр роли: маршрут закрыт тем же правилом, что «База знаний».
+  { id: "marketing", href: "/v3/marketing", route: "/v3/marketing", label: "Маркетинг" },
 ];
 
 function isSingleValue(query: NavigationQuery, name: string, value: string) {

@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
-import { parseWebsiteEnquiryUniversity, WEBSITE_ENQUIRY_COUNTRIES } from "../website-enquiry-contract.ts";
+import { parseWebsiteEnquiryAttribution, parseWebsiteEnquiryUniversity, WEBSITE_ENQUIRY_COUNTRIES } from "../website-enquiry-contract.ts";
 
 const MAX_BYTES = 8192;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -69,7 +69,7 @@ export async function receiveWebsiteLead(request: Request): Promise<Response> {
   if (!body || typeof body !== "object" || Array.isArray(body)) return response(400, "invalid_request");
   const input = body as Record<string, unknown>;
   if (FIELDS.some(key => !Object.hasOwn(input, key))
-    || Object.keys(input).some(key => !FIELDS.includes(key) && key !== "university")
+    || Object.keys(input).some(key => !FIELDS.includes(key) && key !== "university" && key !== "attribution")
     || typeof input.requestId !== "string" || !UUID.test(input.requestId)
     || !text(input.name, 300) || !text(input.phone, 50) || !/^\+?[\d\s().-]{7,40}$/.test(input.phone)
     || (input.age !== null && (typeof input.age !== "number" || !Number.isInteger(input.age) || input.age < 10 || input.age > 100))
@@ -80,6 +80,8 @@ export async function receiveWebsiteLead(request: Request): Promise<Response> {
   let university;
   try { university = parseWebsiteEnquiryUniversity(input.university); }
   catch { return response(400, "invalid_request"); }
+  // Метки необязательны и никогда не дают 400: плохое отбрасывается, непонятное целиком игнорируется.
+  const attribution = parseWebsiteEnquiryAttribution(input.attribution);
   try {
     const client = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
     const { data, error } = await client.schema("platform").rpc("receive_website_lead", {
@@ -88,6 +90,7 @@ export async function receiveWebsiteLead(request: Request): Promise<Response> {
       p_city: typeof input.city === "string" ? input.city.trim() : null, p_country: input.country.trim(),
       p_consent: true, p_ip_hash: createHmac("sha256", key).update(ip).digest("hex"),
       p_university: university,
+      ...(attribution ? { p_attribution: attribution } : {}),
     }).abortSignal(AbortSignal.timeout(10000));
     if (error || !data || typeof data !== "object" || Array.isArray(data)) return response(503, "unavailable");
     if (data.status === "accepted" && data.request_id === input.requestId.toLowerCase()) return response(200, "accepted", input.requestId);

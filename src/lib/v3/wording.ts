@@ -397,6 +397,8 @@ const ROLE: Record<string, string> = {
 /** Откуда пришёл лид; source keys are still an open product dictionary. */
 const SOURCE: Record<string, string> = {
   whatsapp: "WhatsApp",
+  whatsapp_manual: "WhatsApp (вручную)",
+  instagram: "Instagram Direct",
   website: "сайт",
   platform_application: "платформа",
   referral: "по рекомендации",

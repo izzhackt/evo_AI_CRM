@@ -51,7 +51,7 @@ function links(model) {
 // (messaging.read), so the admissions preview now lists it right after «Сегодня»
 // as the only item of «Продажи» it has.
 const expectedRoleLinks = {
-  admin: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "knowledge", "settings"],
+  admin: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "knowledge", "marketing", "settings"],
   sales: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets"],
   admissions: ["home", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets"],
 };
@@ -67,7 +67,7 @@ for (const role of ["admin", "sales", "admissions"]) {
     // 28.09.2026 «Заявки» are not there either: they lead «Продажи».
     assert.deepEqual(model.common.map((link) => link.label), role === "sales"
       ? ["Задачи", "Командный чат", "Шаблоны ответов"]
-      : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний"]
+      : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний", "Маркетинг"]
       : ["Задачи", "Командный чат", "Календарь", "Документы", "Шаблоны ответов"]);
     const every = links(model);
     assert.equal(every.find((link) => link.id === "inbox")?.href, "/v3/inbox", `${role}: WhatsApp (06.10.2026)`);
@@ -134,7 +134,7 @@ test("Э6: every destination has one fixed place for all roles, and no role sees
   assert.equal(places.get("messages"), "admissions");
   // «Продажи» and «Общее» keep one order for everyone: roles only drop items.
   const salesOrder = ["requests", "pipeline", "inbox", "sales-report"];
-  const order = ["tasks", "team-chat", "calendar", "documents", "reply-snippets", "knowledge"];
+  const order = ["tasks", "team-chat", "calendar", "documents", "reply-snippets", "knowledge", "marketing"];
   for (const role of ["admin", "sales", "admissions"]) {
     const model = navigation(role);
     const common = model.common.map((link) => link.id);
@@ -466,6 +466,7 @@ test("each sidebar destination opens under a heading with the same words", () =>
     ["documents", `${V3}/documents/page.tsx`, true],
     ["reply-snippets", `${V3}/reply-snippets/page.tsx`, true],
     ["knowledge", `${V3}/knowledge/page.tsx`, true],
+    ["marketing", `${V3}/marketing/page.tsx`, true],
     ["settings", `${V3}/settings/page.tsx`, true],
   ];
   const visible = new Map(["admin", "sales", "admissions"].flatMap((role) => links(navigation(role)).map((link) => [link.id, link.label])));
@@ -483,4 +484,23 @@ test("each sidebar destination opens under a heading with the same words", () =>
   assert.doesNotMatch(source("src/components/v3/SalesRegisterView.tsx"), /SalesReportNavigation|Раздел главной/u);
   // Э8.5 (28.09): no «Разделы поступления» nav and no subpage titles on the board page.
   assert.doesNotMatch(source(`${V3}/admissions-pipeline/page.tsx`), /Разделы поступления|title="(?:Документы|Комплекты) на проверку"/u);
+});
+
+// «Маркетинг» (М1, 06.10.2026): только настоящий администратор — как «База знаний», но без чтения
+// документов: ни просмотр роли (в том числе «Admin»), ни сотрудник без роли admin пункта не видят.
+test("«Маркетинг» stands in «Общее» for the real Admin only, never in role preview or for staff", () => {
+  const ids = (actor) => links(buildV3Navigation(actor, "/v3/main", new URLSearchParams())).map((link) => link.id);
+  const admin = { systemRole: "admin", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: [] };
+  assert.ok(ids(admin).includes("marketing"));
+  assert.equal(buildV3Navigation(admin, "/v3/main", new URLSearchParams()).common.find((link) => link.id === "marketing")?.href, "/v3/marketing");
+  for (const presentationRole of ["admin", "sales", "admissions"]) {
+    assert.equal(ids({ ...admin, presentationRole }).includes("marketing"), false, `preview ${presentationRole}`);
+  }
+  for (const systemRole of ["sales", "admissions", null]) {
+    assert.equal(ids({ ...admin, systemRole, presentationRole: null, permissionKeys: ["lead.read", "sales.register.read", "knowledge.read.approved"] }).includes("marketing"), false, String(systemRole));
+  }
+  // Вкладка браузера называет раздел теми же словами.
+  assert.equal(v3SectionTitle("/v3/marketing"), "Маркетинг");
+  // Адрес раздела с видом — тот же пункт, выбранный.
+  assert.equal(buildV3Navigation(admin, "/v3/marketing", new URLSearchParams("view=leads")).activeId, "marketing");
 });

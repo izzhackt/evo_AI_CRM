@@ -35,8 +35,10 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "knowledge-source.ts",
     "knowledge-surface.ts",
     "lead-cabinet-source.ts",
+    "lead-channel-source.ts", // «Маркетинг» М1 (06.10.2026)
     "lead-sale-conditions-source.ts",
     "manual-lead-source.ts",
+    "marketing-source.ts", // «Маркетинг» М1 (06.10.2026)
     "navigation.ts",
     // operations-source.ts retired by #1067 (26.09.2026): replaced by
     // today-source.ts / today-queue.ts / sales-dynamics-source.ts /
@@ -108,8 +110,10 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "knowledge-library-source.ts", // #906 (20.09.2026)
     "knowledge-source.ts",
     "lead-cabinet-source.ts",
+    "lead-channel-source.ts", // «Маркетинг» М1 (06.10.2026)
     "lead-sale-conditions-source.ts",
     "manual-lead-source.ts",
+    "marketing-source.ts", // «Маркетинг» М1 (06.10.2026)
     // operations-source.ts retired by #1067 (26.09.2026): see the file
     // inventory above.
     "pipeline-source.ts",

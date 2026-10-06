@@ -11,6 +11,7 @@ import test from "node:test";
 import ts from "typescript";
 
 import { admissionsNarrowStage } from "../src/lib/platform-admissions-pipeline-contract.ts";
+import { LEAD_CHANNEL_UNKNOWN_HINT, LEAD_CHANNELS } from "../src/lib/lead-channel-contract.ts";
 import { MANUAL_LEAD_SOURCE_REQUIRED, MANUAL_LEAD_SOURCES } from "../src/lib/platform-manual-lead-contract.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -64,10 +65,13 @@ test("phone admissions board: the page passes ?stage= and the picker (or a follo
   assert.doesNotMatch(board, /useState<AdmissionsPipelineStage>\(ADMISSIONS_PIPELINE_TAB_STAGES\[tab\]\[0\]\)/u);
 });
 
-test("«Добавить лида»: the source opens on «Не выбрано», is required, and keeps the five existing keys", () => {
-  // WhatsApp и Instagram не добавлены: проверка 143 их не знает (нужна миграция),
-  // а ручной лид с источником WhatsApp встал бы в очередь «Заявки» (221, 250).
-  assert.deepEqual(Object.keys(MANUAL_LEAD_SOURCES), ["office", "phone_call", "referral", "website", "other"]);
+test("«Добавить лида»: the source opens on «Не выбрано», is required, and lists the five old keys plus the two of 06.10", () => {
+  // Решение 06.10 («Маркетинг», миграция 264) уточняет Э8.11: добавлены `instagram` и `whatsapp_manual`;
+  // сам `whatsapp` по-прежнему не ручной (очередь «Заявки» 221/250 берёт `website` и `whatsapp`).
+  assert.deepEqual(Object.keys(MANUAL_LEAD_SOURCES), ["office", "phone_call", "referral", "website", "other", "instagram", "whatsapp_manual"]);
+  assert.equal(MANUAL_LEAD_SOURCES.instagram, "Instagram Direct");
+  assert.equal(MANUAL_LEAD_SOURCES.whatsapp_manual, "WhatsApp (вручную)");
+  assert.equal(Object.hasOwn(MANUAL_LEAD_SOURCES, "whatsapp"), false);
   assert.equal(MANUAL_LEAD_SOURCE_REQUIRED, "Выберите источник");
   const form = read("src/components/v3/ManualLeadForm.tsx");
   assert.match(form, /<select name="source" required defaultValue=""/u);
@@ -77,6 +81,13 @@ test("«Добавить лида»: the source opens on «Не выбрано»
   assert.match(form, /aria-invalid=\{sourceMissing \|\| undefined\} aria-describedby=\{sourceMissing \? sourceErrorId : undefined\}/u);
   assert.match(form, /\{sourceMissing \? <span id=\{sourceErrorId\} role="alert" className="mt-1 block t-body-compact text-danger">\{MANUAL_LEAD_SOURCE_REQUIRED\}<\/span> : null\}/u);
   assert.match(form, /source_required: `\$\{MANUAL_LEAD_SOURCE_REQUIRED\}\.`/u);
+  // «Откуда узнал»: обязательное, без значения по умолчанию, «Не известно» последним, подсказка «Спросите клиента».
+  assert.match(form, /<select name="channel" required defaultValue=""/u);
+  assert.match(form, /<option value="">Не выбрано<\/option>\{Object\.entries\(LEAD_CHANNELS\)\.map/u);
+  assert.match(form, /LEAD_CHANNEL_UNKNOWN_HINT/u);
+  assert.deepEqual(Object.values(LEAD_CHANNELS), ["Instagram — реклама", "Instagram — посты и профиль", "Сайт и поиск", "Рекомендация", "Другое", "Не известно"]);
+  assert.equal(Object.keys(LEAD_CHANNELS).at(-1), "unknown");
+  assert.equal(LEAD_CHANNEL_UNKNOWN_HINT, "Спросите клиента");
 });
 
 /**
@@ -94,30 +105,37 @@ function manualLeadAction() {
     return compiled.exports;
   };
   const created = [];
+  const touches = [];
+  let leadId = null;
   const action = compile("src/lib/platform-manual-lead-actions.ts", (id) => ({
     "./platform-access.ts": { isStaffPreview: () => false, staffHasPermission: () => true },
     "next/cache": { revalidatePath() {} },
     "./platform-guards": { requirePlatformStaffActor: async () => ({ organizationId: "org" }) },
     "./platform-manual-lead-contract": compile("src/lib/platform-manual-lead-contract.ts"),
+    "./lead-channel-contract": compile("src/lib/lead-channel-contract.ts"),
+    "./v3/lead-channel-source": {
+      leadTouchRequestId: (formRequestId, kind) => `touch:${kind}:${formRequestId}`,
+      recordLeadTouch: async (_actor, input) => { touches.push(input); return { status: "saved" }; },
+    },
     "./platform-sales-register-contract": compile("src/lib/platform-sales-register-contract.ts"),
     "./server/action-form-fields": compile("src/lib/server/action-form-fields.ts", (inner) => (inner === "server-only" ? {} : undefined)),
     "./v3/manual-lead-source": {
       createManualLead: async (_actor, input) => {
         created.push(input);
-        return { status: "duplicate", requestId: input.requestId, leadId: null };
+        return { status: "duplicate", requestId: input.requestId, leadId };
       },
     },
   })[id]);
-  return { createManualLeadAction: action.createManualLeadAction, created };
+  return { createManualLeadAction: action.createManualLeadAction, created, touches, setLeadId: (id) => { leadId = id; } };
 }
 
 test("«Добавить лида» on the server: no source is «Выберите источник», an unknown key stays invalid, a chosen key is saved as is", async () => {
-  const { createManualLeadAction, created } = manualLeadAction();
+  const { createManualLeadAction, created, touches, setLeadId } = manualLeadAction();
   const requestId = "11111111-2222-4333-8444-555555555555";
-  const form = (source) => {
+  const form = (source, channel = "unknown") => {
     const data = new FormData();
     for (const [key, value] of Object.entries({
-      request_id: requestId, name: "Тест Синтетический", phone: "+996 555 000 000", email: "", source,
+      request_id: requestId, name: "Тест Синтетический", phone: "+996 555 000 000", email: "", source, channel,
       owner_id: "66666666-7777-4888-8999-000000000000", direction: "", next_action: "", due_date: "",
     })) data.set(key, value);
     return data;
@@ -126,10 +144,25 @@ test("«Добавить лида» on the server: no source is «Выберит
   assert.deepEqual(await createManualLeadAction(idle, form("")), { status: "source_required", requestId, leadId: null });
   assert.deepEqual(await createManualLeadAction(idle, form("   ")), { status: "source_required", requestId, leadId: null });
   assert.equal(created.length, 0, "nothing is written without a source");
-  for (const unknown of ["whatsapp", "instagram", "Звонок"]) {
+  for (const unknown of ["whatsapp", "Звонок"]) {
     assert.equal((await createManualLeadAction(idle, form(unknown))).status, "invalid", unknown);
   }
   assert.equal(created.length, 0);
+  // «Откуда узнал» обязательно: без него — свой ответ, неизвестный ключ — invalid, ничего не пишется.
+  assert.deepEqual(await createManualLeadAction(idle, form("phone_call", "")), { status: "channel_required", requestId, leadId: null });
+  assert.equal((await createManualLeadAction(idle, form("phone_call", "facebook"))).status, "invalid");
+  assert.equal(created.length, 0);
   assert.equal((await createManualLeadAction(idle, form("phone_call"))).status, "duplicate");
   assert.deepEqual(created.map((input) => input.source), ["phone_call"]);
+  // Лид не назван сервером (duplicate без id) — касание некуда ставить, это делается в Lead 360.
+  assert.equal(touches.length, 0);
+  // Новые ручные источники принимаются как есть; payload создания не получил поля канала.
+  setLeadId("77777777-8888-4999-8aaa-bbbbbbbbbbbb");
+  for (const source of ["instagram", "whatsapp_manual"]) assert.equal((await createManualLeadAction(idle, form(source, "instagram_ads"))).status, "duplicate", source);
+  assert.deepEqual(created.map((input) => input.source), ["phone_call", "instagram", "whatsapp_manual"]);
+  assert.ok(created.every((input) => !Object.hasOwn(input, "channel")), "create_manual_sales_lead payload is unchanged");
+  // Отдельное касание staff_manual с id, производным от id формы, на лида из ответа.
+  assert.deepEqual(touches, ["instagram", "whatsapp_manual"].map(() => ({
+    leadId: "77777777-8888-4999-8aaa-bbbbbbbbbbbb", channel: "instagram_ads", kind: "staff_manual", requestId: `touch:staff_manual:${requestId}`,
+  })));
 });

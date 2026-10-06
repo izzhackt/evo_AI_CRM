@@ -1,0 +1,212 @@
+import { LEAD_CHANNEL_AI_NOTE, LEAD_CHANNEL_BASES, LEAD_CHANNELS, type LeadChannelBasis } from "@/lib/lead-channel-contract";
+import type { CohortChannelRow, MarketingOverview, MarketingOverviewRead, MoneyCount, SalesChannelRow } from "@/lib/marketing-contract";
+import { costPerLead, formatMinor, formatPerLead, marketingSignals, shareText, type MarketingSignal } from "@/lib/marketing-view";
+import { MarketingSpendPanel } from "./MarketingSpendPanel";
+
+const TH = "px-3 py-2 text-left t-caption font-medium text-fg-2";
+const TD = "px-3 py-2.5 align-top t-body-compact tabular-nums text-fg";
+const META = "block t-meta text-fg-2";
+const SECTION_TABLE = "min-w-[40rem] w-full border-collapse";
+
+const n = (value: number) => value.toLocaleString("ru-RU");
+const BASIS_ORDER: readonly LeadChannelBasis[] = ["utm", "referrer", "staff", "corrected", "unknown"];
+
+/** «не прочитано» — отдельное слово, никогда ноль. */
+function Unavailable({ what, retryHref }: Readonly<{ what: string; retryHref: string }>) {
+  return (
+    <p role="alert" className="t-body-compact text-fg-2">
+      Не удалось загрузить {what}.{" "}
+      <a href={retryHref} className="inline-flex min-h-11 items-center underline underline-offset-4">Повторить</a>
+    </p>
+  );
+}
+
+function MoneyLines({ items, noun, primary = false }: Readonly<{ items: readonly MoneyCount[]; noun: (count: number) => string; primary?: boolean }>) {
+  return <>{items.map((item) => (
+    <span key={item.currency} className={primary ? "block t-body-compact text-fg" : META}>
+      {formatMinor(item.amountMinor, item.currency)}<span className="text-fg-2"> · {noun(item.count)}</span>
+    </span>
+  ))}</>;
+}
+function plural(count: number, one: string, few: string, many: string): string {
+  const tens = count % 100, ones = count % 10;
+  return `${n(count)} ${tens >= 11 && tens <= 14 ? many : ones === 1 ? one : ones >= 2 && ones <= 4 ? few : many}`;
+}
+const leadsWord = (count: number) => plural(count, "лид", "лида", "лидов");
+const contractsWord = (count: number) => plural(count, "договор", "договора", "договоров");
+
+function channelBasisLine(row: CohortChannelRow): string | null {
+  const parts = BASIS_ORDER.filter((key) => row.basis[key] > 0 && !(row.channel === "unknown" && key === "unknown"))
+    .map((key) => `${LEAD_CHANNEL_BASES[key]} ${n(row.basis[key])}`);
+  if (row.aiAssistant > 0) parts.push(`${LEAD_CHANNEL_AI_NOTE} ${n(row.aiAssistant)}`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+function CohortCells({ row }: Readonly<{ row: Pick<CohortChannelRow, "leads" | "qualified" | "handedOff" | "contract" | "contractLinked" | "paid" | "paidWithoutAmount"> & { paidAmounts?: readonly MoneyCount[] } }>) {
+  const cell = (part: number) => row.leads > 0 ? shareText(part, row.leads) : "—";
+  return (
+    <>
+      <td className={TD}>{cell(row.qualified)}</td>
+      <td className={TD}>{cell(row.handedOff)}</td>
+      <td className={TD}>{cell(row.contract)}
+        {row.contractLinked > 0 ? <span className={META}>связано вручную {n(row.contractLinked)}</span> : null}</td>
+      <td className={TD}>{cell(row.paid)}
+        {row.paidAmounts ? <MoneyLines items={row.paidAmounts} noun={leadsWord} /> : null}
+        {row.paidWithoutAmount > 0 ? <span className={META}>сумма не названа: {n(row.paidWithoutAmount)}</span> : null}</td>
+    </>
+  );
+}
+
+function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
+  const { cohort } = overview;
+  const unknown = cohort.channels.find((row) => row.channel === "unknown");
+  return (
+    <section aria-labelledby="mk-cohort" data-testid="marketing-cohort">
+      <h2 id="mk-cohort" className="t-section text-fg">Заявки периода — что с ними стало на сегодня</h2>
+      <p className="mt-1 t-meta text-fg-2">
+        Заявок: <span className="tabular-nums">{n(cohort.total)}</span>, из них открыты <span className="tabular-nums" data-marketing-open={cohort.openCount}>{n(cohort.openCount)}</span>.
+        {" "}Повторные обращения: <span className="tabular-nums">{n(cohort.repeatSubmissions)}</span>.
+      </p>
+      <div className="mt-3 overflow-x-auto">
+        <table className={SECTION_TABLE}>
+          <caption className="sr-only">Заявки периода по каналам и то, что с ними стало на сегодня</caption>
+          <thead>
+            <tr className="border-b border-border">
+              <th scope="col" className={TH}>Откуда узнал</th>
+              <th scope="col" className={TH}>Заявки</th>
+              <th scope="col" className={TH}>Квалифицированы</th>
+              <th scope="col" className={TH}>Переданы</th>
+              <th scope="col" className={TH}>Договор</th>
+              <th scope="col" className={TH}>Оплатили</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cohort.channels.map((row) => (
+              <tr key={row.channel} className="border-b border-border" data-channel={row.channel}>
+                <th scope="row" className={`${TD} text-left font-medium`}>
+                  {LEAD_CHANNELS[row.channel]}
+                  {channelBasisLine(row) ? <span className={`${META} font-normal`}>{channelBasisLine(row)}</span> : null}
+                </th>
+                <td className={TD}>{n(row.leads)}</td>
+                <CohortCells row={row} />
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row" className={`${TD} text-left font-medium`}>Всего</th>
+              <td className={`${TD} font-medium`}>{n(cohort.totals.leads)}</td>
+              <CohortCells row={{ ...cohort.totals }} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p className="mt-2 t-body-compact text-fg" data-testid="marketing-unknown-line">
+        Источник не известен — <span className="tabular-nums">{shareText(unknown?.leads ?? 0, cohort.total)}</span>
+      </p>
+    </section>
+  );
+}
+
+function SalesRows({ rows }: Readonly<{ rows: readonly SalesChannelRow[] }>) {
+  return <>{rows.map((row) => (
+    <tr key={row.channel} className="border-b border-border" data-channel={row.channel}>
+      <th scope="row" className={`${TD} text-left font-medium`}>{row.channel === "without_lead" ? "Без привязки к лиду" : LEAD_CHANNELS[row.channel]}</th>
+      <td className={TD}>{n(row.contracts)}
+        {row.linkedManually > 0 ? <span className={META}>связано вручную {n(row.linkedManually)}</span> : null}</td>
+      <td className={TD}>
+        {row.amounts.length ? <MoneyLines items={row.amounts} noun={contractsWord} primary /> : <span className="text-fg-2">{row.contracts > 0 ? "сумма не указана" : "—"}</span>}
+        {row.amounts.length > 0 && row.amountMissing > 0 ? <span className={META}>без суммы: {n(row.amountMissing)}</span> : null}
+      </td>
+    </tr>
+  ))}</>;
+}
+
+function SalesBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
+  const { sales } = overview;
+  const recon = sales.reconciliation;
+  return (
+    <section aria-labelledby="mk-sales" data-testid="marketing-sales">
+      <h2 id="mk-sales" className="t-section text-fg">Продажи периода — по дате договора</h2>
+      <div className="mt-3 overflow-x-auto">
+        <table className="min-w-[28rem] w-full border-collapse">
+          <caption className="sr-only">Договоры периода по каналам</caption>
+          <thead>
+            <tr className="border-b border-border">
+              <th scope="col" className={TH}>Откуда узнал</th>
+              <th scope="col" className={TH}>Договоры</th>
+              <th scope="col" className={TH}>Сумма договоров</th>
+            </tr>
+          </thead>
+          <tbody><SalesRows rows={sales.channels} /></tbody>
+        </table>
+      </div>
+      <p className="mt-2 t-body-compact text-fg" data-testid="marketing-reconciliation" data-matches={recon.matches}>
+        По каналам и без привязки — <span className="tabular-nums">{n(recon.byChannelPlusWithoutLead)}</span>; «Продажи» в отчёте — <span className="tabular-nums">{n(recon.reportSales)}</span>.
+        {recon.matches ? " Совпадает."
+          : <span className="font-medium text-danger"> Расхождение: {recon.difference > 0 ? "+" : ""}{n(recon.difference)}.</span>}
+      </p>
+    </section>
+  );
+}
+
+function CostBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
+  const cost = costPerLead(overview);
+  return (
+    <div className="mt-4" data-testid="marketing-cost">
+      <h3 className="t-item text-fg">Цена заявки Instagram-рекламы</h3>
+      {cost.status === "no_spend" ? <p className="mt-1 t-body-compact text-fg-2">— Расход за период не введён.</p> : null}
+      {cost.status === "mixed_currencies"
+        ? <p className="mt-1 t-body-compact text-fg-2">— Расход в разных валютах ({cost.currencies.join(", ")}): цена не считается, валюты не складываются.</p> : null}
+      {cost.status === "single" ? (
+        <ul className="mt-1 space-y-0.5">
+          {cost.levels.map((level) => (
+            <li key={level.key} className="t-body-compact text-fg" data-cost-level={level.key}>
+              <span className="text-fg-2">{level.title}: </span>
+              {level.perLeadMinor === null
+                ? <>— <span className="text-fg-2">заявок нет</span></>
+                : <><span className="tabular-nums">{formatPerLead(level.perLeadMinor, cost.currency)}</span> <span className="text-fg-2">на {leadsWord(level.leads)}</span></>}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function Signals({ signals }: Readonly<{ signals: readonly MarketingSignal[] }>) {
+  if (!signals.length) return null;
+  return (
+    <ul role="status" data-testid="marketing-signals" className="space-y-1 rounded-card border border-border bg-surface px-4 py-3">
+      {signals.map((signal) => <li key={signal.key} className="t-body-compact text-fg">{signal.text}</li>)}
+    </ul>
+  );
+}
+
+/**
+ * Обзор «Маркетинга»: два блока, которые не смешиваются в одном отношении — когорта заявок (дата заявки,
+ * «что с ними стало на сегодня») и продажи периода (дата договора) со сверкой с «Продажами» отчёта; ниже
+ * расход, введённый вручную, и цена заявки. Сбой чтения — слова и «Повторить», а не ноль.
+ */
+export function MarketingOverviewView({ read, recent, period, retryHref }: Readonly<{
+  read: MarketingOverviewRead;
+  recent: Readonly<{ leads: number; spendRows: number }> | null;
+  period: Readonly<{ from: string; to: string }>;
+  retryHref: string;
+}>) {
+  if (read.status === "denied") return <p role="alert" className="t-body-compact text-fg-2">Раздел доступен только администратору.</p>;
+  if (read.status === "unavailable") return <Unavailable what="обзор маркетинга" retryHref={retryHref} />;
+  const { overview } = read;
+  return (
+    <div className="space-y-10" data-testid="marketing-overview">
+      <Signals signals={marketingSignals(overview, recent)} />
+      <CohortBlock overview={overview} />
+      <SalesBlock overview={overview} />
+      <section aria-labelledby="mk-spend" data-testid="marketing-spend">
+        <h2 id="mk-spend" className="t-section text-fg">Расход периода</h2>
+        <MarketingSpendPanel overview={overview} period={period} />
+        <CostBlock overview={overview} />
+      </section>
+    </div>
+  );
+}

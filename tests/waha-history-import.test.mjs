@@ -1088,6 +1088,58 @@ test(
   },
 );
 
+test(
+  "the runbook's jq program offers only import_new chats: a candidate the database would skip is never a pilot candidate",
+  { skip: jqAvailable ? false : "jq is not installed" },
+  async () => {
+    await withHarness({ rows: [...baseRows(), ...longChatRows()] }, async (harness) => {
+      // Import an ordinary chat (A) and the outbound-only chat (C) first; a preview made afterwards still lists them
+      // as candidates, but the database now answers skip_nothing_eligible for them (every message is bound).
+      const first = await refsByName(harness, ["--include-outbound-only"]);
+      const firstRows = readFileSync(first.out, "utf8").trim().split("\n").slice(1).map((line) => JSON.parse(line));
+      const refA = first.map.get("Aigul Test");
+      const refC = firstRows.find((row) => row.inbound === 0).ref;
+      const done = harness.file("done.txt", `${refA}\n${refC}\n`);
+      const imported = await harness.run(["apply", ...windowArgs, "--include-outbound-only", "--only-chats-file", done]);
+      assert.equal(imported.code, 0, imported.stderr);
+      assert.equal(imported.json.totals.chats_imported, 2);
+
+      const { map, out: previewFile } = await refsByName(harness, ["--include-outbound-only"]);
+      const rows = readFileSync(previewFile, "utf8").trim().split("\n").slice(1).map((line) => JSON.parse(line));
+      const skipped = rows.filter((row) => row.outcome !== "import_new");
+      assert.deepEqual(
+        skipped.map((row) => [row.ref, row.outcome]).sort(),
+        [[refA, "skip_nothing_eligible"], [refC, "skip_nothing_eligible"]].sort(),
+        "the mock preview contains two candidates whose outcome is not import_new",
+      );
+      const shapeOf = (row) => (row.inbound === 0 ? "outbound_only" : "ordinary");
+      assert.deepEqual(skipped.map(shapeOf).sort(), ["ordinary", "outbound_only"], "each would match a shape if the outcome were not checked");
+      assert.ok(rows.length > skipped.length, "import_new candidates remain");
+
+      const offered = runbookPilotShapes(previewFile, harness.directory);
+      const offeredRefs = new Set(offered.map((candidate) => candidate.ref));
+      for (const row of skipped) assert.equal(offeredRefs.has(row.ref), false, "a skip_* chat is not offered");
+      assert.equal(offered.some((candidate) => candidate.shape === "outbound_only"), false);
+      assert.ok(offered.some((candidate) => candidate.shape === "ordinary"), "import_new chats are still offered");
+      assert.ok(offered.some((candidate) => candidate.shape === "multi_page"));
+      assert.ok(offered.some((candidate) => candidate.shape === "lid"));
+      assert.equal(map.size, rows.length);
+
+      // Control: with the outcome clause removed from the runbook's own program, the skipped chats show up. This
+      // proves the assertions above would notice the clause going missing.
+      const runbook = readFileSync(new URL("../docs/runbooks/whatsapp-history-import.md", import.meta.url), "utf8");
+      const clause = 'select(.outcome == "import_new" and (.existing_client_match | not))';
+      assert.equal(runbook.split(clause).length, 2, "the runbook states the clause exactly once");
+      const withoutClause = runbook.replace(clause, "select(.existing_client_match | not)");
+      const jqBlock = [...withoutClause.matchAll(/```bash\n([\s\S]*?)\n```/gu)].map((match) => match[1]).find((code) => code.startsWith("jq -r"));
+      copyFileSync(previewFile, join(harness.directory, "history-preview.jsonl"));
+      const control = spawnSync("bash", ["-c", jqBlock], { cwd: harness.directory, encoding: "utf8" });
+      assert.equal(control.status, 0, control.stderr);
+      for (const row of skipped) assert.ok(control.stdout.includes(row.ref), "without the clause a skip_* chat is offered");
+    });
+  },
+);
+
 test("a pilot list longer than --max-chats imports no more than the cap, in the list's own chats only", async () => {
   await withHarness({}, async (harness) => {
     const { map } = await refsByName(harness, ["--include-outbound-only"]);

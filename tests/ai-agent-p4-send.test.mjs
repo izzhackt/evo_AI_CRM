@@ -17,7 +17,9 @@ import test from "node:test";
 import {
   AI_AUTOSEND_ID_NAMESPACE,
   AI_AUTOSEND_SEND_PATH,
+  AI_AUTOSEND_REPLAY_WINDOW_SECONDS,
   aiAutosendOutcome,
+  aiAutosendReplayStep,
   aiAutosendServerState,
   aiAutosendStepId,
   aiAutosendSwitchOn,
@@ -359,24 +361,37 @@ test("send: seen → typing → wait → stop → the stored text, plain (no quo
   });
 });
 
-test("retry after a crash between claim and record: deterministic claim id, never claimed again — one message, an honest unknown", async () => {
+test("retry while the first request still holds the work: 409 in_progress — no claim, no record, one WhatsApp message", async () => {
   const database = fakeDatabase();
   const provider = fakeProvider();
   const first = harness({ database, provider });
   assert.equal((await first.handler(signed())).status, 200);
-  // Повтор: база отдаёт прежнюю авторизацию (решение ещё `authorized` — CRM упала до записи итога).
-  database.calls.length = 0;
-  const second = harness({ database: { ...database, client: fakeDatabase({
-    ai_autosend_authorize_v1: () => ({ data: replayRow("authorized"), error: null }),
-    claim_manual_whatsapp_send_item: (args) => {
-      assert.equal(args.p_request_id, aiAutosendStepId(DECISION, "claim"), "same claim id on retry");
-      return { data: { claimed: false, queue: "platform_work_v1", requested_work_item_id: WORK_ITEM }, error: null };
-    },
-  }).client }, provider });
-  const response = await second.handler(signed());
-  assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { outcome: "unknown", code: "not_claimed" });
+  // Повтор: база отдаёт прежнюю авторизацию до своих проверок (решение ещё `authorized`, работа взята).
+  for (const workState of ["leased", "retry_wait"]) {
+    const retry = harness({ database: fakeDatabase({ ai_autosend_authorize_v1: () => ({ data: replayRow("authorized", workState), error: null }) }), provider });
+    const response = await retry.handler(signed());
+    assert.equal(response.status, 409, workState);
+    assert.deepEqual(await response.json(), { error: { code: "in_progress", workState } });
+    // Итог запишет исходный запрос: запись `unknown` здесь закрыла бы решение раньше
+    // (и 463/475 исходного запроса потеряли бы паузу — PT409).
+    assert.deepEqual(retry.database.calls.map((call) => call.name), ["ai_autosend_authorize_v1"], workState);
+  }
   assert.equal(provider.events.filter((event) => event.startsWith("send:")).length, 1, "exactly one WhatsApp message");
+});
+
+test("retry after the record failed: a finished work item is recorded by its state — never claimed or sent again", async () => {
+  for (const [workState, outcome, code] of [
+    ["succeeded", "sent", null], ["dead_lettered", "failed", "send_failed"],
+    ["unknown_manual_review", "unknown", "send_unknown"], ["conflict_manual_review", "unknown", "send_unknown"],
+  ]) {
+    const run = harness({ database: fakeDatabase({ ai_autosend_authorize_v1: () => ({ data: replayRow("authorized", workState), error: null }) }) });
+    const response = await run.handler(signed());
+    assert.equal(response.status, 200, workState);
+    assert.deepEqual(await response.json(), { outcome, code }, workState);
+    assert.deepEqual(run.database.calls.map((call) => call.name), ["ai_autosend_authorize_v1", "ai_autosend_record_v1"], workState);
+    assert.deepEqual([run.database.calls[1].args.p_outcome, run.database.calls[1].args.p_code], [outcome, code], workState);
+    assert.equal(run.provider.events.length, 0, workState);
+  }
 });
 
 test("retry of a decision that already has an outcome: 409 already_finished, no claim, no record, no WhatsApp", async () => {
@@ -388,10 +403,85 @@ test("retry of a decision that already has an outcome: 409 already_finished, no 
     assert.deepEqual(run.database.calls.map((call) => call.name), ["ai_autosend_authorize_v1"], status);
     assert.equal(run.provider.events.length, 0, status);
   }
-  // Повтор решения, которое ещё не брали (CRM упала до claim): отправка идёт как в первый раз.
-  const resumed = harness({ database: fakeDatabase({ ai_autosend_authorize_v1: () => ({ data: replayRow("authorized", "queued"), error: null }) }) });
+});
+
+test("replayed authorization never claimed: sent only within a minute of authorization and with a WORKING session", async () => {
+  const replayAt = (authorizedAt, overrides = {}) => fakeDatabase({
+    ai_autosend_authorize_v1: () => ({ data: authorizedRow({
+      replayed: true, decision_status: "authorized", work_state: "queued", waha_readiness_observed_at: authorizedAt, ...overrides,
+    }), error: null }),
+  });
+  // CRM упала между авторизацией и claim; агент повторил через 10 с — отправка идёт как в первый раз.
+  const resumed = harness({ database: replayAt(new Date(NOW - 10_000).toISOString()) });
   assert.deepEqual(await (await resumed.handler(signed())).json(), { outcome: "sent", code: null });
   assert.equal(resumed.provider.events.filter((event) => event.startsWith("send:")).length, 1);
+  assert.equal(resumed.database.calls.find((call) => call.name === "claim_manual_whatsapp_send_item").args.p_request_id, aiAutosendStepId(DECISION, "claim"));
+
+  // Старая авторизация (6 часов; пауза или выключение после неё базе на повторе не видны) —
+  // закрыть итогом без отправки, даже при живой сессии.
+  for (const [label, at] of [
+    ["six hours old", "2026-10-07T15:14:05.000+00:00"],
+    ["just over a minute", new Date(NOW - (AI_AUTOSEND_REPLAY_WINDOW_SECONDS + 1) * 1000).toISOString()],
+    ["from the future", new Date(NOW + 10 * 60_000).toISOString()],
+  ]) {
+    const run = harness({ database: replayAt(at) });
+    const response = await run.handler(signed());
+    assert.equal(response.status, 409, label);
+    assert.deepEqual(await response.json(), { error: { code: "refused", reason: "authorization_expired" } }, label);
+    assert.deepEqual(run.database.calls.map((call) => call.name), ["ai_autosend_authorize_v1", "ai_autosend_record_v1"], label);
+    assert.deepEqual(run.database.calls[1].args, {
+      p_organization_id: ORG, p_decision_id: DECISION, p_outcome: "failed", p_code: "authorization_expired",
+      p_request_id: aiAutosendStepId(DECISION, "record:failed:authorization_expired"),
+    }, label);
+    assert.equal(run.provider.events.length, 0, label);
+  }
+
+  // Свежая, но сессия сейчас не WORKING (первый запрос база проверила бы сама, повтор — нет).
+  for (const status of ["STOPPED", "SCAN_QR_CODE", null]) {
+    const run = harness({ database: replayAt(new Date(NOW - 5_000).toISOString()), status });
+    const response = await run.handler(signed());
+    assert.equal(response.status, 409, String(status));
+    assert.deepEqual(await response.json(), { error: { code: "refused", reason: "provider_down" } });
+    assert.deepEqual(run.database.calls.map((call) => [call.name, call.args.p_code]),
+      [["ai_autosend_authorize_v1", undefined], ["ai_autosend_record_v1", "provider_down"]], String(status));
+    assert.equal(run.provider.events.length, 0, String(status));
+  }
+
+  // Запись итога не удалась — 503, агент повторит (и повтор снова закроет решение, ничего не отправив).
+  const down = harness({ database: fakeDatabase({
+    ai_autosend_authorize_v1: () => ({ data: authorizedRow({ replayed: true, decision_status: "authorized", work_state: "queued",
+      waha_readiness_observed_at: "2026-10-07T15:14:05.000+00:00" }), error: null }),
+    ai_autosend_record_v1: () => ({ data: null, error: { code: "XX000" } }),
+  }) });
+  const unrecorded = await down.handler(signed());
+  assert.equal(unrecorded.status, 503);
+  assert.deepEqual(await unrecorded.json(), { error: { code: "record_unavailable", outcome: "failed" } });
+  assert.equal(down.provider.events.length, 0);
+
+  // Повтор без времени авторизации или в чужом состоянии — сбой формы, в WhatsApp ничего.
+  for (const [label, overrides] of [
+    ["no authorized_at", { waha_readiness_observed_at: null }],
+    ["unparsable authorized_at", { waha_readiness_observed_at: "вчера" }],
+    ["decision skipped", { decision_status: "skipped" }],
+    ["decision missing status", { decision_status: null }],
+  ]) {
+    const run = harness({ database: replayAt(new Date(NOW - 5_000).toISOString(), overrides) });
+    const response = await run.handler(signed());
+    assert.equal(response.status, 503, label);
+    assert.deepEqual(run.database.calls.map((call) => call.name), ["ai_autosend_authorize_v1"], label);
+    assert.equal(run.provider.events.length, 0, label);
+  }
+});
+
+test("claim refused (another send of the chat ahead, or the same decision taken by a parallel request): 503 not_claimed, nothing recorded", async () => {
+  const run = harness({ database: fakeDatabase({
+    claim_manual_whatsapp_send_item: () => ({ data: { claimed: false, queue: "platform_work_v1", requested_work_item_id: WORK_ITEM }, error: null }),
+  }) });
+  const response = await run.handler(signed());
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: { code: "not_claimed" } });
+  assert.deepEqual(run.database.calls.map((call) => call.name), ["ai_autosend_authorize_v1", "claim_manual_whatsapp_send_item"]);
+  assert.equal(run.provider.events.length, 0);
 });
 
 test("463 and 475 from WhatsApp are recorded as provider_restricted (the database pauses); other rejections keep their code", async () => {
@@ -449,7 +539,19 @@ test("ids, typing and outcome mapping", () => {
   assert.equal(aiAutosendTypingMs("Да"), 1500);
   assert.equal(aiAutosendTypingMs("а".repeat(100)), 4000);
   assert.equal(aiAutosendTypingMs("а".repeat(1000)), 6000);
-  assert.deepEqual(aiAutosendOutcome({ status: "not_claimed", workItemId: WORK_ITEM }, null), { outcome: "unknown", code: "not_claimed" });
+  const replay = (workState, authorizedAt = new Date(NOW).toISOString()) => ({ workState, authorizedAt });
+  assert.deepEqual(aiAutosendReplayStep(replay("queued"), { now: NOW, providerStatus: "WORKING" }), { step: "send" });
+  assert.deepEqual(aiAutosendReplayStep(replay("queued", new Date(NOW - 60_000).toISOString()), { now: NOW, providerStatus: "WORKING" }), { step: "send" },
+    "exactly the window still sends");
+  assert.equal(aiAutosendReplayStep(replay("queued", new Date(NOW - 60_001).toISOString()), { now: NOW, providerStatus: "WORKING" }).step, "close");
+  assert.equal(aiAutosendReplayStep(replay("queued", "not a date"), { now: NOW, providerStatus: "WORKING" }).step, "close");
+  assert.deepEqual(aiAutosendReplayStep(replay("queued"), { now: NOW, providerStatus: "UNKNOWN" }),
+    { step: "close", outcome: { outcome: "failed", code: "provider_down" }, refusal: "provider_down" });
+  assert.deepEqual(aiAutosendReplayStep(replay("leased"), { now: NOW, providerStatus: "WORKING" }), { step: "in_progress", workState: "leased" });
+  assert.deepEqual(aiAutosendReplayStep(replay("some_new_state"), { now: NOW, providerStatus: "WORKING" }), { step: "in_progress", workState: "some_new_state" },
+    "an unknown work state is never sent or recorded");
+  assert.deepEqual(aiAutosendReplayStep(replay("constructor"), { now: NOW, providerStatus: "WORKING" }), { step: "in_progress", workState: "constructor" });
+  assert.equal(AI_AUTOSEND_REPLAY_WINDOW_SECONDS, 60);
   const finished = (outcome) => ({ status: "finished", result: { outcome } });
   assert.deepEqual(aiAutosendOutcome(finished("succeeded"), null), { outcome: "sent", code: null });
   assert.deepEqual(aiAutosendOutcome(finished("terminal_error"), null), { outcome: "failed", code: "send_failed" });

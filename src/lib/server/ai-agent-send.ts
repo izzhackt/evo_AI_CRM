@@ -44,7 +44,11 @@ import {
  *     проверяет правила, берёт СОХРАНЁННЫЙ текст, создаёт авторизацию вида
  *     `ai_autosend` от ответственного сотрудника и ставит работу
  *     `manual_whatsapp_send`. Отказ — 409 (журнал и пауза уже записаны базой).
- *     Повтор того же решения возвращает прежнюю авторизацию.
+ *     Повтор того же решения возвращает прежнюю авторизацию РАНЬШЕ всех
+ *     проверок базы, поэтому повтор без итога решает CRM (`settleReplay`):
+ *     работу, которую ещё не брали, отправляет только в течение минуты после
+ *     авторизации и при живой сессии WORKING; взятую — не трогает (409
+ *     `in_progress`); завершённую без записи — только записывает.
  *  5. Отправка — тот же код, что у ручной (`executePlatformManualWhatsAppSend`:
  *     claim → WAHA → finish), с детерминированными id claim и finish от
  *     решения: повтор запроса никогда не возьмёт работу второй раз (база не
@@ -68,8 +72,23 @@ export const AI_AUTOSEND_VISIBILITY_TIMEOUT_SECONDS = 120;
 export const AI_AUTOSEND_WORKER_REF = "ai-autosend";
 /** Пространство имён UUIDv5 id запросов одного решения (claim, finish, authorize, record). */
 export const AI_AUTOSEND_ID_NAMESPACE = "3c0f6a52-8d1e-5b7a-9f24-6e1d0c4b8a73";
-/** Коды WhatsApp «аккаунт ограничен» (WAHA отдаёт их HTTP-статусом). */
+/**
+ * Коды WhatsApp «аккаунт ограничен». Ловятся, только если WAHA отдаёт их
+ * HTTP-статусом `sendText`; это не подтверждено для GOWS (код может прийти в
+ * теле 500 или позже ack ERROR) — до живого шага сверить (план §15 P4), а пока
+ * паузу при таком сбое ставит серия из трёх ошибок (276).
+ */
 export const AI_AUTOSEND_RESTRICTED_STATUSES = Object.freeze([463, 475] as const);
+/**
+ * Повтор авторизации, работу которой ещё не брали (CRM упала между
+ * авторизацией и claim), отправляет не позже этого срока после авторизации:
+ * столько же неотправленная работа держит чат (266: «never claimed within a
+ * minute» больше не держит очередь чата). База на повтор правил не проверяет
+ * (276 отдаёт сохранённую авторизацию раньше проверок), так что пауза,
+ * выключение, исключение чата и ответ сотрудника после авторизации CRM не
+ * видны — их окно ограничено этой минутой. Агент повторяет 503 через 10 с.
+ */
+export const AI_AUTOSEND_REPLAY_WINDOW_SECONDS = 60;
 
 const WORKER = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,199}$/u;
 const DECISION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -114,8 +133,11 @@ export function aiAutosendTypingMs(text: string): number {
   return Math.round(seconds * 1000);
 }
 
+/** Повтор авторизации без итога: состояние работы и время авторизации (276). */
+export type AiAutosendReplay = Readonly<{ workState: string; authorizedAt: string }>;
+
 export type AiAutosendAuthorizeResult =
-  | Readonly<{ kind: "authorized"; authorization: PlatformManualWhatsAppSendAuthorization }>
+  | Readonly<{ kind: "authorized"; authorization: PlatformManualWhatsAppSendAuthorization; replay: AiAutosendReplay | null }>
   | Readonly<{ kind: "refused"; reason: string }>
   | Readonly<{ kind: "finished"; status: "sent" | "failed" | "unknown" }>
   | Readonly<{ kind: "missing" | "invalid" | "unavailable" }>;
@@ -224,6 +246,8 @@ export function parseAiAutosendAuthorization(
   if (data.replayed && (FINISHED_DECISION_STATUSES as readonly unknown[]).includes(data.decision_status)) {
     return { kind: "finished", status: data.decision_status as (typeof FINISHED_DECISION_STATUSES)[number] };
   }
+  // Повтор без итога — только решение в `authorized` (275: авторизация есть ровно у authorized/sent/failed/unknown).
+  if (data.replayed && data.decision_status !== "authorized") return { kind: "unavailable" };
   const organizationId = uuid(data.organization_id);
   const authorizationId = uuid(data.manual_send_authorization_id);
   const conversationId = uuid(data.communication_conversation_id);
@@ -252,10 +276,14 @@ export function parseAiAutosendAuthorization(
   ) {
     return { kind: "unavailable" };
   }
-  const observedAt = typeof data.waha_readiness_observed_at === "string" && Number.isFinite(Date.parse(data.waha_readiness_observed_at))
-    ? data.waha_readiness_observed_at : expected.observedAt;
+  const authorizedAt = typeof data.waha_readiness_observed_at === "string" && Number.isFinite(Date.parse(data.waha_readiness_observed_at))
+    ? data.waha_readiness_observed_at : null;
+  // Повтор без времени авторизации не проверить на срок — не отправлять.
+  if (data.replayed && authorizedAt === null) return { kind: "unavailable" };
+  const observedAt = authorizedAt ?? expected.observedAt;
   return {
     kind: "authorized",
+    replay: data.replayed ? Object.freeze({ workState: data.work_state as string, authorizedAt: authorizedAt! }) : null,
     authorization: Object.freeze({
       organizationId,
       manualSendAuthorizationId: authorizationId,
@@ -310,18 +338,14 @@ async function authorize(
 export type AiAutosendProviderFailure = Readonly<{ code: string; httpStatus: number | null }> | null;
 
 /**
- * Итог общего кода отправки → запись журнала автоответчика. 463/475 —
+ * Итог взятой и завершённой отправки → запись журнала автоответчика. 463/475 —
  * ограничение аккаунта WhatsApp: `provider_restricted`, база ставит паузу.
+ * Невзятая работа (`not_claimed`) итога не имеет и сюда не попадает.
  */
 export function aiAutosendOutcome(
-  execution: PlatformManualWhatsAppSendExecutionResult,
+  execution: Extract<PlatformManualWhatsAppSendExecutionResult, { status: "finished" }>,
   failure: AiAutosendProviderFailure,
 ): AiAutosendOutcome {
-  if (execution.status === "not_claimed") {
-    // Работу не взяли: впереди в чате другая отправка, или этот же запрос уже
-    // брал её раньше (повтор). Ушло ли сообщение, CRM здесь не знает.
-    return { outcome: "unknown", code: "not_claimed" };
-  }
   const outcome = execution.result.outcome;
   if (outcome === "succeeded") return { outcome: "sent", code: null };
   if (failure?.httpStatus != null && (AI_AUTOSEND_RESTRICTED_STATUSES as readonly number[]).includes(failure.httpStatus)) {
@@ -362,6 +386,53 @@ async function record(
     }
   }
   return false;
+}
+
+// ------------------------------------------------------------ replay
+
+/** Работа завершена, итог не записан (запись не удалась): записать по состоянию работы, без отправки. */
+const REPLAY_FINISHED_WORK: Readonly<Record<string, AiAutosendOutcome>> = Object.freeze({
+  succeeded: { outcome: "sent", code: null },
+  dead_lettered: { outcome: "failed", code: "send_failed" },
+  unknown_manual_review: { outcome: "unknown", code: "send_unknown" },
+  conflict_manual_review: { outcome: "unknown", code: "send_unknown" },
+});
+
+export type AiAutosendReplayStep =
+  | Readonly<{ step: "send" }>
+  | Readonly<{ step: "in_progress"; workState: string }>
+  | Readonly<{ step: "close"; outcome: AiAutosendOutcome; refusal: string | null }>;
+
+/**
+ * Что делать с повтором авторизации, у которой нет итога (276 отдаёт её до
+ * всех своих проверок):
+ *  - работа в очереди (claim не было) — отправить, только если авторизации не
+ *    больше `AI_AUTOSEND_REPLAY_WINDOW_SECONDS` и сессия сейчас WORKING; иначе
+ *    закрыть итогом `failed` (`authorization_expired` / `provider_down`) — в
+ *    WhatsApp ничего не уходит;
+ *  - работа взята и идёт (`leased`, `retry_wait` и любое незнакомое
+ *    состояние) — `in_progress`: ни claim, ни записи; итог запишет исходный
+ *    запрос (или сверка);
+ *  - работа завершена без записи итога — записать итог по её состоянию.
+ */
+export function aiAutosendReplayStep(
+  replay: AiAutosendReplay,
+  input: Readonly<{ now: number; providerStatus: string }>,
+): AiAutosendReplayStep {
+  if (replay.workState === "queued") {
+    const ageSeconds = (input.now - Date.parse(replay.authorizedAt)) / 1000;
+    if (!(ageSeconds <= AI_AUTOSEND_REPLAY_WINDOW_SECONDS && ageSeconds >= -AI_AUTOSEND_CLOCK_SKEW_SECONDS)) {
+      return { step: "close", outcome: { outcome: "failed", code: "authorization_expired" }, refusal: "authorization_expired" };
+    }
+    if (input.providerStatus !== "WORKING") {
+      return { step: "close", outcome: { outcome: "failed", code: "provider_down" }, refusal: "provider_down" };
+    }
+    return { step: "send" };
+  }
+  if (Object.hasOwn(REPLAY_FINISHED_WORK, replay.workState)) {
+    return { step: "close", outcome: REPLAY_FINISHED_WORK[replay.workState]!, refusal: null };
+  }
+  return { step: "in_progress", workState: replay.workState };
 }
 
 // ------------------------------------------------------------ handler
@@ -434,6 +505,18 @@ export function createAiAutosendSendHandler(dependencies: AiAutosendSendDependen
       if (authorized.kind === "invalid") return refuse(400, "invalid_request");
       if (authorized.kind !== "authorized") return refuse(503, "unavailable");
 
+      // Повтор без итога: база правил не проверяла — решает CRM (срок, сессия, состояние работы).
+      if (authorized.replay) {
+        const replay = aiAutosendReplayStep(authorized.replay, { now: dependencies.now(), providerStatus });
+        // Работа взята и идёт: итог за исходным запросом; повтор её не берёт и ничего не пишет.
+        if (replay.step === "in_progress") return refuse(409, "in_progress", { workState: replay.workState });
+        if (replay.step === "close") {
+          const recorded = await record(client, { organizationId, decisionId, ...replay.outcome }, dependencies.sleep);
+          if (!recorded) return refuse(503, "record_unavailable", { outcome: replay.outcome.outcome });
+          return replay.refusal ? refuse(409, "refused", { reason: replay.refusal }) : respond(200, replay.outcome);
+        }
+      }
+
       // 5. «Прочитано», «печатает» и отправка тем же кодом, что у ручной.
       let failure: AiAutosendProviderFailure = null;
       const createWahaProvider = (runtime: PlatformManualSendWahaRuntime): PlatformWahaProvider => {
@@ -470,6 +553,12 @@ export function createAiAutosendSendHandler(dependencies: AiAutosendSendDependen
         // работу второй раз не возьмёт.
         return refuse(503, "unavailable");
       }
+
+      // Работу не взяли: её уже взял другой запрос того же решения (он и
+      // запишет итог) или впереди в чате другая отправка. Итога нет — ничего не
+      // писать (иначе запись `unknown` закрыла бы решение раньше настоящего
+      // итога); агент повторит через 10 с, и повтор решит по состоянию работы.
+      if (execution.status === "not_claimed") return refuse(503, "not_claimed");
 
       // 6. Итог в журнал автоответчика (и пауза базы на 463/475 или серии сбоев).
       const outcome = aiAutosendOutcome(execution, failure);

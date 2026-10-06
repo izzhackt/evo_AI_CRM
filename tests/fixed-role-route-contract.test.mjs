@@ -34,6 +34,16 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
+async function loadBundledProxy() {
+  const bundled = await build({
+    entryPoints: [fileURLToPath(new URL("../src/proxy.ts", import.meta.url))],
+    bundle: true, packages: "external", platform: "node", format: "cjs", write: false,
+  });
+  const loaded = { exports: {} };
+  new Function("require", "module", "exports", bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
+  return loaded.exports.proxy;
+}
+
 test("login POST reaches credential verification for every previous session and host", () => {
   for (const host of ["crm.evoadmissions.com", "app.evoadmissions.com", "localhost:3000", null]) {
     for (const session of ["staff", "student", "missing", "invalid", "unavailable", "authenticated_without_product"]) {
@@ -71,13 +81,7 @@ test("login navigation permits opposite audience without changing same-audience 
 });
 
 test("real proxy forwards exact login POST unchanged while rejecting cross-audience action routes", async () => {
-  const bundled = await build({
-    entryPoints: [fileURLToPath(new URL("../src/proxy.ts", import.meta.url))],
-    bundle: true, packages: "external", platform: "node", format: "cjs", write: false,
-  });
-  const loaded = { exports: {} };
-  new Function("require", "module", "exports", bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
-  const { proxy } = loaded.exports;
+  const proxy = await loadBundledProxy();
   for (const host of ["app.evoadmissions.com", "crm.evoadmissions.com", "localhost:3000"]) {
     for (const actionHeader of [null, "routing-boundary-only"]) {
       const headers = { host, origin: `https://${host}`, "x-forwarded-host": host,
@@ -688,5 +692,88 @@ test("receipt routes use exact handler UUIDs and remain staff-cookie routes", ()
   for (const path of ["/api/v2/payment-receipts", "/api/v2/payment-receipt-files",
     `/api/v2/payment-receipt-files/${caseId}/download`, `/api/v2/case-contract-files/${caseId}`]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});
+
+const INBOX_CONVERSATION_ID = "10000000-0000-4000-8000-000000000001";
+const inboxOlderMessagesPath = (id) => `/api/v3/inbox/conversations/${id}/messages`;
+const INBOX_NEAR_MISS_PATHS = [
+  "/api/v3/inbox",
+  "/api/v3/inbox/",
+  "/api/v3/inbox/pulse/",
+  "/api/v3/inbox/pulse/extra",
+  "/api/v3/inbox/pulses",
+  "/api/v3/inbox/pulse.json",
+  "/api/v3/inbox/conversations",
+  `/api/v3/inbox/conversations/${INBOX_CONVERSATION_ID}`,
+  `${inboxOlderMessagesPath(INBOX_CONVERSATION_ID)}/`,
+  `${inboxOlderMessagesPath(INBOX_CONVERSATION_ID)}/extra`,
+  `/api/v3/inbox/conversations/${INBOX_CONVERSATION_ID}/send`,
+  `/api/v3/inbox/conversations/${INBOX_CONVERSATION_ID}/attempts`,
+  inboxOlderMessagesPath("not-a-uuid"),
+  inboxOlderMessagesPath("00000000-0000-0000-0000-000000000000"),
+  inboxOlderMessagesPath("10000000-0000-7000-8000-000000000001"),
+  inboxOlderMessagesPath("10000000-0000-4000-7000-000000000001"),
+  inboxOlderMessagesPath(`${INBOX_CONVERSATION_ID}%2Fextra`),
+  `/api/v3/inbox/conversations/${INBOX_CONVERSATION_ID}/${INBOX_CONVERSATION_ID}/messages`,
+];
+
+test("WhatsApp chat pulse and older-page APIs are exact staff-cookie routes", () => {
+  const connected = ["/api/v3/inbox/pulse"];
+  for (const version of [1, 2, 3, 4, 5]) {
+    connected.push(inboxOlderMessagesPath(`ABCDEF00-0000-${version}000-A000-000000000002`));
+  }
+  connected.push(inboxOlderMessagesPath(INBOX_CONVERSATION_ID));
+  for (const path of connected) {
+    assert.equal(isConnectedPlatformApi(path), true, path);
+    assert.equal(isConnectedPlatformPrivateApi(path), false, path);
+    assert.equal(isConnectedPlatformPage(path), false, path);
+    assert.equal(isRetiredPlatformRoute(path), false, path);
+    for (const method of ["GET", "HEAD", "POST"]) {
+      assert.equal(isConnectedStudentPortalApi(path, method), false, `${method} ${path}`);
+      assert.equal(isPublicStudentRegistrationApi(path, method), false, `${method} ${path}`);
+    }
+  }
+  for (const path of INBOX_NEAR_MISS_PATHS) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});
+
+test("real proxy sends WhatsApp chat APIs through the staff session gate and blocks near misses", async () => {
+  const proxy = await loadBundledProxy();
+  const saved = {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  };
+  // Routing-boundary values only: without a session cookie the Auth client
+  // answers «missing» locally, so no network request is made.
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:45421";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_routing-boundary-only";
+  const request = (path, method = "GET") => new NextRequest(`https://crm.evoadmissions.com${path}`, {
+    method, headers: { host: "crm.evoadmissions.com" },
+  });
+  try {
+    for (const path of ["/api/v3/inbox/pulse?list=1", `${inboxOlderMessagesPath(INBOX_CONVERSATION_ID)}?before_at=x`]) {
+      for (const method of ["GET", "HEAD"]) {
+        const response = await proxy(request(path, method));
+        // Connected: the anonymous caller reaches the live session gate (401),
+        // not the platform_route_not_connected refusal (403).
+        assert.equal(response.status, 401, `${method} ${path}`);
+        assert.equal(response.headers.get("x-middleware-next"), null, `${method} ${path}`);
+        if (method === "GET") {
+          assert.deepEqual(await response.json(), { error: "authentication_required" }, path);
+        }
+      }
+    }
+    for (const path of INBOX_NEAR_MISS_PATHS) {
+      const response = await proxy(request(path));
+      assert.equal(response.status, 403, path);
+      assert.equal((await response.json()).error, "platform_route_not_connected", path);
+    }
+  } finally {
+    if (saved.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = saved.url;
+    if (saved.key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = saved.key;
   }
 });

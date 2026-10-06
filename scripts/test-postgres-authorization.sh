@@ -28,6 +28,7 @@ p6d_concurrency_worker_a_pid=""
 p8r4_cutover_guard_log="$(mktemp -t evo-p8r4-cutover-guard.XXXXXX)"
 p7aj_journal_contract_log="$(mktemp -t evo-p7aj-journal-contract.XXXXXX)"
 ai_agent_p2_stale_rerun_log="$(mktemp -t evo-ai-agent-p2-stale-rerun.XXXXXX)"
+ai_agent_p3_stale_rerun_log="$(mktemp -t evo-ai-agent-p3-stale-rerun.XXXXXX)"
 u2_concurrency_worker_a_log="$(mktemp -t evo-u2-concurrency-a.XXXXXX)"
 u2_concurrency_worker_b_log="$(mktemp -t evo-u2-concurrency-b.XXXXXX)"
 u2_concurrency_assert_log="$(mktemp -t evo-u2-concurrency-assert.XXXXXX)"
@@ -101,6 +102,7 @@ cleanup() {
     "$p8r4_cutover_guard_log" \
     "$p7aj_journal_contract_log" \
     "$ai_agent_p2_stale_rerun_log" \
+    "$ai_agent_p3_stale_rerun_log" \
     "$u2_concurrency_worker_a_log" \
     "$u2_concurrency_worker_b_log" \
     "$u2_concurrency_assert_log" \
@@ -3144,6 +3146,47 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_agent_p2.sql
+  fi
+
+  # «ИИ-агент» P3 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §5.2–5.4, §6.1, §9,
+  # §13, §15 P3): client memory and media in context. Matched by name, not
+  # number. The migration is applied a SECOND time right after itself
+  # (production-safe re-run: no new table, constraint, pointer or error); a
+  # stale re-run of the Laboratory migration after it must be refused by its
+  # exact function inventory (it would otherwise downgrade maintenance_v1).
+  # Then the suite proves on the real chain (WAHA projection for every
+  # message, members modelled like production): the table is FORCE RLS
+  # without policies or grants; 30 staff and 34 agent functions, hardened;
+  # the four agent functions refuse while memory is off or consent is missing,
+  # and enabled they serve sales conversations only; pointers carry no text;
+  # due rules (> 20 messages and 6 uncovered; +3 do not refresh, +6 do), the
+  # 80-message batch, interest once a minute, rebuild after an older message;
+  # the put guards (lease, version, boundary, caps, phones and e-mails); media
+  # markers become kinds with the caption only and no file names; the staff
+  # view, clear (ai.agent.use, audit without text) and toggle (PT412, PT409,
+  # disable purges); maintenance; the answer context carries memory.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_memory.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >/dev/null
+    ai_agent_lab_migration="$(
+      cd "$repo_root"
+      find supabase/migrations -maxdepth 1 -type f -name '*_platform_ai_agent_lab.sql' | sort | head -n 1
+    )"
+    if docker exec "$container_name" \
+      psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$ai_agent_lab_migration" >"$ai_agent_p3_stale_rerun_log" 2>&1; then
+      echo "the AI agent Laboratory migration re-ran after the memory migration" >&2
+      exit 1
+    fi
+    if ! grep -Fq "ai_agent_function_inventory_drift" "$ai_agent_p3_stale_rerun_log"; then
+      echo "the stale AI agent Laboratory re-run failed for the wrong reason" >&2
+      sed -n '1,40p' "$ai_agent_p3_stale_rerun_log" >&2
+      exit 1
+    fi
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_p3.sql
   fi
 done < <(
   cd "$repo_root"

@@ -17,7 +17,8 @@
 --    autosend_allowed, ready, не заменённым (без внутренней ветки и эталонов);
 --    расширяет offered_chunk_ids;
 --  * autosend_commit_v1 — колонка «commit» таблицы §11; финальная фраза равна
---    вычисленной; строка-раскрытие в начале первого ответа чата в интервале;
+--    вычисленной (код агента, почему она сказана, — в final_reason_code);
+--    строка-раскрытие в начале первого ответа чата в интервале;
 --    живой режим с неподтверждённым языком — phrase_unconfirmed; задержка
 --    30–90 с; live → scheduled + отложенный указатель, shadow → shadow;
 --    три skip gemini_error подряд — пауза;
@@ -30,9 +31,13 @@
 --  * inbound_since_v1 (та же сигнатура): ворота — память ИЛИ автоответчик,
 --    в ответе orgs [{organizationId, memory, autosend}];
 --  * maintenance_v1: + авторизованные, но не взятые claim 2 минуты → работа
---    снята с очереди, cancelled; просроченные scheduled (send_at + 10 мин) →
---    cancelled, брошенные considering → skipped, строки журнала без ссылок и
---    сводки старше 180 дней удаляются.
+--    снята с очереди, cancelled; отменённые, чья работа осталась в очереди, —
+--    работа снимается снова; авторизованные без итога, чья работа
+--    завершилась или чья аренда истекла больше 10 минут назад, — итог по
+--    состоянию работы (sent / failed / unknown), без повторной отправки;
+--    просроченные scheduled (send_at + 10 мин) → cancelled, брошенные
+--    considering → skipped, строки журнала без ссылок и сводки старше 180
+--    дней удаляются.
 -- Сотрудники (platform, authenticated, ai_staff_actor, повтор по request_id,
 -- аудит до/после): ai_agent_autosend_v1, _save_v1, _enable_v1, _shadow_v1,
 -- _pause_v1, _exclusion_v1, _conversation_v1, _log_v1, _summary_v1.
@@ -126,7 +131,7 @@ RETURNS JSONB LANGUAGE sql STABLE SET search_path = '' AS $$
     'clientMessageId', p_log.client_message_id, 'sourceAt', p_log.source_at,
     'intervalStart', p_log.interval_start, 'intervalEnd', p_log.interval_end, 'status', p_log.status,
     'mode', p_log.mode, 'kind', p_log.kind, 'reasonCode', p_log.reason_code, 'reasonRu', p_log.reason_ru,
-    'language', p_log.language, 'citedChunkIds', to_jsonb(p_log.cited_chunk_ids), 'callDate', p_log.call_date,
+    'finalReasonCode', p_log.final_reason_code, 'language', p_log.language, 'citedChunkIds', to_jsonb(p_log.cited_chunk_ids), 'callDate', p_log.call_date,
     'sendAt', p_log.send_at, 'delaySeconds', p_log.delay_s, 'outcomeCode', p_log.outcome_code,
     'createdAt', p_log.created_at, 'committedAt', p_log.committed_at, 'authorizedAt', p_log.authorized_at,
     'finishedAt', p_log.finished_at, 'textHidden', NOT p_with_text,
@@ -466,7 +471,9 @@ END
 $$;
 
 -- Решение агента (колонка «commit» таблицы §11). kind answer | final_phrase |
--- skip. final_phrase — ровно вычисленная фраза на язык и момент; строка-
+-- skip. Код причины: у skip — обязателен (причина пропуска), у final_phrase —
+-- по желанию (почему агент сказал финальную фразу; final_reason_code), у
+-- answer — нет. final_phrase — ровно вычисленная фраза на язык и момент; строка-
 -- раскрытие — в начале первого учтённого решения чата в интервале; живой
 -- режим с неподтверждённым языком — phrase_unconfirmed. Прошло: задержка
 -- min..max, live/live_test → scheduled и отложенный указатель, shadow →
@@ -484,8 +491,9 @@ BEGIN
   v_cited := COALESCE(p_cited_chunk_ids, '{}');
   IF p_decision_id IS NULL OR p_worker_ref IS NULL OR p_kind IS NULL OR p_kind NOT IN ('answer', 'final_phrase', 'skip')
     OR (p_language IS NOT NULL AND p_language NOT IN ('ru', 'ky', 'en'))
-    OR (p_kind <> 'skip' AND (p_language IS NULL OR v_body IS NULL OR char_length(v_body) NOT BETWEEN 1 AND 1000
-      OR p_reason_code IS NOT NULL))
+    OR (p_kind <> 'skip' AND (p_language IS NULL OR v_body IS NULL OR char_length(v_body) NOT BETWEEN 1 AND 1000))
+    OR (p_kind = 'answer' AND p_reason_code IS NOT NULL)
+    OR (p_kind = 'final_phrase' AND p_reason_code !~ '^[a-z][a-z0-9_]{0,63}$')
     OR (p_kind = 'skip' AND (p_reason_code IS NULL OR p_reason_code !~ '^[a-z][a-z0-9_]{0,63}$'
       OR (v_body IS NOT NULL AND char_length(v_body) NOT BETWEEN 1 AND 1000)))
     OR cardinality(v_cited) > 16 OR array_position(v_cited, NULL) IS NOT NULL
@@ -559,6 +567,7 @@ BEGIN
     UPDATE platform_private.ai_autosend_log l SET kind = CASE WHEN p_kind = 'final_phrase' AND v_phrase IS NULL
         THEN NULL ELSE p_kind END,
       call_date = CASE WHEN p_kind = 'final_phrase' THEN (v_phrase ->> 'callDate')::DATE END,
+      final_reason_code = CASE WHEN p_kind = 'final_phrase' AND v_phrase IS NOT NULL THEN p_reason_code END,
       language = p_language, body = v_body, mode = v_row.mode,
       cited_chunk_ids = CASE WHEN v_cited <@ l.offered_chunk_ids THEN v_cited ELSE '{}' END,
       qualification = COALESCE(p_qualification, l.qualification), model = COALESCE(p_model, l.model),
@@ -575,6 +584,7 @@ BEGIN
     cited_chunk_ids = v_cited, qualification = COALESCE(p_qualification, l.qualification),
     model = COALESCE(p_model, l.model),
     call_date = CASE WHEN p_kind = 'final_phrase' THEN (v_phrase ->> 'callDate')::DATE END,
+    final_reason_code = CASE WHEN p_kind = 'final_phrase' THEN p_reason_code END,
     send_at = v_now + make_interval(secs => v_delay), delay_s = v_delay, committed_at = v_now,
     lease_owner = NULL, lease_expires_at = NULL, updated_at = v_now,
     finished_at = CASE WHEN v_status = 'shadow' THEN v_now END
@@ -797,7 +807,9 @@ END
 $$;
 
 -- Уборка (274) + автоответчик: авторизованные, но не взятые claim за 2
--- минуты автоответы снимаются с очереди (send_expired); запланированные
+-- минуты автоответы снимаются с очереди (send_expired); работа отменённых
+-- решений, оставшаяся в очереди, снимается снова; авторизованные решения без
+-- итога закрываются по состоянию работы (ниже); запланированные
 -- отправки, не авторизованные через 10 минут после send_at, отменяются
 -- (send_expired); брошенные
 -- considering (аренда истекла или не взята 10 минут) — skipped (expired);
@@ -808,7 +820,7 @@ RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS
 DECLARE v_tickets INTEGER; v_answers INTEGER; v_rates INTEGER; v_calls INTEGER; v_reservations INTEGER;
   v_sessions INTEGER; v_expired INTEGER; v_proposals INTEGER; v_memory INTEGER; v_leases INTEGER;
   v_send_expired INTEGER; v_considering INTEGER; v_log_deleted INTEGER; v_summaries_deleted INTEGER;
-  v_unclaimed INTEGER := 0; v_org UUID;
+  v_unclaimed INTEGER := 0; v_org UUID; v_stale RECORD; v_retired INTEGER := 0; v_reconciled INTEGER;
 BEGIN
   -- Первым (до замков строк журнала): авторизованные, но не взятые claim за 2
   -- минуты автоответы (CRM упал между authorize и claim) снимаются с очереди —
@@ -822,6 +834,69 @@ BEGIN
     v_unclaimed := v_unclaimed + platform_private.ai_autosend_cancel_pending(v_org, NULL, NULL, 'send_expired', NULL,
       clock_timestamp() - INTERVAL '2 minutes');
   END LOOP;
+  -- Отменённые решения, чья работа осталась в очереди (при отмене её не
+  -- удалось снять): снять снова (276, ai_autosend_retire_work) — иначе чат
+  -- навсегда «сотрудник активен», а в попытках висит queued.
+  FOR v_org IN SELECT DISTINCT l.organization_id FROM platform_private.ai_autosend_log l
+    JOIN platform_private.durable_work_items i ON i.organization_id = l.organization_id AND i.id = l.work_item_id
+    WHERE l.status = 'cancelled' AND i.state = 'queued' AND i.attempt_count = 0
+    ORDER BY 1 LOOP
+    PERFORM platform_private.ai_autosend_claim_lock(v_org);
+    FOR v_stale IN SELECT l.id, l.work_item_id, l.reason_code FROM platform_private.ai_autosend_log l
+      JOIN platform_private.durable_work_items i ON i.organization_id = l.organization_id AND i.id = l.work_item_id
+      WHERE l.organization_id = v_org AND l.status = 'cancelled' AND i.state = 'queued' AND i.attempt_count = 0
+      ORDER BY l.id LIMIT 500 LOOP
+      IF platform_private.ai_autosend_retire_work(v_org, v_stale.id, v_stale.work_item_id, v_stale.reason_code) THEN
+        v_retired := v_retired + 1;
+      END IF;
+    END LOOP;
+  END LOOP;
+  -- Авторизованные решения без итога (CRM упал между claim и record): работа
+  -- завершилась больше 10 минут назад или её аренда истекла больше 10 минут
+  -- назад (CRM берёт аренду на 120 с; после неё finish уже отклоняется, а 10
+  -- минут оставляют первое слово записи итога самого CRM и её повторам).
+  -- Итог — по состоянию работы, как у повтора CRM: succeeded с привязкой
+  -- сообщения провайдера — sent; dead_lettered — failed (send_failed);
+  -- unknown/conflict_manual_review и succeeded без привязки — unknown
+  -- (send_unknown); истёкшая аренда — unknown (lease_expired). Работа,
+  -- очередь и попытки не трогаются, ничего не отправляется заново: истёкшую
+  -- аренду, как и раньше, переводит в ручную проверку следующий claim, а
+  -- сверка ручной отправки остаётся сотруднику (unknown → sent в
+  -- ai_autosend_record_v1 по-прежнему допускается).
+  WITH stuck AS (
+    SELECT l.id, i.state::TEXT AS work_state,
+      CASE WHEN i.state = 'succeeded' AND b.durable_work_item_id IS NOT NULL THEN 'sent'
+        WHEN i.state = 'dead_lettered' THEN 'failed' ELSE 'unknown' END AS outcome,
+      CASE WHEN i.state = 'succeeded' AND b.durable_work_item_id IS NOT NULL THEN NULL
+        WHEN i.state = 'dead_lettered' THEN 'send_failed'
+        WHEN i.state = 'leased' THEN 'lease_expired' ELSE 'send_unknown' END AS code
+    FROM platform_private.ai_autosend_log l
+    JOIN platform_private.durable_work_items i ON i.organization_id = l.organization_id AND i.id = l.work_item_id
+    LEFT JOIN LATERAL (SELECT pb.durable_work_item_id FROM platform_private.manual_send_provider_bindings pb
+      WHERE pb.organization_id = l.organization_id AND pb.durable_work_item_id = l.work_item_id LIMIT 1) b ON TRUE
+    WHERE l.status = 'authorized'
+      AND ((i.state IN ('succeeded', 'dead_lettered', 'unknown_manual_review', 'conflict_manual_review')
+          AND i.completed_at < clock_timestamp() - INTERVAL '10 minutes')
+        OR (i.state = 'leased' AND i.leased_until < clock_timestamp() - INTERVAL '10 minutes'))
+    ORDER BY l.id LIMIT 5000
+    FOR UPDATE OF l SKIP LOCKED
+  ), closed AS (
+    UPDATE platform_private.ai_autosend_log l SET status = s.outcome, outcome_code = s.code,
+      finished_at = clock_timestamp(), updated_at = clock_timestamp()
+    FROM stuck s WHERE l.id = s.id AND l.status = 'authorized'
+    RETURNING l.id, l.organization_id, l.manual_send_authorization_id, l.work_item_id, l.status, l.outcome_code,
+      s.work_state
+  )
+  INSERT INTO platform.audit_events (organization_id, actor_kind, actor_profile_id, actor_principal, action,
+    resource_type, resource_id, before_state, after_state, reason, request_id)
+  SELECT c.organization_id, 'system', NULL, 'ai-autosend-maintenance', 'ai.agent.autosend.reconcile',
+    'manual_send_authorization', c.manual_send_authorization_id, jsonb_build_object('status', 'authorized'),
+    jsonb_build_object('decisionId', c.id, 'status', c.status, 'outcomeCode', c.outcome_code,
+      'workItemId', c.work_item_id, 'workState', c.work_state),
+    'ИИ-агент: итог автоответа закрыт уборкой по состоянию работы (без повторной отправки)',
+    platform_private.p3c_request_child_id(c.id, 'ai-autosend-reconcile')
+  FROM closed c;
+  GET DIAGNOSTICS v_reconciled = ROW_COUNT;
   DELETE FROM platform_private.ai_tickets t WHERE t.token_sha256 IN (SELECT o.token_sha256
     FROM platform_private.ai_tickets o WHERE o.expires_at < clock_timestamp() - INTERVAL '1 day' LIMIT 5000);
   GET DIAGNOSTICS v_tickets = ROW_COUNT;
@@ -882,6 +957,7 @@ BEGIN
     'usageCalls', v_calls, 'reservations', v_reservations, 'labSessions', v_sessions,
     'labProposalsExpired', v_expired, 'labProposalsDeleted', v_proposals, 'memoryDeleted', v_memory,
     'memoryLeasesCleared', v_leases, 'autosendSendExpired', v_send_expired, 'autosendUnclaimedCancelled', v_unclaimed,
+    'autosendCancelledWorkRetired', v_retired, 'autosendAuthorizedReconciled', v_reconciled,
     'autosendConsideringExpired', v_considering, 'autosendLogDeleted', v_log_deleted,
     'autosendSummariesDeleted', v_summaries_deleted);
 END

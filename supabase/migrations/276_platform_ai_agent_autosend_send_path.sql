@@ -27,9 +27,11 @@
 --    ручная авторизация, отправка в очереди или без исхода — кроме своей,
 --    билет окна ИИ), ai_autosend_check (единственная реализация правил 1–4,
 --    6–8, 11 и 13 для этапов due / commit / authorize), ai_autosend_skip,
---    ai_autosend_cancel_pending (отмена scheduled и авторизованных, но ещё не
---    взятых claim автоответов: работа уходит в dead letter p2g_dead_letter_work
---    и снимается с очереди), ai_autosend_pause, ai_autosend_call_task (задача
+--    ai_autosend_retire_work (не взятая работа решения — в dead letter
+--    p2g_dead_letter_work; если её сообщения PGMQ уже нет — в то же
+--    dead_lettered напрямую, без архива), ai_autosend_cancel_pending (отмена
+--    scheduled и авторизованных, но ещё не взятых claim автоответов: работа
+--    снимается с очереди), ai_autosend_pause, ai_autosend_call_task (задача
 --    «Позвонить клиенту»: создатель = исполнитель = ответственный, срок —
 --    10:00 дня звонка по Бишкеку, высокий приоритет; события, квитанция,
 --    связь с лидом, уведомление «task_assigned», аудит system);
@@ -362,6 +364,62 @@ RETURNS platform_private.ai_autosend_log LANGUAGE sql VOLATILE SECURITY DEFINER 
   RETURNING l.*
 $$;
 
+-- Снять с очереди не взятую работу автоответа (её решение отменяется):
+-- dead letter p2g_dead_letter_work (045: сообщение PGMQ архивируется). Не
+-- вышло, а сообщения PGMQ уже нет (точный claim находит работу только через
+-- него — её никто не возьмёт), — работа закрывается тем же состоянием
+-- dead_lettered напрямую: те же строки dead letter и события, что пишет 045,
+-- без архива. Иначе она навсегда «в очереди»: чат «сотрудник активен», в
+-- попытках — queued. Работу не ai_autosend этого решения, взятую claim (есть
+-- попытка) или не queued не трогает. TRUE — работа снята. Вызывающий держит
+-- ai_autosend_claim_lock организации.
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_retire_work(p_organization_id UUID, p_decision_id UUID,
+  p_work_item_id UUID, p_reason TEXT)
+RETURNS BOOLEAN LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_item platform_private.durable_work_items; v_request UUID; v_evidence TEXT; v_dead_message BIGINT;
+BEGIN
+  SELECT * INTO v_item FROM platform_private.durable_work_items i
+  WHERE i.organization_id = p_organization_id AND i.id = p_work_item_id FOR UPDATE;
+  IF NOT FOUND OR v_item.state <> 'queued' OR v_item.attempt_count <> 0 OR v_item.kind <> 'manual_whatsapp_send'
+    OR NOT EXISTS (SELECT 1 FROM platform.manual_send_authorizations a
+      WHERE a.organization_id = v_item.organization_id AND a.id = v_item.manual_send_authorization_id
+        AND a.kind = 'ai_autosend' AND a.ai_autosend_decision_id = p_decision_id)
+    OR EXISTS (SELECT 1 FROM platform_private.durable_work_attempts a
+      WHERE a.organization_id = v_item.organization_id AND a.work_item_id = v_item.id) THEN
+    RETURN FALSE;
+  END IF;
+  v_request := platform_private.p3c_request_child_id(p_decision_id, 'ai-autosend-cancel');
+  v_evidence := 'ai-autosend:' || COALESCE(p_reason, 'cancelled');
+  BEGIN
+    PERFORM platform_private.p2g_dead_letter_work(v_item.id, NULL, 'ai_autosend_cancelled', v_evidence, v_request);
+    RETURN TRUE;
+  EXCEPTION WHEN OTHERS THEN
+    NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM pgmq.q_platform_work_v1 q WHERE q.msg_id = v_item.queue_message_id) THEN
+    RETURN FALSE;
+  END IF;
+  BEGIN
+    v_dead_message := pgmq.send('platform_dead_letter_v1',
+      jsonb_build_object('v', 1, 'work_item_id', v_item.id, 'kind', v_item.kind), 0);
+    UPDATE platform_private.durable_work_items i SET state = 'dead_lettered', leased_until = NULL,
+      completed_at = statement_timestamp()
+    WHERE i.id = v_item.id;
+    INSERT INTO platform_private.durable_work_dead_letters (organization_id, work_item_id, attempt_id,
+      active_queue_message_id, dead_letter_queue_message_id, reason_code, evidence_ref, request_id)
+    VALUES (v_item.organization_id, v_item.id, NULL, v_item.queue_message_id, v_dead_message, 'ai_autosend_cancelled',
+      v_evidence || ':queue-row-missing', v_request);
+    INSERT INTO platform_private.durable_work_events (organization_id, work_item_id, attempt_id, event_type,
+      previous_state, new_state, queue_message_id, evidence_ref, request_id)
+    VALUES (v_item.organization_id, v_item.id, NULL, 'dead_lettered', 'queued', 'dead_lettered',
+      v_item.queue_message_id, v_evidence || ':queue-row-missing', v_request);
+    RETURN TRUE;
+  EXCEPTION WHEN OTHERS THEN
+    RETURN FALSE;
+  END;
+END
+$$;
+
 -- Отмена ждущих автоответов организации (или одного чата, одного решения,
 -- одного режима): scheduled → cancelled; authorized, работа которых ещё в
 -- очереди и не взята claim (queued, ни одной попытки), → работа в dead letter
@@ -407,15 +465,10 @@ BEGIN
       OR EXISTS (SELECT 1 FROM platform_private.durable_work_attempts a
         WHERE a.organization_id = v_item.organization_id AND a.work_item_id = v_item.id);
     -- Выключатель не должен падать из-за уборки: если снять работу с
-    -- очереди нельзя (например, нет её сообщения PGMQ), решение всё равно
-    -- cancelled — повтор authorize его не отдаст, а без authorize работу
-    -- никто не берёт (точный claim ждёт её id из ответа authorize).
-    BEGIN
-      PERFORM platform_private.p2g_dead_letter_work(v_item.id, NULL, 'ai_autosend_cancelled',
-        'ai-autosend:' || p_reason, platform_private.p3c_request_child_id(v_pending.id, 'ai-autosend-cancel'));
-    EXCEPTION WHEN OTHERS THEN
-      NULL;
-    END;
+    -- очереди нельзя, решение всё равно cancelled — повтор authorize его не
+    -- отдаст, а без authorize работу никто не берёт (точный claim ждёт её id
+    -- из ответа authorize); такую работу добирает уборка (maintenance_v1).
+    PERFORM platform_private.ai_autosend_retire_work(p_organization_id, v_pending.id, v_item.id, p_reason);
     UPDATE platform_private.ai_autosend_log l SET status = 'cancelled', reason_code = p_reason,
       reason_ru = platform_private.ai_autosend_reason_ru(p_reason), lease_owner = NULL, lease_expires_at = NULL,
       finished_at = clock_timestamp(), updated_at = clock_timestamp()

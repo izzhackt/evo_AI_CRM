@@ -18,7 +18,8 @@
 --    пауза, счётчики ошибок, версия;
 --  * platform_private.ai_autosend_log — журнал решений: одно решение на
 --    сообщение клиента (UNIQUE (org, client_message_id), правило 8), интервал,
---    статус, режим, вид, причина, язык, текст ≤ 1000 и его SHA-256 (CHECK),
+--    статус, режим, вид, причина (и код агента, почему сказана финальная
+--    фраза), язык, текст ≤ 1000 и его SHA-256 (CHECK),
 --    предложенные ⊇ процитированные фрагменты, квалификация, день звонка,
 --    время отправки, ссылки на авторизацию и работу, аренда;
 --  * ai_autosend_exclusions (чат выключен сотрудником; ночное состояние не
@@ -36,8 +37,9 @@
 --    невидимые символы, слова из смеси латиницы и кириллицы),
 --    ai_autosend_text_reason, ai_autosend_digits, ai_autosend_number_tokens,
 --    ai_autosend_numbers_ok, ai_autosend_qualification_ok,
---    ai_autosend_reason_ru, ai_autosend_shadow_nights (ночи проверки: сводки
---    последних 30 дней хотя бы с одним ответом shadow), ai_autosend_mode
+--    ai_autosend_reason_ru, ai_autosend_shadow_nights (ночи проверки: разные
+--    ночи по Бишкеку среди сводок последних 30 дней хотя бы с одним ответом
+--    shadow), ai_autosend_mode
 --    (live / live_test — только после трёх ночей проверки / shadow).
 --
 -- Безопасно для production: только новые таблицы и функции; автоответчик
@@ -119,12 +121,15 @@ $$;
 -- http(s), www, wa.me и t.me с пробелами.
 CREATE OR REPLACE FUNCTION platform_private.ai_autosend_patterns()
 RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
-  SELECT jsonb_build_object('version', 2,
+  SELECT jsonb_build_object('version', 3,
     'stems', jsonb_build_array(
       -- Обещания.
       'гарант', 'обеща', 'скидк', 'акци', 'бесплатн', 'промокод', 'возврат',
-      -- Оплата, деньги, способы оплаты.
-      'оплат', 'предоплат', '(за|до|вы|у|пере|по)?плат(?!форм)', 'взнос', 'аванс', 'залог', 'реквизит', 'сч[её]т',
+      -- Оплата, деньги, способы оплаты. «плач» — формы глагола «платить»
+      -- («оплачивается», «доплачу», «уплачено»); «плачет» тоже стоп — это
+      -- лишь финальная фраза вместо ответа, отправки он не открывает.
+      'оплат', 'предоплат', '(за|до|вы|у|пере|по)?плат(?!форм)', '(не|пред)?оплач', '(за|до|вы|у|пере|рас)?плач',
+      'рассрочк', 'квитанц', 'взнос', 'аванс', 'залог', 'реквизит', 'сч[её]т',
       'карт(а|у|ой|е|ы|очк)', 'перевод', 'переведите', 'перев[её]д', 'перевест', 'перечисл(?!енн)', 'деньг', 'денеж',
       'наличн', 'касс(а|у|е|ы|ир|ов)', 'kaspi', 'mbank', 'элсом', 'elsom', 'элкарт', 'elcart', 'master\s*card',
       'мастер\s*кард', 'visa\s*/\s*master', 'qiwi', 'megapay', 'мегапэй', 'o!\s*dengi', 'odengi', 'юмани', 'yoomoney',
@@ -132,8 +137,8 @@ RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
       -- Кыргызский.
       'кепилд', 'арзандат', 'акысыз', 'төлө', 'акча', 'накталай',
       -- Английский.
-      'guarantee', 'discount', 'free', 'refund', 'pay', 'invoice', 'card', 'transfer', 'iban', 'cash', 'deposit',
-      'money', 'fees?(?![a-z])'),
+      'guarantee', 'discount', 'free', 'refund', 'pay', '(pre|re)pay', '(pre|un|re)?paid', 'instal{1,2}ment',
+      'invoice', 'card', 'transfer', 'iban', 'cash', 'deposit', 'money', 'fees?(?![a-z])'),
     'links', jsonb_build_array('https?:/', 'www\.', 'wa\s*\.?\s*me\s*/', 't\s*\.\s*me\s*/',
       '[0-9a-zа-яёәөүңһ][0-9a-zа-яёәөүңһ-]*\s?\.(?:[a-z]{2,24}(?![0-9a-z])|(?:рф|рус|бел|укр|қаз|срб|мкд|мон|орг|ком|сайт|онлайн|дети|москва)(?![а-яё]))'),
     'marker', '\[[0-9]{1,3}\]',
@@ -343,6 +348,9 @@ CREATE TABLE IF NOT EXISTS platform_private.ai_autosend_log (
   kind TEXT CHECK (kind IN ('answer', 'final_phrase')),
   reason_code TEXT CHECK (reason_code ~ '^[a-z][a-z0-9_]{0,63}$'),
   reason_ru TEXT CHECK (char_length(reason_ru) BETWEEN 1 AND 200),
+  -- Почему агент сказал финальную фразу вместо ответа (код агента, только
+  -- у kind = final_phrase); reason_code — причина пропуска или отмены.
+  final_reason_code TEXT CHECK (final_reason_code ~ '^[a-z][a-z0-9_]{0,63}$'),
   language TEXT CHECK (language IN ('ru', 'ky', 'en')),
   body TEXT CHECK (char_length(body) BETWEEN 1 AND 1000),
   text TEXT CHECK (char_length(text) BETWEEN 1 AND 1000 AND text = btrim(text)),
@@ -385,6 +393,7 @@ CREATE TABLE IF NOT EXISTS platform_private.ai_autosend_log (
     AND (status NOT IN ('authorized', 'sent', 'failed', 'unknown') OR manual_send_authorization_id IS NOT NULL)
     AND (manual_send_authorization_id IS NULL OR status IN ('authorized', 'sent', 'failed', 'unknown', 'cancelled'))),
   CONSTRAINT ai_autosend_log_final_phrase_check CHECK ((kind = 'final_phrase') = (call_date IS NOT NULL)),
+  CONSTRAINT ai_autosend_log_final_reason_check CHECK (final_reason_code IS NULL OR kind = 'final_phrase'),
   CONSTRAINT ai_autosend_log_skip_reason_check CHECK (status NOT IN ('skipped', 'cancelled')
     OR (reason_code IS NOT NULL AND reason_ru IS NOT NULL)),
   CONSTRAINT ai_autosend_log_lease_check CHECK ((lease_owner IS NULL) = (lease_expires_at IS NULL))
@@ -483,12 +492,16 @@ BEGIN
 END
 $$;
 
--- «Ночи проверки» (§15 P4): сводки интервалов, закончившихся за последние 30
--- дней, в которых есть хотя бы один ответ shadow (статус shadow) — ночь, где
--- всё пропущено, нечего смотреть, а давняя проверка не разрешает живой режим.
+-- «Ночи проверки» (§15 P4): разные ночи по Бишкеку среди сводок интервалов,
+-- закончившихся за последние 30 дней, в которых есть хотя бы один ответ
+-- shadow (статус shadow) — ночь, где всё пропущено, нечего смотреть, а давняя
+-- проверка не разрешает живой режим. Ночь интервала — местная дата его
+-- начала, до 05:00 — предыдущая (как якорь финальной фразы): два-три окна в
+-- одни сутки (или вечер и ранее утро) — одна ночь, а не несколько.
 CREATE OR REPLACE FUNCTION platform_private.ai_autosend_shadow_nights(p_organization_id UUID)
 RETURNS INTEGER LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT count(*)::INTEGER FROM platform_private.ai_autosend_summaries s
+  SELECT count(DISTINCT ((s.interval_start AT TIME ZONE 'Asia/Bishkek') - INTERVAL '5 hours')::DATE)::INTEGER
+  FROM platform_private.ai_autosend_summaries s
   WHERE s.organization_id = p_organization_id AND s.interval_end > clock_timestamp() - INTERVAL '30 days'
     AND COALESCE((s.counts ->> 'shadow')::INTEGER, 0) >= 1
 $$;

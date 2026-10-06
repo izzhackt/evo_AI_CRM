@@ -74,7 +74,18 @@
 --     a day are cut at noon; a «Позвонить клиенту» task also for an unknown
 --     final phrase, with a notification; rule 2 (newest), closed chat,
 --     history message and rule 4 (ready, not superseded) at due, commit and
---     authorize; the insert guard refuses a decision that is not scheduled.
+--     authorize; the insert guard refuses a decision that is not scheduled;
+--  9. round-2 review fixes: the «оплач-/плач-» forms, «paid», instalments and
+--     receipts stop (and the shipped final phrases and disclosure lines still
+--     pass); shadow nights are distinct Bishkek nights, not intervals; a
+--     24/7 schedule and a long «on» range keep the interval across calls; a
+--     replay refuses after a pause, the switch off, an exclusion or shadow
+--     mode even without the cleanup; an unclaimable item (no PGMQ message) is
+--     retired at once, and maintenance retires the queued work of any
+--     cancelled decision; maintenance closes an authorized decision without a
+--     recorded outcome from its work state 10 minutes on (sent / failed /
+--     unknown), never touching the work; commit keeps the agent's reason for
+--     a final phrase.
 BEGIN;
 
 DO $p4_auth_role$
@@ -341,6 +352,34 @@ SELECT pg_temp.p4_assert(pg_temp.p4_window('2026-10-20 06:00+06',
   AND pg_temp.p4_window('2026-10-20 13:05+06', '[]', (SELECT jsonb_object_agg(d, '[{"from":"00:00","to":"00:00"}]'::JSONB)
     FROM unnest(ARRAY['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']) d)) ->> 'intervalStart' = '2026-10-20T06:00:00+00:00',
   'window: an island longer than a day is cut at every Bishkek noon, so its interval does not move with now');
+-- The interval stays put across calls minutes apart (review of the private
+-- service): a 24/7 schedule (from = to every day, here across midnight and
+-- from 20:00 to 20:00), and a long «on» range that began more than 14 days
+-- before now.
+CREATE FUNCTION pg_temp.p4_every_day(p_from TEXT, p_to TEXT) RETURNS JSONB LANGUAGE SQL IMMUTABLE AS $$
+  SELECT jsonb_object_agg(d, jsonb_build_array(jsonb_build_object('from', p_from, 'to', p_to)))
+  FROM unnest(ARRAY['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']) d
+$$;
+SELECT pg_temp.p4_assert(bool_and((w.a ->> 'inside')::BOOLEAN AND (w.b ->> 'inside')::BOOLEAN
+    AND w.a ->> 'intervalStart' = w.b ->> 'intervalStart' AND w.a ->> 'intervalEnd' = w.b ->> 'intervalEnd'
+    AND w.a ->> 'intervalStart' = w.expected),
+  'window: a 24/7 schedule and a long «on» range give the same interval minutes apart (noon to noon)')
+FROM (SELECT pg_temp.p4_window(x.at1, x.overrides, x.schedule) AS a, pg_temp.p4_window(x.at2, x.overrides, x.schedule) AS b,
+    x.expected
+  FROM (VALUES
+    (TIMESTAMPTZ '2026-10-20 23:58+06', TIMESTAMPTZ '2026-10-21 00:03+06', '[]'::JSONB,
+      pg_temp.p4_every_day('00:00', '00:00'), '2026-10-20T06:00:00+00:00'),
+    (TIMESTAMPTZ '2026-10-20 19:58+06', TIMESTAMPTZ '2026-10-20 20:03+06', '[]'::JSONB,
+      pg_temp.p4_every_day('20:00', '20:00'), '2026-10-20T06:00:00+00:00'),
+    (TIMESTAMPTZ '2026-10-21 11:50+06', TIMESTAMPTZ '2026-10-21 11:59+06', '[]'::JSONB,
+      pg_temp.p4_every_day('09:30', '09:30'), '2026-10-20T06:00:00+00:00'),
+    (TIMESTAMPTZ '2026-10-20 06:00+06', TIMESTAMPTZ '2026-10-20 06:10+06',
+      '[{"from":"2026-09-25","to":"2026-10-25","mode":"on"}]'::JSONB,
+      jsonb_build_object('mon', '[]'::JSONB, 'tue', '[]'::JSONB, 'wed', '[]'::JSONB, 'thu', '[]'::JSONB, 'fri', '[]'::JSONB,
+        'sat', '[]'::JSONB, 'sun', '[]'::JSONB), '2026-10-19T06:00:00+00:00'),
+    (TIMESTAMPTZ '2026-10-20 13:00+06', TIMESTAMPTZ '2026-10-21 11:55+06',
+      '[{"from":"2026-09-25","to":"2026-10-25","mode":"on"}]'::JSONB, NULL::JSONB, '2026-10-20T06:00:00+00:00')
+  ) AS x(at1, at2, overrides, schedule, expected)) w;
 SELECT pg_temp.p4_assert(bool_and(COALESCE(platform_private.ai_autosend_text_reason(w), 'none') = 'stop_word'),
   'rule 7: every stem stops, in any case (and with Latin look-alike letters)')
 FROM unnest(ARRAY['Мы гарантируем место', 'обещаем ответ', 'Скидка до мая', 'АКЦИЯ', 'это бесплатно', 'промокод EVO',
@@ -349,7 +388,31 @@ FROM unnest(ARRAY['Мы гарантируем место', 'обещаем от
   'We guarantee', 'a discount', 'free', 'refund', 'pay now', 'invoice', 'card', 'transfer', 'IBAN',
   'Заплатите', 'заплатить', 'Платёж', 'Плата за обучение', 'Доплата', 'Перечислите', 'Переведи', 'Скиньте деньги',
   'Элкарт', 'Visa/Mastercard', 'О!Деньги', 'oплатите', 'ОПЛATA', 'наличными', 'в кассу', 'взнос', 'аванс', 'залог',
-  'tuition fee', 'cash', 'money', 'Western Union', 'Золотая корона', 'акча', 'Можно заплатить наличными в офисе или перечислить на Элкарт.']) w;
+  'tuition fee', 'cash', 'money', 'Western Union', 'Золотая корона', 'акча', 'Можно заплатить наличными в офисе или перечислить на Элкарт.',
+  -- The «оплач-/плач-» forms of «платить» (review of #1168), «paid», instalments, receipts.
+  'Обучение оплачивается в два этапа', 'оплачивать', 'оплачено', 'доплачу', 'заплачу', 'уплачивается', 'выплачивается',
+  'переплачивать', 'расплачиваться', 'неоплаченный', 'предоплачено', 'oплачивается', 'рассрочка', 'в рассрочку',
+  'квитанция', 'paid', 'prepaid', 'unpaid', 'repaid', 'prepayment', 'repayment', 'installment', 'instalments']) w;
+-- «плач» stops «плачет» too: harmless — a stop word only turns an answer into
+-- the final phrase, it never opens a send.
+SELECT pg_temp.p4_assert(platform_private.ai_autosend_text_reason('Ребёнок плачет') = 'stop_word'
+  AND platform_private.ai_autosend_text_reason('Prepare your passport and school certificate.') IS NULL
+  AND platform_private.ai_autosend_text_reason('Рассмотрение заявки занимает две недели, расписание пришлём.') IS NULL
+  AND platform_private.ai_autosend_text_reason('Площадь кампуса большая, есть плавательный бассейн.') IS NULL
+  AND platform_private.ai_autosend_patterns() ->> 'version' = '3',
+  'rule 7: «плачет» stops (harmless: the final phrase); «prepare», «рассмотрение», «плавательный» pass; patterns version 3');
+-- Every final phrase (each variant and day word) and every disclosure line, alone
+-- and as the first reply of the interval, still passes the text checks.
+SELECT pg_temp.p4_assert(bool_and(platform_private.ai_autosend_text_reason(x.t) IS NULL) AND count(*) > 60,
+  'rules 7/13: the shipped final phrases and disclosure lines pass the stop words, alone and together')
+FROM (SELECT ph.t FROM (SELECT pg_temp.p4_phrase(l, at) ->> 'text' AS t
+      FROM unnest(ARRAY['ru', 'ky', 'en']) l,
+        generate_series(TIMESTAMPTZ '2026-10-09 01:00+06', TIMESTAMPTZ '2026-10-16 01:00+06', INTERVAL '6 hours') at
+      UNION ALL SELECT pg_temp.p4_phrase(l, '2026-10-08 21:00+06', '[{"from":"2026-10-09","to":"2026-10-21","mode":"on"}]') ->> 'text'
+      FROM unnest(ARRAY['ru', 'ky', 'en']) l) ph
+  UNION ALL SELECT d.value ->> 'text' FROM jsonb_each((platform_private.ai_autosend_settings_row(pg_temp.p4_id(1))).disclosure) d
+  UNION ALL SELECT (s.disclosure -> l ->> 'text') || E'\n' || (pg_temp.p4_phrase(l, '2026-10-09 21:00+06') ->> 'text')
+  FROM unnest(ARRAY['ru', 'ky', 'en']) l, platform_private.ai_autosend_settings_row(pg_temp.p4_id(1)) s) x;
 SELECT pg_temp.p4_assert(bool_and(COALESCE(platform_private.ai_autosend_text_reason(w), 'none') = 'link'),
   'rule 13: every link pattern stops (any label.tld, shorteners, look-alike dots and letters)')
 FROM unnest(ARRAY['http://x.example', 'https://y.example', 'www.y', 'wa.me/996', 't.me/evo', 'evo.kg', 'site.com', 'a.ru',
@@ -363,7 +426,7 @@ SELECT pg_temp.p4_assert(platform_private.ai_autosend_text_reason(repeat('а', 1
   AND platform_private.ai_autosend_text_reason('Учёба на онлайн-платформе, второй раунд набора.') IS NULL
   AND platform_private.ai_autosend_text_reason('Перечисленные документы нужны для визы; student visa and permit.') IS NULL
   AND platform_private.ai_autosend_text_reason('Офис в г.Бишкек. Учёба 1.5 года, т.е. три семестра.') IS NULL
-  AND (SELECT jsonb_array_length(platform_private.ai_autosend_patterns() -> 'stems')) = 64
+  AND (SELECT jsonb_array_length(platform_private.ai_autosend_patterns() -> 'stems')) = 71
   AND platform_private.ai_autosend_patterns() ->> 'maxLength' = '1000',
   'rules 7/13: 1001 characters, [n] markers; a question and look-alike words pass; one pattern source');
 SELECT pg_temp.p4_assert((SELECT array_agg(t.token || CASE WHEN t.pct THEN '%' ELSE '' END ORDER BY t.token)
@@ -770,16 +833,27 @@ SELECT pg_temp.p4_assert(:'c_a1'::JSONB ->> 'status' = 'shadow' AND (:'c_a1'::JS
 -- The final phrase, then silence (handed off) for the rest of the interval.
 SELECT pg_temp.p4_in(30, 'P4 клиент A: бакалавриат, хочу оплатить', 30) AS a2 \gset
 SELECT pg_temp.p4_decide(:'c_a', :'a2') AS d_a2 \gset
-SELECT pg_temp.p4_assert(pg_temp.p4_commit(:'d_a2', 'final_phrase', 'ru', 'Позвоним завтра.', NULL) ->> 'reasonCode' = 'phrase_mismatch',
-  'a final phrase must be the computed one');
+SELECT pg_temp.p4_assert(pg_temp.p4_code(pg_temp.p4_commit(:'d_a2', 'answer', 'ru', 'Какая страна вас интересует?', NULL,
+    'payment')) = '22023'
+  AND pg_temp.p4_code(pg_temp.p4_commit(:'d_a2', 'final_phrase', 'ru', 'Позвоним завтра.', NULL, 'Payment intent')) = '22023'
+  AND (pg_temp.p4_row(:'d_a2')).status = 'considering',
+  'commit: a reason code with an answer, or a malformed one with a final phrase, is 22023');
+SELECT pg_temp.p4_assert(pg_temp.p4_commit(:'d_a2', 'final_phrase', 'ru', 'Позвоним завтра.', NULL, 'payment')
+    ->> 'reasonCode' = 'phrase_mismatch'
+  AND (pg_temp.p4_row(:'d_a2')).final_reason_code = 'payment',
+  'a final phrase must be the computed one (the agent''s reason is kept on the skipped row)');
 SELECT pg_temp.p4_in(30, 'P4 клиент A: когда позвоните?', 25) AS a3 \gset
 SELECT pg_temp.p4_decide(:'c_a', :'a3') AS d_a3 \gset
 SELECT pg_temp.p4_commit(:'d_a3', 'final_phrase', 'ru',
   platform_private.ai_autosend_final_phrase(platform_private.ai_autosend_settings_row(pg_temp.p4_id(1)), 'ru', clock_timestamp()) ->> 'text',
-  NULL, NULL, '{"level":"бакалавриат","call_time":"после обеда"}') AS c_a3 \gset
+  NULL, 'call_request', '{"level":"бакалавриат","call_time":"после обеда"}') AS c_a3 \gset
 SELECT pg_temp.p4_assert(:'c_a3'::JSONB ->> 'status' = 'shadow' AND NOT (:'c_a3'::JSONB ->> 'disclosed')::BOOLEAN
-  AND (pg_temp.p4_row(:'d_a3')).call_date IS NOT NULL AND (pg_temp.p4_row(:'d_a3')).kind = 'final_phrase',
-  'the final phrase (no second disclosure line) records the call date');
+  AND (pg_temp.p4_row(:'d_a3')).call_date IS NOT NULL AND (pg_temp.p4_row(:'d_a3')).kind = 'final_phrase'
+  AND (pg_temp.p4_row(:'d_a3')).final_reason_code = 'call_request' AND (pg_temp.p4_row(:'d_a3')).reason_code IS NULL
+  AND (SELECT e ->> 'finalReasonCode' = 'call_request' AND e ->> 'reasonCode' IS NULL
+    FROM jsonb_array_elements(pg_temp.p4_staff(2, format('SELECT platform.ai_agent_autosend_log_v1(%L, %L)', pg_temp.p4_id(1),
+      jsonb_build_object('conversationId', :'c_a', 'status', 'shadow'))) -> 'items') e WHERE e ->> 'id' = :'d_a3'),
+  'the final phrase (no second disclosure line) records the call date and the agent''s reason (journal finalReasonCode)');
 SELECT pg_temp.p4_in(30, 'P4 клиент A: ещё вопрос', 20) AS a4 \gset
 SELECT pg_temp.p4_assert(pg_temp.p4_due(:'c_a', :'a4') ->> 'reasonCode' = 'handed_off'
   AND (pg_temp.p4_row((pg_temp.p4_due(:'c_a', :'a4') ->> 'decisionId')::UUID)).reason_ru
@@ -1113,6 +1187,35 @@ SELECT pg_temp.p4_assert(:'ctx_w2'::JSONB ->> 'action' = 'skip' AND :'ctx_w2'::J
   'off: context journals the skip and serves no message');
 UPDATE platform_private.ai_autosend_settings SET enabled = TRUE WHERE organization_id = pg_temp.p4_id(1);
 
+-- A 24/7 schedule and a long «on» date range on the real path (review of the
+-- private service): due takes the noon-to-noon interval, and commit finds the
+-- same one — the answer is not refused as outside_interval.
+SELECT pg_temp.p4_assert(pg_temp.p4_save(jsonb_build_object('schedule', pg_temp.p4_every_day('00:00', '00:00')), 3042)
+    ->> 'status' = 'saved', 'a 24/7 schedule (from = to every day) is saved');
+SELECT pg_temp.p4_in(100, 'P4 клиент: круглосуточно', 1) AS ww1 \gset
+SELECT pg_temp.p4_decide(pg_temp.p4_conv(100), :'ww1') AS d_ww1 \gset
+SELECT pg_temp.p4_commit(:'d_ww1', 'answer', 'ru', 'Какая страна вас интересует?', NULL) AS c_ww1 \gset
+SELECT pg_temp.p4_assert(pg_temp.p4_save(jsonb_build_object(
+    'schedule', (SELECT jsonb_object_agg(d, '[]'::JSONB) FROM unnest(ARRAY['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']) d),
+    'dateOverrides', jsonb_build_array(jsonb_build_object(
+      'from', to_char((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 20, 'YYYY-MM-DD'),
+      'to', to_char((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 10, 'YYYY-MM-DD'), 'mode', 'on'))), 3043)
+    ->> 'status' = 'saved', 'a long «on» date range that began 20 days ago is saved');
+SELECT pg_temp.p4_in(101, 'P4 клиент: праздники', 1) AS ww2 \gset
+SELECT pg_temp.p4_decide(pg_temp.p4_conv(101), :'ww2') AS d_ww2 \gset
+SELECT pg_temp.p4_commit(:'d_ww2', 'answer', 'ru', 'Какая страна вас интересует?', NULL) AS c_ww2 \gset
+SELECT pg_temp.p4_assert(pg_temp.p4_save(jsonb_build_object('schedule', :'sched_cover'::JSONB, 'dateOverrides', '[]'::JSONB),
+    3044) ->> 'status' = 'saved'
+  AND (platform_private.ai_autosend_window(platform_private.ai_autosend_settings_row(pg_temp.p4_id(1)), clock_timestamp())
+    ->> 'intervalStart')::TIMESTAMPTZ = :'i_start'::TIMESTAMPTZ,
+  'the test schedule is back (same interval as before)');
+SELECT pg_temp.p4_assert(bool_and(x.c ->> 'status' = 'shadow'
+    AND ((x.r).interval_start AT TIME ZONE 'Asia/Bishkek')::TIME = TIME '12:00'
+    AND (x.r).interval_end - (x.r).interval_start = INTERVAL '24 hours'
+    AND (x.r).interval_start <= (x.r).source_at AND (x.r).source_at < (x.r).interval_end),
+  'a 24/7 schedule and a long «on» range: the decision keeps its noon-to-noon interval from due to commit and is answered (not outside_interval)')
+FROM (VALUES (:'c_ww1'::JSONB, pg_temp.p4_row(:'d_ww1')), (:'c_ww2'::JSONB, pg_temp.p4_row(:'d_ww2'))) AS x(c, r);
+
 -- ---------------------------------------------------------------------------
 -- 6. The authorize column: the live-test chat L, end to end.
 -- ---------------------------------------------------------------------------
@@ -1129,6 +1232,21 @@ SELECT pg_temp.p4_assert(pg_temp.p4_commit(:'d_l0', 'answer', 'ru', 'Какая 
 SELECT pg_temp.p4_assert(pg_temp.p4_save(jsonb_build_object('liveTestConversationIds', jsonb_build_array(:'c_l')), 3100)
     ->> 'error' LIKE 'PT412:ai_autosend_shadow_nights_required%',
   'the live-test list is refused before three shadow nights');
+-- Shadow nights are distinct Bishkek nights, not intervals (review of #1168):
+-- two windows a day (evening and early morning) give three intervals in about
+-- a day and a half, but only two nights (an interval starting before 05:00
+-- belongs to the night before, as the final phrase's anchor).
+INSERT INTO platform_private.ai_autosend_summaries(organization_id, interval_start, interval_end, shadow_night, counts, items,
+  status)
+SELECT pg_temp.p4_id(1), x.s, x.s + INTERVAL '3 hours', TRUE, '{"considered": 1, "shadow": 1}', '[]', 'ready'
+FROM (SELECT ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 28 + TIME '20:00') AT TIME ZONE 'Asia/Bishkek' AS s
+  UNION ALL SELECT ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 27 + TIME '01:00') AT TIME ZONE 'Asia/Bishkek'
+  UNION ALL SELECT ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 27 + TIME '20:00') AT TIME ZONE 'Asia/Bishkek') x;
+SELECT pg_temp.p4_assert(platform_private.ai_autosend_shadow_nights(pg_temp.p4_id(1)) = 2
+  AND pg_temp.p4_save(jsonb_build_object('liveTestConversationIds', jsonb_build_array(:'c_l')), 3110)
+    ->> 'error' LIKE 'PT412:ai_autosend_shadow_nights_required%'
+  AND pg_temp.p4_staff(2, format('SELECT platform.ai_agent_autosend_v1(%L)', pg_temp.p4_id(1))) -> 'state' ->> 'shadowNights' = '2',
+  'three shadow intervals over two nights are two shadow nights: the live-test list is still refused');
 INSERT INTO platform_private.ai_autosend_summaries(organization_id, interval_start, interval_end, shadow_night, counts, items,
   status)
 SELECT pg_temp.p4_id(1), clock_timestamp() - (20 + g) * INTERVAL '1 day',
@@ -1470,8 +1588,157 @@ SELECT pg_temp.p4_assert((pg_temp.p4_staff(2, format('SELECT platform.ai_agent_a
   AND (pg_temp.p4_row(:'d_r13')).status = 'cancelled' AND (pg_temp.p4_row(:'d_r13')).reason_code = 'paused'
   AND pg_temp.p4_authorize(:'d_r13') ->> 'reason' = 'not_scheduled',
   'a pause applies even when an unclaimed item cannot be dead-lettered; the decision is cancelled');
+SELECT pg_temp.p4_assert(pg_temp.p4_taken_off(:'d_r13', 'paused')
+  AND EXISTS (SELECT 1 FROM platform_private.durable_work_dead_letters d
+    WHERE d.work_item_id = (pg_temp.p4_row(:'d_r13')).work_item_id AND d.evidence_ref = 'ai-autosend:paused:queue-row-missing')
+  AND EXISTS (SELECT 1 FROM platform_private.durable_work_events e WHERE e.work_item_id = (pg_temp.p4_row(:'d_r13')).work_item_id
+    AND e.event_type = 'dead_lettered' AND e.previous_state = 'queued'),
+  'an item whose PGMQ message is gone (nobody can claim it) is retired as dead_lettered without the archive: no queued attempt is left behind');
 SELECT pg_temp.p4_staff(2, format('SELECT platform.ai_agent_autosend_pause_v1(%L, %L, %s, %L)',
   pg_temp.p4_id(1), 'resume', pg_temp.p4_version(), pg_temp.p4_id(3109)));
+-- An authorize replay after an exclusion, a pause, the switch off, back to
+-- shadow or maintenance refuses: no second authorization or work item.
+SELECT pg_temp.p4_assert((SELECT bool_and(pg_temp.p4_authorize(d) = jsonb_build_object('authorized', FALSE,
+      'reason', 'not_scheduled', 'decisionId', d, 'status', 'cancelled'))
+    FROM unnest(ARRAY[:'d_r1', :'d_r5', :'d_r6', :'d_r7', :'d_r9', :'d_r10', :'d_r11', :'d_r12', :'d_r13']::UUID[]) d)
+  AND (SELECT count(*) = 9 FROM platform.manual_send_authorizations a
+    JOIN platform_private.durable_work_items i ON i.organization_id = a.organization_id AND i.manual_send_authorization_id = a.id
+    WHERE a.ai_autosend_decision_id IN (:'d_r1', :'d_r5', :'d_r6', :'d_r7', :'d_r9', :'d_r10', :'d_r11', :'d_r12', :'d_r13')
+      AND i.state = 'dead_lettered'),
+  'replay after exclusion, pause, disable, shadow and maintenance: refused (not_scheduled), one authorization and one dead work item each');
+-- The replay re-checks the switches itself, whatever wrote them: a pause, the
+-- switch off, an exclusion or shadow mode set without the cleanup refuse a
+-- replay inside the 60 s and take the work off the queue.
+SELECT pg_temp.p4_live(102, 'R16', 6116) AS d_r16 \gset
+UPDATE platform_private.ai_autosend_settings SET pause_code = 'manual', pause_by_kind = 'user', paused_at = clock_timestamp(),
+  paused_by = pg_temp.p4_id(302) WHERE organization_id = pg_temp.p4_id(1);
+SELECT pg_temp.p4_authorize(:'d_r16') AS rp_r16 \gset
+UPDATE platform_private.ai_autosend_settings SET pause_code = NULL, pause_by_kind = NULL, paused_at = NULL, paused_by = NULL
+  WHERE organization_id = pg_temp.p4_id(1);
+SELECT pg_temp.p4_live(103, 'R17', 6117) AS d_r17 \gset
+UPDATE platform_private.ai_autosend_settings SET enabled = FALSE WHERE organization_id = pg_temp.p4_id(1);
+SELECT pg_temp.p4_authorize(:'d_r17') AS rp_r17 \gset
+UPDATE platform_private.ai_autosend_settings SET enabled = TRUE WHERE organization_id = pg_temp.p4_id(1);
+SELECT pg_temp.p4_live(104, 'R18', 6118) AS d_r18 \gset
+INSERT INTO platform_private.ai_autosend_exclusions(conversation_id, organization_id, created_by)
+  VALUES (pg_temp.p4_conv(104), pg_temp.p4_id(1), pg_temp.p4_id(302));
+SELECT pg_temp.p4_authorize(:'d_r18') AS rp_r18 \gset
+SELECT pg_temp.p4_live(105, 'R19', 6119) AS d_r19 \gset
+UPDATE platform_private.ai_autosend_settings SET shadow_mode = TRUE WHERE organization_id = pg_temp.p4_id(1);
+SELECT pg_temp.p4_authorize(:'d_r19') AS rp_r19 \gset
+UPDATE platform_private.ai_autosend_settings SET shadow_mode = FALSE WHERE organization_id = pg_temp.p4_id(1);
+SELECT pg_temp.p4_assert(:'rp_r16'::JSONB ->> 'reason' = 'paused' AND pg_temp.p4_taken_off(:'d_r16', 'paused')
+  AND :'rp_r17'::JSONB ->> 'reason' = 'disabled' AND pg_temp.p4_taken_off(:'d_r17', 'disabled')
+  AND :'rp_r18'::JSONB ->> 'reason' = 'excluded' AND pg_temp.p4_taken_off(:'d_r18', 'excluded')
+  AND :'rp_r19'::JSONB ->> 'reason' = 'shadow_mode' AND pg_temp.p4_taken_off(:'d_r19', 'shadow_mode')
+  AND NOT (:'rp_r16'::JSONB ->> 'authorized')::BOOLEAN AND NOT (:'rp_r19'::JSONB ->> 'authorized')::BOOLEAN,
+  'a replay within 60 s refuses on its own re-check after a pause, the switch off, an exclusion or shadow mode (no cleanup needed)');
+-- A cancelled decision whose work item stayed queued (a cleanup that could
+-- not take it off): the chat stays «staff active» until maintenance takes the
+-- work off — through the dead letter while its PGMQ message is there,
+-- directly when it is gone.
+SELECT pg_temp.p4_live(106, 'R20', 6120) AS d_r20 \gset
+SELECT pg_temp.p4_live(107, 'R21', 6121) AS d_r21 \gset
+DELETE FROM pgmq.q_platform_work_v1 q USING platform_private.durable_work_items i
+  WHERE i.id = (pg_temp.p4_row(:'d_r21')).work_item_id AND q.msg_id = i.queue_message_id;
+UPDATE platform_private.ai_autosend_log SET status = 'cancelled', reason_code = 'paused',
+  reason_ru = platform_private.ai_autosend_reason_ru('paused'), finished_at = clock_timestamp()
+  WHERE id IN (:'d_r20', :'d_r21');
+SELECT pg_temp.p4_in(107, 'P4 клиент R21: ещё', 3) AS r21b \gset
+SELECT pg_temp.p4_assert(pg_temp.p4_due(pg_temp.p4_conv(107), :'r21b') ->> 'reasonCode' = 'staff_active'
+  AND (SELECT bool_and(i.state = 'queued') FROM platform_private.durable_work_items i
+    WHERE i.id IN ((pg_temp.p4_row(:'d_r20')).work_item_id, (pg_temp.p4_row(:'d_r21')).work_item_id)),
+  'a cancelled decision whose work stayed queued keeps its chat «staff active»');
+SELECT pg_temp.p4_agent('SELECT platform_ai_agent.maintenance_v1()') AS mnt_r21 \gset
+SELECT pg_temp.p4_in(107, 'P4 клиент R21: третье', 2) AS r21c \gset
+SELECT pg_temp.p4_assert((:'mnt_r21'::JSONB ->> 'autosendCancelledWorkRetired')::INTEGER = 2
+  AND pg_temp.p4_taken_off(:'d_r20', 'paused') AND pg_temp.p4_taken_off(:'d_r21', 'paused')
+  AND (SELECT d.evidence_ref = 'ai-autosend:paused' FROM platform_private.durable_work_dead_letters d
+    WHERE d.work_item_id = (pg_temp.p4_row(:'d_r20')).work_item_id)
+  AND (SELECT d.evidence_ref = 'ai-autosend:paused:queue-row-missing' FROM platform_private.durable_work_dead_letters d
+    WHERE d.work_item_id = (pg_temp.p4_row(:'d_r21')).work_item_id)
+  AND pg_temp.p4_due(pg_temp.p4_conv(107), :'r21c') ->> 'status' = 'considering'
+  AND (pg_temp.p4_agent('SELECT platform_ai_agent.maintenance_v1()') ->> 'autosendCancelledWorkRetired')::INTEGER = 0,
+  'maintenance takes the queued work of a cancelled decision off (dead letter, or directly without its PGMQ message); the chat answers again; once');
+-- An authorized decision whose outcome was never recorded (the CRM died
+-- between claim and record): ten minutes after the work finished or its lease
+-- ran out, maintenance closes the decision from the work state — sent,
+-- failed, unknown — and never touches the work again (no claim, no attempt,
+-- no resend). Sooner, the decision stays authorized (the CRM may still record).
+CREATE FUNCTION pg_temp.p4_claimed(p_chat INTEGER, p_label TEXT, p_request INTEGER) RETURNS JSONB LANGUAGE plpgsql AS $$
+DECLARE v_decision UUID := pg_temp.p4_live(p_chat, p_label, p_request); v_claim JSONB;
+BEGIN
+  v_claim := pg_temp.p4_service(format('SELECT platform.claim_manual_whatsapp_send_item(%L, %L, 3600, %L, %L)',
+    pg_temp.p4_id(1), (pg_temp.p4_row(v_decision)).work_item_id, 'ai-autosend', pg_temp.p4_wid(p_request + 100)));
+  IF NOT COALESCE((v_claim ->> 'claimed')::BOOLEAN, FALSE) THEN
+    RAISE EXCEPTION 'P4: % was not claimed: %', p_label, v_claim;
+  END IF;
+  RETURN v_claim || jsonb_build_object('decisionId', v_decision);
+END
+$$;
+CREATE FUNCTION pg_temp.p4_finish(p_claim JSONB, p_outcome TEXT, p_code TEXT, p_provider TEXT, p_request INTEGER)
+RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.p4_service(format('SELECT platform.finish_manual_whatsapp_send(%L, %L, %L, %L, %L, %L, %L, %L, %L)',
+    pg_temp.p4_id(1), p_claim ->> 'work_item_id', p_claim ->> 'attempt_id',
+    (pg_temp.p4_row((p_claim ->> 'decisionId')::UUID)).manual_send_authorization_id, p_outcome, p_code, p_provider,
+    CASE WHEN p_provider IS NOT NULL THEN clock_timestamp() END, pg_temp.p4_wid(p_request)))
+$$;
+SELECT pg_temp.p4_claimed(108, 'S1', 6130) AS cl_s1 \gset
+SELECT pg_temp.p4_claimed(109, 'S2', 6131) AS cl_s2 \gset
+SELECT pg_temp.p4_claimed(110, 'S3', 6132) AS cl_s3 \gset
+SELECT pg_temp.p4_finish(:'cl_s3', 'succeeded', NULL, 'true_79967700110@c.us_AI277RECON00000001', 6142) ->> 'state' AS fin_s3 \gset
+SELECT pg_temp.p4_claimed(111, 'S4', 6133) AS cl_s4 \gset
+SELECT pg_temp.p4_finish(:'cl_s4', 'terminal_error', 'message_rejected', NULL, 6143) ->> 'state' AS fin_s4 \gset
+SELECT pg_temp.p4_claimed(112, 'S5', 6134) AS cl_s5 \gset
+SELECT pg_temp.p4_finish(:'cl_s5', 'unknown_result', 'provider_timeout', NULL, 6144) ->> 'state' AS fin_s5 \gset
+SELECT pg_temp.p4_claimed(113, 'S6', 6135) AS cl_s6 \gset
+SELECT pg_temp.p4_finish(:'cl_s6', 'succeeded', NULL, 'true_79967700113@c.us_AI277RECON00000002', 6145) ->> 'state' AS fin_s6 \gset
+SELECT pg_temp.p4_assert(:'fin_s3' = 'succeeded' AND :'fin_s4' = 'dead_lettered' AND :'fin_s5' = 'unknown_manual_review'
+  AND :'fin_s6' = 'succeeded',
+  'the six works: two leased, three finished (succeeded, rejected, unknown), one just finished');
+-- The CRM died: S1's lease ran out 11 minutes ago, S2's 5 minutes ago; S3–S5
+-- finished 11 minutes ago without a record, S6 a moment ago.
+UPDATE platform_private.durable_work_items SET leased_until = clock_timestamp() - INTERVAL '11 minutes'
+  WHERE id = (:'cl_s1'::JSONB ->> 'work_item_id')::UUID;
+UPDATE platform_private.durable_work_items SET leased_until = clock_timestamp() - INTERVAL '5 minutes'
+  WHERE id = (:'cl_s2'::JSONB ->> 'work_item_id')::UUID;
+UPDATE platform_private.durable_work_items SET completed_at = clock_timestamp() - INTERVAL '11 minutes'
+  WHERE id IN ((:'cl_s3'::JSONB ->> 'work_item_id')::UUID, (:'cl_s4'::JSONB ->> 'work_item_id')::UUID,
+    (:'cl_s5'::JSONB ->> 'work_item_id')::UUID);
+CREATE TEMP TABLE p4_work_before AS SELECT i.id, i.state, i.attempt_count, i.leased_until, i.completed_at,
+  (SELECT count(*) FROM platform_private.durable_work_attempts a WHERE a.work_item_id = i.id) AS attempts
+  FROM platform_private.durable_work_items i
+  WHERE i.id IN (SELECT (c ->> 'work_item_id')::UUID FROM unnest(ARRAY[:'cl_s1', :'cl_s2', :'cl_s3', :'cl_s4', :'cl_s5',
+    :'cl_s6']::JSONB[]) c);
+SELECT pg_temp.p4_agent('SELECT platform_ai_agent.maintenance_v1()') AS mnt_s \gset
+SELECT pg_temp.p4_assert((:'mnt_s'::JSONB ->> 'autosendAuthorizedReconciled')::INTEGER = 4
+  AND (SELECT r.status = 'unknown' AND r.outcome_code = 'lease_expired'
+    FROM pg_temp.p4_row((:'cl_s1'::JSONB ->> 'decisionId')::UUID) r)
+  AND (pg_temp.p4_row((:'cl_s2'::JSONB ->> 'decisionId')::UUID)).status = 'authorized'
+  AND (SELECT r.status = 'sent' AND r.outcome_code IS NULL FROM pg_temp.p4_row((:'cl_s3'::JSONB ->> 'decisionId')::UUID) r)
+  AND (SELECT r.status = 'failed' AND r.outcome_code = 'send_failed'
+    FROM pg_temp.p4_row((:'cl_s4'::JSONB ->> 'decisionId')::UUID) r)
+  AND (SELECT r.status = 'unknown' AND r.outcome_code = 'send_unknown'
+    FROM pg_temp.p4_row((:'cl_s5'::JSONB ->> 'decisionId')::UUID) r)
+  AND (pg_temp.p4_row((:'cl_s6'::JSONB ->> 'decisionId')::UUID)).status = 'authorized'
+  AND NOT EXISTS (SELECT 1 FROM p4_work_before b JOIN platform_private.durable_work_items i ON i.id = b.id
+    WHERE (i.state, i.attempt_count, i.leased_until, i.completed_at) IS DISTINCT FROM
+      (b.state, b.attempt_count, b.leased_until, b.completed_at)
+      OR (SELECT count(*) FROM platform_private.durable_work_attempts a WHERE a.work_item_id = i.id) <> b.attempts)
+  AND (SELECT count(*) = 4 FROM platform.audit_events e WHERE e.action = 'ai.agent.autosend.reconcile'
+    AND e.actor_kind = 'system' AND e.organization_id = pg_temp.p4_id(1) AND NOT e.after_state::TEXT LIKE '%P4 клиент%'
+    AND NOT e.after_state::TEXT LIKE '%страна%'),
+  'maintenance closes authorized decisions from their work 10 minutes on: lease ran out → unknown, succeeded → sent, rejected → failed, unknown review → unknown; younger ones wait; the work is untouched; audited without text');
+SELECT pg_temp.p4_assert(pg_temp.p4_authorize((:'cl_s1'::JSONB ->> 'decisionId')::UUID) ->> 'decision_status' = 'unknown'
+  AND (pg_temp.p4_authorize((:'cl_s1'::JSONB ->> 'decisionId')::UUID) ->> 'replayed')::BOOLEAN
+  AND (pg_temp.p4_service(format('SELECT platform.ai_autosend_record_v1(%L, %L, %L, %L, %L)', pg_temp.p4_id(1),
+    :'cl_s4'::JSONB ->> 'decisionId', 'failed', 'send_failed', gen_random_uuid())) ->> 'replayed')::BOOLEAN
+  AND pg_temp.p4_code(pg_temp.p4_service(format('SELECT platform.ai_autosend_record_v1(%L, %L, %L, %L, %L)', pg_temp.p4_id(1),
+    :'cl_s1'::JSONB ->> 'decisionId', 'failed', 'send_failed', gen_random_uuid()))) = 'PT409'
+  AND (pg_temp.p4_agent('SELECT platform_ai_agent.maintenance_v1()') ->> 'autosendAuthorizedReconciled')::INTEGER = 0
+  AND (SELECT count(*) = 6 FROM platform_private.durable_work_attempts a
+    WHERE a.work_item_id IN (SELECT id FROM p4_work_before)),
+  'after the close: a CRM replay reads it as finished (no claim), the CRM''s own late record replays or conflicts (409), maintenance closes once, no new attempt');
 SELECT pg_temp.p4_sched(pg_temp.p4_conv(55), :'u5') AS d_u5 \gset
 UPDATE platform_private.ai_autosend_settings SET shadow_mode = TRUE WHERE organization_id = pg_temp.p4_id(1);
 SELECT pg_temp.p4_assert(pg_temp.p4_authorize(:'d_u5') ->> 'reason' = 'shadow_mode',

@@ -12,6 +12,7 @@ import {
 import * as routeContract from "../src/lib/platform-route-contract.ts";
 import * as orchestrator from "../src/lib/server/platform-provider-orchestrator.ts";
 import * as workflows from "../src/lib/platform-provider-workflows.ts";
+import { settingsIntegrations } from "../src/lib/v3/settings-health.ts";
 
 /*
  * ИИ-агент P1, срез 6 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §5.6, §14):
@@ -137,6 +138,20 @@ test("the U9 Gemini proposal path is gone while the manual WhatsApp send path st
     assert.equal(typeof workflows[name], "function", name);
   }
   assert.equal(workflows.PLATFORM_WAHA_BASE_URL, "http://evo-crm-waha:3000");
+});
+
+test("«Настройки → Интеграции» names what the CRM Gemini key still does, not reply drafts", () => {
+  // Ключ CRM распознаёт документы; черновики ответов — в evo-ai-agent со своим ключом (ADR 0032).
+  const now = new Date("2026-10-06T06:00:00.000Z");
+  for (const gemini of ["not_configured", "configured_not_verified", "blocked", "ready"]) {
+    const row = settingsIntegrations({
+      waha: { display: "not_configured", sessionStatus: undefined, observedAt: null },
+      gemini,
+      amo: { status: "blocked", reason: "configuration_missing" },
+    }, now).find((item) => item.key === "gemini");
+    assert.equal(row.name, "Gemini · распознавание документов", gemini);
+    assert.doesNotMatch(`${row.name} ${row.detail ?? ""} ${row.without ?? ""}`, /черновик|ответ/iu, gemini);
+  }
 });
 
 test("the seed runbook seeds only through the admin RPC and trashes the folder reversibly", () => {

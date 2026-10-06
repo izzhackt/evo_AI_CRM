@@ -28,7 +28,8 @@
 --  5. шаг 4 делает текущую неподтверждённую версию правил source seed в
 --     порядке «Правила ответов», «Продажи и ответы»;
 --  6. проверка (шаг 5) видит ровно эти числа; охрана блока останавливает
---     вызов при неверном числе страниц и при claims не-admin;
+--     вызов при неверном числе страниц и при claims не-admin, а охрана
+--     шага 4 — ещё и когда в «Правилах общения» уже есть версия;
 --  7. корзина папки «ИИ-ассистент» (kb_command_v1 trash — то, что делает
 --     кнопка «В корзину») кладёт все узлы одним batch, копии остаются,
 --     повторное копирование из корзины отклоняется, «Восстановить»
@@ -470,6 +471,8 @@ FROM allow
 WHERE root = 'ИИ-ассистент' AND sub IN ('Правила ответов', 'Продажи и ответы')
 ), TRUE);
 SELECT set_config('evo.seed_expected', :'expected', TRUE);
+SELECT set_config('evo.seed_rules_versions', (SELECT count(*) FROM platform_private.ai_rules_versions r
+  WHERE r.organization_id = :'org')::TEXT, TRUE);
 DO $guard$
 BEGIN
   IF (current_setting('request.jwt.claims')::JSONB ->> 'platform_role') IS DISTINCT FROM 'admin' THEN
@@ -478,6 +481,10 @@ BEGIN
   IF cardinality(current_setting('evo.seed_nodes')::UUID[]) IS DISTINCT FROM current_setting('evo.seed_expected')::INTEGER THEN
     RAISE EXCEPTION 'seed stopped: % pages selected, % expected',
       cardinality(current_setting('evo.seed_nodes')::UUID[]), current_setting('evo.seed_expected');
+  END IF;
+  IF current_setting('evo.seed_rules_versions')::INTEGER <> 0 THEN
+    RAISE EXCEPTION 'seed stopped: % rules versions already exist, the seed would replace the current rules',
+      current_setting('evo.seed_rules_versions');
   END IF;
 END
 $guard$;
@@ -554,6 +561,46 @@ END
 $guard$$rb$) LIKE 'P0001:seed stopped: the claims are not an EVO admin%',
   'claims of a staff member who is not an Admin stop the block');
 SELECT set_config('request.jwt.claims', pg_temp.rb_claims(101), TRUE);
+-- Step 4 writes only into empty «Правила общения»: rules saved earlier (by
+-- any staff member with ai.agent.manage, or by step 4 itself) stop the block,
+-- even with the right page count and Admin claims.
+SELECT set_config('evo.seed_nodes', ARRAY[pg_temp.rb_id(814), pg_temp.rb_id(816)]::TEXT, TRUE),
+  set_config('evo.seed_expected', '2', TRUE);
+SELECT set_config('evo.seed_rules_versions', (SELECT count(*) FROM platform_private.ai_rules_versions r
+  WHERE r.organization_id = :'org')::TEXT, TRUE);
+SELECT pg_temp.rb_assert(pg_temp.rb_err($rb$DO $guard$
+BEGIN
+  IF (current_setting('request.jwt.claims')::JSONB ->> 'platform_role') IS DISTINCT FROM 'admin' THEN
+    RAISE EXCEPTION 'seed stopped: the claims are not an EVO admin';
+  END IF;
+  IF cardinality(current_setting('evo.seed_nodes')::UUID[]) IS DISTINCT FROM current_setting('evo.seed_expected')::INTEGER THEN
+    RAISE EXCEPTION 'seed stopped: % pages selected, % expected',
+      cardinality(current_setting('evo.seed_nodes')::UUID[]), current_setting('evo.seed_expected');
+  END IF;
+  IF current_setting('evo.seed_rules_versions')::INTEGER <> 0 THEN
+    RAISE EXCEPTION 'seed stopped: % rules versions already exist, the seed would replace the current rules',
+      current_setting('evo.seed_rules_versions');
+  END IF;
+END
+$guard$$rb$) LIKE 'P0001:seed stopped: 1 rules versions already exist, the seed would replace the current rules%',
+  'existing rules versions stop step 4 before the call');
+SELECT set_config('evo.seed_rules_versions', '0', TRUE);
+SELECT pg_temp.rb_assert(pg_temp.rb_err($rb$DO $guard$
+BEGIN
+  IF (current_setting('request.jwt.claims')::JSONB ->> 'platform_role') IS DISTINCT FROM 'admin' THEN
+    RAISE EXCEPTION 'seed stopped: the claims are not an EVO admin';
+  END IF;
+  IF cardinality(current_setting('evo.seed_nodes')::UUID[]) IS DISTINCT FROM current_setting('evo.seed_expected')::INTEGER THEN
+    RAISE EXCEPTION 'seed stopped: % pages selected, % expected',
+      cardinality(current_setting('evo.seed_nodes')::UUID[]), current_setting('evo.seed_expected');
+  END IF;
+  IF current_setting('evo.seed_rules_versions')::INTEGER <> 0 THEN
+    RAISE EXCEPTION 'seed stopped: % rules versions already exist, the seed would replace the current rules',
+      current_setting('evo.seed_rules_versions');
+  END IF;
+END
+$guard$$rb$) = 'ok',
+  'with no rules versions the step 4 guard lets the call through');
 
 -- ---------------------------------------------------------------------------
 -- Step 6: «В корзину» on the folder (the knowledge UI sends kb_command_v1

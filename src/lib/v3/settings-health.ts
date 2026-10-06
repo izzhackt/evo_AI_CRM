@@ -148,18 +148,23 @@ function whatsappRow(waha: SettingsIntegrationFacts["waha"], now: Date): Integra
   };
 }
 
+/**
+ * Ключ Gemini CRM (`EVO_PLATFORM_GEMINI_API_KEY`) распознаёт документы студентов.
+ * Черновики ответов делает отдельная служба evo-ai-agent со своим ключом
+ * (ADR 0032) — эта строка о них не говорит.
+ */
 function geminiRow(display: ProviderDisplayStatus): IntegrationRow {
-  const base = { key: "gemini", name: "Gemini · черновики ответов", checkedAt: null, checkedText: null, checkable: false } as const;
+  const base = { key: "gemini", name: "Gemini · распознавание документов", checkedAt: null, checkedText: null, checkable: false } as const;
   if (display === "configured_not_verified") {
     return {
       ...base, state: "настроен, не проверен", tone: "warn", detail: null,
-      without: "Черновики ответов могут не появляться", action: handoff("проверить работу сервиса на сервере"), blocksWork: false,
+      without: "Распознавание документов может не работать", action: handoff("проверить работу сервиса на сервере"), blocksWork: false,
     };
   }
   if (display === "blocked") {
     return {
       ...base, state: "заблокирован", tone: "blocked", detail: "Параметры подключения некорректны.",
-      without: "Черновики ответов AI не создаются", action: FIX_PARAMETERS, blocksWork: true,
+      without: "Документы не распознаются", action: FIX_PARAMETERS, blocksWork: true,
     };
   }
   if (display === "ready") {
@@ -167,7 +172,7 @@ function geminiRow(display: ProviderDisplayStatus): IntegrationRow {
   }
   return {
     ...base, state: settingsStatusWords.unused, tone: "off", detail: null,
-    without: "Черновики ответов AI не предлагаются", action: null, blocksWork: false,
+    without: "Документы не распознаются автоматически", action: null, blocksWork: false,
   };
 }
 

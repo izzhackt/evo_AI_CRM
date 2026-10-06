@@ -11,8 +11,10 @@
 #   npm run test:waha-history-import:postgres
 #
 # Phases (each is one CLI run, the database is asserted in between): preview
-# (writes nothing), pilot (--only-chats-file), an interrupted full run (paused),
-# its resume (--resume), and a re-run (idempotent) plus a dry run (nothing left).
+# (writes nothing), the pilot's dry run and the pilot (one chat of every shape:
+# ordinary, outbound-only, @lid, several pages; --only-chats-file behind
+# --max-chats 6), an interrupted full run (paused), its resume (--resume), and a
+# re-run (idempotent) plus a dry run (nothing left).
 # The flags are the owner's go-live choice from the runbook: --include-outbound-only
 # on every command (chats where only the sales phone wrote are imported too) and
 # --all-chats behind the reviewed preview file (no personal chats to exclude).
@@ -294,18 +296,33 @@ expect_field "$cli_out" totals.chats_multi_page 1 "preview: the 260-message chat
 expect_sql "SELECT count(*) FROM platform_private.waha_history_reconciliation_runs WHERE organization_id = '$org'" 0 "preview created a run"
 [[ "$(conversation_count)" == "0" && "$(message_count)" == "0" && "$(history_count)" == "0" ]] || die "preview wrote data"
 
-step "pilot: one chat with --only-chats-file"
+step "pilot dry run: one chat of every shape (ordinary, outbound-only, @lid, several pages), behind --max-chats 6"
+run_phase 0 pilotdry
+expect_field "$cli_out" mode apply-dry-run "pilot dry run"
+expect_field "$cli_out" selection.only_list true "pilot dry run"
+expect_field "$cli_out" selection.max_chats 6 "pilot dry run"
+expect_field "$cli_out" totals.chats_selected 4 "pilot dry run selects the four listed chats"
+expect_field "$cli_out" totals.by_outcome.import_new 4 "pilot dry run: all four would be imported"
+expect_field "$cli_out" totals.chats_multi_page 1 "pilot dry run: the long chat has several pages"
+[[ "$(conversation_count)" == "0" && "$(message_count)" == "0" && "$(history_count)" == "0" ]] || die "the pilot dry run wrote data"
+expect_sql "SELECT count(*) FROM platform_private.waha_history_reconciliation_runs WHERE organization_id = '$org'" 0 "the pilot dry run created a run"
+
+step "pilot: the same four chats with --only-chats-file and --max-chats 6"
 run_phase 0 pilot
 expect_field "$cli_out" state completed "pilot"
-expect_field "$cli_out" totals.chats_imported 1 "pilot"
-expect_field "$cli_out" totals.projected 4 "pilot projected (the CRM API send is not imported)"
-[[ "$(conversation_count)" == "1" && "$(message_count)" == "4" ]] || die "pilot did not create exactly one conversation with four messages"
-expect_sql "SELECT count(*) FROM platform.communication_messages WHERE organization_id = '$org' AND message_identity_source = 'private_waha_history_binding'" 4 "pilot identity source"
-expect_sql "SELECT count(*) FROM platform_private.provider_webhook_events WHERE organization_id = '$org' AND event_type = 'history.message' AND verification_status = 'missing' AND verification_headers ->> 'provenance' = 'api_history' AND verification_headers -> 'webhook_verified' = 'false'::jsonb" 4 "pilot evidence rows are history, never verified"
+expect_field "$cli_out" totals.chats_imported 4 "pilot"
+# A 4 (the CRM API send is not imported) + C 2 (outbound-only) + LID1 2 + E 260 (several pages)
+expect_field "$cli_out" totals.projected 268 "pilot projected"
+expect_field "$cli_out" totals.deferred_phone_sent_found 0 "pilot: no deferred phone-sent message exists in this database"
+[[ "$(conversation_count)" == "4" && "$(message_count)" == "268" ]] || die "pilot did not create exactly four conversations with 268 messages"
+expect_sql "SELECT count(*) FROM platform.communication_messages WHERE organization_id = '$org' AND message_identity_source = 'private_waha_history_binding'" 268 "pilot identity source"
+expect_sql "SELECT count(*) FROM platform_private.provider_webhook_events WHERE organization_id = '$org' AND event_type = 'history.message' AND verification_status = 'missing' AND verification_headers ->> 'provenance' = 'api_history' AND verification_headers -> 'webhook_verified' = 'false'::jsonb" 268 "pilot evidence rows are history, never verified"
 expect_sql "SELECT count(*) FROM platform_private.provider_webhook_events WHERE organization_id = '$org' AND verification_status = 'verified'" 0 "a verified event was written by the import"
 expect_sql "SELECT count(*) FROM platform.clients WHERE organization_id = '$org'" 0 "the import created a client"
 expect_sql "SELECT count(*) FROM platform.leads WHERE organization_id = '$org'" 0 "the import created a lead"
-expect_sql "SELECT (SELECT c.created_at = min(m.created_at) FROM platform.communication_messages m WHERE m.conversation_id = c.id) FROM platform.communication_conversations c WHERE c.organization_id = '$org'" t "the conversation carries the WhatsApp time, not the import time"
+expect_sql "SELECT bool_and((SELECT c.created_at = min(m.created_at) FROM platform.communication_messages m WHERE m.conversation_id = c.id)) FROM platform.communication_conversations c WHERE c.organization_id = '$org'" t "every conversation carries the WhatsApp time, not the import time"
+expect_sql "SELECT count(*) FROM platform_private.waha_direct_chat_bindings WHERE organization_id = '$org' AND normalized_chat_id IN ('15550000101@c.us', '15550000103@c.us', '15550000106@c.us', '900000000000101@lid')" 4 "the pilot imported exactly the four listed chats (A, C, E, LID1)"
+expect_sql "SELECT count(*) FROM platform.communication_messages m JOIN platform_private.waha_direct_chat_bindings b ON b.conversation_id = m.conversation_id WHERE b.normalized_chat_id = '15550000103@c.us' AND m.direction = 'inbound'" 0 "the pilot's outbound-only chat has no customer message"
 expect_sql "SELECT count(*) FROM platform.audit_events WHERE organization_id = '$org' AND action = 'communication.waha.history.begin'" 1 "pilot begin audit"
 
 step "interrupted full run (--all-chats --include-outbound-only): paused, partly imported"

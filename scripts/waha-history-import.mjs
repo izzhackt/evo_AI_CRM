@@ -4,9 +4,9 @@
 // database lane (migration 260) is part 1. Runbook: docs/runbooks/whatsapp-history-import.md
 //
 //   docker exec -i evo-crm-app-1 node scripts/waha-history-import.mjs sync-status --working-since <ISO> --watch
-//   docker exec -i evo-crm-app-1 node scripts/waha-history-import.mjs preview --window-to <ISO> --out /tmp/history-preview.jsonl
-//   docker exec -i evo-crm-app-1 node scripts/waha-history-import.mjs apply --window-to <ISO> --only-chats-file /tmp/pilot.txt
-//   docker exec -i evo-crm-app-1 node scripts/waha-history-import.mjs apply --window-to <ISO> --exclude-chats-file /tmp/personal.txt --preview-file /tmp/history-preview.jsonl
+//   docker exec -i evo-crm-app-1 node scripts/waha-history-import.mjs preview --window-to <ISO> --include-outbound-only --out /tmp/history-preview.jsonl
+//   docker exec -i evo-crm-app-1 node scripts/waha-history-import.mjs apply --window-to <ISO> --include-outbound-only --only-chats-file /tmp/pilot.txt --max-chats 6
+//   docker exec -i evo-crm-app-1 node scripts/waha-history-import.mjs apply --window-to <ISO> --include-outbound-only --all-chats --preview-file /tmp/history-preview.jsonl
 //
 // It runs INSIDE the app container and reads the Supabase credentials the app
 // already has. The WAHA API key is taken from the Vault runtime binding through
@@ -25,9 +25,10 @@
 //    personal data is the `preview` file (mode 0600, created exclusively, to be
 //    deleted after the review).
 //  * The import cannot be undone inside the app (migration 260), hence: preview,
-//    owner review, a pilot of a few chats, then the rest. `apply` refuses to run
-//    without an explicit selection (--only-chats-file, --exclude-chats-file,
-//    --max-chats or --all-chats).
+//    a pilot of a few chats the operator picked from it (one or two of every
+//    shape: ordinary, outbound-only, @lid, several pages), then the rest.
+//    `apply` refuses to run without an explicit selection (--only-chats-file,
+//    --exclude-chats-file or --all-chats; --max-chats only trims a list).
 //  * Zero dependencies: only node: built-ins, so the file is copied into the
 //    runner image as is (see Dockerfile).
 //
@@ -1726,7 +1727,7 @@ export async function previewCommand({
         by_outcome: sortedObject(totals.by_outcome),
         skipped: sortedObject(totals.skipped),
       },
-      next: "owner reviews the file, marks personal chats, then delete the file",
+      next: "pick the pilot chats from the file (runbook step 2), then delete the file after the run",
     },
     exitCode: 0,
   });
@@ -1771,6 +1772,13 @@ function newApplyTotals() {
     projected_outbound: 0,
     projected_media: 0,
     already_bound: 0,
+    // Phone-sent messages the live projection deferred (a chat without a
+    // conversation) that the import found, added to the conversation it created,
+    // and could not add (only the 200 most recent are projected). They are NOT
+    // part of `projected`: compare `projected` with the preview, then add these.
+    deferred_phone_sent_found: 0,
+    deferred_phone_sent_imported: 0,
+    deferred_phone_sent_dropped: 0,
     messages_dropped_oversize: 0,
     by_outcome: {},
     skipped: {},
@@ -1785,8 +1793,16 @@ function validatePageResponse(value) {
       : "unknown";
   const skipped = {};
   addCounts(skipped, value.skipped);
+  // Present only when the page created the conversation and found deferred
+  // phone-sent messages of that chat (migration 260 -> 259 backfill).
+  const deferred = isObject(value.deferred_phone_sent) ? value.deferred_phone_sent : {};
   return {
     outcome,
+    deferredPhoneSent: {
+      found: numberOrZero(deferred.deferred),
+      imported: numberOrZero(deferred.projected),
+      dropped: numberOrZero(deferred.dropped),
+    },
     conversationCreated: value.conversation_created === true,
     projected: numberOrZero(value.projected),
     projectedInbound: numberOrZero(value.projected_inbound),
@@ -2141,6 +2157,9 @@ async function runImport({
       totals.projected_outbound += result.projectedOutbound;
       totals.projected_media += result.projectedMedia;
       totals.already_bound += result.alreadyBound;
+      totals.deferred_phone_sent_found += result.deferredPhoneSent.found;
+      totals.deferred_phone_sent_imported += result.deferredPhoneSent.imported;
+      totals.deferred_phone_sent_dropped += result.deferredPhoneSent.dropped;
       if (result.conversationCreated) totals.conversations_created += 1;
       addCounts(totals.skipped, result.skipped);
       if (result.outcome === "import_new" || result.outcome === "import_existing") {
@@ -2236,8 +2255,9 @@ tuning:     --page-size N (database page, 1-500, default ${DEFAULT_RPC_PAGE_SIZE
             --waha-slice-seconds N (default ${DEFAULT_WAHA_SLICE_SECONDS})  --waha-pause-ms N  --rpc-pause-ms N  --max-window-messages N
 
 Read-only against WAHA (GET only, downloadMedia=false; GOWS engine). The history
-cannot be removed from the CRM afterwards: run preview, review it, pilot with
---only-chats-file with refs the owner chose, then import the rest.
+cannot be removed from the CRM afterwards: run preview, pilot with
+--only-chats-file (and --max-chats as a guard) with refs picked from the preview,
+covering every chat shape, then import the rest.
 --window-to must not be later than the moment WhatsApp intake was enabled (and
 not later than the first message the CRM sent); pin the same value for every
 step. Output: one JSON line (counts only; no chat id, number, name or text).

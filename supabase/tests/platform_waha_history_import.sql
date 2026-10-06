@@ -35,7 +35,9 @@
 --     promotes;
 --  7. live then import: ids already bound are skipped and counted, older history
 --     joins the existing conversation, no second conversation or lead;
---  7b. the owner's go-live choice, include_outbound_only with lead_mode promote: a
+--  8. a second run: outbound-only chats are skipped and counted by default, and a
+--     conversation-only run (lead_mode none) never promotes;
+--  8b. the owner's go-live choice, include_outbound_only with lead_mode promote: a
 --     chat where only the sales phone wrote becomes a conversation from its first
 --     message (no client, no lead, no handoff; an @lid chat without a phone named
 --     without a number); the preview shows what the flag changes; a phone-sent
@@ -45,13 +47,21 @@
 --     messages join the same conversation; the customer's first live message
 --     promotes it to exactly one client and one lead evidenced by the LIVE event
 --     (the lead readers list it), nothing is created twice afterwards;
---  8. forgery guards: history never becomes verified evidence, the phone-sent
+--  8c. edge cases of that backfill: a raw id deferred live and carried by a LATER
+--     page of the window stays one row; a replayed page returns the stored answer;
+--     an @lid chat whose alternative phone is the chat the message was deferred
+--     for takes it over; a deferred message of another chat is not touched; more
+--     than 200 deferred messages: the 200 most recent in order, the rest counted
+--     as dropped;
+--  9. forgery guards: history never becomes verified evidence, the phone-sent
 --     identity still needs a verified fromMe/app event, the history identity needs
 --     history provenance and its observation, a history event cannot be queued;
---  9. the preview returns counts only (no text, id or digits of a chat), writes
---     nothing and agrees with the import; the Inbox orders imported chats by their
---     real last message;
--- 10. catalog: the new RPCs are service-only definer routines with an empty
+-- 10. the preview returns counts only (no text, id or digits of a chat), writes
+--     nothing and agrees with the import;
+-- 11. the Inbox orders imported chats by their real last message; the intake
+--     owner must stay eligible (11b); a promotion with an ineligible imported
+--     owner or an identity conflict never loses the live message (11c, 11d);
+-- 12. catalog: the new RPCs are service-only definer routines with an empty
 --     search_path, the helpers are callable by nobody, the superseded v1 routines
 --     are not callable, the patched routines keep their contract.
 BEGIN;
@@ -1007,6 +1017,76 @@ SELECT pg_temp.n260_assert(:'fin_oo'::JSONB ->> 'state' = 'completed' AND (:'fin
   AND (:'fin_oo'::JSONB #>> '{totals,projected}')::INT = 7 AND COALESCE(:'fin_oo'::JSONB #>> '{totals,skipped,outbound_only}', '0')::INT = 0
   AND (:'fin_oo'::JSONB #>> '{totals,already_bound}')::INT = 2 AND NOT (:'fin_oo'::JSONB)::TEXT LIKE '%7999000%',
   'finish: five conversations created (three of them outbound-only) and none skipped as outbound-only, counts only');
+
+-- 8c. Edge cases of the deferred phone-sent backfill (the owner's go-live choice puts every chat of the phone through it).
+-- A run of its own, so the totals above stay as they are.
+SELECT pg_temp.n260_begin(31, jsonb_build_object('include_outbound_only', TRUE, 'lead_mode', 'promote', 'me', pg_temp.n260_me())) AS rx \gset
+SELECT (:'rx'::JSONB ->> 'run_id')::UUID AS run_x \gset
+-- (i) A raw id deferred live AND carried by a LATER page of the same chat: the first page imports the deferred copy with the
+-- conversation, the later page finds the id bound (one row, never two).
+SELECT pg_temp.n260_live(80, pg_temp.n260_live_out('true_79990001501@c.us_XP', '79990001501@c.us', 'Sent twice, the window carries it on a later page'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '60 minutes') AS r \gset
+SELECT pg_temp.n260_assert((:'r'::JSONB ->> 'deferred')::BOOLEAN AND pg_temp.n260_conv('79990001501@c.us') IS NULL,
+  'cross-page overlap: the live copy is deferred, no conversation yet');
+SELECT pg_temp.n260_page(:'run_x', 1, '79990001501@c.us', jsonb_build_array(
+  pg_temp.n260_msg('false_79990001501@c.us_H1', '79990001501@c.us', FALSE, :t0 + 30000, 'Question'))) AS r1 \gset
+SELECT pg_temp.n260_assert(:'r1'::JSONB ->> 'chat_outcome' = 'import_new'
+  AND :'r1'::JSONB -> 'deferred_phone_sent' = '{"deferred": 1, "projected": 1, "dropped": 0}'::JSONB,
+  'cross-page overlap: the first page creates the conversation and takes over the deferred copy');
+SELECT pg_temp.n260_counts() AS before_x_page2 \gset
+SELECT pg_temp.n260_page(:'run_x', 2, '79990001501@c.us', jsonb_build_array(
+  pg_temp.n260_msg('true_79990001501@c.us_XP', '79990001501@c.us', TRUE, :t0 + 30060, 'Sent twice, the window carries it on a later page', '{"source":"app"}'))) AS r2 \gset
+SELECT pg_temp.n260_assert(:'r2'::JSONB ->> 'chat_outcome' = 'skip_nothing_eligible' AND (:'r2'::JSONB ->> 'already_bound')::INT = 1
+  AND (:'r2'::JSONB ->> 'projected')::INT = 0 AND :'r2'::JSONB -> 'deferred_phone_sent' IS NULL
+  AND pg_temp.n260_counts() = :'before_x_page2'::JSONB
+  AND (SELECT count(*) = 1 FROM platform_private.waha_message_bindings WHERE raw_message_id = 'true_79990001501@c.us_XP')
+  AND array_length(pg_temp.n260_bodies(pg_temp.n260_conv('79990001501@c.us')), 1) = 2,
+  'cross-page overlap: the later page finds the id already bound, adds nothing, no duplicate');
+-- The same first page again (a replay of the request): the stored answer, counts included, and nothing written.
+SELECT pg_temp.n260_counts() AS before_x_replay \gset
+SELECT pg_temp.n260_page(:'run_x', 1, '79990001501@c.us', jsonb_build_array(
+  pg_temp.n260_msg('false_79990001501@c.us_H1', '79990001501@c.us', FALSE, :t0 + 30000, 'Question'))) AS r1b \gset
+SELECT pg_temp.n260_assert(:'r1b'::JSONB = :'r1'::JSONB AND pg_temp.n260_counts() = :'before_x_replay'::JSONB,
+  'a replayed first page returns the stored answer with the deferred counts and writes nothing');
+-- (ii) An @lid chat whose alternative phone is the chat the phone-sent message was deferred for.
+SELECT pg_temp.n260_live(81, pg_temp.n260_live_out('true_79990001601@c.us_LP', '79990001601@c.us', 'Phone-sent to the phone form'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '61 minutes') AS r \gset
+SELECT pg_temp.n260_assert((:'r'::JSONB ->> 'deferred')::BOOLEAN, 'an @lid chat: the live phone-sent copy is deferred');
+SELECT pg_temp.n260_page(:'run_x', 3, '623456789012345@lid', jsonb_build_array(
+  pg_temp.n260_msg('false_623456789012345@lid_L1', '623456789012345@lid', FALSE, :t0 + 31000, 'LID with a phone',
+    '{"_data":{"Info":{"SenderAlt":"79990001601:7@s.whatsapp.net","PushName":"Ivan"}}}'))) AS r3 \gset
+SELECT pg_temp.n260_assert(:'r3'::JSONB ->> 'chat_outcome' = 'import_new'
+  AND :'r3'::JSONB -> 'deferred_phone_sent' = '{"deferred": 1, "projected": 1, "dropped": 0}'::JSONB
+  AND pg_temp.n260_bodies(pg_temp.n260_conv('623456789012345@lid')) = ARRAY['inbound:LID with a phone', 'outbound:Phone-sent to the phone form'],
+  'an @lid chat with an alternative phone takes over the message deferred for the phone form of the chat');
+-- (iii) The deferred message of somebody else's chat is not touched.
+SELECT pg_temp.n260_live(82, pg_temp.n260_live_out('true_79990001701@c.us_OTHER', '79990001701@c.us', 'Deferred for somebody else'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '62 minutes') AS r \gset
+SELECT pg_temp.n260_page(:'run_x', 4, '79990001702@c.us', jsonb_build_array(
+  pg_temp.n260_msg('false_79990001702@c.us_H1', '79990001702@c.us', FALSE, :t0 + 32000, 'Another chat'))) AS r4 \gset
+SELECT pg_temp.n260_assert(:'r4'::JSONB -> 'deferred_phone_sent' IS NULL AND pg_temp.n260_conv('79990001701@c.us') IS NULL
+  AND array_length(pg_temp.n260_bodies(pg_temp.n260_conv('79990001702@c.us')), 1) = 1,
+  'a message deferred for another chat stays deferred (no cross-chat leak)');
+-- (iv) More than 200 deferred messages for one chat: the 200 MOST RECENT are added in order, the rest is counted as dropped.
+SELECT count(pg_temp.n260_live(CASE WHEN k <= 100 THEN 99 + k ELSE 110 + k END,
+    pg_temp.n260_live_out('true_79990001801@c.us_B' || k, '79990001801@c.us', 'D' || k),
+    :'w_to'::TIMESTAMPTZ + INTERVAL '70 minutes' + k * INTERVAL '1 second')) AS deferred_runs
+FROM generate_series(1, 205) AS k \gset
+SELECT pg_temp.n260_assert(:'deferred_runs' = '205' AND pg_temp.n260_conv('79990001801@c.us') IS NULL,
+  'cap: 205 live phone-sent messages of a chat without a conversation are all deferred');
+SELECT pg_temp.n260_page(:'run_x', 5, '79990001801@c.us', jsonb_build_array(
+  pg_temp.n260_msg('false_79990001801@c.us_H1', '79990001801@c.us', FALSE, :t0 + 33000, 'Question'))) AS r5 \gset
+SELECT pg_temp.n260_assert(:'r5'::JSONB ->> 'chat_outcome' = 'import_new' AND (:'r5'::JSONB ->> 'projected')::INT = 1
+  AND :'r5'::JSONB -> 'deferred_phone_sent' = '{"deferred": 205, "projected": 200, "dropped": 5}'::JSONB
+  AND array_length(pg_temp.n260_bodies(pg_temp.n260_conv('79990001801@c.us')), 1) = 201
+  AND (pg_temp.n260_bodies(pg_temp.n260_conv('79990001801@c.us')))[1] = 'inbound:Question'
+  AND (pg_temp.n260_bodies(pg_temp.n260_conv('79990001801@c.us')))[2] = 'outbound:D6'
+  AND (pg_temp.n260_bodies(pg_temp.n260_conv('79990001801@c.us')))[201] = 'outbound:D205',
+  'cap on the import path: the 200 most recent deferred messages (D6..D205) follow the history in order, the 5 oldest are counted as dropped');
+SELECT pg_temp.n260_finish(:'run_x', 2) AS fin_x \gset
+SELECT pg_temp.n260_assert(:'fin_x'::JSONB ->> 'state' = 'completed' AND (:'fin_x'::JSONB #>> '{totals,conversations_created}')::INT = 4
+  AND (:'fin_x'::JSONB #>> '{totals,projected}')::INT = 4 AND NOT (:'fin_x'::JSONB)::TEXT LIKE '%7999000%',
+  'finish: four conversations; the deferred messages are not part of the run totals');
 
 SELECT pg_temp.n260_begin(22) AS rc \gset
 SELECT (:'rc'::JSONB ->> 'run_id')::UUID AS run_c \gset

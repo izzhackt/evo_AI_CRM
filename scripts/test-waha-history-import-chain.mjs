@@ -9,11 +9,13 @@
 //
 //   node scripts/test-waha-history-import-chain.mjs <phase>
 //
-// phases: preview | pilot | interrupted | resume | rerun | dryrun
+// phases: preview | pilotdry | pilot | interrupted | resume | rerun | dryrun
 // The flags are the owner's go-live choice (docs/runbooks/whatsapp-history-import.md):
-// every command passes --include-outbound-only, the pilot picks a chat from the
-// preview with --only-chats-file, the rest runs with --all-chats (no personal
-// chats on the sales phone) behind the reviewed preview file.
+// every command passes --include-outbound-only, the pilot takes one chat of every
+// shape from the preview (ordinary, outbound-only, @lid, several pages) with
+// --only-chats-file behind the --max-chats 6 guard (pilotdry is its dry run), the
+// rest runs with --all-chats (no personal chats on the sales phone) behind the
+// reviewed preview file.
 // environment: NEXT_PUBLIC_SUPABASE_URL, EVO_PLATFORM_SUPABASE_SECRET_KEY,
 // EVO_PLATFORM_ORGANIZATION_ID, EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID,
 // EVO_WAHA_HISTORY_ALLOW_LOCAL_SUPABASE=1, EVO_CHAIN_NOW (window end, ISO),
@@ -41,7 +43,7 @@ import {
 const phase = process.argv[2];
 const now = process.env.EVO_CHAIN_NOW;
 const directory = process.env.EVO_CHAIN_DIR;
-if (!["preview", "pilot", "interrupted", "resume", "rerun", "dryrun"].includes(phase) || !now || !directory) {
+if (!["preview", "pilotdry", "pilot", "interrupted", "resume", "rerun", "dryrun"].includes(phase) || !now || !directory) {
   process.stderr.write("usage: test-waha-history-import-chain.mjs <phase> (see the header)\n");
   process.exit(2);
 }
@@ -76,11 +78,21 @@ const waha = await startMockWaha({
 });
 const wahaFetchImpl = (url, init) => fetch(String(url).replace(TARGET_BASE_URL, waha.origin), init);
 
-function refOf(name) {
+function previewLine(matches, label) {
   const lines = readFileSync(join(directory, "preview.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
-  const found = lines.slice(1).find((line) => line.name === name);
-  if (!found) throw new Error(`no preview line named ${name}`);
-  return found.ref;
+  const found = lines.slice(1).find(matches);
+  if (!found) throw new Error(`no preview line ${label}`);
+  return found;
+}
+// The pilot: one chat of every shape the owner chose (runbook step 2), picked by the shape the
+// preview file shows. Ordinary, @lid (with a phone), outbound-only (inbound 0), several pages.
+function pilotRefs() {
+  return [
+    previewLine((line) => line.name === "Aigul Test" && line.kind === "c_us" && line.pages === 1, "of an ordinary chat").ref,
+    previewLine((line) => line.inbound === 0, "of an outbound-only chat").ref,
+    previewLine((line) => line.kind === "lid" && line.last4 !== null, "of an @lid chat with a phone").ref,
+    previewLine((line) => line.pages > 1, "of a multi-page chat").ref,
+  ];
 }
 
 const preview = join(directory, "preview.jsonl");
@@ -92,9 +104,10 @@ let fetchImpl = fetch;
 
 if (phase === "preview") {
   argv = ["preview", ...window, "--include-outbound-only", "--out", preview, "--waha-page-size", "50", "--waha-pause-ms", "0", "--rpc-pause-ms", "0", "--page-size", "100"];
-} else if (phase === "pilot") {
-  writeFileSync(join(directory, "pilot.txt"), `# pilot\n${refOf("Aigul Test")}\n`);
-  argv = ["apply", ...window, "--only-chats-file", join(directory, "pilot.txt"), ...common];
+} else if (phase === "pilotdry" || phase === "pilot") {
+  writeFileSync(join(directory, "pilot.txt"), `# pilot\n${pilotRefs().join("\n")}\n`);
+  argv = ["apply", ...window, "--only-chats-file", join(directory, "pilot.txt"), "--max-chats", "6", ...common];
+  if (phase === "pilotdry") argv.push("--dry-run");
 } else {
   argv = ["apply", ...window, "--all-chats", "--preview-file", preview, ...common];
   if (phase === "interrupted") {

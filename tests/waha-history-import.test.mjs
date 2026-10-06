@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -100,6 +101,9 @@ async function startMockDb({ bindingMissing = false, bindingBaseUrl = TARGET_BAS
     chatBindings: new Map(),
     imported: [],
     pageFaults: [],
+    // chat key -> {deferred, projected, dropped}: what the database reports when the page that
+    // creates the conversation takes over phone-sent messages the live projection had deferred.
+    deferredPhoneSent: new Map(),
     nextRun: 1,
     conversations: 0,
     errorBodyLeak: "row-secret-details",
@@ -307,6 +311,9 @@ async function startMockDb({ bindingMissing = false, bindingBaseUrl = TARGET_BAS
         skipped: plan.skipped,
         chat_offset: next[0],
         message_offset: next[1],
+        ...(created && state.deferredPhoneSent.has(body.p_raw_chat_id)
+          ? { deferred_phone_sent: state.deferredPhoneSent.get(body.p_raw_chat_id) }
+          : {}),
       };
       for (const [key, value] of Object.entries({
         pages: 1,
@@ -954,47 +961,169 @@ test("pilot with --only-chats-file, then the rest with --exclude-chats-file: not
   });
 });
 
-test("the go-live sequence of the runbook: preview, 3-chat pilot and the rest, all with --include-outbound-only and --all-chats", async () => {
+// The runbook's own jq program (step 2) picks the pilot chats by shape from the preview file; this
+// test runs that exact text, so the document and the file format cannot drift apart.
+function runbookPilotShapes(previewFile, directory) {
+  const runbook = readFileSync(new URL("../docs/runbooks/whatsapp-history-import.md", import.meta.url), "utf8");
+  const block = [...runbook.matchAll(/```bash\n([\s\S]*?)\n```/gu)].map((match) => match[1]).find((code) => code.startsWith("jq -r"));
+  assert.ok(block, "the runbook has the jq program that lists pilot candidates by shape");
+  copyFileSync(previewFile, join(directory, "history-preview.jsonl"));
+  const run = spawnSync("bash", ["-c", block], { cwd: directory, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  return run.stdout
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [shape, lastAt, ref, inbound, outbound, pages] = line.split("\t");
+      return { shape, lastAt, ref, inbound: Number(inbound), outbound: Number(outbound), pages: Number(pages) };
+    });
+}
+const jqAvailable = spawnSync("jq", ["--version"]).status === 0;
+
+// A long chat (205 messages: two database pages at the default page size 200).
+const CHAT_LONG = "15550000106@c.us";
+function longChatRows() {
+  return Array.from({ length: 205 }, (_, index) =>
+    row(
+      message({
+        chat: CHAT_LONG,
+        fromMe: index % 2 === 0,
+        ts: at(60) + index * 10,
+        body: `LONG-body-${index}`,
+        name: "Emil Test",
+        id: `${index % 2 === 0}_${CHAT_LONG}_L${index}`,
+      }),
+    ),
+  );
+}
+
+test(
+  "the go-live sequence of the runbook: a pilot of every chat shape behind --max-chats, then the rest, all with --include-outbound-only",
+  { skip: jqAvailable ? false : "jq is not installed" },
+  async () => {
+    await withHarness({ rows: [...baseRows(), ...longChatRows()] }, async (harness) => {
+      // Preview (the runbook passes --include-outbound-only here too): the outbound-only chat is a candidate.
+      const { map, out: previewFile } = await refsByName(harness, ["--include-outbound-only"]);
+      const header = JSON.parse(readFileSync(previewFile, "utf8").split("\n")[0]);
+      assert.equal(header.meta.include_outbound_only, true);
+      assert.equal(map.size, 8, "A, B, C (outbound-only), D, the long chat and the three @lid chats");
+
+      // Step 2: the runbook's jq program lists candidates by shape; the operator takes the freshest of each.
+      const candidates = runbookPilotShapes(previewFile, harness.directory);
+      const byShape = (shape) => candidates.filter((candidate) => candidate.shape === shape);
+      for (const shape of ["ordinary", "outbound_only", "lid", "multi_page"]) {
+        assert.ok(byShape(shape).length > 0, `the preview offers a ${shape} chat`);
+      }
+      for (const candidate of byShape("outbound_only")) assert.equal(candidate.inbound, 0);
+      for (const candidate of byShape("multi_page")) assert.ok(candidate.pages > 1);
+      for (const candidate of byShape("ordinary")) assert.equal(candidate.pages, 1);
+      assert.equal(
+        candidates.some((candidate) => candidate.ref === map.get("Dana Test")),
+        false,
+        "a chat that matches an active client is never offered as a pilot candidate",
+      );
+      assert.deepEqual(
+        byShape("ordinary").map((candidate) => candidate.lastAt),
+        [...byShape("ordinary").map((candidate) => candidate.lastAt)].sort().reverse(),
+        "the freshest candidate of a shape comes first",
+      );
+      const picks = ["ordinary", "outbound_only", "lid", "multi_page"].map((shape) => byShape(shape)[0].ref);
+      const pilotRefs = [...new Set(picks)];
+      assert.equal(pilotRefs.length, 4, "four shapes, four different chats here");
+      const pilot = harness.file("pilot.txt", `${pilotRefs.join("\n")}\n`);
+
+      // Step 3: a dry run of the pilot list first (nothing written), then the pilot, both behind --max-chats 6.
+      const callsBefore = harness.db.calls.length;
+      const dry = await harness.run(["apply", ...windowArgs, "--include-outbound-only", "--only-chats-file", pilot, "--max-chats", "6", "--dry-run"]);
+      assert.equal(dry.code, 0, dry.stderr);
+      assert.equal(dry.json.selection.only_list, true);
+      assert.equal(dry.json.selection.max_chats, 6);
+      assert.equal(dry.json.totals.chats_selected, 4);
+      assert.equal(dry.json.totals.by_outcome.import_new, 4);
+      assert.equal(dry.json.totals.chats_multi_page, 1);
+      assert.equal(dry.json.totals.chats_existing_client_match, 0);
+      assert.equal(harness.db.calls.slice(callsBefore).some((call) => call.name === RPC.begin || call.name === RPC.page), false);
+      assert.equal(harness.db.state.imported.length, 0);
+
+      const pilotRun = await harness.run(["apply", ...windowArgs, "--include-outbound-only", "--only-chats-file", pilot, "--max-chats", "6"]);
+      assert.equal(pilotRun.code, 0, pilotRun.stderr);
+      assert.equal(pilotRun.json.state, "completed");
+      assert.equal(pilotRun.json.include_outbound_only, true);
+      assert.equal(pilotRun.json.totals.chats_imported, 4);
+      const pilotChats = new Set(harness.db.state.imported.map((item) => item.chat));
+      assert.equal(pilotChats.size, 4);
+      assert.ok(pilotChats.has(CHAT_C), "the outbound-only chat is part of the pilot");
+      assert.ok(pilotChats.has(CHAT_LONG), "the long chat is part of the pilot");
+      assert.equal(harness.db.state.imported.filter((item) => item.chat === CHAT_C).length, 2, "both messages of the outbound-only chat");
+      assert.equal(harness.db.state.imported.filter((item) => item.chat === CHAT_LONG).length, 205, "every message of the long chat, over two pages");
+      assert.ok(pilotRun.json.totals.pages_sent >= 5, "the long chat went over two pages");
+      const pilotMessages = harness.db.state.imported.length;
+
+      // Step 5: the rest, no exclusion list (no personal chats on the sales phone), the reviewed preview file is the guard.
+      const rest = await harness.run(["apply", ...windowArgs, "--all-chats", "--include-outbound-only", "--preview-file", previewFile]);
+      assert.equal(rest.code, 0, rest.stderr);
+      assert.equal(rest.json.selection.preview_file_checked, true);
+      assert.equal(rest.json.include_outbound_only, true);
+      assert.equal(rest.json.lead_mode, "promote");
+      assert.deepEqual(
+        new Set(harness.db.state.imported.map((item) => item.chat)),
+        new Set([CHAT_A, CHAT_B, CHAT_C, CHAT_D, CHAT_LONG, LID_1, LID_2, LID_3]),
+      );
+      assert.equal(rest.json.totals.already_bound, pilotMessages, "the pilot's chats are counted, not imported twice");
+      const allIds = harness.db.state.imported.map((item) => item.id);
+      assert.equal(new Set(allIds).size, allIds.length);
+      const begins = harness.db.calls.filter((call) => call.name === RPC.begin).map((call) => call.body.p_options);
+      assert.equal(begins.length, 2);
+      for (const options of begins) {
+        assert.equal(options.include_outbound_only, true);
+        assert.equal(options.lead_mode, "promote");
+      }
+
+      // Step 6: a dry run with the same flags finds nothing left.
+      const verify = await harness.run(["apply", ...windowArgs, "--all-chats", "--include-outbound-only", "--dry-run"]);
+      assert.equal(verify.json.totals.first_page_would_import, 0);
+      assert.equal(verify.json.totals.by_outcome.skip_nothing_eligible, 8);
+    });
+  },
+);
+
+test("a pilot list longer than --max-chats imports no more than the cap, in the list's own chats only", async () => {
   await withHarness({}, async (harness) => {
-    // Preview (the runbook passes --include-outbound-only here too): the outbound-only chat is a candidate.
-    const { map, out: previewFile } = await refsByName(harness, ["--include-outbound-only"]);
-    const header = JSON.parse(readFileSync(previewFile, "utf8").split("\n")[0]);
-    assert.equal(header.meta.include_outbound_only, true);
-    assert.equal(map.size, 7, "A, B, C (outbound-only), D and the three @lid chats");
-    const outboundOnly = [...map.keys()].find((name) => String(name).startsWith("last4:"));
-    assert.ok(outboundOnly, "the outbound-only chat has no push name (a customer message gives the name)");
+    const { map } = await refsByName(harness, ["--include-outbound-only"]);
+    const everything = harness.file("everything.txt", `${[...map.values()].join("\n")}\n`);
+    const capped = await harness.run(["apply", ...windowArgs, "--include-outbound-only", "--only-chats-file", everything, "--max-chats", "3"]);
+    assert.equal(capped.code, 0, capped.stderr);
+    assert.equal(capped.json.totals.chats_selected, 7, "all seven listed chats are selected");
+    assert.equal(capped.json.totals.chats_imported, 3, "a mistyped pilot list cannot import more than the cap");
+    assert.equal(new Set(harness.db.state.imported.map((item) => item.chat)).size, 3);
+  });
+});
 
-    // Pilot: three chats the operator picked from the preview, same run options as the rest.
-    const pilot = harness.file("pilot.txt", `${["Aigul Test", "Boris Test", "Lida Test"].map((name) => map.get(name)).join("\n")}\n`);
-    const pilotRun = await harness.run(["apply", ...windowArgs, "--only-chats-file", pilot, "--include-outbound-only"]);
-    assert.equal(pilotRun.code, 0, pilotRun.stderr);
-    assert.equal(pilotRun.json.state, "completed");
-    assert.equal(pilotRun.json.include_outbound_only, true);
-    assert.equal(pilotRun.json.totals.chats_imported, 3);
-    assert.deepEqual(new Set(harness.db.state.imported.map((item) => item.chat)), new Set([CHAT_A, CHAT_B, LID_1]));
-
-    // The rest: no exclusion list (no personal chats on the sales phone), the reviewed preview file is the guard.
-    const rest = await harness.run(["apply", ...windowArgs, "--all-chats", "--include-outbound-only", "--preview-file", previewFile]);
-    assert.equal(rest.code, 0, rest.stderr);
-    assert.equal(rest.json.selection.preview_file_checked, true);
-    assert.equal(rest.json.include_outbound_only, true);
-    assert.equal(rest.json.lead_mode, "promote");
-    assert.deepEqual(new Set(harness.db.state.imported.map((item) => item.chat)), new Set([CHAT_A, CHAT_B, CHAT_C, CHAT_D, LID_1, LID_2, LID_3]));
-    assert.equal(harness.db.state.imported.filter((item) => item.chat === CHAT_C).length, 2, "both messages of the outbound-only chat");
-    assert.equal(rest.json.totals.already_bound, 4 + 3 + 2, "the pilot's chats are counted, not imported twice");
-    const allIds = harness.db.state.imported.map((item) => item.id);
-    assert.equal(new Set(allIds).size, allIds.length);
-    const begins = harness.db.calls.filter((call) => call.name === RPC.begin).map((call) => call.body.p_options);
-    assert.equal(begins.length, 2);
-    for (const options of begins) {
-      assert.equal(options.include_outbound_only, true);
-      assert.equal(options.lead_mode, "promote");
-    }
-
-    // Verification: a dry run with the same flags finds nothing left.
-    const verify = await harness.run(["apply", ...windowArgs, "--all-chats", "--include-outbound-only", "--dry-run"]);
-    assert.equal(verify.json.totals.first_page_would_import, 0);
-    assert.equal(verify.json.totals.by_outcome.skip_nothing_eligible, 7);
+test("phone-sent messages the live projection deferred are reported in the totals, not mixed into projected", async () => {
+  await withHarness({}, async (harness) => {
+    // The database reports them only for the page that creates the conversation of that chat.
+    harness.db.state.deferredPhoneSent.set(CHAT_A, { deferred: 207, projected: 200, dropped: 7 });
+    harness.db.state.deferredPhoneSent.set(CHAT_C, { deferred: 2, projected: 2, dropped: 0 });
+    const result = await harness.run(["apply", ...windowArgs, "--all-chats", "--include-outbound-only"]);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.json.totals.deferred_phone_sent_found, 209);
+    assert.equal(result.json.totals.deferred_phone_sent_imported, 202);
+    assert.equal(result.json.totals.deferred_phone_sent_dropped, 7);
+    assert.equal(
+      result.json.totals.projected,
+      harness.db.state.imported.length,
+      "projected counts the window's messages only; the deferred ones are reported next to it",
+    );
+    // A run over chats without deferred messages reports zeros (the database omits the key).
+    await withHarness({}, async (plain) => {
+      const quiet = await plain.run(["apply", ...windowArgs, "--all-chats", "--include-outbound-only"]);
+      assert.equal(quiet.json.totals.deferred_phone_sent_found, 0);
+      assert.equal(quiet.json.totals.deferred_phone_sent_imported, 0);
+      assert.equal(quiet.json.totals.deferred_phone_sent_dropped, 0);
+    });
+    // Counts only: no chat id, number or text next to them.
+    assert.equal(result.stdout.includes("15550000101"), false);
   });
 });
 

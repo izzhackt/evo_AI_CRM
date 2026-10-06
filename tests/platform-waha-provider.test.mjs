@@ -46,7 +46,7 @@ test("manual send makes one authenticated WAHA call and returns only sanitized e
       });
     },
     createTimeoutSignal(timeoutMs) {
-      assert.equal(timeoutMs, 10_000);
+      assert.equal(timeoutMs, 20_000);
       return signal;
     },
     now: () => new Date(ACK_OBSERVED_AT),
@@ -69,6 +69,7 @@ test("manual send makes one authenticated WAHA call and returns only sanitized e
     chatId: RECIPIENT,
     text: TEXT,
     reply_to: REPLY_TO,
+    linkPreview: false,
   });
   assert.deepEqual(result, {
     providerMessageId: PROVIDER_MESSAGE_ID,
@@ -433,6 +434,7 @@ test("a reply to a conversation bound on a LID chat goes to that LID chat, and i
     chatId: LID_RECIPIENT,
     text: TEXT,
     reply_to: LID_REPLY_TO,
+    linkPreview: false,
   });
 
   await provider.getMessage({
@@ -688,4 +690,206 @@ test("GOWS ACK readback reads the exact chat-in-from record", async () => {
       error instanceof PlatformWahaProviderError &&
       error.code === "provider_malformed_response",
   );
+});
+
+const GOWS_LID_REPLY_TO = `false_${GOWS_LID_RECIPIENT}_SOURCE1`;
+
+function rejectsAsUnknownMalformed(promise) {
+  return assert.rejects(
+    promise,
+    (error) =>
+      error instanceof PlatformWahaProviderError &&
+      error.code === "provider_malformed_response" &&
+      error.disposition === "unknown",
+  );
+}
+
+test("sendText asks WAHA for no link preview, so a reply with a URL never waits on the linked page", async () => {
+  const calls = [];
+  const text = "Анкета и список документов: https://evoadmissions.com/apply?ref=crm";
+  const provider = gowsProvider(gowsSendResponse({ text }), calls);
+
+  const sent = await provider.sendText({
+    recipientId: GOWS_LID_RECIPIENT,
+    text,
+    replyTo: GOWS_LID_REPLY_TO,
+  });
+
+  assert.equal(calls.length, 1);
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.linkPreview, false);
+  assert.equal(Object.hasOwn(body, "linkPreviewHighQuality"), false);
+  assert.equal(sent.providerMessageId, GOWS_MESSAGE_ID);
+});
+
+test("sendText waits up to the send ceiling and read-only lookups keep the shorter one", async () => {
+  const timeouts = [];
+  const bodies = [gowsSendResponse(), gowsWaMessage(), [gowsWaMessage()]];
+  const provider = createPlatformWahaProvider(RUNTIME, {
+    fetch: async () => new Response(JSON.stringify(bodies.shift()), { status: 200 }),
+    createTimeoutSignal(timeoutMs) {
+      timeouts.push(timeoutMs);
+      return new AbortController().signal;
+    },
+    now: () => new Date(ACK_OBSERVED_AT),
+  });
+
+  await provider.sendText({
+    recipientId: GOWS_LID_RECIPIENT,
+    text: TEXT,
+    replyTo: GOWS_LID_REPLY_TO,
+  });
+  await provider.getMessage({
+    recipientId: GOWS_LID_RECIPIENT,
+    providerMessageId: GOWS_MESSAGE_ID,
+    expectedText: TEXT,
+  });
+  await provider.findUniqueMessage({
+    recipientId: GOWS_LID_RECIPIENT,
+    expectedText: TEXT,
+    windowStart: "2026-09-02T12:00:00.000Z",
+    windowEnd: "2026-09-02T12:00:10.000Z",
+  });
+
+  assert.deepEqual(timeouts, [20_000, 10_000, 10_000]);
+});
+
+test("a sendText that outlives the send ceiling stays unknown after its single call", async () => {
+  let calls = 0;
+  const provider = createPlatformWahaProvider(RUNTIME, {
+    fetch: async () => {
+      calls += 1;
+      throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    },
+    now: () => new Date(ACK_OBSERVED_AT),
+  });
+  await assert.rejects(
+    () => provider.sendText({
+      recipientId: GOWS_LID_RECIPIENT,
+      text: TEXT,
+      replyTo: GOWS_LID_REPLY_TO,
+    }),
+    (error) =>
+      error instanceof PlatformWahaProviderError &&
+      error.code === "provider_timeout" &&
+      error.disposition === "unknown",
+  );
+  assert.equal(calls, 1);
+});
+
+test("a GOWS sendText answer for a maximum-length reply is accepted although _data carries it twice", async () => {
+  // Worst ordinary escaping: every character is a quote, so each JSON copy of
+  // the 64 KiB text is 128 KiB. The quoted source message is copied twice too.
+  const text = '"'.repeat(64 * 1_024);
+  const quoted = { conversation: "Здравствуйте, расскажите про поступление. ".repeat(400) };
+  const content = {
+    extendedTextMessage: {
+      text,
+      contextInfo: { stanzaID: "SOURCE1", quotedMessage: quoted },
+    },
+  };
+  const body = gowsSendResponse({ text, message: content });
+  const encoded = JSON.stringify(body);
+  assert.ok(Buffer.byteLength(encoded, "utf8") > 256 * 1_024);
+  assert.ok(Buffer.byteLength(encoded, "utf8") < 1_024 * 1_024);
+
+  const calls = [];
+  const provider = createPlatformWahaProvider(RUNTIME, {
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return new Response(encoded, {
+        status: 200,
+        headers: { "content-length": String(Buffer.byteLength(encoded, "utf8")) },
+      });
+    },
+    now: () => new Date(ACK_OBSERVED_AT),
+  });
+  const sent = await provider.sendText({
+    recipientId: GOWS_LID_RECIPIENT,
+    text,
+    replyTo: GOWS_LID_REPLY_TO,
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(sent.providerMessageId, GOWS_MESSAGE_ID);
+  assert.equal(sent.ackState, "server");
+});
+
+test("a WAHA answer above the 1 MiB bound stays unknown, with or without a content-length", async (t) => {
+  const oversized = JSON.stringify({
+    ...gowsSendResponse(),
+    padding: "x".repeat(1_024 * 1_024),
+  });
+  const cases = [
+    ["declared length above the bound", () => new Response("{}", {
+      status: 200,
+      headers: { "content-length": String(1_024 * 1_024 + 1) },
+    })],
+    ["undeclared body above the bound", () => new Response(oversized, { status: 200 })],
+  ];
+  for (const [name, respond] of cases) {
+    await t.test(name, async () => {
+      let calls = 0;
+      const provider = createPlatformWahaProvider(RUNTIME, {
+        fetch: async () => {
+          calls += 1;
+          return respond();
+        },
+        now: () => new Date(ACK_OBSERVED_AT),
+      });
+      await rejectsAsUnknownMalformed(provider.sendText({
+        recipientId: GOWS_LID_RECIPIENT,
+        text: TEXT,
+        replyTo: GOWS_LID_REPLY_TO,
+      }));
+      assert.equal(calls, 1);
+    });
+  }
+});
+
+test("a GOWS sendText answer is accepted when Info.Chat is the recipient in engine JID form", async (t) => {
+  const cases = [
+    ["LID chat", GOWS_LID_RECIPIENT, GOWS_LID_RECIPIENT],
+    ["LID chat with a device", GOWS_LID_RECIPIENT, "123456789012345:12@lid"],
+    ["phone chat", RECIPIENT, "996555000001@s.whatsapp.net"],
+    ["phone chat with a device", RECIPIENT, "996555000001:3@s.whatsapp.net"],
+    ["phone chat in API form", RECIPIENT, RECIPIENT],
+  ];
+  for (const [name, recipient, chat] of cases) {
+    await t.test(name, async () => {
+      const provider = gowsProvider(gowsSendResponse({ recipient, chat }));
+      const sent = await provider.sendText({
+        recipientId: recipient,
+        text: TEXT,
+        replyTo: `false_${recipient}_SOURCE1`,
+      });
+      assert.equal(sent.providerMessageId, `true_${recipient}_${GOWS_MESSAGE_KEY}`);
+    });
+  }
+});
+
+test("a GOWS sendText answer whose Info.Chat names another chat stays unknown", async (t) => {
+  const cases = [
+    ["another LID chat", "123456789012399@lid"],
+    ["the same digits on the phone server", "123456789012345@s.whatsapp.net"],
+    ["a group", "120363000000000001@g.us"],
+    ["a broadcast", "status@broadcast"],
+    ["an empty JID", ""],
+    ["a non-string JID", 123456789012345],
+    ["no Chat at all", undefined],
+  ];
+  for (const [name, chat] of cases) {
+    await t.test(name, async () => {
+      const calls = [];
+      const body = gowsSendResponse();
+      if (chat === undefined) delete body._data.Info.Chat;
+      else body._data.Info.Chat = chat;
+      const provider = gowsProvider(body, calls);
+      await rejectsAsUnknownMalformed(provider.sendText({
+        recipientId: GOWS_LID_RECIPIENT,
+        text: TEXT,
+        replyTo: GOWS_LID_REPLY_TO,
+      }));
+      assert.equal(calls.length, 1);
+    });
+  }
 });

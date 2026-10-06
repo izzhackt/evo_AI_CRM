@@ -14,14 +14,32 @@ const PRINTABLE_PROVIDER_ID_PATTERN = /^[\x20-\x7e]+$/u;
 // `true_<chat>_<key>`: alphanumeric, never an `_` (a group id would carry a
 // trailing `_<participant>`).
 const WHATSAPP_MESSAGE_KEY_PATTERN = /^[0-9A-Za-z]{1,128}$/u;
+// A direct-chat JID as the GOWS engine writes it (`_data.Info.Chat`): the
+// user, an optional `:device`, and the phone or LID server.
+const ENGINE_DIRECT_JID_PATTERN =
+  /^([1-9]\d{4,31})(?::\d+)?@(s\.whatsapp\.net|c\.us|lid)$/u;
 const MAX_API_KEY_BYTES = 4_096;
 const MAX_MESSAGE_ID_BYTES = 512;
-const MAX_RESPONSE_BYTES = 64 * 1_024;
 const MAX_TEXT_BYTES = 64 * 1_024;
+// GOWS answers carry `_data`, the events.Message JSON, which holds the content
+// twice (`Message` and `RawMessage`), each with the quoted source message of a
+// reply. Ordinary text at most doubles when JSON-escaped (quotes, backslashes,
+// line breaks), so a MAX_TEXT_BYTES text is up to 256 KiB across both copies;
+// 1 MiB leaves room for the quoted message and Info, and a larger answer still
+// fails closed as provider_malformed_response.
+const MAX_RESPONSE_BYTES = 1_024 * 1_024;
 const MAX_LOOKUP_WINDOW_SECONDS = 30 * 60;
 const LOOKUP_MESSAGE_LIMIT = 100;
 
+// Read-only lookups (GET a message, list chat messages).
 export const PLATFORM_WAHA_PROVIDER_TIMEOUT_MS = 10_000;
+// POST /api/sendText. GOWS answers only after whatsmeow's SendMessage returns
+// the server ack, which may first fetch the recipient's devices and prekeys.
+// A timeout is never retried (it finishes as unknown_result), so a slow but
+// delivered send should not be cut at the read-only ceiling; 20 s stays well
+// inside the manual-send claim visibility timeout (120 s,
+// MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS), so no second claim can overlap.
+export const PLATFORM_WAHA_SEND_TIMEOUT_MS = 20_000;
 
 export type PlatformWahaProviderErrorDisposition = "failed" | "unknown";
 
@@ -252,6 +270,15 @@ function addressesRecipient(
   );
 }
 
+// WAHA toCusFormat for a direct-chat JID: drop `:device` and map the engine's
+// `@s.whatsapp.net` to the API's `@c.us`. Null for any other JID.
+function directChatIdFromEngineJid(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const match = ENGINE_DIRECT_JID_PATTERN.exec(value);
+  if (match === null) return null;
+  return `${match[1]}@${match[2] === "lid" ? "lid" : "c.us"}`;
+}
+
 function gowsSentText(message: unknown): string | null {
   if (!isRecord(message)) return null;
   if (typeof message.conversation === "string") return message.conversation;
@@ -276,8 +303,10 @@ function isGowsSendResponse(value: unknown): value is Record<string, unknown> {
 // (session.gows.core.ts messageResponse): `id` is
 // `true_<toCusFormat(chat)>_<Info.ID>`, the same id the `message.any` echo of
 // this send carries, and `_data` is the GOWS events.Message JSON
-// (`{ Info, Message, RawMessage }`) or null. A 2xx answer comes only after
-// whatsmeow's SendMessage returned, i.e. after the WhatsApp server ack.
+// (`{ Info, Message, RawMessage }`) or null. When `_data` is present, its
+// `Info.Chat` (the JID gows sent to) must name the same chat as the id. A 2xx
+// answer comes only after whatsmeow's SendMessage returned, i.e. after the
+// WhatsApp server ack.
 function normalizeGowsSendResponse(
   value: Record<string, unknown>,
   expected: Readonly<{ recipientId: string; text: string }>,
@@ -299,6 +328,7 @@ function normalizeGowsSendResponse(
     if (
       !isRecord(data) ||
       !isRecord(data.Info) ||
+      directChatIdFromEngineJid(data.Info.Chat) !== expected.recipientId ||
       data.Info.ID !== messageKey ||
       data.Info.IsFromMe !== true ||
       data.Info.IsGroup !== false ||
@@ -401,13 +431,17 @@ export function createPlatformWahaProvider(
     ((timeoutMs: number) => AbortSignal.timeout(timeoutMs));
   const now = dependencies.now ?? (() => new Date());
 
-  async function request(input: string, init: RequestInit): Promise<unknown> {
+  async function request(
+    input: string,
+    init: RequestInit,
+    timeoutMs: number = PLATFORM_WAHA_PROVIDER_TIMEOUT_MS,
+  ): Promise<unknown> {
     let response: Response;
     try {
       response = await fetchImpl(input, {
         ...init,
         redirect: "error",
-        signal: createTimeoutSignal(PLATFORM_WAHA_PROVIDER_TIMEOUT_MS),
+        signal: createTimeoutSignal(timeoutMs),
       });
     } catch (error) {
       throw new PlatformWahaProviderError(
@@ -445,13 +479,18 @@ export function createPlatformWahaProvider(
           "Content-Type": "application/json",
           "X-Api-Key": runtime.wahaApiKey,
         }),
+        // linkPreview defaults to true in WAHA (GOWS: `request.linkPreview ??
+        // true`), and GOWS then fetches the linked page before sending, bounded
+        // only by its own 10 s WAHA_GOWS_LINK_PREVIEW_TIMEOUT. A staff reply
+        // that contains a URL must not wait on a third-party page.
         body: JSON.stringify({
           session: runtime.wahaSessionName,
           chatId: input.recipientId,
           text: input.text,
           reply_to: input.replyTo,
+          linkPreview: false,
         }),
-      });
+      }, PLATFORM_WAHA_SEND_TIMEOUT_MS);
       const message = isGowsSendResponse(response)
         ? normalizeGowsSendResponse(
             response,

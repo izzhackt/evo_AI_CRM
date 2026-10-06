@@ -347,6 +347,17 @@ SQL
       -f /workspace/supabase/tests/platform_case_contract_file_audit_action.sql
   fi
 
+  # Pin the website intake defect immediately before 262: the 240 body is in
+  # place and a valid enquiry, called by the service role as the website
+  # route does, fails with 42702 on the ambiguous normalized_phone and leaves
+  # no row. The same suite proves the repair after 262 below.
+  if [[ "$(basename "$migration")" == 262_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v p262_pre=1 \
+      -f /workspace/supabase/tests/platform_website_lead_intake_fix.sql
+  fi
+
   # Migration 260 replaces two of 259's routines wholesale and pins their 259
   # source by md5. Prove that an edited 259 definition makes 260 fail closed
   # (with its own reason), for each of the two, inside a transaction that the
@@ -2988,6 +2999,23 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_whatsapp_team_inbox.sql
+  fi
+
+  # Migration 262 (приём заявок сайта, PLAN_CHANGES 06.10.2026): 240's
+  # receive_website_lead with the PL/pgSQL variable normalized_phone renamed
+  # to contact_phone. Replaying the website route as the service role with an
+  # owner modelled like production (coarse role NULL, a department Sales
+  # Manager role): a valid enquiry is accepted with one client, one open
+  # 'website' lead, one receipt and one audit event, the owner reads the
+  # submission, a replay writes nothing, a reused requestId with another
+  # payload is a conflict, the same phone attaches to the open lead, an
+  # unknown country is still refused 22023, an owner without the Sales
+  # permissions gets 'unavailable', and the body, definer, search_path and
+  # service-only ACL differ from 240 by the rename only.
+  if [[ "$(basename "$migration")" == 262_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_website_lead_intake_fix.sql
   fi
 done < <(
   cd "$repo_root"

@@ -347,6 +347,47 @@ SQL
       -f /workspace/supabase/tests/platform_case_contract_file_audit_action.sql
   fi
 
+  # Migration 260 replaces two of 259's routines wholesale and pins their 259
+  # source by md5. Prove that an edited 259 definition makes 260 fail closed
+  # (with its own reason), for each of the two, inside a transaction that the
+  # failure rolls back; the ordinary apply below then proves nothing was kept.
+  if [[ "$(basename "$migration")" == 260_* ]]; then
+    for pinned_function in \
+      'platform_private.require_private_waha_message_binding()' \
+      'platform_private.bind_waha_chat_to_canonical(uuid,uuid)'; do
+      # The routine's own name, as migration 260 prints it in its refusal.
+      pinned_name="${pinned_function#platform_private.}"
+      pinned_name="${pinned_name%%(*}"
+      n260_tamper_log="$(mktemp -t evo-n260-pin-tamper.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$pinned_function" \
+        -v "migration_file=/workspace/$migration" \
+        >"$n260_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef(:'pinned_function'::regprocedure),
+  'BEGIN',
+  'BEGIN /* tampered after migration 259 */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 260 accepted an edited $pinned_function" >&2
+        exit 1
+      fi
+      if ! grep -Fq \
+        "replaces ${pinned_name}(), which is not the migration 259 definition it was written against" \
+        "$n260_tamper_log"; then
+        echo "migration 260 failed for the wrong pre-image reason ($pinned_function)" >&2
+        sed -n '1,60p' "$n260_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$n260_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -2899,6 +2940,31 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_waha_lid_phone_media.sql
+  fi
+
+  # Migration 260: the WhatsApp history import, database lane. Real service
+  # RPCs (begin, page, finish, preview) and the real live projection chain with
+  # a synthetic organization: a window of REST history becomes live-shaped
+  # conversations under history.message / missing / api_history evidence and the
+  # private_waha_history_binding identity (never a verified webhook, never the
+  # phone-sent identity), message times as created_at, no client, lead or
+  # handoff, typed media markers; skipped and counted (outbound-only chats,
+  # groups, own chat, CRM sends, API inbound, empty, out of window, malformed,
+  # ids already bound); idempotent re-runs; import-then-live (promotion to
+  # exactly one client and lead from the LIVE event, lead readers list the
+  # conversation, an imported raw id arriving live is tolerated) and
+  # live-then-import; the owner's go-live run (include_outbound_only + promote:
+  # outbound-only chats become conversations without client or lead, the phone-sent
+  # messages deferred before the import are projected into them once, later live
+  # messages join them and the customer's first message promotes exactly once);
+  # lead_mode none never promotes; forgery guards; a counts-only
+  # preview that equals the import; Inbox order by last message; one summary
+  # realtime invalidation per page; the same advisory lock keys as live; the
+  # service-only catalog and the revoked v1 routines.
+  if [[ "$(basename "$migration")" == 260_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_history_import.sql
   fi
 
   # Migration 261 (owner decision 06.10.2026, «нет, все могут»): every member who

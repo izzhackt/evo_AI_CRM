@@ -41,7 +41,8 @@
 --     pdf → file; only the caption stays as text; no file name, marker or
 --     phone reaches the agent; the answer context keeps `direction` and
 --     carries memory; the WAHA placeholder «WhatsApp ••••NNNN» is no name;
---     the text guard stops bracketed and dotted phones;
+--     the text guard stops bracketed, dotted, NBSP- and dash-separated
+--     phones and unspaced date ranges, and passes prices, years, dates;
 --  6. staff: the view (ai.agent.use + the sales chat; live lead card),
 --     refusals (no conversation access, no AI right, Student, another
 --     organization, anon, curator chat); clear by ai.agent.use (Q9), replay,
@@ -558,8 +559,10 @@ SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p3_assert((SELECT jsonb_array_length(r -> 'items') = 0 AND NOT (r ->> 'hasMore')::BOOLEAN
     AND (r #>> '{next,afterAt}')::TIMESTAMPTZ BETWEEN clock_timestamp() - INTERVAL '6 minutes'
       AND clock_timestamp() - INTERVAL '4 minutes'
+    AND (r ->> 'now')::TIMESTAMPTZ BETWEEN clock_timestamp() - INTERVAL '1 minute' AND clock_timestamp()
+    AND (r ->> 'now')::TIMESTAMPTZ - (r #>> '{next,afterAt}')::TIMESTAMPTZ = INTERVAL '5 minutes'
   FROM (SELECT platform_ai_agent.inbound_since_v1(NULL, NULL) AS r) x),
-  'without a cursor only the last 5 minutes are read (the synthetic chats are older)');
+  'without a cursor only the last 5 minutes are read (the synthetic chats are older); now is the database clock of the horizon');
 SELECT platform_ai_agent.inbound_since_v1(pg_temp.p3_at(-3600), '00000000-0000-0000-0000-000000000000', 500) AS p3_all \gset
 SELECT pg_temp.p3_assert(jsonb_array_length(:'p3_all'::JSONB -> 'items') = 128
   AND NOT (:'p3_all'::JSONB ->> 'hasMore')::BOOLEAN
@@ -707,6 +710,8 @@ SELECT pg_temp.p3_assert(
   AND pg_temp.p3_err(pg_temp.p3_put(:'c1', 'p3-w1', 1, NULL, repeat('я', 1501), pg_temp.p3_pos(:'c1', 25), 25, NULL))
     LIKE '22023:ai_memory_invalid%'
   AND pg_temp.p3_err(pg_temp.p3_put(:'c1', 'p3-w1', 1, NULL, 'Позвонить на +996 555 123 456',
+    pg_temp.p3_pos(:'c1', 25), 25, NULL)) LIKE '22023:ai_memory_personal_data%'
+  AND pg_temp.p3_err(pg_temp.p3_put(:'c1', 'p3-w1', 1, NULL, E'Позвонить на +996\u00A0555\u00A0123\u00A0456',
     pg_temp.p3_pos(:'c1', 25), 25, NULL)) LIKE '22023:ai_memory_personal_data%'
   AND pg_temp.p3_err(pg_temp.p3_put(:'c1', 'p3-w1', 1, NULL, 'Почта p3.client@example.invalid',
     pg_temp.p3_pos(:'c1', 25), 25, NULL)) LIKE '22023:ai_memory_personal_data%'
@@ -960,6 +965,25 @@ SELECT pg_temp.p3_assert(platform_private.ai_memory_text_ok(NULL) AND platform_p
   AND NOT platform_private.ai_memory_text_ok('0555.12.34.56') AND NOT platform_private.ai_memory_text_ok('8(555)123456')
   AND platform_private.ai_memory_text_ok('Срок 06.10.2026, бюджет 1 500 000 сом'),
   'text guard: 8 digits and a date pass; 9+ digits with spaces, hyphens, brackets or dots and e-mails do not');
+-- The separator set is explicit (NBSP is [[:space:]] under ICU en-US but not
+-- under libc C.UTF-8): NBSP, narrow NBSP, tab, en and em dash join digits; an
+-- unspaced range of two full dates is 16 digits and is refused (documented).
+SELECT pg_temp.p3_assert(NOT platform_private.ai_memory_text_ok(E'+996\u00A0555\u00A0123\u00A0456')
+  AND NOT platform_private.ai_memory_text_ok(E'Тел.: 0555\u00A012\u00A034\u00A056')
+  AND NOT platform_private.ai_memory_text_ok(E'+996\u202F555\u202F123\u202F456')
+  AND NOT platform_private.ai_memory_text_ok(E'+996\t555\t123\t456')
+  AND NOT platform_private.ai_memory_text_ok(E'+996 555\u2013123\u2013456')
+  AND NOT platform_private.ai_memory_text_ok(E'0555\u201412\u201434\u201456')
+  AND NOT platform_private.ai_memory_text_ok(E'+996\u00A0(555)\u00A012\u201334\u201356')
+  AND NOT platform_private.ai_memory_text_ok('01.09.2026-30.06.2027')
+  AND NOT platform_private.ai_memory_text_ok(E'01.09.2026\u201330.06.2027')
+  AND platform_private.ai_memory_text_ok('01.09.2026 - 30.06.2027')
+  AND platform_private.ai_memory_text_ok(E'01.09.2026 \u2013 30.06.2027')
+  AND platform_private.ai_memory_text_ok(E'Учебный год 2026\u20132027, курс 12\u00A0345\u00A0678')
+  AND platform_private.ai_memory_text_ok('Стоимость 1 180,00 $ в 2026 году')
+  AND platform_private.ai_memory_text_ok(E'Бюджет 1\u00A0500\u00A0000 сом')
+  AND platform_private.ai_memory_text_ok(E'555\u00A0\u00A0\u00A0123\u00A0\u00A0\u00A0456'),
+  'text guard: NBSP, narrow NBSP, tab and dash phones and unspaced date ranges are refused; spaced ranges, prices, years and 3 separators pass');
 
 -- ---------------------------------------------------------------------------
 -- 12. Staff: view, refusals, clear (ai.agent.use), audit without text.

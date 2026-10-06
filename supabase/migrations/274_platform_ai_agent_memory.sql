@@ -238,14 +238,20 @@ BEGIN
 END
 $$;
 
--- Текст памяти без e-mail и номеров (9+ цифр, между ними — до двух знаков из
--- пробела, скобок, точки и дефиса: «+996 (555) 12-34-56», «0555.12.34.56»;
--- 14-значный ПИН тоже). Тот же шаблон — у PHONE_RE приватного сервиса.
--- NULL — допустим.
+-- Текст памяти без e-mail и номеров: 9+ цифр, между соседними — не больше
+-- двух разделителей из явного набора: пробел, таб, неразрывные пробелы U+00A0
+-- и U+202F (так форматирует iOS), скобки, точка, дефис, тире U+2013 и U+2014 —
+-- «+996 (555) 12-34-56», «0555.12.34.56», «+996 555 123 456» с NBSP,
+-- «0555–12–34–56»; 14-значный ПИН тоже. Набор явный, не [[:space:]]: NBSP
+-- входит в [[:space:]] при ICU en-US, но не при libc C.UTF-8 (проверено на
+-- образе тестов 07.10.2026). Диапазон дат без пробелов («01.09.2026-30.06.2027»,
+-- как и с тире, — 16 цифр) считается номером и отклоняется, сервис его
+-- скрывает; с пробелами вокруг дефиса или тире («01.09.2026 – 30.06.2027») —
+-- допустим. Тот же шаблон — у PHONE_RE приватного сервиса. NULL — допустим.
 CREATE OR REPLACE FUNCTION platform_private.ai_memory_text_ok(p_text TEXT)
 RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT p_text IS NULL OR (p_text !~ '[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+'
-    AND p_text !~ '\+?\d([ ().-]{0,2}\d){8,}')
+    AND p_text !~ '\+?\d([ \t\u00A0\u202F().\u2013\u2014-]{0,2}\d){8,}')
 $$;
 
 -- Поставить указатель памяти диалога, если он нужен (p_summary_only — только
@@ -485,12 +491,14 @@ $$;
 -- кроме полной страницы (hasMore — листать дальше сразу). Сообщения этих
 -- 5 минут приходят повторно — memory_due_v1 идемпотентна; сообщение,
 -- записанное позже чем через 5 минут после своего времени, опрос не увидит
--- (его диалог обновится по следующему входящему).
+-- (его диалог обновится по следующему входящему). now — часы базы в начале
+-- чтения (от них считается горизонт): своё перекрытие поллер считает от них,
+-- а не от часов агента.
 CREATE OR REPLACE FUNCTION platform_ai_agent.inbound_since_v1(p_after_at TIMESTAMPTZ, p_after_id UUID,
   p_limit INTEGER DEFAULT 200)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_after_at TIMESTAMPTZ; v_after_id UUID; v_orgs UUID[]; v_items JSONB; v_count INTEGER;
-  v_horizon TIMESTAMPTZ; v_next_at TIMESTAMPTZ; v_next_id UUID;
+  v_now TIMESTAMPTZ; v_horizon TIMESTAMPTZ; v_next_at TIMESTAMPTZ; v_next_id UUID;
   v_max_id CONSTANT UUID := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 BEGIN
   IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 500 OR ((p_after_at IS NULL) <> (p_after_id IS NULL)) THEN
@@ -501,7 +509,8 @@ BEGIN
   IF v_orgs IS NULL THEN
     RAISE EXCEPTION 'ai_background_disabled' USING ERRCODE = '42501';
   END IF;
-  v_horizon := clock_timestamp() - INTERVAL '5 minutes';
+  v_now := clock_timestamp();
+  v_horizon := v_now - INTERVAL '5 minutes';
   v_after_at := COALESCE(p_after_at, v_horizon);
   v_after_id := COALESCE(p_after_id, '00000000-0000-0000-0000-000000000000'::UUID);
   SELECT COALESCE(jsonb_agg(jsonb_build_object('organizationId', x.organization_id,
@@ -530,7 +539,7 @@ BEGIN
     v_next_id := v_max_id;
   END IF;
   RETURN jsonb_build_object('items', v_items, 'hasMore', v_count = p_limit,
-    'next', jsonb_build_object('afterAt', v_next_at, 'afterId', v_next_id));
+    'next', jsonb_build_object('afterAt', v_next_at, 'afterId', v_next_id), 'now', v_now);
 END
 $$;
 
@@ -905,7 +914,7 @@ COMMENT ON FUNCTION platform.ai_agent_memory_toggle_v1(UUID, BOOLEAN, BIGINT, UU
 COMMENT ON FUNCTION platform.ai_agent_consent_record_v1(UUID, TEXT, TEXT, UUID) IS
   'AI agent: Admin records or revokes the Gemini consent; a revoke also turns client memory off and deletes it (274).';
 COMMENT ON FUNCTION platform_ai_agent.inbound_since_v1(TIMESTAMPTZ, UUID, INTEGER) IS
-  'AI agent P3: inbound message pointers (no text) of sales conversations with memory on; next never passes now - 5 min except on a full page, so late projections are returned again (memory_due_v1 is idempotent).';
+  'AI agent P3: inbound message pointers (no text) of sales conversations with memory on; next never passes now - 5 min except on a full page, so late projections are returned again (memory_due_v1 is idempotent); now is the database clock the horizon is measured from.';
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;

@@ -445,3 +445,247 @@ test("a reply to a conversation bound on a LID chat goes to that LID chat, and i
     /\/api\/crm_primary\/chats\/123456789012345%40lid\/messages\//u,
   );
 });
+
+// WAHA 2026.9.2 on the GOWS engine (gows-plus v1.0.48). Synthetic ids only.
+const GOWS_LID_RECIPIENT = "123456789012345@lid";
+const GOWS_MESSAGE_KEY = "3EB0A1B2C3D4E5F60718";
+const GOWS_MESSAGE_ID = `true_${GOWS_LID_RECIPIENT}_${GOWS_MESSAGE_KEY}`;
+const GOWS_OWN_DEVICE = "996700000001:7@s.whatsapp.net";
+
+// POST /api/sendText on GOWS: session.gows.core.ts messageResponse() answers
+// only { id: `true_${toCusFormat(chat)}_${Info.ID}`, _data }, where _data is the
+// GOWS events.Message JSON the send also emits as its message.any echo.
+function gowsSendResponse({
+  recipient = GOWS_LID_RECIPIENT,
+  chat = recipient,
+  key = GOWS_MESSAGE_KEY,
+  text = TEXT,
+  timestamp = "2026-09-02T12:00:02Z",
+  info = {},
+  message,
+  ...overrides
+} = {}) {
+  const content = message ?? {
+    extendedTextMessage: { text, contextInfo: { stanzaID: "SOURCE1" } },
+  };
+  return {
+    id: `true_${recipient}_${key}`,
+    _data: {
+      Info: {
+        Chat: chat,
+        Sender: GOWS_OWN_DEVICE,
+        IsFromMe: true,
+        IsGroup: false,
+        ID: key,
+        Timestamp: timestamp,
+        ServerID: 101,
+        ...info,
+      },
+      Message: content,
+      RawMessage: content,
+    },
+    ...overrides,
+  };
+}
+
+// GOWS toWAMessage() for an own direct-chat message, as both the message.any
+// echo and GET /api/{session}/chats/{chatId}/messages carry it: the chat is in
+// `from` and `to` is null (getFromToParticipant).
+function gowsWaMessage(overrides = {}) {
+  return {
+    id: GOWS_MESSAGE_ID,
+    timestamp: Date.parse(PROVIDER_OBSERVED_AT) / 1_000,
+    from: GOWS_LID_RECIPIENT,
+    fromMe: true,
+    source: "api",
+    body: TEXT,
+    to: null,
+    participant: null,
+    hasMedia: false,
+    media: null,
+    ack: 2,
+    ackName: "DEVICE",
+    replyTo: null,
+    _data: {
+      Info: {
+        Chat: GOWS_LID_RECIPIENT,
+        ID: GOWS_MESSAGE_KEY,
+        IsFromMe: true,
+        IsGroup: false,
+      },
+    },
+    ...overrides,
+  };
+}
+
+function gowsProvider(body, calls = [], nowValue = ACK_OBSERVED_AT) {
+  return createPlatformWahaProvider(RUNTIME, {
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify(body), { status: 200 });
+    },
+    now: () => new Date(nowValue),
+  });
+}
+
+test("a GOWS sendText answer to a LID chat is accepted with the id its message.any echo carries", async () => {
+  const calls = [];
+  const provider = gowsProvider(gowsSendResponse(), calls);
+
+  const sent = await provider.sendText({
+    recipientId: GOWS_LID_RECIPIENT,
+    text: TEXT,
+    replyTo: "false_123456789012345@lid_SOURCE1",
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].init.method, "POST");
+  assert.equal(JSON.parse(calls[0].init.body).chatId, GOWS_LID_RECIPIENT);
+  assert.deepEqual(sent, {
+    providerMessageId: GOWS_MESSAGE_ID,
+    providerSource: "api",
+    providerObservedAt: PROVIDER_OBSERVED_AT,
+    ackState: "server",
+    ackObservedAt: ACK_OBSERVED_AT,
+  });
+  // The echo's payload.id is `true_<from>_<Info.ID>`; the binding stores the
+  // same id, so the echo and later ACKs resolve to the CRM's own message.
+  const echo = gowsWaMessage();
+  assert.equal(echo.id, `true_${echo.from}_${echo._data.Info.ID}`);
+  assert.equal(sent.providerMessageId, echo.id);
+});
+
+test("a GOWS sendText answer to a phone chat maps the engine JID back to the c.us id", async () => {
+  const provider = gowsProvider(
+    gowsSendResponse({
+      recipient: RECIPIENT,
+      chat: "996555000001@s.whatsapp.net",
+    }),
+  );
+  const sent = await provider.sendText({
+    recipientId: RECIPIENT,
+    text: TEXT,
+    replyTo: REPLY_TO,
+  });
+  assert.equal(sent.providerMessageId, `true_${RECIPIENT}_${GOWS_MESSAGE_KEY}`);
+});
+
+test("a GOWS sendText answer without _data falls back to the observation time", async () => {
+  const provider = gowsProvider({ id: GOWS_MESSAGE_ID, _data: null });
+  const sent = await provider.sendText({
+    recipientId: GOWS_LID_RECIPIENT,
+    text: TEXT,
+    replyTo: "false_123456789012345@lid_SOURCE1",
+  });
+  assert.deepEqual(sent, {
+    providerMessageId: GOWS_MESSAGE_ID,
+    providerSource: "api",
+    providerObservedAt: ACK_OBSERVED_AT,
+    ackState: "server",
+    ackObservedAt: ACK_OBSERVED_AT,
+  });
+});
+
+test("a contradictory GOWS sendText answer stays unknown after its single call", async (t) => {
+  const cases = [
+    ["missing id", { ...gowsSendResponse(), id: undefined }],
+    ["id names another chat", gowsSendResponse({ recipient: "123456789012399@lid" })],
+    ["id is not an own message", { ...gowsSendResponse(), id: `false_${GOWS_LID_RECIPIENT}_${GOWS_MESSAGE_KEY}` }],
+    ["group-style id with a participant", gowsSendResponse({ key: `${GOWS_MESSAGE_KEY}_${GOWS_LID_RECIPIENT}` })],
+    ["Info.ID differs from the id", gowsSendResponse({ info: { ID: "3EB0FFFFFFFFFFFFFFFF" } })],
+    ["Info is not from me", gowsSendResponse({ info: { IsFromMe: false } })],
+    ["Info is a group", gowsSendResponse({ info: { IsGroup: true } })],
+    ["sent text differs", gowsSendResponse({ text: "Другой текст" })],
+    ["message has no text", gowsSendResponse({ message: { imageMessage: { caption: TEXT } } })],
+    ["_data is not an object", { id: GOWS_MESSAGE_ID, _data: "raw" }],
+    ["timestamp is unreadable", gowsSendResponse({ timestamp: "not-a-time" })],
+    ["timestamp is after the observation", gowsSendResponse({ timestamp: "2026-09-02T12:00:09Z" })],
+  ];
+  for (const [name, body] of cases) {
+    await t.test(name, async () => {
+      const calls = [];
+      const provider = gowsProvider(body, calls);
+      await assert.rejects(
+        () => provider.sendText({
+          recipientId: GOWS_LID_RECIPIENT,
+          text: TEXT,
+          replyTo: "false_123456789012345@lid_SOURCE1",
+        }),
+        (error) =>
+          error instanceof PlatformWahaProviderError &&
+          error.code === "provider_malformed_response" &&
+          error.disposition === "unknown",
+      );
+      assert.equal(calls.length, 1);
+    });
+  }
+});
+
+test("GOWS readback finds the unknown send by its chat-in-from record and never sends", async () => {
+  const calls = [];
+  const provider = gowsProvider([
+    gowsWaMessage({
+      id: `true_${GOWS_LID_RECIPIENT}_3EB0APPSOURCE0000001`,
+      source: "app",
+    }),
+    gowsWaMessage({
+      id: `true_${GOWS_LID_RECIPIENT}_3EB0OTHERTEXT0000001`,
+      body: "Другой текст",
+    }),
+    gowsWaMessage(),
+  ], calls);
+
+  const found = await provider.findUniqueMessage({
+    recipientId: GOWS_LID_RECIPIENT,
+    expectedText: TEXT,
+    windowStart: "2026-09-02T12:00:00.000Z",
+    windowEnd: "2026-09-02T12:00:10.000Z",
+  });
+
+  assert.deepEqual(calls.map(({ init }) => init.method), ["GET"]);
+  assert.deepEqual(found, {
+    providerMessageId: GOWS_MESSAGE_ID,
+    providerSource: "api",
+    providerObservedAt: PROVIDER_OBSERVED_AT,
+    ackState: "device",
+    ackObservedAt: ACK_OBSERVED_AT,
+  });
+});
+
+test("GOWS readback ignores a chat-in-from record whose id names another chat", async () => {
+  const provider = gowsProvider([
+    gowsWaMessage({ id: `true_123456789012399@lid_${GOWS_MESSAGE_KEY}` }),
+    gowsWaMessage({ from: "123456789012399@lid" }),
+  ]);
+  const found = await provider.findUniqueMessage({
+    recipientId: GOWS_LID_RECIPIENT,
+    expectedText: TEXT,
+    windowStart: "2026-09-02T12:00:00.000Z",
+    windowEnd: "2026-09-02T12:00:10.000Z",
+  });
+  assert.equal(found, null);
+});
+
+test("GOWS ACK readback reads the exact chat-in-from record", async () => {
+  const calls = [];
+  const provider = gowsProvider(gowsWaMessage({ ack: 3, ackName: "READ" }), calls);
+  const read = await provider.getMessage({
+    recipientId: GOWS_LID_RECIPIENT,
+    providerMessageId: GOWS_MESSAGE_ID,
+    expectedText: TEXT,
+  });
+  assert.deepEqual(calls.map(({ init }) => init.method), ["GET"]);
+  assert.equal(read.providerMessageId, GOWS_MESSAGE_ID);
+  assert.equal(read.ackState, "read");
+
+  await assert.rejects(
+    () => gowsProvider(gowsWaMessage({ from: "123456789012399@lid" })).getMessage({
+      recipientId: GOWS_LID_RECIPIENT,
+      providerMessageId: GOWS_MESSAGE_ID,
+      expectedText: TEXT,
+    }),
+    (error) =>
+      error instanceof PlatformWahaProviderError &&
+      error.code === "provider_malformed_response",
+  );
+});

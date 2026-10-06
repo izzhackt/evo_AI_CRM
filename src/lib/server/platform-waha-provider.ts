@@ -10,6 +10,10 @@ import {
 
 const DIRECT_RECIPIENT_PATTERN = /^[1-9]\d{4,31}@(c\.us|lid)$/u;
 const PRINTABLE_PROVIDER_ID_PATTERN = /^[\x20-\x7e]+$/u;
+// The WhatsApp message key inside a serialized direct-chat id
+// `true_<chat>_<key>`: alphanumeric, never an `_` (a group id would carry a
+// trailing `_<participant>`).
+const WHATSAPP_MESSAGE_KEY_PATTERN = /^[0-9A-Za-z]{1,128}$/u;
 const MAX_API_KEY_BYTES = 4_096;
 const MAX_MESSAGE_ID_BYTES = 512;
 const MAX_RESPONSE_BYTES = 64 * 1_024;
@@ -215,6 +219,117 @@ async function readBoundedJson(response: Response): Promise<unknown> {
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
 }
 
+function malformedResponse(): PlatformWahaProviderError {
+  return new PlatformWahaProviderError("provider_malformed_response", "unknown");
+}
+
+// The provider message key of an own direct-chat message id serialized as
+// `true_<recipient>_<key>`, or null when the id names another chat or form.
+function ownDirectMessageKey(
+  providerMessageId: string,
+  recipientId: string,
+): string | null {
+  const prefix = `true_${recipientId}_`;
+  if (!providerMessageId.startsWith(prefix)) return null;
+  const key = providerMessageId.slice(prefix.length);
+  return WHATSAPP_MESSAGE_KEY_PATTERN.test(key) ? key : null;
+}
+
+// A stored own message addresses the bound chat in one of two WAMessage forms:
+// WEBJS/NOWEB put the own account in `from` and the chat in `to`; GOWS
+// (getFromToParticipant in session.gows.core.ts) puts the chat in `from` and
+// `to: null` for a direct chat, so there the serialized id must also name it.
+function addressesRecipient(
+  value: Record<string, unknown>,
+  recipientId: string,
+): boolean {
+  if (value.to === recipientId) return isDirectRecipient(value.from);
+  return (
+    value.to === null &&
+    value.from === recipientId &&
+    typeof value.id === "string" &&
+    ownDirectMessageKey(value.id, recipientId) !== null
+  );
+}
+
+function gowsSentText(message: unknown): string | null {
+  if (!isRecord(message)) return null;
+  if (typeof message.conversation === "string") return message.conversation;
+  if (
+    isRecord(message.extendedTextMessage) &&
+    typeof message.extendedTextMessage.text === "string"
+  ) {
+    return message.extendedTextMessage.text;
+  }
+  return null;
+}
+
+function isGowsSendResponse(value: unknown): value is Record<string, unknown> {
+  return (
+    isRecord(value) &&
+    !Object.hasOwn(value, "fromMe") &&
+    !Object.hasOwn(value, "timestamp")
+  );
+}
+
+// WAHA GOWS answers POST /api/sendText with only `{ id, _data }`
+// (session.gows.core.ts messageResponse): `id` is
+// `true_<toCusFormat(chat)>_<Info.ID>`, the same id the `message.any` echo of
+// this send carries, and `_data` is the GOWS events.Message JSON
+// (`{ Info, Message, RawMessage }`) or null. A 2xx answer comes only after
+// whatsmeow's SendMessage returned, i.e. after the WhatsApp server ack.
+function normalizeGowsSendResponse(
+  value: Record<string, unknown>,
+  expected: Readonly<{ recipientId: string; text: string }>,
+  ackObservedAt: Date,
+): PlatformWahaProviderMessage {
+  if (
+    !isBoundedProviderId(value.id) ||
+    !(ackObservedAt instanceof Date) ||
+    !Number.isFinite(ackObservedAt.getTime())
+  ) {
+    throw malformedResponse();
+  }
+  const messageKey = ownDirectMessageKey(value.id, expected.recipientId);
+  if (messageKey === null) throw malformedResponse();
+
+  let providerObservedAt = ackObservedAt;
+  const data = value._data;
+  if (data !== null && data !== undefined) {
+    if (
+      !isRecord(data) ||
+      !isRecord(data.Info) ||
+      data.Info.ID !== messageKey ||
+      data.Info.IsFromMe !== true ||
+      data.Info.IsGroup !== false ||
+      gowsSentText(data.Message) !== expected.text
+    ) {
+      throw malformedResponse();
+    }
+    if (data.Info.Timestamp !== undefined) {
+      const timestampMs =
+        typeof data.Info.Timestamp === "string"
+          ? Date.parse(data.Info.Timestamp)
+          : Number.NaN;
+      if (!Number.isFinite(timestampMs) || timestampMs <= 0) {
+        throw malformedResponse();
+      }
+      providerObservedAt = new Date(timestampMs);
+    }
+  }
+  if (ackObservedAt.getTime() < providerObservedAt.getTime()) {
+    throw malformedResponse();
+  }
+
+  return Object.freeze({
+    providerMessageId: value.id,
+    providerSource: "api" as const,
+    providerObservedAt: providerObservedAt.toISOString(),
+    ackState: "server" as const,
+    ackObservedAt: ackObservedAt.toISOString(),
+  });
+}
+
 function normalizeMessage(
   value: unknown,
   expected: Readonly<{
@@ -232,8 +347,7 @@ function normalizeMessage(
       value.id !== expected.providerMessageId) ||
     !Number.isSafeInteger(value.timestamp) ||
     (value.timestamp as number) <= 0 ||
-    !isDirectRecipient(value.from) ||
-    value.to !== expected.recipientId ||
+    !addressesRecipient(value, expected.recipientId) ||
     value.fromMe !== true ||
     (value.source !== "api" && value.source !== "app") ||
     (expected.source !== undefined && value.source !== expected.source) ||
@@ -338,15 +452,21 @@ export function createPlatformWahaProvider(
           reply_to: input.replyTo,
         }),
       });
-      const message = normalizeMessage(
-        response,
-        {
-          recipientId: input.recipientId,
-          text: input.text,
-          source: "api",
-        },
-        now(),
-      );
+      const message = isGowsSendResponse(response)
+        ? normalizeGowsSendResponse(
+            response,
+            { recipientId: input.recipientId, text: input.text },
+            now(),
+          )
+        : normalizeMessage(
+            response,
+            {
+              recipientId: input.recipientId,
+              text: input.text,
+              source: "api",
+            },
+            now(),
+          );
       if (message.ackState === "error") {
         throw new PlatformWahaProviderError("message_rejected", "failed");
       }
@@ -446,7 +566,7 @@ export function createPlatformWahaProvider(
         if (
           candidate.fromMe !== true ||
           candidate.source !== "api" ||
-          candidate.to !== input.recipientId ||
+          !addressesRecipient(candidate, input.recipientId) ||
           candidate.body !== input.expectedText ||
           (candidate.timestamp as number) < windowStartTimestamp ||
           (candidate.timestamp as number) > windowEndTimestamp

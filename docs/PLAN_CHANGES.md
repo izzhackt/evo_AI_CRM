@@ -46527,3 +46527,34 @@ SQL — `supabase/tests/platform_marketing_m1.sql`; приложение — `te
 
 Проверка: `git diff --check`; префиксы `docs/EVO_LAUNCH_PLAN.md` и
 `docs/PLAN_CHANGES.md` байт в байт совпадают с `origin/main`; секретов нет.
+
+## 2026-10-06 — WhatsApp на GOWS: ответ из CRM дошёл, но не появился в CRM (формат sendText)
+
+Записи выше не переписываются.
+
+- Факт (только чтение production): ручная отправка 06.10 07:43 UTC дошла в
+  WhatsApp, но попытка закрыта `unknown_result` / `provider_malformed_response`,
+  work item `unknown_manual_review`, привязок отправки 0. `evidence_ref` —
+  постоянная метка `manual-send-provider-ambiguous`, сырой ответ WAHA не
+  хранится. Эхо `message.any` (`source=api`) проекция пропустила как
+  `crm_send_echo`, поэтому ответа в CRM нет.
+- Причина: WAHA 2026.9.2 на GOWS (gows-plus v1.0.48) отвечает на
+  `POST /api/sendText` только `{ id, _data }` (`session.gows.core.ts`,
+  `messageResponse`), а `platform-waha-provider.ts` ждал WAMessage
+  (timestamp/from/to/fromMe/source/body/ack). Чтение сообщений на GOWS кладёт
+  чат в `from` и `to: null`, поэтому «Проверить результат без новой отправки»
+  тоже не нашло бы сообщение.
+- Исправление (только код, SQL не менялся): парсер принимает форму GOWS; id
+  `true_<чат>_<Info.ID>` совпадает с id эха; `_data`, если есть, обязан
+  совпасть (ID, fromMe, не группа, текст, время). Чтение принимает обе формы
+  адресации. Противоречивый ответ по-прежнему даёт `unknown_result`.
+- Застрявшая попытка: после выпуска сотрудник нажимает «Проверить результат
+  без новой отправки» — путь `unknown_recovery` находит сообщение чтением WAHA
+  и записывает исходящее и привязку без повторной отправки. Предусловия
+  проверены только чтением: открытый review `unknown_delivery`,
+  участник-отправитель и входящее-источник есть. В production ничего не
+  записывалось.
+
+Проверка: целевые Node-тесты провайдера и оркестратора, typecheck, eslint,
+`git diff --check`; префикс `docs/PLAN_CHANGES.md` байт в байт совпадает с
+`origin/main` `20e2c560d`; номеров, chat id и текстов сообщений в записи нет.

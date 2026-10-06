@@ -12,6 +12,7 @@ import {
 } from "../src/lib/server/platform-gemini-provider.ts";
 import {
   PlatformWahaProviderError,
+  createPlatformWahaProvider,
 } from "../src/lib/server/platform-waha-provider.ts";
 
 const ORGANIZATION_ID = "10000000-0000-4000-8000-000000000001";
@@ -1012,4 +1013,194 @@ test("ACK reconciliation reads only the exact provider message id and never sear
   assert.equal(service.calls.at(-1).args.p_provider_message_id, PROVIDER_MESSAGE_ID);
   assert.equal(service.calls.at(-1).args.p_ack_state, "read");
   assert.equal(result.result.outcome, "delivery_refreshed");
+});
+
+// WAHA 2026.9.2 GOWS shapes (synthetic ids). sendText answers only { id, _data };
+// the message.any echo and GET chat messages carry the chat in `from`, `to: null`.
+const GOWS_LID_RECIPIENT = "123456789012345@lid";
+const GOWS_MESSAGE_KEY = "3EB0A1B2C3D4E5F60718";
+const GOWS_ECHO_ID = `true_${GOWS_LID_RECIPIENT}_${GOWS_MESSAGE_KEY}`;
+const GOWS_SENT_AT = "2026-09-02T12:00:01.000Z";
+
+function realGowsProvider(fetchCalls, body) {
+  return (runtime) =>
+    createPlatformWahaProvider(runtime, {
+      fetch: async (url, init) => {
+        fetchCalls.push({ url, init });
+        return new Response(JSON.stringify(body), { status: 200 });
+      },
+      now: () => new Date(COMPLETED_AT),
+    });
+}
+
+test("a GOWS sendText answer finishes the manual send as accepted under the id its echo carries", async () => {
+  const service = recordingRpcClient((functionName) => {
+    if (functionName === "claim_manual_whatsapp_send_item") {
+      return {
+        data: {
+          ...claimedManualSendData(),
+          raw_chat_id: GOWS_LID_RECIPIENT,
+          raw_reply_to: `false_${GOWS_LID_RECIPIENT}_SOURCE1`,
+        },
+        error: null,
+      };
+    }
+    if (functionName === "resolve_manual_send_waha_runtime") {
+      return { data: wahaRuntimeData(), error: null };
+    }
+    return {
+      data: {
+        organization_id: ORGANIZATION_ID,
+        work_item_id: WORK_ITEM_ID,
+        attempt_id: ATTEMPT_ID,
+        kind: "manual_whatsapp_send",
+        state: "succeeded",
+        outcome: "succeeded",
+        queue_message_id: "42",
+        active_message_archived: true,
+        automatic_retry_allowed: false,
+        communication_message_id: OUTBOUND_MESSAGE_ID,
+        provider_identity_private: true,
+      },
+      error: null,
+    };
+  });
+  const fetchCalls = [];
+
+  const result = await executePlatformManualWhatsAppSend(
+    service.client,
+    {
+      authorization: manualSendAuthorization(),
+      visibilityTimeoutSeconds: 120,
+      workerRef: "next-app-manual-send",
+      claimRequestId: REQUEST_ID,
+      completionRequestId: COMPLETION_REQUEST_ID,
+    },
+    {
+      createWahaProvider: realGowsProvider(fetchCalls, {
+        id: GOWS_ECHO_ID,
+        _data: {
+          Info: {
+            Chat: GOWS_LID_RECIPIENT,
+            Sender: "996700000001:7@s.whatsapp.net",
+            IsFromMe: true,
+            IsGroup: false,
+            ID: GOWS_MESSAGE_KEY,
+            Timestamp: "2026-09-02T12:00:01Z",
+          },
+          Message: { extendedTextMessage: { text: FINAL_TEXT } },
+        },
+      }),
+    },
+  );
+
+  assert.deepEqual(fetchCalls.map(({ init }) => init.method), ["POST"]);
+  const finishCall = service.calls.find(
+    ({ functionName }) => functionName === "finish_manual_whatsapp_send",
+  );
+  assert.equal(finishCall.args.p_outcome, "succeeded");
+  assert.equal(finishCall.args.p_error_code, null);
+  assert.equal(finishCall.args.p_provider_message_id, GOWS_ECHO_ID);
+  assert.equal(finishCall.args.p_provider_observed_at, GOWS_SENT_AT);
+  assert.equal(result.result.outcome, "succeeded");
+  assert.equal(result.result.communicationMessageId, OUTBOUND_MESSAGE_ID);
+});
+
+test("a GOWS unknown send is recovered by readback alone with the echo's provider id", async () => {
+  const staff = recordingRpcClient(() => ({
+    data: [{
+      reconciliation_request_id: RECONCILIATION_REQUEST_ID,
+      reconciliation_kind: "unknown_recovery",
+      replayed: false,
+    }],
+    error: null,
+  }));
+  const service = recordingRpcClient((functionName) => {
+    if (functionName === "manual_whatsapp_reconciliation_context") {
+      return {
+        data: {
+          reconciliation_request_id: RECONCILIATION_REQUEST_ID,
+          request_id: REQUEST_ID,
+          organization_id: ORGANIZATION_ID,
+          conversation_id: CONVERSATION_ID,
+          source_message_id: SOURCE_MESSAGE_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          manual_send_authorization_id: AUTHORIZATION_ID,
+          reconciliation_kind: "unknown_recovery",
+          waha_session_name: "crm_primary",
+          raw_chat_id: GOWS_LID_RECIPIENT,
+          final_text: FINAL_TEXT,
+          final_text_sha256: SHA256,
+          expected_provider_message_id: null,
+          provider_window_start: REQUESTED_AT,
+          provider_window_end: COMPLETED_AT,
+          completed: false,
+        },
+        error: null,
+      };
+    }
+    if (functionName === "resolve_manual_send_waha_runtime") {
+      return { data: wahaRuntimeData(), error: null };
+    }
+    return {
+      data: {
+        reconciliation_request_id: RECONCILIATION_REQUEST_ID,
+        organization_id: ORGANIZATION_ID,
+        conversation_id: CONVERSATION_ID,
+        attempt_id: ATTEMPT_ID,
+        outcome: "message_confirmed",
+        communication_message_id: OUTBOUND_MESSAGE_ID,
+        ack_name: "DEVICE",
+        reconciliation_required: false,
+        replayed: false,
+      },
+      error: null,
+    };
+  });
+  const fetchCalls = [];
+  const gowsRecord = {
+    id: GOWS_ECHO_ID,
+    timestamp: Date.parse(GOWS_SENT_AT) / 1_000,
+    from: GOWS_LID_RECIPIENT,
+    fromMe: true,
+    source: "api",
+    body: FINAL_TEXT,
+    to: null,
+    participant: null,
+    ack: 2,
+    ackName: "DEVICE",
+  };
+
+  const result = await executePlatformManualWhatsAppReconciliation(
+    staff.client,
+    service.client,
+    {
+      organizationId: ORGANIZATION_ID,
+      conversationId: CONVERSATION_ID,
+      attemptId: ATTEMPT_ID,
+      requestId: REQUEST_ID,
+      reason: "Staff requested exact WAHA readback",
+      completionRequestId: COMPLETION_REQUEST_ID,
+    },
+    {
+      createWahaProvider: realGowsProvider(fetchCalls, [
+        { ...gowsRecord, id: `true_${GOWS_LID_RECIPIENT}_3EB0APPSOURCE0000001`, source: "app" },
+        gowsRecord,
+      ]),
+    },
+  );
+
+  assert.deepEqual(fetchCalls.map(({ init }) => init.method), ["GET"]);
+  const finishCall = service.calls.find(
+    ({ functionName }) => functionName === "finish_manual_whatsapp_reconciliation",
+  );
+  assert.equal(finishCall.args.p_match_count, 1);
+  assert.equal(finishCall.args.p_raw_chat_id, GOWS_LID_RECIPIENT);
+  assert.equal(finishCall.args.p_provider_message_id, GOWS_ECHO_ID);
+  assert.equal(finishCall.args.p_provider_source, "api");
+  assert.equal(finishCall.args.p_ack_state, "device");
+  assert.equal(finishCall.args.p_provider_observed_at, GOWS_SENT_AT);
+  assert.equal(result.status, "finished");
+  assert.equal(result.result.outcome, "message_confirmed");
 });

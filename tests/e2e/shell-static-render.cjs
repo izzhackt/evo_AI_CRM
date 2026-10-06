@@ -168,11 +168,14 @@ const EXPECTED_TABS = {
 const ADMISSIONS_TAB_TEXT = ["Сегодня", "Студенты", "Задачи", "Переписка", "Ещё"];
 // Состав отделов меню (решение владельца 28.09.2026: «Заявки» — первыми в
 // «Продажах», не в «Общем»). null — отдела у роли нет. Просмотр «Приёмной» не
-// видит «Заявок» (у фиксированной роли нет sales.read); куратор с lead.read
-// видит «Заявки» и «Отчёт продаж» — правило D скрывает только доску и WhatsApp.
+// видит «Заявок» (у фиксированной роли нет sales.read), но видит WhatsApp;
+// куратор с lead.read видит «Заявки», WhatsApp и «Отчёт продаж» — правило D
+// скрывает только доску. WhatsApp продаж открыт и ролям поступления: решение
+// владельца 06.10.2026 («нет, все могут», миграция 261) заменило прежнее
+// 27.09.2026, по которому у них пункта не было.
 const SALES_FULL = ["Заявки", "Воронка продаж", "WhatsApp", "Отчёт продаж"];
 const EXPECTED_SALES_GROUP = {
-  admin: SALES_FULL, admissions: null, "admissions-staff": ["Заявки", "Отчёт продаж"], sales: SALES_FULL,
+  admin: SALES_FULL, admissions: ["WhatsApp"], "admissions-staff": ["Заявки", "WhatsApp", "Отчёт продаж"], sales: SALES_FULL,
 };
 const EXPECTED_TAB_TEXT = {
   admin: ADMISSIONS_TAB_TEXT, admissions: ADMISSIONS_TAB_TEXT, "admissions-staff": ADMISSIONS_TAB_TEXT,

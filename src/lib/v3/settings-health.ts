@@ -68,6 +68,11 @@ export type SettingsIntegrationFacts = Readonly<{
     sessionStatus: string | undefined;
     /** Когда состояние сессии наблюдалось; null — строки состояния нет. */
     observedAt: string | null;
+    /**
+     * Приём сообщений включён на сервере (`EVO_PLATFORM_WAHA_INGRESS_ENABLED=1`).
+     * Только `false` — выключен; поле не передали — как раньше.
+     */
+    ingressEnabled?: boolean;
   }>;
   gemini: ProviderDisplayStatus;
   amo: SettingsAmoAvailability;
@@ -88,6 +93,8 @@ const AMO_UNUSED: ReadonlySet<AmoBlockedReason> = new Set([
 ]);
 
 const WHATSAPP_WITHOUT = "Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя";
+/** Сессия может работать, а приём выключен: сказано прямо, живым не выглядит. */
+const INTAKE_OFF = "Приём сообщений выключен на сервере.";
 /** Страница WhatsApp: там видно то же состояние, что у сотрудников. */
 const OPEN_WHATSAPP = { label: "Открыть WhatsApp", href: "/v3/inbox" } as const;
 /** Работа на сервере — у технического специалиста. */
@@ -108,6 +115,16 @@ export function formatSettingsCheck(value: string | null, now: Date): string | n
 
 function whatsappRow(waha: SettingsIntegrationFacts["waha"], now: Date): IntegrationRow {
   const checked = { checkedAt: waha.observedAt, checkedText: formatSettingsCheck(waha.observedAt, now), checkable: true };
+  const intakeOff = waha.ingressEnabled === false;
+  if (waha.display === "ready" && intakeOff) {
+    // Живая проверка видит рабочую сессию, но входящие в CRM не принимаются.
+    return {
+      key: "whatsapp", name: "WhatsApp", state: "приём выключен", tone: "warn",
+      detail: `Сессия WhatsApp подключена. ${INTAKE_OFF} Входящие не попадают в CRM.`, ...checked,
+      without: WHATSAPP_WITHOUT,
+      action: { ...handoff("включить приём сообщений на сервере"), link: OPEN_WHATSAPP }, blocksWork: false,
+    };
+  }
   if (waha.display === "ready") {
     return {
       key: "whatsapp", name: "WhatsApp", state: "подключён", tone: "ok", detail: null, ...checked,
@@ -117,7 +134,7 @@ function whatsappRow(waha: SettingsIntegrationFacts["waha"], now: Date): Integra
   if (waha.display === "blocked") {
     return {
       key: "whatsapp", name: "WhatsApp", state: "заблокирован", tone: "blocked",
-      detail: settingsBlockedWahaDetail(waha.sessionStatus), ...checked,
+      detail: intakeOff ? `${settingsBlockedWahaDetail(waha.sessionStatus)} ${INTAKE_OFF}` : settingsBlockedWahaDetail(waha.sessionStatus), ...checked,
       without: WHATSAPP_WITHOUT,
       action: { ...handoff("проверить подключение на сервере"), link: OPEN_WHATSAPP }, blocksWork: true,
     };
@@ -125,7 +142,7 @@ function whatsappRow(waha: SettingsIntegrationFacts["waha"], now: Date): Integra
   // Строки состояния нет: WhatsApp к CRM не подключали (вебхук снят 26.09
   // сознательно). Это не просьба подключить, а кто подключает, когда решат.
   return {
-    key: "whatsapp", name: "WhatsApp", state: settingsStatusWords.notConnected, tone: "off", detail: null, ...checked,
+    key: "whatsapp", name: "WhatsApp", state: settingsStatusWords.notConnected, tone: "off", detail: intakeOff ? INTAKE_OFF : null, ...checked,
     without: WHATSAPP_WITHOUT,
     action: { handoff: "Подключает технический специалист на сервере: вебхук и вход по QR", link: OPEN_WHATSAPP }, blocksWork: false,
   };

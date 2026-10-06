@@ -248,10 +248,24 @@ function validateEnabledFeatureConfiguration(entries) {
   if (entries.get("EVO_PLATFORM_WAHA_INGRESS_ENABLED") === "1") {
     requireNonEmpty(
       entries,
-      [...shared, "EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET"],
+      [
+        ...shared,
+        "EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET",
+        "EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID",
+      ],
       "enabled_feature_configuration_missing",
     );
     if (entries.get("EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET").length < 32) {
+      fail("enabled_feature_configuration_missing");
+    }
+    // Inbound projection fails for every message without this Sales owner.
+    const intakeSalesMembershipId = entries.get(
+      "EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID",
+    );
+    if (
+      !UUID.test(intakeSalesMembershipId) ||
+      intakeSalesMembershipId === "00000000-0000-0000-0000-000000000000"
+    ) {
       fail("enabled_feature_configuration_missing");
     }
   }

@@ -33,8 +33,11 @@ import {
   type PlatformStaffGeminiProposal,
 } from "@/lib/platform-provider-workflows";
 import { isFreshWorkingWahaSession } from "@/lib/provider-display-status";
+import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress-config";
+import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
+import { inboxPresentationQueue, inboxReadsGeminiDrafts } from "@/lib/v3/inbox-access";
 import { toV3InboxMessageMedia } from "@/lib/v3/inbox-media";
 
 const INBOX_PAGE_SIZE = 50;
@@ -111,16 +114,27 @@ async function readInboxChannelStatus(
   actor: ActivePlatformActor,
 ): Promise<InboxChannelStatus> {
   try {
-    const health = await getPlatformWahaSessionHealth(actor, "crm_primary");
+    // The recorded status only says when the session last changed; the live
+    // probe says what it is now, so the banner does not go stale.
+    const health = await withLivePlatformWahaHealth(
+      actor.organizationId,
+      await getPlatformWahaSessionHealth(actor, "crm_primary"),
+    );
+    // Нет строки о сессии CRM — WhatsApp к CRM не подключали (чтение
+    // прошло; сбой чтения — ниже, «unavailable»).
+    const channelState: InboxChannelStatus["channelState"] =
+      health === null
+        ? "not_connected"
+        : isFreshWorkingWahaSession(health)
+          ? "ready"
+          : "attention";
     return Object.freeze({
-      // Нет строки о сессии CRM — WhatsApp к CRM не подключали (чтение
-      // прошло; сбой чтения — ниже, «unavailable»).
+      // Сессия работает, но приём выключен на сервере: «подключён» было бы
+      // неправдой — входящие в CRM не попадают.
       channelState:
-        health === null
-          ? "not_connected"
-          : isFreshWorkingWahaSession(health)
-            ? "ready"
-            : "attention",
+        channelState === "ready" && !isPlatformWahaIngressEnabled()
+          ? "intake_off"
+          : channelState,
       channelObservedAt: health ? formatInboxTime(health.observedAt) : null,
     });
   } catch {
@@ -201,8 +215,7 @@ export async function readInbox(
   actor: ActivePlatformActor,
   options: InboxReadOptions,
 ): Promise<InboxReadModel> {
-  const presentationQueue =
-    actor.presentationRole === null || actor.presentationRole === "admin" ? undefined : actor.presentationRole;
+  const presentationQueue = inboxPresentationQueue(actor);
   const filters = Object.freeze({
     query: options.query,
     waitingOnly: options.waitingOnly,
@@ -241,18 +254,26 @@ export async function readInbox(
         });
   if (thread) {
     const staffClient = await createSupabaseServerClient();
+    // Чтение черновиков Gemini требует ai.draft.review отдельно от чтения
+    // диалога. Переписка от этого не зависит: без права (роль без черновиков)
+    // страница открывается без блока ИИ, а не падает целиком (ИИ пока выключен).
+    const readsGeminiDrafts = inboxReadsGeminiDrafts(actor);
     const [context, channelStatus, proposal, reviews, latestAttempt] = await Promise.all([
       getPlatformConversationCommandContext(actor, thread.conversation.id),
       channelStatusPromise,
-      readStaffGeminiProposal(staffClient, {
-        organizationId: actor.organizationId,
-        conversationId: thread.conversation.id,
-      }),
-      listStaffGeminiProposalReviews(staffClient, {
-        organizationId: actor.organizationId,
-        conversationId: thread.conversation.id,
-        limit: 20,
-      }),
+      readsGeminiDrafts
+        ? readStaffGeminiProposal(staffClient, {
+            organizationId: actor.organizationId,
+            conversationId: thread.conversation.id,
+          })
+        : Promise.resolve(null),
+      readsGeminiDrafts
+        ? listStaffGeminiProposalReviews(staffClient, {
+            organizationId: actor.organizationId,
+            conversationId: thread.conversation.id,
+            limit: 20,
+          })
+        : Promise.resolve<readonly PlatformGeminiProposalReview[]>([]),
       readLatestManualWhatsAppSendAttempt(staffClient, {
         organizationId: actor.organizationId,
         conversationId: thread.conversation.id,

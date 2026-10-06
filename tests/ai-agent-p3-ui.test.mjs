@@ -26,7 +26,9 @@ import {
   aiLeadLine,
   aiMemoryHint,
   aiMemoryMeta,
+  aiMemoryPausedText,
   aiMemoryState,
+  aiMemorySummaryState,
   aiMemoryUpdated,
   aiMessagesDative,
   normalizeAiMemoryView,
@@ -48,8 +50,10 @@ const ID = (n) => `27400000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const ACTOR = Object.freeze({ organizationId: ID(90), membershipId: ID(91) });
 const NOW = new Date("2026-10-06T10:00:00Z"); // 16:00 по Бишкеку
 
+// Форма `ai_agent_memory_v1` (274) целиком: active = включена и согласие есть;
+// summaryDue/interestDue — false, пока память не работает.
 const RAW = Object.freeze({
-  enabled: true, consentRecorded: true, canManage: true, messageCount: 45,
+  enabled: true, consentRecorded: true, active: true, canManage: true, messageCount: 45, summaryDue: false, interestDue: false,
   memory: {
     interest: "Магистратура по IT в Малайзии,\nбюджет до 6 000 $ в год",
     summary: "Клиент выбирает между Малайзией и Китаем. Предложили две программы.",
@@ -76,22 +80,52 @@ test("view: strict shape; interest is one line ≤ 140, summary ≤ 1500; lead k
     { name: null, interestDirection: null, stage: "new" });
   assert.equal(view({ memory: null, lead: null }).memory, null);
   for (const bad of [null, [], {}, { ...RAW, enabled: "yes" }, { ...RAW, messageCount: -1 }, { ...RAW, messageCount: 1.5 },
-    { ...RAW, canManage: undefined }, { ...RAW, memory: "сводка" }, { ...RAW, memory: { ...RAW.memory, summary: 7 } }, { ...RAW, lead: [] }]) {
+    { ...RAW, canManage: undefined }, { ...RAW, memory: "сводка" }, { ...RAW, memory: { ...RAW.memory, summary: 7 } }, { ...RAW, lead: [] },
+    { ...RAW, active: undefined }, { ...RAW, summaryDue: null }, { ...RAW, interestDue: "true" },
+    // active без включённой памяти или согласия база (274) не отдаёт.
+    { ...RAW, enabled: false, active: true }, { ...RAW, consentRecorded: false, active: true }]) {
     assert.throws(() => normalizeAiMemoryView(bad), /ai_agent_shape_invalid/u, JSON.stringify(bad));
   }
+  assert.deepEqual(Object.keys(view()).sort(),
+    ["active", "canManage", "consentRecorded", "enabled", "interestDue", "lead", "memory", "messageCount", "summaryDue"]);
+  // «Пора» без работающей памяти не бывает.
+  const paused = view({ active: false, summaryDue: true, interestDue: true });
+  assert.equal(paused.summaryDue, false);
+  assert.equal(paused.interestDue, false);
 });
 
-test("states: off, ≤ 20 messages (no summary needed), due, ready — and the collapsed hint", () => {
-  assert.equal(aiMemoryState(view({ enabled: false })), "off");
-  assert.equal(aiMemoryHint(view({ enabled: false })), "Память выключена");
+test("states follow 274: off, paused (no consent), short, waiting (21–25), due (summaryDue), ready — and the collapsed hint", () => {
+  assert.equal(aiMemoryState(view({ enabled: false, active: false, memory: null })), "off");
+  assert.equal(aiMemoryHint(view({ enabled: false, active: false, memory: null })), "Память выключена");
+  // Память включена, согласие отозвано: база отдаёт active=false и memory=null — не «готовится».
+  const revoked = view({ consentRecorded: false, active: false, memory: null, messageCount: 45 });
+  assert.equal(aiMemoryState(revoked), "paused");
+  assert.equal(aiMemoryHint(revoked), "Память на паузе");
+  assert.equal(aiMemoryPausedText(revoked), "Память на паузе: без согласия на Gemini сводка и интерес не собираются.");
+  assert.equal(aiMemoryPausedText(view({ active: false, memory: null })), "Память на паузе: сводка и интерес не собираются.");
+  assert.equal(aiMemorySummaryState("paused"), null);
+  // ≤ 20 сообщений — сводка не нужна.
   assert.equal(aiMemoryState(view({ messageCount: AI_MEMORY_WINDOW, memory: null })), "short");
-  assert.equal(aiMemoryState(view({ messageCount: AI_MEMORY_WINDOW + 1, memory: null })), "due");
-  assert.equal(aiMemoryHint(view({ messageCount: 21, memory: null })), "Сводка готовится");
   assert.equal(aiMemoryHint(view({ messageCount: 12, memory: null })), "Вся переписка на виду у ИИ");
-  assert.equal(aiMemoryState(view({ memory: { ...RAW.memory, summary: null } })), "due");
+  // 21–25 сообщений: за окном меньше шести — summaryDue false, сводки не будет, пока переписка не вырастет.
+  for (const messageCount of [AI_MEMORY_WINDOW + 1, 25]) {
+    const waiting = view({ messageCount, memory: null });
+    assert.equal(aiMemoryState(waiting), "waiting", String(messageCount));
+    assert.equal(aiMemoryHint(waiting), "Сводка пока не нужна");
+    assert.equal(aiMemorySummaryState("waiting"), "Сводка появится, когда переписка станет длиннее.");
+  }
+  // Пора — только по summaryDue базы; собирается после следующего сообщения клиента.
+  const due = view({ messageCount: 26, summaryDue: true, memory: null });
+  assert.equal(aiMemoryState(due), "due");
+  assert.equal(aiMemoryHint(due), "Сводки пока нет");
+  assert.equal(aiMemorySummaryState("due"), "Сводки пока нет — ИИ соберёт её после следующего сообщения клиента.");
+  assert.equal(aiMemoryState(view({ summaryDue: true, memory: { ...RAW.memory, summary: null } })), "due");
+  assert.equal(aiMemoryState(view({ summaryDue: false, memory: { ...RAW.memory, summary: null } })), "waiting");
   assert.equal(aiMemoryState(view()), "ready");
+  assert.equal(aiMemoryState(view({ summaryDue: true })), "ready", "an older summary stays shown while a new one is due");
   assert.equal(aiMemoryHint(view()), "Магистратура по IT в Малайзии, бюджет до 6 000 $ в год");
   assert.equal(aiMemoryHint(view({ memory: { ...RAW.memory, interest: null } })), "Интереса пока нет");
+  for (const text of Object.values(AI_MEMORY_COPY)) assert.doesNotMatch(text, /готовится/u, "nothing promises a build that is not running");
 });
 
 test("lead line: «Имя · Направление · Этап», only what the card has; no card is said so", () => {
@@ -135,7 +169,7 @@ function deps(overrides = {}) {
     calls,
     authorize: async () => ({ status: "authorized", actor: ACTOR }),
     readMemory: async (actor, conversationId) => { calls.push(["read", actor, conversationId]); return view(); },
-    clearMemory: async (actor, conversationId, requestId) => { calls.push(["clear", actor, conversationId, requestId]); return { status: "cleared", cleared: true }; },
+    clearMemory: async (actor, conversationId, requestId) => { calls.push(["clear", actor, conversationId, requestId]); return { status: "cleared", deleted: true }; },
     ...overrides,
   };
 }
@@ -185,7 +219,7 @@ test("DELETE memory: «Забыть сводку» — same origin, exact {reque
   const handler = createAiMemoryClearHandler(dependencies);
   const response = await handler(del({ requestId: ID(7) }), conversation());
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { cleared: true });
+  assert.deepEqual(await response.json(), { deleted: true });
   assert.deepEqual(dependencies.calls, [["clear", ACTOR, ID(1), ID(7)]]);
 
   for (const [request, status] of [
@@ -213,10 +247,19 @@ test("DELETE memory: «Забыть сводку» — same origin, exact {reque
   assert.equal((await preview(del({ requestId: ID(7) }), conversation())).status, 403);
 });
 
-test("clear outcome: database codes map to honest results; a receipt says whether a row was there", () => {
-  assert.deepEqual(aiMemoryClearOutcome(null, { cleared: true, requestId: ID(7) }), { status: "cleared", cleared: true });
-  assert.deepEqual(aiMemoryClearOutcome(null, { cleared: false }), { status: "cleared", cleared: false });
-  assert.deepEqual(aiMemoryClearOutcome(null, null), { status: "unavailable" });
+test("clear outcome: the real 274 receipt says whether a row was there; database codes map to honest results", () => {
+  // Квитанция ai_agent_memory_clear_v1 (274) через ai_request_finish (269): status, conversationId, deleted, replayed.
+  assert.deepEqual(aiMemoryClearOutcome(null, { status: "cleared", conversationId: ID(1), deleted: true, replayed: false }),
+    { status: "cleared", deleted: true });
+  assert.deepEqual(aiMemoryClearOutcome(null, { status: "cleared", conversationId: ID(1), deleted: false, replayed: false }),
+    { status: "cleared", deleted: false });
+  // Повтор тем же id — прежняя квитанция с replayed=true: тот же итог.
+  assert.deepEqual(aiMemoryClearOutcome(null, { status: "cleared", conversationId: ID(1), deleted: true, replayed: true }),
+    { status: "cleared", deleted: true });
+  // Чужая форма — не «удалено».
+  for (const data of [null, [], {}, { cleared: true }, { status: "cleared" }, { status: "cleared", deleted: "true" }, { status: "applied", deleted: true }]) {
+    assert.deepEqual(aiMemoryClearOutcome(null, data), { status: "unavailable" }, JSON.stringify(data));
+  }
   assert.deepEqual(aiMemoryClearOutcome({ code: "PT409" }, null), { status: "conflict" });
   assert.deepEqual(aiMemoryClearOutcome({ code: "23505" }, null), { status: "conflict" });
   assert.deepEqual(aiMemoryClearOutcome({ code: "42501" }, null), { status: "forbidden" });
@@ -310,19 +353,27 @@ test("UI window: a collapsed «Что ИИ знает о клиенте» at the
     "the block only reads and clears its memory — never the agent's answer route");
   // Неизвестный итог «Забыть» повторяется тем же id запроса.
   assert.match(memory, /if \(outcome !== "unknown"\) requestId\.current = null;/u);
-  for (const copy of [AI_MEMORY_COPY.title, AI_MEMORY_COPY.off, AI_MEMORY_COPY.short, AI_MEMORY_COPY.due, AI_MEMORY_COPY.noInterest,
-    AI_MEMORY_COPY.noLead, AI_MEMORY_COPY.failed, AI_MEMORY_COPY.retry, AI_MEMORY_COPY.forget, AI_MEMORY_COPY.forgetConfirm]) {
-    assert.ok(read("src/lib/v3/ai-agent-memory.ts").includes(copy), copy);
-  }
   assert.equal(AI_MEMORY_COPY.title, "Что ИИ знает о клиенте");
   assert.equal(AI_MEMORY_COPY.off, "Память о клиенте выключена.");
   assert.equal(AI_MEMORY_COPY.short, "ИИ видит всю переписку — сводка не нужна.");
-  assert.equal(AI_MEMORY_COPY.due, "Сводка готовится.");
+  assert.equal(AI_MEMORY_COPY.waiting, "Сводка появится, когда переписка станет длиннее.");
+  assert.equal(AI_MEMORY_COPY.due, "Сводки пока нет — ИИ соберёт её после следующего сообщения клиента.");
   assert.equal(AI_MEMORY_COPY.noInterest, "Интерес появится после следующего сообщения клиента.");
   assert.equal(AI_MEMORY_COPY.noLead, "Карточки лида нет.");
-  assert.equal(AI_MEMORY_COPY.forgetConfirm, "Сводка удалится, ИИ соберёт новую.");
+  assert.equal(AI_MEMORY_COPY.unavailable, "Память этого чата недоступна.");
+  // clear не ставит пересборку (274): новая память — по следующему сообщению клиента; удаляется и интерес.
+  assert.equal(AI_MEMORY_COPY.forgetConfirm, "Сводка и интерес удалятся. ИИ соберёт их заново после следующего сообщения клиента.");
+  assert.equal(AI_MEMORY_COPY.forgotten, "Сводка и интерес удалены.");
   for (const word of ["Интерес", "Сводка", "Карточка лида", "Показать всё"]) assert.ok(memory.includes(word), word);
-  assert.match(memory, /view\.canManage \? \(\s*<Link href=\{AI_MEMORY_SETTINGS_HREF\}/u, "«Включить» only for a manager");
+  // «Включить» — только сотруднику с правом и при записанном согласии; иначе — причина, а не ссылка к недоступной кнопке.
+  assert.match(memory, /view\.canManage && view\.consentRecorded \? \(\s*<Link href=\{AI_MEMORY_SETTINGS_HREF\}/u);
+  assert.match(memory, /: view\.canManage \? \(\s*<p className="t-meta text-fg-3">\{AI_MEMORY_SETTINGS_COPY\.noConsent\}<\/p>/u);
+  // Интерес и сводка — только пока память работает (не off и не paused).
+  assert.match(memory, /const running = state !== null && state !== "off" && state !== "paused";/u);
+  // Окончательный отказ (400/401/403/404) — без «Повторить» и без role=alert.
+  assert.match(memory, /const FINAL_STATUSES = new Set\(\[400, 401, 403, 404\]\);/u);
+  // Раскрыто — строка интереса под заголовком скрыта (не повторяет «Интерес»).
+  assert.match(read("src/app/(v3)/v3.css"), /\.v3-ai-memory\[open\] \.v3-ai-memory-hint \{\s*display: none;/u);
   assert.equal(AI_MEMORY_SETTINGS_HREF, "/v3/ai-agent?section=spend#ai-memory");
   const css = read("src/app/(v3)/v3.css");
   assert.match(css, /\.v3-ai-memory-summary\[data-clamped\] \{[^}]*-webkit-line-clamp: 6;/u);
@@ -334,11 +385,19 @@ test("UI section: «Память о клиенте» in «Агент и лими
   assert.match(views, /<AiMemorySettings settings=\{data\} preview=\{preview\} requestId=\{memoryRequestId\} \/>/u);
   assert.match(settings, /id="ai-memory"/u);
   assert.match(settings, /action=\{saveAiMemoryAction\}/u);
-  assert.match(settings, /fields\("enable"\)/u);
-  assert.match(settings, /fields\("disable"\)/u);
   assert.match(settings, /settings\.canManage && !preview/u);
-  assert.match(settings, /aria-disabled="true"\s+aria-describedby="ai-memory-consent-hint"/u);
-  assert.match(settings, /<details className="group" data-testid="v3-ai-memory-disable">/u, "disable is confirmed by disclosure");
+  assert.match(settings, /<AiMemoryToggle\s/u);
+  // Один клиентский переключатель на оба положения: строка итога вне ветвей переживает перерисовку.
+  const toggle = read("src/components/v3/ai-agent/AiMemoryToggle.tsx");
+  assert.match(toggle, /^"use client";/u);
+  assert.match(toggle, /hidden\("enable"\)/u);
+  assert.match(toggle, /hidden\("disable"\)/u);
+  assert.match(toggle, /aria-disabled="true"\s+aria-describedby="ai-memory-consent-hint"/u);
+  assert.match(toggle, /<details className="group" data-testid="v3-ai-memory-disable">/u, "disable is confirmed by disclosure");
+  const branchesEnd = toggle.indexOf("{/* Вне ветвей");
+  assert.ok(branchesEnd > toggle.indexOf("</details>"), "the status line follows the branches");
+  assert.match(toggle.slice(branchesEnd), /<p role="status"[^>]*data-testid="v3-ai-memory-status">\{saved\}<\/p>/u);
+  assert.match(toggle, /if \(result\.status === "saved" \|\| result\.status === "conflict" \|\| result\.status === "invalid"\) setRequestId/u);
   assert.equal(AI_MEMORY_SETTINGS_COPY.about, "Сводка длинных переписок и интерес клиента. Тексты уходят в Gemini, фото и файлы\u00A0— нет.");
   assert.equal(AI_MEMORY_SETTINGS_COPY.enable, "Включить память");
   assert.equal(AI_MEMORY_SETTINGS_COPY.disable, "Выключить память");

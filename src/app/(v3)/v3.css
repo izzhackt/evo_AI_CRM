@@ -1250,6 +1250,10 @@
 .v3-world .v3-ai-memory[open] .v3-ai-memory-chevron {
   rotate: 90deg;
 }
+/* Раскрыто — интерес и состояние в теле блока; строка под заголовком их не повторяет. */
+.v3-world .v3-ai-memory[open] .v3-ai-memory-hint {
+  display: none;
+}
 .v3-world .v3-ai-memory-inline {
   margin-block: -12px;
 }

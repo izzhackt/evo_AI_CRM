@@ -36,6 +36,7 @@ import { AI_MEMORY_SETTINGS_COPY } from "@/lib/v3/ai-agent-memory";
 import type { AiRead } from "@/lib/v3/ai-agent-source";
 
 import { AiActionForm } from "./AiActionForm";
+import { AiMemoryToggle } from "./AiMemoryToggle";
 import { AiDocumentUpload } from "./AiDocumentUpload";
 import { AiMonthlyCapForm } from "./AiMonthlyCapForm";
 import { AiRowMore } from "./AiRowMore";
@@ -690,13 +691,13 @@ export function AiSpendView({
  * с ai.agent.manage, Q12 — без согласия на Gemini не включается). Выключение
  * удаляет сводки всех клиентов — поэтому подтверждение раскрытием, как у
  * отзыва согласия. Кнопки тихие: у «Расходов» нет красного действия.
+ * Переключатель — один клиентский компонент на оба положения (`AiMemoryToggle`):
+ * итог записи переживает перерисовку страницы.
  */
 function AiMemorySettings({ settings, preview, requestId }: Readonly<{ settings: AiSettings; preview: boolean; requestId: string }>) {
   const copy = AI_MEMORY_SETTINGS_COPY;
   const enabled = settings.memoryEnabled;
   const consent = settings.consent.recorded;
-  const fields = (action: "enable" | "disable") => ({ memory_action: action, expected_version: String(settings.version) });
-  const messages = { conflict: "Настройки уже изменились — обновите страницу.", forbidden: "Нет права менять память о клиенте." };
   return (
     <section
       id="ai-memory"
@@ -717,49 +718,14 @@ function AiMemorySettings({ settings, preview, requestId }: Readonly<{ settings:
         </p>
       ) : null}
       {settings.canManage && !preview ? (
-        !enabled && !consent ? (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="v3-ai-memory-blocked">
-            <button
-              type="button"
-              className={`${btnGhostCls} aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-surface aria-disabled:hover:text-fg-2 aria-disabled:active:scale-100`}
-              aria-disabled="true"
-              aria-describedby="ai-memory-consent-hint"
-            >
-              {copy.enable}
-            </button>
-            <p id="ai-memory-consent-hint" className="t-body-compact text-fg-2">{copy.noConsent}</p>
-          </div>
-        ) : !enabled ? (
-          <AiActionForm
-            requestId={requestId}
-            action={saveAiMemoryAction}
-            fields={fields("enable")}
-            label={copy.enable}
-            pendingLabel="Включаю…"
-            buttonClassName={btnGhostCls}
-            messages={{ ...messages, saved: copy.enabled }}
-            testId="v3-ai-memory-enable"
-          />
-        ) : (
-          <details className="group" data-testid="v3-ai-memory-disable">
-            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center t-label text-fg underline decoration-fg-3 underline-offset-4 hover:decoration-fg [&::-webkit-details-marker]:hidden">
-              {copy.disable}
-            </summary>
-            <div className="space-y-1 pb-2">
-              <p className="t-body-compact text-fg">{copy.disableConfirm}</p>
-              <AiActionForm
-                requestId={requestId}
-                action={saveAiMemoryAction}
-                fields={fields("disable")}
-                label={copy.disableSubmit}
-                pendingLabel="Выключаю…"
-                buttonClassName={btnGhostCls}
-                messages={{ ...messages, saved: copy.disabled }}
-                testId="v3-ai-memory-disable-form"
-              />
-            </div>
-          </details>
-        )
+        <AiMemoryToggle
+          enabled={enabled}
+          consentRecorded={consent}
+          version={settings.version}
+          requestId={requestId}
+          action={saveAiMemoryAction}
+          buttonClassName={btnGhostCls}
+        />
       ) : null}
     </section>
   );

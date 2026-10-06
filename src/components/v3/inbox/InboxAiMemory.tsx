@@ -6,12 +6,15 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Icon } from "@/components/icons";
 import {
   AI_MEMORY_COPY,
+  AI_MEMORY_SETTINGS_COPY,
   AI_MEMORY_SETTINGS_HREF,
   AI_MEMORY_SUMMARY_CLAMP_FROM,
   aiLeadLine,
   aiMemoryHint,
   aiMemoryMeta,
+  aiMemoryPausedText,
   aiMemoryState,
+  aiMemorySummaryState,
   normalizeAiMemoryView,
   type AiMemoryView,
 } from "@/lib/v3/ai-agent-memory";
@@ -19,7 +22,9 @@ import {
 /**
  * «Что ИИ знает о клиенте» — свёрнутый блок наверху окна ИИ (план ИИ-агента
  * §9, §12.1; P3). Читается при открытии окна (`GET …/memory`, без агента и
- * Gemini) и ответу не мешает: сбой — строка «Не удалось загрузить · Повторить».
+ * Gemini) и ответу не мешает: сбой — строка «Не удалось загрузить · Повторить»;
+ * окончательный отказ (нет сессии, права или чата) — «Память этого чата
+ * недоступна.» без повтора: повтор тут не поможет.
  * Свёрнуто — заголовок и интерес одной строкой; раскрыто — «Интерес»,
  * «Сводка» (шесть строк и «Показать всё»), карточка лида — ровно та, что
  * видит модель, — и «Забыть сводку» с подтверждением в строке.
@@ -27,20 +32,24 @@ import {
 type Load =
   | Readonly<{ kind: "loading" }>
   | Readonly<{ kind: "failed" }>
+  | Readonly<{ kind: "denied" }>
   | Readonly<{ kind: "ready"; view: AiMemoryView }>;
 
 type Note = Readonly<{ tone: "ok" | "danger"; text: string }>;
 
-async function readMemory(conversationId: string, signal?: AbortSignal): Promise<AiMemoryView | null> {
+/** 400/401/403/404 — окончательно (сессия, право, чат); 5xx, сеть и чужая форма — можно повторить. */
+const FINAL_STATUSES = new Set([400, 401, 403, 404]);
+
+async function readMemory(conversationId: string, signal?: AbortSignal): Promise<Exclude<Load, { kind: "loading" }>> {
   try {
     const response = await fetch(`/api/v3/ai-agent/conversations/${conversationId}/memory`, {
       cache: "no-store", credentials: "same-origin", headers: { Accept: "application/json" }, signal,
     });
-    if (!response.ok) return null;
+    if (!response.ok) return { kind: FINAL_STATUSES.has(response.status) ? "denied" : "failed" };
     const body = await response.json() as { memory?: unknown };
-    return normalizeAiMemoryView(body.memory);
+    return { kind: "ready", view: normalizeAiMemoryView(body.memory) };
   } catch {
-    return null;
+    return { kind: "failed" };
   }
 }
 
@@ -58,15 +67,14 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   const read = useCallback(async () => {
-    const view = await readMemory(conversationId);
-    setLoad(view ? { kind: "ready", view } : { kind: "failed" });
+    setLoad(await readMemory(conversationId));
   }, [conversationId]);
 
   // Блок монтируется вместе с раскрытым окном: одно чтение на открытие.
   useEffect(() => {
     const controller = new AbortController();
-    void readMemory(conversationId, controller.signal).then((view) => {
-      if (!controller.signal.aborted) setLoad(view ? { kind: "ready", view } : { kind: "failed" });
+    void readMemory(conversationId, controller.signal).then((result) => {
+      if (!controller.signal.aborted) setLoad(result);
     });
     return () => controller.abort();
   }, [conversationId]);
@@ -117,18 +125,22 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
     setNote({ tone: "danger", text: outcome === "forbidden" ? AI_MEMORY_COPY.forgetForbidden : AI_MEMORY_COPY.forgetFailed });
   }
 
-  if (load.kind === "failed") {
+  if (load.kind === "failed" || load.kind === "denied") {
     return (
-      <div className="v3-ai-memory" data-testid="v3-ai-memory" data-state="failed">
+      <div className="v3-ai-memory" data-testid="v3-ai-memory" data-state={load.kind}>
         <div className="v3-ai-memory-head">
           <Icon name="alert" size={16} className="shrink-0 text-fg-3" />
           <span className="min-w-0 flex-1">
             <span className="block t-label text-fg">{AI_MEMORY_COPY.title}</span>
-            <span className="flex flex-wrap items-center gap-x-1.5 t-meta text-fg-2" role="alert">
-              {AI_MEMORY_COPY.failed}
-              <span aria-hidden="true">·</span>
-              <button type="button" className="v3-ai-link v3-ai-memory-inline t-meta" onClick={retry}>{AI_MEMORY_COPY.retry}</button>
-            </span>
+            {load.kind === "failed" ? (
+              <span className="flex flex-wrap items-center gap-x-1.5 t-meta text-fg-2" role="alert">
+                {AI_MEMORY_COPY.failed}
+                <span aria-hidden="true">·</span>
+                <button type="button" className="v3-ai-link v3-ai-memory-inline t-meta" onClick={retry}>{AI_MEMORY_COPY.retry}</button>
+              </span>
+            ) : (
+              <span className="block t-meta text-fg-2">{AI_MEMORY_COPY.unavailable}</span>
+            )}
           </span>
         </div>
       </div>
@@ -142,6 +154,7 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
   const clampable = (summary?.length ?? 0) > AI_MEMORY_SUMMARY_CLAMP_FROM || (summary?.split("\n").length ?? 0) > 6;
   const meta = memory ? aiMemoryMeta(memory) : null;
   const canForget = !!memory && (!!memory.summary || !!memory.interest);
+  const running = state !== null && state !== "off" && state !== "paused";
 
   return (
     <details className="v3-ai-memory" data-testid="v3-ai-memory" data-state={state ?? "loading"}>
@@ -149,8 +162,9 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
         <Icon name="chevron-right" size={16} className="v3-ai-memory-chevron shrink-0 text-fg-2" />
         <span className="min-w-0 flex-1">
           <span className="block t-label text-fg">{AI_MEMORY_COPY.title}</span>
+          {/* Раскрыто — интерес и состояние уже в теле; строка под заголовком их не повторяет. */}
           <span
-            className={`block truncate t-meta ${view?.memory?.interest && view.enabled ? "text-fg-2" : "text-fg-3"}`}
+            className={`v3-ai-memory-hint block truncate t-meta ${view?.memory?.interest && view.active ? "text-fg-2" : "text-fg-3"}`}
             data-testid="v3-ai-memory-hint"
           >
             {view ? aiMemoryHint(view) : "Загружаю…"}
@@ -169,15 +183,21 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
             {state === "off" ? (
               <div className="flex flex-wrap items-center gap-x-3" data-testid="v3-ai-memory-off">
                 <p className="t-body-compact text-fg-2">{AI_MEMORY_COPY.off}</p>
-                {view.canManage ? (
+                {/* Без согласия «Включить» ведёт к недоступной кнопке — вместо ссылки причина (Q12). */}
+                {view.canManage && view.consentRecorded ? (
                   <Link href={AI_MEMORY_SETTINGS_HREF} className="v3-ai-link t-label">
                     {AI_MEMORY_COPY.enable}<span className="sr-only"> память о клиенте в «Расходах»</span>
                   </Link>
+                ) : view.canManage ? (
+                  <p className="t-meta text-fg-3">{AI_MEMORY_SETTINGS_COPY.noConsent}</p>
                 ) : null}
               </div>
             ) : null}
+            {state === "paused" ? (
+              <p className="t-body-compact text-fg-2" data-testid="v3-ai-memory-paused">{aiMemoryPausedText(view)}</p>
+            ) : null}
             <dl className="space-y-2.5">
-              {state !== "off" ? (
+              {running ? (
                 <>
                   <div>
                     <dt className="t-caption text-fg-3">Интерес</dt>
@@ -211,7 +231,7 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
                       </dd>
                     ) : (
                       <dd className="mt-0.5 t-body-compact text-fg-2" data-testid="v3-ai-memory-summary-state">
-                        {state === "due" ? AI_MEMORY_COPY.due : AI_MEMORY_COPY.short}
+                        {state ? aiMemorySummaryState(state) : null}
                       </dd>
                     )}
                   </div>

@@ -66,10 +66,13 @@
  *   node tests/e2e/conversations-static-render.cjs --ai-agent-p3 [outDir]
  *     → «ИИ-агент» P3 (план §9): «Что ИИ знает о клиенте» в окне ИИ —
  *       свёрнуто, раскрыто (шесть строк сводки, «Показать всё»), «Забыть
- *       сводку» с подтверждением, выключена, короткая переписка, сводка
- *       готовится, сбой и «Повторить» — и «Память о клиенте» в «Агенте и
- *       лимите» (выключена, включена с подтверждением выключения, без
- *       согласия). 1440×900 и 390×844, синтетика. По умолчанию outDir —
+ *       сводку» с подтверждением, выключена (с согласием и без), на паузе
+ *       без согласия, короткая переписка, 21–25 сообщений (сводка рано),
+ *       сводку пора собрать, сбой и «Повторить», окончательный отказ — и
+ *       «Память о клиенте» в «Агенте и лимите» (выключена, включена с
+ *       подтверждением выключения, без согласия; переключение туда и
+ *       обратно — итог и фокус переживают смену вида). 1440×900 и 390×844,
+ *       синтетика. По умолчанию outDir —
  *       docs/design/evo-platform/implementation-screenshots/ai-agent-p3.
  */
 
@@ -372,13 +375,13 @@ window.fetch = async (input, init) => {
       if (method === "DELETE") {
         window.__harness.memory.push("clear:" + JSON.parse(init.body).requestId);
         await new Promise((resolve) => setTimeout(resolve, 150));
-        const reply = take(fixture.ai.memoryClear || [{ status: 200, body: { cleared: true } }]);
+        const reply = take(fixture.ai.memoryClear || [{ status: 200, body: { deleted: true } }]);
         return json(reply.status, reply.body);
       }
       window.__harness.memory.push("read");
       const reply = take(fixture.ai.memory || [{ status: 200, body: { memory: {
-        enabled: false, consentRecorded: true, canManage: true, messageCount: 9, memory: null,
-        lead: { name: "Аружан", interestDirection: "MY", stage: "qualified" },
+        enabled: false, consentRecorded: true, active: false, canManage: true, messageCount: 9, summaryDue: false, interestDue: false,
+        memory: null, lead: { name: "Аружан", interestDirection: "MY", stage: "qualified" },
       } } }]);
       return json(reply.status, reply.body);
     }
@@ -442,7 +445,7 @@ window.__harness.newInbound = (id) => {
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.hydrated = "true"; }));
 `;
 
-async function buildClientBundle(outFile) {
+async function buildClientBundle(outFile, entry = CLIENT_ENTRY) {
   const esbuild = require("esbuild");
   // Чтения отвечают той же синтетикой через настоящий composeCaseChatQueue.
   // Отправка честно недоступна. Смена состояния пишется в синтетические строки
@@ -517,7 +520,7 @@ export async function reconcilePlatformWhatsAppSendAction(input) {
     },
   };
   await esbuild.build({
-    stdin: { contents: CLIENT_ENTRY, resolveDir: ROOT, sourcefile: "conversations-client-entry.js", loader: "js" },
+    stdin: { contents: entry, resolveDir: ROOT, sourcefile: "conversations-client-entry.js", loader: "js" },
     bundle: true, outfile: outFile, format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
     tsconfig: join(ROOT, "tsconfig.json"),
     define: { "process.env.NODE_ENV": JSON.stringify("development") },
@@ -1612,8 +1615,10 @@ const MEMORY_SUMMARY = [
   "Предложили три вуза из подборки; клиент прислал фото аттестата. Решение принимает вместе с родителями.",
   "Договорились: пришлём требования и сравнение общежитий. Выяснить: успеет ли оплатить регистрационный сбор до конца ноября и нужен ли перевод аттестата.",
 ].join(" ");
+// Форма ai_agent_memory_v1 (274): active — включена и согласие записано;
+// summaryDue/interestDue база отдаёт только при active.
 const memoryView = (fields = {}) => ({ status: 200, body: { memory: {
-  enabled: true, consentRecorded: true, canManage: true, messageCount: 45,
+  enabled: true, consentRecorded: true, active: true, canManage: true, messageCount: 45, summaryDue: false, interestDue: false,
   memory: { interest: "Бакалавриат по компьютерным наукам в Малайзии, без IELTS, до 6 000 $ в год", summary: MEMORY_SUMMARY, coveredCount: 25, updatedAt: "2026-10-06T08:20:00Z" },
   lead: { name: "Аружан", interestDirection: "MY", stage: "qualified" },
   ...fields,
@@ -1624,11 +1629,19 @@ const memoryAi = (memory, extra = {}) => ({
 });
 const AI_P3_CHAT = {
   "memory-ready": { viewports: ["1440", "390"], ai: memoryAi([memoryView()]) },
-  "memory-forget": { viewports: ["1440"], ai: memoryAi([memoryView(), memoryView({ memory: null })], { memoryClear: [{ status: 200, body: { cleared: true } }] }) },
-  "memory-off": { viewports: ["1440", "390"], ai: memoryAi([memoryView({ enabled: false, memory: null })]) },
+  // clear в 274 пересборку не ставит: после «Забыть» сводку пора собрать (summaryDue), строки памяти нет.
+  "memory-forget": { viewports: ["1440"], ai: memoryAi([memoryView(), memoryView({ memory: null, summaryDue: true, interestDue: true })],
+    { memoryClear: [{ status: 200, body: { deleted: true } }] }) },
+  "memory-off": { viewports: ["1440", "390"], ai: memoryAi([memoryView({ enabled: false, active: false, memory: null })]) },
+  "memory-off-no-consent": { viewports: ["1440"], ai: memoryAi([memoryView({ enabled: false, consentRecorded: false, active: false, memory: null })]) },
+  // Включена, согласие отозвано: база отдаёт active=false и memory=null.
+  "memory-paused": { viewports: ["1440", "390"], ai: memoryAi([memoryView({ consentRecorded: false, active: false, memory: null })]) },
   "memory-short": { viewports: ["1440"], ai: memoryAi([memoryView({ messageCount: 12, memory: null, lead: null })]) },
-  "memory-due": { viewports: ["1440"], ai: memoryAi([memoryView({ memory: { interest: null, summary: null, coveredCount: 0, updatedAt: null } })]) },
+  // 23 сообщения: за окном 3 < 6 — summaryDue false.
+  "memory-waiting": { viewports: ["1440"], ai: memoryAi([memoryView({ messageCount: 23, memory: null })]) },
+  "memory-due": { viewports: ["1440"], ai: memoryAi([memoryView({ summaryDue: true, memory: { interest: null, summary: null, coveredCount: 0, updatedAt: null } })]) },
   "memory-failed": { viewports: ["1440"], ai: memoryAi([{ status: 503, body: { error: { code: "unavailable" } } }, memoryView()]) },
+  "memory-denied": { viewports: ["1440"], ai: memoryAi([{ status: 403, body: { error: { code: "forbidden" } } }]) },
 };
 const AI_P3_SECTION = {
   "section-memory-off": { actor: AI_ACTOR, section: "spend", viewports: ["1440", "390"], settings: aiSettings({ memoryEnabled: false }) },
@@ -1636,6 +1649,38 @@ const AI_P3_SECTION = {
   "section-memory-no-consent": { actor: AI_ACTOR, section: "spend", viewports: ["1440"],
     settings: aiSettings({ memoryEnabled: false, consent: { recorded: false, at: null, byName: null, textVersion: null } }) },
 };
+
+// Переключатель «Память о клиенте» вживую: настоящий AiMemoryToggle, а запись —
+// синтетическая (базы и server action нет): через 150 мс положение меняется,
+// как после revalidatePath, и возвращается «saved». Проверяется то, что ломалось:
+// итог «Память включена.» / «Память выключена, сводки удалены.» и фокус
+// переживают смену вида; второй запрос — с новым id и новой версией.
+const TOGGLE_ENTRY = `
+const React = require("react");
+const { createRoot } = require("react-dom/client");
+const { AiMemoryToggle } = require("@/components/v3/ai-agent/AiMemoryToggle");
+const { btnGhostCls } = require("@/components/ui");
+const h = React.createElement;
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], refreshes: 0, polls: 0 };
+function Section() {
+  const [settings, setSettings] = React.useState({ enabled: false, version: 7 });
+  React.useEffect(() => { document.documentElement.dataset.hydrated = "true"; }, []);
+  const action = async (_previous, form) => {
+    window.__harness.actions.push(["memory", form.get("memory_action"), form.get("expected_version"), form.get("request_id")].join(":"));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const enabled = form.get("memory_action") === "enable";
+    setSettings((current) => ({ enabled, version: current.version + 1 }));
+    return { status: "saved", requestId: form.get("request_id") };
+  };
+  return h("section", { id: "ai-memory", className: "space-y-2", "data-testid": "v3-ai-memory-settings", "data-enabled": String(settings.enabled) },
+    h("h3", { className: "t-item text-fg" }, "Память о клиенте"),
+    h("p", { className: "t-body-compact text-fg-2" }, settings.enabled ? "включена" : "выключена"),
+    h(AiMemoryToggle, { enabled: settings.enabled, consentRecorded: true, version: settings.version,
+      requestId: "27400000-0000-4000-8000-000000000071", action, buttonClassName: btnGhostCls }));
+}
+createRoot(document.getElementById("root")).render(
+  h("div", { className: "v3-world", "data-surface": "staff" }, h("main", { className: "mx-auto max-w-3xl p-6" }, h(Section))));
+`;
 
 function memoryMetrics() {
   const block = document.querySelector('[data-testid="v3-ai-memory"]');
@@ -1647,6 +1692,10 @@ function memoryMetrics() {
     state: block?.dataset.state ?? null,
     open: block ? block.open === true : null,
     hint: text('[data-testid="v3-ai-memory-hint"]'),
+    hintVisible: (() => { const hint = block?.querySelector('[data-testid="v3-ai-memory-hint"]'); return hint ? getComputedStyle(hint).display !== "none" : null; })(),
+    paused: text('[data-testid="v3-ai-memory-paused"]'),
+    retry: [...(block?.querySelectorAll("button") ?? [])].some((button) => button.textContent.trim() === "Повторить"),
+    enableLink: !!block?.querySelector('a[href="/v3/ai-agent?section=spend#ai-memory"]'),
     interest: text('[data-testid="v3-ai-memory-interest"]'),
     summaryClamped: summary ? summary.hasAttribute("data-clamped") : null,
     summaryOverflows: summary ? summary.scrollHeight > summary.clientHeight + 1 : null,
@@ -1656,11 +1705,14 @@ function memoryMetrics() {
     note: text('[data-testid="v3-ai-memory-note"]'),
     off: text('[data-testid="v3-ai-memory-off"]'),
     confirm: text('[data-testid="v3-ai-memory-confirm"]'),
-    failedText: block?.dataset.state === "failed" ? block.textContent.trim() : null,
+    failedText: block?.dataset.state === "failed" || block?.dataset.state === "denied" ? block.textContent.trim() : null,
+    alert: !!block?.querySelector('[role="alert"]'),
     block: rect(block),
     answer: !!document.querySelector('[data-testid="v3-ai-answer"]'),
     settings: settings ? {
       enabled: settings.dataset.enabled, text: settings.textContent.replace(/\s+/gu, " ").trim(),
+      status: settings.querySelector('[data-testid="v3-ai-memory-status"]')?.textContent.trim() ?? null,
+      focus: document.activeElement && settings.contains(document.activeElement) ? document.activeElement.textContent.trim() : null,
       buttons: [...settings.querySelectorAll("button, summary")].map((element) => ({ text: element.textContent.trim(), disabled: element.getAttribute("aria-disabled") === "true" || element.disabled === true })),
     } : null,
   };
@@ -1676,6 +1728,7 @@ async function aiP3Screenshots() {
   const bundleName = "ai-agent-p3-client.js";
   const css = await compileCss();
   await buildClientBundle(join(workDir, bundleName));
+  await buildClientBundle(join(workDir, "ai-agent-p3-toggle.js"), TOGGLE_ENTRY);
   const failures = [];
   const check = (condition, message) => { if (!condition) failures.push(message); };
   const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
@@ -1762,6 +1815,7 @@ async function aiP3Screenshots() {
       await openMemory(session);
       const opened = await shot(session, `window-open-${viewportKey}.png`);
       check(opened.memory.open === true && opened.memory.summaryClamped === true && opened.memory.summaryOverflows === true, `memory-ready-${viewportKey}: clamp ${JSON.stringify(opened.memory)}`);
+      check(collapsed.memory.hintVisible === true && opened.memory.hintVisible === false, `memory-ready-${viewportKey}: the open block repeats the interest under the title`);
       check(opened.memory.lead === "Аружан · Малайзия · Квалифицирован", `memory-ready-${viewportKey}: lead ${opened.memory.lead}`);
       check(opened.memory.meta === "Сводка по 25 сообщениям · обновлена 14:20", `memory-ready-${viewportKey}: meta ${opened.memory.meta}`);
       await session.page.getByRole("button", { name: "Показать всё" }).click();
@@ -1780,7 +1834,7 @@ async function aiP3Screenshots() {
       check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read"]), `memory-ready-${viewportKey}: answer reads ${JSON.stringify(harness.actions)}`);
     }
 
-    // «Забыть сводку»: подтверждение в строке → DELETE с id запроса → перечитать → «Сводка готовится».
+    // «Забыть сводку»: подтверждение в строке → DELETE с id запроса → перечитать → сводки нет, соберётся по сообщению клиента.
     {
       const session = await open("memory-forget", "1440");
       await expand(session);
@@ -1789,23 +1843,29 @@ async function aiP3Screenshots() {
       await session.page.getByRole("button", { name: "Забыть сводку" }).click();
       await session.page.waitForTimeout(80);
       const confirm = await shot(session, "window-forget-confirm-1440.png");
-      check(confirm.memory.confirm?.startsWith("Сводка удалится, ИИ соберёт новую.") === true, `forget: confirm ${confirm.memory.confirm}`);
+      check(confirm.memory.confirm?.startsWith("Сводка и интерес удалятся. ИИ соберёт их заново после следующего сообщения клиента.") === true, `forget: confirm ${confirm.memory.confirm}`);
       check(confirm.focus === "Забыть сводку", `forget: focus on the confirm button ${confirm.focus}`);
       await session.page.locator('[data-testid="v3-ai-memory-confirm"] .v3-ai-button').click();
       await session.page.waitForTimeout(400);
       const done = await shot(session, "window-forgotten-1440.png");
-      check(done.memory.note === "Сводка удалена — ИИ соберёт новую." && done.memory.summaryState === "Сводка готовится.", `forget: ${JSON.stringify(done.memory)}`);
+      check(done.memory.note === "Сводка и интерес удалены." && done.memory.summaryState === "Сводки пока нет — ИИ соберёт её после следующего сообщения клиента.", `forget: ${JSON.stringify(done.memory)}`);
       check(done.memory.interest === "Интерес появится после следующего сообщения клиента.", `forget: interest ${done.memory.interest}`);
       const harness = await close(session, "memory-forget-1440");
       check(harness.memory.length === 3 && harness.memory[0] === "read" && /^clear:[0-9a-f-]{36}$/u.test(harness.memory[1]) && harness.memory[2] === "read",
         `forget: ${JSON.stringify(harness.memory)}`);
     }
 
-    // Честные состояния: выключена (+ «Включить» у сотрудника с правом), короткая переписка без карточки, сводка готовится, сбой.
+    // Честные состояния (274): выключена (+ «Включить» только при согласии), на паузе без согласия,
+    // короткая переписка без карточки, 21–25 сообщений — сводка рано, сводку пора собрать.
     const states = [
-      ["memory-off", (m) => m.hint === "Память выключена" && m.off?.startsWith("Память о клиенте выключена.") && m.off.includes("Включить") && m.lead === "Аружан · Малайзия · Квалифицирован"],
+      ["memory-off", (m) => m.hint === "Память выключена" && m.off?.startsWith("Память о клиенте выключена.") && m.enableLink && m.lead === "Аружан · Малайзия · Квалифицирован"],
+      ["memory-off-no-consent", (m) => m.off?.startsWith("Память о клиенте выключена.") && !m.enableLink && m.off.includes("Сначала администратор записывает согласие на Gemini.")],
+      ["memory-paused", (m) => m.state === "paused" && m.hint === "Память на паузе"
+        && m.paused === "Память на паузе: без согласия на Gemini сводка и интерес не собираются." && m.interest === null && m.summaryState === null
+        && m.lead === "Аружан · Малайзия · Квалифицирован"],
       ["memory-short", (m) => m.summaryState === "ИИ видит всю переписку — сводка не нужна." && m.interest === "Интерес появится после следующего сообщения клиента." && m.lead === "Карточки лида нет."],
-      ["memory-due", (m) => m.summaryState === "Сводка готовится." && m.hint === "Сводка готовится"],
+      ["memory-waiting", (m) => m.state === "waiting" && m.summaryState === "Сводка появится, когда переписка станет длиннее." && m.hint === "Сводка пока не нужна"],
+      ["memory-due", (m) => m.state === "due" && m.summaryState === "Сводки пока нет — ИИ соберёт её после следующего сообщения клиента." && m.hint === "Сводки пока нет"],
     ];
     for (const [name, ok] of states) {
       for (const viewportKey of AI_P3_CHAT[name].viewports) {
@@ -1833,6 +1893,18 @@ async function aiP3Screenshots() {
       const harness = await close(session, "memory-failed-1440");
       check(JSON.stringify(harness.memory) === JSON.stringify(["read", "read"]), `failed: ${JSON.stringify(harness.memory)}`);
     }
+    // Окончательный отказ (403): без «Повторить» и без role=alert — повтор не поможет.
+    {
+      const session = await open("memory-denied", "1440");
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
+      await session.page.waitForTimeout(100);
+      const denied = await shot(session, "window-denied-1440.png");
+      check(denied.memory.state === "denied" && /Память этого чата недоступна\./u.test(denied.memory.failedText ?? "")
+        && denied.memory.retry === false && denied.memory.alert === false && denied.memory.answer === true, `denied: ${JSON.stringify(denied.memory)}`);
+      const harness = await close(session, "memory-denied-1440");
+      check(JSON.stringify(harness.memory) === JSON.stringify(["read"]), `denied: ${JSON.stringify(harness.memory)}`);
+    }
 
     // «Агент и лимит» → «Память о клиенте».
     const sectionChecks = {
@@ -1857,6 +1929,36 @@ async function aiP3Screenshots() {
         check(sectionChecks[name](metrics.memory), `${name}-${viewportKey}: ${JSON.stringify(metrics.memory.settings)}`);
         await close(session, `${name}-${viewportKey}`);
       }
+    }
+
+    // Включить → итог и фокус на «Выключить память»; выключить → итог и фокус на «Включить память».
+    {
+      const togglePath = join(workDir, "section-memory-toggle.html");
+      writeFileSync(togglePath, [
+        "<!DOCTYPE html>",
+        '<html lang="ru" data-theme="light" class="h-full antialiased">',
+        `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Память о клиенте — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+        '<body class="min-h-full"><div id="root"></div><script src="ai-agent-p3-toggle.js"></script></body></html>',
+      ].join(""));
+      htmlFor["section-memory-toggle"] = togglePath;
+      const session = await open("section-memory-toggle", "1440");
+      await session.page.getByRole("button", { name: "Включить память" }).click();
+      await session.page.waitForSelector('[data-testid="v3-ai-memory-settings"][data-enabled="true"]');
+      await session.page.waitForTimeout(80);
+      const on = await shot(session, "section-memory-toggled-on-1440.png");
+      check(on.memory.settings.status === "Память включена." && on.memory.settings.focus === "Выключить память",
+        `toggle on: ${JSON.stringify(on.memory.settings)}`);
+      await session.page.locator('[data-testid="v3-ai-memory-disable"] > summary').click();
+      await session.page.getByRole("button", { name: "Выключить и удалить сводки" }).click();
+      await session.page.waitForSelector('[data-testid="v3-ai-memory-settings"][data-enabled="false"]');
+      await session.page.waitForTimeout(80);
+      const off = await shot(session, "section-memory-toggled-off-1440.png", { save: false });
+      check(off.memory.settings.status === "Память выключена, сводки удалены." && off.memory.settings.focus === "Включить память",
+        `toggle off: ${JSON.stringify(off.memory.settings)}`);
+      const harness = await close(session, "section-memory-toggle-1440");
+      const [first, second] = harness.actions.map((entry) => entry.split(":"));
+      check(harness.actions.length === 2 && first[1] === "enable" && first[2] === "7" && second[1] === "disable" && second[2] === "8"
+        && first[3] !== second[3], `toggle: requests ${JSON.stringify(harness.actions)}`);
     }
   } finally {
     await browser.close();

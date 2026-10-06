@@ -5,11 +5,18 @@
  * маршрут CRM, клиентское окно, серверная страница и Node-тесты.
  *
  * Что показывать, решает база (274): `platform.ai_agent_memory_v1` отдаёт
- * включена ли память, записано ли согласие, может ли сотрудник её включить,
- * сколько сообщений в диалоге, строку памяти (интерес, сводка, сколько
- * сообщений она покрывает, когда обновлена) и карточку лида — ту же, что
- * видит модель (`ai_lead_card`), прочитанную живьём. Чужая форма — ошибка
- * (`AiAgentShapeError`), а не пустой блок. Gemini здесь не вызывается.
+ * включена ли память, записано ли согласие, работает ли она (`active`:
+ * включена, согласие есть, организация активна), может ли сотрудник её
+ * включить, сколько сообщений в диалоге, пора ли собрать сводку и интерес
+ * (`summaryDue`, `interestDue` — только пока память работает), строку памяти
+ * (интерес, сводка, сколько сообщений она покрывает, когда обновлена) и
+ * карточку лида — ту же, что видит модель (`ai_lead_card`), прочитанную
+ * живьём. Чужая форма — ошибка (`AiAgentShapeError`), а не пустой блок.
+ * Gemini здесь не вызывается.
+ *
+ * Сводку и интерес агент собирает только по новому сообщению клиента
+ * (опрос `inbound_since_v1` → `memory_due_v1`, 274): поэтому слова — «после
+ * следующего сообщения клиента», а не «готовится».
  */
 import { LEAD_DIRECTIONS } from "../platform-manual-lead-contract.ts";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
@@ -43,8 +50,14 @@ export type AiClientMemory = Readonly<{
 export type AiMemoryView = Readonly<{
   enabled: boolean;
   consentRecorded: boolean;
+  /** Память работает: включена, согласие записано, организация активна (`ai_memory_gate`). */
+  active: boolean;
   canManage: boolean;
   messageCount: number;
+  /** Сводку пора собрать (> 20 сообщений и ≥ 6 непокрытых за окном, или пересборка); без `active` — false. */
+  summaryDue: boolean;
+  /** Последнее сообщение клиента ещё не учтено в интересе; без `active` — false. */
+  interestDue: boolean;
   memory: AiClientMemory | null;
   lead: AiMemoryLead | null;
 }>;
@@ -92,12 +105,18 @@ function normalizeMemory(value: unknown): AiClientMemory | null {
  */
 export function normalizeAiMemoryView(value: unknown): AiMemoryView {
   if (!isObject(value) || typeof value.enabled !== "boolean" || typeof value.consentRecorded !== "boolean"
-    || typeof value.canManage !== "boolean") return invalid();
+    || typeof value.active !== "boolean" || typeof value.canManage !== "boolean"
+    || typeof value.summaryDue !== "boolean" || typeof value.interestDue !== "boolean") return invalid();
+  // `active` без включённой памяти и согласия база не отдаёт (274) — такая форма чужая.
+  if (value.active && !(value.enabled && value.consentRecorded)) return invalid();
   return Object.freeze({
     enabled: value.enabled,
     consentRecorded: value.consentRecorded,
+    active: value.active,
     canManage: value.canManage,
     messageCount: count(value.messageCount) ?? invalid(),
+    summaryDue: value.active && value.summaryDue,
+    interestDue: value.active && value.interestDue,
     memory: normalizeMemory(value.memory),
     lead: normalizeLead(value.lead),
   });
@@ -109,39 +128,62 @@ export const AI_MEMORY_COPY = Object.freeze({
   title: "Что ИИ знает о клиенте",
   off: "Память о клиенте выключена.",
   enable: "Включить",
+  paused: "Память на паузе: без согласия на Gemini сводка и интерес не собираются.",
+  pausedInactive: "Память на паузе: сводка и интерес не собираются.",
   short: "ИИ видит всю переписку — сводка не нужна.",
-  due: "Сводка готовится.",
+  waiting: "Сводка появится, когда переписка станет длиннее.",
+  due: "Сводки пока нет — ИИ соберёт её после следующего сообщения клиента.",
   noInterest: "Интерес появится после следующего сообщения клиента.",
   noLead: "Карточки лида нет.",
   emptyLead: "В карточке лида пусто.",
   failed: "Не удалось загрузить",
   retry: "Повторить",
+  unavailable: "Память этого чата недоступна.",
   forget: "Забыть сводку",
-  forgetConfirm: "Сводка удалится, ИИ соберёт новую.",
-  forgotten: "Сводка удалена — ИИ соберёт новую.",
+  // Строка памяти удаляется целиком (274), новую агент соберёт по следующему сообщению клиента.
+  forgetConfirm: "Сводка и интерес удалятся. ИИ соберёт их заново после следующего сообщения клиента.",
+  forgotten: "Сводка и интерес удалены.",
   forgetFailed: "Не удалось забыть сводку. Повторите.",
   forgetForbidden: "Нет права забыть сводку в этом чате.",
 });
 
 /**
  * Состояние памяти этого диалога (одно на блок): `off` — память выключена;
- * `short` — переписка не длиннее окна, сводка не нужна; `due` — длиннее, а
- * сводки ещё нет; `ready` — сводка есть.
+ * `paused` — включена, но не работает (нет согласия на Gemini), база ничего
+ * не отдаёт и не собирает; `short` — переписка не длиннее окна, сводка не
+ * нужна; `waiting` — длиннее окна, но за окном меньше шести непокрытых
+ * сообщений — сводку собирать рано; `due` — сводку пора собрать, её ещё нет;
+ * `ready` — сводка есть.
  */
-export type AiMemoryState = "off" | "short" | "due" | "ready";
+export type AiMemoryState = "off" | "paused" | "short" | "waiting" | "due" | "ready";
 
 export function aiMemoryState(view: AiMemoryView): AiMemoryState {
   if (!view.enabled) return "off";
+  if (!view.active) return "paused";
   if (view.memory?.summary) return "ready";
-  return view.messageCount > AI_MEMORY_WINDOW ? "due" : "short";
+  if (view.summaryDue) return "due";
+  return view.messageCount > AI_MEMORY_WINDOW ? "waiting" : "short";
+}
+
+/** Строка «Сводка» без сводки: почему её нет и когда она появится. */
+export function aiMemorySummaryState(state: AiMemoryState): string | null {
+  return state === "due" ? AI_MEMORY_COPY.due : state === "waiting" ? AI_MEMORY_COPY.waiting
+    : state === "short" ? AI_MEMORY_COPY.short : null;
+}
+
+/** Пауза словами: нет согласия — так и сказано; иначе (организация не активна) — без причины. */
+export function aiMemoryPausedText(view: AiMemoryView): string {
+  return view.consentRecorded ? AI_MEMORY_COPY.pausedInactive : AI_MEMORY_COPY.paused;
 }
 
 /** Вторая строка свёрнутого блока: интерес или короткое состояние. */
 export function aiMemoryHint(view: AiMemoryView): string {
-  if (!view.enabled) return "Память выключена";
-  if (view.memory?.interest) return view.memory.interest;
   const state = aiMemoryState(view);
-  return state === "due" ? "Сводка готовится" : state === "short" ? "Вся переписка на виду у ИИ" : "Интереса пока нет";
+  if (state === "off") return "Память выключена";
+  if (state === "paused") return "Память на паузе";
+  if (view.memory?.interest) return view.memory.interest;
+  return state === "due" ? "Сводки пока нет" : state === "waiting" ? "Сводка пока не нужна"
+    : state === "short" ? "Вся переписка на виду у ИИ" : "Интереса пока нет";
 }
 
 /** «Айгуль · Малайзия · Квалифицирован»: только то, что есть в карточке. */

@@ -399,6 +399,24 @@ check the live checkpoint in `docs/design/v3/run-plan.md` and #552 before acting
 
 ## WhatsApp And Lead-Agent Boundary
 
+State 2026-10-06 (supersedes the lead-agent routing below for the sales
+number): the sales WhatsApp runs on WAHA GOWS session `crm_primary` with
+direct ingress into the CRM — no lead-agent, no amoCRM on this path.
+
+- WAHA webhook: `http://evo-crm-app:3000/api/v2/whatsapp/inbound` (private
+  network only; the public edge answers 404), events `message.any` and
+  `session.status`, HMAC from `EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET`.
+  Ingress is off unless `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1`.
+- The plain WAHA API key lives only in the Supabase Vault runtime binding;
+  `/opt/evo-crm/.env.waha` keeps `WAHA_API_KEY=sha512:<hash>` and
+  `WAHA_WORKER_RESTART_SESSIONS=true`.
+- Runbooks: `docs/runbooks/whatsapp-go-live.md` (configuration, pairing,
+  receipts) and `docs/runbooks/whatsapp-history-import.md`.
+- Never reset, log out or re-pair `crm_primary`, request a QR or pairing
+  code, or send bulk messages without the owner's explicit permission.
+
+The rest of this section is the earlier lead-agent design, kept as history.
+
 State 2026-09-23 (read-only inventory): no `evo-lead-agent` container or unit
 exists on `hermes-vps`, so bullets about lead-agent routing and its signed CRM
 sync describe a possible return, not the current runtime. `evo-crm-waha-1`

@@ -14,7 +14,10 @@ test("V3 Inbox reads one URL-selected canonical transcript with exact cursors", 
   const inbox = source("src/components/v3/Inbox.tsx");
 
   assert.match(adapter, /listPlatformConversations\(actor,/u);
-  assert.match(adapter, /actor\.presentationRole === "admin" \? undefined : actor\.presentationRole/u);
+  // 06.10.2026: the queue filter of the role preview and the AI-draft readers'
+  // permission live in inbox-access.ts (behaviour: platform-whatsapp-team-inbox.test.mjs).
+  assert.match(adapter, /const presentationQueue = inboxPresentationQueue\(actor\);/u);
+  assert.match(adapter, /const readsGeminiDrafts = inboxReadsGeminiDrafts\(actor\);/u);
   assert.match(adapter, /queue: presentationQueue/u);
   assert.match(adapter, /resolvedThread\.conversation\.queue === presentationQueue/u);
   assert.match(adapter, /getPlatformConversationThread\(actor, options\.conversationId,/u);

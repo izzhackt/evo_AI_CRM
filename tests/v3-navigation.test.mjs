@@ -45,10 +45,15 @@ function links(model) {
 // (they stood first in «Общее» from Э6 until then); WhatsApp still follows the
 // board (owner decision 27.09.2026). Rights are unchanged: the item is shown
 // exactly when /v3/requests is open.
+// Owner decision 06.10.2026 («нет, все могут»: every employee answers WhatsApp
+// from the CRM) supersedes the 27.09 rule that the admissions role has no
+// WhatsApp item: «WhatsApp» is shown exactly when /v3/inbox is open
+// (messaging.read), so the admissions preview now lists it right after «Сегодня»
+// as the only item of «Продажи» it has.
 const expectedRoleLinks = {
   admin: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "knowledge", "settings"],
   sales: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets"],
-  admissions: ["home", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets"],
+  admissions: ["home", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -65,7 +70,7 @@ for (const role of ["admin", "sales", "admissions"]) {
       : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний"]
       : ["Задачи", "Командный чат", "Календарь", "Документы", "Шаблоны ответов"]);
     const every = links(model);
-    assert.equal(every.find((link) => link.id === "inbox")?.href, role === "admissions" ? undefined : "/v3/inbox");
+    assert.equal(every.find((link) => link.id === "inbox")?.href, "/v3/inbox", `${role}: WhatsApp (06.10.2026)`);
     assert.equal(every.find((link) => link.id === "messages")?.href, role === "sales" ? undefined : "/v3/messages");
   });
 
@@ -97,7 +102,8 @@ test("the two disclosure groups use the approved destinations and worklist remai
     ["Поступление", [["Воронка поступления", "/v3/admissions-pipeline"], ["Переписка", "/v3/messages"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
-  assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["admissions"]);
+  assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["sales", "admissions"]);
+  assert.deepEqual(navigation("admissions").groups[0].links.map((link) => link.id), ["inbox"], "06.10.2026: WhatsApp is the admissions role's only «Продажи» item");
   assert.equal(model.settings?.href, "/v3/settings");
 });
 

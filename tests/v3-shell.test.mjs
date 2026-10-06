@@ -272,10 +272,11 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
 // не меняются (EXPECTED_TABS выше).
 const MENU_BY_ROLE = {
   admin: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/knowledge"] },
-  // Просмотр «Приёмной»: у фиксированной роли нет sales.read — ни «Продаж», ни «Заявок», как и раньше.
-  admissions: { sales: null, common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
-  // Куратор с lead.read: правило D скрывает доску и WhatsApp, «Заявки» и «Отчёт продаж» остаются.
-  "admissions-staff": { sales: ["/v3/requests", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
+  // Просмотр «Приёмной»: у фиксированной роли нет sales.read — ни доски, ни «Заявок», как и раньше;
+  // WhatsApp у неё с 06.10.2026 («нет, все могут»): единственный пункт «Продаж».
+  admissions: { sales: ["/v3/inbox"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
+  // Куратор с lead.read: правило D скрывает доску, «Заявки» и «Отчёт продаж» остаются, а WhatsApp с 06.10.2026 виден (communication.read.full).
+  "admissions-staff": { sales: ["/v3/requests", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
   sales: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/reply-snippets"] },
 };
 function menuOf(html) {

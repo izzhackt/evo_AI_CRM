@@ -1897,7 +1897,13 @@ const PREVIOUS_AGENT_DIGEST = `sha256:${"7".repeat(64)}`;
 const TARGET_AGENT_DIGEST = `sha256:${"8".repeat(64)}`;
 const FOREIGN_AGENT_DIGEST = `sha256:${"9".repeat(64)}`;
 
-function aiAgentReleaseFixture({ enabled, previousAgent = false, agentEnv = "complete" }) {
+// The fixed override the controller feeds to compose on standard input while the agent is on
+// (the here-string adds the last newline). It also declares the bridge, so it renders on top of
+// a previous compose snapshot that predates it.
+const AGENT_APP_NETWORK_OVERRIDE = "services:\n  app:\n    networks:\n      ai:\n        aliases:\n          - evo-crm-app\n"
+  + "networks:\n  ai:\n    name: evo_crm_ai\n    driver: bridge\n\n";
+
+function aiAgentReleaseFixture({ enabled, previousAgent = false, agentEnv = "complete", appOnAgentNetwork = previousAgent }) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-ai-agent-release-")));
   const bin = join(root, "bin");
   const releaseRoot = join(root, "release");
@@ -1945,8 +1951,12 @@ function aiAgentReleaseFixture({ enabled, previousAgent = false, agentEnv = "com
   writeFileSync(environmentFile, "SAFE_FIXTURE=1\n", { mode: 0o600 });
   writeFileSync(environmentExample, "SAFE_FIXTURE=1\n", { mode: 0o600 });
   const agentEnvironment = {
-    complete: "EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
+    // Raw format keeps `$` and `#` literally, so they are allowed in a value.
+    complete: "# synthetic\nEVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\n  EVO_AI_AGENT_DATABASE_URL=postgresql://fixture:pa$word#1@fixture/db\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\nEVO_AI_AGENT_STORAGE_SECRET=\n",
     incomplete: "EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\nEVO_AI_AGENT_DATABASE_URL=\n",
+    quoted: "EVO_AI_AGENT_GEMINI_API_KEY=\"synthetic-fixture\"\nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
+    exported: "export EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
+    padded: "EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture \nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
   }[agentEnv];
   if (agentEnvironment !== undefined) {
     writeFileSync(agentEnvironmentFile, agentEnvironment, { mode: 0o600 });
@@ -1959,6 +1969,7 @@ function aiAgentReleaseFixture({ enabled, previousAgent = false, agentEnv = "com
     scanner: true,
     agent: previousAgent ? { api: previousAgentImage, worker: previousAgentImage, healthy: true } : null,
     agentImages: previousAgent ? [previousAgentImage] : [],
+    appAi: appOnAgentNetwork,
     rollbackTagPresent: false,
   }));
 
@@ -1981,6 +1992,9 @@ const ids = { app: state.app === "target" ? "b0b0b0b0b0b0" : "a0a0a0a0a0a0", cla
   waha: "d0d0d0d0d0d0", "ai-agent-api": "e0e0e0e0e0e0", "ai-agent-worker": "f0f0f0f0f0f0" };
 const save = () => writeFileSync(statePath, JSON.stringify(state));
 const output = (value) => { if (value !== "") process.stdout.write(String(value) + "\\n"); };
+// "--file -": the controller's app-network override arrives on standard input, exactly.
+const appOverride = args.some((value, index) => value === "-" && args[index - 1] === "--file");
+if (appOverride && readFileSync(0, "utf8") !== ${JSON.stringify(AGENT_APP_NETWORK_OVERRIDE)}) process.exit(65);
 const present = (service) => service === "app" ? state.app !== null : service === "clamav" ? state.scanner
   : service === "waha" ? true : service === "ai-agent-api" ? Boolean(state.agent?.api)
   : service === "ai-agent-worker" ? Boolean(state.agent?.worker) : false;
@@ -1999,6 +2013,7 @@ else if (args[0] === "ps") {
   const agent = service.startsWith("ai-agent-");
   if (format.includes("com.docker.compose.service")) output(service);
   else if (format.includes("State.Health")) output(agent ? (state.agent.healthy ? "healthy" : "unhealthy") : "healthy");
+  else if (format.includes("State.Running")) output("true");
   else if (format.includes("RestartCount")) output("0");
   else if (format.includes("org.opencontainers.image.revision")) output(state.app === "target" ? targetRevision : previousRevision);
   else if (format.includes("org.opencontainers.image.version")) output(state.app === "target" ? targetVersion : previousVersion);
@@ -2010,8 +2025,10 @@ else if (args[0] === "ps") {
       ? ["EVO_RELEASE_REVISION=" + targetRevision, "EVO_RUNTIME_IMAGE_ID=" + targetImage]
       : ["EVO_RELEASE_REVISION=" + previousRevision]));
   } else if (format.includes("PortBindings")) output("{}");
-  else if (format.includes("NetworkSettings.Networks")) output(service === "app" ? "fixture_private\\nfixture_web" : "fixture_private");
-  else if (format.includes(".Image")) output(state.app === "target" ? targetImage : previousImage);
+  else if (format.includes("NetworkSettings.Networks")) {
+    output(service === "app" ? "fixture_private\\nfixture_web" + (state.appAi ? "\\nevo_crm_ai" : "")
+      : agent ? "evo_crm_ai" : "fixture_private");
+  } else if (format.includes(".Image")) output(state.app === "target" ? targetImage : previousImage);
   else process.exit(64);
 } else if (args[0] === "image" && args[1] === "inspect") {
   const reference = args.at(-1);
@@ -2048,15 +2065,21 @@ else if (args[0] === "exec") {
   if (command === "config") {
     if (args.includes("--services")) output((profile ? ["ai-agent-api", "ai-agent-worker"] : []).concat(["app", "clamav", "waha"]).join("\\n"));
     else if (args.includes("--format")) {
+      // FAKE_COMPOSE_BREACH renders a compose that would put the agent next to WAHA or clamd.
+      const breach = process.env.FAKE_COMPOSE_BREACH ?? "";
+      const agentNetwork = breach === "agent-private" ? "private" : "ai";
       const agentService = (aliases) => ({ image: agentImage, profiles: ["ai-agent"], read_only: true,
-        user: "10001:10001", cap_drop: ["ALL"], healthcheck: { test: ["CMD"] },
-        networks: { private: aliases ? { aliases } : null } });
+        user: "10001:10001", cap_drop: ["ALL"], security_opt: ["no-new-privileges:true"],
+        healthcheck: { test: ["CMD"] }, networks: { [agentNetwork]: aliases ? { aliases } : null } });
+      const agentBridge = profile || appOverride;
       output(JSON.stringify({
-        networks: { private: { name: "fixture_private" }, web: { name: "fixture_web" } },
+        networks: { private: { name: "fixture_private" }, web: { name: "fixture_web" },
+          ...(agentBridge ? { ai: { name: "evo_crm_ai", driver: "bridge" } } : {}) },
         services: {
-          app: { image: "evo-crm:" + process.env.EVO_RELEASE_REVISION, networks: { private: {}, web: {} } },
+          app: { image: "evo-crm:" + process.env.EVO_RELEASE_REVISION,
+            networks: { private: {}, web: {}, ...(appOverride ? { ai: { aliases: ["evo-crm-app"] } } : {}) } },
           clamav: { image: scannerImage, networks: { private: {} } },
-          waha: { image: wahaImage, networks: { private: {} } },
+          waha: { image: wahaImage, networks: { private: {}, ...(breach === "waha-ai" && agentBridge ? { ai: {} } : {}) } },
           ...(profile ? { "ai-agent-api": agentService(["evo-ai-agent"]), "ai-agent-worker": agentService(null) } : {}),
         },
       }));
@@ -2075,7 +2098,8 @@ else if (args[0] === "exec") {
       if (!healthy) process.exit(1);
     } else if (args.at(-1) === "clamav") { state.scanner = true; save(); }
     else if (args.at(-1) === "app") {
-      state.app = args.filter((value) => value === "--file").length === 2 ? "baseline" : "target";
+      state.app = args.some((value) => value.endsWith("/rollback.override.yml")) ? "baseline" : "target";
+      state.appAi = appOverride;
       save();
     } else process.exit(64);
   } else if (command === "rm") {
@@ -2170,8 +2194,10 @@ test("AI agent disabled: a release makes no agent call and seals today's state a
     assert.equal(deployed.status, 0, deployed.stderr);
     assert.equal(JSON.parse(deployed.stdout).status, "pending");
     const agentCalls = fixture.dockerCalls().filter((call) => call[0] === "exec" || call.includes("--profile")
+      || call.includes("-") || call.includes("{{.State.Running}}")
       || call.some((argument) => /^ai-agent-(?:api|worker)$|evo-ai-agent@/u.test(argument)));
     assert.deepEqual(agentCalls, []);
+    assert.equal(fixture.runtime().appAi, false);
     const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
     assert.deepEqual(Object.keys(state).sort(), TODAY_STATE_KEYS);
     const wrapper = readFileSync(join(fixture.releaseDir, "rollback-command.sh"), "utf8");
@@ -2211,12 +2237,16 @@ test("AI agent enabled: configuration fails closed before any runtime change", (
     [{ enabled: true }, { EVO_AI_AGENT_IMAGE_DIGEST: "latest" }, /ai_agent_digest_invalid/u],
     [{ enabled: true, agentEnv: "absent" }, {}, /ai_agent_env_missing/u],
     [{ enabled: true, agentEnv: "incomplete" }, {}, /ai_agent_env_incomplete/u],
+    [{ enabled: true, agentEnv: "quoted" }, {}, /ai_agent_env_format_invalid/u],
+    [{ enabled: true, agentEnv: "exported" }, {}, /ai_agent_env_format_invalid/u],
+    [{ enabled: true, agentEnv: "padded" }, {}, /ai_agent_env_format_invalid/u],
   ]) {
     const fixture = aiAgentReleaseFixture(options);
     try {
       const deployed = fixture.run("deploy", overrides);
       assert.equal(deployed.status, 2, deployed.stdout);
       assert.match(deployed.stderr, code);
+      assert.doesNotMatch(deployed.stderr, /synthetic-fixture|postgresql:/u);
       assert.deepEqual(fixture.dockerCalls(), []);
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
@@ -2242,6 +2272,9 @@ test("AI agent enabled: first release pulls by digest, proves /v1/ready, records
     assert.ok(calls.some((call) => /^compose .*--profile ai-agent .*pull --quiet ai-agent-api$/u.test(call)), calls.join("\n"));
     assert.ok(calls.some((call) => /^compose .*--profile ai-agent .*up .*--pull never .*ai-agent-api ai-agent-worker$/u.test(call)));
     assert.ok(calls.some((call) => /^exec e0e0e0e0e0e0 python -c .*\/v1\/ready/u.test(call)));
+    // ADR 0032: the app joins the agent's own bridge only now, through the stdin override.
+    assert.ok(calls.some((call) => /^compose .*--file - .*--profile ai-agent up .* app$/u.test(call)), calls.join("\n"));
+    assert.equal(fixture.runtime().appAi, true);
     assert.deepEqual(fixture.runtime().agent, { api: fixture.targetAgentImage, worker: fixture.targetAgentImage, healthy: true });
     const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
     assert.deepEqual(state.aiAgent, { image: fixture.targetAgentImage, previousPresent: false, previousImage: "" });
@@ -2252,11 +2285,15 @@ test("AI agent enabled: first release pulls by digest, proves /v1/ready, records
     assert.match(fixture.run("candidate-status").stdout, /"status":"pending"/u);
     assert.match(fixture.run("candidate-status", { EVO_AI_AGENT_ENABLED: "" }).stderr, /ai_agent_release_mismatch/u);
 
+    const callsBeforeRollback = fixture.dockerCalls().length;
     const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
     assert.equal(rolledBack.status, 0, rolledBack.stderr);
     assert.equal(fixture.runtime().app, "baseline");
+    assert.equal(fixture.runtime().appAi, false);
     assert.equal(fixture.runtime().agent, null);
     assert.equal(existsSync(join(fixture.evidenceRoot, "pending-current.json")), false);
+    // The previous release had no agent: its app is restored without the override.
+    assert.ok(!fixture.dockerCalls().slice(callsBeforeRollback).some((call) => call.includes("-")));
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -2278,11 +2315,17 @@ test("AI agent enabled: a failed readiness proof restores the previous app and a
         image: fixture.targetAgentImage, previousPresent: true, previousImage: fixture.previousAgentImage,
       });
       assert.equal(fixture.runtime().app, "baseline");
+      assert.equal(fixture.runtime().appAi, true);
       assert.deepEqual(fixture.runtime().agent, {
         api: fixture.previousAgentImage, worker: fixture.previousAgentImage, healthy: true,
       });
       const calls = fixture.dockerCalls().map((call) => call.join(" "));
       assert.ok(calls.some((call) => /up .*--force-recreate .*ai-agent-api ai-agent-worker$/u.test(call)), failure);
+      assert.ok(calls.some((call) => /--file \S+\/rollback\.override\.yml --file - .*up .* app$/u.test(call)), failure);
+      // Before any runtime change the previous snapshot was rendered as the rollback renders it.
+      const previousRender = calls.findIndex((call) => /--file \S+\/docker-compose\.previous\.yml --file - .*config --quiet$/u.test(call));
+      const firstUp = calls.findIndex((call) => /^compose .* up /u.test(call));
+      assert.ok(previousRender >= 0 && previousRender < firstUp, failure);
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
     }
@@ -2317,6 +2360,82 @@ test("AI agent enabled: acceptance records the pin and a hand-changed agent is d
     const foreign = `${AGENT_REPOSITORY}@${FOREIGN_AGENT_DIGEST}`;
     fixture.setRuntime({ agent: { api: foreign, worker: foreign, healthy: true }, agentImages: [foreign] });
     assert.match(fixture.run("preflight").stderr, /runtime_ai_agent_image_drift/u);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("AI agent off after it ran: the app leaves the agent bridge and nothing else is rendered", () => {
+  // The disable runbook removed the agent pair; the app container still sits on evo_crm_ai.
+  const fixture = aiAgentReleaseFixture({ enabled: false, appOnAgentNetwork: true });
+  try {
+    assert.equal(fixture.run("seal-rollback-seed").status, 0);
+    const deployed = fixture.run("deploy");
+    assert.equal(deployed.status, 0, deployed.stderr);
+    assert.equal(fixture.runtime().app, "target");
+    assert.equal(fixture.runtime().appAi, false);
+    assert.ok(!fixture.dockerCalls().some((call) => call.includes("-") || call.includes("--profile")));
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("AI agent enabled: a compose that puts the agent next to WAHA or clamd is refused before any change", () => {
+  for (const breach of ["agent-private", "waha-ai"]) {
+    const fixture = aiAgentReleaseFixture({ enabled: true });
+    try {
+      assert.equal(fixture.run("seal-rollback-seed").status, 0);
+      const deployed = fixture.run("deploy", { FAKE_COMPOSE_BREACH: breach });
+      assert.equal(deployed.status, 2, `${breach}: ${deployed.stdout}`);
+      assert.match(deployed.stderr, /compose_ai_agent_contract_invalid/u);
+      assert.equal(fixture.runtime().app, "baseline");
+      assert.equal(fixture.runtime().agent, null);
+      assert.ok(!fixture.dockerCalls().some((call) => call.includes("up") || call.includes("pull")), breach);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("AI agent enabled: the 2 GiB headroom is required only while the agent is not running yet", (t) => {
+  const meminfo = existsSync("/proc/meminfo") ? readFileSync("/proc/meminfo", "utf8") : "";
+  const available = meminfo === "" ? 8589934592 / 1024 : Number(/^MemAvailable:\s+(\d+)/mu.exec(meminfo)?.[1]);
+  // Between today's minimum and today's minimum plus the agent's limits.
+  const minimum = Math.floor(available - 1048576);
+  if (!Number.isSafeInteger(minimum) || minimum < 4194304) {
+    t.skip("needs at least 5 GiB of available memory");
+    return;
+  }
+  for (const previousAgent of [true, false]) {
+    const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent });
+    try {
+      assert.equal(fixture.run("seal-rollback-seed").status, 0);
+      const preflight = fixture.run("preflight", { EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB: String(minimum) });
+      if (previousAgent) assert.doesNotMatch(preflight.stderr, /insufficient_memory_capacity/u);
+      else assert.match(preflight.stderr, /insufficient_memory_capacity/u);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("AI agent enabled: a rollback whose previous agent image is gone stops before any change", () => {
+  const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent: true });
+  try {
+    assert.equal(fixture.run("seal-rollback-seed").status, 0);
+    assert.equal(fixture.run("deploy").status, 0);
+    fixture.setRuntime({ agentImages: [fixture.targetAgentImage] });
+    const callsBeforeRollback = fixture.dockerCalls().length;
+    const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
+    assert.notEqual(rolledBack.status, 0);
+    assert.match(rolledBack.stderr, /rollback_failed/u);
+    assert.equal(fixture.runtime().app, "target");
+    assert.deepEqual(fixture.runtime().agent, {
+      api: fixture.targetAgentImage, worker: fixture.targetAgentImage, healthy: true,
+    });
+    const mutations = fixture.dockerCalls().slice(callsBeforeRollback)
+      .filter((call) => call.includes("up") || call.includes("rm") || call.includes("stop") || call[0] === "tag");
+    assert.deepEqual(mutations, []);
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }

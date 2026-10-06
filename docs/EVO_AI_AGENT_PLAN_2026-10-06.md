@@ -177,11 +177,15 @@ SoodaCloser не копируются.
 
 | Служба | Команда | Сеть | Лимиты | Назначение |
 |---|---|---|---|---|
-| `ai-agent-api` | uvicorn, 2 воркера | только `private` (`evo_crm_private`), alias `evo-ai-agent`, порт 8080 | 0,5 CPU, 512 MiB | Ответы (SSE), Лаборатория, переиндексация после правок |
-| `ai-agent-worker` | цикл чтения pgmq | только `private` | 1,0 CPU, 1536 MiB, `pids_limit` 256 | Загрузка документов и OCR, эмбеддинги, память о клиенте, автоответчик |
+| `ai-agent-api` | uvicorn, 2 воркера | только `ai` (`evo_crm_ai`), alias `evo-ai-agent`, порт 8080 | 0,5 CPU, 512 MiB | Ответы (SSE), Лаборатория, переиндексация после правок |
+| `ai-agent-worker` | цикл чтения pgmq | только `ai` | 1,0 CPU, 1536 MiB, `pids_limit` 256 | Загрузка документов и OCR, эмбеддинги, память о клиенте, автоответчик |
 
 Правила для обеих служб: `read_only: true`, `tmpfs /tmp` 256 MiB, `init: true`,
 не root, без опубликованных портов, без сети `web`, без доступа к WAHA.
+`evo_crm_ai` — отдельный bridge проекта с выходом в интернет (Gemini, Supabase);
+в нём кроме агента только приложение (alias `evo-crm-app`), которое release
+controller подключает лишь при включённом агенте. В `evo_crm_private` с WAHA,
+ClamAV и lead-agent агента нет (уточнение 2026-10-06, `PLAN_CHANGES.md`).
 Healthcheck `GET /v1/health` (без БД) и `GET /v1/ready` (БД и очередь).
 Службы стоят под compose-профилем `ai-agent`: пока владелец не включил
 агента, выпуск CRM их не поднимает и ведёт себя как сейчас.

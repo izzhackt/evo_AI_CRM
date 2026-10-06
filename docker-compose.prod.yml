@@ -120,6 +120,10 @@ services:
   # every release with EVO_AI_AGENT_ENABLED unset render exactly app, clamav and waha.
   # The private GHCR image is pinned only by digest; an unset digest is harmless while
   # the profile is off, and the release controller refuses it when the profile is on.
+  # Both services join only their own bridge `evo_crm_ai`, never evo_crm_private: WAHA,
+  # clamd and the lead-agent stay out of reach. With the agent on, the release controller
+  # adds `app` to that bridge (alias evo-crm-app); with it off, the bridge is not rendered.
+  # Secrets are read in raw format: `$`, quotes and `#` stay literal, nothing is substituted.
   ai-agent-api:
     platform: linux/amd64
     profiles: ["ai-agent"]
@@ -140,13 +144,14 @@ services:
     pids_limit: 128
     logging: *bounded-logging
     env_file:
-      - "${EVO_CRM_AI_AGENT_ENV_FILE:-.env.ai-agent}"
+      - path: "${EVO_CRM_AI_AGENT_ENV_FILE:-.env.ai-agent}"
+        format: raw
     expose:
       - "8080"
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=256m,mode=1777
     networks:
-      private:
+      ai:
         aliases:
           - evo-ai-agent
     # Liveness only: /v1/health needs no database. The release checks /v1/ready.
@@ -181,11 +186,12 @@ services:
     pids_limit: 256
     logging: *bounded-logging
     env_file:
-      - "${EVO_CRM_AI_AGENT_ENV_FILE:-.env.ai-agent}"
+      - path: "${EVO_CRM_AI_AGENT_ENV_FILE:-.env.ai-agent}"
+        format: raw
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=256m,mode=1777
     networks:
-      - private
+      - ai
     # The queue loop touches /tmp/evo-ai-agent-worker.alive; older than 180 s = stuck.
     healthcheck:
       test: ["CMD", "python", "-m", "evo_ai_agent.worker", "--check"]
@@ -209,3 +215,8 @@ networks:
   web:
     external: true
     name: ${EVO_CADDY_NETWORK:-evo_public_web}
+  # The agent's own bridge (rendered only with the `ai-agent` profile). Not internal: the
+  # agent needs egress to Gemini and Supabase.
+  ai:
+    name: evo_crm_ai
+    driver: bridge

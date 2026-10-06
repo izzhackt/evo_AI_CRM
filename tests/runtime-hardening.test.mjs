@@ -48,8 +48,12 @@ for (const file of ["docker-compose.prod.yml"]) {
     const agentApi = serviceBlock(value, "ai-agent-api");
     const agentWorker = serviceBlock(value, "ai-agent-worker");
     for (const block of [agentApi, agentWorker]) {
-      // Plan §4.2/§4.6: compose profile, private GHCR digest, private network only, hardened.
+      // Plan §4.2/§4.6, ADR 0032: compose profile, private GHCR digest, only the agent's own
+      // bridge (never evo_crm_private with WAHA and clamd), secrets read raw, hardened.
       assert.match(block, /^    profiles: \["ai-agent"\]$/mu);
+      assert.match(block, /^    networks:\n      (?:ai:\n        aliases:\n          - evo-ai-agent|- ai)\n/mu);
+      assert.doesNotMatch(block, /^\s+(?:private:|- private$)|evo_crm_private/mu);
+      assert.match(block, /- path: "\$\{EVO_CRM_AI_AGENT_ENV_FILE:-\.env\.ai-agent\}"\n        format: raw\n/u);
       assert.match(block, /^    image: "ghcr\.io\/izzhackt\/evo-ai-agent@\$\{EVO_AI_AGENT_IMAGE_DIGEST:-\}"$/mu);
       assert.match(block, /platform: linux\/amd64/u);
       assert.match(block, /read_only: true/u);
@@ -68,6 +72,15 @@ for (const file of ["docker-compose.prod.yml"]) {
     assert.match(agentWorker, /cpus: "1\.00"\n    mem_limit: 1536m\n    pids_limit: 256/u);
     assert.match(agentWorker, /command: \["python", "-m", "evo_ai_agent\.worker"\]/u);
     assert.match(agentWorker, /"evo_ai_agent\.worker", "--check"/u);
+
+    // The agent bridge is egress-capable (Gemini, Supabase) and owned by this project; the
+    // file never puts app, clamav or waha on it (the controller adds the app only when on).
+    assert.match(value, /\n  ai:\n    name: evo_crm_ai\n    driver: bridge\n$/u);
+    for (const block of [app, clamav, waha]) assert.doesNotMatch(block, /^      (?:ai:|- ai$)/mu);
+    // The controller's override declares the same bridge, so it renders on top of a rollback
+    // snapshot that predates it and Compose keeps one network definition.
+    const controller = await read("scripts/evo-fast-release.sh");
+    assert.match(controller, /^readonly AI_AGENT_APP_NETWORK_OVERRIDE=\$'services:\\n  app:\\n    networks:\\n      ai:\\n        aliases:\\n          - evo-crm-app\\nnetworks:\\n  ai:\\n    name: evo_crm_ai\\n    driver: bridge\\n'$/mu);
 
     for (const block of [app, clamav, waha, agentApi, agentWorker]) {
       assert.match(block, /cpus:/u);

@@ -23,6 +23,15 @@ readonly AI_AGENT_IMAGE_RE='^ghcr\.io/izzhackt/evo-ai-agent@sha256:[0-9a-f]{64}$
 readonly AI_AGENT_REPOSITORY='ghcr.io/izzhackt/evo-ai-agent'
 readonly AI_AGENT_SOURCE='https://github.com/izzhackt/evo-ai-agent'
 readonly AI_AGENT_MEMORY_LIMIT_KB=2097152
+# The agent's own bridge (ADR 0032, PLAN_CHANGES 2026-10-06): the agent pair joins only this
+# network, and the app joins it only while the agent is on. The compose file cannot attach
+# the app conditionally, so for an enabled release every compose call also reads this fixed
+# override from standard input; a release with the agent off never adds it. The override
+# also declares the bridge, exactly as docker-compose.prod.yml does, so it renders on top of
+# a previous compose snapshot that predates the bridge (a rollback target) instead of failing
+# with "refers to undefined network ai", and Compose sees one unchanged network definition.
+readonly AI_AGENT_NETWORK='evo_crm_ai'
+readonly AI_AGENT_APP_NETWORK_OVERRIDE=$'services:\n  app:\n    networks:\n      ai:\n        aliases:\n          - evo-crm-app\nnetworks:\n  ai:\n    name: evo_crm_ai\n    driver: bridge\n'
 # The profile is passed explicitly when enabled; an inherited value must not enable it.
 unset COMPOSE_PROFILES
 
@@ -56,6 +65,7 @@ release_mutation_evidence_dir=''
 ai_agent_enabled=false
 ai_agent_image=''
 compose_profile_args=()
+compose_app_ai_network=false
 current_ai_agent_present=false
 current_ai_agent_services=''
 expected_ai_agent_image=''
@@ -216,20 +226,26 @@ load_configuration() {
   load_ai_agent_configuration
 }
 
-# Names only: a value is never printed, compared or copied anywhere.
-ai_agent_env_has_required_names() {
+# Names only: a value is never printed, compared or copied anywhere. Compose reads the file
+# in raw format (no substitution, no quote removal), so every line must be a plain
+# NAME=value: no `export`, no quoted value, no surrounding blanks. Exit 2 = format, 1 = a
+# required name is missing or empty.
+ai_agent_env_check() {
   awk '
     /^[[:space:]]*(#|$)/ { next }
     {
       line = $0
-      sub(/^[[:space:]]*export[[:space:]]+/, "", line)
+      sub(/\r$/, "", line)
+      sub(/^[[:space:]]+/, "", line)
+      if (line !~ /^[A-Za-z_][A-Za-z0-9_]*=/) { malformed = 1; next }
       separator = index(line, "=")
-      if (separator < 2) next
       name = substr(line, 1, separator - 1)
       value = substr(line, separator + 1)
-      if (value != "" && value != "\"\"" && value != "'\'''\''") present[name] = 1
+      if (value ~ /^["\047]/ || value ~ /^[[:space:]]/ || value ~ /[[:space:]]$/) { malformed = 1; next }
+      if (value != "") present[name] = 1
     }
     END {
+      if (malformed) exit 2
       exit !(present["EVO_AI_AGENT_GEMINI_API_KEY"] && present["EVO_AI_AGENT_DATABASE_URL"] && present["EVO_AI_AGENT_INTERNAL_SECRET"])
     }
   ' "$1" 2>/dev/null
@@ -239,6 +255,7 @@ load_ai_agent_configuration() {
   ai_agent_enabled=false
   ai_agent_image=''
   compose_profile_args=()
+  compose_app_ai_network=false
   case "${EVO_AI_AGENT_ENABLED-}" in
     ''|false) return 0 ;;
     true) ;;
@@ -250,10 +267,14 @@ load_ai_agent_configuration() {
   require_absolute_path "$EVO_CRM_AI_AGENT_ENV_FILE" "ai_agent_env_path_invalid"
   require_file "$EVO_CRM_AI_AGENT_ENV_FILE" "ai_agent_env_missing"
   [[ $(file_mode "$EVO_CRM_AI_AGENT_ENV_FILE") == 600 ]] || fail "ai_agent_env_permissions_invalid"
-  ai_agent_env_has_required_names "$EVO_CRM_AI_AGENT_ENV_FILE" || fail "ai_agent_env_incomplete"
+  local env_status=0
+  ai_agent_env_check "$EVO_CRM_AI_AGENT_ENV_FILE" || env_status=$?
+  [[ $env_status -ne 2 ]] || fail "ai_agent_env_format_invalid"
+  [[ $env_status -eq 0 ]] || fail "ai_agent_env_incomplete"
   ai_agent_enabled=true
   ai_agent_image="${AI_AGENT_REPOSITORY}@${EVO_AI_AGENT_IMAGE_DIGEST}"
   compose_profile_args=(--profile ai-agent)
+  compose_app_ai_network=true
 }
 
 load_candidate_configuration() {
@@ -318,6 +339,17 @@ compose_with_app_env() {
   local app_env_snapshot=$1 app_env_hash=$2 compose_file=$3
   shift 3
   require_app_env_snapshot "$app_env_snapshot" "$app_env_hash"
+  if [[ $compose_app_ai_network == true ]]; then
+    EVO_CRM_APP_ENV_FILE="$app_env_snapshot" docker compose \
+      --ansi never \
+      --project-name "$EVO_RELEASE_PROJECT_NAME" \
+      --file "$compose_file" \
+      --file - \
+      --env-file "$app_env_snapshot" \
+      ${compose_profile_args[@]+"${compose_profile_args[@]}"} \
+      "$@" <<<"$AI_AGENT_APP_NETWORK_OVERRIDE"
+    return
+  fi
   EVO_CRM_APP_ENV_FILE="$app_env_snapshot" docker compose \
     --ansi never \
     --project-name "$EVO_RELEASE_PROJECT_NAME" \
@@ -495,6 +527,15 @@ ai_agent_runtime_is() {
   done
 }
 
+# Both agent containers exist and run (state only; the health contract is checked later).
+ai_agent_pair_running() {
+  local service id
+  for service in ai-agent-api ai-agent-worker; do
+    id=$(service_container_id "$service") || return 1
+    [[ $(docker inspect --format '{{.State.Running}}' "$id" 2>/dev/null || true) == true ]] || return 1
+  done
+}
+
 # The image both running agent containers use; empty when the pair is absent.
 current_ai_agent_runtime_image() {
   [[ $current_ai_agent_present == true ]] || return 0
@@ -544,8 +585,12 @@ verify_private_service_ports() {
   [[ $bindings == null || $bindings == '{}' ]] || fail "private_service_port_published"
 }
 
+# `exact` after a runtime change. `app-ai-transition` before one: turning the agent on or off
+# moves the app onto or off the agent bridge, and the release recreates the app anyway, so
+# only for the app that one network is left out of the comparison.
 verify_networks() {
-  local service container networks expected_networks network
+  local mode=${1:-exact} service container networks expected_networks network
+  [[ $mode == exact || $mode == app-ai-transition ]] || fail "runtime_network_contract_invalid"
   local -a runtime_services=(waha)
   if [[ -n $current_clamav_container_id ]]; then
     runtime_services=(clamav "${runtime_services[@]}")
@@ -565,6 +610,10 @@ verify_networks() {
       | jq -er --arg service "$service" '. as $root | ($root.services[$service].networks // {}) | keys[] as $key | ($root.networks[$key].name // $key)' \
       | LC_ALL=C sort -u) || fail "runtime_network_contract_invalid"
     networks=$(printf '%s\n' "$networks" | awk 'NF' | LC_ALL=C sort -u)
+    if [[ $mode == app-ai-transition && $service == app ]]; then
+      networks=$(printf '%s\n' "$networks" | awk -v ai="$AI_AGENT_NETWORK" 'NF && $0 != ai')
+      expected_networks=$(printf '%s\n' "$expected_networks" | awk -v ai="$AI_AGENT_NETWORK" 'NF && $0 != ai')
+    fi
     [[ -n $networks && -n $expected_networks && $networks == "$expected_networks" ]] \
       || fail "runtime_network_contract_invalid"
     while IFS= read -r network; do
@@ -645,8 +694,9 @@ verify_capacity() {
   local minimum_memory=${EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB:-4194304}
   [[ $minimum_memory =~ ^[0-9]+$ && $minimum_memory -ge 4194304 ]] \
     || fail "memory_capacity_contract_invalid"
-  if [[ $ai_agent_enabled == true ]]; then
-    # Plan §4.8: the agent adds 2 GiB of limits (api 512 MiB, worker 1.5 GiB); hermes has no swap.
+  if [[ $ai_agent_enabled == true ]] && ! ai_agent_pair_running; then
+    # Plan §4.8: a new agent adds 2 GiB of limits (api 512 MiB, worker 1.5 GiB); hermes has
+    # no swap. A running pair is already outside the available memory measured below.
     minimum_memory=$((minimum_memory + AI_AGENT_MEMORY_LIMIT_KB))
   fi
   local available_memory docker_memory_bytes
@@ -703,13 +753,15 @@ verify_compose() {
   [[ $clamav_image == "$CLAMAV_IMAGE" ]] || fail "compose_clamav_image_invalid"
 }
 
-# Plan §4.2: digest-pinned, private network only, no published port or mount, read-only,
-# non-root, every capability dropped.
+# Plan §4.2 and ADR 0032: digest-pinned, no published port or mount, read-only, non-root,
+# every capability dropped, no host namespace or device. The agent bridge holds exactly the
+# agent pair and the app; the agent is on no other network, so WAHA, clamd and the
+# lead-agent on evo_crm_private are out of its reach.
 verify_compose_ai_agent() {
   EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
   EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
-  compose config --format json 2>/dev/null | jq -e --arg image "$ai_agent_image" '
-    [.services["ai-agent-api"], .services["ai-agent-worker"]] | all(.[];
+  compose config --format json 2>/dev/null | jq -e --arg image "$ai_agent_image" --arg network "$AI_AGENT_NETWORK" '
+    ([.services["ai-agent-api"], .services["ai-agent-worker"]] | all(.[];
       type == "object" and
       .image == $image and
       .profiles == ["ai-agent"] and
@@ -717,12 +769,26 @@ verify_compose_ai_agent() {
       .user == "10001:10001" and
       ((.ports // []) | length) == 0 and
       ((.volumes // []) | length) == 0 and
-      ((.networks // {}) | keys) == ["private"] and
+      ((.networks // {}) | keys) == ["ai"] and
       any((.cap_drop // [])[]; . == "ALL") and
+      ((.cap_add // []) | length) == 0 and
+      any((.security_opt // [])[]; . == "no-new-privileges:true") and
       (.privileged // false) == false and
       (.network_mode // "") == "" and
+      (.pid // "") == "" and
+      (.ipc // "") == "" and
+      (.userns_mode // "") == "" and
+      ((.devices // []) | length) == 0 and
       (.healthcheck | type) == "object"
-    )' >/dev/null 2>&1 || fail "compose_ai_agent_contract_invalid"
+    )) and
+    .services["ai-agent-api"].networks.ai.aliases == ["evo-ai-agent"] and
+    (.networks.ai | type == "object" and .name == $network and (.external // false) == false
+      and (.internal // false) == false and (.driver // "bridge") == "bridge"
+      and ((.driver_opts // {}) | length) == 0) and
+    ([.services | to_entries[] | select((.value.networks // {}) | has("ai")) | .key] | sort)
+      == ["ai-agent-api", "ai-agent-worker", "app"] and
+    .services.app.networks.ai.aliases == ["evo-crm-app"]
+  ' >/dev/null 2>&1 || fail "compose_ai_agent_contract_invalid"
 }
 
 # The private image is pulled by digest with the host's read-only GHCR credential (runbook
@@ -788,7 +854,8 @@ provision_scanner_runtime() {
   [[ -n $current_clamav_container_id ]] || fail "scanner_container_unavailable"
   verify_runtime_clamav_image
   verify_private_service_ports clamav
-  verify_networks
+  # The app is not recreated yet: it may still be off (or on) the agent bridge.
+  verify_networks app-ai-transition
 }
 
 verify_archive() {
@@ -939,7 +1006,16 @@ verify_external_health() {
 }
 
 verify_previous_compose() {
-  local compose_file=$1 revision=$2 version=$3 app_env_snapshot=$4 app_env_hash=$5 services
+  local compose_file=$1 revision=$2 version=$3 app_env_snapshot=$4 app_env_hash=$5
+  local app_network=${6:-without-agent-network} services
+  # Rendered as a rollback would render it: with the app-network override only when the
+  # previous release ran the agent. The snapshot may predate the agent bridge either way.
+  local compose_app_ai_network=false
+  case "$app_network" in
+    without-agent-network) ;;
+    with-agent-network) compose_app_ai_network=true ;;
+    *) fail "rollback_compose_invalid" ;;
+  esac
   require_file "$compose_file" "rollback_compose_missing"
   require_app_env_snapshot "$app_env_snapshot" "$app_env_hash" "rollback_app_env_invalid"
   EVO_RELEASE_REVISION=$revision EVO_RELEASE_VERSION=$version \
@@ -1323,7 +1399,7 @@ run_preflight_checks() {
   for service in $current_ai_agent_services; do
     verify_private_service_ports "$service"
   done
-  verify_networks
+  verify_networks app-ai-transition
   verify_archive
   verify_rollback_source
   if [[ -n $current_app_container_id ]]; then
@@ -1540,12 +1616,18 @@ create_rollback_state() {
         "$rollback_app_env_snapshot" \
         "$previous_env_snapshot") || fail "rollback_app_env_snapshot_failed"
       [[ $actual_hash == "$rollback_app_env_sha256" ]] || fail "rollback_app_env_drift"
+      # Before any runtime change: the snapshot renders exactly as a rollback will render it.
+      local previous_app_network=without-agent-network
+      if [[ $ai_agent_enabled == true && $rollback_previous_ai_agent_present == true ]]; then
+        previous_app_network=with-agent-network
+      fi
       verify_previous_compose \
         "$previous_compose_snapshot" \
         "$rollback_previous_revision" \
         "$rollback_previous_version" \
         "$previous_env_snapshot" \
-        "$rollback_app_env_sha256"
+        "$rollback_app_env_sha256" \
+        "$previous_app_network"
 
       if [[ $rollback_previous_generation == v3 ]]; then
         previous_pointer_snapshot=$directory/previous-current-v3-accepted.json
@@ -1792,7 +1874,7 @@ verify_recovery_runtime_for_state() {
     [[ $scanner_image == "$CLAMAV_IMAGE" ]] || fail "rollback_scanner_mismatch"
     verify_private_service_ports clamav
   fi
-  verify_networks
+  verify_networks app-ai-transition
 }
 
 rollback_from_state() {
@@ -1824,6 +1906,11 @@ rollback_from_state() {
     ai_agent_image=''
     compose_profile_args=()
   fi
+  # The rollback target decides the app's networks: on the agent bridge only when the previous
+  # release ran the agent. The override declares the bridge itself, so it applies to the
+  # candidate compose and to a previous snapshot that predates the bridge alike.
+  compose_app_ai_network=false
+  [[ $previous_ai_agent_present != true ]] || compose_app_ai_network=true
   expected_ai_agent_image=''
   release_id=$(jq -er '.releaseId' "$state_file") || return 1
   target_image=$(jq -er '.imageId' "$state_file") || return 1
@@ -1850,6 +1937,11 @@ rollback_from_state() {
     docker image inspect "$previous_scanner_image" >/dev/null 2>&1 || return 1
   else
     [[ $previous_scanner_present == false && -z $previous_scanner_image ]] || return 1
+  fi
+  # Like the scanner: the previous agent image must still be on the host before anything
+  # changes, or a rollback would stop half-way with the app restored and the agent not.
+  if [[ $previous_ai_agent_present == true ]]; then
+    docker image inspect "$previous_ai_agent_image" >/dev/null 2>&1 || return 1
   fi
 
   if verify_pending_for_state "$state_file"; then
@@ -1983,7 +2075,14 @@ rollback_from_state() {
           up --detach --no-deps --no-build --pull never --wait --wait-timeout 600 clamav >/dev/null \
         || return 1
     fi
-    if [[ $runtime_already_restored != true ]]; then
+    if [[ $runtime_already_restored != true && $compose_app_ai_network == true ]]; then
+      EVO_RELEASE_REVISION=$previous_revision EVO_RELEASE_VERSION=$previous_version \
+        EVO_CRM_APP_ENV_FILE="$previous_app_env" docker compose \
+        --ansi never --project-name "$EVO_RELEASE_PROJECT_NAME" \
+        --file "$previous_compose" --file "$override" --file - --env-file "$previous_app_env" \
+        up --detach --no-deps --no-build --pull never --wait --wait-timeout 120 app \
+        <<<"$AI_AGENT_APP_NETWORK_OVERRIDE" >/dev/null || return 1
+    elif [[ $runtime_already_restored != true ]]; then
       EVO_RELEASE_REVISION=$previous_revision EVO_RELEASE_VERSION=$previous_version \
         EVO_CRM_APP_ENV_FILE="$previous_app_env" docker compose \
         --ansi never --project-name "$EVO_RELEASE_PROJECT_NAME" \
@@ -1997,7 +2096,6 @@ rollback_from_state() {
     if [[ $state_ai_agent == true ]]; then
       if [[ $previous_ai_agent_present == true ]]; then
         # Back to the previous pin, rendered by the previous compose snapshot.
-        docker image inspect "$previous_ai_agent_image" >/dev/null 2>&1 || return 1
         export EVO_AI_AGENT_IMAGE_DIGEST=${previous_ai_agent_image#*@}
         if ! ai_agent_runtime_is "$previous_ai_agent_image"; then
           EVO_RELEASE_REVISION=$previous_revision EVO_RELEASE_VERSION=$previous_version \

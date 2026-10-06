@@ -1,14 +1,23 @@
 # WhatsApp go-live: прямой приём WAHA → CRM (`crm_primary`)
 
-Обновлено: 2026-10-05. Статус: **процедура, не выполнялась.** Документ ничего не
-разрешает: каждый шаг, меняющий production (VPS, GitHub-переменные, schema,
-release, WAHA), выполняется только после явного «давай» владельца в чате и
+Обновлено: 2026-10-06. Статус: **процедура go-live (фазы A–I) не выполнялась.**
+Из production-действий, относящихся к ней, сделано только одно — по сообщению
+оркестратора миграции 259 и 260 применены 2026-10-06 через workflow
+`evo-schema-ledger` (этим документом не перепроверялось: доступа к production
+нет); 261 не применена. Документ ничего не разрешает: каждый шаг, меняющий
+production (VPS, GitHub-переменные, schema, release, WAHA), выполняется только после явного «давай» владельца в чате и
 только в его границах. Решение 03.10 «окей отмена, пока подождем потом сделаем»
 действует, пока владелец не заменит его новым.
 
-Код приёма — draft PR [#1137](https://github.com/izzhackt/evo_AI_CRM/pull/1137)
-(не менять отсюда). Код записи ключа WAHA в Vault — этот PR:
-`scripts/waha-runtime-binding.mjs` (см. [§ Скрипт](#скрипт-vault-binding)).
+Код приёма — [#1137](https://github.com/izzhackt/evo_AI_CRM/pull/1137), влит в
+`main` коммитом `f3a60db90` (дерево совпадает с head `a57fb607d`, по которому
+читался код для этого runbook). После него в `main` влиты
+[#1139](https://github.com/izzhackt/evo_AI_CRM/pull/1139) (импорт истории
+переписок, миграция 260, `e05c48442`; отдельный runbook
+`docs/runbooks/whatsapp-history-import.md`, не часть go-live) и
+[#1141](https://github.com/izzhackt/evo_AI_CRM/pull/1141) (отвечать из CRM могут
+все сотрудники, миграция 261, `67ec56098`). Код записи ключа WAHA в Vault — этот
+PR: `scripts/waha-runtime-binding.mjs` (см. [§ Скрипт](#скрипт-vault-binding)).
 
 Для сессии `crm_primary` процедура **заменяет** указание «новую конфигурацию
 WAHA направлять на приватный webhook lead-agent» из `AGENTS.md`
@@ -19,8 +28,11 @@ WAHA → CRM (`/api/v2/whatsapp/inbound`), lead-agent на этом пути н�
 
 Метки доказательств: **[doc]** — документация WAHA (URL рядом);
 **[src]** — исходники WAHA на теге 2026.9.2 (и 2026.7.1), прочитаны 2026-10-05,
-не запускались; **[repo]** — этот репозиторий, `origin/main` `01247bc8b`, либо
-draft-PR #1137 (SHA его head меняется — сверять по самому PR; на 2026-10-05 это `a57fb607d`); **[live ✗]** — не проверялось на реальных WAHA и
+не запускались; **[repo]** — этот репозиторий: код приёма (#1137) читался на head
+`a57fb607d`, его дерево равно слитому `f3a60db90`; остальное — `origin/main`
+`01247bc8b` на 2026-10-05; после слияния #1139/#1141 (`67ec56098`) перечитаны
+только файлы, названные в § Фазы B–C и «Допущения #1137» (env-контракт,
+`platform-waha-webhook.ts`, миграции 259–261); **[live ✗]** — не проверялось на реальных WAHA и
 WhatsApp; **[??]** — не проверено нигде. Всё, что отмечено только [live ✗] или
 [??], на go-live проверяется глазами, а не принимается на веру.
 
@@ -38,9 +50,9 @@ CRM (ручной ответ, проба статуса) ──► http://evo-cr
 |---|---|---|
 | Контейнеры | compose-проект `evo-crm`: `evo-crm-app-1` (alias `evo-crm-app:3000`), WAHA (service `waha`, alias `evo-crm-waha:3000`, портов на хосте нет) | [repo] `docker-compose.prod.yml` |
 | Сессия | только `crm_primary` (иное запрещено CHECK-ами и триггерами БД) | [repo] миграция 102 |
-| Ключ WAHA для CRM | Vault-binding: RPC `platform.provision_manual_send_waha_runtime(p_organization_id uuid, p_waha_api_key text, p_request_id uuid)` и `platform.manual_send_waha_runtime_configuration(p_organization_id uuid)`; сейчас в production 0 bindings | [repo] миграции 080/081/102; сигнатуры сверены на схеме 001–258 |
+| Ключ WAHA для CRM | Vault-binding: RPC `platform.provision_manual_send_waha_runtime(p_organization_id uuid, p_waha_api_key text, p_request_id uuid)` и `platform.manual_send_waha_runtime_configuration(p_organization_id uuid)`; сейчас в production 0 bindings (на 2026-10-05) | [repo] миграции 080/081/102; сигнатуры сверены на схеме 001–258; миграции 259–261 эти функции не затрагивают (поиск по именам в 259–261 пуст) |
 | Подпись webhook | HMAC-SHA512 по сырому телу; заголовки `X-Webhook-Hmac`, `X-Webhook-Hmac-Algorithm: sha512`; секрет 32–128 байт | [doc] https://waha.devlike.pro/docs/how-to/events/ ; [repo] `platform-waha-webhook.ts` (`MAX_WEBHOOK_SECRET_BYTES=128`), env-контракт (≥ 32) |
-| Env приложения (#1137) | `EVO_PLATFORM_WAHA_INGRESS_ENABLED` (маршрут отвечает 503, пока не ровно `1`), `EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET`, `EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID` | [repo] #1137 |
+| Env приложения (#1137, в `main`) | `EVO_PLATFORM_WAHA_INGRESS_ENABLED` (маршрут отвечает 503, пока не ровно `1`), `EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET`, `EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID` | [repo] #1137 |
 | Файл env WAHA | `/opt/evo-crm/.env.waha` (рядом `.env.production`) | [repo] `deploy/README.md` |
 
 ## Порядок фаз и почему так
@@ -49,8 +61,8 @@ CRM (ручной ответ, проба статуса) ──► http://evo-cr
 |---|---|---|
 | 1 | Условия | «давай», проверка телефона владельцем, окно, свободный release |
 | A | Разведка read-only | ничего не меняет |
-| B | Шаг 0: пустая строка в `.env.production` | **до** merge #1137, иначе release падает на env-контракте |
-| C | merge, ledger 259, release №1 (ingress 0) | кладёт в образ #1137 и скрипт; WhatsApp ещё не подключён |
+| B | Шаг 0: пустая строка в `.env.production` | #1137 уже в `main`: нужен **до любого следующего release** (в том числе не связанного с WhatsApp), иначе он падает на env-контракте |
+| C | merge этого PR, ledger 259–261, release №1 (ingress 0) | кладёт в образ код #1137/#1139/#1141 и скрипт; WhatsApp ещё не подключён |
 | C5 | Edge Caddy: публичный `/api/v2/whatsapp/inbound` → 404 | общий edge, отдельное «давай» владельца, **до** G |
 | D | Пересоздание WAHA: GOWS 2026.9.2 | новый ключ, медиа выключены, ничего не стартует само |
 | E | Сессия `crm_primary` (STOPPED) + webhook + ignore | **до** pairing |
@@ -86,8 +98,8 @@ pairing, а не после. Причина: WAHA считает ошибкой 
 1. Явное «давай» владельца на этот go-live в чате. Для фаз D–I владелец рядом:
    pairing идёт в реальном времени. Правка общего edge (C5) — отдельное «давай»
    в окне: она затрагивает и чужие хосты в том же Caddy.
-2. #1137 переоснован на текущий `main`, на его точном head есть независимый
-   review и исправления по реальным формам GOWS (см. § Допущения #1137).
+2. #1137 влит в `main` (`f3a60db90`); его допущения о реальных формах GOWS
+   не проверены на живом потоке и проверяются приёмкой (§ Допущения #1137).
    Этот PR (#1138) влит в `main` **до release №1**: скрипт входит в образ.
 3. Владелец проверил на телефоне отдела продаж (**[??]** — точные пункты меню и
    лимиты WhatsApp сверить в актуальной справке WhatsApp; здесь не проверялись):
@@ -285,11 +297,13 @@ echo "${FOUND:-нет ни одной}"
 [repo]). Содержимое каталогов сессий **не читать**, только имена и размеры.
 Любое отклонение (нездоров, restarts>0, digest ≠ переменной) — стоп.
 
-## B. Шаг 0 — пустая строка в `.env.production` (до merge)
+## B. Шаг 0 — пустая строка в `.env.production` (до любого следующего release)
 
 Release-контроллер сверяет **каждое** имя из `deploy/env.production.example`
 c файлом на сервере; в #1137 добавлено имя
-`EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID`. Его отсутствие даёт отказ
+`EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID`, и теперь оно в `main`. Если
+строки нет в `/opt/evo-crm/.env.production` (наличие на сервере здесь не
+проверялось), любой release текущего `main` остановится: отсутствие даёт отказ
 контроллера `app_env_contract_invalid` (внутри — `required_env_name_missing`)
 [repo] `scripts/evo-app-env-contract.mjs`, `scripts/evo-fast-release.sh`.
 
@@ -303,12 +317,12 @@ grep -c '^EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID=' "$f"   # ровно 1
 stat -c '%a %U:%G' "$f"                                          # права/владелец прежние (600 или 640)
 ```
 
-Проверка контрактом #1137 без сети (публичные файлы с вашей машины, на exact head PR):
+Проверка контрактом #1137 без сети (публичные файлы с вашей машины, из `origin/main`; с момента слияния #1137 контракт и пример env в `main` не менялись):
 
 ```bash
 # локально:
-git show <HEAD_SHA_1137>:scripts/evo-app-env-contract.mjs | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
-git show <HEAD_SHA_1137>:deploy/env.production.example   | ssh hermes-vps 'cat > /root/evo-golive/env.production.example'
+git show origin/main:scripts/evo-app-env-contract.mjs | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
+git show origin/main:deploy/env.production.example   | ssh hermes-vps 'cat > /root/evo-golive/env.production.example'
 gh variable get EVO_SUPABASE_PROJECT_REF --repo izzhackt/evo_AI_CRM        # 20 символов, не секрет
 # на VPS: REF=<это значение> (без --verify-supabase-keys: сеть и ключи не трогаются; пути абсолютные):
 node /root/evo-golive/evo-app-env-contract.mjs --example /root/evo-golive/env.production.example --env /opt/evo-crm/.env.production --supabase-project-ref "$REF"
@@ -324,15 +338,21 @@ env-файлах с настоящим валидатором #1137: строк�
 контейнера и snapshot-файлы не править: контроллер сверяет revision и image id
 рантайма со snapshot (`runtime_environment_identity_drift`).
 
-## C. merge #1137, ledger 259, release №1 (ingress 0)
+## C. merge этого PR, ledger 259–261, release №1 (ingress 0)
 
-1. Убедиться: #1137 на актуальном `main`, CI зелёный, этот PR влит.
-   Merge (с разрешения владельца, не во время чужого release).
-2. Миграция 259 **до** release (release-ворота требуют ledger 001–259):
+1. Убедиться: #1137, #1139, #1141 уже в `main`; CI зелёный; влить этот PR
+   (с разрешения владельца, не во время чужого release).
+2. Миграции 259–261 **до** release (release-ворота сверяют ledger с миграциями
+   репозитория на SHA release: точное совпадение версий 001–261 без дыр и лишних,
+   [repo] `scripts/fast-release-ledger-gate.mjs`; несовпадение —
+   `schema_ledger_mismatch`). Состояние по сообщению оркестратора на 2026-10-06
+   (из production не перечитывалось): 259 и 260 применены 2026-10-06 через
+   `evo-schema-ledger`, **261 ещё нет**. Перед любым действием прочитать ledger
+   самому:
    ```bash
-   gh workflow run evo-schema-ledger.yml --repo izzhackt/evo_AI_CRM -f mode=check   # читает ledger; ждём хвост 259
-   # прочитать результат; только после этого:
-   gh workflow run evo-schema-ledger.yml --repo izzhackt/evo_AI_CRM -f mode=apply   # затем снова mode=check: 001–259 без дыр
+   gh workflow run evo-schema-ledger.yml --repo izzhackt/evo_AI_CRM -f mode=check   # читает ledger; ждём хвост 260 (261 не применена)
+   # прочитать результат; только после этого — применить недостающее (261):
+   gh workflow run evo-schema-ledger.yml --repo izzhackt/evo_AI_CRM -f mode=apply   # затем снова mode=check: 001–261 без дыр
    ```
 3. Release №1 — **с `EVO_PLATFORM_WAHA_INGRESS_ENABLED=0`** (как сейчас) и пустой
    строкой intake из фазы B. Порядок по [repo] `deploy/fast-app-release.md`:
@@ -356,7 +376,7 @@ env-файлах с настоящим валидатором #1137: строк�
 105 MB (`request_body max_size 105MB`), `proxyClientMaxBodySize: "105mb"` в
 `next.config.ts` заставляет Next буферизовать тело до такого размера, и только
 потом срабатывает лимит обработчика (`MAX_BODY_BYTES = 256 * 1024` в
-`src/lib/server/platform-waha-webhook.ts` draft-PR #1137: тело читается потоком
+`src/lib/server/platform-waha-webhook.ts` (#1137, в `main`): тело читается потоком
 и обрывается при превышении, подпись проверяется до разбора JSON) **[repo]**. WAHA ходит к приложению приватно
 (`http://evo-crm-app:3000`), публичный путь не нужен. Правка в репозитории —
 `agent-lead2-inbox/deploy/Caddyfile.evo-edge`: в `@private` сниппета `(evo_app)`
@@ -834,10 +854,10 @@ SELECT EXISTS (
            AND p.permission_key IN ('organization.read', 'communication.read.full'))
 ) AS intake_owner_eligible;
 ```
-(Запросы выполнены на пустой схеме 001–258, синтаксис и колонки верны; данные
+(Запросы выполнены 2026-10-05 на пустой схеме 001–258, синтаксис и колонки верны; данные
 production не читались.) Если `false` — **стоп**: без допустимого владельца
 проекция отвечает ошибкой на каждое сообщение [repo] env-контракт #1137. Условия
-взяты из миграции 082 и 077; не пересверялись с миграциями после 258 **[??]**.
+взяты из миграции 082 и 077; не пересверялись с миграциями 259–261 **[??]** (функция `platform_private.staff_intake_owner_is_eligible` определена в миграции 156 и в 259–261 не переопределяется; запросы выше после них заново не выполнялись).
 
 **G2. Править `.env.production`** (резервная копия из фазы B уже есть; свежая — `cp -p` ещё раз).
 Шаги цепочкой: если имя не встречается ровно один раз, `set_env_value`
@@ -991,7 +1011,7 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 
 ### Допущения #1137, которые проверяет приёмка
 
-Из описания и кода #1137 (draft-PR; сверять по самому PR, а не по SHA) — названия полей и списки зависят от движка
+Из описания и кода #1137 (в `main`, `f3a60db90`) — названия полей и списки зависят от движка
 и не проверены на живом потоке GOWS: телефон-альтернатива LID
 (`_data.Info.SenderAlt` / `RecipientAlt`, NOWEB `_data.key.remoteJidAlt`);
 имя профиля (`_data.Info.PushName`, `_data.notifyName`, `_data.pushName`); какие
@@ -1000,7 +1020,7 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 подпись проверяется до разбора JSON — не 64 KiB из прежнего описания PR);
 идемпотентность и терпимость к порядку при запоздалых повторах WAHA (окно
 ~68 минут для политики фазы E, § «Порядок фаз»).
-Исправления по этим пунктам ведутся отдельно в #1137.
+Исправления по этим пунктам ведутся отдельно (новым PR в `main`), не в этом runbook.
 
 ## Откат и остановка
 
@@ -1040,7 +1060,7 @@ DevTools на web.whatsapp.com). Панель не публикуется: до�
 
 Проверено: 30 юнит-тестов на мок-Supabase и мок-WAHA (`npm run test:waha-runtime-binding`);
 реальная цепочка локально (`npm run test:waha-runtime-binding:postgres`: одноразовый
-Supabase Postgres со всеми миграциями 001–258, настоящий PostgREST и Vault, реальный
+Supabase Postgres со всеми миграциями 001–258 (на 2026-10-05; 259–261 в этом прогоне не участвовали), настоящий PostgREST и Vault, реальный
 CLI по HTTP — создание, dry-run, идемпотентность, ротация, ремонт, отказ при чужом JWT и
 неизвестной организации; чтение тем же `resolve_manual_send_waha_runtime`, что у
 приложения); запуск в закреплённом образе `node:22-bookworm-slim` (read-only rootfs,

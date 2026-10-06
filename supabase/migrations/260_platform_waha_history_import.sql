@@ -65,7 +65,12 @@
 --   * an import page skips raw ids already bound (live first, or an earlier run),
 --     counts them and never aborts;
 --   * the import takes the SAME per-chat advisory lock keys as the live
---     projection, for every form (LID and phone) of the chat.
+--     projection, for every form (LID and phone) of the chat;
+--   * a phone-sent message the live projection DEFERRED (259: an outgoing
+--     message of a chat without a conversation creates none) before the import
+--     created that chat's conversation is projected into it by the import, after
+--     the page's own rows, exactly as 259's backfill does when a customer message
+--     creates the conversation (otherwise it would never reach the Inbox).
 -- Every imported row is also written under one history.message evidence row per
 -- raw id, so a re-run (same or another run) adds nothing.
 --
@@ -1990,6 +1995,7 @@ DECLARE
   projected_inbound INTEGER := 0;
   projected_outbound INTEGER := 0;
   projected_media INTEGER := 0;
+  deferred_backfill JSONB;
   response JSONB;
 BEGIN
   PERFORM platform_private.require_p2g_service();
@@ -2555,6 +2561,28 @@ BEGIN
       END IF;
     END LOOP;
 
+    IF conversation_created THEN
+      -- Messages the sales phone sent from go-live until now to this chat, which
+      -- had no conversation, were DEFERRED by the live projection (migration 259
+      -- never creates a conversation from an outgoing message). The live path
+      -- projects them when a customer message creates the conversation; the
+      -- import creates it here, so it does the same, after the page's own rows
+      -- (a raw id both read from history and delivered live is then a duplicate,
+      -- never a second row). Without this they would never reach the Inbox: a
+      -- later customer message finds the binding and no longer backfills.
+      deferred_backfill := platform_private.backfill_waha_deferred_phone_sent(
+        p_organization_id,
+        created_conversation_id,
+        created_sales_participant_id,
+        (
+          SELECT COALESCE(array_agg(DISTINCT form.value), ARRAY[]::TEXT[])
+          FROM jsonb_array_elements(plan -> 'eligible') AS element(value)
+          CROSS JOIN LATERAL jsonb_array_elements_text(element.value -> 'forms')
+            AS form(value)
+        )
+      );
+    END IF;
+
     PERFORM set_config('evo.waha_history_import', 'off', TRUE);
 
     IF conversation_created THEN
@@ -2609,7 +2637,11 @@ BEGIN
     'skipped', plan -> 'skipped',
     'chat_offset', p_next_chat_offset,
     'message_offset', p_next_message_offset
-  );
+  ) || CASE
+    WHEN COALESCE((deferred_backfill ->> 'deferred')::INTEGER, 0) > 0
+      THEN jsonb_build_object('deferred_phone_sent', deferred_backfill)
+    ELSE '{}'::JSONB
+  END;
 
   INSERT INTO platform_private.waha_history_reconciliation_requests (
     request_id,

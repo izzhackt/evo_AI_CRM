@@ -35,6 +35,16 @@
 --     promotes;
 --  7. live then import: ids already bound are skipped and counted, older history
 --     joins the existing conversation, no second conversation or lead;
+--  7b. the owner's go-live choice, include_outbound_only with lead_mode promote: a
+--     chat where only the sales phone wrote becomes a conversation from its first
+--     message (no client, no lead, no handoff; an @lid chat without a phone named
+--     without a number); the preview shows what the flag changes; a phone-sent
+--     message the live projection DEFERRED before the import is projected into the
+--     imported conversation exactly once (also an ordinary chat; a raw id that is
+--     both in the window and deferred stays one row); later live phone-sent
+--     messages join the same conversation; the customer's first live message
+--     promotes it to exactly one client and one lead evidenced by the LIVE event
+--     (the lead readers list it), nothing is created twice afterwards;
 --  8. forgery guards: history never becomes verified evidence, the phone-sent
 --     identity still needs a verified fromMe/app event, the history identity needs
 --     history provenance and its observation, a history event cannot be queued;
@@ -804,6 +814,200 @@ SELECT pg_temp.n260_begin(21, jsonb_build_object('include_outbound_only', TRUE, 
 SELECT pg_temp.n260_assert((:'rb2'::JSONB ->> 'run_id')::UUID = :'run_b' AND (:'rb2'::JSONB ->> 'resumed')::BOOLEAN
   AND (:'rb2'::JSONB ->> 'chat_offset') = '3', 'a paused run resumes from its durable cursor');
 SELECT pg_temp.n260_finish(:'run_b', 3) AS fin_b2 \gset
+
+-- ---------------------------------------------------------------------------
+-- 8b. The owner's go-live choice: include_outbound_only with lead_mode promote.
+-- A chat where only the sales phone wrote becomes a conversation (no client, no
+-- lead) from its first message; what the phone sends afterwards lands in it, and
+-- the customer's first message after go-live promotes it exactly once.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.n260_begin(30, jsonb_build_object('include_outbound_only', TRUE, 'lead_mode', 'promote', 'me', pg_temp.n260_me())) AS roo \gset
+SELECT (:'roo'::JSONB ->> 'run_id')::UUID AS run_oo \gset
+SELECT pg_temp.n260_assert((:'roo'::JSONB ->> 'include_outbound_only')::BOOLEAN AND :'roo'::JSONB ->> 'lead_mode' = 'promote'
+  AND :'run_oo' <> :'run_a' AND :'run_oo' <> :'run_b', 'a new run with outbound-only chats allowed and promotion on');
+SELECT jsonb_build_array(
+  pg_temp.n260_msg('true_79990001301@c.us_C1', '79990001301@c.us', TRUE, :t0 + 20000, 'Cold outreach, never answered', '{"source":"app"}'),
+  pg_temp.n260_msg('true_79990001301@c.us_C2', '79990001301@c.us', TRUE, :t0 + 20060, 'Second try', '{"source":"app"}')) AS oo1301 \gset
+-- The preview says what the flag changes: the same chat is skipped without it and would be created with it.
+SELECT pg_temp.n260_counts() AS before_oo_prev \gset
+SELECT pg_temp.n260_preview('79990001301@c.us', :'oo1301'::JSONB,
+  jsonb_build_object('include_outbound_only', TRUE, 'lead_mode', 'promote', 'me', pg_temp.n260_me())) AS pv_on \gset
+SELECT pg_temp.n260_preview('79990001301@c.us', :'oo1301'::JSONB) AS pv_off \gset
+SELECT pg_temp.n260_assert(:'pv_on'::JSONB ->> 'chat_outcome' = 'import_new' AND (:'pv_on'::JSONB ->> 'would_create_conversation')::BOOLEAN
+  AND (:'pv_on'::JSONB ->> 'would_import_outbound')::INT = 2 AND (:'pv_on'::JSONB ->> 'would_import_inbound')::INT = 0
+  AND :'pv_off'::JSONB ->> 'chat_outcome' = 'skip_outbound_only' AND NOT (:'pv_off'::JSONB ->> 'would_create_conversation')::BOOLEAN
+  AND (:'pv_off'::JSONB ->> 'would_import')::INT = 0 AND (:'pv_off'::JSONB #>> '{skipped,outbound_only}')::INT = 2
+  AND pg_temp.n260_counts() = :'before_oo_prev'::JSONB,
+  'preview: an outbound-only chat is skipped without include_outbound_only and would be created with it; nothing is written');
+
+-- A phone-sent message of a chat that has no conversation yet (a customer who never wrote) is DEFERRED by the live projection (259).
+SELECT pg_temp.n260_live(70, pg_temp.n260_live_out('true_79990001302@c.us_PRE', '79990001302@c.us', 'Sent from the phone after go-live, before the import'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '50 minutes') AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'finish_state' = 'succeeded' AND (:'r'::JSONB ->> 'deferred')::BOOLEAN
+  AND pg_temp.n260_conv('79990001302@c.us') IS NULL,
+  'a live phone-sent message of a chat without a conversation is deferred, no conversation, no binding');
+
+-- The import: outbound-only chats become conversations without a client or a lead.
+SELECT pg_temp.n260_counts() AS before_oo_import \gset
+SELECT pg_temp.n260_page(:'run_oo', 1, '79990001301@c.us', :'oo1301'::JSONB) AS r \gset
+SELECT pg_temp.n260_conv('79990001301@c.us') AS conv_oo \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'chat_outcome' = 'import_new' AND (:'r'::JSONB ->> 'conversation_created')::BOOLEAN
+  AND (:'r'::JSONB ->> 'projected_outbound')::INT = 2 AND (:'r'::JSONB ->> 'projected_inbound')::INT = 0
+  AND (SELECT c.canonical_client_id IS NULL AND c.canonical_lead_id IS NULL AND c.subject = 'WhatsApp ••••1301'
+        AND c.created_at = to_timestamp(:t0 + 20000) AND c.updated_at = to_timestamp(:t0 + 20060)
+        AND c.queue = 'sales' AND c.status = 'open' AND c.responsible_sales_membership_id = pg_temp.n260_id(301)
+       FROM platform.communication_conversations c WHERE c.id = :'conv_oo')
+  AND pg_temp.n260_bodies(:'conv_oo') = ARRAY['outbound:Cold outreach, never answered', 'outbound:Second try']
+  AND (pg_temp.n260_counts() ->> 'clients') = (:'before_oo_import'::JSONB ->> 'clients')
+  AND (pg_temp.n260_counts() ->> 'leads') = (:'before_oo_import'::JSONB ->> 'leads')
+  AND (pg_temp.n260_counts() ->> 'handoffs') = (:'before_oo_import'::JSONB ->> 'handoffs')
+  AND (SELECT count(*) = 1 FROM platform.conversation_participants p WHERE p.conversation_id = :'conv_oo' AND p.participant_kind = 'customer')
+  AND (SELECT count(*) = 1 FROM platform.conversation_participants p WHERE p.conversation_id = :'conv_oo' AND p.participant_kind = 'sales'),
+  'include_outbound_only: a chat with only our messages is one live-shaped conversation from its first message, no client, no lead, no handoff');
+SELECT pg_temp.n260_assert(
+  (SELECT bool_and(m.message_identity_source = 'private_waha_history_binding' AND m.direction = 'outbound')
+   FROM platform.communication_messages m WHERE m.conversation_id = :'conv_oo' AND m.source_webhook_event_id IN (
+     SELECT e.id FROM platform_private.provider_webhook_events e WHERE e.event_type = 'history.message'))
+  AND (SELECT e.verification_status = 'missing' AND e.verification_headers ->> 'lead_mode' = 'promote'
+         AND e.verification_headers ->> 'provenance' = 'api_history' AND e.raw_payload -> 'payload' -> 'fromMe' = 'true'::JSONB
+       FROM platform_private.waha_direct_chat_bindings b
+       JOIN platform_private.provider_webhook_events e ON e.id = b.source_webhook_event_id WHERE b.normalized_chat_id = '79990001301@c.us'),
+  'the binding of an outbound-only chat rests on a history row of OUR message (never verified), promotion armed by lead_mode promote');
+-- A @lid chat without a known phone, outbound-only: a conversation named like a live LID chat, never a number made of LID digits.
+SELECT pg_temp.n260_page(:'run_oo', 2, '523456789012345@lid', jsonb_build_array(
+  pg_temp.n260_msg('true_523456789012345@lid_C1', '523456789012345@lid', TRUE, :t0 + 20100, 'We wrote first to a LID chat', '{"source":"app"}'))) AS r \gset
+SELECT pg_temp.n260_conv('523456789012345@lid') AS conv_oo_lid \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'chat_outcome' = 'import_new' AND (:'r'::JSONB ->> 'projected_outbound')::INT = 1
+  AND (SELECT c.subject LIKE 'WhatsApp контакт #%' AND c.subject !~ '523456789012345' AND c.canonical_client_id IS NULL AND c.canonical_lead_id IS NULL
+       FROM platform.communication_conversations c WHERE c.id = :'conv_oo_lid'),
+  'an outbound-only LID chat without a phone: named without a number, no client, no lead');
+-- The chat that had a deferred live phone-sent message: its history (our message) is imported.
+SELECT pg_temp.n260_page(:'run_oo', 3, '79990001302@c.us', jsonb_build_array(
+  pg_temp.n260_msg('true_79990001302@c.us_D1', '79990001302@c.us', TRUE, :t0 + 20200, 'History: we wrote first', '{"source":"app"}'))) AS r \gset
+SELECT pg_temp.n260_conv('79990001302@c.us') AS conv_oo2 \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'chat_outcome' = 'import_new' AND (:'r'::JSONB ->> 'projected_outbound')::INT = 1,
+  'the outbound-only chat that already had a deferred live message is imported');
+-- The deferred live phone-sent message joins the conversation the import created (once), after the history.
+SELECT pg_temp.n260_assert(
+  pg_temp.n260_bodies(:'conv_oo2') = ARRAY['outbound:History: we wrote first', 'outbound:Sent from the phone after go-live, before the import']
+  AND (SELECT count(*) = 1 FROM platform.communication_messages m JOIN platform_private.waha_message_bindings b ON b.communication_message_id = m.id
+       WHERE m.conversation_id = :'conv_oo2' AND b.raw_message_id = 'true_79990001302@c.us_PRE' AND m.message_identity_source = 'private_waha_phone_binding'),
+  'a live phone-sent message deferred before the import is part of the imported conversation, exactly once');
+-- Later, live (a): a message from the phone lands in the SAME conversation under its own identity and never promotes.
+SELECT pg_temp.n260_counts() AS before_oo_live \gset
+SELECT pg_temp.n260_live(71, pg_temp.n260_live_out('true_79990001301@c.us_LIVEOUT', '79990001301@c.us', 'Follow-up from the phone after go-live'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '51 minutes') AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'finish_state' = 'succeeded' AND :'r'::JSONB ->> 'direction' = 'outbound'
+  AND (:'r'::JSONB ->> 'communication_conversation_id')::UUID = :'conv_oo' AND :'r'::JSONB -> 'identity_promoted' IS NULL
+  AND (SELECT m.message_identity_source = 'private_waha_phone_binding' FROM platform.communication_messages m
+       WHERE m.id = (:'r'::JSONB ->> 'communication_message_id')::UUID)
+  AND pg_temp.n260_bodies(:'conv_oo') = ARRAY['outbound:Cold outreach, never answered', 'outbound:Second try',
+    'outbound:Follow-up from the phone after go-live']
+  AND (pg_temp.n260_counts() ->> 'conversations') = (:'before_oo_live'::JSONB ->> 'conversations')
+  AND (pg_temp.n260_counts() ->> 'bindings') = (:'before_oo_live'::JSONB ->> 'bindings')
+  AND (pg_temp.n260_counts() ->> 'clients') = (:'before_oo_live'::JSONB ->> 'clients')
+  AND (pg_temp.n260_counts() ->> 'leads') = (:'before_oo_live'::JSONB ->> 'leads'),
+  'a live phone-sent message after the import joins the imported outbound-only conversation, no new conversation, binding, client or lead');
+-- Later, live (b): the customer's FIRST message promotes the conversation to one client and one lead.
+SELECT pg_temp.n260_counts() AS before_oo_first \gset
+SELECT pg_temp.n260_live(72, pg_temp.n260_live_in('false_79990001301@c.us_FIRST', '79990001301@c.us', 'Хочу узнать условия'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '52 minutes') AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'finish_state' = 'succeeded' AND (:'r'::JSONB ->> 'identity_promoted')::BOOLEAN
+  AND (:'r'::JSONB ->> 'communication_conversation_id')::UUID = :'conv_oo'
+  AND (pg_temp.n260_counts() ->> 'conversations') = (:'before_oo_first'::JSONB ->> 'conversations')
+  AND (pg_temp.n260_counts() ->> 'clients')::INT = (:'before_oo_first'::JSONB ->> 'clients')::INT + 1
+  AND (pg_temp.n260_counts() ->> 'leads')::INT = (:'before_oo_first'::JSONB ->> 'leads')::INT + 1
+  AND (SELECT c.canonical_client_id IS NOT NULL AND c.canonical_lead_id IS NOT NULL AND cl.phone = '+79990001301'
+         AND cl.display_name = 'WhatsApp ••••1301' AND l.stage_key = 'new' AND l.current_owner_membership_id = pg_temp.n260_id(301)
+       FROM platform.communication_conversations c JOIN platform.clients cl ON cl.id = c.canonical_client_id
+       JOIN platform.leads l ON l.id = c.canonical_lead_id WHERE c.id = :'conv_oo')
+  AND (SELECT count(*) = 1 FROM platform.external_identifiers e WHERE e.organization_id = pg_temp.n260_id(1)
+       AND e.external_object_type = 'direct_chat' AND e.external_identifier = 'crm_primary:79990001301@c.us')
+  AND (SELECT count(*) > 0 AND bool_and(s.evidence_type = 'webhook_verified' AND s.source_ref = 'waha-event:' || pg_temp.n260_id(1072)::TEXT)
+       FROM platform.subject_provenance s JOIN platform.communication_conversations c ON c.canonical_client_id = s.client_id OR c.canonical_lead_id = s.lead_id
+       WHERE c.id = :'conv_oo' AND s.organization_id = pg_temp.n260_id(1) AND s.source_system = 'waha')
+  AND (pg_temp.n260_bodies(:'conv_oo'))[4] = 'inbound:Хочу узнать условия',
+  'an outbound-only chat: the first live customer message lands in the same conversation and creates exactly one client and one lead, evidenced by the LIVE event');
+SELECT c.canonical_lead_id AS lead_oo FROM platform.communication_conversations c WHERE c.id = :'conv_oo' \gset
+SELECT set_config('request.jwt.claims', :'admin_claims', TRUE);
+SET LOCAL ROLE authenticated;
+SELECT (SELECT l.linked FROM platform.staff_canonical_lead_conversation_link(:'org'::UUID, :'lead_oo'::UUID, :'conv_oo'::UUID) AS l) AS lead_link_oo,
+  (SELECT p.linked_conversation_count FROM platform.staff_sales_lead_page(50) AS p WHERE p.lead_id = :'lead_oo'::UUID) AS page_count_oo \gset
+RESET ROLE;
+SELECT pg_temp.n260_svc();
+SELECT pg_temp.n260_assert(:'lead_link_oo' = 't' AND :'page_count_oo' = '1', 'the lead of an outbound-only chat lists its conversation');
+-- Later, live (c): a second customer message and another phone message create nothing more.
+SELECT pg_temp.n260_counts() AS before_oo_second \gset
+SELECT pg_temp.n260_live(73, pg_temp.n260_live_in('false_79990001301@c.us_SECOND', '79990001301@c.us', 'И ещё вопрос'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '53 minutes') AS r \gset
+SELECT pg_temp.n260_live(74, pg_temp.n260_live_out('true_79990001301@c.us_LIVEOUT2', '79990001301@c.us', 'Ответ после повышения'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '54 minutes') AS r2 \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'finish_state' = 'succeeded' AND :'r'::JSONB -> 'identity_promoted' IS NULL
+  AND :'r2'::JSONB ->> 'finish_state' = 'succeeded' AND (:'r2'::JSONB ->> 'communication_conversation_id')::UUID = :'conv_oo'
+  AND (pg_temp.n260_counts() ->> 'clients') = (:'before_oo_second'::JSONB ->> 'clients')
+  AND (pg_temp.n260_counts() ->> 'leads') = (:'before_oo_second'::JSONB ->> 'leads')
+  AND (pg_temp.n260_counts() ->> 'conversations') = (:'before_oo_second'::JSONB ->> 'conversations')
+  AND (pg_temp.n260_counts() ->> 'messages')::INT = (:'before_oo_second'::JSONB ->> 'messages')::INT + 2
+  AND array_length(pg_temp.n260_bodies(:'conv_oo'), 1) = 6,
+  'after the promotion nothing is created twice: later customer and phone messages only join the conversation');
+-- The chat that had a deferred live message: the customer's first message promotes it once, the deferred message is not repeated.
+SELECT pg_temp.n260_counts() AS before_oo2_first \gset
+SELECT pg_temp.n260_live(75, pg_temp.n260_live_in('false_79990001302@c.us_FIRST', '79990001302@c.us', 'Здравствуйте'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '55 minutes') AS r \gset
+SELECT pg_temp.n260_assert((:'r'::JSONB ->> 'identity_promoted')::BOOLEAN AND :'r'::JSONB -> 'deferred_phone_sent' IS NULL
+  AND (:'r'::JSONB ->> 'communication_conversation_id')::UUID = :'conv_oo2'
+  AND pg_temp.n260_bodies(:'conv_oo2') = ARRAY['outbound:History: we wrote first',
+    'outbound:Sent from the phone after go-live, before the import', 'inbound:Здравствуйте']
+  AND (pg_temp.n260_counts() ->> 'clients')::INT = (:'before_oo2_first'::JSONB ->> 'clients')::INT + 1
+  AND (pg_temp.n260_counts() ->> 'leads')::INT = (:'before_oo2_first'::JSONB ->> 'leads')::INT + 1,
+  'the deferred message is not backfilled a second time and the customer message promotes the conversation once');
+-- The LID chat: promoted by its first live customer message, a client without a phone named like the conversation.
+SELECT pg_temp.n260_live(76, jsonb_build_object('id', 'false_523456789012345@lid_FIRST', 'timestamp', 1788343200,
+  'from', '523456789012345@lid', 'fromMe', false, 'source', 'app', 'body', 'Hello from the LID chat'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '56 minutes') AS r \gset
+SELECT pg_temp.n260_assert((:'r'::JSONB ->> 'identity_promoted')::BOOLEAN
+  AND (:'r'::JSONB ->> 'communication_conversation_id')::UUID = :'conv_oo_lid'
+  AND (SELECT cl.phone IS NULL AND cl.display_name = c.subject
+       FROM platform.communication_conversations c JOIN platform.clients cl ON cl.id = c.canonical_client_id WHERE c.id = :'conv_oo_lid'),
+  'an outbound-only LID chat is promoted by its first live customer message: a client without a phone, never LID digits');
+-- The same for an ordinary chat (the customer wrote first): a phone-sent message deferred before the import joins the imported conversation.
+SELECT pg_temp.n260_live(77, pg_temp.n260_live_out('true_79990001401@c.us_PRE', '79990001401@c.us', 'Replied from the phone before the import'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '57 minutes') AS r \gset
+SELECT pg_temp.n260_assert((:'r'::JSONB ->> 'deferred')::BOOLEAN AND pg_temp.n260_conv('79990001401@c.us') IS NULL, 'an ordinary chat: the live phone-sent reply is deferred');
+SELECT pg_temp.n260_page(:'run_oo', 4, '79990001401@c.us', jsonb_build_array(
+  pg_temp.n260_msg('false_79990001401@c.us_H1', '79990001401@c.us', FALSE, :t0 + 20300, 'Question before go-live'))) AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'chat_outcome' = 'import_new' AND (:'r'::JSONB ->> 'projected_inbound')::INT = 1
+  AND (:'r'::JSONB -> 'deferred_phone_sent') = '{"deferred": 1, "projected": 1, "dropped": 0}'::JSONB
+  AND pg_temp.n260_bodies(pg_temp.n260_conv('79990001401@c.us')) = ARRAY['inbound:Question before go-live', 'outbound:Replied from the phone before the import']
+  AND (SELECT c.canonical_client_id IS NULL AND c.canonical_lead_id IS NULL FROM platform.communication_conversations c
+       WHERE c.id = pg_temp.n260_conv('79990001401@c.us')),
+  'an imported conversation takes over the phone-sent messages the live projection deferred for its chat (counts in the page answer), still no client or lead');
+-- A raw id that is BOTH in the window and was delivered live (deferred): one message, the history one; the live copy is a duplicate.
+SELECT pg_temp.n260_live(78, pg_temp.n260_live_out('true_79990001402@c.us_BOTH', '79990001402@c.us', 'Sent twice over, live copy'),
+  :'w_to'::TIMESTAMPTZ + INTERVAL '58 minutes') AS r \gset
+SELECT pg_temp.n260_assert((:'r'::JSONB ->> 'deferred')::BOOLEAN, 'the live copy of a message that is also in the window is deferred');
+SELECT pg_temp.n260_page(:'run_oo', 5, '79990001402@c.us', jsonb_build_array(
+  pg_temp.n260_msg('false_79990001402@c.us_H1', '79990001402@c.us', FALSE, :t0 + 20400, 'Question'),
+  pg_temp.n260_msg('true_79990001402@c.us_BOTH', '79990001402@c.us', TRUE, :t0 + 20460, 'Sent twice over', '{"source":"app"}'))) AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'chat_outcome' = 'import_new' AND (:'r'::JSONB ->> 'projected')::INT = 2
+  AND (:'r'::JSONB -> 'deferred_phone_sent') = '{"deferred": 1, "projected": 0, "dropped": 0}'::JSONB
+  AND pg_temp.n260_bodies(pg_temp.n260_conv('79990001402@c.us')) = ARRAY['inbound:Question', 'outbound:Sent twice over']
+  AND (SELECT count(*) = 1 AND bool_and(m.message_identity_source = 'private_waha_history_binding')
+       FROM platform_private.waha_message_bindings b JOIN platform.communication_messages m ON m.id = b.communication_message_id
+       WHERE b.raw_message_id = 'true_79990001402@c.us_BOTH'),
+  'a raw id read from history and also deferred live is imported once (history identity); the backfill never adds a second row');
+-- The same window again in the same run: everything is already bound, nothing is added, nothing is promoted twice.
+SELECT pg_temp.n260_counts() AS before_oo_again \gset
+SELECT pg_temp.n260_page(:'run_oo', 6, '79990001301@c.us', :'oo1301'::JSONB) AS r \gset
+SELECT pg_temp.n260_assert(:'r'::JSONB ->> 'chat_outcome' = 'skip_nothing_eligible' AND (:'r'::JSONB ->> 'already_bound')::INT = 2
+  AND pg_temp.n260_counts() = :'before_oo_again'::JSONB,
+  'an outbound-only chat read again (also after its customer wrote): already bound, nothing added');
+SELECT pg_temp.n260_finish(:'run_oo', 1) AS fin_oo \gset
+SELECT pg_temp.n260_assert(:'fin_oo'::JSONB ->> 'state' = 'completed' AND (:'fin_oo'::JSONB #>> '{totals,conversations_created}')::INT = 5
+  AND (:'fin_oo'::JSONB #>> '{totals,projected}')::INT = 7 AND COALESCE(:'fin_oo'::JSONB #>> '{totals,skipped,outbound_only}', '0')::INT = 0
+  AND (:'fin_oo'::JSONB #>> '{totals,already_bound}')::INT = 2 AND NOT (:'fin_oo'::JSONB)::TEXT LIKE '%7999000%',
+  'finish: five conversations created (three of them outbound-only) and none skipped as outbound-only, counts only');
+
 SELECT pg_temp.n260_begin(22) AS rc \gset
 SELECT (:'rc'::JSONB ->> 'run_id')::UUID AS run_c \gset
 SELECT pg_temp.n260_page(:'run_c', 1, '79990000701@c.us', jsonb_build_array(

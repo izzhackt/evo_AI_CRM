@@ -954,6 +954,64 @@ test("pilot with --only-chats-file, then the rest with --exclude-chats-file: not
   });
 });
 
+test("the go-live sequence of the runbook: preview, 3-chat pilot and the rest, all with --include-outbound-only and --all-chats", async () => {
+  await withHarness({}, async (harness) => {
+    // Preview (the runbook passes --include-outbound-only here too): the outbound-only chat is a candidate.
+    const { map, out: previewFile } = await refsByName(harness, ["--include-outbound-only"]);
+    const header = JSON.parse(readFileSync(previewFile, "utf8").split("\n")[0]);
+    assert.equal(header.meta.include_outbound_only, true);
+    assert.equal(map.size, 7, "A, B, C (outbound-only), D and the three @lid chats");
+    const outboundOnly = [...map.keys()].find((name) => String(name).startsWith("last4:"));
+    assert.ok(outboundOnly, "the outbound-only chat has no push name (a customer message gives the name)");
+
+    // Pilot: three chats the operator picked from the preview, same run options as the rest.
+    const pilot = harness.file("pilot.txt", `${["Aigul Test", "Boris Test", "Lida Test"].map((name) => map.get(name)).join("\n")}\n`);
+    const pilotRun = await harness.run(["apply", ...windowArgs, "--only-chats-file", pilot, "--include-outbound-only"]);
+    assert.equal(pilotRun.code, 0, pilotRun.stderr);
+    assert.equal(pilotRun.json.state, "completed");
+    assert.equal(pilotRun.json.include_outbound_only, true);
+    assert.equal(pilotRun.json.totals.chats_imported, 3);
+    assert.deepEqual(new Set(harness.db.state.imported.map((item) => item.chat)), new Set([CHAT_A, CHAT_B, LID_1]));
+
+    // The rest: no exclusion list (no personal chats on the sales phone), the reviewed preview file is the guard.
+    const rest = await harness.run(["apply", ...windowArgs, "--all-chats", "--include-outbound-only", "--preview-file", previewFile]);
+    assert.equal(rest.code, 0, rest.stderr);
+    assert.equal(rest.json.selection.preview_file_checked, true);
+    assert.equal(rest.json.include_outbound_only, true);
+    assert.equal(rest.json.lead_mode, "promote");
+    assert.deepEqual(new Set(harness.db.state.imported.map((item) => item.chat)), new Set([CHAT_A, CHAT_B, CHAT_C, CHAT_D, LID_1, LID_2, LID_3]));
+    assert.equal(harness.db.state.imported.filter((item) => item.chat === CHAT_C).length, 2, "both messages of the outbound-only chat");
+    assert.equal(rest.json.totals.already_bound, 4 + 3 + 2, "the pilot's chats are counted, not imported twice");
+    const allIds = harness.db.state.imported.map((item) => item.id);
+    assert.equal(new Set(allIds).size, allIds.length);
+    const begins = harness.db.calls.filter((call) => call.name === RPC.begin).map((call) => call.body.p_options);
+    assert.equal(begins.length, 2);
+    for (const options of begins) {
+      assert.equal(options.include_outbound_only, true);
+      assert.equal(options.lead_mode, "promote");
+    }
+
+    // Verification: a dry run with the same flags finds nothing left.
+    const verify = await harness.run(["apply", ...windowArgs, "--all-chats", "--include-outbound-only", "--dry-run"]);
+    assert.equal(verify.json.totals.first_page_would_import, 0);
+    assert.equal(verify.json.totals.by_outcome.skip_nothing_eligible, 7);
+  });
+});
+
+test("a preview made WITHOUT --include-outbound-only does not cover an apply WITH it: chat_not_reviewed", async () => {
+  await withHarness({}, async (harness) => {
+    const { out: previewFile } = await refsByName(harness);
+    const result = await harness.run(["apply", ...windowArgs, "--all-chats", "--include-outbound-only", "--preview-file", previewFile]);
+    assert.equal(result.error.error_code, "chat_not_reviewed");
+    assert.equal(harness.db.calls.some((call) => call.name === RPC.begin), false, "nothing is begun, nothing imported");
+    // The other way round is harmless: a wider preview covers a narrower apply.
+    const wide = await refsByName(harness, ["--include-outbound-only"]);
+    const narrow = await harness.run(["apply", ...windowArgs, "--all-chats", "--preview-file", wide.out]);
+    assert.equal(narrow.code, 0, narrow.stderr);
+    assert.equal(harness.db.state.imported.some((item) => item.chat === CHAT_C), false, "without the flag an outbound-only chat stays out");
+  });
+});
+
 test("list files are validated: unmatched refs, another window, unreviewed chats", async () => {
   await withHarness({}, async (harness) => {
     const { map, out: previewFile } = await refsByName(harness);

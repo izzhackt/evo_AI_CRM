@@ -13,6 +13,9 @@
 # Phases (each is one CLI run, the database is asserted in between): preview
 # (writes nothing), pilot (--only-chats-file), an interrupted full run (paused),
 # its resume (--resume), and a re-run (idempotent) plus a dry run (nothing left).
+# The flags are the owner's go-live choice from the runbook: --include-outbound-only
+# on every command (chats where only the sales phone wrote are imported too) and
+# --all-chats behind the reviewed preview file (no personal chats to exclude).
 # This applies the migration chain without the interleaved fixtures of
 # scripts/test-postgres-authorization.sh (that harness stays the authority for
 # the SQL contract); expect several minutes.
@@ -283,9 +286,9 @@ step "preview: counts and a 0600 file, nothing written to the database"
 run_phase 0 preview
 expect_field "$cli_out" mode preview "preview"
 expect_field "$cli_out" out_file_mode 0600 "preview"
-expect_field "$cli_out" totals.chats_candidates 7 "preview candidates (A, B, D, E and three @lid chats)"
-expect_field "$cli_out" totals.chats_outbound_only 1 "preview outbound-only chats"
-expect_field "$cli_out" totals.by_outcome.import_new 7 "preview outcomes come from the real RPC"
+expect_field "$cli_out" totals.chats_candidates 8 "preview candidates (A, B, C outbound-only, D, E and three @lid chats)"
+expect_field "$cli_out" totals.chats_outbound_only 0 "with --include-outbound-only the outbound-only chat is a candidate, not a skipped one"
+expect_field "$cli_out" totals.by_outcome.import_new 8 "preview outcomes come from the real RPC"
 expect_field "$cli_out" totals.chats_multi_page 1 "preview: the 260-message chat has several pages"
 [[ "$(node -e 'process.stdout.write((require("node:fs").statSync(process.argv[1]).mode & 0o777).toString(8))' "$work_dir/preview.jsonl")" == "600" ]] || die "the preview file is not mode 0600"
 expect_sql "SELECT count(*) FROM platform_private.waha_history_reconciliation_runs WHERE organization_id = '$org'" 0 "preview created a run"
@@ -305,14 +308,14 @@ expect_sql "SELECT count(*) FROM platform.leads WHERE organization_id = '$org'" 
 expect_sql "SELECT (SELECT c.created_at = min(m.created_at) FROM platform.communication_messages m WHERE m.conversation_id = c.id) FROM platform.communication_conversations c WHERE c.organization_id = '$org'" t "the conversation carries the WhatsApp time, not the import time"
 expect_sql "SELECT count(*) FROM platform.audit_events WHERE organization_id = '$org' AND action = 'communication.waha.history.begin'" 1 "pilot begin audit"
 
-step "interrupted full run (excluding the personal chat): paused, partly imported"
+step "interrupted full run (--all-chats --include-outbound-only): paused, partly imported"
 run_phase 1 interrupted
 expect_field "$cli_err" error_code interrupted "interrupted"
 interrupted_run="$(json_field "$cli_err" run_id)"
 [[ "$interrupted_run" =~ ^[0-9a-f-]{36}$ ]] || die "the interrupted run named no run id: $cli_err"
 expect_sql "SELECT lifecycle.state FROM platform_private.waha_history_reconciliation_lifecycle lifecycle WHERE lifecycle.run_id = '$interrupted_run' ORDER BY lifecycle.observed_at DESC, lifecycle.id DESC LIMIT 1" paused "interrupted run state"
 partial="$(conversation_count)"
-(( partial > 1 && partial < 7 )) || die "the interrupted run should be partway (conversations: $partial)"
+(( partial > 1 && partial < 8 )) || die "the interrupted run should be partway (conversations: $partial)"
 
 step "an unfinished run is not continued without --resume"
 run_phase 1 rerun
@@ -324,13 +327,19 @@ EVO_CHAIN_RUN_ID="$interrupted_run" run_phase 0 resume
 expect_field "$cli_out" resumed true "resume"
 expect_field "$cli_out" run_id "$interrupted_run" "resume"
 expect_field "$cli_out" state completed "resume"
-# A (pilot) + B + E + the three @lid chats; the personal chat (D) and the outbound-only chat (C) stay out.
-expect_sql "SELECT count(*) FROM platform.communication_conversations WHERE organization_id = '$org'" 6 "conversations after the resume"
-# A 4, B 3, E 260, LID1 2, LID2 1, LID3 1
-expect_sql "SELECT count(*) FROM platform.communication_messages WHERE organization_id = '$org'" 271 "messages after the resume"
+# A (pilot) + B + C (outbound-only) + D + E + the three @lid chats; only the own chat stays out.
+expect_sql "SELECT count(*) FROM platform.communication_conversations WHERE organization_id = '$org'" 8 "conversations after the resume"
+# A 4, B 3, C 2, D 1, E 260, LID1 2, LID2 1, LID3 1
+expect_sql "SELECT count(*) FROM platform.communication_messages WHERE organization_id = '$org'" 274 "messages after the resume"
 expect_sql "SELECT count(*) FROM platform.communication_messages WHERE organization_id = '$org' AND message_identity_source <> 'private_waha_history_binding'" 0 "every imported message has the history identity"
-expect_sql "SELECT count(*) FROM platform_private.waha_message_bindings b JOIN platform.communication_messages m ON m.id = b.communication_message_id WHERE m.organization_id = '$org'" 271 "every message has its raw-id binding"
-expect_sql "SELECT count(*) FROM platform_private.waha_direct_chat_bindings WHERE organization_id = '$org' AND normalized_chat_id IN ('15550000105@c.us', '15550000103@c.us', '15550000000@c.us')" 0 "the personal, outbound-only and own chats stay out"
+expect_sql "SELECT count(*) FROM platform_private.waha_message_bindings b JOIN platform.communication_messages m ON m.id = b.communication_message_id WHERE m.organization_id = '$org'" 274 "every message has its raw-id binding"
+expect_sql "SELECT count(*) FROM platform_private.waha_direct_chat_bindings WHERE organization_id = '$org' AND normalized_chat_id = '15550000000@c.us'" 0 "the own chat stays out"
+expect_sql "SELECT count(*) FROM platform_private.waha_direct_chat_bindings WHERE organization_id = '$org' AND normalized_chat_id IN ('15550000103@c.us', '15550000105@c.us')" 2 "the outbound-only chat (C) and the former personal chat (D) are imported"
+# The outbound-only chat: a conversation from its first message, our two messages only, no client, no lead.
+expect_sql "SELECT count(*) FROM platform.communication_messages m JOIN platform_private.waha_direct_chat_bindings b ON b.conversation_id = m.conversation_id WHERE b.normalized_chat_id = '15550000103@c.us' AND m.direction = 'outbound'" 2 "the outbound-only chat's messages"
+expect_sql "SELECT count(*) FROM platform.communication_messages m JOIN platform_private.waha_direct_chat_bindings b ON b.conversation_id = m.conversation_id WHERE b.normalized_chat_id = '15550000103@c.us' AND m.direction = 'inbound'" 0 "the outbound-only chat has no customer message"
+expect_sql "SELECT (SELECT c.created_at = min(m.created_at) AND c.canonical_client_id IS NULL AND c.canonical_lead_id IS NULL FROM platform.communication_messages m WHERE m.conversation_id = c.id) FROM platform.communication_conversations c JOIN platform_private.waha_direct_chat_bindings b ON b.conversation_id = c.id WHERE b.normalized_chat_id = '15550000103@c.us'" t "the outbound-only conversation carries the WhatsApp time and has no client or lead"
+expect_sql "SELECT (e.verification_headers ->> 'lead_mode' = 'promote' AND e.verification_status = 'missing') FROM platform_private.waha_direct_chat_bindings b JOIN platform_private.provider_webhook_events e ON e.id = b.source_webhook_event_id WHERE b.normalized_chat_id = '15550000103@c.us'" t "the outbound-only binding rests on a history row with lead_mode promote"
 expect_sql "SELECT count(*) FROM platform_private.waha_direct_chat_bindings WHERE organization_id = '$org' AND normalized_chat_id LIKE '%@g.us'" 0 "a group was bound"
 expect_sql "SELECT count(*) FROM platform.clients WHERE organization_id = '$org'" 0 "the import created a client"
 expect_sql "SELECT count(*) FROM platform.conversation_handoff_events WHERE organization_id = '$org'" 0 "the import created a handoff (not even for media)"
@@ -341,23 +350,23 @@ expect_sql "SELECT count(*) FROM platform.communication_messages m JOIN platform
 # The @lid chat whose phone WAHA's lid map knows is named by that phone; the own-number mapping gives none.
 expect_sql "SELECT c.subject FROM platform.communication_conversations c JOIN platform_private.waha_direct_chat_bindings b ON b.conversation_id = c.id WHERE b.normalized_chat_id = '900000000000101@lid'" "WhatsApp••••0104" "an @lid chat takes its phone from the lid map"
 expect_sql "SELECT count(*) FROM platform.communication_conversations c JOIN platform_private.waha_direct_chat_bindings b ON b.conversation_id = c.id WHERE c.organization_id = '$org' AND b.normalized_chat_id IN ('900000000000102@lid', '900000000000103@lid') AND c.subject LIKE '%••••%'" 0 "an @lid chat without a usable phone got a number made of nothing"
-expect_sql "SELECT count(*) FROM platform_private.waha_history_reconciliation_runs WHERE organization_id = '$org'" 2 "runs (pilot, interrupted+resumed)"
+expect_sql "SELECT count(*) FROM platform_private.waha_history_reconciliation_runs WHERE organization_id = '$org' AND options ->> 'include_outbound_only' = 'true' AND options ->> 'lead_mode' = 'promote'" 2 "runs (pilot, interrupted+resumed), both with the go-live options"
 
 step "dry run: nothing left to import"
 run_phase 0 dryrun
 expect_field "$cli_out" mode apply-dry-run "dry run"
 expect_field "$cli_out" totals.first_page_would_import 0 "dry run: would import"
-expect_field "$cli_out" totals.by_outcome.skip_nothing_eligible 6 "dry run: every selected chat (A, B, E and the three @lid chats) is already imported"
+expect_field "$cli_out" totals.by_outcome.skip_nothing_eligible 8 "dry run: every selected chat (A, B, C, D, E and the three @lid chats) is already imported"
 
 step "re-run: idempotent"
 run_phase 0 rerun
 expect_field "$cli_out" totals.projected 0 "re-run projected"
 expect_field "$cli_out" totals.conversations_created 0 "re-run conversations"
-expect_field "$cli_out" totals.already_bound 271 "re-run already bound"
-[[ "$(conversation_count)" == "6" && "$(message_count)" == "271" ]] || die "the re-run changed the data"
+expect_field "$cli_out" totals.already_bound 274 "re-run already bound"
+[[ "$(conversation_count)" == "8" && "$(message_count)" == "274" ]] || die "the re-run changed the data"
 
 step "no secret or personal data in any CLI output"
-for secret in "$waha_key" "$jwt" "$jwt_secret" "1555000010" "9000000000001" "Aigul" "Boris" "Dana" "Emil" "Lida" "A-secret-body" "E-body-" "B-body" "$work_dir"; do
+for secret in "$waha_key" "$jwt" "$jwt_secret" "1555000010" "9000000000001" "Aigul" "Boris" "Dana" "Emil" "Lida" "A-secret-body" "E-body-" "B-body" "C-out-" "D-body" "$work_dir"; do
   if grep -qF -- "$secret" "$work_dir/all-output.txt"; then
     die "a CLI output contains ${secret:0:12}..."
   fi

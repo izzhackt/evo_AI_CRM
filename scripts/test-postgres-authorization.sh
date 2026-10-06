@@ -2953,7 +2953,11 @@ SQL
   # ids already bound); idempotent re-runs; import-then-live (promotion to
   # exactly one client and lead from the LIVE event, lead readers list the
   # conversation, an imported raw id arriving live is tolerated) and
-  # live-then-import; lead_mode none never promotes; forgery guards; a counts-only
+  # live-then-import; the owner's go-live run (include_outbound_only + promote:
+  # outbound-only chats become conversations without client or lead, the phone-sent
+  # messages deferred before the import are projected into them once, later live
+  # messages join them and the customer's first message promotes exactly once);
+  # lead_mode none never promotes; forgery guards; a counts-only
   # preview that equals the import; Inbox order by last message; one summary
   # realtime invalidation per page; the same advisory lock keys as live; the
   # service-only catalog and the revoked v1 routines.

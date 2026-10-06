@@ -10,6 +10,10 @@
 //   node scripts/test-waha-history-import-chain.mjs <phase>
 //
 // phases: preview | pilot | interrupted | resume | rerun | dryrun
+// The flags are the owner's go-live choice (docs/runbooks/whatsapp-history-import.md):
+// every command passes --include-outbound-only, the pilot picks a chat from the
+// preview with --only-chats-file, the rest runs with --all-chats (no personal
+// chats on the sales phone) behind the reviewed preview file.
 // environment: NEXT_PUBLIC_SUPABASE_URL, EVO_PLATFORM_SUPABASE_SECRET_KEY,
 // EVO_PLATFORM_ORGANIZATION_ID, EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID,
 // EVO_WAHA_HISTORY_ALLOW_LOCAL_SUPABASE=1, EVO_CHAIN_NOW (window end, ISO),
@@ -81,27 +85,18 @@ function refOf(name) {
 
 const preview = join(directory, "preview.jsonl");
 const window = ["--window-to", now];
-const common = ["--page-size", "100", "--waha-page-size", "50", "--waha-pause-ms", "0", "--rpc-pause-ms", "0"];
+const common = ["--page-size", "100", "--waha-page-size", "50", "--waha-pause-ms", "0", "--rpc-pause-ms", "0", "--include-outbound-only"];
 let argv;
 let signal;
 let fetchImpl = fetch;
 
 if (phase === "preview") {
-  argv = ["preview", ...window, "--out", preview, "--waha-page-size", "50", "--waha-pause-ms", "0", "--rpc-pause-ms", "0", "--page-size", "100"];
+  argv = ["preview", ...window, "--include-outbound-only", "--out", preview, "--waha-page-size", "50", "--waha-pause-ms", "0", "--rpc-pause-ms", "0", "--page-size", "100"];
 } else if (phase === "pilot") {
   writeFileSync(join(directory, "pilot.txt"), `# pilot\n${refOf("Aigul Test")}\n`);
   argv = ["apply", ...window, "--only-chats-file", join(directory, "pilot.txt"), ...common];
 } else {
-  writeFileSync(join(directory, "personal.txt"), `${refOf("Dana Test")}\n`);
-  argv = [
-    "apply",
-    ...window,
-    "--exclude-chats-file",
-    join(directory, "personal.txt"),
-    "--preview-file",
-    preview,
-    ...common,
-  ];
+  argv = ["apply", ...window, "--all-chats", "--preview-file", preview, ...common];
   if (phase === "interrupted") {
     const controller = new AbortController();
     signal = controller.signal;

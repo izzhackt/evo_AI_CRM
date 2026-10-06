@@ -663,15 +663,19 @@ export function AiSpendView({
                     <summary className="inline-flex min-h-11 cursor-pointer list-none items-center t-label text-fg underline decoration-fg-3 underline-offset-4 hover:decoration-fg [&::-webkit-details-marker]:hidden">
                       Отозвать согласие
                     </summary>
-                    <div className="pb-2">
+                    {/* Отзыв (274) ещё и выключает память и удаляет сводки всех клиентов; новое согласие её не включает. */}
+                    <div className="space-y-1 pb-2" data-testid="v3-ai-consent-revoke">
+                      {data.memoryEnabled ? (
+                        <p className="max-w-[70ch] text-pretty t-body-compact text-fg">{AI_MEMORY_SETTINGS_COPY.revokeConfirm}</p>
+                      ) : null}
                       <AiActionForm
                         requestId={revokeRequestId}
                         action={recordAiConsentAction}
                         fields={{ consent_action: "revoke" }}
-                        label="Отозвать — ИИ перестанет готовить ответы"
+                        label={data.memoryEnabled ? AI_MEMORY_SETTINGS_COPY.revokeSubmit : "Отозвать — ИИ перестанет готовить ответы"}
                         pendingLabel="Отзываю…"
                         buttonClassName={btnGhostCls}
-                        messages={{ saved: "Согласие отозвано. ИИ-вызовы отклоняются." }}
+                        messages={{ saved: data.memoryEnabled ? AI_MEMORY_SETTINGS_COPY.revoked : "Согласие отозвано. ИИ-вызовы отклоняются." }}
                       />
                     </div>
                   </details>
@@ -711,6 +715,7 @@ function AiMemorySettings({ settings, preview, requestId }: Readonly<{ settings:
         <StatusChip label={enabled ? copy.on : copy.off} tone={enabled ? "ok" : "neutral"} />
       </div>
       <p className="max-w-[70ch] text-pretty t-body-compact text-fg-2">{copy.about}</p>
+      {/* Защитное: в 274 отзыв согласия выключает память, функции базы такого сочетания не оставляют. */}
       {enabled && !consent ? (
         <p className="flex items-start gap-2 t-body-compact text-warn" data-testid="v3-ai-memory-no-consent">
           <Icon name="alert" size={16} className="mt-0.5 shrink-0" />

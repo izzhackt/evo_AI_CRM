@@ -71,7 +71,8 @@
  *       сводку пора собрать, сбой и «Повторить», окончательный отказ — и
  *       «Память о клиенте» в «Агенте и лимите» (выключена, включена с
  *       подтверждением выключения, без согласия; переключение туда и
- *       обратно — итог и фокус переживают смену вида). 1440×900 и 390×844,
+ *       обратно — итог и фокус переживают смену вида; отзыв согласия при
+ *       включённой памяти — последствия до кнопки). 1440×900 и 390×844,
  *       синтетика. По умолчанию outDir —
  *       docs/design/evo-platform/implementation-screenshots/ai-agent-p3.
  */
@@ -375,7 +376,7 @@ window.fetch = async (input, init) => {
       if (method === "DELETE") {
         window.__harness.memory.push("clear:" + JSON.parse(init.body).requestId);
         await new Promise((resolve) => setTimeout(resolve, 150));
-        const reply = take(fixture.ai.memoryClear || [{ status: 200, body: { deleted: true } }]);
+        const reply = take(fixture.ai.memoryClear || [{ status: 200, body: { deleted: true, enqueued: true } }]);
         return json(reply.status, reply.body);
       }
       window.__harness.memory.push("read");
@@ -1629,17 +1630,18 @@ const memoryAi = (memory, extra = {}) => ({
 });
 const AI_P3_CHAT = {
   "memory-ready": { viewports: ["1440", "390"], ai: memoryAi([memoryView()]) },
-  // clear в 274 пересборку не ставит: после «Забыть» сводку пора собрать (summaryDue), строки памяти нет.
+  // clear в 274 сразу ставит пересборку (enqueued): строки памяти нет, сводку и интерес пора собрать.
   "memory-forget": { viewports: ["1440"], ai: memoryAi([memoryView(), memoryView({ memory: null, summaryDue: true, interestDue: true })],
-    { memoryClear: [{ status: 200, body: { deleted: true } }] }) },
+    { memoryClear: [{ status: 200, body: { deleted: true, enqueued: true } }] }) },
   "memory-off": { viewports: ["1440", "390"], ai: memoryAi([memoryView({ enabled: false, active: false, memory: null })]) },
   "memory-off-no-consent": { viewports: ["1440"], ai: memoryAi([memoryView({ enabled: false, consentRecorded: false, active: false, memory: null })]) },
-  // Включена, согласие отозвано: база отдаёт active=false и memory=null.
+  // Защитное: в 274 отзыв выключает память, но если база ответит «включена без согласия» — пауза.
   "memory-paused": { viewports: ["1440", "390"], ai: memoryAi([memoryView({ consentRecorded: false, active: false, memory: null })]) },
   "memory-short": { viewports: ["1440"], ai: memoryAi([memoryView({ messageCount: 12, memory: null, lead: null })]) },
   // 23 сообщения: за окном 3 < 6 — summaryDue false.
   "memory-waiting": { viewports: ["1440"], ai: memoryAi([memoryView({ messageCount: 23, memory: null })]) },
-  "memory-due": { viewports: ["1440"], ai: memoryAi([memoryView({ summaryDue: true, memory: { interest: null, summary: null, coveredCount: 0, updatedAt: null } })]) },
+  // Ни интереса, ни сводки — memory NULL (ai_agent_memory_v1 не отдаёт пустой объект).
+  "memory-due": { viewports: ["1440"], ai: memoryAi([memoryView({ summaryDue: true, memory: null })]) },
   "memory-failed": { viewports: ["1440"], ai: memoryAi([{ status: 503, body: { error: { code: "unavailable" } } }, memoryView()]) },
   "memory-denied": { viewports: ["1440"], ai: memoryAi([{ status: 403, body: { error: { code: "forbidden" } } }]) },
 };
@@ -1648,6 +1650,8 @@ const AI_P3_SECTION = {
   "section-memory-on": { actor: AI_ACTOR, section: "spend", viewports: ["1440", "390"], settings: aiSettings({ memoryEnabled: true }) },
   "section-memory-no-consent": { actor: AI_ACTOR, section: "spend", viewports: ["1440"],
     settings: aiSettings({ memoryEnabled: false, consent: { recorded: false, at: null, byName: null, textVersion: null } }) },
+  // Админ раскрывает «Отозвать согласие» при включённой памяти: последствия для памяти — до кнопки (274).
+  "section-consent-revoke": { actor: AI_ACTOR, section: "spend", viewports: ["1440", "390"], settings: aiSettings({ memoryEnabled: true, isAdmin: true }) },
 };
 
 // Переключатель «Память о клиенте» вживую: настоящий AiMemoryToggle, а запись —
@@ -1834,7 +1838,7 @@ async function aiP3Screenshots() {
       check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read"]), `memory-ready-${viewportKey}: answer reads ${JSON.stringify(harness.actions)}`);
     }
 
-    // «Забыть сводку»: подтверждение в строке → DELETE с id запроса → перечитать → сводки нет, соберётся по сообщению клиента.
+    // «Забыть сводку»: подтверждение в строке → DELETE с id запроса → перечитать → сводки нет, пересборка уже в очереди (274).
     {
       const session = await open("memory-forget", "1440");
       await expand(session);
@@ -1843,13 +1847,13 @@ async function aiP3Screenshots() {
       await session.page.getByRole("button", { name: "Забыть сводку" }).click();
       await session.page.waitForTimeout(80);
       const confirm = await shot(session, "window-forget-confirm-1440.png");
-      check(confirm.memory.confirm?.startsWith("Сводка и интерес удалятся. ИИ соберёт их заново после следующего сообщения клиента.") === true, `forget: confirm ${confirm.memory.confirm}`);
+      check(confirm.memory.confirm?.startsWith("Сводка и интерес удалятся. ИИ сразу начнёт собирать их заново.") === true, `forget: confirm ${confirm.memory.confirm}`);
       check(confirm.focus === "Забыть сводку", `forget: focus on the confirm button ${confirm.focus}`);
       await session.page.locator('[data-testid="v3-ai-memory-confirm"] .v3-ai-button').click();
       await session.page.waitForTimeout(400);
       const done = await shot(session, "window-forgotten-1440.png");
-      check(done.memory.note === "Сводка и интерес удалены." && done.memory.summaryState === "Сводки пока нет — ИИ соберёт её после следующего сообщения клиента.", `forget: ${JSON.stringify(done.memory)}`);
-      check(done.memory.interest === "Интерес появится после следующего сообщения клиента.", `forget: interest ${done.memory.interest}`);
+      check(done.memory.note === "Сводка и интерес удалены — ИИ собирает их заново." && done.memory.summaryState === "Сводки пока нет — ИИ соберёт её сам.", `forget: ${JSON.stringify(done.memory)}`);
+      check(done.memory.interest === "Интереса пока нет — ИИ определит его сам.", `forget: interest ${done.memory.interest}`);
       const harness = await close(session, "memory-forget-1440");
       check(harness.memory.length === 3 && harness.memory[0] === "read" && /^clear:[0-9a-f-]{36}$/u.test(harness.memory[1]) && harness.memory[2] === "read",
         `forget: ${JSON.stringify(harness.memory)}`);
@@ -1865,7 +1869,8 @@ async function aiP3Screenshots() {
         && m.lead === "Аружан · Малайзия · Квалифицирован"],
       ["memory-short", (m) => m.summaryState === "ИИ видит всю переписку — сводка не нужна." && m.interest === "Интерес появится после следующего сообщения клиента." && m.lead === "Карточки лида нет."],
       ["memory-waiting", (m) => m.state === "waiting" && m.summaryState === "Сводка появится, когда переписка станет длиннее." && m.hint === "Сводка пока не нужна"],
-      ["memory-due", (m) => m.state === "due" && m.summaryState === "Сводки пока нет — ИИ соберёт её после следующего сообщения клиента." && m.hint === "Сводки пока нет"],
+      ["memory-due", (m) => m.state === "due" && m.summaryState === "Сводки пока нет — ИИ соберёт её сам." && m.hint === "Сводки пока нет"
+        && m.interest === "Интерес появится после следующего сообщения клиента."],
     ];
     for (const [name, ok] of states) {
       for (const viewportKey of AI_P3_CHAT[name].viewports) {
@@ -1915,6 +1920,9 @@ async function aiP3Screenshots() {
         && m.settings.text.includes("Сводки всех клиентов удалятся.") && m.settings.buttons.some((button) => button.text === "Выключить и удалить сводки"),
       "section-memory-no-consent": (m) => m.settings.buttons.some((button) => button.text === "Включить память" && button.disabled)
         && m.settings.text.includes("Сначала администратор записывает согласие на Gemini."),
+      "section-consent-revoke": (m) => m.revoke?.open === true
+        && m.revoke.confirm === "ИИ перестанет готовить ответы. Память о клиенте выключится, сводки всех клиентов удалятся. После нового согласия память нужно включить снова."
+        && m.revoke.button === "Отозвать и удалить сводки",
     };
     for (const [name, scenario] of Object.entries(AI_P3_SECTION)) {
       for (const viewportKey of scenario.viewports) {
@@ -1923,10 +1931,21 @@ async function aiP3Screenshots() {
           await session.page.locator('[data-testid="v3-ai-memory-disable"] > summary').click();
           await session.page.waitForTimeout(80);
         }
-        await session.page.locator("#ai-memory").evaluate((element) => element.scrollIntoView({ block: "center" }));
+        if (name === "section-consent-revoke") {
+          await session.page.locator('[data-testid="v3-ai-consent-line"] summary').click();
+          await session.page.waitForTimeout(80);
+        }
+        await session.page.locator(name === "section-consent-revoke" ? '[data-testid="v3-ai-consent-line"]' : "#ai-memory")
+          .evaluate((element) => element.scrollIntoView({ block: "center" }));
         await session.page.waitForTimeout(80);
         const metrics = await shot(session, `${name}-${viewportKey}.png`);
-        check(sectionChecks[name](metrics.memory), `${name}-${viewportKey}: ${JSON.stringify(metrics.memory.settings)}`);
+        const revoke = await session.page.evaluate(() => {
+          const details = document.querySelector('[data-testid="v3-ai-consent-line"] details');
+          const body = document.querySelector('[data-testid="v3-ai-consent-revoke"]');
+          return details ? { open: details.open, confirm: body?.querySelector("p")?.textContent.trim() ?? null,
+            button: body?.querySelector("button")?.textContent.trim() ?? null } : null;
+        });
+        check(sectionChecks[name]({ ...metrics.memory, revoke }), `${name}-${viewportKey}: ${JSON.stringify({ settings: metrics.memory.settings, revoke })}`);
         await close(session, `${name}-${viewportKey}`);
       }
     }

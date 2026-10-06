@@ -11,6 +11,7 @@ import {
   AI_MEMORY_SUMMARY_CLAMP_FROM,
   aiLeadLine,
   aiMemoryHint,
+  aiMemoryInterestState,
   aiMemoryMeta,
   aiMemoryPausedText,
   aiMemoryState,
@@ -100,6 +101,8 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
     setNote(null);
     requestId.current ??= crypto.randomUUID();
     let outcome: "cleared" | "forbidden" | "final" | "unknown" = "unknown";
+    /** Квитанция 274: пересборка уже в очереди агента — так и сказано; не прочитана — без обещания. */
+    let enqueued = false;
     try {
       const response = await fetch(`/api/v3/ai-agent/conversations/${conversationId}/memory`, {
         method: "DELETE",
@@ -109,6 +112,7 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
         body: JSON.stringify({ requestId: requestId.current }),
       });
       outcome = response.ok ? "cleared" : response.status === 403 ? "forbidden" : response.status >= 500 ? "unknown" : "final";
+      if (response.ok) enqueued = await response.json().then((body: { enqueued?: unknown }) => body.enqueued === true, () => false);
     } catch {
       outcome = "unknown";
     }
@@ -117,7 +121,7 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
     setWorking(false);
     if (outcome === "cleared") {
       setConfirming(false);
-      setNote({ tone: "ok", text: AI_MEMORY_COPY.forgotten });
+      setNote({ tone: "ok", text: enqueued ? AI_MEMORY_COPY.forgottenRebuilding : AI_MEMORY_COPY.forgotten });
       await read();
       requestAnimationFrame(() => summaryRef.current?.focus());
       return;
@@ -202,7 +206,7 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
                   <div>
                     <dt className="t-caption text-fg-3">Интерес</dt>
                     <dd className={`mt-0.5 break-words t-body-compact ${memory?.interest ? "text-fg" : "text-fg-2"}`} data-testid="v3-ai-memory-interest">
-                      {memory?.interest ?? AI_MEMORY_COPY.noInterest}
+                      {memory?.interest ?? aiMemoryInterestState(view)}
                     </dd>
                   </div>
                   <div>

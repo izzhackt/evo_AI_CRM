@@ -408,8 +408,12 @@ export function createAiAnswerInsertHandler(dependencies: AiAgentRouteDependenci
 // ------------------------------------------------------------------ P3 память
 
 export type AiMemoryClearResult =
-  /** `deleted` — была ли строка памяти (квитанция 274); повтор тем же id отдаёт прежнюю. */
-  | Readonly<{ status: "cleared"; deleted: boolean }>
+  /**
+   * Квитанция 274: `deleted` — была ли строка памяти; `enqueued` — поставлена ли
+   * пересборка в очередь агента сразу (память работает и собирать есть что).
+   * Повтор тем же id отдаёт прежнюю квитанцию.
+   */
+  | Readonly<{ status: "cleared"; deleted: boolean; enqueued: boolean }>
   | Readonly<{ status: "conflict" | "forbidden" | "not_found" | "invalid" | "unavailable" }>;
 
 export type AiMemoryRouteDependencies = Readonly<{
@@ -442,7 +446,8 @@ const defaultMemoryDependencies: AiMemoryRouteDependencies = {
 /**
  * Квитанция `ai_agent_memory_clear_v1` или его отказ → итог маршрута.
  * Квитанция (274, через `ai_request_finish` 269): `{status: 'cleared',
- * conversationId, deleted, replayed}`. Другая форма — не «удалено», а сбой.
+ * conversationId, deleted, enqueued, replayed}`. Другая форма — не «удалено»,
+ * а сбой.
  */
 export function aiMemoryClearOutcome(error: RpcError | null, data: unknown): AiMemoryClearResult {
   if (error) {
@@ -455,8 +460,10 @@ export function aiMemoryClearOutcome(error: RpcError | null, data: unknown): AiM
   }
   if (typeof data !== "object" || data === null || Array.isArray(data)) return { status: "unavailable" };
   const receipt = data as Record<string, unknown>;
-  if (receipt.status !== "cleared" || typeof receipt.deleted !== "boolean") return { status: "unavailable" };
-  return { status: "cleared", deleted: receipt.deleted };
+  if (receipt.status !== "cleared" || typeof receipt.deleted !== "boolean" || typeof receipt.enqueued !== "boolean") {
+    return { status: "unavailable" };
+  }
+  return { status: "cleared", deleted: receipt.deleted, enqueued: receipt.enqueued };
 }
 
 /**
@@ -486,8 +493,10 @@ export function createAiMemoryReadHandler(dependencies: AiMemoryRouteDependencie
  * «Забыть сводку» (P3, Q9 — может любой сотрудник с ai.agent.use):
  * `DELETE …/conversations/[id]/memory` с `{requestId}` — строка памяти
  * удаляется (`ai_agent_memory_clear_v1`), повтор тем же id возвращает прежнюю
- * квитанцию; ответ — `{deleted}` (была ли строка). В журнале — только числа и
- * флаги, без текста. Новую память агент соберёт по следующему сообщению клиента.
+ * квитанцию; ответ — `{deleted, enqueued}` (была ли строка; поставлена ли
+ * пересборка). В журнале — только числа и флаги, без текста. Пока память
+ * работает, база сразу ставит пересборку в очередь агента — не дожидаясь
+ * нового сообщения клиента (274).
  */
 export function createAiMemoryClearHandler(dependencies: AiMemoryRouteDependencies = defaultMemoryDependencies) {
   return async function DELETE(request: Request, context: ConversationContext): Promise<Response> {
@@ -500,7 +509,7 @@ export function createAiMemoryClearHandler(dependencies: AiMemoryRouteDependenci
       const requestId = body ? parsePlatformRouteUuid(body.requestId) : null;
       if (!conversationId || !requestId || new URL(request.url).search !== "") return failure(400, "invalid_request");
       const result = await dependencies.clearMemory(authorization.actor, conversationId, requestId);
-      if (result.status === "cleared") return json(200, { deleted: result.deleted });
+      if (result.status === "cleared") return json(200, { deleted: result.deleted, enqueued: result.enqueued });
       if (result.status === "conflict") return failure(409, "request_conflict");
       if (result.status === "forbidden") return failure(403, "forbidden");
       if (result.status === "not_found") return failure(404, "not_found");

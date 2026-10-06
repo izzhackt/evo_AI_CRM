@@ -123,6 +123,9 @@ COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/platform-knowl
 # Operator CLI for the WhatsApp history import (docs/runbooks/whatsapp-history-import.md).
 # Dependency-free (node: built-ins only), so it is copied as is, not bundled.
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/scripts/waha-history-import.mjs ./scripts/waha-history-import.mjs
+# Operator CLI for the Vault-backed WAHA runtime binding (docs/runbooks/whatsapp-go-live.md).
+# Dependency-free (node: built-ins only), so it is copied as is, not bundled.
+COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/scripts/waha-runtime-binding.mjs ./scripts/waha-runtime-binding.mjs
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/document-recognition-worker.mjs ./document-recognition-worker.mjs
 COPY --from=document-source-runtime --chown=0:0 /opt/evo-document-runtime/ /opt/evo-document-runtime/
 COPY --from=university-template-runtime --chown=0:0 /opt/evo-university-template-runtime/ /opt/evo-university-template-runtime/

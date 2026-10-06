@@ -86,6 +86,8 @@ export type LeadWorkPartsInput = Readonly<{
    * null — дела нет или «Обзор» не открыт. Отказ и сбой — полоса без них.
    */
   agreement?: CaseAgreementReadResult | null;
+  /** «Откуда узнал» — своё чтение (`LeadChannelFact`); null — строка не рисуется. */
+  channel?: ReactNode;
   /** «Заявки с сайта» — своё чтение (`WebsiteLeadSubmissions`); null — не показываются. */
   submissions: ReactNode;
   hrefFor: (tab: string) => string;
@@ -366,6 +368,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           {sourceUnderLabel(profile.source) ?? "неизвестно"}
           {arrivedDay ? <span className="text-fg-2"> · с <time dateTime={sales.leadCreatedAt ?? undefined} className="font-mono tabular-nums">{arrivedDay}</time></span> : null}
         </Fact>
+        {input.channel ? <Fact term="Откуда узнал">{input.channel}</Fact> : null}
         <Fact term="Контакты">
           {profile.phone || profile.email ? <>
             {profile.phone ? (

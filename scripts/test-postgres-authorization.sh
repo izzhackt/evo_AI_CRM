@@ -3017,6 +3017,24 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_website_lead_intake_fix.sql
   fi
+
+  # Migrations 263-265 («Маркетинг» М1, docs/EVO_MARKETING_PLAN_2026-10-06.md):
+  # append-only attribution touches and the optional marks of the website
+  # form (receive_website_lead's single signature, legacy payload unchanged,
+  # bad marks dropped, replay keeps one touch), instagram / whatsapp_manual in
+  # the manual list, the one channel rule and record_lead_touch, and the
+  # admin-only overview, leads list and manual spend. Members modelled like
+  # production (coarse role NULL, the production bundles, as in 247's suite),
+  # on the real intake, manual-lead and workflow commands: admin reads; the
+  # NULL-role Sales Manager, Admissions, coarse roles, a Student, no
+  # membership, anon and service_role refused (42501); touches and spend only
+  # appended; the overview reconciles with staff_sales_count_v1; the list pages
+  # by (created_at, id) with no private field.
+  if [[ "$(basename "$migration")" == 265_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_marketing_m1.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

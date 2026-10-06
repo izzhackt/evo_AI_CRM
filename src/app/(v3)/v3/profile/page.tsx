@@ -13,6 +13,7 @@ import { Profile } from "@/components/v3/profile/Profile";
 import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
 import { caseWorkParts } from "@/components/v3/profile/CaseWorkParts";
 import { leadWorkParts } from "@/components/v3/profile/LeadWorkParts";
+import { LeadChannelFact } from "@/components/v3/profile/LeadChannelFact";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
 import { ClosedLeadView } from "@/components/v3/closure/ClosedLeadView";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
@@ -460,6 +461,11 @@ export default async function ProfilePart({
     curators: studentPortalCurators,
     curatorsAvailable: studentPortalCuratorsAvailable,
     agreement: leadAgreement,
+    channel: (
+      <Suspense fallback={<span role="status" className="text-fg-2">Загружаем…</span>}>
+        <LeadChannelFact actor={actor} leadId={view.details.routeTarget.leadId} requestId={randomUUID()} />
+      </Suspense>
+    ),
     submissions: !isStaffPreview(actor) ? (
       <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем заявки с сайта…</p>}>
         <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />

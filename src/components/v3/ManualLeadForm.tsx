@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { createContext, useActionState, useContext, useId, useRef, useState } from "react";
 import { btnCls, inputCls, fieldLabelCls } from "@/components/ui";
+import { LEAD_CHANNEL_REQUIRED, LEAD_CHANNEL_UNKNOWN_HINT, LEAD_CHANNELS } from "@/lib/lead-channel-contract";
 import { createManualLeadAction } from "@/lib/platform-manual-lead-actions";
 import { LEAD_DIRECTIONS, MANUAL_LEAD_SOURCE_REQUIRED, MANUAL_LEAD_SOURCES, type ManualLeadState } from "@/lib/platform-manual-lead-contract";
 
@@ -60,6 +61,26 @@ export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: str
     </div>
   );
 }
+/**
+ * Что сказать про «Откуда узнал» после ответа: выбор пишется отдельным вызовом, и он может не записаться;
+ * у повторного контакта канал уже мог быть записан раньше — его правят в карточке, а не новым выбором.
+ */
+function touchNote(state: ManualLeadState): string {
+  if (state.touch === "forbidden") return " «Откуда узнал» не записано: нет права менять этого лида.";
+  if (state.touch === "failed") return " «Откуда узнал» не записалось — укажите его в карточке лида.";
+  if (state.status === "duplicate") return state.leadId ? " «Откуда узнал» уточняйте в карточке лида." : " «Откуда узнал» для него не записано.";
+  return "";
+}
+
+/**
+ * Браузер шлёт `invalid` каждому пустому полю по порядку; `preventDefault` убирает его собственный фокус,
+ * поэтому фокус ставим сами и только на первое неверное поле — иначе его забрало бы последнее.
+ */
+function focusFirstInvalid(field: HTMLSelectElement) {
+  // Только поля: `fieldset` с пустым полем внутри тоже `:invalid` и стоит раньше в порядке документа.
+  if (field.form?.querySelector("input:invalid, select:invalid, textarea:invalid") === field) field.focus();
+}
+
 function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[]; onAnother: () => void }>) {
   const frozen = useRef<FormData | null>(null);
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
@@ -67,6 +88,11 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
   // источник» под полем (Э8.11); сервер отвечает тем же словом.
   const [sourceMissing, setSourceMissing] = useState(false);
   const sourceErrorId = useId();
+  // «Откуда узнал» — то же правило: без значения по умолчанию, «Не известно» выбирают явно.
+  const [channelMissing, setChannelMissing] = useState(false);
+  const [channelUnknown, setChannelUnknown] = useState(false);
+  const channelErrorId = useId();
+  const channelHintId = useId();
   const [state, action, pending] = useActionState(async (previous: ManualLeadState, form: FormData): Promise<ManualLeadState> => {
     const submitted = frozen.current ?? form;
     frozen.current = submitted;
@@ -80,7 +106,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
     || (state.status === "request_conflict" && currentRequestId === state.requestId);
   const messages: Record<ManualLeadState["status"], string> = {
     idle: "", saved: "Лид сохранён. Сообщения и приглашения не отправлялись.", duplicate: "Такой контакт уже есть. Откройте существующего лида; если ссылка недоступна, попросите Admin проверить контакт.",
-    invalid: "Проверьте имя, контакт и дату следующего действия.", source_required: `${MANUAL_LEAD_SOURCE_REQUIRED}.`, forbidden: "Нет права на это действие. Обновите страницу после проверки доступа.",
+    invalid: "Проверьте имя, контакт и дату следующего действия.", source_required: `${MANUAL_LEAD_SOURCE_REQUIRED}.`, channel_required: `${LEAD_CHANNEL_REQUIRED}.`, forbidden: "Нет права на это действие. Обновите страницу после проверки доступа.",
     request_conflict: "Запрос уже использован с другими данными. Сначала проверьте воронку.", unavailable: "Результат пока неизвестен. Данные сохранены в форме; безопасно повторите тот же запрос.",
   };
   return <form action={action} className="max-w-3xl space-y-4" aria-busy={pending}>
@@ -96,13 +122,26 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
             // Одно сообщение — строка под полем, без всплывающей подсказки браузера поверх неё.
             event.preventDefault();
             event.currentTarget.setCustomValidity(MANUAL_LEAD_SOURCE_REQUIRED);
-            event.currentTarget.focus();
+            focusFirstInvalid(event.currentTarget);
             setSourceMissing(true);
           }}
           onChange={(event) => { event.currentTarget.setCustomValidity(""); setSourceMissing(false); }}
           className={`${inputCls} aria-[invalid=true]:border-danger`}>
           <option value="">Не выбрано</option>{Object.entries(MANUAL_LEAD_SOURCES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
         </select>{sourceMissing ? <span id={sourceErrorId} role="alert" className="mt-1 block t-body-compact text-danger">{MANUAL_LEAD_SOURCE_REQUIRED}</span> : null}</label>
+        <label><span className={fieldLabelCls}>Откуда узнал</span><select name="channel" required defaultValue=""
+          aria-invalid={channelMissing || undefined} aria-describedby={channelMissing ? channelErrorId : channelUnknown ? channelHintId : undefined}
+          onInvalid={(event) => {
+            event.preventDefault();
+            event.currentTarget.setCustomValidity(LEAD_CHANNEL_REQUIRED);
+            focusFirstInvalid(event.currentTarget);
+            setChannelMissing(true);
+          }}
+          onChange={(event) => { event.currentTarget.setCustomValidity(""); setChannelMissing(false); setChannelUnknown(event.currentTarget.value === "unknown"); }}
+          className={`${inputCls} aria-[invalid=true]:border-danger`}>
+          <option value="">Не выбрано</option>{Object.entries(LEAD_CHANNELS).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
+        </select>{channelMissing ? <span id={channelErrorId} role="alert" className="mt-1 block t-body-compact text-danger">{LEAD_CHANNEL_REQUIRED}</span>
+          : channelUnknown ? <span id={channelHintId} className="mt-1 block t-body-compact text-fg-2">{LEAD_CHANNEL_UNKNOWN_HINT}</span> : null}</label>
         <label><span className={fieldLabelCls}>Ответственный</span><select name="owner_id" defaultValue={ownerId} required className={inputCls}>{owners.map(owner => <option key={owner.id} value={owner.id}>{owner.displayName}</option>)}</select></label>
         <label><span className={fieldLabelCls}>Направление</span><select name="direction" className={inputCls}><option value="">Пока не выбрано</option>{Object.entries(LEAD_DIRECTIONS).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
       </div>
@@ -112,7 +151,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
       </div></details>
       <button className={btnCls} disabled={locked}>{pending ? "Сохраняем…" : "Сохранить лида"}</button>
     </fieldset>
-    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="text-sm leading-relaxed text-fg-2">{messages[state.status]}</p> : null}
+    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="text-sm leading-relaxed text-fg-2">{messages[state.status]}{touchNote(state)}</p> : null}
     {state.leadId ? <Link className="inline-flex min-h-11 items-center text-accent-text underline" href={`/v3/profile?id=${state.leadId}`}>Открыть лида</Link> : null}
     {state.status === "unavailable" ? <button type="submit" className={btnCls} disabled={pending}>Повторить тот же запрос</button> : null}
     {state.status === "saved" ? <button type="button" className="min-h-11 text-sm underline" onClick={onAnother}>Добавить ещё одного</button> : null}

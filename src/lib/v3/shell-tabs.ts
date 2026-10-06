@@ -34,6 +34,7 @@ export const LINK_ICONS = {
   documents: "file-text",
   "reply-snippets": "quote",
   knowledge: "book-open",
+  marketing: "megaphone",
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
 

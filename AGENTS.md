@@ -236,6 +236,10 @@ instructions to run a full heavy suite for every change or release candidate.
   implementation and fail-closed readiness, not real message delivery. Moving
   webhook ownership to V3 remains a separate controlled
   cutover with exactly one active owner.
+  Update 2026-10-06: that cutover happened on the owner's instruction —
+  `crm_primary` (GOWS) was paired and posts to the CRM direct ingress (see
+  «WhatsApp And Lead-Agent Boundary»). Re-pairing, QR, logout or restart of
+  the session still need the owner's explicit permission.
 - The 2026-09-04 owner direction authorizes this repository transition,
   V3 integration, isolated recovery/migration rehearsal and scoped cleanup
   without routine approval pauses. It also authorizes #552 to perform the one
@@ -406,16 +410,21 @@ direct ingress into the CRM — no lead-agent, no amoCRM on this path.
 - WAHA webhook: `http://evo-crm-app:3000/api/v2/whatsapp/inbound` (private
   network only; the public edge answers 404), events `message.any` and
   `session.status`, HMAC from `EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET`.
-  Ingress is off unless `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1`.
+  Ingress is off unless `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1`; with ingress
+  on, the env contract also requires
+  `EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID` (owner of new WhatsApp leads).
 - The plain WAHA API key lives only in the Supabase Vault runtime binding;
-  `/opt/evo-crm/.env.waha` keeps `WAHA_API_KEY=sha512:<hash>` and
+  `/opt/evo-crm/.env.waha` keeps `WAHA_API_KEY=sha512:<hash>` and, since
+  2026-10-06 15:02Z (receipt in the go-live runbook),
   `WAHA_WORKER_RESTART_SESSIONS=true`.
 - Runbooks: `docs/runbooks/whatsapp-go-live.md` (configuration, pairing,
   receipts) and `docs/runbooks/whatsapp-history-import.md`.
 - Never reset, log out or re-pair `crm_primary`, request a QR or pairing
   code, or send bulk messages without the owner's explicit permission.
 
-The rest of this section is the earlier lead-agent design, kept as history.
+Below, the lead-agent routing and its amoCRM sync are the earlier design,
+kept as history. The private-WAHA rules there still apply: base URL
+`http://evo-crm-waha:3000`, no public port, only the key hash in `.env.waha`.
 
 State 2026-09-23 (read-only inventory): no `evo-lead-agent` container or unit
 exists on `hermes-vps`, so bullets about lead-agent routing and its signed CRM

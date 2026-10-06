@@ -5,7 +5,9 @@ import type { ActivePlatformActor } from "../platform-auth.ts";
 import { parsePlatformRouteUuid } from "../platform-communications.ts";
 import { normalizeAiAnswerView, type AiAnswerView, type AiIntent } from "../v3/ai-agent.ts";
 import { normalizeAiMemoryView, type AiMemoryView } from "../v3/ai-agent-memory.ts";
+import { normalizeAiAutosendChat, type AiAutosendChat } from "../v3/ai-agent-autosend.ts";
 import { aiAgentSignedHeaders, readAiAgentConfig, type AiAgentConfig } from "./ai-agent-internal-auth.ts";
+import { aiAutosendServerState } from "./ai-agent-send-config.ts";
 
 /**
  * Маршруты окна ИИ в чате продаж (план §4.3, §6.7, §12.1). Браузер никогда не
@@ -24,7 +26,10 @@ import { aiAgentSignedHeaders, readAiAgentConfig, type AiAgentConfig } from "./a
  *    устарел. Ничего не отправляет;
  *  - `GET/DELETE /api/v3/ai-agent/conversations/[id]/memory` (P3) — «Что ИИ
  *    знает о клиенте» и «Забыть сводку» (`ai_agent_memory_v1`,
- *    `ai_agent_memory_clear_v1`, 274), без агента и Gemini.
+ *    `ai_agent_memory_clear_v1`, 274), без агента и Gemini;
+ *  - `GET/PUT /api/v3/ai-agent/conversations/[id]/autosend` (P4) —
+ *    «Автоответчик в этом чате»: состояние и исключение чата
+ *    (`ai_agent_autosend_chat_v1`, `ai_agent_autosend_exclusion_v1`, 277).
  *
  * Сами маршруты ничего не решают: доступ, актуальность и лимиты держит база.
  * Просмотр роли администратором ИИ не вызывает. Без секрета агента функция
@@ -558,4 +563,101 @@ export async function readAiAgentStatus(
   } catch {
     return { state: "unavailable" };
   }
+}
+
+// ------------------------------------------------------------------ P4 автоответчик
+
+export type AiAutosendExclusionResult =
+  | Readonly<{ status: "saved" }>
+  | Readonly<{ status: "conflict" | "forbidden" | "not_found" | "invalid" | "unavailable" }>;
+
+export type AiAutosendChatRouteDependencies = Readonly<{
+  authorize(): Promise<Authorization>;
+  readChat(actor: ActivePlatformActor, conversationId: string): Promise<AiAutosendChat | "forbidden" | "not_found">;
+  setExclusion(actor: ActivePlatformActor, conversationId: string, excluded: boolean, requestId: string): Promise<AiAutosendExclusionResult>;
+  serverOn(): boolean;
+}>;
+
+const defaultAutosendChatDependencies: AiAutosendChatRouteDependencies = {
+  authorize: defaultAuthorize,
+  async readChat(actor, conversationId) {
+    const { data, error } = await (await rpcClient()).rpc("ai_agent_autosend_chat_v1", {
+      p_organization_id: actor.organizationId, p_conversation_id: conversationId,
+    });
+    if (error) {
+      if (error.code === "42501") return "forbidden";
+      if (error.code === "P0002") return "not_found";
+      throw new Error("ai_autosend_unavailable");
+    }
+    return normalizeAiAutosendChat(data);
+  },
+  async setExclusion(actor, conversationId, excluded, requestId) {
+    const { error } = await (await rpcClient()).rpc("ai_agent_autosend_exclusion_v1", {
+      p_organization_id: actor.organizationId, p_conversation_id: conversationId, p_excluded: excluded, p_request_id: requestId,
+    });
+    return aiAutosendExclusionOutcome(error);
+  },
+  serverOn: () => aiAutosendServerState() === "on",
+};
+
+/** Отказ `ai_agent_autosend_exclusion_v1` → итог маршрута; нет ошибки — записано. */
+export function aiAutosendExclusionOutcome(error: RpcError | null): AiAutosendExclusionResult {
+  if (!error) return { status: "saved" };
+  if (error.code === "PT409" || error.code === "23505") return { status: "conflict" };
+  if (error.code === "42501") return { status: "forbidden" };
+  if (error.code === "P0002") return { status: "not_found" };
+  if (error.code === "22023") return { status: "invalid" };
+  return { status: "unavailable" };
+}
+
+/**
+ * «Автоответчик в этом чате» (P4, §11–12.1): `GET …/conversations/[id]/autosend`
+ * — состояние автоответчика для чата (включён ли, режим, пауза, исключён ли
+ * чат) и выключатель сервера. Ни агента, ни Gemini, ни WhatsApp.
+ */
+export function createAiAutosendChatReadHandler(dependencies: AiAutosendChatRouteDependencies = defaultAutosendChatDependencies) {
+  return async function GET(request: Request, context: ConversationContext): Promise<Response> {
+    try {
+      const authorization = await dependencies.authorize();
+      if (authorization.status !== "authorized") return refusal(authorization.status);
+      const conversationId = parsePlatformRouteUuid((await context.params).conversationId);
+      if (!conversationId || new URL(request.url).search !== "") return failure(400, "invalid_request");
+      const chat = await dependencies.readChat(authorization.actor, conversationId);
+      if (chat === "forbidden") return failure(403, "forbidden");
+      if (chat === "not_found") return failure(404, "not_found");
+      return json(200, { chat, serverOn: dependencies.serverOn() });
+    } catch {
+      return failure(503, "unavailable");
+    }
+  };
+}
+
+/**
+ * Исключить чат из автоответчика или вернуть (Q9 — любой сотрудник, которому
+ * виден диалог): `PUT …/autosend` с `{requestId, excluded}`. Повтор тем же id
+ * отдаёт прежнюю квитанцию; ничего не отправляет.
+ */
+export function createAiAutosendChatExclusionHandler(dependencies: AiAutosendChatRouteDependencies = defaultAutosendChatDependencies) {
+  return async function PUT(request: Request, context: ConversationContext): Promise<Response> {
+    try {
+      if (!sameOrigin(request)) return failure(403, "forbidden");
+      const authorization = await dependencies.authorize();
+      if (authorization.status !== "authorized") return refusal(authorization.status);
+      const conversationId = parsePlatformRouteUuid((await context.params).conversationId);
+      const body = await readJsonObject(request, ["requestId", "excluded"]);
+      const requestId = body ? parsePlatformRouteUuid(body.requestId) : null;
+      if (!conversationId || !requestId || typeof body?.excluded !== "boolean" || new URL(request.url).search !== "") {
+        return failure(400, "invalid_request");
+      }
+      const result = await dependencies.setExclusion(authorization.actor, conversationId, body.excluded, requestId);
+      if (result.status === "saved") return json(200, { excluded: body.excluded });
+      if (result.status === "conflict") return failure(409, "request_conflict");
+      if (result.status === "forbidden") return failure(403, "forbidden");
+      if (result.status === "not_found") return failure(404, "not_found");
+      if (result.status === "invalid") return failure(400, "invalid_request");
+      return failure(503, "unavailable");
+    } catch {
+      return failure(503, "unavailable");
+    }
+  };
 }

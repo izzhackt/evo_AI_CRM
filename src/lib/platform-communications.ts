@@ -948,6 +948,38 @@ export async function getPlatformConversationThread(
   }
 }
 
+/**
+ * One conversation's queue summary (subject, queue, status) through the same
+ * guarded snapshot the thread reader uses, without its messages. null — not
+ * visible to this member (indistinguishable from nonexistent). Used where a
+ * screen names chats it got only ids for (the autoresponder journal, P4).
+ */
+export async function getPlatformConversationSummary(
+  actor: PlatformActor,
+  id: string,
+  dependencies: PlatformCommunicationsDependencies = {},
+): Promise<PlatformConversationSummary | null> {
+  try {
+    const organizationId = requireMessagingOrganization(actor);
+    const conversationId = parsePlatformRouteUuid(id);
+    if (conversationId === null) return null;
+    const client = await getPlatformClient(dependencies.client);
+    const response = await client
+      .schema("platform")
+      .rpc("staff_communication_snapshot", {
+        p_organization_id: organizationId,
+        p_conversation_id: conversationId,
+      }, { get: true });
+    if (response.error || !Array.isArray(response.data) || response.data.length > 1) {
+      return invalidShape();
+    }
+    const conversation = normalizeConversationRows(response.data)[0] ?? null;
+    return conversation !== null && conversation.id === conversationId ? conversation : null;
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
 export async function getPlatformConversationCommandContext(
   actor: PlatformActor,
   id: string,

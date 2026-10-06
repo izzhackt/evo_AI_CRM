@@ -33,6 +33,7 @@ import {
   type AiSource,
 } from "@/lib/v3/ai-agent";
 
+import { InboxAiAutosend } from "./InboxAiAutosend";
 import { InboxAiMemory } from "./InboxAiMemory";
 
 /**
@@ -51,7 +52,8 @@ import { InboxAiMemory } from "./InboxAiMemory";
  * (409 — ответ устарел). Вставка ничего не отправляет.
  *
  * Наверху окна — свёрнутый блок «Что ИИ знает о клиенте» (P3, §9): интерес,
- * сводка и карточка лида из базы, без Gemini (`InboxAiMemory`).
+ * сводка и карточка лида из базы, без Gemini (`InboxAiMemory`), под ним —
+ * «Автоответчик в этом чате» (P4, §11), если автоответчик включён (`InboxAiAutosend`).
  *
  * Запрос привязан к последнему сообщению клиента, которое окно видело последним:
  * из базы (каждое чтение `GET …/answer`) или из страницы (новое сообщение в
@@ -630,6 +632,8 @@ export function InboxAiAssistant({
           <div className="v3-ai-body">
             {/* Память о клиенте (P3) читается при каждом открытии окна; её сбой ответу не мешает. */}
             <InboxAiMemory conversationId={conversationId} />
+            {/* «Автоответчик в этом чате» (P4) — только когда автоответчик включён в организации. */}
+            <InboxAiAutosend conversationId={conversationId} />
 
             {phase.kind === "loading" || (phase.kind === "streaming" && phase.preview === "") ? (
               <div className="space-y-2 py-1" aria-hidden="true">

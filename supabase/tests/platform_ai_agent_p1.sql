@@ -12,7 +12,7 @@
 --  1. the role evo_ai_agent: NOLOGIN, NOINHERIT, no BYPASSRLS/CREATEROLE/
 --     CREATEDB, member of no role, statement/idle timeouts; USAGE only on
 --     platform_ai_agent; no privilege on any table, view or sequence of any
---     schema; the only SECURITY DEFINER functions it can execute are the 18
+--     schema; the only SECURITY DEFINER functions it can execute are the 19
 --     platform_ai_agent functions; a direct SELECT of ai_chunks,
 --     communication_messages, the pgmq queue or kb_nodes is refused 42501;
 --     every ai_* table has FORCE RLS, no policy and no API-role grant;
@@ -28,7 +28,7 @@
 --     its SHA-256 is stored, it lives 60 s, redeems once, not after expiry and
 --     not for another purpose; at most 60 tickets per member per minute
 --     (PT429 ai_ticket_rate_limited);
---  4. no dialog text without a ticket: every one of the 18 agent functions
+--  4. no dialog text without a ticket: every one of the 19 agent functions
 --     called without a valid redemption raises or returns no message text and
 --     no phone; a redemption older than 5 minutes or of a member who lost access
 --     is refused; the valid context holds the last messages and a lead card
@@ -52,7 +52,11 @@
 --     cap cannot be bypassed with an unpriced model: settings refuse a model
 --     without today's price (22023), a reservation is refused while a
 --     configured model is unpriced (PT402 ai_model_unpriced), and an unpriced
---     call is booked at its reservation, not at 0;
+--     call is booked at its reservation, not at 0; a reservation of an
+--     answer that ended before any Gemini call is released at once (the cap
+--     headroom returns), a settled one is never touched, another
+--     organization's or an unknown one is 'absent', and a replay changes
+--     nothing;
 -- 10. settings, rules (append-only), documents, consent revoke.
 BEGIN;
 
@@ -133,11 +137,11 @@ SELECT pg_temp.ai_assert((SELECT array_agg(p.proname ORDER BY p.proname) FROM pg
     WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema')
       AND has_schema_privilege('evo_ai_agent', n.oid, 'USAGE')
       AND has_function_privilege('evo_ai_agent', p.oid, 'EXECUTE'))
-  = ARRAY['answer_claim_v1', 'answer_finish_v1', 'answer_heartbeat_v1', 'budget_reserve_v1',
+  = ARRAY['answer_claim_v1', 'answer_finish_v1', 'answer_heartbeat_v1', 'budget_release_v1', 'budget_reserve_v1',
     'conversation_context_v1', 'document_claim_v1', 'document_index_v1', 'document_stage_v1', 'maintenance_v1',
     'rate_take_v1', 'ready_v1', 'redeem_ticket_v1', 'search_v1', 'settings_v1', 'usage_record_v1',
     'work_claim_v1', 'work_extend_v1', 'work_finish_v1']::NAME[],
-  'the only definer functions evo_ai_agent can execute are the 18 platform_ai_agent functions');
+  'the only definer functions evo_ai_agent can execute are the 19 platform_ai_agent functions');
 SELECT pg_temp.ai_assert(NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'platform_ai_agent' AND (has_function_privilege('anon', p.oid, 'EXECUTE')
     OR has_function_privilege('authenticated', p.oid, 'EXECUTE') OR has_function_privilege('service_role', p.oid, 'EXECUTE'))),
@@ -562,6 +566,7 @@ INSERT INTO ai267_no_ticket SELECT f, pg_temp.ai_call(sql) FROM (VALUES
  ('answer_claim_v1', format('SELECT platform_ai_agent.answer_claim_v1(%L, ''reply'', ''w'')', gen_random_uuid())),
  ('answer_finish_v1', format('SELECT platform_ai_agent.answer_finish_v1(%L, ''w'', ''failed'', NULL, NULL, NULL, NULL, ''x'')', gen_random_uuid())),
  ('answer_heartbeat_v1', format('SELECT platform_ai_agent.answer_heartbeat_v1(%L, ''w'')', gen_random_uuid())),
+ ('budget_release_v1', format('SELECT platform_ai_agent.budget_release_v1(%L, %L)', pg_temp.ai_id(1), gen_random_uuid())),
  ('budget_reserve_v1', format('SELECT platform_ai_agent.budget_reserve_v1(%L, ''answer'', 0.0001)', pg_temp.ai_id(1))),
  ('conversation_context_v1', format('SELECT platform_ai_agent.conversation_context_v1(%L)', gen_random_uuid())),
  ('document_claim_v1', format('SELECT platform_ai_agent.document_claim_v1(%L, ''w'', 60)', gen_random_uuid())),
@@ -1079,6 +1084,52 @@ SELECT pg_temp.ai_assert((platform_ai_agent.usage_record_v1(pg_temp.ai_id(1), ge
 RESET ROLE;
 SELECT pg_temp.ai_assert((SELECT settled_at IS NOT NULL FROM platform_private.ai_budget_reservations WHERE id = :'reservation'),
   'the reservation is settled');
+-- Release (engine follow-up): an answer that ends before any Gemini call
+-- returns its reservation at once instead of holding the cap for 15 minutes.
+-- A settled reservation is never touched; another organization's or an
+-- unknown reservation is 'absent'; a replay changes nothing.
+SELECT settled_at AS reservation_settled_at FROM platform_private.ai_budget_reservations WHERE id = :'reservation' \gset
+INSERT INTO platform_private.ai_budget_reservations (organization_id, purpose, usd)
+  VALUES (pg_temp.ai_id(2), 'answer', 0.001) RETURNING id AS reservation_other \gset
+SET LOCAL ROLE evo_ai_agent;
+SELECT platform_ai_agent.budget_release_v1(pg_temp.ai_id(1), :'reservation') AS ai267_release_settled \gset
+SELECT platform_ai_agent.budget_reserve_v1(pg_temp.ai_id(1), 'answer', 0.001) AS ai267_reserve_a \gset
+SELECT (:'ai267_reserve_a'::JSONB ->> 'remainingUsd')::NUMERIC AS headroom \gset
+SELECT pg_temp.ai_assert(:'headroom'::NUMERIC > 0 AND :'headroom'::NUMERIC <= 5, 'the cap leaves headroom for the release test');
+SELECT platform_ai_agent.budget_reserve_v1(pg_temp.ai_id(1), 'answer', :'headroom'::NUMERIC) ->> 'reservationId' AS reservation_full \gset
+SELECT pg_temp.ai_assert(pg_temp.ai_err(format('SELECT platform_ai_agent.budget_reserve_v1(%L, ''answer'', 0.000001)', pg_temp.ai_id(1)))
+  LIKE 'PT402:ai_budget_exhausted%', 'with the headroom reserved, a further reservation is refused PT402');
+SELECT pg_temp.ai_assert((platform_ai_agent.budget_release_v1(pg_temp.ai_id(2), :'reservation_full') ->> 'status') = 'absent'
+  AND (platform_ai_agent.budget_release_v1(pg_temp.ai_id(1), :'reservation_other') ->> 'status') = 'absent'
+  AND (platform_ai_agent.budget_release_v1(pg_temp.ai_id(1), gen_random_uuid()) ->> 'status') = 'absent',
+  'another organization''s or an unknown reservation is absent');
+SELECT pg_temp.ai_assert(pg_temp.ai_err(format('SELECT platform_ai_agent.budget_release_v1(NULL, %L)', :'reservation_full'))
+  LIKE '22023:ai_budget_invalid%' AND pg_temp.ai_err(format('SELECT platform_ai_agent.budget_release_v1(%L, NULL)', pg_temp.ai_id(1)))
+  LIKE '22023:ai_budget_invalid%', 'a release without organization or reservation is refused 22023');
+SELECT platform_ai_agent.budget_release_v1(pg_temp.ai_id(1), :'reservation_full') AS ai267_release_full \gset
+SELECT platform_ai_agent.budget_release_v1(pg_temp.ai_id(1), :'reservation_full') AS ai267_release_replay \gset
+SELECT platform_ai_agent.budget_reserve_v1(pg_temp.ai_id(1), 'answer', 0.000001) ->> 'reservationId' AS reservation_after \gset
+SELECT pg_temp.ai_assert((platform_ai_agent.budget_release_v1(pg_temp.ai_id(1), :'reservation_after') ->> 'status') = 'released'
+  AND (platform_ai_agent.budget_release_v1(pg_temp.ai_id(1), (:'ai267_reserve_a'::JSONB ->> 'reservationId')::UUID)
+    ->> 'status') = 'released',
+  'the remaining open reservations of the test are released');
+RESET ROLE;
+SELECT pg_temp.ai_assert((:'ai267_release_settled'::JSONB ->> 'status') = 'settled'
+  AND (SELECT settled_at = :'reservation_settled_at'::TIMESTAMPTZ AND usd = 0.004
+    FROM platform_private.ai_budget_reservations WHERE id = :'reservation'),
+  'a settled reservation is reported settled and left unchanged');
+SELECT pg_temp.ai_assert((:'ai267_release_full'::JSONB ->> 'status') = 'released'
+  AND (:'ai267_release_full'::JSONB ->> 'reservationId') = :'reservation_full'
+  AND (:'ai267_release_replay'::JSONB ->> 'status') = 'absent'
+  AND NOT EXISTS (SELECT 1 FROM platform_private.ai_budget_reservations WHERE id = :'reservation_full'),
+  'an open reservation is released once; the replay is absent and changes nothing');
+SELECT pg_temp.ai_assert(:'reservation_after' <> '' AND (SELECT settled_at IS NULL AND usd = 0.001
+    FROM platform_private.ai_budget_reservations WHERE id = :'reservation_other'),
+  'after the release the headroom returns; another organization''s open reservation is untouched');
+SELECT pg_temp.ai_assert(NOT EXISTS (SELECT 1 FROM platform_private.ai_budget_reservations
+    WHERE id IN (:'reservation_after', (:'ai267_reserve_a'::JSONB ->> 'reservationId')::UUID)),
+  'the test leaves none of its open reservations behind');
+DELETE FROM platform_private.ai_budget_reservations WHERE id = :'reservation_other';
 -- The cap cannot be bypassed with an unpriced model (review of 8bbc66759).
 -- (a) Settings refuse a newly chosen model without a price valid today: a
 -- generating model needs input and output prices, the embedding model the

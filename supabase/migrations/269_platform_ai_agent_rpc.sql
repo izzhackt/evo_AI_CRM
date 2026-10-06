@@ -16,6 +16,8 @@
 --    резерв бюджета не даётся (PT412 ai_consent_required);
 --  * лимиты: 20 ответов в минуту на сотрудника (PT429 ai_rate_limited) и
 --    месячный лимит EVO с резервом стоимости (PT402 ai_budget_exhausted);
+--    резерв ответа, оборвавшегося до вызова Gemini, возвращает
+--    budget_release_v1, погашенный резерв он не трогает;
 --  * один генератор на ключ ответа (heartbeat 8 с, брошенный после 30 с),
 --    устаревший ответ — PT409 superseded / stale_answer;
 --  * маркер источника в ответе — только на клиентский фрагмент этой
@@ -1525,6 +1527,33 @@ BEGIN
 END
 $$;
 
+-- Возврат резерва: ответ закончился до первого вызова Gemini (отмена,
+-- supersede, PT409/PT429 или ошибка поиска после резерва). Открытый резерв
+-- этой организации удаляется сразу, а не занимает лимит ещё 15 минут.
+-- Резерв, уже погашенный записанным вызовом (settled_at), не меняется:
+-- 'settled'. Чужой, неизвестный или уже возвращённый резерв — 'absent' без
+-- изменений, поэтому повтор безопасен. Гонка с usage_record_v1 решается
+-- блокировкой строки: погашенный за это время резерв не удаляется.
+-- Согласие не проверяется: вернуть резерв нужно и после отзыва.
+CREATE OR REPLACE FUNCTION platform_ai_agent.budget_release_v1(p_organization_id UUID, p_reservation_id UUID)
+RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_settled_at TIMESTAMPTZ;
+BEGIN
+  IF p_organization_id IS NULL OR p_reservation_id IS NULL THEN
+    RAISE EXCEPTION 'ai_budget_invalid' USING ERRCODE = '22023';
+  END IF;
+  DELETE FROM platform_private.ai_budget_reservations b
+  WHERE b.id = p_reservation_id AND b.organization_id = p_organization_id AND b.settled_at IS NULL;
+  IF FOUND THEN
+    RETURN jsonb_build_object('status', 'released', 'reservationId', p_reservation_id);
+  END IF;
+  SELECT b.settled_at INTO v_settled_at FROM platform_private.ai_budget_reservations b
+  WHERE b.id = p_reservation_id AND b.organization_id = p_organization_id;
+  RETURN jsonb_build_object('status', CASE WHEN v_settled_at IS NOT NULL THEN 'settled' ELSE 'absent' END,
+    'reservationId', p_reservation_id);
+END
+$$;
+
 -- Журнал расходов: каждый вызов Gemini. Стоимость считается по цене дня
 -- (Asia/Bishkek): (вход − кэш) × вход + кэш × кэш + (выход + thinking) ×
 -- выход; для эмбеддингов — цена embedding. Повтор call_id не считается.
@@ -1891,9 +1920,9 @@ BEGIN
       'ai_agent_rules_v1', 'ai_agent_seed_from_kb_v1', 'ai_agent_settings_save_v1', 'ai_agent_settings_v1',
       'ai_agent_spend_v1', 'ai_agent_ticket_v1']
     OR v_agent IS DISTINCT FROM ARRAY['answer_claim_v1', 'answer_finish_v1', 'answer_heartbeat_v1',
-      'budget_reserve_v1', 'conversation_context_v1', 'document_claim_v1', 'document_index_v1', 'document_stage_v1',
-      'maintenance_v1', 'rate_take_v1', 'ready_v1', 'redeem_ticket_v1', 'search_v1', 'settings_v1',
-      'usage_record_v1', 'work_claim_v1', 'work_extend_v1', 'work_finish_v1'] THEN
+      'budget_release_v1', 'budget_reserve_v1', 'conversation_context_v1', 'document_claim_v1', 'document_index_v1',
+      'document_stage_v1', 'maintenance_v1', 'rate_take_v1', 'ready_v1', 'redeem_ticket_v1', 'search_v1',
+      'settings_v1', 'usage_record_v1', 'work_claim_v1', 'work_extend_v1', 'work_finish_v1'] THEN
     RAISE EXCEPTION 'ai_agent_function_inventory_drift' USING ERRCODE = '55000',
       DETAIL = format('staff=%s agent=%s', v_staff, v_agent);
   END IF;

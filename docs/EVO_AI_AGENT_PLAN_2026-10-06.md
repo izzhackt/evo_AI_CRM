@@ -411,7 +411,8 @@ Tesseract `rus+kir+eng` на странице на hermes; цель «3 стра
   Принимает только погашенный билет не старше 5 минут на этот же диалог;
 - `search_v1` (§6.2);
 - `answer_claim_v1`, `answer_heartbeat_v1`, `answer_finish_v1`;
-- `usage_record_v1`, `rate_take_v1`, `budget_reserve_v1`;
+- `usage_record_v1`, `rate_take_v1`, `budget_reserve_v1`, `budget_release_v1`
+  (возврат резерва ответа, оборвавшегося до вызова Gemini);
 - `document_claim_v1`, `document_stage_v1`, `document_index_v1` (одна
   транзакция: заменить фрагменты, выставить `ready` или `review`, увеличить
   `knowledge_version`, сменить версию документа), `review_items_put_v1`.

@@ -8,6 +8,8 @@ import test from "node:test";
 
 import {
   RPC,
+  RPC_PAGE_MAX_BYTES,
+  RPC_PAGE_MAX_MESSAGES,
   TARGET_BASE_URL,
   buildPages,
   chatKeyOf,
@@ -1752,6 +1754,25 @@ test("buildPages splits by count and bytes, extends the first page to the first 
   assert.equal(bytes.dropped, 1);
   assert.equal(bytes.pages.flatMap((page) => page.messages).some((item) => item.id === "big"), false);
   assert.equal(bytes.pages.at(-1).endOffset, big.length);
+});
+
+test("a text at WhatsApp's length is imported whole: slimMessage keeps it and buildPages never drops it as oversized", () => {
+  // Synthetic. Migration 260 refuses only a body above 100,000 characters and
+  // the script drops only a message larger than one RPC page (3 MiB); a real
+  // long WhatsApp text (about 65,000 characters at most) is far below both.
+  const unit = "Здравствуйте, у меня вопрос о поступлении и документах.\n";
+  const text = unit.repeat(Math.ceil(65_536 / unit.length)).slice(0, 65_536);
+  const slim = slimMessage(message({ chat: CHAT_A, ts: at(1), body: text, id: "false_A_long" }));
+  assert.equal(slim.body, text);
+  const { pages, dropped } = buildPages([slim], 0, {
+    pageSize: 50,
+    maxMessages: RPC_PAGE_MAX_MESSAGES,
+    maxBytes: RPC_PAGE_MAX_BYTES,
+    firstPageMinimum: 0,
+  });
+  assert.equal(dropped, 0);
+  assert.equal(pages.length, 1);
+  assert.equal(pages[0].messages[0].body, text);
 });
 
 test("the CLI ships in the runner image next to the other operator scripts", () => {

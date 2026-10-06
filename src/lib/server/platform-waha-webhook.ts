@@ -520,11 +520,19 @@ function parseMessageAny(
     if (own.has(normalizedDirectJid(from) ?? "")) {
       return { ignored: true, reason: "own_chat" };
     }
+    // A customer text of any length is stored in full. WhatsApp allows about
+    // 65,000 characters, and a refusal here (formerly 400 above 4,000
+    // characters) is retried by WAHA unchanged until it gives up, so the
+    // message was lost. Nothing downstream limits the text:
+    // `communication_messages.body_text` has no length CHECK, and neither the
+    // evidence persist nor the projection (`waha_message_content`,
+    // `project_claimed_waha_event`, the phone-sent path) cuts or refuses it. The
+    // one bound is the 256 KiB request cap: a GOWS event carries the text three
+    // times (`body`, `_data.Message`, `_data.RawMessage`), so roughly 85 KiB of
+    // UTF-8 text fits (about 85,000 Latin or 43,000 Cyrillic characters); a
+    // larger event is refused with 413 before it is read.
     const hasText =
       typeof payload.body === "string" && payload.body.trim().length > 0;
-    if (hasText && (payload.body as string).length > 4_000) {
-      return reject(400, "invalid_message_body");
-    }
     // A message without text (media, a location pin, a contact card, ...) must
     // still reach the projection, which stores a typed media marker or the
     // generic staff-review notice with a handoff; nothing is downloaded. Only

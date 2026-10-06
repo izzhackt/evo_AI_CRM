@@ -12,19 +12,24 @@
 --    revision, payload ≤ 256 KB, живёт 2 ч); ai_lab_proposals — одно
 --    предложение «было/стало» на сотрудника (document, knowledge, rules,
 --    example), цель закреплена версией и SHA документа или версией правил,
+--    источники — версией и аудиторией каждого документа (source_versions),
 --    содержимое неизменяемо; статусы proposed → applied, rejected, expired,
---    conflict;
+--    conflict. Время строки (created/updated/expires) берётся одним
+--    clock_timestamp(), иначе проверка «≤ 2 ч» падала бы на микросекундах;
 --  * ai_golden_examples: rules_version_id, answer_model, source_doc_versions
 --    {doc: {v, a}}. Пример действует, только пока совпадают все три (правила,
 --    модель ответа, версия и аудитория каждого документа-источника); это
 --    заменяет фильтр 269 по knowledge_version, из-за которого любая загрузка
 --    гасила все примеры;
 --  * lab_apply_v1 — одна транзакция без сетевых вызовов: своё неистёкшее
---    предложение с неизменной целью (иначе PT409 ai_lab_changed; статус
---    conflict/expired записывает следующее чтение ai_agent_lab_v1); правка
---    документа — новая doc_version на месте (edited_in_lab), новый фрагмент —
---    новый документ source lab, правила — новая подтверждённая версия
---    становится текущей; пример upsert; аудит было/стало;
+--    предложение с неизменной целью и неизменными источниками (версия и
+--    аудитория каждого документа; иначе PT409 ai_lab_changed; статус
+--    conflict/expired записывает следующее чтение ai_agent_lab_v1); документ
+--    с ожидающей новой версией не правится (правка пропала бы при замене);
+--    правка документа — новая doc_version на месте (edited_in_lab), новый
+--    фрагмент — новый документ source lab, правила — новая подтверждённая
+--    версия становится текущей; пример upsert; аудит было/стало; повтор тем
+--    же погашением после потерянного ответа отдаёт сохранённый итог;
 --  * search_v1, rate_take_v1, redeem_ticket_v1, ai_redemption, ticket_v1 и
 --    maintenance_v1 заменяются с прежними сигнатурами.
 -- Повторный запуск в той же точке цепочки ничего не меняет.
@@ -75,6 +80,10 @@ CREATE TABLE IF NOT EXISTS platform_private.ai_lab_proposals (
   finding TEXT NOT NULL CHECK (btrim(finding) <> '' AND char_length(finding) <= 4000),
   why TEXT NOT NULL DEFAULT '' CHECK (char_length(why) <= 4000),
   sources JSONB NOT NULL DEFAULT '[]'::JSONB CHECK (jsonb_typeof(sources) = 'array' AND jsonb_array_length(sources) <= 20),
+  -- {doc: {v, a}} источников на момент предложения: эталонный ответ написан
+  -- по этим версиям, «Применить» перепроверяет их.
+  source_versions JSONB NOT NULL DEFAULT '{}'::JSONB
+    CHECK (jsonb_typeof(source_versions) = 'object' AND octet_length(source_versions::TEXT) <= 16384),
   proposal_sha256 TEXT NOT NULL CHECK (proposal_sha256 ~ '^[0-9a-f]{64}$'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   expires_at TIMESTAMPTZ NOT NULL,
@@ -224,7 +233,18 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   FROM (SELECT platform_private.ai_example_stale(p_example, p_settings) AS s) x
 $$;
 
--- Цель предложения не изменилась, источники живы.
+-- Живые документы организации по списку ID (для источников и примеров).
+CREATE OR REPLACE FUNCTION platform_private.ai_live_documents_map(p_organization_id UUID, p_ids UUID[])
+RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT COALESCE(jsonb_object_agg(d.id::TEXT, jsonb_build_object('v', d.doc_version, 'a', d.audience)), '{}'::JSONB)
+  FROM platform_private.ai_documents d
+  WHERE d.organization_id = p_organization_id AND d.id = ANY (p_ids)
+    AND d.status IN ('ready', 'review') AND d.superseded_by_id IS NULL
+$$;
+
+-- Цель предложения не изменилась (у документа нет ожидающей новой версии,
+-- 271 ai_document_successor_pending), источники живы в тех же версиях и
+-- аудиториях.
 CREATE OR REPLACE FUNCTION platform_private.ai_lab_target_current(p_proposal platform_private.ai_lab_proposals)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT COALESCE(CASE p_proposal.kind
@@ -232,12 +252,12 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
         WHERE d.organization_id = p_proposal.organization_id AND d.id = p_proposal.target_document_id
           AND d.status IN ('ready', 'review') AND d.superseded_by_id IS NULL
           AND d.doc_version = p_proposal.target_doc_version AND d.content_sha256 = p_proposal.target_content_sha256)
+        AND NOT platform_private.ai_document_successor_pending(p_proposal.organization_id, p_proposal.target_document_id)
       WHEN 'rules' THEN (SELECT s.rules_version_id FROM platform_private.ai_settings s
         WHERE s.organization_id = p_proposal.organization_id) IS NOT DISTINCT FROM p_proposal.target_rules_version_id
       ELSE TRUE END, FALSE)
-    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(p_proposal.sources) x
-      LEFT JOIN platform_private.ai_documents d ON d.organization_id = p_proposal.organization_id AND d.id = x::UUID
-      WHERE d.id IS NULL OR d.status NOT IN ('ready', 'review') OR d.superseded_by_id IS NOT NULL)
+    AND platform_private.ai_live_documents_map(p_proposal.organization_id,
+      ARRAY(SELECT x::UUID FROM jsonb_array_elements_text(p_proposal.sources) x)) = p_proposal.source_versions
 $$;
 
 CREATE OR REPLACE FUNCTION platform_private.ai_lab_proposal_json(p_proposal platform_private.ai_lab_proposals)
@@ -250,17 +270,9 @@ RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     'before', p_proposal.before_text, 'after', p_proposal.after_text, 'title', p_proposal.title,
     'audience', p_proposal.audience, 'question', p_proposal.question, 'answer', p_proposal.answer,
     'finding', p_proposal.finding, 'why', p_proposal.why, 'sources', p_proposal.sources,
+    'sourceVersions', p_proposal.source_versions,
     'proposalSha256', p_proposal.proposal_sha256, 'createdAt', p_proposal.created_at,
     'expiresAt', p_proposal.expires_at, 'decidedAt', p_proposal.decided_at, 'result', p_proposal.result)
-$$;
-
--- Живые документы организации по списку ID (для источников и примеров).
-CREATE OR REPLACE FUNCTION platform_private.ai_live_documents_map(p_organization_id UUID, p_ids UUID[])
-RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT COALESCE(jsonb_object_agg(d.id::TEXT, jsonb_build_object('v', d.doc_version, 'a', d.audience)), '{}'::JSONB)
-  FROM platform_private.ai_documents d
-  WHERE d.organization_id = p_organization_id AND d.id = ANY (p_ids)
-    AND d.status IN ('ready', 'review') AND d.superseded_by_id IS NULL
 $$;
 
 DO $ai273_private_acl$
@@ -541,7 +553,8 @@ END
 $$;
 
 -- Гибридный поиск (269/272) по билету answer или laboratory; примеры —
--- только действующие (правила, модель, версии документов).
+-- только действующие (правила, модель, версии документов). Непроверенные
+-- пункты отдаются со всеми прочтениями: в цитате может стоять любое из них.
 CREATE OR REPLACE FUNCTION platform_ai_agent.search_v1(p_redemption_id UUID, p_query_embeddings JSONB,
   p_query_texts JSONB, p_limit INTEGER DEFAULT 8, p_internal_limit INTEGER DEFAULT 3)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = ''
@@ -592,7 +605,7 @@ BEGIN
     ORDER BY s.score DESC, c.id LIMIT p_internal_limit) x;
 
   SELECT COALESCE(jsonb_agg(jsonb_build_object('documentId', r.document_id, 'pageNo', r.page_no, 'kind', r.kind,
-      'value', r.value, 'proposed', r.proposed, 'anchor', r.anchor, 'status', r.status)
+      'value', r.value, 'proposed', r.proposed, 'candidates', r.candidates, 'anchor', r.anchor, 'status', r.status)
       ORDER BY r.document_id, r.page_no, r.id), '[]'::JSONB)
   INTO v_review
   FROM platform_private.ai_review_items r
@@ -639,6 +652,7 @@ CREATE OR REPLACE FUNCTION platform_ai_agent.lab_session_put_v1(p_redemption_id 
   p_payload JSONB)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_ticket platform_private.ai_tickets; v_current BIGINT; v_session platform_private.ai_lab_sessions;
+  v_now TIMESTAMPTZ;
 BEGIN
   v_ticket := platform_private.ai_redemption(p_redemption_id, 'laboratory');
   IF p_expected_revision IS NULL OR p_expected_revision < 0 OR p_payload IS NULL OR jsonb_typeof(p_payload) <> 'object'
@@ -647,7 +661,9 @@ BEGIN
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('ai_lab_session:' || v_ticket.organization_id::TEXT || ':'
     || v_ticket.membership_id::TEXT, 273));
-  SELECT CASE WHEN s.expires_at > clock_timestamp() THEN s.revision ELSE 0 END INTO v_current
+  -- Одно время на строку: lifetime_check сравнивает expires_at с updated_at.
+  v_now := clock_timestamp();
+  SELECT CASE WHEN s.expires_at > v_now THEN s.revision ELSE 0 END INTO v_current
   FROM platform_private.ai_lab_sessions s
   WHERE s.organization_id = v_ticket.organization_id AND s.membership_id = v_ticket.membership_id;
   IF COALESCE(v_current, 0) <> p_expected_revision THEN
@@ -655,8 +671,8 @@ BEGIN
   END IF;
   INSERT INTO platform_private.ai_lab_sessions AS s (organization_id, membership_id, revision, payload, created_at,
     updated_at, expires_at)
-  VALUES (v_ticket.organization_id, v_ticket.membership_id, p_expected_revision + 1, p_payload, clock_timestamp(),
-    clock_timestamp(), clock_timestamp() + INTERVAL '2 hours')
+  VALUES (v_ticket.organization_id, v_ticket.membership_id, p_expected_revision + 1, p_payload, v_now,
+    v_now, v_now + INTERVAL '2 hours')
   ON CONFLICT (organization_id, membership_id) DO UPDATE SET revision = EXCLUDED.revision, payload = EXCLUDED.payload,
     created_at = CASE WHEN p_expected_revision = 0 THEN EXCLUDED.created_at ELSE s.created_at END,
     updated_at = EXCLUDED.updated_at, expires_at = EXCLUDED.expires_at
@@ -705,8 +721,8 @@ CREATE OR REPLACE FUNCTION platform_ai_agent.lab_proposal_put_v1(p_redemption_id
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_ticket platform_private.ai_tickets; v_kind TEXT; v_doc platform_private.ai_documents;
   v_settings platform_private.ai_settings; v_rules platform_private.ai_rules_versions; v_new TEXT;
-  v_sources UUID[]; v_row platform_private.ai_lab_proposals; v_uuid CONSTANT TEXT :=
-    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+  v_sources UUID[]; v_source_map JSONB; v_row platform_private.ai_lab_proposals; v_now TIMESTAMPTZ;
+  v_uuid CONSTANT TEXT := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 BEGIN
   v_ticket := platform_private.ai_redemption(p_redemption_id, 'laboratory');
   v_kind := p_proposal ->> 'kind';
@@ -757,9 +773,9 @@ BEGIN
   END IF;
   SELECT COALESCE(array_agg(s::UUID), '{}') INTO v_sources
   FROM jsonb_array_elements_text(COALESCE(p_proposal -> 'sources', '[]'::JSONB)) s;
-  IF (SELECT count(*) FROM platform_private.ai_documents d WHERE d.organization_id = v_ticket.organization_id
-      AND d.id = ANY (v_sources) AND d.status IN ('ready', 'review') AND d.superseded_by_id IS NULL)
-    <> cardinality(v_sources) THEN
+  -- Версия и аудитория каждого источника закрепляются: ответ написан по ним.
+  v_source_map := platform_private.ai_live_documents_map(v_ticket.organization_id, v_sources);
+  IF (SELECT count(*) FROM jsonb_object_keys(v_source_map)) <> cardinality(v_sources) THEN
     RAISE EXCEPTION 'ai_lab_changed' USING ERRCODE = 'PT409', DETAIL = 'sources';
   END IF;
   IF v_kind = 'document' THEN
@@ -769,6 +785,9 @@ BEGIN
       OR v_doc.doc_version <> (p_proposal ->> 'docVersion')::INTEGER
       OR v_doc.content_sha256 IS DISTINCT FROM p_proposal ->> 'contentSha256' THEN
       RAISE EXCEPTION 'ai_lab_changed' USING ERRCODE = 'PT409', DETAIL = 'document';
+    END IF;
+    IF platform_private.ai_document_successor_pending(v_ticket.organization_id, v_doc.id) THEN
+      RAISE EXCEPTION 'ai_lab_changed' USING ERRCODE = 'PT409', DETAIL = 'replacement_pending';
     END IF;
     IF NOT platform_private.ai_occurs_once(v_doc.content_md, p_proposal ->> 'before') THEN
       RAISE EXCEPTION 'ai_lab_edit_invalid' USING ERRCODE = '22023', DETAIL = 'before must occur exactly once';
@@ -797,23 +816,26 @@ BEGIN
 
   PERFORM pg_advisory_xact_lock(hashtextextended('ai_lab_proposal:' || v_ticket.organization_id::TEXT || ':'
     || v_ticket.membership_id::TEXT, 273));
-  UPDATE platform_private.ai_lab_proposals p SET status = 'expired', decided_at = clock_timestamp()
+  -- Одно время на строку: lifetime_check сравнивает expires_at с created_at.
+  v_now := clock_timestamp();
+  UPDATE platform_private.ai_lab_proposals p SET status = 'expired', decided_at = v_now
   WHERE p.organization_id = v_ticket.organization_id AND p.membership_id = v_ticket.membership_id
     AND p.status = 'proposed';
   INSERT INTO platform_private.ai_lab_proposals (organization_id, membership_id, kind, target_document_id,
     target_doc_version, target_content_sha256, target_rules_version_id, before_text, after_text, title, audience,
-    question, answer, finding, why, sources, proposal_sha256, created_at, expires_at)
+    question, answer, finding, why, sources, source_versions, proposal_sha256, created_at, expires_at)
   VALUES (v_ticket.organization_id, v_ticket.membership_id, v_kind, (p_proposal ->> 'documentId')::UUID,
     (p_proposal ->> 'docVersion')::INTEGER, p_proposal ->> 'contentSha256',
     CASE WHEN v_kind = 'rules' THEN v_settings.rules_version_id END, p_proposal ->> 'before', p_proposal ->> 'after',
     btrim(p_proposal ->> 'title'), p_proposal ->> 'audience', btrim(p_proposal ->> 'question'), p_proposal ->> 'answer',
-    btrim(p_proposal ->> 'finding'), COALESCE(p_proposal ->> 'why', ''), to_jsonb(v_sources),
+    btrim(p_proposal ->> 'finding'), COALESCE(p_proposal ->> 'why', ''), to_jsonb(v_sources), v_source_map,
     platform_private.ai_fingerprint(jsonb_build_object('v', 1, 'kind', v_kind,
       'documentId', p_proposal ->> 'documentId', 'docVersion', p_proposal -> 'docVersion',
       'contentSha256', p_proposal ->> 'contentSha256', 'rulesVersionId', v_settings.rules_version_id,
       'before', p_proposal ->> 'before', 'after', p_proposal ->> 'after', 'title', p_proposal ->> 'title',
-      'audience', p_proposal ->> 'audience', 'question', p_proposal ->> 'question', 'answer', p_proposal ->> 'answer')),
-    clock_timestamp(), clock_timestamp() + INTERVAL '2 hours')
+      'audience', p_proposal ->> 'audience', 'question', p_proposal ->> 'question', 'answer', p_proposal ->> 'answer',
+      'sources', v_source_map)),
+    v_now, v_now + INTERVAL '2 hours')
   RETURNING * INTO v_row;
   RETURN jsonb_build_object('status', 'proposed', 'proposalId', v_row.id, 'kind', v_row.kind,
     'proposalSha256', v_row.proposal_sha256, 'expiresAt', v_row.expires_at, 'newContentChars', char_length(v_new));
@@ -894,13 +916,33 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ai_lab_proposal_unavailable' USING ERRCODE = '42501';
   END IF;
+  -- Повтор этим же погашением (ответ потерялся): итог уже записан этим
+  -- билетом — отдаётся он, а не «изменилось».
+  IF v_proposal.status = 'applied' AND EXISTS (SELECT 1 FROM platform.audit_events e
+    WHERE e.request_id = v_ticket.id AND e.organization_id = v_ticket.organization_id
+      AND e.action = 'ai.agent.lab.apply' AND e.resource_id = v_proposal.id) THEN
+    RETURN v_proposal.result || jsonb_build_object('replayed', TRUE);
+  END IF;
   IF v_proposal.status <> 'proposed' OR v_proposal.expires_at <= clock_timestamp() THEN
     RAISE EXCEPTION 'ai_lab_changed' USING ERRCODE = 'PT409', DETAIL = 'proposal';
   END IF;
   SELECT * INTO v_identity FROM platform_private.staff_membership_identity(v_ticket.organization_id,
     v_ticket.membership_id);
-  -- Порядок блокировок как у индексации: документ, затем ai_settings
+  -- Порядок блокировок как у индексации: документы (цель и источники — по ID,
+  -- чтобы два «Применить» не ждали друг друга по кругу), затем ai_settings
   -- (ai_bump_knowledge); строку настроек заранее блокирует только правка правил.
+  PERFORM 1 FROM platform_private.ai_documents d
+  WHERE d.organization_id = v_ticket.organization_id
+    AND (d.id = v_proposal.target_document_id
+      OR d.id IN (SELECT x::UUID FROM jsonb_array_elements_text(v_proposal.sources) x))
+  ORDER BY d.id FOR UPDATE;
+  -- Эталонный ответ написан по этим версиям источников: другая версия или
+  -- аудитория — PT409, иначе пример закрепился бы за текстом, которого он не видел.
+  IF platform_private.ai_live_documents_map(v_ticket.organization_id,
+      ARRAY(SELECT x::UUID FROM jsonb_array_elements_text(v_proposal.sources) x))
+    IS DISTINCT FROM v_proposal.source_versions THEN
+    RAISE EXCEPTION 'ai_lab_changed' USING ERRCODE = 'PT409', DETAIL = 'sources';
+  END IF;
   v_settings := platform_private.ai_settings_row(v_ticket.organization_id);
 
   IF v_proposal.kind = 'document' THEN
@@ -912,6 +954,9 @@ BEGIN
       OR p_base_sha IS DISTINCT FROM v_proposal.target_content_sha256
       OR NOT platform_private.ai_occurs_once(v_doc.content_md, v_proposal.before_text) THEN
       RAISE EXCEPTION 'ai_lab_changed' USING ERRCODE = 'PT409', DETAIL = 'document';
+    END IF;
+    IF platform_private.ai_document_successor_pending(v_ticket.organization_id, v_doc.id) THEN
+      RAISE EXCEPTION 'ai_lab_changed' USING ERRCODE = 'PT409', DETAIL = 'replacement_pending';
     END IF;
     v_new := platform_private.ai_replace_once(v_doc.content_md, v_proposal.before_text, v_proposal.after_text);
     IF p_content IS DISTINCT FROM v_new OR p_new_document IS NOT NULL THEN
@@ -976,7 +1021,8 @@ BEGIN
     END IF;
   END IF;
 
-  -- Источники примера: живые документы предложения и правленый/новый документ.
+  -- Источники примера: живые документы предложения (проверены выше) и
+  -- правленый/новый документ в его новой версии.
   SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO v_ids FROM (
     SELECT s::UUID AS x FROM jsonb_array_elements_text(v_proposal.sources) s
     UNION SELECT v_doc_id WHERE v_doc_id IS NOT NULL) y;
@@ -1022,7 +1068,7 @@ BEGIN
     jsonb_strip_nulls(v_result || jsonb_build_object('after', v_proposal.after_text, 'title', v_proposal.title,
       'audience', v_proposal.audience, 'question', v_proposal.question)),
     'ИИ-агент: правка из Лаборатории', v_ticket.id);
-  RETURN jsonb_strip_nulls(v_result);
+  RETURN jsonb_strip_nulls(v_result) || jsonb_build_object('replayed', FALSE);
 END
 $$;
 

@@ -12,13 +12,18 @@
 --    компании — продолжить»), аренда переиндексации reindex_lease_*;
 --    ai_document_pages: lines (строки с нормализованными рамками) и ocr;
 --    ai_review_items: статус applying, resolution, context_label, error_code;
---  * сотрудники (platform, authenticated): загрузка (manage), документ и
---    страница (use), «Это материал компании» (manage);
+--  * сотрудники (platform, authenticated): загрузка (manage; строка
+--    регистрируется только для объекта, который CRM уже положила в закрытый
+--    bucket, — пишет туда только серверный ключ, и только после ClamAV),
+--    документ и страница (use), «Это материал компании» (manage);
 --  * сервер CRM (platform, только service_role): разрешение брокера на один
 --    объект документа под арендой воркера;
 --  * агент (platform_ai_agent, только evo_ai_agent): текст, страницы и пункты
---    «Листа сверки» под арендой; переиндексация живого документа под
---    отдельной арендой; claim/index/retry заменяются с теми же сигнатурами.
+--    «Листа сверки» под арендой (p_replace — первый вызов прогона убирает
+--    прежние строки; новый прогон с начала убирает их сам); переиндексация
+--    живого документа под отдельной живой арендой, каждое решение — со своим
+--    значением; claim/index/retry заменяются с теми же сигнатурами; при замене
+--    новая версия берёт аудиторию прежней в момент замены.
 --
 -- Безопасно для production: новые объекты и столбцы на пустых в production
 -- таблицах ai_* (ledger 266, P1 не применён), горячие таблицы не трогаются.
@@ -243,6 +248,15 @@ RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     'createdAt', p_item.created_at)
 $$;
 
+-- У документа ждёт своей очереди новая версия (загружена, обрабатывается или
+-- упала): правка старой пропала бы при замене.
+CREATE OR REPLACE FUNCTION platform_private.ai_document_successor_pending(p_organization_id UUID, p_document_id UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT EXISTS (SELECT 1 FROM platform_private.ai_documents s
+    WHERE s.organization_id = p_organization_id AND s.replaces_id = p_document_id
+      AND s.status IN ('queued', 'processing', 'failed'))
+$$;
+
 -- Аренда обработки (ingest) у этого воркера; иначе ai_document_gone /
 -- ai_document_not_leased, как в 269.
 CREATE OR REPLACE FUNCTION platform_private.ai_document_leased(p_document_id UUID, p_worker_ref TEXT)
@@ -266,7 +280,7 @@ BEGIN
   FOR f IN SELECT p.oid::REGPROCEDURE FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'platform_private' AND p.proname IN ('ai_text_sha256', 'ai_document_mime_allowed',
       'ai_occurs_once', 'ai_document_review_status', 'ai_chunks_check', 'ai_chunks_replace', 'ai_document_json',
-      'ai_review_item_json', 'ai_document_leased') LOOP
+      'ai_review_item_json', 'ai_document_leased', 'ai_document_successor_pending') LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', f);
   END LOOP;
 END
@@ -278,9 +292,11 @@ $ai271_private_acl$;
 
 -- Загрузка: CRM уже проверил размер, расширение, MIME и сигнатуру, посчитал
 -- SHA-256, просканировал файл ClamAV и положил его в
--- {org}/{doc}/original без upsert; здесь — строка документа и указатель
--- ingest. При отказе CRM удаляет объект. Замена наследует аудиторию прежней
--- версии; прежняя ищется, пока новая не станет ready/review (269).
+-- {org}/{doc}/original без upsert; здесь — строка документа (только для
+-- этого объекта с тем же размером и типом) и указатель ingest. При отказе CRM
+-- удаляет объект. Замена наследует аудиторию прежней версии (окончательно —
+-- в момент замены, document_index_v1); прежняя ищется, пока новая не станет
+-- ready/review (269).
 CREATE OR REPLACE FUNCTION platform.ai_agent_document_upload_v1(p_organization_id UUID, p_document_id UUID,
   p_title TEXT, p_kind TEXT, p_mime_type TEXT, p_byte_size BIGINT, p_byte_sha256 TEXT, p_audience TEXT,
   p_client_confirmed BOOLEAN, p_company_material BOOLEAN, p_replaces_id UUID, p_replaces_version BIGINT,
@@ -342,10 +358,14 @@ BEGIN
       RAISE EXCEPTION 'ai_document_replacement_invalid' USING ERRCODE = '22023';
     END IF;
     IF v_pred.status NOT IN ('ready', 'review') OR v_pred.superseded_by_id IS NOT NULL
-      OR EXISTS (SELECT 1 FROM platform_private.ai_documents s
-        WHERE s.organization_id = p_organization_id AND s.replaces_id = v_pred.id
-          AND s.status IN ('queued', 'processing', 'failed')) THEN
+      OR platform_private.ai_document_successor_pending(p_organization_id, v_pred.id) THEN
       RAISE EXCEPTION 'ai_document_replacement_pending' USING ERRCODE = 'PT409';
+    END IF;
+    -- Исправления «Листа сверки» ещё применяются к прежней версии: они
+    -- пропали бы при замене.
+    IF EXISTS (SELECT 1 FROM platform_private.ai_review_items r
+      WHERE r.document_id = v_pred.id AND r.status = 'applying') THEN
+      RAISE EXCEPTION 'ai_review_applying' USING ERRCODE = 'PT409';
     END IF;
     IF p_replaces_version IS DISTINCT FROM v_pred.row_version THEN
       RAISE EXCEPTION 'ai_document_version_conflict' USING ERRCODE = 'PT409';
@@ -369,6 +389,17 @@ BEGIN
   END IF;
   IF EXISTS (SELECT 1 FROM platform_private.ai_documents d WHERE d.id = p_document_id) THEN
     RAISE EXCEPTION 'ai_document_id_taken' USING ERRCODE = '23505';
+  END IF;
+  -- Доказательство ClamAV присылает вызывающий, поэтому само по себе оно
+  -- ничего не доказывает. Доказывает объект: писать в этот bucket может только
+  -- сервер CRM (RESTRICTIVE-политика для anon/authenticated), и кладёт он файл
+  -- только после проверки. Нет точного объекта (путь, размер, тип) — нет строки.
+  IF NOT EXISTS (SELECT 1 FROM storage.objects o
+    WHERE o.bucket_id = 'platform-ai-agent-knowledge'
+      AND o.name = p_organization_id::TEXT || '/' || p_document_id::TEXT || '/original'
+      AND COALESCE(o.metadata ->> 'size', '') ~ '^[0-9]{1,12}$' AND (o.metadata ->> 'size')::BIGINT = p_byte_size
+      AND lower(btrim(split_part(COALESCE(o.metadata ->> 'mimetype', ''), ';', 1))) = p_mime_type) THEN
+    RAISE EXCEPTION 'ai_document_object_missing' USING ERRCODE = '42501';
   END IF;
 
   INSERT INTO platform_private.ai_documents (id, organization_id, title, kind, audience, status, storage_path,
@@ -428,9 +459,11 @@ END
 $$;
 
 -- Страница просмотрщика: текст, строки, рамки фрагментов и пункты «Листа
--- сверки». imagePath и cropPath — только для сервера CRM (поток картинки по
--- сессии), браузеру не отдаются. У документа без страниц (текст, знания)
--- страница 1 — его текст.
+-- сверки». imagePath и cropPath — пути объектов закрытого bucket: они видны
+-- любому вызывающему с ai.agent.use, но ничего не открывают (RESTRICTIVE-
+-- политика для anon/authenticated); картинку отдаёт только сервер CRM потоком
+-- по сессии, а интерфейс CRM пути в браузер не передаёт (hasImage/hasCrop).
+-- У документа без страниц (текст, знания) страница 1 — его текст.
 CREATE OR REPLACE FUNCTION platform.ai_agent_document_page_v1(p_organization_id UUID, p_document_id UUID,
   p_page_no INTEGER)
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -451,10 +484,10 @@ BEGIN
   IF FOUND THEN
     v_page_json := jsonb_build_object('sheetName', v_page.sheet_name, 'method', v_page.method,
       'confidence', v_page.confidence, 'width', v_page.width, 'height', v_page.height, 'textMd', v_page.text_md,
-      'lines', v_page.lines, 'imagePath', v_page.image_path);
+      'lines', v_page.lines, 'imagePath', v_page.image_path, 'hasImage', v_page.image_path IS NOT NULL);
   ELSIF NOT v_has_pages AND p_page_no = 1 AND v_doc.content_md IS NOT NULL THEN
     v_page_json := jsonb_build_object('sheetName', NULL, 'method', 'text', 'confidence', NULL, 'width', NULL,
-      'height', NULL, 'textMd', left(v_doc.content_md, 200000), 'lines', NULL, 'imagePath', NULL);
+      'height', NULL, 'textMd', left(v_doc.content_md, 200000), 'lines', NULL, 'imagePath', NULL, 'hasImage', FALSE);
   ELSE
     RAISE EXCEPTION 'ai_document_page_not_found' USING ERRCODE = 'P0002';
   END IF;
@@ -615,7 +648,10 @@ $$;
 -- Агент (platform_ai_agent, только evo_ai_agent).
 -- ===========================================================================
 
--- Аренда документа (269) + решение «материал компании» и SHA текста.
+-- Аренда документа (269) + решение «материал компании» и SHA текста. Новый
+-- прогон извлечения с начала (stage NULL: загрузка, «Повторить», «Это
+-- материал компании») убирает страницы и открытые пункты прежней попытки:
+-- их ID и рамки от неё, а новый прогон Gemini даст другие.
 CREATE OR REPLACE FUNCTION platform_ai_agent.document_claim_v1(p_document_id UUID, p_worker_ref TEXT,
   p_lease_seconds INTEGER DEFAULT 300)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -641,6 +677,10 @@ BEGIN
       lease_owner = NULL, lease_expires_at = NULL, row_version = d.row_version + 1, updated_at = statement_timestamp()
     WHERE d.id = v_doc.id;
     RETURN jsonb_build_object('claimed', FALSE, 'reason', 'failed');
+  END IF;
+  IF v_doc.stage IS NULL AND v_doc.kind <> 'knowledge' AND NOT v_doc.edited_in_lab THEN
+    DELETE FROM platform_private.ai_review_items r WHERE r.document_id = v_doc.id AND r.status = 'open';
+    DELETE FROM platform_private.ai_document_pages p WHERE p.document_id = v_doc.id;
   END IF;
   UPDATE platform_private.ai_documents d SET status = 'processing',
     stage = COALESCE(d.stage, CASE WHEN d.kind = 'knowledge' OR d.edited_in_lab THEN 'chunk' ELSE 'extract' END),
@@ -685,12 +725,15 @@ $$;
 
 -- Страницы (не больше 50 за вызов, повтор перезаписывает): текст, строки с
 -- рамками 0..1, сведения OCR и путь картинки {org}/{doc}/pages/{n}.png.
+-- p_replace — первый вызов прогона: прежние страницы документа уходят
+-- (пустой список тогда допустим).
 CREATE OR REPLACE FUNCTION platform_ai_agent.document_pages_put_v1(p_document_id UUID, p_worker_ref TEXT,
-  p_pages JSONB)
+  p_pages JSONB, p_replace BOOLEAN DEFAULT FALSE)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_doc platform_private.ai_documents; v_prefix TEXT; v_count INTEGER;
+DECLARE v_doc platform_private.ai_documents; v_prefix TEXT; v_count INTEGER; v_removed INTEGER := 0;
 BEGIN
-  IF p_pages IS NULL OR jsonb_typeof(p_pages) <> 'array' OR jsonb_array_length(p_pages) NOT BETWEEN 1 AND 50
+  IF p_replace IS NULL OR p_pages IS NULL OR jsonb_typeof(p_pages) <> 'array'
+    OR jsonb_array_length(p_pages) NOT BETWEEN (NOT p_replace)::INTEGER AND 50
     OR EXISTS (SELECT 1 FROM jsonb_array_elements(p_pages) e WHERE jsonb_typeof(e) <> 'object'
       OR (e - ARRAY['pageNo', 'sheetName', 'imagePath', 'width', 'height', 'method', 'confidence', 'textMd', 'lines',
         'ocr']) <> '{}'::JSONB
@@ -721,6 +764,10 @@ BEGIN
     AND e ->> 'imagePath' <> v_prefix || (e ->> 'pageNo') || '.png') THEN
     RAISE EXCEPTION 'ai_document_invalid_pages' USING ERRCODE = '22023', DETAIL = 'imagePath';
   END IF;
+  IF p_replace THEN
+    DELETE FROM platform_private.ai_document_pages p WHERE p.document_id = v_doc.id;
+    GET DIAGNOSTICS v_removed = ROW_COUNT;
+  END IF;
   INSERT INTO platform_private.ai_document_pages AS p (organization_id, document_id, page_no, sheet_name, image_path,
     width, height, method, confidence, text_md, lines, ocr)
   SELECT v_doc.organization_id, v_doc.id, (e ->> 'pageNo')::INTEGER, e ->> 'sheetName', e ->> 'imagePath',
@@ -733,20 +780,23 @@ BEGIN
     text_md = EXCLUDED.text_md, lines = EXCLUDED.lines, ocr = EXCLUDED.ocr;
   GET DIAGNOSTICS v_count = ROW_COUNT;
   UPDATE platform_private.ai_documents d SET updated_at = statement_timestamp() WHERE d.id = v_doc.id;
-  RETURN jsonb_build_object('pages', v_count);
+  RETURN jsonb_build_object('pages', v_count, 'removed', v_removed);
 END
 $$;
 
 -- Пункты «Листа сверки» (не больше 500 за вызов). ID задаёт воркер (вырезка
 -- {org}/{doc}/crops/{id}.png кладётся до вызова); повтор того же ID
 -- перезаписывает только открытый пункт этого документа. Значение решает
--- сотрудник, поэтому value воркер не пишет.
+-- сотрудник, поэтому value воркер не пишет; у числа обязательно предложенное
+-- значение (то, что стоит в тексте). p_replace — первый вызов прогона:
+-- открытые пункты прежней попытки уходят (пустой список тогда допустим).
 CREATE OR REPLACE FUNCTION platform_ai_agent.review_items_put_v1(p_document_id UUID, p_worker_ref TEXT,
-  p_items JSONB)
+  p_items JSONB, p_replace BOOLEAN DEFAULT FALSE)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_doc platform_private.ai_documents; v_prefix TEXT; v_count INTEGER;
+DECLARE v_doc platform_private.ai_documents; v_prefix TEXT; v_count INTEGER; v_removed INTEGER := 0;
 BEGIN
-  IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) NOT BETWEEN 1 AND 500
+  IF p_replace IS NULL OR p_items IS NULL OR jsonb_typeof(p_items) <> 'array'
+    OR jsonb_array_length(p_items) NOT BETWEEN (NOT p_replace)::INTEGER AND 500
     OR EXISTS (SELECT 1 FROM jsonb_array_elements(p_items) e WHERE jsonb_typeof(e) <> 'object'
       OR (e - ARRAY['id', 'pageNo', 'bbox', 'cropPath', 'kind', 'candidates', 'proposed', 'anchor', 'valueIndex',
         'contextLabel']) <> '{}'::JSONB
@@ -763,6 +813,7 @@ BEGIN
         OR EXISTS (SELECT 1 FROM jsonb_each(e -> 'candidates') c WHERE jsonb_typeof(c.value) NOT IN ('string', 'null')
           OR char_length(c.value #>> '{}') > 2000)))
       OR (e ? 'proposed' AND (jsonb_typeof(e -> 'proposed') NOT IN ('string', 'null') OR char_length(e ->> 'proposed') > 2000))
+      OR ((e ->> 'kind') = 'number' AND btrim(COALESCE(e ->> 'proposed', '')) = '')
       OR (e ? 'anchor' AND (jsonb_typeof(e -> 'anchor') NOT IN ('string', 'null') OR char_length(e ->> 'anchor') > 2000))
       OR (e ? 'contextLabel' AND (jsonb_typeof(e -> 'contextLabel') NOT IN ('string', 'null')
         OR char_length(e ->> 'contextLabel') > 200))
@@ -781,6 +832,11 @@ BEGIN
         AND (r.document_id <> v_doc.id OR r.status <> 'open')) THEN
     RAISE EXCEPTION 'ai_review_invalid_items' USING ERRCODE = '22023';
   END IF;
+  IF p_replace THEN
+    DELETE FROM platform_private.ai_review_items r WHERE r.document_id = v_doc.id AND r.status = 'open'
+      AND r.id NOT IN (SELECT (e ->> 'id')::UUID FROM jsonb_array_elements(p_items) e);
+    GET DIAGNOSTICS v_removed = ROW_COUNT;
+  END IF;
   INSERT INTO platform_private.ai_review_items AS r (id, organization_id, document_id, page_no, bbox, crop_path, kind,
     candidates, proposed, anchor, value_index, context_label)
   SELECT (e ->> 'id')::UUID, v_doc.organization_id, v_doc.id, (e ->> 'pageNo')::INTEGER,
@@ -793,22 +849,31 @@ BEGIN
     value_index = EXCLUDED.value_index, context_label = EXCLUDED.context_label
   WHERE r.document_id = EXCLUDED.document_id AND r.status = 'open';
   GET DIAGNOSTICS v_count = ROW_COUNT;
-  RETURN jsonb_build_object('items', v_count);
+  RETURN jsonb_build_object('items', v_count, 'removed', v_removed);
 END
 $$;
 
 -- Индексация (269): ready, пока нет open/applying пунктов; SHA текста.
 -- Замена прежней версии — как в 269: прежняя уходит из поиска только здесь,
--- упавшая новая её не трогает.
+-- упавшая новая её не трогает. Аудитория новой версии — аудитория прежней на
+-- момент замены (её могли сменить, пока новая обрабатывалась).
 CREATE OR REPLACE FUNCTION platform_ai_agent.document_index_v1(p_document_id UUID, p_worker_ref TEXT,
   p_chunks JSONB)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_doc platform_private.ai_documents; v_result JSONB; v_knowledge BIGINT;
+DECLARE v_doc platform_private.ai_documents; v_result JSONB; v_knowledge BIGINT; v_audience TEXT;
 BEGIN
   PERFORM platform_private.ai_chunks_check(p_chunks, FALSE, FALSE);
   v_doc := platform_private.ai_document_leased(p_document_id, p_worker_ref);
+  -- Блокировки: новая версия (аренда), затем прежняя.
+  IF v_doc.replaces_id IS NOT NULL THEN
+    SELECT d.audience INTO v_audience FROM platform_private.ai_documents d
+    WHERE d.organization_id = v_doc.organization_id AND d.id = v_doc.replaces_id AND d.status <> 'superseded'
+    FOR UPDATE;
+  END IF;
   v_result := platform_private.ai_chunks_replace(v_doc.organization_id, v_doc.id, p_chunks);
   UPDATE platform_private.ai_documents d SET status = platform_private.ai_document_review_status(d.id),
+    audience = COALESCE(v_audience, d.audience),
+    autosend_allowed = d.autosend_allowed AND COALESCE(v_audience, d.audience) = 'client',
     stage = 'index', progress = 100, error_code = NULL, lease_owner = NULL, lease_expires_at = NULL,
     doc_version = CASE WHEN d.indexed_at IS NULL THEN d.doc_version ELSE d.doc_version + 1 END,
     content_sha256 = platform_private.ai_text_sha256(d.content_md),
@@ -824,13 +889,14 @@ BEGIN
   v_knowledge := platform_private.ai_bump_knowledge(v_doc.organization_id);
   RETURN jsonb_build_object('status', v_doc.status, 'chunkCount', (v_result ->> 'chunkCount')::INTEGER,
     'knowledgeVersion', v_knowledge, 'replacedId', v_doc.replaces_id, 'docVersion', v_doc.doc_version,
-    'contentSha256', v_doc.content_sha256);
+    'contentSha256', v_doc.content_sha256, 'audience', v_doc.audience);
 END
 $$;
 
 -- Аренда переиндексации живого документа (ready/review, не заменён): он
 -- остаётся в поиске. Отдаёт текст, SHA, страницы, фрагменты (без векторов) и
--- исправления «Листа сверки», ожидающие применения (applying).
+-- исправления «Листа сверки», ожидающие применения (applying), каждое со
+-- своим value — его воркер возвращает в document_reindex_v1.
 CREATE OR REPLACE FUNCTION platform_ai_agent.document_reindex_claim_v1(p_document_id UUID, p_worker_ref TEXT,
   p_lease_seconds INTEGER DEFAULT 300)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -882,11 +948,15 @@ BEGIN
 END
 $$;
 
--- Переиндексация одной транзакцией: текст на прежнем SHA (иначе PT409
--- ai_document_content_changed), фрагменты ({position, reuse} — копия с тем же
--- ID и вектором, новые — с вектором), применённые исправления → resolved,
--- неприменимые → open с кодом (anchor_ambiguous и т.п.). Каждый названный
--- пункт должен быть applying этого документа (иначе PT409 ai_review_changed).
+-- Переиндексация одной транзакцией под ЖИВОЙ арендой (истёкшая — 42501
+-- ai_document_not_leased: пункт за это время могли открыть снова и исправить
+-- иначе): текст на прежнем SHA (иначе PT409 ai_document_content_changed),
+-- фрагменты ({position, reuse} — копия с тем же ID и вектором, новые — с
+-- вектором), применённые исправления {id, value} → resolved, неприменимые
+-- {id, code, value} → open с кодом (anchor_ambiguous и т.п.; value остаётся —
+-- сотрудник видит, что не применилось). Каждый названный пункт должен быть
+-- applying этого документа с тем же value, с которым его взял воркер (иначе
+-- PT409 ai_review_changed): другое value — другое решение сотрудника.
 -- Без текста (p_content_md NULL) — только неприменимые пункты, без
 -- фрагментов. Версия документа и knowledge_version растут, только если
 -- изменились текст или фрагменты.
@@ -901,12 +971,15 @@ BEGIN
     OR (p_content_md IS NOT NULL AND char_length(p_content_md) > 2000000)
     OR p_applied IS NULL OR jsonb_typeof(p_applied) <> 'array' OR jsonb_array_length(p_applied) > 500
     OR p_failed IS NULL OR jsonb_typeof(p_failed) <> 'array' OR jsonb_array_length(p_failed) > 500
-    OR EXISTS (SELECT 1 FROM jsonb_array_elements(p_applied) e WHERE jsonb_typeof(e) <> 'string'
-      OR (e #>> '{}') !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
-    OR EXISTS (SELECT 1 FROM jsonb_array_elements(p_failed) e WHERE jsonb_typeof(e) <> 'object'
-      OR (e - ARRAY['id', 'code']) <> '{}'::JSONB
+    OR EXISTS (SELECT 1 FROM jsonb_array_elements(p_applied) e WHERE jsonb_typeof(e) <> 'object'
+      OR (e - ARRAY['id', 'value']) <> '{}'::JSONB
       OR COALESCE(e ->> 'id', '') !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-      OR COALESCE(e ->> 'code', '') !~ '^[a-z][a-z0-9_]{0,63}$')
+      OR jsonb_typeof(e -> 'value') IS DISTINCT FROM 'string' OR char_length(e ->> 'value') NOT BETWEEN 1 AND 200)
+    OR EXISTS (SELECT 1 FROM jsonb_array_elements(p_failed) e WHERE jsonb_typeof(e) <> 'object'
+      OR (e - ARRAY['id', 'code', 'value']) <> '{}'::JSONB
+      OR COALESCE(e ->> 'id', '') !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      OR COALESCE(e ->> 'code', '') !~ '^[a-z][a-z0-9_]{0,63}$'
+      OR jsonb_typeof(e -> 'value') IS DISTINCT FROM 'string' OR char_length(e ->> 'value') NOT BETWEEN 1 AND 200)
     OR (p_content_md IS NULL AND jsonb_array_length(p_applied) > 0)
     OR jsonb_array_length(p_applied) + jsonb_array_length(p_failed) = 0 AND p_content_md IS NULL THEN
     RAISE EXCEPTION 'ai_document_invalid_reindex' USING ERRCODE = '22023';
@@ -915,7 +988,7 @@ BEGIN
     PERFORM platform_private.ai_chunks_check(p_chunks, TRUE, TRUE);
   END IF;
   SELECT array_agg(x.id) INTO v_ids FROM (
-    SELECT (e #>> '{}')::UUID AS id FROM jsonb_array_elements(p_applied) e
+    SELECT (e ->> 'id')::UUID AS id FROM jsonb_array_elements(p_applied) e
     UNION ALL SELECT (e ->> 'id')::UUID FROM jsonb_array_elements(p_failed) e) x;
   IF v_ids IS NOT NULL AND cardinality(v_ids) <> (SELECT count(DISTINCT i) FROM unnest(v_ids) i) THEN
     RAISE EXCEPTION 'ai_document_invalid_reindex' USING ERRCODE = '22023';
@@ -925,14 +998,17 @@ BEGIN
     RAISE EXCEPTION 'ai_document_gone' USING ERRCODE = 'P0002';
   END IF;
   IF v_doc.status NOT IN ('ready', 'review') OR v_doc.superseded_by_id IS NOT NULL
-    OR v_doc.reindex_lease_owner IS DISTINCT FROM btrim(p_worker_ref) THEN
+    OR v_doc.reindex_lease_owner IS DISTINCT FROM btrim(p_worker_ref)
+    OR NOT COALESCE(v_doc.reindex_lease_expires_at > clock_timestamp(), FALSE) THEN
     RAISE EXCEPTION 'ai_document_not_leased' USING ERRCODE = '42501';
   END IF;
   IF v_doc.content_sha256 IS DISTINCT FROM p_base_sha THEN
     RAISE EXCEPTION 'ai_document_content_changed' USING ERRCODE = 'PT409';
   END IF;
   IF v_ids IS NOT NULL AND (SELECT count(*) FROM platform_private.ai_review_items r
-      WHERE r.id = ANY (v_ids) AND r.document_id = v_doc.id AND r.status = 'applying') <> cardinality(v_ids) THEN
+      JOIN (SELECT e ->> 'id' AS id, e ->> 'value' AS value FROM jsonb_array_elements(p_applied) e
+        UNION ALL SELECT e ->> 'id', e ->> 'value' FROM jsonb_array_elements(p_failed) e) x ON x.id::UUID = r.id
+      WHERE r.document_id = v_doc.id AND r.status = 'applying' AND r.value = x.value) <> cardinality(v_ids) THEN
     RAISE EXCEPTION 'ai_review_changed' USING ERRCODE = 'PT409';
   END IF;
 
@@ -945,7 +1021,7 @@ BEGIN
   v_changed := v_sha IS DISTINCT FROM v_doc.content_sha256 OR (p_chunks IS NOT NULL
     AND ((v_result ->> 'embedded')::INTEGER > 0 OR (v_result ->> 'reused')::INTEGER <> v_old_count));
   UPDATE platform_private.ai_review_items r SET status = 'resolved', resolved_at = clock_timestamp(), error_code = NULL
-  WHERE r.document_id = v_doc.id AND r.id IN (SELECT (e #>> '{}')::UUID FROM jsonb_array_elements(p_applied) e);
+  WHERE r.document_id = v_doc.id AND r.id IN (SELECT (e ->> 'id')::UUID FROM jsonb_array_elements(p_applied) e);
   GET DIAGNOSTICS v_applied = ROW_COUNT;
   UPDATE platform_private.ai_review_items r SET status = 'open', resolution = NULL, resolved_by = NULL,
     resolved_at = NULL, error_code = f.code

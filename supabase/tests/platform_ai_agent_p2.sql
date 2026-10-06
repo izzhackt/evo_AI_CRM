@@ -18,28 +18,35 @@
 --  2. upload: refused for a Student, another organization, a member without
 --     rights, a member with ai.agent.use only, anon; without the company-material
 --     mark, without the client confirmation, on a kind/MIME mismatch, with a
---     scan proof for other bytes or a stale one; duplicate PT409 with the
+--     scan proof for other bytes or a stale one, without the exact server-side
+--     object (a forged proof registers nothing); duplicate PT409 with the
 --     title in DETAIL; replay and request conflict; a replacement keeps the
---     audience, refuses a non-live target, a pending successor and a stale
---     version;
+--     audience, refuses a non-live target, a pending successor, a stale
+--     version and a target whose corrections are still applying;
 --  3. worker: content/pages/review items only under the lease, with path and
---     size limits; storage broker authorization (own object only, no '..', no
---     other document, no lease, wrong operation, reindex lease read-only);
---     index keeps review while items are open; swap-when-ready including a
---     failed new version; the personal-document stop and its override;
---     deletion mid-processing;
+--     size limits, a number item needs its proposed value; storage broker
+--     authorization (own object only, no '..', no other document, no lease,
+--     wrong operation, reindex lease read-only); index keeps review while items
+--     are open; swap-when-ready including a failed new version, the audience
+--     taken at swap time, no Laboratory edit or correction of a document with
+--     a pending successor; a fresh run clears the pages and open items of the
+--     earlier attempt (and p_replace does it within a run); the
+--     personal-document stop and its override; deletion mid-processing;
 --  4. «Лист сверки»: rights, live documents only, expected status, confirm /
 --     correct / dismiss / reopen, applying is unverified in search and live
---     sources, reindex on the base SHA with reused chunk IDs and vectors,
---     partial re-embedding, anchor_ambiguous back to open, stale SHA and
---     changed items PT409;
+--     sources (every reading of the item is matched in the quote), reindex on
+--     the base SHA with reused chunk IDs and vectors, partial re-embedding,
+--     anchor_ambiguous back to open, stale SHA, changed items and a stale value
+--     PT409; an expired reindex lease writes nothing and «Открыть снова» clears
+--     it, so a late worker cannot apply an old correction over a new one;
 --  5. Laboratory: ticket purpose isolation both ways, rights (use / manage /
 --     own proposal), the 20/min limit counts Lab, session revisions, ≤5
---     documents, `before` exactly once, apply of a document edit, a new
---     knowledge fragment, a rules change and an example, conflict PT409 and the
---     conflict status, «Не менять», example validity by rules, model and
---     document versions (an unrelated upload no longer stales examples),
---     example list and delete, maintenance.
+--     documents, `before` exactly once, apply of a document edit (a retry with
+--     the same redemption replays the result), a new knowledge fragment, a
+--     rules change and an example, conflict PT409 and the conflict status
+--     (also when only a source document moved), «Не менять», example validity
+--     by rules, model and document versions (an unrelated upload no longer
+--     stales examples), example list and delete, maintenance.
 BEGIN;
 
 DO $p2_auth_role$
@@ -190,7 +197,7 @@ SELECT pg_temp.p2_assert(NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n
       'ai_document_review_status', 'ai_chunks_check', 'ai_chunks_replace', 'ai_document_json', 'ai_review_item_json',
       'ai_document_leased', 'ai_answer_live_sources', 'ai_member_can', 'ai_ticket_allowed', 'ai_redemption',
       'ai_replace_once', 'ai_example_stale', 'ai_example_valid', 'ai_lab_target_current', 'ai_lab_proposal_json',
-      'ai_live_documents_map', 'ai_lab_proposals_guard')
+      'ai_live_documents_map', 'ai_lab_proposals_guard', 'ai_document_successor_pending')
     AND (has_function_privilege('anon', p.oid, 'EXECUTE') OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
       OR has_function_privilege('service_role', p.oid, 'EXECUTE') OR has_function_privilege('evo_ai_agent', p.oid, 'EXECUTE'))),
   'the new private helpers are executable by no API role and not by the agent');
@@ -323,6 +330,23 @@ RESET ROLE;
 -- Pending queue pointers of earlier suites never reach this worker.
 DELETE FROM pgmq.q_ai_agent_work_v1;
 
+-- The CRM stores the original before registering it (service key; the bucket
+-- is closed to browser roles). Objects of the synthetic uploads, as postgres.
+CREATE FUNCTION pg_temp.p2_object(p_doc INTEGER, p_mime TEXT, p_size BIGINT DEFAULT 1024) RETURNS VOID
+LANGUAGE SQL AS $$
+  DELETE FROM storage.objects WHERE bucket_id = 'platform-ai-agent-knowledge'
+    AND name = pg_temp.p2_id(1)::TEXT || '/' || pg_temp.p2_id(p_doc)::TEXT || '/original';
+  INSERT INTO storage.objects(bucket_id, name, metadata) VALUES ('platform-ai-agent-knowledge',
+    pg_temp.p2_id(1)::TEXT || '/' || pg_temp.p2_id(p_doc)::TEXT || '/original',
+    jsonb_build_object('size', p_size, 'mimetype', p_mime));
+$$;
+SELECT pg_temp.p2_object(d.doc, d.mime) FROM (VALUES
+  (1001, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+  (1002, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+  (1003, 'application/pdf'), (1004, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+  (1005, 'image/jpeg'), (1006, 'text/markdown'), (1007, 'text/csv'), (1093, 'text/csv')) d(doc, mime);
+SELECT pg_temp.p2_object(1094, 'text/csv', 2048);
+
 SELECT 'AI271_FIXTURE_READY' AS ai271_marker;
 
 -- ---------------------------------------------------------------------------
@@ -384,6 +408,13 @@ SELECT pg_temp.p2_assert(pg_temp.p2_err(format('SELECT platform.ai_agent_documen
     pg_temp.p2_id(1), pg_temp.p2_id(1090), pg_temp.p2_sha('A'), pg_temp.p2_proof(pg_temp.p2_sha('A')), pg_temp.p2_id(3090)))
     LIKE '22023:ai_document_invalid_upload%',
   'a scan proof of other bytes, a stale scan and a file over 25 MiB are refused');
+SELECT pg_temp.p2_assert(pg_temp.p2_err(pg_temp.p2_upload(1, 1092, 'Без объекта', 'csv', 'text/csv', 'internal', FALSE, TRUE,
+    3093)) LIKE '42501:ai_document_object_missing%'
+  AND pg_temp.p2_err(pg_temp.p2_upload(1, 1093, 'Другой тип', 'text', 'text/plain', 'internal', FALSE, TRUE, 3094))
+    LIKE '42501:ai_document_object_missing%'
+  AND pg_temp.p2_err(pg_temp.p2_upload(1, 1094, 'Другой размер', 'csv', 'text/csv', 'internal', FALSE, TRUE, 3095))
+    LIKE '42501:ai_document_object_missing%',
+  'a well-formed ClamAV proof alone registers nothing: the exact object (path, size, type) the server stored is required');
 
 SELECT pg_temp.p2_call(pg_temp.p2_upload(1, 1001, 'Прайс 2027', 'xlsx',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'client', TRUE, TRUE, 3101)) AS u1001 \gset
@@ -449,7 +480,7 @@ SELECT pg_temp.p2_assert(pg_temp.p2_err(format('SELECT platform_ai_agent.documen
   AND pg_temp.p2_err(format('SELECT platform_ai_agent.document_pages_put_v1(%L, ''w2'', %L)', pg_temp.p2_id(1001),
     '[{"pageNo":1,"method":"text","textMd":"x"}]')) LIKE '42501:ai_document_not_leased%'
   AND pg_temp.p2_err(format('SELECT platform_ai_agent.review_items_put_v1(%L, ''w2'', %L)', pg_temp.p2_id(1001),
-    jsonb_build_array(jsonb_build_object('id', gen_random_uuid(), 'pageNo', 1, 'kind', 'number'))))
+    jsonb_build_array(jsonb_build_object('id', gen_random_uuid(), 'pageNo', 1, 'kind', 'number', 'proposed', '1'))))
     LIKE '42501:ai_document_not_leased%'
   AND pg_temp.p2_err(format('SELECT platform_ai_agent.document_content_put_v1(%L, ''w1'', %L, 1)',
     pg_temp.p2_id(1001), repeat('x', 2000001))) LIKE '22023:%',
@@ -549,18 +580,24 @@ CREATE TEMP TABLE p2_items AS SELECT * FROM (VALUES ('A', gen_random_uuid(), 1, 
 GRANT SELECT ON p2_items TO evo_ai_agent, authenticated, service_role;
 SELECT pg_temp.p2_assert(pg_temp.p2_err(format('SELECT platform_ai_agent.review_items_put_v1(%L, ''w1'', %L)',
     pg_temp.p2_id(1003), jsonb_build_array(jsonb_build_object('id', (SELECT id FROM p2_items WHERE label = 'A'), 'pageNo', 1,
-      'kind', 'number', 'cropPath', (SELECT p1 FROM p2_paths) || 'crops/' || (SELECT id FROM p2_items WHERE label = 'A') || '.png'))))
+      'kind', 'number', 'proposed', '1 250',
+      'cropPath', (SELECT p1 FROM p2_paths) || 'crops/' || (SELECT id FROM p2_items WHERE label = 'A') || '.png'))))
     LIKE '22023:ai_review_invalid_items%'
   AND pg_temp.p2_err(format('SELECT platform_ai_agent.review_items_put_v1(%L, ''w1'', %L)', pg_temp.p2_id(1003),
-    (SELECT jsonb_agg(jsonb_build_object('id', gen_random_uuid(), 'pageNo', 1, 'kind', 'number'))
+    (SELECT jsonb_agg(jsonb_build_object('id', gen_random_uuid(), 'pageNo', 1, 'kind', 'number', 'proposed', '1'))
       FROM generate_series(1, 501)))) LIKE '22023:ai_review_invalid_items%'
   AND pg_temp.p2_err(format('SELECT platform_ai_agent.review_items_put_v1(%L, ''w1'', %L)', pg_temp.p2_id(1003),
-    jsonb_build_array(jsonb_build_object('id', gen_random_uuid(), 'pageNo', 4, 'kind', 'number'))))
+    jsonb_build_array(jsonb_build_object('id', gen_random_uuid(), 'pageNo', 4, 'kind', 'number', 'proposed', '1'))))
     LIKE '22023:ai_review_invalid_items%'
   AND pg_temp.p2_err(format('SELECT platform_ai_agent.review_items_put_v1(%L, ''w1'', %L)', pg_temp.p2_id(1003),
-    jsonb_build_array(jsonb_build_object('id', gen_random_uuid(), 'pageNo', 1, 'kind', 'number', 'value', '1'))))
+    jsonb_build_array(jsonb_build_object('id', gen_random_uuid(), 'pageNo', 1, 'kind', 'number', 'proposed', '1',
+      'value', '1')))) LIKE '22023:ai_review_invalid_items%'
+  AND pg_temp.p2_err(format('SELECT platform_ai_agent.review_items_put_v1(%L, ''w1'', %L)', pg_temp.p2_id(1003),
+    jsonb_build_array(jsonb_build_object('id', gen_random_uuid(), 'pageNo', 1, 'kind', 'number', 'proposed', ' '))))
+    LIKE '22023:ai_review_invalid_items%'
+  AND pg_temp.p2_err(format('SELECT platform_ai_agent.review_items_put_v1(%L, ''w1'', ''[]'')', pg_temp.p2_id(1003)))
     LIKE '22023:ai_review_invalid_items%',
-  'review items: a crop of another document, 501 items, a page past the end and a worker-set value are refused');
+  'review items: a crop of another document, 501 items, a page past the end, a worker-set value, a number without its proposed value and an empty list without p_replace are refused');
 SELECT pg_temp.p2_assert((platform_ai_agent.review_items_put_v1(pg_temp.p2_id(1003), 'w1', (SELECT jsonb_agg(
     jsonb_build_object('id', i.id, 'pageNo', i.page, 'kind', 'number', 'proposed', i.proposed, 'anchor', i.anchor,
       'valueIndex', 0, 'contextLabel', 'Условия 2027 › стр. ' || i.page,
@@ -637,6 +674,24 @@ SELECT pg_temp.p2_assert((:'u1004'::JSONB #>> '{document,audience}') = 'client'
   AND (platform.ai_agent_document_v1(pg_temp.p2_id(1), pg_temp.p2_id(1001)) #>> '{successor,id}') = pg_temp.p2_id(1004)::TEXT,
   'the new version inherits «Для клиентов»; a second replacement while one is pending is refused PT409');
 RESET ROLE;
+-- While the new version waits, the old one takes no Laboratory edit and no
+-- «Лист сверки» correction: both would be lost at the swap.
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.p2_assert(pg_temp.p2_err(format('SELECT platform_ai_agent.lab_proposal_put_v1(%L, %L)', :'p2_rv',
+    jsonb_build_object('kind', 'document', 'documentId', pg_temp.p2_id(1001), 'docVersion', 1,
+      'contentSha256', pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1001')), 'before', 'Master of Data Science',
+      'after', 'Master of Data Analytics', 'question', 'q', 'answer', 'a', 'finding', 'f')))
+  = 'PT409:ai_lab_changed:replacement_pending', 'a Laboratory edit of a document with a pending new version is PT409');
+RESET ROLE;
+INSERT INTO platform_private.ai_review_items(id, organization_id, document_id, page_no, kind, proposed, anchor)
+VALUES (pg_temp.p2_id(5001), pg_temp.p2_id(1), pg_temp.p2_id(1001), 1, 'number', '2 100,00', 'Master of Data Science');
+SET LOCAL request.jwt.claims TO :'p2_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.p2_assert(pg_temp.p2_err(format('SELECT platform.ai_agent_review_resolve_v1(%L, %L, ''correct'', ''2 200,00'', ''open'', %L)',
+    pg_temp.p2_id(1), pg_temp.p2_id(5001), pg_temp.p2_id(3130))) LIKE 'PT409:ai_document_replacement_pending%',
+  'a «Лист сверки» correction of a document with a pending new version is PT409');
+RESET ROLE;
+DELETE FROM platform_private.ai_review_items WHERE id = pg_temp.p2_id(5001);
 SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p2_assert((platform_ai_agent.document_claim_v1(pg_temp.p2_id(1004), 'w1') ->> 'claimed')::BOOLEAN
   AND (platform_ai_agent.document_stage_v1(pg_temp.p2_id(1004), 'w1', 'extract', 20, 'parse_failed') ->> 'status') = 'failed'
@@ -661,13 +716,18 @@ SELECT pg_temp.p2_assert((platform_ai_agent.document_claim_v1(pg_temp.p2_id(1004
     ->> 'contentSha256') IS NOT NULL
   AND pg_temp.p2_id(1001) = ANY (pg_temp.p2_search_docs(:'p2_rv', 21, 'Bachelor of Computer Science')),
   'while the new version is processing the old one is still found');
+RESET ROLE;
+-- The copy taken at upload is stale (the old version's audience may change
+-- while the new one is processed): the swap takes the old version's audience.
+UPDATE platform_private.ai_documents SET audience = 'internal' WHERE id = pg_temp.p2_id(1004);
+SET LOCAL ROLE evo_ai_agent;
 SELECT platform_ai_agent.document_index_v1(pg_temp.p2_id(1004), 'w1', jsonb_build_array(
   pg_temp.p2_chunk(0, 'Прайс 2027 v2 › Программы: Bachelor of Computer Science — 1 300,00 $ в год', 25, 1))) AS i1004 \gset
 SELECT pg_temp.p2_assert((:'i1004'::JSONB ->> 'status') = 'ready'
-    AND (:'i1004'::JSONB ->> 'replacedId') = pg_temp.p2_id(1001)::TEXT
+    AND (:'i1004'::JSONB ->> 'replacedId') = pg_temp.p2_id(1001)::TEXT AND (:'i1004'::JSONB ->> 'audience') = 'client'
   AND pg_temp.p2_search_docs(:'p2_rv', 25, 'Bachelor of Computer Science') @> ARRAY[pg_temp.p2_id(1004)]
   AND NOT pg_temp.p2_id(1001) = ANY (pg_temp.p2_search_docs(:'p2_rv', 21, 'Bachelor of Computer Science')),
-  'once the new version is indexed it replaces the old one in the same transaction');
+  'once the new version is indexed it replaces the old one in the same transaction, with the old one''s audience');
 RESET ROLE;
 SELECT pg_temp.p2_assert((SELECT status = 'superseded' AND superseded_by_id = pg_temp.p2_id(1004) AND NOT autosend_allowed
     FROM platform_private.ai_documents WHERE id = pg_temp.p2_id(1001))
@@ -718,6 +778,27 @@ SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p2_assert((platform_ai_agent.document_claim_v1(pg_temp.p2_id(1005), 'w1') ->> 'personalOverride') = 'true',
   'the next claim tells the worker the stop was overridden');
 RESET ROLE;
+SELECT pg_temp.p2_assert(NOT EXISTS (SELECT 1 FROM platform_private.ai_review_items WHERE document_id = pg_temp.p2_id(1005)),
+  'the fresh run removed the open item of the stopped attempt');
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.p2_assert((platform_ai_agent.document_pages_put_v1(pg_temp.p2_id(1005), 'w1',
+    '[{"pageNo":1,"method":"ocr","textMd":"a"},{"pageNo":2,"method":"ocr","textMd":"b"}]', TRUE) ->> 'pages')::INTEGER = 2
+  AND (platform_ai_agent.document_pages_put_v1(pg_temp.p2_id(1005), 'w1', '[{"pageNo":1,"method":"ocr","textMd":"a2"}]',
+    TRUE) ->> 'removed')::INTEGER = 2
+  AND (platform_ai_agent.review_items_put_v1(pg_temp.p2_id(1005), 'w1', jsonb_build_array(
+    jsonb_build_object('id', pg_temp.p2_id(5101), 'pageNo', 1, 'kind', 'number', 'proposed', '7'),
+    jsonb_build_object('id', pg_temp.p2_id(5102), 'pageNo', 1, 'kind', 'text', 'proposed', 'А')), TRUE) ->> 'items')::INTEGER = 2
+  AND (platform_ai_agent.review_items_put_v1(pg_temp.p2_id(1005), 'w1', jsonb_build_array(
+    jsonb_build_object('id', pg_temp.p2_id(5103), 'pageNo', 1, 'kind', 'number', 'proposed', '8')), TRUE) ->> 'removed')::INTEGER = 2
+  AND (platform_ai_agent.review_items_put_v1(pg_temp.p2_id(1005), 'w1', '[]', TRUE) ->> 'removed')::INTEGER = 1
+  AND (platform_ai_agent.review_items_put_v1(pg_temp.p2_id(1005), 'w1', jsonb_build_array(
+    jsonb_build_object('id', pg_temp.p2_id(5104), 'pageNo', 1, 'kind', 'number', 'proposed', '9'))) ->> 'items')::INTEGER = 1,
+  'p_replace starts a run afresh: earlier pages and open items go (an empty list clears them)');
+RESET ROLE;
+SELECT pg_temp.p2_assert((SELECT count(*) = 1 FROM platform_private.ai_document_pages WHERE document_id = pg_temp.p2_id(1005))
+  AND (SELECT array_agg(id) = ARRAY[pg_temp.p2_id(5104)] FROM platform_private.ai_review_items
+    WHERE document_id = pg_temp.p2_id(1005)),
+  'one page and one open item of the current run remain');
 
 -- ---------------------------------------------------------------------------
 -- 7. Deletion mid-processing ends the work.
@@ -764,7 +845,7 @@ SELECT pg_temp.p2_assert(jsonb_array_length(:'d1003'::JSONB -> 'pages') = 3
   AND (:'d1003'::JSONB ->> 'contentSha256') = pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003')),
   'the document view: three pages with images and four open items; the use-only member cannot manage');
 SELECT pg_temp.p2_assert((:'pg1003'::JSONB #>> '{page,textMd}') LIKE 'Стипендия%'
-  AND (:'pg1003'::JSONB #>> '{page,imagePath}') LIKE '%/pages/2.png'
+  AND (:'pg1003'::JSONB #>> '{page,imagePath}') LIKE '%/pages/2.png' AND (:'pg1003'::JSONB #>> '{page,hasImage}') = 'true'
   AND jsonb_array_length(:'pg1003'::JSONB #> '{page,lines}') = 1
   AND (SELECT count(*) = 1 FROM jsonb_array_elements(:'pg1003'::JSONB -> 'chunks') e WHERE (e ->> 'pageFrom')::INTEGER = 2)
   AND (SELECT array_agg(e ->> 'proposed' ORDER BY e ->> 'proposed') = ARRAY['15 %', '2 500']
@@ -870,6 +951,9 @@ SELECT pg_temp.p2_assert((platform.ai_agent_review_resolve_v1(pg_temp.p2_id(1), 
 SELECT pg_temp.p2_assert((platform.ai_agent_review_v1(pg_temp.p2_id(1)) -> 'counts') = '{"open": 0, "applying": 2}'::JSONB
   AND jsonb_array_length(platform.ai_agent_review_v1(pg_temp.p2_id(1), '{"status":"dismissed"}') -> 'items') = 1,
   'the tab count holds the two corrections in progress');
+SELECT pg_temp.p2_assert(pg_temp.p2_err(pg_temp.p2_upload(1, 1095, 'Условия 2027 v2', 'pdf', 'application/pdf', NULL, FALSE,
+    TRUE, 3131, 1003, (platform.ai_agent_document_v1(pg_temp.p2_id(1), pg_temp.p2_id(1003)) #>> '{document,rowVersion}')::BIGINT))
+  LIKE 'PT409:ai_review_applying%', 'no new version replaces a document while its corrections are still applying');
 RESET ROLE;
 SELECT pg_temp.p2_assert((SELECT status = 'review' FROM platform_private.ai_documents WHERE id = pg_temp.p2_id(1003))
   AND (SELECT value = '2 600' AND resolution = 'correct' AND resolved_by = pg_temp.p2_id(302) AND resolved_at IS NULL
@@ -882,9 +966,10 @@ SELECT pg_temp.p2_assert((SELECT status = 'review' FROM platform_private.ai_docu
   'applying keeps the document in review; each correction queues a reindex pointer; every decision is audited');
 SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p2_assert((SELECT array_agg(e ->> 'status' ORDER BY e ->> 'status') = ARRAY['applying', 'applying']
+    AND bool_and((e -> 'candidates') ? 'vision')
     FROM jsonb_array_elements(platform_ai_agent.search_v1(:'p2_rv', jsonb_build_array(pg_temp.p2_unit(13)),
       '["Стипендия скидка"]') -> 'review') e WHERE e ->> 'pageNo' = '2'),
-  'search returns the applying items as unverified numbers of the page');
+  'search returns the applying items as unverified numbers of the page, with every reading');
 RESET ROLE;
 SELECT id AS p2_c0 FROM platform_private.ai_chunks WHERE document_id = pg_temp.p2_id(1003) AND position = 0 \gset
 SELECT id AS p2_c1 FROM platform_private.ai_chunks WHERE document_id = pg_temp.p2_id(1003) AND position = 1 \gset
@@ -893,9 +978,11 @@ SELECT id AS p2_c1004 FROM platform_private.ai_chunks WHERE document_id = pg_tem
 SELECT knowledge_version AS p2_kv_before FROM platform_private.ai_settings WHERE organization_id = pg_temp.p2_id(1) \gset
 CREATE TEMP TABLE p2_vectors AS SELECT id, embedding::TEXT AS v FROM platform_private.ai_chunks
   WHERE document_id = pg_temp.p2_id(1003);
-SELECT pg_temp.p2_assert((platform_private.ai_answer_live_sources(pg_temp.p2_id(1),
-    jsonb_build_object('sources', jsonb_build_array(jsonb_build_object('n', 1, 'chunk_id', :p2_c1)))) -> 0 ->> 'unverified')
-  = 'true', 'an answer source on a page with an applying correction is «Число не проверено»');
+SELECT platform_private.ai_answer_live_sources(pg_temp.p2_id(1),
+  jsonb_build_object('sources', jsonb_build_array(jsonb_build_object('n', 1, 'chunk_id', :p2_c1)))) -> 0 AS p2_src1 \gset
+SELECT pg_temp.p2_assert((:'p2_src1'::JSONB ->> 'unverified') = 'true'
+  AND (:'p2_src1'::JSONB -> 'unverified_values') = '["15 %", "2 500"]'::JSONB,
+  'an answer source on a page with applying corrections is «Число не проверено», and the numbers marked are the ones in the quote (proposed), not only the corrections not yet in the text');
 
 -- Reindex: lease, base SHA, reuse, partial re-embedding, anchor_ambiguous.
 SET LOCAL ROLE evo_ai_agent;
@@ -926,23 +1013,33 @@ CREATE FUNCTION pg_temp.p2_reindex(p_base TEXT, p_chunks JSONB, p_applied JSONB,
     pg_temp.p2_id(1003), p_base, (SELECT v FROM p2_text WHERE k = '1003b'), p_chunks, p_applied, p_failed))
 $$;
 SELECT pg_temp.p2_assert(pg_temp.p2_reindex(pg_temp.p2_sha('x'), jsonb_build_array(jsonb_build_object('position', 0,
-      'reuse', :p2_c0)), jsonb_build_array(:'p2_ib'), '[]') LIKE 'PT409:ai_document_content_changed%'
+      'reuse', :p2_c0)), jsonb_build_array(jsonb_build_object('id', :'p2_ib', 'value', '2 600')), '[]')
+    LIKE 'PT409:ai_document_content_changed%'
   AND pg_temp.p2_reindex(pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003')), jsonb_build_array(jsonb_build_object(
-      'position', 0, 'reuse', :p2_c0)), jsonb_build_array(:'p2_ia'), '[]') LIKE 'PT409:ai_review_changed%'
+      'position', 0, 'reuse', :p2_c0)), jsonb_build_array(jsonb_build_object('id', :'p2_ia', 'value', '1 250')), '[]')
+    LIKE 'PT409:ai_review_changed%'
   AND pg_temp.p2_reindex(pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003')), jsonb_build_array(jsonb_build_object(
-      'position', 0, 'reuse', :p2_c1004)), jsonb_build_array(:'p2_ib'), '[]') LIKE '22023:ai_document_invalid_chunks%'
+      'position', 0, 'reuse', :p2_c0)), jsonb_build_array(jsonb_build_object('id', :'p2_ib', 'value', '2 700')), '[]')
+    LIKE 'PT409:ai_review_changed%'
   AND pg_temp.p2_reindex(pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003')), jsonb_build_array(jsonb_build_object(
-      'position', 0, 'content', 'без вектора')), jsonb_build_array(:'p2_ib'), '[]') LIKE '22023:ai_document_invalid_chunks%'
+      'position', 0, 'reuse', :p2_c0)), jsonb_build_array(:'p2_ib'), '[]') LIKE '22023:ai_document_invalid_reindex%'
+  AND pg_temp.p2_reindex(pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003')), jsonb_build_array(jsonb_build_object(
+      'position', 0, 'reuse', :p2_c1004)), jsonb_build_array(jsonb_build_object('id', :'p2_ib', 'value', '2 600')), '[]')
+    LIKE '22023:ai_document_invalid_chunks%'
+  AND pg_temp.p2_reindex(pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003')), jsonb_build_array(jsonb_build_object(
+      'position', 0, 'content', 'без вектора')), jsonb_build_array(jsonb_build_object('id', :'p2_ib', 'value', '2 600')), '[]')
+    LIKE '22023:ai_document_invalid_chunks%'
   AND pg_temp.p2_reindex(pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003')), jsonb_build_array(
       jsonb_build_object('position', 0, 'reuse', :p2_c0), jsonb_build_object('position', 1, 'reuse', :p2_c0)),
-      jsonb_build_array(:'p2_ib'), '[]') LIKE '22023:ai_document_invalid_chunks%',
-  'reindex: a stale SHA and a non-applying item are PT409; reuse of another document''s chunk, a new chunk without a vector and a double reuse are refused');
+      jsonb_build_array(jsonb_build_object('id', :'p2_ib', 'value', '2 600')), '[]') LIKE '22023:ai_document_invalid_chunks%',
+  'reindex: a stale SHA, a non-applying item and another value than the decision are PT409; a bare id, reuse of another document''s chunk, a new chunk without a vector and a double reuse are refused');
 SELECT platform_ai_agent.document_reindex_v1(pg_temp.p2_id(1003), 'r1',
   pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003')), (SELECT v FROM p2_text WHERE k = '1003b'),
   jsonb_build_array(jsonb_build_object('position', 0, 'reuse', :p2_c0),
     pg_temp.p2_chunk(1, 'Стипендия: 2 600 $. Скидка 15 % при оплате до 1 марта; скидка 15 % для второго ребёнка.', 17, 2),
     jsonb_build_object('position', 2, 'reuse', :p2_c2)),
-  jsonb_build_array(:'p2_ib'), jsonb_build_array(jsonb_build_object('id', :'p2_id_d', 'code', 'anchor_ambiguous'))) AS ri1 \gset
+  jsonb_build_array(jsonb_build_object('id', :'p2_ib', 'value', '2 600')),
+  jsonb_build_array(jsonb_build_object('id', :'p2_id_d', 'code', 'anchor_ambiguous', 'value', '20 %'))) AS ri1 \gset
 SELECT pg_temp.p2_assert((:'ri1'::JSONB ->> 'changed')::BOOLEAN AND (:'ri1'::JSONB ->> 'reused')::INTEGER = 2
   AND (:'ri1'::JSONB ->> 'embedded')::INTEGER = 1 AND (:'ri1'::JSONB ->> 'applied')::INTEGER = 1
   AND (:'ri1'::JSONB ->> 'failed')::INTEGER = 1 AND (:'ri1'::JSONB ->> 'status') = 'review'
@@ -951,8 +1048,8 @@ SELECT pg_temp.p2_assert((:'ri1'::JSONB ->> 'changed')::BOOLEAN AND (:'ri1'::JSO
   'the reindex applies one correction, re-embeds one chunk, reuses two and bumps the knowledge version');
 SELECT pg_temp.p2_assert((platform_ai_agent.document_reindex_claim_v1(pg_temp.p2_id(1003), 'r1') ->> 'reason') = 'idle'
   AND pg_temp.p2_reindex(pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003b')), jsonb_build_array(jsonb_build_object(
-      'position', 0, 'reuse', :p2_c0)), '[]', jsonb_build_array(jsonb_build_object('id', :'p2_id_d', 'code', 'x')))
-    LIKE '42501:ai_document_not_leased%',
+      'position', 0, 'reuse', :p2_c0)), '[]', jsonb_build_array(jsonb_build_object('id', :'p2_id_d', 'code', 'x',
+      'value', '20 %'))) LIKE '42501:ai_document_not_leased%',
   'nothing is left to apply; without the lease a reindex is refused');
 RESET ROLE;
 SELECT pg_temp.p2_assert((SELECT count(*) = 2 FROM platform_private.ai_chunks c JOIN p2_vectors v ON v.id = c.id
@@ -1028,8 +1125,8 @@ RESET ROLE;
 -- A synthetic redeemed answer ticket (the answer path itself is proven by 269's suite).
 INSERT INTO platform_private.ai_tickets(token_sha256, organization_id, membership_id, purpose, conversation_id,
   issued_at, expires_at, used_at)
-VALUES (pg_temp.p2_sha('P2 answer ticket'), pg_temp.p2_id(1), pg_temp.p2_id(302), 'answer', gen_random_uuid(),
-  clock_timestamp(), clock_timestamp() + INTERVAL '60 seconds', clock_timestamp());
+SELECT pg_temp.p2_sha('P2 answer ticket'), pg_temp.p2_id(1), pg_temp.p2_id(302), 'answer', gen_random_uuid(),
+  t.now, t.now + INTERVAL '60 seconds', t.now FROM (SELECT clock_timestamp() AS now) t;
 SELECT id AS p2_ra FROM platform_private.ai_tickets WHERE token_sha256 = pg_temp.p2_sha('P2 answer ticket') \gset
 SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p2_assert(pg_temp.p2_err(format('SELECT platform_ai_agent.redeem_ticket_v1(%L, ''answer'')', :'p2_tv2'))
@@ -1137,8 +1234,10 @@ SET LOCAL request.jwt.claims TO :'p2_manager';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.p2_assert((platform.ai_agent_lab_v1(pg_temp.p2_id(1)) #>> '{proposal,status}') = 'proposed'
   AND (platform.ai_agent_lab_v1(pg_temp.p2_id(1)) #>> '{proposal,before}') = 'Стоимость обучения: 1 250 $'
-  AND (platform.ai_agent_lab_v1(pg_temp.p2_id(1)) ->> 'canManage') = 'true',
-  'the card «Было/Стало» with the reference answer is shown to its author');
+  AND (platform.ai_agent_lab_v1(pg_temp.p2_id(1)) ->> 'canManage') = 'true'
+  AND (platform.ai_agent_lab_v1(pg_temp.p2_id(1)) #> '{proposal,sourceVersions}') = jsonb_build_object(
+    pg_temp.p2_id(1003)::TEXT, '{"v":2,"a":"client"}'::JSONB, pg_temp.p2_id(1004)::TEXT, '{"v":1,"a":"client"}'::JSONB),
+  'the card «Было/Стало» with the reference answer is shown to its author; its sources are pinned by version and audience');
 RESET ROLE;
 SELECT pg_temp.p2_redeem(:'p2_manager', 'lab_apply', (SELECT id FROM p2_props WHERE label = 'Pm1')) AS p2_ra1 \gset
 INSERT INTO p2_text VALUES ('1003c', replace((SELECT v FROM p2_text WHERE k = '1003b'), 'Стоимость обучения: 1 250 $',
@@ -1169,10 +1268,19 @@ SELECT platform_ai_agent.lab_apply_v1(:'p2_ra1', :'p2_sha3b', (SELECT v FROM p2_
   pg_temp.p2_unit(7)) AS ap1 \gset
 SELECT pg_temp.p2_assert((:'ap1'::JSONB ->> 'status') = 'applied' AND (:'ap1'::JSONB ->> 'docVersion')::INTEGER = 3
   AND (:'ap1'::JSONB ->> 'reused')::INTEGER = 2 AND (:'ap1'::JSONB ->> 'embedded')::INTEGER = 1
-  AND (:'ap1'::JSONB ->> 'knowledgeVersion')::BIGINT = :p2_kv_lab + 1
-  AND pg_temp.p2_apply(:'p2_ra1', :'p2_sha3b', (SELECT v FROM p2_text WHERE k = '1003c'), NULL,
-    jsonb_build_array(jsonb_build_object('position', 0, 'reuse', :p2_c2)), 7) LIKE 'PT409:ai_lab_changed%',
-  '«Применить» edits the indexed text in place in one transaction; a second apply is PT409');
+  AND (:'ap1'::JSONB ->> 'knowledgeVersion')::BIGINT = :p2_kv_lab + 1 AND (:'ap1'::JSONB ->> 'replayed') = 'false',
+  '«Применить» edits the indexed text in place in one transaction');
+-- The response was lost: the agent retries with the same redemption.
+SELECT platform_ai_agent.lab_apply_v1(:'p2_ra1', :'p2_sha3b', (SELECT v FROM p2_text WHERE k = '1003c'), NULL,
+  jsonb_build_array(jsonb_build_object('position', 0, 'reuse', :p2_c2)), pg_temp.p2_unit(7)) AS ap1r \gset
+SELECT pg_temp.p2_assert((:'ap1r'::JSONB ->> 'replayed') = 'true'
+  AND (:'ap1r'::JSONB - 'replayed') = (:'ap1'::JSONB - 'replayed'),
+  'a retry with the same redemption returns the stored result instead of «changed»');
+RESET ROLE;
+SELECT pg_temp.p2_assert((SELECT doc_version = 3 FROM platform_private.ai_documents WHERE id = pg_temp.p2_id(1003))
+  AND (SELECT count(*) = 1 FROM platform.audit_events WHERE request_id = :'p2_ra1'),
+  'the retry applied nothing twice');
+SET LOCAL ROLE evo_ai_agent;
 RESET ROLE;
 SELECT (:'ap1'::JSONB ->> 'exampleId') AS p2_e1 \gset
 SELECT pg_temp.p2_assert((SELECT edited_in_lab AND doc_version = 3 AND content_md = (SELECT v FROM p2_text WHERE k = '1003c')
@@ -1209,6 +1317,14 @@ INSERT INTO p2_props SELECT 'Pm2', (platform_ai_agent.lab_proposal_put_v1(:'p2_r
   pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003c')))) ->> 'proposalId')::UUID;
 RESET ROLE;
 SELECT pg_temp.p2_redeem(:'p2_manager', 'lab_apply', (SELECT id FROM p2_props WHERE label = 'Pm2')) AS p2_ra2 \gset
+-- The Admin's example: its reference answer was written against version 3.
+SELECT pg_temp.p2_redeem(:'p2_admin', 'laboratory', NULL) AS p2_rad \gset
+SET LOCAL ROLE evo_ai_agent;
+INSERT INTO p2_props SELECT 'Pa1', (platform_ai_agent.lab_proposal_put_v1(:'p2_rad', jsonb_build_object('kind', 'example',
+  'question', 'Сколько стоит общежитие в месяц?', 'answer', 'Общежитие стоит 300 $ в месяц.', 'finding', 'Не назвал цену',
+  'sources', jsonb_build_array(pg_temp.p2_id(1003)))) ->> 'proposalId')::UUID;
+RESET ROLE;
+SELECT pg_temp.p2_redeem(:'p2_admin', 'lab_apply', (SELECT id FROM p2_props WHERE label = 'Pa1')) AS p2_raa \gset
 -- Meanwhile a «Лист сверки» correction changes the same document.
 SET LOCAL request.jwt.claims TO :'p2_manager';
 SET LOCAL ROLE authenticated;
@@ -1220,12 +1336,54 @@ SELECT pg_temp.p2_assert((platform.ai_agent_review_resolve_v1(pg_temp.p2_id(1), 
 RESET ROLE;
 INSERT INTO p2_text VALUES ('1003d', replace((SELECT v FROM p2_text WHERE k = '1003c'), 'Общежитие: 300 $', 'Общежитие: 310 $'));
 SELECT id AS p2_c0c FROM platform_private.ai_chunks WHERE document_id = pg_temp.p2_id(1003) AND position = 0 \gset
+CREATE FUNCTION pg_temp.p2_reindex_d(p_applied JSONB) RETURNS TEXT LANGUAGE SQL AS $$
+  SELECT pg_temp.p2_err(format('SELECT platform_ai_agent.document_reindex_v1(%L, ''r1'', %L, %L, %L, %L, ''[]'')',
+    pg_temp.p2_id(1003), pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003c')), (SELECT v FROM p2_text WHERE k = '1003d'),
+    jsonb_build_array(pg_temp.p2_chunk(0, 'x', 27)), p_applied))
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.p2_reindex_d(JSONB) TO evo_ai_agent;
+-- A slow worker: r1 takes the reindex and its lease runs out.
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.p2_assert((platform_ai_agent.document_reindex_claim_v1(pg_temp.p2_id(1003), 'r1') ->> 'claimed')::BOOLEAN,
+  'r1 leases the correction 310');
+RESET ROLE;
+UPDATE platform_private.ai_documents SET reindex_lease_expires_at = clock_timestamp() - INTERVAL '1 second'
+WHERE id = pg_temp.p2_id(1003);
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.p2_assert(pg_temp.p2_reindex_d(jsonb_build_array(jsonb_build_object('id', :'p2_ic', 'value', '310')))
+  LIKE '42501:ai_document_not_leased%', 'with an expired lease the late worker writes nothing');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'p2_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.p2_assert((platform.ai_agent_review_resolve_v1(pg_temp.p2_id(1), :'p2_ic', 'reopen', NULL, 'applying',
+    pg_temp.p2_id(3303)) #>> '{item,status}') = 'open'
+  AND (platform.ai_agent_review_resolve_v1(pg_temp.p2_id(1), :'p2_ic', 'correct', '320', 'open',
+    pg_temp.p2_id(3304)) #>> '{item,status}') = 'applying',
+  'after the lease ran out the item is reopened and corrected to another value');
+RESET ROLE;
+SELECT pg_temp.p2_assert((SELECT reindex_lease_owner IS NULL AND reindex_lease_expires_at IS NULL
+  FROM platform_private.ai_documents WHERE id = pg_temp.p2_id(1003)), '«Открыть снова» cleared the expired reindex lease');
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.p2_assert((platform_ai_agent.document_reindex_claim_v1(pg_temp.p2_id(1003), 'r1') #>> '{decisions,0,value}')
+    = '320'
+  AND pg_temp.p2_reindex_d(jsonb_build_array(jsonb_build_object('id', :'p2_ic', 'value', '310')))
+    LIKE 'PT409:ai_review_changed%'
+  AND (platform_ai_agent.document_reindex_v1(pg_temp.p2_id(1003), 'r1', pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003c')),
+    NULL, NULL, '[]', jsonb_build_array(jsonb_build_object('id', :'p2_ic', 'code', 'anchor_not_found', 'value', '320')))
+    ->> 'docVersion')::INTEGER = 3,
+  'the same worker re-leasing cannot apply the old 310 over the new 320 (PT409); 320 comes back unapplied without a version');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'p2_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.p2_assert((platform.ai_agent_review_resolve_v1(pg_temp.p2_id(1), :'p2_ic', 'correct', '310', 'open',
+    pg_temp.p2_id(3305)) #>> '{item,status}') = 'applying', 'the item is corrected to 310 again');
+RESET ROLE;
 SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p2_assert((platform_ai_agent.document_reindex_claim_v1(pg_temp.p2_id(1003), 'r1') ->> 'claimed')::BOOLEAN
   AND (platform_ai_agent.document_reindex_v1(pg_temp.p2_id(1003), 'r1', pg_temp.p2_sha((SELECT v FROM p2_text WHERE k = '1003c')),
     (SELECT v FROM p2_text WHERE k = '1003d'), jsonb_build_array(jsonb_build_object('position', 0, 'reuse', :p2_c0c),
       jsonb_build_object('position', 1, 'reuse', :p2_c1b), pg_temp.p2_chunk(2, 'Общежитие: 310 $ в месяц.', 27, 3)),
-    jsonb_build_array(:'p2_ic'), '[]') ->> 'docVersion')::INTEGER = 4,
+    jsonb_build_array(jsonb_build_object('id', :'p2_ic', 'value', '310')), '[]') ->> 'docVersion')::INTEGER = 4,
   'the correction is reindexed: version 4');
 SELECT pg_temp.p2_assert(pg_temp.p2_err(format('SELECT platform_ai_agent.lab_apply_prepare_v1(%L)', :'p2_ra2'))
     LIKE 'PT409:ai_lab_changed%'
@@ -1233,6 +1391,15 @@ SELECT pg_temp.p2_assert(pg_temp.p2_err(format('SELECT platform_ai_agent.lab_app
     replace((SELECT v FROM p2_text WHERE k = '1003c'), 'Общежитие: 300 $ в месяц.', 'Общежитие: 320 $ в месяц.'), NULL,
     jsonb_build_array(jsonb_build_object('position', 0, 'reuse', :p2_c0c)), 9) LIKE 'PT409:ai_lab_changed%',
   'prepare and apply of a proposal whose document moved are PT409 ai_lab_changed');
+SELECT pg_temp.p2_assert(pg_temp.p2_err(format('SELECT platform_ai_agent.lab_apply_prepare_v1(%L)', :'p2_raa'))
+    LIKE 'PT409:ai_lab_changed%'
+  AND pg_temp.p2_apply(:'p2_raa', NULL, NULL, NULL, NULL, 11) = 'PT409:ai_lab_changed:sources',
+  'an example written against version 3 of its source is not saved against version 4 (PT409 sources)');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'p2_admin';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.p2_assert((platform.ai_agent_lab_v1(pg_temp.p2_id(1)) #>> '{proposal,status}') = 'conflict',
+  'the Admin''s proposal shows «Знания или предложение изменились»');
 RESET ROLE;
 SET LOCAL request.jwt.claims TO :'p2_manager';
 SET LOCAL ROLE authenticated;
@@ -1454,7 +1621,18 @@ SELECT pg_temp.p2_assert((SELECT count(*) = 1 FROM platform.audit_events WHERE r
 -- ---------------------------------------------------------------------------
 SET LOCAL request.jwt.claims TO :'p2_viewer';
 SET LOCAL ROLE authenticated;
+SELECT pg_temp.p2_assert((platform.ai_agent_lab_v1(pg_temp.p2_id(1)) #>> '{proposal,status}') = 'conflict'
+  AND (platform.ai_agent_lab_v1(pg_temp.p2_id(1)) #>> '{proposal,id}') = (SELECT id FROM p2_props WHERE label = 'Pv')::TEXT,
+  'the viewer''s example, written against version 2 of its source, is a conflict now that the source is at version 4');
+RESET ROLE;
+SET LOCAL ROLE evo_ai_agent;
+INSERT INTO p2_props SELECT 'Pv2', (platform_ai_agent.lab_proposal_put_v1(:'p2_rv', jsonb_build_object('kind', 'example',
+  'question', 'Есть ли общежитие?', 'answer', 'Да, общежитие стоит 310 $ в месяц.', 'finding', 'Не назвал цену',
+  'sources', jsonb_build_array(pg_temp.p2_id(1003)))) ->> 'proposalId')::UUID;
+RESET ROLE;
+SET LOCAL ROLE authenticated;
 SELECT pg_temp.p2_assert((platform.ai_agent_lab_v1(pg_temp.p2_id(1)) #>> '{session,revision}') = '2'
+  AND (platform.ai_agent_lab_v1(pg_temp.p2_id(1)) #>> '{proposal,status}') = 'proposed'
   AND (platform.ai_agent_lab_v1(pg_temp.p2_id(1)) #>> '{proposal,kind}') = 'example', 'the viewer''s check is still open');
 SELECT pg_temp.p2_assert(platform.ai_agent_lab_discard_v1(pg_temp.p2_id(1)) = '{"discarded": true, "sessions": 1, "proposals": 1}'::JSONB
   AND (platform.ai_agent_lab_v1(pg_temp.p2_id(1)) -> 'session') = 'null'::JSONB,
@@ -1467,12 +1645,15 @@ INSERT INTO p2_props SELECT 'Pm9', (platform_ai_agent.lab_proposal_put_v1(:'p2_r
   'question', 'Q9', 'answer', 'A9', 'finding', 'F9')) ->> 'proposalId')::UUID;
 RESET ROLE;
 -- Two and a half hours later (clocks moved back on the rows as the table owner).
+-- One timestamp per row: the lifetime checks compare the columns.
 SET LOCAL session_replication_role = replica;
-UPDATE platform_private.ai_lab_sessions SET updated_at = clock_timestamp() - INTERVAL '3 hours',
-  created_at = clock_timestamp() - INTERVAL '3 hours', expires_at = clock_timestamp() - INTERVAL '1 hour'
+UPDATE platform_private.ai_lab_sessions SET updated_at = t.now - INTERVAL '3 hours',
+  created_at = t.now - INTERVAL '3 hours', expires_at = t.now - INTERVAL '1 hour'
+  FROM (SELECT clock_timestamp() AS now) t
   WHERE organization_id = pg_temp.p2_id(1) AND membership_id = pg_temp.p2_id(302);
-UPDATE platform_private.ai_lab_proposals SET created_at = clock_timestamp() - INTERVAL '3 hours',
-  expires_at = clock_timestamp() - INTERVAL '1 hour' WHERE id = (SELECT id FROM p2_props WHERE label = 'Pm9');
+UPDATE platform_private.ai_lab_proposals SET created_at = t.now - INTERVAL '3 hours',
+  expires_at = t.now - INTERVAL '1 hour' FROM (SELECT clock_timestamp() AS now) t
+  WHERE id = (SELECT id FROM p2_props WHERE label = 'Pm9');
 SET LOCAL session_replication_role = origin;
 SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p2_assert((platform_ai_agent.lab_session_get_v1(:'p2_rm') ->> 'revision')::INTEGER = 0

@@ -366,7 +366,7 @@ Tesseract `rus+kir+eng` на странице на hermes; цель «3 стра
 | `ai_review_items` | «Лист сверки» | `document_id`, `page_no`, `bbox`, `crop_path`, `kind` (`number`, `text`), `candidates` (`tesseract`, `vision`, `arbiter`, `arbiter_model`), `proposed`, `value`, `anchor`, `value_index`, `context_label`, `status` (`open`, `applying`, `resolved`, `dismissed`), `resolution` (`confirm`, `correct`, `dismiss`), `error_code` (например `anchor_ambiguous`), кто и когда решил |
 | `ai_golden_examples` | Подтверждённые примеры ответов | `question_key` (уникален в организации), `question`, `answer`, `feedback`, `embedding halfvec(1536)`, `rules_version_id`, `answer_model`, `source_doc_versions` (`{документ: {v, a}}`), `source_document_ids`, `client_only`, кто подтвердил. Пример действует, только пока совпадают правила, модель ответа и версия с аудиторией каждого документа-источника (P2, 273; фильтр P1 по `knowledge_version` снят) |
 | `ai_lab_sessions` | Текущая проверка в Лаборатории | Одна на сотрудника, `revision`, `payload jsonb` ≤ 256 KB, `expires_at` (2 ч). Только незавершённая работа, не история |
-| `ai_lab_proposals` | Предложение «было/стало» | Одно `proposed` на сотрудника; `kind` (`document`, `knowledge`, `rules`, `example`); цель закреплена версией и SHA текста документа или версией правил; `before`/`after` ≤ 6000; эталонный ответ, вопрос, «что не так», источники; `status` (`proposed`, `applied`, `rejected`, `expired`, `conflict`); содержимое неизменяемо |
+| `ai_lab_proposals` | Предложение «было/стало» | Одно `proposed` на сотрудника; `kind` (`document`, `knowledge`, `rules`, `example`); цель закреплена версией и SHA текста документа или версией правил; `before`/`after` ≤ 6000; эталонный ответ, вопрос, «что не так», источники, закреплённые версией и аудиторией каждого документа (`source_versions`); `status` (`proposed`, `applied`, `rejected`, `expired`, `conflict`); содержимое неизменяемо |
 | `ai_client_memory` | Память о клиенте (P3) | PK `conversation_id`; `interest` ≤ 140 символов; `summary`; `covered_message_id`; `covered_count`; `updated_at` |
 | `ai_answers` | Ответы и их кэш | `conversation_id`, `source_message_id` (последнее входящее на момент запроса), `source_outbound_message_id` (у `followup` — последнее исходящее на момент запроса), `intent` (`reply`, `followup`), `knowledge_fingerprint`, `status` (`pending`, `ready`, `failed`, `superseded`), `result jsonb` (§6.3), `flight_owner` и `heartbeat_at` (один генератор на ключ), `requested_by`, `model`, `cost_usd`, `timings`, `inserted_at`/`inserted_by`. Уникальность по (организация, диалог, intent, сообщение, исходящее, fingerprint). Хранится 90 дней |
 | `ai_tickets` | Одноразовые билеты CRM → агент | SHA-256 токена, сотрудник, цель, диалог, ссылка, `expires_at`, `used_at`. Чистится через сутки |
@@ -425,10 +425,11 @@ Tesseract `rus+kir+eng` на странице на hermes; цель «3 стра
 - `document_claim_v1`, `document_stage_v1`, `document_index_v1` (одна
   транзакция: заменить фрагменты, выставить `ready` или `review`, увеличить
   `knowledge_version`, сменить версию документа), `review_items_put_v1`,
-  `document_content_put_v1`, `document_pages_put_v1`,
+  `document_content_put_v1`, `document_pages_put_v1` (у двух последних
+  `p_replace` — первый вызов прогона убирает строки прежней попытки),
   `document_reindex_claim_v1`, `document_reindex_v1` (исправления «Листа
-  сверки» на прежнем SHA текста). Документы агента — материалы компании, не
-  диалоги;
+  сверки» на прежнем SHA текста, под живой арендой, каждое решение — со
+  своим значением). Документы агента — материалы компании, не диалоги;
 - `lab_*` (`lab_session_get_v1`, `lab_session_put_v1`, `lab_documents_v1`,
   `lab_proposal_put_v1`, `lab_apply_prepare_v1`, `lab_apply_v1`) — по
   билету `laboratory` или `lab_apply`;

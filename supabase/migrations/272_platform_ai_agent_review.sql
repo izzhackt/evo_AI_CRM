@@ -12,9 +12,13 @@
 --    ≤ 200 символов → applying и указатель reindex (переиндексация решает
 --    пункт или возвращает его в open с кодом, 271); «Оставить как есть»
 --    (dismiss); «Открыть снова» (reopen; у applying — только без живой аренды
---    переиндексации). Статус документа ready ↔ review пересчитывается;
+--    переиндексации, и истёкшая аренда снимается: опоздавший воркер не
+--    применит прежнее исправление поверх нового решения). «Исправить» у
+--    документа с ожидающей новой версией — PT409 (правка пропала бы при
+--    замене). Статус документа ready ↔ review пересчитывается;
 --  * search_v1 и ai_answer_live_sources (269/270, сигнатуры прежние): open и
---    applying — «Число не проверено».
+--    applying — «Число не проверено»; в цитате ищутся все прочтения пункта
+--    (value, proposed и кандидаты распознавания), а не одно из них.
 -- Повторный запуск в той же точке цепочки ничего не меняет; после 273 —
 -- откат проверкой состава.
 BEGIN;
@@ -128,6 +132,9 @@ BEGIN
   IF p_action = 'correct' AND v_doc.content_md IS NULL THEN
     RAISE EXCEPTION 'ai_review_not_correctable' USING ERRCODE = '22023';
   END IF;
+  IF p_action = 'correct' AND platform_private.ai_document_successor_pending(p_organization_id, v_doc.id) THEN
+    RAISE EXCEPTION 'ai_document_replacement_pending' USING ERRCODE = 'PT409';
+  END IF;
   IF p_action = 'reopen' AND v_item.status = 'applying' AND v_doc.reindex_lease_expires_at > clock_timestamp() THEN
     RAISE EXCEPTION 'ai_review_applying' USING ERRCODE = 'PT409';
   END IF;
@@ -143,9 +150,15 @@ BEGIN
     error_code = NULL
   WHERE r.id = v_item.id RETURNING * INTO v_new;
   v_doc_status := platform_private.ai_document_review_status(v_doc.id);
-  IF v_doc_status <> v_doc.status THEN
-    UPDATE platform_private.ai_documents d SET status = v_doc_status, row_version = d.row_version + 1,
-      updated_at = statement_timestamp()
+  -- «Открыть снова» у applying: истёкшая аренда переиндексации снимается.
+  IF v_doc_status <> v_doc.status OR (p_action = 'reopen' AND v_item.status = 'applying'
+    AND v_doc.reindex_lease_owner IS NOT NULL) THEN
+    UPDATE platform_private.ai_documents d SET status = v_doc_status,
+      reindex_lease_owner = CASE WHEN p_action = 'reopen' AND v_item.status = 'applying' THEN NULL
+        ELSE d.reindex_lease_owner END,
+      reindex_lease_expires_at = CASE WHEN p_action = 'reopen' AND v_item.status = 'applying' THEN NULL
+        ELSE d.reindex_lease_expires_at END,
+      row_version = d.row_version + 1, updated_at = statement_timestamp()
     WHERE d.id = v_doc.id;
   END IF;
   IF p_action = 'correct' THEN
@@ -166,14 +179,17 @@ BEGIN
 END
 $$;
 
--- Источники ответа из базы (270): open и applying — «не проверено».
+-- Источники ответа из базы (270): open и applying — «не проверено». В цитате
+-- ищутся все прочтения пункта: value (у applying — исправление, которого в
+-- тексте ещё нет; у вернувшегося в open — неприменённое), proposed (то, что
+-- стоит в тексте) и кандидаты распознавания.
 CREATE OR REPLACE FUNCTION platform_private.ai_answer_live_sources(p_organization_id UUID, p_result JSONB)
 RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
       'n', x.n, 'chunk_id', x.chunk_id, 'document_id', x.document_id, 'title', x.title, 'audience', x.audience,
       'page_from', x.page_from, 'page_to', x.page_to, 'sheet_name', x.sheet_name, 'section_path', x.section_path,
       'quote', x.quote, 'live', x.live, 'missing', x.document_id IS NULL,
-      'unverified', x.open_values IS NOT NULL,
+      'unverified', x.has_open,
       'unverified_values', COALESCE((SELECT jsonb_agg(v.value ORDER BY v.value) FROM (
           SELECT DISTINCT btrim(val) AS value FROM unnest(x.open_values) val
           WHERE btrim(val) <> '' AND x.quote IS NOT NULL AND strpos(x.quote, btrim(val)) > 0) v), '[]'::JSONB))
@@ -184,10 +200,17 @@ RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       c.id AS chunk_id, d.id AS document_id, d.title, d.audience, c.page_from, c.page_to, c.sheet_name,
       c.section_path, left(c.content, 4000) AS quote,
       COALESCE(d.status IN ('ready', 'review') AND d.superseded_by_id IS NULL, FALSE) AS live,
-      (SELECT array_agg(COALESCE(r.value, r.proposed)) FROM platform_private.ai_review_items r
+      (SELECT array_agg(v.val) FROM platform_private.ai_review_items r
+        CROSS JOIN LATERAL (SELECT r.value AS val UNION ALL SELECT r.proposed
+          UNION ALL SELECT c2.value #>> '{}' FROM jsonb_each(r.candidates) c2
+            WHERE c2.key <> 'arbiterModel' AND jsonb_typeof(c2.value) = 'string') v
         WHERE d.id IS NOT NULL AND r.organization_id = p_organization_id AND r.document_id = d.id
           AND r.status IN ('open', 'applying') AND r.page_no BETWEEN COALESCE(c.page_from, 1) AND COALESCE(c.page_to, 300)
-          AND COALESCE(r.value, r.proposed) IS NOT NULL) AS open_values
+          AND v.val IS NOT NULL) AS open_values,
+      EXISTS (SELECT 1 FROM platform_private.ai_review_items r
+        WHERE d.id IS NOT NULL AND r.organization_id = p_organization_id AND r.document_id = d.id
+          AND r.status IN ('open', 'applying') AND r.page_no BETWEEN COALESCE(c.page_from, 1) AND COALESCE(c.page_to, 300))
+        AS has_open
     FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p_result -> 'sources') = 'array'
         THEN p_result -> 'sources' ELSE '[]'::JSONB END) WITH ORDINALITY AS s(e, ord)
     LEFT JOIN platform_private.ai_chunks c ON c.organization_id = p_organization_id
@@ -200,7 +223,7 @@ REVOKE ALL ON FUNCTION platform_private.ai_answer_live_sources(UUID, JSONB)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 
 -- Гибридный поиск (269); пункты «Листа сверки» open и applying отдаются как
--- непроверенные, со статусом.
+-- непроверенные, со статусом и всеми прочтениями (value, proposed, кандидаты).
 CREATE OR REPLACE FUNCTION platform_ai_agent.search_v1(p_redemption_id UUID, p_query_embeddings JSONB,
   p_query_texts JSONB, p_limit INTEGER DEFAULT 8, p_internal_limit INTEGER DEFAULT 3)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = ''
@@ -249,7 +272,7 @@ BEGIN
     ORDER BY s.score DESC, c.id LIMIT p_internal_limit) x;
 
   SELECT COALESCE(jsonb_agg(jsonb_build_object('documentId', r.document_id, 'pageNo', r.page_no, 'kind', r.kind,
-      'value', r.value, 'proposed', r.proposed, 'anchor', r.anchor, 'status', r.status)
+      'value', r.value, 'proposed', r.proposed, 'candidates', r.candidates, 'anchor', r.anchor, 'status', r.status)
       ORDER BY r.document_id, r.page_no, r.id), '[]'::JSONB)
   INTO v_review
   FROM platform_private.ai_review_items r

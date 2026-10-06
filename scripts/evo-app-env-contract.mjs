@@ -296,12 +296,16 @@ function validateEnabledFeatureConfiguration(entries) {
 
 function validateOptionalFeatureConfiguration(entries) {
   const aiAgentSecret = entries.get("EVO_AI_AGENT_INTERNAL_SECRET");
-  if (
-    aiAgentSecret !== undefined &&
-    aiAgentSecret !== "" &&
-    !/^[\x21-\x7e]{32,256}$/u.test(aiAgentSecret)
-  ) {
+  if (aiAgentSecret === undefined || aiAgentSecret === "") return;
+  if (!/^[\x21-\x7e]{32,256}$/u.test(aiAgentSecret)) {
     fail("optional_feature_configuration_invalid");
+  }
+  // Свой секрет: значение не совпадает ни с одним другим значением этого env
+  // (WAHA HMAC, наблюдаемость, ключ сервера) — утечка одного не открывает агента.
+  for (const [name, value] of entries) {
+    if (name !== "EVO_AI_AGENT_INTERNAL_SECRET" && value === aiAgentSecret) {
+      fail("optional_feature_configuration_invalid");
+    }
   }
 }
 

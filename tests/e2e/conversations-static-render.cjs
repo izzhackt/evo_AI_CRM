@@ -339,7 +339,7 @@ const { PartShell } = require("@/components/v3/PartShell");
 const { Inbox } = require("@/components/v3/Inbox");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
-window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], refreshes: 0, polls: 0 };
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], refreshes: 0, polls: 0 };
 // Опрос и «Показать ранее» отвечают синтетикой этой вкладки (сети нет).
 const originalFetch = window.fetch;
 window.fetch = async (input, init) => {
@@ -366,7 +366,11 @@ window.fetch = async (input, init) => {
       window.__harness.actions.push("ai-read");
       return json(200, take(fixture.ai.saved));
     }
-    window.__harness.actions.push("ai-answer:" + JSON.parse(init.body).intent);
+    const request = JSON.parse(init.body);
+    window.__harness.actions.push("ai-answer:" + request.intent);
+    window.__harness.aiRefs.push(request.refId);
+    // Как answer_claim_v1: билет не на последнее сообщение клиента в базе — PT409.
+    if (fixture.ai.latest && request.refId !== fixture.ai.latest) return json(409, { error: { code: "superseded" } });
     const reply = take(fixture.ai.post);
     if (!reply.frames) return json(reply.status, reply.body);
     const encoder = new TextEncoder();
@@ -389,20 +393,27 @@ const router = {
   push: (href) => { window.__harness.pushes.push(href); }, replace: (href) => { window.__harness.pushes.push(href); },
   refresh() { window.__harness.refreshes += 1; }, back() {}, forward() {}, prefetch() {}, hmrRefresh() {},
 };
-const content = fixture.chatApp
-  ? h(PartShell, fixture.chatApp.main, h(Inbox, fixture.chatApp.inbox))
+const contentFor = (inbox) => fixture.chatApp
+  ? h(PartShell, fixture.chatApp.main, h(Inbox, inbox))
   : fixture.cabinet
   ? h(ConversationsMain, fixture.cabinet.main, h(CaseChatWorkspace, fixture.cabinet.workspace))
   : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } });
-const tree = h(AppRouterContext.Provider, { value: router },
+const treeFor = (content) => h(AppRouterContext.Provider, { value: router },
   h(PathnameContext.Provider, { value: fixture.pathname },
     h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
       h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
         h("div", { className: "v3-world", "data-surface": "staff" },
           h(AppShell, { actor: fixture.actor, initialNotifications: null }, content))))));
-hydrateRoot(document.getElementById("root"), tree, {
+const root = hydrateRoot(document.getElementById("root"), treeFor(contentFor(fixture.chatApp && fixture.chatApp.inbox)), {
   onRecoverableError: (error) => window.__harness.recoverable.push(String((error && error.message) || error)),
 });
+// Новое сообщение клиента в открытом чате (как после опроса): меняется только
+// последнее входящее у страницы.
+window.__harness.newInbound = (id) => {
+  const inbox = fixture.chatApp.inbox;
+  const selected = inbox.view.selected;
+  root.render(treeFor(contentFor({ ...inbox, view: { ...inbox.view, selected: { ...selected, chat: { ...selected.chat, latestInboundMessageId: id } } } })));
+};
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.hydrated = "true"; }));
 `;
 
@@ -1168,6 +1179,16 @@ const AI_SCENARIOS = {
   "balance": { viewports: ["1440"], ai: { saved: [aiView(null)], post: [{ frames: [{ delay: 50, event: "status", data: { stage: "searching" } },
     { delay: 300, event: "error", data: { code: "gemini_billing", message_ru: "x", status: 402 } }] }], insert: [{ status: 200, body: { text: "x" } }] } },
   "rate": { viewports: ["1440"], ai: { saved: [aiView(null)], post: [{ status: 429, body: { error: { code: "rate_limited" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  // Страница отстала от базы (опрос не дошёл): билет берётся по базе, не по странице.
+  "lagging": { viewports: ["1440"], ai: { latest: aiId(900),
+    saved: [aiView(null, { view: { latestInboundMessageId: aiId(900) } }), aiView(aiAnswer(), { view: { latestInboundMessageId: aiId(900) } })],
+    post: [{ frames: aiFrames() }], insert: [{ status: 200, body: { text: "x" } }] } },
+  // Без агента открытое окно на новое сообщение перечитывает состояние, а не пустеет.
+  "off-new-message": { viewports: ["1440"], featureOff: true, ai: { saved: [aiView(null, { featureOn: false })],
+    post: [{ status: 503, body: { error: { code: "ai_agent_off" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  // Согласие записали, пока окно было свёрнуто: повторное открытие перечитывает.
+  "consent-later": { viewports: ["1440"], ai: { saved: [aiView(null, { view: { consentRecorded: false } }), aiView(aiAnswer())],
+    post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
 };
 
 async function buildAiChatPage(name) {
@@ -1189,7 +1210,7 @@ const aiDoc = (n, title, fields = {}) => ({
   indexedAt: "2026-10-06T05:10:00Z", chunkCount: 12 + n * 3, openReviewCount: 0, ...fields,
 });
 const AI_DOCUMENTS = { items: [
-  aiDoc(7, "Прайс 2026 — Малайзия, Китай, ОАЭ", { chunkCount: 48 }),
+  aiDoc(7, "Прайс 2026 — Малайзия, Китай, ОАЭ", { kind: "pdf", source: "upload", sourceRef: {}, pageCount: 14, chunkCount: 48 }),
   aiDoc(6, "Как отвечать на вопрос о цене", { audience: "internal", chunkCount: 9 }),
   aiDoc(5, "Вузы Малайзии — требования", { status: "processing", stage: "embed", progress: 60, chunkCount: 0, indexedAt: null }),
   aiDoc(4, "Правила скидок", { audience: "internal", chunkCount: 4 }),
@@ -1494,6 +1515,49 @@ async function aiScreenshots() {
         check(ok(metrics), `state-${name}-${viewportKey}: ${JSON.stringify({ status: metrics.status, blocked: metrics.blocked, error: metrics.error, text: metrics.errorText, warnings: metrics.warnings })}`);
         await close(session, `state-${name}-${viewportKey}`);
       }
+    }
+
+    // Отставшая страница: один запрос с билетом по базе, без «пришло новое сообщение».
+    {
+      const session = await open("lagging", "1440");
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]', { timeout: 8000 });
+      await session.page.waitForTimeout(150);
+      const metrics = await shot(session, "lagging-1440.png", { save: false });
+      check(metrics.status === "Ответ готов · 3 источника", `lagging: ${metrics.status}`);
+      const harness = await close(session, "lagging-1440");
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-answer:reply", "ai-read"]), `lagging: ${JSON.stringify(harness.actions)}`);
+      check(JSON.stringify(harness.aiRefs) === JSON.stringify([aiId(900)]), `lagging: refs ${JSON.stringify(harness.aiRefs)}`);
+    }
+
+    // Без агента: новое сообщение при открытом окне — снова «не подключён», не пустое окно.
+    {
+      const session = await open("off-new-message", "1440");
+      await expand(session);
+      await session.page.waitForTimeout(300);
+      check((await session.page.evaluate(aiMetrics)).blocked === "ai_agent_off", "off-new-message: before");
+      await session.page.evaluate((id) => window.__harness.newInbound(id), aiId(901));
+      await session.page.waitForTimeout(300);
+      const metrics = await shot(session, "off-new-message-1440.png", { save: false });
+      check(metrics.blocked === "ai_agent_off", `off-new-message: after ${JSON.stringify({ status: metrics.status, blocked: metrics.blocked })}`);
+      const harness = await close(session, "off-new-message-1440");
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-read"]), `off-new-message: ${JSON.stringify(harness.actions)}`);
+    }
+
+    // «Нет согласия» → свернуть → администратор включил → открыть: ответ без перезагрузки страницы.
+    {
+      const session = await open("consent-later", "1440");
+      await expand(session);
+      await session.page.waitForTimeout(300);
+      check((await session.page.evaluate(aiMetrics)).blocked === "consent_required", "consent-later: before");
+      await session.page.keyboard.press("Escape");
+      await session.page.waitForTimeout(100);
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]', { timeout: 4000 });
+      const metrics = await shot(session, "consent-later-1440.png", { save: false });
+      check(metrics.status === "Ответ готов · 3 источника", `consent-later: ${metrics.status}`);
+      const harness = await close(session, "consent-later-1440");
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-read"]), `consent-later: ${JSON.stringify(harness.actions)}`);
     }
 
     // Раздел «ИИ-агент».

@@ -188,6 +188,7 @@ export function AiDocumentsView({
                 <p className="t-item break-words text-fg">{document.title}</p>
                 <p className="mt-0.5 t-meta text-fg-3">
                   {sourceLine(document)}
+                  {document.pageCount !== null && document.pageCount > 0 ? ` · ${plural(document.pageCount, "страница", "страницы", "страниц")}` : ""}
                   {document.chunkCount > 0 ? ` · ${plural(document.chunkCount, "фрагмент", "фрагмента", "фрагментов")}` : ""}
                   {` · ${aiDateTime(document.updatedAt)}`}
                 </p>

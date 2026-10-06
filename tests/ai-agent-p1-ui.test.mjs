@@ -378,6 +378,9 @@ test("env contract: EVO_AI_AGENT_INTERNAL_SECRET is optional — absent or empty
   for (const bad of ["short", `${SECRET} space`, "é".repeat(40)]) {
     assert.throws(() => check(text({ EVO_AI_AGENT_INTERNAL_SECRET: bad })), /optional_feature_configuration_invalid/u, bad);
   }
+  // Свой секрет: совпадение с любым другим значением env (здесь — WAHA HMAC) не выпускается.
+  assert.throws(() => check(text({ EVO_AI_AGENT_INTERNAL_SECRET: SECRET, EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: SECRET })),
+    /optional_feature_configuration_invalid/u, "reused WAHA HMAC secret");
   assert.throws(() => check(text({ EVO_PLATFORM_ORGANIZATION_ID: undefined }).replace(/^EVO_PLATFORM_ORGANIZATION_ID=.*$/mu, "")), /required_env_name_missing/u,
     "other example names stay required");
 });
@@ -471,6 +474,7 @@ test("section reads: documents, rules, spend and settings are validated, money k
   assert.equal(spend.monthUsd, 1.5);
   assert.equal(formatUsd(0.0123).replace(/\s/gu, " "), "0,0123 $");
   assert.equal(formatUsd(12.5, true).replace(/\s/gu, " "), "≈ 12,50 $");
+  assert.match(formatUsd(0.17, true), /^≈\u00A00,17\u00A0\$$/u, "«≈» and «$» hold to the amount with U+00A0");
   assert.throws(() => normalizeAiSpend({ ...spend, byGroup: [{ group: "unknown", usd: 1 }] }), /shape/u);
   const settings = normalizeAiSettings({ version: 3, models: { answer: "gemini-3.8-flash", fast: "gemini-3.5-flash-lite", embedding: "gemini-embedding-2" },
     unpricedModels: [], monthlyCapUsd: 50, ratePerMemberMinute: 20, consent: { recorded: false, at: null, byName: null, textVersion: null },

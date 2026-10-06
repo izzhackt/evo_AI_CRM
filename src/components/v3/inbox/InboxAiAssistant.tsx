@@ -45,6 +45,11 @@ import {
  * устаревшим. Поток агента — живой предпросмотр; после него окно читает
  * сохранённый, проверенный ответ, а «Вставить в ответ» берёт текст у базы
  * (409 — ответ устарел). Вставка ничего не отправляет.
+ *
+ * Запрос привязан к последнему сообщению клиента, которое окно видело последним:
+ * из базы (каждое чтение `GET …/answer`) или из страницы (новое сообщение в
+ * ленте). Отстающая страница не мешает: после «пришло новое сообщение» окно
+ * перечитывает базу и берёт её значение.
  */
 export type InboxAssistantConfig = Readonly<{
   /** Секрет агента задан на сервере; без него окно честно говорит «не подключён». */
@@ -203,6 +208,8 @@ export function InboxAiAssistant({
   const areaRef = useRef<HTMLDivElement>(null);
   const streamAbort = useRef<AbortController | null>(null);
   const supersedes = useRef(0);
+  /** Последнее сообщение клиента, увиденное последним — из базы или из страницы. */
+  const knownInbound = useRef<string | null>(latestInboundMessageId);
   const positionKey = `evo-ai-window-v1:${storageScope}`;
 
   const [expanded, setExpanded] = useState(false);
@@ -299,7 +306,7 @@ export function InboxAiAssistant({
         cache: "no-store",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({ intent, refId: latestInboundMessageId }),
+        body: JSON.stringify({ intent, refId: knownInbound.current }),
         signal: controller.signal,
       });
     } catch {
@@ -362,7 +369,7 @@ export function InboxAiAssistant({
       if (streamAbort.current === controller) streamAbort.current = null;
     }
     if (!settled && !controller.signal.aborted) fail("agent_unavailable", null, intent);
-  }, [conversationId, latestInboundMessageId, afterSuperseded, fail, finishStream, readSaved]);
+  }, [conversationId, afterSuperseded, fail, finishStream, readSaved]);
 
   const load = useCallback(async () => {
     finishStream();
@@ -374,6 +381,9 @@ export function InboxAiAssistant({
       return;
     }
     const { view, featureOn } = saved;
+    // База свежее страницы: опрос ленты мог отстать, а `answer_claim_v1`
+    // сверяет билет с последним сообщением клиента в базе (PT409).
+    knownInbound.current = view.latestInboundMessageId;
     setStale(false);
     if (view.answer && view.answer.current && view.answer.result) {
       setPhase({ kind: "ready", answer: view.answer });
@@ -390,36 +400,49 @@ export function InboxAiAssistant({
   const generateRef = useRef(generate);
   useEffect(() => { generateRef.current = generate; }, [generate]);
 
-  // Новое сообщение клиента: открытое окно готовит новый ответ, свёрнутое —
-  // только помечает прежний устаревшим и перечитает его при открытии.
+  // Новое сообщение клиента: открытое окно готовит новый ответ; открытое без
+  // агента перечитывает состояние (честное «не подключён», а не пустое окно) и
+  // держит готовый ответ помеченным «устарел»; свёрнутое — только помечает
+  // прежний ответ устаревшим и перечитает его при открытии.
   const [seenInbound, setSeenInbound] = useState(latestInboundMessageId);
-  const [inboundTurn, setInboundTurn] = useState<Readonly<{ n: number; regenerate: boolean }>>({ n: 0, regenerate: false });
+  const [inboundTurn, setInboundTurn] = useState<Readonly<{
+    n: number; action: "regenerate" | "reload" | "mark"; id: string | null;
+  }>>({ n: 0, action: "mark", id: latestInboundMessageId });
   if (seenInbound !== latestInboundMessageId) {
     setSeenInbound(latestInboundMessageId);
-    const regenerate = expanded && config.featureOn;
-    setInboundTurn((previous) => ({ n: previous.n + 1, regenerate }));
-    if (!regenerate) {
-      setStale(true);
-      setPhase((previous) => (previous.kind === "ready" ? previous : { kind: "idle" }));
-    }
+    const action = !expanded ? "mark" : config.featureOn ? "regenerate" : phase.kind === "ready" ? "mark" : "reload";
+    setInboundTurn((previous) => ({ n: previous.n + 1, action, id: latestInboundMessageId }));
+    if (action !== "regenerate") setStale(true);
+    if (!expanded) setPhase((previous) => (previous.kind === "ready" ? previous : { kind: "idle" }));
   }
   useEffect(() => {
     if (inboundTurn.n === 0) return;
-    if (!inboundTurn.regenerate) {
+    knownInbound.current = inboundTurn.id;
+    if (inboundTurn.action === "mark") {
       finishStream();
       return;
     }
     supersedes.current = 0;
-    const timer = setTimeout(() => void generateRef.current("reply"), 0);
+    const timer = setTimeout(() => void (inboundTurn.action === "regenerate" ? generateRef.current("reply") : loadRef.current()), 0);
     return () => clearTimeout(timer);
   }, [inboundTurn, finishStream]);
+
+  /** Действие сотрудника начинает отсчёт «пришло новое сообщение» заново. */
+  function byHand(run: () => Promise<void>) {
+    supersedes.current = 0;
+    void run();
+  }
 
   function open() {
     expandedRef.current = true;
     setOffset(readOffset(positionKey));
     setExpanded(true);
     // Без агента сохранённое всё равно читается: прежний ответ может быть актуален.
-    if (phase.kind === "idle" || (phase.kind === "ready" && stale)) void load();
+    // Ошибка и «нет согласия»/«не подключён» тоже перечитываются: администратор
+    // мог включить агента, сбой — пройти, а у этих состояний нет «Повторить».
+    if (phase.kind === "idle" || phase.kind === "blocked" || phase.kind === "error" || (phase.kind === "ready" && stale)) {
+      byHand(load);
+    }
     requestAnimationFrame(() => windowRef.current?.querySelector<HTMLElement>("[data-ai-title]")?.focus());
   }
 
@@ -617,7 +640,7 @@ export function InboxAiAssistant({
             {phase.kind === "waiting" ? (
               <div className="space-y-3">
                 <p className="t-body-compact text-fg-2">Последним писали вы. Можно подготовить продолжение разговора.</p>
-                <button type="button" className="v3-ai-button" onClick={() => void generate("followup")}>
+                <button type="button" className="v3-ai-button" onClick={() => byHand(() => generate("followup"))}>
                   Подготовить продолжение
                 </button>
               </div>
@@ -647,7 +670,7 @@ export function InboxAiAssistant({
                     <button
                       type="button"
                       className="v3-ai-link t-label"
-                      onClick={() => (phase.retry === "load" ? void load() : void generate(phase.retry as AiIntent))}
+                      onClick={() => { const retry = phase.retry; byHand(retry === "load" ? load : () => generate(retry as AiIntent)); }}
                     >
                       Повторить
                     </button>
@@ -743,7 +766,7 @@ export function InboxAiAssistant({
               <button
                 type="button"
                 className="v3-ai-link t-label"
-                onClick={() => (isStale ? void load() : void generate(ready.intent))}
+                onClick={() => byHand(isStale ? load : () => generate(ready.intent))}
               >
                 Обновить ответ
               </button>

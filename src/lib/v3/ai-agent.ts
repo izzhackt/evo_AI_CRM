@@ -547,10 +547,14 @@ export function normalizeAiSettings(value: unknown): AiSettings {
 const USD_SMALL = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const USD = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** Доллары: доли цента видны у малых сумм (0,0123 $), от десяти центов — с центами. */
+/**
+ * Доллары: доли цента видны у малых сумм (0,0123 $), от десяти центов — с центами.
+ * «≈» держится за сумму неразрывным пробелом (U+00A0), как и знак валюты у Intl:
+ * в узкой ячейке сумма не разваливается на две строки.
+ */
 export function formatUsd(value: number, estimated = false): string {
   const formatted = (Math.abs(value) < 0.1 && value !== 0 ? USD_SMALL : USD).format(value);
-  return estimated ? `≈ ${formatted}` : formatted;
+  return estimated ? `≈\u00A0${formatted}` : formatted;
 }
 
 const DATE_TIME = new Intl.DateTimeFormat("ru-RU", {

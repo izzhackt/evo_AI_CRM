@@ -295,8 +295,8 @@ $ai271_private_acl$;
 -- {org}/{doc}/original без upsert; здесь — строка документа (только для
 -- этого объекта с тем же размером и типом) и указатель ingest. При отказе CRM
 -- удаляет объект. Замена наследует аудиторию прежней версии (окончательно —
--- в момент замены, document_index_v1); прежняя ищется, пока новая не станет
--- ready/review (269).
+-- в момент замены более строгая из двух, document_index_v1); прежняя ищется,
+-- пока новая не станет ready/review (269).
 CREATE OR REPLACE FUNCTION platform.ai_agent_document_upload_v1(p_organization_id UUID, p_document_id UUID,
   p_title TEXT, p_kind TEXT, p_mime_type TEXT, p_byte_size BIGINT, p_byte_sha256 TEXT, p_audience TEXT,
   p_client_confirmed BOOLEAN, p_company_material BOOLEAN, p_replaces_id UUID, p_replaces_version BIGINT,
@@ -855,8 +855,9 @@ $$;
 
 -- Индексация (269): ready, пока нет open/applying пунктов; SHA текста.
 -- Замена прежней версии — как в 269: прежняя уходит из поиска только здесь,
--- упавшая новая её не трогает. Аудитория новой версии — аудитория прежней на
--- момент замены (её могли сменить, пока новая обрабатывалась).
+-- упавшая новая её не трогает. Аудитория при замене — более строгая из двух
+-- на этот момент: обе версии можно сменить, пока новая обрабатывается
+-- (ai_agent_document_update_v1), и замена не должна расширять доступ.
 CREATE OR REPLACE FUNCTION platform_ai_agent.document_index_v1(p_document_id UUID, p_worker_ref TEXT,
   p_chunks JSONB)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -869,6 +870,13 @@ BEGIN
     SELECT d.audience INTO v_audience FROM platform_private.ai_documents d
     WHERE d.organization_id = v_doc.organization_id AND d.id = v_doc.replaces_id AND d.status <> 'superseded'
     FOR UPDATE;
+    -- Строже побеждает: 'internal' у прежней или у новой даёт 'internal'
+    -- (аудиторий две, 267). Брать одну прежнюю нельзя: ожидающей новой версии
+    -- сотрудник мог поставить 'internal', и её текст молча ушёл бы в
+    -- клиентский поиск; одну новую — тоже: прежнюю могли перевести в
+    -- 'internal' уже после загрузки замены.
+    v_audience := CASE WHEN v_audience = 'internal' OR v_doc.audience = 'internal' THEN 'internal'
+      ELSE v_doc.audience END;
   END IF;
   v_result := platform_private.ai_chunks_replace(v_doc.organization_id, v_doc.id, p_chunks);
   UPDATE platform_private.ai_documents d SET status = platform_private.ai_document_review_status(d.id),

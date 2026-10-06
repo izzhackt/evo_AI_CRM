@@ -27,11 +27,12 @@
 --     size limits, a number item needs its proposed value; storage broker
 --     authorization (own object only, no '..', no other document, no lease,
 --     wrong operation, reindex lease read-only); index keeps review while items
---     are open; swap-when-ready including a failed new version, the audience
---     taken at swap time, no Laboratory edit or correction of a document with
---     a pending successor; a fresh run clears the pages and open items of the
---     earlier attempt (and p_replace does it within a run); the
---     personal-document stop and its override; deletion mid-processing;
+--     are open; swap-when-ready including a failed new version, the stricter
+--     audience at swap time (internal on the old or the new version stays
+--     internal; both client stay client), no Laboratory edit or correction
+--     of a document with a pending successor; a fresh run clears the pages and
+--     open items of the earlier attempt (and p_replace does it within a run);
+--     the personal-document stop and its override; deletion mid-processing;
 --  4. «Лист сверки»: rights, live documents only, expected status, confirm /
 --     correct / dismiss / reopen, applying is unverified in search and live
 --     sources (every reading of the item is matched in the quote), reindex on
@@ -717,17 +718,77 @@ SELECT pg_temp.p2_assert((platform_ai_agent.document_claim_v1(pg_temp.p2_id(1004
   AND pg_temp.p2_id(1001) = ANY (pg_temp.p2_search_docs(:'p2_rv', 21, 'Bachelor of Computer Science')),
   'while the new version is processing the old one is still found');
 RESET ROLE;
--- The copy taken at upload is stale (the old version's audience may change
--- while the new one is processed): the swap takes the old version's audience.
-UPDATE platform_private.ai_documents SET audience = 'internal' WHERE id = pg_temp.p2_id(1004);
+-- The audience at the swap is the stricter of the two versions at that moment:
+-- staff can change either one (ai_agent_document_update_v1) while the new one
+-- is processed, and a swap must never widen access. The two widening cases
+-- (old 1001 / new 1004) run in savepoints that are rolled back; the suite then
+-- continues with the both-client swap.
+CREATE FUNCTION pg_temp.p2_swap_1004() RETURNS JSONB LANGUAGE SQL VOLATILE AS $$
+  SELECT platform_ai_agent.document_index_v1(pg_temp.p2_id(1004), 'w1', jsonb_build_array(
+    pg_temp.p2_chunk(0, 'Прайс 2027 v2 › Программы: Bachelor of Computer Science — 1 300,00 $ в год', 25, 1)))
+$$;
+CREATE FUNCTION pg_temp.p2_search_internal_docs(p_redemption UUID, p_k INTEGER, p_text TEXT) RETURNS UUID[]
+LANGUAGE SQL AS $$
+  SELECT COALESCE(array_agg(DISTINCT (e ->> 'documentId')::UUID), '{}')
+  FROM jsonb_array_elements(platform_ai_agent.search_v1(p_redemption, jsonb_build_array(pg_temp.p2_unit(p_k)),
+    jsonb_build_array(p_text)) -> 'internal') e
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.p2_swap_1004(), pg_temp.p2_search_internal_docs(UUID, INTEGER, TEXT) TO evo_ai_agent;
+
+-- (a) old client, the pending new version set to internal → internal.
+SAVEPOINT p2_swap_new_internal;
+SET LOCAL request.jwt.claims TO :'p2_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.p2_assert((platform.ai_agent_document_update_v1(pg_temp.p2_id(1), pg_temp.p2_id(1004),
+    (platform.ai_agent_document_v1(pg_temp.p2_id(1), pg_temp.p2_id(1004)) #>> '{document,rowVersion}')::BIGINT,
+    '{"audience":"internal"}'::JSONB, pg_temp.p2_id(3140)) #>> '{document,audience}') = 'internal'
+  AND (platform.ai_agent_document_v1(pg_temp.p2_id(1), pg_temp.p2_id(1001)) #>> '{document,audience}') = 'client',
+  'staff set the pending new version 1004 to internal; the old version 1001 is still client');
+RESET ROLE;
 SET LOCAL ROLE evo_ai_agent;
-SELECT platform_ai_agent.document_index_v1(pg_temp.p2_id(1004), 'w1', jsonb_build_array(
-  pg_temp.p2_chunk(0, 'Прайс 2027 v2 › Программы: Bachelor of Computer Science — 1 300,00 $ в год', 25, 1))) AS i1004 \gset
+SELECT pg_temp.p2_swap_1004() AS i1004 \gset
+SELECT pg_temp.p2_assert((:'i1004'::JSONB ->> 'status') = 'ready'
+    AND (:'i1004'::JSONB ->> 'replacedId') = pg_temp.p2_id(1001)::TEXT AND (:'i1004'::JSONB ->> 'audience') = 'internal'
+  AND NOT pg_temp.p2_id(1004) = ANY (pg_temp.p2_search_docs(:'p2_rv', 25, 'Bachelor of Computer Science'))
+  AND NOT pg_temp.p2_id(1001) = ANY (pg_temp.p2_search_docs(:'p2_rv', 21, 'Bachelor of Computer Science'))
+  AND pg_temp.p2_id(1004) = ANY (pg_temp.p2_search_internal_docs(:'p2_rv', 25, 'Bachelor of Computer Science')),
+  'old client + new internal: the swap keeps internal and the new text is not a client result');
+RESET ROLE;
+ROLLBACK TO SAVEPOINT p2_swap_new_internal;
+
+-- (b) the old version set to internal after the replacement was uploaded, the
+-- new one still holds the client copy taken at upload → internal.
+SAVEPOINT p2_swap_old_internal;
+SET LOCAL request.jwt.claims TO :'p2_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.p2_assert((platform.ai_agent_document_update_v1(pg_temp.p2_id(1), pg_temp.p2_id(1001),
+    (platform.ai_agent_document_v1(pg_temp.p2_id(1), pg_temp.p2_id(1001)) #>> '{document,rowVersion}')::BIGINT,
+    '{"audience":"internal"}'::JSONB, pg_temp.p2_id(3141)) #>> '{document,audience}') = 'internal'
+  AND (platform.ai_agent_document_v1(pg_temp.p2_id(1), pg_temp.p2_id(1004)) #>> '{document,audience}') = 'client',
+  'staff set the old version 1001 to internal after the upload; the new version 1004 is still client');
+RESET ROLE;
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.p2_swap_1004() AS i1004 \gset
+SELECT pg_temp.p2_assert((:'i1004'::JSONB ->> 'status') = 'ready'
+    AND (:'i1004'::JSONB ->> 'replacedId') = pg_temp.p2_id(1001)::TEXT AND (:'i1004'::JSONB ->> 'audience') = 'internal'
+  AND NOT pg_temp.p2_id(1004) = ANY (pg_temp.p2_search_docs(:'p2_rv', 25, 'Bachelor of Computer Science'))
+  AND pg_temp.p2_id(1004) = ANY (pg_temp.p2_search_internal_docs(:'p2_rv', 25, 'Bachelor of Computer Science')),
+  'old internal + new client: the swap keeps internal and the new text is not a client result');
+RESET ROLE;
+ROLLBACK TO SAVEPOINT p2_swap_old_internal;
+
+-- (c) both client → client; this swap stays for the rest of the suite.
+SELECT pg_temp.p2_assert((SELECT count(*) = 2 FROM platform_private.ai_documents
+    WHERE id IN (pg_temp.p2_id(1001), pg_temp.p2_id(1004)) AND audience = 'client')
+  AND (SELECT status = 'processing' FROM platform_private.ai_documents WHERE id = pg_temp.p2_id(1004)),
+  'the rolled-back cases left both versions client and the new one still processing');
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.p2_swap_1004() AS i1004 \gset
 SELECT pg_temp.p2_assert((:'i1004'::JSONB ->> 'status') = 'ready'
     AND (:'i1004'::JSONB ->> 'replacedId') = pg_temp.p2_id(1001)::TEXT AND (:'i1004'::JSONB ->> 'audience') = 'client'
   AND pg_temp.p2_search_docs(:'p2_rv', 25, 'Bachelor of Computer Science') @> ARRAY[pg_temp.p2_id(1004)]
   AND NOT pg_temp.p2_id(1001) = ANY (pg_temp.p2_search_docs(:'p2_rv', 21, 'Bachelor of Computer Science')),
-  'once the new version is indexed it replaces the old one in the same transaction, with the old one''s audience');
+  'both client: once the new version is indexed it replaces the old one in the same transaction, as client');
 RESET ROLE;
 SELECT pg_temp.p2_assert((SELECT status = 'superseded' AND superseded_by_id = pg_temp.p2_id(1004) AND NOT autosend_allowed
     FROM platform_private.ai_documents WHERE id = pg_temp.p2_id(1001))

@@ -87,8 +87,12 @@ export function AiReviewSheet({
   retryHref: string;
 }>) {
   if (read.status !== "available") return <AiUnavailable what="«Лист сверки»" retryHref={retryHref} />;
-  const { items, hasMore, openCount } = read.data;
+  const { items, hasMore, pendingCount } = read.data;
   const canManage = read.data.canManage && !preview;
+  // Вкладка считает то же, что список под ней: открытые и применяемые. Число
+  // базы — по всей организации; для одного документа — только когда весь его
+  // список уже на экране.
+  const openTabCount = documentId === null ? pendingCount : filter === "open" && !hasMore ? items.length : null;
   const documentTitle = documentId ? items.find((item) => item.documentId === documentId)?.documentTitle ?? null : null;
   return (
     <section aria-labelledby="ai-review-title" className="space-y-3" data-testid="v3-ai-review">
@@ -101,7 +105,7 @@ export function AiReviewSheet({
       <QueueViewTabs
         label="Пункты сверки"
         tabs={[
-          { key: "open", label: "Открытые", count: openCount, current: filter === "open", href: aiAgentHref("review", { document: documentId }) },
+          { key: "open", label: "Открытые", count: openTabCount, current: filter === "open", href: aiAgentHref("review", { document: documentId }) },
           { key: "resolved", label: "Решённые", count: null, current: filter === "resolved", href: aiAgentHref("review", { status: "resolved", document: documentId }) },
           { key: "dismissed", label: "Оставлены как есть", count: null, current: filter === "dismissed", href: aiAgentHref("review", { status: "dismissed", document: documentId }) },
         ]}

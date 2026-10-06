@@ -34,6 +34,7 @@ import {
   aiPageImageHref,
   aiTitleFromFileName,
   aiUploadErrorCopy,
+  aiUploadRetryable,
   checkAiUploadFile,
   isAiReviewCorrection,
   normalizeAiBox,
@@ -189,12 +190,14 @@ test("content: magic bytes, OOXML package without macros, UTF-8 or cp1251 text w
   assert.deepEqual(checkAiUploadContent(text, Uint8Array.from([0xd6, 0x01, 0x98])), { ok: false, code: "text_encoding" });
 });
 
-test("document id: one per (organization, request), UUID v4 shape", () => {
-  const id = aiDocumentIdForRequest(ORG, ID(7));
+test("document id: one per (organization, request, file bytes), UUID v4 shape", () => {
+  const A = "a".repeat(64), B = "b".repeat(64);
+  const id = aiDocumentIdForRequest(ORG, ID(7), A);
   assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
-  assert.equal(aiDocumentIdForRequest(ORG, ID(7)), id, "a replay of the same request lands on the same object and receipt");
-  assert.notEqual(aiDocumentIdForRequest(ORG, ID(8)), id);
-  assert.notEqual(aiDocumentIdForRequest(ID(89), ID(7)), id);
+  assert.equal(aiDocumentIdForRequest(ORG, ID(7), A), id, "a replay of the same request with the same bytes lands on the same object and receipt");
+  assert.notEqual(aiDocumentIdForRequest(ORG, ID(7), B), id, "other bytes under the same request id never reuse the stored object");
+  assert.notEqual(aiDocumentIdForRequest(ORG, ID(8), A), id);
+  assert.notEqual(aiDocumentIdForRequest(ID(89), ID(7), A), id);
 });
 
 test("normalizers: page paths stay on the server, boxes are fractions, review readings and lab state are strict", () => {
@@ -243,7 +246,8 @@ test("normalizers: page paths stay on the server, boxes are fractions, review re
   assert.equal(review.items[0].documentVersion, 2);
   assert.deepEqual(review.items[0].readings, { tesseract: "1 260,00 $", vision: "1 250,00 $", arbiter: "1 250,00 $", arbiterModel: "gemini-3.1-pro-preview" });
   assert.equal(review.items[0].hasCrop, true);
-  assert.equal(review.openCount, 7);
+  assert.equal(review.pendingCount, 8, "the «Открытые» tab counts what its list shows: open and applying");
+  assert.equal(normalizeAiReviewList({ canManage: true, hasMore: false, items: [] , counts: { open: 2 } }).pendingCount, 2);
   assert.equal(JSON.stringify(review).includes("crops/"), false);
   assert.throws(() => normalizeAiReviewList({ items: [{ id: "x" }], canManage: true }), /ai_agent_shape_invalid/u);
   const lab = normalizeAiLabState({ canManage: true,
@@ -323,7 +327,7 @@ test("upload: scanned, stored under {org}/{doc}/original without overwrite, then
   const bytes = ooxml("xlsx");
   const response = await createAiDocumentUploadHandler(deps)(uploadRequest(newUpload(fileOf(bytes, "Прайс 2026.xlsx", XLSX))));
   assert.equal(response.status, 201);
-  const documentId = aiDocumentIdForRequest(ORG, ID(7));
+  const documentId = aiDocumentIdForRequest(ORG, ID(7), sha(bytes));
   const body = await response.json();
   assert.equal(body.documentId, documentId);
   assert.equal(body.document.status, "queued");
@@ -454,17 +458,85 @@ test("upload: a final database refusal removes the new object; an unknown outcom
   const response = await createAiDocumentUploadHandler(unknown.deps)(uploadRequest(newUpload(fileOf(pdf(), "прайс.pdf", "application/pdf"))));
   assert.equal(response.status, 503);
   assert.equal(unknown.calls.removed.length, 0, "the database may have committed: the object stays for a replay");
-  // Повтор того же запроса: объект уже лежит; отказ базы его не удаляет.
-  const path = `${ORG}/${aiDocumentIdForRequest(ORG, ID(7))}/original`;
-  const replay = knowledgeDeps({ objects: [[path, { bytes: pdf(), contentType: "application/pdf" }]],
-    rpc: async () => ({ data: null, error: { code: "PT409", message: "ai_request_conflict" } }) });
-  const replayed = await createAiDocumentUploadHandler(replay.deps)(uploadRequest(newUpload(fileOf(pdf(), "прайс.pdf", "application/pdf"))));
-  assert.equal(replayed.status, 409);
-  assert.equal(replay.calls.removed.length, 0);
   const storageDown = knowledgeDeps({ put: async () => "failed" });
   const stored = await createAiDocumentUploadHandler(storageDown.deps)(uploadRequest(newUpload(fileOf(pdf(), "прайс.pdf", "application/pdf"))));
   assert.equal(stored.status, 503);
   assert.equal(storageDown.calls.rpc.length, 0);
+});
+
+test("upload: a request already recorded with other input (23505, as 269 raises it) is a final 409 already_uploaded, never a retry loop", async () => {
+  const conflict = { code: "23505", message: "ai_request_conflict" };
+  // Первая попытка записана, ответ потерялся, название с тех пор изменено:
+  // те же байты — тот же объект, он оригинал записанного документа.
+  const bytes = pdf();
+  const path = `${ORG}/${aiDocumentIdForRequest(ORG, ID(7), sha(bytes))}/original`;
+  const replay = knowledgeDeps({ objects: [[path, { bytes, contentType: "application/pdf" }]], rpc: async () => ({ data: null, error: conflict }) });
+  const replayed = await createAiDocumentUploadHandler(replay.deps)(uploadRequest(newUpload(fileOf(bytes, "прайс.pdf", "application/pdf"), { title: "Прайс 2026 (правка)" })));
+  assert.equal(replayed.status, 409);
+  assert.equal((await replayed.json()).error.code, "already_uploaded");
+  assert.equal(aiUploadRetryable("already_uploaded"), false, "the client takes a new request id instead of replaying a conflict forever");
+  assert.match(aiUploadErrorCopy("already_uploaded"), /уже загрузила/u);
+  assert.deepEqual(replay.calls.stored.map(([stored]) => stored), [path]);
+  assert.equal(replay.calls.removed.length, 0, "the recorded document keeps its original");
+  assert.equal(replay.calls.rpc.length, 1, "no lookup: 23505 means the request was recorded");
+  // Тот же id запроса с другими байтами — другой объект; свой новый объект удаляется.
+  const other = knowledgeDeps({ objects: [[path, { bytes, contentType: "application/pdf" }]], rpc: async () => ({ data: null, error: conflict }) });
+  const edited = new TextEncoder().encode("%PDF-1.7\n% другой файл\n%%EOF\n");
+  const response = await createAiDocumentUploadHandler(other.deps)(uploadRequest(newUpload(fileOf(edited, "прайс.pdf", "application/pdf"))));
+  assert.equal(response.status, 409);
+  const otherPath = `${ORG}/${aiDocumentIdForRequest(ORG, ID(7), sha(edited))}/original`;
+  assert.notEqual(otherPath, path);
+  assert.deepEqual(other.calls.stored.map(([stored]) => stored), [otherPath], "B never lands on A's object");
+  assert.deepEqual(other.calls.removed, [otherPath]);
+  assert.deepEqual(other.objects.get(path)?.bytes, bytes, "A stays untouched");
+  // ai_document_id_taken — тоже 23505.
+  const taken = knowledgeDeps({ rpc: async () => ({ data: null, error: { code: "23505", message: "ai_document_id_taken" } }) });
+  const takenResponse = await createAiDocumentUploadHandler(taken.deps)(uploadRequest(newUpload(fileOf(pdf(), "прайс.pdf", "application/pdf"))));
+  assert.equal(takenResponse.status, 409);
+  assert.equal((await takenResponse.json()).error.code, "already_uploaded");
+});
+
+test("upload: a final refusal on an object left by an earlier attempt removes it only when no document has its id", async () => {
+  const bytes = pdf();
+  const documentId = aiDocumentIdForRequest(ORG, ID(7), sha(bytes));
+  const path = `${ORG}/${documentId}/original`;
+  const duplicate = { code: "PT409", message: "ai_document_duplicate", details: "Прайс 2025" };
+  for (const [lookup, removed] of [
+    [{ code: "P0002", message: "ai_document_not_found" }, [path]],
+    [null, []],
+    [{ code: "42501", message: "ai_staff_forbidden" }, []],
+    [{ code: "08006", message: "connection" }, []],
+  ]) {
+    const { deps, calls } = knowledgeDeps({
+      objects: [[path, { bytes, contentType: "application/pdf" }]],
+      rpc: async (name, args) => name === "ai_agent_document_upload_v1" ? { data: null, error: duplicate }
+        : name === "ai_agent_document_v1" && args.p_document_id === documentId && args.p_organization_id === ORG
+          ? { data: lookup ? null : { document: { id: documentId } }, error: lookup }
+          : { data: null, error: { code: "XX000", message: "unexpected" } },
+    });
+    const response = await createAiDocumentUploadHandler(deps)(uploadRequest(newUpload(fileOf(bytes, "прайс.pdf", "application/pdf"))));
+    assert.equal(response.status, 409);
+    assert.deepEqual(calls.removed, removed, `lookup ${lookup?.code ?? "found"}`);
+    assert.deepEqual(calls.rpc.map(([name]) => name), ["ai_agent_document_upload_v1", "ai_agent_document_v1"]);
+  }
+});
+
+test("upload: one CRM instance takes at most three uploads at a time; the fourth is 503 upload_busy before its body is read", async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const { deps, calls } = knowledgeDeps({ scan: async (bytes) => { calls.scanned += 1; await gate; return proof(bytes); } });
+  const handler = createAiDocumentUploadHandler(deps);
+  const request = (n) => uploadRequest(newUpload(fileOf(pdf(), "прайс.pdf", "application/pdf"), { request_id: ID(100 + n) }));
+  const running = [handler(request(1)), handler(request(2)), handler(request(3))];
+  while (calls.scanned < 3) await new Promise((resolve) => setTimeout(resolve, 5));
+  const busy = await handler(request(4));
+  assert.equal(busy.status, 503);
+  assert.equal((await busy.json()).error.code, "upload_busy");
+  assert.equal(aiUploadRetryable("upload_busy"), true, "nothing was stored: the same request may be retried");
+  assert.equal(calls.scanned, 3);
+  release();
+  assert.deepEqual((await Promise.all(running)).map((response) => response.status), [201, 201, 201]);
+  assert.equal((await handler(request(5))).status, 201, "the slots are released");
 });
 
 // ------------------------------------------------------------ images
@@ -662,7 +734,7 @@ function signed(method, path, body = new Uint8Array(0), { ts = Math.floor(Date.n
     method,
     headers: {
       "X-EVO-AI-Timestamp": String(ts),
-      "X-EVO-AI-Signature": signAiStorageRequest(secret, String(ts), method, path, body),
+      "X-EVO-AI-Signature": signAiStorageRequest(secret, String(ts), method, path, worker, body),
       "X-EVO-AI-Worker": worker,
       ...(method === "PUT" ? { "content-type": "image/png" } : {}),
       ...headers,
@@ -702,6 +774,11 @@ test("broker: 401 unsigned, stale, wrong secret or tampered body; 403 without th
   assert.equal((await handler(signed("GET", brokerPath("original"), undefined, { secret: SECRET }))).status, 401, "the agent-call secret is not the broker secret");
   assert.equal((await handler(signed("GET", brokerPath("original"), undefined, { worker: "" }))).status, 401);
   assert.equal((await handler(signed("GET", brokerPath("original"), undefined, { worker: "bad worker" }))).status, 401);
+  // Ссылка воркера — под подписью: чужой запрос под другим воркером не пройдёт.
+  const signedForOne = signed("GET", brokerPath("original"), undefined, { worker: "worker-1" });
+  const asAnother = new Headers(signedForOne.headers);
+  asAnother.set("X-EVO-AI-Worker", "worker-2");
+  assert.equal((await handler(new Request(signedForOne.url, { headers: asAnother }))).status, 401, "the worker ref is signed");
   const tampered = signed("PUT", brokerPath("pages/1.png"), pagePng);
   const swapped = new Request(tampered.url, { method: "PUT", headers: tampered.headers, body: await png(9, 9) });
   assert.equal((await handler(swapped)).status, 401);
@@ -926,6 +1003,9 @@ test("UI: five tabs with the review count, the upload copy, viewer, review sheet
   for (const word of ["Спросите как клиент", "Почему такой ответ", "Что не так?", "Предложить правку", "Было", "Стало", "Эталонный ответ", "Применить", "Не менять"]) {
     assert.ok(lab.includes(word), word);
   }
+  // Без агента «Применить» нет из-за агента, а не из-за прав (Q9: права есть у всех).
+  assert.match(lab, /agentOff=\{!featureOn\}/u);
+  assert.match(lab, /ИИ-агент не подключён к CRM — применить правку сейчас нельзя\./u);
   assert.match(read("src/lib/v3/ai-agent-knowledge.ts"), /lab_changed: "Знания или предложение изменились\. Спросите заново\."/u);
   for (const file of ["AiDocumentUpload.tsx", "AiDocumentViewer.tsx", "AiReviewItemActions.tsx", "AiLaboratory.tsx"]) {
     const source = read(`src/components/v3/ai-agent/${file}`);

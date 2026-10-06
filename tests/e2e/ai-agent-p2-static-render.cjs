@@ -137,6 +137,20 @@ const PAGE_2 = {
     { id: id(602), status: "open", proposed: "1 390,00 $", bbox: [0.6, (rowTop(2) - 30) / PAGE_H, 0.78, (rowTop(2) + 14) / PAGE_H] },
   ],
 };
+// Документ без страниц (знания из базы): весь текст — «страница 1» (271).
+const TEXT_DETAIL = { document: { ...DOCUMENTS.items.find((item) => item.id === DISCOUNTS), chunkCount: 2 }, canManage: true, pages: [] };
+const TEXT_PAGE = {
+  documentId: DISCOUNTS, docVersion: 1, pageNo: 1, pageCount: 1,
+  page: { sheetName: null, method: "text", confidence: null, width: null, height: null, imagePath: null, lines: null,
+    textMd: "## Раннее бронирование\nЗаявка до 1 марта — скидка 5 % на первый семестр.\n\n## Двое из семьи\nВторому студенту из семьи — скидка 10 % на сопровождение.\n\nСкидки не суммируются." },
+  chunks: [
+    { chunkId: 811, position: 0, sectionPath: "Правила скидок › Раннее бронирование", pageFrom: null, pageTo: null, boxes: [],
+      content: "Заявка до 1 марта — скидка 5 % на первый семестр." },
+    { chunkId: 812, position: 1, sectionPath: "Правила скидок › Двое из семьи", pageFrom: null, pageTo: null, boxes: [],
+      content: "Второму студенту из семьи — скидка 10 % на сопровождение. Скидки не суммируются." },
+  ],
+  reviewItems: [],
+};
 const review = (n, fields) => ({
   id: id(600 + n), documentId: SCAN, documentTitle: "Прайс 2026 — Малайзия (скан)", documentVersion: 2, pageNo: 2, kind: "number", status: "open",
   createdAt: `2026-10-06T07:3${n}:00Z`, contextLabel: null, errorCode: null, resolution: null, resolvedAt: null, resolvedByName: null, hasCrop: true, ...fields,
@@ -215,7 +229,9 @@ function stubReads(scenario) {
   source.readAiSettings = async () => ok(normalizeAiSettings(SETTINGS));
   source.readAiDocuments = async () => ok(normalizeAiDocuments(scenario.documents ?? DOCUMENTS));
   source.readAiDocumentDetail = async () => ok(knowledge.normalizeAiDocumentDetail(scenario.detail ?? PAGE_DETAIL));
-  source.readAiDocumentPage = async () => ok(knowledge.normalizeAiDocumentPage(scenario.page ?? PAGE_2));
+  // Сценарий с `pageOnly` отвечает только на эту страницу — так видно, какую страницу просит page.tsx.
+  source.readAiDocumentPage = async (_actor, _documentId, pageNo) => (scenario.pageOnly !== undefined && pageNo !== scenario.pageOnly
+    ? { status: "missing" } : ok(knowledge.normalizeAiDocumentPage(scenario.page ?? PAGE_2)));
   source.readAiReview = async (_actor, input) => ok(knowledge.normalizeAiReviewList(input.limit === 1 ? REVIEW
     : input.filter !== "open" ? REVIEW_RESOLVED : scenario.review ?? REVIEW));
   source.readAiLab = async () => ok(knowledge.normalizeAiLabState(scenario.lab ?? labState(null)));
@@ -462,6 +478,7 @@ const SCENARIOS = {
   "replace-pending": { search: { replace: BOOKLET } },
   "documents-empty": { search: {}, documents: { items: [], hasMore: false, canManage: true, isAdmin: false } },
   viewer: { search: { document: SCAN, page: "2" } },
+  "viewer-text": { search: { document: DISCOUNTS }, detail: TEXT_DETAIL, page: TEXT_PAGE, pageOnly: 1 },
   review: { search: { section: "review" } },
   "review-resolved": { search: { section: "review", status: "resolved" } },
   "review-done": { search: { section: "review" }, review: { items: [], hasMore: false, counts: { open: 0, applying: 0 }, canManage: true } },
@@ -532,6 +549,11 @@ async function main() {
     }
     if (url.pathname === "/api/v3/ai-agent/lab/ask" || url.pathname === "/api/v3/ai-agent/lab/critique") {
       const frames = take(url.pathname.endsWith("ask") ? queue.ask : queue.critique, []);
+      if (!Array.isArray(frames)) {
+        response.writeHead(frames.status, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(frames.body));
+        return;
+      }
       response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform" });
       for (const [delay, event, data] of frames) {
         await wait(delay);
@@ -674,7 +696,20 @@ async function main() {
       await session.page.locator(".v3-ai-chunk").first().click();
       check((await session.page.locator(".v3-ai-box[data-active]").count()) === 1, "viewer: the fragment highlights its box");
       check((await session.page.locator(".v3-ai-box[data-review]").count()) === 2, "viewer: two unverified numbers on the page");
+      const tagDisplay = await session.page.locator(".v3-ai-box-tag").first().evaluate((element) => getComputedStyle(element).display);
+      const figureWidth = await session.page.locator(".v3-ai-page").evaluate((element) => Math.round(element.getBoundingClientRect().width));
+      report({ check: "viewer-tag", viewportKey, figureWidth, tagDisplay });
+      if (viewportKey === "390") check(tagDisplay === "none", "viewer-390: the «не проверено» tag does not cover the neighbouring row");
       await shot(session, "viewer-highlight", { fullPage: viewportKey === "390" });
+      await close(session);
+
+      // Документ без страниц: текст «страницы 1» и фрагменты, без колонки страниц.
+      session = await open("viewer-text", viewportKey);
+      check((await session.page.locator('[data-testid="v3-ai-page-text"]').count()) === 1, "viewer-text: a document without pages shows its text (page 1)");
+      check((await session.page.locator('[data-testid="v3-ai-viewer-empty"]').count()) === 0, "viewer-text: not «нет страниц»");
+      check((await session.page.locator(".v3-ai-rail").count()) === 0, "viewer-text: no page rail");
+      check((await session.page.locator('[data-testid="v3-ai-chunks"] li').count()) === 2, "viewer-text: its fragments");
+      await shot(session, "viewer-text", { fullPage: viewportKey === "390" });
       await close(session);
 
       // «Лист сверки»: прочтения, вырезки, «Исправить», «Исправление применяется…».
@@ -684,6 +719,9 @@ async function main() {
       await session.page.waitForFunction(() => [...document.querySelectorAll(".v3-ai-crop img")].every((image) => image.complete && image.naturalWidth > 0));
       await shot(session, "review", { fullPage: true });
       check((await session.page.locator('[data-testid="v3-ai-review-applying"]').count()) === 1, "review: applying state");
+      const openTab = (await text(session, '[data-testid="v3-ai-review"] a[aria-current="page"]')).replace(/\s+/gu, " ").trim();
+      const rows = await session.page.locator('[data-testid="v3-ai-review-item"]').count();
+      check(openTab === `Открытые ${rows}`, `review: the «Открытые» count matches the list (${openTab} / ${rows} rows)`);
       check((await session.page.getByText("число встречается в тексте не один раз").count()) === 1, "review: anchor error");
       await session.page.getByRole("button", { name: "Исправить" }).first().click();
       check(await session.page.locator('[data-testid="v3-ai-review-value"]').evaluate((element) => element === document.activeElement), "review: focus moves to the value");
@@ -709,9 +747,16 @@ async function main() {
       queue.lab.push(labState(SESSION));
       queue.critique.push([[50, "status", { stage: "reviewing" }], [600, "delta", { text: "В прайсе цена набора 2026 года." }], [300, "final", { proposal: { id: PROPOSAL.id } }]]);
       queue.lab.push(labState({ ...SESSION, payload: { ...SESSION.payload, finding: FINDING } }, PROPOSAL));
+      queue.ask.unshift({ status: 429, body: { error: { code: "rate_limited" } } });
       session = await open("lab", viewportKey);
       await shot(session, "lab-empty", { fullPage: viewportKey === "390" });
       await session.page.locator('[data-testid="v3-ai-lab-question-input"]').fill(QUESTION);
+      await session.page.locator('[data-testid="v3-ai-lab-ask"]').click();
+      // Отказ (лимит): вопрос возвращается в форму — «Спросить» ещё раз, без «Новой проверки».
+      await session.page.waitForSelector('[data-testid="v3-ai-lab-error"][data-code="rate_limited"]');
+      check((await session.page.locator('[data-testid="v3-ai-lab-question-input"]').inputValue()) === QUESTION, "lab: a failed question stays in the form");
+      check((await session.page.locator('[data-testid="v3-ai-lab-question"]').count()) === 0, "lab: no orphan quote after a failed question");
+      if (viewportKey === "1440") await shot(session, "lab-ask-failed");
       await session.page.locator('[data-testid="v3-ai-lab-ask"]').click();
       await session.page.waitForSelector('[data-testid="v3-ai-preview"]');
       await shot(session, "lab-streaming");

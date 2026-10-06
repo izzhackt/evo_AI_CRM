@@ -48,7 +48,8 @@ import {
  *    сканер недоступен — 503, ничего не сохраняется), объект
  *    `{org}/{doc}/original` без перезаписи и `ai_agent_document_upload_v1`.
  *    Отказ базы — объект удаляется; неизвестный итог базы — объект остаётся
- *    для повтора тем же id запроса (id документа выводится из него);
+ *    для повтора тем же id запроса (id документа выводится из него и SHA-256
+ *    файла); запрос, уже записанный с другим вводом, — 409 `already_uploaded`;
  *  - `GET …/documents/{doc}/pages/{n}/image` и `GET …/documents/{doc}/crops/{item}` —
  *    картинка страницы и вырезка: сессия → `ai_agent_document_v1` (право
  *    чтения решает база) → поток из Storage. Путь объекта CRM строит сама
@@ -68,6 +69,8 @@ const VERSION = /^[1-9]\d{0,14}$/u;
 /** Multipart: файл до 25 МБ и поля формы. */
 const MULTIPART_LIMIT = AI_UPLOAD_MAX_BYTES + 64 * 1024;
 const LAB_BODY_LIMIT = 16 * 1024;
+/** Сколько загрузок разом принимает один экземпляр CRM (память, см. обработчик). */
+const AI_UPLOAD_CONCURRENCY = 3;
 const APPLY_TIMEOUT_MS = 60_000;
 
 const IMAGE_HEADERS = Object.freeze({
@@ -242,6 +245,11 @@ const UPLOAD_STATUS: Readonly<Record<string, number>> = {
 
 /** Отказ базы — окончательный (объект можно удалить) или нет (итог неизвестен). */
 function uploadRefusal(error: RpcError): Readonly<{ final: boolean; response: Response }> {
+  // 23505 — запрос с этим id уже записан с другим вводом (269
+  // `ai_request_conflict`: первая попытка прошла, ответ потерялся, а
+  // название, аудитория или файл с тех пор изменились) или id документа
+  // занят (271 `ai_document_id_taken`). Повтор тем же запросом ответит так же.
+  if (error.code === "23505") return { final: true, response: failure(409, "already_uploaded") };
   if (error.code === "PT409") {
     if (error.message === "ai_document_duplicate") {
       const title = typeof error.details === "string" && error.details.trim() ? error.details.slice(0, 240) : null;
@@ -260,91 +268,133 @@ function uploadRefusal(error: RpcError): Readonly<{ final: boolean; response: Re
   return { final: false, response: failure(503, "unavailable") };
 }
 
+/**
+ * Удалить ли объект после окончательного отказа базы. Свой новый объект
+ * (`stored`) — да: его не описывает ни одна строка. Объект прежней попытки
+ * того же запроса и тех же байтов (`exists`) — только если документа с этим
+ * id в базе нет (`P0002`): иначе это оригинал записанного документа. При
+ * конфликте запроса (23505) прежняя попытка записана — объект не трогается.
+ */
+async function orphanAfterRefusal(
+  dependencies: AiKnowledgeRouteDependencies,
+  actor: ActivePlatformActor,
+  documentId: string,
+  stored: "stored" | "exists",
+  error: RpcError,
+): Promise<boolean> {
+  if (stored === "stored") return true;
+  if (error.code === "23505") return false;
+  try {
+    const { error: lookup } = await dependencies.rpc("ai_agent_document_v1", {
+      p_organization_id: actor.organizationId, p_document_id: documentId,
+    });
+    return lookup?.code === "P0002";
+  } catch {
+    return false;
+  }
+}
+
 export function createAiDocumentUploadHandler(dependencies: AiKnowledgeRouteDependencies = defaultDependencies) {
+  // Одна загрузка держит в памяти до четырёх копий файла (части потока, тело,
+  // разобранный File, байты) — около 100 МБ на файл в 25 МБ. Один экземпляр
+  // CRM принимает не больше AI_UPLOAD_CONCURRENCY загрузок разом; лишняя —
+  // 503 `upload_busy` до чтения тела, ничего не сохранено, повтор безопасен.
+  let active = 0;
   return async function POST(request: Request): Promise<Response> {
     try {
       if (!sameOrigin(request)) return failure(403, "forbidden");
       const authorization = await dependencies.authorize("write");
       if (authorization.status !== "authorized") return refusal(authorization.status);
-      const actor = authorization.actor;
       const contentType = request.headers.get("content-type") ?? "";
       if (!/^multipart\/form-data;\s*boundary=/iu.test(contentType)) return failure(415, "multipart_required");
-
-      const body = await readCappedBody(request, MULTIPART_LIMIT);
-      if (body === "too_large") return failure(413, "too_large");
-      if (body === "unreadable") return failure(400, "invalid_request");
-      let form: FormData;
+      if (active >= AI_UPLOAD_CONCURRENCY) return failure(503, "upload_busy");
+      active += 1;
       try {
-        form = await new Response(body, { headers: { "Content-Type": contentType } }).formData();
-      } catch {
-        return failure(400, "invalid_request");
+        return await receiveUpload(dependencies, request, authorization.actor, contentType);
+      } finally {
+        active -= 1;
       }
-      const upload = readUploadForm(form);
-      if (typeof upload === "string") return failure(UPLOAD_STATUS[upload] ?? 400, upload);
-
-      const check = checkAiUploadFile(upload.file.name, upload.file.type, upload.file.size);
-      if (!check.ok) return failure(UPLOAD_STATUS[check.code] ?? 415, check.code);
-      const bytes = new Uint8Array(await upload.file.arrayBuffer());
-      if (bytes.byteLength !== upload.file.size || bytes.byteLength > AI_UPLOAD_MAX_BYTES) return failure(413, "too_large");
-      const content = checkAiUploadContent(check.format, bytes);
-      if (!content.ok) return failure(415, content.code);
-      const sha256 = sha256Hex(bytes);
-
-      // Проверка на вирусы до того, как файл ляжет в Storage.
-      let proof: ClamdMalwareScanProof;
-      try {
-        proof = await dependencies.scan(bytes);
-      } catch (error) {
-        if (error instanceof ClamdScanError && error.code === "infected") return failure(422, "malware_detected");
-        return failure(503, "malware_scanner_unavailable");
-      }
-      if (!isClamdMalwareScanProof(proof, sha256)) return failure(503, "malware_scanner_unavailable");
-
-      const documentId = aiDocumentIdForRequest(actor.organizationId, upload.requestId);
-      const path = aiOriginalPath(actor.organizationId, documentId);
-      const storage = dependencies.storage();
-      const stored = await storage.putOriginal(path, bytes, check.format.mimeType);
-      if (stored === "failed") return failure(503, "storage_unavailable");
-
-      const { data, error } = await dependencies.rpc("ai_agent_document_upload_v1", {
-        p_organization_id: actor.organizationId,
-        p_document_id: documentId,
-        p_title: upload.title,
-        p_kind: check.format.kind,
-        p_mime_type: check.format.mimeType,
-        p_byte_size: bytes.byteLength,
-        p_byte_sha256: sha256,
-        p_audience: upload.audience,
-        p_client_confirmed: upload.clientConfirmed,
-        p_company_material: true,
-        p_replaces_id: upload.replacesId,
-        p_replaces_version: upload.replacesVersion,
-        // Доказательство ClamAV как есть (271 сверяет ключи, протокол, sha256 и свежесть).
-        p_scan_proof: {
-          engine: proof.engine, engineVersion: proof.engineVersion, signatureVersion: proof.signatureVersion,
-          protocol: proof.protocol, scannedAt: proof.scannedAt, sha256Hex: proof.sha256Hex,
-        },
-        p_request_id: upload.requestId,
-      });
-      if (error) {
-        const { final, response } = uploadRefusal(error);
-        // Свой новый объект при окончательном отказе удаляется; объект
-        // прежней попытки того же запроса (`exists`) не трогается.
-        if (final && stored === "stored") await storage.remove([path]);
-        return response;
-      }
-      const receipt = typeof data === "object" && data !== null ? data as Record<string, unknown> : {};
-      let document: ReturnType<typeof normalizeAiDocument> | null = null;
-      try {
-        document = normalizeAiDocument(receipt.document);
-      } catch {
-        document = null;
-      }
-      return json(201, { documentId, document });
     } catch {
       return failure(503, "unavailable");
     }
   };
+}
+
+async function receiveUpload(
+  dependencies: AiKnowledgeRouteDependencies,
+  request: Request,
+  actor: ActivePlatformActor,
+  contentType: string,
+): Promise<Response> {
+  const body = await readCappedBody(request, MULTIPART_LIMIT);
+  if (body === "too_large") return failure(413, "too_large");
+  if (body === "unreadable") return failure(400, "invalid_request");
+  let form: FormData;
+  try {
+    form = await new Response(body, { headers: { "Content-Type": contentType } }).formData();
+  } catch {
+    return failure(400, "invalid_request");
+  }
+  const upload = readUploadForm(form);
+  if (typeof upload === "string") return failure(UPLOAD_STATUS[upload] ?? 400, upload);
+
+  const check = checkAiUploadFile(upload.file.name, upload.file.type, upload.file.size);
+  if (!check.ok) return failure(UPLOAD_STATUS[check.code] ?? 415, check.code);
+  const bytes = new Uint8Array(await upload.file.arrayBuffer());
+  if (bytes.byteLength !== upload.file.size || bytes.byteLength > AI_UPLOAD_MAX_BYTES) return failure(413, "too_large");
+  const content = checkAiUploadContent(check.format, bytes);
+  if (!content.ok) return failure(415, content.code);
+  const sha256 = sha256Hex(bytes);
+
+  // Проверка на вирусы до того, как файл ляжет в Storage.
+  let proof: ClamdMalwareScanProof;
+  try {
+    proof = await dependencies.scan(bytes);
+  } catch (error) {
+    if (error instanceof ClamdScanError && error.code === "infected") return failure(422, "malware_detected");
+    return failure(503, "malware_scanner_unavailable");
+  }
+  if (!isClamdMalwareScanProof(proof, sha256)) return failure(503, "malware_scanner_unavailable");
+
+  const documentId = aiDocumentIdForRequest(actor.organizationId, upload.requestId, sha256);
+  const path = aiOriginalPath(actor.organizationId, documentId);
+  const storage = dependencies.storage();
+  const stored = await storage.putOriginal(path, bytes, check.format.mimeType);
+  if (stored === "failed") return failure(503, "storage_unavailable");
+
+  const { data, error } = await dependencies.rpc("ai_agent_document_upload_v1", {
+    p_organization_id: actor.organizationId,
+    p_document_id: documentId,
+    p_title: upload.title,
+    p_kind: check.format.kind,
+    p_mime_type: check.format.mimeType,
+    p_byte_size: bytes.byteLength,
+    p_byte_sha256: sha256,
+    p_audience: upload.audience,
+    p_client_confirmed: upload.clientConfirmed,
+    p_company_material: true,
+    p_replaces_id: upload.replacesId,
+    p_replaces_version: upload.replacesVersion,
+    // Доказательство ClamAV как есть (271 сверяет ключи, протокол, sha256 и свежесть).
+    p_scan_proof: {
+      engine: proof.engine, engineVersion: proof.engineVersion, signatureVersion: proof.signatureVersion,
+      protocol: proof.protocol, scannedAt: proof.scannedAt, sha256Hex: proof.sha256Hex,
+    },
+    p_request_id: upload.requestId,
+  });
+  if (error) {
+    const { final, response } = uploadRefusal(error);
+    if (final && await orphanAfterRefusal(dependencies, actor, documentId, stored, error)) await storage.remove([path]);
+    return response;
+  }
+  const receipt = typeof data === "object" && data !== null ? data as Record<string, unknown> : {};
+  let document: ReturnType<typeof normalizeAiDocument> | null = null;
+  try {
+    document = normalizeAiDocument(receipt.document);
+  } catch {
+    document = null;
+  }
+  return json(201, { documentId, document });
 }
 
 // ------------------------------------------------------------------ images

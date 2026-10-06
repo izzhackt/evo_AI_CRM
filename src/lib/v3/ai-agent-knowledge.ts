@@ -138,11 +138,13 @@ export const AI_UPLOAD_ERROR_COPY: Readonly<Record<string, string>> = Object.fre
   replacement_pending: "Новая версия этого документа уже обрабатывается.",
   not_found: "Документ, который вы заменяете, уже удалён или заменён. Обновите страницу.",
   conflict: "Документ уже изменился — обновите страницу.",
+  already_uploaded: "Прошлая попытка уже загрузила этот файл — он в списке.",
   forbidden: "Загружать материалы может сотрудник с доступом к «ИИ-агенту».",
   preview: "В просмотре роли файлы не загружаются.",
   authentication_required: "Сессия закончилась — войдите снова.",
   invalid_request: "Не удалось загрузить файл. Обновите страницу.",
   storage_unavailable: "Не удалось сохранить файл. Повторите попытку.",
+  upload_busy: "Сейчас идёт несколько загрузок — файл не сохранён. Повторите через минуту.",
   unavailable: "Не удалось загрузить файл. Повторите попытку.",
 });
 
@@ -153,7 +155,7 @@ export function aiUploadErrorCopy(code: string, duplicateTitle: string | null = 
 
 /** Повтор тем же запросом имеет смысл: результат неизвестен или временный отказ. */
 export function aiUploadRetryable(code: string): boolean {
-  return code === "unavailable" || code === "storage_unavailable" || code === "malware_scanner_unavailable";
+  return code === "unavailable" || code === "storage_unavailable" || code === "malware_scanner_unavailable" || code === "upload_busy";
 }
 
 /** «1,2 МБ», «850 КБ». */
@@ -355,7 +357,11 @@ export type AiReviewItem = Readonly<{
 export type AiReviewList = Readonly<{
   items: readonly AiReviewItem[];
   hasMore: boolean;
-  openCount: number;
+  /**
+   * Ждут решения по всей организации: открытые и применяемые — то же, что
+   * показывает вкладка «Открытые» (`status: pending`).
+   */
+  pendingCount: number;
   canManage: boolean;
 }>;
 
@@ -364,6 +370,13 @@ const reading = (value: unknown): string | null => {
   if (isObject(value) && typeof value.text === "string") return value.text.slice(0, 200);
   return null;
 };
+
+/** `counts {open, applying}` (272) → сколько ждут решения; чужая форма — null. */
+function pendingCount(counts: unknown): number | null {
+  if (!isObject(counts)) return null;
+  const open = smallInt(counts.open, 1_000_000), applying = smallInt(counts.applying ?? 0, 1_000_000);
+  return open === null || applying === null ? null : open + applying;
+}
 
 /** `ai_agent_review_v1` (272): пункты «Листа сверки» живых документов. */
 export function normalizeAiReviewList(value: unknown): AiReviewList {
@@ -403,8 +416,8 @@ export function normalizeAiReviewList(value: unknown): AiReviewList {
   return Object.freeze({
     items: Object.freeze(items),
     hasMore: value.hasMore === true,
-    openCount: smallInt(isObject(value.counts) ? value.counts.open : value.openCount, 1_000_000)
-      ?? items.filter((item) => item.status === "open").length,
+    pendingCount: pendingCount(value.counts) ?? smallInt(value.openCount, 1_000_000)
+      ?? items.filter((item) => item.status === "open" || item.status === "applying").length,
     canManage: value.canManage,
   });
 }

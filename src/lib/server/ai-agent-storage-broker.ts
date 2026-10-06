@@ -24,8 +24,13 @@ import { AI_AGENT_SIGNATURE_HEADER, AI_AGENT_TIMESTAMP_HEADER } from "./ai-agent
  * секрет брокера `EVO_AI_AGENT_STORAGE_SECRET` (не секрет вызовов агента):
  *
  *   X-EVO-AI-Timestamp: <unix seconds>   (±60 с)
- *   X-EVO-AI-Signature: hex(HMAC_SHA256(secret, "<ts>.<METHOD>.<path>.<sha256 hex of body>"))
  *   X-EVO-AI-Worker:    <worker ref>      (тот, кто держит аренду документа)
+ *   X-EVO-AI-Signature: hex(HMAC_SHA256(secret, "<ts>.<METHOD>.<path>.<worker ref>.<sha256 hex of body>"))
+ *
+ * Ссылка воркера входит в подпись: от неё зависит проверка аренды, и
+ * подменить её в чужом запросе нельзя. Повтор того же запроса в окне ±60 с
+ * подпись не отличит: GET отдаёт тот же объект тому же воркеру, PUT
+ * перезаписывает те же байты (страницы и вырезки — производные, upsert).
  *
  * Подпись одна не открывает документ: затем `ai_agent_storage_authorize_v1`
  * (только service_role) пускает путь под `{org}/{doc}/`, если операция
@@ -83,9 +88,11 @@ export function readAiStorageSecret(env: Readonly<Record<string, string | undefi
   return secret;
 }
 
-export function signAiStorageRequest(secret: string, timestamp: string, method: string, path: string, body: Uint8Array): string {
+export function signAiStorageRequest(
+  secret: string, timestamp: string, method: string, path: string, workerRef: string, body: Uint8Array,
+): string {
   const digest = createHash("sha256").update(body).digest("hex");
-  return createHmac("sha256", secret).update(`${timestamp}.${method.toUpperCase()}.${path}.${digest}`).digest("hex");
+  return createHmac("sha256", secret).update(`${timestamp}.${method.toUpperCase()}.${path}.${workerRef}.${digest}`).digest("hex");
 }
 
 export type AiBrokerAuthorization = "allowed" | "denied" | "missing" | "unavailable";
@@ -198,7 +205,7 @@ export function createAiStorageBrokerHandler(dependencies: AiStorageBrokerDepend
         const read = await readCappedBody(request, 0);
         if (read === "too_large" || read === "unreadable") return refuse(400, "invalid_request");
       }
-      if (!signatureMatches(signAiStorageRequest(secret, timestamp, method, url.pathname, body), signature)) {
+      if (!signatureMatches(signAiStorageRequest(secret, timestamp, method, url.pathname, workerRef, body), signature)) {
         return refuse(401, "unauthorized");
       }
       if (method === "PUT") {

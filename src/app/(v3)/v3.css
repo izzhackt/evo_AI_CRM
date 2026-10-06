@@ -1323,6 +1323,10 @@
   .v3-world .v3-ai-viewer[data-sheets] {
     grid-template-columns: 11rem minmax(0, 1fr) 20rem;
   }
+  /* Документ без страниц (TXT, CSV, MD, знания): текст и фрагменты. */
+  .v3-world .v3-ai-viewer[data-text-only] {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+  }
   .v3-world .v3-ai-rail {
     position: sticky;
     top: var(--shell-page-top, 1.5rem);
@@ -1348,6 +1352,7 @@
 }
 .v3-world .v3-ai-page {
   position: relative;
+  container: ai-page / inline-size;
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -1387,6 +1392,14 @@
   font-weight: 600;
   line-height: 18px;
   white-space: nowrap;
+}
+/* Узкая страница: ярлык над рамкой закрыл бы соседнюю строку (число, которое
+   сверяют). Остаются рамка цвета предупреждения и строка «Число не
+   проверено: …» под картинкой. */
+@container ai-page (max-width: 39.99rem) {
+  .v3-world .v3-ai-box-tag {
+    display: none;
+  }
 }
 .v3-world .v3-ai-page-text {
   max-height: min(70vh, 48rem);

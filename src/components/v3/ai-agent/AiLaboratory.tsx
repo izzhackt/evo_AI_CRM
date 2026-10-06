@@ -157,6 +157,7 @@ function targetLine(proposal: AiLabProposal): string {
 function ProposalCard({
   proposal,
   canApply,
+  agentOff,
   phase,
   onApply,
   onReject,
@@ -164,6 +165,8 @@ function ProposalCard({
 }: Readonly<{
   proposal: AiLabProposal;
   canApply: boolean;
+  /** Агент не подключён — причина, по которой «Применить» нет, а не права. */
+  agentOff: boolean;
   phase: Phase;
   onApply: () => void;
   onReject: () => void;
@@ -208,7 +211,9 @@ function ProposalCard({
           </p>
         </div>
       ) : (
-        <p className="t-body-compact text-fg-3">Применяет сотрудник с правом управления «ИИ-агентом».</p>
+        <p className="t-body-compact text-fg-3">
+          {agentOff ? "ИИ-агент не подключён к CRM — применить правку сейчас нельзя." : "Применяет сотрудник с правом управления «ИИ-агентом»."}
+        </p>
       )}
     </section>
   );
@@ -331,6 +336,11 @@ export function AiLaboratory({
     event?.preventDefault();
     if (!isAiLabText(question)) { questionRef.current?.focus(); return; }
     const asked = question.trim();
+    const before = lab;
+    // Вопрос сразу встаёт цитатой; не дошёл ответ — откат к форме с тем же
+    // текстом: «Спросить» ещё раз, без «Новой проверки».
+    const rollback = () => setLab((previous) => previous && before
+      ? { ...previous, session: before.session, proposal: before.proposal } : previous);
     setLab((previous) => previous ? { ...previous, session: { revision: 0, question: asked, answer: null, finding: "", updatedAt: null, expiresAt: null }, proposal: null } : previous);
     setFinding("");
     setPhase({ kind: "asking", stage: "searching", sources: null, preview: "" });
@@ -342,14 +352,18 @@ export function AiLaboratory({
       else if (frame.type === "final") { finished = true; return true; }
       return false;
     });
-    if (!finished) return;
+    if (!finished) {
+      rollback();
+      return;
+    }
     const state = await reload();
     if (state?.session?.answer) {
       setPhase({ kind: "idle" });
       setQuestion("");
       setFocusNext("finding");
-    } else if (state) {
-      setPhase({ kind: "error", step: "ask", code: "unavailable", message: labError("unavailable") });
+    } else {
+      rollback();
+      if (state) setPhase({ kind: "error", step: "ask", code: "unavailable", message: labError("unavailable") });
     }
   };
 
@@ -593,6 +607,7 @@ export function AiLaboratory({
           <ProposalCard
             proposal={proposal}
             canApply={lab.canManage && featureOn}
+            agentOff={!featureOn}
             phase={phase}
             onApply={() => void apply()}
             onReject={() => void reject()}

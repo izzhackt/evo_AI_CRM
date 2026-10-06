@@ -26,8 +26,11 @@ import {
  * Отправка — `POST /api/v3/ai-agent/documents` (XHR — ради честного процента
  * передачи); после передачи — «Проверяем файл…» (тип, вирусы, запись). Id
  * запроса живёт до записи: «Повторить» после неизвестного итога идёт тем же
- * запросом, и база не создаст второй документ. До гидратации выбор файла
- * недоступен — выбор без обработчика потерялся бы молча.
+ * запросом, и база не создаст второй документ. Каждый выбор файла — новый
+ * запрос (тот же id с другими байтами база не примет). Если прошлая попытка
+ * уже записала файл, а ввод с тех пор изменился, — «уже загружен» и список
+ * перечитывается. До гидратации выбор файла недоступен — выбор без
+ * обработчика потерялся бы молча.
  */
 const subscribe = () => () => undefined;
 const onClient = () => true;
@@ -82,8 +85,9 @@ export function AiDocumentUpload({
       setPhase({ kind: "error", code: check.code, message: aiUploadErrorCopy(check.code) });
       return;
     }
-    // Другой файл — другой запрос: прежний id мог уже стать квитанцией.
-    if (file && (file.name !== next.name || file.size !== next.size)) setRequestId(crypto.randomUUID());
+    // Каждый выбор — новый запрос: прежний id мог уже стать квитанцией
+    // другого файла, а одинаковые имя и размер не значат одинаковых байтов.
+    setRequestId(crypto.randomUUID());
     setFile(next);
     setTitle(replace ? replace.title : aiTitleFromFileName(next.name));
     setPhase({ kind: "idle" });
@@ -145,6 +149,13 @@ export function AiDocumentUpload({
       const duplicate = typeof response.error?.title === "string" ? response.error.title : null;
       // Окончательный отказ — следующая попытка уже другим запросом.
       if (!aiUploadRetryable(code)) setRequestId(crypto.randomUUID());
+      if (code === "already_uploaded") {
+        // Файл уже в базе (прошлая попытка): второй раз его не отправить.
+        setFile(null);
+        setAttempted(false);
+        if (inputRef.current) inputRef.current.value = "";
+        router.refresh();
+      }
       setPhase({ kind: "error", code, message: aiUploadErrorCopy(code, duplicate) });
     };
     xhr.onerror = () => {

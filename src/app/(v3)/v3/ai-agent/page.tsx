@@ -58,13 +58,14 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
   const retryHref = aiAgentHref(section, section === "documents"
     ? { document: route.documentId, page: route.page, replace: route.replaceId }
     : section === "review" ? { status: route.reviewFilter === "open" ? null : route.reviewFilter, document: route.documentId } : {});
-  // Число открытых пунктов «Листа сверки» — у вкладки на каждом подразделе.
+  // Сколько пунктов «Листа сверки» ждут решения (открытые и применяемые) —
+  // у вкладки на каждом подразделе.
   const [settings, reviewCount] = await Promise.all([
     readAiSettings(actor),
     section === "review" ? Promise.resolve(null) : readAiReview(actor, { filter: "open", documentId: null, limit: 1 }),
   ]);
   const settingsData = settings.status === "available" ? settings.data : null;
-  let reviewOpenCount = reviewCount?.status === "available" ? reviewCount.data.openCount : null;
+  let reviewOpenCount = reviewCount?.status === "available" ? reviewCount.data.pendingCount : null;
 
   let content: ReactNode;
   if (section === "documents" && route.documentId) {
@@ -74,8 +75,12 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
       content = <AiUnavailable what="документ" retryHref={retryHref} />;
     } else {
       const pages = detail.data.pages;
-      const pageNo = route.page ?? pages[0]?.pageNo ?? null;
-      if (route.page !== null && !pages.some((page) => page.pageNo === route.page)) notFound();
+      // Без страниц (TXT, CSV, MD, знания из базы) весь текст документа —
+      // «страница 1» у `ai_agent_document_page_v1` (271), фрагменты — без страниц.
+      const textOnly = pages.length === 0;
+      const busy = detail.data.document.status === "queued" || detail.data.document.status === "processing";
+      if (route.page !== null && (textOnly ? route.page !== 1 : !pages.some((page) => page.pageNo === route.page))) notFound();
+      const pageNo = route.page ?? pages[0]?.pageNo ?? (textOnly && !busy ? 1 : null);
       const page = pageNo !== null ? await readAiDocumentPage(actor, route.documentId, pageNo) : null;
       content = (
         <AiDocumentViewer
@@ -107,7 +112,7 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
     );
   } else if (section === "review") {
     const read = await readAiReview(actor, { filter: route.reviewFilter, documentId: route.documentId, limit: 50 });
-    if (read.status === "available" && route.reviewFilter === "open" && !route.documentId) reviewOpenCount = read.data.openCount;
+    if (read.status === "available" && route.reviewFilter === "open" && !route.documentId) reviewOpenCount = read.data.pendingCount;
     content = (
       <AiReviewSheet
         read={read}

@@ -26,6 +26,8 @@ import {
  * рамкой «Число не проверено». Картинка — только через CRM
  * (`/api/v3/ai-agent/documents/…/pages/n/image`), путь Storage в браузер не идёт.
  * Страницы — настоящие ссылки (`?document=&page=`), без клиентских запросов.
+ * У документа без страниц (TXT, CSV, MD, знания из базы) весь текст — одна
+ * «страница 1» (271): тогда без колонки страниц — текст и фрагменты.
  */
 const TONE = { ok: "ok", warn: "warn", danger: "danger", muted: "neutral" } as const;
 
@@ -60,6 +62,10 @@ export function AiDocumentViewer({
   const listRef = useRef<HTMLOListElement>(null);
   const openOnPage = page ? page.reviewItems.filter((item) => item.status === "open" || item.status === "applying") : [];
   const sheets = pages.some((item) => item.sheetName);
+  const textOnly = pages.length === 0;
+  const busy = document.status === "queued" || document.status === "processing";
+  const placeLabel = textOnly ? "текст документа"
+    : pageNo ? pageLabel({ pageNo, sheetName: pages.find((item) => item.pageNo === pageNo)?.sheetName ?? null }).toLowerCase() : "страницу";
 
   useEffect(() => {
     if (highlightChunkId === null) return;
@@ -89,41 +95,41 @@ export function AiDocumentViewer({
         </p>
       </div>
 
-      {pages.length === 0 ? (
+      {textOnly && (busy || pageRead === "none" || pageRead === "missing") ? (
         <p className="rounded-card border border-border bg-surface px-4 py-6 t-body-compact text-fg-2" data-testid="v3-ai-viewer-empty">
-          {document.status === "queued" || document.status === "processing"
-            ? "Документ ещё обрабатывается — страницы появятся после разбора."
-            : "У документа нет страниц для просмотра."}
+          {busy ? "Документ ещё обрабатывается — текст появится после разбора." : "У документа пока нет текста для просмотра."}
         </p>
       ) : (
-        <div className="v3-ai-viewer" data-sheets={sheets || undefined}>
-          <nav aria-label={sheets ? "Листы документа" : "Страницы документа"} className="v3-ai-rail">
-            <ol className="flex gap-1 lg:flex-col">
-              {pages.map((item) => (
-                <li key={item.pageNo}>
-                  <Link
-                    href={href(item.pageNo)}
-                    scroll={false}
-                    aria-current={item.pageNo === pageNo ? "page" : undefined}
-                    className="v3-choice inline-flex min-h-11 w-full items-center justify-between gap-2 whitespace-nowrap rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
-                  >
-                    <span className="min-w-0 truncate">{pageLabel(item)}</span>
-                    {item.openReviewCount > 0 ? (
-                      <span className="v3-ai-rail-flag" title="Есть непроверенные числа">
-                        <span className="sr-only">, не проверено: </span>{item.openReviewCount}
-                      </span>
-                    ) : null}
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          </nav>
+        <div className="v3-ai-viewer" data-sheets={sheets || undefined} data-text-only={textOnly || undefined}>
+          {textOnly ? null : (
+            <nav aria-label={sheets ? "Листы документа" : "Страницы документа"} className="v3-ai-rail">
+              <ol className="flex gap-1 lg:flex-col">
+                {pages.map((item) => (
+                  <li key={item.pageNo}>
+                    <Link
+                      href={href(item.pageNo)}
+                      scroll={false}
+                      aria-current={item.pageNo === pageNo ? "page" : undefined}
+                      className="v3-choice inline-flex min-h-11 w-full items-center justify-between gap-2 whitespace-nowrap rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+                    >
+                      <span className="min-w-0 truncate">{pageLabel(item)}</span>
+                      {item.openReviewCount > 0 ? (
+                        <span className="v3-ai-rail-flag" title="Есть непроверенные числа">
+                          <span className="sr-only">, не проверено: </span>{item.openReviewCount}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          )}
 
           <div className="min-w-0 space-y-2">
             {pageRead === "unavailable" || pageRead === "missing" ? (
               <p role="alert" className="rounded-card border border-border bg-surface px-4 py-6 t-body-compact text-fg-2">
-                Не удалось загрузить {pageNo ? pageLabel({ pageNo, sheetName: pages.find((item) => item.pageNo === pageNo)?.sheetName ?? null }).toLowerCase() : "страницу"}.{" "}
-                <Link href={href(pageNo ?? pages[0]!.pageNo)} className="inline-flex min-h-11 items-center underline underline-offset-4">Повторить</Link>
+                Не удалось загрузить {placeLabel}.{" "}
+                <Link href={href(pageNo ?? pages[0]?.pageNo ?? 1)} className="inline-flex min-h-11 items-center underline underline-offset-4">Повторить</Link>
               </p>
             ) : page && page.hasImage ? (
               <figure
@@ -150,7 +156,7 @@ export function AiDocumentViewer({
               </figure>
             ) : page ? (
               <div className="v3-ai-page-text" data-testid="v3-ai-page-text">
-                {page.textMd.trim() ? page.textMd : <span className="text-fg-3">На этой странице нет текста.</span>}
+                {page.textMd.trim() ? page.textMd : <span className="text-fg-3">{textOnly ? "В документе нет текста." : "На этой странице нет текста."}</span>}
               </div>
             ) : null}
             {openOnPage.length > 0 ? (
@@ -192,7 +198,7 @@ export function AiDocumentViewer({
                 ))}
               </ol>
             ) : (
-              <p className="mt-1 t-body-compact text-fg-3">На этой странице фрагментов нет.</p>
+              <p className="mt-1 t-body-compact text-fg-3">{textOnly ? "У документа фрагментов нет." : "На этой странице фрагментов нет."}</p>
             )}
           </section>
         </div>

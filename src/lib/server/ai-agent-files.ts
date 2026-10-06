@@ -31,12 +31,15 @@ export const aiCropPath = (organizationId: string, documentId: string, itemId: s
   `${organizationId}/${documentId}/crops/${itemId}.png`;
 
 /**
- * Id документа из id запроса загрузки: повтор того же запроса (неизвестный
- * результат, «Повторить») кладёт файл туда же и попадает в ту же квитанцию
- * базы, а не во второй документ. Форма — UUID v4.
+ * Id документа из id запроса загрузки и SHA-256 файла: повтор того же
+ * запроса с теми же байтами (неизвестный результат, «Повторить») кладёт файл
+ * туда же и попадает в ту же квитанцию базы, а не во второй документ. Другие
+ * байты под тем же id запроса — другой объект: «уже есть» никогда не
+ * подставит под новую квитанцию чужой файл (а база ответит конфликтом
+ * запроса, если прежний уже записан). Форма — UUID v4.
  */
-export function aiDocumentIdForRequest(organizationId: string, requestId: string): string {
-  const bytes = createHash("sha256").update(`evo-ai-agent-document:${organizationId}:${requestId}`).digest().subarray(0, 16);
+export function aiDocumentIdForRequest(organizationId: string, requestId: string, sha256: string): string {
+  const bytes = createHash("sha256").update(`evo-ai-agent-document:${organizationId}:${requestId}:${sha256}`).digest().subarray(0, 16);
   bytes[6] = (bytes[6]! & 0x0f) | 0x40;
   bytes[8] = (bytes[8]! & 0x3f) | 0x80;
   const hex = bytes.toString("hex");

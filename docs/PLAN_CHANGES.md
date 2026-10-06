@@ -47288,9 +47288,9 @@ Node `tests/ai-agent-p1-ui.test.mjs` — поддельный агент по HT
 ## 2026-10-06 — «ИИ-агент» P2: загрузка, «Лист сверки», «Лаборатория» (CRM, интерфейс)
 
 План ИИ-агента §4.5, §7, §8, §12.2, §13 (Q9), §15 P2. Ветка
-`izzhackt/ai-agent-p2-ui`, черновик PR поверх P1 UI (#1161) до появления
-ветки SQL P2 (`izzhackt/ai-agent-p2-schema`, миграции 271–273). Ничего не
-выпущено, ни одна миграция не применена, приватный агент не тронут.
+`izzhackt/ai-agent-p2-ui`, черновик PR #1164 поверх SQL P2 (#1163,
+`izzhackt/ai-agent-p2-schema`, миграции 271–273), та — поверх P1 UI (#1161).
+Ничего не выпущено, ни одна миграция не применена, приватный агент не тронут.
 
 **Маршруты CRM.** Все — в `platform-route-contract.ts` строгими шаблонами и
 в тесте настоящего proxy (урок 06.10: неподключённый маршрут отвечал 403
@@ -47346,7 +47346,7 @@ Node `tests/ai-agent-p1-ui.test.mjs` — поддельный агент по HT
 
 **Контракт с SQL P2 и агентом.** Имена и аргументы RPC собраны в
 `src/lib/v3/ai-agent-source.ts` и `src/lib/server/ai-agent-*.ts` и сверены с
-черновиком 271–273 (ещё не опубликован): `ai_agent_document_upload_v1(…,
+271–273 из #1163: `ai_agent_document_upload_v1(…,
 p_byte_sha256, …, p_scan_proof {engine, engineVersion, signatureVersion,
 protocol, scannedAt, sha256Hex}, p_request_id)`, `ai_agent_document_v1`,
 `ai_agent_document_page_v1` (`{pageNo, page {…, imagePath}, chunks

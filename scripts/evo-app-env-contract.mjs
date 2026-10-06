@@ -47,6 +47,16 @@ const REQUIRED_RUNTIME_VALUES = Object.freeze([
 //    (§4.5, P2), same shape, distinct from the internal secret and every
 //    other value: a leaked broker key opens no agent call and vice versa.
 const OPTIONAL_RUNTIME_NAMES = Object.freeze(["EVO_AI_AGENT_INTERNAL_SECRET", "EVO_AI_AGENT_STORAGE_SECRET"]);
+// «ИИ-агент» P4, ночной автоответчик (plan §11 rules 9 and 11; ADR 0031), also
+// optional and off while missing or empty:
+//  - EVO_AI_AGENT_AUTOSEND: the server switch of /api/internal/ai-agent/send;
+//    only '', 0 or 1. `1` is accepted only with the agent connected
+//    (EVO_AI_AGENT_INTERNAL_SECRET) and EVO_AI_AGENT_SEND_SECRET set: a switch
+//    without them would open nothing and is refused rather than released.
+//  - EVO_AI_AGENT_SEND_SECRET: HMAC of agent → CRM send requests, same shape as
+//    the other agent secrets and distinct from every other value.
+const OPTIONAL_AUTOSEND_NAMES = Object.freeze(["EVO_AI_AGENT_AUTOSEND", "EVO_AI_AGENT_SEND_SECRET"]);
+const OPTIONAL_SECRET_NAMES = Object.freeze([...OPTIONAL_RUNTIME_NAMES, "EVO_AI_AGENT_SEND_SECRET"]);
 const FORBIDDEN_SUCCESSOR_RUNTIME_VALUES = Object.freeze([
   "AUTH_SECRET",
   "EVO_SECRET_ENCRYPTION_KEY",
@@ -298,7 +308,7 @@ function validateEnabledFeatureConfiguration(entries) {
 }
 
 function validateOptionalFeatureConfiguration(entries) {
-  for (const secretName of OPTIONAL_RUNTIME_NAMES) {
+  for (const secretName of OPTIONAL_SECRET_NAMES) {
     const secret = entries.get(secretName);
     if (secret === undefined || secret === "") continue;
     if (!/^[\x21-\x7e]{32,256}$/u.test(secret)) {
@@ -315,6 +325,17 @@ function validateOptionalFeatureConfiguration(entries) {
   }
 }
 
+function validateAutosendConfiguration(entries) {
+  const autosend = entries.get("EVO_AI_AGENT_AUTOSEND");
+  if (autosend === undefined || autosend === "" || autosend === "0") return;
+  if (autosend !== "1") fail("unsafe_runtime_flag");
+  requireNonEmpty(
+    entries,
+    ["EVO_AI_AGENT_INTERNAL_SECRET", "EVO_AI_AGENT_SEND_SECRET"],
+    "enabled_feature_configuration_missing",
+  );
+}
+
 export function validateAppEnvironmentContract({
   exampleText,
   actualText,
@@ -323,7 +344,11 @@ export function validateAppEnvironmentContract({
   const exampleEntries = parseEnvironmentText(exampleText);
   const actualEntries = parseEnvironmentText(actualText);
   for (const name of exampleEntries.keys()) {
-    if (!actualEntries.has(name) && !OPTIONAL_RUNTIME_NAMES.includes(name)) {
+    if (
+      !actualEntries.has(name) &&
+      !OPTIONAL_RUNTIME_NAMES.includes(name) &&
+      !OPTIONAL_AUTOSEND_NAMES.includes(name)
+    ) {
       fail("required_env_name_missing");
     }
   }
@@ -351,6 +376,7 @@ export function validateAppEnvironmentContract({
   validateFeatureFlags(actualEntries);
   validateEnabledFeatureConfiguration(actualEntries);
   validateOptionalFeatureConfiguration(actualEntries);
+  validateAutosendConfiguration(actualEntries);
   return Object.freeze({ ok: true, code: "valid" });
 }
 

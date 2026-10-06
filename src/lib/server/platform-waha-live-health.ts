@@ -159,6 +159,20 @@ export function probePlatformWahaSessionLive(
 }
 
 /**
+ * The session status WAHA reports at this moment, never shared through the
+ * render cache above. The night autoresponder asks right before each send
+ * (plan «ИИ-агент» §11, rule 11; P4): the recorded status is written only by
+ * `session.status` webhooks and goes stale at night, and a status a few
+ * seconds old is not proof that this send may go.
+ */
+export function probePlatformWahaSessionLiveUncached(
+  organizationId: string,
+  dependencies: LiveProbeDependencies = {},
+): Promise<PlatformWahaSessionHealth | null> {
+  return probe(organizationId, dependencies);
+}
+
+/**
  * Prefers what WAHA says now over the recorded status, which only describes
  * the last time the session changed. Falls back to the recorded status when
  * the probe cannot answer.

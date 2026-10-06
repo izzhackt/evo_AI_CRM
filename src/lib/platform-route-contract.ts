@@ -116,6 +116,10 @@ const AI_AGENT_INSERT_PATH =
 // (как `gen_random_uuid()` у диалогов); остальное — 403 прокси.
 const AI_AGENT_MEMORY_PATH =
   /^\/api\/v3\/ai-agent\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/memory$/;
+// «Автоответчик в этом чате» (P4, §11–12.1): GET — состояние автоответчика
+// для чата, PUT — исключить чат или вернуть. Тот же строгий UUID, что у памяти.
+const AI_AGENT_AUTOSEND_CHAT_PATH =
+  /^\/api\/v3\/ai-agent\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/autosend$/;
 // «ИИ-агент» P2 (план ИИ-агента §4.5, §7, §8): загрузка файла в «Информацию
 // для агента», картинка страницы и вырезка «Листа сверки» (обе — через сессию
 // и ai_agent_document_v1), «Лаборатория» (состояние, вопрос, «Что не так?»,
@@ -131,10 +135,14 @@ const AI_AGENT_LAB_PATH = /^\/api\/v3\/ai-agent\/lab(?:\/(?:ask|critique|apply))
 // строчные UUID — тот же шаблон, что разбирает обработчик (ai-agent-storage-broker.ts).
 const AI_AGENT_STORAGE_BROKER_PATH =
   /^\/api\/internal\/ai-agent\/storage\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(?:original|pages\/[1-9][0-9]{0,2}\.png|crops\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png)$/;
+// Отправка ночного автоответа (P4, §11 правило 9): HMAC своего секрета,
+// выключатель EVO_AI_AGENT_AUTOSEND, тело — только id решения базы. Точный путь.
+const AI_AGENT_AUTOSEND_SEND_PATH = "/api/internal/ai-agent/send";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
   "/api/internal/platform-messaging/waha/work",
   "/api/internal/platform-operations/portal-overdue",
+  AI_AGENT_AUTOSEND_SEND_PATH,
 ]);
 const RETIRED_PLATFORM_ROUTE_ROOTS = [
   "/dashboard",
@@ -281,6 +289,7 @@ export function isConnectedPlatformApi(path: string): boolean {
     AI_AGENT_ANSWER_PATH.test(path) ||
     AI_AGENT_INSERT_PATH.test(path) ||
     AI_AGENT_MEMORY_PATH.test(path) ||
+    AI_AGENT_AUTOSEND_CHAT_PATH.test(path) ||
     path === AI_AGENT_DOCUMENTS_PATH ||
     AI_AGENT_PAGE_IMAGE_PATH.test(path) ||
     AI_AGENT_CROP_PATH.test(path) ||

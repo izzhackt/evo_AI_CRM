@@ -170,7 +170,11 @@ function toInboxChatAttempt(
   attempt: PlatformWhatsAppChatAttempt,
   viewerMembershipId: string,
 ): InboxChatAttempt {
+  // Автоответ (P4) подписан ответственным, но это не его сообщение: ни
+  // «Повторить» тем же запросом, ни «Вернуть текст в поле».
+  const autoreply = attempt.kind === "ai_autosend";
   return Object.freeze({
+    autoreply,
     attemptId: attempt.attemptId,
     workItemId: attempt.workItemId,
     requestId: attempt.requestId,
@@ -178,7 +182,7 @@ function toInboxChatAttempt(
     reconciliationRequired: attempt.reconciliationRequired,
     text: attempt.finalText,
     authorName: attempt.authorizedByName,
-    authorIsViewer: attempt.authorizedByMembershipId === viewerMembershipId.toLowerCase(),
+    authorIsViewer: !autoreply && attempt.authorizedByMembershipId === viewerMembershipId.toLowerCase(),
     at: attempt.authorizedAt,
     claimedAt: attempt.claimedAt,
     sourceMessageId: attempt.sourceMessageId,

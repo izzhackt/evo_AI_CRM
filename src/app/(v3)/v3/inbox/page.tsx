@@ -1,24 +1,18 @@
-import { randomUUID } from "node:crypto";
+import { notFound, redirect } from "next/navigation";
 
-import { notFound } from "next/navigation";
-
-import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
 import { Inbox, inboxNotConnected } from "@/components/v3/Inbox";
-import { InboxProviderWorkflowControls } from "@/components/v3/InboxProviderWorkflowControls";
 import { PartShell } from "@/components/v3/PartShell";
-import { getLocale } from "@/lib/i18n";
+import { staffPresentationCan } from "@/lib/platform-access";
 import {
   parsePlatformConversationCursor,
   parsePlatformRouteUuid,
   type PlatformConversationCursor,
 } from "@/lib/platform-communications";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import {
-  readInbox,
-  type InboxAmoCrmCommand,
-} from "@/lib/v3/inbox-source";
+import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
 import { readV3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
+import { readInbox } from "@/lib/v3/inbox-source";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 
 export const dynamic = "force-dynamic";
@@ -34,24 +28,18 @@ type SearchParams = Readonly<{
   messages_before_id?: string | string[];
 }>;
 
-const AMOCRM_BLOCKED_COPY: Readonly<
-  Record<Extract<InboxAmoCrmCommand, { status: "blocked" }>["reason"], string>
-> = Object.freeze({
-  canonical_scope_missing:
-    "Синхронизация с amoCRM недоступна: диалог ещё не связан с точным лидом, клиентом или делом в EVO.",
-  role_scope_mismatch:
-    "Синхронизация с amoCRM недоступна для текущей рабочей роли.",
-  canonical_runtime_unavailable:
-    "Синхронизация с amoCRM временно недоступна. Запись через другой путь не выполняется.",
-});
-
+/**
+ * «Продажи → WhatsApp» (решение владельца 06.10.2026): полноценный чат вместо
+ * блока «Ответ и отправка». ИИ-черновика, подтверждения одной отправки и
+ * панели синхронизации с внешней CRM на этой странице нет; окно ИИ появится
+ * позже в пустом слоте `assistantSlot`. Ответ отправляется из поля внизу чата.
+ */
 export default async function InboxPart({
   searchParams,
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
-  const [query, actor, locale] = await Promise.all([
+  const [query, actor] = await Promise.all([
     searchParams,
     requireV3PageActor("/v3/inbox"),
-    getLocale(),
   ]);
   assertExpectedQueryKeys(query);
   const conversationId = parseConversationId(query.conversation);
@@ -63,71 +51,43 @@ export default async function InboxPart({
     query.messages_before_id,
   );
   if (conversationId === null && messageCursor !== null) notFound();
+  // Ранние сообщения подгружаются в самой ленте («Показать ранее»); прежние
+  // ссылки на страницу сообщений открывают чат с последних сообщений.
+  if (conversationId !== null && messageCursor !== null) {
+    redirect(buildV3InboxHref({
+      conversationId,
+      queueCursor,
+      filters: { query: inboxQuery, waitingOnly },
+    }));
+  }
 
-  const model = await readInbox(actor, {
+  const { view } = await readInbox(actor, {
     conversationId,
     queueCursor,
-    messageCursor,
     query: inboxQuery,
     waitingOnly,
   });
-  const { view } = model;
   if (conversationId !== null && view.selected === null) notFound();
 
-  let workflowControls = null;
-  let amoCrmControls = null;
   let profileHref: string | null = null;
+  let profileLabel = "Открыть профиль";
+  let replySnippets: Awaited<ReturnType<typeof readSnippets>> = null;
   let mediaAttachmentContext: Awaited<
     ReturnType<typeof readV3InboxMediaAttachmentContext>
   > = null;
   if (view.selected) {
-    if (model.providerWorkflow === null || model.amoCrmCommand === null) {
-      throw new Error("V3 inbox command state is unavailable.");
-    }
     const selected = view.selected;
-    const provider = model.providerWorkflow;
-    const [replySnippets, resolvedMediaAttachmentContext] = await Promise.all([
-      staffPresentationCan(actor, "messaging.send")
-        ? readV3ReplySnippets(actor).then((snippets) =>
-            snippets.map(
-              ({ replySnippetId, title, body }) => ({ replySnippetId, title, body }),
-            ))
-        : Promise.resolve(null),
+    const canReply = selected.chat.replyAccess === "allowed" || selected.chat.replyAccess === "attention";
+    [replySnippets, mediaAttachmentContext] = await Promise.all([
+      canReply ? readSnippets(actor) : Promise.resolve(null),
       readV3InboxMediaAttachmentContext(actor, {
         conversationId: selected.id,
         studentCaseId: selected.canonicalContext.studentCaseId,
-        media: selected.messages.flatMap((message) => message.media),
+        media: selected.chat.messages.flatMap((message) => message.media),
       }),
     ]);
-    mediaAttachmentContext = resolvedMediaAttachmentContext;
-    workflowControls = (
-      <InboxProviderWorkflowControls
-        key={`${selected.id}:${selected.latestInboundSourceMessageId ?? "no-source"}:${
-          provider.proposal?.proposalRequestId ?? "no-proposal"
-        }:${
-          provider.reviews.find(
-            (review) =>
-              review.proposalRequestId === provider.proposal?.proposalRequestId,
-          )?.reviewId ?? "unreviewed"
-        }:${provider.latestAttempt?.attemptId ?? "no-attempt"}`}
-        conversationId={selected.id}
-        latestInboundSourceMessageId={selected.latestInboundSourceMessageId}
-        proposal={provider.proposal}
-        reviews={provider.reviews}
-        latestAttempt={provider.latestAttempt}
-        replySnippets={replySnippets}
-        requestIds={{
-          gemini: randomUUID(),
-          review: randomUUID(),
-          send: randomUUID(),
-          reconcile: randomUUID(),
-        }}
-      />
-    );
-    amoCrmControls = renderAmoCrmControls(model.amoCrmCommand, locale);
-    profileHref = v3InboxProfileHref(actor,
-      selected.canonicalContext,
-    );
+    profileHref = v3InboxProfileHref(actor, selected.canonicalContext);
+    profileLabel = profileHref?.startsWith("/v3/profile?case=") ? "Открыть дело" : "Карточка лида";
   }
 
   // Не подключён и пусто: считать нечего, числа в заголовке нет. Подключает
@@ -145,46 +105,22 @@ export default async function InboxPart({
       <Inbox
         view={view}
         profileHref={profileHref}
+        profileLabel={profileLabel}
         settingsHref={settingsHref}
-        workflowControls={workflowControls}
-        amoCrmControls={amoCrmControls}
+        storageScope={`${actor.organizationId}:${actor.membershipId}`}
+        replySnippets={replySnippets}
         mediaAttachmentContext={mediaAttachmentContext}
+        assistantSlot={null}
       />
     </PartShell>
   );
 }
 
-function renderAmoCrmControls(
-  command: InboxAmoCrmCommand,
-  locale: Awaited<ReturnType<typeof getLocale>>,
-) {
-  if (command.status === "blocked") {
-    return (
-      <section
-        className="v3-edge-warn rounded-ctl border border-border border-s-2 bg-surface px-3 py-3 text-sm leading-5 text-fg-2"
-        data-testid="v3-inbox-amocrm"
-        data-status="unavailable"
-        role="status"
-      >
-        {AMOCRM_BLOCKED_COPY[command.reason]}
-      </section>
-    );
-  }
-
-  return (
-    <div data-testid="v3-inbox-amocrm" data-status="available">
-      <CanonicalAmoCrmCommandPanel
-        availability={command.availability}
-        canMutate={command.canMutate}
-        blockingAttempt={command.blockingAttempt}
-        scope={command.scope}
-        leadId={command.leadId}
-        studentCaseId={command.studentCaseId}
-        locale={locale}
-        requestId={randomUUID()}
-      />
-    </div>
-  );
+/** Шаблоны ответа — только тому, кто может ответить и читает шаблоны. */
+async function readSnippets(actor: Awaited<ReturnType<typeof requireV3PageActor>>) {
+  if (!staffPresentationCan(actor, "messaging.send")) return null;
+  const snippets = await readV3ReplySnippets(actor);
+  return snippets.map(({ replySnippetId, title, body }) => ({ replySnippetId, title, body }));
 }
 
 function assertExpectedQueryKeys(params: SearchParams): void {
@@ -242,4 +178,3 @@ function singleValue(
   if (Array.isArray(value)) notFound();
   return value;
 }
-import { staffPresentationCan } from "@/lib/platform-access";

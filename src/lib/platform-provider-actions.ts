@@ -5,75 +5,43 @@ import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import {
-  parsePlatformGeminiRequestForm,
-  parsePlatformGeminiReviewForm,
-  parsePlatformWhatsAppReconcileForm,
-  parsePlatformWhatsAppSendForm,
+  parsePlatformWhatsAppChatReconcileInput,
+  parsePlatformWhatsAppChatSendInput,
 } from "./platform-provider-action-contract";
+import { getPlatformWhatsAppChatState } from "./platform-communications";
 import {
-  readStaffGeminiProposal,
-  requestGeminiProposal,
+  claimManualWhatsAppSendItem,
+  PlatformManualSendRefusedError,
   requestManualWhatsAppSendWithAuthorization,
-  reviewGeminiProposal,
-  type PlatformGeminiFailureCode,
-  type PlatformGeminiProposalV2,
-  type PlatformGeminiReviewDecision,
+  type PlatformManualWhatsAppSendAuthorization,
 } from "./platform-provider-workflows";
+import { requirePlatformMutationCapability } from "./platform-guards";
 import {
-  requirePlatformMutationCapability,
-} from "./platform-guards";
-import { createPlatformGeminiProvider } from "./server/platform-gemini-provider";
-import {
-  executePlatformGeminiProposal,
   executePlatformManualWhatsAppReconciliation,
-  executePlatformManualWhatsAppSend,
+  sendClaimedManualWhatsApp,
 } from "./server/platform-provider-orchestrator";
 import { getPlatformSupabaseBackendConfig } from "./server/platform-supabase-backend-config";
 import { createPlatformSupabaseServiceClient } from "./server/platform-supabase-service-client";
 import { createSupabaseServerClient } from "./supabase/server";
+import type {
+  WhatsAppChatReconcileStatus,
+  WhatsAppChatSendResult,
+} from "./v3/whatsapp-chat";
 
-const GEMINI_API_KEY_PATTERN = /^[A-Za-z0-9_-]{16,4096}$/;
+/**
+ * «Продажи → WhatsApp» as a chat (owner decision 06.10.2026, migration 266).
+ * One click = one request id = one authorized, audited manual send whose
+ * sender is the member who wrote it. The text answers the latest customer
+ * message (reply-only); several replies in a row are separate work items.
+ * A repeated click with the same request id replays the stored authorization
+ * and never claims twice; an unknown provider result is only ever checked by
+ * an exact readback, never resent.
+ */
+
 const MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS = 120;
-const MANUAL_SEND_WORKER_REF = "next-app-manual-send";
-
-export type PlatformGeminiRequestActionState = Readonly<{
-  status:
-    | "idle"
-    | "proposal_ready"
-    | "human_review"
-    | "in_progress"
-    | "blocked"
-    | "invalid"
-    | "unavailable";
-  failureCode: PlatformGeminiFailureCode | "configuration_missing" | null;
-}>;
-
-export type PlatformGeminiReviewActionState = Readonly<{
-  status: "idle" | "reviewed" | "invalid" | "unavailable";
-  decision: PlatformGeminiReviewDecision | null;
-}>;
-
-export type PlatformWhatsAppSendActionState = Readonly<{
-  status:
-    | "idle"
-    | "succeeded"
-    | "unknown_result"
-    | "terminal_error"
-    | "not_claimed"
-    | "invalid"
-    | "unavailable";
-}>;
-
-export type PlatformWhatsAppReconcileActionState = Readonly<{
-  status:
-    | "idle"
-    | "reconciled"
-    | "still_unknown"
-    | "already_completed"
-    | "readback_failed"
-    | "invalid"
-    | "unavailable";
-}>;
+const MANUAL_SEND_WORKER_REF = "next-app-chat-send";
+const CLAIM_ATTEMPTS = 3;
+const CLAIM_RETRY_DELAY_MS = 650;
 
 function revalidateInboxPath(): void {
   try {
@@ -84,211 +52,185 @@ function revalidateInboxPath(): void {
   }
 }
 
-function readGeminiApiKey(): string | null {
-  const geminiApiKey = process.env.EVO_PLATFORM_GEMINI_API_KEY;
-  return geminiApiKey && GEMINI_API_KEY_PATTERN.test(geminiApiKey)
-    ? geminiApiKey
-    : null;
-}
-
 function createServiceClient() {
   return createPlatformSupabaseServiceClient(
     getPlatformSupabaseBackendConfig(),
   );
 }
 
-function manualSendBusinessKey(
+/**
+ * Migration 266's v2 key: the message cycle plus this click's request id, so
+ * every click is its own work item while a replay of the click is the same one.
+ */
+function chatReplyBusinessKey(
   organizationId: string,
   conversationId: string,
   sourceMessageId: string,
+  requestId: string,
 ): string {
   const immutableCycle = JSON.stringify([
-    "evo-platform-work-v1",
+    "evo-platform-work-v2",
     "manual_whatsapp_send",
     organizationId,
     conversationId,
     sourceMessageId,
     "staff-authored",
+    requestId,
   ]);
   return createHash("sha256").update(immutableCycle, "utf8").digest("hex");
 }
 
-export async function requestPlatformGeminiProposalAction(
-  _previous: PlatformGeminiRequestActionState,
-  form: FormData,
-): Promise<PlatformGeminiRequestActionState> {
-  const actor = await requirePlatformMutationCapability("messaging.read", "/v3/inbox");
-  const input = parsePlatformGeminiRequestForm(form);
-  if (input === null) {
-    return Object.freeze({ status: "invalid", failureCode: null });
-  }
+const result = (
+  status: WhatsAppChatSendResult["status"],
+  fields: Partial<Omit<WhatsAppChatSendResult, "status">> = {},
+): WhatsAppChatSendResult => Object.freeze({
+  status,
+  workItemId: fields.workItemId ?? null,
+  attemptId: fields.attemptId ?? null,
+  messageId: fields.messageId ?? null,
+});
 
-  const geminiApiKey = readGeminiApiKey();
-  if (geminiApiKey === null) {
-    return Object.freeze({
-      status: "blocked",
-      failureCode: "configuration_missing",
-    });
-  }
+const pause = (milliseconds: number) => new Promise((resolve) => { setTimeout(resolve, milliseconds); });
 
-  try {
-    const staffClient = await createSupabaseServerClient();
-    const serviceClient = createServiceClient();
-    const geminiProvider = createPlatformGeminiProvider(geminiApiKey);
+type ItemState = Readonly<{
+  status: "queued" | "prepared" | "unknown" | "rejected" | "accepted";
+  attemptId: string | null;
+  claimedAt: string | null;
+}>;
 
-    await requestGeminiProposal(staffClient, {
-      organizationId: actor.organizationId,
-      conversationId: input.conversationId,
-      sourceMessageId: input.sourceMessageId,
-      requestId: input.requestId,
-      reason: "staff_requested_advisory_draft",
-    });
-    const execution = await executePlatformGeminiProposal(
+/** The work item's state as the staff member may read it (the chat state, 266). */
+async function readItemState(
+  actor: Awaited<ReturnType<typeof requirePlatformMutationCapability>>,
+  conversationId: string,
+  workItemId: string,
+): Promise<ItemState> {
+  const state = await getPlatformWhatsAppChatState(actor, conversationId);
+  const attempt = state.attempts.find((entry) => entry.workItemId === workItemId);
+  // The chat state lists every send that is not accepted; a fresh item that
+  // is missing from it has been accepted.
+  if (!attempt) return { status: "accepted", attemptId: null, claimedAt: null };
+  return { status: attempt.status, attemptId: attempt.attemptId, claimedAt: attempt.claimedAt };
+}
+
+async function claimAndSend(
+  authorization: PlatformManualWhatsAppSendAuthorization,
+): Promise<WhatsAppChatSendResult | null> {
+  const serviceClient = createServiceClient();
+  for (let attempt = 0; attempt < CLAIM_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) await pause(CLAIM_RETRY_DELAY_MS);
+    let claim: Awaited<ReturnType<typeof claimManualWhatsAppSendItem>>;
+    try {
+      // A refused claim (another send of this chat is still ahead) changes
+      // nothing and is safe to ask again; the claim itself is the only
+      // authority for the one provider call below.
+      claim = await claimManualWhatsAppSendItem(serviceClient, {
+        organizationId: authorization.organizationId,
+        workItemId: authorization.workItemId,
+        visibilityTimeoutSeconds: MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS,
+        workerRef: MANUAL_SEND_WORKER_REF,
+        requestId: randomUUID(),
+      });
+    } catch {
+      continue;
+    }
+    if (!claim.claimed) return null;
+    const execution = await sendClaimedManualWhatsApp(
       serviceClient,
+      claim,
+      authorization,
+      randomUUID(),
+      {},
+      { quoteSource: false },
+    );
+    const outcome = execution.result.outcome;
+    return result(
+      outcome === "succeeded" ? "sent" : outcome === "unknown_result" ? "unknown" : "rejected",
       {
-        organizationId: actor.organizationId,
-        conversationId: input.conversationId,
-        sourceMessageId: input.sourceMessageId,
-        requestId: input.requestId,
+        workItemId: claim.workItemId,
+        attemptId: claim.attemptId,
+        messageId: execution.result.communicationMessageId,
       },
-      { geminiProvider },
     );
-
-    revalidateInboxPath();
-    if (execution.status === "in_progress") {
-      return Object.freeze({ status: "in_progress", failureCode: null });
-    }
-    const outcome = execution.status === "finished"
-      ? execution.result.outcome
-      : execution.outcome;
-    const failureCode = execution.status === "finished"
-      ? execution.result.failureCode
-      : null;
-    return Object.freeze({ status: outcome, failureCode });
-  } catch {
-    return Object.freeze({ status: "unavailable", failureCode: null });
   }
-}
-
-function reviewedProposalPayload(
-  proposal: PlatformGeminiProposalV2,
-  decision: PlatformGeminiReviewDecision,
-  editedReplyText: string | null,
-): PlatformGeminiProposalV2 | null {
-  if (decision === "rejected") return null;
-  if (decision === "accepted") return proposal;
-  if (editedReplyText === null) return null;
-  return Object.freeze({
-    ...proposal,
-    reply_text: editedReplyText,
-  });
-}
-
-export async function reviewPlatformGeminiProposalAction(
-  _previous: PlatformGeminiReviewActionState,
-  form: FormData,
-): Promise<PlatformGeminiReviewActionState> {
-  const actor = await requirePlatformMutationCapability("messaging.read", "/v3/inbox");
-  const input = parsePlatformGeminiReviewForm(form);
-  if (input === null) {
-    return Object.freeze({ status: "invalid", decision: null });
-  }
-
-  try {
-    const staffClient = await createSupabaseServerClient();
-    const proposal = await readStaffGeminiProposal(staffClient, {
-      organizationId: actor.organizationId,
-      conversationId: input.conversationId,
-    });
-    if (
-      proposal === null ||
-      proposal.proposalRequestId !== input.proposalRequestId ||
-      proposal.proposal === null ||
-      proposal.outcome !== "proposal_ready"
-    ) {
-      return Object.freeze({ status: "invalid", decision: input.decision });
-    }
-
-    const reviewedPayload = reviewedProposalPayload(
-      proposal.proposal,
-      input.decision,
-      input.editedReplyText,
-    );
-    if (input.decision !== "rejected" && reviewedPayload === null) {
-      return Object.freeze({ status: "invalid", decision: input.decision });
-    }
-    await reviewGeminiProposal(staffClient, {
-      organizationId: actor.organizationId,
-      conversationId: input.conversationId,
-      proposalRequestId: input.proposalRequestId,
-      reviewRequestId: input.reviewRequestId,
-      decision: input.decision,
-      reviewedPayload,
-      reason: input.reason,
-    });
-    revalidateInboxPath();
-    return Object.freeze({ status: "reviewed", decision: input.decision });
-  } catch {
-    return Object.freeze({ status: "unavailable", decision: input.decision });
-  }
+  return result("queued", { workItemId: authorization.workItemId });
 }
 
 export async function sendPlatformWhatsAppMessageAction(
-  _previous: PlatformWhatsAppSendActionState,
-  form: FormData,
-): Promise<PlatformWhatsAppSendActionState> {
+  input: unknown,
+): Promise<WhatsAppChatSendResult> {
   const actor = await requirePlatformMutationCapability("messaging.send", "/v3/inbox");
-  const input = parsePlatformWhatsAppSendForm(form);
-  if (input === null) return Object.freeze({ status: "invalid" });
+  const parsed = parsePlatformWhatsAppChatSendInput(input);
+  if (parsed === null) return result("invalid");
 
+  let authorization: PlatformManualWhatsAppSendAuthorization;
   try {
     const staffClient = await createSupabaseServerClient();
-    const serviceClient = createServiceClient();
-    const authorization = await requestManualWhatsAppSendWithAuthorization(
+    authorization = await requestManualWhatsAppSendWithAuthorization(
       staffClient,
       {
         organizationId: actor.organizationId,
-        conversationId: input.conversationId,
-        sourceMessageId: input.sourceMessageId,
+        conversationId: parsed.conversationId,
+        sourceMessageId: parsed.sourceMessageId,
         aiDraftId: null,
-        finalText: input.messageText,
-        reason: "staff_confirmed_manual_send",
-        businessKeySha256: manualSendBusinessKey(
+        finalText: parsed.text,
+        reason: "staff_chat_reply",
+        businessKeySha256: chatReplyBusinessKey(
           actor.organizationId,
-          input.conversationId,
-          input.sourceMessageId,
+          parsed.conversationId,
+          parsed.sourceMessageId,
+          parsed.requestId,
         ),
-        requestId: input.requestId,
+        requestId: parsed.requestId,
       },
     );
-    const execution = await executePlatformManualWhatsAppSend(
-      serviceClient,
-      {
-        authorization,
-        visibilityTimeoutSeconds: MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS,
-        workerRef: MANUAL_SEND_WORKER_REF,
-        claimRequestId: randomUUID(),
-        completionRequestId: randomUUID(),
-      },
-    );
+  } catch (error) {
+    if (error instanceof PlatformManualSendRefusedError) return result(error.reason);
+    return result("unavailable");
+  }
+
+  try {
+    // A replay of an earlier click returns the stored authorization; claim
+    // only what is still waiting in the queue.
+    const state = await readItemState(actor, parsed.conversationId, authorization.workItemId);
+    const fields = { workItemId: authorization.workItemId, attemptId: state.attemptId };
+    let outcome: WhatsAppChatSendResult | null = null;
+    if (state.status === "queued") {
+      outcome = await claimAndSend(authorization);
+    } else if (state.status === "prepared") {
+      // Claimed by an earlier click; once its lease has run out, the exact
+      // claim turns it into an unknown result for a readback (no resend).
+      const leaseOver = state.claimedAt !== null
+        && Date.now() - Date.parse(state.claimedAt) > (MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS + 15) * 1_000;
+      if (leaseOver) await claimAndSend(authorization).catch(() => null);
+      outcome = result("sending", fields);
+    } else if (state.status === "accepted") {
+      outcome = result("sent", fields);
+    } else {
+      outcome = result(state.status === "unknown" ? "unknown" : "rejected", fields);
+    }
     revalidateInboxPath();
-    return Object.freeze({
-      status: execution.status === "finished"
-        ? execution.result.outcome
-        : "not_claimed",
-    });
+    if (outcome === null) {
+      // Claimed by someone else between the read and the claim.
+      const after = await readItemState(actor, parsed.conversationId, authorization.workItemId);
+      return result(after.status === "accepted" ? "sent" : after.status === "queued" ? "queued"
+        : after.status === "prepared" ? "sending" : after.status === "unknown" ? "unknown" : "rejected",
+      { workItemId: authorization.workItemId, attemptId: after.attemptId });
+    }
+    return outcome;
   } catch {
-    return Object.freeze({ status: "unavailable" });
+    // The authorization is durable; the outcome of this click is not known
+    // here. The same request id replays it safely.
+    revalidateInboxPath();
+    return result("unavailable", { workItemId: authorization.workItemId });
   }
 }
 
 export async function reconcilePlatformWhatsAppSendAction(
-  _previous: PlatformWhatsAppReconcileActionState,
-  form: FormData,
-): Promise<PlatformWhatsAppReconcileActionState> {
+  input: unknown,
+): Promise<Readonly<{ status: WhatsAppChatReconcileStatus }>> {
   const actor = await requirePlatformMutationCapability("messaging.send", "/v3/inbox");
-  const input = parsePlatformWhatsAppReconcileForm(form);
-  if (input === null) return Object.freeze({ status: "invalid" });
+  const parsed = parsePlatformWhatsAppChatReconcileInput(input);
+  if (parsed === null) return Object.freeze({ status: "invalid" });
 
   try {
     const staffClient = await createSupabaseServerClient();
@@ -298,9 +240,9 @@ export async function reconcilePlatformWhatsAppSendAction(
       serviceClient,
       {
         organizationId: actor.organizationId,
-        conversationId: input.conversationId,
-        attemptId: input.attemptId,
-        requestId: input.requestId,
+        conversationId: parsed.conversationId,
+        attemptId: parsed.attemptId,
+        requestId: parsed.requestId,
         reason: "staff_requested_exact_waha_readback",
         completionRequestId: randomUUID(),
       },
@@ -313,9 +255,7 @@ export async function reconcilePlatformWhatsAppSendAction(
       return Object.freeze({ status: "readback_failed" });
     }
     return Object.freeze({
-      status: execution.result.reconciliationRequired
-        ? "still_unknown"
-        : "reconciled",
+      status: execution.result.reconciliationRequired ? "not_found" : "confirmed",
     });
   } catch {
     return Object.freeze({ status: "unavailable" });

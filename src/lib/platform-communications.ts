@@ -1013,3 +1013,374 @@ export async function getPlatformWahaSessionHealth(
     return failClosed(error);
   }
 }
+
+// ---------------------------------------------------------------------------
+// «Продажи → WhatsApp» as a chat (migration 266, owner decision 06.10.2026).
+// The v2 message page adds where a message came from and, for a CRM reply,
+// who wrote it; the chat state names the latest customer message (the only
+// source a reply may bind to) and the sends that are not accepted yet. Both
+// readers carry the guards of the v1 page; nothing here reads a provider id.
+// ---------------------------------------------------------------------------
+
+export type PlatformWhatsAppMessageOrigin =
+  | "client"
+  | "crm"
+  | "phone"
+  | "history"
+  | "other";
+
+export type PlatformWhatsAppChatMessage = Readonly<{
+  id: string;
+  direction: PlatformMessageDirection;
+  bodyText: string;
+  createdAt: string;
+  media: readonly PlatformMessageMedia[];
+  wahaAckName: PlatformMessageWahaAckName | null;
+  origin: PlatformWhatsAppMessageOrigin;
+  senderName: string | null;
+  senderMembershipId: string | null;
+}>;
+
+export type PlatformWhatsAppAttemptStatus =
+  | "queued"
+  | "prepared"
+  | "unknown"
+  | "rejected";
+
+export type PlatformWhatsAppReadbackOutcome =
+  | "message_confirmed"
+  | "message_not_found"
+  | "delivery_refreshed";
+
+export type PlatformWhatsAppChatAttempt = Readonly<{
+  attemptId: string | null;
+  workItemId: string;
+  requestId: string | null;
+  status: PlatformWhatsAppAttemptStatus;
+  reconciliationRequired: boolean;
+  finalText: string;
+  authorizedByMembershipId: string;
+  authorizedByName: string;
+  authorizedAt: string;
+  claimedAt: string | null;
+  failureCode: string | null;
+  latestReconciliationOutcome: PlatformWhatsAppReadbackOutcome | null;
+  lastReconciledAt: string | null;
+}>;
+
+export type PlatformWhatsAppChatState = Readonly<{
+  latestInboundMessageId: string | null;
+  latestInboundAt: string | null;
+  newestMessageId: string | null;
+  newestMessageAt: string | null;
+  attempts: readonly PlatformWhatsAppChatAttempt[];
+}>;
+
+export type PlatformWhatsAppThread = Readonly<{
+  conversation: PlatformConversationSummary;
+  messages: readonly PlatformWhatsAppChatMessage[];
+  nextMessageCursor: PlatformConversationCursor | null;
+}>;
+
+const WHATSAPP_MESSAGE_KEYS = Object.freeze([
+  "message_id",
+  "direction",
+  "body_text",
+  "created_at",
+  "media",
+  "waha_ack_name",
+  "waha_ack_observed_at",
+  "origin",
+  "sender_name",
+  "sender_membership_id",
+]);
+const WHATSAPP_ORIGINS: readonly PlatformWhatsAppMessageOrigin[] = Object.freeze([
+  "client", "crm", "phone", "history", "other",
+]);
+const WHATSAPP_STATE_KEYS = Object.freeze([
+  "latest_inbound_message_id",
+  "latest_inbound_at",
+  "newest_message_id",
+  "newest_message_at",
+  "attempts",
+]);
+const WHATSAPP_ATTEMPT_KEYS = Object.freeze([
+  "attempt_id",
+  "work_item_id",
+  "request_id",
+  "status",
+  "reconciliation_required",
+  "final_text",
+  "authorized_by_membership_id",
+  "authorized_by_name",
+  "authorized_at",
+  "claimed_at",
+  "failure_code",
+  "latest_reconciliation_outcome",
+  "last_reconciled_at",
+]);
+const SAFE_FAILURE_CODE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
+
+function optionalUuidField(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return parsePlatformRouteUuid(value) ?? undefined;
+}
+
+function optionalTimestampField(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return parseTimestamp(value) ?? undefined;
+}
+
+/** One row of `staff_whatsapp_message_page` (266); exported for unit tests. */
+export function normalizePlatformWhatsAppChatMessage(
+  value: unknown,
+): PlatformWhatsAppChatMessage {
+  if (!isRecord(value) || !hasExactKeys(value, WHATSAPP_MESSAGE_KEYS)) {
+    return invalidShape();
+  }
+  const id = parsePlatformRouteUuid(value.message_id);
+  const bodyText = parseRequiredText(value.body_text);
+  const createdAt = parseTimestamp(value.created_at);
+  const media = parseMessageMedia(value.media);
+  const ack = parseWahaAck(value.direction, value.waha_ack_name, value.waha_ack_observed_at);
+  const origin = WHATSAPP_ORIGINS.find((candidate) => candidate === value.origin) ?? null;
+  const senderName = value.sender_name === null ? null : parseRequiredText(value.sender_name);
+  const senderMembershipId = optionalUuidField(value.sender_membership_id);
+  if (
+    id === null ||
+    (value.direction !== "inbound" && value.direction !== "outbound") ||
+    bodyText === null ||
+    createdAt === null ||
+    media === null ||
+    ack === null ||
+    origin === null ||
+    (value.sender_name !== null && senderName === null) ||
+    senderMembershipId === undefined ||
+    // A customer message is never a CRM or phone message, and only a CRM
+    // message names its author.
+    (value.direction === "inbound" && origin !== "client" && origin !== "history") ||
+    (value.direction === "outbound" && origin === "client") ||
+    ((origin === "crm") !== (senderMembershipId !== null)) ||
+    (origin !== "crm" && senderName !== null)
+  ) {
+    return invalidShape();
+  }
+  return Object.freeze({
+    id,
+    direction: value.direction,
+    bodyText,
+    createdAt,
+    media,
+    wahaAckName: ack.name,
+    origin,
+    senderName,
+    senderMembershipId,
+  });
+}
+
+function normalizePlatformWhatsAppChatAttempt(
+  value: unknown,
+): PlatformWhatsAppChatAttempt {
+  if (!isRecord(value) || !hasExactKeys(value, WHATSAPP_ATTEMPT_KEYS)) {
+    return invalidShape();
+  }
+  const attemptId = optionalUuidField(value.attempt_id);
+  const workItemId = parsePlatformRouteUuid(value.work_item_id);
+  const requestId = optionalUuidField(value.request_id);
+  const status = value.status === "queued" || value.status === "prepared"
+    || value.status === "unknown" || value.status === "rejected"
+    ? value.status
+    : null;
+  const finalText = parseRequiredText(value.final_text);
+  const authorizedByMembershipId = parsePlatformRouteUuid(value.authorized_by_membership_id);
+  const authorizedByName = parseRequiredText(value.authorized_by_name);
+  const authorizedAt = parseTimestamp(value.authorized_at);
+  const claimedAt = optionalTimestampField(value.claimed_at);
+  const failureCode = value.failure_code === null
+    ? null
+    : typeof value.failure_code === "string" && SAFE_FAILURE_CODE_PATTERN.test(value.failure_code)
+      ? value.failure_code
+      : undefined;
+  const outcome = value.latest_reconciliation_outcome === null
+    ? null
+    : value.latest_reconciliation_outcome === "message_confirmed"
+      || value.latest_reconciliation_outcome === "message_not_found"
+      || value.latest_reconciliation_outcome === "delivery_refreshed"
+      ? value.latest_reconciliation_outcome
+      : undefined;
+  const lastReconciledAt = optionalTimestampField(value.last_reconciled_at);
+  if (
+    attemptId === undefined ||
+    workItemId === null ||
+    requestId === undefined ||
+    status === null ||
+    typeof value.reconciliation_required !== "boolean" ||
+    finalText === null ||
+    authorizedByMembershipId === null ||
+    authorizedByName === null ||
+    authorizedAt === null ||
+    claimedAt === undefined ||
+    (attemptId === null) !== (claimedAt === null) ||
+    failureCode === undefined ||
+    outcome === undefined ||
+    lastReconciledAt === undefined ||
+    (status === "queued") !== (attemptId === null) ||
+    (value.reconciliation_required && status !== "unknown")
+  ) {
+    return invalidShape();
+  }
+  return Object.freeze({
+    attemptId,
+    workItemId,
+    requestId,
+    status,
+    reconciliationRequired: value.reconciliation_required,
+    finalText,
+    authorizedByMembershipId,
+    authorizedByName,
+    authorizedAt,
+    claimedAt,
+    failureCode,
+    latestReconciliationOutcome: outcome,
+    lastReconciledAt,
+  });
+}
+
+/** The one row of `staff_whatsapp_chat_state` (266); exported for unit tests. */
+export function normalizePlatformWhatsAppChatState(
+  value: unknown,
+): PlatformWhatsAppChatState {
+  if (!isRecord(value) || !hasExactKeys(value, WHATSAPP_STATE_KEYS)) {
+    return invalidShape();
+  }
+  const latestInboundMessageId = optionalUuidField(value.latest_inbound_message_id);
+  const latestInboundAt = optionalTimestampField(value.latest_inbound_at);
+  const newestMessageId = optionalUuidField(value.newest_message_id);
+  const newestMessageAt = optionalTimestampField(value.newest_message_at);
+  if (
+    latestInboundMessageId === undefined ||
+    latestInboundAt === undefined ||
+    newestMessageId === undefined ||
+    newestMessageAt === undefined ||
+    (latestInboundMessageId === null) !== (latestInboundAt === null) ||
+    (newestMessageId === null) !== (newestMessageAt === null) ||
+    (latestInboundMessageId !== null && newestMessageId === null) ||
+    !Array.isArray(value.attempts) ||
+    value.attempts.length > 50
+  ) {
+    return invalidShape();
+  }
+  const seen = new Set<string>();
+  const attempts = value.attempts.map((entry) => {
+    const attempt = normalizePlatformWhatsAppChatAttempt(entry);
+    if (seen.has(attempt.workItemId)) return invalidShape();
+    seen.add(attempt.workItemId);
+    return attempt;
+  });
+  return Object.freeze({
+    latestInboundMessageId,
+    latestInboundAt,
+    newestMessageId,
+    newestMessageAt,
+    attempts: Object.freeze(attempts),
+  });
+}
+
+async function readWhatsAppMessagePage(
+  client: PlatformCommunicationsRpcClient,
+  organizationId: string,
+  conversationId: string,
+  options: PlatformMessagePageOptions | undefined,
+): Promise<Pick<PlatformWhatsAppThread, "messages" | "nextMessageCursor">> {
+  const pageSize = normalizePageSize(options?.pageSize, 50);
+  const cursor = options?.cursor ?? null;
+  const response = await client.schema("platform").rpc(
+    "staff_whatsapp_message_page",
+    compactGetRpcArgs({
+      p_organization_id: organizationId,
+      p_conversation_id: conversationId,
+      p_limit: pageSize + 1,
+      p_before_created_at: cursor?.sortAt ?? null,
+      p_before_message_id: cursor?.id ?? null,
+    }),
+    { get: true },
+  );
+  if (response.error || !Array.isArray(response.data)) return invalidShape();
+  const seen = new Set<string>();
+  const newestFirst = response.data.map((row) => {
+    const message = normalizePlatformWhatsAppChatMessage(row);
+    if (seen.has(message.id)) return invalidShape();
+    seen.add(message.id);
+    return message;
+  });
+  const page = newestFirst.slice(0, pageSize);
+  const oldest = page.at(-1);
+  return {
+    // Newest-first keyset page; the chat renders oldest-first.
+    messages: Object.freeze([...page].reverse()),
+    nextMessageCursor: newestFirst.length > pageSize && oldest
+      ? Object.freeze({ sortAt: oldest.createdAt, id: oldest.id })
+      : null,
+  };
+}
+
+/**
+ * The selected chat: its queue row (the same snapshot as the v1 reader) and
+ * the newest — or, with a cursor, an older — page of the v2 transcript.
+ * null when the conversation is not readable (indistinguishable from absent).
+ */
+export async function getPlatformWhatsAppThread(
+  actor: PlatformActor,
+  id: string,
+  options?: PlatformMessagePageOptions,
+  dependencies: PlatformCommunicationsDependencies = {},
+): Promise<PlatformWhatsAppThread | null> {
+  try {
+    const organizationId = requireMessagingOrganization(actor);
+    const conversationId = parsePlatformRouteUuid(id);
+    if (conversationId === null) return null;
+    const client = await getPlatformClient(dependencies.client);
+    const summaryResponse = await client.schema("platform").rpc(
+      "staff_communication_snapshot",
+      { p_organization_id: organizationId, p_conversation_id: conversationId },
+      { get: true },
+    );
+    if (
+      summaryResponse.error ||
+      !Array.isArray(summaryResponse.data) ||
+      summaryResponse.data.length > 1
+    ) {
+      return invalidShape();
+    }
+    const conversation = normalizeConversationRows(summaryResponse.data)[0] ?? null;
+    if (conversation === null) return null;
+    const page = await readWhatsAppMessagePage(client, organizationId, conversationId, options);
+    return Object.freeze({ conversation, ...page });
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function getPlatformWhatsAppChatState(
+  actor: PlatformActor,
+  id: string,
+  dependencies: PlatformCommunicationsDependencies = {},
+): Promise<PlatformWhatsAppChatState> {
+  try {
+    const organizationId = requireMessagingOrganization(actor);
+    const conversationId = parsePlatformRouteUuid(id);
+    if (conversationId === null) return invalidShape();
+    const client = await getPlatformClient(dependencies.client);
+    const response = await client.schema("platform").rpc(
+      "staff_whatsapp_chat_state",
+      { p_organization_id: organizationId, p_conversation_id: conversationId, p_limit: 50 },
+      { get: true },
+    );
+    if (response.error || !Array.isArray(response.data) || response.data.length !== 1) {
+      return invalidShape();
+    }
+    return normalizePlatformWhatsAppChatState(response.data[0]);
+  } catch (error) {
+    return failClosed(error);
+  }
+}

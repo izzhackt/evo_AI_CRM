@@ -93,7 +93,8 @@ export type PlatformWahaProvider = Readonly<{
   sendText(input: Readonly<{
     recipientId: string;
     text: string;
-    replyTo: string;
+    /** The quoted customer message; null sends a plain chat message (266, D3). */
+    replyTo: string | null;
   }>): Promise<PlatformWahaProviderMessage>;
   getMessage(input: Readonly<{
     recipientId: string;
@@ -467,7 +468,7 @@ export function createPlatformWahaProvider(
       if (
         !isDirectRecipient(input.recipientId) ||
         !isValidText(input.text) ||
-        !isBoundedProviderId(input.replyTo)
+        (input.replyTo !== null && !isBoundedProviderId(input.replyTo))
       ) {
         throw new PlatformWahaProviderError("invalid_request", "failed");
       }
@@ -487,7 +488,7 @@ export function createPlatformWahaProvider(
           session: runtime.wahaSessionName,
           chatId: input.recipientId,
           text: input.text,
-          reply_to: input.replyTo,
+          ...(input.replyTo === null ? {} : { reply_to: input.replyTo }),
           linkPreview: false,
         }),
       }, PLATFORM_WAHA_SEND_TIMEOUT_MS);

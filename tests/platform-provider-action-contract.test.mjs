@@ -1,166 +1,80 @@
+// «Продажи → WhatsApp» как чат (решение владельца 06.10.2026, миграция 266):
+// браузер называет только чат, сообщение клиента, свой ключ запроса и
+// итоговый текст. Получателя, сессии и идентификаторов WhatsApp в контракте нет.
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  parsePlatformGeminiRequestForm,
-  parsePlatformGeminiReviewForm,
-  parsePlatformWhatsAppReconcileForm,
-  parsePlatformWhatsAppSendForm,
+  PLATFORM_WHATSAPP_TEXT_LIMIT,
+  parsePlatformWhatsAppChatReconcileInput,
+  parsePlatformWhatsAppChatSendInput,
 } from "../src/lib/platform-provider-action-contract.ts";
 
 const IDS = Object.freeze({
   conversation: "11111111-1111-4111-8111-111111111111",
   sourceMessage: "22222222-2222-4222-8222-222222222222",
-  proposalRequest: "33333333-3333-4333-8333-333333333333",
-  reviewRequest: "44444444-4444-4444-8444-444444444444",
   sendRequest: "55555555-5555-4555-8555-555555555555",
   attempt: "66666666-6666-4666-8666-666666666666",
   reconcileRequest: "77777777-7777-4777-8777-777777777777",
 });
 
-function form(entries) {
-  const value = new FormData();
-  for (const [key, entry] of entries) value.append(key, entry);
-  return value;
-}
+const send = (overrides = {}) => ({
+  conversationId: IDS.conversation,
+  sourceMessageId: IDS.sourceMessage,
+  requestId: IDS.sendRequest,
+  text: "Добрый день! Документы получили.",
+  ...overrides,
+});
 
-test("Gemini request and review forms expose only exact staff intent", () => {
+test("a chat message is exactly chat, source message, request id and final text", () => {
+  assert.deepEqual(parsePlatformWhatsAppChatSendInput(send()), send());
   assert.deepEqual(
-    parsePlatformGeminiRequestForm(form([
-      ["conversation_id", IDS.conversation],
-      ["source_message_id", IDS.sourceMessage],
-      ["request_id", IDS.proposalRequest],
-    ])),
-    {
-      conversationId: IDS.conversation,
-      sourceMessageId: IDS.sourceMessage,
-      requestId: IDS.proposalRequest,
-    },
+    parsePlatformWhatsAppChatSendInput(send({ conversationId: IDS.conversation.toUpperCase() })),
+    send(),
+    "UUIDs are normalized to lower case",
   );
-
   assert.deepEqual(
-    parsePlatformGeminiReviewForm(form([
-      ["conversation_id", IDS.conversation],
-      ["proposal_request_id", IDS.proposalRequest],
-      ["review_request_id", IDS.reviewRequest],
-      ["decision", "edited"],
-      ["edited_reply_text", "Уточнённый ответ менеджера"],
-      ["reason", "Исправлена формулировка"],
-    ])),
-    {
-      conversationId: IDS.conversation,
-      proposalRequestId: IDS.proposalRequest,
-      reviewRequestId: IDS.reviewRequest,
-      decision: "edited",
-      editedReplyText: "Уточнённый ответ менеджера",
-      reason: "Исправлена формулировка",
-    },
+    parsePlatformWhatsAppChatSendInput(send({ text: "Первая строка\nвторая строка" })).text,
+    "Первая строка\nвторая строка",
+    "line feeds are message content",
   );
-
-  const rejectedWithoutReason = form([
-    ["conversation_id", IDS.conversation],
-    ["proposal_request_id", IDS.proposalRequest],
-    ["review_request_id", IDS.reviewRequest],
-    ["decision", "rejected"],
-    ["edited_reply_text", ""],
-    ["reason", ""],
-  ]);
-  assert.equal(parsePlatformGeminiReviewForm(rejectedWithoutReason), null);
 });
 
-test("manual send contains no browser recipient and requires exact human confirmation", () => {
-  const accepted = form([
-    ["conversation_id", IDS.conversation],
-    ["source_message_id", IDS.sourceMessage],
-    ["send_request_id", IDS.sendRequest],
-    ["message_text", "Здравствуйте! Проверил ответ и подтверждаю отправку."],
-    ["confirm_send", "1"],
-  ]);
-  assert.deepEqual(parsePlatformWhatsAppSendForm(accepted), {
-    conversationId: IDS.conversation,
-    sourceMessageId: IDS.sourceMessage,
-    requestId: IDS.sendRequest,
-    messageText: "Здравствуйте! Проверил ответ и подтверждаю отправку.",
-  });
-  assert.equal(accepted.has("recipient"), false);
-  assert.equal(accepted.has("raw_chat_id"), false);
-
-  accepted.set("confirm_send", "0");
-  assert.equal(parsePlatformWhatsAppSendForm(accepted), null);
-  accepted.set("confirm_send", "1");
-  accepted.set("message_text", " trailing ");
-  assert.equal(parsePlatformWhatsAppSendForm(accepted), null);
-
-  accepted.set("message_text", "🚀".repeat(3_000));
-  assert.equal(
-    parsePlatformWhatsAppSendForm(accepted)?.messageText,
-    "🚀".repeat(3_000),
-  );
-
-  accepted.set("message_text", "🚀".repeat(3_001));
-  assert.equal(parsePlatformWhatsAppSendForm(accepted), null);
+test("no confirmation field, no recipient and no extra key: anything else is refused", () => {
+  assert.equal(parsePlatformWhatsAppChatSendInput({ ...send(), confirmSend: "1" }), null);
+  assert.equal(parsePlatformWhatsAppChatSendInput({ ...send(), recipient: "79990000000@c.us" }), null);
+  const withoutText = send();
+  delete withoutText.text;
+  assert.equal(parsePlatformWhatsAppChatSendInput(withoutText), null);
+  assert.equal(parsePlatformWhatsAppChatSendInput(null), null);
+  assert.equal(parsePlatformWhatsAppChatSendInput([send()]), null);
+  assert.equal(parsePlatformWhatsAppChatSendInput(new Map(Object.entries(send()))), null);
 });
 
-test("reconciliation identifies one attempt and cannot carry provider evidence", () => {
-  assert.deepEqual(
-    parsePlatformWhatsAppReconcileForm(form([
-      ["conversation_id", IDS.conversation],
-      ["attempt_id", IDS.attempt],
-      ["reconcile_request_id", IDS.reconcileRequest],
-    ])),
-    {
-      conversationId: IDS.conversation,
-      attemptId: IDS.attempt,
-      requestId: IDS.reconcileRequest,
-    },
-  );
-
-  const forged = form([
-    ["conversation_id", IDS.conversation],
-    ["attempt_id", IDS.attempt],
-    ["reconcile_request_id", IDS.reconcileRequest],
-    ["provider_message_id", "forged"],
-  ]);
-  assert.equal(parsePlatformWhatsAppReconcileForm(forged), null);
+test("identifiers must be non-nil UUIDs", () => {
+  for (const key of ["conversationId", "sourceMessageId", "requestId"]) {
+    assert.equal(parsePlatformWhatsAppChatSendInput(send({ [key]: "not-a-uuid" })), null, key);
+    assert.equal(parsePlatformWhatsAppChatSendInput(send({ [key]: "00000000-0000-0000-0000-000000000000" })), null, key);
+    assert.equal(parsePlatformWhatsAppChatSendInput(send({ [key]: 7 })), null, key);
+  }
 });
 
-test("duplicate, unknown and malformed action fields fail closed", () => {
-  const duplicate = form([
-    ["conversation_id", IDS.conversation],
-    ["source_message_id", IDS.sourceMessage],
-    ["request_id", IDS.proposalRequest],
-    ["request_id", IDS.proposalRequest],
-  ]);
-  assert.equal(parsePlatformGeminiRequestForm(duplicate), null);
-
-  const unknown = form([
-    ["conversation_id", IDS.conversation],
-    ["source_message_id", IDS.sourceMessage],
-    ["request_id", IDS.proposalRequest],
-    ["model", "attacker-selected-model"],
-  ]);
-  assert.equal(parsePlatformGeminiRequestForm(unknown), null);
-
-  const malformed = form([
-    ["conversation_id", "not-a-uuid"],
-    ["source_message_id", IDS.sourceMessage],
-    ["request_id", IDS.proposalRequest],
-  ]);
-  assert.equal(parsePlatformGeminiRequestForm(malformed), null);
+test("text: trimmed, 1..3000 Unicode code points, no control characters but line feeds", () => {
+  assert.equal(PLATFORM_WHATSAPP_TEXT_LIMIT, 3_000);
+  assert.equal(parsePlatformWhatsAppChatSendInput(send({ text: "" })), null);
+  assert.equal(parsePlatformWhatsAppChatSendInput(send({ text: " ответ" })), null, "leading space");
+  assert.equal(parsePlatformWhatsAppChatSendInput(send({ text: "ответ\n" })), null, "trailing line feed");
+  assert.equal(parsePlatformWhatsAppChatSendInput(send({ text: "a\tb" })), null, "tab");
+  assert.equal(parsePlatformWhatsAppChatSendInput(send({ text: "a\rb" })), null, "carriage return");
+  assert.equal(parsePlatformWhatsAppChatSendInput(send({ text: "a\u0000b" })), null, "NUL");
+  assert.notEqual(parsePlatformWhatsAppChatSendInput(send({ text: "🚀".repeat(3_000) })), null, "3000 code points (6000 UTF-16 units)");
+  assert.equal(parsePlatformWhatsAppChatSendInput(send({ text: "🚀".repeat(3_001) })), null);
 });
 
-test("React action-state envelopes retain the same exact contract", () => {
-  const value = form([
-    ["_1_$ACTION_REF_8", ""],
-    ["_1_$ACTION_8:0", ""],
-    ["_1_$ACTION_KEY", "state-key"],
-    ["_1_conversation_id", IDS.conversation],
-    ["_1_source_message_id", IDS.sourceMessage],
-    ["_1_request_id", IDS.proposalRequest],
-    ["0", "previous-state"],
-  ]);
-  assert.equal(
-    parsePlatformGeminiRequestForm(value)?.requestId,
-    IDS.proposalRequest,
-  );
+test("a readback names the chat, the exact attempt and its own request id", () => {
+  const input = { conversationId: IDS.conversation, attemptId: IDS.attempt, requestId: IDS.reconcileRequest };
+  assert.deepEqual(parsePlatformWhatsAppChatReconcileInput(input), input);
+  assert.equal(parsePlatformWhatsAppChatReconcileInput({ ...input, text: "x" }), null);
+  assert.equal(parsePlatformWhatsAppChatReconcileInput({ ...input, attemptId: "latest" }), null);
+  assert.equal(parsePlatformWhatsAppChatReconcileInput({ conversationId: IDS.conversation, requestId: IDS.reconcileRequest }), null);
 });

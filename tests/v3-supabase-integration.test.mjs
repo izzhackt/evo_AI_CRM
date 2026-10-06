@@ -90,6 +90,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "university-source.ts",
     "university-view.ts",
     "website-lead-source.ts",
+    "whatsapp-chat.ts", // «Продажи → WhatsApp» как чат (06.10.2026): pure chat logic, no Supabase
     "wording.ts",
   ]);
 

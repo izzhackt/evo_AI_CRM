@@ -45,6 +45,44 @@ export class PlatformProviderWorkflowError extends Error {
   }
 }
 
+/**
+ * The database refused a manual-send request before anything was recorded
+ * (migrations 050/266). Only the reason travels; the database message and
+ * SQLSTATE stay on the server.
+ */
+export type PlatformManualSendRefusalReason =
+  | "stale_source"
+  | "duplicate"
+  | "not_ready"
+  | "forbidden"
+  | "invalid";
+
+export class PlatformManualSendRefusedError extends PlatformProviderWorkflowError {
+  readonly reason: PlatformManualSendRefusalReason;
+
+  constructor(reason: PlatformManualSendRefusalReason) {
+    super();
+    this.name = "PlatformManualSendRefusedError";
+    this.reason = reason;
+  }
+}
+
+/** SQLSTATE and message of the manual-send request → the one reason staff can act on. */
+export function classifyManualSendRefusal(
+  error: unknown,
+): PlatformManualSendRefusalReason | null {
+  if (typeof error !== "object" || error === null) return null;
+  const code = (error as { code?: unknown }).code;
+  const message = String((error as { message?: unknown }).message ?? "");
+  if (code === "42501") return "forbidden";
+  if (code === "22023") return "invalid";
+  if (code !== "55000") return null;
+  if (message.startsWith("duplicate_of_unresolved")) return "duplicate";
+  if (/integration is not fresh provider-observed ready/u.test(message)) return "not_ready";
+  if (/latest inbound message/u.test(message)) return "stale_source";
+  return null;
+}
+
 export type PlatformGeminiProposalOutcome =
   | "proposal_ready"
   | "human_review";
@@ -1213,20 +1251,34 @@ export async function requestManualWhatsAppSendWithAuthorization(
   const aiDraftId = optionalUuid(input.aiDraftId);
   const finalText = requiredTrimmedText(input.finalText, 1, 16_000);
   const businessKeySha256 = requiredSha256(input.businessKeySha256);
-  const row = await callRpc(
-    client,
-    "request_manual_whatsapp_send_with_authorization",
-    {
-      p_organization_id: organizationId,
-      p_conversation_id: conversationId,
-      p_source_message_id: sourceMessageId,
-      p_ai_draft_id: aiDraftId,
-      p_final_text: finalText,
-      p_reason: requiredReason(input.reason),
-      p_business_key_sha256: businessKeySha256,
-      p_request_id: requiredUuid(input.requestId),
-    },
-  );
+  const args = {
+    p_organization_id: organizationId,
+    p_conversation_id: conversationId,
+    p_source_message_id: sourceMessageId,
+    p_ai_draft_id: aiDraftId,
+    p_final_text: finalText,
+    p_reason: requiredReason(input.reason),
+    p_business_key_sha256: businessKeySha256,
+    p_request_id: requiredUuid(input.requestId),
+  };
+  let response: PlatformProviderRpcResponse;
+  try {
+    response = await client.schema("platform").rpc(
+      "request_manual_whatsapp_send_with_authorization",
+      args,
+    );
+  } catch {
+    return unavailable();
+  }
+  if (!isRecord(response) || !("data" in response) || !("error" in response)) {
+    return unavailable();
+  }
+  if (response.error !== null) {
+    const reason = classifyManualSendRefusal(response.error);
+    if (reason !== null) throw new PlatformManualSendRefusedError(reason);
+    return unavailable();
+  }
+  const row = response.data;
   if (!isRecord(row) || !hasExactKeys(row, MANUAL_SEND_AUTHORIZATION_KEYS)) {
     return unavailable();
   }

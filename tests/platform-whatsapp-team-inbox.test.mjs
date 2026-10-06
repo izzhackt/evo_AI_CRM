@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { staffCan, staffCanAccessRoute } from "../src/lib/platform-access.ts";
-import { inboxPresentationQueue, inboxReadsGeminiDrafts } from "../src/lib/v3/inbox-access.ts";
+import { inboxPresentationQueue, inboxReplyActor } from "../src/lib/v3/inbox-access.ts";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
 import { staffRoleKeys } from "./e2e/staff-role-templates.cjs";
 
@@ -114,21 +114,20 @@ test("role preview queue: only «Продажи» is filtered; «Приёмна�
   assert.equal(inboxPresentationQueue({ presentationRole: null }), undefined);
 });
 
-test("a role without ai.draft.review opens the transcript without the AI block instead of failing the page", () => {
-  assert.equal(inboxReadsGeminiDrafts(staff(["communication.read.full", "communication.manual.send"])), false);
-  assert.equal(inboxReadsGeminiDrafts(staff(["communication.read.full", "ai.draft.review"])), true);
-  assert.equal(inboxReadsGeminiDrafts({ systemRole: "admin", presentationRole: null, permissionKeys: [] }), true);
+test("who gets the composer: a WhatsApp sender answers, a reader reads only, a role preview never sends (06.10.2026)", () => {
+  const withRoles = (keys) => ({ ...staff(keys), membershipId: "m", organizationId: "o" });
+  assert.equal(inboxReplyActor(withRoles(["communication.read.full", "communication.manual.send"])), "allowed");
+  assert.equal(inboxReplyActor(withRoles(["communication.read.full", "ai.draft.review"])), "no_permission");
+  assert.equal(inboxReplyActor({ ...preview("sales"), membershipId: "m", organizationId: "o" }), "preview");
+  assert.equal(inboxReplyActor({ systemRole: "admin", presentationRole: null, permissionKeys: [], assignments: [] }), "allowed");
 
   const adapter = source("src/lib/v3/inbox-source.ts");
-  // Both Gemini readers sit behind the one decision; the transcript, the command
-  // context and the latest send attempt are always read.
-  assert.match(adapter, /const readsGeminiDrafts = inboxReadsGeminiDrafts\(actor\);/u);
-  assert.match(adapter, /readsGeminiDrafts\s*\?\s*readStaffGeminiProposal\(/u);
-  assert.match(adapter, /readsGeminiDrafts\s*\?\s*listStaffGeminiProposalReviews\(/u);
-  assert.match(adapter, /: Promise\.resolve\(null\),/u);
-  assert.match(adapter, /readLatestManualWhatsAppSendAttempt\(staffClient,/u);
-  assert.equal([...adapter.matchAll(/readStaffGeminiProposal\(/gu)].length, 1, "one call site");
-  assert.equal([...adapter.matchAll(/listStaffGeminiProposalReviews\(/gu)].length, 1, "one call site");
+  // The AI-draft readers are gone from the page (the chat replaced the
+  // «Ответ и отправка» block); the transcript, the command context and the
+  // chat state are always read.
+  assert.doesNotMatch(adapter, /readStaffGeminiProposal|listStaffGeminiProposalReviews|inboxReadsGeminiDrafts/u);
+  assert.match(adapter, /getPlatformWhatsAppChatState\(actor, thread\.conversation\.id\)/u);
+  assert.match(adapter, /const who = inboxReplyActor\(actor\);/u);
 });
 
 // ---------------------------------------------------------------------------
@@ -186,12 +185,23 @@ test("261 does not touch migrations 259/260 and is independent of 260's needles"
   }
 });
 
-test("the send form's generic failure hint is neutral: a colleague may already have answered (one reply per inbound message) or the service is down", () => {
-  const controls = source("src/components/v3/InboxProviderWorkflowControls.tsx");
-  assert.match(controls, /unavailable:\s*"Не удалось отправить\. Обновите страницу: возможно, коллега уже ответил на это сообщение, или сервис временно недоступен\."/u);
-  // The action keeps one generic failure state: no new state, no new right, no retry.
+test("since 06.10.2026 several members answer in a row; a failed send says exactly why, never «a colleague already answered»", () => {
+  const chat = source("src/lib/v3/whatsapp-chat.ts");
+  assert.match(chat, /stale_source: "Пока вы писали, клиент прислал новое сообщение\. Проверьте ответ и отправьте ещё раз\."/u);
+  assert.match(chat, /CONNECTION_LOST_COPY = "Связь прервалась — неизвестно, ушло ли сообщение\. «Повторить» не отправит его дважды\."/u);
+  assert.doesNotMatch(chat, /коллега уже ответил/u);
+  // A refusal before anything was written comes back as its reason; a broken
+  // connection after the durable authorization is «unavailable» and replays safely.
   const actions = source("src/lib/platform-provider-actions.ts");
-  assert.match(actions, /status: "unavailable" \}\);\s*\}\s*\}\s*export async function reconcilePlatformWhatsAppSendAction/u);
+  assert.match(actions, /if \(error instanceof PlatformManualSendRefusedError\) return result\(error\.reason\);\s*return result\("unavailable"\);/u);
+});
+
+test("the Postgres harness runs the multi-reply suite right after migration 266", () => {
+  const harness = source("scripts/test-postgres-authorization.sh");
+  assert.match(harness, /if \[\[ "\$\(basename "\$migration"\)" == 266_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_whatsapp_chat_replies\.sql\s+fi/u);
+  const suite = source("supabase/tests/platform_whatsapp_chat_replies.sql");
+  assert.match(suite, /N266_WHATSAPP_CHAT_REPLIES_SUITE_START/u);
+  assert.match(suite, /^ROLLBACK;$/mu, "the suite leaves no rows");
 });
 
 test("the Postgres harness runs the real-chain suite right after migration 261", () => {

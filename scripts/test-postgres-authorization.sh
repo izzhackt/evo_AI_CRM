@@ -3035,6 +3035,21 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_marketing_m1.sql
   fi
+
+  # Migration 266 («Продажи → WhatsApp» as a full chat, owner decision
+  # 06.10.2026): several CRM replies in a row (a v2 business key per click, v1
+  # still one reply per inbound), the per-conversation queue head of the exact
+  # claim, the duplicate guard for an unresolved unknown attempt, the
+  # reconciliation of an OLDER attempt, the chat state and the message page
+  # with origins. Real WAHA projection chain and real manual-send chain
+  # (request -> authority trigger -> exact claim -> finish -> readback), members
+  # modelled like production; the author is the sender; read-only, keyless,
+  # other-organization and anon callers refused; grants of every new routine.
+  if [[ "$(basename "$migration")" == 266_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_chat_replies.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

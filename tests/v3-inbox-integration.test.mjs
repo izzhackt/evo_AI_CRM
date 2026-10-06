@@ -8,26 +8,25 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-test("V3 Inbox reads one URL-selected canonical transcript with exact cursors", () => {
+test("V3 Inbox reads one URL-selected canonical chat; older messages load inside the chat", () => {
   const adapter = source("src/lib/v3/inbox-source.ts");
   const page = source("src/app/(v3)/v3/inbox/page.tsx");
   const inbox = source("src/components/v3/Inbox.tsx");
+  const chat = source("src/components/v3/inbox/InboxChat.tsx");
 
   assert.match(adapter, /listPlatformConversations\(actor,/u);
-  // 06.10.2026: the queue filter of the role preview and the AI-draft readers'
-  // permission live in inbox-access.ts (behaviour: platform-whatsapp-team-inbox.test.mjs).
+  // 06.10.2026: the queue filter of the role preview lives in inbox-access.ts
+  // (behaviour: platform-whatsapp-team-inbox.test.mjs).
   assert.match(adapter, /const presentationQueue = inboxPresentationQueue\(actor\);/u);
-  assert.match(adapter, /const readsGeminiDrafts = inboxReadsGeminiDrafts\(actor\);/u);
   assert.match(adapter, /queue: presentationQueue/u);
   assert.match(adapter, /resolvedThread\.conversation\.queue === presentationQueue/u);
-  assert.match(adapter, /getPlatformConversationThread\(actor, options\.conversationId,/u);
+  assert.match(adapter, /getPlatformWhatsAppThread\(actor, options\.conversationId,/u);
   assert.match(
     adapter,
     /getPlatformConversationCommandContext\(actor, thread\.conversation\.id\)/u,
   );
-  assert.doesNotMatch(adapter, /THREAD_READ_CONCURRENCY|batch\.map/u);
-  assert.match(adapter, /if \(messageCursor !== null\) return null/u);
-  assert.match(adapter, /message\?\.direction === "inbound"/u);
+  // The reply source is the chat state's latest customer message, on every page.
+  assert.match(adapter, /latestInboundMessageId: state\.latestInboundMessageId/u);
   assert.match(adapter, /query: options\.query \?\? undefined/u);
   assert.match(adapter, /waitingOnly: options\.waitingOnly/u);
   assert.match(adapter, /buildV3InboxHref/u);
@@ -36,6 +35,7 @@ test("V3 Inbox reads one URL-selected canonical transcript with exact cursors", 
   assert.match(page, /parsePlatformRouteUuid/u);
   assert.match(page, /parsePlatformConversationCursor/u);
   assert.match(page, /conversationId === null && messageCursor !== null/u);
+  assert.match(page, /conversationId !== null && messageCursor !== null\) \{\s*redirect\(/u, "an old message-page link opens the chat");
   assert.match(page, /conversationId !== null && view\.selected === null/u);
   assert.match(page, /q\?: string \| string\[\]/u);
   assert.match(page, /waiting\?: string \| string\[\]/u);
@@ -50,10 +50,13 @@ test("V3 Inbox reads one URL-selected canonical transcript with exact cursors", 
     page,
     /if \(sortAt === undefined \|\| id === undefined\) notFound\(\)/u,
   );
+  // The list and its pages stay server links; the chat is the one client island.
   assert.doesNotMatch(inbox, /useState|onClick=/u);
   assert.match(inbox, /href=\{conversation\.href\}/u);
-  assert.match(inbox, /href=\{open\.olderMessagesHref\}/u);
   assert.match(inbox, /href=\{view\.queueOlderHref\}/u);
+  assert.match(inbox, /<InboxChat\s+key=\{open\.id\}/u);
+  assert.match(chat, /\/api\/v3\/inbox\/conversations\/\$\{conversationId\}\/messages\?/u);
+  assert.match(chat, /Показать ранее/u);
 });
 
 test("V3 Inbox href preserves filters and both cursor pairs behaviorally", () => {
@@ -114,129 +117,21 @@ test("V3 Inbox search and waiting UI use the server waiting_since projection", (
   assert.match(inbox, /name="waiting" value="1"/u);
   assert.match(inbox, /Только ждут ответа/u);
   assert.match(inbox, /Ждёт ответа с \{conversation\.waitingSince\}/u);
-  assert.match(inbox, /Ждёт ответа с \{open\.waitingSince\}/u);
+  assert.match(inbox, /Ждёт ответа\{open\.awaitingReplyFor \? ` · \$\{open\.awaitingReplyFor\}` : ""\}/u);
   assert.doesNotMatch(`${adapter}\n${inbox}`, /lastMessageAt.*formatWaitingRu/su);
 });
 
-test("V3 owns human-reviewed Gemini and explicit WhatsApp action controls", () => {
-  const controls = source(
-    "src/components/v3/InboxProviderWorkflowControls.tsx",
-  );
+test("V3 Inbox loads exact-audience reply snippets only for a chat the member may answer", () => {
   const page = source("src/app/(v3)/v3/inbox/page.tsx");
+  const picker = source("src/components/v3/reply-snippets/ReplySnippetPicker.tsx");
 
-  for (const action of [
-    "requestPlatformGeminiProposalAction",
-    "reviewPlatformGeminiProposalAction",
-    "sendPlatformWhatsAppMessageAction",
-    "reconcilePlatformWhatsAppSendAction",
-  ]) {
-    assert.match(controls, new RegExp(action));
-  }
-  for (const field of [
-    "conversation_id",
-    "source_message_id",
-    "request_id",
-    "proposal_request_id",
-    "review_request_id",
-    "decision",
-    "edited_reply_text",
-    "reason",
-    "send_request_id",
-    "message_text",
-    "confirm_send",
-    "attempt_id",
-    "reconcile_request_id",
-  ]) {
-    assert.match(controls, new RegExp(`name="${field}"`), field);
-  }
-  for (const status of [
-    "proposal_ready",
-    "human_review",
-    "in_progress",
-    "blocked",
-    "invalid",
-    "unavailable",
-    "reviewed",
-    "succeeded",
-    "unknown_result",
-    "terminal_error",
-    "not_claimed",
-    "reconciled",
-    "still_unknown",
-    "already_completed",
-    "readback_failed",
-  ]) {
-    assert.match(controls, new RegExp(status), status);
-  }
-  assert.match(controls, /latestInboundSourceMessageId === null/u);
-  assert.match(controls, /unresolvedAttempt/u);
-  assert.match(controls, /ACK_LABELS\[latestAttempt\.ackName\]/u);
-  assert.doesNotMatch(controls, />\{latestAttempt\.ackName\}</u);
-  assert.match(controls, /Проверить результат без новой отправки/u);
-  assert.doesNotMatch(controls, /QR|broadcast|autonomous|localStorage|fetch\(/iu);
-  assert.doesNotMatch(
-    page,
-    /PlatformProviderWorkflowControls|PlatformStaffWhatsAppWorkspace/u,
-  );
-});
-
-test("V3 Inbox loads exact-audience reply snippets only for a selected send-capable conversation", () => {
-  const controls = source(
-    "src/components/v3/InboxProviderWorkflowControls.tsx",
-  );
-  const picker = source(
-    "src/components/v3/reply-snippets/ReplySnippetPicker.tsx",
-  );
-  const page = source("src/app/(v3)/v3/inbox/page.tsx");
-
-  assert.match(
-    page,
-    /if \(view\.selected\)[\s\S]*staffPresentationCan\(actor, "messaging\.send"\)[\s\S]*readV3ReplySnippets\(actor\)/u,
-  );
-  assert.match(
-    page,
-    /\(\{ replySnippetId, title, body \}\) => \(\{ replySnippetId, title, body \}\)/u,
-  );
+  assert.match(page, /if \(view\.selected\)[\s\S]*canReply \? readSnippets\(actor\)/u);
+  assert.match(page, /if \(!staffPresentationCan\(actor, "messaging\.send"\)\) return null;\s*const snippets = await readV3ReplySnippets\(actor\);/u);
+  assert.match(page, /\(\{ replySnippetId, title, body \}\) => \(\{ replySnippetId, title, body \}\)/u);
   assert.match(page, /replySnippets=\{replySnippets\}/u);
-  assert.match(controls, /replySnippets !== null \? \(/u);
-  assert.match(controls, /<ReplySnippetPicker[\s\S]*name="message_text"/u);
-  assert.match(
-    controls,
-    /onMessageTextChange=\{\(value\) => \{[\s\S]*setMessageText\(value\);[\s\S]*setConfirmed\(false\);/u,
-  );
   assert.match(picker, /type="button"/u);
   assert.match(picker, /role="alert"/u);
   assert.doesNotMatch(picker, /sendPlatform|type="submit"|form action/u);
-});
-
-test("conversation or latest-source changes remount the stateful composer", () => {
-  const page = source("src/app/(v3)/v3/inbox/page.tsx");
-  const controlsStart = page.indexOf("<InboxProviderWorkflowControls");
-  const controlsEnd = page.indexOf("/>", controlsStart);
-
-  assert.notEqual(controlsStart, -1);
-  assert.notEqual(controlsEnd, -1);
-  assert.match(
-    page.slice(controlsStart, controlsEnd),
-    /key=\{`\$\{selected\.id\}:\$\{selected\.latestInboundSourceMessageId \?\? "no-source"\}:/u,
-  );
-});
-
-test("V3 Inbox scopes amoCRM commands to exact canonical EVO identity", () => {
-  const page = source("src/app/(v3)/v3/inbox/page.tsx");
-  const adapter = source("src/lib/v3/inbox-source.ts");
-
-  assert.match(page, /selected\.canonicalContext/u);
-  assert.match(adapter, /"sales_pre_handoff"/u);
-  assert.match(adapter, /"admissions_post_handoff"/u);
-  assert.match(adapter, /studentCaseId: scope === "sales" \? null : studentCaseId/u);
-  assert.match(adapter, /personId: clientId/u);
-  assert.match(adapter, /leadId,/u);
-  assert.match(adapter, /readPlatformBlockingAmoCrmCommand/u);
-  assert.match(adapter, /readCanonicalAmoCrmCommandAvailability/u);
-  assert.match(page, /CanonicalAmoCrmCommandPanel/u);
-  assert.match(page, /Запись через другой путь не выполняется/u);
-  assert.doesNotMatch(`${page}\n${adapter}`, /amocrmLeadId|amocrmContactId|kommo/u);
 });
 
 test("V3 Inbox surfaces current WhatsApp readiness without a channel setup flow", () => {

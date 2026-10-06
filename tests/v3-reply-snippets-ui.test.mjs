@@ -114,18 +114,14 @@ test("manual composer validation uses Unicode code points instead of UTF-16 unit
   assert.equal(isReplyMessageWithinCodePointLimit("🚀".repeat(3_000)), true);
   assert.equal(isReplyMessageWithinCodePointLimit("🚀".repeat(3_001)), false);
 
-  const controls = source("src/components/v3/InboxProviderWorkflowControls.tsx");
-  assert.match(controls, /isReplyMessageWithinCodePointLimit/u);
-  assert.match(controls, /messageLengthRejected/u);
-  assert.match(controls, /role="alert"/u);
-  const composerStart = controls.indexOf('name="message_text"');
-  const composerEnd = controls.indexOf('name="confirm_send"', composerStart);
-  assert.notEqual(composerStart, -1);
-  assert.notEqual(composerEnd, -1);
-  assert.doesNotMatch(
-    controls.slice(composerStart, composerEnd),
-    /maxLength=\{3_000\}/u,
-  );
+  // 06.10.2026: the WhatsApp chat composer counts code points (chatTextLength)
+  // and refuses over 3000 with a visible reason; the field itself is not capped.
+  const composer = source("src/components/v3/inbox/InboxComposer.tsx");
+  assert.match(composer, /chatTextLength\(value\)/u);
+  assert.match(composer, /tooLong = length > WHATSAPP_CHAT_TEXT_LIMIT/u);
+  assert.match(composer, /role=\{tooLong \? "alert" : undefined\}/u);
+  assert.match(composer, /maxCodePoints=\{WHATSAPP_CHAT_TEXT_LIMIT\}/u);
+  assert.doesNotMatch(composer, /maxLength=/u);
 });
 
 test("presentation role filters exact reply-snippet audiences", async () => {

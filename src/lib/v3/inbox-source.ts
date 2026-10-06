@@ -1,44 +1,40 @@
 import "server-only";
-import { isStaffPreview, staffCan, staffHasPermission } from "../platform-access.ts";
 
 import type {
+  InboxChatModel,
   InboxConversation,
-  InboxMessage,
   InboxSelectedConversation,
   InboxView,
 } from "@/components/v3/Inbox";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import {
-  getPlatformConversationThread,
   getPlatformConversationCommandContext,
   getPlatformWahaSessionHealth,
+  getPlatformWhatsAppChatState,
+  getPlatformWhatsAppThread,
   listPlatformConversations,
   type PlatformConversationCursor,
-  type PlatformConversationMessage,
   type PlatformConversationSummary,
+  type PlatformWhatsAppChatAttempt,
+  type PlatformWhatsAppChatMessage,
+  type PlatformWhatsAppChatState,
 } from "@/lib/platform-communications";
-import type { CanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
-import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
-import {
-  PlatformAmoCrmCommandRpcError,
-  readPlatformBlockingAmoCrmCommand,
-  type PlatformAmoCrmCommandOperationName,
-} from "@/lib/server/platform-amocrm-command-rpc";
-import {
-  listStaffGeminiProposalReviews,
-  readLatestManualWhatsAppSendAttempt,
-  readStaffGeminiProposal,
-  type PlatformGeminiProposalReview,
-  type PlatformManualWhatsAppSendAttempt,
-  type PlatformStaffGeminiProposal,
-} from "@/lib/platform-provider-workflows";
+import { staffPresentationCan } from "@/lib/platform-access";
 import { isFreshWorkingWahaSession } from "@/lib/provider-display-status";
 import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress-config";
 import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
-import { inboxPresentationQueue, inboxReadsGeminiDrafts } from "@/lib/v3/inbox-access";
+import { inboxPresentationQueue, inboxReplyActor } from "@/lib/v3/inbox-access";
 import { toV3InboxMessageMedia } from "@/lib/v3/inbox-media";
+import { readLeadHandoffStrip } from "@/lib/v3/sales-numbers-source";
+import { stagePhase } from "@/lib/v3/stages";
+import { salesStage } from "@/lib/v3/wording";
+import {
+  inboxPulseSignature,
+  type InboxChatAttempt,
+  type InboxChatMessage,
+  type InboxReplyAccess,
+} from "@/lib/v3/whatsapp-chat";
 
 const INBOX_PAGE_SIZE = 50;
 const MESSAGE_PAGE_SIZE = 50;
@@ -55,46 +51,12 @@ const BISHKEK_TIME = new Intl.DateTimeFormat("ru-RU", {
 export type InboxReadOptions = Readonly<{
   conversationId: string | null;
   queueCursor: PlatformConversationCursor | null;
-  messageCursor: PlatformConversationCursor | null;
   query: string | null;
   waitingOnly: boolean;
 }>;
 
-export type InboxProviderWorkflow = Readonly<{
-  proposal: PlatformStaffGeminiProposal | null;
-  reviews: readonly PlatformGeminiProposalReview[];
-  latestAttempt: PlatformManualWhatsAppSendAttempt | null;
-}>;
-
-export type InboxAmoCrmBlockingAttempt = Readonly<{
-  attemptId: string;
-  operationName: PlatformAmoCrmCommandOperationName;
-  status: "prepared" | "unknown";
-  providerDispatchedAt: string | null;
-}>;
-
-export type InboxAmoCrmCommand =
-  | Readonly<{
-      status: "available";
-      scope: "sales" | "admissions";
-      leadId: string;
-      studentCaseId: string | null;
-      availability: CanonicalAmoCrmCommandAvailability;
-      canMutate: boolean;
-      blockingAttempt: InboxAmoCrmBlockingAttempt | null;
-    }>
-  | Readonly<{
-      status: "blocked";
-      reason:
-        | "canonical_scope_missing"
-        | "role_scope_mismatch"
-        | "canonical_runtime_unavailable";
-    }>;
-
 export type InboxReadModel = Readonly<{
   view: InboxView;
-  providerWorkflow: InboxProviderWorkflow | null;
-  amoCrmCommand: InboxAmoCrmCommand | null;
 }>;
 
 function formatInboxTime(value: string): string {
@@ -139,7 +101,8 @@ async function readInboxChannelStatus(
     });
   } catch {
     // Session health is informational. Queue, transcript and command-authority
-    // failures retain their existing fail-closed path; no send gate uses this.
+    // failures retain their existing fail-closed path; the send itself is
+    // gated by the database's own readiness check.
     return Object.freeze({ channelState: "unavailable", channelObservedAt: null });
   }
 }
@@ -181,35 +144,99 @@ function toInboxConversation(
   });
 }
 
-function toInboxMessage(message: PlatformConversationMessage): InboxMessage {
+export function toInboxChatMessage(
+  message: PlatformWhatsAppChatMessage,
+  viewerMembershipId: string,
+): InboxChatMessage {
   return Object.freeze({
     id: message.id,
     inbound: message.direction === "inbound",
     body: message.bodyText,
-    at: formatInboxTime(message.createdAt),
+    createdAt: message.createdAt,
+    origin: message.origin,
+    senderName: message.senderName,
+    senderIsViewer: message.senderMembershipId !== null
+      && message.senderMembershipId === viewerMembershipId.toLowerCase(),
+    ack: message.direction === "outbound" ? message.wahaAckName : null,
     media: Object.freeze(message.media.map(toV3InboxMessageMedia)),
   });
 }
 
-function latestInboundMessageId(
-  messages: readonly PlatformConversationMessage[],
-  messageCursor: PlatformConversationCursor | null,
-): string | null {
-  // On an older page this is intentionally unavailable. A provider action must
-  // always bind to the newest inbound message from the current transcript.
-  if (messageCursor !== null) return null;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.direction === "inbound") return message.id;
-  }
-  return null;
+function toInboxChatAttempt(
+  attempt: PlatformWhatsAppChatAttempt,
+  viewerMembershipId: string,
+): InboxChatAttempt {
+  return Object.freeze({
+    attemptId: attempt.attemptId,
+    workItemId: attempt.workItemId,
+    requestId: attempt.requestId,
+    status: attempt.status,
+    reconciliationRequired: attempt.reconciliationRequired,
+    text: attempt.finalText,
+    authorName: attempt.authorizedByName,
+    authorIsViewer: attempt.authorizedByMembershipId === viewerMembershipId.toLowerCase(),
+    at: attempt.authorizedAt,
+    failureCode: attempt.failureCode,
+    readback: attempt.latestReconciliationOutcome,
+  });
+}
+
+/** Подпись списка для опроса: строки первой страницы, без текста и имён. */
+export function inboxListSignature(rows: readonly PlatformConversationSummary[]): string {
+  return inboxPulseSignature(rows.flatMap((row) => [row.id, row.sortAt, row.waitingSince, row.lastMessageAt]));
+}
+
+/** Подпись открытого чата для опроса: последнее сообщение и состояния отправок. */
+export function inboxChatSignature(state: PlatformWhatsAppChatState): string {
+  return inboxPulseSignature([
+    state.newestMessageId,
+    state.newestMessageAt,
+    state.latestInboundMessageId,
+    ...state.attempts.flatMap((attempt) => [
+      attempt.workItemId,
+      attempt.status,
+      attempt.latestReconciliationOutcome,
+      attempt.lastReconciledAt,
+    ]),
+  ]);
+}
+
+function replyAccessOf(
+  actor: ActivePlatformActor,
+  conversation: PlatformConversationSummary,
+  state: PlatformWhatsAppChatState,
+  channelState: InboxSelectedConversation["channelState"],
+): InboxReplyAccess {
+  const who = inboxReplyActor(actor);
+  if (who !== "allowed") return who;
+  if (conversation.wahaSessionName !== "crm_primary") return "old_session";
+  if (conversation.status !== "open") return "closed";
+  if (state.latestInboundMessageId === null) return "no_client_message";
+  if (channelState === "not_connected") return "not_connected";
+  return channelState === "attention" ? "attention" : "allowed";
+}
+
+/** Этап лида словами доски для шапки чата; без права или без чтения — ничего. */
+async function readStage(
+  actor: ActivePlatformActor,
+  leadId: string | null,
+): Promise<InboxChatModel["stage"]> {
+  if (leadId === null || !staffPresentationCan(actor, "sales.read")) return null;
+  const read = await readLeadHandoffStrip(actor, leadId);
+  if (read.status !== "available") return null;
+  const stage = read.strip.stage;
+  if (stage === "closed") return Object.freeze({ label: "Лид закрыт", phase: null });
+  const label = salesStage(stage);
+  return label ? Object.freeze({ label, phase: stagePhase("sales", stage) }) : null;
 }
 
 /**
- * One bounded canonical Inbox view. The queue and selected transcript retain
- * their independent keyset cursors; transcripts are never preloaded for queue
- * rows. The selected conversation is resolved again through the authenticated
- * conversation reader before its canonical EVO identity is exposed.
+ * One bounded canonical Inbox view. The queue and the selected chat keep
+ * their independent reads; transcripts are never preloaded for queue rows.
+ * The selected chat is resolved again through the authenticated conversation
+ * reader before its canonical EVO identity is exposed, and its reply source
+ * is always the latest customer message from the chat state (266), whatever
+ * page of the transcript is shown.
  */
 export async function readInbox(
   actor: ActivePlatformActor,
@@ -220,6 +247,7 @@ export async function readInbox(
     query: options.query,
     waitingOnly: options.waitingOnly,
   });
+  const readAt = new Date().toISOString();
   const [queue, resolvedThread] = await Promise.all([
     listPlatformConversations(actor, {
       cursor: options.queueCursor,
@@ -229,8 +257,7 @@ export async function readInbox(
       ...(presentationQueue ? { queue: presentationQueue } : {}),
     }),
     options.conversationId
-      ? getPlatformConversationThread(actor, options.conversationId, {
-          cursor: options.messageCursor,
+      ? getPlatformWhatsAppThread(actor, options.conversationId, {
           pageSize: MESSAGE_PAGE_SIZE,
         })
       : Promise.resolve(null),
@@ -243,8 +270,6 @@ export async function readInbox(
       : null;
 
   let selected: InboxSelectedConversation | null = null;
-  let providerWorkflow: InboxProviderWorkflow | null = null;
-  let amoCrmCommand: InboxAmoCrmCommand | null = null;
   const channelStatusPromise =
     !thread || thread.conversation.wahaSessionName === "crm_primary"
       ? readInboxChannelStatus(actor)
@@ -253,31 +278,10 @@ export async function readInbox(
           channelObservedAt: null,
         });
   if (thread) {
-    const staffClient = await createSupabaseServerClient();
-    // Чтение черновиков Gemini требует ai.draft.review отдельно от чтения
-    // диалога. Переписка от этого не зависит: без права (роль без черновиков)
-    // страница открывается без блока ИИ, а не падает целиком (ИИ пока выключен).
-    const readsGeminiDrafts = inboxReadsGeminiDrafts(actor);
-    const [context, channelStatus, proposal, reviews, latestAttempt] = await Promise.all([
+    const [context, channelStatus, state] = await Promise.all([
       getPlatformConversationCommandContext(actor, thread.conversation.id),
       channelStatusPromise,
-      readsGeminiDrafts
-        ? readStaffGeminiProposal(staffClient, {
-            organizationId: actor.organizationId,
-            conversationId: thread.conversation.id,
-          })
-        : Promise.resolve(null),
-      readsGeminiDrafts
-        ? listStaffGeminiProposalReviews(staffClient, {
-            organizationId: actor.organizationId,
-            conversationId: thread.conversation.id,
-            limit: 20,
-          })
-        : Promise.resolve<readonly PlatformGeminiProposalReview[]>([]),
-      readLatestManualWhatsAppSendAttempt(staffClient, {
-        organizationId: actor.organizationId,
-        conversationId: thread.conversation.id,
-      }),
+      getPlatformWhatsAppChatState(actor, thread.conversation.id),
     ]);
     if (
       context === null
@@ -286,29 +290,20 @@ export async function readInbox(
     ) {
       throw new Error("V3 inbox is unavailable.");
     }
+    const stage = await readStage(actor, context.canonicalLeadId);
+    const chat: InboxChatModel = Object.freeze({
+      messages: Object.freeze(thread.messages.map((message) => toInboxChatMessage(message, actor.membershipId))),
+      hasOlder: thread.nextMessageCursor !== null,
+      attempts: Object.freeze(state.attempts.map((attempt) => toInboxChatAttempt(attempt, actor.membershipId))),
+      latestInboundMessageId: state.latestInboundMessageId,
+      replyAccess: replyAccessOf(actor, thread.conversation, state, channelStatus.channelState),
+      stage,
+      readAt,
+      pulse: inboxChatSignature(state),
+    });
 
     selected = Object.freeze({
       ...toInboxConversation(thread.conversation, options.queueCursor, filters),
-      messages: Object.freeze(thread.messages.map(toInboxMessage)),
-      latestInboundSourceMessageId: latestInboundMessageId(
-        thread.messages,
-        options.messageCursor,
-      ),
-      newestMessagesHref: options.messageCursor
-        ? buildV3InboxHref({
-            conversationId: thread.conversation.id,
-            queueCursor: options.queueCursor,
-            filters,
-          })
-        : null,
-      olderMessagesHref: thread.nextMessageCursor
-        ? buildV3InboxHref({
-            conversationId: thread.conversation.id,
-            queueCursor: options.queueCursor,
-            messageCursor: thread.nextMessageCursor,
-            filters,
-          })
-        : null,
       channelState: channelStatus.channelState,
       channelObservedAt: channelStatus.channelObservedAt,
       canonicalContext: Object.freeze({
@@ -316,14 +311,8 @@ export async function readInbox(
         clientId: context.canonicalClientId,
         studentCaseId: thread.conversation.studentCaseId,
       }),
+      chat,
     });
-    providerWorkflow = Object.freeze({ proposal, reviews, latestAttempt });
-    amoCrmCommand = await readInboxAmoCrmCommand(
-      actor,
-      thread.conversation.queue,
-      context,
-      staffClient,
-    );
   }
 
   const channelStatus = await channelStatusPromise;
@@ -354,95 +343,55 @@ export async function readInbox(
       queueOlderHref: queue.nextCursor
         ? buildV3InboxHref({ queueCursor: queue.nextCursor, filters })
         : null,
+      // The list is watched only on its newest page: an older page stays put.
+      listPulse: options.queueCursor ? null : inboxListSignature(queue.rows),
     }),
-    providerWorkflow,
-    amoCrmCommand,
   });
 }
 
-async function readInboxAmoCrmCommand(
+/**
+ * «Показать ранее»: one older page of the selected chat, through the same
+ * guards and queue filter as the page. null — the chat is not readable.
+ */
+export async function readInboxOlderMessages(
   actor: ActivePlatformActor,
-  queue: PlatformConversationSummary["queue"],
-  context: Readonly<{
-    canonicalLeadId: string | null;
-    canonicalClientId: string | null;
-    studentCaseId: string | null;
-  }>,
-  staffClient: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-): Promise<InboxAmoCrmCommand> {
-  const leadId = context.canonicalLeadId;
-  const clientId = context.canonicalClientId;
-  const studentCaseId = context.studentCaseId;
-  if (
-    leadId === null ||
-    clientId === null ||
-    (queue === "sales" && studentCaseId !== null) ||
-    (queue === "admissions" && studentCaseId === null)
-  ) {
-    return Object.freeze({
-      status: "blocked" as const,
-      reason: "canonical_scope_missing" as const,
-    });
-  }
+  conversationId: string,
+  cursor: PlatformConversationCursor,
+): Promise<Readonly<{ messages: readonly InboxChatMessage[]; hasOlder: boolean }> | null> {
+  const presentationQueue = inboxPresentationQueue(actor);
+  const thread = await getPlatformWhatsAppThread(actor, conversationId, { cursor, pageSize: MESSAGE_PAGE_SIZE });
+  if (!thread || (presentationQueue !== undefined && thread.conversation.queue !== presentationQueue)) return null;
+  return Object.freeze({
+    messages: Object.freeze(thread.messages.map((message) => toInboxChatMessage(message, actor.membershipId))),
+    hasOlder: thread.nextMessageCursor !== null,
+  });
+}
 
-  const roleMatches = staffCan(actor, queue === "sales" ? "sales.read" : "admissions.read");
-  if (!roleMatches) {
-    return Object.freeze({
-      status: "blocked" as const,
-      reason: "role_scope_mismatch" as const,
-    });
-  }
-
-  const scope = queue === "sales" ? "sales" : "admissions";
-  try {
-    const [availability, blockingAttempt] = await Promise.all([
-      readCanonicalAmoCrmCommandAvailability(),
-      readPlatformBlockingAmoCrmCommand(staffClient, {
-        organizationId: actor.organizationId,
-        authorization: {
-          actorRole: actor.systemRole === "admin" ? "admin" : scope,
-          workflowScope:
-            scope === "sales"
-              ? "sales_pre_handoff"
-              : "admissions_post_handoff",
-          workflowLeadId: leadId,
-          studentCaseId: scope === "sales" ? null : studentCaseId,
-        },
-        personId: clientId,
-        leadId,
-      }),
-    ]);
-    if (
-      blockingAttempt !== null &&
-      blockingAttempt.status !== "prepared" &&
-      blockingAttempt.status !== "unknown"
-    ) {
-      throw new PlatformAmoCrmCommandRpcError();
-    }
-    return Object.freeze({
-      status: "available" as const,
-      scope,
-      leadId,
-      studentCaseId: scope === "sales" ? null : studentCaseId,
-      availability,
-      canMutate: !isStaffPreview(actor) && staffHasPermission(actor, "amocrm.command.manage"),
-      blockingAttempt:
-        blockingAttempt === null
-          ? null
-          : Object.freeze({
-              attemptId: blockingAttempt.attemptId,
-              operationName: blockingAttempt.operationName,
-              status: blockingAttempt.status as "prepared" | "unknown",
-              providerDispatchedAt: blockingAttempt.providerDispatchedAt,
-            }),
-    });
-  } catch (error: unknown) {
-    if (error instanceof PlatformAmoCrmCommandRpcError) {
-      return Object.freeze({
-        status: "blocked" as const,
-        reason: "canonical_runtime_unavailable" as const,
-      });
-    }
-    throw error;
-  }
+/**
+ * The pulse of the open page: signatures of the list's newest page and of the
+ * open chat — no text, no names. The browser compares them with what it shows
+ * and refreshes the page only when one changed.
+ */
+export async function readInboxPulse(
+  actor: ActivePlatformActor,
+  options: Readonly<{ conversationId: string | null; query: string | null; waitingOnly: boolean; list: boolean }>,
+): Promise<Readonly<{ list: string | null; chat: string | null }> | null> {
+  const presentationQueue = inboxPresentationQueue(actor);
+  const [queue, thread] = await Promise.all([
+    options.list
+      ? listPlatformConversations(actor, {
+          pageSize: INBOX_PAGE_SIZE,
+          query: options.query ?? undefined,
+          waitingOnly: options.waitingOnly,
+          ...(presentationQueue ? { queue: presentationQueue } : {}),
+        })
+      : Promise.resolve(null),
+    options.conversationId
+      ? getPlatformWhatsAppChatState(actor, options.conversationId)
+      : Promise.resolve(null),
+  ]);
+  return Object.freeze({
+    list: queue ? inboxListSignature(queue.rows) : null,
+    chat: thread ? inboxChatSignature(thread) : null,
+  });
 }

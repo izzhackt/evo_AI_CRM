@@ -276,6 +276,12 @@ BEGIN
     IF NOT FOUND THEN
       v_settings := platform_private.ai_autosend_settings_row(v_msg.organization_id);
       v_window := platform_private.ai_autosend_window(v_settings, clock_timestamp());
+      -- Интервал мог закончиться после проверки ворот в начале вызова.
+      IF NOT (v_window ->> 'inside')::BOOLEAN THEN
+        v_items := v_items || jsonb_build_array(jsonb_build_object('conversationId', v_item.conversation_id,
+          'messageId', v_item.message_id, 'status', 'refused', 'reasonCode', 'outside_interval'));
+        CONTINUE;
+      END IF;
       INSERT INTO platform_private.ai_autosend_log AS l (organization_id, conversation_id, client_message_id, source_at,
         interval_start, interval_end, mode)
       VALUES (v_msg.organization_id, v_conv.id, v_msg.id, v_msg.created_at,
@@ -885,9 +891,7 @@ BEGIN
       'consentRecorded', v_ai.gemini_consent_at IS NOT NULL,
       'paused', CASE WHEN v_settings.pause_code IS NULL THEN NULL ELSE jsonb_build_object('code', v_settings.pause_code,
         'byKind', v_settings.pause_by_kind, 'at', v_settings.paused_at,
-        'reasonRu', platform_private.ai_autosend_reason_ru(CASE v_settings.pause_code
-          WHEN 'provider_restricted' THEN 'provider_down' WHEN 'send_errors' THEN 'paused' WHEN 'manual' THEN 'paused'
-          ELSE v_settings.pause_code END)) END,
+        'reasonRu', platform_private.ai_autosend_reason_ru(v_settings.pause_code)) END,
       'window', platform_private.ai_autosend_window(v_settings, clock_timestamp()),
       'responsible', CASE WHEN v_settings.responsible_membership_id IS NULL THEN NULL
         ELSE jsonb_build_object('membershipId', v_settings.responsible_membership_id, 'name', v_responsible) END,
@@ -908,7 +912,8 @@ $$;
 -- Сохранить настройки (ai.agent.manage): любые поля, включая подтверждения
 -- фраз и раскрытия. Включение, режим и пауза — отдельными командами.
 -- PT409 при чужой версии; неверные значения — 22023; чат живого теста — чат
--- продаж, который сотрудник читает.
+-- продаж, который сотрудник читает, а задаёт список только сотрудник с правом
+-- отправлять в WhatsApp (42501).
 CREATE OR REPLACE FUNCTION platform.ai_agent_autosend_save_v1(p_organization_id UUID, p_expected_version BIGINT,
   p_patch JSONB, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -957,6 +962,12 @@ BEGIN
     IF EXISTS (SELECT 1 FROM unnest(v_live) x(id)
       WHERE NOT platform_private.ai_conversation_allowed(p_organization_id, v_actor.membership_id, x.id)) THEN
       RAISE EXCEPTION 'ai_conversation_unavailable' USING ERRCODE = '42501';
+    END IF;
+    -- Чат живого теста отвечает по-настоящему ещё в shadow: список задаёт
+    -- только тот, кто сам может отправлять в WhatsApp.
+    IF cardinality(v_live) > 0 AND NOT platform_private.staff_has_permission(p_organization_id, v_actor.membership_id,
+      'communication.manual.send') THEN
+      RAISE EXCEPTION 'ai_autosend_sender_required' USING ERRCODE = '42501';
     END IF;
   END IF;
   BEGIN

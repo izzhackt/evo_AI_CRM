@@ -1017,8 +1017,10 @@ SELECT pg_temp.p4_conv(50) AS c_l \gset
 SELECT pg_temp.p4_assert(pg_temp.p4_save(jsonb_build_object('liveTestConversationIds', jsonb_build_array(:'c_l')), 3050)
     ->> 'status' = 'saved'
   AND pg_temp.p4_save(jsonb_build_object('liveTestConversationIds', jsonb_build_array(:'c_cur')), 3051) ->> 'error'
-    LIKE '42501:ai_conversation_unavailable%',
-  'the live-test list takes sales chats the member reads (not the curator chat)');
+    LIKE '42501:ai_conversation_unavailable%'
+  AND pg_temp.p4_save(jsonb_build_object('liveTestConversationIds', jsonb_build_array(:'c_l')), 3053, 4) ->> 'error'
+    LIKE '42501:ai_autosend_sender_required%',
+  'the live-test list takes sales chats the member reads (not the curator chat), set only by a member who may send');
 SELECT pg_temp.p4_decide(:'c_l', :'l1') AS d_l1 \gset
 SELECT pg_temp.p4_search(:'d_l1', 'стоимость обучения Малайзия') AS s_l1 \gset
 SELECT pg_temp.p4_assert(pg_temp.p4_commit(:'d_l1', 'answer', 'ru', 'Обучение стоит 1500 $ за семестр.', ARRAY[:k_ok]::BIGINT[])

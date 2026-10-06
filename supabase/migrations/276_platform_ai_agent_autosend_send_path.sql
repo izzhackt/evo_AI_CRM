@@ -21,24 +21,30 @@
 --    SHA-256 — журнала, автор — ответственный сотрудник. Строки manual
 --    проходят без изменений; прежние триггеры (текущий цикл входящих 050,
 --    полномочие и access_version автора 156) работают для обоих видов;
---  * помощники без грантов: ai_autosend_staff_signal (исходящее не
---    автоответчика, ручная авторизация, отправка в очереди или без исхода,
+--  * помощники без грантов: ai_autosend_claim_lock (тот же advisory-замок,
+--    что у точного claim ручной отправки 101: снятие работы с очереди и claim
+--    не пересекаются), ai_autosend_staff_signal (исходящее не автоответчика,
+--    ручная авторизация, отправка в очереди или без исхода — кроме своей,
 --    билет окна ИИ), ai_autosend_check (единственная реализация правил 1–4,
 --    6–8, 11 и 13 для этапов due / commit / authorize), ai_autosend_skip,
---    ai_autosend_cancel_scheduled, ai_autosend_pause, ai_autosend_call_task
---    (задача «Позвонить клиенту»: создатель = исполнитель = ответственный,
---    срок — 10:00 дня звонка по Бишкеку, высокий приоритет; события,
---    квитанция, связь с лидом, аудит system);
+--    ai_autosend_cancel_pending (отмена scheduled и авторизованных, но ещё не
+--    взятых claim автоответов: работа уходит в dead letter p2g_dead_letter_work
+--    и снимается с очереди), ai_autosend_pause, ai_autosend_call_task (задача
+--    «Позвонить клиенту»: создатель = исполнитель = ответственный, срок —
+--    10:00 дня звонка по Бишкеку, высокий приоритет; события, квитанция,
+--    связь с лидом, уведомление «task_assigned», аудит system);
 --  * platform.ai_autosend_authorize_v1 и platform.ai_autosend_record_v1 —
 --    EXECUTE только у service_role (и require_p2g_service): авторизация
 --    сохранённого текста и постановка работы manual_whatsapp_send
---    (p3c_enqueue_authenticated_work, одна попытка); запись исхода и
---    автопауза (463/475, три ошибки подряд). Отказы не бросают исключение:
---    журнал и пауза фиксируются;
+--    (p3c_enqueue_authenticated_work, одна попытка); повтор авторизации ещё
+--    не взятой работы проверяет все правила заново и не старше 60 с (иначе
+--    работа снимается, решение cancelled); запись исхода и автопауза
+--    (463/475, три ошибки подряд). Отказы не бросают исключение: журнал и
+--    пауза фиксируются;
 --  * транскрипт и состояние чата (266) пересоздаются из своих md5-исходников
 --    заменой фрагментов: origin = 'autoreply' и ключ kind у попытки —
---    только у строк ai_autosend. Для ручных отправок ответ байт в байт
---    прежний.
+--    только у строк ai_autosend; автоответ, снятый до claim, в попытках не
+--    показывается. Для ручных отправок ответ байт в байт прежний.
 --
 -- Запрос ручной отправки, claim (обе перегрузки), finish, сверка, постановка
 -- в очередь и прежние триггеры не пересоздаются: их md5 проверяются в конце.
@@ -142,12 +148,24 @@ CREATE TRIGGER manual_send_authorizations_ai_autosend_guard BEFORE INSERT ON pla
 -- Помощники (platform_private, без грантов).
 -- ---------------------------------------------------------------------------
 
+-- Замок точного claim ручной отправки организации (101:
+-- claim_manual_whatsapp_send_item). Все функции, которые могут снять
+-- автоответ с очереди, берут его первым — до замков чата, решения и
+-- настроек; так снятие и claim не пересекаются и не ждут друг друга по кругу.
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_claim_lock(p_organization_id UUID)
+RETURNS VOID LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    'evo:p5b:manual-whatsapp-exact-claim:' || p_organization_id::TEXT, 0))
+$$;
+
 -- Сотрудник в чате после p_since (§11, правило 3): исходящее не
 -- автоответчика (из CRM или с телефона), ручная авторизация, отправка в
 -- очереди или без исхода (manual_whatsapp_send_attempt_states, 266; любого
--- вида — неизвестный исход блокирует и автоответчик), билет окна ИИ.
+-- вида — неизвестный исход блокирует и автоответчик; кроме авторизации
+-- p_exclude_authorization — повтор авторизации самого решения), билет окна
+-- ИИ.
 CREATE OR REPLACE FUNCTION platform_private.ai_autosend_staff_signal(p_organization_id UUID, p_conversation_id UUID,
-  p_since TIMESTAMPTZ)
+  p_since TIMESTAMPTZ, p_exclude_authorization UUID DEFAULT NULL)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT EXISTS (SELECT 1 FROM platform.communication_messages m
       WHERE m.organization_id = p_organization_id AND m.conversation_id = p_conversation_id
@@ -159,7 +177,8 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       WHERE a.organization_id = p_organization_id AND a.conversation_id = p_conversation_id
         AND a.kind = 'manual' AND a.authorized_at > p_since)
     OR EXISTS (SELECT 1 FROM platform_private.manual_whatsapp_send_attempt_states(p_organization_id, p_conversation_id) s
-      WHERE s.status IN ('queued', 'prepared') OR (s.status = 'unknown' AND NOT s.readback_settled))
+      WHERE (s.status IN ('queued', 'prepared') OR (s.status = 'unknown' AND NOT s.readback_settled))
+        AND s.manual_send_authorization_id IS DISTINCT FROM p_exclude_authorization)
     OR EXISTS (SELECT 1 FROM platform_private.ai_tickets t
       WHERE t.organization_id = p_organization_id AND t.conversation_id = p_conversation_id AND t.issued_at > p_since)
 $$;
@@ -204,7 +223,7 @@ BEGIN
   v_settings := platform_private.ai_autosend_settings_row(p_log.organization_id);
   v_ai := platform_private.ai_settings_row(p_log.organization_id);
   -- 11. Включён, согласие записано, не на паузе; при отправке — не shadow
-  -- (кроме чата живого теста).
+  -- (кроме чата живого теста — и только после трёх ночей проверки).
   IF NOT v_settings.enabled OR NOT EXISTS (SELECT 1 FROM platform.organizations o
     WHERE o.id = p_log.organization_id AND o.status = 'active') THEN
     RETURN 'disabled';
@@ -216,7 +235,7 @@ BEGIN
     RETURN 'paused';
   END IF;
   IF p_stage = 'authorize' AND v_settings.shadow_mode
-    AND NOT (p_log.conversation_id = ANY (v_settings.live_test_conversation_ids)) THEN
+    AND platform_private.ai_autosend_mode(v_settings, p_log.conversation_id) <> 'live_test' THEN
     RETURN 'shadow_mode';
   END IF;
   -- 1. Открытый личный чат продаж (@c.us / @lid сессии crm_primary), ответ на
@@ -267,7 +286,7 @@ BEGIN
     RETURN 'excluded';
   END IF;
   IF platform_private.ai_autosend_staff_signal(p_log.organization_id, p_log.conversation_id,
-    least(v_msg.created_at, v_now - INTERVAL '15 minutes')) THEN
+    least(v_msg.created_at, v_now - INTERVAL '15 minutes'), p_log.manual_send_authorization_id) THEN
     RETURN 'staff_active';
   END IF;
   v_view := platform_private.ai_message_view(v_msg);
@@ -343,30 +362,73 @@ RETURNS platform_private.ai_autosend_log LANGUAGE sql VOLATILE SECURITY DEFINER 
   RETURNING l.*
 $$;
 
--- Запланированные отправки (организации или одного чата) отменяются.
-CREATE OR REPLACE FUNCTION platform_private.ai_autosend_cancel_scheduled(p_organization_id UUID,
-  p_conversation_id UUID, p_reason TEXT)
+-- Отмена ждущих автоответов организации (или одного чата, одного решения,
+-- одного режима): scheduled → cancelled; authorized, работа которых ещё в
+-- очереди и не взята claim (queued, ни одной попытки), → работа в dead letter
+-- (p2g_dead_letter_work 045: сообщение PGMQ архивируется, очередь ручных
+-- отправок им больше не занята), решение cancelled. Работу, уже взятую
+-- claim, не трогает: её исход запишет record. p_authorized_before — только
+-- авторизованные раньше этого момента (уборка); тогда scheduled не трогаются.
+-- Замок claim (ai_autosend_claim_lock) берётся перед первой работой.
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_cancel_pending(p_organization_id UUID,
+  p_conversation_id UUID, p_decision_id UUID, p_reason TEXT, p_mode TEXT DEFAULT NULL,
+  p_authorized_before TIMESTAMPTZ DEFAULT NULL)
 RETURNS INTEGER LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_count INTEGER;
+DECLARE v_count INTEGER := 0; v_rows INTEGER; v_locked BOOLEAN := FALSE; v_pending RECORD;
+  v_item platform_private.durable_work_items;
 BEGIN
-  UPDATE platform_private.ai_autosend_log l SET status = 'cancelled', reason_code = p_reason,
-    reason_ru = platform_private.ai_autosend_reason_ru(p_reason), lease_owner = NULL, lease_expires_at = NULL,
-    finished_at = clock_timestamp(), updated_at = clock_timestamp()
-  WHERE l.organization_id = p_organization_id AND l.status = 'scheduled'
-    AND (p_conversation_id IS NULL OR l.conversation_id = p_conversation_id);
-  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF p_authorized_before IS NULL THEN
+    UPDATE platform_private.ai_autosend_log l SET status = 'cancelled', reason_code = p_reason,
+      reason_ru = platform_private.ai_autosend_reason_ru(p_reason), lease_owner = NULL, lease_expires_at = NULL,
+      finished_at = clock_timestamp(), updated_at = clock_timestamp()
+    WHERE l.organization_id = p_organization_id AND l.status = 'scheduled'
+      AND (p_conversation_id IS NULL OR l.conversation_id = p_conversation_id)
+      AND (p_decision_id IS NULL OR l.id = p_decision_id)
+      AND (p_mode IS NULL OR l.mode = p_mode);
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    v_count := v_rows;
+  END IF;
+  FOR v_pending IN SELECT l.id, l.work_item_id FROM platform_private.ai_autosend_log l
+    JOIN platform_private.durable_work_items i ON i.organization_id = l.organization_id AND i.id = l.work_item_id
+    WHERE l.organization_id = p_organization_id AND l.status = 'authorized'
+      AND i.state = 'queued' AND i.attempt_count = 0
+      AND (p_conversation_id IS NULL OR l.conversation_id = p_conversation_id)
+      AND (p_decision_id IS NULL OR l.id = p_decision_id)
+      AND (p_mode IS NULL OR l.mode = p_mode)
+      AND (p_authorized_before IS NULL OR l.authorized_at < p_authorized_before)
+    ORDER BY l.id LOOP
+    IF NOT v_locked THEN
+      PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
+      v_locked := TRUE;
+    END IF;
+    SELECT * INTO v_item FROM platform_private.durable_work_items i
+    WHERE i.organization_id = p_organization_id AND i.id = v_pending.work_item_id FOR UPDATE;
+    CONTINUE WHEN v_item.state <> 'queued' OR v_item.attempt_count <> 0
+      OR EXISTS (SELECT 1 FROM platform_private.durable_work_attempts a
+        WHERE a.organization_id = v_item.organization_id AND a.work_item_id = v_item.id);
+    PERFORM platform_private.p2g_dead_letter_work(v_item.id, NULL, 'ai_autosend_cancelled',
+      'ai-autosend:' || p_reason, platform_private.p3c_request_child_id(v_pending.id, 'ai-autosend-cancel'));
+    UPDATE platform_private.ai_autosend_log l SET status = 'cancelled', reason_code = p_reason,
+      reason_ru = platform_private.ai_autosend_reason_ru(p_reason), lease_owner = NULL, lease_expires_at = NULL,
+      finished_at = clock_timestamp(), updated_at = clock_timestamp()
+    WHERE l.id = v_pending.id AND l.status = 'authorized';
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    v_count := v_count + v_rows;
+  END LOOP;
   RETURN v_count;
 END
 $$;
 
--- Пауза (правило 11): первая причина сохраняется, запланированные отправки
--- отменяются, смена состояния — в аудит (без текстов). Снимает паузу только
--- человек (ai_agent_autosend_pause_v1, 277).
+-- Пауза (правило 11): первая причина сохраняется, ждущие автоответы
+-- (scheduled и ещё не взятые claim) отменяются, смена состояния — в аудит
+-- (без текстов). Снимает паузу только человек (ai_agent_autosend_pause_v1,
+-- 277).
 CREATE OR REPLACE FUNCTION platform_private.ai_autosend_pause(p_organization_id UUID, p_code TEXT, p_by_kind TEXT,
   p_by_membership_id UUID, p_by_profile_id UUID, p_principal TEXT, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_settings platform_private.ai_autosend_settings; v_cancelled INTEGER; v_changed BOOLEAN := FALSE;
 BEGIN
+  PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
   PERFORM platform_private.ai_autosend_settings_row(p_organization_id);
   SELECT * INTO v_settings FROM platform_private.ai_autosend_settings s
   WHERE s.organization_id = p_organization_id FOR UPDATE;
@@ -377,7 +439,7 @@ BEGIN
     WHERE s.organization_id = p_organization_id;
     v_changed := TRUE;
   END IF;
-  v_cancelled := platform_private.ai_autosend_cancel_scheduled(p_organization_id, NULL, 'paused');
+  v_cancelled := platform_private.ai_autosend_cancel_pending(p_organization_id, NULL, NULL, 'paused');
   IF v_changed AND p_by_kind <> 'user' THEN
     INSERT INTO platform.audit_events (organization_id, actor_kind, actor_profile_id, actor_principal, action,
       resource_type, resource_id, before_state, after_state, reason, request_id)
@@ -401,7 +463,7 @@ CREATE OR REPLACE FUNCTION platform_private.ai_autosend_call_task(p_summary_id U
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_org UUID; v_settings platform_private.ai_autosend_settings; v_existing platform_private.ai_autosend_call_tasks;
   v_member RECORD; v_lead UUID; v_request UUID; v_task platform.staff_tasks; v_payload JSONB; v_result JSONB;
-  v_at TIMESTAMPTZ := clock_timestamp();
+  v_at TIMESTAMPTZ := clock_timestamp(); v_event UUID;
 BEGIN
   SELECT s.organization_id INTO v_org FROM platform_private.ai_autosend_summaries s WHERE s.id = p_summary_id;
   IF NOT FOUND OR p_call_date IS NULL THEN
@@ -443,7 +505,14 @@ BEGIN
   INSERT INTO platform.staff_task_events (organization_id, staff_task_id, actor_membership_id, actor_profile_id, action,
     version, before_state, after_state, request_id, created_at)
   VALUES (v_org, v_task.id, v_member.id, v_member.profile_id, 'create', v_task.version, NULL, to_jsonb(v_task),
-    v_request, v_at);
+    v_request, v_at)
+  RETURNING id INTO v_event;
+  -- Создатель = исполнитель, поэтому триггер уведомлений (142) автора события
+  -- не уведомит; задачу поставил автоответчик — уведомление «task_assigned»
+  -- тем же ключом события, без автора.
+  INSERT INTO platform.staff_notifications (organization_id, recipient_membership_id, event_key, kind, staff_task_id)
+  VALUES (v_org, v_member.id, 'task:' || v_event::TEXT, 'task_assigned', v_task.id)
+  ON CONFLICT (organization_id, recipient_membership_id, event_key) DO NOTHING;
   INSERT INTO platform_private.staff_task_receipts (request_id, organization_id, actor_membership_id, staff_task_id,
     request_payload, result)
   VALUES (v_request, v_org, v_member.id, v_task.id, v_payload, v_result);
@@ -479,12 +548,19 @@ $ai276_private_acl$;
 -- ===========================================================================
 
 -- Авторизация одного автоответа (правило 9): только сохранённый текст
--- решения, автор — ответственный сотрудник. Повтор после успеха отдаёт
--- сохранённый результат. Отказ: решение skipped с причиной (кроме «не
--- scheduled» и «ещё рано»), {authorized:false, reason}; исключение не
--- бросается — журнал и пауза фиксируются. Успех — поля ответа ручного
--- запроса (request_manual_whatsapp_send_with_authorization) для
+-- решения, автор — ответственный сотрудник. Отказ: решение skipped с
+-- причиной (кроме «не scheduled» и «ещё рано»), {authorized:false, reason};
+-- исключение не бросается — журнал и пауза фиксируются. Успех — поля ответа
+-- ручного запроса (request_manual_whatsapp_send_with_authorization) для
 -- executePlatformManualWhatsAppSend и authorized:true.
+--
+-- Повтор уже авторизованного решения. Работа ещё в очереди и не взята claim:
+-- повтор не старше 60 с после авторизации и все правила колонки authorize
+-- (и ответственный — автор авторизации) проверяются заново на сохранённом
+-- тексте; не прошло — работа снимается с очереди (dead letter), решение
+-- cancelled, {authorized:false}. Работа уже взята — {authorized:false,
+-- reason:'already_claimed'} (отправка идёт у того, кто её взял). Решение с
+-- итогом (sent, failed, unknown) — прежний ответ с decision_status.
 CREATE OR REPLACE FUNCTION platform.ai_autosend_authorize_v1(p_organization_id UUID, p_decision_id UUID,
   p_provider_status TEXT, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -502,7 +578,9 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ai_autosend_decision_unknown' USING ERRCODE = 'P0002';
   END IF;
-  -- Порядок блокировок, как у функций агента: чат (advisory), затем строка.
+  -- Порядок блокировок: замок claim организации (снятие с очереди, пауза),
+  -- затем, как у функций агента, чат (advisory) и строка.
+  PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
   PERFORM pg_advisory_xact_lock(hashtextextended('ai_autosend:' || v_conversation::TEXT, 275));
   SELECT * INTO v_row FROM platform_private.ai_autosend_log l
   WHERE l.organization_id = p_organization_id AND l.id = p_decision_id FOR UPDATE;
@@ -510,9 +588,54 @@ BEGIN
   IF v_row.manual_send_authorization_id IS NOT NULL THEN
     SELECT * INTO v_authz FROM platform.manual_send_authorizations a
     WHERE a.organization_id = v_row.organization_id AND a.id = v_row.manual_send_authorization_id;
-    SELECT i.id, i.state, i.queue_message_id, i.business_key_sha256 INTO v_item
+    SELECT i.id, i.state, i.attempt_count, i.queue_message_id, i.business_key_sha256 INTO v_item
     FROM platform_private.durable_work_items i
-    WHERE i.organization_id = v_row.organization_id AND i.id = v_row.work_item_id;
+    WHERE i.organization_id = v_row.organization_id AND i.id = v_row.work_item_id FOR UPDATE;
+    IF v_row.status = 'authorized' AND v_item.state = 'queued' AND v_item.attempt_count = 0 THEN
+      -- Ещё не взята claim: решение снова проходит колонку authorize — после
+      -- первой авторизации могли написать сотрудник или клиент, выключить
+      -- автоответчик, поставить паузу или исключить чат.
+      IF v_now - v_row.authorized_at > INTERVAL '60 seconds' THEN
+        v_reason := 'send_expired';
+      ELSIF p_provider_status <> 'WORKING' THEN
+        v_reason := 'provider_down';
+      ELSE
+        v_reason := platform_private.ai_autosend_check(v_row, 'authorize', v_row.text, v_row.cited_chunk_ids);
+        IF v_reason IS NULL AND NOT EXISTS (SELECT 1 FROM platform.organization_memberships m
+          JOIN platform.profiles p ON p.id = m.profile_id
+          JOIN platform.organizations o ON o.id = m.organization_id
+          WHERE m.organization_id = v_row.organization_id AND m.id = v_authz.authorized_by_membership_id
+            AND m.profile_id = v_authz.authorized_by_profile_id
+            AND m.status = 'active' AND p.status = 'active' AND o.status = 'active'
+            AND m."current_role" IS DISTINCT FROM 'student'
+            AND platform_private.staff_can_access(m.organization_id, m.id, 'communication.manual.send', 'conversation',
+              v_row.conversation_id)) THEN
+          v_reason := 'responsible_unavailable';
+        END IF;
+      END IF;
+      IF v_reason IS NOT NULL THEN
+        PERFORM platform_private.ai_autosend_cancel_pending(v_row.organization_id, NULL, v_row.id, v_reason);
+        IF v_reason = 'provider_down' THEN
+          PERFORM platform_private.ai_autosend_pause(v_row.organization_id, 'provider_down', 'service', NULL, NULL,
+            'service_role', NULL);
+        END IF;
+        SELECT * INTO v_row FROM platform_private.ai_autosend_log l WHERE l.id = v_row.id;
+        INSERT INTO platform.audit_events (organization_id, actor_kind, actor_profile_id, actor_principal, action,
+          resource_type, resource_id, before_state, after_state, reason, request_id)
+        VALUES (v_row.organization_id, 'service', NULL, 'service_role', 'ai.agent.autosend.cancel',
+          'manual_send_authorization', v_authz.id, jsonb_build_object('decisionStatus', 'authorized'),
+          jsonb_build_object('decisionId', v_row.id, 'decisionStatus', v_row.status, 'reasonCode', v_reason,
+            'workItemId', v_row.work_item_id, 'providerStatus', p_provider_status),
+          'ИИ-агент: повтор авторизации не прошёл проверку, автоответ снят с очереди',
+          platform_private.p3c_request_child_id(v_row.id, 'ai-autosend-replay-cancel'));
+        RETURN jsonb_build_object('authorized', FALSE, 'reason', v_reason,
+          'reasonRu', platform_private.ai_autosend_reason_ru(v_reason), 'decisionId', v_row.id, 'status', v_row.status);
+      END IF;
+    ELSIF v_row.status IN ('authorized', 'cancelled') THEN
+      RETURN jsonb_build_object('authorized', FALSE,
+        'reason', CASE WHEN v_row.status = 'cancelled' THEN 'not_scheduled' ELSE 'already_claimed' END,
+        'decisionId', v_row.id, 'status', v_row.status);
+    END IF;
     RETURN jsonb_build_object('authorized', TRUE, 'replayed', TRUE, 'ai_autosend_decision_id', v_row.id,
       'organization_id', v_authz.organization_id, 'manual_send_authorization_id', v_authz.id,
       'communication_conversation_id', v_authz.conversation_id, 'source_message_id', v_authz.source_message_id,
@@ -622,6 +745,9 @@ BEGIN
     OR (p_outcome <> 'sent' AND (p_code IS NULL OR p_code !~ '^[a-z][a-z0-9_]{0,63}$')) THEN
     RAISE EXCEPTION 'ai_autosend_record_invalid' USING ERRCODE = '22023';
   END IF;
+  -- Исход может поставить паузу (она снимает ждущие автоответы): замок claim —
+  -- первым.
+  PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
   SELECT * INTO v_row FROM platform_private.ai_autosend_log l
   WHERE l.organization_id = p_organization_id AND l.id = p_decision_id FOR UPDATE;
   IF NOT FOUND THEN
@@ -677,6 +803,9 @@ GRANT EXECUTE ON FUNCTION platform.ai_autosend_record_v1(UUID, UUID, TEXT, TEXT,
 -- Транскрипт и состояние чата (266): «Автоответчик» и вид попытки. Исходник
 -- каждой функции закреплён md5 (266 или уже применённой 276), каждый
 -- фрагмент встречается ровно один раз; иначе миграция останавливается.
+-- Автоответ, снятый с очереди до claim (dead letter без попытки), в
+-- попытках чата не показывается: у него нет ни попытки, ни отправки, а
+-- «rejected» без попытки читатель приложения не принимает.
 -- ===========================================================================
 DO $ai276_transcript$
 DECLARE
@@ -719,13 +848,15 @@ BEGIN
         JOIN platform.manual_send_authorizations AS kind_row
           ON kind_row.organization_id = p_organization_id
          AND kind_row.id = attempt_state.manual_send_authorization_id
-        WHERE attempt_state.status <> 'accepted'$n$);
+        WHERE attempt_state.status <> 'accepted'
+          AND NOT (kind_row.kind = 'ai_autosend' AND attempt_state.attempt_id IS NULL
+            AND attempt_state.status <> 'queued')$n$);
 
   FOR patch IN SELECT * FROM (VALUES
     ('platform.staff_whatsapp_message_page(uuid,uuid,integer,timestamp with time zone,uuid)',
       '9dca9ddb9ceb381ca8b77d2a7e6cff5a', '132bc939930d5f35afbe3125cfb764c7'),
     ('platform.staff_whatsapp_chat_state(uuid,uuid,integer)',
-      'b2d7d22557725f6741c556246154058b', '7e559481711e75f6d6e76f2137306356')
+      'b2d7d22557725f6741c556246154058b', '37a71e29479aa40bcc952221eb744326')
   ) AS pinned(routine_signature, md5_266, md5_276) LOOP
     SELECT md5(p.prosrc) INTO installed_md5 FROM pg_catalog.pg_proc p WHERE p.oid = patch.routine_signature::REGPROCEDURE;
     IF installed_md5 = patch.md5_276 THEN
@@ -773,7 +904,7 @@ BEGIN
     ('platform_private.capture_manual_send_authority()', 'debe84f79fb2e518e2067535c57fedd5'),
     ('platform_private.guard_p3c_current_inbound_cycle()', '9518087f0a8d8d6e2f3b1d59f5f702a5'),
     ('platform.staff_whatsapp_message_page(uuid,uuid,integer,timestamp with time zone,uuid)', '132bc939930d5f35afbe3125cfb764c7'),
-    ('platform.staff_whatsapp_chat_state(uuid,uuid,integer)', '7e559481711e75f6d6e76f2137306356')
+    ('platform.staff_whatsapp_chat_state(uuid,uuid,integer)', '37a71e29479aa40bcc952221eb744326')
   ) AS pinned(signature, expected_md5) LOOP
     IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p WHERE p.oid = r.signature::REGPROCEDURE)
       IS DISTINCT FROM r.expected_md5 THEN
@@ -804,7 +935,7 @@ END
 $ai276_post$;
 
 COMMENT ON FUNCTION platform.ai_autosend_authorize_v1(UUID, UUID, TEXT, UUID) IS
-  'AI agent P4: the only night-send entry point (service_role only). Re-checks the authorize column of plan §11 on the stored text, authors it as the responsible member and enqueues one manual_whatsapp_send work item; refusals are journalled, not raised.';
+  'AI agent P4: the only night-send entry point (service_role only). Re-checks the authorize column of plan §11 on the stored text, authors it as the responsible member and enqueues one manual_whatsapp_send work item; a replay of an item nobody claimed yet re-checks everything (at most 60 s after the first authorize) or takes the item off the queue; refusals are journalled, not raised.';
 COMMENT ON FUNCTION platform.ai_autosend_record_v1(UUID, UUID, TEXT, TEXT, UUID) IS
   'AI agent P4: the CRM records the send outcome (service_role only); sent needs the provider binding; 463/475 or three failures in a row pause the autoresponder.';
 

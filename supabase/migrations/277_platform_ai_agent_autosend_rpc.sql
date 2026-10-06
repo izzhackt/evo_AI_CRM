@@ -24,16 +24,22 @@
 --  * autosend_pause_v1 — пауза от агента (gemini_error, gemini_billing,
 --    server_switch_off); снять паузу агент не может;
 --  * autosend_summary_due_v1 / _context_v1 / _put_v1 — утренняя сводка по
---    закончившимся интервалам и задачи «Позвонить клиенту» (только живые
---    отправленные финальные фразы, один раз), квалификация по чатам;
+--    закончившимся интервалам и задачи «Позвонить клиенту» (живые финальные
+--    фразы authorized, sent или unknown — они могли дойти; один раз),
+--    квалификация по чатам;
 --  * inbound_since_v1 (та же сигнатура): ворота — память ИЛИ автоответчик,
 --    в ответе orgs [{organizationId, memory, autosend}];
---  * maintenance_v1: + просроченные scheduled (send_at + 10 мин) → cancelled,
---    брошенные considering → skipped, строки журнала без ссылок и сводки
---    старше 180 дней удаляются.
+--  * maintenance_v1: + авторизованные, но не взятые claim 2 минуты → работа
+--    снята с очереди, cancelled; просроченные scheduled (send_at + 10 мин) →
+--    cancelled, брошенные considering → skipped, строки журнала без ссылок и
+--    сводки старше 180 дней удаляются.
 -- Сотрудники (platform, authenticated, ai_staff_actor, повтор по request_id,
 -- аудит до/после): ai_agent_autosend_v1, _save_v1, _enable_v1, _shadow_v1,
 -- _pause_v1, _exclusion_v1, _conversation_v1, _log_v1, _summary_v1.
+-- Выключение, пауза, исключение чата, возврат в shadow и уборка снимают и
+-- авторизованные, но ещё не взятые claim автоответы (276,
+-- ai_autosend_cancel_pending); список живого теста — только после трёх ночей
+-- проверки (275, ai_autosend_mode).
 --
 -- Всё поставляется выключенным; ни одна функция этой миграции не отправляет
 -- сообщение и не вызывает провайдера. Повторный запуск в той же точке
@@ -71,22 +77,18 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     WHERE s.organization_id = p_organization_id AND o.status = 'active'), FALSE)
 $$;
 
--- Режим решения для чата: live (не shadow), live_test (shadow, чат из списка
--- живого теста) или shadow.
-CREATE OR REPLACE FUNCTION platform_private.ai_autosend_mode(p_settings platform_private.ai_autosend_settings,
-  p_conversation_id UUID)
-RETURNS TEXT LANGUAGE sql STABLE SET search_path = '' AS $$
-  SELECT CASE WHEN NOT p_settings.shadow_mode THEN 'live'
-    WHEN p_conversation_id = ANY (p_settings.live_test_conversation_ids) THEN 'live_test' ELSE 'shadow' END
-$$;
-
 -- Первое учтённое решение чата в интервале (строка-раскрытие, §18 Q11).
+-- Для живого решения (live, live_test) считаются только живые: строки shadow
+-- клиент не видел, и после перехода shadow → живой режим (или добавления
+-- чата в список живого теста) первый настоящий автоответ начинается со
+-- строки-раскрытия. Для shadow-решения — все, как если бы они ушли.
 CREATE OR REPLACE FUNCTION platform_private.ai_autosend_first_in_interval(p_log platform_private.ai_autosend_log)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT NOT EXISTS (SELECT 1 FROM platform_private.ai_autosend_log l
     WHERE l.organization_id = p_log.organization_id AND l.conversation_id = p_log.conversation_id
       AND l.interval_start = p_log.interval_start AND l.id <> p_log.id
-      AND l.status IN ('scheduled', 'authorized', 'sent', 'unknown', 'shadow'))
+      AND l.status IN ('scheduled', 'authorized', 'sent', 'unknown', 'shadow')
+      AND (p_log.mode = 'shadow' OR l.mode IN ('live', 'live_test')))
 $$;
 
 -- Квалификация, собранная в чате за интервал (последнее значение по полю).
@@ -142,14 +144,6 @@ RETURNS JSONB LANGUAGE sql STABLE SET search_path = '' AS $$
     'limitNumberHour', p_settings.limit_number_hour, 'phrases', p_settings.phrases,
     'disclosureEnabled', p_settings.disclosure_enabled, 'disclosure', p_settings.disclosure,
     'liveTestConversationIds', to_jsonb(p_settings.live_test_conversation_ids))
-$$;
-
--- «Ночи проверки»: сводки интервалов, прошедших целиком в shadow, с хотя бы
--- одним рассмотренным сообщением.
-CREATE OR REPLACE FUNCTION platform_private.ai_autosend_shadow_nights(p_organization_id UUID)
-RETURNS INTEGER LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT count(*)::INTEGER FROM platform_private.ai_autosend_summaries s
-  WHERE s.organization_id = p_organization_id AND s.shadow_night AND COALESCE((s.counts ->> 'considered')::INTEGER, 0) >= 1
 $$;
 
 DO $ai277_private_acl$
@@ -481,7 +475,8 @@ $$;
 CREATE OR REPLACE FUNCTION platform_ai_agent.autosend_commit_v1(p_decision_id UUID, p_worker_ref TEXT, p_kind TEXT,
   p_language TEXT, p_body TEXT, p_cited_chunk_ids BIGINT[], p_reason_code TEXT, p_qualification JSONB, p_model TEXT)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_conversation UUID; v_row platform_private.ai_autosend_log; v_settings platform_private.ai_autosend_settings;
+DECLARE v_conversation UUID; v_organization UUID; v_row platform_private.ai_autosend_log;
+  v_settings platform_private.ai_autosend_settings;
   v_now TIMESTAMPTZ := clock_timestamp(); v_reason TEXT; v_phrase JSONB; v_prefix BOOLEAN := FALSE; v_text TEXT;
   v_body TEXT; v_delay INTEGER; v_status TEXT; v_cited BIGINT[]; v_pause JSONB;
 BEGIN
@@ -499,9 +494,15 @@ BEGIN
     OR NOT platform_private.ai_autosend_qualification_ok(p_qualification) THEN
     RAISE EXCEPTION 'ai_autosend_commit_invalid' USING ERRCODE = '22023';
   END IF;
-  SELECT l.conversation_id INTO v_conversation FROM platform_private.ai_autosend_log l WHERE l.id = p_decision_id;
+  SELECT l.conversation_id, l.organization_id INTO v_conversation, v_organization
+  FROM platform_private.ai_autosend_log l WHERE l.id = p_decision_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ai_autosend_decision_unknown' USING ERRCODE = 'P0002';
+  END IF;
+  -- Ошибка Gemini может поставить паузу (она снимает ждущие автоответы):
+  -- замок claim организации — до замков чата и строки (276).
+  IF p_kind = 'skip' AND p_reason_code = 'gemini_error' THEN
+    PERFORM platform_private.ai_autosend_claim_lock(v_organization);
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('ai_autosend:' || v_conversation::TEXT, 275));
   SELECT * INTO v_row FROM platform_private.ai_autosend_log l WHERE l.id = p_decision_id FOR UPDATE;
@@ -601,6 +602,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM platform.organizations o WHERE o.id = p_organization_id) THEN
     RAISE EXCEPTION 'ai_organization_unknown' USING ERRCODE = 'P0002';
   END IF;
+  PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
   IF EXISTS (SELECT 1 FROM platform.audit_events e WHERE e.request_id = p_request_id) THEN
     v_settings := platform_private.ai_autosend_settings_row(p_organization_id);
     RETURN jsonb_build_object('paused', v_settings.pause_code IS NOT NULL, 'pauseCode', v_settings.pause_code,
@@ -673,9 +675,13 @@ BEGIN
     VALUES (v_interval.organization_id, v_interval.interval_start, v_interval.interval_end, v_shadow, v_counts, v_items)
     RETURNING * INTO v_summary;
     v_created := v_created + 1;
+    -- Задача — по живой финальной фразе, которая могла дойти до клиента:
+    -- sent, unknown (сверка может найти сообщение позже) и authorized (ещё
+    -- отправляется на конце интервала). Лишний звонок лучше несдержанного
+    -- обещания; сводка строится один раз.
     FOR v_task IN SELECT l.conversation_id, max(l.call_date) AS call_date FROM platform_private.ai_autosend_log l
       WHERE l.organization_id = v_interval.organization_id AND l.interval_start = v_interval.interval_start
-        AND l.kind = 'final_phrase' AND l.status = 'sent' AND l.mode IN ('live', 'live_test')
+        AND l.kind = 'final_phrase' AND l.status IN ('authorized', 'sent', 'unknown') AND l.mode IN ('live', 'live_test')
       GROUP BY l.conversation_id ORDER BY l.conversation_id LOOP
       v_result := platform_private.ai_autosend_call_task(v_summary.id, v_task.conversation_id, v_task.call_date);
       UPDATE platform_private.ai_autosend_summaries s SET items = (SELECT jsonb_agg(CASE
@@ -790,8 +796,10 @@ BEGIN
 END
 $$;
 
--- Уборка (274) + автоответчик: запланированные отправки, не авторизованные
--- через 10 минут после send_at, отменяются (send_expired); брошенные
+-- Уборка (274) + автоответчик: авторизованные, но не взятые claim за 2
+-- минуты автоответы снимаются с очереди (send_expired); запланированные
+-- отправки, не авторизованные через 10 минут после send_at, отменяются
+-- (send_expired); брошенные
 -- considering (аренда истекла или не взята 10 минут) — skipped (expired);
 -- истёкшие аренды сводок снимаются; строки журнала без авторизации и сводки
 -- старше 180 дней удаляются.
@@ -800,7 +808,20 @@ RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS
 DECLARE v_tickets INTEGER; v_answers INTEGER; v_rates INTEGER; v_calls INTEGER; v_reservations INTEGER;
   v_sessions INTEGER; v_expired INTEGER; v_proposals INTEGER; v_memory INTEGER; v_leases INTEGER;
   v_send_expired INTEGER; v_considering INTEGER; v_log_deleted INTEGER; v_summaries_deleted INTEGER;
+  v_unclaimed INTEGER := 0; v_org UUID;
 BEGIN
+  -- Первым (до замков строк журнала): авторизованные, но не взятые claim за 2
+  -- минуты автоответы (CRM упал между authorize и claim) снимаются с очереди —
+  -- они не уйдут позже по устаревшему решению и не держат очередь ручных
+  -- отправок организации.
+  FOR v_org IN SELECT DISTINCT l.organization_id FROM platform_private.ai_autosend_log l
+    JOIN platform_private.durable_work_items i ON i.organization_id = l.organization_id AND i.id = l.work_item_id
+    WHERE l.status = 'authorized' AND i.state = 'queued' AND i.attempt_count = 0
+      AND l.authorized_at < clock_timestamp() - INTERVAL '2 minutes'
+    ORDER BY 1 LOOP
+    v_unclaimed := v_unclaimed + platform_private.ai_autosend_cancel_pending(v_org, NULL, NULL, 'send_expired', NULL,
+      clock_timestamp() - INTERVAL '2 minutes');
+  END LOOP;
   DELETE FROM platform_private.ai_tickets t WHERE t.token_sha256 IN (SELECT o.token_sha256
     FROM platform_private.ai_tickets o WHERE o.expires_at < clock_timestamp() - INTERVAL '1 day' LIMIT 5000);
   GET DIAGNOSTICS v_tickets = ROW_COUNT;
@@ -860,7 +881,7 @@ BEGIN
   RETURN jsonb_build_object('tickets', v_tickets, 'answers', v_answers, 'rateWindows', v_rates,
     'usageCalls', v_calls, 'reservations', v_reservations, 'labSessions', v_sessions,
     'labProposalsExpired', v_expired, 'labProposalsDeleted', v_proposals, 'memoryDeleted', v_memory,
-    'memoryLeasesCleared', v_leases, 'autosendSendExpired', v_send_expired,
+    'memoryLeasesCleared', v_leases, 'autosendSendExpired', v_send_expired, 'autosendUnclaimedCancelled', v_unclaimed,
     'autosendConsideringExpired', v_considering, 'autosendLogDeleted', v_log_deleted,
     'autosendSummariesDeleted', v_summaries_deleted);
 END
@@ -913,12 +934,14 @@ $$;
 -- фраз и раскрытия. Включение, режим и пауза — отдельными командами.
 -- PT409 при чужой версии; неверные значения — 22023; чат живого теста — чат
 -- продаж, который сотрудник читает, а задаёт список только сотрудник с правом
--- отправлять в WhatsApp (42501).
+-- отправлять в WhatsApp (42501) и только после трёх ночей проверки (PT412,
+-- порядок §11: shadow, затем живой тест). Чаты, убранные из списка, теряют
+-- ждущие автоответы живого теста.
 CREATE OR REPLACE FUNCTION platform.ai_agent_autosend_save_v1(p_organization_id UUID, p_expected_version BIGINT,
   p_patch JSONB, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_actor RECORD; v_fp TEXT; v_replay JSONB; v_old platform_private.ai_autosend_settings;
-  v_new platform_private.ai_autosend_settings; v_live UUID[]; v_days SMALLINT[];
+  v_new platform_private.ai_autosend_settings; v_live UUID[]; v_days SMALLINT[]; v_removed UUID;
   v_int_keys CONSTANT TEXT[] := ARRAY['delayMinSeconds', 'delayMaxSeconds', 'limitChatHour', 'limitChatNight',
     'limitNumberHour'];
 BEGIN
@@ -943,6 +966,7 @@ BEGIN
   v_replay := platform_private.ai_request_replay(p_organization_id, p_request_id, v_actor.membership_id,
     'autosend.save', v_fp);
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
+  PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
   PERFORM platform_private.ai_autosend_settings_row(p_organization_id);
   SELECT * INTO v_old FROM platform_private.ai_autosend_settings s
   WHERE s.organization_id = p_organization_id FOR UPDATE;
@@ -969,6 +993,11 @@ BEGIN
       'communication.manual.send') THEN
       RAISE EXCEPTION 'ai_autosend_sender_required' USING ERRCODE = '42501';
     END IF;
+    -- Живой тест — только после трёх ночей проверки (ai_autosend_mode, 275,
+    -- ещё раз проверяет это при каждом решении и авторизации).
+    IF cardinality(v_live) > 0 AND platform_private.ai_autosend_shadow_nights(p_organization_id) < 3 THEN
+      RAISE EXCEPTION 'ai_autosend_shadow_nights_required' USING ERRCODE = 'PT412';
+    END IF;
   END IF;
   BEGIN
     UPDATE platform_private.ai_autosend_settings s SET
@@ -989,6 +1018,11 @@ BEGIN
   EXCEPTION WHEN check_violation THEN
     RAISE EXCEPTION 'ai_autosend_settings_invalid' USING ERRCODE = '22023';
   END;
+  FOR v_removed IN SELECT x.id FROM unnest(v_old.live_test_conversation_ids) x(id)
+    WHERE NOT (x.id = ANY (v_new.live_test_conversation_ids)) ORDER BY 1 LOOP
+    PERFORM platform_private.ai_autosend_cancel_pending(p_organization_id, v_removed, NULL, 'not_live_test',
+      'live_test');
+  END LOOP;
   RETURN platform_private.ai_request_finish(p_organization_id, p_request_id, v_actor.membership_id,
     v_actor.profile_id, v_actor.auth_user_id, 'autosend.save', v_fp,
     jsonb_build_object('status', 'saved', 'version', v_new.version,
@@ -1002,7 +1036,8 @@ $$;
 -- Включить / выключить (ai.agent.manage). Включение — при записанном
 -- согласии (PT412) и праве отправлять в WhatsApp (communication.manual.send,
 -- 42501); ответственный — тот, кто включил; первое включение — «Проверка без
--- отправки». Выключение отменяет запланированные отправки.
+-- отправки». Выключение отменяет ждущие автоответы (scheduled и ещё не
+-- взятые claim).
 CREATE OR REPLACE FUNCTION platform.ai_agent_autosend_enable_v1(p_organization_id UUID, p_enabled BOOLEAN,
   p_expected_version BIGINT, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -1019,6 +1054,7 @@ BEGIN
   v_replay := platform_private.ai_request_replay(p_organization_id, p_request_id, v_actor.membership_id,
     v_operation, v_fp);
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
+  PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
   PERFORM platform_private.ai_autosend_settings_row(p_organization_id);
   SELECT * INTO v_old FROM platform_private.ai_autosend_settings s
   WHERE s.organization_id = p_organization_id FOR UPDATE;
@@ -1043,7 +1079,7 @@ BEGIN
     UPDATE platform_private.ai_autosend_settings s SET enabled = FALSE, version = s.version + 1,
       updated_at = statement_timestamp(), updated_by = v_actor.membership_id
     WHERE s.organization_id = p_organization_id RETURNING * INTO v_new;
-    v_cancelled := platform_private.ai_autosend_cancel_scheduled(p_organization_id, NULL, 'disabled');
+    v_cancelled := platform_private.ai_autosend_cancel_pending(p_organization_id, NULL, NULL, 'disabled');
   END IF;
   RETURN platform_private.ai_request_finish(p_organization_id, p_request_id, v_actor.membership_id,
     v_actor.profile_id, v_actor.auth_user_id, v_operation, v_fp,
@@ -1059,7 +1095,8 @@ $$;
 -- «Проверка без отправки» / «Отвечает» (ai.agent.manage). Живой режим —
 -- только после трёх ночей проверки, с подтверждёнными RU-фразами и
 -- (если включена) RU-строкой-раскрытием, без паузы и с правом отправлять
--- (PT412 / 42501). Возврат в shadow отменяет живые запланированные отправки.
+-- (PT412 / 42501). Возврат в shadow отменяет ждущие живые автоответы
+-- (scheduled и ещё не взятые claim).
 CREATE OR REPLACE FUNCTION platform.ai_agent_autosend_shadow_v1(p_organization_id UUID, p_shadow BOOLEAN,
   p_expected_version BIGINT, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -1075,6 +1112,7 @@ BEGIN
   v_replay := platform_private.ai_request_replay(p_organization_id, p_request_id, v_actor.membership_id,
     v_operation, v_fp);
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
+  PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
   PERFORM platform_private.ai_autosend_settings_row(p_organization_id);
   SELECT * INTO v_old FROM platform_private.ai_autosend_settings s
   WHERE s.organization_id = p_organization_id FOR UPDATE;
@@ -1104,11 +1142,7 @@ BEGIN
     updated_at = statement_timestamp(), updated_by = v_actor.membership_id
   WHERE s.organization_id = p_organization_id RETURNING * INTO v_new;
   IF p_shadow THEN
-    UPDATE platform_private.ai_autosend_log l SET status = 'cancelled', reason_code = 'shadow_mode',
-      reason_ru = platform_private.ai_autosend_reason_ru('shadow_mode'), finished_at = clock_timestamp(),
-      updated_at = clock_timestamp()
-    WHERE l.organization_id = p_organization_id AND l.status = 'scheduled' AND l.mode = 'live';
-    GET DIAGNOSTICS v_cancelled = ROW_COUNT;
+    v_cancelled := platform_private.ai_autosend_cancel_pending(p_organization_id, NULL, NULL, 'shadow_mode', 'live');
   END IF;
   RETURN platform_private.ai_request_finish(p_organization_id, p_request_id, v_actor.membership_id,
     v_actor.profile_id, v_actor.auth_user_id, v_operation, v_fp,
@@ -1122,7 +1156,8 @@ END
 $$;
 
 -- Поставить или снять паузу (ai.agent.manage, только человек). Снятие
--- обнуляет счётчики ошибок; постановка отменяет запланированные отправки.
+-- обнуляет счётчики ошибок; постановка отменяет ждущие автоответы (scheduled
+-- и ещё не взятые claim) — выключатель срабатывает сразу.
 CREATE OR REPLACE FUNCTION platform.ai_agent_autosend_pause_v1(p_organization_id UUID, p_action TEXT,
   p_expected_version BIGINT, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -1137,6 +1172,7 @@ BEGIN
   v_replay := platform_private.ai_request_replay(p_organization_id, p_request_id, v_actor.membership_id,
     'autosend.' || p_action, v_fp);
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
+  PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
   PERFORM platform_private.ai_autosend_settings_row(p_organization_id);
   SELECT * INTO v_old FROM platform_private.ai_autosend_settings s
   WHERE s.organization_id = p_organization_id FOR UPDATE;
@@ -1149,7 +1185,7 @@ BEGIN
       paused_by = CASE WHEN s.pause_code IS NULL THEN v_actor.membership_id ELSE s.paused_by END,
       version = s.version + 1, updated_at = statement_timestamp(), updated_by = v_actor.membership_id
     WHERE s.organization_id = p_organization_id RETURNING * INTO v_new;
-    v_cancelled := platform_private.ai_autosend_cancel_scheduled(p_organization_id, NULL, 'paused');
+    v_cancelled := platform_private.ai_autosend_cancel_pending(p_organization_id, NULL, NULL, 'paused');
   ELSE
     UPDATE platform_private.ai_autosend_settings s SET pause_code = NULL, pause_by_kind = NULL, paused_at = NULL,
       paused_by = NULL, send_error_streak = 0, gemini_error_streak = 0, version = s.version + 1,
@@ -1170,7 +1206,8 @@ END
 $$;
 
 -- «Автоответчик в этом чате» (ai.agent.use + чтение чата продаж, Q9):
--- исключение чата; выключение отменяет его запланированные отправки.
+-- исключение чата; выключение отменяет его ждущие автоответы (scheduled и
+-- ещё не взятые claim).
 CREATE OR REPLACE FUNCTION platform.ai_agent_autosend_exclusion_v1(p_organization_id UUID, p_conversation_id UUID,
   p_excluded BOOLEAN, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
@@ -1187,13 +1224,14 @@ BEGIN
   v_replay := platform_private.ai_request_replay(p_organization_id, p_request_id, v_actor.membership_id,
     'autosend.exclusion', v_fp);
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
+  PERFORM platform_private.ai_autosend_claim_lock(p_organization_id);
   PERFORM pg_advisory_xact_lock(hashtextextended('ai_autosend:' || p_conversation_id::TEXT, 275));
   v_was := EXISTS (SELECT 1 FROM platform_private.ai_autosend_exclusions x
     WHERE x.organization_id = p_organization_id AND x.conversation_id = p_conversation_id);
   IF p_excluded THEN
     INSERT INTO platform_private.ai_autosend_exclusions (conversation_id, organization_id, created_by)
     VALUES (p_conversation_id, p_organization_id, v_actor.membership_id) ON CONFLICT (conversation_id) DO NOTHING;
-    v_cancelled := platform_private.ai_autosend_cancel_scheduled(p_organization_id, p_conversation_id, 'excluded');
+    v_cancelled := platform_private.ai_autosend_cancel_pending(p_organization_id, p_conversation_id, NULL, 'excluded');
   ELSE
     DELETE FROM platform_private.ai_autosend_exclusions x
     WHERE x.organization_id = p_organization_id AND x.conversation_id = p_conversation_id;

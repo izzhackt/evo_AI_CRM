@@ -28,11 +28,17 @@
 --    один раз на чат и сводку);
 --  * помощники без грантов: ai_autosend_settings_row, валидаторы настроек,
 --    ai_autosend_window (окно по Бишкеку ±14 дней: недельные окна и дни «вкл»
---    минус дни «выкл», склейка «островами»), ai_autosend_final_phrase,
---    ai_autosend_language_confirmed, ai_autosend_patterns (единый источник
---    стоп-слов и ссылок, его же получает агент), ai_autosend_text_reason,
---    ai_autosend_number_tokens, ai_autosend_numbers_ok,
---    ai_autosend_qualification_ok, ai_autosend_reason_ru.
+--    минус дни «выкл», склейка «островами»; остров длиннее суток режется в
+--    каждые 12:00 по Бишкеку, поэтому начало интервала не зависит от «сейчас»),
+--    ai_autosend_final_phrase, ai_autosend_language_confirmed,
+--    ai_autosend_patterns (единый источник стоп-слов и ссылок, его же получает
+--    агент), ai_autosend_fold / _fold_variants (NFKC, точки-двойники,
+--    невидимые символы, слова из смеси латиницы и кириллицы),
+--    ai_autosend_text_reason, ai_autosend_digits, ai_autosend_number_tokens,
+--    ai_autosend_numbers_ok, ai_autosend_qualification_ok,
+--    ai_autosend_reason_ru, ai_autosend_shadow_nights (ночи проверки: сводки
+--    последних 30 дней хотя бы с одним ответом shadow), ai_autosend_mode
+--    (live / live_test — только после трёх ночей проверки / shadow).
 --
 -- Безопасно для production: только новые таблицы и функции; автоответчик
 -- выключен. Внешние ключи на communication_conversations и
@@ -100,12 +106,120 @@ RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
         OR platform_private.ai_autosend_date(o ->> 'to') - platform_private.ai_autosend_date(o ->> 'from') > 30)
 $$;
 
--- Текст фразы или раскрытия: одна строка, без цифр, ссылок, скобок кроме
--- одного {day} у варианта day.
+-- ---------------------------------------------------------------------------
+-- Текст (правила 5, 7, 13): единый источник шаблонов и нормализация.
+-- ---------------------------------------------------------------------------
+
+-- Единый источник стоп-слов (правило 7), ссылок и длины (правило 13) и
+-- пометок [n]. Основы ищутся с начала слова без учёта регистра; ссылка — где
+-- угодно. Его же получает агент (autosend_context_v1) — во фрагментах,
+-- совместимых с Python `re` (граница слова — `(?<![\w])`, флаг IGNORECASE).
+-- Ссылка — любой «метка.домен» (домен из 2+ латинских букв или
+-- кириллический домен из списка; пробел перед точкой допускается), а также
+-- http(s), www, wa.me и t.me с пробелами.
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_patterns()
+RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT jsonb_build_object('version', 2,
+    'stems', jsonb_build_array(
+      -- Обещания.
+      'гарант', 'обеща', 'скидк', 'акци', 'бесплатн', 'промокод', 'возврат',
+      -- Оплата, деньги, способы оплаты.
+      'оплат', 'предоплат', '(за|до|вы|у|пере|по)?плат(?!форм)', 'взнос', 'аванс', 'залог', 'реквизит', 'сч[её]т',
+      'карт(а|у|ой|е|ы|очк)', 'перевод', 'переведите', 'перев[её]д', 'перевест', 'перечисл(?!енн)', 'деньг', 'денеж',
+      'наличн', 'касс(а|у|е|ы|ир|ов)', 'kaspi', 'mbank', 'элсом', 'elsom', 'элкарт', 'elcart', 'master\s*card',
+      'мастер\s*кард', 'visa\s*/\s*master', 'qiwi', 'megapay', 'мегапэй', 'o!\s*dengi', 'odengi', 'юмани', 'yoomoney',
+      'unistream', 'юнистрим', 'western\s*union', 'золот(ая|ой|ую)\s+корон',
+      -- Кыргызский.
+      'кепилд', 'арзандат', 'акысыз', 'төлө', 'акча', 'накталай',
+      -- Английский.
+      'guarantee', 'discount', 'free', 'refund', 'pay', 'invoice', 'card', 'transfer', 'iban', 'cash', 'deposit',
+      'money', 'fees?(?![a-z])'),
+    'links', jsonb_build_array('https?:/', 'www\.', 'wa\s*\.?\s*me\s*/', 't\s*\.\s*me\s*/',
+      '[0-9a-zа-яёәөүңһ][0-9a-zа-яёәөүңһ-]*\s?\.(?:[a-z]{2,24}(?![0-9a-z])|(?:рф|рус|бел|укр|қаз|срб|мкд|мон|орг|ком|сайт|онлайн|дети|москва)(?![а-яё]))'),
+    'marker', '\[[0-9]{1,3}\]',
+    'maxLength', 1000)
+$$;
+
+-- Текст для сравнения: NFKC (полноширинные буквы и точки, лигатуры), без
+-- невидимых символов, точки-двойники («。», «·», «[.]», «(dot)», « dot »,
+-- « точка ») — точкой, нижний регистр без зависимости от локали базы
+-- (кириллица RU/KY переводится явно, латиница — lower()).
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_fold(p_text TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT regexp_replace(regexp_replace(
+    translate(lower(translate(normalize(COALESCE(p_text, ''), NFKC),
+      'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯӘӨҮҢҺ', 'абвгдеёжзийклмнопрстуфхцчшщъыьэюяәөүңһ')),
+      E'。·∙⋅​‌‍⁠﻿­', '....'),
+    '[\[\(\{<]\s*(\.|dot|точка)\s*[\]\)\}>]', '.', 'g'),
+    '\s+(dot|точка)\s+', '.', 'g')
+$$;
+
+-- Три варианта текста для сравнения: свёрнутый; слова из смеси латиницы и
+-- кириллицы — латинские двойники кириллицей («oплатите» → «оплатите»); те
+-- же слова — кириллические двойники латиницей («еvо.kg» → «evo.kg»). Слова
+-- одного алфавита не меняются (иначе «раунд» стал бы «payнд»).
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_fold_variants(p_text TEXT)
+RETURNS TEXT[] LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  WITH a AS (SELECT platform_private.ai_autosend_fold(p_text) AS t),
+  w AS (SELECT x.w, x.o, x.w ~ '[a-z]' AND x.w ~ '[а-яёәөүңһ]' AS mixed
+    FROM a CROSS JOIN LATERAL regexp_split_to_table(a.t, '\s+') WITH ORDINALITY AS x(w, o))
+  SELECT ARRAY[(SELECT a.t FROM a),
+    COALESCE((SELECT string_agg(CASE WHEN w.mixed THEN translate(w.w, 'aceopxykmhtb', 'асеорхукмнтв') ELSE w.w END, ' '
+      ORDER BY w.o) FROM w), ''),
+    COALESCE((SELECT string_agg(CASE WHEN w.mixed THEN translate(w.w, 'асеорхукмнтвіј', 'aceopxykmhtbij') ELSE w.w END, ' '
+      ORDER BY w.o) FROM w), '')]
+$$;
+
+-- Причина отказа по тексту (правила 7 и 13 и пометки [n]) или NULL. Каждый
+-- шаблон проверяется на всех трёх вариантах текста.
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_text_reason(p_text TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  WITH p AS (SELECT platform_private.ai_autosend_patterns() AS j),
+  v AS (SELECT platform_private.ai_autosend_fold_variants(p_text) AS t),
+  r AS (SELECT
+    (SELECT '(' || string_agg('(?:' || (l #>> '{}') || ')', '|') || ')' FROM p, jsonb_array_elements(p.j -> 'links') l)
+      AS links,
+    (SELECT '(^|[^0-9a-zа-яёәөүңһ_])(' || string_agg('(?:' || (s #>> '{}') || ')', '|') || ')'
+      FROM p, jsonb_array_elements(p.j -> 'stems') s) AS stems)
+  SELECT CASE
+    WHEN p_text IS NULL OR btrim(p_text) = '' THEN 'empty_text'
+    WHEN char_length(p_text) > 1000 THEN 'too_long'
+    WHEN EXISTS (SELECT 1 FROM unnest(v.t) x WHERE x ~ r.links) THEN 'link'
+    WHEN v.t[1] ~ '\[[0-9]{1,3}\]' THEN 'marker'
+    WHEN EXISTS (SELECT 1 FROM unnest(v.t) x WHERE x ~ r.stems) THEN 'stop_word'
+  END
+  FROM v, r
+$$;
+
+-- Цифры любой записи — ASCII: NFKC («１５００» → 1500, «½» → 1⁄2, «²» → 2),
+-- затем арабско-индийские, восточно-арабские и деванагари.
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_digits(p_text TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT translate(normalize(COALESCE(p_text, ''), NFKC),
+    '٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹०१२३४५६७८९', '012345678901234567890123456789')
+$$;
+
+-- Числа текста: пробел (обычный, U+00A0, U+202F) перед группой из трёх цифр
+-- снимается («1 500» → «1500»), запятая между цифрами становится точкой;
+-- токен — цифры с точками между группами; pct — за ним «%». Цифры любой
+-- записи сначала приводятся к ASCII.
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_number_tokens(p_text TEXT)
+RETURNS TABLE (token TEXT, pct BOOLEAN) LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT m[1], m[2] IS NOT NULL
+  FROM regexp_matches(regexp_replace(regexp_replace(platform_private.ai_autosend_digits(p_text),
+      '([0-9])[   ](?=[0-9]{3}(?![0-9]))', '\1', 'g'),
+      '([0-9]),(?=[0-9])', '\1.', 'g'),
+    '([0-9]+(?:\.[0-9]+)*)([   ]?%)?', 'g') m
+$$;
+
+-- Текст фразы или раскрытия: одна строка, без цифр (любой записи), ссылок,
+-- стоп-слов, скобок кроме одного {day} у варианта day.
 CREATE OR REPLACE FUNCTION platform_private.ai_autosend_phrase_text_ok(p_text TEXT, p_max INTEGER, p_day BOOLEAN)
 RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT p_text IS NOT NULL AND p_text = btrim(p_text) AND char_length(p_text) BETWEEN 1 AND p_max
-    AND p_text !~ '[[:cntrl:]]' AND p_text !~ '[0-9]' AND p_text !~* '(https?:|www\.|\.[a-z]{2,4}([^a-z]|$))'
+    AND p_text !~ '[[:cntrl:]]' AND p_text !~ '[0-9]'
+    AND NOT EXISTS (SELECT 1 FROM platform_private.ai_autosend_number_tokens(p_text))
+    AND platform_private.ai_autosend_text_reason(p_text) IS NULL
     AND p_text !~ '[\[\]<>]'
     AND CASE WHEN p_day
       THEN (char_length(p_text) - char_length(replace(p_text, '{day}', ''))) = 5
@@ -264,8 +378,12 @@ CREATE TABLE IF NOT EXISTS platform_private.ai_autosend_log (
   CONSTRAINT ai_autosend_log_shadow_check CHECK (status <> 'shadow' OR mode = 'shadow'),
   CONSTRAINT ai_autosend_log_live_check CHECK (status NOT IN ('scheduled', 'authorized', 'sent', 'failed', 'unknown')
     OR mode IN ('live', 'live_test')),
-  CONSTRAINT ai_autosend_log_authorized_check CHECK ((status IN ('authorized', 'sent', 'failed', 'unknown'))
-    = (manual_send_authorization_id IS NOT NULL AND work_item_id IS NOT NULL AND authorized_at IS NOT NULL)),
+  -- Авторизация есть у authorized/sent/failed/unknown и у cancelled, отменённой
+  -- до claim (работа снята с очереди); у остальных — нет.
+  CONSTRAINT ai_autosend_log_authorized_check CHECK ((manual_send_authorization_id IS NULL) = (work_item_id IS NULL)
+    AND (manual_send_authorization_id IS NULL) = (authorized_at IS NULL)
+    AND (status NOT IN ('authorized', 'sent', 'failed', 'unknown') OR manual_send_authorization_id IS NOT NULL)
+    AND (manual_send_authorization_id IS NULL OR status IN ('authorized', 'sent', 'failed', 'unknown', 'cancelled'))),
   CONSTRAINT ai_autosend_log_final_phrase_check CHECK ((kind = 'final_phrase') = (call_date IS NOT NULL)),
   CONSTRAINT ai_autosend_log_skip_reason_check CHECK (status NOT IN ('skipped', 'cancelled')
     OR (reason_code IS NOT NULL AND reason_ru IS NOT NULL)),
@@ -365,12 +483,37 @@ BEGIN
 END
 $$;
 
+-- «Ночи проверки» (§15 P4): сводки интервалов, закончившихся за последние 30
+-- дней, в которых есть хотя бы один ответ shadow (статус shadow) — ночь, где
+-- всё пропущено, нечего смотреть, а давняя проверка не разрешает живой режим.
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_shadow_nights(p_organization_id UUID)
+RETURNS INTEGER LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT count(*)::INTEGER FROM platform_private.ai_autosend_summaries s
+  WHERE s.organization_id = p_organization_id AND s.interval_end > clock_timestamp() - INTERVAL '30 days'
+    AND COALESCE((s.counts ->> 'shadow')::INTEGER, 0) >= 1
+$$;
+
+-- Режим решения для чата: live (не shadow), live_test (shadow, чат из списка
+-- живого теста и уже есть три ночи проверки — порядок §11: shadow, затем
+-- живой тест, затем живой режим) или shadow.
+CREATE OR REPLACE FUNCTION platform_private.ai_autosend_mode(p_settings platform_private.ai_autosend_settings,
+  p_conversation_id UUID)
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT CASE WHEN NOT p_settings.shadow_mode THEN 'live'
+    WHEN p_conversation_id = ANY (p_settings.live_test_conversation_ids)
+      AND platform_private.ai_autosend_shadow_nights(p_settings.organization_id) >= 3 THEN 'live_test'
+    ELSE 'shadow' END
+$$;
+
 -- Окно автоответчика в момент p_at (§11, «За ночь» — 24-часовые отрезки от
 -- intervalStart). Недельные окна (from >= to — через полночь, окно
 -- принадлежит дню начала; from = to — сутки) и дни «включён весь день»
 -- становятся диапазонами по Бишкеку, дни «выключен» вычитаются, диапазоны
--- склеиваются (multirange) в пределах p_at ± 14 дней. {inside,
--- intervalStart, intervalEnd, nextStart}.
+-- склеиваются (multirange) в пределах p_at ± 14 дней. Остров длиннее суток
+-- режется в каждые 12:00 по Бишкеку: так у него детерминированные интервалы
+-- (не зависят от p_at и обрезки ±14 дней), а сводка и финальная фраза — раз
+-- в сутки. Обычные ночные окна (≤ 24 ч) не режутся. {inside, intervalStart,
+-- intervalEnd, nextStart}.
 CREATE OR REPLACE FUNCTION platform_private.ai_autosend_window(p_settings platform_private.ai_autosend_settings,
   p_at TIMESTAMPTZ)
 RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -397,8 +540,17 @@ RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     SELECT (COALESCE((SELECT range_agg(r.r) FROM ranges r), '{}'::TSTZMULTIRANGE)
       - COALESCE((SELECT m FROM offs), '{}'::TSTZMULTIRANGE))
       * tstzmultirange(tstzrange(p_at - INTERVAL '14 days', p_at + INTERVAL '14 days', '[)')) AS m
+  ), whole AS (
+    SELECT u.i FROM merged CROSS JOIN LATERAL unnest(merged.m) AS u(i)
   ), islands AS (
-    SELECT i FROM merged CROSS JOIN LATERAL unnest(merged.m) i
+    SELECT w.i FROM whole w WHERE upper(w.i) - lower(w.i) <= INTERVAL '24 hours'
+    UNION ALL
+    SELECT w.i * tstzrange((d.d + TIME '12:00') AT TIME ZONE 'Asia/Bishkek',
+      (d.d + 1 + TIME '12:00') AT TIME ZONE 'Asia/Bishkek', '[)')
+    FROM whole w CROSS JOIN days d
+    WHERE upper(w.i) - lower(w.i) > INTERVAL '24 hours'
+      AND w.i && tstzrange((d.d + TIME '12:00') AT TIME ZONE 'Asia/Bishkek',
+        (d.d + 1 + TIME '12:00') AT TIME ZONE 'Asia/Bishkek', '[)')
   )
   SELECT jsonb_build_object('inside', h.i IS NOT NULL, 'intervalStart', lower(h.i), 'intervalEnd', upper(h.i),
     'nextStart', (SELECT min(lower(x.i)) FROM islands x WHERE lower(x.i) > p_at))
@@ -484,56 +636,6 @@ BEGIN
 END
 $$;
 
--- Единый источник стоп-слов (правило 7), ссылок и длины (правило 13) и
--- пометок [n]. Основы ищутся с начала слова без учёта регистра. Его же
--- получает агент (autosend_context_v1) — в фрагментах, совместимых с Python
--- `re` (граница слова — `(?<![\w])`, флаг IGNORECASE).
-CREATE OR REPLACE FUNCTION platform_private.ai_autosend_patterns()
-RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
-  SELECT jsonb_build_object('version', 1,
-    'stems', jsonb_build_array('гарант', 'обеща', 'скидк', 'акци', 'бесплатн', 'промокод', 'возврат', 'оплат',
-      'предоплат', 'реквизит', 'сч[её]т', 'карт(а|у|ой|е|ы|очк)', 'перевод', 'переведите', 'kaspi', 'mbank', 'элсом',
-      'кепилд', 'арзандат', 'акысыз', 'төлө', 'guarantee', 'discount', 'free', 'refund', 'pay', 'invoice', 'card',
-      'transfer', 'iban'),
-    'links', jsonb_build_array('https?://', 'www\.', 'wa\.me', 't\.me', '[a-z0-9-]+\.(com|kg|ru|org|net|io|me)'),
-    'marker', '\[[0-9]{1,3}\]',
-    'maxLength', 1000)
-$$;
-
--- Текст в нижнем регистре без зависимости от локали базы (кириллица RU/KY
--- переводится явно, латиница — lower()).
-CREATE OR REPLACE FUNCTION platform_private.ai_autosend_fold(p_text TEXT)
-RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
-  SELECT lower(translate(p_text, 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯӘӨҮҢҺ', 'абвгдеёжзийклмнопрстуфхцчшщъыьэюяәөүңһ'))
-$$;
-
--- Причина отказа по тексту (правила 7 и 13 и пометки [n]) или NULL.
-CREATE OR REPLACE FUNCTION platform_private.ai_autosend_text_reason(p_text TEXT)
-RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
-  SELECT CASE
-    WHEN p_text IS NULL OR btrim(p_text) = '' THEN 'empty_text'
-    WHEN char_length(p_text) > 1000 THEN 'too_long'
-    WHEN x.folded ~ '(https?://|www\.|wa\.me|t\.me)'
-      OR x.folded ~ '(^|[^0-9a-z-])[a-z0-9-]+\.(com|kg|ru|org|net|io|me)([^0-9a-z]|$)' THEN 'link'
-    WHEN p_text ~ '\[[0-9]{1,3}\]' THEN 'marker'
-    WHEN x.folded ~ ('(^|[^0-9a-zа-яёәөүңһ_])(' || (SELECT string_agg(s #>> '{}', '|')
-      FROM jsonb_array_elements(platform_private.ai_autosend_patterns() -> 'stems') s) || ')') THEN 'stop_word'
-  END
-  FROM (SELECT platform_private.ai_autosend_fold(p_text) AS folded) x
-$$;
-
--- Числа текста: пробел (обычный, U+00A0, U+202F) перед группой из трёх цифр
--- снимается («1 500» → «1500»), запятая между цифрами становится точкой;
--- токен — цифры с точками между группами; pct — за ним «%».
-CREATE OR REPLACE FUNCTION platform_private.ai_autosend_number_tokens(p_text TEXT)
-RETURNS TABLE (token TEXT, pct BOOLEAN) LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
-  SELECT m[1], m[2] IS NOT NULL
-  FROM regexp_matches(regexp_replace(regexp_replace(COALESCE(p_text, ''),
-      '([0-9])[   ](?=[0-9]{3}(?![0-9]))', '\1', 'g'),
-      '([0-9]),(?=[0-9])', '\1.', 'g'),
-    '([0-9]+(?:\.[0-9]+)*)([   ]?%)?', 'g') m
-$$;
-
 -- Правило 5 (БД-часть): каждое число текста — токеном в цитируемых
 -- фрагментах; процент — процентом.
 CREATE OR REPLACE FUNCTION platform_private.ai_autosend_numbers_ok(p_text TEXT, p_chunk_ids BIGINT[])
@@ -586,6 +688,7 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
     WHEN 'send_errors' THEN 'Три ошибки отправки подряд'
     WHEN 'manual' THEN 'Пауза поставлена сотрудником'
     WHEN 'send_expired' THEN 'Время отправки прошло'
+    WHEN 'not_live_test' THEN 'Чат убран из списка живого теста'
     WHEN 'expired' THEN 'Решение не завершено вовремя'
     WHEN 'gemini_error' THEN 'Ошибка Gemini'
     WHEN 'gemini_billing' THEN 'Gemini: оплата или доступ'

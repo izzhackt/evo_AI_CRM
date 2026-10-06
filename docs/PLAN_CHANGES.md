@@ -46737,3 +46737,14 @@ M1–M3 нужно закрыть до среза 1 (миграции). Изме
 Проверка: `git diff --check`; префиксы `docs/EVO_LAUNCH_PLAN.md` и
 `docs/PLAN_CHANGES.md` совпадают с `origin/main` `9bcd9bdc5`; секретов,
 персональных данных и UUID людей нет.
+
+## 2026-10-06 — Зависимости: Next.js 16.3.6 и транзитивные уязвимости
+
+Дата: 2026-10-06, часовой пояс рабочей области.
+Автор: Claude (Sonnet 5.5), по поручению ведущего агента.
+Тип изменения: безопасность зависимостей корневого приложения (без изменения поведения).
+Раздел плана: готовность к запуску — безопасность и сборка.
+Причина: открытые алерты Dependabot для корневых `package.json` / `package-lock.json`: `next` до 16.3.6 (critical, GHSA-vcvr-r3jv-pc5j, RCE в `next/og` `ImageResponse`; в `src/` `next/og` и `ImageResponse` не используются, поэтому недостижимо, но патч ставим), `source-map-js` (high), `brace-expansion` (medium), `smol-toml` (medium).
+Решение: `next` и `eslint-config-next` 16.3.4 → 16.3.6 (точные версии; `@next/*` в lock-файле обновились вместе с `next`), `smol-toml` 1.8.0 → 1.9.0 (dev), в lock-файле `source-map-js` 1.2.1 → 1.2.2, `brace-expansion` 1.1.18 → 1.1.21 и 5.0.9 → 5.0.12. `react` и `react-dom` 19.2.4 не менялись (peer `next@16.3.6` допускает `^19.0.0`). `overrides` не добавлялись. `agent-lead2-inbox/` и `evo-lead-agent/` не тронуты (их алерты ведут отдельные PR Dependabot). Опция `experimental.proxyClientMaxBodySize` есть в схеме конфигурации 16.3.6 и применяется при сборке (`proxyClientMaxBodySize: "105mb"`); остальные опции `next.config.ts` без предупреждений. Заметка 16.3.5: исправления `next/image` (кэш на диске), NFT для standalone с адаптером, nonce CSP, `use cache`; 16.3.6: только исправление GHSA-vcvr-r3jv-pc5j.
+Вне объёма: релизы 16.3.7 (исправление Turbopack) и 16.3.8 (security: SSRF в оптимизации изображений и ещё 6 advisory) — по поручению зафиксирован ровно 16.3.6; решение об обновлении до 16.3.8 за ведущим агентом. Оставшиеся dev-замечания `npm audit` (`braces` через `eslint-config-next`, `fast-uri`) не входят в перечисленные алерты и не менялись.
+Проверка: `npm audit --omit=dev` — было 2 (1 critical `next`, 1 high `source-map-js`), стало 0; полный `npm audit` — было 10 (1 critical, 7 high, 2 moderate), стало 6 (5 high, 1 moderate, только dev-цепочки). `npm ci`, `npm run typecheck`, `npm run lint` (0 ошибок, 3 прежних предупреждения), `npm run build` (Next.js 16.3.6, Turbopack) и `npm run test:fast-release` (237 тестов: 236 прошли, 1 пропущен, 0 упавших) выполнены в изолированном worktree. Доступа к production не было.

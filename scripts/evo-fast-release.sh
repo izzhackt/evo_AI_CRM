@@ -16,6 +16,12 @@ readonly SUPABASE_PROJECT_REF_RE='^[a-z0-9]{20}$'
 readonly ABSOLUTE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 readonly HEALTH_URL_RE='^(https://crm\.evoadmissions\.com|http://127\.0\.0\.1:[0-9]{1,5})/api/health$'
 readonly CLAMAV_IMAGE='clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9'
+# docker-compose.prod.yml declares the agent's env_file in the long form with `format: raw`
+# (Docker Compose 2.30.0 and later). Compose validates the whole file, profiles included,
+# so every release, with the agent on or off, needs at least that version.
+readonly COMPOSE_MIN_MAJOR=2
+readonly COMPOSE_MIN_MINOR=30
+readonly COMPOSE_VERSION_RE='^v?(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,5})([-+][0-9A-Za-z.-]{1,64})?$'
 # «ИИ-агент» (plan §4.2/§4.6, ADR 0032): two services of one private GHCR image under the
 # compose profile `ai-agent`. They exist in a release only when EVO_AI_AGENT_ENABLED=true;
 # otherwise every command below behaves exactly as before the profile was added.
@@ -1421,10 +1427,24 @@ require_release_runtime_commands() {
   require_command tar
 }
 
+# Read-only: `preflight` and `deploy` call it after the configuration checks and before the
+# lock or any file or runtime change. A rollback renders the previous snapshot and is never
+# blocked by this gate.
+verify_compose_version() {
+  local version
+  version=$(docker compose version --short 2>/dev/null) || fail "compose_version_unreadable"
+  [[ $version =~ $COMPOSE_VERSION_RE ]] || fail "compose_version_unreadable"
+  local -i major=${BASH_REMATCH[1]} minor=${BASH_REMATCH[2]}
+  if (( major < COMPOSE_MIN_MAJOR || (major == COMPOSE_MIN_MAJOR && minor < COMPOSE_MIN_MINOR) )); then
+    fail "compose_version_unsupported"
+  fi
+}
+
 preflight() {
   require_release_runtime_commands
   load_configuration
   load_candidate_configuration
+  verify_compose_version
   acquire_release_lock
   local preflight_dir
   preflight_dir=$(mktemp -d "$EVO_RELEASE_EVIDENCE_ROOT/.preflight-${EVO_RELEASE_ID}.XXXXXX") \
@@ -2462,6 +2482,7 @@ deploy() {
   require_release_runtime_commands
   load_configuration
   load_candidate_configuration
+  verify_compose_version
   acquire_release_lock
   release_evidence_dir=$EVO_RELEASE_EVIDENCE_ROOT/$EVO_RELEASE_ID
   prepare_candidate_generation "$release_evidence_dir"

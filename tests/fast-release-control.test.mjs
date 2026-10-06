@@ -6,6 +6,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -219,6 +220,8 @@ if (args[0] === "info") {
   save();
 } else if (args[0] === "network" && args[1] === "inspect") {
   // The unique fixture network exists for the duration of the test.
+} else if (args[0] === "compose" && args[1] === "version") {
+  output("5.1.2");
 } else if (args[0] === "compose") {
   const commandIndex = args.findIndex((value) => ["config", "pull", "up", "rm"].includes(value));
   const command = args[commandIndex];
@@ -2001,6 +2004,12 @@ const present = (service) => service === "app" ? state.app !== null : service ==
 const serviceFor = (id) => Object.keys(ids).find((service) => ids[service] === id && present(service));
 const agentImageFor = (service) => service === "ai-agent-api" ? state.agent.api : state.agent.worker;
 const services = Object.keys(ids);
+// hermes reported Docker Compose v5.1.2 on 2026-10-06; FAKE_COMPOSE_VERSION overrides it.
+if (args[0] === "compose" && args[1] === "version") {
+  if (args.length !== 3 || args[2] !== "--short") process.exit(64);
+  output(process.env.FAKE_COMPOSE_VERSION ?? "5.1.2");
+  process.exit(process.env.FAKE_COMPOSE_VERSION_FAIL === "1" ? 1 : 0);
+}
 if (args[0] === "info") output("8589934592");
 else if (args[0] === "ps") {
   const filter = args.find((value) => value.startsWith("label=com.docker.compose.service="));
@@ -2438,5 +2447,101 @@ test("AI agent enabled: a rollback whose previous agent image is gone stops befo
     assert.deepEqual(mutations, []);
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("release controller requires Docker Compose 2.30 or later and reads the version safely", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const failHelper = controller.slice(controller.indexOf("fail() {"), controller.indexOf("require_command() {"));
+  const constants = controller.match(
+    /^readonly COMPOSE_MIN_MAJOR=.*\nreadonly COMPOSE_MIN_MINOR=.*\nreadonly COMPOSE_VERSION_RE=.*$/mu,
+  )?.[0];
+  const gate = controller.slice(controller.indexOf("verify_compose_version() {"), controller.indexOf("preflight() {"));
+  assert.ok(failHelper.startsWith("fail() {") && constants && gate.startsWith("verify_compose_version() {"),
+    "the actual version gate must exist");
+  const root = mkdtempSync(join(tmpdir(), "evo-compose-version-"));
+  const bin = join(root, "bin");
+  mkdirSync(bin);
+  writeExecutable(join(bin, "docker"), `#!/usr/bin/env bash
+[[ $* == "compose version --short" ]] || exit 64
+printf '%s' "$FAKE_OUTPUT"
+exit "$FAKE_STATUS"
+`);
+  try {
+    for (const [output, status, expected] of [
+      ["5.1.2\n", 0, "ok"], // hermes, read on 2026-10-06
+      ["2.30.0\n", 0, "ok"],
+      ["v2.30.0\n", 0, "ok"],
+      ["2.30.3-desktop.1\n", 0, "ok"],
+      ["2.100.0\n", 0, "ok"],
+      ["3.0.0\n", 0, "ok"],
+      ["10.0.0\n", 0, "ok"],
+      ["2.29.9\n", 0, "compose_version_unsupported"],
+      ["2.3.0\n", 0, "compose_version_unsupported"],
+      ["1.99.0\n", 0, "compose_version_unsupported"],
+      ["0.30.0\n", 0, "compose_version_unsupported"],
+      ["", 0, "compose_version_unreadable"],
+      ["5.1.2\n", 1, "compose_version_unreadable"],
+      ["2.30\n", 0, "compose_version_unreadable"],
+      ["2.030.0\n", 0, "compose_version_unreadable"],
+      [" 5.1.2\n", 0, "compose_version_unreadable"],
+      ["5.1.2 \n", 0, "compose_version_unreadable"],
+      ["Docker Compose version v5.1.2\n", 0, "compose_version_unreadable"],
+      ["2.31.0\n2.29.0\n", 0, "compose_version_unreadable"],
+      ["99999.0.0\n", 0, "compose_version_unreadable"],
+      ["5.1.2;id\n", 0, "compose_version_unreadable"],
+    ]) {
+      const result = spawnSync("bash", ["-c", `set -Eeuo pipefail\n${failHelper}\n${constants}\n${gate}\nverify_compose_version`], {
+        env: { PATH: `${bin}:/usr/bin:/bin`, FAKE_OUTPUT: output, FAKE_STATUS: String(status) },
+        encoding: "utf8",
+      });
+      const label = JSON.stringify([output, status]);
+      if (expected === "ok") {
+        assert.equal(result.status, 0, `${label}: ${result.stderr}`);
+        assert.equal(result.stderr, "", label);
+      } else {
+        assert.equal(result.status, 2, label);
+        assert.equal(result.stderr, `{"ok":false,"code":"${expected}"}\n`, label);
+      }
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("every release refuses an old Docker Compose before any change; rollback is never gated", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const body = (name, next) => controller.slice(controller.indexOf(`${name}() {`), controller.indexOf(`${next}() {`));
+  for (const [name, next] of [["preflight", "sync_file_and_parent"], ["deploy", "manual_rollback"]]) {
+    assert.match(body(name, next), /^\s+load_candidate_configuration\n\s+verify_compose_version\n\s+acquire_release_lock$/mu, name);
+  }
+  for (const [name, next] of [["manual_rollback", "rollback_pending_candidate"], ["rollback_from_state", "load_bound_release_state"],
+    ["seal_rollback_seed", "prepare_candidate_generation"], ["accept_candidate", "disarm_release_mutation_trap"]]) {
+    assert.doesNotMatch(body(name, next), /verify_compose_version/u, name);
+  }
+  assert.doesNotMatch(controller.slice(controller.indexOf("rollback_pending_candidate() {")), /verify_compose_version/u);
+
+  for (const enabled of [false, true]) {
+    const fixture = aiAgentReleaseFixture({ enabled });
+    try {
+      assert.equal(fixture.run("seal-rollback-seed").status, 0);
+      for (const command of ["preflight", "deploy"]) {
+        const callsBefore = fixture.dockerCalls().length;
+        const evidenceBefore = readdirSync(fixture.evidenceRoot).sort();
+        const refused = fixture.run(command, { FAKE_COMPOSE_VERSION: "2.29.9" });
+        assert.equal(refused.status, 2, `${command}/${enabled}: ${refused.stderr}`);
+        assert.equal(refused.stderr, '{"ok":false,"code":"compose_version_unsupported"}\n');
+        assert.equal(refused.stdout, "");
+        assert.deepEqual(fixture.dockerCalls().slice(callsBefore), [["compose", "version", "--short"]]);
+        assert.deepEqual(readdirSync(fixture.evidenceRoot).sort(), evidenceBefore);
+        const unreadable = fixture.run(command, { FAKE_COMPOSE_VERSION_FAIL: "1" });
+        assert.equal(unreadable.stderr, '{"ok":false,"code":"compose_version_unreadable"}\n');
+      }
+      assert.equal(fixture.runtime().app, "baseline");
+      const preflight = fixture.run("preflight", { FAKE_COMPOSE_VERSION: "2.30.0" });
+      assert.equal(preflight.status, 0, preflight.stderr);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
   }
 });

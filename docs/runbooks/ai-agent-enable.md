@@ -13,12 +13,21 @@
   `ai-agent`. Обе только в своей сети `evo_crm_ai` (bridge проекта `evo-crm`, с
   выходом в интернет к Gemini и Supabase), без опубликованных портов и томов,
   `read_only`, uid 10001, все capabilities сброшены, `no-new-privileges`,
-  `stop_grace_period: 30s`. В `evo_crm_private`, где WAHA, ClamAV и lead-agent,
-  агента нет. Пока агент включён, controller добавляет в `evo_crm_ai` и приложение
+  `stop_grace_period: 30s`. В `evo_crm_private`, где WAHA и ClamAV, агента нет
+  (lead-agent в production сейчас не развёрнут). Пока агент включён, controller добавляет в `evo_crm_ai` и приложение
   (alias `evo-crm-app`); выпуск без агента эту сеть не создаёт и приложение в неё
   не включает. Образ — только `ghcr.io/izzhackt/evo-ai-agent@<digest>`. Секреты — из
   `/opt/evo-crm/.env.ai-agent` в формате `raw`: значение берётся буквально, `$`,
   кавычки и `#` ничего не подставляют; список имён — `deploy/env.ai-agent.example`.
+- **Docker Compose не ниже 2.30 — для каждого выпуска.** Длинная форма `env_file`
+  с `format: raw` появилась в Compose 2.30.0, а Compose проверяет весь файл, включая
+  службы выключенного профиля; более старый Compose отклонил бы и выпуск без агента.
+  `preflight` и `deploy` controller до блокировки и любых изменений читают
+  `docker compose version --short` и останавливаются с `compose_version_unsupported`
+  (ниже 2.30) или `compose_version_unreadable` (команда не сработала или вывод не
+  `X.Y.Z`). Откат эту проверку не проходит, чтобы его ничто не блокировало. На hermes
+  06.10.2026 ведущий агент прочитал Docker Compose v5.1.2 — требование выполнено;
+  после обновления Docker на hermes перечитать.
 - Release controller и workflow включают агента в выпуск, только если переменная
   GitHub `EVO_AI_AGENT_ENABLED` равна ровно `true`. Пустая или `false` — выпуск
   такой же, как до агента: тот же compose-рендер (app, clamav, waha), те же вызовы
@@ -83,20 +92,37 @@
    показывает `"aiAgent":"healthy"`. В фазе приёмки P1 отдельно: `/v1/status`
    из CRM (ключ принят, согласие записано) и один настоящий ответ на диалог
    QA-владельца через edge (SSE без буферизации, план §4.3).
-   Там же, без изменений, — сетевая граница: агент не достаёт WAHA даже по IP.
-   Её держит правило Docker Engine для разных bridge-сетей (они общаются только
-   через опубликованные порты, docs.docker.com/engine/network/drivers/bridge), а у
-   WAHA портов нет. На локальном OrbStack это правило не действует, поэтому до
-   этой проверки на hermes граница по IP не доказана.
+   Там же, без изменений, — сетевая граница: агент не достаёт ни WAHA (3000), ни
+   clamd (3310) даже по IP. Её держит правило Docker Engine для разных bridge-сетей
+   (они общаются только через опубликованные порты,
+   docs.docker.com/engine/network/drivers/bridge), а у WAHA и ClamAV портов нет. На
+   локальном OrbStack это правило не действует, поэтому до этой проверки на hermes
+   граница по IP не доказана. Lead-agent в production сейчас не развёрнут, проверять
+   его нечего; если его развернут в `evo_crm_private`, добавить в проверку и его
+   адрес с портом 8000.
 
    ```bash
    api=$(docker ps -q --filter label=com.docker.compose.project=evo-crm --filter label=com.docker.compose.service=ai-agent-api)
-   waha=$(docker ps -q --filter label=com.docker.compose.project=evo-crm --filter label=com.docker.compose.service=waha)
-   waha_ip=$(docker inspect --format '{{(index .NetworkSettings.Networks "evo_crm_private").IPAddress}}' "$waha")
-   docker exec "$api" python -c "import socket, sys; s = socket.socket(); s.settimeout(3); sys.exit(0 if s.connect_ex(('$waha_ip', 3000)) else 1)" && echo isolated
+   for target in waha:3000 clamav:3310; do
+     service=${target%:*} port=${target#*:}
+     id=$(docker ps -q --filter label=com.docker.compose.project=evo-crm --filter label=com.docker.compose.service="$service")
+     ip=''
+     [ -z "$id" ] || ip=$(docker inspect --format '{{(index .NetworkSettings.Networks "evo_crm_private").IPAddress}}' "$id" 2>/dev/null)
+     # An empty address would make connect_ex probe the agent's own loopback and look isolated.
+     if [ -z "$api" ] || [ -z "$ip" ]; then echo "$service: not checked"; continue; fi
+     docker exec "$api" python -c 'import socket, sys; s = socket.socket(); s.settimeout(3); sys.exit(0 if s.connect_ex((sys.argv[1], int(sys.argv[2]))) else 3)' "$ip" "$port"
+     case $? in
+       0) echo "$service: isolated" ;;
+       3) echo "$service: REACHABLE" ;;
+       *) echo "$service: not checked" ;;
+     esac
+   done
    ```
 
-   Нет `isolated` — выключить агента (ниже) до разбора.
+   Ожидается `waha: isolated` и `clamav: isolated`. `REACHABLE` — выключить агента
+   (ниже) до разбора. `not checked` — граница не доказана: нет контейнера агента,
+   службы или её адреса в `evo_crm_private`, либо проверка внутри агента не
+   выполнилась; выяснить причину и повторить.
 6. Новый образ агента: новый `EVO_AI_AGENT_IMAGE_DIGEST` и обычный выпуск.
    Ротация секретов: правка `.env.ai-agent` и обычный выпуск (compose пересоздаёт
    службы при смене окружения), старое значение отзывается.

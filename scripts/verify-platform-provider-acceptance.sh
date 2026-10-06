@@ -520,6 +520,7 @@ env \
   EVO_STUDENT_INVITE_LOCAL_ORIGIN="http://127.0.0.1:$app_port" \
   EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID="$platform_intake_sales_membership_id" \
   EVO_PLATFORM_GEMINI_API_KEY="$gemini_api_key" \
+  EVO_PLATFORM_WAHA_INGRESS_ENABLED=1 \
   EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$webhook_secret" \
   EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_base_url" \
   NODE_OPTIONS="--require=$repo_root/tests/helpers/platform-waha-local-fetch.cjs" \

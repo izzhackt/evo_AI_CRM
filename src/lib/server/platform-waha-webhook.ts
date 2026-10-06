@@ -15,13 +15,32 @@ import {
   PlatformMessagingBackendConfigurationError,
   type PlatformMessagingBackendConfig,
 } from "./platform-messaging-backend-config.ts";
+import { isPlatformWahaIngressEnabled } from "./platform-waha-ingress-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 import {
   PlatformWahaProjectorError,
   projectPlatformWahaWorkItem,
 } from "./platform-waha-projector.ts";
 
-const MAX_BODY_BYTES = 64 * 1024;
+// A direct GOWS media event carries the message twice (`_data.Message` and
+// `_data.RawMessage`, both with the base64 `JPEGThumbnail`) and a quoted media
+// message a third time (`replyTo._data`); a link preview or a document preview
+// can bring a thumbnail of tens of KiB. 64 KiB could answer such a real customer
+// message with 413, and WAHA retries every failed delivery unchanged (axios-retry
+// with `retryCondition: () => true`, 15 attempts by default) until it gives up,
+// so the message would be lost. 256 KiB keeps about four times that headroom
+// and is still a small fixed bound. The stored `raw_payload` is jsonb with no
+// size check on it (no CHECK, no length test in the persist routine). The route
+// is public at the edge but HMAC-authenticated and inert unless the owner enabled
+// it. Source citations: the PR description.
+//
+// The route is reachable on the public host, so the bound is enforced while the
+// body is read, not after it: a declared Content-Length above it is refused
+// before a single byte is read, and a body with no (or a false) Content-Length,
+// such as a chunked one, is read as a stream and the upload is cancelled as soon
+// as it passes the bound. The signature is checked over the raw bytes before
+// they are parsed.
+const MAX_BODY_BYTES = 256 * 1024;
 const MAX_IDENTIFIER_BYTES = 256;
 const MIN_WEBHOOK_SECRET_BYTES = 32;
 const MAX_WEBHOOK_SECRET_BYTES = 128;
@@ -31,6 +50,18 @@ const UUID_PATTERN =
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const DIRECT_CHAT_PATTERN =
   /^[1-9][0-9]{6,14}@(c\.us|s\.whatsapp\.net)$/;
+// WhatsApp may report a customer by an opaque LID instead of the phone JID
+// (https://waha.devlike.pro/docs/how-to/contacts/, LID section). The chat id
+// WAHA reports is the one a reply is sent to; the projection keeps it as is.
+const DIRECT_LID_PATTERN = /^[1-9][0-9]{4,31}@lid$/;
+// Groups, Status (`status@broadcast`), broadcast lists and channels are not
+// sales conversations. WAHA documents these chat-id suffixes at
+// https://waha.devlike.pro/docs/how-to/receive-messages/ and
+// https://waha.devlike.pro/docs/how-to/events/ .
+const NON_DIRECT_CHAT_PATTERN = /@(g\.us|broadcast|newsletter)$/i;
+// A JID may carry a device suffix (`79990000000:12@s.whatsapp.net`, WAHA's
+// `me.jid`, GOWS `_data.Info.Sender`); the chat and the account have none.
+const JID_DEVICE_SUFFIX_PATTERN = /:\d+(?=@)/;
 const WAHA_ACK_NAMES = new Map<number, string>([
   [-1, "ERROR"],
   [0, "PENDING"],
@@ -65,6 +96,11 @@ type WahaEventDescriptor = Readonly<{
   businessKeySha256: string;
   shouldEnqueue: boolean;
   shouldSynchronizeSession: boolean;
+}>;
+
+type WahaIgnoredEvent = Readonly<{
+  ignored: true;
+  reason: "non_direct_chat" | "system_notice" | "own_chat";
 }>;
 
 type PersistedEvent = Readonly<{
@@ -110,6 +146,194 @@ function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isDirectChatId(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    (DIRECT_CHAT_PATTERN.test(value) || DIRECT_LID_PATTERN.test(value))
+  );
+}
+
+function isNonDirectChatId(value: unknown): boolean {
+  return typeof value === "string" && NON_DIRECT_CHAT_PATTERN.test(value.trim());
+}
+
+// GOWS (whatsmeow) puts the message metadata in `_data.Info`: `Chat` (the other
+// side of a direct chat in BOTH directions), `Sender`, `IsFromMe`, `PushName`,
+// `SenderAlt` / `RecipientAlt`. WEBJS has no `_data.Info`.
+function messageInfo(payload: JsonObject): JsonObject | null {
+  const data = isObject(payload._data) ? payload._data : null;
+  return data !== null && isObject(data.Info) ? data.Info : null;
+}
+
+// A direct JID in the one form the CRM compares: device suffix removed,
+// `@s.whatsapp.net` written as `@c.us`; null when it is not a direct chat id.
+function normalizedDirectJid(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const jid = value
+    .trim()
+    .toLowerCase()
+    .replace(JID_DEVICE_SUFFIX_PATTERN, "")
+    .replace(/@s\.whatsapp\.net$/, "@c.us");
+  return isDirectChatId(jid) ? jid : null;
+}
+
+// The session's own account, as the signed envelope and the message itself name
+// it: `me.id` (phone), `me.lid`, `me.jid` (with device) and, for a message an
+// own device sent, GOWS `_data.Info.Sender`. The own number is never a customer
+// and never a customer's phone: WAHA 2026.8.1 mapped the own number to foreign
+// LIDs (devlikeapro/waha#2241, guarded in gows-plus v1.0.46).
+function ownChatIds(body: JsonObject, payload: JsonObject): ReadonlySet<string> {
+  const ids = new Set<string>();
+  const me = isObject(body.me) ? body.me : null;
+  const info = messageInfo(payload);
+  const candidates: unknown[] = [me?.id, me?.lid, me?.jid];
+  if (payload.fromMe === true && info?.IsFromMe === true) {
+    candidates.push(info.Sender);
+  }
+  for (const candidate of candidates) {
+    const id = normalizedDirectJid(candidate);
+    if (id !== null) ids.add(id);
+  }
+  return ids;
+}
+
+// Mirrors the chat-id candidates the projection reads, plus `to`, which carries
+// the chat for messages sent from the phone or from the API.
+function isNonDirectChatEvent(payload: JsonObject): boolean {
+  const data = isObject(payload._data) ? payload._data : null;
+  const dataId = data !== null && isObject(data.id) ? data.id : null;
+  const info = messageInfo(payload);
+  return [
+    payload.from,
+    payload.to,
+    payload.chatId,
+    data?.from,
+    data?.to,
+    dataId?.remote,
+    // GOWS: the chat of a message / of a receipt.
+    info?.Chat,
+    data?.Chat,
+  ].some(isNonDirectChatId);
+}
+
+// WEBJS reports WhatsApp's own notices through `message.any` with these
+// `_data.type` values (whatsapp-web.js MessageTypes): the end-to-end
+// encryption banner, notifications and template notifications, broadcast
+// notifications, group notifications, protocol messages and revoked-message
+// stubs. WAHA 2026.9.2 itself drops the first four before the webhook
+// (WhatsappSessionWebJSCore.SYSTEM_NOTIFICATION_TYPES); WAHA 2026.7.1 does not.
+// They carry nothing a customer wrote, so they are the only text-less events
+// that are ignored. Every other direct event without text or media (a location
+// pin, a contact card, a poll, an undecryptable message, ...) is a customer
+// message the staff must see: it reaches the projection, which stores the
+// generic review notice and a handoff.
+const SYSTEM_MESSAGE_TYPES = new Set([
+  "e2e_notification",
+  "notification",
+  "notification_template",
+  "broadcast_notification",
+  "gp2",
+  "protocol",
+  "revoked",
+]);
+
+// GOWS has no `_data.type`; the content is `_data.Message`, the whatsmeow
+// `waE2E.Message` as JSON (lowerCamel field names). WAHA already keeps most of
+// these out of `message.any` (its GOWS `shouldProcessIncomingMessage` drops a
+// protocol, reaction, poll-vote or event-response message and a message that is
+// only a sender-key distribution, and routes them to `message.revoked` /
+// `message.edited` / `message.reaction`), so this is the second line for a WAHA
+// that emits one anyway. A message is a notice only when EVERY top-level key is
+// one of these (plus the companion keys below, and at least one non-companion
+// key or a sender-key distribution); an empty `Message`, an unknown key or any
+// real content key is a customer message and goes to staff review, as for WEBJS.
+const GOWS_SYSTEM_MESSAGE_KEYS = new Set([
+  "protocolMessage", // revoke (type 0), edit, ephemeral setting, history sync, ...
+  "reactionMessage",
+  "encReactionMessage",
+  "pollUpdateMessage",
+  "encEventResponseMessage",
+  "keepInChatMessage",
+]);
+const GOWS_COMPANION_MESSAGE_KEYS = new Set([
+  "messageContextInfo",
+  "senderKeyDistributionMessage",
+  "fastRatchetKeySenderKeyDistributionMessage",
+]);
+// Pure key material: a message holding only this (and a message context) never
+// carries anything a customer wrote (WAHA: "Ignore key distribution messages").
+const GOWS_KEY_DISTRIBUTION_KEYS = new Set([
+  "senderKeyDistributionMessage",
+  "fastRatchetKeySenderKeyDistributionMessage",
+]);
+
+// WAHA classifies a GOWS message only after Baileys `normalizeMessageContent`
+// (devlikeapro/Baileys fork-master-2026-04-28, src/Utils/messages.ts, the
+// package WAHA 2026.9.2 pins) has peeled the "future proof" wrappers off it, up
+// to five levels, so a reaction or a protocol message inside a disappearing
+// message (`ephemeralMessage`) is dropped like a bare one. The same wrappers,
+// the same depth. A level is peeled only when the wrapper is its single content
+// key (companion keys aside) and holds an object `message`; a wrapper next to
+// other content, an empty wrapper or one with no inner message is not a notice
+// and is left for staff review.
+const GOWS_WRAPPER_MESSAGE_KEYS = new Set([
+  "ephemeralMessage",
+  "viewOnceMessage",
+  "documentWithCaptionMessage",
+  "viewOnceMessageV2",
+  "viewOnceMessageV2Extension",
+  "editedMessage",
+  "associatedChildMessage",
+  "groupStatusMessage",
+  "groupStatusMessageV2",
+  "lottieStickerMessage",
+]);
+const GOWS_MAX_WRAPPER_DEPTH = 5;
+
+function peelGowsWrappers(message: JsonObject): JsonObject {
+  let current = message;
+  for (let depth = 0; depth < GOWS_MAX_WRAPPER_DEPTH; depth += 1) {
+    const content = Object.keys(current).filter(
+      (key) => !GOWS_COMPANION_MESSAGE_KEYS.has(key),
+    );
+    if (content.length !== 1 || !GOWS_WRAPPER_MESSAGE_KEYS.has(content[0])) {
+      break;
+    }
+    const wrapper = current[content[0]];
+    const inner = isObject(wrapper) ? wrapper.message : null;
+    if (!isObject(inner)) break;
+    current = inner;
+  }
+  return current;
+}
+
+function isGowsSystemMessage(data: JsonObject | null): boolean {
+  const outer = data !== null && isObject(data.Message) ? data.Message : null;
+  if (outer === null) return false;
+  const message = peelGowsWrappers(outer);
+  const all = Object.keys(message);
+  const content = all.filter((key) => !GOWS_COMPANION_MESSAGE_KEYS.has(key));
+  if (content.length === 0) {
+    return all.some((key) => GOWS_KEY_DISTRIBUTION_KEYS.has(key));
+  }
+  return content.every((key) => GOWS_SYSTEM_MESSAGE_KEYS.has(key));
+}
+
+function isSystemNotice(payload: JsonObject): boolean {
+  const data = isObject(payload._data) ? payload._data : null;
+  return (
+    (typeof data?.type === "string" &&
+      SYSTEM_MESSAGE_TYPES.has(data.type.trim().toLowerCase())) ||
+    isGowsSystemMessage(data)
+  );
+}
+
+// WAHA reports media as `hasMedia: true` and/or a `media` object; the caption
+// travels in `body` (https://waha.devlike.pro/docs/how-to/receive-messages/).
+function carriesMedia(payload: JsonObject): boolean {
+  return payload.hasMedia === true || isObject(payload.media);
+}
+
 function boundedIdentifier(value: unknown, code: string): string {
   if (typeof value !== "string") return reject(400, code);
   const normalized = value.trim();
@@ -137,6 +361,43 @@ function readWebhookSecret(environment: NodeJS.ProcessEnv): string {
     throw new PlatformWahaWebhookConfigurationError();
   }
   return secret;
+}
+
+// True only for a well-formed Content-Length above the bound. A malformed
+// value is not trusted either way; the streaming bound still applies.
+function declaredLengthExceedsBound(request: Request): boolean {
+  const declared = request.headers.get("content-length")?.trim();
+  return (
+    declared !== undefined &&
+    /^[0-9]+$/.test(declared) &&
+    Number(declared) > MAX_BODY_BYTES
+  );
+}
+
+// The raw body, or null once it has passed the bound (the upload is cancelled
+// at that point, so an endless or oversized body is never buffered).
+async function readBoundedBody(request: Request): Promise<Uint8Array | null> {
+  if (request.body === null) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > MAX_BODY_BYTES) {
+      void reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const rawBody = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    rawBody.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return rawBody;
 }
 
 function verifySignature(request: Request, rawBody: Uint8Array, secret: string) {
@@ -191,26 +452,85 @@ function providerRequestId(body: JsonObject): string {
   return `local-waha-delivery:${randomUUID()}`;
 }
 
+// The one customer chat of a message the sales team sent from the phone or the
+// app. Engines differ in where they put it: WEBJS `to` (`from` is the own
+// number); GOWS `to` is null for a direct chat and `from` is the chat in BOTH
+// directions, with `_data.Info.Chat` the same chat as a raw JID. So: `to` when it
+// is a direct JID, else `_data.Info.Chat`, else `from`, and `from` only when the
+// own number is known (the signed envelope's `me`), to be sure it is not the own
+// number. The own number is never a customer: a note to self or a peer message
+// resolves to nothing.
+function phoneSentCustomerChat(
+  payload: JsonObject,
+  own: ReadonlySet<string>,
+): string | null {
+  const candidates: unknown[] = [payload.to, messageInfo(payload)?.Chat];
+  if (own.size > 0) candidates.push(payload.from);
+  for (const candidate of candidates) {
+    if (!isDirectChatId(candidate)) continue;
+    const chat = normalizedDirectJid(candidate);
+    return chat !== null && !own.has(chat) ? chat : null;
+  }
+  return null;
+}
+
+// A message the sales team sent from the phone or the WhatsApp app: WAHA marks
+// its origin `source: "app"` (the CRM's own API sends are `api`). Only such a
+// message to one direct chat, with text or media, is projected into the
+// conversation; the CRM's own sends and everything else stay evidence only.
+function isPhoneSentDirectMessage(
+  payload: JsonObject,
+  own: ReadonlySet<string>,
+): boolean {
+  if (payload.fromMe !== true) return false;
+  if (
+    typeof payload.source !== "string" ||
+    payload.source.trim().toLowerCase() !== "app"
+  ) {
+    return false;
+  }
+  const hasText =
+    typeof payload.body === "string" && payload.body.trim().length > 0;
+  return (
+    phoneSentCustomerChat(payload, own) !== null &&
+    (hasText || carriesMedia(payload))
+  );
+}
+
 function parseMessageAny(
   body: JsonObject,
   payload: JsonObject,
   requestId: string,
-): WahaEventDescriptor {
+): WahaEventDescriptor | WahaIgnoredEvent {
+  if (isNonDirectChatEvent(payload)) {
+    return { ignored: true, reason: "non_direct_chat" };
+  }
+  const own = ownChatIds(body, payload);
   const payloadId = boundedIdentifier(payload.id, "invalid_message_id");
   if (typeof payload.fromMe !== "boolean") {
     return reject(400, "invalid_message_direction");
   }
   if (payload.fromMe === false) {
     const from = boundedIdentifier(payload.from, "invalid_message_sender");
-    if (!DIRECT_CHAT_PATTERN.test(from)) {
+    if (!isDirectChatId(from)) {
       return reject(400, "invalid_message_sender");
     }
-    if (
-      typeof payload.body !== "string" ||
-      payload.body.trim().length === 0 ||
-      payload.body.length > 4_000
-    ) {
+    // The own number is never a customer (WAHA and whatsmeow report an own
+    // message as `fromMe`, so this is a safeguard, not a path seen so far).
+    if (own.has(normalizedDirectJid(from) ?? "")) {
+      return { ignored: true, reason: "own_chat" };
+    }
+    const hasText =
+      typeof payload.body === "string" && payload.body.trim().length > 0;
+    if (hasText && (payload.body as string).length > 4_000) {
       return reject(400, "invalid_message_body");
+    }
+    // A message without text (media, a location pin, a contact card, ...) must
+    // still reach the projection, which stores a typed media marker or the
+    // generic staff-review notice with a handoff; nothing is downloaded. Only
+    // WhatsApp's own notices are ignored.
+    if (!hasText && !carriesMedia(payload) && isSystemNotice(payload)) {
+      return { ignored: true, reason: "system_notice" };
     }
   }
   const occurredAt = parseOccurredAt(body.timestamp ?? payload.timestamp);
@@ -225,9 +545,37 @@ function parseMessageAny(
     businessKeySha256: sha256(
       `waha:${PLATFORM_WAHA_SESSION_NAME}:message:${payloadId}`,
     ),
-    shouldEnqueue: payload.fromMe === false,
+    shouldEnqueue:
+      payload.fromMe === false || isPhoneSentDirectMessage(payload, own),
     shouldSynchronizeSession: false,
   };
+}
+
+// The chat an acknowledgement is about, as the engines report it: WEBJS `to` is
+// the customer (`from` is the own number whatever the chat), GOWS has `to` null
+// and the chat in `_data.Chat` (a receipt) or `_data.Info.Chat`, and both build
+// the message id as `<fromMe>_<chat>_<ID>`. `from` is deliberately not read: it
+// is the own number in every WEBJS acknowledgement. Null when nothing names a
+// direct chat.
+const ACK_MESSAGE_ID_CHAT_PATTERN = /^(?:true|false)_([^_]+)_/;
+
+function ackChat(payload: JsonObject): string | null {
+  const data = isObject(payload._data) ? payload._data : null;
+  const fromMessageId =
+    typeof payload.id === "string"
+      ? ACK_MESSAGE_ID_CHAT_PATTERN.exec(payload.id)?.[1]
+      : undefined;
+  const candidates: unknown[] = [
+    payload.to,
+    data?.Chat,
+    messageInfo(payload)?.Chat,
+    fromMessageId,
+  ];
+  for (const candidate of candidates) {
+    const chat = normalizedDirectJid(candidate);
+    if (chat !== null) return chat;
+  }
+  return null;
 }
 
 function parseMessageAck(
@@ -235,7 +583,10 @@ function parseMessageAck(
   payload: JsonObject,
   requestId: string,
   rawPayloadSha256: string,
-): WahaEventDescriptor {
+): WahaEventDescriptor | WahaIgnoredEvent {
+  if (isNonDirectChatEvent(payload)) {
+    return { ignored: true, reason: "non_direct_chat" };
+  }
   const rawMessageId = boundedIdentifier(payload.id, "invalid_message_id");
   if (payload.fromMe !== true) {
     return reject(400, "invalid_ack_direction");
@@ -255,6 +606,13 @@ function parseMessageAck(
     parsedOccurredAt === null
       ? `local-message-ack-delivery:${rawPayloadSha256}:${sha256(requestId)}`
       : rawMessageId;
+  // An acknowledgement of a message in the own chat (a note to self) belongs to
+  // a message that is never projected; enqueued, it would only be retried as
+  // `waha_ack_binding_pending`. Nothing to observe, nothing to retry.
+  const chat = ackChat(payload);
+  if (chat !== null && ownChatIds(body, payload).has(chat)) {
+    return { ignored: true, reason: "own_chat" };
+  }
   const variant = expectedName.toLowerCase();
 
   return {
@@ -308,7 +666,7 @@ function parseSessionStatus(
 function parseEvent(
   body: JsonObject,
   rawPayloadSha256: string,
-): WahaEventDescriptor | null {
+): WahaEventDescriptor | WahaIgnoredEvent | null {
   if (body.session !== PLATFORM_WAHA_SESSION_NAME) {
     return reject(403, "invalid_session");
   }
@@ -453,13 +811,32 @@ export function createPlatformWahaWebhookHandler(
   dependencies: PlatformWahaWebhookDependencies = defaultDependencies,
 ): (request: Request) => Promise<Response> {
   return async (request: Request) => {
+    // The ingress is inert unless the owner switched it on with exactly "1":
+    // refused before the body is read, the signature checked, the secret or
+    // the backend configuration touched, or any Supabase call made, so a
+    // present secret alone never opens the route. 503 is the same answer every
+    // other "not configured" state gives.
+    if (!isPlatformWahaIngressEnabled()) {
+      return errorResponse(503, "waha_webhook_unavailable");
+    }
+
     try {
-      const rawBody = new Uint8Array(await request.arrayBuffer());
-      if (rawBody.byteLength === 0) return errorResponse(400, "invalid_json");
-      if (rawBody.byteLength > MAX_BODY_BYTES) {
+      // Cheapest refusals first: a declared size above the bound is answered
+      // before the body is touched, and an unconfigured route before anything
+      // is buffered.
+      if (declaredLengthExceedsBound(request)) {
         return errorResponse(413, "payload_too_large");
       }
+      const config = getPlatformMessagingBackendConfig();
+      const secret = readWebhookSecret(process.env);
 
+      const rawBody = await readBoundedBody(request);
+      if (rawBody === null) return errorResponse(413, "payload_too_large");
+      if (rawBody.byteLength === 0) return errorResponse(400, "invalid_json");
+
+      // Authenticate the raw bytes before they are parsed: an unsigned or wrongly
+      // signed body never reaches JSON.parse.
+      verifySignature(request, rawBody, secret);
       let body: unknown;
       try {
         body = JSON.parse(Buffer.from(rawBody).toString("utf8"));
@@ -468,13 +845,18 @@ export function createPlatformWahaWebhookHandler(
       }
       if (!isObject(body)) return errorResponse(400, "invalid_json");
 
-      const config = getPlatformMessagingBackendConfig();
-      const secret = readWebhookSecret(process.env);
-      verifySignature(request, rawBody, secret);
       const rawPayloadSha256 = sha256(rawBody);
       const descriptor = parseEvent(body, rawPayloadSha256);
       if (descriptor === null) {
         return json(202, { ok: true, status: "ignored" });
+      }
+      // Answer 200, never 4xx: this is not a failure and must not be retried.
+      if ("ignored" in descriptor) {
+        return json(200, {
+          ok: true,
+          status: "ignored",
+          reason: descriptor.reason,
+        });
       }
 
       const client = dependencies.createServiceClient(config);

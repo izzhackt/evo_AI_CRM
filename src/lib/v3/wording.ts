@@ -1352,6 +1352,7 @@ export function settingsBlockedWahaDetail(status: string | undefined): string {
     case "STARTING": return "Подключение запускается.";
     case "STOPPED": return "Подключение остановлено.";
     case "FAILED": return "Ошибка подключения.";
+    case "UNREACHABLE": return "Сервис WhatsApp не отвечает.";
     default: return "Состояние подключения не подтверждено.";
   }
 }

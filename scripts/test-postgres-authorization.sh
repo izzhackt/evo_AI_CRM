@@ -2884,6 +2884,22 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_pending_case_handoff.sql
   fi
+
+  # Migration 259: the direct WAHA -> CRM ingress keeps the whole sales
+  # WhatsApp correspondence in the CRM. Real enqueue/claim/project/finish
+  # chain with a synthetic organization: @lid chats (no phone made of LID
+  # digits, one client for a LID chat and the same person's phone chat), typed
+  # media markers, messages sent from the phone (own identity, no duplicate of
+  # the CRM's own sends, deferred until the customer's first message), ACKs,
+  # the new CHECK/trigger evidence and the private-routine catalog. Both engine
+  # payload shapes are exercised: WEBJS (from = own, to = customer for a message
+  # sent from the phone) and GOWS (from = the chat in both directions, to = null,
+  # `_data.Info`), with the own number never taken for a customer or a phone.
+  if [[ "$(basename "$migration")" == 259_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_lid_phone_media.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

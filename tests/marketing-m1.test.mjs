@@ -584,9 +584,23 @@ test("recordLeadTouch refuses role preview and a missing right in the data layer
   assert.deepEqual(calls, ["record_lead_touch"]);
 });
 
-test("the correction select is remounted with the saved value, so the form reset cannot bring the old one back", () => {
+test("the staff_manual touch id is bound to the form request and the lead: a retry repeats it, another lead gets its own", () => {
+  const { leadTouchRequestId } = loader({ "../supabase/server.ts": { createSupabaseServerClient: async () => ({}) } })("src/lib/v3/lead-channel-source.ts");
+  const form = "70000000-0000-4000-8000-000000000001", other = "30000000-0000-4000-8000-000000000002";
+  const id = leadTouchRequestId(form, "staff_manual", LEAD);
+  assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
+  assert.equal(leadTouchRequestId(form.toUpperCase(), "staff_manual", LEAD.toUpperCase()), id, "the same submission maps to the same touch");
+  // «duplicate» не оставляет квитанции формы: та же форма может создать другого лида — у него своё касание.
+  assert.notEqual(leadTouchRequestId(form, "staff_manual", other), id);
+  assert.notEqual(leadTouchRequestId(form, "staff_correction", LEAD), id);
+});
+
+// Браузерное доказательство (React 19 в Chromium): node tests/e2e/requests-static-render.cjs --channel-spend-forms <dir>.
+test("the correction form is not a React form action, so no automatic form reset can swap the chosen channel", () => {
   const source = read("src/components/v3/profile/LeadChannelCorrection.tsx");
-  assert.match(source, /<select key=\{epoch\} name="channel"/u);
+  assert.doesNotMatch(source, /<form action=/u);
+  assert.match(source, /event\.preventDefault\(\);\s*const form = new FormData\(event\.currentTarget\);\s*startTransition\(\(\) => action\(form\)\);/u);
+  assert.match(source, /<select name="channel" value=\{choice\}/u);
   assert.match(source, /setSavedChannel\(result\.read\.channel\)/u);
   assert.match(source, /disabled=\{pending \|\| choice === saved\}/u, "«Сохранить» compares with what is saved now, not with what the card opened with");
 });

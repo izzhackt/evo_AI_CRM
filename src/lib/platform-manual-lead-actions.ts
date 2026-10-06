@@ -39,7 +39,7 @@ export async function createManualLeadAction(previous: ManualLeadState, form: Fo
     if ((state.status === "saved" || state.status === "duplicate") && state.leadId) {
       const touch = await recordLeadTouch(actor, {
         leadId: state.leadId, channel: channel as LeadChannel, kind: "staff_manual",
-        requestId: leadTouchRequestId(requestId, "staff_manual"),
+        requestId: leadTouchRequestId(requestId, "staff_manual", state.leadId),
       });
       return { ...state, touch: touch.status === "saved" ? "saved" : touch.status === "forbidden" ? "forbidden" : "failed" };
     }

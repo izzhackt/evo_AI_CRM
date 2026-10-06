@@ -38,6 +38,12 @@
  *       «Выберите источник» под полем; с выбранным источником уходит его
  *       ключ. Серверное действие — заглушка, записывает поля и ничего не
  *       сохраняет. Снимки `e811-manual-lead-*.png` на 1440 и 390.
+ *   node tests/e2e/requests-static-render.cjs --channel-spend-forms [outDir]
+ *     → «Исправить» в Lead 360 и «Добавить расход» (М1) в Chromium: после
+ *       ответа «неизвестно» select показывает выбранный канал и повтор шлёт
+ *       его же с тем же id; форма расхода не теряет введённое, после
+ *       конфликта запроса id новый, после записи форма пуста. Действия —
+ *       заглушки с заданной очередью ответов.
  *   node tests/e2e/requests-static-render.cjs --switch [outDir]
  *     → смена записи в правой панели по-настоящему в Chromium: собранный
  *       esbuild RequestsQueueView, черновик решения, конфликт и ошибка
@@ -530,6 +536,9 @@ const SWITCH_ACTIONS = {
   // Э8.11: форма лида — только запись отправленных полей; ответ «такой контакт уже есть», ничего не сохраняется.
   createManualLeadAction: "(globalThis.__manualLeads ||= []).push(Object.fromEntries(arguments[1])); return { status: \"duplicate\", requestId: arguments[1].get(\"request_id\"), leadId: null };",
   decideStudentApplicationAction: "(globalThis.__decisions ||= []).push(Object.fromEntries(arguments[1])); return { status: \"conflict\", requestId: arguments[1].get(\"request_id\") };",
+  // М1: исправление канала и расход — запись полей и ответ из очереди (по умолчанию «неизвестно»).
+  correctLeadChannelAction: "const f = Object.fromEntries(arguments[1]); (globalThis.__corrections ||= []).push(f); const next = (globalThis.__correctionResults ||= []).shift() ?? \"unavailable\"; return next === \"saved\" ? { status: \"saved\", requestId: f.request_id, read: { channel: f.channel, basis: \"corrected\", corrected: true, at: \"2026-10-06T08:00:00Z\" } } : { status: next, requestId: f.request_id, read: null };",
+  addMarketingSpendAction: "const f = Object.fromEntries(arguments[1]); (globalThis.__spends ||= []).push(f); return { status: (globalThis.__spendResults ||= []).shift() ?? \"unavailable\", requestId: f.request_id };",
   updatePlatformSalesWorkflowAction: "(globalThis.__takes ||= []).push(Object.fromEntries(arguments[1])); return { status: \"stale\", requestId: arguments[1].get(\"request_id\"), version: arguments[0].version, changedAt: null };",
 };
 const switchStubs = {
@@ -748,7 +757,8 @@ async function manualLeadForm() {
       await tab.evaluate(() => document.fonts.ready);
       await tab.getByRole("button", { name: "Добавить лида" }).click();
       const source = tab.locator('select[name="source"]');
-      const field = () => source.evaluate((select) => ({
+      const channel = tab.locator('select[name="channel"]');
+      const probe = (select) => ({
         value: select.value,
         options: [...select.options].map((option) => [option.value, option.textContent]),
         required: select.required,
@@ -757,12 +767,22 @@ async function manualLeadForm() {
         error: select.parentElement.querySelector('[role="alert"]')?.textContent ?? null,
         focused: document.activeElement === select,
         height: Math.round(select.getBoundingClientRect().height),
-      }));
+        hint: select.getAttribute("aria-describedby") ? document.getElementById(select.getAttribute("aria-describedby"))?.textContent ?? null : null,
+      });
+      const field = () => source.evaluate(probe);
+      const channelField = () => channel.evaluate(probe);
       const opened = await field();
-      expect(`${width}: the source opens on «Не выбрано», required, with the five existing keys`,
+      expect(`${width}: the source opens on «Не выбрано», required, with the seven manual keys`,
         opened.value === "" && opened.required && JSON.stringify(opened.options) === JSON.stringify([
           ["", "Не выбрано"], ["office", "Встреча в офисе"], ["phone_call", "Звонок"], ["referral", "Рекомендация"], ["website", "Сайт"], ["other", "Другой источник"],
+          ["instagram", "Instagram Direct"], ["whatsapp_manual", "WhatsApp (вручную)"],
         ]) && opened.height >= 44, opened);
+      const channelOpened = await channelField();
+      expect(`${width}: «Откуда узнал» opens on «Не выбрано», required, with the six channels, «Не известно» last`,
+        channelOpened.value === "" && channelOpened.required && JSON.stringify(channelOpened.options) === JSON.stringify([
+          ["", "Не выбрано"], ["instagram_ads", "Instagram — реклама"], ["instagram", "Instagram — посты и профиль"], ["website_search", "Сайт и поиск"],
+          ["referral", "Рекомендация"], ["other", "Другое"], ["unknown", "Не известно"],
+        ]) && channelOpened.height >= 44, channelOpened);
       await tab.screenshot({ path: join(outDir, `e811-manual-lead-open-${width}.png`), fullPage: true });
 
       await tab.locator('input[name="name"]').fill("Тест Синтетический");
@@ -770,17 +790,30 @@ async function manualLeadForm() {
       await tab.getByRole("button", { name: "Сохранить лида" }).click();
       await tab.waitForTimeout(150);
       const blocked = { ...(await field()), sent: await tab.evaluate(() => (globalThis.__manualLeads ?? []).length) };
-      expect(`${width}: without a source nothing is sent and the field says «Выберите источник»`,
+      const channelBlocked = await channelField();
+      expect(`${width}: without a source nothing is sent; the source says «Выберите источник» and keeps focus as the first invalid field`,
         blocked.sent === 0 && blocked.invalid === "true" && blocked.message === "Выберите источник" && blocked.error === "Выберите источник" && blocked.focused, blocked);
+      expect(`${width}: the empty «Откуда узнал» says «Выберите, откуда узнал клиент» without taking focus`,
+        channelBlocked.invalid === "true" && channelBlocked.message === "Выберите, откуда узнал клиент" && channelBlocked.error === "Выберите, откуда узнал клиент" && !channelBlocked.focused, channelBlocked);
       await tab.screenshot({ path: join(outDir, `e811-manual-lead-required-${width}.png`), fullPage: true });
 
       await source.selectOption("phone_call");
       const chosen = await field();
       expect(`${width}: choosing a source clears the error`, chosen.invalid === null && chosen.message === "" && chosen.error === null, chosen);
       await tab.getByRole("button", { name: "Сохранить лида" }).click();
+      await tab.waitForTimeout(150);
+      const channelOnly = { ...(await channelField()), sent: await tab.evaluate(() => (globalThis.__manualLeads ?? []).length) };
+      expect(`${width}: with a source but no «Откуда узнал» nothing is sent and the channel takes focus`,
+        channelOnly.sent === 0 && channelOnly.invalid === "true" && channelOnly.error === "Выберите, откуда узнал клиент" && channelOnly.focused, channelOnly);
+      await channel.selectOption("unknown");
+      const unknownChosen = await channelField();
+      expect(`${width}: «Не известно» clears the error and shows «Спросите клиента»`,
+        unknownChosen.invalid === null && unknownChosen.message === "" && unknownChosen.error === null && unknownChosen.hint === "Спросите клиента", unknownChosen);
+      await channel.selectOption("referral");
+      await tab.getByRole("button", { name: "Сохранить лида" }).click();
       await tab.waitForFunction(() => (globalThis.__manualLeads ?? []).length === 1, null, { timeout: 5_000 }).catch(() => {});
       const sent = await tab.evaluate(() => globalThis.__manualLeads ?? []);
-      expect(`${width}: the chosen key is what the form sends`, sent.length === 1 && sent[0].source === "phone_call", sent);
+      expect(`${width}: the chosen keys are what the form sends`, sent.length === 1 && sent[0].source === "phone_call" && sent[0].channel === "referral", sent);
 
       if (errors.length) failures.push(`${width} browser errors: ${errors.join(" | ")}`);
       await browserContext.close();
@@ -789,6 +822,133 @@ async function manualLeadForm() {
     await browser.close();
   }
   if (failures.length) throw new Error(`manual lead form: ${failures.length} failed:\n${failures.join("\n")}`);
+}
+
+// --- М1: «Исправить» в Lead 360 и «Добавить расход» -------------------------
+const CHANNEL_SPEND_ROOT_ID = "channel-spend-root";
+const CHANNEL_SPEND_ENTRY = `
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { LeadChannelCorrection } from "../../src/components/v3/profile/LeadChannelCorrection";
+import { MarketingSpendForm } from "../../src/components/v3/marketing/MarketingSpendForm";
+
+createRoot(document.getElementById("${CHANNEL_SPEND_ROOT_ID}")).render(
+  createElement("div", { className: "space-y-6" },
+    createElement("section", { "data-testid": "correction" },
+      createElement(LeadChannelCorrection, { leadId: "30000000-0000-4000-8000-000000000001", requestId: "70000000-0000-4000-8000-000000000001", current: "unknown" })),
+    createElement("section", { "data-testid": "spend" },
+      createElement(MarketingSpendForm, { requestId: "70000000-0000-4000-8000-000000000002", defaultStart: "2026-10-01", defaultEnd: "2026-10-31" }))),
+);
+`;
+
+/**
+ * React 19 сбрасывает `<form action>` после каждого действия (form.reset()): select, привязанный к
+ * состоянию, показал бы первый канал, а повтор отправил бы его. Здесь — настоящие компоненты.
+ */
+async function channelSpendForms() {
+  const outIndex = process.argv.indexOf("--channel-spend-forms") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const bundle = join(outDir, "m1-channel-spend-client.js");
+  await require("esbuild").build({
+    stdin: { contents: CHANNEL_SPEND_ENTRY, resolveDir: __dirname, sourcefile: "m1-channel-spend-entry.js", loader: "js" },
+    bundle: true, outfile: bundle, format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
+    tsconfig: join(ROOT, "tsconfig.json"), define: { "process.env.NODE_ENV": '"production"' },
+    banner: { js: "var process = globalThis.process || { env: {} };" }, plugins: [switchStubs], logLevel: "error",
+  });
+  const htmlPath = join(outDir, "m1-channel-spend.html");
+  writeFileSync(htmlPath, [
+    "<!DOCTYPE html>",
+    '<html lang="ru" data-theme="light" class="h-full antialiased">',
+    `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Исправить и расход (синтетические данные)</title><style>${await compileCss()}</style></head>`,
+    `<body class="min-h-full bg-bg"><div class="v3-world" data-surface="staff"><main class="p-4 md:p-6"><div id="${CHANNEL_SPEND_ROOT_ID}"></div></main></div>`,
+    `<script src="m1-channel-spend-client.js"></script></body></html>`,
+  ].join(""));
+
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const failures = [];
+  const expect = (label, ok, facts) => {
+    process.stdout.write(`${ok ? "ok  " : "FAIL"} ${label}${ok ? "" : ` ${JSON.stringify(facts)}`}\n`);
+    if (!ok) failures.push(label);
+  };
+  try {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+    const tab = await context.newPage();
+    const errors = [];
+    tab.on("pageerror", (error) => errors.push(error.message));
+    await tab.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+    await tab.evaluate(() => { globalThis.__correctionResults = ["unavailable", "saved"]; globalThis.__spendResults = ["unavailable", "request_conflict", "saved"]; });
+
+    // «Исправить»: «неизвестно» → тот же выбор и тот же id; затем «Сохранено».
+    const correction = tab.getByTestId("correction");
+    await correction.getByText("Исправить").click();
+    const select = correction.locator('select[name="channel"]');
+    const save = correction.getByRole("button", { name: "Сохранить" });
+    const correctionState = async () => ({
+      value: await select.inputValue(), disabled: await save.isDisabled(),
+      alert: await correction.locator('[role="alert"]').textContent().catch(() => null),
+      status: await correction.locator('[role="status"]').textContent().catch(() => null),
+      sent: await tab.evaluate(() => globalThis.__corrections ?? []),
+    });
+    await select.selectOption("referral");
+    await save.click();
+    await tab.waitForFunction(() => (globalThis.__corrections ?? []).length === 1, null, { timeout: 5_000 }).catch(() => {});
+    await correction.locator('[role="alert"]').waitFor({ timeout: 5_000 }).catch(() => {});
+    const afterUnknown = await correctionState();
+    expect("correction: after «неизвестно» the select still shows the chosen channel and «Сохранить» stays available",
+      afterUnknown.value === "referral" && !afterUnknown.disabled && afterUnknown.alert?.startsWith("Результат пока неизвестен"), afterUnknown);
+    await save.click();
+    await tab.waitForFunction(() => (globalThis.__corrections ?? []).length === 2, null, { timeout: 5_000 }).catch(() => {});
+    await correction.locator('[role="status"]').waitFor({ timeout: 5_000 }).catch(() => {});
+    const afterSaved = await correctionState();
+    expect("correction: the retry sends the same channel with the same request id",
+      afterSaved.sent.length === 2 && afterSaved.sent.every((one) => one.channel === "referral") && afterSaved.sent[0].request_id === afterSaved.sent[1].request_id, afterSaved.sent);
+    expect("correction: after «Сохранено» the select shows the saved channel and «Сохранить» waits for another choice",
+      afterSaved.value === "referral" && afterSaved.disabled && afterSaved.status === "Сохранено: Рекомендация · исправлено", afterSaved);
+
+    // «Добавить расход»: введённое остаётся до записи; конфликт даёт новый id; после записи форма пуста.
+    const spend = tab.getByTestId("spend");
+    await spend.getByText("Добавить расход").click();
+    const submit = spend.getByRole("button", { name: "Записать расход" });
+    await spend.locator('input[name="period_start"]').fill("2026-10-02");
+    await spend.locator('input[name="amount"]').fill("1200");
+    await spend.locator('select[name="currency"]').selectOption("EUR");
+    await spend.locator('input[name="campaign"]').fill("KG - Leads");
+    await spend.locator('input[name="note"]').fill("синтетика");
+    const spendState = async () => ({
+      start: await spend.locator('input[name="period_start"]').inputValue(), amount: await spend.locator('input[name="amount"]').inputValue(),
+      currency: await spend.locator('select[name="currency"]').inputValue(), campaign: await spend.locator('input[name="campaign"]').inputValue(),
+      note: await spend.locator('input[name="note"]').inputValue(),
+      message: await spend.locator('[role="alert"], [role="status"]').textContent().catch(() => null),
+      sent: await tab.evaluate(() => globalThis.__spends ?? []),
+    });
+    const typed = { start: "2026-10-02", amount: "1200", currency: "EUR", campaign: "KG - Leads", note: "синтетика" };
+    const kept = (state) => Object.entries(typed).every(([key, value]) => state[key] === value);
+    const submitAndWait = async (count, text) => {
+      await submit.click();
+      await tab.waitForFunction((n) => (globalThis.__spends ?? []).length === n, count, { timeout: 5_000 }).catch(() => {});
+      await spend.getByText(text).waitFor({ timeout: 5_000 }).catch(() => {});
+      return spendState();
+    };
+    const first = await submitAndWait(1, "Результат пока неизвестен");
+    expect("spend: after «неизвестно» everything typed is still in the form", kept(first) && first.message?.startsWith("Результат пока неизвестен"), first);
+    const second = await submitAndWait(2, "Этот запрос уже записан");
+    expect("spend: the retry after «неизвестно» reuses the request id, and a conflict keeps the form",
+      second.sent[1]?.request_id === second.sent[0]?.request_id && second.sent[1]?.amount === "1200" && kept(second), second);
+    const third = await submitAndWait(3, "Расход записан.");
+    expect("spend: after a conflict the next submission has a new request id",
+      third.sent.length === 3 && third.sent[2].request_id !== third.sent[1].request_id && third.sent[2].amount === "1200", third.sent);
+    expect("spend: after «Расход записан» the form is empty for the next entry",
+      third.amount === "" && third.campaign === "" && third.note === "" && third.start === "2026-10-01" && third.currency === "USD" && third.message === "Расход записан.", third);
+    await tab.screenshot({ path: join(outDir, "m1-channel-spend-1440.png"), fullPage: true });
+
+    if (errors.length) failures.push(`browser errors: ${errors.join(" | ")}`);
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+  if (failures.length) throw new Error(`channel/spend forms: ${failures.length} failed:\n${failures.join("\n")}`);
 }
 
 // --- F1 (Э7): одна боковая панель — путь по гидратированным «Заявкам» --------
@@ -936,11 +1096,13 @@ if (process.argv.includes("--json")) {
   manualLeadOwners().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--manual-lead-form")) {
   manualLeadForm().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--channel-spend-forms")) {
+  channelSpendForms().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--switch")) {
   switchCheck().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--screenshots")) {
   screenshots().catch((error) => { console.error(error); process.exit(1); });
 } else {
-  console.error("usage: requests-static-render.cjs --json | --panel-keys | --manual-lead-owners | --manual-lead-form [outDir] | --switch [outDir] | --screenshots [outDir] | --f1 [outDir]");
+  console.error("usage: requests-static-render.cjs --json | --panel-keys | --manual-lead-owners | --manual-lead-form [outDir] | --channel-spend-forms [outDir] | --switch [outDir] | --screenshots [outDir] | --f1 [outDir]");
   process.exit(2);
 }

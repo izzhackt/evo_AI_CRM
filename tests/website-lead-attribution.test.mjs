@@ -143,6 +143,9 @@ test("sanitising follows the SQL rules field by field", () => {
   assert.equal(parse({ utm_source: "инстаграм" }), null);
   assert.deepEqual(parse({ utm_campaign: "Лето 2026 Malaysia" }), { utm_campaign: "Лето 2026 Malaysia" });
   assert.equal(parse({ utm_campaign: "Лето/2026" }), null);
+  // Правило имён Meta (план §10): запрещённый знак или 7+ цифр подряд отбрасывают метку целиком.
+  for (const value of ["KG | Leads", "Весна/2026 (видео)", "MY_20261006"]) assert.equal(parse({ utm_campaign: value }), null, value);
+  for (const value of ["KG - Leads", "MY_2026-10-06"]) assert.deepEqual(parse({ utm_campaign: value }), { utm_campaign: value }, value);
   // @, %40, 7+ digits in a row are personal-data-shaped and dropped everywhere except utm_id.
   for (const value of ["me@x", "me%40x", "id1234567x", "1234567"]) assert.equal(parse({ utm_term: value }), null, value);
   assert.deepEqual(parse({ utm_term: "123456" }), { utm_term: "123456" });

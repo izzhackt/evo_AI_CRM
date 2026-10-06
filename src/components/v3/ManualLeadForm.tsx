@@ -72,6 +72,15 @@ function touchNote(state: ManualLeadState): string {
   return "";
 }
 
+/**
+ * Браузер шлёт `invalid` каждому пустому полю по порядку; `preventDefault` убирает его собственный фокус,
+ * поэтому фокус ставим сами и только на первое неверное поле — иначе его забрало бы последнее.
+ */
+function focusFirstInvalid(field: HTMLSelectElement) {
+  // Только поля: `fieldset` с пустым полем внутри тоже `:invalid` и стоит раньше в порядке документа.
+  if (field.form?.querySelector("input:invalid, select:invalid, textarea:invalid") === field) field.focus();
+}
+
 function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[]; onAnother: () => void }>) {
   const frozen = useRef<FormData | null>(null);
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
@@ -113,7 +122,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
             // Одно сообщение — строка под полем, без всплывающей подсказки браузера поверх неё.
             event.preventDefault();
             event.currentTarget.setCustomValidity(MANUAL_LEAD_SOURCE_REQUIRED);
-            event.currentTarget.focus();
+            focusFirstInvalid(event.currentTarget);
             setSourceMissing(true);
           }}
           onChange={(event) => { event.currentTarget.setCustomValidity(""); setSourceMissing(false); }}
@@ -125,7 +134,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
           onInvalid={(event) => {
             event.preventDefault();
             event.currentTarget.setCustomValidity(LEAD_CHANNEL_REQUIRED);
-            event.currentTarget.focus();
+            focusFirstInvalid(event.currentTarget);
             setChannelMissing(true);
           }}
           onChange={(event) => { event.currentTarget.setCustomValidity(""); setChannelMissing(false); setChannelUnknown(event.currentTarget.value === "unknown"); }}

@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { btnGhostCls, inputCls } from "@/components/ui";
 import { LEAD_CHANNELS, leadChannelText, type LeadChannel, type LeadChannelCorrectionState } from "@/lib/lead-channel-contract";
 import { correctLeadChannelAction } from "@/lib/platform-lead-channel-actions";
@@ -23,16 +23,12 @@ export function LeadChannelCorrection({ leadId, requestId, current }: Readonly<{
   const [choice, setChoice] = useState<LeadChannel>(current);
   // Что записано сейчас: после «Сохранить» это выбранное значение, а не то, с которым открылась карточка.
   const [saved, setSavedChannel] = useState<LeadChannel>(current);
-  // React 19 сбрасывает форму после действия: select, привязанный к состоянию, возвращается к первому
-  // значению. Ключ с номером сохранения пересоздаёт его уже с выбранным значением.
-  const [epoch, setEpoch] = useState(0);
   const [state, action, pending] = useActionState(async (previous: LeadChannelCorrectionState, form: FormData): Promise<LeadChannelCorrectionState> => {
     try {
       const result = await correctLeadChannelAction(previous, form);
       if (result.status === "saved") {
         setCurrentRequestId(crypto.randomUUID());
         if (result.read) { setSavedChannel(result.read.channel); setChoice(result.read.channel); }
-        setEpoch((one) => one + 1);
       }
       return result;
     } catch { return { ...previous, status: "unavailable" }; }
@@ -43,12 +39,18 @@ export function LeadChannelCorrection({ leadId, requestId, current }: Readonly<{
       <summary className="inline-flex min-h-11 cursor-pointer list-none items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden">
         Исправить
       </summary>
-      <form action={action} className="flex flex-wrap items-end gap-2 pb-2" aria-busy={pending}>
+      {/* Не `<form action>`: React 19 после каждого действия сбрасывает такую форму (form.reset()), и
+          select, привязанный к состоянию, показал бы первый канал, а повтор отправил бы его. */}
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        startTransition(() => action(form));
+      }} className="flex flex-wrap items-end gap-2 pb-2" aria-busy={pending}>
         <input type="hidden" name="request_id" value={currentRequestId} />
         <input type="hidden" name="lead_id" value={leadId} />
         <label className="min-w-0 flex-1 basis-56">
           <span className="sr-only">Откуда узнал</span>
-          <select key={epoch} name="channel" value={choice} disabled={pending} className={inputCls}
+          <select name="channel" value={choice} disabled={pending} className={inputCls}
             onChange={(event) => { setChoice(event.currentTarget.value as LeadChannel); setCurrentRequestId(crypto.randomUUID()); }}>
             {Object.entries(LEAD_CHANNELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select>

@@ -33,11 +33,13 @@ export async function readLeadChannel(actor: PlatformActor, leadId: string): Pro
 }
 
 /**
- * Детерминированный id касания из id формы: повтор той же отправки пишет то же
- * касание (`(kind, request_id)` идемпотентны в 264), а не второе.
+ * Детерминированный id касания из id формы и лида: повтор той же отправки пишет то же
+ * касание (`(kind, request_id)` идемпотентны в 264), а не второе. Лид входит в id: ответ
+ * `duplicate` не оставляет квитанции формы, и та же форма с исправленным телефоном может
+ * создать другого лида — его касание не должно столкнуться с касанием первого.
  */
-export function leadTouchRequestId(formRequestId: string, kind: LeadTouchKind): string {
-  const hex = createHash("sha256").update(`evo:lead-touch:${kind}:${formRequestId.toLowerCase()}`).digest("hex");
+export function leadTouchRequestId(formRequestId: string, kind: LeadTouchKind, leadId: string): string {
+  const hex = createHash("sha256").update(`evo:lead-touch:${kind}:${formRequestId.toLowerCase()}:${leadId.toLowerCase()}`).digest("hex");
   const variant = "89ab"[Number.parseInt(hex[16], 16) % 4];
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }

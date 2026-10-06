@@ -114,7 +114,7 @@ function manualLeadAction() {
     "./platform-manual-lead-contract": compile("src/lib/platform-manual-lead-contract.ts"),
     "./lead-channel-contract": compile("src/lib/lead-channel-contract.ts"),
     "./v3/lead-channel-source": {
-      leadTouchRequestId: (formRequestId, kind) => `touch:${kind}:${formRequestId}`,
+      leadTouchRequestId: (formRequestId, kind, leadId) => `touch:${kind}:${formRequestId}:${leadId}`,
       recordLeadTouch: async (_actor, input) => { touches.push(input); return { status: "saved" }; },
     },
     "./platform-sales-register-contract": compile("src/lib/platform-sales-register-contract.ts"),
@@ -161,8 +161,9 @@ test("«Добавить лида» on the server: no source is «Выберит
   for (const source of ["instagram", "whatsapp_manual"]) assert.equal((await createManualLeadAction(idle, form(source, "instagram_ads"))).status, "duplicate", source);
   assert.deepEqual(created.map((input) => input.source), ["phone_call", "instagram", "whatsapp_manual"]);
   assert.ok(created.every((input) => !Object.hasOwn(input, "channel")), "create_manual_sales_lead payload is unchanged");
-  // Отдельное касание staff_manual с id, производным от id формы, на лида из ответа.
+  // Отдельное касание staff_manual с id, производным от id формы и лида, на лида из ответа.
   assert.deepEqual(touches, ["instagram", "whatsapp_manual"].map(() => ({
-    leadId: "77777777-8888-4999-8aaa-bbbbbbbbbbbb", channel: "instagram_ads", kind: "staff_manual", requestId: `touch:staff_manual:${requestId}`,
+    leadId: "77777777-8888-4999-8aaa-bbbbbbbbbbbb", channel: "instagram_ads", kind: "staff_manual",
+    requestId: "touch:staff_manual:" + requestId + ":77777777-8888-4999-8aaa-bbbbbbbbbbbb",
   })));
 });

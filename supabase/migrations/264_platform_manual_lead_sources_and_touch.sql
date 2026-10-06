@@ -53,7 +53,9 @@ $a264_manual$;
 -- ---------------------------------------------------------------------------
 -- Channel of ONE automatic touch from its marks. A touch with utm_source or utm_medium is judged by
 -- the marks alone (an unrecognised mark is «unknown», never a guess from the referrer); a touch
--- without them is judged by the referrer host; nothing recognised is «unknown».
+-- without them is judged by the referrer host; nothing recognised is «unknown». AI assistants tag
+-- their outbound links themselves (ChatGPT adds utm_source=chatgpt.com), so an AI utm_source with no
+-- medium (or referral/organic) is «Сайт и поиск» + ИИ-ассистент by the mark, like an AI referrer host.
 CREATE FUNCTION platform_private.attribution_signal(p_utm_source TEXT,p_utm_medium TEXT,p_referrer_host TEXT,
   OUT channel TEXT,OUT basis TEXT,OUT ai_assistant BOOLEAN)
 LANGUAGE sql IMMUTABLE SET search_path='' AS $$
@@ -66,6 +68,9 @@ LANGUAGE sql IMMUTABLE SET search_path='' AS $$
           WHEN i.src IN ('instagram','ig') AND i.med IN ('paid_social','paid-social','paidsocial','cpc','ppc','paid') THEN 'instagram_ads'
           WHEN i.src IN ('instagram','ig','taplink') THEN 'instagram'
           WHEN i.src IN ('google','bing','yandex','duckduckgo') AND (i.med IS NULL OR i.med='organic') THEN 'website_search'
+          WHEN i.src IN ('chatgpt.com','chatgpt','chat.openai.com','openai','perplexity.ai','perplexity','claude.ai',
+              'gemini.google.com','gemini','copilot.microsoft.com','copilot')
+            AND (i.med IS NULL OR i.med IN ('referral','organic')) THEN 'website_search'
           ELSE 'unknown'
         END
       WHEN i.host ~ '^(www\.|l\.|m\.)?instagram\.com$' OR i.host ~ '^([a-z0-9-]+\.)?taplink\.ws$' THEN 'instagram'
@@ -77,7 +82,10 @@ LANGUAGE sql IMMUTABLE SET search_path='' AS $$
   FROM i)
   SELECT r.channel,
     CASE WHEN r.channel='unknown' THEN 'unknown' WHEN r.src IS NOT NULL OR r.med IS NOT NULL THEN 'utm' ELSE 'referrer' END,
-    coalesce(r.src IS NULL AND r.med IS NULL AND r.host ~ '^(www\.)?(chatgpt\.com|chat\.openai\.com|perplexity\.ai|claude\.ai|gemini\.google\.com|copilot\.microsoft\.com)$',FALSE)
+    coalesce(r.channel='website_search' AND (
+      (r.src IS NULL AND r.med IS NULL AND r.host ~ '^(www\.)?(chatgpt\.com|chat\.openai\.com|perplexity\.ai|claude\.ai|gemini\.google\.com|copilot\.microsoft\.com)$')
+      OR r.src IN ('chatgpt.com','chatgpt','chat.openai.com','openai','perplexity.ai','perplexity','claude.ai',
+        'gemini.google.com','gemini','copilot.microsoft.com','copilot')),FALSE)
   FROM r
 $$;
 
@@ -212,7 +220,8 @@ BEGIN
       ('google','organic',NULL,'website_search'),('yandex',NULL,NULL,'website_search'),
       ('newsletter','email',NULL,'unknown'),(NULL,NULL,'l.instagram.com','instagram'),
       (NULL,NULL,'evoadmissions.taplink.ws','instagram'),(NULL,NULL,'www.google.com','website_search'),
-      (NULL,NULL,'chatgpt.com','website_search'),(NULL,NULL,'mail.google.com','unknown'),(NULL,NULL,NULL,'unknown'))
+      (NULL,NULL,'chatgpt.com','website_search'),('chatgpt.com',NULL,'chatgpt.com','website_search'),
+      ('perplexity','cpc',NULL,'unknown'),(NULL,NULL,'mail.google.com','unknown'),(NULL,NULL,NULL,'unknown'))
       AS t(s,m,h,expected) WHERE (platform_private.attribution_signal(t.s,t.m,t.h)).channel IS DISTINCT FROM t.expected)<>0
   THEN RAISE EXCEPTION 'a264_manual_sources_verification_failed: channel rule table'; END IF;
 END

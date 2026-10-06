@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import { btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
 import type { SpendFormState } from "@/lib/marketing-contract";
 import { SPEND_CURRENCIES } from "@/lib/marketing-contract";
@@ -10,21 +10,25 @@ const MESSAGES: Record<SpendFormState["status"], string> = {
   saved: "Расход записан.",
   invalid: "Проверьте даты (не больше 366 дней), сумму и валюту.",
   forbidden: "Нет права на это действие. Обновите страницу.",
-  request_conflict: "Этот запрос уже использован с другими данными. Отправьте форму ещё раз.",
-  unavailable: "Результат пока неизвестен. Данные остались в форме; безопасно повторите.",
+  request_conflict: "Этот запрос уже записан с другими данными. Проверьте расходы ниже; если нужной записи нет, отправьте форму ещё раз.",
+  unavailable: "Результат пока неизвестен. Данные остались в форме; безопасно повторите, не меняя их.",
 };
 
 /**
  * Запись расхода за период: сумма, валюта (USD, KGS, EUR — без пересчёта), необязательные кампания и
  * пометка. Тихая кнопка: у страницы нет красного действия. После записи id запроса меняется, повтор
- * при неизвестном результате идёт с прежним.
+ * при неизвестном результате идёт с прежним; после конфликта запроса — новый id (иначе каждая отправка
+ * снова конфликтует). Отправка не через `<form action>`: React 19 сбрасывает такую форму после любого
+ * ответа, а введённое должно остаться в форме до записи.
  */
 export function MarketingSpendForm({ requestId, defaultStart, defaultEnd }: Readonly<{ requestId: string; defaultStart: string; defaultEnd: string }>) {
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
+  const formRef = useRef<HTMLFormElement>(null);
   const [state, action, pending] = useActionState(async (previous: SpendFormState, form: FormData): Promise<SpendFormState> => {
     try {
       const result = await addMarketingSpendAction(previous, form);
-      if (result.status === "saved") setCurrentRequestId(crypto.randomUUID());
+      if (result.status === "saved") formRef.current?.reset();
+      if (result.status === "saved" || result.status === "request_conflict") setCurrentRequestId(crypto.randomUUID());
       return result;
     } catch { return { ...previous, status: "unavailable" }; }
   }, { status: "idle", requestId } as SpendFormState);
@@ -33,7 +37,11 @@ export function MarketingSpendForm({ requestId, defaultStart, defaultEnd }: Read
       <summary className="inline-flex min-h-11 cursor-pointer list-none items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden">
         Добавить расход
       </summary>
-      <form action={action} className="grid max-w-3xl gap-3 pb-2 sm:grid-cols-2" aria-busy={pending}>
+      <form ref={formRef} onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        startTransition(() => action(form));
+      }} className="grid max-w-3xl gap-3 pb-2 sm:grid-cols-2" aria-busy={pending}>
         <input type="hidden" name="request_id" value={currentRequestId} />
         <label><span className={fieldLabelCls}>С какого дня</span><input name="period_start" type="date" required defaultValue={defaultStart} className={inputCls} /></label>
         <label><span className={fieldLabelCls}>По какой день</span><input name="period_end" type="date" required defaultValue={defaultEnd} className={inputCls} /></label>

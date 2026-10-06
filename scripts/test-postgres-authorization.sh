@@ -3080,6 +3080,14 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_agent_p1.sql
+    # Slice 6: the exact SQL blocks of docs/runbooks/ai-agent-seed.md (preview,
+    # the admin seed of client and internal pages and of «Правила общения»,
+    # rehearsal by rollback, the read-only checks, the guards) and the
+    # reversible trash of the «ИИ-ассистент» folder on a synthetic knowledge
+    # base in the production shape.
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_seed_runbook.sql
   fi
 done < <(
   cd "$repo_root"

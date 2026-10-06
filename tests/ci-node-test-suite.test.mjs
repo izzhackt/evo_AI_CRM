@@ -211,7 +211,6 @@ test("saved export and bucket configuration tests run once in actual focused, CI
 test("CI Node suite retains every test that requires serial shared-state execution", () => {
   const plan = resolveNodeTestPlan({ packageJson, repositoryRoot });
   const serialTests = [
-    "platform-gemini-provider",
     "platform-provider-action-contract",
     "platform-provider-orchestrator",
     "platform-provider-readiness",

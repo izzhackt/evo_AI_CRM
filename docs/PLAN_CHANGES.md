@@ -46193,7 +46193,13 @@ production: приглашённый сотрудник с coarse role NULL и �
   и то же для `'lead.sales.workflow.manage'` — оба TRUE (активное членство,
   активный профиль, назначенная роль с обоими ключами). Иначе RPC отвечает
   `unavailable`, а маршрут — 503. Это тоже выглядит как «заявка потеряна»;
-- md5 живого тела равно `a99e227c…`, иначе 262 откажет при apply;
+- один запрос чтения до apply:
+  `SELECT proacl, pg_get_userbyid(proowner), md5(prosrc) FROM pg_proc WHERE oid='platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb)'::regprocedure;`
+  Ожидается `{postgres=X/postgres,service_role=X/postgres}`, `postgres`,
+  `a99e227c0eb7020b2e039eff3bd269d9`. Другой md5 или владелец — 262 откажет
+  при apply. EXECUTE у PUBLIC, anon или authenticated 262 снимет сама. Любой
+  другой получатель EXECUTE (кроме владельца и service_role) остановит apply
+  целиком, с откатом; его нужно сначала разобрать;
 - `platform_private.website_intake_limits`: лимит организации 100 в час,
   лимит IP 5 за 10 минут. Ожидается 0 строк: откаты их не сохраняли;
 - не больше одного активного клиента с тем же `normalized_phone`. Иначе ответ
@@ -46236,3 +46242,30 @@ production: приглашённый сотрудник с coarse role NULL и �
 
 Не сделано: apply через ledger, выпуск и проверка в production — шлюзы
 владельца. Чтение конфигурации production из списка выше — за оркестратором.
+
+### Независимый review и правка (запись после кода)
+
+Review нашёл два замечания уровня minor, блокеров и major нет.
+- Проверка ACL в 262 требовала ровно
+  `{postgres=X/postgres,service_role=X/postgres}` в этом порядке, а сравнение
+  атрибутов «до/после» включало `proacl`. Правка: литерал убран, `proacl`
+  исключён из снимка атрибутов. Вместо литерала — проверка без учёта порядка:
+  EXECUTE есть только у владельца и `service_role` (через `aclexplode`).
+  Остались проверки `has_function_privilege` для anon, authenticated и
+  service_role и владелец `postgres`. Запрос чтения ACL, владельца и md5
+  добавлен в список проверок до apply.
+- Ветка была на 67ec56098. Перенесена на `origin/main` 484247965 (#1138).
+  Начало `PLAN_CHANGES.md`, 3 294 037 байт, совпадает с main байт в байт;
+  запись 262 только дописана в конец. В #1138 нет миграций.
+
+Повторная проверка, локально, на закреплённом образе `sha256:80d7b27c…`:
+- полный `bash scripts/test-postgres-authorization.sh`: exit 0 за 5:08,
+  итог — «Verified disposable authorization database». Красная фаза перед 262:
+  `42702:column reference "normalized_phone" is ambiguous`. Зелёная после 262:
+  `{"status": "accepted", …0701}`, все проверки прошли;
+- контрольные базы на цепочке 001–261, синтетические. Обычный ACL: 262
+  применяется, ACL `{postgres=X/postgres,service_role=X/postgres}`, md5
+  `7dc77f26…`. Лишний EXECUTE у anon и authenticated: 262 применяется и
+  снимает его, ACL как выше. Лишний EXECUTE у `supabase_auth_admin`: 262
+  отказывает («service-only ACL»), откат, тело и ACL прежние (md5 `a99e227c…`);
+- `bash -n` и `git diff --check` чистые.

@@ -35,9 +35,10 @@ BEGIN
       <> 'a99e227c0eb7020b2e039eff3bd269d9' THEN
     RAISE EXCEPTION 'm262: platform.receive_website_lead is not the migration 240 definition it was written against';
   END IF;
-  -- Remembered for the verification below (transaction-local).
+  -- Remembered for the verification below (transaction-local). The ACL is
+  -- left out: the REVOKE/GRANT below re-asserts it and may reorder entries.
   PERFORM pg_catalog.set_config('evo.m262_attributes',
-    (SELECT (pg_catalog.to_jsonb(p) - 'prosrc')::TEXT FROM pg_catalog.pg_proc p WHERE p.oid = target_oid), TRUE);
+    (SELECT (pg_catalog.to_jsonb(p) - 'prosrc' - 'proacl')::TEXT FROM pg_catalog.pg_proc p WHERE p.oid = target_oid), TRUE);
 END
 $m262_pre$;
 
@@ -149,19 +150,21 @@ REVOKE ALL ON FUNCTION platform.receive_website_lead(UUID,UUID,UUID,TEXT,TEXT,IN
   FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION platform.receive_website_lead(UUID,UUID,UUID,TEXT,TEXT,INTEGER,TEXT,TEXT,BOOLEAN,TEXT,JSONB) TO service_role;
 
--- The same function (oid, identity, owner, definer, search_path, volatility,
--- ACL and every other catalog attribute), the renamed variable, and no
--- ambiguous column comparison left.
+-- The same function (oid, identity, owner, definer, search_path, volatility
+-- and every other catalog attribute except the ACL), a service-only ACL
+-- (EXECUTE only for the owner and service_role, in any order), the renamed
+-- variable, and no ambiguous column comparison left.
 DO $m262_verify$
 DECLARE
   target_oid oid := to_regprocedure(
     'platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb)');
+  target_owner oid := (SELECT p.proowner FROM pg_catalog.pg_proc p WHERE p.oid = target_oid);
   routine RECORD;
 BEGIN
   SELECT p.prosrc, p.prosecdef, p.proconfig, p.proacl, p.provolatile,
       pg_catalog.pg_get_userbyid(p.proowner) AS owner,
       pg_catalog.pg_get_function_identity_arguments(p.oid) AS identity_arguments,
-      (pg_catalog.to_jsonb(p) - 'prosrc') AS attributes
+      (pg_catalog.to_jsonb(p) - 'prosrc' - 'proacl') AS attributes
     INTO routine FROM pg_catalog.pg_proc p WHERE p.oid = target_oid;
   IF NOT FOUND
     OR routine.identity_arguments IS DISTINCT FROM
@@ -171,13 +174,16 @@ BEGIN
     OR NOT routine.prosecdef
     OR routine.provolatile IS DISTINCT FROM 'v'
     OR routine.proconfig IS DISTINCT FROM ARRAY['search_path=""']
-    OR routine.proacl IS DISTINCT FROM ARRAY['postgres=X/postgres','service_role=X/postgres']::aclitem[]
+    OR routine.proacl IS NULL
+    OR EXISTS (
+      SELECT 1 FROM pg_catalog.aclexplode(routine.proacl) a
+      WHERE a.grantee NOT IN (target_owner, 'service_role'::regrole::oid))
     OR has_function_privilege('anon', target_oid, 'EXECUTE')
     OR has_function_privilege('authenticated', target_oid, 'EXECUTE')
     OR NOT has_function_privilege('service_role', target_oid, 'EXECUTE')
     OR routine.attributes IS DISTINCT FROM current_setting('evo.m262_attributes')::JSONB
   THEN
-    RAISE EXCEPTION 'm262: platform.receive_website_lead lost its identity, definer, search_path or service-only ACL';
+    RAISE EXCEPTION 'm262: platform.receive_website_lead lost its identity, owner, definer, search_path or service-only ACL';
   END IF;
   IF strpos(routine.prosrc, 'contact_phone') = 0
     OR strpos(routine.prosrc, 'c.normalized_phone=normalized_phone') <> 0

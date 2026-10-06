@@ -12,18 +12,23 @@
 --    RLS ENABLE + FORCE без политик, права отозваны у всех ролей API и у
 --    evo_ai_agent. Внешний ключ (organization_id, conversation_id) на
 --    communication_conversations (ON DELETE CASCADE);
---  * помощники без грантов: ai_memory_gate, ai_dialog_messages (единственное
---    место чтения сообщений диалога агентом: будущий фильтр отозванных
---    сообщений добавится здесь), ai_message_view (пометки 259/060 → виды
+--  * помощники без грантов: ai_memory_gate, ai_dialog_messages (все чтения
+--    ТЕКСТА сообщений агентом; ID и направление читают напрямую
+--    inbound_since_v1, ai_latest_inbound/ai_latest_outbound 269, проверка
+--    ref_id в ai_agent_ticket_v1 273 и последнее направление в
+--    ai_agent_answer_current_v1 270 — будущий фильтр отозванных сообщений
+--    должен покрыть и их), ai_message_view (пометки 259/060/061 → виды
 --    медиа, в text — только подпись, без имён файлов), ai_lead_card (карточка
---    269), ai_memory_state, ai_memory_enqueue, ai_memory_text_ok;
+--    269 без заглушки «WhatsApp …»), ai_memory_state, ai_memory_enqueue,
+--    ai_memory_text_ok, ai_memory_poke;
 --  * агент (platform_ai_agent, только evo_ai_agent, без билета; организация —
 --    из строки диалога; текст — только диалогов продаж организаций с
 --    включённой памятью и записанным согласием): inbound_since_v1,
 --    memory_due_v1, memory_context_v1, memory_put_v1;
 --  * сотрудники (platform, authenticated): ai_agent_memory_v1,
 --    ai_agent_memory_clear_v1, ai_agent_memory_toggle_v1;
---  * conversation_context_v1 и maintenance_v1 заменяются с прежними
+--  * conversation_context_v1, maintenance_v1 и ai_agent_consent_record_v1
+--    (отзыв согласия выключает память и удаляет её) заменяются с прежними
 --    сигнатурами.
 --
 -- Память поставляется выключенной (memory_enabled = false в 267); включение —
@@ -103,8 +108,11 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     WHERE s.organization_id = p_organization_id AND o.status = 'active'), FALSE)
 $$;
 
--- Сообщения диалога, которые видит агент. Единственное место такого чтения:
--- фильтр отозванных сообщений (будущая таблица входа) добавляется здесь.
+-- Сообщения диалога, текст которых видит агент: все чтения текста идут через
+-- этот помощник. Чтения только ID и направления (inbound_since_v1,
+-- ai_latest_inbound/ai_latest_outbound, ai_agent_ticket_v1,
+-- ai_agent_answer_current_v1) идут мимо него: будущий фильтр отозванных
+-- сообщений добавляется здесь И в них.
 CREATE OR REPLACE FUNCTION platform_private.ai_dialog_messages(p_organization_id UUID, p_conversation_id UUID)
 RETURNS SETOF platform.communication_messages LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT m.* FROM platform.communication_messages m
@@ -113,7 +121,8 @@ $$;
 
 -- Сообщение для модели: {messageId, direction, role, at, text, media[]}.
 -- Пометка 259 «📎 <Вид>[: <имя>] — откройте в WhatsApp продаж» (подпись — со
--- следующей строки) и общая пометка 060 превращаются в вид медиа
+-- следующей строки) и общие пометки 060 (входящее) и 061 (историческое
+-- исходящее) превращаются в вид медиа
 -- photo|video|voice|audio|sticker|file|unknown; в text остаётся только подпись.
 -- Имена файлов, MIME, размеры и пути не выдаются. Строки 062 (если есть)
 -- задают виды: image → photo, pdf → file.
@@ -130,7 +139,9 @@ RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
           WHEN 'Аудио' THEN 'audio' WHEN 'Стикер' THEN 'sticker' ELSE 'file' END)) END,
       '[]'::JSONB))
   FROM (SELECT
-      btrim(p_message.body_text) = '[Системное уведомление] Получено медиа или сообщение без текста. Требуется проверка сотрудником.'
+      btrim(p_message.body_text) IN (
+        '[Системное уведомление] Получено медиа или сообщение без текста. Требуется проверка сотрудником.',
+        '[Системное уведомление] Историческое исходящее медиа или сообщение без текста. Требуется загрузка медиа.')
         AS legacy,
       substring(p_message.body_text FROM
         '^📎 (Фото|Видео|Голосовое сообщение|Аудио|Стикер|Файл)(?:: [^\n]*)? — откройте в WhatsApp продаж(?:\n|$)')
@@ -144,15 +155,18 @@ RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
 $$;
 
 -- Минимальная карточка лида (269): первое слово имени (не похожее на номер
--- или адрес), интерес к стране, этап. Без телефона, email и документов.
+-- или адрес и не заглушка цепочки WAHA «WhatsApp ••••NNNN» / «WhatsApp
+-- контакт #…» — тогда имени нет), интерес к стране, этап. Без телефона,
+-- email и документов.
 CREATE OR REPLACE FUNCTION platform_private.ai_lead_card(p_organization_id UUID, p_conversation_id UUID)
 RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT jsonb_build_object('name', CASE WHEN split_part(btrim(cl.display_name), ' ', 1) ~ '[0-9@+]' THEN NULL
-      ELSE NULLIF(split_part(btrim(cl.display_name), ' ', 1), '') END,
+  SELECT jsonb_build_object('name', CASE WHEN n.first ~ '[0-9@+#•]' OR lower(n.first) = 'whatsapp' THEN NULL
+      ELSE NULLIF(n.first, '') END,
       'interestDirection', l.interest_direction, 'stage', l.stage_key)
   FROM platform.communication_conversations c
   JOIN platform.leads l ON l.organization_id = c.organization_id AND l.id = c.canonical_lead_id
   LEFT JOIN platform.clients cl ON cl.organization_id = l.organization_id AND cl.id = l.client_id
+  CROSS JOIN LATERAL (SELECT split_part(btrim(cl.display_name), ' ', 1) AS first) n
   WHERE c.organization_id = p_organization_id AND c.id = p_conversation_id
 $$;
 
@@ -181,11 +195,11 @@ BEGIN
     SELECT m.created_at, m.id INTO v_b_at, v_b_id
     FROM platform_private.ai_dialog_messages(v_org, p_conversation_id) m WHERE m.id = v_memory.covered_message_id;
   END IF;
-  SELECT count(*)::INTEGER, (count(*) FILTER (WHERE v_b_id IS NOT NULL AND (m.created_at, m.id) <= (v_b_at, v_b_id)))::INTEGER
-  INTO v_total, v_upto
+  -- Одно чтение (один снимок): число, покрытие и последнее входящее.
+  SELECT count(*)::INTEGER, (count(*) FILTER (WHERE v_b_id IS NOT NULL AND (m.created_at, m.id) <= (v_b_at, v_b_id)))::INTEGER,
+    (array_agg(m.id ORDER BY m.created_at DESC, m.id DESC) FILTER (WHERE m.direction = 'inbound'))[1]
+  INTO v_total, v_upto, v_latest
   FROM platform_private.ai_dialog_messages(v_org, p_conversation_id) m;
-  SELECT m.id INTO v_latest FROM platform_private.ai_dialog_messages(v_org, p_conversation_id) m
-  WHERE m.direction = 'inbound' ORDER BY m.created_at DESC, m.id DESC LIMIT 1;
   v_rebuild := COALESCE(v_memory.covered_count, 0) > 0 AND (v_b_id IS NULL OR v_upto <> v_memory.covered_count);
   v_covered := CASE WHEN v_rebuild THEN 0 ELSE COALESCE(v_memory.covered_count, 0) END;
   v_outside := greatest(v_total - 20, 0);
@@ -224,12 +238,51 @@ BEGIN
 END
 $$;
 
--- Текст памяти без e-mail и номеров (9+ цифр подряд, допускаются одиночные
--- пробелы и дефисы между ними; 14-значный ПИН тоже). NULL — допустим.
+-- Текст памяти без e-mail и номеров: 9+ цифр, между соседними — не больше
+-- двух разделителей из явного набора: пробел, таб, неразрывные пробелы U+00A0
+-- и U+202F (так форматирует iOS), скобки, точка, дефис, тире U+2013 и U+2014 —
+-- «+996 (555) 12-34-56», «0555.12.34.56», «+996 555 123 456» с NBSP,
+-- «0555–12–34–56»; 14-значный ПИН тоже. Набор явный, не [[:space:]]: NBSP
+-- входит в [[:space:]] при ICU en-US, но не при libc C.UTF-8 (проверено на
+-- образе тестов 07.10.2026). Диапазон дат без пробелов («01.09.2026-30.06.2027»,
+-- как и с тире, — 16 цифр) считается номером и отклоняется, сервис его
+-- скрывает; с пробелами вокруг дефиса или тире («01.09.2026 – 30.06.2027») —
+-- допустим. Тот же шаблон — у PHONE_RE приватного сервиса. NULL — допустим.
 CREATE OR REPLACE FUNCTION platform_private.ai_memory_text_ok(p_text TEXT)
 RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT p_text IS NULL OR (p_text !~ '[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+'
-    AND p_text !~ '\+?\d([ -]?\d){8,}')
+    AND p_text !~ '\+?\d([ \t\u00A0\u202F().\u2013\u2014-]{0,2}\d){8,}')
+$$;
+
+-- Поставить указатель памяти диалога, если он нужен (p_summary_only — только
+-- когда нужна сводка) и не стоит в очереди 10 минут и не в работе; задержка —
+-- не меньше p_min_delay_seconds. Блокировки: advisory диалога, затем строка
+-- памяти (вызывающие, которые берут несколько, — по возрастанию ID). Ворота
+-- памяти проверяет вызывающий. {conversationId, status
+-- skipped|not_due|pending|enqueued[, delaySeconds]}.
+CREATE OR REPLACE FUNCTION platform_private.ai_memory_poke(p_conversation_id UUID, p_summary_only BOOLEAN,
+  p_min_delay_seconds INTEGER)
+RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_queue TEXT; v_memory platform_private.ai_client_memory; v_state JSONB; v_delay INTEGER;
+BEGIN
+  SELECT c.queue::TEXT INTO v_queue FROM platform.communication_conversations c WHERE c.id = p_conversation_id;
+  IF NOT FOUND OR v_queue <> 'sales' THEN
+    RETURN jsonb_build_object('conversationId', p_conversation_id, 'status', 'skipped');
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('ai_memory:' || p_conversation_id::TEXT, 274));
+  SELECT * INTO v_memory FROM platform_private.ai_client_memory m WHERE m.conversation_id = p_conversation_id FOR UPDATE;
+  v_state := platform_private.ai_memory_state(p_conversation_id);
+  IF NOT (v_state ->> CASE WHEN p_summary_only THEN 'summaryDue' ELSE 'due' END)::BOOLEAN THEN
+    RETURN jsonb_build_object('conversationId', p_conversation_id, 'status', 'not_due');
+  END IF;
+  IF v_memory.enqueued_at > clock_timestamp() - INTERVAL '10 minutes'
+    OR v_memory.lease_expires_at > clock_timestamp() THEN
+    RETURN jsonb_build_object('conversationId', p_conversation_id, 'status', 'pending');
+  END IF;
+  v_delay := least(3600, greatest((v_state ->> 'delaySeconds')::INTEGER, COALESCE(p_min_delay_seconds, 0)));
+  PERFORM platform_private.ai_memory_enqueue(p_conversation_id, v_delay);
+  RETURN jsonb_build_object('conversationId', p_conversation_id, 'status', 'enqueued', 'delaySeconds', v_delay);
+END
 $$;
 
 DO $ai274_private_acl$
@@ -237,7 +290,7 @@ DECLARE f REGPROCEDURE;
 BEGIN
   FOR f IN SELECT p.oid::REGPROCEDURE FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'platform_private' AND p.proname IN ('ai_memory_gate', 'ai_dialog_messages', 'ai_message_view',
-      'ai_lead_card', 'ai_memory_state', 'ai_memory_enqueue', 'ai_memory_text_ok') LOOP
+      'ai_lead_card', 'ai_memory_state', 'ai_memory_enqueue', 'ai_memory_text_ok', 'ai_memory_poke') LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', f);
   END LOOP;
 END
@@ -281,12 +334,15 @@ BEGIN
 END
 $$;
 
--- «Забыть сводку» (Q9: ai.agent.use): строка памяти диалога удаляется,
--- следующий указатель соберёт новую. Аудит — только флаги и счётчики.
+-- «Забыть сводку» (Q9: ai.agent.use): строка памяти диалога удаляется; пока
+-- память включена и согласие записано, сразу ставится указатель — память
+-- соберётся заново, не дожидаясь нового сообщения клиента (enqueued).
+-- Аудит — только флаги и счётчики.
 CREATE OR REPLACE FUNCTION platform.ai_agent_memory_clear_v1(p_organization_id UUID, p_conversation_id UUID,
   p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_actor RECORD; v_fp TEXT; v_replay JSONB; v_old platform_private.ai_client_memory; v_deleted BOOLEAN;
+  v_enqueued BOOLEAN := FALSE;
 BEGIN
   SELECT * INTO v_actor FROM platform_private.ai_staff_actor(p_organization_id, 'ai.agent.use');
   IF NOT platform_private.ai_conversation_allowed(p_organization_id, v_actor.membership_id, p_conversation_id) THEN
@@ -296,13 +352,19 @@ BEGIN
   v_replay := platform_private.ai_request_replay(p_organization_id, p_request_id, v_actor.membership_id,
     'memory.clear', v_fp);
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
+  -- Порядок блокировок как у memory_due_v1: advisory диалога, затем строка.
+  PERFORM pg_advisory_xact_lock(hashtextextended('ai_memory:' || p_conversation_id::TEXT, 274));
   DELETE FROM platform_private.ai_client_memory m
   WHERE m.organization_id = p_organization_id AND m.conversation_id = p_conversation_id
   RETURNING * INTO v_old;
   v_deleted := FOUND;
+  IF platform_private.ai_memory_gate(p_organization_id) THEN
+    v_enqueued := platform_private.ai_memory_poke(p_conversation_id, FALSE, 0) ->> 'status' = 'enqueued';
+  END IF;
   RETURN platform_private.ai_request_finish(p_organization_id, p_request_id, v_actor.membership_id,
     v_actor.profile_id, v_actor.auth_user_id, 'memory.clear', v_fp,
-    jsonb_build_object('status', 'cleared', 'conversationId', p_conversation_id, 'deleted', v_deleted),
+    jsonb_build_object('status', 'cleared', 'conversationId', p_conversation_id, 'deleted', v_deleted,
+      'enqueued', v_enqueued),
     'ai.agent.memory.clear', 'communication_conversation', p_conversation_id,
     jsonb_build_object('hadInterest', v_old.interest IS NOT NULL, 'hadSummary', v_old.summary IS NOT NULL,
       'coveredCount', COALESCE(v_old.covered_count, 0), 'version', v_old.version),
@@ -312,12 +374,16 @@ $$;
 
 -- «Включить память» / «Выключить память» (Q9: ai.agent.manage). Включение
 -- без записанного согласия — PT412 (Q12: согласие записывает admin).
+-- Включение сразу ставит указатели сводки длинным диалогам продаж (больше 20
+-- сообщений; до 500, по возрастанию ID, с шагом задержки 2 с) — не дожидаясь
+-- нового сообщения клиента; число — в квитанции (enqueued). Интерес
+-- остальных диалогов считается по их следующему входящему.
 -- Выключение удаляет память всех диалогов организации (число — в квитанции).
 CREATE OR REPLACE FUNCTION platform.ai_agent_memory_toggle_v1(p_organization_id UUID, p_enabled BOOLEAN,
   p_expected_version BIGINT, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_actor RECORD; v_fp TEXT; v_replay JSONB; v_operation TEXT; v_old platform_private.ai_settings;
-  v_new platform_private.ai_settings; v_deleted INTEGER := 0;
+  v_new platform_private.ai_settings; v_deleted INTEGER := 0; v_enqueued INTEGER := 0; v_id UUID;
 BEGIN
   SELECT * INTO v_actor FROM platform_private.ai_staff_actor(p_organization_id, 'ai.agent.manage');
   IF p_enabled IS NULL THEN
@@ -343,15 +409,70 @@ BEGIN
   IF NOT p_enabled THEN
     DELETE FROM platform_private.ai_client_memory m WHERE m.organization_id = p_organization_id;
     GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  ELSIF platform_private.ai_memory_gate(p_organization_id) THEN
+    FOR v_id IN SELECT c.id FROM platform.communication_conversations c
+      WHERE c.organization_id = p_organization_id AND c.queue = 'sales'
+        AND (SELECT count(*) FROM platform_private.ai_dialog_messages(c.organization_id, c.id)) > 20
+      ORDER BY c.id LIMIT 500 LOOP
+      IF platform_private.ai_memory_poke(v_id, TRUE, v_enqueued * 2) ->> 'status' = 'enqueued' THEN
+        v_enqueued := v_enqueued + 1;
+      END IF;
+    END LOOP;
   END IF;
   RETURN platform_private.ai_request_finish(p_organization_id, p_request_id, v_actor.membership_id,
     v_actor.profile_id, v_actor.auth_user_id, v_operation, v_fp,
     jsonb_build_object('status', 'applied', 'memoryEnabled', v_new.memory_enabled, 'version', v_new.version,
-      'deleted', v_deleted),
+      'deleted', v_deleted, 'enqueued', v_enqueued),
     'ai.agent.' || v_operation, 'organization', p_organization_id,
     jsonb_build_object('memoryEnabled', v_old.memory_enabled, 'version', v_old.version),
     CASE WHEN p_enabled THEN 'ИИ-агент: память о клиенте включена'
       ELSE 'ИИ-агент: память о клиенте выключена, сводки удалены' END);
+END
+$$;
+
+-- Согласие на Gemini (269, та же сигнатура; записывает и отзывает только
+-- admin, §13). Отзыв теперь ещё и выключает память и сразу удаляет её во всех
+-- диалогах организации, как «Выключить память»: повторное согласие память не
+-- возобновляет — её снова включает сотрудник с ai.agent.manage.
+CREATE OR REPLACE FUNCTION platform.ai_agent_consent_record_v1(p_organization_id UUID, p_action TEXT,
+  p_text_version TEXT, p_request_id UUID)
+RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_actor RECORD; v_fp TEXT; v_replay JSONB; v_old platform_private.ai_settings; v_deleted INTEGER := 0;
+BEGIN
+  SELECT * INTO v_actor FROM platform_private.ai_admin_actor(p_organization_id);
+  IF p_action IS NULL OR p_action NOT IN ('grant', 'revoke')
+    OR (p_action = 'grant' AND (p_text_version IS NULL OR p_text_version !~ '^[A-Za-z0-9._-]{1,40}$'))
+    OR (p_action = 'revoke' AND p_text_version IS NOT NULL) THEN
+    RAISE EXCEPTION 'ai_consent_invalid' USING ERRCODE = '22023';
+  END IF;
+  v_fp := platform_private.ai_fingerprint(jsonb_build_object('action', p_action, 'textVersion', p_text_version));
+  v_replay := platform_private.ai_request_replay(p_organization_id, p_request_id, v_actor.membership_id,
+    'consent.' || p_action, v_fp);
+  IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
+  PERFORM platform_private.ai_settings_row(p_organization_id);
+  SELECT * INTO v_old FROM platform_private.ai_settings s WHERE s.organization_id = p_organization_id FOR UPDATE;
+  UPDATE platform_private.ai_settings s SET
+    gemini_consent_at = CASE WHEN p_action = 'grant' THEN statement_timestamp() END,
+    gemini_consent_by = CASE WHEN p_action = 'grant' THEN v_actor.membership_id END,
+    gemini_consent_text_version = CASE WHEN p_action = 'grant' THEN p_text_version END,
+    memory_enabled = CASE WHEN p_action = 'revoke' THEN FALSE ELSE s.memory_enabled END,
+    version = s.version + 1, updated_at = statement_timestamp(), updated_by = v_actor.membership_id
+  WHERE s.organization_id = p_organization_id;
+  IF p_action = 'revoke' THEN
+    DELETE FROM platform_private.ai_client_memory m WHERE m.organization_id = p_organization_id;
+    GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  END IF;
+  RETURN platform_private.ai_request_finish(p_organization_id, p_request_id, v_actor.membership_id,
+    v_actor.profile_id, v_actor.auth_user_id, 'consent.' || p_action, v_fp,
+    jsonb_build_object('status', CASE WHEN p_action = 'grant' THEN 'granted' ELSE 'revoked' END,
+      'textVersion', p_text_version)
+      || CASE WHEN p_action = 'revoke' THEN jsonb_build_object('memoryEnabled', FALSE, 'memoryDeleted', v_deleted)
+        ELSE '{}'::JSONB END,
+    'ai.agent.consent.' || p_action, 'organization', p_organization_id,
+    jsonb_build_object('recorded', v_old.gemini_consent_at IS NOT NULL,
+      'textVersion', v_old.gemini_consent_text_version, 'memoryEnabled', v_old.memory_enabled),
+    CASE WHEN p_action = 'grant' THEN 'ИИ-агент: записано согласие на передачу текстов в Gemini'
+      ELSE 'ИИ-агент: согласие на передачу текстов в Gemini отозвано' END);
 END
 $$;
 
@@ -362,13 +483,23 @@ $$;
 -- Указатели входящих сообщений диалогов продаж организаций с включённой
 -- памятью после курсора (created_at, id); NULL — последние 5 минут. Текста
 -- нет. Нет ни одной такой организации — 42501 ai_background_disabled (P4
--- расширит условие автоответчиком). Курсор — время сообщения, а не порядок
--- записи: сообщение, записанное позже с более ранним временем, курсор
--- пропустит; поллер может перекрывать курсор, memory_due_v1 идемпотентна.
+-- расширит условие автоответчиком).
+-- created_at — время события WhatsApp, а не порядок записи: проекция может
+-- записать сообщение позже с более ранним временем (повтор, очередь работ,
+-- равная секунда с меньшим UUID). Поэтому перекрытие — часть контракта:
+-- next не уходит дальше «сейчас − 5 минут» (afterId = максимальный UUID),
+-- кроме полной страницы (hasMore — листать дальше сразу). Сообщения этих
+-- 5 минут приходят повторно — memory_due_v1 идемпотентна; сообщение,
+-- записанное позже чем через 5 минут после своего времени, опрос не увидит
+-- (его диалог обновится по следующему входящему). now — часы базы в начале
+-- чтения (от них считается горизонт): своё перекрытие поллер считает от них,
+-- а не от часов агента.
 CREATE OR REPLACE FUNCTION platform_ai_agent.inbound_since_v1(p_after_at TIMESTAMPTZ, p_after_id UUID,
   p_limit INTEGER DEFAULT 200)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_after_at TIMESTAMPTZ; v_after_id UUID; v_orgs UUID[]; v_items JSONB; v_count INTEGER;
+  v_now TIMESTAMPTZ; v_horizon TIMESTAMPTZ; v_next_at TIMESTAMPTZ; v_next_id UUID;
+  v_max_id CONSTANT UUID := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 BEGIN
   IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 500 OR ((p_after_at IS NULL) <> (p_after_id IS NULL)) THEN
     RAISE EXCEPTION 'ai_inbound_invalid' USING ERRCODE = '22023';
@@ -378,7 +509,9 @@ BEGIN
   IF v_orgs IS NULL THEN
     RAISE EXCEPTION 'ai_background_disabled' USING ERRCODE = '42501';
   END IF;
-  v_after_at := COALESCE(p_after_at, clock_timestamp() - INTERVAL '5 minutes');
+  v_now := clock_timestamp();
+  v_horizon := v_now - INTERVAL '5 minutes';
+  v_after_at := COALESCE(p_after_at, v_horizon);
   v_after_id := COALESCE(p_after_id, '00000000-0000-0000-0000-000000000000'::UUID);
   SELECT COALESCE(jsonb_agg(jsonb_build_object('organizationId', x.organization_id,
       'conversationId', x.conversation_id, 'messageId', x.id, 'at', x.created_at) ORDER BY x.created_at, x.id),
@@ -393,10 +526,20 @@ BEGIN
       ORDER BY m.created_at, m.id LIMIT p_limit) hit
     WHERE c.organization_id = ANY (v_orgs) AND c.queue = 'sales'
     ORDER BY hit.created_at, hit.id LIMIT p_limit) x;
+  IF v_count > 0 THEN
+    v_next_at := (v_items -> -1 ->> 'at')::TIMESTAMPTZ;
+    v_next_id := (v_items -> -1 ->> 'messageId')::UUID;
+  ELSE
+    v_next_at := v_after_at;
+    v_next_id := v_after_id;
+  END IF;
+  -- Неполная страница: курсор не дальше горизонта (может и отступить к нему).
+  IF v_count < p_limit AND (v_next_at, v_next_id) > (v_horizon, v_max_id) THEN
+    v_next_at := v_horizon;
+    v_next_id := v_max_id;
+  END IF;
   RETURN jsonb_build_object('items', v_items, 'hasMore', v_count = p_limit,
-    'next', CASE WHEN v_count > 0 THEN jsonb_build_object('afterAt', v_items -> -1 -> 'at',
-        'afterId', v_items -> -1 -> 'messageId')
-      ELSE jsonb_build_object('afterAt', v_after_at, 'afterId', v_after_id) END);
+    'next', jsonb_build_object('afterAt', v_next_at, 'afterId', v_next_id), 'now', v_now);
 END
 $$;
 
@@ -407,8 +550,7 @@ $$;
 -- задержки.
 CREATE OR REPLACE FUNCTION platform_ai_agent.memory_due_v1(p_conversation_ids UUID[])
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_id UUID; v_queue TEXT; v_state JSONB; v_memory platform_private.ai_client_memory;
-  v_items JSONB := '[]'::JSONB; v_delay INTEGER;
+DECLARE v_id UUID; v_items JSONB := '[]'::JSONB;
 BEGIN
   IF p_conversation_ids IS NULL OR cardinality(p_conversation_ids) NOT BETWEEN 1 AND 100
     OR array_position(p_conversation_ids, NULL) IS NOT NULL
@@ -421,25 +563,7 @@ BEGIN
   END IF;
   -- По возрастанию ID: два поллера берут блокировки в одном порядке.
   FOR v_id IN SELECT x FROM unnest(p_conversation_ids) x ORDER BY x LOOP
-    SELECT c.queue::TEXT INTO v_queue FROM platform.communication_conversations c WHERE c.id = v_id;
-    IF NOT FOUND OR v_queue <> 'sales' THEN
-      v_items := v_items || jsonb_build_array(jsonb_build_object('conversationId', v_id, 'status', 'skipped'));
-      CONTINUE;
-    END IF;
-    PERFORM pg_advisory_xact_lock(hashtextextended('ai_memory:' || v_id::TEXT, 274));
-    SELECT * INTO v_memory FROM platform_private.ai_client_memory m WHERE m.conversation_id = v_id FOR UPDATE;
-    v_state := platform_private.ai_memory_state(v_id);
-    IF NOT (v_state ->> 'due')::BOOLEAN THEN
-      v_items := v_items || jsonb_build_array(jsonb_build_object('conversationId', v_id, 'status', 'not_due'));
-    ELSIF v_memory.enqueued_at > clock_timestamp() - INTERVAL '10 minutes'
-      OR v_memory.lease_expires_at > clock_timestamp() THEN
-      v_items := v_items || jsonb_build_array(jsonb_build_object('conversationId', v_id, 'status', 'pending'));
-    ELSE
-      v_delay := (v_state ->> 'delaySeconds')::INTEGER;
-      PERFORM platform_private.ai_memory_enqueue(v_id, v_delay);
-      v_items := v_items || jsonb_build_array(jsonb_build_object('conversationId', v_id, 'status', 'enqueued',
-        'delaySeconds', v_delay));
-    END IF;
+    v_items := v_items || jsonb_build_array(platform_private.ai_memory_poke(v_id, FALSE, 0));
   END LOOP;
   RETURN jsonb_build_object('items', v_items);
 END
@@ -455,7 +579,7 @@ CREATE OR REPLACE FUNCTION platform_ai_agent.memory_context_v1(p_conversation_id
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_org UUID; v_queue TEXT; v_memory platform_private.ai_client_memory; v_state JSONB; v_mode TEXT;
   v_settings platform_private.ai_settings; v_rebuild BOOLEAN; v_covered INTEGER; v_window JSONB; v_leaving JSONB;
-  v_leaving_count INTEGER; v_next JSONB;
+  v_leaving_count INTEGER; v_next JSONB; v_total INTEGER; v_b_at TIMESTAMPTZ; v_b_id UUID;
 BEGIN
   IF p_worker_ref IS NULL OR char_length(btrim(p_worker_ref)) NOT BETWEEN 1 AND 200
     OR p_lease_seconds IS NULL OR p_lease_seconds NOT BETWEEN 30 AND 900 THEN
@@ -491,23 +615,36 @@ BEGIN
   UPDATE platform_private.ai_client_memory m SET lease_owner = btrim(p_worker_ref),
     lease_expires_at = clock_timestamp() + make_interval(secs => p_lease_seconds)
   WHERE m.conversation_id = p_conversation_id RETURNING * INTO v_memory;
-  v_rebuild := (v_state ->> 'rebuild')::BOOLEAN;
-  v_covered := (v_state ->> 'coveredCount')::INTEGER;
   v_settings := platform_private.ai_settings_row(v_org);
-  -- Одно чтение сообщений: позиция с начала и с конца.
+  -- Граница сводки (сообщения неизменны — читается отдельно).
+  IF v_memory.covered_message_id IS NOT NULL THEN
+    SELECT m.created_at, m.id INTO v_b_at, v_b_id
+    FROM platform_private.ai_dialog_messages(v_org, p_conversation_id) m WHERE m.id = v_memory.covered_message_id;
+  END IF;
+  -- Одно чтение сообщений (один снимок): согласованность покрытия, позиции с
+  -- начала и с конца, окно и уходящие. Импорт истории, записанный после
+  -- ai_memory_state, не сдвигает leaving/next относительно rebuild и prior.
   WITH msgs AS (
     SELECT d AS msg, row_number() OVER (ORDER BY d.created_at, d.id) AS rn_asc,
       row_number() OVER (ORDER BY d.created_at DESC, d.id DESC) AS rn_desc
     FROM platform_private.ai_dialog_messages(v_org, p_conversation_id) d
+  ), eff AS (
+    SELECT count(*)::INTEGER AS total, CASE WHEN v_memory.covered_count > 0 AND (v_b_id IS NULL
+        OR count(*) FILTER (WHERE ((x.msg).created_at, (x.msg).id) <= (v_b_at, v_b_id)) <> v_memory.covered_count)
+      THEN 0 ELSE v_memory.covered_count END AS covered
+    FROM msgs x
   )
-  SELECT COALESCE(jsonb_agg(platform_private.ai_message_view(x.msg) ORDER BY x.rn_asc)
+  SELECT max(e.total), max(e.covered),
+    COALESCE(jsonb_agg(platform_private.ai_message_view(x.msg) ORDER BY x.rn_asc)
       FILTER (WHERE x.rn_desc <= 20), '[]'::JSONB),
     COALESCE(jsonb_agg(platform_private.ai_message_view(x.msg) ORDER BY x.rn_asc)
-      FILTER (WHERE v_mode = 'summary' AND x.rn_desc > 20 AND x.rn_asc > v_covered AND x.rn_asc <= v_covered + 80),
+      FILTER (WHERE v_mode = 'summary' AND x.rn_desc > 20 AND x.rn_asc > e.covered AND x.rn_asc <= e.covered + 80),
       '[]'::JSONB),
-    count(*) FILTER (WHERE v_mode = 'summary' AND x.rn_desc > 20 AND x.rn_asc > v_covered AND x.rn_asc <= v_covered + 80)
-  INTO v_window, v_leaving, v_leaving_count
-  FROM msgs x;
+    count(*) FILTER (WHERE v_mode = 'summary' AND x.rn_desc > 20 AND x.rn_asc > e.covered
+      AND x.rn_asc <= e.covered + 80)
+  INTO v_total, v_covered, v_window, v_leaving, v_leaving_count
+  FROM eff e LEFT JOIN msgs x ON TRUE;
+  v_rebuild := v_covered <> v_memory.covered_count;
   v_next := CASE WHEN v_leaving_count > 0 THEN jsonb_build_object('coveredMessageId', v_leaving -> -1 -> 'messageId',
     'coveredCount', v_covered + v_leaving_count) END;
   RETURN jsonb_build_object('status', 'claimed', 'mode', v_mode, 'rebuild', v_rebuild,
@@ -517,7 +654,7 @@ BEGIN
       'summary', CASE WHEN v_rebuild THEN NULL ELSE v_memory.summary END,
       'coveredCount', v_covered, 'version', v_memory.version),
     'summaryDue', (v_state ->> 'summaryDue')::BOOLEAN, 'interestDue', (v_state ->> 'interestDue')::BOOLEAN,
-    'messageCount', (v_state ->> 'total')::INTEGER,
+    'messageCount', v_total,
     'leaving', v_leaving, 'window', v_window, 'next', v_next,
     'interestMessageId', v_state -> 'latestInboundId', 'leaseExpiresAt', v_memory.lease_expires_at);
 END
@@ -773,7 +910,11 @@ COMMENT ON FUNCTION platform_ai_agent.memory_put_v1(UUID, TEXT, BIGINT, TEXT, TE
 COMMENT ON FUNCTION platform_ai_agent.conversation_context_v1(UUID) IS
   'AI agent: answer context by a redeemed ticket — latest 20 messages (caption and media kind, no file names), lead card, client memory while enabled with consent (274).';
 COMMENT ON FUNCTION platform.ai_agent_memory_toggle_v1(UUID, BOOLEAN, BIGINT, UUID) IS
-  'AI agent P3: enable (consent required, PT412) or disable client memory; disabling deletes every memory row of the organization.';
+  'AI agent P3: enable (consent required, PT412; enqueues summaries of sales conversations longer than 20 messages) or disable client memory; disabling deletes every memory row of the organization.';
+COMMENT ON FUNCTION platform.ai_agent_consent_record_v1(UUID, TEXT, TEXT, UUID) IS
+  'AI agent: Admin records or revokes the Gemini consent; a revoke also turns client memory off and deletes it (274).';
+COMMENT ON FUNCTION platform_ai_agent.inbound_since_v1(TIMESTAMPTZ, UUID, INTEGER) IS
+  'AI agent P3: inbound message pointers (no text) of sales conversations with memory on; next never passes now - 5 min except on a full page, so late projections are returned again (memory_due_v1 is idempotent); now is the database clock the horizon is measured from.';
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;

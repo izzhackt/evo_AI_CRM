@@ -46882,3 +46882,7 @@ Medium, три Low, четыре Nit); ветка переставлена на 
 проверками. Только чтение production: md5 четырёх закреплённых функций
 совпадают, журнал миграций — 265, активных ручных отправок 0. В production
 ничего не записывалось, сообщений не отправлялось.
+
+## 2026-10-06 — hotfix #1162: подключение браузерных API к контракту маршрутов
+
+Прокси отвечал 403 `platform_route_not_connected` на `/api/v3/inbox/pulse`, `/api/v3/inbox/conversations/<uuid>/messages` (#1157), `/api/v3/communication-media/<uuid>` и `/api/v2/case-contract-files/<uuid>` (+`/<uuid>/download`). Все пять теперь в `isConnectedPlatformApi` по строгим шаблонам UUID v1–5, как у чеков оплаты; обработчики сами проверяют сотрудника, роль и доступ к записи; `/api/transcription/*` намеренно не подключён (функция выключена).

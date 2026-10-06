@@ -484,7 +484,8 @@ test("section reads: documents, rules, spend and settings are validated, money k
     progress: 60, errorCode: null, source: "seed_kb", sourceRef: { nodeId: ID(40), nodeVersion: 3 }, editedInLab: false, rowVersion: 2,
     pageCount: null, chunkCount: 0, openReviewCount: 0, updatedAt: "2026-10-06T08:00:00Z" }], hasMore: false, canManage: true, isAdmin: false });
   assert.equal(docs.items[0].sourceNodeVersion, 3);
-  assert.deepEqual(documentStatus(docs.items[0]), { label: "Обрабатывается · векторы · 60%", tone: "muted" });
+  // P2 (§7): «Обработка · {этап} {n}%».
+  assert.deepEqual(documentStatus(docs.items[0]), { label: "Обработка · векторы 60%", tone: "muted" });
   assert.throws(() => normalizeAiDocuments({ items: [{ id: "x" }], hasMore: false, canManage: true, isAdmin: false }), /shape/u);
   const rules = normalizeAiRules({ current: { id: ID(50), version: 2, body: "Тон: вежливо.", source: "seed", createdAt: "2026-10-06T08:00:00Z",
     createdByName: null, confirmedAt: null, confirmedByName: null, needsReview: true }, versions: [], canManage: false });
@@ -504,7 +505,9 @@ test("section reads: documents, rules, spend and settings are validated, money k
   assert.equal(settings.consent.recorded, false);
   assert.equal(parseAiAgentSection(undefined), "documents");
   assert.equal(parseAiAgentSection("spend"), "spend");
-  assert.equal(parseAiAgentSection("laboratory"), null, "P2–P4 sub-pages do not exist yet");
+  assert.equal(parseAiAgentSection("lab"), "lab", "P2: «Лаборатория»");
+  assert.equal(parseAiAgentSection("laboratory"), null);
+  assert.equal(parseAiAgentSection("autosend"), null, "P4 sub-pages do not exist yet");
   assert.equal(aiAgentHref("rules"), "/v3/ai-agent?section=rules");
 });
 
@@ -556,11 +559,13 @@ test("the window never reaches the agent, inserts only stored text and never sen
   assert.match(routes, /request\.signal\.addEventListener\("abort", abort/u);
 });
 
-test("the section shows only P1 sub-pages and no fake controls", () => {
-  assert.deepEqual(AI_AGENT_SECTIONS.map((section) => section.title), ["Информация для агента", "Правила общения", "Расходы"]);
+test("the section shows P1 and P2 sub-pages and no P3/P4 controls", () => {
+  // P2 adds «Лист сверки» and «Лаборатория» (tests/ai-agent-p2-ui.test.mjs).
+  assert.deepEqual(AI_AGENT_SECTIONS.map((section) => section.title),
+    ["Информация для агента", "Лист сверки", "Лаборатория", "Правила общения", "Расходы"]);
   // Code only: the header comment names the later sub-pages on purpose.
   const views = read("src/components/v3/ai-agent/AiAgentViews.tsx").replace(/\/\*[\s\S]*?\*\//gu, "");
-  for (const later of ["Лист сверки", "Автоответчик", "Диктовка", "Загрузить", "Взять из базы знаний", "Новая версия файла"]) {
+  for (const later of ["Автоответчик", "Диктовка", "Взять из базы знаний", "Обновить из базы знаний"]) {
     assert.equal(views.includes(later), false, later);
   }
   const page = read("src/app/(v3)/v3/ai-agent/page.tsx");

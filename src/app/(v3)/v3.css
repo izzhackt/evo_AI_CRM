@@ -1246,3 +1246,351 @@
     opacity: 0.35;
   }
 }
+
+/*
+ * «ИИ-агент» P2 (план ИИ-агента §7, §8, §12.2): загрузка, просмотр документа,
+ * «Лист сверки», «Лаборатория». Тот же лист на столе: волосяные рамки, без
+ * подкрашенных панелей; выбранное — нейтральное (`--accent-weak` облика),
+ * жёлтое — только «Число не проверено», красное — только проблема.
+ */
+.v3-world .v3-ai-drop {
+  display: flex;
+  min-height: 72px;
+  cursor: pointer;
+  align-items: center;
+  gap: 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg);
+  padding: 14px 16px;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+.v3-world .v3-ai-drop:hover,
+.v3-world .v3-ai-drop[data-dragging] {
+  border-color: var(--text-3);
+  background: var(--surface-2);
+}
+.v3-world .v3-ai-drop[data-dragging] {
+  border-style: solid;
+  border-color: var(--text);
+}
+.v3-world .v3-ai-drop[data-has-file] {
+  border-style: solid;
+  border-color: var(--border);
+  background: var(--surface);
+}
+.v3-world .v3-ai-drop:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.v3-world .v3-ai-drop[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.v3-world .v3-ai-choice {
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+.v3-world .v3-ai-choice:hover {
+  background: var(--surface-2);
+}
+.v3-world .v3-ai-choice:has(input:checked) {
+  border-color: var(--accent-text);
+  background: var(--accent-weak);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.v3-world .v3-ai-choice:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Просмотр документа: страницы · страница · фрагменты. */
+.v3-world .v3-ai-viewer {
+  display: grid;
+  gap: 16px;
+}
+.v3-world .v3-ai-rail {
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+@media (min-width: 64rem) {
+  .v3-world .v3-ai-viewer {
+    grid-template-columns: 7.5rem minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+  .v3-world .v3-ai-viewer[data-sheets] {
+    grid-template-columns: 11rem minmax(0, 1fr) 20rem;
+  }
+  .v3-world .v3-ai-rail {
+    position: sticky;
+    top: var(--shell-page-top, 1.5rem);
+    max-height: calc(100dvh - 3rem);
+    overflow-x: visible;
+    overflow-y: auto;
+  }
+}
+.v3-world .v3-ai-rail-flag {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--warn-weak);
+  padding: 0 6px;
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.v3-world .v3-ai-page {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+}
+.v3-world .v3-ai-page > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.v3-world .v3-ai-box {
+  position: absolute;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  pointer-events: none;
+  transition: background-color 200ms ease-out, border-color 200ms ease-out;
+}
+.v3-world .v3-ai-box[data-active] {
+  border: 2px solid var(--text);
+  background: rgb(32 32 32 / 0.08);
+}
+.v3-world .v3-ai-box[data-review] {
+  border: 2px solid var(--warn);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.85);
+}
+.v3-world .v3-ai-box-tag {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: -2px;
+  border-radius: 4px;
+  background: var(--warn);
+  padding: 0 6px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.v3-world .v3-ai-page-text {
+  max-height: min(70vh, 48rem);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 20px 24px;
+  color: var(--text);
+  font-size: var(--type-body-compact);
+  line-height: var(--type-body-compact-leading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.v3-world .v3-ai-chunk {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 8px 12px 10px;
+  text-align: start;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+.v3-world .v3-ai-chunk:hover {
+  background: var(--surface-2);
+}
+.v3-world .v3-ai-chunk[aria-pressed="true"] {
+  border-color: var(--accent-text);
+  background: var(--accent-weak);
+}
+.v3-world .v3-ai-chunk-text {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow-wrap: anywhere;
+}
+.v3-world .v3-ai-chunk[aria-pressed="true"] .v3-ai-chunk-text {
+  display: block;
+}
+
+/* «Лист сверки»: вырезка · прочтения · решение. */
+.v3-world .v3-ai-review-row {
+  display: grid;
+  gap: 12px 20px;
+  padding: 16px;
+}
+@media (min-width: 48rem) {
+  .v3-world .v3-ai-review-row {
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  }
+  .v3-world .v3-ai-review-row > :last-child {
+    grid-column: 2;
+  }
+}
+@media (min-width: 80rem) {
+  .v3-world .v3-ai-review-row {
+    grid-template-columns: minmax(0, 16rem) minmax(0, 1fr) minmax(0, 17rem);
+  }
+  .v3-world .v3-ai-review-row > :last-child {
+    grid-column: auto;
+  }
+}
+.v3-world .v3-ai-crop {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 6px;
+}
+.v3-world .v3-ai-crop > img {
+  display: block;
+  max-width: 100%;
+  max-height: 72px;
+  object-fit: contain;
+}
+.v3-world .v3-ai-review-row {
+  align-items: start;
+}
+.v3-world .v3-ai-readings {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-content: start;
+  align-items: baseline;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+/* «Лаборатория»: шаги проверки и предложение «Было/Стало». */
+.v3-world .v3-ai-lab-steps {
+  display: grid;
+}
+.v3-world .v3-ai-lab-step {
+  position: relative;
+  min-width: 0;
+  padding: 0 0 24px 28px;
+}
+.v3-world .v3-ai-lab-step::before {
+  position: absolute;
+  top: 5px;
+  left: 4px;
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--text-3);
+  border-radius: 999px;
+  background: var(--surface);
+  content: "";
+}
+.v3-world .v3-ai-lab-step[data-done]::before {
+  border-color: var(--text);
+  background: var(--text);
+}
+.v3-world .v3-ai-lab-step:not(:last-child)::after {
+  position: absolute;
+  top: 20px;
+  bottom: 4px;
+  left: 9px;
+  width: 1px;
+  background: var(--border);
+  content: "";
+}
+.v3-world .v3-ai-lab-quote {
+  margin-top: 8px;
+  max-width: 72ch;
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 8px 12px;
+}
+.v3-world .v3-ai-proposal {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 16px;
+}
+@media (min-width: 48rem) {
+  .v3-world .v3-ai-proposal {
+    padding: 18px 20px 20px;
+  }
+}
+.v3-world .v3-ai-diff {
+  max-height: 18rem;
+  margin-top: 4px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: var(--type-body-compact);
+  line-height: var(--type-body-compact-leading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.v3-world .v3-ai-diff[data-side="before"] {
+  background: var(--bg);
+  color: var(--text-2);
+}
+.v3-world .v3-ai-diff[data-side="after"] {
+  border-color: var(--text-3);
+}
+.v3-world .v3-ai-example-answer {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v3-world :is(.v3-ai-drop, .v3-ai-choice, .v3-ai-box, .v3-ai-chunk) {
+    transition: none;
+  }
+}
+/* «⋯» строки документа и его раскрытие под строкой. */
+.v3-world .v3-ai-more {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text-2);
+  transition: background-color 150ms ease-out;
+}
+.v3-world .v3-ai-more:hover,
+.v3-world .v3-ai-more[aria-expanded="true"] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.v3-world .v3-ai-more-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}

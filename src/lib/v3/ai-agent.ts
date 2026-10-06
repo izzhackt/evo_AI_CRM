@@ -86,7 +86,8 @@ export class AiAgentShapeError extends Error {
 }
 const invalid = (): never => { throw new AiAgentShapeError(); };
 
-function normalizeSource(value: unknown): AiSource | null {
+/** Строка источника из базы (270): окно чата и Лаборатория (P2) читают одну форму. */
+export function normalizeSource(value: unknown): AiSource | null {
   if (!isObject(value)) return null;
   const audience = value.audience === "client" || value.audience === "internal" ? value.audience : null;
   const missing = value.missing === true;
@@ -110,7 +111,8 @@ function normalizeSource(value: unknown): AiSource | null {
   });
 }
 
-function normalizeResult(value: unknown): AiAnswerResult | null {
+/** Результат ответа (`result` в 269/270): так же хранит ответ Лаборатории (P2, 273). */
+export function normalizeResult(value: unknown): AiAnswerResult | null {
   if (!isObject(value) || typeof value.reply !== "string") return null;
   const language = value.language === "ru" || value.language === "ky" || value.language === "en" ? value.language : null;
   const citations = Array.isArray(value.citations) ? value.citations.flatMap((item) => {
@@ -338,8 +340,15 @@ export function answerWarnings(result: AiAnswerResult): readonly string[] {
 
 // ------------------------------------------------------------------ section
 
+/**
+ * Подразделы «ИИ-агента» (план §12.2): с P2 — «Лист сверки» и «Лаборатория»
+ * между «Информацией для агента» и «Правилами общения». «Автоответчик» и
+ * «Диктовка» (P4, позже) не показываются — без пустых вкладок.
+ */
 export const AI_AGENT_SECTIONS = Object.freeze([
   { key: "documents", title: "Информация для агента" },
+  { key: "review", title: "Лист сверки" },
+  { key: "lab", title: "Лаборатория" },
   { key: "rules", title: "Правила общения" },
   { key: "spend", title: "Расходы" },
 ] as const);
@@ -349,8 +358,70 @@ export function parseAiAgentSection(value: string | undefined): AiAgentSection |
   if (value === undefined) return "documents";
   return AI_AGENT_SECTIONS.some((section) => section.key === value) ? value as AiAgentSection : null;
 }
-export function aiAgentHref(section: AiAgentSection): string {
-  return section === "documents" ? "/v3/ai-agent" : `/v3/ai-agent?section=${section}`;
+export function aiAgentHref(section: AiAgentSection, params: Readonly<Record<string, string | number | null | undefined>> = {}): string {
+  const query = new URLSearchParams();
+  if (section !== "documents") query.set("section", section);
+  for (const [key, value] of Object.entries(params)) if (value !== null && value !== undefined && value !== "") query.set(key, String(value));
+  const search = query.toString();
+  return search ? `/v3/ai-agent?${search}` : "/v3/ai-agent";
+}
+
+/** «Открытые» — открытые и применяемые (`pending` в 272), «Решённые», «Оставлены как есть». */
+export type AiReviewFilter = "open" | "resolved" | "dismissed";
+
+/**
+ * Адрес раздела — настоящие ссылки (P2): просмотр документа
+ * (`document`, `page`, `chunk`), «Новая версия» (`replace`), фильтр «Листа
+ * сверки» (`status`, `document`). Чужой ключ, повтор ключа или ключ не своего
+ * подраздела — null (страница отвечает 404), а не тихое «по умолчанию».
+ */
+export type AiAgentRoute = Readonly<{
+  section: AiAgentSection;
+  documentId: string | null;
+  page: number | null;
+  chunkId: number | null;
+  replaceId: string | null;
+  reviewFilter: AiReviewFilter;
+}>;
+
+const ROUTE_KEYS: Readonly<Record<AiAgentSection, readonly string[]>> = {
+  documents: ["document", "page", "chunk", "replace"],
+  review: ["status", "document"],
+  lab: [],
+  rules: [],
+  spend: [],
+};
+const POSITIVE = /^[1-9]\d{0,14}$/u;
+
+export function parseAiAgentRoute(query: Readonly<Record<string, string | readonly string[] | undefined>>): AiAgentRoute | null {
+  const values = new Map<string, string>();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined) continue;
+    if (typeof value !== "string") return null;
+    values.set(key, value);
+  }
+  const rawSection = values.get("section");
+  const section = parseAiAgentSection(rawSection);
+  if (!section) return null;
+  for (const key of values.keys()) if (key !== "section" && !ROUTE_KEYS[section].includes(key)) return null;
+  const uuid = (key: string): string | null | false => {
+    const raw = values.get(key);
+    if (raw === undefined) return null;
+    return UUID.test(raw) ? raw.toLowerCase() : false;
+  };
+  const documentId = uuid("document"), replaceId = uuid("replace");
+  if (documentId === false || replaceId === false) return null;
+  const rawPage = values.get("page"), rawChunk = values.get("chunk"), rawStatus = values.get("status");
+  const page = rawPage === undefined ? null : POSITIVE.test(rawPage) && Number(rawPage) <= 300 ? Number(rawPage) : -1;
+  const chunkId = rawChunk === undefined ? null : POSITIVE.test(rawChunk) && Number.isSafeInteger(Number(rawChunk)) ? Number(rawChunk) : -1;
+  if (page === -1 || chunkId === -1) return null;
+  if ((page !== null || chunkId !== null) && !documentId) return null;
+  if (replaceId && documentId) return null;
+  if (rawStatus !== undefined && rawStatus !== "resolved" && rawStatus !== "dismissed") return null;
+  return Object.freeze({
+    section, documentId, page, chunkId, replaceId,
+    reviewFilter: rawStatus === "resolved" || rawStatus === "dismissed" ? rawStatus : "open",
+  });
 }
 
 /** Версия текста согласия на передачу текстов в Gemini (Q4), её видит журнал. */
@@ -370,6 +441,10 @@ export type AiDocument = Readonly<{
   sourceNodeVersion: number | null;
   editedInLab: boolean;
   rowVersion: number;
+  /** Версия текста (растёт с каждой правкой «Листа сверки» и Лаборатории). */
+  docVersion: number;
+  /** Эта строка — новая версия документа `replacesId` (P2, 271). */
+  replacesId: string | null;
   pageCount: number | null;
   chunkCount: number;
   openReviewCount: number;
@@ -378,30 +453,35 @@ export type AiDocument = Readonly<{
 
 const DOCUMENT_STATUSES = new Set(["queued", "processing", "review", "ready", "failed", "superseded"]);
 
+/** Строка документа (`ai_document_json`, 269; P2 читает её и в карточке, и после загрузки). */
+export function normalizeAiDocument(raw: unknown): AiDocument {
+  if (!isObject(raw)) return invalid();
+  const id = uuidOrNull(raw.id);
+  const audience = raw.audience === "client" || raw.audience === "internal" ? raw.audience : null;
+  const source = raw.source === "upload" || raw.source === "seed_kb" || raw.source === "lab" ? raw.source : null;
+  if (!id || typeof raw.title !== "string" || !audience || !source || typeof raw.status !== "string"
+    || !DOCUMENT_STATUSES.has(raw.status) || typeof raw.updatedAt !== "string") return invalid();
+  const ref = isObject(raw.sourceRef) ? raw.sourceRef : {};
+  return Object.freeze({
+    id, title: raw.title.slice(0, 240), kind: text(raw.kind, 20), audience, status: raw.status as AiDocumentStatus,
+    stage: nullableText(raw.stage, 20), progress: smallInt(raw.progress, 100) ?? 0,
+    errorCode: nullableText(raw.errorCode, 64), source,
+    sourceNodeVersion: smallInt(ref.nodeVersion, 1_000_000) ?? (typeof ref.nodeVersion === "string" && /^\d{1,6}$/u.test(ref.nodeVersion) ? Number(ref.nodeVersion) : null),
+    editedInLab: raw.editedInLab === true,
+    rowVersion: smallInt(raw.rowVersion, Number.MAX_SAFE_INTEGER) ?? invalid(),
+    docVersion: smallInt(raw.docVersion, 1_000_000) ?? 1,
+    replacesId: uuidOrNull(raw.replacesId),
+    pageCount: smallInt(raw.pageCount, 300),
+    chunkCount: smallInt(raw.chunkCount, 1_000_000) ?? 0,
+    openReviewCount: smallInt(raw.openReviewCount, 1_000_000) ?? 0,
+    updatedAt: raw.updatedAt,
+  });
+}
+
 export function normalizeAiDocuments(value: unknown): Readonly<{ items: readonly AiDocument[]; hasMore: boolean; canManage: boolean; isAdmin: boolean }> {
   if (!isObject(value) || !Array.isArray(value.items) || typeof value.hasMore !== "boolean"
     || typeof value.canManage !== "boolean" || typeof value.isAdmin !== "boolean") return invalid();
-  const items = value.items.map((raw) => {
-    if (!isObject(raw)) return invalid();
-    const id = uuidOrNull(raw.id);
-    const audience = raw.audience === "client" || raw.audience === "internal" ? raw.audience : null;
-    const source = raw.source === "upload" || raw.source === "seed_kb" || raw.source === "lab" ? raw.source : null;
-    if (!id || typeof raw.title !== "string" || !audience || !source || typeof raw.status !== "string"
-      || !DOCUMENT_STATUSES.has(raw.status) || typeof raw.updatedAt !== "string") return invalid();
-    const ref = isObject(raw.sourceRef) ? raw.sourceRef : {};
-    return Object.freeze({
-      id, title: raw.title.slice(0, 240), kind: text(raw.kind, 20), audience, status: raw.status as AiDocumentStatus,
-      stage: nullableText(raw.stage, 20), progress: smallInt(raw.progress, 100) ?? 0,
-      errorCode: nullableText(raw.errorCode, 64), source,
-      sourceNodeVersion: smallInt(ref.nodeVersion, 1_000_000) ?? (typeof ref.nodeVersion === "string" && /^\d{1,6}$/u.test(ref.nodeVersion) ? Number(ref.nodeVersion) : null),
-      editedInLab: raw.editedInLab === true,
-      rowVersion: smallInt(raw.rowVersion, Number.MAX_SAFE_INTEGER) ?? invalid(),
-      pageCount: smallInt(raw.pageCount, 300),
-      chunkCount: smallInt(raw.chunkCount, 1_000_000) ?? 0,
-      openReviewCount: smallInt(raw.openReviewCount, 1_000_000) ?? 0,
-      updatedAt: raw.updatedAt,
-    });
-  });
+  const items = value.items.map(normalizeAiDocument);
   return Object.freeze({ items: Object.freeze(items), hasMore: value.hasMore, canManage: value.canManage, isAdmin: value.isAdmin });
 }
 
@@ -410,17 +490,63 @@ const STAGE_WORDS: Readonly<Record<string, string>> = {
   enrich: "заголовки", embed: "векторы", index: "индекс",
 };
 
-/** Слово статуса документа и тон чипа: всегда со словом. */
-export function documentStatus(document: Pick<AiDocument, "status" | "stage" | "progress">): Readonly<{ label: string; tone: "ok" | "warn" | "danger" | "muted" }> {
+/** Документ остановлен до решения сотрудника (§7): похоже на документ клиента. */
+export const AI_PERSONAL_DOCUMENT_CODE = "personal_document_suspected";
+
+/**
+ * Причина ошибки обработки — по-русски (§7: «Ошибка — по-русски, с кнопкой
+ * «Повторить»»). Незнакомый код — «не удалось обработать», сам код строка
+ * показывает моноширинным отдельно.
+ */
+export const AI_DOCUMENT_ERROR_COPY: Readonly<Record<string, string>> = Object.freeze({
+  extract_failed: "не удалось извлечь текст",
+  extract_timeout: "файл обрабатывался слишком долго",
+  sandbox_timeout: "файл обрабатывался слишком долго",
+  sandbox_memory: "файлу не хватило памяти при разборе",
+  file_encrypted: "файл защищён паролем",
+  file_corrupt: "файл повреждён",
+  file_unsupported: "формат не поддерживается",
+  file_empty: "в файле нет текста",
+  too_many_pages: "больше 300 страниц",
+  text_too_long: "больше 2 000 000 знаков текста",
+  ocr_failed: "не удалось распознать скан",
+  embedding_unavailable: "не удалось построить поиск по тексту",
+  budget_exhausted: "исчерпан месячный лимит расходов на ИИ",
+  model_unpriced: "у модели нет цены на сегодня",
+  gemini_billing: "закончился оплаченный баланс Gemini",
+  gemini_quota_day: "исчерпан дневной лимит запросов к модели",
+  storage_unavailable: "файл недоступен в хранилище",
+  original_missing: "файл не найден в хранилище",
+  attempts_exhausted: "не получилось после нескольких попыток",
+});
+
+export function aiDocumentErrorReason(code: string | null): string {
+  return (code && AI_DOCUMENT_ERROR_COPY[code]) ?? "не удалось обработать";
+}
+
+/**
+ * Слово статуса документа и тон чипа (§7, P2): всегда со словом. «Нужна
+ * сверка · n» — документ уже ищется, но n чисел ещё не проверены; «Похоже на
+ * документ клиента» — остановлен до решения сотрудника.
+ */
+export function documentStatus(
+  document: Pick<AiDocument, "status" | "stage" | "progress" | "errorCode" | "openReviewCount">,
+): Readonly<{ label: string; tone: "ok" | "warn" | "danger" | "muted" }> {
   switch (document.status) {
     case "ready": return { label: "Готов", tone: "ok" };
-    case "review": return { label: "Готов, есть сверка", tone: "warn" };
-    case "failed": return { label: "Ошибка обработки", tone: "danger" };
+    case "review": return document.openReviewCount > 0
+      ? { label: `Нужна сверка · ${document.openReviewCount}`, tone: "warn" }
+      : { label: "Исправление применяется", tone: "muted" };
+    case "failed": return document.errorCode === AI_PERSONAL_DOCUMENT_CODE
+      ? { label: "Похоже на документ клиента — не загружается", tone: "warn" }
+      : { label: `Ошибка — ${aiDocumentErrorReason(document.errorCode)}`, tone: "danger" };
     case "superseded": return { label: "Заменён", tone: "muted" };
     case "queued": return { label: "В очереди", tone: "muted" };
     default: {
       const stage = document.stage ? STAGE_WORDS[document.stage] ?? null : null;
-      return { label: `Обрабатывается${stage ? ` · ${stage}` : ""}${document.progress > 0 ? ` · ${document.progress}%` : ""}`, tone: "muted" };
+      const progress = document.progress > 0 ? `${document.progress}%` : null;
+      const detail = [stage, progress].filter(Boolean).join(" ");
+      return { label: `Обработка${detail ? ` · ${detail}` : ""}`, tone: "muted" };
     }
   }
 }

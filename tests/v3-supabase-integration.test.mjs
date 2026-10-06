@@ -26,6 +26,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "current-sales-funnel-source.ts",
     "finance-entry-source.ts",
     "funnel-source.ts",
+    "inbox-access.ts", // WhatsApp for every employee (06.10.2026): pure page decisions, no Supabase
     "inbox-href.ts",
     "inbox-media.ts",
     "inbox-profile-link.ts",

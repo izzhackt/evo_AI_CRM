@@ -37,6 +37,7 @@ import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress
 import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
+import { inboxPresentationQueue, inboxReadsGeminiDrafts } from "@/lib/v3/inbox-access";
 import { toV3InboxMessageMedia } from "@/lib/v3/inbox-media";
 
 const INBOX_PAGE_SIZE = 50;
@@ -214,8 +215,7 @@ export async function readInbox(
   actor: ActivePlatformActor,
   options: InboxReadOptions,
 ): Promise<InboxReadModel> {
-  const presentationQueue =
-    actor.presentationRole === null || actor.presentationRole === "admin" ? undefined : actor.presentationRole;
+  const presentationQueue = inboxPresentationQueue(actor);
   const filters = Object.freeze({
     query: options.query,
     waitingOnly: options.waitingOnly,
@@ -254,18 +254,26 @@ export async function readInbox(
         });
   if (thread) {
     const staffClient = await createSupabaseServerClient();
+    // Чтение черновиков Gemini требует ai.draft.review отдельно от чтения
+    // диалога. Переписка от этого не зависит: без права (роль без черновиков)
+    // страница открывается без блока ИИ, а не падает целиком (ИИ пока выключен).
+    const readsGeminiDrafts = inboxReadsGeminiDrafts(actor);
     const [context, channelStatus, proposal, reviews, latestAttempt] = await Promise.all([
       getPlatformConversationCommandContext(actor, thread.conversation.id),
       channelStatusPromise,
-      readStaffGeminiProposal(staffClient, {
-        organizationId: actor.organizationId,
-        conversationId: thread.conversation.id,
-      }),
-      listStaffGeminiProposalReviews(staffClient, {
-        organizationId: actor.organizationId,
-        conversationId: thread.conversation.id,
-        limit: 20,
-      }),
+      readsGeminiDrafts
+        ? readStaffGeminiProposal(staffClient, {
+            organizationId: actor.organizationId,
+            conversationId: thread.conversation.id,
+          })
+        : Promise.resolve(null),
+      readsGeminiDrafts
+        ? listStaffGeminiProposalReviews(staffClient, {
+            organizationId: actor.organizationId,
+            conversationId: thread.conversation.id,
+            limit: 20,
+          })
+        : Promise.resolve<readonly PlatformGeminiProposalReview[]>([]),
       readLatestManualWhatsAppSendAttempt(staffClient, {
         organizationId: actor.organizationId,
         conversationId: thread.conversation.id,

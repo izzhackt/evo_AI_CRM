@@ -2900,6 +2900,29 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_waha_lid_phone_media.sql
   fi
+
+  # Migration 261 (owner decision 06.10.2026, «нет, все могут»): every member who
+  # holds communication.read.full / communication.manual.send sees the SALES
+  # WhatsApp conversations and answers them, not only their owner (the head of
+  # sales). Members modelled like production (coarse role NULL, the production
+  # bundles at own/department/organization scope); the conversations come from
+  # the REAL WAHA projection chain and the replies go through the REAL manual-send
+  # chain (request, authority trigger, exact claim, finish). The suite first
+  # reverts 261 inside its own transaction to show the problem (no sales chat, no
+  # send for a non-owner), then proves: the queue/snapshot/transcript/context/
+  # latest-attempt readers and direct RLS selects for Admissions (own),
+  # Admissions Manager and a non-admin Sales Manager (department), a role
+  # without AI review and a read-only role; refusals for a keyless member, the
+  # Student, another organization's Admin, no membership and anon; a record-scoped
+  # reader sees one chat; the handed-off (curator-queue) chat, every other
+  # conversation permission, the lead and the Student Case stay owner-scoped; the
+  # sender recorded for a non-owner's reply is that member (participant, audit,
+  # access version); the evaluator stays a hardened definer nobody can execute.
+  if [[ "$(basename "$migration")" == 261_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_team_inbox.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

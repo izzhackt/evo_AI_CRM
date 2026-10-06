@@ -150,17 +150,19 @@ const menuOf = (actor, href = "/v3/main") => {
   return { model, every, place };
 };
 
-test("menu per role: WhatsApp in «Продажи», «Переписка» in «Поступление», each behind its own route", () => {
+test("menu per role: WhatsApp in «Продажи» for every WhatsApp reader (06.10), «Переписка» in «Поступление», each behind its own route", () => {
   const cases = [
     // [кто, актёр, место WhatsApp, место «Переписки»]
     ["Admin", preview(null), "sales", "admissions"],
-    ["preview: Приёмная", preview("admissions"), null, "admissions"],
+    ["preview: Приёмная", preview("admissions"), "sales", "admissions"],
     ["preview: Продажи", preview("sales"), "sales", null],
-    ["Admissions (173)", staff([...staffRoleKeys("admissions")]), null, "admissions"],
+    ["Admissions (173)", staff([...staffRoleKeys("admissions")]), "sales", "admissions"],
     ["Sales Manager (173)", staff([...staffRoleKeys("sales-manager")]), "sales", null],
     ["case reader without WhatsApp", staff(["case.read.full"]), null, "admissions"],
-    // Правило D «Продаж»: без работы продаж WhatsApp не пункт меню, хотя маршрут открыт.
-    ["WhatsApp reader without sales work", staff(["communication.read.full"]), null, null],
+    // Решение владельца 06.10.2026 («нет, все могут») заменило 27.09: правило D
+    // «Продаж» не скрывает WhatsApp у роли без работы продаж; пункт — у каждого,
+    // кому открыт маршрут (communication.read.full), а диалоги отдаёт база (261).
+    ["WhatsApp reader without sales work", staff(["communication.read.full"]), "sales", null],
     ["WhatsApp reader with sales work", staff(["communication.read.full", "lead.sales.workflow.manage"]), "sales", null],
     ["team only", staff(["staff.task.read", "team.chat.general"]), null, null],
     ["no rights", staff([]), null, null],

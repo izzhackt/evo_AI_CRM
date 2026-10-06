@@ -239,38 +239,45 @@ test("D: the role bundles are the production ones", () => {
   });
 });
 
-// Э6 (27.09.2026) keeps D — roles without sales work see no sales sections —
-// and adds one fixed place per destination: a role only hides items, it never
+// Э6 (27.09.2026) keeps D — roles without sales work see no sales board — and
+// adds one fixed place per destination: a role only hides items, it never
 // moves them. «Заявки» (platform questionnaires 177, cabinet consultations 197
 // and sales intake) stood in «Общее» for every role that may open them; the
 // owner decision 28.09.2026 («Переносить «Заявки» из «Общего» в «Продажи»?
 // Да») puts them first in «Продажи», still for exactly those roles: D hides the
-// sales board and WhatsApp, never «Заявки». Owner decision 27.09.2026:
-// WhatsApp — the sales WhatsApp where leads arrive — stands in «Продажи» under
-// D; «Переписка» (owner decision 28.09.2026; formerly «Переписка со
-// студентами») — the cabinet chat with existing students — in «Поступление».
+// sales board, never «Заявки». WhatsApp — the sales WhatsApp where leads
+// arrive — stands in «Продажи»; the owner decision 06.10.2026 («нет, все
+// могут»: every employee answers WhatsApp from the CRM) supersedes the 27.09
+// rule that D also hid it from admissions roles, so it stands for every role
+// that holds communication.read.full. «Переписка» (owner decision 28.09.2026;
+// formerly «Переписка со студентами») — the cabinet chat with existing
+// students — stays in «Поступление».
 for (const label of ["Admissions", "Admissions Manager"]) {
-  test(`D: ${label} sees no sales work, only «Заявки» and «Отчёт продаж» of #1067 in «Продажи»; «Переписка» in «Поступление»`, () => {
+  test(`D: ${label} sees no sales board, only «Заявки», WhatsApp (06.10) and «Отчёт продаж» of #1067 in «Продажи»; «Переписка» in «Поступление»`, () => {
     const keys = [...bundles[label], ...bundles["Admissions common"]];
     const model = navigationFor(keys);
-    // D hides WhatsApp and «Воронка продаж» in «Продажи». «Заявки» stay: the
-    // route is open (lead.read) and the page was reachable from the menu
-    // before the move. «Отчёт продаж» keeps its own rule of «Сегодня»
-    // (#1067): a lead reader without report records opens «Динамика по
-    // дням» there, the charts of the former Главная.
+    // D hides «Воронка продаж» in «Продажи». «Заявки» stay: the route is open
+    // (lead.read) and the page was reachable from the menu before the move.
+    // WhatsApp stays since 06.10.2026 (communication.read.full opens the route;
+    // migration 261 lets the member see and answer the sales conversations).
+    // «Отчёт продаж» keeps its own rule of «Сегодня» (#1067): a lead reader
+    // without report records opens «Динамику по дням» there, the charts of the
+    // former Главная.
     assert.deepEqual(ids(model).groups, [
-      ["sales", ["requests", "sales-report"]],
+      ["sales", ["requests", "inbox", "sales-report"]],
       ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
     ]);
     assert.equal(ids(model).common.includes("requests"), false, "«Заявки» left «Общее»");
     assert.equal(ids(model).common[0], "tasks");
-    // 27.09.2026: the student chat (case.read.full) is an admissions item. The
-    // WhatsApp route stays open (communication.read.full) — old links work —
-    // but the sales WhatsApp is not an admissions menu item.
+    // 27.09.2026: the student chat (case.read.full) is an admissions item and
+    // stays so; WhatsApp is the separate sales page next to «Заявки».
     assert.equal(model.groups[1].links.find((link) => link.id === "messages")?.label, "Переписка");
     assert.equal(staffCanAccessRoute(staffActor(keys), "/v3/inbox"), true);
     const everyLink = [...model.groups.flatMap((group) => group.links), ...model.common];
-    assert.equal(everyLink.some((link) => link.id === "inbox"), false, "WhatsApp");
+    assert.equal(everyLink.filter((link) => link.id === "inbox").length, 1, "WhatsApp stands once");
+    assert.deepEqual(model.groups[0].links.find((link) => link.id === "inbox"), {
+      id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "WhatsApp",
+    });
     assert.equal(everyLink.some((link) => link.id === "pipeline"), false, "pipeline");
     assert.equal(everyLink.filter((link) => link.id === "requests").length, 1, "«Заявки» stands once");
     const requests = navigationFor(keys, "/v3/requests");

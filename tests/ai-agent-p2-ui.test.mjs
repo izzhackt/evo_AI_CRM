@@ -800,6 +800,19 @@ test("broker: 401 unsigned, stale, wrong secret or tampered body; 403 without th
   assert.equal((await createAiStorageBrokerHandler(off.deps)(signed("GET", brokerPath("original")))).status, 503);
 });
 
+test("broker: the signed string is ts.METHOD.path.workerRef.sha256(body) — the vector shared with the private agent", () => {
+  // Синтетический вектор; те же значения проверяет клиент брокера в приватном evo-ai-agent
+  // (tests/unit/test_broker.py): смена подписываемой строки на любой стороне ломает оба теста.
+  const secret = "v".repeat(24) + "-synthetic-storage-broker-vector";
+  const ts = "1790000000";
+  const worker = "evo-ai-agent-worker-1:42";
+  const base = "/api/internal/ai-agent/storage/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222";
+  assert.equal(signAiStorageRequest(secret, ts, "GET", `${base}/original`, worker, new Uint8Array(0)),
+    "98d9e06b8ce671d4d3a3204b41fe8f5f62588052203879404544a13c4d9d7096");
+  assert.equal(signAiStorageRequest(secret, ts, "PUT", `${base}/crops/33333333-3333-4333-8333-333333333333.png`, worker,
+    new TextEncoder().encode("synthetic broker body")), "4c78c6e12491ab098613873d751eeb46945412c2b9e5660dc8b229667f8ea8c3");
+});
+
 test("broker: PNG only, ≤ 8 MB and ≤ 4000 px; strict paths — no traversal, no listing, no other bucket", async () => {
   const { deps, calls } = brokerDeps();
   const handler = createAiStorageBrokerHandler(deps);

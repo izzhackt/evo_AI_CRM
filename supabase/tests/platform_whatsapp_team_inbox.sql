@@ -30,12 +30,19 @@
 --     department of the owner as before, only); every other conversation
 --     permission in the EVALUATOR (read.summary, ai.draft.*, decision.*) and every
 --     other resource (lead, student case) stays owner-scoped; no cross-tenant
---     match. NOTE: the direct-SELECT RLS policies of the AI draft tables and the
---     Gemini readers do not use that evaluator key (044/091/096): they gate on
---     communication.read.full of the conversation (and, for the readers, on
---     ai.draft.review as a plain permission), so a holder of ai.draft.review who
---     reads a sales chat reads its drafts; AI is off, to be decided before it is
---     switched on (docs/PLAN_CHANGES.md, 2026-10-06 clarification);
+--     match. NOTE (AI drafts; read from the code, this suite does not select
+--     from those tables): the direct-SELECT RLS policies of ai_draft_requests,
+--     ai_drafts, ai_draft_knowledge_citations and ai_draft_events (044:4213-4255)
+--     do not use an ai.draft.* evaluator key. They call
+--     private.platform_can_read_communication_full, which (156) goes through
+--     staff_can_access_for_actor('communication.read.full') and so through the
+--     evaluator widened here. After 261 ANY member who can read a sales chat
+--     reads that chat's AI drafts through those policies, whether or not it
+--     holds ai.draft.review (only the Gemini readers, 091/096, additionally
+--     need ai.draft.review as a plain permission). AI is off and no sales chat
+--     exists yet; condition to resolve BEFORE AI is switched on: narrow the
+--     draft reads (owner / ai.draft.review) or accept team-wide draft reads
+--     (docs/PLAN_CHANGES.md, 2026-10-06 correction to clarification 1);
 --  4. a non-owner replies: the request is authorized, the authority trigger
 --     records the access version, the exact claim creates the sender participant
 --     of THAT member (kind sales) and finish stores the outbound message with

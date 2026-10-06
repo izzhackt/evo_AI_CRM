@@ -33,7 +33,8 @@
  *       следующей перепиской, переписка с переключателем, открытый выбор
  *       шаблона (кнопкой и «/»), смена состояния с перечитанным списком,
  *       меню сообщения, «Все ответы даны», WhatsApp у Admin, у продаж и у
- *       куратора по прежней ссылке; у каждой страницы свой h1 и свой пункт
+ *       куратора (пункт WhatsApp есть и у ролей поступления, решение 06.10.2026,
+ *       правило 27.09 снято); у каждой страницы свой h1 и свой пункт
  *       меню, вкладок каналов нет, заголовки обеих страниц — на одной высоте.
  *       По умолчанию outDir — .impeccable/review (не коммитится); файлы
  *       `e5-*.png` (`--prefix=` меняет начало имени). Проверки печатаются
@@ -122,7 +123,8 @@ const ACTORS = {
     ...BASE_ACTOR, displayName: "Менеджер продаж (синтетический)", systemRole: "staff", presentationRole: null,
     assignments: [{ label: "Sales Manager", scope: { kind: "own", key: null, resourceKind: null } }], permissionKeys: staffRoleKeys("sales-manager"),
   },
-  // Куратор (права шаблонов 173): маршрут WhatsApp открыт, пункта в меню нет (правило D «Продаж»).
+  // Куратор (права шаблонов 173): маршрут WhatsApp открыт и пункт «WhatsApp» есть в меню (решение
+  // владельца 06.10.2026, «все могут», заменило правило 27.09, где у поступления пункта не было).
   admissions: {
     ...BASE_ACTOR, displayName: "Куратор (синтетический)", systemRole: "staff", presentationRole: null,
     assignments: [{ label: "Admissions", scope: { kind: "own", key: null, resourceKind: null } }], permissionKeys: staffRoleKeys("admissions"),

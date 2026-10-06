@@ -186,9 +186,9 @@ test("261 does not touch migrations 259/260 and is independent of 260's needles"
   }
 });
 
-test("the send form tells a second employee that a colleague may already have answered (one reply per inbound message)", () => {
+test("the send form's generic failure hint is neutral: a colleague may already have answered (one reply per inbound message) or the service is down", () => {
   const controls = source("src/components/v3/InboxProviderWorkflowControls.tsx");
-  assert.match(controls, /unavailable:\s*"Отправка недоступна\. Внешний повтор не выполнялся\. Если на это сообщение уже ответил коллега, обновите страницу\."/u);
+  assert.match(controls, /unavailable:\s*"Не удалось отправить\. Обновите страницу: возможно, коллега уже ответил на это сообщение, или сервис временно недоступен\."/u);
   // The action keeps one generic failure state: no new state, no new right, no retry.
   const actions = source("src/lib/platform-provider-actions.ts");
   assert.match(actions, /status: "unavailable" \}\);\s*\}\s*\}\s*export async function reconcilePlatformWhatsAppSendAction/u);

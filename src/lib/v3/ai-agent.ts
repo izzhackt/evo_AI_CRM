@@ -245,7 +245,8 @@ export const AI_ERROR_COPY: Readonly<Record<string, string>> = Object.freeze({
   agent_unavailable: "ИИ-агент сейчас недоступен.",
   rate_limited: "Слишком много запросов. Подождите минуту.",
   budget_exhausted: "Месячный лимит расходов на ИИ исчерпан. Его можно поднять в «Расходах».",
-  ai_model_unpriced: "У модели нет цены на сегодня — расходы не посчитать. Выберите другую модель в «Расходах».",
+  // Текст агента (errors.py): лимит поднимать бесполезно — сменить модель или цены.
+  model_unpriced: "Модель без цены — выберите модель в настройках или обновите цены.",
   gemini_billing: "Закончился оплаченный баланс Gemini. Пополните его в Google Cloud.",
   gemini_quota_day: "Дневной лимит запросов к модели исчерпан.",
   stale_answer: "Пришло новое сообщение — обновите ответ.",
@@ -259,10 +260,20 @@ export function aiErrorCopy(code: string, agentMessage: string | null = null): s
   return AI_ERROR_COPY[code] ?? agentMessage ?? AI_ERROR_COPY.unavailable;
 }
 
+/**
+ * Состояния, которые снимает только администратор: окно показывает, что сделать,
+ * а не ошибку с «Повторить». `model_unpriced` (агент, HTTP 402) — не
+ * `budget_exhausted`: у модели из настроек нет цены на сегодня, поднять лимит не поможет.
+ */
+export const AI_BLOCKED_CODES = Object.freeze(["ai_agent_off", "consent_required", "forbidden", "preview", "model_unpriced"] as const);
+export type AiBlockedCode = (typeof AI_BLOCKED_CODES)[number];
+export function aiErrorBlocked(code: string): code is AiBlockedCode {
+  return (AI_BLOCKED_CODES as readonly string[]).includes(code);
+}
+
 /** Ошибки, после которых «Повторить» имеет смысл сразу. */
 export function aiErrorRetryable(code: string): boolean {
-  return !["ai_agent_off", "consent_required", "forbidden", "preview", "gemini_billing", "gemini_quota_day",
-    "budget_exhausted", "ai_model_unpriced"].includes(code);
+  return !aiErrorBlocked(code) && !["gemini_billing", "gemini_quota_day", "budget_exhausted"].includes(code);
 }
 
 /** «1 источник», «3 источника», «5 источников». */

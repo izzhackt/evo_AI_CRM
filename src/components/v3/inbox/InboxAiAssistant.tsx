@@ -16,6 +16,7 @@ import {
 import { Icon } from "@/components/icons";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import {
+  aiErrorBlocked,
   aiErrorCopy,
   aiErrorRetryable,
   answerWarnings,
@@ -26,6 +27,7 @@ import {
   sourcePlace,
   sourcesWord,
   type AiAnswerView,
+  type AiBlockedCode,
   type AiIntent,
   type AiSavedAnswer,
   type AiSource,
@@ -64,11 +66,10 @@ type Phase =
   | Readonly<{ kind: "streaming"; intent: AiIntent; stage: "searching" | "writing"; sources: number | null; preview: string }>
   | Readonly<{ kind: "ready"; answer: AiSavedAnswer }>
   | Readonly<{ kind: "error"; code: string; message: string; retry: AiIntent | "load" | null }>
-  | Readonly<{ kind: "blocked"; code: "ai_agent_off" | "consent_required" | "forbidden" | "preview" }>;
+  | Readonly<{ kind: "blocked"; code: AiBlockedCode }>;
 
 type Tone = "idle" | "working" | "ready" | "attention" | "error";
 
-const BLOCKING = new Set(["ai_agent_off", "consent_required", "forbidden", "preview"]);
 const POSITION_STEP = 24;
 const POSITION_STEP_LARGE = 96;
 const EDGE = 12;
@@ -268,8 +269,8 @@ export function InboxAiAssistant({
   }, [conversationId]);
 
   const fail = useCallback((code: string, message: string | null, retry: AiIntent | "load" | null) => {
-    if (BLOCKING.has(code)) {
-      setPhase({ kind: "blocked", code: code as "ai_agent_off" | "consent_required" | "forbidden" | "preview" });
+    if (aiErrorBlocked(code)) {
+      setPhase({ kind: "blocked", code });
       return;
     }
     setPhase({ kind: "error", code, message: aiErrorCopy(code, message), retry: aiErrorRetryable(code) ? retry : null });
@@ -656,6 +657,10 @@ export function InboxAiAssistant({
                 {phase.code === "consent_required" || phase.code === "ai_agent_off" ? (
                   <Link href="/v3/ai-agent" className="v3-ai-link t-label">Открыть «ИИ-агент»</Link>
                 ) : null}
+                {phase.code === "model_unpriced" ? (
+                  // Модели и предупреждение «нет цены» — в «Расходах» раздела.
+                  <Link href="/v3/ai-agent?section=spend" className="v3-ai-link t-label">Открыть «Расходы»</Link>
+                ) : null}
               </div>
             ) : null}
 
@@ -675,7 +680,7 @@ export function InboxAiAssistant({
                       Повторить
                     </button>
                   ) : null}
-                  {phase.code === "budget_exhausted" || phase.code === "ai_model_unpriced" ? (
+                  {phase.code === "budget_exhausted" ? (
                     <Link href="/v3/ai-agent?section=spend" className="v3-ai-link t-label">Открыть «Расходы»</Link>
                   ) : null}
                 </div>

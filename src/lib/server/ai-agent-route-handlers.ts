@@ -202,10 +202,10 @@ type ConversationContext = Readonly<{ params: Promise<Readonly<{ conversationId:
 type AnswerContext = Readonly<{ params: Promise<Readonly<{ answerId: string }>> }>;
 
 /** Коды агента, которые окно показывает своим текстом; остальное — «недоступен». */
-const AGENT_CODES = new Set(["consent_required", "rate_limited", "budget_exhausted", "ai_model_unpriced", "gemini_billing",
+const AGENT_CODES = new Set(["consent_required", "rate_limited", "budget_exhausted", "model_unpriced", "gemini_billing",
   "gemini_quota_day", "agent_unavailable", "superseded", "taken_over"]);
 const STATUS_FOR_CODE: Readonly<Record<string, number>> = {
-  consent_required: 412, rate_limited: 429, budget_exhausted: 402, ai_model_unpriced: 402, gemini_billing: 402,
+  consent_required: 412, rate_limited: 429, budget_exhausted: 402, model_unpriced: 402, gemini_billing: 402,
   gemini_quota_day: 429, superseded: 409, taken_over: 409,
 };
 

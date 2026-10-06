@@ -15,6 +15,8 @@ import {
   AI_AGENT_SECTIONS,
   AI_ERROR_COPY,
   aiAgentHref,
+  aiErrorBlocked,
+  aiErrorRetryable,
   answerWarnings,
   createSseDecoder,
   documentStatus,
@@ -247,6 +249,7 @@ test("stream: agent refusals before the stream map to the window's honest states
     [412, { error: { code: "consent_required", status: 412 } }, 412, "consent_required"],
     [429, { error: { code: "rate_limited", status: 429 } }, 429, "rate_limited"],
     [402, { error: { code: "budget_exhausted", status: 402 } }, 402, "budget_exhausted"],
+    [402, { error: { code: "model_unpriced", message_ru: "x", status: 402 } }, 402, "model_unpriced"],
     [500, "<html>oops</html>", 503, "agent_unavailable"],
   ];
   let index = 0;
@@ -455,6 +458,25 @@ test("honest copy for every state of the window (plan §6.8)", () => {
   assert.equal(AI_ERROR_COPY.rate_limited, "Слишком много запросов. Подождите минуту.");
   assert.equal(AI_ERROR_COPY.agent_unavailable, "ИИ-агент сейчас недоступен.");
   assert.equal(AI_ERROR_COPY.stale_answer, "Пришло новое сообщение — обновите ответ.");
+});
+
+test("an unpriced model is a blocked state of its own, not the exhausted budget", () => {
+  // The agent's code and text (evo-ai-agent errors.py): PT402 ai_model_unpriced -> model_unpriced, HTTP 402.
+  assert.equal(AI_ERROR_COPY.model_unpriced, "Модель без цены — выберите модель в настройках или обновите цены.");
+  assert.notEqual(AI_ERROR_COPY.model_unpriced, AI_ERROR_COPY.budget_exhausted);
+  assert.equal(AI_ERROR_COPY.ai_model_unpriced, undefined, "the database's message never reaches the window as a code");
+  assert.deepEqual(parseAiStreamEvent("error", JSON.stringify({ code: "model_unpriced", message_ru: "Модель без цены", status: 402 })),
+    { type: "error", code: "model_unpriced", message: "Модель без цены", status: 402 });
+  assert.equal(aiErrorBlocked("model_unpriced"), true);
+  assert.equal(aiErrorRetryable("model_unpriced"), false);
+  assert.equal(aiErrorBlocked("budget_exhausted"), false, "the budget stays an error with «Открыть «Расходы»»");
+  assert.equal(aiErrorRetryable("budget_exhausted"), false);
+  assert.equal(aiErrorRetryable("rate_limited"), true);
+  const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
+  assert.match(assistant, /if \(aiErrorBlocked\(code\)\) \{\n\s+setPhase\(\{ kind: "blocked", code \}\);/u);
+  assert.match(assistant, /\{phase\.code === "model_unpriced" \? \(\n[^\n]*\n\s+<Link href="\/v3\/ai-agent\?section=spend"/u);
+  assert.match(assistant, /\{phase\.code === "budget_exhausted" \? \(/u);
+  assert.doesNotMatch(assistant, /ai_model_unpriced/u);
 });
 
 test("section reads: documents, rules, spend and settings are validated, money keeps cents", () => {

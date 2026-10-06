@@ -106,12 +106,13 @@ export function readAiAutosendChat(actor: ActivePlatformActor, conversationId: s
 
 export type AiAutosendWriteStatus = AiWriteStatus;
 /**
- * Отказы записи настроек со своим текстом (277, оба — 42501): список живого
- * теста задаёт только тот, кто сам может отправлять в WhatsApp
- * (`ai_autosend_sender_required`), и только из чатов, которые он читает
- * (`ai_conversation_unavailable`).
+ * Отказы записи настроек со своим текстом (277): список живого теста задаёт
+ * только тот, кто сам может отправлять в WhatsApp (`ai_autosend_sender_required`,
+ * 42501), только из чатов, которые он читает (`ai_conversation_unavailable`,
+ * 42501), и только после трёх ночей проверки (`ai_autosend_shadow_nights_required`,
+ * PT412 — не согласие на Gemini).
  */
-export type AiAutosendSaveStatus = AiAutosendWriteStatus | "sender_required" | "chat_unavailable";
+export type AiAutosendSaveStatus = AiAutosendWriteStatus | "sender_required" | "chat_unavailable" | "shadow_nights_required";
 
 function writeStatus(error: RpcError): AiAutosendWriteStatus {
   if (error.code === "PT409" || error.code === "23505") return "conflict";
@@ -148,6 +149,7 @@ export async function saveAiAutosendSettings(
     const { code, message } = error as RpcError;
     if (code === "42501" && message === "ai_autosend_sender_required") return "sender_required";
     if (code === "42501" && message === "ai_conversation_unavailable") return "chat_unavailable";
+    if (code === "PT412" && message === "ai_autosend_shadow_nights_required") return "shadow_nights_required";
     return writeStatus(error as RpcError);
   } catch {
     return "unavailable";

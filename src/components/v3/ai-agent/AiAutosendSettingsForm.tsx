@@ -46,6 +46,7 @@ const MESSAGES: Readonly<Record<Exclude<Status, "idle">, string>> = {
   unavailable: "Результат пока неизвестен — безопасно сохраните ещё раз.",
   sender_required: "Чаты живого теста меняет только тот, кто сам отвечает клиентам в WhatsApp. Верните список как был — остальное сохранится.",
   chat_unavailable: "Один из чатов живого теста вам недоступен — уберите его из списка.",
+  shadow_nights_required: "Чаты живого теста можно добавить только после трёх ночей проверки без отправки. Уберите их из списка — остальное сохранится.",
 };
 
 /** Номера дней недели ISO (1 — понедельник): так их хранит база (`working_days`). */
@@ -163,6 +164,7 @@ export function AiAutosendSettingsForm({
   initial,
   version,
   liveTestTitles,
+  liveTestLock,
   readOnly,
   requestId: initialRequestId,
   action,
@@ -171,6 +173,8 @@ export function AiAutosendSettingsForm({
   version: number;
   /** Названия чатов живого теста из чтения; новый чат — «чат по ссылке» до сохранения. */
   liveTestTitles: Readonly<Record<string, string>>;
+  /** Почему чаты живого теста пока не добавить (`aiAutosendLiveTestLock`): поле ссылки не показывается. */
+  liveTestLock: string | null;
   /** Просмотр роли или чтение без записи: поля видны, но не меняются. */
   readOnly: boolean;
   requestId: string;
@@ -430,7 +434,13 @@ export function AiAutosendSettingsForm({
               })}
             </ul>
           )}
-          {draft.liveTestConversationIds.length < AI_AUTOSEND_MAX_LIVE_TEST ? (
+          {draft.liveTestConversationIds.length >= AI_AUTOSEND_MAX_LIVE_TEST ? null : liveTestLock ? (
+            // 277 не примет непустой список до трёх ночей проверки: добавлять нечем, убрать — можно.
+            <p className="mt-2 flex items-start gap-1.5 t-body-compact text-fg-2" data-testid="v3-ai-autosend-live-test-lock">
+              <Icon name="lock" size={16} className="mt-0.5 shrink-0" />
+              <span>{liveTestLock}</span>
+            </p>
+          ) : (
             <div className="mt-2 flex flex-wrap items-start gap-2">
               <input type="url" inputMode="url" value={linkInput} placeholder="Ссылка на чат" aria-label="Ссылка на чат для живого теста"
                 aria-invalid={linkIssue ? true : undefined} className={`${fieldCls} min-w-0 flex-1 basis-64`}
@@ -438,7 +448,7 @@ export function AiAutosendSettingsForm({
                 onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addLiveTest(); } }} />
               <button type="button" className={QUEUE_SECONDARY} onClick={addLiveTest}>Добавить</button>
             </div>
-          ) : null}
+          )}
           <FieldIssues messages={linkIssue ? [linkIssue] : issuesFor(shown, "liveTest")} />
         </Row>
       </fieldset>
@@ -457,7 +467,8 @@ export function AiAutosendSettingsForm({
             data-testid="v3-ai-autosend-settings-status"
           >
             {tried && issues.length > 0 ? MESSAGES.invalid
-              : state.status !== "idle" ? MESSAGES[state.status]
+              : state.status === "shadow_nights_required" && liveTestLock ? `${liveTestLock} Уберите чаты из списка — остальное сохранится.`
+                : state.status !== "idle" ? MESSAGES[state.status]
                 : dirty ? "Есть несохранённые изменения." : null}
           </p>
         </div>

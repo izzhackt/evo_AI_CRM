@@ -21,8 +21,10 @@ import {
   AI_AUTOSEND_STATUS_TONE,
   aiAutosendDate,
   aiAutosendDayTime,
+  aiAutosendJournalFinalReason,
   aiAutosendJournalReason,
   aiAutosendLiveLock,
+  aiAutosendLiveTestLock,
   aiAutosendMode,
   aiAutosendNight,
   aiAutosendPauseReason,
@@ -226,6 +228,7 @@ function AiAutosendHeader({
 
 function JournalRow({ row }: Readonly<{ row: AiAutosendJournalRow }>) {
   const reason = aiAutosendJournalReason(row);
+  const finalReason = aiAutosendJournalFinalReason(row);
   const meta = [
     row.kind === "final_phrase" ? "финальная фраза" : row.kind === "answer" ? "ответ" : null,
     row.mode === "live_test" ? "живой тест" : null,
@@ -245,6 +248,7 @@ function JournalRow({ row }: Readonly<{ row: AiAutosendJournalRow }>) {
       </span>
       <div className="min-w-0 space-y-1">
         {reason ? <p className={`t-body-compact ${row.status === "failed" ? "text-danger" : "text-fg-2"}`}>{reason}</p> : null}
+        {finalReason ? <p className="t-body-compact text-fg-2" data-testid="v3-ai-autosend-final-reason">{finalReason}</p> : null}
         {row.text ? (
           <p className="whitespace-pre-wrap break-words t-body-compact text-fg" lang={row.language ?? undefined}>{row.text}</p>
         ) : row.textHidden ? (
@@ -435,6 +439,7 @@ export function AiAutosendView({
               initial={state.settings}
               version={state.version}
               liveTestTitles={state.liveTestTitles}
+              liveTestLock={aiAutosendLiveTestLock(state)}
               readOnly={readOnly}
               requestId={requestIds.settings}
               action={saveAiAutosendSettingsAction}

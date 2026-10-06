@@ -2074,7 +2074,7 @@ const journalRow = (n, fields) => ({
 });
 const JOURNAL = {
   items: [
-    journalRow(1, { createdAt: "2026-10-05T21:42:00Z", chat: 4, status: "shadow", kind: "final_phrase", callDate: "2026-10-06",
+    journalRow(1, { createdAt: "2026-10-05T21:42:00Z", chat: 4, status: "shadow", kind: "final_phrase", callDate: "2026-10-06", finalReasonCode: "qualified",
       text: "Завтра в рабочее время вам позвонит наш руководитель." }),
     journalRow(2, { createdAt: "2026-10-05T21:31:00Z", chat: 4, status: "shadow",
       text: "Пишет автоматический помощник EVO — менеджеры сейчас не на связи.\nПодготовительный курс английского в Малайзии длится один семестр. Какой у вас сейчас уровень английского и на какой год планируете поступление?" }),
@@ -2227,7 +2227,7 @@ const action = async (_previous, form) => {
 };
 function Page() {
   React.useEffect(() => { document.documentElement.dataset.hydrated = "true"; }, []);
-  return h(AiAutosendSettingsForm, { initial: normalizeAiAutosendSettings(fixture.settings), version: 7, liveTestTitles: {},
+  return h(AiAutosendSettingsForm, { initial: normalizeAiAutosendSettings(fixture.settings), version: 7, liveTestTitles: {}, liveTestLock: null,
     readOnly: false, requestId: "27700000-0000-4000-8000-000000000071", action });
 }
 createRoot(document.getElementById("root")).render(
@@ -2280,6 +2280,9 @@ function autosendMetrics() {
     saveButton: document.querySelector('[data-testid="v3-ai-autosend-settings"] button[type="submit"]')?.textContent.trim() ?? null,
     saveIdle: document.querySelector('[data-testid="v3-ai-autosend-settings"] button[type="submit"]')?.getAttribute("aria-disabled") === "true",
     settingsStatus: text('[data-testid="v3-ai-autosend-settings-status"]'),
+    liveTestLock: text('[data-testid="v3-ai-autosend-live-test-lock"]'),
+    liveTestInput: document.querySelector('[data-testid="v3-ai-autosend-live-test"] input[type="url"]') !== null,
+    finalReasons: [...document.querySelectorAll('[data-testid="v3-ai-autosend-final-reason"]')].map((element) => element.textContent.trim()),
     issues: [...document.querySelectorAll('[data-testid="v3-ai-autosend-settings"] .text-danger')].map((element) => element.textContent.trim()),
     chip: text('[data-testid="v3-inbox-autoreply-chip"]'),
     autoreplyLabels: [...document.querySelectorAll('[data-testid="v3-inbox-message"][data-origin="autoreply"] time + span')].map((element) => ({ text: element.textContent.trim(), title: element.getAttribute("title") })),
@@ -2390,16 +2393,19 @@ async function aiP4Screenshots() {
     const sectionChecks = {
       "section-autosend-off": (m) => m.mode === "off" && m.enable?.includes("Первое включение — «Проверка без отправки»") && !m.enableDisabled
         && m.overnight.includes("→ 09:00 след. дня") && m.overnight.includes("→ 00:00 след. дня") && m.unconfirmed === 4 && m.saveButton === "Сохранить настройки"
-        && m.solidRed.length === 0 && m.saveIdle === true,
+        && m.solidRed.length === 0 && m.saveIdle === true
+        && m.liveTestLock === "Чаты живого теста можно добавить после 3 ночей проверки без отправки." && !m.liveTestInput,
       "section-autosend-no-consent": (m) => m.enableDisabled && m.enable?.includes("Сначала администратор записывает согласие на Gemini."),
       "section-autosend-shadow": (m) => m.mode === "shadow" && m.lock === "Нужно ещё 2 ночи проверки" && m.liveDisabled
         && m.header?.includes("Ответственный: Менеджер продаж (синтетический)") && m.header?.includes("Сейчас интервал автоответчика — до 6 октября, 09:00")
-        && m.serverOff === "Отправка выключена на сервере." && m.pause === null,
+        && m.serverOff === "Отправка выключена на сервере." && m.pause === null
+        && m.liveTestLock === "Чаты живого теста можно добавить после 3 ночей проверки без отправки — нужно ещё 2 ночи." && !m.liveTestInput,
       "section-autosend-paused": (m) => m.mode === "live" && m.pause?.startsWith("Автоответчик на паузе: WhatsApp не на связи · с 6 октября, 03:14")
         && m.pause.includes("Снять паузу") && m.serverOff === "Отправка выключена на сервере — ничего не уйдёт, пока её не включат на сервере.",
-      "section-autosend-live": (m) => m.mode === "live" && m.serverOff === null && m.pause === null && m.header?.includes("Отвечает"),
+      "section-autosend-live": (m) => m.mode === "live" && m.serverOff === null && m.pause === null && m.header?.includes("Отвечает")
+        && m.liveTestLock === null && m.liveTestInput,
       "section-autosend-journal": (m) => JSON.stringify(m.journal) === JSON.stringify(["shadow", "shadow", "skipped", "skipped", "shadow", "skipped", "shadow"])
-        && m.hiddenText >= 1,
+        && m.hiddenText >= 1 && JSON.stringify(m.finalReasons) === JSON.stringify(["Вместо ответа: квалификация собрана"]),
       "section-autosend-journal-skipped": (m) => JSON.stringify(m.journal) === JSON.stringify(["skipped", "skipped", "skipped"]),
       "section-autosend-summary": (m) => m.summaryItems === 5 && m.summaryHidden === 1,
       "section-autosend-summary-empty": (m) => m.summaryEmpty === "Сводок пока нет — первая появится утром после первой ночи.",

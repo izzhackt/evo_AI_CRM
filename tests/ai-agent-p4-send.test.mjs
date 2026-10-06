@@ -379,18 +379,25 @@ test("retry while the first request still holds the work: 409 in_progress — no
   assert.equal(provider.events.filter((event) => event.startsWith("send:")).length, 1, "exactly one WhatsApp message");
 });
 
-test("retry after the record failed: a finished work item is recorded by its state — never claimed or sent again", async () => {
-  for (const [workState, outcome, code] of [
-    ["succeeded", "sent", null], ["dead_lettered", "failed", "send_failed"],
-    ["unknown_manual_review", "unknown", "send_unknown"], ["conflict_manual_review", "unknown", "send_unknown"],
-  ]) {
-    const run = harness({ database: fakeDatabase({ ai_autosend_authorize_v1: () => ({ data: replayRow("authorized", workState), error: null }) }) });
-    const response = await run.handler(signed());
-    assert.equal(response.status, 200, workState);
-    assert.deepEqual(await response.json(), { outcome, code }, workState);
-    assert.deepEqual(run.database.calls.map((call) => call.name), ["ai_autosend_authorize_v1", "ai_autosend_record_v1"], workState);
-    assert.deepEqual([run.database.calls[1].args.p_outcome, run.database.calls[1].args.p_code], [outcome, code], workState);
-    assert.equal(run.provider.events.length, 0, workState);
+test("retry after the work was taken: 276 answers already_claimed → 409 in_progress — no claim, no record, no WhatsApp", async () => {
+  // 276: решение `authorized`, работа уже не в очереди (взята, завершена, в ручной проверке) — отказ
+  // `already_claimed` без записи в журнал; итог пишет взявший запрос, зависшие закрывает база (277).
+  const run = harness({ database: fakeDatabase({ ai_autosend_authorize_v1: () => ({
+    data: { authorized: false, reason: "already_claimed", decisionId: DECISION, status: "authorized" }, error: null,
+  }) }) });
+  const response = await run.handler(signed());
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), { error: { code: "in_progress", reason: "already_claimed" } });
+  assert.deepEqual(run.database.calls.map((call) => call.name), ["ai_autosend_authorize_v1"]);
+  assert.equal(run.provider.events.length, 0);
+  // Защита на случай, если база всё же отдаст повтор с завершённой работой: CRM итог по ней не пишет.
+  for (const workState of ["succeeded", "dead_lettered", "unknown_manual_review", "conflict_manual_review"]) {
+    const replay = harness({ database: fakeDatabase({ ai_autosend_authorize_v1: () => ({ data: replayRow("authorized", workState), error: null }) }) });
+    const answer = await replay.handler(signed());
+    assert.equal(answer.status, 409, workState);
+    assert.deepEqual(await answer.json(), { error: { code: "in_progress", workState } }, workState);
+    assert.deepEqual(replay.database.calls.map((call) => call.name), ["ai_autosend_authorize_v1"], workState);
+    assert.equal(replay.provider.events.length, 0, workState);
   }
 });
 
@@ -551,6 +558,8 @@ test("ids, typing and outcome mapping", () => {
   assert.deepEqual(aiAutosendReplayStep(replay("some_new_state"), { now: NOW, providerStatus: "WORKING" }), { step: "in_progress", workState: "some_new_state" },
     "an unknown work state is never sent or recorded");
   assert.deepEqual(aiAutosendReplayStep(replay("constructor"), { now: NOW, providerStatus: "WORKING" }), { step: "in_progress", workState: "constructor" });
+  assert.deepEqual(aiAutosendReplayStep(replay("succeeded"), { now: NOW, providerStatus: "WORKING" }), { step: "in_progress", workState: "succeeded" },
+    "finished work is never recorded by a replay (277 closes stuck decisions)");
   assert.equal(AI_AUTOSEND_REPLAY_WINDOW_SECONDS, 60);
   const finished = (outcome) => ({ status: "finished", result: { outcome } });
   assert.deepEqual(aiAutosendOutcome(finished("succeeded"), null), { outcome: "sent", code: null });

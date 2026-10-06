@@ -250,6 +250,21 @@ export function aiAutosendLiveLock(state: Pick<AiAutosendState, "shadowNights" |
   return null;
 }
 
+/**
+ * Почему чаты живого теста пока не добавить (277: `ai_autosend_shadow_nights_required`,
+ * PT412, — на каждую запись непустого списка): ночи проверки считаются за 30
+ * дней и могут убыть. null — можно.
+ */
+export function aiAutosendLiveTestLock(state: Pick<AiAutosendState, "shadowNights" | "shadowNightsRequired">): string | null {
+  const left = Math.max(0, state.shadowNightsRequired - state.shadowNights);
+  if (left === 0) return null;
+  const required = state.shadowNightsRequired;
+  const after = required % 10 === 1 && required % 100 !== 11 ? "ночи" : "ночей";
+  // Ни одной ночи — остаток равен требованию, второй раз его не называть.
+  const rest = state.shadowNights > 0 ? ` — нужно ещё ${nightsWord(left)}` : "";
+  return `Чаты живого теста можно добавить после ${required} ${after} проверки без отправки${rest}.`;
+}
+
 /** Причины паузы (275, `pause_code`) словами баннера «Автоответчик на паузе: …». */
 export const AI_AUTOSEND_PAUSE_REASON: Readonly<Record<string, string>> = Object.freeze({
   manual: "поставлена вручную",
@@ -552,6 +567,34 @@ export const AI_AUTOSEND_OUTCOME_RU: Readonly<Record<string, string>> = Object.f
   provider_unavailable: "WhatsApp недоступен",
   send_failed: "Не отправлено",
   send_unknown: "Итог отправки неизвестен",
+  /** 277: отправку взяли, но не завершили — сообщение могло и уйти. */
+  lease_expired: "Отправка прервалась — проверьте в чате, дошло ли сообщение",
+});
+
+/**
+ * Почему вместо ответа сказана финальная фраза — код агента (277,
+ * `final_reason_code`) словами журнала. Незнакомый код — как у причин сводки.
+ */
+export const AI_AUTOSEND_FINAL_REASON_RU: Readonly<Record<string, string>> = Object.freeze({
+  qualified: "квалификация собрана",
+  intent_payment: "клиент хочет оплатить",
+  intent_contract: "клиент хочет оформить договор",
+  intent_call: "клиент просит позвонить",
+  intent_human: "клиент просит менеджера",
+  payment_words: "в сообщении клиента слова об оплате или обещаниях",
+  no_sources: "нет разрешённых материалов по вопросу",
+  not_covered: "материалы не отвечают на вопрос",
+  commitment: "в ответе было обещание, гарантия или «бесплатно»",
+  source_numbers: "ответ ссылался на несуществующий источник",
+  leak: "ответ раскрывал внутренние сведения",
+  coverage: "в ответе были неподтверждённые утверждения",
+  meaning: "утверждение не подтверждено источником",
+  unverified: "в источнике непроверенное число",
+  unsupported: "ответ не подтверждён материалами",
+  figures: "число из ответа не найдено в источнике",
+  patterns: "стоп-слова, ссылки или пометки в ответе",
+  length: "ответ длиннее 1000 символов",
+  empty: "пустой ответ",
 });
 
 export type AiAutosendJournalRow = Readonly<{
@@ -566,6 +609,8 @@ export type AiAutosendJournalRow = Readonly<{
   kind: "answer" | "final_phrase" | null;
   reasonRu: string | null;
   outcomeCode: string | null;
+  /** Почему сказана финальная фраза (код агента, 277 `finalReasonCode`); только у `final_phrase`. */
+  finalReasonCode: string | null;
   language: AiAutosendLanguage | null;
   /** Текст ответа — только если смотрящий может читать этот чат (277: иначе `textHidden`). */
   text: string | null;
@@ -587,6 +632,7 @@ export function normalizeAiAutosendJournal(value: unknown): AiAutosendJournal {
       if (!isObject(raw) || !uuid(raw.id) || !uuid(raw.conversationId) || !iso(raw.createdAt)
         || !(AI_AUTOSEND_STATUSES as readonly string[]).includes(String(raw.status))) return invalid();
       const body = typeof raw.text === "string" && raw.text.trim() ? raw.text.slice(0, 1000) : null;
+      const kind = raw.kind === "answer" || raw.kind === "final_phrase" ? raw.kind : null;
       return Object.freeze({
         id: uuid(raw.id)!,
         at: iso(raw.createdAt)!,
@@ -594,9 +640,11 @@ export function normalizeAiAutosendJournal(value: unknown): AiAutosendJournal {
         conversationTitle: null,
         status: raw.status as AiAutosendStatus,
         mode: raw.mode === "live" || raw.mode === "live_test" ? raw.mode : "shadow",
-        kind: raw.kind === "answer" || raw.kind === "final_phrase" ? raw.kind : null,
+        kind,
         reasonRu: text(raw.reasonRu, 300),
         outcomeCode: typeof raw.outcomeCode === "string" && CODE.test(raw.outcomeCode) ? raw.outcomeCode : null,
+        finalReasonCode: kind === "final_phrase" && typeof raw.finalReasonCode === "string" && CODE.test(raw.finalReasonCode)
+          ? raw.finalReasonCode : null,
         language: (AI_AUTOSEND_LANGUAGES as readonly string[]).includes(String(raw.language)) ? raw.language as AiAutosendLanguage : null,
         text: body,
         textHidden: raw.textHidden === true && body === null,
@@ -616,6 +664,13 @@ export function aiAutosendJournalReason(row: Pick<AiAutosendJournalRow, "reasonR
     return AI_AUTOSEND_OUTCOME_RU[row.outcomeCode] ?? (row.status === "failed" ? "Не отправлено" : "Итог отправки неизвестен");
   }
   return null;
+}
+
+/** «Вместо ответа: клиент хочет оплатить» — у финальной фразы, если агент назвал причину. */
+export function aiAutosendJournalFinalReason(row: Pick<AiAutosendJournalRow, "kind" | "finalReasonCode">): string | null {
+  if (row.kind !== "final_phrase" || !row.finalReasonCode) return null;
+  const code = row.finalReasonCode;
+  return `Вместо ответа: ${Object.hasOwn(AI_AUTOSEND_FINAL_REASON_RU, code) ? AI_AUTOSEND_FINAL_REASON_RU[code] : code.replaceAll("_", " ")}`;
 }
 
 // ------------------------------------------------------------------ summary

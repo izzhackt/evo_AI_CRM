@@ -44,11 +44,11 @@ import {
  *     проверяет правила, берёт СОХРАНЁННЫЙ текст, создаёт авторизацию вида
  *     `ai_autosend` от ответственного сотрудника и ставит работу
  *     `manual_whatsapp_send`. Отказ — 409 (журнал и пауза уже записаны базой).
- *     Повтор того же решения возвращает прежнюю авторизацию РАНЬШЕ всех
- *     проверок базы, поэтому повтор без итога решает CRM (`settleReplay`):
- *     работу, которую ещё не брали, отправляет только в течение минуты после
- *     авторизации и при живой сессии WORKING; взятую — не трогает (409
- *     `in_progress`); завершённую без записи — только записывает.
+ *     Повтор того же решения: работу ещё не брали — база заново проверяет
+ *     правила (60 с, сессия, пауза, ответственный), CRM — ещё раз срок и
+ *     сессию (`aiAutosendReplayStep`); работу уже взяли — база отвечает
+ *     `already_claimed`, маршрут — 409 `in_progress` (ни claim, ни записи: итог
+ *     пишет взявший запрос, зависшие закрывает база, 277).
  *  5. Отправка — тот же код, что у ручной (`executePlatformManualWhatsAppSend`:
  *     claim → WAHA → finish), с детерминированными id claim и finish от
  *     решения: повтор запроса никогда не возьмёт работу второй раз (база не
@@ -83,10 +83,9 @@ export const AI_AUTOSEND_RESTRICTED_STATUSES = Object.freeze([463, 475] as const
  * Повтор авторизации, работу которой ещё не брали (CRM упала между
  * авторизацией и claim), отправляет не позже этого срока после авторизации:
  * столько же неотправленная работа держит чат (266: «never claimed within a
- * minute» больше не держит очередь чата). База на повтор правил не проверяет
- * (276 отдаёт сохранённую авторизацию раньше проверок), так что пауза,
- * выключение, исключение чата и ответ сотрудника после авторизации CRM не
- * видны — их окно ограничено этой минутой. Агент повторяет 503 через 10 с.
+ * minute» больше не держит очередь чата). База (276) на такой повтор заново
+ * проверяет правила с тем же сроком; CRM ещё раз сверяет срок и сессию сама.
+ * Агент повторяет 503 через 10 с.
  */
 export const AI_AUTOSEND_REPLAY_WINDOW_SECONDS = 60;
 
@@ -390,30 +389,22 @@ async function record(
 
 // ------------------------------------------------------------ replay
 
-/** Работа завершена, итог не записан (запись не удалась): записать по состоянию работы, без отправки. */
-const REPLAY_FINISHED_WORK: Readonly<Record<string, AiAutosendOutcome>> = Object.freeze({
-  succeeded: { outcome: "sent", code: null },
-  dead_lettered: { outcome: "failed", code: "send_failed" },
-  unknown_manual_review: { outcome: "unknown", code: "send_unknown" },
-  conflict_manual_review: { outcome: "unknown", code: "send_unknown" },
-});
-
 export type AiAutosendReplayStep =
   | Readonly<{ step: "send" }>
   | Readonly<{ step: "in_progress"; workState: string }>
-  | Readonly<{ step: "close"; outcome: AiAutosendOutcome; refusal: string | null }>;
+  | Readonly<{ step: "close"; outcome: AiAutosendOutcome; refusal: string }>;
 
 /**
- * Что делать с повтором авторизации, у которой нет итога (276 отдаёт её до
- * всех своих проверок):
+ * Что делать с повтором авторизации, у которой нет итога (276 отдаёт его,
+ * только пока работу не брали, и перед этим заново проверяет правила):
  *  - работа в очереди (claim не было) — отправить, только если авторизации не
  *    больше `AI_AUTOSEND_REPLAY_WINDOW_SECONDS` и сессия сейчас WORKING; иначе
  *    закрыть итогом `failed` (`authorization_expired` / `provider_down`) — в
  *    WhatsApp ничего не уходит;
- *  - работа взята и идёт (`leased`, `retry_wait` и любое незнакомое
- *    состояние) — `in_progress`: ни claim, ни записи; итог запишет исходный
- *    запрос (или сверка);
- *  - работа завершена без записи итога — записать итог по её состоянию.
+ *  - любое другое состояние работы — `in_progress`: ни claim, ни записи.
+ *    С 276 (`already_claimed`) сюда не доходит взятая или завершённая работа —
+ *    оставлено защитой: CRM не пишет итог по чужой работе, зависшие решения
+ *    закрывает сама база (277, через 10 минут по состоянию работы).
  */
 export function aiAutosendReplayStep(
   replay: AiAutosendReplay,
@@ -428,9 +419,6 @@ export function aiAutosendReplayStep(
       return { step: "close", outcome: { outcome: "failed", code: "provider_down" }, refusal: "provider_down" };
     }
     return { step: "send" };
-  }
-  if (Object.hasOwn(REPLAY_FINISHED_WORK, replay.workState)) {
-    return { step: "close", outcome: REPLAY_FINISHED_WORK[replay.workState]!, refusal: null };
   }
   return { step: "in_progress", workState: replay.workState };
 }
@@ -498,6 +486,8 @@ export function createAiAutosendSendHandler(dependencies: AiAutosendSendDependen
       const status = await dependencies.probe(organizationId).catch(() => null);
       const providerStatus = status !== null && STATUS_WORD.test(status) ? status : "UNKNOWN";
       const authorized = await authorize(client, { organizationId, decisionId, providerStatus, observedAt });
+      // Работу этого решения уже взял другой запрос (276): итог за ним, повтор ничего не берёт и не пишет.
+      if (authorized.kind === "refused" && authorized.reason === "already_claimed") return refuse(409, "in_progress", { reason: "already_claimed" });
       if (authorized.kind === "refused") return refuse(409, "refused", { reason: authorized.reason });
       // Повтор уже записанного решения: итог есть, отправлять и писать нечего.
       if (authorized.kind === "finished") return refuse(409, "already_finished", { status: authorized.status });
@@ -513,7 +503,7 @@ export function createAiAutosendSendHandler(dependencies: AiAutosendSendDependen
         if (replay.step === "close") {
           const recorded = await record(client, { organizationId, decisionId, ...replay.outcome }, dependencies.sleep);
           if (!recorded) return refuse(503, "record_unavailable", { outcome: replay.outcome.outcome });
-          return replay.refusal ? refuse(409, "refused", { reason: replay.refusal }) : respond(200, replay.outcome);
+          return refuse(409, "refused", { reason: replay.refusal });
         }
       }
 

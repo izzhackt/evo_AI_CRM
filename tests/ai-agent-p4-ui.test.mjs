@@ -24,8 +24,10 @@ import {
   aiAutosendAnswersHere,
   aiAutosendChatLine,
   aiAutosendConversationFromLink,
+  aiAutosendJournalFinalReason,
   aiAutosendJournalReason,
   aiAutosendLiveLock,
+  aiAutosendLiveTestLock,
   aiAutosendMode,
   aiAutosendOvernight,
   aiAutosendPauseReason,
@@ -216,6 +218,26 @@ test("save: only the changed keys go to 277 — the live-test list only when it 
   assert.match(source, /code === "42501" && message === "ai_conversation_unavailable"\) return "chat_unavailable";/u);
   assert.match(source, /p_patch: input\.patch,/u);
   assert.match(form, /sender_required: "Чаты живого теста меняет только тот, кто сам отвечает клиентам в WhatsApp\./u);
+  // PT412 записи — не согласие на Gemini, а три ночи проверки до непустого списка живого теста.
+  assert.match(source, /code === "PT412" && message === "ai_autosend_shadow_nights_required"\) return "shadow_nights_required";/u);
+  assert.ok(source.indexOf('"shadow_nights_required";') < source.indexOf("return writeStatus(error as RpcError);"), "mapped before the generic PT412");
+  assert.match(form, /shadow_nights_required: "Чаты живого теста можно добавить только после трёх ночей проверки без отправки\. Уберите их из списка — остальное сохранится\."/u);
+});
+
+test("live test before three shadow nights: the link field is not offered, the reason has the count; the save refusal says the same", () => {
+  assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 0 })), "Чаты живого теста можно добавить после 3 ночей проверки без отправки.");
+  assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 1 })), "Чаты живого теста можно добавить после 3 ночей проверки без отправки — нужно ещё 2 ночи.");
+  assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 2 })), "Чаты живого теста можно добавить после 3 ночей проверки без отправки — нужно ещё 1 ночь.");
+  assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 3 })), null);
+  assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 9 })), null);
+  assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 0, shadowNightsRequired: 1 })), "Чаты живого теста можно добавить после 1 ночи проверки без отправки.");
+  assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 1, shadowNightsRequired: 21 })), "Чаты живого теста можно добавить после 21 ночи проверки без отправки — нужно ещё 20 ночей.");
+  const form = read("src/components/v3/ai-agent/AiAutosendSettingsForm.tsx");
+  // Поле ссылки и «Добавить» — только без замка; уже добавленные чаты убираются и под замком.
+  assert.match(form, /length >= AI_AUTOSEND_MAX_LIVE_TEST \? null : liveTestLock \? \(/u);
+  assert.match(form, /data-testid="v3-ai-autosend-live-test-lock"/u);
+  assert.match(form, /state\.status === "shadow_nights_required" && liveTestLock \? `\$\{liveTestLock\} Уберите чаты из списка — остальное сохранится\.`/u);
+  assert.match(read("src/components/v3/ai-agent/AiAutosendView.tsx"), /liveTestLock=\{aiAutosendLiveTestLock\(state\)\}/u);
 });
 
 test("RPC names the CRM calls exist in the P4 schema (275–277): the chat read is ai_agent_autosend_conversation_v1", (t) => {
@@ -240,10 +262,16 @@ test("RPC names the CRM calls exist in the P4 schema (275–277): the chat read 
   }
   const defined = new Set([...sql.matchAll(/CREATE OR REPLACE FUNCTION platform\.(ai_(?:agent_)?autosend[a-z_]*_v1)\(/gu)].map((match) => match[1]));
   for (const name of called) assert.ok(defined.has(name), `${name} is not a platform function of 275–277`);
-  // Коды итога, которые пишет маршрут отправки, имеют слова в журнале.
-  for (const code of ["provider_restricted", "authorization_expired", "provider_down", "send_failed", "send_unknown"]) {
+  // Коды итога, которые пишут маршрут отправки и закрытие зависших решений (277), имеют слова в журнале.
+  for (const code of ["provider_restricted", "authorization_expired", "provider_down", "send_failed", "send_unknown", "lease_expired"]) {
     assert.equal(typeof AI_AUTOSEND_OUTCOME_RU[code], "string", code);
   }
+  assert.match(sql, /WHEN i\.state = 'leased' THEN 'lease_expired'/u, "277 closes an expired lease as lease_expired");
+  // Формы, на которые CRM опирается в этом раунде, — у текущей головы схемы.
+  assert.match(sql, /'finalReasonCode', p_log\.final_reason_code/u, "the journal row carries finalReasonCode");
+  assert.match(sql, /RAISE EXCEPTION 'ai_autosend_shadow_nights_required' USING ERRCODE = 'PT412'/u);
+  assert.match(sql, /'already_claimed'/u, "authorize answers already_claimed for taken work");
+  assert.match(read("src/lib/server/ai-agent-send.ts"), /authorized\.reason === "already_claimed"\) return refuse\(409, "in_progress"/u);
 });
 
 test("«Отвечает» lock: three shadow nights, confirmed RU phrases and disclosure, no pause — the same order 277 refuses in", () => {
@@ -280,11 +308,16 @@ test("journal: 277 rows with text only for readable chats, outcome codes in word
         delaySeconds: null, outcomeCode: null, createdAt: "2026-10-06T21:20:02Z", committedAt: null, authorizedAt: null, finishedAt: null,
         textHidden: true, text: null, qualification: null },
       { id: ID(12), conversationId: ID(3), status: "failed", mode: "live", kind: "final_phrase", reasonRu: null, language: "ru", callDate: "2026-10-07",
-        outcomeCode: "provider_restricted", createdAt: "2026-10-06T22:00:00Z", textHidden: false, text: "Завтра в рабочее время вам позвонит наш руководитель." },
+        outcomeCode: "provider_restricted", finalReasonCode: "intent_payment", createdAt: "2026-10-06T22:00:00Z", textHidden: false,
+        text: "Завтра в рабочее время вам позвонит наш руководитель." },
+      { id: ID(13), conversationId: ID(4), status: "unknown", mode: "live_test", kind: "final_phrase", finalReasonCode: "some_new_reason",
+        outcomeCode: "lease_expired", createdAt: "2026-10-06T22:30:00Z", textHidden: true, text: null },
+      { id: ID(14), conversationId: ID(5), status: "shadow", mode: "shadow", kind: "answer", finalReasonCode: "qualified",
+        createdAt: "2026-10-06T22:40:00Z", textHidden: false, text: "Здравствуйте!" },
     ],
     next: { beforeCreatedAt: "2026-10-06T22:00:00Z", beforeId: ID(12) },
   });
-  assert.equal(journal.items.length, 3);
+  assert.equal(journal.items.length, 5);
   assert.equal(journal.items[0].text, "Здравствуйте! Магистратура в Малайзии длится полтора-два года.");
   assert.equal(journal.items[0].conversationTitle, null, "names are resolved by the CRM reader");
   assert.equal(journal.items[1].text, null);
@@ -292,6 +325,14 @@ test("journal: 277 rows with text only for readable chats, outcome codes in word
   assert.equal(aiAutosendJournalReason(journal.items[1]), "Сотрудник отвечал или был активен в чате последние 15 минут");
   assert.equal(aiAutosendJournalReason(journal.items[2]), "WhatsApp ограничил номер (463 или 475)");
   assert.equal(journal.items[2].callDate, "2026-10-07");
+  // Почему вместо ответа — финальная фраза (277 `finalReasonCode`); у ответа причины финальной фразы нет.
+  assert.equal(aiAutosendJournalFinalReason(journal.items[2]), "Вместо ответа: клиент хочет оплатить");
+  assert.equal(aiAutosendJournalFinalReason(journal.items[3]), "Вместо ответа: some new reason");
+  assert.equal(journal.items[4].finalReasonCode, null);
+  assert.equal(aiAutosendJournalFinalReason(journal.items[4]), null);
+  assert.equal(aiAutosendJournalFinalReason(journal.items[0]), null);
+  assert.equal(aiAutosendJournalFinalReason({ kind: "final_phrase", finalReasonCode: "constructor" }), "Вместо ответа: constructor");
+  assert.equal(aiAutosendJournalReason(journal.items[3]), "Отправка прервалась — проверьте в чате, дошло ли сообщение");
   assert.deepEqual(journal.next, { beforeCreatedAt: "2026-10-06T22:00:00Z", beforeId: ID(12) });
   assert.throws(() => normalizeAiAutosendJournal({ items: [{ id: ID(1), conversationId: ID(1), createdAt: "x", status: "sent" }] }), /ai_agent_shape_invalid/u);
   assert.throws(() => normalizeAiAutosendJournal({ items: [{ id: ID(1), conversationId: ID(1), createdAt: "2026-10-06T22:00:00Z", status: "maybe" }] }), /ai_agent_shape_invalid/u);

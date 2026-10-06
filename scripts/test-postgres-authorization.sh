@@ -3159,12 +3159,15 @@ SQL
   # without policies or grants; 30 staff and 34 agent functions, hardened;
   # the four agent functions refuse while memory is off or consent is missing,
   # and enabled they serve sales conversations only; pointers carry no text;
+  # the inbound cursor stays 5 minutes back (a late projection is returned);
   # due rules (> 20 messages and 6 uncovered; +3 do not refresh, +6 do), the
   # 80-message batch, interest once a minute, rebuild after an older message;
   # the put guards (lease, version, boundary, caps, phones and e-mails); media
-  # markers become kinds with the caption only and no file names; the staff
-  # view, clear (ai.agent.use, audit without text) and toggle (PT412, PT409,
-  # disable purges); maintenance; the answer context carries memory.
+  # markers (259/060/061) become kinds with the caption only and no file
+  # names; the staff view, clear (ai.agent.use, audit without text, rebuild
+  # pointer) and toggle (PT412, PT409, enable enqueues long chats, disable
+  # purges); a consent revoke turns memory off and purges it; maintenance;
+  # the answer context carries memory.
   if [[ "$(basename "$migration")" == *_platform_ai_agent_memory.sql ]]; then
     docker exec "$container_name" \
       psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \

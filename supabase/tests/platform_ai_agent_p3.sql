@@ -15,16 +15,19 @@
 --     (agent included) and follows its conversation (ON DELETE CASCADE);
 --     memory ships off; 30 staff functions (29 authenticated-only, the
 --     storage broker service_role-only) and 34 agent functions, all hardened
---     definers; the agent executes only those 34; the new helpers are
+--     definers; the agent executes only those 34; the 8 new helpers are
 --     executable by nobody; the agent reads no table or queue directly;
 --  2. off / no consent: inbound_since_v1, memory_due_v1, memory_context_v1
 --     and memory_put_v1 refuse 42501; enabling without consent is PT412, a
 --     stale version PT409, only ai.agent.manage toggles; the enable is
---     audited and replays;
+--     audited, replays and enqueues the summaries of the long chats (2 s
+--     apart);
 --  3. pointers: inbound_since_v1 returns only inbound messages of sales
 --     conversations of enabled organizations (no curator chat, no text),
---     pages by (created_at, id); memory_due_v1 skips unknown and curator
---     chats, enqueues {v, kind:'memory', ref_id} only, once per 10 minutes;
+--     pages by (created_at, id); its cursor stays 5 minutes back, so a
+--     message projected after the cursor passed its event time is still
+--     returned; memory_due_v1 skips unknown and curator chats, enqueues
+--     {v, kind:'memory', ref_id} only, once per 10 minutes;
 --  4. due rules and the job: > 20 messages with ≥ 6 uncovered → summary of
 --     the oldest 25 (window 20) → coveredCount 25; +3 messages refresh only
 --     the interest, +6 refresh the summary; the batch is at most 80; the
@@ -34,16 +37,21 @@
 --     matching count PT409, growing) and text guards (length, phones,
 --     e-mails 22023);
 --  5. media: the 259 markers become kinds photo/voice/file/sticker/video/
---     audio, the 060 marker unknown, 062 rows image → photo and pdf → file;
---     only the caption stays as text; no file name, marker or phone reaches
---     the agent; the answer context keeps `direction` and carries memory;
+--     audio, the 060 and 061 markers unknown, 062 rows image → photo and
+--     pdf → file; only the caption stays as text; no file name, marker or
+--     phone reaches the agent; the answer context keeps `direction` and
+--     carries memory; the WAHA placeholder «WhatsApp ••••NNNN» is no name;
+--     the text guard stops bracketed, dotted, NBSP- and dash-separated
+--     phones and unspaced date ranges, and passes prices, years, dates;
 --  6. staff: the view (ai.agent.use + the sales chat; live lead card),
 --     refusals (no conversation access, no AI right, Student, another
 --     organization, anon, curator chat); clear by ai.agent.use (Q9), replay,
---     conflict, audit without text; disable purges the organization's
---     memory; the agent refuses again and the context carries no memory;
---  7. maintenance removes memory of curator chats and of organizations
---     without consent, clears expired leases; a revoked consent stops a put.
+--     conflict, audit without text, an immediate rebuild pointer; disable
+--     purges the organization's memory; the agent refuses again and the
+--     context carries no memory;
+--  7. maintenance removes memory of curator chats, clears expired leases; a
+--     revoked consent turns memory off and purges it at once (a held lease
+--     cannot write), and a new consent does not turn it back on.
 BEGIN;
 
 DO $p3_auth_role$
@@ -154,13 +162,13 @@ SELECT pg_temp.p3_assert((SELECT has_function_privilege('service_role', p.oid, '
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'platform' AND p.proname = 'ai_agent_storage_authorize_v1'),
   'the storage broker authorization stays service_role-only');
-SELECT pg_temp.p3_assert((SELECT count(*) = 7 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+SELECT pg_temp.p3_assert((SELECT count(*) = 8 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'platform_private' AND p.proname IN ('ai_memory_gate', 'ai_dialog_messages', 'ai_message_view',
-      'ai_lead_card', 'ai_memory_state', 'ai_memory_enqueue', 'ai_memory_text_ok')
+      'ai_lead_card', 'ai_memory_state', 'ai_memory_enqueue', 'ai_memory_text_ok', 'ai_memory_poke')
     AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
     AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
     AND NOT has_function_privilege('evo_ai_agent', p.oid, 'EXECUTE')),
-  'the 7 new private helpers are executable by no API role and not by the agent');
+  'the 8 new private helpers are executable by no API role and not by the agent');
 SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p3_assert(pg_temp.p3_err('SELECT count(*) FROM platform_private.ai_client_memory') LIKE '42501:%'
   AND pg_temp.p3_err('SELECT count(*) FROM platform.communication_messages') LIKE '42501:%'
@@ -528,10 +536,17 @@ SELECT platform.ai_agent_memory_toggle_v1(pg_temp.p3_id(1), TRUE, :'p3_settings_
 SELECT pg_temp.p3_assert((:'p3_enable'::JSONB ->> 'status') = 'applied'
   AND (:'p3_enable'::JSONB ->> 'memoryEnabled')::BOOLEAN
   AND (:'p3_enable'::JSONB ->> 'version')::BIGINT = :'p3_settings_v'::BIGINT + 1
+  AND (:'p3_enable'::JSONB ->> 'enqueued')::INTEGER = 2
   AND NOT (:'p3_enable'::JSONB ->> 'replayed')::BOOLEAN
   AND (platform.ai_agent_memory_toggle_v1(pg_temp.p3_id(1), TRUE, :'p3_settings_v', pg_temp.p3_id(3005)) ->> 'replayed')::BOOLEAN,
-  'a manager enables memory (version + 1); the same request replays');
+  'a manager enables memory (version + 1) and the two long chats get a summary pointer; the same request replays');
 RESET ROLE;
+SELECT pg_temp.p3_assert((SELECT count(*) = 2
+    AND array_agg(q.message ->> 'ref_id' ORDER BY q.message ->> 'ref_id')
+      = (SELECT array_agg(x ORDER BY x) FROM unnest(ARRAY[:'c1', :'c4']) x)
+    AND max(q.vt) - min(q.vt) BETWEEN INTERVAL '1.9 seconds' AND INTERVAL '3 seconds'
+  FROM pgmq.q_ai_agent_work_v1 q),
+  'enabling enqueues c1 (45) and c4 (102), 2 s apart, not c3 (3 messages) or the curator chat');
 SELECT pg_temp.p3_assert((SELECT count(*) = 1 FROM platform.audit_events WHERE request_id = pg_temp.p3_id(3005)
     AND action = 'ai.agent.memory.enable' AND resource_type = 'organization' AND actor_profile_id = pg_temp.p3_id(202))
   AND (SELECT memory_enabled FROM platform_private.ai_settings WHERE organization_id = pg_temp.p3_id(1)),
@@ -544,8 +559,10 @@ SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p3_assert((SELECT jsonb_array_length(r -> 'items') = 0 AND NOT (r ->> 'hasMore')::BOOLEAN
     AND (r #>> '{next,afterAt}')::TIMESTAMPTZ BETWEEN clock_timestamp() - INTERVAL '6 minutes'
       AND clock_timestamp() - INTERVAL '4 minutes'
+    AND (r ->> 'now')::TIMESTAMPTZ BETWEEN clock_timestamp() - INTERVAL '1 minute' AND clock_timestamp()
+    AND (r ->> 'now')::TIMESTAMPTZ - (r #>> '{next,afterAt}')::TIMESTAMPTZ = INTERVAL '5 minutes'
   FROM (SELECT platform_ai_agent.inbound_since_v1(NULL, NULL) AS r) x),
-  'without a cursor only the last 5 minutes are read (the synthetic chats are older)');
+  'without a cursor only the last 5 minutes are read (the synthetic chats are older); now is the database clock of the horizon');
 SELECT platform_ai_agent.inbound_since_v1(pg_temp.p3_at(-3600), '00000000-0000-0000-0000-000000000000', 500) AS p3_all \gset
 SELECT pg_temp.p3_assert(jsonb_array_length(:'p3_all'::JSONB -> 'items') = 128
   AND NOT (:'p3_all'::JSONB ->> 'hasMore')::BOOLEAN
@@ -564,6 +581,39 @@ SELECT pg_temp.p3_assert((:'p3_page1'::JSONB ->> 'hasMore')::BOOLEAN
     = (SELECT jsonb_agg(e -> 'messageId' ORDER BY o) FROM jsonb_array_elements(:'p3_all'::JSONB -> 'items')
       WITH ORDINALITY AS i(e, o) WHERE o <= 10),
   'pages of 5 follow (created_at, id) without gaps or repeats');
+RESET ROLE;
+-- A late projection: A (c5, 30 s ago) is polled, then B (c6, 40 s ago) is
+-- written. The exact cursor after A would skip B; the returned one does not.
+INSERT INTO p3_runs VALUES (400, pg_temp.p3_run(400, pg_temp.p3_in(400, '79967400005@c.us', 'P3 клиент пятого чата',
+  clock_timestamp() - INTERVAL '30 seconds'), clock_timestamp() - INTERVAL '30 seconds'));
+SELECT m.id AS p3_late_a FROM platform.communication_messages m
+  WHERE m.conversation_id = pg_temp.p3_conv('79967400005@c.us') \gset
+SET LOCAL ROLE evo_ai_agent;
+SELECT platform_ai_agent.inbound_since_v1(clock_timestamp() - INTERVAL '2 minutes',
+  '00000000-0000-0000-0000-000000000000', 200) AS p3_late1 \gset
+RESET ROLE;
+INSERT INTO p3_runs VALUES (401, pg_temp.p3_run(401, pg_temp.p3_in(401, '79967400006@c.us', 'P3 клиент шестого чата',
+  clock_timestamp() - INTERVAL '40 seconds'), clock_timestamp() - INTERVAL '40 seconds'));
+SELECT m.id AS p3_late_b FROM platform.communication_messages m
+  WHERE m.conversation_id = pg_temp.p3_conv('79967400006@c.us') \gset
+SELECT pg_temp.p3_assert((SELECT count(*) = 2 AND bool_and(result ->> 'disposition' = 'succeeded') FROM p3_runs
+    WHERE n IN (400, 401))
+  AND (SELECT created_at FROM platform.communication_messages WHERE id = :'p3_late_b')
+    < (SELECT created_at FROM platform.communication_messages WHERE id = :'p3_late_a'),
+  'A and B project through the real chain; B is written later with an earlier event time');
+SET LOCAL ROLE evo_ai_agent;
+SELECT platform_ai_agent.inbound_since_v1((:'p3_late1'::JSONB #>> '{next,afterAt}')::TIMESTAMPTZ,
+  (:'p3_late1'::JSONB #>> '{next,afterId}')::UUID, 200) AS p3_late2 \gset
+SELECT pg_temp.p3_assert((SELECT jsonb_agg(e -> 'messageId') FROM jsonb_array_elements(:'p3_late1'::JSONB -> 'items') e)
+    = jsonb_build_array(:'p3_late_a') AND NOT (:'p3_late1'::JSONB ->> 'hasMore')::BOOLEAN
+  AND (:'p3_late1'::JSONB #>> '{next,afterId}')::UUID = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
+  AND (:'p3_late1'::JSONB #>> '{next,afterAt}')::TIMESTAMPTZ BETWEEN clock_timestamp() - INTERVAL '6 minutes'
+    AND clock_timestamp() - INTERVAL '4 minutes'
+  AND (SELECT jsonb_agg(e -> 'messageId') FROM jsonb_array_elements(:'p3_late2'::JSONB -> 'items') e)
+    = jsonb_build_array(:'p3_late_b', :'p3_late_a')
+  AND jsonb_array_length(platform_ai_agent.inbound_since_v1((:'p3_late1'::JSONB #>> '{items,0,at}')::TIMESTAMPTZ,
+    :'p3_late_a'::UUID) -> 'items') = 0,
+  'late projection: next stays 5 minutes back (max id), so B written after A was polled is returned (A again); the exact cursor would skip B');
 SELECT pg_temp.p3_assert(pg_temp.p3_err('SELECT platform_ai_agent.inbound_since_v1(NULL, NULL, 0)') LIKE '22023:%'
   AND pg_temp.p3_err('SELECT platform_ai_agent.inbound_since_v1(NULL, NULL, 501)') LIKE '22023:%'
   AND pg_temp.p3_err(format('SELECT platform_ai_agent.inbound_since_v1(%L, NULL)', clock_timestamp())) LIKE '22023:%',
@@ -571,12 +621,12 @@ SELECT pg_temp.p3_assert(pg_temp.p3_err('SELECT platform_ai_agent.inbound_since_
 SELECT platform_ai_agent.memory_due_v1(ARRAY[:'c1', :'c2', :'c3', :'c4', pg_temp.p3_id(999)]::UUID[]) AS p3_due1 \gset
 SELECT pg_temp.p3_assert((SELECT jsonb_object_agg(e ->> 'conversationId', e ->> 'status')
     FROM jsonb_array_elements(:'p3_due1'::JSONB -> 'items') e)
-  = jsonb_build_object(:'c1', 'enqueued', :'c2', 'skipped', :'c3', 'enqueued', :'c4', 'enqueued',
+  = jsonb_build_object(:'c1', 'pending', :'c2', 'skipped', :'c3', 'enqueued', :'c4', 'pending',
     pg_temp.p3_id(999)::TEXT, 'skipped')
   AND (SELECT bool_and((e ->> 'delaySeconds')::INTEGER = 0) FROM jsonb_array_elements(:'p3_due1'::JSONB -> 'items') e
     WHERE e ->> 'status' = 'enqueued')
   AND :'p3_due1' NOT LIKE '%P3 клиент%',
-  'due: the three sales chats are enqueued at once; the curator chat and an unknown id are skipped');
+  'due: c3 is enqueued at once, c1 and c4 are pending since the enable; the curator chat and an unknown id are skipped');
 SELECT pg_temp.p3_assert((SELECT jsonb_agg(e ->> 'status') FROM jsonb_array_elements(
     platform_ai_agent.memory_due_v1(ARRAY[:'c1', :'c3', :'c4']::UUID[]) -> 'items') e) = '["pending","pending","pending"]'::JSONB,
   'a second poll within 10 minutes enqueues nothing');
@@ -660,6 +710,8 @@ SELECT pg_temp.p3_assert(
   AND pg_temp.p3_err(pg_temp.p3_put(:'c1', 'p3-w1', 1, NULL, repeat('я', 1501), pg_temp.p3_pos(:'c1', 25), 25, NULL))
     LIKE '22023:ai_memory_invalid%'
   AND pg_temp.p3_err(pg_temp.p3_put(:'c1', 'p3-w1', 1, NULL, 'Позвонить на +996 555 123 456',
+    pg_temp.p3_pos(:'c1', 25), 25, NULL)) LIKE '22023:ai_memory_personal_data%'
+  AND pg_temp.p3_err(pg_temp.p3_put(:'c1', 'p3-w1', 1, NULL, E'Позвонить на +996\u00A0555\u00A0123\u00A0456',
     pg_temp.p3_pos(:'c1', 25), 25, NULL)) LIKE '22023:ai_memory_personal_data%'
   AND pg_temp.p3_err(pg_temp.p3_put(:'c1', 'p3-w1', 1, NULL, 'Почта p3.client@example.invalid',
     pg_temp.p3_pos(:'c1', 25), 25, NULL)) LIKE '22023:ai_memory_personal_data%'
@@ -851,14 +903,14 @@ SELECT pg_temp.p3_assert(jsonb_array_length(:'p3_answer1'::JSONB -> 'messages') 
   AND (:'p3_answer1'::JSONB -> 'lead') = '{"name":"Тестия","stage":"new","interestDirection":"MY"}'::JSONB,
   'the answer context: the latest 20 with direction, the memory and the lead card');
 SELECT pg_temp.p3_assert((:'p3_answer3'::JSONB -> 'memory') = 'null'::JSONB
-  AND (:'p3_answer3'::JSONB -> 'lead') = '{"name":"WhatsApp","stage":"new","interestDirection":null}'::JSONB
+  AND (:'p3_answer3'::JSONB -> 'lead') = '{"name":null,"stage":"new","interestDirection":null}'::JSONB
   AND (:'p3_answer3'::JSONB #> '{messages,1}') - 'at' = jsonb_build_object('messageId', pg_temp.p3_pos(:'c3', 2),
     'direction', 'inbound', 'role', 'client', 'text', 'P3 подпись: диплом', 'media', '[{"kind":"photo"}]'::JSONB)
   AND (:'p3_answer3'::JSONB #> '{messages,2}') - 'at' = jsonb_build_object('messageId', pg_temp.p3_pos(:'c3', 3),
     'direction', 'inbound', 'role', 'client', 'text', NULL, 'media', '[{"kind":"file"}]'::JSONB)
   AND :'p3_answer3' NOT LIKE '%P3-synthetic-diploma%' AND :'p3_answer3' NOT LIKE '%📎%'
   AND :'p3_answer3' NOT LIKE '%79967%' AND :'p3_answer3' NOT LIKE '%0003%',
-  'c3 (an empty memory row; the chain''s own lead «WhatsApp ••••0003»): no memory, the first word only; caption and kind, no file name or marker');
+  'c3 (an empty memory row; the chain''s own lead «WhatsApp ••••0003»): no memory, the placeholder is no name; caption and kind, no file name or marker');
 
 -- ---------------------------------------------------------------------------
 -- 11. ai_message_view on the remaining markers and on 062 media rows (as the
@@ -873,7 +925,9 @@ SELECT pg_temp.p3_assert((SELECT jsonb_agg(jsonb_build_object('text', v ->> 'tex
           (4, E'📎 Файл: P3 synthetic plan — откройте в WhatsApp продаж.docx — откройте в WhatsApp продаж\nP3 подпись к файлу'),
           (5, '[Системное уведомление] Получено медиа или сообщение без текста. Требуется проверка сотрудником.'),
           (6, E'P3 обычный текст\nвторая строка'),
-          (7, '📎 Фото — откройте где-нибудь ещё')) AS b(k, b)
+          (7, '📎 Фото — откройте где-нибудь ещё'),
+          (8, '[Системное уведомление] Историческое исходящее медиа или сообщение без текста. Требуется загрузка медиа.'))
+        AS b(k, b)
       WHERE m.id = pg_temp.p3_pos(:'c1', 12)) x)
   = jsonb_build_array(
     jsonb_build_object('text', NULL, 'media', '[{"kind":"video"}]'::JSONB),
@@ -882,8 +936,9 @@ SELECT pg_temp.p3_assert((SELECT jsonb_agg(jsonb_build_object('text', v ->> 'tex
     jsonb_build_object('text', 'P3 подпись к файлу', 'media', '[{"kind":"file"}]'::JSONB),
     jsonb_build_object('text', NULL, 'media', '[{"kind":"unknown"}]'::JSONB),
     jsonb_build_object('text', E'P3 обычный текст\nвторая строка', 'media', '[]'::JSONB),
-    jsonb_build_object('text', '📎 Фото — откройте где-нибудь ещё', 'media', '[]'::JSONB)),
-  'video, audio + caption, file with and without a name (the name never kept), the 060 marker → unknown, plain text kept');
+    jsonb_build_object('text', '📎 Фото — откройте где-нибудь ещё', 'media', '[]'::JSONB),
+    jsonb_build_object('text', NULL, 'media', '[{"kind":"unknown"}]'::JSONB)),
+  'video, audio + caption, file with and without a name (the name never kept), the 060 and 061 markers → unknown, plain text kept');
 INSERT INTO platform.communication_message_media (id, organization_id, conversation_id, communication_message_id, ordinal,
   media_kind, mime_type, file_name, file_size_bytes, archival_status, archived_at)
 VALUES
@@ -905,8 +960,30 @@ SELECT pg_temp.p3_assert(platform_private.ai_memory_text_ok(NULL) AND platform_p
   AND platform_private.ai_memory_text_ok('Учебный год 2026-2027, курс 12 345 678')
   AND NOT platform_private.ai_memory_text_ok('+996 555 123 456') AND NOT platform_private.ai_memory_text_ok('996555123456')
   AND NOT platform_private.ai_memory_text_ok('тел. 0555-12-34-56-7') AND NOT platform_private.ai_memory_text_ok('a@b.co')
-  AND NOT platform_private.ai_memory_text_ok('ПИН 12345678901234'),
-  'text guard: 8 digits pass, 9+ digits with spaces or hyphens and e-mails do not');
+  AND NOT platform_private.ai_memory_text_ok('ПИН 12345678901234')
+  AND NOT platform_private.ai_memory_text_ok('+996 (555) 12-34-56') AND NOT platform_private.ai_memory_text_ok('0 (555) 123-456')
+  AND NOT platform_private.ai_memory_text_ok('0555.12.34.56') AND NOT platform_private.ai_memory_text_ok('8(555)123456')
+  AND platform_private.ai_memory_text_ok('Срок 06.10.2026, бюджет 1 500 000 сом'),
+  'text guard: 8 digits and a date pass; 9+ digits with spaces, hyphens, brackets or dots and e-mails do not');
+-- The separator set is explicit (NBSP is [[:space:]] under ICU en-US but not
+-- under libc C.UTF-8): NBSP, narrow NBSP, tab, en and em dash join digits; an
+-- unspaced range of two full dates is 16 digits and is refused (documented).
+SELECT pg_temp.p3_assert(NOT platform_private.ai_memory_text_ok(E'+996\u00A0555\u00A0123\u00A0456')
+  AND NOT platform_private.ai_memory_text_ok(E'Тел.: 0555\u00A012\u00A034\u00A056')
+  AND NOT platform_private.ai_memory_text_ok(E'+996\u202F555\u202F123\u202F456')
+  AND NOT platform_private.ai_memory_text_ok(E'+996\t555\t123\t456')
+  AND NOT platform_private.ai_memory_text_ok(E'+996 555\u2013123\u2013456')
+  AND NOT platform_private.ai_memory_text_ok(E'0555\u201412\u201434\u201456')
+  AND NOT platform_private.ai_memory_text_ok(E'+996\u00A0(555)\u00A012\u201334\u201356')
+  AND NOT platform_private.ai_memory_text_ok('01.09.2026-30.06.2027')
+  AND NOT platform_private.ai_memory_text_ok(E'01.09.2026\u201330.06.2027')
+  AND platform_private.ai_memory_text_ok('01.09.2026 - 30.06.2027')
+  AND platform_private.ai_memory_text_ok(E'01.09.2026 \u2013 30.06.2027')
+  AND platform_private.ai_memory_text_ok(E'Учебный год 2026\u20132027, курс 12\u00A0345\u00A0678')
+  AND platform_private.ai_memory_text_ok('Стоимость 1 180,00 $ в 2026 году')
+  AND platform_private.ai_memory_text_ok(E'Бюджет 1\u00A0500\u00A0000 сом')
+  AND platform_private.ai_memory_text_ok(E'555\u00A0\u00A0\u00A0123\u00A0\u00A0\u00A0456'),
+  'text guard: NBSP, narrow NBSP, tab and dash phones and unspaced date ranges are refused; spaced ranges, prices, years and 3 separators pass');
 
 -- ---------------------------------------------------------------------------
 -- 12. Staff: view, refusals, clear (ai.agent.use), audit without text.
@@ -957,23 +1034,30 @@ SET LOCAL request.jwt.claims TO :'p3_user';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.p3_assert(NOT (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'canManage')::BOOLEAN,
   'a member without ai.agent.manage sees the memory but cannot manage');
+RESET ROLE;
+SELECT count(*) AS p3_c1_pointers FROM pgmq.q_ai_agent_work_v1 q WHERE q.message ->> 'ref_id' = :'c1' \gset
+SET LOCAL request.jwt.claims TO :'p3_user';
+SET LOCAL ROLE authenticated;
 SELECT platform.ai_agent_memory_clear_v1(pg_temp.p3_id(1), :'c1', pg_temp.p3_id(3102)) AS p3_clear \gset
 SELECT pg_temp.p3_assert((:'p3_clear'::JSONB ->> 'status') = 'cleared' AND (:'p3_clear'::JSONB ->> 'deleted')::BOOLEAN
-  AND NOT (:'p3_clear'::JSONB ->> 'replayed')::BOOLEAN
+  AND (:'p3_clear'::JSONB ->> 'enqueued')::BOOLEAN AND NOT (:'p3_clear'::JSONB ->> 'replayed')::BOOLEAN
   AND (platform.ai_agent_memory_clear_v1(pg_temp.p3_id(1), :'c1', pg_temp.p3_id(3102)) ->> 'replayed')::BOOLEAN
   AND pg_temp.p3_err(format('SELECT platform.ai_agent_memory_clear_v1(%L, %L, %L)', pg_temp.p3_id(1), :'c4',
     pg_temp.p3_id(3102))) LIKE '23505:ai_request_conflict%'
   AND (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') -> 'memory') = 'null'::JSONB,
-  'ai.agent.use clears the memory (Q9); the same request replays, another input conflicts; the view shows none');
+  'ai.agent.use clears the memory (Q9) and a rebuild is enqueued; the same request replays, another input conflicts; the view shows none');
 RESET ROLE;
-SELECT pg_temp.p3_assert(NOT EXISTS (SELECT 1 FROM platform_private.ai_client_memory WHERE conversation_id = :'c1')
+SELECT pg_temp.p3_assert((SELECT interest IS NULL AND summary IS NULL AND covered_message_id IS NULL AND covered_count = 0
+    AND interest_message_id IS NULL AND version = 1 AND enqueued_at IS NOT NULL AND lease_owner IS NULL
+    FROM platform_private.ai_client_memory WHERE conversation_id = :'c1')
+  AND (SELECT count(*) = :'p3_c1_pointers'::INTEGER + 1 FROM pgmq.q_ai_agent_work_v1 q WHERE q.message ->> 'ref_id' = :'c1')
   AND (SELECT count(*) = 1 FROM platform.audit_events e WHERE e.request_id = pg_temp.p3_id(3102)
     AND e.action = 'ai.agent.memory.clear' AND e.resource_type = 'communication_conversation'
     AND e.resource_id = :'c1'::UUID AND e.actor_profile_id = pg_temp.p3_id(207)
     AND e.before_state = '{"hadInterest":true,"hadSummary":true,"coveredCount":32,"version":6}'::JSONB
     AND (e.before_state::TEXT || e.after_state::TEXT) NOT LIKE '%Магистратура%'
     AND (e.before_state::TEXT || e.after_state::TEXT) NOT LIKE '%Сводка%'),
-  'the row is gone; the audit has flags and counts only, never the text');
+  'the text is gone (an empty row marks the one new rebuild pointer); the audit has flags and counts only, never the text');
 
 -- ---------------------------------------------------------------------------
 -- 13. Disable purges the organization's memory; the agent refuses again.
@@ -985,12 +1069,13 @@ SELECT (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'settingsVersio
 SELECT platform.ai_agent_memory_toggle_v1(pg_temp.p3_id(1), FALSE, :'p3_settings_v2', pg_temp.p3_id(3201)) AS p3_disable \gset
 SELECT pg_temp.p3_assert((:'p3_disable'::JSONB ->> 'status') = 'applied'
   AND NOT (:'p3_disable'::JSONB ->> 'memoryEnabled')::BOOLEAN
-  AND (:'p3_disable'::JSONB ->> 'deleted')::INTEGER = :'p3_rows_before'::INTEGER AND :'p3_rows_before'::INTEGER = 2,
-  'disabling deletes every memory row of the organization (c3, c4) and says how many');
+  AND (:'p3_disable'::JSONB ->> 'deleted')::INTEGER = :'p3_rows_before'::INTEGER AND :'p3_rows_before'::INTEGER = 3
+  AND (:'p3_disable'::JSONB ->> 'enqueued')::INTEGER = 0,
+  'disabling deletes every memory row of the organization (c1''s rebuild row, c3, c4) and says how many');
 RESET ROLE;
 SELECT pg_temp.p3_assert(NOT EXISTS (SELECT 1 FROM platform_private.ai_client_memory WHERE organization_id = pg_temp.p3_id(1))
   AND (SELECT count(*) = 1 FROM platform.audit_events e WHERE e.request_id = pg_temp.p3_id(3201)
-    AND e.action = 'ai.agent.memory.disable' AND (e.after_state ->> 'deleted')::INTEGER = 2),
+    AND e.action = 'ai.agent.memory.disable' AND (e.after_state ->> 'deleted')::INTEGER = 3),
   'no memory row is left; the disable is audited with the count');
 SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p3_assert(pg_temp.p3_err('SELECT platform_ai_agent.inbound_since_v1(NULL, NULL)')
@@ -1020,14 +1105,15 @@ RESET ROLE;
 SET LOCAL request.jwt.claims TO :'p3_sales';
 SET LOCAL ROLE authenticated;
 SELECT (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'settingsVersion') AS p3_settings_v3 \gset
-SELECT pg_temp.p3_assert((platform.ai_agent_memory_toggle_v1(pg_temp.p3_id(1), TRUE, :'p3_settings_v3',
-  pg_temp.p3_id(3301)) ->> 'status') = 'applied', 'memory enabled again');
+SELECT platform.ai_agent_memory_toggle_v1(pg_temp.p3_id(1), TRUE, :'p3_settings_v3', pg_temp.p3_id(3301)) AS p3_enable2 \gset
+SELECT pg_temp.p3_assert((:'p3_enable2'::JSONB ->> 'status') = 'applied' AND (:'p3_enable2'::JSONB ->> 'enqueued')::INTEGER = 2,
+  'memory enabled again: the long chats c1 (52) and c4 are enqueued');
 RESET ROLE;
 SET LOCAL ROLE evo_ai_agent;
-SELECT pg_temp.p3_assert((SELECT jsonb_agg(e ->> 'status') FROM jsonb_array_elements(
+SELECT pg_temp.p3_assert((SELECT jsonb_object_agg(e ->> 'conversationId', e ->> 'status') FROM jsonb_array_elements(
     platform_ai_agent.memory_due_v1(ARRAY[:'c1', :'c3', :'c4']::UUID[]) -> 'items') e)
-  = '["enqueued","enqueued","enqueued"]'::JSONB,
-  'after the purge all three chats are due again');
+  = jsonb_build_object(:'c1', 'pending', :'c3', 'enqueued', :'c4', 'pending'),
+  'after the purge c3 is due again; c1 and c4 are already pending since the enable');
 SELECT pg_temp.p3_assert((pg_temp.p3_call(pg_temp.p3_ctx(:'c4', 'p3-w7')) ->> 'status') = 'claimed'
   AND (pg_temp.p3_call(pg_temp.p3_ctx(:'c3', 'p3-w6')) ->> 'status') = 'claimed', 'c4 and c3 claimed');
 RESET ROLE;
@@ -1044,33 +1130,63 @@ SELECT pg_temp.p3_assert((:'p3_maint1'::JSONB ->> 'memoryDeleted')::INTEGER = 1
   AND (SELECT lease_owner IS NULL FROM platform_private.ai_client_memory WHERE conversation_id = :'c4')
   AND (SELECT lease_owner = 'p3-w6' FROM platform_private.ai_client_memory WHERE conversation_id = :'c3'),
   'maintenance deletes the curator chat''s memory and clears the expired lease only');
+SELECT count(*) AS p3_rows_revoke FROM platform_private.ai_client_memory WHERE organization_id = pg_temp.p3_id(1) \gset
 SET LOCAL request.jwt.claims TO :'p3_admin';
 SET LOCAL ROLE authenticated;
-SELECT pg_temp.p3_assert((platform.ai_agent_consent_record_v1(pg_temp.p3_id(1), 'revoke', NULL, pg_temp.p3_id(3401))
-  ->> 'status') = 'revoked', 'the Admin revokes the consent');
+SELECT platform.ai_agent_consent_record_v1(pg_temp.p3_id(1), 'revoke', NULL, pg_temp.p3_id(3401)) AS p3_revoke \gset
+SELECT pg_temp.p3_assert((:'p3_revoke'::JSONB ->> 'status') = 'revoked'
+  AND NOT (:'p3_revoke'::JSONB ->> 'memoryEnabled')::BOOLEAN
+  AND (:'p3_revoke'::JSONB ->> 'memoryDeleted')::INTEGER = :'p3_rows_revoke'::INTEGER
+  AND :'p3_rows_revoke'::INTEGER = 3,
+  'the Admin revokes the consent: memory turns off and its 3 rows (c1, c3, c4) go at once');
 RESET ROLE;
+SELECT pg_temp.p3_assert(NOT EXISTS (SELECT 1 FROM platform_private.ai_client_memory WHERE organization_id = pg_temp.p3_id(1))
+  AND (SELECT NOT memory_enabled AND gemini_consent_at IS NULL FROM platform_private.ai_settings
+    WHERE organization_id = pg_temp.p3_id(1))
+  AND (SELECT count(*) = 1 FROM platform.audit_events e WHERE e.request_id = pg_temp.p3_id(3401)
+    AND e.action = 'ai.agent.consent.revoke' AND (e.before_state ->> 'memoryEnabled')::BOOLEAN
+    AND (e.after_state ->> 'memoryDeleted')::INTEGER = 3),
+  'no memory row is left, memory_enabled is false; the revoke is audited with the count');
 SET LOCAL ROLE evo_ai_agent;
 SELECT pg_temp.p3_assert(pg_temp.p3_err(pg_temp.p3_put(:'c3', 'p3-w6', 1, 'Интерес', NULL, NULL, NULL,
-    pg_temp.p3_latest_in(:'c3'))) LIKE '42501:ai_memory_disabled%'
+    pg_temp.p3_latest_in(:'c3'))) LIKE '42501:ai_memory_not_leased%'
   AND pg_temp.p3_err(pg_temp.p3_ctx(:'c3', 'p3-w6')) LIKE '42501:ai_memory_disabled%'
   AND pg_temp.p3_err(format('SELECT platform_ai_agent.memory_due_v1(ARRAY[%L]::UUID[])', :'c3'))
     LIKE '42501:ai_memory_disabled%'
   AND pg_temp.p3_err('SELECT platform_ai_agent.inbound_since_v1(NULL, NULL)') LIKE '42501:ai_background_disabled%',
-  'consent revoked: the held lease cannot write; context, due and inbound_since refuse');
+  'consent revoked: the held lease is gone and cannot write; context, due and inbound_since refuse');
 SELECT platform_ai_agent.maintenance_v1() AS p3_maint2 \gset
 RESET ROLE;
-SELECT pg_temp.p3_assert((:'p3_maint2'::JSONB ->> 'memoryDeleted')::INTEGER = 3
-  AND NOT EXISTS (SELECT 1 FROM platform_private.ai_client_memory WHERE organization_id = pg_temp.p3_id(1)),
-  'maintenance deletes the memory of an organization without consent');
+SELECT pg_temp.p3_assert((:'p3_maint2'::JSONB ->> 'memoryDeleted')::INTEGER = 0,
+  'maintenance finds nothing left to delete after the revoke');
 SET LOCAL request.jwt.claims TO :'p3_sales';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.p3_assert((platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'active')::BOOLEAN = FALSE
-  AND (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'enabled')::BOOLEAN,
-  'the view: enabled but not active without consent');
+  AND NOT (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'enabled')::BOOLEAN
+  AND NOT (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'consentRecorded')::BOOLEAN,
+  'the view: memory off, no consent');
 SELECT pg_temp.p3_assert(pg_temp.p3_err(format('SELECT platform.ai_agent_memory_toggle_v1(%L, TRUE, %L, %L)',
     pg_temp.p3_id(1), (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'settingsVersion')::BIGINT,
     pg_temp.p3_id(3402))) LIKE 'PT412:ai_consent_required%',
   'enabling again without consent is PT412');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'p3_admin';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.p3_assert((platform.ai_agent_consent_record_v1(pg_temp.p3_id(1), 'grant', 'gemini-v1-2026-10-06',
+  pg_temp.p3_id(3403)) ->> 'status') = 'granted', 'the Admin records the consent again');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'p3_sales';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.p3_assert((platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'consentRecorded')::BOOLEAN
+  AND NOT (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'enabled')::BOOLEAN
+  AND NOT (platform.ai_agent_memory_v1(pg_temp.p3_id(1), :'c1') ->> 'active')::BOOLEAN,
+  'a new consent does not resume memory: it stays off until a manager enables it');
+RESET ROLE;
+SET LOCAL ROLE evo_ai_agent;
+SELECT pg_temp.p3_assert(pg_temp.p3_err(format('SELECT platform_ai_agent.memory_due_v1(ARRAY[%L]::UUID[])', :'c1'))
+    LIKE '42501:ai_memory_disabled%'
+  AND pg_temp.p3_err('SELECT platform_ai_agent.inbound_since_v1(NULL, NULL)') LIKE '42501:ai_background_disabled%',
+  'with the new consent but memory off the agent still refuses');
 RESET ROLE;
 
 SELECT 'AI274_AI_AGENT_P3_SUITE_PASSED' AS ai274_suite_result;

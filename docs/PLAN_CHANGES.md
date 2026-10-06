@@ -47029,3 +47029,13 @@ production ничего не выполнялось.
 evidence не меняется; 2.30.0 проходит); фрагмент runbook прогнан в bash и zsh с
 фейковым `docker` и настоящим сокетом (reachable, isolated, пустой адрес, нет
 агента, сбой проверки). На hermes и в production ничего не выполнялось.
+
+## 2026-10-06 — WhatsApp: автозапуск сессии после перезапуска WAHA
+
+- Пункт «Возврат `WAHA_WORKER_RESTART_SESSIONS` в `true` — только после
+  приёмки и отдельным решением» (`docs/EVO_LAUNCH_PLAN.md`, go-live WhatsApp)
+  закрыт. Решение владельца 06.10: «lets connect whatsapp on permanent basis».
+  В 15:02Z флаг выставлен в `true`, WAHA пересоздана тем же снимком compose,
+  `crm_primary` поднялась сама в `WORKING`. Квитанция — дополнение 15:02Z в
+  `docs/runbooks/whatsapp-go-live.md`. Строка плана о том, что шаг ещё впереди,
+  описывает прежнее состояние и не переписывается.

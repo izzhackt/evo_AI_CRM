@@ -106,6 +106,11 @@ export type PlatformWahaProvider = Readonly<{
     expectedText: string;
     windowStart: string;
     windowEnd: string;
+    /**
+     * Provider ids already bound to the chat's other CRM sends (266): never
+     * this attempt's message, even with the same text inside the window.
+     */
+    excludeProviderMessageIds?: readonly string[];
   }>): Promise<PlatformWahaProviderMessage | null>;
 }>;
 
@@ -590,6 +595,7 @@ export function createPlatformWahaProvider(
       }
 
       const ackObservedAt = now();
+      const excluded = new Set(input.excludeProviderMessageIds ?? []);
       const matches = new Map<string, PlatformWahaProviderMessage>();
       for (const candidate of response) {
         if (
@@ -609,7 +615,8 @@ export function createPlatformWahaProvider(
           !addressesRecipient(candidate, input.recipientId) ||
           candidate.body !== input.expectedText ||
           (candidate.timestamp as number) < windowStartTimestamp ||
-          (candidate.timestamp as number) > windowEndTimestamp
+          (candidate.timestamp as number) > windowEndTimestamp ||
+          (typeof candidate.id === "string" && excluded.has(candidate.id))
         ) {
           continue;
         }

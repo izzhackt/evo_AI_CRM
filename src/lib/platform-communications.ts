@@ -1066,6 +1066,13 @@ export type PlatformWhatsAppChatAttempt = Readonly<{
   failureCode: string | null;
   latestReconciliationOutcome: PlatformWhatsAppReadbackOutcome | null;
   lastReconciledAt: string | null;
+  /** The customer message this send answers (its author may retry it with the same request id). */
+  sourceMessageId: string;
+  /**
+   * A readback found nothing at least five minutes after the send finished
+   * (migration 266): only then does the server accept the same text again.
+   */
+  readbackSettled: boolean;
 }>;
 
 export type PlatformWhatsAppChatState = Readonly<{
@@ -1118,6 +1125,8 @@ const WHATSAPP_ATTEMPT_KEYS = Object.freeze([
   "failure_code",
   "latest_reconciliation_outcome",
   "last_reconciled_at",
+  "source_message_id",
+  "readback_settled",
 ]);
 const SAFE_FAILURE_CODE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
 
@@ -1209,6 +1218,7 @@ function normalizePlatformWhatsAppChatAttempt(
       ? value.latest_reconciliation_outcome
       : undefined;
   const lastReconciledAt = optionalTimestampField(value.last_reconciled_at);
+  const sourceMessageId = parsePlatformRouteUuid(value.source_message_id);
   if (
     attemptId === undefined ||
     workItemId === null ||
@@ -1225,7 +1235,11 @@ function normalizePlatformWhatsAppChatAttempt(
     outcome === undefined ||
     lastReconciledAt === undefined ||
     (status === "queued") !== (attemptId === null) ||
-    (value.reconciliation_required && status !== "unknown")
+    (value.reconciliation_required && status !== "unknown") ||
+    sourceMessageId === null ||
+    typeof value.readback_settled !== "boolean" ||
+    // Only an unknown attempt that a readback found nothing for is settled.
+    (value.readback_settled && (status !== "unknown" || outcome === null))
   ) {
     return invalidShape();
   }
@@ -1243,6 +1257,8 @@ function normalizePlatformWhatsAppChatAttempt(
     failureCode,
     latestReconciliationOutcome: outcome,
     lastReconciledAt,
+    sourceMessageId,
+    readbackSettled: value.readback_settled,
   });
 }
 

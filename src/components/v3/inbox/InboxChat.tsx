@@ -25,6 +25,7 @@ import {
   REPLY_ACCESS_COPY,
   SEND_REFUSAL_COPY,
   WHATSAPP_CHAT_PENDING_LIMIT,
+  WHATSAPP_CHAT_QUEUED_RETRY_LIMIT,
   WHATSAPP_CHAT_TEXT_LIMIT,
   ackWord,
   chatDayKey,
@@ -35,6 +36,7 @@ import {
   normalizeChatText,
   originWord,
   outgoingBubbles,
+  queuedRetryDelay,
   settledLocalSends,
   speakerPrefix,
   unresolvedLocalCount,
@@ -52,8 +54,8 @@ import { InboxComposer } from "./InboxComposer";
 import { InboxMessageMedia } from "./InboxMessageMedia";
 import { useInboxPulse } from "./useInboxPulse";
 
-/** Повтор отправки, которую очередь чата ещё держит. */
-const QUEUED_RETRY_MS = 5_000;
+/** Часы ленты: «не ушло» и «итог неизвестен» зависят от времени, а не только от сервера. */
+const CLOCK_TICK_MS = 15_000;
 
 export type InboxChatData = Readonly<{
   messages: readonly InboxChatMessage[];
@@ -82,6 +84,23 @@ function mergeMessages(
   const byId = new Map(known.map((message) => [message.id, message]));
   for (const message of next) byId.set(message.id, message);
   return Object.freeze([...byId.values()].sort(compareMessages));
+}
+
+/**
+ * Контекст «В дело студента» страницы и подгруженных ранних страниц: слоты —
+ * самые свежие, идентификаторы запросов — у каждого вложения свои.
+ */
+function mergeAttachmentContexts(
+  base: V3InboxMediaAttachmentContext | null,
+  older: V3InboxMediaAttachmentContext | null,
+): V3InboxMediaAttachmentContext | null {
+  if (!older) return base;
+  if (!base) return older;
+  if (base.conversationId !== older.conversationId || base.studentCaseId !== older.studentCaseId) return base;
+  return Object.freeze({
+    ...base,
+    requestIdsByMediaId: Object.freeze({ ...older.requestIdsByMediaId, ...base.requestIdsByMediaId }),
+  });
 }
 
 function feedEntries(
@@ -195,11 +214,19 @@ function OutgoingStatus({
   const returnAction = canAct
     ? <button type="button" className={textActionCls} onClick={onReturn}>Вернуть текст в поле</button>
     : null;
+  const retryAction = (label: string) => (
+    <button type="button" className={textActionCls} aria-label={`${label}: сообщение от ${time}`} onClick={onRetry}>
+      {label}
+    </button>
+  );
   if (bubble.state === "sending" || bubble.state === "queued" || bubble.state === "sent") {
     return (
       <p className="mt-0.5 flex items-center justify-end gap-1 t-meta text-fg-3" role="status">
         <Icon name={bubble.state === "sent" ? "check" : "clock"} size={12} className="shrink-0" />
-        {bubble.state === "sending" ? "Отправляется…" : bubble.state === "queued" ? "Ждёт очереди" : "отправлено"}
+        {bubble.state === "sending" ? "Отправляется…"
+          : bubble.state === "sent" ? "отправлено"
+            // Своя отправка ждёт, потому что выше есть ещё не ушедшая.
+            : bubble.localRequestId ? "Ждёт очереди: выше сообщение, которое ещё не ушло" : "Ждёт очереди"}
       </p>
     );
   }
@@ -216,6 +243,23 @@ function OutgoingStatus({
       </StatusRow>
     );
   }
+  if (bubble.state === "stalled") {
+    // Записана, но никем не взята: действие автора оборвалось. Чат она не
+    // держит; отправить её тем же запросом может только автор.
+    const authorCanRetry = canAct && bubble.authorIsViewer && (bubble.localRequestId !== null || bubble.resend !== null);
+    return (
+      <StatusRow tone="danger" action={authorCanRetry ? retryAction("Повторить") : null}>
+        {authorCanRetry ? "Не ушло: отправка прервалась" : "Не ушло: отправка прервалась — повторить может только автор"}
+      </StatusRow>
+    );
+  }
+  if (bubble.state === "stuck") {
+    return (
+      <StatusRow tone="danger" action={canAct && bubble.localRequestId ? retryAction("Повторить") : null}>
+        Не ушло: очередь чата не освободилась
+      </StatusRow>
+    );
+  }
   if (bubble.state === "refused") {
     return (
       <StatusRow tone="danger" alert action={returnAction}>
@@ -226,27 +270,37 @@ function OutgoingStatus({
   if (bubble.state === "rejected") {
     return <StatusRow tone="danger" action={returnAction}>Не отправлено: WhatsApp отклонил сообщение</StatusRow>;
   }
-  // unknown: проверка без новой отправки.
-  if (bubble.readback === "message_not_found") {
-    return <StatusRow tone="muted" action={returnAction}>В WhatsApp не найдено. Повторно не отправлялось</StatusRow>;
-  }
+  // unknown: проверка этой попытки без новой отправки. «Проверить» остаётся и
+  // после «не найдено»: ранняя проверка может не увидеть сообщение, которое
+  // WhatsApp ещё отправлял. Текст можно вернуть в поле только после проверки
+  // не раньше чем через 5 минут после отправки — тогда сервер примет его снова.
+  const checkAction = canAct && bubble.attemptId ? (
+    <button
+      type="button"
+      className={textActionCls}
+      disabled={checking}
+      aria-label={`Проверить результат сообщения от ${time}`}
+      onClick={onCheck}
+    >
+      Проверить
+    </button>
+  ) : null;
+  const notFound = bubble.readback === "message_not_found";
+  const failed = checkFailed && !checking;
   return (
     <StatusRow
-      tone={checkFailed && !checking ? "danger" : "warn"}
-      alert={checkFailed && !checking}
-      action={canAct && bubble.attemptId ? (
-        <button
-          type="button"
-          className={textActionCls}
-          disabled={checking}
-          aria-label={`Проверить результат сообщения от ${time}`}
-          onClick={onCheck}
-        >
-          Проверить
-        </button>
-      ) : null}
+      tone={failed ? "danger" : notFound ? "muted" : "warn"}
+      alert={failed}
+      action={notFound && bubble.readbackSettled && returnAction
+        // Два действия переносятся вместе, а не по одному.
+        ? <span className="inline-flex flex-wrap items-center justify-end gap-x-3">{checkAction}{returnAction}</span>
+        : checkAction}
     >
-      {checking ? "Проверяем…" : checkFailed ? "Не удалось проверить — попробуйте позже." : "Результат неизвестен"}
+      {checking ? "Проверяем…"
+        : failed ? "Не удалось проверить — попробуйте позже."
+          : notFound && bubble.readbackSettled ? "В WhatsApp не найдено. Повторно не отправлялось"
+            : notFound ? "В WhatsApp пока не найдено — проверьте ещё раз через несколько минут"
+              : "Результат неизвестен"}
     </StatusRow>
   );
 }
@@ -323,6 +377,24 @@ export function InboxChat({
   }
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderFailed, setOlderFailed] = useState(false);
+  // «В дело студента» у вложений из «Показать ранее»: их контекст приходит с
+  // той же страницей сообщений.
+  const [olderAttachments, setOlderAttachments] = useState<V3InboxMediaAttachmentContext | null>(null);
+  const attachmentContext = useMemo(
+    () => mergeAttachmentContexts(mediaAttachmentContext, olderAttachments),
+    [mediaAttachmentContext, olderAttachments],
+  );
+  // Часы ленты идут, только пока есть отправка, состояние которой зависит от
+  // времени; на сервере и при гидратации — момент чтения страницы.
+  const [now, setNow] = useState(() => Date.parse(chat.readAt));
+  const needsClock = chat.attempts.some((attempt) => attempt.status === "queued" || attempt.status === "prepared");
+  useEffect(() => {
+    if (!needsClock) return;
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const timer = setInterval(tick, CLOCK_TICK_MS);
+    return () => { clearTimeout(first); clearInterval(timer); };
+  }, [needsClock]);
   const [notice, setNotice] = useState<WhatsAppChatSendStatus | null>(null);
   const [checking, setChecking] = useState<readonly string[]>([]);
   const [checkFailed, setCheckFailed] = useState<readonly string[]>([]);
@@ -332,8 +404,8 @@ export function InboxChat({
   const messageIds = useMemo(() => new Set(feed.known.map((message) => message.id)), [feed.known]);
   const inFlight = useMemo(() => new Set(store.inFlight), [store.inFlight]);
   const bubbles = useMemo(
-    () => outgoingBubbles(chat.attempts, store.local, messageIds, inFlight),
-    [chat.attempts, store.local, messageIds, inFlight],
+    () => outgoingBubbles(chat.attempts, store.local, messageIds, inFlight, now),
+    [chat.attempts, store.local, messageIds, inFlight, now],
   );
   const entries = useMemo(
     () => feedEntries(feed.known, bubbles, chat.readAt, feed.hasOlder),
@@ -399,15 +471,19 @@ export function InboxChat({
             ? { ...entry, state: "refused" as const, refusal: outcome.status } : entry),
         };
       }
+      // «Ждёт очереди» браузер повторяет сам всё реже, а после
+      // WHATSAPP_CHAT_QUEUED_RETRY_LIMIT ответов подряд — только по кнопке.
+      const waiting = outcome.status === "queued" || outcome.status === "sending";
+      const queuedAnswers = waiting ? item.queuedAnswers + 1 : 0;
       const state: LocalChatSend["state"] = outcome.status === "sent" ? "sent"
         : outcome.status === "unknown" ? "unknown"
           : outcome.status === "rejected" ? "rejected"
-            : outcome.status === "queued" || outcome.status === "sending" ? "queued" : "lost";
+            : waiting ? (queuedAnswers >= WHATSAPP_CHAT_QUEUED_RETRY_LIMIT ? "stuck" : "queued") : "lost";
       return {
         ...previous,
         inFlight: inFlightNext,
         local: previous.local.map((entry) => entry.requestId === requestId
-          ? { ...entry, state, messageId: outcome.messageId, attemptId: outcome.attemptId ?? entry.attemptId } : entry),
+          ? { ...entry, state, queuedAnswers, messageId: outcome.messageId, attemptId: outcome.attemptId ?? entry.attemptId } : entry),
       };
     });
     if (isRefusal(outcome.status)) {
@@ -439,15 +515,19 @@ export function InboxChat({
     })();
   }, [store.local, store.inFlight, canSend, conversationId, storeKey, apply]);
 
-  // Сообщение, которое очередь чата ещё держит, спрашивается снова тем же запросом.
+  // Сообщение, которое очередь чата ещё держит, спрашивается снова тем же
+  // запросом: через 5, 10, 20, затем 30 с.
   useEffect(() => {
-    if (!canSend || store.inFlight.length > 0 || !store.local.some((item) => item.state === "queued")) return;
+    if (!canSend || store.inFlight.length > 0) return;
+    const waiting = store.local.filter((item) => item.state === "queued");
+    if (waiting.length === 0) return;
+    const delay = queuedRetryDelay(Math.min(...waiting.map((item) => item.queuedAnswers)));
     const timer = setTimeout(() => {
       writeChatStore(storeKey, (previous) => ({
         ...previous,
         local: previous.local.map((item) => (item.state === "queued" ? { ...item, state: "sending" as const } : item)),
       }));
-    }, QUEUED_RETRY_MS);
+    }, delay);
     return () => clearTimeout(timer);
   }, [store.local, store.inFlight, canSend, storeKey]);
 
@@ -464,6 +544,7 @@ export function InboxChat({
       messageId: null,
       attemptId: null,
       refusal: null,
+      queuedAnswers: 0,
     };
     setNotice(null);
     nearBottom.current = true;
@@ -486,7 +567,36 @@ export function InboxChat({
   function retry(requestId: string) {
     writeChatStore(storeKey, (previous) => ({
       ...previous,
-      local: previous.local.map((item) => (item.requestId === requestId ? { ...item, state: "sending" as const } : item)),
+      local: previous.local.map((item) => (item.requestId === requestId
+        ? { ...item, state: "sending" as const, queuedAnswers: 0 } : item)),
+    }));
+  }
+
+  /**
+   * Повтор записанной сервером отправки автором с любого устройства: тот же
+   * запрос, тот же текст и то же сообщение клиента — сервер воспроизводит
+   * записанное и не создаёт второй отправки.
+   */
+  function retryBubble(bubble: OutgoingBubble) {
+    if (bubble.localRequestId) {
+      retry(bubble.localRequestId);
+      return;
+    }
+    const resend = bubble.resend;
+    if (!resend) return;
+    writeChatStore(storeKey, (previous) => (previous.local.some((item) => item.requestId === resend.requestId) ? previous : {
+      ...previous,
+      local: [...previous.local, {
+        requestId: resend.requestId,
+        text: bubble.text,
+        sourceMessageId: resend.sourceMessageId,
+        createdAt: bubble.at,
+        state: "sending" as const,
+        messageId: null,
+        attemptId: bubble.attemptId,
+        refusal: null,
+        queuedAnswers: 0,
+      }],
     }));
   }
 
@@ -522,10 +632,18 @@ export function InboxChat({
         headers: { Accept: "application/json" },
       });
       if (!response.ok) throw new Error("older_unavailable");
-      const body = await response.json() as { messages: InboxChatMessage[]; hasOlder: boolean };
+      const body = await response.json() as {
+        messages: InboxChatMessage[];
+        hasOlder: boolean;
+        attachmentContext?: V3InboxMediaAttachmentContext | null;
+      };
       if (!Array.isArray(body.messages) || typeof body.hasOlder !== "boolean") throw new Error("older_unavailable");
       if (node) anchor.current = { height: node.scrollHeight, top: node.scrollTop };
       setFeed((previous) => ({ ...previous, known: mergeMessages(previous.known, body.messages), hasOlder: body.hasOlder }));
+      const older = body.attachmentContext ?? null;
+      if (older && older.conversationId === conversationId) {
+        setOlderAttachments((previous) => mergeAttachmentContexts(previous, older));
+      }
     } catch {
       setOlderFailed(true);
     } finally {
@@ -592,7 +710,7 @@ export function InboxChat({
                 );
               }
               if (entry.kind === "message") {
-                return <MessageBubble key={entry.key} message={entry.message} attachmentContext={mediaAttachmentContext} />;
+                return <MessageBubble key={entry.key} message={entry.message} attachmentContext={attachmentContext} />;
               }
               const bubble = entry.bubble;
               return (
@@ -603,7 +721,7 @@ export function InboxChat({
                   checking={bubble.attemptId !== null && checking.includes(bubble.attemptId)}
                   checkFailed={bubble.attemptId !== null && checkFailed.includes(bubble.attemptId)}
                   onCheck={() => { if (bubble.attemptId) void check(bubble.attemptId); }}
-                  onRetry={() => { if (bubble.localRequestId) retry(bubble.localRequestId); }}
+                  onRetry={() => retryBubble(bubble)}
                   onReturn={() => returnText(bubble.text, bubble.localRequestId)}
                 />
               );

@@ -57,17 +57,35 @@ test("every click is its own work item: the migration-266 v2 key binds the reque
 });
 
 test("a replay never claims twice: only a queued item is claimed, a refused claim is retried briefly", () => {
-  assert.match(source, /if \(state\.status === "queued"\) \{\s*outcome = await claimAndSend\(authorization\);/u);
+  assert.match(source, /if \(state\.status === "queued"\) \{\s*outcome = await claimAndSend\(actor, parsed\.conversationId, authorization\);/u);
   assert.match(source, /CLAIM_ATTEMPTS = 3/u);
-  assert.match(source, /claimManualWhatsAppSendItem\(serviceClient,/u);
-  assert.match(source, /sendClaimedManualWhatsApp\([\s\S]*?\{ quoteSource: false \}/u, "chat replies do not quote the customer message (D3)");
-  assert.match(source, /error instanceof PlatformManualSendRefusedError\) return result\(error\.reason\)/u);
+  assert.match(source, /executePlatformManualWhatsAppSend\([\s\S]*?\{ quoteSource: false \}/u, "chat replies do not quote the customer message (D3)");
+  assert.match(source, /if \(error instanceof PlatformManualSendRefusedError\) \{\s*return result\(await refusalStatus\(/u);
 });
 
-test("reconciliation is send-free, names the exact attempt and revalidates only the Inbox", () => {
+test("a stuck chat drains without a send: an expired lease ahead is settled as unknown by its exact claim", () => {
+  // The exact claim of an expired lease never sends (migration 097): it only
+  // opens the unknown review, so any member's click may run it.
+  assert.match(source, /async function settleExpiredLease\(workItemId: string, organizationId: string\)/u);
+  assert.match(source, /attempt\.workItemId !== ownWorkItemId && attempt\.status === "prepared" && leaseOver\(attempt\.claimedAt\)/u);
+  assert.match(source, /if \(attempt === 1\) await releaseExpiredHead\(actor, conversationId, authorization\.workItemId\)/u);
+  // settleExpiredLease never calls the provider: only the claim RPC.
+  const settle = source.slice(source.indexOf("async function settleExpiredLease"), source.indexOf("async function releaseExpiredHead"));
+  assert.match(settle, /claimManualWhatsAppSendItem\(createServiceClient\(\)/u);
+  assert.doesNotMatch(settle, /sendClaimedManualWhatsApp|executePlatformManualWhatsAppSend|sendText/u);
+  // «Проверить» on a send whose lease ran out settles it first, then reads back.
+  assert.match(source, /if \(attempt\?\.status === "prepared"\) \{\s*if \(!leaseOver\(attempt\.claimedAt\)\) return Object\.freeze\(\{ status: "unavailable" \}\);\s*await settleExpiredLease\(attempt\.workItemId, actor\.organizationId\);/u);
+});
+
+test("a closed chat is told apart from a newer customer message", () => {
+  assert.match(source, /return state\.latestInboundMessageId === sourceMessageId \? "closed" : "stale_source";/u);
+});
+
+test("reconciliation is send-free and names the exact attempt; neither action revalidates (the browser refreshes once)", () => {
   assert.match(source, /executePlatformManualWhatsAppReconciliation\(/u);
   assert.match(source, /attemptId: parsed\.attemptId/u);
   assert.doesNotMatch(source, /sendText|broadcast|autonomous/iu);
-  assert.match(source, /revalidatePath\("\/v3\/inbox"\)/u);
-  assert.doesNotMatch(source, /revalidatePath\([^\n]*\/whatsapp|revalidatePath\("\/"/u);
+  assert.doesNotMatch(source, /revalidatePath/u);
+  const chat = readFileSync(new URL("../src/components/v3/inbox/InboxChat.tsx", import.meta.url), "utf8");
+  assert.match(chat, /startTransition\(\(\) => router\.refresh\(\)\)/u);
 });

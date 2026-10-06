@@ -44,9 +44,11 @@
  *       266): настоящая страница `v3/inbox/page.tsx` с синтетическим чтением,
  *       гидратированная клиентским чатом. Снимки 1440×900 и 390×844: лента со
  *       всеми происхождениями (клиент, из CRM, с телефона, история), разделители
- *       дней, состояния отправок (неизвестен — «Проверить», отклонено, ждёт
- *       очереди), окно шаблонов, «Отправляется…» и «Связь прервалась», чат без
- *       сообщений клиента, только чтение, список и телефон. Тёмной темы у
+ *       дней, состояния отправок (неизвестен — «Проверить»; не найдено после
+ *       проверки через 5 мин — «Проверить» и «Вернуть текст в поле»; отклонено;
+ *       не ушло — отправка прервалась), окно шаблонов, «Отправляется…» и «Связь
+ *       прервалась», чат без сообщений клиента, только чтение, список и
+ *       телефон. Тёмной темы у
  *       хоста сотрудников нет (решение владельца 02.10.2026, layout.tsx).
  *       Серверные действия и опрос отвечают синтетикой этой вкладки: ничего не
  *       отправляется. По умолчанию outDir —
@@ -762,7 +764,8 @@ const waRow = (n, person, updatedAt, waitingSince = null, awaitingReplyFor = nul
 });
 const WA_ROWS = [
   waRow(1, "Аружан Примерова", "06.10 13:40", "06.10 13:40", "20 мин"),
-  waRow(2, "WhatsApp ••••4821", "06.10 12:05", "06.10 12:05", "1 ч"),
+  // Клиент сюда ещё не писал: чат не «ждёт ответа».
+  waRow(2, "WhatsApp ••••4821", "06.10 12:05"),
   waRow(3, "Тимур Макетов", "06.10 09:12"),
   waRow(4, "Мадина Условная", "05.10 18:30"),
   waRow(5, "WhatsApp ••••0937", "05.10 11:02"),
@@ -792,12 +795,16 @@ const WA_MESSAGES = [
 const waAttempt = (n, status, at, text, extra = {}) => ({
   attemptId: status === "queued" ? null : waId(300 + n), workItemId: waId(400 + n), requestId: waId(500 + n), status,
   reconciliationRequired: status === "unknown", text, authorName: "Менеджер продаж (синтетический)", authorIsViewer: true,
-  at, failureCode: status === "rejected" ? "message_rejected" : null, readback: null, ...extra,
+  at, claimedAt: status === "queued" ? null : at, sourceMessageId: waId(109),
+  failureCode: status === "rejected" ? "message_rejected" : null, readback: null, readbackSettled: false, ...extra,
 });
 const WA_ATTEMPTS = [
   waAttempt(1, "unknown", "2026-10-06T07:45:00.000Z", "Требования: аттестат с приложением, паспорт, мотивационное письмо на английском."),
   waAttempt(2, "rejected", "2026-10-06T07:46:00.000Z", "Анкета: заполните, пожалуйста, до пятницы.", { authorName: "Айгерим Синтетическая", authorIsViewer: false }),
+  // Записана 13 минут назад и никем не взята: действие автора оборвалось — «не ушло».
   waAttempt(3, "queued", "2026-10-06T07:47:00.000Z", "И ещё: можно записаться на консультацию в четверг.", { authorName: "Айгерим Синтетическая", authorIsViewer: false }),
+  // Проверка через 5 минут после отправки ничего не нашла: «Проверить» и «Вернуть текст в поле».
+  waAttempt(4, "unknown", "2026-10-06T07:48:00.000Z", "Стоимость общежития пришлю отдельно.", { readback: "message_not_found", readbackSettled: true }),
 ];
 function waChat(overrides = {}) {
   return {
@@ -806,11 +813,11 @@ function waChat(overrides = {}) {
     ...overrides,
   };
 }
-function waView({ selected = true, chat = {}, person = "Аружан Примерова", channelState = "ready" } = {}) {
+function waView({ selected = true, chat = {}, row = 0, channelState = "ready" } = {}) {
   return {
     conversations: WA_ROWS,
     selected: selected ? {
-      ...WA_ROWS[0], person, channelState, channelObservedAt: "06.10 13:58",
+      ...WA_ROWS[row], channelState, channelObservedAt: "06.10 13:58",
       canonicalContext: { leadId: "ffffffff-6666-4666-8666-000000000700", clientId: "ffffffff-6666-4666-8666-000000000701", studentCaseId: null },
       chat: waChat(chat),
     } : null,
@@ -823,8 +830,9 @@ const WA_SCENARIOS = {
   "chat": { actor: "sales", search: { conversation: WA_CONVERSATION }, inbox: waView(), viewports: ["1440", "390"] },
   "list": { actor: "sales", search: {}, inbox: waView({ selected: false }), viewports: ["1440", "390"] },
   "no-client-message": {
-    actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1440"],
-    inbox: waView({ person: "WhatsApp ••••4821", chat: {
+    // Открыт тот же чат, что выбран в списке (••••4821), и он не «ждёт ответа».
+    actor: "sales", search: { conversation: waId(2) }, viewports: ["1440"],
+    inbox: waView({ row: 1, chat: {
       messages: [waMessage(1, false, "2026-10-06T05:00:00.000Z", "Здравствуйте! Это EVO Admissions, вы оставляли заявку на сайте."), waMessage(2, false, "2026-10-06T05:01:00.000Z", "Когда вам удобно поговорить?", { ack: "SERVER" })],
       hasOlder: false, attempts: [], latestInboundMessageId: null, replyAccess: "no_client_message", stage: null,
     } }),
@@ -868,6 +876,10 @@ function whatsappMetrics() {
     days: [...document.querySelectorAll('[data-testid="v3-inbox-messages"] > li > span.t-meta')].map((element) => element.textContent.trim()),
     origins: [...document.querySelectorAll('[data-testid="v3-inbox-message"]')].map((element) => element.dataset.origin),
     outgoing: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"]')].map((element) => element.dataset.state),
+    checks: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Проверить").length,
+    returns: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Вернуть текст в поле").length,
+    selectedRow: document.querySelector('[data-testid="v3-inbox-row"] a[aria-current="page"] .t-item')?.textContent.trim() ?? null,
+    waitingPill: /Ждёт ответа/u.test(document.querySelector('[data-testid="v3-inbox-thread"] header')?.textContent ?? ""),
     unavailable: document.querySelector('[data-testid="v3-inbox-reply-unavailable"]')?.textContent.trim() ?? null,
     popover: (() => { const open = document.querySelector("[popover]:popover-open"); if (!open) return null; const box = open.getBoundingClientRect();
       return { label: open.getAttribute("aria-label"), inViewport: box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth }; })(),
@@ -956,10 +968,15 @@ async function whatsappScreenshots() {
         if (name === "chat") {
           check(metrics.composer?.inViewport === true, `${file}: composer not in the viewport ${JSON.stringify(metrics.composer)}`);
           check(JSON.stringify(metrics.days) === JSON.stringify(["4 октября", "Вчера", "Сегодня"]), `${file}: days ${JSON.stringify(metrics.days)}`);
-          check(JSON.stringify(metrics.outgoing) === JSON.stringify(["unknown", "rejected", "queued"]), `${file}: outgoing ${JSON.stringify(metrics.outgoing)}`);
+          check(JSON.stringify(metrics.outgoing) === JSON.stringify(["unknown", "rejected", "stalled", "unknown"]), `${file}: outgoing ${JSON.stringify(metrics.outgoing)}`);
+          // «Проверить» — у обоих неизвестных (и после «не найдено»); «Вернуть текст в поле» — у отклонённого и у проверенного через 5 минут.
+          check(metrics.checks === 2 && metrics.returns === 2, `${file}: «Проверить» ${metrics.checks}, «Вернуть текст в поле» ${metrics.returns}`);
           check(["history", "client", "phone", "crm"].every((origin) => metrics.origins.includes(origin)), `${file}: origins ${JSON.stringify(metrics.origins)}`);
         }
-        if (name === "no-client-message") check(/Клиент ещё не писал в этот чат/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
+        if (name === "no-client-message") {
+          check(/Клиент ещё не писал в этот чат/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
+          check(metrics.selectedRow === "WhatsApp ••••4821" && !metrics.waitingPill, `${file}: list selection ${metrics.selectedRow}, waiting pill ${metrics.waitingPill}`);
+        }
         if (name === "read-only") check(/Только просмотр/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
         await close(session, file);
       }
@@ -1004,7 +1021,7 @@ async function whatsappScreenshots() {
       check(sends.length === 2 && sends[0] === sends[1], `retry-${viewportKey}: the retry must reuse the request id ${JSON.stringify(sends)}`);
       // «Проверить» у неизвестного результата: «Проверяем…», затем честная неудача.
       if (viewportKey === "1440") {
-        await page.getByRole("button", { name: /Проверить результат сообщения от/u }).click();
+        await page.getByRole("button", { name: /Проверить результат сообщения от/u }).first().click();
         await page.waitForTimeout(150);
         await shot(session, "checking-1440.png");
         await page.waitForTimeout(1300);

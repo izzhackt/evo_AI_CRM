@@ -8,6 +8,7 @@ import {
   finishGeminiProposal,
   finishManualWhatsAppReconciliation,
   finishManualWhatsAppSend,
+  getManualWhatsAppReconciliationBoundMessageIds,
   getManualWhatsAppReconciliationContext,
   requestManualWhatsAppReconciliation,
   resolveManualSendWahaRuntime,
@@ -440,6 +441,7 @@ export async function executePlatformManualWhatsAppSend(
   dependencies: Readonly<{
     createWahaProvider?: PlatformWahaProviderFactory;
   }> = {},
+  options: Readonly<{ quoteSource?: boolean }> = {},
 ): Promise<PlatformManualWhatsAppSendExecutionResult> {
   const authorization = input.authorization;
   const claim = await claimManualWhatsAppSendItem(serviceClient, {
@@ -461,6 +463,7 @@ export async function executePlatformManualWhatsAppSend(
     authorization,
     input.completionRequestId,
     dependencies,
+    options,
   );
 }
 
@@ -623,11 +626,19 @@ export async function executePlatformManualWhatsAppReconciliation(
         expectedText: context.finalText,
       });
     } else {
+      // Messages of the chat's other CRM sends are never this attempt's
+      // (the same short text sent twice within the window, migration 266).
+      const excludeProviderMessageIds =
+        await getManualWhatsAppReconciliationBoundMessageIds(
+          serviceClient,
+          receipt.reconciliationRequestId,
+        );
       providerMessage = await provider.findUniqueMessage({
         recipientId: context.rawChatId,
         expectedText: context.finalText,
         windowStart: context.providerWindowStart,
         windowEnd: context.providerWindowEnd,
+        excludeProviderMessageIds,
       });
     }
   } catch (error) {

@@ -16,6 +16,20 @@ export const WHATSAPP_CHAT_TEXT_LIMIT = 3000;
 export const WHATSAPP_CHAT_COUNTER_FROM = 2700;
 /** Сколько сообщений одного сотрудника может ждать отправки в одном чате. */
 export const WHATSAPP_CHAT_PENDING_LIMIT = 3;
+/**
+ * Заявленная отправка, которую никто не взял дольше минуты, больше не держит
+ * чат (миграция 266): её действие оборвалось между записью и отправкой. Лента
+ * называет её «не ушло» с запасом в 15 с на ещё идущее действие автора.
+ */
+export const WHATSAPP_CHAT_STALL_MS = 75_000;
+/** Аренда отправки (120 с) и запас: после неё итог взятой отправки неизвестен. */
+export const WHATSAPP_CHAT_LEASE_OVER_MS = 135_000;
+/** Повтор отправки, которую очередь чата ещё держит: 5, 10, 20, затем 30 с. */
+export function queuedRetryDelay(answers: number): number {
+  return Math.min(5_000 * 2 ** Math.max(0, answers - 1), 30_000);
+}
+/** После стольких ответов «ждёт очереди» браузер перестаёт повторять сам (≈2,5 мин). */
+export const WHATSAPP_CHAT_QUEUED_RETRY_LIMIT = 8;
 
 export type WhatsAppMessageOrigin = "client" | "crm" | "phone" | "history" | "other";
 export type WhatsAppAckName = "ERROR" | "PENDING" | "SERVER" | "DEVICE" | "READ" | "PLAYED";
@@ -45,8 +59,17 @@ export type InboxChatAttempt = Readonly<{
   authorName: string;
   authorIsViewer: boolean;
   at: string;
+  /** Когда отправку взяли (null — ещё не брали). */
+  claimedAt: string | null;
+  /** Сообщение клиента, на которое она отвечает: повтор автора тем же запросом. */
+  sourceMessageId: string;
   failureCode: string | null;
   readback: "message_confirmed" | "message_not_found" | "delivery_refreshed" | null;
+  /**
+   * Проверка ничего не нашла не раньше чем через 5 минут после отправки: только
+   * тогда сервер примет тот же текст снова (266).
+   */
+  readbackSettled: boolean;
 }>;
 
 /**
@@ -175,6 +198,7 @@ export type WhatsAppChatSendStatus =
   | "unknown"
   | "rejected"
   | "stale_source"
+  | "closed"
   | "duplicate"
   | "not_ready"
   | "forbidden"
@@ -200,7 +224,8 @@ export type WhatsAppChatReconcileStatus =
 /** Отказ до записи: текст возвращается в поле, под ним — почему. */
 export const SEND_REFUSAL_COPY: Readonly<Partial<Record<WhatsAppChatSendStatus, string>>> = Object.freeze({
   stale_source: "Пока вы писали, клиент прислал новое сообщение. Проверьте ответ и отправьте ещё раз.",
-  duplicate: "Такой же текст уже ждёт проверки выше — нажмите «Проверить» у того сообщения.",
+  closed: "Диалог закрыли — ответить из CRM нельзя. Текст остался в поле.",
+  duplicate: "Такое же сообщение выше ещё не дошло до итога — дождитесь его или нажмите «Проверить» у него.",
   not_ready: "WhatsApp сейчас не принимает отправку из CRM. Текст сохранён — попробуйте позже.",
   forbidden: "Отправка недоступна: права на этот чат изменились. Обновите страницу.",
   invalid: "Сообщение не прошло проверку. Уберите лишние знаки и отправьте ещё раз.",
@@ -220,15 +245,19 @@ export type LocalChatSend = Readonly<{
   sourceMessageId: string;
   createdAt: string;
   /**
-   * sending — ждёт сервера; queued — сервер записал, очередь чата ещё занята;
-   * lost — связь прервалась, итог неизвестен (повтор тем же запросом);
-   * sent — принято; unknown / rejected — итог сервера до перечитывания ленты;
-   * refused — сервер отказал до записи (текст можно вернуть в поле).
+   * sending — ждёт сервера; queued — сервер записал, очередь чата ещё занята
+   * (браузер повторяет сам, всё реже); stuck — очередь не освободилась за
+   * ≈2,5 мин, браузер больше не повторяет сам; lost — связь прервалась, итог
+   * неизвестен (повтор тем же запросом); sent — принято; unknown / rejected —
+   * итог сервера до перечитывания ленты; refused — сервер отказал до записи
+   * (текст можно вернуть в поле).
    */
-  state: "sending" | "queued" | "lost" | "sent" | "unknown" | "rejected" | "refused";
+  state: "sending" | "queued" | "stuck" | "lost" | "sent" | "unknown" | "rejected" | "refused";
   messageId: string | null;
   attemptId: string | null;
   refusal: WhatsAppChatSendStatus | null;
+  /** Сколько раз сервер ответил «ждёт очереди» подряд. */
+  queuedAnswers: number;
 }>;
 
 export type OutgoingBubble = Readonly<{
@@ -237,12 +266,20 @@ export type OutgoingBubble = Readonly<{
   at: string;
   authorName: string | null;
   authorIsViewer: boolean;
-  state: "sending" | "queued" | "lost" | "sent" | "unknown" | "rejected" | "refused";
+  /**
+   * stalled — сервер записал, но никто не взял её дольше минуты: действие
+   * автора оборвалось. Чат она больше не держит; отправить её может только
+   * автор тем же запросом.
+   */
+  state: "sending" | "queued" | "stalled" | "stuck" | "lost" | "sent" | "unknown" | "rejected" | "refused";
   attemptId: string | null;
   readback: InboxChatAttempt["readback"];
+  readbackSettled: boolean;
   refusal: WhatsAppChatSendStatus | null;
   /** Отправка этого браузера (её можно повторить тем же запросом или убрать). */
   localRequestId: string | null;
+  /** Автор может повторить записанную сервером отправку тем же запросом (с любого устройства). */
+  resend: Readonly<{ requestId: string; sourceMessageId: string }> | null;
 }>;
 
 /**
@@ -257,25 +294,41 @@ export function outgoingBubbles(
   local: readonly LocalChatSend[],
   messageIds: ReadonlySet<string>,
   inFlight: ReadonlySet<string> = new Set(),
+  now: number = Number.NaN,
 ): readonly OutgoingBubble[] {
   const serverRequests = new Set(attempts.flatMap((attempt) => (attempt.requestId ? [attempt.requestId] : [])));
   const localByRequest = new Map(local.map((item) => [item.requestId, item]));
+  const olderThan = (iso: string | null, ms: number) => iso !== null && now - Date.parse(iso) > ms;
   const bubbles: OutgoingBubble[] = attempts.map((attempt) => {
     const mine = attempt.requestId ? localByRequest.get(attempt.requestId) : undefined;
     const sending = Boolean(attempt.requestId && inFlight.has(attempt.requestId));
+    let state: OutgoingBubble["state"];
+    if (sending) state = "sending";
+    else if (attempt.status === "prepared") {
+      // Взятая отправка без итога дольше аренды: приложение оборвалось во
+      // время отправки, итог неизвестен (проверка сначала закрепит это).
+      state = olderThan(attempt.claimedAt, WHATSAPP_CHAT_LEASE_OVER_MS) ? "unknown" : "sending";
+    } else if (attempt.status === "queued") {
+      // Свою отправку браузер ещё повторяет сам — она ждёт очереди.
+      const retrying = mine !== undefined && (mine.state === "queued" || mine.state === "sending");
+      state = mine?.state === "stuck" || mine?.state === "lost" ? mine.state
+        : !retrying && olderThan(attempt.at, WHATSAPP_CHAT_STALL_MS) ? "stalled" : "queued";
+    } else state = attempt.status === "unknown" ? "unknown" : "rejected";
     return Object.freeze({
       key: attempt.workItemId,
       text: attempt.text,
       at: attempt.at,
       authorName: attempt.authorName,
       authorIsViewer: attempt.authorIsViewer,
-      state: sending || attempt.status === "prepared" ? "sending"
-        : attempt.status === "queued" ? "queued"
-          : attempt.status === "unknown" ? "unknown" : "rejected",
+      state,
       attemptId: attempt.attemptId,
       readback: attempt.readback,
+      readbackSettled: attempt.readbackSettled,
       refusal: null,
       localRequestId: mine ? mine.requestId : null,
+      resend: attempt.authorIsViewer && attempt.requestId
+        ? Object.freeze({ requestId: attempt.requestId, sourceMessageId: attempt.sourceMessageId })
+        : null,
     });
   });
   for (const item of local) {
@@ -290,8 +343,10 @@ export function outgoingBubbles(
       state: inFlight.has(item.requestId) ? "sending" : item.state,
       attemptId: item.attemptId,
       readback: null,
+      readbackSettled: false,
       refusal: item.refusal,
       localRequestId: item.requestId,
+      resend: null,
     }));
   }
   return Object.freeze(bubbles.sort((left, right) => (left.at < right.at ? -1 : left.at > right.at ? 1 : 0)));
@@ -317,7 +372,8 @@ export function settledLocalSends(
 
 /** Сообщений этого браузера, которые ещё в пути: от трёх поле ждёт. */
 export function unresolvedLocalCount(local: readonly LocalChatSend[]): number {
-  return local.filter((item) => item.state === "sending" || item.state === "queued" || item.state === "lost").length;
+  return local.filter((item) => item.state === "sending" || item.state === "queued" || item.state === "stuck"
+    || item.state === "lost").length;
 }
 
 /**

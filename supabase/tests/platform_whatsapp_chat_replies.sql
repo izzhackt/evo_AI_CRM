@@ -19,7 +19,10 @@
 --     same id with another text is refused; the v1 key still gives exactly one
 --     reply per inbound message (the running application keeps working);
 --  3. the queue head is per conversation (D2): a send in another chat is claimed
---     while this chat's older item waits; inside a chat the order holds;
+--     while this chat's older item waits; inside a chat the order holds; a send
+--     nobody claimed within 60 s no longer holds the chat (its own exact claim
+--     still works); an expired lease still heads the chat until an exact claim
+--     of it turns it into an unknown result without a send;
 --  4. the author is the sender: authorization, audit actor and the sender
 --     participant of the stored outbound message are the member who wrote it;
 --  5. the chat state and the message page: latest inbound, non-accepted
@@ -28,11 +31,14 @@
 --     member, another organization's Admin and anon are refused;
 --  6. reply-only and freshness: a newer customer message makes an older source
 --     55000; an outbound or unknown source is refused;
---  7. duplicate guard: the text of an unresolved unknown attempt is refused
---     (55000 duplicate_of_unresolved) until a readback found nothing;
+--  7. duplicate guard: the text of a send still on its way, or of an
+--     unresolved unknown attempt, is refused (55000 duplicate_of_unresolved);
+--     a readback that found nothing only clears it when taken at least five
+--     minutes after the send finished (settled), and the chat state says so;
 --  8. an OLDER unknown attempt (not the latest one) is reconciled without a
 --     resend; another chat's attempt, a member without manual.send and another
---     organization are refused.
+--     organization are refused; the readback excludes the provider ids of the
+--     chat's other CRM sends.
 BEGIN;
 
 DO $n266_auth_role$
@@ -67,7 +73,7 @@ CREATE FUNCTION pg_temp.n266_key_v1(p_conversation UUID, p_message UUID) RETURNS
   SELECT encode(sha256(convert_to(array_to_json(ARRAY['evo-platform-work-v1', 'manual_whatsapp_send',
     pg_temp.n266_id(1)::TEXT, p_conversation::TEXT, p_message::TEXT, 'staff-authored'])::TEXT, 'UTF8')), 'hex')
 $$;
--- The key the application computes for one chat message (src/lib/platform-whatsapp-chat-actions.ts).
+-- The key the application computes for one chat message (chatReplyBusinessKey in src/lib/platform-provider-actions.ts).
 CREATE FUNCTION pg_temp.n266_key_v2(p_conversation UUID, p_message UUID, p_request UUID) RETURNS TEXT LANGUAGE SQL IMMUTABLE AS $$
   SELECT encode(sha256(convert_to(array_to_json(ARRAY['evo-platform-work-v2', 'manual_whatsapp_send',
     pg_temp.n266_id(1)::TEXT, p_conversation::TEXT, p_message::TEXT, 'staff-authored', p_request::TEXT])::TEXT, 'UTF8')), 'hex')
@@ -133,8 +139,16 @@ SELECT pg_temp.n266_assert((SELECT bool_and(r.prosecdef AND r.proconfig @> ARRAY
     AND NOT has_function_privilege('service_role', r.oid, 'EXECUTE')
     AND NOT EXISTS (SELECT 1 FROM aclexplode(r.proacl) a WHERE a.grantee = 0))
   FROM pg_proc r WHERE r.oid IN ('platform_private.manual_whatsapp_send_attempt_states(uuid,uuid)'::regprocedure,
-    'platform_private.claim_next_manual_whatsapp_send_internal(uuid,integer,text,uuid,uuid)'::regprocedure)),
+    'platform_private.claim_next_manual_whatsapp_send_internal(uuid,integer,text,uuid,uuid)'::regprocedure,
+    'platform_private.manual_whatsapp_send_not_found_settled(uuid,uuid)'::regprocedure)),
   'the private routines: definers no client role may execute');
+SELECT pg_temp.n266_assert((SELECT r.prosecdef AND r.provolatile = 's' AND r.proconfig @> ARRAY['search_path=""']::TEXT[]
+    AND has_function_privilege('service_role', r.oid, 'EXECUTE')
+    AND NOT has_function_privilege('authenticated', r.oid, 'EXECUTE')
+    AND NOT has_function_privilege('anon', r.oid, 'EXECUTE')
+    AND NOT EXISTS (SELECT 1 FROM aclexplode(r.proacl) a WHERE a.grantee = 0)
+  FROM pg_proc r WHERE r.oid = 'platform.manual_whatsapp_reconciliation_bound_message_ids(uuid)'::regprocedure),
+  'the readback exclusion list: a stable definer for the service role only');
 SELECT pg_temp.n266_assert((SELECT md5(prosrc) FROM pg_proc
     WHERE oid = 'platform_private.claim_next_manual_whatsapp_send_internal(uuid,integer,text,uuid)'::regprocedure)
     = '95d095c0c2023a910ff09ea5de98420a'
@@ -343,6 +357,9 @@ SELECT pg_temp.n266_send(:'c1', :'m1', 'И второе сообщение по�
 -- A replay of the first click (a lost answer) returns the same work item and adds nothing.
 SELECT pg_temp.n266_send(:'c1', :'m1', 'Добрый день! Это первое сообщение', 3101)::TEXT AS s1_replay \gset
 SELECT pg_temp.n266_try(:'c1', :'m1', 'Другой текст с тем же идентификатором', 3101) AS s1_other_text \gset
+-- A new click with the text of a send that is still queued is refused: the
+-- first may still reach the customer (lost answer, then the text typed again).
+SELECT pg_temp.n266_try(:'c1', :'m1', 'Добрый день! Это первое сообщение', 3103) AS s1_dup_queued \gset
 -- A key that does not bind this request id is refused.
 SELECT pg_temp.n266_error(format($q$SELECT platform.request_manual_whatsapp_send_with_authorization(%L, %L, %L, NULL, 'Чужой ключ', 'staff_chat_reply', %L, %L)$q$,
   pg_temp.n266_id(1), :'c1', :'m1', pg_temp.n266_key_v2(:'c1', :'m1', pg_temp.n266_id(3199)), pg_temp.n266_id(3104))) AS s_wrong_key \gset
@@ -354,6 +371,8 @@ SELECT pg_temp.n266_assert((:'s1'::JSONB ->> 'work_item_id') IS NOT NULL AND (:'
 SELECT pg_temp.n266_assert(:'s1_replay'::JSONB = :'s1'::JSONB, 'the replay returns the stored result');
 SELECT pg_temp.n266_assert(:'s1_other_text' NOT IN ('ok', '42501') AND :'s_wrong_key' = '22023',
   'the same id with another text and a key of another id are refused');
+SELECT pg_temp.n266_assert(:'s1_dup_queued' = '55000:duplicate',
+  'the text of a send still in the queue is refused as a duplicate');
 SELECT pg_temp.n266_assert((SELECT count(*) = 2 FROM platform.manual_send_authorizations WHERE conversation_id = :'c1'::UUID)
   AND (SELECT count(*) = 2 FROM platform_private.durable_work_items i JOIN platform.manual_send_authorizations a
     ON a.organization_id = i.organization_id AND a.id = i.manual_send_authorization_id WHERE a.conversation_id = :'c1'::UUID),
@@ -394,6 +413,62 @@ SET CONSTRAINTS ALL DEFERRED;
 SELECT pg_temp.n266_assert((:'s1_finish'::JSONB ->> 'state') = 'succeeded' AND (:'s2_finish'::JSONB ->> 'state') = 'unknown_manual_review'
   AND (:'s3_finish'::JSONB ->> 'state') = 'dead_lettered' AND (:'t1_finish'::JSONB ->> 'state') = 'succeeded',
   'the four sends settle: accepted, unknown, rejected, accepted');
+
+-- A send nobody claimed within a minute (its author's action died between the
+-- request and the claim) no longer holds its chat; nobody else sends it, and
+-- its own exact claim (the author's retry with the same request id) still works.
+SET LOCAL request.jwt.claims TO :'n266_admin';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n266_send(:'c2', :'m2', 'Второй ответ второму клиенту', 3108)::TEXT AS t2 \gset
+SELECT pg_temp.n266_send(:'c2', :'m2', 'Третий ответ второму клиенту', 3109)::TEXT AS t3 \gset
+RESET ROLE;
+SELECT pg_temp.n266_claim((:'t3'::JSONB ->> 'work_item_id')::UUID, 7) AS t3_early \gset
+SET LOCAL session_replication_role = replica;
+UPDATE platform_private.durable_work_items SET created_at = created_at - INTERVAL '2 minutes'
+  WHERE id = (:'t2'::JSONB ->> 'work_item_id')::UUID;
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.n266_claim((:'t3'::JSONB ->> 'work_item_id')::UUID, 8) AS t3_claim \gset
+SELECT pg_temp.n266_claim((:'t2'::JSONB ->> 'work_item_id')::UUID, 9) AS t2_claim \gset
+SELECT pg_temp.n266_assert(:'t3_early' = '55000' AND (:'t3_claim'::JSONB ->> 'claimed')::BOOLEAN
+  AND (:'t3_claim'::JSONB ->> 'work_item_id') = (:'t3'::JSONB ->> 'work_item_id')
+  AND (:'t2_claim'::JSONB ->> 'claimed')::BOOLEAN AND (:'t2_claim'::JSONB ->> 'work_item_id') = (:'t2'::JSONB ->> 'work_item_id'),
+  'a fresh unclaimed send holds its chat; one unclaimed for over a minute does not, and its own exact claim still works');
+SELECT pg_temp.n266_finish(:'t3_claim'::JSONB, 'succeeded', 'true_79962000002@c.us_N266CCCCCCCCCCCCCCC6', 11)::TEXT AS t3_finish \gset
+SELECT pg_temp.n266_finish(:'t2_claim'::JSONB, 'succeeded', 'true_79962000002@c.us_N266CCCCCCCCCCCCCCC7', 12)::TEXT AS t2_finish \gset
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+-- An expired lease (the application died during the provider call) still
+-- heads its chat; any member's exact claim of it only turns it into an
+-- unknown result for a readback (no send), and the chat moves on.
+SET LOCAL request.jwt.claims TO :'n266_admin';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n266_send(:'c2', :'m2', 'Четвёртый ответ второму клиенту', 3110)::TEXT AS t5 \gset
+SELECT pg_temp.n266_send(:'c2', :'m2', 'Пятый ответ второму клиенту', 3111)::TEXT AS t6 \gset
+RESET ROLE;
+SELECT pg_temp.n266_claim((:'t5'::JSONB ->> 'work_item_id')::UUID, 10) AS t5_claim \gset
+SET LOCAL session_replication_role = replica;
+UPDATE pgmq.q_platform_work_v1 SET vt = pg_catalog.clock_timestamp() - INTERVAL '1 second'
+  WHERE msg_id = (SELECT queue_message_id FROM platform_private.durable_work_items WHERE id = (:'t5'::JSONB ->> 'work_item_id')::UUID);
+UPDATE platform_private.durable_work_attempts SET lease_expires_at = pg_catalog.clock_timestamp() - INTERVAL '1 second'
+  WHERE id = (:'t5_claim'::JSONB ->> 'attempt_id')::UUID;
+UPDATE platform_private.durable_work_items SET leased_until = pg_catalog.clock_timestamp() - INTERVAL '1 second'
+  WHERE id = (:'t5'::JSONB ->> 'work_item_id')::UUID;
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.n266_claim((:'t6'::JSONB ->> 'work_item_id')::UUID, 11) AS t6_early \gset
+SELECT pg_temp.n266_claim((:'t5'::JSONB ->> 'work_item_id')::UUID, 12) AS t5_expired \gset
+SELECT pg_temp.n266_claim((:'t6'::JSONB ->> 'work_item_id')::UUID, 13) AS t6_claim \gset
+SELECT pg_temp.n266_assert(:'t6_early' = '55000'
+  AND (:'t5_expired'::JSONB ->> 'claimed')::BOOLEAN IS FALSE
+  AND (:'t5_expired'::JSONB ->> 'lease_expired_without_result')::BOOLEAN
+  AND (SELECT state = 'unknown_manual_review' FROM platform_private.durable_work_items WHERE id = (:'t5'::JSONB ->> 'work_item_id')::UUID)
+  AND (SELECT count(*) = 1 AND bool_and(outcome = 'unknown_result') FROM platform_private.durable_work_attempts
+    WHERE work_item_id = (:'t5'::JSONB ->> 'work_item_id')::UUID)
+  AND (:'t6_claim'::JSONB ->> 'claimed')::BOOLEAN,
+  'an expired lease heads its chat until an exact claim turns it into an unknown result; then the chat moves on');
+SELECT pg_temp.n266_finish(:'t6_claim'::JSONB, 'succeeded', 'true_79962000002@c.us_N266CCCCCCCCCCCCCCC8', 13)::TEXT AS t6_finish \gset
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
 
 -- ---------------------------------------------------------------------------
 -- 4. The author is the sender.
@@ -535,10 +610,18 @@ SELECT pg_temp.n266_assert(:'rec_kind' = 'unknown_recovery', 'the older unknown 
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', TRUE);
 SET LOCAL ROLE service_role;
 SELECT platform.manual_whatsapp_reconciliation_context(:'rec_id')::TEXT AS rec_context \gset
+SELECT platform.manual_whatsapp_reconciliation_bound_message_ids(:'rec_id')::TEXT AS rec_bound \gset
 SELECT platform.finish_manual_whatsapp_reconciliation(:'rec_id', :'rec_context'::JSONB ->> 'waha_session_name',
   :'rec_context'::JSONB ->> 'raw_chat_id', :'rec_context'::JSONB ->> 'final_text_sha256', 0, NULL, NULL, NULL, NULL, NULL,
   pg_temp.n266_wid(6001))::TEXT AS rec_finish \gset
 RESET ROLE;
+SELECT pg_temp.n266_assert(:'rec_bound'::JSONB = '["true_79962000001@c.us_N266CCCCCCCCCCCCCCC1", "true_79962000001@c.us_N266CCCCCCCCCCCCCCC4"]'::JSONB,
+  'the readback excludes exactly the provider ids of the chat''s other accepted CRM sends (not another chat''s)');
+SET LOCAL request.jwt.claims TO :'n266_sales';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n266_error(format('SELECT platform.manual_whatsapp_reconciliation_bound_message_ids(%L)', :'rec_id')) AS rec_bound_staff \gset
+RESET ROLE;
+SELECT pg_temp.n266_assert(:'rec_bound_staff' = '42501', 'a staff member cannot read the exclusion list');
 SELECT pg_temp.n266_assert((:'rec_context'::JSONB ->> 'attempt_id') = (:'s2_claim'::JSONB ->> 'attempt_id')
   AND (:'rec_finish'::JSONB ->> 'outcome') = 'message_not_found', 'the readback of the older attempt found nothing');
 SELECT pg_temp.n266_assert((SELECT count(*) = 0 FROM platform_private.durable_work_attempts a
@@ -551,9 +634,50 @@ SELECT (SELECT e FROM jsonb_array_elements(s.attempts) e WHERE e ->> 'work_item_
   FROM platform.staff_whatsapp_chat_state(pg_temp.n266_id(1), :'c1', 50) AS s \gset
 SELECT pg_temp.n266_try(:'c1', :'m4', 'И второе сообщение подряд', 3601) AS dup_after_check \gset
 RESET ROLE;
-SELECT pg_temp.n266_assert((:'s2_state'::JSONB ->> 'status') = 'unknown' AND (:'s2_state'::JSONB ->> 'latest_reconciliation_outcome') = 'message_not_found',
-  'chat state shows the attempt as checked and not found');
-SELECT pg_temp.n266_assert(:'dup_after_check' = 'ok', 'after a readback found nothing the same text may be sent again');
+SELECT pg_temp.n266_assert((:'s2_state'::JSONB ->> 'status') = 'unknown' AND (:'s2_state'::JSONB ->> 'latest_reconciliation_outcome') = 'message_not_found'
+  AND (:'s2_state'::JSONB ->> 'readback_settled')::BOOLEAN IS FALSE
+  AND (:'s2_state'::JSONB ->> 'source_message_id') = :'m1',
+  'chat state shows the attempt as checked, not found and not settled yet, with its source message');
+SELECT pg_temp.n266_assert(:'dup_after_check' = '55000:duplicate',
+  'a «not found» taken right after the send does not clear the text: the provider may still be sending it');
+
+-- Five minutes later: the attempt (and that first readback) lie in the past.
+SET LOCAL session_replication_role = replica;
+UPDATE platform_private.durable_work_attempts
+  SET claimed_at = claimed_at - INTERVAL '10 minutes', lease_expires_at = lease_expires_at - INTERVAL '10 minutes',
+    finished_at = finished_at - INTERVAL '10 minutes'
+  WHERE id = (:'s2_claim'::JSONB ->> 'attempt_id')::UUID;
+UPDATE platform_private.manual_whatsapp_reconciliation_results SET created_at = created_at - INTERVAL '10 minutes'
+  WHERE attempt_id = (:'s2_claim'::JSONB ->> 'attempt_id')::UUID;
+SET LOCAL session_replication_role = origin;
+SET LOCAL request.jwt.claims TO :'n266_sales';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n266_try(:'c1', :'m4', 'И второе сообщение подряд', 3602) AS dup_old_check \gset
+SELECT r.reconciliation_request_id::TEXT AS rec2_id
+  FROM platform.request_manual_whatsapp_reconciliation(pg_temp.n266_id(1), :'c1', (:'s2_claim'::JSONB ->> 'attempt_id')::UUID,
+    pg_temp.n266_id(3506), 'staff_requested_exact_waha_readback') AS r \gset
+RESET ROLE;
+SELECT pg_temp.n266_assert(:'dup_old_check' = '55000:duplicate', 'the early «not found» still does not clear the text');
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', TRUE);
+SET LOCAL ROLE service_role;
+SELECT platform.manual_whatsapp_reconciliation_context(:'rec2_id')::TEXT AS rec2_context \gset
+SELECT platform.finish_manual_whatsapp_reconciliation(:'rec2_id', :'rec2_context'::JSONB ->> 'waha_session_name',
+  :'rec2_context'::JSONB ->> 'raw_chat_id', :'rec2_context'::JSONB ->> 'final_text_sha256', 0, NULL, NULL, NULL, NULL, NULL,
+  pg_temp.n266_wid(6002))::TEXT AS rec2_finish \gset
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n266_sales';
+SET LOCAL ROLE authenticated;
+SELECT (SELECT e FROM jsonb_array_elements(s.attempts) e WHERE e ->> 'work_item_id' = (:'s2'::JSONB ->> 'work_item_id'))::TEXT AS s2_settled
+  FROM platform.staff_whatsapp_chat_state(pg_temp.n266_id(1), :'c1', 50) AS s \gset
+SELECT pg_temp.n266_try(:'c1', :'m4', 'И второе сообщение подряд', 3603) AS dup_after_settled \gset
+RESET ROLE;
+SELECT pg_temp.n266_assert((:'rec2_finish'::JSONB ->> 'outcome') = 'message_not_found'
+  AND (:'s2_settled'::JSONB ->> 'readback_settled')::BOOLEAN AND (:'s2_settled'::JSONB ->> 'status') = 'unknown',
+  'a second check five minutes after the send found nothing: the chat state marks it settled');
+SELECT pg_temp.n266_assert(:'dup_after_settled' = 'ok', 'after a settled «not found» the same text may be sent again');
+SELECT pg_temp.n266_assert((SELECT count(*) = 0 FROM platform_private.durable_work_attempts a
+    WHERE a.work_item_id = (:'s2'::JSONB ->> 'work_item_id')::UUID AND a.attempt_number > 1),
+  'still no resend of the unknown attempt');
 
 SELECT 'N266_WHATSAPP_CHAT_REPLIES_SUITE_PASSED' AS n266_suite_result;
 

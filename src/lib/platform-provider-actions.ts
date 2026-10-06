@@ -2,13 +2,14 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { revalidatePath } from "next/cache";
-
 import {
   parsePlatformWhatsAppChatReconcileInput,
   parsePlatformWhatsAppChatSendInput,
 } from "./platform-provider-action-contract";
-import { getPlatformWhatsAppChatState } from "./platform-communications";
+import {
+  getPlatformWhatsAppChatState,
+  type PlatformWhatsAppChatState,
+} from "./platform-communications";
 import {
   claimManualWhatsAppSendItem,
   PlatformManualSendRefusedError,
@@ -18,14 +19,15 @@ import {
 import { requirePlatformMutationCapability } from "./platform-guards";
 import {
   executePlatformManualWhatsAppReconciliation,
-  sendClaimedManualWhatsApp,
+  executePlatformManualWhatsAppSend,
 } from "./server/platform-provider-orchestrator";
 import { getPlatformSupabaseBackendConfig } from "./server/platform-supabase-backend-config";
 import { createPlatformSupabaseServiceClient } from "./server/platform-supabase-service-client";
 import { createSupabaseServerClient } from "./supabase/server";
-import type {
-  WhatsAppChatReconcileStatus,
-  WhatsAppChatSendResult,
+import {
+  WHATSAPP_CHAT_LEASE_OVER_MS,
+  type WhatsAppChatReconcileStatus,
+  type WhatsAppChatSendResult,
 } from "./v3/whatsapp-chat";
 
 /**
@@ -36,6 +38,9 @@ import type {
  * A repeated click with the same request id replays the stored authorization
  * and never claims twice; an unknown provider result is only ever checked by
  * an exact readback, never resent.
+ *
+ * Neither action revalidates the route: the chat refreshes itself once after
+ * every answer (router.refresh in the browser), so one action is one render.
  */
 
 const MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS = 120;
@@ -43,14 +48,7 @@ const MANUAL_SEND_WORKER_REF = "next-app-chat-send";
 const CLAIM_ATTEMPTS = 3;
 const CLAIM_RETRY_DELAY_MS = 650;
 
-function revalidateInboxPath(): void {
-  try {
-    revalidatePath("/v3/inbox");
-  } catch {
-    // The provider result is already durable. A cache failure must not make a
-    // safely idempotent action look as though it can be repeated.
-  }
-}
+type Actor = Awaited<ReturnType<typeof requirePlatformMutationCapability>>;
 
 function createServiceClient() {
   return createPlatformSupabaseServiceClient(
@@ -98,13 +96,7 @@ type ItemState = Readonly<{
   claimedAt: string | null;
 }>;
 
-/** The work item's state as the staff member may read it (the chat state, 266). */
-async function readItemState(
-  actor: Awaited<ReturnType<typeof requirePlatformMutationCapability>>,
-  conversationId: string,
-  workItemId: string,
-): Promise<ItemState> {
-  const state = await getPlatformWhatsAppChatState(actor, conversationId);
+function itemState(state: PlatformWhatsAppChatState, workItemId: string): ItemState {
   const attempt = state.attempts.find((entry) => entry.workItemId === workItemId);
   // The chat state lists every send that is not accepted; a fresh item that
   // is missing from it has been accepted.
@@ -112,47 +104,114 @@ async function readItemState(
   return { status: attempt.status, attemptId: attempt.attemptId, claimedAt: attempt.claimedAt };
 }
 
+/** The work item's state as the staff member may read it (the chat state, 266). */
+async function readItemState(actor: Actor, conversationId: string, workItemId: string): Promise<ItemState> {
+  return itemState(await getPlatformWhatsAppChatState(actor, conversationId), workItemId);
+}
+
+function leaseOver(claimedAt: string | null): boolean {
+  return claimedAt !== null && Date.now() - Date.parse(claimedAt) > WHATSAPP_CHAT_LEASE_OVER_MS;
+}
+
+/**
+ * The exact claim of a claimed item whose lease ran out (the application died
+ * during its provider call). The claim never sends it: it only turns it into
+ * an unknown result for a readback (migration 097), so any member may run it.
+ * Its answer is not a claimed item, so the parser refuses it; the change is
+ * already durable and the caller reads the state again.
+ */
+async function settleExpiredLease(workItemId: string, organizationId: string): Promise<void> {
+  try {
+    await claimManualWhatsAppSendItem(createServiceClient(), {
+      organizationId,
+      workItemId,
+      visibilityTimeoutSeconds: MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS,
+      workerRef: MANUAL_SEND_WORKER_REF,
+      requestId: randomUUID(),
+    });
+  } catch {
+    // Either it was converted (the answer has another shape) or it is not the
+    // chat's head; both leave nothing to undo.
+  }
+}
+
+/**
+ * A chat whose head is someone else's send with an expired lease waits until
+ * an exact claim of that item settles it as unknown (no send). The oldest such
+ * item of the chat is settled once per click.
+ */
+async function releaseExpiredHead(actor: Actor, conversationId: string, ownWorkItemId: string): Promise<void> {
+  const state = await getPlatformWhatsAppChatState(actor, conversationId);
+  const head = state.attempts
+    .filter((attempt) => attempt.workItemId !== ownWorkItemId && attempt.status === "prepared" && leaseOver(attempt.claimedAt))
+    .sort((left, right) => (left.authorizedAt < right.authorizedAt ? -1 : left.authorizedAt > right.authorizedAt ? 1 : 0))[0];
+  if (head) await settleExpiredLease(head.workItemId, actor.organizationId);
+}
+
 async function claimAndSend(
+  actor: Actor,
+  conversationId: string,
   authorization: PlatformManualWhatsAppSendAuthorization,
 ): Promise<WhatsAppChatSendResult | null> {
   const serviceClient = createServiceClient();
   for (let attempt = 0; attempt < CLAIM_ATTEMPTS; attempt += 1) {
     if (attempt > 0) await pause(CLAIM_RETRY_DELAY_MS);
-    let claim: Awaited<ReturnType<typeof claimManualWhatsAppSendItem>>;
+    // After a refused claim, an expired lease ahead of this send is the one
+    // blocker nobody else would clear; a send never claimed for a minute no
+    // longer holds the chat (migration 266).
+    if (attempt === 1) await releaseExpiredHead(actor, conversationId, authorization.workItemId).catch(() => undefined);
+    let execution: Awaited<ReturnType<typeof executePlatformManualWhatsAppSend>>;
     try {
       // A refused claim (another send of this chat is still ahead) changes
       // nothing and is safe to ask again; the claim itself is the only
-      // authority for the one provider call below.
-      claim = await claimManualWhatsAppSendItem(serviceClient, {
-        organizationId: authorization.organizationId,
-        workItemId: authorization.workItemId,
-        visibilityTimeoutSeconds: MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS,
-        workerRef: MANUAL_SEND_WORKER_REF,
-        requestId: randomUUID(),
-      });
+      // authority for the one provider call it may lead to.
+      execution = await executePlatformManualWhatsAppSend(
+        serviceClient,
+        {
+          authorization,
+          visibilityTimeoutSeconds: MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS,
+          workerRef: MANUAL_SEND_WORKER_REF,
+          claimRequestId: randomUUID(),
+          completionRequestId: randomUUID(),
+        },
+        {},
+        { quoteSource: false },
+      );
     } catch {
       continue;
     }
-    if (!claim.claimed) return null;
-    const execution = await sendClaimedManualWhatsApp(
-      serviceClient,
-      claim,
-      authorization,
-      randomUUID(),
-      {},
-      { quoteSource: false },
-    );
+    if (execution.status === "not_claimed") return null;
     const outcome = execution.result.outcome;
     return result(
       outcome === "succeeded" ? "sent" : outcome === "unknown_result" ? "unknown" : "rejected",
       {
-        workItemId: claim.workItemId,
-        attemptId: claim.attemptId,
+        workItemId: execution.result.workItemId,
+        attemptId: execution.result.attemptId,
         messageId: execution.result.communicationMessageId,
       },
     );
   }
   return result("queued", { workItemId: authorization.workItemId });
+}
+
+/**
+ * The database gives one message for a source that is no longer the latest
+ * customer message and for a closed conversation. The chat state tells them
+ * apart: if the source is still the latest, the conversation was closed.
+ */
+async function refusalStatus(
+  actor: Actor,
+  error: PlatformManualSendRefusedError,
+  conversationId: string,
+  sourceMessageId: string,
+): Promise<WhatsAppChatSendResult["status"]> {
+  if (error.reason !== "stale_source") return error.reason;
+  try {
+    const state = await getPlatformWhatsAppChatState(actor, conversationId);
+    return state.latestInboundMessageId === sourceMessageId ? "closed" : "stale_source";
+  } catch {
+    return "stale_source";
+  }
 }
 
 export async function sendPlatformWhatsAppMessageAction(
@@ -184,7 +243,9 @@ export async function sendPlatformWhatsAppMessageAction(
       },
     );
   } catch (error) {
-    if (error instanceof PlatformManualSendRefusedError) return result(error.reason);
+    if (error instanceof PlatformManualSendRefusedError) {
+      return result(await refusalStatus(actor, error, parsed.conversationId, parsed.sourceMessageId));
+    }
     return result("unavailable");
   }
 
@@ -195,20 +256,17 @@ export async function sendPlatformWhatsAppMessageAction(
     const fields = { workItemId: authorization.workItemId, attemptId: state.attemptId };
     let outcome: WhatsAppChatSendResult | null = null;
     if (state.status === "queued") {
-      outcome = await claimAndSend(authorization);
+      outcome = await claimAndSend(actor, parsed.conversationId, authorization);
     } else if (state.status === "prepared") {
       // Claimed by an earlier click; once its lease has run out, the exact
       // claim turns it into an unknown result for a readback (no resend).
-      const leaseOver = state.claimedAt !== null
-        && Date.now() - Date.parse(state.claimedAt) > (MANUAL_SEND_VISIBILITY_TIMEOUT_SECONDS + 15) * 1_000;
-      if (leaseOver) await claimAndSend(authorization).catch(() => null);
+      if (leaseOver(state.claimedAt)) await settleExpiredLease(authorization.workItemId, actor.organizationId);
       outcome = result("sending", fields);
     } else if (state.status === "accepted") {
       outcome = result("sent", fields);
     } else {
       outcome = result(state.status === "unknown" ? "unknown" : "rejected", fields);
     }
-    revalidateInboxPath();
     if (outcome === null) {
       // Claimed by someone else between the read and the claim.
       const after = await readItemState(actor, parsed.conversationId, authorization.workItemId);
@@ -220,7 +278,6 @@ export async function sendPlatformWhatsAppMessageAction(
   } catch {
     // The authorization is durable; the outcome of this click is not known
     // here. The same request id replays it safely.
-    revalidateInboxPath();
     return result("unavailable", { workItemId: authorization.workItemId });
   }
 }
@@ -233,6 +290,16 @@ export async function reconcilePlatformWhatsAppSendAction(
   if (parsed === null) return Object.freeze({ status: "invalid" });
 
   try {
+    // A send whose lease ran out without a result (the application died
+    // during the provider call) is first settled as unknown by its exact
+    // claim — never sent — and then checked like any unknown attempt.
+    const state = await getPlatformWhatsAppChatState(actor, parsed.conversationId);
+    const attempt = state.attempts.find((entry) => entry.attemptId === parsed.attemptId);
+    if (attempt?.status === "prepared") {
+      if (!leaseOver(attempt.claimedAt)) return Object.freeze({ status: "unavailable" });
+      await settleExpiredLease(attempt.workItemId, actor.organizationId);
+    }
+
     const staffClient = await createSupabaseServerClient();
     const serviceClient = createServiceClient();
     const execution = await executePlatformManualWhatsAppReconciliation(
@@ -247,7 +314,6 @@ export async function reconcilePlatformWhatsAppSendAction(
         completionRequestId: randomUUID(),
       },
     );
-    revalidateInboxPath();
     if (execution.status === "already_completed") {
       return Object.freeze({ status: "already_completed" });
     }

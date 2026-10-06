@@ -25,7 +25,11 @@ import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress
 import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 import { inboxPresentationQueue, inboxReplyActor } from "@/lib/v3/inbox-access";
-import { toV3InboxMessageMedia } from "@/lib/v3/inbox-media";
+import {
+  readV3InboxMediaAttachmentContext,
+  toV3InboxMessageMedia,
+  type V3InboxMediaAttachmentContext,
+} from "@/lib/v3/inbox-media";
 import { readLeadHandoffStrip } from "@/lib/v3/sales-numbers-source";
 import { stagePhase } from "@/lib/v3/stages";
 import { salesStage } from "@/lib/v3/wording";
@@ -176,8 +180,11 @@ function toInboxChatAttempt(
     authorName: attempt.authorizedByName,
     authorIsViewer: attempt.authorizedByMembershipId === viewerMembershipId.toLowerCase(),
     at: attempt.authorizedAt,
+    claimedAt: attempt.claimedAt,
+    sourceMessageId: attempt.sourceMessageId,
     failureCode: attempt.failureCode,
     readback: attempt.latestReconciliationOutcome,
+    readbackSettled: attempt.readbackSettled,
   });
 }
 
@@ -197,6 +204,7 @@ export function inboxChatSignature(state: PlatformWhatsAppChatState): string {
       attempt.status,
       attempt.latestReconciliationOutcome,
       attempt.lastReconciledAt,
+      attempt.readbackSettled ? "settled" : null,
     ]),
   ]);
 }
@@ -349,6 +357,17 @@ export async function readInbox(
   });
 }
 
+export type InboxOlderMessagesPage = Readonly<{
+  messages: readonly InboxChatMessage[];
+  hasOlder: boolean;
+  /**
+   * «В дело студента» for this page's attachments: the same reader as the
+   * page's newest messages (role, active case, open slots), with request ids
+   * for exactly these media. null — nothing on this page can be attached.
+   */
+  attachmentContext: V3InboxMediaAttachmentContext | null;
+}>;
+
 /**
  * «Показать ранее»: one older page of the selected chat, through the same
  * guards and queue filter as the page. null — the chat is not readable.
@@ -357,13 +376,20 @@ export async function readInboxOlderMessages(
   actor: ActivePlatformActor,
   conversationId: string,
   cursor: PlatformConversationCursor,
-): Promise<Readonly<{ messages: readonly InboxChatMessage[]; hasOlder: boolean }> | null> {
+): Promise<InboxOlderMessagesPage | null> {
   const presentationQueue = inboxPresentationQueue(actor);
   const thread = await getPlatformWhatsAppThread(actor, conversationId, { cursor, pageSize: MESSAGE_PAGE_SIZE });
   if (!thread || (presentationQueue !== undefined && thread.conversation.queue !== presentationQueue)) return null;
+  const messages = Object.freeze(thread.messages.map((message) => toInboxChatMessage(message, actor.membershipId)));
+  const attachmentContext = await readV3InboxMediaAttachmentContext(actor, {
+    conversationId: thread.conversation.id,
+    studentCaseId: thread.conversation.studentCaseId,
+    media: messages.flatMap((message) => message.media),
+  });
   return Object.freeze({
-    messages: Object.freeze(thread.messages.map((message) => toInboxChatMessage(message, actor.membershipId))),
+    messages,
     hasOlder: thread.nextMessageCursor !== null,
+    attachmentContext,
   });
 }
 

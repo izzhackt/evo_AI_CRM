@@ -24,21 +24,31 @@
 --     v1 stays accepted so the running application keeps working until the new
 --     one is deployed.
 --  2. The same request refuses (55000 duplicate_of_unresolved) a text whose
---     sha256 equals that of an UNRESOLVED unknown attempt in the same
---     conversation (outcome unknown_result, no provider binding, no
---     message_not_found readback): the first may already have reached the
---     customer. After «Проверить» found nothing the text may be sent again.
+--     sha256 equals that of a send of the same conversation that is still on
+--     its way (queued, claimed without a result) or UNRESOLVED (outcome
+--     unknown_result, no provider binding, no SETTLED «not found»): the first
+--     may already have reached, or still reach, the customer. «Settled» is
+--     platform_private.manual_whatsapp_send_not_found_settled: an exact
+--     readback that found nothing at least five minutes after the send
+--     finished (a readback taken seconds after a provider timeout can miss a
+--     message the provider is still sending; API echoes are not stored, 259).
 --  3. platform_private.manual_whatsapp_send_attempt_states(org, conv): one row
 --     per manual-send work item of a conversation (queued without an attempt,
---     prepared, accepted, unknown, rejected). Private, no grants.
+--     prepared, accepted, unknown, rejected), with its source message and
+--     whether a settled «not found» allows the text again. Private, no grants.
 --  4. platform.request_manual_whatsapp_reconciliation looks the attempt up in
 --     (3) instead of in the latest-attempt reader, so an OLDER unknown attempt
 --     can be checked without a resend. Its read guard (communication.read.full
 --     on the conversation) is kept explicitly; everything after it is unchanged.
+--     4b. platform.manual_whatsapp_reconciliation_bound_message_ids(request):
+--     provider ids of OTHER CRM sends of the chat around the readback window,
+--     which the readback must not take for its own (the same short text sent
+--     twice). Service role only.
 --  5. platform.staff_whatsapp_chat_state(org, conv, limit): the latest inbound
 --     message, the newest message and the non-accepted send attempts of one
---     conversation (text, author, time, failure, latest readback outcome), with
---     the latest-attempt reader's guards. EXECUTE for authenticated only.
+--     conversation (text, author, time, failure, latest readback outcome,
+--     source, settled), with the latest-attempt reader's guards. EXECUTE for
+--     authenticated only.
 --  6. platform.staff_whatsapp_message_page(org, conv, limit, before_at,
 --     before_id): the v1 page (called as is, so its guards and columns stay the
 --     authority) plus origin (client | crm | phone | history | other, from
@@ -52,6 +62,12 @@
 --     platform_private.claim_next_manual_whatsapp_send_internal (the 4-argument
 --     one is generated from, and stays byte-identical to, its installed source;
 --     the overload adds only `item.id = p_exact_work_item_id` to the candidate).
+--     A send that nobody claimed within 60 s of its request (its author's
+--     action died between the request and the claim, or its claim can never
+--     pass) no longer holds the chat: it stays queued for its author's own
+--     retry with the same request id and is never sent by anyone else. An
+--     item whose lease expired still heads the chat; any member's exact claim
+--     of it only turns it into an unknown result (no send).
 --
 -- RLS, audit actions, grants of existing routines, the WAHA runtime, the
 -- finish/reconcile completion and the readers' authority are unchanged.
@@ -61,6 +77,45 @@
 --       https://supabase.com/docs/guides/database/functions#security-definer-vs-invoker
 
 BEGIN;
+
+-- 2 (the one definition of «settled»): an unknown attempt whose exact readback
+-- found nothing at least five minutes after the send finished. A readback
+-- taken earlier can miss a message the provider was still sending when the
+-- application gave up waiting (WAHA's 20 s timeout), and API echoes are not
+-- stored by ingress (259), so a late delivery never shows in the transcript:
+-- only a settled «not found» lets the same text be sent again.
+CREATE FUNCTION platform_private.manual_whatsapp_send_not_found_settled(
+  p_organization_id UUID,
+  p_attempt_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM platform_private.durable_work_attempts AS attempt
+    JOIN platform_private.manual_whatsapp_reconciliation_results AS readback
+      ON readback.organization_id = attempt.organization_id
+     AND readback.attempt_id = attempt.id
+     AND readback.outcome = 'message_not_found'
+     AND readback.created_at >= attempt.finished_at + INTERVAL '5 minutes'
+    WHERE attempt.organization_id = p_organization_id
+      AND attempt.id = p_attempt_id
+      AND attempt.outcome = 'unknown_result'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM platform_private.manual_send_provider_bindings AS binding
+        WHERE binding.organization_id = attempt.organization_id
+          AND binding.durable_work_item_id = attempt.work_item_id
+      )
+  )
+$$;
+
+REVOKE ALL ON FUNCTION platform_private.manual_whatsapp_send_not_found_settled(UUID, UUID)
+  FROM PUBLIC, anon, authenticated, service_role;
 
 DO $n266_patch$
 DECLARE
@@ -141,7 +196,8 @@ BEGIN
       )
     )
   THEN$n$),
-  -- 2: never a second copy of a message whose first send has an unknown result.
+  -- 2: never a second copy of a message whose first send is still on its way
+  -- or has an unknown result that no settled readback has cleared.
   (2, 'platform.request_manual_whatsapp_send_with_authorization(uuid,uuid,uuid,uuid,text,text,text,uuid)',
    $o$  SELECT *
   INTO health
@@ -153,29 +209,32 @@ BEGIN
       ON unresolved_item.organization_id = unresolved_authorization.organization_id
      AND unresolved_item.manual_send_authorization_id = unresolved_authorization.id
      AND unresolved_item.kind = 'manual_whatsapp_send'
-    JOIN platform_private.durable_work_attempts AS unresolved_attempt
+    LEFT JOIN platform_private.durable_work_attempts AS unresolved_attempt
       ON unresolved_attempt.organization_id = unresolved_item.organization_id
      AND unresolved_attempt.work_item_id = unresolved_item.id
      AND unresolved_attempt.outcome = 'unknown_result'
     WHERE unresolved_authorization.organization_id = p_organization_id
       AND unresolved_authorization.conversation_id = p_conversation_id
       AND unresolved_authorization.final_text_sha256 = final_hash
-      AND NOT EXISTS (
-        SELECT 1
-        FROM platform_private.manual_send_provider_bindings AS unresolved_binding
-        WHERE unresolved_binding.organization_id = unresolved_item.organization_id
-          AND unresolved_binding.durable_work_item_id = unresolved_item.id
-      )
-      AND NOT EXISTS (
-        SELECT 1
-        FROM platform_private.manual_whatsapp_reconciliation_results AS unresolved_readback
-        WHERE unresolved_readback.organization_id = unresolved_attempt.organization_id
-          AND unresolved_readback.attempt_id = unresolved_attempt.id
-          AND unresolved_readback.outcome = 'message_not_found'
+      AND (
+        unresolved_item.state IN ('queued', 'leased', 'retry_wait')
+        OR (
+          unresolved_attempt.id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM platform_private.manual_send_provider_bindings AS unresolved_binding
+            WHERE unresolved_binding.organization_id = unresolved_item.organization_id
+              AND unresolved_binding.durable_work_item_id = unresolved_item.id
+          )
+          AND NOT platform_private.manual_whatsapp_send_not_found_settled(
+            unresolved_attempt.organization_id,
+            unresolved_attempt.id
+          )
+        )
       )
   ) THEN
     RAISE EXCEPTION
-      'duplicate_of_unresolved: the same text awaits a no-resend check in this conversation'
+      'duplicate_of_unresolved: the same text is still on its way or awaits a no-resend check in this conversation'
       USING ERRCODE = '55000';
   END IF;
 
@@ -201,6 +260,15 @@ BEGIN
       WHERE head_authorization.organization_id = item.organization_id
         AND head_authorization.id = item.manual_send_authorization_id
         AND head_authorization.conversation_id = requested_authorization.conversation_id
+    )
+    -- A send nobody claimed within a minute of its request (its author's
+    -- action died before the claim, or its claim can never pass) no longer
+    -- holds the chat. It stays queued for its author's own retry with the same
+    -- request id and is never claimed or sent by anyone else.
+    AND (
+      item.id = p_work_item_id
+      OR item.attempt_count > 0
+      OR item.created_at > pg_catalog.clock_timestamp() - INTERVAL '60 seconds'
     )
   ORDER BY queue_row.msg_id ASC
   LIMIT 1;$n$),
@@ -270,7 +338,9 @@ RETURNS TABLE (
   settled_at TIMESTAMPTZ,
   last_reconciled_at TIMESTAMPTZ,
   latest_reconciliation_kind TEXT,
-  latest_reconciliation_outcome TEXT
+  latest_reconciliation_outcome TEXT,
+  source_message_id UUID,
+  readback_settled BOOLEAN
 )
 LANGUAGE sql
 STABLE
@@ -306,7 +376,11 @@ AS $$
     attempt.finished_at,
     readback.created_at,
     readback.reconciliation_kind::TEXT,
-    readback.outcome::TEXT
+    readback.outcome::TEXT,
+    authz.source_message_id,
+    COALESCE(attempt.outcome = 'unknown_result'
+      AND binding.communication_message_id IS NULL
+      AND platform_private.manual_whatsapp_send_not_found_settled(item.organization_id, attempt.id), FALSE)
   FROM platform_private.durable_work_items AS item
   JOIN platform.manual_send_authorizations AS authz
     ON authz.organization_id = item.organization_id
@@ -407,6 +481,75 @@ BEGIN
 END
 $n266_reconcile$;
 
+-- 4b. The provider ids the readback of an unknown attempt must not take for
+-- its own: messages of OTHER CRM sends of the same chat around its window.
+-- Several replies in a row make the same short text («Хорошо») within the
+-- readback window likely; without this the readback would bind (and fail on)
+-- another send's message. Service role only, like the reconciliation context.
+CREATE FUNCTION platform.manual_whatsapp_reconciliation_bound_message_ids(
+  p_reconciliation_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  request_row platform_private.manual_whatsapp_reconciliation_requests%ROWTYPE;
+  attempt_row platform_private.durable_work_attempts%ROWTYPE;
+BEGIN
+  PERFORM platform_private.require_p2g_service();
+
+  IF p_reconciliation_request_id IS NULL THEN
+    RAISE EXCEPTION 'Reconciliation request id is required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT request.*
+  INTO request_row
+  FROM platform_private.manual_whatsapp_reconciliation_requests AS request
+  WHERE request.id = p_reconciliation_request_id;
+
+  SELECT attempt.*
+  INTO attempt_row
+  FROM platform_private.durable_work_attempts AS attempt
+  WHERE attempt.organization_id = request_row.organization_id
+    AND attempt.id = request_row.attempt_id
+    AND attempt.work_item_id = request_row.work_item_id;
+
+  IF request_row.id IS NULL OR attempt_row.id IS NULL THEN
+    RAISE EXCEPTION 'Reconciliation request no longer matches canonical state'
+      USING ERRCODE = '55000';
+  END IF;
+
+  RETURN COALESCE((
+    SELECT pg_catalog.jsonb_agg(bound.raw_message_id ORDER BY bound.raw_message_id)
+    FROM (
+      SELECT binding.raw_message_id
+      FROM platform_private.manual_send_provider_bindings AS binding
+      JOIN platform.manual_send_authorizations AS authz
+        ON authz.organization_id = binding.organization_id
+       AND authz.id = binding.manual_send_authorization_id
+      WHERE binding.organization_id = request_row.organization_id
+        AND authz.conversation_id = request_row.conversation_id
+        AND binding.durable_work_item_id <> request_row.work_item_id
+        AND binding.provider_observed_at
+          BETWEEN attempt_row.claimed_at - INTERVAL '1 hour'
+          AND COALESCE(attempt_row.finished_at, pg_catalog.statement_timestamp())
+            + INTERVAL '1 hour'
+      ORDER BY binding.provider_observed_at DESC, binding.id DESC
+      LIMIT 200
+    ) AS bound
+  ), '[]'::JSONB);
+END
+$$;
+
+REVOKE ALL ON FUNCTION platform.manual_whatsapp_reconciliation_bound_message_ids(UUID)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION platform.manual_whatsapp_reconciliation_bound_message_ids(UUID)
+  TO service_role;
+
 -- 5. The state of one chat for the staff page and its pulse.
 CREATE FUNCTION platform.staff_whatsapp_chat_state(
   p_organization_id UUID,
@@ -470,7 +613,9 @@ BEGIN
           'claimed_at', state_row.claimed_at,
           'failure_code', state_row.failure_code,
           'latest_reconciliation_outcome', state_row.latest_reconciliation_outcome,
-          'last_reconciled_at', state_row.last_reconciled_at
+          'last_reconciled_at', state_row.last_reconciled_at,
+          'source_message_id', state_row.source_message_id,
+          'readback_settled', state_row.readback_settled
         ) ORDER BY state_row.authorized_at, state_row.work_item_id)
       FROM (
         SELECT attempt_state.*
@@ -596,14 +741,16 @@ BEGIN
   FOR routine IN
     SELECT * FROM (VALUES
       ('platform.request_manual_whatsapp_send_with_authorization(uuid,uuid,uuid,uuid,text,text,text,uuid)',
-        '%evo-platform-work-v2%duplicate_of_unresolved%', 'v', FALSE, TRUE),
+        '%evo-platform-work-v2%manual_whatsapp_send_not_found_settled(%duplicate_of_unresolved%', 'v', FALSE, TRUE),
       ('platform.claim_manual_whatsapp_send_item(uuid,uuid,integer,text,uuid)',
-        '%head_authorization.conversation_id = requested_authorization.conversation_id%exact_worker_ref,%p_request_id,%', 'v', FALSE, FALSE),
+        '%head_authorization.conversation_id = requested_authorization.conversation_id%INTERVAL ''60 seconds''%exact_worker_ref,%p_request_id,%', 'v', FALSE, FALSE),
       ('platform_private.claim_next_manual_whatsapp_send_internal(uuid,integer,text,uuid,uuid)',
         '%AND item.id = p_exact_work_item_id%', 'v', FALSE, FALSE),
       ('platform.request_manual_whatsapp_reconciliation(uuid,uuid,uuid,uuid,text)',
         '%manual_whatsapp_send_attempt_states(%', 'v', FALSE, TRUE),
-      ('platform_private.manual_whatsapp_send_attempt_states(uuid,uuid)', '%', 's', FALSE, FALSE),
+      ('platform_private.manual_whatsapp_send_attempt_states(uuid,uuid)', '%manual_whatsapp_send_not_found_settled(%', 's', FALSE, FALSE),
+      ('platform_private.manual_whatsapp_send_not_found_settled(uuid,uuid)', '%INTERVAL ''5 minutes''%', 's', FALSE, FALSE),
+      ('platform.manual_whatsapp_reconciliation_bound_message_ids(uuid)', '%require_p2g_service()%', 's', FALSE, FALSE),
       ('platform.staff_whatsapp_chat_state(uuid,uuid,integer)', '%', 's', FALSE, TRUE),
       ('platform.staff_whatsapp_message_page(uuid,uuid,integer,timestamp with time zone,uuid)', '%', 's', FALSE, TRUE)
     ) AS expected(signature, source_like, volatility, anon_execute, authenticated_execute)
@@ -637,6 +784,10 @@ BEGIN
       'platform_private.manual_whatsapp_send_attempt_states(uuid,uuid)'::REGPROCEDURE, 'EXECUTE')
     OR pg_catalog.has_function_privilege('service_role',
       'platform.staff_whatsapp_chat_state(uuid,uuid,integer)'::REGPROCEDURE, 'EXECUTE')
+    OR pg_catalog.has_function_privilege('service_role',
+      'platform_private.manual_whatsapp_send_not_found_settled(uuid,uuid)'::REGPROCEDURE, 'EXECUTE')
+    OR NOT pg_catalog.has_function_privilege('service_role',
+      'platform.manual_whatsapp_reconciliation_bound_message_ids(uuid)'::REGPROCEDURE, 'EXECUTE')
   THEN
     RAISE EXCEPTION 'whatsapp_chat_replies_patch_not_applied: private routines' USING ERRCODE = '55000';
   END IF;

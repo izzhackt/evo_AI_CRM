@@ -27,7 +27,7 @@ const EMPTY: ChatStoreState = Object.freeze({ draft: "", local: Object.freeze([]
 const cache = new Map<string, ChatStoreState>();
 const listeners = new Map<string, Set<() => void>>();
 
-const STATES = new Set(["sending", "queued", "lost", "sent", "unknown", "rejected", "refused"]);
+const STATES = new Set(["sending", "queued", "stuck", "lost", "sent", "unknown", "rejected", "refused"]);
 
 function parseLocal(value: unknown): LocalChatSend | null {
   if (typeof value !== "object" || value === null) return null;
@@ -46,6 +46,8 @@ function parseLocal(value: unknown): LocalChatSend | null {
     messageId: typeof item.messageId === "string" ? item.messageId : null,
     attemptId: typeof item.attemptId === "string" ? item.attemptId : null,
     refusal: typeof item.refusal === "string" ? item.refusal as LocalChatSend["refusal"] : null,
+    queuedAnswers: typeof item.queuedAnswers === "number" && Number.isSafeInteger(item.queuedAnswers) && item.queuedAnswers >= 0
+      ? item.queuedAnswers : 0,
   });
 }
 

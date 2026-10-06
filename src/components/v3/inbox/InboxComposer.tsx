@@ -101,7 +101,8 @@ export function InboxComposer({
       }}
     >
       {children}
-      <div className="flex items-end gap-1 rounded-card border border-border bg-surface p-1 focus-within:border-control-edge">
+      {/* Фокус поля рисует рамка (одна полоса фокуса мира вокруг всего поля), а не сам textarea внутри неё. */}
+      <div className="flex items-end gap-1 rounded-card border border-border bg-surface p-1 focus-within:border-control-edge has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-focus-ring">
         {snippets !== null ? (
           <button
             type="button"
@@ -124,6 +125,7 @@ export function InboxComposer({
           placeholder="Сообщение…"
           aria-invalid={tooLong || undefined}
           aria-describedby={tooLong || length >= WHATSAPP_CHAT_COUNTER_FROM ? `${fieldId}-count` : undefined}
+          data-composer-input=""
           className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5 t-body text-fg outline-none placeholder:text-fg-3"
           onChange={(event) => onChange(event.target.value)}
           onCompositionStart={() => { composing.current = true; }}

@@ -7,6 +7,7 @@ import {
   parsePlatformRouteUuid,
   type PlatformConversationCursor,
 } from "../platform-communications.ts";
+import type { V3InboxMediaAttachmentContext } from "../v3/inbox-media.ts";
 import type { InboxChatMessage } from "../v3/whatsapp-chat.ts";
 
 /**
@@ -16,7 +17,8 @@ import type { InboxChatMessage } from "../v3/whatsapp-chat.ts";
  *    answer carries no text, name or phone; only ids, times and states are
  *    hashed into it.
  *  - `/api/v3/inbox/conversations/[id]/messages` — one older page of the
- *    chat for «Показать ранее».
+ *    chat for «Показать ранее», with the «В дело студента» context of that
+ *    page's attachments (the same reader and role gate as the page).
  * Both answer `no-store`, refuse an anonymous or keyless caller and decide
  * nothing themselves: the authenticated database readers do.
  */
@@ -40,7 +42,11 @@ export type PlatformInboxRouteDependencies = Readonly<{
     actor: ActivePlatformActor,
     conversationId: string,
     cursor: PlatformConversationCursor,
-  ): Promise<Readonly<{ messages: readonly InboxChatMessage[]; hasOlder: boolean }> | null>;
+  ): Promise<Readonly<{
+    messages: readonly InboxChatMessage[];
+    hasOlder: boolean;
+    attachmentContext: V3InboxMediaAttachmentContext | null;
+  }> | null>;
 }>;
 
 function json(status: number, body: unknown): Response {
@@ -133,7 +139,7 @@ export function createPlatformInboxOlderMessagesHandler(
       if (conversationId === null || cursor === null) return json(400, { error: "invalid_request" });
       const page = await dependencies.readOlder(authorization.actor, conversationId, cursor);
       if (page === null) return json(404, { error: "not_found" });
-      return json(200, { messages: page.messages, hasOlder: page.hasOlder });
+      return json(200, { messages: page.messages, hasOlder: page.hasOlder, attachmentContext: page.attachmentContext });
     } catch {
       return json(503, { error: "unavailable" });
     }

@@ -12,10 +12,10 @@ import {
   finishGeminiProposal,
   finishManualWhatsAppReconciliation,
   finishManualWhatsAppSend,
+  getManualWhatsAppReconciliationBoundMessageIds,
   getManualWhatsAppReconciliationContext,
   listStaffGeminiProposalReviews,
   readStaffGeminiProposal,
-  readLatestManualWhatsAppSendAttempt,
   requestGeminiProposal,
   requestManualWhatsAppReconciliation,
   requestManualWhatsAppSendWithAuthorization,
@@ -663,43 +663,27 @@ test("finishManualWhatsAppSend records provider acceptance without exposing a re
   });
 });
 
-test("readLatestManualWhatsAppSendAttempt exposes staff-safe delivery and reconciliation state", async () => {
-  const recorded = staticClient([
-    {
-      attempt_id: ATTEMPT_ID,
-      work_item_id: WORK_ITEM_ID,
-      conversation_id: CONVERSATION_ID,
-      manual_send_authorization_id: AUTHORIZATION_ID,
-      final_text: "Здравствуйте! Готовы продолжить консультацию?",
-      authorized_by_membership_id: MEMBERSHIP_ID,
-      authorized_by_name: "Admissions Manager",
-      status: "accepted",
-      reconciliation_required: false,
-      provider_source: "api",
-      ack_name: "SERVER",
-      provider_observed_at: COMPLETED_AT,
-      ack_observed_at: COMPLETED_AT,
-      failure_code: null,
-      attempt_number: 1,
-      authorized_at: REQUESTED_AT,
-      claimed_at: REQUESTED_AT,
-      settled_at: COMPLETED_AT,
-      last_reconciled_at: null,
-      latest_reconciliation_kind: null,
-      latest_reconciliation_outcome: null,
-    },
-  ]);
-
-  const result = await readLatestManualWhatsAppSendAttempt(recorded.client, {
-    organizationId: ORGANIZATION_ID,
-    conversationId: CONVERSATION_ID,
-  });
-
-  assert.equal(recorded.calls[1].functionName, "staff_latest_manual_whatsapp_send_attempt");
-  assert.equal(recorded.calls[1].options.get, true);
-  assert.equal(result.status, "accepted");
-  assert.equal(result.ackName, "SERVER");
-  assert.equal(result.reconciliationRequired, false);
+test("the readback exclusion list: the chat's other CRM sends' provider ids, bounded and unique, fail closed", async () => {
+  const ids = ["true_996555000001@c.us_AAAAAAAAAAAAAAAAAAAA", "true_996555000001@c.us_BBBBBBBBBBBBBBBBBBBB"];
+  const recorded = staticClient(ids);
+  assert.deepEqual(
+    await getManualWhatsAppReconciliationBoundMessageIds(recorded.client, RECONCILIATION_REQUEST_ID),
+    ids,
+  );
+  assert.equal(recorded.calls[1].functionName, "manual_whatsapp_reconciliation_bound_message_ids");
+  assert.deepEqual(recorded.calls[1].args, { p_reconciliation_request_id: RECONCILIATION_REQUEST_ID });
+  assert.deepEqual(await getManualWhatsAppReconciliationBoundMessageIds(staticClient([]).client, RECONCILIATION_REQUEST_ID), []);
+  for (const bad of [null, {}, [ids[0], ids[0]], ["has\ncontrol"], [42], Array.from({ length: 201 }, (_, index) => `id-${index}`)]) {
+    await assert.rejects(
+      getManualWhatsAppReconciliationBoundMessageIds(staticClient(bad).client, RECONCILIATION_REQUEST_ID),
+      PlatformProviderWorkflowError,
+      JSON.stringify(bad).slice(0, 60),
+    );
+  }
+  await assert.rejects(
+    getManualWhatsAppReconciliationBoundMessageIds(staticClient(null, { code: "42501" }).client, RECONCILIATION_REQUEST_ID),
+    PlatformProviderWorkflowError,
+  );
 });
 
 test("manual WhatsApp reconciliation uses authenticated request plus service-only exact readback", async () => {

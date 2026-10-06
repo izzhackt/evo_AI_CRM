@@ -193,7 +193,9 @@ test("since 06.10.2026 several members answer in a row; a failed send says exact
   // A refusal before anything was written comes back as its reason; a broken
   // connection after the durable authorization is «unavailable» and replays safely.
   const actions = source("src/lib/platform-provider-actions.ts");
-  assert.match(actions, /if \(error instanceof PlatformManualSendRefusedError\) return result\(error\.reason\);\s*return result\("unavailable"\);/u);
+  assert.match(actions, /if \(error instanceof PlatformManualSendRefusedError\) \{\s*return result\(await refusalStatus\(actor, error, parsed\.conversationId, parsed\.sourceMessageId\)\);\s*\}\s*return result\("unavailable"\);/u);
+  // The stale-source refusal of a closed chat is named as closed, not as a new customer message.
+  assert.match(chat, /closed: "Диалог закрыли — ответить из CRM нельзя\. Текст остался в поле\."/u);
 });
 
 test("the Postgres harness runs the multi-reply suite right after migration 266", () => {

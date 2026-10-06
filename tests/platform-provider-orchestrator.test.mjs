@@ -104,6 +104,8 @@ function validGeminiContext() {
   };
 }
 
+const OTHER_CRM_PROVIDER_MESSAGE_ID = "true_996555000001@c.us_3EB0OTHERCRMSEND0001";
+
 function recordingRpcClient(responseFor) {
   const calls = [];
   return {
@@ -807,6 +809,9 @@ test("manual WhatsApp reconciliation performs bounded readback only and finishes
         error: null,
       };
     }
+    if (functionName === "manual_whatsapp_reconciliation_bound_message_ids") {
+      return { data: [OTHER_CRM_PROVIDER_MESSAGE_ID], error: null };
+    }
     if (functionName === "resolve_manual_send_waha_runtime") {
       return {
         data: [{
@@ -865,6 +870,8 @@ test("manual WhatsApp reconciliation performs bounded readback only and finishes
               expectedText: FINAL_TEXT,
               windowStart: REQUESTED_AT,
               windowEnd: COMPLETED_AT,
+              // Another CRM send of the chat is never this attempt's message (266).
+              excludeProviderMessageIds: [OTHER_CRM_PROVIDER_MESSAGE_ID],
             });
             return {
               providerMessageId: PROVIDER_MESSAGE_ID,
@@ -885,13 +892,15 @@ test("manual WhatsApp reconciliation performs bounded readback only and finishes
     "request_manual_whatsapp_reconciliation",
     "manual_whatsapp_reconciliation_context",
     "resolve_manual_send_waha_runtime",
+    "manual_whatsapp_reconciliation_bound_message_ids",
     "provider_bounded_readback",
     "finish_manual_whatsapp_reconciliation",
   ]);
-  assert.equal(service.calls[2].args.p_reconciliation_request_id, RECONCILIATION_REQUEST_ID);
-  assert.equal(service.calls[2].args.p_raw_chat_id, RECIPIENT);
-  assert.equal(service.calls[2].args.p_match_count, 1);
-  assert.equal(service.calls[2].args.p_provider_message_id, PROVIDER_MESSAGE_ID);
+  assert.deepEqual(service.calls[2].args, { p_reconciliation_request_id: RECONCILIATION_REQUEST_ID });
+  assert.equal(service.calls[3].args.p_reconciliation_request_id, RECONCILIATION_REQUEST_ID);
+  assert.equal(service.calls[3].args.p_raw_chat_id, RECIPIENT);
+  assert.equal(service.calls[3].args.p_match_count, 1);
+  assert.equal(service.calls[3].args.p_provider_message_id, PROVIDER_MESSAGE_ID);
   assert.deepEqual(result, {
     status: "finished",
     result: {
@@ -1106,7 +1115,7 @@ test("a GOWS sendText answer finishes the manual send as accepted under the id i
   assert.equal(result.result.communicationMessageId, OUTBOUND_MESSAGE_ID);
 });
 
-test("a GOWS unknown send is recovered by readback alone with the echo's provider id", async () => {
+test("a GOWS unknown send is recovered by readback alone with the echo's provider id, never with another CRM send's", async () => {
   const staff = recordingRpcClient(() => ({
     data: [{
       reconciliation_request_id: RECONCILIATION_REQUEST_ID,
@@ -1143,6 +1152,9 @@ test("a GOWS unknown send is recovered by readback alone with the echo's provide
     if (functionName === "resolve_manual_send_waha_runtime") {
       return { data: wahaRuntimeData(), error: null };
     }
+    if (functionName === "manual_whatsapp_reconciliation_bound_message_ids") {
+      return { data: [EARLIER_CRM_SEND_ID], error: null };
+    }
     return {
       data: {
         reconciliation_request_id: RECONCILIATION_REQUEST_ID,
@@ -1159,6 +1171,7 @@ test("a GOWS unknown send is recovered by readback alone with the echo's provide
     };
   });
   const fetchCalls = [];
+  const EARLIER_CRM_SEND_ID = `true_${GOWS_LID_RECIPIENT}_3EB0EARLIERCRMSEND01`;
   const gowsRecord = {
     id: GOWS_ECHO_ID,
     timestamp: Date.parse(GOWS_SENT_AT) / 1_000,
@@ -1186,6 +1199,9 @@ test("a GOWS unknown send is recovered by readback alone with the echo's provide
     {
       createWahaProvider: realGowsProvider(fetchCalls, [
         { ...gowsRecord, id: `true_${GOWS_LID_RECIPIENT}_3EB0APPSOURCE0000001`, source: "app" },
+        // The same text sent from the CRM a minute earlier and already bound:
+        // without the exclusion the readback would be ambiguous (266).
+        { ...gowsRecord, id: EARLIER_CRM_SEND_ID, timestamp: gowsRecord.timestamp - 60 },
         gowsRecord,
       ]),
     },

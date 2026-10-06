@@ -18,6 +18,9 @@ import {
 import {
   REPLY_ACCESS_COPY,
   SEND_REFUSAL_COPY,
+  WHATSAPP_CHAT_LEASE_OVER_MS,
+  WHATSAPP_CHAT_QUEUED_RETRY_LIMIT,
+  WHATSAPP_CHAT_STALL_MS,
   ackWord,
   chatDayLabel,
   chatTime,
@@ -26,6 +29,7 @@ import {
   normalizeChatText,
   originWord,
   outgoingBubbles,
+  queuedRetryDelay,
   settledLocalSends,
   speakerPrefix,
   unresolvedLocalCount,
@@ -73,8 +77,10 @@ test("the copy of every state is the owner's wording", () => {
   assert.equal(REPLY_ACCESS_COPY.preview, "Просмотр роли — отправка отключена.");
   assert.equal(REPLY_ACCESS_COPY.old_session, "Чат пришёл через прежний номер WhatsApp — ответить из CRM нельзя.");
   assert.equal(REPLY_ACCESS_COPY.attention, "WhatsApp требует проверки — сообщение может не уйти.");
-  assert.equal(SEND_REFUSAL_COPY.duplicate, "Такой же текст уже ждёт проверки выше — нажмите «Проверить» у того сообщения.");
-  for (const status of ["stale_source", "duplicate", "not_ready", "forbidden", "invalid"]) assert.equal(isRefusal(status), true, status);
+  assert.equal(SEND_REFUSAL_COPY.duplicate, "Такое же сообщение выше ещё не дошло до итога — дождитесь его или нажмите «Проверить» у него.");
+  assert.equal(SEND_REFUSAL_COPY.closed, "Диалог закрыли — ответить из CRM нельзя. Текст остался в поле.");
+  assert.notEqual(SEND_REFUSAL_COPY.closed, SEND_REFUSAL_COPY.stale_source, "a closed chat is not «the client wrote again»");
+  for (const status of ["stale_source", "closed", "duplicate", "not_ready", "forbidden", "invalid"]) assert.equal(isRefusal(status), true, status);
   for (const status of ["sent", "queued", "sending", "unknown", "rejected", "unavailable"]) assert.equal(isRefusal(status), false, status);
 });
 
@@ -82,12 +88,14 @@ test("the copy of every state is the owner's wording", () => {
 
 const local = (n, state, extra = {}) => ({
   requestId: ID(100 + n), text: `Сообщение ${n}`, sourceMessageId: ID(1), createdAt: `2026-10-06T08:0${n}:00.000Z`,
-  state, messageId: null, attemptId: null, refusal: null, ...extra,
+  state, messageId: null, attemptId: null, refusal: null, queuedAnswers: 0, ...extra,
 });
 const attempt = (n, status, extra = {}) => ({
   attemptId: status === "queued" ? null : ID(200 + n), workItemId: ID(300 + n), requestId: ID(100 + n), status,
   reconciliationRequired: status === "unknown", text: `Сообщение ${n}`, authorName: "Айгерим", authorIsViewer: true,
-  at: `2026-10-06T08:0${n}:00.000Z`, failureCode: status === "rejected" ? "message_rejected" : null, readback: null, ...extra,
+  at: `2026-10-06T08:0${n}:00.000Z`, claimedAt: status === "queued" ? null : `2026-10-06T08:0${n}:01.000Z`,
+  sourceMessageId: ID(1), failureCode: status === "rejected" ? "message_rejected" : null, readback: null,
+  readbackSettled: false, ...extra,
 });
 
 test("outgoing bubbles: the server's state wins for a known request id, a live send is «Отправляется…», an accepted one waits for its message", () => {
@@ -109,6 +117,54 @@ test("outgoing bubbles: the server's state wins for a known request id, a live s
   assert.equal(outgoingBubbles([], [local(3, "sent", { messageId: ID(503) })], new Set([ID(503)])).length, 0);
 });
 
+test("time decides two states: a send nobody took for over a minute «did not leave», a taken one past its lease is «unknown»", () => {
+  const at = Date.parse("2026-10-06T08:01:00.000Z");
+  const stalledAt = at + WHATSAPP_CHAT_STALL_MS + 1;
+  const states = (attempts, locals, now, inFlight = new Set()) =>
+    outgoingBubbles(attempts, locals, new Set(), inFlight, now).map((bubble) => bubble.state);
+  // Fresh: waits; over a minute and not retried here: stalled (the server no longer lets it hold the chat).
+  assert.deepEqual(states([attempt(1, "queued")], [], at + 1_000), ["queued"]);
+  assert.deepEqual(states([attempt(1, "queued")], [], stalledAt), ["stalled"]);
+  // This browser still retries it: it waits; the retries gave up: stuck; the answer was lost: lost.
+  assert.deepEqual(states([attempt(1, "queued")], [local(1, "queued", { queuedAnswers: 3 })], stalledAt), ["queued"]);
+  assert.deepEqual(states([attempt(1, "queued")], [local(1, "stuck")], stalledAt), ["stuck"]);
+  assert.deepEqual(states([attempt(1, "queued")], [local(1, "lost")], at + 1_000), ["lost"]);
+  assert.deepEqual(states([attempt(1, "queued")], [local(1, "sending")], stalledAt, new Set([ID(101)])), ["sending"]);
+  // Without a clock (server render before hydration) nothing is called stalled.
+  assert.deepEqual(states([attempt(1, "queued")], [], Number.NaN), ["queued"]);
+  // Taken: sending until the lease (and a margin) is over, then unknown with a check.
+  const claimed = Date.parse("2026-10-06T08:01:01.000Z");
+  assert.deepEqual(states([attempt(1, "prepared")], [], claimed + 10_000), ["sending"]);
+  const over = outgoingBubbles([attempt(1, "prepared")], [], new Set(), new Set(), claimed + WHATSAPP_CHAT_LEASE_OVER_MS + 1);
+  assert.deepEqual([over[0].state, over[0].attemptId], ["unknown", ID(201)]);
+});
+
+test("only the author may send a stalled message again, with the same request id and source, from any device", () => {
+  const now = Date.parse("2026-10-06T08:01:00.000Z") + WHATSAPP_CHAT_STALL_MS + 1;
+  const [mine] = outgoingBubbles([attempt(1, "queued", { sourceMessageId: ID(7) })], [], new Set(), new Set(), now);
+  assert.deepEqual(mine.resend, { requestId: ID(101), sourceMessageId: ID(7) });
+  const [theirs] = outgoingBubbles([attempt(1, "queued", { authorIsViewer: false })], [], new Set(), new Set(), now);
+  assert.equal(theirs.resend, null);
+  // A settled «not found» travels to the bubble (only then may the text go back into the field).
+  const [settled] = outgoingBubbles([attempt(2, "unknown", { readback: "message_not_found", readbackSettled: true })], [], new Set());
+  assert.deepEqual([settled.state, settled.readback, settled.readbackSettled], ["unknown", "message_not_found", true]);
+});
+
+test("a send the chat's queue holds is asked again less and less often, then only by hand", () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 8].map(queuedRetryDelay), [5_000, 10_000, 20_000, 30_000, 30_000, 30_000]);
+  assert.equal(WHATSAPP_CHAT_QUEUED_RETRY_LIMIT, 8);
+  const chat = read("src/components/v3/inbox/InboxChat.tsx");
+  assert.match(chat, /queuedAnswers >= WHATSAPP_CHAT_QUEUED_RETRY_LIMIT \? "stuck" : "queued"/u);
+  assert.match(chat, /queuedRetryDelay\(Math\.min\(\.\.\.waiting\.map\(\(item\) => item\.queuedAnswers\)\)\)/u);
+});
+
+test("an unknown result keeps «Проверить» after «not found»; the text returns to the field only after a settled check", () => {
+  const chat = read("src/components/v3/inbox/InboxChat.tsx");
+  assert.match(chat, /action=\{notFound && bubble\.readbackSettled && returnAction[\s\S]{0,120}?\? <span[^>]*>\{checkAction\}\{returnAction\}<\/span>\s*: checkAction\}/u);
+  assert.match(chat, /"В WhatsApp пока не найдено — проверьте ещё раз через несколько минут"/u);
+  assert.doesNotMatch(chat, /bubble\.readback === "message_not_found"\) \{\s*return <StatusRow tone="muted" action=\{returnAction\}>/u);
+});
+
 test("settled local sends: shown by the server (unknown/rejected) or delivered into the transcript", () => {
   const settled = settledLocalSends(
     [local(1, "unknown"), local(2, "queued"), local(3, "sent", { messageId: ID(503) }), local(4, "sent")],
@@ -116,7 +172,8 @@ test("settled local sends: shown by the server (unknown/rejected) or delivered i
     new Set([ID(503)]),
   );
   assert.deepEqual(settled, [ID(101), ID(103), ID(104)]);
-  assert.equal(unresolvedLocalCount([local(1, "sending"), local(2, "queued"), local(3, "lost"), local(4, "sent"), local(5, "refused")]), 3);
+  assert.equal(unresolvedLocalCount([local(1, "sending"), local(2, "queued"), local(3, "lost"), local(4, "sent"), local(5, "refused"),
+    local(6, "stuck")]), 4);
 });
 
 test("the pulse signature changes with any id, time or state and never carries text", () => {
@@ -163,13 +220,15 @@ test("the chat state: latest inbound, attempts with request id; queued has no at
       attempt_id: null, work_item_id: ID(3), request_id: ID(4), status: "queued", reconciliation_required: false,
       final_text: "Ответ", authorized_by_membership_id: ID(5), authorized_by_name: "Айгерим",
       authorized_at: "2026-10-06T07:00:03.123456+00:00", claimed_at: null, failure_code: null,
-      latest_reconciliation_outcome: null, last_reconciled_at: null,
+      latest_reconciliation_outcome: null, last_reconciled_at: null, source_message_id: ID(1), readback_settled: false,
     }],
   };
   const state = normalizePlatformWhatsAppChatState(row);
   assert.equal(state.latestInboundMessageId, ID(1));
   assert.equal(state.attempts[0].status, "queued");
   assert.equal(state.attempts[0].requestId, ID(4));
+  assert.equal(state.attempts[0].sourceMessageId, ID(1));
+  assert.equal(state.attempts[0].readbackSettled, false);
   assert.deepEqual(normalizePlatformWhatsAppChatState({ ...row, latest_inbound_message_id: null, latest_inbound_at: null, attempts: [] }).attempts, []);
   for (const bad of [
     { ...row, attempts: [{ ...row.attempts[0], attempt_id: ID(6) }] },
@@ -177,6 +236,8 @@ test("the chat state: latest inbound, attempts with request id; queued has no at
     { ...row, attempts: [{ ...row.attempts[0], raw_chat_id: "79990000000@c.us" }] },
     { ...row, latest_inbound_at: null },
     { ...row, attempts: [row.attempts[0], row.attempts[0]] },
+    { ...row, attempts: [{ ...row.attempts[0], readback_settled: true }] },
+    { ...row, attempts: [{ ...row.attempts[0], source_message_id: null }] },
   ]) {
     assert.throws(() => normalizePlatformWhatsAppChatState(bad), /communications are unavailable/u);
   }
@@ -188,7 +249,7 @@ const ACTOR = Object.freeze({ organizationId: ID(90), membershipId: ID(91) });
 const deps = (overrides = {}) => ({
   authorize: async () => ({ status: "authorized", actor: ACTOR }),
   readPulse: async () => ({ list: "aaaaaaaaaaaaaaaa", chat: "bbbbbbbbbbbbbbbb" }),
-  readOlder: async () => ({ messages: [], hasOlder: false }),
+  readOlder: async () => ({ messages: [], hasOlder: false, attachmentContext: null }),
   ...overrides,
 });
 
@@ -212,17 +273,27 @@ test("pulse: signatures only, no-store, exact parameters, honest refusals", asyn
   assert.equal((await failing(new Request(`https://crm.test/api/v3/inbox/pulse?conversation=${ID(1)}`))).status, 503);
 });
 
+const ATTACH = Object.freeze({
+  conversationId: ID(1), studentCaseId: ID(50),
+  slots: [{ documentSlotId: ID(51), label: "Документы · Паспорт", expectedVersion: "1" }],
+  requestIdsByMediaId: { [ID(52)]: ID(53) },
+});
+
 test("older messages: an exact keyset cursor of the chat, 404 when the chat is not readable", async () => {
   const calls = [];
   const handler = createPlatformInboxOlderMessagesHandler(deps({
-    readOlder: async (actor, id, cursor) => { calls.push([id, cursor]); return id === ID(1) ? { messages: [], hasOlder: true } : null; },
+    readOlder: async (actor, id, cursor) => {
+      calls.push([id, cursor]);
+      return id === ID(1) ? { messages: [], hasOlder: true, attachmentContext: ATTACH } : null;
+    },
   }));
   const context = (id) => ({ params: Promise.resolve({ conversationId: id }) });
   const url = (id, query) => new Request(`https://crm.test/api/v3/inbox/conversations/${id}/messages?${query}`);
   const cursor = `before_at=${encodeURIComponent("2026-10-06T07:00:01+00:00")}&before_id=${ID(7)}`;
   const ok = await handler(url(ID(1), cursor), context(ID(1)));
   assert.equal(ok.status, 200);
-  assert.deepEqual(await ok.json(), { messages: [], hasOlder: true });
+  // The page's «В дело студента» context travels with it (request ids for exactly its attachments).
+  assert.deepEqual(await ok.json(), { messages: [], hasOlder: true, attachmentContext: ATTACH });
   assert.deepEqual(calls[0], [ID(1), { sortAt: "2026-10-06T07:00:01+00:00", id: ID(7) }]);
   assert.equal((await handler(url(ID(2), cursor), context(ID(2)))).status, 404);
   assert.equal((await handler(url(ID(1), "before_at=x&before_id=y"), context(ID(1)))).status, 400);

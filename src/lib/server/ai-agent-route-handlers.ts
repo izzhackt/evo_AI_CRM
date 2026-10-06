@@ -592,17 +592,24 @@ const defaultAutosendChatDependencies: AiAutosendChatRouteDependencies = {
     return normalizeAiAutosendChat(data);
   },
   async setExclusion(actor, conversationId, excluded, requestId) {
-    const { error } = await (await rpcClient()).rpc("ai_agent_autosend_exclusion_v1", {
+    const { data, error } = await (await rpcClient()).rpc("ai_agent_autosend_exclusion_v1", {
       p_organization_id: actor.organizationId, p_conversation_id: conversationId, p_excluded: excluded, p_request_id: requestId,
     });
-    return aiAutosendExclusionOutcome(error);
+    return aiAutosendExclusionOutcome(error, data, excluded);
   },
   serverOn: () => aiAutosendServerState() === "on",
 };
 
-/** Отказ `ai_agent_autosend_exclusion_v1` → итог маршрута; нет ошибки — записано. */
-export function aiAutosendExclusionOutcome(error: RpcError | null): AiAutosendExclusionResult {
-  if (!error) return { status: "saved" };
+/**
+ * Квитанция `ai_agent_autosend_exclusion_v1` (277, через `ai_request_finish`):
+ * `{status: 'applied', conversationId, excluded, cancelled}`. Другая форма или
+ * другое положение — не «записано», а сбой.
+ */
+export function aiAutosendExclusionOutcome(error: RpcError | null, data: unknown, excluded: boolean): AiAutosendExclusionResult {
+  if (!error) {
+    const receipt = typeof data === "object" && data !== null && !Array.isArray(data) ? data as Record<string, unknown> : null;
+    return receipt?.status === "applied" && receipt.excluded === excluded ? { status: "saved" } : { status: "unavailable" };
+  }
   if (error.code === "PT409" || error.code === "23505") return { status: "conflict" };
   if (error.code === "42501") return { status: "forbidden" };
   if (error.code === "P0002") return { status: "not_found" };

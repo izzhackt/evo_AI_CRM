@@ -5,7 +5,7 @@ import { startTransition, useActionState, useId, useMemo, useRef, useState, type
 import { Icon } from "@/components/icons";
 import { btnCls } from "@/components/ui";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
-import { QUEUE_FIELD, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
+import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import type { AiActionState } from "@/lib/platform-ai-agent-actions";
 import {
   AI_AUTOSEND_COPY,
@@ -48,8 +48,15 @@ const MESSAGES: Readonly<Record<Exclude<Status, "idle">, string>> = {
 /** Номера дней недели ISO (1 — понедельник): так их хранит база (`working_days`). */
 const ISO_DAY: Readonly<Record<AiAutosendDay, number>> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 7 };
 
-const fieldCls = `${QUEUE_FIELD} mt-0`;
-const timeCls = `${fieldCls} w-[7.5rem] tabular-nums`;
+/**
+ * Поле настройки — та же рамка, что `QUEUE_FIELD` (16 px, 44 px), но без
+ * `block w-full`: время, даты и числа стоят в строке своей ширины.
+ */
+const fieldCls = "h-11 min-w-0 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3 hover:bg-surface-2 focus-visible:border-accent disabled:bg-surface-2 disabled:text-fg-3";
+/** «Сохранить настройки» без правок — токены поверхности, как у недоступных кнопок очереди (без opacity). */
+const SAVE_IDLE = "aria-disabled:cursor-not-allowed aria-disabled:border-border aria-disabled:bg-surface-2 aria-disabled:text-fg-3 aria-disabled:shadow-none aria-disabled:hover:border-border aria-disabled:hover:bg-surface-2 aria-disabled:active:scale-100";
+/** Ширина под «20:00» и под «08:00 PM» (браузер с английской локалью пишет время в 12 часов). */
+const timeCls = `${fieldCls} w-[8.75rem] tabular-nums`;
 const textLinkCls =
   "inline-flex min-h-11 items-center gap-1 rounded-nav px-1.5 -mx-1.5 t-label text-fg underline decoration-fg-3 underline-offset-4 hover:decoration-fg disabled:cursor-not-allowed disabled:text-fg-3 disabled:no-underline";
 const iconButtonCls =
@@ -118,14 +125,14 @@ function PhraseField({
       </div>
       <textarea
         id={id}
-        rows={2}
+        rows={3}
         maxLength={limit}
         value={phrase.text}
         aria-invalid={issues.length > 0 || undefined}
         aria-describedby={issues.length > 0 ? `${id}-issues` : undefined}
         // Изменённый текст владелец ещё не подтверждал — отметка снимается.
         onChange={(event) => onChange({ text: event.target.value.replace(/[\r\n]+/gu, " "), confirmed: false })}
-        className={`${fieldCls} h-auto min-h-[4.5rem] resize-y py-2.5 leading-6`}
+        className={`${fieldCls} block h-auto min-h-[5.5rem] w-full resize-y py-2.5 leading-6`}
       />
       <FieldIssues id={`${id}-issues`} messages={issues} />
       <label className="inline-flex min-h-11 items-center gap-2 t-body-compact text-fg">
@@ -283,10 +290,10 @@ export function AiAutosendSettingsForm({
                 const name = `Особые даты ${index + 1}`;
                 return (
                   <li key={index} className="flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="v3-ai-autosend-override">
-                    <input type="date" value={item.from} aria-label={`${name}: с`} className={`${fieldCls} w-[10.5rem]`}
+                    <input type="date" value={item.from} aria-label={`${name}: с`} className={`${fieldCls} w-[10.25rem] tabular-nums`}
                       onChange={(event) => setOverride(index, { from: event.target.value })} />
                     <span aria-hidden="true" className="text-fg-3">–</span>
-                    <input type="date" value={item.to} aria-label={`${name}: по`} className={`${fieldCls} w-[10.5rem]`}
+                    <input type="date" value={item.to} aria-label={`${name}: по`} className={`${fieldCls} w-[10.25rem] tabular-nums`}
                       onChange={(event) => setOverride(index, { to: event.target.value })} />
                     <select value={item.mode} aria-label={`${name}: автоответчик`} className={`${fieldCls} w-auto pe-8`}
                       onChange={(event) => setOverride(index, { mode: event.target.value === "on" ? "on" : "off" })}>
@@ -338,11 +345,11 @@ export function AiAutosendSettingsForm({
               <span className="block t-label text-fg-2" id={`${formId}-delay`}>Пауза перед ответом, с</span>
               <div className="mt-1 flex items-center gap-2" role="group" aria-labelledby={`${formId}-delay`}>
                 <input type="number" inputMode="numeric" min={AI_AUTOSEND_DELAY_RANGE.min} max={AI_AUTOSEND_DELAY_RANGE.max} aria-label="Пауза от, секунд"
-                  value={Number.isFinite(draft.delayMinSeconds) ? draft.delayMinSeconds : ""} className={`${fieldCls} w-24 tabular-nums`}
+                  value={Number.isFinite(draft.delayMinSeconds) ? draft.delayMinSeconds : ""} className={`${fieldCls} w-20 tabular-nums`}
                   onChange={(event) => update({ delayMinSeconds: number(event.target.value) })} />
                 <span aria-hidden="true" className="text-fg-3">–</span>
                 <input type="number" inputMode="numeric" min={AI_AUTOSEND_DELAY_RANGE.min} max={AI_AUTOSEND_DELAY_RANGE.max} aria-label="Пауза до, секунд"
-                  value={Number.isFinite(draft.delayMaxSeconds) ? draft.delayMaxSeconds : ""} className={`${fieldCls} w-24 tabular-nums`}
+                  value={Number.isFinite(draft.delayMaxSeconds) ? draft.delayMaxSeconds : ""} className={`${fieldCls} w-20 tabular-nums`}
                   onChange={(event) => update({ delayMaxSeconds: number(event.target.value) })} />
               </div>
               <FieldIssues messages={issuesFor(shown, "delay")} />
@@ -356,7 +363,7 @@ export function AiAutosendSettingsForm({
                 <label className="block t-label text-fg-2" htmlFor={`${formId}-${key}`}>{label}</label>
                 <div className="mt-1 flex items-center gap-2">
                   <input id={`${formId}-${key}`} type="number" inputMode="numeric" min={1} max={AI_AUTOSEND_LIMIT_CEILING[key]}
-                    value={Number.isFinite(draft[key]) ? draft[key] : ""} className={`${fieldCls} w-24 tabular-nums`}
+                    value={Number.isFinite(draft[key]) ? draft[key] : ""} className={`${fieldCls} w-20 tabular-nums`}
                     onChange={(event) => update({ [key]: number(event.target.value) })} />
                   <span className="t-meta text-fg-3">не больше {AI_AUTOSEND_LIMIT_CEILING[key]}</span>
                 </div>
@@ -433,7 +440,8 @@ export function AiAutosendSettingsForm({
 
       {readOnly ? null : (
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-5">
-          <button type="submit" className={btnCls} disabled={pending} aria-disabled={!dirty || undefined}>
+          {/* Без изменений сохранять нечего: кнопка ждёт правки (aria-disabled — фокус не теряется). */}
+          <button type="submit" className={`${btnCls} ${SAVE_IDLE}`} disabled={pending} aria-disabled={!dirty || undefined}>
             {pending ? "Сохраняю…" : "Сохранить настройки"}
           </button>
           <p

@@ -7,7 +7,7 @@ import { Icon } from "@/components/icons";
 import {
   AI_AUTOSEND_COPY,
   aiAutosendChatLine,
-  normalizeAiAutosendChat,
+  normalizeAiAutosendChatView,
   type AiAutosendChat,
 } from "@/lib/v3/ai-agent-autosend";
 
@@ -34,7 +34,7 @@ async function readChat(conversationId: string, signal?: AbortSignal): Promise<E
     });
     if (!response.ok) return { kind: FINAL_STATUSES.has(response.status) ? "hidden" : "failed" };
     const body = await response.json() as { chat?: unknown; serverOn?: unknown };
-    const chat = normalizeAiAutosendChat(body.chat);
+    const chat = normalizeAiAutosendChatView(body.chat);
     return chat.enabled ? { kind: "ready", chat, serverOn: body.serverOn === true } : { kind: "hidden" };
   } catch {
     return { kind: "failed" };

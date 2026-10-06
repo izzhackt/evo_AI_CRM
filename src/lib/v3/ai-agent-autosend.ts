@@ -342,7 +342,7 @@ export function aiAutosendOvernight(span: AiAutosendSpan): string | null {
 }
 
 const TIME_FORMAT = new Intl.DateTimeFormat("ru-RU", { timeZone: PLATFORM_ORGANIZATION_TIMEZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-const DAY_TIME = new Intl.DateTimeFormat("ru-RU", { timeZone: PLATFORM_ORGANIZATION_TIMEZONE, day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const DAY_MONTH = new Intl.DateTimeFormat("ru-RU", { timeZone: PLATFORM_ORGANIZATION_TIMEZONE, day: "numeric", month: "long" });
 const DAY_LONG = new Intl.DateTimeFormat("ru-RU", { timeZone: PLATFORM_ORGANIZATION_TIMEZONE, weekday: "short", day: "numeric", month: "long" });
 const DATE_ONLY = new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", day: "numeric", month: "long" });
 
@@ -351,10 +351,18 @@ export function aiAutosendTime(value: string | null): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : TIME_FORMAT.format(date);
 }
+/** «7 октября, 09:00» по Бишкеку (день и время отдельно: ICU разных сред склеивает их по-разному). */
 export function aiAutosendDayTime(value: string | null): string {
   if (!value) return "";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : DAY_TIME.format(date);
+  return Number.isNaN(date.getTime()) ? "" : `${DAY_MONTH.format(date)}, ${TIME_FORMAT.format(date)}`;
+}
+const SHORT_DATE = new Intl.DateTimeFormat("ru-RU", { timeZone: PLATFORM_ORGANIZATION_TIMEZONE, day: "2-digit", month: "2-digit" });
+/** «06.10 03:42» — строка журнала, как время в списке переписок. */
+export function aiAutosendShortDayTime(value: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : `${SHORT_DATE.format(date)} ${TIME_FORMAT.format(date)}`;
 }
 /** «пн, 6 октября» — ночь сводки по дате её начала. */
 export function aiAutosendNight(value: string | null): string {
@@ -680,6 +688,18 @@ export function normalizeAiAutosendChat(value: unknown): AiAutosendChat {
     excluded: value.excluded,
     liveTest: value.mode === "live_test",
     handedOff: value.handedOff === true,
+  });
+}
+
+/** Тот же вид в ответе маршрута CRM (`{chat, serverOn}`): уже нормализован — проверяется строго ещё раз. */
+export function normalizeAiAutosendChatView(value: unknown): AiAutosendChat {
+  if (!isObject(value) || typeof value.enabled !== "boolean" || typeof value.excluded !== "boolean" || typeof value.paused !== "boolean"
+    || typeof value.liveTest !== "boolean" || typeof value.handedOff !== "boolean"
+    || (value.mode !== "off" && value.mode !== "shadow" && value.mode !== "live")
+    || (value.enabled !== (value.mode !== "off"))) return invalid();
+  return Object.freeze({
+    enabled: value.enabled, mode: value.mode, paused: value.paused, excluded: value.excluded,
+    liveTest: value.liveTest && value.mode === "shadow", handedOff: value.handedOff,
   });
 }
 

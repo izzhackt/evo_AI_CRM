@@ -26,6 +26,7 @@ import {
   aiAutosendMode,
   aiAutosendNight,
   aiAutosendPauseReason,
+  aiAutosendShortDayTime,
   aiAutosendTime,
   aiAutosendWindowLine,
   type AiAutosendJournal,
@@ -231,11 +232,11 @@ function JournalRow({ row }: Readonly<{ row: AiAutosendJournalRow }>) {
     row.language && row.language !== "ru" ? row.language.toUpperCase() : null,
   ].filter(Boolean).join(" · ");
   return (
-    <li className="grid gap-x-4 gap-y-1.5 px-4 py-3 @3xl:grid-cols-[6.75rem_minmax(0,11rem)_10.5rem_minmax(0,1fr)]" data-testid="v3-ai-autosend-journal-row" data-status={row.status}>
-      <time dateTime={row.at} className="font-mono t-meta text-fg-2 @3xl:pt-0.5">{aiAutosendDayTime(row.at)}</time>
+    <li className="grid gap-x-4 gap-y-1.5 px-4 py-3 @3xl:grid-cols-[6.5rem_minmax(0,11rem)_10.5rem_minmax(0,1fr)]" data-testid="v3-ai-autosend-journal-row" data-status={row.status}>
+      <time dateTime={row.at} className="whitespace-nowrap font-mono t-meta text-fg-2 @3xl:pt-0.5">{aiAutosendShortDayTime(row.at)}</time>
       {row.conversationTitle ? (
-        <Link href={`/v3/inbox?conversation=${row.conversationId}`} className="min-w-0 truncate t-body-compact text-fg underline decoration-fg-3 underline-offset-4 hover:decoration-fg">
-          {row.conversationTitle}
+        <Link href={`/v3/inbox?conversation=${row.conversationId}`} className="-my-3 flex min-h-11 min-w-0 items-center @3xl:-mt-3.5">
+          <span className="truncate t-body-compact text-fg underline decoration-fg-3 underline-offset-4 hover:decoration-fg">{row.conversationTitle}</span>
         </Link>
       ) : <span className="t-body-compact text-fg-3">Чат недоступен</span>}
       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
@@ -245,7 +246,7 @@ function JournalRow({ row }: Readonly<{ row: AiAutosendJournalRow }>) {
       <div className="min-w-0 space-y-1">
         {reason ? <p className={`t-body-compact ${row.status === "failed" ? "text-danger" : "text-fg-2"}`}>{reason}</p> : null}
         {row.text ? (
-          <p className="whitespace-pre-wrap break-words border-l border-border pl-3 t-body-compact text-fg" lang={row.language ?? undefined}>{row.text}</p>
+          <p className="whitespace-pre-wrap break-words t-body-compact text-fg" lang={row.language ?? undefined}>{row.text}</p>
         ) : row.textHidden ? (
           <p className="t-meta text-fg-3">Текст виден тем, кто может читать этот чат.</p>
         ) : null}
@@ -338,7 +339,7 @@ function AiAutosendSummaryView({ read, retryHref }: Readonly<{ read: AiRead<AiAu
                 data-testid="v3-ai-autosend-summary-item" data-hidden={item.hidden || undefined}>
                 <div className="min-w-0">
                   {item.conversationId && item.conversationTitle ? (
-                    <Link href={`/v3/inbox?conversation=${item.conversationId}`} className="t-item text-fg underline decoration-fg-3 underline-offset-4 hover:decoration-fg">
+                    <Link href={`/v3/inbox?conversation=${item.conversationId}`} className="-my-3 inline-flex min-h-11 items-center t-item text-fg underline decoration-fg-3 underline-offset-4 hover:decoration-fg">
                       {item.conversationTitle}
                     </Link>
                   ) : <span className="t-item text-fg-3">Чат недоступен</span>}
@@ -370,7 +371,7 @@ function AiAutosendSummaryView({ read, retryHref }: Readonly<{ read: AiRead<AiAu
                       <span>
                         Позвонить {aiAutosendDate(item.callDate)}
                         {item.taskId ? (
-                          <> · <Link href={`/v3/tasks?task=${item.taskId}`} className="underline decoration-fg-3 underline-offset-4 hover:decoration-fg">задача</Link></>
+                          <> · <Link href={`/v3/tasks?task=${item.taskId}`} className="-my-3 inline-flex min-h-11 items-center underline decoration-fg-3 underline-offset-4 hover:decoration-fg">задача</Link></>
                         ) : item.taskSkipped ? <span className="text-fg-3"> · задача не создана</span> : null}
                       </span>
                     </p>

@@ -13226,6 +13226,23 @@
         }
       }
     },
+    "forgot_password_resend_in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кайра жөнөтүү %lld секунддан кийин мүмкүн"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправить ещё раз можно через %lld с"
+          }
+        }
+      }
+    },
     "universities_map_cluster_title" : {
       "extractionState" : "manual",
       "localizations" : {

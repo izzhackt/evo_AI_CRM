@@ -207,12 +207,14 @@ struct AuthField: View {
 
 /// «Забыли пароль?» (общий контракт веба и iPhone): письмо со ссылкой на
 /// веб-кабинет студента, где задаётся новый пароль. Ответ одинаковый для
-/// любого адреса; отдельно только лимит частоты и сбой связи.
+/// любого адреса; отдельно только лимиты, не связанные с адресом, и сбой
+/// связи. После ответа «отправлено» кнопка выключена на 60 с, как в вебе.
 struct PasswordResetRequestView: View {
     @ObservedObject var router: SessionRouter
     @State private var email: String
     @State private var sending = false
     @State private var outcome: AuthMessagePolicy.RecoveryOutcome?
+    @State private var resendAt: Date?
     @FocusState private var focusedField: AuthField.Kind?
     @Environment(\.dismiss) private var dismiss
 
@@ -221,8 +223,13 @@ struct PasswordResetRequestView: View {
         _email = State(initialValue: AuthMessagePolicy.normalizedEmail(initialEmail))
     }
 
-    private var canSend: Bool {
-        !sending && AuthMessagePolicy.looksLikeEmail(email)
+    private func secondsUntilResend(at now: Date) -> Int {
+        guard let resendAt else { return 0 }
+        return max(0, Int(resendAt.timeIntervalSince(now).rounded(.up)))
+    }
+
+    private func canSend(at now: Date) -> Bool {
+        !sending && secondsUntilResend(at: now) == 0 && AuthMessagePolicy.looksLikeEmail(email)
     }
 
     var body: some View {
@@ -238,17 +245,28 @@ struct PasswordResetRequestView: View {
                         .onSubmit(send)
                         .onChange(of: email) { outcome = nil }
 
-                    Button(action: send) {
-                        HStack(spacing: 8) {
-                            if sending { ProgressView() }
-                            Text("forgot_password_send")
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let wait = secondsUntilResend(at: context.date)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Button(action: send) {
+                                HStack(spacing: 8) {
+                                    if sending { ProgressView() }
+                                    Text("forgot_password_send")
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .accentProminent()
+                            .controlSize(.large)
+                            .disabled(!canSend(at: context.date))
+                            .accessibilityLabel(Text("forgot_password_send"))
+
+                            if wait > 0 {
+                                Text(String(format: String(localized: "forgot_password_resend_in"), wait))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondaryText)
+                            }
                         }
-                        .frame(maxWidth: .infinity)
                     }
-                    .accentProminent()
-                    .controlSize(.large)
-                    .disabled(!canSend)
-                    .accessibilityLabel(Text("forgot_password_send"))
 
                     if let outcome {
                         result(outcome)
@@ -299,7 +317,7 @@ struct PasswordResetRequestView: View {
     }
 
     private func send() {
-        guard canSend else { return }
+        guard canSend(at: .now) else { return }
         focusedField = nil
         sending = true
         outcome = nil
@@ -307,6 +325,9 @@ struct PasswordResetRequestView: View {
             let result = await router.requestPasswordReset(email: email)
             sending = false
             outcome = result
+            if result == .sent {
+                resendAt = Date.now.addingTimeInterval(TimeInterval(AuthMessagePolicy.recoveryResendSeconds))
+            }
             AccessibilityNotification.Announcement(
                 applyString(AuthMessagePolicy.recoveryMessageKey(result))
             ).post()

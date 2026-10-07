@@ -117,7 +117,8 @@ final class SessionRouter: ObservableObject {
     }
 
     /// «Забыли пароль?»: всегда один и тот же ответ для существующих и
-    /// несуществующих адресов, отдельно только лимит частоты и сбой связи.
+    /// несуществующих адресов, отдельно только лимиты, не связанные с
+    /// адресом, и сбой связи (`AuthMessagePolicy.recoveryOutcome`).
     func requestPasswordReset(email: String) async -> AuthMessagePolicy.RecoveryOutcome {
         let redirect = AuthMessagePolicy.recoveryRedirect(webBase: AppConfig.portalWebBaseURL)
         do {
@@ -137,8 +138,12 @@ final class SessionRouter: ObservableObject {
             return AuthMessagePolicy.Failure(errorCode: nil, httpStatus: nil, isTransport: urlError.code != .cancelled)
         }
         if let authError = error as? AuthError {
-            if case let .api(_, code, _, response) = authError {
-                return AuthMessagePolicy.Failure(errorCode: code.rawValue, httpStatus: response.statusCode)
+            if case let .api(message, code, _, response) = authError {
+                return AuthMessagePolicy.Failure(
+                    errorCode: code.rawValue,
+                    httpStatus: response.statusCode,
+                    message: message
+                )
             }
             return AuthMessagePolicy.Failure(errorCode: authError.errorCode.rawValue)
         }

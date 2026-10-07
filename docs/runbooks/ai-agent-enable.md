@@ -19,7 +19,9 @@
   выпуск №2 `v3-r37580224797-a1-973bcc85` (`973bcc857`), `status` →
   `"aiAgent":"healthy"`, граница сети `waha: isolated`, `clamav: isolated`.
   Приёмка P1 (`/v1/status` из CRM, настоящий ответ через edge) не
-  проводилась.
+  завершена: в 06:35:14 UTC CRM один раз вызвал `GET /v1/status` → 200 (в
+  учёте 1 вызов `probe`, 0 токенов, $0.00), но согласие не записано и
+  настоящего ответа нет (`ai_requests` и `ai_answers` 0, чтение 06:44 UTC).
 - P2: `EVO_AI_AGENT_STORAGE_SECRET` заведён в обоих файлах вместе с P1 и уже
   в выпуске №2 (раньше порядка «до шага» P2); замер Tesseract и проверка P2
   не проводились, документов агента 0.
@@ -132,6 +134,16 @@ SOPS-архиве «Секреты и доступы ЭВО», никогда в
    `izzhackt/evo-ai-agent`. На hermes под root: `docker login ghcr.io -u izzhackt
    --password-stdin` (значение — со стандартного ввода, не в аргументах и не в
    истории). Копия — в SOPS-архиве «Секреты и доступы ЭВО».
+   *Примечание 2026-10-07 (текст шага выше не переписан):* GitHub Packages
+   принимает только personal access token (classic) (docs.github.com,
+   «Working with the Container registry»), а classic-токен одним пакетом не
+   ограничить; fine-grained токен для `docker login ghcr.io` не подходит.
+   Сузить доступ можно отдельной машинной учётной записью GitHub с правом
+   только на чтение `izzhackt/evo-ai-agent` и её classic-токеном
+   `read:packages`; иначе — осознанно принять classic-токен владельца и
+   записать это решение. 07.10 на hermes стоит classic-токен `read:packages`
+   (вход выполнил владелец), копии в SOPS нет (`docs/PLAN_CHANGES.md`, запись
+   07.10).
 2. **Роль БД.** После того как миграции агента (#1158) приняты в журнал production
    обычным порядком, в SQL editor: `ALTER ROLE evo_ai_agent WITH LOGIN PASSWORD
    '<новый пароль>' CONNECTION LIMIT 10;`. Пароль — только в `.env.ai-agent` и SOPS.

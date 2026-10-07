@@ -3,6 +3,7 @@
 # В Debug ничего не делает. В Release останавливает сборку, если:
 #   - нет значений из ios/Release.xcconfig (его пишет write-release-config.sh);
 #   - SUPABASE_URL или PORTAL_WEB_BASE_URL не https://;
+#   - SUPABASE_PUBLISHABLE_KEY секретный (sb_secret_ или JWT service_role);
 #   - в Info.plist есть NSAppTransportSecurity (исключение ATS только для
 #     локального стенда и только в Debug, в выпуск оно не попадает).
 # При архиве (ACTION=install) дополнительно требует настоящий ключ без
@@ -29,8 +30,23 @@ https_value() {
   esac
 }
 
+# Секретный ключ обходит RLS и не должен попасть в архив: отклоняются
+# sb_secret_… и старый JWT с "role":"service_role" в полезной нагрузке.
+reject_secret_key() {
+  case $1 in
+    sb_secret_*) fail "SUPABASE_PUBLISHABLE_KEY это секретный ключ sb_secret_. Нужен publishable. $hint" ;;
+    eyJ*.*.*)
+      payload=$(printf '%s' "$1" | cut -d. -f2 | tr '_-' '/+')
+      case $(( ${#payload} % 4 )) in 2) payload="$payload==" ;; 3) payload="$payload=" ;; esac
+      if printf '%s' "$payload" | base64 -D 2>/dev/null | tr -d ' ' | grep -q '"role":"service_role"'; then
+        fail "SUPABASE_PUBLISHABLE_KEY это ключ service_role. Нужен publishable или anon. $hint"
+      fi ;;
+  esac
+}
+
 https_value SUPABASE_URL "${SUPABASE_URL:-}"
 [ -n "${SUPABASE_PUBLISHABLE_KEY:-}" ] || fail "SUPABASE_PUBLISHABLE_KEY пуст в Release. $hint"
+reject_secret_key "$SUPABASE_PUBLISHABLE_KEY"
 https_value PORTAL_WEB_BASE_URL "${PORTAL_WEB_BASE_URL:-}"
 
 if [ -n "${DEVELOPMENT_TEAM:-}" ]; then

@@ -27,6 +27,20 @@ fail() {
   exit 1
 }
 
+# Секретный ключ обходит RLS и не должен попасть в архив: отклоняются
+# sb_secret_… и старый JWT с "role":"service_role" в полезной нагрузке.
+reject_secret_key() {
+  case $1 in
+    sb_secret_*) fail "SUPABASE_PUBLISHABLE_KEY это секретный ключ sb_secret_. Нужен publishable." ;;
+    eyJ*.*.*)
+      payload=$(printf '%s' "$1" | cut -d. -f2 | tr '_-' '/+')
+      case $(( ${#payload} % 4 )) in 2) payload="$payload==" ;; 3) payload="$payload=" ;; esac
+      if printf '%s' "$payload" | base64 -D 2>/dev/null | tr -d ' ' | grep -q '"role":"service_role"'; then
+        fail "SUPABASE_PUBLISHABLE_KEY это ключ service_role. Нужен publishable или anon."
+      fi ;;
+  esac
+}
+
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ios_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
 output=${RELEASE_XCCONFIG_PATH:-"$ios_dir/Release.xcconfig"}
@@ -60,9 +74,7 @@ portal_url=$(https_origin PORTAL_WEB_BASE_URL "$portal_url")
 [ -n "$publishable_key" ] || fail "SUPABASE_PUBLISHABLE_KEY не задан."
 printf '%s\n' "$publishable_key" | grep -Eq '^[A-Za-z0-9._-]+$' \
   || fail "SUPABASE_PUBLISHABLE_KEY содержит недопустимые символы."
-case $publishable_key in
-  sb_secret_*) fail "SUPABASE_PUBLISHABLE_KEY похож на секретный ключ sb_secret_. Нужен publishable." ;;
-esac
+reject_secret_key "$publishable_key"
 
 if [ -n "$team_id" ]; then
   printf '%s\n' "$team_id" | grep -Eq '^[A-Z0-9]{10}$' \

@@ -271,10 +271,11 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
 // её проверка — проверка обоих. Места нижней панели выбираются по разделам и
 // не меняются (EXPECTED_TABS выше).
 const MENU_BY_ROLE = {
-  admin: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/knowledge", "/v3/marketing"] },
+  // «ИИ-агент» (план ИИ-агента §12.2): после «Базы знаний» у всех, кому открыт маршрут (ai.agent.use).
+  admin: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/knowledge", "/v3/ai-agent", "/v3/marketing"] },
   // Просмотр «Приёмной»: у фиксированной роли нет sales.read — ни доски, ни «Заявок», как и раньше;
   // WhatsApp у неё с 06.10.2026 («нет, все могут»): единственный пункт «Продаж».
-  admissions: { sales: ["/v3/inbox"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
+  admissions: { sales: ["/v3/inbox"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets", "/v3/ai-agent"] },
   // Куратор с lead.read: правило D скрывает доску, «Заявки» и «Отчёт продаж» остаются, а WhatsApp с 06.10.2026 виден (communication.read.full).
   "admissions-staff": { sales: ["/v3/requests", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
   sales: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/reply-snippets"] },

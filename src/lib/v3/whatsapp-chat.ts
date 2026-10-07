@@ -31,7 +31,8 @@ export function queuedRetryDelay(answers: number): number {
 /** После стольких ответов «ждёт очереди» браузер перестаёт повторять сам (≈2,5 мин). */
 export const WHATSAPP_CHAT_QUEUED_RETRY_LIMIT = 8;
 
-export type WhatsAppMessageOrigin = "client" | "crm" | "phone" | "history" | "other";
+/** `autoreply` — ночной автоответчик (P4): подпись «Автоответчик», от имени ответственного. */
+export type WhatsAppMessageOrigin = "client" | "crm" | "autoreply" | "phone" | "history" | "other";
 export type WhatsAppAckName = "ERROR" | "PENDING" | "SERVER" | "DEVICE" | "READ" | "PLAYED";
 
 /** Сообщение ленты — то, что видит браузер: без идентификаторов WhatsApp. */
@@ -50,6 +51,11 @@ export type InboxChatMessage = Readonly<{
 
 /** Отправка из CRM, ещё не ставшая сообщением ленты (чтение 266). */
 export type InboxChatAttempt = Readonly<{
+  /**
+   * Отправка ночного автоответчика (P4): автор — ответственный сотрудник, но
+   * повторить её или вернуть текст в поле нельзя — это не его сообщение.
+   */
+  autoreply: boolean;
   attemptId: string | null;
   workItemId: string;
   requestId: string | null;
@@ -158,17 +164,31 @@ export function ackWord(ack: WhatsAppAckName | null): string | null {
   }
 }
 
-/** Откуда наше сообщение: «из CRM, Айгерим», «из CRM, вы», «с телефона». История — без пометки. */
+/**
+ * Откуда наше сообщение: «из CRM, Айгерим», «из CRM, вы», «с телефона»,
+ * «Автоответчик» (ночью, P4). История — без пометки.
+ */
 export function originWord(message: Pick<InboxChatMessage, "inbound" | "origin" | "senderName" | "senderIsViewer">): string | null {
   if (message.inbound) return null;
+  if (message.origin === "autoreply") return AUTOREPLY_LABEL;
   if (message.origin === "crm") return message.senderIsViewer ? "из CRM, вы" : `из CRM, ${message.senderName ?? "сотрудник"}`;
   if (message.origin === "phone") return "с телефона";
   return null;
 }
 
+/** Подпись ночного автоответа в ленте (P4, план ИИ-агента §11, Q9). */
+export const AUTOREPLY_LABEL = "Автоответчик";
+
+/** «от имени Айгерим» — подсказка к подписи «Автоответчик»: ответственный за автоответ. */
+export function autoreplyOnBehalf(name: string | null): string | null {
+  const trimmed = name?.trim();
+  return trimmed ? `от имени ${trimmed}` : null;
+}
+
 /** Невидимое начало сообщения для читалки: кто говорит. */
 export function speakerPrefix(message: Pick<InboxChatMessage, "inbound" | "origin" | "senderName" | "senderIsViewer">): string {
   if (message.inbound) return "Клиент:";
+  if (message.origin === "autoreply") return `${AUTOREPLY_LABEL}${autoreplyOnBehalf(message.senderName) ? `, ${autoreplyOnBehalf(message.senderName)}` : ""}:`;
   if (message.origin === "crm") return message.senderIsViewer ? "Вы, из CRM:" : `${message.senderName ?? "Сотрудник"}, из CRM:`;
   if (message.origin === "phone") return "С телефона продаж:";
   return "Продажи:";
@@ -262,6 +282,8 @@ export type LocalChatSend = Readonly<{
 
 export type OutgoingBubble = Readonly<{
   key: string;
+  /** Отправка автоответчика (P4): своя подпись, без «Повторить» и «Вернуть текст в поле». */
+  autoreply: boolean;
   text: string;
   at: string;
   authorName: string | null;
@@ -316,6 +338,7 @@ export function outgoingBubbles(
     } else state = attempt.status === "unknown" ? "unknown" : "rejected";
     return Object.freeze({
       key: attempt.workItemId,
+      autoreply: attempt.autoreply,
       text: attempt.text,
       at: attempt.at,
       authorName: attempt.authorName,
@@ -336,6 +359,7 @@ export function outgoingBubbles(
     if (item.state === "sent" && (item.messageId === null || messageIds.has(item.messageId))) continue;
     bubbles.push(Object.freeze({
       key: item.requestId,
+      autoreply: false,
       text: item.text,
       at: item.createdAt,
       authorName: null,

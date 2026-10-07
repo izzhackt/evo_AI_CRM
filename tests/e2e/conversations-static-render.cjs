@@ -75,6 +75,20 @@
  *       включённой памяти — последствия до кнопки). 1440×900 и 390×844,
  *       синтетика. По умолчанию outDir —
  *       docs/design/evo-platform/implementation-screenshots/ai-agent-p3.
+ *   node tests/e2e/conversations-static-render.cjs --ai-agent-p4 [outDir]
+ *     → «ИИ-агент» P4 (план §11): раздел «Автоответчик» — выключен (с
+ *       согласием и без), «Проверка без отправки» с замком «Нужно ещё N ночей
+ *       проверки», пауза и «Отправка выключена на сервере», отвечает, только
+ *       чтение, журнал (и фильтр), утренняя сводка (и пустая), строка паузы в
+ *       другом подразделе; настройки вживую (ошибки до записи, «Проверено»
+ *       снимается с изменённой фразы, запись с версией); режим вживую
+ *       («Отвечает» — только после подтверждения плашкой, «Отмена» без
+ *       записи, фокус туда и обратно); лента с подписью
+ *       «Автоответчик» и чипом «Ночью отвечает автоответчик»; в окне ИИ —
+ *       «Автоответчик в этом чате» (включён, исключение, проверка без
+ *       отправки, пауза, сбой и «Повторить», выключен в организации — полосы
+ *       нет). 1440×900 и 390×844, синтетика. По умолчанию outDir —
+ *       docs/design/evo-platform/implementation-screenshots/ai-agent-p4.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -351,7 +365,7 @@ const { PartShell } = require("@/components/v3/PartShell");
 const { Inbox } = require("@/components/v3/Inbox");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
-window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], refreshes: 0, polls: 0 };
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], autosend: [], refreshes: 0, polls: 0 };
 // Опрос и «Показать ранее» отвечают синтетикой этой вкладки (сети нет).
 const originalFetch = window.fetch;
 window.fetch = async (input, init) => {
@@ -372,6 +386,22 @@ window.fetch = async (input, init) => {
     // «Что ИИ знает о клиенте» (P3): чтение и «Забыть сводку» — своя очередь
     // (window.__harness.memory), чтобы последовательность ответа не менялась.
     // Без своей синтетики — память выключена, как её поставляют (memory_enabled false).
+    // «Автоответчик в этом чате» (P4): своя очередь (window.__harness.autosend). Без
+    // своей синтетики автоответчик выключен в организации — полосы в окне нет.
+    if (url.endsWith("/autosend")) {
+      if (method === "PUT") {
+        const sent = JSON.parse(init.body);
+        window.__harness.autosend.push("put:" + sent.excluded + ":" + sent.requestId);
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        const reply = take(fixture.ai.autosendPut || [{ status: 200, body: { excluded: sent.excluded } }]);
+        return json(reply.status, reply.body);
+      }
+      window.__harness.autosend.push("read");
+      const reply = take(fixture.ai.autosend || [{ status: 200, body: { chat: {
+        enabled: false, mode: "off", paused: false, excluded: false, liveTest: false, handedOff: false,
+      }, serverOn: false } }]);
+      return json(reply.status, reply.body);
+    }
     if (url.endsWith("/memory")) {
       if (method === "DELETE") {
         window.__harness.memory.push("clear:" + JSON.parse(init.body).requestId);
@@ -1990,6 +2020,520 @@ async function aiP3Screenshots() {
   process.stdout.write(`${JSON.stringify({ ok: true, outDir })}\n`);
 }
 
+// --- «ИИ-агент» P4: «Автоответчик» — раздел, окно ИИ, подпись в ленте ------------------
+// Настройки, журнал, сводка, чаты и тексты ВЫДУМАНЫ (тот же синтетический чат
+// «Аружан Примерова»); формы чтений — как у 277 (ветка P4 SQL). Раздел —
+// настоящая страница `v3/ai-agent/page.tsx` с подменёнными чтениями (разметка
+// сервера); окно ИИ — настоящий клиентский компонент; «Автоответчик в этом
+// чате» отвечает синтетика вкладки (fixture.ai.autosend). Ни базы, ни агента,
+// ни WhatsApp: ничего не отправляется.
+const P4_SEND_SECRET = "a".repeat(24) + "-synthetic-autosend-send-secret";
+const AUTOSEND_SETTINGS = {
+  schedule: {
+    mon: [{ from: "20:00", to: "09:00" }], tue: [{ from: "20:00", to: "09:00" }], wed: [{ from: "20:00", to: "09:00" }],
+    thu: [{ from: "20:00", to: "09:00" }], fri: [{ from: "20:00", to: "09:00" }],
+    sat: [{ from: "14:00", to: "16:00" }, { from: "20:00", to: "09:00" }], sun: [{ from: "00:00", to: "00:00" }],
+  },
+  dateOverrides: [{ from: "2026-12-31", to: "2027-01-02", mode: "on" }, { from: "2026-10-25", to: "2026-10-25", mode: "off" }],
+  workingDays: [1, 2, 3, 4, 5], timezone: "Asia/Bishkek", delayMinSeconds: 30, delayMaxSeconds: 90,
+  limitChatHour: 4, limitChatNight: 8, limitNumberHour: 30,
+  phrases: {
+    ru: { tomorrow: { text: "Завтра в рабочее время вам позвонит наш руководитель.", confirmed: true },
+      day: { text: "{day} в рабочее время вам позвонит наш руководитель.", confirmed: true } },
+    ky: { tomorrow: { text: "Эртең иш убактысында биздин жетекчи сизге чалат.", confirmed: false },
+      day: { text: "{day} иш убактысында биздин жетекчи сизге чалат.", confirmed: false } },
+    en: { tomorrow: { text: "Our manager will call you tomorrow during business hours.", confirmed: false },
+      day: { text: "Our manager will call you {day} during business hours.", confirmed: false } },
+  },
+  disclosureEnabled: true,
+  disclosure: {
+    ru: { text: "Пишет автоматический помощник EVO — менеджеры сейчас не на связи.", confirmed: false },
+    ky: { text: "EVO автоматтык жардамчысы жазып жатат — менеджерлер азыр байланышта эмес.", confirmed: false },
+    en: { text: "This is the EVO automatic assistant — our managers are offline right now.", confirmed: false },
+  },
+  liveTestConversationIds: [],
+};
+const autosendState = (state = {}, extra = {}) => ({
+  settings: { ...AUTOSEND_SETTINGS, ...extra.settings },
+  state: {
+    enabled: true, shadowMode: true, consentRecorded: true, paused: null,
+    window: { inside: false, intervalStart: null, intervalEnd: null, nextStart: "2026-10-06T14:00:00Z" },
+    responsible: { membershipId: AI_ACTOR.membershipId, name: "Менеджер продаж (синтетический)" }, enabledAt: "2026-10-04T14:02:00Z",
+    sendErrorStreak: 0, geminiErrorStreak: 0, shadowNights: 1, shadowNightsRequired: 3,
+    finalPhraseNow: { text: "Завтра в рабочее время вам позвонит наш руководитель.", variant: "tomorrow", callDate: "2026-10-07", day: null, confirmed: true, dayWordsReview: false },
+    ...state,
+  },
+  lastSummary: { id: aiId(840), intervalStart: "2026-10-05T14:00:00Z", intervalEnd: "2026-10-06T03:00:00Z", shadowNight: true, counts: {}, status: "ready" },
+  canManage: true, canSend: true, version: 7, ...extra.root,
+});
+const journalRow = (n, fields) => ({
+  id: aiId(700 + n), conversationId: waId(fields.chat ?? 1), clientMessageId: aiId(760 + n), sourceAt: fields.createdAt,
+  intervalStart: "2026-10-05T14:00:00Z", intervalEnd: "2026-10-06T03:00:00Z", status: "shadow", mode: "shadow", kind: "answer",
+  reasonCode: null, reasonRu: null, language: "ru", citedChunkIds: [], callDate: null, sendAt: null, delaySeconds: null,
+  outcomeCode: null, committedAt: null, authorizedAt: null, finishedAt: null, textHidden: false, text: null, qualification: null, ...fields,
+});
+const JOURNAL = {
+  items: [
+    journalRow(1, { createdAt: "2026-10-05T21:42:00Z", chat: 4, status: "shadow", kind: "final_phrase", callDate: "2026-10-06", finalReasonCode: "qualified",
+      text: "Завтра в рабочее время вам позвонит наш руководитель." }),
+    journalRow(2, { createdAt: "2026-10-05T21:31:00Z", chat: 4, status: "shadow",
+      text: "Пишет автоматический помощник EVO — менеджеры сейчас не на связи.\nПодготовительный курс английского в Малайзии длится один семестр. Какой у вас сейчас уровень английского и на какой год планируете поступление?" }),
+    journalRow(3, { createdAt: "2026-10-05T19:05:00Z", chat: 6, status: "skipped", kind: null, language: null, reasonCode: "stop_word",
+      reasonRu: "Стоп-слово обещаний или оплаты" }),
+    journalRow(4, { createdAt: "2026-10-05T17:48:00Z", chat: 3, status: "skipped", kind: null, language: null, reasonCode: "staff_active",
+      reasonRu: "Сотрудник отвечал или был активен в чате последние 15 минут" }),
+    journalRow(5, { createdAt: "2026-10-05T16:20:00Z", chat: 7, status: "shadow", mode: "shadow", textHidden: true }),
+    journalRow(6, { createdAt: "2026-10-05T15:12:00Z", chat: 1, status: "skipped", kind: null, language: null, reasonCode: "media_only",
+      reasonRu: "В сообщении только медиа" }),
+    journalRow(7, { createdAt: "2026-10-05T14:40:00Z", chat: 5, status: "shadow", language: "en",
+      text: "The foundation programme takes one semester. Which country and which degree level are you considering?" }),
+  ],
+  next: null,
+};
+const JOURNAL_TITLES = { 1: "Аружан Примерова", 3: "Тимур Макетов", 4: "Мадина Условная", 5: "WhatsApp ••••0937", 6: "Эльдар Эскизов" };
+const SUMMARY = {
+  summary: {
+    id: aiId(840), intervalStart: "2026-10-05T14:00:00Z", intervalEnd: "2026-10-06T03:00:00Z", shadowNight: true, status: "ready",
+    counts: { conversations: 5, considered: 9, answered: 4, finalPhrases: 1, shadow: 5, skipped: 4 },
+    items: [
+      { conversationId: waId(4), considered: 3, answered: 2, finalPhrase: true, callDate: "2026-10-06", statuses: { shadow: 3 }, reasons: {},
+        qualification: { country: "Малайзия", level: "Бакалавриат", timing: "Сентябрь 2027", budget: "До 6 000 $ в год", grade_or_age: "11 класс", city: "Бишкек", call_time: "После 18:00" },
+        taskId: null, taskSkipped: false, hidden: false },
+      { conversationId: waId(5), considered: 2, answered: 2, finalPhrase: false, callDate: null, statuses: { shadow: 2 }, reasons: {},
+        qualification: { country: "Китай", level: "Магистратура" }, taskId: null, taskSkipped: false, hidden: false },
+      { conversationId: waId(6), considered: 2, answered: 0, finalPhrase: false, callDate: null, statuses: { skipped: 2 },
+        reasons: { stop_word: 1, limit_chat_hour: 1 }, qualification: {}, taskId: null, taskSkipped: false, hidden: false },
+      { conversationId: waId(3), considered: 1, answered: 0, finalPhrase: false, callDate: null, statuses: { skipped: 1 },
+        reasons: { staff_active: 1 }, qualification: {}, taskId: null, taskSkipped: false, hidden: false },
+      { hidden: true, considered: 1, answered: 0, finalPhrase: false, statuses: { skipped: 1 }, reasons: { media_only: 1 } },
+    ],
+  },
+  shadowNights: 1,
+};
+const AI_P4_SECTION = {
+  // Выключен: «Включить автоответчик» — тёмная кнопка, строка первого включения, настройки по умолчанию.
+  "section-autosend-off": { viewports: ["1440", "390"], state: autosendState({ enabled: false, responsible: null, enabledAt: null, shadowNights: 0 }) },
+  "section-autosend-no-consent": { viewports: ["1440"], state: autosendState({ enabled: false, responsible: null, enabledAt: null, consentRecorded: false, shadowNights: 0 }) },
+  // Проверка без отправки: «Отвечает» заперт («Нужно ещё 2 ночи проверки»), отправка выключена на сервере — тихая строка.
+  "section-autosend-shadow": { viewports: ["1440", "390"], state: autosendState({
+    window: { inside: true, intervalStart: "2026-10-05T14:00:00Z", intervalEnd: "2026-10-06T03:00:00Z", nextStart: "2026-10-06T14:00:00Z" },
+  }) },
+  // Отвечает, но пауза: WhatsApp не на связи; отправка выключена на сервере — предупреждение.
+  "section-autosend-paused": { viewports: ["1440", "390"], state: autosendState({ shadowMode: false, shadowNights: 3,
+    paused: { code: "provider_down", byKind: "service", at: "2026-10-05T21:14:00Z", reasonRu: "Сессия WhatsApp не в работе" } },
+  { settings: { disclosure: { ...AUTOSEND_SETTINGS.disclosure, ru: { ...AUTOSEND_SETTINGS.disclosure.ru, confirmed: true } } } }) },
+  // Отвечает, сервер включён, чат живого теста.
+  "section-autosend-live": { viewports: ["1440"], serverOn: true, liveTestTitles: { [waId(1)]: "Аружан Примерова" }, state: autosendState({ shadowMode: false, shadowNights: 4 },
+    { settings: { liveTestConversationIds: [waId(1)], disclosure: { ...AUTOSEND_SETTINGS.disclosure, ru: { ...AUTOSEND_SETTINGS.disclosure.ru, confirmed: true } } } }) },
+  "section-autosend-journal": { viewports: ["1440", "390"], search: { view: "journal" }, state: autosendState() },
+  "section-autosend-journal-skipped": { viewports: ["1440"], search: { view: "journal", status: "skipped" }, state: autosendState(), journalFilter: "skipped" },
+  "section-autosend-summary": { viewports: ["1440", "390"], search: { view: "summary" }, state: autosendState() },
+  "section-autosend-summary-empty": { viewports: ["1440"], search: { view: "summary" }, state: autosendState(), summary: { summary: null, shadowNights: 0 } },
+  // Сотрудник без ai.agent.manage: всё видно, ничего не меняется.
+  "section-autosend-read-only": { viewports: ["1440"], state: autosendState({}, { root: { canManage: false } }) },
+  // Пауза видна и в других подразделах — строкой со ссылкой на «Автоответчик».
+  "section-documents-paused": { viewports: ["1440"], section: "documents", state: autosendState({ shadowMode: false, shadowNights: 3,
+    paused: { code: "provider_restricted", byKind: "service", at: "2026-10-05T22:40:00Z", reasonRu: "Сессия WhatsApp не в работе" } }) },
+};
+
+async function buildAutosendSectionMarkup(name, scenario = AI_P4_SECTION[name]) {
+  process.env.EVO_AI_AGENT_INTERNAL_SECRET = AI_SECRET;
+  process.env.EVO_AI_AGENT_AUTOSEND = scenario.serverOn ? "1" : "0";
+  process.env.EVO_AI_AGENT_SEND_SECRET = scenario.serverOn ? P4_SEND_SECRET : "";
+  stubReads({ actor: AI_ACTOR, rows: ALL_ROWS });
+  const source = require(join(ROOT, "src/lib/v3/ai-agent-source.ts"));
+  source.readAiSettings = async () => available(normalizeAiSettings, aiSettings());
+  source.readAiDocuments = async () => available(normalizeAiDocuments, AI_DOCUMENTS);
+  source.readAiRules = async () => available(normalizeAiRules, AI_RULES);
+  source.readAiSpend = async () => available(normalizeAiSpend, AI_SPEND);
+  source.readAiReview = async () => ({ status: "unavailable" });
+  const autosend = require(join(ROOT, "src/lib/v3/ai-agent-autosend.ts"));
+  const autosendSource = require(join(ROOT, "src/lib/v3/ai-agent-autosend-source.ts"));
+  autosendSource.readAiAutosend = async () => ({ status: "available", data: { ...autosend.normalizeAiAutosendState(scenario.state), liveTestTitles: scenario.liveTestTitles ?? {} } });
+  autosendSource.readAiAutosendJournal = async (_actor, input) => {
+    const journal = autosend.normalizeAiAutosendJournal({ ...JOURNAL, items: JOURNAL.items.filter((row) => input.filter === "all" || row.status === input.filter) });
+    return { status: "available", data: { ...journal, items: journal.items.map((row) => ({
+      ...row, conversationTitle: JOURNAL_TITLES[Number(row.conversationId.slice(-3))] ?? null,
+    })) } };
+  };
+  autosendSource.readAiAutosendSummary = async () => {
+    const read = autosend.normalizeAiAutosendSummary(scenario.summary ?? SUMMARY);
+    return { status: "available", data: read.summary ? { ...read, summary: { ...read.summary, items: read.summary.items.map((item) => ({
+      ...item, conversationTitle: item.conversationId ? JOURNAL_TITLES[Number(item.conversationId.slice(-3))] ?? null : null,
+    })) } } : read };
+  };
+  require(join(ROOT, "src/lib/server/ai-agent-route-handlers.ts")).readAiAgentStatus = async () => ({ state: "ready", keyAccepted: true, model: "gemini-3.8-flash", block: null });
+  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/ai-agent/page.tsx"));
+  const search = scenario.section === "documents" ? {} : { section: "autosend", ...scenario.search };
+  const element = await Page({ searchParams: Promise.resolve(search) });
+  const query = new URLSearchParams(search).toString();
+  return { actor: AI_ACTOR, search: query, body: renderToStaticMarkup(withContexts(element, "/v3/ai-agent", query)) };
+}
+
+// Ночной диалог: клиент пишет после 20:00, отвечает «Автоответчик» от имени ответственного.
+const AUTOREPLY_MESSAGES = [
+  ...WA_MESSAGES.slice(0, 5),
+  waMessage(10, true, "2026-10-05T15:05:00.000Z", "Здравствуйте! Сколько длится подготовительный курс английского в Малайзии?"),
+  waMessage(11, false, "2026-10-05T15:06:10.000Z", "Пишет автоматический помощник EVO — менеджеры сейчас не на связи.\nПодготовительный курс английского длится один семестр. На какой год планируете поступление и какой у вас бюджет?", {
+    origin: "autoreply", senderName: "Менеджер продаж (синтетический)", senderIsViewer: true, ack: "READ",
+  }),
+  waMessage(12, true, "2026-10-05T15:09:00.000Z", "На сентябрь 2027, бюджет до 6 000 $ в год. Хочу поговорить с менеджером."),
+  waMessage(13, false, "2026-10-05T15:10:05.000Z", "Завтра в рабочее время вам позвонит наш руководитель.", {
+    origin: "autoreply", senderName: "Менеджер продаж (синтетический)", senderIsViewer: true, ack: "DEVICE",
+  }),
+  waMessage(14, false, "2026-10-06T04:05:00.000Z", "Доброе утро! Это Айгерим из EVO, звоню вам в 10:30 — удобно?", {
+    origin: "crm", senderName: "Айгерим Синтетическая", ack: "READ",
+  }),
+  waMessage(15, true, "2026-10-06T04:20:00.000Z", "Да, удобно, жду звонка."),
+];
+const autosendChatBody = (chat, serverOn) => ({ status: 200, body: { chat: { enabled: true, mode: "live", paused: false, excluded: false, liveTest: false, handedOff: false, ...chat }, serverOn } });
+const autosendAi = (autosend, extra = {}) => ({
+  saved: [aiView(aiAnswer())], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }],
+  insert: [{ status: 200, body: { text: "x" } }], autosend, ...extra,
+});
+const AI_P4_CHAT = {
+  // Лента ночью: подпись «Автоответчик», чип в шапке, в окне ИИ — полоса «Автоответчик в этом чате».
+  "chat-autoreply": { viewports: ["1440", "390"], chip: true, ai: autosendAi([autosendChatBody({}, true)]) },
+  "chat-autosend-shadow": { viewports: ["1440"], chip: false, ai: autosendAi([autosendChatBody({ mode: "shadow" }, false)]) },
+  "chat-autosend-paused": { viewports: ["1440"], chip: false, ai: autosendAi([autosendChatBody({ paused: true }, true)]) },
+  "chat-autosend-failed": { viewports: ["1440"], chip: false, ai: autosendAi([{ status: 503, body: { error: { code: "unavailable" } } }, autosendChatBody({}, true)]) },
+  // Автоответчик выключен в организации: полосы нет, окно как в P3.
+  "chat-autosend-off": { viewports: ["1440"], chip: false, ai: autosendAi(undefined) },
+};
+
+async function buildAutosendChatPage(name, scenario = AI_P4_CHAT[name]) {
+  process.env.EVO_AI_AGENT_INTERNAL_SECRET = AI_SECRET;
+  stubReads({ actor: AI_ACTOR, rows: ALL_ROWS, inbox: waView({ chat: { messages: AUTOREPLY_MESSAGES, attempts: [], autoreplyAtNight: scenario.chip,
+    latestInboundMessageId: waId(115), hasOlder: true } }) });
+  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/inbox/page.tsx"));
+  const element = await Page({ searchParams: Promise.resolve({ conversation: WA_CONVERSATION }) });
+  const { children: inbox, ...main } = element.props;
+  return { actor: AI_ACTOR, chatApp: { main, inbox: inbox.props } };
+}
+
+// Настройки вживую: настоящая форма, запись — синтетическая (базы и server action нет).
+const SETTINGS_ENTRY = `
+const React = require("react");
+const { createRoot } = require("react-dom/client");
+const { AiAutosendSettingsForm } = require("@/components/v3/ai-agent/AiAutosendSettingsForm");
+const { normalizeAiAutosendSettings } = require("@/lib/v3/ai-agent-autosend");
+const h = React.createElement;
+const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], autosend: [], refreshes: 0, polls: 0 };
+const action = async (_previous, form) => {
+  window.__harness.actions.push(["save", form.get("expected_version"), form.get("request_id"), form.get("settings")].join("|"));
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  return { status: "saved", requestId: form.get("request_id") };
+};
+function Page() {
+  React.useEffect(() => { document.documentElement.dataset.hydrated = "true"; }, []);
+  return h(AiAutosendSettingsForm, { initial: normalizeAiAutosendSettings(fixture.settings), version: 7, liveTestTitles: {}, liveTestLock: null,
+    readOnly: false, requestId: "27700000-0000-4000-8000-000000000071", action });
+}
+createRoot(document.getElementById("root")).render(
+  h("div", { className: "v3-world", "data-surface": "staff" }, h("main", { className: "mx-auto max-w-6xl p-4 sm:p-6" }, h(Page))));
+`;
+
+// Режим вживую: настоящий переключатель, запись — синтетическая (разметка раздела в снимках выше статична).
+const MODE_ENTRY = `
+const React = require("react");
+const { createRoot } = require("react-dom/client");
+const { AiAutosendModeSwitch } = require("@/components/v3/ai-agent/AiAutosendModeSwitch");
+const h = React.createElement;
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], autosend: [], refreshes: 0, polls: 0 };
+const action = async (_previous, form) => {
+  window.__harness.actions.push(["mode", form.get("mode"), form.get("expected_version")].join("|"));
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  return { status: "saved", requestId: form.get("request_id") };
+};
+function Page() {
+  React.useEffect(() => { document.documentElement.dataset.hydrated = "true"; }, []);
+  return h("section", { className: "rounded-card border border-border bg-surface px-4 py-5 sm:px-6", "data-testid": "v3-ai-autosend-header", "data-mode": "shadow" },
+    h(AiAutosendModeSwitch, { mode: "shadow", lock: null, version: 7, requestId: "27700000-0000-4000-8000-000000000072", action }));
+}
+createRoot(document.getElementById("root")).render(
+  h("div", { className: "v3-world", "data-surface": "staff" }, h("main", { className: "mx-auto max-w-6xl p-4 sm:p-6" }, h(Page))));
+`;
+
+function autosendMetrics() {
+  const text = (selector) => document.querySelector(selector)?.textContent.replace(/\s+/gu, " ").trim() ?? null;
+  const strip = document.querySelector('[data-testid="v3-ai-autosend-chat"]');
+  return {
+    header: text('[data-testid="v3-ai-autosend-header"]'),
+    mode: document.querySelector('[data-testid="v3-ai-autosend-header"]')?.dataset.mode ?? null,
+    lock: text('[data-testid="v3-ai-autosend-lock"]'),
+    pause: text('[data-testid="v3-ai-autosend-pause-banner"]'),
+    serverOff: text('[data-testid="v3-ai-autosend-server-off"]'),
+    enable: text('[data-testid="v3-ai-autosend-enable"]'),
+    enableDisabled: document.querySelector('[data-testid="v3-ai-autosend-enable"] button')?.getAttribute("aria-disabled") === "true",
+    liveDisabled: document.querySelector('[data-testid="v3-ai-autosend-mode"] [data-mode="live"]')?.getAttribute("aria-disabled") === "true",
+    liveConfirm: text('[data-testid="v3-ai-autosend-live-confirm"]'),
+    focused: document.activeElement?.textContent?.trim() ?? null,
+    overnight: [...document.querySelectorAll('[data-testid="v3-ai-autosend-overnight"]')].map((element) => element.textContent.trim()),
+    unconfirmed: document.querySelectorAll('[data-testid^="v3-ai-autosend-phrase-"][data-confirmed="false"]').length,
+    journal: [...document.querySelectorAll('[data-testid="v3-ai-autosend-journal-row"]')].map((row) => row.dataset.status),
+    hiddenText: document.querySelectorAll('[data-testid="v3-ai-autosend-journal-row"] .text-fg-3').length,
+    summaryItems: document.querySelectorAll('[data-testid="v3-ai-autosend-summary-item"]').length,
+    summaryHidden: document.querySelectorAll('[data-testid="v3-ai-autosend-summary-item"][data-hidden]').length,
+    summaryEmpty: text('[data-testid="v3-ai-autosend-summary-empty"]'),
+    settingsDisabled: document.querySelector('[data-testid="v3-ai-autosend-settings"] fieldset')?.disabled ?? null,
+    saveButton: document.querySelector('[data-testid="v3-ai-autosend-settings"] button[type="submit"]')?.textContent.trim() ?? null,
+    saveIdle: document.querySelector('[data-testid="v3-ai-autosend-settings"] button[type="submit"]')?.getAttribute("aria-disabled") === "true",
+    settingsStatus: text('[data-testid="v3-ai-autosend-settings-status"]'),
+    liveTestLock: text('[data-testid="v3-ai-autosend-live-test-lock"]'),
+    liveTestInput: document.querySelector('[data-testid="v3-ai-autosend-live-test"] input[type="url"]') !== null,
+    finalReasons: [...document.querySelectorAll('[data-testid="v3-ai-autosend-final-reason"]')].map((element) => element.textContent.trim()),
+    issues: [...document.querySelectorAll('[data-testid="v3-ai-autosend-settings"] .text-danger')].map((element) => element.textContent.trim()),
+    chip: text('[data-testid="v3-inbox-autoreply-chip"]'),
+    autoreplyLabels: [...document.querySelectorAll('[data-testid="v3-inbox-message"][data-origin="autoreply"] time + span')].map((element) => ({ text: element.textContent.trim(), title: element.getAttribute("title") })),
+    strip: strip ? { state: strip.dataset.state, text: strip.textContent.replace(/\s+/gu, " ").trim(),
+      checked: strip.querySelector('[role="switch"]')?.getAttribute("aria-checked") ?? null } : null,
+    // Цели меньше 44 px, кроме флажков внутри подписи-цели высотой ≥ 44 px (WCAG 2.5.8: цель — вся подпись).
+    smallTargets: [...document.querySelectorAll("main a, main button, main select, main input:not([type=hidden]), main summary")]
+      .filter((element) => {
+        const box = element.getBoundingClientRect();
+        if (box.width === 0 || box.height === 0 || element.closest("[popover]") || element.matches(".v3-ai-mark")) return false;
+        if (box.height >= 44) return false;
+        const label = element.matches("input[type=checkbox]") ? element.closest("label") : null;
+        return !(label && label.getBoundingClientRect().height >= 44);
+      })
+      .map((element) => element.getAttribute("aria-label") ?? (element.textContent.trim().slice(0, 30) || element.outerHTML.slice(0, 60))),
+    solidRed: [...document.querySelectorAll("main a, main button")].filter((element) => getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)"
+      && element.getBoundingClientRect().width > 0).map((element) => element.textContent.trim()),
+  };
+}
+
+async function aiP4Screenshots() {
+  const outIndex = process.argv.indexOf("--ai-agent-p4") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--")
+    ? process.argv[outIndex] : join(ROOT, "docs/design/evo-platform/implementation-screenshots/ai-agent-p4"));
+  const workDir = join(require("node:os").tmpdir(), "evo-ai-agent-p4-render");
+  mkdirSync(outDir, { recursive: true });
+  mkdirSync(workDir, { recursive: true });
+  const bundleName = "ai-agent-p4-client.js";
+  const css = await compileCss();
+  await buildClientBundle(join(workDir, bundleName));
+  await buildClientBundle(join(workDir, "ai-agent-p4-settings.js"), SETTINGS_ENTRY);
+  await buildClientBundle(join(workDir, "ai-agent-p4-mode.js"), MODE_ENTRY);
+  const failures = [];
+  const check = (condition, message) => { if (!condition) failures.push(message); };
+  const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
+  const htmlFor = {};
+  const page = (name, title, markup, data, script = bundleName) => {
+    const htmlPath = join(workDir, `${name}.html`);
+    writeFileSync(htmlPath, [
+      "<!DOCTYPE html>",
+      '<html lang="ru" data-theme="light" class="h-full antialiased">',
+      `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>${title} — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+      `<body class="min-h-full"><div id="root">${markup}</div><script type="application/json" id="${FIXTURE_ID}">${JSON.stringify(data).replaceAll("<", "\\u003c")}</script><script src="${script}"></script></body></html>`,
+    ].join(""));
+    return htmlPath;
+  };
+  for (const [name, scenario] of Object.entries(AI_P4_CHAT)) {
+    const { actor, chatApp } = await buildAutosendChatPage(name, scenario);
+    const search = `conversation=${WA_CONVERSATION}`;
+    const markup = renderToString(shellTree({ actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp }));
+    htmlFor[name] = page(name, "WhatsApp", markup, {
+      actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
+      pulse: { list: "0000000000000002", chat: "0000000000000001" }, older: { messages: [], hasOlder: false }, ai: scenario.ai,
+    });
+  }
+  for (const [name, scenario] of Object.entries(AI_P4_SECTION)) {
+    const { actor, search, body } = await buildAutosendSectionMarkup(name, scenario);
+    const markup = renderToString(shellTree({ actor, pathname: "/v3/ai-agent", search, body, cabinet: null }));
+    htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/v3/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
+  }
+  htmlFor["settings-live"] = page("settings-live", "Автоответчик", "", { settings: AUTOSEND_SETTINGS }, "ai-agent-p4-settings.js");
+  htmlFor["mode-live"] = page("mode-live", "Автоответчик", "", {}, "ai-agent-p4-mode.js");
+
+  const { chromium } = require("playwright");
+  // Русский интерфейс браузера: поля времени — 24 часа, как у сотрудников EVO.
+  const browser = await chromium.launch({ args: ["--lang=ru-RU"] });
+  const open = async (name, viewportKey) => {
+    // Русская локаль браузера: время в полях — 24 часа, как у сотрудников EVO.
+    const context = await browser.newContext({ ...VIEWPORTS[viewportKey], colorScheme: "light", locale: "ru-RU" });
+    const session = await context.newPage();
+    const errors = [];
+    session.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+    session.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    await session.goto(pathToFileURL(htmlFor[name]).href, { waitUntil: "load" });
+    await session.evaluate(() => document.fonts.ready);
+    await session.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
+    await session.waitForTimeout(200);
+    return { context, page: session, errors };
+  };
+  const close = async ({ context, page: session, errors }, label) => {
+    const harness = await session.evaluate(() => window.__harness);
+    const problems = [...errors.filter((message) => !/Failed to load resource|ERR_FILE_NOT_FOUND|#preview|#download/u.test(message)),
+      ...harness.recoverable.map((message) => `recoverable: ${message}`), ...harness.errors];
+    check(problems.length === 0, `${label}: browser errors: ${problems.join(" | ")}`);
+    await context.close();
+    return harness;
+  };
+  const shot = async (session, file, { save = true, fullPage = false } = {}) => {
+    if (save) await session.page.screenshot({ path: join(outDir, file), fullPage });
+    const metrics = { ...(await session.page.evaluate(aiMetrics)), autosend: await session.page.evaluate(autosendMetrics) };
+    report({ file, overflowX: metrics.overflowX, autosend: metrics.autosend });
+    check(metrics.overflowX === 0, `${file}: horizontal overflow ${metrics.overflowX}px`);
+    check(metrics.textUnder12.length === 0, `${file}: texts under 12px ${metrics.textUnder12.join(", ")}`);
+    // «Информация для агента» (P2) меряется своим сценарием; здесь — только строка паузы над ней.
+    if (!file.startsWith("section-documents-")) check(metrics.autosend.smallTargets.length === 0, `${file}: targets under 44px: ${metrics.autosend.smallTargets.join(", ")}`);
+    check(metrics.autosend.solidRed.length <= 1, `${file}: solid red controls ${JSON.stringify(metrics.autosend.solidRed)}`);
+    if (metrics.window) check(metrics.windowInsideFeed === true, `${file}: the window leaves the feed`);
+    if (metrics.window && metrics.composer) check(metrics.window.bottom <= metrics.composer.top + 1, `${file}: the window covers the composer`);
+    return metrics;
+  };
+  const expand = async (session) => {
+    await session.page.getByRole("button", { name: "Помочь с ответом — открыть помощника" }).click();
+    await session.page.waitForTimeout(300);
+  };
+
+  try {
+    // Раздел: каждое состояние шапки, журнал, сводка — разметка сервера.
+    const sectionChecks = {
+      "section-autosend-off": (m) => m.mode === "off" && m.enable?.includes("Первое включение — «Проверка без отправки»") && !m.enableDisabled
+        && m.overnight.includes("→ 09:00 след. дня") && m.overnight.includes("→ 00:00 след. дня") && m.unconfirmed === 4 && m.saveButton === "Сохранить настройки"
+        && m.solidRed.length === 0 && m.saveIdle === true
+        && m.liveTestLock === "Чаты живого теста можно добавить после 3 ночей проверки без отправки." && !m.liveTestInput,
+      "section-autosend-no-consent": (m) => m.enableDisabled && m.enable?.includes("Сначала администратор записывает согласие на Gemini."),
+      "section-autosend-shadow": (m) => m.mode === "shadow" && m.lock === "Нужно ещё 2 ночи проверки" && m.liveDisabled
+        && m.header?.includes("Ответственный: Менеджер продаж (синтетический)") && m.header?.includes("Сейчас интервал автоответчика — до 6 октября, 09:00")
+        && m.serverOff === "Отправка выключена на сервере." && m.pause === null
+        && m.liveTestLock === "Чаты живого теста можно добавить после 3 ночей проверки без отправки — нужно ещё 2 ночи." && !m.liveTestInput,
+      "section-autosend-paused": (m) => m.mode === "live" && m.pause?.startsWith("Автоответчик на паузе: WhatsApp не на связи · с 6 октября, 03:14")
+        && m.pause.includes("Снять паузу") && m.serverOff === "Отправка выключена на сервере — ничего не уйдёт, пока её не включат на сервере.",
+      "section-autosend-live": (m) => m.mode === "live" && m.serverOff === null && m.pause === null && m.header?.includes("Отвечает")
+        && m.liveTestLock === null && m.liveTestInput,
+      "section-autosend-journal": (m) => JSON.stringify(m.journal) === JSON.stringify(["shadow", "shadow", "skipped", "skipped", "shadow", "skipped", "shadow"])
+        && m.hiddenText >= 1 && JSON.stringify(m.finalReasons) === JSON.stringify(["Вместо ответа: квалификация собрана"]),
+      "section-autosend-journal-skipped": (m) => JSON.stringify(m.journal) === JSON.stringify(["skipped", "skipped", "skipped"]),
+      "section-autosend-summary": (m) => m.summaryItems === 5 && m.summaryHidden === 1,
+      "section-autosend-summary-empty": (m) => m.summaryEmpty === "Сводок пока нет — первая появится утром после первой ночи.",
+      "section-autosend-read-only": (m) => m.settingsDisabled === true && m.saveButton === null && !m.header?.includes("Поставить на паузу"),
+      "section-documents-paused": (m) => m.pause?.includes("WhatsApp ограничил номер (ошибка 463 или 475)") && m.pause.includes("Открыть «Автоответчик»"),
+    };
+    for (const [name, scenario] of Object.entries(AI_P4_SECTION)) {
+      for (const viewportKey of scenario.viewports) {
+        const session = await open(name, viewportKey);
+        const metrics = await shot(session, `${name}-${viewportKey}.png`, { fullPage: viewportKey === "1440" && /off|journal|summary$/u.test(name) });
+        check(sectionChecks[name](metrics.autosend), `${name}-${viewportKey}: ${JSON.stringify(metrics.autosend)}`);
+        await close(session, `${name}-${viewportKey}`);
+      }
+    }
+
+    // «Отвечает» (настоящие ответы клиентам) пишет только после подтверждения; «Отмена» — без записи, фокус обратно.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open("mode-live", viewportKey);
+      const live = session.page.locator('[data-testid="v3-ai-autosend-mode"] [data-mode="live"]');
+      await live.click();
+      await session.page.waitForTimeout(150);
+      const confirm = await shot(session, `mode-live-confirm-${viewportKey}.png`);
+      check(confirm.autosend.liveConfirm?.startsWith("Автоответчик начнёт отвечать клиентам в WhatsApp") && confirm.autosend.focused === "Отвечать клиентам",
+        `mode-live-confirm-${viewportKey}: ${JSON.stringify({ c: confirm.autosend.liveConfirm, f: confirm.autosend.focused })}`);
+      await session.page.getByRole("button", { name: "Отмена", exact: true }).click();
+      await session.page.waitForTimeout(100);
+      const cancelled = await session.page.evaluate(autosendMetrics);
+      const noWrite = await session.page.evaluate(() => window.__harness.actions.length);
+      check(cancelled.liveConfirm === null && cancelled.focused === "Отвечает" && noWrite === 0,
+        `mode-live-cancel-${viewportKey}: ${JSON.stringify({ c: cancelled.liveConfirm, f: cancelled.focused, noWrite })}`);
+      await live.click();
+      await session.page.getByRole("button", { name: "Отвечать клиентам", exact: true }).click();
+      await session.page.waitForTimeout(300);
+      const harness = await close(session, `mode-live-${viewportKey}`);
+      check(JSON.stringify(harness.actions) === JSON.stringify(["mode|live|7"]), `mode-live-write-${viewportKey}: ${JSON.stringify(harness.actions)}`);
+    }
+
+    // Настройки вживую: неверная фраза → ошибки до записи; исправить → запись с ожидаемой версией.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open("settings-live", viewportKey);
+      const day = session.page.locator('[data-testid="v3-ai-autosend-phrase-ru-day"] textarea');
+      await day.fill("Позвоним 12 числа в рабочее время.");
+      await session.page.getByRole("button", { name: "Сохранить настройки" }).click();
+      await session.page.waitForTimeout(150);
+      await day.evaluate((element) => element.scrollIntoView({ block: "center" }));
+      await session.page.waitForTimeout(80);
+      const invalid = await shot(session, `settings-invalid-${viewportKey}.png`);
+      check(invalid.autosend.settingsStatus === "Проверьте отмеченные поля." && invalid.autosend.issues.some((issue) => issue.includes("Без цифр"))
+        && invalid.autosend.issues.some((issue) => issue.includes("Ровно одно {day}")), `settings-invalid-${viewportKey}: ${JSON.stringify(invalid.autosend.issues)}`);
+      const confirmedAfterEdit = await session.page.locator('[data-testid="v3-ai-autosend-phrase-ru-day"]').getAttribute("data-confirmed");
+      check(confirmedAfterEdit === "false", `settings-${viewportKey}: an edited phrase must lose «Проверено»`);
+      await day.fill("{day} в рабочее время вам позвонит наш руководитель.");
+      await session.page.locator('[data-testid="v3-ai-autosend-phrase-ru-day"] input[type="checkbox"]').check();
+      // Та же фраза и отметка — правок нет, «Сохранить» ждёт; меняем паузу перед ответом.
+      check((await session.page.getByRole("button", { name: "Сохранить настройки" }).getAttribute("aria-disabled")) === "true", `settings-${viewportKey}: clean form must not save`);
+      await session.page.getByRole("spinbutton", { name: "Пауза от, секунд" }).fill("45");
+      const dirty = await shot(session, `settings-dirty-${viewportKey}.png`, { save: viewportKey === "1440" });
+      check(dirty.autosend.solidRed.length === 1 && dirty.autosend.settingsStatus === "Есть несохранённые изменения.", `settings-dirty-${viewportKey}: ${JSON.stringify(dirty.autosend.solidRed)} ${dirty.autosend.settingsStatus}`);
+      await session.page.getByRole("button", { name: "Сохранить настройки" }).click();
+      await session.page.waitForTimeout(300);
+      const saved = await session.page.evaluate(autosendMetrics);
+      const harness = await close(session, `settings-live-${viewportKey}`);
+      check(saved.settingsStatus === "Настройки сохранены." || saved.settingsStatus === null, `settings-saved-${viewportKey}: ${saved.settingsStatus}`);
+      check(harness.actions.length === 1 && harness.actions[0].startsWith("save|7|"), `settings-saved-${viewportKey}: ${JSON.stringify(harness.actions.map((entry) => entry.slice(0, 60)))}`);
+      const sent = JSON.parse(harness.actions[0].split("|").slice(3).join("|"));
+      check(sent.phrases.ru.day.text === "{day} в рабочее время вам позвонит наш руководитель." && sent.phrases.ru.day.confirmed === true
+        && sent.delayMinSeconds === 45 && !Object.hasOwn(sent, "timezone"), `settings-saved-${viewportKey}: payload ${JSON.stringify(sent).slice(0, 120)}`);
+    }
+
+    // Чат: подпись «Автоответчик» с «от имени …», чип в шапке; окно ИИ — полоса и переключатель.
+    for (const viewportKey of AI_P4_CHAT["chat-autoreply"].viewports) {
+      const session = await open("chat-autoreply", viewportKey);
+      const feed = await shot(session, `chat-autoreply-${viewportKey}.png`);
+      check(feed.autosend.chip === "Ночью отвечает автоответчик", `chat-${viewportKey}: chip ${feed.autosend.chip}`);
+      check(feed.autosend.autoreplyLabels.length === 2 && feed.autosend.autoreplyLabels.every((label) => label.text === "· Автоответчик"
+        && label.title === "от имени Менеджер продаж (синтетический)"), `chat-${viewportKey}: labels ${JSON.stringify(feed.autosend.autoreplyLabels)}`);
+      check((await session.page.evaluate(() => window.__harness.autosend.length)) === 0, `chat-${viewportKey}: a collapsed window read the autoresponder`);
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-autosend-chat"]');
+      const opened = await shot(session, `window-autosend-on-${viewportKey}.png`);
+      check(opened.autosend.strip?.checked === "true" && opened.autosend.strip.text.includes("Ночью отвечает по расписанию."), `chat-${viewportKey}: ${JSON.stringify(opened.autosend.strip)}`);
+      await session.page.getByRole("switch", { name: "Автоответчик в этом чате" }).click();
+      await session.page.waitForTimeout(300);
+      const excluded = await shot(session, `window-autosend-excluded-${viewportKey}.png`, { save: viewportKey === "1440" });
+      check(excluded.autosend.strip?.checked === "false" && excluded.autosend.strip.text.includes("Чат исключён — автоответчик сюда не пишет."),
+        `chat-${viewportKey}: excluded ${JSON.stringify(excluded.autosend.strip)}`);
+      const harness = await close(session, `chat-autoreply-${viewportKey}`);
+      check(harness.autosend.length === 2 && harness.autosend[0] === "read" && /^put:true:[0-9a-f-]{36}$/u.test(harness.autosend[1]),
+        `chat-${viewportKey}: ${JSON.stringify(harness.autosend)}`);
+      check(harness.refreshes >= 1, `chat-${viewportKey}: the header chip is re-read after the switch`);
+      check(!harness.actions.some((action) => action.startsWith("send:")), `chat-${viewportKey}: something was sent`);
+    }
+    const stripStates = [
+      ["chat-autosend-shadow", (m) => m.strip?.text.includes("Проверка без отправки — клиенту ничего не уходит.") && m.chip === null],
+      ["chat-autosend-paused", (m) => m.strip?.text.includes("Автоответчик на паузе.")],
+      ["chat-autosend-off", (m) => m.strip === null],
+    ];
+    for (const [name, ok] of stripStates) {
+      const session = await open(name, "1440");
+      await expand(session);
+      await session.page.waitForTimeout(250);
+      const metrics = await shot(session, `window-${name.replace("chat-", "")}-1440.png`);
+      check(ok(metrics.autosend), `${name}: ${JSON.stringify(metrics.autosend.strip)}`);
+      await close(session, name);
+    }
+    {
+      const session = await open("chat-autosend-failed", "1440");
+      await expand(session);
+      await session.page.waitForTimeout(250);
+      const failed = await shot(session, "window-autosend-failed-1440.png");
+      check(failed.autosend.strip?.state === "failed" && failed.autosend.strip.text.includes("не удалось загрузить"), `failed: ${JSON.stringify(failed.autosend.strip)}`);
+      await session.page.locator('[data-testid="v3-ai-autosend-chat"]').getByRole("button", { name: "Повторить" }).click();
+      await session.page.waitForTimeout(250);
+      const retried = await session.page.evaluate(autosendMetrics);
+      check(retried.strip?.state === "on", `failed: retry ${JSON.stringify(retried.strip)}`);
+      await close(session, "chat-autosend-failed");
+    }
+  } finally {
+    await browser.close();
+  }
+
+  if (failures.length) {
+    process.stderr.write(`ai agent p4 checks failed:\n${failures.map((failure) => `- ${failure}`).join("\n")}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(`${JSON.stringify({ ok: true, outDir })}\n`);
+}
+
 async function json() {
   const out = [];
   for (const name of Object.keys(SCENARIOS)) {
@@ -2001,6 +2545,11 @@ async function json() {
 
 if (process.argv.includes("--json")) {
   json().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+} else if (process.argv.includes("--ai-agent-p4")) {
+  aiP4Screenshots().catch((error) => {
     console.error(error);
     process.exit(1);
   });
@@ -2025,6 +2574,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split] | --whatsapp-chat [outDir] | --ai-agent [outDir] | --ai-agent-p3 [outDir]");
+  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split] | --whatsapp-chat [outDir] | --ai-agent [outDir] | --ai-agent-p3 [outDir] | --ai-agent-p4 [outDir]");
   process.exit(2);
 }

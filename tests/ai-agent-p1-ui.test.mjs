@@ -507,7 +507,8 @@ test("section reads: documents, rules, spend and settings are validated, money k
   assert.equal(parseAiAgentSection("spend"), "spend");
   assert.equal(parseAiAgentSection("lab"), "lab", "P2: «Лаборатория»");
   assert.equal(parseAiAgentSection("laboratory"), null);
-  assert.equal(parseAiAgentSection("autosend"), null, "P4 sub-pages do not exist yet");
+  assert.equal(parseAiAgentSection("autosend"), "autosend", "P4: «Автоответчик»");
+  assert.equal(parseAiAgentSection("dictation"), null, "«Диктовка» does not exist yet");
   assert.equal(aiAgentHref("rules"), "/v3/ai-agent?section=rules");
 });
 
@@ -559,10 +560,11 @@ test("the window never reaches the agent, inserts only stored text and never sen
   assert.match(routes, /request\.signal\.addEventListener\("abort", abort/u);
 });
 
-test("the section shows P1 and P2 sub-pages and no P3/P4 controls", () => {
-  // P2 adds «Лист сверки» and «Лаборатория» (tests/ai-agent-p2-ui.test.mjs).
+test("the section shows P1, P2 and P4 sub-pages and no dictation or knowledge-copy controls", () => {
+  // P2 adds «Лист сверки» and «Лаборатория» (tests/ai-agent-p2-ui.test.mjs);
+  // P4 adds «Автоответчик» in its own view (tests/ai-agent-p4-ui.test.mjs).
   assert.deepEqual(AI_AGENT_SECTIONS.map((section) => section.title),
-    ["Информация для агента", "Лист сверки", "Лаборатория", "Правила общения", "Расходы"]);
+    ["Информация для агента", "Лист сверки", "Лаборатория", "Правила общения", "Расходы", "Автоответчик"]);
   // Code only: the header comment names the later sub-pages on purpose.
   const views = read("src/components/v3/ai-agent/AiAgentViews.tsx").replace(/\/\*[\s\S]*?\*\//gu, "");
   for (const later of ["Автоответчик", "Диктовка", "Взять из базы знаний", "Обновить из базы знаний"]) {

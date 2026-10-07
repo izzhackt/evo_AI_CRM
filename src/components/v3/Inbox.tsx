@@ -34,6 +34,8 @@ export type InboxConversation = Readonly<{
 export type InboxChatModel = InboxChatData & Readonly<{
   /** Этап лида словами доски; null — лида нет или его не прочитать. */
   stage: Readonly<{ label: string; phase: StagePhase | null }> | null;
+  /** Ночью в этом чате по-настоящему отвечает автоответчик (P4); нет данных — false. */
+  autoreplyAtNight?: boolean;
 }>;
 
 export type InboxSelectedConversation = InboxConversation &
@@ -333,6 +335,14 @@ export function Inbox({
                 <h2 className="t-section min-w-0 break-words text-fg">{open.person}</h2>
                 {open.chat.stage ? (
                   <StageChip label={open.chat.stage.label} phase={open.chat.stage.phase} />
+                ) : null}
+                {open.chat.autoreplyAtNight ? (
+                  <span className="contents" data-testid="v3-inbox-autoreply-chip">
+                    <Pill tone="neutral">
+                      <Icon name="moon" size={12} className="me-1 shrink-0" />
+                      Ночью отвечает автоответчик
+                    </Pill>
+                  </span>
                 ) : null}
                 {open.waitingSince ? (
                   <Pill tone="warn">

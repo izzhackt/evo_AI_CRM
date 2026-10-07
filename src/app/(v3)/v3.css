@@ -1285,9 +1285,77 @@
   background: var(--bg);
   padding: 8px 12px 4px;
 }
+/*
+ * «Автоответчик в этом чате» (P4): вторая полоса тела окна ИИ под памятью,
+ * той же ширины и с той же волосяной линией. Переключатель — нейтральный
+ * (включено — тёмная дорожка, как «выбрано»; красный остаётся «Отправить»),
+ * цель 44 px; недоступный — токены поверхности, без opacity.
+ */
+.v3-world .v3-ai-autosend {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 8px;
+  margin: -12px -16px 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 8px 4px 16px;
+}
+.v3-world .v3-switch {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+.v3-world .v3-switch:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.v3-world .v3-switch-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border: 1px solid var(--control-edge);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.v3-world .v3-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(32 32 32 / 0.25);
+}
+.v3-world .v3-switch[aria-checked="true"] .v3-switch-track {
+  border-color: var(--text);
+  background: var(--text);
+}
+.v3-world .v3-switch[aria-checked="true"] .v3-switch-track::after {
+  translate: 16px 0;
+}
+.v3-world .v3-switch[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+.v3-world .v3-switch[aria-disabled="true"] .v3-switch-track {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+.v3-world .v3-switch[aria-disabled="true"][aria-checked="true"] .v3-switch-track {
+  background: var(--text-3);
+}
 @media (prefers-reduced-motion: no-preference) {
   .v3-world .v3-ai-window {
     animation: v3-ai-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .v3-world .v3-switch-track,
+  .v3-world .v3-switch-track::after {
+    transition: background-color 150ms ease-out, translate 150ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .v3-world .v3-ai-memory-chevron {
     transition: rotate 150ms ease-out;

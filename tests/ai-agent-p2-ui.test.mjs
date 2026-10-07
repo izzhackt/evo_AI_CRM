@@ -117,8 +117,9 @@ const proof = (bytes) => ({
 // ------------------------------------------------------------ pure contract
 
 test("route: sections are real links; document, page, chunk, replace and review filters are strict", () => {
+  // P4 добавляет «Автоответчик» после «Расходов» (tests/ai-agent-p4-ui.test.mjs).
   assert.deepEqual(AI_AGENT_SECTIONS.map((section) => section.title),
-    ["Информация для агента", "Лист сверки", "Лаборатория", "Правила общения", "Расходы"]);
+    ["Информация для агента", "Лист сверки", "Лаборатория", "Правила общения", "Расходы", "Автоответчик"]);
   assert.equal(parseAiAgentRoute({})?.section, "documents");
   assert.equal(parseAiAgentRoute({ section: "documents" })?.section, "documents");
   assert.deepEqual(parseAiAgentRoute({ document: ID(1).toUpperCase(), page: "3", chunk: "42" }),

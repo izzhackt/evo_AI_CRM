@@ -10,6 +10,7 @@
  * всегда проверенный сохранённый текст.
  */
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
+import { AI_AUTOSEND_JOURNAL_FILTERS, type AiAutosendJournalFilter } from "./ai-agent-autosend.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
@@ -342,8 +343,8 @@ export function answerWarnings(result: AiAnswerResult): readonly string[] {
 
 /**
  * Подразделы «ИИ-агента» (план §12.2): с P2 — «Лист сверки» и «Лаборатория»
- * между «Информацией для агента» и «Правилами общения». «Автоответчик» и
- * «Диктовка» (P4, позже) не показываются — без пустых вкладок.
+ * между «Информацией для агента» и «Правилами общения»; с P4 — «Автоответчик»
+ * после «Расходов». «Диктовка» (позже, Q6) не показывается — без пустых вкладок.
  */
 export const AI_AGENT_SECTIONS = Object.freeze([
   { key: "documents", title: "Информация для агента" },
@@ -351,6 +352,7 @@ export const AI_AGENT_SECTIONS = Object.freeze([
   { key: "lab", title: "Лаборатория" },
   { key: "rules", title: "Правила общения" },
   { key: "spend", title: "Расходы" },
+  { key: "autosend", title: "Автоответчик" },
 ] as const);
 export type AiAgentSection = (typeof AI_AGENT_SECTIONS)[number]["key"];
 
@@ -382,6 +384,19 @@ export type AiAgentRoute = Readonly<{
   chunkId: number | null;
   replaceId: string | null;
   reviewFilter: AiReviewFilter;
+  /**
+   * «Автоответчик» (P4): вид `?view=` (настройки, журнал, утренняя сводка),
+   * фильтр журнала `?status=` и выбранная ночь `?summary=`. Только у этого
+   * подраздела — у остальных ключа нет.
+   */
+  autosend?: AiAutosendRoute;
+}>;
+
+export type AiAutosendView = "settings" | "journal" | "summary";
+export type AiAutosendRoute = Readonly<{
+  view: AiAutosendView;
+  journalFilter: AiAutosendJournalFilter;
+  summaryId: string | null;
 }>;
 
 const ROUTE_KEYS: Readonly<Record<AiAgentSection, readonly string[]>> = {
@@ -390,7 +405,9 @@ const ROUTE_KEYS: Readonly<Record<AiAgentSection, readonly string[]>> = {
   lab: [],
   rules: [],
   spend: [],
+  autosend: ["view", "status", "summary"],
 };
+const AUTOSEND_FILTERS: readonly string[] = AI_AUTOSEND_JOURNAL_FILTERS.map((filter) => filter.key).filter((key) => key !== "all");
 const POSITIVE = /^[1-9]\d{0,14}$/u;
 
 export function parseAiAgentRoute(query: Readonly<Record<string, string | readonly string[] | undefined>>): AiAgentRoute | null {
@@ -411,6 +428,7 @@ export function parseAiAgentRoute(query: Readonly<Record<string, string | readon
   };
   const documentId = uuid("document"), replaceId = uuid("replace");
   if (documentId === false || replaceId === false) return null;
+  if (section === "autosend") return parseAutosendRoute(values);
   const rawPage = values.get("page"), rawChunk = values.get("chunk"), rawStatus = values.get("status");
   const page = rawPage === undefined ? null : POSITIVE.test(rawPage) && Number(rawPage) <= 300 ? Number(rawPage) : -1;
   const chunkId = rawChunk === undefined ? null : POSITIVE.test(rawChunk) && Number.isSafeInteger(Number(rawChunk)) ? Number(rawChunk) : -1;
@@ -421,6 +439,27 @@ export function parseAiAgentRoute(query: Readonly<Record<string, string | readon
   return Object.freeze({
     section, documentId, page, chunkId, replaceId,
     reviewFilter: rawStatus === "resolved" || rawStatus === "dismissed" ? rawStatus : "open",
+  });
+}
+
+/**
+ * `?section=autosend[&view=journal&status=…|&view=summary&summary=<uuid>]`.
+ * Фильтр — только у журнала, ночь — только у сводки; «Все» и «Настройки» —
+ * без ключа (одна ссылка на одно состояние).
+ */
+function parseAutosendRoute(values: ReadonlyMap<string, string>): AiAgentRoute | null {
+  const rawView = values.get("view"), rawStatus = values.get("status"), rawSummary = values.get("summary");
+  if (rawView !== undefined && rawView !== "journal" && rawView !== "summary") return null;
+  const view: AiAutosendView = rawView ?? "settings";
+  if (rawStatus !== undefined && (view !== "journal" || !AUTOSEND_FILTERS.includes(rawStatus))) return null;
+  if (rawSummary !== undefined && (view !== "summary" || !UUID.test(rawSummary))) return null;
+  return Object.freeze({
+    section: "autosend" as const, documentId: null, page: null, chunkId: null, replaceId: null, reviewFilter: "open" as const,
+    autosend: Object.freeze({
+      view,
+      journalFilter: (rawStatus ?? "all") as AiAutosendJournalFilter,
+      summaryId: rawSummary ? rawSummary.toLowerCase() : null,
+    }),
   });
 }
 

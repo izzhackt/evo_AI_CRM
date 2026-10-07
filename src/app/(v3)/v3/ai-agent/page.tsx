@@ -10,6 +10,7 @@ import {
   AiSpendView,
   AiUnavailable,
 } from "@/components/v3/ai-agent/AiAgentViews";
+import { AiAutosendPauseBanner, AiAutosendView } from "@/components/v3/ai-agent/AiAutosendView";
 import { AiDocumentViewer } from "@/components/v3/ai-agent/AiDocumentViewer";
 import { AiExamplesList } from "@/components/v3/ai-agent/AiExamplesList";
 import { AiLaboratory } from "@/components/v3/ai-agent/AiLaboratory";
@@ -18,8 +19,10 @@ import { PartShell } from "@/components/v3/PartShell";
 import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { aiAgentFeatureOn } from "@/lib/server/ai-agent-internal-auth";
+import { aiAutosendServerState } from "@/lib/server/ai-agent-send-config";
 import { readAiAgentStatus } from "@/lib/server/ai-agent-route-handlers";
 import { aiAgentHref, parseAiAgentRoute } from "@/lib/v3/ai-agent";
+import { readAiAutosend, readAiAutosendJournal, readAiAutosendSummary } from "@/lib/v3/ai-agent-autosend-source";
 import {
   readAiDocumentDetail,
   readAiDocumentPage,
@@ -44,7 +47,8 @@ const requestIdsFor = (ids: readonly string[]) => Object.fromEntries(ids.map((id
  * Подразделы — настоящие ссылки `?section=`: «Информация для агента» (список,
  * загрузка, «Новая версия» `?replace=`, просмотр `?document=&page=&chunk=`),
  * «Лист сверки» (`?status=resolved`, `?document=`), «Лаборатория», «Правила
- * общения», «Расходы». Чтения и записи — прямо в RPC базы от имени
+ * общения», «Расходы», «Автоответчик» (P4: `?view=journal|summary`, пауза —
+ * строкой над каждым подразделом). Чтения и записи — прямо в RPC базы от имени
  * сотрудника; агент нужен для Лаборатории (через маршруты CRM) и состояния
  * Gemini в «Расходах». Просмотр роли видит то же, что роль, и ничего не пишет.
  */
@@ -57,12 +61,20 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
   const featureOn = aiAgentFeatureOn();
   const retryHref = aiAgentHref(section, section === "documents"
     ? { document: route.documentId, page: route.page, replace: route.replaceId }
-    : section === "review" ? { status: route.reviewFilter === "open" ? null : route.reviewFilter, document: route.documentId } : {});
+    : section === "review" ? { status: route.reviewFilter === "open" ? null : route.reviewFilter, document: route.documentId }
+      : section === "autosend" && route.autosend ? {
+        view: route.autosend.view === "settings" ? null : route.autosend.view,
+        status: route.autosend.journalFilter === "all" ? null : route.autosend.journalFilter,
+        summary: route.autosend.summaryId,
+      } : {});
   // Сколько пунктов «Листа сверки» ждут решения (открытые и применяемые) —
   // у вкладки на каждом подразделе.
-  const [settings, reviewCount] = await Promise.all([
+  // Автоответчик (P4) читается на каждом подразделе: пауза снимается только
+  // человеком, поэтому её строка видна везде, а не только в своём подразделе.
+  const [settings, reviewCount, autosend] = await Promise.all([
     readAiSettings(actor),
     section === "review" ? Promise.resolve(null) : readAiReview(actor, { filter: "open", documentId: null, limit: 1 }),
+    readAiAutosend(actor),
   ]);
   const settingsData = settings.status === "available" ? settings.data : null;
   let reviewOpenCount = reviewCount?.status === "available" ? reviewCount.data.pendingCount : null;
@@ -150,6 +162,25 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
         retryHref={retryHref}
       />
     );
+  } else if (section === "autosend" && route.autosend) {
+    const view = route.autosend;
+    const [journal, summary] = await Promise.all([
+      view.view === "journal" ? readAiAutosendJournal(actor, { filter: view.journalFilter, limit: 100 }) : Promise.resolve(null),
+      view.view === "summary" ? readAiAutosendSummary(actor, view.summaryId) : Promise.resolve(null),
+    ]);
+    if (summary?.status === "missing") notFound();
+    content = (
+      <AiAutosendView
+        read={autosend}
+        route={view}
+        journal={journal}
+        summary={summary}
+        serverOn={aiAutosendServerState() === "on"}
+        preview={preview}
+        retryHref={retryHref}
+        requestIds={{ settings: randomUUID(), toggle: randomUUID(), mode: randomUUID(), pause: randomUUID(), resume: randomUUID() }}
+      />
+    );
   } else {
     const [spend, agentStatus] = await Promise.all([readAiSpend(actor), readAiAgentStatus(actor.organizationId)]);
     content = (
@@ -171,6 +202,9 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
       <div className="space-y-5">
         <AiAgentNav section={section} reviewOpenCount={reviewOpenCount} />
         <AiAgentNotice settings={settingsData} featureOn={featureOn} preview={preview} consentRequestId={randomUUID()} />
+        {section !== "autosend" && autosend.status === "available" ? (
+          <AiAutosendPauseBanner state={autosend.data} preview={preview} resumeRequestId="" compactHref={aiAgentHref("autosend")} />
+        ) : null}
         {content}
       </div>
     </PartShell>

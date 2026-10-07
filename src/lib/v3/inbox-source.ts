@@ -19,10 +19,13 @@ import {
   type PlatformWhatsAppChatMessage,
   type PlatformWhatsAppChatState,
 } from "@/lib/platform-communications";
-import { staffPresentationCan } from "@/lib/platform-access";
+import { staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { isFreshWorkingWahaSession } from "@/lib/provider-display-status";
 import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress-config";
 import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
+import { aiAutosendServerState } from "@/lib/server/ai-agent-send-config";
+import { aiAutosendAnswersHere } from "@/lib/v3/ai-agent-autosend";
+import { readAiAutosendChat } from "@/lib/v3/ai-agent-autosend-source";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 import { inboxPresentationQueue, inboxReplyActor } from "@/lib/v3/inbox-access";
 import {
@@ -170,7 +173,11 @@ function toInboxChatAttempt(
   attempt: PlatformWhatsAppChatAttempt,
   viewerMembershipId: string,
 ): InboxChatAttempt {
+  // Автоответ (P4) подписан ответственным, но это не его сообщение: ни
+  // «Повторить» тем же запросом, ни «Вернуть текст в поле».
+  const autoreply = attempt.kind === "ai_autosend";
   return Object.freeze({
+    autoreply,
     attemptId: attempt.attemptId,
     workItemId: attempt.workItemId,
     requestId: attempt.requestId,
@@ -178,7 +185,7 @@ function toInboxChatAttempt(
     reconciliationRequired: attempt.reconciliationRequired,
     text: attempt.finalText,
     authorName: attempt.authorizedByName,
-    authorIsViewer: attempt.authorizedByMembershipId === viewerMembershipId.toLowerCase(),
+    authorIsViewer: !autoreply && attempt.authorizedByMembershipId === viewerMembershipId.toLowerCase(),
     at: attempt.authorizedAt,
     claimedAt: attempt.claimedAt,
     sourceMessageId: attempt.sourceMessageId,
@@ -236,6 +243,22 @@ async function readStage(
   if (stage === "closed") return Object.freeze({ label: "Лид закрыт", phase: null });
   const label = salesStage(stage);
   return label ? Object.freeze({ label, phase: stagePhase("sales", stage) }) : null;
+}
+
+/**
+ * Шапка чата «Ночью отвечает автоответчик» (P4): только если автоответчик
+ * здесь ответит по-настоящему — включён, не на паузе, чат не исключён, режим
+ * «Отвечает» или чат живого теста, отправка включена на сервере. Чтение
+ * информационное: сбой или отказ — без чипа, чат работает как прежде.
+ */
+async function readAutoreplyAtNight(actor: ActivePlatformActor, conversationId: string): Promise<boolean> {
+  if (!staffHasPermission(actor, "ai.agent.use")) return false;
+  try {
+    const read = await readAiAutosendChat(actor, conversationId);
+    return read.status === "available" && aiAutosendAnswersHere(read.data, aiAutosendServerState() === "on");
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -298,7 +321,10 @@ export async function readInbox(
     ) {
       throw new Error("V3 inbox is unavailable.");
     }
-    const stage = await readStage(actor, context.canonicalLeadId);
+    const [stage, autoreplyAtNight] = await Promise.all([
+      readStage(actor, context.canonicalLeadId),
+      readAutoreplyAtNight(actor, thread.conversation.id),
+    ]);
     const chat: InboxChatModel = Object.freeze({
       messages: Object.freeze(thread.messages.map((message) => toInboxChatMessage(message, actor.membershipId))),
       hasOlder: thread.nextMessageCursor !== null,
@@ -306,6 +332,7 @@ export async function readInbox(
       latestInboundMessageId: state.latestInboundMessageId,
       replyAccess: replyAccessOf(actor, thread.conversation, state, channelStatus.channelState),
       stage,
+      autoreplyAtNight,
       readAt,
       pulse: inboxChatSignature(state),
     });

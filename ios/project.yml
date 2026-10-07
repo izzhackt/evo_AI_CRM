@@ -11,9 +11,14 @@ configs:
   Debug: debug
   Release: release
 
+# Debug идёт на стенд из игнорируемого Local.xcconfig. Release (архив для
+# App Store) читает ReleaseBase.xcconfig, а тот подключает игнорируемый
+# Release.xcconfig: его пишет scripts/write-release-config.sh из переменных
+# окружения, образец в Release.xcconfig.example. Порядок выпуска в README.md,
+# «Выпуск в App Store».
 configFiles:
   Debug: Local.xcconfig
-  Release: Local.xcconfig
+  Release: ReleaseBase.xcconfig
 
 settings:
   base:
@@ -75,6 +80,16 @@ targets:
         # пустое значение в Local.xcconfig — честный fallback в коде на
         # https://app.evoadmissions.com (AppConfig.portalWebBaseURL).
         PORTAL_WEB_BASE_URL: "$(PORTAL_WEB_BASE_URL)"
+    # Release без значений из Release.xcconfig, с адресом не https:// или с
+    # исключением ATS в Info.plist не собирается; архив ещё требует Team ID
+    # и ключ без заглушки. В Debug шаг ничего не делает.
+    preBuildScripts:
+      - name: Check Release configuration
+        script: '"$SRCROOT/scripts/check-release-config.sh"'
+        inputFiles:
+          - $(SRCROOT)/scripts/check-release-config.sh
+          - $(SRCROOT)/$(INFOPLIST_FILE)
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: Supabase
         product: Supabase

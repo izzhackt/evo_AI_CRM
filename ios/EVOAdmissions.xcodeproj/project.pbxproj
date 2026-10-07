@@ -255,7 +255,8 @@
 		F4B21D0A664C40CAA299E1E4 /* UniversityCatalogFilterPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCatalogFilterPolicyTests.swift; sourceTree = "<group>"; };
 		F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentRunnerView.swift; sourceTree = "<group>"; };
 		FD04FB295EC8AF191E69FE6A /* TabShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabShell.swift; sourceTree = "<group>"; };
-		"TEMP_F5863BE1-91D8-4A06-9600-3713F5E9C7FD" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
+		"TEMP_62275031-7507-491E-AD62-A7C3ACDF95F2" /* ReleaseBase.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ReleaseBase.xcconfig; sourceTree = "<group>"; };
+		"TEMP_760A327C-5B0C-474F-B5DC-1661C1ADFB8A" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -464,10 +465,11 @@
 			path = lib;
 			sourceTree = "<group>";
 		};
-		"TEMP_55848690-805C-438D-A611-7353125D7427" /* ios */ = {
+		"TEMP_B4404633-4C94-4FA7-B4CA-FB58B736EF5B" /* ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_F5863BE1-91D8-4A06-9600-3713F5E9C7FD" /* Local.xcconfig */,
+				"TEMP_760A327C-5B0C-474F-B5DC-1661C1ADFB8A" /* Local.xcconfig */,
+				"TEMP_62275031-7507-491E-AD62-A7C3ACDF95F2" /* ReleaseBase.xcconfig */,
 			);
 			path = ios;
 			sourceTree = "<group>";
@@ -479,6 +481,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8CE385B75F1357DF7D3B7DF9 /* Build configuration list for PBXNativeTarget "EVO admissions" */;
 			buildPhases = (
+				B983C9588F49988661E3ED3A /* Check Release configuration */,
 				BB128637DB6780C1A4BB59D1 /* Sources */,
 				8EE9A1F2F95910B8912DF93D /* Resources */,
 				1BC30991CD54FF7329CBF0CA /* Frameworks */,
@@ -574,6 +577,30 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B983C9588F49988661E3ED3A /* Check Release configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/scripts/check-release-config.sh",
+				"$(SRCROOT)/$(INFOPLIST_FILE)",
+			);
+			name = "Check Release configuration";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/scripts/check-release-config.sh\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B839773AEFFB232B753C8763 /* Sources */ = {
@@ -747,7 +774,7 @@
 		};
 		B6C84763ED668FD71B0D8C20 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_F5863BE1-91D8-4A06-9600-3713F5E9C7FD" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_62275031-7507-491E-AD62-A7C3ACDF95F2" /* ReleaseBase.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -865,7 +892,7 @@
 		};
 		F095E5C184A5CF5D3A673C4C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_F5863BE1-91D8-4A06-9600-3713F5E9C7FD" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_760A327C-5B0C-474F-B5DC-1661C1ADFB8A" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

@@ -50,10 +50,13 @@ function links(model) {
 // WhatsApp item: «WhatsApp» is shown exactly when /v3/inbox is open
 // (messaging.read), so the admissions preview now lists it right after «Сегодня»
 // as the only item of «Продажи» it has.
+// «ИИ-агент» (plan of the AI agent §12.2, owner Q9 «нет, все могут»): one item
+// in «Общее» for every role, after «База знаний» — the route needs ai.agent.use,
+// which every staff role gets (268); a preview shows it for every fixed role.
 const expectedRoleLinks = {
-  admin: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "knowledge", "marketing", "settings"],
-  sales: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets"],
-  admissions: ["home", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets"],
+  admin: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "knowledge", "ai-agent", "marketing", "settings"],
+  sales: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets", "ai-agent"],
+  admissions: ["home", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets", "ai-agent"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -66,9 +69,9 @@ for (const role of ["admin", "sales", "admissions"]) {
     // conversation stands in «Общее»: each lives in its department. Since
     // 28.09.2026 «Заявки» are not there either: they lead «Продажи».
     assert.deepEqual(model.common.map((link) => link.label), role === "sales"
-      ? ["Задачи", "Командный чат", "Шаблоны ответов"]
-      : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний", "Маркетинг"]
-      : ["Задачи", "Командный чат", "Календарь", "Документы", "Шаблоны ответов"]);
+      ? ["Задачи", "Командный чат", "Шаблоны ответов", "ИИ-агент"]
+      : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний", "ИИ-агент", "Маркетинг"]
+      : ["Задачи", "Командный чат", "Календарь", "Документы", "Шаблоны ответов", "ИИ-агент"]);
     const every = links(model);
     assert.equal(every.find((link) => link.id === "inbox")?.href, "/v3/inbox", `${role}: WhatsApp (06.10.2026)`);
     assert.equal(every.find((link) => link.id === "messages")?.href, role === "sales" ? undefined : "/v3/messages");
@@ -134,7 +137,7 @@ test("Э6: every destination has one fixed place for all roles, and no role sees
   assert.equal(places.get("messages"), "admissions");
   // «Продажи» and «Общее» keep one order for everyone: roles only drop items.
   const salesOrder = ["requests", "pipeline", "inbox", "sales-report"];
-  const order = ["tasks", "team-chat", "calendar", "documents", "reply-snippets", "knowledge", "marketing"];
+  const order = ["tasks", "team-chat", "calendar", "documents", "reply-snippets", "knowledge", "ai-agent", "marketing"];
   for (const role of ["admin", "sales", "admissions"]) {
     const model = navigation(role);
     const common = model.common.map((link) => link.id);
@@ -467,6 +470,7 @@ test("each sidebar destination opens under a heading with the same words", () =>
     ["reply-snippets", `${V3}/reply-snippets/page.tsx`, true],
     ["knowledge", `${V3}/knowledge/page.tsx`, true],
     ["marketing", `${V3}/marketing/page.tsx`, true],
+    ["ai-agent", `${V3}/ai-agent/page.tsx`, true],
     ["settings", `${V3}/settings/page.tsx`, true],
   ];
   const visible = new Map(["admin", "sales", "admissions"].flatMap((role) => links(navigation(role)).map((link) => [link.id, link.label])));

@@ -50,6 +50,7 @@ import {
 } from "@/lib/v3/whatsapp-chat";
 
 import { appendChatDraft, chatStoreKey, readChatStore, useChatStore, writeChatStore } from "./chat-store";
+import { InboxAiAssistant, type InboxAssistantConfig } from "./InboxAiAssistant";
 import { InboxComposer } from "./InboxComposer";
 import { InboxMessageMedia } from "./InboxMessageMedia";
 import { useInboxPulse } from "./useInboxPulse";
@@ -354,11 +355,11 @@ export function InboxChat({
   replySnippets: readonly ReplySnippetPickerItem[] | null;
   mediaAttachmentContext: V3InboxMediaAttachmentContext | null;
   /**
-   * Место будущего окна ИИ (справа внизу ленты, свёрнутое по умолчанию). В
-   * этом выпуске его нет: слот пустой и ничего не рисует. Окно не закрывает
-   * поле ответа — оно лежит над лентой, а поле — под ней.
+   * Окно ИИ (план ИИ-агента §12.1): справа внизу ленты, свёрнуто по
+   * умолчанию. Лежит над лентой и не закрывает поле ответа; есть только там,
+   * где есть поле ответа. null — у сотрудника нет права ai.agent.use.
    */
-  assistant?: ReactNode;
+  assistant?: InboxAssistantConfig | null;
 }>) {
   const router = useRouter();
   const fieldId = useId();
@@ -564,6 +565,18 @@ export function InboxChat({
     requestAnimationFrame(() => textarea.current?.focus());
   }
 
+  /** «Вставить в ответ» окна ИИ: к написанному, фокус — в поле, ничего не отправляется. */
+  const insertFromAssistant = useCallback((text: string) => {
+    appendChatDraft(storeKey, text);
+    setNotice(null);
+    requestAnimationFrame(() => {
+      const field = textarea.current;
+      if (!field) return;
+      field.focus();
+      field.setSelectionRange(field.value.length, field.value.length);
+    });
+  }, [storeKey]);
+
   function retry(requestId: string) {
     writeChatStore(storeKey, (previous) => ({
       ...previous,
@@ -684,6 +697,7 @@ export function InboxChat({
           aria-label={`Переписка: ${person}`}
           tabIndex={0}
           onScroll={onScroll}
+          data-ai-space={assistant && canSend ? "" : undefined}
           className="v3-inbox-feed min-h-0 flex-1 overflow-y-auto overscroll-contain bg-bg px-3 py-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring @2xl:px-5"
         >
           {feed.hasOlder ? (
@@ -741,10 +755,15 @@ export function InboxChat({
             <Icon name="chevron-down" size={16} className="shrink-0" />
           </button>
         ) : null}
-        {assistant ? (
-          <div className="pointer-events-none absolute bottom-3 end-3 z-10" data-slot="assistant">
-            <div className="pointer-events-auto">{assistant}</div>
-          </div>
+        {assistant && canSend ? (
+          <InboxAiAssistant
+            conversationId={conversationId}
+            latestInboundMessageId={chat.latestInboundMessageId}
+            storageScope={storageScope}
+            config={assistant}
+            lifted={showJump}
+            onInsert={insertFromAssistant}
+          />
         ) : null}
       </div>
       {stalled ? (

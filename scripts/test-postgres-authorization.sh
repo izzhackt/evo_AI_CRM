@@ -3081,6 +3081,18 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_agent_p1.sql
   fi
+
+  # «ИИ-агент» P1, срез 5 (окно ИИ в чате): the saved answer shows its sources
+  # from the database — chunk text, document title, audience and pages — never
+  # the quote/title/audience the agent stored; open «Лист сверки» items mark a
+  # source, superseded documents are not live, deleted or foreign chunks are
+  # missing with no text; access and the 15-function staff inventory are
+  # unchanged. Matched by name, like the hook above.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_answer_sources.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_answer_sources.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

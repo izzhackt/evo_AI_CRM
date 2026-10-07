@@ -53,6 +53,16 @@
  *       Серверные действия и опрос отвечают синтетикой этой вкладки: ничего не
  *       отправляется. По умолчанию outDir —
  *       docs/design/evo-platform/implementation-screenshots/whatsapp-chat.
+ *   node tests/e2e/conversations-static-render.cjs --ai-agent [outDir]
+ *     → «ИИ-агент» P1 (план ИИ-агента §12): окно ИИ в настоящем чате
+ *       WhatsApp — капсула, поток «Ищу → Пишу → Ответ готов», источники и
+ *       номера, «Почему такой ответ», вставка в поле без отправки, 409 «ответ
+ *       устарел», Esc, перетаскивание мышью и Home, честные состояния (не
+ *       подключён, нет согласия, недоступен, баланс Gemini, лимит, без
+ *       источников, ждём клиента) — и раздел «ИИ-агент» (материалы, правила,
+ *       расходы, согласие администратора). 1440×900 и 390×844, синтетика.
+ *       По умолчанию outDir —
+ *       docs/design/evo-platform/implementation-screenshots/ai-agent.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -329,7 +339,7 @@ const { PartShell } = require("@/components/v3/PartShell");
 const { Inbox } = require("@/components/v3/Inbox");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
-window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], refreshes: 0, polls: 0 };
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], refreshes: 0, polls: 0 };
 // Опрос и «Показать ранее» отвечают синтетикой этой вкладки (сети нет).
 const originalFetch = window.fetch;
 window.fetch = async (input, init) => {
@@ -341,26 +351,69 @@ window.fetch = async (input, init) => {
   if (url.startsWith("/api/v3/inbox/conversations/")) {
     return new Response(JSON.stringify(fixture.older || { messages: [], hasOlder: false }), { status: 200, headers: { "Content-Type": "application/json" } });
   }
+  // Окно ИИ (--ai-agent): сохранённый ответ, поток агента и вставка отвечают
+  // синтетикой этой вкладки по очереди; ни агента, ни Gemini, ни базы нет.
+  if (fixture.ai && url.startsWith("/api/v3/ai-agent/")) {
+    const method = (init && init.method) || "GET";
+    const take = (list) => (list.length > 1 ? list.shift() : list[0]);
+    const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    if (url.includes("/insert")) {
+      window.__harness.actions.push("ai-insert:" + JSON.parse(init.body).part);
+      const reply = take(fixture.ai.insert);
+      return json(reply.status, reply.body);
+    }
+    if (method === "GET") {
+      window.__harness.actions.push("ai-read");
+      return json(200, take(fixture.ai.saved));
+    }
+    const request = JSON.parse(init.body);
+    window.__harness.actions.push("ai-answer:" + request.intent);
+    window.__harness.aiRefs.push(request.refId);
+    // Как answer_claim_v1: билет не на последнее сообщение клиента в базе — PT409.
+    if (fixture.ai.latest && request.refId !== fixture.ai.latest) return json(409, { error: { code: "superseded" } });
+    const reply = take(fixture.ai.post);
+    if (!reply.frames) return json(reply.status, reply.body);
+    const encoder = new TextEncoder();
+    const signal = init && init.signal;
+    const stream = new ReadableStream({
+      async start(controller) {
+        for (const frame of reply.frames) {
+          await new Promise((resolve) => setTimeout(resolve, frame.delay || 0));
+          if (signal && signal.aborted) { controller.close(); return; }
+          controller.enqueue(encoder.encode("event: " + frame.event + "\\ndata: " + JSON.stringify(frame.data) + "\\n\\n"));
+        }
+        controller.close();
+      },
+    });
+    return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  }
   return originalFetch(input, init);
 };
 const router = {
   push: (href) => { window.__harness.pushes.push(href); }, replace: (href) => { window.__harness.pushes.push(href); },
   refresh() { window.__harness.refreshes += 1; }, back() {}, forward() {}, prefetch() {}, hmrRefresh() {},
 };
-const content = fixture.chatApp
-  ? h(PartShell, fixture.chatApp.main, h(Inbox, fixture.chatApp.inbox))
+const contentFor = (inbox) => fixture.chatApp
+  ? h(PartShell, fixture.chatApp.main, h(Inbox, inbox))
   : fixture.cabinet
   ? h(ConversationsMain, fixture.cabinet.main, h(CaseChatWorkspace, fixture.cabinet.workspace))
   : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } });
-const tree = h(AppRouterContext.Provider, { value: router },
+const treeFor = (content) => h(AppRouterContext.Provider, { value: router },
   h(PathnameContext.Provider, { value: fixture.pathname },
     h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
       h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
         h("div", { className: "v3-world", "data-surface": "staff" },
           h(AppShell, { actor: fixture.actor, initialNotifications: null }, content))))));
-hydrateRoot(document.getElementById("root"), tree, {
+const root = hydrateRoot(document.getElementById("root"), treeFor(contentFor(fixture.chatApp && fixture.chatApp.inbox)), {
   onRecoverableError: (error) => window.__harness.recoverable.push(String((error && error.message) || error)),
 });
+// Новое сообщение клиента в открытом чате (как после опроса): меняется только
+// последнее входящее у страницы.
+window.__harness.newInbound = (id) => {
+  const inbox = fixture.chatApp.inbox;
+  const selected = inbox.view.selected;
+  root.render(treeFor(contentFor({ ...inbox, view: { ...inbox.view, selected: { ...selected, chat: { ...selected.chat, latestInboundMessageId: id } } } })));
+};
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.hydrated = "true"; }));
 `;
 
@@ -1040,6 +1093,492 @@ async function whatsappScreenshots() {
   process.stdout.write(`${JSON.stringify({ ok: true, outDir })}\n`);
 }
 
+// --- «ИИ-агент» P1: окно ИИ в чате и раздел «ИИ-агент» (план ИИ-агента §12) ---
+// Ответы, источники, документы, правила и расходы ВЫДУМАНЫ для проверки
+// вёрстки; вузы и цены условные. Окно гидратируется настоящим клиентским
+// компонентом; поток агента, сохранённый ответ и вставку отвечает синтетика
+// вкладки (fixture.ai), ничего не отправляется. Раздел — настоящая страница
+// `v3/ai-agent/page.tsx` с подменёнными чтениями, разметка сервера.
+const AI_SECRET = "synthetic-harness-ai-agent-secret-000000000000";
+const AI_ACTOR = { ...ACTORS.sales, permissionKeys: [...ACTORS.sales.permissionKeys, "ai.agent.use", "ai.agent.manage"] };
+const AI_ADMIN = { ...ACTORS.admin };
+const aiId = (n) => `eeeeeeee-7777-4777-8777-${String(n).padStart(12, "0")}`;
+const AI_REPLY_PARTS = [
+  ["Здравствуйте! Бакалавриат по компьютерным наукам в Малайзии стоит от 5 000 до 7 500 долларов в год — зависит от вуза.", 1],
+  [" Без IELTS поступить можно: в двух вузах из подборки есть подготовительный курс английского перед первым семестром.", 2],
+  [" Пришлю список таких программ сегодня.", null],
+];
+function aiReply() {
+  let text = "";
+  const marks = [];
+  for (const [part, n] of AI_REPLY_PARTS) {
+    const start = Array.from(text).length;
+    text += part;
+    if (n !== null) marks.push({ n, start, end: Array.from(text).length });
+  }
+  return { text, marks };
+}
+const AI_SOURCES = [
+  { n: 1, chunk_id: 101, document_id: aiId(201), title: "Прайс 2026", audience: "client", page_from: 2, page_to: 2, sheet_name: null,
+    section_path: "Прайс 2026 › Малайзия › Бакалавриат", live: true, missing: false, unverified: true, unverified_values: ["7 500"],
+    quote: "Компьютерные науки, бакалавриат: от 5 000 до 7 500 USD в год в зависимости от вуза. Регистрационный сбор оплачивается отдельно и не возвращается. Цены действуют для набора 2026–2027 учебного года; общежитие в стоимость не входит и оплачивается напрямую вузу по его тарифам." },
+  { n: 2, chunk_id: 102, document_id: aiId(202), title: "Вузы Малайзии — требования", audience: "client", page_from: null, page_to: null, sheet_name: "Языковые требования",
+    section_path: "Требования › Английский язык", live: true, missing: false, unverified: false, unverified_values: [],
+    quote: "Без IELTS: Университет Примерный и Колледж Условный принимают на подготовительный курс английского (один семестр) перед первым курсом." },
+  { n: 3, chunk_id: 103, document_id: aiId(203), title: "Правила скидок", audience: "internal", page_from: 1, page_to: 1, sheet_name: null,
+    section_path: "Скидки", live: true, missing: false, unverified: false, unverified_values: [],
+    quote: "Скидку до 10% даёт только руководитель отдела продаж; клиенту сумму скидки до согласования не называем." },
+];
+function aiAnswer(overrides = {}) {
+  const { text, marks } = aiReply();
+  return {
+    answerId: aiId(1), status: "ready", intent: "reply", current: true, createdAt: "2026-10-06T07:41:00Z", insertedAt: null, errorCode: null,
+    result: {
+      reply: text, reply_citations: marks, citations: [{ n: 1, chunk_id: 101 }, { n: 2, chunk_id: 102 }],
+      reason: "Цены — из «Прайса 2026» (Малайзия, бакалавриат), требования к английскому — из листа «Языковые требования». Скидку клиенту не предлагаем: по внутренним правилам её согласует руководитель.",
+      question: "На какой год поступления смотрите — 2027?", language: "ru", sources: AI_SOURCES, warnings: [],
+    },
+    ...overrides,
+  };
+}
+const aiView = (answer, extra = {}) => ({
+  view: { answer, latestInboundMessageId: waId(109), lastMessageDirection: "inbound", consentRecorded: true, ...extra.view },
+  featureOn: extra.featureOn ?? true,
+});
+function aiFrames() {
+  const { text } = aiReply();
+  const chars = Array.from(text);
+  const deltas = [];
+  for (let at = 0; at < chars.length; at += 34) deltas.push({ delay: 160, event: "delta", data: { text: chars.slice(at, at + 34).join("") } });
+  return [
+    { delay: 50, event: "status", data: { stage: "searching" } },
+    { delay: 1400, event: "sources", data: { count: 3 } },
+    { delay: 50, event: "status", data: { stage: "writing" } },
+    ...deltas,
+    { delay: 200, event: "final", data: { answer: { answer_id: aiId(1) } } },
+  ];
+}
+const NO_SOURCE_RESULT = {
+  reply: "Уточню у коллег и вернусь с ответом сегодня до вечера.", reply_citations: [], citations: [],
+  reason: "В материалах агента нет сведений об общежитиях этого вуза.", question: "Какой вуз из подборки вам ближе?", language: "ru",
+  sources: [], warnings: [],
+};
+const AI_SCENARIOS = {
+  // Свёрнуто: капсула в углу ленты; ничего не запрошено.
+  "capsule": { viewports: ["1440", "390"], ai: { saved: [aiView(null)], post: [{ frames: aiFrames() }], insert: [{ status: 200, body: { text: "x" } }] } },
+  // Открытие: сохранённого ответа нет, последнее — клиента → поток → готово.
+  "stream": { viewports: ["1440", "390"], ai: { saved: [aiView(null), aiView(aiAnswer())], post: [{ frames: aiFrames() }], insert: [{ status: 200, body: { text: aiReply().text } }] } },
+  // Повторное открытие: сохранённый ответ без нового запроса; вставка; затем 409.
+  "ready": { viewports: ["1440", "390"], ai: { saved: [aiView(aiAnswer())], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }],
+    insert: [{ status: 200, body: { text: aiReply().text } }, { status: 409, body: { error: { code: "stale_answer" } } }] } },
+  "no-sources": { viewports: ["1440"], ai: { saved: [aiView(aiAnswer({ result: NO_SOURCE_RESULT }))], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  "waiting": { viewports: ["1440"], ai: { saved: [aiView(null, { view: { lastMessageDirection: "outbound" } })], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  "off": { viewports: ["1440", "390"], featureOff: true, ai: { saved: [aiView(null, { featureOn: false })], post: [{ status: 503, body: { error: { code: "ai_agent_off" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  "consent": { viewports: ["1440"], ai: { saved: [aiView(null, { view: { consentRecorded: false } })], post: [{ status: 412, body: { error: { code: "consent_required" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  "unavailable": { viewports: ["1440"], ai: { saved: [aiView(null)], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  "balance": { viewports: ["1440"], ai: { saved: [aiView(null)], post: [{ frames: [{ delay: 50, event: "status", data: { stage: "searching" } },
+    { delay: 300, event: "error", data: { code: "gemini_billing", message_ru: "x", status: 402 } }] }], insert: [{ status: 200, body: { text: "x" } }] } },
+  "rate": { viewports: ["1440"], ai: { saved: [aiView(null)], post: [{ status: 429, body: { error: { code: "rate_limited" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  // Страница отстала от базы (опрос не дошёл): билет берётся по базе, не по странице.
+  "lagging": { viewports: ["1440"], ai: { latest: aiId(900),
+    saved: [aiView(null, { view: { latestInboundMessageId: aiId(900) } }), aiView(aiAnswer(), { view: { latestInboundMessageId: aiId(900) } })],
+    post: [{ frames: aiFrames() }], insert: [{ status: 200, body: { text: "x" } }] } },
+  // Без агента открытое окно на новое сообщение перечитывает состояние, а не пустеет.
+  "off-new-message": { viewports: ["1440"], featureOff: true, ai: { saved: [aiView(null, { featureOn: false })],
+    post: [{ status: 503, body: { error: { code: "ai_agent_off" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  // Согласие записали, пока окно было свёрнуто: повторное открытие перечитывает.
+  "consent-later": { viewports: ["1440"], ai: { saved: [aiView(null, { view: { consentRecorded: false } }), aiView(aiAnswer())],
+    post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+};
+
+async function buildAiChatPage(name) {
+  const scenario = AI_SCENARIOS[name];
+  if (scenario.featureOff) delete process.env.EVO_AI_AGENT_INTERNAL_SECRET;
+  else process.env.EVO_AI_AGENT_INTERNAL_SECRET = AI_SECRET;
+  stubReads({ actor: AI_ACTOR, rows: ALL_ROWS, inbox: waView() });
+  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/inbox/page.tsx"));
+  const element = await Page({ searchParams: Promise.resolve({ conversation: WA_CONVERSATION }) });
+  const { children: inbox, ...main } = element.props;
+  return { actor: AI_ACTOR, chatApp: { main, inbox: inbox.props } };
+}
+
+// Раздел: синтетические документы, правила, расходы, настройки.
+const aiDoc = (n, title, fields = {}) => ({
+  id: aiId(300 + n), title, kind: "knowledge", audience: "client", autosendAllowed: false, status: "ready", stage: null, progress: 100,
+  errorCode: null, source: "seed_kb", sourceRef: { nodeId: aiId(400 + n), nodeVersion: 2 }, editedInLab: false, docVersion: 1, rowVersion: 3,
+  pageCount: null, replacesId: null, supersededById: null, createdAt: "2026-10-06T05:00:00Z", updatedAt: `2026-10-06T0${Math.min(n, 7)}:12:00Z`,
+  indexedAt: "2026-10-06T05:10:00Z", chunkCount: 12 + n * 3, openReviewCount: 0, ...fields,
+});
+const AI_DOCUMENTS = { items: [
+  aiDoc(7, "Прайс 2026 — Малайзия, Китай, ОАЭ", { kind: "pdf", source: "upload", sourceRef: {}, pageCount: 14, chunkCount: 48 }),
+  aiDoc(6, "Как отвечать на вопрос о цене", { audience: "internal", chunkCount: 9 }),
+  aiDoc(5, "Вузы Малайзии — требования", { status: "processing", stage: "embed", progress: 60, chunkCount: 0, indexedAt: null }),
+  aiDoc(4, "Правила скидок", { audience: "internal", chunkCount: 4 }),
+  aiDoc(3, "Визы: сроки и документы", { status: "failed", stage: "embed", progress: 60, errorCode: "embedding_unavailable", chunkCount: 0 }),
+  aiDoc(2, "Услуги и условия EVO", { chunkCount: 21 }),
+  aiDoc(1, "Частые вопросы родителей", { status: "queued", stage: null, progress: 0, chunkCount: 0 }),
+], hasMore: false, canManage: true, isAdmin: false };
+const AI_RULES_BODY = [
+  "# Правила общения EVO",
+  "",
+  "Тон — вежливый и тёплый, на «вы». Коротко: два-три предложения, без канцелярита.",
+  "Отвечаем на языке клиента: русский, кыргызский или английский.",
+  "",
+  "## Цены",
+  "Называем цену «от … до …» из прайса и всегда уточняем вуз и программу. Скидки не обещаем — их согласует руководитель.",
+  "",
+  "## Квалификация",
+  "Узнаём: страну, ступень (бакалавриат, магистратура), год поступления, бюджет, уровень английского, кто принимает решение.",
+].join("\n");
+const AI_RULES = {
+  current: { id: aiId(501), version: 3, body: AI_RULES_BODY, source: "seed", sourceRef: {}, createdAt: "2026-10-06T05:20:00Z",
+    createdByName: "Администратор (синтетический)", confirmedAt: null, confirmedByName: null, needsReview: true },
+  versions: [
+    { id: aiId(501), version: 3, source: "seed", createdAt: "2026-10-06T05:20:00Z", createdByName: "Администратор (синтетический)", confirmedAt: null, bytes: 1180, current: true },
+    { id: aiId(502), version: 2, source: "manual", createdAt: "2026-10-05T11:02:00Z", createdByName: "Менеджер продаж (синтетический)", confirmedAt: "2026-10-05T12:00:00Z", bytes: 960, current: false },
+    { id: aiId(503), version: 1, source: "seed", createdAt: "2026-10-04T09:30:00Z", createdByName: "Администратор (синтетический)", confirmedAt: "2026-10-04T10:00:00Z", bytes: 720, current: false },
+  ],
+  canManage: true,
+};
+const AI_SPEND = {
+  currency: "USD", timezone: "Asia/Bishkek", today: "2026-10-06", monthStart: "2026-10-01", todayUsd: 0.4132, monthUsd: 1.9471,
+  monthEstimatedUsd: 0.0214, monthEstimated: true, forecastUsd: 10.06, monthlyCapUsd: 50, reservedUsd: 0.06, remainingUsd: 47.99,
+  answers: 164, averageAnswerUsd: 0.0109,
+  byPurpose: [],
+  byGroup: [
+    { group: "answers", usd: 1.6123, calls: 164, estimated: false },
+    { group: "search", usd: 0.1748, calls: 290, estimated: true },
+    { group: "documents", usd: 0.1406, calls: 37, estimated: true },
+    { group: "probe", usd: 0, calls: 6, estimated: false },
+  ],
+  days: [],
+  priceChanges: [
+    { model: "gemini-3.8-flash", kind: "input", effectiveFrom: "2027-01-01", usdPerMillion: 1.5, previousUsdPerMillion: 0.75 },
+    { model: "gemini-3.8-flash", kind: "output", effectiveFrom: "2027-01-01", usdPerMillion: 7.5, previousUsdPerMillion: 3.75 },
+  ],
+};
+const aiSettings = (fields = {}) => ({
+  version: 7, models: { answer: "gemini-3.8-flash", fast: "gemini-3.5-flash-lite", vision: "gemini-3.8-flash", arbiter: "gemini-3.8-pro", arbiterFallback: "gemini-3.8-flash", embedding: "gemini-embedding-2" },
+  unpricedModels: [], embeddingDim: 1536, monthlyCapUsd: 50, ratePerMemberMinute: 20, timezone: "Asia/Bishkek", rerankMode: "off",
+  precomputeEnabled: false, memoryEnabled: false, knowledgeVersion: 14,
+  consent: { recorded: true, at: "2026-10-06T04:30:00Z", byName: "Администратор (синтетический)", textVersion: "gemini-v1-2026-10-06" },
+  canManage: true, isAdmin: false, ...fields,
+});
+const { normalizeAiDocuments, normalizeAiRules, normalizeAiSettings, normalizeAiSpend } = require(join(ROOT, "src/lib/v3/ai-agent.ts"));
+const available = (normalize, value) => ({ status: "available", data: normalize(value) });
+const AI_SECTION_SCENARIOS = {
+  "section-documents": { actor: AI_ACTOR, section: "documents", viewports: ["1440", "390"] },
+  "section-documents-empty": { actor: AI_ACTOR, section: "documents", viewports: ["1440"], documents: { items: [], hasMore: false, canManage: true, isAdmin: false } },
+  "section-rules": { actor: AI_ACTOR, section: "rules", viewports: ["1440", "390"] },
+  "section-spend": { actor: AI_ACTOR, section: "spend", viewports: ["1440", "390"] },
+  "section-consent": { actor: AI_ADMIN, section: "documents", viewports: ["1440"], featureOff: true,
+    settings: aiSettings({ isAdmin: true, consent: { recorded: false, at: null, byName: null, textVersion: null } }) },
+};
+
+async function buildAiSectionMarkup(name) {
+  const scenario = AI_SECTION_SCENARIOS[name];
+  if (scenario.featureOff) delete process.env.EVO_AI_AGENT_INTERNAL_SECRET;
+  else process.env.EVO_AI_AGENT_INTERNAL_SECRET = AI_SECRET;
+  stubReads({ actor: scenario.actor, rows: ALL_ROWS });
+  const source = require(join(ROOT, "src/lib/v3/ai-agent-source.ts"));
+  source.readAiSettings = async () => available(normalizeAiSettings, scenario.settings ?? aiSettings());
+  source.readAiDocuments = async () => available(normalizeAiDocuments, scenario.documents ?? AI_DOCUMENTS);
+  source.readAiRules = async () => available(normalizeAiRules, AI_RULES);
+  source.readAiSpend = async () => available(normalizeAiSpend, AI_SPEND);
+  require(join(ROOT, "src/lib/server/ai-agent-route-handlers.ts")).readAiAgentStatus = async () => (
+    scenario.featureOff ? { state: "off" } : { state: "ready", keyAccepted: true, model: "gemini-3.8-flash", block: null });
+  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/ai-agent/page.tsx"));
+  const search = scenario.section === "documents" ? {} : { section: scenario.section };
+  const element = await Page({ searchParams: Promise.resolve(search) });
+  return { actor: scenario.actor, search: new URLSearchParams(search).toString(), body: renderToStaticMarkup(withContexts(element, "/v3/ai-agent", new URLSearchParams(search).toString())) };
+}
+
+function aiMetrics() {
+  const visible = (element) => {
+    if (!element) return false;
+    const style = getComputedStyle(element);
+    const box = element.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && box.width > 0 && box.height > 0;
+  };
+  const main = [...document.querySelectorAll("main")].find(visible);
+  const inMain = main ? [...main.querySelectorAll("*")].filter(visible) : [];
+  const texts = inMain.filter((element) => [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()));
+  // Номер источника в тексте — строчная цель внутри предложения (WCAG 2.5.8, «inline»).
+  const targets = main ? [...main.querySelectorAll("a, button, select, input:not([type=hidden])")]
+    .filter((element) => visible(element) && !element.closest("[popover]") && !element.matches(".v3-ai-mark")) : [];
+  const box = (selector) => { const element = document.querySelector(selector); if (!visible(element)) return null; const rect = element.getBoundingClientRect(); return { top: Math.round(rect.top), right: Math.round(rect.right), bottom: Math.round(rect.bottom), left: Math.round(rect.left), width: Math.round(rect.width), height: Math.round(rect.height) }; };
+  const composer = box('[data-testid="v3-inbox-composer"]');
+  const win = box('[data-testid="v3-ai-window"]');
+  const feed = box('[role="log"]');
+  return {
+    overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    textUnder12: texts.filter((element) => parseFloat(getComputedStyle(element).fontSize) < 12).map((element) => element.textContent.trim().slice(0, 20)),
+    smallTargets: targets.filter((element) => element.getBoundingClientRect().height < 44).map((element) => element.getAttribute("aria-label") ?? element.textContent.trim().slice(0, 30)),
+    solidRed: [...document.querySelectorAll("main a, main button")].filter((element) => visible(element) && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").length,
+    capsule: box('[data-testid="v3-ai-capsule"]'),
+    window: win,
+    feed,
+    composer,
+    windowInsideFeed: win && feed ? win.top >= feed.top - 1 && win.bottom <= feed.bottom + 1 && win.left >= feed.left - 1 && win.right <= feed.right + 1 : null,
+    status: document.querySelector('[data-testid="v3-ai-window"] [role="status"]')?.textContent.trim() ?? null,
+    blocked: document.querySelector('[data-testid="v3-ai-blocked"]')?.dataset.code ?? null,
+    error: document.querySelector('[data-testid="v3-ai-error"]')?.dataset.code ?? null,
+    errorText: document.querySelector('[data-testid="v3-ai-error"] [role="alert"]')?.textContent.trim() ?? null,
+    marks: [...document.querySelectorAll('[data-testid="v3-ai-reply"] .v3-ai-mark')].map((element) => element.textContent.trim()),
+    sources: [...document.querySelectorAll('[data-testid="v3-ai-sources"] > li')].map((element) => element.dataset.sourceN),
+    warnings: [...document.querySelectorAll('[data-testid="v3-ai-warnings"] li')].map((element) => element.textContent.trim()),
+    insertDisabled: (() => { const button = document.querySelector('[data-testid="v3-ai-insert"]'); return button ? button.disabled || button.getAttribute("aria-disabled") === "true" : null; })(),
+    draft: document.querySelector('[data-testid="v3-inbox-composer"] textarea')?.value ?? null,
+    focus: document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.textContent?.trim().slice(0, 30) ?? null,
+  };
+}
+
+async function aiScreenshots() {
+  const outIndex = process.argv.indexOf("--ai-agent") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--")
+    ? process.argv[outIndex] : join(ROOT, "docs/design/evo-platform/implementation-screenshots/ai-agent"));
+  const workDir = join(require("node:os").tmpdir(), "evo-ai-agent-render");
+  mkdirSync(outDir, { recursive: true });
+  mkdirSync(workDir, { recursive: true });
+  const bundleName = "ai-agent-client.js";
+  const css = await compileCss();
+  await buildClientBundle(join(workDir, bundleName));
+  const failures = [];
+  const check = (condition, message) => { if (!condition) failures.push(message); };
+  const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
+  const page = (name, title, markup, data) => {
+    const htmlPath = join(workDir, `${name}.html`);
+    writeFileSync(htmlPath, [
+      "<!DOCTYPE html>",
+      '<html lang="ru" data-theme="light" class="h-full antialiased">',
+      `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>${title} — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+      `<body class="min-h-full"><div id="root">${markup}</div><script type="application/json" id="${FIXTURE_ID}">${JSON.stringify(data).replaceAll("<", "\\u003c")}</script><script src="${bundleName}"></script></body></html>`,
+    ].join(""));
+    return htmlPath;
+  };
+
+  const htmlFor = {};
+  for (const name of Object.keys(AI_SCENARIOS)) {
+    const { actor, chatApp } = await buildAiChatPage(name);
+    const search = `conversation=${WA_CONVERSATION}`;
+    const markup = renderToString(shellTree({ actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp }));
+    htmlFor[name] = page(`chat-${name}`, "WhatsApp", markup, {
+      actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
+      pulse: { list: "0000000000000002", chat: "0000000000000001" }, older: { messages: [], hasOlder: false }, ai: AI_SCENARIOS[name].ai,
+    });
+  }
+  for (const name of Object.keys(AI_SECTION_SCENARIOS)) {
+    const { actor, search, body } = await buildAiSectionMarkup(name);
+    const markup = renderToString(shellTree({ actor, pathname: "/v3/ai-agent", search, body, cabinet: null }));
+    htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/v3/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
+  }
+
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const open = async (name, viewportKey) => {
+    const context = await browser.newContext({ ...VIEWPORTS[viewportKey], colorScheme: "light" });
+    const session = await context.newPage();
+    const errors = [];
+    session.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+    session.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    await session.goto(pathToFileURL(htmlFor[name]).href, { waitUntil: "load" });
+    await session.evaluate(() => document.fonts.ready);
+    await session.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
+    await session.waitForTimeout(200);
+    return { context, page: session, errors };
+  };
+  const close = async ({ context, page: session, errors }, label) => {
+    const harness = await session.evaluate(() => window.__harness);
+    const problems = [...errors.filter((message) => !/Failed to load resource|ERR_FILE_NOT_FOUND|#preview|#download/u.test(message)),
+      ...harness.recoverable.map((message) => `recoverable: ${message}`), ...harness.errors];
+    check(problems.length === 0, `${label}: browser errors: ${problems.join(" | ")}`);
+    await context.close();
+    return harness;
+  };
+  const shot = async (session, file, { save = true } = {}) => {
+    if (save) await session.page.screenshot({ path: join(outDir, file) });
+    const metrics = await session.page.evaluate(aiMetrics);
+    report({ file, ...metrics });
+    check(metrics.overflowX === 0, `${file}: horizontal overflow ${metrics.overflowX}px`);
+    check(metrics.textUnder12.length === 0, `${file}: texts under 12px ${metrics.textUnder12.join(", ")}`);
+    check(metrics.smallTargets.length === 0, `${file}: targets under 44px: ${metrics.smallTargets.join(", ")}`);
+    check(metrics.solidRed <= 1, `${file}: ${metrics.solidRed} solid red controls`);
+    if (metrics.window) check(metrics.windowInsideFeed === true, `${file}: the window leaves the feed ${JSON.stringify([metrics.window, metrics.feed])}`);
+    if (metrics.window && metrics.composer) check(metrics.window.bottom <= metrics.composer.top + 1, `${file}: the window covers the composer`);
+    return metrics;
+  };
+  const expand = async (session) => {
+    await session.page.getByRole("button", { name: "Помочь с ответом — открыть помощника" }).click();
+    await session.page.waitForTimeout(260);
+  };
+
+  try {
+    // Свёрнуто: только капсула, ни одного запроса.
+    for (const viewportKey of AI_SCENARIOS.capsule.viewports) {
+      const session = await open("capsule", viewportKey);
+      const metrics = await shot(session, `capsule-${viewportKey}.png`);
+      check(metrics.capsule !== null && metrics.window === null, `capsule-${viewportKey}: ${JSON.stringify(metrics.capsule)}`);
+      const harness = await close(session, `capsule-${viewportKey}`);
+      check(!harness.actions.some((action) => action.startsWith("ai-")), `capsule-${viewportKey}: a collapsed window asked ${JSON.stringify(harness.actions)}`);
+    }
+
+    // Поток: «Ищу в материалах…» → «Пишу ответ…» → «Ответ готов · 3 источника».
+    for (const viewportKey of AI_SCENARIOS.stream.viewports) {
+      const session = await open("stream", viewportKey);
+      await expand(session);
+      const searching = await shot(session, `stream-searching-${viewportKey}.png`, { save: viewportKey === "1440" });
+      check(searching.status === "Ищу в материалах…", `stream-${viewportKey}: ${searching.status}`);
+      await session.page.waitForTimeout(2100);
+      const writing = await shot(session, `stream-writing-${viewportKey}.png`, { save: viewportKey === "1440" });
+      check(/^Пишу ответ… · 3 источника$/u.test(writing.status ?? ""), `stream-${viewportKey}: ${writing.status}`);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]', { timeout: 8000 });
+      await session.page.waitForTimeout(150);
+      const ready = await shot(session, `stream-ready-${viewportKey}.png`);
+      check(ready.status === "Ответ готов · 3 источника", `stream-${viewportKey}: ${ready.status}`);
+      check(JSON.stringify(ready.marks) === JSON.stringify(["1", "2"]), `stream-${viewportKey}: marks ${JSON.stringify(ready.marks)}`);
+      check(JSON.stringify(ready.sources) === JSON.stringify(["1", "2", "3"]), `stream-${viewportKey}: sources ${JSON.stringify(ready.sources)}`);
+      check(JSON.stringify(ready.warnings) === JSON.stringify(["Число в источнике ещё не проверено"]), `stream-${viewportKey}: warnings ${JSON.stringify(ready.warnings)}`);
+      const harness = await close(session, `stream-${viewportKey}`);
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-answer:reply", "ai-read"]), `stream-${viewportKey}: ${JSON.stringify(harness.actions)}`);
+    }
+
+    // Сохранённый ответ: номер источника, «Почему такой ответ», вставка без отправки, затем 409.
+    for (const viewportKey of AI_SCENARIOS.ready.viewports) {
+      const session = await open("ready", viewportKey);
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
+      await session.page.locator(".v3-ai-mark", { hasText: "1" }).first().click();
+      await session.page.locator(".v3-ai-why summary").click();
+      await session.page.waitForTimeout(250);
+      const opened = await shot(session, `ready-sources-${viewportKey}.png`);
+      check(opened.status === "Ответ готов · 3 источника", `ready-${viewportKey}: ${opened.status}`);
+      await session.page.getByTestId("v3-ai-insert").click();
+      await session.page.waitForTimeout(250);
+      const inserted = await shot(session, `ready-inserted-${viewportKey}.png`, { save: viewportKey === "1440" });
+      check((inserted.draft ?? "").startsWith("Здравствуйте! Бакалавриат"), `ready-${viewportKey}: draft ${JSON.stringify(inserted.draft?.slice(0, 40))}`);
+      await session.page.getByTestId("v3-ai-insert").click();
+      await session.page.waitForTimeout(250);
+      const stale = await shot(session, `ready-stale-${viewportKey}.png`, { save: viewportKey === "1440" });
+      check(stale.insertDisabled === true && stale.status === "Ответ устарел", `ready-${viewportKey}: stale ${stale.insertDisabled} ${stale.status}`);
+      // Устаревший ответ держит фокус на «Вставить в ответ» (aria-disabled); Esc
+      // сворачивает окно, фокус — на капсуле.
+      const focused = await session.page.evaluate(() => document.activeElement?.dataset.testid ?? null);
+      check(focused === "v3-ai-insert", `ready-${viewportKey}: focus after 409 ${focused}`);
+      await session.page.keyboard.press("Escape");
+      await session.page.waitForTimeout(100);
+      const collapsed = await session.page.evaluate(aiMetrics);
+      check(collapsed.window === null && collapsed.focus === "Помочь с ответом — открыть помощника", `ready-${viewportKey}: Esc ${collapsed.focus}`);
+      const harness = await close(session, `ready-${viewportKey}`);
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-insert:reply", "ai-insert:reply"]), `ready-${viewportKey}: ${JSON.stringify(harness.actions)}`);
+      check(!harness.actions.some((action) => action.startsWith("send:")), `ready-${viewportKey}: something was sent`);
+    }
+
+    // Перетаскивание мышью и стрелками; позиция в пределах ленты.
+    {
+      const session = await open("ready", "1440");
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
+      const before = (await session.page.evaluate(aiMetrics)).window;
+      const head = session.page.locator(".v3-ai-head h2");
+      const point = await head.boundingBox();
+      await session.page.mouse.move(point.x + 20, point.y + 10);
+      await session.page.mouse.down();
+      await session.page.mouse.move(point.x - 260, point.y - 2000, { steps: 8 });
+      await session.page.mouse.up();
+      await session.page.waitForTimeout(120);
+      const dragged = await shot(session, "drag-1440.png");
+      check(dragged.window.left < before.left - 200 && dragged.windowInsideFeed === true, `drag: ${JSON.stringify([before, dragged.window])}`);
+      await session.page.getByRole("button", { name: /Переместить окно/u }).focus();
+      await session.page.keyboard.press("Home");
+      await session.page.waitForTimeout(80);
+      const home = (await session.page.evaluate(aiMetrics)).window;
+      check(Math.abs(home.right - before.right) <= 1 && Math.abs(home.bottom - before.bottom) <= 1, `drag Home: ${JSON.stringify([before, home])}`);
+      await close(session, "drag-1440");
+    }
+
+    // Честные состояния.
+    const states = [
+      ["no-sources", (metrics) => metrics.warnings[0] === "Проверьте факты — источники не найдены" && metrics.status === "Ответ готов · без источников"],
+      ["waiting", (metrics) => metrics.status === "Ждём ответ клиента"],
+      ["off", (metrics) => metrics.blocked === "ai_agent_off"],
+      ["consent", (metrics) => metrics.blocked === "consent_required"],
+      ["unavailable", (metrics) => metrics.error === "agent_unavailable" && metrics.errorText === "ИИ-агент сейчас недоступен."],
+      ["balance", (metrics) => metrics.error === "gemini_billing" && metrics.errorText === "Закончился оплаченный баланс Gemini. Пополните его в Google Cloud."],
+      ["rate", (metrics) => metrics.error === "rate_limited" && metrics.errorText === "Слишком много запросов. Подождите минуту."],
+    ];
+    for (const [name, ok] of states) {
+      for (const viewportKey of AI_SCENARIOS[name].viewports) {
+        const session = await open(name, viewportKey);
+        await expand(session);
+        await session.page.waitForTimeout(name === "balance" ? 700 : 300);
+        const metrics = await shot(session, `state-${name}-${viewportKey}.png`);
+        check(ok(metrics), `state-${name}-${viewportKey}: ${JSON.stringify({ status: metrics.status, blocked: metrics.blocked, error: metrics.error, text: metrics.errorText, warnings: metrics.warnings })}`);
+        await close(session, `state-${name}-${viewportKey}`);
+      }
+    }
+
+    // Отставшая страница: один запрос с билетом по базе, без «пришло новое сообщение».
+    {
+      const session = await open("lagging", "1440");
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]', { timeout: 8000 });
+      await session.page.waitForTimeout(150);
+      const metrics = await shot(session, "lagging-1440.png", { save: false });
+      check(metrics.status === "Ответ готов · 3 источника", `lagging: ${metrics.status}`);
+      const harness = await close(session, "lagging-1440");
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-answer:reply", "ai-read"]), `lagging: ${JSON.stringify(harness.actions)}`);
+      check(JSON.stringify(harness.aiRefs) === JSON.stringify([aiId(900)]), `lagging: refs ${JSON.stringify(harness.aiRefs)}`);
+    }
+
+    // Без агента: новое сообщение при открытом окне — снова «не подключён», не пустое окно.
+    {
+      const session = await open("off-new-message", "1440");
+      await expand(session);
+      await session.page.waitForTimeout(300);
+      check((await session.page.evaluate(aiMetrics)).blocked === "ai_agent_off", "off-new-message: before");
+      await session.page.evaluate((id) => window.__harness.newInbound(id), aiId(901));
+      await session.page.waitForTimeout(300);
+      const metrics = await shot(session, "off-new-message-1440.png", { save: false });
+      check(metrics.blocked === "ai_agent_off", `off-new-message: after ${JSON.stringify({ status: metrics.status, blocked: metrics.blocked })}`);
+      const harness = await close(session, "off-new-message-1440");
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-read"]), `off-new-message: ${JSON.stringify(harness.actions)}`);
+    }
+
+    // «Нет согласия» → свернуть → администратор включил → открыть: ответ без перезагрузки страницы.
+    {
+      const session = await open("consent-later", "1440");
+      await expand(session);
+      await session.page.waitForTimeout(300);
+      check((await session.page.evaluate(aiMetrics)).blocked === "consent_required", "consent-later: before");
+      await session.page.keyboard.press("Escape");
+      await session.page.waitForTimeout(100);
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]', { timeout: 4000 });
+      const metrics = await shot(session, "consent-later-1440.png", { save: false });
+      check(metrics.status === "Ответ готов · 3 источника", `consent-later: ${metrics.status}`);
+      const harness = await close(session, "consent-later-1440");
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-read"]), `consent-later: ${JSON.stringify(harness.actions)}`);
+    }
+
+    // Раздел «ИИ-агент».
+    for (const name of Object.keys(AI_SECTION_SCENARIOS)) {
+      for (const viewportKey of AI_SECTION_SCENARIOS[name].viewports) {
+        const session = await open(name, viewportKey);
+        await shot(session, `${name}-${viewportKey}.png`);
+        await close(session, `${name}-${viewportKey}`);
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+
+  if (failures.length) {
+    process.stderr.write(`ai agent checks failed:\n${failures.map((failure) => `- ${failure}`).join("\n")}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(`${JSON.stringify({ ok: true, outDir })}\n`);
+}
+
 async function json() {
   const out = [];
   for (const name of Object.keys(SCENARIOS)) {
@@ -1054,6 +1593,11 @@ if (process.argv.includes("--json")) {
     console.error(error);
     process.exit(1);
   });
+} else if (process.argv.includes("--ai-agent")) {
+  aiScreenshots().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 } else if (process.argv.includes("--whatsapp-chat")) {
   whatsappScreenshots().catch((error) => {
     console.error(error);
@@ -1065,6 +1609,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split] | --whatsapp-chat [outDir]");
+  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split] | --whatsapp-chat [outDir] | --ai-agent [outDir]");
   process.exit(2);
 }

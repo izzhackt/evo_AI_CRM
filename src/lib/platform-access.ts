@@ -44,6 +44,9 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
   if (route === "/v3/knowledge" || route === "/v3/marketing") return actor.systemRole === "admin" && !isStaffPreview(actor);
   if (isStaffPreview(actor) && actor.presentationRole !== null) return fixedRoleCanAccessRoute(actor.presentationRole, route);
   if (route === "/v3/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");
+  // «ИИ-агент» (план ИИ-агента §12.2, §13): право ai.agent.use — у всех
+  // сотрудников через роли «… — общие разделы» (268); решает каждый RPC раздела.
+  if (route === "/v3/ai-agent") return staffHasPermission(actor, "ai.agent.use");
   if (route === "/v3/calendar") return staffCan(actor, "admissions.read") || staffHasPermission(actor, "task.manage") || staffHasPermission(actor, "staff.task.read");
   if (route === "/v3/tasks") return staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create")
     || staffHasPermission(actor, "task.manage")
@@ -62,6 +65,7 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
     "/v3/universities": ["catalog.read"],
     "/v3/knowledge": ["knowledge.read", "documents.read", "snippets.read"],
     "/v3/marketing": ["admin.preview"],
+    "/v3/ai-agent": ["admin.preview"],
     "/v3/documents": ["documents.read"],
     "/v3/reply-snippets": ["snippets.read"],
     "/v3/settings": ["admin.preview"],

@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { Inbox, inboxNotConnected } from "@/components/v3/Inbox";
 import { PartShell } from "@/components/v3/PartShell";
-import { staffPresentationCan } from "@/lib/platform-access";
+import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import {
   parsePlatformConversationCursor,
   parsePlatformRouteUuid,
@@ -14,6 +14,7 @@ import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
 import { readV3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import { readInbox } from "@/lib/v3/inbox-source";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
+import { aiAgentFeatureOn } from "@/lib/server/ai-agent-internal-auth";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp" };
@@ -30,9 +31,10 @@ type SearchParams = Readonly<{
 
 /**
  * «Продажи → WhatsApp» (решение владельца 06.10.2026): полноценный чат вместо
- * блока «Ответ и отправка». ИИ-черновика, подтверждения одной отправки и
- * панели синхронизации с внешней CRM на этой странице нет; окно ИИ появится
- * позже в пустом слоте `assistantSlot`. Ответ отправляется из поля внизу чата.
+ * блока «Ответ и отправка». Подтверждения одной отправки и панели
+ * синхронизации с внешней CRM на этой странице нет; окно ИИ «Помочь с
+ * ответом» (план ИИ-агента §12.1) — у того, у кого есть ai.agent.use, кроме
+ * просмотра роли: оно готовит черновик, отправляет сотрудник из поля внизу чата.
  */
 export default async function InboxPart({
   searchParams,
@@ -90,6 +92,12 @@ export default async function InboxPart({
     profileLabel = profileHref?.startsWith("/v3/profile?case=") ? "Открыть дело" : "Карточка лида";
   }
 
+  // Окно ИИ: право — подсказка меню; доступ к диалогу, согласие и лимиты решает
+  // база по каждому запросу. Без секрета агента окно говорит «не подключён».
+  const assistant = !isStaffPreview(actor) && staffHasPermission(actor, "ai.agent.use")
+    ? { featureOn: aiAgentFeatureOn() }
+    : null;
+
   // Не подключён и пусто: считать нечего, числа в заголовке нет. Подключает
   // Администратор — только ему ссылка на Настройки (не в просмотре роли).
   const notConnected = inboxNotConnected(view);
@@ -110,7 +118,7 @@ export default async function InboxPart({
         storageScope={`${actor.organizationId}:${actor.membershipId}`}
         replySnippets={replySnippets}
         mediaAttachmentContext={mediaAttachmentContext}
-        assistantSlot={null}
+        assistant={assistant}
       />
     </PartShell>
   );

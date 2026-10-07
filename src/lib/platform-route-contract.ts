@@ -21,6 +21,8 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/settings",
   "/v3/knowledge",
   "/v3/marketing",
+  // «ИИ-агент» (план ИИ-агента §12.2): подразделы — `?section=`.
+  "/v3/ai-agent",
   "/v3/reply-snippets",
   "/v3/documents",
   "/v3/calendar",
@@ -103,6 +105,12 @@ const PLATFORM_STAFF_ASSISTANT_PATH =
 const UNIVERSITY_TEMPLATE_SOURCE_PATH =
   /^\/api\/v3\/university-forms\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/source(?:\/(?:status|preview|page|cancel|reconcile))?$/i;
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
+// Окно ИИ в чате продаж (план ИИ-агента §4.3): сохранённый ответ и поток SSE
+// через CRM, «Вставить в ответ». Агент из браузера недоступен.
+const AI_AGENT_ANSWER_PATH =
+  /^\/api\/v3\/ai-agent\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/answer$/i;
+const AI_AGENT_INSERT_PATH =
+  /^\/api\/v3\/ai-agent\/answers\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/insert$/i;
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
   "/api/internal/platform-messaging/waha/work",
@@ -267,6 +275,8 @@ export function isConnectedPlatformApi(path: string): boolean {
     COMMUNICATION_MEDIA_PATH.test(path) ||
     CASE_CONTRACT_FILE_UPLOAD_PATH.test(path) ||
     CASE_CONTRACT_FILE_DOWNLOAD_PATH.test(path) ||
+    AI_AGENT_ANSWER_PATH.test(path) ||
+    AI_AGENT_INSERT_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

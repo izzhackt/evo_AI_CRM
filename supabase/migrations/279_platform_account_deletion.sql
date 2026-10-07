@@ -51,10 +51,17 @@
 -- dependent row (messages, media and their files, WAHA bindings and raw
 -- webhook events, AI memory, drafts, answers, autosend journal, amoCRM
 -- context). amoCRM itself is outside the database: completion requires the
--- Admin's confirmation that the contact and the deal are deleted there.
--- Only unambiguous identifiers (email, phone of 9+ digits, passport number)
--- are scrubbed across the organization; names and addresses only in the rows
--- of the subject.
+-- Admin's confirmation that the contact and the deal are deleted there,
+-- whenever any amoCRM link exists (bindings, chats, amoCRM context); the
+-- amoCRM numbers stay in the request summary.
+-- Only this person's data is erased (review 3397bca4f). Across the
+-- organization only the subject's OWN identifiers (account email, анкета
+-- email and phone, mobile_phone, whatsapp_telegram, student_email, passport
+-- number), and only those no other person also has, are scrubbed, and only
+-- as a whole value (no address or number that merely contains one). Parents'
+-- and the emergency contact's contacts, names and addresses clean only the
+-- subject's own rows. A chat, client or lead found by phone is taken only
+-- when no other person's case, cabinet or анкета uses it.
 BEGIN;
 
 -- ---------------------------------------------------------------------------
@@ -272,6 +279,52 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   ) needles
 $$;
 
+-- Identifiers match only as a whole value inside the text (review 3397bca4f,
+-- findings 1 and 5): an email equal to the subject's (case-insensitive) and
+-- not part of a longer address («dina.ivanov@…», «ivanov@….kg»); a phone whose
+-- digits equal the subject's normalized number however it is written
+-- («+996 (700) 279-279»), never part of a longer number; a passport number
+-- equal to the subject's, never part of a longer one. With p_exact FALSE the
+-- same alternatives come without the boundary checks: a cheap prefilter that
+-- every exact match also passes (the lookarounds make one pass over a large
+-- journal several times slower).
+CREATE FUNCTION platform_private.account_erasure_id_pattern(
+  p_emails TEXT[], p_phones TEXT[], p_passports TEXT[], p_exact BOOLEAN DEFAULT TRUE
+) RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT CASE WHEN count(*) = 0 THEN NULL ELSE '(' || string_agg(alt, '|' ORDER BY char_length(alt) DESC, alt) || ')' END
+  FROM (
+    SELECT CASE WHEN p_exact THEN '(?<![[:alnum:]._%+-])' ELSE '' END
+        || regexp_replace(e, '([.^$*+?()\[\]{}|\\/-])', '\\\1', 'g')
+        || CASE WHEN p_exact THEN '(?![[:alnum:]_%+-]|[.][[:alnum:]])' ELSE '' END AS alt
+      FROM (SELECT DISTINCT lower(btrim(x)) AS e FROM unnest(p_emails) AS x
+        WHERE x ~ '^\s*[^@[:space:]]+@[^@[:space:]]+\s*$') q
+    UNION ALL
+    SELECT CASE WHEN p_exact THEN '(?<![0-9][ ().-]{0,3})' ELSE '' END
+        || '[+]?' || array_to_string(regexp_split_to_array(d, ''), '[ ().-]{0,3}')
+        || CASE WHEN p_exact THEN '(?![ ().-]{0,3}[0-9])' ELSE '' END
+      FROM (SELECT DISTINCT regexp_replace(x, '[^0-9]', '', 'g') AS d FROM unnest(p_phones) AS x) q
+      WHERE char_length(d) BETWEEN 9 AND 15
+    UNION ALL
+    SELECT CASE WHEN p_exact THEN '(?<![[:alnum:]])' ELSE '' END
+        || regexp_replace(p, '([.^$*+?()\[\]{}|\\/-])', '\\\1', 'g')
+        || CASE WHEN p_exact THEN '(?![[:alnum:]])' ELSE '' END
+      FROM (SELECT DISTINCT upper(btrim(x)) AS p FROM unnest(p_passports) AS x WHERE char_length(btrim(x)) >= 5) q
+  ) alts
+$$;
+
+-- The emails, phones (digits) and passport numbers written in free text.
+CREATE FUNCTION platform_private.account_erasure_identifiers(p_values TEXT[])
+RETURNS TABLE (emails TEXT[], phones TEXT[])
+LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT
+    COALESCE((SELECT array_agg(DISTINCT lower(m[1]))
+      FROM unnest(p_values) AS v, regexp_matches(v, '([[:alnum:]._%+-]+@[[:alnum:].-]+[.][[:alpha:]]{2,})', 'g') AS m), '{}'),
+    COALESCE((SELECT array_agg(DISTINCT d) FROM (
+      SELECT regexp_replace(m[1], '[^0-9]', '', 'g') AS d
+      FROM unnest(p_values) AS v, regexp_matches(v, '([+]?[0-9][0-9 ().-]{7,}[0-9])', 'g') AS m) q
+      WHERE char_length(d) BETWEEN 9 AND 15), '{}')
+$$;
+
 CREATE FUNCTION platform_private.account_erasure_scrub_text(p_value TEXT, p_pattern TEXT)
 RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT CASE WHEN p_value IS NULL OR p_pattern IS NULL THEN p_value
@@ -300,11 +353,14 @@ $$;
 -- Scrub every text/varchar/jsonb column of the rows of p_table whose
 -- p_key_column is in p_ids (and of p_org, where the table has an
 -- organization), only where the value matches the pattern. One UPDATE per
--- table: the pattern is tested on every column of the row in the same scan.
+-- table: the pattern is tested on every column of the row in the same scan;
+-- with p_prefilter (a looser pattern every match also passes) only the values
+-- that pass it are tested with p_pattern.
 CREATE FUNCTION platform_private.account_erasure_scrub_rows(
-  p_org UUID, p_table REGCLASS, p_key_column TEXT, p_ids UUID[], p_pattern TEXT
+  p_org UUID, p_table REGCLASS, p_key_column TEXT, p_ids UUID[], p_pattern TEXT, p_prefilter TEXT DEFAULT NULL
 ) RETURNS BIGINT LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE col RECORD; sets TEXT[] := '{}'; tests TEXT[] := '{}'; org_filter TEXT := ''; n BIGINT;
+  pre TEXT := COALESCE(p_prefilter, p_pattern);
 BEGIN
   IF p_pattern IS NULL OR p_ids IS NULL OR cardinality(p_ids) = 0 THEN RETURN 0; END IF;
   FOR col IN
@@ -315,11 +371,11 @@ BEGIN
     ORDER BY a.attnum
   LOOP
     IF col.typname = 'jsonb' THEN
-      sets := sets || format('%1$I = CASE WHEN %1$I::TEXT ~* $2 THEN platform_private.account_erasure_scrub_jsonb(%1$I, $2) ELSE %1$I END', col.attname);
-      tests := tests || format('%I::TEXT ~* $2', col.attname);
+      sets := sets || format('%1$I = CASE WHEN %1$I::TEXT ~* $4 AND %1$I::TEXT ~* $2 THEN platform_private.account_erasure_scrub_jsonb(%1$I, $2) ELSE %1$I END', col.attname);
+      tests := tests || format('CASE WHEN %1$I::TEXT ~* $4 THEN %1$I::TEXT ~* $2 ELSE FALSE END', col.attname);
     ELSE
-      sets := sets || format('%1$I = CASE WHEN %1$I ~* $2 THEN platform_private.account_erasure_scrub_text(%1$I, $2) ELSE %1$I END', col.attname);
-      tests := tests || format('%I ~* $2', col.attname);
+      sets := sets || format('%1$I = CASE WHEN %1$I ~* $4 AND %1$I ~* $2 THEN platform_private.account_erasure_scrub_text(%1$I, $2) ELSE %1$I END', col.attname);
+      tests := tests || format('CASE WHEN %1$I ~* $4 THEN %1$I ~* $2 ELSE FALSE END', col.attname);
     END IF;
   END LOOP;
   IF cardinality(sets) = 0 THEN RETURN 0; END IF;
@@ -330,7 +386,7 @@ BEGIN
     org_filter := ' AND organization_id = $3';
   END IF;
   EXECUTE format('UPDATE %s SET %s WHERE %I = ANY ($1)%s AND (%s)', p_table, array_to_string(sets, ', '),
-    p_key_column, org_filter, array_to_string(tests, ' OR ')) USING p_ids, p_pattern, p_org;
+    p_key_column, org_filter, array_to_string(tests, ' OR ')) USING p_ids, p_pattern, p_org, pre;
   GET DIAGNOSTICS n = ROW_COUNT;
   RETURN n;
 END
@@ -473,9 +529,11 @@ $$;
 
 REVOKE ALL ON FUNCTION
   platform_private.account_erasure_pattern(TEXT[]),
+  platform_private.account_erasure_id_pattern(TEXT[], TEXT[], TEXT[], BOOLEAN),
+  platform_private.account_erasure_identifiers(TEXT[]),
   platform_private.account_erasure_scrub_text(TEXT, TEXT),
   platform_private.account_erasure_scrub_jsonb(JSONB, TEXT),
-  platform_private.account_erasure_scrub_rows(UUID, REGCLASS, TEXT, UUID[], TEXT),
+  platform_private.account_erasure_scrub_rows(UUID, REGCLASS, TEXT, UUID[], TEXT, TEXT),
   platform_private.account_erasure_rows_add(JSONB, TEXT, TEXT[]),
   platform_private.account_erasure_conversation_rows(UUID, UUID[], UUID[]),
   platform_private.account_erasure_delete_rows(JSONB)
@@ -622,40 +680,105 @@ BEGIN
 END
 $$;
 
--- Everything one request covers. Cases: the subject's student memberships,
--- its анкеты, and pending cabinets of its own leads without a membership.
--- Clients and leads: those of these cases and анкеты, unless a case of
--- ANOTHER student membership or another account's анкета uses the client
--- (then the client is "shared" and stays as it is).
+-- Another person uses this client: a case outside the subject's own cases
+-- (another student's case or another person's pending cabinet, review
+-- 3397bca4f finding 3) or another account's анкета, through the client itself
+-- or through any of its leads. With p_own_intake a docs-intake cabinet (no
+-- lead, no membership) on this very client does not count: it is taken as
+-- the subject's own cabinet when nothing else makes the client shared.
+CREATE FUNCTION platform_private.account_deletion_client_foreign(
+  p_org UUID, p_client UUID, p_cases UUID[], p_auth_user_id UUID, p_own_intake BOOLEAN
+) RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT EXISTS (
+      SELECT 1 FROM platform.student_cases sc
+      WHERE sc.organization_id = p_org AND NOT (sc.id = ANY (p_cases))
+        AND (sc.canonical_client_id = p_client OR sc.canonical_lead_id IN (
+          SELECT l.id FROM platform.leads l WHERE l.organization_id = p_org AND l.client_id = p_client))
+        AND NOT (p_own_intake AND sc.student_membership_id IS NULL AND sc.canonical_lead_id IS NULL
+          AND sc.canonical_client_id = p_client))
+    OR EXISTS (
+      SELECT 1 FROM platform_private.student_applications a
+      WHERE a.organization_id = p_org AND a.auth_user_id IS DISTINCT FROM p_auth_user_id
+        AND a.canonical_lead_id IN (
+          SELECT l.id FROM platform.leads l WHERE l.organization_id = p_org AND l.client_id = p_client))
+$$;
+
+-- Another person uses this lead: a case outside the subject's own cases (with
+-- or without a membership), another account's анкета, or its client is
+-- another person's.
+CREATE FUNCTION platform_private.account_deletion_lead_foreign(
+  p_org UUID, p_lead UUID, p_cases UUID[], p_auth_user_id UUID
+) RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT EXISTS (
+      SELECT 1 FROM platform.student_cases sc
+      WHERE sc.organization_id = p_org AND sc.canonical_lead_id = p_lead AND NOT (sc.id = ANY (p_cases)))
+    OR EXISTS (
+      SELECT 1 FROM platform_private.student_applications a
+      WHERE a.organization_id = p_org AND a.auth_user_id IS DISTINCT FROM p_auth_user_id
+        AND a.canonical_lead_id = p_lead)
+    OR EXISTS (
+      SELECT 1 FROM platform.leads l
+      WHERE l.organization_id = p_org AND l.id = p_lead AND l.client_id IS NOT NULL
+        AND platform_private.account_deletion_client_foreign(p_org, l.client_id, p_cases, p_auth_user_id, FALSE))
+$$;
+
+-- Everything one request covers.
+--  * Cases: the subject's student memberships and анкеты; pending cabinets
+--    (no membership) only on the leads of these cases and анкеты, and
+--    docs-intake cabinets only on their own clients (review 3397bca4f,
+--    finding 3: never on a lead or client found by phone).
+--  * Clients and leads: those of these cases and анкеты, unless another
+--    person uses the client (account_deletion_client_foreign: then it is
+--    "shared" and stays as it is).
+--  * The subject's own identifiers (finding 1): the account email, the
+--    анкета's email and phone, and the profile's mobile_phone,
+--    whatsapp_telegram, student_email and passport_number. Never a parent's
+--    or the emergency contact's, never a client's (a client may carry a
+--    parent's phone). An identifier that another person also has (another
+--    client, another account's анкета, another student's profile) is dropped:
+--    a family phone or email is cleaned only in the subject's own rows. The
+--    client the WAHA chain created for a chat with this very number is not
+--    "another person": it is that chat's own client, judged with the chat.
+--  * WhatsApp: the chats of these clients, leads and cases, and the chats
+--    from the subject's own phones (finding 2). A chat, its client and its
+--    lead are taken only when none of them is used by another person (another
+--    person's case with or without a membership, another account's анкета);
+--    this filter runs before the chat's client or lead joins the scope, so no
+--    identifier is ever read from another person's records.
 CREATE FUNCTION platform_private.account_deletion_scope(p_request_id UUID)
 RETURNS TABLE (
   organization_id UUID, auth_user_id UUID, profile_id UUID,
   membership_ids UUID[], application_ids UUID[], case_ids UUID[],
-  lead_ids UUID[], client_ids UUID[], shared_client_ids UUID[], conversation_ids UUID[]
+  lead_ids UUID[], client_ids UUID[], shared_client_ids UUID[], conversation_ids UUID[],
+  own_emails TEXT[], own_phones TEXT[], own_passports TEXT[]
 ) LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   r platform_private.account_deletion_requests%ROWTYPE;
+  org UUID;
   v_profile UUID;
   v_members UUID[]; v_apps UUID[]; v_cases UUID[];
   cand_leads UUID[]; cand_clients UUID[]; v_shared UUID[]; v_clients UUID[]; v_leads UUID[]; v_convs UUID[];
-  v_phones TEXT[]; v_chat_convs UUID[];
+  own_raw TEXT[]; o_emails TEXT[]; o_phones TEXT[]; o_passports TEXT[];
+  other_emails TEXT[]; other_phones TEXT[]; other_passports TEXT[];
+  v_chat_convs UUID[];
 BEGIN
   SELECT * INTO r FROM platform_private.account_deletion_requests x WHERE x.id = p_request_id;
   IF NOT FOUND THEN RETURN; END IF;
+  org := r.organization_id;
   SELECT p.id INTO v_profile FROM platform.profiles p WHERE p.auth_user_id = r.subject_auth_user_id;
   IF v_profile IS NULL AND r.membership_id IS NOT NULL THEN
     SELECT m.profile_id INTO v_profile FROM platform.organization_memberships m
-    WHERE m.organization_id = r.organization_id AND m.id = r.membership_id;
+    WHERE m.organization_id = org AND m.id = r.membership_id;
   END IF;
   SELECT COALESCE(array_agg(m.id ORDER BY m.id), '{}') INTO v_members
   FROM platform.organization_memberships m
-  WHERE m.organization_id = r.organization_id AND m.profile_id = v_profile AND m."current_role" = 'student';
+  WHERE m.organization_id = org AND m.profile_id = v_profile AND m."current_role" = 'student';
   SELECT COALESCE(array_agg(a.id ORDER BY a.id), '{}') INTO v_apps
   FROM platform_private.student_applications a WHERE a.auth_user_id = r.subject_auth_user_id;
 
   SELECT COALESCE(array_agg(DISTINCT sc.id), '{}') INTO v_cases
   FROM platform.student_cases sc
-  WHERE sc.organization_id = r.organization_id
+  WHERE sc.organization_id = org
     AND (sc.student_membership_id IS NULL OR sc.student_membership_id = ANY (v_members))
     AND (sc.student_membership_id = ANY (v_members)
       OR sc.public_application_id = ANY (v_apps)
@@ -666,92 +789,137 @@ BEGIN
 
   SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO cand_leads FROM (
     SELECT sc.canonical_lead_id AS x FROM platform.student_cases sc
-    WHERE sc.organization_id = r.organization_id AND sc.id = ANY (v_cases) AND sc.canonical_lead_id IS NOT NULL
+    WHERE sc.organization_id = org AND sc.id = ANY (v_cases) AND sc.canonical_lead_id IS NOT NULL
     UNION SELECT a.canonical_lead_id FROM platform_private.student_applications a
     WHERE a.id = ANY (v_apps) AND a.canonical_lead_id IS NOT NULL) q;
   SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO cand_clients FROM (
     SELECT sc.canonical_client_id AS x FROM platform.student_cases sc
-    WHERE sc.organization_id = r.organization_id AND sc.id = ANY (v_cases) AND sc.canonical_client_id IS NOT NULL
+    WHERE sc.organization_id = org AND sc.id = ANY (v_cases) AND sc.canonical_client_id IS NOT NULL
     UNION SELECT l.client_id FROM platform.leads l
-    WHERE l.organization_id = r.organization_id AND l.id = ANY (cand_leads) AND l.client_id IS NOT NULL) q;
+    WHERE l.organization_id = org AND l.id = ANY (cand_leads) AND l.client_id IS NOT NULL) q;
 
-  -- The WhatsApp chat from this account's own phone (9+ digits) is the same
-  -- person's correspondence even where the WAHA chain bound it to a client
-  -- and lead it created itself: an анкета and a later chat are otherwise
-  -- never linked (review finding 2). That client and lead join the
-  -- candidates; the shared filter below still keeps a client that another
-  -- person's case or анкета uses, and such a chat stays.
-  SELECT COALESCE(array_agg(DISTINCT d), '{}') INTO v_phones FROM (
-    SELECT regexp_replace(x, '[^0-9]', '', 'g') AS d FROM (
-      SELECT a.questionnaire ->> 'phone' AS x FROM platform_private.student_applications a WHERE a.id = ANY (v_apps)
-      UNION ALL SELECT unnest(ARRAY[k.phone, k.normalized_phone]) FROM platform.clients k
-        WHERE k.organization_id = r.organization_id AND k.id = ANY (cand_clients)
-      UNION ALL SELECT f.value FROM platform.student_profile_fields f
-        WHERE f.organization_id = r.organization_id AND f.student_case_id = ANY (v_cases)
-          AND f.field_key IN ('mobile_phone', 'whatsapp_telegram')) raw
-    WHERE x IS NOT NULL
-  ) q WHERE char_length(d) >= 9;
-  SELECT COALESCE(array_agg(DISTINCT b.conversation_id), '{}') INTO v_chat_convs
-  FROM platform_private.waha_direct_chat_bindings b
-  WHERE b.organization_id = r.organization_id
-    AND b.normalized_chat_id = ANY (ARRAY(SELECT p || '@c.us' FROM unnest(v_phones) AS p));
-  SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO cand_leads FROM (
-    SELECT unnest(cand_leads) AS x
-    UNION SELECT c.canonical_lead_id FROM platform.communication_conversations c
-    WHERE c.organization_id = r.organization_id AND c.id = ANY (v_chat_convs) AND c.canonical_lead_id IS NOT NULL) q;
-  SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO cand_clients FROM (
-    SELECT unnest(cand_clients) AS x
-    UNION SELECT c.canonical_client_id FROM platform.communication_conversations c
-    WHERE c.organization_id = r.organization_id AND c.id = ANY (v_chat_convs) AND c.canonical_client_id IS NOT NULL
-    UNION SELECT l.client_id FROM platform.leads l
-    WHERE l.organization_id = r.organization_id AND l.id = ANY (cand_leads) AND l.client_id IS NOT NULL) q;
-
-  SELECT COALESCE(array_agg(k ORDER BY k), '{}') INTO v_shared FROM unnest(cand_clients) k
-  WHERE EXISTS (
-      SELECT 1 FROM platform.student_cases sc
-      WHERE sc.organization_id = r.organization_id
-        AND sc.student_membership_id IS NOT NULL AND NOT (sc.student_membership_id = ANY (v_members))
-        AND (sc.canonical_client_id = k OR sc.canonical_lead_id IN (
-          SELECT l.id FROM platform.leads l WHERE l.organization_id = r.organization_id AND l.client_id = k)))
-    OR EXISTS (
-      SELECT 1 FROM platform_private.student_applications a
-      WHERE a.auth_user_id <> r.subject_auth_user_id AND a.canonical_lead_id IN (
-        SELECT l.id FROM platform.leads l WHERE l.organization_id = r.organization_id AND l.client_id = k));
-  SELECT COALESCE(array_agg(k ORDER BY k), '{}') INTO v_clients FROM unnest(cand_clients) k
-  WHERE NOT (k = ANY (v_shared));
-  -- Duplicates merged into these clients are the same person.
-  SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO v_clients FROM (
-    SELECT unnest(v_clients) AS x
-    UNION SELECT al.superseded_client_id FROM platform_private.client_aliases al
-    WHERE al.organization_id = r.organization_id AND al.canonical_client_id = ANY (v_clients)) q;
-  SELECT COALESCE(array_agg(DISTINCT l.id), '{}') INTO v_leads
-  FROM platform.leads l
-  WHERE l.organization_id = r.organization_id
-    AND (l.client_id = ANY (v_clients) OR (l.id = ANY (cand_leads) AND l.client_id IS NULL));
-
-  -- Pending cabinets of the same person's leads that never got a membership.
+  -- Pending cabinets prepared from the subject's own leads.
   SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO v_cases FROM (
     SELECT unnest(v_cases) AS x
     UNION SELECT sc.id FROM platform.student_cases sc
-    WHERE sc.organization_id = r.organization_id AND sc.student_membership_id IS NULL
-      AND (sc.canonical_lead_id = ANY (v_leads) OR sc.canonical_client_id = ANY (v_clients))) q;
+    WHERE sc.organization_id = org AND sc.student_membership_id IS NULL AND sc.canonical_lead_id = ANY (cand_leads)) q;
 
+  -- Shared clients, then the merged duplicates of the remaining ones.
+  SELECT COALESCE(array_agg(k ORDER BY k), '{}') INTO v_shared FROM unnest(cand_clients) k
+  WHERE platform_private.account_deletion_client_foreign(org, k, v_cases, r.subject_auth_user_id, TRUE);
+  SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO v_clients FROM (
+    SELECT k AS x FROM unnest(cand_clients) k WHERE NOT (k = ANY (v_shared))
+    UNION SELECT al.superseded_client_id FROM platform_private.client_aliases al
+    WHERE al.organization_id = org AND al.canonical_client_id = ANY (cand_clients)
+      AND NOT (al.canonical_client_id = ANY (v_shared))
+      AND NOT platform_private.account_deletion_client_foreign(org, al.superseded_client_id, v_cases,
+        r.subject_auth_user_id, TRUE)) q;
+
+  -- Docs-intake cabinets (no lead, no membership) of the subject's own clients.
+  SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO v_cases FROM (
+    SELECT unnest(v_cases) AS x
+    UNION SELECT sc.id FROM platform.student_cases sc
+    WHERE sc.organization_id = org AND sc.student_membership_id IS NULL AND sc.canonical_lead_id IS NULL
+      AND sc.canonical_client_id = ANY (v_clients)) q;
+  SELECT COALESCE(array_agg(DISTINCT l.id), '{}') INTO v_leads
+  FROM platform.leads l
+  WHERE l.organization_id = org
+    AND (l.client_id = ANY (v_clients) OR (l.id = ANY (cand_leads) AND l.client_id IS NULL));
+
+  -- The subject's own identifiers (finding 1).
+  SELECT COALESCE(array_agg(x), '{}') INTO own_raw FROM (
+    SELECT u.email AS x FROM auth.users u WHERE u.id = r.subject_auth_user_id
+    UNION ALL SELECT unnest(ARRAY[a.normalized_email, a.questionnaire ->> 'email', a.questionnaire ->> 'phone'])
+      FROM platform_private.student_applications a WHERE a.id = ANY (v_apps)
+    UNION ALL SELECT f.value FROM platform.student_profile_fields f
+      WHERE f.organization_id = org AND f.student_case_id = ANY (v_cases)
+        AND f.field_key IN ('mobile_phone', 'whatsapp_telegram', 'student_email')
+  ) q WHERE x IS NOT NULL AND btrim(x) <> '';
+  SELECT i.emails, i.phones INTO o_emails, o_phones FROM platform_private.account_erasure_identifiers(own_raw) i;
+  SELECT COALESCE(array_agg(DISTINCT upper(btrim(f.value))), '{}') INTO o_passports
+  FROM platform.student_profile_fields f
+  WHERE f.organization_id = org AND f.student_case_id = ANY (v_cases) AND f.field_key = 'passport_number'
+    AND char_length(btrim(f.value)) >= 5;
+
+  -- What another person has: another account's анкета, another student's
+  -- profile (any contact field, a parent's included), another client.
+  SELECT i.emails, i.phones INTO other_emails, other_phones
+  FROM platform_private.account_erasure_identifiers(ARRAY(
+    SELECT x FROM (
+      SELECT unnest(ARRAY[a.normalized_email, a.questionnaire ->> 'email', a.questionnaire ->> 'phone']) AS x
+        FROM platform_private.student_applications a
+        WHERE a.organization_id = org AND a.auth_user_id IS DISTINCT FROM r.subject_auth_user_id
+      UNION ALL SELECT f.value FROM platform.student_profile_fields f
+        WHERE f.organization_id = org AND NOT (f.student_case_id = ANY (v_cases))
+          AND f.field_key ~ '(phone|email|whatsapp|telegram)'
+    ) q WHERE x IS NOT NULL)) i;
+  SELECT COALESCE(array_agg(DISTINCT upper(btrim(f.value))), '{}') INTO other_passports
+  FROM platform.student_profile_fields f
+  WHERE f.organization_id = org AND NOT (f.student_case_id = ANY (v_cases)) AND f.field_key ~ 'passport_number';
+  SELECT COALESCE(array_agg(e), '{}') INTO o_emails FROM unnest(o_emails) e
+  WHERE NOT (e = ANY (other_emails))
+    AND NOT EXISTS (SELECT 1 FROM platform.clients k
+      WHERE k.organization_id = org AND NOT (k.id = ANY (v_clients))
+        AND (lower(btrim(k.normalized_email)) = e OR lower(btrim(k.email)) = e));
+  SELECT COALESCE(array_agg(d), '{}') INTO o_phones FROM unnest(o_phones) d
+  WHERE NOT (d = ANY (other_phones))
+    AND NOT EXISTS (SELECT 1 FROM platform.clients k
+      WHERE k.organization_id = org AND NOT (k.id = ANY (v_clients))
+        AND d IN (regexp_replace(k.normalized_phone, '[^0-9]', '', 'g'), regexp_replace(k.phone, '[^0-9]', '', 'g'))
+        AND NOT EXISTS (SELECT 1 FROM platform_private.waha_direct_chat_bindings b
+          JOIN platform.communication_conversations c ON c.organization_id = b.organization_id
+            AND c.id = b.conversation_id
+          WHERE b.organization_id = org AND b.normalized_chat_id = d || '@c.us' AND c.canonical_client_id = k.id));
+  SELECT COALESCE(array_agg(p), '{}') INTO o_passports FROM unnest(o_passports) p
+  WHERE NOT (p = ANY (other_passports));
+
+  -- The WhatsApp chats from the subject's own phones (finding 2). The WAHA
+  -- chain binds such a chat to a client and lead it created itself, so an
+  -- анкета and a later chat are otherwise never linked. A chat bound to a
+  -- case outside the subject's, or whose client or lead another person uses,
+  -- stays; only an accepted chat's client and lead join the scope.
+  SELECT COALESCE(array_agg(DISTINCT c.id), '{}') INTO v_chat_convs
+  FROM platform_private.waha_direct_chat_bindings b
+  JOIN platform.communication_conversations c ON c.organization_id = b.organization_id AND c.id = b.conversation_id
+  WHERE b.organization_id = org
+    AND b.normalized_chat_id = ANY (ARRAY(SELECT d || '@c.us' FROM unnest(o_phones) AS d))
+    AND (c.student_case_id IS NULL OR c.student_case_id = ANY (v_cases))
+    AND (c.canonical_client_id IS NULL OR c.canonical_client_id = ANY (v_clients)
+      OR NOT platform_private.account_deletion_client_foreign(org, c.canonical_client_id, v_cases,
+        r.subject_auth_user_id, FALSE))
+    AND (c.canonical_lead_id IS NULL OR c.canonical_lead_id = ANY (v_leads)
+      OR NOT platform_private.account_deletion_lead_foreign(org, c.canonical_lead_id, v_cases, r.subject_auth_user_id));
+  SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO v_clients FROM (
+    SELECT unnest(v_clients) AS x
+    UNION SELECT c.canonical_client_id FROM platform.communication_conversations c
+    WHERE c.organization_id = org AND c.id = ANY (v_chat_convs) AND c.canonical_client_id IS NOT NULL
+    UNION SELECT l.client_id FROM platform.communication_conversations c
+    JOIN platform.leads l ON l.organization_id = c.organization_id AND l.id = c.canonical_lead_id
+    WHERE c.organization_id = org AND c.id = ANY (v_chat_convs) AND l.client_id IS NOT NULL) q;
+  SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO v_leads FROM (
+    SELECT unnest(v_leads) AS x
+    UNION SELECT c.canonical_lead_id FROM platform.communication_conversations c
+    WHERE c.organization_id = org AND c.id = ANY (v_chat_convs) AND c.canonical_lead_id IS NOT NULL) q;
+
+  -- Every chat of the subject: none of its links may point at another person.
   SELECT COALESCE(array_agg(DISTINCT c.id), '{}') INTO v_convs
   FROM platform.communication_conversations c
-  WHERE c.organization_id = r.organization_id
+  WHERE c.organization_id = org
+    AND (c.student_case_id IS NULL OR c.student_case_id = ANY (v_cases))
+    AND (c.canonical_client_id IS NULL OR c.canonical_client_id = ANY (v_clients))
+    AND (c.canonical_lead_id IS NULL OR c.canonical_lead_id = ANY (v_leads))
     AND (c.canonical_client_id = ANY (v_clients) OR c.canonical_lead_id = ANY (v_leads)
-      OR c.student_case_id = ANY (v_cases)
-      OR (c.id = ANY (v_chat_convs)
-        AND (c.canonical_client_id IS NULL OR c.canonical_client_id = ANY (v_clients))
-        AND (c.student_case_id IS NULL OR c.student_case_id = ANY (v_cases))));
+      OR c.student_case_id = ANY (v_cases) OR c.id = ANY (v_chat_convs));
 
-  RETURN QUERY SELECT r.organization_id, r.subject_auth_user_id, v_profile, v_members, v_apps, v_cases,
-    v_leads, v_clients, v_shared, v_convs;
+  RETURN QUERY SELECT org, r.subject_auth_user_id, v_profile, v_members, v_apps, v_cases,
+    v_leads, v_clients, v_shared, v_convs, o_emails, o_phones, o_passports;
 END
 $$;
 
 REVOKE ALL ON FUNCTION
   platform_private.account_deletion_subject(UUID),
+  platform_private.account_deletion_client_foreign(UUID, UUID, UUID[], UUID, BOOLEAN),
+  platform_private.account_deletion_lead_foreign(UUID, UUID, UUID[], UUID),
   platform_private.account_deletion_scope(UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
@@ -946,16 +1114,55 @@ BEGIN
 END
 $$;
 
+-- The amoCRM numbers linked to one request (review 3397bca4f, finding 4): the
+-- contact and lead bindings of its clients and leads (the CRM→amoCRM command
+-- path), and the amoCRM contact and lead of its WhatsApp chats, their messages
+-- and their amoCRM context (the lead-agent path, provider_linked chats).
+-- Numbers only, no personal values: they stay in the request summary, so the
+-- Admin finds the contact and the deal in amoCRM after the chat is deleted.
+CREATE FUNCTION platform_private.account_deletion_amocrm_links(
+  p_org UUID, p_client_ids UUID[], p_lead_ids UUID[], p_conversation_ids UUID[]
+) RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT jsonb_build_object(
+    'contactIds', COALESCE((SELECT jsonb_agg(v ORDER BY v) FROM (SELECT DISTINCT btrim(v) AS v FROM (
+        SELECT b.contact_id AS v FROM platform_private.amocrm_contact_bindings b
+          WHERE b.organization_id = p_org AND b.person_id = ANY (p_client_ids)
+        UNION ALL SELECT c.amocrm_contact_id::TEXT FROM platform.communication_conversations c
+          WHERE c.organization_id = p_org AND c.id = ANY (p_conversation_ids)
+        UNION ALL SELECT m.amocrm_contact_id::TEXT FROM platform.communication_messages m
+          WHERE m.organization_id = p_org AND m.conversation_id = ANY (p_conversation_ids)
+        UNION ALL SELECT x.amocrm_contact_id::TEXT FROM platform_private.amocrm_canonical_context_current x
+          WHERE x.organization_id = p_org AND x.conversation_id = ANY (p_conversation_ids)
+        UNION ALL SELECT x.amocrm_contact_id::TEXT FROM platform_private.amocrm_canonical_context_observations x
+          WHERE x.organization_id = p_org AND x.conversation_id = ANY (p_conversation_ids)) q
+      WHERE v IS NOT NULL AND btrim(v) <> '') d), '[]'::JSONB),
+    'leadIds', COALESCE((SELECT jsonb_agg(v ORDER BY v) FROM (SELECT DISTINCT btrim(v) AS v FROM (
+        SELECT b.provider_lead_id AS v FROM platform_private.amocrm_lead_bindings b
+          WHERE b.organization_id = p_org AND b.lead_id = ANY (p_lead_ids)
+        UNION ALL SELECT c.amocrm_lead_id::TEXT FROM platform.communication_conversations c
+          WHERE c.organization_id = p_org AND c.id = ANY (p_conversation_ids)
+        UNION ALL SELECT m.amocrm_lead_id::TEXT FROM platform.communication_messages m
+          WHERE m.organization_id = p_org AND m.conversation_id = ANY (p_conversation_ids)
+        UNION ALL SELECT x.amocrm_lead_id::TEXT FROM platform_private.amocrm_canonical_context_current x
+          WHERE x.organization_id = p_org AND x.conversation_id = ANY (p_conversation_ids)
+        UNION ALL SELECT x.amocrm_lead_id::TEXT FROM platform_private.amocrm_canonical_context_observations x
+          WHERE x.organization_id = p_org AND x.conversation_id = ANY (p_conversation_ids)) q
+      WHERE v IS NOT NULL AND btrim(v) <> '') d), '[]'::JSONB))
+$$;
+
 -- Counts of what one request deletes, anonymizes and leaves, for the staff
--- detail and the processing summary. No personal values.
+-- detail and the processing summary, and the amoCRM numbers (no personal
+-- values). remain.amocrmContacts counts every distinct amoCRM contact and lead.
 CREATE FUNCTION platform_private.account_deletion_counts(p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE s RECORD; org UUID;
+DECLARE s RECORD; org UUID; amocrm JSONB;
 BEGIN
   SELECT * INTO s FROM platform_private.account_deletion_scope(p_request_id);
   IF NOT FOUND THEN RETURN '{}'::JSONB; END IF;
   org := s.organization_id;
+  amocrm := platform_private.account_deletion_amocrm_links(org, s.client_ids, s.lead_ids, s.conversation_ids);
   RETURN jsonb_build_object(
+    'amocrm', amocrm,
     'delete', jsonb_build_object(
       'applications', cardinality(s.application_ids),
       'documents', (SELECT count(*) FROM platform.document_versions v
@@ -1007,13 +1214,12 @@ BEGIN
         WHERE sr.organization_id = org AND (sr.lead_id = ANY (s.lead_ids) OR sr.linked_lead_id = ANY (s.lead_ids)))),
     'remain', jsonb_build_object(
       'sharedClients', cardinality(s.shared_client_ids),
-      'amocrmContacts', (SELECT count(*) FROM platform_private.amocrm_contact_bindings b
-        WHERE b.organization_id = org AND b.person_id = ANY (s.client_ids))
-        + (SELECT count(*) FROM platform_private.amocrm_lead_bindings b
-        WHERE b.organization_id = org AND b.lead_id = ANY (s.lead_ids))));
+      'amocrmContacts', jsonb_array_length(amocrm -> 'contactIds') + jsonb_array_length(amocrm -> 'leadIds')));
 END
 $$;
-REVOKE ALL ON FUNCTION platform_private.account_deletion_counts(UUID)
+REVOKE ALL ON FUNCTION
+  platform_private.account_deletion_amocrm_links(UUID, UUID[], UUID[], UUID[]),
+  platform_private.account_deletion_counts(UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 CREATE FUNCTION platform.staff_account_deletion_detail_v1(p_id UUID)
@@ -1044,9 +1250,17 @@ BEGIN
     'authAccountExists', EXISTS (SELECT 1 FROM auth.users u WHERE u.id = r.subject_auth_user_id),
     'counts', CASE WHEN r.status = 'completed' THEN COALESCE(r.summary, '{}'::JSONB) ELSE live END,
     -- amoCRM links of the first processing or of now: completion needs the
-    -- Admin's confirmation that they are deleted in amoCRM.
+    -- Admin's confirmation that they are deleted in amoCRM; the numbers let
+    -- the Admin find them there after the chat is gone.
     'amocrmContacts', GREATEST(COALESCE(NULLIF(r.summary #>> '{remain,amocrmContacts}', '')::BIGINT, 0),
-      COALESCE(NULLIF(live #>> '{remain,amocrmContacts}', '')::BIGINT, 0)));
+      COALESCE(NULLIF(live #>> '{remain,amocrmContacts}', '')::BIGINT, 0)),
+    'amocrm', (SELECT jsonb_build_object(
+        'contactIds', COALESCE(jsonb_agg(DISTINCT x.v ORDER BY x.v) FILTER (WHERE x.k = 'contactIds'), '[]'::JSONB),
+        'leadIds', COALESCE(jsonb_agg(DISTINCT x.v ORDER BY x.v) FILTER (WHERE x.k = 'leadIds'), '[]'::JSONB))
+      FROM (SELECT k.k, jsonb_array_elements_text(src.v -> k.k) AS v
+        FROM (VALUES (r.summary -> 'amocrm'), (live -> 'amocrm')) AS src(v),
+          unnest(ARRAY['contactIds', 'leadIds']) AS k(k)
+        WHERE jsonb_typeof(src.v -> k.k) = 'array') x));
 END
 $$;
 
@@ -1062,11 +1276,13 @@ DECLARE
   org UUID;
   label TEXT;
   contacts TEXT[] := '{}';
-  ids TEXT[] := '{}';
+  all_emails TEXT[] := '{}';
+  all_phones TEXT[] := '{}';
   names TEXT[] := '{}';
   tokens TEXT[] := '{}';
   places TEXT[] := '{}';
   ids_pattern TEXT;
+  ids_prefilter TEXT;
   all_pattern TEXT;
   v_wa_rows JSONB;
   c_count BIGINT;
@@ -1124,16 +1340,22 @@ BEGIN
     RAISE EXCEPTION 'account_deletion_legacy_account_shared' USING ERRCODE = '55000';
   END IF;
 
-  -- Needles, read before anything is deleted (review finding 1).
-  --  * ids: unambiguous identifiers, i.e. emails, phones of 9+ digits (as
-  --    written and digits only) and passport numbers. Only they are scrubbed
-  --    across the organization: another person's record may mention this
-  --    one by them.
-  --  * names: the names of this account (profile, case, client, анкета,
+  -- Needles, read before anything is deleted (review findings 1; 3397bca4f
+  -- findings 1 and 5).
+  --  * The subject's own identifiers (account_deletion_scope: the account
+  --    email, the анкета's email and phone, the profile's mobile_phone,
+  --    whatsapp_telegram, student_email and passport_number, without any that
+  --    another person also has) are the only ones scrubbed across the
+  --    organization, and only as a whole value: another person's record may
+  --    mention this one by them.
+  --  * Everything else cleans only the rows of this subject: the contact
+  --    values of its clients, its invitation and its parents and emergency
+  --    contact (a third party's identifiers never leave the subject's rows);
+  --    names: the names of this account (profile, case, client, анкета,
   --    invitation, student profile) and, of the profile fields, only the
   --    explicit name keys; tokens: their single words; places: addresses and
-  --    the other contact values. They clean only the rows of this subject:
-  --    another person may share a name, a school or a city.
+  --    the other contact values (a Telegram name). Another person may share a
+  --    name, a school, a city or a family phone.
   SELECT u.email INTO v_email FROM auth.users u WHERE u.id = r.subject_auth_user_id;
   SELECT COALESCE(array_agg(DISTINCT btrim(x)), '{}') INTO names FROM (
     SELECT p.display_name AS x FROM platform.profiles p WHERE p.id = s.profile_id
@@ -1162,40 +1384,40 @@ BEGIN
     -- «WhatsApp +996 ••• 12 34 56»: a placeholder of the WAHA chain (278), not a name.
     AND x NOT LIKE 'WhatsApp %';
   -- Contact values as stored: the account email, the client's, the анкета's,
-  -- the invitation's and the phone, email and WhatsApp/Telegram profile fields
-  -- (the emergency contact's included).
+  -- the invitation's and every phone, email and WhatsApp/Telegram profile
+  -- field (the parents' and the emergency contact's included).
   SELECT COALESCE(array_agg(DISTINCT btrim(x)), '{}') INTO contacts FROM (
     SELECT v_email AS x
     UNION SELECT unnest(ARRAY[k.email, k.normalized_email, k.phone, k.normalized_phone])
       FROM platform.clients k WHERE k.organization_id = org AND k.id = ANY (s.client_ids)
-    UNION SELECT unnest(ARRAY[a.normalized_email, a.questionnaire ->> 'phone'])
+    UNION SELECT unnest(ARRAY[a.normalized_email, a.questionnaire ->> 'email', a.questionnaire ->> 'phone'])
       FROM platform_private.student_applications a WHERE a.id = ANY (s.application_ids)
     UNION SELECT pr.normalized_email FROM platform_private.student_portal_provisioning_receipts pr
       WHERE pr.auth_user_id = r.subject_auth_user_id OR pr.student_case_id = ANY (s.case_ids)
     UNION SELECT f.value FROM platform.student_profile_fields f
       WHERE f.organization_id = org AND f.student_case_id = ANY (s.case_ids)
-        AND f.field_key ~ '(phone|email|whatsapp)'
+        AND f.field_key ~ '(phone|email|whatsapp|telegram)'
   ) q WHERE x IS NOT NULL AND btrim(x) <> '';
-  SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO ids FROM (
-    SELECT lower(m[1]) AS x
-      FROM unnest(contacts) AS cv, regexp_matches(cv, '([[:alnum:]._%+-]+@[[:alnum:].-]+[.][[:alpha:]]{2,})', 'g') AS m
-    UNION SELECT unnest(ARRAY[btrim(m[1]), regexp_replace(m[1], '[^0-9]', '', 'g')])
-      FROM unnest(contacts) AS cv, regexp_matches(cv, '([+]?[0-9][0-9 ().-]{7,}[0-9])', 'g') AS m
-      WHERE char_length(regexp_replace(m[1], '[^0-9]', '', 'g')) >= 9
-    UNION SELECT btrim(f.value) FROM platform.student_profile_fields f
-      WHERE f.organization_id = org AND f.student_case_id = ANY (s.case_ids)
-        AND f.field_key ~ 'passport_number' AND char_length(btrim(f.value)) >= 5
-  ) q WHERE x IS NOT NULL AND x <> '';
+  SELECT i.emails, i.phones INTO all_emails, all_phones FROM platform_private.account_erasure_identifiers(contacts) i;
+  -- A contact value that is just one email or phone is covered by the
+  -- identifier pattern; any other (a Telegram name, several values in one
+  -- field) is also a needle of its own.
   SELECT COALESCE(array_agg(DISTINCT btrim(x)), '{}') INTO places FROM (
-    SELECT unnest(contacts) AS x
+    SELECT x FROM unnest(contacts) AS x
+      WHERE x !~ '^\s*[[:alnum:]._%+-]+@[[:alnum:].-]+[.][[:alpha:]]{2,}\s*$' AND x !~ '^\s*[+]?[0-9 ().-]+\s*$'
     UNION SELECT f.value FROM platform.student_profile_fields f
       WHERE f.organization_id = org AND f.student_case_id = ANY (s.case_ids) AND f.field_key ~ 'address'
   ) q WHERE x IS NOT NULL AND char_length(btrim(x)) >= 5;
   SELECT COALESCE(array_agg(DISTINCT t), '{}') INTO tokens FROM (
     SELECT regexp_split_to_table(nm, '[[:space:],.;:()"«»]+') AS t FROM unnest(names) AS nm
   ) q WHERE char_length(t) >= 3 AND t !~ '[0-9]';
-  ids_pattern := platform_private.account_erasure_pattern(ids);
-  all_pattern := platform_private.account_erasure_pattern(ids || names || tokens || places);
+  ids_pattern := platform_private.account_erasure_id_pattern(s.own_emails, s.own_phones, s.own_passports);
+  ids_prefilter := platform_private.account_erasure_id_pattern(s.own_emails, s.own_phones, s.own_passports, FALSE);
+  all_pattern := NULLIF(concat_ws('|',
+    platform_private.account_erasure_id_pattern(s.own_emails || all_emails, s.own_phones || all_phones,
+      s.own_passports || ARRAY(SELECT f.value FROM platform.student_profile_fields f
+        WHERE f.organization_id = org AND f.student_case_id = ANY (s.case_ids) AND f.field_key = 'passport_number')),
+    platform_private.account_erasure_pattern(names || tokens || places)), '');
 
   -- What this request covers, counted before anything changes (the summary
   -- the CRM shows after completion).
@@ -1617,22 +1839,35 @@ BEGIN
   n := n + platform_private.account_erasure_scrub_rows(org, 'platform.membership_permission_events', 'membership_id', s.membership_ids, all_pattern);
   stats := stats || jsonb_build_object('scrubbedValues', n);
   -- The organization's journal and Sales/finance free text, with the
-  -- unambiguous identifiers only (review finding 1): another person's record
-  -- may mention this one by email, phone or passport number, while a name, a
-  -- school or a relationship word may belong to someone else.
+  -- subject's own unambiguous identifiers only, as whole values (review
+  -- finding 1; 3397bca4f findings 1 and 5): another person's record may
+  -- mention this one by email, phone or passport number, while a name, a
+  -- school, a relationship word, a parent's or a sibling's contact belongs
+  -- to someone else. The loose prefilter keeps the pass fast.
   IF ids_pattern IS NOT NULL THEN
     n := 0;
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.sales_register', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.lead_sale_conditions', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.lead_sale_conditions_requests', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.sales_lead_workflow_receipts', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.manual_lead_receipts', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.website_lead_receipts', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.leads', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.case_notes', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.case_tasks', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.student_case_updates', 'organization_id', ARRAY[org], ids_pattern);
-    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.payment_obligations', 'organization_id', ARRAY[org], ids_pattern);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.sales_register', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.lead_sale_conditions', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.lead_sale_conditions_requests', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.sales_lead_workflow_receipts', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.manual_lead_receipts', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform_private.website_lead_receipts', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.leads', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.case_notes', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.case_tasks', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.student_case_updates', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
+    n := n + platform_private.account_erasure_scrub_rows(org, 'platform.payment_obligations', 'organization_id', ARRAY[org], ids_pattern,
+      ids_prefilter);
     stats := stats || jsonb_build_object('scrubbedMentions', n);
   END IF;
   -- The journal. Entries about this subject get the full pattern: their
@@ -1641,7 +1876,7 @@ BEGIN
   -- help requests included, so an entry naming the case only inside its
   -- state is found by its own resource: review finding 3) or their actor is
   -- the subject's profile; both by index. Every other entry of the
-  -- organization only the unambiguous identifiers (review finding 1).
+  -- organization only the subject's own identifiers as whole values.
   IF all_pattern IS NOT NULL THEN
     UPDATE platform.audit_events e SET
       before_state = platform_private.account_erasure_scrub_jsonb(e.before_state, all_pattern),
@@ -1659,7 +1894,9 @@ BEGIN
       after_state = platform_private.account_erasure_scrub_jsonb(e.after_state, ids_pattern),
       reason = platform_private.account_erasure_scrub_text(e.reason, ids_pattern)
     WHERE e.organization_id = org
-      AND (COALESCE(e.before_state::TEXT, '') || ' ' || e.after_state::TEXT || ' ' || e.reason) ~* ids_pattern;
+      AND CASE WHEN (COALESCE(e.before_state::TEXT, '') || ' ' || e.after_state::TEXT || ' ' || e.reason) ~* ids_prefilter
+        THEN (COALESCE(e.before_state::TEXT, '') || ' ' || e.after_state::TEXT || ' ' || e.reason) ~* ids_pattern
+        ELSE FALSE END;
     GET DIAGNOSTICS c_count = ROW_COUNT;
     stats := stats || jsonb_build_object('scrubbedJournalMentions', c_count);
   END IF;

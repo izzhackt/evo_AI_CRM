@@ -42,7 +42,18 @@
 --          before completion;
 --   (viii) journal entries about the subject's task or document version that
 --          name the case only inside their state lose the first name too
---          (finding 3: found by the ids of the deleted rows).
+--          (finding 3: found by the ids of the deleted rows);
+--   (ix)   review 3397bca4f: no other person's record changes. A sister who
+--          is the emergency contact and a client herself, her email given as
+--          the subject's student_email; the mother's client shared by both
+--          children's cases and her own WhatsApp chat; a chat from the
+--          subject's own number bound to another student's case; another
+--          person's pending cabinet prepared from the lead of a chat with the
+--          subject's family number; addresses and numbers that only contain
+--          the subject's; a father's client with the applicant's анкета
+--          phone. amoCRM links that exist only in the chat and its amoCRM
+--          context, and a lead binding, require the Admin's confirmation and
+--          stay in the summary as numbers.
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -267,7 +278,9 @@ INSERT INTO platform.student_profile_fields (organization_id, student_case_id, s
 SELECT pg_temp.p279_id(1), :'p279_zarina_case', sp.id, f.k, f.v, 'needs_review', sp.revision
 FROM platform.student_profiles sp
 CROSS JOIN (VALUES ('passport_number', 'AN2790279'), ('mother_first_name', 'Гульнара'),
-  ('mother_last_name', 'Удалёва'), ('mobile_phone', '+996 700 279 279'),
+  ('mother_last_name', 'Удалёва'), ('mobile_phone', '+996 700 279 281'),
+  ('whatsapp_telegram', '+996 700 279 282'), ('student_email', 'ainura279@example.invalid'),
+  ('mother_mobile_phone', '+996 700 279 333'),
   ('education_1_school_name', 'Школа-гимназия №5'), ('emergency_contact_relationship', 'Сестра'),
   ('emergency_contact_name', 'Айнура Удалёва'),
   ('emergency_contact_phone_email', '+996 555 279 000, ainura279@example.invalid'),
@@ -559,9 +572,176 @@ INSERT INTO platform.decision_backlog_versions (id, organization_id, conversatio
 VALUES (pg_temp.p279_id(1510), pg_temp.p279_id(1), :'p279_conv', pg_temp.p279_id(1509), 1,
   'Какой вуз выбрала Зарина Удалёва?', 'sales', 'unresolved', 'general', repeat('d', 64), pg_temp.p279_id(202),
   pg_temp.p279_id(302), pg_temp.p279_id(1511));
-INSERT INTO platform_private.amocrm_contact_bindings (organization_id, person_id, contact_id, latest_attempt_id)
-VALUES (pg_temp.p279_id(1), :'p279_zarina_client', '279279', pg_temp.p279_id(1512));
+-- Review 3397bca4f finding 4: the lead-agent linked the chat to amoCRM
+-- (provider_linked, 044/077/082); there is no CRM→amoCRM binding.
+UPDATE platform.communication_conversations SET sales_authority_source = 'provider_linked',
+  amocrm_account_id = 279, amocrm_lead_id = 279, amocrm_contact_id = 279
+WHERE id = :'p279_conv';
 SET LOCAL session_replication_role = origin;
+
+-- ---------------------------------------------------------------------------
+-- Review 3397bca4f (findings 1, 2, 3 and 5): other people around Zarina.
+--  * Her sister Ainura is her emergency contact AND an agency client herself
+--    (client, lead, sales register row, manual lead receipt, journal entry,
+--    all with her own phone and email). Zarina also gave Ainura's email as her
+--    own student_email: an own identifier that another live client has.
+--  * Their mother: mother_mobile_phone in Zarina's profile; the mother's own
+--    client is the client of record of BOTH Zarina's and Timur's cases
+--    (shared), and the mother writes on WhatsApp from her number (the WAHA
+--    chain's own client, bound to nothing). Timur's note names her phone and
+--    Ainura's email.
+--  * Zarina's own mobile_phone: a chat from it is bound to Timur's case
+--    (provider_linked), finding 2.
+--  * Zarina's own whatsapp_telegram (the family number): Sales renamed the
+--    chat's client «Айдана Сестрёнка» and prepared a cabinet for her from that
+--    lead (no membership), finding 3.
+--  * Timur's note and a journal entry with addresses that only END or BEGIN
+--    with Zarina's email, longer phone and passport numbers, and her email and
+--    phone written differently, finding 5.
+-- Bekzat (applicant) gave his father's phone in his анкета: the father is a
+-- client with a lead and a note under that number. Bekzat's анкета lead has
+-- an amoCRM lead binding.
+-- ---------------------------------------------------------------------------
+INSERT INTO p279_wa_runs VALUES
+  (4, pg_temp.p279_wa(4, jsonb_build_object('id', 'false_996700279333@c.us_P279' || lpad('4', 15, '0'),
+    'timestamp', extract(epoch FROM statement_timestamp() - INTERVAL '27 minutes')::BIGINT,
+    'from', '996700279333@c.us', 'fromMe', false, 'source', 'app',
+    'body', 'Здравствуйте, это мама Тимура, мой номер +996 700 279 333'))),
+  (5, pg_temp.p279_wa(5, jsonb_build_object('id', 'false_996700279281@c.us_P279' || lpad('5', 15, '0'),
+    'timestamp', extract(epoch FROM statement_timestamp() - INTERVAL '26 minutes')::BIGINT,
+    'from', '996700279281@c.us', 'fromMe', false, 'source', 'app',
+    'body', 'Пишу по поводу брата Тимура'))),
+  (6, pg_temp.p279_wa(6, jsonb_build_object('id', 'false_996700279282@c.us_P279' || lpad('6', 15, '0'),
+    'timestamp', extract(epoch FROM statement_timestamp() - INTERVAL '25 minutes')::BIGINT,
+    'from', '996700279282@c.us', 'fromMe', false, 'source', 'app',
+    'body', 'Это Айдана, хочу учиться в Малайзии')));
+RESET request.jwt.claims;
+SELECT pg_temp.p279_assert((SELECT count(*) = 6 AND bool_and(result ->> 'disposition' = 'succeeded') FROM p279_wa_runs),
+  'the review 3397bca4f WhatsApp messages did not project through the real chain: '
+    || (SELECT string_agg(result::TEXT, ' ') FROM p279_wa_runs));
+SELECT c.id AS p279_mom_conv, c.canonical_client_id AS p279_mom_wa_client
+FROM platform_private.waha_direct_chat_bindings b
+JOIN platform.communication_conversations c ON c.id = b.conversation_id
+WHERE b.organization_id = pg_temp.p279_id(1) AND b.normalized_chat_id = '996700279333@c.us' \gset
+SELECT c.id AS p279_timur_conv, c.canonical_client_id AS p279_timur_conv_client, c.canonical_lead_id AS p279_timur_conv_lead
+FROM platform_private.waha_direct_chat_bindings b
+JOIN platform.communication_conversations c ON c.id = b.conversation_id
+WHERE b.organization_id = pg_temp.p279_id(1) AND b.normalized_chat_id = '996700279281@c.us' \gset
+SELECT c.id AS p279_aidana_conv, c.canonical_client_id AS p279_aidana_client, c.canonical_lead_id AS p279_aidana_lead
+FROM platform_private.waha_direct_chat_bindings b
+JOIN platform.communication_conversations c ON c.id = b.conversation_id
+WHERE b.organization_id = pg_temp.p279_id(1) AND b.normalized_chat_id = '996700279282@c.us' \gset
+
+SET LOCAL session_replication_role = replica;
+-- Ainura, the sister and emergency contact, is a client herself.
+INSERT INTO platform.clients (id, organization_id, display_name, normalized_name, email, normalized_email, phone,
+  normalized_phone)
+VALUES (pg_temp.p279_id(1601), pg_temp.p279_id(1), 'Айнура Удалёва',
+  platform_private.normalize_person_name('Айнура Удалёва'), 'ainura279@example.invalid', 'ainura279@example.invalid',
+  '+996 555 279 000', '+996555279000');
+INSERT INTO platform.leads (id, organization_id, client_id, current_owner_membership_id, stage_key, source_key,
+  interest_direction)
+VALUES (pg_temp.p279_id(1602), pg_temp.p279_id(1), pg_temp.p279_id(1601), pg_temp.p279_id(302), 'new', 'manual', 'MY');
+INSERT INTO platform_private.sales_register (id, organization_id, version, report_month, owner_membership_id,
+  source_kind, lead_id, client_id, fields, source_snapshot, paid_contract_minor, paid_contract_currency)
+VALUES (pg_temp.p279_id(1603), pg_temp.p279_id(1), 1, date_trunc('month', statement_timestamp())::DATE,
+  pg_temp.p279_id(302), 'pipeline', pg_temp.p279_id(1602), pg_temp.p279_id(1601),
+  jsonb_build_object('applicant_name', 'Айнура Удалёва', 'phone', '+996555279000', 'email', 'ainura279@example.invalid',
+    'notes', 'Звонить +996 555 279 000', 'contract_number', 'EVO-1603', 'paid_minor', 90000, 'paid_currency', 'USD'),
+  jsonb_build_object('applicant_name', 'Айнура Удалёва', 'phone', '+996555279000', 'email', 'ainura279@example.invalid'),
+  90000, 'USD');
+INSERT INTO platform_private.manual_lead_receipts (request_id, organization_id, actor_membership_id, payload, lead_id)
+VALUES (pg_temp.p279_id(1604), pg_temp.p279_id(1), pg_temp.p279_id(302),
+  jsonb_build_object('displayName', 'Айнура Удалёва', 'phone', '+996 555 279 000', 'email', 'ainura279@example.invalid'),
+  pg_temp.p279_id(1602));
+INSERT INTO platform.audit_events (id, organization_id, actor_kind, actor_principal, action, resource_type,
+  resource_id, after_state, reason, request_id)
+VALUES (pg_temp.p279_id(1605), pg_temp.p279_id(1), 'system', 'service:p279', 'lead.create', 'lead', pg_temp.p279_id(1602),
+  jsonb_build_object('display_name', 'Айнура Удалёва', 'phone', '+996 555 279 000', 'email', 'ainura279@example.invalid'),
+  'P279 lead of Ainura, +996 555 279 000', pg_temp.p279_id(1606));
+-- The mother's client: the client of record of both children's cases.
+INSERT INTO platform.clients (id, organization_id, display_name, normalized_name, phone, normalized_phone)
+VALUES (pg_temp.p279_id(1611), pg_temp.p279_id(1), 'Мама Тимура и Зарины',
+  platform_private.normalize_person_name('Мама Тимура и Зарины'), '+996 700 279 333', '+996700279333');
+UPDATE platform.student_cases SET canonical_client_id = pg_temp.p279_id(1611)
+WHERE id IN (:'p279_zarina_case', :'p279_timur_case');
+INSERT INTO platform.case_notes (id, organization_id, lead_id, student_case_id, body, created_by_membership_id)
+VALUES (pg_temp.p279_id(1612), pg_temp.p279_id(1), NULL, :'p279_timur_case',
+  'Мама: +996 700 279 333; сестра: ainura279@example.invalid, +996 555 279 000', pg_temp.p279_id(303));
+-- Zarina's own mobile number wrote about Timur: Sales bound the chat to his case.
+UPDATE platform.communication_conversations SET student_case_id = :'p279_timur_case',
+  sales_authority_source = 'provider_linked', amocrm_account_id = 279, amocrm_lead_id = 2795, amocrm_contact_id = 2795
+WHERE id = :'p279_timur_conv';
+-- The family number (Zarina's whatsapp_telegram): the chat is Aidana's.
+UPDATE platform.clients SET display_name = 'Айдана Сестрёнка',
+  normalized_name = platform_private.normalize_person_name('Айдана Сестрёнка')
+WHERE id = :'p279_aidana_client';
+-- Finding 5: whole values only.
+INSERT INTO platform.case_notes (id, organization_id, lead_id, student_case_id, body, created_by_membership_id)
+VALUES (pg_temp.p279_id(1621), pg_temp.p279_id(1), NULL, :'p279_timur_case',
+  'Связь: P279-ZARINA@Example.invalid, +996 (700) 279-279; не путать: dina.p279-zarina@example.invalid, '
+    || 'p279-zarina@example.invalid.kg, +996 700 279 2791, 19967002792790, AN27902799', pg_temp.p279_id(303));
+INSERT INTO platform.audit_events (id, organization_id, actor_kind, actor_principal, action, resource_type,
+  resource_id, after_state, reason, request_id)
+VALUES (pg_temp.p279_id(1622), pg_temp.p279_id(1), 'system', 'service:p279', 'lead.update', 'lead', :'p279_timur_lead',
+  jsonb_build_object('email', 'dina.p279-zarina@example.invalid', 'backup', 'p279-zarina@example.invalid.kg'),
+  'P279 other addresses', pg_temp.p279_id(1623));
+-- Bekzat's анкета phone is his father's; the father is a client with a lead.
+INSERT INTO platform.clients (id, organization_id, display_name, normalized_name, phone, normalized_phone)
+VALUES (pg_temp.p279_id(1631), pg_temp.p279_id(1), 'Отец Бекзата',
+  platform_private.normalize_person_name('Отец Бекзата'), '+996 700 279 105', '+996700279105');
+INSERT INTO platform.leads (id, organization_id, client_id, current_owner_membership_id, stage_key, source_key,
+  interest_direction)
+VALUES (pg_temp.p279_id(1632), pg_temp.p279_id(1), pg_temp.p279_id(1631), pg_temp.p279_id(302), 'new', 'manual', 'CN');
+INSERT INTO platform.case_notes (id, organization_id, lead_id, student_case_id, body, created_by_membership_id)
+VALUES (pg_temp.p279_id(1633), pg_temp.p279_id(1), pg_temp.p279_id(1632), NULL,
+  'Отец, тел. +996 700 279 105', pg_temp.p279_id(302));
+INSERT INTO platform_private.amocrm_lead_bindings (organization_id, lead_id, provider_lead_id, latest_attempt_id)
+VALUES (pg_temp.p279_id(1), :'p279_bekzat_lead', '1050', pg_temp.p279_id(1634));
+SET LOCAL session_replication_role = origin;
+
+-- Sales prepares Aidana's cabinet from the chat's lead (the released command).
+SET request.jwt.claims TO :'p279_admin';
+SET ROLE authenticated;
+SELECT (platform.prepare_lead_cabinet_v1(pg_temp.p279_id(1), pg_temp.p279_id(1641), :'p279_aidana_lead')
+  ->> 'student_case_id')::UUID AS p279_aidana_case \gset
+RESET ROLE;
+RESET request.jwt.claims;
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.case_notes (id, organization_id, lead_id, student_case_id, body, created_by_membership_id)
+VALUES (pg_temp.p279_id(1642), pg_temp.p279_id(1), NULL, :'p279_aidana_case', 'Айдана: Малайзия, бюджет 5000',
+  pg_temp.p279_id(302));
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.p279_assert(
+  (SELECT sc.student_display_name = 'Айдана Сестрёнка' AND sc.student_membership_id IS NULL AND sc.state = 'pending'
+    FROM platform.student_cases sc WHERE sc.id = :'p279_aidana_case'),
+  'fixture: the cabinet prepared from the family number''s chat is not Aidana''s pending cabinet');
+-- The other people's records as they are now: nothing of them may change.
+CREATE FUNCTION pg_temp.p279_record(p_key TEXT) RETURNS JSONB LANGUAGE sql STABLE AS $$
+  SELECT COALESCE(
+    (SELECT to_jsonb(x) - 'updated_at' FROM platform.clients x WHERE 'client:' || x.id = p_key),
+    (SELECT to_jsonb(x) - 'updated_at' FROM platform.leads x WHERE 'lead:' || x.id = p_key),
+    (SELECT to_jsonb(x) FROM platform_private.sales_register x WHERE 'register:' || x.id = p_key),
+    (SELECT to_jsonb(x) FROM platform_private.manual_lead_receipts x WHERE 'receipt:' || x.request_id = p_key),
+    (SELECT to_jsonb(x) FROM platform.audit_events x WHERE 'audit:' || x.id = p_key),
+    (SELECT to_jsonb(x) FROM platform.case_notes x WHERE 'note:' || x.id = p_key),
+    (SELECT to_jsonb(x) - 'updated_at' FROM platform.student_cases x WHERE 'case:' || x.id = p_key),
+    (SELECT to_jsonb(x) - 'updated_at' FROM platform.communication_conversations x WHERE 'conversation:' || x.id = p_key),
+    (SELECT jsonb_agg(to_jsonb(x) - 'updated_at' ORDER BY x.id) FROM platform.communication_messages x
+      WHERE 'messages:' || x.conversation_id = p_key))
+$$;
+CREATE TEMP TABLE p279_others (rec_key TEXT PRIMARY KEY, rec JSONB NOT NULL);
+INSERT INTO p279_others (rec_key, rec)
+SELECT k, pg_temp.p279_record(k) FROM unnest(ARRAY[
+  'client:' || pg_temp.p279_id(1601), 'client:' || pg_temp.p279_id(1611), 'client:' || pg_temp.p279_id(1631),
+  'client:' || :'p279_mom_wa_client', 'client:' || :'p279_timur_conv_client', 'client:' || :'p279_aidana_client',
+  'lead:' || pg_temp.p279_id(1602), 'lead:' || pg_temp.p279_id(1632), 'lead:' || :'p279_timur_conv_lead',
+  'lead:' || :'p279_aidana_lead', 'register:' || pg_temp.p279_id(1603), 'receipt:' || pg_temp.p279_id(1604),
+  'audit:' || pg_temp.p279_id(1605), 'audit:' || pg_temp.p279_id(1622),
+  'note:' || pg_temp.p279_id(1612), 'note:' || pg_temp.p279_id(1633), 'note:' || pg_temp.p279_id(1642),
+  'case:' || :'p279_aidana_case', 'case:' || :'p279_timur_case',
+  'conversation:' || :'p279_mom_conv', 'conversation:' || :'p279_timur_conv', 'conversation:' || :'p279_aidana_conv',
+  'messages:' || :'p279_mom_conv', 'messages:' || :'p279_timur_conv', 'messages:' || :'p279_aidana_conv']) AS k;
 
 -- ===========================================================================
 -- (i) Who may ask.
@@ -724,8 +904,10 @@ SELECT pg_temp.p279_assert(
   AND (:'p279_detail'::JSONB #>> '{counts,anonymize,leads}')::INT = 2
   AND (:'p279_detail'::JSONB #>> '{counts,anonymize,paymentObligations}')::INT = 1
   AND (:'p279_detail'::JSONB #>> '{counts,anonymize,salesRecords}')::INT = 1
-  AND (:'p279_detail'::JSONB #>> '{counts,remain,amocrmContacts}')::INT = 1
-  AND (:'p279_detail'::JSONB ->> 'amocrmContacts')::INT = 1
+  AND (:'p279_detail'::JSONB #>> '{counts,remain,amocrmContacts}')::INT = 2
+  AND (:'p279_detail'::JSONB ->> 'amocrmContacts')::INT = 2
+  AND :'p279_detail'::JSONB -> 'amocrm' = '{"contactIds": ["279"], "leadIds": ["279"]}'::JSONB
+  AND (:'p279_detail'::JSONB #>> '{counts,remain,sharedClients}')::INT = 1
   AND NOT ((:'p279_detail'::JSONB #> '{counts,remain}') ? 'whatsappChats')
   AND (:'p279_detail'::JSONB ->> 'authAccountExists')::BOOLEAN,
   'the detail does not count what will be deleted and kept: ' || :'p279_detail'
@@ -906,6 +1088,7 @@ SELECT pg_temp.p279_assert(
   AND NOT EXISTS (SELECT 1 FROM platform.external_identifiers x
     WHERE x.client_id = :'p279_wa_client' OR x.lead_id = :'p279_wa_lead')
   AND (SELECT (r.summary #>> '{deleted,whatsappChats}')::INT = 1 AND (r.summary ->> 'amocrmErasureConfirmed')::BOOLEAN
+      AND r.summary -> 'amocrm' = '{"contactIds": ["279"], "leadIds": ["279"]}'::JSONB
     FROM platform_private.account_deletion_requests r WHERE r.id = :'p279_zarina_rid')
   AND EXISTS (SELECT 1 FROM platform.audit_events e WHERE e.action = 'account.deletion.complete'
     AND e.resource_id = :'p279_zarina_rid' AND (e.after_state ->> 'amocrm_erasure_confirmed')::BOOLEAN),
@@ -921,14 +1104,42 @@ SELECT pg_temp.p279_assert(
   'journal entries that name the case only in their state kept the first name'
 );
 
--- (iv) The identifiers of the erased student are nowhere. Another person with
--- the same full name, the school and «сестра» in another student's note stay
--- as they were; Timur's own data is intact, the mention of Zarina's phone in
--- his sale conditions is replaced.
+-- (ix) Review 3397bca4f. Nothing of the other people changed: Ainura's own
+-- client, lead, sales register row, receipt and journal entry (finding 1,
+-- her phone and email are Zarina's emergency contact and student_email); the
+-- mother's client and her WhatsApp chat (finding 1 and 2: a parent's phone
+-- never searches chats nor scrubs the organization); the chat from Zarina's
+-- mobile bound to Timur's case (finding 2); Aidana's cabinet, its note, chat,
+-- client and lead (finding 3); Timur's notes and the journal entry with other
+-- addresses (finding 5). Only the whole email and phone of Zarina in Timur's
+-- note, however written, are replaced.
 SELECT pg_temp.p279_assert(
-  pg_temp.p279_needles('(p279-zarina@example\.invalid|996 ?700 ?279 ?279|AN2790279|996 ?555 ?279 ?000|ainura279@example\.invalid)') = '',
+  (SELECT count(*) FROM p279_others) = 25
+    AND NOT EXISTS (SELECT 1 FROM p279_others o WHERE o.rec IS DISTINCT FROM pg_temp.p279_record(o.rec_key)),
+  'another person''s record changed: ' || COALESCE((SELECT string_agg(o.rec_key, ', ' ORDER BY o.rec_key)
+    FROM p279_others o WHERE o.rec IS DISTINCT FROM pg_temp.p279_record(o.rec_key)), '-')
+);
+SELECT pg_temp.p279_assert(
+  (SELECT n.body FROM platform.case_notes n WHERE n.id = pg_temp.p279_id(1621))
+    = 'Связь: [удалено], [удалено]; не путать: dina.p279-zarina@example.invalid, '
+      || 'p279-zarina@example.invalid.kg, +996 700 279 2791, 19967002792790, AN27902799',
+  'Timur''s note: Zarina''s whole email and phone are not replaced, or a longer address or number was touched: '
+    || (SELECT n.body FROM platform.case_notes n WHERE n.id = pg_temp.p279_id(1621))
+);
+
+-- (iv) The identifiers of the erased student are nowhere (the note and the
+-- journal entry above that only contain longer addresses and numbers go
+-- first). Another person with the same full name, the school and «сестра» in
+-- another student's note stay as they were; Timur's own data is intact, the
+-- mention of Zarina's phone in his sale conditions is replaced.
+SET LOCAL session_replication_role = replica;
+DELETE FROM platform.case_notes WHERE id = pg_temp.p279_id(1621);
+DELETE FROM platform.audit_events WHERE id = pg_temp.p279_id(1622);
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.p279_assert(
+  pg_temp.p279_needles('(p279-zarina@example\.invalid|996 ?700 ?279 ?279|AN2790279)') = '',
   'identifiers of the erased student remain: ' ||
-    pg_temp.p279_needles('(p279-zarina@example\.invalid|996 ?700 ?279 ?279|AN2790279|996 ?555 ?279 ?000|ainura279@example\.invalid)')
+    pg_temp.p279_needles('(p279-zarina@example\.invalid|996 ?700 ?279 ?279|AN2790279)')
 );
 SELECT pg_temp.p279_assert(
   (SELECT k.display_name = 'Зарина Удалёва' AND k.phone = '+996 777 000 111'
@@ -957,19 +1168,21 @@ SELECT pg_temp.p279_assert(
     WHERE r.subject_auth_user_id = pg_temp.p279_id(107)),
   'another student''s data was touched beyond the mention of the erased person'
 );
--- Names and the address: once the other person's rows are removed (they
--- rightly carry the same name), none of the erased student's is left.
+-- Names, the address and the emergency contact: once the other people's rows
+-- are removed (they rightly carry the same name, Ainura her own phone and
+-- email), none of the erased student's is left.
 SET LOCAL session_replication_role = replica;
-DELETE FROM platform.audit_events WHERE id = pg_temp.p279_id(1105);
-DELETE FROM platform_private.manual_lead_receipts WHERE request_id = pg_temp.p279_id(1104);
-DELETE FROM platform_private.sales_register WHERE id = pg_temp.p279_id(1103);
-DELETE FROM platform.leads WHERE id = pg_temp.p279_id(1102);
-DELETE FROM platform.clients WHERE id = pg_temp.p279_id(1101);
+DELETE FROM platform.audit_events WHERE id IN (pg_temp.p279_id(1105), pg_temp.p279_id(1605));
+DELETE FROM platform_private.manual_lead_receipts WHERE request_id IN (pg_temp.p279_id(1104), pg_temp.p279_id(1604));
+DELETE FROM platform_private.sales_register WHERE id IN (pg_temp.p279_id(1103), pg_temp.p279_id(1603));
+DELETE FROM platform.case_notes WHERE id = pg_temp.p279_id(1612);
+DELETE FROM platform.leads WHERE id IN (pg_temp.p279_id(1102), pg_temp.p279_id(1602));
+DELETE FROM platform.clients WHERE id IN (pg_temp.p279_id(1101), pg_temp.p279_id(1601));
 SET LOCAL session_replication_role = origin;
 SELECT pg_temp.p279_assert(
-  pg_temp.p279_needles('(Зарина Удалёва|Гульнара Удалёва|Айнура Удалёва|Синтетическая 279)') = '',
-  'names or the address of the erased student remain: ' ||
-    pg_temp.p279_needles('(Зарина Удалёва|Гульнара Удалёва|Айнура Удалёва|Синтетическая 279)')
+  pg_temp.p279_needles('(Зарина Удалёва|Гульнара Удалёва|Айнура Удалёва|Синтетическая 279|996 ?555 ?279 ?000|ainura279@example\.invalid)') = '',
+  'names, the address or the emergency contact of the erased student remain: ' ||
+    pg_temp.p279_needles('(Зарина Удалёва|Гульнара Удалёва|Айнура Удалёва|Синтетическая 279|996 ?555 ?279 ?000|ainura279@example\.invalid)')
 );
 
 -- ===========================================================================
@@ -988,15 +1201,36 @@ SELECT pg_temp.p279_assert(
   AND (SELECT l.lifecycle_state = 'archived' FROM platform.leads l WHERE l.id = :'p279_bekzat_lead'),
   'the applicant''s анкета, client and lead were not erased'
 );
+-- Bekzat's анкета phone is his father's: the father's client, lead and note
+-- stay as they were (an identifier another person has never scrubs the
+-- organization).
+SELECT pg_temp.p279_assert(
+  NOT EXISTS (SELECT 1 FROM p279_others o WHERE o.rec IS DISTINCT FROM pg_temp.p279_record(o.rec_key)
+    AND o.rec_key IN ('client:' || pg_temp.p279_id(1631), 'lead:' || pg_temp.p279_id(1632),
+      'note:' || pg_temp.p279_id(1633))),
+  'the father''s client, lead or note changed when Bekzat was erased'
+);
+SELECT pg_temp.p279_assert(
+  :'p279_bekzat_processed'::JSONB #> '{summary,amocrm}' = '{"contactIds": [], "leadIds": ["1050"]}'::JSONB
+  AND (:'p279_bekzat_processed'::JSONB #>> '{summary,remain,amocrmContacts}')::INT = 1,
+  'the amoCRM lead binding of the applicant is not in the summary: ' || :'p279_bekzat_processed'
+);
 DELETE FROM auth.users WHERE id IN (pg_temp.p279_id(105), pg_temp.p279_id(106));
 SET request.jwt.claims TO :'p279_admin';
 SET ROLE authenticated;
 SELECT pg_temp.p279_assert(
-  (platform.complete_account_deletion_v1(:'p279_bekzat_rid', 'not_configured', FALSE) ->> 'status') = 'completed'
+  pg_temp.p279_error(format('SELECT platform.complete_account_deletion_v1(%L, %L, FALSE)', :'p279_bekzat_rid',
+    'not_configured')) = '55000 account_deletion_amocrm_unconfirmed'
+  AND (platform.complete_account_deletion_v1(:'p279_bekzat_rid', 'not_configured', TRUE) ->> 'status') = 'completed'
   AND (platform.complete_account_deletion_v1(:'p279_bare_rid', 'no_address', FALSE) ->> 'status') = 'completed',
   'applicant requests did not complete'
 );
 RESET ROLE;
+SET LOCAL session_replication_role = replica;
+DELETE FROM platform.case_notes WHERE id = pg_temp.p279_id(1633);
+DELETE FROM platform.leads WHERE id = pg_temp.p279_id(1632);
+DELETE FROM platform.clients WHERE id = pg_temp.p279_id(1631);
+SET LOCAL session_replication_role = origin;
 SELECT pg_temp.p279_assert(
   pg_temp.p279_needles('(p279-bekzat@example\.invalid|p279-bare@example\.invalid|996 ?700 ?279 ?105|Бекзат Анкетов)') = '',
   'personal values of the erased applicants remain: ' ||

@@ -3050,6 +3050,37 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_whatsapp_chat_replies.sql
   fi
+
+  # «ИИ-агент» P1 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md, ADR 0032): schema,
+  # role evo_ai_agent, rights, queue and RPCs. Matched by name, not number, so
+  # a renumbering at merge keeps the hook. The three migrations are applied a
+  # SECOND time first (production-safe re-run: no new bundle, queue, price or
+  # error), then the suite proves on the real chain: the role reads no table and
+  # executes only the 19 agent functions; the rights grant (new bundle
+  # versions, moved assignments, idempotent); tickets (consent, access,
+  # single use, 60 s, purpose, 60 per member per minute); no dialog text
+  # without a redemption for every agent function; the admin-only seed
+  # allowlist; worker indexing through the queue; hybrid search; one generator
+  # per answer, citations to live client documents only, supersede/409, stale
+  # insert and a follow-up stale after a newer staff message; 20/min rate
+  # limit; spend sums, prices by day and the budget cap, which an unpriced
+  # model cannot bypass; a reservation released before any Gemini call
+  # returns the headroom, a settled one is never touched.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_rpc.sql ]]; then
+    while IFS= read -r ai_agent_migration; do
+      docker exec "$container_name" \
+        psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -f "/workspace/$ai_agent_migration" >/dev/null
+    done < <(
+      cd "$repo_root"
+      find supabase/migrations -maxdepth 1 -type f \
+        \( -name '*_platform_ai_agent_schema.sql' -o -name '*_platform_ai_agent_rights.sql' \
+        -o -name '*_platform_ai_agent_rpc.sql' \) | sort
+    )
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_p1.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

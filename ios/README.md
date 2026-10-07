@@ -64,12 +64,20 @@ source of truth for structural changes.
 Порядок выпуска (из корня репозитория):
 
 1. PR #1170 (восстановление пароля в веб-кабинете) слит и выкачен в
-   production. Без него ссылка из письма «Забыли пароль?» не откроет страницу
-   нового пароля: на `main` `src/app/auth/callback/page.tsx` обрабатывает
-   только приглашения. До отправки на проверку: в сборке TestFlight «Забыли
-   пароль?» → письмо → ссылка открывает страницу нового пароля на
-   app.evoadmissions.com; для адреса сотрудника эта страница отказывает.
-2. Записать `Release.xcconfig`. Значения: адрес проекта, publishable ключ
+   production. Владелец 07.10.2026: пока не выпущен, ждём его решения; до
+   выката на публичную проверку не отправлять. Без него ссылка из письма
+   «Забыли пароль?» не откроет страницу нового пароля: на `main`
+   `src/app/auth/callback/page.tsx` обрабатывает только приглашения. До
+   отправки на проверку: в сборке TestFlight «Забыли пароль?» → письмо →
+   ссылка открывает страницу нового пароля на app.evoadmissions.com; для
+   адреса сотрудника эта страница отказывает.
+2. PR «Удаление аккаунта по запросу» слит и выкачен до отправки на проверку:
+   аккаунт и персональные данные удаляются в течение 30 дней, договоры и
+   платёжные записи хранятся обезличенными столько, сколько требует закон
+   (решение владельца 07.10.2026). Экран, «Notes» для проверяющего и политика
+   на сайте говорят то же. Правило 5.1.1(v) требует удаления аккаунта
+   внутри приложения.
+3. Записать `Release.xcconfig`. Значения: адрес проекта, publishable ключ
    (Supabase Dashboard, Project Settings, API Keys) и Team ID
    (developer.apple.com/account, «Membership details»). Скрипт принимает только
    `https://`, проверяет формат и не печатает ключ:
@@ -81,10 +89,10 @@ source of truth for structural changes.
    ```
    `PORTAL_WEB_BASE_URL` необязателен, по умолчанию
    `https://app.evoadmissions.com`.
-3. `git status` чистый для `ios/Generated/Info.plist` (без исключения ATS). Если
+4. `git status` чистый для `ios/Generated/Info.plist` (без исключения ATS). Если
    менялся `project.yml`: `cd ios && xcodegen generate`, затем проверить, что
    в `Generated/Info.plist` нет `NSAppTransportSecurity`.
-4. Архив. Подпись автоматическая; Xcode должен знать аккаунт разработчика
+5. Архив. Подпись автоматическая; Xcode должен знать аккаунт разработчика
    («Xcode» → «Settings» → «Accounts») или получить ключ App Store Connect API
    параметрами `-authenticationKeyPath`, `-authenticationKeyID`,
    `-authenticationKeyIssuerID`:
@@ -94,9 +102,9 @@ source of truth for structural changes.
      -archivePath <папка вне репозитория>/EVOAdmissions-1.0.0-1.xcarchive \
      -allowProvisioningUpdates archive
    ```
-5. Отчёт о приватности: «Window» → «Organizer» → правый клик по архиву →
+6. Отчёт о приватности: «Window» → «Organizer» → правый клик по архиву →
    «Generate Privacy Report». Сверить с `docs/app-store/app-privacy.md`.
-6. Загрузка в App Store Connect:
+7. Загрузка в App Store Connect:
    ```
    xcodebuild -exportArchive \
      -archivePath <папка вне репозитория>/EVOAdmissions-1.0.0-1.xcarchive \
@@ -106,8 +114,11 @@ source of truth for structural changes.
    `ExportOptions-AppStore.plist`: метод `app-store-connect`, назначение
    `upload`, номер сборки Xcode не меняет. То же можно сделать в «Organizer» →
    «Distribute App» → «App Store Connect».
-7. Дальше по `docs/app-store/owner-checklist.md`: TestFlight, страница версии
-   `1.0.0`, отправка на проверку. Отправляет и выпускает владелец.
+8. Дальше по `docs/app-store/owner-checklist.md`: TestFlight, страница версии
+   `1.0.0`, отправка на проверку. Отправляет и выпускает владелец. Публичная
+   отправка идёт только после перевода членства Individual в Organization
+   (шаг 2.1 чеклиста, решение владельца 07.10.2026); TestFlight на Individual
+   этого не ждёт.
 
 Проверено 07.10.2026 на Xcode 26.5 (iOS 26.5 SDK): `xcodegen generate`, Debug и
 171 unit-тест, Release под симулятор с `Release.xcconfig` из скрипта с

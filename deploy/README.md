@@ -95,6 +95,10 @@ bootstrap or maintain a second credential store.
 - `app` joins `evo_crm_private` and the pre-existing EVO web network.
 - `clamav` joins only `evo_crm_private`; it has no host-published port.
 - `waha` joins only `evo_crm_private`; it has no host-published port.
+- `ai-agent-api` and `ai-agent-worker` (compose profile `ai-agent`, off by default)
+  join only their own bridge `evo_crm_ai`, never `evo_crm_private`; the release
+  controller attaches `app` to it only while the agent is enabled. See
+  [`docs/runbooks/ai-agent-enable.md`](../docs/runbooks/ai-agent-enable.md).
 - WAHA session bytes remain in `evo_crm_waha_sessions`.
 - Canonical documents live in private Supabase Storage, not the app output
   volume. `evo_crm_output` is non-authoritative generated output only.

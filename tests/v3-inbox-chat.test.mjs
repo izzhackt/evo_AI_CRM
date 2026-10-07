@@ -303,15 +303,17 @@ test("older messages: an exact keyset cursor of the chat, 404 when the chat is n
 
 // ---------------------------------------------------------------- source contracts
 
-test("the chat imports no Gemini or amoCRM code and leaves a clean, empty slot for the AI window", () => {
+test("the chat imports no Gemini or amoCRM code; the AI window fills the slot only where the composer is", () => {
   const files = ["src/components/v3/inbox/InboxChat.tsx", "src/components/v3/inbox/InboxComposer.tsx",
     "src/components/v3/inbox/useInboxPulse.ts", "src/components/v3/inbox/chat-store.ts", "src/components/v3/Inbox.tsx",
-    "src/app/(v3)/v3/inbox/page.tsx", "src/lib/v3/inbox-source.ts"];
+    "src/app/(v3)/v3/inbox/page.tsx", "src/lib/v3/inbox-source.ts", "src/components/v3/inbox/InboxAiAssistant.tsx"];
   for (const file of files) {
     assert.doesNotMatch(read(file), /from "[^"]*(gemini|amocrm)[^"]*"/iu, file);
   }
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /assistantSlot=\{null\}/u);
-  assert.match(read("src/components/v3/inbox/InboxChat.tsx"), /\{assistant \? \(/u, "nothing is drawn until the AI window exists");
+  // «ИИ-агент» P1 (план §12.1): окно — у того, у кого есть ai.agent.use, не в просмотре роли.
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /const assistant = !isStaffPreview\(actor\) && staffHasPermission\(actor, "ai\.agent\.use"\)/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /assistant=\{assistant\}/u);
+  assert.match(read("src/components/v3/inbox/InboxChat.tsx"), /\{assistant && canSend \? \(/u, "no window without the composer");
 });
 
 test("the request id is frozen until a definite answer: retries and reloads reuse it", () => {

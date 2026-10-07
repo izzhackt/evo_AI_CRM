@@ -23,6 +23,7 @@ export type V3NavigationLinkId =
   | "reply-snippets"
   | "knowledge"
   | "marketing"
+  | "ai-agent"
   | "settings";
 
 export type V3NavigationLink = Readonly<{
@@ -120,6 +121,8 @@ const COMMON: readonly V3NavigationLink[] = [
   { id: "documents", href: "/v3/documents", route: "/v3/documents", label: "Документы" },
   { id: "reply-snippets", href: "/v3/reply-snippets", route: "/v3/reply-snippets", label: "Шаблоны ответов" },
   { id: "knowledge", href: "/v3/knowledge", route: "/v3/knowledge", label: "База знаний" },
+  // «ИИ-агент» (план ИИ-агента §12.2): все сотрудники (Q9), маршрут — ai.agent.use.
+  { id: "ai-agent", href: "/v3/ai-agent", route: "/v3/ai-agent", label: "ИИ-агент" },
   // Только настоящий администратор, не просмотр роли: маршрут закрыт тем же правилом, что «База знаний».
   { id: "marketing", href: "/v3/marketing", route: "/v3/marketing", label: "Маркетинг" },
 ];

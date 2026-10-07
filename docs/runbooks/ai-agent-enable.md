@@ -1,5 +1,38 @@
 # Включение «ИИ-агента» на hermes (P1–P4)
 
+**Статус на 2026-10-07** (подробная квитанция — `docs/EVO_LAUNCH_PLAN.md`,
+раздел «2026-10-07 — „ИИ-агент“ включён (P1)»; текст ниже не переписывался):
+
+- Шаг 0 выполнен 07.10: миграции 267–277 в журнале production (ledger
+  001–277, apply 37578680500); выпуск №1 без агента —
+  `v3-r37579014957-a1-d0178906`.
+- P1, шаги владельца 1–3 выполнены 07.10: `docker login ghcr.io` на hermes
+  (classic-токен `read:packages`, не ограниченный одним пакетом; копии в SOPS
+  нет); роль `evo_ai_agent` — `LOGIN`, SCRAM-SHA-256, `CONNECTION LIMIT 10`;
+  оба файла окружения заполнены (только имена: `GEMINI_API_KEY`,
+  `DATABASE_URL`, `INTERNAL_SECRET`, `STORAGE_SECRET`, `AUTOSEND=0`).
+  Шаг 4 (согласие на Gemini) **не выполнен** — агент запущен, но ответов не
+  даёт.
+- P1, шаги оператора 1–5 выполнены 07.10: образ
+  `ghcr.io/izzhackt/evo-ai-agent@sha256:14155fc8…a6b7` (`4ceaa17`,
+  linux/amd64), `EVO_AI_AGENT_IMAGE_DIGEST` и `EVO_AI_AGENT_ENABLED=true`,
+  выпуск №2 `v3-r37580224797-a1-973bcc85` (`973bcc857`), `status` →
+  `"aiAgent":"healthy"`, граница сети `waha: isolated`, `clamav: isolated`.
+  Приёмка P1 (`/v1/status` из CRM, настоящий ответ через edge) не
+  завершена: в 06:35:14 UTC CRM один раз вызвал `GET /v1/status` → 200 (в
+  учёте 1 вызов `probe`, 0 токенов, $0.00), но согласие не записано и
+  настоящего ответа нет (`ai_requests` и `ai_answers` 0, чтение 06:44 UTC).
+- P2: `EVO_AI_AGENT_STORAGE_SECRET` заведён в обоих файлах вместе с P1 и уже
+  в выпуске №2 (раньше порядка «до шага» P2); замер Tesseract и проверка P2
+  не проводились, документов агента 0.
+- P3: память выключена (`memory_enabled` false).
+- P4: выключен; `EVO_AI_AGENT_SEND_SECRET` не создан, `EVO_AI_AGENT_AUTOSEND=0`
+  в обоих файлах, автоответчик в БД выключен.
+- Месячный лимит EVO — $100 по умолчанию; в Google AI Studio владелец
+  поставил $10, в EVO нужно $9 — не выставлено (admin, «Агент и лимит»).
+- Исходные файлы окружения до агента: `/root/evo-config-backups/.env.ai-agent.20261007T060650Z`
+  и `.env.production.20261007T060652Z`.
+
 Контракт: [план «ИИ-агент»](../EVO_AI_AGENT_PLAN_2026-10-06.md) §4.2, §4.5–§4.8, §11,
 §15, [ADR 0032](../adr/0032-run-the-ai-agent-as-a-private-evo-service.md), для P4 —
 [ADR 0031](../adr/0031-allow-bounded-night-whatsapp-autoreply.md). Этот документ
@@ -101,6 +134,16 @@ SOPS-архиве «Секреты и доступы ЭВО», никогда в
    `izzhackt/evo-ai-agent`. На hermes под root: `docker login ghcr.io -u izzhackt
    --password-stdin` (значение — со стандартного ввода, не в аргументах и не в
    истории). Копия — в SOPS-архиве «Секреты и доступы ЭВО».
+   *Примечание 2026-10-07 (текст шага выше не переписан):* GitHub Packages
+   принимает только personal access token (classic) (docs.github.com,
+   «Working with the Container registry»), а classic-токен одним пакетом не
+   ограничить; fine-grained токен для `docker login ghcr.io` не подходит.
+   Сузить доступ можно отдельной машинной учётной записью GitHub с правом
+   только на чтение `izzhackt/evo-ai-agent` и её classic-токеном
+   `read:packages`; иначе — осознанно принять classic-токен владельца и
+   записать это решение. 07.10 на hermes стоит classic-токен `read:packages`
+   (вход выполнил владелец), копии в SOPS нет (`docs/PLAN_CHANGES.md`, запись
+   07.10).
 2. **Роль БД.** После того как миграции агента (#1158) приняты в журнал production
    обычным порядком, в SQL editor: `ALTER ROLE evo_ai_agent WITH LOGIN PASSWORD
    '<новый пароль>' CONNECTION LIMIT 10;`. Пароль — только в `.env.ai-agent` и SOPS.

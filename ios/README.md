@@ -63,7 +63,13 @@ source of truth for structural changes.
 
 Порядок выпуска (из корня репозитория):
 
-1. Записать `Release.xcconfig`. Значения: адрес проекта, publishable ключ
+1. PR #1170 (восстановление пароля в веб-кабинете) слит и выкачен в
+   production. Без него ссылка из письма «Забыли пароль?» не откроет страницу
+   нового пароля: на `main` `src/app/auth/callback/page.tsx` обрабатывает
+   только приглашения. До отправки на проверку: в сборке TestFlight «Забыли
+   пароль?» → письмо → ссылка открывает страницу нового пароля на
+   app.evoadmissions.com; для адреса сотрудника эта страница отказывает.
+2. Записать `Release.xcconfig`. Значения: адрес проекта, publishable ключ
    (Supabase Dashboard, Project Settings, API Keys) и Team ID
    (developer.apple.com/account, «Membership details»). Скрипт принимает только
    `https://`, проверяет формат и не печатает ключ:
@@ -75,10 +81,10 @@ source of truth for structural changes.
    ```
    `PORTAL_WEB_BASE_URL` необязателен, по умолчанию
    `https://app.evoadmissions.com`.
-2. `git status` чистый для `ios/Generated/Info.plist` (без исключения ATS). Если
+3. `git status` чистый для `ios/Generated/Info.plist` (без исключения ATS). Если
    менялся `project.yml`: `cd ios && xcodegen generate`, затем проверить, что
    в `Generated/Info.plist` нет `NSAppTransportSecurity`.
-3. Архив. Подпись автоматическая; Xcode должен знать аккаунт разработчика
+4. Архив. Подпись автоматическая; Xcode должен знать аккаунт разработчика
    («Xcode» → «Settings» → «Accounts») или получить ключ App Store Connect API
    параметрами `-authenticationKeyPath`, `-authenticationKeyID`,
    `-authenticationKeyIssuerID`:
@@ -88,9 +94,9 @@ source of truth for structural changes.
      -archivePath <папка вне репозитория>/EVOAdmissions-1.0.0-1.xcarchive \
      -allowProvisioningUpdates archive
    ```
-4. Отчёт о приватности: «Window» → «Organizer» → правый клик по архиву →
+5. Отчёт о приватности: «Window» → «Organizer» → правый клик по архиву →
    «Generate Privacy Report». Сверить с `docs/app-store/app-privacy.md`.
-5. Загрузка в App Store Connect:
+6. Загрузка в App Store Connect:
    ```
    xcodebuild -exportArchive \
      -archivePath <папка вне репозитория>/EVOAdmissions-1.0.0-1.xcarchive \
@@ -100,7 +106,7 @@ source of truth for structural changes.
    `ExportOptions-AppStore.plist`: метод `app-store-connect`, назначение
    `upload`, номер сборки Xcode не меняет. То же можно сделать в «Organizer» →
    «Distribute App» → «App Store Connect».
-6. Дальше по `docs/app-store/owner-checklist.md`: TestFlight, страница версии
+7. Дальше по `docs/app-store/owner-checklist.md`: TestFlight, страница версии
    `1.0.0`, отправка на проверку. Отправляет и выпускает владелец.
 
 Проверено 07.10.2026 на Xcode 26.5 (iOS 26.5 SDK): `xcodegen generate`, Debug и
@@ -108,6 +114,9 @@ source of truth for structural changes.
 заглушкой ключа (в собранном `.app` есть `PrivacyInfo.xcprivacy`, версия
 `1.0.0` (1), нет `NSAppTransportSecurity`), отказ Release без
 `Release.xcconfig` и с исключением ATS, отказ архива с заглушкой ключа.
+После ревью PR #1172 (07.10.2026): 172 unit-теста; Release под симулятор
+останавливается на ключе `sb_secret_`; оба скрипта отклоняют `sb_secret_` и
+JWT `service_role`, пропускают `sb_publishable_` и JWT `anon`.
 Не проверено: подпись, архив под устройство и загрузка, потому что Team ID
 ещё нет.
 

@@ -1470,21 +1470,25 @@ const WHATSAPP_CONTACT_KEYS = Object.freeze(["conversation_id", "contact_name", 
 const WHATSAPP_CONTACT_LIMIT = 60;
 const MASKED_PHONE_PATTERN = /^\+[1-9]\d{0,2} ••• \d{1,2}(?: \d{2}){0,2}$/u;
 
-export function normalizePlatformWhatsAppContact(value: unknown): PlatformWhatsAppContact {
-  if (!isRecord(value) || !hasExactKeys(value, WHATSAPP_CONTACT_KEYS)) return invalidShape();
-  const conversationId = parsePlatformRouteUuid(value.conversation_id);
+function whatsAppContactRowId(value: unknown): string | null {
+  if (!isRecord(value) || !hasExactKeys(value, WHATSAPP_CONTACT_KEYS)) return null;
+  return parsePlatformRouteUuid(value.conversation_id);
+}
+
+/** Строка 278 или null, если её имя или номер не годятся для экрана. */
+function parseWhatsAppContact(value: unknown): PlatformWhatsAppContact | null {
+  const conversationId = whatsAppContactRowId(value);
+  if (conversationId === null || !isRecord(value)) return null;
   const name = value.contact_name === null ? null : parseRequiredText(value.contact_name);
   const phone = typeof value.contact_phone === "string" && MASKED_PHONE_PATTERN.test(value.contact_phone)
     ? value.contact_phone
     : null;
-  if (
-    conversationId === null
-    || (value.contact_name !== null && (name === null || name.length > 500))
-    || phone === null
-  ) {
-    return invalidShape();
-  }
+  if ((value.contact_name !== null && (name === null || name.length > 500)) || phone === null) return null;
   return Object.freeze({ conversationId, name: name?.trim() ?? null, phone });
+}
+
+export function normalizePlatformWhatsAppContact(value: unknown): PlatformWhatsAppContact {
+  return parseWhatsAppContact(value) ?? invalidShape();
 }
 
 /**
@@ -1508,11 +1512,17 @@ export async function getPlatformWhatsAppContacts(
       { get: true },
     );
     if (response.error || !Array.isArray(response.data)) return invalidShape();
+    const seen = new Set<string>();
     const contacts = new Map<string, PlatformWhatsAppContact>();
     for (const row of response.data) {
-      const contact = normalizePlatformWhatsAppContact(row);
-      if (!requested.includes(contact.conversationId) || contacts.has(contact.conversationId)) return invalidShape();
-      contacts.set(contact.conversationId, contact);
+      // Чужой, лишний или повторный чат — нарушение договора: отказ целиком.
+      const conversationId = whatsAppContactRowId(row);
+      if (conversationId === null || !requested.includes(conversationId) || seen.has(conversationId)) return invalidShape();
+      seen.add(conversationId);
+      // Негодное имя или номер одной строки (например, очень длинное набранное
+      // имя) гасит только её: этот чат покажет тему, остальные — имя и номер.
+      const contact = parseWhatsAppContact(row);
+      if (contact) contacts.set(conversationId, contact);
     }
     return contacts;
   } catch (error) {

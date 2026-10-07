@@ -16,9 +16,11 @@
 --     country code and the last six digits, «+996 ••• 12 46 64». The full
 --     number never leaves the database through it. Name: the client's own name
 --     when it is not a placeholder of the WhatsApp chain (a name someone typed
---     wins), otherwise the customer's latest WhatsApp profile (push) name from
---     a verified customer message, otherwise NULL (the screen says
---     «WhatsApp»). A row is returned only for a chat whose subject is still the
+--     wins) and the member may read that client (client.read), otherwise the
+--     customer's latest WhatsApp profile (push) name from a verified customer
+--     message, otherwise NULL (the screen says «WhatsApp»). Since 261 every
+--     member with communication.read.full reads every sales chat; the client
+--     name stays behind client.read. A row is returned only for a chat whose subject is still the
 --     chain's generated subject and whose number is known; any other chat keeps
 --     its subject on screen. The number's last four digits must agree with the
 --     «WhatsApp ••••NNNN» subject, otherwise no number is shown.
@@ -30,11 +32,15 @@
 --     with the masked number. A name that is not such a placeholder — typed by
 --     a member, a manual lead, a website or intake name — is never touched; the
 --     update is a compare-and-set on the old placeholder, so a concurrent edit
---     wins. The capture is cosmetic and can never fail or delay the projection
---     of a message: its errors are caught and logged as a warning (SQLSTATE
---     only), and it is silent during a history import page.
+--     wins. The capture is cosmetic and can never fail or wait on the
+--     projection of a message: its errors are caught and logged as a warning
+--     (SQLSTATE only), a client row another transaction holds is skipped
+--     (FOR NO KEY UPDATE SKIP LOCKED; the next customer message retries), and
+--     it is silent during a history import page.
 --  3. Backfill. Every existing WhatsApp chat with a canonical client is passed
---     through the same capture once (idempotent; a re-run changes nothing).
+--     through the same capture once (idempotent; a re-run changes nothing; a
+--     client row locked at that moment is skipped and named by its next
+--     customer message).
 --
 -- Profile names: WEBJS `_data.notifyName`, NOWEB `_data.pushName`, GOWS
 -- `_data.Info.PushName`, read and sanitised by 259's waha_payload_push_name.
@@ -48,6 +54,16 @@
 --    change of the WhatsApp profile name is not followed (it is no longer a
 --    placeholder, and it cannot be told apart from a typed name). The chat
 --    shows the client's name too.
+--  * The CRM has no staff action that renames a client (the only writers of
+--    platform.clients.display_name are 084's merge and this capture): a wrong,
+--    business or joke profile name — an emoji-only name included — becomes
+--    the client's name on lead cards and in the AI lead card and can be
+--    corrected only by SQL until a rename action exists.
+--  * The AI lead card (274's platform_private.ai_lead_card) reads
+--    platform.clients.display_name: from the moment this migration is applied
+--    (before any application release) every «Помочь с ответом» (P2) draft
+--    request sends the profile first name (up to 60 characters) to the model
+--    instead of no name. Applying 278 is that decision.
 --  * A chat without a client (history import only) shows the profile name only
 --    after its first live customer message.
 --  * A LID chat without any known number keeps its subject («Имя #1a2b»).
@@ -401,20 +417,30 @@ BEGIN
   WHERE client.organization_id = p_organization_id
     AND client.id = conversation.canonical_client_id;
 
-  contact_name := CASE
-    WHEN client_name IS NOT NULL
-      AND NOT platform_private.waha_generated_client_name(
-        client_name,
-        COALESCE(client_digits, digits),
-        conversation.subject,
-        conversation.id
-      )
-      THEN client_name
-    ELSE platform_private.waha_conversation_push_name(
+  -- A typed or captured client name only for a member who may read that
+  -- client; everyone else who reads the chat sees the profile name.
+  IF client_name IS NOT NULL
+    AND NOT platform_private.waha_generated_client_name(
+      client_name,
+      COALESCE(client_digits, digits),
+      conversation.subject,
+      conversation.id
+    )
+    AND COALESCE(
+      private.platform_can_read_canonical_client(
+        p_organization_id,
+        conversation.canonical_client_id
+      ),
+      FALSE
+    )
+  THEN
+    contact_name := client_name;
+  ELSE
+    contact_name := platform_private.waha_conversation_push_name(
       p_organization_id,
       p_conversation_id
-    )
-  END;
+    );
+  END IF;
   contact_phone := platform_private.whatsapp_masked_phone(digits);
   RETURN NEXT;
 END
@@ -426,7 +452,8 @@ $$;
 
 -- Renames the chat's canonical client from a placeholder of the WhatsApp chain
 -- to the profile name (or «WhatsApp <masked number>»). Returns what happened:
--- renamed | unchanged | kept (not a placeholder) | no_client | skipped.
+-- renamed | unchanged | kept (not a placeholder) | no_client | skipped |
+-- busy (another transaction holds the client row; nothing waits).
 CREATE FUNCTION platform_private.refresh_waha_client_contact_name(
   p_organization_id UUID,
   p_conversation_id UUID
@@ -498,6 +525,17 @@ BEGIN
     RETURN 'unchanged';
   END IF;
 
+  -- Never wait on a client row another transaction holds (a merge, a parallel
+  -- projection, the backfill): the same row lock the UPDATE takes, or skip.
+  PERFORM 1
+  FROM platform.clients AS locked
+  WHERE locked.organization_id = p_organization_id
+    AND locked.id = client.id
+  FOR NO KEY UPDATE SKIP LOCKED;
+  IF NOT FOUND THEN
+    RETURN 'busy';
+  END IF;
+
   -- Compare-and-set on the placeholder read above: a concurrent rename wins.
   UPDATE platform.clients AS target
   SET display_name = target_name,
@@ -511,7 +549,8 @@ BEGIN
 END
 $$;
 
--- Cosmetic: never fails, never delays the message projection. (A projected
+-- Cosmetic: never fails the message projection and never waits on a client
+-- row lock (see refresh_waha_client_contact_name). (A projected
 -- customer message carries no session name of its own; the conversation does,
 -- and the refresh checks it.)
 CREATE FUNCTION platform_private.capture_waha_contact_name_from_message()
@@ -657,7 +696,7 @@ GRANT EXECUTE ON FUNCTION platform.staff_whatsapp_contacts(UUID, UUID[])
   TO authenticated;
 
 COMMENT ON FUNCTION platform.staff_whatsapp_contacts(UUID, UUID[]) IS
-  'Migration 278: contact name (a typed client name, else the latest WhatsApp profile name of a verified customer message, else NULL) and the number masked to the country code and last six digits for up to 60 WhatsApp chats the member reads in full; only chats whose subject is the WAHA chain''s generated one and whose number is known.';
+  'Migration 278: contact name (a typed client name the member may read under client.read, else the latest WhatsApp profile name of a verified customer message, else NULL) and the number masked to the country code and last six digits for up to 60 WhatsApp chats the member reads in full; only chats whose subject is the WAHA chain''s generated one and whose number is known.';
 COMMENT ON FUNCTION platform_private.refresh_waha_client_contact_name(UUID, UUID) IS
   'Migration 278: renames a WhatsApp chat''s canonical client from a WAHA-chain placeholder to the customer''s profile name (else «WhatsApp <masked number>»); never touches any other name.';
 

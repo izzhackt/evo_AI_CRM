@@ -148,6 +148,8 @@ export function Inbox({
   const open = view.selected;
   const listWarning = channelWarning(view.channelState);
   const openWarning = open ? channelWarning(open.channelState) : null;
+  // Два чата без имени («WhatsApp») различает только номер — и для читалки.
+  const spokenTitle = open ? `${open.person}${open.phone ? `, ${spokenPhone(open.phone)}` : ""}` : "";
   const hasConversations = view.conversations.length > 0;
   const hasFilters = Boolean(view.searchQuery) || view.waitingOnly;
   if (inboxNotConnected(view)) {
@@ -338,7 +340,7 @@ export function Inbox({
 
       {open ? (
         <section
-          aria-label={`Переписка: ${open.person}${open.phone ? `, ${spokenPhone(open.phone)}` : ""}`}
+          aria-label={`Переписка: ${spokenTitle}`}
           className="v3-inbox-thread flex min-h-0 min-w-0 flex-col"
           data-testid="v3-inbox-thread"
           data-conversation-id={open.id}
@@ -395,7 +397,7 @@ export function Inbox({
           <InboxChat
             key={open.id}
             conversationId={open.id}
-            person={open.person}
+            person={spokenTitle}
             chat={open.chat}
             listPulse={view.listPulse}
             searchQuery={view.searchQuery}

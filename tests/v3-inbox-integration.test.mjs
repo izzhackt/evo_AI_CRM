@@ -200,7 +200,7 @@ test("WhatsApp chat names: the 278 row is exact — a name or null, the number m
   }
 });
 
-test("WhatsApp chat names: one GET read for the shown chats; a foreign row, no permission or more than 60 ids fail closed", async () => {
+test("WhatsApp chat names: one GET read for the shown chats; a foreign or repeated row, no permission or more than 60 ids fail closed; one unusable row is skipped", async () => {
   const read = contactClient([
     { conversation_id: CHAT_A, contact_name: "Айгуль", contact_phone: "+996 ••• 12 46 64" },
     { conversation_id: CHAT_B, contact_name: null, contact_phone: "+996 ••• 90 46 64" },
@@ -217,6 +217,19 @@ test("WhatsApp chat names: one GET read for the shown chats; a foreign row, no p
   const none = contactClient([]);
   assert.equal((await getPlatformWhatsAppContacts(contactActor, [], { client: none.client })).size, 0);
   assert.equal(none.calls.length, 0, "nothing shown — nothing read");
+
+  const oneBad = contactClient([
+    { conversation_id: CHAT_A, contact_name: "Я".repeat(501), contact_phone: "+996 ••• 12 46 64" },
+    { conversation_id: CHAT_B, contact_name: null, contact_phone: "+996 ••• 90 46 64" },
+  ]);
+  const partial = await getPlatformWhatsAppContacts(contactActor, [CHAT_A, CHAT_B], { client: oneBad.client });
+  assert.deepEqual([...partial.keys()], [CHAT_B], "an unusable name drops only its own row; the other chat keeps its number");
+  const repeated = contactClient([
+    { conversation_id: CHAT_A, contact_name: "Я".repeat(501), contact_phone: "+996 ••• 12 46 64" },
+    { conversation_id: CHAT_A, contact_name: "Айгуль", contact_phone: "+996 ••• 12 46 64" },
+  ]);
+  await assert.rejects(getPlatformWhatsAppContacts(contactActor, [CHAT_A], { client: repeated.client }), PlatformCommunicationsRepositoryError,
+    "a repeated chat still fails closed, even after a dropped row");
 
   const foreign = contactClient([{ conversation_id: CHAT_B, contact_name: null, contact_phone: "+996 ••• 90 46 64" }]);
   await assert.rejects(getPlatformWhatsAppContacts(contactActor, [CHAT_A], { client: foreign.client }), PlatformCommunicationsRepositoryError);

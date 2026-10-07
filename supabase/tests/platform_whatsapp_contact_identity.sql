@@ -25,7 +25,9 @@
 --     history evidence (no name: the REST history has none); the customer's
 --     first live message promotes it and names the new client;
 --  5. the reader: two customers whose numbers end in the same four digits read
---     differently; a typed name wins; unknown, foreign-organization and
+--     differently; a typed name wins — for a member who may read the client;
+--     a member who reads sales chats without client.read (261) sees the
+--     profile name instead; unknown, foreign-organization and
 --     non-WhatsApp-subject ids give no row; refusals (keyless member, another
 --     organization's Admin, anon, service_role, 0 / 61 / NULL ids);
 --  6. the capture never fails a projection: a rename the database refuses is
@@ -99,6 +101,10 @@ SELECT pg_temp.n278_assert(
     = 'eba01344c97aa78faa3c551f45c34875',
   'the 259 payload helpers are exactly the production definitions 278 was written against');
 SELECT pg_temp.n278_assert(
+  (SELECT prosrc FROM pg_proc WHERE oid = 'platform_private.refresh_waha_client_contact_name(uuid,uuid)'::regprocedure)
+    ~ 'FOR NO KEY UPDATE SKIP LOCKED;\s+IF NOT FOUND THEN\s+RETURN ''busy'';',
+  'the capture never waits on a client row another transaction holds (skips it as busy)');
+SELECT pg_temp.n278_assert(
   (SELECT pronargs = 9 AND cardinality(proallargtypes) = 25
    FROM pg_proc WHERE oid = 'platform.staff_communication_page(uuid,integer,timestamp with time zone,uuid,platform.communication_queue,platform.communication_status,uuid,text,boolean)'::regprocedure),
   'the queue reader keeps its 9 arguments and 16 result keys (the running application checks them exactly)');
@@ -139,10 +145,12 @@ SELECT pg_temp.n278_assert(
 
 -- ---------------------------------------------------------------------------
 -- Fixture. Organization 1: 1 Admin (system; the intake owner), 2 a member
--- without any permission. Organization 2: 5 Admin.
+-- without any permission, 3 a member with only communication.read.full and
+-- communication.manual.send at the `own` scope (reads every sales chat since
+-- 261, no client.read). Organization 2: 5 Admin.
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE n278_actors(n INTEGER, org INTEGER, coarse platform.business_role, claims TEXT);
-INSERT INTO n278_actors(n, org, coarse) VALUES (1, 1, 'admin'), (2, 1, NULL), (5, 2, 'admin');
+INSERT INTO n278_actors(n, org, coarse) VALUES (1, 1, 'admin'), (2, 1, NULL), (3, 1, NULL), (5, 2, 'admin');
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.n278_id(1), 'N278 Fictional organization'),
   (pg_temp.n278_id(2), 'N278 Other fictional organization');
 INSERT INTO auth.users(id, email, raw_user_meta_data)
@@ -165,6 +173,41 @@ INSERT INTO platform.membership_scope_assignments(organization_id, membership_id
     'N278 synthetic organization scope', pg_temp.n278_id(601)),
   (pg_temp.n278_id(2), pg_temp.n278_id(305), pg_temp.n278_id(402), 1, 1, TRUE, 'system',
     'N278 synthetic other-organization scope', pg_temp.n278_id(602));
+UPDATE n278_actors a SET claims = (platform_private.custom_access_token_hook(jsonb_build_object(
+  'user_id', pg_temp.n278_id(100 + a.n),
+  'claims', jsonb_build_object('sub', pg_temp.n278_id(100 + a.n), 'role', 'authenticated'))) -> 'claims')::TEXT;
+
+-- Member 3's role, created, published and assigned by the Admin through the
+-- real role commands (as the 261 suite), then fresh claims for everyone.
+CREATE TEMP TABLE n278_versions AS SELECT m.id AS membership_id, p.access_version
+  FROM platform.organization_memberships m JOIN platform.profiles p ON p.id = m.profile_id
+  WHERE m.organization_id = pg_temp.n278_id(1);
+GRANT SELECT ON n278_versions TO authenticated;
+GRANT EXECUTE ON FUNCTION pg_temp.n278_id(INTEGER) TO authenticated;
+SELECT claims AS n278_admin_setup FROM n278_actors WHERE n = 1 \gset
+SET LOCAL request.jwt.claims TO :'n278_admin_setup';
+SET LOCAL ROLE authenticated;
+DO $n278_roles$
+DECLARE published JSONB;
+BEGIN
+  PERFORM platform.staff_role_command(pg_temp.n278_id(1), pg_temp.n278_id(5101), 0, 'create',
+    jsonb_build_object('label', 'N278 WhatsApp only', 'description', 'Migration 278 synthetic role',
+      'permissionKeys', '["communication.manual.send","communication.read.full"]'::JSONB),
+    'N278 create role', pg_temp.n278_id(5111));
+  published := platform.staff_role_publish(pg_temp.n278_id(1), pg_temp.n278_id(5101), 1,
+    platform.staff_role_impact(pg_temp.n278_id(1), pg_temp.n278_id(5101), 1) ->> 'impactFingerprint',
+    'N278 publish role', pg_temp.n278_id(5112));
+  PERFORM platform.staff_role_assignments_save(pg_temp.n278_id(1), pg_temp.n278_id(303),
+    (SELECT access_version FROM n278_versions WHERE membership_id = pg_temp.n278_id(303)),
+    jsonb_build_array(jsonb_build_object('roleId', pg_temp.n278_id(5101),
+      'scope', jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL))),
+    jsonb_build_array(jsonb_build_object('roleId', pg_temp.n278_id(5101), 'roleVersion', 2,
+      'bundleId', (published ->> 'bundleId')::UUID, 'bundleVersion', 1)),
+    'N278 grant role', pg_temp.n278_id(5113));
+END
+$n278_roles$;
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '', TRUE) AS n278_setup_reset \gset
 UPDATE n278_actors a SET claims = (platform_private.custom_access_token_hook(jsonb_build_object(
   'user_id', pg_temp.n278_id(100 + a.n),
   'claims', jsonb_build_object('sub', pg_temp.n278_id(100 + a.n), 'role', 'authenticated'))) -> 'claims')::TEXT;
@@ -354,6 +397,21 @@ RESET ROLE;
 SELECT set_config('request.jwt.claims', '', TRUE) AS admin_reset \gset
 SELECT pg_temp.n278_assert(:page_rows = 4 AND :page_generated = 3,
   'the queue reader is unchanged: the subjects keep their generated value (A, B, E end in 4664; C in 4455)');
+-- Member 3 reads the sales chats (261) but not their clients: the profile
+-- name, never the client's name (A: captured «Айгуль» -> latest profile
+-- «Айгуль К.»; D: typed «Тимур Тестов» -> profile «Timur NEW»).
+SELECT pg_temp.n278_read('authenticated', (SELECT claims FROM n278_actors WHERE n = 3), pg_temp.n278_id(1),
+  ARRAY[pg_temp.n278_conv('996700124664@c.us'), pg_temp.n278_conv('996555904664@c.us'),
+    pg_temp.n278_conv('79991234567@c.us')]) AS member_rows \gset
+SELECT pg_temp.n278_assert(
+  (SELECT jsonb_object_agg(r.value ->> 'conversation_id', jsonb_build_array(r.value -> 'contact_name', r.value -> 'contact_phone'))
+   FROM jsonb_array_elements(:'member_rows'::JSONB) r(value))
+  = jsonb_build_object(
+      pg_temp.n278_conv('996700124664@c.us'), jsonb_build_array('Айгуль К.', '+996 ••• 12 46 64'),
+      pg_temp.n278_conv('996555904664@c.us'), jsonb_build_array(NULL, '+996 ••• 90 46 64'),
+      pg_temp.n278_conv('79991234567@c.us'), jsonb_build_array('Timur NEW', '+7 ••• 23 45 67'))
+  AND :'member_rows' NOT LIKE '%Тимур Тестов%',
+  'a member who reads sales chats without client.read sees the profile name and the number, never the client''s name');
 SELECT pg_temp.n278_assert(
   pg_temp.n278_admin(ARRAY[pg_temp.n278_id(9998)]) = '[]'::JSONB,
   'an id that is no readable WhatsApp chat gives no row');

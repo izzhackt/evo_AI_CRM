@@ -274,6 +274,8 @@ test("WhatsApp page (07.10.2026): a working channel says nothing; two chats endi
     profileHref: null, settingsHref: null, storageScope: "o:m" });
   const [thread] = findElements(open, (node) => node.props?.["data-testid"] === "v3-inbox-thread");
   assert.equal(thread.props["aria-label"], "Переписка: Айгуль, +996, скрыто, 12 46 64");
+  assert.deepEqual(findElements(thread, (node) => node.type?.name === "InboxChat").map((node) => node.props.person),
+    ["Айгуль, +996, скрыто, 12 46 64"], "the message log is labelled with the spoken number too (two «WhatsApp» chats differ)");
   assert.equal(findElements(thread, (node) => node.props?.["data-testid"] === "v3-inbox-thread-channel").length, 0);
   assert.deepEqual(findElements(thread, (node) => node.type?.name === "ContactPhone").map((node) => node.props.phone), ["+996 ••• 12 46 64"],
     "the number under the name");

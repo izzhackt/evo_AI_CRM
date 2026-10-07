@@ -3296,10 +3296,12 @@ SQL
   # name is no name; the sales phone's own profile name names nobody; a history
   # chat without a client gets its number from the history evidence and its name
   # at the first live message; the reader masks the number in the database
-  # («+996 ••• 12 46 64»), separates chats ending in the same four digits, and
-  # refuses a keyless member, another organization, anon and service_role; a
-  # rename the database refuses never fails the projection; the backfill is
-  # idempotent. Then the 266 (chat replies), 261 (team inbox) and P4 (AI
+  # («+996 ••• 12 46 64»), separates chats ending in the same four digits,
+  # shows a client's name only under client.read (a sales-chat reader without
+  # it sees the profile name), and refuses a keyless member, another
+  # organization, anon and service_role; a rename the database refuses never
+  # fails the projection and a locked client row is skipped, not waited on;
+  # the backfill is idempotent. Then the 266 (chat replies), 261 (team inbox) and P4 (AI
   # autoresponder) suites run again on the post-278 chain: the capture
   # triggers leave the live WhatsApp and AI paths unchanged.
   if [[ "$(basename "$migration")" == *_platform_whatsapp_contact_identity.sql ]]; then

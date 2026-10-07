@@ -237,7 +237,7 @@ const QUEUE_ROW = {
 // --- настоящие страницы с подменёнными чтениями -------------------------------------
 const NOT_CONNECTED_VIEW = Object.freeze({
   conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
-  searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState: "not_connected", channelObservedAt: null,
+  searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState: "not_connected",
   listPulse: null,
 });
 
@@ -870,19 +870,23 @@ async function screenshots() {
 const WA_READ_AT = "2026-10-06T08:00:00.000Z";
 const waId = (n) => `ffffffff-6666-4666-8666-${String(n).padStart(12, "0")}`;
 const WA_CONVERSATION = waId(1);
-const waRow = (n, person, updatedAt, waitingSince = null, awaitingReplyFor = null) => ({
-  id: waId(n), person, queue: "sales", status: "open", updatedAt, waitingSince, awaitingReplyFor,
+// Имя — из профиля WhatsApp, без имени — «WhatsApp»; номер — код страны и
+// последние шесть цифр (07.10.2026, миграция 278). Ряды 2 и 5, 4 и 6 кончаются
+// одинаковыми четырьмя цифрами — их различают две следующие цифры.
+const waRow = (n, person, phone, updatedAt, waitingSince = null, awaitingReplyFor = null) => ({
+  id: waId(n), person, phone, queue: "sales", status: "open", updatedAt, waitingSince, awaitingReplyFor,
   href: `/v3/inbox?conversation=${waId(n)}`,
 });
 const WA_ROWS = [
-  waRow(1, "Аружан Примерова", "06.10 13:40", "06.10 13:40", "20 мин"),
+  waRow(1, "Аружан Примерова", "+996 ••• 31 07 15", "06.10 13:40", "06.10 13:40", "20 мин"),
   // Клиент сюда ещё не писал: чат не «ждёт ответа».
-  waRow(2, "WhatsApp ••••4821", "06.10 12:05"),
-  waRow(3, "Тимур Макетов", "06.10 09:12"),
-  waRow(4, "Мадина Условная", "05.10 18:30"),
-  waRow(5, "WhatsApp ••••0937", "05.10 11:02"),
-  waRow(6, "Эльдар Эскизов", "04.10 16:45"),
-  waRow(7, "Жанна Вымыслова", "03.10 10:20"),
+  waRow(2, "WhatsApp", "+996 ••• 55 48 21", "06.10 12:05"),
+  waRow(3, "Тимур Макетов", "+7 ••• 90 12 34", "06.10 09:12"),
+  waRow(4, "Мадина Условная", "+996 ••• 20 46 64", "05.10 18:30"),
+  waRow(5, "WhatsApp", "+996 ••• 90 48 21", "05.10 11:02"),
+  waRow(6, "Эльдар Эскизов", "+996 ••• 12 46 64", "04.10 16:45"),
+  // Не WhatsApp-заглушка (номер неизвестен): тема чата без номера.
+  waRow(7, "Жанна Вымыслова", null, "03.10 10:20"),
 ];
 const waMessage = (n, inbound, createdAt, body, extra = {}) => ({
   id: waId(100 + n), inbound, body, createdAt, origin: inbound ? "client" : "phone", senderName: null,
@@ -929,12 +933,12 @@ function waView({ selected = true, chat = {}, row = 0, channelState = "ready" } 
   return {
     conversations: WA_ROWS,
     selected: selected ? {
-      ...WA_ROWS[row], channelState, channelObservedAt: "06.10 13:58",
+      ...WA_ROWS[row], channelState,
       canonicalContext: { leadId: "ffffffff-6666-4666-8666-000000000700", clientId: "ffffffff-6666-4666-8666-000000000701", studentCaseId: null },
       chat: waChat(chat),
     } : null,
     queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: "/v3/inbox?before_at=x&before_id=y",
-    searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState, channelObservedAt: "06.10 13:58",
+    searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState,
     listPulse: "0000000000000002",
   };
 }
@@ -942,7 +946,7 @@ const WA_SCENARIOS = {
   "chat": { actor: "sales", search: { conversation: WA_CONVERSATION }, inbox: waView(), viewports: ["1440", "390"] },
   "list": { actor: "sales", search: {}, inbox: waView({ selected: false }), viewports: ["1440", "390"] },
   "no-client-message": {
-    // Открыт тот же чат, что выбран в списке (••••4821), и он не «ждёт ответа».
+    // Открыт тот же чат, что выбран в списке («WhatsApp», +996 ••• 55 48 21), и он не «ждёт ответа».
     actor: "sales", search: { conversation: waId(2) }, viewports: ["1440"],
     inbox: waView({ row: 1, chat: {
       messages: [waMessage(1, false, "2026-10-06T05:00:00.000Z", "Здравствуйте! Это EVO Admissions, вы оставляли заявку на сайте."), waMessage(2, false, "2026-10-06T05:01:00.000Z", "Когда вам удобно поговорить?", { ack: "SERVER" })],
@@ -991,6 +995,11 @@ function whatsappMetrics() {
     checks: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Проверить").length,
     returns: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Вернуть текст в поле").length,
     selectedRow: document.querySelector('[data-testid="v3-inbox-row"] a[aria-current="page"] .t-item')?.textContent.trim() ?? null,
+    selectedPhone: document.querySelector('[data-testid="v3-inbox-row"] a[aria-current="page"] [data-testid="v3-inbox-contact-phone"] [aria-hidden="true"]')?.textContent.trim() ?? null,
+    listPhones: [...document.querySelectorAll('[data-testid="v3-inbox-row"] [data-testid="v3-inbox-contact-phone"] [aria-hidden="true"]')].map((element) => element.textContent.trim()),
+    headerPhone: document.querySelector('[data-testid="v3-inbox-thread"] header [data-testid="v3-inbox-contact-phone"] [aria-hidden="true"]')?.textContent.trim() ?? null,
+    channelLine: document.querySelector('[data-testid="v3-inbox-thread-channel"]')?.textContent.trim() ?? null,
+    channelBanner: document.querySelector('[data-testid="v3-inbox-channel-status"]')?.textContent.trim() ?? null,
     waitingPill: /Ждёт ответа/u.test(document.querySelector('[data-testid="v3-inbox-thread"] header')?.textContent ?? ""),
     unavailable: document.querySelector('[data-testid="v3-inbox-reply-unavailable"]')?.textContent.trim() ?? null,
     popover: (() => { const open = document.querySelector("[popover]:popover-open"); if (!open) return null; const box = open.getBoundingClientRect();
@@ -1077,6 +1086,20 @@ async function whatsappScreenshots() {
           check(metrics.feedAtBottom !== null && metrics.feedAtBottom <= 2, `${file}: the feed does not open on the newest message (${metrics.feedAtBottom})`);
           check(viewportKey !== "390" || !metrics.h1Visible, `${file}: the phone chat keeps the page title visible`);
         }
+        // 07.10.2026: исправный WhatsApp не подписан, беда — видна; у каждого чата свой номер.
+        if (WA_SCENARIOS[name].inbox.channelState === "ready") {
+          check(metrics.channelLine === null && metrics.channelBanner === null, `${file}: a working channel is announced: ${metrics.channelLine ?? metrics.channelBanner}`);
+        } else {
+          check(metrics.channelLine === "WhatsApp требует проверки", `${file}: channel warning ${metrics.channelLine}`);
+        }
+        if (viewportKey === "1440" || !WA_SCENARIOS[name].inbox.selected) {
+          check(JSON.stringify(metrics.listPhones) === JSON.stringify(WA_ROWS.map((row) => row.phone).filter(Boolean)), `${file}: list phones ${JSON.stringify(metrics.listPhones)}`);
+          check(new Set(metrics.listPhones).size === metrics.listPhones.length, `${file}: two chats read the same`);
+        }
+        if (WA_SCENARIOS[name].inbox.selected) {
+          const selectedRow = WA_SCENARIOS[name].inbox.selected;
+          check(metrics.headerPhone === selectedRow.phone, `${file}: header phone ${metrics.headerPhone}`);
+        }
         if (name === "chat") {
           check(metrics.composer?.inViewport === true, `${file}: composer not in the viewport ${JSON.stringify(metrics.composer)}`);
           check(JSON.stringify(metrics.days) === JSON.stringify(["4 октября", "Вчера", "Сегодня"]), `${file}: days ${JSON.stringify(metrics.days)}`);
@@ -1087,7 +1110,8 @@ async function whatsappScreenshots() {
         }
         if (name === "no-client-message") {
           check(/Клиент ещё не писал в этот чат/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
-          check(metrics.selectedRow === "WhatsApp ••••4821" && !metrics.waitingPill, `${file}: list selection ${metrics.selectedRow}, waiting pill ${metrics.waitingPill}`);
+          check(metrics.selectedRow === "WhatsApp" && metrics.selectedPhone === "+996 ••• 55 48 21" && !metrics.waitingPill,
+            `${file}: list selection ${metrics.selectedRow} ${metrics.selectedPhone}, waiting pill ${metrics.waitingPill}`);
         }
         if (name === "read-only") check(/Только просмотр/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
         await close(session, file);
@@ -2090,7 +2114,7 @@ const JOURNAL = {
   ],
   next: null,
 };
-const JOURNAL_TITLES = { 1: "Аружан Примерова", 3: "Тимур Макетов", 4: "Мадина Условная", 5: "WhatsApp ••••0937", 6: "Эльдар Эскизов" };
+const JOURNAL_TITLES = { 1: "Аружан Примерова", 3: "Тимур Макетов", 4: "Мадина Условная", 5: "WhatsApp · +996 ••• 90 48 21", 6: "Эльдар Эскизов" };
 const SUMMARY = {
   summary: {
     id: aiId(840), intervalStart: "2026-10-05T14:00:00Z", intervalEnd: "2026-10-06T03:00:00Z", shadowNight: true, status: "ready",

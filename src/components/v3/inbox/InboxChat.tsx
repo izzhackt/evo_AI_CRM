@@ -360,6 +360,7 @@ export function InboxChat({
   assistant = null,
 }: Readonly<{
   conversationId: string;
+  /** Подпись журнала для читалки: имя и номер, как их произносят («…, +996, скрыто, 12 46 64»). */
   person: string;
   chat: InboxChatData;
   listPulse: string | null;

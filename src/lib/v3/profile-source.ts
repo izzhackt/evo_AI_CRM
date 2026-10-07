@@ -9,6 +9,7 @@ import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./
 import { readLeadSaleConditions } from "./lead-sale-conditions-source";
 import { readLeadCabinetCase, readStudentCaseCabinetOrigin } from "./lead-cabinet-source";
 import { readLeadHandoffStrip } from "./sales-numbers-source";
+import { withWhatsAppTitles } from "./whatsapp-contact-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
 import { countryLabel } from "@/lib/student-application-presentation";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
@@ -751,6 +752,8 @@ async function readLeadProfile(
   // «Передача» (Э2): its own read, in parallel; it never throws — a failed
   // read is `unavailable`, shown as such, never a guessed stage or tick.
   const stripRead = readLeadHandoffStrip(actor, leadId);
+  // Чаты лида называются как в списке WhatsApp (278): имя и номер; never throws.
+  const linkedConversationsRead = withWhatsAppTitles(actor, lead.linkedConversations);
 
   const salesContext = await loadProfileSalesContext(
     expectedStudentCaseId === null ? "lead" : "case",
@@ -895,7 +898,7 @@ async function readLeadProfile(
       gate,
       handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)),
       strip,
-      linkedConversations: lead.linkedConversations,
+      linkedConversations: await linkedConversationsRead,
     },
   };
 }

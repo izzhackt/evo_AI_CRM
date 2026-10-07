@@ -17,6 +17,8 @@ import {
   type AiAutosendSummaryRead,
 } from "./ai-agent-autosend.ts";
 import { getPlatformConversationSummary } from "../platform-communications.ts";
+import { whatsAppChatLabel, whatsAppChatTitle } from "./whatsapp-contact.ts";
+import { readWhatsAppContacts } from "./whatsapp-contact-source.ts";
 
 /**
  * «Автоответчик» (P4, план §11): чтения и записи — прямо в авторизованные RPC
@@ -53,11 +55,14 @@ export async function readAiAutosend(actor: ActivePlatformActor): Promise<AiRead
 /**
  * Имена чатов, которые журнал и сводка знают только по id (277 отдаёт id): то
  * же охраняемое чтение диалога, что у переписки, — чужой чат остаётся без
- * имени. Не больше 40 чатов за страницу; сбой — без имени, а не ошибка.
+ * имени. Название — как в списке WhatsApp (278): имя из профиля и номер
+ * «+996 ••• 12 46 64». Не больше 40 чатов за страницу; сбой — без имени, а
+ * не ошибка.
  */
 const TITLE_LIMIT = 40;
 async function readConversationTitles(actor: ActivePlatformActor, ids: readonly (string | null)[]): Promise<ReadonlyMap<string, string>> {
   const unique = [...new Set(ids.filter((id): id is string => id !== null))].slice(0, TITLE_LIMIT);
+  const contactsRead = readWhatsAppContacts(actor, unique);
   const entries = await Promise.all(unique.map(async (id) => {
     try {
       const summary = await getPlatformConversationSummary(actor, id);
@@ -66,7 +71,9 @@ async function readConversationTitles(actor: ActivePlatformActor, ids: readonly 
       return null;
     }
   }));
-  return new Map(entries.filter((entry): entry is readonly [string, string] => entry !== null));
+  const contacts = await contactsRead;
+  return new Map(entries.filter((entry): entry is readonly [string, string] => entry !== null)
+    .map(([id, subject]) => [id, whatsAppChatLabel(whatsAppChatTitle(subject, contacts.get(id)))] as const));
 }
 
 export async function readAiAutosendJournal(

@@ -202,7 +202,7 @@ test("settings: a working WhatsApp session with intake switched off says so plai
 
 test("WhatsApp page: the banner says intake is off when the session works but the server does not receive", () => {
   const { Inbox } = inboxModule();
-  const view = { ...EMPTY_VIEW, channelState: "intake_off", channelObservedAt: "03.10 10:00" };
+  const view = { ...EMPTY_VIEW, channelState: "intake_off" };
   const page = Inbox({ view, profileHref: null, settingsHref: null });
   assert.equal(page.props["data-testid"], "v3-inbox", "not the «не подключён» page: the session is connected");
   const banner = findElements(page, (node) => node.props?.["data-testid"] === "v3-inbox-channel-status");
@@ -244,7 +244,50 @@ function inboxModule() {
 const EMPTY_VIEW = Object.freeze({
   conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
   searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1",
-  channelState: "not_connected", channelObservedAt: null, listPulse: null,
+  channelState: "not_connected", listPulse: null,
+});
+
+test("WhatsApp page (07.10.2026): a working channel says nothing; two chats ending in the same four digits read differently", () => {
+  const { Inbox } = inboxModule();
+  const row = (id, person, phone) => ({ id, person, phone, queue: "sales", status: "open", updatedAt: "07.10 12:40",
+    waitingSince: null, awaitingReplyFor: null, href: `/v3/inbox?conversation=${id}` });
+  const rows = [row("a", "Айгуль", "+996 ••• 12 46 64"), row("b", "WhatsApp", "+996 ••• 90 46 64"), row("c", "Аружан Примерова", null)];
+  const list = Inbox({ view: { ...EMPTY_VIEW, channelState: "ready", conversations: rows }, profileHref: null, settingsHref: null });
+  assert.equal(findElements(list, (node) => node.props?.["data-testid"] === "v3-inbox-channel-status").length, 0,
+    "no «WhatsApp подключён», no check time");
+  assert.doesNotMatch(textOf(list), /подключён|[Пп]роверено/u);
+  const isPhone = (node) => node.type?.name === "ContactPhone";
+  const rowsShown = findElements(list, (node) => node.props?.["data-testid"] === "v3-inbox-row");
+  assert.deepEqual(rowsShown.map((node) => [textOf(node).replace(/07\.10 12:40/u, ""), findElements(node, isPhone)[0]?.props.phone ?? null]),
+    [["Айгуль", "+996 ••• 12 46 64"], ["WhatsApp", "+996 ••• 90 46 64"], ["Аружан Примерова", null]],
+    "name (or «WhatsApp») with its number; a chat without one keeps its subject");
+  const phone = findElements(list, isPhone)[0];
+  const rendered = phone.type(phone.props);
+  assert.equal(rendered.props["data-testid"], "v3-inbox-contact-phone");
+  assert.equal(rendered.props.children[0].props["aria-hidden"], "true");
+  assert.equal(textOf(rendered.props.children[0]), "+996 ••• 12 46 64");
+  assert.equal(textOf(rendered.props.children[1]), "+996, скрыто, 12 46 64", "the screen reader hears the number, not three bullets");
+
+  const selected = (channelState) => ({ ...rows[0], channelState, canonicalContext: { leadId: null, clientId: null, studentCaseId: null },
+    chat: { messages: [], hasOlder: false, attempts: [], latestInboundMessageId: null, replyAccess: "allowed", stage: null, readAt: "", pulse: "" } });
+  const open = Inbox({ view: { ...EMPTY_VIEW, channelState: "ready", conversations: rows, selected: selected("ready") },
+    profileHref: null, settingsHref: null, storageScope: "o:m" });
+  const [thread] = findElements(open, (node) => node.props?.["data-testid"] === "v3-inbox-thread");
+  assert.equal(thread.props["aria-label"], "Переписка: Айгуль, +996, скрыто, 12 46 64");
+  assert.deepEqual(findElements(thread, (node) => node.type?.name === "InboxChat").map((node) => node.props.person),
+    ["Айгуль, +996, скрыто, 12 46 64"], "the message log is labelled with the spoken number too (two «WhatsApp» chats differ)");
+  assert.equal(findElements(thread, (node) => node.props?.["data-testid"] === "v3-inbox-thread-channel").length, 0);
+  assert.deepEqual(findElements(thread, (node) => node.type?.name === "ContactPhone").map((node) => node.props.phone), ["+996 ••• 12 46 64"],
+    "the number under the name");
+
+  for (const [state, warning] of [["attention", "WhatsApp требует проверки"], ["intake_off", "Приём сообщений выключен на сервере"],
+    ["unavailable", "Не удалось получить состояние WhatsApp"], ["unknown", "Состояние WhatsApp не подтверждено"]]) {
+    const page = Inbox({ view: { ...EMPTY_VIEW, channelState: state, conversations: rows, selected: selected(state) },
+      profileHref: null, settingsHref: null, storageScope: "o:m" });
+    const [line] = findElements(page, (node) => node.props?.["data-testid"] === "v3-inbox-thread-channel");
+    assert.equal(textOf(line), warning, state);
+    assert.match(line.props.className, /text-warn/u, `${state}: a problem stays visible`);
+  }
 });
 
 test("WhatsApp not connected: one honest state instead of «не подтверждено» and an empty list", () => {
@@ -284,7 +327,7 @@ test("WhatsApp page: settings link only for Admin outside role preview, no count
   const adapter = source("src/lib/v3/inbox-source.ts");
   // No session row is «not connected»; a failed read stays «unavailable».
   assert.match(adapter, /health === null\s*\? "not_connected"/u);
-  assert.match(adapter, /return Object\.freeze\(\{ channelState: "unavailable", channelObservedAt: null \}\);/u);
+  assert.match(adapter, /return Object\.freeze\(\{ channelState: "unavailable" \}\);/u);
 });
 
 test("WhatsApp fills the window from the shell column instead of its own 100dvh", () => {

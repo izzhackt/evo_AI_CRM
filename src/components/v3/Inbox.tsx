@@ -19,7 +19,13 @@ export type InboxCanonicalContext = Readonly<{
 
 export type InboxConversation = Readonly<{
   id: string;
+  /**
+   * Имя из профиля WhatsApp (или набранное сотрудником), без имени —
+   * «WhatsApp»; без номера (не WhatsApp-чат, номер неизвестен) — тема чата.
+   */
   person: string;
+  /** «+996 ••• 12 46 64»: код страны и последние шесть цифр (миграция 278). */
+  phone: string | null;
   /** Kept for server command scope; intentionally not rendered as a raw role. */
   queue: "sales" | "admissions";
   /** Kept in the model; intentionally omitted while it adds no operator decision. */
@@ -46,7 +52,6 @@ export type InboxSelectedConversation = InboxConversation &
      * сессия работает, но приём сообщений выключен на сервере.
      */
     channelState: "ready" | "attention" | "not_connected" | "unknown" | "unavailable" | "intake_off";
-    channelObservedAt: string | null;
     canonicalContext: InboxCanonicalContext;
     chat: InboxChatModel;
   }>;
@@ -61,20 +66,38 @@ export type InboxView = Readonly<{
   waitingOnly: boolean;
   waitingToggleHref: string;
   channelState: InboxSelectedConversation["channelState"];
-  channelObservedAt: string | null;
   /** Подпись первой страницы списка для опроса; null — открыта более ранняя страница. */
   listPulse: string | null;
 }>;
 
-function channelLabel(
+/**
+ * Исправный WhatsApp не подписывается: строку о подключении и времени
+ * последней проверки владелец убрал 07.10.2026 («уберем давай это»). Беда —
+ * не подключён, приём выключен, состояние не прочитать — видна всегда.
+ */
+function channelWarning(
   state: InboxSelectedConversation["channelState"],
-): string {
-  if (state === "ready") return "WhatsApp подключён";
+): string | null {
+  if (state === "ready") return null;
   if (state === "intake_off") return "Приём сообщений выключен на сервере";
   if (state === "attention") return "WhatsApp требует проверки";
   if (state === "unavailable") return "Не удалось получить состояние WhatsApp";
   if (state === "not_connected") return "WhatsApp не подключён к CRM";
   return "Состояние WhatsApp не подтверждено";
+}
+
+/** Номер для читалки: «+996, скрыто, 12 46 64» вместо трёх «bullet». */
+function spokenPhone(phone: string): string {
+  return phone.replace(" ••• ", ", скрыто, ");
+}
+
+function ContactPhone({ phone, className }: Readonly<{ phone: string; className: string }>) {
+  return (
+    <span className={className} data-testid="v3-inbox-contact-phone">
+      <span aria-hidden="true">{phone}</span>
+      <span className="sr-only">{spokenPhone(phone)}</span>
+    </span>
+  );
 }
 
 /**
@@ -123,6 +146,10 @@ export function Inbox({
   assistant?: InboxAssistantConfig | null;
 }>) {
   const open = view.selected;
+  const listWarning = channelWarning(view.channelState);
+  const openWarning = open ? channelWarning(open.channelState) : null;
+  // Два чата без имени («WhatsApp») различает только номер — и для читалки.
+  const spokenTitle = open ? `${open.person}${open.phone ? `, ${spokenPhone(open.phone)}` : ""}` : "";
   const hasConversations = view.conversations.length > 0;
   const hasFilters = Boolean(view.searchQuery) || view.waitingOnly;
   if (inboxNotConnected(view)) {
@@ -166,18 +193,13 @@ export function Inbox({
           open ? "hidden @4xl:flex" : ""
         }`}
       >
-        {!open ? (
+        {!open && listWarning ? (
           <div
-            className="border-b border-border px-4 py-3"
+            className="border-b border-border bg-warn-weak px-4 py-3"
             role="status"
             data-testid="v3-inbox-channel-status"
           >
-            <p className="t-body-compact text-fg-2">
-              {channelLabel(view.channelState)}
-            </p>
-            {view.channelObservedAt ? (
-              <p className="mt-0.5 t-meta text-fg-3">Проверено {view.channelObservedAt}</p>
-            ) : null}
+            <p className="t-body-compact text-warn">{listWarning}</p>
           </div>
         ) : null}
         {!open ? (
@@ -277,6 +299,9 @@ export function Inbox({
                       {conversation.updatedAt}
                     </span>
                   </span>
+                  {conversation.phone ? (
+                    <ContactPhone phone={conversation.phone} className="t-meta tabular-nums text-fg-2" />
+                  ) : null}
                   {conversation.waitingSince ? (
                     <span className="t-caption text-warn">
                       Ждёт ответа с {conversation.waitingSince}
@@ -315,7 +340,7 @@ export function Inbox({
 
       {open ? (
         <section
-          aria-label={`Переписка: ${open.person}`}
+          aria-label={`Переписка: ${spokenTitle}`}
           className="v3-inbox-thread flex min-h-0 min-w-0 flex-col"
           data-testid="v3-inbox-thread"
           data-conversation-id={open.id}
@@ -350,14 +375,14 @@ export function Inbox({
                   </Pill>
                 ) : null}
               </div>
-              {/* На телефоне исправный канал не занимает строку шапки; беда — видна всегда. */}
-              <p
-                className={`mt-0.5 t-meta ${open.channelState === "ready" ? "text-fg-3 @max-2xl:hidden" : "text-warn"}`}
-                data-testid="v3-inbox-thread-channel"
-              >
-                {channelLabel(open.channelState)}
-                {open.channelObservedAt ? ` · проверено ${open.channelObservedAt}` : ""}
-              </p>
+              {open.phone ? (
+                <ContactPhone phone={open.phone} className="mt-0.5 block t-meta tabular-nums text-fg-2" />
+              ) : null}
+              {openWarning ? (
+                <p className="mt-0.5 t-meta text-warn" role="status" data-testid="v3-inbox-thread-channel">
+                  {openWarning}
+                </p>
+              ) : null}
             </div>
             {profileHref ? (
               <Link
@@ -372,7 +397,7 @@ export function Inbox({
           <InboxChat
             key={open.id}
             conversationId={open.id}
-            person={open.person}
+            person={spokenTitle}
             chat={open.chat}
             listPulse={view.listPulse}
             searchQuery={view.searchQuery}

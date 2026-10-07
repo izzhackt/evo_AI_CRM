@@ -3287,6 +3287,37 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_whatsapp_team_inbox.sql
   fi
+
+  # «Продажи → WhatsApp»: имя из профиля WhatsApp и больше цифр номера (просьба
+  # владельца 07.10.2026). Matched by name, not number, so a renumbering at merge
+  # keeps the hook. On the REAL projection chain and the REAL history import:
+  # the profile name (GOWS PushName, WEBJS notifyName, a LID chat with its phone
+  # in SenderAlt) renames only a placeholder client, never a typed name; a «.»
+  # name is no name; the sales phone's own profile name names nobody; a history
+  # chat without a client gets its number from the history evidence and its name
+  # at the first live message; the reader masks the number in the database
+  # («+996 ••• 12 46 64»), separates chats ending in the same four digits,
+  # shows a client's name only under client.read (a sales-chat reader without
+  # it sees the profile name), and refuses a keyless member, another
+  # organization, anon and service_role; a rename the database refuses never
+  # fails the projection and a locked client row is skipped, not waited on;
+  # the backfill is idempotent. Then the 266 (chat replies), 261 (team inbox) and P4 (AI
+  # autoresponder) suites run again on the post-278 chain: the capture
+  # triggers leave the live WhatsApp and AI paths unchanged.
+  if [[ "$(basename "$migration")" == *_platform_whatsapp_contact_identity.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_contact_identity.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_chat_replies.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_team_inbox.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_p4.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -122,7 +122,7 @@ struct AccountDeletionContent: View {
                 Label {
                     Text(String(
                         format: String(localized: "account_deletion_requested"),
-                        AccountDeletionPolicy.dayLabel(from: request.requestedAt) ?? "—"
+                        AccountDeletionPolicy.dayLabel(from: request.requestedAt) ?? String(request.requestedAt.prefix(10))
                     ))
                     .font(.subheadline.weight(.semibold))
                 } icon: {
@@ -131,7 +131,7 @@ struct AccountDeletionContent: View {
                 .motionBounceOnAppear()
                 Text(String(
                     format: String(localized: "account_deletion_due"),
-                    AccountDeletionPolicy.dayLabel(from: request.dueAt) ?? "—"
+                    AccountDeletionPolicy.dayLabel(from: request.dueAt) ?? String(request.dueAt.prefix(10))
                 ))
                 .font(.footnote)
                 .foregroundStyle(.secondary)

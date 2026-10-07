@@ -100,8 +100,6 @@ const DOCUMENT_RECOGNITION_JOBS_PATH =
   /^\/api\/v3\/student-cases\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/document-recognition-jobs$/i;
 const DOCUMENT_EXPORT_PATH =
   /^\/api\/v3\/student-cases\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/document-exports(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:download|reconcile))?$/i;
-const PLATFORM_STAFF_ASSISTANT_PATH =
-  "/api/platform-ai/staff-assistant";
 const UNIVERSITY_TEMPLATE_SOURCE_PATH =
   /^\/api\/v3\/university-forms\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/source(?:\/(?:status|preview|page|cancel|reconcile))?$/i;
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
@@ -212,15 +210,6 @@ export function isPublicStudentRegistrationApi(
   method: string,
 ): boolean {
   return method === "POST" && (path === STUDENT_REGISTRATION_API_PATH || path === "/api/portal/registration/resend");
-}
-
-/**
- * This exact route owns its complete configuration, same-origin, actor, role,
- * organization and audit boundary. Proxy passes it through without performing
- * the separate optimistic staff-cookie refresh first.
- */
-export function isDirectPlatformStaffAssistantApi(path: string): boolean {
-  return path === PLATFORM_STAFF_ASSISTANT_PATH;
 }
 
 /**

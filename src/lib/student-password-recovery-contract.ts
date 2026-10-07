@@ -91,17 +91,29 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 /**
+ * The form answers no earlier than this after the request started, so the
+ * Auth email send (done inside the request, only for a real account) does
+ * not show up as a slower answer.
+ */
+export const STUDENT_RECOVERY_MIN_RESPONSE_MS = 1_500;
+
+/** Own limits of the public form, in front of the shared Auth limits. */
+export const STUDENT_RECOVERY_IP_LIMIT = Object.freeze({ limit: 5, windowMs: 15 * 60_000 });
+export const STUDENT_RECOVERY_ADDRESS_LIMIT = Object.freeze({ limit: 3, windowMs: 60 * 60_000 });
+
+/**
  * Maps the `resetPasswordForEmail` outcome to one neutral UI state.
  *
- * Auth answers 200 for an unknown address. For a known address it answers
- * 429 «For security purposes, you can only request this after N seconds»
- * when an email went out moments ago: that is shown as the same neutral
- * «sent», otherwise the per-address limit would reveal the account.
- * Other limits (project email cap, request rate) are not tied to one
- * address and get the retry message.
+ * Auth answers 200 for an unknown address before any send. The project email
+ * cap (429 `over_email_send_rate_limit`, any message) and an SMTP failure
+ * (5xx) are reached only for a real account, so both stay the neutral
+ * «sent»; otherwise they would reveal the account. Only the per-IP request
+ * limit (`over_request_rate_limit`) does not depend on the address and asks
+ * to retry. «unavailable» means no HTTP answer at all.
  *
  * @see https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail
  * @see https://supabase.com/docs/guides/auth/rate-limits
+ * @see https://supabase.com/docs/guides/auth/debugging/error-codes
  */
 export function classifyStudentRecoveryRequestError(
   error: unknown,
@@ -110,19 +122,14 @@ export function classifyStudentRecoveryRequestError(
   const value = record(error);
   const status = typeof value?.status === "number" ? value.status : null;
   const code = typeof value?.code === "string" ? value.code : null;
-  const message = typeof value?.message === "string" ? value.message : "";
-  if (status === 429 || code === "over_email_send_rate_limit" || code === "over_request_rate_limit") {
-    return code === "over_email_send_rate_limit" &&
-      /you can only request this after \d+ seconds?/iu.test(message)
-      ? "sent"
-      : "rate_limited";
-  }
+  if (code === "over_request_rate_limit") return "rate_limited";
+  if (code === "over_email_send_rate_limit") return "sent";
   if (code === "validation_failed" || code === "email_address_invalid") {
     return "invalid_email";
   }
-  // Any other definite rejection stays neutral; only an unknown outcome is
-  // reported, so the person knows to try again instead of waiting.
-  if (status !== null && status >= 400 && status < 500) return "sent";
+  // Any HTTP answer, including 429 email cap and 5xx send failure, stays
+  // neutral. Status 0 or no status is a fetch failure without an answer.
+  if (status !== null && status >= 400 && status < 600) return "sent";
   return "unavailable";
 }
 

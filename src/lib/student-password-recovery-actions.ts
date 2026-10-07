@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { ADMIN_ROLE_PREVIEW_COOKIE } from "./platform-auth.ts";
 import { exactActionStringFields } from "./server/action-form-fields.ts";
 import {
+  admitStudentRecoveryRequest,
   commitStudentRecoverySession,
   completeStudentPasswordRecovery,
   logStudentRecoveryFailure,
@@ -22,6 +23,7 @@ import {
   checkStudentNewPassword,
   normalizeStudentRecoveryEmail,
   STUDENT_PASSWORD_RESET_PATH,
+  STUDENT_RECOVERY_MIN_RESPONSE_MS,
   type StudentRecoveryPasswordState,
   type StudentRecoveryRequestState,
   type StudentRecoveryVerifyState,
@@ -41,18 +43,34 @@ async function studentOriginRequest(): Promise<boolean> {
 
 /**
  * Step 1. One neutral answer for every address. The link target is the
- * fixed Student callback, never anything taken from the request.
+ * fixed Student origin callback, never anything taken from the request.
+ * Every answer after the form check waits for the same minimum time.
  */
 export async function requestStudentPasswordRecoveryAction(
   _previous: StudentRecoveryRequestState,
   form: FormData,
 ): Promise<StudentRecoveryRequestState> {
+  const startedAt = Date.now();
   const fields = exactActionStringFields(form, ["email"]);
   if (!fields || !(await studentOriginRequest())) {
     return { status: "unavailable" };
   }
-  const email = normalizeStudentRecoveryEmail(fields.get("email"));
-  if (!email) return { status: "invalid_email" };
+  const status = await requestStatus(fields.get("email"), (await headers()).get("x-forwarded-for"));
+  const wait = startedAt + STUDENT_RECOVERY_MIN_RESPONSE_MS - Date.now();
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  return { status };
+}
+
+async function requestStatus(
+  rawEmail: string | undefined,
+  forwardedFor: string | null,
+): Promise<StudentRecoveryRequestState["status"]> {
+  const email = normalizeStudentRecoveryEmail(rawEmail);
+  if (!email) return "invalid_email";
+
+  const admission = admitStudentRecoveryRequest(forwardedFor, email);
+  if (admission === "ip_limited") return "rate_limited";
+  if (admission === "address_limited") return "sent";
 
   let redirectTo: string;
   try {
@@ -62,9 +80,9 @@ export async function requestStudentPasswordRecoveryAction(
     );
   } catch (error) {
     logStudentRecoveryFailure("request_configuration", error);
-    return { status: "unavailable" };
+    return "unavailable";
   }
-  return { status: await requestStudentPasswordRecovery(email, redirectTo) };
+  return requestStudentPasswordRecovery(email, redirectTo);
 }
 
 /** Step 2. The CSRF-bound interstitial POST on /auth/callback. */

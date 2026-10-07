@@ -8,6 +8,7 @@ import {
   type SupabaseClient,
   type User,
 } from "@supabase/supabase-js";
+import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 
 import { getSupabasePublicConfig } from "../supabase/config.ts";
@@ -17,11 +18,21 @@ import {
   classifyStudentRecoveryRequestError,
   hasStaffRecoveryMarker,
   STUDENT_PASSWORD_RESET_PATH,
+  STUDENT_RECOVERY_ADDRESS_LIMIT,
+  STUDENT_RECOVERY_IP_LIMIT,
   STUDENT_RECOVERY_SESSION_COOKIE,
   STUDENT_RECOVERY_SESSION_MAX_AGE_SECONDS,
   type StudentRecoveryPasswordState,
   type StudentRecoveryRequestState,
 } from "../student-password-recovery-contract.ts";
+import {
+  createRecoveryRateLimiter,
+  recoveryClientIpKey,
+} from "../student-password-recovery-rate-limit.ts";
+
+import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
+import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { findRawAuthUserByExactEmail } from "./student-portal-invite-auth-provider.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -185,6 +196,59 @@ async function classifyRecoveryIdentity(
   return { status: "student", user: user as User & { email: string }, claims };
 }
 
+/** One counter per app process; see `student-password-recovery-rate-limit.ts`. */
+const requestLimiter = createRecoveryRateLimiter();
+
+export type StudentRecoveryAdmission = "admitted" | "ip_limited" | "address_limited";
+
+/**
+ * The form's own limit, checked before any Auth or Admin API call. The IP
+ * limit protects the shared Auth limits of the VPS address and the project
+ * email cap; the address limit is answered with the neutral «sent».
+ */
+export function admitStudentRecoveryRequest(
+  forwardedFor: string | null,
+  normalizedEmail: string,
+): StudentRecoveryAdmission {
+  if (!requestLimiter.consume(recoveryClientIpKey(forwardedFor), STUDENT_RECOVERY_IP_LIMIT)) {
+    logStudentRecoveryFailure("request_ip_limited");
+    return "ip_limited";
+  }
+  const addressKey = `email:${createHash("sha256").update(normalizedEmail).digest("hex")}`;
+  if (!requestLimiter.consume(addressKey, STUDENT_RECOVERY_ADDRESS_LIMIT)) {
+    logStudentRecoveryFailure("request_address_limited");
+    return "address_limited";
+  }
+  return "admitted";
+}
+
+type RecoveryRecipient = "staff" | "other" | "unavailable";
+
+/**
+ * Staff recovery is admin-driven, and a public request must not replace a
+ * staff recovery token or the timestamp the staff journal reads. The service
+ * role finds the exact address and refuses the provisioning markers before
+ * Auth is called. Active membership without a marker cannot be read by the
+ * service role without a migration; the link step still refuses it.
+ */
+async function classifyRecoveryRecipient(normalizedEmail: string): Promise<RecoveryRecipient> {
+  try {
+    const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
+    const found = await findRawAuthUserByExactEmail(service, normalizedEmail);
+    if (found.status === "unavailable") {
+      logStudentRecoveryFailure("request_lookup");
+      return "unavailable";
+    }
+    if (found.status === "found" && found.user !== null && hasStaffRecoveryMarker(found.user, undefined)) {
+      return "staff";
+    }
+    return "other";
+  } catch (error) {
+    logStudentRecoveryFailure("request_lookup", error);
+    return "unavailable";
+  }
+}
+
 /**
  * Asks Auth to email a recovery link. `redirectTo` is built by the caller
  * from the fixed Student origin, never from request input.
@@ -193,6 +257,12 @@ export async function requestStudentPasswordRecovery(
   email: string,
   redirectTo: string,
 ): Promise<StudentRecoveryRequestState["status"]> {
+  const recipient = await classifyRecoveryRecipient(email);
+  if (recipient === "unavailable") return "unavailable";
+  if (recipient === "staff") {
+    logStudentRecoveryFailure("request_staff_skipped");
+    return "sent";
+  }
   try {
     const { error } = await isolatedClient().auth.resetPasswordForEmail(email, {
       redirectTo,

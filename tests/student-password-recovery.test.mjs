@@ -16,8 +16,16 @@ import {
   normalizeStudentRecoveryEmail,
   STUDENT_PASSWORD_FORGOT_PATH,
   STUDENT_PASSWORD_RESET_PATH,
+  STUDENT_RECOVERY_ADDRESS_LIMIT,
+  STUDENT_RECOVERY_IP_LIMIT,
+  STUDENT_RECOVERY_MIN_RESPONSE_MS,
   STUDENT_RECOVERY_SESSION_COOKIE,
 } from "../src/lib/student-password-recovery-contract.ts";
+import {
+  createRecoveryRateLimiter,
+  recoveryClientIpKey,
+} from "../src/lib/student-password-recovery-rate-limit.ts";
+import { getPasswordRecoveryStrings } from "../src/lib/portal/password-recovery-i18n.ts";
 import {
   canonicalPlatformPageOrigin,
   PRODUCTION_STUDENT_ORIGIN,
@@ -129,20 +137,69 @@ test("email normalization and the shared Student password bounds", () => {
   assert.equal(checkStudentNewPassword("a".repeat(73), "a".repeat(73)), "too_long");
 });
 
-test("request answers stay neutral; only address-independent limits ask to retry", () => {
+test("request answers stay neutral; only the per-IP Auth limit asks to retry", () => {
   assert.equal(classifyStudentRecoveryRequestError(null), "sent");
-  // Auth's per-address frequency limit exists only for a real account.
+  // The project email cap and SMTP failures are reached only for a real
+  // account, whatever the message says.
   assert.equal(classifyStudentRecoveryRequestError({ status: 429, code: "over_email_send_rate_limit",
     message: "For security purposes, you can only request this after 37 seconds." }), "sent");
   assert.equal(classifyStudentRecoveryRequestError({ status: 429, code: "over_email_send_rate_limit",
-    message: "Email rate limit exceeded" }), "rate_limited");
+    message: "email rate limit exceeded" }), "sent");
+  assert.equal(classifyStudentRecoveryRequestError({ code: "over_email_send_rate_limit" }), "sent");
+  assert.equal(classifyStudentRecoveryRequestError({ status: 429 }), "sent");
+  assert.equal(classifyStudentRecoveryRequestError({ status: 500, code: "unexpected_failure",
+    message: "Error sending recovery email" }), "sent");
+  assert.equal(classifyStudentRecoveryRequestError({ name: "AuthRetryableFetchError", status: 504 }), "sent");
+  assert.equal(classifyStudentRecoveryRequestError({ status: 400, code: "user_banned" }), "sent");
   assert.equal(classifyStudentRecoveryRequestError({ status: 429, code: "over_request_rate_limit",
     message: "Request rate limit reached" }), "rate_limited");
   assert.equal(classifyStudentRecoveryRequestError({ status: 400, code: "validation_failed" }), "invalid_email");
-  assert.equal(classifyStudentRecoveryRequestError({ status: 400, code: "user_banned" }), "sent");
-  assert.equal(classifyStudentRecoveryRequestError({ status: 500, code: "unexpected_failure" }), "unavailable");
+  // No HTTP answer at all.
   assert.equal(classifyStudentRecoveryRequestError({ name: "AuthRetryableFetchError", status: 0 }), "unavailable");
+  assert.equal(classifyStudentRecoveryRequestError({ name: "AuthRetryableFetchError" }), "unavailable");
   assert.equal(classifyStudentRecoveryRequestError(new Error("network")), "unavailable");
+  assert.ok(STUDENT_RECOVERY_MIN_RESPONSE_MS >= 1_500);
+});
+
+test("the sent text does not promise a send; link validity matches the consume step", () => {
+  for (const locale of ["ru", "ky", "en"]) {
+    const strings = getPasswordRecoveryStrings(locale);
+    assert.doesNotMatch(strings.sent, /отправили|жөнөттүк/u, locale);
+    assert.doesNotMatch(strings.sentValidity, /открывается|ачылат/u, locale);
+  }
+  assert.equal(getPasswordRecoveryStrings("ru").sentValidity, "Ссылкой можно воспользоваться один раз в течение часа.");
+  assert.equal(getPasswordRecoveryStrings("ky").sentValidity, "Шилтемени бир саат ичинде бир гана жолу колдонсо болот.");
+  assert.match(source("supabase/templates/recovery.html"), /Ссылкой можно воспользоваться один раз в течение часа\./u);
+});
+
+test("form limiter: sliding window per key, bounded keys", () => {
+  const limiter = createRecoveryRateLimiter(3);
+  const rule = { limit: 2, windowMs: 1_000 };
+  assert.equal(limiter.consume("a", rule, 0), true);
+  assert.equal(limiter.consume("a", rule, 10), true);
+  assert.equal(limiter.consume("a", rule, 20), false);
+  assert.equal(limiter.consume("a", rule, 999), false);
+  assert.equal(limiter.consume("a", rule, 1_000), true);
+  assert.equal(limiter.consume("b", rule, 1_000), true);
+  assert.equal(limiter.consume("c", rule, 1_000), true);
+  assert.equal(limiter.consume("d", rule, 1_000), true);
+  assert.ok(limiter.size() <= 3);
+  // The documented production limits.
+  assert.deepEqual({ ...STUDENT_RECOVERY_IP_LIMIT }, { limit: 5, windowMs: 15 * 60_000 });
+  assert.deepEqual({ ...STUDENT_RECOVERY_ADDRESS_LIMIT }, { limit: 3, windowMs: 60 * 60_000 });
+});
+
+test("form limiter keys the address the edge proxy added", () => {
+  assert.equal(recoveryClientIpKey("203.0.113.7"), "ip4:203.0.113.7");
+  // A client-supplied first element never chooses the bucket.
+  assert.equal(recoveryClientIpKey("198.51.100.1, 203.0.113.7"), "ip4:203.0.113.7");
+  assert.equal(recoveryClientIpKey("::ffff:127.0.0.1"), "ip4:127.0.0.1");
+  assert.equal(recoveryClientIpKey("2001:db8:abcd:12:1:2:3:4"), "ip6:2001:db8:abcd:12::/64");
+  assert.equal(recoveryClientIpKey("2001:db8:abcd:12::99"), "ip6:2001:db8:abcd:12::/64");
+  assert.equal(recoveryClientIpKey("::1"), "ip6:0:0:0:0::/64");
+  for (const bad of [null, undefined, "", "unknown", "999.1.1.1", "1.2.3", "1::2::3", "evil.example"]) {
+    assert.equal(recoveryClientIpKey(bad), "ip:unknown", String(bad));
+  }
 });
 
 test("staff markers and a non-Student role claim refuse the Student flow", () => {
@@ -196,6 +253,17 @@ test("server flow: fixed redirect, explicit verify, path-scoped recovery session
   assert.match(actions, /exactActionStringFields\(form, \["password", "password_confirm"\]\)/u);
   assert.match(actions, /validateStudentRecoveryCallbackPost/u);
   assert.equal((actions.match(/studentOriginRequest\(\)\)/gu) ?? []).length, 2);
+  // Own limit first, then the staff lookup, then Auth; one minimum answer time.
+  assert.match(actions, /admitStudentRecoveryRequest\(forwardedFor, email\)/u);
+  assert.match(actions, /get\("x-forwarded-for"\)/u);
+  assert.match(actions, /admission === "address_limited"\) return "sent"/u);
+  assert.match(actions, /STUDENT_RECOVERY_MIN_RESPONSE_MS/u);
+  const lookup = server.indexOf("const recipient = await classifyRecoveryRecipient(email);");
+  const reset = server.indexOf("resetPasswordForEmail(email");
+  assert.ok(lookup > 0 && reset > lookup, "staff lookup must run before Auth");
+  assert.match(server, /if \(recipient === "staff"\) \{[^}]*return "sent";/u);
+  assert.match(server, /findRawAuthUserByExactEmail\(service, normalizedEmail\)/u);
+  assert.match(server, /createHash\("sha256"\)\.update\(normalizedEmail\)/u);
 
   assert.match(server, /verifyOtp\(\{\s*token_hash: tokenHash,\s*type: "recovery",?\s*\}\)/u);
   assert.match(server, /flowType: "implicit"/u);

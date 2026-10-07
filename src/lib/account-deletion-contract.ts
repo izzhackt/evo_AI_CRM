@@ -191,7 +191,18 @@ export function accountDeletionDate(iso: string): string {
   }).format(new Date(iso));
 }
 
-/** Сколько полных дней до срока; отрицательное — срок прошёл. */
+function bishkekDay(at: Date): number {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Bishkek",
+  }).formatToParts(at);
+  const part = (type: string) => Number(parts.find((item) => item.type === type)?.value);
+  return Date.UTC(part("year"), part("month") - 1, part("day")) / 86_400_000;
+}
+
+/**
+ * Сколько календарных дней по Бишкеку до даты срока: в день запроса это
+ * 30, в день срока 0; отрицательное значит, что срок прошёл.
+ */
 export function accountDeletionDaysLeft(dueAt: string, now: Date): number {
-  return Math.floor((Date.parse(dueAt) - now.getTime()) / 86_400_000);
+  return bishkekDay(new Date(dueAt)) - bishkekDay(now);
 }

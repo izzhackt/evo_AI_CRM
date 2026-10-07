@@ -74,8 +74,11 @@ test("processing result refuses path tricks in Storage keys", () => {
   assert.equal(parseAccountDeletionProcessed({ ...ok, authUserId: "nope" }), null);
 });
 
-test("days left: due date in the past is negative", () => {
+test("days left: calendar days in Bishkek, due date in the past is negative", () => {
   assert.equal(accountDeletionDaysLeft("2026-11-06T10:00:00Z", new Date("2026-10-07T10:00:00Z")), 30);
+  // Запрос в 19:26 UTC (уже 08.10 в Бишкеке) через минуту: всё ещё 30, не 29.
+  assert.equal(accountDeletionDaysLeft("2026-11-06T19:26:27Z", new Date("2026-10-07T19:35:00Z")), 30);
+  assert.equal(accountDeletionDaysLeft("2026-11-06T19:26:27Z", new Date("2026-11-06T19:00:00Z")), 0);
   assert.ok(accountDeletionDaysLeft("2026-10-01T10:00:00Z", new Date("2026-10-07T10:00:00Z")) < 0);
 });
 

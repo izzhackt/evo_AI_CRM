@@ -51,6 +51,8 @@ final class AccountDeletionModel: ObservableObject {
 /// затем статус запроса. Используется в «Профиле» и в листе удаления.
 struct AccountDeletionContent: View {
     @ObservedObject var model: AccountDeletionModel
+    /// В листе заголовок уже стоит в навигации — второй не нужен.
+    var showsHeader = true
     @State private var showsConfirm = false
 
     var body: some View {
@@ -75,6 +77,20 @@ struct AccountDeletionContent: View {
                 // A11y: во время отправки label — ProgressView без текста.
                 .accessibilityLabel(Text("account_deletion_action"))
                 .accessibilityIdentifier("account-deletion-start")
+                // Подтверждение привязано к самой кнопке: модификатор на
+                // Section внутри List в листе не показывается.
+                .confirmationDialog(
+                    "account_deletion_confirm_question",
+                    isPresented: $showsConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("account_deletion_confirm_yes", role: .destructive) {
+                        Task { await model.send() }
+                    }
+                    Button("cancel_button", role: .cancel) {}
+                } message: {
+                    Text("account_deletion_confirm_note")
+                }
                 if model.sendFailed {
                     Text("account_deletion_error")
                         .font(.footnote)
@@ -82,7 +98,9 @@ struct AccountDeletionContent: View {
                 }
             }
         } header: {
-            Text("account_deletion_heading")
+            if showsHeader {
+                Text("account_deletion_heading")
+            }
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
                 if model.request == nil {
@@ -90,18 +108,6 @@ struct AccountDeletionContent: View {
                 }
                 Text("account_deletion_kept_note")
             }
-        }
-        .confirmationDialog(
-            "account_deletion_confirm_question",
-            isPresented: $showsConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("account_deletion_confirm_yes", role: .destructive) {
-                Task { await model.send() }
-            }
-            Button("cancel_button", role: .cancel) {}
-        } message: {
-            Text("account_deletion_confirm_note")
         }
     }
 
@@ -145,7 +151,7 @@ struct AccountDeletionSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                AccountDeletionContent(model: model)
+                AccountDeletionContent(model: model, showsHeader: false)
             }
             .navigationTitle("account_deletion_heading")
             .navigationBarTitleDisplayMode(.inline)

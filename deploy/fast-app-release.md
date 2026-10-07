@@ -251,6 +251,11 @@ Required non-secret variables:
 - `EVO_WAHA_IMAGE_DIGEST` — the reviewed immutable digest; and
 - `EVO_SUPABASE_PROJECT_REF`.
 
+Optional «ИИ-агент» variables: `EVO_AI_AGENT_ENABLED` (unset, empty or `false`
+keeps today's release exactly; `true` adds the `ai-agent` compose profile) and
+`EVO_AI_AGENT_IMAGE_DIGEST` (required only with `true`). Owner steps, release
+behaviour and rollback: [`docs/runbooks/ai-agent-enable.md`](../docs/runbooks/ai-agent-enable.md).
+
 The [domain cutover](README.md#canonical-domain-cutover) and these inputs were
 verified with managed release `35167122534` on 2026-09-17. The browser smoke
 derives its exact staff login origin from this health URL; Student and old
@@ -269,6 +274,14 @@ before mutation so the pinned scanner can start safely. A deployment-specific
 `EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB` may only raise that threshold; values
 below 4,194,304 KiB are invalid. The observed Hermes capacity is not a
 reservation and must be read again during #552 preflight.
+
+Every release also needs Docker Compose 2.30.0 or later: `docker-compose.prod.yml`
+declares an `env_file` in the long form with `format: raw`, and Compose validates
+the whole file, profiled services included. `preflight` and `deploy` read
+`docker compose version --short` after the configuration checks and before the
+host lock or any change, and stop with `compose_version_unsupported` (older) or
+`compose_version_unreadable`. Rollback is not gated. Hermes reported Docker
+Compose v5.1.2 on 2026-10-06 (read by the orchestrating agent).
 
 `EVO_RELEASE_TRANSFER_ROOT` is a private transient archive-transfer directory,
 not a staging environment. The #551 implementation removes the obsolete

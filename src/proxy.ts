@@ -9,7 +9,6 @@ import {
   isConnectedStudentAuthPage,
   isConnectedStudentPortalApi,
   isConnectedStudentPortalPage,
-  isDirectPlatformStaffAssistantApi,
   isPublicStudentRegistrationApi,
   isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
@@ -259,9 +258,6 @@ export async function proxy(request: NextRequest) {
   if (path === "/api/health" || path === "/api/version") {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
-  if (isDirectPlatformStaffAssistantApi(path)) {
-    return setResponseHeaders(nextResponse(requestHeaders), id);
-  }
   if (isConnectedPlatformPrivateApi(path)) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
@@ -361,8 +357,8 @@ export async function proxy(request: NextRequest) {
   // the handler verifies the token with Supabase Auth and repeats the full
   // Student authority chain fail-closed (401/403), and the cookie session is
   // then never consulted, so no cookie refresh runs here. Requests without
-  // the header keep the cookie gate below unchanged (same pattern as
-  // isDirectPlatformStaffAssistantApi: the exact route owns its boundary).
+  // the header keep the cookie gate below unchanged (the exact route owns
+  // its boundary).
   if (studentPortalApi && request.headers.has("authorization")) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }

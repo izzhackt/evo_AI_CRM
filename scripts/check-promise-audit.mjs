@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import path from "path";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -26,8 +26,6 @@ function walkFiles(relativeDir, extensions) {
 }
 
 const audit = read("docs/PROMISE_AUDIT.md");
-const aiOrchestrator = read("src/lib/server/platform-provider-orchestrator.ts");
-const aiProvider = read("src/lib/server/platform-gemini-provider.ts");
 const publicCopyChangeset = read("docs/PUBLIC_PROMISE_COPY_CHANGESET.md");
 const publicLiveAudit = read("docs/PUBLIC_PROMISE_LIVE_AUDIT.md");
 
@@ -79,21 +77,16 @@ for (const required of [
   assert(publicCopyChangeset.includes(required), `missing public-copy handoff requirement: ${required}`);
 }
 
-for (const guardrail of [
-  "You prepare one advisory draft for an EVO staff member.",
-  "You never send a message, change CRM state, call tools, or make a decision for staff.",
-  "You never promise admission, visas, scholarships, deadlines, discounts, payments, or outcomes.",
+// The CRM no longer drafts replies with Gemini: the U9 proposal path and the
+// staff-assistant were removed in AI-agent P1 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md
+// §5.6). Drafting, its rules and its leak guard live in the private evo-ai-agent
+// service, so there is no CRM prompt left to check here.
+for (const retired of [
+  "src/lib/server/platform-gemini-provider.ts",
+  "src/app/api/platform-ai/staff-assistant/route.ts",
 ]) {
-  assert(
-    aiOrchestrator.includes(guardrail),
-    `platform Gemini prompt is missing guardrail: ${guardrail}`,
-  );
+  assert(!existsSync(path.join(repoRoot, retired)), `retired AI drafting path is back: ${retired}`);
 }
-assert(
-  aiProvider.includes("UNSAFE_OUTCOME_PATTERNS") &&
-    aiProvider.includes('"unsafe_semantics"'),
-  "platform Gemini provider is missing application-side promise guardrails",
-);
 
 const forbiddenPreparedAnswerPatterns = [
   /100%\s*(admission|grant|chance|success|поступ|грант)/i,

@@ -41,6 +41,23 @@ read-only проверкам (только счётчики и окна прог
 - `WAHA_WORKER_RESTART_SESSIONS` по-прежнему `false`; возврат в `true`
   запланирован отдельным шагом (отдельное «давай» владельца).
 
+**Дополнение 2026-10-06 15:02Z (постоянное подключение).** Владелец 06.10:
+«lets connect whatsapp on permanent basis». Выполнено одноразовым скриптом
+оркестратора:
+
+- в `/opt/evo-crm/.env.waha` выставлено `WAHA_WORKER_RESTART_SESSIONS=true`,
+  резервная копия `/root/evo-config-backups/env.waha.20261006T150141Z`;
+- сервис `waha` пересоздан тем же снимком compose, что и у release controller
+  (выпуск `v3-r37471924135-a1-79cb1f36`, профиль `ai-agent` выключен);
+  простой около 18 с; образ (digest) и том сессий те же;
+- `crm_primary` поднялась сама, статус `WORKING`; `healthy`, `restarts=0`.
+- предусловие из § D (у старой сессии `china_curator` нет `assignedWorker`)
+  проверено до шага: в хранилище GOWS одна сессия `crm_primary`,
+  `china_curator` там нет, поднимать с автостартом нечего.
+
+Упоминания `false` выше и в § D, H, I описывают состояние до этого шага и не
+переписываются.
+
 Код приёма — [#1137](https://github.com/izzhackt/evo_AI_CRM/pull/1137), влит в
 `main` коммитом `f3a60db90` (дерево совпадает с head `a57fb607d`, по которому
 читался код для этого runbook). После него в `main` влиты

@@ -4,6 +4,7 @@ import { isStaffPreview, staffCanAccessRoute, staffHasPermission } from "../plat
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import { parsePlatformRouteUuid } from "../platform-communications.ts";
 import { normalizeAiAnswerView, type AiAnswerView, type AiIntent } from "../v3/ai-agent.ts";
+import { normalizeAiMemoryView, type AiMemoryView } from "../v3/ai-agent-memory.ts";
 import { aiAgentSignedHeaders, readAiAgentConfig, type AiAgentConfig } from "./ai-agent-internal-auth.ts";
 
 /**
@@ -20,7 +21,10 @@ import { aiAgentSignedHeaders, readAiAgentConfig, type AiAgentConfig } from "./a
  *    без вызова агента и Gemini;
  *  - `POST /api/v3/ai-agent/answers/[id]/insert` — «Вставить в ответ»
  *    (`ai_agent_answer_insert_v1`): проверенный сохранённый текст, 409 — ответ
- *    устарел. Ничего не отправляет.
+ *    устарел. Ничего не отправляет;
+ *  - `GET/DELETE /api/v3/ai-agent/conversations/[id]/memory` (P3) — «Что ИИ
+ *    знает о клиенте» и «Забыть сводку» (`ai_agent_memory_v1`,
+ *    `ai_agent_memory_clear_v1`, 274), без агента и Gemini.
  *
  * Сами маршруты ничего не решают: доступ, актуальность и лимиты держит база.
  * Просмотр роли администратором ИИ не вызывает. Без секрета агента функция
@@ -68,11 +72,11 @@ export type AiAgentRouteDependencies = Readonly<{
 
 type RpcError = Readonly<{ code?: string; message?: string }>;
 
-function json(status: number, body: unknown): Response {
+export function json(status: number, body: unknown): Response {
   return Response.json(body, { status, headers: JSON_HEADERS });
 }
-function failure(status: number, code: string): Response {
-  return json(status, { error: { code } });
+export function failure(status: number, code: string, extra: Readonly<Record<string, unknown>> = {}): Response {
+  return json(status, { error: { code, ...extra } });
 }
 function refusal(status: Exclude<Authorization["status"], "authorized">): Response {
   if (status === "anonymous") return failure(401, "authentication_required");
@@ -82,7 +86,7 @@ function refusal(status: Exclude<Authorization["status"], "authorized">): Respon
 }
 
 /** Тот же Origin/Host/протокол, что у остальных POST-маршрутов staff CRM. */
-function sameOrigin(request: Request): boolean {
+export function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return false;
   try {
@@ -99,12 +103,12 @@ function sameOrigin(request: Request): boolean {
 }
 
 /** Небольшое тело JSON с точным набором ключей; иначе null. */
-async function readJsonObject(request: Request, allowed: readonly string[]): Promise<Record<string, unknown> | null> {
+export async function readJsonObject(request: Request, allowed: readonly string[], limit = 1024): Promise<Record<string, unknown> | null> {
   const declared = request.headers.get("content-length");
   if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(request.headers.get("content-type") ?? "")
-    || (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > 1024))) return null;
+    || (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > limit))) return null;
   // Тело читается с пределом по мере прихода: ни ложная длина, ни поток без
-  // неё не заставят держать в памяти больше 1 КБ.
+  // неё не заставят держать в памяти больше предела (1 КБ по умолчанию).
   let raw = "";
   try {
     const reader = request.body?.getReader();
@@ -115,7 +119,7 @@ async function readJsonObject(request: Request, allowed: readonly string[]): Pro
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 1024) {
+      if (size > limit) {
         await reader.cancel().catch(() => undefined);
         return null;
       }
@@ -201,16 +205,22 @@ const defaultDependencies: AiAgentRouteDependencies = {
 type ConversationContext = Readonly<{ params: Promise<Readonly<{ conversationId: string }>> }>;
 type AnswerContext = Readonly<{ params: Promise<Readonly<{ answerId: string }>> }>;
 
-/** Коды агента, которые окно показывает своим текстом; остальное — «недоступен». */
+/**
+ * Коды агента, которые окно показывает своим текстом; остальное — «недоступен».
+ * `lab_*` — Лаборатория (P2): знания или предложение изменились (409), правка
+ * больше не применима (422), проверка устарела или её нет (409).
+ */
 const AGENT_CODES = new Set(["consent_required", "rate_limited", "budget_exhausted", "model_unpriced", "gemini_billing",
-  "gemini_quota_day", "agent_unavailable", "superseded", "taken_over"]);
+  "gemini_quota_day", "agent_unavailable", "superseded", "taken_over",
+  "lab_changed", "lab_edit_invalid", "lab_expired", "lab_session_missing"]);
 const STATUS_FOR_CODE: Readonly<Record<string, number>> = {
   consent_required: 412, rate_limited: 429, budget_exhausted: 402, model_unpriced: 402, gemini_billing: 402,
   gemini_quota_day: 429, superseded: 409, taken_over: 409,
+  lab_changed: 409, lab_edit_invalid: 422, lab_expired: 409, lab_session_missing: 409,
 };
 
 /** Отказ агента до открытия потока: JSON `{error: {code, message_ru, status}}`. */
-async function agentRefusal(upstream: Response): Promise<Response> {
+export async function agentRefusal(upstream: Response): Promise<Response> {
   let code = "agent_unavailable";
   try {
     const reader = upstream.body?.getReader();
@@ -240,6 +250,88 @@ const unavailableFrame = () => encoder.encode(
   `\n\nevent: error\ndata: ${JSON.stringify({ code: "agent_unavailable", message_ru: "ИИ-агент сейчас недоступен.", status: 503 })}\n\n`,
 );
 
+/**
+ * Подписанный POST к агенту и его поток SSE — в браузер без буферизации
+ * (§4.3): окно ответа (P1) и Лаборатория (P2). Отказ агента до открытия
+ * потока — JSON `{error: {code}}` со своим статусом; обрыв потока — кадр
+ * ошибки; закрыл браузер поток — CRM обрывает запрос к агенту.
+ */
+export async function streamFromAgent(
+  request: Request,
+  config: AiAgentConfig,
+  path: string,
+  payload: string,
+  dependencies: Pick<AiAgentRouteDependencies, "fetch" | "now">,
+): Promise<Response> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  request.signal.addEventListener("abort", abort, { once: true });
+  const headersTimer = setTimeout(abort, AI_AGENT_HEADERS_TIMEOUT_MS);
+  const release = () => {
+    clearTimeout(headersTimer);
+    request.signal.removeEventListener("abort", abort);
+  };
+  let upstream: Response;
+  try {
+    upstream = await dependencies.fetch(`${config.baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...aiAgentSignedHeaders(config, "POST", path, payload, dependencies.now()),
+      },
+      body: payload,
+      signal: controller.signal,
+      redirect: "error",
+      cache: "no-store",
+    });
+  } catch {
+    release();
+    return failure(503, "agent_unavailable");
+  }
+  clearTimeout(headersTimer);
+  if (upstream.status !== 200 || !(upstream.headers.get("content-type") ?? "").startsWith("text/event-stream") || !upstream.body) {
+    release();
+    return agentRefusal(upstream);
+  }
+
+  const reader = upstream.body.getReader();
+  const streamTimer = setTimeout(abort, AI_AGENT_STREAM_LIMIT_MS);
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(streamTimer);
+    release();
+  };
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(output) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          finish();
+          output.close();
+          return;
+        }
+        output.enqueue(value);
+      } catch {
+        // Агент оборвал поток (упал, перезапуск, предел времени): кадр
+        // ошибки — последнее, что увидит окно.
+        finish();
+        if (!request.signal.aborted) output.enqueue(unavailableFrame());
+        output.close();
+      }
+    },
+    async cancel(reason) {
+      // Браузер закрыл поток — запрос к агенту обрывается.
+      finish();
+      controller.abort();
+      await reader.cancel(reason).catch(() => undefined);
+    },
+  });
+  return new Response(stream, { status: 200, headers: SSE_HEADERS });
+}
+
 export function createAiAnswerStreamHandler(dependencies: AiAgentRouteDependencies = defaultDependencies) {
   return async function POST(request: Request, context: ConversationContext): Promise<Response> {
     try {
@@ -261,75 +353,7 @@ export function createAiAnswerStreamHandler(dependencies: AiAgentRouteDependenci
         return failure(status, ticket.code);
       }
 
-      const path = "/v1/answer";
-      const payload = JSON.stringify({ ticket: ticket.ticket, intent });
-      const controller = new AbortController();
-      const abort = () => controller.abort();
-      request.signal.addEventListener("abort", abort, { once: true });
-      const headersTimer = setTimeout(abort, AI_AGENT_HEADERS_TIMEOUT_MS);
-      const release = () => {
-        clearTimeout(headersTimer);
-        request.signal.removeEventListener("abort", abort);
-      };
-      let upstream: Response;
-      try {
-        upstream = await dependencies.fetch(`${config.baseUrl}${path}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "text/event-stream",
-            ...aiAgentSignedHeaders(config, "POST", path, payload, dependencies.now()),
-          },
-          body: payload,
-          signal: controller.signal,
-          redirect: "error",
-          cache: "no-store",
-        });
-      } catch {
-        release();
-        return failure(503, "agent_unavailable");
-      }
-      clearTimeout(headersTimer);
-      if (upstream.status !== 200 || !(upstream.headers.get("content-type") ?? "").startsWith("text/event-stream") || !upstream.body) {
-        release();
-        return agentRefusal(upstream);
-      }
-
-      const reader = upstream.body.getReader();
-      const streamTimer = setTimeout(abort, AI_AGENT_STREAM_LIMIT_MS);
-      let finished = false;
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        clearTimeout(streamTimer);
-        release();
-      };
-      const stream = new ReadableStream<Uint8Array>({
-        async pull(output) {
-          try {
-            const { done, value } = await reader.read();
-            if (done) {
-              finish();
-              output.close();
-              return;
-            }
-            output.enqueue(value);
-          } catch {
-            // Агент оборвал поток (упал, перезапуск, предел времени): кадр
-            // ошибки — последнее, что увидит окно.
-            finish();
-            if (!request.signal.aborted) output.enqueue(unavailableFrame());
-            output.close();
-          }
-        },
-        async cancel(reason) {
-          // Браузер закрыл поток — запрос к агенту обрывается.
-          finish();
-          controller.abort();
-          await reader.cancel(reason).catch(() => undefined);
-        },
-      });
-      return new Response(stream, { status: 200, headers: SSE_HEADERS });
+      return await streamFromAgent(request, config, "/v1/answer", JSON.stringify({ ticket: ticket.ticket, intent }), dependencies);
     } catch {
       return failure(503, "unavailable");
     }
@@ -371,6 +395,122 @@ export function createAiAnswerInsertHandler(dependencies: AiAgentRouteDependenci
       const result = await dependencies.insertAnswer(authorization.actor, answerId, part);
       if (result.status === "inserted") return json(200, { text: result.text });
       if (result.status === "stale") return failure(409, "stale_answer");
+      if (result.status === "forbidden") return failure(403, "forbidden");
+      if (result.status === "not_found") return failure(404, "not_found");
+      if (result.status === "invalid") return failure(400, "invalid_request");
+      return failure(503, "unavailable");
+    } catch {
+      return failure(503, "unavailable");
+    }
+  };
+}
+
+// ------------------------------------------------------------------ P3 память
+
+export type AiMemoryClearResult =
+  /**
+   * Квитанция 274: `deleted` — была ли строка памяти; `enqueued` — поставлена ли
+   * пересборка в очередь агента сразу (память работает и собирать есть что).
+   * Повтор тем же id отдаёт прежнюю квитанцию.
+   */
+  | Readonly<{ status: "cleared"; deleted: boolean; enqueued: boolean }>
+  | Readonly<{ status: "conflict" | "forbidden" | "not_found" | "invalid" | "unavailable" }>;
+
+export type AiMemoryRouteDependencies = Readonly<{
+  authorize(): Promise<Authorization>;
+  readMemory(actor: ActivePlatformActor, conversationId: string): Promise<AiMemoryView | "forbidden" | "not_found">;
+  clearMemory(actor: ActivePlatformActor, conversationId: string, requestId: string): Promise<AiMemoryClearResult>;
+}>;
+
+const defaultMemoryDependencies: AiMemoryRouteDependencies = {
+  authorize: defaultAuthorize,
+  async readMemory(actor, conversationId) {
+    const { data, error } = await (await rpcClient()).rpc("ai_agent_memory_v1", {
+      p_organization_id: actor.organizationId, p_conversation_id: conversationId,
+    });
+    if (error) {
+      if (error.code === "42501") return "forbidden";
+      if (error.code === "P0002") return "not_found";
+      throw new Error("ai_memory_unavailable");
+    }
+    return normalizeAiMemoryView(data);
+  },
+  async clearMemory(actor, conversationId, requestId) {
+    const { data, error } = await (await rpcClient()).rpc("ai_agent_memory_clear_v1", {
+      p_organization_id: actor.organizationId, p_conversation_id: conversationId, p_request_id: requestId,
+    });
+    return aiMemoryClearOutcome(error, data);
+  },
+};
+
+/**
+ * Квитанция `ai_agent_memory_clear_v1` или его отказ → итог маршрута.
+ * Квитанция (274, через `ai_request_finish` 269): `{status: 'cleared',
+ * conversationId, deleted, enqueued, replayed}`. Другая форма — не «удалено»,
+ * а сбой.
+ */
+export function aiMemoryClearOutcome(error: RpcError | null, data: unknown): AiMemoryClearResult {
+  if (error) {
+    // 23505 — тот же id запроса уже записан с другим вводом (ai_request_replay, 269).
+    if (error.code === "PT409" || error.code === "23505") return { status: "conflict" };
+    if (error.code === "42501") return { status: "forbidden" };
+    if (error.code === "P0002") return { status: "not_found" };
+    if (error.code === "22023") return { status: "invalid" };
+    return { status: "unavailable" };
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return { status: "unavailable" };
+  const receipt = data as Record<string, unknown>;
+  if (receipt.status !== "cleared" || typeof receipt.deleted !== "boolean" || typeof receipt.enqueued !== "boolean") {
+    return { status: "unavailable" };
+  }
+  return { status: "cleared", deleted: receipt.deleted, enqueued: receipt.enqueued };
+}
+
+/**
+ * «Что ИИ знает о клиенте» (план §9, §12.1; P3): `GET …/conversations/[id]/memory`
+ * — память диалога и карточка лида (`ai_agent_memory_v1`, 274) при открытии
+ * окна. Ни агента, ни Gemini; без секрета агента блок тоже читается — память
+ * лежит в базе. Права (ai.agent.use, чтение диалога продаж) решает база.
+ */
+export function createAiMemoryReadHandler(dependencies: AiMemoryRouteDependencies = defaultMemoryDependencies) {
+  return async function GET(request: Request, context: ConversationContext): Promise<Response> {
+    try {
+      const authorization = await dependencies.authorize();
+      if (authorization.status !== "authorized") return refusal(authorization.status);
+      const conversationId = parsePlatformRouteUuid((await context.params).conversationId);
+      if (!conversationId || new URL(request.url).search !== "") return failure(400, "invalid_request");
+      const memory = await dependencies.readMemory(authorization.actor, conversationId);
+      if (memory === "forbidden") return failure(403, "forbidden");
+      if (memory === "not_found") return failure(404, "not_found");
+      return json(200, { memory });
+    } catch {
+      return failure(503, "unavailable");
+    }
+  };
+}
+
+/**
+ * «Забыть сводку» (P3, Q9 — может любой сотрудник с ai.agent.use):
+ * `DELETE …/conversations/[id]/memory` с `{requestId}` — строка памяти
+ * удаляется (`ai_agent_memory_clear_v1`), повтор тем же id возвращает прежнюю
+ * квитанцию; ответ — `{deleted, enqueued}` (была ли строка; поставлена ли
+ * пересборка). В журнале — только числа и флаги, без текста. Пока память
+ * работает, база сразу ставит пересборку в очередь агента — не дожидаясь
+ * нового сообщения клиента (274).
+ */
+export function createAiMemoryClearHandler(dependencies: AiMemoryRouteDependencies = defaultMemoryDependencies) {
+  return async function DELETE(request: Request, context: ConversationContext): Promise<Response> {
+    try {
+      if (!sameOrigin(request)) return failure(403, "forbidden");
+      const authorization = await dependencies.authorize();
+      if (authorization.status !== "authorized") return refusal(authorization.status);
+      const conversationId = parsePlatformRouteUuid((await context.params).conversationId);
+      const body = await readJsonObject(request, ["requestId"]);
+      const requestId = body ? parsePlatformRouteUuid(body.requestId) : null;
+      if (!conversationId || !requestId || new URL(request.url).search !== "") return failure(400, "invalid_request");
+      const result = await dependencies.clearMemory(authorization.actor, conversationId, requestId);
+      if (result.status === "cleared") return json(200, { deleted: result.deleted, enqueued: result.enqueued });
+      if (result.status === "conflict") return failure(409, "request_conflict");
       if (result.status === "forbidden") return failure(403, "forbidden");
       if (result.status === "not_found") return failure(404, "not_found");
       if (result.status === "invalid") return failure(400, "invalid_request");

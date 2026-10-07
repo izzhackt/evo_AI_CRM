@@ -6,10 +6,18 @@ import { requirePlatformStaffActor } from "./platform-guards";
 import { parseSalesUuid } from "./platform-sales-register-contract";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { AI_CONSENT_TEXT_VERSION, AI_RULES_BYTE_LIMIT, utf8Bytes } from "./v3/ai-agent";
+import { isAiReviewCorrection } from "./v3/ai-agent-knowledge";
 import {
+  confirmAiDocumentCompany,
   confirmAiRules,
+  deleteAiDocument,
+  deleteAiExample,
+  discardAiLab,
   recordAiConsent,
+  rejectAiLabProposal,
+  resolveAiReviewItem,
   retryAiDocument,
+  saveAiMemory,
   saveAiMonthlyCap,
   saveAiRules,
   type AiWriteStatus,
@@ -92,6 +100,24 @@ export async function saveAiMonthlyCapAction(previous: AiActionState, form: Form
 }
 
 /**
+ * «Включить память» / «Выключить память» (P3, §9). Ожидаемая версия настроек —
+ * против гонки с лимитом и другим сотрудником; выключение удаляет сводки всех
+ * клиентов (решает база, 274).
+ */
+export async function saveAiMemoryAction(previous: AiActionState, form: FormData): Promise<AiActionState> {
+  const fields = exactActionStringFields(form, ["request_id", "expected_version", "memory_action"]);
+  const requestId = fields && parseSalesUuid(fields.get("request_id"));
+  const action = fields?.get("memory_action");
+  const expected = fields?.get("expected_version") ?? "";
+  if (!fields || !requestId || (action !== "enable" && action !== "disable") || !VERSION.test(expected)) {
+    return { status: "invalid", requestId: requestId ?? previous.requestId };
+  }
+  const actor = await actorFor();
+  if (!actor) return { status: "forbidden", requestId };
+  return done(await saveAiMemory(actor, { enabled: action === "enable", expectedVersion: Number(expected), requestId }), requestId);
+}
+
+/**
  * Согласие владельца на передачу текстов клиентов в Gemini (Q4) — записывает
  * и отзывает только admin (§13); база отказывает остальным (42501).
  */
@@ -107,4 +133,100 @@ export async function recordAiConsentAction(previous: AiActionState, form: FormD
   return done(await recordAiConsent(actor, {
     action, textVersion: action === "grant" ? AI_CONSENT_TEXT_VERSION : null, requestId,
   }), requestId);
+}
+
+// ------------------------------------------------------------------ P2
+
+/** Общая форма команды над документом: id запроса, документ, ожидаемая версия строки. */
+type DocumentCommand =
+  | Readonly<{ invalid: AiActionState }>
+  | Readonly<{ requestId: string; documentId: string; expectedVersion: number }>;
+
+function documentCommand(previous: AiActionState, form: FormData): DocumentCommand {
+  const fields = exactActionStringFields(form, ["request_id", "document_id", "expected_version"]);
+  const requestId = fields && parseSalesUuid(fields.get("request_id"));
+  const documentId = fields && parseSalesUuid(fields.get("document_id"));
+  const expected = fields?.get("expected_version") ?? "";
+  if (!fields || !requestId || !documentId || !VERSION.test(expected) || expected === "0") {
+    return { invalid: { status: "invalid", requestId: requestId ?? previous.requestId } };
+  }
+  return { requestId, documentId, expectedVersion: Number(expected) };
+}
+
+/** «Удалить» документ: строка, фрагменты и пункты сверки — в базе, объекты — из Storage. */
+export async function deleteAiDocumentAction(previous: AiActionState, form: FormData): Promise<AiActionState> {
+  const command = documentCommand(previous, form);
+  if ("invalid" in command) return command.invalid;
+  const actor = await actorFor();
+  if (!actor) return { status: "forbidden", requestId: command.requestId };
+  return done(await deleteAiDocument(actor, command), command.requestId);
+}
+
+/** «Это материал компании — продолжить» (§7): решение записывается, обработка продолжается. */
+export async function confirmAiDocumentCompanyAction(previous: AiActionState, form: FormData): Promise<AiActionState> {
+  const command = documentCommand(previous, form);
+  if ("invalid" in command) return command.invalid;
+  const actor = await actorFor();
+  if (!actor) return { status: "forbidden", requestId: command.requestId };
+  return done(await confirmAiDocumentCompany(actor, command), command.requestId);
+}
+
+const REVIEW_ACTIONS = new Set(["confirm", "correct", "dismiss", "reopen"]);
+const REVIEW_STATUSES = new Set(["open", "applying", "resolved", "dismissed"]);
+
+/**
+ * Пункт «Листа сверки» (§7): «Подтвердить», «Исправить» (одна строка до 200
+ * знаков), «Оставить как есть», «Открыть снова». Ожидаемый статус — против
+ * решения двух сотрудников сразу (конфликт — «обновите страницу»).
+ */
+export async function resolveAiReviewItemAction(previous: AiActionState, form: FormData): Promise<AiActionState> {
+  const fields = exactActionStringFields(form, ["request_id", "item_id", "review_action", "value", "expected_status"]);
+  const requestId = fields && parseSalesUuid(fields.get("request_id"));
+  const itemId = fields && parseSalesUuid(fields.get("item_id"));
+  const action = fields?.get("review_action") ?? "";
+  const expected = fields?.get("expected_status") ?? "";
+  const raw = fields?.get("value") ?? "";
+  if (!fields || !requestId || !itemId || !REVIEW_ACTIONS.has(action) || !REVIEW_STATUSES.has(expected)
+    || (action === "correct" ? !isAiReviewCorrection(raw) : raw !== "")) {
+    return { status: "invalid", requestId: requestId ?? previous.requestId };
+  }
+  const actor = await actorFor();
+  if (!actor) return { status: "forbidden", requestId };
+  return done(await resolveAiReviewItem(actor, {
+    itemId, action: action as "confirm" | "correct" | "dismiss" | "reopen",
+    value: action === "correct" ? raw.trim() : null,
+    expectedStatus: expected as "open" | "applying" | "resolved" | "dismissed", requestId,
+  }), requestId);
+}
+
+/** «Новая проверка» в Лаборатории. */
+export async function discardAiLabAction(previous: AiActionState, form: FormData): Promise<AiActionState> {
+  const fields = exactActionStringFields(form, ["request_id"]);
+  const requestId = fields && parseSalesUuid(fields.get("request_id"));
+  if (!fields || !requestId) return { status: "invalid", requestId: previous.requestId };
+  const actor = await actorFor();
+  if (!actor) return { status: "forbidden", requestId };
+  return done(await discardAiLab(actor), requestId);
+}
+
+/** «Не менять» — предложение отклонено, ничего не применяется. */
+export async function rejectAiLabProposalAction(previous: AiActionState, form: FormData): Promise<AiActionState> {
+  const fields = exactActionStringFields(form, ["request_id", "proposal_id"]);
+  const requestId = fields && parseSalesUuid(fields.get("request_id"));
+  const proposalId = fields && parseSalesUuid(fields.get("proposal_id"));
+  if (!fields || !requestId || !proposalId) return { status: "invalid", requestId: requestId ?? previous.requestId };
+  const actor = await actorFor();
+  if (!actor) return { status: "forbidden", requestId };
+  return done(await rejectAiLabProposal(actor, { proposalId, requestId }), requestId);
+}
+
+/** Удалить эталонный ответ. */
+export async function deleteAiExampleAction(previous: AiActionState, form: FormData): Promise<AiActionState> {
+  const fields = exactActionStringFields(form, ["request_id", "example_id"]);
+  const requestId = fields && parseSalesUuid(fields.get("request_id"));
+  const exampleId = fields && parseSalesUuid(fields.get("example_id"));
+  if (!fields || !requestId || !exampleId) return { status: "invalid", requestId: requestId ?? previous.requestId };
+  const actor = await actorFor();
+  if (!actor) return { status: "forbidden", requestId };
+  return done(await deleteAiExample(actor, { exampleId, requestId }), requestId);
 }

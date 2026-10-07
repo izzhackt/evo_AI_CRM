@@ -48752,3 +48752,45 @@ Validation impact: `xcodegen generate`, сборка под симулятор i
 `Local.xcconfig` в коммиты не попадают. Production, выпуск и настройки Auth не
 меняются.
 Reviewer notes: pending independent review on the exact PR head.
+
+## 2026-10-07, iPhone 1.0 для App Store: версия, файл приватности, конфигурация выпуска, документы для App Store Connect (дополнение)
+
+Запись выше («iPhone 1.0 для App Store: исправления P1…») не переписывается.
+Это дополнение раскрывает её пункт 7.
+
+Date: 2026-10-07, workspace timezone.
+Author: Claude (Opus 5.5), по поручению ведущего агента.
+Change type: конфигурация сборки и документы iPhone-приложения (`ios/`). Без
+миграций, без SQL, без изменений веба и сайта.
+Affected plan section: iPhone-приложение (ADR 0030), подготовка версии 1.0 к
+App Store.
+Reason: в `ios/` нет `PrivacyInfo.xcprivacy`, Debug и Release читают один
+`Local.xcconfig` (локальный стек), `MARKETING_VERSION` равен 0.1.0, а
+`Generated/Info.plist` держит постоянные `1.0` и `1` вместо настроек версии.
+Ответы для App Store Connect лежат черновиками вне Git.
+Decision:
+
+1. Версия 1.0.0, сборка 1. `CFBundleShortVersionString` и `CFBundleVersion`
+   в `Info.plist` берутся из `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION`.
+2. `ios/EVOAdmissions/Resources/PrivacyInfo.xcprivacy` по фактическому коду:
+   без tracking, собранные типы данных связаны с аккаунтом, цель только App
+   Functionality; из API с обязательной причиной код использует только
+   `UserDefaults` (причина `CA92.1`).
+3. Release читает игнорируемый `ios/Release.xcconfig`. Его пишет
+   `ios/scripts/write-release-config.sh` из переменных окружения и
+   отказывается от `http://`. В Git только `ios/Release.xcconfig.example` с
+   публичными клиентскими значениями и заглушками. Шаг сборки
+   `ios/scripts/check-release-config.sh` останавливает Release без
+   конфигурации, с адресом не `https://` или с исключением ATS в
+   `Info.plist`, а архив ещё и с заглушкой ключа или без Team ID.
+4. `ios/docs/app-store/`: страница App Store (RU, EN), ответы App Privacy в
+   точном соответствии с файлом приватности, возрастной рейтинг, шаблон
+   заметок для проверки, чеклист владельца. Без личного email владельца.
+
+Validation impact: `xcodegen generate`, сборка Debug и
+`xcodebuild test -only-testing:EVOAdmissionsTests`, сборка Release под
+симулятор с временным `Release.xcconfig` из скрипта и заглушками,
+`PrivacyInfo.xcprivacy` внутри собранного `.app`, `plutil -lint`.
+Production, подпись, архив и загрузка в App Store Connect не выполняются:
+Team ID ещё нет.
+Reviewer notes: pending independent review on the exact PR head.

@@ -4,6 +4,7 @@ import { isStaffPreview, staffCanAccessRoute, staffHasPermission } from "../plat
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import { parsePlatformRouteUuid } from "../platform-communications.ts";
 import { normalizeAiAnswerView, type AiAnswerView, type AiIntent } from "../v3/ai-agent.ts";
+import { normalizeAiMemoryView, type AiMemoryView } from "../v3/ai-agent-memory.ts";
 import { aiAgentSignedHeaders, readAiAgentConfig, type AiAgentConfig } from "./ai-agent-internal-auth.ts";
 
 /**
@@ -20,7 +21,10 @@ import { aiAgentSignedHeaders, readAiAgentConfig, type AiAgentConfig } from "./a
  *    без вызова агента и Gemini;
  *  - `POST /api/v3/ai-agent/answers/[id]/insert` — «Вставить в ответ»
  *    (`ai_agent_answer_insert_v1`): проверенный сохранённый текст, 409 — ответ
- *    устарел. Ничего не отправляет.
+ *    устарел. Ничего не отправляет;
+ *  - `GET/DELETE /api/v3/ai-agent/conversations/[id]/memory` (P3) — «Что ИИ
+ *    знает о клиенте» и «Забыть сводку» (`ai_agent_memory_v1`,
+ *    `ai_agent_memory_clear_v1`, 274), без агента и Gemini.
  *
  * Сами маршруты ничего не решают: доступ, актуальность и лимиты держит база.
  * Просмотр роли администратором ИИ не вызывает. Без секрета агента функция
@@ -391,6 +395,122 @@ export function createAiAnswerInsertHandler(dependencies: AiAgentRouteDependenci
       const result = await dependencies.insertAnswer(authorization.actor, answerId, part);
       if (result.status === "inserted") return json(200, { text: result.text });
       if (result.status === "stale") return failure(409, "stale_answer");
+      if (result.status === "forbidden") return failure(403, "forbidden");
+      if (result.status === "not_found") return failure(404, "not_found");
+      if (result.status === "invalid") return failure(400, "invalid_request");
+      return failure(503, "unavailable");
+    } catch {
+      return failure(503, "unavailable");
+    }
+  };
+}
+
+// ------------------------------------------------------------------ P3 память
+
+export type AiMemoryClearResult =
+  /**
+   * Квитанция 274: `deleted` — была ли строка памяти; `enqueued` — поставлена ли
+   * пересборка в очередь агента сразу (память работает и собирать есть что).
+   * Повтор тем же id отдаёт прежнюю квитанцию.
+   */
+  | Readonly<{ status: "cleared"; deleted: boolean; enqueued: boolean }>
+  | Readonly<{ status: "conflict" | "forbidden" | "not_found" | "invalid" | "unavailable" }>;
+
+export type AiMemoryRouteDependencies = Readonly<{
+  authorize(): Promise<Authorization>;
+  readMemory(actor: ActivePlatformActor, conversationId: string): Promise<AiMemoryView | "forbidden" | "not_found">;
+  clearMemory(actor: ActivePlatformActor, conversationId: string, requestId: string): Promise<AiMemoryClearResult>;
+}>;
+
+const defaultMemoryDependencies: AiMemoryRouteDependencies = {
+  authorize: defaultAuthorize,
+  async readMemory(actor, conversationId) {
+    const { data, error } = await (await rpcClient()).rpc("ai_agent_memory_v1", {
+      p_organization_id: actor.organizationId, p_conversation_id: conversationId,
+    });
+    if (error) {
+      if (error.code === "42501") return "forbidden";
+      if (error.code === "P0002") return "not_found";
+      throw new Error("ai_memory_unavailable");
+    }
+    return normalizeAiMemoryView(data);
+  },
+  async clearMemory(actor, conversationId, requestId) {
+    const { data, error } = await (await rpcClient()).rpc("ai_agent_memory_clear_v1", {
+      p_organization_id: actor.organizationId, p_conversation_id: conversationId, p_request_id: requestId,
+    });
+    return aiMemoryClearOutcome(error, data);
+  },
+};
+
+/**
+ * Квитанция `ai_agent_memory_clear_v1` или его отказ → итог маршрута.
+ * Квитанция (274, через `ai_request_finish` 269): `{status: 'cleared',
+ * conversationId, deleted, enqueued, replayed}`. Другая форма — не «удалено»,
+ * а сбой.
+ */
+export function aiMemoryClearOutcome(error: RpcError | null, data: unknown): AiMemoryClearResult {
+  if (error) {
+    // 23505 — тот же id запроса уже записан с другим вводом (ai_request_replay, 269).
+    if (error.code === "PT409" || error.code === "23505") return { status: "conflict" };
+    if (error.code === "42501") return { status: "forbidden" };
+    if (error.code === "P0002") return { status: "not_found" };
+    if (error.code === "22023") return { status: "invalid" };
+    return { status: "unavailable" };
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return { status: "unavailable" };
+  const receipt = data as Record<string, unknown>;
+  if (receipt.status !== "cleared" || typeof receipt.deleted !== "boolean" || typeof receipt.enqueued !== "boolean") {
+    return { status: "unavailable" };
+  }
+  return { status: "cleared", deleted: receipt.deleted, enqueued: receipt.enqueued };
+}
+
+/**
+ * «Что ИИ знает о клиенте» (план §9, §12.1; P3): `GET …/conversations/[id]/memory`
+ * — память диалога и карточка лида (`ai_agent_memory_v1`, 274) при открытии
+ * окна. Ни агента, ни Gemini; без секрета агента блок тоже читается — память
+ * лежит в базе. Права (ai.agent.use, чтение диалога продаж) решает база.
+ */
+export function createAiMemoryReadHandler(dependencies: AiMemoryRouteDependencies = defaultMemoryDependencies) {
+  return async function GET(request: Request, context: ConversationContext): Promise<Response> {
+    try {
+      const authorization = await dependencies.authorize();
+      if (authorization.status !== "authorized") return refusal(authorization.status);
+      const conversationId = parsePlatformRouteUuid((await context.params).conversationId);
+      if (!conversationId || new URL(request.url).search !== "") return failure(400, "invalid_request");
+      const memory = await dependencies.readMemory(authorization.actor, conversationId);
+      if (memory === "forbidden") return failure(403, "forbidden");
+      if (memory === "not_found") return failure(404, "not_found");
+      return json(200, { memory });
+    } catch {
+      return failure(503, "unavailable");
+    }
+  };
+}
+
+/**
+ * «Забыть сводку» (P3, Q9 — может любой сотрудник с ai.agent.use):
+ * `DELETE …/conversations/[id]/memory` с `{requestId}` — строка памяти
+ * удаляется (`ai_agent_memory_clear_v1`), повтор тем же id возвращает прежнюю
+ * квитанцию; ответ — `{deleted, enqueued}` (была ли строка; поставлена ли
+ * пересборка). В журнале — только числа и флаги, без текста. Пока память
+ * работает, база сразу ставит пересборку в очередь агента — не дожидаясь
+ * нового сообщения клиента (274).
+ */
+export function createAiMemoryClearHandler(dependencies: AiMemoryRouteDependencies = defaultMemoryDependencies) {
+  return async function DELETE(request: Request, context: ConversationContext): Promise<Response> {
+    try {
+      if (!sameOrigin(request)) return failure(403, "forbidden");
+      const authorization = await dependencies.authorize();
+      if (authorization.status !== "authorized") return refusal(authorization.status);
+      const conversationId = parsePlatformRouteUuid((await context.params).conversationId);
+      const body = await readJsonObject(request, ["requestId"]);
+      const requestId = body ? parsePlatformRouteUuid(body.requestId) : null;
+      if (!conversationId || !requestId || new URL(request.url).search !== "") return failure(400, "invalid_request");
+      const result = await dependencies.clearMemory(authorization.actor, conversationId, requestId);
+      if (result.status === "cleared") return json(200, { deleted: result.deleted, enqueued: result.enqueued });
+      if (result.status === "conflict") return failure(409, "request_conflict");
       if (result.status === "forbidden") return failure(403, "forbidden");
       if (result.status === "not_found") return failure(404, "not_found");
       if (result.status === "invalid") return failure(400, "invalid_request");

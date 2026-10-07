@@ -1220,9 +1220,77 @@
   vertical-align: -2px;
   background: currentColor;
 }
+/*
+ * «Что ИИ знает о клиенте» (P3, план §9): полоса под шапкой окна во всю его
+ * ширину, отделена волосяной линией; свёрнута — заголовок и интерес одной
+ * строкой. Внутри — подписи `t-caption`, сводка до шести строк, подтверждение
+ * «Забыть сводку» — плашкой цвета стола, как «Спросите клиента».
+ */
+.v3-world .v3-ai-memory {
+  margin: -12px -16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.v3-world .v3-ai-memory-head {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  list-style: none;
+}
+.v3-world summary.v3-ai-memory-head {
+  cursor: pointer;
+}
+.v3-world summary.v3-ai-memory-head::-webkit-details-marker {
+  display: none;
+}
+.v3-world summary.v3-ai-memory-head:hover .v3-ai-memory-chevron {
+  color: var(--text);
+}
+.v3-world .v3-ai-memory[open] .v3-ai-memory-chevron {
+  rotate: 90deg;
+}
+/* Раскрыто — интерес и состояние в теле блока; строка под заголовком их не повторяет. */
+.v3-world .v3-ai-memory[open] .v3-ai-memory-hint {
+  display: none;
+}
+.v3-world .v3-ai-memory-inline {
+  margin-block: -12px;
+}
+.v3-world .v3-ai-memory-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px 12px 40px;
+}
+.v3-world .v3-ai-memory-summary[data-clamped] {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+}
+.v3-world .v3-ai-memory-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 12px;
+}
+.v3-world .v3-ai-memory-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 8px 12px 4px;
+}
 @media (prefers-reduced-motion: no-preference) {
   .v3-world .v3-ai-window {
     animation: v3-ai-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .v3-world .v3-ai-memory-chevron {
+    transition: rotate 150ms ease-out;
   }
   .v3-world .v3-ai-dot[data-tone="working"],
   .v3-world .v3-ai-skeleton {

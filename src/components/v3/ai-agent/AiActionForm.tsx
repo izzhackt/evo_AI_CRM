@@ -11,6 +11,7 @@ const DEFAULT_MESSAGES: Readonly<Record<Exclude<Status, "idle">, string>> = {
   conflict: "Данные уже изменились — обновите страницу.",
   forbidden: "Нет права на это действие.",
   invalid: "Проверьте данные и повторите.",
+  consent_required: "Сначала администратор записывает согласие на Gemini.",
   unavailable: "Результат пока неизвестен — безопасно повторите.",
 };
 

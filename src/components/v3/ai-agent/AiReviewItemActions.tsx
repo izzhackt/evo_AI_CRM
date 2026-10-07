@@ -17,6 +17,7 @@ const MESSAGES: Readonly<Record<Exclude<AiActionState["status"], "idle">, string
   conflict: "Пункт уже решили — обновите страницу.",
   forbidden: "Нет права решать пункты сверки.",
   invalid: "Исправление — одна строка до 200 знаков.",
+  consent_required: "Сначала администратор записывает согласие на Gemini.",
   unavailable: "Результат пока неизвестен — безопасно повторите.",
 };
 

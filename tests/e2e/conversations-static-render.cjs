@@ -63,6 +63,18 @@
  *       расходы, согласие администратора). 1440×900 и 390×844, синтетика.
  *       По умолчанию outDir —
  *       docs/design/evo-platform/implementation-screenshots/ai-agent.
+ *   node tests/e2e/conversations-static-render.cjs --ai-agent-p3 [outDir]
+ *     → «ИИ-агент» P3 (план §9): «Что ИИ знает о клиенте» в окне ИИ —
+ *       свёрнуто, раскрыто (шесть строк сводки, «Показать всё»), «Забыть
+ *       сводку» с подтверждением, выключена (с согласием и без), на паузе
+ *       без согласия, короткая переписка, 21–25 сообщений (сводка рано),
+ *       сводку пора собрать, сбой и «Повторить», окончательный отказ — и
+ *       «Память о клиенте» в «Агенте и лимите» (выключена, включена с
+ *       подтверждением выключения, без согласия; переключение туда и
+ *       обратно — итог и фокус переживают смену вида; отзыв согласия при
+ *       включённой памяти — последствия до кнопки). 1440×900 и 390×844,
+ *       синтетика. По умолчанию outDir —
+ *       docs/design/evo-platform/implementation-screenshots/ai-agent-p3.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -339,7 +351,7 @@ const { PartShell } = require("@/components/v3/PartShell");
 const { Inbox } = require("@/components/v3/Inbox");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
-window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], refreshes: 0, polls: 0 };
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], refreshes: 0, polls: 0 };
 // Опрос и «Показать ранее» отвечают синтетикой этой вкладки (сети нет).
 const originalFetch = window.fetch;
 window.fetch = async (input, init) => {
@@ -357,6 +369,23 @@ window.fetch = async (input, init) => {
     const method = (init && init.method) || "GET";
     const take = (list) => (list.length > 1 ? list.shift() : list[0]);
     const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    // «Что ИИ знает о клиенте» (P3): чтение и «Забыть сводку» — своя очередь
+    // (window.__harness.memory), чтобы последовательность ответа не менялась.
+    // Без своей синтетики — память выключена, как её поставляют (memory_enabled false).
+    if (url.endsWith("/memory")) {
+      if (method === "DELETE") {
+        window.__harness.memory.push("clear:" + JSON.parse(init.body).requestId);
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        const reply = take(fixture.ai.memoryClear || [{ status: 200, body: { deleted: true, enqueued: true } }]);
+        return json(reply.status, reply.body);
+      }
+      window.__harness.memory.push("read");
+      const reply = take(fixture.ai.memory || [{ status: 200, body: { memory: {
+        enabled: false, consentRecorded: true, active: false, canManage: true, messageCount: 9, summaryDue: false, interestDue: false,
+        memory: null, lead: { name: "Аружан", interestDirection: "MY", stage: "qualified" },
+      } } }]);
+      return json(reply.status, reply.body);
+    }
     if (url.includes("/insert")) {
       window.__harness.actions.push("ai-insert:" + JSON.parse(init.body).part);
       const reply = take(fixture.ai.insert);
@@ -417,7 +446,7 @@ window.__harness.newInbound = (id) => {
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.hydrated = "true"; }));
 `;
 
-async function buildClientBundle(outFile) {
+async function buildClientBundle(outFile, entry = CLIENT_ENTRY) {
   const esbuild = require("esbuild");
   // Чтения отвечают той же синтетикой через настоящий composeCaseChatQueue.
   // Отправка честно недоступна. Смена состояния пишется в синтетические строки
@@ -492,7 +521,7 @@ export async function reconcilePlatformWhatsAppSendAction(input) {
     },
   };
   await esbuild.build({
-    stdin: { contents: CLIENT_ENTRY, resolveDir: ROOT, sourcefile: "conversations-client-entry.js", loader: "js" },
+    stdin: { contents: entry, resolveDir: ROOT, sourcefile: "conversations-client-entry.js", loader: "js" },
     bundle: true, outfile: outFile, format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
     tsconfig: join(ROOT, "tsconfig.json"),
     define: { "process.env.NODE_ENV": JSON.stringify("development") },
@@ -1191,8 +1220,7 @@ const AI_SCENARIOS = {
     post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
 };
 
-async function buildAiChatPage(name) {
-  const scenario = AI_SCENARIOS[name];
+async function buildAiChatPage(name, scenario = AI_SCENARIOS[name]) {
   if (scenario.featureOff) delete process.env.EVO_AI_AGENT_INTERNAL_SECRET;
   else process.env.EVO_AI_AGENT_INTERNAL_SECRET = AI_SECRET;
   stubReads({ actor: AI_ACTOR, rows: ALL_ROWS, inbox: waView() });
@@ -1275,8 +1303,7 @@ const AI_SECTION_SCENARIOS = {
     settings: aiSettings({ isAdmin: true, consent: { recorded: false, at: null, byName: null, textVersion: null } }) },
 };
 
-async function buildAiSectionMarkup(name) {
-  const scenario = AI_SECTION_SCENARIOS[name];
+async function buildAiSectionMarkup(name, scenario = AI_SECTION_SCENARIOS[name]) {
   if (scenario.featureOff) delete process.env.EVO_AI_AGENT_INTERNAL_SECRET;
   else process.env.EVO_AI_AGENT_INTERNAL_SECRET = AI_SECRET;
   stubReads({ actor: scenario.actor, rows: ALL_ROWS });
@@ -1579,6 +1606,390 @@ async function aiScreenshots() {
   process.stdout.write(`${JSON.stringify({ ok: true, outDir })}\n`);
 }
 
+// --- «ИИ-агент» P3: «Что ИИ знает о клиенте» и «Память о клиенте» -------------------
+// Память, сводка, интерес и карточка лида ВЫДУМАНЫ (тот же синтетический чат
+// «Аружан Примерова»); чтение и «Забыть сводку» отвечает синтетика вкладки
+// (fixture.ai.memory / memoryClear), ни базы, ни агента, ни Gemini.
+const MEMORY_SUMMARY = [
+  "Ищет бакалавриат по компьютерным наукам в Малайзии, начало — сентябрь 2027 года.",
+  "Бюджет — до 6 000 $ в год вместе с общежитием. IELTS нет, английский средний: подходит подготовительный курс.",
+  "Предложили три вуза из подборки; клиент прислал фото аттестата. Решение принимает вместе с родителями.",
+  "Договорились: пришлём требования и сравнение общежитий. Выяснить: успеет ли оплатить регистрационный сбор до конца ноября и нужен ли перевод аттестата.",
+].join(" ");
+// Форма ai_agent_memory_v1 (274): active — включена и согласие записано;
+// summaryDue/interestDue база отдаёт только при active.
+const memoryView = (fields = {}) => ({ status: 200, body: { memory: {
+  enabled: true, consentRecorded: true, active: true, canManage: true, messageCount: 45, summaryDue: false, interestDue: false,
+  memory: { interest: "Бакалавриат по компьютерным наукам в Малайзии, без IELTS, до 6 000 $ в год", summary: MEMORY_SUMMARY, coveredCount: 25, updatedAt: "2026-10-06T08:20:00Z" },
+  lead: { name: "Аружан", interestDirection: "MY", stage: "qualified" },
+  ...fields,
+} } });
+const memoryAi = (memory, extra = {}) => ({
+  saved: [aiView(aiAnswer())], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }],
+  insert: [{ status: 200, body: { text: "x" } }], memory, ...extra,
+});
+const AI_P3_CHAT = {
+  "memory-ready": { viewports: ["1440", "390"], ai: memoryAi([memoryView()]) },
+  // clear в 274 сразу ставит пересборку (enqueued): строки памяти нет, сводку и интерес пора собрать.
+  "memory-forget": { viewports: ["1440"], ai: memoryAi([memoryView(), memoryView({ memory: null, summaryDue: true, interestDue: true })],
+    { memoryClear: [{ status: 200, body: { deleted: true, enqueued: true } }] }) },
+  "memory-off": { viewports: ["1440", "390"], ai: memoryAi([memoryView({ enabled: false, active: false, memory: null })]) },
+  "memory-off-no-consent": { viewports: ["1440"], ai: memoryAi([memoryView({ enabled: false, consentRecorded: false, active: false, memory: null })]) },
+  // Защитное: в 274 отзыв выключает память, но если база ответит «включена без согласия» — пауза.
+  "memory-paused": { viewports: ["1440", "390"], ai: memoryAi([memoryView({ consentRecorded: false, active: false, memory: null })]) },
+  "memory-short": { viewports: ["1440"], ai: memoryAi([memoryView({ messageCount: 12, memory: null, lead: null })]) },
+  // 23 сообщения: за окном 3 < 6 — summaryDue false.
+  "memory-waiting": { viewports: ["1440"], ai: memoryAi([memoryView({ messageCount: 23, memory: null })]) },
+  // Ни интереса, ни сводки — memory NULL (ai_agent_memory_v1 не отдаёт пустой объект).
+  "memory-due": { viewports: ["1440"], ai: memoryAi([memoryView({ summaryDue: true, memory: null })]) },
+  "memory-failed": { viewports: ["1440"], ai: memoryAi([{ status: 503, body: { error: { code: "unavailable" } } }, memoryView()]) },
+  "memory-denied": { viewports: ["1440"], ai: memoryAi([{ status: 403, body: { error: { code: "forbidden" } } }]) },
+};
+const AI_P3_SECTION = {
+  "section-memory-off": { actor: AI_ACTOR, section: "spend", viewports: ["1440", "390"], settings: aiSettings({ memoryEnabled: false }) },
+  "section-memory-on": { actor: AI_ACTOR, section: "spend", viewports: ["1440", "390"], settings: aiSettings({ memoryEnabled: true }) },
+  "section-memory-no-consent": { actor: AI_ACTOR, section: "spend", viewports: ["1440"],
+    settings: aiSettings({ memoryEnabled: false, consent: { recorded: false, at: null, byName: null, textVersion: null } }) },
+  // Админ раскрывает «Отозвать согласие» при включённой памяти: последствия для памяти — до кнопки (274).
+  "section-consent-revoke": { actor: AI_ACTOR, section: "spend", viewports: ["1440", "390"], settings: aiSettings({ memoryEnabled: true, isAdmin: true }) },
+};
+
+// Переключатель «Память о клиенте» вживую: настоящий AiMemoryToggle, а запись —
+// синтетическая (базы и server action нет): через 150 мс положение меняется,
+// как после revalidatePath, и возвращается «saved». Проверяется то, что ломалось:
+// итог «Память включена.» / «Память выключена, сводки удалены.» и фокус
+// переживают смену вида; второй запрос — с новым id и новой версией.
+const TOGGLE_ENTRY = `
+const React = require("react");
+const { createRoot } = require("react-dom/client");
+const { AiMemoryToggle } = require("@/components/v3/ai-agent/AiMemoryToggle");
+const { btnGhostCls } = require("@/components/ui");
+const h = React.createElement;
+window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], refreshes: 0, polls: 0 };
+function Section() {
+  const [settings, setSettings] = React.useState({ enabled: false, version: 7 });
+  React.useEffect(() => { document.documentElement.dataset.hydrated = "true"; }, []);
+  const action = async (_previous, form) => {
+    window.__harness.actions.push(["memory", form.get("memory_action"), form.get("expected_version"), form.get("request_id")].join(":"));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const enabled = form.get("memory_action") === "enable";
+    setSettings((current) => ({ enabled, version: current.version + 1 }));
+    return { status: "saved", requestId: form.get("request_id") };
+  };
+  return h("section", { id: "ai-memory", className: "space-y-2", "data-testid": "v3-ai-memory-settings", "data-enabled": String(settings.enabled) },
+    h("h3", { className: "t-item text-fg" }, "Память о клиенте"),
+    h("p", { className: "t-body-compact text-fg-2" }, settings.enabled ? "включена" : "выключена"),
+    h(AiMemoryToggle, { enabled: settings.enabled, consentRecorded: true, version: settings.version,
+      requestId: "27400000-0000-4000-8000-000000000071", action, buttonClassName: btnGhostCls }));
+}
+createRoot(document.getElementById("root")).render(
+  h("div", { className: "v3-world", "data-surface": "staff" }, h("main", { className: "mx-auto max-w-3xl p-6" }, h(Section))));
+`;
+
+function memoryMetrics() {
+  const block = document.querySelector('[data-testid="v3-ai-memory"]');
+  const text = (selector) => block?.querySelector(selector)?.textContent.trim() ?? null;
+  const rect = (element) => { if (!element) return null; const box = element.getBoundingClientRect(); return { top: Math.round(box.top), height: Math.round(box.height), width: Math.round(box.width) }; };
+  const summary = block?.querySelector('[data-testid="v3-ai-memory-summary"]');
+  const settings = document.querySelector('[data-testid="v3-ai-memory-settings"]');
+  return {
+    state: block?.dataset.state ?? null,
+    open: block ? block.open === true : null,
+    hint: text('[data-testid="v3-ai-memory-hint"]'),
+    hintVisible: (() => { const hint = block?.querySelector('[data-testid="v3-ai-memory-hint"]'); return hint ? getComputedStyle(hint).display !== "none" : null; })(),
+    paused: text('[data-testid="v3-ai-memory-paused"]'),
+    retry: [...(block?.querySelectorAll("button") ?? [])].some((button) => button.textContent.trim() === "Повторить"),
+    enableLink: !!block?.querySelector('a[href="/v3/ai-agent?section=spend#ai-memory"]'),
+    interest: text('[data-testid="v3-ai-memory-interest"]'),
+    summaryClamped: summary ? summary.hasAttribute("data-clamped") : null,
+    summaryOverflows: summary ? summary.scrollHeight > summary.clientHeight + 1 : null,
+    summaryState: text('[data-testid="v3-ai-memory-summary-state"]'),
+    lead: text('[data-testid="v3-ai-memory-lead"]'),
+    meta: text('[data-testid="v3-ai-memory-meta"]'),
+    note: text('[data-testid="v3-ai-memory-note"]'),
+    off: text('[data-testid="v3-ai-memory-off"]'),
+    confirm: text('[data-testid="v3-ai-memory-confirm"]'),
+    failedText: block?.dataset.state === "failed" || block?.dataset.state === "denied" ? block.textContent.trim() : null,
+    alert: !!block?.querySelector('[role="alert"]'),
+    block: rect(block),
+    answer: !!document.querySelector('[data-testid="v3-ai-answer"]'),
+    settings: settings ? {
+      enabled: settings.dataset.enabled, text: settings.textContent.replace(/\s+/gu, " ").trim(),
+      status: settings.querySelector('[data-testid="v3-ai-memory-status"]')?.textContent.trim() ?? null,
+      focus: document.activeElement && settings.contains(document.activeElement) ? document.activeElement.textContent.trim() : null,
+      buttons: [...settings.querySelectorAll("button, summary")].map((element) => ({ text: element.textContent.trim(), disabled: element.getAttribute("aria-disabled") === "true" || element.disabled === true })),
+    } : null,
+  };
+}
+
+async function aiP3Screenshots() {
+  const outIndex = process.argv.indexOf("--ai-agent-p3") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--")
+    ? process.argv[outIndex] : join(ROOT, "docs/design/evo-platform/implementation-screenshots/ai-agent-p3"));
+  const workDir = join(require("node:os").tmpdir(), "evo-ai-agent-p3-render");
+  mkdirSync(outDir, { recursive: true });
+  mkdirSync(workDir, { recursive: true });
+  const bundleName = "ai-agent-p3-client.js";
+  const css = await compileCss();
+  await buildClientBundle(join(workDir, bundleName));
+  await buildClientBundle(join(workDir, "ai-agent-p3-toggle.js"), TOGGLE_ENTRY);
+  const failures = [];
+  const check = (condition, message) => { if (!condition) failures.push(message); };
+  const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
+  const htmlFor = {};
+  const page = (name, title, markup, data) => {
+    const htmlPath = join(workDir, `${name}.html`);
+    writeFileSync(htmlPath, [
+      "<!DOCTYPE html>",
+      '<html lang="ru" data-theme="light" class="h-full antialiased">',
+      `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>${title} — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+      `<body class="min-h-full"><div id="root">${markup}</div><script type="application/json" id="${FIXTURE_ID}">${JSON.stringify(data).replaceAll("<", "\\u003c")}</script><script src="${bundleName}"></script></body></html>`,
+    ].join(""));
+    return htmlPath;
+  };
+  for (const [name, scenario] of Object.entries(AI_P3_CHAT)) {
+    const { actor, chatApp } = await buildAiChatPage(name, scenario);
+    const search = `conversation=${WA_CONVERSATION}`;
+    const markup = renderToString(shellTree({ actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp }));
+    htmlFor[name] = page(`chat-${name}`, "WhatsApp", markup, {
+      actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
+      pulse: { list: "0000000000000002", chat: "0000000000000001" }, older: { messages: [], hasOlder: false }, ai: scenario.ai,
+    });
+  }
+  for (const [name, scenario] of Object.entries(AI_P3_SECTION)) {
+    const { actor, search, body } = await buildAiSectionMarkup(name, scenario);
+    const markup = renderToString(shellTree({ actor, pathname: "/v3/ai-agent", search, body, cabinet: null }));
+    htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/v3/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
+  }
+
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const open = async (name, viewportKey) => {
+    const context = await browser.newContext({ ...VIEWPORTS[viewportKey], colorScheme: "light" });
+    const session = await context.newPage();
+    const errors = [];
+    session.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+    session.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    await session.goto(pathToFileURL(htmlFor[name]).href, { waitUntil: "load" });
+    await session.evaluate(() => document.fonts.ready);
+    await session.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
+    await session.waitForTimeout(200);
+    return { context, page: session, errors };
+  };
+  const close = async ({ context, page: session, errors }, label) => {
+    const harness = await session.evaluate(() => window.__harness);
+    const problems = [...errors.filter((message) => !/Failed to load resource|ERR_FILE_NOT_FOUND|#preview|#download/u.test(message)),
+      ...harness.recoverable.map((message) => `recoverable: ${message}`), ...harness.errors];
+    check(problems.length === 0, `${label}: browser errors: ${problems.join(" | ")}`);
+    await context.close();
+    return harness;
+  };
+  const shot = async (session, file, { save = true } = {}) => {
+    if (save) await session.page.screenshot({ path: join(outDir, file) });
+    const metrics = { ...(await session.page.evaluate(aiMetrics)), memory: await session.page.evaluate(memoryMetrics) };
+    report({ file, status: metrics.status, overflowX: metrics.overflowX, smallTargets: metrics.smallTargets, memory: metrics.memory });
+    check(metrics.overflowX === 0, `${file}: horizontal overflow ${metrics.overflowX}px`);
+    check(metrics.textUnder12.length === 0, `${file}: texts under 12px ${metrics.textUnder12.join(", ")}`);
+    check(metrics.smallTargets.length === 0, `${file}: targets under 44px: ${metrics.smallTargets.join(", ")}`);
+    check(metrics.solidRed <= 1, `${file}: ${metrics.solidRed} solid red controls`);
+    if (metrics.window) check(metrics.windowInsideFeed === true, `${file}: the window leaves the feed`);
+    if (metrics.window && metrics.composer) check(metrics.window.bottom <= metrics.composer.top + 1, `${file}: the window covers the composer`);
+    return metrics;
+  };
+  const expand = async (session) => {
+    await session.page.getByRole("button", { name: "Помочь с ответом — открыть помощника" }).click();
+    await session.page.waitForTimeout(300);
+  };
+  const openMemory = async (session) => {
+    await session.page.locator('[data-testid="v3-ai-memory"] > summary').click();
+    await session.page.waitForTimeout(120);
+  };
+
+  try {
+    // Свёрнутое окно память не читает; открытое — читает один раз, блок свёрнут, ответ на месте.
+    for (const viewportKey of AI_P3_CHAT["memory-ready"].viewports) {
+      const session = await open("memory-ready", viewportKey);
+      check((await session.page.evaluate(() => window.__harness.memory.length)) === 0, `memory-ready-${viewportKey}: a collapsed window read memory`);
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
+      const collapsed = await shot(session, `window-collapsed-${viewportKey}.png`);
+      check(collapsed.memory.state === "ready" && collapsed.memory.open === false, `memory-ready-${viewportKey}: ${JSON.stringify(collapsed.memory)}`);
+      check(collapsed.memory.hint === "Бакалавриат по компьютерным наукам в Малайзии, без IELTS, до 6 000 $ в год", `memory-ready-${viewportKey}: hint ${collapsed.memory.hint}`);
+      check(collapsed.memory.answer === true, `memory-ready-${viewportKey}: the answer is gone`);
+      await openMemory(session);
+      const opened = await shot(session, `window-open-${viewportKey}.png`);
+      check(opened.memory.open === true && opened.memory.summaryClamped === true && opened.memory.summaryOverflows === true, `memory-ready-${viewportKey}: clamp ${JSON.stringify(opened.memory)}`);
+      check(collapsed.memory.hintVisible === true && opened.memory.hintVisible === false, `memory-ready-${viewportKey}: the open block repeats the interest under the title`);
+      check(opened.memory.lead === "Аружан · Малайзия · Квалифицирован", `memory-ready-${viewportKey}: lead ${opened.memory.lead}`);
+      check(opened.memory.meta === "Сводка по 25 сообщениям · обновлена 14:20", `memory-ready-${viewportKey}: meta ${opened.memory.meta}`);
+      await session.page.getByRole("button", { name: "Показать всё" }).click();
+      await session.page.waitForTimeout(80);
+      const whole = await shot(session, `window-summary-whole-${viewportKey}.png`, { save: viewportKey === "1440" });
+      check(whole.memory.summaryClamped === false && whole.memory.summaryOverflows === false, `memory-ready-${viewportKey}: «Показать всё» ${JSON.stringify(whole.memory)}`);
+      // Esc сворачивает всё окно; снова открыть — блок свёрнут и читается заново.
+      await session.page.keyboard.press("Escape");
+      await session.page.waitForTimeout(100);
+      await expand(session);
+      const again = await session.page.evaluate(memoryMetrics);
+      check(again.open === false, `memory-ready-${viewportKey}: reopened block is not collapsed`);
+      const harness = await close(session, `memory-ready-${viewportKey}`);
+      check(JSON.stringify(harness.memory) === JSON.stringify(["read", "read"]), `memory-ready-${viewportKey}: ${JSON.stringify(harness.memory)}`);
+      // Готовый актуальный ответ при повторном открытии не перечитывается (P1); память — перечитывается.
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read"]), `memory-ready-${viewportKey}: answer reads ${JSON.stringify(harness.actions)}`);
+    }
+
+    // «Забыть сводку»: подтверждение в строке → DELETE с id запроса → перечитать → сводки нет, пересборка уже в очереди (274).
+    {
+      const session = await open("memory-forget", "1440");
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
+      await openMemory(session);
+      await session.page.getByRole("button", { name: "Забыть сводку" }).click();
+      await session.page.waitForTimeout(80);
+      const confirm = await shot(session, "window-forget-confirm-1440.png");
+      check(confirm.memory.confirm?.startsWith("Сводка и интерес удалятся. ИИ сразу начнёт собирать их заново.") === true, `forget: confirm ${confirm.memory.confirm}`);
+      check(confirm.focus === "Забыть сводку", `forget: focus on the confirm button ${confirm.focus}`);
+      await session.page.locator('[data-testid="v3-ai-memory-confirm"] .v3-ai-button').click();
+      await session.page.waitForTimeout(400);
+      const done = await shot(session, "window-forgotten-1440.png");
+      check(done.memory.note === "Сводка и интерес удалены — ИИ собирает их заново." && done.memory.summaryState === "Сводки пока нет — ИИ соберёт её сам.", `forget: ${JSON.stringify(done.memory)}`);
+      check(done.memory.interest === "Интереса пока нет — ИИ определит его сам.", `forget: interest ${done.memory.interest}`);
+      const harness = await close(session, "memory-forget-1440");
+      check(harness.memory.length === 3 && harness.memory[0] === "read" && /^clear:[0-9a-f-]{36}$/u.test(harness.memory[1]) && harness.memory[2] === "read",
+        `forget: ${JSON.stringify(harness.memory)}`);
+    }
+
+    // Честные состояния (274): выключена (+ «Включить» только при согласии), на паузе без согласия,
+    // короткая переписка без карточки, 21–25 сообщений — сводка рано, сводку пора собрать.
+    const states = [
+      ["memory-off", (m) => m.hint === "Память выключена" && m.off?.startsWith("Память о клиенте выключена.") && m.enableLink && m.lead === "Аружан · Малайзия · Квалифицирован"],
+      ["memory-off-no-consent", (m) => m.off?.startsWith("Память о клиенте выключена.") && !m.enableLink && m.off.includes("Сначала администратор записывает согласие на Gemini.")],
+      ["memory-paused", (m) => m.state === "paused" && m.hint === "Память на паузе"
+        && m.paused === "Память на паузе: без согласия на Gemini сводка и интерес не собираются." && m.interest === null && m.summaryState === null
+        && m.lead === "Аружан · Малайзия · Квалифицирован"],
+      ["memory-short", (m) => m.summaryState === "ИИ видит всю переписку — сводка не нужна." && m.interest === "Интерес появится после следующего сообщения клиента." && m.lead === "Карточки лида нет."],
+      ["memory-waiting", (m) => m.state === "waiting" && m.summaryState === "Сводка появится, когда переписка станет длиннее." && m.hint === "Сводка пока не нужна"],
+      ["memory-due", (m) => m.state === "due" && m.summaryState === "Сводки пока нет — ИИ соберёт её сам." && m.hint === "Сводки пока нет"
+        && m.interest === "Интерес появится после следующего сообщения клиента."],
+    ];
+    for (const [name, ok] of states) {
+      for (const viewportKey of AI_P3_CHAT[name].viewports) {
+        const session = await open(name, viewportKey);
+        await expand(session);
+        await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
+        await openMemory(session);
+        const metrics = await shot(session, `window-${name.replace("memory-", "")}-${viewportKey}.png`);
+        check(ok(metrics.memory), `${name}-${viewportKey}: ${JSON.stringify(metrics.memory)}`);
+        await close(session, `${name}-${viewportKey}`);
+      }
+    }
+    {
+      const session = await open("memory-failed", "1440");
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
+      await session.page.waitForTimeout(100);
+      const failed = await shot(session, "window-failed-1440.png");
+      check(failed.memory.state === "failed" && /Не удалось загрузить\s*·\s*Повторить/u.test(failed.memory.failedText ?? "") && failed.memory.answer === true,
+        `failed: ${JSON.stringify(failed.memory)}`);
+      await session.page.getByRole("button", { name: "Повторить" }).click();
+      await session.page.waitForTimeout(250);
+      const retried = await session.page.evaluate(memoryMetrics);
+      check(retried.state === "ready", `failed: retry ${JSON.stringify(retried)}`);
+      const harness = await close(session, "memory-failed-1440");
+      check(JSON.stringify(harness.memory) === JSON.stringify(["read", "read"]), `failed: ${JSON.stringify(harness.memory)}`);
+    }
+    // Окончательный отказ (403): без «Повторить» и без role=alert — повтор не поможет.
+    {
+      const session = await open("memory-denied", "1440");
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
+      await session.page.waitForTimeout(100);
+      const denied = await shot(session, "window-denied-1440.png");
+      check(denied.memory.state === "denied" && /Память этого чата недоступна\./u.test(denied.memory.failedText ?? "")
+        && denied.memory.retry === false && denied.memory.alert === false && denied.memory.answer === true, `denied: ${JSON.stringify(denied.memory)}`);
+      const harness = await close(session, "memory-denied-1440");
+      check(JSON.stringify(harness.memory) === JSON.stringify(["read"]), `denied: ${JSON.stringify(harness.memory)}`);
+    }
+
+    // «Агент и лимит» → «Память о клиенте».
+    const sectionChecks = {
+      "section-memory-off": (m) => m.settings.enabled === "false" && m.settings.text.includes("выключена")
+        && m.settings.text.includes("Сводка длинных переписок и интерес клиента. Тексты уходят в Gemini, фото и файлы — нет.") // пробелы схлопнуты, неразрывный тоже
+        && m.settings.buttons.some((button) => button.text === "Включить память" && !button.disabled),
+      "section-memory-on": (m) => m.settings.enabled === "true" && m.settings.text.includes("включена")
+        && m.settings.text.includes("Сводки всех клиентов удалятся.") && m.settings.buttons.some((button) => button.text === "Выключить и удалить сводки"),
+      "section-memory-no-consent": (m) => m.settings.buttons.some((button) => button.text === "Включить память" && button.disabled)
+        && m.settings.text.includes("Сначала администратор записывает согласие на Gemini."),
+      "section-consent-revoke": (m) => m.revoke?.open === true
+        && m.revoke.confirm === "ИИ перестанет готовить ответы. Память о клиенте выключится, сводки всех клиентов удалятся. После нового согласия память нужно включить снова."
+        && m.revoke.button === "Отозвать и удалить сводки",
+    };
+    for (const [name, scenario] of Object.entries(AI_P3_SECTION)) {
+      for (const viewportKey of scenario.viewports) {
+        const session = await open(name, viewportKey);
+        if (name === "section-memory-on") {
+          await session.page.locator('[data-testid="v3-ai-memory-disable"] > summary').click();
+          await session.page.waitForTimeout(80);
+        }
+        if (name === "section-consent-revoke") {
+          await session.page.locator('[data-testid="v3-ai-consent-line"] summary').click();
+          await session.page.waitForTimeout(80);
+        }
+        await session.page.locator(name === "section-consent-revoke" ? '[data-testid="v3-ai-consent-line"]' : "#ai-memory")
+          .evaluate((element) => element.scrollIntoView({ block: "center" }));
+        await session.page.waitForTimeout(80);
+        const metrics = await shot(session, `${name}-${viewportKey}.png`);
+        const revoke = await session.page.evaluate(() => {
+          const details = document.querySelector('[data-testid="v3-ai-consent-line"] details');
+          const body = document.querySelector('[data-testid="v3-ai-consent-revoke"]');
+          return details ? { open: details.open, confirm: body?.querySelector("p")?.textContent.trim() ?? null,
+            button: body?.querySelector("button")?.textContent.trim() ?? null } : null;
+        });
+        check(sectionChecks[name]({ ...metrics.memory, revoke }), `${name}-${viewportKey}: ${JSON.stringify({ settings: metrics.memory.settings, revoke })}`);
+        await close(session, `${name}-${viewportKey}`);
+      }
+    }
+
+    // Включить → итог и фокус на «Выключить память»; выключить → итог и фокус на «Включить память».
+    {
+      const togglePath = join(workDir, "section-memory-toggle.html");
+      writeFileSync(togglePath, [
+        "<!DOCTYPE html>",
+        '<html lang="ru" data-theme="light" class="h-full antialiased">',
+        `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Память о клиенте — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+        '<body class="min-h-full"><div id="root"></div><script src="ai-agent-p3-toggle.js"></script></body></html>',
+      ].join(""));
+      htmlFor["section-memory-toggle"] = togglePath;
+      const session = await open("section-memory-toggle", "1440");
+      await session.page.getByRole("button", { name: "Включить память" }).click();
+      await session.page.waitForSelector('[data-testid="v3-ai-memory-settings"][data-enabled="true"]');
+      await session.page.waitForTimeout(80);
+      const on = await shot(session, "section-memory-toggled-on-1440.png");
+      check(on.memory.settings.status === "Память включена." && on.memory.settings.focus === "Выключить память",
+        `toggle on: ${JSON.stringify(on.memory.settings)}`);
+      await session.page.locator('[data-testid="v3-ai-memory-disable"] > summary').click();
+      await session.page.getByRole("button", { name: "Выключить и удалить сводки" }).click();
+      await session.page.waitForSelector('[data-testid="v3-ai-memory-settings"][data-enabled="false"]');
+      await session.page.waitForTimeout(80);
+      const off = await shot(session, "section-memory-toggled-off-1440.png", { save: false });
+      check(off.memory.settings.status === "Память выключена, сводки удалены." && off.memory.settings.focus === "Включить память",
+        `toggle off: ${JSON.stringify(off.memory.settings)}`);
+      const harness = await close(session, "section-memory-toggle-1440");
+      const [first, second] = harness.actions.map((entry) => entry.split(":"));
+      check(harness.actions.length === 2 && first[1] === "enable" && first[2] === "7" && second[1] === "disable" && second[2] === "8"
+        && first[3] !== second[3], `toggle: requests ${JSON.stringify(harness.actions)}`);
+    }
+  } finally {
+    await browser.close();
+  }
+
+  if (failures.length) {
+    process.stderr.write(`ai agent p3 checks failed:\n${failures.map((failure) => `- ${failure}`).join("\n")}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(`${JSON.stringify({ ok: true, outDir })}\n`);
+}
+
 async function json() {
   const out = [];
   for (const name of Object.keys(SCENARIOS)) {
@@ -1590,6 +2001,11 @@ async function json() {
 
 if (process.argv.includes("--json")) {
   json().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+} else if (process.argv.includes("--ai-agent-p3")) {
+  aiP3Screenshots().catch((error) => {
     console.error(error);
     process.exit(1);
   });
@@ -1609,6 +2025,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split] | --whatsapp-chat [outDir] | --ai-agent [outDir]");
+  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split] | --whatsapp-chat [outDir] | --ai-agent [outDir] | --ai-agent-p3 [outDir]");
   process.exit(2);
 }

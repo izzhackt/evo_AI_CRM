@@ -11,9 +11,11 @@ PostgREST — no second backend, no bearer gateway.
 1. `which xcodegen || brew install xcodegen`
 2. Copy `Local.xcconfig.example` to `Local.xcconfig` in this directory and fill
    in the real Supabase project URL and publishable key. `Local.xcconfig` is
-   git-ignored — never commit it. NOTE: xcconfig treats `//` as a comment
-   anywhere in a line, so URLs must be written with the empty-substitution
-   guard: `https:/$()/host` (see the example file).
+   git-ignored; never commit it. It feeds the **Debug** configuration only;
+   Release reads `Release.xcconfig` (see «Выпуск в App Store» below).
+   NOTE: xcconfig treats `//` as a comment anywhere in a line, so URLs must
+   be written with the empty-substitution guard: `https:/$()/host` (see the
+   example file).
 
    Optional key `PORTAL_WEB_BASE_URL` — the web-cabinet origin for the two
    bearer document route handlers (upload/download, ADR 0030 §3). When the
@@ -33,6 +35,90 @@ PostgREST — no second backend, no bearer gateway.
 The generated `.xcodeproj` and `Generated/Info.plist` are committed so a
 fresh clone builds without regenerating; `xcodegen generate` remains the
 source of truth for structural changes.
+
+## Выпуск в App Store (07.10.2026)
+
+Версия `1.0.0`, сборка `1`: `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` в
+`project.yml`, `Info.plist` берёт их оттуда. Каждая новая загрузка той же версии
+получает новый `CURRENT_PROJECT_VERSION`. Тексты и ответы для App Store Connect и
+чеклист владельца лежат в `docs/app-store/`.
+
+Конфигурации:
+
+- **Debug** читает игнорируемый `Local.xcconfig` (стенд или локальный стек).
+  Исключение ATS для локального стека вносится в `Generated/Info.plist` только на
+  время локального запуска и не коммитится.
+- **Release** читает `ReleaseBase.xcconfig` (в Git), который подключает
+  игнорируемый `Release.xcconfig`. Образец `Release.xcconfig.example`: адрес
+  рабочего Supabase, заглушки ключа и Team ID. Все значения публичные
+  клиентские, секретов в сборке нет.
+- Шаг сборки «Check Release configuration» (`scripts/check-release-config.sh`)
+  в Debug ничего не делает. Release он останавливает без значений из
+  `Release.xcconfig`, с адресом не `https://` или с `NSAppTransportSecurity` в
+  `Generated/Info.plist`. Архив (`ACTION=install`) он останавливает ещё и с
+  заглушкой ключа или без Team ID.
+- `PrivacyInfo.xcprivacy` (файл приватности) лежит в `EVOAdmissions/Resources/`
+  и попадает в корень `.app`. Ответы App Privacy в
+  `docs/app-store/app-privacy.md` совпадают с ним один к одному.
+
+Порядок выпуска (из корня репозитория):
+
+1. PR #1170 (восстановление пароля в веб-кабинете) слит и выкачен в
+   production. Без него ссылка из письма «Забыли пароль?» не откроет страницу
+   нового пароля: на `main` `src/app/auth/callback/page.tsx` обрабатывает
+   только приглашения. До отправки на проверку: в сборке TestFlight «Забыли
+   пароль?» → письмо → ссылка открывает страницу нового пароля на
+   app.evoadmissions.com; для адреса сотрудника эта страница отказывает.
+2. Записать `Release.xcconfig`. Значения: адрес проекта, publishable ключ
+   (Supabase Dashboard, Project Settings, API Keys) и Team ID
+   (developer.apple.com/account, «Membership details»). Скрипт принимает только
+   `https://`, проверяет формат и не печатает ключ:
+   ```
+   SUPABASE_URL=https://iosckaqtovbbnssqcpde.supabase.co \
+   SUPABASE_PUBLISHABLE_KEY=<publishable key> \
+   DEVELOPMENT_TEAM=<Team ID> \
+   ios/scripts/write-release-config.sh
+   ```
+   `PORTAL_WEB_BASE_URL` необязателен, по умолчанию
+   `https://app.evoadmissions.com`.
+3. `git status` чистый для `ios/Generated/Info.plist` (без исключения ATS). Если
+   менялся `project.yml`: `cd ios && xcodegen generate`, затем проверить, что
+   в `Generated/Info.plist` нет `NSAppTransportSecurity`.
+4. Архив. Подпись автоматическая; Xcode должен знать аккаунт разработчика
+   («Xcode» → «Settings» → «Accounts») или получить ключ App Store Connect API
+   параметрами `-authenticationKeyPath`, `-authenticationKeyID`,
+   `-authenticationKeyIssuerID`:
+   ```
+   xcodebuild -project ios/EVOAdmissions.xcodeproj -scheme "EVO admissions" \
+     -configuration Release -destination "generic/platform=iOS" \
+     -archivePath <папка вне репозитория>/EVOAdmissions-1.0.0-1.xcarchive \
+     -allowProvisioningUpdates archive
+   ```
+5. Отчёт о приватности: «Window» → «Organizer» → правый клик по архиву →
+   «Generate Privacy Report». Сверить с `docs/app-store/app-privacy.md`.
+6. Загрузка в App Store Connect:
+   ```
+   xcodebuild -exportArchive \
+     -archivePath <папка вне репозитория>/EVOAdmissions-1.0.0-1.xcarchive \
+     -exportOptionsPlist ios/ExportOptions-AppStore.plist \
+     -exportPath <папка вне репозитория>/export -allowProvisioningUpdates
+   ```
+   `ExportOptions-AppStore.plist`: метод `app-store-connect`, назначение
+   `upload`, номер сборки Xcode не меняет. То же можно сделать в «Organizer» →
+   «Distribute App» → «App Store Connect».
+7. Дальше по `docs/app-store/owner-checklist.md`: TestFlight, страница версии
+   `1.0.0`, отправка на проверку. Отправляет и выпускает владелец.
+
+Проверено 07.10.2026 на Xcode 26.5 (iOS 26.5 SDK): `xcodegen generate`, Debug и
+171 unit-тест, Release под симулятор с `Release.xcconfig` из скрипта с
+заглушкой ключа (в собранном `.app` есть `PrivacyInfo.xcprivacy`, версия
+`1.0.0` (1), нет `NSAppTransportSecurity`), отказ Release без
+`Release.xcconfig` и с исключением ATS, отказ архива с заглушкой ключа.
+После ревью PR #1172 (07.10.2026): 172 unit-теста; Release под симулятор
+останавливается на ключе `sb_secret_`; оба скрипта отклоняют `sb_secret_` и
+JWT `service_role`, пропускают `sb_publishable_` и JWT `anon`.
+Не проверено: подпись, архив под устройство и загрузка, потому что Team ID
+ещё нет.
 
 ## Architecture (PORT-2 foundation)
 

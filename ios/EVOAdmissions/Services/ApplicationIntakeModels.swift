@@ -238,7 +238,7 @@ enum ApplicationDraftValidator {
 /// set `admissions_direction,canonical_lead_id,decided_at,decision_reason,
 /// email,id,questionnaire,revision,status,student_case_id,submitted_at`).
 struct StudentApplication: Codable, Equatable, Sendable {
-    enum Status: String, Codable, Sendable { case pending, approved, rejected }
+    enum Status: String, Codable, Sendable, CaseIterable { case pending, approved, rejected }
 
     let id: UUID
     let status: Status

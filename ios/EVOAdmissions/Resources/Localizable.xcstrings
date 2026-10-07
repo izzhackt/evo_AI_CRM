@@ -12987,6 +12987,312 @@
           }
         }
       }
+    },
+    "sign_in_forgot_password" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сырсөздү унуттуңузбу?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Забыли пароль?"
+          }
+        }
+      }
+    },
+    "sign_in_error_invalid_credentials" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email же сырсөз туура эмес."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неверный email или пароль."
+          }
+        }
+      }
+    },
+    "sign_in_error_email_not_confirmed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Почта али ырастала элек. EVO жиберген катты ачып, дарегиңизди ырастаңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Почта ещё не подтверждена. Откройте письмо от EVO и подтвердите адрес."
+          }
+        }
+      }
+    },
+    "sign_in_error_rate_limited" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кирүү аракеттери өтө көп. Бир мүнөт күтүп, кайра аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слишком много попыток входа. Подождите минуту и попробуйте снова."
+          }
+        }
+      }
+    },
+    "sign_in_error_network" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сервер менен байланыш жок. Интернетти текшерип, кайра аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет связи с сервером. Проверьте интернет и попробуйте снова."
+          }
+        }
+      }
+    },
+    "sign_in_error_generic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кирүү ишке ашкан жок. Дагы бир жолу аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось войти. Попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "forgot_password_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сырсөздү калыбына келтирүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановление пароля"
+          }
+        }
+      }
+    },
+    "forgot_password_lead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кабинетке кирген email дарегиңизди жазыңыз. Жаңы сырсөз коюу үчүн шилтеме жөнөтөбүз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Укажите email, с которым вы входите в кабинет. Мы пришлём ссылку, по которой можно задать новый пароль."
+          }
+        }
+      }
+    },
+    "forgot_password_send" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Шилтеме жөнөтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправить ссылку"
+          }
+        }
+      }
+    },
+    "forgot_password_sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мындай аккаунт болсо, жаңы сырсөз үчүн шилтемеси бар кат жөнөттүк. Почтаңызды, анын ичинде «Спам» папкасын текшериңиз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если такой аккаунт есть, мы отправили письмо со ссылкой для нового пароля. Проверьте почту, включая «Спам»."
+          }
+        }
+      }
+    },
+    "forgot_password_next_step" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каттагы шилтеме аркылуу жаңы сырсөз коюп, анан тиркемеге кайтып, аны менен кириңиз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задайте новый пароль по ссылке из письма, затем вернитесь в приложение и войдите с ним."
+          }
+        }
+      }
+    },
+    "forgot_password_rate_limited" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Суроо-талаптар өтө көп. Бир мүнөт күтүп, кайра аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слишком много запросов. Подождите минуту и попробуйте снова."
+          }
+        }
+      }
+    },
+    "forgot_password_invalid_email" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email дарегин текшериңиз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверьте адрес email."
+          }
+        }
+      }
+    },
+    "forgot_password_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кат жөнөтүлгөн жок. Байланышты текшерип, кайра аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось отправить письмо. Проверьте соединение и попробуйте снова."
+          }
+        }
+      }
+    },
+    "forgot_password_resend_in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кайра жөнөтүү %lld секунддан кийин мүмкүн"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправить ещё раз можно через %lld с"
+          }
+        }
+      }
+    },
+    "universities_map_cluster_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул чекиттеги ЖОЖдор: %lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вузов в этой точке: %lld"
+          }
+        }
+      }
+    },
+    "universities_map_cluster_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ЖОЖдордун тизмесин көрсөтөт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Покажет список вузов."
+          }
+        }
+      }
+    },
+    "prep_status_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Статус"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Статус"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -58,7 +58,8 @@ final class SessionRouter: ObservableObject {
     }
 
     @Published private(set) var state: State = .signedOut
-    @Published var signInError: String?
+    /// Ключ каталога строк для ошибки входа (`AuthMessagePolicy`).
+    @Published var signInErrorKey: String?
     /// The invite screens drive verifyOTP/password themselves; while they
     /// are on screen the router must not react to their auth events.
     var inviteFlowActive = false
@@ -104,15 +105,49 @@ final class SessionRouter: ObservableObject {
     }
 
     func signIn(email: String, password: String) async {
-        signInError = nil
+        signInErrorKey = nil
         state = .authenticating
         do {
             try await service.signIn(email: email, password: password)
             // authStateChanges delivers .signedIn next and drives resolveAccess().
         } catch {
-            signInError = error.localizedDescription
+            signInErrorKey = AuthMessagePolicy.signInMessageKey(Self.authFailure(error))
             state = .signedOut
         }
+    }
+
+    /// «Забыли пароль?»: всегда один и тот же ответ для существующих и
+    /// несуществующих адресов, отдельно только лимиты, не связанные с
+    /// адресом, и сбой связи (`AuthMessagePolicy.recoveryOutcome`).
+    func requestPasswordReset(email: String) async -> AuthMessagePolicy.RecoveryOutcome {
+        let redirect = AuthMessagePolicy.recoveryRedirect(webBase: AppConfig.portalWebBaseURL)
+        do {
+            try await service.requestPasswordReset(
+                email: AuthMessagePolicy.normalizedEmail(email),
+                redirectTo: redirect
+            )
+            return AuthMessagePolicy.recoveryOutcome(nil)
+        } catch {
+            return AuthMessagePolicy.recoveryOutcome(Self.authFailure(error))
+        }
+    }
+
+    /// Ошибка Supabase SDK в виде, понятном `AuthMessagePolicy`.
+    private static func authFailure(_ error: Error) -> AuthMessagePolicy.Failure {
+        if let urlError = error as? URLError {
+            return AuthMessagePolicy.Failure(errorCode: nil, httpStatus: nil, isTransport: urlError.code != .cancelled)
+        }
+        if let authError = error as? AuthError {
+            if case let .api(message, code, _, response) = authError {
+                return AuthMessagePolicy.Failure(
+                    errorCode: code.rawValue,
+                    httpStatus: response.statusCode,
+                    message: message
+                )
+            }
+            return AuthMessagePolicy.Failure(errorCode: authError.errorCode.rawValue)
+        }
+        return AuthMessagePolicy.Failure()
     }
 
     func retry() async {

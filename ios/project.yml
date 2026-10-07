@@ -11,9 +11,14 @@ configs:
   Debug: debug
   Release: release
 
+# Debug идёт на стенд из игнорируемого Local.xcconfig. Release (архив для
+# App Store) читает ReleaseBase.xcconfig, а тот подключает игнорируемый
+# Release.xcconfig: его пишет scripts/write-release-config.sh из переменных
+# окружения, образец в Release.xcconfig.example. Порядок выпуска в README.md,
+# «Выпуск в App Store».
 configFiles:
   Debug: Local.xcconfig
-  Release: Local.xcconfig
+  Release: ReleaseBase.xcconfig
 
 settings:
   base:
@@ -50,7 +55,7 @@ targets:
       base:
         PRODUCT_NAME: "EVO admissions"
         PRODUCT_BUNDLE_IDENTIFIER: com.evoadmissions.app
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1"
@@ -59,6 +64,11 @@ targets:
       path: Generated/Info.plist
       properties:
         CFBundleDisplayName: "EVO admissions"
+        # Версия и номер сборки только из настроек MARKETING_VERSION и
+        # CURRENT_PROJECT_VERSION выше; без этих строк xcodegen пишет
+        # постоянные 1.0 и 1.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -70,6 +80,16 @@ targets:
         # пустое значение в Local.xcconfig — честный fallback в коде на
         # https://app.evoadmissions.com (AppConfig.portalWebBaseURL).
         PORTAL_WEB_BASE_URL: "$(PORTAL_WEB_BASE_URL)"
+    # Release без значений из Release.xcconfig, с адресом не https:// или с
+    # исключением ATS в Info.plist не собирается; архив ещё требует Team ID
+    # и ключ без заглушки. В Debug шаг ничего не делает.
+    preBuildScripts:
+      - name: Check Release configuration
+        script: '"$SRCROOT/scripts/check-release-config.sh"'
+        inputFiles:
+          - $(SRCROOT)/scripts/check-release-config.sh
+          - $(SRCROOT)/$(INFOPLIST_FILE)
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: Supabase
         product: Supabase
@@ -103,6 +123,17 @@ targets:
       - path: EVOAdmissions/Services/ApplicationIntakePolicy.swift
       - path: EVOAdmissions/Services/ApplicationIntakeTransfer.swift
       - path: EVOAdmissions/Services/MotionPolicy.swift
+      # Ключи каталога для серверных статусов и безопасный разбор UUID
+      # (аудит UX/UI 2026-10): тестам нужны сами перечисления статусов.
+      - path: EVOAdmissions/Services/LocalizationKeys.swift
+      - path: EVOAdmissions/Services/ServerUUID.swift
+      - path: EVOAdmissions/Services/AuthMessagePolicy.swift
+      - path: EVOAdmissions/Services/CatalogPreparationModels.swift
+      - path: EVOAdmissions/Services/ApplicationRequirementsModels.swift
+      - path: EVOAdmissions/Services/ApplicationRequirementsV2Models.swift
+      - path: EVOAdmissions/Services/ApplicationDocumentModels.swift
+      - path: EVOAdmissions/Services/ApplicationPackageModels.swift
+      - path: EVOAdmissions/Services/ApplicationDocumentUpload.swift
       - path: ../src/lib/university-photo-library.json
         buildPhase: resources
       - path: ../src/lib/university-geo-library.json

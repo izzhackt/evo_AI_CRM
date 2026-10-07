@@ -7,3 +7,6 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 .swiftpm/
+
+# Значения Release (архив для App Store) пишет scripts/write-release-config.sh.
+Release.xcconfig

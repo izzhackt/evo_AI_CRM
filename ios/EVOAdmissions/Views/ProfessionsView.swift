@@ -17,6 +17,33 @@ func orvisScaleLabel(_ scale: String) -> String {
     return String(localized: key)
 }
 
+/// Маршрут карточки профессии. Свой тип, а не голый `UUID`: в стеке «Главной»
+/// и «Университетов» `UUID` уже ведёт к карточке вуза.
+struct ProfessionRoute: Hashable {
+    let cardId: UUID
+}
+
+/// Разделы, которые открываются переходом по значению из нескольких стеков.
+/// Ссылка с замыканием (`NavigationLink { … }`) не попадает в путь стека, и
+/// следующий переход по значению внутри такого экрана вставал под него:
+/// карточка профессии открывалась под списком (аудит UX/UI 2026-10).
+enum PortalRoute: Hashable {
+    case professions
+    case favorites
+}
+
+extension View {
+    /// Регистрирует экраны `PortalRoute` в ближайшем `NavigationStack`.
+    func portalRouteDestinations() -> some View {
+        navigationDestination(for: PortalRoute.self) { route in
+            switch route {
+            case .professions: ProfessionsContentView()
+            case .favorites: FavoritesView()
+            }
+        }
+    }
+}
+
 /// «Профессии» (миграции 198/199): сетка карточек по интересам и карточка
 /// профессии со связками в каталог вузов. Контент публикуемый; зарплат и
 /// «шансов» нет — только описания с источником (план §6/§14).
@@ -75,12 +102,12 @@ struct ProfessionsContentView: View {
                         .multilineTextAlignment(.center)
                     Text(errorMessage)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("retry_button") {
                         Task { await model.load() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else {
@@ -88,8 +115,8 @@ struct ProfessionsContentView: View {
             }
         }
         .navigationTitle("tab_professions")
-        .navigationDestination(for: UUID.self) { cardId in
-            ProfessionCardView(cardId: cardId)
+        .navigationDestination(for: ProfessionRoute.self) { route in
+            ProfessionCardView(cardId: route.cardId)
         }
         .task {
             if model.cards.isEmpty {
@@ -103,7 +130,7 @@ struct ProfessionsContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("professions_lead")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
 
                 // Вход в тест интересов orvis92 (дизайн-контракт §3).
                 NavigationLink {
@@ -114,17 +141,17 @@ struct ProfessionsContentView: View {
                             .font(.subheadline.weight(.medium))
                         Text("professions_test_entry_hint")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(.pressable)
 
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(model.cards) { card in
-                        NavigationLink(value: card.cardId) {
+                        NavigationLink(value: ProfessionRoute(cardId: card.cardId)) {
                             ProfessionTile(card: card)
                         }
                         .buttonStyle(.pressable)
@@ -162,7 +189,7 @@ private struct ProfessionTile: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -254,12 +281,12 @@ struct ProfessionCardView: View {
                 VStack(spacing: 12) {
                     Text("professions_unavailable")
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("retry_button") {
                         Task { await model.load(cardId: cardId) }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             }
@@ -373,12 +400,12 @@ struct ProfessionCardView: View {
                         if !resolved.programFound {
                             Text("professions_program_missing")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                         }
                     } else {
                         Text("professions_university_missing")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -389,7 +416,7 @@ struct ProfessionCardView: View {
                 // Каталог не дочитался: отсутствие ссылок — не факт о вузе.
                 Text("professions_refs_incomplete")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -411,7 +438,7 @@ struct ProfessionCardView: View {
             // Атрибуция O*NET / CC BY 4.0 (паттерн orvis-v1, PORT-4c (d)).
             Text("professions_attribution")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

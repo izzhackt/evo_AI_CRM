@@ -69,7 +69,7 @@ enum ApplicationRequirementSlotStatus: String, Decodable {
     case correctionRequired = "correction_required"
 }
 
-enum ApplicationRequirementReviewDecision: String, Decodable {
+enum ApplicationRequirementReviewDecision: String, Decodable, CaseIterable {
     case approved, rejected
     case correctionRequired = "correction_required"
 }
@@ -78,7 +78,7 @@ enum ApplicationRequirementTechnicalAvailability: String, Decodable {
     case available, unavailable
 }
 
-enum ApplicationRequirementUnavailableReason: String, Decodable {
+enum ApplicationRequirementUnavailableReason: String, Decodable, CaseIterable {
     case slotMissing = "slot_missing"
     case slotRemoved = "slot_removed"
     case applicationLinkMissing = "application_link_missing"

@@ -19,15 +19,15 @@ struct CatalogIntakePreparationAction: View {
         if let context = session.context {
             if let existing = model.existing(institutionId: item.id, programId: program.id, intakeId: intake.id) {
                 Button("prep_open") { open(ProgramPreparationRoute(applicationId: existing.id)) }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                     .frame(minHeight: 44)
             } else if context.canStart {
                 if !["CN", "MY", "AE", "TR", "IT", "CZ"].contains(item.content.country) {
-                    Text("prep_country_unavailable").font(.footnote).foregroundStyle(.secondary)
+                    Text("prep_country_unavailable").font(.footnote).foregroundStyle(.secondaryText)
                 } else if intake.id == nil {
-                    Text("prep_identity_unavailable").font(.footnote).foregroundStyle(.secondary)
+                    Text("prep_identity_unavailable").font(.footnote).foregroundStyle(.secondaryText)
                 } else if intake.status == "closed" {
-                    Text("prep_intake_closed").font(.footnote).foregroundStyle(.secondary)
+                    Text("prep_intake_closed").font(.footnote).foregroundStyle(.secondaryText)
                 } else {
                     Button {
                         Task {
@@ -44,11 +44,10 @@ struct CatalogIntakePreparationAction: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .fixedSize(horizontal: false, vertical: true)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color("AccentColor"))
+                    .accentProminent()
                     .disabled(!snapshotIsFresh || !model.loaded || model.isWorking)
                     if !snapshotIsFresh {
-                        Text("prep_refresh_catalog").font(.footnote).foregroundStyle(.secondary)
+                        Text("prep_refresh_catalog").font(.footnote).foregroundStyle(.secondaryText)
                     }
                 }
             }
@@ -82,20 +81,20 @@ struct ProgramPreparationListSection: View {
                 if visibleScope != context.scope || model.isLoading {
                     ProgressView("prep_loading")
                 } else if model.loadFailed {
-                    Text("prep_read_failed").foregroundStyle(.secondary)
+                    Text("prep_read_failed").foregroundStyle(.secondaryText)
                     Button("retry_button") { Task { await model.load(context: context) } }
                 } else if model.loaded {
-                    if model.items.isEmpty { Text("prep_empty").foregroundStyle(.secondary) }
+                    if model.items.isEmpty { Text("prep_empty").foregroundStyle(.secondaryText) }
                     ForEach(model.items) { preparation in
                         NavigationLink {
                             ProgramPreparationView(applicationId: preparation.id)
                         } label: {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(preparation.selectedProgram?.title ?? preparation.content.name).font(.headline)
-                                Text(preparation.content.name).font(.subheadline).foregroundStyle(.secondary)
+                                Text(preparation.content.name).font(.subheadline).foregroundStyle(.secondaryText)
                                 if let intake = preparation.selectedIntake { Text(intake.label).font(.subheadline) }
-                                Text(LocalizedStringKey("prep_status_\(preparation.applicationStatus.rawValue)"))
-                                    .font(.footnote).foregroundStyle(.secondary)
+                                Text(LocalizedStringKey(preparation.applicationStatus.labelKey))
+                                    .font(.footnote).foregroundStyle(.secondaryText)
                             }
                             .padding(.vertical, 4)
                         }
@@ -104,6 +103,7 @@ struct ProgramPreparationListSection: View {
             }
         } header: {
             Text("prep_list_title")
+                .foregroundStyle(.secondaryText)
         }
         .task(id: session.context?.scope) {
             visibleScope = session.context?.scope
@@ -141,10 +141,17 @@ struct ProgramPreparationView: View {
                     Text(preparation.selectedProgram?.title ?? preparation.content.name)
                         .font(.headline).accessibilityAddTraits(.isHeader)
                     Text(preparation.content.name).font(.subheadline)
-                    Text(LocalizedStringKey("prep_status_\(preparation.applicationStatus.rawValue)"))
+                    // «Статус: Подготовка», чтобы слово не повторяло заголовок
+                    // экрана «Подготовка» без пояснения.
+                    LabeledContent {
+                        Text(LocalizedStringKey(preparation.applicationStatus.labelKey))
+                            .foregroundStyle(.primary)
+                    } label: {
+                        Text("prep_status_label")
+                    }
                     if let intake = preparation.selectedIntake { UniversityIntakeView(intake: intake) }
                     if preparation.selection.deadlineStateAtSelection == .needsConfirmation {
-                        Text("prep_deadline_confirmation").font(.footnote).foregroundStyle(.secondary)
+                        Text("prep_deadline_confirmation").font(.footnote).foregroundStyle(.secondaryText)
                     }
                 }
             }
@@ -163,14 +170,14 @@ struct ProgramPreparationView: View {
             }
             ProgramDocumentPendingSection(model: documentModel)
             if let error = documentModel.errorKey {
-                Section { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
+                Section { Text(LocalizedStringKey(error)).foregroundStyle(.dangerText) }
             }
             if let notice = documentModel.noticeKey {
                 Section { Text(LocalizedStringKey(notice)) }
             }
             if documentModel.busy { Section { ProgressView("prep_loading") } }
             if let error = model.errorKey {
-                Section { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
+                Section { Text(LocalizedStringKey(error)).foregroundStyle(.dangerText) }
             }
             if let requirements = model.requirements, requirements.state == .uninitialized,
                session.context?.canStart == true, model.preparation?.applicationStatus == .preparation {
@@ -200,6 +207,7 @@ struct ProgramPreparationView: View {
                 }
             } footer: {
                 Text("prep_upload_sends")
+                    .foregroundStyle(.secondaryText)
             }
             } else {
                 ProgressView("prep_loading")
@@ -241,7 +249,7 @@ struct ProgramPreparationView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(item.label).font(.headline).accessibilityAddTraits(.isHeader)
                     Text(LocalizedStringKey(item.required ? "prep_required" : "prep_optional"))
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondaryText)
                     Text(item.instructions).font(.subheadline)
                     if let deadline = item.deadline {
                         VStack(alignment: .leading, spacing: 4) {
@@ -253,7 +261,7 @@ struct ProgramPreparationView: View {
                             }
                             Text(String(localized: "prep_deadline_verified", locale: locale) + " "
                                  + (CatalogDate.dayLabel(from: deadline.verifiedOn, locale: locale) ?? deadline.verifiedOn))
-                                .font(.footnote).foregroundStyle(.secondary)
+                                .font(.footnote).foregroundStyle(.secondaryText)
                         }
                     }
                     if item.definitionImpact == .changed {
@@ -265,7 +273,7 @@ struct ProgramPreparationView: View {
                             applicationId: applicationId, model: documentModel).disabled(packageModel.busy)
                     }
                     ForEach(item.unavailableReasons.filter { ["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"].contains($0.rawValue) }, id: \.rawValue) { reason in
-                        Text(LocalizedStringKey("prep_file_\(reason.rawValue)")).font(.footnote).foregroundStyle(.secondary)
+                        Text(LocalizedStringKey(reason.labelKey)).font(.footnote).foregroundStyle(.secondaryText)
                     }
                     if item.slotStatus != nil {
                         NavigationLink {
@@ -278,9 +286,13 @@ struct ProgramPreparationView: View {
             }
         } header: {
             Text(LocalizedStringKey(requirements.revision?.origin == .evoStarter ? "prep_starter_title" : "prep_requirements_title"))
+                .foregroundStyle(.secondaryText)
         } footer: {
-            if requirements.revision?.origin == .evoStarter { Text("prep_starter_note") }
-            else if requirements.revision?.origin == .staffConfirmed { Text("prep_confirmed_note") }
+            Group {
+                if requirements.revision?.origin == .evoStarter { Text("prep_starter_note") }
+                else if requirements.revision?.origin == .staffConfirmed { Text("prep_confirmed_note") }
+            }
+            .foregroundStyle(.secondaryText)
         }
     }
 

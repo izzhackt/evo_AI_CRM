@@ -18,8 +18,8 @@ extension ApplicationPackageRawDecodable {
 }
 
 enum ApplicationPackageOperation: String, Codable { case submit, review }
-enum ApplicationPackageDecision: String, Codable { case approved, correctionRequired = "correction_required" }
-enum ApplicationPackageReadyReason: String, Decodable {
+enum ApplicationPackageDecision: String, Codable, CaseIterable { case approved, correctionRequired = "correction_required" }
+enum ApplicationPackageReadyReason: String, Decodable, CaseIterable {
     case requirementsUnavailable = "requirements_unavailable", emptyComposition = "empty_composition"
     case missingRequired = "missing_required", materialUnavailable = "material_unavailable"
     case fileUnavailable = "file_unavailable", previousSubmissionChanged = "previous_submission_changed"
@@ -372,7 +372,7 @@ struct ApplicationPackageReadiness: ApplicationPackageRawDecodable, ApplicationP
         try ApplicationPackageWire.require(r[p: "protocolVersion"] == .integer(1))
         studentCaseId = try r[p: "studentCaseId"].uuid(); applicationId = try r[p: "applicationId"].uuid()
         requirements = try r[p: "requirements"].decode(ApplicationRequirementsV2View.self)
-        try requirements.validate(studentCaseId: UUID(uuidString: studentCaseId)!, applicationId: UUID(uuidString: applicationId)!)
+        try requirements.validate(studentCaseId: ServerUUID.require(studentCaseId, orThrow: ApplicationPackageClientError.invalidResponse), applicationId: ServerUUID.require(applicationId, orThrow: ApplicationPackageClientError.invalidResponse))
         documentItems = try ApplicationPackageWire.array(r[p: "documentItems"]).map(ApplicationDocumentItem.init)
         latestPackage = try r[p: "latestPackage"].optional(ApplicationPackageSummary.init)
         selections = try ApplicationPackageWire.array(r[p: "selections"]).map(ApplicationPackageReadinessSelection.init)

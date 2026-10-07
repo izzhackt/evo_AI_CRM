@@ -17,6 +17,7 @@ import {
   rejectAiLabProposal,
   resolveAiReviewItem,
   retryAiDocument,
+  saveAiMemory,
   saveAiMonthlyCap,
   saveAiRules,
   type AiWriteStatus,
@@ -96,6 +97,24 @@ export async function saveAiMonthlyCapAction(previous: AiActionState, form: Form
   const actor = await actorFor();
   if (!actor) return { status: "forbidden", requestId };
   return done(await saveAiMonthlyCap(actor, { expectedVersion: Number(expected), monthlyCapUsd: cap, requestId }), requestId);
+}
+
+/**
+ * «Включить память» / «Выключить память» (P3, §9). Ожидаемая версия настроек —
+ * против гонки с лимитом и другим сотрудником; выключение удаляет сводки всех
+ * клиентов (решает база, 274).
+ */
+export async function saveAiMemoryAction(previous: AiActionState, form: FormData): Promise<AiActionState> {
+  const fields = exactActionStringFields(form, ["request_id", "expected_version", "memory_action"]);
+  const requestId = fields && parseSalesUuid(fields.get("request_id"));
+  const action = fields?.get("memory_action");
+  const expected = fields?.get("expected_version") ?? "";
+  if (!fields || !requestId || (action !== "enable" && action !== "disable") || !VERSION.test(expected)) {
+    return { status: "invalid", requestId: requestId ?? previous.requestId };
+  }
+  const actor = await actorFor();
+  if (!actor) return { status: "forbidden", requestId };
+  return done(await saveAiMemory(actor, { enabled: action === "enable", expectedVersion: Number(expected), requestId }), requestId);
 }
 
 /**

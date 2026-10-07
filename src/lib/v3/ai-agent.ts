@@ -656,6 +656,8 @@ export type AiSettings = Readonly<{
   monthlyCapUsd: number;
   ratePerMemberMinute: number;
   consent: Readonly<{ recorded: boolean; at: string | null; byName: string | null; textVersion: string | null }>;
+  /** «Память о клиенте» (P3, §9): по умолчанию выключена; включает сотрудник с ai.agent.manage. */
+  memoryEnabled: boolean;
   canManage: boolean;
   isAdmin: boolean;
 }>;
@@ -674,6 +676,7 @@ export function normalizeAiSettings(value: unknown): AiSettings {
       recorded: consent.recorded === true, at: nullableText(consent.at, 64), byName: nullableText(consent.byName, 200),
       textVersion: nullableText(consent.textVersion, 40),
     }),
+    memoryEnabled: value.memoryEnabled === true,
     canManage: value.canManage,
     isAdmin: value.isAdmin,
   });

@@ -160,6 +160,7 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
         preview={preview}
         capRequestId={randomUUID()}
         revokeRequestId={randomUUID()}
+        memoryRequestId={randomUUID()}
         retryHref={retryHref}
       />
     );

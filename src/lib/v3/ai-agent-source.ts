@@ -40,7 +40,11 @@ export type AiRead<T> =
   | Readonly<{ status: "available"; data: T }>
   | Readonly<{ status: "denied" | "missing" | "unavailable" }>;
 
-export type AiWriteStatus = "saved" | "conflict" | "forbidden" | "invalid" | "unavailable";
+/**
+ * `consent_required` — согласие на Gemini не записано (PT412): так отвечает
+ * только включение «Памяти о клиенте» (P3); остальные записи его не выдают.
+ */
+export type AiWriteStatus = "saved" | "conflict" | "forbidden" | "invalid" | "consent_required" | "unavailable";
 
 type RpcError = Readonly<{ code?: string; message?: string }>;
 
@@ -158,6 +162,26 @@ export function saveAiMonthlyCap(actor: ActivePlatformActor, input: Readonly<{ e
   return write(actor, "ai_agent_settings_save_v1", {
     p_expected_version: input.expectedVersion, p_patch: { monthlyCapUsd: input.monthlyCapUsd }, p_request_id: input.requestId,
   });
+}
+
+/**
+ * «Память о клиенте» (P3, §9; Q9 — может любой сотрудник с ai.agent.manage):
+ * `ai_agent_memory_toggle_v1` (274) сверяет версию настроек (PT409) и без
+ * согласия на Gemini не включает (PT412, согласие записывает только admin,
+ * Q12). Выключение удаляет память всех диалогов организации.
+ */
+export async function saveAiMemory(actor: ActivePlatformActor, input: Readonly<{ enabled: boolean; expectedVersion: number; requestId: string }>): Promise<AiWriteStatus> {
+  if (isStaffPreview(actor)) return "forbidden";
+  try {
+    const { error } = await rpc("ai_agent_memory_toggle_v1", {
+      p_organization_id: actor.organizationId, p_enabled: input.enabled,
+      p_expected_version: input.expectedVersion, p_request_id: input.requestId,
+    });
+    if (!error) return "saved";
+    return (error as RpcError).code === "PT412" ? "consent_required" : writeStatus(error as RpcError);
+  } catch {
+    return "unavailable";
+  }
 }
 
 // ------------------------------------------------------------------ P2 writes

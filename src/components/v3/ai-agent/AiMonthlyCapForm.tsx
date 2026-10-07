@@ -10,6 +10,7 @@ const MESSAGES: Readonly<Record<Exclude<AiActionState["status"], "idle">, string
   conflict: "Настройки уже изменились — обновите страницу.",
   forbidden: "Нет права менять лимит.",
   invalid: "Лимит — число от 0 до 100 000 долларов.",
+  consent_required: "Сначала администратор записывает согласие на Gemini.",
   unavailable: "Результат пока неизвестен — безопасно сохраните ещё раз.",
 };
 

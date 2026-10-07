@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 
 import {
@@ -20,9 +21,12 @@ type StaffLoginLabels = Readonly<{
 export function LoginForm({
   labels,
   initialError = null,
+  recovery,
 }: Readonly<{
     labels: StaffLoginLabels;
     initialError?: StaffLoginActionState;
+    /** Student self-service recovery; staff recovery stays admin-driven. */
+    recovery?: Readonly<{ href: string; label: string }>;
   }>) {
   const [error, action, pending] = useActionState(
     loginStaffAction,
@@ -82,6 +86,16 @@ export function LoginForm({
           aria-invalid={error ? "true" : undefined}
           className={inputCls}
         />
+        {recovery ? (
+          <div className="mt-1 flex justify-end">
+            <Link
+              href={recovery.href}
+              className="inline-flex min-h-11 items-center text-sm text-fg-2 underline underline-offset-4 hover:text-fg"
+            >
+              {recovery.label}
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       <button type="submit" disabled={pending} className={`${btnCls} w-full`}>

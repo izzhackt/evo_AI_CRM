@@ -103,6 +103,12 @@ otp_expiry = 3600
 subject = "Доступ к личному кабинету EVO"
 content_path = "./supabase/templates/invite.html"
 
+# Same link shape as the production Recovery template (docs/runbooks/
+# team-workspace-activation.md): RedirectTo keeps the audience callback.
+[auth.email.template.recovery]
+subject = "Новый пароль для EVO Admissions"
+content_path = "./supabase/templates/recovery.html"
+
 [auth.hook.custom_access_token]
 enabled = true
 uri = "pg-functions://postgres/platform_private/custom_access_token_hook"

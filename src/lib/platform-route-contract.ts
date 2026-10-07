@@ -65,6 +65,10 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
   "/auth/signup-confirmation",
   "/auth/set-password",
   "/auth/account-pending",
+  // Student password recovery: public request form and the new-password page
+  // that reads only its own path-scoped recovery session (src/proxy.ts).
+  "/auth/forgot-password",
+  "/auth/reset-password",
   "/apply/status",
 ]);
 

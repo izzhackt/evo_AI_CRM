@@ -1286,6 +1286,50 @@
   outline-offset: 2px;
 }
 
+/* Удаление аккаунта (миграция 279): второй шаг подтверждения — тут же. */
+.pt-btn-danger-solid {
+  background: var(--pt-error);
+  color: var(--pt-on-accent);
+}
+
+.pt-btn-danger-solid:hover {
+  background: color-mix(in srgb, var(--pt-error) 88%, var(--pt-text));
+}
+
+.pt-account-deletion-strong {
+  color: var(--pt-text);
+  font-weight: 600;
+}
+
+.pt-account-deletion-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-self: stretch;
+  padding: 16px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-control);
+  background: var(--pt-bg);
+}
+
+.pt-account-deletion-question {
+  margin: 0;
+  color: var(--pt-text);
+  font-weight: 600;
+}
+
+.pt-account-deletion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pt-account-deletion-error {
+  margin: 0;
+  color: var(--pt-error);
+  font-size: var(--pt-size-secondary);
+}
+
 /* ---------- Фото с атрибуцией ---------- */
 
 .pt-photo {

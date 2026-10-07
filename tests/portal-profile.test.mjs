@@ -4,10 +4,8 @@ import { test } from "node:test";
 
 import {
   isPortalLanguage,
-  parseAccountDeletionReceipt,
   parsePortalProfile,
 } from "../src/lib/portal/portal-profile.ts";
-import { parseAccountDeletionRequests } from "../src/lib/platform-account-deletion.ts";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -60,44 +58,6 @@ test("portal language accepts exactly ru and ky", () => {
   }
 });
 
-test("deletion receipts resolve to an honest action result", () => {
-  const receipt = {
-    requestId: "19600000-0000-4000-8000-000000000801",
-    status: "requested",
-    requestedAt: "2026-09-19T10:00:00+00:00",
-  };
-  assert.deepEqual(parseAccountDeletionReceipt(receipt), {
-    ok: true,
-    requestedAt: receipt.requestedAt,
-  });
-  for (const broken of [
-    null,
-    { ...receipt, status: "done" },
-    { ...receipt, requestId: "nope" },
-    { ...receipt, requestedAt: "yesterday" },
-  ]) {
-    assert.deepEqual(parseAccountDeletionReceipt(broken), { ok: false }, JSON.stringify(broken));
-  }
-});
-
-test("staff deletion-request rows parse strictly for the client-card badge", () => {
-  const row = {
-    requestId: "19600000-0000-4000-8000-000000000801",
-    membershipId: "19600000-0000-4000-8000-000000000304",
-    studentCaseId: "19600000-0000-4000-8000-000000000501",
-    displayName: "P196 Pending Student",
-    status: "requested",
-    requestedAt: "2026-09-19T10:00:00+00:00",
-  };
-  assert.deepEqual(parseAccountDeletionRequests([row, { ...row, studentCaseId: null, requestId: row.membershipId }]), [
-    row,
-    { ...row, studentCaseId: null, requestId: row.membershipId },
-  ]);
-  for (const broken of [null, {}, [{ ...row, status: "open" }], [{ ...row, studentCaseId: "x" }]]) {
-    assert.equal(parseAccountDeletionRequests(broken), null, JSON.stringify(broken));
-  }
-});
-
 // Структурные пины PORT-5a: профиль в Shell-нав обоих tier'ов; язык
 // персистится через RPC И cookie в одном server action; удаление — реальный
 // запрос со стабильным request_id и честным состоянием; бейдж в карточке
@@ -113,16 +73,20 @@ test("profile screen wiring stays in place", () => {
   assert.match(actions, /^"use server";/u);
   assert.match(actions, /set_own_portal_language_v1/u);
   assert.match(actions, /store\.set\("locale", language/u, "the SAME action must update the locale cookie");
-  assert.match(actions, /request_account_deletion_v1/u);
+  // 279: запрос на удаление — отдельное действие для любого вошедшего аккаунта.
+  const ownActions = source("src/lib/account-deletion/own-actions.ts");
+  assert.match(ownActions, /^"use server";/u);
+  assert.match(ownActions, /request_account_deletion_v2/u);
 
   const page = source("src/app/(portal)/portal/profile/page.tsx");
   assert.match(page, /href="\/portal\/tests"/u);
   assert.match(page, /logoutStudentPortalAction/u);
-  assert.match(page, /<DeleteAccountRequest/u);
+  assert.match(page, /<AccountDeletionPanel/u);
+  assert.match(page, /readOwnAccountDeletion\(\)/u);
 
-  const deletion = source("src/components/portal/profile/DeleteAccountRequest.tsx");
+  const deletion = source("src/components/account-deletion/AccountDeletionPanel.tsx");
   assert.match(deletion, /useState\(\(\) => crypto\.randomUUID\(\)\)/u, "request_id must be stable per attempt");
-  assert.match(deletion, /strings\.deleteRequested/u);
+  assert.match(deletion, /strings\.confirmQuestion/u, "an irreversible request asks for a second step");
 
   // Дело студента 26.09: шапка рисует пилюлю, а чтение запроса — в общем чтении дела.
   const header = source("src/components/v3/profile/CaseHeader.tsx");
@@ -130,17 +94,20 @@ test("profile screen wiring stays in place", () => {
   assert.match(source("src/lib/v3/case-work-source.ts"), /hasOpenAccountDeletionRequestForCase\(actor, target\.studentCaseId\)/u);
 });
 
-// План §7 (тексты) и §13: никаких обещаний сроков в состоянии запроса.
-test("deletion strings promise no timelines", async () => {
+// Решения владельца 07.10.2026 заменяют «никаких сроков» плана §7: экран
+// называет срок 30 дней и что хранится по закону — в обоих языках, без тире.
+test("deletion strings name the 30-day deadline and the kept records", async () => {
   const { PORTAL_DICTIONARIES } = await import("../src/lib/portal/i18n.ts");
-  for (const locale of ["ru", "ky"]) {
-    const strings = PORTAL_DICTIONARIES.profile[locale];
-    for (const key of ["deleteDescription", "deleteRequested"]) {
-      assert.doesNotMatch(
-        strings[key],
-        /\d+\s*(час|дн|күн|саат)|в течение|ичинде/iu,
-        `${key} (${locale})`,
-      );
+  const ru = PORTAL_DICTIONARIES.accountDeletion.ru;
+  const ky = PORTAL_DICTIONARIES.accountDeletion.ky;
+  assert.match(ru.description, /30 дней/u);
+  assert.match(ky.description, /30 күн/u);
+  for (const strings of [ru, ky]) {
+    assert.match(strings.requested, /\{date\}/u);
+    assert.match(strings.due, /\{date\}/u);
+    for (const [key, value] of Object.entries(strings)) {
+      assert.doesNotMatch(value, /[\u2013\u2014]/u, `${key} must not use en/em dashes`);
     }
   }
+  assert.equal(Object.hasOwn(PORTAL_DICTIONARIES.profile.ru, "deleteDescription"), false);
 });

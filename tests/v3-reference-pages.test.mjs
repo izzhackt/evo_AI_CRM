@@ -275,7 +275,7 @@ test("«Настройки»: open on «Сотрудники», one section list
   const staff = page("settings-staff");
   const nav = staff.match(/<nav aria-label="Разделы настроек"[\s\S]*?<\/nav>/u)[0];
   assert.deepEqual([...nav.matchAll(/<a\b[^>]*>([^<]+)<\/a>/gu)].map((match) => match[1]),
-    ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Журнал действий", "Документы и передача", "Платформа"]);
+    ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"]);
   assert.match(nav, /<a aria-current="page"[^>]*href="\/v3\/settings\?section=staff&amp;view=people">Сотрудники<\/a>/u);
   assert.doesNotMatch(staff, /aria-label="Управление командой"|виден только администратору|>админ</u, "no second tab row, no admin marks");
   assert.match(staff, /<h2 class="t-section">Сотрудники · 5<\/h2>/u);

@@ -7,6 +7,10 @@ import { EvoMark } from "@/components/platform/brand/EvoMark";
 import { createStudentInviteSessionRuntime } from "@/lib/server/student-invite-session-runtime";
 import { readVerifiedStudentInviteSession } from "@/lib/server/student-invite-session";
 import { resolveStudentPortalActor } from "@/lib/student-portal-auth";
+import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
+import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
+import { getLocale } from "@/lib/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +60,9 @@ export default async function StudentAccountPendingPage() {
     redirect("/apply");
   }
 
+  const [locale, deletion] = await Promise.all([getLocale(), readOwnAccountDeletion()]);
+  const deletionStrings = getPortalStrings("accountDeletion", locale);
+
   return (
     <main className="grid min-h-dvh place-items-center bg-bg px-4 py-10">
       <section
@@ -77,6 +84,16 @@ export default async function StudentAccountPendingPage() {
           безопасно проверить состояние позже или выйти из аккаунта.
         </p>
         <StudentAccountPending />
+        {/* Удаление аккаунта (279): и до готовности доступа. */}
+        <section aria-labelledby="account-deletion-heading" className="mt-6 border-t border-border pt-5">
+          <h2 id="account-deletion-heading" className="mb-3 text-base font-semibold text-fg">{deletionStrings.heading}</h2>
+          <AccountDeletionPanel
+            initialRequest={deletion.status === "ready" ? deletion.request : null}
+            unavailable={deletion.status === "unavailable"}
+            strings={deletionStrings}
+            look="apply"
+          />
+        </section>
       </section>
     </main>
   );

@@ -13,6 +13,9 @@ import { readVerifiedStudentInviteSession } from "@/lib/server/student-invite-se
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { studentApplicationEntryRedirect } from "@/lib/server/student-signup-runtime";
+import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
+import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
+import { getPortalStrings } from "@/lib/portal/i18n";
 
 /**
  * PORT-1b: prefill only what the invited person already sees as their own —
@@ -70,5 +73,24 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
     const pending = await readPendingStudentSignup();
     if (pending) return <SignupConfirmationFrame><SignupConfirmationPending initial={pending} locale={locale} restored /></SignupConfirmationFrame>;
   }
-  return <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} theme={theme} />;
+  const wizard = <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} theme={theme} accountDeletionHref={email ? "#account-deletion" : null} />;
+  if (!email) return wizard;
+  // Удаление аккаунта (279): вошедший аккаунт без анкеты тоже может удалить
+  // аккаунт; ссылка «Удалить аккаунт» в шапке анкеты ведёт сюда.
+  const deletionStrings = getPortalStrings("accountDeletion", locale);
+  const deletion = await readOwnAccountDeletion();
+  return <>
+    {wizard}
+    <section id="account-deletion" aria-labelledby="account-deletion-heading" className="bg-bg px-4 pb-12 text-fg sm:px-8">
+      <div className="mx-auto max-w-4xl rounded-card border border-border bg-surface px-5 py-6 sm:px-10">
+        <h2 id="account-deletion-heading" className="mb-3 text-xl font-semibold text-fg">{deletionStrings.heading}</h2>
+        <AccountDeletionPanel
+          initialRequest={deletion.status === "ready" ? deletion.request : null}
+          unavailable={deletion.status === "unavailable"}
+          strings={deletionStrings}
+          look="apply"
+        />
+      </div>
+    </section>
+  </>;
 }

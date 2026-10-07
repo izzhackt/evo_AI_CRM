@@ -3,13 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
-import { universityUuid } from "../platform-university-catalog";
 import { requireStudentPortalActor } from "../student-portal-guards";
 import { createSupabaseServerClient } from "../supabase/server";
 import {
   isPortalLanguage,
-  parseAccountDeletionReceipt,
-  type AccountDeletionActionResult,
   type PortalLanguageActionResult,
 } from "./portal-profile";
 
@@ -17,6 +14,7 @@ import {
  * Server actions экрана «Профиль» (PORT-5a). Язык персистится через RPC
  * миграции 196 И обновляет cookie `locale` в том же действии (решение
  * PORT-0 «Локализация»: БД — источник, cookie — request-time умолчание).
+ * Запрос на удаление аккаунта с 279 — src/lib/account-deletion/own-actions.ts.
  */
 export async function setPortalLanguageAction(
   language: unknown,
@@ -48,29 +46,4 @@ export async function setPortalLanguageAction(
   });
   revalidatePath("/", "layout");
   return { ok: true, portalLanguage: language };
-}
-
-/**
- * Инициирование удаления аккаунта (план §13). RPC идемпотентен по
- * request_id и держит не более одного открытого запроса на участника —
- * повтор нажатия и retry сети безопасны.
- */
-export async function requestAccountDeletionAction(
-  requestId: unknown,
-): Promise<AccountDeletionActionResult> {
-  await requireStudentPortalActor();
-  const id = universityUuid(requestId);
-  if (!id) return { ok: false };
-  try {
-    const client = await createSupabaseServerClient();
-    const { data, error } = await client
-      .schema("platform")
-      .rpc("request_account_deletion_v1", { p_request_id: id });
-    if (error) return { ok: false };
-    const result = parseAccountDeletionReceipt(data);
-    if (result.ok) revalidatePath("/portal/profile");
-    return result;
-  } catch {
-    return { ok: false };
-  }
 }

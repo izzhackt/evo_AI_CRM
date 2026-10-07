@@ -103,6 +103,17 @@ targets:
       - path: EVOAdmissions/Services/ApplicationIntakePolicy.swift
       - path: EVOAdmissions/Services/ApplicationIntakeTransfer.swift
       - path: EVOAdmissions/Services/MotionPolicy.swift
+      # Ключи каталога для серверных статусов и безопасный разбор UUID
+      # (аудит UX/UI 2026-10): тестам нужны сами перечисления статусов.
+      - path: EVOAdmissions/Services/LocalizationKeys.swift
+      - path: EVOAdmissions/Services/ServerUUID.swift
+      - path: EVOAdmissions/Services/AuthMessagePolicy.swift
+      - path: EVOAdmissions/Services/CatalogPreparationModels.swift
+      - path: EVOAdmissions/Services/ApplicationRequirementsModels.swift
+      - path: EVOAdmissions/Services/ApplicationRequirementsV2Models.swift
+      - path: EVOAdmissions/Services/ApplicationDocumentModels.swift
+      - path: EVOAdmissions/Services/ApplicationPackageModels.swift
+      - path: EVOAdmissions/Services/ApplicationDocumentUpload.swift
       - path: ../src/lib/university-photo-library.json
         buildPhase: resources
       - path: ../src/lib/university-geo-library.json

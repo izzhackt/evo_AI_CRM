@@ -98,7 +98,7 @@ private struct ProgramPackagePreviewView: View {
                                     required: requirement.required, instructions: requirement.instructions, deadline: requirement.deadline)
                             }
                             if let file = selected.file { ProgramDocumentFileLabel(file: file) }
-                            ForEach(selected.reasons, id: \.rawValue) { Text(LocalizedStringKey("package_reason_\($0.rawValue)")).font(.footnote) }
+                            ForEach(selected.reasons, id: \.rawValue) { Text(LocalizedStringKey($0.labelKey)).font(.footnote) }
                         }.padding(.vertical, 4)
                     }
                     if ready.selections.isEmpty { Text("package_empty_composition") }
@@ -111,7 +111,7 @@ private struct ProgramPackagePreviewView: View {
                     } header: { Text("package_missing_required") }
                 }
                 if model.selection.missingOptionalFile(in: ready) { Text("package_optional_missing_file").font(.footnote) }
-                ForEach(ready.reasons, id: \.rawValue) { Text(LocalizedStringKey("package_reason_\($0.rawValue)")).font(.footnote) }
+                ForEach(ready.reasons, id: \.rawValue) { Text(LocalizedStringKey($0.labelKey)).font(.footnote) }
                 Button("package_submit") {
                     Task { await model.submit(session: session); if model.receipt != nil { dismiss() } }
                 }.buttonStyle(.borderedProminent).frame(minHeight: 44).disabled(!model.canSubmit)
@@ -155,15 +155,17 @@ struct ProgramPackageRecoveryView: View {
                         if model.hasMetadata(pending) {
                             Button("package_retry_same") { Task { await model.resolve(pending, retry: true, session: session) } }.frame(minHeight: 44)
                         }
-                        NavigationLink("program_document_open_program") { ProgramPreparationView(applicationId: UUID(uuidString: pending.intent.applicationId)!) }.frame(minHeight: 44)
+                        if let applicationId = ServerUUID.parse(pending.intent.applicationId) {
+                            NavigationLink("program_document_open_program") { ProgramPreparationView(applicationId: applicationId) }.frame(minHeight: 44)
+                        }
                         if model.busyRequest == pending.intent.requestId { ProgressView("prep_loading") }
                     } header: { Text("package_pending_submission") }
                     .disabled(model.busyRequest != nil)
                     .task(id: pending.intent.requestId) { await model.readMetadata(pending, session: session) }
                 }
                 if let notice = model.noticeKey { Text(LocalizedStringKey(notice)) }
-                if let receipt = model.receipt {
-                    NavigationLink("package_open_sent") { ProgramPackageDetailView(applicationId: UUID(uuidString: receipt.applicationId)!, packageId: receipt.packageId) }.frame(minHeight: 44)
+                if let receipt = model.receipt, let applicationId = ServerUUID.parse(receipt.applicationId) {
+                    NavigationLink("package_open_sent") { ProgramPackageDetailView(applicationId: applicationId, packageId: receipt.packageId) }.frame(minHeight: 44)
                 }
                 if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
                 Button("package_reload_pending") { model.load(context: session.context) }.frame(minHeight: 44).disabled(model.busyRequest != nil)
@@ -189,7 +191,7 @@ struct ProgramPackageSummaryLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(String(localized: "package_version", locale: locale) + " " + package.packageVersion).font(.headline)
-            Text(LocalizedStringKey((review ?? package.latestReview).map { "package_decision_" + $0.decision.rawValue } ?? "package_sent"))
+            Text(LocalizedStringKey((review ?? package.latestReview).map { $0.decision.labelKey } ?? "package_sent"))
             ProgramPackageTimestamp(raw: package.submittedAt)
             if package.origin == .evoStarter { Text("prep_starter_title").font(.footnote) }
             if !package.isCurrentRequirements { Text("package_previous_requirements").font(.footnote).foregroundStyle(.secondary) }

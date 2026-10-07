@@ -94,8 +94,8 @@ struct ProgramPreparationListSection: View {
                                 Text(preparation.selectedProgram?.title ?? preparation.content.name).font(.headline)
                                 Text(preparation.content.name).font(.subheadline).foregroundStyle(.secondary)
                                 if let intake = preparation.selectedIntake { Text(intake.label).font(.subheadline) }
-                                Text(LocalizedStringKey("prep_status_\(preparation.applicationStatus.rawValue)"))
-                                    .font(.footnote).foregroundStyle(.secondary)
+                                Text(LocalizedStringKey(preparation.applicationStatus.labelKey))
+                                    .font(.footnote).foregroundStyle(.secondaryText)
                             }
                             .padding(.vertical, 4)
                         }
@@ -141,7 +141,14 @@ struct ProgramPreparationView: View {
                     Text(preparation.selectedProgram?.title ?? preparation.content.name)
                         .font(.headline).accessibilityAddTraits(.isHeader)
                     Text(preparation.content.name).font(.subheadline)
-                    Text(LocalizedStringKey("prep_status_\(preparation.applicationStatus.rawValue)"))
+                    // «Статус: Подготовка», чтобы слово не повторяло заголовок
+                    // экрана «Подготовка» без пояснения.
+                    LabeledContent {
+                        Text(LocalizedStringKey(preparation.applicationStatus.labelKey))
+                            .foregroundStyle(.primary)
+                    } label: {
+                        Text("prep_status_label")
+                    }
                     if let intake = preparation.selectedIntake { UniversityIntakeView(intake: intake) }
                     if preparation.selection.deadlineStateAtSelection == .needsConfirmation {
                         Text("prep_deadline_confirmation").font(.footnote).foregroundStyle(.secondary)
@@ -265,7 +272,7 @@ struct ProgramPreparationView: View {
                             applicationId: applicationId, model: documentModel).disabled(packageModel.busy)
                     }
                     ForEach(item.unavailableReasons.filter { ["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"].contains($0.rawValue) }, id: \.rawValue) { reason in
-                        Text(LocalizedStringKey("prep_file_\(reason.rawValue)")).font(.footnote).foregroundStyle(.secondary)
+                        Text(LocalizedStringKey(reason.labelKey)).font(.footnote).foregroundStyle(.secondaryText)
                     }
                     if item.slotStatus != nil {
                         NavigationLink {

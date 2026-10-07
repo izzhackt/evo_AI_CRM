@@ -32,7 +32,7 @@ struct ProgramDocumentControls: View {
                     fileLabel(submission.file)
                     Text(timestampLabel(submission.submittedAt)).font(.footnote).foregroundStyle(.secondary)
                     if let review = submission.review {
-                        Text(LocalizedStringKey("prep_review_\(review.decision.rawValue)")).font(.subheadline)
+                        Text(LocalizedStringKey(review.decision.labelKey)).font(.subheadline)
                         if let reason = review.reason { Text(reason).font(.subheadline) }
                         Text(timestampLabel(review.reviewedAt)).font(.footnote).foregroundStyle(.secondary)
                     } else { Text("program_document_awaiting_review").font(.footnote) }
@@ -45,7 +45,7 @@ struct ProgramDocumentControls: View {
                         .font(.subheadline.weight(.semibold))
                     fileLabel(previous.file)
                     if let review = previous.submission?.review {
-                        Text(LocalizedStringKey("prep_review_\(review.decision.rawValue)"))
+                        Text(LocalizedStringKey(review.decision.labelKey))
                         if let reason = review.reason { Text(reason) }
                     }
                     Text("program_document_previous_not_current").font(.footnote).foregroundStyle(.secondary)
@@ -105,7 +105,7 @@ struct ProgramDocumentFileLabel: View {
             Text(file.file.originalFilename).font(.subheadline).textSelection(.enabled)
             Text(String(localized: "program_document_version", locale: locale) + " " + file.versionNo).font(.caption).foregroundStyle(.secondary)
             ForEach(file.unavailableReasons, id: \.rawValue) { reason in
-                Text(LocalizedStringKey("prep_file_\(reason.rawValue)")).font(.footnote).foregroundStyle(.secondary)
+                Text(LocalizedStringKey(reason.labelKey)).font(.footnote).foregroundStyle(.secondaryText)
             }
         }
     }
@@ -210,7 +210,7 @@ struct ProgramDocumentHistoryView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                     ProgramDocumentFileLabel(file: event.file)
                     if let review = event.submission?.review {
-                        Text(LocalizedStringKey("prep_review_\(review.decision.rawValue)"))
+                        Text(LocalizedStringKey(review.decision.labelKey))
                         if let reason = review.reason { Text(reason) }
                     }
                     Button("program_document_open_version") {
@@ -289,7 +289,7 @@ struct ProgramDocumentNotificationView: View {
             if let notification, let review = notification.submission.review {
                 Section {
                     ProgramDocumentFileLabel(file: notification.submission.file)
-                    Text(LocalizedStringKey("prep_review_\(review.decision.rawValue)")).font(.headline)
+                    Text(LocalizedStringKey(review.decision.labelKey)).font(.headline)
                     if let reason = review.reason { Text(reason) }
                     Text(PostgresTimestamp.date(from: review.reviewedAt)?.formatted(.dateTime.day().month().year().hour().minute().locale(locale)) ?? review.reviewedAt)
                         .font(.footnote).foregroundStyle(.secondary)
@@ -298,8 +298,10 @@ struct ProgramDocumentNotificationView: View {
                         Task { await model.preview(file: notification.submission.file, revisionId: notification.requirementsRevisionId,
                             itemId: notification.requirementItemId, slotId: notification.documentSlotId, session: session) }
                     }.frame(minHeight: 44).disabled(model.busy || notification.submission.file.technicalAvailability != .available)
-                    NavigationLink { ProgramPreparationView(applicationId: UUID(uuidString: notification.applicationId)!) } label: {
-                        Text("program_document_open_program").frame(minHeight: 44)
+                    if let applicationId = ServerUUID.parse(notification.applicationId) {
+                        NavigationLink { ProgramPreparationView(applicationId: applicationId) } label: {
+                            Text("program_document_open_program").frame(minHeight: 44)
+                        }
                     }
                 }
             }
@@ -320,7 +322,8 @@ struct ProgramDocumentNotificationView: View {
         do {
             let value = try await SupabaseService.shared.studentApplicationDocumentNotification(notificationId: notificationId, studentCaseId: context.scope.caseId)
             guard session.matches(context, generation: generation) else { return }
-            model.beginRead(context: context, applicationId: UUID(uuidString: value.applicationId)!)
+            guard let applicationId = ServerUUID.parse(value.applicationId) else { failed = true; return }
+            model.beginRead(context: context, applicationId: applicationId)
             notification = value
         } catch { if session.matches(context, generation: generation) { failed = true } }
     }

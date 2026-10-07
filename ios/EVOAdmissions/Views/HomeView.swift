@@ -251,7 +251,7 @@ struct HomeView: View {
                             ApplicationStatusView(router: router, application: application)
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(LocalizedStringKey("apply_status_\(application.status.rawValue)_title"))
+                                Text(LocalizedStringKey(application.status.titleKey))
                                     .font(.headline)
                                 Text("home_open_application").foregroundStyle(.secondary)
                             }

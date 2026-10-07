@@ -75,7 +75,7 @@ struct ProgramPackageDetailView: View {
                             ProgramPackageDefinitionView(definition: item.definition, material: item.materialSnapshot)
                             ProgramDocumentFileLabel(file: item.submission.file)
                             if let evidence = reviews.displayed?.documentReviews.first(where: { $0.requirementItemId == item.requirementItemId }), let review = evidence.review {
-                                Text(LocalizedStringKey("prep_review_\(review.decision.rawValue)"))
+                                Text(LocalizedStringKey(review.decision.labelKey))
                                 if let reason = review.reason { Text(reason) }
                                 ProgramPackageTimestamp(raw: review.reviewedAt)
                                 if evidence.reusedFromReview != nil { Text("package_reused_review").font(.footnote) }
@@ -84,7 +84,7 @@ struct ProgramPackageDetailView: View {
                             if reviewChanged(item: item, detail: detail) {
                                 Text("package_warning_review_changed").font(.footnote).foregroundStyle(.secondary)
                                 if let current = item.submission.review {
-                                    Text(LocalizedStringKey("prep_review_\(current.decision.rawValue)"))
+                                    Text(LocalizedStringKey(current.decision.labelKey))
                                     if let reason = current.reason { Text(reason) }
                                     ProgramPackageTimestamp(raw: current.reviewedAt)
                                 }
@@ -170,7 +170,7 @@ private struct ProgramPackageReviewSummary: View {
     let review: ApplicationPackageReview, items: [ApplicationPackageItem]
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(LocalizedStringKey("package_decision_\(review.decision.rawValue)")).font(.headline)
+            Text(LocalizedStringKey(review.decision.labelKey)).font(.headline)
             ProgramPackageTimestamp(raw: review.reviewedAt)
             if let reason = review.reason { Text(reason) }
             ForEach(review.affectedItemIds, id: \.self) { id in
@@ -229,8 +229,8 @@ struct ProgramPackageNotificationView: View {
     @State private var token = UUID()
     var body: some View {
         Group {
-            if visibleScope == session.context?.scope, let notification {
-                ProgramPackageDetailView(applicationId: UUID(uuidString: notification.applicationId)!, packageId: notification.packageId, historicalReview: notification.review)
+            if visibleScope == session.context?.scope, let notification, let applicationId = ServerUUID.parse(notification.applicationId) {
+                ProgramPackageDetailView(applicationId: applicationId, packageId: notification.packageId, historicalReview: notification.review)
             } else {
                 List {
                     if loading { ProgressView("prep_loading") }

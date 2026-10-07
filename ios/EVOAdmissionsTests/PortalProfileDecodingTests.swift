@@ -6,8 +6,8 @@ import XCTest
 ///   'displayName', 'email', 'portalLanguage', 'caseState',
 ///   'deletionRequestedAt')`; language COALESCEs to 'ru' (196:102)
 /// - `set_own_portal_language_v1` — 196:153 `{'portalLanguage': p_language}`
-/// - `request_account_deletion_v1` — 196:189-193 `{'requestId', 'status',
-///   'requestedAt'}`, status ∈ requested|acknowledged (CHECK 196:40-41).
+/// - `request_account_deletion_v2` / `own_account_deletion_request_v1` — 279
+///   `{'requestId', 'status', 'requestedAt', 'dueAt'}` or JSON null.
 final class PortalProfileDecodingTests: XCTestCase {
     func testDecodesFullProfile() throws {
         let fixture = """
@@ -71,24 +71,38 @@ final class PortalProfileDecodingTests: XCTestCase {
         XCTAssertEqual(receipt.portalLanguage, "ky")
     }
 
-    func testDecodesDeletionReceipt() throws {
-        // 196:189-193; a replay with a NEW request_id returns the ORIGINAL
-        // open request (196:176-182), so requestId may differ from the sent one.
+    func testDecodesOwnAccountDeletion() throws {
+        // 279: request_account_deletion_v2 / own_account_deletion_request_v1
+        // `{'requestId', 'status', 'requestedAt', 'dueAt'}`, due = request + 30 days.
         let fixture = """
         {
           "requestId": "7f6a1e9c-2b3d-4c5e-8f90-123456789abc",
           "status": "requested",
-          "requestedAt": "2026-09-19T09:00:00+00:00"
+          "requestedAt": "2026-10-07T10:00:00.5+00:00",
+          "dueAt": "2026-11-06T10:00:00.5+00:00"
         }
         """
-        let receipt = try JSONDecoder().decode(
-            AccountDeletionReceipt.self,
-            from: Data(fixture.utf8)
-        )
-        XCTAssertEqual(
-            receipt.requestId,
-            UUID(uuidString: "7f6a1e9c-2b3d-4c5e-8f90-123456789abc")
-        )
-        XCTAssertEqual(receipt.status, "requested")
+        let request = try JSONDecoder().decode(OwnAccountDeletion.self, from: Data(fixture.utf8))
+        XCTAssertEqual(request.requestId, UUID(uuidString: "7f6a1e9c-2b3d-4c5e-8f90-123456789abc"))
+        XCTAssertFalse(request.isProcessing)
+        XCTAssertEqual(AccountDeletionPolicy.dayLabel(from: request.requestedAt), "07.10.2026")
+        XCTAssertEqual(AccountDeletionPolicy.dayLabel(from: request.dueAt), "06.11.2026")
+    }
+
+    func testDecodesNoOpenAccountDeletionAsNil() throws {
+        // own_account_deletion_request_v1 returns JSON null without a request.
+        let request = try JSONDecoder().decode(OwnAccountDeletion?.self, from: Data("null".utf8))
+        XCTAssertNil(request)
+    }
+
+    func testProcessingAccountDeletion() throws {
+        let fixture = """
+        {"requestId": "7f6a1e9c-2b3d-4c5e-8f90-123456789abc", "status": "processing",
+         "requestedAt": "2026-10-07T23:30:00+00:00", "dueAt": "2026-11-06T23:30:00+00:00"}
+        """
+        let request = try JSONDecoder().decode(OwnAccountDeletion.self, from: Data(fixture.utf8))
+        XCTAssertTrue(request.isProcessing)
+        // 23:30 UTC is already the next day in Bishkek (UTC+6).
+        XCTAssertEqual(AccountDeletionPolicy.dayLabel(from: request.requestedAt), "08.10.2026")
     }
 }

@@ -321,13 +321,23 @@ final class SupabaseService {
             .value
     }
 
-    /// `platform.request_account_deletion_v1(p_request_id)` — идемпотентно по
-    /// request_id, максимум один ОТКРЫТЫЙ запрос на участника (196:159-194).
-    /// Ничего не удаляется этим вызовом — запрос уходит в staff-процесс.
-    func requestAccountDeletion(requestId: UUID) async throws -> AccountDeletionReceipt {
+    /// `platform.request_account_deletion_v2(p_request_id)` (migration 279):
+    /// any signed-in account that is not staff, including an анкета without
+    /// approval. Idempotent by request_id, one open request per account; the
+    /// EVO team deletes the account and personal data within 30 days.
+    func requestAccountDeletion(requestId: UUID) async throws -> OwnAccountDeletion {
         struct Params: Encodable, Sendable { let p_request_id: UUID }
         return try await client
-            .rpc("request_account_deletion_v1", params: Params(p_request_id: requestId))
+            .rpc("request_account_deletion_v2", params: Params(p_request_id: requestId))
+            .execute()
+            .value
+    }
+
+    /// `platform.own_account_deletion_request_v1()` (migration 279): the open
+    /// request of this account or JSON null.
+    func ownAccountDeletionRequest() async throws -> OwnAccountDeletion? {
+        try await client
+            .rpc("own_account_deletion_request_v1")
             .execute()
             .value
     }

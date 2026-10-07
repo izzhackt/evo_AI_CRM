@@ -3,6 +3,7 @@ import SwiftUI
 struct AccessPendingView: View {
     @ObservedObject var router: SessionRouter
     @State private var isRetrying = false
+    @State private var showsDeletion = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -46,7 +47,19 @@ struct AccessPendingView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
+
+            // 279: удалить аккаунт можно и до готовности доступа.
+            Button("account_deletion_action") {
+                showsDeletion = true
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.red)
+            .frame(minHeight: 44)
+            .accessibilityIdentifier("account-deletion-open")
         }
         .padding(32)
+        .sheet(isPresented: $showsDeletion) {
+            AccountDeletionSheet()
+        }
     }
 }

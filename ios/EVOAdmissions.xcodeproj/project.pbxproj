@@ -17,6 +17,7 @@
 		1222A15119C6462E6410FCFF /* PortalCaseChatDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B689B5D15EBAEBDE59C83A64 /* PortalCaseChatDecodingTests.swift */; };
 		13ECC54C2538C82C8D6041D4 /* AdmissionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0754946AA1F39422CD49E6 /* AdmissionPolicyTests.swift */; };
 		1562156C0AA72ABE83543FA6 /* AccessPendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036B63945D738592B84D329 /* AccessPendingView.swift */; };
+		A8810B1C44AF2230B6254FB5 /* AccountDeletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B3DD30AA0B9A1A8EC1C6A90 /* AccountDeletionView.swift */; };
 		16CCE941413181944BF10D95 /* AssessmentResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280E923C4B1D8CC4E01905E0 /* AssessmentResultView.swift */; };
 		18286AF5B327A304BAE546DB /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6054711F5C4F26BE7B0903F9 /* ProfileView.swift */; };
 		1BDC9CAAAABDAA7C6E7FA15B /* UniversityMapPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D0DCF549065FDBFC3000A7 /* UniversityMapPolicy.swift */; };
@@ -164,6 +165,7 @@
 		4D66D111BD4BE6F0AFF76ADC /* MyAdmissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyAdmissionView.swift; sourceTree = "<group>"; };
 		4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkErrorView.swift; sourceTree = "<group>"; };
 		5036B63945D738592B84D329 /* AccessPendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessPendingView.swift; sourceTree = "<group>"; };
+		7B3DD30AA0B9A1A8EC1C6A90 /* AccountDeletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionView.swift; sourceTree = "<group>"; };
 		52284855EA9141A0DE454113 /* ApplicationDocumentUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationDocumentUpload.swift; sourceTree = "<group>"; };
 		54AA13F5351C06938BB99E9E /* TestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestsView.swift; sourceTree = "<group>"; };
 		6054711F5C4F26BE7B0903F9 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
@@ -249,6 +251,7 @@
 			isa = PBXGroup;
 			children = (
 				5036B63945D738592B84D329 /* AccessPendingView.swift */,
+				7B3DD30AA0B9A1A8EC1C6A90 /* AccountDeletionView.swift */,
 				2E398B3E2F9B79A923367AEB /* AdmissionDocumentsView.swift */,
 				CA3BFC92CF9E0C2AB6E27D16 /* AdmissionNotificationsView.swift */,
 				A4ACE09B251B10B667AC566E /* AdmissionPaymentsView.swift */,
@@ -597,6 +600,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1562156C0AA72ABE83543FA6 /* AccessPendingView.swift in Sources */,
+				A8810B1C44AF2230B6254FB5 /* AccountDeletionView.swift in Sources */,
 				63B6F85BC6BFCBFC7A3065C1 /* AdmissionDocumentsView.swift in Sources */,
 				FAF4CEEC8998AE6A768EF3AF /* AdmissionModels.swift in Sources */,
 				B15EAF7230531E1A6751767C /* AdmissionNotificationsView.swift in Sources */,

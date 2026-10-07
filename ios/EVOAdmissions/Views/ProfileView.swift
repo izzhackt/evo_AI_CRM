@@ -1,13 +1,12 @@
 import SwiftUI
 
-/// Профиль (миграции 196/197): данные аккаунта, язык портала RU/KY,
+/// Профиль (миграции 196/197/279): данные аккаунта, язык портала RU/KY,
 /// личные результаты тестов, консультация с историей своих запросов,
-/// выход и инициирование удаления аккаунта (App Store §5.1.1(v)).
+/// выход и удаление аккаунта (App Store §5.1.1(v)).
 ///
 /// Честные состояния: язык считается сохранённым только после receipt
-/// сервера; «запрос удаления отправлен» переживает перезапуск, потому что
-/// приходит из `get_own_portal_profile_v1.deletionRequestedAt`, а не из
-/// локального флага.
+/// сервера; статус запроса на удаление приходит с сервера
+/// (`own_account_deletion_request_v1`, 279), а не из локального флага.
 @MainActor
 final class ProfileViewModel: ObservableObject {
     enum LanguageState: Equatable {
@@ -15,12 +14,6 @@ final class ProfileViewModel: ObservableObject {
         case saving
         case saved
         case failed
-    }
-
-    enum DeletionState: Equatable {
-        case sending
-        case failed
-        case idle
     }
 
     @Published var profile: PortalProfile?
@@ -34,11 +27,6 @@ final class ProfileViewModel: ObservableObject {
     /// every successful `saveLanguage()` so switching back after a save
     /// doesn't require a relaunch.
     @Published var lastSavedLanguage = "ru"
-
-    /// Отметка открытого запроса удаления: серверная (из профиля) или
-    /// только что полученная receipt'ом. nil — открытого запроса нет.
-    @Published var deletionRequestedAt: String?
-    @Published var deletionState: DeletionState = .idle
 
     @Published var consultationHistory: [ConsultationReceipt] = []
     @Published var historyLoadFailed = false
@@ -58,7 +46,6 @@ final class ProfileViewModel: ObservableObject {
             self.profile = profile
             selectedLanguage = profile.portalLanguage
             lastSavedLanguage = profile.portalLanguage
-            deletionRequestedAt = profile.deletionRequestedAt
         } catch {
             profileLoadFailed = true
         }
@@ -91,20 +78,6 @@ final class ProfileViewModel: ObservableObject {
             languageState = .failed
         }
     }
-
-    /// Кнопка — ЗАПРОС команде (196): здесь ничего не удаляется. Идемпотентно
-    /// по request_id; при уже открытом запросе сервер возвращает его receipt.
-    func requestDeletion() async {
-        guard deletionState != .sending else { return }
-        deletionState = .sending
-        do {
-            let receipt = try await service.requestAccountDeletion(requestId: UUID())
-            deletionRequestedAt = receipt.requestedAt
-            deletionState = .idle
-        } catch {
-            deletionState = .failed
-        }
-    }
 }
 
 struct ProfileView: View {
@@ -115,7 +88,7 @@ struct ProfileView: View {
     @State private var sessionEmail: String?
     @State private var isSigningOut = false
     @State private var showsConsultationSheet = false
-    @State private var showsDeletionConfirm = false
+    @StateObject private var deletion = AccountDeletionModel()
 
     private var accessStatusKey: LocalizedStringKey {
         switch session.portalCase.caseState {
@@ -144,7 +117,7 @@ struct ProfileView: View {
                 consultationSection
                 appSection
                 sessionSection
-                deletionSection
+                AccountDeletionContent(model: deletion)
             }
             .navigationTitle("tab_profile")
             .task {
@@ -153,24 +126,16 @@ struct ProfileView: View {
                 // запроса удаления.
                 sessionEmail = try? await SupabaseService.shared.client.auth.session.user.email
                 await model.load()
+                await deletion.load()
             }
-            .refreshable { await model.load() }
+            .refreshable {
+                await model.load()
+                await deletion.load()
+            }
             .sheet(isPresented: $showsConsultationSheet, onDismiss: {
                 Task { await model.loadHistory() }
             }) {
                 ConsultationRequestSheet(institutionId: nil, institutionName: nil)
-            }
-            .confirmationDialog(
-                "profile_delete_heading",
-                isPresented: $showsDeletionConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("profile_delete_confirm", role: .destructive) {
-                    Task { await model.requestDeletion() }
-                }
-                Button("cancel_button", role: .cancel) {}
-            } message: {
-                Text("profile_delete_description")
             }
         }
     }
@@ -308,51 +273,6 @@ struct ProfileView: View {
             .disabled(isSigningOut)
             // A11y (9b): во время выхода label — ProgressView.
             .accessibilityLabel(Text("sign_out_button"))
-        }
-    }
-
-    private var deletionSection: some View {
-        Section {
-            if let requestedAt = model.deletionRequestedAt {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("profile_delete_requested", systemImage: "checkmark.circle")
-                        .font(.subheadline)
-                        .motionBounceOnAppear()
-                    if let date = PostgresTimestamp.dayLabel(
-                        from: requestedAt,
-                        locale: AppLocale.current
-                    ) {
-                        Text(String(
-                            format: String(localized: "consultation_history_date"),
-                            date
-                        ))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    }
-                }
-            } else {
-                Button(role: .destructive) {
-                    showsDeletionConfirm = true
-                } label: {
-                    if model.deletionState == .sending {
-                        ProgressView()
-                    } else {
-                        Text("profile_delete_confirm")
-                    }
-                }
-                .disabled(model.deletionState == .sending || model.profileLoadFailed)
-                // A11y (9b): во время отправки label — ProgressView.
-                .accessibilityLabel(Text("profile_delete_confirm"))
-                if model.deletionState == .failed {
-                    Text("profile_delete_error")
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-            }
-        } header: {
-            Text("profile_delete_heading")
-        } footer: {
-            Text("profile_delete_description")
         }
     }
 }

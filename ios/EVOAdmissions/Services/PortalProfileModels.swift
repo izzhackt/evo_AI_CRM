@@ -28,14 +28,32 @@ struct PortalLanguageReceipt: Decodable {
     let portalLanguage: String
 }
 
-/// `platform.request_account_deletion_v1` receipt (196:189-193):
-/// `jsonb_build_object('requestId', …, 'status', …, 'requestedAt', …)`.
-/// `status` is 'requested' | 'acknowledged' (CHECK, 196:40-41). Nothing is
-/// deleted by this call — it opens a request for the staff process.
-struct AccountDeletionReceipt: Decodable {
+/// `platform.request_account_deletion_v2` receipt and
+/// `platform.own_account_deletion_request_v1` (migration 279):
+/// `{'requestId', 'status', 'requestedAt', 'dueAt'}`. `status` is
+/// 'requested' (196's 'acknowledged' is reported as 'requested') or
+/// 'processing'; a completed request is never returned, the account is gone.
+/// `dueAt` is the request + 30 days (owner decision 07.10.2026).
+struct OwnAccountDeletion: Decodable, Equatable {
     let requestId: UUID
     let status: String
     let requestedAt: String
+    let dueAt: String
+
+    var isProcessing: Bool { status == "processing" }
+}
+
+/// Dates of the deletion screen: «06.11.2026» in the organization's
+/// timezone (Asia/Bishkek), the same numeric form the web cabinet shows.
+enum AccountDeletionPolicy {
+    static func dayLabel(from raw: String) -> String? {
+        guard let date = PostgresTimestamp.date(from: raw) else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.timeZone = TimeZone(identifier: "Asia/Bishkek")
+        formatter.dateFormat = "dd.MM.yyyy"
+        return formatter.string(from: date)
+    }
 }
 
 /// Pure predicate for ProfileView's "save language" button visibility.

@@ -12,6 +12,7 @@ import * as callback from "../src/lib/student-invite-callback-contract.ts";
 import * as routes from "../src/lib/platform-route-contract.ts";
 import * as origins from "../src/lib/platform-public-origin.ts";
 import * as requestIds from "../src/lib/request-id.ts";
+import * as accountDeletion from "../src/lib/account-deletion-contract.ts";
 
 const REQUEST = "10000000-0000-4000-8000-000000000001";
 const USER = "10000000-0000-4000-8000-000000000002";
@@ -301,6 +302,7 @@ function proxyHarness({ claimsError = null } = {}) {
     "@/lib/platform-route-contract": routes,
     "@/lib/platform-public-origin": origins,
     "@/lib/request-id": requestIds,
+    "@/lib/account-deletion-contract": accountDeletion,
     "@/lib/student-invite-callback-contract": callback,
     "@/lib/student-signup-confirmation-contract": signupContract,
     "@/lib/supabase/config": { getSupabasePublicConfig: () => ({ url: "https://supabase.example.test", publishableKey: "synthetic-public-key" }) },
@@ -358,6 +360,30 @@ test("actual proxy forwards rotated cookies to the browser and downstream reques
       ? ["createClient", "getClaims", "staffAuthority", "studentAuthority"]
       : ["createClient", "getClaims"]);
   }
+});
+
+// Ревью 279, п. 4: Auth отвечает user_not_found (аккаунт удалён), прокси ведёт
+// страницы на /auth/account-deleted, а сам этот путь открывает без проверки сессии.
+test("actual proxy sends a deleted account's session to the sign-out route and opens that route without a session gate", async () => {
+  const deleted = { message: "User from sub claim in JWT does not exist", code: "user_not_found", status: 403 };
+  for (const path of ["/apply", "/apply/status", "/auth/account-pending", "/portal"]) {
+    const run = proxyHarness({ claimsError: deleted });
+    const response = await run.proxy(publicRequest(path, { cookie: "sb-test-auth-token=expired-cookie" }));
+    assert.equal(response.status, 307, path);
+    assert.equal(new URL(response.headers.get("location")).pathname, "/auth/account-deleted", path);
+  }
+  const other = proxyHarness({ claimsError: { message: "session refresh failed" } });
+  const invalid = await other.proxy(publicRequest("/apply/status", { cookie: "sb-test-auth-token=expired-cookie" }));
+  assert.equal(new URL(invalid.headers.get("location")).pathname, "/login", "any other Auth error keeps the sign-in route");
+  const api = await proxyHarness({ claimsError: deleted }).proxy(publicRequest("/api/v3/notifications", { cookie: "sb-test-auth-token=expired-cookie" }));
+  assert.notEqual(api.status, 307, "APIs never redirect");
+  const route = proxyHarness({ claimsError: deleted });
+  const open = await route.proxy(publicRequest("/auth/account-deleted", { cookie: "sb-test-auth-token=expired-cookie" }));
+  assert.equal(open.status, 200);
+  assert.equal(open.headers.get("x-middleware-next"), "1");
+  assert.deepEqual(route.calls, [], "the route handler asks Auth itself");
+  const post = await route.proxy(publicRequest("/auth/account-deleted", { method: "POST" }));
+  assert.equal(post.status, 405);
 });
 
 test("actual callback proxy establishes CSRF before authority and never refreshes stale Auth over a new callback", async () => {

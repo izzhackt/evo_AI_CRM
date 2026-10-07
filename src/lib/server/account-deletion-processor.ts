@@ -20,11 +20,14 @@ import { sendAccountDeletionMail } from "./account-deletion-mail.ts";
  *  4. письмо, если почта настроена;
  *  5. `complete_account_deletion_v1`: база сама проверяет, что аккаунта и
  *     файлов больше нет, и только тогда пишет «выполнено».
+ * amoCRM вне базы: если обработка нашла связи с amoCRM, без отметки Admin
+ * «Контакт и сделка в amoCRM удалены» запуск останавливается сразу после
+ * шага базы (до файлов, входа и письма); отметка уходит в шаг 5.
  * Сбой на шаге оставляет запрос «в обработке»; кнопка «Повторить» запускает
  * всё заново, база и Storage дают тот же результат.
  */
 
-export type AccountDeletionRunStep = "process" | "config" | "storage" | "auth" | "complete";
+export type AccountDeletionRunStep = "process" | "amocrm" | "config" | "storage" | "auth" | "complete";
 
 export type AccountDeletionRunResult =
   | Readonly<{ status: "completed"; emailStatus: ConfirmationEmailStatus | null }>
@@ -61,12 +64,14 @@ export async function runAccountDeletion(
   requestRowId: string,
   requestedAt: string | null,
   services: AccountDeletionServices,
+  amocrmErased = false,
 ): Promise<AccountDeletionRunResult> {
   const processedResponse = await services.session.schema("platform")
     .rpc("process_account_deletion_v1", { p_id: requestRowId });
   const processed = processedResponse.error ? null : parseAccountDeletionProcessed(processedResponse.data);
   if (!processed) return { status: "failed", step: "process" };
   if (processed.status === "completed") return { status: "completed", emailStatus: null };
+  if (processed.amocrmContacts > 0 && !amocrmErased) return { status: "failed", step: "amocrm" };
 
   let service: SupabaseClient;
   try {
@@ -92,7 +97,9 @@ export async function runAccountDeletion(
   });
 
   const completed = await services.session.schema("platform")
-    .rpc("complete_account_deletion_v1", { p_id: requestRowId, p_confirmation_email_status: emailStatus });
+    .rpc("complete_account_deletion_v1", {
+      p_id: requestRowId, p_confirmation_email_status: emailStatus, p_amocrm_erased: amocrmErased,
+    });
   if (completed.error) return { status: "failed", step: "complete" };
   return { status: "completed", emailStatus };
 }

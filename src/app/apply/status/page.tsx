@@ -13,6 +13,7 @@ import { studentApplicationEntryRedirect } from "@/lib/server/student-signup-run
 import { readVerifiedStudentPortalAuthority } from "@/lib/supabase/student-portal-authority";
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
 import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
+import { ACCOUNT_DELETED_PATH, isDeletedAuthUserError } from "@/lib/account-deletion-contract";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: { absolute: "Моя заявка | EVO Admissions" }, robots: { index: false, follow: false } };
@@ -20,6 +21,8 @@ export const metadata = { title: { absolute: "Моя заявка | EVO Admissio
 export default async function ApplicationStatusPage() {
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
+  // 279 (ревью п. 4): аккаунт удалён, в браузере осталась его сессия.
+  if (isDeletedAuthUserError(error)) redirect(ACCOUNT_DELETED_PATH);
   if (error || !data.user?.email_confirmed_at) redirect("/login");
   const destination = await studentApplicationEntryRedirect(client, data.user);
   if (destination === "/portal") {

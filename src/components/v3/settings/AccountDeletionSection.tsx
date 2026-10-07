@@ -28,6 +28,7 @@ const DELETE_WORDS: Readonly<Record<string, string>> = {
   documents: "Документы",
   files: "Файлы в хранилище",
   chatMessages: "Сообщения в кабинете",
+  whatsappChats: "Переписка WhatsApp с отделом продаж и данные ИИ",
   notifications: "Уведомления",
   testAnswers: "Ответы на тесты и уроки",
   consultations: "Запросы консультаций",
@@ -43,7 +44,6 @@ const ANONYMIZE_WORDS: Readonly<Record<string, string>> = {
   salesRecords: "Строка в отчёте продаж",
 };
 const REMAIN_WORDS: Readonly<Record<string, string>> = {
-  whatsappChats: "Переписка WhatsApp с отделом продаж",
   amocrmContacts: "Контакт и сделка в amoCRM",
   sharedClients: "Клиент, у которого есть дело другого человека",
 };
@@ -283,14 +283,13 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
             testId="v3-deletion-remain"
           />
           {Object.values(d.counts.remain).some((value) => value > 0) ? (
-            <p className="t-meta mt-2 text-fg-2">Эти данные нужно удалить отдельно: в WhatsApp, в amoCRM или в деле другого человека.</p>
+            <p className="t-meta mt-2 text-fg-2">Эти данные нужно удалить отдельно: в amoCRM или в деле другого человека.</p>
           ) : null}
         </div>
       </div>
       <p className="t-meta max-w-[70ch] text-fg-2">
-        Остаётся обезличенным: имя заменяется на «{d.status === "completed" ? d.displayName : "Удалённый пользователь"}»
-        и номер запроса; телефон, email, заметки и номера документов удаляются; суммы, валюта, даты, услуга и номер
-        договора сохраняются, как требует закон.
+        Остаётся обезличенным: имя заменяется на «Удалённый пользователь · номер запроса»; телефон, email, заметки
+        и номера документов удаляются; суммы, валюта, даты, услуга и номер договора сохраняются, как требует закон.
       </p>
 
       {d.status !== "completed" ? (
@@ -299,6 +298,7 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
           requestedAt={d.requestedAt}
           displayName={d.displayName}
           retry={d.status === "processing"}
+          amocrmContacts={d.amocrmContacts}
         />
       ) : null}
     </div>

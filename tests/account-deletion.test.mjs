@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
+  ACCOUNT_DELETED_NOTICE,
+  ACCOUNT_DELETED_PATH,
   accountDeletionDaysLeft,
+  isDeletedAuthUserError,
   parseAccountDeletionDetail,
   parseAccountDeletionProcessed,
   parseAccountDeletionQueue,
@@ -59,17 +62,25 @@ test("staff queue and detail parse strictly", () => {
     completedBy: null,
     pendingFiles: 0,
     authAccountExists: true,
-    counts: { delete: { documents: 2 }, anonymize: { cases: 1 }, remain: { whatsappChats: 0 } },
+    counts: { delete: { documents: 2, whatsappChats: 1 }, anonymize: { cases: 1 }, remain: { amocrmContacts: 1 } },
+    amocrmContacts: 1,
   };
   assert.deepEqual(parseAccountDeletionDetail(detail)?.counts, {
-    delete: { documents: 2 }, anonymize: { cases: 1 }, remain: { whatsappChats: 0 }, deleted: null,
+    delete: { documents: 2, whatsappChats: 1 }, anonymize: { cases: 1 }, remain: { amocrmContacts: 1 }, deleted: null,
   });
+  assert.equal(parseAccountDeletionDetail(detail)?.amocrmContacts, 1);
   assert.equal(parseAccountDeletionDetail({ ...detail, counts: { delete: { documents: -1 }, anonymize: {}, remain: {} } }), null);
+  const withoutAmocrm = { ...detail };
+  delete withoutAmocrm.amocrmContacts;
+  assert.equal(parseAccountDeletionDetail(withoutAmocrm), null, "the amoCRM link count is part of the detail");
 });
 
 test("processing result refuses path tricks in Storage keys", () => {
   const ok = { id: ID, status: "processing", authUserId: ID, email: "a@b.cd", storageObjects: [{ bucket: "platform-documents", name: "a1/bb" }], summary: {} };
   assert.equal(parseAccountDeletionProcessed(ok)?.storageObjects.length, 1);
+  assert.equal(parseAccountDeletionProcessed(ok)?.amocrmContacts, 0);
+  assert.equal(parseAccountDeletionProcessed({ ...ok, summary: { remain: { amocrmContacts: 2 } } })?.amocrmContacts, 2);
+  assert.equal(parseAccountDeletionProcessed({ ...ok, summary: { remain: { amocrmContacts: "2" } } }), null);
   assert.equal(parseAccountDeletionProcessed({ ...ok, storageObjects: [{ bucket: "platform-documents", name: "../x" }] }), null);
   assert.equal(parseAccountDeletionProcessed({ ...ok, authUserId: "nope" }), null);
 });
@@ -139,7 +150,16 @@ test("processor: database, files, Auth user, mail, completion; a failure names i
     "process_account_deletion_v1", "remove", "deleteUser", "complete_account_deletion_v1",
   ]);
   assert.deepEqual(ok.log[1], ["remove", "platform-documents", ["a1/x", "a1/y"]]);
-  assert.deepEqual(ok.log[3][2], { p_id: ID, p_confirmation_email_status: "not_configured" });
+  assert.deepEqual(ok.log[3][2], { p_id: ID, p_confirmation_email_status: "not_configured", p_amocrm_erased: false });
+
+  // amoCRM links: without the Admin's confirmation nothing past the database step runs.
+  const linked = { ...processed, summary: { remain: { amocrmContacts: 1 } } };
+  const unconfirmed = fakes({ processed: linked });
+  assert.deepEqual(await runAccountDeletion(ID, null, unconfirmed.services), { status: "failed", step: "amocrm" });
+  assert.deepEqual(unconfirmed.log.map((entry) => entry[0] === "rpc" ? entry[1] : entry[0]), ["process_account_deletion_v1"]);
+  const confirmed = fakes({ processed: linked });
+  assert.equal((await runAccountDeletion(ID, null, confirmed.services, true)).status, "completed");
+  assert.equal(confirmed.log.at(-1)[2].p_amocrm_erased, true);
 
   const storage = fakes({ processed, removeError: { message: "x" } });
   assert.deepEqual(await runAccountDeletion(ID, null, storage.services), { status: "failed", step: "storage" });
@@ -166,6 +186,7 @@ test("wiring: settings section, applicant screens and service-role use stay wher
   assert.match(action, /^"use server";/u);
   assert.match(action, /isStaffPreview\(actor\)/u, "the role preview never deletes");
   assert.match(action, /ACCOUNT_DELETION_CONFIRM_WORD/u);
+  assert.match(action, /"amocrm_erased"/u, "the amoCRM confirmation travels with the form");
   for (const page of ["src/app/apply/status/page.tsx", "src/app/apply/page.tsx", "src/app/auth/account-pending/page.tsx",
     "src/app/(portal)/portal/profile/page.tsx"]) {
     assert.match(source(page), /<AccountDeletionPanel/u, page);
@@ -174,4 +195,33 @@ test("wiring: settings section, applicant screens and service-role use stay wher
   const processor = source("src/lib/server/account-deletion-processor.ts");
   assert.match(processor, /^import "server-only";/u);
   assert.doesNotMatch(processor, /service\.schema|service\.rpc|service\.from\(/u);
+});
+
+// Ревью 279, п. 4: старая сессия удалённого аккаунта ведёт на вход с «Аккаунт удалён».
+test("deleted account session: user_not_found, sign-out route, proxy and screens", () => {
+  assert.equal(isDeletedAuthUserError({ code: "user_not_found", status: 403 }), true);
+  for (const other of [null, undefined, {}, { code: "session_not_found" }, { name: "AuthSessionMissingError" }, "user_not_found"]) {
+    assert.equal(isDeletedAuthUserError(other), false, JSON.stringify(other));
+  }
+  assert.equal(ACCOUNT_DELETED_PATH, "/auth/account-deleted");
+  const route = source("src/app/auth/account-deleted/route.ts");
+  assert.match(route, /export async function GET/u);
+  assert.doesNotMatch(route, /export async function (POST|PUT|DELETE|PATCH)/u);
+  assert.match(route, /sessionAccountDeleted\(client\)/u, "only a user Auth no longer knows is signed out");
+  assert.match(route, /signOut\(\{ scope: "local" \}\)/u);
+  assert.match(route, /notice=\$\{ACCOUNT_DELETED_NOTICE\}/u);
+  assert.equal(ACCOUNT_DELETED_NOTICE, "account_deleted");
+  const proxy = source("src/proxy.ts");
+  assert.ok(proxy.indexOf("path === ACCOUNT_DELETED_PATH") < proxy.indexOf("await liveSessionState(request, requestHeaders);"),
+    "the sign-out route opens before the session gate");
+  assert.match(proxy, /accountDeleted: isDeletedAuthUserError\(error\)/u);
+  for (const page of ["src/app/apply/page.tsx", "src/app/apply/status/page.tsx"]) {
+    assert.match(source(page), /if \(isDeletedAuthUserError\(error\)\) redirect\(ACCOUNT_DELETED_PATH\);/u, page);
+  }
+  assert.match(source("src/app/auth/account-pending/page.tsx"),
+    /catch \(error\) \{\n    if \(await sessionAccountDeleted\(\)\) redirect\(ACCOUNT_DELETED_PATH\);\n    throw error;/u);
+  const login = source("src/app/login/page.tsx");
+  assert.match(login, /accountDeleted: "Аккаунт удалён\."/u);
+  assert.match(login, /accountDeleted: "Аккаунт өчүрүлдү\."/u);
+  assert.match(login, /role="status"/u);
 });

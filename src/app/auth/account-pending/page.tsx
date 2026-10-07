@@ -9,6 +9,8 @@ import { readVerifiedStudentInviteSession } from "@/lib/server/student-invite-se
 import { resolveStudentPortalActor } from "@/lib/student-portal-auth";
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
 import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
+import { sessionAccountDeleted } from "@/lib/account-deletion/deleted-session";
+import { ACCOUNT_DELETED_PATH } from "@/lib/account-deletion-contract";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 
@@ -29,7 +31,16 @@ export default async function StudentAccountPendingPage() {
     redirect("/login?error=auth_unavailable");
   }
 
-  const application = await readOwnStudentApplication();
+  // 279 (ревью п. 4): у удалённого аккаунта чтение анкеты отвечает
+  // «forbidden»; Auth подтверждает удаление, и браузер уходит на вход с
+  // «Аккаунт удалён» вместо ошибки 500.
+  let application;
+  try {
+    application = await readOwnStudentApplication();
+  } catch (error) {
+    if (await sessionAccountDeleted()) redirect(ACCOUNT_DELETED_PATH);
+    throw error;
+  }
   if (application) redirect("/apply/status");
 
   let inviteSession;

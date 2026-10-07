@@ -15,6 +15,7 @@ import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { studentApplicationEntryRedirect } from "@/lib/server/student-signup-runtime";
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
 import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
+import { ACCOUNT_DELETED_PATH, isDeletedAuthUserError } from "@/lib/account-deletion-contract";
 import { getPortalStrings } from "@/lib/portal/i18n";
 
 /**
@@ -40,6 +41,8 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
   const [query, locale, theme] = await Promise.all([searchParams, getLocale(), readRequestTheme()]);
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
+  // 279 (ревью п. 4): аккаунт удалён, в браузере осталась его сессия.
+  if (isDeletedAuthUserError(error)) redirect(ACCOUNT_DELETED_PATH);
   if (error && error.name !== "AuthSessionMissingError") throw new Error("Student registration is unavailable.");
   let draft = null;
   let email = null;

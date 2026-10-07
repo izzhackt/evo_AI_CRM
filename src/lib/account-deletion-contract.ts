@@ -13,6 +13,19 @@ export const ACCOUNT_DELETION_DAYS = 30;
 /** Слово для подтверждения удаления в CRM (вводится вручную). */
 export const ACCOUNT_DELETION_CONFIRM_WORD = "удалить";
 
+/**
+ * Браузер со старой сессией удалённого аккаунта (ревью 279, п. 4): этот
+ * маршрут спрашивает Auth, и если пользователя нет, выходит локально и ведёт
+ * на `/login?notice=account_deleted` («Аккаунт удалён»).
+ */
+export const ACCOUNT_DELETED_PATH = "/auth/account-deleted";
+export const ACCOUNT_DELETED_NOTICE = "account_deleted";
+
+/** Ошибка Supabase Auth «пользователя из токена больше нет» (`user_not_found`). */
+export function isDeletedAuthUserError(error: unknown): boolean {
+  return error !== null && typeof error === "object" && (error as { code?: unknown }).code === "user_not_found";
+}
+
 export type OwnAccountDeletion = Readonly<{
   requestId: string;
   status: "requested" | "processing";
@@ -52,6 +65,8 @@ export type AccountDeletionDetail = AccountDeletionQueueRow & Readonly<{
   pendingFiles: number;
   authAccountExists: boolean;
   counts: AccountDeletionCounts;
+  /** Связи с amoCRM (первой обработки или сейчас): нужна отметка Admin. */
+  amocrmContacts: number;
 }>;
 
 export type AccountDeletionStorageObject = Readonly<{ bucket: string; name: string }>;
@@ -62,6 +77,12 @@ export type AccountDeletionProcessed = Readonly<{
   authUserId: string | null;
   email: string | null;
   storageObjects: readonly AccountDeletionStorageObject[];
+  /**
+   * Связи с amoCRM, найденные первой обработкой (`summary.remain`). Больше
+   * нуля: завершить можно только с отметкой Admin, что контакт и сделка в
+   * amoCRM удалены (база проверяет это сама).
+   */
+  amocrmContacts: number;
 }>;
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -155,7 +176,8 @@ export function parseAccountDeletionDetail(value: unknown): AccountDeletionDetai
     || !(row.processingStartedBy === null || typeof row.processingStartedBy === "string")
     || !(row.completedBy === null || typeof row.completedBy === "string")
     || typeof row.pendingFiles !== "number" || !Number.isInteger(row.pendingFiles) || row.pendingFiles < 0
-    || typeof row.authAccountExists !== "boolean") return null;
+    || typeof row.authAccountExists !== "boolean"
+    || typeof row.amocrmContacts !== "number" || !Number.isInteger(row.amocrmContacts) || row.amocrmContacts < 0) return null;
   return {
     ...base,
     processingStartedBy: row.processingStartedBy as string | null,
@@ -163,6 +185,7 @@ export function parseAccountDeletionDetail(value: unknown): AccountDeletionDetai
     pendingFiles: row.pendingFiles,
     authAccountExists: row.authAccountExists,
     counts: { delete: del, anonymize, remain, deleted },
+    amocrmContacts: row.amocrmContacts,
   };
 }
 
@@ -178,9 +201,12 @@ export function parseAccountDeletionProcessed(value: unknown): AccountDeletionPr
       || object.bucket === "" || object.name === "" || object.name.includes("..")) return null;
     objects.push({ bucket: object.bucket, name: object.name });
   }
+  const remain = record(record(row.summary)?.remain);
+  const amocrm = remain?.amocrmContacts ?? 0;
+  if (typeof amocrm !== "number" || !Number.isInteger(amocrm) || amocrm < 0) return null;
   return {
     id: row.id, status: row.status, authUserId: row.authUserId as string | null,
-    email: row.email as string | null, storageObjects: objects,
+    email: row.email as string | null, storageObjects: objects, amocrmContacts: amocrm,
   };
 }
 

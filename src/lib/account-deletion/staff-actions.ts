@@ -9,17 +9,19 @@ import { exactActionStringFields } from "../server/action-form-fields";
 
 export type AccountDeletionProcessState = Readonly<{
   status: "idle" | "completed" | "failed" | "invalid" | "forbidden";
-  step: "process" | "config" | "storage" | "auth" | "complete" | null;
+  step: "process" | "amocrm" | "config" | "storage" | "auth" | "complete" | null;
   emailStatus: ConfirmationEmailStatus | null;
 }>;
 
-const FIELDS = ["request_row_id", "requested_at", "confirm"] as const;
+const FIELDS = ["request_row_id", "requested_at", "confirm", "amocrm_erased"] as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 /**
  * «Удалить аккаунт и данные» в «Настройках» (миграция 279). Подтверждение —
  * введённое слово «удалить»; просмотр интерфейса роли ничего не пишет. Права
  * решает база (account.deletion.process), здесь — подсказка.
+ * `amocrm_erased` («1» или «0»): отметка Admin, что контакт и сделка в amoCRM
+ * удалены; при связях с amoCRM база без неё не завершает запрос.
  */
 export async function processAccountDeletionAction(
   _previous: AccountDeletionProcessState,
@@ -33,7 +35,9 @@ export async function processAccountDeletionAction(
   const id = fields?.get("request_row_id") ?? "";
   const requestedAt = fields?.get("requested_at") ?? "";
   const confirm = (fields?.get("confirm") ?? "").trim().toLocaleLowerCase("ru");
-  if (!fields || !UUID.test(id) || confirm !== ACCOUNT_DELETION_CONFIRM_WORD) {
+  const amocrmErased = fields?.get("amocrm_erased");
+  if (!fields || !UUID.test(id) || confirm !== ACCOUNT_DELETION_CONFIRM_WORD
+    || (amocrmErased !== "0" && amocrmErased !== "1")) {
     return { status: "invalid", step: null, emailStatus: null };
   }
   const [{ createSupabaseServerClient }, { getPlatformSupabaseBackendConfig }, { createPlatformSupabaseServiceClient },
@@ -47,7 +51,7 @@ export async function processAccountDeletionAction(
   const result = await runAccountDeletion(id, Number.isNaN(Date.parse(requestedAt)) ? null : requestedAt, {
     session,
     service: () => createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig()),
-  });
+  }, amocrmErased === "1");
   revalidatePath("/v3/settings");
   return result.status === "completed"
     ? { status: "completed", step: null, emailStatus: result.emailStatus }

@@ -13,6 +13,7 @@ import {
   isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
+import { ACCOUNT_DELETED_PATH, isDeletedAuthUserError } from "@/lib/account-deletion-contract";
 import {
   canonicalPlatformPageOrigin,
   platformAudienceForHost,
@@ -152,7 +153,7 @@ async function liveSessionState(
   request: NextRequest,
   requestHeaders: Headers,
   refreshOnly = false,
-): Promise<Readonly<{ state: SessionState; response: NextResponse }>> {
+): Promise<Readonly<{ state: SessionState; response: NextResponse; accountDeleted?: boolean }>> {
   let response = nextResponse(requestHeaders);
 
   try {
@@ -186,6 +187,8 @@ async function liveSessionState(
       return {
         state: hasSupabaseSessionCookie(request) ? "invalid" : "missing",
         response,
+        // 279 (ревью п. 4): Auth ответил, что пользователя из токена нет.
+        accountDeleted: isDeletedAuthUserError(error),
       };
     }
 
@@ -295,6 +298,21 @@ export async function proxy(request: NextRequest) {
     ), id);
   }
 
+  // Удаление аккаунта (279, ревью п. 4): старая сессия удалённого аккаунта.
+  // The handler asks Auth itself and signs out only a user that no longer
+  // exists, so no session gate runs before it (a deleted user has no live one).
+  if (path === ACCOUNT_DELETED_PATH) {
+    if (request.method === "GET" || request.method === "HEAD") {
+      const response = setResponseHeaders(nextResponse(requestHeaders), id);
+      response.headers.set("Referrer-Policy", "no-referrer");
+      return response;
+    }
+    return setResponseHeaders(NextResponse.json(
+      { error: "method_not_allowed", request_id: id },
+      { status: 405, headers: { Allow: "GET, HEAD" } },
+    ), id);
+  }
+
   // No liveSessionState here: an expired foreign session must not refresh before confirmation.
   if (path === STUDENT_SIGNUP_CONFIRMATION_PATH) {
     if (!["GET", "HEAD", "POST"].includes(request.method)) return hiddenNotFound(id);
@@ -342,6 +360,9 @@ export async function proxy(request: NextRequest) {
     if (!["GET", "HEAD", "POST"].includes(request.method)) return hiddenNotFound(id);
     if (hasSupabaseSessionCookie(request)) {
       const session = await liveSessionState(request, requestHeaders, true);
+      if (session.accountDeleted && (request.method === "GET" || request.method === "HEAD")) {
+        return redirectWithRefreshedCookies(request, session.response, id, ACCOUNT_DELETED_PATH);
+      }
       return setResponseHeaders(session.response, id);
     }
     return setResponseHeaders(nextResponse(requestHeaders), id);
@@ -389,6 +410,9 @@ export async function proxy(request: NextRequest) {
     return accessDeniedResponse(request, session.response, id, null);
   }
   if (session.state === "invalid") {
+    if (session.accountDeleted && !path.startsWith("/api/") && (request.method === "GET" || request.method === "HEAD")) {
+      return redirectWithRefreshedCookies(request, session.response, id, ACCOUNT_DELETED_PATH);
+    }
     return accessDeniedResponse(
       request,
       session.response,

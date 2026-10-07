@@ -33,6 +33,13 @@ final class SupabaseService {
         try await client.auth.signIn(email: email, password: password)
     }
 
+    /// «Забыли пароль?» (общий контракт веба и iPhone): письмо со ссылкой на
+    /// `<веб-кабинет>/auth/callback`, где студент задаёт новый пароль. Сервер
+    /// отвечает одинаково для известных и неизвестных адресов.
+    func requestPasswordReset(email: String, redirectTo: URL?) async throws {
+        try await client.auth.resetPasswordForEmail(email, redirectTo: redirectTo)
+    }
+
     /// Match Portal logout: preserve the user's other sessions.
     func signOut() async throws {
         try await client.auth.signOut(scope: .local)

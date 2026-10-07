@@ -59,6 +59,10 @@ final class SessionRouter: ObservableObject {
 
     @Published private(set) var state: State = .signedOut
     @Published var signInError: String?
+    /// Migration 279 (review finding 4): the account of the stored session
+    /// was deleted on request; the sign-in shows «Аккаунт удалён» until the
+    /// next sign-in attempt.
+    @Published private(set) var accountDeletedNotice = false
     /// The invite screens drive verifyOTP/password themselves; while they
     /// are on screen the router must not react to their auth events.
     var inviteFlowActive = false
@@ -105,6 +109,7 @@ final class SessionRouter: ObservableObject {
 
     func signIn(email: String, password: String) async {
         signInError = nil
+        accountDeletedNotice = false
         state = .authenticating
         do {
             try await service.signIn(email: email, password: password)
@@ -128,6 +133,13 @@ final class SessionRouter: ObservableObject {
     /// refreshStudentApplicationAction refreshes the session first
     /// (student-signup-actions.ts:95) so an approval becomes visible.
     func refreshApplicationStatus() async {
+        // 279 (review finding 4): ask Auth before the refresh. The refresh
+        // token of a deleted account is gone too, and a failed refresh signs
+        // out without saying why.
+        if await service.authUserIsDeleted() {
+            await showAccountDeleted()
+            return
+        }
         try? await service.refreshSession()
         await resolveAccess()
     }
@@ -179,12 +191,12 @@ final class SessionRouter: ObservableObject {
             ) {
             case .active:
                 guard let authority, cases.count == 1, let onlyCase = cases.first else {
-                    state = .accessPending
+                    await routeAccessPending()
                     return
                 }
                 state = .active(PortalSession(authority: authority, portalCase: onlyCase))
             case .accessPending:
-                state = .accessPending
+                await routeAccessPending()
             case .applicationFlow:
                 await resolveApplicationFlow()
             }
@@ -192,7 +204,7 @@ final class SessionRouter: ObservableObject {
             if isTransportError(error) {
                 state = .networkError(message: error.localizedDescription)
             } else {
-                state = .accessPending
+                await routeAccessPending()
             }
         }
     }
@@ -212,10 +224,10 @@ final class SessionRouter: ObservableObject {
                 metadataDraftValid: identity.metadataDraft != nil
             ) {
             case .accessPending:
-                state = .accessPending
+                await routeAccessPending()
             case .status:
                 guard let application else {
-                    state = .accessPending
+                    await routeAccessPending()
                     return
                 }
                 state = .applicationStatus(application)
@@ -248,7 +260,7 @@ final class SessionRouter: ObservableObject {
             if isTransportError(error) {
                 state = .networkError(message: error.localizedDescription)
             } else {
-                state = .accessPending
+                await routeAccessPending()
             }
         }
     }
@@ -258,7 +270,7 @@ final class SessionRouter: ObservableObject {
     /// the metadata; the committed row wins even if cleanup fails.
     private func resumeMetadataDraft(identity: SupabaseService.StudentSessionIdentity) async {
         guard let draft = identity.metadataDraft else {
-            state = .accessPending
+            await routeAccessPending()
             return
         }
         do {
@@ -279,9 +291,27 @@ final class SessionRouter: ObservableObject {
                 try? await service.clearStudentApplicationMetadataDraft()
                 state = .applicationStatus(application)
             } else {
-                state = .accessPending
+                await routeAccessPending()
             }
         }
+    }
+
+    /// Migration 279 (review finding 4): «Доступ готовится» is wrong for an
+    /// account the EVO team has deleted on request. Before showing it, ask
+    /// Auth; `user_not_found` signs out locally and shows the sign-in with
+    /// «Аккаунт удалён».
+    private func routeAccessPending() async {
+        if await service.authUserIsDeleted() {
+            await showAccountDeleted()
+            return
+        }
+        state = .accessPending
+    }
+
+    private func showAccountDeleted() async {
+        accountDeletedNotice = true
+        try? await service.signOut()
+        state = .signedOut
     }
 
     private func isTransportError(_ error: Error) -> Bool {

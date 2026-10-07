@@ -105,4 +105,13 @@ final class PortalProfileDecodingTests: XCTestCase {
         // 23:30 UTC is already the next day in Bishkek (UTC+6).
         XCTAssertEqual(AccountDeletionPolicy.dayLabel(from: request.requestedAt), "08.10.2026")
     }
+
+    func testOnlyUserNotFoundMeansTheAccountWasDeleted() {
+        // 279 review finding 4: GET /user of a deleted account answers
+        // user_not_found; a missing session or a bad token is not a deletion.
+        XCTAssertTrue(DeletedAccountPolicy.isDeletedUser(authErrorCode: "user_not_found"))
+        for code in [nil, "", "session_not_found", "bad_jwt", "refresh_token_not_found", "unexpected_failure"] {
+            XCTAssertFalse(DeletedAccountPolicy.isDeletedUser(authErrorCode: code), code ?? "nil")
+        }
+    }
 }

@@ -38,6 +38,20 @@ final class SupabaseService {
         try await client.auth.signOut(scope: .local)
     }
 
+    /// Migration 279 (review finding 4): asks Auth (`GET /user`) whether the
+    /// user of the stored session still exists. Only `user_not_found` counts
+    /// as deleted; a network failure or any other error does not.
+    func authUserIsDeleted() async -> Bool {
+        do {
+            _ = try await client.auth.user()
+            return false
+        } catch let error as AuthError {
+            return DeletedAccountPolicy.isDeletedUser(authErrorCode: error.errorCode.rawValue)
+        } catch {
+            return false
+        }
+    }
+
     /// `platform.current_actor_authority()` — 0 or 1 row for the signed-in
     /// user. `nil` means no resolvable authority for this account.
     func currentActorAuthority() async throws -> CurrentActorAuthority? {

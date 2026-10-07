@@ -76,3 +76,14 @@ enum ProfileLanguagePolicy {
         hasProfile && (selectedLanguage != lastSavedLanguage || isSaving)
     }
 }
+
+/// Migration 279, review finding 4: after the EVO team deletes an account on
+/// request, the device may still hold a token of that user. Supabase Auth
+/// then answers `GET /user` with `user_not_found`; the app signs out locally
+/// and shows the sign-in with «Аккаунт удалён» instead of «Доступ готовится».
+/// Any other error (network, expired session) is not a deletion.
+enum DeletedAccountPolicy {
+    static func isDeletedUser(authErrorCode: String?) -> Bool {
+        authErrorCode == "user_not_found"
+    }
+}

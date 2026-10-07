@@ -371,7 +371,7 @@ Tesseract `rus+kir+eng` на странице на hermes; цель «3 стра
 | `ai_golden_examples` | Подтверждённые примеры ответов | `question_key` (уникален в организации), `question`, `answer`, `feedback`, `embedding halfvec(1536)`, `knowledge_version`, `source_document_ids`, `client_only`, кто подтвердил |
 | `ai_lab_sessions` | Текущая проверка в Лаборатории | Одна на сотрудника, `payload jsonb`, `expires_at`. Только незавершённая работа, не история |
 | `ai_client_memory` | Память о клиенте (P3) | PK `conversation_id`; `interest` ≤ 140 символов; `summary`; `covered_message_id`; `covered_count`; `updated_at` |
-| `ai_answers` | Ответы и их кэш | `conversation_id`, `source_message_id` (последнее входящее на момент запроса), `intent` (`reply`, `followup`), `knowledge_fingerprint`, `status` (`pending`, `ready`, `failed`, `superseded`), `result jsonb` (§6.3), `flight_owner` и `heartbeat_at` (один генератор на ключ), `requested_by`, `model`, `cost_usd`, `timings`, `inserted_at`/`inserted_by`. Уникальность по (организация, диалог, intent, сообщение, fingerprint). Хранится 90 дней |
+| `ai_answers` | Ответы и их кэш | `conversation_id`, `source_message_id` (последнее входящее на момент запроса), `source_outbound_message_id` (у `followup` — последнее исходящее на момент запроса), `intent` (`reply`, `followup`), `knowledge_fingerprint`, `status` (`pending`, `ready`, `failed`, `superseded`), `result jsonb` (§6.3), `flight_owner` и `heartbeat_at` (один генератор на ключ), `requested_by`, `model`, `cost_usd`, `timings`, `inserted_at`/`inserted_by`. Уникальность по (организация, диалог, intent, сообщение, исходящее, fingerprint). Хранится 90 дней |
 | `ai_tickets` | Одноразовые билеты CRM → агент | SHA-256 токена, сотрудник, цель, диалог, ссылка, `expires_at`, `used_at`. Чистится через сутки |
 | `ai_prices` | Датированные цены | `model`, `kind` (`input`, `output`, `cached`, `audio_input`, `embedding`), `usd_per_million`, `effective_from`, `effective_to`, `source_url`, `checked_at`. Начальные цены — со страницы цен Google от 01.10.2026, вместе с удвоением Flash с 01.01.2027 |
 | `ai_usage_daily`, `ai_usage_member_daily` | Журнал расходов | (организация, день в `Asia/Bishkek`, назначение, модель): вызовы, токены (вход, кэш, выход, thinking), ответы, `cost_usd numeric(12,6)`, `estimated_cost_usd`, `estimated` |
@@ -415,7 +415,8 @@ Tesseract `rus+kir+eng` на странице на hermes; цель «3 стра
   Принимает только погашенный билет не старше 5 минут на этот же диалог;
 - `search_v1` (§6.2);
 - `answer_claim_v1`, `answer_heartbeat_v1`, `answer_finish_v1`;
-- `usage_record_v1`, `rate_take_v1`, `budget_reserve_v1`;
+- `usage_record_v1`, `rate_take_v1`, `budget_reserve_v1`, `budget_release_v1`
+  (возврат резерва ответа, оборвавшегося до вызова Gemini);
 - `document_claim_v1`, `document_stage_v1`, `document_index_v1` (одна
   транзакция: заменить фрагменты, выставить `ready` или `review`, увеличить
   `knowledge_version`, сменить версию документа), `review_items_put_v1`.
@@ -644,7 +645,11 @@ Reranker в интерактивном пути не вызывается ник
 ### 6.7. Актуальность: обновление, устаревание, повторное открытие
 
 - Ответ актуален, если его `source_message_id` — последнее входящее
-  сообщение диалога, а `knowledge_fingerprint` совпадает с текущим. Отпечаток
+  сообщение диалога, а `knowledge_fingerprint` совпадает с текущим.
+  Продолжение (`followup`) актуально, только пока его
+  `source_outbound_message_id` — ещё и последнее исходящее: после нового
+  сообщения сотрудника (в том числе отправленного продолжения) оно
+  устаревает, вставка получает 409, а запрос готовит новое. Отпечаток
   меняется при смене версии знаний, правил, модели, аудитории документа и
   при правке или удалении сообщения, если чат их отслеживает.
 - Открытие окна: если последнее сообщение от клиента и актуального ответа
@@ -787,7 +792,10 @@ DOCX; документ получает пометку «изменён в Ла�
   | `dictation` (позже) | «Диктовка» |
 
 - Стоимость считается в момент записи по цене, действующей в этот день
-  (`ai_prices`), и хранится в долларах. Эмбеддинги (Gemini не возвращает для
+  (`ai_prices`), и хранится в долларах. Модель без цены на сегодня нельзя
+  выбрать в настройках; пока такая модель стоит в настройках, резерв не
+  выдаётся (PT402 `ai_model_unpriced`); вызов модели без цены записывается по
+  сумме своего резерва, а не по 0, — иначе месячный лимит можно обойти. Эмбеддинги (Gemini не возвращает для
   них токены) и прерванные вызовы — оценки, они помечены «≈».
 - «Расходы» показывают: сегодня, этот месяц, прогноз на месяц, по
   назначению, средняя цена ответа. Плюс строка о смене цен: «С 1 января 2027

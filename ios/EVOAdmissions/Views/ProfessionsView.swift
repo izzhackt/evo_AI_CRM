@@ -23,6 +23,19 @@ struct ProfessionRoute: Hashable {
     let cardId: UUID
 }
 
+/// Маршрут вуза из строки «Избранного». Свой тип, а не голый `UUID`: в стеке
+/// «Университетов» `UUID` уже зарегистрирован каталогом и карточками карты, а
+/// повторная регистрация того же типа в одном стеке даёт в журнале «Invalid
+/// Configuration». Карточка из списка избранного нужна только пока идёт
+/// свежая загрузка, поэтому равенство и хеш считаются по id вуза.
+struct FavoriteUniversityRoute: Hashable {
+    let institutionId: UUID
+    let initialItem: UniversityCatalogItem?
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.institutionId == rhs.institutionId }
+    func hash(into hasher: inout Hasher) { hasher.combine(institutionId) }
+}
+
 /// Разделы, которые открываются переходом по значению из нескольких стеков.
 /// Ссылка с замыканием (`NavigationLink { … }`) не попадает в путь стека, и
 /// следующий переход по значению внутри такого экрана вставал под него:
@@ -40,6 +53,9 @@ extension View {
             case .professions: ProfessionsContentView()
             case .favorites: FavoritesView()
             }
+        }
+        .navigationDestination(for: FavoriteUniversityRoute.self) { route in
+            UniversityDetailView(institutionId: route.institutionId, initialItem: route.initialItem)
         }
     }
 }

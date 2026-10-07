@@ -51,6 +51,34 @@ final class LocalizationKeysTests: XCTestCase {
         StudentApplication.Status.allCases.forEach { assertTranslated($0.titleKey, in: strings) }
     }
 
+    /// Ключи входа и восстановления возвращаются из `AuthMessagePolicy` как
+    /// `return "…"`, сканер литералов их не видит: проверяем каждый исход.
+    func testEveryAuthMessageHasTranslatedKey() throws {
+        let strings = try catalog()
+        typealias Failure = AuthMessagePolicy.Failure
+        let signInFailures = [
+            Failure(isTransport: true),
+            Failure(errorCode: "over_request_rate_limit", httpStatus: 429),
+            Failure(errorCode: nil, httpStatus: 429),
+            Failure(errorCode: "invalid_credentials", httpStatus: 400),
+            Failure(errorCode: nil, httpStatus: 400),
+            Failure(errorCode: "email_not_confirmed", httpStatus: 400),
+            Failure(errorCode: "unexpected_failure", httpStatus: 500),
+            Failure(),
+        ]
+        let signInKeys = Set(signInFailures.map(AuthMessagePolicy.signInMessageKey))
+        XCTAssertEqual(signInKeys, [
+            "sign_in_error_network", "sign_in_error_rate_limited",
+            "sign_in_error_invalid_credentials", "sign_in_error_email_not_confirmed",
+            "sign_in_error_generic",
+        ], "набор ключей входа изменился: обновите проверку")
+        signInKeys.sorted().forEach { assertTranslated($0, in: strings) }
+
+        let recoveryKeys = AuthMessagePolicy.RecoveryOutcome.allCases.map(AuthMessagePolicy.recoveryMessageKey)
+        XCTAssertEqual(Set(recoveryKeys).count, AuthMessagePolicy.RecoveryOutcome.allCases.count)
+        recoveryKeys.forEach { assertTranslated($0, in: strings) }
+    }
+
     func testStatusKeysKeepTheirWireNames() {
         // Ключ строится из того же значения, что приходит с сервера, поэтому
         // перевод не теряется при добавлении нового статуса в каталог.

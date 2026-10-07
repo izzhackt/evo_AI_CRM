@@ -37,7 +37,7 @@ enum AuthMessagePolicy {
 
     // MARK: - Восстановление пароля (общий контракт веба и iPhone)
 
-    enum RecoveryOutcome: Equatable {
+    enum RecoveryOutcome: Equatable, CaseIterable {
         /// Один и тот же нейтральный ответ для любого адреса.
         case sent
         case rateLimited

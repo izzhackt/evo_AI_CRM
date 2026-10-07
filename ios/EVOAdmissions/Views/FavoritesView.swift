@@ -151,7 +151,7 @@ struct FavoritesView: View {
                             compareSelection.contains(item.id) ? [.isSelected] : []
                         )
 
-                        NavigationLink(value: item.id) {
+                        NavigationLink(value: FavoriteUniversityRoute(institutionId: item.id, initialItem: item)) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(item.content.name)
                                     .font(.headline)
@@ -205,12 +205,6 @@ struct FavoritesView: View {
         .refreshable { await model.load(store: store) }
         // Un-favouriting: the row eases out of the list instead of vanishing.
         .motionAnimated(value: rows.map(\.id))
-        .navigationDestination(for: UUID.self) { institutionId in
-            UniversityDetailView(
-                institutionId: institutionId,
-                initialItem: model.items.first(where: { $0.id == institutionId })
-            )
-        }
     }
 
     private func toggleCompare(_ id: UUID) {

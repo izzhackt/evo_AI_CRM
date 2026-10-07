@@ -77,76 +77,78 @@ private struct UniversitiesMapCanvas: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Map(position: $position) {
-                ForEach(clusters) { cluster in
-                    if let pin = cluster.single {
-                        Annotation(
-                            pin.name,
-                            coordinate: CLLocationCoordinate2D(latitude: pin.lat, longitude: pin.lng)
-                        ) {
-                            Button {
-                                selectedCluster = nil
-                                selected = pin
-                            } label: {
-                                Circle()
-                                    // Брендовый красный #d70217 (дизайн-контракт).
-                                    .fill(Color(red: 215 / 255, green: 2 / 255, blue: 23 / 255))
-                                    .frame(width: 16, height: 16)
-                                    .overlay(Circle().strokeBorder(.white, lineWidth: 2))
-                                    // Зона нажатия 44 pt при точке 16 pt.
-                                    .frame(width: 44, height: 44)
-                                    .contentShape(Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(Text(pin.name))
+        // Карточки лежат в нижней вставке безопасной области, а не поверх
+        // карты: MapKit сам поднимает логотип Apple Maps и ссылку «Правовые
+        // документы» над карточкой, обязательная атрибуция не закрыта.
+        Map(position: $position) {
+            ForEach(clusters) { cluster in
+                if let pin = cluster.single {
+                    Annotation(
+                        pin.name,
+                        coordinate: CLLocationCoordinate2D(latitude: pin.lat, longitude: pin.lng)
+                    ) {
+                        Button {
+                            selectedCluster = nil
+                            selected = pin
+                        } label: {
+                            Circle()
+                                // Брендовый красный #d70217 (дизайн-контракт).
+                                .fill(Color(red: 215 / 255, green: 2 / 255, blue: 23 / 255))
+                                .frame(width: 16, height: 16)
+                                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                                // Зона нажатия 44 pt при точке 16 pt.
+                                .frame(width: 44, height: 44)
+                                .contentShape(Circle())
                         }
-                    } else {
-                        // Без подписи под меткой: число вузов уже на самой метке.
-                        Annotation(
-                            String(),
-                            coordinate: CLLocationCoordinate2D(latitude: cluster.lat, longitude: cluster.lng)
-                        ) {
-                            Button {
-                                selected = nil
-                                selectedCluster = cluster
-                            } label: {
-                                Text(verbatim: "\(cluster.pins.count)")
-                                    .font(.footnote.weight(.bold))
-                                    .monospacedDigit()
-                                    .foregroundStyle(.white)
-                                    .frame(minWidth: 30, minHeight: 30)
-                                    .background(Circle().fill(Color(red: 215 / 255, green: 2 / 255, blue: 23 / 255)))
-                                    .overlay(Circle().strokeBorder(.white, lineWidth: 2))
-                                    .frame(minWidth: 44, minHeight: 44)
-                                    .contentShape(Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(Text(String(
-                                format: String(localized: "universities_map_cluster_title"),
-                                locale: AppLocale.current,
-                                cluster.pins.count
-                            )))
-                            .accessibilityHint(Text("universities_map_cluster_hint"))
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text(pin.name))
+                    }
+                } else {
+                    // Без подписи под меткой: число вузов уже на самой метке.
+                    Annotation(
+                        String(),
+                        coordinate: CLLocationCoordinate2D(latitude: cluster.lat, longitude: cluster.lng)
+                    ) {
+                        Button {
+                            selected = nil
+                            selectedCluster = cluster
+                        } label: {
+                            Text(verbatim: "\(cluster.pins.count)")
+                                .font(.footnote.weight(.bold))
+                                .monospacedDigit()
+                                .foregroundStyle(.white)
+                                .frame(minWidth: 30, minHeight: 30)
+                                .background(Circle().fill(Color(red: 215 / 255, green: 2 / 255, blue: 23 / 255)))
+                                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Circle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text(String(
+                            format: String(localized: "universities_map_cluster_title"),
+                            locale: AppLocale.current,
+                            cluster.pins.count
+                        )))
+                        .accessibilityHint(Text("universities_map_cluster_hint"))
                     }
                 }
             }
-            .onMapCameraChange(frequency: .onEnd) { context in
-                visibleRegion = context.region
+        }
+        .onMapCameraChange(frequency: .onEnd) { context in
+            visibleRegion = context.region
+        }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { mapSize = $0 }
+        .accessibilityLabel(Text("universities_map_label"))
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let selected {
+                pinCard(selected)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+            } else if let selectedCluster {
+                clusterCard(selectedCluster)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
             }
-            .onGeometryChange(for: CGSize.self) { $0.size } action: { mapSize = $0 }
-            .accessibilityLabel(Text("universities_map_label"))
-
-            VStack(spacing: 8) {
-                if let selected {
-                    pinCard(selected)
-                } else if let selectedCluster {
-                    clusterCard(selectedCluster)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
         }
         // Сводка сверху: внизу слева карта показывает обязательную
         // атрибуцию Apple Maps, её нельзя закрывать.

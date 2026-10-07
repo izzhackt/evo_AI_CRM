@@ -102,12 +102,12 @@ struct ProfessionsContentView: View {
                         .multilineTextAlignment(.center)
                     Text(errorMessage)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("retry_button") {
                         Task { await model.load() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else {
@@ -130,7 +130,7 @@ struct ProfessionsContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("professions_lead")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
 
                 // Вход в тест интересов orvis92 (дизайн-контракт §3).
                 NavigationLink {
@@ -141,11 +141,11 @@ struct ProfessionsContentView: View {
                             .font(.subheadline.weight(.medium))
                         Text("professions_test_entry_hint")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(.pressable)
 
@@ -189,7 +189,7 @@ private struct ProfessionTile: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -281,12 +281,12 @@ struct ProfessionCardView: View {
                 VStack(spacing: 12) {
                     Text("professions_unavailable")
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("retry_button") {
                         Task { await model.load(cardId: cardId) }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             }
@@ -400,12 +400,12 @@ struct ProfessionCardView: View {
                         if !resolved.programFound {
                             Text("professions_program_missing")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                         }
                     } else {
                         Text("professions_university_missing")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -416,7 +416,7 @@ struct ProfessionCardView: View {
                 // Каталог не дочитался: отсутствие ссылок — не факт о вузе.
                 Text("professions_refs_incomplete")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -438,7 +438,7 @@ struct ProfessionCardView: View {
             // Атрибуция O*NET / CC BY 4.0 (паттерн orvis-v1, PORT-4c (d)).
             Text("professions_attribution")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -40,7 +40,7 @@ struct AdmissionPaymentsView: View {
                             .font(.headline)
                         Text("adm_payments_empty_body")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .multilineTextAlignment(.center)
                     }
                     .padding(32)
@@ -52,8 +52,10 @@ struct AdmissionPaymentsView: View {
                             }
                         } header: {
                             Text("adm_payments_heading")
+                                .foregroundStyle(.secondaryText)
                         } footer: {
                             Text("adm_bishkek_note")
+                                .foregroundStyle(.secondaryText)
                         }
                     }
                     .refreshable { await model.load() }
@@ -65,7 +67,7 @@ struct AdmissionPaymentsView: View {
                     Button("retry_button") {
                         Task { await model.load() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else {
@@ -94,14 +96,14 @@ private struct PaymentRow: View {
                     if let category = categoryKey {
                         Text(category)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                     // 189: NULL due_at = «без срока» — строки срока нет.
                     if AdmissionPaymentPolicy.showsDueLine(payment),
                        let due = AdmissionTimestamp.label(from: payment.dueAt) {
                         (Text("adm_due_term") + Text(verbatim: " \(due)"))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 Spacer(minLength: 8)
@@ -130,7 +132,7 @@ private struct PaymentRow: View {
         HStack {
             Text(term)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             Spacer()
             Text(AdmissionMoney.label(minor: minor, currency: payment.currency))
                 .font(.callout.monospacedDigit())
@@ -139,13 +141,10 @@ private struct PaymentRow: View {
 
     // pending | partially_paid | paid | overdue — те же доменные подписи и
     // тона, что в вебе (payStatus.* + paymentStatus, presentation.ts).
+    // Текст метки основным цветом, тон у заливки и значка: зелёный по
+    // зелёному давал 2,0:1, серый по серому 3,3:1 (аудит UX/UI 2026-10).
     private var statusPill: some View {
-        Text(statusKey)
-            .font(.caption.weight(.medium))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(statusColor.opacity(0.12), in: Capsule())
-            .foregroundStyle(statusColor)
+        StatusBadge(Text(statusKey), systemImage: statusSymbol, tone: statusTone)
     }
 
     private var statusKey: LocalizedStringKey {
@@ -158,11 +157,22 @@ private struct PaymentRow: View {
         }
     }
 
-    private var statusColor: Color {
-        if payment.derivedStatus == "paid" { return .green }
-        if payment.overdue || payment.derivedStatus == "overdue" { return .red }
-        if payment.derivedStatus == "partially_paid" { return .orange }
-        return .secondary
+    private var isOverdue: Bool {
+        payment.overdue || payment.derivedStatus == "overdue"
+    }
+
+    private var statusTone: StatusBadge.Tone {
+        if payment.derivedStatus == "paid" { return .success }
+        if isOverdue { return .danger }
+        if payment.derivedStatus == "partially_paid" { return .warning }
+        return .neutral
+    }
+
+    private var statusSymbol: String {
+        if payment.derivedStatus == "paid" { return "checkmark.circle.fill" }
+        if isOverdue { return "exclamationmark.circle.fill" }
+        if payment.derivedStatus == "partially_paid" { return "circle.lefthalf.filled" }
+        return "clock"
     }
 
     private var categoryKey: LocalizedStringKey? {

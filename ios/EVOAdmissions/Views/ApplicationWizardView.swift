@@ -340,7 +340,7 @@ struct ApplicationWizardView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(errorText)
                             .font(.footnote)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.dangerText)
                         if model.conflictHint {
                             Button("apply_go_to_login", action: returnToSignIn)
                             .font(.footnote)
@@ -362,8 +362,8 @@ struct ApplicationWizardView: View {
             if let pending = model.confirmation {
                 Text(pending.maskedEmail).font(.body).textSelection(.enabled)
                 Text(applyString(pending.dispatch == "accepted" ? "signup_confirmation_check_email" : "signup_confirmation_send_uncertain"))
-                    .foregroundStyle(.secondary)
-                Text("signup_confirmation_latest").font(.footnote).foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
+                Text("signup_confirmation_latest").font(.footnote).foregroundStyle(.secondaryText)
                 if !model.confirmationTerminal {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Button("signup_confirmation_resend") { Task { await model.resendConfirmation() } }
@@ -374,7 +374,7 @@ struct ApplicationWizardView: View {
             }
             Button("signup_confirmation_sign_in", action: returnToSignIn)
                 .frame(minHeight: 44).disabled(model.isSubmitting)
-            Text("signup_confirmation_sign_in_hint").font(.footnote).foregroundStyle(.secondary)
+            Text("signup_confirmation_sign_in_hint").font(.footnote).foregroundStyle(.secondaryText)
             Link("evo@evoadmissions.com", destination: URL(string: "mailto:evo@evoadmissions.com")!)
                 .frame(minHeight: 44)
         }
@@ -397,11 +397,11 @@ struct ApplicationWizardView: View {
             HStack {
                 Text(applyString("apply_step_\(stepKey(model.step))"))
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 Spacer()
                 Text(String(format: applyString("apply_step_of"), model.step.rawValue + 1))
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             MotionProgressBar(value: Double(model.step.rawValue + 1), total: 9)
                 .accessibilityLabel(Text("apply_progress_label"))
@@ -416,7 +416,7 @@ struct ApplicationWizardView: View {
                         if let copy = stepCopy {
                             Text(copy)
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                         }
                     }
                     stepContent
@@ -473,7 +473,7 @@ struct ApplicationWizardView: View {
                     .multilineTextAlignment(.leading)
                 Spacer()
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? Color("AccentColor") : Color.secondary)
+                    .foregroundStyle(selected ? Color("AccentColor") : Color.secondaryText)
                     .motionSymbolSwap(on: selected)
                     .motionBounce(whenOn: selected)
             }
@@ -521,7 +521,7 @@ struct ApplicationWizardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("apply_grade_label")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 TextField("apply_grade_label", text: $model.values.averageGrade)
                     .keyboardType(.decimalPad)
                     .textFieldStyle(.roundedBorder)
@@ -562,7 +562,7 @@ struct ApplicationWizardView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("apply_custom_field_label")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     TextField("apply_custom_field_label", text: $model.customField)
                         .textFieldStyle(.roundedBorder)
                         .onChange(of: model.customField) {
@@ -573,7 +573,7 @@ struct ApplicationWizardView: View {
                         .accessibilityLabel(Text("apply_custom_field_label"))
                 }
                 Button("apply_add_field") { model.addCustomField() }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                     .disabled(model.customField.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
@@ -605,7 +605,7 @@ struct ApplicationWizardView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("apply_english_legend")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             choiceRow(applyString("apply_english_yes"), selected: model.values.englishMode == "exam") {
                 model.values.englishMode = "exam"
                 model.errorKey = nil
@@ -621,7 +621,7 @@ struct ApplicationWizardView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("apply_exam_score_label")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     TextField("apply_exam_score_label", text: $model.values.englishScore)
                         .keyboardType(.decimalPad)
                         .textFieldStyle(.roundedBorder)
@@ -656,7 +656,7 @@ struct ApplicationWizardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("apply_phone_label")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 TextField(applyString("apply_phone_placeholder"), text: $model.values.phone)
                     .keyboardType(.phonePad)
                     .textContentType(.telephoneNumber)
@@ -672,7 +672,7 @@ struct ApplicationWizardView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("apply_account_email_label")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     Text(signedInEmail)
                 }
                 .accessibilityElement(children: .combine)
@@ -680,7 +680,7 @@ struct ApplicationWizardView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("apply_email_label")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     TextField("apply_email_label", text: $model.email)
                         .keyboardType(.emailAddress)
                         .textContentType(.username)
@@ -692,7 +692,7 @@ struct ApplicationWizardView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("apply_password_label")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     HStack(spacing: 8) {
                         Group {
                             if model.showPassword {
@@ -716,7 +716,7 @@ struct ApplicationWizardView: View {
                     }
                     Text("apply_password_hint")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
             Toggle(isOn: $model.values.consent) {
@@ -737,7 +737,7 @@ struct ApplicationWizardView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(LocalizedStringKey(titleKey))
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             TextField(LocalizedStringKey(titleKey), text: text)
                 .textContentType(contentType)
                 .textFieldStyle(.roundedBorder)
@@ -759,7 +759,7 @@ struct ApplicationWizardView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(LocalizedStringKey(titleKey))
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             Picker(selection: selection) {
                 if let placeholderKey {
                     Text(LocalizedStringKey(placeholderKey)).tag("")
@@ -800,8 +800,7 @@ struct ApplicationWizardView: View {
                 }
                 .frame(minWidth: 140)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color("AccentColor"))
+            .accentProminent()
             .disabled(model.isSubmitting)
         }
         .padding(.top, 8)

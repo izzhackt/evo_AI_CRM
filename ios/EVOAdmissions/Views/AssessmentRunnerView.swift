@@ -283,12 +283,12 @@ struct AssessmentRunnerView: View {
                             .multilineTextAlignment(.center)
                         Text(message)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .multilineTextAlignment(.center)
                         Button("retry_button") {
                             Task { await openAttempt() }
                         }
-                        .buttonStyle(.bordered)
+                        .accentBordered()
                     }
                     .padding(32)
                 } else if context.draftAttemptId != nil || model.isStarting {
@@ -394,10 +394,10 @@ struct AssessmentRunnerView: View {
                     context.instrument.questionCount
                 ))
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 Text("runner_intro_note")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
 
                 if let limitations = context.instrument.metadata.limitations {
                     DisclosureGroup("runner_limitations_heading") {
@@ -405,7 +405,7 @@ struct AssessmentRunnerView: View {
                             ForEach(limitations, id: \.self) { line in
                                 Text("• \(line)")
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -426,8 +426,7 @@ struct AssessmentRunnerView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 // A11y (9b): во время старта label — ProgressView.
                 .accessibilityLabel(Text("tests_start"))
                 .disabled(model.isStarting)
@@ -484,7 +483,7 @@ struct AssessmentRunnerView: View {
             MotionProgressBar(value: Double(model.answeredCount), total: Double(max(total, 1)))
         }
         .padding(14)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var saveStateLabel: some View {
@@ -500,7 +499,7 @@ struct AssessmentRunnerView: View {
             }
         }
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(.secondaryText)
     }
 
     @ViewBuilder
@@ -517,7 +516,7 @@ struct AssessmentRunnerView: View {
                     Button("runner_retry_save") {
                         Task { await model.write(complete: false) }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                     .disabled(model.isWriting)
                 case .reloadSaved:
                     // Повтор чтения, которое пользователь уже выбрал: запись
@@ -525,13 +524,13 @@ struct AssessmentRunnerView: View {
                     Button("runner_load_saved") {
                         Task { await model.reloadSavedAttempt() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                     .disabled(model.isReloading)
                 case .confirmReload:
                     Button("runner_load_saved") {
                         confirmReload = true
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                     .disabled(model.isReloading)
                     .confirmationDialog(
                         "runner_load_saved_confirm",
@@ -568,7 +567,7 @@ struct AssessmentRunnerView: View {
                 model.pageIndex + 1, total
             ))
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
 
             if let passage = question.passage {
                 Text(passage)
@@ -591,7 +590,7 @@ struct AssessmentRunnerView: View {
                 Button("runner_back") {
                     model.pageIndex = max(model.pageIndex - 1, 0)
                 }
-                .buttonStyle(.bordered)
+                .accentBordered()
                 .disabled(model.pageIndex == 0 || model.completing)
 
                 Spacer()
@@ -599,14 +598,13 @@ struct AssessmentRunnerView: View {
                 Button(model.pageIndex + 1 == total ? "runner_to_review" : "runner_next") {
                     model.pageIndex += 1
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 .disabled(model.completing || model.reloadRequired || model.isReloading)
             }
             .padding(.top, 4)
         }
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func optionButton(question: AssessmentQuestion, option: AssessmentOption) -> some View {
@@ -616,7 +614,7 @@ struct AssessmentRunnerView: View {
         } label: {
             HStack {
                 Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(selected ? Color("AccentColor") : Color.secondary)
+                    .foregroundStyle(selected ? Color("AccentColor") : Color.secondaryText)
                     .motionSymbolSwap(on: selected)
                     .motionBounce(whenOn: selected)
                     // A11y (9b): кружок — декорация, состояние несёт trait.
@@ -647,25 +645,25 @@ struct AssessmentRunnerView: View {
             if model.answeredCount == total {
                 Text("runner_review_all_answered")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             } else {
                 Text(String(
                     format: String(localized: "runner_review_remaining"),
                     total - model.answeredCount
                 ))
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 Button("runner_first_unanswered") {
                     model.pageIndex = model.firstUnansweredIndex
                 }
-                .buttonStyle(.bordered)
+                .accentBordered()
             }
 
             HStack {
                 Button("runner_back") {
                     model.pageIndex = max(total - 1, 0)
                 }
-                .buttonStyle(.bordered)
+                .accentBordered()
                 .disabled(model.completing || model.reloadRequired || model.isReloading)
 
                 Spacer()
@@ -679,8 +677,7 @@ struct AssessmentRunnerView: View {
                         Text("runner_complete")
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 .disabled(model.answeredCount != total || model.isWriting || model.failure != nil || model.reloadRequired || model.isReloading)
                 // A11y (9b): во время завершения label — ProgressView.
                 .accessibilityLabel(Text("runner_complete"))
@@ -688,7 +685,7 @@ struct AssessmentRunnerView: View {
             .padding(.top, 4)
         }
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 

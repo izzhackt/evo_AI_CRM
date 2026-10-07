@@ -31,7 +31,7 @@ struct AssessmentResultView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(String(format: String(localized: "result_completed_version"), result.version))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
 
             if let english = result.english {
                 Text(String(
@@ -43,22 +43,22 @@ struct AssessmentResultView: View {
                     .font(.headline)
                 Text("result_english_note")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             } else {
                 Text("result_orvis_title")
                     .font(.title2.bold())
                 Text("result_orvis_note")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
 
             Text("result_private_note")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func bandLabel(_ english: EnglishAssessmentResult) -> String {
@@ -83,7 +83,7 @@ struct AssessmentResultView: View {
                         Spacer()
                         Text("\(topic.correctCount) / \(topic.totalCount)")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                     ProgressView(
                         value: Double(topic.correctCount),
@@ -93,7 +93,7 @@ struct AssessmentResultView: View {
                     if let recommendation = attempt.metadata.recommendations?[topic.topic] {
                         Text(recommendation)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 .padding(.vertical, 4)
@@ -101,7 +101,7 @@ struct AssessmentResultView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func englishFeedback(_ english: EnglishAssessmentResult) -> some View {
@@ -110,14 +110,14 @@ struct AssessmentResultView: View {
                 .font(.title3.bold())
             Text("result_review_note")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             ForEach(Array(english.feedback.enumerated()), id: \.element.questionId) { index, item in
                 feedbackRow(index: index, item: item)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func feedbackRow(index: Int, item: EnglishFeedbackItem) -> some View {
@@ -146,7 +146,7 @@ struct AssessmentResultView: View {
                 }
                 Text(item.explanation)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             .padding(.top, 6)
         } label: {
@@ -189,13 +189,13 @@ struct AssessmentResultView: View {
                         Spacer()
                         Text(String(format: "%.2f / 5", scale.mean))
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                     MotionProgressBar(value: max(scale.mean - 1, 0), total: 4, fillsOnAppear: true)
                     if let description = meta?.description {
                         Text(description)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 .padding(.vertical, 4)
@@ -203,7 +203,7 @@ struct AssessmentResultView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
     @ViewBuilder
@@ -219,11 +219,11 @@ struct AssessmentResultView: View {
                     .font(.title3.bold())
                 Text("result_professions_note")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 if let attribution = attempt.metadata.professionAttribution {
                     Text(attribution)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
                 ForEach(shown) { profession in
                     professionRow(profession)
@@ -231,7 +231,7 @@ struct AssessmentResultView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
         }
     }
 
@@ -246,7 +246,7 @@ struct AssessmentResultView: View {
                     ForEach(tasks, id: \.self) { task in
                         Text("• \(task)")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 if let directions = profession.studyDirections, !directions.isEmpty {
@@ -266,12 +266,12 @@ struct AssessmentResultView: View {
                 if let note = profession.editorialNote {
                     Text(note)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
                 if let source = profession.source {
                     Text("O*NET® \(source.occupationId), \(source.version) · \(source.license)")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .padding(.top, 6)
@@ -291,7 +291,7 @@ struct AssessmentResultView: View {
                     ForEach(limitations, id: \.self) { line in
                         Text("• \(line)")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -299,7 +299,7 @@ struct AssessmentResultView: View {
             }
             .font(.subheadline.weight(.medium))
             .padding(16)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
         }
     }
 }

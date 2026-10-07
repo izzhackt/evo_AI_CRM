@@ -239,7 +239,7 @@ struct AdmissionDocumentsView: View {
                     Button("retry_button") {
                         Task { await model.load() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else {
@@ -272,7 +272,7 @@ struct AdmissionDocumentsView: View {
                     .font(.headline)
                 Text("adm_documents_empty_body")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .multilineTextAlignment(.center)
                 if focusedSlotId != nil {
                     Text("prep_document_unavailable").font(.footnote).multilineTextAlignment(.center)
@@ -285,13 +285,17 @@ struct AdmissionDocumentsView: View {
                 Section {
                     progressSummary
                     if let focusedSlotId, !model.documents.contains(where: { $0.documentSlotId == focusedSlotId }) {
-                        Text("prep_document_unavailable").font(.footnote).foregroundStyle(.secondary)
+                        Text("prep_document_unavailable").font(.footnote).foregroundStyle(.secondaryText)
                     }
                 } header: {
                     Text("adm_checklist_heading")
+                        .foregroundStyle(.secondaryText)
                 } footer: {
-                    Text("adm_bishkek_note")
-                    Text("prep_upload_sends")
+                    Group {
+                        Text("adm_bishkek_note")
+                        Text("prep_upload_sends")
+                    }
+                    .foregroundStyle(.secondaryText)
                 }
 
                 ForEach(model.documents) { document in
@@ -359,7 +363,7 @@ struct AdmissionDocumentsView: View {
             MotionProgressBar(value: Double(approved), total: Double(max(total, 1)))
             Text(approved == total ? "adm_accepted_all" : "adm_accepted_after_review")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             if missing > 0 || corrections > 0 || inReview > 0 {
                 VStack(alignment: .leading, spacing: 2) {
                     if missing > 0 {
@@ -380,7 +384,7 @@ struct AdmissionDocumentsView: View {
     private func factLine(_ key: LocalizedStringKey, count: Int) -> some View {
         (Text(key) + Text(verbatim: " ") + Text(verbatim: String(count)).bold())
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
     }
 }
 
@@ -409,7 +413,7 @@ private struct DocumentSlotRow: View {
             if let instructions = document.instructions {
                 Text(instructions)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
 
             facts
@@ -439,13 +443,10 @@ private struct DocumentSlotRow: View {
 
     // MARK: Статус слота (5 значений document_slot_status; тона веба)
 
+    // Текст метки основным цветом, тон у заливки и значка: «Принят» был
+    // 2,0:1, «Нужно исправить» 2,1:1, «Не загружен» 3,3:1 (аудит UX/UI 2026-10).
     private var statusPill: some View {
-        Text(statusKey)
-            .font(.caption.weight(.medium))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(statusColor.opacity(0.12), in: Capsule())
-            .foregroundStyle(statusColor)
+        StatusBadge(Text(statusKey), systemImage: statusSymbol, tone: statusTone)
     }
 
     private var statusKey: LocalizedStringKey {
@@ -459,13 +460,23 @@ private struct DocumentSlotRow: View {
         }
     }
 
-    private var statusColor: Color {
+    private var statusTone: StatusBadge.Tone {
         switch document.slotStatus {
-        case "approved": return .green
-        case "correction_required": return .orange
-        case "rejected": return .red
-        case "submitted": return .blue
-        default: return .secondary
+        case "approved": return .success
+        case "correction_required": return .warning
+        case "rejected": return .danger
+        case "submitted": return .info
+        default: return .neutral
+        }
+    }
+
+    private var statusSymbol: String {
+        switch document.slotStatus {
+        case "approved": return "checkmark.circle.fill"
+        case "correction_required": return "exclamationmark.triangle.fill"
+        case "rejected": return "xmark.circle.fill"
+        case "submitted": return "hourglass"
+        default: return "circle.dashed"
         }
     }
 
@@ -515,7 +526,7 @@ private struct DocumentSlotRow: View {
     private func factRow(term: LocalizedStringKey, value: String) -> some View {
         (Text(term) + Text(verbatim: ": ") + Text(verbatim: value))
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
     }
 
     // MARK: Контролы (upload / download)
@@ -529,7 +540,7 @@ private struct DocumentSlotRow: View {
                 // Принятый документ — только скачивание (веб uploadLocked).
                 Text("adm_upload_locked")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
 
             if document.documentVersionId != nil {
@@ -545,16 +556,17 @@ private struct DocumentSlotRow: View {
                         Label("adm_download_button", systemImage: "arrow.down.doc")
                     }
                 }
-                .buttonStyle(.bordered)
+                .accentBordered()
+                .controlSize(.large)
                 .disabled(isDownloading)
-                .accessibilityLabel(Text(String(
-                    format: String(localized: "adm_download_aria"),
-                    document.originalFilename ?? String(localized: "adm_last_file_fallback")
-                )))
+                // Имя для VoiceOver начинается с видимой фразы кнопки
+                // (WCAG 2.5.3), затем имя файла.
+                .accessibilityLabel(Text("adm_download_button") + Text(verbatim: ", "
+                    + (document.originalFilename ?? String(localized: "adm_last_file_fallback"))))
                 if downloadFailed {
                     Text("adm_download_error")
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.dangerText)
                 }
             }
         }
@@ -570,7 +582,7 @@ private struct DocumentSlotRow: View {
                 // веб-XHR, здесь не показывается — и не выдумывается.
                 Text("adm_uploading")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         case .success(let filename):
             VStack(alignment: .leading, spacing: 4) {
@@ -589,13 +601,13 @@ private struct DocumentSlotRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(failureKey(failure))
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.dangerText)
                 HStack(spacing: 8) {
                     if canRetry {
                         // Ретрай той же попытки: тот же Idempotency-Key и те
                         // же байты (замороженная пара, веб-семантика).
                         Button("adm_retry_upload") { onRetryUpload() }
-                            .buttonStyle(.borderedProminent)
+                            .accentProminent()
                     }
                     pickButton
                 }
@@ -605,7 +617,7 @@ private struct DocumentSlotRow: View {
                 pickButton
                 Text("adm_upload_hint")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         }
     }
@@ -616,12 +628,10 @@ private struct DocumentSlotRow: View {
         } label: {
             Label("adm_upload_button", systemImage: "square.and.arrow.up")
         }
-        .buttonStyle(.bordered)
+        .accentBordered()
+        .controlSize(.large)
         .disabled(uploadState == .uploading)
-        .accessibilityLabel(Text(String(
-            format: String(localized: "adm_upload_aria"),
-            document.requirementLabel
-        )))
+        .accessibilityLabel(Text("adm_upload_button") + Text(verbatim: ", " + document.requirementLabel))
     }
 
     private func failureKey(_ failure: PortalDocumentTransfer.UploadFailure) -> LocalizedStringKey {

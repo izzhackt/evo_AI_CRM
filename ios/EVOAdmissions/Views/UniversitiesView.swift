@@ -316,6 +316,9 @@ struct UniversitiesView: View {
                     )
                 }
                 .accessibilityLabel(Text("universities_country"))
+                .accessibilityValue(Text(model.filters.country.isEmpty
+                    ? String(localized: "universities_all_countries")
+                    : countryLabel(model.filters.country)))
 
                 Menu {
                     Picker("universities_level", selection: levelBinding) {
@@ -333,6 +336,9 @@ struct UniversitiesView: View {
                     )
                 }
                 .accessibilityLabel(Text("universities_level"))
+                .accessibilityValue(Text(model.filters.level.isEmpty
+                    ? String(localized: "universities_all_levels")
+                    : universityLevelLabel(model.filters.level)))
 
                 Spacer()
 
@@ -356,11 +362,16 @@ struct UniversitiesView: View {
                 .imageScale(.small)
         }
         .font(.subheadline)
+        // Текст акцента темнее на тонированной заливке (4,09:1 → 5,5:1), зона
+        // нажатия 44 pt при видимой высоте 30 pt (аудит UX/UI 2026-10).
+        .foregroundStyle(.accentText)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
             Capsule().fill(active ? Color.accentColor.opacity(0.15) : Color(.secondarySystemBackground))
         )
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
     }
 
     private var countryBinding: Binding<String> {
@@ -404,12 +415,12 @@ struct UniversitiesView: View {
                     .multilineTextAlignment(.center)
                 Text(errorMessage)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .multilineTextAlignment(.center)
                 Button("retry_button") {
                     Task { await model.loadFirstPage() }
                 }
-                .buttonStyle(.bordered)
+                .accentBordered()
             }
             .padding(32)
             Spacer()
@@ -424,18 +435,18 @@ struct UniversitiesView: View {
                         .multilineTextAlignment(.center)
                     Text("universities_filtered_empty_body")
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("universities_reset_filters") {
                         Task { await model.resetFilters() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else {
                 Text("universities_empty")
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .multilineTextAlignment(.center)
                     .padding(32)
             }
@@ -471,7 +482,7 @@ struct UniversitiesView: View {
                             Button("universities_load_more") {
                                 Task { await model.loadNextPage() }
                             }
-                            .buttonStyle(.bordered)
+                            .accentBordered()
                         }
                         Spacer()
                     }
@@ -481,7 +492,7 @@ struct UniversitiesView: View {
                 if model.loadMoreFailed {
                     Text("universities_load_more_failed")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .listRowSeparator(.hidden)
                 }
             }
@@ -500,7 +511,7 @@ private struct UniversityRow: View {
                 .font(.headline)
             Text(universityPlaceLine(item.content))
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
         .padding(.vertical, 4)
         // A11y-проход 9b: строка читается VoiceOver одним элементом

@@ -31,14 +31,14 @@ struct ApplicationStatusView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("apply_status_kicker")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .motionStagger(index: 0, key: "status.kicker")
                 Text(LocalizedStringKey(titleKey))
                     .font(.title.bold())
                     .motionStagger(index: 1, key: "status.title")
                 Text(LocalizedStringKey(leadKey))
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .motionStagger(index: 2, key: "status.lead")
                 if let reason = application.decisionReason, !reason.isEmpty {
                     Text(reason)
@@ -59,7 +59,7 @@ struct ApplicationStatusView: View {
                     .font(.title3.bold())
                 Text(application.email)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 answersList
             }
             .padding(20)
@@ -83,8 +83,7 @@ struct ApplicationStatusView: View {
                     Text("apply_fix_application")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 .accessibilityLabel(Text("apply_fix_application"))
             } else {
                 Button {
@@ -105,8 +104,7 @@ struct ApplicationStatusView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 .disabled(isChecking)
                 .accessibilityLabel(Text(application.status == .approved
                                          ? "apply_open_cabinet"
@@ -116,7 +114,7 @@ struct ApplicationStatusView: View {
                 Task { await router.signOut() }
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .accessibilityLabel(Text("apply_logout"))
         }
     }
@@ -171,7 +169,7 @@ struct ApplicationStatusView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.label)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     Text(item.value)
                         .font(.subheadline.weight(.medium))
                 }

@@ -43,12 +43,12 @@ struct EnglishView: View {
                             .multilineTextAlignment(.center)
                         Text(errorMessage)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .multilineTextAlignment(.center)
                         Button("retry_button") {
                             Task { await model.load() }
                         }
-                        .buttonStyle(.bordered)
+                        .accentBordered()
                     }
                     .padding(32)
                 } else if model.modules.isEmpty {
@@ -57,7 +57,7 @@ struct EnglishView: View {
                             .font(.headline)
                         Text("english_empty_body")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .multilineTextAlignment(.center)
                     }
                     .padding(32)
@@ -81,6 +81,7 @@ struct EnglishView: View {
         List {
             ForEach(model.modules) { module in
                 Section {
+                    moduleSummary(module)
                     ForEach(module.lessons) { lesson in
                         NavigationLink(value: lesson.lessonId) {
                             LessonRow(lesson: lesson)
@@ -102,7 +103,7 @@ struct EnglishView: View {
                                 .font(.subheadline.weight(.medium))
                             Text("english_review_lead")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                         }
                     }
 
@@ -115,35 +116,44 @@ struct EnglishView: View {
                                 .font(.subheadline.weight(.medium))
                             Text("english_test_entry_hint")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                         }
                     }
-                } header: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(AppLocale.pick(
-                            ru: module.metadata.titleRu,
-                            ky: module.metadata.titleKy
-                        ))
-                        .font(.headline)
-                        .textCase(nil)
-                        Text(String(
-                            format: String(localized: "english_progress"),
-                            module.lessonsCompleted, module.lessonsTotal
-                        ))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .textCase(nil)
-                    }
-                    .padding(.bottom, 4)
-                } footer: {
-                    Text(AppLocale.pick(
-                        ru: module.metadata.levelNoteRu,
-                        ky: module.metadata.levelNoteKy
-                    ))
                 }
             }
         }
         .refreshable { await model.load() }
+    }
+
+    /// Название модуля, вводный текст и прогресс первой строкой списка,
+    /// основным цветом и с полосой прогресса. Раньше это были заголовок и
+    /// подпись секции: прогресс «Пройдено уроков» давал 1,7:1, а вводный
+    /// текст стоял под всеми уроками (аудит UX/UI 2026-10).
+    private func moduleSummary(_ module: LearningModule) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(AppLocale.pick(ru: module.metadata.titleRu, ky: module.metadata.titleKy))
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            let note = AppLocale.pick(ru: module.metadata.levelNoteRu, ky: module.metadata.levelNoteKy)
+            if !note.isEmpty {
+                Text(note)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+            }
+            ProgressView(
+                value: Double(min(module.lessonsCompleted, module.lessonsTotal)),
+                total: Double(max(module.lessonsTotal, 1))
+            )
+            .tint(Color.accentColor)
+            .accessibilityHidden(true)
+            Text(String(
+                format: String(localized: "english_progress"),
+                module.lessonsCompleted, module.lessonsTotal
+            ))
+            .font(.subheadline)
+            .foregroundStyle(.primary)
+        }
+        .padding(.vertical, 6)
     }
 }
 
@@ -163,7 +173,7 @@ private struct LessonRow: View {
                 lesson.orderIndex
             ))
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             Text(AppLocale.pick(ru: lesson.metadata.titleRu, ky: lesson.metadata.titleKy))
                 .font(.subheadline.weight(.medium))
             HStack(spacing: 8) {
@@ -183,14 +193,14 @@ private struct LessonRow: View {
                         result.correctCount, result.exercisesTotal
                     ))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 }
                 Text(String(
                     format: String(localized: "english_exercises_count"),
                     lesson.exercisesTotal
                 ))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             }
         }
         .padding(.vertical, 2)
@@ -241,12 +251,12 @@ struct LessonContentView: View {
                 VStack(spacing: 12) {
                     Text("english_unavailable")
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("retry_button") {
                         Task { await model.load(lessonId: lessonId) }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             }
@@ -263,7 +273,7 @@ struct LessonContentView: View {
                         response.lesson.orderIndex
                     ))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     Text(AppLocale.pick(
                         ru: response.lesson.metadata.titleRu,
                         ky: response.lesson.metadata.titleKy
@@ -274,7 +284,7 @@ struct LessonContentView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("english_goal_heading")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     Text(AppLocale.pick(
                         ru: response.lesson.metadata.goalRu,
                         ky: response.lesson.metadata.goalKy
@@ -283,7 +293,7 @@ struct LessonContentView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
 
                 Text("english_theory_heading")
                     .font(.title3.bold())
@@ -308,7 +318,7 @@ struct LessonContentView: View {
                                 draft.answeredCount, draft.exercisesTotal
                             ))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         }
                         if let completed = response.latestCompleted, let result = completed.result {
                             Text(String(
@@ -316,7 +326,7 @@ struct LessonContentView: View {
                                 result.correctCount, result.exercisesTotal
                             ))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         }
 
                         Button {
@@ -333,8 +343,7 @@ struct LessonContentView: View {
                             }
                             .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Color("AccentColor"))
+                        .accentProminent()
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
@@ -372,7 +381,7 @@ private struct TheoryBlockView: View {
                         .font(.subheadline.weight(.semibold))
                     Text(AppLocale.pick(ru: example.ru, ky: example.ky))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
@@ -381,6 +390,6 @@ private struct TheoryBlockView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 }

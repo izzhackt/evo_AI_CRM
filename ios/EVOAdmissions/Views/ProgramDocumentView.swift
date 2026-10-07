@@ -30,11 +30,11 @@ struct ProgramDocumentControls: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("program_document_sent").font(.subheadline.weight(.semibold))
                     fileLabel(submission.file)
-                    Text(timestampLabel(submission.submittedAt)).font(.footnote).foregroundStyle(.secondary)
+                    Text(timestampLabel(submission.submittedAt)).font(.footnote).foregroundStyle(.secondaryText)
                     if let review = submission.review {
                         Text(LocalizedStringKey(review.decision.labelKey)).font(.subheadline)
                         if let reason = review.reason { Text(reason).font(.subheadline) }
-                        Text(timestampLabel(review.reviewedAt)).font(.footnote).foregroundStyle(.secondary)
+                        Text(timestampLabel(review.reviewedAt)).font(.footnote).foregroundStyle(.secondaryText)
                     } else { Text("program_document_awaiting_review").font(.footnote) }
                     previewButton(submission.file, revision: submission.requirementsRevisionId, item: submission.requirementItemId, slot: submission.documentSlotId)
                 }
@@ -48,7 +48,7 @@ struct ProgramDocumentControls: View {
                         Text(LocalizedStringKey(review.decision.labelKey))
                         if let reason = review.reason { Text(reason) }
                     }
-                    Text("program_document_previous_not_current").font(.footnote).foregroundStyle(.secondary)
+                    Text("program_document_previous_not_current").font(.footnote).foregroundStyle(.secondaryText)
                     previewButton(previous.file, revision: previous.requirementsRevisionId, item: previous.requirementItemId, slot: previous.definition.documentSlotId)
                 }
             }
@@ -58,7 +58,7 @@ struct ProgramDocumentControls: View {
             } else if item.canUpload {
                 Button(LocalizedStringKey(item.submission?.review?.reason != nil ? "program_document_correct" : "program_document_choose_save")) { importing = true }
                     .frame(minHeight: 44)
-                Text("program_document_save_explanation").font(.footnote).foregroundStyle(.secondary)
+                Text("program_document_save_explanation").font(.footnote).foregroundStyle(.secondaryText)
             }
             if model.pendingSubmit(item.id) != nil {
                 Text("program_document_request_unknown").font(.footnote)
@@ -103,7 +103,7 @@ struct ProgramDocumentFileLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(file.file.originalFilename).font(.subheadline).textSelection(.enabled)
-            Text(String(localized: "program_document_version", locale: locale) + " " + file.versionNo).font(.caption).foregroundStyle(.secondary)
+            Text(String(localized: "program_document_version", locale: locale) + " " + file.versionNo).font(.caption).foregroundStyle(.secondaryText)
             ForEach(file.unavailableReasons, id: \.rawValue) { reason in
                 Text(LocalizedStringKey(reason.labelKey)).font(.footnote).foregroundStyle(.secondaryText)
             }
@@ -131,7 +131,7 @@ struct ProgramDocumentPendingSection: View {
                         Task { await model.submit(itemId: pending.requirementItemId, selection: nil, session: session) }
                     }.frame(minHeight: 44)
                 }
-            } header: { Text("program_document_pending_title") }
+            } header: { Text("program_document_pending_title").foregroundStyle(.secondaryText) }
             .disabled(model.busy)
             .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf, .jpeg, .png]) { result in
                 if case .success(let url) = result, let itemId { Task { await model.saveFile(url, itemId: itemId, session: session) } }
@@ -207,7 +207,7 @@ struct ProgramDocumentHistoryView: View {
                     historicalDefinition(event.definition)
                     Text(LocalizedStringKey(event.kind == "upload" ? "program_document_event_saved" : "program_document_sent")).font(.subheadline)
                     Text(PostgresTimestamp.date(from: event.createdAt)?.formatted(.dateTime.day().month().year().hour().minute().locale(locale)) ?? event.createdAt)
-                        .font(.footnote).foregroundStyle(.secondary)
+                        .font(.footnote).foregroundStyle(.secondaryText)
                     ProgramDocumentFileLabel(file: event.file)
                     if let review = event.submission?.review {
                         Text(LocalizedStringKey(review.decision.labelKey))
@@ -219,7 +219,7 @@ struct ProgramDocumentHistoryView: View {
                     }.frame(minHeight: 44).disabled(model.busy || event.file.technicalAvailability != .available)
                 }.padding(.vertical, 4)
             }
-            if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
+            if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.dangerText) }
             if loading { ProgressView("prep_loading") }
             else if failed { Text("prep_read_failed"); Button("retry_button") { Task { await load(reset: !loaded) } } }
             else if loaded && events.isEmpty { Text("program_document_history_empty") }
@@ -235,7 +235,7 @@ struct ProgramDocumentHistoryView: View {
             Text(definition.label).font(.headline).accessibilityAddTraits(.isHeader)
             Text(definition.groupLabel).font(.subheadline)
             Text(LocalizedStringKey(definition.required ? "prep_required" : "prep_optional"))
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(.secondaryText)
             Text(definition.instructions).font(.footnote)
             if let deadline = definition.deadline {
                 Text("prep_requirement_deadline").font(.subheadline)
@@ -246,7 +246,7 @@ struct ProgramDocumentHistoryView: View {
                 }
                 Text(String(localized: "prep_deadline_verified", locale: locale) + " "
                      + (CatalogDate.dayLabel(from: deadline.verifiedOn, locale: locale) ?? deadline.verifiedOn))
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(.secondaryText)
             }
         }
     }
@@ -292,8 +292,8 @@ struct ProgramDocumentNotificationView: View {
                     Text(LocalizedStringKey(review.decision.labelKey)).font(.headline)
                     if let reason = review.reason { Text(reason) }
                     Text(PostgresTimestamp.date(from: review.reviewedAt)?.formatted(.dateTime.day().month().year().hour().minute().locale(locale)) ?? review.reviewedAt)
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Text("program_document_notification_snapshot").font(.footnote).foregroundStyle(.secondary)
+                        .font(.footnote).foregroundStyle(.secondaryText)
+                    Text("program_document_notification_snapshot").font(.footnote).foregroundStyle(.secondaryText)
                     Button("program_document_open_version") {
                         Task { await model.preview(file: notification.submission.file, revisionId: notification.requirementsRevisionId,
                             itemId: notification.requirementItemId, slotId: notification.documentSlotId, session: session) }
@@ -307,7 +307,7 @@ struct ProgramDocumentNotificationView: View {
             }
             if loading { ProgressView("prep_loading") }
             if failed { Text("prep_read_failed"); Button("retry_button") { Task { await load() } } }
-            if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
+            if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.dangerText) }
         }
         .navigationTitle("program_document_review_detail")
         .quickLookPreview($model.previewURL)

@@ -20,7 +20,7 @@ struct AccessPendingView: View {
 
             Text("access_pending_body")
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .multilineTextAlignment(.center)
 
             Button {
@@ -36,8 +36,7 @@ struct AccessPendingView: View {
                     Text("retry_button")
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color("AccentColor"))
+            .accentProminent()
             // A11y (9b): во время повтора label — ProgressView без текста.
             .accessibilityLabel(Text("retry_button"))
 
@@ -45,7 +44,7 @@ struct AccessPendingView: View {
                 Task { await router.signOut() }
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
         }
         .padding(32)
     }

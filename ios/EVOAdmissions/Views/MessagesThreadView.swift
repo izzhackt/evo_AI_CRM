@@ -140,7 +140,7 @@ struct MessagesThreadView: View {
                     Button("retry_button") {
                         Task { await model.loadInitial() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else {
@@ -190,12 +190,12 @@ struct MessagesThreadView: View {
                                     .frame(maxWidth: .infinity)
                             }
                         }
-                        .buttonStyle(.bordered)
+                        .accentBordered()
                         .disabled(model.isLoadingEarlier)
                         if model.loadEarlierFailed {
                             Text("messages_load_earlier_error")
                                 .font(.footnote)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(.dangerText)
                         }
                     }
 
@@ -205,7 +205,7 @@ struct MessagesThreadView: View {
                                 .font(.headline)
                             Text("messages_empty_body")
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                                 .multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity)
@@ -220,7 +220,7 @@ struct MessagesThreadView: View {
                         HStack(spacing: 8) {
                             Text("messages_refresh_error")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                             Button("retry_button") {
                                 Task { await model.refreshLatest() }
                             }
@@ -243,16 +243,16 @@ struct MessagesThreadView: View {
             case .sending:
                 Text("messages_sending")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             case .sent:
                 Text("messages_sent")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             case .failed:
                 HStack(spacing: 8) {
                     Text("messages_send_error")
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.dangerText)
                     Button("retry_button") {
                         // Ретрай без правки текста: тот же request_id и то же
                         // тело — идемпотентный replay (200:80-90).
@@ -265,7 +265,13 @@ struct MessagesThreadView: View {
             }
 
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("messages_composer_placeholder", text: $model.draft, axis: .vertical)
+                // Подсказка цветом 4,5:1 вместо системного placeholder 1,72:1.
+                TextField(
+                    "messages_composer_placeholder",
+                    text: $model.draft,
+                    prompt: Text("messages_composer_placeholder").foregroundStyle(.secondaryText),
+                    axis: .vertical
+                )
                     .lineLimit(1...4)
                     .textFieldStyle(.roundedBorder)
                     .disabled(model.sendState == .sending)
@@ -289,15 +295,17 @@ struct MessagesThreadView: View {
             if model.draft.count > PortalCaseChatPolicy.bodyLimit {
                 Text("messages_limit_hint")
                     .font(.caption2)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.dangerText)
             } else {
                 Text("messages_limit_hint")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         }
         .padding(12)
-        .background(.thinMaterial)
+        // Непрозрачная панель: на .thinMaterial строка лимита давала 2,83:1.
+        .background(Color(.systemBackground))
+        .overlay(alignment: .top) { Divider() }
     }
 }
 
@@ -311,7 +319,7 @@ private struct MessageRow: View {
                 if !message.mine {
                     Text(message.authorName)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
                 if let preview = message.quotedBodyPreview {
                     Text(String(
@@ -319,7 +327,7 @@ private struct MessageRow: View {
                         preview
                     ))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .padding(.leading, 8)
                     .overlay(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 1)
@@ -353,7 +361,7 @@ private struct MessageRow: View {
                 ) {
                     Text(time)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .padding(10)

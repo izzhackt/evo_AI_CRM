@@ -252,7 +252,8 @@ function findEndOfCentralDirectory(bytes: Uint8Array): number | null {
   return null;
 }
 
-function parseStandardZip(bytes: Uint8Array): Map<string, ZipEntry> | null {
+/** Also used by the «ИИ-агент» knowledge upload (ai-agent-files.ts) — one ZIP reader. */
+export function parseStandardZip(bytes: Uint8Array): Map<string, ZipEntry> | null {
   const eocdOffset = findEndOfCentralDirectory(bytes);
   if (eocdOffset === null) return null;
 
@@ -485,7 +486,7 @@ function ooxmlExpectation(mimeType: PlatformCompanyFileMimeType): OoxmlExpectati
   return null;
 }
 
-function matchesOoxmlPackage(
+export function matchesOoxmlPackage(
   mimeType: PlatformCompanyFileMimeType,
   bytes: Uint8Array,
 ): boolean {

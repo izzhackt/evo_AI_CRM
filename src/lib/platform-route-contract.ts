@@ -109,6 +109,21 @@ const AI_AGENT_ANSWER_PATH =
   /^\/api\/v3\/ai-agent\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/answer$/i;
 const AI_AGENT_INSERT_PATH =
   /^\/api\/v3\/ai-agent\/answers\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/insert$/i;
+// «ИИ-агент» P2 (план ИИ-агента §4.5, §7, §8): загрузка файла в «Информацию
+// для агента», картинка страницы и вырезка «Листа сверки» (обе — через сессию
+// и ai_agent_document_v1), «Лаборатория» (состояние, вопрос, «Что не так?»,
+// «Применить»). Обработчики повторяют сессию, раздел и право; решает база.
+const AI_AGENT_DOCUMENTS_PATH = "/api/v3/ai-agent/documents";
+const AI_AGENT_PAGE_IMAGE_PATH =
+  /^\/api\/v3\/ai-agent\/documents\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/pages\/[1-9][0-9]{0,2}\/image$/i;
+const AI_AGENT_CROP_PATH =
+  /^\/api\/v3\/ai-agent\/documents\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/crops\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const AI_AGENT_LAB_PATH = /^\/api\/v3\/ai-agent\/lab(?:\/(?:ask|critique|apply))?$/;
+// Внутренний брокер Storage агента (HMAC своего секрета + аренда документа в
+// базе; edge Caddy отвечает 404 на /api/internal/*). Только эти объекты, только
+// строчные UUID — тот же шаблон, что разбирает обработчик (ai-agent-storage-broker.ts).
+const AI_AGENT_STORAGE_BROKER_PATH =
+  /^\/api\/internal\/ai-agent\/storage\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(?:original|pages\/[1-9][0-9]{0,2}\.png|crops\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png)$/;
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
   "/api/internal/platform-messaging/waha/work",
@@ -218,7 +233,8 @@ export function isPublicStudentRegistrationApi(
  * in the connected Platform boundary.
  */
 export function isConnectedPlatformPrivateApi(path: string): boolean {
-  return PLATFORM_PRIVATE_API_ALLOWLIST.has(path) || path === "/api/public/website-leads";
+  return PLATFORM_PRIVATE_API_ALLOWLIST.has(path) || path === "/api/public/website-leads"
+    || AI_AGENT_STORAGE_BROKER_PATH.test(path);
 }
 
 /**
@@ -266,6 +282,10 @@ export function isConnectedPlatformApi(path: string): boolean {
     CASE_CONTRACT_FILE_DOWNLOAD_PATH.test(path) ||
     AI_AGENT_ANSWER_PATH.test(path) ||
     AI_AGENT_INSERT_PATH.test(path) ||
+    path === AI_AGENT_DOCUMENTS_PATH ||
+    AI_AGENT_PAGE_IMAGE_PATH.test(path) ||
+    AI_AGENT_CROP_PATH.test(path) ||
+    AI_AGENT_LAB_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

@@ -1,13 +1,21 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
 import { btnCls, btnGhostCls } from "@/components/ui";
 import { StatusChip, type StatusChipTone } from "@/components/v3/blocks/StatusChip";
 import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
-import { confirmAiRulesAction, recordAiConsentAction, retryAiDocumentAction } from "@/lib/platform-ai-agent-actions";
+import {
+  confirmAiDocumentCompanyAction,
+  confirmAiRulesAction,
+  deleteAiDocumentAction,
+  recordAiConsentAction,
+  retryAiDocumentAction,
+} from "@/lib/platform-ai-agent-actions";
 import type { AiAgentStatus } from "@/lib/server/ai-agent-route-handlers";
 import {
   AI_AGENT_SECTIONS,
+  AI_PERSONAL_DOCUMENT_CODE,
   AUDIENCE_LABEL,
   PURPOSE_GROUP_LABEL,
   RULE_SOURCE_LABEL,
@@ -26,21 +34,24 @@ import {
 import type { AiRead } from "@/lib/v3/ai-agent-source";
 
 import { AiActionForm } from "./AiActionForm";
+import { AiDocumentUpload } from "./AiDocumentUpload";
 import { AiMonthlyCapForm } from "./AiMonthlyCapForm";
+import { AiRowMore } from "./AiRowMore";
 import { AiRulesEditor } from "./AiRulesEditor";
 
 /**
- * Раздел «ИИ-агент» (план ИИ-агента §12.2): вкладки P1 — «Информация для
- * агента», «Правила общения», «Расходы». Подразделов P2–P4 («Лист сверки»,
- * «Лаборатория», «Автоответчик», «Диктовка») здесь нет — без пустых кнопок.
- * Числа — из базы; не прочитано — «Не удалось загрузить», а не ноль.
+ * Раздел «ИИ-агент» (план ИИ-агента §12.2): вкладки «Информация для агента»,
+ * «Лист сверки» (с числом открытых пунктов), «Лаборатория» (P2), «Правила
+ * общения», «Расходы». «Автоответчика» и «Диктовки» (P4) здесь нет — без
+ * пустых кнопок. Числа — из базы; не прочитано — без числа, а не ноль.
  */
-export function AiAgentNav({ section }: Readonly<{ section: AiAgentSection }>) {
+export function AiAgentNav({ section, reviewOpenCount }: Readonly<{ section: AiAgentSection; reviewOpenCount: number | null }>) {
   return (
     <QueueViewTabs
       label="Подразделы ИИ-агента"
       tabs={AI_AGENT_SECTIONS.map((tab) => ({
-        key: tab.key, label: tab.title, count: null, current: tab.key === section, href: aiAgentHref(tab.key),
+        key: tab.key, label: tab.title, count: tab.key === "review" ? reviewOpenCount : null,
+        current: tab.key === section, href: aiAgentHref(tab.key),
       }))}
     />
   );
@@ -140,86 +151,258 @@ function sourceLine(document: AiDocument): string {
   return [kind, from, document.editedInLab ? "изменён в Лаборатории" : null].filter(Boolean).join(" · ");
 }
 
+/** Id запросов команд строк — с сервера (одна разметка на сервере и при гидратации). */
+export type AiDocumentRequestIds = Readonly<{
+  upload: string;
+  retry: Readonly<Record<string, string>>;
+  remove: Readonly<Record<string, string>>;
+  company: Readonly<Record<string, string>>;
+}>;
+
+const LIVE = new Set(["ready", "review"]);
+
+/**
+ * Новые версии лежат под своей прежней (§7: «старая версия ищется, пока
+ * новая не готова»): строка прежней говорит «Новая версия обрабатывается —
+ * пока ищется прежняя», а сама новая версия — строкой под ней.
+ */
+function groupVersions(items: readonly AiDocument[]) {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const successors = new Map<string, AiDocument>();
+  for (const item of items) {
+    const previous = item.replacesId ? byId.get(item.replacesId) : undefined;
+    if (previous && LIVE.has(previous.status) && !LIVE.has(item.status)) successors.set(previous.id, item);
+  }
+  const nested = new Set([...successors.values()].map((item) => item.id));
+  return { rows: items.filter((item) => !nested.has(item.id)), successors };
+}
+
+function DeleteDocument({ document, requestId, label }: Readonly<{ document: AiDocument; requestId: string; label: string }>) {
+  return (
+    <AiActionForm
+      requestId={requestId}
+      action={deleteAiDocumentAction}
+      fields={{ document_id: document.id, expected_version: String(document.rowVersion) }}
+      label={label}
+      pendingLabel="Удаляю…"
+      buttonClassName={btnGhostCls}
+      messages={{ saved: "Документ удалён.", conflict: "Документ уже изменился — обновите страницу." }}
+    />
+  );
+}
+
+/**
+ * Команды строки на виду — только те, что ждут сотрудника: «Повторить» у
+ * ошибки, «Это материал компании — продолжить» и «Удалить…» у документа,
+ * похожего на документ клиента. Редкое («Новая версия», «Удалить…») — в «⋯».
+ */
+function PrimaryCommands({ document, requestIds }: Readonly<{ document: AiDocument; requestIds: AiDocumentRequestIds }>) {
+  const personal = document.status === "failed" && document.errorCode === AI_PERSONAL_DOCUMENT_CODE;
+  if (document.status !== "failed") return null;
+  const fields = { document_id: document.id, expected_version: String(document.rowVersion) };
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+      {personal && requestIds.company[document.id] ? (
+        <AiActionForm
+          requestId={requestIds.company[document.id]!}
+          action={confirmAiDocumentCompanyAction}
+          fields={fields}
+          label="Это материал компании — продолжить"
+          pendingLabel="Записываю решение…"
+          buttonClassName={btnGhostCls}
+          messages={{ saved: "Решение записано — обработка продолжается.", conflict: "Документ уже изменился — обновите страницу." }}
+          testId="v3-ai-document-company"
+        />
+      ) : null}
+      {!personal && requestIds.retry[document.id] ? (
+        <AiActionForm
+          requestId={requestIds.retry[document.id]!}
+          action={retryAiDocumentAction}
+          fields={fields}
+          label="Повторить"
+          pendingLabel="Ставлю в очередь…"
+          buttonClassName={btnGhostCls}
+          messages={{ saved: "Документ снова в очереди." }}
+        />
+      ) : null}
+      {requestIds.remove[document.id] ? (
+        <details>
+          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center t-label text-fg-2 underline decoration-fg-3 underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden">
+            Удалить…
+          </summary>
+          <div className="pb-1">
+            <DeleteDocument document={document} requestId={requestIds.remove[document.id]!} label={personal ? "Удалить файл" : "Удалить документ"} />
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function DocumentRow({
+  document,
+  successor,
+  canManage,
+  requestIds,
+}: Readonly<{ document: AiDocument; successor: AiDocument | null; canManage: boolean; requestIds: AiDocumentRequestIds }>) {
+  const status = documentStatus(document);
+  const personal = document.status === "failed" && document.errorCode === AI_PERSONAL_DOCUMENT_CODE;
+  const pending = successor !== null && successor.status !== "failed";
+  const successorStatus = successor ? documentStatus(successor) : null;
+  // Новая версия — только у загруженного файла (271: у знаний из «Базы знаний» её нет).
+  const allowNewVersion = document.source === "upload" && LIVE.has(document.status) && successor === null;
+  const menu = canManage && document.status !== "failed" && requestIds.remove[document.id] ? (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      {allowNewVersion ? (
+        <Link href={aiAgentHref("documents", { replace: document.id })} className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4">
+          Загрузить новую версию
+        </Link>
+      ) : null}
+      <DeleteDocument document={document} requestId={requestIds.remove[document.id]!} label="Удалить — агент перестанет его использовать" />
+    </div>
+  ) : null;
+  return (
+    <li className="px-4 py-3" data-testid="v3-ai-document" data-status={document.status} data-document-id={document.id}>
+      <AiRowMore
+        label={document.title}
+        panel={menu}
+        main={(
+          <>
+            <p className="t-item break-words text-fg">
+              <Link href={aiAgentHref("documents", { document: document.id })} className="underline decoration-border-strong underline-offset-4 hover:decoration-fg">
+                {document.title}
+              </Link>
+            </p>
+            <p className="mt-0.5 t-meta text-fg-3">
+              {sourceLine(document)}
+              {document.pageCount !== null && document.pageCount > 0 ? ` · ${plural(document.pageCount, "страница", "страницы", "страниц")}` : ""}
+              {document.chunkCount > 0 ? ` · ${plural(document.chunkCount, "фрагмент", "фрагмента", "фрагментов")}` : ""}
+              {` · ${aiDateTime(document.updatedAt)}`}
+            </p>
+            {personal ? (
+              <p className="mt-1 max-w-[64ch] t-body-compact text-fg-2">
+                В тексте есть признаки паспорта, ПИН или бланка аттестата. Документы клиентов агенту не загружаются — продолжайте, только если это материал компании.
+              </p>
+            ) : null}
+            {document.status === "failed" && !personal && document.errorCode ? (
+              <p className="mt-0.5 t-meta text-fg-3">Код: <span className="font-mono">{document.errorCode}</span></p>
+            ) : null}
+            {canManage ? <PrimaryCommands document={document} requestIds={requestIds} /> : null}
+          </>
+        )}
+        aside={(
+          <>
+            <StatusChip label={AUDIENCE_LABEL[document.audience]} tone={document.audience === "internal" ? "info" : "neutral"} />
+            {document.status === "review" && document.openReviewCount > 0 ? (
+              <Link href={aiAgentHref("review", { document: document.id })} className="inline-flex min-h-11 items-center rounded-full focus-visible:outline-offset-2" aria-label={`${status.label} — открыть «Лист сверки»`}>
+                <StatusChip label={status.label} tone="warn" />
+              </Link>
+            ) : (
+              <StatusChip label={status.label} tone={STATUS_TONE[status.tone]} />
+            )}
+          </>
+        )}
+      />
+      {successor && successorStatus ? (
+        <div className="mt-2 rounded-ctl bg-bg px-3 py-2" data-testid="v3-ai-document-successor" data-status={successor.status}>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <p className="min-w-0 t-body-compact text-fg-2">
+              {pending ? "Новая версия обрабатывается — пока ищется прежняя." : "Новая версия не обработана — ищется прежняя."}
+              <span className="t-meta text-fg-3"> · {aiDateTime(successor.updatedAt)}</span>
+            </p>
+            <StatusChip label={successorStatus.label} tone={STATUS_TONE[successorStatus.tone]} />
+          </div>
+          {canManage ? <PrimaryCommands document={successor} requestIds={requestIds} /> : null}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 export function AiDocumentsView({
   read,
   preview,
   requestIds,
   retryHref,
+  replaceId,
+  featureOn,
 }: Readonly<{
   read: AiRead<Readonly<{ items: readonly AiDocument[]; hasMore: boolean; canManage: boolean; isAdmin: boolean }>>;
   preview: boolean;
-  /** Id запроса «Повторить» для каждого документа с ошибкой — с сервера. */
-  requestIds: Readonly<Record<string, string>>;
+  requestIds: AiDocumentRequestIds;
   retryHref: string;
+  /** «Новая версия» этого документа (`?replace=`). */
+  replaceId: string | null;
+  featureOn: boolean;
 }>) {
   if (read.status !== "available") return <AiUnavailable what="материалы агента" retryHref={retryHref} />;
-  const { items, hasMore, canManage } = read.data;
+  const { items, hasMore } = read.data;
+  const canManage = read.data.canManage && !preview;
+  const replaceTarget = replaceId
+    ? items.find((item) => item.id === replaceId && item.source === "upload" && LIVE.has(item.status)
+      && !items.some((other) => other.replacesId === item.id && !LIVE.has(other.status) && other.status !== "superseded")) ?? null
+    : null;
+  const upload = canManage ? (
+    <AiDocumentUpload
+      key={replaceTarget?.id ?? "new"}
+      requestId={requestIds.upload}
+      replace={replaceTarget ? {
+        id: replaceTarget.id, title: replaceTarget.title, rowVersion: replaceTarget.rowVersion,
+        audienceLabel: AUDIENCE_LABEL[replaceTarget.audience],
+      } : null}
+      cancelHref={aiAgentHref("documents")}
+      featureOn={featureOn}
+    />
+  ) : null;
+  const staleReplace = replaceId !== null && replaceTarget === null ? (
+    <p role="alert" className="t-body-compact text-fg-2">
+      Новую версию этого документа загрузить нельзя: он уже заменён, удалён или ещё не готов.{" "}
+      <Link href={aiAgentHref("documents")} className="inline-flex min-h-11 items-center underline underline-offset-4">К материалам</Link>
+    </p>
+  ) : null;
   if (items.length === 0) {
     return (
-      <section className="rounded-card border border-border bg-surface px-4 py-8 text-center" data-testid="v3-ai-documents-empty">
-        <p className="t-section text-fg">Материалов пока нет</p>
-        <p className="mx-auto mt-1 max-w-[52ch] t-body-compact text-fg-2">
-          Начальные материалы администратор копирует из «Базы знаний»; загрузка файлов появится позже.
-        </p>
-      </section>
+      <div className="space-y-4">
+        {upload}
+        <section className="rounded-card border border-border bg-surface px-4 py-8 text-center" data-testid="v3-ai-documents-empty">
+          <p className="t-section text-fg">Материалов пока нет</p>
+          <p className="mx-auto mt-1 max-w-[52ch] t-body-compact text-fg-2">
+            {canManage
+              ? "Загрузите прайс, буклет или правила компании — агент будет отвечать по ним и ссылаться на страницу."
+              : "Материалы загружает сотрудник с доступом к «ИИ-агенту»."}
+          </p>
+        </section>
+      </div>
     );
   }
-  const client = items.filter((item) => item.audience === "client").length;
-  const ready = items.filter((item) => item.status === "ready" || item.status === "review").length;
+  const { rows, successors } = groupVersions(items);
+  const live = items.filter((item) => LIVE.has(item.status));
+  const client = live.filter((item) => item.audience === "client").length;
   return (
-    <section aria-labelledby="ai-documents-title" className="space-y-3" data-testid="v3-ai-documents">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="ai-documents-title" className="t-section text-fg">Материалы агента</h2>
-        <p className="t-meta tabular-nums text-fg-3">
-          {plural(items.length, "документ", "документа", "документов")} · для клиентов {client} · внутренних {items.length - client} · готовы {ready}
-        </p>
-      </div>
-      <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
-        {items.map((document) => {
-          const status = documentStatus(document);
-          return (
-            <li
+    <div className="space-y-4">
+      {staleReplace}
+      {upload}
+      <section aria-labelledby="ai-documents-title" className="space-y-3" data-testid="v3-ai-documents">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 id="ai-documents-title" className="t-section text-fg">Материалы агента</h2>
+          <p className="t-meta tabular-nums text-fg-3">
+            {plural(rows.length, "документ", "документа", "документов")} · ищутся {live.length} · для клиентов {client} · внутренних {live.length - client}
+          </p>
+        </div>
+        <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
+          {rows.map((document) => (
+            <DocumentRow
               key={document.id}
-              className="grid gap-x-4 gap-y-2 px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
-              data-testid="v3-ai-document"
-              data-status={document.status}
-            >
-              <div className="min-w-0">
-                <p className="t-item break-words text-fg">{document.title}</p>
-                <p className="mt-0.5 t-meta text-fg-3">
-                  {sourceLine(document)}
-                  {document.pageCount !== null && document.pageCount > 0 ? ` · ${plural(document.pageCount, "страница", "страницы", "страниц")}` : ""}
-                  {document.chunkCount > 0 ? ` · ${plural(document.chunkCount, "фрагмент", "фрагмента", "фрагментов")}` : ""}
-                  {` · ${aiDateTime(document.updatedAt)}`}
-                </p>
-                {document.status === "failed" && document.errorCode ? (
-                  <p className="mt-0.5 t-meta text-danger">Код ошибки: <span className="font-mono">{document.errorCode}</span></p>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
-                <StatusChip label={AUDIENCE_LABEL[document.audience]} tone={document.audience === "internal" ? "info" : "neutral"} />
-                <StatusChip label={status.label} tone={STATUS_TONE[status.tone]} />
-                {document.openReviewCount > 0 ? (
-                  <StatusChip label={`сверка: ${document.openReviewCount}`} tone="warn" />
-                ) : null}
-                {document.status === "failed" && canManage && !preview && requestIds[document.id] ? (
-                  <AiActionForm
-                    requestId={requestIds[document.id]}
-                    action={retryAiDocumentAction}
-                    fields={{ document_id: document.id, expected_version: String(document.rowVersion) }}
-                    label="Повторить"
-                    pendingLabel="Ставлю в очередь…"
-                    buttonClassName={btnGhostCls}
-                    messages={{ saved: "Документ снова в очереди." }}
-                  />
-                ) : null}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {hasMore ? <p className="t-meta text-fg-3">Показаны первые 100 документов.</p> : null}
-    </section>
+              document={document}
+              successor={successors.get(document.id) ?? null}
+              canManage={canManage}
+              requestIds={requestIds}
+            />
+          ))}
+        </ul>
+        {hasMore ? <p className="t-meta text-fg-3">Показаны первые 100 документов.</p> : null}
+      </section>
+    </div>
   );
 }
 

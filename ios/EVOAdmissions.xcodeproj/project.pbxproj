@@ -76,6 +76,7 @@
 		93B0DE25C385F583F6D44487 /* UniversityGeoLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72846D94CB1FCC708DFB3A83 /* UniversityGeoLibraryTests.swift */; };
 		95CD815AE4E37B4ED161141E /* EVOAdmissionsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A06AEC430C456B54301DDB0 /* EVOAdmissionsApp.swift */; };
 		99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B36978FE6CEE29DDAC580E /* SupabaseService.swift */; };
+		9B0C3520647B12E41D964D89 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 37EF51A92383C1C31BB2AD16 /* PrivacyInfo.xcprivacy */; };
 		9F0D38C82C7EAE76504ADA83 /* LearningModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8F3E3772ADCC2E62305E0B8 /* LearningModels.swift */; };
 		A269A971EE5E5B44A06DCE78 /* CatalogPreparationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC70F12739DB63D364874A99 /* CatalogPreparationModels.swift */; };
 		A33A7B570BFD41CAF763E0D7 /* AssessmentRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */; };
@@ -175,6 +176,7 @@
 		30410E2669DCC35D7ADEAE99 /* PortalCaseChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalCaseChatModels.swift; sourceTree = "<group>"; };
 		30ED4EB674CED0272D9BA3F6 /* ProgramPackageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPackageModel.swift; sourceTree = "<group>"; };
 		31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostgresTimestamp.swift; sourceTree = "<group>"; };
+		37EF51A92383C1C31BB2AD16 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		392347D625C4C851420D9CBD /* ApplicationRequirementsV2Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationRequirementsV2Models.swift; sourceTree = "<group>"; };
 		42E98235AF600314A5B3F0B7 /* ProgramDocumentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramDocumentModel.swift; sourceTree = "<group>"; };
 		45852421E9DCACAC63246FF9 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
@@ -253,7 +255,7 @@
 		F4B21D0A664C40CAA299E1E4 /* UniversityCatalogFilterPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCatalogFilterPolicyTests.swift; sourceTree = "<group>"; };
 		F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentRunnerView.swift; sourceTree = "<group>"; };
 		FD04FB295EC8AF191E69FE6A /* TabShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabShell.swift; sourceTree = "<group>"; };
-		"TEMP_0EC9823F-79CC-4E3C-9A18-C245CDACF8F5" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
+		"TEMP_F5863BE1-91D8-4A06-9600-3713F5E9C7FD" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -359,6 +361,7 @@
 			children = (
 				CDF92CA04A21A199DB841591 /* Assets.xcassets */,
 				005949937B65067CD79CB062 /* Localizable.xcstrings */,
+				37EF51A92383C1C31BB2AD16 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -461,10 +464,10 @@
 			path = lib;
 			sourceTree = "<group>";
 		};
-		"TEMP_FCCC9E58-C5E0-48F7-ADA3-2E9C2C0D33A9" /* ios */ = {
+		"TEMP_55848690-805C-438D-A611-7353125D7427" /* ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_0EC9823F-79CC-4E3C-9A18-C245CDACF8F5" /* Local.xcconfig */,
+				"TEMP_F5863BE1-91D8-4A06-9600-3713F5E9C7FD" /* Local.xcconfig */,
 			);
 			path = ios;
 			sourceTree = "<group>";
@@ -555,6 +558,7 @@
 			files = (
 				4B719C2CF1A19ED986419366 /* Assets.xcassets in Resources */,
 				10E26CC17AB500306B18ED61 /* Localizable.xcstrings in Resources */,
+				9B0C3520647B12E41D964D89 /* PrivacyInfo.xcprivacy in Resources */,
 				B9C15D878080FC0A172E1CBB /* university-geo-library.json in Resources */,
 				3426083931E12340BFC627DA /* university-photo-library.json in Resources */,
 			);
@@ -732,7 +736,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.evoadmissions.app;
 				PRODUCT_NAME = "EVO admissions";
 				SDKROOT = iphoneos;
@@ -743,7 +747,7 @@
 		};
 		B6C84763ED668FD71B0D8C20 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_0EC9823F-79CC-4E3C-9A18-C245CDACF8F5" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_F5863BE1-91D8-4A06-9600-3713F5E9C7FD" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -833,7 +837,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.evoadmissions.app;
 				PRODUCT_NAME = "EVO admissions";
 				SDKROOT = iphoneos;
@@ -861,7 +865,7 @@
 		};
 		F095E5C184A5CF5D3A673C4C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_0EC9823F-79CC-4E3C-9A18-C245CDACF8F5" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_F5863BE1-91D8-4A06-9600-3713F5E9C7FD" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

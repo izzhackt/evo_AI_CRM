@@ -366,11 +366,12 @@ const deployArgumentNames = [
   "EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT", "EVO_RELEASE_ARTIFACT_ID",
   "EVO_RELEASE_ARTIFACT_DIGEST", "archive_sha256", "image_id", "image_config_digest",
   "compose_sha256", "controller_sha256", "validator_sha256", "env_example_sha256",
-  "manifest_sha256",
+  "manifest_sha256", "ai_agent_enabled", "ai_agent_digest",
 ];
 const acceptanceArgumentNames = [
   "command_name", ...deployArgumentNames.slice(0, 21), "EVO_RELEASE_ACTOR_ID",
   "EVO_RELEASE_CURRENT_MAIN_REVISION", "receipt_sha256", "controller_sha256",
+  "ai_agent_enabled", "ai_agent_digest",
 ];
 
 for (const [seedLabel, rollbackSeed] of [
@@ -702,4 +703,56 @@ test("guard failures rollback pending state while unknown acceptance state is pr
   assert.match(cleanup, /steps\.acceptance_guard_rollback\.outcome == 'success'/u);
   assert.doesNotMatch(cleanup, /steps\.accept_candidate\.outcome == 'failure'/u);
   assert.match(cleanup, /evo-production-release-transfer-owned/u);
+});
+
+test("the AI agent joins a release only for exactly true with a pinned digest", () => {
+  const validate = namedStep("Validate non-secret production contract");
+  assert.match(validate, /EVO_AI_AGENT_ENABLED: \$\{\{ vars\.EVO_AI_AGENT_ENABLED \}\}/u);
+  assert.match(validate, /EVO_AI_AGENT_IMAGE_DIGEST: \$\{\{ vars\.EVO_AI_AGENT_IMAGE_DIGEST \}\}/u);
+  // GitHub's bash exits on a failed `[[ ]]` under `set -e`; macOS bash 3.2 does not, so the
+  // standalone checks get an explicit exit here.
+  const guard = validate.slice(validate.indexOf('          [[ -z "$EVO_AI_AGENT_ENABLED"'))
+    .replace(/^ {10}/gmu, "")
+    .replace(/\]\]$/gmu, "]] || exit 1");
+  const digest = `sha256:${"a".repeat(64)}`;
+  for (const [enabled, imageDigest, accepted] of [
+    ["", "", true],
+    ["false", "", true],
+    ["false", "not-a-digest", true],
+    ["true", digest, true],
+    ["true", "", false],
+    ["true", "sha256:short", false],
+    ["True", digest, false],
+    ["yes", digest, false],
+  ]) {
+    const result = spawnSync("bash", ["-c", `set -Eeuo pipefail\n${guard}`], {
+      env: { PATH: "/usr/bin:/bin", EVO_AI_AGENT_ENABLED: enabled, EVO_AI_AGENT_IMAGE_DIGEST: imageDigest },
+      encoding: "utf8",
+    });
+    assert.equal(result.status === 0, accepted, `${enabled}/${imageDigest}`);
+  }
+
+  for (const stepName of ["Deploy exact candidate as pending", "Accept exact V3 candidate"]) {
+    const step = namedStep(stepName);
+    assert.match(step, /EVO_AI_AGENT_ENABLED: \$\{\{ vars\.EVO_AI_AGENT_ENABLED \}\}/u);
+    assert.match(step, /EVO_AI_AGENT_IMAGE_DIGEST: \$\{\{ vars\.EVO_AI_AGENT_IMAGE_DIGEST \}\}/u);
+    const start = step.indexOf("          ai_agent_enabled=false\n");
+    const end = step.indexOf("          fi\n", start) + "          fi\n".length;
+    assert.ok(start > 0 && end > start, `${stepName} normalizes the agent switch`);
+    const normalize = step.slice(start, end).replace(/^ {10}/gmu, "");
+    for (const [enabled, expected] of [
+      ["", "false|"], ["false", "false|"], ["true", `true|${digest}`],
+    ]) {
+      const result = spawnSync("bash", ["-c", `set -Eeuo pipefail\n${normalize}printf '%s|%s' "$ai_agent_enabled" "$ai_agent_digest"`], {
+        env: { PATH: "/usr/bin:/bin", EVO_AI_AGENT_ENABLED: enabled, EVO_AI_AGENT_IMAGE_DIGEST: digest },
+        encoding: "utf8",
+      });
+      assert.equal(result.stdout, expected, `${stepName}: ${enabled}`);
+    }
+    assert.match(step, /\[\[ "\$ai_agent_enabled" == true \|\| \( "\$ai_agent_enabled" == false && -z "\$ai_agent_digest" \) \]\]/u);
+    assert.match(step, /export EVO_AI_AGENT_ENABLED="\$ai_agent_enabled"/u);
+    assert.match(step, /export EVO_AI_AGENT_IMAGE_DIGEST="\$ai_agent_digest"/u);
+    assert.match(step, /export EVO_CRM_AI_AGENT_ENV_FILE="\$release_root\/\.env\.ai-agent"/u);
+    assert.match(step, /unset EVO_AI_AGENT_IMAGE_DIGEST EVO_CRM_AI_AGENT_ENV_FILE/u);
+  }
 });

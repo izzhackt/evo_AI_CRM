@@ -29,6 +29,7 @@ p8r4_cutover_guard_log="$(mktemp -t evo-p8r4-cutover-guard.XXXXXX)"
 p7aj_journal_contract_log="$(mktemp -t evo-p7aj-journal-contract.XXXXXX)"
 ai_agent_p2_stale_rerun_log="$(mktemp -t evo-ai-agent-p2-stale-rerun.XXXXXX)"
 ai_agent_p3_stale_rerun_log="$(mktemp -t evo-ai-agent-p3-stale-rerun.XXXXXX)"
+ai_agent_p4_stale_rerun_log="$(mktemp -t evo-ai-agent-p4-stale-rerun.XXXXXX)"
 u2_concurrency_worker_a_log="$(mktemp -t evo-u2-concurrency-a.XXXXXX)"
 u2_concurrency_worker_b_log="$(mktemp -t evo-u2-concurrency-b.XXXXXX)"
 u2_concurrency_assert_log="$(mktemp -t evo-u2-concurrency-assert.XXXXXX)"
@@ -103,6 +104,7 @@ cleanup() {
     "$p7aj_journal_contract_log" \
     "$ai_agent_p2_stale_rerun_log" \
     "$ai_agent_p3_stale_rerun_log" \
+    "$ai_agent_p4_stale_rerun_log" \
     "$u2_concurrency_worker_a_log" \
     "$u2_concurrency_worker_b_log" \
     "$u2_concurrency_assert_log" \
@@ -3084,6 +3086,14 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_agent_p1.sql
+    # Slice 6: the exact SQL blocks of docs/runbooks/ai-agent-seed.md (preview,
+    # the admin seed of client and internal pages and of «Правила общения»,
+    # rehearsal by rollback, the read-only checks, the guards) and the
+    # reversible trash of the «ИИ-ассистент» folder on a synthetic knowledge
+    # base in the production shape.
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_seed_runbook.sql
   fi
 
   # «ИИ-агент» P1, срез 5 (окно ИИ в чате): the saved answer shows its sources
@@ -3190,6 +3200,92 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_agent_p3.sql
+  fi
+
+  # «ИИ-агент» P4 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §11, §15 P4, ADR 0031):
+  # the night autoresponder, shipped off. Matched by name, not number. Each of
+  # the three migrations is applied a SECOND time right after itself
+  # (production-safe re-run: no new column, constraint, trigger, row or
+  # error); a stale re-run of the memory migration after the RPC migration
+  # must be refused by its exact function inventory (it would otherwise
+  # downgrade inbound_since_v1 and maintenance_v1). Then the suite proves on
+  # the real chain (WAHA projection for every client message, the canonical
+  # authorize -> exact claim -> finish chain for the send, members modelled
+  # like production) every row of the plan's «Где проверяется» table at
+  # commit and at authorize, the final-phrase day rules, the window, the
+  # stop words and links, one decision per message, the service-role-only
+  # authorize/record, the insert guard and the one-source CHECK, the
+  # «autoreply» transcript origin, pauses, summaries and the «Позвонить
+  # клиенту» task (once, none in shadow), three shadow nights before live,
+  # staff readers that hide client text, and unchanged manual sends. Finally
+  # the 266 (chat replies) and 261 (team inbox) suites run again on the
+  # post-P4 chain: the manual WhatsApp send path behaves exactly as before.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_autosend_schema.sql \
+    || "$(basename "$migration")" == *_platform_ai_agent_autosend_send_path.sql \
+    || "$(basename "$migration")" == *_platform_ai_agent_autosend_rpc.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >/dev/null
+  fi
+  # A database that applied an earlier 275 has no ai_autosend_log
+  # final_reason_code (CREATE TABLE IF NOT EXISTS skips the table). Simulated
+  # in one rolled-back transaction: drop the column, re-run 275 (without its
+  # own BEGIN/COMMIT), and require the column and both CHECKs back with their
+  # exact definitions.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_autosend_schema.sql ]]; then
+    {
+      cat <<'SQL'
+BEGIN;
+CREATE TEMP TABLE ai275_final_reason_before ON COMMIT DROP AS
+  SELECT c.conname, pg_catalog.pg_get_constraintdef(c.oid) AS def FROM pg_catalog.pg_constraint c
+  WHERE c.conrelid = 'platform_private.ai_autosend_log'::REGCLASS
+    AND c.conname IN ('ai_autosend_log_final_reason_code_check', 'ai_autosend_log_final_reason_check');
+ALTER TABLE platform_private.ai_autosend_log DROP COLUMN final_reason_code;
+SQL
+      sed -e '/^BEGIN;$/d' -e '/^COMMIT;$/d' "$repo_root/$migration"
+      cat <<'SQL'
+DO $ai275_earlier_rerun$
+BEGIN
+  IF (SELECT count(*) FROM ai275_final_reason_before) <> 2
+    OR (SELECT count(*) FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'platform_private.ai_autosend_log'::REGCLASS
+      AND a.attname = 'final_reason_code' AND NOT a.attisdropped AND a.atttypid = 'text'::REGTYPE) <> 1
+    OR EXISTS (SELECT b.conname, b.def FROM ai275_final_reason_before b
+      EXCEPT SELECT c.conname, pg_catalog.pg_get_constraintdef(c.oid) FROM pg_catalog.pg_constraint c
+      WHERE c.conrelid = 'platform_private.ai_autosend_log'::REGCLASS) THEN
+    RAISE EXCEPTION 'ai275_final_reason_code_not_restored';
+  END IF;
+END
+$ai275_earlier_rerun$;
+ROLLBACK;
+SQL
+    } | docker exec -i "$container_name" \
+      psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" >/dev/null
+  fi
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_autosend_rpc.sql ]]; then
+    ai_agent_memory_migration="$(
+      cd "$repo_root"
+      find supabase/migrations -maxdepth 1 -type f -name '*_platform_ai_agent_memory.sql' | sort | head -n 1
+    )"
+    if docker exec "$container_name" \
+      psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$ai_agent_memory_migration" >"$ai_agent_p4_stale_rerun_log" 2>&1; then
+      echo "the AI agent memory migration re-ran after the autoresponder migrations" >&2
+      exit 1
+    fi
+    if ! grep -Fq "ai_agent_function_inventory_drift" "$ai_agent_p4_stale_rerun_log"; then
+      echo "the stale AI agent memory re-run failed for the wrong reason" >&2
+      sed -n '1,40p' "$ai_agent_p4_stale_rerun_log" >&2
+      exit 1
+    fi
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_p4.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_chat_replies.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_team_inbox.sql
   fi
 done < <(
   cd "$repo_root"

@@ -115,6 +115,94 @@ services:
       retries: 5
       start_period: 30s
 
+  # «ИИ-агент» (plan docs/EVO_AI_AGENT_PLAN_2026-10-06.md §4.2, §4.6, ADR 0032).
+  # Off unless the `ai-agent` profile is enabled: a plain `docker compose` call and
+  # every release with EVO_AI_AGENT_ENABLED unset render exactly app, clamav and waha.
+  # The private GHCR image is pinned only by digest; an unset digest is harmless while
+  # the profile is off, and the release controller refuses it when the profile is on.
+  # Both services join only their own bridge `evo_crm_ai`, never evo_crm_private: WAHA,
+  # clamd and the lead-agent stay out of reach. With the agent on, the release controller
+  # adds `app` to that bridge (alias evo-crm-app); with it off, the bridge is not rendered.
+  # Secrets are read in raw format: `$`, quotes and `#` stay literal, nothing is substituted.
+  ai-agent-api:
+    platform: linux/amd64
+    profiles: ["ai-agent"]
+    image: "ghcr.io/izzhackt/evo-ai-agent@${EVO_AI_AGENT_IMAGE_DIGEST:-}"
+    labels:
+      com.evo.image.provenance: "private-ghcr-digest"
+      com.evo.runtime.role: "private-ai-agent-api"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    cpus: "0.50"
+    mem_limit: 512m
+    pids_limit: 128
+    logging: *bounded-logging
+    env_file:
+      - path: "${EVO_CRM_AI_AGENT_ENV_FILE:-.env.ai-agent}"
+        format: raw
+    expose:
+      - "8080"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m,mode=1777
+    networks:
+      ai:
+        aliases:
+          - evo-ai-agent
+    # Liveness only: /v1/health needs no database. The release checks /v1/ready.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/v1/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
+    # SIGTERM: up to 10 s for open streams, 5 s for running answers, 10 s for the spend ledger.
+    stop_grace_period: 30s
+
+  ai-agent-worker:
+    platform: linux/amd64
+    profiles: ["ai-agent"]
+    image: "ghcr.io/izzhackt/evo-ai-agent@${EVO_AI_AGENT_IMAGE_DIGEST:-}"
+    command: ["python", "-m", "evo_ai_agent.worker"]
+    labels:
+      com.evo.image.provenance: "private-ghcr-digest"
+      com.evo.runtime.role: "private-ai-agent-worker"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    cpus: "1.00"
+    mem_limit: 1536m
+    pids_limit: 256
+    logging: *bounded-logging
+    env_file:
+      - path: "${EVO_CRM_AI_AGENT_ENV_FILE:-.env.ai-agent}"
+        format: raw
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m,mode=1777
+    networks:
+      - ai
+    # The queue loop touches /tmp/evo-ai-agent-worker.alive; older than 180 s = stuck.
+    healthcheck:
+      test: ["CMD", "python", "-m", "evo_ai_agent.worker", "--check"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+      start_interval: 5s
+    # SIGTERM: the current message finishes or returns to the queue; the ledger drains.
+    stop_grace_period: 30s
+
 volumes:
   evo_crm_output:
   evo_crm_clamav_signatures:
@@ -127,3 +215,8 @@ networks:
   web:
     external: true
     name: ${EVO_CADDY_NETWORK:-evo_public_web}
+  # The agent's own bridge (rendered only with the `ai-agent` profile). Not internal: the
+  # agent needs egress to Gemini and Supabase.
+  ai:
+    name: evo_crm_ai
+    driver: bridge

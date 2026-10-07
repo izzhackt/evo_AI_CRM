@@ -20,7 +20,8 @@ TOPICS = {
     'шаблон': 'Шаблоны документов', 'договор': 'Шаблоны документов',
     'термин': 'Словарь EVO', 'словар': 'Словарь EVO',
     'стран': 'Страны и поступление', 'университет': 'Страны и поступление', 'программ': 'Страны и поступление',
-    'ассистент': 'ИИ-ассистент', 'faq': 'ИИ-ассистент', 'вопросы и ответы': 'ИИ-ассистент',
+    # Папки «ИИ-ассистент» больше нет (план ИИ-агента §14): FAQ — материал об EVO.
+    'faq': 'Компания', 'вопросы и ответы': 'Компания',
 }
 
 def clean(name):
@@ -45,7 +46,7 @@ def plan(row):
         classification = 'historically_approved_general_client_knowledge'
         editable = row['extension'] == '.md' and row['bytes'] <= 2_097_152 and not any(p.startswith('.') for p in within)
         if not folders:
-            folders = ['ИИ-ассистент', 'Правила базы']
+            folders = ['Процессы и инструкции', 'Устройство базы знаний']
     elif row['scope'] == 'internal' and area == 'internal':
         if 'Утверждено для внутреннего ИИ' in within:
             classification = 'historically_approved_internal_knowledge'

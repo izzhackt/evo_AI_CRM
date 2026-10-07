@@ -2,35 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  PLATFORM_GEMINI_MODEL_REF,
-  PLATFORM_GEMINI_PROMPT_POLICY_VERSION,
-  PLATFORM_GEMINI_SCHEMA_VERSION,
   PLATFORM_WAHA_BASE_URL,
   PlatformProviderWorkflowError,
-  beginGeminiProposal,
   claimManualWhatsAppSendItem,
-  finishGeminiProposal,
   finishManualWhatsAppReconciliation,
   finishManualWhatsAppSend,
   getManualWhatsAppReconciliationBoundMessageIds,
   getManualWhatsAppReconciliationContext,
-  listStaffGeminiProposalReviews,
-  readStaffGeminiProposal,
-  requestGeminiProposal,
   requestManualWhatsAppReconciliation,
   requestManualWhatsAppSendWithAuthorization,
   resolveManualSendWahaRuntime,
-  reviewGeminiProposal,
 } from "../src/lib/platform-provider-workflows.ts";
 
 const ORGANIZATION_ID = "10000000-0000-4000-8000-000000000001";
 const CONVERSATION_ID = "20000000-0000-4000-8000-000000000001";
 const SOURCE_MESSAGE_ID = "30000000-0000-4000-8000-000000000001";
 const REQUEST_ID = "40000000-0000-4000-8000-000000000001";
-const RECEIPT_ID = "50000000-0000-4000-8000-000000000001";
-const PROPOSAL_REQUEST_ID = "60000000-0000-4000-8000-000000000001";
-const REVIEW_REQUEST_ID = "70000000-0000-4000-8000-000000000001";
-const REVIEW_ID = "80000000-0000-4000-8000-000000000001";
 const MEMBERSHIP_ID = "90000000-0000-4000-8000-000000000001";
 const AUTHORIZATION_ID = "a0000000-0000-4000-8000-000000000001";
 const WORK_ITEM_ID = "b0000000-0000-4000-8000-000000000001";
@@ -40,7 +27,6 @@ const RECONCILIATION_REQUEST_ID = "e0000000-0000-4000-8000-000000000001";
 const COMPLETION_REQUEST_ID = "f0000000-0000-4000-8000-000000000001";
 const REQUESTED_AT = "2026-09-02T12:00:00+00:00";
 const COMPLETED_AT = "2026-09-02T12:00:02+00:00";
-const REVIEWED_AT = "2026-09-02T12:01:00+00:00";
 const SHA256 = "a".repeat(64);
 
 test("the active provider workflow exposes only the connected sales WAHA transport", () => {
@@ -69,373 +55,13 @@ function staticClient(data, error = null) {
   return recordingClient(() => ({ data, error }));
 }
 
-function validProposal() {
-  return {
-    schema_version: 2,
-    language: "ru",
-    intent: "greeting",
-    confidence: 91,
-    risk: "low",
-    handoff_required: false,
-    handoff_reasons: [],
-    citations: [
-      {
-        knowledge_key: "evo.services",
-        knowledge_version: 3,
-        evidence_ordinal: 1,
-      },
-    ],
-    memory_changes: [],
-    qualification: {
-      status: "collecting",
-      completeness: 40,
-      missing_fact_keys: ["preferred_country"],
-      notes: null,
-    },
-    reply_text: "Здравствуйте! Чем можем помочь?",
-    summary: "Новый вопрос клиента.",
-    next_action: "Уточнить страну обучения.",
-    draft_internal_note: "Требуется первичная квалификация.",
-    missing_document_suggestion: null,
-    deadline_warning: null,
-    limitations: [],
-    uncertainty: "low",
-  };
-}
-
-function validContext() {
-  return {
-    conversation: {
-      conversation_id: CONVERSATION_ID,
-      student_case_id: null,
-      status: "open",
-    },
-    source_message: {
-      message_id: SOURCE_MESSAGE_ID,
-      direction: "inbound",
-      language: "ru",
-      body_text: "Здравствуйте",
-      created_at: REQUESTED_AT,
-    },
-    approved_knowledge: [
-      {
-        source_ref: {
-          knowledge_key: "evo.services",
-          knowledge_version: 3,
-          evidence_ordinal: 1,
-        },
-        title: "EVO services",
-        content_text: "EVO helps applicants prepare admissions cases.",
-      },
-    ],
-    allowed_citations: [
-      {
-        knowledge_key: "evo.services",
-        knowledge_version: 3,
-        evidence_ordinal: 1,
-      },
-    ],
-  };
-}
-
-function validProposalRow(overrides = {}) {
-  const proposal = validProposal();
-  return {
-    proposal_request_id: PROPOSAL_REQUEST_ID,
-    source_message_id: SOURCE_MESSAGE_ID,
-    outcome: "proposal_ready",
-    failure_code: null,
-    model_ref: PLATFORM_GEMINI_MODEL_REF,
-    schema_version: PLATFORM_GEMINI_SCHEMA_VERSION,
-    language: proposal.language,
-    intent: proposal.intent,
-    confidence: proposal.confidence,
-    risk: proposal.risk,
-    handoff_required: proposal.handoff_required,
-    handoff_reasons: proposal.handoff_reasons,
-    citations: proposal.citations,
-    memory_changes: proposal.memory_changes,
-    qualification: proposal.qualification,
-    reply_text: proposal.reply_text,
-    summary: proposal.summary,
-    next_action: proposal.next_action,
-    draft_internal_note: proposal.draft_internal_note,
-    missing_document_suggestion: proposal.missing_document_suggestion,
-    deadline_warning: proposal.deadline_warning,
-    limitations: proposal.limitations,
-    uncertainty: proposal.uncertainty,
-    requested_at: REQUESTED_AT,
-    completed_at: COMPLETED_AT,
-    human_review_required: true,
-    autonomous_authority: false,
-    provider_proof_state: "blocked",
-    ...overrides,
-  };
-}
-
-test("requestGeminiProposal records the authenticated staff request with the pinned contract", async () => {
-  const recorded = staticClient([
-    {
-      proposal_request_receipt_id: RECEIPT_ID,
-      request_id: REQUEST_ID,
-      replayed: false,
-      completed: false,
-      outcome: null,
-    },
-  ]);
-
-  const result = await requestGeminiProposal(recorded.client, {
-    organizationId: ORGANIZATION_ID,
-    conversationId: CONVERSATION_ID,
-    sourceMessageId: SOURCE_MESSAGE_ID,
-    requestId: REQUEST_ID,
-    reason: "Staff requested a reviewed reply proposal",
-  });
-
-  assert.deepEqual(recorded.calls, [
-    { kind: "schema", schema: "platform" },
-    {
-      kind: "rpc",
-      functionName: "request_gemini_proposal",
-      args: {
-        p_organization_id: ORGANIZATION_ID,
-        p_conversation_id: CONVERSATION_ID,
-        p_source_message_id: SOURCE_MESSAGE_ID,
-        p_request_id: REQUEST_ID,
-        p_model_ref: "gemini-3.7-flash",
-        p_schema_version: 2,
-        p_prompt_policy_version: "u9-gemini-human-review-v1",
-        p_reason: "Staff requested a reviewed reply proposal",
-      },
-      options: undefined,
-    },
-  ]);
-  assert.deepEqual(result, {
-    proposalRequestReceiptId: RECEIPT_ID,
-    requestId: REQUEST_ID,
-    replayed: false,
-    completed: false,
-    outcome: null,
-  });
-});
-
-test("beginGeminiProposal returns only a validated private provider context", async () => {
-  const context = validContext();
-  const recorded = staticClient([
-    {
-      proposal_request_id: PROPOSAL_REQUEST_ID,
-      replayed: false,
-      completed: false,
-      outcome: null,
-      context,
-    },
-  ]);
-
-  const result = await beginGeminiProposal(recorded.client, {
-    organizationId: ORGANIZATION_ID,
-    conversationId: CONVERSATION_ID,
-    sourceMessageId: SOURCE_MESSAGE_ID,
-    requestId: REQUEST_ID,
-  });
-
-  assert.deepEqual(recorded.calls[1], {
-    kind: "rpc",
-    functionName: "begin_gemini_proposal",
-    args: {
-      p_organization_id: ORGANIZATION_ID,
-      p_conversation_id: CONVERSATION_ID,
-      p_source_message_id: SOURCE_MESSAGE_ID,
-      p_request_id: REQUEST_ID,
-      p_model_ref: PLATFORM_GEMINI_MODEL_REF,
-      p_schema_version: PLATFORM_GEMINI_SCHEMA_VERSION,
-      p_prompt_policy_version: PLATFORM_GEMINI_PROMPT_POLICY_VERSION,
-    },
-    options: undefined,
-  });
-  assert.deepEqual(result.context, {
-    conversation: {
-      conversationId: CONVERSATION_ID,
-      studentCaseId: null,
-      status: "open",
-    },
-    sourceMessage: {
-      messageId: SOURCE_MESSAGE_ID,
-      direction: "inbound",
-      language: "ru",
-      bodyText: "Здравствуйте",
-      createdAt: REQUESTED_AT,
-    },
-    approvedKnowledge: [
-      {
-        sourceRef: {
-          knowledgeKey: "evo.services",
-          knowledgeVersion: 3,
-          evidenceOrdinal: 1,
-        },
-        title: "EVO services",
-        contentText: "EVO helps applicants prepare admissions cases.",
-      },
-    ],
-    allowedCitations: [
-      {
-        knowledgeKey: "evo.services",
-        knowledgeVersion: 3,
-        evidenceOrdinal: 1,
-      },
-    ],
-  });
-});
-
-test("finishGeminiProposal stores a proposal-only result and preserves the no-autonomy invariant", async () => {
-  const recorded = staticClient([
-    {
-      proposal_request_id: PROPOSAL_REQUEST_ID,
-      replayed: false,
-      outcome: "proposal_ready",
-      failure_code: null,
-      human_review_required: true,
-      autonomous_authority: false,
-      provider_proof_state: "blocked",
-    },
-  ]);
-
-  const result = await finishGeminiProposal(recorded.client, {
-    organizationId: ORGANIZATION_ID,
-    conversationId: CONVERSATION_ID,
-    sourceMessageId: SOURCE_MESSAGE_ID,
-    proposalRequestId: PROPOSAL_REQUEST_ID,
-    outcome: "proposal_ready",
-    failureCode: null,
-    promptText: "Generate one human-reviewed proposal.",
-    providerInteractionRef: "gemini-response-1",
-    providerStatus: "completed",
-    responseJson: validProposal(),
-  });
-
-  assert.equal(recorded.calls[1].functionName, "finish_gemini_proposal");
-  assert.deepEqual(result, {
-    proposalRequestId: PROPOSAL_REQUEST_ID,
-    replayed: false,
-    outcome: "proposal_ready",
-    failureCode: null,
-    humanReviewRequired: true,
-    autonomousAuthority: false,
-    providerProofState: "blocked",
-  });
-});
-
-test("readStaffGeminiProposal converts the flattened RLS projection into one typed proposal", async () => {
-  const recorded = staticClient([validProposalRow()]);
-
-  const result = await readStaffGeminiProposal(recorded.client, {
-    organizationId: ORGANIZATION_ID,
-    conversationId: CONVERSATION_ID,
-  });
-
-  assert.deepEqual(recorded.calls[1], {
-    kind: "rpc",
-    functionName: "staff_gemini_proposal",
-    args: {
-      p_organization_id: ORGANIZATION_ID,
-      p_conversation_id: CONVERSATION_ID,
-    },
-    options: { get: true },
-  });
-  assert.deepEqual(result, {
-    proposalRequestId: PROPOSAL_REQUEST_ID,
-    sourceMessageId: SOURCE_MESSAGE_ID,
-    outcome: "proposal_ready",
-    failureCode: null,
-    modelRef: "gemini-3.7-flash",
-    schemaVersion: 2,
-    proposal: validProposal(),
-    requestedAt: REQUESTED_AT,
-    completedAt: COMPLETED_AT,
-    humanReviewRequired: true,
-    autonomousAuthority: false,
-    providerProofState: "blocked",
-  });
-});
-
-test("readStaffGeminiProposal returns null when no staff-bound proposal exists", async () => {
-  const empty = staticClient([]);
-
-  assert.equal(
-    await readStaffGeminiProposal(empty.client, {
-      organizationId: ORGANIZATION_ID,
-      conversationId: CONVERSATION_ID,
-    }),
-    null,
-  );
-});
-
-test("reviewGeminiProposal and review history expose human decisions without send authority", async () => {
-  const proposal = validProposal();
-  const reviewRow = {
-    review_id: REVIEW_ID,
-    proposal_request_id: PROPOSAL_REQUEST_ID,
-    decision: "accepted",
-    reviewed_payload: proposal,
-    reviewed_payload_sha256: SHA256,
-    reason: "Staff verified the recipient and final text",
-    reviewed_by_membership_id: MEMBERSHIP_ID,
-    reviewed_by_name: "Admissions Manager",
-    reviewed_at: REVIEWED_AT,
-  };
-  const recorded = recordingClient((functionName) => ({
-    data: functionName === "review_gemini_proposal"
-      ? [{ ...reviewRow, replayed: false }]
-      : [reviewRow],
-    error: null,
-  }));
-
-  const review = await reviewGeminiProposal(recorded.client, {
-    organizationId: ORGANIZATION_ID,
-    conversationId: CONVERSATION_ID,
-    proposalRequestId: PROPOSAL_REQUEST_ID,
-    reviewRequestId: REVIEW_REQUEST_ID,
-    decision: "accepted",
-    reviewedPayload: proposal,
-    reason: "Staff verified the recipient and final text",
-  });
-  const history = await listStaffGeminiProposalReviews(recorded.client, {
-    organizationId: ORGANIZATION_ID,
-    conversationId: CONVERSATION_ID,
-    limit: 10,
-  });
-
-  assert.equal(recorded.calls[1].functionName, "review_gemini_proposal");
-  assert.equal(recorded.calls[3].functionName, "staff_gemini_proposal_reviews");
-  assert.equal(review.replayed, false);
-  assert.equal(review.decision, "accepted");
-  assert.deepEqual(history, [
-    {
-      reviewId: REVIEW_ID,
-      proposalRequestId: PROPOSAL_REQUEST_ID,
-      decision: "accepted",
-      reviewedPayload: proposal,
-      reviewedPayloadSha256: SHA256,
-      reason: "Staff verified the recipient and final text",
-      reviewedByMembershipId: MEMBERSHIP_ID,
-      reviewedByName: "Admissions Manager",
-      reviewedAt: REVIEWED_AT,
-    },
-  ]);
-});
-
-test("Gemini adapters fail closed without leaking Supabase errors", async () => {
+test("provider workflow adapters fail closed without leaking Supabase errors", async () => {
   const sensitiveError = staticClient(null, {
     message: "service role rejected: super-secret-value",
   });
 
   await assert.rejects(
-    requestGeminiProposal(sensitiveError.client, {
-      organizationId: ORGANIZATION_ID,
-      conversationId: CONVERSATION_ID,
-      sourceMessageId: SOURCE_MESSAGE_ID,
-      requestId: REQUEST_ID,
-      reason: "Staff requested a reviewed reply proposal",
-    }),
+    resolveManualSendWahaRuntime(sensitiveError.client, ORGANIZATION_ID),
     (error) => {
       assert.equal(error instanceof PlatformProviderWorkflowError, true);
       assert.equal(error.message, "Platform provider workflow is unavailable.");
@@ -443,28 +69,6 @@ test("Gemini adapters fail closed without leaking Supabase errors", async () => 
       return true;
     },
   );
-});
-
-test("Gemini adapters reject malformed and non-exact RPC results", async (t) => {
-  const cases = [
-    ["non-array", null],
-    ["duplicate", [validProposalRow(), validProposalRow()]],
-    ["wrong security invariant", [validProposalRow({ autonomous_authority: true })]],
-    ["malformed proposal", [validProposalRow({ citations: "not-an-array" })]],
-  ];
-
-  for (const [name, data] of cases) {
-    await t.test(name, async () => {
-      const malformed = staticClient(data);
-      await assert.rejects(
-        readStaffGeminiProposal(malformed.client, {
-          organizationId: ORGANIZATION_ID,
-          conversationId: CONVERSATION_ID,
-        }),
-        PlatformProviderWorkflowError,
-      );
-    });
-  }
 });
 
 test("requestManualWhatsAppSendWithAuthorization creates one exact durable send intent", async () => {

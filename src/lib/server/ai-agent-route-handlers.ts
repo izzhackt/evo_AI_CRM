@@ -68,11 +68,11 @@ export type AiAgentRouteDependencies = Readonly<{
 
 type RpcError = Readonly<{ code?: string; message?: string }>;
 
-function json(status: number, body: unknown): Response {
+export function json(status: number, body: unknown): Response {
   return Response.json(body, { status, headers: JSON_HEADERS });
 }
-function failure(status: number, code: string): Response {
-  return json(status, { error: { code } });
+export function failure(status: number, code: string, extra: Readonly<Record<string, unknown>> = {}): Response {
+  return json(status, { error: { code, ...extra } });
 }
 function refusal(status: Exclude<Authorization["status"], "authorized">): Response {
   if (status === "anonymous") return failure(401, "authentication_required");
@@ -82,7 +82,7 @@ function refusal(status: Exclude<Authorization["status"], "authorized">): Respon
 }
 
 /** Тот же Origin/Host/протокол, что у остальных POST-маршрутов staff CRM. */
-function sameOrigin(request: Request): boolean {
+export function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return false;
   try {
@@ -99,12 +99,12 @@ function sameOrigin(request: Request): boolean {
 }
 
 /** Небольшое тело JSON с точным набором ключей; иначе null. */
-async function readJsonObject(request: Request, allowed: readonly string[]): Promise<Record<string, unknown> | null> {
+export async function readJsonObject(request: Request, allowed: readonly string[], limit = 1024): Promise<Record<string, unknown> | null> {
   const declared = request.headers.get("content-length");
   if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(request.headers.get("content-type") ?? "")
-    || (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > 1024))) return null;
+    || (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > limit))) return null;
   // Тело читается с пределом по мере прихода: ни ложная длина, ни поток без
-  // неё не заставят держать в памяти больше 1 КБ.
+  // неё не заставят держать в памяти больше предела (1 КБ по умолчанию).
   let raw = "";
   try {
     const reader = request.body?.getReader();
@@ -115,7 +115,7 @@ async function readJsonObject(request: Request, allowed: readonly string[]): Pro
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 1024) {
+      if (size > limit) {
         await reader.cancel().catch(() => undefined);
         return null;
       }
@@ -201,16 +201,22 @@ const defaultDependencies: AiAgentRouteDependencies = {
 type ConversationContext = Readonly<{ params: Promise<Readonly<{ conversationId: string }>> }>;
 type AnswerContext = Readonly<{ params: Promise<Readonly<{ answerId: string }>> }>;
 
-/** Коды агента, которые окно показывает своим текстом; остальное — «недоступен». */
+/**
+ * Коды агента, которые окно показывает своим текстом; остальное — «недоступен».
+ * `lab_*` — Лаборатория (P2): знания или предложение изменились (409), правка
+ * больше не применима (422), проверка устарела или её нет (409).
+ */
 const AGENT_CODES = new Set(["consent_required", "rate_limited", "budget_exhausted", "model_unpriced", "gemini_billing",
-  "gemini_quota_day", "agent_unavailable", "superseded", "taken_over"]);
+  "gemini_quota_day", "agent_unavailable", "superseded", "taken_over",
+  "lab_changed", "lab_edit_invalid", "lab_expired", "lab_session_missing"]);
 const STATUS_FOR_CODE: Readonly<Record<string, number>> = {
   consent_required: 412, rate_limited: 429, budget_exhausted: 402, model_unpriced: 402, gemini_billing: 402,
   gemini_quota_day: 429, superseded: 409, taken_over: 409,
+  lab_changed: 409, lab_edit_invalid: 422, lab_expired: 409, lab_session_missing: 409,
 };
 
 /** Отказ агента до открытия потока: JSON `{error: {code, message_ru, status}}`. */
-async function agentRefusal(upstream: Response): Promise<Response> {
+export async function agentRefusal(upstream: Response): Promise<Response> {
   let code = "agent_unavailable";
   try {
     const reader = upstream.body?.getReader();
@@ -240,6 +246,88 @@ const unavailableFrame = () => encoder.encode(
   `\n\nevent: error\ndata: ${JSON.stringify({ code: "agent_unavailable", message_ru: "ИИ-агент сейчас недоступен.", status: 503 })}\n\n`,
 );
 
+/**
+ * Подписанный POST к агенту и его поток SSE — в браузер без буферизации
+ * (§4.3): окно ответа (P1) и Лаборатория (P2). Отказ агента до открытия
+ * потока — JSON `{error: {code}}` со своим статусом; обрыв потока — кадр
+ * ошибки; закрыл браузер поток — CRM обрывает запрос к агенту.
+ */
+export async function streamFromAgent(
+  request: Request,
+  config: AiAgentConfig,
+  path: string,
+  payload: string,
+  dependencies: Pick<AiAgentRouteDependencies, "fetch" | "now">,
+): Promise<Response> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  request.signal.addEventListener("abort", abort, { once: true });
+  const headersTimer = setTimeout(abort, AI_AGENT_HEADERS_TIMEOUT_MS);
+  const release = () => {
+    clearTimeout(headersTimer);
+    request.signal.removeEventListener("abort", abort);
+  };
+  let upstream: Response;
+  try {
+    upstream = await dependencies.fetch(`${config.baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...aiAgentSignedHeaders(config, "POST", path, payload, dependencies.now()),
+      },
+      body: payload,
+      signal: controller.signal,
+      redirect: "error",
+      cache: "no-store",
+    });
+  } catch {
+    release();
+    return failure(503, "agent_unavailable");
+  }
+  clearTimeout(headersTimer);
+  if (upstream.status !== 200 || !(upstream.headers.get("content-type") ?? "").startsWith("text/event-stream") || !upstream.body) {
+    release();
+    return agentRefusal(upstream);
+  }
+
+  const reader = upstream.body.getReader();
+  const streamTimer = setTimeout(abort, AI_AGENT_STREAM_LIMIT_MS);
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(streamTimer);
+    release();
+  };
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(output) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          finish();
+          output.close();
+          return;
+        }
+        output.enqueue(value);
+      } catch {
+        // Агент оборвал поток (упал, перезапуск, предел времени): кадр
+        // ошибки — последнее, что увидит окно.
+        finish();
+        if (!request.signal.aborted) output.enqueue(unavailableFrame());
+        output.close();
+      }
+    },
+    async cancel(reason) {
+      // Браузер закрыл поток — запрос к агенту обрывается.
+      finish();
+      controller.abort();
+      await reader.cancel(reason).catch(() => undefined);
+    },
+  });
+  return new Response(stream, { status: 200, headers: SSE_HEADERS });
+}
+
 export function createAiAnswerStreamHandler(dependencies: AiAgentRouteDependencies = defaultDependencies) {
   return async function POST(request: Request, context: ConversationContext): Promise<Response> {
     try {
@@ -261,75 +349,7 @@ export function createAiAnswerStreamHandler(dependencies: AiAgentRouteDependenci
         return failure(status, ticket.code);
       }
 
-      const path = "/v1/answer";
-      const payload = JSON.stringify({ ticket: ticket.ticket, intent });
-      const controller = new AbortController();
-      const abort = () => controller.abort();
-      request.signal.addEventListener("abort", abort, { once: true });
-      const headersTimer = setTimeout(abort, AI_AGENT_HEADERS_TIMEOUT_MS);
-      const release = () => {
-        clearTimeout(headersTimer);
-        request.signal.removeEventListener("abort", abort);
-      };
-      let upstream: Response;
-      try {
-        upstream = await dependencies.fetch(`${config.baseUrl}${path}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "text/event-stream",
-            ...aiAgentSignedHeaders(config, "POST", path, payload, dependencies.now()),
-          },
-          body: payload,
-          signal: controller.signal,
-          redirect: "error",
-          cache: "no-store",
-        });
-      } catch {
-        release();
-        return failure(503, "agent_unavailable");
-      }
-      clearTimeout(headersTimer);
-      if (upstream.status !== 200 || !(upstream.headers.get("content-type") ?? "").startsWith("text/event-stream") || !upstream.body) {
-        release();
-        return agentRefusal(upstream);
-      }
-
-      const reader = upstream.body.getReader();
-      const streamTimer = setTimeout(abort, AI_AGENT_STREAM_LIMIT_MS);
-      let finished = false;
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        clearTimeout(streamTimer);
-        release();
-      };
-      const stream = new ReadableStream<Uint8Array>({
-        async pull(output) {
-          try {
-            const { done, value } = await reader.read();
-            if (done) {
-              finish();
-              output.close();
-              return;
-            }
-            output.enqueue(value);
-          } catch {
-            // Агент оборвал поток (упал, перезапуск, предел времени): кадр
-            // ошибки — последнее, что увидит окно.
-            finish();
-            if (!request.signal.aborted) output.enqueue(unavailableFrame());
-            output.close();
-          }
-        },
-        async cancel(reason) {
-          // Браузер закрыл поток — запрос к агенту обрывается.
-          finish();
-          controller.abort();
-          await reader.cancel(reason).catch(() => undefined);
-        },
-      });
-      return new Response(stream, { status: 200, headers: SSE_HEADERS });
+      return await streamFromAgent(request, config, "/v1/answer", JSON.stringify({ ticket: ticket.ticket, intent }), dependencies);
     } catch {
       return failure(503, "unavailable");
     }

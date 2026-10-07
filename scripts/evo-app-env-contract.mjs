@@ -43,7 +43,10 @@ const REQUIRED_RUNTIME_VALUES = Object.freeze([
 //    (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §4.3, §4.7; ADR 0032), 32–256
 //    printable characters without whitespace, distinct from every WAHA and
 //    lead-agent secret.
-const OPTIONAL_RUNTIME_NAMES = Object.freeze(["EVO_AI_AGENT_INTERNAL_SECRET"]);
+//  - EVO_AI_AGENT_STORAGE_SECRET: HMAC of agent → CRM storage-broker requests
+//    (§4.5, P2), same shape, distinct from the internal secret and every
+//    other value: a leaked broker key opens no agent call and vice versa.
+const OPTIONAL_RUNTIME_NAMES = Object.freeze(["EVO_AI_AGENT_INTERNAL_SECRET", "EVO_AI_AGENT_STORAGE_SECRET"]);
 const FORBIDDEN_SUCCESSOR_RUNTIME_VALUES = Object.freeze([
   "AUTH_SECRET",
   "EVO_SECRET_ENCRYPTION_KEY",
@@ -295,16 +298,19 @@ function validateEnabledFeatureConfiguration(entries) {
 }
 
 function validateOptionalFeatureConfiguration(entries) {
-  const aiAgentSecret = entries.get("EVO_AI_AGENT_INTERNAL_SECRET");
-  if (aiAgentSecret === undefined || aiAgentSecret === "") return;
-  if (!/^[\x21-\x7e]{32,256}$/u.test(aiAgentSecret)) {
-    fail("optional_feature_configuration_invalid");
-  }
-  // Свой секрет: значение не совпадает ни с одним другим значением этого env
-  // (WAHA HMAC, наблюдаемость, ключ сервера) — утечка одного не открывает агента.
-  for (const [name, value] of entries) {
-    if (name !== "EVO_AI_AGENT_INTERNAL_SECRET" && value === aiAgentSecret) {
+  for (const secretName of OPTIONAL_RUNTIME_NAMES) {
+    const secret = entries.get(secretName);
+    if (secret === undefined || secret === "") continue;
+    if (!/^[\x21-\x7e]{32,256}$/u.test(secret)) {
       fail("optional_feature_configuration_invalid");
+    }
+    // Свой секрет: значение не совпадает ни с одним другим значением этого env
+    // (WAHA HMAC, наблюдаемость, ключ сервера, второй секрет агента) — утечка
+    // одного не открывает другого.
+    for (const [name, value] of entries) {
+      if (name !== secretName && value === secret) {
+        fail("optional_feature_configuration_invalid");
+      }
     }
   }
 }

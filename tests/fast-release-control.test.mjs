@@ -6,6 +6,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -219,6 +220,8 @@ if (args[0] === "info") {
   save();
 } else if (args[0] === "network" && args[1] === "inspect") {
   // The unique fixture network exists for the duration of the test.
+} else if (args[0] === "compose" && args[1] === "version") {
+  output("5.1.2");
 } else if (args[0] === "compose") {
   const commandIndex = args.findIndex((value) => ["config", "pull", "up", "rm"].includes(value));
   const command = args[commandIndex];
@@ -1887,4 +1890,658 @@ test("version endpoint stays staff-authenticated while public health stays minim
   assert.match(route, /authentication_required/u);
   assert.match(proxy, /path === "\/api\/version"/u);
   assert.doesNotMatch(health, /EVO_RELEASE/u);
+});
+
+// «ИИ-агент» (plan §4.2/§4.6): the agent pair joins a release only for EVO_AI_AGENT_ENABLED=true.
+// The fixture drives the real controller end to end against a stateful fake Docker; agent
+// containers, digests and secrets are synthetic.
+const AGENT_REPOSITORY = "ghcr.io/izzhackt/evo-ai-agent";
+const PREVIOUS_AGENT_DIGEST = `sha256:${"7".repeat(64)}`;
+const TARGET_AGENT_DIGEST = `sha256:${"8".repeat(64)}`;
+const FOREIGN_AGENT_DIGEST = `sha256:${"9".repeat(64)}`;
+
+// The fixed override the controller feeds to compose on standard input while the agent is on
+// (the here-string adds the last newline). It also declares the bridge, so it renders on top of
+// a previous compose snapshot that predates it.
+const AGENT_APP_NETWORK_OVERRIDE = "services:\n  app:\n    networks:\n      ai:\n        aliases:\n          - evo-crm-app\n"
+  + "networks:\n  ai:\n    name: evo_crm_ai\n    driver: bridge\n\n";
+
+function aiAgentReleaseFixture({ enabled, previousAgent = false, agentEnv = "complete", appOnAgentNetwork = previousAgent }) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-ai-agent-release-")));
+  const bin = join(root, "bin");
+  const releaseRoot = join(root, "release");
+  const transferRoot = join(root, "transfer");
+  const evidenceRoot = join(root, "evidence");
+  const archiveRoot = join(root, "archive");
+  const statePath = join(root, "runtime-state.json");
+  const dockerLog = join(root, "docker.log");
+  for (const directory of [bin, releaseRoot, transferRoot, evidenceRoot, archiveRoot]) {
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+  }
+  const previousRevision = "4".repeat(40);
+  const targetRevision = "5".repeat(40);
+  const previousVersion = "previous-ai";
+  const targetVersion = "candidate-ai";
+  const previousImage = `sha256:${"a".repeat(64)}`;
+  const runId = `ai-agent-${enabled ? "on" : "off"}-${previousAgent ? "upgrade" : "first"}`;
+  const releaseId = `release-${runId}`;
+  const composeFile = join(releaseRoot, "docker-compose.yml");
+  const environmentFile = join(releaseRoot, ".env.production");
+  const environmentExample = join(releaseRoot, "env.production.example");
+  const agentEnvironmentFile = join(releaseRoot, ".env.ai-agent");
+  const archive = join(transferRoot, "candidate.tar");
+  const config = JSON.stringify({
+    architecture: "amd64",
+    config: { Labels: {
+      "org.opencontainers.image.source": "https://github.com/izzhackt/evo_AI_CRM",
+      "org.opencontainers.image.revision": targetRevision,
+      "org.opencontainers.image.version": targetVersion,
+    } },
+    os: "linux",
+  });
+  const configDigest = hash(config);
+  const targetImage = `sha256:${configDigest}`;
+  const configPath = `${configDigest}.json`;
+  const layerPath = `${"d".repeat(64)}/layer.tar`;
+  mkdirSync(join(archiveRoot, "d".repeat(64)), { mode: 0o700 });
+  writeFileSync(join(archiveRoot, configPath), config);
+  writeFileSync(join(archiveRoot, layerPath), "layer");
+  writeFileSync(join(archiveRoot, "manifest.json"), JSON.stringify([{
+    Config: configPath, Layers: [layerPath], RepoTags: [`evo-crm:${targetRevision}`],
+  }]));
+  execFileSync("tar", ["-cf", archive, "-C", archiveRoot, "manifest.json", configPath, layerPath]);
+  writeFileSync(composeFile, "# fixture: the fake Docker renders the services\n", { mode: 0o600 });
+  writeFileSync(environmentFile, "SAFE_FIXTURE=1\n", { mode: 0o600 });
+  writeFileSync(environmentExample, "SAFE_FIXTURE=1\n", { mode: 0o600 });
+  const agentEnvironment = {
+    // Raw format keeps `$` and `#` literally, so they are allowed in a value.
+    complete: "# synthetic\nEVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\n  EVO_AI_AGENT_DATABASE_URL=postgresql://fixture:pa$word#1@fixture/db\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\nEVO_AI_AGENT_STORAGE_SECRET=\n",
+    incomplete: "EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\nEVO_AI_AGENT_DATABASE_URL=\n",
+    quoted: "EVO_AI_AGENT_GEMINI_API_KEY=\"synthetic-fixture\"\nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
+    exported: "export EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
+    padded: "EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture \nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
+  }[agentEnv];
+  if (agentEnvironment !== undefined) {
+    writeFileSync(agentEnvironmentFile, agentEnvironment, { mode: 0o600 });
+    chmodSync(agentEnvironmentFile, 0o600);
+  }
+  writeFileSync(dockerLog, "", { mode: 0o600 });
+  const previousAgentImage = `${AGENT_REPOSITORY}@${PREVIOUS_AGENT_DIGEST}`;
+  writeFileSync(statePath, JSON.stringify({
+    app: "baseline",
+    scanner: true,
+    agent: previousAgent ? { api: previousAgentImage, worker: previousAgentImage, healthy: true } : null,
+    agentImages: previousAgent ? [previousAgentImage] : [],
+    appAi: appOnAgentNetwork,
+    rollbackTagPresent: false,
+  }));
+
+  writeExecutable(join(bin, "docker"), `#!${process.execPath}
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(process.env.FAKE_DOCKER_LOG, JSON.stringify(args) + "\\n");
+const statePath = process.env.FAKE_RUNTIME_STATE;
+const state = JSON.parse(readFileSync(statePath, "utf8"));
+const previousImage = ${JSON.stringify(previousImage)};
+const targetImage = ${JSON.stringify(targetImage)};
+const previousRevision = ${JSON.stringify(previousRevision)};
+const targetRevision = ${JSON.stringify(targetRevision)};
+const previousVersion = ${JSON.stringify(previousVersion)};
+const targetVersion = ${JSON.stringify(targetVersion)};
+const scannerImage = ${JSON.stringify(CLAMAV_IMAGE)};
+const wahaImage = "fixture/waha@" + process.env.EVO_WAHA_IMAGE_DIGEST;
+const agentRepository = ${JSON.stringify(AGENT_REPOSITORY)};
+const ids = { app: state.app === "target" ? "b0b0b0b0b0b0" : "a0a0a0a0a0a0", clamav: "c0c0c0c0c0c0",
+  waha: "d0d0d0d0d0d0", "ai-agent-api": "e0e0e0e0e0e0", "ai-agent-worker": "f0f0f0f0f0f0" };
+const save = () => writeFileSync(statePath, JSON.stringify(state));
+const output = (value) => { if (value !== "") process.stdout.write(String(value) + "\\n"); };
+// "--file -": the controller's app-network override arrives on standard input, exactly.
+const appOverride = args.some((value, index) => value === "-" && args[index - 1] === "--file");
+if (appOverride && readFileSync(0, "utf8") !== ${JSON.stringify(AGENT_APP_NETWORK_OVERRIDE)}) process.exit(65);
+const present = (service) => service === "app" ? state.app !== null : service === "clamav" ? state.scanner
+  : service === "waha" ? true : service === "ai-agent-api" ? Boolean(state.agent?.api)
+  : service === "ai-agent-worker" ? Boolean(state.agent?.worker) : false;
+const serviceFor = (id) => Object.keys(ids).find((service) => ids[service] === id && present(service));
+const agentImageFor = (service) => service === "ai-agent-api" ? state.agent.api : state.agent.worker;
+const services = Object.keys(ids);
+// hermes reported Docker Compose v5.1.2 on 2026-10-06; FAKE_COMPOSE_VERSION overrides it.
+if (args[0] === "compose" && args[1] === "version") {
+  if (args.length !== 3 || args[2] !== "--short") process.exit(64);
+  output(process.env.FAKE_COMPOSE_VERSION ?? "5.1.2");
+  process.exit(process.env.FAKE_COMPOSE_VERSION_FAIL === "1" ? 1 : 0);
+}
+if (args[0] === "info") output("8589934592");
+else if (args[0] === "ps") {
+  const filter = args.find((value) => value.startsWith("label=com.docker.compose.service="));
+  const wanted = filter ? [filter.split("=").at(-1)] : services;
+  output(wanted.filter(present).map((service) => ids[service]).join("\\n"));
+} else if (args[0] === "inspect") {
+  const format = args[2];
+  const service = serviceFor(args[3]);
+  if (!service) process.exit(1);
+  const agent = service.startsWith("ai-agent-");
+  if (format.includes("com.docker.compose.service")) output(service);
+  else if (format.includes("State.Health")) output(agent ? (state.agent.healthy ? "healthy" : "unhealthy") : "healthy");
+  else if (format.includes("State.Running")) output("true");
+  else if (format.includes("RestartCount")) output("0");
+  else if (format.includes("org.opencontainers.image.revision")) output(state.app === "target" ? targetRevision : previousRevision);
+  else if (format.includes("org.opencontainers.image.version")) output(state.app === "target" ? targetVersion : previousVersion);
+  else if (format.includes("Config.Image")) {
+    output(service === "clamav" ? scannerImage : service === "waha" ? wahaImage : agent ? agentImageFor(service)
+      : "evo-crm:" + (state.app === "target" ? targetRevision : previousRevision));
+  } else if (format.includes("Config.Env")) {
+    output(JSON.stringify(state.app === "target"
+      ? ["EVO_RELEASE_REVISION=" + targetRevision, "EVO_RUNTIME_IMAGE_ID=" + targetImage]
+      : ["EVO_RELEASE_REVISION=" + previousRevision]));
+  } else if (format.includes("PortBindings")) output("{}");
+  else if (format.includes("NetworkSettings.Networks")) {
+    output(service === "app" ? "fixture_private\\nfixture_web" + (state.appAi ? "\\nevo_crm_ai" : "")
+      : agent ? "evo_crm_ai" : "fixture_private");
+  } else if (format.includes(".Image")) output(state.app === "target" ? targetImage : previousImage);
+  else process.exit(64);
+} else if (args[0] === "image" && args[1] === "inspect") {
+  const reference = args.at(-1);
+  const formatIndex = args.indexOf("--format");
+  const format = formatIndex === -1 ? "" : args[formatIndex + 1];
+  if (reference.startsWith(agentRepository + "@")) {
+    if (!state.agentImages.includes(reference)) process.exit(1);
+    if (format.includes(".Os")) output("linux");
+    else if (format.includes(".Architecture")) output("amd64");
+    else if (format.includes("org.opencontainers.image.source")) output("https://github.com/izzhackt/evo-ai-agent");
+    else if (format.includes("org.opencontainers.image.revision")) output("6".repeat(40));
+    else if (format !== "") process.exit(64);
+  } else {
+    if (reference.startsWith("evo-crm:rollback-") && !state.rollbackTagPresent) process.exit(1);
+    if (format.includes(".Id")) output(reference.startsWith("evo-crm:rollback-") || reference === previousImage ? previousImage : reference === scannerImage ? scannerImage : targetImage);
+    else if (format.includes("org.opencontainers.image.source")) output("https://github.com/izzhackt/evo_AI_CRM");
+    else if (format.includes("org.opencontainers.image.revision")) output(reference === previousImage ? previousRevision : targetRevision);
+    else if (format.includes("org.opencontainers.image.version")) output(reference === previousImage ? previousVersion : targetVersion);
+    else if (format.includes(".Os")) output("linux");
+    else if (format.includes(".Architecture")) output("amd64");
+    else if (format !== "") process.exit(64);
+  }
+} else if (args[0] === "image" && args[1] === "load") {
+  // The fixture archive is bound to targetImage by the real controller.
+} else if (args[0] === "tag") { state.rollbackTagPresent = true; save(); }
+else if (args[0] === "network" && args[1] === "inspect") { /* fixture networks exist */ }
+else if (args[0] === "exec") {
+  if (args[1] !== ids["ai-agent-api"] || !args.join(" ").includes("/v1/ready")) process.exit(64);
+  process.exit(process.env.FAKE_AGENT_READY_FAIL === "1" ? 1 : 0);
+} else if (args[0] === "compose") {
+  const profile = args.includes("--profile") && args[args.indexOf("--profile") + 1] === "ai-agent";
+  const agentImage = agentRepository + "@" + (process.env.EVO_AI_AGENT_IMAGE_DIGEST ?? "");
+  const command = args.find((value) => ["config", "pull", "up", "rm", "stop"].includes(value));
+  if (command === "config") {
+    if (args.includes("--services")) output((profile ? ["ai-agent-api", "ai-agent-worker"] : []).concat(["app", "clamav", "waha"]).join("\\n"));
+    else if (args.includes("--format")) {
+      // FAKE_COMPOSE_BREACH renders a compose that would put the agent next to WAHA or clamd.
+      const breach = process.env.FAKE_COMPOSE_BREACH ?? "";
+      const agentNetwork = breach === "agent-private" ? "private" : "ai";
+      const agentService = (aliases) => ({ image: agentImage, profiles: ["ai-agent"], read_only: true,
+        user: "10001:10001", cap_drop: ["ALL"], security_opt: ["no-new-privileges:true"],
+        healthcheck: { test: ["CMD"] }, networks: { [agentNetwork]: aliases ? { aliases } : null } });
+      const agentBridge = profile || appOverride;
+      output(JSON.stringify({
+        networks: { private: { name: "fixture_private" }, web: { name: "fixture_web" },
+          ...(agentBridge ? { ai: { name: "evo_crm_ai", driver: "bridge" } } : {}) },
+        services: {
+          app: { image: "evo-crm:" + process.env.EVO_RELEASE_REVISION,
+            networks: { private: {}, web: {}, ...(appOverride ? { ai: { aliases: ["evo-crm-app"] } } : {}) } },
+          clamav: { image: scannerImage, networks: { private: {} } },
+          waha: { image: wahaImage, networks: { private: {}, ...(breach === "waha-ai" && agentBridge ? { ai: {} } : {}) } },
+          ...(profile ? { "ai-agent-api": agentService(["evo-ai-agent"]), "ai-agent-worker": agentService(null) } : {}),
+        },
+      }));
+    }
+  } else if (command === "pull") {
+    if (!profile || args.at(-1) !== "ai-agent-api") process.exit(64);
+    if (process.env.FAKE_AGENT_PULL_FAIL === "1") process.exit(1);
+    state.agentImages.push(agentImage); save();
+  } else if (command === "up") {
+    if (args.includes("ai-agent-api")) {
+      if (!profile || !args.includes("ai-agent-worker")) process.exit(64);
+      if (!state.agentImages.includes(agentImage)) process.exit(1);
+      const healthy = process.env.FAKE_AGENT_UP_FAIL !== "1" || agentImage !== process.env.FAKE_TARGET_AGENT_IMAGE;
+      state.agent = { api: agentImage, worker: agentImage, healthy };
+      save();
+      if (!healthy) process.exit(1);
+    } else if (args.at(-1) === "clamav") { state.scanner = true; save(); }
+    else if (args.at(-1) === "app") {
+      state.app = args.some((value) => value.endsWith("/rollback.override.yml")) ? "baseline" : "target";
+      state.appAi = appOverride;
+      save();
+    } else process.exit(64);
+  } else if (command === "rm") {
+    if (args.includes("ai-agent-api")) { if (!profile) process.exit(64); state.agent = null; }
+    else if (args.at(-1) === "clamav") state.scanner = false;
+    else if (args.at(-1) === "app") state.app = null;
+    save();
+  } else process.exit(64);
+} else process.exit(64);
+`);
+  writeExecutable(join(bin, "node"), `#!/usr/bin/env bash
+if [[ \${1-} == *evo-app-env-contract.mjs && \${2-} == --example ]]; then exit 0; fi
+exec ${JSON.stringify(process.execPath)} "$@"
+`);
+  writeExecutable(join(bin, "curl"), "#!/usr/bin/env bash\nexit 0\n");
+  writeExecutable(join(bin, "flock"), "#!/usr/bin/env bash\nexit 0\n");
+  writeExecutable(join(bin, "sleep"), "#!/usr/bin/env bash\nexit 0\n");
+
+  const environment = {
+    ...process.env,
+    EVO_RELEASE_ACTIVE_COMPOSE_FILE: composeFile,
+    EVO_RELEASE_APP_ENV_FILE: environmentFile,
+    EVO_RELEASE_ARCHIVE: archive,
+    EVO_RELEASE_ARCHIVE_SHA256: hash(readFileSync(archive)),
+    EVO_RELEASE_ARTIFACT_DIGEST: `sha256:${"6".repeat(64)}`,
+    EVO_RELEASE_ARTIFACT_ID: "3",
+    EVO_RELEASE_COMPOSE_FILE: composeFile,
+    EVO_RELEASE_DOCKER_STORAGE_PATH: root,
+    EVO_RELEASE_ENV_EXAMPLE_FILE: environmentExample,
+    EVO_RELEASE_EVIDENCE_ROOT: evidenceRoot,
+    EVO_RELEASE_EXPECTED_COMPOSE_SHA256: hash(readFileSync(composeFile)),
+    EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST: targetImage,
+    EVO_RELEASE_EXPECTED_IMAGE_ID: targetImage,
+    EVO_RELEASE_EXTERNAL_HEALTH_URL: "http://127.0.0.1:9/api/health",
+    EVO_RELEASE_ID: releaseId,
+    EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB: "4194304",
+    EVO_RELEASE_MIN_FREE_KB: "1048576",
+    EVO_RELEASE_PROJECT_NAME: "fixture-release",
+    EVO_RELEASE_REPOSITORY: "izzhackt/evo_AI_CRM",
+    EVO_RELEASE_REVISION: targetRevision,
+    EVO_RELEASE_ROOT: releaseRoot,
+    EVO_RELEASE_ROLLBACK_SEED: join(evidenceRoot, `seed-${runId}`, "state.json"),
+    EVO_RELEASE_RUN_ID: runId,
+    EVO_RELEASE_SEED_IMAGE: previousImage,
+    EVO_RELEASE_TRANSFER_ROOT: transferRoot,
+    EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: "1",
+    EVO_RELEASE_UPSTREAM_CI_RUN_ID: "2",
+    EVO_RELEASE_VERSION: targetVersion,
+    EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: "1",
+    EVO_RELEASE_WORKFLOW_RUN_ID: "1",
+    EVO_SUPABASE_PROJECT_REF: "a".repeat(20),
+    EVO_WAHA_IMAGE_DIGEST: `sha256:${"e".repeat(64)}`,
+    EVO_AI_AGENT_ENABLED: enabled ? "true" : "",
+    EVO_AI_AGENT_IMAGE_DIGEST: enabled ? TARGET_AGENT_DIGEST : "",
+    EVO_AI_AGENT_READY_ATTEMPTS: "2",
+    FAKE_DOCKER_LOG: dockerLog,
+    FAKE_RUNTIME_STATE: statePath,
+    FAKE_TARGET_AGENT_IMAGE: `${AGENT_REPOSITORY}@${TARGET_AGENT_DIGEST}`,
+    PATH: `${bin}:${process.env.PATH ?? ""}`,
+  };
+  delete environment.EVO_CRM_AI_AGENT_ENV_FILE;
+  delete environment.COMPOSE_PROFILES;
+  const releaseDir = join(evidenceRoot, releaseId);
+  const run = (command, overrides = {}) => spawnSync("bash", ["scripts/evo-fast-release.sh", command], {
+    encoding: "utf8", env: { ...environment, ...overrides }, timeout: 60_000,
+  });
+  const runtime = () => JSON.parse(readFileSync(statePath, "utf8"));
+  const setRuntime = (changes) => writeFileSync(statePath, JSON.stringify({ ...runtime(), ...changes }));
+  const dockerCalls = () => readFileSync(dockerLog, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+  const rollbackEnvironment = {
+    EVO_RELEASE_ROLLBACK_STATE: join(releaseDir, "state.json"),
+    EVO_RELEASE_ROLLBACK_EXPECTED_RELEASE_ID: releaseId,
+  };
+  return {
+    agentEnvironmentFile, dockerCalls, environment, evidenceRoot, previousAgentImage, releaseDir,
+    releaseId, rollbackEnvironment, root, run, runtime, setRuntime, targetRevision,
+    targetAgentImage: `${AGENT_REPOSITORY}@${TARGET_AGENT_DIGEST}`,
+  };
+}
+
+const TODAY_STATE_KEYS = ["appEnvSha256", "appEnvSnapshot", "archiveSha256", "artifactDigest", "artifactId",
+  "composeSha256", "composeSnapshot", "controllerSha256", "generation", "imageConfigDigest", "imageId",
+  "imageSource", "previous", "releaseId", "releaseRunId", "repository", "revision", "rollbackTag",
+  "rollbackWrapperSha256", "schema", "upstreamCiRunAttempt", "upstreamCiRunId", "version",
+  "workflowRunAttempt", "workflowRunId"];
+
+test("AI agent disabled: a release makes no agent call and seals today's state and wrapper", () => {
+  const fixture = aiAgentReleaseFixture({ enabled: false });
+  try {
+    assert.equal(fixture.run("seal-rollback-seed").status, 0);
+    const deployed = fixture.run("deploy");
+    assert.equal(deployed.status, 0, deployed.stderr);
+    assert.equal(JSON.parse(deployed.stdout).status, "pending");
+    const agentCalls = fixture.dockerCalls().filter((call) => call[0] === "exec" || call.includes("--profile")
+      || call.includes("-") || call.includes("{{.State.Running}}")
+      || call.some((argument) => /^ai-agent-(?:api|worker)$|evo-ai-agent@/u.test(argument)));
+    assert.deepEqual(agentCalls, []);
+    assert.equal(fixture.runtime().appAi, false);
+    const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
+    assert.deepEqual(Object.keys(state).sort(), TODAY_STATE_KEYS);
+    const wrapper = readFileSync(join(fixture.releaseDir, "rollback-command.sh"), "utf8");
+    assert.match(wrapper, /^export EVO_AI_AGENT_ENABLED=false$/mu);
+    assert.doesNotMatch(wrapper, /EVO_AI_AGENT_IMAGE_DIGEST|EVO_CRM_AI_AGENT_ENV_FILE/u);
+    const status = fixture.run("candidate-status");
+    assert.equal(status.status, 0, status.stderr);
+    assert.equal(JSON.parse(status.stdout).status, "pending");
+    assert.match(fixture.run("candidate-status", { EVO_AI_AGENT_ENABLED: "true", EVO_AI_AGENT_IMAGE_DIGEST: TARGET_AGENT_DIGEST }).stderr,
+      /ai_agent_release_mismatch/u);
+    const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
+    assert.equal(rolledBack.status, 0, rolledBack.stderr);
+    assert.equal(fixture.runtime().app, "baseline");
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("AI agent disabled: running agent containers still fail the exact runtime contract", () => {
+  const fixture = aiAgentReleaseFixture({ enabled: false, previousAgent: true });
+  try {
+    const status = fixture.run("status");
+    assert.equal(status.status, 2);
+    assert.match(status.stderr, /runtime_service_contract_invalid/u);
+    const deployed = fixture.run("deploy");
+    assert.equal(deployed.status, 2);
+    assert.match(deployed.stderr, /runtime_service_contract_invalid/u);
+    assert.equal(fixture.runtime().app, "baseline");
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("AI agent enabled: configuration fails closed before any runtime change", () => {
+  for (const [options, overrides, code] of [
+    [{ enabled: true }, { EVO_AI_AGENT_ENABLED: "yes" }, /ai_agent_enabled_invalid/u],
+    [{ enabled: true }, { EVO_AI_AGENT_IMAGE_DIGEST: "latest" }, /ai_agent_digest_invalid/u],
+    [{ enabled: true, agentEnv: "absent" }, {}, /ai_agent_env_missing/u],
+    [{ enabled: true, agentEnv: "incomplete" }, {}, /ai_agent_env_incomplete/u],
+    [{ enabled: true, agentEnv: "quoted" }, {}, /ai_agent_env_format_invalid/u],
+    [{ enabled: true, agentEnv: "exported" }, {}, /ai_agent_env_format_invalid/u],
+    [{ enabled: true, agentEnv: "padded" }, {}, /ai_agent_env_format_invalid/u],
+  ]) {
+    const fixture = aiAgentReleaseFixture(options);
+    try {
+      const deployed = fixture.run("deploy", overrides);
+      assert.equal(deployed.status, 2, deployed.stdout);
+      assert.match(deployed.stderr, code);
+      assert.doesNotMatch(deployed.stderr, /synthetic-fixture|postgresql:/u);
+      assert.deepEqual(fixture.dockerCalls(), []);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+  const fixture = aiAgentReleaseFixture({ enabled: true });
+  try {
+    chmodSync(fixture.agentEnvironmentFile, 0o644);
+    assert.match(fixture.run("deploy").stderr, /ai_agent_env_permissions_invalid/u);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("AI agent enabled: first release pulls by digest, proves /v1/ready, records the pin and rolls back to absent", () => {
+  const fixture = aiAgentReleaseFixture({ enabled: true });
+  try {
+    assert.equal(fixture.run("seal-rollback-seed").status, 0);
+    const deployed = fixture.run("deploy");
+    assert.equal(deployed.status, 0, deployed.stderr);
+    assert.equal(JSON.parse(deployed.stdout).status, "pending");
+    const calls = fixture.dockerCalls().map((call) => call.join(" "));
+    assert.ok(calls.some((call) => /^compose .*--profile ai-agent .*pull --quiet ai-agent-api$/u.test(call)), calls.join("\n"));
+    assert.ok(calls.some((call) => /^compose .*--profile ai-agent .*up .*--pull never .*ai-agent-api ai-agent-worker$/u.test(call)));
+    assert.ok(calls.some((call) => /^exec e0e0e0e0e0e0 python -c .*\/v1\/ready/u.test(call)));
+    // ADR 0032: the app joins the agent's own bridge only now, through the stdin override.
+    assert.ok(calls.some((call) => /^compose .*--file - .*--profile ai-agent up .* app$/u.test(call)), calls.join("\n"));
+    assert.equal(fixture.runtime().appAi, true);
+    assert.deepEqual(fixture.runtime().agent, { api: fixture.targetAgentImage, worker: fixture.targetAgentImage, healthy: true });
+    const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
+    assert.deepEqual(state.aiAgent, { image: fixture.targetAgentImage, previousPresent: false, previousImage: "" });
+    assert.deepEqual(Object.keys(state).filter((key) => key !== "aiAgent").sort(), TODAY_STATE_KEYS);
+    const wrapper = readFileSync(join(fixture.releaseDir, "rollback-command.sh"), "utf8");
+    assert.match(wrapper, /^export EVO_AI_AGENT_ENABLED=true$/mu);
+    assert.match(wrapper, new RegExp(`^export EVO_AI_AGENT_IMAGE_DIGEST=${TARGET_AGENT_DIGEST}$`, "mu"));
+    assert.match(fixture.run("candidate-status").stdout, /"status":"pending"/u);
+    assert.match(fixture.run("candidate-status", { EVO_AI_AGENT_ENABLED: "" }).stderr, /ai_agent_release_mismatch/u);
+
+    const callsBeforeRollback = fixture.dockerCalls().length;
+    const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
+    assert.equal(rolledBack.status, 0, rolledBack.stderr);
+    assert.equal(fixture.runtime().app, "baseline");
+    assert.equal(fixture.runtime().appAi, false);
+    assert.equal(fixture.runtime().agent, null);
+    assert.equal(existsSync(join(fixture.evidenceRoot, "pending-current.json")), false);
+    // The previous release had no agent: its app is restored without the override.
+    assert.ok(!fixture.dockerCalls().slice(callsBeforeRollback).some((call) => call.includes("-")));
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("AI agent enabled: a failed readiness proof restores the previous app and agent pin", () => {
+  for (const failure of ["FAKE_AGENT_READY_FAIL", "FAKE_AGENT_UP_FAIL"]) {
+    const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent: true });
+    try {
+      assert.equal(fixture.run("seal-rollback-seed").status, 0);
+      const deployed = fixture.run("deploy", { [failure]: "1" });
+      assert.equal(deployed.status, 3, `${failure}: ${deployed.stderr}`);
+      assert.deepEqual(JSON.parse(deployed.stdout), {
+        ok: false, command: "deploy", status: "rolled_back", code: "deployment_failed",
+        evidenceDir: fixture.releaseDir,
+      });
+      const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
+      assert.deepEqual(state.aiAgent, {
+        image: fixture.targetAgentImage, previousPresent: true, previousImage: fixture.previousAgentImage,
+      });
+      assert.equal(fixture.runtime().app, "baseline");
+      assert.equal(fixture.runtime().appAi, true);
+      assert.deepEqual(fixture.runtime().agent, {
+        api: fixture.previousAgentImage, worker: fixture.previousAgentImage, healthy: true,
+      });
+      const calls = fixture.dockerCalls().map((call) => call.join(" "));
+      assert.ok(calls.some((call) => /up .*--force-recreate .*ai-agent-api ai-agent-worker$/u.test(call)), failure);
+      assert.ok(calls.some((call) => /--file \S+\/rollback\.override\.yml --file - .*up .* app$/u.test(call)), failure);
+      // Before any runtime change the previous snapshot was rendered as the rollback renders it.
+      const previousRender = calls.findIndex((call) => /--file \S+\/docker-compose\.previous\.yml --file - .*config --quiet$/u.test(call));
+      const firstUp = calls.findIndex((call) => /^compose .* up /u.test(call));
+      assert.ok(previousRender >= 0 && previousRender < firstUp, failure);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("AI agent enabled: acceptance records the pin and a hand-changed agent is drift", () => {
+  const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent: true });
+  try {
+    assert.equal(fixture.run("seal-rollback-seed").status, 0);
+    const deployed = fixture.run("deploy");
+    assert.equal(deployed.status, 0, deployed.stderr);
+    const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
+    const receipt = join(fixture.releaseDir, "browser-receipt.json");
+    const receiptText = JSON.stringify({
+      schema: "evo-v3-browser-receipt/v1", result: "passed", releaseId: state.releaseId,
+      repository: state.repository, revision: state.revision, workflowRunId: state.workflowRunId,
+      workflowRunAttempt: state.workflowRunAttempt, artifactId: state.artifactId, artifactDigest: state.artifactDigest,
+    });
+    writeFileSync(receipt, receiptText, { mode: 0o600 });
+    chmodSync(receipt, 0o600);
+    const accepted = fixture.run("accept-candidate", {
+      EVO_RELEASE_ACTOR_ID: "1", EVO_RELEASE_CURRENT_MAIN_REVISION: fixture.targetRevision,
+      EVO_RELEASE_BROWSER_RECEIPT: receipt, EVO_RELEASE_BROWSER_RECEIPT_SHA256: sha256(receiptText),
+    });
+    assert.equal(accepted.status, 0, accepted.stderr);
+    const record = JSON.parse(readFileSync(join(fixture.releaseDir, "v3-acceptance-record.json"), "utf8"));
+    assert.deepEqual(record.aiAgent, state.aiAgent);
+
+    // Same candidate again: the accepted agent pin is recognised, so only the revision check stops it.
+    assert.match(fixture.run("preflight").stderr, /current_release_invalid/u);
+    const foreign = `${AGENT_REPOSITORY}@${FOREIGN_AGENT_DIGEST}`;
+    fixture.setRuntime({ agent: { api: foreign, worker: foreign, healthy: true }, agentImages: [foreign] });
+    assert.match(fixture.run("preflight").stderr, /runtime_ai_agent_image_drift/u);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("AI agent off after it ran: the app leaves the agent bridge and nothing else is rendered", () => {
+  // The disable runbook removed the agent pair; the app container still sits on evo_crm_ai.
+  const fixture = aiAgentReleaseFixture({ enabled: false, appOnAgentNetwork: true });
+  try {
+    assert.equal(fixture.run("seal-rollback-seed").status, 0);
+    const deployed = fixture.run("deploy");
+    assert.equal(deployed.status, 0, deployed.stderr);
+    assert.equal(fixture.runtime().app, "target");
+    assert.equal(fixture.runtime().appAi, false);
+    assert.ok(!fixture.dockerCalls().some((call) => call.includes("-") || call.includes("--profile")));
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("AI agent enabled: a compose that puts the agent next to WAHA or clamd is refused before any change", () => {
+  for (const breach of ["agent-private", "waha-ai"]) {
+    const fixture = aiAgentReleaseFixture({ enabled: true });
+    try {
+      assert.equal(fixture.run("seal-rollback-seed").status, 0);
+      const deployed = fixture.run("deploy", { FAKE_COMPOSE_BREACH: breach });
+      assert.equal(deployed.status, 2, `${breach}: ${deployed.stdout}`);
+      assert.match(deployed.stderr, /compose_ai_agent_contract_invalid/u);
+      assert.equal(fixture.runtime().app, "baseline");
+      assert.equal(fixture.runtime().agent, null);
+      assert.ok(!fixture.dockerCalls().some((call) => call.includes("up") || call.includes("pull")), breach);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("AI agent enabled: the 2 GiB headroom is required only while the agent is not running yet", (t) => {
+  const meminfo = existsSync("/proc/meminfo") ? readFileSync("/proc/meminfo", "utf8") : "";
+  const available = meminfo === "" ? 8589934592 / 1024 : Number(/^MemAvailable:\s+(\d+)/mu.exec(meminfo)?.[1]);
+  // Between today's minimum and today's minimum plus the agent's limits.
+  const minimum = Math.floor(available - 1048576);
+  if (!Number.isSafeInteger(minimum) || minimum < 4194304) {
+    t.skip("needs at least 5 GiB of available memory");
+    return;
+  }
+  for (const previousAgent of [true, false]) {
+    const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent });
+    try {
+      assert.equal(fixture.run("seal-rollback-seed").status, 0);
+      const preflight = fixture.run("preflight", { EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB: String(minimum) });
+      if (previousAgent) assert.doesNotMatch(preflight.stderr, /insufficient_memory_capacity/u);
+      else assert.match(preflight.stderr, /insufficient_memory_capacity/u);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("AI agent enabled: a rollback whose previous agent image is gone stops before any change", () => {
+  const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent: true });
+  try {
+    assert.equal(fixture.run("seal-rollback-seed").status, 0);
+    assert.equal(fixture.run("deploy").status, 0);
+    fixture.setRuntime({ agentImages: [fixture.targetAgentImage] });
+    const callsBeforeRollback = fixture.dockerCalls().length;
+    const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
+    assert.notEqual(rolledBack.status, 0);
+    assert.match(rolledBack.stderr, /rollback_failed/u);
+    assert.equal(fixture.runtime().app, "target");
+    assert.deepEqual(fixture.runtime().agent, {
+      api: fixture.targetAgentImage, worker: fixture.targetAgentImage, healthy: true,
+    });
+    const mutations = fixture.dockerCalls().slice(callsBeforeRollback)
+      .filter((call) => call.includes("up") || call.includes("rm") || call.includes("stop") || call[0] === "tag");
+    assert.deepEqual(mutations, []);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("release controller requires Docker Compose 2.30 or later and reads the version safely", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const failHelper = controller.slice(controller.indexOf("fail() {"), controller.indexOf("require_command() {"));
+  const constants = controller.match(
+    /^readonly COMPOSE_MIN_MAJOR=.*\nreadonly COMPOSE_MIN_MINOR=.*\nreadonly COMPOSE_VERSION_RE=.*$/mu,
+  )?.[0];
+  const gate = controller.slice(controller.indexOf("verify_compose_version() {"), controller.indexOf("preflight() {"));
+  assert.ok(failHelper.startsWith("fail() {") && constants && gate.startsWith("verify_compose_version() {"),
+    "the actual version gate must exist");
+  const root = mkdtempSync(join(tmpdir(), "evo-compose-version-"));
+  const bin = join(root, "bin");
+  mkdirSync(bin);
+  writeExecutable(join(bin, "docker"), `#!/usr/bin/env bash
+[[ $* == "compose version --short" ]] || exit 64
+printf '%s' "$FAKE_OUTPUT"
+exit "$FAKE_STATUS"
+`);
+  try {
+    for (const [output, status, expected] of [
+      ["5.1.2\n", 0, "ok"], // hermes, read on 2026-10-06
+      ["2.30.0\n", 0, "ok"],
+      ["v2.30.0\n", 0, "ok"],
+      ["2.30.3-desktop.1\n", 0, "ok"],
+      ["2.100.0\n", 0, "ok"],
+      ["3.0.0\n", 0, "ok"],
+      ["10.0.0\n", 0, "ok"],
+      ["2.29.9\n", 0, "compose_version_unsupported"],
+      ["2.3.0\n", 0, "compose_version_unsupported"],
+      ["1.99.0\n", 0, "compose_version_unsupported"],
+      ["0.30.0\n", 0, "compose_version_unsupported"],
+      ["", 0, "compose_version_unreadable"],
+      ["5.1.2\n", 1, "compose_version_unreadable"],
+      ["2.30\n", 0, "compose_version_unreadable"],
+      ["2.030.0\n", 0, "compose_version_unreadable"],
+      [" 5.1.2\n", 0, "compose_version_unreadable"],
+      ["5.1.2 \n", 0, "compose_version_unreadable"],
+      ["Docker Compose version v5.1.2\n", 0, "compose_version_unreadable"],
+      ["2.31.0\n2.29.0\n", 0, "compose_version_unreadable"],
+      ["99999.0.0\n", 0, "compose_version_unreadable"],
+      ["5.1.2;id\n", 0, "compose_version_unreadable"],
+    ]) {
+      const result = spawnSync("bash", ["-c", `set -Eeuo pipefail\n${failHelper}\n${constants}\n${gate}\nverify_compose_version`], {
+        env: { PATH: `${bin}:/usr/bin:/bin`, FAKE_OUTPUT: output, FAKE_STATUS: String(status) },
+        encoding: "utf8",
+      });
+      const label = JSON.stringify([output, status]);
+      if (expected === "ok") {
+        assert.equal(result.status, 0, `${label}: ${result.stderr}`);
+        assert.equal(result.stderr, "", label);
+      } else {
+        assert.equal(result.status, 2, label);
+        assert.equal(result.stderr, `{"ok":false,"code":"${expected}"}\n`, label);
+      }
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("every release refuses an old Docker Compose before any change; rollback is never gated", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const body = (name, next) => controller.slice(controller.indexOf(`${name}() {`), controller.indexOf(`${next}() {`));
+  for (const [name, next] of [["preflight", "sync_file_and_parent"], ["deploy", "manual_rollback"]]) {
+    assert.match(body(name, next), /^\s+load_candidate_configuration\n\s+verify_compose_version\n\s+acquire_release_lock$/mu, name);
+  }
+  for (const [name, next] of [["manual_rollback", "rollback_pending_candidate"], ["rollback_from_state", "load_bound_release_state"],
+    ["seal_rollback_seed", "prepare_candidate_generation"], ["accept_candidate", "disarm_release_mutation_trap"]]) {
+    assert.doesNotMatch(body(name, next), /verify_compose_version/u, name);
+  }
+  assert.doesNotMatch(controller.slice(controller.indexOf("rollback_pending_candidate() {")), /verify_compose_version/u);
+
+  for (const enabled of [false, true]) {
+    const fixture = aiAgentReleaseFixture({ enabled });
+    try {
+      assert.equal(fixture.run("seal-rollback-seed").status, 0);
+      for (const command of ["preflight", "deploy"]) {
+        const callsBefore = fixture.dockerCalls().length;
+        const evidenceBefore = readdirSync(fixture.evidenceRoot).sort();
+        const refused = fixture.run(command, { FAKE_COMPOSE_VERSION: "2.29.9" });
+        assert.equal(refused.status, 2, `${command}/${enabled}: ${refused.stderr}`);
+        assert.equal(refused.stderr, '{"ok":false,"code":"compose_version_unsupported"}\n');
+        assert.equal(refused.stdout, "");
+        assert.deepEqual(fixture.dockerCalls().slice(callsBefore), [["compose", "version", "--short"]]);
+        assert.deepEqual(readdirSync(fixture.evidenceRoot).sort(), evidenceBefore);
+        const unreadable = fixture.run(command, { FAKE_COMPOSE_VERSION_FAIL: "1" });
+        assert.equal(unreadable.stderr, '{"ok":false,"code":"compose_version_unreadable"}\n');
+      }
+      assert.equal(fixture.runtime().app, "baseline");
+      const preflight = fixture.run("preflight", { FAKE_COMPOSE_VERSION: "2.30.0" });
+      assert.equal(preflight.status, 0, preflight.stderr);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
 });

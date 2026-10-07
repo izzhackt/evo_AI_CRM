@@ -17,6 +17,33 @@ func orvisScaleLabel(_ scale: String) -> String {
     return String(localized: key)
 }
 
+/// Маршрут карточки профессии. Свой тип, а не голый `UUID`: в стеке «Главной»
+/// и «Университетов» `UUID` уже ведёт к карточке вуза.
+struct ProfessionRoute: Hashable {
+    let cardId: UUID
+}
+
+/// Разделы, которые открываются переходом по значению из нескольких стеков.
+/// Ссылка с замыканием (`NavigationLink { … }`) не попадает в путь стека, и
+/// следующий переход по значению внутри такого экрана вставал под него:
+/// карточка профессии открывалась под списком (аудит UX/UI 2026-10).
+enum PortalRoute: Hashable {
+    case professions
+    case favorites
+}
+
+extension View {
+    /// Регистрирует экраны `PortalRoute` в ближайшем `NavigationStack`.
+    func portalRouteDestinations() -> some View {
+        navigationDestination(for: PortalRoute.self) { route in
+            switch route {
+            case .professions: ProfessionsContentView()
+            case .favorites: FavoritesView()
+            }
+        }
+    }
+}
+
 /// «Профессии» (миграции 198/199): сетка карточек по интересам и карточка
 /// профессии со связками в каталог вузов. Контент публикуемый; зарплат и
 /// «шансов» нет — только описания с источником (план §6/§14).
@@ -88,8 +115,8 @@ struct ProfessionsContentView: View {
             }
         }
         .navigationTitle("tab_professions")
-        .navigationDestination(for: UUID.self) { cardId in
-            ProfessionCardView(cardId: cardId)
+        .navigationDestination(for: ProfessionRoute.self) { route in
+            ProfessionCardView(cardId: route.cardId)
         }
         .task {
             if model.cards.isEmpty {
@@ -124,7 +151,7 @@ struct ProfessionsContentView: View {
 
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(model.cards) { card in
-                        NavigationLink(value: card.cardId) {
+                        NavigationLink(value: ProfessionRoute(cardId: card.cardId)) {
                             ProfessionTile(card: card)
                         }
                         .buttonStyle(.pressable)

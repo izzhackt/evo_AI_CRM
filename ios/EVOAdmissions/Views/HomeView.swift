@@ -94,15 +94,14 @@ struct HomeView: View {
                 favoritesSection
                 if session.accessTier == .assisted {
                     Section {
-                        NavigationLink {
-                            ProfessionsContentView()
-                        } label: {
+                        NavigationLink(value: PortalRoute.professions) {
                             Label("tab_professions", systemImage: "person.text.rectangle")
                         }
                     }
                 }
             }
             .navigationTitle("tab_home")
+            .portalRouteDestinations()
             .refreshable { await refresh() }
             .task { await refresh() }
             .onChange(of: scenePhase) { _, phase in
@@ -291,7 +290,7 @@ struct HomeView: View {
                             .padding(.vertical, 4)
                         }
                     }
-                    NavigationLink { FavoritesView() } label: { Text("home_all_favorites") }
+                    NavigationLink(value: PortalRoute.favorites) { Text("home_all_favorites") }
                 }
             }
             .motionStagger(index: 5, key: "home.favorites.\(model.favorites.phase)")

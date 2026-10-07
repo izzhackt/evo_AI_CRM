@@ -264,9 +264,7 @@ struct UniversitiesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     // Раздел «Избранное» (195) живёт внутри вкладки каталога.
-                    NavigationLink {
-                        FavoritesView()
-                    } label: {
+                    NavigationLink(value: PortalRoute.favorites) {
                         Label("favorites_title", systemImage: "heart")
                     }
                 }
@@ -277,6 +275,7 @@ struct UniversitiesView: View {
                     initialItem: model.knownItem(for: institutionId)
                 )
             }
+            .portalRouteDestinations()
             .task {
                 if model.items.isEmpty {
                     await model.loadFirstPage()

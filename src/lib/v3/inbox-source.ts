@@ -15,6 +15,7 @@ import {
   listPlatformConversations,
   type PlatformConversationCursor,
   type PlatformConversationSummary,
+  type PlatformWhatsAppContact,
   type PlatformWhatsAppChatAttempt,
   type PlatformWhatsAppChatMessage,
   type PlatformWhatsAppChatState,
@@ -34,6 +35,8 @@ import {
   type V3InboxMediaAttachmentContext,
 } from "@/lib/v3/inbox-media";
 import { readLeadHandoffStrip } from "@/lib/v3/sales-numbers-source";
+import { whatsAppChatTitle } from "@/lib/v3/whatsapp-contact";
+import { readWhatsAppContacts } from "@/lib/v3/whatsapp-contact-source";
 import { stagePhase } from "@/lib/v3/stages";
 import { salesStage } from "@/lib/v3/wording";
 import {
@@ -74,17 +77,15 @@ function formatInboxTime(value: string): string {
   return BISHKEK_TIME.format(parsed).replace(",", "");
 }
 
-type InboxChannelStatus = Pick<
-  InboxSelectedConversation,
-  "channelState" | "channelObservedAt"
->;
+type InboxChannelStatus = Pick<InboxSelectedConversation, "channelState">;
 
 async function readInboxChannelStatus(
   actor: ActivePlatformActor,
 ): Promise<InboxChannelStatus> {
   try {
     // The recorded status only says when the session last changed; the live
-    // probe says what it is now, so the banner does not go stale.
+    // probe says what it is now, so a warning does not go stale. A working
+    // channel is not announced (owner, 07.10.2026: «уберем давай это»).
     const health = await withLivePlatformWahaHealth(
       actor.organizationId,
       await getPlatformWahaSessionHealth(actor, "crm_primary"),
@@ -104,13 +105,12 @@ async function readInboxChannelStatus(
         channelState === "ready" && !isPlatformWahaIngressEnabled()
           ? "intake_off"
           : channelState,
-      channelObservedAt: health ? formatInboxTime(health.observedAt) : null,
     });
   } catch {
     // Session health is informational. Queue, transcript and command-authority
     // failures retain their existing fail-closed path; the send itself is
     // gated by the database's own readiness check.
-    return Object.freeze({ channelState: "unavailable", channelObservedAt: null });
+    return Object.freeze({ channelState: "unavailable" });
   }
 }
 
@@ -130,10 +130,13 @@ function toInboxConversation(
   summary: PlatformConversationSummary,
   queueCursor: PlatformConversationCursor | null,
   filters: Readonly<{ query: string | null; waitingOnly: boolean }>,
+  contact: PlatformWhatsAppContact | undefined,
 ): InboxConversation {
+  const title = whatsAppChatTitle(summary.subject, contact);
   return Object.freeze({
     id: summary.id,
-    person: summary.subject,
+    person: title.name,
+    phone: title.phone,
     queue: summary.queue,
     status: summary.status,
     updatedAt: formatInboxTime(summary.sortAt),
@@ -304,15 +307,18 @@ export async function readInbox(
   const channelStatusPromise =
     !thread || thread.conversation.wahaSessionName === "crm_primary"
       ? readInboxChannelStatus(actor)
-      : Promise.resolve<InboxChannelStatus>({
-          channelState: "unknown",
-          channelObservedAt: null,
-        });
+      : Promise.resolve<InboxChannelStatus>({ channelState: "unknown" });
+  // Name and number of every shown chat (278): one read beside the others.
+  const contactsPromise = readWhatsAppContacts(actor, [
+    ...queue.rows.map((row) => row.id),
+    ...(thread ? [thread.conversation.id] : []),
+  ]);
   if (thread) {
-    const [context, channelStatus, state] = await Promise.all([
+    const [context, channelStatus, state, contacts] = await Promise.all([
       getPlatformConversationCommandContext(actor, thread.conversation.id),
       channelStatusPromise,
       getPlatformWhatsAppChatState(actor, thread.conversation.id),
+      contactsPromise,
     ]);
     if (
       context === null
@@ -338,9 +344,8 @@ export async function readInbox(
     });
 
     selected = Object.freeze({
-      ...toInboxConversation(thread.conversation, options.queueCursor, filters),
+      ...toInboxConversation(thread.conversation, options.queueCursor, filters, contacts.get(thread.conversation.id)),
       channelState: channelStatus.channelState,
-      channelObservedAt: channelStatus.channelObservedAt,
       canonicalContext: Object.freeze({
         leadId: context.canonicalLeadId,
         clientId: context.canonicalClientId,
@@ -350,13 +355,13 @@ export async function readInbox(
     });
   }
 
-  const channelStatus = await channelStatusPromise;
+  const [channelStatus, contacts] = await Promise.all([channelStatusPromise, contactsPromise]);
   return Object.freeze({
     view: Object.freeze({
       ...channelStatus,
       conversations: Object.freeze(
         queue.rows.map((summary) =>
-          toInboxConversation(summary, options.queueCursor, filters),
+          toInboxConversation(summary, options.queueCursor, filters, contacts.get(summary.id)),
         ),
       ),
       selected,

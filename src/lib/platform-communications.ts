@@ -1452,3 +1452,70 @@ export async function getPlatformWhatsAppChatState(
     return failClosed(error);
   }
 }
+
+/**
+ * Имя и номер WhatsApp-чата (миграция 278, просьба владельца 07.10.2026):
+ * имя — набранное сотрудником или имя из профиля WhatsApp (null — имени нет,
+ * экран пишет «WhatsApp»), номер — код страны и последние шесть цифр,
+ * замаскированные в базе («+996 ••• 12 46 64»). Строка есть только у чата,
+ * которого тема — заглушка цепочки WAHA, и только с известным номером.
+ */
+export type PlatformWhatsAppContact = Readonly<{
+  conversationId: string;
+  name: string | null;
+  phone: string;
+}>;
+
+const WHATSAPP_CONTACT_KEYS = Object.freeze(["conversation_id", "contact_name", "contact_phone"]);
+const WHATSAPP_CONTACT_LIMIT = 60;
+const MASKED_PHONE_PATTERN = /^\+[1-9]\d{0,2} ••• \d{1,2}(?: \d{2}){0,2}$/u;
+
+export function normalizePlatformWhatsAppContact(value: unknown): PlatformWhatsAppContact {
+  if (!isRecord(value) || !hasExactKeys(value, WHATSAPP_CONTACT_KEYS)) return invalidShape();
+  const conversationId = parsePlatformRouteUuid(value.conversation_id);
+  const name = value.contact_name === null ? null : parseRequiredText(value.contact_name);
+  const phone = typeof value.contact_phone === "string" && MASKED_PHONE_PATTERN.test(value.contact_phone)
+    ? value.contact_phone
+    : null;
+  if (
+    conversationId === null
+    || (value.contact_name !== null && (name === null || name.length > 500))
+    || phone === null
+  ) {
+    return invalidShape();
+  }
+  return Object.freeze({ conversationId, name: name?.trim() ?? null, phone });
+}
+
+/**
+ * Имена и номера WhatsApp-чатов, которые сотрудник читает полностью (до 60
+ * за раз). Чужой, неизвестный или не-WhatsApp чат строки не получает.
+ */
+export async function getPlatformWhatsAppContacts(
+  actor: PlatformActor,
+  ids: readonly string[],
+  dependencies: PlatformCommunicationsDependencies = {},
+): Promise<ReadonlyMap<string, PlatformWhatsAppContact>> {
+  try {
+    const organizationId = requireMessagingOrganization(actor);
+    const requested = [...new Set(ids.map((id) => parsePlatformRouteUuid(id)))];
+    if (requested.some((id) => id === null) || requested.length > WHATSAPP_CONTACT_LIMIT) return invalidShape();
+    if (requested.length === 0) return new Map();
+    const client = await getPlatformClient(dependencies.client);
+    const response = await client.schema("platform").rpc(
+      "staff_whatsapp_contacts",
+      { p_organization_id: organizationId, p_conversation_ids: requested },
+      { get: true },
+    );
+    if (response.error || !Array.isArray(response.data)) return invalidShape();
+    const contacts = new Map<string, PlatformWhatsAppContact>();
+    for (const row of response.data) {
+      const contact = normalizePlatformWhatsAppContact(row);
+      if (!requested.includes(contact.conversationId) || contacts.has(contact.conversationId)) return invalidShape();
+      contacts.set(contact.conversationId, contact);
+    }
+    return contacts;
+  } catch (error) {
+    return failClosed(error);
+  }
+}

@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import {
+  getPlatformWhatsAppContacts,
+  normalizePlatformWhatsAppContact,
+  PlatformCommunicationsRepositoryError,
+} from "../src/lib/platform-communications.ts";
 import { buildV3InboxHref } from "../src/lib/v3/inbox-href.ts";
+import { whatsAppChatLabel, whatsAppChatTitle } from "../src/lib/v3/whatsapp-contact.ts";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -134,15 +140,111 @@ test("V3 Inbox loads exact-audience reply snippets only for a chat the member ma
   assert.doesNotMatch(picker, /sendPlatform|type="submit"|form action/u);
 });
 
-test("V3 Inbox surfaces current WhatsApp readiness without a channel setup flow", () => {
+test("V3 Inbox warns about a WhatsApp problem only; a working channel is not announced (07.10.2026)", () => {
   const adapter = source("src/lib/v3/inbox-source.ts");
   const inbox = source("src/components/v3/Inbox.tsx");
 
   assert.match(adapter, /wahaSessionName === "crm_primary"/u);
   assert.match(adapter, /getPlatformWahaSessionHealth\(actor, "crm_primary"\)/u);
   assert.match(adapter, /isFreshWorkingWahaSession/u);
-  assert.match(inbox, /WhatsApp подключён/u);
+  // «WhatsApp подключён · проверено 07.10 12:40» — «уберем давай это».
+  assert.doesNotMatch(`${adapter}\n${inbox}`, /WhatsApp подключён|[Пп]роверено|channelObservedAt|observedAt\)/u);
+  assert.match(inbox, /if \(state === "ready"\) return null;/u);
   assert.match(inbox, /WhatsApp требует проверки/u);
   assert.match(inbox, /Состояние WhatsApp не подтверждено/u);
+  assert.match(inbox, /Приём сообщений выключен на сервере/u);
+  assert.match(inbox, /Не удалось получить состояние WhatsApp/u);
   assert.doesNotMatch(inbox, /WAHA|crm_primary|QR|подключить канал/iu);
+});
+
+// ---------------------------------------------------------------------------
+// Имя из профиля WhatsApp и больше цифр номера (просьба владельца 07.10.2026,
+// миграция 278). Все номера и имена ниже выдуманы.
+// ---------------------------------------------------------------------------
+const CONTACT_ORG = "27800000-0000-4000-8000-000000000001";
+const CHAT_A = "27800000-0000-4000-8000-0000000000a1";
+const CHAT_B = "27800000-0000-4000-8000-0000000000b1";
+const contactActor = Object.freeze({
+  authUserId: "27800000-0000-4000-8000-000000000101", profileId: "27800000-0000-4000-8000-000000000201",
+  membershipId: "27800000-0000-4000-8000-000000000301", organizationId: CONTACT_ORG,
+  displayName: "Синтетический сотрудник", email: "n278@example.test",
+  systemRole: "staff", assignments: [], permissionKeys: ["communication.read.full"], presentationRole: null,
+  platformAccessVersion: 1,
+});
+function contactClient(data, error = null) {
+  const calls = [];
+  return {
+    calls,
+    client: { schema: () => ({ rpc: (name, args, options) => { calls.push({ name, args, options }); return Promise.resolve({ data, error }); } }) },
+  };
+}
+
+test("WhatsApp chat names: the 278 row is exact — a name or null, the number masked to the country code and six digits", () => {
+  assert.deepEqual(
+    normalizePlatformWhatsAppContact({ conversation_id: CHAT_A.toUpperCase(), contact_name: "Айгуль", contact_phone: "+996 ••• 12 46 64" }),
+    { conversationId: CHAT_A, name: "Айгуль", phone: "+996 ••• 12 46 64" },
+  );
+  assert.deepEqual(
+    normalizePlatformWhatsAppContact({ conversation_id: CHAT_B, contact_name: null, contact_phone: "+7 ••• 23 45 67" }),
+    { conversationId: CHAT_B, name: null, phone: "+7 ••• 23 45 67" },
+  );
+  for (const row of [
+    { conversation_id: CHAT_A, contact_name: "Айгуль", contact_phone: "+996700124664" },
+    { conversation_id: CHAT_A, contact_name: "Айгуль", contact_phone: "WhatsApp ••••4664" },
+    { conversation_id: CHAT_A, contact_name: "Айгуль", contact_phone: null },
+    { conversation_id: CHAT_A, contact_name: "  ", contact_phone: "+996 ••• 12 46 64" },
+    { conversation_id: CHAT_A, contact_name: "Айгуль", contact_phone: "+996 ••• 12 46 64", phone: "+996700124664" },
+    { conversation_id: "not-a-uuid", contact_name: "Айгуль", contact_phone: "+996 ••• 12 46 64" },
+  ]) {
+    assert.throws(() => normalizePlatformWhatsAppContact(row), PlatformCommunicationsRepositoryError, JSON.stringify(row));
+  }
+});
+
+test("WhatsApp chat names: one GET read for the shown chats; a foreign row, no permission or more than 60 ids fail closed", async () => {
+  const read = contactClient([
+    { conversation_id: CHAT_A, contact_name: "Айгуль", contact_phone: "+996 ••• 12 46 64" },
+    { conversation_id: CHAT_B, contact_name: null, contact_phone: "+996 ••• 90 46 64" },
+  ]);
+  const contacts = await getPlatformWhatsAppContacts(contactActor, [CHAT_A, CHAT_B, CHAT_A], { client: read.client });
+  assert.deepEqual(read.calls, [{
+    name: "staff_whatsapp_contacts",
+    args: { p_organization_id: CONTACT_ORG, p_conversation_ids: [CHAT_A, CHAT_B] },
+    options: { get: true },
+  }]);
+  assert.equal(contacts.get(CHAT_A)?.phone, "+996 ••• 12 46 64");
+  assert.notEqual(contacts.get(CHAT_A)?.phone, contacts.get(CHAT_B)?.phone, "same last four digits, different titles");
+
+  const none = contactClient([]);
+  assert.equal((await getPlatformWhatsAppContacts(contactActor, [], { client: none.client })).size, 0);
+  assert.equal(none.calls.length, 0, "nothing shown — nothing read");
+
+  const foreign = contactClient([{ conversation_id: CHAT_B, contact_name: null, contact_phone: "+996 ••• 90 46 64" }]);
+  await assert.rejects(getPlatformWhatsAppContacts(contactActor, [CHAT_A], { client: foreign.client }), PlatformCommunicationsRepositoryError);
+  await assert.rejects(getPlatformWhatsAppContacts(contactActor, [CHAT_A], { client: contactClient(null, { code: "42501" }).client }),
+    PlatformCommunicationsRepositoryError);
+  await assert.rejects(getPlatformWhatsAppContacts({ ...contactActor, permissionKeys: [] }, [CHAT_A], { client: read.client }),
+    PlatformCommunicationsRepositoryError);
+  const many = Array.from({ length: 61 }, (_, index) => `27800000-0000-4000-8000-${String(index).padStart(12, "0")}`);
+  await assert.rejects(getPlatformWhatsAppContacts(contactActor, many, { client: read.client }), PlatformCommunicationsRepositoryError);
+  assert.equal(read.calls.length, 1);
+});
+
+test("WhatsApp chat titles: profile name or «WhatsApp» with the number; no 278 row keeps the subject; list, header, journal and lead card share it", () => {
+  assert.deepEqual(whatsAppChatTitle("WhatsApp ••••4664", { conversationId: CHAT_A, name: "Айгуль", phone: "+996 ••• 12 46 64" }),
+    { name: "Айгуль", phone: "+996 ••• 12 46 64" });
+  assert.deepEqual(whatsAppChatTitle("WhatsApp ••••4664", { conversationId: CHAT_B, name: null, phone: "+996 ••• 90 46 64" }),
+    { name: "WhatsApp", phone: "+996 ••• 90 46 64" });
+  assert.deepEqual(whatsAppChatTitle("Аружан Примерова", undefined), { name: "Аружан Примерова", phone: null });
+  assert.equal(whatsAppChatLabel({ name: "WhatsApp", phone: "+996 ••• 90 46 64" }), "WhatsApp · +996 ••• 90 46 64");
+  assert.equal(whatsAppChatLabel({ name: "Аружан Примерова", phone: null }), "Аружан Примерова");
+
+  const adapter = source("src/lib/v3/inbox-source.ts");
+  assert.match(adapter, /const title = whatsAppChatTitle\(summary\.subject, contact\);\s*return Object\.freeze\(\{\s*id: summary\.id,\s*person: title\.name,\s*phone: title\.phone,/u);
+  assert.match(adapter, /readWhatsAppContacts\(actor, \[\s*\.\.\.queue\.rows\.map\(\(row\) => row\.id\),\s*\.\.\.\(thread \? \[thread\.conversation\.id\] : \[\]\),\s*\]\)/u);
+  const contactSource = source("src/lib/v3/whatsapp-contact-source.ts");
+  assert.match(contactSource, /\} catch \{\s*return new Map\(\);\s*\}/u, "a failed or not yet applied read falls back to the subject");
+  assert.match(source("src/lib/v3/ai-agent-autosend-source.ts"), /whatsAppChatLabel\(whatsAppChatTitle\(subject, contacts\.get\(id\)\)\)/u);
+  assert.match(source("src/lib/v3/profile-source.ts"), /linkedConversations: await linkedConversationsRead,/u);
+  // The masked number is built by the database; the full number never reaches the page.
+  assert.doesNotMatch(`${adapter}\n${contactSource}\n${source("src/components/v3/Inbox.tsx")}`, /normalized_phone|clients\.phone|\.phone\.slice/u);
 });

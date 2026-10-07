@@ -574,3 +574,24 @@ test("the section shows P1, P2 and P4 sub-pages and no dictation or knowledge-co
   assert.match(page, /requireV3PageActor\("\/v3\/ai-agent"\)/u);
   assert.match(page, /<PartShell title="ИИ-агент"/u);
 });
+
+test("AI styles: own stylesheet right after v3.css, outside the shared blocks, motion only when the system allows it", () => {
+  // Стек дописал CSS «ИИ-агента» в конец v3.css — внутрь раздела общих блоков
+  // (tests/v3-blocks.test.mjs). Свой файл сразу после v3.css — тот же порядок каскада.
+  assert.match(read("src/app/(v3)/layout.tsx"), /import "\.\/v3\.css";\nimport "\.\/ai-agent\.css";\n/u);
+  assert.doesNotMatch(read("src/app/(v3)/v3.css"), /\.v3-ai-|\.v3-switch/u, "no AI rules in v3.css");
+  assert.doesNotMatch(read("src/app/(portal)/layout.tsx"), /ai-agent\.css/u, "the student portal has no AI surfaces");
+  for (const harness of ["tests/e2e/conversations-static-render.cjs", "tests/e2e/ai-agent-p2-static-render.cjs"]) {
+    assert.match(read(harness), /"src\/app\/\(v3\)\/v3\.css"\), "utf8"\), readFileSync\(join\(ROOT, "src\/app\/\(v3\)\/ai-agent\.css"\), "utf8"\)/u, harness);
+  }
+  const plain = read("src/app/(v3)/ai-agent.css").replace(/\/\*[\s\S]*?\*\//gu, "");
+  const motion = [...plain.matchAll(/@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/gu)];
+  assert.equal(motion.length, 1, "one motion block");
+  assert.doesNotMatch(plain.replace(motion[0][0], ""), /\b(?:transition|animation)(?:-[a-z]+)?:/u, "no motion outside it");
+  const selectors = [...plain.matchAll(/(?:^|[;{}])\s*([^;{}@]+)\{/gu)].map((match) => match[1].trim())
+    .filter((selector) => !/^(?:from|to|\d+%)$/u.test(selector));
+  assert.ok(selectors.length > 100);
+  for (const selector of selectors) {
+    for (const part of selector.split(/,(?![^(]*\))/u)) assert.match(part.trim(), /^\.v3-world /u, `${part.trim()}: inside the CRM world`);
+  }
+});

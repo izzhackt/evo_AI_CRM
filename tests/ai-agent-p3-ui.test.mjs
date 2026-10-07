@@ -397,9 +397,9 @@ test("UI window: a collapsed «Что ИИ знает о клиенте» at the
   // Окончательный отказ (400/401/403/404) — без «Повторить» и без role=alert.
   assert.match(memory, /const FINAL_STATUSES = new Set\(\[400, 401, 403, 404\]\);/u);
   // Раскрыто — строка интереса под заголовком скрыта (не повторяет «Интерес»).
-  assert.match(read("src/app/(v3)/v3.css"), /\.v3-ai-memory\[open\] \.v3-ai-memory-hint \{\s*display: none;/u);
+  assert.match(read("src/app/(v3)/ai-agent.css"), /\.v3-ai-memory\[open\] \.v3-ai-memory-hint \{\s*display: none;/u);
   assert.equal(AI_MEMORY_SETTINGS_HREF, "/v3/ai-agent?section=spend#ai-memory");
-  const css = read("src/app/(v3)/v3.css");
+  const css = read("src/app/(v3)/ai-agent.css");
   assert.match(css, /\.v3-ai-memory-summary\[data-clamped\] \{[^}]*-webkit-line-clamp: 6;/u);
 });
 

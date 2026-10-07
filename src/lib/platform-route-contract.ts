@@ -100,8 +100,6 @@ const DOCUMENT_RECOGNITION_JOBS_PATH =
   /^\/api\/v3\/student-cases\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/document-recognition-jobs$/i;
 const DOCUMENT_EXPORT_PATH =
   /^\/api\/v3\/student-cases\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/document-exports(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:download|reconcile))?$/i;
-const PLATFORM_STAFF_ASSISTANT_PATH =
-  "/api/platform-ai/staff-assistant";
 const UNIVERSITY_TEMPLATE_SOURCE_PATH =
   /^\/api\/v3\/university-forms\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/source(?:\/(?:status|preview|page|cancel|reconcile))?$/i;
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
@@ -215,15 +213,6 @@ export function isPublicStudentRegistrationApi(
 }
 
 /**
- * This exact route owns its complete configuration, same-origin, actor, role,
- * organization and audit boundary. Proxy passes it through without performing
- * the separate optimistic staff-cookie refresh first.
- */
-export function isDirectPlatformStaffAssistantApi(path: string): boolean {
-  return path === PLATFORM_STAFF_ASSISTANT_PATH;
-}
-
-/**
  * These exact service-to-service routes own their HMAC, trusted-edge key or disabled-state
  * checks. They must bypass the staff-cookie refresh flow while still staying
  * in the connected Platform boundary.
@@ -240,6 +229,19 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
  */
 const PAYMENT_RECEIPT_UPLOAD_PATH = /^\/api\/v2\/payment-receipts\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAYMENT_RECEIPT_DOWNLOAD_PATH = /^\/api\/v2\/payment-receipt-files\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
+// «Продажи → WhatsApp» chat (#1157): the read-only auto-refresh pulse and the
+// «Показать ранее» older page. Both handlers repeat staff Auth, messaging.read
+// and /v3/inbox access; the database readers decide conversation scope.
+const INBOX_PULSE_PATH = "/api/v3/inbox/pulse";
+const INBOX_OLDER_MESSAGES_PATH = /^\/api\/v3\/inbox\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/messages$/i;
+// Chat media (GET): handler requires staff messaging.read; the authenticated
+// grant RPC checks communication.read.full and the media's conversation.
+const COMMUNICATION_MEDIA_PATH = /^\/api\/v3\/communication-media\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// «Договор и оплата» contract files: POST upload (case write authority from
+// staff_case_agreement_v1, size/MIME/signature/ClamAV) and GET download (case
+// read authority). The transcription APIs stay disconnected (feature off).
+const CASE_CONTRACT_FILE_UPLOAD_PATH = /^\/api\/v2\/case-contract-files\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CASE_CONTRACT_FILE_DOWNLOAD_PATH = /^\/api\/v2\/case-contract-files\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
 
 export function isConnectedPlatformApi(path: string): boolean {
   return (
@@ -257,6 +259,11 @@ export function isConnectedPlatformApi(path: string): boolean {
     DOCUMENT_RECOGNITION_JOBS_PATH.test(path) ||
     DOCUMENT_EXPORT_PATH.test(path) ||
     UNIVERSITY_TEMPLATE_SOURCE_PATH.test(path) ||
+    path === INBOX_PULSE_PATH ||
+    INBOX_OLDER_MESSAGES_PATH.test(path) ||
+    COMMUNICATION_MEDIA_PATH.test(path) ||
+    CASE_CONTRACT_FILE_UPLOAD_PATH.test(path) ||
+    CASE_CONTRACT_FILE_DOWNLOAD_PATH.test(path) ||
     AI_AGENT_ANSWER_PATH.test(path) ||
     AI_AGENT_INSERT_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)

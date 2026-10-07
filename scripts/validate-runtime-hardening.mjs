@@ -2,7 +2,9 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const revision = "0123456789abcdef0123456789abcdef01234567";
 const digest = `sha256:${"a".repeat(64)}`;
@@ -18,8 +20,11 @@ const baseEnvironment = {
   EVO_WAHA_IMAGE_REPOSITORY: "devlikeapro/waha",
   EVO_CRM_APP_ENV_FILE: "/dev/null",
   EVO_CRM_WAHA_ENV_FILE: "/dev/null",
+  EVO_CRM_AI_AGENT_ENV_FILE: "/dev/null",
   EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT: "/tmp/evo-recovery-evidence",
 };
+const agentDigest = `sha256:${"b".repeat(64)}`;
+const agentServices = ["ai-agent-api", "ai-agent-worker"];
 
 function sorted(values) {
   return [...values].sort((left, right) => left.localeCompare(right));
@@ -81,13 +86,77 @@ function assertServiceContract(file, config) {
   assert.doesNotMatch(JSON.stringify(config), forbidden);
 }
 
+// «ИИ-агент» (plan §4.2/§4.6): rendered only with the `ai-agent` profile.
+function assertAiAgentContract(file, config) {
+  assert.deepEqual(sorted(Object.keys(config.services ?? {})), sorted(["app", "clamav", "waha", ...agentServices]));
+  const expected = {
+    "ai-agent-api": { cpus: 0.5, mem_limit: "536870912", pids_limit: 128 },
+    "ai-agent-worker": { cpus: 1, mem_limit: "1610612736", pids_limit: 256 },
+  };
+  for (const name of agentServices) {
+    const service = config.services[name];
+    assert.equal(service.image, `ghcr.io/izzhackt/evo-ai-agent@${agentDigest}`, `${file} ${name} image`);
+    assert.deepEqual(service.profiles, ["ai-agent"]);
+    assert.equal(service.platform, "linux/amd64");
+    assert.equal(service.read_only, true);
+    assert.equal(service.init, true);
+    assert.equal(service.user, "10001:10001");
+    assert.deepEqual(service.cap_drop, ["ALL"]);
+    assert.deepEqual(service.security_opt, ["no-new-privileges:true"]);
+    assert.equal(service.cpus, expected[name].cpus);
+    assert.equal(service.mem_limit, expected[name].mem_limit);
+    assert.equal(service.pids_limit, expected[name].pids_limit);
+    assert.equal(service.stop_grace_period, "30s");
+    // ADR 0032: the agent's own bridge only; WAHA, clamd and the lead-agent stay on evo_crm_private.
+    assert.deepEqual(Object.keys(service.networks ?? {}), ["ai"]);
+    assert.deepEqual(service.ports ?? [], [], `${file} ${name} must not publish a port`);
+    assert.equal(service.volumes, undefined, `${file} ${name} must not mount anything`);
+    assert.equal(service.depends_on, undefined);
+    assert.equal(service.logging?.options?.["max-size"], "10m");
+    assert.equal(service.healthcheck?.test?.[0], "CMD");
+    assert.equal(service.labels?.["com.evo.image.provenance"], "private-ghcr-digest");
+  }
+  assert.deepEqual(config.services["ai-agent-api"].networks.ai.aliases, ["evo-ai-agent"]);
+  assert.deepEqual(config.networks?.ai, { name: "evo_crm_ai", driver: "bridge", ipam: {} });
+  for (const name of ["app", "clamav", "waha"]) {
+    assert.equal(Object.hasOwn(config.services[name].networks ?? {}, "ai"), false, `${file} ${name} stays off the agent bridge in the file`);
+  }
+  assert.deepEqual(config.services["ai-agent-worker"].command, ["python", "-m", "evo_ai_agent.worker"]);
+}
+
+// The release controller's fixed stdin override (ADR 0032): with the agent on, the app joins
+// the agent bridge. It declares the bridge exactly as the compose file does.
+const agentBridgeBlock = "  ai:\n    name: evo_crm_ai\n    driver: bridge\n";
+function controllerAppNetworkOverride() {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const match = /^readonly AI_AGENT_APP_NETWORK_OVERRIDE=\$'([^'\\]*(?:\\n[^'\\]*)*)'$/mu.exec(controller);
+  assert(match, "the release controller defines the app-network override");
+  const override = match[1].replaceAll("\\n", "\n");
+  assert.equal(override, `services:\n  app:\n    networks:\n      ai:\n        aliases:\n          - evo-crm-app\nnetworks:\n${agentBridgeBlock}`);
+  return override;
+}
+
+function assertAppOnAgentBridge(file, config, bridge, services) {
+  assert.deepEqual(sorted(Object.keys(config.services ?? {})), sorted(services));
+  assert.deepEqual(sorted(Object.keys(config.services.app.networks ?? {})), ["ai", "private", "web"]);
+  assert.deepEqual(config.services.app.networks.ai.aliases, ["evo-crm-app"]);
+  assert.deepEqual(config.networks?.ai, bridge, `${file}: the override and the file declare one bridge`);
+  const onBridge = Object.entries(config.services).filter(([, service]) => Object.hasOwn(service.networks ?? {}, "ai"));
+  assert.deepEqual(sorted(onBridge.map(([name]) => name)), sorted(["app", ...services.filter((name) => agentServices.includes(name))]));
+}
+
 for (const file of composeFiles) {
   const source = readFileSync(file, "utf8");
   assert.doesNotMatch(source, /image:\s*["']?[^@\n"']+:latest/iu);
   assert.doesNotMatch(source, forbidden);
   for (const key of ["mem_limit:", "cpus:", "pids_limit:", "logging:", "healthcheck:"]) {
-    assert.equal((source.match(new RegExp(key, "gu")) ?? []).length, 3);
+    assert.equal((source.match(new RegExp(key, "gu")) ?? []).length, 5);
   }
+  // The agent's secrets are read raw: no `$` substitution and no quote parsing (a render does
+  // not keep env_file, so this is checked in the source).
+  assert.equal((source.match(/- path: "\$\{EVO_CRM_AI_AGENT_ENV_FILE:-\.env\.ai-agent\}"\n {8}format: raw\n/gu) ?? []).length, 2);
+  assert(source.endsWith(`\n${agentBridgeBlock}`), `${file} declares the agent bridge as the controller override does`);
+  const appNetworkOverride = controllerAppNetworkOverride();
 
   if (process.argv.includes("--compose")) {
     const environment = {
@@ -101,7 +170,33 @@ for (const file of composeFiles) {
       { env: environment, encoding: "utf8" },
     );
     assertServiceContract(file, JSON.parse(rendered));
+    const withAgent = execFileSync(
+      "docker",
+      ["compose", "--file", file, "--profile", "ai-agent", "config", "--format", "json"],
+      { env: { ...environment, EVO_AI_AGENT_IMAGE_DIGEST: agentDigest }, encoding: "utf8" },
+    );
+    const agentConfig = JSON.parse(withAgent);
+    assertAiAgentContract(file, agentConfig);
+
+    // An enabled release renders the file with the controller override: app, agent pair and
+    // nothing else on the bridge. A rollback may render the override on top of a previous
+    // snapshot that predates the bridge; the agent-off render of this file is such a snapshot.
+    const renderWithOverride = (composeFile) => JSON.parse(execFileSync(
+      "docker",
+      ["compose", "--file", composeFile, "--file", "-", "--profile", "ai-agent", "config", "--format", "json"],
+      { env: { ...environment, EVO_AI_AGENT_IMAGE_DIGEST: agentDigest }, encoding: "utf8", input: appNetworkOverride },
+    ));
+    assertAppOnAgentBridge(file, renderWithOverride(file), agentConfig.networks.ai, ["app", "clamav", "waha", ...agentServices]);
+    const snapshotDir = mkdtempSync(join(tmpdir(), "evo-runtime-hardening-"));
+    try {
+      const snapshot = join(snapshotDir, "docker-compose.previous.yml");
+      writeFileSync(snapshot, rendered);
+      assert.equal(Object.hasOwn(JSON.parse(rendered).networks ?? {}, "ai"), false);
+      assertAppOnAgentBridge(`${file} (pre-bridge snapshot)`, renderWithOverride(snapshot), agentConfig.networks.ai, ["app", "clamav", "waha"]);
+    } finally {
+      rmSync(snapshotDir, { recursive: true, force: true });
+    }
   }
 }
 
-console.log(JSON.stringify({ ok: true, services: ["app", "clamav", "waha"], checked: composeFiles }));
+console.log(JSON.stringify({ ok: true, services: ["app", "clamav", "waha"], profiles: { "ai-agent": agentServices }, checked: composeFiles }));

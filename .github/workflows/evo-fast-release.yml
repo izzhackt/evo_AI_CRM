@@ -622,6 +622,8 @@ jobs:
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
           EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
           EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_AI_AGENT_ENABLED: ${{ vars.EVO_AI_AGENT_ENABLED }}
+          EVO_AI_AGENT_IMAGE_DIGEST: ${{ vars.EVO_AI_AGENT_IMAGE_DIGEST }}
         run: |
           set -Eeuo pipefail
           [[ "$EVO_DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
@@ -641,6 +643,11 @@ jobs:
           (( EVO_RELEASE_MIN_FREE_KB >= 1048576 ))
           [[ "$EVO_WAHA_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
+          # «ИИ-агент» stays off unless the variable is exactly "true"; then its digest is required.
+          [[ -z "$EVO_AI_AGENT_ENABLED" || "$EVO_AI_AGENT_ENABLED" == false || "$EVO_AI_AGENT_ENABLED" == true ]]
+          if [[ "$EVO_AI_AGENT_ENABLED" == true ]]; then
+            [[ "$EVO_AI_AGENT_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          fi
 
       - name: Configure pinned SSH trust
         id: configure_ssh
@@ -867,6 +874,8 @@ jobs:
           EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           EVO_RELEASE_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
           EVO_RELEASE_ARTIFACT_DIGEST: sha256:${{ needs.build.outputs.artifact_digest }}
+          EVO_AI_AGENT_ENABLED: ${{ vars.EVO_AI_AGENT_ENABLED }}
+          EVO_AI_AGENT_IMAGE_DIGEST: ${{ vars.EVO_AI_AGENT_IMAGE_DIGEST }}
         run: |
           set -Eeuo pipefail
           transfer_dir=$(< /tmp/evo-production-release-transfer-dir)
@@ -879,6 +888,13 @@ jobs:
           controller_sha256=$(jq -r '.controllerSha256' "$manifest")
           validator_sha256=$(jq -r '.validatorSha256' "$manifest")
           env_example_sha256=$(jq -r '.envExampleSha256' "$manifest")
+          # The agent services join the release only for EVO_AI_AGENT_ENABLED=true.
+          ai_agent_enabled=false
+          ai_agent_digest=''
+          if [[ "$EVO_AI_AGENT_ENABLED" == true ]]; then
+            ai_agent_enabled=true
+            ai_agent_digest=$EVO_AI_AGENT_IMAGE_DIGEST
+          fi
           release_run_id="release-${EVO_RELEASE_WORKFLOW_RUN_ID}-${EVO_RELEASE_WORKFLOW_RUN_ATTEMPT}"
           # SSH joins command arguments with spaces; quote the complete remote argv,
           # including the intentionally empty rollback seed on the first release.
@@ -894,7 +910,7 @@ jobs:
             "$EVO_RELEASE_ARTIFACT_ID" "$EVO_RELEASE_ARTIFACT_DIGEST" \
             "$archive_sha256" "$image_id" "$image_config_digest" \
             "$compose_sha256" "$controller_sha256" "$validator_sha256" \
-            "$env_example_sha256" "$manifest_sha256"
+            "$env_example_sha256" "$manifest_sha256" "$ai_agent_enabled" "$ai_agent_digest"
           if ! ssh evo-production "$remote_command" <<'REMOTE' \
             > /tmp/evo-production-deploy-result.json \
             2> /tmp/evo-production-deploy-error.log; then
@@ -931,6 +947,9 @@ jobs:
           shift 9
           env_example_sha256=$1
           manifest_sha256=$2
+          ai_agent_enabled=$3
+          ai_agent_digest=$4
+          [[ "$ai_agent_enabled" == true || ( "$ai_agent_enabled" == false && -z "$ai_agent_digest" ) ]]
           archive="$transfer_dir/evo-crm-image.tar.gz"
           manifest="$transfer_dir/evo-production-release-image.json"
           compose_file="$transfer_dir/docker-compose.prod.yml"
@@ -981,6 +1000,13 @@ jobs:
           export EVO_RELEASE_EXPECTED_IMAGE_ID="$image_id"
           export EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST="$image_config_digest"
           export EVO_RELEASE_EXPECTED_COMPOSE_SHA256="$compose_sha256"
+          export EVO_AI_AGENT_ENABLED="$ai_agent_enabled"
+          if [[ "$ai_agent_enabled" == true ]]; then
+            export EVO_AI_AGENT_IMAGE_DIGEST="$ai_agent_digest"
+            export EVO_CRM_AI_AGENT_ENV_FILE="$release_root/.env.ai-agent"
+          else
+            unset EVO_AI_AGENT_IMAGE_DIGEST EVO_CRM_AI_AGENT_ENV_FILE
+          fi
           exec "$controller" deploy
           REMOTE
             printf '%s\n' '::error::production_candidate_deploy_failed' >&2
@@ -1198,10 +1224,18 @@ jobs:
           EVO_RELEASE_ARTIFACT_DIGEST: sha256:${{ needs.build.outputs.artifact_digest }}
           EVO_RELEASE_ACTOR_ID: ${{ github.actor_id }}
           EVO_RELEASE_CURRENT_MAIN_REVISION: ${{ github.event.workflow_run.head_sha }}
+          EVO_AI_AGENT_ENABLED: ${{ vars.EVO_AI_AGENT_ENABLED }}
+          EVO_AI_AGENT_IMAGE_DIGEST: ${{ vars.EVO_AI_AGENT_IMAGE_DIGEST }}
         run: |
           set -Eeuo pipefail
           transfer_dir=$(< /tmp/evo-production-release-transfer-dir)
           evidence_dir=$(< /tmp/evo-production-release-evidence-dir)
+          ai_agent_enabled=false
+          ai_agent_digest=''
+          if [[ "$EVO_AI_AGENT_ENABLED" == true ]]; then
+            ai_agent_enabled=true
+            ai_agent_digest=$EVO_AI_AGENT_IMAGE_DIGEST
+          fi
           receipt=/tmp/evo-v3-browser-receipt.json
           receipt_sha256=$(sha256sum "$receipt" | awk '{print $1}')
           controller_sha256=$(jq -r '.controllerSha256' /tmp/evo-production-candidate/evo-production-release-image.json)
@@ -1246,7 +1280,7 @@ jobs:
               "$EVO_RELEASE_UPSTREAM_CI_RUN_ID" "$EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT" \
               "$EVO_RELEASE_ARTIFACT_ID" "$EVO_RELEASE_ARTIFACT_DIGEST" \
               "$EVO_RELEASE_ACTOR_ID" "$EVO_RELEASE_CURRENT_MAIN_REVISION" \
-              "$receipt_sha256" "$controller_sha256"
+              "$receipt_sha256" "$controller_sha256" "$ai_agent_enabled" "$ai_agent_digest"
             ssh evo-production "$remote_command" \
               > "$output_file" 2>/tmp/evo-production-candidate-command-error.log <<'REMOTE'
             set -Eeuo pipefail
@@ -1278,6 +1312,10 @@ jobs:
             current_main_revision=$6
             receipt_sha256=$7
             controller_sha256=$8
+            ai_agent_enabled=$9
+            shift 9
+            ai_agent_digest=$1
+            [[ "$ai_agent_enabled" == true || ( "$ai_agent_enabled" == false && -z "$ai_agent_digest" ) ]]
             controller="$transfer_dir/evo-fast-release.sh"
             receipt_source="$transfer_dir/browser-receipt.json"
             receipt_target="$evidence_root/$release_id/browser-receipt.json"
@@ -1321,6 +1359,13 @@ jobs:
             export EVO_RELEASE_EXPECTED_IMAGE_ID="$(jq -r '.imageId' "$transfer_dir/evo-production-release-image.json")"
             export EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST="$(jq -r '.imageConfigDigest' "$transfer_dir/evo-production-release-image.json")"
             export EVO_RELEASE_EXPECTED_COMPOSE_SHA256="$(jq -r '.composeSha256' "$transfer_dir/evo-production-release-image.json")"
+            export EVO_AI_AGENT_ENABLED="$ai_agent_enabled"
+            if [[ "$ai_agent_enabled" == true ]]; then
+              export EVO_AI_AGENT_IMAGE_DIGEST="$ai_agent_digest"
+              export EVO_CRM_AI_AGENT_ENV_FILE="$release_root/.env.ai-agent"
+            else
+              unset EVO_AI_AGENT_IMAGE_DIGEST EVO_CRM_AI_AGENT_ENV_FILE
+            fi
             if [[ "$command_name" == accept-candidate ]]; then
               export EVO_RELEASE_ACTOR_ID="$actor_id"
               export EVO_RELEASE_CURRENT_MAIN_REVISION="$current_main_revision"

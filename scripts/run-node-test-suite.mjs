@@ -49,7 +49,6 @@ export const D1_ENTRY_SCRIPTS = Object.freeze(["test:d1"]);
 export const SERIAL_PROVIDER_TEST_FILES = new Set([
   // Starts a real Next server and writes the shared .next directory.
   "tests/v3-student-portal-exact-http-routes.test.mjs",
-  "tests/platform-gemini-provider.test.mjs",
   "tests/platform-provider-action-contract.test.mjs",
   "tests/platform-provider-orchestrator.test.mjs",
   "tests/platform-provider-readiness.test.mjs",

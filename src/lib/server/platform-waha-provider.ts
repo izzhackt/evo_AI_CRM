@@ -114,6 +114,23 @@ export type PlatformWahaProvider = Readonly<{
   }>): Promise<PlatformWahaProviderMessage | null>;
 }>;
 
+/**
+ * «Прочитано» и «печатает» в одном чате (план ИИ-агента §11, правило 10; P4).
+ * Только ночной автоответчик зовёт их перед своей отправкой; ручная отправка
+ * их не использует. WAHA: `POST /api/sendSeen`, `/api/startTyping`,
+ * `/api/stopTyping` с `{session, chatId}` — все движки, включая GOWS
+ * (https://waha.devlike.pro/docs/how-to/send-messages/). Ответ не читается:
+ * важен только успех; ошибки вызывающий код игнорирует.
+ */
+export type PlatformWahaChatPresence = Readonly<{
+  sendSeen(input: Readonly<{ recipientId: string }>): Promise<void>;
+  startTyping(input: Readonly<{ recipientId: string }>): Promise<void>;
+  stopTyping(input: Readonly<{ recipientId: string }>): Promise<void>;
+}>;
+
+/** Предел одного вызова присутствия: дольше ждать «печатает» не стоит. */
+export const PLATFORM_WAHA_PRESENCE_TIMEOUT_MS = 5_000;
+
 const ACK_STATES = Object.freeze({
   [-1]: "error",
   0: "pending",
@@ -429,7 +446,7 @@ function normalizeMessage(
 export function createPlatformWahaProvider(
   runtimeInput: PlatformManualSendWahaRuntime,
   dependencies: PlatformWahaProviderDependencies = {},
-): PlatformWahaProvider {
+): PlatformWahaProvider & PlatformWahaChatPresence {
   const runtime = requireRuntime(runtimeInput);
   const fetchImpl = dependencies.fetch ?? fetch;
   const createTimeoutSignal =
@@ -468,7 +485,42 @@ export function createPlatformWahaProvider(
     }
   }
 
+  // Присутствие (P4): только код ответа; тело WAHA не читается и не держится.
+  async function presence(
+    path: "sendSeen" | "startTyping" | "stopTyping",
+    recipientId: string,
+  ): Promise<void> {
+    if (!isDirectRecipient(recipientId)) {
+      throw new PlatformWahaProviderError("invalid_request", "failed");
+    }
+    let response: Response;
+    try {
+      response = await fetchImpl(`${runtime.wahaBaseUrl}/api/${path}`, {
+        method: "POST",
+        headers: Object.freeze({
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Api-Key": runtime.wahaApiKey,
+        }),
+        body: JSON.stringify({ session: runtime.wahaSessionName, chatId: recipientId }),
+        redirect: "error",
+        signal: createTimeoutSignal(PLATFORM_WAHA_PRESENCE_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw new PlatformWahaProviderError(
+        isTimeoutError(error) ? "provider_timeout" : "provider_network_failure",
+        "unknown",
+      );
+    }
+    await response.body?.cancel().catch(() => undefined);
+    if (!response.ok) throw responseError(response.status);
+  }
+
   return Object.freeze({
+    sendSeen: (input: Readonly<{ recipientId: string }>) => presence("sendSeen", input.recipientId),
+    startTyping: (input: Readonly<{ recipientId: string }>) => presence("startTyping", input.recipientId),
+    stopTyping: (input: Readonly<{ recipientId: string }>) => presence("stopTyping", input.recipientId),
+
     async sendText(input): Promise<PlatformWahaProviderMessage> {
       if (
         !isDirectRecipient(input.recipientId) ||

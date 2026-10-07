@@ -13,6 +13,14 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     .sort();
   assert.deepEqual(typescriptFiles, [
     "admissions-source.ts",
+    // «ИИ-агент» P1–P4 (06–07.10.2026): RPC «ИИ-агента» от имени сотрудника; P1–P3
+    // не внесли свои файлы сюда, P4 вносит все вместе со своими.
+    "ai-agent-autosend-source.ts",
+    "ai-agent-autosend.ts",
+    "ai-agent-knowledge.ts",
+    "ai-agent-memory.ts",
+    "ai-agent-source.ts",
+    "ai-agent.ts",
     "board-layout.ts", // #1053 (25.09.2026)
     "calendar-contract.ts",
     "calendar-source.ts",
@@ -99,6 +107,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
   );
   assert.deepEqual(adapterFiles, [
     "admissions-source.ts",
+    "ai-agent-autosend-source.ts", // «ИИ-агент» P4 (07.10.2026)
+    "ai-agent-source.ts", // «ИИ-агент» P1 (06.10.2026)
     "calendar-source.ts",
     "case-agreement-source.ts",
     "case-chat-source.ts",

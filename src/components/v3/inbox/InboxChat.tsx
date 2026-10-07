@@ -21,6 +21,7 @@ import {
 } from "@/lib/platform-provider-actions";
 import type { V3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import {
+  AUTOREPLY_LABEL,
   CONNECTION_LOST_COPY,
   REPLY_ACCESS_COPY,
   SEND_REFUSAL_COPY,
@@ -28,6 +29,7 @@ import {
   WHATSAPP_CHAT_QUEUED_RETRY_LIMIT,
   WHATSAPP_CHAT_TEXT_LIMIT,
   ackWord,
+  autoreplyOnBehalf,
   chatDayKey,
   chatDayLabel,
   chatTextLength,
@@ -138,7 +140,9 @@ function MessageMeta({ message }: Readonly<{ message: InboxChatMessage }>) {
   return (
     <p className="mt-1 flex flex-wrap items-center justify-end gap-x-1.5 t-meta text-fg-3">
       <time dateTime={message.createdAt} className="tabular-nums">{chatTime(message.createdAt)}</time>
-      {origin ? <span>· {origin}</span> : null}
+      {origin ? (
+        <span title={message.origin === "autoreply" ? autoreplyOnBehalf(message.senderName) ?? undefined : undefined}>· {origin}</span>
+      ) : null}
       {ack ? (
         <span className="inline-flex items-center gap-0.5" data-ack={message.ack ?? undefined}>
           <span aria-hidden="true">·</span>
@@ -212,7 +216,8 @@ function OutgoingStatus({
   onReturn: () => void;
 }>) {
   const time = chatTime(bubble.at);
-  const returnAction = canAct
+  // Текст автоответа (P4) — не текст сотрудника: в поле его не возвращаем.
+  const returnAction = canAct && !bubble.autoreply
     ? <button type="button" className={textActionCls} onClick={onReturn}>Вернуть текст в поле</button>
     : null;
   const retryAction = (label: string) => (
@@ -243,6 +248,11 @@ function OutgoingStatus({
         {CONNECTION_LOST_COPY}
       </StatusRow>
     );
+  }
+  if (bubble.state === "stalled" && bubble.autoreply) {
+    // Автоответ записан, но не взят (впереди была отправка сотрудника): он не
+    // уйдёт, и повторять его некому — чат он не держит.
+    return <StatusRow tone="danger">Не ушло: автоответ не отправлен</StatusRow>;
   }
   if (bubble.state === "stalled") {
     // Записана, но никем не взята: действие автора оборвалось. Чат она не
@@ -317,14 +327,19 @@ function OutgoingBubbleRow(props: Readonly<{
 }>) {
   const { bubble } = props;
   const author = bubble.authorIsViewer ? "вы" : bubble.authorName ?? "сотрудник";
+  const onBehalf = bubble.autoreply ? autoreplyOnBehalf(bubble.authorName) : null;
   return (
-    <li className="flex justify-end" data-testid="v3-inbox-outgoing" data-state={bubble.state}>
+    <li className="flex justify-end" data-testid="v3-inbox-outgoing" data-state={bubble.state} data-origin={bubble.autoreply ? "autoreply" : "crm"}>
       <div className="min-w-0 max-w-[min(36rem,85%)] rounded-ctl bg-accent-weak px-3 py-2">
-        <span className="sr-only">{bubble.authorIsViewer ? "Вы, из CRM:" : `${author}, из CRM:`} </span>
+        <span className="sr-only">
+          {bubble.autoreply ? `${AUTOREPLY_LABEL}${onBehalf ? `, ${onBehalf}` : ""}:` : bubble.authorIsViewer ? "Вы, из CRM:" : `${author}, из CRM:`}{" "}
+        </span>
         <p className="whitespace-pre-wrap break-words t-body-compact text-fg">{bubble.text}</p>
         <p className="mt-1 flex flex-wrap items-center justify-end gap-x-1.5 t-meta text-fg-3">
           <time dateTime={bubble.at} className="tabular-nums">{chatTime(bubble.at)}</time>
-          <span>· из CRM, {author}</span>
+          {bubble.autoreply
+            ? <span title={onBehalf ?? undefined}>· {AUTOREPLY_LABEL}</span>
+            : <span>· из CRM, {author}</span>}
         </p>
         <OutgoingStatus {...props} />
       </div>

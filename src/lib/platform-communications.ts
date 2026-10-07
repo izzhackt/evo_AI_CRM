@@ -948,6 +948,38 @@ export async function getPlatformConversationThread(
   }
 }
 
+/**
+ * One conversation's queue summary (subject, queue, status) through the same
+ * guarded snapshot the thread reader uses, without its messages. null — not
+ * visible to this member (indistinguishable from nonexistent). Used where a
+ * screen names chats it got only ids for (the autoresponder journal, P4).
+ */
+export async function getPlatformConversationSummary(
+  actor: PlatformActor,
+  id: string,
+  dependencies: PlatformCommunicationsDependencies = {},
+): Promise<PlatformConversationSummary | null> {
+  try {
+    const organizationId = requireMessagingOrganization(actor);
+    const conversationId = parsePlatformRouteUuid(id);
+    if (conversationId === null) return null;
+    const client = await getPlatformClient(dependencies.client);
+    const response = await client
+      .schema("platform")
+      .rpc("staff_communication_snapshot", {
+        p_organization_id: organizationId,
+        p_conversation_id: conversationId,
+      }, { get: true });
+    if (response.error || !Array.isArray(response.data) || response.data.length > 1) {
+      return invalidShape();
+    }
+    const conversation = normalizeConversationRows(response.data)[0] ?? null;
+    return conversation !== null && conversation.id === conversationId ? conversation : null;
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
 export async function getPlatformConversationCommandContext(
   actor: PlatformActor,
   id: string,
@@ -1025,6 +1057,11 @@ export async function getPlatformWahaSessionHealth(
 export type PlatformWhatsAppMessageOrigin =
   | "client"
   | "crm"
+  /**
+   * The night autoresponder (P4, plan «ИИ-агент» §11): sent through the same
+   * manual-send path, so its sender is the responsible member who enabled it.
+   */
+  | "autoreply"
   | "phone"
   | "history"
   | "other";
@@ -1053,6 +1090,11 @@ export type PlatformWhatsAppReadbackOutcome =
   | "delivery_refreshed";
 
 export type PlatformWhatsAppChatAttempt = Readonly<{
+  /**
+   * `ai_autosend` — a send of the night autoresponder (P4). The key is present
+   * only on its rows; a manual row keeps the 266 shape and reads as `manual`.
+   */
+  kind: "manual" | "ai_autosend";
   attemptId: string | null;
   workItemId: string;
   requestId: string | null;
@@ -1102,7 +1144,7 @@ const WHATSAPP_MESSAGE_KEYS = Object.freeze([
   "sender_membership_id",
 ]);
 const WHATSAPP_ORIGINS: readonly PlatformWhatsAppMessageOrigin[] = Object.freeze([
-  "client", "crm", "phone", "history", "other",
+  "client", "crm", "autoreply", "phone", "history", "other",
 ]);
 const WHATSAPP_STATE_KEYS = Object.freeze([
   "latest_inbound_message_id",
@@ -1128,6 +1170,7 @@ const WHATSAPP_ATTEMPT_KEYS = Object.freeze([
   "source_message_id",
   "readback_settled",
 ]);
+const WHATSAPP_ATTEMPT_KEYS_WITH_KIND = Object.freeze([...WHATSAPP_ATTEMPT_KEYS, "kind"]);
 const SAFE_FAILURE_CODE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
 
 function optionalUuidField(value: unknown): string | null | undefined {
@@ -1166,11 +1209,11 @@ export function normalizePlatformWhatsAppChatMessage(
     (value.sender_name !== null && senderName === null) ||
     senderMembershipId === undefined ||
     // A customer message is never a CRM or phone message, and only a CRM
-    // message names its author.
+    // message (a member's or the autoresponder's on their behalf) names its author.
     (value.direction === "inbound" && origin !== "client" && origin !== "history") ||
     (value.direction === "outbound" && origin === "client") ||
-    ((origin === "crm") !== (senderMembershipId !== null)) ||
-    (origin !== "crm" && senderName !== null)
+    ((origin === "crm" || origin === "autoreply") !== (senderMembershipId !== null)) ||
+    (origin !== "crm" && origin !== "autoreply" && senderName !== null)
   ) {
     return invalidShape();
   }
@@ -1190,9 +1233,17 @@ export function normalizePlatformWhatsAppChatMessage(
 function normalizePlatformWhatsAppChatAttempt(
   value: unknown,
 ): PlatformWhatsAppChatAttempt {
-  if (!isRecord(value) || !hasExactKeys(value, WHATSAPP_ATTEMPT_KEYS)) {
+  // P4: only an autoresponder row carries `kind` (the 266 shape is unchanged
+  // for manual sends, so the running reader keeps parsing them).
+  const kinded = isRecord(value) && Object.hasOwn(value, "kind");
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, kinded ? WHATSAPP_ATTEMPT_KEYS_WITH_KIND : WHATSAPP_ATTEMPT_KEYS) ||
+    (kinded && value.kind !== "ai_autosend" && value.kind !== "manual")
+  ) {
     return invalidShape();
   }
+  const kind = kinded && value.kind === "ai_autosend" ? "ai_autosend" : "manual";
   const attemptId = optionalUuidField(value.attempt_id);
   const workItemId = parsePlatformRouteUuid(value.work_item_id);
   const requestId = optionalUuidField(value.request_id);
@@ -1244,6 +1295,7 @@ function normalizePlatformWhatsAppChatAttempt(
     return invalidShape();
   }
   return Object.freeze({
+    kind,
     attemptId,
     workItemId,
     requestId,

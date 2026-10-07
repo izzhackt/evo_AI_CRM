@@ -323,7 +323,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), ...cssModules.values()].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), readFileSync(join(ROOT, "src/app/(v3)/ai-agent.css"), "utf8"), ...cssModules.values()].join("\n");
 }
 
 // --- браузерная сборка ----------------------------------------------------------

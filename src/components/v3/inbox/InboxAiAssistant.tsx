@@ -80,7 +80,7 @@ type Tone = "idle" | "working" | "ready" | "attention" | "error";
 const POSITION_STEP = 24;
 const POSITION_STEP_LARGE = 96;
 const EDGE = 12;
-/** С этой ширины ленты (32rem) окно плавает; уже — нижний лист (v3.css, `@container ai`). */
+/** С этой ширины ленты (32rem) окно плавает; уже — нижний лист (ai-agent.css, `@container ai`). */
 const WINDOW_MODE_MIN_WIDTH = 512;
 /** Подряд «пришло новое сообщение» без готового ответа: дальше — только по кнопке. */
 const SUPERSEDE_LIMIT = 3;

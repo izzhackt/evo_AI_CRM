@@ -46,6 +46,7 @@ const ANONYMIZE_WORDS: Readonly<Record<string, string>> = {
 const REMAIN_WORDS: Readonly<Record<string, string>> = {
   amocrmContacts: "Контакт и сделка в amoCRM",
   sharedClients: "Клиент, у которого есть дело другого человека",
+  phoneChats: "Переписка WhatsApp с его номера, которая может быть чужой",
 };
 
 const EMAIL_WORDS = {
@@ -283,7 +284,10 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
             testId="v3-deletion-remain"
           />
           {Object.values(d.counts.remain).some((value) => value > 0) ? (
-            <p className="t-meta mt-2 text-fg-2">Эти данные нужно удалить отдельно: в amoCRM или в деле другого человека.</p>
+            <p className="t-meta mt-2 text-fg-2">
+              Это не удаляется здесь: контакт и сделку удалите в amoCRM, переписку с его номера проверьте вручную,
+              данные другого человека остаются.
+            </p>
           ) : null}
         </div>
       </div>

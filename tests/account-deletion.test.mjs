@@ -70,6 +70,14 @@ test("staff queue and detail parse strictly", () => {
   });
   assert.equal(parseAccountDeletionDetail(detail)?.amocrmContacts, 1);
   assert.equal(parseAccountDeletionDetail({ ...detail, counts: { delete: { documents: -1 }, anonymize: {}, remain: {} } }), null);
+  // 279 after review 9f0f9fa34: kept WhatsApp chats from the person's number
+  // are a count in remain; the amoCRM numbers object is extra data.
+  const kept = {
+    ...detail,
+    counts: { ...detail.counts, remain: { amocrmContacts: 1, sharedClients: 0, phoneChats: 2 } },
+    amocrm: { contactIds: ["5551"], leadIds: [], dispatchedCommands: 1 },
+  };
+  assert.equal(parseAccountDeletionDetail(kept)?.counts.remain.phoneChats, 2);
   const withoutAmocrm = { ...detail };
   delete withoutAmocrm.amocrmContacts;
   assert.equal(parseAccountDeletionDetail(withoutAmocrm), null, "the amoCRM link count is part of the detail");

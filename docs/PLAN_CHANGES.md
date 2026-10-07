@@ -48693,3 +48693,53 @@ WAHA, Gemini и Supabase не вызывались. Ветка догнала `i
   чате, дошло ли сообщение». Тест имён RPC читает текущую голову схемы и
   сверяет эти формы (`finalReasonCode`, PT412 ночей, `already_claimed`,
   `lease_expired`).
+
+## 2026-10-07. Кабинет студента: восстановление пароля по почте
+
+```text
+Date: 2026-10-07, workspace timezone.
+Author: Claude (Opus 5.5), по поручению ведущего агента.
+Change type: scope, architecture, acceptance criteria, validation.
+Affected plan section: docs/EVO_LAUNCH_PLAN.md, «Active follow-up: complete
+  Portal document review and reply notifications» (там forgotten-password
+  исключён из среза 11.09); список Student auth страниц в
+  src/lib/platform-route-contract.ts; обработка /auth/callback в src/proxy.ts.
+Reason: к выпуску приложения EVO admissions студенту нужен самостоятельный
+  сброс пароля по почте. Общий контракт для iPhone и веба зафиксировал
+  ведущий агент. Сейчас забытый пароль восстанавливает только сотрудник.
+  Исключение 11.09 относилось к тому срезу; подтверждение владельца на этот
+  срез ведущий агент держит у себя.
+Decision:
+  1. /auth/forgot-password: публичная форма с одним полем email. Server Action
+     проверяет Origin и Host по известному Student origin, вызывает
+     resetPasswordForEmail изолированным клиентом (implicit, без cookie) с
+     redirectTo, собранным на сервере: <Student origin>/auth/callback.
+     Ответ один и тот же, есть аккаунт или нет. Частотный отказ Auth по
+     одному адресу показывается тем же ответом; общий лимит отправки даёт
+     просьбу повторить позже.
+  2. /auth/callback принимает type=recovery с token hash в том виде, в каком
+     его строит шаблон Recovery ({{ .RedirectTo }}?token_hash=
+     {{ .TokenHash }}&type=recovery), включая префикс pkce_ (iPhone SDK по
+     умолчанию PKCE). Та же CSRF-страница, что у приглашения: токен
+     расходуется только после нажатия «Продолжить».
+  3. verifyOtp(type=recovery) в изолированном клиенте. Сотрудник (активный
+     доступ по staff_access_snapshot, claim platform_role не student,
+     защищённая метка evo_staff_password_request_id, метка приглашения
+     сотрудника) получает отказ, сессия отзывается, текст направляет к
+     администратору.
+  4. Сессия восстановления не становится сессией кабинета. Она живёт в
+     отдельной HttpOnly cookie с путём /auth/reset-password, SameSite=Strict,
+     15 минут; прокси её не видит. Страница нового пароля умеет только
+     сменить пароль. После смены сессия восстановления отзывается, вход в
+     кабинет выполняется новым паролем.
+  5. Правила пароля прежние, как у регистрации: от 12 символов, не больше
+     72 байт. Без миграции. Production Auth, шаблоны и SMTP не меняются.
+     В локальный supabase/config.toml добавлен шаблон Recovery той же формы
+     ссылки, чтобы локальный стек повторял production.
+Validation impact: точечные тесты контракта, маршрутов и прокси; реальный
+  локальный путь: форма, письмо в Mailpit, ссылка на 127.0.0.1, новый пароль,
+  вход в кабинет; неизвестный адрес с тем же ответом; отказ сотруднику;
+  повторная ссылка. lint и build. Не проверяются: доставка через Resend и
+  текущий production шаблон Recovery.
+Reviewer notes: ожидает независимого review точного head PR.
+```

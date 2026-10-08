@@ -62,7 +62,7 @@
  *       внутренний источник, «Почему такой ответ», «Добавить в поле ответа»
  *       (карточка закрывается, фокус и подкраска поля, «Уже в поле ответа»,
  *       пока поле не опустеет), 409 «Переписка изменилась», оборванный поток
- *       («Ответ не дописан»), клиент пишет подряд, без источников, ждём
+ *       («Ответ не дописан и не проверен»), клиент пишет подряд, без источников, ждём
  *       клиента, нет сообщения клиента, недоступность одной строкой (не
  *       подключён, выключен, баланс, лимит), ошибки с «Попробовать снова»,
  *       reduced motion. Проверки: карточка привязана к углу капсулы
@@ -1524,6 +1524,8 @@ function aiMetrics() {
     error: document.querySelector('[data-testid="v3-ai-error"]')?.dataset.code ?? null,
     errorText: document.querySelector('[data-testid="v3-ai-error"] [role="alert"]')?.textContent.trim() ?? null,
     partial: document.querySelector('[data-testid="v3-ai-partial"]')?.textContent.trim().slice(0, 40) ?? null,
+    partialSelect: (() => { const element = document.querySelector('[data-testid="v3-ai-partial"]'); return element ? getComputedStyle(element).userSelect : null; })(),
+    blockedRole: document.querySelector('[data-testid="v3-ai-blocked"]')?.getAttribute("role") ?? null,
     replyState: reply?.dataset.state ?? null,
     replyFont: reply ? getComputedStyle(reply).fontSize : null,
     marks: [...document.querySelectorAll('[data-testid="v3-ai-reply"] .v3-ai-mark')].map((element) => element.textContent.trim()),
@@ -1535,7 +1537,9 @@ function aiMetrics() {
     primary: primary ? { label: primary.textContent.trim(), action: primary.dataset.action ?? null, disabled: primary.getAttribute("aria-disabled") === "true" } : null,
     insertDisabled: primary ? primary.disabled || primary.getAttribute("aria-disabled") === "true" : null,
     cardButtons: card ? [...card.querySelectorAll("button, summary")].filter((element) => visible(element) && outsideMemory(element)).map((element) => element.getAttribute("aria-label") ?? element.textContent.trim()) : [],
-    cardLinks: card ? [...card.querySelectorAll("a")].filter(outsideMemory).map((element) => element.getAttribute("href")) : [],
+    // Ни одной ссылки во всей карточке — и в памяти, и в автоответчике (08.10, «давай без этого»).
+    cardLinks: card ? [...card.querySelectorAll("a")].map((element) => element.getAttribute("href")) : [],
+    memoryInCard: !!memory,
     announcement: document.querySelector('[data-testid="v3-ai-announcement"]')?.textContent.trim() ?? null,
     aiAdded: !!document.querySelector('[data-testid="v3-inbox-composer"] [data-ai-added]'),
     storage,
@@ -1675,6 +1679,59 @@ async function aiScreenshots(mode) {
       check(!harness.actions.some((action) => action.startsWith("ai-")), `capsule-${viewportKey}: a collapsed window asked ${JSON.stringify(harness.actions)}`);
     }
 
+    // «Новые сообщения ↓» и капсула не перекрываются ни при какой ширине ленты: уже 40rem
+    // поднятая капсула (data-lifted, как при showJump) стоит над кнопкой. Кнопка — с настоящими
+    // классами из InboxChat.tsx; появление её по прокрутке и новому сообщению здесь не проверяется.
+    {
+      const jumpClass = readFileSync(join(ROOT, "src/components/v3/inbox/InboxChat.tsx"), "utf8")
+        .match(/onClick=\{jumpToNewest\}\s+className="([^"]+)"/u)?.[1];
+      check(!!jumpClass, "lift: the jump button classes were not found in InboxChat.tsx");
+      // Подъём — с переходом bottom 200 мс: сначала поставить кнопку и data-lifted, замер — через 320 мс.
+      const lift = (className) => {
+        const area = document.querySelector('[data-testid="v3-ai-assistant"]');
+        const capsule = document.querySelector('[data-testid="v3-ai-capsule"]');
+        let jump = document.querySelector("[data-harness-jump]");
+        if (!jump) {
+          jump = document.createElement("button");
+          jump.type = "button";
+          jump.className = className;
+          jump.dataset.harnessJump = "";
+          jump.innerHTML = 'Новые сообщения<svg width="16" height="16" aria-hidden="true"></svg>';
+          area.parentElement.insertBefore(jump, area);
+        }
+        capsule.setAttribute("data-lifted", "");
+      };
+      const measure = () => {
+        const a = document.querySelector('[data-testid="v3-ai-capsule"]').getBoundingClientRect();
+        const jump = document.querySelector("[data-harness-jump]");
+        const b = jump.getBoundingClientRect();
+        const feed = document.querySelector('[role="log"]').getBoundingClientRect();
+        const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        return { feed: Math.round(feed.width), overlap: overlapX > 0 && overlapY > 0 ? Math.round(overlapX) : 0,
+          capsuleBottom: Math.round(feed.bottom - a.bottom), inside: a.left >= feed.left && a.right <= feed.right && a.top >= feed.top };
+      };
+      const desktop = await open("capsule", "1440");
+      await desktop.page.evaluate(lift, jumpClass);
+      for (const width of [1440, 1280, 1180, 1024, 900, 820]) {
+        await desktop.page.setViewportSize({ width, height: 800 });
+        await desktop.page.waitForTimeout(320);
+        const metrics = await desktop.page.evaluate(measure);
+        report({ file: `lift-${width}`, lift: metrics });
+        check(metrics.overlap === 0 && metrics.inside, `lift-${width}: the capsule covers «Новые сообщения» ${JSON.stringify(metrics)}`);
+        // Уже 40rem капсула поднята над кнопкой (68 px), шире — на своём месте (12 px).
+        check(Math.abs(metrics.capsuleBottom - (metrics.feed < 640 ? 68 : 12)) <= 1, `lift-${width}: capsule bottom ${JSON.stringify(metrics)}`);
+      }
+      await close(desktop, "lift-desktop");
+      const phone = await open("capsule", "390");
+      await phone.page.evaluate(lift, jumpClass);
+      await phone.page.waitForTimeout(320);
+      const metrics = await phone.page.evaluate(measure);
+      report({ file: "lift-390", lift: metrics });
+      check(metrics.overlap === 0 && metrics.inside && Math.abs(metrics.capsuleBottom - 68) <= 1, `lift-390: ${JSON.stringify(metrics)}`);
+      await close(phone, "lift-390");
+    }
+
     // Поток: «Ищу в материалах» → «Нашёл 3 источника · пишу ответ» → «Ответ готов · 3 источника».
     for (const viewportKey of AI_SCENARIOS.stream.viewports) {
       const session = await open("stream", viewportKey);
@@ -1791,15 +1848,17 @@ async function aiScreenshots(mode) {
       await close(session, `slow-${viewportKey}`);
     }
 
-    // Поток оборвался после текста: дописанное тусклое под «Ответ не дописан», вставки нет.
+    // Поток оборвался после текста: дописанное тусклое под «Ответ не дописан и не проверен», вставки нет.
     for (const viewportKey of AI_SCENARIOS.partial.viewports) {
       const session = await open("partial", viewportKey);
       await expand(session);
       await session.page.waitForSelector('[data-testid="v3-ai-partial"]', { timeout: 6000 });
       await session.page.waitForTimeout(120);
       const partial = await shot(session, `state-partial-${viewportKey}.png`);
-      check(partial.status === "Ответ не дописан" && partial.partial?.startsWith("Здравствуйте! Бакалавриат") && partial.errorText === "ИИ-агент сейчас недоступен.",
-        `partial-${viewportKey}: ${JSON.stringify({ status: partial.status, partial: partial.partial, text: partial.errorText })}`);
+      // Дописанное не проверено (§6.4, §6.5): так и сказано, и его не выделить для копирования.
+      check(partial.status === "Ответ не дописан и не проверен — не используйте его" && partial.partial?.startsWith("Здравствуйте! Бакалавриат")
+        && partial.errorText === "ИИ-агент сейчас недоступен." && partial.partialSelect === "none",
+        `partial-${viewportKey}: ${JSON.stringify({ status: partial.status, partial: partial.partial, text: partial.errorText, select: partial.partialSelect })}`);
       check(partial.primary === null && partial.cardButtons.includes("Попробовать снова"), `partial-${viewportKey}: buttons ${JSON.stringify(partial.cardButtons)}`);
       await close(session, `partial-${viewportKey}`);
     }
@@ -1816,16 +1875,18 @@ async function aiScreenshots(mode) {
       await close(session, `capped-${viewportKey}`);
     }
 
-    // Честные состояния: у недоступности — одна строка причины, без кнопок и ссылок.
+    // Честные состояния: у недоступности — одна строка причины (читалке — role=status), без кнопок и ссылок.
+    // Память остаётся и при недоступности: «Забыть сводку» и исключение из автоответчика есть только здесь.
     const onlyClose = (metrics) => JSON.stringify(metrics.cardButtons) === JSON.stringify(["Свернуть помощника"]);
+    const unavailable = (metrics) => onlyClose(metrics) && metrics.blockedRole === "status" && metrics.memoryInCard;
     const states = [
       ["no-sources", (m) => m.warnings[0] === "Проверьте факты — источники не найдены" && m.status === "Ответ готов · без источников"],
       ["waiting", (m) => m.status === "Ждём ответ клиента" && m.title === "Следующий шаг" && m.cardButtons.includes("Подготовить продолжение")],
       ["no-client", (m) => m.status === "Сначала — вопрос клиента" && onlyClose(m)],
-      ["off", (m) => m.blocked === "ai_agent_off" && m.status === "Помощник сейчас недоступен" && m.blockedText === "ИИ-агент не подключён к CRM." && onlyClose(m)],
-      ["consent", (m) => m.blocked === "consent_required" && m.blockedText === "ИИ-агент выключен в CRM." && onlyClose(m)],
-      ["balance", (m) => m.blocked === "gemini_billing" && m.blockedText === "Закончился оплаченный баланс Gemini." && onlyClose(m)],
-      ["budget", (m) => m.blocked === "budget_exhausted" && m.blockedText === "Месячный лимит расходов на ИИ исчерпан." && onlyClose(m)],
+      ["off", (m) => m.blocked === "ai_agent_off" && m.status === "Помощник сейчас недоступен" && m.blockedText === "ИИ-агент не подключён к CRM." && unavailable(m)],
+      ["consent", (m) => m.blocked === "consent_required" && m.blockedText === "ИИ-агент выключен в CRM." && unavailable(m)],
+      ["balance", (m) => m.blocked === "gemini_billing" && m.blockedText === "Закончился оплаченный баланс Gemini." && unavailable(m)],
+      ["budget", (m) => m.blocked === "budget_exhausted" && m.blockedText === "Месячный лимит расходов на ИИ исчерпан." && unavailable(m)],
       ["unavailable", (m) => m.error === "agent_unavailable" && m.status === "Не удалось подготовить ответ" && m.errorText === "ИИ-агент сейчас недоступен." && m.cardButtons.includes("Попробовать снова")],
       ["rate", (m) => m.error === "rate_limited" && m.errorText === "Слишком много запросов. Подождите минуту." && m.cardButtons.includes("Попробовать снова")],
     ];
@@ -2161,13 +2222,14 @@ async function aiP3Screenshots() {
         `forget: ${JSON.stringify(harness.memory)}`);
     }
 
-    // Честные состояния (274): выключена (+ «Включить» только при согласии), на паузе без согласия,
-    // короткая переписка без карточки, 21–25 сообщений — сводка рано, сводку пора собрать.
+    // Честные состояния (274): выключена и на паузе — одной строкой, без «Включить» и слов о согласии
+    // (окно, 08.10, «давай без этого»; синтетика — сотрудник с правом управлять), короткая переписка
+    // без карточки, 21–25 сообщений — сводка рано, сводку пора собрать.
     const states = [
-      ["memory-off", (m) => m.hint === "Память выключена" && m.off?.startsWith("Память о клиенте выключена.") && m.enableLink && m.lead === "Аружан · Малайзия · Квалифицирован"],
-      ["memory-off-no-consent", (m) => m.off?.startsWith("Память о клиенте выключена.") && !m.enableLink && m.off.includes("Сначала администратор записывает согласие на Gemini.")],
+      ["memory-off", (m) => m.hint === "Память выключена" && m.off === "Память о клиенте выключена." && !m.enableLink && m.lead === "Аружан · Малайзия · Квалифицирован"],
+      ["memory-off-no-consent", (m) => m.off === "Память о клиенте выключена." && !m.enableLink],
       ["memory-paused", (m) => m.state === "paused" && m.hint === "Память на паузе"
-        && m.paused === "Память на паузе: без согласия на Gemini сводка и интерес не собираются." && m.interest === null && m.summaryState === null
+        && m.paused === "Память на паузе: сводка и интерес не собираются." && m.interest === null && m.summaryState === null
         && m.lead === "Аружан · Малайзия · Квалифицирован"],
       ["memory-short", (m) => m.summaryState === "ИИ видит всю переписку — сводка не нужна." && m.interest === "Интерес появится после следующего сообщения клиента." && m.lead === "Карточки лида нет."],
       ["memory-waiting", (m) => m.state === "waiting" && m.summaryState === "Сводка появится, когда переписка станет длиннее." && m.hint === "Сводка пока не нужна"],

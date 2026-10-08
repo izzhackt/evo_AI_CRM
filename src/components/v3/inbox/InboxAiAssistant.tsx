@@ -51,13 +51,18 @@ import { InboxAiMemory } from "./InboxAiMemory";
  * после него окно читает сохранённый, проверенный ответ. «Добавить в поле
  * ответа» берёт текст у базы (`body.text`; 409 — переписка изменилась),
  * добавляет его к написанному, сворачивает окно и ставит фокус в поле.
- * Ничего не отправляется. Оборванный поток оставляет дописанное — тусклым и
- * без вставки: у него нет `answerId`.
+ * Ничего не отправляется. Оборванный поток оставляет дописанное — тусклым,
+ * без вставки и без выделения, под «Ответ не дописан и не проверен — не
+ * используйте его»: у него нет `answerId`, проверки покрытия (§6.4) и защиты
+ * внутренних документов (§6.5) он не прошёл.
  *
  * Внизу карточки — «Что ИИ знает о клиенте» (P3, §9; `InboxAiMemory`) и
  * «Автоответчик в этом чате» (P4, §11; `InboxAiAutosend`, если автоответчик
  * включён). Когда помощник недоступен (не подключён, выключен, лимит, баланс),
- * в окне одна строка причины — без ссылок на согласие, лимит и расходы.
+ * в окне одна строка причины — без ссылок на согласие, лимит и расходы; память
+ * и автоответчик остаются (это их единственное место: «Забыть сводку»,
+ * исключить чат из автоответчика). Их нет только без права на чат
+ * (`forbidden`) и в просмотре роли (`preview`).
  *
  * Запрос привязан к последнему сообщению клиента, которое окно видело последним:
  * из базы (каждое чтение `GET …/answer`) или из страницы (новое сообщение в
@@ -90,6 +95,8 @@ const SUPERSEDE_LIMIT = 3;
 const SLOW_HINT_MS = 6000;
 /** Сворачивание карточки (ai-agent.css, `v3-ai-card-close`). */
 const CLOSE_MS = 200;
+/** Недоступность, при которой памяти и автоответчика в окне нет: нет права на чат, просмотр роли. */
+const NO_EXTRAS = new Set(["forbidden", "preview"]);
 
 function toneOf(phase: Phase, stale: boolean): Tone {
   if (phase.kind === "streaming" || phase.kind === "loading") return "working";
@@ -187,7 +194,7 @@ function SourceRow({
       className="v3-ai-source"
     >
       {expandable ? (
-        <button type="button" className="v3-ai-source-head" aria-expanded={open} aria-controls={`${id}-body`} onClick={onToggle}>
+        <button type="button" className="v3-ai-source-head" aria-expanded={open} aria-controls={open ? `${id}-body` : undefined} onClick={onToggle}>
           {head}
           <Icon name="chevron-down" size={16} className="v3-ai-source-chevron shrink-0" />
         </button>
@@ -623,12 +630,12 @@ export function InboxAiAssistant({
     else if (phase.kind === "capped") status = "Клиент пишет несколько сообщений подряд";
     else if (phase.kind === "blocked") status = "Помощник сейчас недоступен";
     else if (phase.kind === "error") {
-      status = phase.partial ? "Ответ не дописан" : "Не удалось подготовить ответ";
+      status = phase.partial ? "Ответ не дописан и не проверен — не используйте его" : "Не удалось подготовить ответ";
       statusTone = "danger";
     } else status = "Помощь с ответом";
   }
   const slow = phase.kind === "streaming" && slowToken === phase.token;
-  const showExtras = phase.kind !== "blocked";
+  const showExtras = !(phase.kind === "blocked" && NO_EXTRAS.has(phase.code));
 
   // Одна главная кнопка во всю ширину: пока пишется — недоступна, устарело — «Обновить ответ».
   const primary: "writing" | "refresh" | "adding" | "added" | "add" | null = phase.kind === "streaming" ? "writing"
@@ -723,7 +730,7 @@ export function InboxAiAssistant({
               ) : null}
 
               {phase.kind === "blocked" ? (
-                <p className="t-body-compact text-fg-2" data-testid="v3-ai-blocked" data-code={phase.code}>
+                <p className="t-body-compact text-fg-2" role="status" data-testid="v3-ai-blocked" data-code={phase.code}>
                   {aiWindowUnavailable(phase.code) ?? aiErrorCopy(phase.code)}
                 </p>
               ) : null}
@@ -851,7 +858,7 @@ export function InboxAiAssistant({
             ) : null}
 
             {/* Память (P3) читается при каждом открытии окна, автоответчик (P4) — только когда включён в организации;
-                сбой их чтения ответу не мешает. При недоступном помощнике — одна строка причины. */}
+                сбой их чтения ответу не мешает. Лимит, баланс, квота и выключенный агент их не прячут. */}
             {showExtras ? (
               <div className="v3-ai-extras">
                 <InboxAiMemory conversationId={conversationId} />

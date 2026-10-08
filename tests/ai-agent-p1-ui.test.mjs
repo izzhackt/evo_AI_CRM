@@ -578,8 +578,11 @@ test("the window never reaches the agent, inserts only stored text and never sen
   assert.doesNotMatch(assistant, /onInsert\([^)]*(?:preview|partial|written)/u);
   // Окно привязано к капсуле (08.10): ни перетаскивания, ни сохранённой позиции.
   assert.doesNotMatch(assistant, /localStorage|sessionStorage|evo-ai-window|setPointerCapture|onPointerMove|storageScope/u);
-  // «давай без этого»: ни ссылок на настройки, согласие, лимит и расходы.
-  assert.doesNotMatch(assistant, /next\/link|<Link\b|href=|section=spend|["'`]\/v3\/ai-agent\b/u);
+  // «давай без этого»: ни ссылок на настройки, согласие, лимит и расходы — ни в
+  // самом окне, ни в памяти и автоответчике внутри его карточки.
+  for (const file of ["InboxAiAssistant.tsx", "InboxAiMemory.tsx", "InboxAiAutosend.tsx"]) {
+    assert.doesNotMatch(read(`src/components/v3/inbox/${file}`), /next\/link|<Link\b|href=|section=spend|["'`]\/v3\/ai-agent\b/u, file);
+  }
   assert.match(assistant, /event\.key === "Escape"/u);
   assert.match(assistant, /aria-label="Помочь с ответом — открыть помощника"/u);
   assert.match(assistant, /role="dialog"\n\s+aria-modal="false"/u, "a non-modal dialog: the chat is not locked");

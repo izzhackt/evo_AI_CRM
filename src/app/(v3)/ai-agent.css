@@ -76,7 +76,13 @@
     right: 12px;
     height: 44px;
   }
-  /* «Новые сообщения ↓» стоит по центру низа ленты: капсула поднимается над ней. */
+}
+/*
+ * «Новые сообщения ↓» (44 px, 12 px снизу) стоит по центру низа ленты. Уже
+ * 40rem капсула (≈ 205 px, 24 px справа) заходит на неё — тогда капсула
+ * поднимается над ней на 12 px.
+ */
+@container ai (max-width: 39.99rem) {
   .v3-world .v3-ai-capsule[data-lifted] {
     bottom: 68px;
   }
@@ -233,6 +239,11 @@
 }
 .v3-world .v3-ai-reply:is([data-state="stale"], [data-state="partial"]) {
   color: var(--ai-fg-3);
+}
+/* Оборванный поток не проверен (§6.4, §6.5): его видно, но не скопировать. */
+.v3-world .v3-ai-reply[data-state="partial"] {
+  -webkit-user-select: none;
+  user-select: none;
 }
 .v3-world .v3-ai-skeletons {
   display: flex;

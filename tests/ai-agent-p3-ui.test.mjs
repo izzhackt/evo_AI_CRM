@@ -20,14 +20,12 @@ import {
   AI_MEMORY_COPY,
   AI_MEMORY_INTEREST_LIMIT,
   AI_MEMORY_SETTINGS_COPY,
-  AI_MEMORY_SETTINGS_HREF,
   AI_MEMORY_SUMMARY_LIMIT,
   AI_MEMORY_WINDOW,
   aiLeadLine,
   aiMemoryHint,
   aiMemoryInterestState,
   aiMemoryMeta,
-  aiMemoryPausedText,
   aiMemoryState,
   aiMemorySummaryState,
   aiMemoryUpdated,
@@ -103,8 +101,8 @@ test("states follow 274: off, paused (no consent), short, waiting (21–25), due
   const revoked = view({ consentRecorded: false, active: false, memory: null, messageCount: 45 });
   assert.equal(aiMemoryState(revoked), "paused");
   assert.equal(aiMemoryHint(revoked), "Память на паузе");
-  assert.equal(aiMemoryPausedText(revoked), "Память на паузе: без согласия на Gemini сводка и интерес не собираются.");
-  assert.equal(aiMemoryPausedText(view({ active: false, memory: null })), "Память на паузе: сводка и интерес не собираются.");
+  // Окно (08.10, «давай без этого»): пауза одной строкой, без слов о согласии на Gemini.
+  assert.equal(AI_MEMORY_COPY.paused, "Память на паузе: сводка и интерес не собираются.");
   assert.equal(aiMemorySummaryState("paused"), null);
   // ≤ 20 сообщений — сводка не нужна.
   assert.equal(aiMemoryState(view({ messageCount: AI_MEMORY_WINDOW, memory: null })), "short");
@@ -365,9 +363,12 @@ test("UI window: a collapsed «Что ИИ знает о клиенте» under 
   assert.ok(at("Почему такой ответ") < at("<InboxAiMemory conversationId={conversationId} />"),
     "the memory block follows the answer and its sources");
   assert.ok(at("<InboxAiMemory conversationId={conversationId} />") < at("Обновить ответ\n"), "«Обновить ответ» closes the card");
-  // Память — в одном и том же месте дерева во всех состояниях, кроме недоступности: смена состояния её не перечитывает.
+  // Память — в одном и том же месте дерева во всех состояниях: смена состояния её не перечитывает.
+  // Лимит, баланс, квота, выключенный агент и нет согласия её не прячут — это её единственное место
+  // («Забыть сводку», исключение из автоответчика); нет её только без права на чат и в просмотре роли.
   assert.match(body, /\{showExtras \? \(\n\s+<div className="v3-ai-extras">\n\s+<InboxAiMemory conversationId=\{conversationId\} \/>/u);
-  assert.match(assistant, /const showExtras = phase\.kind !== "blocked";/u);
+  assert.match(assistant, /const NO_EXTRAS = new Set\(\["forbidden", "preview"\]\);/u);
+  assert.match(assistant, /const showExtras = !\(phase\.kind === "blocked" && NO_EXTRAS\.has\(phase\.code\)\);/u);
   const memory = read("src/components/v3/inbox/InboxAiMemory.tsx");
   assert.match(memory, /<details className="v3-ai-memory"/u);
   assert.doesNotMatch(memory, /<details[^>]*\bopen\b/u, "collapsed by default");
@@ -398,16 +399,18 @@ test("UI window: a collapsed «Что ИИ знает о клиенте» under 
   assert.match(memory, /text: enqueued \? AI_MEMORY_COPY\.forgottenRebuilding : AI_MEMORY_COPY\.forgotten/u);
   assert.match(memory, /\{memory\?\.interest \?\? aiMemoryInterestState\(view\)\}/u);
   for (const word of ["Интерес", "Сводка", "Карточка лида", "Показать всё"]) assert.ok(memory.includes(word), word);
-  // «Включить» — только сотруднику с правом и при записанном согласии; иначе — причина, а не ссылка к недоступной кнопке.
-  assert.match(memory, /view\.canManage && view\.consentRecorded \? \(\s*<Link href=\{AI_MEMORY_SETTINGS_HREF\}/u);
-  assert.match(memory, /: view\.canManage \? \(\s*<p className="t-meta text-fg-3">\{AI_MEMORY_SETTINGS_COPY\.noConsent\}<\/p>/u);
+  // Окно (08.10, «давай без этого»): ни «Включить» в «Расходы», ни слов о согласии — выключено и пауза одной строкой.
+  const memoryCode = memory.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
+  assert.doesNotMatch(memoryCode, /<Link\b|href=|AI_MEMORY_SETTINGS_COPY|Gemini|согласи/u);
+  assert.match(memory, /data-testid="v3-ai-memory-off">\{AI_MEMORY_COPY\.off\}<\/p>/u);
+  assert.match(memory, /data-testid="v3-ai-memory-paused">\{AI_MEMORY_COPY\.paused\}<\/p>/u);
+  for (const text of Object.values(AI_MEMORY_COPY)) assert.doesNotMatch(text, /Gemini|согласи|Включить/u, text);
   // Интерес и сводка — только пока память работает (не off и не paused).
   assert.match(memory, /const running = state !== null && state !== "off" && state !== "paused";/u);
   // Окончательный отказ (400/401/403/404) — без «Повторить» и без role=alert.
   assert.match(memory, /const FINAL_STATUSES = new Set\(\[400, 401, 403, 404\]\);/u);
   // Раскрыто — строка интереса под заголовком скрыта (не повторяет «Интерес»).
   assert.match(read("src/app/(v3)/ai-agent.css"), /\.v3-ai-memory\[open\] \.v3-ai-memory-hint \{\s*display: none;/u);
-  assert.equal(AI_MEMORY_SETTINGS_HREF, "/v3/ai-agent?section=spend#ai-memory");
   const css = read("src/app/(v3)/ai-agent.css");
   assert.match(css, /\.v3-ai-memory-summary\[data-clamped\] \{[^}]*-webkit-line-clamp: 6;/u);
 });

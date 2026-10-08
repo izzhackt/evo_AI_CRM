@@ -59,14 +59,66 @@ export type AccountDeletionCounts = Readonly<{
   deleted: Readonly<Record<string, number>> | null;
 }>;
 
+/**
+ * «Проверить вручную» (дополнение к 279 от 08.10: удаляется только своё).
+ * Запись вне собственных данных аккаунта, где есть его телефон, email или
+ * номер паспорта, либо которой пользуется ещё кто-то. Сама она не меняется:
+ * Admin решает по каждой.
+ */
+export type AccountDeletionReviewKind = "chat" | "lead" | "client" | "case";
+export type AccountDeletionReviewReason = "phone" | "email" | "passport" | "shared" | "linked";
+export type AccountDeletionReviewDecision = "erased" | "not_subject";
+
+export type AccountDeletionAmocrm = Readonly<{
+  contactIds: readonly string[];
+  leadIds: readonly string[];
+  /** Команды CRM→amoCRM, отправленные без ответа (номера нет). */
+  dispatchedCommands: number;
+}>;
+
+export type AccountDeletionReviewFacts = Readonly<{
+  messages?: number;
+  lastMessageAt?: string | null;
+  caseId?: string | null;
+  caseName?: string | null;
+  leadId?: string | null;
+  stage?: string | null;
+  lifecycle?: string | null;
+  createdAt?: string | null;
+  leads?: number;
+  cases?: number;
+  state?: string | null;
+  hasAccount?: boolean;
+}>;
+
+export type AccountDeletionReviewItem = Readonly<{
+  kind: AccountDeletionReviewKind;
+  id: string;
+  reasons: readonly AccountDeletionReviewReason[];
+  /** Запись ещё есть (удалённого чата уже нет). */
+  exists: boolean;
+  title: string | null;
+  facts: AccountDeletionReviewFacts;
+  /** Можно удалить или обезличить отсюда (дело со своим аккаунтом студента нельзя). */
+  canErase: boolean;
+  decision: AccountDeletionReviewDecision | null;
+  decidedAt: string | null;
+  decidedBy: string | null;
+  amocrm: AccountDeletionAmocrm;
+}>;
+
 export type AccountDeletionDetail = AccountDeletionQueueRow & Readonly<{
   processingStartedBy: string | null;
   completedBy: string | null;
   pendingFiles: number;
   authAccountExists: boolean;
   counts: AccountDeletionCounts;
-  /** Связи с amoCRM (первой обработки или сейчас): нужна отметка Admin. */
+  /** Связи с amoCRM (свои записи и удалённые из списка проверки): нужна отметка Admin. */
   amocrmContacts: number;
+  amocrm: AccountDeletionAmocrm;
+  review: readonly AccountDeletionReviewItem[];
+  /** Записи списка проверки без решения: пока они есть, удалить аккаунт нельзя. */
+  reviewOpen: number;
 }>;
 
 export type AccountDeletionStorageObject = Readonly<{ bucket: string; name: string }>;
@@ -78,9 +130,9 @@ export type AccountDeletionProcessed = Readonly<{
   email: string | null;
   storageObjects: readonly AccountDeletionStorageObject[];
   /**
-   * Связи с amoCRM, найденные первой обработкой (`summary.remain`). Больше
-   * нуля: завершить можно только с отметкой Admin, что контакт и сделка в
-   * amoCRM удалены (база проверяет это сама).
+   * Связи с amoCRM: свои записи на первой обработке и записи, удалённые из
+   * списка проверки. Больше нуля: завершить можно только с отметкой Admin,
+   * что контакт и сделка в amoCRM удалены (база проверяет это сама).
    */
   amocrmContacts: number;
 }>;
@@ -104,6 +156,57 @@ function nullable<T>(value: unknown, check: (v: unknown) => v is T): value is T 
 
 function isEmailStatus(value: unknown): value is ConfirmationEmailStatus {
   return value === "sent" || value === "failed" || value === "not_configured" || value === "no_address";
+}
+
+function count(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function amocrmLinks(value: unknown): AccountDeletionAmocrm | null {
+  const row = record(value);
+  if (!row || !Array.isArray(row.contactIds) || !Array.isArray(row.leadIds) || !count(row.dispatchedCommands)
+    || ![...row.contactIds, ...row.leadIds].every((id) => typeof id === "string" && /^\d{1,20}$/u.test(id))) return null;
+  return { contactIds: row.contactIds as string[], leadIds: row.leadIds as string[], dispatchedCommands: row.dispatchedCommands };
+}
+
+const REVIEW_KINDS: readonly AccountDeletionReviewKind[] = ["chat", "lead", "client", "case"];
+const REVIEW_REASONS: readonly AccountDeletionReviewReason[] = ["phone", "email", "passport", "shared", "linked"];
+const NULLABLE_TEXT_FACTS = ["caseName", "stage", "lifecycle", "state"] as const;
+
+function reviewFacts(value: unknown): AccountDeletionReviewFacts | null {
+  const row = record(value);
+  if (!row) return null;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(row)) {
+    const ok = key === "messages" || key === "leads" || key === "cases" ? count(item)
+      : key === "lastMessageAt" || key === "createdAt" ? nullable(item, timestamp)
+        : key === "caseId" || key === "leadId" ? nullable(item, uuid)
+          : (NULLABLE_TEXT_FACTS as readonly string[]).includes(key) ? item === null || typeof item === "string"
+            : key === "hasAccount" ? typeof item === "boolean" : false;
+    if (!ok) return null;
+    out[key] = item;
+  }
+  return out as AccountDeletionReviewFacts;
+}
+
+function reviewItem(value: unknown): AccountDeletionReviewItem | null {
+  const row = record(value);
+  if (!row || !REVIEW_KINDS.includes(row.kind as AccountDeletionReviewKind) || !uuid(row.id)
+    || !Array.isArray(row.reasons) || row.reasons.length === 0
+    || !row.reasons.every((reason) => REVIEW_REASONS.includes(reason as AccountDeletionReviewReason))
+    || typeof row.exists !== "boolean" || !(row.title === null || typeof row.title === "string")
+    || typeof row.canErase !== "boolean"
+    || !(row.decision === null || row.decision === "erased" || row.decision === "not_subject")
+    || !nullable(row.decidedAt, timestamp) || !(row.decidedBy === null || typeof row.decidedBy === "string")) return null;
+  const facts = reviewFacts(row.facts);
+  const amocrm = amocrmLinks(row.amocrm);
+  if (!facts || !amocrm) return null;
+  return {
+    kind: row.kind as AccountDeletionReviewKind, id: row.id, reasons: row.reasons as AccountDeletionReviewReason[],
+    exists: row.exists, title: row.title as string | null, facts, canErase: row.canErase,
+    decision: row.decision as AccountDeletionReviewDecision | null, decidedAt: row.decidedAt as string | null,
+    decidedBy: row.decidedBy as string | null, amocrm,
+  };
 }
 
 function counts(value: unknown): Readonly<Record<string, number>> | null {
@@ -172,12 +275,14 @@ export function parseAccountDeletionDetail(value: unknown): AccountDeletionDetai
   const anonymize = counts(rawCounts?.anonymize);
   const remain = counts(rawCounts?.remain);
   const deleted = rawCounts?.deleted === undefined ? null : counts(rawCounts.deleted);
+  const amocrm = amocrmLinks(row.amocrm);
+  const review = Array.isArray(row.review) ? row.review.map(reviewItem) : null;
   if (!rawCounts || !del || !anonymize || !remain || (rawCounts.deleted !== undefined && !deleted)
     || !(row.processingStartedBy === null || typeof row.processingStartedBy === "string")
     || !(row.completedBy === null || typeof row.completedBy === "string")
-    || typeof row.pendingFiles !== "number" || !Number.isInteger(row.pendingFiles) || row.pendingFiles < 0
-    || typeof row.authAccountExists !== "boolean"
-    || typeof row.amocrmContacts !== "number" || !Number.isInteger(row.amocrmContacts) || row.amocrmContacts < 0) return null;
+    || !count(row.pendingFiles) || typeof row.authAccountExists !== "boolean"
+    || !count(row.amocrmContacts) || !amocrm || !review || review.some((item) => item === null)
+    || !count(row.reviewOpen)) return null;
   return {
     ...base,
     processingStartedBy: row.processingStartedBy as string | null,
@@ -186,7 +291,20 @@ export function parseAccountDeletionDetail(value: unknown): AccountDeletionDetai
     authAccountExists: row.authAccountExists,
     counts: { delete: del, anonymize, remain, deleted },
     amocrmContacts: row.amocrmContacts,
+    amocrm,
+    review: review as AccountDeletionReviewItem[],
+    reviewOpen: row.reviewOpen,
   };
+}
+
+/** resolve_account_deletion_candidate_v1: решение по одной записи списка проверки. */
+export function parseAccountDeletionReviewDecision(value: unknown): Readonly<{
+  kind: AccountDeletionReviewKind; id: string; decision: AccountDeletionReviewDecision;
+}> | null {
+  const row = record(value);
+  if (!row || !REVIEW_KINDS.includes(row.kind as AccountDeletionReviewKind) || !uuid(row.id)
+    || (row.decision !== "erased" && row.decision !== "not_subject") || !timestamp(row.decidedAt)) return null;
+  return { kind: row.kind as AccountDeletionReviewKind, id: row.id, decision: row.decision };
 }
 
 export function parseAccountDeletionProcessed(value: unknown): AccountDeletionProcessed | null {
@@ -201,9 +319,9 @@ export function parseAccountDeletionProcessed(value: unknown): AccountDeletionPr
       || object.bucket === "" || object.name === "" || object.name.includes("..")) return null;
     objects.push({ bucket: object.bucket, name: object.name });
   }
-  const remain = record(record(row.summary)?.remain);
-  const amocrm = remain?.amocrmContacts ?? 0;
-  if (typeof amocrm !== "number" || !Number.isInteger(amocrm) || amocrm < 0) return null;
+  // Completed requests answer without the amoCRM count (nothing is left to do).
+  const amocrm = row.amocrmContacts ?? (row.status === "completed" ? 0 : undefined);
+  if (!count(amocrm)) return null;
   return {
     id: row.id, status: row.status, authUserId: row.authUserId as string | null,
     email: row.email as string | null, storageObjects: objects, amocrmContacts: amocrm,

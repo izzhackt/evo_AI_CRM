@@ -13,7 +13,9 @@ import { sendAccountDeletionMail } from "./account-deletion-mail.ts";
  * Выполнение запроса на удаление (миграция 279). Шаги по порядку, каждый
  * безопасно повторяется:
  *  1. `process_account_deletion_v1` от имени Admin: база удаляет и обезличивает
- *     строки и отдаёт ключи файлов Storage и id аккаунта Auth;
+ *     только собственные строки аккаунта и отдаёт ключи файлов Storage и id
+ *     аккаунта Auth; пока в «Проверить вручную» есть запись без решения, база
+ *     отказывает (шаг «review»), ничего не меняя;
  *  2. ключом service role файлы удаляются через Storage API (не SQL: иначе
  *     файл остался бы в хранилище);
  *  3. `auth.admin.deleteUser` удаляет аккаунт (уже удалённый — не ошибка);
@@ -27,7 +29,13 @@ import { sendAccountDeletionMail } from "./account-deletion-mail.ts";
  * всё заново, база и Storage дают тот же результат.
  */
 
-export type AccountDeletionRunStep = "process" | "amocrm" | "config" | "storage" | "auth" | "complete";
+export type AccountDeletionRunStep = "process" | "review" | "amocrm" | "config" | "storage" | "auth" | "complete";
+
+/** The database refuses while an item of the review list has no decision. */
+function reviewOpen(error: unknown): boolean {
+  return error !== null && typeof error === "object"
+    && (error as { message?: unknown }).message === "account_deletion_review_unresolved";
+}
 
 export type AccountDeletionRunResult =
   | Readonly<{ status: "completed"; emailStatus: ConfirmationEmailStatus | null }>
@@ -68,6 +76,7 @@ export async function runAccountDeletion(
 ): Promise<AccountDeletionRunResult> {
   const processedResponse = await services.session.schema("platform")
     .rpc("process_account_deletion_v1", { p_id: requestRowId });
+  if (reviewOpen(processedResponse.error)) return { status: "failed", step: "review" };
   const processed = processedResponse.error ? null : parseAccountDeletionProcessed(processedResponse.data);
   if (!processed) return { status: "failed", step: "process" };
   if (processed.status === "completed") return { status: "completed", emailStatus: null };
@@ -100,6 +109,6 @@ export async function runAccountDeletion(
     .rpc("complete_account_deletion_v1", {
       p_id: requestRowId, p_confirmation_email_status: emailStatus, p_amocrm_erased: amocrmErased,
     });
-  if (completed.error) return { status: "failed", step: "complete" };
+  if (completed.error) return { status: "failed", step: reviewOpen(completed.error) ? "review" : "complete" };
   return { status: "completed", emailStatus };
 }

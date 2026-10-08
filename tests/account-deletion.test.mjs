@@ -10,6 +10,7 @@ import {
   parseAccountDeletionDetail,
   parseAccountDeletionProcessed,
   parseAccountDeletionQueue,
+  parseAccountDeletionReviewDecision,
   parseOwnAccountDeletion,
 } from "../src/lib/account-deletion-contract.ts";
 import { accountDeletionMailText, sendAccountDeletionMail } from "../src/lib/server/account-deletion-mail.ts";
@@ -64,31 +65,69 @@ test("staff queue and detail parse strictly", () => {
     authAccountExists: true,
     counts: { delete: { documents: 2, whatsappChats: 1 }, anonymize: { cases: 1 }, remain: { amocrmContacts: 1 } },
     amocrmContacts: 1,
+    amocrm: { contactIds: ["5551"], leadIds: [], dispatchedCommands: 0 },
+    review: [],
+    reviewOpen: 0,
   };
   assert.deepEqual(parseAccountDeletionDetail(detail)?.counts, {
     delete: { documents: 2, whatsappChats: 1 }, anonymize: { cases: 1 }, remain: { amocrmContacts: 1 }, deleted: null,
   });
   assert.equal(parseAccountDeletionDetail(detail)?.amocrmContacts, 1);
+  assert.deepEqual(parseAccountDeletionDetail(detail)?.amocrm, { contactIds: ["5551"], leadIds: [], dispatchedCommands: 0 });
   assert.equal(parseAccountDeletionDetail({ ...detail, counts: { delete: { documents: -1 }, anonymize: {}, remain: {} } }), null);
-  // 279 after review 9f0f9fa34: kept WhatsApp chats from the person's number
-  // are a count in remain; the amoCRM numbers object is extra data.
-  const kept = {
-    ...detail,
-    counts: { ...detail.counts, remain: { amocrmContacts: 1, sharedClients: 0, phoneChats: 2 } },
-    amocrm: { contactIds: ["5551"], leadIds: [], dispatchedCommands: 1 },
+  for (const key of ["amocrmContacts", "amocrm", "review", "reviewOpen"]) {
+    const broken = { ...detail };
+    delete broken[key];
+    assert.equal(parseAccountDeletionDetail(broken), null, `${key} is part of the detail`);
+  }
+  assert.equal(parseAccountDeletionDetail({ ...detail, amocrm: { contactIds: ["Зарина"], leadIds: [], dispatchedCommands: 0 } }),
+    null, "amoCRM numbers are digits only");
+});
+
+// Дополнение к 279 (08.10): «Проверить вручную», строгий разбор каждой записи.
+test("review list: each item parses strictly, an unknown kind, reason or fact is an error", () => {
+  const item = {
+    kind: "chat", id: ID, reasons: ["phone"], exists: true, title: "WhatsApp +996 ••• 27 92 79",
+    facts: { messages: 3, lastMessageAt: OWN.requestedAt, caseId: null, caseName: null, leadId: ROW.studentCaseId },
+    canErase: true, decision: null, decidedAt: null, decidedBy: null,
+    amocrm: { contactIds: ["279"], leadIds: ["279"], dispatchedCommands: 0 },
   };
-  assert.equal(parseAccountDeletionDetail(kept)?.counts.remain.phoneChats, 2);
-  const withoutAmocrm = { ...detail };
-  delete withoutAmocrm.amocrmContacts;
-  assert.equal(parseAccountDeletionDetail(withoutAmocrm), null, "the amoCRM link count is part of the detail");
+  const base = {
+    ...ROW, processingStartedBy: null, completedBy: null, pendingFiles: 0, authAccountExists: true,
+    counts: { delete: {}, anonymize: {}, remain: {} }, amocrmContacts: 0,
+    amocrm: { contactIds: [], leadIds: [], dispatchedCommands: 0 }, reviewOpen: 1,
+  };
+  const parsed = parseAccountDeletionDetail({ ...base, review: [item, {
+    ...item, kind: "case", reasons: ["shared"], facts: { state: "pending", hasAccount: false }, canErase: true,
+    decision: "not_subject", decidedAt: OWN.requestedAt, decidedBy: "P279 Admin",
+  }] });
+  assert.equal(parsed?.review.length, 2);
+  assert.equal(parsed?.review[0].facts.messages, 3);
+  assert.equal(parsed?.review[1].decision, "not_subject");
+  assert.equal(parsed?.reviewOpen, 1);
+  for (const broken of [
+    { ...item, kind: "message" }, { ...item, reasons: [] }, { ...item, reasons: ["name"] }, { ...item, facts: { phone: "+996" } },
+    { ...item, facts: { messages: -1 } }, { ...item, decision: "deleted" }, { ...item, id: "x" },
+    { ...item, amocrm: { contactIds: [], leadIds: [] } },
+  ]) {
+    assert.equal(parseAccountDeletionDetail({ ...base, review: [broken] }), null, JSON.stringify(broken));
+  }
+  assert.deepEqual(parseAccountDeletionReviewDecision({ kind: "lead", id: ID, decision: "erased", decidedAt: OWN.requestedAt }),
+    { kind: "lead", id: ID, decision: "erased" });
+  assert.equal(parseAccountDeletionReviewDecision({ kind: "lead", id: ID, decision: "kept", decidedAt: OWN.requestedAt }), null);
 });
 
 test("processing result refuses path tricks in Storage keys", () => {
-  const ok = { id: ID, status: "processing", authUserId: ID, email: "a@b.cd", storageObjects: [{ bucket: "platform-documents", name: "a1/bb" }], summary: {} };
+  const ok = { id: ID, status: "processing", authUserId: ID, email: "a@b.cd", storageObjects: [{ bucket: "platform-documents", name: "a1/bb" }], amocrmContacts: 0, summary: {} };
   assert.equal(parseAccountDeletionProcessed(ok)?.storageObjects.length, 1);
   assert.equal(parseAccountDeletionProcessed(ok)?.amocrmContacts, 0);
-  assert.equal(parseAccountDeletionProcessed({ ...ok, summary: { remain: { amocrmContacts: 2 } } })?.amocrmContacts, 2);
-  assert.equal(parseAccountDeletionProcessed({ ...ok, summary: { remain: { amocrmContacts: "2" } } }), null);
+  assert.equal(parseAccountDeletionProcessed({ ...ok, amocrmContacts: 2 })?.amocrmContacts, 2);
+  assert.equal(parseAccountDeletionProcessed({ ...ok, amocrmContacts: "2" }), null);
+  const withoutCount = { ...ok };
+  delete withoutCount.amocrmContacts;
+  assert.equal(parseAccountDeletionProcessed(withoutCount), null, "an open request always names its amoCRM links");
+  assert.equal(parseAccountDeletionProcessed({ ...withoutCount, status: "completed", authUserId: null, email: null,
+    storageObjects: [] })?.amocrmContacts, 0);
   assert.equal(parseAccountDeletionProcessed({ ...ok, storageObjects: [{ bucket: "platform-documents", name: "../x" }] }), null);
   assert.equal(parseAccountDeletionProcessed({ ...ok, authUserId: "nope" }), null);
 });
@@ -108,6 +147,13 @@ test("confirmation mail: text, transports and honest statuses", async () => {
   assert.match(text, /Номер запроса: 27900000\./u);
   assert.match(text, /Сурамдын номери/u);
   assert.doesNotMatch(text, /[–—]/u);
+  // Exactly what is deleted and kept (addendum 08.10): the bound WhatsApp
+  // correspondence, the reviewed records, other people's records, backups.
+  assert.match(text, /переписка WhatsApp, привязанная к вашей заявке/u);
+  assert.match(text, /сотрудник проверил вручную/u);
+  assert.match(text, /Записи других людей, где упомянуты ваш телефон или email, не менялись\./u);
+  assert.match(text, /Резервные копии базы этим действием не изменяются\./u);
+  assert.match(text, /камдык көчүрмөлөрү/u);
 
   assert.equal(await sendAccountDeletionMail({ to: null, requestId: ID, requestedAt: null }, {}), "no_address");
   assert.equal(await sendAccountDeletionMail({ to: "a@b.cd", requestId: ID, requestedAt: null }, {}), "not_configured");
@@ -127,13 +173,13 @@ test("confirmation mail: text, transports and honest statuses", async () => {
     { EVO_ACCOUNT_MAIL_TRANSPORT: "resend", RESEND_API_KEY: "re_testkey12345" }, failing), "failed");
 });
 
-function fakes({ processed, removeError = null, deleteError = null, completeError = null }) {
+function fakes({ processed, processError = null, removeError = null, deleteError = null, completeError = null }) {
   const log = [];
   const session = {
     schema: () => ({
       rpc: async (name, args) => {
         log.push(["rpc", name, args]);
-        if (name === "process_account_deletion_v1") return { data: processed, error: null };
+        if (name === "process_account_deletion_v1") return processError ? { data: null, error: processError } : { data: processed, error: null };
         return { data: { status: "completed" }, error: completeError };
       },
     }),
@@ -150,6 +196,7 @@ test("processor: database, files, Auth user, mail, completion; a failure names i
   const processed = {
     id: ID, status: "processing", authUserId: OWN.requestId, email: "a@b.cd",
     storageObjects: [{ bucket: "platform-documents", name: "a1/x" }, { bucket: "platform-documents", name: "a1/y" }],
+    amocrmContacts: 0,
     summary: {},
   };
   const ok = fakes({ processed });
@@ -161,7 +208,14 @@ test("processor: database, files, Auth user, mail, completion; a failure names i
   assert.deepEqual(ok.log[3][2], { p_id: ID, p_confirmation_email_status: "not_configured", p_amocrm_erased: false });
 
   // amoCRM links: without the Admin's confirmation nothing past the database step runs.
-  const linked = { ...processed, summary: { remain: { amocrmContacts: 1 } } };
+  // An open item of «Проверить вручную»: the database refuses, nothing else runs.
+  const review = fakes({ processed, processError: { code: "55000", message: "account_deletion_review_unresolved" } });
+  assert.deepEqual(await runAccountDeletion(ID, null, review.services), { status: "failed", step: "review" });
+  assert.equal(review.log.length, 1);
+  const reviewLate = fakes({ processed, completeError: { code: "55000", message: "account_deletion_review_unresolved" } });
+  assert.deepEqual(await runAccountDeletion(ID, null, reviewLate.services), { status: "failed", step: "review" });
+
+  const linked = { ...processed, amocrmContacts: 1 };
   const unconfirmed = fakes({ processed: linked });
   assert.deepEqual(await runAccountDeletion(ID, null, unconfirmed.services), { status: "failed", step: "amocrm" });
   assert.deepEqual(unconfirmed.log.map((entry) => entry[0] === "rpc" ? entry[1] : entry[0]), ["process_account_deletion_v1"]);
@@ -195,6 +249,20 @@ test("wiring: settings section, applicant screens and service-role use stay wher
   assert.match(action, /isStaffPreview\(actor\)/u, "the role preview never deletes");
   assert.match(action, /ACCOUNT_DELETION_CONFIRM_WORD/u);
   assert.match(action, /"amocrm_erased"/u, "the amoCRM confirmation travels with the form");
+  // «Проверить вручную»: one narrow decision per item, the same preview guard.
+  assert.match(action, /export async function resolveAccountDeletionCandidateAction/u);
+  assert.match(action, /rpc\("resolve_account_deletion_candidate_v1"/u);
+  assert.equal(action.match(/isStaffPreview\(actor\)/gu)?.length, 2, "neither action runs in the role preview");
+  const section = source("src/components/v3/settings/AccountDeletionSection.tsx");
+  assert.match(section, /<AccountDeletionReview /u);
+  const review = source("src/components/v3/settings/AccountDeletionReview.tsx");
+  for (const word of ["Удалить этот чат", "Обезличить этого лида", "Обезличить этого клиента", "Не этот человек",
+    "Проверить вручную"]) {
+    assert.match(review, new RegExp(word, "u"), word);
+  }
+  assert.doesNotMatch(review, /[–—]/u);
+  const processForm = source("src/components/v3/settings/AccountDeletionProcess.tsx");
+  assert.match(processForm, /disabled=\{reviewOpen > 0\}/u, "the account cannot be deleted while an item is open");
   for (const page of ["src/app/apply/status/page.tsx", "src/app/apply/page.tsx", "src/app/auth/account-pending/page.tsx",
     "src/app/(portal)/portal/profile/page.tsx"]) {
     assert.match(source(page), /<AccountDeletionPanel/u, page);

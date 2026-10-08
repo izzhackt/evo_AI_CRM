@@ -11,14 +11,18 @@ import {
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
 
 import { AccountDeletionProcess } from "./AccountDeletionProcess";
+import { AccountDeletionReview } from "./AccountDeletionReview";
 
 /**
  * «Настройки» → «Запросы на удаление» (миграция 279, решение владельца 4).
  * Очередь: человек, когда попросил, срок (запрос + 30 дней; прошедший —
- * красным словом), состояние. Карточка запроса: что удалится, что останется
- * обезличенным и что этим действием не удаляется; затем одно разрушительное
- * действие с подтверждением словом. Адрес несёт выбор (`?request=`), поэтому
- * запрос можно переслать и вернуться к списку кнопкой браузера.
+ * красным словом), состояние. Карточка запроса: что удалится и что останется
+ * обезличенным (только собственные записи аккаунта, найденные по связям в
+ * базе), «Проверить вручную» (записи с его телефоном, email или паспортом,
+ * которые сами не меняются: решение по каждой), что этим действием не
+ * удаляется; затем одно разрушительное действие с подтверждением словом.
+ * Адрес несёт выбор (`?request=`), поэтому запрос можно переслать и
+ * вернуться к списку кнопкой браузера.
  */
 
 const KIND = { student: "Студент", applicant: "Анкета без одобрения" } as const;
@@ -28,7 +32,7 @@ const DELETE_WORDS: Readonly<Record<string, string>> = {
   documents: "Документы",
   files: "Файлы в хранилище",
   chatMessages: "Сообщения в кабинете",
-  whatsappChats: "Переписка WhatsApp с отделом продаж и данные ИИ",
+  whatsappChats: "Переписка WhatsApp, привязанная к его делу или лиду, и данные ИИ",
   notifications: "Уведомления",
   testAnswers: "Ответы на тесты и уроки",
   consultations: "Запросы консультаций",
@@ -42,11 +46,6 @@ const ANONYMIZE_WORDS: Readonly<Record<string, string>> = {
   paymentObligations: "Платежи по договору",
   payments: "Поступившие оплаты",
   salesRecords: "Строка в отчёте продаж",
-};
-const REMAIN_WORDS: Readonly<Record<string, string>> = {
-  amocrmContacts: "Контакт и сделка в amoCRM",
-  sharedClients: "Клиент, у которого есть дело другого человека",
-  phoneChats: "Переписка WhatsApp с его номера, которая может быть чужой",
 };
 
 const EMAIL_WORDS = {
@@ -70,6 +69,16 @@ function statusPill(row: AccountDeletionQueueRow) {
   if (row.status === "completed") return <Pill tone="ok">удалено</Pill>;
   if (row.status === "processing") return <Pill tone="warn">не завершено</Pill>;
   return <Pill tone="neutral">ждёт удаления</Pill>;
+}
+
+/** The amoCRM numbers the Admin deletes in amoCRM: «контакты 279, 2831 · сделки 2830». */
+function amocrmIdsText(d: AccountDeletionDetail): string | null {
+  const parts = [
+    d.amocrm.contactIds.length > 0 ? `контакты ${d.amocrm.contactIds.join(", ")}` : null,
+    d.amocrm.leadIds.length > 0 ? `сделки ${d.amocrm.leadIds.join(", ")}` : null,
+    d.amocrm.dispatchedCommands > 0 ? `команды, отправленные без ответа: ${d.amocrm.dispatchedCommands}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? `amoCRM: ${parts.join(" · ")}` : null;
 }
 
 function Day({ at }: Readonly<{ at: string }>) {
@@ -217,6 +226,8 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
   }
   const d: AccountDeletionDetail = read.detail;
   const due = dueText(d, now);
+  const kept = d.review.filter((item) => item.decision === "not_subject").length;
+  const amocrm = amocrmIdsText(d);
   return (
     <div className="flex flex-col gap-4" data-testid="v3-deletion-detail" data-status={d.status}>
       {back}
@@ -276,25 +287,28 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
           counts={d.counts.anonymize}
           testId="v3-deletion-anonymize"
         />
-        <div className="min-w-0">
-          <CountList
-            title="Не удаляется этим действием"
-            words={REMAIN_WORDS}
-            counts={d.counts.remain}
-            testId="v3-deletion-remain"
-          />
-          {Object.values(d.counts.remain).some((value) => value > 0) ? (
-            <p className="t-meta mt-2 text-fg-2">
-              Это не удаляется здесь: контакт и сделку удалите в amoCRM, переписку с его номера проверьте вручную,
-              данные другого человека остаются.
-            </p>
-          ) : null}
-        </div>
+        <section className="min-w-0" data-testid="v3-deletion-remain">
+          <h3 className="t-item text-fg">Не удаляется этим действием</h3>
+          <ul className="mt-1 flex flex-col">
+            <li className="t-body-compact flex items-baseline justify-between gap-3 border-b border-border py-1.5">
+              <span className="text-fg">Контакт и сделка в amoCRM</span>
+              <span className="tabular-nums text-fg-2">{d.amocrmContacts}</span>
+            </li>
+            <li className="t-body-compact flex items-baseline justify-between gap-3 border-b border-border py-1.5">
+              <span className="text-fg">Записи из проверки, отмеченные «Не этот человек»</span>
+              <span className="tabular-nums text-fg-2">{kept}</span>
+            </li>
+            <li className="t-body-compact py-1.5 text-fg">Записи других людей и резервные копии базы</li>
+          </ul>
+          {amocrm ? <p className="t-meta mt-2 text-fg-2" data-testid="v3-deletion-amocrm-ids">{amocrm}</p> : null}
+        </section>
       </div>
       <p className="t-meta max-w-[70ch] text-fg-2">
         Остаётся обезличенным: имя заменяется на «Удалённый пользователь · номер запроса»; телефон, email, заметки
         и номера документов удаляются; суммы, валюта, даты, услуга и номер договора сохраняются, как требует закон.
       </p>
+
+      <AccountDeletionReview requestRowId={d.id} items={d.review} open={d.reviewOpen} editable={d.status !== "completed"} />
 
       {d.status !== "completed" ? (
         <AccountDeletionProcess
@@ -303,6 +317,8 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
           displayName={d.displayName}
           retry={d.status === "processing"}
           amocrmContacts={d.amocrmContacts}
+          amocrmIds={amocrm}
+          reviewOpen={d.reviewOpen}
         />
       ) : null}
     </div>

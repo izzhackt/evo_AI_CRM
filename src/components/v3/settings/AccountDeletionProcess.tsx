@@ -15,6 +15,7 @@ const IDLE: AccountDeletionProcessState = { status: "idle", step: null, emailSta
 /** Что не получилось и что делать — словами шага, без кода ошибки. */
 const FAILED: Readonly<Record<NonNullable<AccountDeletionProcessState["step"]>, string>> = {
   process: "База не выполнила удаление, данные не изменены. Повторите.",
+  review: "В «Проверить вручную» есть записи без решения. Решите по каждой и повторите.",
   amocrm: "Строки базы удалены. Отметьте, что контакт и сделка в amoCRM удалены, и повторите удаление.",
   config: "На сервере не настроен ключ Supabase service role: файлы и вход удалить нельзя. Нужен технический специалист.",
   storage: "Строки базы удалены, но файлы не удалились. Повторите удаление.",
@@ -27,9 +28,11 @@ const FAILED: Readonly<Record<NonNullable<AccountDeletionProcessState["step"]>, 
  * раскрывает подтверждение тут же: что произойдёт и поле для слова
  * «удалить». «Удалить навсегда» активна только с этим словом. Ответ сервера
  * — честный: выполнено (страница перечитывается и показывает итог) или на
- * каком шаге остановилось; повтор безопасен. Если у человека есть контакт в
- * amoCRM (`amocrmContacts`), amoCRM чистит Admin вручную: без флажка
- * «Контакт и сделка в amoCRM удалены» кнопка неактивна, база тоже проверяет.
+ * каком шаге остановилось; повтор безопасен. Пока в «Проверить вручную» есть
+ * запись без решения (`reviewOpen`), начать нельзя: база тоже отказывает.
+ * Если у человека есть связи с amoCRM (`amocrmContacts`, номера в
+ * `amocrmIds`), amoCRM чистит Admin вручную: без флажка «Контакт и сделка в
+ * amoCRM удалены» кнопка неактивна, база тоже проверяет.
  */
 export function AccountDeletionProcess({
   requestRowId,
@@ -37,7 +40,17 @@ export function AccountDeletionProcess({
   displayName,
   retry,
   amocrmContacts,
-}: Readonly<{ requestRowId: string; requestedAt: string; displayName: string; retry: boolean; amocrmContacts: number }>) {
+  amocrmIds,
+  reviewOpen,
+}: Readonly<{
+  requestRowId: string;
+  requestedAt: string;
+  displayName: string;
+  retry: boolean;
+  amocrmContacts: number;
+  amocrmIds: string | null;
+  reviewOpen: number;
+}>) {
   const router = useRouter();
   const [state, action, pending] = useActionState(processAccountDeletionAction, IDLE);
   const [open, setOpen] = useState(false);
@@ -64,12 +77,18 @@ export function AccountDeletionProcess({
     return <p role="status" className="t-body-compact text-fg" data-testid="v3-deletion-done">Удалено. Обновляем карточку.</p>;
   }
 
-  if (!open) {
+  if (!open || reviewOpen > 0) {
     return (
       <div className="flex flex-col items-start gap-2">
-        <button ref={startRef} type="button" className={btnCls} onClick={() => setOpen(true)} data-testid="v3-deletion-start">
+        <button ref={startRef} type="button" className={btnCls} onClick={() => setOpen(true)} disabled={reviewOpen > 0}
+          aria-describedby={reviewOpen > 0 ? hintId : undefined} data-testid="v3-deletion-start">
           {retry ? "Повторить удаление" : "Удалить аккаунт и данные"}
         </button>
+        {reviewOpen > 0 ? (
+          <p id={hintId} className="t-body-compact text-fg-2" data-testid="v3-deletion-review-blocked">
+            Сначала решите по записям в «Проверить вручную»: без решения {reviewOpen}.
+          </p>
+        ) : null}
         {error ? <p role="alert" className="t-body-compact text-danger">{error}</p> : null}
       </div>
     );
@@ -87,8 +106,8 @@ export function AccountDeletionProcess({
       <input type="hidden" name="amocrm_erased" value={amocrmErased ? "1" : "0"} />
       <p className="t-section text-fg">Удалить аккаунт «{displayName}»?</p>
       <p id={hintId} className="t-body-compact text-fg-2">
-        Отменить нельзя. Вход в аккаунт, файлы и личные данные удаляются сразу, договор и оплаты остаются обезличенными.
-        Чтобы подтвердить, введите слово «удалить».
+        Отменить нельзя. Вход в аккаунт, его файлы и записи удаляются сразу, договор и оплаты остаются обезличенными.
+        Записи других людей не меняются. Чтобы подтвердить, введите слово «удалить».
       </p>
       <div>
         <label htmlFor={inputId} className="t-label block text-fg">Слово для подтверждения</label>
@@ -122,6 +141,7 @@ export function AccountDeletionProcess({
           <label htmlFor={amocrmId} className="t-body-compact text-fg">
             Контакт и сделка в amoCRM удалены
             <span className="block text-fg-2">amoCRM не связана с удалением в CRM: удалите их в amoCRM сами.</span>
+            {amocrmIds ? <span className="block text-fg-2">{amocrmIds}</span> : null}
           </label>
         </div>
       ) : null}

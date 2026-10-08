@@ -129,9 +129,9 @@ export function normalizeAiMemoryView(value: unknown): AiMemoryView {
 export const AI_MEMORY_COPY = Object.freeze({
   title: "Что ИИ знает о клиенте",
   off: "Память о клиенте выключена.",
-  enable: "Включить",
-  paused: "Память на паузе: без согласия на Gemini сводка и интерес не собираются.",
-  pausedInactive: "Память на паузе: сводка и интерес не собираются.",
+  // Окно ИИ в чате (08.10, «давай без этого»): ни «Включить», ни согласия на
+  // Gemini — память включают и согласие записывают в разделе «ИИ-агент».
+  paused: "Память на паузе: сводка и интерес не собираются.",
   short: "ИИ видит всю переписку — сводка не нужна.",
   waiting: "Сводка появится, когда переписка станет длиннее.",
   due: "Сводки пока нет — ИИ соберёт её сам.",
@@ -178,14 +178,6 @@ export function aiMemoryState(view: AiMemoryView): AiMemoryState {
 export function aiMemorySummaryState(state: AiMemoryState): string | null {
   return state === "due" ? AI_MEMORY_COPY.due : state === "waiting" ? AI_MEMORY_COPY.waiting
     : state === "short" ? AI_MEMORY_COPY.short : null;
-}
-
-/**
- * Пауза словами (защитное состояние, см. `aiMemoryState`): нет согласия — так
- * и сказано; иначе (организация не активна) — без причины.
- */
-export function aiMemoryPausedText(view: AiMemoryView): string {
-  return view.consentRecorded ? AI_MEMORY_COPY.pausedInactive : AI_MEMORY_COPY.paused;
 }
 
 /** Строка «Интерес» без интереса: ждёт ли ИИ своей оценки или сообщения клиента. */
@@ -242,9 +234,6 @@ export function aiMemoryMeta(memory: AiClientMemory, now: Date = new Date()): st
   const covered = memory.coveredCount > 0 ? `Сводка по ${aiMessagesDative(memory.coveredCount)}` : "Сводка";
   return updated ? `${covered} · обновлена ${updated}` : covered;
 }
-
-/** Куда ведёт «Включить» из окна: блок «Память о клиенте» в «Расходах». */
-export const AI_MEMORY_SETTINGS_HREF = "/v3/ai-agent?section=spend#ai-memory";
 
 // ------------------------------------------------------------------ section
 

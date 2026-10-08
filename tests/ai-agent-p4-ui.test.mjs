@@ -693,8 +693,10 @@ test("UI copy: the spec's Russian words, one red action, switch semantics, AI-wi
   assert.match(toggle, /if \(load\.kind === "hidden" \|\| load\.kind === "loading"\) return null;/u, "an org without the autoresponder shows nothing");
   const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
   const body = assistant.slice(assistant.indexOf('<div className="v3-ai-body">'));
+  // Окно «как в SoodaCloser» (08.10): автоответчик — полоса под памятью, внизу карточки, после ответа.
   assert.ok(body.indexOf("<InboxAiMemory conversationId={conversationId} />") < body.indexOf("<InboxAiAutosend conversationId={conversationId} />"));
-  assert.ok(body.indexOf("<InboxAiAutosend conversationId={conversationId} />") < body.indexOf('phase.kind === "loading"'));
+  assert.ok(body.indexOf('phase.kind === "loading"') < body.indexOf("<InboxAiAutosend conversationId={conversationId} />"));
+  assert.ok(body.indexOf('data-testid="v3-ai-sources"') < body.indexOf("<InboxAiAutosend conversationId={conversationId} />"));
   const inbox = read("src/components/v3/Inbox.tsx");
   assert.match(inbox, /open\.chat\.autoreplyAtNight \? \(/u);
   const page = read("src/app/(v3)/v3/ai-agent/page.tsx");

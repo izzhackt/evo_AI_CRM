@@ -13,10 +13,14 @@ import test from "node:test";
 
 import {
   AI_AGENT_SECTIONS,
+  AI_BLOCKED_CODES,
   AI_ERROR_COPY,
+  AI_WINDOW_UNAVAILABLE,
   aiAgentHref,
   aiErrorBlocked,
   aiErrorRetryable,
+  aiWindowErrorReason,
+  aiWindowUnavailable,
   answerWarnings,
   createSseDecoder,
   documentStatus,
@@ -457,7 +461,28 @@ test("honest copy for every state of the window (plan §6.8)", () => {
   assert.equal(AI_ERROR_COPY.gemini_billing, "Закончился оплаченный баланс Gemini. Пополните его в Google Cloud.");
   assert.equal(AI_ERROR_COPY.rate_limited, "Слишком много запросов. Подождите минуту.");
   assert.equal(AI_ERROR_COPY.agent_unavailable, "ИИ-агент сейчас недоступен.");
-  assert.equal(AI_ERROR_COPY.stale_answer, "Пришло новое сообщение — обновите ответ.");
+  assert.equal(AI_ERROR_COPY.stale_answer, "Переписка изменилась. Обновите ответ перед использованием.");
+});
+
+test("the chat window's unavailable states: one reason line, no consent, limit or spend pointers (owner, 08.10)", () => {
+  // «давай без этого»: окно не отправляет к согласию, лимиту и расходам — только причина.
+  assert.deepEqual(Object.keys(AI_WINDOW_UNAVAILABLE).sort(), ["ai_agent_off", "budget_exhausted", "consent_required", "forbidden",
+    "gemini_billing", "gemini_quota_day", "model_unpriced", "preview"]);
+  for (const code of AI_BLOCKED_CODES) assert.ok(aiWindowUnavailable(code), code);
+  for (const [code, text] of Object.entries(AI_WINDOW_UNAVAILABLE)) {
+    assert.doesNotMatch(text, /«|настройк|согласи|Google Cloud|поднять|пополните|администратор|раздел/iu, `${code}: ${text}`);
+    assert.equal(aiErrorRetryable(code), false, `${code} has no «Попробовать снова»`);
+  }
+  assert.equal(aiWindowUnavailable("budget_exhausted"), "Месячный лимит расходов на ИИ исчерпан.");
+  assert.equal(aiWindowUnavailable("gemini_billing"), "Закончился оплаченный баланс Gemini.");
+  assert.equal(aiWindowUnavailable("agent_unavailable"), null, "a transient failure keeps «Попробовать снова»");
+  assert.equal(aiWindowUnavailable("rate_limited"), null);
+  // Строка причины под «Не удалось подготовить ответ» не повторяет заголовок и «Повторите.».
+  assert.equal(aiWindowErrorReason("agent_unavailable"), "ИИ-агент сейчас недоступен.");
+  assert.equal(aiWindowErrorReason("rate_limited"), "Слишком много запросов. Подождите минуту.");
+  assert.equal(aiWindowErrorReason("unavailable"), null);
+  assert.equal(aiWindowErrorReason("invalid_request"), "Обновите страницу.");
+  assert.equal(aiWindowErrorReason("strange_code", "Текст агента"), "Текст агента");
 });
 
 test("an unpriced model is a blocked state of its own, not the exhausted budget", () => {
@@ -469,13 +494,13 @@ test("an unpriced model is a blocked state of its own, not the exhausted budget"
     { type: "error", code: "model_unpriced", message: "Модель без цены", status: 402 });
   assert.equal(aiErrorBlocked("model_unpriced"), true);
   assert.equal(aiErrorRetryable("model_unpriced"), false);
-  assert.equal(aiErrorBlocked("budget_exhausted"), false, "the budget stays an error with «Открыть «Расходы»»");
+  assert.equal(aiErrorBlocked("budget_exhausted"), false, "the section keeps the budget apart from admin-only blocks");
   assert.equal(aiErrorRetryable("budget_exhausted"), false);
   assert.equal(aiErrorRetryable("rate_limited"), true);
+  // В окне чата и то и другое — «Помощник сейчас недоступен» и строка причины, без ссылок (08.10).
   const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
-  assert.match(assistant, /if \(aiErrorBlocked\(code\)\) \{\n\s+setPhase\(\{ kind: "blocked", code \}\);/u);
-  assert.match(assistant, /\{phase\.code === "model_unpriced" \? \(\n[^\n]*\n\s+<Link href="\/v3\/ai-agent\?section=spend"/u);
-  assert.match(assistant, /\{phase\.code === "budget_exhausted" \? \(/u);
+  assert.match(assistant, /if \(aiErrorBlocked\(code\) \|\| aiWindowUnavailable\(code\) !== null\) \{\n\s+setPhase\(\{ kind: "blocked", code \}\);/u);
+  assert.match(assistant, /\{aiWindowUnavailable\(phase\.code\) \?\? aiErrorCopy\(phase\.code\)\}/u);
   assert.doesNotMatch(assistant, /ai_model_unpriced/u);
 });
 
@@ -546,14 +571,30 @@ test("the window never reaches the agent, inserts only stored text and never sen
   assert.match(assistant, /fetch\(`\/api\/v3\/ai-agent\/conversations\/\$\{conversationId\}\/answer`/u);
   assert.match(assistant, /fetch\(`\/api\/v3\/ai-agent\/answers\/\$\{answer\.answerId\}\/insert`/u);
   assert.doesNotMatch(assistant, /sendPlatformWhatsAppMessageAction|dangerouslySetInnerHTML/u);
-  assert.match(assistant, /onInsert\(body\.text\)/u, "the inserted text is the database's, not the streamed preview");
-  assert.match(assistant, /window\.localStorage\.setItem/u);
-  assert.match(assistant, /\} catch \{\n\s+\/\/ Позиция окна/u, "storage failures are tolerated");
+  // В поле уходит только текст базы — один вызов, с `body.text`; предпросмотр и
+  // оборванный поток (`partial`, без answerId) не вставляются.
+  assert.deepEqual([...assistant.matchAll(/onInsert\(([^)]*)\)/gu)].map((match) => match[1]), ["body.text"],
+    "the inserted text is the database's, not the streamed preview");
+  assert.doesNotMatch(assistant, /onInsert\([^)]*(?:preview|partial|written)/u);
+  // Окно привязано к капсуле (08.10): ни перетаскивания, ни сохранённой позиции.
+  assert.doesNotMatch(assistant, /localStorage|sessionStorage|evo-ai-window|setPointerCapture|onPointerMove|storageScope/u);
+  // «давай без этого»: ни ссылок на настройки, согласие, лимит и расходы — ни в
+  // самом окне, ни в памяти и автоответчике внутри его карточки.
+  for (const file of ["InboxAiAssistant.tsx", "InboxAiMemory.tsx", "InboxAiAutosend.tsx"]) {
+    assert.doesNotMatch(read(`src/components/v3/inbox/${file}`), /next\/link|<Link\b|href=|section=spend|["'`]\/v3\/ai-agent\b/u, file);
+  }
   assert.match(assistant, /event\.key === "Escape"/u);
   assert.match(assistant, /aria-label="Помочь с ответом — открыть помощника"/u);
+  assert.match(assistant, /role="dialog"\n\s+aria-modal="false"/u, "a non-modal dialog: the chat is not locked");
+  assert.match(assistant, /document\.addEventListener\("pointerdown", onPointerDown, true\)/u, "a click outside closes the card");
+  assert.match(assistant, /onInsert\(body\.text\);[\s\S]{0,600}collapse\(false\);/u, "inserting closes the card");
   const chat = read("src/components/v3/inbox/InboxChat.tsx");
   assert.match(chat, /appendChatDraft\(storeKey, text\);/u);
   assert.match(chat, /\{assistant && canSend \? \(/u);
+  assert.match(chat, /fieldHasText=\{store\.draft\.trim\(\) !== ""\}/u);
+  const element = chat.slice(chat.indexOf("<InboxAiAssistant"), chat.indexOf("/>", chat.indexOf("<InboxAiAssistant")));
+  assert.match(element, /onInsert=\{insertFromAssistant\}/u);
+  assert.doesNotMatch(element, /storageScope/u, "the window no longer gets a storage scope");
   const routes = read("src/lib/server/ai-agent-route-handlers.ts");
   assert.match(routes, /"Cache-Control": "no-cache, no-transform"/u);
   assert.match(routes, /"X-Accel-Buffering": "no"/u);

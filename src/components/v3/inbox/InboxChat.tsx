@@ -19,6 +19,7 @@ import {
   reconcilePlatformWhatsAppSendAction,
   sendPlatformWhatsAppMessageAction,
 } from "@/lib/platform-provider-actions";
+import type { V3InboxSort } from "@/lib/v3/inbox-href";
 import type { V3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import {
   AUTOREPLY_LABEL,
@@ -353,7 +354,7 @@ export function InboxChat({
   chat,
   listPulse,
   searchQuery,
-  waitingOnly,
+  sort,
   storageScope,
   replySnippets,
   mediaAttachmentContext,
@@ -365,7 +366,8 @@ export function InboxChat({
   chat: InboxChatData;
   listPulse: string | null;
   searchQuery: string | null;
-  waitingOnly: boolean;
+  /** «Сортировка» списка: опрос читает его первую страницу в том же порядке. */
+  sort: V3InboxSort;
   /** «организация:сотрудник» — черновики разных сотрудников не смешиваются. */
   storageScope: string;
   replySnippets: readonly ReplySnippetPickerItem[] | null;
@@ -437,7 +439,7 @@ export function InboxChat({
     listPulse,
     chatPulse: chat.pulse,
     query: searchQuery,
-    waitingOnly,
+    sort,
     busy: store.inFlight.length > 0,
   });
 

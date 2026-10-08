@@ -199,7 +199,7 @@ export function SalesOverview({
                 key={conversation.conversationId}
                 href={buildV3InboxHref({
                   conversationId: conversation.conversationId,
-                  filters: { query: null, waitingOnly: false },
+                  filters: { query: null, sort: "newest" },
                 })}
                 className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
               >

@@ -256,13 +256,24 @@ const deps = (overrides = {}) => ({
 test("pulse: signatures only, no-store, exact parameters, honest refusals", async () => {
   const calls = [];
   const handler = createPlatformInboxPulseHandler(deps({ readPulse: async (actor, options) => { calls.push(options); return { list: "aaaaaaaaaaaaaaaa", chat: null }; } }));
-  const ok = await handler(new Request(`https://crm.test/api/v3/inbox/pulse?list=1&q=%20Анна%20&waiting=1`));
+  const ok = await handler(new Request(`https://crm.test/api/v3/inbox/pulse?list=1&q=%20Анна%20&sort=unanswered`));
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("cache-control"), "no-store");
   assert.deepEqual(await ok.json(), { list: "aaaaaaaaaaaaaaaa", chat: null });
-  assert.deepEqual(calls, [{ conversationId: null, query: "Анна", waitingOnly: true, list: true }]);
+  // «Сортировка» (08.10.2026): the list is read in the order it is shown;
+  // no parameter is «Сначала новые»; a tab opened before the release still
+  // polls with `waiting=1` and reads «Неотвеченные», so it refreshes and the
+  // page moves it to `sort=unanswered`.
+  await handler(new Request(`https://crm.test/api/v3/inbox/pulse?list=1`));
+  await handler(new Request(`https://crm.test/api/v3/inbox/pulse?list=1&waiting=1`));
+  assert.deepEqual(calls, [
+    { conversationId: null, query: "Анна", sort: "unanswered", list: true },
+    { conversationId: null, query: null, sort: "newest", list: true },
+    { conversationId: null, query: null, sort: "unanswered", list: true },
+  ]);
 
-  for (const query of ["", "conversation=bad", "list=2", "list=1&list=1", "list=1&extra=1", `conversation=${ID(1)}&waiting=0`]) {
+  for (const query of ["", "conversation=bad", "list=2", "list=1&list=1", "list=1&extra=1", `conversation=${ID(1)}&waiting=0`,
+    "list=1&sort=newest", "list=1&sort=unanswered&sort=unanswered", "list=1&sort="]) {
     assert.equal((await handler(new Request(`https://crm.test/api/v3/inbox/pulse?${query}`))).status, 400, query);
   }
   for (const [status, code] of [["anonymous", 401], ["forbidden", 403], ["unavailable", 503]]) {

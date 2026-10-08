@@ -237,13 +237,14 @@ function inboxModule() {
     if (id === "@/components/v3/blocks/StatusChip") return { StageChip: () => null };
     if (id === "@/components/v3/inbox/InboxChat") return { InboxChat: () => null };
     if (id === "@/components/v3/inbox/InboxListPulse") return { InboxListPulse: () => null };
+    if (id === "@/components/v3/queue/FilterMenu") return { FilterMenu: function FilterMenu() { return null; } };
     return undefined;
   });
 }
 
 const EMPTY_VIEW = Object.freeze({
   conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
-  searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1",
+  searchQuery: null, sort: "newest", sortHrefs: { newest: "/v3/inbox", unanswered: "/v3/inbox?sort=unanswered" },
   channelState: "not_connected", listPulse: null,
 });
 
@@ -307,9 +308,10 @@ test("WhatsApp not connected: one honest state instead of «не подтвер�
 
   // Filters, older pages, existing conversations or another state keep the list.
   assert.equal(inboxNotConnected(EMPTY_VIEW), true);
+  // «Сортировка» orders chats, it does not hide them: no chat in either order.
+  assert.equal(inboxNotConnected({ ...EMPTY_VIEW, sort: "unanswered" }), true);
   for (const view of [
     { ...EMPTY_VIEW, searchQuery: "Имя" },
-    { ...EMPTY_VIEW, waitingOnly: true },
     { ...EMPTY_VIEW, queueNewestHref: "/v3/inbox" },
     { ...EMPTY_VIEW, channelState: "unknown" },
     { ...EMPTY_VIEW, channelState: "unavailable" },

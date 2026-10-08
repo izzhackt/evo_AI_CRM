@@ -122,19 +122,29 @@ export type PlatformConversationCursor = Readonly<{
   id: string;
 }>;
 
+/**
+ * Cursor of the conversation queue. In the «Неотвеченные» order (migration
+ * 279) it also carries the group of its row: `waiting` — the chat awaits our
+ * answer. In the default order it has none.
+ */
+export type PlatformConversationQueueCursor = PlatformConversationCursor &
+  Readonly<{ waiting?: boolean }>;
+
 export type PlatformPageSlice<T> = Readonly<{
   rows: readonly T[];
-  nextCursor: PlatformConversationCursor | null;
+  nextCursor: PlatformConversationQueueCursor | null;
   hasNext: boolean;
 }>;
 
 export type PlatformConversationPageOptions = Readonly<{
-  cursor?: PlatformConversationCursor | null;
+  cursor?: PlatformConversationQueueCursor | null;
   pageSize?: number;
   queue?: PlatformConversationQueue;
   status?: PlatformConversationStatus;
   query?: string;
   waitingOnly?: boolean;
+  /** «Неотвеченные» (279): chats awaiting our answer first, then the rest. */
+  unansweredFirst?: boolean;
 }>;
 
 export type PlatformMessagePageOptions = Readonly<{
@@ -831,6 +841,16 @@ export async function listPlatformConversations(
     const query = normalizeConversationQuery(options?.query);
     const waitingOnly = options?.waitingOnly ?? false;
     if (typeof waitingOnly !== "boolean") return invalidShape();
+    const unansweredFirst = options?.unansweredFirst ?? false;
+    if (typeof unansweredFirst !== "boolean") return invalidShape();
+    // The «Неотвеченные» cursor names its row's group; the default one never does.
+    if (
+      unansweredFirst
+        ? cursor !== null && typeof cursor.waiting !== "boolean"
+        : cursor?.waiting !== undefined
+    ) {
+      return invalidShape();
+    }
     const client = await getPlatformClient(dependencies.client);
     const response = await client.schema("platform").rpc(
       "staff_communication_page",
@@ -844,6 +864,9 @@ export async function listPlatformConversations(
         p_conversation_id: null,
         p_query: query,
         p_waiting_only: waitingOnly,
+        // Sent only in «Неотвеченные»: the default call is exactly 122's.
+        p_unanswered_first: unansweredFirst ? true : null,
+        p_before_waiting: unansweredFirst ? cursor?.waiting ?? null : null,
       }),
       { get: true },
     );
@@ -851,8 +874,9 @@ export async function listPlatformConversations(
     if (response.error) return invalidShape();
 
     // The RPC orders by the latest guarded conversation or persisted message,
-    // then id. Preserve that authoritative queue order rather than inventing a
-    // weaker client-side ordering.
+    // then id («Неотвеченные»: awaiting chats first). Preserve that
+    // authoritative queue order rather than inventing a weaker client-side
+    // ordering.
     if (!Array.isArray(response.data)) return invalidShape();
     const seenIds = new Set<string>();
     const normalized = response.data.map((raw) => {
@@ -861,7 +885,10 @@ export async function listPlatformConversations(
       const rowCursor = parsePlatformConversationCursor(row.sortAt, row.id);
       if (rowCursor === null || seenIds.has(row.id)) return invalidShape();
       seenIds.add(row.id);
-      return Object.freeze({ row, cursor: rowCursor });
+      const queueCursor: PlatformConversationQueueCursor = unansweredFirst
+        ? Object.freeze({ ...rowCursor, waiting: row.waitingSince !== null })
+        : rowCursor;
+      return Object.freeze({ row, cursor: queueCursor });
     });
     const hasNext = normalized.length > pageSize;
     const page = normalized.slice(0, pageSize);

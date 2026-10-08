@@ -237,7 +237,7 @@ const QUEUE_ROW = {
 // --- настоящие страницы с подменёнными чтениями -------------------------------------
 const NOT_CONNECTED_VIEW = Object.freeze({
   conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
-  searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState: "not_connected",
+  searchQuery: null, sort: "newest", sortHrefs: { newest: "/v3/inbox", unanswered: "/v3/inbox?sort=unanswered" }, channelState: "not_connected",
   listPulse: null,
 });
 
@@ -929,16 +929,27 @@ function waChat(overrides = {}) {
     ...overrides,
   };
 }
-function waView({ selected = true, chat = {}, row = 0, channelState = "ready" } = {}) {
+// «Сортировка» (решение владельца 08.10.2026): ещё три чата ждут ответа. В
+// «Сначала новые» они идут по времени вперемешку с отвеченными; в
+// «Неотвеченные» — сначала все ждущие (свежие выше), затем остальные.
+const WA_SORT_EXTRA = {
+  first: waRow(11, "Айдана Тестова", "+996 ••• 41 22 10", "06.10 13:52", "06.10 13:52", "8 мин"),
+  morning: waRow(12, "WhatsApp", "+996 ••• 77 03 58", "06.10 10:15", "06.10 09:58", "4 ч"),
+  yesterday: waRow(13, "Бекзат Пробный", "+7 ••• 61 18 09", "05.10 17:20", "05.10 17:20", "20 ч"),
+};
+const WA_SORT_NEWEST = [WA_SORT_EXTRA.first, WA_ROWS[0], WA_ROWS[1], WA_SORT_EXTRA.morning, WA_ROWS[2], WA_ROWS[3],
+  WA_SORT_EXTRA.yesterday, ...WA_ROWS.slice(4)];
+const WA_SORT_UNANSWERED = [...WA_SORT_NEWEST.filter((row) => row.waitingSince), ...WA_SORT_NEWEST.filter((row) => !row.waitingSince)];
+function waView({ selected = true, chat = {}, row = 0, channelState = "ready", sort = "newest", rows = WA_ROWS } = {}) {
   return {
-    conversations: WA_ROWS,
+    conversations: rows,
     selected: selected ? {
-      ...WA_ROWS[row], channelState,
+      ...rows[row], channelState,
       canonicalContext: { leadId: "ffffffff-6666-4666-8666-000000000700", clientId: "ffffffff-6666-4666-8666-000000000701", studentCaseId: null },
       chat: waChat(chat),
     } : null,
     queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: "/v3/inbox?before_at=x&before_id=y",
-    searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState,
+    searchQuery: null, sort, sortHrefs: { newest: "/v3/inbox", unanswered: "/v3/inbox?sort=unanswered" }, channelState,
     listPulse: "0000000000000002",
   };
 }
@@ -955,6 +966,12 @@ const WA_SCENARIOS = {
   },
   "read-only": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1440"], inbox: waView({ chat: { replyAccess: "no_permission", attempts: [] } }) },
   "attention": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1440"], inbox: waView({ channelState: "attention", chat: { replyAccess: "attention", attempts: [] } }) },
+  // «Сортировка»: тот же список в обоих порядках (снимки меню — ниже).
+  "sort-newest": { actor: "sales", search: {}, viewports: ["1440", "390"], inbox: waView({ selected: false, rows: WA_SORT_NEWEST }) },
+  "sort-unanswered": { actor: "sales", search: { sort: "unanswered" }, viewports: ["1440", "390"],
+    inbox: waView({ selected: false, rows: WA_SORT_UNANSWERED, sort: "unanswered" }) },
+  "sort-unanswered-chat": { actor: "sales", search: { sort: "unanswered", conversation: WA_CONVERSATION }, viewports: ["1440"],
+    inbox: waView({ row: 1, rows: WA_SORT_UNANSWERED, sort: "unanswered" }) },
 };
 
 async function buildWhatsAppPage(name) {
@@ -1004,6 +1021,12 @@ function whatsappMetrics() {
     unavailable: document.querySelector('[data-testid="v3-inbox-reply-unavailable"]')?.textContent.trim() ?? null,
     popover: (() => { const open = document.querySelector("[popover]:popover-open"); if (!open) return null; const box = open.getBoundingClientRect();
       return { label: open.getAttribute("aria-label"), inViewport: box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth }; })(),
+    listNames: [...document.querySelectorAll('[data-testid="v3-inbox-row"] .t-item')].map((element) => element.textContent.trim()),
+    sortTrigger: document.querySelector('[data-testid="v3-inbox-sort"] button')?.textContent.trim() ?? null,
+    sortOptions: [...document.querySelectorAll('[data-testid="v3-inbox-sort"] [popover] a')].map((element) => ({
+      text: element.textContent.trim(), current: element.getAttribute("aria-current"), checked: element.querySelector("svg") !== null,
+      height: Math.round(element.getBoundingClientRect().height) })),
+    focused: document.activeElement?.textContent.trim().slice(0, 40) ?? null,
   };
 }
 
@@ -1093,7 +1116,10 @@ async function whatsappScreenshots() {
           check(metrics.channelLine === "WhatsApp требует проверки", `${file}: channel warning ${metrics.channelLine}`);
         }
         if (viewportKey === "1440" || !WA_SCENARIOS[name].inbox.selected) {
-          check(JSON.stringify(metrics.listPhones) === JSON.stringify(WA_ROWS.map((row) => row.phone).filter(Boolean)), `${file}: list phones ${JSON.stringify(metrics.listPhones)}`);
+          const rows = WA_SCENARIOS[name].inbox.conversations;
+          check(JSON.stringify(metrics.listPhones) === JSON.stringify(rows.map((row) => row.phone).filter(Boolean)), `${file}: list phones ${JSON.stringify(metrics.listPhones)}`);
+          check(JSON.stringify(metrics.listNames) === JSON.stringify(rows.map((row) => row.person)), `${file}: list order ${JSON.stringify(metrics.listNames)}`);
+          check(metrics.sortTrigger === `Сортировка: ${WA_SCENARIOS[name].inbox.sort === "unanswered" ? "неотвеченные" : "сначала новые"}`, `${file}: sort trigger ${metrics.sortTrigger}`);
           check(new Set(metrics.listPhones).size === metrics.listPhones.length, `${file}: two chats read the same`);
         }
         if (WA_SCENARIOS[name].inbox.selected) {
@@ -1114,6 +1140,40 @@ async function whatsappScreenshots() {
             `${file}: list selection ${metrics.selectedRow} ${metrics.selectedPhone}, waiting pill ${metrics.waitingPill}`);
         }
         if (name === "read-only") check(/Только просмотр/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
+        await close(session, file);
+      }
+    }
+
+    // «Сортировка» (08.10.2026): меню открыто в каждом порядке; галочка и
+    // aria-current — у выбранного, ссылки ведут на первую страницу; меню
+    // открывается и закрывается с клавиатуры и возвращает фокус на кнопку.
+    for (const [name, sort] of [["sort-newest", "newest"], ["sort-unanswered", "unanswered"], ["sort-unanswered-chat", "unanswered"]]) {
+      for (const viewportKey of WA_SCENARIOS[name].viewports) {
+        const file = `${name === "sort-unanswered-chat" ? "sort-menu-unanswered-chat" : `sort-menu-${sort}`}-${viewportKey}.png`;
+        const session = await open(name, viewportKey);
+        const { page } = session;
+        const trigger = page.locator('[data-testid="v3-inbox-sort"] button');
+        await trigger.focus();
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(150);
+        const metrics = await shot(session, file);
+        check(metrics.popover?.label === "Сортировка" && metrics.popover.inViewport, `${file}: menu ${JSON.stringify(metrics.popover)}`);
+        const expected = [
+          { text: "Сначала новые", current: sort === "newest" ? "true" : null, checked: sort === "newest" },
+          { text: "Неотвеченные", current: sort === "unanswered" ? "true" : null, checked: sort === "unanswered" },
+        ];
+        check(JSON.stringify(metrics.sortOptions.map(({ text, current, checked }) => ({ text, current, checked }))) === JSON.stringify(expected),
+          `${file}: options ${JSON.stringify(metrics.sortOptions)}`);
+        check(metrics.sortOptions.every((option) => option.height >= 44), `${file}: option targets ${JSON.stringify(metrics.sortOptions.map((option) => option.height))}`);
+        // Tab — в меню, к первому пункту; Esc — закрыть и вернуть фокус на кнопку.
+        await page.keyboard.press("Tab");
+        const inMenu = await page.evaluate(() => ({ text: document.activeElement?.textContent.trim(), inPopover: Boolean(document.activeElement?.closest("[popover]")) }));
+        check(inMenu.inPopover && inMenu.text === "Сначала новые", `${file}: Tab ${JSON.stringify(inMenu)}`);
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(100);
+        const after = await page.evaluate(() => ({ open: document.querySelector("[popover]:popover-open") !== null,
+          onTrigger: document.activeElement === document.querySelector('[data-testid="v3-inbox-sort"] button') }));
+        check(!after.open && after.onTrigger, `${file}: Escape ${JSON.stringify(after)}`);
         await close(session, file);
       }
     }

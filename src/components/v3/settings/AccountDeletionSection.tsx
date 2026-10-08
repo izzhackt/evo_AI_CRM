@@ -7,46 +7,65 @@ import {
   accountDeletionDaysLeft,
   type AccountDeletionDetail,
   type AccountDeletionQueueRow,
+  type AccountDeletionReason,
 } from "@/lib/account-deletion-contract";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
 
+import { AccountDeletionManualDone } from "./AccountDeletionManualDone";
 import { AccountDeletionProcess } from "./AccountDeletionProcess";
-import { AccountDeletionReview } from "./AccountDeletionReview";
 
 /**
- * «Настройки» → «Запросы на удаление» (миграция 279, решение владельца 4).
+ * «Настройки» → «Запросы на удаление» (миграция 279, упрощение для 1.0).
  * Очередь: человек, когда попросил, срок (запрос + 30 дней; прошедший —
- * красным словом), состояние. Карточка запроса: что удалится и что останется
- * обезличенным (только собственные записи аккаунта, найденные по связям в
- * базе), «Проверить вручную» (записи с его телефоном, email или паспортом,
- * которые сами не меняются: решение по каждой), что этим действием не
- * удаляется; затем одно разрушительное действие с подтверждением словом.
+ * красным словом), состояние и как обрабатывается. Карточка запроса:
+ *  - автоматически (простой аккаунт): что удалится, одно действие с
+ *    подтверждением словом «удалить»;
+ *  - «Ручная обработка» (всё остальное): почему, список того, что команда
+ *    удаляет или обезличивает (docs/runbooks/account-deletion.md), и
+ *    «Отметить выполненным» с заметкой и словом «выполнено».
  * Адрес несёт выбор (`?request=`), поэтому запрос можно переслать и
  * вернуться к списку кнопкой браузера.
  */
 
 const KIND = { student: "Студент", applicant: "Анкета без одобрения" } as const;
 
-const DELETE_WORDS: Readonly<Record<string, string>> = {
-  applications: "Анкета",
-  documents: "Документы",
-  files: "Файлы в хранилище",
-  chatMessages: "Сообщения в кабинете",
-  whatsappChats: "Переписка WhatsApp, привязанная к его делу или лиду, и данные ИИ",
-  notifications: "Уведомления",
-  testAnswers: "Ответы на тесты и уроки",
+const COUNT_WORDS: Readonly<Record<keyof AccountDeletionDetail["counts"], string>> = {
+  application: "Анкета и её квитанции",
+  profile: "Профиль, доступ и согласия",
   consultations: "Запросы консультаций",
-  profileFacts: "Данные профиля: паспорт, контакты, родители",
-  caseWork: "Задачи, заметки, заявки в вузы и виза",
+  favourites: "Избранные вузы",
+  tests: "Ответы на тесты и уроки",
+  journal: "Записи журнала о них",
 };
-const ANONYMIZE_WORDS: Readonly<Record<string, string>> = {
-  cases: "Дело",
-  clients: "Карточка клиента",
-  leads: "Лид, уходит в архив",
-  paymentObligations: "Платежи по договору",
-  payments: "Поступившие оплаты",
-  salesRecords: "Строка в отчёте продаж",
+
+const REASON_WORDS: Readonly<Record<AccountDeletionReason, string>> = {
+  staff: "это сотрудник",
+  case: "есть дело студента",
+  application_converted: "анкета одобрена, по ней создано дело",
+  lead: "есть лид",
+  client: "есть карточка клиента",
+  payment: "есть платежи или оплаты",
+  contract_file: "есть файл договора",
+  whatsapp: "есть переписка WhatsApp",
+  other_records: "есть другие записи, связанные с аккаунтом",
 };
+
+/** Что команда делает вручную (решение владельца 08.10.2026, инструкция docs/runbooks/account-deletion.md). */
+const CHECKLIST: readonly Readonly<{ what: string; who: string }>[] = [
+  { what: "Документы и файлы: строки документов, файлы в хранилище, выгрузки документов.", who: "технический администратор" },
+  { what: "Переписка: чат в кабинете, чаты WhatsApp с сообщениями и медиа, данные ИИ (память, черновики, ответы).", who: "технический администратор" },
+  { what: "Профиль студента, анкета, задачи, заметки, заявки в вузы, виза, тесты, уведомления, консультации, избранное.", who: "технический администратор" },
+  { what: "Лид и карточка клиента: удалить; если ими пользуется другой человек, убрать только данные этого человека.", who: "Admin решает, технический администратор выполняет" },
+  { what: "amoCRM: удалить контакт и сделку этого человека.", who: "Admin в amoCRM" },
+  { what: "Договор и оплаты: сохранить обезличенными. Имя, телефон, email и номера документов убрать; суммы, даты и номер договора оставить.", who: "технический администратор" },
+  { what: "Вход в аккаунт: удалить или отключить пользователя Supabase Auth, последним шагом.", who: "технический администратор" },
+];
+
+const LOGIN_WORDS = {
+  active: "Вход в аккаунт ещё работает.",
+  disabled: "Вход в аккаунт отключён.",
+  absent: "Вход в аккаунт удалён.",
+} as const;
 
 const EMAIL_WORDS = {
   sent: "письмо с подтверждением отправлено",
@@ -66,19 +85,14 @@ function dueText(row: AccountDeletionQueueRow, now: Date): Readonly<{ text: stri
 }
 
 function statusPill(row: AccountDeletionQueueRow) {
-  if (row.status === "completed") return <Pill tone="ok">удалено</Pill>;
+  if (row.status === "completed") return <Pill tone="ok">{row.mode === "manual" ? "выполнено" : "удалено"}</Pill>;
   if (row.status === "processing") return <Pill tone="warn">не завершено</Pill>;
   return <Pill tone="neutral">ждёт удаления</Pill>;
 }
 
-/** The amoCRM numbers the Admin deletes in amoCRM: «контакты 279, 2831 · сделки 2830». */
-function amocrmIdsText(d: AccountDeletionDetail): string | null {
-  const parts = [
-    d.amocrm.contactIds.length > 0 ? `контакты ${d.amocrm.contactIds.join(", ")}` : null,
-    d.amocrm.leadIds.length > 0 ? `сделки ${d.amocrm.leadIds.join(", ")}` : null,
-    d.amocrm.dispatchedCommands > 0 ? `команды, отправленные без ответа: ${d.amocrm.dispatchedCommands}` : null,
-  ].filter(Boolean);
-  return parts.length > 0 ? `amoCRM: ${parts.join(" · ")}` : null;
+function modeText(row: AccountDeletionQueueRow): string {
+  if (row.status === "completed") return row.mode === "manual" ? "вручную" : "автоматически";
+  return row.mode === "manual" ? "ручная обработка" : "автоматически";
 }
 
 function Day({ at }: Readonly<{ at: string }>) {
@@ -140,7 +154,8 @@ export function AccountDeletionSection({
             {rows.map((row) => {
               const due = dueText(row, now);
               return (
-                <tr key={row.id} role="row" data-request={row.id} data-status={row.status} data-overdue={row.overdue || undefined}
+                <tr key={row.id} role="row" data-request={row.id} data-status={row.status} data-mode={row.mode}
+                  data-overdue={row.overdue || undefined}
                   className={`${GRID} border-b border-border py-3 last:border-b-0 @min-[44rem]/deletions:py-2.5`}>
                   <th role="rowheader" scope="row" className="min-w-0 text-start">
                     <Link href={hrefFor(row.id)} className="t-item break-words text-fg underline underline-offset-4 hover:text-fg-2">
@@ -161,9 +176,10 @@ export function AccountDeletionSection({
                   </td>
                   <td role="cell" className="t-body-compact min-w-0">
                     {statusPill(row)}
-                    {row.status === "completed" && row.completedAt ? (
-                      <span className="t-meta block text-fg-2"><Day at={row.completedAt} /></span>
-                    ) : null}
+                    <span className="t-meta block text-fg-2">
+                      {modeText(row)}
+                      {row.status === "completed" && row.completedAt ? <>, <Day at={row.completedAt} /></> : null}
+                    </span>
                   </td>
                 </tr>
               );
@@ -175,29 +191,73 @@ export function AccountDeletionSection({
   );
 }
 
-function CountList({ title, words, counts, testId, zeroHidden = true }: Readonly<{
-  title: string;
-  words: Readonly<Record<string, string>>;
-  counts: Readonly<Record<string, number>>;
-  testId: string;
-  zeroHidden?: boolean;
-}>) {
-  const items = Object.entries(words).filter(([key]) => !zeroHidden || (counts[key] ?? 0) > 0);
+function AutomaticPlan({ d }: Readonly<{ d: AccountDeletionDetail }>) {
+  const items = Object.entries(COUNT_WORDS).filter(([key]) => d.counts[key as keyof typeof COUNT_WORDS] > 0);
   return (
-    <section className="min-w-0" data-testid={testId}>
-      <h3 className="t-item text-fg">{title}</h3>
-      {items.length === 0 ? (
-        <p className="t-body-compact mt-1 text-fg-2">Ничего</p>
-      ) : (
+    <div className="grid gap-4 rounded-card border border-border bg-surface px-4 py-4 md:grid-cols-2" data-testid="v3-deletion-automatic">
+      <section className="min-w-0" data-testid="v3-deletion-delete">
+        <h3 className="t-item text-fg">{d.status === "completed" ? "Удалено автоматически" : "Удалится автоматически"}</h3>
         <ul className="mt-1 flex flex-col">
-          {items.map(([key, word]) => (
+          <li className="t-body-compact border-b border-border py-1.5 text-fg">Вход в аккаунт, email и пароль, журнал входов</li>
+          {items.map(([key, label]) => (
             <li key={key} className="t-body-compact flex items-baseline justify-between gap-3 border-b border-border py-1.5 last:border-b-0">
-              <span className="text-fg">{word}</span>
-              <span className="tabular-nums text-fg-2">{counts[key] ?? 0}</span>
+              <span className="text-fg">{label}</span>
+              <span className="tabular-nums text-fg-2">{d.counts[key as keyof typeof COUNT_WORDS]}</span>
             </li>
           ))}
         </ul>
-      )}
+      </section>
+      <section className="min-w-0" data-testid="v3-deletion-remain">
+        <h3 className="t-item text-fg">Не меняется</h3>
+        <p className="t-body-compact mt-1 text-fg-2">
+          Записи других людей и всё, что не связано с аккаунтом в базе. У этого аккаунта нет дела, лида, клиента,
+          оплат, договора и переписки WhatsApp, поэтому удаление автоматическое. Резервные копии базы этим действием не
+          меняются.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function ManualPlan({ d }: Readonly<{ d: AccountDeletionDetail }>) {
+  const reasons = d.reasons.map((reason) => REASON_WORDS[reason]);
+  return (
+    <section className="flex flex-col gap-3 rounded-card border border-border bg-surface px-4 py-4" data-testid="v3-deletion-manual"
+      aria-labelledby="v3-deletion-manual-title">
+      <div>
+        <h3 id="v3-deletion-manual-title" className="t-item text-fg">Ручная обработка</h3>
+        {reasons.length > 0 ? (
+          <p className="t-body-compact mt-1 text-fg-2" data-testid="v3-deletion-reasons">
+            Автоматически удалить нельзя: {reasons.join("; ")}.
+          </p>
+        ) : null}
+        {d.otherTables.length > 0 ? (
+          <p className="t-meta mt-1 break-all text-fg-2" data-testid="v3-deletion-other-tables">
+            Для технического администратора, другие записи в таблицах: {d.otherTables.join(", ")}.
+          </p>
+        ) : null}
+      </div>
+      <div>
+        <p className="t-body-compact text-fg">
+          Команда удаляет или обезличивает по списку в течение 30 дней с даты запроса. Порядок и кто что делает: инструкция
+          «Удаление аккаунта вручную» (docs/runbooks/account-deletion.md). Многие пункты делает технический администратор
+          с доступом к базе: в CRM для них кнопок нет.
+        </p>
+        <ol className="mt-2 flex flex-col" data-testid="v3-deletion-checklist">
+          {CHECKLIST.map((item, index) => (
+            <li key={item.what} className="t-body-compact flex gap-2 border-b border-border py-1.5 last:border-b-0">
+              <span className="tabular-nums text-fg-2">{index + 1}.</span>
+              <span className="min-w-0">
+                <span className="text-fg">{item.what}</span>
+                <span className="t-meta block text-fg-2">{item.who}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <p className="t-body-compact text-fg" data-testid="v3-deletion-login" data-login={d.login}>
+        {LOGIN_WORDS[d.login]}
+      </p>
     </section>
   );
 }
@@ -226,10 +286,9 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
   }
   const d: AccountDeletionDetail = read.detail;
   const due = dueText(d, now);
-  const kept = d.review.filter((item) => item.decision === "not_subject").length;
-  const amocrm = amocrmIdsText(d);
+  const open = d.status !== "completed";
   return (
-    <div className="flex flex-col gap-4" data-testid="v3-deletion-detail" data-status={d.status}>
+    <div className="flex flex-col gap-4" data-testid="v3-deletion-detail" data-status={d.status} data-mode={d.mode}>
       {back}
       <header className="flex flex-col gap-1">
         <h3 className="t-record-title break-words text-fg">{d.displayName}</h3>
@@ -241,8 +300,8 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
             <dd className={d.overdue ? "font-medium text-danger" : "text-fg"}><Day at={d.dueAt} /></dd>
             <dd><Pill tone={due.tone}>{due.text}</Pill></dd>
           </div>
-          <div className="flex items-center gap-1.5"><dt className="text-fg-2">Состояние</dt><dd>{statusPill(d)}</dd></div>
-          {d.studentCaseId && d.status !== "completed" ? (
+          <div className="flex items-center gap-1.5"><dt className="text-fg-2">Состояние</dt><dd>{statusPill(d)}</dd><dd className="text-fg-2">{modeText(d)}</dd></div>
+          {d.studentCaseId && open ? (
             <div className="flex gap-1.5"><dt className="sr-only">Дело</dt><dd>
               <Link href={`/v3/profile?case=${d.studentCaseId}&tab=overview`} className="text-fg underline underline-offset-4 hover:text-fg-2">Открыть дело</Link>
             </dd></div>
@@ -253,73 +312,39 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
       {d.status === "completed" ? (
         <div role="status" className="flex items-start gap-2 rounded-card border border-border bg-surface px-4 py-3" data-testid="v3-deletion-result">
           <Icon name="circle-check" size={18} className="mt-0.5 shrink-0 text-ok" />
-          <p className="t-body-compact text-fg">
-            Аккаунт и личные данные удалены{d.completedAt ? <> <Day at={d.completedAt} /></> : null}
-            {d.completedBy ? `, выполнил(а) ${d.completedBy}` : ""}
-            {d.confirmationEmailStatus ? `; ${EMAIL_WORDS[d.confirmationEmailStatus]}` : ""}.
-          </p>
+          <div className="min-w-0">
+            <p className="t-body-compact text-fg">
+              {d.mode === "manual" ? "Отмечено выполненным вручную" : "Аккаунт и связанные с ним данные удалены автоматически"}
+              {d.completedAt ? <> <Day at={d.completedAt} /></> : null}
+              {d.completedBy ? `, выполнил(а) ${d.completedBy}` : ""}
+              {d.confirmationEmailStatus ? `; ${EMAIL_WORDS[d.confirmationEmailStatus]}` : "; статус письма не записан"}.
+            </p>
+            {d.manualNote ? (
+              <p className="t-body-compact mt-1 whitespace-pre-line break-words text-fg-2" data-testid="v3-deletion-note-shown">
+                Заметка: {d.manualNote}
+              </p>
+            ) : null}
+          </div>
         </div>
       ) : null}
       {d.status === "processing" ? (
         <div role="alert" className="flex items-start gap-2 rounded-card border border-border bg-surface px-4 py-3" data-testid="v3-deletion-incomplete">
           <Icon name="alert" size={18} className="mt-0.5 shrink-0 text-warn" />
           <p className="t-body-compact text-fg">
-            Удаление не завершено: строки базы удалены и обезличены
-            {d.pendingFiles > 0 ? `, но осталось файлов: ${d.pendingFiles}` : ""}
-            {d.authAccountExists ? `${d.pendingFiles > 0 ? " и" : ", но остался"} вход в аккаунт` : ""}. Повторите удаление.
+            Удаление не завершено: записи в базе удалены{d.login !== "absent" ? ", но вход в аккаунт ещё есть" : ""}. Повторите удаление.
           </p>
         </div>
       ) : null}
 
-      <div className="grid gap-4 rounded-card border border-border bg-surface px-4 py-4 @container md:grid-cols-3">
-        <div className="min-w-0">
-          <CountList
-            title={d.status === "completed" ? "Удалено" : "Удалится"}
-            words={DELETE_WORDS}
-            counts={d.counts.delete}
-            testId="v3-deletion-delete"
-          />
-          <p className="t-meta mt-2 text-fg-2">Всегда: вход в аккаунт, email и пароль, журнал входов Supabase.</p>
-        </div>
-        <CountList
-          title={d.status === "completed" ? "Осталось обезличенным" : "Останется обезличенным"}
-          words={ANONYMIZE_WORDS}
-          counts={d.counts.anonymize}
-          testId="v3-deletion-anonymize"
-        />
-        <section className="min-w-0" data-testid="v3-deletion-remain">
-          <h3 className="t-item text-fg">Не удаляется этим действием</h3>
-          <ul className="mt-1 flex flex-col">
-            <li className="t-body-compact flex items-baseline justify-between gap-3 border-b border-border py-1.5">
-              <span className="text-fg">Контакт и сделка в amoCRM</span>
-              <span className="tabular-nums text-fg-2">{d.amocrmContacts}</span>
-            </li>
-            <li className="t-body-compact flex items-baseline justify-between gap-3 border-b border-border py-1.5">
-              <span className="text-fg">Записи из проверки, отмеченные «Не этот человек»</span>
-              <span className="tabular-nums text-fg-2">{kept}</span>
-            </li>
-            <li className="t-body-compact py-1.5 text-fg">Записи других людей и резервные копии базы</li>
-          </ul>
-          {amocrm ? <p className="t-meta mt-2 text-fg-2" data-testid="v3-deletion-amocrm-ids">{amocrm}</p> : null}
-        </section>
-      </div>
-      <p className="t-meta max-w-[70ch] text-fg-2">
-        Остаётся обезличенным: имя заменяется на «Удалённый пользователь · номер запроса»; телефон, email, заметки
-        и номера документов удаляются; суммы, валюта, даты, услуга и номер договора сохраняются, как требует закон.
-      </p>
+      {d.mode === "automatic" ? <AutomaticPlan d={d} /> : open ? <ManualPlan d={d} /> : null}
 
-      <AccountDeletionReview requestRowId={d.id} items={d.review} open={d.reviewOpen} editable={d.status !== "completed"} />
-
-      {d.status !== "completed" ? (
-        <AccountDeletionProcess
-          requestRowId={d.id}
-          requestedAt={d.requestedAt}
-          displayName={d.displayName}
-          retry={d.status === "processing"}
-          amocrmContacts={d.amocrmContacts}
-          amocrmIds={amocrm}
-          reviewOpen={d.reviewOpen}
-        />
+      {open && d.mode === "automatic" ? (
+        <AccountDeletionProcess requestRowId={d.id} requestedAt={d.requestedAt} displayName={d.displayName}
+          retry={d.status === "processing"} />
+      ) : null}
+      {open && d.mode === "manual" ? (
+        <AccountDeletionManualDone requestRowId={d.id} requestedAt={d.requestedAt} displayName={d.displayName}
+          loginActive={d.login === "active"} />
       ) : null}
     </div>
   );

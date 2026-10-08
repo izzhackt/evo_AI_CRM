@@ -11,167 +11,448 @@
  */
 
 /*
- * Окно ИИ в чате продаж (план ИИ-агента §12.1, решение владельца Q7;
- * InboxAiAssistant.tsx). Лежит над лентой и не закрывает поле ответа.
- * Свёрнуто — капсула «Помочь с ответом» в правом нижнем углу ленты, точка —
- * состояние (ждёт, готовит, готово, требует внимания, ошибка). Раскрыто —
- * окно 23rem, перетаскивается в пределах ленты (`translate` из
- * --ai-x/--ai-y); лента уже 32rem — нижний лист во всю ширину ленты. Тень —
- * как у всплывающих элементов. Одно движение — раскрытие из угла капсулы, и
- * только при `prefers-reduced-motion: no-preference`.
+ * Окно ИИ в чате продаж (план ИИ-агента §12.1; решение владельца 08.10.2026 —
+ * окно «как в SoodaCloser»; InboxAiAssistant.tsx). Тёмное стекло цвета
+ * чернил (#202020) — тот же верхний слой, что `.v3-toast`. Свёрнуто — капсула
+ * «Помочь с ответом» с точкой состояния в правом нижнем углу ленты. Раскрыто —
+ * карточка растёт вверх из капсулы и привязана к ней (не перетаскивается):
+ * шириной min(25rem, лента − 24 px), от 120 px до 8 px под шапкой чата, не
+ * закрывает поле ответа. Красный остаётся только у «Отправить»; главное
+ * действие карточки — светлая кнопка с чернильным текстом.
+ *
+ * Токены окна — на `.v3-ai-area`; контраст посчитан на худшей подложке
+ * (чернила 92% поверх белого = #323232): --ai-fg 11.7:1, --ai-fg-2 7.5:1,
+ * --ai-fg-3 5.2:1, --ai-ok 7.5:1, --ai-warn 7.9:1, --ai-danger 6.5:1.
+ * --ai-rule (белый 12%) — только линии, никогда не под текстом. Внутри
+ * карточки токены мира переопределены этими значениями, поэтому память и
+ * автоответчик (`text-fg`, `text-danger`, `.v3-ai-link`) и полоса фокуса
+ * светлеют без своих правил. Общие с «Лабораторией» классы (`.v3-ai-flag`,
+ * `.v3-ai-mark`, `.v3-ai-source`, `.v3-ai-status`…) ниже остаются светлыми;
+ * тёмный вид — только внутри `.v3-ai-card`.
  */
 .v3-world .v3-ai-area {
   container: ai / inline-size;
-}
-.v3-world .v3-ai-capsule {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  padding: 0 14px 0 12px;
-  color: var(--text);
-  box-shadow: var(--shadow-lg);
-}
-.v3-world .v3-ai-capsule:hover {
-  background: var(--surface-2);
-}
-@container ai (max-width: 31.99rem) {
-  .v3-world .v3-ai-capsule[data-lifted] {
-    translate: 0 -56px;
-  }
-}
-.v3-world .v3-ai-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  background: var(--border-strong);
-}
-.v3-world .v3-ai-dot[data-tone="working"] {
-  background: var(--text);
-}
-.v3-world .v3-ai-dot[data-tone="ready"] {
-  background: var(--ok);
-}
-.v3-world .v3-ai-dot[data-tone="attention"] {
-  background: var(--warn);
-}
-.v3-world .v3-ai-dot[data-tone="error"] {
-  background: var(--danger);
+  --ai-fg: #f5f4f1;
+  --ai-fg-2: #c9c6bf;
+  --ai-fg-3: #a8a59e;
+  --ai-ok: #7fd8a4;
+  --ai-warn: #f2c46b;
+  --ai-danger: #ff9e94;
+  --ai-rule: rgb(255 255 255 / 0.12);
+  --ai-rim: rgb(255 255 255 / 0.16);
+  --ai-shadow: 0 18px 40px -16px rgb(20 20 19 / 0.5), 0 4px 12px -6px rgb(20 20 19 / 0.28);
 }
 
-.v3-world .v3-ai-window {
+/* Капсула: подпись не меняется, состояние — точка (и описание для читалки). */
+.v3-world .v3-ai-capsule {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
-  left: 8px;
+  right: 24px;
+  bottom: 12px;
+  display: inline-flex;
+  height: 46px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--ai-rim);
+  border-radius: 999px;
+  background: rgb(32 32 32 / 0.94);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  padding: 0 16px 0 14px;
+  color: var(--ai-fg);
+  box-shadow: var(--ai-shadow);
+}
+.v3-world .v3-ai-capsule:hover {
+  background: #202020;
+}
+.v3-world .v3-ai-spark {
+  color: var(--ai-fg);
+}
+/* Блик по краю — только при разрешённом движении (блок в конце файла). */
+.v3-world .v3-ai-sweep {
+  display: none;
+}
+@container ai (max-width: 31.99rem) {
+  .v3-world .v3-ai-capsule {
+    right: 12px;
+    height: 44px;
+  }
+  /* «Новые сообщения ↓» стоит по центру низа ленты: капсула поднимается над ней. */
+  .v3-world .v3-ai-capsule[data-lifted] {
+    bottom: 68px;
+  }
+}
+/* Точка 12 px: кольцо — ждёт, разомкнутое кольцо — готовит, зелёная — готово. */
+.v3-world .v3-ai-area .v3-ai-dot {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--ai-fg-3);
+  background: transparent;
+}
+.v3-world .v3-ai-area .v3-ai-dot[data-tone="working"] {
+  border-color: var(--ai-fg);
+  border-top-color: transparent;
+  background: transparent;
+}
+.v3-world .v3-ai-area .v3-ai-dot[data-tone="ready"] {
+  border-color: var(--ai-ok);
+  background: var(--ai-ok);
+  box-shadow: 0 0 0 3px rgb(127 216 164 / 0.22);
+}
+.v3-world .v3-ai-area .v3-ai-dot[data-tone="attention"] {
+  border-color: var(--ai-warn);
+  background: var(--ai-warn);
+}
+.v3-world .v3-ai-area .v3-ai-dot[data-tone="error"] {
+  border-color: var(--ai-danger);
+  background: var(--ai-danger);
+}
+
+/* Последнее сообщение ленты не прячется под капсулой. */
+.v3-world .v3-inbox-feed[data-ai-space] {
+  padding-bottom: 80px;
+}
+
+/* Карточка. */
+.v3-world .v3-ai-card {
+  --text: var(--ai-fg);
+  --text-2: var(--ai-fg-2);
+  --text-3: var(--ai-fg-3);
+  --ok: var(--ai-ok);
+  --warn: var(--ai-warn);
+  --danger: var(--ai-danger);
+  --border: var(--ai-rule);
+  --border-strong: rgb(255 255 255 / 0.24);
+  --control-edge: rgb(255 255 255 / 0.5);
+  --surface-2: rgb(255 255 255 / 0.08);
+  --bg: rgb(255 255 255 / 0.05);
+  --accent-weak: rgb(255 255 255 / 0.14);
+  --focus-ring: var(--ai-fg);
+  --focus-halo: rgb(245 244 241 / 0.18);
+  position: absolute;
+  right: 24px;
+  bottom: 12px;
   display: flex;
-  max-height: calc(100% - 16px);
+  width: min(25rem, calc(100% - 24px));
+  min-height: 120px;
+  max-height: calc(100% - 20px);
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ai-rim);
   border-radius: 10px;
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
-  transform-origin: bottom right;
+  background: rgb(32 32 32 / 0.92);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  color: var(--ai-fg);
+  color-scheme: dark;
+  box-shadow: var(--ai-shadow);
 }
-@container ai (min-width: 32rem) {
-  .v3-world .v3-ai-window {
-    right: 12px;
-    bottom: 12px;
-    left: auto;
-    width: 23rem;
-    max-height: min(34rem, calc(100% - 24px));
-    translate: var(--ai-x, 0px) var(--ai-y, 0px);
-  }
-  .v3-world .v3-ai-head {
-    cursor: grab;
-  }
-  .v3-world .v3-ai-window[data-dragging] .v3-ai-head {
-    cursor: grabbing;
-  }
+.v3-world .v3-ai-card ::selection {
+  background: rgb(245 244 241 / 0.3);
+  color: #ffffff;
+}
+.v3-world .v3-ai-card[data-closing] {
+  pointer-events: none;
 }
 .v3-world .v3-ai-head {
   display: flex;
-  min-height: 60px;
+  min-height: 56px;
   flex-shrink: 0;
   align-items: center;
-  gap: 2px;
-  border-bottom: 1px solid var(--border);
-  padding: 4px 4px 4px 4px;
-  touch-action: none;
-  user-select: none;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--ai-rule);
+  padding: 6px 6px 6px 24px;
 }
-.v3-world .v3-ai-head-text {
-  padding-inline-start: 6px;
-}
-.v3-world :is(.v3-ai-move, .v3-ai-icon-button) {
+.v3-world .v3-ai-close {
   display: inline-flex;
   width: 44px;
   height: 44px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  color: var(--text-2);
+  border-radius: 8px;
+  color: var(--ai-fg-2);
 }
-.v3-world :is(.v3-ai-move, .v3-ai-icon-button):hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-.v3-world .v3-ai-move {
-  cursor: grab;
-}
-/* Нижний лист узкой ленты не перетаскивается: ручки нет. */
-@container ai (max-width: 31.99rem) {
-  .v3-world .v3-ai-head .v3-ai-move {
-    display: none;
-  }
-  .v3-world .v3-ai-head .v3-ai-head-text {
-    padding-inline-start: 12px;
-  }
-}
-.v3-world .v3-ai-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-2);
-}
-/* Последнее сообщение ленты не прячется под капсулой. */
-.v3-world .v3-inbox-feed[data-ai-space] {
-  padding-bottom: 68px;
+.v3-world .v3-ai-close:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--ai-fg);
 }
 .v3-world .v3-ai-body {
   min-height: 0;
   flex: 1 1 auto;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px 16px 16px;
+  padding: 20px 24px 24px;
+  scrollbar-color: rgb(255 255 255 / 0.28) transparent;
+  scrollbar-width: thin;
 }
-.v3-world .v3-ai-foot {
+.v3-world .v3-ai-lead {
   display: flex;
-  flex-shrink: 0;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 16px;
+}
+/* Разделы — волосяной линией, без вложенных карточек. */
+.v3-world .v3-ai-section {
+  margin-top: 20px;
+  border-top: 1px solid var(--ai-rule);
+  padding-top: 16px;
+}
+.v3-world .v3-ai-card .v3-ai-status {
+  display: flex;
   align-items: center;
-  gap: 4px 16px;
-  border-top: 1px solid var(--border);
-  padding: 10px 16px;
+  gap: 8px;
+  color: var(--ai-fg-2);
+  font-size: var(--type-label);
+  font-weight: 500;
+  line-height: var(--type-label-leading);
 }
-.v3-world .v3-ai-foot > p[data-tone="ok"] {
-  color: var(--ok);
+/* У пустых и недоступных состояний строка состояния — и заголовок. */
+.v3-world .v3-ai-card .v3-ai-status[data-kind="title"] {
+  color: var(--ai-fg);
+  font-size: var(--type-section);
+  font-weight: 600;
+  line-height: var(--type-section-leading);
 }
-.v3-world .v3-ai-foot > p[data-tone="warn"] {
-  color: var(--warn);
+.v3-world .v3-ai-card .v3-ai-status[data-tone="warn"] {
+  color: var(--ai-warn);
 }
-.v3-world .v3-ai-foot > p[data-tone="danger"] {
-  color: var(--danger);
+.v3-world .v3-ai-card .v3-ai-status[data-tone="danger"] {
+  color: var(--ai-danger);
+}
+/* Ответ 16 px: тусклый, пока пишется; яркий, когда готов; устаревший и недописанный — тусклее. */
+.v3-world .v3-ai-reply {
+  color: var(--ai-fg);
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.v3-world .v3-ai-reply[data-state="streaming"] {
+  color: var(--ai-fg-2);
+}
+.v3-world .v3-ai-reply:is([data-state="stale"], [data-state="partial"]) {
+  color: var(--ai-fg-3);
+}
+.v3-world .v3-ai-skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-block: 6px 2px;
+}
+.v3-world .v3-ai-card .v3-ai-skeleton {
+  height: 12px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.1);
+}
+.v3-world .v3-ai-card .v3-ai-caret {
+  background: var(--ai-fg);
+}
+/*
+ * Номер источника в тексте — только у клиентских источников: кружок 18 px
+ * над строкой, цель 44 px — у ::after; открывает свою строку «Источников».
+ */
+.v3-world .v3-ai-card .v3-ai-mark {
+  position: relative;
+  min-width: 18px;
+  height: 18px;
+  margin-inline: 3px 1px;
+  border: 1px solid var(--ai-fg-3);
+  border-radius: 999px;
+  background: transparent;
+  padding: 0 4px;
+  color: var(--ai-fg);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  vertical-align: 0.35em;
+}
+.v3-world .v3-ai-card .v3-ai-mark::after {
+  position: absolute;
+  inset: -13px;
+  content: "";
+}
+.v3-world .v3-ai-card .v3-ai-mark:hover {
+  border-color: var(--ai-fg);
+  background: var(--ai-fg);
+  color: #202020;
+}
+/* Жёлтые предупреждения и строки ошибки — словом и знаком, без подложки. */
+.v3-world .v3-ai-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v3-world .v3-ai-card .v3-ai-flag {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  font-size: var(--type-body-compact);
+  line-height: var(--type-body-compact-leading);
+}
+.v3-world .v3-ai-card .v3-ai-flag[data-tone="warn"] {
+  color: var(--ai-warn);
+}
+.v3-world .v3-ai-card .v3-ai-flag[data-tone="danger"] {
+  color: var(--ai-danger);
+}
+/* Главное действие карточки — одна светлая кнопка во всю ширину. */
+.v3-world .v3-ai-primary {
+  display: inline-flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  background: var(--ai-fg);
+  padding: 0 16px;
+  color: #202020;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: var(--type-label-leading);
+}
+.v3-world .v3-ai-primary:hover:not([aria-disabled="true"]) {
+  background: #ffffff;
+}
+.v3-world .v3-ai-primary[aria-disabled="true"] {
+  cursor: not-allowed;
+  background: rgb(255 255 255 / 0.1);
+  color: var(--ai-fg-2);
+}
+/* «Источники»: номер, документ и место; строка раскрывается до точной цитаты. */
+.v3-world .v3-ai-sources {
+  display: flex;
+  flex-direction: column;
+  margin: 6px -8px 0;
+}
+.v3-world .v3-ai-card .v3-ai-source {
+  margin: 0;
+  border-radius: 8px;
+  padding: 0;
+}
+.v3-world .v3-ai-card .v3-ai-source[data-highlighted] {
+  background: rgb(255 255 255 / 0.06);
+}
+.v3-world .v3-ai-source-head {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 10px 8px;
+  text-align: start;
+}
+/* Наведение — только у мыши: на сенсорном экране подсветка не «залипает» после нажатия. */
+@media (hover: hover) {
+  .v3-world button.v3-ai-source-head:hover {
+    background: rgb(255 255 255 / 0.06);
+  }
+}
+.v3-world .v3-ai-source-title {
+  display: block;
+  color: var(--ai-fg);
+  overflow-wrap: anywhere;
+}
+.v3-world .v3-ai-source-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  margin-top: 2px;
+  color: var(--ai-fg-3);
+}
+.v3-world .v3-ai-source-meta > * + *::before {
+  margin-inline-end: 6px;
+  content: "·" / "";
+}
+.v3-world .v3-ai-flagword[data-tone="warn"] {
+  color: var(--ai-warn);
+}
+.v3-world .v3-ai-card .v3-ai-source-n {
+  min-width: 20px;
+  height: 20px;
+  border: 1px solid var(--ai-fg);
+  border-radius: 999px;
+  background: var(--ai-fg);
+  color: #202020;
+  line-height: 18px;
+  translate: none;
+}
+/* Внутренний документ: пустой номер и замок — клиенту не цитируется. */
+.v3-world .v3-ai-card .v3-ai-source-n[data-internal] {
+  border-color: var(--ai-fg-3);
+  background: transparent;
+  color: var(--ai-fg-2);
+}
+.v3-world :is(.v3-ai-source-lock, .v3-ai-source-chevron) {
+  margin-top: 2px;
+  color: var(--ai-fg-3);
+}
+.v3-world .v3-ai-source[data-open] .v3-ai-source-chevron {
+  rotate: 180deg;
+}
+.v3-world .v3-ai-source-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 0 8px 12px 38px;
+}
+.v3-world .v3-ai-card .v3-ai-quote {
+  margin: 0;
+  border-inline-start: 1px solid rgb(255 255 255 / 0.28);
+  padding-inline-start: 12px;
+  color: var(--ai-fg-2);
+}
+.v3-world .v3-ai-card .v3-ai-quote[data-clamped] {
+  -webkit-line-clamp: 7;
+}
+.v3-world .v3-ai-card .v3-ai-why.v3-ai-section {
+  padding-top: 6px;
+}
+.v3-world .v3-ai-why-body {
+  margin-top: 2px;
+  padding-inline-start: 20px;
+}
+.v3-world .v3-ai-refresh.v3-ai-section {
+  padding-top: 6px;
+}
+.v3-world .v3-ai-refresh .v3-ai-link {
+  gap: 6px;
+}
+.v3-world .v3-ai-card .v3-ai-button {
+  border-color: rgb(255 255 255 / 0.28);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ai-fg);
+}
+.v3-world .v3-ai-card .v3-ai-button:hover:not(:disabled, [aria-disabled="true"]) {
+  background: rgb(255 255 255 / 0.08);
+}
+/* Память и автоответчик — полосы во всю ширину карточки под ответом. */
+.v3-world .v3-ai-extras {
+  margin: 20px -24px 0;
+}
+.v3-world .v3-ai-extras:empty {
+  display: none;
+}
+@container ai (max-width: 31.99rem) {
+  .v3-world .v3-ai-card {
+    right: 12px;
+  }
+  .v3-world .v3-ai-head {
+    padding-inline-start: 20px;
+  }
+  .v3-world .v3-ai-body {
+    padding: 16px 20px 20px;
+  }
+  .v3-world .v3-ai-extras {
+    margin-inline: -20px;
+  }
 }
 .v3-world .v3-ai-button {
   display: inline-flex;
@@ -215,9 +496,40 @@
   color: var(--text-3);
   text-decoration-line: none;
 }
+
 /*
- * Номер источника в тексте ответа: строчная цель внутри предложения (WCAG
- * 2.5.8, исключение «inline»); 12 px — нижний предел шкалы.
+ * Общие с «Лабораторией» (AiLaboratory.tsx) классы ответа — светлый вид на
+ * листе раздела. В окне ИИ их перекрывают правила `.v3-ai-card` выше.
+ */
+.v3-world .v3-ai-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+.v3-world .v3-ai-dot[data-tone="working"] {
+  background: var(--text);
+}
+.v3-world .v3-ai-dot[data-tone="ready"] {
+  background: var(--ok);
+}
+.v3-world .v3-ai-dot[data-tone="attention"] {
+  background: var(--warn);
+}
+.v3-world .v3-ai-dot[data-tone="error"] {
+  background: var(--danger);
+}
+.v3-world .v3-ai-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+/*
+ * Номер источника в тексте: строчная цель внутри предложения (WCAG 2.5.8,
+ * исключение «inline»); 12 px — нижний предел шкалы.
  */
 .v3-world :is(.v3-ai-mark, .v3-ai-source-n) {
   display: inline-flex;
@@ -313,21 +625,20 @@
   background: currentColor;
 }
 /*
- * «Что ИИ знает о клиенте» (P3, план §9): полоса под шапкой окна во всю его
- * ширину, отделена волосяной линией; свёрнута — заголовок и интерес одной
- * строкой. Внутри — подписи `t-caption`, сводка до шести строк, подтверждение
- * «Забыть сводку» — плашкой цвета стола, как «Спросите клиента».
+ * «Что ИИ знает о клиенте» (P3, план §9): полоса карточки ИИ под ответом во
+ * всю её ширину, над ней — волосяная линия; свёрнута — заголовок и интерес
+ * одной строкой. Внутри — подписи `t-caption`, сводка до шести строк,
+ * подтверждение «Забыть сводку» — в строке за волосяной линией, без плашки.
  */
 .v3-world .v3-ai-memory {
-  margin: -12px -16px 12px;
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--ai-rule, var(--border));
 }
 .v3-world .v3-ai-memory-head {
   display: flex;
   min-height: 52px;
   align-items: center;
   gap: 8px;
-  padding: 6px 16px;
+  padding: 6px 24px;
   list-style: none;
 }
 .v3-world summary.v3-ai-memory-head {
@@ -353,7 +664,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 0 16px 12px 40px;
+  padding: 0 24px 16px 48px;
 }
 .v3-world .v3-ai-memory-summary[data-clamped] {
   display: -webkit-box;
@@ -372,25 +683,33 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  padding: 8px 12px 4px;
+  border-top: 1px solid var(--ai-rule, var(--border));
+  padding-top: 10px;
 }
 /*
- * «Автоответчик в этом чате» (P4): вторая полоса тела окна ИИ под памятью,
- * той же ширины и с той же волосяной линией. Переключатель — нейтральный
- * (включено — тёмная дорожка, как «выбрано»; красный остаётся «Отправить»),
- * цель 44 px; недоступный — токены поверхности, без opacity.
+ * «Автоответчик в этом чате» (P4): полоса под памятью, той же ширины и с той
+ * же волосяной линией. Переключатель нейтральный (включено — светлая дорожка
+ * с чернильным ползунком; красный остаётся «Отправить»), цель 44 px;
+ * недоступный — токены поверхности, без opacity.
  */
 .v3-world .v3-ai-autosend {
   display: flex;
   min-height: 52px;
   align-items: center;
   gap: 8px;
-  margin: -12px -16px 12px;
-  border-bottom: 1px solid var(--border);
-  padding: 4px 8px 4px 16px;
+  border-top: 1px solid var(--ai-rule, var(--border));
+  padding: 4px 12px 4px 24px;
+}
+@container ai (max-width: 31.99rem) {
+  .v3-world .v3-ai-memory-head {
+    padding-inline: 20px;
+  }
+  .v3-world .v3-ai-memory-body {
+    padding: 0 20px 16px 44px;
+  }
+  .v3-world .v3-ai-autosend {
+    padding-inline-start: 20px;
+  }
 }
 .v3-world .v3-switch {
   display: inline-flex;
@@ -421,8 +740,7 @@
   width: 16px;
   height: 16px;
   border-radius: 999px;
-  background: var(--surface);
-  box-shadow: 0 1px 2px rgb(32 32 32 / 0.25);
+  background: var(--text);
 }
 .v3-world .v3-switch[aria-checked="true"] .v3-switch-track {
   border-color: var(--text);
@@ -430,6 +748,7 @@
 }
 .v3-world .v3-switch[aria-checked="true"] .v3-switch-track::after {
   translate: 16px 0;
+  background: #202020;
 }
 .v3-world .v3-switch[aria-disabled="true"] {
   cursor: not-allowed;
@@ -794,22 +1113,73 @@
 }
 
 /*
- * Движение «ИИ-агента» — одним блоком и только когда система его разрешает:
- * подсветка по наведению, раскрытие окна из угла капсулы, сдвиг переключателя,
- * поворот стрелок, пульс «готовлю» и курсор потока.
+ * Движение «ИИ-агента» — одним блоком и только когда система его разрешает.
+ * Окно ИИ: карточка раскрывается из силуэта капсулы (clip-path, 300 мс; текст
+ * не масштабируется), сворачивается в неё за 200 мс, непрозрачность — 160 мс,
+ * содержимое проявляется за 180 мс через 50 мс, разделы — 200 мс; капсула
+ * приподнимается на 1 px и сжимается до 0.975, главная кнопка — до 0.97;
+ * один блик по краю капсулы (2,6 с), когда ответ готов при свёрнутом окне;
+ * вращение точки «готовит»; подкраска рамки поля после вставки (380 мс).
+ * Раздел: подсветка по наведению, сдвиг переключателя, поворот стрелок, пульс
+ * «готовлю» и курсор потока. При `reduce` всего этого нет, состояния те же.
  */
 @media (prefers-reduced-motion: no-preference) {
   .v3-world .v3-ai-capsule {
-    transition: background-color 150ms ease-out, translate 150ms ease-out;
+    transition: background-color 150ms ease-out, translate 150ms ease-out, scale 80ms ease-out, bottom 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .v3-world .v3-ai-capsule:hover {
+    translate: 0 -1px;
+  }
+  .v3-world .v3-ai-capsule:active {
+    scale: 0.975;
+    transition-duration: 150ms, 150ms, 80ms, 200ms;
+  }
+  .v3-world .v3-ai-sweep {
+    position: absolute;
+    inset: -1px;
+    display: block;
+    border-radius: inherit;
+    background: linear-gradient(100deg, transparent 35%, rgb(255 255 255 / 0.95) 50%, transparent 65%) no-repeat;
+    background-size: 300% 100%;
+    padding: 1px;
+    pointer-events: none;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    animation: v3-ai-sweep 2.6s cubic-bezier(0.4, 0, 0.2, 1) 1 both;
+  }
+  .v3-world .v3-ai-area .v3-ai-dot[data-tone="working"] {
+    animation: v3-ai-spin 0.9s linear infinite;
+  }
+  .v3-world .v3-ai-card {
+    animation: v3-ai-card-open 300ms cubic-bezier(0.16, 1, 0.3, 1), v3-ai-fade 160ms ease-out;
+  }
+  .v3-world .v3-ai-card[data-closing] {
+    animation: v3-ai-card-close 200ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  .v3-world .v3-ai-card > :is(.v3-ai-head, .v3-ai-body) {
+    animation: v3-ai-fade 180ms ease-out 50ms both;
+  }
+  .v3-world .v3-ai-primary {
+    transition: background-color 150ms ease-out, scale 80ms ease-out;
+  }
+  .v3-world .v3-ai-primary:active:not([aria-disabled="true"]) {
+    scale: 0.97;
+  }
+  .v3-world .v3-ai-card :is(.v3-ai-source-body, .v3-ai-why-body) {
+    animation: v3-ai-fade 200ms ease-out;
+  }
+  .v3-world .v3-ai-source-chevron {
+    transition: rotate 200ms ease-out;
+  }
+  .v3-world .v3-inbox-composer [data-ai-added] {
+    animation: v3-ai-added 380ms ease-out;
   }
   .v3-world .v3-ai-button {
     transition: background-color 150ms ease-out;
   }
   .v3-world .v3-ai-source {
     transition: background-color 200ms ease-out;
-  }
-  .v3-world .v3-ai-window {
-    animation: v3-ai-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .v3-world .v3-switch-track,
   .v3-world .v3-switch-track::after {
@@ -844,10 +1214,50 @@
     transition: background-color 150ms ease-out;
   }
 }
-@keyframes v3-ai-in {
+@keyframes v3-ai-card-open {
+  from {
+    clip-path: inset(calc(100% - 46px) 0 0 calc(100% - var(--ai-from-w, 13rem)) round 23px);
+  }
+  to {
+    clip-path: inset(0 round 10px);
+  }
+}
+@keyframes v3-ai-card-close {
+  to {
+    clip-path: inset(calc(100% - 46px) 0 0 calc(100% - var(--ai-from-w, 13rem)) round 23px);
+    opacity: 0;
+  }
+}
+@keyframes v3-ai-fade {
   from {
     opacity: 0;
-    scale: 0.96;
+  }
+}
+@keyframes v3-ai-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes v3-ai-sweep {
+  0% {
+    opacity: 0;
+    background-position: 100% 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    background-position: 0% 0;
+  }
+}
+@keyframes v3-ai-added {
+  from {
+    border-color: var(--text);
+    background-color: var(--accent-weak);
   }
 }
 @keyframes v3-ai-pulse {

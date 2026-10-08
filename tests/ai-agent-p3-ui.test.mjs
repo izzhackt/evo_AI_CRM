@@ -354,11 +354,20 @@ test("real proxy: GET and DELETE memory reach the session gate (401); near misse
 
 // ------------------------------------------------------------ UI source
 
-test("UI window: a collapsed «Что ИИ знает о клиенте» at the top of the body, read on open, never blocking the answer", () => {
+test("UI window: a collapsed «Что ИИ знает о клиенте» under the answer, read on open, never blocking the answer", () => {
   const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
   const body = assistant.slice(assistant.indexOf('<div className="v3-ai-body">'));
-  assert.ok(body.indexOf("<InboxAiMemory conversationId={conversationId} />") < body.indexOf('phase.kind === "loading"'),
-    "the memory block is the first thing in the window body");
+  // Окно «как в SoodaCloser» (08.10): ответ, «Стоит уточнить», «Источники», «Почему такой ответ», затем память.
+  const at = (needle) => { const index = body.indexOf(needle); assert.notEqual(index, -1, needle); return index; };
+  assert.ok(at('data-testid="v3-ai-answer"') < at("Стоит уточнить"));
+  assert.ok(at("Стоит уточнить") < at('data-testid="v3-ai-sources"'));
+  assert.ok(at('data-testid="v3-ai-sources"') < at("Почему такой ответ"));
+  assert.ok(at("Почему такой ответ") < at("<InboxAiMemory conversationId={conversationId} />"),
+    "the memory block follows the answer and its sources");
+  assert.ok(at("<InboxAiMemory conversationId={conversationId} />") < at("Обновить ответ\n"), "«Обновить ответ» closes the card");
+  // Память — в одном и том же месте дерева во всех состояниях, кроме недоступности: смена состояния её не перечитывает.
+  assert.match(body, /\{showExtras \? \(\n\s+<div className="v3-ai-extras">\n\s+<InboxAiMemory conversationId=\{conversationId\} \/>/u);
+  assert.match(assistant, /const showExtras = phase\.kind !== "blocked";/u);
   const memory = read("src/components/v3/inbox/InboxAiMemory.tsx");
   assert.match(memory, /<details className="v3-ai-memory"/u);
   assert.doesNotMatch(memory, /<details[^>]*\bopen\b/u, "collapsed by default");

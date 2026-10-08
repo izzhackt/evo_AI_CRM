@@ -60,6 +60,8 @@ import { useInboxPulse } from "./useInboxPulse";
 
 /** Часы ленты: «не ушло» и «итог неизвестен» зависят от времени, а не только от сервера. */
 const CLOCK_TICK_MS = 15_000;
+/** Подкраска рамки поля после «Добавить в поле ответа» окна ИИ. */
+const AI_ADDED_TINT_MS = 380;
 
 export type InboxChatData = Readonly<{
   messages: readonly InboxChatMessage[];
@@ -373,9 +375,10 @@ export function InboxChat({
   replySnippets: readonly ReplySnippetPickerItem[] | null;
   mediaAttachmentContext: V3InboxMediaAttachmentContext | null;
   /**
-   * Окно ИИ (план ИИ-агента §12.1): справа внизу ленты, свёрнуто по
-   * умолчанию. Лежит над лентой и не закрывает поле ответа; есть только там,
-   * где есть поле ответа. null — у сотрудника нет права ai.agent.use.
+   * Окно ИИ (план ИИ-агента §12.1): капсула справа внизу ленты, свёрнуто по
+   * умолчанию, карточка растёт из капсулы. Лежит над лентой и не закрывает
+   * поле ответа; есть только там, где есть поле ответа. null — у сотрудника
+   * нет права ai.agent.use.
    */
   assistant?: InboxAssistantConfig | null;
 }>) {
@@ -583,10 +586,21 @@ export function InboxChat({
     requestAnimationFrame(() => textarea.current?.focus());
   }
 
-  /** «Вставить в ответ» окна ИИ: к написанному, фокус — в поле, ничего не отправляется. */
+  /**
+   * «Добавить в поле ответа» окна ИИ: к написанному, фокус — в конец поля, рамка
+   * поля на 380 мс подкрашивается (ai-agent.css, только без reduced motion);
+   * ничего не отправляется.
+   */
+  const [aiAdded, setAiAdded] = useState(0);
+  useEffect(() => {
+    if (!aiAdded) return;
+    const timer = setTimeout(() => setAiAdded(0), AI_ADDED_TINT_MS);
+    return () => clearTimeout(timer);
+  }, [aiAdded]);
   const insertFromAssistant = useCallback((text: string) => {
     appendChatDraft(storeKey, text);
     setNotice(null);
+    setAiAdded((value) => value + 1);
     requestAnimationFrame(() => {
       const field = textarea.current;
       if (!field) return;
@@ -777,9 +791,9 @@ export function InboxChat({
           <InboxAiAssistant
             conversationId={conversationId}
             latestInboundMessageId={chat.latestInboundMessageId}
-            storageScope={storageScope}
             config={assistant}
             lifted={showJump}
+            fieldHasText={store.draft.trim() !== ""}
             onInsert={insertFromAssistant}
           />
         ) : null}
@@ -802,6 +816,7 @@ export function InboxChat({
           blocked={blocked}
           snippets={replySnippets}
           textareaRef={textarea}
+          aiAdded={aiAdded > 0}
         >
           {chat.replyAccess === "attention" ? (
             <p className="mb-2 flex items-center gap-1.5 t-body-compact text-warn">

@@ -3318,17 +3318,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_agent_p4.sql
   fi
-  # «Удаление аккаунта по запросу» (решения владельца 07.10.2026). Matched by
-  # name, not number, so a renumbering at merge keeps the hook. Accounts come
-  # through the real анкета path; the suite proves who may ask (student,
-  # applicant, account without an анкета; staff and anon refused), who may
-  # process (account.deletion.process, the system Admin only), idempotency,
-  # that completion waits for the Auth user and the Storage objects, that the
-  # Auth user can then be deleted, that contract and payment rows stay
-  # anonymized, that no email, phone, full name or passport number of an
-  # erased account is left in any text or JSON column, that another
-  # student's data stays, that the guard bypass ends with processing, and
-  # that every table naming a student case or membership is classified.
+  # «Удаление аккаунта по запросу» (решения владельца 07.10.2026, упрощение
+  # для 1.0 от 08.10.2026). Matched by name, not number, so a renumbering at
+  # merge keeps the hook. Accounts come through the real анкета path; the
+  # suite proves who may ask and who may process (the system Admin only),
+  # that processing a simple account changes no row outside its own
+  # foreign-key set (full md5 snapshot) and leaves none of it, that every
+  # non-simple kind is refused, the manual «Отметить выполненным» rules,
+  # idempotency, the one-transaction guard bypass and the timing on volume.
   if [[ "$(basename "$migration")" == *_platform_account_deletion.sql ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \

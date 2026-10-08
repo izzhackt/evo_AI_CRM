@@ -149,9 +149,13 @@ test("confirmation mail: text, transports and honest statuses", async () => {
   assert.doesNotMatch(text, /[–—]/u);
   // Exactly what is deleted and kept (addendum 08.10): the bound WhatsApp
   // correspondence, the reviewed records, other people's records, backups.
-  assert.match(text, /переписка WhatsApp, привязанная к вашей заявке/u);
+  assert.match(text, /переписка WhatsApp, связанная только с вашей заявкой/u);
+  assert.match(text, /переписку WhatsApp, связанную также с другими людьми, сотрудник проверил вручную/u);
   assert.match(text, /сотрудник проверил вручную/u);
-  assert.match(text, /Записи других людей, где упомянуты ваш телефон или email, не менялись\./u);
+  assert.match(text, /Записи других людей менялись только решением сотрудника\./u);
+  assert.match(text, /Из журнала действий по вашим записям убраны ваше имя, телефон, email и номер документа\./u);
+  assert.doesNotMatch(text, /не менялись|привязанная к вашей заявке/u);
+  assert.match(text, /арызыңызга гана байланышкан WhatsApp/u);
   assert.match(text, /Резервные копии базы этим действием не изменяются\./u);
   assert.match(text, /камдык көчүрмөлөрү/u);
 

@@ -67,7 +67,7 @@ const ERASE: Readonly<Record<AccountDeletionReviewKind, Readonly<{ action: strin
 const FAILED: Readonly<Record<Exclude<AccountDeletionReviewState["status"], "idle" | "done">, string>> = {
   failed: "Не получилось сохранить решение. Повторите.",
   gone: "Этой записи больше нет в списке. Обновите страницу.",
-  has_account: "У этого дела свой аккаунт студента: удалить его можно только по его собственному запросу.",
+  has_account: "На этом деле есть аккаунт студента или его анкета: удалить дело можно только по запросу этого аккаунта.",
   invalid: "Не получилось сохранить решение. Обновите страницу.",
   forbidden: "Решать может только администратор, не в режиме просмотра роли.",
 };
@@ -109,7 +109,7 @@ function factsLine(item: AccountDeletionReviewItem): string | null {
     if (typeof f.leads === "number") parts.push(`лидов: ${f.leads}`);
     if (typeof f.cases === "number") parts.push(`дел: ${f.cases}`);
   } else if (item.kind === "case") {
-    parts.push(f.hasAccount ? "есть свой аккаунт студента" : "кабинет без аккаунта студента");
+    parts.push(f.hasAccount ? "есть аккаунт студента или его анкета" : "кабинет без аккаунта и анкеты");
   }
   return parts.length > 0 ? parts.join(" · ") : null;
 }
@@ -238,7 +238,7 @@ function ReviewRow({ requestRowId, item, editable }: Readonly<{
         )
       ) : null}
       {editable && item.kind === "case" && !item.canErase && item.decision === null ? (
-        <p className="t-meta text-fg-2">У дела свой аккаунт студента: удалить его можно только по его собственному запросу.</p>
+        <p className="t-meta text-fg-2">На деле есть аккаунт студента или его анкета: удалить дело можно только по запросу этого аккаунта.</p>
       ) : null}
       {error ? <p role="alert" className="t-body-compact text-danger">{error}</p> : null}
     </li>

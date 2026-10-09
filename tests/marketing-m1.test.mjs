@@ -534,11 +534,14 @@ test("the leads table shows the plan columns, links the name to Lead 360 and nev
       contract_signed_on: null, paid: null, owner: null }),
   ], { total: 80, has_more: true, next_cursor: { created_at: "2026-09-20T05:30:00.5+00:00", id: second } }));
   const html = renderToStaticMarkup(createElement(MarketingLeadsTable, { initial: page, request: { from: FROM, to: TO, filters: parseMarketingLeadFilters({}) } }));
-  for (const head of ["Имя", "Телефон", "Пришёл", "Канал связи", "Откуда узнал", "Кампания", "Страница входа", "Этап", "Договор", "Оплата", "Ответственный"]) {
+  // Решение 10.10: время прихода — под именем, страница входа — под кампанией; поля те же, колонок девять.
+  for (const head of ["Имя и время", "Телефон", "Канал связи", "Откуда узнал", "Кампания и страница", "Этап", "Договор", "Оплата", "Ответственный"]) {
     assert.match(html, new RegExp(`<th scope="col"[^>]*>${head}</th>`, "u"), head);
   }
   assert.match(html, new RegExp(`href="/v3/profile\\?id=${LEAD}"[^>]*>Тест Синтетический</a>`, "u"));
-  assert.match(html, /Instagram — реклама · по метке/u);
+  assert.match(html, /data-channel="instagram_ads"[^>]*>[\s\S]*?Instagram — реклама<\/span><\/span><span class="block t-meta text-fg-2 pl-4">по метке<\/span>/u, "channel word, then its basis");
+  assert.match(html, /Лид без имени<\/a><span[^>]*>\d{2}\.\d{2}, \d{2}:\d{2}<\/span>/u, "arrival time under the name");
+  assert.doesNotMatch(html, /Не известно<\/span><\/span><span class="block t-meta[^"]*">не известно/u, "no «не известно» basis under «Не известно»");
   assert.match(html, /Лид без имени/u);
   assert.match(html, /Отказ/u);
   assert.match(html, /WhatsApp/u);

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Icon } from "@/components/icons";
 import { btnGhostCls } from "@/components/ui";
-import { LEAD_CHANNEL_AI_NOTE, leadChannelText } from "@/lib/lead-channel-contract";
+import { LEAD_CHANNEL_AI_NOTE, LEAD_CHANNEL_BASES, LEAD_CHANNELS } from "@/lib/lead-channel-contract";
 import type { MarketingCursor, MarketingLeadFilters, MarketingLeadRow, MarketingLeadsPage } from "@/lib/marketing-contract";
 import { formatBishkekMoment, formatIsoDay, formatMinor, stageWord } from "@/lib/marketing-view";
 import { loadMoreMarketingLeadsAction } from "@/lib/platform-marketing-actions";
@@ -24,18 +24,22 @@ function connectionWord(sourceKey: string): string {
 function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
   return (
     <tr className="border-b border-border" data-lead-id={row.leadId}>
-      <th scope="row" className={`${TD} min-w-32 text-left font-medium`}>
+      <th scope="row" className={`${TD} min-w-36 text-left font-medium`}>
         <Link href={`/v3/profile?id=${row.leadId}`} className="underline-offset-4 hover:underline">{row.name ?? "Лид без имени"}</Link>
+        <span className={`${META} font-normal tabular-nums`}>{formatBishkekMoment(row.createdAt)}</span>
       </th>
       <td className={`${TD} whitespace-nowrap tabular-nums`}>{row.phone ?? <span className="text-fg-2">—</span>}</td>
-      <td className={`${TD} whitespace-nowrap tabular-nums`}>{formatBishkekMoment(row.createdAt)}</td>
-      <td className={TD}>{connectionWord(row.sourceKey)}</td>
-      <td className={`${TD} min-w-40`}>
-        <ChannelLabel channel={row.channel}>{leadChannelText(row)}</ChannelLabel>
-        {row.aiAssistant ? <span className={`${META} pl-4`}>{LEAD_CHANNEL_AI_NOTE}</span> : null}
+      <td className={`${TD} min-w-24`}>{connectionWord(row.sourceKey)}</td>
+      <td className={`${TD} min-w-44`}>
+        <ChannelLabel channel={row.channel}>{LEAD_CHANNELS[row.channel]}</ChannelLabel>
+        {row.channel !== "unknown" || row.aiAssistant
+          ? <span className={`${META} pl-4`}>{[row.channel !== "unknown" ? LEAD_CHANNEL_BASES[row.basis] : null, row.aiAssistant ? LEAD_CHANNEL_AI_NOTE : null].filter(Boolean).join(" · ")}</span>
+          : null}
       </td>
-      <td className={`${TD} max-w-32 break-words`}>{row.campaign ?? <span className="text-fg-2">—</span>}</td>
-      <td className={`${TD} max-w-40 break-all`}>{row.landingPath ?? <span className="text-fg-2">—</span>}</td>
+      <td className={`${TD} max-w-40`}>
+        <span className="block break-words">{row.campaign ?? <span className="text-fg-2">—</span>}</span>
+        {row.landingPath ? <span className={`${META} break-all`}>{row.landingPath}</span> : null}
+      </td>
       <td className={`${TD} whitespace-nowrap`}>{stageWord(row.stage, row.lifecycleState, SALES_STAGE_TITLE)}</td>
       <td className={`${TD} whitespace-nowrap tabular-nums`}>
         {row.contractSignedOn ? formatIsoDay(row.contractSignedOn) : <span className="text-fg-2">—</span>}
@@ -94,17 +98,15 @@ export function MarketingLeadsTable({ initial, request }: Readonly<{
       </p>
       {rows.length === 0 ? <p className="mt-3 t-body-compact text-fg-2">За этот период заявок по фильтрам нет.</p> : (
         <div className="relative mt-2 overflow-x-auto">
-          <table className="min-w-[60rem] w-full border-collapse">
+          <table className="min-w-[56rem] w-full border-collapse">
             <caption className="sr-only">Заявки периода: кто пришёл, откуда и что с ними стало</caption>
             <thead>
               <tr className="border-b border-border">
-                <th scope="col" className={TH}>Имя</th>
+                <th scope="col" className={TH}>Имя и время</th>
                 <th scope="col" className={TH}>Телефон</th>
-                <th scope="col" className={TH}>Пришёл</th>
                 <th scope="col" className={TH}>Канал связи</th>
                 <th scope="col" className={TH}>Откуда узнал</th>
-                <th scope="col" className={TH}>Кампания</th>
-                <th scope="col" className={TH}>Страница входа</th>
+                <th scope="col" className={TH}>Кампания и страница</th>
                 <th scope="col" className={TH}>Этап</th>
                 <th scope="col" className={TH}>Договор</th>
                 <th scope="col" className={TH}>Оплата</th>

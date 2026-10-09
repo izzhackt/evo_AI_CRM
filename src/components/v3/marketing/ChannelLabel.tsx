@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { LeadChannel } from "@/lib/lead-channel-contract";
 
-export type ChannelKey = LeadChannel | "without_lead";
+export type ChannelKey = LeadChannel | "without_lead" | "cabinet";
 
 /**
  * Канал «Откуда узнал» — точка его цвета и слово (решение владельца 10.10.2026, `.v3-channel` в v3.css).

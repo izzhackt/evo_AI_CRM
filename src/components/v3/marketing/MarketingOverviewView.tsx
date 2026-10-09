@@ -2,7 +2,7 @@ import { LEAD_CHANNEL_AI_NOTE, LEAD_CHANNEL_BASES, LEAD_CHANNELS, type LeadChann
 import type { CohortChannelRow, MarketingOverview, MarketingOverviewRead, MoneyCount, SalesChannelRow } from "@/lib/marketing-contract";
 import { costPerLead, formatMinor, formatPerLead, MARKETING_MIN_FOR_SHARE, marketingSignals, shareText, unknownSource, type MarketingSignal } from "@/lib/marketing-view";
 import { Icon } from "@/components/icons";
-import { ChannelLabel, ShareMeter } from "./ChannelLabel";
+import { ChannelLabel, ShareMeter, type ChannelKey } from "./ChannelLabel";
 import { MarketingSpendPanel } from "./MarketingSpendPanel";
 
 const TH = "px-3 py-2 text-left t-caption font-medium text-fg-2";
@@ -12,6 +12,7 @@ const SECTION_TABLE = "min-w-[40rem] w-full border-collapse";
 
 const n = (value: number) => value.toLocaleString("ru-RU");
 const BLOCK = "border-t border-border pt-8";
+const LIST = new Intl.ListFormat("ru", { type: "conjunction" });
 const BASIS_ORDER: readonly LeadChannelBasis[] = ["utm", "referrer", "staff", "corrected", "unknown"];
 
 /** «не прочитано» — отдельное слово, никогда ноль. */
@@ -65,48 +66,53 @@ function CohortCells({ row }: Readonly<{ row: Pick<CohortChannelRow, "leads" | "
 }
 
 /**
- * «Откуда приходят заявки»: одна фраза о периоде, полоса долей каналов и подписи (решение владельца 10.10.2026).
- * Полоса и проценты — только от 10 заявок, как и доли в таблице; меньше — подписи с количествами. Цвет
- * подкрепляет слово, полоса скрыта от чтения с экрана — её данные стоят в подписях.
+ * «Откуда приходят заявки»: одна фраза о периоде, полоса состава заявок и подписи с количествами (решение
+ * владельца 10.10.2026). Процентов здесь нет: единственная доля неизвестных — строка «Источник не известен»
+ * под когортой (без анкет на платформе). Анкеты — отдельный нейтральный пункт, не «Не известно». Полоса —
+ * только от 10 заявок, как и доли в таблице; меньше — подписи с количествами. Полоса скрыта от чтения с
+ * экрана: её данные стоят в подписях.
  */
 function ChannelMix({ overview }: Readonly<{ overview: MarketingOverview }>) {
   const { cohort } = overview;
-  const rows = cohort.channels.filter((row) => row.leads > 0);
-  const withShare = cohort.total >= MARKETING_MIN_FOR_SHARE;
-  const named = rows.filter((row) => row.channel !== "unknown");
-  const top = named.reduce((best, row) => Math.max(best, row.leads), 0);
-  const leaders = named.filter((row) => row.leads === top);
-  const percent = (leads: number) => `${Math.round((leads * 100) / cohort.total)}\u00a0%`;
+  const { unknown } = unknownSource(overview);
+  type Part = Readonly<{ key: ChannelKey; title: string; leads: number }>;
+  const parts: readonly Part[] = ([
+    ...cohort.channels.filter((row) => row.channel !== "unknown")
+      .map((row): Part => ({ key: row.channel, title: LEAD_CHANNELS[row.channel], leads: row.leads })),
+    { key: "unknown", title: LEAD_CHANNELS.unknown, leads: unknown },
+    { key: "cabinet", title: "Анкеты на платформе", leads: cohort.cabinetForms },
+  ] satisfies Part[]).filter((part) => part.leads > 0);
+  const named = parts.filter((part) => part.key !== "unknown" && part.key !== "cabinet");
+  const top = named.reduce((best, part) => Math.max(best, part.leads), 0);
+  const leaders = named.filter((part) => part.leads === top);
   return (
     <section aria-labelledby="mk-mix" data-testid="marketing-mix">
       <h2 id="mk-mix" className="t-section text-fg">Откуда приходят заявки</h2>
       {cohort.total === 0 ? <p className="mt-1 t-body text-fg-2">За период заявок нет.</p> : (
         <>
-          <p className="mt-1 t-body text-fg">
-            За период — <span className="font-semibold tabular-nums">{requestsWord(cohort.total)}</span>, договор у{" "}
+          <p className="mt-1 t-body text-fg" data-testid="marketing-mix-summary">
+            За период — <span className="font-semibold tabular-nums">{requestsWord(cohort.total)}</span>; из них на сегодня договор у{" "}
             <span className="font-semibold tabular-nums">{n(cohort.totals.contract)}</span>, оплатили{" "}
             <span className="font-semibold tabular-nums">{n(cohort.totals.paid)}</span>.
-            {leaders.length > 0 && top > 0 ? (
+            {top > 0 ? (
               <span className="text-fg-2">
-                {" "}Больше всего — {leaders.map((row) => `«${LEAD_CHANNELS[row.channel]}»`).join(" и ")}: {leaders.length > 1 ? "по " : ""}<span className="tabular-nums">{n(top)}</span>.
+                {" "}Из известных каналов больше всего — {LIST.format(leaders.map((part) => `«${part.title}»`))}: {leaders.length > 1 ? "по " : ""}<span className="tabular-nums">{n(top)}</span>.
               </span>
             ) : null}
           </p>
-          {withShare ? (
-            <div className="v3-mix mt-4" aria-hidden="true">
-              {rows.map((row) => (
-                <span key={row.channel} className="v3-mix-seg" data-channel={row.channel}
-                  style={{ flexGrow: row.leads, flexBasis: 0 }} title={`${LEAD_CHANNELS[row.channel]}: ${shareText(row.leads, cohort.total)}`} />
+          {cohort.total >= MARKETING_MIN_FOR_SHARE ? (
+            <div className="v3-mix mt-4" aria-hidden="true" data-testid="marketing-mix-bar">
+              {parts.map((part) => (
+                <span key={part.key} className="v3-mix-seg" data-channel={part.key}
+                  style={{ flexGrow: part.leads, flexBasis: 0 }} title={`${part.title}: ${n(part.leads)}`} />
               ))}
             </div>
           ) : null}
           <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-2" aria-label="Заявки по каналам">
-            {rows.map((row) => (
-              <li key={row.channel} className="t-body-compact text-fg">
-                <ChannelLabel channel={row.channel} size="lg">
-                  {LEAD_CHANNELS[row.channel]}{" "}
-                  <span className="font-semibold tabular-nums">{n(row.leads)}</span>
-                  {withShare ? <span className="text-fg-2 tabular-nums"> · {percent(row.leads)}</span> : null}
+            {parts.map((part) => (
+              <li key={part.key} className="t-body-compact text-fg">
+                <ChannelLabel channel={part.key} size="lg">
+                  {part.title} <span className="font-semibold tabular-nums">{n(part.leads)}</span>
                 </ChannelLabel>
               </li>
             ))}
@@ -144,7 +150,7 @@ function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
               <tr key={row.channel} className="border-b border-border" data-channel={row.channel}>
                 <th scope="row" className={`${TD} text-left font-medium`}>
                   <ChannelLabel channel={row.channel}>{LEAD_CHANNELS[row.channel]}</ChannelLabel>
-                  {channelBasisLine(row, cohort.cabinetForms) ? <span className={`${META} pl-4 font-normal`}>{channelBasisLine(row, cohort.cabinetForms)}</span> : null}
+                  {channelBasisLine(row, cohort.cabinetForms) ? <span className={`${META} pl-4`}>{channelBasisLine(row, cohort.cabinetForms)}</span> : null}
                 </th>
                 <td className={TD}>{n(row.leads)}</td>
                 <CohortCells row={row} />

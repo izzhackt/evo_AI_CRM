@@ -722,6 +722,8 @@
 .v3-world[data-surface="staff"] [data-channel="referral"] { --channel: var(--channel-referral); }
 .v3-world[data-surface="staff"] [data-channel="other"] { --channel: var(--channel-other); }
 .v3-world[data-surface="staff"] :is([data-channel="unknown"], [data-channel="without_lead"]) { --channel: var(--channel-unknown); }
+/* Анкеты на платформе — не канал и не «Не известно»: светлый нейтральный пункт. */
+.v3-world[data-surface="staff"] [data-channel="cabinet"] { --channel: #c9c3b8; }
 
 .v3-world[data-surface="staff"] .v3-channel {
   display: inline-flex;

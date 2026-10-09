@@ -26,7 +26,7 @@ function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
     <tr className="border-b border-border" data-lead-id={row.leadId}>
       <th scope="row" className={`${TD} min-w-36 text-left font-medium`}>
         <Link href={`/v3/profile?id=${row.leadId}`} className="underline-offset-4 hover:underline">{row.name ?? "Лид без имени"}</Link>
-        <span className={`${META} font-normal tabular-nums`}>{formatBishkekMoment(row.createdAt)}</span>
+        <span className={`${META} tabular-nums`}>{formatBishkekMoment(row.createdAt)}</span>
       </th>
       <td className={`${TD} whitespace-nowrap tabular-nums`}>{row.phone ?? <span className="text-fg-2">—</span>}</td>
       <td className={`${TD} min-w-24`}>{connectionWord(row.sourceKey)}</td>

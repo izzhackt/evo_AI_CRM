@@ -1,12 +1,14 @@
 "use client";
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { Icon } from "@/components/icons";
 import { btnGhostCls } from "@/components/ui";
 import { LEAD_CHANNEL_AI_NOTE, leadChannelText } from "@/lib/lead-channel-contract";
 import type { MarketingCursor, MarketingLeadFilters, MarketingLeadRow, MarketingLeadsPage } from "@/lib/marketing-contract";
 import { formatBishkekMoment, formatIsoDay, formatMinor, stageWord } from "@/lib/marketing-view";
 import { loadMoreMarketingLeadsAction } from "@/lib/platform-marketing-actions";
 import { SALES_STAGE_TITLE, source as sourceWord } from "@/lib/v3/wording";
+import { ChannelLabel } from "./ChannelLabel";
 
 const TH = "whitespace-nowrap px-2 py-2 text-left t-caption font-medium text-fg-2";
 const TD = "px-2 py-2.5 align-top t-body-compact text-fg";
@@ -28,7 +30,10 @@ function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
       <td className={`${TD} whitespace-nowrap tabular-nums`}>{row.phone ?? <span className="text-fg-2">—</span>}</td>
       <td className={`${TD} whitespace-nowrap tabular-nums`}>{formatBishkekMoment(row.createdAt)}</td>
       <td className={TD}>{connectionWord(row.sourceKey)}</td>
-      <td className={`${TD} min-w-36`}>{leadChannelText(row)}{row.aiAssistant ? <span className={META}>{LEAD_CHANNEL_AI_NOTE}</span> : null}</td>
+      <td className={`${TD} min-w-40`}>
+        <ChannelLabel channel={row.channel}>{leadChannelText(row)}</ChannelLabel>
+        {row.aiAssistant ? <span className={`${META} pl-4`}>{LEAD_CHANNEL_AI_NOTE}</span> : null}
+      </td>
       <td className={`${TD} max-w-32 break-words`}>{row.campaign ?? <span className="text-fg-2">—</span>}</td>
       <td className={`${TD} max-w-40 break-all`}>{row.landingPath ?? <span className="text-fg-2">—</span>}</td>
       <td className={`${TD} whitespace-nowrap`}>{stageWord(row.stage, row.lifecycleState, SALES_STAGE_TITLE)}</td>
@@ -37,12 +42,14 @@ function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
         {row.contractLinkedManually ? <span className={META}>связано вручную</span> : null}
       </td>
       <td className={`${TD} whitespace-nowrap tabular-nums`}>
-        {row.paid
-          ? row.paid.amountMinor !== null && row.paid.currency !== null
-            ? formatMinor(row.paid.amountMinor, row.paid.currency)
-            : <>Оплата есть<span className={META}>сумма не названа</span></>
-          : <span className="text-fg-2">—</span>}
-        {row.paid ? <span className={META}>{PAID_SOURCE[row.paid.source]}</span> : null}
+        {row.paid ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Icon name="circle-check" size={14} className="flex-none text-ok" />
+            {row.paid.amountMinor !== null && row.paid.currency !== null ? formatMinor(row.paid.amountMinor, row.paid.currency) : "Оплата есть"}
+          </span>
+        ) : <span className="text-fg-2">—</span>}
+        {row.paid && (row.paid.amountMinor === null || row.paid.currency === null) ? <span className={`${META} pl-5`}>сумма не названа</span> : null}
+        {row.paid ? <span className={`${META} pl-5`}>{PAID_SOURCE[row.paid.source]}</span> : null}
       </td>
       <td className={`${TD} min-w-28`}>{row.owner?.name ?? <span className="text-fg-2">не назначен</span>}</td>
     </tr>
@@ -86,7 +93,7 @@ export function MarketingLeadsTable({ initial, request }: Readonly<{
         {initial.total > 0 ? <> · показано <span className="tabular-nums">{rows.length.toLocaleString("ru-RU")}</span></> : null}
       </p>
       {rows.length === 0 ? <p className="mt-3 t-body-compact text-fg-2">За этот период заявок по фильтрам нет.</p> : (
-        <div className="mt-2 overflow-x-auto">
+        <div className="relative mt-2 overflow-x-auto">
           <table className="min-w-[60rem] w-full border-collapse">
             <caption className="sr-only">Заявки периода: кто пришёл, откуда и что с ними стало</caption>
             <thead>

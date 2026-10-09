@@ -698,6 +698,105 @@
   transform: translateY(-1px);
 }
 
+/*
+ * «Маркетинг» — цвета каналов «Откуда узнал» (решение владельца 10.10.2026,
+ * DESIGN.md). Цвет — только категория канала и всегда рядом со словом; числа и
+ * подписи остаются в цветах текста. Порядок и шаги проверены валидатором dataviz
+ * на листе: светлота и хрома в полосе, соседние пары при протанопии/дейтеранопии
+ * ΔE ≥ 14.2, при обычном зрении ≥ 18.2. Оттенки не совпадают с брендом, фазами и
+ * статусами (синий светлее «инфо», зелень светлее «готово»). Розе (2.6:1 на листе)
+ * подпись обязательна. «Не известно» и «без привязки» — пустой кружок и
+ * штриховка: отличие формой, а не только цветом.
+ */
+.v3-world[data-surface="staff"] {
+  --channel-instagram-ads: #c4502a;
+  --channel-instagram: #df85ab;
+  --channel-website-search: #3a6fc4;
+  --channel-referral: #2b9a7b;
+  --channel-other: #9469cf;
+  --channel-unknown: #8a8378;
+}
+.v3-world[data-surface="staff"] [data-channel="instagram_ads"] { --channel: var(--channel-instagram-ads); }
+.v3-world[data-surface="staff"] [data-channel="instagram"] { --channel: var(--channel-instagram); }
+.v3-world[data-surface="staff"] [data-channel="website_search"] { --channel: var(--channel-website-search); }
+.v3-world[data-surface="staff"] [data-channel="referral"] { --channel: var(--channel-referral); }
+.v3-world[data-surface="staff"] [data-channel="other"] { --channel: var(--channel-other); }
+.v3-world[data-surface="staff"] :is([data-channel="unknown"], [data-channel="without_lead"]) { --channel: var(--channel-unknown); }
+
+.v3-world[data-surface="staff"] .v3-channel {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: baseline;
+  gap: 8px;
+  text-wrap: pretty;
+}
+.v3-world[data-surface="staff"] .v3-channel-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--channel, var(--channel-unknown));
+  transform: translateY(-1px);
+}
+.v3-world[data-surface="staff"] .v3-channel[data-size="lg"] .v3-channel-dot {
+  width: 10px;
+  height: 10px;
+}
+.v3-world[data-surface="staff"] :is(.v3-channel[data-channel="unknown"], .v3-channel[data-channel="without_lead"]) .v3-channel-dot {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--channel-unknown);
+}
+
+/* Доли каналов одной полосой: сегменты встык через 2 px листа, «Не известно» — штриховка. */
+.v3-world[data-surface="staff"] .v3-mix {
+  display: flex;
+  height: 14px;
+  gap: 2px;
+}
+.v3-world[data-surface="staff"] .v3-mix-seg {
+  min-width: 6px;
+  border-radius: 3px;
+  background: var(--channel);
+}
+.v3-world[data-surface="staff"] .v3-mix-seg:is([data-channel="unknown"], [data-channel="without_lead"]) {
+  background: repeating-linear-gradient(135deg, var(--channel-unknown) 0 2px, var(--surface-2) 2px 5px);
+}
+
+/* Доля в ячейке: подпись «N из M» и полоса 4 px цвета строки; у «Всего» — нейтральная. */
+.v3-world[data-surface="staff"] .v3-meter {
+  display: block;
+  width: 100%;
+  max-width: 7.5rem;
+  height: 4px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.v3-world[data-surface="staff"] .v3-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--channel, var(--text-3));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world[data-surface="staff"] .v3-mix-seg {
+    transition: opacity 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .v3-world[data-surface="staff"] .v3-meter > span {
+    transform-origin: left center;
+    animation: v3-meter-grow 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+.v3-world[data-surface="staff"] .v3-mix:hover .v3-mix-seg:not(:hover) {
+  opacity: 0.45;
+}
+@keyframes v3-meter-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
 .v3-world[data-surface="staff"] .v3-due {
   display: inline-block;
   color: var(--text-2);

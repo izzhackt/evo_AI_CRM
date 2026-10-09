@@ -17063,3 +17063,31 @@ CI `37840960232` упал на допуске (`main_ref_http`, HTTP 403 от Gi
 добавляет параметры, старое приложение с ним работает. Выпуск сортировки —
 следующим коммитом `main` (эта квитанция). #1177 уведомлён: его миграция
 переименовывается в 280.
+
+## 2026-10-10 — выпуск `d1f4fb81`: «Маркетинг» — цвета каналов и обновлённый «Обзор»
+
+Решение владельца 10.10: «make better design for this marketing part, beatiful,
+add some colors, /impeccable adequately», затем «without asking, just go with ur
+recommendeds and do it». #1181 → `main` `d1f4fb81d672e79c9188e32e2702839999be1a95`.
+Production до выпуска совпадал с `main` `268b948e7`. Миграций нет.
+
+- **Перед слиянием.** Review на Opus по точному head `384b46e38`: блокеров нет,
+  2 major (вторая доля «Не известно» из-за анкет кабинета; лидер без учёта
+  неизвестных) и minor исправлены в `2ce12431a`. Повторное review разницы на
+  Opus — блокеров нет.
+- **Проверки.** PR checks зелёные. `marketing-m1` 29/29, `v3-e8-critical-fixes`
+  5/5, `v3-navigation` + `v3-shell` 41/41, `tsc` и eslint чисто. Снимки 1440 и
+  390 на изолированном локальном стеке (29 синтетических заявок через настоящие
+  RPC), два раунда. `v3-brand-design` 7/8: тест «Денежные итоги по валютам»
+  (`SalesRegisterView`) падает и на `268b948e7` и к выпуску не относится.
+- **Выпуск.** Arm true 23:42:46 UTC 09.10, CI 38005756806, fast release
+  38005796326 SUCCESS — `v3-r38005796326-a1-d1f4fb81`. Smoke пройден: case,
+  admissions_pipeline, students_queue, evo_docs, team_chat, student, browser.
+  Arm false 23:48:54 UTC.
+- **Readback.** `evo-crm-app-1` healthy, restart 0, revision `d1f4fb81`;
+  `pending-current.json` нет. `/api/health` 200 на crm и app. `/v3/marketing`
+  без входа отвечает 307 на `/login`.
+
+Не проверено в production: вид раздела под учётной записью администратора (у
+сессии её нет) и Safari/WebKit. Отложено: токен `--channel-cabinet` вместо
+литерала `#c9c3b8` и подпись «из них анкеты» в строке «Не известно» таблицы.

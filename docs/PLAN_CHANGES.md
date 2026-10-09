@@ -49211,3 +49211,14 @@ marketing part, beatiful, add some colors, /impeccable adequately» и зате�
 Проверки: typecheck, eslint изменённого, `tests/marketing-m1.test.mjs`,
 `tests/v3-brand-design.test.mjs`, `git diff --check`; снимки 1440 и 390 на
 локальном стеке с синтетическими данными. Без миграций.
+
+## 2026-10-10 — квитанция выпуска d1f4fb81: «Маркетинг» — цвета каналов (только документы)
+
+Записи выше не переписываются. Подробности — в разделе `docs/EVO_LAUNCH_PLAN.md`
+«выпуск `d1f4fb81`». Выпуск `v3-r38005796326-a1-d1f4fb81` (CI 38005756806,
+release 38005796326), smoke пройден, arm false, миграций нет. Открыто: вид
+раздела под admin в production, Safari/WebKit; cosmetic — токен для пункта
+«Анкеты на платформе».
+
+Проверка: `git diff --check`; префиксы `docs/EVO_LAUNCH_PLAN.md` и
+`docs/PLAN_CHANGES.md` байт в байт совпадают с `origin/main` `d1f4fb81d`.

@@ -17139,3 +17139,15 @@ UTC. Readback: healthy, restart 0, revision `0339f131`. Строка журна�
 Не проверено: настоящая заявка с сайта; «Маркетинг» под admin в production.
 Отложено (решение владельца): разбор кода `[IG-BIO]` из первого сообщения
 WhatsApp; ссылка WhatsApp в запасном контакте сайта.
+
+## 2026-10-10 — аудит здоровья (кроме WhatsApp) и пакет исправлений; edge сайта; logrotate
+
+Время — UTC. Решение владельца 10.10: «do, complete, review and fix stuff if they are not working except whatsapp. lets postpone whatsapp. give task to other parts as well». WhatsApp (сессия `crm_primary`, `device_removed` 09.10 11:11:53) отложен владельцем.
+
+- **Аудит** (только чтение, 6 участков + проверка каждой находки скептиком): подтверждены — открытые вкладки после выпуска (отказ server action: 524× POST /v3/ai-agent, 17× POST /v3/calendar с `X-Nextjs-Action-Not-Found`), логи старого контейнера теряются при выпуске, правило logrotate портит логи Docker, ~1430/сутки ошибок `ai_background_disabled` в журнале Postgres, заголовок `X-Powered-By`, черновики #1177/#1170 в конфликте. Пропавшие партиции `realtime.messages` — не неисправность (создаются при подключении клиента).
+- **Сайт (edge Caddy, 10:47 и 10:52):** `www.evoadmissions.com` → 308 на апекс; на апексе HSTS `max-age=31536000` (без includeSubDomains — на апексе он затронул бы все поддомены, включая старую запись `mail.evoadmissions.com` с чужим просроченным сертификатом), `X-Frame-Options: SAMEORIGIN`, CSP `frame-ancestors 'self'; base-uri 'self'; object-src 'none'`. Сначала `caddy validate`, затем `caddy reload`, резервные копии в `/root/evo-config-backups/`. Первая попытка с `redir … permanent` (301) откатилась автоматически. Зеркало в репозитории — #1184. Сессия маркетинга перепроверила обходом: 196/196, регрессий нет.
+- **hermes:** правило `/etc/logrotate.d/docker-containers` (copytruncate поверх собственной ротации Docker) убрано в `/root/evo-config-backups/logrotate.docker-containers.20261010T105016Z`; у каждого контейнера свой лимит (`daemon.json` 10m×3), `logrotate -d` чистый.
+- **Слито и выпущено:** #1187 (вкладки после выпуска предлагают обновиться, поллеры останавливаются, `poweredByHeader: false`), #1186 (выпуск сохраняет логи старого контейнера: `previous-app.log`, 0600), #1171 (sharp 0.35.5), #1133 (urllib3 в выведенном lead-agent). Приватный evo-ai-agent #5 (фоновый опрос не идёт, пока память и автоответчик выключены) → образ `ghcr.io/izzhackt/evo-ai-agent@sha256:0ae1e3ebd4e3829776150a416c20b920766643f867122da1bda8ad41e0d9e399`. Выпуск `38050820359` (`r171.1-c04d4010`): приложение и агент healthy, `X-Powered-By` нет, `previous-app.log` сохранён.
+- **Закрыты:** Dependabot #1135, #1148, #1173 (замороженный `agent-lead2-inbox`, не разворачивается).
+- **Черновики #1177 (миграция переименована в 280) и #1170** синхронизированы с main в 11:31 и не слиты (после этого main ушёл вперёд — перед слиянием их снова нужно подтянуть): нужны независимое review содержания #1177 и решения владельца.
+- **Сессия маркетинга** выпустила #1181–#1182 (09.10), #1183 и #1185 (10.10) и сайт `b4dc78ce` (свои квитанции #1188, website#28).

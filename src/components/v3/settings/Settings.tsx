@@ -81,7 +81,7 @@ export function Settings({
   staffRoles?: StaffRoleWorkspace;
   staffOrganizationId: string;
   selectedStaffRoleId?: string;
-  /** «Запросы на удаление» (279): очередь и выбранный запрос, только Admin. */
+  /** «Запросы на удаление» (280): очередь и выбранный запрос, только Admin. */
   deletionQueue?: AccountDeletionQueueRead;
   deletionDetail?: AccountDeletionDetailRead | null;
   deletionHrefFor?: (requestId: string | null) => string;

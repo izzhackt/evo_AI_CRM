@@ -18,9 +18,9 @@ import { markAccountDeletionDone, runAccountDeletion } from "../src/lib/server/a
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-const ID = "27900000-0000-4000-8000-000000000001";
+const ID = "28000000-0000-4000-8000-000000000001";
 const OWN = {
-  requestId: "27900000-0000-4000-8000-000000001001",
+  requestId: "28000000-0000-4000-8000-000000001001",
   status: "requested",
   requestedAt: "2026-10-07T10:00:00+00:00",
   dueAt: "2026-11-06T10:00:00+00:00",
@@ -32,7 +32,7 @@ const ROW = {
   mode: "manual",
   displayName: "Зарина Удалёва",
   email: "zarina@example.invalid",
-  studentCaseId: "27900000-0000-4000-8000-000000000501",
+  studentCaseId: "28000000-0000-4000-8000-000000000501",
   requestedAt: OWN.requestedAt,
   dueAt: OWN.dueAt,
   overdue: false,
@@ -41,7 +41,7 @@ const ROW = {
   confirmationEmailStatus: null,
 };
 
-// Миграция 279: разбор строгий, дрейф формы не превращается в выдуманное состояние.
+// Миграция 280: разбор строгий, дрейф формы не превращается в выдуманное состояние.
 test("own deletion request: null means none, a drifted shape is an error", () => {
   assert.equal(parseOwnAccountDeletion(null), null);
   assert.deepEqual(parseOwnAccountDeletion(OWN), OWN);
@@ -121,7 +121,7 @@ test("days left: calendar days in Bishkek, due date in the past is negative", ()
 test("confirmation mail: text, transports and honest statuses", async () => {
   const { subject, text } = accountDeletionMailText({ to: "a@b.cd", requestId: ID, requestedAt: OWN.requestedAt });
   assert.match(subject, /аккаунт удалён/u);
-  assert.match(text, /Номер запроса: 27900000\./u);
+  assert.match(text, /Номер запроса: 28000000\./u);
   assert.match(text, /Сурамдын номери/u);
   assert.doesNotMatch(text, /[–—]/u);
   assert.match(text, /Мы удалили ваш аккаунт EVO Admissions и связанные с ним данные по вашему запросу от 07\.10\.2026\./u);
@@ -273,7 +273,7 @@ test("wiring: settings section, applicant screens and service-role use stay wher
   }
 });
 
-// Ревью 279, п. 4: старая сессия удалённого аккаунта ведёт на вход с «Аккаунт удалён».
+// Ревью 280, п. 4: старая сессия удалённого аккаунта ведёт на вход с «Аккаунт удалён».
 test("deleted account session: user_not_found, sign-out route, proxy and screens", () => {
   assert.equal(isDeletedAuthUserError({ code: "user_not_found", status: 403 }), true);
   for (const other of [null, undefined, {}, { code: "session_not_found" }, { name: "AuthSessionMissingError" }, "user_not_found"]) {

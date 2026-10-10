@@ -48,7 +48,7 @@ struct AccessPendingView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
 
-            // 279: удалить аккаунт можно и до готовности доступа.
+            // 280: удалить аккаунт можно и до готовности доступа.
             Button("account_deletion_action") {
                 showsDeletion = true
             }

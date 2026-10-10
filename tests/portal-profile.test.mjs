@@ -73,7 +73,7 @@ test("profile screen wiring stays in place", () => {
   assert.match(actions, /^"use server";/u);
   assert.match(actions, /set_own_portal_language_v1/u);
   assert.match(actions, /store\.set\("locale", language/u, "the SAME action must update the locale cookie");
-  // 279: запрос на удаление — отдельное действие для любого вошедшего аккаунта.
+  // 280: запрос на удаление — отдельное действие для любого вошедшего аккаунта.
   const ownActions = source("src/lib/account-deletion/own-actions.ts");
   assert.match(ownActions, /^"use server";/u);
   assert.match(ownActions, /request_account_deletion_v2/u);

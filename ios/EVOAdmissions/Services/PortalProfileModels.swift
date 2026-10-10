@@ -29,7 +29,7 @@ struct PortalLanguageReceipt: Decodable {
 }
 
 /// `platform.request_account_deletion_v2` receipt and
-/// `platform.own_account_deletion_request_v1` (migration 279):
+/// `platform.own_account_deletion_request_v1` (migration 280):
 /// `{'requestId', 'status', 'requestedAt', 'dueAt'}`. `status` is
 /// 'requested' (196's 'acknowledged' is reported as 'requested') or
 /// 'processing'; a completed request is never returned, the account is gone.
@@ -77,7 +77,7 @@ enum ProfileLanguagePolicy {
     }
 }
 
-/// Migration 279, review finding 4: after the EVO team deletes an account on
+/// Migration 280, review finding 4: after the EVO team deletes an account on
 /// request, the device may still hold a token of that user. Supabase Auth
 /// then answers `GET /user` with `user_not_found`; the app signs out locally
 /// and shows the sign-in with «Аккаунт удалён» instead of «Доступ готовится».

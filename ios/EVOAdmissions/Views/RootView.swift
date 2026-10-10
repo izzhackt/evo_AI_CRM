@@ -37,7 +37,7 @@ struct RootView: View {
                             }
                             .accessibilityLabel(Text("apply_logout"))
                         }
-                        // 279: вошедший аккаунт без анкеты тоже может удалить
+                        // 280: вошедший аккаунт без анкеты тоже может удалить
                         // аккаунт; пункт в меню «Ещё» панели.
                         ToolbarItem(placement: .secondaryAction) {
                             Button("account_deletion_action", role: .destructive) {

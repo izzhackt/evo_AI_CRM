@@ -21,7 +21,7 @@ export const metadata = { title: { absolute: "Моя заявка | EVO Admissio
 export default async function ApplicationStatusPage() {
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
-  // 279 (ревью п. 4): аккаунт удалён, в браузере осталась его сессия.
+  // 280 (ревью п. 4): аккаунт удалён, в браузере осталась его сессия.
   if (isDeletedAuthUserError(error)) redirect(ACCOUNT_DELETED_PATH);
   if (error || !data.user?.email_confirmed_at) redirect("/login");
   const destination = await studentApplicationEntryRedirect(client, data.user);
@@ -55,7 +55,7 @@ export default async function ApplicationStatusPage() {
       </div>
     </header>
     <div className="mx-auto max-w-4xl rounded-card border border-border bg-surface px-5 py-8 sm:p-10"><ApplicationStatus application={application} draftOwnerId={data.user.id} locale={locale} /></div>
-    {/* Удаление аккаунта (279): анкета без одобрения тоже может удалить аккаунт. */}
+    {/* Удаление аккаунта (280): анкета без одобрения тоже может удалить аккаунт. */}
     <section id="account-deletion" aria-labelledby="account-deletion-heading" className="mx-auto mt-6 max-w-4xl rounded-card border border-border bg-surface px-5 py-6 sm:px-10">
       <h2 id="account-deletion-heading" className="mb-3 text-xl font-semibold text-fg">{deletionStrings.heading}</h2>
       <AccountDeletionPanel

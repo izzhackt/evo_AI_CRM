@@ -362,7 +362,7 @@ test("actual proxy forwards rotated cookies to the browser and downstream reques
   }
 });
 
-// Ревью 279, п. 4: Auth отвечает user_not_found (аккаунт удалён), прокси ведёт
+// Ревью 280, п. 4: Auth отвечает user_not_found (аккаунт удалён), прокси ведёт
 // страницы на /auth/account-deleted, а сам этот путь открывает без проверки сессии.
 test("actual proxy sends a deleted account's session to the sign-out route and opens that route without a session gate", async () => {
   const deleted = { message: "User from sub claim in JWT does not exist", code: "user_not_found", status: 403 };

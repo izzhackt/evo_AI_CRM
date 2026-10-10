@@ -6,7 +6,7 @@ import { isDeletedAuthUserError } from "../account-deletion-contract.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
 
 /**
- * Ревью 279, п. 4: аккаунт удалён, а в браузере остался его токен. Только
+ * Ревью 280, п. 4: аккаунт удалён, а в браузере остался его токен. Только
  * сервер Auth знает, что пользователя больше нет (`user_not_found`); любая
  * другая ошибка или сбой чтения значит «не удалён».
  */

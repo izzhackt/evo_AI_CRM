@@ -6,7 +6,7 @@ import XCTest
 ///   'displayName', 'email', 'portalLanguage', 'caseState',
 ///   'deletionRequestedAt')`; language COALESCEs to 'ru' (196:102)
 /// - `set_own_portal_language_v1` — 196:153 `{'portalLanguage': p_language}`
-/// - `request_account_deletion_v2` / `own_account_deletion_request_v1` — 279
+/// - `request_account_deletion_v2` / `own_account_deletion_request_v1` — 280
 ///   `{'requestId', 'status', 'requestedAt', 'dueAt'}` or JSON null.
 final class PortalProfileDecodingTests: XCTestCase {
     func testDecodesFullProfile() throws {
@@ -72,7 +72,7 @@ final class PortalProfileDecodingTests: XCTestCase {
     }
 
     func testDecodesOwnAccountDeletion() throws {
-        // 279: request_account_deletion_v2 / own_account_deletion_request_v1
+        // 280: request_account_deletion_v2 / own_account_deletion_request_v1
         // `{'requestId', 'status', 'requestedAt', 'dueAt'}`, due = request + 30 days.
         let fixture = """
         {
@@ -107,7 +107,7 @@ final class PortalProfileDecodingTests: XCTestCase {
     }
 
     func testOnlyUserNotFoundMeansTheAccountWasDeleted() {
-        // 279 review finding 4: GET /user of a deleted account answers
+        // 280 review finding 4: GET /user of a deleted account answers
         // user_not_found; a missing session or a bad token is not a deletion.
         XCTAssertTrue(DeletedAccountPolicy.isDeletedUser(authErrorCode: "user_not_found"))
         for code in [nil, "", "session_not_found", "bad_jwt", "refresh_token_not_found", "unexpected_failure"] {

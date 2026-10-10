@@ -38,7 +38,7 @@ final class SupabaseService {
         try await client.auth.signOut(scope: .local)
     }
 
-    /// Migration 279 (review finding 4): asks Auth (`GET /user`) whether the
+    /// Migration 280 (review finding 4): asks Auth (`GET /user`) whether the
     /// user of the stored session still exists. Only `user_not_found` counts
     /// as deleted; a network failure or any other error does not.
     func authUserIsDeleted() async -> Bool {
@@ -335,7 +335,7 @@ final class SupabaseService {
             .value
     }
 
-    /// `platform.request_account_deletion_v2(p_request_id)` (migration 279):
+    /// `platform.request_account_deletion_v2(p_request_id)` (migration 280):
     /// any signed-in account that is not staff, including an анкета without
     /// approval. Idempotent by request_id, one open request per account; the
     /// EVO team deletes the account and personal data within 30 days.
@@ -347,7 +347,7 @@ final class SupabaseService {
             .value
     }
 
-    /// `platform.own_account_deletion_request_v1()` (migration 279): the open
+    /// `platform.own_account_deletion_request_v1()` (migration 280): the open
     /// request of this account or JSON null.
     func ownAccountDeletionRequest() async throws -> OwnAccountDeletion? {
         try await client

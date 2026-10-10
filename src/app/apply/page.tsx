@@ -41,7 +41,7 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
   const [query, locale, theme] = await Promise.all([searchParams, getLocale(), readRequestTheme()]);
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
-  // 279 (ревью п. 4): аккаунт удалён, в браузере осталась его сессия.
+  // 280 (ревью п. 4): аккаунт удалён, в браузере осталась его сессия.
   if (isDeletedAuthUserError(error)) redirect(ACCOUNT_DELETED_PATH);
   if (error && error.name !== "AuthSessionMissingError") throw new Error("Student registration is unavailable.");
   let draft = null;
@@ -78,7 +78,7 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
   }
   const wizard = <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} theme={theme} accountDeletionHref={email ? "#account-deletion" : null} />;
   if (!email) return wizard;
-  // Удаление аккаунта (279): вошедший аккаунт без анкеты тоже может удалить
+  // Удаление аккаунта (280): вошедший аккаунт без анкеты тоже может удалить
   // аккаунт; ссылка «Удалить аккаунт» в шапке анкеты ведёт сюда.
   const deletionStrings = getPortalStrings("accountDeletion", locale);
   const deletion = await readOwnAccountDeletion();

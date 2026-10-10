@@ -14,7 +14,7 @@ import {
  * Server actions экрана «Профиль» (PORT-5a). Язык персистится через RPC
  * миграции 196 И обновляет cookie `locale` в том же действии (решение
  * PORT-0 «Локализация»: БД — источник, cookie — request-time умолчание).
- * Запрос на удаление аккаунта с 279 — src/lib/account-deletion/own-actions.ts.
+ * Запрос на удаление аккаунта с 280 — src/lib/account-deletion/own-actions.ts.
  */
 export async function setPortalLanguageAction(
   language: unknown,

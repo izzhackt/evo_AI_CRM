@@ -115,7 +115,7 @@ export default async function LoginPage({
   const copy = { ...COPY[locale], ...audienceCopy };
   const query = await searchParams;
   const error = firstQueryValue(query.error);
-  // Удаление аккаунта (279, ревью п. 4): /auth/account-deleted вышел из
+  // Удаление аккаунта (280, ревью п. 4): /auth/account-deleted вышел из
   // сессии удалённого аккаунта и сообщает об этом здесь.
   const accountDeleted = firstQueryValue(query.notice) === ACCOUNT_DELETED_NOTICE;
   const initialError =

@@ -1,7 +1,10 @@
--- 279 «Удаление аккаунта по запросу: кабинет, iPhone и очередь в CRM».
+-- 280 «Удаление аккаунта по запросу: кабинет, iPhone и очередь в CRM».
 -- docs/PLAN_CHANGES.md «2026-10-07 — Удаление аккаунта по запросу» and the
 -- addendum «2026-10-08 — Удаление аккаунта (279): упрощение для 1.0» (owner
 -- decision 08.10.2026 «Упростить для 1.0»). Docs: docs/runbooks/account-deletion.md.
+-- Written as 279; renumbered to 280 on 2026-10-10 because main took 279
+-- (279_platform_inbox_unanswered_first.sql). PLAN_CHANGES entries titled
+-- «Удаление аккаунта (279)» refer to this migration.
 --
 -- Why. 196 recorded a deletion REQUEST (student with a membership only) and
 -- 244 let the Admin read the list, but nothing ever processed a request, and
@@ -56,7 +59,7 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- Anchors.
 -- ---------------------------------------------------------------------------
-DO $a279_anchors$
+DO $a280_anchors$
 BEGIN
   IF to_regclass('platform_private.account_deletion_requests') IS NULL
     OR to_regprocedure('platform.request_account_deletion_v1(uuid)') IS NULL
@@ -69,10 +72,10 @@ BEGIN
     OR to_regclass('platform_private.student_portal_provisioning_receipts') IS NULL
     OR EXISTS (SELECT 1 FROM platform.permission_definitions WHERE permission_key = 'account.deletion.process')
   THEN
-    RAISE EXCEPTION 'a279_account_deletion_anchor_drift';
+    RAISE EXCEPTION 'a280_account_deletion_anchor_drift';
   END IF;
 END
-$a279_anchors$;
+$a280_anchors$;
 
 -- ---------------------------------------------------------------------------
 -- a) Permission (system-only: the system Admin passes staff_has_permission).
@@ -225,14 +228,14 @@ REVOKE ALL ON FUNCTION platform_private.account_erasure_bypass()
 -- bypass: the snippet goes right after the top-level BEGIN and returns OLD
 -- for a row-level DELETE inside the erasure transaction only. The GUC test
 -- comes first, so no other caller ever reaches the private lookup.
-DO $a279_guards$
+DO $a280_guards$
 DECLARE
   target TEXT;
   def TEXT;
   src TEXT;
   prefix TEXT;
   snippet CONSTANT TEXT := E'\n'
-    || E'  -- 279: account erasure bypass (one transaction, row DELETE only).\n'
+    || E'  -- 280: account erasure bypass (one transaction, row DELETE only).\n'
     || E'  IF TG_LEVEL = ''ROW'' AND TG_OP = ''DELETE''\n'
     || E'    AND NULLIF(pg_catalog.current_setting(''platform.account_erasure_request_id'', TRUE), '''') IS NOT NULL THEN\n'
     || E'    IF platform_private.account_erasure_bypass() THEN\n'
@@ -256,12 +259,12 @@ BEGIN
     IF src IS NULL OR prefix IS NULL OR strpos(src, 'account_erasure_bypass') <> 0
       OR (length(def) - length(replace(def, src, ''))) / length(src) <> 1
     THEN
-      RAISE EXCEPTION 'a279_guard_anchor_drift: %', target;
+      RAISE EXCEPTION 'a280_guard_anchor_drift: %', target;
     END IF;
     EXECUTE replace(def, src, prefix || 'BEGIN' || snippet || substr(src, length(prefix) + 6));
   END LOOP;
 END
-$a279_guards$;
+$a280_guards$;
 
 -- Supabase Auth keeps its own journal (auth.audit_log_entries: email, IP) and
 -- PKCE flow rows (auth.flow_state) that auth.admin.deleteUser leaves behind.
@@ -1106,7 +1109,7 @@ GRANT EXECUTE ON FUNCTION
   platform.record_account_deletion_email_v1(UUID, TEXT)
   TO authenticated;
 
-DO $a279_verify$
+DO $a280_verify$
 DECLARE routine RECORD;
 BEGIN
   FOR routine IN SELECT p.oid::REGPROCEDURE AS signature, p.prosecdef, p.proconfig
@@ -1127,7 +1130,7 @@ BEGIN
       'platform_private.account_deletion_erase(jsonb)'::REGPROCEDURE)
   LOOP
     IF NOT routine.prosecdef OR routine.proconfig IS DISTINCT FROM ARRAY['search_path=""'] THEN
-      RAISE EXCEPTION 'a279_account_deletion_verification_failed: %', routine.signature;
+      RAISE EXCEPTION 'a280_account_deletion_verification_failed: %', routine.signature;
     END IF;
   END LOOP;
   IF has_function_privilege('anon', 'platform.process_account_deletion_v1(uuid)', 'EXECUTE')
@@ -1138,12 +1141,12 @@ BEGIN
     OR has_function_privilege('authenticated', 'platform_private.account_deletion_erase(jsonb)', 'EXECUTE')
     OR has_function_privilege('authenticated', 'platform_private.account_deletion_closure(uuid,uuid)', 'EXECUTE')
     OR (SELECT count(*) FROM pg_catalog.pg_proc p
-        WHERE strpos(p.prosrc, '279: account erasure bypass') <> 0) <> 4
+        WHERE strpos(p.prosrc, '280: account erasure bypass') <> 0) <> 4
   THEN
-    RAISE EXCEPTION 'a279_account_deletion_verification_failed: grants or guards';
+    RAISE EXCEPTION 'a280_account_deletion_verification_failed: grants or guards';
   END IF;
 END
-$a279_verify$;
+$a280_verify$;
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;

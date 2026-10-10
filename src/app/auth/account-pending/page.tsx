@@ -31,7 +31,7 @@ export default async function StudentAccountPendingPage() {
     redirect("/login?error=auth_unavailable");
   }
 
-  // 279 (ревью п. 4): у удалённого аккаунта чтение анкеты отвечает
+  // 280 (ревью п. 4): у удалённого аккаунта чтение анкеты отвечает
   // «forbidden»; Auth подтверждает удаление, и браузер уходит на вход с
   // «Аккаунт удалён» вместо ошибки 500.
   let application;
@@ -95,7 +95,7 @@ export default async function StudentAccountPendingPage() {
           безопасно проверить состояние позже или выйти из аккаунта.
         </p>
         <StudentAccountPending />
-        {/* Удаление аккаунта (279): и до готовности доступа. */}
+        {/* Удаление аккаунта (280): и до готовности доступа. */}
         <section aria-labelledby="account-deletion-heading" className="mt-6 border-t border-border pt-5">
           <h2 id="account-deletion-heading" className="mb-3 text-base font-semibold text-fg">{deletionStrings.heading}</h2>
           <AccountDeletionPanel

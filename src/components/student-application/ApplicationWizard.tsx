@@ -81,7 +81,7 @@ function Choice({ selected, children, onClick }: { selected: boolean; children: 
 
 export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, namePrefill = null, year, locale = "ru", theme = "light", accountDeletionHref = null }: {
   requestId: string; draft?: StudentApplicationDraft | null; signedInEmail?: string | null; draftOwnerId?: string | null; expectedRevision?: number; namePrefill?: ApplicationNamePrefill | null; year: number; locale?: Locale; theme?: Theme;
-  /** 279: вошедший аккаунт видит «Удалить аккаунт» в шапке анкеты. */
+  /** 280: вошедший аккаунт видит «Удалить аккаунт» в шапке анкеты. */
   accountDeletionHref?: string | null;
 }) {
   const strings = getPortalStrings("apply", locale);

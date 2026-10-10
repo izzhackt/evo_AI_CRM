@@ -50083,3 +50083,48 @@ production.
   платежи, клиент, лид, заметки). Технический администратор делает пункты
   скриптом с разрешения владельца; обезличивание защищённых строк требует
   отдельного проверенного шага. Инструмент для ручного пути: кандидат на 2.0.
+
+## 2026-10-10 — Удаление аккаунта: миграция 279 перенумерована в 280 при синхронизации с `main` (#1177, только механика)
+
+Записи выше не переписываются. Номер 279 в `main` и в production занят
+миграцией `279_platform_inbox_unanswered_first.sql` («Продажи → WhatsApp»:
+«Сортировка», #1178). Номер 280 зарезервирован за #1177, поэтому
+`supabase/migrations/279_platform_account_deletion.sql` переименована в
+`280_platform_account_deletion.sql`. Записи этого файла с заголовками
+«Удаление аккаунта (279)» и упоминания «ревью 279» в коде и тестах относятся
+к этой же миграции, теперь 280.
+
+Что изменено (поведение не менялось; health-audit A5):
+
+- В ветку влит `origin/main` `8cc6b5636`. Конфликты: этот файл — объединение
+  «только добавление» (записи `main` дословно, записи ветки после них);
+  `scripts/test-postgres-authorization.sh` — оба крючка по имени файла,
+  сначала `*_platform_inbox_unanswered_first.sql`, затем
+  `*_platform_account_deletion.sql`. Крючок совпадает по имени, не по номеру,
+  и сам не менялся.
+- 279 → 280 в имени файла миграции и её шапке, в метках `$a280_*$`, текстах
+  исключений `a280_*` и метке обхода `280: account erasure bypass` (вставка в
+  четыре защиты и проверка «ровно 4» поменялись вместе). В шапку миграции и в
+  `docs/runbooks/account-deletion.md` добавлена строка о перенумерации.
+- `supabase/tests/platform_account_deletion.sql`: помощники `p280_*`, метка
+  `P280_ACCOUNT_DELETION_SUITE_PASSED`, синтетические UUID `28000000-…`,
+  синтетические адреса и телефоны с `280`. `tests/account-deletion.test.mjs`:
+  синтетические UUID `28000000-…`. Комментарии «миграция 279» в коде кабинета,
+  CRM и iPhone и в тестах заменены на 280.
+- SQL-логика, RPC, права, тексты интерфейса и переводы не менялись. Поверхность
+  конфликта с #1172 та же: `docs/PLAN_CHANGES.md` и четыре Swift-файла, число и
+  размер конфликтных участков не изменились.
+
+Проверки: полный `scripts/test-postgres-authorization.sh`, exit 0 (образ
+`supabase/postgres@sha256:80d7b27c…`). Цепочка 001–280: сначала набор 279
+(`N279_INBOX_UNANSWERED_FIRST_SUITE_PASSED`) и повторы 261/266/P4, затем набор
+280 (`P280_ACCOUNT_DELETION_SUITE_PASSED`). Контейнер прогона не остался.
+`npm run typecheck` — 0 ошибок. `tests/account-deletion.test.mjs`,
+`tests/portal-profile.test.mjs`, `tests/student-public-application.test.mjs`,
+`tests/v3-supabase-integration.test.mjs` и `tests/v3-reference-pages.test.mjs`
+— 51/52. Единственное падение («menu: «Заявки» lead «Продажи»…») воспроизводится
+на `main` `6d00f8d6c` и к ветке не относится. `expectedMigrationVersions` —
+001–280 подряд, без повторов. Read-only запрос к production: в журнале
+последняя миграция 279 (`platform_inbox_unanswered_first`), функций с меткой
+обхода нет. На production ничего не применено, в `main` ничего не влито.
+Слияние и порядок относительно #1172 решает владелец (C2).

@@ -59,7 +59,7 @@ final class SessionRouter: ObservableObject {
 
     @Published private(set) var state: State = .signedOut
     @Published var signInError: String?
-    /// Migration 279 (review finding 4): the account of the stored session
+    /// Migration 280 (review finding 4): the account of the stored session
     /// was deleted on request; the sign-in shows «Аккаунт удалён» until the
     /// next sign-in attempt.
     @Published private(set) var accountDeletedNotice = false
@@ -133,7 +133,7 @@ final class SessionRouter: ObservableObject {
     /// refreshStudentApplicationAction refreshes the session first
     /// (student-signup-actions.ts:95) so an approval becomes visible.
     func refreshApplicationStatus() async {
-        // 279 (review finding 4): ask Auth before the refresh. The refresh
+        // 280 (review finding 4): ask Auth before the refresh. The refresh
         // token of a deleted account is gone too, and a failed refresh signs
         // out without saying why.
         if await service.authUserIsDeleted() {
@@ -296,7 +296,7 @@ final class SessionRouter: ObservableObject {
         }
     }
 
-    /// Migration 279 (review finding 4): «Доступ готовится» is wrong for an
+    /// Migration 280 (review finding 4): «Доступ готовится» is wrong for an
     /// account the EVO team has deleted on request. Before showing it, ask
     /// Auth; `user_not_found` signs out locally and shows the sign-in with
     /// «Аккаунт удалён».

@@ -187,7 +187,7 @@ async function liveSessionState(
       return {
         state: hasSupabaseSessionCookie(request) ? "invalid" : "missing",
         response,
-        // 279 (ревью п. 4): Auth ответил, что пользователя из токена нет.
+        // 280 (ревью п. 4): Auth ответил, что пользователя из токена нет.
         accountDeleted: isDeletedAuthUserError(error),
       };
     }
@@ -298,7 +298,7 @@ export async function proxy(request: NextRequest) {
     ), id);
   }
 
-  // Удаление аккаунта (279, ревью п. 4): старая сессия удалённого аккаунта.
+  // Удаление аккаунта (280, ревью п. 4): старая сессия удалённого аккаунта.
   // The handler asks Auth itself and signs out only a user that no longer
   // exists, so no session gate runs before it (a deleted user has no live one).
   if (path === ACCOUNT_DELETED_PATH) {

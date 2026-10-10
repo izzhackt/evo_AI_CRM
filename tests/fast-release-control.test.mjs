@@ -10,6 +10,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1906,6 +1907,12 @@ const FOREIGN_AGENT_DIGEST = `sha256:${"9".repeat(64)}`;
 const AGENT_APP_NETWORK_OVERRIDE = "services:\n  app:\n    networks:\n      ai:\n        aliases:\n          - evo-crm-app\n"
   + "networks:\n  ai:\n    name: evo_crm_ai\n    driver: bridge\n\n";
 
+// Synthetic output of `docker logs --timestamps` for the outgoing app (both container streams).
+const FAKE_APP_LOG_STDOUT = "2026-10-10T09:00:00.000000001Z ▲ Next.js fixture ready\n"
+  + "2026-10-10T09:00:01.000000002Z GET /api/health 200\n";
+const FAKE_APP_LOG_STDERR = "2026-10-10T09:00:02.000000003Z fixture warning on stderr\n";
+const FAKE_APP_LOG_ERROR = "error from daemon in stream: fixture log read failure\n";
+
 function aiAgentReleaseFixture({ enabled, previousAgent = false, agentEnv = "complete", appOnAgentNetwork = previousAgent }) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-ai-agent-release-")));
   const bin = join(root, "bin");
@@ -2064,6 +2071,19 @@ else if (args[0] === "ps") {
   // The fixture archive is bound to targetImage by the real controller.
 } else if (args[0] === "tag") { state.rollbackTagPresent = true; save(); }
 else if (args[0] === "network" && args[1] === "inspect") { /* fixture networks exist */ }
+else if (args[0] === "logs") {
+  // Only the exact bounded read of the outgoing app; both container streams, synthetic lines.
+  if (args.length !== 5 || args[1] !== "--timestamps" || args[2] !== "--tail" || args[3] !== "20000"
+    || serviceFor(args[4]) !== "app" || state.app !== "baseline") process.exit(64);
+  const mode = process.env.FAKE_APP_LOGS ?? "ok";
+  if (mode === "silent") process.exit(1);
+  if (mode === "error") {
+    process.stderr.write(${JSON.stringify(FAKE_APP_LOG_ERROR)});
+    process.exit(1);
+  }
+  process.stdout.write(${JSON.stringify(FAKE_APP_LOG_STDOUT)});
+  process.stderr.write(${JSON.stringify(FAKE_APP_LOG_STDERR)});
+}
 else if (args[0] === "exec") {
   if (args[1] !== ids["ai-agent-api"] || !args.join(" ").includes("/v1/ready")) process.exit(64);
   process.exit(process.env.FAKE_AGENT_READY_FAIL === "1" ? 1 : 0);
@@ -2543,5 +2563,201 @@ test("every release refuses an old Docker Compose before any change; rollback is
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
     }
+  }
+});
+
+// Health audit A2 (2026-10-10): a release replaces the app container and Docker discards its
+// log with it. The controller keeps the outgoing app's bounded log tail root-only in the
+// release directory, prints none of it, and never lets a failed copy stop or roll back a release.
+const PREVIOUS_APP_LOG_RECORD_KEYS = ["bytes", "code", "containerId", "log", "schema", "sha256", "status", "tailLines"];
+
+function privateMode(path) {
+  return statSync(path).mode & 0o777;
+}
+
+function assertSingleDeployResult(deployed, releaseDir, releaseId) {
+  const lines = deployed.stdout.split("\n").filter(Boolean);
+  assert.equal(lines.length, 1, deployed.stdout);
+  assert.deepEqual(JSON.parse(lines[0]), {
+    ok: true, command: "deploy", status: "pending", releaseId, evidenceDir: releaseDir,
+  });
+}
+
+function leftoverLogTemporaries(releaseDir) {
+  return readdirSync(releaseDir).filter((name) => name.startsWith(".previous-app-log."));
+}
+
+test("release controller keeps the outgoing app log as best-effort private evidence", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const deploy = controller.slice(controller.indexOf("deploy() {"), controller.indexOf("manual_rollback() {"));
+  const saver = controller.slice(
+    controller.indexOf("previous_app_logs_warning() {"),
+    controller.indexOf("create_rollback_wrapper() {"),
+  );
+  assert.match(controller, /^readonly PREVIOUS_APP_LOG_TAIL_LINES=20000$/mu);
+  // After every check and the scanner, right before the app is replaced, and never fatal.
+  assert.match(
+    deploy,
+    /\n  provision_scanner_runtime\n(?:  #[^\n]*\n)*  save_previous_app_logs "\$release_evidence_dir" "\$current_app_container_id" \|\| true\n  if EVO_RELEASE_REVISION=/u,
+  );
+  assert.ok(deploy.indexOf("save_previous_app_logs") > deploy.indexOf("arm_release_mutation_trap"));
+  assert.ok(deploy.indexOf("save_previous_app_logs") < deploy.indexOf("compose up --detach"));
+  assert.match(saver, /docker logs --timestamps --tail "\$PREVIOUS_APP_LOG_TAIL_LINES" "\$container" >"\$temporary" 2>&1/u);
+  assert.match(saver, /chmod 600 "\$temporary"/u);
+  // Nothing that can exit, roll back, read the environment or print a log line.
+  assert.doesNotMatch(saver, /\bfail\b|\brequire_[a-z_]+|docker inspect|Config\.Env|\bexit\b/u);
+  assert.doesNotMatch(saver, /\bcat\b|\btee\b|--follow|\brm\b/u);
+  // The rollback paths never touch the saved log.
+  const rollback = controller.slice(controller.indexOf("rollback_from_state() {"), controller.indexOf("load_bound_release_state() {"));
+  assert.doesNotMatch(rollback, /previous-app-log|save_previous_app_logs/u);
+});
+
+test("deploy saves the outgoing app log root-only before replacing it and prints none of it", () => {
+  const fixture = aiAgentReleaseFixture({ enabled: false });
+  try {
+    assert.equal(fixture.run("seal-rollback-seed").status, 0);
+    const deployed = fixture.run("deploy");
+    assert.equal(deployed.status, 0, deployed.stderr);
+    assertSingleDeployResult(deployed, fixture.releaseDir, fixture.releaseId);
+    assert.equal(deployed.stderr, "");
+    assert.equal(fixture.runtime().app, "target");
+
+    const expected = FAKE_APP_LOG_STDOUT + FAKE_APP_LOG_STDERR;
+    const logPath = join(fixture.releaseDir, "previous-app.log");
+    const recordPath = join(fixture.releaseDir, "previous-app-log.json");
+    // Exactly the container's two streams: no inspect output, environment or controller text.
+    assert.equal(readFileSync(logPath, "utf8"), expected);
+    assert.equal(privateMode(logPath), 0o600);
+    assert.equal(privateMode(fixture.releaseDir), 0o700);
+    const record = JSON.parse(readFileSync(recordPath, "utf8"));
+    assert.deepEqual(Object.keys(record).sort(), PREVIOUS_APP_LOG_RECORD_KEYS);
+    assert.deepEqual(record, {
+      schema: "evo-previous-app-log/v1", status: "saved", code: "saved", log: "previous-app.log",
+      containerId: "a0a0a0a0a0a0", tailLines: 20000, bytes: Buffer.byteLength(expected), sha256: sha256(expected),
+    });
+    assert.equal(privateMode(recordPath), 0o600);
+    assert.deepEqual(leftoverLogTemporaries(fixture.releaseDir), []);
+    for (const line of [FAKE_APP_LOG_STDOUT, FAKE_APP_LOG_STDERR]) {
+      assert.ok(!deployed.stdout.includes(line.trim()) && !deployed.stderr.includes(line.trim()));
+    }
+
+    const calls = fixture.dockerCalls();
+    const logCalls = calls.filter((call) => call[0] === "logs");
+    assert.deepEqual(logCalls, [["logs", "--timestamps", "--tail", "20000", "a0a0a0a0a0a0"]]);
+    const logRead = calls.findIndex((call) => call[0] === "logs");
+    const scannerUp = calls.findIndex((call) => call[0] === "compose" && call.includes("up") && call.at(-1) === "clamav");
+    const appUp = calls.findIndex((call) => call[0] === "compose" && call.includes("up") && call.at(-1) === "app");
+    assert.ok(scannerUp >= 0 && scannerUp < logRead && logRead < appUp, JSON.stringify(calls));
+
+    // The saved log is evidence only: status and rollback stay exactly as before.
+    assert.equal(JSON.parse(fixture.run("candidate-status").stdout).status, "pending");
+    const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
+    assert.equal(rolledBack.status, 0, rolledBack.stderr);
+    assert.equal(fixture.runtime().app, "baseline");
+    assert.equal(readFileSync(logPath, "utf8"), expected);
+    assert.equal(fixture.dockerCalls().filter((call) => call[0] === "logs").length, 1);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("a failed log copy only warns: the release still deploys, verifies and rolls back", () => {
+  for (const [mode, expected] of [
+    ["error", { status: "incomplete", code: "previous_app_logs_incomplete", content: FAKE_APP_LOG_ERROR }],
+    ["silent", { status: "failed", code: "previous_app_logs_unavailable", content: null }],
+  ]) {
+    const fixture = aiAgentReleaseFixture({ enabled: false });
+    try {
+      assert.equal(fixture.run("seal-rollback-seed").status, 0);
+      const deployed = fixture.run("deploy", { FAKE_APP_LOGS: mode });
+      assert.equal(deployed.status, 0, `${mode}: ${deployed.stderr}`);
+      assertSingleDeployResult(deployed, fixture.releaseDir, fixture.releaseId);
+      assert.equal(deployed.stderr, `{"ok":true,"warning":"${expected.code}"}\n`, mode);
+      assert.equal(fixture.runtime().app, "target", mode);
+      const result = JSON.parse(readFileSync(join(fixture.releaseDir, "result.json"), "utf8"));
+      assert.equal(result.status, "pending", mode);
+      assert.equal(result.code, "verified", mode);
+
+      const logPath = join(fixture.releaseDir, "previous-app.log");
+      const record = JSON.parse(readFileSync(join(fixture.releaseDir, "previous-app-log.json"), "utf8"));
+      if (expected.content === null) {
+        assert.equal(existsSync(logPath), false, mode);
+        assert.deepEqual(record, {
+          schema: "evo-previous-app-log/v1", status: expected.status, code: expected.code, log: "",
+          containerId: "a0a0a0a0a0a0", tailLines: 20000, bytes: 0, sha256: "",
+        });
+      } else {
+        // What Docker wrote before failing is kept, root-only, and named incomplete.
+        assert.equal(readFileSync(logPath, "utf8"), expected.content, mode);
+        assert.equal(privateMode(logPath), 0o600, mode);
+        assert.deepEqual(record, {
+          schema: "evo-previous-app-log/v1", status: expected.status, code: expected.code, log: "previous-app.log",
+          containerId: "a0a0a0a0a0a0", tailLines: 20000, bytes: Buffer.byteLength(expected.content),
+          sha256: sha256(expected.content),
+        });
+      }
+      assert.deepEqual(leftoverLogTemporaries(fixture.releaseDir), [], mode);
+      const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
+      assert.equal(rolledBack.status, 0, `${mode}: ${rolledBack.stderr}`);
+      assert.equal(fixture.runtime().app, "baseline", mode);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("the log copy returns success under errexit for an absent app, a foreign id and an unwritable directory", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const constants = controller.match(/^readonly HASH64_RE=.*$/mu)?.[0] + "\n"
+    + controller.match(/^readonly PREVIOUS_APP_LOG_TAIL_LINES=.*$/mu)?.[0];
+  const helpers = controller.slice(controller.indexOf("sync_file_and_parent() {"), controller.indexOf("replace_json_atomically() {"))
+    + controller.slice(controller.indexOf("previous_app_logs_warning() {"), controller.indexOf("create_rollback_wrapper() {"));
+  assert.match(helpers, /^sync_file_and_parent\(\) \{[\s\S]*create_once_json\(\) \{[\s\S]*save_previous_app_logs\(\) \{/u);
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-previous-app-log-")));
+  const bin = join(root, "bin");
+  mkdirSync(bin, { mode: 0o700 });
+  const dockerLog = join(root, "docker.log");
+  writeExecutable(join(bin, "docker"), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(dockerLog)}\nprintf 'line\\n'\n`);
+  // No `|| true` here: the function itself must return 0 with errexit on.
+  const run = (directory, container) => spawnSync("bash", ["-c",
+    `set -Eeuo pipefail\numask 077\n${constants}\n${helpers}\nsave_previous_app_logs "$1" "$2"\nprintf 'continued\\n'`,
+    "bash", directory, container,
+  ], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}` } });
+  const record = (directory) => JSON.parse(readFileSync(join(directory, "previous-app-log.json"), "utf8"));
+  try {
+    const absent = join(root, "absent");
+    mkdirSync(absent, { mode: 0o700 });
+    const first = run(absent, "");
+    assert.equal(first.status, 0, first.stderr);
+    assert.equal(first.stdout, "continued\n");
+    assert.equal(first.stderr, "");
+    assert.equal(record(absent).status, "absent");
+    assert.equal(record(absent).code, "previous_app_absent");
+    assert.equal(existsSync(join(absent, "previous-app.log")), false);
+
+    const foreign = join(root, "foreign");
+    mkdirSync(foreign, { mode: 0o700 });
+    const injected = run(foreign, "--follow");
+    assert.equal(injected.status, 0, injected.stderr);
+    assert.equal(injected.stdout, "continued\n");
+    assert.equal(injected.stderr, '{"ok":true,"warning":"previous_app_logs_container_invalid"}\n');
+    assert.equal(record(foreign).code, "previous_app_logs_container_invalid");
+    assert.equal(existsSync(dockerLog), false, "an invalid id never reaches Docker");
+
+    if (typeof process.getuid === "function" && process.getuid() !== 0) {
+      const locked = join(root, "locked");
+      mkdirSync(locked, { mode: 0o500 });
+      const unwritable = run(locked, "a0a0a0a0a0a0");
+      assert.equal(unwritable.status, 0, unwritable.stderr);
+      assert.equal(unwritable.stdout, "continued\n");
+      assert.equal(
+        unwritable.stderr,
+        '{"ok":true,"warning":"previous_app_logs_record_failed"}\n{"ok":true,"warning":"previous_app_logs_create_failed"}\n',
+      );
+      assert.deepEqual(readdirSync(locked), []);
+      chmodSync(locked, 0o700);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

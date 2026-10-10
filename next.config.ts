@@ -6,6 +6,8 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Не сообщать наружу, что это Next.js (A4 аудита 10.10.2026).
+  poweredByHeader: false,
   outputFileTracingIncludes: {
     "/api/v3/student-cases/*/document-exports": ["./assets/templates/student-profile.docx"],
   },

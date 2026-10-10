@@ -7,6 +7,9 @@ import { loadStaffNotificationsAction, markAllStaffNotificationsReadAction, mark
 import type { StaffNotification, StaffNotificationCursor, StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 import { dayInOrganizationTimezone, projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
 import { caseMessageNotificationCopy } from "@/components/v3/staff-notification-copy";
+import { STALE_DEPLOYMENT_TEXT } from "@/components/v3/StaleDeploymentNotice";
+import { isStaleDeployment, noteStaleDeployment, reloadForNewDeployment } from "@/lib/stale-deployment";
+import { useInlineStalePrompt, useStaleDeployment } from "@/lib/use-stale-deployment";
 
 const TIME = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
 const EXACT_TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
@@ -95,8 +98,13 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
   // mutation's own optimistic local state change.
   const mutationsInFlight = useRef(0);
   const invalidate = useCallback(() => { serial.current++; }, []);
+  // Вкладка пережила выпуск: action этой сборки сервер уже не знает. Повтор
+  // не поможет — опрос стоит, панель просит обновить страницу.
+  const stale = useStaleDeployment();
+  useInlineStalePrompt(open && stale);
 
   const load = useCallback(async (cursor: StaffNotificationCursor | null = null) => {
+    if (isStaleDeployment()) { setBusy(false); return; }
     const request = ++serial.current;
     try {
       const result = await loadStaffNotificationsAction(cursor);
@@ -107,21 +115,29 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
         ...result.page,
         items: [...previous.items, ...result.page.items.filter((item) => !previous.items.some((old) => old.id === item.id))],
       } : result.page);
-    } catch {
+    } catch (cause) {
+      if (noteStaleDeployment(cause)) { if (serial.current === request) setError(null); return; }
       if (serial.current === request) { setError("Нет связи. Повторите загрузку уведомлений."); setPage(null); }
     } finally { if (serial.current === request) setBusy(false); }
   }, []);
 
   useEffect(() => {
+    if (stale) return;
     // Live also while open, but never mid-flight of a mark-read/mark-all
     // command: a background refresh landing between click and navigation
-    // must not clobber that command's own local state change.
-    const refresh = () => { if (document.visibilityState === "visible" && mutationsInFlight.current === 0) void load(); };
+    // must not clobber that command's own local state change. One background
+    // read at a time: focus and visibilitychange arrive together on return.
+    let refreshing = false;
+    const refresh = () => {
+      if (refreshing || isStaleDeployment() || document.visibilityState !== "visible" || mutationsInFlight.current !== 0) return;
+      refreshing = true;
+      void load().finally(() => { refreshing = false; });
+    };
     const timer = window.setInterval(refresh, 60000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
-  }, [load]);
+  }, [load, stale]);
   useEffect(() => () => invalidate(), [invalidate]);
   useEffect(() => {
     if (!open) return;
@@ -139,7 +155,7 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
         ...previous, items: previous.items.map((row) => row.id === item.id ? { ...row, readAt: row.readAt ?? new Date().toISOString() } : row),
       } : previous);
       setOpen(false); router.push(item.href);
-    } catch { setError("Не удалось открыть уведомление. Повторите."); }
+    } catch (cause) { if (!noteStaleDeployment(cause)) setError("Не удалось открыть уведомление. Повторите."); }
     finally { mutationsInFlight.current--; setBusy(false); }
   }
   async function markAll() {
@@ -148,11 +164,12 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
       const result = await markAllStaffNotificationsReadAction();
       if (!result.ok) { setError(result.message ?? "Не удалось отметить уведомления прочитанными."); return; }
       await load();
-    } catch { setError("Не удалось отметить уведомления прочитанными. Повторите."); }
+    } catch (cause) { if (!noteStaleDeployment(cause)) setError("Не удалось отметить уведомления прочитанными. Повторите."); }
     finally { mutationsInFlight.current--; setBusy(false); }
   }
   const count = page?.unreadCount;
-  const failed = error !== null;
+  const failed = error !== null && !stale;
+  const locked = busy || stale;
   useEffect(() => { onCountChange(count); }, [count, onCountChange]);
   // Панель в верхнем слое у своей кнопки — справа от бокового меню, на
   // телефоне — под кнопкой в листе «Ещё».
@@ -210,11 +227,15 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
             <button type="button" aria-haspopup="menu" aria-expanded={menuOpen} className={CONTROL}
               onClick={() => setMenuOpen((value) => !value)}>⋯</button>
             {menuOpen ? <div role="menu" className="absolute end-0 top-full z-50 mt-1 w-52 rounded-card border border-border bg-surface p-1 shadow-evo-lg">
-              <button type="button" role="menuitem" disabled={busy} onClick={() => void markAll()}
+              <button type="button" role="menuitem" disabled={locked} onClick={() => void markAll()}
                 className="min-h-11 w-full rounded-nav px-3 py-2 text-start text-sm hover:bg-surface-2">Прочитать всё</button>
             </div> : null}
           </div>
         </div>
+        {stale ? <div className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-ctl border border-border bg-surface-2 px-3 py-2 text-sm text-fg" data-testid="v3-notifications-stale">
+          <span>{STALE_DEPLOYMENT_TEXT}</span>
+          <button type="button" onClick={reloadForNewDeployment} className="min-h-11 shrink-0 font-semibold underline">Обновить страницу</button>
+        </div> : null}
         {failed ? <div role="alert" className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-ctl border border-danger/30 bg-danger-weak px-3 py-2 text-sm text-danger">
           <span>{error}</span>
           <button type="button" disabled={busy} onClick={() => { setBusy(true); void load(); }} className="min-h-11 shrink-0 font-semibold underline">Повторить</button>
@@ -222,13 +243,13 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
         {busy && !page ? <p role="status" className="py-6 text-sm text-fg-2">Загружаем…</p> : null}
         {page?.items.length === 0 ? <p className="py-6 text-sm text-fg-2">Новых событий пока нет.</p> : null}
         <ul className="mt-3 divide-y divide-border">{page?.items.map((item) => <li key={item.id}>
-          <button type="button" disabled={busy} onClick={() => void openItem(item)}
+          <button type="button" disabled={locked} onClick={() => void openItem(item)}
             className="min-h-11 w-full rounded-nav py-3 text-start focus-visible:outline-2 focus-visible:outline-focus-ring">
             <span className={`block text-sm ${item.readAt ? "text-fg-2" : "font-semibold text-fg"}`}>{rowCopy(item)}</span>
             <span className="mt-1 block text-xs text-fg-3">{TIME.format(new Date(item.createdAt))}{item.readAt ? " · Прочитано" : " · Не прочитано"}</span>
           </button>
         </li>)}</ul>
-        {page?.nextCursor ? <button type="button" disabled={busy} className={`${CONTROL} mt-3 w-full`} onClick={() => { setBusy(true); void load(page.nextCursor); }}>Раньше</button> : null}
+        {page?.nextCursor ? <button type="button" disabled={locked} className={`${CONTROL} mt-3 w-full`} onClick={() => { setBusy(true); void load(page.nextCursor); }}>Раньше</button> : null}
       </section> : null}
     </div>
   );

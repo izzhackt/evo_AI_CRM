@@ -172,6 +172,9 @@ www.soodacloser.com {
 		-Server
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options "SAMEORIGIN"
+		Content-Security-Policy "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
 	}
 	route {
 		import evo_canonical_api_paths
@@ -208,7 +211,12 @@ www.soodacloser.com {
 	}
 }
 
-evoadmissions.com, www.evoadmissions.com {
+# www is only a redirect to the apex (308 keeps the method).
+www.evoadmissions.com {
+	redir https://evoadmissions.com{uri} 308
+}
+
+evoadmissions.com {
 	import evo_website
 }
 

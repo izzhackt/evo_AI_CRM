@@ -1,7 +1,7 @@
 "use client";
 import { startTransition, useActionState, useState } from "react";
 import { btnGhostCls, inputCls } from "@/components/ui";
-import { LEAD_CHANNELS, leadChannelText, type LeadChannel, type LeadChannelCorrectionState } from "@/lib/lead-channel-contract";
+import { LEAD_CHANNELS, leadChannelText, type LeadChannel, type LeadChannelCorrectionState, type LeadChannelRead } from "@/lib/lead-channel-contract";
 import { correctLeadChannelAction } from "@/lib/platform-lead-channel-actions";
 
 const MESSAGES: Record<LeadChannelCorrectionState["status"], string> = {
@@ -16,9 +16,17 @@ const MESSAGES: Record<LeadChannelCorrectionState["status"], string> = {
 /**
  * Исправление «Откуда узнал» (`staff_correction`): тихое раскрытие рядом с самим фактом, без красной
  * кнопки. Текущее значение выбрано заранее, «Сохранить» ждёт другого выбора. Новый выбор — новый id
- * запроса; повтор того же — тот же (идемпотентность 264).
+ * запроса; повтор того же — тот же (идемпотентность 264). В «Маркетинге → Заявки» (10.10) то же действие
+ * стоит в строке с «Не известно» под словом «Указать»: id запроса тогда появляется с первым выбором, а
+ * `onSaved` сразу обновляет строку.
  */
-export function LeadChannelCorrection({ leadId, requestId, current }: Readonly<{ leadId: string; requestId: string; current: LeadChannel }>) {
+export function LeadChannelCorrection({ leadId, requestId = "", current, label = "Исправить", onSaved }: Readonly<{
+  leadId: string;
+  requestId?: string;
+  current: LeadChannel;
+  label?: string;
+  onSaved?: (read: LeadChannelRead) => void;
+}>) {
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
   const [choice, setChoice] = useState<LeadChannel>(current);
   // Что записано сейчас: после «Сохранить» это выбранное значение, а не то, с которым открылась карточка.
@@ -28,7 +36,7 @@ export function LeadChannelCorrection({ leadId, requestId, current }: Readonly<{
       const result = await correctLeadChannelAction(previous, form);
       if (result.status === "saved") {
         setCurrentRequestId(crypto.randomUUID());
-        if (result.read) { setSavedChannel(result.read.channel); setChoice(result.read.channel); }
+        if (result.read) { setSavedChannel(result.read.channel); setChoice(result.read.channel); onSaved?.(result.read); }
       }
       return result;
     } catch { return { ...previous, status: "unavailable" }; }
@@ -37,7 +45,7 @@ export function LeadChannelCorrection({ leadId, requestId, current }: Readonly<{
   return (
     <details className="group">
       <summary className="inline-flex min-h-11 cursor-pointer list-none items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden">
-        Исправить
+        {label}
       </summary>
       {/* Не `<form action>`: React 19 после каждого действия сбрасывает такую форму (form.reset()), и
           select, привязанный к состоянию, показал бы первый канал, а повтор отправил бы его. */}

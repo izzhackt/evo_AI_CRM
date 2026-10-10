@@ -44,7 +44,7 @@ function channelBasisLine(row: CohortChannelRow, cabinetForms: number): string |
   const parts = BASIS_ORDER.filter((key) => row.basis[key] > 0 && !(row.channel === "unknown" && key === "unknown"))
     .map((key) => `${LEAD_CHANNEL_BASES[key]} ${n(row.basis[key])}`);
   // Анкеты кабинета в «Не известно» названы отдельно: у них нет формы с метками и слов сотрудника.
-  if (row.channel === "unknown" && cabinetForms > 0) parts.push(`анкеты на платформе ${n(cabinetForms)}`);
+  if (row.channel === "unknown" && cabinetForms > 0) parts.push(`из них анкеты на платформе ${n(cabinetForms)}`);
   if (row.aiAssistant > 0) parts.push(`${LEAD_CHANNEL_AI_NOTE} ${n(row.aiAssistant)}`);
   return parts.length ? parts.join(" · ") : null;
 }

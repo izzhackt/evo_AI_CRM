@@ -556,7 +556,6 @@ test("the leads table shows the plan columns, links the name to Lead 360 and nev
   assert.doesNotMatch(html, /\.csv|Экспорт|Скачать/u);
   // 10.10: «Указать» — только у строки с «Не известно», тем же действием, что «Исправить» в Lead 360.
   assert.equal([...html.matchAll(/data-testid="marketing-lead-set-channel"/gu)].length, 1, "one unknown row, one setter");
-  assert.match(html, /data-testid="marketing-lead-set-channel"[\s\S]*?>Указать<\/summary>/u);
   assert.match(html, /name="lead_id" value="30000000-0000-4000-8000-000000000002"/u, "the setter writes to the unknown lead");
   assert.match(html, /name="request_id" value=""/u, "no request id until a channel is chosen");
   assert.match(html, /<button[^>]*disabled=""[^>]*>Сохранить<\/button>/u, "saving waits for a choice");

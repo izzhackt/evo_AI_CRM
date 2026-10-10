@@ -278,11 +278,6 @@ const profileRu = {
   languageError: "Не удалось сохранить язык. Повторите.",
   sessionHeading: "Сессия",
   logout: "Выйти",
-  deleteHeading: "Удаление аккаунта",
-  deleteDescription: "Команда EVO обработает запрос и закроет доступ к кабинету: избранное, результаты тестов и загруженные материалы станут недоступны. Записи, которые обязаны храниться по договору и закону, сохраняются по действующим правилам.",
-  deleteConfirm: "Отправить запрос на удаление",
-  deleteRequested: "Запрос отправлен — обрабатывается командой.",
-  deleteError: "Не удалось подтвердить отправку запроса. Повторите попытку.",
 } as const;
 
 type ProfileKey = keyof typeof profileRu;
@@ -305,11 +300,6 @@ const profileKy: Readonly<Record<ProfileKey, string>> = {
   languageError: "Тил сакталган жок. Кайталаңыз.",
   sessionHeading: "Сессия",
   logout: "Чыгуу",
-  deleteHeading: "Аккаунтту өчүрүү",
-  deleteDescription: "EVO командасы сурамды иштеп чыгып, кабинетке кирүүнү жабат: тандалмалар, тест жыйынтыктары жана жүктөлгөн материалдар жеткиликсиз болот. Келишим жана мыйзам боюнча сакталууга тийиш жазуулар колдонуудагы эрежелер боюнча сакталат.",
-  deleteConfirm: "Өчүрүүгө сурам жөнөтүү",
-  deleteRequested: "Сурам жөнөтүлдү — команда иштеп жатат.",
-  deleteError: "Сурамдын жөнөтүлгөнүн ырастоо мүмкүн болгон жок. Кайра аракет кылыңыз.",
 };
 
 /**
@@ -1990,6 +1980,50 @@ const programDocumentsKy: Readonly<Record<keyof typeof programDocumentsRu, strin
   readUnavailable: "Документ ачылган жок. Баракты жаңыртыңыз же билдирүүлөргө кайтыңыз.",
 };
 
+/**
+ * «Удалить аккаунт» (миграция 280, решения владельца 07.10.2026 и упрощение
+ * для 1.0 от 08.10.2026): кабинет, анкета и экран ожидания говорят одно и то
+ * же, текст владельца слово в слово. Срок 30 дней; договор и оплаты хранятся
+ * обезличенно. Без обещаний, которых код не держит (письма, например: почта
+ * может быть не настроена).
+ */
+const accountDeletionRu = {
+  heading: "Удаление аккаунта",
+  description: "Мы удалим аккаунт и связанные с ним данные в течение 30 дней.",
+  keptNote: "Записи о договоре и оплатах хранятся обезличенно столько, сколько требует закон.",
+  action: "Удалить аккаунт",
+  confirmQuestion: "Удалить аккаунт и связанные с ним данные?",
+  confirmNote: "Запрос нельзя отменить на сайте. Пока аккаунт не удалён, он работает как обычно.",
+  confirmYes: "Да, удалить аккаунт",
+  cancel: "Отмена",
+  sending: "Отправляем запрос",
+  requested: "Запрос на удаление принят {date}.",
+  due: "Удалим аккаунт и связанные с ним данные до {date}.",
+  processing: "Удаляем аккаунт и связанные с ним данные. После этого войти будет нельзя.",
+  error: "Не удалось отправить запрос. Проверьте соединение и попробуйте снова.",
+  unavailable: "Не удалось проверить запрос на удаление. Обновите страницу.",
+} as const;
+
+type AccountDeletionKey = keyof typeof accountDeletionRu;
+
+// KY: носитель языка вычитывает в PR.
+const accountDeletionKy: Readonly<Record<AccountDeletionKey, string>> = {
+  heading: "Аккаунтту өчүрүү",
+  description: "Аккаунтту жана ага байланышкан маалыматтарды 30 күндүн ичинде өчүрөбүз.",
+  keptNote: "Келишим жана төлөмдөр боюнча жазуулар мыйзам талап кылган мөөнөткө чейин жеке маалыматтарсыз сакталат.",
+  action: "Аккаунтту өчүрүү",
+  confirmQuestion: "Аккаунтту жана ага байланышкан маалыматтарды өчүрөбүзбү?",
+  confirmNote: "Сурамды сайтта жокко чыгарууга болбойт. Аккаунт өчүрүлгөнгө чейин ал кадимкидей иштейт.",
+  confirmYes: "Ооба, аккаунтту өчүрүү",
+  cancel: "Жокко чыгаруу",
+  sending: "Сурам жөнөтүлүүдө",
+  requested: "Өчүрүү сурамы {date} кабыл алынды.",
+  due: "Аккаунтту жана ага байланышкан маалыматтарды {date} чейин өчүрөбүз.",
+  processing: "Аккаунтту жана ага байланышкан маалыматтарды өчүрүп жатабыз. Андан кийин кирүүгө болбойт.",
+  error: "Сурам жөнөтүлгөн жок. Байланышты текшерип, кайра аракет кылыңыз.",
+  unavailable: "Өчүрүү сурамын текшерүү мүмкүн болгон жок. Баракты жаңыртыңыз.",
+};
+
 export const PORTAL_DICTIONARIES = {
   programDocuments: { ru: programDocumentsRu, ky: programDocumentsKy },
   preparations: { ru: preparationsRu, ky: preparationsKy },
@@ -2005,6 +2039,7 @@ export const PORTAL_DICTIONARIES = {
   professions: { ru: professionsRu, ky: professionsKy },
   tests: { ru: testsRu, ky: testsKy },
   apply: { ru: applyRu, ky: applyKy },
+  accountDeletion: { ru: accountDeletionRu, ky: accountDeletionKy },
 } as const;
 
 export type PortalNamespace = keyof typeof PORTAL_DICTIONARIES;

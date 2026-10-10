@@ -79,8 +79,10 @@ function Choice({ selected, children, onClick }: { selected: boolean; children: 
   </button>;
 }
 
-export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, namePrefill = null, year, locale = "ru", theme = "light" }: {
+export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, namePrefill = null, year, locale = "ru", theme = "light", accountDeletionHref = null }: {
   requestId: string; draft?: StudentApplicationDraft | null; signedInEmail?: string | null; draftOwnerId?: string | null; expectedRevision?: number; namePrefill?: ApplicationNamePrefill | null; year: number; locale?: Locale; theme?: Theme;
+  /** 280: вошедший аккаунт видит «Удалить аккаунт» в шапке анкеты. */
+  accountDeletionHref?: string | null;
 }) {
   const strings = getPortalStrings("apply", locale);
   // Доменные подписи опций: как прежний `LABELS[key] ?? key`, но из словаря.
@@ -227,6 +229,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
         <ApplyLangSwitcher current={locale} label={strings.languageAria} />
         <ThemeToggle locale={locale} initialTheme={theme} />
         <Link href={signedInEmail ? "/apply/status" : "/login"} className="inline-flex min-h-11 items-center text-sm font-medium text-fg-2 underline-offset-4 hover:underline">{signedInEmail ? strings.myApplication : strings.loginLink}</Link>
+        {accountDeletionHref ? <a href={accountDeletionHref} className="inline-flex min-h-11 items-center text-sm font-medium text-fg-2 underline-offset-4 hover:underline">{getPortalStrings("accountDeletion", locale).action}</a> : null}
       </div>
     </header>
     <div className="mx-auto max-w-4xl px-4 pb-10 pt-3 sm:px-8 sm:pt-8">

@@ -1,6 +1,244 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "account_deleted_notice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунт өчүрүлдү."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунт удалён."
+          }
+        }
+      }
+    },
+    "account_deletion_action" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунтту өчүрүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить аккаунт"
+          }
+        }
+      }
+    },
+    "account_deletion_confirm_note" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сурамды тиркемеден жокко чыгарууга болбойт. Аккаунт өчүрүлгөнгө чейин тиркеме кадимкидей иштейт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запрос нельзя отменить в приложении. Пока аккаунт не удалён, приложение работает как обычно."
+          }
+        }
+      }
+    },
+    "account_deletion_confirm_question" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунтту жана ага байланышкан маалыматтарды өчүрөбүзбү?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить аккаунт и связанные с ним данные?"
+          }
+        }
+      }
+    },
+    "account_deletion_confirm_yes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ооба, аккаунтту өчүрүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Да, удалить аккаунт"
+          }
+        }
+      }
+    },
+    "account_deletion_description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунтту жана ага байланышкан маалыматтарды 30 күндүн ичинде өчүрөбүз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мы удалим аккаунт и связанные с ним данные в течение 30 дней."
+          }
+        }
+      }
+    },
+    "account_deletion_done_button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даяр"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово"
+          }
+        }
+      }
+    },
+    "account_deletion_due" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунтту жана ага байланышкан маалыматтарды %@ чейин өчүрөбүз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалим аккаунт и связанные с ним данные до %@."
+          }
+        }
+      }
+    },
+    "account_deletion_error" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сурам жөнөтүлгөн жок. Байланышты текшерип, кайра аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось отправить запрос. Проверьте соединение и попробуйте снова."
+          }
+        }
+      }
+    },
+    "account_deletion_heading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунтту өчүрүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удаление аккаунта"
+          }
+        }
+      }
+    },
+    "account_deletion_kept_note" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Келишим жана төлөмдөр боюнча жазуулар мыйзам талап кылган мөөнөткө чейин жеке маалыматтарсыз сакталат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записи о договоре и оплатах хранятся обезличенно столько, сколько требует закон."
+          }
+        }
+      }
+    },
+    "account_deletion_processing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунтту жана ага байланышкан маалыматтарды өчүрүп жатабыз. Андан кийин кирүүгө болбойт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удаляем аккаунт и связанные с ним данные. После этого войти будет нельзя."
+          }
+        }
+      }
+    },
+    "account_deletion_requested" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Өчүрүү сурамы %@ кабыл алынды."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запрос на удаление принят %@."
+          }
+        }
+      }
+    },
+    "account_deletion_unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Өчүрүү сурамын текшерүү мүмкүн болгон жок. Жаңыртуу үчүн экранды ылдый тартыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить запрос на удаление. Потяните экран вниз, чтобы обновить."
+          }
+        }
+      }
+    },
     "signup_confirmation_title": {
       "localizations": {
         "ru": {
@@ -10587,91 +10825,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Версия приложения"
-          }
-        }
-      }
-    },
-    "profile_delete_confirm" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ky" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Өчүрүүгө сурам жөнөтүү"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Отправить запрос на удаление"
-          }
-        }
-      }
-    },
-    "profile_delete_description" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ky" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Баскыч EVO командасына сурам жөнөтөт — дароо эч нерсе өчүрүлбөйт. Команда сурамды иштеп чыгып, кабинетке кирүүнү жабат: тандалмалар, тест жыйынтыктары жана жүктөлгөн материалдар жеткиликсиз болот. Келишим жана мыйзам боюнча сакталууга тийиш жазуулар колдонуудагы эрежелер боюнча сакталат."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кнопка отправляет запрос команде EVO — сразу ничего не удаляется. Команда обработает запрос и закроет доступ к кабинету: избранное, результаты тестов и загруженные материалы станут недоступны. Записи, которые обязаны храниться по договору и закону, сохраняются по действующим правилам."
-          }
-        }
-      }
-    },
-    "profile_delete_error" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ky" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сурам жөнөтүлгөн жок. Кайталаңыз."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Не удалось отправить запрос. Повторите."
-          }
-        }
-      }
-    },
-    "profile_delete_heading" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ky" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Аккаунтту өчүрүү"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Удаление аккаунта"
-          }
-        }
-      }
-    },
-    "profile_delete_requested" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ky" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сурам жөнөтүлдү — команда иштеп жатат."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Запрос отправлен — обрабатывается командой."
           }
         }
       }

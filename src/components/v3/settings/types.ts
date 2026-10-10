@@ -21,6 +21,7 @@ export const SECTIONS = [
   { key: "staff", view: "departments", title: "Отделы" },
   { key: "integrations", view: null, title: "Интеграции" },
   { key: "journal", view: null, title: "Журнал действий" },
+  { key: "deletion", view: null, title: "Запросы на удаление" },
   { key: "documents", view: null, title: "Документы и передача" },
   { key: "platform", view: null, title: "Платформа" },
 ] as const satisfies readonly Readonly<{ key: string; view: StaffView | null; title: string }>[];

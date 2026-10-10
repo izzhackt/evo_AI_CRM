@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { getLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import { buildRouteMetadata } from "@/lib/route-metadata";
+import { ACCOUNT_DELETED_NOTICE } from "@/lib/account-deletion-contract";
 import { readRequestTheme } from "@/lib/theme-server";
 import {
   platformAudienceForHost,
@@ -20,6 +21,7 @@ const COPY: Record<
   Locale,
   Readonly<{
     accessDenied: string;
+    accountDeleted: string;
     authUnavailable: string;
     staffAccessDenied: string;
     email: string;
@@ -31,6 +33,7 @@ const COPY: Record<
 > = {
   ru: {
     accessDenied: "Не удалось войти. Проверьте оба значения.",
+    accountDeleted: "Аккаунт удалён.",
     authUnavailable: "Сервис входа временно недоступен.",
     staffAccessDenied: "Аккаунт не имеет активного доступа к продукту EVO.",
     email: "Email или логин",
@@ -42,6 +45,7 @@ const COPY: Record<
   },
   ky: {
     accessDenied: "Кирүү ишке ашкан жок. Эки маанини тең текшериңиз.",
+    accountDeleted: "Аккаунт өчүрүлдү.",
     authUnavailable: "Кирүү кызматы убактылуу жеткиликсиз.",
     staffAccessDenied: "Аккаунтта EVO продуктусуна активдүү мүмкүнчүлүк жок.",
     email: "Email же логин",
@@ -53,6 +57,7 @@ const COPY: Record<
   },
   en: {
     accessDenied: "Access was not granted. Check both values.",
+    accountDeleted: "Account deleted.",
     authUnavailable: "The sign-in service is temporarily unavailable.",
     staffAccessDenied: "This account has no active access to EVO.",
     email: "Email or login",
@@ -91,6 +96,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 type LoginPageSearchParams = Promise<{
   error?: string | string[];
+  notice?: string | string[];
 }>;
 
 function firstQueryValue(value: string | string[] | undefined): string | null {
@@ -107,7 +113,11 @@ export default async function LoginPage({
   const audience = platformAudienceForHost((await headers()).get("host"));
   const audienceCopy = audience ? AUDIENCE_COPY[locale][audience] : null;
   const copy = { ...COPY[locale], ...audienceCopy };
-  const error = firstQueryValue((await searchParams).error);
+  const query = await searchParams;
+  const error = firstQueryValue(query.error);
+  // Удаление аккаунта (280, ревью п. 4): /auth/account-deleted вышел из
+  // сессии удалённого аккаунта и сообщает об этом здесь.
+  const accountDeleted = firstQueryValue(query.notice) === ACCOUNT_DELETED_NOTICE;
   const initialError =
     error === "session_invalid"
       ? "accessDenied"
@@ -134,6 +144,11 @@ export default async function LoginPage({
             {copy.title}
           </h1>
           <p className="mt-2 text-sm leading-6 text-fg-2">{copy.intro}</p>
+          {accountDeleted && (
+            <p role="status" className="mt-4 rounded-ctl border border-border bg-bg px-3 py-2 text-sm leading-6 text-fg">
+              {copy.accountDeleted}
+            </p>
+          )}
           <div className="mt-6">
             <LoginForm labels={copy} initialError={initialError} />
           </div>

@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @StateObject private var router = SessionRouter()
     @StateObject private var preparations = ProgramPreparationSession()
+    @State private var showsDeletion = false
 
     var body: some View {
         Group {
@@ -36,6 +37,17 @@ struct RootView: View {
                             }
                             .accessibilityLabel(Text("apply_logout"))
                         }
+                        // 280: вошедший аккаунт без анкеты тоже может удалить
+                        // аккаунт; пункт в меню «Ещё» панели.
+                        ToolbarItem(placement: .secondaryAction) {
+                            Button("account_deletion_action", role: .destructive) {
+                                showsDeletion = true
+                            }
+                            .accessibilityIdentifier("account-deletion-open")
+                        }
+                    }
+                    .sheet(isPresented: $showsDeletion) {
+                        AccountDeletionSheet()
                     }
                 }
                 .id("\(entry.signedInEmail ?? "")#\(entry.expectedRevision)")

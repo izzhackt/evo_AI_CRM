@@ -2,7 +2,6 @@
  * Чистые помощники экрана «Профиль» (PORT-5a, план §6 «Профиль», §13).
  * Серверный контракт — миграция 196. Файл клиент-безопасный.
  */
-import { universityUuid } from "../platform-university-catalog.ts";
 
 export type PortalLanguage = "ru" | "ky";
 
@@ -17,10 +16,6 @@ export type PortalProfile = Readonly<{
 
 export type PortalLanguageActionResult =
   | Readonly<{ ok: true; portalLanguage: PortalLanguage }>
-  | Readonly<{ ok: false }>;
-
-export type AccountDeletionActionResult =
-  | Readonly<{ ok: true; requestedAt: string }>
   | Readonly<{ ok: false }>;
 
 export function isPortalLanguage(value: unknown): value is PortalLanguage {
@@ -59,18 +54,4 @@ export function parsePortalProfile(value: unknown): PortalProfile | null {
     caseState: row.caseState,
     deletionRequestedAt: row.deletionRequestedAt,
   };
-}
-
-/** Разбор ответа request_account_deletion_v1 в результат действия. */
-export function parseAccountDeletionReceipt(value: unknown): AccountDeletionActionResult {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return { ok: false };
-  }
-  const receipt = value as Record<string, unknown>;
-  if (
-    !universityUuid(receipt.requestId)
-    || (receipt.status !== "requested" && receipt.status !== "acknowledged")
-    || !timestamp(receipt.requestedAt)
-  ) return { ok: false };
-  return { ok: true, requestedAt: receipt.requestedAt as string };
 }

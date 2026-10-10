@@ -71,7 +71,7 @@ const { DocumentsView } = require(join(ROOT, "src/components/portal/admission/Do
 const { NotificationsView } = require(join(ROOT, "src/components/portal/admission/NotificationsView.tsx"));
 const { ProfessionsGrid } = require(join(ROOT, "src/components/portal/professions/ProfessionsGrid.tsx"));
 const { LanguageForm } = require(join(ROOT, "src/components/portal/profile/LanguageForm.tsx"));
-const { DeleteAccountRequest } = require(join(ROOT, "src/components/portal/profile/DeleteAccountRequest.tsx"));
+const { AccountDeletionPanel } = require(join(ROOT, "src/components/account-deletion/AccountDeletionPanel.tsx"));
 const { ConsultationRequest } = require(join(ROOT, "src/components/portal/consultation/ConsultationRequest.tsx"));
 const { TestsCatalog } = require(join(ROOT, "src/components/portal/tests/TestsCatalog.tsx"));
 const { AssessmentRunner } = require(join(ROOT, "src/components/portal/tests/AssessmentRunner.tsx"));
@@ -708,9 +708,10 @@ const surfaces = [
               initialOpenRequest: null,
               strings: consultationStrings,
             }),
-            createElement(DeleteAccountRequest, {
-              initialRequestedAt: null,
-              strings: profileStrings,
+            createElement(AccountDeletionPanel, {
+              initialRequest: null,
+              strings: getPortalStrings("accountDeletion", "ru"),
+              look: "portal",
             }),
           ),
         ),

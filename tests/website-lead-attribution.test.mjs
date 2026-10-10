@@ -210,3 +210,29 @@ test("an accepted enquiry logs at info level with reason «accepted»", async ()
   try { await accepted({}); } finally { console.info = original; }
   assert.deepEqual(JSON.parse(lines.at(-1)), { event: "website_intake", status: 200, code: "accepted", reason: "accepted" });
 });
+
+test("a database refusal logs its SQLSTATE as rpc_error_<code>, never the message text", async () => {
+  const failing = createServer((request, response) => {
+    request.resume();
+    request.on("end", () => {
+      response.writeHead(400, { "content-type": "application/json" });
+      response.end(JSON.stringify({ code: "42702", message: "column reference \"normalized_phone\" is ambiguous +996555000000", details: null, hint: null }));
+    });
+  });
+  await new Promise((resolve) => failing.listen(0, "127.0.0.1", resolve));
+  const previous = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = `http://127.0.0.1:${failing.address().port}`;
+  const lines = [];
+  const original = console.warn;
+  console.warn = (line) => lines.push(line);
+  try {
+    const response = await post({ ...LEGACY, requestId: "33333333-4444-4555-8666-777777777777" });
+    assert.equal(response.status, 503);
+  } finally {
+    console.warn = original;
+    process.env.NEXT_PUBLIC_SUPABASE_URL = previous;
+    await new Promise((resolve) => failing.close(resolve));
+  }
+  assert.deepEqual(JSON.parse(lines.at(-1)), { event: "website_intake", status: 503, code: "unavailable", reason: "rpc_error_42702" });
+  assert.doesNotMatch(lines.join("\n"), /ambiguous|normalized_phone|996/u);
+});

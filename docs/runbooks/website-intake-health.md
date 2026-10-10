@@ -17,11 +17,11 @@
 | `accepted` | заявка принята (200) или повтор того же `requestId` | — |
 | `config` | на сервере нет ключа edge, организации или intake-владельца (503) | `.env.production` |
 | `key_or_origin`, `ip` | edge не подставил ключ/IP или чужой Origin (403) | edge Caddy, маршрут `/api/website-leads` |
-| `content_type`, `body_*`, `body_shape` | не JSON, слишком большое тело, обрыв (415/413/400) | форма сайта, edge |
-| `keys_missing`, `keys_unknown`, `request_id`, `name`, `phone`, `phone_digits`, `age`, `city`, `country`, `consent`, `honeypot`, `university` | правило проверки, которое не прошло (400); значения не пишутся | форма сайта (`evo-admissions/js/main.js`) и контракт `website-enquiry-contract.ts` |
+| `content_type`, `body`, `body_json`, `body_size`, `body_timeout`, `body_shape` | не JSON, слишком большое тело, обрыв (415/413/400) | форма сайта, edge |
+| `keys_missing`, `keys_unknown`, `request_id`, `name`, `phone`, `phone_digits`, `age`, `city`, `country`, `consent`, `honeypot`, `university`, `fields` | правило проверки, которое не прошло (400); значения не пишутся | форма сайта (`evo-admissions/js/main.js`) и контракт `website-enquiry-contract.ts` |
 | `rate_limited` | лимит 5 заявок за 10 минут с одного IP или 100 в час (429) | — |
 | `request_conflict` | тот же `requestId` с другими данными (409) | — |
-| `rpc_error_<SQLSTATE>` | база отказала (503): например, `rpc_error_42702` — дефект 262 | postgres-логи Supabase |
+| `rpc_error_<SQLSTATE>`, `rpc_error_PGRST<nnn>`, `rpc_error` | база или PostgREST отказали (503): например, `rpc_error_42702` — дефект 262; без кода — `rpc_error` | postgres-логи Supabase |
 | `rpc_unavailable`, `rpc_status`, `rpc_shape`, `rpc_exception` | функция вернула «недоступно», неожиданный ответ или упала по таймауту (503) | intake-владелец, сеть до Supabase |
 
 ## Счёт за сутки (только чтение)
@@ -40,8 +40,11 @@ select created_at::date as day, count(*) from platform_private.website_lead_rece
 where created_at > now() - interval '14 days' group by 1 order by 1;
 ```
 
-В «Маркетинге → Обзор» рядом с числом заявок периода показано, сколько из них
-пришло с формы сайта.
+В «Маркетинге → Обзор» рядом с числом заявок периода показано, у скольких из них
+источник «Сайт». Это форма и ручные лиды, которым сотрудник выбрал «Сайт», —
+не только форма; доставку формы показывают журнал и квитанции выше.
 
-Журнал контейнера живёт до пересоздания контейнера (выпуск); для истории
-дольше — квитанции в базе и postgres-логи Supabase (≥ 35 дней).
+Журнал контейнера живёт до пересоздания контейнера (выпуск) и ограничен 5 файлами
+по 10 МБ; строка пишется до проверки лимита частоты, поэтому поток мусорных POST
+может вытеснить сутки журнала — тогда смотреть квитанции в базе и postgres-логи
+Supabase (≥ 35 дней).

@@ -99,6 +99,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "university-view.ts",
     "website-lead-source.ts",
     "whatsapp-chat.ts", // «Продажи → WhatsApp» как чат (06.10.2026): pure chat logic, no Supabase
+    "whatsapp-contact-source.ts", // WhatsApp name and number (278, 07.10.2026)
+    "whatsapp-contact.ts", // WhatsApp name and number (278, 07.10.2026): pure title logic, no Supabase
     "wording.ts",
   ]);
 
@@ -156,6 +158,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "university-form-source.ts",
     "university-source.ts",
     "website-lead-source.ts",
+    "whatsapp-contact-source.ts", // WhatsApp name and number (278, 07.10.2026)
   ]);
 
   const adapterSources = adapterFiles

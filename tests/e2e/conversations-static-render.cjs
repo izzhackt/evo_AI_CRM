@@ -53,14 +53,29 @@
  *       Серверные действия и опрос отвечают синтетикой этой вкладки: ничего не
  *       отправляется. По умолчанию outDir —
  *       docs/design/evo-platform/implementation-screenshots/whatsapp-chat.
+ *   node tests/e2e/conversations-static-render.cjs --ai-window [outDir]
+ *     → окно ИИ в настоящем чате WhatsApp «как в SoodaCloser» (решение
+ *       владельца 08.10.2026, план ИИ-агента §12.1): каждое состояние на
+ *       1440×900 и 390×844 — капсула (и блик, когда ответ готов при свёрнутом
+ *       окне), поток «Ищу в материалах → Нашёл N источника · пишу ответ →
+ *       Ответ готов», подсказка через 6 с, номер открывает свой источник,
+ *       внутренний источник, «Почему такой ответ», «Добавить в поле ответа»
+ *       (карточка закрывается, фокус и подкраска поля, «Уже в поле ответа»,
+ *       пока поле не опустеет), 409 «Переписка изменилась», оборванный поток
+ *       («Ответ не дописан и не проверен»), клиент пишет подряд, без источников, ждём
+ *       клиента, нет сообщения клиента, недоступность одной строкой (не
+ *       подключён, выключен, баланс, лимит), ошибки с «Попробовать снова»,
+ *       reduced motion. Проверки: карточка привязана к углу капсулы
+ *       (24/12 px справа, 12 px снизу, min(25rem, лента − 24 px)), не выше
+ *       8 px под шапкой, не закрывает поле ответа; Esc и «×» возвращают фокус
+ *       на капсулу, нажатие мимо карточки её сворачивает; ссылок в карточке
+ *       нет, позиция не хранится, ничего не отправляется; цели 44 px, текст
+ *       ≥ 12 px, без горизонтальной прокрутки. По умолчанию outDir —
+ *       docs/design/evo-platform/implementation-screenshots/ai-window-v2.
  *   node tests/e2e/conversations-static-render.cjs --ai-agent [outDir]
- *     → «ИИ-агент» P1 (план ИИ-агента §12): окно ИИ в настоящем чате
- *       WhatsApp — капсула, поток «Ищу → Пишу → Ответ готов», источники и
- *       номера, «Почему такой ответ», вставка в поле без отправки, 409 «ответ
- *       устарел», Esc, перетаскивание мышью и Home, честные состояния (не
- *       подключён, нет согласия, недоступен, баланс Gemini, лимит, без
- *       источников, ждём клиента) — и раздел «ИИ-агент» (материалы, правила,
- *       расходы, согласие администратора). 1440×900 и 390×844, синтетика.
+ *     → раздел «ИИ-агент» P1 (план ИИ-агента §12.2: материалы, правила,
+ *       расходы, согласие администратора), 1440×900 и 390×844, синтетика.
+ *       Окно ИИ в чате — режим `--ai-window` (до 08.10.2026 было здесь).
  *       По умолчанию outDir —
  *       docs/design/evo-platform/implementation-screenshots/ai-agent.
  *   node tests/e2e/conversations-static-render.cjs --ai-agent-p3 [outDir]
@@ -237,7 +252,7 @@ const QUEUE_ROW = {
 // --- настоящие страницы с подменёнными чтениями -------------------------------------
 const NOT_CONNECTED_VIEW = Object.freeze({
   conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
-  searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState: "not_connected", channelObservedAt: null,
+  searchQuery: null, sort: "newest", sortHrefs: { newest: "/v3/inbox", unanswered: "/v3/inbox?sort=unanswered" }, channelState: "not_connected",
   listPulse: null,
 });
 
@@ -323,7 +338,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), ...cssModules.values()].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), readFileSync(join(ROOT, "src/app/(v3)/ai-agent.css"), "utf8"), ...cssModules.values()].join("\n");
 }
 
 // --- браузерная сборка ----------------------------------------------------------
@@ -870,19 +885,23 @@ async function screenshots() {
 const WA_READ_AT = "2026-10-06T08:00:00.000Z";
 const waId = (n) => `ffffffff-6666-4666-8666-${String(n).padStart(12, "0")}`;
 const WA_CONVERSATION = waId(1);
-const waRow = (n, person, updatedAt, waitingSince = null, awaitingReplyFor = null) => ({
-  id: waId(n), person, queue: "sales", status: "open", updatedAt, waitingSince, awaitingReplyFor,
+// Имя — из профиля WhatsApp, без имени — «WhatsApp»; номер — код страны и
+// последние шесть цифр (07.10.2026, миграция 278). Ряды 2 и 5, 4 и 6 кончаются
+// одинаковыми четырьмя цифрами — их различают две следующие цифры.
+const waRow = (n, person, phone, updatedAt, waitingSince = null, awaitingReplyFor = null) => ({
+  id: waId(n), person, phone, queue: "sales", status: "open", updatedAt, waitingSince, awaitingReplyFor,
   href: `/v3/inbox?conversation=${waId(n)}`,
 });
 const WA_ROWS = [
-  waRow(1, "Аружан Примерова", "06.10 13:40", "06.10 13:40", "20 мин"),
+  waRow(1, "Аружан Примерова", "+996 ••• 31 07 15", "06.10 13:40", "06.10 13:40", "20 мин"),
   // Клиент сюда ещё не писал: чат не «ждёт ответа».
-  waRow(2, "WhatsApp ••••4821", "06.10 12:05"),
-  waRow(3, "Тимур Макетов", "06.10 09:12"),
-  waRow(4, "Мадина Условная", "05.10 18:30"),
-  waRow(5, "WhatsApp ••••0937", "05.10 11:02"),
-  waRow(6, "Эльдар Эскизов", "04.10 16:45"),
-  waRow(7, "Жанна Вымыслова", "03.10 10:20"),
+  waRow(2, "WhatsApp", "+996 ••• 55 48 21", "06.10 12:05"),
+  waRow(3, "Тимур Макетов", "+7 ••• 90 12 34", "06.10 09:12"),
+  waRow(4, "Мадина Условная", "+996 ••• 20 46 64", "05.10 18:30"),
+  waRow(5, "WhatsApp", "+996 ••• 90 48 21", "05.10 11:02"),
+  waRow(6, "Эльдар Эскизов", "+996 ••• 12 46 64", "04.10 16:45"),
+  // Не WhatsApp-заглушка (номер неизвестен): тема чата без номера.
+  waRow(7, "Жанна Вымыслова", null, "03.10 10:20"),
 ];
 const waMessage = (n, inbound, createdAt, body, extra = {}) => ({
   id: waId(100 + n), inbound, body, createdAt, origin: inbound ? "client" : "phone", senderName: null,
@@ -925,16 +944,27 @@ function waChat(overrides = {}) {
     ...overrides,
   };
 }
-function waView({ selected = true, chat = {}, row = 0, channelState = "ready" } = {}) {
+// «Сортировка» (решение владельца 08.10.2026): ещё три чата ждут ответа. В
+// «Сначала новые» они идут по времени вперемешку с отвеченными; в
+// «Неотвеченные» — сначала все ждущие (свежие выше), затем остальные.
+const WA_SORT_EXTRA = {
+  first: waRow(11, "Айдана Тестова", "+996 ••• 41 22 10", "06.10 13:52", "06.10 13:52", "8 мин"),
+  morning: waRow(12, "WhatsApp", "+996 ••• 77 03 58", "06.10 10:15", "06.10 09:58", "4 ч"),
+  yesterday: waRow(13, "Бекзат Пробный", "+7 ••• 61 18 09", "05.10 17:20", "05.10 17:20", "20 ч"),
+};
+const WA_SORT_NEWEST = [WA_SORT_EXTRA.first, WA_ROWS[0], WA_ROWS[1], WA_SORT_EXTRA.morning, WA_ROWS[2], WA_ROWS[3],
+  WA_SORT_EXTRA.yesterday, ...WA_ROWS.slice(4)];
+const WA_SORT_UNANSWERED = [...WA_SORT_NEWEST.filter((row) => row.waitingSince), ...WA_SORT_NEWEST.filter((row) => !row.waitingSince)];
+function waView({ selected = true, chat = {}, row = 0, channelState = "ready", sort = "newest", rows = WA_ROWS } = {}) {
   return {
-    conversations: WA_ROWS,
+    conversations: rows,
     selected: selected ? {
-      ...WA_ROWS[row], channelState, channelObservedAt: "06.10 13:58",
+      ...rows[row], channelState,
       canonicalContext: { leadId: "ffffffff-6666-4666-8666-000000000700", clientId: "ffffffff-6666-4666-8666-000000000701", studentCaseId: null },
       chat: waChat(chat),
     } : null,
     queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: "/v3/inbox?before_at=x&before_id=y",
-    searchQuery: null, waitingOnly: false, waitingToggleHref: "/v3/inbox?waiting=1", channelState, channelObservedAt: "06.10 13:58",
+    searchQuery: null, sort, sortHrefs: { newest: "/v3/inbox", unanswered: "/v3/inbox?sort=unanswered" }, channelState,
     listPulse: "0000000000000002",
   };
 }
@@ -942,7 +972,7 @@ const WA_SCENARIOS = {
   "chat": { actor: "sales", search: { conversation: WA_CONVERSATION }, inbox: waView(), viewports: ["1440", "390"] },
   "list": { actor: "sales", search: {}, inbox: waView({ selected: false }), viewports: ["1440", "390"] },
   "no-client-message": {
-    // Открыт тот же чат, что выбран в списке (••••4821), и он не «ждёт ответа».
+    // Открыт тот же чат, что выбран в списке («WhatsApp», +996 ••• 55 48 21), и он не «ждёт ответа».
     actor: "sales", search: { conversation: waId(2) }, viewports: ["1440"],
     inbox: waView({ row: 1, chat: {
       messages: [waMessage(1, false, "2026-10-06T05:00:00.000Z", "Здравствуйте! Это EVO Admissions, вы оставляли заявку на сайте."), waMessage(2, false, "2026-10-06T05:01:00.000Z", "Когда вам удобно поговорить?", { ack: "SERVER" })],
@@ -951,6 +981,12 @@ const WA_SCENARIOS = {
   },
   "read-only": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1440"], inbox: waView({ chat: { replyAccess: "no_permission", attempts: [] } }) },
   "attention": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1440"], inbox: waView({ channelState: "attention", chat: { replyAccess: "attention", attempts: [] } }) },
+  // «Сортировка»: тот же список в обоих порядках (снимки меню — ниже).
+  "sort-newest": { actor: "sales", search: {}, viewports: ["1440", "390"], inbox: waView({ selected: false, rows: WA_SORT_NEWEST }) },
+  "sort-unanswered": { actor: "sales", search: { sort: "unanswered" }, viewports: ["1440", "390"],
+    inbox: waView({ selected: false, rows: WA_SORT_UNANSWERED, sort: "unanswered" }) },
+  "sort-unanswered-chat": { actor: "sales", search: { sort: "unanswered", conversation: WA_CONVERSATION }, viewports: ["1440"],
+    inbox: waView({ row: 1, rows: WA_SORT_UNANSWERED, sort: "unanswered" }) },
 };
 
 async function buildWhatsAppPage(name) {
@@ -991,10 +1027,21 @@ function whatsappMetrics() {
     checks: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Проверить").length,
     returns: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Вернуть текст в поле").length,
     selectedRow: document.querySelector('[data-testid="v3-inbox-row"] a[aria-current="page"] .t-item')?.textContent.trim() ?? null,
+    selectedPhone: document.querySelector('[data-testid="v3-inbox-row"] a[aria-current="page"] [data-testid="v3-inbox-contact-phone"] [aria-hidden="true"]')?.textContent.trim() ?? null,
+    listPhones: [...document.querySelectorAll('[data-testid="v3-inbox-row"] [data-testid="v3-inbox-contact-phone"] [aria-hidden="true"]')].map((element) => element.textContent.trim()),
+    headerPhone: document.querySelector('[data-testid="v3-inbox-thread"] header [data-testid="v3-inbox-contact-phone"] [aria-hidden="true"]')?.textContent.trim() ?? null,
+    channelLine: document.querySelector('[data-testid="v3-inbox-thread-channel"]')?.textContent.trim() ?? null,
+    channelBanner: document.querySelector('[data-testid="v3-inbox-channel-status"]')?.textContent.trim() ?? null,
     waitingPill: /Ждёт ответа/u.test(document.querySelector('[data-testid="v3-inbox-thread"] header')?.textContent ?? ""),
     unavailable: document.querySelector('[data-testid="v3-inbox-reply-unavailable"]')?.textContent.trim() ?? null,
     popover: (() => { const open = document.querySelector("[popover]:popover-open"); if (!open) return null; const box = open.getBoundingClientRect();
       return { label: open.getAttribute("aria-label"), inViewport: box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth }; })(),
+    listNames: [...document.querySelectorAll('[data-testid="v3-inbox-row"] .t-item')].map((element) => element.textContent.trim()),
+    sortTrigger: document.querySelector('[data-testid="v3-inbox-sort"] button')?.textContent.trim() ?? null,
+    sortOptions: [...document.querySelectorAll('[data-testid="v3-inbox-sort"] [popover] a')].map((element) => ({
+      text: element.textContent.trim(), current: element.getAttribute("aria-current"), checked: element.querySelector("svg") !== null,
+      height: Math.round(element.getBoundingClientRect().height) })),
+    focused: document.activeElement?.textContent.trim().slice(0, 40) ?? null,
   };
 }
 
@@ -1077,6 +1124,23 @@ async function whatsappScreenshots() {
           check(metrics.feedAtBottom !== null && metrics.feedAtBottom <= 2, `${file}: the feed does not open on the newest message (${metrics.feedAtBottom})`);
           check(viewportKey !== "390" || !metrics.h1Visible, `${file}: the phone chat keeps the page title visible`);
         }
+        // 07.10.2026: исправный WhatsApp не подписан, беда — видна; у каждого чата свой номер.
+        if (WA_SCENARIOS[name].inbox.channelState === "ready") {
+          check(metrics.channelLine === null && metrics.channelBanner === null, `${file}: a working channel is announced: ${metrics.channelLine ?? metrics.channelBanner}`);
+        } else {
+          check(metrics.channelLine === "WhatsApp требует проверки", `${file}: channel warning ${metrics.channelLine}`);
+        }
+        if (viewportKey === "1440" || !WA_SCENARIOS[name].inbox.selected) {
+          const rows = WA_SCENARIOS[name].inbox.conversations;
+          check(JSON.stringify(metrics.listPhones) === JSON.stringify(rows.map((row) => row.phone).filter(Boolean)), `${file}: list phones ${JSON.stringify(metrics.listPhones)}`);
+          check(JSON.stringify(metrics.listNames) === JSON.stringify(rows.map((row) => row.person)), `${file}: list order ${JSON.stringify(metrics.listNames)}`);
+          check(metrics.sortTrigger === `Сортировка: ${WA_SCENARIOS[name].inbox.sort === "unanswered" ? "неотвеченные" : "сначала новые"}`, `${file}: sort trigger ${metrics.sortTrigger}`);
+          check(new Set(metrics.listPhones).size === metrics.listPhones.length, `${file}: two chats read the same`);
+        }
+        if (WA_SCENARIOS[name].inbox.selected) {
+          const selectedRow = WA_SCENARIOS[name].inbox.selected;
+          check(metrics.headerPhone === selectedRow.phone, `${file}: header phone ${metrics.headerPhone}`);
+        }
         if (name === "chat") {
           check(metrics.composer?.inViewport === true, `${file}: composer not in the viewport ${JSON.stringify(metrics.composer)}`);
           check(JSON.stringify(metrics.days) === JSON.stringify(["4 октября", "Вчера", "Сегодня"]), `${file}: days ${JSON.stringify(metrics.days)}`);
@@ -1087,9 +1151,44 @@ async function whatsappScreenshots() {
         }
         if (name === "no-client-message") {
           check(/Клиент ещё не писал в этот чат/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
-          check(metrics.selectedRow === "WhatsApp ••••4821" && !metrics.waitingPill, `${file}: list selection ${metrics.selectedRow}, waiting pill ${metrics.waitingPill}`);
+          check(metrics.selectedRow === "WhatsApp" && metrics.selectedPhone === "+996 ••• 55 48 21" && !metrics.waitingPill,
+            `${file}: list selection ${metrics.selectedRow} ${metrics.selectedPhone}, waiting pill ${metrics.waitingPill}`);
         }
         if (name === "read-only") check(/Только просмотр/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
+        await close(session, file);
+      }
+    }
+
+    // «Сортировка» (08.10.2026): меню открыто в каждом порядке; галочка и
+    // aria-current — у выбранного, ссылки ведут на первую страницу; меню
+    // открывается и закрывается с клавиатуры и возвращает фокус на кнопку.
+    for (const [name, sort] of [["sort-newest", "newest"], ["sort-unanswered", "unanswered"], ["sort-unanswered-chat", "unanswered"]]) {
+      for (const viewportKey of WA_SCENARIOS[name].viewports) {
+        const file = `${name === "sort-unanswered-chat" ? "sort-menu-unanswered-chat" : `sort-menu-${sort}`}-${viewportKey}.png`;
+        const session = await open(name, viewportKey);
+        const { page } = session;
+        const trigger = page.locator('[data-testid="v3-inbox-sort"] button');
+        await trigger.focus();
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(150);
+        const metrics = await shot(session, file);
+        check(metrics.popover?.label === "Сортировка" && metrics.popover.inViewport, `${file}: menu ${JSON.stringify(metrics.popover)}`);
+        const expected = [
+          { text: "Сначала новые", current: sort === "newest" ? "true" : null, checked: sort === "newest" },
+          { text: "Неотвеченные", current: sort === "unanswered" ? "true" : null, checked: sort === "unanswered" },
+        ];
+        check(JSON.stringify(metrics.sortOptions.map(({ text, current, checked }) => ({ text, current, checked }))) === JSON.stringify(expected),
+          `${file}: options ${JSON.stringify(metrics.sortOptions)}`);
+        check(metrics.sortOptions.every((option) => option.height >= 44), `${file}: option targets ${JSON.stringify(metrics.sortOptions.map((option) => option.height))}`);
+        // Tab — в меню, к первому пункту; Esc — закрыть и вернуть фокус на кнопку.
+        await page.keyboard.press("Tab");
+        const inMenu = await page.evaluate(() => ({ text: document.activeElement?.textContent.trim(), inPopover: Boolean(document.activeElement?.closest("[popover]")) }));
+        check(inMenu.inPopover && inMenu.text === "Сначала новые", `${file}: Tab ${JSON.stringify(inMenu)}`);
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(100);
+        const after = await page.evaluate(() => ({ open: document.querySelector("[popover]:popover-open") !== null,
+          onTrigger: document.activeElement === document.querySelector('[data-testid="v3-inbox-sort"] button') }));
+        check(!after.open && after.onTrigger, `${file}: Escape ${JSON.stringify(after)}`);
         await close(session, file);
       }
     }
@@ -1222,32 +1321,57 @@ const NO_SOURCE_RESULT = {
   reason: "В материалах агента нет сведений об общежитиях этого вуза.", question: "Какой вуз из подборки вам ближе?", language: "ru",
   sources: [], warnings: [],
 };
+// Оборванный поток: два куска текста, затем ошибка агента — дописанное остаётся тусклым.
+function aiPartialFrames() {
+  const chars = Array.from(aiReply().text);
+  return [
+    { delay: 50, event: "status", data: { stage: "searching" } },
+    { delay: 300, event: "sources", data: { count: 3 } },
+    { delay: 50, event: "status", data: { stage: "writing" } },
+    { delay: 120, event: "delta", data: { text: chars.slice(0, 64).join("") } },
+    { delay: 120, event: "delta", data: { text: chars.slice(64, 121).join("") } },
+    { delay: 200, event: "error", data: { code: "agent_unavailable", message_ru: "x", status: 503 } },
+  ];
+}
+// Долгий поиск: через 6 с карточка подсказывает, что её можно свернуть.
+function aiSlowFrames() {
+  const [first, ...rest] = aiFrames();
+  return [first, { ...rest[0], delay: 7600 }, ...rest.slice(1)];
+}
+const AI_NO_ANSWER = { status: 503, body: { error: { code: "agent_unavailable" } } };
+const AI_INSERT_X = [{ status: 200, body: { text: "x" } }];
 const AI_SCENARIOS = {
   // Свёрнуто: капсула в углу ленты; ничего не запрошено.
-  "capsule": { viewports: ["1440", "390"], ai: { saved: [aiView(null)], post: [{ frames: aiFrames() }], insert: [{ status: 200, body: { text: "x" } }] } },
+  "capsule": { viewports: ["1440", "390"], ai: { saved: [aiView(null)], post: [{ frames: aiFrames() }], insert: AI_INSERT_X } },
   // Открытие: сохранённого ответа нет, последнее — клиента → поток → готово.
   "stream": { viewports: ["1440", "390"], ai: { saved: [aiView(null), aiView(aiAnswer())], post: [{ frames: aiFrames() }], insert: [{ status: 200, body: { text: aiReply().text } }] } },
   // Повторное открытие: сохранённый ответ без нового запроса; вставка; затем 409.
-  "ready": { viewports: ["1440", "390"], ai: { saved: [aiView(aiAnswer())], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }],
+  "ready": { viewports: ["1440", "390"], ai: { saved: [aiView(aiAnswer())], post: [AI_NO_ANSWER],
     insert: [{ status: 200, body: { text: aiReply().text } }, { status: 409, body: { error: { code: "stale_answer" } } }] } },
-  "no-sources": { viewports: ["1440"], ai: { saved: [aiView(aiAnswer({ result: NO_SOURCE_RESULT }))], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
-  "waiting": { viewports: ["1440"], ai: { saved: [aiView(null, { view: { lastMessageDirection: "outbound" } })], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
-  "off": { viewports: ["1440", "390"], featureOff: true, ai: { saved: [aiView(null, { featureOn: false })], post: [{ status: 503, body: { error: { code: "ai_agent_off" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
-  "consent": { viewports: ["1440"], ai: { saved: [aiView(null, { view: { consentRecorded: false } })], post: [{ status: 412, body: { error: { code: "consent_required" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
-  "unavailable": { viewports: ["1440"], ai: { saved: [aiView(null)], post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
-  "balance": { viewports: ["1440"], ai: { saved: [aiView(null)], post: [{ frames: [{ delay: 50, event: "status", data: { stage: "searching" } },
-    { delay: 300, event: "error", data: { code: "gemini_billing", message_ru: "x", status: 402 } }] }], insert: [{ status: 200, body: { text: "x" } }] } },
-  "rate": { viewports: ["1440"], ai: { saved: [aiView(null)], post: [{ status: 429, body: { error: { code: "rate_limited" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+  "slow": { viewports: ["1440", "390"], ai: { saved: [aiView(null), aiView(aiAnswer())], post: [{ frames: aiSlowFrames() }], insert: AI_INSERT_X } },
+  "partial": { viewports: ["1440", "390"], ai: { saved: [aiView(null)], post: [{ frames: aiPartialFrames() }], insert: AI_INSERT_X } },
+  // Клиент пишет подряд: три «пришло новое сообщение» — дальше только по кнопке.
+  "capped": { viewports: ["1440", "390"], ai: { saved: [aiView(null)], post: [{ status: 409, body: { error: { code: "superseded" } } }], insert: AI_INSERT_X } },
+  "no-sources": { viewports: ["1440", "390"], ai: { saved: [aiView(aiAnswer({ result: NO_SOURCE_RESULT }))], post: [AI_NO_ANSWER], insert: AI_INSERT_X } },
+  "waiting": { viewports: ["1440", "390"], ai: { saved: [aiView(null, { view: { lastMessageDirection: "outbound" } })], post: [AI_NO_ANSWER], insert: AI_INSERT_X } },
+  "no-client": { viewports: ["1440", "390"], ai: { saved: [aiView(null, { view: { lastMessageDirection: null, latestInboundMessageId: null } })], post: [AI_NO_ANSWER], insert: AI_INSERT_X } },
+  "off": { viewports: ["1440", "390"], featureOff: true, ai: { saved: [aiView(null, { featureOn: false })], post: [{ status: 503, body: { error: { code: "ai_agent_off" } } }], insert: AI_INSERT_X } },
+  "consent": { viewports: ["1440", "390"], ai: { saved: [aiView(null, { view: { consentRecorded: false } })], post: [{ status: 412, body: { error: { code: "consent_required" } } }], insert: AI_INSERT_X } },
+  "unavailable": { viewports: ["1440", "390"], ai: { saved: [aiView(null)], post: [AI_NO_ANSWER], insert: AI_INSERT_X } },
+  "balance": { viewports: ["1440", "390"], ai: { saved: [aiView(null)], post: [{ frames: [{ delay: 50, event: "status", data: { stage: "searching" } },
+    { delay: 300, event: "error", data: { code: "gemini_billing", message_ru: "x", status: 402 } }] }], insert: AI_INSERT_X } },
+  "budget": { viewports: ["1440", "390"], ai: { saved: [aiView(null)], post: [{ status: 402, body: { error: { code: "budget_exhausted" } } }], insert: AI_INSERT_X } },
+  "rate": { viewports: ["1440", "390"], ai: { saved: [aiView(null)], post: [{ status: 429, body: { error: { code: "rate_limited" } } }], insert: AI_INSERT_X } },
   // Страница отстала от базы (опрос не дошёл): билет берётся по базе, не по странице.
   "lagging": { viewports: ["1440"], ai: { latest: aiId(900),
     saved: [aiView(null, { view: { latestInboundMessageId: aiId(900) } }), aiView(aiAnswer(), { view: { latestInboundMessageId: aiId(900) } })],
-    post: [{ frames: aiFrames() }], insert: [{ status: 200, body: { text: "x" } }] } },
+    post: [{ frames: aiFrames() }], insert: AI_INSERT_X } },
   // Без агента открытое окно на новое сообщение перечитывает состояние, а не пустеет.
   "off-new-message": { viewports: ["1440"], featureOff: true, ai: { saved: [aiView(null, { featureOn: false })],
-    post: [{ status: 503, body: { error: { code: "ai_agent_off" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+    post: [{ status: 503, body: { error: { code: "ai_agent_off" } } }], insert: AI_INSERT_X } },
   // Согласие записали, пока окно было свёрнуто: повторное открытие перечитывает.
   "consent-later": { viewports: ["1440"], ai: { saved: [aiView(null, { view: { consentRecorded: false } }), aiView(aiAnswer())],
-    post: [{ status: 503, body: { error: { code: "agent_unavailable" } } }], insert: [{ status: 200, body: { text: "x" } }] } },
+    post: [AI_NO_ANSWER], insert: AI_INSERT_X } },
 };
 
 async function buildAiChatPage(name, scenario = AI_SCENARIOS[name]) {
@@ -1360,41 +1484,84 @@ function aiMetrics() {
   const main = [...document.querySelectorAll("main")].find(visible);
   const inMain = main ? [...main.querySelectorAll("*")].filter(visible) : [];
   const texts = inMain.filter((element) => [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()));
-  // Номер источника в тексте — строчная цель внутри предложения (WCAG 2.5.8, «inline»).
+  // Номер источника в тексте — кружок 18 px, цель 44 px у ::after (проверяется отдельно).
   const targets = main ? [...main.querySelectorAll("a, button, select, input:not([type=hidden])")]
     .filter((element) => visible(element) && !element.closest("[popover]") && !element.matches(".v3-ai-mark")) : [];
   const box = (selector) => { const element = document.querySelector(selector); if (!visible(element)) return null; const rect = element.getBoundingClientRect(); return { top: Math.round(rect.top), right: Math.round(rect.right), bottom: Math.round(rect.bottom), left: Math.round(rect.left), width: Math.round(rect.width), height: Math.round(rect.height) }; };
+  const card = document.querySelector('[data-testid="v3-ai-window"]');
   const composer = box('[data-testid="v3-inbox-composer"]');
   const win = box('[data-testid="v3-ai-window"]');
   const feed = box('[role="log"]');
+  const primary = document.querySelector('[data-testid="v3-ai-insert"]');
+  const reply = document.querySelector('[data-testid="v3-ai-reply"]');
+  const mark = document.querySelector('[data-testid="v3-ai-reply"] .v3-ai-mark');
+  const markTarget = mark ? (() => { const style = getComputedStyle(mark, "::after"); const rect = mark.getBoundingClientRect();
+    const inset = parseFloat(style.top); return Math.round(rect.height - 2 * inset); })() : null;
+  const memory = card?.querySelector('[data-testid="v3-ai-memory"]') ?? null;
+  const outsideMemory = (element) => !memory || !memory.contains(element);
+  const sweep = document.querySelector(".v3-ai-sweep");
+  let storage = [];
+  try { storage = Object.keys(window.localStorage).filter((key) => key.startsWith("evo-ai-window")); } catch { storage = ["unreadable"]; }
   return {
     overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     textUnder12: texts.filter((element) => parseFloat(getComputedStyle(element).fontSize) < 12).map((element) => element.textContent.trim().slice(0, 20)),
     smallTargets: targets.filter((element) => element.getBoundingClientRect().height < 44).map((element) => element.getAttribute("aria-label") ?? element.textContent.trim().slice(0, 30)),
     solidRed: [...document.querySelectorAll("main a, main button")].filter((element) => visible(element) && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").length,
     capsule: box('[data-testid="v3-ai-capsule"]'),
+    capsuleTone: document.querySelector('[data-testid="v3-ai-capsule"] .v3-ai-dot')?.dataset.tone ?? null,
+    sweep: visible(sweep),
     window: win,
     feed,
     composer,
     windowInsideFeed: win && feed ? win.top >= feed.top - 1 && win.bottom <= feed.bottom + 1 && win.left >= feed.left - 1 && win.right <= feed.right + 1 : null,
-    status: document.querySelector('[data-testid="v3-ai-window"] [role="status"]')?.textContent.trim() ?? null,
+    cardBackground: card ? getComputedStyle(card).backgroundColor : null,
+    cardAnimation: card ? getComputedStyle(card).animationName : null,
+    title: card?.querySelector("h2")?.textContent.trim() ?? null,
+    status: document.querySelector('[data-testid="v3-ai-status"]')?.textContent.trim() ?? null,
+    slow: !!document.querySelector('[data-testid="v3-ai-slow"]'),
     blocked: document.querySelector('[data-testid="v3-ai-blocked"]')?.dataset.code ?? null,
+    blockedText: document.querySelector('[data-testid="v3-ai-blocked"]')?.textContent.trim() ?? null,
     error: document.querySelector('[data-testid="v3-ai-error"]')?.dataset.code ?? null,
     errorText: document.querySelector('[data-testid="v3-ai-error"] [role="alert"]')?.textContent.trim() ?? null,
+    partial: document.querySelector('[data-testid="v3-ai-partial"]')?.textContent.trim().slice(0, 40) ?? null,
+    partialSelect: (() => { const element = document.querySelector('[data-testid="v3-ai-partial"]'); return element ? getComputedStyle(element).userSelect : null; })(),
+    blockedRole: document.querySelector('[data-testid="v3-ai-blocked"]')?.getAttribute("role") ?? null,
+    replyState: reply?.dataset.state ?? null,
+    replyFont: reply ? getComputedStyle(reply).fontSize : null,
     marks: [...document.querySelectorAll('[data-testid="v3-ai-reply"] .v3-ai-mark')].map((element) => element.textContent.trim()),
+    markTarget,
     sources: [...document.querySelectorAll('[data-testid="v3-ai-sources"] > li')].map((element) => element.dataset.sourceN),
+    openSources: [...document.querySelectorAll('[data-testid="v3-ai-sources"] > li[data-open]')].map((element) => element.dataset.sourceN),
+    internalSource: (() => { const row = document.querySelector('[data-testid="v3-ai-sources"] > li[data-source-n="3"]'); return row ? row.textContent.replace(/\s+/gu, " ").trim() : null; })(),
     warnings: [...document.querySelectorAll('[data-testid="v3-ai-warnings"] li')].map((element) => element.textContent.trim()),
-    insertDisabled: (() => { const button = document.querySelector('[data-testid="v3-ai-insert"]'); return button ? button.disabled || button.getAttribute("aria-disabled") === "true" : null; })(),
+    primary: primary ? { label: primary.textContent.trim(), action: primary.dataset.action ?? null, disabled: primary.getAttribute("aria-disabled") === "true" } : null,
+    insertDisabled: primary ? primary.disabled || primary.getAttribute("aria-disabled") === "true" : null,
+    cardButtons: card ? [...card.querySelectorAll("button, summary")].filter((element) => visible(element) && outsideMemory(element)).map((element) => element.getAttribute("aria-label") ?? element.textContent.trim()) : [],
+    // Ни одной ссылки во всей карточке — и в памяти, и в автоответчике (08.10, «давай без этого»).
+    cardLinks: card ? [...card.querySelectorAll("a")].map((element) => element.getAttribute("href")) : [],
+    memoryInCard: !!memory,
+    announcement: document.querySelector('[data-testid="v3-ai-announcement"]')?.textContent.trim() ?? null,
+    aiAdded: !!document.querySelector('[data-testid="v3-inbox-composer"] [data-ai-added]'),
+    storage,
     draft: document.querySelector('[data-testid="v3-inbox-composer"] textarea')?.value ?? null,
     focus: document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.textContent?.trim().slice(0, 30) ?? null,
+    focusTestId: document.activeElement?.dataset?.testid ?? null,
+    focusTag: document.activeElement?.tagName ?? null,
   };
 }
 
-async function aiScreenshots() {
-  const outIndex = process.argv.indexOf("--ai-agent") + 1;
+/**
+ * `--ai-window` — окно ИИ в настоящем чате WhatsApp (решение владельца
+ * 08.10.2026, «как в SoodaCloser»): каждое состояние на 1440 и 390;
+ * `--ai-agent` — раздел «ИИ-агент» (P1). Синтетика вкладки, ничего не
+ * отправляется.
+ */
+async function aiScreenshots(mode) {
+  const flag = mode === "window" ? "--ai-window" : "--ai-agent";
+  const outIndex = process.argv.indexOf(flag) + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--")
-    ? process.argv[outIndex] : join(ROOT, "docs/design/evo-platform/implementation-screenshots/ai-agent"));
-  const workDir = join(require("node:os").tmpdir(), "evo-ai-agent-render");
+    ? process.argv[outIndex] : join(ROOT, `docs/design/evo-platform/implementation-screenshots/${mode === "window" ? "ai-window-v2" : "ai-agent"}`));
+  const workDir = join(require("node:os").tmpdir(), `evo-ai-agent-render-${mode}`);
   mkdirSync(outDir, { recursive: true });
   mkdirSync(workDir, { recursive: true });
   const bundleName = "ai-agent-client.js";
@@ -1415,25 +1582,28 @@ async function aiScreenshots() {
   };
 
   const htmlFor = {};
-  for (const name of Object.keys(AI_SCENARIOS)) {
-    const { actor, chatApp } = await buildAiChatPage(name);
-    const search = `conversation=${WA_CONVERSATION}`;
-    const markup = renderToString(shellTree({ actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp }));
-    htmlFor[name] = page(`chat-${name}`, "WhatsApp", markup, {
-      actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
-      pulse: { list: "0000000000000002", chat: "0000000000000001" }, older: { messages: [], hasOlder: false }, ai: AI_SCENARIOS[name].ai,
-    });
-  }
-  for (const name of Object.keys(AI_SECTION_SCENARIOS)) {
-    const { actor, search, body } = await buildAiSectionMarkup(name);
-    const markup = renderToString(shellTree({ actor, pathname: "/v3/ai-agent", search, body, cabinet: null }));
-    htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/v3/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
+  if (mode === "window") {
+    for (const name of Object.keys(AI_SCENARIOS)) {
+      const { actor, chatApp } = await buildAiChatPage(name);
+      const search = `conversation=${WA_CONVERSATION}`;
+      const markup = renderToString(shellTree({ actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp }));
+      htmlFor[name] = page(`chat-${name}`, "WhatsApp", markup, {
+        actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
+        pulse: { list: "0000000000000002", chat: "0000000000000001" }, older: { messages: [], hasOlder: false }, ai: AI_SCENARIOS[name].ai,
+      });
+    }
+  } else {
+    for (const name of Object.keys(AI_SECTION_SCENARIOS)) {
+      const { actor, search, body } = await buildAiSectionMarkup(name);
+      const markup = renderToString(shellTree({ actor, pathname: "/v3/ai-agent", search, body, cabinet: null }));
+      htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/v3/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
+    }
   }
 
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
-  const open = async (name, viewportKey) => {
-    const context = await browser.newContext({ ...VIEWPORTS[viewportKey], colorScheme: "light" });
+  const open = async (name, viewportKey, { reducedMotion = "no-preference" } = {}) => {
+    const context = await browser.newContext({ ...VIEWPORTS[viewportKey], colorScheme: "light", reducedMotion });
     const session = await context.newPage();
     const errors = [];
     session.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
@@ -1442,126 +1612,283 @@ async function aiScreenshots() {
     await session.evaluate(() => document.fonts.ready);
     await session.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
     await session.waitForTimeout(200);
-    return { context, page: session, errors };
+    return { context, page: session, errors, viewportKey };
   };
   const close = async ({ context, page: session, errors }, label) => {
     const harness = await session.evaluate(() => window.__harness);
+    const metrics = await session.evaluate(aiMetrics);
     const problems = [...errors.filter((message) => !/Failed to load resource|ERR_FILE_NOT_FOUND|#preview|#download/u.test(message)),
       ...harness.recoverable.map((message) => `recoverable: ${message}`), ...harness.errors];
     check(problems.length === 0, `${label}: browser errors: ${problems.join(" | ")}`);
+    // Позиция окна нигде не хранится; ничего не отправлено.
+    check(metrics.storage.length === 0, `${label}: window storage ${JSON.stringify(metrics.storage)}`);
+    check(!harness.actions.some((action) => action.startsWith("send:")), `${label}: something was sent`);
     await context.close();
     return harness;
   };
   const shot = async (session, file, { save = true } = {}) => {
     if (save) await session.page.screenshot({ path: join(outDir, file) });
     const metrics = await session.page.evaluate(aiMetrics);
-    report({ file, ...metrics });
+    report({ file, status: metrics.status, primary: metrics.primary, window: metrics.window, capsule: metrics.capsule, focus: metrics.focus, overflowX: metrics.overflowX, smallTargets: metrics.smallTargets, textUnder12: metrics.textUnder12 });
     check(metrics.overflowX === 0, `${file}: horizontal overflow ${metrics.overflowX}px`);
     check(metrics.textUnder12.length === 0, `${file}: texts under 12px ${metrics.textUnder12.join(", ")}`);
     check(metrics.smallTargets.length === 0, `${file}: targets under 44px: ${metrics.smallTargets.join(", ")}`);
     check(metrics.solidRed <= 1, `${file}: ${metrics.solidRed} solid red controls`);
-    if (metrics.window) check(metrics.windowInsideFeed === true, `${file}: the window leaves the feed ${JSON.stringify([metrics.window, metrics.feed])}`);
+    if (metrics.markTarget !== null) check(metrics.markTarget >= 44, `${file}: source number target ${metrics.markTarget}px`);
+    if (metrics.window) {
+      check(metrics.windowInsideFeed === true, `${file}: the window leaves the feed ${JSON.stringify([metrics.window, metrics.feed])}`);
+      // Привязано к капсуле: правый нижний угол — у ленты, 24 px (узко — 12 px) справа, 12 px снизу; ширина min(25rem, лента − 24 px).
+      const edge = session.viewportKey === "390" ? 12 : 24;
+      check(Math.abs(metrics.feed.right - metrics.window.right - edge) <= 1 && Math.abs(metrics.feed.bottom - metrics.window.bottom - 12) <= 1,
+        `${file}: the card is not anchored to the capsule corner ${JSON.stringify([metrics.window, metrics.feed])}`);
+      check(Math.abs(metrics.window.width - Math.min(400, metrics.feed.width - 24)) <= 1, `${file}: card width ${metrics.window.width} (feed ${metrics.feed.width})`);
+      check(metrics.window.top >= metrics.feed.top + 7, `${file}: the card reaches the chat header ${JSON.stringify([metrics.window, metrics.feed])}`);
+      check(metrics.cardBackground === "rgba(32, 32, 32, 0.92)", `${file}: card surface ${metrics.cardBackground}`);
+      check(metrics.cardLinks.length === 0, `${file}: links in the card ${JSON.stringify(metrics.cardLinks)}`);
+    }
     if (metrics.window && metrics.composer) check(metrics.window.bottom <= metrics.composer.top + 1, `${file}: the window covers the composer`);
     return metrics;
   };
   const expand = async (session) => {
     await session.page.getByRole("button", { name: "Помочь с ответом — открыть помощника" }).click();
-    await session.page.waitForTimeout(260);
+    await session.page.waitForTimeout(380);
   };
+  const actionsOf = async (session) => session.page.evaluate(() => window.__harness.actions);
 
   try {
+    if (mode !== "window") {
+      // Раздел «ИИ-агент».
+      for (const name of Object.keys(AI_SECTION_SCENARIOS)) {
+        for (const viewportKey of AI_SECTION_SCENARIOS[name].viewports) {
+          const session = await open(name, viewportKey);
+          await shot(session, `${name}-${viewportKey}.png`);
+          await close(session, `${name}-${viewportKey}`);
+        }
+      }
+      return;
+    }
+
     // Свёрнуто: только капсула, ни одного запроса.
     for (const viewportKey of AI_SCENARIOS.capsule.viewports) {
       const session = await open("capsule", viewportKey);
       const metrics = await shot(session, `capsule-${viewportKey}.png`);
-      check(metrics.capsule !== null && metrics.window === null, `capsule-${viewportKey}: ${JSON.stringify(metrics.capsule)}`);
+      check(metrics.capsule !== null && metrics.window === null && metrics.capsuleTone === "idle", `capsule-${viewportKey}: ${JSON.stringify(metrics.capsule)} ${metrics.capsuleTone}`);
+      check(metrics.capsule.height === (viewportKey === "390" ? 44 : 46), `capsule-${viewportKey}: height ${metrics.capsule.height}`);
+      check(metrics.feed.right - metrics.capsule.right === (viewportKey === "390" ? 12 : 24), `capsule-${viewportKey}: right ${metrics.feed.right - metrics.capsule.right}`);
       const harness = await close(session, `capsule-${viewportKey}`);
       check(!harness.actions.some((action) => action.startsWith("ai-")), `capsule-${viewportKey}: a collapsed window asked ${JSON.stringify(harness.actions)}`);
     }
 
-    // Поток: «Ищу в материалах…» → «Пишу ответ…» → «Ответ готов · 3 источника».
+    // «Новые сообщения ↓» и капсула не перекрываются ни при какой ширине ленты: уже 40rem
+    // поднятая капсула (data-lifted, как при showJump) стоит над кнопкой. Кнопка — с настоящими
+    // классами из InboxChat.tsx; появление её по прокрутке и новому сообщению здесь не проверяется.
+    {
+      const jumpClass = readFileSync(join(ROOT, "src/components/v3/inbox/InboxChat.tsx"), "utf8")
+        .match(/onClick=\{jumpToNewest\}\s+className="([^"]+)"/u)?.[1];
+      check(!!jumpClass, "lift: the jump button classes were not found in InboxChat.tsx");
+      // Подъём — с переходом bottom 200 мс: сначала поставить кнопку и data-lifted, замер — через 320 мс.
+      const lift = (className) => {
+        const area = document.querySelector('[data-testid="v3-ai-assistant"]');
+        const capsule = document.querySelector('[data-testid="v3-ai-capsule"]');
+        let jump = document.querySelector("[data-harness-jump]");
+        if (!jump) {
+          jump = document.createElement("button");
+          jump.type = "button";
+          jump.className = className;
+          jump.dataset.harnessJump = "";
+          jump.innerHTML = 'Новые сообщения<svg width="16" height="16" aria-hidden="true"></svg>';
+          area.parentElement.insertBefore(jump, area);
+        }
+        capsule.setAttribute("data-lifted", "");
+      };
+      const measure = () => {
+        const a = document.querySelector('[data-testid="v3-ai-capsule"]').getBoundingClientRect();
+        const jump = document.querySelector("[data-harness-jump]");
+        const b = jump.getBoundingClientRect();
+        const feed = document.querySelector('[role="log"]').getBoundingClientRect();
+        const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        return { feed: Math.round(feed.width), overlap: overlapX > 0 && overlapY > 0 ? Math.round(overlapX) : 0,
+          capsuleBottom: Math.round(feed.bottom - a.bottom), inside: a.left >= feed.left && a.right <= feed.right && a.top >= feed.top };
+      };
+      const desktop = await open("capsule", "1440");
+      await desktop.page.evaluate(lift, jumpClass);
+      for (const width of [1440, 1280, 1180, 1024, 900, 820]) {
+        await desktop.page.setViewportSize({ width, height: 800 });
+        await desktop.page.waitForTimeout(320);
+        const metrics = await desktop.page.evaluate(measure);
+        report({ file: `lift-${width}`, lift: metrics });
+        check(metrics.overlap === 0 && metrics.inside, `lift-${width}: the capsule covers «Новые сообщения» ${JSON.stringify(metrics)}`);
+        // Уже 40rem капсула поднята над кнопкой (68 px), шире — на своём месте (12 px).
+        check(Math.abs(metrics.capsuleBottom - (metrics.feed < 640 ? 68 : 12)) <= 1, `lift-${width}: capsule bottom ${JSON.stringify(metrics)}`);
+      }
+      await close(desktop, "lift-desktop");
+      const phone = await open("capsule", "390");
+      await phone.page.evaluate(lift, jumpClass);
+      await phone.page.waitForTimeout(320);
+      const metrics = await phone.page.evaluate(measure);
+      report({ file: "lift-390", lift: metrics });
+      check(metrics.overlap === 0 && metrics.inside && Math.abs(metrics.capsuleBottom - 68) <= 1, `lift-390: ${JSON.stringify(metrics)}`);
+      await close(phone, "lift-390");
+    }
+
+    // Поток: «Ищу в материалах» → «Нашёл 3 источника · пишу ответ» → «Ответ готов · 3 источника».
     for (const viewportKey of AI_SCENARIOS.stream.viewports) {
       const session = await open("stream", viewportKey);
       await expand(session);
-      const searching = await shot(session, `stream-searching-${viewportKey}.png`, { save: viewportKey === "1440" });
-      check(searching.status === "Ищу в материалах…", `stream-${viewportKey}: ${searching.status}`);
-      await session.page.waitForTimeout(2100);
-      const writing = await shot(session, `stream-writing-${viewportKey}.png`, { save: viewportKey === "1440" });
-      check(/^Пишу ответ… · 3 источника$/u.test(writing.status ?? ""), `stream-${viewportKey}: ${writing.status}`);
+      const searching = await shot(session, `stream-searching-${viewportKey}.png`);
+      check(searching.status === "Ищу в материалах" && searching.primary?.label === "Дописываю ответ…" && searching.primary.disabled, `stream-${viewportKey}: ${searching.status} ${JSON.stringify(searching.primary)}`);
+      check(searching.focus === "Свернуть помощника", `stream-${viewportKey}: focus on open ${searching.focus}`);
+      check(searching.title === "Помощь с ответом", `stream-${viewportKey}: title ${searching.title}`);
+      await session.page.waitForTimeout(2000);
+      const writing = await shot(session, `stream-writing-${viewportKey}.png`);
+      check(writing.status === "Нашёл 3 источника · пишу ответ", `stream-${viewportKey}: ${writing.status}`);
+      check(writing.focus === "Свернуть помощника", `stream-${viewportKey}: streaming moved focus to ${writing.focus}`);
       await session.page.waitForSelector('[data-testid="v3-ai-answer"]', { timeout: 8000 });
       await session.page.waitForTimeout(150);
       const ready = await shot(session, `stream-ready-${viewportKey}.png`);
       check(ready.status === "Ответ готов · 3 источника", `stream-${viewportKey}: ${ready.status}`);
+      check(ready.replyState === "final" && ready.replyFont === "16px", `stream-${viewportKey}: reply ${ready.replyState} ${ready.replyFont}`);
       check(JSON.stringify(ready.marks) === JSON.stringify(["1", "2"]), `stream-${viewportKey}: marks ${JSON.stringify(ready.marks)}`);
       check(JSON.stringify(ready.sources) === JSON.stringify(["1", "2", "3"]), `stream-${viewportKey}: sources ${JSON.stringify(ready.sources)}`);
-      check(JSON.stringify(ready.warnings) === JSON.stringify(["Число в источнике ещё не проверено"]), `stream-${viewportKey}: warnings ${JSON.stringify(ready.warnings)}`);
+      check(JSON.stringify(ready.warnings) === JSON.stringify(["Число в источнике ещё не проверено", "Учтён внутренний документ — клиенту не цитируется."]), `stream-${viewportKey}: warnings ${JSON.stringify(ready.warnings)}`);
+      check(/внутр\. — клиенту не цитируется/u.test(ready.internalSource ?? ""), `stream-${viewportKey}: internal source ${ready.internalSource}`);
+      check(ready.primary?.label === "Добавить в поле ответа" && !ready.primary.disabled, `stream-${viewportKey}: primary ${JSON.stringify(ready.primary)}`);
       const harness = await close(session, `stream-${viewportKey}`);
       check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-answer:reply", "ai-read"]), `stream-${viewportKey}: ${JSON.stringify(harness.actions)}`);
     }
 
-    // Сохранённый ответ: номер источника, «Почему такой ответ», вставка без отправки, затем 409.
+    // Сохранённый ответ: номер открывает свой источник, «Почему такой ответ»; вставка закрывает карточку
+    // и ставит фокус в поле; снова открыть — «Уже в поле ответа», пока поле не опустеет; затем 409.
     for (const viewportKey of AI_SCENARIOS.ready.viewports) {
       const session = await open("ready", viewportKey);
       await expand(session);
       await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
-      await session.page.locator(".v3-ai-mark", { hasText: "1" }).first().click();
+      await session.page.locator('[data-testid="v3-ai-reply"] .v3-ai-mark', { hasText: "1" }).first().click();
       await session.page.locator(".v3-ai-why summary").click();
-      await session.page.waitForTimeout(250);
+      await session.page.waitForTimeout(260);
       const opened = await shot(session, `ready-sources-${viewportKey}.png`);
       check(opened.status === "Ответ готов · 3 источника", `ready-${viewportKey}: ${opened.status}`);
+      check(JSON.stringify(opened.openSources) === JSON.stringify(["1"]), `ready-${viewportKey}: open sources ${JSON.stringify(opened.openSources)}`);
+      await session.page.locator('[data-testid="v3-ai-sources"] > li[data-source-n="3"] button').click();
+      await session.page.waitForTimeout(220);
+      await shot(session, `ready-internal-source-${viewportKey}.png`);
+      await session.page.getByTestId("v3-ai-insert").click();
+      await session.page.waitForTimeout(240);
+      const inserted = await shot(session, `ready-inserted-${viewportKey}.png`);
+      check(inserted.window === null && (inserted.draft ?? "").startsWith("Здравствуйте! Бакалавриат"), `ready-${viewportKey}: insert ${inserted.window} ${JSON.stringify(inserted.draft?.slice(0, 40))}`);
+      check(inserted.focusTag === "TEXTAREA" && inserted.aiAdded, `ready-${viewportKey}: focus ${inserted.focusTag}, tint ${inserted.aiAdded}`);
+      check(inserted.announcement === "Ответ добавлен в поле — отправьте сами", `ready-${viewportKey}: announcement ${inserted.announcement}`);
+      await session.page.waitForTimeout(300);
+      check(!(await session.page.evaluate(aiMetrics)).aiAdded, `ready-${viewportKey}: the tint stays`);
+      await expand(session);
+      const again = await shot(session, `ready-already-added-${viewportKey}.png`);
+      check(again.primary?.label === "Уже в поле ответа" && again.primary.disabled, `ready-${viewportKey}: reopened ${JSON.stringify(again.primary)}`);
+      // Поле опустело (fill — без нажатия мимо карточки) — ответ снова можно добавить.
+      await session.page.locator('[data-testid="v3-inbox-composer"] textarea').fill("");
+      await session.page.waitForTimeout(80);
+      const emptied = await session.page.evaluate(aiMetrics);
+      check(emptied.window !== null && emptied.primary?.label === "Добавить в поле ответа" && !emptied.primary.disabled, `ready-${viewportKey}: emptied ${JSON.stringify(emptied.primary)}`);
       await session.page.getByTestId("v3-ai-insert").click();
       await session.page.waitForTimeout(250);
-      const inserted = await shot(session, `ready-inserted-${viewportKey}.png`, { save: viewportKey === "1440" });
-      check((inserted.draft ?? "").startsWith("Здравствуйте! Бакалавриат"), `ready-${viewportKey}: draft ${JSON.stringify(inserted.draft?.slice(0, 40))}`);
-      await session.page.getByTestId("v3-ai-insert").click();
-      await session.page.waitForTimeout(250);
-      const stale = await shot(session, `ready-stale-${viewportKey}.png`, { save: viewportKey === "1440" });
-      check(stale.insertDisabled === true && stale.status === "Ответ устарел", `ready-${viewportKey}: stale ${stale.insertDisabled} ${stale.status}`);
-      // Устаревший ответ держит фокус на «Вставить в ответ» (aria-disabled); Esc
-      // сворачивает окно, фокус — на капсуле.
-      const focused = await session.page.evaluate(() => document.activeElement?.dataset.testid ?? null);
-      check(focused === "v3-ai-insert", `ready-${viewportKey}: focus after 409 ${focused}`);
+      const stale = await shot(session, `ready-stale-${viewportKey}.png`);
+      check(stale.primary?.label === "Обновить ответ" && stale.primary.action === "refresh" && stale.status === "Ответ устарел" && stale.replyState === "stale",
+        `ready-${viewportKey}: stale ${JSON.stringify(stale.primary)} ${stale.status} ${stale.replyState}`);
+      check(stale.focusTestId === "v3-ai-insert", `ready-${viewportKey}: focus after 409 ${stale.focusTestId}`);
+      // Esc сворачивает, фокус — на капсуле.
       await session.page.keyboard.press("Escape");
-      await session.page.waitForTimeout(100);
+      await session.page.waitForTimeout(260);
       const collapsed = await session.page.evaluate(aiMetrics);
       check(collapsed.window === null && collapsed.focus === "Помочь с ответом — открыть помощника", `ready-${viewportKey}: Esc ${collapsed.focus}`);
       const harness = await close(session, `ready-${viewportKey}`);
       check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-insert:reply", "ai-insert:reply"]), `ready-${viewportKey}: ${JSON.stringify(harness.actions)}`);
-      check(!harness.actions.some((action) => action.startsWith("send:")), `ready-${viewportKey}: something was sent`);
     }
 
-    // Перетаскивание мышью и стрелками; позиция в пределах ленты.
-    {
-      const session = await open("ready", "1440");
+    // «×» возвращает фокус на капсулу; нажатие мимо карточки сворачивает её без перехвата фокуса.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open("ready", viewportKey);
       await expand(session);
-      await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
-      const before = (await session.page.evaluate(aiMetrics)).window;
-      const head = session.page.locator(".v3-ai-head h2");
-      const point = await head.boundingBox();
-      await session.page.mouse.move(point.x + 20, point.y + 10);
-      await session.page.mouse.down();
-      await session.page.mouse.move(point.x - 260, point.y - 2000, { steps: 8 });
-      await session.page.mouse.up();
-      await session.page.waitForTimeout(120);
-      const dragged = await shot(session, "drag-1440.png");
-      check(dragged.window.left < before.left - 200 && dragged.windowInsideFeed === true, `drag: ${JSON.stringify([before, dragged.window])}`);
-      await session.page.getByRole("button", { name: /Переместить окно/u }).focus();
-      await session.page.keyboard.press("Home");
-      await session.page.waitForTimeout(80);
-      const home = (await session.page.evaluate(aiMetrics)).window;
-      check(Math.abs(home.right - before.right) <= 1 && Math.abs(home.bottom - before.bottom) <= 1, `drag Home: ${JSON.stringify([before, home])}`);
-      await close(session, "drag-1440");
+      await session.page.getByRole("button", { name: "Свернуть помощника" }).click();
+      await session.page.waitForTimeout(260);
+      const byClose = await session.page.evaluate(aiMetrics);
+      check(byClose.window === null && byClose.focus === "Помочь с ответом — открыть помощника", `close-${viewportKey}: × ${byClose.focus}`);
+      await expand(session);
+      // Мимо карточки — в поле ответа: карточка сворачивается, фокус остаётся там, куда нажали.
+      await session.page.locator('[data-testid="v3-inbox-composer"] textarea').click();
+      await session.page.waitForTimeout(260);
+      const outside = await session.page.evaluate(aiMetrics);
+      check(outside.window === null && outside.capsule !== null && outside.focusTag === "TEXTAREA", `outside-${viewportKey}: ${JSON.stringify({ window: outside.window, focus: outside.focusTag })}`);
+      await close(session, `close-${viewportKey}`);
     }
 
-    // Честные состояния.
+    // Ответ стал готов при свёрнутом окне: точка «готово» и один блик по краю; снова открыть — без новых запросов.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open("stream", viewportKey);
+      await expand(session);
+      await session.page.keyboard.press("Escape");
+      await session.page.waitForSelector('[data-testid="v3-ai-capsule"] .v3-ai-dot[data-tone="attention"], [data-testid="v3-ai-capsule"] .v3-ai-dot[data-tone="ready"]', { timeout: 9000 });
+      await session.page.waitForTimeout(1300);
+      const sweeping = await shot(session, `capsule-ready-${viewportKey}.png`);
+      check(sweeping.sweep === true && sweeping.window === null, `capsule-ready-${viewportKey}: sweep ${sweeping.sweep}`);
+      await expand(session);
+      const reopened = await session.page.evaluate(aiMetrics);
+      check(reopened.status === "Ответ готов · 3 источника", `capsule-ready-${viewportKey}: reopened ${reopened.status}`);
+      const harness = await close(session, `capsule-ready-${viewportKey}`);
+      check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-answer:reply", "ai-read"]), `capsule-ready-${viewportKey}: closing aborted or repeated ${JSON.stringify(harness.actions)}`);
+    }
+
+    // Долгий поиск: через 6 с — «Можно свернуть — ответ останется здесь.»
+    for (const viewportKey of AI_SCENARIOS.slow.viewports) {
+      const session = await open("slow", viewportKey);
+      await expand(session);
+      check(!(await session.page.evaluate(aiMetrics)).slow, `slow-${viewportKey}: the hint came early`);
+      await session.page.waitForTimeout(6300);
+      const slow = await shot(session, `stream-slow-${viewportKey}.png`);
+      check(slow.slow && slow.status === "Ищу в материалах", `slow-${viewportKey}: ${slow.slow} ${slow.status}`);
+      await close(session, `slow-${viewportKey}`);
+    }
+
+    // Поток оборвался после текста: дописанное тусклое под «Ответ не дописан и не проверен», вставки нет.
+    for (const viewportKey of AI_SCENARIOS.partial.viewports) {
+      const session = await open("partial", viewportKey);
+      await expand(session);
+      await session.page.waitForSelector('[data-testid="v3-ai-partial"]', { timeout: 6000 });
+      await session.page.waitForTimeout(120);
+      const partial = await shot(session, `state-partial-${viewportKey}.png`);
+      // Дописанное не проверено (§6.4, §6.5): так и сказано, и его не выделить для копирования.
+      check(partial.status === "Ответ не дописан и не проверен — не используйте его" && partial.partial?.startsWith("Здравствуйте! Бакалавриат")
+        && partial.errorText === "ИИ-агент сейчас недоступен." && partial.partialSelect === "none",
+        `partial-${viewportKey}: ${JSON.stringify({ status: partial.status, partial: partial.partial, text: partial.errorText, select: partial.partialSelect })}`);
+      check(partial.primary === null && partial.cardButtons.includes("Попробовать снова"), `partial-${viewportKey}: buttons ${JSON.stringify(partial.cardButtons)}`);
+      await close(session, `partial-${viewportKey}`);
+    }
+
+    // Клиент пишет подряд: после трёх «пришло новое сообщение» — «Подготовить ответ».
+    for (const viewportKey of AI_SCENARIOS.capped.viewports) {
+      const session = await open("capped", viewportKey);
+      await expand(session);
+      await session.page.waitForTimeout(500);
+      const capped = await shot(session, `state-capped-${viewportKey}.png`);
+      check(capped.status === "Клиент пишет несколько сообщений подряд" && capped.cardButtons.includes("Подготовить ответ"), `capped-${viewportKey}: ${capped.status} ${JSON.stringify(capped.cardButtons)}`);
+      const actions = await actionsOf(session);
+      check(actions.filter((action) => action === "ai-answer:reply").length === 4, `capped-${viewportKey}: ${JSON.stringify(actions)}`);
+      await close(session, `capped-${viewportKey}`);
+    }
+
+    // Честные состояния: у недоступности — одна строка причины (читалке — role=status), без кнопок и ссылок.
+    // Память остаётся и при недоступности: «Забыть сводку» и исключение из автоответчика есть только здесь.
+    const onlyClose = (metrics) => JSON.stringify(metrics.cardButtons) === JSON.stringify(["Свернуть помощника"]);
+    const unavailable = (metrics) => onlyClose(metrics) && metrics.blockedRole === "status" && metrics.memoryInCard;
     const states = [
-      ["no-sources", (metrics) => metrics.warnings[0] === "Проверьте факты — источники не найдены" && metrics.status === "Ответ готов · без источников"],
-      ["waiting", (metrics) => metrics.status === "Ждём ответ клиента"],
-      ["off", (metrics) => metrics.blocked === "ai_agent_off"],
-      ["consent", (metrics) => metrics.blocked === "consent_required"],
-      ["unavailable", (metrics) => metrics.error === "agent_unavailable" && metrics.errorText === "ИИ-агент сейчас недоступен."],
-      ["balance", (metrics) => metrics.error === "gemini_billing" && metrics.errorText === "Закончился оплаченный баланс Gemini. Пополните его в Google Cloud."],
-      ["rate", (metrics) => metrics.error === "rate_limited" && metrics.errorText === "Слишком много запросов. Подождите минуту."],
+      ["no-sources", (m) => m.warnings[0] === "Проверьте факты — источники не найдены" && m.status === "Ответ готов · без источников"],
+      ["waiting", (m) => m.status === "Ждём ответ клиента" && m.title === "Следующий шаг" && m.cardButtons.includes("Подготовить продолжение")],
+      ["no-client", (m) => m.status === "Сначала — вопрос клиента" && onlyClose(m)],
+      ["off", (m) => m.blocked === "ai_agent_off" && m.status === "Помощник сейчас недоступен" && m.blockedText === "ИИ-агент не подключён к CRM." && unavailable(m)],
+      ["consent", (m) => m.blocked === "consent_required" && m.blockedText === "ИИ-агент выключен в CRM." && unavailable(m)],
+      ["balance", (m) => m.blocked === "gemini_billing" && m.blockedText === "Закончился оплаченный баланс Gemini." && unavailable(m)],
+      ["budget", (m) => m.blocked === "budget_exhausted" && m.blockedText === "Месячный лимит расходов на ИИ исчерпан." && unavailable(m)],
+      ["unavailable", (m) => m.error === "agent_unavailable" && m.status === "Не удалось подготовить ответ" && m.errorText === "ИИ-агент сейчас недоступен." && m.cardButtons.includes("Попробовать снова")],
+      ["rate", (m) => m.error === "rate_limited" && m.errorText === "Слишком много запросов. Подождите минуту." && m.cardButtons.includes("Попробовать снова")],
     ];
     for (const [name, ok] of states) {
       for (const viewportKey of AI_SCENARIOS[name].viewports) {
@@ -1569,9 +1896,24 @@ async function aiScreenshots() {
         await expand(session);
         await session.page.waitForTimeout(name === "balance" ? 700 : 300);
         const metrics = await shot(session, `state-${name}-${viewportKey}.png`);
-        check(ok(metrics), `state-${name}-${viewportKey}: ${JSON.stringify({ status: metrics.status, blocked: metrics.blocked, error: metrics.error, text: metrics.errorText, warnings: metrics.warnings })}`);
+        check(ok(metrics), `state-${name}-${viewportKey}: ${JSON.stringify({ status: metrics.status, title: metrics.title, blocked: metrics.blocked, blockedText: metrics.blockedText, error: metrics.error, text: metrics.errorText, warnings: metrics.warnings, buttons: metrics.cardButtons })}`);
         await close(session, `state-${name}-${viewportKey}`);
       }
+    }
+
+    // Без движения (prefers-reduced-motion: reduce): ни раскрытия, ни блика; сворачивание сразу; состояния те же.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open("ready", viewportKey, { reducedMotion: "reduce" });
+      await session.page.getByRole("button", { name: "Помочь с ответом — открыть помощника" }).click();
+      await session.page.waitForSelector('[data-testid="v3-ai-answer"]');
+      const still = await shot(session, `reduced-motion-${viewportKey}.png`);
+      check(still.cardAnimation === "none" && still.status === "Ответ готов · 3 источника" && still.primary?.label === "Добавить в поле ответа",
+        `reduced-${viewportKey}: ${still.cardAnimation} ${still.status}`);
+      await session.page.keyboard.press("Escape");
+      await session.page.waitForTimeout(20);
+      const gone = await session.page.evaluate(aiMetrics);
+      check(gone.window === null && gone.capsule !== null, `reduced-${viewportKey}: close waited for an animation`);
+      await close(session, `reduced-${viewportKey}`);
     }
 
     // Отставшая страница: один запрос с билетом по базе, без «пришло новое сообщение».
@@ -1601,14 +1943,14 @@ async function aiScreenshots() {
       check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-read"]), `off-new-message: ${JSON.stringify(harness.actions)}`);
     }
 
-    // «Нет согласия» → свернуть → администратор включил → открыть: ответ без перезагрузки страницы.
+    // «Выключен» → свернуть → администратор включил → открыть: ответ без перезагрузки страницы.
     {
       const session = await open("consent-later", "1440");
       await expand(session);
       await session.page.waitForTimeout(300);
       check((await session.page.evaluate(aiMetrics)).blocked === "consent_required", "consent-later: before");
       await session.page.keyboard.press("Escape");
-      await session.page.waitForTimeout(100);
+      await session.page.waitForTimeout(260);
       await expand(session);
       await session.page.waitForSelector('[data-testid="v3-ai-answer"]', { timeout: 4000 });
       const metrics = await shot(session, "consent-later-1440.png", { save: false });
@@ -1616,24 +1958,15 @@ async function aiScreenshots() {
       const harness = await close(session, "consent-later-1440");
       check(JSON.stringify(harness.actions) === JSON.stringify(["ai-read", "ai-read"]), `consent-later: ${JSON.stringify(harness.actions)}`);
     }
-
-    // Раздел «ИИ-агент».
-    for (const name of Object.keys(AI_SECTION_SCENARIOS)) {
-      for (const viewportKey of AI_SECTION_SCENARIOS[name].viewports) {
-        const session = await open(name, viewportKey);
-        await shot(session, `${name}-${viewportKey}.png`);
-        await close(session, `${name}-${viewportKey}`);
-      }
-    }
   } finally {
     await browser.close();
+    if (failures.length) {
+      process.stderr.write(`ai agent checks failed:\n${failures.map((failure) => `- ${failure}`).join("\n")}\n`);
+      process.exitCode = 1;
+    } else {
+      process.stdout.write(`${JSON.stringify({ ok: true, outDir })}\n`);
+    }
   }
-
-  if (failures.length) {
-    process.stderr.write(`ai agent checks failed:\n${failures.map((failure) => `- ${failure}`).join("\n")}\n`);
-    process.exit(1);
-  }
-  process.stdout.write(`${JSON.stringify({ ok: true, outDir })}\n`);
 }
 
 // --- «ИИ-агент» P3: «Что ИИ знает о клиенте» и «Память о клиенте» -------------------
@@ -1889,13 +2222,14 @@ async function aiP3Screenshots() {
         `forget: ${JSON.stringify(harness.memory)}`);
     }
 
-    // Честные состояния (274): выключена (+ «Включить» только при согласии), на паузе без согласия,
-    // короткая переписка без карточки, 21–25 сообщений — сводка рано, сводку пора собрать.
+    // Честные состояния (274): выключена и на паузе — одной строкой, без «Включить» и слов о согласии
+    // (окно, 08.10, «давай без этого»; синтетика — сотрудник с правом управлять), короткая переписка
+    // без карточки, 21–25 сообщений — сводка рано, сводку пора собрать.
     const states = [
-      ["memory-off", (m) => m.hint === "Память выключена" && m.off?.startsWith("Память о клиенте выключена.") && m.enableLink && m.lead === "Аружан · Малайзия · Квалифицирован"],
-      ["memory-off-no-consent", (m) => m.off?.startsWith("Память о клиенте выключена.") && !m.enableLink && m.off.includes("Сначала администратор записывает согласие на Gemini.")],
+      ["memory-off", (m) => m.hint === "Память выключена" && m.off === "Память о клиенте выключена." && !m.enableLink && m.lead === "Аружан · Малайзия · Квалифицирован"],
+      ["memory-off-no-consent", (m) => m.off === "Память о клиенте выключена." && !m.enableLink],
       ["memory-paused", (m) => m.state === "paused" && m.hint === "Память на паузе"
-        && m.paused === "Память на паузе: без согласия на Gemini сводка и интерес не собираются." && m.interest === null && m.summaryState === null
+        && m.paused === "Память на паузе: сводка и интерес не собираются." && m.interest === null && m.summaryState === null
         && m.lead === "Аружан · Малайзия · Квалифицирован"],
       ["memory-short", (m) => m.summaryState === "ИИ видит всю переписку — сводка не нужна." && m.interest === "Интерес появится после следующего сообщения клиента." && m.lead === "Карточки лида нет."],
       ["memory-waiting", (m) => m.state === "waiting" && m.summaryState === "Сводка появится, когда переписка станет длиннее." && m.hint === "Сводка пока не нужна"],
@@ -2090,7 +2424,7 @@ const JOURNAL = {
   ],
   next: null,
 };
-const JOURNAL_TITLES = { 1: "Аружан Примерова", 3: "Тимур Макетов", 4: "Мадина Условная", 5: "WhatsApp ••••0937", 6: "Эльдар Эскизов" };
+const JOURNAL_TITLES = { 1: "Аружан Примерова", 3: "Тимур Макетов", 4: "Мадина Условная", 5: "WhatsApp · +996 ••• 90 48 21", 6: "Эльдар Эскизов" };
 const SUMMARY = {
   summary: {
     id: aiId(840), intervalStart: "2026-10-05T14:00:00Z", intervalEnd: "2026-10-06T03:00:00Z", shadowNight: true, status: "ready",
@@ -2558,8 +2892,13 @@ if (process.argv.includes("--json")) {
     console.error(error);
     process.exit(1);
   });
+} else if (process.argv.includes("--ai-window")) {
+  aiScreenshots("window").catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 } else if (process.argv.includes("--ai-agent")) {
-  aiScreenshots().catch((error) => {
+  aiScreenshots("section").catch((error) => {
     console.error(error);
     process.exit(1);
   });
@@ -2574,6 +2913,6 @@ if (process.argv.includes("--json")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split] | --whatsapp-chat [outDir] | --ai-agent [outDir] | --ai-agent-p3 [outDir] | --ai-agent-p4 [outDir]");
+  console.error("usage: conversations-static-render.cjs --json | --screenshots [outDir] [--prefix=split] | --whatsapp-chat [outDir] | --ai-window [outDir] | --ai-agent [outDir] | --ai-agent-p3 [outDir] | --ai-agent-p4 [outDir]");
   process.exit(2);
 }

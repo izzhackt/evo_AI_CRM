@@ -14,7 +14,9 @@ import {
   getPlatformWhatsAppThread,
   listPlatformConversations,
   type PlatformConversationCursor,
+  type PlatformConversationQueueCursor,
   type PlatformConversationSummary,
+  type PlatformWhatsAppContact,
   type PlatformWhatsAppChatAttempt,
   type PlatformWhatsAppChatMessage,
   type PlatformWhatsAppChatState,
@@ -26,7 +28,7 @@ import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-heal
 import { aiAutosendServerState } from "@/lib/server/ai-agent-send-config";
 import { aiAutosendAnswersHere } from "@/lib/v3/ai-agent-autosend";
 import { readAiAutosendChat } from "@/lib/v3/ai-agent-autosend-source";
-import { buildV3InboxHref } from "@/lib/v3/inbox-href";
+import { buildV3InboxHref, type V3InboxHrefFilters } from "@/lib/v3/inbox-href";
 import { inboxPresentationQueue, inboxReplyActor } from "@/lib/v3/inbox-access";
 import {
   readV3InboxMediaAttachmentContext,
@@ -34,6 +36,8 @@ import {
   type V3InboxMediaAttachmentContext,
 } from "@/lib/v3/inbox-media";
 import { readLeadHandoffStrip } from "@/lib/v3/sales-numbers-source";
+import { whatsAppChatTitle } from "@/lib/v3/whatsapp-contact";
+import { readWhatsAppContacts } from "@/lib/v3/whatsapp-contact-source";
 import { stagePhase } from "@/lib/v3/stages";
 import { salesStage } from "@/lib/v3/wording";
 import {
@@ -57,10 +61,10 @@ const BISHKEK_TIME = new Intl.DateTimeFormat("ru-RU", {
 
 export type InboxReadOptions = Readonly<{
   conversationId: string | null;
-  queueCursor: PlatformConversationCursor | null;
+  /** «Неотвеченные» — с группой строки курсора (`waiting`), иначе без неё. */
+  queueCursor: PlatformConversationQueueCursor | null;
   query: string | null;
-  waitingOnly: boolean;
-}>;
+} & Pick<V3InboxHrefFilters, "sort">>;
 
 export type InboxReadModel = Readonly<{
   view: InboxView;
@@ -74,17 +78,15 @@ function formatInboxTime(value: string): string {
   return BISHKEK_TIME.format(parsed).replace(",", "");
 }
 
-type InboxChannelStatus = Pick<
-  InboxSelectedConversation,
-  "channelState" | "channelObservedAt"
->;
+type InboxChannelStatus = Pick<InboxSelectedConversation, "channelState">;
 
 async function readInboxChannelStatus(
   actor: ActivePlatformActor,
 ): Promise<InboxChannelStatus> {
   try {
     // The recorded status only says when the session last changed; the live
-    // probe says what it is now, so the banner does not go stale.
+    // probe says what it is now, so a warning does not go stale. A working
+    // channel is not announced (owner, 07.10.2026: «уберем давай это»).
     const health = await withLivePlatformWahaHealth(
       actor.organizationId,
       await getPlatformWahaSessionHealth(actor, "crm_primary"),
@@ -104,13 +106,12 @@ async function readInboxChannelStatus(
         channelState === "ready" && !isPlatformWahaIngressEnabled()
           ? "intake_off"
           : channelState,
-      channelObservedAt: health ? formatInboxTime(health.observedAt) : null,
     });
   } catch {
     // Session health is informational. Queue, transcript and command-authority
     // failures retain their existing fail-closed path; the send itself is
     // gated by the database's own readiness check.
-    return Object.freeze({ channelState: "unavailable", channelObservedAt: null });
+    return Object.freeze({ channelState: "unavailable" });
   }
 }
 
@@ -128,12 +129,15 @@ function formatWaitingRu(sinceIso: string): string | null {
 
 function toInboxConversation(
   summary: PlatformConversationSummary,
-  queueCursor: PlatformConversationCursor | null,
-  filters: Readonly<{ query: string | null; waitingOnly: boolean }>,
+  queueCursor: PlatformConversationQueueCursor | null,
+  filters: V3InboxHrefFilters,
+  contact: PlatformWhatsAppContact | undefined,
 ): InboxConversation {
+  const title = whatsAppChatTitle(summary.subject, contact);
   return Object.freeze({
     id: summary.id,
-    person: summary.subject,
+    person: title.name,
+    phone: title.phone,
     queue: summary.queue,
     status: summary.status,
     updatedAt: formatInboxTime(summary.sortAt),
@@ -274,9 +278,9 @@ export async function readInbox(
   options: InboxReadOptions,
 ): Promise<InboxReadModel> {
   const presentationQueue = inboxPresentationQueue(actor);
-  const filters = Object.freeze({
+  const filters: V3InboxHrefFilters = Object.freeze({
     query: options.query,
-    waitingOnly: options.waitingOnly,
+    sort: options.sort,
   });
   const readAt = new Date().toISOString();
   const [queue, resolvedThread] = await Promise.all([
@@ -284,7 +288,7 @@ export async function readInbox(
       cursor: options.queueCursor,
       pageSize: INBOX_PAGE_SIZE,
       query: options.query ?? undefined,
-      waitingOnly: options.waitingOnly,
+      unansweredFirst: options.sort === "unanswered",
       ...(presentationQueue ? { queue: presentationQueue } : {}),
     }),
     options.conversationId
@@ -304,15 +308,18 @@ export async function readInbox(
   const channelStatusPromise =
     !thread || thread.conversation.wahaSessionName === "crm_primary"
       ? readInboxChannelStatus(actor)
-      : Promise.resolve<InboxChannelStatus>({
-          channelState: "unknown",
-          channelObservedAt: null,
-        });
+      : Promise.resolve<InboxChannelStatus>({ channelState: "unknown" });
+  // Name and number of every shown chat (278): one read beside the others.
+  const contactsPromise = readWhatsAppContacts(actor, [
+    ...queue.rows.map((row) => row.id),
+    ...(thread ? [thread.conversation.id] : []),
+  ]);
   if (thread) {
-    const [context, channelStatus, state] = await Promise.all([
+    const [context, channelStatus, state, contacts] = await Promise.all([
       getPlatformConversationCommandContext(actor, thread.conversation.id),
       channelStatusPromise,
       getPlatformWhatsAppChatState(actor, thread.conversation.id),
+      contactsPromise,
     ]);
     if (
       context === null
@@ -338,9 +345,8 @@ export async function readInbox(
     });
 
     selected = Object.freeze({
-      ...toInboxConversation(thread.conversation, options.queueCursor, filters),
+      ...toInboxConversation(thread.conversation, options.queueCursor, filters, contacts.get(thread.conversation.id)),
       channelState: channelStatus.channelState,
-      channelObservedAt: channelStatus.channelObservedAt,
       canonicalContext: Object.freeze({
         leadId: context.canonicalLeadId,
         clientId: context.canonicalClientId,
@@ -350,22 +356,27 @@ export async function readInbox(
     });
   }
 
-  const channelStatus = await channelStatusPromise;
+  const [channelStatus, contacts] = await Promise.all([channelStatusPromise, contactsPromise]);
   return Object.freeze({
     view: Object.freeze({
       ...channelStatus,
       conversations: Object.freeze(
         queue.rows.map((summary) =>
-          toInboxConversation(summary, options.queueCursor, filters),
+          toInboxConversation(summary, options.queueCursor, filters, contacts.get(summary.id)),
         ),
       ),
       selected,
       searchQuery: options.query,
-      waitingOnly: options.waitingOnly,
-      waitingToggleHref: buildV3InboxHref({
-        filters: Object.freeze({
-          query: options.query,
-          waitingOnly: !options.waitingOnly,
+      sort: options.sort,
+      // Другой порядок — снова с первой страницы; открытый чат остаётся открытым.
+      sortHrefs: Object.freeze({
+        newest: buildV3InboxHref({
+          conversationId: selected?.id,
+          filters: Object.freeze({ query: options.query, sort: "newest" }),
+        }),
+        unanswered: buildV3InboxHref({
+          conversationId: selected?.id,
+          filters: Object.freeze({ query: options.query, sort: "unanswered" }),
         }),
       }),
       queueCurrentHref: buildV3InboxHref({
@@ -427,7 +438,7 @@ export async function readInboxOlderMessages(
  */
 export async function readInboxPulse(
   actor: ActivePlatformActor,
-  options: Readonly<{ conversationId: string | null; query: string | null; waitingOnly: boolean; list: boolean }>,
+  options: Readonly<{ conversationId: string | null; query: string | null; list: boolean } & Pick<V3InboxHrefFilters, "sort">>,
 ): Promise<Readonly<{ list: string | null; chat: string | null }> | null> {
   const presentationQueue = inboxPresentationQueue(actor);
   const [queue, thread] = await Promise.all([
@@ -435,7 +446,7 @@ export async function readInboxPulse(
       ? listPlatformConversations(actor, {
           pageSize: INBOX_PAGE_SIZE,
           query: options.query ?? undefined,
-          waitingOnly: options.waitingOnly,
+          unansweredFirst: options.sort === "unanswered",
           ...(presentationQueue ? { queue: presentationQueue } : {}),
         })
       : Promise.resolve(null),

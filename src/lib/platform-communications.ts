@@ -122,19 +122,29 @@ export type PlatformConversationCursor = Readonly<{
   id: string;
 }>;
 
+/**
+ * Cursor of the conversation queue. In the «Неотвеченные» order (migration
+ * 279) it also carries the group of its row: `waiting` — the chat awaits our
+ * answer. In the default order it has none.
+ */
+export type PlatformConversationQueueCursor = PlatformConversationCursor &
+  Readonly<{ waiting?: boolean }>;
+
 export type PlatformPageSlice<T> = Readonly<{
   rows: readonly T[];
-  nextCursor: PlatformConversationCursor | null;
+  nextCursor: PlatformConversationQueueCursor | null;
   hasNext: boolean;
 }>;
 
 export type PlatformConversationPageOptions = Readonly<{
-  cursor?: PlatformConversationCursor | null;
+  cursor?: PlatformConversationQueueCursor | null;
   pageSize?: number;
   queue?: PlatformConversationQueue;
   status?: PlatformConversationStatus;
   query?: string;
   waitingOnly?: boolean;
+  /** «Неотвеченные» (279): chats awaiting our answer first, then the rest. */
+  unansweredFirst?: boolean;
 }>;
 
 export type PlatformMessagePageOptions = Readonly<{
@@ -831,6 +841,16 @@ export async function listPlatformConversations(
     const query = normalizeConversationQuery(options?.query);
     const waitingOnly = options?.waitingOnly ?? false;
     if (typeof waitingOnly !== "boolean") return invalidShape();
+    const unansweredFirst = options?.unansweredFirst ?? false;
+    if (typeof unansweredFirst !== "boolean") return invalidShape();
+    // The «Неотвеченные» cursor names its row's group; the default one never does.
+    if (
+      unansweredFirst
+        ? cursor !== null && typeof cursor.waiting !== "boolean"
+        : cursor?.waiting !== undefined
+    ) {
+      return invalidShape();
+    }
     const client = await getPlatformClient(dependencies.client);
     const response = await client.schema("platform").rpc(
       "staff_communication_page",
@@ -844,6 +864,9 @@ export async function listPlatformConversations(
         p_conversation_id: null,
         p_query: query,
         p_waiting_only: waitingOnly,
+        // Sent only in «Неотвеченные»: the default call is exactly 122's.
+        p_unanswered_first: unansweredFirst ? true : null,
+        p_before_waiting: unansweredFirst ? cursor?.waiting ?? null : null,
       }),
       { get: true },
     );
@@ -851,8 +874,9 @@ export async function listPlatformConversations(
     if (response.error) return invalidShape();
 
     // The RPC orders by the latest guarded conversation or persisted message,
-    // then id. Preserve that authoritative queue order rather than inventing a
-    // weaker client-side ordering.
+    // then id («Неотвеченные»: awaiting chats first). Preserve that
+    // authoritative queue order rather than inventing a weaker client-side
+    // ordering.
     if (!Array.isArray(response.data)) return invalidShape();
     const seenIds = new Set<string>();
     const normalized = response.data.map((raw) => {
@@ -861,7 +885,10 @@ export async function listPlatformConversations(
       const rowCursor = parsePlatformConversationCursor(row.sortAt, row.id);
       if (rowCursor === null || seenIds.has(row.id)) return invalidShape();
       seenIds.add(row.id);
-      return Object.freeze({ row, cursor: rowCursor });
+      const queueCursor: PlatformConversationQueueCursor = unansweredFirst
+        ? Object.freeze({ ...rowCursor, waiting: row.waitingSince !== null })
+        : rowCursor;
+      return Object.freeze({ row, cursor: queueCursor });
     });
     const hasNext = normalized.length > pageSize;
     const page = normalized.slice(0, pageSize);
@@ -1448,6 +1475,83 @@ export async function getPlatformWhatsAppChatState(
       return invalidShape();
     }
     return normalizePlatformWhatsAppChatState(response.data[0]);
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+/**
+ * Имя и номер WhatsApp-чата (миграция 278, просьба владельца 07.10.2026):
+ * имя — набранное сотрудником или имя из профиля WhatsApp (null — имени нет,
+ * экран пишет «WhatsApp»), номер — код страны и последние шесть цифр,
+ * замаскированные в базе («+996 ••• 12 46 64»). Строка есть только у чата,
+ * которого тема — заглушка цепочки WAHA, и только с известным номером.
+ */
+export type PlatformWhatsAppContact = Readonly<{
+  conversationId: string;
+  name: string | null;
+  phone: string;
+}>;
+
+const WHATSAPP_CONTACT_KEYS = Object.freeze(["conversation_id", "contact_name", "contact_phone"]);
+const WHATSAPP_CONTACT_LIMIT = 60;
+const MASKED_PHONE_PATTERN = /^\+[1-9]\d{0,2} ••• \d{1,2}(?: \d{2}){0,2}$/u;
+
+function whatsAppContactRowId(value: unknown): string | null {
+  if (!isRecord(value) || !hasExactKeys(value, WHATSAPP_CONTACT_KEYS)) return null;
+  return parsePlatformRouteUuid(value.conversation_id);
+}
+
+/** Строка 278 или null, если её имя или номер не годятся для экрана. */
+function parseWhatsAppContact(value: unknown): PlatformWhatsAppContact | null {
+  const conversationId = whatsAppContactRowId(value);
+  if (conversationId === null || !isRecord(value)) return null;
+  const name = value.contact_name === null ? null : parseRequiredText(value.contact_name);
+  const phone = typeof value.contact_phone === "string" && MASKED_PHONE_PATTERN.test(value.contact_phone)
+    ? value.contact_phone
+    : null;
+  if ((value.contact_name !== null && (name === null || name.length > 500)) || phone === null) return null;
+  return Object.freeze({ conversationId, name: name?.trim() ?? null, phone });
+}
+
+export function normalizePlatformWhatsAppContact(value: unknown): PlatformWhatsAppContact {
+  return parseWhatsAppContact(value) ?? invalidShape();
+}
+
+/**
+ * Имена и номера WhatsApp-чатов, которые сотрудник читает полностью (до 60
+ * за раз). Чужой, неизвестный или не-WhatsApp чат строки не получает.
+ */
+export async function getPlatformWhatsAppContacts(
+  actor: PlatformActor,
+  ids: readonly string[],
+  dependencies: PlatformCommunicationsDependencies = {},
+): Promise<ReadonlyMap<string, PlatformWhatsAppContact>> {
+  try {
+    const organizationId = requireMessagingOrganization(actor);
+    const requested = [...new Set(ids.map((id) => parsePlatformRouteUuid(id)))];
+    if (requested.some((id) => id === null) || requested.length > WHATSAPP_CONTACT_LIMIT) return invalidShape();
+    if (requested.length === 0) return new Map();
+    const client = await getPlatformClient(dependencies.client);
+    const response = await client.schema("platform").rpc(
+      "staff_whatsapp_contacts",
+      { p_organization_id: organizationId, p_conversation_ids: requested },
+      { get: true },
+    );
+    if (response.error || !Array.isArray(response.data)) return invalidShape();
+    const seen = new Set<string>();
+    const contacts = new Map<string, PlatformWhatsAppContact>();
+    for (const row of response.data) {
+      // Чужой, лишний или повторный чат — нарушение договора: отказ целиком.
+      const conversationId = whatsAppContactRowId(row);
+      if (conversationId === null || !requested.includes(conversationId) || seen.has(conversationId)) return invalidShape();
+      seen.add(conversationId);
+      // Негодное имя или номер одной строки (например, очень длинное набранное
+      // имя) гасит только её: этот чат покажет тему, остальные — имя и номер.
+      const contact = parseWhatsAppContact(row);
+      if (contact) contacts.set(conversationId, contact);
+    }
+    return contacts;
   } catch (error) {
     return failClosed(error);
   }

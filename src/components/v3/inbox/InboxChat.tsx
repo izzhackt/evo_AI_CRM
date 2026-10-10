@@ -19,6 +19,7 @@ import {
   reconcilePlatformWhatsAppSendAction,
   sendPlatformWhatsAppMessageAction,
 } from "@/lib/platform-provider-actions";
+import type { V3InboxSort } from "@/lib/v3/inbox-href";
 import type { V3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import {
   AUTOREPLY_LABEL,
@@ -59,6 +60,8 @@ import { useInboxPulse } from "./useInboxPulse";
 
 /** Часы ленты: «не ушло» и «итог неизвестен» зависят от времени, а не только от сервера. */
 const CLOCK_TICK_MS = 15_000;
+/** Подкраска рамки поля после «Добавить в поле ответа» окна ИИ. */
+const AI_ADDED_TINT_MS = 380;
 
 export type InboxChatData = Readonly<{
   messages: readonly InboxChatMessage[];
@@ -353,26 +356,29 @@ export function InboxChat({
   chat,
   listPulse,
   searchQuery,
-  waitingOnly,
+  sort,
   storageScope,
   replySnippets,
   mediaAttachmentContext,
   assistant = null,
 }: Readonly<{
   conversationId: string;
+  /** Подпись журнала для читалки: имя и номер, как их произносят («…, +996, скрыто, 12 46 64»). */
   person: string;
   chat: InboxChatData;
   listPulse: string | null;
   searchQuery: string | null;
-  waitingOnly: boolean;
+  /** «Сортировка» списка: опрос читает его первую страницу в том же порядке. */
+  sort: V3InboxSort;
   /** «организация:сотрудник» — черновики разных сотрудников не смешиваются. */
   storageScope: string;
   replySnippets: readonly ReplySnippetPickerItem[] | null;
   mediaAttachmentContext: V3InboxMediaAttachmentContext | null;
   /**
-   * Окно ИИ (план ИИ-агента §12.1): справа внизу ленты, свёрнуто по
-   * умолчанию. Лежит над лентой и не закрывает поле ответа; есть только там,
-   * где есть поле ответа. null — у сотрудника нет права ai.agent.use.
+   * Окно ИИ (план ИИ-агента §12.1): капсула справа внизу ленты, свёрнуто по
+   * умолчанию, карточка растёт из капсулы. Лежит над лентой и не закрывает
+   * поле ответа; есть только там, где есть поле ответа. null — у сотрудника
+   * нет права ai.agent.use.
    */
   assistant?: InboxAssistantConfig | null;
 }>) {
@@ -436,7 +442,7 @@ export function InboxChat({
     listPulse,
     chatPulse: chat.pulse,
     query: searchQuery,
-    waitingOnly,
+    sort,
     busy: store.inFlight.length > 0,
   });
 
@@ -580,10 +586,21 @@ export function InboxChat({
     requestAnimationFrame(() => textarea.current?.focus());
   }
 
-  /** «Вставить в ответ» окна ИИ: к написанному, фокус — в поле, ничего не отправляется. */
+  /**
+   * «Добавить в поле ответа» окна ИИ: к написанному, фокус — в конец поля, рамка
+   * поля на 380 мс подкрашивается (ai-agent.css, только без reduced motion);
+   * ничего не отправляется.
+   */
+  const [aiAdded, setAiAdded] = useState(0);
+  useEffect(() => {
+    if (!aiAdded) return;
+    const timer = setTimeout(() => setAiAdded(0), AI_ADDED_TINT_MS);
+    return () => clearTimeout(timer);
+  }, [aiAdded]);
   const insertFromAssistant = useCallback((text: string) => {
     appendChatDraft(storeKey, text);
     setNotice(null);
+    setAiAdded((value) => value + 1);
     requestAnimationFrame(() => {
       const field = textarea.current;
       if (!field) return;
@@ -774,9 +791,9 @@ export function InboxChat({
           <InboxAiAssistant
             conversationId={conversationId}
             latestInboundMessageId={chat.latestInboundMessageId}
-            storageScope={storageScope}
             config={assistant}
             lifted={showJump}
+            fieldHasText={store.draft.trim() !== ""}
             onInsert={insertFromAssistant}
           />
         ) : null}
@@ -799,6 +816,7 @@ export function InboxChat({
           blocked={blocked}
           snippets={replySnippets}
           textareaRef={textarea}
+          aiAdded={aiAdded > 0}
         >
           {chat.replyAccess === "attention" ? (
             <p className="mb-2 flex items-center gap-1.5 t-body-compact text-warn">

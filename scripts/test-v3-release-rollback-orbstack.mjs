@@ -11,6 +11,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -26,6 +27,9 @@ const SHA256_HEX = /^[0-9a-f]{64}$/u;
 const SHA40 = /^[0-9a-f]{40}$/u;
 const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
 const EICAR = String.raw`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`;
+const APP_LOG_STDOUT_PROBE = "evo-rollback-proof-app-listening";
+const APP_LOG_STDERR_PROBE = "evo-rollback-proof-app-stderr";
+const DOCKER_LOG_TIMESTAMP = String.raw`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z`;
 
 if (process.env[OPT_IN] !== REQUIRED_OPT_IN_VALUE) {
   process.stdout.write(
@@ -449,6 +453,36 @@ function runController(command, overrides = {}, accepted = [0]) {
   });
 }
 
+// The controller keeps the outgoing app's bounded log tail, root-only, in the release
+// directory before it replaces the app; nothing of it is printed and no environment value is in it.
+function assertPreviousAppLog(evidenceDir, expectedContainer, expectedRevision, controllerRun) {
+  const logPath = join(evidenceDir, "previous-app.log");
+  const recordPath = join(evidenceDir, "previous-app-log.json");
+  assert.equal(statSync(logPath).mode & 0o777, 0o600, "previous app log must be owner-only");
+  assert.equal(statSync(recordPath).mode & 0o777, 0o600, "previous app log record must be owner-only");
+  const log = readFileSync(logPath, "utf8");
+  assert.deepEqual(parseJson(recordPath), {
+    schema: "evo-previous-app-log/v1",
+    status: "saved",
+    code: "saved",
+    log: "previous-app.log",
+    containerId: expectedContainer,
+    tailLines: 20000,
+    bytes: Buffer.byteLength(log),
+    sha256: createHash("sha256").update(log).digest("hex"),
+  });
+  assert.match(log, new RegExp(`^${DOCKER_LOG_TIMESTAMP} ${APP_LOG_STDOUT_PROBE} ${expectedRevision}$`, "mu"));
+  assert.match(log, new RegExp(`^${DOCKER_LOG_TIMESTAMP} ${APP_LOG_STDERR_PROBE} ${expectedRevision}$`, "mu"));
+  for (const value of [supabaseSecretKey, supabasePublishableKey, "EVO_PLATFORM_SUPABASE_SECRET_KEY"]) {
+    assert.equal(log.includes(value), false, "previous app log must not contain environment values");
+  }
+  for (const output of [controllerRun.stdout, controllerRun.stderr]) {
+    assert.equal(output.includes(APP_LOG_STDOUT_PROBE), false, "controller must not print the app log");
+    assert.equal(output.includes(APP_LOG_STDERR_PROBE), false, "controller must not print the app log");
+    assert.equal(output.includes("previous_app_logs_"), false, "the log copy must not warn");
+  }
+}
+
 function writePrivateFile(path, contents) {
   writeFileSync(path, contents, { encoding: "utf8", mode: 0o600 });
   chmodSync(path, 0o600);
@@ -652,7 +686,11 @@ createServer((request, response) => {
     revision: process.env.EVO_RELEASE_REVISION,
     version: process.env.EVO_RELEASE_VERSION,
   }));
-}).listen(3000, "0.0.0.0");
+}).listen(3000, "0.0.0.0", () => {
+  // Fixed probe lines on both streams for the controller's previous-app log copy.
+  console.log("${APP_LOG_STDOUT_PROBE} " + process.env.EVO_RELEASE_REVISION);
+  console.error("${APP_LOG_STDERR_PROBE} " + process.env.EVO_RELEASE_REVISION);
+});
 `,
   );
 }
@@ -1053,7 +1091,16 @@ async function run() {
   assert.equal(state.revision, candidateRevision);
   assert.equal(state.version, candidateVersion);
   assert.equal(state.composeSha256, seed.composeSha256);
-  assert.equal(state.appEnvSha256, seed.appEnvSha256);
+  // Since #772 the candidate snapshot binds the runtime image: exactly the sealed seed
+  // environment plus one EVO_RUNTIME_IMAGE_ID line, so its hash cannot equal the seed's.
+  assert.equal(sha256File(appEnvironmentFile), seed.appEnvSha256);
+  assert.equal(
+    state.appEnvSha256,
+    createHash("sha256")
+      .update(`${readFileSync(appEnvironmentFile, "utf8")}EVO_RUNTIME_IMAGE_ID=${candidateImageId}\n`)
+      .digest("hex"),
+  );
+  assertPreviousAppLog(expectedEvidence, baselineContainer, baselineRevision, deploy);
   assert.deepEqual(result, {
     schema: "evo-fast-release/v2",
     status: "blocked",
@@ -1110,6 +1157,8 @@ async function run() {
   assert.equal(inspectContainer(priorScanner, "{{.Config.Image}}"), CLAMAV_IMAGE);
   assert.equal(inspectContainer(priorScanner, "{{json .HostConfig.PortBindings}}"), "{}");
 
+  const laterPreviousApp = serviceContainer("app");
+  assert.notEqual(laterPreviousApp, baselineContainer, "rollback recreated the baseline app container");
   docker(["image", "save", "--output", laterCandidateArchive, laterCandidateTag], {
     timeout: 5 * 60 * 1_000,
     label: "save later unhealthy candidate archive",
@@ -1152,6 +1201,7 @@ async function run() {
   assert.equal(laterState.revision, laterCandidateRevision);
   assert.equal(laterState.version, laterCandidateVersion);
   assert.equal(laterState.rollbackTag, laterRollbackTag);
+  assertPreviousAppLog(laterEvidence, laterPreviousApp, baselineRevision, laterDeploy);
   const restoredPriorScanner = waitForScannerHealth();
   assert.equal(inspectContainer(restoredPriorScanner, "{{.Config.Image}}"), CLAMAV_IMAGE);
   assert.equal(inspectContainer(restoredPriorScanner, "{{json .HostConfig.PortBindings}}"), "{}");
@@ -1203,6 +1253,7 @@ async function run() {
       stateSchema: state.schema,
       rolledBack: result.rolledBack,
       rollbackRetryIdempotent: true,
+      previousAppLogSaved: true,
       releaseLockTool,
       releaseLockContentionProved,
       scannerImage: CLAMAV_IMAGE,

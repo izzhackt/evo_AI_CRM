@@ -7,7 +7,9 @@ import type { InboxAssistantConfig } from "@/components/v3/inbox/InboxAiAssistan
 import { InboxChat, type InboxChatData } from "@/components/v3/inbox/InboxChat";
 import { InboxListPulse } from "@/components/v3/inbox/InboxListPulse";
 import { Pill } from "@/components/v3/Pill";
+import { FilterMenu } from "@/components/v3/queue/FilterMenu";
 import type { ReplySnippetPickerItem } from "@/components/v3/reply-snippets/ReplySnippetPicker";
+import type { V3InboxSort } from "@/lib/v3/inbox-href";
 import type { V3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import type { StagePhase } from "@/lib/v3/stages";
 
@@ -63,8 +65,10 @@ export type InboxView = Readonly<{
   queueNewestHref: string | null;
   queueOlderHref: string | null;
   searchQuery: string | null;
-  waitingOnly: boolean;
-  waitingToggleHref: string;
+  /** «Сортировка»: «Сначала новые» (по умолчанию) или «Неотвеченные». */
+  sort: V3InboxSort;
+  /** Ссылки обоих порядков: с первой страницы, с тем же поиском и открытым чатом. */
+  sortHrefs: Readonly<Record<V3InboxSort, string>>;
   channelState: InboxSelectedConversation["channelState"];
   /** Подпись первой страницы списка для опроса; null — открыта более ранняя страница. */
   listPulse: string | null;
@@ -110,13 +114,20 @@ export function inboxNotConnected(view: InboxView): boolean {
     && view.selected === null
     && view.conversations.length === 0
     && !view.searchQuery
-    && !view.waitingOnly
     && view.queueNewestHref === null;
 }
 
+/** Варианты «Сортировки» — слова владельца (08.10.2026). */
+const SORT_OPTIONS: readonly Readonly<{ sort: V3InboxSort; label: string; valueLabel: string }>[] = [
+  { sort: "newest", label: "Сначала новые", valueLabel: "сначала новые" },
+  { sort: "unanswered", label: "Неотвеченные", valueLabel: "неотвеченные" },
+];
+
 /**
  * «Продажи → WhatsApp» — чат как WhatsApp Web (решение владельца 06.10.2026):
- * слева список диалогов с поиском и «Только ждут ответа», справа лента
+ * слева список диалогов с поиском и «Сортировкой» («Сначала новые» — всегда
+ * при входе в раздел; «Неотвеченные» — сначала диалоги, где клиент написал
+ * последним, затем остальные; 08.10.2026), справа лента
  * открытого диалога и поле ответа внизу. Прежнего блока «Ответ и отправка»
  * (ИИ-черновик, подтверждение одной отправки) и панели синхронизации с
  * внешней CRM здесь больше нет. На телефоне — один слой: список, затем чат с
@@ -151,7 +162,8 @@ export function Inbox({
   // Два чата без имени («WhatsApp») различает только номер — и для читалки.
   const spokenTitle = open ? `${open.person}${open.phone ? `, ${spokenPhone(open.phone)}` : ""}` : "";
   const hasConversations = view.conversations.length > 0;
-  const hasFilters = Boolean(view.searchQuery) || view.waitingOnly;
+  // «Сортировка» не фильтр: она меняет порядок, а не состав списка.
+  const hasFilters = Boolean(view.searchQuery);
   if (inboxNotConnected(view)) {
     return (
       <section
@@ -203,47 +215,46 @@ export function Inbox({
           </div>
         ) : null}
         {!open ? (
-          <InboxListPulse listPulse={view.listPulse} searchQuery={view.searchQuery} waitingOnly={view.waitingOnly} />
+          <InboxListPulse listPulse={view.listPulse} searchQuery={view.searchQuery} sort={view.sort} />
         ) : null}
-        <form
-          action="/v3/inbox"
-          method="get"
-          role="search"
-          className="border-b border-border p-3"
-        >
-          {view.waitingOnly ? (
-            <input type="hidden" name="waiting" value="1" />
-          ) : null}
-          <label htmlFor="v3-inbox-search" className="sr-only">
-            Найти диалог
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="v3-inbox-search"
-              name="q"
-              type="search"
-              maxLength={200}
-              defaultValue={view.searchQuery ?? ""}
-              placeholder="Имя, телефон или тема"
-              className="min-h-11 min-w-0 flex-1 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3"
+        <div className="border-b border-border p-3">
+          <form action="/v3/inbox" method="get" role="search">
+            {view.sort === "unanswered" ? (
+              <input type="hidden" name="sort" value="unanswered" />
+            ) : null}
+            <label htmlFor="v3-inbox-search" className="sr-only">
+              Найти диалог
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="v3-inbox-search"
+                name="q"
+                type="search"
+                maxLength={200}
+                defaultValue={view.searchQuery ?? ""}
+                placeholder="Имя, телефон или тема"
+                className="min-h-11 min-w-0 flex-1 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3"
+              />
+              <button type="submit" className={btnGhostCls}>
+                Найти
+              </button>
+            </div>
+          </form>
+          {/* Тот же выпадающий выбор, что «Сортировка» «Студентов»: ссылки в
+              адресе, выбранный — с галочкой и aria-current. */}
+          <div className="mt-2 flex" data-testid="v3-inbox-sort">
+            <FilterMenu
+              label="Сортировка"
+              valueLabel={SORT_OPTIONS.find((option) => option.sort === view.sort)?.valueLabel ?? null}
+              options={SORT_OPTIONS.map((option) => ({
+                key: option.sort,
+                label: option.label,
+                href: view.sortHrefs[option.sort],
+                selected: option.sort === view.sort,
+              }))}
             />
-            <button type="submit" className={btnGhostCls}>
-              Найти
-            </button>
           </div>
-          <Link
-            href={view.waitingToggleHref}
-            aria-current={view.waitingOnly ? "true" : undefined}
-            className={`mt-2 inline-flex min-h-11 items-center rounded-ctl border px-3 t-label ${
-              view.waitingOnly
-                ? "border-warn/30 bg-warn-weak text-warn"
-                : "border-border text-fg-2 hover:bg-surface-2 hover:text-fg"
-            }`}
-            data-testid="v3-inbox-waiting-filter"
-          >
-            {view.waitingOnly ? "Показать все" : "Только ждут ответа"}
-          </Link>
-        </form>
+        </div>
 
         {view.queueNewestHref || view.queueOlderHref ? (
           <nav
@@ -401,7 +412,7 @@ export function Inbox({
             chat={open.chat}
             listPulse={view.listPulse}
             searchQuery={view.searchQuery}
-            waitingOnly={view.waitingOnly}
+            sort={view.sort}
             storageScope={storageScope}
             replySnippets={replySnippets}
             mediaAttachmentContext={mediaAttachmentContext}

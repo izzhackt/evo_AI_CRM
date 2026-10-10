@@ -14,6 +14,7 @@ import {
   getPlatformWhatsAppThread,
   listPlatformConversations,
   type PlatformConversationCursor,
+  type PlatformConversationQueueCursor,
   type PlatformConversationSummary,
   type PlatformWhatsAppContact,
   type PlatformWhatsAppChatAttempt,
@@ -27,7 +28,7 @@ import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-heal
 import { aiAutosendServerState } from "@/lib/server/ai-agent-send-config";
 import { aiAutosendAnswersHere } from "@/lib/v3/ai-agent-autosend";
 import { readAiAutosendChat } from "@/lib/v3/ai-agent-autosend-source";
-import { buildV3InboxHref } from "@/lib/v3/inbox-href";
+import { buildV3InboxHref, type V3InboxHrefFilters } from "@/lib/v3/inbox-href";
 import { inboxPresentationQueue, inboxReplyActor } from "@/lib/v3/inbox-access";
 import {
   readV3InboxMediaAttachmentContext,
@@ -60,10 +61,10 @@ const BISHKEK_TIME = new Intl.DateTimeFormat("ru-RU", {
 
 export type InboxReadOptions = Readonly<{
   conversationId: string | null;
-  queueCursor: PlatformConversationCursor | null;
+  /** «Неотвеченные» — с группой строки курсора (`waiting`), иначе без неё. */
+  queueCursor: PlatformConversationQueueCursor | null;
   query: string | null;
-  waitingOnly: boolean;
-}>;
+} & Pick<V3InboxHrefFilters, "sort">>;
 
 export type InboxReadModel = Readonly<{
   view: InboxView;
@@ -128,8 +129,8 @@ function formatWaitingRu(sinceIso: string): string | null {
 
 function toInboxConversation(
   summary: PlatformConversationSummary,
-  queueCursor: PlatformConversationCursor | null,
-  filters: Readonly<{ query: string | null; waitingOnly: boolean }>,
+  queueCursor: PlatformConversationQueueCursor | null,
+  filters: V3InboxHrefFilters,
   contact: PlatformWhatsAppContact | undefined,
 ): InboxConversation {
   const title = whatsAppChatTitle(summary.subject, contact);
@@ -277,9 +278,9 @@ export async function readInbox(
   options: InboxReadOptions,
 ): Promise<InboxReadModel> {
   const presentationQueue = inboxPresentationQueue(actor);
-  const filters = Object.freeze({
+  const filters: V3InboxHrefFilters = Object.freeze({
     query: options.query,
-    waitingOnly: options.waitingOnly,
+    sort: options.sort,
   });
   const readAt = new Date().toISOString();
   const [queue, resolvedThread] = await Promise.all([
@@ -287,7 +288,7 @@ export async function readInbox(
       cursor: options.queueCursor,
       pageSize: INBOX_PAGE_SIZE,
       query: options.query ?? undefined,
-      waitingOnly: options.waitingOnly,
+      unansweredFirst: options.sort === "unanswered",
       ...(presentationQueue ? { queue: presentationQueue } : {}),
     }),
     options.conversationId
@@ -366,11 +367,16 @@ export async function readInbox(
       ),
       selected,
       searchQuery: options.query,
-      waitingOnly: options.waitingOnly,
-      waitingToggleHref: buildV3InboxHref({
-        filters: Object.freeze({
-          query: options.query,
-          waitingOnly: !options.waitingOnly,
+      sort: options.sort,
+      // Другой порядок — снова с первой страницы; открытый чат остаётся открытым.
+      sortHrefs: Object.freeze({
+        newest: buildV3InboxHref({
+          conversationId: selected?.id,
+          filters: Object.freeze({ query: options.query, sort: "newest" }),
+        }),
+        unanswered: buildV3InboxHref({
+          conversationId: selected?.id,
+          filters: Object.freeze({ query: options.query, sort: "unanswered" }),
         }),
       }),
       queueCurrentHref: buildV3InboxHref({
@@ -432,7 +438,7 @@ export async function readInboxOlderMessages(
  */
 export async function readInboxPulse(
   actor: ActivePlatformActor,
-  options: Readonly<{ conversationId: string | null; query: string | null; waitingOnly: boolean; list: boolean }>,
+  options: Readonly<{ conversationId: string | null; query: string | null; list: boolean } & Pick<V3InboxHrefFilters, "sort">>,
 ): Promise<Readonly<{ list: string | null; chat: string | null }> | null> {
   const presentationQueue = inboxPresentationQueue(actor);
   const [queue, thread] = await Promise.all([
@@ -440,7 +446,7 @@ export async function readInboxPulse(
       ? listPlatformConversations(actor, {
           pageSize: INBOX_PAGE_SIZE,
           query: options.query ?? undefined,
-          waitingOnly: options.waitingOnly,
+          unansweredFirst: options.sort === "unanswered",
           ...(presentationQueue ? { queue: presentationQueue } : {}),
         })
       : Promise.resolve(null),

@@ -7,6 +7,7 @@ import {
   parsePlatformRouteUuid,
   type PlatformConversationCursor,
 } from "../platform-communications.ts";
+import type { V3InboxSort } from "../v3/inbox-href.ts";
 import type { V3InboxMediaAttachmentContext } from "../v3/inbox-media.ts";
 import type { InboxChatMessage } from "../v3/whatsapp-chat.ts";
 
@@ -36,7 +37,7 @@ export type PlatformInboxRouteDependencies = Readonly<{
   authorize(): Promise<Authorization>;
   readPulse(
     actor: ActivePlatformActor,
-    options: Readonly<{ conversationId: string | null; query: string | null; waitingOnly: boolean; list: boolean }>,
+    options: Readonly<{ conversationId: string | null; query: string | null; sort: V3InboxSort; list: boolean }>,
   ): Promise<Readonly<{ list: string | null; chat: string | null }> | null>;
   readOlder(
     actor: ActivePlatformActor,
@@ -90,16 +91,21 @@ export function createPlatformInboxPulseHandler(
     try {
       const authorization = await dependencies.authorize();
       if (authorization.status !== "authorized") return refusal(authorization.status);
-      const params = exactParams(new URL(request.url), ["conversation", "list", "q", "waiting"]);
+      // `waiting=1` — a tab opened before «Сортировка» (08.10.2026) replaced
+      // «Только ждут ответа»: it reads as «Неотвеченные», so its signature
+      // differs, the tab refreshes and the page moves it to `sort=unanswered`.
+      const params = exactParams(new URL(request.url), ["conversation", "list", "q", "sort", "waiting"]);
       if (params === null) return json(400, { error: "invalid_request" });
       const rawConversation = params.get("conversation");
       const conversationId = rawConversation === null ? null : parsePlatformRouteUuid(rawConversation);
       const list = params.get("list");
+      const sort = params.get("sort");
       const waiting = params.get("waiting");
       const query = params.get("q")?.trim() ?? null;
       if (
         (rawConversation !== null && conversationId === null)
         || (list !== null && list !== "1")
+        || (sort !== null && sort !== "unanswered")
         || (waiting !== null && waiting !== "1")
         || (query !== null && query.length > 200)
         || (conversationId === null && list === null)
@@ -109,7 +115,7 @@ export function createPlatformInboxPulseHandler(
       const pulse = await dependencies.readPulse(authorization.actor, {
         conversationId,
         query: query || null,
-        waitingOnly: waiting === "1",
+        sort: sort !== null || waiting !== null ? "unanswered" : "newest",
         list: list === "1",
       });
       if (pulse === null) return json(404, { error: "not_found" });

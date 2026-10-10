@@ -3318,6 +3318,35 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_ai_agent_p4.sql
   fi
+
+  # «Продажи → WhatsApp»: «Сортировка» — «Сначала новые» / «Неотвеченные»
+  # (owner request 08.10.2026). Matched by name, not number, so a renumbering
+  # at merge keeps the hook. 122's queue reader re-created with two optional
+  # arguments: one reader per schema (no ambiguous overload), the 16 keys,
+  # definer/invoker split and grants of 122; on chats of the REAL WAHA chain
+  # (customer messages and answers from the sales phone) the default order and
+  # cursor are unchanged, «Неотвеченные» puts chats awaiting our answer first
+  # (freshest first) and the rest after, page by page with no duplicate and no
+  # gap, chats move between the groups as messages arrive, search and «only
+  # awaiting» agree, an incomplete cursor is refused, the snapshot reader still
+  # resolves, refusals unchanged. Then the 261 (team inbox), 266 (chat replies)
+  # and P4 (AI autoresponder) suites run again on the post-279 chain: the
+  # running application's 9-argument calls keep working.
+  if [[ "$(basename "$migration")" == *_platform_inbox_unanswered_first.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_inbox_unanswered_first.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_team_inbox.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_chat_replies.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_p4.sql
+  fi
+
   # «Удаление аккаунта по запросу» (решения владельца 07.10.2026, упрощение
   # для 1.0 от 08.10.2026). Matched by name, not number, so a renumbering at
   # merge keeps the hook. Accounts come through the real анкета path; the

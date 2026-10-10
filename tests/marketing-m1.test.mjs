@@ -525,6 +525,7 @@ test("the leads table shows the plan columns, links the name to Lead 360 and nev
   const load = loader({
     "next/link": { __esModule: true, default: ({ href, children, ...rest }) => createElement("a", { href, ...rest }, children) },
     "@/lib/platform-marketing-actions": { loadMoreMarketingLeadsAction: async () => ({ status: "unavailable" }) },
+    "@/lib/platform-lead-channel-actions": { correctLeadChannelAction: async () => ({ status: "unavailable" }) },
   });
   const { MarketingLeadsTable } = load("src/components/v3/marketing/MarketingLeadsTable.tsx");
   const second = "30000000-0000-4000-8000-000000000002";
@@ -534,11 +535,14 @@ test("the leads table shows the plan columns, links the name to Lead 360 and nev
       contract_signed_on: null, paid: null, owner: null }),
   ], { total: 80, has_more: true, next_cursor: { created_at: "2026-09-20T05:30:00.5+00:00", id: second } }));
   const html = renderToStaticMarkup(createElement(MarketingLeadsTable, { initial: page, request: { from: FROM, to: TO, filters: parseMarketingLeadFilters({}) } }));
-  for (const head of ["Имя", "Телефон", "Пришёл", "Канал связи", "Откуда узнал", "Кампания", "Страница входа", "Этап", "Договор", "Оплата", "Ответственный"]) {
+  // Решение 10.10: время прихода — под именем, страница входа — под кампанией; поля те же, колонок девять.
+  for (const head of ["Имя и время", "Телефон", "Канал связи", "Откуда узнал", "Кампания и страница", "Этап", "Договор", "Оплата", "Ответственный"]) {
     assert.match(html, new RegExp(`<th scope="col"[^>]*>${head}</th>`, "u"), head);
   }
   assert.match(html, new RegExp(`href="/v3/profile\\?id=${LEAD}"[^>]*>Тест Синтетический</a>`, "u"));
-  assert.match(html, /Instagram — реклама · по метке/u);
+  assert.match(html, /data-channel="instagram_ads"[^>]*>[\s\S]*?Instagram — реклама<\/span><\/span><span class="block t-meta text-fg-2 pl-4">по метке<\/span>/u, "channel word, then its basis");
+  assert.match(html, /Лид без имени<\/a><span[^>]*>\d{2}\.\d{2}, \d{2}:\d{2}<\/span>/u, "arrival time under the name");
+  assert.doesNotMatch(html, /Не известно<\/span><\/span><span class="block t-meta[^"]*">не известно/u, "no «не известно» basis under «Не известно»");
   assert.match(html, /Лид без имени/u);
   assert.match(html, /Отказ/u);
   assert.match(html, /WhatsApp/u);
@@ -550,6 +554,13 @@ test("the leads table shows the plan columns, links the name to Lead 360 and nev
   assert.match(html, /Заявок по фильтрам: <span class="tabular-nums">80<\/span> · показано <span class="tabular-nums">2<\/span>/u);
   assert.match(html, />Показать ещё</u);
   assert.doesNotMatch(html, /\.csv|Экспорт|Скачать/u);
+  // 10.10: «Указать» — только у строки с «Не известно», тем же действием, что «Исправить» в Lead 360.
+  assert.equal([...html.matchAll(/data-testid="marketing-lead-set-channel"/gu)].length, 1, "one unknown row, one setter");
+  assert.match(html, /name="lead_id" value="30000000-0000-4000-8000-000000000002"/u, "the setter writes to the unknown lead");
+  assert.match(html, /name="request_id" value=""/u, "no request id until a channel is chosen");
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Сохранить<\/button>/u, "saving waits for a choice");
+  assert.match(html, />Указать<span class="sr-only">, откуда узнал: лид без имени<\/span><\/summary>/u, "each «Указать» names its lead for screen readers");
+  assert.doesNotMatch(html, RED_ACTION, "no red button in the list");
 });
 
 test("«Откуда узнал» in Lead 360: label and basis from the read, a quiet correction for those who may edit", () => {
@@ -662,4 +673,52 @@ test("«Показать ещё» re-validates its input: odd periods, filters a
     assert.deepEqual(await loadMoreMarketingLeadsAction({ ...good, ...bad }), { status: "unavailable" }, JSON.stringify(bad));
   }
   assert.equal(reads.length, 1, "invalid input never reaches the read");
+});
+
+test("«Откуда приходят заявки» (10.10): counts without percentages, cabinet forms apart, bar only from ten leads, honest leader", () => {
+  const load = loader({ "./MarketingSpendPanel": { MarketingSpendPanel: () => null } });
+  const { MarketingOverviewView } = load("src/components/v3/marketing/MarketingOverviewView.tsx");
+  const render = (json) => {
+    const overview = parseOverview(json);
+    assert.ok(overview, "fixture parses");
+    return renderToStaticMarkup(createElement(MarketingOverviewView, {
+      read: { status: "available", overview }, recent: null, period: { from: FROM, to: TO }, retryHref: "/v3/marketing",
+    }));
+  };
+  const mix = (html) => html.slice(html.indexOf('data-testid="marketing-mix"'), html.indexOf('data-testid="marketing-cohort"'));
+
+  const withForms = clone(overviewJson());
+  withForms.cohort.cabinet_forms = 5;
+  const big = mix(render(withForms));
+  assert.match(big, /За период — <span class="font-semibold tabular-nums">23 заявки<\/span>; из них на сегодня договор у/u);
+  assert.match(big, /data-testid="marketing-mix-bar"/u, "23 leads: the bar is drawn");
+  assert.match(big, /Не известно <span class="font-semibold tabular-nums">7<\/span>/u, "unknown without cabinet forms, as the unknown line");
+  assert.match(big, /Анкеты на платформе <span class="font-semibold tabular-nums">5<\/span>/u, "cabinet forms are their own item");
+  assert.match(big, /Из известных каналов больше всего — «Instagram — реклама»: <span class="tabular-nums">6<\/span>\./u);
+  assert.doesNotMatch(big, /%/u, "no second share next to «Источник не известен»");
+
+  const tie = clone(overviewJson());
+  tie.cohort.channels.find((row) => row.channel === "website_search").leads = 6;
+  tie.cohort.channels.find((row) => row.channel === "website_search").basis.referrer = 6;
+  tie.cohort.channels.find((row) => row.channel === "unknown").leads = 11;
+  tie.cohort.channels.find((row) => row.channel === "unknown").basis.unknown = 11;
+  assert.match(mix(render(tie)), /«Instagram — реклама» и «Сайт и поиск»: по <span class="tabular-nums">6<\/span>/u);
+
+  const small = clone(overviewJson());
+  const ads = small.cohort.channels.find((row) => row.channel === "instagram_ads");
+  Object.assign(ads, { leads: 3, qualified: 1, handed_off: 1, contract: 1, contract_linked: 0, paid: 0, paid_amounts: [], basis: { utm: 3, referrer: 0, staff: 0, corrected: 0, unknown: 0 } });
+  const site = small.cohort.channels.find((row) => row.channel === "website_search");
+  Object.assign(site, { leads: 5, qualified: 0, ai_assistant: 0, basis: { utm: 0, referrer: 5, staff: 0, corrected: 0, unknown: 0 } });
+  Object.assign(small.cohort.channels.find((row) => row.channel === "unknown"), { leads: 0, qualified: 0, basis: { utm: 0, referrer: 0, staff: 0, corrected: 0, unknown: 0 } });
+  Object.assign(small.cohort, { total: 8, open_count: 8, source_keys: { website: 8 }, totals: { leads: 8, qualified: 1, handed_off: 1, contract: 1, contract_linked: 0, paid: 0, paid_without_amount: 0 } });
+  const few = mix(render(small));
+  assert.match(few, /8 заявок/u);
+  assert.doesNotMatch(few, /marketing-mix-bar|%/u, "eight leads: counts only");
+  assert.match(few, /«Сайт и поиск»: <span class="tabular-nums">5<\/span>/u);
+  assert.doesNotMatch(few, /Не известно/u, "zero unknown is not listed");
+
+  const empty = clone(small);
+  for (const row of empty.cohort.channels) Object.assign(row, { leads: 0, qualified: 0, handed_off: 0, contract: 0, ai_assistant: 0, basis: { utm: 0, referrer: 0, staff: 0, corrected: 0, unknown: 0 } });
+  Object.assign(empty.cohort, { total: 0, open_count: 0, repeat_submissions: 0, source_keys: {}, totals: { leads: 0, qualified: 0, handed_off: 0, contract: 0, contract_linked: 0, paid: 0, paid_without_amount: 0 } });
+  assert.match(mix(render(empty)), /За период заявок нет\./u);
 });

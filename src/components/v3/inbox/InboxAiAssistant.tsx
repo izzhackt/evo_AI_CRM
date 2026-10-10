@@ -1,24 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 
 import { Icon } from "@/components/icons";
-import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import {
   aiErrorBlocked,
   aiErrorCopy,
   aiErrorRetryable,
+  aiWindowErrorReason,
+  aiWindowUnavailable,
   answerWarnings,
   createSseDecoder,
   normalizeAiAnswerView,
@@ -27,7 +25,6 @@ import {
   sourcePlace,
   sourcesWord,
   type AiAnswerView,
-  type AiBlockedCode,
   type AiIntent,
   type AiSavedAnswer,
   type AiSource,
@@ -37,23 +34,35 @@ import { InboxAiAutosend } from "./InboxAiAutosend";
 import { InboxAiMemory } from "./InboxAiMemory";
 
 /**
- * Окно ИИ в чате продаж (план ИИ-агента §12.1, решение владельца Q7):
- * маленькое окно справа внизу ленты, по умолчанию свёрнуто в капсулу «Помочь
- * с ответом», раскрывается по клику, перетаскивается мышью и стрелками
- * клавиатуры (позиция — в браузере), Esc сворачивает. На узком экране —
- * нижний лист внутри ленты: поле ответа остаётся видно.
+ * Окно ИИ в чате продаж (план ИИ-агента §12.1; решение владельца 08.10.2026
+ * «сделай нам window как в soodacloser»). Свёрнуто — тёмная стеклянная капсула
+ * «Помочь с ответом» с точкой состояния в правом нижнем углу ленты. Раскрыто —
+ * тёмная карточка растёт вверх из капсулы, привязана к ней (не перетаскивается,
+ * позиция нигде не хранится), не затемняет чат и не закрывает поле ответа.
+ * Esc, «×» и нажатие мимо карточки её сворачивают; Esc и «×» возвращают фокус
+ * на капсулу.
  *
  * Свёрнутое окно ничего не запрашивает. Открытие читает сохранённый ответ
  * (`GET …/answer`, без Gemini); если последнее сообщение — клиента и
  * актуального ответа нет, запрос идёт сам. Новое сообщение клиента при
  * открытом окне — новый запрос; при свёрнутом — ответ только помечается
- * устаревшим. Поток агента — живой предпросмотр; после него окно читает
- * сохранённый, проверенный ответ, а «Вставить в ответ» берёт текст у базы
- * (409 — ответ устарел). Вставка ничего не отправляет.
+ * устаревшим. Сворачивание запрос не прерывает: готовый ответ ждёт в окне, а
+ * капсула один раз проводит бликом по краю. Поток агента — живой предпросмотр;
+ * после него окно читает сохранённый, проверенный ответ. «Добавить в поле
+ * ответа» берёт текст у базы (`body.text`; 409 — переписка изменилась),
+ * добавляет его к написанному, сворачивает окно и ставит фокус в поле.
+ * Ничего не отправляется. Оборванный поток оставляет дописанное — тусклым,
+ * без вставки и без выделения, под «Ответ не дописан и не проверен — не
+ * используйте его»: у него нет `answerId`, проверки покрытия (§6.4) и защиты
+ * внутренних документов (§6.5) он не прошёл.
  *
- * Наверху окна — свёрнутый блок «Что ИИ знает о клиенте» (P3, §9): интерес,
- * сводка и карточка лида из базы, без Gemini (`InboxAiMemory`), под ним —
- * «Автоответчик в этом чате» (P4, §11), если автоответчик включён (`InboxAiAutosend`).
+ * Внизу карточки — «Что ИИ знает о клиенте» (P3, §9; `InboxAiMemory`) и
+ * «Автоответчик в этом чате» (P4, §11; `InboxAiAutosend`, если автоответчик
+ * включён). Когда помощник недоступен (не подключён, выключен, лимит, баланс),
+ * в окне одна строка причины — без ссылок на согласие, лимит и расходы; память
+ * и автоответчик остаются (это их единственное место: «Забыть сводку»,
+ * исключить чат из автоответчика). Их нет только без права на чат
+ * (`forbidden`) и в просмотре роли (`preview`).
  *
  * Запрос привязан к последнему сообщению клиента, которое окно видело последним:
  * из базы (каждое чтение `GET …/answer`) или из страницы (новое сообщение в
@@ -70,47 +79,29 @@ type Phase =
   | Readonly<{ kind: "loading" }>
   | Readonly<{ kind: "waiting" }>
   | Readonly<{ kind: "no-client" }>
-  | Readonly<{ kind: "streaming"; intent: AiIntent; stage: "searching" | "writing"; sources: number | null; preview: string }>
+  /** Клиент писал подряд, пока готовился ответ: дальше — только по кнопке. */
+  | Readonly<{ kind: "capped" }>
+  | Readonly<{ kind: "streaming"; token: number; intent: AiIntent; stage: "searching" | "writing"; sources: number | null; preview: string }>
   | Readonly<{ kind: "ready"; answer: AiSavedAnswer }>
-  | Readonly<{ kind: "error"; code: string; message: string; retry: AiIntent | "load" | null }>
-  | Readonly<{ kind: "blocked"; code: AiBlockedCode }>;
+  /** `partial` — дописанное до обрыва потока: только показать, вставлять нечего. */
+  | Readonly<{ kind: "error"; code: string; reason: string | null; retry: AiIntent | "load" | null; partial: string | null }>
+  | Readonly<{ kind: "blocked"; code: string }>;
 
 type Tone = "idle" | "working" | "ready" | "attention" | "error";
 
-const POSITION_STEP = 24;
-const POSITION_STEP_LARGE = 96;
-const EDGE = 12;
-/** С этой ширины ленты (32rem) окно плавает; уже — нижний лист (ai-agent.css, `@container ai`). */
-const WINDOW_MODE_MIN_WIDTH = 512;
 /** Подряд «пришло новое сообщение» без готового ответа: дальше — только по кнопке. */
 const SUPERSEDE_LIMIT = 3;
-
-type Offset = Readonly<{ x: number; y: number }>;
-
-function readOffset(key: string): Offset {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return { x: 0, y: 0 };
-    const value = JSON.parse(raw) as { x?: unknown; y?: unknown };
-    return typeof value.x === "number" && typeof value.y === "number" && Number.isFinite(value.x) && Number.isFinite(value.y)
-      ? { x: Math.min(0, value.x), y: Math.min(0, value.y) } : { x: 0, y: 0 };
-  } catch {
-    return { x: 0, y: 0 };
-  }
-}
-function writeOffset(key: string, offset: Offset): void {
-  try {
-    if (offset.x === 0 && offset.y === 0) window.localStorage.removeItem(key);
-    else window.localStorage.setItem(key, JSON.stringify({ x: Math.round(offset.x), y: Math.round(offset.y) }));
-  } catch {
-    // Позиция окна — удобство этого браузера; без хранилища окно встаёт в угол.
-  }
-}
+/** Через столько поток подсказывает, что окно можно свернуть. */
+const SLOW_HINT_MS = 6000;
+/** Сворачивание карточки (ai-agent.css, `v3-ai-card-close`). */
+const CLOSE_MS = 200;
+/** Недоступность, при которой памяти и автоответчика в окне нет: нет права на чат, просмотр роли. */
+const NO_EXTRAS = new Set(["forbidden", "preview"]);
 
 function toneOf(phase: Phase, stale: boolean): Tone {
   if (phase.kind === "streaming" || phase.kind === "loading") return "working";
   if (phase.kind === "error") return "error";
-  if (phase.kind === "blocked") return "attention";
+  if (phase.kind === "blocked" || phase.kind === "capped") return "attention";
   if (phase.kind === "ready") {
     if (stale || !phase.answer.current) return "attention";
     return phase.answer.result && answerWarnings(phase.answer.result).length > 0 ? "attention" : "ready";
@@ -122,6 +113,15 @@ const TONE_WORD: Readonly<Record<Tone, string>> = {
   idle: "ждёт", working: "готовит ответ", ready: "ответ готов", attention: "требует внимания", error: "ошибка",
 };
 
+/** Главная кнопка карточки: пока пишется — недоступна, после вставки — «Уже в поле ответа», пока поле не опустеет. */
+const PRIMARY_LABEL = Object.freeze({
+  writing: "Дописываю ответ…", refresh: "Обновить ответ", adding: "Добавляю…", added: "Уже в поле ответа", add: "Добавить в поле ответа",
+} as const);
+
+function reducedMotion(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 async function readErrorCode(response: Response): Promise<string> {
   try {
     const body = await response.json() as { error?: { code?: unknown } };
@@ -131,63 +131,91 @@ async function readErrorCode(response: Response): Promise<string> {
   }
 }
 
+/** Номер источника в тексте: видимый кружок, цель 44 px — у ::after. */
 function SourceMark({ n, onSelect }: Readonly<{ n: number; onSelect: (n: number) => void }>) {
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(n)}
-      className="v3-ai-mark"
-      aria-label={`Источник ${n}`}
-    >
+    <button type="button" onClick={() => onSelect(n)} className="v3-ai-mark" aria-label={`Источник ${n}`}>
       {n}
     </button>
   );
 }
 
-/** Длинная цитата свёрнута до пяти строк; выбранный номер её раскрывает. */
-const QUOTE_CLAMP_FROM = 280;
+/** Длинная цитата свёрнута до семи строк. */
+const QUOTE_CLAMP_FROM = 360;
 
-function SourceRow({ source, highlighted }: Readonly<{ source: AiSource; highlighted: boolean }>) {
+function SourceRow({
+  source,
+  open,
+  highlighted,
+  onToggle,
+}: Readonly<{ source: AiSource; open: boolean; highlighted: boolean; onToggle: () => void }>) {
+  const id = useId();
   const place = sourcePlace(source);
   const [whole, setWhole] = useState(false);
+  const internal = source.audience === "internal";
   const long = (source.quote?.length ?? 0) > QUOTE_CLAMP_FROM;
-  const clamped = long && !whole && !highlighted;
+  const expandable = !source.missing && (!!source.quote || !!source.sectionPath);
+  const flags = (
+    <>
+      {internal ? <span className="v3-ai-flagword">внутр.<span className="sr-only"> — клиенту не цитируется</span></span> : null}
+      {source.unverified ? (
+        <span
+          className="v3-ai-flagword"
+          data-tone="warn"
+          title={source.unverifiedValues.length > 0 ? `Число в источнике ещё не проверено: ${source.unverifiedValues.join(", ")}` : undefined}
+        >
+          не проверено
+        </span>
+      ) : null}
+      {!source.live && !source.missing ? <span className="v3-ai-flagword">документ заменён</span> : null}
+    </>
+  );
+  const head = (
+    <>
+      <span className="v3-ai-source-n" data-internal={internal || undefined} aria-hidden="true">{source.n ?? "·"}</span>
+      <span className="min-w-0 flex-1">
+        <span className="v3-ai-source-title t-item">
+          <span className="sr-only">Источник {source.n}: </span>
+          {source.missing ? "Документ удалён" : source.title}
+        </span>
+        <span className="v3-ai-source-meta t-meta">
+          {place ? <span>{place}</span> : null}
+          {flags}
+        </span>
+      </span>
+      {internal ? <Icon name="lock" size={16} className="v3-ai-source-lock shrink-0" /> : null}
+    </>
+  );
   return (
-    <li data-source-n={source.n ?? undefined} data-highlighted={highlighted || undefined} className="v3-ai-source">
-      <div className="flex min-w-0 items-baseline gap-2">
-        <span className="v3-ai-source-n" aria-hidden="true">{source.n ?? "·"}</span>
-        <div className="min-w-0 flex-1">
-          <p className="t-item break-words text-fg">
-            <span className="sr-only">Источник {source.n}: </span>
-            {source.missing ? "Документ удалён" : source.title}
-            {place ? <span className="font-normal text-fg-3"> · {place}</span> : null}
-          </p>
-          {source.sectionPath && !source.missing ? (
-            <p className="t-meta break-words text-fg-3">{source.sectionPath}</p>
-          ) : null}
+    <li
+      data-source-n={source.n ?? undefined}
+      data-open={(open && expandable) || undefined}
+      data-highlighted={highlighted || undefined}
+      className="v3-ai-source"
+    >
+      {expandable ? (
+        <button type="button" className="v3-ai-source-head" aria-expanded={open} aria-controls={open ? `${id}-body` : undefined} onClick={onToggle}>
+          {head}
+          <Icon name="chevron-down" size={16} className="v3-ai-source-chevron shrink-0" />
+        </button>
+      ) : (
+        <div className="v3-ai-source-head">{head}</div>
+      )}
+      {expandable && open ? (
+        <div id={`${id}-body`} className="v3-ai-source-body">
+          {source.sectionPath ? <p className="t-meta break-words text-fg-3">{source.sectionPath}</p> : null}
           {source.quote ? (
-            <blockquote className="v3-ai-quote t-body-compact text-fg-2" data-clamped={clamped || undefined}>{source.quote}</blockquote>
+            <blockquote id={`${id}-quote`} className="v3-ai-quote t-body-compact" data-clamped={(long && !whole) || undefined}>
+              {source.quote}
+            </blockquote>
           ) : null}
-          {long && !highlighted ? (
-            <button type="button" className="v3-ai-link t-label" aria-expanded={whole} onClick={() => setWhole((value) => !value)}>
-              {whole ? "Свернуть цитату" : "Цитата полностью"}
+          {long ? (
+            <button type="button" className="v3-ai-link t-label" aria-expanded={whole} aria-controls={`${id}-quote`} onClick={() => setWhole((value) => !value)}>
+              {whole ? "Свернуть фрагмент" : "Весь фрагмент"}
             </button>
           ) : null}
-          <div className="mt-1 flex flex-wrap gap-1.5 empty:hidden">
-            {source.audience === "internal" ? <StatusChip label="Внутреннее" tone="info" title="Клиенту не цитируется" /> : null}
-            {source.unverified ? (
-              <StatusChip
-                label="не проверено"
-                tone="warn"
-                title={source.unverifiedValues.length > 0
-                  ? `Число в источнике ещё не проверено: ${source.unverifiedValues.join(", ")}`
-                  : "Число в источнике ещё не проверено"}
-              />
-            ) : null}
-            {!source.live && !source.missing ? <StatusChip label="документ заменён" tone="neutral" /> : null}
-          </div>
         </div>
-      </div>
+      ) : null}
     </li>
   );
 }
@@ -195,71 +223,73 @@ function SourceRow({ source, highlighted }: Readonly<{ source: AiSource; highlig
 export function InboxAiAssistant({
   conversationId,
   latestInboundMessageId,
-  storageScope,
   config,
   lifted,
+  fieldHasText,
   onInsert,
 }: Readonly<{
   conversationId: string;
   latestInboundMessageId: string | null;
-  /** «организация:сотрудник» — позиция окна этого сотрудника в этом браузере. */
-  storageScope: string;
   config: InboxAssistantConfig;
   /** Над капсулой стоит «Новые сообщения ↓» на узком экране. */
   lifted: boolean;
+  /** В поле ответа есть текст: добавленный ответ остаётся «Уже в поле ответа», пока поле не опустеет. */
+  fieldHasText: boolean;
   /** Добавляет текст в поле ответа и ставит туда фокус; ничего не отправляет. */
   onInsert: (text: string) => void;
 }>) {
   const titleId = useId();
-  const windowRef = useRef<HTMLElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
   const capsuleRef = useRef<HTMLButtonElement>(null);
-  const areaRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const streamAbort = useRef<AbortController | null>(null);
   const supersedes = useRef(0);
+  const streamToken = useRef(0);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Последнее сообщение клиента, увиденное последним — из базы или из страницы. */
   const knownInbound = useRef<string | null>(latestInboundMessageId);
-  const positionKey = `evo-ai-window-v1:${storageScope}`;
 
+  /** Карточка в DOM (и во время сворачивания). */
   const [expanded, setExpanded] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const open = expanded && !closing;
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [stale, setStale] = useState(false);
-  const [note, setNote] = useState<Readonly<{ tone: "ok" | "warn" | "danger"; text: string }> | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [inserting, setInserting] = useState<"reply" | "question" | null>(null);
+  /** Что из этого ответа уже добавлено в поле — до того, как поле опустеет. */
+  const [inserted, setInserted] = useState<Readonly<{ answerId: string; reply: boolean; question: boolean }> | null>(null);
+  const [openSources, setOpenSources] = useState<readonly number[]>([]);
   const [highlight, setHighlight] = useState<number | null>(null);
-  const [offset, setOffset] = useState<Offset>({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const drag = useRef<Readonly<{ pointerId: number; startX: number; startY: number; origin: Offset }> | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  /** Ответ стал готов при свёрнутом окне: капсула один раз проводит бликом по краю. */
+  const [sweep, setSweep] = useState(0);
+  const [slowToken, setSlowToken] = useState(0);
+  const [capsuleWidth, setCapsuleWidth] = useState<number | null>(null);
 
   const expandedRef = useRef(false);
 
-  const clamp = useCallback((next: Offset): Offset => {
-    const area = areaRef.current, node = windowRef.current;
-    if (!area || !node) return next;
-    const maxLeft = Math.max(0, area.clientWidth - node.offsetWidth - EDGE * 2);
-    const maxUp = Math.max(0, area.clientHeight - node.offsetHeight - EDGE * 2);
-    return { x: Math.min(0, Math.max(-maxLeft, next.x)), y: Math.min(0, Math.max(-maxUp, next.y)) };
-  }, []);
-
-  // Окно не уходит за ленту при смене размера окна браузера и после раскрытия.
-  useLayoutEffect(() => {
-    if (!expanded) return;
-    const fit = () => setOffset((previous) => {
-      const next = clamp(previous);
-      return next.x === previous.x && next.y === previous.y ? previous : next;
-    });
-    fit();
-    const area = areaRef.current;
-    if (!area || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(fit);
-    observer.observe(area);
-    return () => observer.disconnect();
-  }, [expanded, clamp, phase.kind]);
+  // Поле опустело (отправлено или стёрто) — добавленный ответ снова можно добавить.
+  const [seenFieldText, setSeenFieldText] = useState(fieldHasText);
+  if (seenFieldText !== fieldHasText) {
+    setSeenFieldText(fieldHasText);
+    if (!fieldHasText && inserted) setInserted(null);
+  }
 
   const finishStream = useCallback(() => {
     streamAbort.current?.abort();
     streamAbort.current = null;
   }, []);
   useEffect(() => finishStream, [finishStream]);
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
+
+  // Долгий поток: через 6 с — «Можно свернуть — ответ останется здесь.»
+  const streamingToken = phase.kind === "streaming" ? phase.token : 0;
+  useEffect(() => {
+    if (!streamingToken) return;
+    const timer = setTimeout(() => setSlowToken(streamingToken), SLOW_HINT_MS);
+    return () => clearTimeout(timer);
+  }, [streamingToken]);
 
   const readSaved = useCallback(async (intent: AiIntent | null): Promise<Readonly<{ view: AiAnswerView; featureOn: boolean }> | Readonly<{ code: string }>> => {
     try {
@@ -275,12 +305,24 @@ export function InboxAiAssistant({
     }
   }, [conversationId]);
 
-  const fail = useCallback((code: string, message: string | null, retry: AiIntent | "load" | null) => {
-    if (aiErrorBlocked(code)) {
+  /** Готовый ответ при свёрнутом окне — один блик по краю капсулы. */
+  const settle = useCallback((answer: AiSavedAnswer) => {
+    setPhase({ kind: "ready", answer });
+    if (!expandedRef.current) setSweep((value) => value + 1);
+  }, []);
+
+  const fail = useCallback((code: string, message: string | null, retry: AiIntent | "load" | null, partial: string | null = null) => {
+    if (aiErrorBlocked(code) || aiWindowUnavailable(code) !== null) {
       setPhase({ kind: "blocked", code });
       return;
     }
-    setPhase({ kind: "error", code, message: aiErrorCopy(code, message), retry: aiErrorRetryable(code) ? retry : null });
+    setPhase({
+      kind: "error",
+      code,
+      reason: aiWindowErrorReason(code, message),
+      retry: aiErrorRetryable(code) ? retry : null,
+      partial: partial && partial.trim() ? partial : null,
+    });
   }, []);
 
   // `generate` и `load` зовут друг друга (новое сообщение во время потока).
@@ -293,7 +335,7 @@ export function InboxAiAssistant({
       return;
     }
     if (expandedRef.current) {
-      setPhase({ kind: "error", code: "superseded", message: aiErrorCopy("stale_answer"), retry: "load" });
+      setPhase({ kind: "capped" });
       return;
     }
     setStale(true);
@@ -304,9 +346,13 @@ export function InboxAiAssistant({
     finishStream();
     const controller = new AbortController();
     streamAbort.current = controller;
+    streamToken.current += 1;
+    const token = streamToken.current;
+    /** Дописанное до обрыва — показывается тусклым под «Ответ не дописан». */
+    let written = "";
     setStale(false);
     setNote(null);
-    setPhase({ kind: "streaming", intent, stage: "searching", sources: null, preview: "" });
+    setPhase({ kind: "streaming", token, intent, stage: "searching", sources: null, preview: "" });
     let response: Response;
     try {
       response = await fetch(`/api/v3/ai-agent/conversations/${conversationId}/answer`, {
@@ -347,8 +393,9 @@ export function InboxAiAssistant({
           } else if (event.type === "sources") {
             setPhase((previous) => previous.kind === "streaming" ? { ...previous, sources: event.count } : previous);
           } else if (event.type === "delta") {
-            setPhase((previous) => previous.kind === "streaming"
-              ? { ...previous, stage: "writing", preview: (previous.preview + event.text).slice(0, 8000) } : previous);
+            written = (written + event.text).slice(0, 8000);
+            const preview = written;
+            setPhase((previous) => previous.kind === "streaming" ? { ...previous, stage: "writing", preview } : previous);
           } else if (event.type === "final") {
             settled = true;
             supersedes.current = 0;
@@ -356,14 +403,14 @@ export function InboxAiAssistant({
             const saved = await readSaved(intent);
             if (controller.signal.aborted) return;
             if ("code" in saved) fail(saved.code, null, "load");
-            else if (saved.view.answer?.status === "ready" && saved.view.answer.result) setPhase({ kind: "ready", answer: saved.view.answer });
+            else if (saved.view.answer?.status === "ready" && saved.view.answer.result) settle(saved.view.answer);
             else fail("unavailable", null, intent);
           } else {
             settled = true;
             if (event.code === "superseded") {
               afterSuperseded();
             } else {
-              fail(event.code, event.message, intent);
+              fail(event.code, event.message, intent, written);
             }
           }
         }
@@ -371,13 +418,13 @@ export function InboxAiAssistant({
     } catch {
       if (controller.signal.aborted) return;
       settled = true;
-      fail("agent_unavailable", null, intent);
+      fail("agent_unavailable", null, intent, written);
     } finally {
       reader.cancel().catch(() => undefined);
       if (streamAbort.current === controller) streamAbort.current = null;
     }
-    if (!settled && !controller.signal.aborted) fail("agent_unavailable", null, intent);
-  }, [conversationId, afterSuperseded, fail, finishStream, readSaved]);
+    if (!settled && !controller.signal.aborted) fail("agent_unavailable", null, intent, written);
+  }, [conversationId, afterSuperseded, fail, finishStream, readSaved, settle]);
 
   const load = useCallback(async () => {
     finishStream();
@@ -418,10 +465,10 @@ export function InboxAiAssistant({
   }>>({ n: 0, action: "mark", id: latestInboundMessageId });
   if (seenInbound !== latestInboundMessageId) {
     setSeenInbound(latestInboundMessageId);
-    const action = !expanded ? "mark" : config.featureOn ? "regenerate" : phase.kind === "ready" ? "mark" : "reload";
+    const action = !open ? "mark" : config.featureOn ? "regenerate" : phase.kind === "ready" ? "mark" : "reload";
     setInboundTurn((previous) => ({ n: previous.n + 1, action, id: latestInboundMessageId }));
     if (action !== "regenerate") setStale(true);
-    if (!expanded) setPhase((previous) => (previous.kind === "ready" ? previous : { kind: "idle" }));
+    if (!open) setPhase((previous) => (previous.kind === "ready" ? previous : { kind: "idle" }));
   }
   useEffect(() => {
     if (inboundTurn.n === 0) return;
@@ -441,26 +488,56 @@ export function InboxAiAssistant({
     void run();
   }
 
-  function open() {
+  function expand() {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
     expandedRef.current = true;
-    setOffset(readOffset(positionKey));
+    setCapsuleWidth(capsuleRef.current?.offsetWidth ?? null);
+    setClosing(false);
     setExpanded(true);
+    setSweep(0);
+    setAnnouncement("");
+    setHighlight(null);
     // Без агента сохранённое всё равно читается: прежний ответ может быть актуален.
-    // Ошибка и «нет согласия»/«не подключён» тоже перечитываются: администратор
-    // мог включить агента, сбой — пройти, а у этих состояний нет «Повторить».
+    // Ошибка и «недоступен» тоже перечитываются: администратор мог включить
+    // агента, сбой — пройти, а у недоступности нет «Попробовать снова».
     if (phase.kind === "idle" || phase.kind === "blocked" || phase.kind === "error" || (phase.kind === "ready" && stale)) {
       byHand(load);
     }
-    requestAnimationFrame(() => windowRef.current?.querySelector<HTMLElement>("[data-ai-title]")?.focus());
+    requestAnimationFrame(() => closeRef.current?.focus());
   }
 
-  function collapse() {
+  /**
+   * Свернуть: Esc и «×» возвращают фокус на капсулу, нажатие мимо карточки —
+   * нет (фокус уходит туда, куда нажали), вставка — в поле ответа.
+   */
+  const collapse = useCallback((focusCapsule: boolean) => {
+    if (!expandedRef.current) return;
     expandedRef.current = false;
-    setExpanded(false);
-    setDragging(false);
-    drag.current = null;
-    requestAnimationFrame(() => capsuleRef.current?.focus());
-  }
+    const done = () => {
+      closeTimer.current = null;
+      setClosing(false);
+      setExpanded(false);
+      if (focusCapsule) requestAnimationFrame(() => capsuleRef.current?.focus());
+    };
+    if (reducedMotion()) {
+      done();
+      return;
+    }
+    setClosing(true);
+    closeTimer.current = setTimeout(done, CLOSE_MS);
+  }, []);
+
+  // Нажатие мимо карточки сворачивает её (окно не модальное: чат не заперт).
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const card = cardRef.current;
+      if (!card || card.contains(event.target as Node)) return;
+      collapse(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [open, collapse]);
 
   async function insert(answer: AiSavedAnswer, part: "reply" | "question") {
     if (inserting) return;
@@ -477,22 +554,29 @@ export function InboxAiAssistant({
       if (response.ok) {
         const body = await response.json() as { text?: unknown };
         if (typeof body.text === "string" && body.text.trim()) {
+          // В поле уходит только текст базы — не предпросмотр потока.
           onInsert(body.text);
-          setNote({ tone: "ok", text: part === "reply" ? "Ответ вставлен в поле — проверьте и отправьте сами." : "Вопрос вставлен в поле." });
+          setInserted((previous) => ({
+            answerId: answer.answerId,
+            reply: part === "reply" || (previous?.answerId === answer.answerId && previous.reply),
+            question: part === "question" || (previous?.answerId === answer.answerId && previous.question),
+          }));
+          setAnnouncement(part === "reply" ? "Ответ добавлен в поле — отправьте сами" : "Вопрос добавлен в поле — отправьте сами");
+          collapse(false);
           return;
         }
-        setNote({ tone: "danger", text: aiErrorCopy("unavailable") });
+        setNote(aiErrorCopy("unavailable"));
         return;
       }
       const code = await readErrorCode(response);
       if (code === "stale_answer") {
+        // Кнопка становится «Обновить ответ»; фокус остаётся на ней.
         setStale(true);
-        setNote({ tone: "warn", text: aiErrorCopy("stale_answer") });
         return;
       }
-      setNote({ tone: "danger", text: code === "forbidden" ? aiErrorCopy("forbidden") : "Не удалось вставить ответ. Повторите." });
+      setNote(code === "forbidden" ? aiErrorCopy("forbidden") : "Не удалось добавить ответ. Попробуйте ещё раз.");
     } catch {
-      setNote({ tone: "danger", text: "Не удалось вставить ответ. Повторите." });
+      setNote("Не удалось добавить ответ. Попробуйте ещё раз.");
     } finally {
       setInserting(null);
     }
@@ -500,49 +584,19 @@ export function InboxAiAssistant({
 
   function selectSource(n: number) {
     setHighlight(n);
-    windowRef.current?.querySelector<HTMLElement>(`[data-source-n="${n}"]`)?.scrollIntoView({
-      block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-    });
+    setOpenSources((previous) => (previous.includes(n) ? previous : [...previous, n]));
+    requestAnimationFrame(() => cardRef.current?.querySelector<HTMLElement>(`[data-source-n="${n}"]`)?.scrollIntoView({
+      block: "nearest", behavior: reducedMotion() ? "auto" : "smooth",
+    }));
+  }
+  function toggleSource(n: number) {
+    setOpenSources((previous) => (previous.includes(n) ? previous.filter((item) => item !== n) : [...previous, n]));
   }
 
-  // ------------------------------------------------------------- перетаскивание
-  function onPointerDown(event: ReactPointerEvent<HTMLElement>) {
-    if (event.button !== 0 || (event.target as HTMLElement).closest("button:not([data-ai-move]), a")) return;
-    // Нижний лист узкой ленты не перетаскивается.
-    if ((areaRef.current?.clientWidth ?? 0) < WINDOW_MODE_MIN_WIDTH) return;
-    drag.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, origin: offset };
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDragging(true);
-  }
-  function onPointerMove(event: ReactPointerEvent<HTMLElement>) {
-    const state = drag.current;
-    if (!state || state.pointerId !== event.pointerId) return;
-    setOffset(clamp({ x: state.origin.x + event.clientX - state.startX, y: state.origin.y + event.clientY - state.startY }));
-  }
-  function onPointerUp(event: ReactPointerEvent<HTMLElement>) {
-    const state = drag.current;
-    if (!state || state.pointerId !== event.pointerId) return;
-    drag.current = null;
-    setDragging(false);
-    setOffset((current) => { writeOffset(positionKey, current); return current; });
-  }
-  function onMoveKey(event: ReactKeyboardEvent<HTMLButtonElement>) {
-    const step = event.shiftKey ? POSITION_STEP_LARGE : POSITION_STEP;
-    const delta: Record<string, Offset> = {
-      ArrowLeft: { x: -step, y: 0 }, ArrowRight: { x: step, y: 0 }, ArrowUp: { x: 0, y: -step }, ArrowDown: { x: 0, y: step },
-    };
-    let next: Offset | null = null;
-    if (event.key in delta) next = clamp({ x: offset.x + delta[event.key].x, y: offset.y + delta[event.key].y });
-    else if (event.key === "Home") next = { x: 0, y: 0 };
-    if (!next) return;
-    event.preventDefault();
-    setOffset(next);
-    writeOffset(positionKey, next);
-  }
-  function onWindowKey(event: ReactKeyboardEvent<HTMLElement>) {
+  function onCardKey(event: ReactKeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {
       event.stopPropagation();
-      collapse();
+      collapse(true);
     }
   }
 
@@ -551,244 +605,276 @@ export function InboxAiAssistant({
   const result = ready?.result ?? null;
   const isStale = ready !== null && (stale || !ready.current);
   const warnings = result ? answerWarnings(result) : [];
+  const internalUsed = !!result?.sources.some((source) => source.audience === "internal" && !source.missing);
+  const replyIn = !!ready && inserted?.answerId === ready.answerId && inserted.reply;
+  const questionIn = !!ready && inserted?.answerId === ready.answerId && inserted.question;
+  const followup = (phase.kind === "streaming" && phase.intent === "followup") || ready?.intent === "followup" || phase.kind === "waiting";
 
+  // Строка состояния — первая строка карточки; у пустых и недоступных состояний это и заголовок.
   let status: string;
+  let statusKind: "progress" | "title" = "progress";
+  let statusTone: "neutral" | "warn" | "danger" = "neutral";
   if (phase.kind === "streaming") {
-    status = phase.stage === "searching" ? "Ищу в материалах…" : `Пишу ответ…${phase.sources !== null ? ` · ${sourcesWord(phase.sources)}` : ""}`;
-  } else if (phase.kind === "loading") status = "Открываю сохранённый ответ…";
-  else if (ready && result) {
+    status = phase.stage === "searching" ? "Ищу в материалах"
+      : phase.sources === null ? "Пишу ответ"
+        : phase.sources === 0 ? "Источников нет · пишу ответ" : `Нашёл ${sourcesWord(phase.sources)} · пишу ответ`;
+  } else if (phase.kind === "loading") {
+    status = "Открываю сохранённый ответ";
+  } else if (ready && result) {
     status = isStale ? "Ответ устарел" : `Ответ готов · ${result.sources.length > 0 ? sourcesWord(result.sources.length) : "без источников"}`;
-  } else if (phase.kind === "waiting") status = "Ждём ответ клиента";
-  else if (phase.kind === "error" || phase.kind === "blocked") status = "Ответа нет";
-  else status = "Помощник";
+    if (isStale) statusTone = "warn";
+  } else {
+    statusKind = "title";
+    if (phase.kind === "waiting") status = "Ждём ответ клиента";
+    else if (phase.kind === "no-client") status = "Сначала — вопрос клиента";
+    else if (phase.kind === "capped") status = "Клиент пишет несколько сообщений подряд";
+    else if (phase.kind === "blocked") status = "Помощник сейчас недоступен";
+    else if (phase.kind === "error") {
+      status = phase.partial ? "Ответ не дописан и не проверен — не используйте его" : "Не удалось подготовить ответ";
+      statusTone = "danger";
+    } else status = "Помощь с ответом";
+  }
+  const slow = phase.kind === "streaming" && slowToken === phase.token;
+  const showExtras = !(phase.kind === "blocked" && NO_EXTRAS.has(phase.code));
+
+  // Одна главная кнопка во всю ширину: пока пишется — недоступна, устарело — «Обновить ответ».
+  const primary: "writing" | "refresh" | "adding" | "added" | "add" | null = phase.kind === "streaming" ? "writing"
+    : !ready || !result ? null
+      : isStale ? "refresh"
+        : inserting === "reply" ? "adding"
+          : replyIn ? "added" : "add";
+  const primaryDisabled = primary === "writing" || primary === "adding" || primary === "added" || (primary === "add" && inserting !== null);
+  function runPrimary() {
+    if (primaryDisabled || !ready) return;
+    if (primary === "refresh") byHand(load);
+    else if (primary === "add") void insert(ready, "reply");
+  }
 
   return (
-    <div
-      ref={areaRef}
-      className="v3-ai-area pointer-events-none absolute inset-0 z-10"
-      data-testid="v3-ai-assistant"
-      data-expanded={expanded || undefined}
-      data-tone={tone}
-    >
+    <div className="v3-ai-area pointer-events-none absolute inset-0 z-10" data-testid="v3-ai-assistant" data-expanded={open || undefined} data-tone={tone}>
+      {/* Итог вставки — вежливо и после сворачивания (карточки уже нет). */}
+      <p className="sr-only" role="status" aria-live="polite" data-testid="v3-ai-announcement">{announcement}</p>
       {!expanded ? (
         <button
           ref={capsuleRef}
           type="button"
-          onClick={open}
+          onClick={expand}
           aria-label="Помочь с ответом — открыть помощника"
           aria-describedby={`${titleId}-state`}
           aria-expanded={false}
-          className="v3-ai-capsule v3-raised pointer-events-auto"
+          aria-haspopup="dialog"
+          className="v3-ai-capsule pointer-events-auto"
           data-lifted={lifted || undefined}
+          data-sweep={sweep > 0 || undefined}
           data-testid="v3-ai-capsule"
         >
-          <Icon name="sparkles" size={18} className="shrink-0" />
+          <Icon name="sparkles" size={18} className="v3-ai-spark shrink-0" />
           <span className="t-label">Помочь с ответом</span>
           <span className="v3-ai-dot" data-tone={tone} aria-hidden="true" />
+          {sweep > 0 ? <span key={sweep} className="v3-ai-sweep" aria-hidden="true" /> : null}
           <span id={`${titleId}-state`} className="sr-only">Состояние: {TONE_WORD[tone]}</span>
         </button>
       ) : (
         <section
-          ref={windowRef}
+          ref={cardRef}
           role="dialog"
           aria-modal="false"
           aria-labelledby={titleId}
-          onKeyDown={onWindowKey}
-          className="v3-ai-window pointer-events-auto"
-          data-dragging={dragging || undefined}
+          onKeyDown={onCardKey}
+          className="v3-ai-card pointer-events-auto"
+          data-closing={closing || undefined}
           data-testid="v3-ai-window"
-          style={{ "--ai-x": `${offset.x}px`, "--ai-y": `${offset.y}px` } as CSSProperties}
+          style={capsuleWidth ? ({ "--ai-from-w": `${capsuleWidth}px` } as CSSProperties) : undefined}
         >
-          <header
-            className="v3-ai-head"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-          >
-            <button
-              type="button"
-              data-ai-move=""
-              onKeyDown={onMoveKey}
-              aria-label="Переместить окно: стрелки, Home — в угол"
-              className="v3-ai-move"
-            >
-              <Icon name="grip-vertical" size={16} className="shrink-0" />
-            </button>
-            <div className="v3-ai-head-text min-w-0 flex-1">
-              <h2 id={titleId} tabIndex={-1} data-ai-title="" className="t-section truncate text-fg outline-none">
-                Помочь с ответом
-              </h2>
-              <p className="v3-ai-status t-meta" role="status" data-tone={tone}>
-                <span className="v3-ai-dot" data-tone={tone} aria-hidden="true" />
-                {status}
-              </p>
-            </div>
-            <button type="button" onClick={collapse} aria-label="Свернуть помощника" className="v3-ai-icon-button">
-              <Icon name="chevron-down" size={18} className="shrink-0" />
+          <header className="v3-ai-head">
+            <Icon name="sparkles" size={20} className="v3-ai-spark shrink-0" />
+            <h2 id={titleId} className="sr-only">{followup ? "Следующий шаг" : "Помощь с ответом"}</h2>
+            <button ref={closeRef} type="button" onClick={() => collapse(true)} aria-label="Свернуть помощника" className="v3-ai-close">
+              <Icon name="x" size={20} className="shrink-0" />
             </button>
           </header>
 
           <div className="v3-ai-body">
-            {/* Память о клиенте (P3) читается при каждом открытии окна; её сбой ответу не мешает. */}
-            <InboxAiMemory conversationId={conversationId} />
-            {/* «Автоответчик в этом чате» (P4) — только когда автоответчик включён в организации. */}
-            <InboxAiAutosend conversationId={conversationId} />
-
-            {phase.kind === "loading" || (phase.kind === "streaming" && phase.preview === "") ? (
-              <div className="space-y-2 py-1" aria-hidden="true">
-                <div className="v3-ai-skeleton w-[92%]" />
-                <div className="v3-ai-skeleton w-[78%]" />
-                <div className="v3-ai-skeleton w-[54%]" />
-              </div>
-            ) : null}
-
-            {phase.kind === "streaming" && phase.preview ? (
-              <p className="whitespace-pre-wrap break-words t-body-compact text-fg" data-testid="v3-ai-preview" aria-busy="true">
-                {phase.preview}
-                <span className="v3-ai-caret" aria-hidden="true" />
+            <div className="v3-ai-lead">
+              <p className="v3-ai-status" role="status" data-kind={statusKind} data-tone={statusTone} data-testid="v3-ai-status">
+                {statusKind === "progress" ? <span className="v3-ai-dot" data-tone={tone} aria-hidden="true" /> : null}
+                {status}
               </p>
-            ) : null}
+              {slow ? <p className="t-meta text-fg-3" data-testid="v3-ai-slow">Можно свернуть — ответ останется здесь.</p> : null}
 
-            {phase.kind === "waiting" ? (
-              <div className="space-y-3">
-                <p className="t-body-compact text-fg-2">Последним писали вы. Можно подготовить продолжение разговора.</p>
-                <button type="button" className="v3-ai-button" onClick={() => byHand(() => generate("followup"))}>
+              {phase.kind === "loading" || (phase.kind === "streaming" && phase.preview === "") ? (
+                <div className="v3-ai-skeletons" aria-hidden="true">
+                  <div className="v3-ai-skeleton w-[94%]" />
+                  <div className="v3-ai-skeleton w-[86%]" />
+                  <div className="v3-ai-skeleton w-[58%]" />
+                </div>
+              ) : null}
+
+              {phase.kind === "streaming" && phase.preview ? (
+                <p className="v3-ai-reply" data-state="streaming" data-testid="v3-ai-preview" aria-busy="true">
+                  {phase.preview}
+                  <span className="v3-ai-caret" aria-hidden="true" />
+                </p>
+              ) : null}
+
+              {phase.kind === "waiting" ? (
+                <button type="button" className="v3-ai-primary" onClick={() => byHand(() => generate("followup"))}>
                   Подготовить продолжение
                 </button>
-              </div>
-            ) : null}
+              ) : null}
 
-            {phase.kind === "no-client" ? (
-              <p className="t-body-compact text-fg-2">Клиент ещё не писал в этот чат — отвечать пока не на что.</p>
-            ) : null}
+              {phase.kind === "capped" ? (
+                <button type="button" className="v3-ai-primary" onClick={() => byHand(load)}>
+                  Подготовить ответ
+                </button>
+              ) : null}
 
-            {phase.kind === "blocked" ? (
-              <div className="space-y-2" data-testid="v3-ai-blocked" data-code={phase.code}>
-                <p className="t-body-compact text-fg-2">{aiErrorCopy(phase.code)}</p>
-                {phase.code === "consent_required" || phase.code === "ai_agent_off" ? (
-                  <Link href="/v3/ai-agent" className="v3-ai-link t-label">Открыть «ИИ-агент»</Link>
-                ) : null}
-                {phase.code === "model_unpriced" ? (
-                  // Модели и предупреждение «нет цены» — в «Расходах» раздела.
-                  <Link href="/v3/ai-agent?section=spend" className="v3-ai-link t-label">Открыть «Расходы»</Link>
-                ) : null}
-              </div>
-            ) : null}
-
-            {phase.kind === "error" ? (
-              <div className="space-y-2" data-testid="v3-ai-error" data-code={phase.code}>
-                <p className="flex items-start gap-1.5 t-body-compact text-danger" role="alert">
-                  <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
-                  {phase.message}
+              {phase.kind === "blocked" ? (
+                <p className="t-body-compact text-fg-2" role="status" data-testid="v3-ai-blocked" data-code={phase.code}>
+                  {aiWindowUnavailable(phase.code) ?? aiErrorCopy(phase.code)}
                 </p>
-                <div className="flex flex-wrap gap-x-3">
+              ) : null}
+
+              {phase.kind === "error" ? (
+                <div className="v3-ai-lead" data-testid="v3-ai-error" data-code={phase.code}>
+                  {phase.partial ? (
+                    <p className="v3-ai-reply" data-state="partial" data-testid="v3-ai-partial">{phase.partial}</p>
+                  ) : null}
+                  {phase.reason ? (
+                    <p className="v3-ai-flag" data-tone="danger" role="alert">
+                      <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
+                      {phase.reason}
+                    </p>
+                  ) : null}
                   {phase.retry ? (
                     <button
                       type="button"
-                      className="v3-ai-link t-label"
+                      className="v3-ai-primary"
                       onClick={() => { const retry = phase.retry; byHand(retry === "load" ? load : () => generate(retry as AiIntent)); }}
                     >
-                      Повторить
+                      Попробовать снова
                     </button>
                   ) : null}
-                  {phase.code === "budget_exhausted" ? (
-                    <Link href="/v3/ai-agent?section=spend" className="v3-ai-link t-label">Открыть «Расходы»</Link>
+                </div>
+              ) : null}
+
+              {ready && result ? (
+                <div className="v3-ai-lead" data-testid="v3-ai-answer" data-current={!isStale || undefined}>
+                  {isStale ? (
+                    <p className="v3-ai-flag" data-tone="warn" id={`${titleId}-stale`}>
+                      <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
+                      Переписка изменилась. Обновите ответ перед использованием.
+                    </p>
+                  ) : null}
+                  <p className="v3-ai-reply" data-state={isStale ? "stale" : "final"} data-testid="v3-ai-reply" lang={result.language ?? undefined}>
+                    {replySegments(result).map((segment, index) => (
+                      <span key={index}>
+                        {segment.text}
+                        {segment.marks.map((n) => <SourceMark key={n} n={n} onSelect={selectSource} />)}
+                      </span>
+                    ))}
+                  </p>
+                  {warnings.length > 0 || internalUsed ? (
+                    <ul className="v3-ai-warnings" data-testid="v3-ai-warnings">
+                      {warnings.map((warning) => (
+                        <li key={warning} className="v3-ai-flag" data-tone="warn">
+                          <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
+                          {warning}
+                        </li>
+                      ))}
+                      {internalUsed ? (
+                        <li className="v3-ai-flag" data-tone="warn" data-testid="v3-ai-internal-note">
+                          <Icon name="lock" size={16} className="mt-0.5 shrink-0" />
+                          Учтён внутренний документ — клиенту не цитируется.
+                        </li>
+                      ) : null}
+                    </ul>
                   ) : null}
                 </div>
-              </div>
+              ) : null}
+
+              {primary ? (
+                <button
+                  type="button"
+                  className="v3-ai-primary"
+                  // Недоступная кнопка держит фокус (aria-disabled), а не теряет его.
+                  aria-disabled={primaryDisabled || undefined}
+                  aria-describedby={isStale ? `${titleId}-stale` : undefined}
+                  onClick={runPrimary}
+                  data-testid="v3-ai-insert"
+                  data-action={primary}
+                >
+                  {primary === "add" ? <Icon name="arrow-right" size={18} className="shrink-0" /> : null}
+                  {PRIMARY_LABEL[primary]}
+                </button>
+              ) : null}
+              {note ? <p className="v3-ai-flag" data-tone="danger" role="alert" data-testid="v3-ai-note">{note}</p> : null}
+            </div>
+
+            {ready && result && result.question.trim() ? (
+              <section className="v3-ai-section" aria-labelledby={`${titleId}-question`}>
+                <h3 id={`${titleId}-question`} className="t-caption text-fg-3">Стоит уточнить</h3>
+                <p className="mt-1 whitespace-pre-wrap break-words t-body-compact text-fg">{result.question}</p>
+                <button
+                  type="button"
+                  className="v3-ai-link t-label"
+                  aria-disabled={isStale || questionIn || inserting !== null || undefined}
+                  onClick={() => { if (!isStale && !questionIn && inserting === null) void insert(ready, "question"); }}
+                >
+                  {inserting === "question" ? "Добавляю…" : questionIn ? "Вопрос уже в поле" : "Добавить вопрос"}
+                </button>
+              </section>
             ) : null}
 
             {ready && result ? (
-              <div className="space-y-4" data-testid="v3-ai-answer" data-current={!isStale || undefined}>
-                {isStale ? (
-                  <p className="v3-ai-flag t-body-compact" data-tone="warn" role="status">
-                    <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
-                    Пришло новое сообщение — обновите ответ.
-                  </p>
-                ) : null}
-                <p className={`whitespace-pre-wrap break-words t-body-compact ${isStale ? "text-fg-3" : "text-fg"}`} data-testid="v3-ai-reply" lang={result.language ?? undefined}>
-                  {replySegments(result).map((segment, index) => (
-                    <span key={index}>
-                      {segment.text}
-                      {segment.marks.map((n) => <SourceMark key={n} n={n} onSelect={selectSource} />)}
-                    </span>
-                  ))}
-                </p>
-                {warnings.length > 0 ? (
-                  <ul className="space-y-1.5" data-testid="v3-ai-warnings">
-                    {warnings.map((warning) => (
-                      <li key={warning} className="v3-ai-flag t-body-compact" data-tone="warn">
-                        <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
-                        {warning}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {result.question.trim() ? (
-                  <div className="v3-ai-question">
-                    <p className="t-caption text-fg-3">Спросите клиента</p>
-                    <p className="mt-0.5 whitespace-pre-wrap break-words t-body-compact text-fg">{result.question}</p>
-                    <button
-                      type="button"
-                      className="v3-ai-link t-label"
-                      aria-disabled={isStale || inserting !== null || undefined}
-                      onClick={() => { if (!isStale) void insert(ready, "question"); }}
-                    >
-                      {inserting === "question" ? "Вставляю…" : "Вставить вопрос"}
-                    </button>
-                  </div>
-                ) : null}
-                {result.reason.trim() ? (
-                  <details className="v3-ai-why">
-                    <summary className="t-label text-fg">
-                      <Icon name="chevron-right" size={16} className="v3-ai-why-chevron shrink-0" />
-                      Почему такой ответ
-                    </summary>
-                    <p className="mt-1 whitespace-pre-wrap break-words t-body-compact text-fg-2">{result.reason}</p>
-                  </details>
-                ) : null}
+              <section className="v3-ai-section" aria-labelledby={`${titleId}-sources`}>
+                <h3 id={`${titleId}-sources`} className="t-caption text-fg-3">Источники</h3>
                 {result.sources.length > 0 ? (
-                  <div>
-                    <h3 className="t-caption text-fg-3">Источники</h3>
-                    <ol className="mt-1.5 space-y-2" data-testid="v3-ai-sources">
-                      {result.sources.map((source, index) => (
-                        <SourceRow key={`${source.n ?? "x"}-${index}`} source={source} highlighted={source.n !== null && source.n === highlight} />
-                      ))}
-                    </ol>
-                  </div>
-                ) : null}
+                  <ol className="v3-ai-sources" data-testid="v3-ai-sources">
+                    {result.sources.map((source, index) => (
+                      <SourceRow
+                        key={`${source.n ?? "x"}-${index}`}
+                        source={source}
+                        open={source.n !== null && openSources.includes(source.n)}
+                        highlighted={source.n !== null && source.n === highlight}
+                        onToggle={() => { if (source.n !== null) toggleSource(source.n); }}
+                      />
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="mt-1 t-body-compact text-fg-2">В материалах ничего не нашлось.</p>
+                )}
+              </section>
+            ) : null}
+
+            {ready && result && result.reason.trim() ? (
+              <details className="v3-ai-section v3-ai-why">
+                <summary className="t-label text-fg">
+                  <Icon name="chevron-right" size={16} className="v3-ai-why-chevron shrink-0" />
+                  Почему такой ответ
+                </summary>
+                <p className="v3-ai-why-body whitespace-pre-wrap break-words t-body-compact text-fg-2">{result.reason}</p>
+              </details>
+            ) : null}
+
+            {/* Память (P3) читается при каждом открытии окна, автоответчик (P4) — только когда включён в организации;
+                сбой их чтения ответу не мешает. Лимит, баланс, квота и выключенный агент их не прячут. */}
+            {showExtras ? (
+              <div className="v3-ai-extras">
+                <InboxAiMemory conversationId={conversationId} />
+                <InboxAiAutosend conversationId={conversationId} />
+              </div>
+            ) : null}
+
+            {ready && result && !isStale ? (
+              <div className="v3-ai-section v3-ai-refresh">
+                <button type="button" className="v3-ai-link t-label" onClick={() => byHand(() => generate(ready.intent))}>
+                  <Icon name="refresh" size={16} className="shrink-0" />
+                  Обновить ответ
+                </button>
               </div>
             ) : null}
           </div>
-
-          {ready && result ? (
-            <footer className="v3-ai-foot">
-              {note ? (
-                <p className="w-full t-body-compact" data-tone={note.tone} role={note.tone === "ok" ? "status" : "alert"}>{note.text}</p>
-              ) : null}
-              {/* Пока идёт вставка и у устаревшего ответа кнопка недоступна через
-                  aria-disabled: фокус остаётся на ней, а не уходит в никуда. */}
-              <button
-                type="button"
-                className="v3-ai-button"
-                aria-disabled={isStale || inserting !== null || undefined}
-                onClick={() => { if (!isStale) void insert(ready, "reply"); }}
-                aria-describedby={isStale ? `${titleId}-stale` : undefined}
-                data-testid="v3-ai-insert"
-              >
-                {inserting === "reply" ? "Вставляю…" : "Вставить в ответ"}
-              </button>
-              {isStale ? <span id={`${titleId}-stale`} className="sr-only">Ответ устарел: пришло новое сообщение.</span> : null}
-              <button
-                type="button"
-                className="v3-ai-link t-label"
-                onClick={() => byHand(isStale ? load : () => generate(ready.intent))}
-              >
-                Обновить ответ
-              </button>
-            </footer>
-          ) : null}
         </section>
       )}
     </div>

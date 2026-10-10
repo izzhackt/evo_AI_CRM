@@ -1,11 +1,20 @@
 export type V3InboxHrefCursor = Readonly<{
   sortAt: string;
   id: string;
+  /** «Неотвеченные»: the row of the cursor awaits our answer (migration 279). */
+  waiting?: boolean;
 }>;
+
+/**
+ * «Сортировка» of the WhatsApp list (owner request 08.10.2026): «Сначала
+ * новые» — the default, with no URL parameter, so opening the section always
+ * starts there; «Неотвеченные» — `sort=unanswered`.
+ */
+export type V3InboxSort = "newest" | "unanswered";
 
 export type V3InboxHrefFilters = Readonly<{
   query: string | null;
-  waitingOnly: boolean;
+  sort: V3InboxSort;
 }>;
 
 export function buildV3InboxHref({
@@ -21,10 +30,13 @@ export function buildV3InboxHref({
 }>): string {
   const query = new URLSearchParams();
   if (filters.query) query.set("q", filters.query);
-  if (filters.waitingOnly) query.set("waiting", "1");
+  if (filters.sort === "unanswered") query.set("sort", "unanswered");
   if (queueCursor) {
     query.set("before_at", queueCursor.sortAt);
     query.set("before_id", queueCursor.id);
+    if (queueCursor.waiting !== undefined) {
+      query.set("before_waiting", queueCursor.waiting ? "1" : "0");
+    }
   }
   if (conversationId) query.set("conversation", conversationId);
   if (messageCursor) {

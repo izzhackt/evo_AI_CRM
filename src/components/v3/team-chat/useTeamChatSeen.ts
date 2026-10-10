@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { markTeamChatSeenAction } from "@/lib/platform-team-chat-seen-actions";
 import { decodeTeamChatSeenReceipt } from "@/lib/platform-team-chat-seen";
+import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
 import { TEAM_CHAT_SEEN_BATCH_LIMIT, TEAM_CHAT_SEEN_DWELL_MS, teamChatBodyVisible } from "@/lib/team-chat-feed";
 import type { TeamChatChannelKey, TeamChatFailure } from "@/lib/platform-team-chat";
 
@@ -24,7 +25,7 @@ export function useTeamChatSeen({ viewport, workspace, channel, enabled, revisio
   const [queued, setQueued] = useState(0);
 
   const flush = useCallback(async (explicit = false) => {
-    if (!active.current || isRevoked() || sending.current || (failed.current && !explicit) || !queue.current.size) return;
+    if (!active.current || isRevoked() || isStaleDeployment() || sending.current || (failed.current && !explicit) || !queue.current.size) return;
     const ids = [...queue.current].slice(0, TEAM_CHAT_SEEN_BATCH_LIMIT);
     const epoch = generation.current;
     sending.current = true;
@@ -40,7 +41,12 @@ export function useTeamChatSeen({ viewport, workspace, channel, enabled, revisio
         failed.current = false; setError(null); setQueued(queue.current.size);
         onAcknowledged();
       }
-    } catch { if (epoch === generation.current && active.current) status = "unavailable"; }
+    } catch (cause) {
+      // Прошлая сборка (A1): отметка не сохранится до перезагрузки — без
+      // «Не удалось сохранить просмотр»; TeamChat снимает наблюдение.
+      if (noteStaleDeployment(cause)) return;
+      if (epoch === generation.current && active.current) status = "unavailable";
+    }
     finally { sending.current = false; }
     if (epoch !== generation.current || !active.current || isRevoked()) return;
     if (status) {

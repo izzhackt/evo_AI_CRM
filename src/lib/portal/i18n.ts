@@ -23,6 +23,9 @@ const shellRu = {
   notificationsNone: "Новых уведомлений нет",
   notificationsFailed: "Не удалось обновить уведомления.",
   notificationsRetry: "Повторить",
+  // Вкладка пережила выпуск: повтор не поможет, поможет только перезагрузка.
+  staleVersion: "Вышла новая версия — обновите страницу.",
+  staleVersionReload: "Обновить страницу",
   account: "Ваш аккаунт",
   logout: "Выйти",
   // Кнопка «солнце/луна»: имя постоянное, состояние — aria-pressed.
@@ -53,6 +56,8 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   notificationsNone: "Жаңы билдирмелер жок",
   notificationsFailed: "Билдирмелер жаңыртылган жок.",
   notificationsRetry: "Кайталоо",
+  staleVersion: "Жаңы версия чыкты — баракты жаңыртыңыз.",
+  staleVersionReload: "Баракты жаңыртуу",
   account: "Сиздин аккаунт",
   logout: "Чыгуу",
   // KY: носитель языка вычитывает в PR.

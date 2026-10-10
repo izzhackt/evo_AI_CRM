@@ -3821,14 +3821,19 @@ main.pt-page > .pt-card {
   border-radius: 999px; background: var(--pt-accent); color: var(--pt-on-accent);
   font-size: var(--pt-size-caption); font-weight: 600; line-height: 1.3; text-align: center;
 }
-.pt-notification-error {
+.pt-notification-error,
+.pt-stale-version {
   position: fixed; z-index: 20; top: calc(var(--pt-topbar-height) + 8px);
   right: 16px; width: min(320px, calc(100vw - 32px));
   padding: 12px; border: 1px solid var(--pt-line); border-radius: var(--pt-radius-control);
   background: var(--pt-surface); color: var(--pt-text); font-size: var(--pt-size-caption);
 }
-.pt-notification-error p { margin: 0; }
-.pt-notification-error button { min-height: 44px; }
+.pt-notification-error p,
+.pt-stale-version p { margin: 0; }
+.pt-notification-error button,
+.pt-stale-version button { min-height: 44px; }
+/* Новая версия: та же тихая карточка, что у сбоя уведомлений, — над ней и с тенью. */
+.pt-stale-version { z-index: 21; box-shadow: var(--pt-shadow-raised); }
 
 /* B3d: saved program preparations reuse Atlas typography and document journeys. */
 .pt-prep-list-section,

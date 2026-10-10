@@ -4,12 +4,20 @@ import { cookies } from "next/headers";
 
 import { StudentInviteCallback } from "@/components/StudentInviteCallback";
 import { EvoMark } from "@/components/platform/brand/EvoMark";
-import { btnGhostCls } from "@/components/ui";
+import { StudentAuthShell } from "@/components/student-recovery/StudentAuthShell";
+import { recoveryErrorCls, recoveryLinkCls } from "@/components/student-recovery/recovery-styles";
+import { StudentRecoveryCallback } from "@/components/student-recovery/StudentRecoveryCallback";
+import { btnCls, btnGhostCls } from "@/components/ui";
+import { getLocale } from "@/lib/i18n";
+import { getPasswordRecoveryStrings } from "@/lib/portal/password-recovery-i18n";
 import {
   decodeStudentInviteCallbackQuery,
+  decodeStudentRecoveryCallbackQuery,
   isStudentInviteCsrfToken,
   STUDENT_INVITE_CSRF_COOKIE,
 } from "@/lib/student-invite-callback-contract";
+import { STUDENT_PASSWORD_FORGOT_PATH } from "@/lib/student-password-recovery-contract";
+import { readRequestTheme } from "@/lib/theme-server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +34,43 @@ export default async function StudentInviteCallbackPage({
   searchParams,
 }: Readonly<{ searchParams: CallbackSearchParams }>) {
   const query = await searchParams;
-  const invite = decodeStudentInviteCallbackQuery(query);
   const csrfToken = (await cookies()).get(STUDENT_INVITE_CSRF_COOKIE)?.value;
+  // The shared Recovery template sends Students here with type=recovery.
+  if (query.type === "recovery") {
+    const recovery = decodeStudentRecoveryCallbackQuery(query);
+    const [locale, theme] = await Promise.all([getLocale(), readRequestTheme()]);
+    const strings = getPasswordRecoveryStrings(locale);
+    return (
+      <StudentAuthShell
+        locale={locale}
+        theme={theme}
+        titleId="recovery-link-title"
+        title={strings.linkTitle}
+      >
+        {recovery !== null && isStudentInviteCsrfToken(csrfToken) ? (
+          <StudentRecoveryCallback
+            csrfToken={csrfToken}
+            tokenHash={recovery.tokenHash}
+            strings={strings}
+          />
+        ) : (
+          <div className="space-y-5">
+            <p role="alert" className={recoveryErrorCls}>
+              {strings.invalidLink}
+            </p>
+            <Link href={STUDENT_PASSWORD_FORGOT_PATH} className={`${btnCls} w-full`}>
+              {strings.requestNew}
+            </Link>
+            <Link href="/login" className={recoveryLinkCls}>
+              {strings.toLogin}
+            </Link>
+          </div>
+        )}
+      </StudentAuthShell>
+    );
+  }
+
+  const invite = decodeStudentInviteCallbackQuery(query);
   const canVerify = invite !== null && isStudentInviteCsrfToken(csrfToken);
 
   return (

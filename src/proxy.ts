@@ -24,6 +24,7 @@ import {
   isStudentInviteCsrfToken,
 } from "@/lib/student-invite-callback-contract";
 import { STUDENT_SIGNUP_CONFIRMATION_PATH, STUDENT_SIGNUP_CONFIRMATION_CSRF_COOKIE } from "@/lib/student-signup-confirmation-contract";
+import { STUDENT_PASSWORD_FORGOT_PATH, STUDENT_PASSWORD_RESET_PATH } from "@/lib/student-password-recovery-contract";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 import { readVerifiedPlatformAuthority } from "@/lib/supabase/platform-authority";
 import { readVerifiedStudentPortalAuthority } from "@/lib/supabase/student-portal-authority";
@@ -319,6 +320,22 @@ export async function proxy(request: NextRequest) {
     response.headers.set("Referrer-Policy", "no-referrer");
     response.headers.set("X-Robots-Tag", "noindex, nofollow");
     response.headers.set("Content-Security-Policy", csp);
+    return response;
+  }
+
+  // Student password recovery. The request form is public; the new-password
+  // page carries only its own path-scoped recovery session. Neither reads or
+  // refreshes the product session, so a recovery never becomes product access.
+  if (path === STUDENT_PASSWORD_FORGOT_PATH || path === STUDENT_PASSWORD_RESET_PATH) {
+    if (!["GET", "HEAD", "POST"].includes(request.method)) {
+      return setResponseHeaders(NextResponse.json(
+        { error: "method_not_allowed", request_id: id },
+        { status: 405, headers: { Allow: "GET, HEAD, POST" } },
+      ), id);
+    }
+    const response = setResponseHeaders(nextResponse(requestHeaders), id);
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
     return response;
   }
 

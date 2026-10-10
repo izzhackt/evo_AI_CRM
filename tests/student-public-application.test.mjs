@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server.js";
 import { createClient } from "@supabase/supabase-js";
 import * as contract from "../src/lib/student-application-contract.ts";
 import * as callback from "../src/lib/student-invite-callback-contract.ts";
+import * as recoveryContract from "../src/lib/student-password-recovery-contract.ts";
 import * as routes from "../src/lib/platform-route-contract.ts";
 import * as origins from "../src/lib/platform-public-origin.ts";
 import * as requestIds from "../src/lib/request-id.ts";
@@ -303,6 +304,7 @@ function proxyHarness({ claimsError = null } = {}) {
     "@/lib/request-id": requestIds,
     "@/lib/student-invite-callback-contract": callback,
     "@/lib/student-signup-confirmation-contract": signupContract,
+    "@/lib/student-password-recovery-contract": recoveryContract,
     "@/lib/supabase/config": { getSupabasePublicConfig: () => ({ url: "https://supabase.example.test", publishableKey: "synthetic-public-key" }) },
     "@supabase/ssr": { createServerClient: (_url, _key, { cookies }) => {
       calls.push("createClient");
@@ -376,5 +378,27 @@ test("actual callback proxy establishes CSRF before authority and never refreshe
   const post = await run.proxy(publicRequest("/auth/callback", { method: "POST", cookie: "sb-test-auth-token=expired-cookie" }));
   assert.equal(post.status, 200);
   assert.equal(post.headers.get("x-middleware-next"), "1");
+  assert.deepEqual(run.calls, []);
+});
+
+test("actual proxy opens Student password recovery pages without reading or refreshing product Auth", async () => {
+  const run = proxyHarness();
+  for (const path of [recoveryContract.STUDENT_PASSWORD_FORGOT_PATH, recoveryContract.STUDENT_PASSWORD_RESET_PATH]) {
+    for (const method of ["GET", "POST"]) {
+      const response = await run.proxy(publicRequest(path, { method, cookie: "sb-test-auth-token=expired-cookie" }));
+      assert.equal(response.status, 200, `${method} ${path}`);
+      assert.equal(response.headers.get("x-middleware-next"), "1");
+      assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      assert.equal(response.cookies.get("sb-test-auth-token"), undefined);
+    }
+    const wrongHost = await run.proxy(publicRequest(path, { host: "crm.evoadmissions.com" }));
+    assert.equal(wrongHost.status, 307);
+    assert.equal(wrongHost.headers.get("location"), `https://app.evoadmissions.com${path}`);
+    const wrongHostPost = await run.proxy(publicRequest(path, { host: "crm.evoadmissions.com", method: "POST" }));
+    assert.equal(wrongHostPost.status, 404);
+    const put = await run.proxy(publicRequest(path, { method: "PUT" }));
+    assert.equal(put.status, 405);
+  }
   assert.deepEqual(run.calls, []);
 });

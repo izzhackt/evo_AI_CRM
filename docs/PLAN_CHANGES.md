@@ -49284,3 +49284,100 @@ whatsapp». Находка аудита A7 (средняя): сбои формы
 
 Проверка: `git diff --check`; префиксы `docs/EVO_LAUNCH_PLAN.md` и
 `docs/PLAN_CHANGES.md` байт в байт совпадают с `origin/main` `0339f131d`.
+
+## 2026-10-07. Кабинет студента: восстановление пароля по почте
+
+```text
+Date: 2026-10-07, workspace timezone.
+Author: Claude (Opus 5.5), по поручению ведущего агента.
+Change type: scope, architecture, acceptance criteria, validation.
+Affected plan section: docs/EVO_LAUNCH_PLAN.md, «Active follow-up: complete
+  Portal document review and reply notifications» (там forgotten-password
+  исключён из среза 11.09); список Student auth страниц в
+  src/lib/platform-route-contract.ts; обработка /auth/callback в src/proxy.ts.
+Reason: к выпуску приложения EVO admissions студенту нужен самостоятельный
+  сброс пароля по почте. Общий контракт для iPhone и веба зафиксировал
+  ведущий агент. Сейчас забытый пароль восстанавливает только сотрудник.
+  Исключение 11.09 относилось к тому срезу; подтверждение владельца на этот
+  срез ведущий агент держит у себя.
+Decision:
+  1. /auth/forgot-password: публичная форма с одним полем email. Server Action
+     проверяет Origin и Host по известному Student origin, вызывает
+     resetPasswordForEmail изолированным клиентом (implicit, без cookie) с
+     redirectTo, собранным на сервере: <Student origin>/auth/callback.
+     Ответ один и тот же, есть аккаунт или нет. Частотный отказ Auth по
+     одному адресу показывается тем же ответом; общий лимит отправки даёт
+     просьбу повторить позже.
+  2. /auth/callback принимает type=recovery с token hash в том виде, в каком
+     его строит шаблон Recovery ({{ .RedirectTo }}?token_hash=
+     {{ .TokenHash }}&type=recovery), включая префикс pkce_ (iPhone SDK по
+     умолчанию PKCE). Та же CSRF-страница, что у приглашения: токен
+     расходуется только после нажатия «Продолжить».
+  3. verifyOtp(type=recovery) в изолированном клиенте. Сотрудник (активный
+     доступ по staff_access_snapshot, claim platform_role не student,
+     защищённая метка evo_staff_password_request_id, метка приглашения
+     сотрудника) получает отказ, сессия отзывается, текст направляет к
+     администратору.
+  4. Сессия восстановления не становится сессией кабинета. Она живёт в
+     отдельной HttpOnly cookie с путём /auth/reset-password, SameSite=Strict,
+     15 минут; прокси её не видит. Страница нового пароля умеет только
+     сменить пароль. После смены сессия восстановления отзывается, вход в
+     кабинет выполняется новым паролем.
+  5. Правила пароля прежние, как у регистрации: от 12 символов, не больше
+     72 байт. Без миграции. Production Auth, шаблоны и SMTP не меняются.
+     В локальный supabase/config.toml добавлен шаблон Recovery той же формы
+     ссылки, чтобы локальный стек повторял production.
+Validation impact: точечные тесты контракта, маршрутов и прокси; реальный
+  локальный путь: форма, письмо в Mailpit, ссылка на 127.0.0.1, новый пароль,
+  вход в кабинет; неизвестный адрес с тем же ответом; отказ сотруднику;
+  повторная ссылка. lint и build. Не проверяются: доставка через Resend и
+  текущий production шаблон Recovery.
+Reviewer notes: ожидает независимого review точного head PR.
+```
+
+## 2026-10-07. Восстановление пароля студента: исправления по review PR #1170
+
+```text
+Date: 2026-10-07, workspace timezone.
+Author: Claude (Opus 5.5), по поручению ведущего агента.
+Change type: scope, architecture, validation.
+Affected plan section: запись выше «Кабинет студента: восстановление пароля
+  по почте», пункты 1 и 3. Запись выше не переписывается.
+Reason: независимое review head 8ba0ea493 нашло перебор аккаунтов через
+  лимит писем и ошибки SMTP, отсутствие собственного лимита у публичной
+  формы и изменение Auth сотрудника публичным запросом до отказа.
+Decision:
+  1. Ответ формы. «sent» для любого over_email_send_rate_limit и любого
+     ответа 5xx: GoTrue проверяет их только у существующего аккаунта.
+     «rate_limited» только для over_request_rate_limit (лимит по IP).
+     «unavailable» только без HTTP-ответа. Текст «sent» не обещает отправку.
+     Ответ формы не раньше 1,5 с от начала запроса.
+  2. Свой лимит формы в памяти процесса (контейнер один): 5 запросов
+     с IP за 15 минут, 3 на адрес за час. IP берётся из последнего
+     элемента X-Forwarded-For, который ставит edge Caddy; IPv6 по /64.
+     Адрес хранится только как sha256. Переполнение по IP даёт
+     «rate_limited», по адресу нейтральный «sent» без вызова Auth.
+  3. До resetPasswordForEmail адрес ищется сервисной ролью точным
+     совпадением (тот же поиск, что у приглашения студента). При метке
+     evo_staff_password_request_id или evo_staff_invitation_request_id
+     Auth не вызывается, ответ тот же «sent». Если поиск не ответил,
+     ответ «unavailable». Проверка активного членства без миграции
+     невозможна: у service_role нет SELECT на platform.profiles и
+     platform.organization_memberships и нет RPC чтения членства.
+     Остаточный риск: действующий сотрудник без метки (например,
+     первый администратор из bootstrap) по-прежнему получает письмо,
+     его ссылка восстановления от администратора может смениться,
+     а заявка на восстановление в журнале может закрыться чужим
+     публичным запросом. Отказ на шаге ссылки остаётся. Нужна миграция
+     с RPC проверки членства или решение владельца; риск записан в
+     docs/runbooks/team-workspace-activation.md.
+  4. Текст о сроке ссылки: «Ссылкой можно воспользоваться один раз
+     в течение часа.»; открытие ссылки её не тратит.
+Validation impact: точечные тесты контракта и лимита; test:e3,
+  student-public-application, fixed-role-route-contract после переноса на
+  свежий main; lint, typecheck; реальный локальный путь на стеке
+  evo-video-demo: студент, неизвестный адрес, сотрудник с меткой без
+  письма, лимиты по адресу и IP. Не проверяются: production SMTP и
+  поведение edge Caddy с X-Forwarded-For на VPS.
+Reviewer notes: ожидает повторного review точного head PR.
+```

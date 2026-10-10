@@ -525,6 +525,7 @@ test("the leads table shows the plan columns, links the name to Lead 360 and nev
   const load = loader({
     "next/link": { __esModule: true, default: ({ href, children, ...rest }) => createElement("a", { href, ...rest }, children) },
     "@/lib/platform-marketing-actions": { loadMoreMarketingLeadsAction: async () => ({ status: "unavailable" }) },
+    "@/lib/platform-lead-channel-actions": { correctLeadChannelAction: async () => ({ status: "unavailable" }) },
   });
   const { MarketingLeadsTable } = load("src/components/v3/marketing/MarketingLeadsTable.tsx");
   const second = "30000000-0000-4000-8000-000000000002";
@@ -553,6 +554,13 @@ test("the leads table shows the plan columns, links the name to Lead 360 and nev
   assert.match(html, /Заявок по фильтрам: <span class="tabular-nums">80<\/span> · показано <span class="tabular-nums">2<\/span>/u);
   assert.match(html, />Показать ещё</u);
   assert.doesNotMatch(html, /\.csv|Экспорт|Скачать/u);
+  // 10.10: «Указать» — только у строки с «Не известно», тем же действием, что «Исправить» в Lead 360.
+  assert.equal([...html.matchAll(/data-testid="marketing-lead-set-channel"/gu)].length, 1, "one unknown row, one setter");
+  assert.match(html, /name="lead_id" value="30000000-0000-4000-8000-000000000002"/u, "the setter writes to the unknown lead");
+  assert.match(html, /name="request_id" value=""/u, "no request id until a channel is chosen");
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Сохранить<\/button>/u, "saving waits for a choice");
+  assert.match(html, />Указать<span class="sr-only">, откуда узнал: лид без имени<\/span><\/summary>/u, "each «Указать» names its lead for screen readers");
+  assert.doesNotMatch(html, RED_ACTION, "no red button in the list");
 });
 
 test("«Откуда узнал» in Lead 360: label and basis from the read, a quiet correction for those who may edit", () => {

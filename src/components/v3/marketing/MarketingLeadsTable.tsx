@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Icon } from "@/components/icons";
 import { btnGhostCls } from "@/components/ui";
-import { LEAD_CHANNEL_AI_NOTE, LEAD_CHANNEL_BASES, LEAD_CHANNELS } from "@/lib/lead-channel-contract";
+import { LEAD_CHANNEL_AI_NOTE, LEAD_CHANNEL_BASES, LEAD_CHANNELS, type LeadChannelRead } from "@/lib/lead-channel-contract";
+import { LeadChannelCorrection } from "@/components/v3/profile/LeadChannelCorrection";
 import type { MarketingCursor, MarketingLeadFilters, MarketingLeadRow, MarketingLeadsPage } from "@/lib/marketing-contract";
 import { formatBishkekMoment, formatIsoDay, formatMinor, stageWord } from "@/lib/marketing-view";
 import { loadMoreMarketingLeadsAction } from "@/lib/platform-marketing-actions";
@@ -21,7 +22,15 @@ function connectionWord(sourceKey: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
+/**
+ * Строка заявки. У «Не известно» — тихое «Указать» (то же `staff_correction`, что «Исправить» в Lead 360,
+ * решение 10.10): лиды WhatsApp приходят без касаний, и администратор размечает их прямо в очереди
+ * «Источник не известен», не открывая каждую карточку. Сохранённый канал сразу виден в строке.
+ */
 function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
+  const [set, setSet] = useState<LeadChannelRead | null>(null);
+  const channel = set?.channel ?? row.channel;
+  const basis = set?.basis ?? row.basis;
   return (
     <tr className="border-b border-border" data-lead-id={row.leadId}>
       <th scope="row" className={`${TD} min-w-36 text-left font-medium`}>
@@ -31,10 +40,16 @@ function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
       <td className={`${TD} whitespace-nowrap tabular-nums`}>{row.phone ?? <span className="text-fg-2">—</span>}</td>
       <td className={`${TD} min-w-24`}>{connectionWord(row.sourceKey)}</td>
       <td className={`${TD} min-w-44`}>
-        <ChannelLabel channel={row.channel}>{LEAD_CHANNELS[row.channel]}</ChannelLabel>
-        {row.channel !== "unknown" || row.aiAssistant
-          ? <span className={`${META} pl-4`}>{[row.channel !== "unknown" ? LEAD_CHANNEL_BASES[row.basis] : null, row.aiAssistant ? LEAD_CHANNEL_AI_NOTE : null].filter(Boolean).join(" · ")}</span>
+        <ChannelLabel channel={channel}>{LEAD_CHANNELS[channel]}</ChannelLabel>
+        {channel !== "unknown" || row.aiAssistant
+          ? <span className={`${META} pl-4`}>{[channel !== "unknown" ? LEAD_CHANNEL_BASES[basis] : null, row.aiAssistant ? LEAD_CHANNEL_AI_NOTE : null].filter(Boolean).join(" · ")}</span>
           : null}
+        {row.channel === "unknown" ? (
+          <div className="pl-4" data-testid="marketing-lead-set-channel">
+            <LeadChannelCorrection leadId={row.leadId} current="unknown" onSaved={setSet}
+              label={<>{set ? "Изменить" : "Указать"}<span className="sr-only">, откуда узнал: {row.name ?? "лид без имени"}</span></>} />
+          </div>
+        ) : null}
       </td>
       <td className={`${TD} max-w-40`}>
         <span className="block break-words">{row.campaign ?? <span className="text-fg-2">—</span>}</span>
@@ -70,6 +85,9 @@ export function MarketingLeadsTable({ initial, request }: Readonly<{
   request: Readonly<{ from: string; to: string; filters: MarketingLeadFilters }>;
 }>) {
   const [rows, setRows] = useState<readonly MarketingLeadRow[]>(initial.rows);
+  // Итог — с первого чтения этого набора фильтров: после «Указать» страница перечитывается (revalidatePath),
+  // а строки остаются на месте до перезагрузки — счётчик не должен с ними расходиться.
+  const [total] = useState(initial.total);
   const [cursor, setCursor] = useState<MarketingCursor | null>(initial.nextCursor);
   const [failed, setFailed] = useState(false);
   const [pending, start] = useTransition();
@@ -92,9 +110,9 @@ export function MarketingLeadsTable({ initial, request }: Readonly<{
   });
   return (
     <div>
-      <p className="t-meta text-fg-2" data-testid="marketing-leads-count" data-total={initial.total}>
-        Заявок по фильтрам: <span className="tabular-nums">{initial.total.toLocaleString("ru-RU")}</span>
-        {initial.total > 0 ? <> · показано <span className="tabular-nums">{rows.length.toLocaleString("ru-RU")}</span></> : null}
+      <p className="t-meta text-fg-2" data-testid="marketing-leads-count" data-total={total}>
+        Заявок по фильтрам: <span className="tabular-nums">{total.toLocaleString("ru-RU")}</span>
+        {total > 0 ? <> · показано <span className="tabular-nums">{rows.length.toLocaleString("ru-RU")}</span></> : null}
       </p>
       {rows.length === 0 ? <p className="mt-3 t-body-compact text-fg-2">За этот период заявок по фильтрам нет.</p> : (
         <div className="relative mt-2 overflow-x-auto">

@@ -130,7 +130,8 @@ function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
     <section aria-labelledby="mk-cohort" data-testid="marketing-cohort" className={BLOCK}>
       <h2 id="mk-cohort" className="t-section text-fg">Заявки периода — что с ними стало на сегодня</h2>
       <p className="mt-1 t-meta text-fg-2">
-        Заявок: <span className="tabular-nums">{n(cohort.total)}</span>, из них открыты <span className="tabular-nums" data-marketing-open={cohort.openCount}>{n(cohort.openCount)}</span>.
+        Заявок: <span className="tabular-nums">{n(cohort.total)}</span>, из них открыты <span className="tabular-nums" data-marketing-open={cohort.openCount}>{n(cohort.openCount)}</span>;
+        {" "}источник «Сайт» — <span className="tabular-nums" data-testid="marketing-website-source">{n(cohort.sourceKeys.website ?? 0)}</span>.
       </p>
       <div className="relative mt-3 overflow-x-auto">
         <table className={SECTION_TABLE}>

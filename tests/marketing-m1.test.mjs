@@ -479,6 +479,7 @@ test("the overview draws two titled blocks, the unknown line, reconciliation and
   assert.match(html, /Продажи периода — по дате договора/u);
   assert.match(html, /Источник не известен — <span class="tabular-nums">12 из 23 · 52\u00a0%<\/span>/u);
   assert.match(html, /из них открыты <span[^>]*data-marketing-open="20"[^>]*>20<\/span>/u);
+  assert.match(html, /с формы сайта — <span class="tabular-nums" data-testid="marketing-website-form">11<\/span>\./u, "website form leads of the cohort (source_keys.website)");
   assert.match(html, /Повторные обращения: <span class="tabular-nums">3<\/span>/u);
   assert.match(html, /Без привязки к лиду/u);
   assert.match(html, /data-testid="marketing-reconciliation" data-matches="true"/u);

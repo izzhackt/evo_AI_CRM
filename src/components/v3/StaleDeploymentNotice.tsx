@@ -8,9 +8,10 @@ import { useStaleDeployment, useStaleDeploymentNotice } from "@/lib/use-stale-de
 export const STALE_DEPLOYMENT_TEXT = "Вышла новая версия — обновите страницу";
 
 /**
- * Вкладка пережила выпуск (A1): строка у нижнего края окна в верхнем слое,
- * тем же видом, что «Отменить» (`.v3-toast`). Не красная — это не сбой, и
- * фокус не забирает. Живая область стоит всегда и объявляет новую версию
+ * Вкладка пережила выпуск (A1): строка тем же видом, что «Отменить»
+ * (`.v3-toast`), в верхнем слое — но у верхнего края окна: низ окна остаётся
+ * за «Отменить» и полями ответа чатов. Не красная — это не сбой, и фокус не
+ * забирает. Живая область стоит всегда и объявляет новую версию
  * один раз; сама строка — только пока своё место не показывает подсказку.
  */
 export function StaleDeploymentNotice() {
@@ -24,7 +25,7 @@ export function StaleDeploymentNotice() {
     <>
       <p role="status" className="sr-only">{stale ? `${STALE_DEPLOYMENT_TEXT}.` : ""}</p>
       {visible ? (
-        <div ref={toastRef} popover="manual" className="v3-toasts" data-testid="v3-stale-deployment">
+        <div ref={toastRef} popover="manual" className="v3-toasts" data-edge="top" data-testid="v3-stale-deployment">
           <div className="v3-toast">
             <p className="min-w-0 flex-1 break-words t-body-compact">{STALE_DEPLOYMENT_TEXT}</p>
             <button type="button" onClick={reloadForNewDeployment} className="v3-toast-action t-label">

@@ -173,6 +173,7 @@ function createRuntime() {
 
 function fakeBrowser() {
   const intervals = new Map();
+  const timeouts = new Map();
   const listeners = { window: new Map(), document: new Map() };
   const reloads = [];
   let nextId = 1;
@@ -184,6 +185,8 @@ function fakeBrowser() {
     ...target("window"),
     setInterval(handler, ms) { const id = nextId++; intervals.set(id, { handler, ms }); return id; },
     clearInterval(id) { intervals.delete(id); },
+    setTimeout(handler, ms) { const id = nextId++; timeouts.set(id, { handler, ms }); return id; },
+    clearTimeout(id) { timeouts.delete(id); },
     location: { reload: () => reloads.push("reload") },
     matchMedia: () => ({ matches: false }),
     innerWidth: 1280,
@@ -194,7 +197,20 @@ function fakeBrowser() {
     window,
     document,
     intervals,
+    timeouts,
     reloads,
+    /** Bare `setInterval`/`setTimeout` for modules that do not go through `window`. */
+    timers: {
+      setInterval: (handler, ms) => window.setInterval(handler, ms),
+      clearInterval: (id) => window.clearInterval(id),
+      setTimeout: (handler, ms) => window.setTimeout(handler, ms),
+      clearTimeout: (id) => window.clearTimeout(id),
+    },
+    /** Fires every pending timeout once (each removes itself first, like a real timer). */
+    runTimeouts() {
+      for (const [id, { handler }] of [...timeouts]) { timeouts.delete(id); handler(); }
+    },
+    dispatch(name, type) { for (const handler of [...(listeners[name].get(type) ?? [])]) handler(); },
     listenerCount: () => [...listeners.window.values(), ...listeners.document.values()].reduce((sum, set) => sum + set.size, 0),
     /** Every way a poller can wake up: its interval, focus, visibility and network return. */
     wakeAll() {
@@ -215,17 +231,19 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-function compile(path, boundary) {
+/** `globals` replaces bare identifiers such as `setInterval` for this module only. */
+function compile(path, boundary, globals = {}) {
   const code = ts.transpileModule(source(path), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const compiled = { exports: {} };
-  new Function("require", "module", "exports", code)((id) => {
+  const names = Object.keys(globals);
+  new Function("require", "module", "exports", ...names, code)((id) => {
     const replaced = boundary(id);
     if (replaced !== undefined) return replaced;
     if (id === "react/jsx-runtime") return require("react/jsx-runtime");
     throw new Error(`unexpected import ${id} in ${path}`);
-  }, compiled, compiled.exports);
+  }, compiled, compiled.exports, ...names.map((name) => globals[name]));
   return compiled.exports;
 }
 
@@ -376,6 +394,43 @@ test("StaffNotifications keeps polling and keeps «Нет связи» for an or
   }
 });
 
+test("the bell's one-read-at-a-time hold lapses after one poll interval, so a stalled fetch cannot stop polling", async () => {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const runtime = createRuntime();
+  try {
+    const { store, shared } = await staleModules(runtime);
+    const pending = [];
+    const action = () => new Promise((resolve) => { pending.push(() => resolve({ ok: true, page: PAGE })); });
+    const { StaffNotifications } = staffNotifications(runtime, shared, action);
+    runtime.render(StaffNotifications, { initialPage: PAGE, onCountChange() {}, triggerProps: {} });
+
+    browser.wakeAll();
+    browser.wakeAll();
+    assert.equal(pending.length, 1, "interval, focus and visibilitychange share one background read");
+    assert.deepEqual([...browser.timeouts.values()].map(({ ms }) => ms), [60000], "the hold lapses after one poll interval");
+
+    browser.runTimeouts(); // the first read stalls past the interval (sleep, dead socket)
+    browser.wakeAll();
+    assert.equal(pending.length, 2, "polling resumes after the hold lapsed");
+    pending[0](); // the stalled read settles late
+    await runtime.flush();
+    browser.wakeAll();
+    assert.equal(pending.length, 2, "a late settle does not free the newer read's hold");
+    pending[1]();
+    await runtime.flush();
+    assert.equal(browser.timeouts.size, 0, "a settled read clears its hold");
+    browser.wakeAll();
+    assert.equal(pending.length, 3);
+    runtime.unmount();
+    assert.equal(browser.timeouts.size, 0, "unmount clears the pending hold");
+    assert.equal(store.isStaleDeployment(), false);
+  } finally {
+    runtime.unmount();
+    restore();
+  }
+});
+
 test("the student portal notification poller stops on a stale action and the shell asks to reload in RU and KY", async () => {
   const browser = fakeBrowser();
   const restore = browser.install();
@@ -491,6 +546,298 @@ test("the portal case chat refresh poller stops at the first stale refresh witho
     assert.equal(calls, 1);
     assert.equal(browser.intervals.size, 0);
     assert.equal(textOf(view()).includes(strings.refreshError), false);
+  } finally {
+    runtime.unmount();
+    restore();
+  }
+});
+
+function fakeSessionStorage() {
+  const values = new Map();
+  return {
+    values,
+    getItem: (key) => (values.has(key) ? values.get(key) : null),
+    setItem: (key, value) => { values.set(key, String(value)); },
+    removeItem: (key) => { values.delete(key); },
+  };
+}
+
+test("the student's draft survives «Обновить страницу» on a stale tab, once, and only for the same student and case", async () => {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const storage = fakeSessionStorage();
+  const strings = portalI18n.getPortalStrings("messages", "ru");
+  const key = "evo:portal-messages:stale-draft:m1:c1";
+  const textarea = (view) => findAll(view(), (node) => node.type === "textarea")[0];
+  const type = (runtime, view, value) => { textarea(view).props.onChange({ target: { value } }); runtime.commitIfDirty(); };
+  const thread = (runtime, shared, send) => compile("src/components/portal/messages/MessagesThread.tsx", (id) => shared(id) ?? ({
+    "@/lib/portal/messages": { PORTAL_CASE_MESSAGE_BODY_LIMIT: 2000, mergePortalCaseMessages: (existing, incoming) => [...existing, ...incoming] },
+    "@/lib/portal/messages-actions": { loadPortalCaseMessagesAction: async () => ({ ok: true, page: THREAD }), sendPortalCaseMessageAction: send },
+    "@/lib/portal/i18n": portalI18n,
+  })[id], { sessionStorage: storage }).MessagesThread;
+  const runtimes = [];
+  try {
+    // A tab on the new build keeps drafts out of storage, as before.
+    const fresh = createRuntime(); runtimes.push(fresh);
+    const { shared: freshShared } = await staleModules(fresh);
+    const freshView = fresh.render(thread(fresh, freshShared, async () => ({ ok: true })), { initialPage: THREAD, strings, locale: "ru", draftScope: "m1:c1" });
+    type(fresh, freshView, "черновик");
+    assert.equal(storage.values.size, 0, "no storage writes while the build is current");
+    fresh.unmount();
+
+    // The tab outlives a release: the send is refused, the draft is kept for the reload.
+    const old = createRuntime(); runtimes.push(old);
+    const { store, shared } = await staleModules(old);
+    const oldView = old.render(thread(old, shared, async () => { throw staleActionError(); }), { initialPage: THREAD, strings, locale: "ru", draftScope: "m1:c1" });
+    type(old, oldView, "Документы отправил");
+    findAll(oldView(), (node) => node.type === "form")[0].props.onSubmit({ preventDefault() {} });
+    await Promise.all(old.transitions);
+    await old.flush();
+    assert.equal(store.isStaleDeployment(), true);
+    assert.equal(storage.getItem(key), "Документы отправил", "the stale tab stores the draft for the reload");
+    type(old, oldView, "Документы отправил вчера");
+    assert.equal(storage.getItem(key), "Документы отправил вчера", "later edits are kept too");
+    old.unmount();
+
+    // Another student signs in on the same tab: the draft is not theirs.
+    const other = createRuntime(); runtimes.push(other);
+    const { shared: otherShared } = await staleModules(other);
+    const otherView = other.render(thread(other, otherShared, async () => ({ ok: true })), { initialPage: THREAD, strings, locale: "ru", draftScope: "m2:c2" });
+    assert.equal(textarea(otherView).props.value, "", "a different member/case never sees it");
+    assert.equal(storage.getItem(key), "Документы отправил вчера");
+    other.unmount();
+
+    // The reload: the same student gets the draft back once; storage is cleared.
+    const reloaded = createRuntime(); runtimes.push(reloaded);
+    const { shared: reloadedShared } = await staleModules(reloaded);
+    const reloadedView = reloaded.render(thread(reloaded, reloadedShared, async () => ({ ok: true })), { initialPage: THREAD, strings, locale: "ru", draftScope: "m1:c1" });
+    assert.equal(textarea(reloadedView).props.value, "Документы отправил вчера", "the draft is back in the field");
+    assert.equal(storage.getItem(key), null, "restored once, then removed");
+    const submit = findAll(reloadedView(), (node) => node.type === "button" && node.props.type === "submit")[0];
+    assert.equal(submit.props.disabled, false, "the new build can send it");
+  } finally {
+    for (const runtime of runtimes) runtime.unmount();
+    restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Staff chats (review of #1187): team chat polls every 30 s and on
+// visibility/online; case chat re-reads on realtime invalidations. Both must
+// stop at the first stale action and not show «недоступно» next to the toast.
+
+const teamChatLibs = {
+  "@/lib/platform-team-chat": await import("../src/lib/platform-team-chat.ts"),
+  "@/lib/team-chat-read-errors": await import("../src/lib/team-chat-read-errors.ts"),
+  "@/lib/team-chat-feed": await import("../src/lib/team-chat-feed.ts"),
+  "@/lib/team-chat-message-grouping": await import("../src/lib/team-chat-message-grouping.ts"),
+  "@/lib/team-chat-channel-previews": await import("../src/lib/team-chat-channel-previews.ts"),
+  "@/lib/team-chat-channel-time-label": await import("../src/lib/team-chat-channel-time-label.ts"),
+  "@/lib/platform-organization-time": await import("../src/lib/platform-organization-time.ts"),
+};
+const caseChatLibs = {
+  "@/lib/platform-case-chat-contract": await import("../src/lib/platform-case-chat-contract.ts"),
+  "@/lib/v3/stages": await import("../src/lib/v3/stages.ts"),
+  "@/lib/v3/wording": await import("../src/lib/v3/wording.ts"),
+  "@/lib/platform-organization-time": await import("../src/lib/platform-organization-time.ts"),
+  "./case-chat-queue": await import("../src/components/v3/case-chat/case-chat-queue.ts"),
+};
+const cssModule = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
+
+/** Supabase realtime as the chats use it: a private channel that can be invalidated and removed. */
+function fakeRealtime() {
+  const state = { subscribe: null, invalidate: null, removed: 0 };
+  const client = {
+    auth: { getSession: async () => ({ data: { session: { access_token: "synthetic-test-session" } }, error: null }) },
+    realtime: { setAuth: async () => {} },
+    channel() {
+      const channel = {
+        on(_type, _filter, handler) { state.invalidate = handler; return channel; },
+        subscribe(callback) { state.subscribe = callback; return channel; },
+      };
+      return channel;
+    },
+    removeChannel: async () => { state.removed += 1; },
+  };
+  return { state, module: { createBrowserClient: () => client } };
+}
+
+const TEAM_SNAPSHOT = {
+  page: { schemaVersion: 2, messages: [], quotes: [], beforeCursor: "5", afterCursor: "0", hasBefore: true, hasAfter: false, watermark: "10", latestMessageId: null, focusMessageId: null },
+  channels: [],
+  participants: [],
+};
+
+function teamChat(runtime, shared, browser, realtime, actions) {
+  const seenHook = compile("src/components/v3/team-chat/useTeamChatSeen.ts", (id) => shared(id) ?? ({
+    "@/lib/platform-team-chat-seen-actions": { markTeamChatSeenAction: actions.seen },
+    "@/lib/platform-team-chat-seen": { decodeTeamChatSeenReceipt: () => true },
+    "@/lib/team-chat-feed": teamChatLibs["@/lib/team-chat-feed"],
+  })[id], browser.timers);
+  return compile("src/components/v3/team-chat/TeamChat.tsx", (id) => shared(id) ?? teamChatLibs[id] ?? ({
+    "next/link": { default: () => null },
+    "@supabase/ssr": realtime.module,
+    "@/lib/platform-team-chat-actions": { readTeamChatAction: actions.read },
+    "@/lib/platform-team-chat-v2-actions": { readTeamChatTimelineV2Action: actions.readV2 },
+    "@/components/icons": { Icon: () => null },
+    "./TeamChatComposer": { TeamChatComposer: () => null },
+    "./TeamChatMessageRow": { TeamChatMessageRow: () => null, TeamChatDeleteConfirmation: () => null },
+    "./useTeamChatSeen": seenHook,
+    "./team-chat.module.css": cssModule,
+  })[id], browser.timers).TeamChat;
+}
+
+async function connectedTeamChat(error) {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const runtime = createRuntime();
+  const { store, shared } = await staleModules(runtime);
+  const realtime = fakeRealtime();
+  const calls = { read: 0, readV2: 0, seen: 0 };
+  const TeamChat = teamChat(runtime, shared, browser, realtime, {
+    read: async () => { calls.read += 1; throw error(); },
+    readV2: async () => { calls.readV2 += 1; throw error(); },
+    seen: async () => { calls.seen += 1; throw error(); },
+  });
+  const view = runtime.render(TeamChat, {
+    initial: TEAM_SNAPSHOT, channel: "general", organizationId: "org", membershipId: "member", canModerate: false,
+    realtimeConfig: { url: "http://127.0.0.1:54321", publishableKey: "synthetic-publishable" },
+  });
+  await runtime.flush();
+  realtime.state.subscribe("SUBSCRIBED"); // live: the chat reads the tail once
+  runtime.commitIfDirty();
+  return { browser, restore, runtime, store, realtime, calls, view };
+}
+
+const earlierButton = (view) => findAll(view(), (node) => node.type === "button" && textOf(node) === "Предыдущие сообщения")[0];
+
+test("team chat stops its 30 s poll, realtime and listeners at the first stale read and shows no «недоступно»", async () => {
+  const { browser, restore, runtime, store, realtime, calls, view } = await connectedTeamChat(staleActionError);
+  try {
+    assert.deepEqual([...browser.intervals.values()].map(({ ms }) => ms), [30000], "the 30 s authority poll is running");
+    assert.equal(browser.listenerCount(), 2, "visibilitychange + online");
+    assert.equal(earlierButton(view).props.disabled, false);
+
+    browser.runTimeouts(); // the 120 ms debounce after SUBSCRIBED
+    await runtime.flush();
+    assert.equal(calls.read, 1, "one read reached the new build");
+    assert.equal(store.isStaleDeployment(), true, "team chat marks the page");
+    assert.equal(browser.intervals.size, 0, "the 30 s poll is cleared");
+    assert.equal(browser.listenerCount(), 0, "visibility/online listeners are removed");
+    assert.equal(realtime.state.removed, 1, "the realtime channel is removed");
+
+    for (let i = 0; i < 5; i += 1) browser.wakeAll();
+    realtime.state.invalidate(); // a broadcast that was already in flight
+    browser.runTimeouts();
+    await runtime.flush();
+    assert.equal(calls.read + calls.readV2 + calls.seen, 1, "no more requests after detection");
+    assert.equal(findAll(view(), (node) => node.props?.role === "alert").length, 0, "no «недоступно» next to the reload toast");
+    assert.doesNotMatch(textOf(view()), /Живые обновления недоступны|Подключаем обновления/u);
+    assert.equal(earlierButton(view).props.disabled, true, "reads that cannot happen are not offered");
+  } finally {
+    runtime.unmount();
+    restore();
+  }
+});
+
+test("team chat keeps polling and keeps its retry for an ordinary network failure", async () => {
+  const { browser, restore, runtime, store, realtime, calls, view } = await connectedTeamChat(() => new TypeError("Failed to fetch"));
+  try {
+    browser.runTimeouts();
+    await runtime.flush();
+    assert.equal(calls.read, 1);
+    assert.equal(store.isStaleDeployment(), false);
+    assert.equal(browser.intervals.size, 1, "polling continues");
+    assert.equal(realtime.state.removed, 0);
+    assert.ok(findAll(view(), (node) => node.props?.role === "alert").length > 0, "the ordinary failure is still shown");
+    assert.equal(earlierButton(view).props.disabled, false);
+  } finally {
+    runtime.unmount();
+    restore();
+  }
+});
+
+const CASE_PAGE = {
+  thread: { awaitState: "needs_reply" }, messages: [], readSequenceId: "0", hasMore: true, cursor: "7",
+};
+
+async function caseChatThread(error) {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const runtime = createRuntime();
+  const { store, shared } = await staleModules(runtime);
+  const realtime = fakeRealtime();
+  const calls = { read: 0, list: 0, mark: 0 };
+  const failure = error;
+  const { CaseChatWorkspace } = compile("src/components/v3/case-chat/CaseChatThread.tsx", (id) => shared(id) ?? caseChatLibs[id] ?? ({
+    "next/link": { default: () => null },
+    "next/navigation": { useRouter: () => ({ push() {} }), useSearchParams: () => new URLSearchParams("case=case-1") },
+    "@supabase/ssr": realtime.module,
+    "@/components/icons": { Icon: () => null },
+    "@/components/v3/blocks/Initials": { Initials: () => null },
+    "@/components/v3/blocks/StatusChip": { StageChip: () => null, StatusChip: () => null },
+    "@/components/v3/queue/queue-buttons": { QUEUE_SECONDARY: "" },
+    "@/components/v3/queue/useAnchoredPopover": { useAnchoredPopover: () => ({ popoverId: "p", popoverStyle: {}, anchorProps: {} }) },
+    "@/components/v3/reply-snippets/ReplySnippetPicker": { ReplySnippetPicker: () => null },
+    "@/lib/platform-case-chat-actions": {
+      loadStaffCaseChatThreadsAction: async () => { calls.list += 1; throw failure(); },
+      markCaseChatReadAction: async () => { calls.mark += 1; throw failure(); },
+      postCaseChatMessageAction: async () => { throw failure(); },
+      readCaseChatPageAction: async () => { calls.read += 1; throw failure(); },
+      setCaseChatAwaitAction: async () => { throw failure(); },
+    },
+  })[id], browser.timers);
+  // The thread view is the workspace's own child component: take it from the
+  // rendered tree and run it on this runtime with a counting list refresh.
+  const workspace = runtime.render(CaseChatWorkspace, {
+    organizationId: "org", membershipId: "member", realtimeConfig: { url: "http://127.0.0.1:54321", publishableKey: "synthetic-publishable" },
+    initialQueue: { list: { rows: [] }, counts: null, readAt: "2026-10-10T00:00:00Z" }, selectedCaseId: "case-1",
+    initialStudentDisplayName: null, initialPage: CASE_PAGE, initialPageFailure: null,
+  });
+  const element = findAll(workspace(), (node) => typeof node.type === "function" && node.type.name === "CaseChatThreadView")[0];
+  assert.ok(element, "the workspace renders the thread view");
+  runtime.unmount();
+  browser.timeouts.clear();
+  const view = runtime.render(element.type, { ...element.props, onListChanged: () => { calls.list += 1; } });
+  await runtime.flush();
+  realtime.state.subscribe?.("SUBSCRIBED");
+  return { browser, restore, runtime, store, realtime, calls, view };
+}
+
+test("case chat stops re-reading on realtime invalidations after the first stale read and shows no failure", async () => {
+  const { browser, restore, runtime, store, realtime, calls, view } = await caseChatThread(staleActionError);
+  try {
+    const older = () => findAll(view(), (node) => node.type === "button" && /Показать более ранние/u.test(textOf(node)))[0];
+    assert.equal(older().props.disabled, false);
+    browser.runTimeouts(); // the mount-time re-read (App Router Back/Forward restore)
+    await runtime.flush();
+    assert.equal(calls.read, 1, "one read reached the new build");
+    assert.equal(store.isStaleDeployment(), true);
+    assert.equal(realtime.state.removed, 1, "the realtime channel is removed");
+
+    const before = { ...calls };
+    realtime.state.invalidate(); // in-flight broadcast
+    browser.dispatch("window", "popstate");
+    browser.runTimeouts();
+    await runtime.flush();
+    assert.deepEqual(calls, before, "no list or page reads after detection");
+    assert.equal(findAll(view(), (node) => node.props?.role === "alert").length, 0, "no «недоступно» next to the reload toast");
+    assert.equal(older().props.disabled, true);
+  } finally {
+    runtime.unmount();
+    restore();
+  }
+});
+
+test("case chat still reports an ordinary failure", async () => {
+  const { browser, restore, runtime, store, realtime, calls, view } = await caseChatThread(() => new TypeError("Failed to fetch"));
+  try {
+    browser.runTimeouts();
+    await runtime.flush();
+    assert.equal(calls.read, 1);
+    assert.equal(store.isStaleDeployment(), false);
+    assert.equal(realtime.state.removed, 0, "realtime stays subscribed");
+    assert.equal(findAll(view(), (node) => node.props?.role === "alert").length, 1);
   } finally {
     runtime.unmount();
     restore();

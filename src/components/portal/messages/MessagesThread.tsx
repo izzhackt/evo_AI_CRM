@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import type { Locale } from "@/lib/i18n-data";
 import {
@@ -18,6 +18,16 @@ import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
 import { useStaleDeployment } from "@/lib/use-stale-deployment";
 
+/** Черновик вкладки прошлой сборки — до её перезагрузки (A1). */
+const STALE_DRAFT_KEY = "evo:portal-messages:stale-draft:";
+const subscribeNever = () => () => {};
+const clientTrue = () => true;
+const serverFalse = () => false;
+
+function readStaleDraft(key: string): string | null {
+  try { return sessionStorage.getItem(key); } catch { return null; }
+}
+
 /**
  * Тред «Сообщений по делу» (PORT-5c, план §6 «Общение»): старые выше, догрузка
  * более ранних по before-курсору, отправка с честными состояниями
@@ -27,16 +37,22 @@ import { useStaleDeployment } from "@/lib/use-stale-deployment";
  *
  * Вкладка пережила выпуск (action прошлой сборки сервер не знает): опрос
  * стоит, черновик остаётся на экране, а обновить страницу просит оболочка
- * (PortalStaleDeploymentNotice).
+ * (PortalStaleDeploymentNotice). Пока вкладка на прошлой сборке, черновик
+ * лежит в sessionStorage этой вкладки (ключ — участник и дело) и после
+ * перезагрузки возвращается в поле один раз. Сервер такую отправку не
+ * выполнял (404 до вызова action), поэтому повтор не создаст дубль.
  */
 export function MessagesThread({
   initialPage,
   strings,
   locale,
+  draftScope,
 }: {
   initialPage: PortalCaseMessagesPage;
   strings: PortalStrings<"messages">;
   locale: Locale;
+  /** Участник и дело: черновик прошлой сборки не попадёт к другому студенту в той же вкладке. */
+  draftScope: string;
 }) {
   const [messages, setMessages] = useState<readonly PortalCaseMessage[]>(
     () => mergePortalCaseMessages([], initialPage.messages),
@@ -67,6 +83,28 @@ export function MessagesThread({
   const [incomingNotice, setIncomingNotice] = useState("");
   const listRef = useRef<HTMLOListElement>(null);
   const stale = useStaleDeployment();
+  const staleDraftKey = `${STALE_DRAFT_KEY}${draftScope}`;
+
+  // Черновик, сохранённый вкладкой прошлой сборки, — один раз после
+  // гидратации (на сервере sessionStorage нет, разметка совпадает).
+  const hydrated = useSyncExternalStore(subscribeNever, clientTrue, serverFalse);
+  const [staleDraftRead, setStaleDraftRead] = useState(false);
+  if (hydrated && !staleDraftRead) {
+    setStaleDraftRead(true);
+    const saved = readStaleDraft(staleDraftKey);
+    if (saved) setDraft((current) => current || saved);
+  }
+
+  // Пока вкладка на прошлой сборке, «Обновить страницу» не теряет черновик;
+  // на новой сборке возвращённый черновик из хранилища убирается.
+  const staleDraft = stale ? draft : "";
+  useEffect(() => {
+    if (!staleDraftRead) return;
+    try {
+      if (staleDraft) sessionStorage.setItem(staleDraftKey, staleDraft);
+      else sessionStorage.removeItem(staleDraftKey);
+    } catch { /* хранилище недоступно: текст остаётся на экране до перезагрузки */ }
+  }, [staleDraftRead, staleDraft, staleDraftKey]);
 
   useEffect(() => {
     if (stale) return;

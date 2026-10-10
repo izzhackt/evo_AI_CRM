@@ -13,6 +13,7 @@ import { useInlineStalePrompt, useStaleDeployment } from "@/lib/use-stale-deploy
 
 const TIME = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
 const EXACT_TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
+const STAFF_NOTIFICATIONS_POLL_MS = 60000;
 const DATE_ONLY = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "Asia/Bishkek" });
 const CONTROL = "min-h-11 rounded-ctl border border-control-edge px-3 text-sm text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 /**
@@ -127,16 +128,22 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
     // command: a background refresh landing between click and navigation
     // must not clobber that command's own local state change. One background
     // read at a time: focus and visibilitychange arrive together on return.
-    let refreshing = false;
+    // The hold lapses after one poll interval, so a fetch stalled after sleep
+    // cannot suspend polling; a late settle never frees a newer read's hold.
+    let inFlight: number | null = null;
     const refresh = () => {
-      if (refreshing || isStaleDeployment() || document.visibilityState !== "visible" || mutationsInFlight.current !== 0) return;
-      refreshing = true;
-      void load().finally(() => { refreshing = false; });
+      if (inFlight !== null || isStaleDeployment() || document.visibilityState !== "visible" || mutationsInFlight.current !== 0) return;
+      const hold = window.setTimeout(() => { if (inFlight === hold) inFlight = null; }, STAFF_NOTIFICATIONS_POLL_MS);
+      inFlight = hold;
+      void load().finally(() => { window.clearTimeout(hold); if (inFlight === hold) inFlight = null; });
     };
-    const timer = window.setInterval(refresh, 60000);
+    const timer = window.setInterval(refresh, STAFF_NOTIFICATIONS_POLL_MS);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
-    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
+    return () => {
+      window.clearInterval(timer); if (inFlight !== null) window.clearTimeout(inFlight);
+      window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh);
+    };
   }, [load, stale]);
   useEffect(() => () => invalidate(), [invalidate]);
   useEffect(() => {

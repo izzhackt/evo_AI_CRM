@@ -558,6 +558,9 @@ test("the leads table shows the plan columns, links the name to Lead 360 and nev
   assert.equal([...html.matchAll(/data-testid="marketing-lead-set-channel"/gu)].length, 1, "one unknown row, one setter");
   assert.match(html, /data-testid="marketing-lead-set-channel"[\s\S]*?>Указать<\/summary>/u);
   assert.match(html, /name="lead_id" value="30000000-0000-4000-8000-000000000002"/u, "the setter writes to the unknown lead");
+  assert.match(html, /name="request_id" value=""/u, "no request id until a channel is chosen");
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Сохранить<\/button>/u, "saving waits for a choice");
+  assert.match(html, />Указать<span class="sr-only">, откуда узнал: лид без имени<\/span><\/summary>/u, "each «Указать» names its lead for screen readers");
   assert.doesNotMatch(html, RED_ACTION, "no red button in the list");
 });
 

@@ -1,5 +1,5 @@
 "use client";
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useState, type ReactNode } from "react";
 import { btnGhostCls, inputCls } from "@/components/ui";
 import { LEAD_CHANNELS, leadChannelText, type LeadChannel, type LeadChannelCorrectionState, type LeadChannelRead } from "@/lib/lead-channel-contract";
 import { correctLeadChannelAction } from "@/lib/platform-lead-channel-actions";
@@ -24,7 +24,7 @@ export function LeadChannelCorrection({ leadId, requestId = "", current, label =
   leadId: string;
   requestId?: string;
   current: LeadChannel;
-  label?: string;
+  label?: ReactNode;
   onSaved?: (read: LeadChannelRead) => void;
 }>) {
   const [currentRequestId, setCurrentRequestId] = useState(requestId);

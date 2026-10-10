@@ -46,7 +46,8 @@ function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
           : null}
         {row.channel === "unknown" ? (
           <div className="pl-4" data-testid="marketing-lead-set-channel">
-            <LeadChannelCorrection leadId={row.leadId} current="unknown" label={set ? "Изменить" : "Указать"} onSaved={setSet} />
+            <LeadChannelCorrection leadId={row.leadId} current="unknown" onSaved={setSet}
+              label={<>{set ? "Изменить" : "Указать"}<span className="sr-only">, откуда узнал: {row.name ?? "лид без имени"}</span></>} />
           </div>
         ) : null}
       </td>
@@ -84,6 +85,9 @@ export function MarketingLeadsTable({ initial, request }: Readonly<{
   request: Readonly<{ from: string; to: string; filters: MarketingLeadFilters }>;
 }>) {
   const [rows, setRows] = useState<readonly MarketingLeadRow[]>(initial.rows);
+  // Итог — с первого чтения этого набора фильтров: после «Указать» страница перечитывается (revalidatePath),
+  // а строки остаются на месте до перезагрузки — счётчик не должен с ними расходиться.
+  const [total] = useState(initial.total);
   const [cursor, setCursor] = useState<MarketingCursor | null>(initial.nextCursor);
   const [failed, setFailed] = useState(false);
   const [pending, start] = useTransition();
@@ -106,9 +110,9 @@ export function MarketingLeadsTable({ initial, request }: Readonly<{
   });
   return (
     <div>
-      <p className="t-meta text-fg-2" data-testid="marketing-leads-count" data-total={initial.total}>
-        Заявок по фильтрам: <span className="tabular-nums">{initial.total.toLocaleString("ru-RU")}</span>
-        {initial.total > 0 ? <> · показано <span className="tabular-nums">{rows.length.toLocaleString("ru-RU")}</span></> : null}
+      <p className="t-meta text-fg-2" data-testid="marketing-leads-count" data-total={total}>
+        Заявок по фильтрам: <span className="tabular-nums">{total.toLocaleString("ru-RU")}</span>
+        {total > 0 ? <> · показано <span className="tabular-nums">{rows.length.toLocaleString("ru-RU")}</span></> : null}
       </p>
       {rows.length === 0 ? <p className="mt-3 t-body-compact text-fg-2">За этот период заявок по фильтрам нет.</p> : (
         <div className="relative mt-2 overflow-x-auto">

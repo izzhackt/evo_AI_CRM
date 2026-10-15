@@ -63,6 +63,12 @@ export type CaseWorkRead = Readonly<{
   activity?: CaseWorkActivity;
   /** Admin выбирает куратора (флаг `needs_curator` чтения 182). */
   needsCurator: boolean;
+  /**
+   * Дело ждёт приёма передачи из продаж (флаг `awaiting_ack`). У дела без
+   * передачи (добавлено поступлением, 281; одобренная анкета) принимать нечего:
+   * «Приём дела» в «Сведениях» не показывается. Нет строки очереди — неизвестно.
+   */
+  awaitingAck?: boolean | null;
   /** Открытый запрос удаления аккаунта из портала (чтение 196, только Admin). */
   deletionRequested: boolean;
   /** Сегодня в Бишкеке. */

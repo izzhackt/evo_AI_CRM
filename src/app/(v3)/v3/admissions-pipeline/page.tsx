@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { AdmissionsPipelineBoard } from "@/components/v3/AdmissionsPipelineBoard";
+import { AddStudentDrawer } from "@/components/v3/admissions/AddStudentDrawer";
 import { BoardReset, BoardSearch, BoardSegments } from "@/components/v3/board/Board";
 import { BoardFilters, NavigateSelect } from "@/components/v3/board/BoardToolbar";
 import { PartShell } from "@/components/v3/PartShell";
@@ -89,6 +90,11 @@ export default async function AdmissionsPipelinePart({
   if (view !== undefined) redirect(EVO_DOCS_QUEUE_HREF[view]);
   const query = parseBoardQuery(params);
   const canReadDocuments = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
+  // «Добавить студента» (миграция 281): у держателей `case.create.direct` вне
+  // просмотра роли. Назначающий кураторов (`case.curator.assign`) выбирает
+  // куратора или оставляет дело ждать его; куратор заводит студента себе.
+  const canAddStudent = !isStaffPreview(actor) && staffHasPermission(actor, "case.create.direct");
+  const assignsCurators = !isStaffPreview(actor) && staffHasPermission(actor, "case.curator.assign");
 
   const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
   const [boardResult, curatorsResult, documentsResult, packagesResult] = await Promise.allSettled([
@@ -122,6 +128,14 @@ export default async function AdmissionsPipelinePart({
     board && !board.truncated ? board.rows.filter((row) => admissionsPipelineTabOf(row.pipelineStage) === tabKey).length : null;
   const documentsCount = queueCount(documentsResult);
   const packagesCount = queueCount(packagesResult);
+
+  const addStudent = canAddStudent ? (
+    <AddStudentDrawer
+      curator={assignsCurators
+        ? { kind: "choose", options: curatorOptions }
+        : { kind: "self", membershipId: actor.membershipId }}
+    />
+  ) : null;
 
   const queues = canReadDocuments ? (
     // Одна тихая строка и на телефоне: две ссылки столбиком отодвигали доску
@@ -157,7 +171,16 @@ export default async function AdmissionsPipelinePart({
   ];
 
   return (
-    <PartShell width="board" title="Воронка поступления" action={queues}>
+    <PartShell
+      width="board"
+      title="Воронка поступления"
+      action={queues || addStudent ? (
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+          {queues}
+          {addStudent}
+        </div>
+      ) : undefined}
+    >
       <div className="flex shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
         <BoardSegments
           label="Разделы воронки поступления"

@@ -114,8 +114,9 @@ export async function readCaseWork(
     : !isStaffPreview(actor) && staffHasPermission(actor, "case.curator.assign")
       ? (await readCaseAttentionFlags(actor, target.studentCaseId).catch((): readonly AdmissionsAttention[] => [])).includes("needs_curator")
       : false;
+  const awaitingAck = row ? row.attentionFlags.includes("awaiting_ack") : null;
   return Object.freeze({
-    row, tasks, chat, activity, needsCurator, deletionRequested,
+    row, tasks, chat, activity, needsCurator, awaitingAck, deletionRequested,
     today: dayInOrganizationTimezone(now),
     nowIso: now.toISOString(),
   });

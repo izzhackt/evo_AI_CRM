@@ -401,6 +401,8 @@ const SOURCE: Record<string, string> = {
   instagram: "Instagram Direct",
   website: "сайт",
   platform_application: "платформа",
+  /** Миграция 281: клиент добавлен поступлением без отдела продаж (в том числе импорт из amoCRM). */
+  admissions_direct: "добавлен поступлением",
   referral: "по рекомендации",
   office: "встреча в офисе",
   phone_call: "звонок",

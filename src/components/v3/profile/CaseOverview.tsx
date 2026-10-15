@@ -192,7 +192,10 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
   // Куратор ответил «Нужно уточнить», а дело всё ещё ждёт приёма: ответ виден и на странице, не только
   // в панели «Принять дело» (изменить его — там же, у заголовка). После «Отклонить» (182/249) чтение 130
   // не отдаёт ни назначения, ни ответа — «Приёма дела» в «Сведениях» нет.
-  const onRecord = answered || (handoff !== null && handoff.assignmentEventId !== null && handoff.current !== null);
+  // 281: без записанного ответа «Ожидает ответа куратора» — только там, где приём действительно
+  // ждут (флаг `awaiting_ack`); у дела без передачи из продаж принимать нечего. Нет строки — как раньше.
+  const onRecord = (answered && (handoff.current !== null || input.work.awaitingAck !== false))
+    || (handoff !== null && handoff.assignmentEventId !== null && handoff.current !== null);
   const { curator } = input;
   const payment = input.payment;
   return (

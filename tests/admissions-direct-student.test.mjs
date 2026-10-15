@@ -1,0 +1,196 @@
+// «Добавить студента» без отдела продаж (миграция 281, решения владельца
+// 16.10.2026). The form contract (payload builder, amounts, the China default,
+// validation, the server-side re-parse and the error wording) and static
+// checks of the migration text and its suite wiring. They supplement, never
+// replace, the real-Postgres suite supabase/tests/platform_admissions_direct_student.sql
+// (hooked after 281 in scripts/test-postgres-authorization.sh).
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+import {
+  ADMISSIONS_DIRECT_DEGREES,
+  CHINA_DEFAULT_COST,
+  EMPTY_ADMISSIONS_DIRECT_DRAFT,
+  admissionsDirectCaseHref,
+  admissionsDirectMessage,
+  admissionsDirectServerField,
+  amountToMinor,
+  bishkekToday,
+  buildAdmissionsDirectPayload,
+  minorToAmount,
+  parseAdmissionsDirectPayload,
+} from "../src/lib/admissions-direct-student-contract.ts";
+
+const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+const migration = source("supabase/migrations/281_platform_admissions_direct_student.sql");
+const suite = source("supabase/tests/platform_admissions_direct_student.sql");
+const script = source("scripts/test-postgres-authorization.sh");
+const drawer = source("src/components/v3/admissions/AddStudentDrawer.tsx");
+const page = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
+
+const draft = (overrides = {}) => ({ ...EMPTY_ADMISSIONS_DIRECT_DRAFT, firstName: "Айдай", country: "MY", ...overrides });
+
+test("amounts: spaces and comma, two decimals, positive only", () => {
+  assert.equal(amountToMinor("1 500"), 150000);
+  assert.equal(amountToMinor("1500,5"), 150050);
+  assert.equal(amountToMinor("1 500.25"), 150025);
+  assert.equal(amountToMinor(""), "");
+  assert.equal(amountToMinor("0"), null);
+  assert.equal(amountToMinor("12.345"), null);
+  assert.equal(amountToMinor("-5"), null);
+  assert.equal(minorToAmount(150000), "1 500");
+  assert.equal(minorToAmount(150050), "1 500,50");
+});
+
+test("China default cost is 1 500 USD (owner decision 16.10.2026)", () => {
+  assert.deepEqual({ ...CHINA_DEFAULT_COST }, { amount: "1500", currency: "USD" });
+  assert.match(drawer, /value === "CN" && untouched/u);
+  assert.match(drawer, /Для Китая по умолчанию 1 500 USD\. Можно изменить\./u);
+});
+
+test("degrees come from the product wording", () => {
+  assert.deepEqual([...ADMISSIONS_DIRECT_DEGREES], ["Фаундейшн", "Языковые курсы", "Диплом", "Бакалавриат", "Магистратура", "Докторантура"]);
+});
+
+test("a full draft builds the exact RPC payload", () => {
+  const built = buildAdmissionsDirectPayload(draft({
+    lastName: "Демо", phone: "+996 555 123 456", email: "aidai@example.invalid", birthDate: "2008-05-01", age: "40",
+    parentRelation: "mother", parentFirstName: "Гульнара", parentPhone: "+996 700 000 001",
+    country: "CN", degree: "Бакалавриат", program: "Computer Science", intake: "Сентябрь 2027",
+    educationCurrent: "11 класс", english: "IELTS 6.0", chinese: "HSK 3",
+    curator: "d0e07ebe-5fef-43c5-be1d-cba49471c550", stage: "documents",
+    costAmount: "1 500", costCurrency: "USD", signedOn: "2026-09-01",
+    payments: [{ amount: "500", currency: "USD", paidOn: "2026-09-05" }, { amount: "20 000", currency: "KGS", paidOn: "2026-09-10" }],
+    note: "  Звонить после 18:00  ",
+  }), "2026-10-16");
+  assert.equal(built.ok, true);
+  assert.deepEqual(built.payload, {
+    student: { name: "Айдай Демо", firstName: "Айдай", lastName: "Демо", phone: "+996 555 123 456", email: "aidai@example.invalid", birthDate: "2008-05-01" },
+    parent: { relation: "mother", firstName: "Гульнара", phone: "+996 700 000 001" },
+    route: { country: "CN", degree: "Бакалавриат", program: "Computer Science", intake: "Сентябрь 2027" },
+    education: { current: "11 класс", english: "IELTS 6.0", chinese: "HSK 3" },
+    curatorMembershipId: "d0e07ebe-5fef-43c5-be1d-cba49471c550",
+    pipelineStage: "documents",
+    money: {
+      cost: { amountMinor: 150000, currency: "USD" }, signedOn: "2026-09-01",
+      payments: [{ amountMinor: 50000, currency: "USD", paidOn: "2026-09-05" }, { amountMinor: 2000000, currency: "KGS", paidOn: "2026-09-10" }],
+    },
+    note: "Звонить после 18:00",
+  });
+  assert.deepEqual(parseAdmissionsDirectPayload(built.payload), built.payload, "the server re-parse accepts the builder output");
+});
+
+test("a minimal draft: name and country, no curator, stage new", () => {
+  const built = buildAdmissionsDirectPayload(draft({ age: "17" }), "2026-10-16");
+  assert.equal(built.ok, true);
+  assert.deepEqual(built.payload, {
+    student: { name: "Айдай", firstName: "Айдай", age: 17 }, route: { country: "MY" },
+    curatorMembershipId: null, pipelineStage: "new",
+  });
+});
+
+test("validation mirrors the database: required, shapes, money", () => {
+  const errors = (overrides) => {
+    const built = buildAdmissionsDirectPayload(draft(overrides), "2026-10-16");
+    assert.equal(built.ok, false);
+    return built;
+  };
+  assert.ok(errors({ firstName: " " }).errors.firstName);
+  assert.ok(errors({ country: "" }).errors.country);
+  assert.ok(errors({ phone: "12" }).errors.phone);
+  assert.ok(errors({ email: "not-an-email" }).errors.email);
+  assert.ok(errors({ birthDate: "2026-10-17" }).errors.birthDate);
+  assert.ok(errors({ age: "4" }).errors.age);
+  assert.ok(errors({ parentFirstName: "Мама" }).errors.parentRelation, "a parent needs mother or father");
+  assert.ok(errors({ stage: "bogus" }).errors.stage);
+  assert.ok(errors({ costAmount: "abc" }).errors.costAmount);
+  assert.ok(errors({ costAmount: "100", payments: [{ amount: "200", currency: "USD", paidOn: "2026-09-01" }] }).errors.payments,
+    "payments above the cost in its currency");
+  assert.equal(buildAdmissionsDirectPayload(draft({ costAmount: "100", costCurrency: "USD",
+    payments: [{ amount: "200", currency: "KGS", paidOn: "2026-09-01" }] }), "2026-10-16").ok, true,
+    "another currency is a separate paid tranche, not an excess");
+  assert.deepEqual(errors({ payments: [{ amount: "", currency: "USD", paidOn: "2026-09-01" }, { amount: "1", currency: "USD", paidOn: "2026-10-18" }] })
+    .paymentErrors.map(Boolean), [true, true], "each payment row is checked");
+  assert.equal(buildAdmissionsDirectPayload(draft({ birthDate: "2008-05-01", age: "abc" }), "2026-10-16").ok, true,
+    "the age is ignored when the birth date is given");
+});
+
+test("the server re-parse refuses foreign keys and types", () => {
+  const base = { student: { name: "Айдай" }, route: { country: "MY" }, curatorMembershipId: null, pipelineStage: "new" };
+  assert.deepEqual(parseAdmissionsDirectPayload(base), base);
+  assert.equal(parseAdmissionsDirectPayload({ ...base, salesOwner: "x" }), null);
+  assert.equal(parseAdmissionsDirectPayload({ ...base, route: { country: "RU" } }), null);
+  assert.equal(parseAdmissionsDirectPayload({ ...base, pipelineStage: "bogus" }), null);
+  assert.equal(parseAdmissionsDirectPayload({ ...base, curatorMembershipId: "nope" }), null);
+  assert.equal(parseAdmissionsDirectPayload({ ...base, money: { cost: { amountMinor: 1.5, currency: "USD" } } }), null);
+  assert.equal(parseAdmissionsDirectPayload({ ...base, money: { cost: { amountMinor: 100, currency: "RUB" } } }), null);
+  assert.equal(parseAdmissionsDirectPayload({ ...base, money: { payments: [] } }), null);
+  assert.equal(parseAdmissionsDirectPayload({ ...base, student: { name: "А", age: 4 } }), null);
+});
+
+test("error wording: no codes, no long dashes, every server key maps to a field", () => {
+  for (const result of [
+    { status: "saved", studentCaseId: "x", state: "active" }, { status: "saved", studentCaseId: "x", state: "pending" },
+    { status: "invalid", field: "paymentsExceedCost" }, { status: "invalid", field: "curator" }, { status: "invalid", field: null },
+    { status: "forbidden" }, { status: "case_exists" }, { status: "request_conflict" }, { status: "unavailable" },
+  ]) {
+    const message = admissionsDirectMessage(result);
+    assert.ok(message.length > 0);
+    assert.doesNotMatch(message, /[–—]|admissions_direct|PT409|42501/u);
+  }
+  const keys = [...migration.matchAll(/admissions_direct_invalid:([A-Za-z]+)/gu)].map((match) => match[1]);
+  for (const key of new Set(keys)) {
+    if (["payload", "student", "parent", "route", "education", "money", "reason", "importSource", "externalRef"].includes(key)) continue;
+    assert.ok(admissionsDirectServerField(key), `server key ${key} maps to a form field`);
+  }
+  const copy = drawer.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
+  assert.doesNotMatch(copy, /[–—]/u, "the drawer copy (outside code comments) has no long dashes");
+});
+
+test("migration 281: one permission, two commands, grants and the import guard", () => {
+  assert.match(migration, /^BEGIN;/mu);
+  assert.match(migration, /COMMIT;\s*$/u);
+  assert.match(migration, /'case\.create\.direct'/u);
+  assert.match(migration, /current_keys @> ARRAY\['case\.read\.full', 'task\.manage'\]::TEXT\[\]/u,
+    "published into the roles that may curate");
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.create_admissions_student_case_v1\(UUID, UUID, JSONB\) TO authenticated;/u);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.import_admissions_student_case_v1\(UUID, UUID, TEXT, TEXT, JSONB, TEXT\) TO service_role;/u);
+  assert.doesNotMatch(migration, /import_admissions_student_case_v1[^;]*TO authenticated/u);
+  assert.match(migration, /REVOKE ALL ON FUNCTION platform_private\.create_admissions_student_case\(UUID, UUID, UUID, JSONB, TEXT, TEXT, TEXT\)\s+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/u);
+  assert.match(migration, /'admissions-direct:'\|\|canonical_lead_id::TEXT/u, "the new intake origin");
+  assert.match(migration, /'admissions_direct', 'converted'/u, "the lead is converted, never a sales lead");
+  assert.doesNotMatch(migration, /INSERT INTO platform_private\.sales_register|INSERT INTO platform\.sales_admissions_handoffs/u,
+    "no sales record and no sales handoff");
+  assert.doesNotMatch(migration, /DISABLE\s+(?:ROW LEVEL SECURITY|TRIGGER)|session_replication_role/iu);
+  for (const signature of [
+    "platform_private.staff_can_take_needs_curator_case(uuid,uuid,uuid)",
+    "private.assign_case_curator_v1(uuid,uuid,uuid,uuid,text)",
+    "platform_private.admissions_attention_flags(uuid)",
+    "platform_private.assign_student_case_curator_authorized_e1(uuid,uuid,uuid,text,uuid,uuid,uuid,uuid)",
+    "platform_private.marketing_cohort(uuid,date,date)",
+  ]) {
+    assert.ok(migration.includes(`('${signature}', '`), `${signature} is md5-anchored`);
+  }
+});
+
+test("the real-Postgres suite is hooked by name after 281", () => {
+  assert.match(script, /\*_platform_admissions_direct_student\.sql \]\]; then[\s\S]*?-f \/workspace\/supabase\/tests\/platform_admissions_direct_student\.sql/u);
+  assert.match(suite, /N281_ADMISSIONS_DIRECT_STUDENT_SUITE_PASSED/u);
+  assert.match(suite, /ROLLBACK;\s*$/u);
+});
+
+test("the board offers «Добавить студента» only to permitted roles", () => {
+  assert.match(page, /const canAddStudent = !isStaffPreview\(actor\) && staffHasPermission\(actor, "case\.create\.direct"\);/u);
+  assert.match(page, /kind: "self", membershipId: actor\.membershipId/u);
+  assert.match(drawer, /data-testid="v3-admissions-add-student"/u);
+  assert.match(drawer, /router\.push\(admissionsDirectCaseHref\(answer\)\)/u, "success opens the new case");
+  assert.equal(admissionsDirectCaseHref({ studentCaseId: "c1", state: "active" }), "/v3/profile?case=c1");
+  assert.equal(admissionsDirectCaseHref({ studentCaseId: "c2", state: "pending" }), "/v3/profile?view=needs_curator&open=c2",
+    "a case without a curator opens where it gets one");
+});
+
+test("bishkekToday is UTC+6", () => {
+  assert.equal(bishkekToday(new Date("2026-10-16T18:30:00Z")), "2026-10-17");
+  assert.equal(bishkekToday(new Date("2026-10-16T17:59:00Z")), "2026-10-16");
+});

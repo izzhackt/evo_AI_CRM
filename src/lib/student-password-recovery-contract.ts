@@ -91,11 +91,13 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 /**
- * The form answers no earlier than this after the request started, so the
- * Auth email send (done inside the request, only for a real account) does
- * not show up as a slower answer.
+ * Every answer that depends on the account (the staff lookup and the Auth
+ * call, which sends the email inside the request only for a real account)
+ * leaves exactly this long after the request started. It is a fixed moment,
+ * not a floor: work that is still running then is answered with the neutral
+ * «sent» (see `student-password-recovery-timing.ts`).
  */
-export const STUDENT_RECOVERY_MIN_RESPONSE_MS = 1_500;
+export const STUDENT_RECOVERY_RESPONSE_DEADLINE_MS = 1_500;
 
 /** Own limits of the public form, in front of the shared Auth limits. */
 export const STUDENT_RECOVERY_IP_LIMIT = Object.freeze({ limit: 5, windowMs: 15 * 60_000 });

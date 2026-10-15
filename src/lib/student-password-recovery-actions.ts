@@ -23,11 +23,14 @@ import {
   checkStudentNewPassword,
   normalizeStudentRecoveryEmail,
   STUDENT_PASSWORD_RESET_PATH,
-  STUDENT_RECOVERY_MIN_RESPONSE_MS,
+  STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,
   type StudentRecoveryPasswordState,
   type StudentRecoveryRequestState,
   type StudentRecoveryVerifyState,
 } from "./student-password-recovery-contract.ts";
+import { answerAtFixedDeadline } from "./student-password-recovery-timing.ts";
+
+type RequestStatus = StudentRecoveryRequestState["status"];
 
 async function studentOriginRequest(): Promise<boolean> {
   const requestHeaders = await headers();
@@ -44,7 +47,13 @@ async function studentOriginRequest(): Promise<boolean> {
 /**
  * Step 1. One neutral answer for every address. The link target is the
  * fixed Student origin callback, never anything taken from the request.
- * Every answer after the form check waits for the same minimum time.
+ *
+ * Only answers that do not depend on the account leave at once: the form
+ * check, the address format and the per-IP limit. Everything after the
+ * admission (the per-address «sent», the staff lookup, the Auth call) leaves
+ * at one fixed deadline whatever the work took, so a slow email send cannot
+ * tell a real account from an unknown one. The work keeps running past a
+ * missed deadline, and the neutral «sent» is the answer then.
  */
 export async function requestStudentPasswordRecoveryAction(
   _previous: StudentRecoveryRequestState,
@@ -55,34 +64,41 @@ export async function requestStudentPasswordRecoveryAction(
   if (!fields || !(await studentOriginRequest())) {
     return { status: "unavailable" };
   }
-  const status = await requestStatus(fields.get("email"), (await headers()).get("x-forwarded-for"));
-  const wait = startedAt + STUDENT_RECOVERY_MIN_RESPONSE_MS - Date.now();
-  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  const email = normalizeStudentRecoveryEmail(fields.get("email"));
+  if (!email) return { status: "invalid_email" };
+
+  const admission = admitStudentRecoveryRequest((await headers()).get("x-forwarded-for"), email);
+  if (admission === "ip_limited") return { status: "rate_limited" };
+
+  const work: Promise<RequestStatus> =
+    admission === "address_limited" ? Promise.resolve("sent") : requestStatus(email);
+  const status = await answerAtFixedDeadline<RequestStatus>({
+    work,
+    startedAt,
+    deadlineMs: STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,
+    pending: "sent",
+  });
   return { status };
 }
 
-async function requestStatus(
-  rawEmail: string | undefined,
-  forwardedFor: string | null,
-): Promise<StudentRecoveryRequestState["status"]> {
-  const email = normalizeStudentRecoveryEmail(rawEmail);
-  if (!email) return "invalid_email";
-
-  const admission = admitStudentRecoveryRequest(forwardedFor, email);
-  if (admission === "ip_limited") return "rate_limited";
-  if (admission === "address_limited") return "sent";
-
-  let redirectTo: string;
+/** Never rejects: a failure is logged and answered as «unavailable». */
+async function requestStatus(email: string): Promise<RequestStatus> {
   try {
-    redirectTo = studentInviteCallbackUrl(
-      process.env.NODE_ENV,
-      process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN,
-    );
+    let redirectTo: string;
+    try {
+      redirectTo = studentInviteCallbackUrl(
+        process.env.NODE_ENV,
+        process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN,
+      );
+    } catch (error) {
+      logStudentRecoveryFailure("request_configuration", error);
+      return "unavailable";
+    }
+    return await requestStudentPasswordRecovery(email, redirectTo);
   } catch (error) {
-    logStudentRecoveryFailure("request_configuration", error);
+    logStudentRecoveryFailure("request", error);
     return "unavailable";
   }
-  return requestStudentPasswordRecovery(email, redirectTo);
 }
 
 /** Step 2. The CSRF-bound interstitial POST on /auth/callback. */

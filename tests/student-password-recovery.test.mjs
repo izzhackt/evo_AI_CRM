@@ -18,9 +18,10 @@ import {
   STUDENT_PASSWORD_RESET_PATH,
   STUDENT_RECOVERY_ADDRESS_LIMIT,
   STUDENT_RECOVERY_IP_LIMIT,
-  STUDENT_RECOVERY_MIN_RESPONSE_MS,
+  STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,
   STUDENT_RECOVERY_SESSION_COOKIE,
 } from "../src/lib/student-password-recovery-contract.ts";
+import { answerAtFixedDeadline } from "../src/lib/student-password-recovery-timing.ts";
 import {
   createRecoveryRateLimiter,
   recoveryClientIpKey,
@@ -158,7 +159,7 @@ test("request answers stay neutral; only the per-IP Auth limit asks to retry", (
   assert.equal(classifyStudentRecoveryRequestError({ name: "AuthRetryableFetchError", status: 0 }), "unavailable");
   assert.equal(classifyStudentRecoveryRequestError({ name: "AuthRetryableFetchError" }), "unavailable");
   assert.equal(classifyStudentRecoveryRequestError(new Error("network")), "unavailable");
-  assert.ok(STUDENT_RECOVERY_MIN_RESPONSE_MS >= 1_500);
+  assert.ok(STUDENT_RECOVERY_RESPONSE_DEADLINE_MS >= 1_500);
 });
 
 test("the sent text does not promise a send; link validity matches the consume step", () => {
@@ -253,11 +254,18 @@ test("server flow: fixed redirect, explicit verify, path-scoped recovery session
   assert.match(actions, /exactActionStringFields\(form, \["password", "password_confirm"\]\)/u);
   assert.match(actions, /validateStudentRecoveryCallbackPost/u);
   assert.equal((actions.match(/studentOriginRequest\(\)\)/gu) ?? []).length, 2);
-  // Own limit first, then the staff lookup, then Auth; one minimum answer time.
-  assert.match(actions, /admitStudentRecoveryRequest\(forwardedFor, email\)/u);
-  assert.match(actions, /get\("x-forwarded-for"\)/u);
-  assert.match(actions, /admission === "address_limited"\) return "sent"/u);
-  assert.match(actions, /STUDENT_RECOVERY_MIN_RESPONSE_MS/u);
+  // Own limit first, then the staff lookup, then Auth; one fixed answer time.
+  assert.match(actions, /admitStudentRecoveryRequest\(\(await headers\(\)\)\.get\("x-forwarded-for"\), email\)/u);
+  assert.match(actions, /admission === "address_limited" \? Promise\.resolve\("sent"\)/u);
+  assert.match(actions, /answerAtFixedDeadline<RequestStatus>\(\{[^}]*deadlineMs: STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,[^}]*pending: "sent",/u);
+  assert.doesNotMatch(actions, /MIN_RESPONSE_MS|setTimeout/u);
+  // Only address-independent answers leave before the deadline; the account
+  // dependent work is never awaited outside the deadline helper.
+  const answer = actions.indexOf("answerAtFixedDeadline<RequestStatus>({");
+  assert.ok(actions.indexOf('return { status: "invalid_email" }') < answer);
+  assert.ok(actions.indexOf('return { status: "rate_limited" }') < answer);
+  assert.doesNotMatch(actions, /await requestStatus\(/u);
+  assert.equal((actions.match(/requestStudentPasswordRecovery\(email, redirectTo\)/gu) ?? []).length, 1);
   const lookup = server.indexOf("const recipient = await classifyRecoveryRecipient(email);");
   const reset = server.indexOf("resetPasswordForEmail(email");
   assert.ok(lookup > 0 && reset > lookup, "staff lookup must run before Auth");
@@ -281,4 +289,118 @@ test("server flow: fixed redirect, explicit verify, path-scoped recovery session
   assert.match(callback, /decodeStudentRecoveryCallbackQuery/u);
   assert.doesNotMatch(resetPage, /createSupabaseServerClient|verifyOtp/u);
   assert.match(login, /recovery=\{audience === "staff" \? undefined/u);
+});
+
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+function manualClock(now) {
+  const sleeps = [];
+  return {
+    sleeps,
+    clock: {
+      now: () => now,
+      sleep: (ms) =>
+        new Promise((resolve) => {
+          sleeps.push({ ms, release: resolve });
+        }),
+    },
+  };
+}
+
+test("answer deadline: early work is held back, the answer leaves only at the deadline", async () => {
+  const { sleeps, clock } = manualClock(1_400);
+  let settled = null;
+  const answer = answerAtFixedDeadline({
+    work: Promise.resolve("sent"),
+    startedAt: 1_000,
+    deadlineMs: 1_500,
+    pending: "sent",
+    clock,
+  }).then((value) => {
+    settled = value;
+  });
+  await tick();
+  await tick();
+  // 1_000 + 1_500 - 1_400 left to wait; the finished work did not shorten it.
+  assert.deepEqual(sleeps.map(({ ms }) => ms), [1_100]);
+  assert.equal(settled, null);
+  sleeps[0].release();
+  await answer;
+  assert.equal(settled, "sent");
+});
+
+test("answer deadline: late work does not delay the answer and keeps running", async () => {
+  const { sleeps, clock } = manualClock(1_000);
+  let finish;
+  let finished = false;
+  const work = new Promise((resolve) => {
+    finish = () => {
+      finished = true;
+      resolve("rate_limited");
+    };
+  });
+  let settled = null;
+  const answer = answerAtFixedDeadline({
+    work,
+    startedAt: 1_000,
+    deadlineMs: 1_500,
+    pending: "sent",
+    clock,
+  }).then((value) => {
+    settled = value;
+  });
+  await tick();
+  assert.equal(settled, null);
+  sleeps[0].release();
+  await answer;
+  // Not finished at the deadline: the neutral answer, not the work's result.
+  assert.equal(settled, "sent");
+  assert.equal(finished, false);
+  finish();
+  assert.equal(await work, "rate_limited");
+});
+
+test("answer deadline: an already passed deadline answers at once without waiting for the work", async () => {
+  const { sleeps, clock } = manualClock(9_000);
+  const answer = answerAtFixedDeadline({
+    work: new Promise(() => {}),
+    startedAt: 1_000,
+    deadlineMs: 1_500,
+    pending: "sent",
+    clock,
+  });
+  await tick();
+  assert.deepEqual(sleeps.map(({ ms }) => ms), [0]);
+  sleeps[0].release();
+  assert.equal(await answer, "sent");
+});
+
+test("answer deadline: known, unknown and slow accounts are indistinguishable by time", async () => {
+  const deadlineMs = 150;
+  const run = async (workMs) => {
+    const startedAt = Date.now();
+    const state = { completed: false };
+    const work = new Promise((resolve) =>
+      setTimeout(() => {
+        state.completed = true;
+        resolve("sent");
+      }, workMs),
+    );
+    const status = await answerAtFixedDeadline({ work, startedAt, deadlineMs, pending: "sent" });
+    return { status, elapsed: Date.now() - startedAt, state, work };
+  };
+  // Unknown address (no send), known address (send), and a send that outlasts
+  // the deadline: the work time differs, the answer time must not.
+  const [unknown, known, slow] = await Promise.all([run(5), run(100), run(600)]);
+  for (const result of [unknown, known, slow]) {
+    assert.equal(result.status, "sent");
+    assert.ok(result.elapsed >= deadlineMs - 5, `answered early: ${result.elapsed} ms`);
+    assert.ok(result.elapsed < deadlineMs + 100, `answered late: ${result.elapsed} ms`);
+  }
+  assert.equal(unknown.state.completed, true);
+  assert.equal(known.state.completed, true);
+  // The slow send was not waited for, and still finishes in the background.
+  assert.equal(slow.state.completed, false);
+  await slow.work;
+  assert.equal(slow.state.completed, true);
 });

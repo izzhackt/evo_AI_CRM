@@ -54,7 +54,7 @@ export default async function StudentPortalMessagesPage() {
       {initialPage === null ? (
         <p role="alert" className="pt-alert">{strings.unavailable}</p>
       ) : (
-        <MessagesThread initialPage={initialPage} strings={strings} locale={locale} />
+        <MessagesThread initialPage={initialPage} strings={strings} locale={locale} draftScope={`${actor.membershipId}:${actor.studentCaseId}`} />
       )}
     </main>
   );

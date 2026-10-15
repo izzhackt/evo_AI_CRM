@@ -38,6 +38,20 @@ final class SupabaseService {
         try await client.auth.signOut(scope: .local)
     }
 
+    /// Migration 280 (review finding 4): asks Auth (`GET /user`) whether the
+    /// user of the stored session still exists. Only `user_not_found` counts
+    /// as deleted; a network failure or any other error does not.
+    func authUserIsDeleted() async -> Bool {
+        do {
+            _ = try await client.auth.user()
+            return false
+        } catch let error as AuthError {
+            return DeletedAccountPolicy.isDeletedUser(authErrorCode: error.errorCode.rawValue)
+        } catch {
+            return false
+        }
+    }
+
     /// `platform.current_actor_authority()` — 0 or 1 row for the signed-in
     /// user. `nil` means no resolvable authority for this account.
     func currentActorAuthority() async throws -> CurrentActorAuthority? {
@@ -321,13 +335,23 @@ final class SupabaseService {
             .value
     }
 
-    /// `platform.request_account_deletion_v1(p_request_id)` — идемпотентно по
-    /// request_id, максимум один ОТКРЫТЫЙ запрос на участника (196:159-194).
-    /// Ничего не удаляется этим вызовом — запрос уходит в staff-процесс.
-    func requestAccountDeletion(requestId: UUID) async throws -> AccountDeletionReceipt {
+    /// `platform.request_account_deletion_v2(p_request_id)` (migration 280):
+    /// any signed-in account that is not staff, including an анкета without
+    /// approval. Idempotent by request_id, one open request per account; the
+    /// EVO team deletes the account and personal data within 30 days.
+    func requestAccountDeletion(requestId: UUID) async throws -> OwnAccountDeletion {
         struct Params: Encodable, Sendable { let p_request_id: UUID }
         return try await client
-            .rpc("request_account_deletion_v1", params: Params(p_request_id: requestId))
+            .rpc("request_account_deletion_v2", params: Params(p_request_id: requestId))
+            .execute()
+            .value
+    }
+
+    /// `platform.own_account_deletion_request_v1()` (migration 280): the open
+    /// request of this account or JSON null.
+    func ownAccountDeletionRequest() async throws -> OwnAccountDeletion? {
+        try await client
+            .rpc("own_account_deletion_request_v1")
             .execute()
             .value
     }

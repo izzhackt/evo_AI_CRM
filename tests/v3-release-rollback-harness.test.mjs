@@ -200,6 +200,21 @@ test("rollback proof verifies exact restored identity and controller evidence", 
   assert.match(source, /waitForScannerHealth\(\)/u);
 });
 
+test("rollback proof checks the outgoing app log copy on both real releases", () => {
+  assert.match(source, /console\.log\("\$\{APP_LOG_STDOUT_PROBE\} "/u);
+  assert.match(source, /console\.error\("\$\{APP_LOG_STDERR_PROBE\} "/u);
+  assert.match(source, /previous-app\.log/u);
+  assert.match(source, /previous-app-log\.json/u);
+  assert.match(source, /statSync\(logPath\)\.mode & 0o777, 0o600/u);
+  assert.match(source, /schema: "evo-previous-app-log\/v1"/u);
+  assert.match(source, /tailLines: 20000/u);
+  assert.match(source, /previous app log must not contain environment values/u);
+  assert.match(source, /controller must not print the app log/u);
+  assert.match(source, /assertPreviousAppLog\(expectedEvidence, baselineContainer, baselineRevision, deploy\)/u);
+  assert.match(source, /assertPreviousAppLog\(laterEvidence, laterPreviousApp, baselineRevision, laterDeploy\)/u);
+  assert.match(source, /previousAppLogSaved: true/u);
+});
+
 test("rollback harness cannot call real Supabase or provider mutation paths", () => {
   assert.match(source, /const supabaseProjectRef = "aaaaaaaaaaaaaaaaaaaa"/u);
   assert.match(source, /EVO_PLATFORM_WAHA_INGRESS_ENABLED=0/u);

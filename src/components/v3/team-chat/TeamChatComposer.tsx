@@ -4,6 +4,7 @@ import { useActionState, useImperativeHandle, useLayoutEffect, useRef, useState,
 import { Icon } from "@/components/icons";
 import { teamChatCommandAction } from "@/lib/platform-team-chat-actions";
 import { postTeamChatV2Action } from "@/lib/platform-team-chat-v2-actions";
+import { noteStaleDeployment } from "@/lib/stale-deployment";
 import { TEAM_CHAT_INITIAL_ACTION, type TeamChatActionState, type TeamChatChannelKey, type TeamChatFailure, type TeamChatMessage, type TeamChatParticipant } from "@/lib/platform-team-chat";
 import { TEAM_CHAT_COMMAND_FAILURE_COPY } from "@/lib/team-chat-command-feedback";
 import type { TeamChatQuote } from "@/lib/platform-team-chat-timeline";
@@ -213,7 +214,12 @@ function DraftForm({ initial, fieldRef, focus, channel, participants, quotes, on
         submitted.set("channel", channel); submitted.set("request_id", draft.requestId); submitted.set("input", input);
         result = await teamChatCommandAction(TEAM_CHAT_INITIAL_ACTION, submitted);
       }
-    } catch { result = { status: "unavailable", requestId: draft.requestId, messageId: null }; }
+    } catch (cause) {
+      // Прошлая сборка: замороженный черновик (тот же request_id) уже в
+      // sessionStorage и после перезагрузки повторяется без дубля.
+      noteStaleDeployment(cause);
+      result = { status: "unavailable", requestId: draft.requestId, messageId: null };
+    }
     if (!mounted.current) return result;
     onPending(false);
     if (result.status === "saved") onSaved(result.messageId);

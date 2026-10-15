@@ -6,6 +6,8 @@ import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useEffect, useRef, useState } from "react";
 import { loadStudentPortalNotificationState } from "@/lib/student-portal-notification-updates";
+import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
+import { useStaleDeployment } from "@/lib/use-stale-deployment";
 
 export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
   const strings = getPortalStrings("shell", locale);
@@ -14,14 +16,18 @@ export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
   const [unread, setUnread] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const retry = useRef<() => void>(() => {});
+  // Вкладка пережила выпуск: опрос стоит до перезагрузки, подсказку
+  // показывает оболочка (PortalStaleDeploymentNotice), а не «Не удалось».
+  const stale = useStaleDeployment();
 
   useEffect(() => {
+    if (stale) return;
     let disposed = false;
     let running = false;
     const refreshPage = ["/portal/home", "/portal", "/portal/documents", "/portal/applications", "/portal/payments", "/portal/notifications"].includes(pathname)
       || pathname.startsWith("/portal/notifications/");
     async function update(refreshContent = true) {
-      if (disposed || running || document.visibilityState !== "visible") return;
+      if (disposed || running || isStaleDeployment() || document.visibilityState !== "visible") return;
       running = true;
       try {
         const result = await loadStudentPortalNotificationState();
@@ -34,7 +40,8 @@ export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
         if (refreshContent && refreshPage) {
           startTransition(() => router.refresh());
         }
-      } catch {
+      } catch (cause) {
+        if (noteStaleDeployment(cause)) { if (!disposed) setFailed(false); return; }
         if (!disposed) { setFailed(true); setUnread(null); }
       } finally {
         running = false;
@@ -57,7 +64,7 @@ export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
       window.removeEventListener("focus", resume);
       window.removeEventListener("online", resume);
     };
-  }, [pathname, router]);
+  }, [pathname, router, stale]);
 
 
   const label = unread === null ? strings.notifications
@@ -74,7 +81,7 @@ export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
         {unread !== null && unread > 0 ? <span className="pt-notification-count" aria-hidden="true">{unread > 99 ? "99+" : unread}</span> : null}
       </Link>
       <span className="pt-sr-only" role="status">{label}</span>
-      {failed ? (
+      {failed && !stale ? (
         <div className="pt-notification-error">
           <p role="alert">{strings.notificationsFailed}</p>
           <button type="button" className="pt-link" onClick={() => retry.current()}>{strings.notificationsRetry}</button>

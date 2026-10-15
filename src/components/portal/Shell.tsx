@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { PortalNotificationUpdates } from "./PortalNotificationUpdates";
+import { PortalStaleDeploymentNotice } from "./PortalStaleDeploymentNotice";
 
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -409,6 +410,7 @@ export function Shell({
           </div>
         </div>
       </div>
+      <PortalStaleDeploymentNotice strings={strings} />
     </div>
   );
 }

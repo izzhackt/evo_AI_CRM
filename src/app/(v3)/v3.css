@@ -631,7 +631,8 @@
  * - `.v3-initials` — нейтральный круг 24 px: `--text-2` на `--surface-2` 8:1.
  * - `.v3-progress` — подпись «N из M» и полоса 4 px.
  * - `.v3-track` — дорожка этапа: текущий отрезок шире и выше.
- * - `.v3-toasts` — «Отменить» у нижнего края окна в верхнем слое.
+ * - `.v3-toasts` — «Отменить» у нижнего края окна в верхнем слое;
+ *   `[data-edge="top"]` — «Вышла новая версия» у верхнего края.
  * Движение — до 200 мс и только при `prefers-reduced-motion: no-preference`.
  */
 .v3-world[data-surface="staff"] .v3-chip {
@@ -945,6 +946,15 @@
   padding: 0;
   color: inherit;
 }
+/*
+ * «Вышла новая версия» (A1) — та же строка у верхнего края окна, под строкой
+ * логотипа телефона (`--shell-top`): страница целиком на прошлой сборке, это
+ * состояние страницы, а не действие. Низ окна остаётся за «Отменить» и полями
+ * ответа «Переписки» и «Командного чата» — строки не ложатся друг на друга.
+ */
+.v3-world[data-surface="staff"] .v3-toasts[data-edge="top"] {
+  inset: calc(16px + var(--shell-top, 0px)) 0 auto 0;
+}
 .v3-world[data-surface="staff"] .v3-toast {
   display: flex;
   flex-wrap: wrap;
@@ -982,6 +992,9 @@
   .v3-world[data-surface="staff"] .v3-toast {
     animation: v3-toast-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
   }
+  .v3-world[data-surface="staff"] .v3-toasts[data-edge="top"] .v3-toast {
+    animation-name: v3-toast-in-top;
+  }
   .v3-world[data-surface="staff"] .v3-progress-fill {
     transition: width 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
@@ -991,6 +1004,13 @@
   from {
     opacity: 0;
     transform: translateY(8px);
+  }
+}
+
+@keyframes v3-toast-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
   }
 }
 

@@ -26,6 +26,8 @@ import { stagePhase } from "@/lib/v3/stages";
 import { admissionsPipelineStage, caseChatAwaitChoice, caseChatAwaitState } from "@/lib/v3/wording";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
+import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
+import { useStaleDeployment } from "@/lib/use-stale-deployment";
 
 import { caseChatNextLine, type CaseChatQueueRead } from "./case-chat-queue";
 
@@ -183,10 +185,13 @@ function MountedCaseChatComposer({
 
   const [state, setState] = useState<CaseChatActionState>(CASE_CHAT_INITIAL_ACTION);
   const [pending, setPending] = useState(false);
+  // Прошлая сборка (A1): отправка не уйдёт до перезагрузки; попытка с тем же
+  // request_id уже в localStorage и после неё повторяется без дубля.
+  const stale = useStaleDeployment();
   const uncertain = state.status === "unavailable";
   const bodyLength = Array.from(draft.body).length;
   const tooLong = bodyLength > CASE_CHAT_BODY_LIMIT;
-  const canSend = !pending && (draft.body.trim().length > 0 || draft.attachment !== null) && !tooLong;
+  const canSend = !pending && !stale && (draft.body.trim().length > 0 || draft.attachment !== null) && !tooLong;
   // Шаблон вставляется в текст и ничего не отправляет. Пока ответ отправляется
   // или повтор заморожен («Повторить»), текст менять нельзя — и шаблон тоже.
   const picker = useAnchoredPopover("start");
@@ -236,7 +241,8 @@ function MountedCaseChatComposer({
         persist({ ...draft, requestId: crypto.randomUUID(), retryBody: undefined, retryQuotedMessageId: undefined, retryAttachmentKind: undefined, retryAttachmentId: undefined });
       }
       setState(result);
-    } catch {
+    } catch (cause) {
+      noteStaleDeployment(cause);
       setState({ status: "unavailable", requestId: draft.requestId });
     } finally {
       setPending(false);
@@ -483,10 +489,14 @@ function CaseChatThreadView({
   const alive = useRef(true);
   const pageSequence = useRef(0);
   const markedUpTo = useRef<string>(initialPage?.readSequenceId ?? "0");
+  // Вкладка пережила выпуск (A1): живые обновления сняты, перечитывание
+  // молчит, а обновить страницу просит оболочка (StaleDeploymentNotice).
+  const stale = useStaleDeployment();
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   const refresh = useCallback(async () => {
+    if (isStaleDeployment()) return;
     const sequence = ++pageSequence.current;
     onListChanged();
     try {
@@ -496,7 +506,8 @@ function CaseChatThreadView({
       setError(null);
       setPage(result.page);
       setAwaitState(result.page.thread.awaitState);
-    } catch {
+    } catch (cause) {
+      if (noteStaleDeployment(cause)) return;
       if (alive.current && sequence === pageSequence.current) setError("unavailable");
     }
   }, [caseId, onListChanged]);
@@ -511,6 +522,7 @@ function CaseChatThreadView({
   }, [refresh]);
 
   useEffect(() => {
+    if (stale) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let client: SupabaseClient | undefined;
@@ -537,7 +549,7 @@ function CaseChatThreadView({
       if (timer) clearTimeout(timer);
       if (subscription && client) void client.removeChannel(subscription);
     };
-  }, [caseId, organizationId, realtimeConfig.url, realtimeConfig.publishableKey, refresh]);
+  }, [caseId, organizationId, realtimeConfig.url, realtimeConfig.publishableKey, refresh, stale]);
 
   // Scroll: pinned to bottom on load; position preserved across refresh via
   // a saved scrollTop, restored once per case mount.
@@ -560,7 +572,7 @@ function CaseChatThreadView({
   // Reading alone never clears «Нужен ответ» — the RPC only bumps the
   // caller's own cursor.
   useEffect(() => {
-    if (!page || !page.messages.length) return;
+    if (!page || !page.messages.length || isStaleDeployment()) return;
     const latest = page.messages[0]?.sequenceId ?? "0";
     if (BigInt(latest) <= BigInt(markedUpTo.current)) return;
     markedUpTo.current = latest;
@@ -568,11 +580,11 @@ function CaseChatThreadView({
     form.set("request_id", crypto.randomUUID()); form.set("case_id", caseId); form.set("sequence_id", latest);
     void markCaseChatReadAction(CASE_CHAT_INITIAL_ACTION, form).then((result) => {
       if (alive.current && result.status === "saved") onListChanged();
-    }).catch(() => { /* A failed read acknowledgement must not clear work state. */ });
+    }).catch((cause: unknown) => { noteStaleDeployment(cause); /* A failed read acknowledgement must not clear work state. */ });
   }, [page, caseId, onListChanged]);
 
   async function loadOlder() {
-    if (!page || !page.hasMore || busy) return;
+    if (!page || !page.hasMore || busy || isStaleDeployment()) return;
     setBusy(true);
     const node = viewport.current;
     const position = node?.scrollTop ?? 0;
@@ -582,6 +594,8 @@ function CaseChatThreadView({
       if (result.status !== "ready") { setError(result.status); return; }
       setPage((previous) => previous ? appendOlderCaseChatPage(previous, result.page) : result.page);
       requestAnimationFrame(() => { if (node) node.scrollTop = position + node.scrollHeight - height; });
+    } catch (cause) {
+      if (!noteStaleDeployment(cause)) throw cause;
     } finally { setBusy(false); }
   }
 
@@ -600,7 +614,7 @@ function CaseChatThreadView({
         onListChanged();
       }
       else if (result.status !== "idle") setError(result.status);
-    } catch { if (alive.current) setError("unavailable"); }
+    } catch (cause) { if (!noteStaleDeployment(cause) && alive.current) setError("unavailable"); }
     finally { if (alive.current) setAwaitPending(false); }
   }
 
@@ -620,7 +634,7 @@ function CaseChatThreadView({
         awaitState={awaitState ?? page.thread.awaitState} onSetAwait={changeAwait} awaitPending={awaitPending} />
       {error ? <p role="alert" className="px-3 pt-2 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error]}</p> : null}
       <div ref={viewport} className="min-h-0 flex-1 overflow-y-auto px-3" aria-label="История переписки">
-        {page.hasMore ? <button type="button" disabled={busy} onClick={() => void loadOlder()} className="my-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg-2 hover:bg-surface-2">
+        {page.hasMore ? <button type="button" disabled={busy || stale} onClick={() => void loadOlder()} className="my-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg-2 hover:bg-surface-2">
           Показать более ранние
         </button> : null}
         {messages.length ? messages.map((message) => (
@@ -800,12 +814,14 @@ export function CaseChatWorkspace({
 
   const search = useCallback(async (value: string, selectedQueue: CaseChatQueue, sequence: number) => {
     try {
+      // Прошлая сборка (A1): список не перечитывается до перезагрузки.
+      if (isStaleDeployment()) return;
       const result = await loadStaffCaseChatThreadsAction(value, selectedQueue);
       if (sequence !== searchSequence.current) return;
       if (result.status === "ready") { setQueueRead(result.read); setCountsQuery(value.trim()); }
       else setFailure(result.status);
-    } catch {
-      if (sequence !== searchSequence.current) return;
+    } catch (cause) {
+      if (noteStaleDeployment(cause) || sequence !== searchSequence.current) return;
       setFailure("unavailable");
     } finally {
       if (sequence === searchSequence.current) setLoading(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import type { Locale } from "@/lib/i18n-data";
 import {
@@ -15,6 +15,18 @@ import {
   sendPortalCaseMessageAction,
 } from "@/lib/portal/messages-actions";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
+import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
+import { useStaleDeployment } from "@/lib/use-stale-deployment";
+
+/** Черновик вкладки прошлой сборки — до её перезагрузки (A1). */
+const STALE_DRAFT_KEY = "evo:portal-messages:stale-draft:";
+const subscribeNever = () => () => {};
+const clientTrue = () => true;
+const serverFalse = () => false;
+
+function readStaleDraft(key: string): string | null {
+  try { return sessionStorage.getItem(key); } catch { return null; }
+}
 
 /**
  * Тред «Сообщений по делу» (PORT-5c, план §6 «Общение»): старые выше, догрузка
@@ -22,15 +34,25 @@ import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
  * (отправляем/ошибка+повтор с тем же request_id — идемпотентность в RPC 200),
  * автообновление умеренным поллингом 30s по паттерну PortalNotificationUpdates
  * (visibility/focus/online, только видимая вкладка).
+ *
+ * Вкладка пережила выпуск (action прошлой сборки сервер не знает): опрос
+ * стоит, черновик остаётся на экране, а обновить страницу просит оболочка
+ * (PortalStaleDeploymentNotice). Пока вкладка на прошлой сборке, черновик
+ * лежит в sessionStorage этой вкладки (ключ — участник и дело) и после
+ * перезагрузки возвращается в поле один раз. Сервер такую отправку не
+ * выполнял (404 до вызова action), поэтому повтор не создаст дубль.
  */
 export function MessagesThread({
   initialPage,
   strings,
   locale,
+  draftScope,
 }: {
   initialPage: PortalCaseMessagesPage;
   strings: PortalStrings<"messages">;
   locale: Locale;
+  /** Участник и дело: черновик прошлой сборки не попадёт к другому студенту в той же вкладке. */
+  draftScope: string;
 }) {
   const [messages, setMessages] = useState<readonly PortalCaseMessage[]>(
     () => mergePortalCaseMessages([], initialPage.messages),
@@ -60,12 +82,36 @@ export function MessagesThread({
   }, [messages]);
   const [incomingNotice, setIncomingNotice] = useState("");
   const listRef = useRef<HTMLOListElement>(null);
+  const stale = useStaleDeployment();
+  const staleDraftKey = `${STALE_DRAFT_KEY}${draftScope}`;
+
+  // Черновик, сохранённый вкладкой прошлой сборки, — один раз после
+  // гидратации (на сервере sessionStorage нет, разметка совпадает).
+  const hydrated = useSyncExternalStore(subscribeNever, clientTrue, serverFalse);
+  const [staleDraftRead, setStaleDraftRead] = useState(false);
+  if (hydrated && !staleDraftRead) {
+    setStaleDraftRead(true);
+    const saved = readStaleDraft(staleDraftKey);
+    if (saved) setDraft((current) => current || saved);
+  }
+
+  // Пока вкладка на прошлой сборке, «Обновить страницу» не теряет черновик;
+  // на новой сборке возвращённый черновик из хранилища убирается.
+  const staleDraft = stale ? draft : "";
+  useEffect(() => {
+    if (!staleDraftRead) return;
+    try {
+      if (staleDraft) sessionStorage.setItem(staleDraftKey, staleDraft);
+      else sessionStorage.removeItem(staleDraftKey);
+    } catch { /* хранилище недоступно: текст остаётся на экране до перезагрузки */ }
+  }, [staleDraftRead, staleDraft, staleDraftKey]);
 
   useEffect(() => {
+    if (stale) return;
     let disposed = false;
     let running = false;
     async function refresh() {
-      if (disposed || running || document.visibilityState !== "visible") return;
+      if (disposed || running || isStaleDeployment() || document.visibilityState !== "visible") return;
       running = true;
       try {
         const result = await loadPortalCaseMessagesAction(null);
@@ -92,7 +138,8 @@ export function MessagesThread({
           setIncomingNotice(formatPortalString(strings.newMessageNotice, { name: newest.authorName }));
         }
         setMessages(merged);
-      } catch {
+      } catch (cause) {
+        if (noteStaleDeployment(cause)) { if (!disposed) setRefreshFailed(false); return; }
         if (!disposed) setRefreshFailed(true);
       } finally {
         running = false;
@@ -112,14 +159,18 @@ export function MessagesThread({
       window.removeEventListener("focus", resume);
       window.removeEventListener("online", resume);
     };
-    // Единственная внешняя зависимость эффекта — строка объявления о новом
-    // сообщении (a11y, PORT-6a); меняется только со сменой локали.
-  }, [strings.newMessageNotice]);
+    // Внешние зависимости эффекта — строка объявления о новом сообщении
+    // (a11y, PORT-6a; меняется только со сменой локали) и новая версия.
+  }, [strings.newMessageNotice, stale]);
 
   const loadEarlier = () => {
     setEarlierFailed(false);
     startEarlier(async () => {
-      const result = await loadPortalCaseMessagesAction(earlierCursor);
+      const result = await loadPortalCaseMessagesAction(earlierCursor).catch((cause: unknown) => {
+        if (noteStaleDeployment(cause)) return null;
+        throw cause;
+      });
+      if (result === null) return;
       if (!result.ok) {
         setEarlierFailed(true);
         return;
@@ -142,7 +193,12 @@ export function MessagesThread({
     setSendFailed(false);
     setJustSent(false);
     startSending(async () => {
-      const result = await sendPortalCaseMessageAction(requestId, body);
+      // Прошлая сборка: черновик остаётся, а не уходит в границу ошибок.
+      const result = await sendPortalCaseMessageAction(requestId, body).catch((cause: unknown) => {
+        if (noteStaleDeployment(cause)) return null;
+        throw cause;
+      });
+      if (result === null) return;
       if (!result.ok) {
         setSendFailed(true);
         return;
@@ -174,7 +230,7 @@ export function MessagesThread({
             type="button"
             className="pt-btn-ghost"
             onClick={loadEarlier}
-            disabled={loadingEarlier}
+            disabled={loadingEarlier || stale}
           >
             {loadingEarlier ? strings.loadingEarlier : strings.loadEarlier}
           </button>
@@ -230,7 +286,7 @@ export function MessagesThread({
 
       <p role="status" className="pt-sr-only">{incomingNotice}</p>
 
-      {refreshFailed ? (
+      {refreshFailed && !stale ? (
         <div className="pt-chat-refresh-error">
           <p role="alert" className="pt-chat-error">{strings.refreshError}</p>
           <button type="button" className="pt-link" onClick={() => refreshRef.current()}>
@@ -272,7 +328,7 @@ export function MessagesThread({
           <button
             type="submit"
             className="pt-btn"
-            disabled={sending || draft.trim().length < 1}
+            disabled={sending || stale || draft.trim().length < 1}
           >
             {sending ? strings.sending : strings.send}
           </button>

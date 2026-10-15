@@ -22,6 +22,7 @@ import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { Icon } from "@/components/icons";
 import { cn } from "@/components/ui";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
+import { StaleDeploymentNotice } from "@/components/v3/StaleDeploymentNotice";
 import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
 import { isBoardRoute, isFillRoute } from "@/lib/v3/board-layout";
 import {
@@ -737,6 +738,7 @@ export function AppShell({
         </button>
       </TabBar>
       <ShellCommands actor={actor} navigation={navigation} />
+      <StaleDeploymentNotice />
     </div>
   );
 }

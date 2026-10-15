@@ -321,8 +321,10 @@ For the one guarded exact current-main SHA, the workflow:
    scanner presence, and creates the exact pending-candidate/rollback state
    before mutation;
 6. it provisions the official digest-pinned private `clamav` service and waits
-   for health, then replaces only `app` with `--no-deps --no-build`; private
-   `waha`, `crm_primary` and their named volumes remain untouched;
+   for health, keeps the outgoing app's bounded log tail in the release
+   directory (see [Outgoing app log](#outgoing-app-log)), then replaces only
+   `app` with `--no-deps --no-build`; private `waha`, `crm_primary` and their
+   named volumes remain untouched;
 7. it records the installed candidate identity and verifies scanner image,
    privacy and health plus app image/config digest, OCI labels, health, restart
    count, external health and authenticated V3 browser proof;
@@ -338,6 +340,50 @@ No live `git pull`, VPS build, mutable image tag, broad Compose restart, host-ke
 discovery, database rollback, Storage rollback or volume rollback is used.
 Schema apply remains a separate manual #552 action and is never part of this
 workflow or controller.
+
+### Outgoing app log
+
+Replacing `app` removes the old container, and Docker removes that container's
+log with it. Right before the replacement, after every preflight check and the
+scanner step, the controller copies the outgoing app's log into that release's
+private mode-`0700` directory:
+
+- `previous-app.log`, mode `0600`, holds the output of
+  `docker logs --timestamps --tail 20000 <outgoing app container>`: both of the
+  container's streams, with Docker timestamps. The outgoing app has no restart
+  (the runtime contract requires `RestartCount` 0), so the log starts with that
+  container; the 20 000-line tail and the Compose `json-file` cap (`10m` x 5)
+  bound its size.
+- `previous-app-log.json`, mode `0600`, records the outcome:
+  `{schema:"evo-previous-app-log/v1", status, code, log, containerId,
+  tailLines, bytes, sha256}`.
+
+The controller never runs `docker inspect` for this copy, so no environment
+value is written, and none of the log reaches the controller's stdout, stderr
+or the workflow. The file holds whatever the application itself logged, which
+can include personal data: read it on the host as root, and never copy it into
+Git, chat, issues or CI artifacts. It stays with that release's evidence; the
+controller never prunes it.
+
+The copy is best effort and is not a release gate. A failure never stops, fails
+or rolls back the release; the controller writes one warning line
+`{"ok":true,"warning":"<code>"}` to stderr and the same code to
+`previous-app-log.json`:
+
+| `status` | `code` | Meaning |
+|---|---|---|
+| `saved` | `saved` | `docker logs` finished; the whole bounded tail is in `previous-app.log` |
+| `incomplete` | `previous_app_logs_incomplete` | `docker logs` stopped with an error after some output (for example a damaged `json-file` log); what it wrote, including Docker's own error line, is kept |
+| `failed` | `previous_app_logs_unavailable` | `docker logs` failed without output; no log file |
+| `failed` | `previous_app_logs_create_failed`, `previous_app_logs_read_failed`, `previous_app_logs_store_failed` | the private file could not be created, measured or stored; no log file |
+| `failed` | `previous_app_logs_container_invalid` | the recorded container id was malformed; Docker was not called |
+| `absent` | `previous_app_absent` | the first release, with no app before it; no warning |
+
+If `previous-app-log.json` itself cannot be written, stderr carries
+`previous_app_logs_record_failed`. The workflow keeps the controller's stderr in
+a private runner file and does not print it, so after a release read
+`previous-app-log.json` on the host to see the outcome. Rollback does not touch
+either file and does not copy the failed candidate's log.
 
 ### Continuation after a schema-ledger stop
 
@@ -507,6 +553,9 @@ health/browser results, rollback outcome and the sanitized literal rollback
 command.
 It never contains secret values, rendered environments, customer rows, object
 names, provider payloads, cookies, session identifiers or WAHA session bytes.
+The outgoing app log (`previous-app.log`) is protected host evidence like the
+environment snapshots: it stays root-only on the host and is never part of the
+reviewable evidence.
 
 Docker Compose `--no-deps` does not start dependencies and `--wait` waits for
 running/healthy state. Supabase exposes migration history through a read-only

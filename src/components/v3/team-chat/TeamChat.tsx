@@ -16,6 +16,8 @@ import { acceptTeamChatChannels, teamChatChannelPreviewText, type TeamChatChanne
 import { formatTeamChatChannelTime } from "@/lib/team-chat-channel-time-label";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
+import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
+import { useStaleDeployment } from "@/lib/use-stale-deployment";
 import { Icon } from "@/components/icons";
 import { TeamChatComposer, type TeamChatComposerHandle } from "./TeamChatComposer";
 import { TeamChatDeleteConfirmation, TeamChatMessageRow, type TeamChatDeletionAttempt } from "./TeamChatMessageRow";
@@ -96,6 +98,11 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const stableAnchor = useRef<TeamChatScrollAnchor | null>(null);
   const wasAtBottom = useRef(false);
   const forbidden = readErrors.forbidden;
+  // Вкладка пережила выпуск (A1): action этой сборки сервер уже не знает.
+  // Опрос, живые обновления и отметки просмотра стоят до перезагрузки; чтение
+  // не показывает «недоступно», обновить страницу просит оболочка
+  // (StaleDeploymentNotice). Черновик лежит в sessionStorage и переживёт её.
+  const stale = useStaleDeployment();
   useLayoutEffect(() => { viewRef.current = view; returnsRef.current = returns; }, [view, returns]);
 
   const preserveScroll = useCallback(() => {
@@ -139,18 +146,27 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     if (failure === "forbidden") reportFailure(failure);
   }, [updateReadErrors, reportFailure]);
 
+  /** Прошлая сборка: попытка снимается без «недоступно» — повтор не поможет. */
+  const dropStaleRead = useCallback((owner: TeamChatReadOwner) => {
+    if (alive.current && !revoked.current) updateReadErrors({ type: "cancel", owner });
+  }, [updateReadErrors]);
+
   const readPage = useCallback(async (input: TeamChatTimelineQuery, owner: TeamChatReadOwner, id: number): Promise<TeamChatTimelineV2Page | null> => {
     if (!alive.current || revoked.current) return null;
+    if (isStaleDeployment()) { dropStaleRead(owner); return null; }
     try {
       const result = await readTeamChatTimelineV2Action(input);
       if (!alive.current || revoked.current) return null;
       if (result.status !== "loaded") { finishRead(owner, id, result.status); return null; }
       return result.page;
-    } catch { finishRead(owner, id, "unavailable"); return null; }
-  }, [finishRead]);
+    } catch (cause) {
+      if (noteStaleDeployment(cause)) dropStaleRead(owner); else finishRead(owner, id, "unavailable");
+      return null;
+    }
+  }, [finishRead, dropStaleRead]);
 
   const refresh = useCallback(async (retry?: Extract<TeamChatReadAttempt, { kind: "refresh" }>) => {
-    if (!alive.current || revoked.current) return;
+    if (!alive.current || revoked.current || isStaleDeployment()) return;
     if (catchupRunning.current) { catchupAgain.current = true; return; }
     catchupRunning.current = true;
     let request = 0;
@@ -215,13 +231,15 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         finishRead("background", request, null);
         if (snapshot.page.hasMore) catchupAgain.current = true;
       } while (catchupAgain.current && alive.current && !revoked.current);
-    } catch { finishRead("background", request, "unavailable"); }
+    } catch (cause) {
+      if (noteStaleDeployment(cause)) dropStaleRead("background"); else finishRead("background", request, "unavailable");
+    }
     finally { catchupRunning.current = false; }
-  }, [channel, commit, commitChannels, readPage, finishRead, updateReadErrors]);
+  }, [channel, commit, commitChannels, readPage, finishRead, updateReadErrors, dropStaleRead]);
   const isRevoked = useCallback(() => revoked.current, []);
   const onSeenForbidden = useCallback(() => reportFailure("forbidden"), [reportFailure]);
   const onSeen = useCallback(() => { void refresh(); }, [refresh]);
-  const seen = useTeamChatSeen({ viewport, workspace, channel, isRevoked, revoked: forbidden, enabled: !forbidden && !busy && view === "feed", revision: feed,
+  const seen = useTeamChatSeen({ viewport, workspace, channel, isRevoked, revoked: forbidden, enabled: !forbidden && !stale && !busy && view === "feed", revision: feed,
     onAcknowledged: onSeen, onForbidden: onSeenForbidden });
 
   useEffect(() => {
@@ -229,7 +247,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     return () => { alive.current = false; contextRequest.current += 1; };
   }, []);
   useEffect(() => {
-    if (forbidden) return;
+    if (forbidden || stale) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let client: SupabaseClient | undefined;
@@ -264,7 +282,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       document.removeEventListener("visibilitychange", reconnect); window.removeEventListener("online", requestRefresh);
       if (subscription && client) void client.removeChannel(subscription);
     };
-  }, [channel, organizationId, connectionAttempt, refresh, reportFailure, forbidden, realtimeConfig.url, realtimeConfig.publishableKey]);
+  }, [channel, organizationId, connectionAttempt, refresh, reportFailure, forbidden, stale, realtimeConfig.url, realtimeConfig.publishableKey]);
 
   useLayoutEffect(() => {
     const root = viewport.current;
@@ -345,7 +363,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       ...(more && search ? { cursor: search.page.cursor } : {}),
     };
     const { term, append } = attempt;
-    if (term.length < 2) return;
+    if (term.length < 2 || isStaleDeployment()) return;
     const origin: ReturnPoint = { range: current.current.range, view: "feed", anchor: captureAnchor(viewport.current), focusId: null };
     const epoch = ++contextRequest.current; setBusy(true);
     updateReadErrors({ type: "begin", owner: "foreground", id: epoch, attempt });
@@ -362,7 +380,9 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       if (!append) scroll.current = { kind: "top" }; else preserveScroll();
       setSearch((previous) => ({ term, page: { ...result.snapshot.page, messages: append && previous?.term === term ? teamChatMergeMessages(previous.page.messages, result.snapshot.page.messages) : result.snapshot.page.messages } }));
       setReturns([]); setView("search");
-    } catch { finishRead("foreground", epoch, "unavailable"); }
+    } catch (cause) {
+      if (noteStaleDeployment(cause)) dropStaleRead("foreground"); else finishRead("foreground", epoch, "unavailable");
+    }
     finally { if (alive.current && epoch === contextRequest.current) setBusy(false); }
   }
   async function resumeEdit(id: string) {
@@ -395,8 +415,10 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const continuations = teamChatMessageContinuations(rows, { highlightedId: highlighted, firstUnreadId: currentChannel?.firstUnreadId });
   const currentYear = YEAR.format(new Date());
   const days = rows.map((message) => teamChatDay(message.createdAt, currentYear));
-  const transportLabel = forbidden ? "Доступ к каналу закрыт" : transport === "live" ? null : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
+  const transportLabel = forbidden ? "Доступ к каналу закрыт" : stale || transport === "live" ? null : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
   const afterSave = () => { void refresh(); };
+  // Чтения прошлой сборки не уйдут: кнопки чтения не обещают того, что не случится.
+  const locked = busy || stale;
 
   return <div ref={workspace} className={styles.workspace} data-panel={panel} aria-busy={busy}>
     <nav className={styles.channels} aria-label="Каналы команды">
@@ -406,7 +428,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         <a className={styles.secondary} href="/login">Войти снова</a>
       </div> : channelReadFailure && channelReadFailureCopy ? <div className={`${styles.channelFeedback} ${styles.error}`} role="alert">
         <p>{channelReadFailureCopy.message}</p>
-        {channelReadFailureCopy.retryLabel ? <button className={styles.textButton} type="button" disabled={busy || channelReadFailure.pending}
+        {channelReadFailureCopy.retryLabel ? <button className={styles.textButton} type="button" disabled={locked || channelReadFailure.pending}
           onClick={() => retryRead("background", channelReadFailure.id)}>{channelReadFailure.pending ? "Повторяем…" : channelReadFailureCopy.retryLabel}</button> : null}
       </div> : null}
       {channels.map((item) => {
@@ -446,19 +468,19 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         }}><Icon name={searchOpen ? "x" : "search"} size={22} /></button>
       </div>
       {transportLabel ? <div className={styles.transport} role="status">{transportLabel}
-        {!forbidden && transport === "error" ? <button className={styles.textButton} type="button" disabled={busy} onClick={afterSave}>Обновить историю</button> : null}
+        {!forbidden && transport === "error" ? <button className={styles.textButton} type="button" disabled={locked} onClick={afterSave}>Обновить историю</button> : null}
         {transport === "error" && !forbidden ? <button className={styles.textButton} type="button" onClick={() => setConnectionAttempt((value) => value + 1)}>Подключить снова</button> : null}
       </div> : null}
       {readFailure && readFailureCopy ? <div role="alert" className={styles.error}>
         <p>{readFailureCopy.message}</p>
-        {readFailureCopy.retryLabel ? <button className={styles.textButton} type="button" disabled={busy || readFailure.ticket.pending}
+        {readFailureCopy.retryLabel ? <button className={styles.textButton} type="button" disabled={locked || readFailure.ticket.pending}
           onClick={() => retryRead(readFailure.owner, readFailure.ticket.id)}>{readFailure.ticket.pending ? "Повторяем…" : readFailureCopy.retryLabel}</button> : null}
       </div> : null}
       {forbidden ? <a className={styles.secondary} href="/login">Войти снова</a> : <>
         {searchOpen ? <form id="team-chat-search-form" className={styles.search} onSubmit={(event) => { event.preventDefault(); void runSearch(); }}>
           <label className={styles.srOnly} htmlFor="team-chat-search">Поиск в этом канале</label>
           <input ref={searchField} id="team-chat-search" type="search" placeholder="В этом канале" value={query} minLength={2} maxLength={200} onChange={(event) => setQuery(event.target.value)} />
-          <button className={styles.secondary} disabled={busy || query.trim().length < 2}>Найти</button>
+          <button className={styles.secondary} disabled={locked || query.trim().length < 2}>Найти</button>
         </form> : null}
         {returns.length ? <div className={styles.readActions}><button type="button" className={styles.textButton} onClick={back}><Icon name="arrow-left" size={18} />{returns.at(-1)?.view === "search" ? "К результатам поиска" : "Назад к сообщениям"}</button></div> : null}
         <div className={styles.history} ref={viewport} tabIndex={0} aria-label={view === "search" ? "Результаты поиска" : "История сообщений"}
@@ -470,12 +492,12 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
             <p className={styles.muted}>Результаты: «{search.term}»</p>
             {search.page.messages.map((message) => <div key={message.id} data-chat-row={message.id} className={styles.searchResult}>
               <strong>{message.authorName}</strong><p className={`t-body-compact ${styles.body}`}><SearchText text={message.body} term={search.term} /></p>
-              <button id={`team-search-${message.id}`} type="button" className={styles.textButton} disabled={busy} onClick={() => { void navigate({ channel, mode: "context", messageId: message.id }, true); }}>Показать в переписке</button>
+              <button id={`team-search-${message.id}`} type="button" className={styles.textButton} disabled={locked} onClick={() => { void navigate({ channel, mode: "context", messageId: message.id }, true); }}>Показать в переписке</button>
             </div>)}
             {!search.page.messages.length ? <p className={styles.empty}>Сообщения не найдены.</p> : null}
-            {search.page.hasMore ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => { void runSearch(true); }}>Ещё результаты</button> : null}
+            {search.page.hasMore ? <button type="button" className={styles.secondary} disabled={locked} onClick={() => { void runSearch(true); }}>Ещё результаты</button> : null}
           </> : <>
-            {feed.range.hasBefore ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => { void loadMore("before"); }}>Предыдущие сообщения</button> : null}
+            {feed.range.hasBefore ? <button type="button" className={styles.secondary} disabled={locked} onClick={() => { void loadMore("before"); }}>Предыдущие сообщения</button> : null}
             {rows.map((message, index) => {
               const date = days[index];
               return <div key={message.id}>{date !== days[index - 1] ? <div className={styles.dateDivider}><span>{date}</span></div> : null}
@@ -488,12 +510,12 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
               </div>;
             })}
             {!rows.length ? <p className={styles.empty}>В канале пока нет сообщений. Напишите коллегам.</p> : null}
-            {feed.range.hasAfter ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => { void loadMore("after"); }}>Следующие сообщения</button> : null}
+            {feed.range.hasAfter ? <button type="button" className={styles.secondary} disabled={locked} onClick={() => { void loadMore("after"); }}>Следующие сообщения</button> : null}
           </>}
         </div>
         <div className={styles.readActions}>
-          {newMessages || feed.range.hasAfter ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => { void navigate({ channel, mode: "latest" }); }}>К новым сообщениям</button> : null}
-          {currentChannel?.firstUnreadId ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => { void navigate({ channel, mode: "context", messageId: currentChannel.firstUnreadId! }, true); }}>К непрочитанным · {currentChannel.unreadCount}</button> : null}
+          {newMessages || feed.range.hasAfter ? <button type="button" className={styles.textButton} disabled={locked} onClick={() => { void navigate({ channel, mode: "latest" }); }}>К новым сообщениям</button> : null}
+          {currentChannel?.firstUnreadId ? <button type="button" className={styles.textButton} disabled={locked} onClick={() => { void navigate({ channel, mode: "context", messageId: currentChannel.firstUnreadId! }, true); }}>К непрочитанным · {currentChannel.unreadCount}</button> : null}
           {deletion && !deletionVisible ? <button type="button" className={styles.textButton} onClick={() => setDeletionVisible(true)}>Проверить удаление сообщения</button> : null}
         </div>
         {seen.error ? <div role="alert" className={styles.error}>Не удалось сохранить просмотр {seen.queued} сообщений. <button className={styles.textButton} type="button" onClick={seen.retry}>Повторить</button></div> : null}

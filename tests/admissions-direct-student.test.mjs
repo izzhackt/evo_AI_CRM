@@ -28,6 +28,7 @@ const suite = source("supabase/tests/platform_admissions_direct_student.sql");
 const script = source("scripts/test-postgres-authorization.sh");
 const drawer = source("src/components/v3/admissions/AddStudentDrawer.tsx");
 const page = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
+const directSource = source("src/lib/v3/admissions-direct-student-source.ts");
 
 const draft = (overrides = {}) => ({ ...EMPTY_ADMISSIONS_DIRECT_DRAFT, firstName: "Айдай", country: "MY", ...overrides });
 
@@ -116,6 +117,16 @@ test("validation mirrors the database: required, shapes, money", () => {
     "the age is ignored when the birth date is given");
 });
 
+test("review #1194 (6): a payment is dated today at the latest, as in 281", () => {
+  const paidOn = (day) => buildAdmissionsDirectPayload(draft({ payments: [{ amount: "1", currency: "USD", paidOn: day }] }), "2026-10-16");
+  assert.equal(paidOn("2026-10-16").ok, true, "today is accepted");
+  assert.equal(paidOn("2026-10-17").ok, false, "tomorrow is refused");
+  assert.equal(paidOn("2026-10-17").paymentErrors[0], "Укажите дату оплаты, не позже сегодняшнего дня.");
+  assert.doesNotMatch(migration, /today \+ 1/u, "the database bound is today as well");
+  assert.match(migration, /admissions_direct_date\(payment, 'paidOn', DATE '2000-01-01', today, 'paidOn'\)/u);
+  assert.match(drawer, /max=\{bishkekToday\(\)\} onChange=\{\(e\) => setPayment\(index, "paidOn"/u);
+});
+
 test("the server re-parse refuses foreign keys and types", () => {
   const base = { student: { name: "Айдай" }, route: { country: "MY" }, curatorMembershipId: null, pipelineStage: "new" };
   assert.deepEqual(parseAdmissionsDirectPayload(base), base);
@@ -133,7 +144,8 @@ test("error wording: no codes, no long dashes, every server key maps to a field"
   for (const result of [
     { status: "saved", studentCaseId: "x", state: "active" }, { status: "saved", studentCaseId: "x", state: "pending" },
     { status: "invalid", field: "paymentsExceedCost" }, { status: "invalid", field: "curator" }, { status: "invalid", field: null },
-    { status: "forbidden" }, { status: "case_exists" }, { status: "request_conflict" }, { status: "unavailable" },
+    { status: "forbidden" }, { status: "curator_forbidden" }, { status: "case_exists" }, { status: "lead_exists" },
+    { status: "request_conflict" }, { status: "unavailable" },
   ]) {
     const message = admissionsDirectMessage(result);
     assert.ok(message.length > 0);
@@ -144,6 +156,13 @@ test("error wording: no codes, no long dashes, every server key maps to a field"
     if (["payload", "student", "parent", "route", "education", "money", "reason", "importSource", "externalRef"].includes(key)) continue;
     assert.ok(admissionsDirectServerField(key), `server key ${key} maps to a form field`);
   }
+  // Review #1194: the refusals say what to do next.
+  assert.equal(admissionsDirectMessage({ status: "curator_forbidden" }),
+    "Этого куратора вы назначить не можете. Выберите куратора своего отдела или оставьте «Без куратора».");
+  assert.equal(admissionsDirectMessage({ status: "lead_exists" }),
+    "Этот человек уже есть в продажах как лид. Передайте его через продажи или попросите Admin.");
+  assert.match(directSource, /error\.code === "42501" && message === "admissions_direct_curator_forbidden"\) return \{ status: "curator_forbidden" \}/u);
+  assert.match(directSource, /error\.code === "PT409" && message === "admissions_direct_lead_exists"\) return \{ status: "lead_exists" \}/u);
   const copy = drawer.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
   assert.doesNotMatch(copy, /[–—]/u, "the drawer copy (outside code comments) has no long dashes");
 });
@@ -159,7 +178,7 @@ test("migration 281: one permission, two commands, grants and the import guard",
   assert.doesNotMatch(migration, /import_admissions_student_case_v1[^;]*TO authenticated/u);
   assert.match(migration, /REVOKE ALL ON FUNCTION platform_private\.create_admissions_student_case\(UUID, UUID, UUID, JSONB, TEXT, TEXT, TEXT\)\s+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/u);
   assert.match(migration, /'admissions-direct:'\|\|canonical_lead_id::TEXT/u, "the new intake origin");
-  assert.match(migration, /'admissions_direct', 'converted'/u, "the lead is converted, never a sales lead");
+  assert.match(migration, /SET lifecycle_state = 'converted'/u, "the lead is converted, never a sales lead");
   assert.doesNotMatch(migration, /INSERT INTO platform_private\.sales_register|INSERT INTO platform\.sales_admissions_handoffs/u,
     "no sales record and no sales handoff");
   assert.doesNotMatch(migration, /DISABLE\s+(?:ROW LEVEL SECURITY|TRIGGER)|session_replication_role/iu);
@@ -172,6 +191,31 @@ test("migration 281: one permission, two commands, grants and the import guard",
   ]) {
     assert.ok(migration.includes(`('${signature}', '`), `${signature} is md5-anchored`);
   }
+});
+
+test("review #1194 (1, 2): canonical identity path, one person one card, canonical анкета values", () => {
+  const create = migration.match(/CREATE FUNCTION platform_private\.create_admissions_student_case\(([\s\S]+?)\n\$\$;/u)?.[1] ?? "";
+  assert.ok(create.length > 0);
+  assert.match(create, /platform_private\.create_or_link_client\(p_organization_id, student_name, email_raw, phone_raw,\s*'evo_admissions', 'client', p_request_id::TEXT, evidence, observed,/u);
+  assert.match(create, /platform_private\.create_or_link_lead\(p_organization_id, client_id_value, NULL, 'new',\s*'admissions_direct', 'evo_admissions', 'lead', p_request_id::TEXT, evidence, observed,/u);
+  assert.doesNotMatch(create, /INSERT INTO platform\.(?:clients|leads)\b/u, "no identity row is written past the canonical path");
+  assert.match(create, /RAISE EXCEPTION 'admissions_direct_lead_exists' USING ERRCODE = 'PT409', DETAIL = open_lead_id::TEXT;/u);
+  assert.match(create, /'status', 'lead_exists'/u, "the import reports an open lead");
+  assert.match(create, /'status', 'case_exists'/u, "the import reports an open case");
+  assert.match(create, /hashtextextended\('manual-lead-contact:' \|\| p_organization_id::TEXT \|\| ':' \|\| lock_value, 0\)/u,
+    "the contact locks of create_manual_sales_lead");
+  assert.doesNotMatch(create, /'desired_start_date'/u, "the intake text never lands in the date field");
+  assert.match(create, /platform_private\.normalize_student_profile_field_value\(field\.key, field\.value\)/u);
+});
+
+test("review #1194 (3, 5): Admin-authored waiting cases and the curator options", () => {
+  assert.match(migration, /OR \(author\.is_system_admin\s+AND platform_private\.admissions_direct_own_department_scope\(p_organization_id, p_membership_id, k\.key\)\)/u);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.admissions_direct_curator_options_v1\(UUID\) TO authenticated;/u);
+  assert.match(page, /canAddStudent && assignsCurators \? readAdmissionsDirectCuratorOptions\(actor\) : Promise\.resolve\(null\)/u);
+  assert.match(page, /kind: "choose", options: addCurators\.options, withoutCurator: addCurators\.withoutCurator/u);
+  assert.match(drawer, /\{curator\.withoutCurator \? <option value="">Без куратора: ждёт назначения<\/option>/u,
+    "«Без куратора» only when the actor may leave the case waiting");
+  assert.match(directSource, /rpc\("admissions_direct_curator_options_v1"/u);
 });
 
 test("the real-Postgres suite is hooked by name after 281", () => {

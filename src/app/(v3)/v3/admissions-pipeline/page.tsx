@@ -20,6 +20,7 @@ import {
   isPlatformApplicationCountryCode,
 } from "@/lib/platform-application-contract";
 import { listStudentPortalActiveCurators } from "@/lib/server/student-portal-curator-options";
+import { readAdmissionsDirectCuratorOptions } from "@/lib/v3/admissions-direct-student-source";
 import { admissionsPipelineTab, country as countryLabel } from "@/lib/v3/wording";
 
 export const dynamic = "force-dynamic";
@@ -97,7 +98,7 @@ export default async function AdmissionsPipelinePart({
   const assignsCurators = !isStaffPreview(actor) && staffHasPermission(actor, "case.curator.assign");
 
   const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
-  const [boardResult, curatorsResult, documentsResult, packagesResult] = await Promise.allSettled([
+  const [boardResult, curatorsResult, documentsResult, packagesResult, addCuratorsResult] = await Promise.allSettled([
     readAdmissionsPipelineBoard(actor, {
       country: query.country,
       curatorMembershipId: query.curator,
@@ -117,6 +118,9 @@ export default async function AdmissionsPipelinePart({
     canReadDocuments
       ? readStaffApplicationPackageQueueAction(owner).then((result) => (result.ok ? result.queue : null))
       : Promise.resolve(null),
+    // «Куратор» в «Добавить студента»: только те, кого актёр может назначить
+    // (правило области команды 281), и можно ли оставить дело без куратора.
+    canAddStudent && assignsCurators ? readAdmissionsDirectCuratorOptions(actor) : Promise.resolve(null),
   ]);
   const board = boardResult.status === "fulfilled" ? boardResult.value : null;
   const curatorOptions = curatorsResult.status === "fulfilled" ? curatorsResult.value : [];
@@ -129,10 +133,15 @@ export default async function AdmissionsPipelinePart({
   const documentsCount = queueCount(documentsResult);
   const packagesCount = queueCount(packagesResult);
 
+  // Чтение списка не удалось: прежний список кураторов организации; базу это
+  // не обходит, а отказ говорит, кого выбрать.
+  const addCurators = addCuratorsResult.status === "fulfilled" && addCuratorsResult.value !== null
+    ? addCuratorsResult.value
+    : { options: curatorOptions, withoutCurator: true };
   const addStudent = canAddStudent ? (
     <AddStudentDrawer
       curator={assignsCurators
-        ? { kind: "choose", options: curatorOptions }
+        ? { kind: "choose", options: addCurators.options, withoutCurator: addCurators.withoutCurator }
         : { kind: "self", membershipId: actor.membershipId }}
     />
   ) : null;

@@ -147,12 +147,6 @@ export function bishkekToday(now: Date = new Date()): string {
   return new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-function addDays(day: string, days: number): string {
-  const parsed = new Date(`${day}T00:00:00Z`);
-  parsed.setUTCDate(parsed.getUTCDate() + days);
-  return parsed.toISOString().slice(0, 10);
-}
-
 function isCurrency(value: string): value is AdmissionsDirectCurrency {
   return (ADMISSIONS_DIRECT_CURRENCIES as readonly string[]).includes(value);
 }
@@ -238,12 +232,12 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
   if (signedOn && (!isCalendarDate(signedOn) || signedOn < "2000-01-01" || signedOn > "2100-12-31")) errors.signedOn = "Проверьте дату договора.";
 
   if (draft.payments.length > ADMISSIONS_DIRECT_MAX_PAYMENTS) errors.payments = `Не больше ${ADMISSIONS_DIRECT_MAX_PAYMENTS} оплат.`;
-  const latestPayment = addDays(today, 1);
+  // Полученные деньги оплачены сегодня или раньше (день в Бишкеке), как в 281.
   const paymentErrors = draft.payments.map((payment): string | null => {
     const minor = amountToMinor(payment.amount);
     if (minor === "" || minor === null) return "Сумма: число больше нуля, до двух знаков после запятой.";
     if (!isCurrency(payment.currency)) return "Выберите валюту.";
-    if (!isCalendarDate(payment.paidOn) || payment.paidOn < "2000-01-01" || payment.paidOn > latestPayment) {
+    if (!isCalendarDate(payment.paidOn) || payment.paidOn < "2000-01-01" || payment.paidOn > today) {
       return "Укажите дату оплаты, не позже сегодняшнего дня.";
     }
     return null;
@@ -344,16 +338,21 @@ export function parseAdmissionsDirectPayload(input: unknown): AdmissionsDirectPa
   return input as AdmissionsDirectPayload;
 }
 
-/** Ответ server action. `field` — поле, которое назвала база (`admissions_direct_invalid:<ключ>`). */
+/**
+ * Ответ server action. `field` — поле, которое назвала база (`admissions_direct_invalid:<ключ>`).
+ * `curator_forbidden` — право есть, но этого куратора (или «Без куратора») актёр назвать не может;
+ * `lead_exists` — у человека с тем же телефоном или почтой открытый лид в продажах.
+ */
 export type AdmissionsDirectResult =
   | Readonly<{ status: "saved"; studentCaseId: string; state: "active" | "pending" }>
   | Readonly<{ status: "invalid"; field: string | null }>
-  | Readonly<{ status: "forbidden" | "case_exists" | "request_conflict" | "unavailable" }>;
+  | Readonly<{ status: "forbidden" | "curator_forbidden" | "case_exists" | "lead_exists" | "request_conflict" | "unavailable" }>;
 
 /** Ключ нагрузки из ошибки базы → поле формы. */
 const SERVER_FIELDS: Readonly<Record<string, AdmissionsDirectField>> = {
   name: "firstName", firstName: "firstName", lastName: "lastName", phone: "phone", email: "email", birthDate: "birthDate",
-  age: "age", relation: "parentRelation", parentPhone: "parentPhone", country: "country", degree: "degree",
+  age: "age", relation: "parentRelation", parentFirstName: "parentFirstName", parentLastName: "parentLastName",
+  parentPhone: "parentPhone", country: "country", degree: "degree",
   program: "program", intake: "intake", current: "educationCurrent", english: "english", chinese: "chinese",
   curator: "curator", curatorMembershipId: "curator", pipelineStage: "stage", cost: "costAmount", costCurrency: "costCurrency",
   signedOn: "signedOn", payments: "payments", payment: "payments", paidOn: "payments", paymentsExceedCost: "payments", note: "note",
@@ -365,8 +364,8 @@ export function admissionsDirectServerField(key: string | null): AdmissionsDirec
 
 /**
  * Куда вести после сохранения: дело в работе открывается целиком; дело без
- * куратора — строкой в «Ждут куратора» (там его назначают; ожидающее дело
- * целиком читает только его будущий куратор и Admin).
+ * куратора — строкой в «Ждут куратора»: там его назначают Руководитель
+ * поступления и Admin (правило 248/281), оттуда же открывается само дело.
  */
 export function admissionsDirectCaseHref(result: Readonly<{ studentCaseId: string; state: "active" | "pending" }>): string {
   return result.state === "active"
@@ -382,8 +381,10 @@ export function admissionsDirectMessage(result: AdmissionsDirectResult): string 
       ? "Получено больше стоимости договора в той же валюте. Проверьте суммы."
       : result.field === "curator" ? "Этого сотрудника нельзя назначить куратором. Выберите другого."
       : result.field === null ? "Проверьте поля формы и повторите." : "Проверьте отмеченные поля.";
-    case "forbidden": return "Нет права добавить студента с таким куратором. Обновите страницу после проверки доступа.";
+    case "forbidden": return "Нет права добавлять студентов. Если оно должно быть, попросите Admin проверить вашу роль.";
+    case "curator_forbidden": return "Этого куратора вы назначить не можете. Выберите куратора своего отдела или оставьте «Без куратора».";
     case "case_exists": return "У человека с этим телефоном или почтой уже есть открытое дело. Найдите его в «Студентах».";
+    case "lead_exists": return "Этот человек уже есть в продажах как лид. Передайте его через продажи или попросите Admin.";
     case "request_conflict": return "Этот запрос уже использован с другими данными. Обновите страницу и заполните форму снова.";
     case "unavailable": return "Сохранение не подтверждено. Данные остались в форме; безопасно повторите.";
   }

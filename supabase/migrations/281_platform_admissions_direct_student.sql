@@ -21,25 +21,47 @@
 --     (idempotency, fingerprint) and the provenance of each created case (its
 --     author; for an import also the source label and the external reference).
 --  d) platform_private.create_admissions_student_case: the one internal
---     creation path. Client (reused only on an exact email+phone match without
---     an open case) + lead (source `admissions_direct`, lifecycle `converted`,
---     no sales owner: never on the sales board, in «Заявки», the sales funnel
---     or the sales report) + case (pending; with a curator activated at once by
---     the shared assign_student_case_curator_authorized_e1) in the chosen
---     board stage, the student profile fields (needs_review), the contract
---     cost (lead_sale_conditions, read by «Договор и оплата» 189), tranches and
---     the payments already received, an optional first case note, and the
---     audit rows (case.create, case.tranche.save, finance.payment.record — all
---     already in the P7A allowlist).
+--     creation path. One person, one card: a person (active client matched by
+--     phone OR email) with an open case is refused (admissions_direct_case_exists),
+--     and so is one with an OPEN lead (admissions_direct_lead_exists, the rule
+--     create_manual_sales_lead already applies): sales keep that lead and hand
+--     it over. The contact locks are 143's, so the two intakes serialize.
+--     Client and lead go through the canonical platform_private.
+--     create_or_link_client / create_or_link_lead (source system
+--     `evo_admissions`, external identifier = request id, evidence
+--     `staff_recorded` or `imported`): external identifiers, subject provenance
+--     and client_duplicate_candidates exactly as every other intake. The lead
+--     (source `admissions_direct`, no sales owner) is then `converted` (the
+--     084 guard allows open → converted): never on the sales board, in
+--     «Заявки», the sales funnel or the sales report. Case (pending; with a
+--     curator activated at once by the shared
+--     assign_student_case_curator_authorized_e1) in the chosen board stage, the
+--     student profile fields (needs_review; every value in the form
+--     normalize_student_profile_field_value gives it, the intake stays only on
+--     student_cases.intake), the contract cost (lead_sale_conditions, read by
+--     «Договор и оплата» 189), tranches and the payments already received (paid
+--     on a day not later than today in Bishkek), an optional first case note,
+--     and the audit rows (case.create, case.tranche.save,
+--     finance.payment.record — all already in the P7A allowlist).
 --  e) platform.create_admissions_student_case_v1 (authenticated, idempotent by
 --     request id) and platform.import_admissions_student_case_v1 (service_role
---     only, explicit actor membership, idempotent by external reference).
+--     only, explicit actor membership, idempotent by external reference). The
+--     import never raises for a person already in work: it returns a report
+--     row (status lead_exists or case_exists, the existing id) and creates
+--     nothing. Journal principals of an import: docs/runbooks/
+--     admissions-direct-import.md.
 --  f) «Ждут куратора» for a curator-less direct case: the needs_curator flag
 --     (admissions_attention_flags), the needs-curator shape check of
 --     private.assign_case_curator_v1 and the 248 read/assign rule
 --     (staff_can_take_needs_curator_case) also cover a pending direct case.
---     It is read and assigned by a member whose role holds case.read.full and
---     case.curator.assign in a scope that covers the case's author. No
+--     Owner context, as 248 uses the last curator: the case's author. It is
+--     read and assigned by a member whose role holds case.read.full and
+--     case.curator.assign in a scope that covers the author. The system Admin
+--     (and the import, which acts as the owner's Admin membership) stands
+--     outside every department, so a case it leaves without a curator is
+--     covered, in addition, by a department scope of the reader's own
+--     department: the Admissions Manager of the admissions department sees and
+--     distributes it; an «own» scope never covers another author's case. No
 --     awaiting_ack: a direct case has no 088 sales handoff to accept.
 --  g) fix: assign_student_case_curator_authorized_e1 set portal_activated_at
 --     on a case without a Student membership, which 088's
@@ -50,6 +72,9 @@
 --     when the case has a Student; nothing else changes.
 --  h) marketing_cohort (265) leaves out leads of source `admissions_direct`:
 --     existing clients added by admissions are not marketing leads.
+--  i) platform.admissions_direct_curator_options_v1: the curators the actor
+--     may name in «Добавить студента» (the same scope rule as the command,
+--     without a direction) and whether it may leave the case without one.
 BEGIN;
 
 -- ---------------------------------------------------------------------------
@@ -385,10 +410,26 @@ BEGIN
   RETURN value;
 END $$;
 
+-- May the actor name this curator (NULL: none, the case waits) for a case in
+-- this direction? The future owner is the curator, or the actor while the
+-- case waits. Own scope admits only oneself; another curator, or none, also
+-- needs case.curator.assign in the same scope. The command and the options
+-- read share it.
+CREATE FUNCTION platform_private.admissions_direct_actor_may_name(
+  p_organization_id UUID, p_actor_membership_id UUID, p_curator_membership_id UUID, p_direction TEXT
+) RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT platform_private.staff_context_can_access(p_organization_id, p_actor_membership_id, 'case.create.direct',
+      'student_case', NULL, COALESCE(p_curator_membership_id, p_actor_membership_id), NULL, p_direction)
+    AND (p_curator_membership_id IS NOT DISTINCT FROM p_actor_membership_id
+      OR platform_private.staff_context_can_access(p_organization_id, p_actor_membership_id, 'case.curator.assign',
+        'student_case', NULL, COALESCE(p_curator_membership_id, p_actor_membership_id), NULL, p_direction))
+$$;
+
 REVOKE ALL ON FUNCTION platform_private.admissions_direct_text(JSONB, TEXT, INTEGER, BOOLEAN),
   platform_private.admissions_direct_object(JSONB, TEXT, TEXT[]),
   platform_private.admissions_direct_minor(JSONB, TEXT, TEXT),
-  platform_private.admissions_direct_date(JSONB, TEXT, DATE, DATE, TEXT)
+  platform_private.admissions_direct_date(JSONB, TEXT, DATE, DATE, TEXT),
+  platform_private.admissions_direct_actor_may_name(UUID, UUID, UUID, TEXT)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 CREATE FUNCTION platform_private.create_admissions_student_case(
@@ -420,9 +461,12 @@ DECLARE
   curator UUID; curator_raw TEXT; stage TEXT; note_text TEXT; note_body TEXT;
   cost_minor BIGINT; cost_currency TEXT; signed_on DATE;
   paid_same BIGINT := 0;
-  owner_id UUID;
   client_id_value UUID; client_reused BOOLEAN := FALSE;
-  lead_id_value UUID := gen_random_uuid();
+  lead_id_value UUID;
+  existing_case_id UUID; open_lead_id UUID; lock_value TEXT;
+  evidence CONSTANT TEXT := CASE WHEN p_import_source IS NOT NULL THEN 'imported' ELSE 'staff_recorded' END;
+  observed CONSTANT TIMESTAMPTZ := statement_timestamp();
+  field_value TEXT; profile_values JSONB := '[]'::JSONB;
   case_id UUID := gen_random_uuid();
   scope_id UUID := gen_random_uuid();
   profile_id_value UUID;
@@ -564,15 +608,16 @@ BEGIN
       FOR payment IN SELECT value FROM jsonb_array_elements(money -> 'payments') LOOP
         payment := platform_private.admissions_direct_object(payment, 'payment', ARRAY['amountMinor', 'currency', 'paidOn']);
         IF payment IS NULL THEN RAISE EXCEPTION 'admissions_direct_invalid:payment' USING ERRCODE = '22023'; END IF;
+        -- Received money is paid on a past day or today (Bishkek), never later.
         IF platform_private.admissions_direct_text(payment, 'currency', 3) IS NULL
           OR NOT (platform_private.admissions_direct_text(payment, 'currency', 3) = ANY (currencies))
-          OR platform_private.admissions_direct_date(payment, 'paidOn', DATE '2000-01-01', today + 1, 'paidOn') IS NULL THEN
+          OR platform_private.admissions_direct_date(payment, 'paidOn', DATE '2000-01-01', today, 'paidOn') IS NULL THEN
           RAISE EXCEPTION 'admissions_direct_invalid:payment' USING ERRCODE = '22023';
         END IF;
         payments := payments || jsonb_build_array(jsonb_build_object(
           'amountMinor', platform_private.admissions_direct_minor(payment, 'amountMinor', 'payment'),
           'currency', platform_private.admissions_direct_text(payment, 'currency', 3),
-          'paidOn', platform_private.admissions_direct_date(payment, 'paidOn', DATE '2000-01-01', today + 1, 'paidOn')));
+          'paidOn', platform_private.admissions_direct_date(payment, 'paidOn', DATE '2000-01-01', today, 'paidOn')));
       END LOOP;
     END IF;
     IF cost_minor IS NOT NULL THEN
@@ -584,17 +629,41 @@ BEGIN
     END IF;
   END IF;
 
+  -- ---- анкета values, in the form the анкета itself stores ----------------------------
+  -- Every value passes normalize_student_profile_field_value (the rule of
+  -- every анкета write): phones as digits, e-mail in lower case. The intake
+  -- («набор», free text such as «сентябрь 2027») is not the date field
+  -- desired_start_date; it stays on student_cases.intake. date_of_birth is a
+  -- canonical column (student_profiles.date_of_birth): its field row has no value.
+  FOR field IN SELECT * FROM (VALUES
+    ('student_first_name', first_name, 'firstName'), ('student_last_name', last_name, 'lastName'),
+    ('mobile_phone', phone_raw, 'phone'), ('student_email', email_raw, 'email'),
+    ('current_study_status', education_current, 'current'), ('english_level', english_text, 'english'),
+    ('chinese_level_hsk', chinese_text, 'chinese'),
+    ('program_level', degree_text, 'degree'), ('field_major', program_text, 'program'),
+    (parent_relation || '_first_name', parent_first, 'parentFirstName'),
+    (parent_relation || '_last_name', parent_last, 'parentLastName'),
+    (parent_relation || '_mobile_phone', parent_phone, 'parentPhone')
+  ) AS fields(key, value, label)
+  WHERE fields.key IS NOT NULL AND fields.value IS NOT NULL LOOP
+    BEGIN
+      field_value := platform_private.normalize_student_profile_field_value(field.key, field.value);
+    EXCEPTION WHEN invalid_parameter_value THEN
+      RAISE EXCEPTION 'admissions_direct_invalid:%', field.label USING ERRCODE = '22023';
+    END;
+    profile_values := profile_values || jsonb_build_array(jsonb_build_object('key', field.key, 'value', field_value));
+  END LOOP;
+  IF birth_date IS NOT NULL THEN
+    profile_values := profile_values || jsonb_build_array(jsonb_build_object('key', 'date_of_birth', 'value', NULL));
+  END IF;
+
   -- ---- scoped authority ------------------------------------------------------------
   -- The future owner of the case: its curator, or the author while it waits
   -- for one. Own scope admits only oneself; another curator, or none, also
-  -- needs case.curator.assign in the same scope.
-  owner_id := COALESCE(curator, actor.membership_id);
-  IF NOT platform_private.staff_context_can_access(p_organization_id, actor.membership_id, 'case.create.direct',
-      'student_case', NULL, owner_id, NULL, direction)
-    OR (curator IS DISTINCT FROM actor.membership_id
-      AND NOT platform_private.staff_context_can_access(p_organization_id, actor.membership_id, 'case.curator.assign',
-        'student_case', NULL, owner_id, NULL, direction)) THEN
-    RAISE EXCEPTION 'admissions_direct_forbidden' USING ERRCODE = '42501';
+  -- needs case.curator.assign in the same scope. The actor holds the
+  -- permission (checked above): a refusal here is about the chosen curator.
+  IF NOT platform_private.admissions_direct_actor_may_name(p_organization_id, actor.membership_id, curator, direction) THEN
+    RAISE EXCEPTION 'admissions_direct_curator_forbidden' USING ERRCODE = '42501';
   END IF;
   IF curator IS NOT NULL AND (
       NOT EXISTS (SELECT 1 FROM platform_private.staff_membership_identity(p_organization_id, curator))
@@ -604,42 +673,67 @@ BEGIN
   principal := CASE WHEN is_import THEN 'service:admissions-import' ELSE 'auth:' || actor.auth_user_id::TEXT END;
 
   -- ---- one person, one card --------------------------------------------------------
-  IF phone_norm IS NOT NULL THEN
-    PERFORM pg_advisory_xact_lock(hashtextextended('evo:admissions-direct:phone:' || p_organization_id::TEXT || ':' || phone_norm, 0));
+  -- The contact locks of create_manual_sales_lead (143), in its sorted order:
+  -- a manual sales lead and a direct case for the same contact serialize.
+  FOR lock_value IN SELECT v FROM unnest(ARRAY[phone_norm, email_norm]) v WHERE v IS NOT NULL ORDER BY v LOOP
+    PERFORM pg_advisory_xact_lock(hashtextextended('manual-lead-contact:' || p_organization_id::TEXT || ':' || lock_value, 0));
+  END LOOP;
+  IF phone_norm IS NOT NULL OR email_norm IS NOT NULL THEN
+    -- A case in work for this person: find it in «Студенты».
+    SELECT sc.id INTO existing_case_id
+    FROM platform.clients cl
+    JOIN platform.student_cases sc ON sc.organization_id = cl.organization_id AND sc.state IN ('pending', 'active')
+      AND (sc.canonical_client_id = cl.id OR sc.canonical_lead_id IN (
+        SELECT l.id FROM platform.leads l WHERE l.organization_id = cl.organization_id AND l.client_id = cl.id))
+    WHERE cl.organization_id = p_organization_id AND cl.lifecycle_state = 'active'
+      AND ((phone_norm IS NOT NULL AND cl.normalized_phone = phone_norm)
+        OR (email_norm IS NOT NULL AND cl.normalized_email = email_norm))
+    ORDER BY sc.created_at, sc.id LIMIT 1;
+    -- An open sales lead for this person (create_manual_sales_lead answers
+    -- `duplicate` to the same match): sales keep it and hand it over.
+    SELECT l.id INTO open_lead_id
+    FROM platform.clients cl
+    JOIN platform.leads l ON l.organization_id = cl.organization_id AND l.client_id = cl.id AND l.lifecycle_state = 'open'
+    WHERE cl.organization_id = p_organization_id AND cl.lifecycle_state = 'active'
+      AND ((phone_norm IS NOT NULL AND cl.normalized_phone = phone_norm)
+        OR (email_norm IS NOT NULL AND cl.normalized_email = email_norm))
+    ORDER BY l.updated_at DESC, l.id LIMIT 1;
   END IF;
-  IF email_norm IS NOT NULL THEN
-    PERFORM pg_advisory_xact_lock(hashtextextended('evo:admissions-direct:email:' || p_organization_id::TEXT || ':' || email_norm, 0));
-  END IF;
-  IF (phone_norm IS NOT NULL OR email_norm IS NOT NULL) AND EXISTS (
-      SELECT 1 FROM platform.clients cl
-      WHERE cl.organization_id = p_organization_id AND cl.lifecycle_state = 'active'
-        AND (cl.normalized_phone = phone_norm OR cl.normalized_email = email_norm)
-        AND EXISTS (SELECT 1 FROM platform.student_cases sc
-          WHERE sc.organization_id = cl.organization_id AND sc.state IN ('pending', 'active')
-            AND (sc.canonical_client_id = cl.id OR sc.canonical_lead_id IN (
-              SELECT l.id FROM platform.leads l WHERE l.organization_id = cl.organization_id AND l.client_id = cl.id)))) THEN
+  -- The import reports such a row and creates nothing; the staff command refuses.
+  IF existing_case_id IS NOT NULL THEN
+    IF is_import THEN
+      RETURN jsonb_build_object('organization_id', p_organization_id, 'status', 'case_exists',
+        'student_case_id', existing_case_id, 'import_source', p_import_source, 'external_ref', p_external_ref,
+        'replayed', FALSE);
+    END IF;
     RAISE EXCEPTION 'admissions_direct_case_exists' USING ERRCODE = 'PT409';
   END IF;
-  IF phone_norm IS NOT NULL AND email_norm IS NOT NULL THEN
-    SELECT cl.id INTO client_id_value FROM platform.clients cl
-    WHERE cl.organization_id = p_organization_id AND cl.lifecycle_state = 'active'
-      AND cl.normalized_phone = phone_norm AND cl.normalized_email = email_norm
-    FOR UPDATE;
-    client_reused := FOUND;
-  END IF;
-  IF NOT client_reused THEN
-    client_id_value := gen_random_uuid();
-    INSERT INTO platform.clients (id, organization_id, display_name, normalized_name, email, normalized_email,
-      phone, normalized_phone)
-    VALUES (client_id_value, p_organization_id, student_name, platform_private.normalize_person_name(student_name),
-      email_raw, email_norm, phone_raw, phone_norm);
+  IF open_lead_id IS NOT NULL THEN
+    IF is_import THEN
+      RETURN jsonb_build_object('organization_id', p_organization_id, 'status', 'lead_exists',
+        'lead_id', open_lead_id, 'import_source', p_import_source, 'external_ref', p_external_ref,
+        'replayed', FALSE);
+    END IF;
+    RAISE EXCEPTION 'admissions_direct_lead_exists' USING ERRCODE = 'PT409', DETAIL = open_lead_id::TEXT;
   END IF;
 
-  -- ---- lead: already a client, never a sales lead ------------------------------------
-  INSERT INTO platform.leads (id, organization_id, client_id, current_owner_membership_id, stage_key, source_key,
-    lifecycle_state, interest_direction)
-  VALUES (lead_id_value, p_organization_id, client_id_value, NULL, 'new', 'admissions_direct', 'converted',
-    CASE direction WHEN 'EUROPE' THEN 'EU' ELSE direction END);
+  -- ---- client and lead: the canonical identity path, with provenance ----------------
+  -- An exact email+phone match is the same client (084's strong identity);
+  -- anything weaker becomes a new client and a duplicate candidate.
+  client_reused := phone_norm IS NOT NULL AND email_norm IS NOT NULL AND EXISTS (
+    SELECT 1 FROM platform.clients cl
+    WHERE cl.organization_id = p_organization_id AND cl.lifecycle_state = 'active'
+      AND cl.normalized_phone = phone_norm AND cl.normalized_email = email_norm);
+  client_id_value := platform_private.create_or_link_client(p_organization_id, student_name, email_raw, phone_raw,
+    'evo_admissions', 'client', p_request_id::TEXT, evidence, observed,
+    CASE WHEN is_import THEN observed END, p_external_ref);
+  lead_id_value := platform_private.create_or_link_lead(p_organization_id, client_id_value, NULL, 'new',
+    'admissions_direct', 'evo_admissions', 'lead', p_request_id::TEXT, evidence, observed,
+    CASE WHEN is_import THEN observed END, p_external_ref);
+  -- Already a client, never a sales lead (084's guard allows open -> converted).
+  UPDATE platform.leads l SET lifecycle_state = 'converted',
+    interest_direction = CASE direction WHEN 'EUROPE' THEN 'EU' ELSE direction END
+  WHERE l.organization_id = p_organization_id AND l.id = lead_id_value;
 
   -- ---- case ------------------------------------------------------------------------
   INSERT INTO platform.record_scopes (id, organization_id, scope_kind, scope_key, scope_version)
@@ -665,21 +759,10 @@ BEGIN
     NULLIF(concat_ws('; ', english_text, chinese_text), ''), ARRAY[]::TEXT[], 'not_recorded',
     actor.membership_id, actor.membership_id)
   RETURNING id INTO profile_id_value;
-  FOR field IN SELECT * FROM (VALUES
-    ('student_first_name', first_name), ('student_last_name', last_name),
-    ('mobile_phone', phone_raw), ('student_email', email_raw),
-    ('date_of_birth', NULL::TEXT),
-    ('current_study_status', education_current), ('english_level', english_text), ('chinese_level_hsk', chinese_text),
-    ('program_level', degree_text), ('field_major', program_text),
-    ('desired_start_date', intake_text),
-    (parent_relation || '_first_name', parent_first), (parent_relation || '_last_name', parent_last),
-    (parent_relation || '_mobile_phone', parent_phone)
-  ) AS fields(key, value)
-  WHERE fields.key IS NOT NULL AND (fields.value IS NOT NULL OR (fields.key = 'date_of_birth' AND birth_date IS NOT NULL)) LOOP
-    INSERT INTO platform.student_profile_fields (organization_id, student_case_id, student_profile_id, field_key,
-      value, review_state, profile_revision)
-    VALUES (p_organization_id, case_id, profile_id_value, field.key, field.value, 'needs_review', 1);
-  END LOOP;
+  INSERT INTO platform.student_profile_fields (organization_id, student_case_id, student_profile_id, field_key,
+    value, review_state, profile_revision)
+  SELECT p_organization_id, case_id, profile_id_value, f ->> 'key', f ->> 'value', 'needs_review', 1
+  FROM jsonb_array_elements(profile_values) f;
 
   -- ---- first case note: age without a birth date, and the free note ----------------
   note_body := NULLIF(concat_ws(E'\n\n',
@@ -756,6 +839,7 @@ BEGIN
   SELECT * INTO changed FROM platform.student_cases sc WHERE sc.organization_id = p_organization_id AND sc.id = case_id;
   result := jsonb_build_object(
     'organization_id', p_organization_id,
+    'status', 'created',
     'student_case_id', case_id,
     'client_id', client_id_value,
     'lead_id', lead_id_value,
@@ -836,7 +920,37 @@ REVOKE ALL ON FUNCTION platform.import_admissions_student_case_v1(UUID, UUID, TE
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION platform.import_admissions_student_case_v1(UUID, UUID, TEXT, TEXT, JSONB, TEXT) TO service_role;
 COMMENT ON FUNCTION platform.import_admissions_student_case_v1(UUID, UUID, TEXT, TEXT, JSONB, TEXT) IS
-  'Migration 281: service-only import of existing clients through the same creation path, attributed to an explicit staff membership. Idempotent by (organization, import source, external reference).';
+  'Migration 281: service-only import of existing clients through the same creation path, attributed to an explicit staff membership. Idempotent by (organization, import source, external reference). A person already in work (open lead or case) is returned as a report row (status lead_exists / case_exists) and nothing is created.';
+
+-- i) Whom the actor may name as curator in «Добавить студента»: the eligible
+-- curators (248's list) that pass the command's own scope rule, without a
+-- direction (the form has none yet; a direction-only scope is decided by the
+-- command), and whether the case may be left without a curator.
+CREATE FUNCTION platform.admissions_direct_curator_options_v1(p_organization_id UUID)
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE actor RECORD;
+BEGIN
+  SELECT a.* INTO actor FROM platform.current_actor_authority() a
+  WHERE a.organization_id = p_organization_id AND a.platform_role IS DISTINCT FROM 'student';
+  IF NOT FOUND OR actor.membership_id IS NULL
+    OR NOT platform_private.staff_has_permission(p_organization_id, actor.membership_id, 'case.create.direct') THEN
+    RAISE EXCEPTION 'admissions_direct_forbidden' USING ERRCODE = '42501';
+  END IF;
+  RETURN jsonb_build_object(
+    'organization_id', p_organization_id,
+    'without_curator', platform_private.admissions_direct_actor_may_name(p_organization_id, actor.membership_id, NULL, NULL),
+    'owners', COALESCE((
+      SELECT jsonb_agg(o.value ORDER BY o.ordinality)
+      FROM jsonb_array_elements(platform_private.u6_eligible_admissions_owners(p_organization_id)) WITH ORDINALITY AS o(value, ordinality)
+      WHERE platform_private.admissions_direct_actor_may_name(p_organization_id, actor.membership_id,
+        (o.value ->> 'membership_id')::UUID, NULL)), '[]'::JSONB));
+END
+$$;
+REVOKE ALL ON FUNCTION platform.admissions_direct_curator_options_v1(UUID)
+  FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION platform.admissions_direct_curator_options_v1(UUID) TO authenticated;
+COMMENT ON FUNCTION platform.admissions_direct_curator_options_v1(UUID) IS
+  'Migration 281: the curators the actor may name in «Добавить студента» and whether it may leave the case without one.';
 
 -- ---------------------------------------------------------------------------
 -- f) «Ждут куратора» for a curator-less direct case
@@ -856,24 +970,54 @@ CREATE FUNCTION platform_private.is_direct_needs_curator_case(p_organization_id 
 RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT platform_private.direct_needs_curator_case_author(p_organization_id, p_student_case_id) IS NOT NULL
 $$;
+-- A department scope of the member's OWN department holding the key: the
+-- department branch of staff_context_can_access with the member itself as the
+-- owner context (its «own» branch deliberately left out).
+CREATE FUNCTION platform_private.admissions_direct_own_department_scope(
+  p_organization_id UUID, p_membership_id UUID, p_permission_key TEXT
+) RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT platform_private.staff_has_permission(p_organization_id, p_membership_id, p_permission_key)
+    AND EXISTS (SELECT 1 FROM platform.permission_definitions d
+      WHERE d.permission_key = p_permission_key AND 'student_case' = ANY (d.staff_resource_kinds)
+        AND 'department' = ANY (d.staff_scope_kinds))
+    AND EXISTS (SELECT 1 FROM platform.staff_role_assignments a
+      JOIN platform.staff_role_definitions r ON r.organization_id = a.organization_id AND r.id = a.role_id
+        AND r.status = 'active' AND r.current_bundle_id = a.bundle_id
+      JOIN platform.role_bundle_versions b ON b.id = a.bundle_id AND b.status = 'published'
+      JOIN platform.role_bundle_permissions bp ON bp.bundle_id = a.bundle_id AND bp.permission_key = p_permission_key
+      JOIN platform.staff_organizational_details od ON od.organization_id = a.organization_id
+        AND od.membership_id = a.membership_id AND od.department_id::TEXT = a.scope_key
+      JOIN platform.staff_departments dept ON dept.organization_id = od.organization_id AND dept.id = od.department_id
+        AND dept.status = 'active'
+      WHERE a.organization_id = p_organization_id AND a.membership_id = p_membership_id
+        AND a.revoked_at IS NULL AND a.scope_kind = 'department')
+$$;
 -- Read and assign: case.read.full and case.curator.assign in a scope that
--- covers the author (organization, the author's department, oneself, the
--- case's direction); the Admin always.
+-- covers the owner context. As 248 uses the last curator, the owner context is
+-- the case's author (organization, the author's department, oneself, the
+-- case's direction, the record). The system Admin (also the import's actor)
+-- belongs to no department: for a case it authored a department scope of the
+-- reader's own department covers it too, so the Admissions Manager distributes
+-- what the Admin or the import left without a curator. The Admin always.
 CREATE FUNCTION platform_private.staff_can_take_direct_needs_curator_case(
   p_organization_id UUID, p_membership_id UUID, p_student_case_id UUID
 ) RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT COALESCE((
-    SELECT platform_private.staff_context_can_access(p_organization_id, p_membership_id,
-        'case.read.full', 'student_case', p_student_case_id, author.membership_id, p_student_case_id, c.admissions_direction)
-      AND platform_private.staff_context_can_access(p_organization_id, p_membership_id,
-        'case.curator.assign', 'student_case', p_student_case_id, author.membership_id, p_student_case_id, c.admissions_direction)
-    FROM (SELECT platform_private.direct_needs_curator_case_author(p_organization_id, p_student_case_id) AS membership_id) author
-    JOIN platform.student_cases c ON c.organization_id = p_organization_id AND c.id = p_student_case_id
-    WHERE author.membership_id IS NOT NULL
+    SELECT bool_and(
+        platform_private.staff_context_can_access(p_organization_id, p_membership_id,
+          k.key, 'student_case', p_student_case_id, author.id, p_student_case_id, c.admissions_direction)
+        OR (author.is_system_admin
+          AND platform_private.admissions_direct_own_department_scope(p_organization_id, p_membership_id, k.key)))
+    FROM platform.student_cases c
+    JOIN platform.organization_memberships author ON author.organization_id = c.organization_id
+      AND author.id = platform_private.direct_needs_curator_case_author(c.organization_id, c.id)
+    CROSS JOIN (VALUES ('case.read.full'), ('case.curator.assign')) AS k(key)
+    WHERE c.organization_id = p_organization_id AND c.id = p_student_case_id
   ), FALSE)
 $$;
 REVOKE ALL ON FUNCTION platform_private.direct_needs_curator_case_author(UUID, UUID),
   platform_private.is_direct_needs_curator_case(UUID, UUID),
+  platform_private.admissions_direct_own_department_scope(UUID, UUID, TEXT),
   platform_private.staff_can_take_direct_needs_curator_case(UUID, UUID, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 

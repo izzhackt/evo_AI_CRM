@@ -9,11 +9,30 @@
 -- function adds it, exactly as it did on the live roles.
 -- Proves: who may create (a curator only for itself, the manager for a curator
 -- of its department or without a curator, the Admin for anyone; Sales, the
--- Student, no membership and anon refused), idempotency, stage, profile and
--- money correctness, «Ждут куратора» and the assignment of a curator-less
--- case (the e1 activation fix), the service-only import (refused to
--- authenticated and anon, idempotent by external reference), and that nothing
--- of sales (register, handoffs, open leads, marketing cohort) is touched.
+-- Student, no membership and anon refused; a refused curator named as such),
+-- idempotency, stage, profile and money correctness, «Ждут куратора» and the
+-- assignment of a curator-less case (the e1 activation fix), the service-only
+-- import (refused to authenticated and anon, idempotent by external
+-- reference), and that nothing of sales (register, handoffs, open leads,
+-- marketing cohort) is touched.
+-- Review fix round 1 (PR #1194), each failing before its fix:
+--  R1 one person, one card: an open sales lead with the same phone or e-mail
+--     refuses the command (PT409 admissions_direct_lead_exists, the lead id in
+--     DETAIL) and the import reports the row (lead_exists / case_exists) and
+--     creates nothing; client and lead carry external identifiers and subject
+--     provenance (staff_recorded / imported); an e-mail twin becomes a
+--     duplicate candidate; an exact e-mail+phone match reuses the client;
+--  R2 анкета values equal their normalize_student_profile_field_value form, no
+--     desired_start_date row;
+--  R3 a curator-less case authored by the Admin or the import is read and
+--     assigned by the Admissions Manager of the department (not by curators,
+--     Sales or an own-scoped holder of the same keys);
+--  R5 admissions_direct_curator_options_v1 lists only the curators the actor
+--     may name; a refused curator is admissions_direct_curator_forbidden;
+--  R6 a payment dated tomorrow is refused, one dated today is accepted;
+--  R7 (documented, docs/runbooks/admissions-direct-import.md) the import's
+--     case.curator.set row is written by the shared e1 as auth:<Admin>, tied
+--     to the import request by its v5 request id.
 -- Isolated synthetic SQL fixtures only.
 BEGIN;
 
@@ -33,6 +52,14 @@ EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE || ':' || SQLERRM;
 END
 $$;
 -- One create call as the current role; payload as a literal.
+-- DETAIL of a failing statement, or NULL.
+CREATE FUNCTION pg_temp.n281_error_detail(sql TEXT) RETURNS TEXT LANGUAGE plpgsql AS $$
+DECLARE detail TEXT;
+BEGIN
+  EXECUTE sql; RETURN NULL;
+EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS detail = PG_EXCEPTION_DETAIL; RETURN detail;
+END
+$$;
 CREATE FUNCTION pg_temp.n281_create(p_request INTEGER, p_payload JSONB) RETURNS TEXT LANGUAGE SQL AS $$
   SELECT pg_temp.n281_error(format('SELECT platform.create_admissions_student_case_v1(%L, %L, %L::JSONB)',
     pg_temp.n281_id(1), pg_temp.n281_id(p_request), p_payload::TEXT))
@@ -49,8 +76,14 @@ CREATE FUNCTION pg_temp.n281_payload(p_name TEXT, p_curator INTEGER) RETURNS JSO
     'route', jsonb_build_object('country', 'MY'),
     'curatorMembershipId', CASE WHEN p_curator IS NULL THEN NULL ELSE pg_temp.n281_id(p_curator)::TEXT END))
 $$;
+-- The import's request id (as import_admissions_student_case_v1 derives it).
+CREATE FUNCTION pg_temp.n281_import_request(p_ref TEXT) RETURNS UUID LANGUAGE SQL IMMUTABLE AS $$
+  SELECT public.uuid_generate_v5('6ba7b811-9dad-11d1-80b4-00c04fd430c8'::UUID,
+    'evo:admissions-direct-import:' || pg_temp.n281_id(1)::TEXT || ':n281-amocrm-test:' || p_ref)
+$$;
 GRANT EXECUTE ON FUNCTION pg_temp.n281_id(INTEGER), pg_temp.n281_assert(BOOLEAN, TEXT), pg_temp.n281_error(TEXT),
-  pg_temp.n281_create(INTEGER, JSONB), pg_temp.n281_import(INTEGER, TEXT, JSONB), pg_temp.n281_payload(TEXT, INTEGER)
+  pg_temp.n281_error_detail(TEXT), pg_temp.n281_create(INTEGER, JSONB), pg_temp.n281_import(INTEGER, TEXT, JSONB),
+  pg_temp.n281_payload(TEXT, INTEGER), pg_temp.n281_import_request(TEXT)
   TO authenticated, anon, service_role;
 
 SELECT 'N281_ADMISSIONS_DIRECT_STUDENT_SUITE_START' AS n281_suite_marker;
@@ -59,10 +92,12 @@ SELECT 'N281_ADMISSIONS_DIRECT_STUDENT_SUITE_START' AS n281_suite_marker;
 -- Fixture: 1 Admin (system); invited staff with coarse role NULL: 2 Sales
 -- Manager (sales department), 3 Admissions Manager, 4 Admissions A and
 -- 6 Admissions B (admissions department), 7 Admissions C (a second admissions
+-- department), 8 the Admissions Manager keys in an «own» scope (admissions
 -- department); 5 Student.
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE n281_actors(n INTEGER, coarse platform.business_role, claims TEXT);
-INSERT INTO n281_actors(n, coarse) VALUES (1, 'admin'), (2, NULL), (3, NULL), (4, NULL), (5, 'student'), (6, NULL), (7, NULL);
+INSERT INTO n281_actors(n, coarse) VALUES (1, 'admin'), (2, NULL), (3, NULL), (4, NULL), (5, 'student'), (6, NULL), (7, NULL),
+  (8, NULL);
 GRANT SELECT ON n281_actors TO authenticated, anon, service_role;
 
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.n281_id(1), 'N281 Fictional organization');
@@ -94,7 +129,8 @@ INSERT INTO platform.staff_organizational_details(organization_id, membership_id
   (pg_temp.n281_id(1), pg_temp.n281_id(303), pg_temp.n281_id(902)),
   (pg_temp.n281_id(1), pg_temp.n281_id(304), pg_temp.n281_id(902)),
   (pg_temp.n281_id(1), pg_temp.n281_id(306), pg_temp.n281_id(902)),
-  (pg_temp.n281_id(1), pg_temp.n281_id(307), pg_temp.n281_id(903));
+  (pg_temp.n281_id(1), pg_temp.n281_id(307), pg_temp.n281_id(903)),
+  (pg_temp.n281_id(1), pg_temp.n281_id(308), pg_temp.n281_id(902));
 
 -- Roles with the EXACT production permission keys (as 244's suite), without
 -- case.create.direct: the migration's publication adds it.
@@ -114,7 +150,9 @@ INSERT INTO n281_grants VALUES
  (306, pg_temp.n281_id(1101), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)),
  (306, pg_temp.n281_id(1105), jsonb_build_object('kind', 'organization', 'key', pg_temp.n281_id(1), 'resourceKind', NULL)),
  (307, pg_temp.n281_id(1101), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)),
- (307, pg_temp.n281_id(1105), jsonb_build_object('kind', 'organization', 'key', pg_temp.n281_id(1), 'resourceKind', NULL));
+ (307, pg_temp.n281_id(1105), jsonb_build_object('kind', 'organization', 'key', pg_temp.n281_id(1), 'resourceKind', NULL)),
+ (308, pg_temp.n281_id(1102), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)),
+ (308, pg_temp.n281_id(1105), jsonb_build_object('kind', 'organization', 'key', pg_temp.n281_id(1), 'resourceKind', NULL));
 CREATE TEMP TABLE n281_versions AS SELECT m.id AS membership_id, p.access_version
   FROM platform.organization_memberships m JOIN platform.profiles p ON p.id = m.profile_id
   WHERE m.organization_id = pg_temp.n281_id(1);
@@ -163,9 +201,9 @@ SELECT pg_temp.n281_assert((SELECT array_agg((r ->> 'roleId')::UUID ORDER BY (r 
 SELECT pg_temp.n281_assert(jsonb_array_length(:'n281_grant_first'::JSONB -> 'skipped') = 0, 'no role skipped');
 SELECT pg_temp.n281_assert(jsonb_array_length(platform_private.admissions_direct_grant_curator_roles('N281 again') -> 'roles') = 0,
   'a second publication changes nothing');
-SELECT pg_temp.n281_assert((SELECT array_agg(n ORDER BY n) FROM unnest(ARRAY[301, 302, 303, 304, 306, 307]) n
+SELECT pg_temp.n281_assert((SELECT array_agg(n ORDER BY n) FROM unnest(ARRAY[301, 302, 303, 304, 306, 307, 308]) n
     WHERE platform_private.staff_has_permission(pg_temp.n281_id(1), pg_temp.n281_id(n), 'case.create.direct'))
-  = ARRAY[301, 303, 304, 306, 307], 'Admin, Admissions Manager and the three curators hold case.create.direct; Sales does not');
+  = ARRAY[301, 303, 304, 306, 307, 308], 'Admin, the two managers and the three curators hold case.create.direct; Sales does not');
 SELECT pg_temp.n281_assert((SELECT bool_and(a.bundle_id = r.current_bundle_id) FROM platform.staff_role_assignments a
     JOIN platform.staff_role_definitions r ON r.id = a.role_id
     WHERE a.organization_id = pg_temp.n281_id(1) AND a.revoked_at IS NULL),
@@ -185,9 +223,24 @@ SELECT claims AS n281_a FROM n281_actors WHERE n = 4 \gset
 SELECT claims AS n281_student FROM n281_actors WHERE n = 5 \gset
 SELECT claims AS n281_b FROM n281_actors WHERE n = 6 \gset
 SELECT claims AS n281_c FROM n281_actors WHERE n = 7 \gset
+SELECT claims AS n281_own_manager FROM n281_actors WHERE n = 8 \gset
 SELECT jsonb_build_object('sub', pg_temp.n281_id(199), 'role', 'authenticated')::TEXT AS n281_no_member \gset
 SELECT pg_temp.n281_assert((SELECT array_agg(claims::JSONB ->> 'platform_role' ORDER BY n) FROM n281_actors)
-  = ARRAY['admin', 'staff', 'staff', 'staff', 'student', 'staff', 'staff'], 'claims: admin, staff and student');
+  = ARRAY['admin', 'staff', 'staff', 'staff', 'student', 'staff', 'staff', 'staff'], 'claims: admin, staff and student');
+
+-- R1 fixtures, through the canonical identity path as every intake: an open
+-- sales lead; a client known only by an e-mail and phone (no lead, no case);
+-- a client for an exact e-mail+phone match.
+SELECT platform_private.create_or_link_client(pg_temp.n281_id(1), 'N281 Sales Person', 'n281-sales@example.invalid',
+  '+996 555 281 999', 'n281-fixture', 'client', 'sales-1', 'staff_recorded', statement_timestamp()) AS n281_sales_client \gset
+SELECT platform_private.create_or_link_lead(pg_temp.n281_id(1), :'n281_sales_client'::UUID, NULL, 'new', 'office',
+  'n281-fixture', 'lead', 'sales-1', 'staff_recorded', statement_timestamp()) AS n281_sales_lead \gset
+SELECT platform_private.create_or_link_client(pg_temp.n281_id(1), 'N281 Old Email', 'n281-old@example.invalid',
+  '+996 555 281 777', 'n281-fixture', 'client', 'old-1', 'staff_recorded', statement_timestamp()) AS n281_old_client \gset
+SELECT platform_private.create_or_link_client(pg_temp.n281_id(1), 'N281 Old Pair', 'n281-pair@example.invalid',
+  '+996 555 281 888', 'n281-fixture', 'client', 'old-2', 'staff_recorded', statement_timestamp()) AS n281_pair_client \gset
+SELECT pg_temp.n281_assert((SELECT l.lifecycle_state = 'open' FROM platform.leads l WHERE l.id = :'n281_sales_lead'::UUID),
+  'fixture: the sales lead is open');
 
 CREATE TEMP TABLE n281_before AS SELECT
   (SELECT count(*) FROM platform_private.sales_register WHERE organization_id = pg_temp.n281_id(1)) AS register_rows,
@@ -200,7 +253,7 @@ CREATE TEMP TABLE n281_before AS SELECT
 CREATE TEMP TABLE n281_payloads(k TEXT PRIMARY KEY, payload JSONB);
 INSERT INTO n281_payloads VALUES ('a_full', jsonb_build_object(
   'student', jsonb_build_object('name', 'N281 Student One', 'firstName', 'N281', 'lastName', 'One',
-    'phone', '+996 555 281 001', 'email', 'n281-one@example.invalid', 'birthDate', '2008-05-01'),
+    'phone', '+996 555 281 001', 'email', 'N281-One@Example.INVALID', 'birthDate', '2008-05-01'),
   'parent', jsonb_build_object('relation', 'mother', 'firstName', 'N281 Mother', 'phone', '+996 555 281 101'),
   'route', jsonb_build_object('country', 'CN', 'degree', 'Бакалавриат', 'program', 'Computer Science', 'intake', 'Сентябрь 2027'),
   'education', jsonb_build_object('current', '11 класс', 'english', 'IELTS 6.0', 'chinese', 'HSK 3'),
@@ -256,13 +309,29 @@ SELECT pg_temp.n281_assert((SELECT cl.display_name = 'N281 Student One' AND cl.n
 SELECT pg_temp.n281_assert((SELECT p.date_of_birth = DATE '2008-05-01' AND p.consent_status = 'not_recorded'
     AND p.current_education_summary = '11 класс' AND p.language_summary = 'IELTS 6.0; HSK 3'
   FROM platform.student_profiles p WHERE p.student_case_id = :'n281_case_a'::UUID), 'the profile carries the canonical facts');
+-- R2: canonical анкета values, no intake text in the date field.
 SELECT pg_temp.n281_assert((SELECT array_agg(f.field_key || '=' || COALESCE(f.value, '∅') ORDER BY f.field_key)
   FROM platform.student_profile_fields f WHERE f.student_case_id = :'n281_case_a'::UUID AND f.review_state = 'needs_review')
-  = ARRAY['chinese_level_hsk=HSK 3', 'current_study_status=11 класс', 'date_of_birth=∅', 'desired_start_date=Сентябрь 2027',
-    'english_level=IELTS 6.0', 'field_major=Computer Science', 'mobile_phone=+996 555 281 001',
-    'mother_first_name=N281 Mother', 'mother_mobile_phone=+996 555 281 101', 'program_level=Бакалавриат',
+  = ARRAY['chinese_level_hsk=HSK 3', 'current_study_status=11 класс', 'date_of_birth=∅',
+    'english_level=IELTS 6.0', 'field_major=Computer Science', 'mobile_phone=+996555281001',
+    'mother_first_name=N281 Mother', 'mother_mobile_phone=+996555281101', 'program_level=Бакалавриат',
     'student_email=n281-one@example.invalid', 'student_first_name=N281', 'student_last_name=One'],
-  'the анкета fields are written for review');
+  'R2: the анкета fields are written for review in their canonical form, without desired_start_date');
+SELECT pg_temp.n281_assert((SELECT bool_and(f.value IS NULL
+    OR f.value = platform_private.normalize_student_profile_field_value(f.field_key, f.value))
+  FROM platform.student_profile_fields f WHERE f.organization_id = pg_temp.n281_id(1)),
+  'R2: every анкета value equals its normalized form');
+-- R1: the canonical identity path with provenance.
+SELECT pg_temp.n281_assert((SELECT count(*) = 2 FROM platform.external_identifiers e
+    WHERE e.organization_id = pg_temp.n281_id(1) AND e.source_system = 'evo_admissions'
+      AND e.external_identifier = pg_temp.n281_id(5001)::TEXT
+      AND ((e.external_object_type = 'client' AND e.client_id = :'n281_client_a'::UUID)
+        OR (e.external_object_type = 'lead' AND e.lead_id = :'n281_lead_a'::UUID))),
+  'R1: client and lead carry their evo_admissions external identifiers');
+SELECT pg_temp.n281_assert((SELECT count(*) = 2 AND bool_and(p.evidence_type = 'staff_recorded' AND p.imported_at IS NULL)
+  FROM platform.subject_provenance p WHERE p.organization_id = pg_temp.n281_id(1) AND p.source_system = 'evo_admissions'
+    AND (p.client_id = :'n281_client_a'::UUID OR p.lead_id = :'n281_lead_a'::UUID)),
+  'R1: client and lead carry staff_recorded provenance');
 SELECT pg_temp.n281_assert((SELECT s.fields ->> 'service_cost_minor' = '150000' AND s.fields ->> 'service_cost_currency' = 'USD'
     AND s.fields ->> 'signing_date' = '2026-09-01' AND s.updated_by_membership_id = pg_temp.n281_id(304)
   FROM platform_private.lead_sale_conditions s WHERE s.lead_id = :'n281_lead_a'::UUID), 'the contract cost and date sit on the lead');
@@ -291,9 +360,9 @@ SELECT pg_temp.n281_assert(NOT ('awaiting_ack' = ANY (platform_private.admission
 -- A curator creates only for itself.
 SET LOCAL request.jwt.claims TO :'n281_a';
 SET LOCAL ROLE authenticated;
-SELECT pg_temp.n281_assert(pg_temp.n281_create(5002, pg_temp.n281_payload('N281 For B', 306)) = '42501:admissions_direct_forbidden',
-  'Admissions A cannot create a case for Admissions B');
-SELECT pg_temp.n281_assert(pg_temp.n281_create(5003, pg_temp.n281_payload('N281 No curator', NULL)) = '42501:admissions_direct_forbidden',
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5002, pg_temp.n281_payload('N281 For B', 306)) = '42501:admissions_direct_curator_forbidden',
+  'Admissions A cannot create a case for Admissions B (the curator is named as the reason)');
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5003, pg_temp.n281_payload('N281 No curator', NULL)) = '42501:admissions_direct_curator_forbidden',
   'Admissions A cannot create a case without a curator');
 -- Idempotency: the same request replays, another payload under it is refused.
 SELECT pg_temp.n281_assert((platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5001),
@@ -322,7 +391,7 @@ SELECT platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n2
 SELECT pg_temp.n281_assert(:'n281_m_b'::JSONB ->> 'state' = 'active'
   AND :'n281_m_b'::JSONB ->> 'curator_membership_id' = pg_temp.n281_id(306)::TEXT
   AND :'n281_m_b'::JSONB ->> 'pipeline_stage' = 'new', 'the manager creates for a curator of its department (stage new by default)');
-SELECT pg_temp.n281_assert(pg_temp.n281_create(5102, pg_temp.n281_payload('N281 Manager For C', 307)) = '42501:admissions_direct_forbidden',
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5102, pg_temp.n281_payload('N281 Manager For C', 307)) = '42501:admissions_direct_curator_forbidden',
   'the manager cannot create for a curator outside its department');
 SELECT platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5103), jsonb_build_object(
   'student', jsonb_build_object('name', 'N281 Waiting', 'age', 17),
@@ -391,6 +460,52 @@ SELECT pg_temp.n281_assert(private.platform_can_read_student_case(pg_temp.n281_i
 RESET ROLE;
 
 -- ---------------------------------------------------------------------------
+-- 2b. R1 One person, one card (the manager).
+-- ---------------------------------------------------------------------------
+SET LOCAL request.jwt.claims TO :'n281_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5111, jsonb_build_object('student',
+    jsonb_build_object('name', 'N281 Same Sales Phone', 'phone', '+996555281999'), 'route', jsonb_build_object('country', 'MY')))
+  = 'PT409:admissions_direct_lead_exists', 'R1: a person with an open sales lead (same phone) is refused');
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5112, jsonb_build_object('student',
+    jsonb_build_object('name', 'N281 Same Sales Email', 'email', 'N281-SALES@example.invalid'), 'route', jsonb_build_object('country', 'MY')))
+  = 'PT409:admissions_direct_lead_exists', 'R1: a person with an open sales lead (same e-mail) is refused');
+SELECT pg_temp.n281_assert(pg_temp.n281_error_detail(format('SELECT platform.create_admissions_student_case_v1(%L, %L, %L::JSONB)',
+    pg_temp.n281_id(1), pg_temp.n281_id(5113), jsonb_build_object('student',
+      jsonb_build_object('name', 'N281 Same Sales Detail', 'phone', '+996 555 281 999'), 'route', jsonb_build_object('country', 'MY'))::TEXT))
+  = :'n281_sales_lead', 'R1: the refusal names the open lead in DETAIL');
+SELECT platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5114), jsonb_build_object(
+  'student', jsonb_build_object('name', 'N281 Email Twin', 'email', 'n281-old@example.invalid', 'phone', '+996 555 281 701'),
+  'route', jsonb_build_object('country', 'MY'), 'curatorMembershipId', pg_temp.n281_id(306)::TEXT)) AS n281_twin \gset
+SELECT platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5115), jsonb_build_object(
+  'student', jsonb_build_object('name', 'N281 Old Pair', 'email', 'n281-pair@example.invalid', 'phone', '+996555281888'),
+  'route', jsonb_build_object('country', 'MY'), 'curatorMembershipId', pg_temp.n281_id(306)::TEXT)) AS n281_pair \gset
+RESET ROLE;
+SELECT pg_temp.n281_assert(NOT EXISTS (SELECT 1 FROM platform.clients c WHERE c.organization_id = pg_temp.n281_id(1)
+    AND c.display_name LIKE 'N281 Same Sales%')
+  AND NOT EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_receipts r
+    WHERE r.request_id IN (pg_temp.n281_id(5111), pg_temp.n281_id(5112), pg_temp.n281_id(5113))),
+  'R1: the refused requests created nothing');
+SELECT pg_temp.n281_assert((SELECT l.lifecycle_state = 'open' AND l.current_owner_membership_id IS NULL
+  FROM platform.leads l WHERE l.id = :'n281_sales_lead'::UUID), 'R1: the sales lead stays open with sales');
+SELECT pg_temp.n281_assert(NOT (:'n281_twin'::JSONB ->> 'client_reused')::BOOLEAN
+  AND (:'n281_twin'::JSONB ->> 'client_id')::UUID <> :'n281_old_client'::UUID
+  AND EXISTS (SELECT 1 FROM platform_private.client_duplicate_candidates d
+    WHERE d.organization_id = pg_temp.n281_id(1) AND d.status = 'open' AND d.match_basis = 'email'
+      AND d.left_client_id = LEAST((:'n281_twin'::JSONB ->> 'client_id')::UUID, :'n281_old_client'::UUID)
+      AND d.right_client_id = GREATEST((:'n281_twin'::JSONB ->> 'client_id')::UUID, :'n281_old_client'::UUID)),
+  'R1: an e-mail twin is a new client and an open duplicate candidate');
+SELECT pg_temp.n281_assert((:'n281_pair'::JSONB ->> 'client_reused')::BOOLEAN
+  AND (:'n281_pair'::JSONB ->> 'client_id')::UUID = :'n281_pair_client'::UUID,
+  'R1: an exact e-mail+phone match reuses the client');
+SET LOCAL request.jwt.claims TO :'n281_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5116, jsonb_build_object('student',
+    jsonb_build_object('name', 'N281 Pair Again', 'email', 'n281-pair@example.invalid'), 'route', jsonb_build_object('country', 'MY')))
+  = 'PT409:admissions_direct_case_exists', 'R1: the reused client now has its case: a second card is refused');
+RESET ROLE;
+
+-- ---------------------------------------------------------------------------
 -- 3. The Admin: any curator, or none.
 -- ---------------------------------------------------------------------------
 SET LOCAL request.jwt.claims TO :'n281_admin';
@@ -401,6 +516,18 @@ SELECT pg_temp.n281_assert((platform.create_admissions_student_case_v1(pg_temp.n
 SELECT platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5202),
   pg_temp.n281_payload('N281 Admin Waiting', NULL)) AS n281_admin_none \gset
 SELECT pg_temp.n281_assert(:'n281_admin_none'::JSONB ->> 'state' = 'pending', 'the Admin creates without a curator');
+-- R6: received money is paid today at the latest (Bishkek).
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5210, jsonb_build_object('student', jsonb_build_object('name', 'N281 Tomorrow'),
+    'route', jsonb_build_object('country', 'MY'),
+    'money', jsonb_build_object('payments', jsonb_build_array(jsonb_build_object('amountMinor', 100, 'currency', 'USD',
+      'paidOn', to_char((statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1, 'YYYY-MM-DD'))))))
+  = '22023:admissions_direct_invalid:paidOn', 'R6: a payment dated tomorrow is refused');
+SELECT pg_temp.n281_assert((platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5211),
+    jsonb_build_object('student', jsonb_build_object('name', 'N281 Paid Today'), 'route', jsonb_build_object('country', 'TR'),
+      'curatorMembershipId', pg_temp.n281_id(307)::TEXT,
+      'money', jsonb_build_object('payments', jsonb_build_array(jsonb_build_object('amountMinor', 100, 'currency', 'USD',
+        'paidOn', to_char((statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE, 'YYYY-MM-DD'))))))
+  ->> 'state') = 'active', 'R6: a payment dated today is accepted');
 -- Validation: money, stage, unknown keys, curator.
 SELECT pg_temp.n281_assert(pg_temp.n281_create(5203, jsonb_build_object('student', jsonb_build_object('name', 'N281 Over'),
     'money', jsonb_build_object('cost', jsonb_build_object('amountMinor', 100, 'currency', 'USD'),
@@ -423,10 +550,39 @@ SELECT pg_temp.n281_assert(pg_temp.n281_create(5209, jsonb_build_object('student
   'a person with an open case is refused');
 RESET ROLE;
 SELECT (:'n281_admin_none'::JSONB ->> 'student_case_id') AS n281_case_admin_wait \gset
-SET LOCAL request.jwt.claims TO :'n281_manager';
+-- R3: what the Admin leaves without a curator, the Admissions Manager of the
+-- department reads and distributes; curators, Sales and an «own» scope do not.
+SET LOCAL request.jwt.claims TO :'n281_b';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.n281_assert(NOT private.platform_can_read_student_case(pg_temp.n281_id(1), :'n281_case_admin_wait'::UUID),
-  'a waiting case authored by the Admin (outside the department) is not the manager''s');
+  'R3: Admissions B does not read the Admin''s waiting case');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n281_c';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert(NOT private.platform_can_read_student_case(pg_temp.n281_id(1), :'n281_case_admin_wait'::UUID),
+  'R3: Admissions C does not read the Admin''s waiting case');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n281_sales_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert(NOT private.platform_can_read_student_case(pg_temp.n281_id(1), :'n281_case_admin_wait'::UUID),
+  'R3: the Sales Manager (department scope without the keys) does not read it');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n281_own_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert(NOT private.platform_can_read_student_case(pg_temp.n281_id(1), :'n281_case_admin_wait'::UUID)
+  AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(platform.staff_student_case_queue_v1('needs_curator', 100) -> 'rows') r
+    WHERE r ->> 'student_case_id' = :'n281_case_admin_wait'),
+  'R3: the same keys in an «own» scope do not cover the Admin''s case');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n281_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert(private.platform_can_read_student_case(pg_temp.n281_id(1), :'n281_case_admin_wait'::UUID),
+  'R3: the manager reads the waiting case authored by the Admin');
+SELECT pg_temp.n281_assert(EXISTS (SELECT 1 FROM jsonb_array_elements(platform.staff_student_case_queue_v1('needs_curator', 100) -> 'rows') r
+    WHERE r ->> 'student_case_id' = :'n281_case_admin_wait'), 'R3: the manager sees it in «Ждут куратора»');
+SELECT pg_temp.n281_assert((platform.assign_case_curator_v1(pg_temp.n281_id(1), pg_temp.n281_id(5212), :'n281_case_admin_wait'::UUID,
+  pg_temp.n281_id(304), 'N281 manager distributes the Admin''s case') ->> 'case_state') = 'active',
+  'R3: the manager assigns a curator to it');
 RESET ROLE;
 
 -- ---------------------------------------------------------------------------
@@ -495,7 +651,31 @@ SELECT pg_temp.n281_assert(pg_temp.n281_import(302, 'amo-3', pg_temp.n281_payloa
   = '42501:admissions_direct_forbidden', 'a Sales Manager membership cannot be the import actor');
 SELECT pg_temp.n281_assert(pg_temp.n281_import(305, 'amo-4', pg_temp.n281_payload('N281 Via student', NULL))
   = '42501:admissions_direct_forbidden', 'a Student membership cannot be the import actor');
+-- R1: a person already in work is reported, not created.
+SELECT platform.import_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(301), 'n281-amocrm-test', 'amo-6',
+  jsonb_build_object('student', jsonb_build_object('name', 'N281 Imported Sales', 'phone', '+996 555 281 999'),
+    'route', jsonb_build_object('country', 'MY')), 'Импорт клиентов из amoCRM по поручению владельца') AS n281_imp_lead \gset
+SELECT pg_temp.n281_assert(:'n281_imp_lead'::JSONB ->> 'status' = 'lead_exists'
+  AND :'n281_imp_lead'::JSONB ->> 'lead_id' = :'n281_sales_lead'
+  AND :'n281_imp_lead'::JSONB ->> 'external_ref' = 'amo-6' AND NOT (:'n281_imp_lead'::JSONB ? 'student_case_id'),
+  'R1: the import reports a row whose person has an open sales lead');
+SELECT platform.import_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(301), 'n281-amocrm-test', 'amo-7',
+  jsonb_build_object('student', jsonb_build_object('name', 'N281 Imported Twin', 'phone', '+996555281001'),
+    'route', jsonb_build_object('country', 'CN')), 'Импорт клиентов из amoCRM по поручению владельца') AS n281_imp_case \gset
+SELECT pg_temp.n281_assert(:'n281_imp_case'::JSONB ->> 'status' = 'case_exists'
+  AND :'n281_imp_case'::JSONB ->> 'student_case_id' = :'n281_case_a',
+  'R1: the import reports a row whose person already has a case');
 RESET ROLE;
+SELECT pg_temp.n281_assert(NOT EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_receipts r
+    WHERE r.import_source = 'n281-amocrm-test' AND r.external_ref IN ('amo-6', 'amo-7'))
+  AND NOT EXISTS (SELECT 1 FROM platform.clients c WHERE c.organization_id = pg_temp.n281_id(1)
+    AND c.display_name IN ('N281 Imported Sales', 'N281 Imported Twin')),
+  'R1: the reported rows created nothing');
+SELECT pg_temp.n281_assert((SELECT count(*) = 2 AND bool_and(p.evidence_type = 'imported' AND p.source_ref = 'amo-1'
+    AND p.imported_at IS NOT NULL)
+  FROM platform.subject_provenance p WHERE p.organization_id = pg_temp.n281_id(1) AND p.source_system = 'evo_admissions'
+    AND (p.client_id = (:'n281_imp_1'::JSONB ->> 'client_id')::UUID OR p.lead_id = (:'n281_imp_1'::JSONB ->> 'lead_id')::UUID)),
+  'R1: an imported client and lead carry imported provenance with the external reference');
 SET LOCAL request.jwt.claims TO :'n281_admin';
 SET LOCAL ROLE service_role;
 SELECT pg_temp.n281_assert(pg_temp.n281_import(301, 'amo-5', pg_temp.n281_payload('N281 With a user token', NULL))
@@ -510,6 +690,69 @@ SELECT pg_temp.n281_assert((SELECT a.actor_principal = 'service:admissions-impor
   'the import is journaled as the service path for the Admin with the owner''s reason');
 SELECT pg_temp.n281_assert((SELECT o.total_paid_minor = o.amount_minor FROM platform.payment_obligations o
   WHERE o.student_case_id = (:'n281_imp_1'::JSONB ->> 'student_case_id')::UUID), 'the imported payment closes the tranche');
+-- R7 (documented in docs/runbooks/admissions-direct-import.md): the curator
+-- assignment of an import is written by the shared e1 as the Admin's auth
+-- principal; its request id ties it to the import request.
+SELECT pg_temp.n281_assert((SELECT array_agg(a.action || '|' || a.actor_principal ORDER BY a.action)
+    FROM platform.audit_events a WHERE a.organization_id = pg_temp.n281_id(1)
+      AND (a.request_id = pg_temp.n281_import_request('amo-1')
+        OR a.request_id = public.uuid_generate_v5(pg_temp.n281_import_request('amo-1'), 'admissions-direct:assign')
+        OR (a.action IN ('case.tranche.save', 'finance.payment.record')
+          AND a.after_state ->> 'student_case_id' = :'n281_imp_1'::JSONB ->> 'student_case_id')))
+  = ARRAY['case.create|service:admissions-import', 'case.curator.set|auth:' || pg_temp.n281_id(101)::TEXT,
+    'case.tranche.save|service:admissions-import', 'finance.payment.record|service:admissions-import'],
+  'R7: import journal principals as documented');
+-- R3: an imported row without a curator is the manager's to distribute.
+SET LOCAL request.jwt.claims TO :'n281_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert(private.platform_can_read_student_case(pg_temp.n281_id(1), (:'n281_imp_2'::JSONB ->> 'student_case_id')::UUID)
+  AND EXISTS (SELECT 1 FROM jsonb_array_elements(platform.staff_student_case_queue_v1('needs_curator', 100) -> 'rows') r
+    WHERE r ->> 'student_case_id' = :'n281_imp_2'::JSONB ->> 'student_case_id'),
+  'R3: the manager reads an imported waiting case and sees it in «Ждут куратора»');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n281_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert(NOT private.platform_can_read_student_case(pg_temp.n281_id(1), (:'n281_imp_2'::JSONB ->> 'student_case_id')::UUID),
+  'R3: a curator does not read the imported waiting case');
+RESET ROLE;
+
+-- ---------------------------------------------------------------------------
+-- 5b. R5 The curator options of «Добавить студента».
+-- ---------------------------------------------------------------------------
+SET LOCAL request.jwt.claims TO :'n281_manager';
+SET LOCAL ROLE authenticated;
+SELECT platform.admissions_direct_curator_options_v1(pg_temp.n281_id(1)) AS n281_opt_manager \gset
+RESET ROLE;
+SELECT pg_temp.n281_assert((:'n281_opt_manager'::JSONB ->> 'without_curator')::BOOLEAN
+  AND (SELECT array_agg((o ->> 'membership_id')::UUID ORDER BY (o ->> 'membership_id'))
+    FROM jsonb_array_elements(:'n281_opt_manager'::JSONB -> 'owners') o)
+    = ARRAY[pg_temp.n281_id(303), pg_temp.n281_id(304), pg_temp.n281_id(306), pg_temp.n281_id(308)],
+  'R5: the manager is offered the curators of its department (not the Admin, Sales or another department) and «Без куратора»');
+SET LOCAL request.jwt.claims TO :'n281_a';
+SET LOCAL ROLE authenticated;
+SELECT platform.admissions_direct_curator_options_v1(pg_temp.n281_id(1)) AS n281_opt_a \gset
+RESET ROLE;
+SELECT pg_temp.n281_assert(NOT (:'n281_opt_a'::JSONB ->> 'without_curator')::BOOLEAN
+  AND :'n281_opt_a'::JSONB -> 'owners' = jsonb_build_array(jsonb_build_object('membership_id', pg_temp.n281_id(304),
+    'display_name', 'N281 Actor 4')), 'R5: a curator is offered only itself, never «Без куратора»');
+SET LOCAL request.jwt.claims TO :'n281_admin';
+SET LOCAL ROLE authenticated;
+SELECT platform.admissions_direct_curator_options_v1(pg_temp.n281_id(1)) AS n281_opt_admin \gset
+RESET ROLE;
+SELECT pg_temp.n281_assert((:'n281_opt_admin'::JSONB ->> 'without_curator')::BOOLEAN
+  AND (SELECT array_agg((o ->> 'membership_id')::UUID) FROM jsonb_array_elements(:'n281_opt_admin'::JSONB -> 'owners') o)
+    @> ARRAY[pg_temp.n281_id(304), pg_temp.n281_id(306), pg_temp.n281_id(307)],
+  'R5: the Admin is offered every eligible curator and «Без куратора»');
+SET LOCAL request.jwt.claims TO :'n281_sales_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert(pg_temp.n281_error(format('SELECT platform.admissions_direct_curator_options_v1(%L)', pg_temp.n281_id(1)))
+  = '42501:admissions_direct_forbidden', 'R5: Sales reads no options');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO '';
+SET LOCAL ROLE anon;
+SELECT pg_temp.n281_assert(pg_temp.n281_error(format('SELECT platform.admissions_direct_curator_options_v1(%L)', pg_temp.n281_id(1)))
+  LIKE '42501:permission denied for %', 'R5: anon cannot read the options');
+RESET ROLE;
 
 -- ---------------------------------------------------------------------------
 -- 6. Nothing of sales is touched; posture of the new objects.
@@ -519,18 +762,30 @@ SELECT pg_temp.n281_assert((SELECT
     AND (SELECT count(*) FROM platform.sales_admissions_handoffs WHERE organization_id = pg_temp.n281_id(1)) = b.handoffs
     AND (SELECT count(*) FROM platform.leads WHERE organization_id = pg_temp.n281_id(1) AND lifecycle_state = 'open') = b.open_leads
   FROM n281_before b), 'no sales record, no sales handoff, no open lead');
-SELECT pg_temp.n281_assert((SELECT count(*) = 7 AND bool_and(l.lifecycle_state = 'converted' AND l.current_owner_membership_id IS NULL)
+SELECT pg_temp.n281_assert((SELECT count(*) = (SELECT count(*) FROM platform_private.admissions_direct_case_receipts r
+      WHERE r.organization_id = pg_temp.n281_id(1))
+    AND count(*) = 10
+    AND bool_and(l.lifecycle_state = 'converted' AND l.current_owner_membership_id IS NULL)
   FROM platform.leads l WHERE l.organization_id = pg_temp.n281_id(1) AND l.source_key = 'admissions_direct'),
-  'seven created leads, all converted and without a sales owner');
-SELECT pg_temp.n281_assert((SELECT count(*) = 7 FROM platform.student_cases c JOIN platform_private.admissions_direct_case_receipts r
-    ON r.student_case_id = c.id WHERE c.organization_id = pg_temp.n281_id(1)), 'seven cases, each with its receipt');
+  'ten created leads, one per receipt, all converted and without a sales owner');
+SELECT pg_temp.n281_assert((SELECT count(*) = 10 FROM platform.student_cases c JOIN platform_private.admissions_direct_case_receipts r
+    ON r.student_case_id = c.id AND r.lead_id = c.canonical_lead_id AND r.client_id = c.canonical_client_id
+    WHERE c.organization_id = pg_temp.n281_id(1)), 'ten cases, each with its receipt');
 SELECT pg_temp.n281_assert(NOT EXISTS (SELECT 1 FROM platform_private.marketing_cohort(pg_temp.n281_id(1),
-    (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 1, (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1)),
+    (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 1, (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1) m
+    WHERE m.source_key = 'admissions_direct'),
   'the marketing cohort does not count them');
+SELECT pg_temp.n281_assert((SELECT bool_and(f.value IS NULL
+    OR f.value = platform_private.normalize_student_profile_field_value(f.field_key, f.value))
+    AND NOT bool_or(f.field_key = 'desired_start_date')
+  FROM platform.student_profile_fields f WHERE f.organization_id = pg_temp.n281_id(1)),
+  'R2: every анкета value of every created case is canonical; no desired_start_date');
 SELECT pg_temp.n281_assert(
   has_function_privilege('authenticated', 'platform.create_admissions_student_case_v1(uuid,uuid,jsonb)', 'EXECUTE')
   AND NOT has_function_privilege('anon', 'platform.create_admissions_student_case_v1(uuid,uuid,jsonb)', 'EXECUTE')
   AND has_function_privilege('service_role', 'platform.import_admissions_student_case_v1(uuid,uuid,text,text,jsonb,text)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'platform.admissions_direct_curator_options_v1(uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'platform.admissions_direct_curator_options_v1(uuid)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'platform.import_admissions_student_case_v1(uuid,uuid,text,text,jsonb,text)', 'EXECUTE')
   AND NOT has_function_privilege('anon', 'platform.import_admissions_student_case_v1(uuid,uuid,text,text,jsonb,text)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'platform_private.create_admissions_student_case(uuid,uuid,uuid,jsonb,text,text,text)', 'EXECUTE')

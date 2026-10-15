@@ -33,8 +33,15 @@ import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
 export type AddStudentCuratorChoice =
   /** Куратор заводит студента только себе (своя область `case.create.direct`). */
   | Readonly<{ kind: "self"; membershipId: string }>
-  /** Руководитель поступления и Admin: любой куратор из списка или никто («Ждут куратора»). */
-  | Readonly<{ kind: "choose"; options: readonly Readonly<{ membershipId: string; displayName: string }>[] }>;
+  /**
+   * Руководитель поступления и Admin: куратор из списка тех, кого актёр может назначить
+   * (`admissions_direct_curator_options_v1`), или никто («Ждут куратора»), если `withoutCurator`.
+   */
+  | Readonly<{
+    kind: "choose";
+    options: readonly Readonly<{ membershipId: string; displayName: string }>[];
+    withoutCurator: boolean;
+  }>;
 
 const SELECT_CLS = `${inputCls} aria-[invalid=true]:border-danger`;
 const FIELD_CLS = `${inputCls} aria-[invalid=true]:border-danger`;
@@ -71,9 +78,12 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  // Без права оставить дело без куратора выбор обязателен: первым стоит первый из списка.
+  const curatorRequired = curator.kind === "choose" && !curator.withoutCurator;
   const [draft, setDraft] = useState<AdmissionsDirectDraft>(() => ({
     ...EMPTY_ADMISSIONS_DIRECT_DRAFT,
-    curator: curator.kind === "self" ? curator.membershipId : "",
+    curator: curator.kind === "self" ? curator.membershipId
+      : curatorRequired ? curator.options[0]?.membershipId ?? "" : "",
   }));
   // Стоимость Китая подставлена и ещё не тронута руками.
   const [costPrefilled, setCostPrefilled] = useState(false);
@@ -164,10 +174,16 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
     if (pending) return;
     const built = buildAdmissionsDirectPayload(draft);
     setResult(null);
-    if (!built.ok) {
-      setErrors(built.errors);
-      setPaymentErrors(built.paymentErrors);
-      focusFirstError(built.errors, built.paymentErrors);
+    const curatorMissing = curatorRequired && draft.curator.trim() === "";
+    if (!built.ok || curatorMissing) {
+      const fieldErrors: AdmissionsDirectErrors = {
+        ...(built.ok ? {} : built.errors),
+        ...(curatorMissing ? { curator: "Выберите куратора из списка." } : {}),
+      };
+      const rowErrors = built.ok ? [] : built.paymentErrors;
+      setErrors(fieldErrors);
+      setPaymentErrors(rowErrors);
+      focusFirstError(fieldErrors, rowErrors);
       return;
     }
     setErrors({});
@@ -185,6 +201,13 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
       return;
     }
     setPending(false);
+    // Отказ по куратору: подсказка под полем «Куратор», фокус туда же.
+    if (answer.status === "curator_forbidden" && curator.kind === "choose") {
+      const fieldErrors: AdmissionsDirectErrors = { curator: admissionsDirectMessage(answer) };
+      setErrors(fieldErrors);
+      focusFirstError(fieldErrors, []);
+      return;
+    }
     if (answer.status === "invalid") {
       const field = admissionsDirectServerField(answer.field);
       if (field) {
@@ -346,7 +369,8 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
               <Field label="Куратор" htmlFor={ids.curator}>
                 <select {...fieldProps("curator")} name="curator" className={SELECT_CLS}
                   value={draft.curator} onChange={(e) => set("curator", e.target.value)}>
-                  <option value="">Без куратора: ждёт назначения</option>
+                  {curator.withoutCurator ? <option value="">Без куратора: ждёт назначения</option>
+                    : curator.options.length === 0 ? <option value="">Нет кураторов, которых вы можете назначить</option> : null}
                   {curator.options.map((option) => <option key={option.membershipId} value={option.membershipId}>{option.displayName}</option>)}
                 </select>
                 {errorText("curator")}

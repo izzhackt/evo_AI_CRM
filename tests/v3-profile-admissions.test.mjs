@@ -167,7 +167,12 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   assert.match(types, /return \{ \.\.\.access, finance: access\.finance \|\| extra\.financeConfirm, gateForms: extra\.gateForms \};/u);
   assert.doesNotMatch(types, /query\.set\("case_id"/u);
   assert.match(adapter, /rpc\("staff_case_access_snapshot"/u);
-  assert.match(adapter, /if \(sectionResponse\.error\) throw/u);
+  // 281 (review #1194): a 42501 snapshot is the «Ждут куратора» reader (248/281 rule) and
+  // opens the case without sections; every other snapshot failure still throws.
+  assert.match(adapter, /const assignOnly = sectionResponse\.error\?\.code === "42501";/u);
+  assert.match(adapter, /if \(sectionResponse\.error && !assignOnly\) throw/u);
+  assert.match(adapter, /\? \{ documents: false, finance: false, studentProfile: false, contract: false \}/u);
+  assert.match(adapter, /assignOnly \? null : getPlatformStudentCaseHandoffContext\(actor, studentCaseId\)/u);
   assert.match(adapter, /staffPresentationCan\(actor, "admissions.read"\) && studentCase/u);
   assert.match(adapter, /readCaseProfileSections\(access,/u);
   assert.match(adapter, /documents: \(\) => getPlatformCaseDocumentWorkspace\(actor, studentCaseId\)/u);

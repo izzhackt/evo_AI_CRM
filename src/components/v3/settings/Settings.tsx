@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { StaffSection } from "./StaffSection";
+import { AccountDeletionSection } from "./AccountDeletionSection";
+import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
 import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
 
@@ -52,6 +54,9 @@ export function Settings({
   staffRoles,
   staffOrganizationId,
   selectedStaffRoleId,
+  deletionQueue,
+  deletionDetail,
+  deletionHrefFor,
 }: {
   section: SectionKey;
   staffView: StaffView;
@@ -76,6 +81,10 @@ export function Settings({
   staffRoles?: StaffRoleWorkspace;
   staffOrganizationId: string;
   selectedStaffRoleId?: string;
+  /** «Запросы на удаление» (280): очередь и выбранный запрос, только Admin. */
+  deletionQueue?: AccountDeletionQueueRead;
+  deletionDetail?: AccountDeletionDetailRead | null;
+  deletionHrefFor?: (requestId: string | null) => string;
 }) {
   const current = SECTIONS.find((entry) => entry.key === section && (entry.view === null || entry.view === staffView)) ?? SECTIONS[0];
   // Разделы сотрудников ставят свой видимый h2 с числом («Сотрудники · 5»,
@@ -122,6 +131,9 @@ export function Settings({
               active={journalFilters}
               hrefFor={journalHrefFor}
             />
+          ) : null}
+          {current.key === "deletion" && deletionQueue && deletionHrefFor ? (
+            <AccountDeletionSection queue={deletionQueue} detail={deletionDetail ?? null} hrefFor={deletionHrefFor} now={new Date()} />
           ) : null}
           {current.key === "documents" ? <DocumentsSection gates={gates} /> : null}
           {current.key === "platform" ? <PlatformSection platform={platform} salesImportHref={salesImportHref} salesManagersHref={salesManagersHref} /> : null}

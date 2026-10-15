@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ConsultationRequest } from "@/components/portal/consultation/ConsultationRequest";
-import { DeleteAccountRequest } from "@/components/portal/profile/DeleteAccountRequest";
+import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
 import { LanguageForm } from "@/components/portal/profile/LanguageForm";
 import { getLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
@@ -11,6 +11,7 @@ import {
 } from "@/lib/portal/consultation";
 import { readOwnConsultationRequests } from "@/lib/portal/consultation-source";
 import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
+import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
 import { readOwnPortalProfile } from "@/lib/portal/portal-profile-source";
 import type { PortalProfile } from "@/lib/portal/portal-profile";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
@@ -79,8 +80,8 @@ export const dynamic = "force-dynamic";
 /**
  * Экран «Профиль» (PORT-5a, план §6 «Профиль», §13; дизайн-контракт §6):
  * данные read-only, язык RU/KY (RPC 196 + cookie в одном действии), личные
- * результаты тестов, выход и инициирование удаления аккаунта с честным
- * состоянием запроса.
+ * результаты тестов, выход и удаление аккаунта (280): запрос, срок 30 дней и
+ * его статус с сервера.
  */
 export default async function ProfilePage() {
   const [, locale] = await Promise.all([
@@ -89,6 +90,7 @@ export default async function ProfilePage() {
   ]);
   const strings = getPortalStrings("profile", locale);
   const consultationStrings = getPortalStrings("consultation", locale);
+  const deletionStrings = getPortalStrings("accountDeletion", locale);
 
   let profile: PortalProfile | null = null;
   try {
@@ -99,6 +101,10 @@ export default async function ProfilePage() {
 
   // Запрос консультации (PORT-5b): история и открытый запрос читаются
   // отдельно от профиля; сбой чтения — честная строка, не пустая история.
+  // Удаление аккаунта (280): статус своего запроса читается отдельно от
+  // профиля 196, который не знает «в обработке».
+  const deletion = await readOwnAccountDeletion();
+
   let consultationHistory: readonly ConsultationReceipt[] | null = null;
   try {
     consultationHistory = await readOwnConsultationRequests();
@@ -184,16 +190,13 @@ export default async function ProfilePage() {
 
           <section aria-labelledby="portal-profile-deletion" className="pt-profile-card">
             <h2 id="portal-profile-deletion" className="pt-section-title">
-              {strings.deleteHeading}
+              {deletionStrings.heading}
             </h2>
-            <DeleteAccountRequest
-              initialRequestedAt={profile.deletionRequestedAt}
-              strings={{
-                deleteDescription: strings.deleteDescription,
-                deleteConfirm: strings.deleteConfirm,
-                deleteRequested: strings.deleteRequested,
-                deleteError: strings.deleteError,
-              }}
+            <AccountDeletionPanel
+              initialRequest={deletion.status === "ready" ? deletion.request : null}
+              unavailable={deletion.status === "unavailable"}
+              strings={deletionStrings}
+              look="portal"
             />
           </section>
         </div>

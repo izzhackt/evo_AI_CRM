@@ -40,6 +40,13 @@ struct SignInView: View {
                 }
                 .motionStagger(index: 2, key: "signin.form")
 
+                if router.accountDeletedNotice {
+                    Text("account_deleted_notice")
+                        .font(.footnote)
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("account-deleted-notice")
+                }
+
                 if let signInError = router.signInError {
                     Text(signInError)
                         .font(.footnote)

@@ -110,7 +110,9 @@ function Tasks({ input }: Readonly<{ input: CaseOverviewInput }>) {
     // `#case-tasks` — адрес «Все задачи дела» из «Быстрого просмотра» (#1059).
     <section id="case-tasks" aria-labelledby="case-tasks-title" className="min-w-0 scroll-mt-4 space-y-3" data-testid="v3-case-tasks-part">
       <h2 id="case-tasks-title" tabIndex={-1} data-queue-heading="" className="t-section text-fg">Задачи</h2>
-      {work.tasks.kind === "unavailable" ? (
+      {work.tasks.kind === "forbidden" ? (
+        <p className="t-body-compact text-fg-2" data-testid="v3-case-tasks-forbidden">Нет доступа к задачам этого дела.</p>
+      ) : work.tasks.kind === "unavailable" ? (
         <p role="alert" className="t-body-compact text-danger">Не удалось загрузить задачи. Обновите страницу, чтобы повторить.</p>
       ) : work.tasks.tasks.length === 0 ? (
         <p className="t-body-compact text-fg-2">Открытых задач нет.</p>
@@ -304,6 +306,20 @@ function Groups({ input }: Readonly<{ input: CaseOverviewInput }>) {
   );
 }
 
+/**
+ * «Помощь по делу» для читателя «Ждут куратора» без права на само дело
+ * (248/281): обращения ему не читаются, поэтому вместо чтения с «Обновите
+ * страницу» — та же рамка и честное «нет доступа».
+ */
+export function CaseHelpNoAccess() {
+  return (
+    <section id="case-help" className="rounded-card border border-border bg-surface p-4" data-testid="v3-case-help-forbidden">
+      <h3 className="font-semibold text-fg">Помощь по делу</h3>
+      <p className="mt-2 text-sm text-fg-2">Нет доступа к обращениям этого дела.</p>
+    </section>
+  );
+}
+
 /** Строка ленты — общая разметка Lead 360 (`FeedRow`): одна метка в одной колонке, текст — от одного края. */
 function FeedItem({ item, today, historyHref, focusTarget = false }: Readonly<{ item: CaseFeedItem; today: string; historyHref: string; focusTarget?: boolean }>) {
   const label = caseMomentLabel(item.at, today);
@@ -338,7 +354,9 @@ function Feed({ input }: Readonly<{ input: CaseOverviewInput }>) {
     <section id="case-feed" aria-labelledby="case-feed-title" className="min-w-0" data-testid="v3-case-feed">
       <h2 id="case-feed-title" className="t-section text-fg">Лента</h2>
       {input.noteComposer ? <div className="mt-2">{input.noteComposer}</div> : null}
-      {eventsUnavailable ? (
+      {input.work.activity?.kind === "forbidden" ? (
+        <p className="mt-2 t-body-compact text-fg-2" data-testid="v3-case-feed-forbidden">Нет доступа к журналу этого дела.</p>
+      ) : eventsUnavailable ? (
         <p className="mt-2 t-body-compact text-fg-2" data-testid="v3-case-feed-unread">События журнала дела сейчас не прочитаны. Обновите страницу, чтобы повторить.</p>
       ) : null}
       {items.length > 0 ? (<>

@@ -296,7 +296,7 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
             </Field>
             <Field label="Телефон родителя" htmlFor={ids.parentPhone}>
               <input {...fieldProps("parentPhone")} name="parentPhone" type="tel" autoComplete="off" maxLength={40} className={FIELD_CLS}
-                value={draft.parentPhone} onChange={(e) => set("parentPhone", e.target.value)} />
+                placeholder="+996 555 123 456" value={draft.parentPhone} onChange={(e) => set("parentPhone", e.target.value)} />
               {errorText("parentPhone")}
             </Field>
             <Field label="Имя родителя" htmlFor={ids.parentFirstName}>
@@ -408,7 +408,7 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
                 ?? (costPrefilled ? <span className="mt-1 block t-meta text-fg-2">Для Китая по умолчанию 1 500 USD. Можно изменить.</span> : null)}
             </div>
             <Field label="Дата договора" htmlFor={ids.signedOn}>
-              <input {...fieldProps("signedOn")} name="signedOn" type="date" className={FIELD_CLS}
+              <input {...fieldProps("signedOn")} name="signedOn" type="date" max={bishkekToday()} className={FIELD_CLS}
                 value={draft.signedOn} onChange={(e) => set("signedOn", e.target.value)} />
               {errorText("signedOn")}
             </Field>

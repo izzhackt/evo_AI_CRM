@@ -391,7 +391,10 @@ export default async function ProfilePart({
     curatorsRead,
     queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
     // Лента Student 360 (Э4): журнал дела — только на «Обзоре» и первой странице заметок.
-    caseTarget ? readCaseWork(actor, caseTarget, { overview: tab === "overview", feed: tab === "overview" && noteCursor === null }) : null,
+    // Читатель «Ждут куратора» без права на само дело (248/281) задач, переписки и журнала не читает.
+    caseTarget ? readCaseWork(actor, caseTarget, {
+      overview: tab === "overview", feed: tab === "overview" && noteCursor === null, assignOnly: view?.details.assignOnly === true,
+    }) : null,
     // «Завершить дело» и строка закрытого дела (246); сбой чтения — прежнее «Дело закрыто» без действия.
     caseTarget ? readCaseClosure(actor, caseTarget.studentCaseId).catch(() => null) : null,
     // Сбой списка — форма остаётся с текущим ответственным (как у доски без списка).

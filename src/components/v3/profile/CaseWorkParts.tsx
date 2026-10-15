@@ -14,7 +14,7 @@ import { DIRECTION_LABELS } from "./admissions-view";
 import { CaseAcceptDrawer } from "./CaseAcceptDrawer";
 import { CaseHeader } from "./CaseHeader";
 import { CaseMoreMenu } from "./CaseMoreMenu";
-import { CaseOverview } from "./CaseOverview";
+import { CaseHelpNoAccess, CaseOverview } from "./CaseOverview";
 import { LeadNoteComposer } from "./LeadNoteComposer";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
 import {
@@ -78,6 +78,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
   if (!admissions) return { header: null, overview: null, actions: null };
   const caseId = admissions.studentCaseId;
   const preview = isStaffPreview(actor);
+  // Читатель «Ждут куратора» (248/281): назначает куратора, а задачи и заметки дела база ему не даст.
+  const assignOnly = draft.assignOnly === true;
   const admin = actor.systemRole === "admin" && !preview;
   const tabs = tabsFor(profile.student, {
     ...draft.access,
@@ -119,7 +121,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
   const primary = casePrimaryAction({ handoffPending: handoff !== null && studentsHandoffPending(handoff), preview });
   // «Создать задачу» меню и Ctrl+K на странице дела — с этим делом (Э7).
   const caseAssignees = work.tasks.kind === "ready" ? work.tasks.assignees : [];
-  const taskAllowed = !preview && staffHasPermission(actor, "task.create");
+  const taskAllowed = !preview && !assignOnly && staffHasPermission(actor, "task.create");
   const closable = input.closure?.state === "active" && input.closure.canChange;
   // Контекст панели «Принять дело» — из уже прочитанного (передача, направление, шаг, продажа).
   const acceptContext = {
@@ -225,10 +227,11 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       sales={salesVisible && sales ? { manager: sales.lead.currentOwnerDisplayName, nextAction: sales.lead.nextActionText } : null}
       salesData={salesVisible && sales ? <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={input.requestIds} quiet /> : null}
       salesDataOpen={input.salesDataOpen}
-      help={input.help}
+      help={assignOnly ? <CaseHelpNoAccess /> : input.help}
       feed={feed}
-      // Та же заметка, что у Lead 360 (Э4): то же действие, субъект и предел; просмотр роли не пишет.
-      noteComposer={preview ? null : (
+      // Та же заметка, что у Lead 360 (Э4): то же действие, субъект и предел; просмотр роли не пишет,
+      // читатель «Ждут куратора» тоже (`create_case_note` ему отвечает 42501).
+      noteComposer={preview || assignOnly ? null : (
         <LeadNoteComposer key={`${input.notes.subject.leadId ?? ""}:${input.notes.subject.studentCaseId ?? ""}`}
           subject={input.notes.subject} requestId={input.requestIds.note} />
       )}

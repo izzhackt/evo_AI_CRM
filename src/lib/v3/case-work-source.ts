@@ -85,6 +85,7 @@ async function readCaseActivity(actor: ActivePlatformActor, target: CaseWorkTarg
 
 const NOT_READ = Object.freeze({ kind: "unavailable" } as const);
 const ACTIVITY_NOT_READ = Object.freeze({ kind: "not_read" } as const);
+const FORBIDDEN = Object.freeze({ kind: "forbidden" } as const);
 
 /**
  * Всё, что вид дела читает сверх профиля, одним параллельным заходом. Каждое
@@ -93,19 +94,22 @@ const ACTIVITY_NOT_READ = Object.freeze({ kind: "not_read" } as const);
  * видно на каждой вкладке; задачи, переписку и ленту показывает только
  * «Обзор», поэтому на других вкладках они не читаются. Журнал дела для ленты
  * (`feed`) — только на первой странице заметок: на более ранних лента —
- * одни заметки.
+ * одни заметки. Читателю «Ждут куратора» без права на само дело
+ * (`assignOnly`, 248/281) задачи, переписка и журнал не читаются: их чтения
+ * требуют этого права, ответ — «нет доступа», а не «недоступно».
  */
 export async function readCaseWork(
   actor: ActivePlatformActor,
   target: CaseWorkTarget,
-  options: Readonly<{ overview: boolean; feed?: boolean }>,
+  options: Readonly<{ overview: boolean; feed?: boolean; assignOnly?: boolean }>,
 ): Promise<CaseWorkRead> {
   const now = new Date();
+  const assignOnly = options.assignOnly === true;
   const [row, tasks, chat, activity, deletionRequested] = await Promise.all([
     readCaseQueueRow(actor, target),
-    options.overview ? readCaseTasks(actor, target) : NOT_READ,
-    options.overview ? readCaseChat(actor, target) : NOT_READ,
-    options.overview && options.feed ? readCaseActivity(actor, target) : ACTIVITY_NOT_READ,
+    assignOnly ? FORBIDDEN : options.overview ? readCaseTasks(actor, target) : NOT_READ,
+    assignOnly ? FORBIDDEN : options.overview ? readCaseChat(actor, target) : NOT_READ,
+    assignOnly ? FORBIDDEN : options.overview && options.feed ? readCaseActivity(actor, target) : ACTIVITY_NOT_READ,
     hasOpenAccountDeletionRequestForCase(actor, target.studentCaseId),
   ]);
   // «Нужен куратор» — флаг строки очереди (как в списке); без строки тот, кто назначает

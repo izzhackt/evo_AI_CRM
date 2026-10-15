@@ -111,7 +111,7 @@ const LINE_CONTROL = /[\u0000-\u001f\u007f]/u;
 const NOTE_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
-/** Как `normalize_person_phone` в базе: цифры и необязательный «+» в начале, 7–15 цифр. */
+/** Знаки, которые можно набрать в телефоне: цифры, «+» в начале, пробелы, скобки, точки, дефисы. */
 const PHONE_SHAPE = /^\+?[\d\s().-]{7,40}$/u;
 const MAX_MINOR = 1_000_000_000_000;
 
@@ -132,9 +132,28 @@ export function minorToAmount(minor: number): string {
   return cents === 0 ? whole : `${whole},${String(cents).padStart(2, "0")}`;
 }
 
-function phoneDigits(value: string): number {
-  return value.replace(/\D/gu, "").length;
+/**
+ * Телефон в одном виде E.164 («+», код страны, номер), как `admissions_direct_phone` в 281;
+ * null, если номер так не прочитать. Номер Кыргызстана можно без «+»: «0555 123 456» и
+ * «996 555 123 456» становятся «+996555123456» (после +996 ровно 9 цифр, лишний «0» убирается).
+ * «00» перед кодом страны равен «+». Другой номер без «+» неоднозначен.
+ */
+export function admissionsDirectPhone(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed.length > 40 || !PHONE_SHAPE.test(trimmed)) return null;
+  const digits = trimmed.replace(/\D/gu, "");
+  let canonical = trimmed.startsWith("+") ? `+${digits}`
+    : /^00[1-9]/u.test(digits) ? `+${digits.slice(2)}`
+      : /^0\d{9}$/u.test(digits) ? `+996${digits.slice(1)}`
+        : /^996\d{9}$/u.test(digits) ? `+${digits}`
+          : null;
+  if (canonical === null) return null;
+  if (/^\+9960\d{9}$/u.test(canonical)) canonical = `+996${canonical.slice(5)}`;
+  if (canonical.startsWith("+996")) return /^\+996\d{9}$/u.test(canonical) ? canonical : null;
+  return /^\+[1-9]\d{6,14}$/u.test(canonical) ? canonical : null;
 }
+
+const PHONE_ERROR = "Телефон с кодом страны, например +996 555 123 456. Номер Кыргызстана можно и так: 0555 123 456.";
 
 function isCalendarDate(value: string): boolean {
   if (!DATE_PATTERN.test(value)) return false;
@@ -164,9 +183,10 @@ const TEXT_LIMITS = {
 
 /**
  * Черновик формы → нагрузка RPC. Те же правила, что у 281: имя и страна
- * обязательны; телефон и почта по форме контакта; дата рождения не позже
- * сегодня, возраст 5–99; родитель — мама или папа; оплаты с суммой, валютой и
- * датой, в валюте договора не больше стоимости. `today` — день в Бишкеке.
+ * обязательны; телефон в виде E.164 (`admissionsDirectPhone`), почта по форме
+ * контакта; дата рождения, дата договора и даты оплат не позже сегодня,
+ * возраст 5–99; родитель — мама или папа; оплаты с суммой, валютой и датой, в
+ * валюте договора не больше стоимости. `today` — день в Бишкеке.
  */
 export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today: string = bishkekToday()): AdmissionsDirectBuild {
   const errors: Partial<Record<AdmissionsDirectField, string>> = {};
@@ -185,9 +205,7 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
   if (!firstName && !errors.firstName) errors.firstName = "Укажите имя студента.";
 
   const phone = draft.phone.trim();
-  if (phone && (phone.length > 40 || !PHONE_SHAPE.test(phone) || phoneDigits(phone) < 7 || phoneDigits(phone) > 15)) {
-    errors.phone = "Телефон: от 7 до 15 цифр, можно с «+».";
-  }
+  if (phone && admissionsDirectPhone(phone) === null) errors.phone = PHONE_ERROR;
   const email = draft.email.trim();
   if (email && (email.length > 120 || !EMAIL_PATTERN.test(email))) errors.email = "Проверьте почту.";
 
@@ -203,10 +221,7 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
   const parentFirstName = text("parentFirstName");
   const parentLastName = text("parentLastName");
   const parentPhone = draft.parentPhone.trim();
-  if (parentPhone && (parentPhone.length > 40 || !PHONE_SHAPE.test(parentPhone)
-    || phoneDigits(parentPhone) < 7 || phoneDigits(parentPhone) > 15)) {
-    errors.parentPhone = "Телефон: от 7 до 15 цифр, можно с «+».";
-  }
+  if (parentPhone && admissionsDirectPhone(parentPhone) === null) errors.parentPhone = PHONE_ERROR;
   const parentGiven = Boolean(parentFirstName || parentLastName || parentPhone);
   const relation = draft.parentRelation;
   if (parentGiven && relation !== "mother" && relation !== "father") errors.parentRelation = "Выберите, кто это: мама или папа.";
@@ -229,7 +244,11 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
   if (costMinor === null) errors.costAmount = "Сумма: число больше нуля, до двух знаков после запятой.";
   if (costMinor !== "" && costMinor !== null && !isCurrency(draft.costCurrency)) errors.costCurrency = "Выберите валюту.";
   const signedOn = draft.signedOn.trim();
-  if (signedOn && (!isCalendarDate(signedOn) || signedOn < "2000-01-01" || signedOn > "2100-12-31")) errors.signedOn = "Проверьте дату договора.";
+  // Договор студента, который пришёл с деньгами, уже подписан: дата не позже сегодня, как в 281.
+  // Оплата раньше даты договора допустима (предоплата).
+  if (signedOn && (!isCalendarDate(signedOn) || signedOn < "2000-01-01" || signedOn > today)) {
+    errors.signedOn = "Укажите дату договора, не позже сегодняшнего дня.";
+  }
 
   if (draft.payments.length > ADMISSIONS_DIRECT_MAX_PAYMENTS) errors.payments = `Не больше ${ADMISSIONS_DIRECT_MAX_PAYMENTS} оплат.`;
   // Полученные деньги оплачены сегодня или раньше (день в Бишкеке), как в 281.
@@ -384,7 +403,7 @@ export function admissionsDirectMessage(result: AdmissionsDirectResult): string 
     case "forbidden": return "Нет права добавлять студентов. Если оно должно быть, попросите Admin проверить вашу роль.";
     case "curator_forbidden": return "Этого куратора вы назначить не можете. Выберите куратора своего отдела или оставьте «Без куратора».";
     case "case_exists": return "У человека с этим телефоном или почтой уже есть открытое дело. Найдите его в «Студентах».";
-    case "lead_exists": return "Этот человек уже есть в продажах как лид. Передайте его через продажи или попросите Admin.";
+    case "lead_exists": return "Этот человек уже есть в продажах как открытый лид. Дело появится, когда продажи передадут его в поступление.";
     case "request_conflict": return "Этот запрос уже использован с другими данными. Обновите страницу и заполните форму снова.";
     case "unavailable": return "Сохранение не подтверждено. Данные остались в форме; безопасно повторите.";
   }

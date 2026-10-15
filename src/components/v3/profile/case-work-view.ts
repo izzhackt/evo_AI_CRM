@@ -23,10 +23,14 @@ import type { ProfileEvent } from "./types.ts";
  */
 export type CaseWorkRow = StudentCaseQueueRow | null;
 
-/** Открытые задачи дела в порядке «Задач»; «недоступно» — это не «задач нет». */
+/**
+ * Открытые задачи дела в порядке «Задач»; «недоступно» — это не «задач нет».
+ * «Нет доступа» — читатель «Ждут куратора» без права на само дело (281): задачи не читаются.
+ */
 export type CaseWorkTasks =
   | Readonly<{ kind: "ready"; tasks: readonly QueueTask[]; assignees: readonly Readonly<{ membershipId: string; displayName: string }>[] }>
-  | Readonly<{ kind: "unavailable" }>;
+  | Readonly<{ kind: "unavailable" }>
+  | Readonly<{ kind: "forbidden" }>;
 
 /** Последнее сообщение переписки по делу и её отметка. */
 export type CaseWorkChatLine = Readonly<{
@@ -47,12 +51,14 @@ export type CaseWorkChat =
  * Журнал дела для ленты Student 360 (Э4): первая страница того же чтения, что
  * у вкладки «История» (`staff_student_case_activity`, 132/241). `olderThan` —
  * граница страницы, если событий больше; «не читали» — лента не на первой
- * странице заметок или не «Обзор»; «недоступно» — чтение не удалось.
+ * странице заметок или не «Обзор»; «недоступно» — чтение не удалось; «нет
+ * доступа» — читатель «Ждут куратора» без права на само дело (281).
  */
 export type CaseWorkActivity =
   | Readonly<{ kind: "ready"; events: readonly ProfileEvent[]; olderThan: string | null }>
   | Readonly<{ kind: "unavailable" }>
-  | Readonly<{ kind: "not_read" }>;
+  | Readonly<{ kind: "not_read" }>
+  | Readonly<{ kind: "forbidden" }>;
 
 /** Всё, что вид дела читает сверх профиля (`readProfileTarget`). */
 export type CaseWorkRead = Readonly<{

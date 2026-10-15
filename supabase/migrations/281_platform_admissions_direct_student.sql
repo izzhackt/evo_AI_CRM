@@ -26,6 +26,12 @@
 --     and so is one with an OPEN lead (admissions_direct_lead_exists, the rule
 --     create_manual_sales_lead already applies): sales keep that lead and hand
 --     it over. The contact locks are 143's, so the two intakes serialize.
+--     Phones are matched and stored in one form, E.164 with «+»
+--     (admissions_direct_phone: the Kyrgyz «0…» and «996…» spellings become
+--     «+996…», any other spelling without «+» is refused), and the match and
+--     the locks cover every spelling another intake may have stored
+--     (admissions_direct_phone_keys); a client with the same number in
+--     another spelling and nothing in work becomes a phone duplicate candidate.
 --     Client and lead go through the canonical platform_private.
 --     create_or_link_client / create_or_link_lead (source system
 --     `evo_admissions`, external identifier = request id, evidence
@@ -39,8 +45,10 @@
 --     student profile fields (needs_review; every value in the form
 --     normalize_student_profile_field_value gives it, the intake stays only on
 --     student_cases.intake), the contract cost (lead_sale_conditions, read by
---     «Договор и оплата» 189), tranches and the payments already received (paid
---     on a day not later than today in Bishkek), an optional first case note,
+--     «Договор и оплата» 189; its signing day not later than today in
+--     Bishkek), tranches and the payments already received (paid on a day not
+--     later than today in Bishkek; before the signing day is an advance and
+--     stays valid), an optional first case note,
 --     and the audit rows (case.create, case.tranche.save,
 --     finance.payment.record — all already in the P7A allowlist).
 --  e) platform.create_admissions_student_case_v1 (authenticated, idempotent by
@@ -410,6 +418,47 @@ BEGIN
   RETURN value;
 END $$;
 
+-- A person's phone in the one form every intake can match (E.164: «+», the
+-- country code, the number), or NULL when it cannot be read as one.
+-- normalize_person_phone keeps the spelling («+» only when typed), so
+-- «+996 777 281 999», «996777281999» and «0777 281 999» were three different
+-- keys while the lead-agent stores WhatsApp numbers as «+996…». Accepted:
+-- «+» and the country code; «00» and the country code; and the two Kyrgyz
+-- spellings without a country sign, the national «0» + 9 digits and «996» +
+-- 9 digits (the organization works from Bishkek). A Kyrgyz number has exactly
+-- 9 digits after +996 (a trunk «0» typed after +996 is dropped). Anything
+-- else without «+» is ambiguous and refused.
+CREATE FUNCTION platform_private.admissions_direct_phone(p_value TEXT)
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE SET search_path = '' AS $$
+DECLARE n TEXT := platform_private.normalize_person_phone(p_value); c TEXT;
+BEGIN
+  IF n IS NULL OR n = '' OR n = '+' THEN RETURN NULL; END IF;
+  c := CASE
+    WHEN left(n, 1) = '+' THEN n
+    WHEN n ~ '^00[1-9]' THEN '+' || substr(n, 3)
+    WHEN n ~ '^0[0-9]{9}$' THEN '+996' || substr(n, 2)
+    WHEN n ~ '^996[0-9]{9}$' THEN '+' || n
+  END;
+  IF c ~ '^\+9960[0-9]{9}$' THEN c := '+996' || substr(c, 6); END IF;
+  IF c ~ '^\+996' THEN
+    RETURN CASE WHEN c ~ '^\+996[0-9]{9}$' THEN c END;
+  END IF;
+  RETURN CASE WHEN c ~ '^\+[1-9][0-9]{6,14}$' THEN c END;
+END $$;
+
+-- Every spelling under which another intake may have stored the same number
+-- (normalize_person_phone of what its user typed): the E.164 form, its digits
+-- without «+», with «00», and for a Kyrgyz number the national «0» form and
+-- «+996 0…». Used for the one-person match and for the contact locks.
+CREATE FUNCTION platform_private.admissions_direct_phone_keys(p_canonical TEXT)
+RETURNS TEXT[] LANGUAGE SQL IMMUTABLE SET search_path = '' AS $$
+  SELECT CASE WHEN p_canonical IS NULL THEN ARRAY[]::TEXT[]
+    ELSE ARRAY[p_canonical, substr(p_canonical, 2), '00' || substr(p_canonical, 2)]
+      || CASE WHEN p_canonical ~ '^\+996[0-9]{9}$' THEN ARRAY['0' || substr(p_canonical, 5),
+        '+9960' || substr(p_canonical, 5), '9960' || substr(p_canonical, 5)] ELSE ARRAY[]::TEXT[] END
+  END
+$$;
+
 -- May the actor name this curator (NULL: none, the case waits) for a case in
 -- this direction? The future owner is the curator, or the actor while the
 -- case waits. Own scope admits only oneself; another curator, or none, also
@@ -426,6 +475,8 @@ CREATE FUNCTION platform_private.admissions_direct_actor_may_name(
 $$;
 
 REVOKE ALL ON FUNCTION platform_private.admissions_direct_text(JSONB, TEXT, INTEGER, BOOLEAN),
+  platform_private.admissions_direct_phone(TEXT),
+  platform_private.admissions_direct_phone_keys(TEXT),
   platform_private.admissions_direct_object(JSONB, TEXT, TEXT[]),
   platform_private.admissions_direct_minor(JSONB, TEXT, TEXT),
   platform_private.admissions_direct_date(JSONB, TEXT, DATE, DATE, TEXT),
@@ -455,7 +506,8 @@ DECLARE
   payment JSONB; payments JSONB := '[]'::JSONB;
   student_name TEXT; first_name TEXT; last_name TEXT; phone_raw TEXT; email_raw TEXT;
   phone_norm TEXT; email_norm TEXT; birth_date DATE; age_years INTEGER; age_raw TEXT;
-  parent_relation TEXT; parent_first TEXT; parent_last TEXT; parent_phone TEXT;
+  parent_relation TEXT; parent_first TEXT; parent_last TEXT; parent_phone TEXT; parent_phone_norm TEXT;
+  phone_keys TEXT[] := ARRAY[]::TEXT[];
   country_code TEXT; direction TEXT; degree_text TEXT; program_text TEXT; intake_text TEXT;
   education_current TEXT; english_text TEXT; chinese_text TEXT;
   curator UUID; curator_raw TEXT; stage TEXT; note_text TEXT; note_body TEXT;
@@ -528,12 +580,15 @@ BEGIN
   student_name := COALESCE(platform_private.admissions_direct_text(student, 'name', 200),
     NULLIF(btrim(concat_ws(' ', first_name, last_name)), ''));
   IF student_name IS NULL THEN RAISE EXCEPTION 'admissions_direct_invalid:name' USING ERRCODE = '22023'; END IF;
+  -- One form for every phone (admissions_direct_phone): the match below, the
+  -- client, the анкета and the WhatsApp intake all see the same number.
   phone_raw := platform_private.admissions_direct_text(student, 'phone', 40);
   IF phone_raw IS NOT NULL THEN
-    phone_norm := platform_private.normalize_person_phone(phone_raw);
-    IF phone_norm IS NULL OR phone_norm !~ '^\+?[0-9]{7,15}$' THEN
+    phone_norm := platform_private.admissions_direct_phone(phone_raw);
+    IF phone_norm IS NULL THEN
       RAISE EXCEPTION 'admissions_direct_invalid:phone' USING ERRCODE = '22023';
     END IF;
+    phone_keys := platform_private.admissions_direct_phone_keys(phone_norm);
   END IF;
   email_raw := platform_private.admissions_direct_text(student, 'email', 120);
   IF email_raw IS NOT NULL THEN
@@ -557,8 +612,11 @@ BEGIN
     parent_first := platform_private.admissions_direct_text(parent, 'firstName', 60);
     parent_last := platform_private.admissions_direct_text(parent, 'lastName', 60);
     parent_phone := platform_private.admissions_direct_text(parent, 'phone', 40);
-    IF parent_phone IS NOT NULL AND platform_private.normalize_person_phone(parent_phone) !~ '^\+?[0-9]{7,15}$' THEN
-      RAISE EXCEPTION 'admissions_direct_invalid:parentPhone' USING ERRCODE = '22023';
+    IF parent_phone IS NOT NULL THEN
+      parent_phone_norm := platform_private.admissions_direct_phone(parent_phone);
+      IF parent_phone_norm IS NULL THEN
+        RAISE EXCEPTION 'admissions_direct_invalid:parentPhone' USING ERRCODE = '22023';
+      END IF;
     END IF;
     IF (parent_first IS NOT NULL OR parent_last IS NOT NULL OR parent_phone IS NOT NULL)
       AND parent_relation IS DISTINCT FROM 'mother' AND parent_relation IS DISTINCT FROM 'father' THEN
@@ -600,7 +658,10 @@ BEGIN
         RAISE EXCEPTION 'admissions_direct_invalid:costCurrency' USING ERRCODE = '22023';
       END IF;
     END IF;
-    signed_on := platform_private.admissions_direct_date(money, 'signedOn', DATE '2000-01-01', DATE '2100-12-31', 'signedOn');
+    -- The contract of a student added with its money is already signed: a
+    -- signing day after today (Bishkek) is a typo, as a payment day would be.
+    -- A payment before the signing day stays valid (an advance).
+    signed_on := platform_private.admissions_direct_date(money, 'signedOn', DATE '2000-01-01', today, 'signedOn');
     IF money ? 'payments' AND jsonb_typeof(money -> 'payments') <> 'null' THEN
       IF jsonb_typeof(money -> 'payments') <> 'array' OR jsonb_array_length(money -> 'payments') > 20 THEN
         RAISE EXCEPTION 'admissions_direct_invalid:payments' USING ERRCODE = '22023';
@@ -631,19 +692,19 @@ BEGIN
 
   -- ---- анкета values, in the form the анкета itself stores ----------------------------
   -- Every value passes normalize_student_profile_field_value (the rule of
-  -- every анкета write): phones as digits, e-mail in lower case. The intake
-  -- («набор», free text such as «сентябрь 2027») is not the date field
-  -- desired_start_date; it stays on student_cases.intake. date_of_birth is a
+  -- every анкета write): phones in the E.164 form above, e-mail in lower
+  -- case. The intake («набор», free text such as «сентябрь 2027») is not the
+  -- date field desired_start_date; it stays on student_cases.intake. date_of_birth is a
   -- canonical column (student_profiles.date_of_birth): its field row has no value.
   FOR field IN SELECT * FROM (VALUES
     ('student_first_name', first_name, 'firstName'), ('student_last_name', last_name, 'lastName'),
-    ('mobile_phone', phone_raw, 'phone'), ('student_email', email_raw, 'email'),
+    ('mobile_phone', phone_norm, 'phone'), ('student_email', email_raw, 'email'),
     ('current_study_status', education_current, 'current'), ('english_level', english_text, 'english'),
     ('chinese_level_hsk', chinese_text, 'chinese'),
     ('program_level', degree_text, 'degree'), ('field_major', program_text, 'program'),
     (parent_relation || '_first_name', parent_first, 'parentFirstName'),
     (parent_relation || '_last_name', parent_last, 'parentLastName'),
-    (parent_relation || '_mobile_phone', parent_phone, 'parentPhone')
+    (parent_relation || '_mobile_phone', parent_phone_norm, 'parentPhone')
   ) AS fields(key, value, label)
   WHERE fields.key IS NOT NULL AND fields.value IS NOT NULL LOOP
     BEGIN
@@ -673,9 +734,10 @@ BEGIN
   principal := CASE WHEN is_import THEN 'service:admissions-import' ELSE 'auth:' || actor.auth_user_id::TEXT END;
 
   -- ---- one person, one card --------------------------------------------------------
-  -- The contact locks of create_manual_sales_lead (143), in its sorted order:
-  -- a manual sales lead and a direct case for the same contact serialize.
-  FOR lock_value IN SELECT v FROM unnest(ARRAY[phone_norm, email_norm]) v WHERE v IS NOT NULL ORDER BY v LOOP
+  -- The contact locks of create_manual_sales_lead (143), in its sorted order,
+  -- under every spelling of the phone a manual lead may have stored: a manual
+  -- sales lead and a direct case for the same contact serialize.
+  FOR lock_value IN SELECT DISTINCT v FROM unnest(phone_keys || ARRAY[email_norm]) v WHERE v IS NOT NULL ORDER BY v LOOP
     PERFORM pg_advisory_xact_lock(hashtextextended('manual-lead-contact:' || p_organization_id::TEXT || ':' || lock_value, 0));
   END LOOP;
   IF phone_norm IS NOT NULL OR email_norm IS NOT NULL THEN
@@ -686,7 +748,7 @@ BEGIN
       AND (sc.canonical_client_id = cl.id OR sc.canonical_lead_id IN (
         SELECT l.id FROM platform.leads l WHERE l.organization_id = cl.organization_id AND l.client_id = cl.id))
     WHERE cl.organization_id = p_organization_id AND cl.lifecycle_state = 'active'
-      AND ((phone_norm IS NOT NULL AND cl.normalized_phone = phone_norm)
+      AND (cl.normalized_phone = ANY (phone_keys)
         OR (email_norm IS NOT NULL AND cl.normalized_email = email_norm))
     ORDER BY sc.created_at, sc.id LIMIT 1;
     -- An open sales lead for this person (create_manual_sales_lead answers
@@ -695,7 +757,7 @@ BEGIN
     FROM platform.clients cl
     JOIN platform.leads l ON l.organization_id = cl.organization_id AND l.client_id = cl.id AND l.lifecycle_state = 'open'
     WHERE cl.organization_id = p_organization_id AND cl.lifecycle_state = 'active'
-      AND ((phone_norm IS NOT NULL AND cl.normalized_phone = phone_norm)
+      AND (cl.normalized_phone = ANY (phone_keys)
         OR (email_norm IS NOT NULL AND cl.normalized_email = email_norm))
     ORDER BY l.updated_at DESC, l.id LIMIT 1;
   END IF;
@@ -724,9 +786,20 @@ BEGIN
     SELECT 1 FROM platform.clients cl
     WHERE cl.organization_id = p_organization_id AND cl.lifecycle_state = 'active'
       AND cl.normalized_phone = phone_norm AND cl.normalized_email = email_norm);
-  client_id_value := platform_private.create_or_link_client(p_organization_id, student_name, email_raw, phone_raw,
+  client_id_value := platform_private.create_or_link_client(p_organization_id, student_name, email_raw, phone_norm,
     'evo_admissions', 'client', p_request_id::TEXT, evidence, observed,
     CASE WHEN is_import THEN observed END, p_external_ref);
+  -- 084's candidates compare the stored spelling; a client holding the same
+  -- number in another spelling (no open lead or case: those were refused
+  -- above) is a phone candidate too. A pair already flagged keeps its basis.
+  IF NOT client_reused AND phone_norm IS NOT NULL THEN
+    INSERT INTO platform_private.client_duplicate_candidates (organization_id, left_client_id, right_client_id, match_basis)
+    SELECT p_organization_id, LEAST(client_id_value, cl.id), GREATEST(client_id_value, cl.id), 'phone'
+    FROM platform.clients cl
+    WHERE cl.organization_id = p_organization_id AND cl.lifecycle_state = 'active' AND cl.id <> client_id_value
+      AND cl.normalized_phone = ANY (phone_keys) AND cl.normalized_phone <> phone_norm
+    ON CONFLICT (organization_id, left_client_id, right_client_id) DO NOTHING;
+  END IF;
   lead_id_value := platform_private.create_or_link_lead(p_organization_id, client_id_value, NULL, 'new',
     'admissions_direct', 'evo_admissions', 'lead', p_request_id::TEXT, evidence, observed,
     CASE WHEN is_import THEN observed END, p_external_ref);

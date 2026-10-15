@@ -33,6 +33,15 @@
 --  R7 (documented, docs/runbooks/admissions-direct-import.md) the import's
 --     case.curator.set row is written by the shared e1 as auth:<Admin>, tied
 --     to the import request by its v5 request id.
+-- Delta review round 1 (PR #1194), each failing before its fix:
+--  D1 one phone form: with an open sales lead on +996…, the spellings 996…,
+--     0…, «+996 0…» and 00996… are refused (lead_exists) and the import
+--     reports them; a sales lead stored as 0… is found from +996…; a case is
+--     found under another spelling; an ambiguous number without «+» is
+--     refused; client, анкета and parent phone are stored as +996…; a client
+--     with the same number in another spelling is a phone duplicate candidate;
+--  D4 a contract signed tomorrow is refused, one signed today is accepted, a
+--     payment before the signing day (an advance) is accepted.
 -- Isolated synthetic SQL fixtures only.
 BEGIN;
 
@@ -241,6 +250,18 @@ SELECT platform_private.create_or_link_client(pg_temp.n281_id(1), 'N281 Old Pair
   '+996 555 281 888', 'n281-fixture', 'client', 'old-2', 'staff_recorded', statement_timestamp()) AS n281_pair_client \gset
 SELECT pg_temp.n281_assert((SELECT l.lifecycle_state = 'open' FROM platform.leads l WHERE l.id = :'n281_sales_lead'::UUID),
   'fixture: the sales lead is open');
+-- D1 fixtures: a manual sales lead typed in the national spelling (stored as
+-- 143 stores it, normalize_person_phone: «0555281666»), and a client known
+-- only under a national-spelling number (no lead, no case).
+SELECT platform_private.create_or_link_client(pg_temp.n281_id(1), 'N281 Local Sales', NULL,
+  '0555 281 666', 'n281-fixture', 'client', 'sales-2', 'staff_recorded', statement_timestamp()) AS n281_local_sales_client \gset
+SELECT platform_private.create_or_link_lead(pg_temp.n281_id(1), :'n281_local_sales_client'::UUID, NULL, 'new', 'office',
+  'n281-fixture', 'lead', 'sales-2', 'staff_recorded', statement_timestamp()) AS n281_local_sales_lead \gset
+SELECT platform_private.create_or_link_client(pg_temp.n281_id(1), 'N281 Old Local', NULL,
+  '0555 281 444', 'n281-fixture', 'client', 'old-3', 'staff_recorded', statement_timestamp()) AS n281_old_local_client \gset
+SELECT pg_temp.n281_assert((SELECT array_agg(c.normalized_phone ORDER BY c.display_name) FROM platform.clients c
+    WHERE c.id IN (:'n281_local_sales_client'::UUID, :'n281_old_local_client'::UUID))
+  = ARRAY['0555281666', '0555281444'], 'fixture: the national spelling is what other intakes store');
 
 CREATE TEMP TABLE n281_before AS SELECT
   (SELECT count(*) FROM platform_private.sales_register WHERE organization_id = pg_temp.n281_id(1)) AS register_rows,
@@ -506,6 +527,71 @@ SELECT pg_temp.n281_assert(pg_temp.n281_create(5116, jsonb_build_object('student
 RESET ROLE;
 
 -- ---------------------------------------------------------------------------
+-- 2c. D1 One phone form (delta review): every spelling of the same number.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.n281_assert(platform_private.admissions_direct_phone('+996 777 281 999') = '+996777281999'
+  AND platform_private.admissions_direct_phone('996 777 281 999') = '+996777281999'
+  AND platform_private.admissions_direct_phone('0777 281 999') = '+996777281999'
+  AND platform_private.admissions_direct_phone('+996 0777 281 999') = '+996777281999'
+  AND platform_private.admissions_direct_phone('00996 777 281 999') = '+996777281999'
+  AND platform_private.admissions_direct_phone('+7 701 123 45 67') = '+77011234567'
+  AND platform_private.admissions_direct_phone('777 281 999') IS NULL
+  AND platform_private.admissions_direct_phone('8 701 123 45 67') IS NULL
+  AND platform_private.admissions_direct_phone('+996 777 28 19') IS NULL
+  AND platform_private.admissions_direct_phone('+0 555 123 456') IS NULL,
+  'D1: one E.164 form; the Kyrgyz spellings become +996…, an ambiguous number without «+» is refused');
+SET LOCAL request.jwt.claims TO :'n281_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert((SELECT array_agg(pg_temp.n281_create((5120 + x.i)::INTEGER, jsonb_build_object('student',
+      jsonb_build_object('name', 'N281 Spelling ' || x.i, 'phone', x.p), 'route', jsonb_build_object('country', 'MY'))) ORDER BY x.i)
+    FROM unnest(ARRAY['996555281999', '0555 281 999', '996 555 281 999', '+996 0555 281 999', '00996555281999'])
+      WITH ORDINALITY AS x(p, i))
+  = ARRAY['PT409:admissions_direct_lead_exists', 'PT409:admissions_direct_lead_exists', 'PT409:admissions_direct_lead_exists',
+    'PT409:admissions_direct_lead_exists', 'PT409:admissions_direct_lead_exists'],
+  'D1: the open sales lead on +996555281999 refuses every other spelling of its number');
+SELECT pg_temp.n281_assert(pg_temp.n281_error_detail(format('SELECT platform.create_admissions_student_case_v1(%L, %L, %L::JSONB)',
+    pg_temp.n281_id(1), pg_temp.n281_id(5126), jsonb_build_object('student',
+      jsonb_build_object('name', 'N281 Spelling Local', 'phone', '+996 555 281 666'), 'route', jsonb_build_object('country', 'MY'))::TEXT))
+  = :'n281_local_sales_lead', 'D1: a sales lead stored as 0555281666 is found from +996 555 281 666');
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5127, jsonb_build_object('student',
+    jsonb_build_object('name', 'N281 Spelling Case', 'phone', '0555 281 001'), 'route', jsonb_build_object('country', 'MY')))
+  = 'PT409:admissions_direct_case_exists', 'D1: the case on +996555281001 is found from 0555 281 001');
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5128, jsonb_build_object('student',
+    jsonb_build_object('name', 'N281 Spelling Bare', 'phone', '555 281 001'), 'route', jsonb_build_object('country', 'MY')))
+  = '22023:admissions_direct_invalid:phone', 'D1: a number without «+» and without a Kyrgyz prefix is refused');
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5129, jsonb_build_object('student',
+    jsonb_build_object('name', 'N281 Spelling Short', 'phone', '+996 555 28 10'), 'route', jsonb_build_object('country', 'MY')))
+  = '22023:admissions_direct_invalid:phone', 'D1: a Kyrgyz number needs 9 digits after +996');
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5130, jsonb_build_object('student', jsonb_build_object('name', 'N281 Spelling Parent'),
+    'parent', jsonb_build_object('relation', 'mother', 'phone', '8 701 123 45 67'), 'route', jsonb_build_object('country', 'MY')))
+  = '22023:admissions_direct_invalid:parentPhone', 'D1: the parent phone follows the same rule');
+SELECT platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5131), jsonb_build_object(
+  'student', jsonb_build_object('name', 'N281 Local Created', 'phone', '0700 281 301'),
+  'parent', jsonb_build_object('relation', 'father', 'phone', '996 700 281 302'),
+  'route', jsonb_build_object('country', 'MY'), 'curatorMembershipId', pg_temp.n281_id(306)::TEXT)) AS n281_local_created \gset
+SELECT platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5132), jsonb_build_object(
+  'student', jsonb_build_object('name', 'N281 New Local', 'phone', '+996 555 281 444'),
+  'route', jsonb_build_object('country', 'MY'), 'curatorMembershipId', pg_temp.n281_id(306)::TEXT)) AS n281_new_local \gset
+RESET ROLE;
+SELECT pg_temp.n281_assert(NOT EXISTS (SELECT 1 FROM platform.clients c WHERE c.organization_id = pg_temp.n281_id(1)
+    AND c.display_name LIKE 'N281 Spelling%')
+  AND (SELECT count(*) = 2 FROM platform.leads l WHERE l.organization_id = pg_temp.n281_id(1) AND l.lifecycle_state = 'open'
+    AND l.id IN (:'n281_sales_lead'::UUID, :'n281_local_sales_lead'::UUID)),
+  'D1: the refused spellings created nothing; both sales leads stay open');
+SELECT pg_temp.n281_assert((SELECT cl.phone = '+996700281301' AND cl.normalized_phone = '+996700281301'
+  FROM platform.clients cl WHERE cl.id = (:'n281_local_created'::JSONB ->> 'client_id')::UUID),
+  'D1: the client is stored as +996… (the WhatsApp form)');
+SELECT pg_temp.n281_assert((SELECT array_agg(f.field_key || '=' || f.value ORDER BY f.field_key)
+    FROM platform.student_profile_fields f WHERE f.student_case_id = (:'n281_local_created'::JSONB ->> 'student_case_id')::UUID
+      AND f.field_key LIKE '%phone')
+  = ARRAY['father_mobile_phone=+996700281302', 'mobile_phone=+996700281301'], 'D1: the анкета phones are +996… too');
+SELECT pg_temp.n281_assert(EXISTS (SELECT 1 FROM platform_private.client_duplicate_candidates d
+    WHERE d.organization_id = pg_temp.n281_id(1) AND d.status = 'open' AND d.match_basis = 'phone'
+      AND d.left_client_id = LEAST((:'n281_new_local'::JSONB ->> 'client_id')::UUID, :'n281_old_local_client'::UUID)
+      AND d.right_client_id = GREATEST((:'n281_new_local'::JSONB ->> 'client_id')::UUID, :'n281_old_local_client'::UUID)),
+  'D1: a client holding the same number as 0555281444 is a phone duplicate candidate');
+
+-- ---------------------------------------------------------------------------
 -- 3. The Admin: any curator, or none.
 -- ---------------------------------------------------------------------------
 SET LOCAL request.jwt.claims TO :'n281_admin';
@@ -522,6 +608,22 @@ SELECT pg_temp.n281_assert(pg_temp.n281_create(5210, jsonb_build_object('student
     'money', jsonb_build_object('payments', jsonb_build_array(jsonb_build_object('amountMinor', 100, 'currency', 'USD',
       'paidOn', to_char((statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1, 'YYYY-MM-DD'))))))
   = '22023:admissions_direct_invalid:paidOn', 'R6: a payment dated tomorrow is refused');
+-- D4: the contract is signed today at the latest; a payment before it is an advance.
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5213, jsonb_build_object('student', jsonb_build_object('name', 'N281 Signed Tomorrow'),
+    'route', jsonb_build_object('country', 'MY'),
+    'money', jsonb_build_object('signedOn', to_char((statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1, 'YYYY-MM-DD'))))
+  = '22023:admissions_direct_invalid:signedOn', 'D4: a contract signed tomorrow is refused');
+SELECT pg_temp.n281_assert(pg_temp.n281_create(5214, jsonb_build_object('student', jsonb_build_object('name', 'N281 Signed 2099'),
+    'route', jsonb_build_object('country', 'MY'), 'money', jsonb_build_object('signedOn', '2099-01-01')))
+  = '22023:admissions_direct_invalid:signedOn', 'D4: the review''s 2099 contract is refused');
+SELECT pg_temp.n281_assert((platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5215),
+    jsonb_build_object('student', jsonb_build_object('name', 'N281 Signed Today'), 'route', jsonb_build_object('country', 'TR'),
+      'curatorMembershipId', pg_temp.n281_id(307)::TEXT,
+      'money', jsonb_build_object('cost', jsonb_build_object('amountMinor', 1000, 'currency', 'USD'),
+        'signedOn', to_char((statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE, 'YYYY-MM-DD'),
+        'payments', jsonb_build_array(jsonb_build_object('amountMinor', 100, 'currency', 'USD',
+          'paidOn', to_char((statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 10, 'YYYY-MM-DD'))))))
+  ->> 'state') = 'active', 'D4: a contract signed today with an advance paid before it is accepted');
 SELECT pg_temp.n281_assert((platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(5211),
     jsonb_build_object('student', jsonb_build_object('name', 'N281 Paid Today'), 'route', jsonb_build_object('country', 'TR'),
       'curatorMembershipId', pg_temp.n281_id(307)::TEXT,
@@ -666,10 +768,17 @@ SELECT pg_temp.n281_assert(:'n281_imp_case'::JSONB ->> 'status' = 'case_exists'
   AND :'n281_imp_case'::JSONB ->> 'student_case_id' = :'n281_case_a',
   'R1: the import reports a row whose person already has a case');
 RESET ROLE;
+-- D1: the import reports every spelling of a number in work.
+SELECT pg_temp.n281_assert((SELECT array_agg((platform.import_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(301),
+      'n281-amocrm-test', x.ref, jsonb_build_object('student', jsonb_build_object('name', 'N281 Imported Spelling', 'phone', x.p),
+        'route', jsonb_build_object('country', 'MY')), 'Импорт клиентов из amoCRM по поручению владельца')) ->> 'lead_id' ORDER BY x.n)
+    FROM (VALUES (1, 'amo-8', '996 555 281 999'), (2, 'amo-9', '0555281999'), (3, 'amo-10', '+996 555 281 666')) AS x(n, ref, p))
+  = ARRAY[:'n281_sales_lead', :'n281_sales_lead', :'n281_local_sales_lead'],
+  'D1: the import reports lead_exists for 996…, 0… and for a lead stored in the national spelling');
 SELECT pg_temp.n281_assert(NOT EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_receipts r
-    WHERE r.import_source = 'n281-amocrm-test' AND r.external_ref IN ('amo-6', 'amo-7'))
+    WHERE r.import_source = 'n281-amocrm-test' AND r.external_ref IN ('amo-6', 'amo-7', 'amo-8', 'amo-9', 'amo-10'))
   AND NOT EXISTS (SELECT 1 FROM platform.clients c WHERE c.organization_id = pg_temp.n281_id(1)
-    AND c.display_name IN ('N281 Imported Sales', 'N281 Imported Twin')),
+    AND c.display_name IN ('N281 Imported Sales', 'N281 Imported Twin', 'N281 Imported Spelling')),
   'R1: the reported rows created nothing');
 SELECT pg_temp.n281_assert((SELECT count(*) = 2 AND bool_and(p.evidence_type = 'imported' AND p.source_ref = 'amo-1'
     AND p.imported_at IS NOT NULL)
@@ -764,13 +873,17 @@ SELECT pg_temp.n281_assert((SELECT
   FROM n281_before b), 'no sales record, no sales handoff, no open lead');
 SELECT pg_temp.n281_assert((SELECT count(*) = (SELECT count(*) FROM platform_private.admissions_direct_case_receipts r
       WHERE r.organization_id = pg_temp.n281_id(1))
-    AND count(*) = 10
+    AND count(*) = 13
     AND bool_and(l.lifecycle_state = 'converted' AND l.current_owner_membership_id IS NULL)
   FROM platform.leads l WHERE l.organization_id = pg_temp.n281_id(1) AND l.source_key = 'admissions_direct'),
-  'ten created leads, one per receipt, all converted and without a sales owner');
-SELECT pg_temp.n281_assert((SELECT count(*) = 10 FROM platform.student_cases c JOIN platform_private.admissions_direct_case_receipts r
+  'thirteen created leads, one per receipt, all converted and without a sales owner');
+SELECT pg_temp.n281_assert((SELECT count(*) = 13 FROM platform.student_cases c JOIN platform_private.admissions_direct_case_receipts r
     ON r.student_case_id = c.id AND r.lead_id = c.canonical_lead_id AND r.client_id = c.canonical_client_id
-    WHERE c.organization_id = pg_temp.n281_id(1)), 'ten cases, each with its receipt');
+    WHERE c.organization_id = pg_temp.n281_id(1)), 'thirteen cases, each with its receipt');
+SELECT pg_temp.n281_assert((SELECT bool_and(c.normalized_phone ~ '^\+[1-9][0-9]{6,14}$') FROM platform.clients c
+    JOIN platform_private.admissions_direct_case_receipts r ON r.client_id = c.id
+    WHERE c.organization_id = pg_temp.n281_id(1) AND c.normalized_phone IS NOT NULL),
+  'D1: every client created here holds an E.164 phone');
 SELECT pg_temp.n281_assert(NOT EXISTS (SELECT 1 FROM platform_private.marketing_cohort(pg_temp.n281_id(1),
     (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 1, (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1) m
     WHERE m.source_key = 'admissions_direct'),

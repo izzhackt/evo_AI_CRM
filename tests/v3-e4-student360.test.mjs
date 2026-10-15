@@ -195,7 +195,8 @@ test("reads are reused: the History journal, the handoff context already read, n
   assert.match(activity, /rpc\("staff_student_case_activity"/u, "the same 132/241 read as the «История» tab");
   assert.match(activity, /targetKind: kind as NonNullable<ProfileEvent\["targetKind"\]>,\n\s+occurredAt: timestamp as string \| null,/u);
   const page = read("src/app/(v3)/v3/profile/page.tsx");
-  assert.match(page, /readCaseWork\(actor, caseTarget, \{ overview: tab === "overview", feed: tab === "overview" && noteCursor === null \}\)/u);
+  // 281 (delta review #1194): the «Ждут куратора» reader without the case itself reads no tasks, chat or journal.
+  assert.match(page, /readCaseWork\(actor, caseTarget, \{\s+overview: tab === "overview", feed: tab === "overview" && noteCursor === null, assignOnly: view\?\.details\.assignOnly === true,\s+\}\)/u);
   const profile = read("src/lib/v3/profile-source.ts");
   assert.match(profile, /getPlatformStudentCaseHandoffContext\(actor, studentCaseId\),/u, "the handoff context is read as before");
   assert.match(profile, /handedOffBy: data\.handoff \? \{ name: data\.handoff\.actorDisplayName, at: data\.handoff\.handedOffAt \} : null,/u);

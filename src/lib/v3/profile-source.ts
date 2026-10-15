@@ -162,6 +162,8 @@ type FullCaseData = Readonly<{
   contract: PlatformCaseContractWorkspace | null;
   handoff: PlatformStudentCaseHandoffContext | null;
   handoffAcknowledgement: HandoffAcknowledgement;
+  /** Читатель «Ждут куратора» без права на само дело (снимок разделов ответил 42501). */
+  assignOnly: boolean;
 }>;
 
 type FinanceSummary = Pick<
@@ -601,6 +603,7 @@ async function loadFullCase(
     visa,
     handoff,
     handoffAcknowledgement,
+    assignOnly,
   };
 }
 
@@ -671,6 +674,7 @@ function fullCaseDetails(
     leadCabinetCase: null,
     contractSignedAt,
     handedOffBy: data.handoff ? { name: data.handoff.actorDisplayName, at: data.handoff.handedOffAt } : null,
+    assignOnly: data.assignOnly,
   };
 }
 
@@ -1133,9 +1137,12 @@ export async function readProfileTarget(
   if (core === null) return null;
 
   const caseId = core.details.admissions?.studentCaseId;
+  // Читатель «Ждут куратора» без права на само дело (248/281): журнал дела
+  // (`staff_student_case_activity`) ему не отвечает, «История» говорит «нет доступа».
+  const assignOnly = core.details.assignOnly === true;
   const [page, history] = await Promise.all([
     readCaseNotes(actor, subject, { limit: 50, cursor: noteCursor }),
-    activity && caseId && staffPresentationCan(actor, "admissions.read")
+    activity && caseId && !assignOnly && staffPresentationCan(actor, "admissions.read")
       ? readProfileActivity(actor, caseId, activity.cursor) : null,
   ]);
   const historyHref = (cursor: ProfileActivityCursor | null) => {
@@ -1153,7 +1160,7 @@ export async function readProfileTarget(
       ...core.profile, timeline: history.events,
       timelineOlderHref: history.nextCursor ? historyHref(history.nextCursor) : null,
       timelineLatestHref: activity?.cursor ? historyHref(null) : null,
-    }) : core.profile,
+    }) : assignOnly ? Object.freeze({ ...core.profile, timeline: [], timelineForbidden: true }) : core.profile,
     notes: Object.freeze({ subject, page }),
   });
 }

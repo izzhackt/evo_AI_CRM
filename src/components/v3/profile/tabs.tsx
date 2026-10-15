@@ -597,7 +597,9 @@ export function History({ profile }: { profile: PersonProfile }) {
                 </li>
               );
             })}
-            {profile.timeline.length === 0 ? (
+            {profile.timelineForbidden ? (
+              <li className="px-4 py-3 text-sm text-fg-2" data-testid="v3-history-forbidden">Нет доступа к журналу этого дела.</li>
+            ) : profile.timeline.length === 0 ? (
               <li className="px-4 py-3 text-sm text-fg-3">Событий нет.</li>
             ) : null}
           </ol>

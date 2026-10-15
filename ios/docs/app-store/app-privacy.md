@@ -78,7 +78,7 @@
 | Product Interaction (язык) | «Профиль» → язык | `ProfileViewModel.saveLanguage` → `SupabaseService.setOwnPortalLanguage` | `set_own_portal_language_v1` (миграция 196) |
 | Product Interaction (прочитано) | «Уведомления» | `SupabaseService.markNotificationRead` | `mark_own_student_portal_notification_read_v2` |
 | Product Interaction (выбор программы) | «Начать подготовку» в карточке вуза | `SupabaseService.selectCatalogIntake`, `initializeApplicationRequirements` | RPC подготовки программы |
-| Запрос на удаление аккаунта | «Профиль» → «Удаление аккаунта» | `ProfileViewModel.requestDeletion` → `SupabaseService.requestAccountDeletion` | `request_account_deletion_v1`; сам вызов ничего не удаляет |
+| Запрос на удаление аккаунта | «Профиль» → «Удаление аккаунта»; кнопка «Удалить аккаунт» на экранах «Заявка на поступление» и «Доступ готовится или ожидает решения», пункт «Удалить аккаунт» в меню «Ещё» анкеты (лист `AccountDeletionSheet`) | `AccountDeletionModel.send` → `SupabaseService.requestAccountDeletion` | `request_account_deletion_v2` (миграция 280); сам вызов ничего не удаляет |
 
 ## 5. Файл приватности: API с обязательной причиной и SDK
 

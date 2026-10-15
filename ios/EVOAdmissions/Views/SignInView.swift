@@ -133,6 +133,12 @@ struct SignInView: View {
             guard deleted else { return }
             AccessibilityNotification.Announcement(applyString("account_deleted_notice")).post()
         }
+        .onAppear {
+            // showAccountDeleted() ставит флаг до того, как RootView создаёт новый
+            // SignInView, поэтому onChange изменения не видит: озвучиваем при появлении.
+            guard router.accountDeletedNotice else { return }
+            AccessibilityNotification.Announcement(applyString("account_deleted_notice")).post()
+        }
         .fullScreenCover(isPresented: $showApplicationWizard) {
             NavigationStack {
                 ApplicationWizardView(router: router, mode: .anonymous, onSignIn: {

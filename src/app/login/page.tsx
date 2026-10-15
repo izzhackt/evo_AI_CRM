@@ -6,6 +6,7 @@ import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getLocale } from "@/lib/i18n";
+import { STUDENT_PASSWORD_FORGOT_PATH } from "@/lib/student-password-recovery-contract";
 import type { Locale } from "@/lib/i18n-data";
 import { buildRouteMetadata } from "@/lib/route-metadata";
 import { ACCOUNT_DELETED_NOTICE } from "@/lib/account-deletion-contract";
@@ -150,7 +151,14 @@ export default async function LoginPage({
             </p>
           )}
           <div className="mt-6">
-            <LoginForm labels={copy} initialError={initialError} />
+            <LoginForm
+              labels={copy}
+              initialError={initialError}
+              recovery={audience === "staff" ? undefined : {
+                href: STUDENT_PASSWORD_FORGOT_PATH,
+                label: locale === "en" ? "Forgot password?" : locale === "ky" ? "Сырсөздү унуттуңузбу?" : "Забыли пароль?",
+              }}
+            />
           </div>
           {audience !== "staff" && <a href="/apply" className="mt-5 flex min-h-11 items-center justify-center rounded-ctl border border-control-edge px-4 text-sm font-semibold text-fg">{locale === "en" ? "Create a student account" : locale === "ky" ? "Студенттик аккаунт түзүү" : "Создать аккаунт студента"}</a>}
           {audienceCopy && (

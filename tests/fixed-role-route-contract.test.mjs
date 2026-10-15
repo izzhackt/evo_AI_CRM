@@ -335,6 +335,8 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     "/auth/callback",
     "/auth/set-password",
     "/auth/account-pending",
+    "/auth/forgot-password",
+    "/auth/reset-password",
   ];
 
   for (const path of portalRoutes) {

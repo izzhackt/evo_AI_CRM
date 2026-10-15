@@ -105,6 +105,55 @@ function decodeAuthUser(value: unknown): StudentPortalAuthUserResult {
   };
 }
 
+export type RawAuthUserLookup = Readonly<{
+  status: "found" | "missing" | "unavailable";
+  user: Record<string, unknown> | null;
+}>;
+
+/**
+ * Exact, case-insensitive address match over the Admin API user list. Two
+ * matches or any unclear page is "unavailable", never a guess.
+ *
+ * @see https://supabase.com/docs/reference/javascript/auth-admin-listusers
+ */
+export async function findRawAuthUserByExactEmail(
+  client: Pick<SupabaseClient, "auth">,
+  normalizedEmail: string,
+): Promise<RawAuthUserLookup> {
+  try {
+    let match: Record<string, unknown> | null = null;
+    for (let page = 1; page <= LIST_USERS_MAX_PAGES; page += 1) {
+      const { data, error } = await client.auth.admin.listUsers({
+        page,
+        perPage: LIST_USERS_PAGE_SIZE,
+      });
+      if (error || !Array.isArray(data.users)) {
+        return { status: "unavailable", user: null };
+      }
+      for (const candidate of data.users) {
+        if (normalizeEmail(candidate.email) !== normalizedEmail) continue;
+        const raw = record(candidate);
+        if (raw === null || match !== null) {
+          return { status: "unavailable", user: null };
+        }
+        match = raw;
+      }
+      const nextPage = record(data)?.nextPage;
+      if (nextPage === null || data.users.length < LIST_USERS_PAGE_SIZE) {
+        return match !== null
+          ? { status: "found", user: match }
+          : { status: "missing", user: null };
+      }
+      if (nextPage !== page + 1) {
+        return { status: "unavailable", user: null };
+      }
+    }
+    return { status: "unavailable", user: null };
+  } catch {
+    return { status: "unavailable", user: null };
+  }
+}
+
 /**
  * Wraps the trusted Supabase Admin API without exposing metadata, provider
  * bodies or the service credential to the coordinator result.
@@ -114,43 +163,6 @@ function decodeAuthUser(value: unknown): StudentPortalAuthUserResult {
 export function createStudentPortalInviteAuthProvider(
   client: Pick<SupabaseClient, "auth">,
 ): StudentPortalInviteAuthProvider {
-  async function findRawUserByExactEmail(
-    normalizedEmail: string,
-  ): Promise<Readonly<{ status: "found" | "missing" | "unavailable"; user: Record<string, unknown> | null }>> {
-    try {
-      let match: Record<string, unknown> | null = null;
-      for (let page = 1; page <= LIST_USERS_MAX_PAGES; page += 1) {
-        const { data, error } = await client.auth.admin.listUsers({
-          page,
-          perPage: LIST_USERS_PAGE_SIZE,
-        });
-        if (error || !Array.isArray(data.users)) {
-          return { status: "unavailable", user: null };
-        }
-        for (const candidate of data.users) {
-          if (normalizeEmail(candidate.email) !== normalizedEmail) continue;
-          const raw = record(candidate);
-          if (raw === null || match !== null) {
-            return { status: "unavailable", user: null };
-          }
-          match = raw;
-        }
-        const nextPage = record(data)?.nextPage;
-        if (nextPage === null || data.users.length < LIST_USERS_PAGE_SIZE) {
-          return match !== null
-            ? { status: "found", user: match }
-            : { status: "missing", user: null };
-        }
-        if (nextPage !== page + 1) {
-          return { status: "unavailable", user: null };
-        }
-      }
-      return { status: "unavailable", user: null };
-    } catch {
-      return { status: "unavailable", user: null };
-    }
-  }
-
   return Object.freeze({
     async inviteUserByEmail(input): Promise<StudentPortalProviderInviteResult> {
       try {
@@ -163,7 +175,7 @@ export function createStudentPortalInviteAuthProvider(
             const normalized = normalizeEmail(input.email);
             const occupant = normalized === null
               ? { status: "unavailable" as const, user: null }
-              : await findRawUserByExactEmail(normalized);
+              : await findRawAuthUserByExactEmail(client, normalized);
             return {
               status: "definite_failure",
               code: classifyOccupiedEmail(
@@ -204,7 +216,7 @@ export function createStudentPortalInviteAuthProvider(
       if (expectedEmail !== normalizedEmail) {
         return { status: "unavailable", user: null };
       }
-      const raw = await findRawUserByExactEmail(expectedEmail);
+      const raw = await findRawAuthUserByExactEmail(client, expectedEmail);
       if (raw.status !== "found") return { status: raw.status, user: null };
       const decoded = decodeAuthUser(raw.user);
       return decoded.status === "found"

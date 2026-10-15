@@ -9,6 +9,9 @@ export const STUDENT_INVITE_CSRF_COOKIE = "evo_student_invite_csrf" as const;
 export const STUDENT_INVITE_CSRF_FIELD = "csrf_token" as const;
 
 const TOKEN_HASH_PATTERN = /^[0-9a-f]{56}$/;
+// Recovery may come from the iPhone SDK, which defaults to PKCE; Auth then
+// stores and mails the same SHA-224 hash with a fixed `pkce_` prefix.
+const RECOVERY_TOKEN_HASH_PATTERN = /^(?:pkce_)?[0-9a-f]{56}$/;
 const CSRF_TOKEN_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -19,6 +22,12 @@ type CallbackQuery = Readonly<
 export type StudentInviteCallbackInput = Readonly<{
   tokenHash: string;
   type: "invite";
+}>;
+
+/** Password recovery from the shared Recovery template on the Student origin. */
+export type StudentRecoveryCallbackInput = Readonly<{
+  tokenHash: string;
+  type: "recovery";
 }>;
 
 export type StudentInviteCallbackPost = Readonly<{
@@ -41,6 +50,10 @@ export type StudentInviteCallbackPost = Readonly<{
  */
 function isStudentInviteTokenHash(value: unknown): value is string {
   return typeof value === "string" && TOKEN_HASH_PATTERN.test(value);
+}
+
+function isStudentRecoveryTokenHash(value: unknown): value is string {
+  return typeof value === "string" && RECOVERY_TOKEN_HASH_PATTERN.test(value);
 }
 
 export function isStudentInviteCsrfToken(value: unknown): value is string {
@@ -72,14 +85,16 @@ export function staffInviteCallbackUrl(
   return new URL("/auth/staff", studentInviteCallbackUrl(nodeEnv, localCallbackOrigin)).toString();
 }
 
+function exactCallbackQuery(query: CallbackQuery): boolean {
+  const keys = Object.keys(query);
+  return keys.length === 2 && keys.includes("token_hash") && keys.includes("type");
+}
+
 export function decodeStudentInviteCallbackQuery(
   query: CallbackQuery,
 ): StudentInviteCallbackInput | null {
-  const keys = Object.keys(query);
   if (
-    keys.length !== 2 ||
-    !keys.includes("token_hash") ||
-    !keys.includes("type") ||
+    !exactCallbackQuery(query) ||
     !isStudentInviteTokenHash(query.token_hash) ||
     query.type !== "invite"
   ) {
@@ -87,6 +102,21 @@ export function decodeStudentInviteCallbackQuery(
   }
 
   return { tokenHash: query.token_hash, type: "invite" };
+}
+
+/** Exactly the link the Recovery template builds: `?token_hash=…&type=recovery`. */
+export function decodeStudentRecoveryCallbackQuery(
+  query: CallbackQuery,
+): StudentRecoveryCallbackInput | null {
+  if (
+    !exactCallbackQuery(query) ||
+    !isStudentRecoveryTokenHash(query.token_hash) ||
+    query.type !== "recovery"
+  ) {
+    return null;
+  }
+
+  return { tokenHash: query.token_hash, type: "recovery" };
 }
 
 function exactHeader(value: string | null): string | null {
@@ -108,6 +138,11 @@ function sameCsrfToken(cookieValue: string | null, formValue: string | undefined
   return difference === 0;
 }
 
+export type StudentOriginRequest = Pick<
+  StudentInviteCallbackPost,
+  "nodeEnv" | "localCallbackOrigin" | "origin" | "host" | "forwardedHost" | "forwardedProto"
+>;
+
 /**
  * Explicit defense in addition to Next.js' own Server Action Origin versus
  * Host/X-Forwarded-Host comparison. A forwarded pair is accepted only when
@@ -115,14 +150,12 @@ function sameCsrfToken(cookieValue: string | null, formValue: string | undefined
  *
  * @see https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions
  */
-export function validateStudentInviteCallbackPost(
-  input: StudentInviteCallbackPost,
-): StudentInviteCallbackInput | null {
+export function isExpectedStudentOriginRequest(input: StudentOriginRequest): boolean {
   let expected: URL;
   try {
     expected = new URL(studentInviteCallbackUrl(input.nodeEnv, input.localCallbackOrigin));
   } catch {
-    return null;
+    return false;
   }
   const origin = exactHeader(input.origin);
   const host = exactHeader(input.host);
@@ -131,27 +164,48 @@ export function validateStudentInviteCallbackPost(
   const hasForwardedHost = input.forwardedHost !== null;
   const hasForwardedProto = input.forwardedProto !== null;
 
-  if (
+  return !(
     origin !== expected.origin ||
     host === null ||
     hasForwardedHost !== hasForwardedProto ||
     (hasForwardedHost &&
       (forwardedHost !== expected.host ||
         forwardedProto !== expected.protocol.slice(0, -1))) ||
-    (!hasForwardedHost && host !== expected.host) ||
+    (!hasForwardedHost && host !== expected.host)
+  );
+}
+
+function validateCallbackPost(
+  input: StudentInviteCallbackPost,
+  type: "invite" | "recovery",
+  isTokenHash: (value: unknown) => value is string,
+): string | null {
+  if (
+    !isExpectedStudentOriginRequest(input) ||
     input.form.size !== 3 ||
     !sameCsrfToken(
       input.csrfCookie,
       input.form.get(STUDENT_INVITE_CSRF_FIELD),
     ) ||
-    !isStudentInviteTokenHash(input.form.get("token_hash")) ||
-    input.form.get("type") !== "invite"
+    !isTokenHash(input.form.get("token_hash")) ||
+    input.form.get("type") !== type
   ) {
     return null;
   }
+  return input.form.get("token_hash") as string;
+}
 
-  return {
-    tokenHash: input.form.get("token_hash") as string,
-    type: "invite",
-  };
+export function validateStudentInviteCallbackPost(
+  input: StudentInviteCallbackPost,
+): StudentInviteCallbackInput | null {
+  const tokenHash = validateCallbackPost(input, "invite", isStudentInviteTokenHash);
+  return tokenHash === null ? null : { tokenHash, type: "invite" };
+}
+
+/** The same CSRF-bound interstitial POST, for a recovery link only. */
+export function validateStudentRecoveryCallbackPost(
+  input: StudentInviteCallbackPost,
+): StudentRecoveryCallbackInput | null {
+  const tokenHash = validateCallbackPost(input, "recovery", isStudentRecoveryTokenHash);
+  return tokenHash === null ? null : { tokenHash, type: "recovery" };
 }

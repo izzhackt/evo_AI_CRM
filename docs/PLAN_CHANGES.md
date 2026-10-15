@@ -50279,3 +50279,38 @@ production.
 - `EVO_PLATFORM_SUPABASE_SECRET_KEY` задан, почтовых переменных нет.
 
 До слияния обязательно полное независимое review на точном head: последний полный вердикт по функции был FAIL на `ba7902675`.
+
+## 2026-10-15 — Удаление аккаунта (280): слияние, миграция и выпуск (#1177)
+
+Порядок C2 выполнен до пункта 3 включительно: #1177 слит, миграция 280 применена через ledger, web выпущен по облегчённому контракту. Пункт 4 (#1172, iPhone) и #1170 этой записью не затрагиваются. Запись — квитанция: код и SQL не менялись.
+
+**Независимое review** на точном head `aeae8363b` (Sonnet, 4 линзы: SQL, поток, UI/тексты, реальные проверки; workflow `wf_f27beccb-9f2`): все четыре PASS, P1/P2 нет, 13 замечаний P3. Все 13 вынесены в [#1192](https://github.com/izzhackt/evo_AI_CRM/issues/1192) и выпуск не блокируют.
+
+**Реальные проверки на `aeae8363b`:**
+
+- полный `DOCKER_CONTEXT=orbstack bash scripts/test-postgres-authorization.sh` — EXIT=0, `P280_ACCOUNT_DELETION_SUITE_PASSED` и итог `PASS: real PostgreSQL role/RLS authorization policy suite`;
+- `npm run typecheck` — 0;
+- node-тесты — 66/67. Единственное падение («menu: «Заявки» lead «Продажи»…», `tests/v3-reference-pages.test.mjs:308`) воспроизводится и на `origin/main` `3ffa49063`, к ветке не относится;
+- iOS: `xcodebuild … -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO` — BUILD SUCCEEDED; `PortalProfileDecodingTests` — 8/8 на симуляторе iPhone 17.
+
+**Слияние.** PR #1177 влит squash в `main` `9e52435357cdae682ba5b9b839937fdcc5640c9f` (15.10.2026, около 07:43 UTC).
+
+**Ledger.** Check run `38700656465` (не хватало только 280) → apply run `38700727010` (dry-run, затем apply `280_platform_account_deletion.sql`) → журнал production 001–280. Read-only после apply: 8 новых RPC на месте; у `anon` нет EXECUTE на функции удаления аккаунта платформы; запросов на удаление 0.
+
+**Выпуск.**
+
+- Первая попытка: CI `38700896584` — success, release `38700938815` упал на шаге «Secretless build admission» с `release_build_admission_failed stage=main_ref_http http_status=403`. Это 403 со стороны GitHub, как 08.10; проверка «Main CRM» была success, не skipped.
+- Повтор: CI `38701008262` и release `38701059774` — success.
+- Переменная armed после каждой попытки возвращена в false.
+
+**Состояние production после выпуска (read-only):**
+
+- `evo-crm-app-1` на ревизии `9e524353…`, healthy, restarts 0; ИИ-агент (api/worker) healthy;
+- `crm`/`app` `/api/health` — 200;
+- без входа: `/v3/settings?section=account-deletion`, `/portal/profile`, `/apply/status`, `/auth/account-pending` → 307 на `/login`; `/apply` → 200;
+- `/login?notice=account_deleted` → 200 и показывает «Аккаунт удалён.»;
+- ошибок в логах приложения за первые 10 минут нет.
+
+**Не проверено на production:** полный путь «запрос → обработка» на реальном аккаунте — тестовый аккаунт в production не создавался. Письмо об удалении в 1.0 выключено решением C2.
+
+**Открытое:** 13 замечаний P3 и проверка кыргызских текстов носителем языка — в [#1192](https://github.com/izzhackt/evo_AI_CRM/issues/1192).

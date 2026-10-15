@@ -7,6 +7,7 @@ import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import { readStaffNotificationsForActor } from "@/lib/v3/staff-notification-source";
 
 import "./v3.css";
+import "./ai-agent.css";
 
 /**
  * Один вид вкладки браузера для всего staff CRM: «<Раздел> — EVO CRM».

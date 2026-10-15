@@ -7,6 +7,7 @@ import { TEAM_CHAT_INITIAL_ACTION, type TeamChatActionState, type TeamChatFailur
 import { TEAM_CHAT_COMMAND_FAILURE_COPY } from "@/lib/team-chat-command-feedback";
 import type { TeamChatQuote } from "@/lib/platform-team-chat-timeline";
 import { plainTextLinks } from "@/lib/plain-text-links";
+import { noteStaleDeployment } from "@/lib/stale-deployment";
 import { Icon } from "@/components/icons";
 import { QUEUE_CONFIRM } from "@/components/v3/queue/queue-buttons";
 import styles from "./team-chat.module.css";
@@ -78,7 +79,7 @@ export function TeamChatDeleteConfirmation({ attempt, visible, onCancel, onSaved
       expectedVersion: message.version, ...(!isOwn ? { reason } : {}) }));
     let result: TeamChatActionState;
     try { result = await teamChatCommandAction(TEAM_CHAT_INITIAL_ACTION, form); }
-    catch { result = { status: "unavailable", requestId, messageId: null }; }
+    catch (cause) { noteStaleDeployment(cause); result = { status: "unavailable", requestId, messageId: null }; }
     if (!mounted.current) return result;
     if (result.status === "saved") onSaved();
     else if (result.status === "forbidden") onFailure("forbidden");

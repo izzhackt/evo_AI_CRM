@@ -17,6 +17,7 @@ import {
   readJournalFacets,
   readPlatformFact,
 } from "@/lib/v3/settings-source";
+import { readAccountDeletionDetail, readAccountDeletionQueue } from "@/lib/v3/account-deletion-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Настройки" };
@@ -34,6 +35,7 @@ export default async function SettingsPart({
     snapshotId?: string;
     cursor?: string;
     cursorId?: string;
+    request?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -49,7 +51,8 @@ export default async function SettingsPart({
   const actor = await requireV3PageActor("/v3/settings");
   const isAdmin = actor.systemRole === "admin" && actor.presentationRole === null;
 
-  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement] = await Promise.all([
+  const deletionSelected = isAdmin && section === "deletion" && typeof params.request === "string" ? params.request : null;
+  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail] = await Promise.all([
     readIntegrations(actor),
     isAdmin
       ? readJournal(actor, journalFilters, {
@@ -67,6 +70,8 @@ export default async function SettingsPart({
     isAdmin && section === "staff" ? readStaffWorkspace(actor) : Promise.resolve(undefined),
     isAdmin && section === "staff" ? readStaffRoles(actor) : Promise.resolve(undefined),
     isAdmin && section === "platform" ? readSalesRegisterManagement(actor, null) : Promise.resolve(undefined),
+    section === "deletion" ? readAccountDeletionQueue(actor) : Promise.resolve(undefined),
+    deletionSelected ? readAccountDeletionDetail(actor, deletionSelected) : Promise.resolve(null),
   ]);
 
   // Протухший курсор из адреса читается первой страницей; адрес при этом
@@ -131,6 +136,9 @@ export default async function SettingsPart({
         staffOrganizationId={actor.organizationId}
         selectedStaffRoleId={params.role}
         selectedStaffMemberId={params.member}
+        deletionQueue={deletionQueue}
+        deletionDetail={deletionDetail}
+        deletionHrefFor={(requestId: string | null) => query({ section: "deletion", request: requestId ?? undefined })}
       />
     </PartShell>
   );

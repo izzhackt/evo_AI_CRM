@@ -54,6 +54,13 @@ struct SignInView: View {
                 }
                 .motionStagger(index: 2, key: "signin.form")
 
+                if router.accountDeletedNotice {
+                    Text("account_deleted_notice")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("account-deleted-notice")
+                }
+
                 if let errorKey = router.signInErrorKey {
                     Label {
                         Text(LocalizedStringKey(errorKey))
@@ -120,6 +127,11 @@ struct SignInView: View {
             // Ошибка входа озвучивается VoiceOver, а не только меняет экран.
             guard let key else { return }
             AccessibilityNotification.Announcement(applyString(key)).post()
+        }
+        .onChange(of: router.accountDeletedNotice) { _, deleted in
+            // Тот же приём для «Аккаунт удалён»: сообщение озвучивается.
+            guard deleted else { return }
+            AccessibilityNotification.Announcement(applyString("account_deleted_notice")).post()
         }
         .fullScreenCover(isPresented: $showApplicationWizard) {
             NavigationStack {

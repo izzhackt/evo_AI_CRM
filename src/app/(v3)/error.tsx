@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 
+import { isStaleDeploymentError, markStaleDeployment, reloadForNewDeployment } from "@/lib/stale-deployment";
+import { useInlineStalePrompt } from "@/lib/use-stale-deployment";
 import { chromeWords } from "@/lib/v3/wording";
 
 /**
@@ -12,14 +15,22 @@ import { chromeWords } from "@/lib/v3/wording";
  * Ссылка ведёт на `/v3` (не на конкретный раздел): клиентский компонент не
  * может безопасно узнать домашний раздел актёра, а корень `/v3` уже делает
  * ровно это на сервере через `staffHomeRoute`.
+ *
+ * Вкладка пережила выпуск (action прошлой сборки сервер не знает): `reset()`
+ * повторил бы тот же мёртвый запрос, поэтому кнопка перезагружает страницу,
+ * опросы оболочки останавливаются, а её строка молчит — подсказка здесь.
  */
 export default function V3Error({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   const words = chromeWords.error;
+  const stale = isStaleDeploymentError(error);
+  useEffect(() => { if (stale) markStaleDeployment(); }, [stale]);
+  useInlineStalePrompt(stale);
 
   return (
     <main
@@ -27,16 +38,16 @@ export default function V3Error({
       data-testid="v3-error"
     >
       <section role="alert" className="w-full border-y border-border py-10 sm:py-14">
-        <p className="t-caption text-fg-3">{words.eyebrow}</p>
-        <h1 className="t-page-title mt-2 text-fg">{words.title}</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-fg-3">{words.staffText}</p>
+        <p className="t-caption text-fg-3">{stale ? words.staleEyebrow : words.eyebrow}</p>
+        <h1 className="t-page-title mt-2 text-fg">{stale ? words.staleTitle : words.title}</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-fg-3">{stale ? words.staleText : words.staffText}</p>
         <div className="mt-8 flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={reset}
+            onClick={stale ? reloadForNewDeployment : reset}
             className="inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:bg-accent-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
           >
-            {words.retry}
+            {stale ? words.staleAction : words.retry}
           </button>
           <Link
             href="/v3"

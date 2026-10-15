@@ -33,6 +33,7 @@ export function InboxComposer({
   blocked,
   snippets,
   textareaRef,
+  aiAdded = false,
   children,
 }: Readonly<{
   fieldId: string;
@@ -44,6 +45,8 @@ export function InboxComposer({
   /** null — права на шаблоны нет: кнопки нет. */
   snippets: readonly ReplySnippetPickerItem[] | null;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
+  /** Окно ИИ только что добавило текст: рамка поля на 380 мс подкрашивается (ai-agent.css). */
+  aiAdded?: boolean;
   /** Строки под полем: отказ, предупреждение канала. */
   children?: React.ReactNode;
 }>) {
@@ -102,7 +105,9 @@ export function InboxComposer({
     >
       {children}
       {/* Фокус поля рисует рамка (одна полоса фокуса мира вокруг всего поля), а не сам textarea внутри неё. */}
-      <div className="flex items-end gap-1 rounded-card border border-border bg-surface p-1 focus-within:border-control-edge has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-focus-ring">
+      <div
+        data-ai-added={aiAdded || undefined}
+        className="flex items-end gap-1 rounded-card border border-border bg-surface p-1 focus-within:border-control-edge has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-focus-ring">
         {snippets !== null ? (
           <button
             type="button"

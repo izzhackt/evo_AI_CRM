@@ -1,19 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/icons";
 import {
   AI_MEMORY_COPY,
-  AI_MEMORY_SETTINGS_COPY,
-  AI_MEMORY_SETTINGS_HREF,
   AI_MEMORY_SUMMARY_CLAMP_FROM,
   aiLeadLine,
   aiMemoryHint,
   aiMemoryInterestState,
   aiMemoryMeta,
-  aiMemoryPausedText,
   aiMemoryState,
   aiMemorySummaryState,
   normalizeAiMemoryView,
@@ -29,6 +25,9 @@ import {
  * Свёрнуто — заголовок и интерес одной строкой; раскрыто — «Интерес»,
  * «Сводка» (шесть строк и «Показать всё»), карточка лида — ровно та, что
  * видит модель, — и «Забыть сводку» с подтверждением в строке.
+ * Блок живёт только в окне ИИ в чате (08.10, «давай без этого»): ни ссылки
+ * «Включить», ни слов о согласии на Gemini — выключенная и приостановленная
+ * память названы одной строкой; включают её в разделе «ИИ-агент».
  */
 type Load =
   | Readonly<{ kind: "loading" }>
@@ -185,20 +184,10 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
         ) : (
           <>
             {state === "off" ? (
-              <div className="flex flex-wrap items-center gap-x-3" data-testid="v3-ai-memory-off">
-                <p className="t-body-compact text-fg-2">{AI_MEMORY_COPY.off}</p>
-                {/* Без согласия «Включить» ведёт к недоступной кнопке — вместо ссылки причина (Q12). */}
-                {view.canManage && view.consentRecorded ? (
-                  <Link href={AI_MEMORY_SETTINGS_HREF} className="v3-ai-link t-label">
-                    {AI_MEMORY_COPY.enable}<span className="sr-only"> память о клиенте в «Расходах»</span>
-                  </Link>
-                ) : view.canManage ? (
-                  <p className="t-meta text-fg-3">{AI_MEMORY_SETTINGS_COPY.noConsent}</p>
-                ) : null}
-              </div>
+              <p className="t-body-compact text-fg-2" data-testid="v3-ai-memory-off">{AI_MEMORY_COPY.off}</p>
             ) : null}
             {state === "paused" ? (
-              <p className="t-body-compact text-fg-2" data-testid="v3-ai-memory-paused">{aiMemoryPausedText(view)}</p>
+              <p className="t-body-compact text-fg-2" data-testid="v3-ai-memory-paused">{AI_MEMORY_COPY.paused}</p>
             ) : null}
             <dl className="space-y-2.5">
               {running ? (

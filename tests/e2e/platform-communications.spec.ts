@@ -159,11 +159,9 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   await page.goto(`/v3/inbox?conversation=${conversationId}`);
   await expect(page.getByTestId("v3-inbox")).toBeVisible();
   await expect(page.getByTestId("v3-inbox-thread")).toBeVisible();
-  await expect(
-    page
-      .getByTestId("v3-inbox-thread")
-      .getByText(/^WhatsApp подключён(?: · проверено .+)?$/u),
-  ).toBeVisible();
+  // A working channel is not announced (owner, 07.10.2026); only a problem is.
+  await expect(page.getByTestId("v3-inbox-thread-channel")).toHaveCount(0);
+  await expect(page.getByTestId("v3-inbox-thread")).not.toContainText(/WhatsApp подключён|проверено/u);
   await expect(
     page.getByRole("heading", {
       name: "WhatsApp exact Sales-intake proof",

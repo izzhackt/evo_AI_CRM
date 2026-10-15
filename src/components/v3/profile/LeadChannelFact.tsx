@@ -15,7 +15,10 @@ export async function LeadChannelFact({ actor, leadId, requestId }: Readonly<{ a
   const canCorrect = !isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage");
   return (
     <>
-      <span data-testid="v3-lead-channel" data-channel={state.read.channel} data-basis={state.read.basis}>{leadChannelText(state.read)}</span>
+      <span data-testid="v3-lead-channel" data-channel={state.read.channel} data-basis={state.read.basis} className="v3-channel">
+        <span aria-hidden="true" className="v3-channel-dot" />
+        <span>{leadChannelText(state.read)}</span>
+      </span>
       {canCorrect ? <LeadChannelCorrection leadId={leadId} requestId={requestId} current={state.read.channel} /> : null}
     </>
   );

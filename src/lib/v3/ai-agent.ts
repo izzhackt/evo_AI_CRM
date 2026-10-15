@@ -252,7 +252,7 @@ export const AI_ERROR_COPY: Readonly<Record<string, string>> = Object.freeze({
   model_unpriced: "Модель без цены — выберите модель в настройках или обновите цены.",
   gemini_billing: "Закончился оплаченный баланс Gemini. Пополните его в Google Cloud.",
   gemini_quota_day: "Дневной лимит запросов к модели исчерпан.",
-  stale_answer: "Пришло новое сообщение — обновите ответ.",
+  stale_answer: "Переписка изменилась. Обновите ответ перед использованием.",
   forbidden: "Помощник недоступен в этом чате.",
   preview: "В просмотре роли помощник не вызывается.",
   invalid_request: "Не удалось подготовить ответ. Обновите страницу.",
@@ -277,6 +277,42 @@ export function aiErrorBlocked(code: string): code is AiBlockedCode {
 /** Ошибки, после которых «Повторить» имеет смысл сразу. */
 export function aiErrorRetryable(code: string): boolean {
   return !aiErrorBlocked(code) && !["gemini_billing", "gemini_quota_day", "budget_exhausted"].includes(code);
+}
+
+/**
+ * Окно ИИ в чате (решение владельца 08.10.2026, «давай без этого»): когда
+ * помощник недоступен, окно говорит «Помощник сейчас недоступен» и одну
+ * строку причины — без ссылок на согласие, лимит и расходы и без «Попробовать
+ * снова». Сюда же лимит, баланс и дневная квота: повтор им не поможет.
+ * Тексты раздела «ИИ-агент» (`AI_ERROR_COPY`) не меняются.
+ */
+export const AI_WINDOW_UNAVAILABLE: Readonly<Record<string, string>> = Object.freeze({
+  ai_agent_off: "ИИ-агент не подключён к CRM.",
+  consent_required: "ИИ-агент выключен в CRM.",
+  forbidden: "Помощник недоступен в этом чате.",
+  preview: "В просмотре роли помощник не вызывается.",
+  model_unpriced: "У выбранной модели нет цены.",
+  budget_exhausted: "Месячный лимит расходов на ИИ исчерпан.",
+  gemini_billing: "Закончился оплаченный баланс Gemini.",
+  gemini_quota_day: "Дневной лимит запросов к модели исчерпан.",
+});
+
+/** Причина недоступности для окна или null — тогда это ошибка с повтором. */
+export function aiWindowUnavailable(code: string): string | null {
+  return AI_WINDOW_UNAVAILABLE[code] ?? null;
+}
+
+/**
+ * Строка причины под «Не удалось подготовить ответ»: тот же текст, что
+ * `aiErrorCopy`, без повтора заголовка; «Повторите.» не пишется — рядом
+ * кнопка «Попробовать снова». Нечего добавить — null.
+ */
+export function aiWindowErrorReason(code: string, agentMessage: string | null = null): string | null {
+  const reason = aiErrorCopy(code, agentMessage)
+    .replace(/^Не удалось подготовить ответ\.\s*/u, "")
+    .replace(/^Повторите\.$/u, "")
+    .trim();
+  return reason || null;
 }
 
 /** «1 источник», «3 источника», «5 источников». */

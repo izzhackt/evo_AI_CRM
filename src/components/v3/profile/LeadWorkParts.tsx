@@ -223,7 +223,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   // открыть — `messaging.read`) или переписка дела, если дело читается.
   const conversations = staffPresentationCan(actor, "messaging.read") ? sales.linkedConversations : [];
   const writeHref = conversations[0]
-    ? buildV3InboxHref({ conversationId: conversations[0].conversationId, filters: { query: null, waitingOnly: false } })
+    ? buildV3InboxHref({ conversationId: conversations[0].conversationId, filters: { query: null, sort: "newest" } })
     : draft.admissions ? `/v3/messages?case=${encodeURIComponent(draft.admissions.studentCaseId)}` : null;
   // Задача — тот же диалог «Новая задача», что у всех входов (Э7), на месте:
   // по делу (есть дело и `task.create`), иначе рабочая задача по лиду
@@ -391,7 +391,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           <Fact term="Переписка">
             {conversations.map((conversation) => (
               <Link key={conversation.conversationId} className={`${QUIET_LINK} flex w-fit`}
-                href={buildV3InboxHref({ conversationId: conversation.conversationId, filters: { query: null, waitingOnly: false } })}>
+                href={buildV3InboxHref({ conversationId: conversation.conversationId, filters: { query: null, sort: "newest" } })}>
                 {conversation.subject}
               </Link>
             ))}

@@ -1,5 +1,7 @@
 "use client";
 
+import type { V3InboxSort } from "@/lib/v3/inbox-href";
+
 import { useInboxPulse } from "./useInboxPulse";
 
 /**
@@ -10,14 +12,14 @@ import { useInboxPulse } from "./useInboxPulse";
 export function InboxListPulse({
   listPulse,
   searchQuery,
-  waitingOnly,
-}: Readonly<{ listPulse: string | null; searchQuery: string | null; waitingOnly: boolean }>) {
+  sort,
+}: Readonly<{ listPulse: string | null; searchQuery: string | null; sort: V3InboxSort }>) {
   const { stalled, resume } = useInboxPulse({
     conversationId: null,
     listPulse,
     chatPulse: null,
     query: searchQuery,
-    waitingOnly,
+    sort,
     busy: false,
   });
   if (!stalled) return null;

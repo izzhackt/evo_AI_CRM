@@ -41,9 +41,11 @@ export function MarketingSpendPanel({ overview, period }: Readonly<{
     <div className="mt-2 space-y-3">
       {spend.insidePeriod.length ? (
         <>
-          <p className="t-body-compact text-fg">
-            {spend.insideTotals.map((total) => formatMinor(total.amountMinor, total.currency)).join(" · ")}
-            <span className="text-fg-2"> · записи целиком в периоде</span>
+          <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            {spend.insideTotals.map((total) => (
+              <span key={total.currency} className="t-figure tabular-nums text-fg">{formatMinor(total.amountMinor, total.currency)}</span>
+            ))}
+            <span className="t-meta text-fg-2">записи целиком в периоде</span>
           </p>
           <SpendList rows={spend.insidePeriod} testId="marketing-spend-inside" />
         </>

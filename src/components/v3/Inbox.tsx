@@ -7,7 +7,9 @@ import type { InboxAssistantConfig } from "@/components/v3/inbox/InboxAiAssistan
 import { InboxChat, type InboxChatData } from "@/components/v3/inbox/InboxChat";
 import { InboxListPulse } from "@/components/v3/inbox/InboxListPulse";
 import { Pill } from "@/components/v3/Pill";
+import { FilterMenu } from "@/components/v3/queue/FilterMenu";
 import type { ReplySnippetPickerItem } from "@/components/v3/reply-snippets/ReplySnippetPicker";
+import type { V3InboxSort } from "@/lib/v3/inbox-href";
 import type { V3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import type { StagePhase } from "@/lib/v3/stages";
 
@@ -19,7 +21,13 @@ export type InboxCanonicalContext = Readonly<{
 
 export type InboxConversation = Readonly<{
   id: string;
+  /**
+   * Имя из профиля WhatsApp (или набранное сотрудником), без имени —
+   * «WhatsApp»; без номера (не WhatsApp-чат, номер неизвестен) — тема чата.
+   */
   person: string;
+  /** «+996 ••• 12 46 64»: код страны и последние шесть цифр (миграция 278). */
+  phone: string | null;
   /** Kept for server command scope; intentionally not rendered as a raw role. */
   queue: "sales" | "admissions";
   /** Kept in the model; intentionally omitted while it adds no operator decision. */
@@ -46,7 +54,6 @@ export type InboxSelectedConversation = InboxConversation &
      * сессия работает, но приём сообщений выключен на сервере.
      */
     channelState: "ready" | "attention" | "not_connected" | "unknown" | "unavailable" | "intake_off";
-    channelObservedAt: string | null;
     canonicalContext: InboxCanonicalContext;
     chat: InboxChatModel;
   }>;
@@ -58,23 +65,43 @@ export type InboxView = Readonly<{
   queueNewestHref: string | null;
   queueOlderHref: string | null;
   searchQuery: string | null;
-  waitingOnly: boolean;
-  waitingToggleHref: string;
+  /** «Сортировка»: «Сначала новые» (по умолчанию) или «Неотвеченные». */
+  sort: V3InboxSort;
+  /** Ссылки обоих порядков: с первой страницы, с тем же поиском и открытым чатом. */
+  sortHrefs: Readonly<Record<V3InboxSort, string>>;
   channelState: InboxSelectedConversation["channelState"];
-  channelObservedAt: string | null;
   /** Подпись первой страницы списка для опроса; null — открыта более ранняя страница. */
   listPulse: string | null;
 }>;
 
-function channelLabel(
+/**
+ * Исправный WhatsApp не подписывается: строку о подключении и времени
+ * последней проверки владелец убрал 07.10.2026 («уберем давай это»). Беда —
+ * не подключён, приём выключен, состояние не прочитать — видна всегда.
+ */
+function channelWarning(
   state: InboxSelectedConversation["channelState"],
-): string {
-  if (state === "ready") return "WhatsApp подключён";
+): string | null {
+  if (state === "ready") return null;
   if (state === "intake_off") return "Приём сообщений выключен на сервере";
   if (state === "attention") return "WhatsApp требует проверки";
   if (state === "unavailable") return "Не удалось получить состояние WhatsApp";
   if (state === "not_connected") return "WhatsApp не подключён к CRM";
   return "Состояние WhatsApp не подтверждено";
+}
+
+/** Номер для читалки: «+996, скрыто, 12 46 64» вместо трёх «bullet». */
+function spokenPhone(phone: string): string {
+  return phone.replace(" ••• ", ", скрыто, ");
+}
+
+function ContactPhone({ phone, className }: Readonly<{ phone: string; className: string }>) {
+  return (
+    <span className={className} data-testid="v3-inbox-contact-phone">
+      <span aria-hidden="true">{phone}</span>
+      <span className="sr-only">{spokenPhone(phone)}</span>
+    </span>
+  );
 }
 
 /**
@@ -87,13 +114,20 @@ export function inboxNotConnected(view: InboxView): boolean {
     && view.selected === null
     && view.conversations.length === 0
     && !view.searchQuery
-    && !view.waitingOnly
     && view.queueNewestHref === null;
 }
 
+/** Варианты «Сортировки» — слова владельца (08.10.2026). */
+const SORT_OPTIONS: readonly Readonly<{ sort: V3InboxSort; label: string; valueLabel: string }>[] = [
+  { sort: "newest", label: "Сначала новые", valueLabel: "сначала новые" },
+  { sort: "unanswered", label: "Неотвеченные", valueLabel: "неотвеченные" },
+];
+
 /**
  * «Продажи → WhatsApp» — чат как WhatsApp Web (решение владельца 06.10.2026):
- * слева список диалогов с поиском и «Только ждут ответа», справа лента
+ * слева список диалогов с поиском и «Сортировкой» («Сначала новые» — всегда
+ * при входе в раздел; «Неотвеченные» — сначала диалоги, где клиент написал
+ * последним, затем остальные; 08.10.2026), справа лента
  * открытого диалога и поле ответа внизу. Прежнего блока «Ответ и отправка»
  * (ИИ-черновик, подтверждение одной отправки) и панели синхронизации с
  * внешней CRM здесь больше нет. На телефоне — один слой: список, затем чат с
@@ -123,8 +157,13 @@ export function Inbox({
   assistant?: InboxAssistantConfig | null;
 }>) {
   const open = view.selected;
+  const listWarning = channelWarning(view.channelState);
+  const openWarning = open ? channelWarning(open.channelState) : null;
+  // Два чата без имени («WhatsApp») различает только номер — и для читалки.
+  const spokenTitle = open ? `${open.person}${open.phone ? `, ${spokenPhone(open.phone)}` : ""}` : "";
   const hasConversations = view.conversations.length > 0;
-  const hasFilters = Boolean(view.searchQuery) || view.waitingOnly;
+  // «Сортировка» не фильтр: она меняет порядок, а не состав списка.
+  const hasFilters = Boolean(view.searchQuery);
   if (inboxNotConnected(view)) {
     return (
       <section
@@ -166,62 +205,56 @@ export function Inbox({
           open ? "hidden @4xl:flex" : ""
         }`}
       >
-        {!open ? (
+        {!open && listWarning ? (
           <div
-            className="border-b border-border px-4 py-3"
+            className="border-b border-border bg-warn-weak px-4 py-3"
             role="status"
             data-testid="v3-inbox-channel-status"
           >
-            <p className="t-body-compact text-fg-2">
-              {channelLabel(view.channelState)}
-            </p>
-            {view.channelObservedAt ? (
-              <p className="mt-0.5 t-meta text-fg-3">Проверено {view.channelObservedAt}</p>
-            ) : null}
+            <p className="t-body-compact text-warn">{listWarning}</p>
           </div>
         ) : null}
         {!open ? (
-          <InboxListPulse listPulse={view.listPulse} searchQuery={view.searchQuery} waitingOnly={view.waitingOnly} />
+          <InboxListPulse listPulse={view.listPulse} searchQuery={view.searchQuery} sort={view.sort} />
         ) : null}
-        <form
-          action="/v3/inbox"
-          method="get"
-          role="search"
-          className="border-b border-border p-3"
-        >
-          {view.waitingOnly ? (
-            <input type="hidden" name="waiting" value="1" />
-          ) : null}
-          <label htmlFor="v3-inbox-search" className="sr-only">
-            Найти диалог
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="v3-inbox-search"
-              name="q"
-              type="search"
-              maxLength={200}
-              defaultValue={view.searchQuery ?? ""}
-              placeholder="Имя, телефон или тема"
-              className="min-h-11 min-w-0 flex-1 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3"
+        <div className="border-b border-border p-3">
+          <form action="/v3/inbox" method="get" role="search">
+            {view.sort === "unanswered" ? (
+              <input type="hidden" name="sort" value="unanswered" />
+            ) : null}
+            <label htmlFor="v3-inbox-search" className="sr-only">
+              Найти диалог
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="v3-inbox-search"
+                name="q"
+                type="search"
+                maxLength={200}
+                defaultValue={view.searchQuery ?? ""}
+                placeholder="Имя, телефон или тема"
+                className="min-h-11 min-w-0 flex-1 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3"
+              />
+              <button type="submit" className={btnGhostCls}>
+                Найти
+              </button>
+            </div>
+          </form>
+          {/* Тот же выпадающий выбор, что «Сортировка» «Студентов»: ссылки в
+              адресе, выбранный — с галочкой и aria-current. */}
+          <div className="mt-2 flex" data-testid="v3-inbox-sort">
+            <FilterMenu
+              label="Сортировка"
+              valueLabel={SORT_OPTIONS.find((option) => option.sort === view.sort)?.valueLabel ?? null}
+              options={SORT_OPTIONS.map((option) => ({
+                key: option.sort,
+                label: option.label,
+                href: view.sortHrefs[option.sort],
+                selected: option.sort === view.sort,
+              }))}
             />
-            <button type="submit" className={btnGhostCls}>
-              Найти
-            </button>
           </div>
-          <Link
-            href={view.waitingToggleHref}
-            aria-current={view.waitingOnly ? "true" : undefined}
-            className={`mt-2 inline-flex min-h-11 items-center rounded-ctl border px-3 t-label ${
-              view.waitingOnly
-                ? "border-warn/30 bg-warn-weak text-warn"
-                : "border-border text-fg-2 hover:bg-surface-2 hover:text-fg"
-            }`}
-            data-testid="v3-inbox-waiting-filter"
-          >
-            {view.waitingOnly ? "Показать все" : "Только ждут ответа"}
-          </Link>
-        </form>
+        </div>
 
         {view.queueNewestHref || view.queueOlderHref ? (
           <nav
@@ -277,6 +310,9 @@ export function Inbox({
                       {conversation.updatedAt}
                     </span>
                   </span>
+                  {conversation.phone ? (
+                    <ContactPhone phone={conversation.phone} className="t-meta tabular-nums text-fg-2" />
+                  ) : null}
                   {conversation.waitingSince ? (
                     <span className="t-caption text-warn">
                       Ждёт ответа с {conversation.waitingSince}
@@ -315,7 +351,7 @@ export function Inbox({
 
       {open ? (
         <section
-          aria-label={`Переписка: ${open.person}`}
+          aria-label={`Переписка: ${spokenTitle}`}
           className="v3-inbox-thread flex min-h-0 min-w-0 flex-col"
           data-testid="v3-inbox-thread"
           data-conversation-id={open.id}
@@ -350,14 +386,14 @@ export function Inbox({
                   </Pill>
                 ) : null}
               </div>
-              {/* На телефоне исправный канал не занимает строку шапки; беда — видна всегда. */}
-              <p
-                className={`mt-0.5 t-meta ${open.channelState === "ready" ? "text-fg-3 @max-2xl:hidden" : "text-warn"}`}
-                data-testid="v3-inbox-thread-channel"
-              >
-                {channelLabel(open.channelState)}
-                {open.channelObservedAt ? ` · проверено ${open.channelObservedAt}` : ""}
-              </p>
+              {open.phone ? (
+                <ContactPhone phone={open.phone} className="mt-0.5 block t-meta tabular-nums text-fg-2" />
+              ) : null}
+              {openWarning ? (
+                <p className="mt-0.5 t-meta text-warn" role="status" data-testid="v3-inbox-thread-channel">
+                  {openWarning}
+                </p>
+              ) : null}
             </div>
             {profileHref ? (
               <Link
@@ -372,11 +408,11 @@ export function Inbox({
           <InboxChat
             key={open.id}
             conversationId={open.id}
-            person={open.person}
+            person={spokenTitle}
             chat={open.chat}
             listPulse={view.listPulse}
             searchQuery={view.searchQuery}
-            waitingOnly={view.waitingOnly}
+            sort={view.sort}
             storageScope={storageScope}
             replySnippets={replySnippets}
             mediaAttachmentContext={mediaAttachmentContext}

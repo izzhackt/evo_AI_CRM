@@ -3,12 +3,14 @@ import SwiftUI
 /// PORT-9a: экран статуса заявки — зеркало /apply/status
 /// (ApplicationStatus.tsx): заголовок и лид по статусу, причина отказа,
 /// «Исправить анкету» для rejected, «Обновить статус»/«Открыть кабинет»
-/// (refresh session + повторный resolve), выход и список ответов анкеты.
+/// (refresh session + повторный resolve), выход, удаление аккаунта (280) и
+/// список ответов анкеты.
 struct ApplicationStatusView: View {
     @ObservedObject var router: SessionRouter
     let application: StudentApplication
 
     @State private var isChecking = false
+    @State private var showsDeletion = false
 
     private var titleKey: String {
         switch application.status {
@@ -116,6 +118,18 @@ struct ApplicationStatusView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondaryText)
             .accessibilityLabel(Text("apply_logout"))
+            // 280: анкета без одобрения тоже может удалить аккаунт.
+            Button("account_deletion_action") {
+                showsDeletion = true
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.dangerText)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .accessibilityIdentifier("account-deletion-open")
+        }
+        .sheet(isPresented: $showsDeletion) {
+            AccountDeletionSheet()
         }
     }
 

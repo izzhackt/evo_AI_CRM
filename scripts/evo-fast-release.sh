@@ -16,6 +16,8 @@ readonly SUPABASE_PROJECT_REF_RE='^[a-z0-9]{20}$'
 readonly ABSOLUTE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 readonly HEALTH_URL_RE='^(https://crm\.evoadmissions\.com|http://127\.0\.0\.1:[0-9]{1,5})/api/health$'
 readonly CLAMAV_IMAGE='clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9'
+# The outgoing app's log tail kept in the release directory (save_previous_app_logs).
+readonly PREVIOUS_APP_LOG_TAIL_LINES=20000
 # docker-compose.prod.yml declares the agent's env_file in the long form with `format: raw`
 # (Docker Compose 2.30.0 and later). Compose validates the whole file, profiles included,
 # so every release, with the agent on or off, needs at least that version.
@@ -1525,6 +1527,88 @@ write_result() {
   replace_json_atomically "$directory/result.json" "$payload"
 }
 
+# Diagnostics only. A release replaces the app container and Docker discards a container's
+# log with it, so the bounded tail of the outgoing app's log is kept root-only (mode 0600 in
+# the mode-0700 release directory) as previous-app.log, with previous-app-log.json naming the
+# outcome. Only `docker logs` output is written: no `docker inspect`, so no environment value,
+# and none of it reaches stdout or stderr. Best effort: any failure records a warning code in
+# previous-app-log.json and on stderr, and never stops, fails or rolls back the release.
+previous_app_logs_warning() {
+  printf '{"ok":true,"warning":"%s"}\n' "$1" >&2 || true
+}
+
+record_previous_app_logs() {
+  local directory=$1 status=$2 code=$3 container=$4 bytes=$5 log_hash=$6 log_name='' payload
+  [[ $status != saved && $status != incomplete ]] || log_name=previous-app.log
+  if ! payload=$(jq -cn \
+    --arg status "$status" \
+    --arg code "$code" \
+    --arg log "$log_name" \
+    --arg containerId "$container" \
+    --argjson tailLines "$PREVIOUS_APP_LOG_TAIL_LINES" \
+    --argjson bytes "$bytes" \
+    --arg sha256 "$log_hash" \
+    '{schema:"evo-previous-app-log/v1",status:$status,code:$code,log:$log,containerId:$containerId,tailLines:$tailLines,bytes:$bytes,sha256:$sha256}' 2>/dev/null) \
+    || ! create_once_json "$directory/previous-app-log.json" "$payload" 2>/dev/null; then
+    previous_app_logs_warning previous_app_logs_record_failed
+  fi
+  case "$status" in
+    failed|incomplete) previous_app_logs_warning "$code" ;;
+  esac
+  return 0
+}
+
+save_previous_app_logs() {
+  local directory=$1 container=$2 temporary bytes log_hash docker_status=0
+  if [[ -z $container ]]; then
+    record_previous_app_logs "$directory" absent previous_app_absent '' 0 ''
+    return 0
+  fi
+  if [[ ! $container =~ ^[0-9a-f]{12,64}$ ]]; then
+    record_previous_app_logs "$directory" failed previous_app_logs_container_invalid '' 0 ''
+    return 0
+  fi
+  if ! temporary=$(mktemp "$directory/.previous-app-log.XXXXXX" 2>/dev/null); then
+    record_previous_app_logs "$directory" failed previous_app_logs_create_failed "$container" 0 ''
+    return 0
+  fi
+  if ! chmod 600 "$temporary" 2>/dev/null; then
+    unlink "$temporary" 2>/dev/null || true
+    record_previous_app_logs "$directory" failed previous_app_logs_create_failed "$container" 0 ''
+    return 0
+  fi
+  # Both streams of the container go to the private file only. The container has no restart
+  # (verify_current_runtime), so its log starts with this container; the tail bounds it.
+  docker logs --timestamps --tail "$PREVIOUS_APP_LOG_TAIL_LINES" "$container" >"$temporary" 2>&1 \
+    || docker_status=$?
+  bytes=$(wc -c <"$temporary" 2>/dev/null | tr -d '[:space:]') || bytes=''
+  log_hash=$(sha256sum "$temporary" 2>/dev/null | awk '{print $1}') || log_hash=''
+  if [[ ! $bytes =~ ^[0-9]+$ || ! $log_hash =~ $HASH64_RE ]]; then
+    unlink "$temporary" 2>/dev/null || true
+    record_previous_app_logs "$directory" failed previous_app_logs_read_failed "$container" 0 ''
+    return 0
+  fi
+  if [[ $docker_status -ne 0 && $bytes -eq 0 ]]; then
+    unlink "$temporary" 2>/dev/null || true
+    record_previous_app_logs "$directory" failed previous_app_logs_unavailable "$container" 0 ''
+    return 0
+  fi
+  if ! sync -f "$temporary" 2>/dev/null || ! ln "$temporary" "$directory/previous-app.log" 2>/dev/null; then
+    unlink "$temporary" 2>/dev/null || true
+    record_previous_app_logs "$directory" failed previous_app_logs_store_failed "$container" 0 ''
+    return 0
+  fi
+  unlink "$temporary" 2>/dev/null || true
+  sync -f "$directory" 2>/dev/null || true
+  # A non-zero status after some output (for example a damaged json-file log) keeps what was read.
+  if [[ $docker_status -ne 0 ]]; then
+    record_previous_app_logs "$directory" incomplete previous_app_logs_incomplete "$container" "$bytes" "$log_hash"
+  else
+    record_previous_app_logs "$directory" saved saved "$container" "$bytes" "$log_hash"
+  fi
+  return 0
+}
+
 create_rollback_wrapper() {
   local directory=$1 script_dir controller validator wrapper command_file
   script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
@@ -2494,6 +2578,8 @@ deploy() {
 
   arm_release_mutation_trap "$release_evidence_dir/state.json" "$release_evidence_dir"
   provision_scanner_runtime
+  # Right before the app is replaced; best effort, it cannot stop or roll back the release.
+  save_previous_app_logs "$release_evidence_dir" "$current_app_container_id" || true
   if EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
     EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
     compose up --detach --no-deps --no-build --pull never --wait --wait-timeout 120 app >/dev/null; then

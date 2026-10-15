@@ -7,9 +7,10 @@ import {
   parsePlatformConversationCursor,
   parsePlatformRouteUuid,
   type PlatformConversationCursor,
+  type PlatformConversationQueueCursor,
 } from "@/lib/platform-communications";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { buildV3InboxHref } from "@/lib/v3/inbox-href";
+import { buildV3InboxHref, type V3InboxSort } from "@/lib/v3/inbox-href";
 import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
 import { readV3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import { readInbox } from "@/lib/v3/inbox-source";
@@ -21,10 +22,13 @@ export const metadata = { title: "WhatsApp" };
 
 type SearchParams = Readonly<{
   q?: string | string[];
+  /** Прежняя ссылка «Только ждут ответа»: ведёт в «Неотвеченные». */
   waiting?: string | string[];
+  sort?: string | string[];
   conversation?: string | string[];
   before_at?: string | string[];
   before_id?: string | string[];
+  before_waiting?: string | string[];
   messages_before_at?: string | string[];
   messages_before_id?: string | string[];
 }>;
@@ -46,8 +50,16 @@ export default async function InboxPart({
   assertExpectedQueryKeys(query);
   const conversationId = parseConversationId(query.conversation);
   const inboxQuery = parseInboxQuery(query.q);
-  const waitingOnly = parseWaitingOnly(query.waiting);
-  const queueCursor = parseCursor(query.before_at, query.before_id);
+  // «Только ждут ответа» заменила «Сортировка» (решение владельца 08.10.2026):
+  // прежняя ссылка открывает «Неотвеченные» с первой страницы.
+  if (parseLegacyWaiting(query.waiting)) {
+    redirect(buildV3InboxHref({
+      conversationId: conversationId ?? undefined,
+      filters: { query: inboxQuery, sort: "unanswered" },
+    }));
+  }
+  const sort = parseSort(query.sort);
+  const queueCursor = parseQueueCursor(sort, query.before_at, query.before_id, query.before_waiting);
   const messageCursor = parseCursor(
     query.messages_before_at,
     query.messages_before_id,
@@ -59,7 +71,7 @@ export default async function InboxPart({
     redirect(buildV3InboxHref({
       conversationId,
       queueCursor,
-      filters: { query: inboxQuery, waitingOnly },
+      filters: { query: inboxQuery, sort },
     }));
   }
 
@@ -67,7 +79,7 @@ export default async function InboxPart({
     conversationId,
     queueCursor,
     query: inboxQuery,
-    waitingOnly,
+    sort,
   });
   if (conversationId !== null && view.selected === null) notFound();
 
@@ -135,9 +147,11 @@ function assertExpectedQueryKeys(params: SearchParams): void {
   const allowed = new Set([
     "q",
     "waiting",
+    "sort",
     "conversation",
     "before_at",
     "before_id",
+    "before_waiting",
     "messages_before_at",
     "messages_before_id",
   ]);
@@ -152,11 +166,39 @@ function parseInboxQuery(raw: string | string[] | undefined): string | null {
   return normalized || null;
 }
 
-function parseWaitingOnly(raw: string | string[] | undefined): boolean {
+function parseLegacyWaiting(raw: string | string[] | undefined): boolean {
   const value = singleValue(raw);
   if (value === undefined) return false;
   if (value !== "1") notFound();
   return true;
+}
+
+/** Без параметра — «Сначала новые»: раздел всегда открывается с него. */
+function parseSort(raw: string | string[] | undefined): V3InboxSort {
+  const value = singleValue(raw);
+  if (value === undefined) return "newest";
+  if (value !== "unanswered") notFound();
+  return "unanswered";
+}
+
+/**
+ * Курсор списка. В «Неотвеченных» он несёт группу своей строки
+ * (`before_waiting`: 1 — ждёт ответа, 0 — остальные); в «Сначала новые» её нет.
+ */
+function parseQueueCursor(
+  sort: V3InboxSort,
+  rawSortAt: string | string[] | undefined,
+  rawId: string | string[] | undefined,
+  rawWaiting: string | string[] | undefined,
+): PlatformConversationQueueCursor | null {
+  const cursor = parseCursor(rawSortAt, rawId);
+  const waiting = singleValue(rawWaiting);
+  if (sort === "newest" || cursor === null) {
+    if (waiting !== undefined) notFound();
+    return cursor;
+  }
+  if (waiting !== "1" && waiting !== "0") notFound();
+  return Object.freeze({ ...cursor, waiting: waiting === "1" });
 }
 
 function parseConversationId(raw: string | string[] | undefined): string | null {

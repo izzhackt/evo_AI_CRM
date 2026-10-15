@@ -12,6 +12,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     .filter((name) => name.endsWith(".ts"))
     .sort();
   assert.deepEqual(typescriptFiles, [
+    "account-deletion-source.ts", // удаление аккаунта по запросу (280, 07.10.2026)
     "admissions-source.ts",
     // «ИИ-агент» P1–P4 (06–07.10.2026): RPC «ИИ-агента» от имени сотрудника; P1–P3
     // не внесли свои файлы сюда, P4 вносит все вместе со своими.
@@ -99,6 +100,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "university-view.ts",
     "website-lead-source.ts",
     "whatsapp-chat.ts", // «Продажи → WhatsApp» как чат (06.10.2026): pure chat logic, no Supabase
+    "whatsapp-contact-source.ts", // WhatsApp name and number (278, 07.10.2026)
+    "whatsapp-contact.ts", // WhatsApp name and number (278, 07.10.2026): pure title logic, no Supabase
     "wording.ts",
   ]);
 
@@ -106,6 +109,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     name.endsWith("-source.ts"),
   );
   assert.deepEqual(adapterFiles, [
+    "account-deletion-source.ts", // удаление аккаунта по запросу (280, 07.10.2026)
     "admissions-source.ts",
     "ai-agent-autosend-source.ts", // «ИИ-агент» P4 (07.10.2026)
     "ai-agent-source.ts", // «ИИ-агент» P1 (06.10.2026)
@@ -156,6 +160,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "university-form-source.ts",
     "university-source.ts",
     "website-lead-source.ts",
+    "whatsapp-contact-source.ts", // WhatsApp name and number (278, 07.10.2026)
   ]);
 
   const adapterSources = adapterFiles

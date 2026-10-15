@@ -3,6 +3,8 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import type { V3InboxSort } from "@/lib/v3/inbox-href";
+
 /**
  * Новые сообщения без ручного обновления (решение владельца 06.10.2026).
  * Лёгкий опрос `/api/v3/inbox/pulse`: сервер отвечает только подписями
@@ -23,7 +25,7 @@ export function useInboxPulse({
   listPulse,
   chatPulse,
   query,
-  waitingOnly,
+  sort,
   busy,
 }: Readonly<{
   conversationId: string | null;
@@ -31,7 +33,8 @@ export function useInboxPulse({
   listPulse: string | null;
   chatPulse: string | null;
   query: string | null;
-  waitingOnly: boolean;
+  /** «Неотвеченные» — первая страница в этом порядке, иначе подпись не совпадёт. */
+  sort: V3InboxSort;
   busy: boolean;
 }>): Readonly<{ stalled: boolean; resume: () => void }> {
   const router = useRouter();
@@ -67,7 +70,7 @@ export function useInboxPulse({
     if (conversationId) params.set("conversation", conversationId);
     if (watchList) params.set("list", "1");
     if (query) params.set("q", query);
-    if (waitingOnly) params.set("waiting", "1");
+    if (sort === "unanswered") params.set("sort", "unanswered");
 
     const schedule = () => {
       if (timer) clearTimeout(timer);
@@ -137,7 +140,7 @@ export function useInboxPulse({
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
     };
-  }, [conversationId, watchList, query, waitingOnly, refresh]);
+  }, [conversationId, watchList, query, sort, refresh]);
 
   const resume = useCallback(() => {
     wake.current();

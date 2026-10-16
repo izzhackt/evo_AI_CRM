@@ -83,6 +83,18 @@
 --  i) platform.admissions_direct_curator_options_v1: the curators the actor
 --     may name in «Добавить студента» (the same scope rule as the command,
 --     without a direction) and whether it may leave the case without one.
+--  j) the other order (fix round 3): a person who arrived through the direct
+--     path or the import is stored as «+996…», while sales and the website
+--     store what their user typed («0…», «996…», 9 digits). The match of
+--     platform.create_manual_sales_lead (143, its `duplicate` answer) and of
+--     platform.receive_website_lead (263, the client a submission joins) and
+--     their contact locks cover every spelling of the typed number
+--     (platform_private.person_phone_match_keys). Body-only, anchored by md5:
+--     signatures, grants, payloads, stored spellings and answers stay as they
+--     are. The website keeps its exact-spelling match first; only when no
+--     client holds the typed spelling does it take the one client holding
+--     another spelling (two or more: a new client, as before, never
+--     `unavailable`).
 BEGIN;
 
 -- ---------------------------------------------------------------------------
@@ -96,7 +108,9 @@ BEGIN
     ('private.assign_case_curator_v1(uuid,uuid,uuid,uuid,text)', '2e4729c713bdc5b022952416c54436d2'),
     ('platform_private.admissions_attention_flags(uuid)', 'ecc11f9712fa0af6ff61396710b77476'),
     ('platform_private.assign_student_case_curator_authorized_e1(uuid,uuid,uuid,text,uuid,uuid,uuid,uuid)', '74f95af8bb1962f709e2ebf0b6f3516f'),
-    ('platform_private.marketing_cohort(uuid,date,date)', '7e2f7d2d020bfb2fac8c7b568452390e')
+    ('platform_private.marketing_cohort(uuid,date,date)', '7e2f7d2d020bfb2fac8c7b568452390e'),
+    ('platform.create_manual_sales_lead(uuid,uuid,text,text,text,text,uuid,text,text,date)', '60fa67b0ddbb17b1f9afda653b522ddc'),
+    ('platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)', '2902c9faada3632968f986e555919d68')
   ) AS a(signature, expected)
   LOOP
     IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p WHERE p.oid = anchor.signature::regprocedure)
@@ -427,11 +441,16 @@ END $$;
 -- spellings without a country sign, the national «0» + 9 digits and «996» +
 -- 9 digits (the organization works from Bishkek). A Kyrgyz number has exactly
 -- 9 digits after +996 (a trunk «0» typed after +996 is dropped). Anything
--- else without «+» is ambiguous and refused.
+-- else without «+» is ambiguous and refused. normalize_person_phone drops
+-- every character but the digits, so a value with anything other than digits,
+-- one leading «+», spaces and ( ) . - is refused before it is read («+7 701
+-- 123 45 67 доб. 2» would otherwise become another number); the form's
+-- PHONE_SHAPE allows the same characters.
 CREATE FUNCTION platform_private.admissions_direct_phone(p_value TEXT)
 RETURNS TEXT LANGUAGE plpgsql IMMUTABLE SET search_path = '' AS $$
 DECLARE n TEXT := platform_private.normalize_person_phone(p_value); c TEXT;
 BEGIN
+  IF p_value IS NULL OR p_value !~ '^[[:space:]]*\+?[0-9[:space:]().-]+$' THEN RETURN NULL; END IF;
   IF n IS NULL OR n = '' OR n = '+' THEN RETURN NULL; END IF;
   c := CASE
     WHEN left(n, 1) = '+' THEN n
@@ -448,15 +467,38 @@ END $$;
 
 -- Every spelling under which another intake may have stored the same number
 -- (normalize_person_phone of what its user typed): the E.164 form, its digits
--- without «+», with «00», and for a Kyrgyz number the national «0» form and
--- «+996 0…». Used for the one-person match and for the contact locks.
+-- without «+», with «00», and for a Kyrgyz number the national «0» form,
+-- «+996 0…», «996 0…» and the bare 9 digits (a manual or website lead accepts
+-- «555 281 777» and stores «555281777»). Used for the one-person match and for
+-- the contact locks.
 CREATE FUNCTION platform_private.admissions_direct_phone_keys(p_canonical TEXT)
 RETURNS TEXT[] LANGUAGE SQL IMMUTABLE SET search_path = '' AS $$
   SELECT CASE WHEN p_canonical IS NULL THEN ARRAY[]::TEXT[]
     ELSE ARRAY[p_canonical, substr(p_canonical, 2), '00' || substr(p_canonical, 2)]
       || CASE WHEN p_canonical ~ '^\+996[0-9]{9}$' THEN ARRAY['0' || substr(p_canonical, 5),
-        '+9960' || substr(p_canonical, 5), '9960' || substr(p_canonical, 5)] ELSE ARRAY[]::TEXT[] END
+        '+9960' || substr(p_canonical, 5), '9960' || substr(p_canonical, 5), substr(p_canonical, 5)]
+        ELSE ARRAY[]::TEXT[] END
   END
+$$;
+
+-- The same keys for a number as another intake received it (281, fix round 3:
+-- create_manual_sales_lead and receive_website_lead store the spelling their
+-- user typed): the typed spelling itself and, when the number reads as one
+-- E.164 form, every key of that form. Bare 9 digits and «996 0» + 9 digits,
+-- which those intakes accept, are read as a Kyrgyz number for the match only
+-- (the direct path refuses to store them). Sorted, so a caller locks them in
+-- the one order every intake uses. Empty for no number.
+CREATE FUNCTION platform_private.person_phone_match_keys(p_value TEXT)
+RETURNS TEXT[] LANGUAGE SQL IMMUTABLE SET search_path = '' AS $$
+  WITH typed AS (SELECT platform_private.normalize_person_phone(NULLIF(btrim(p_value), '')) AS n),
+  parsed AS (SELECT t.n, COALESCE(platform_private.admissions_direct_phone(t.n),
+      CASE WHEN t.n ~ '^[0-9]{9}$' THEN '+996' || t.n
+        WHEN t.n ~ '^9960[0-9]{9}$' THEN '+996' || substr(t.n, 5) END) AS canonical
+    FROM typed t)
+  SELECT CASE WHEN r.n IS NULL OR r.n IN ('', '+') THEN ARRAY[]::TEXT[]
+    ELSE ARRAY(SELECT DISTINCT k FROM unnest(ARRAY[r.n] || platform_private.admissions_direct_phone_keys(r.canonical)) k
+      ORDER BY k) END
+  FROM parsed r
 $$;
 
 -- May the actor name this curator (NULL: none, the case waits) for a case in
@@ -477,6 +519,7 @@ $$;
 REVOKE ALL ON FUNCTION platform_private.admissions_direct_text(JSONB, TEXT, INTEGER, BOOLEAN),
   platform_private.admissions_direct_phone(TEXT),
   platform_private.admissions_direct_phone_keys(TEXT),
+  platform_private.person_phone_match_keys(TEXT),
   platform_private.admissions_direct_object(JSONB, TEXT, TEXT[]),
   platform_private.admissions_direct_minor(JSONB, TEXT, TEXT),
   platform_private.admissions_direct_date(JSONB, TEXT, DATE, DATE, TEXT),
@@ -1140,6 +1183,46 @@ SELECT pg_temp.a281_replace('platform_private.marketing_cohort(uuid,date,date)',
       AND l.source_key<>'admissions_direct'
       AND l.created_at>=p_from::TIMESTAMP AT TIME ZONE 'Asia/Bishkek'$new$, 1);
 
+-- ---------------------------------------------------------------------------
+-- j) The other order: manual sales leads and website enquiries match every
+-- spelling of the typed number
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.a281_replace(
+  'platform.create_manual_sales_lead(uuid,uuid,text,text,text,text,uuid,text,text,date)',
+  $old$  FOR lock_key IN SELECT value FROM unnest(ARRAY[contact_phone,contact_email]) value WHERE value IS NOT NULL ORDER BY value LOOP$old$,
+  $new$  -- 281: under every spelling of the number, in the order 281 takes them.
+  FOR lock_key IN SELECT value FROM unnest(platform_private.person_phone_match_keys(contact_phone)||ARRAY[contact_email]) value
+    WHERE value IS NOT NULL ORDER BY value LOOP$new$, 1);
+SELECT pg_temp.a281_replace(
+  'platform.create_manual_sales_lead(uuid,uuid,text,text,text,text,uuid,text,text,date)',
+  $old$(contact_phone IS NOT NULL AND c.normalized_phone=contact_phone)$old$,
+  $new$(contact_phone IS NOT NULL AND c.normalized_phone=ANY(platform_private.person_phone_match_keys(contact_phone)))$new$, 2);
+SELECT pg_temp.a281_replace(
+  'platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)',
+  $old$  contact_phone TEXT; payload JSONB;$old$,
+  $new$  contact_phone TEXT; contact_key TEXT; payload JSONB;$new$, 1);
+SELECT pg_temp.a281_replace(
+  'platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)',
+  $old$  PERFORM pg_advisory_xact_lock(hashtextextended('manual-lead-contact:'||p_organization_id::TEXT||':'||contact_phone,0));
+  SELECT count(*),min(c.id::TEXT)::UUID INTO matching_clients,resolved_client FROM platform.clients c
+    WHERE c.organization_id=p_organization_id AND c.lifecycle_state='active' AND c.normalized_phone=contact_phone;
+  IF matching_clients>1 THEN$old$,
+  $new$  -- 281: under every spelling of the number, in the order 143 and 281 take them.
+  FOR contact_key IN SELECT k FROM unnest(platform_private.person_phone_match_keys(contact_phone)) k ORDER BY k LOOP
+    PERFORM pg_advisory_xact_lock(hashtextextended('manual-lead-contact:'||p_organization_id::TEXT||':'||contact_key,0));
+  END LOOP;
+  SELECT count(*),min(c.id::TEXT)::UUID INTO matching_clients,resolved_client FROM platform.clients c
+    WHERE c.organization_id=p_organization_id AND c.lifecycle_state='active' AND c.normalized_phone=contact_phone;
+  -- 281: no client under the typed spelling: the one client holding the same
+  -- number in another spelling (two or more: a new client, as before).
+  IF matching_clients=0 THEN
+    SELECT count(*),min(c.id::TEXT)::UUID INTO matching_clients,resolved_client FROM platform.clients c
+      WHERE c.organization_id=p_organization_id AND c.lifecycle_state='active'
+        AND c.normalized_phone=ANY(platform_private.person_phone_match_keys(contact_phone));
+    IF matching_clients<>1 THEN matching_clients:=0; resolved_client:=NULL; END IF;
+  END IF;
+  IF matching_clients>1 THEN$new$, 1);
+
 -- The replaced functions keep their identity, owner and grants (CREATE OR
 -- REPLACE through pg_get_functiondef); assert the new bodies landed.
 DO $a281_verify$
@@ -1149,6 +1232,12 @@ BEGIN
     OR (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform_private.admissions_attention_flags(uuid)'::regprocedure) NOT LIKE '%is_direct_needs_curator_case%'
     OR (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform_private.assign_student_case_curator_authorized_e1(uuid,uuid,uuid,text,uuid,uuid,uuid,uuid)'::regprocedure) NOT LIKE '%target_case.student_membership_id IS NULL THEN target_case.portal_activated_at%'
     OR (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform_private.marketing_cohort(uuid,date,date)'::regprocedure) NOT LIKE '%l.source_key<>''admissions_direct''%'
+    OR (SELECT (length(prosrc) - length(replace(prosrc, 'person_phone_match_keys(contact_phone)', ''))) / length('person_phone_match_keys(contact_phone)')
+      FROM pg_catalog.pg_proc WHERE oid = 'platform.create_manual_sales_lead(uuid,uuid,text,text,text,text,uuid,text,text,date)'::regprocedure) <> 3
+    OR (SELECT (length(prosrc) - length(replace(prosrc, 'person_phone_match_keys(contact_phone)', ''))) / length('person_phone_match_keys(contact_phone)')
+      FROM pg_catalog.pg_proc WHERE oid = 'platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)'::regprocedure) <> 2
+    OR (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.pronamespace = 'platform'::REGNAMESPACE
+      AND p.proname IN ('create_manual_sales_lead', 'receive_website_lead')) <> 2
   THEN
     RAISE EXCEPTION 'a281_replace_not_applied';
   END IF;

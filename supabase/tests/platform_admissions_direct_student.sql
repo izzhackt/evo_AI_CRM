@@ -42,8 +42,32 @@
 --     with the same number in another spelling is a phone duplicate candidate;
 --  D4 a contract signed tomorrow is refused, one signed today is accepted, a
 --     payment before the signing day (an advance) is accepted.
+-- Delta review round 2 (PR #1194), each failing before its fix:
+--  D1 a manual sales lead typed as the bare 9 digits (143 stores «555281555»)
+--     refuses the direct path from +996… and 0… (lead_exists, its id in
+--     DETAIL) and the import reports it (lead_exists);
+--  D5 the other order: after a direct case or an import on +996…, a manual
+--     sales lead typed 0…, 996…, 9 digits, 00996… or «+996 0…» answers
+--     `duplicate` and creates nothing, a new number is still saved as typed; a
+--     website enquiry in another spelling joins the one client holding the
+--     number (its open lead, or a new lead on that client), and with two such
+--     clients it creates a new client as before (never `unavailable`);
+--  D6 a phone with anything but digits, one leading «+», spaces and ( ) . -
+--     is refused (the import's phone and parent phone included).
 -- Isolated synthetic SQL fixtures only.
 BEGIN;
+
+-- The Supabase auth.role() helper receive_website_lead calls first (absent
+-- from the bare test image); created inside this transaction only, as in
+-- 262's suite.
+DO $n281_auth_role$
+BEGIN
+  IF to_regprocedure('auth.role()') IS NULL THEN
+    EXECUTE $fn$CREATE FUNCTION auth.role() RETURNS TEXT LANGUAGE SQL STABLE SET search_path = '' AS
+      'SELECT NULLIF(current_setting(''request.jwt.claims'', TRUE), '''')::JSONB ->> ''role'''$fn$;
+  END IF;
+END
+$n281_auth_role$;
 
 CREATE FUNCTION pg_temp.n281_id(n INTEGER) RETURNS UUID LANGUAGE SQL IMMUTABLE AS $$
   SELECT ('28100000-0000-4000-8000-' || lpad(n::TEXT, 12, '0'))::UUID
@@ -262,6 +286,18 @@ SELECT platform_private.create_or_link_client(pg_temp.n281_id(1), 'N281 Old Loca
 SELECT pg_temp.n281_assert((SELECT array_agg(c.normalized_phone ORDER BY c.display_name) FROM platform.clients c
     WHERE c.id IN (:'n281_local_sales_client'::UUID, :'n281_old_local_client'::UUID))
   = ARRAY['0555281666', '0555281444'], 'fixture: the national spelling is what other intakes store');
+-- Delta review round 2 fixture: a sales lead typed without a country code and
+-- without «0», through the real 143 command (it stores «555281555»).
+SET LOCAL request.jwt.claims TO :'n281_sales_manager';
+SET LOCAL ROLE authenticated;
+SELECT platform.create_manual_sales_lead(pg_temp.n281_id(1), pg_temp.n281_id(5901), 'N281 Bare Sales', '555 281 555', NULL,
+  'office', pg_temp.n281_id(302)) AS n281_bare_manual \gset
+RESET ROLE;
+SELECT :'n281_bare_manual'::JSONB ->> 'lead_id' AS n281_bare_sales_lead \gset
+SELECT pg_temp.n281_assert(:'n281_bare_manual'::JSONB ->> 'status' = 'saved'
+  AND (SELECT c.normalized_phone = '555281555' AND l.lifecycle_state = 'open'
+    FROM platform.leads l JOIN platform.clients c ON c.id = l.client_id WHERE l.id = :'n281_bare_sales_lead'::UUID),
+  'fixture: 143 saves a lead typed as 9 digits and stores 555281555');
 
 CREATE TEMP TABLE n281_before AS SELECT
   (SELECT count(*) FROM platform_private.sales_register WHERE organization_id = pg_temp.n281_id(1)) AS register_rows,
@@ -540,6 +576,32 @@ SELECT pg_temp.n281_assert(platform_private.admissions_direct_phone('+996 777 28
   AND platform_private.admissions_direct_phone('+996 777 28 19') IS NULL
   AND platform_private.admissions_direct_phone('+0 555 123 456') IS NULL,
   'D1: one E.164 form; the Kyrgyz spellings become +996…, an ambiguous number without «+» is refused');
+SELECT pg_temp.n281_assert(platform_private.admissions_direct_phone_keys('+996555281555')
+    = ARRAY['+996555281555', '996555281555', '00996555281555', '0555281555', '+9960555281555', '9960555281555', '555281555']
+  AND platform_private.admissions_direct_phone_keys('+77011234567') = ARRAY['+77011234567', '77011234567', '0077011234567'],
+  'D1: the keys of a Kyrgyz number include the bare 9 digits');
+-- D6: only digits, one leading «+», spaces and ( ) . - are read as a phone.
+SELECT pg_temp.n281_assert(platform_private.admissions_direct_phone('+7 701 123 45 67 доб. 2') IS NULL
+  AND platform_private.admissions_direct_phone('0555 281 999 (мама)') IS NULL
+  AND platform_private.admissions_direct_phone('тел. 0555281999') IS NULL
+  AND platform_private.admissions_direct_phone('0555/281/999') IS NULL
+  AND platform_private.admissions_direct_phone('+996+555281999') IS NULL
+  AND platform_private.admissions_direct_phone('0555 281 999 #') IS NULL
+  AND platform_private.admissions_direct_phone(' +996 (555) 28-19.99 ') = '+996555281999'
+  AND platform_private.admissions_direct_phone(E'0555\u00a0281\u00a0999') = '+996555281999',
+  'D6: a phone with letters or other signs is refused before its digits are read');
+-- D5: the match keys of a number as sales or the website received it.
+SELECT pg_temp.n281_assert((SELECT bool_and(platform_private.person_phone_match_keys(x.p) @> platform_private.admissions_direct_phone_keys('+996555281555')
+      AND platform_private.person_phone_match_keys(x.p) <@ platform_private.admissions_direct_phone_keys('+996555281555'))
+    FROM unnest(ARRAY['+996 555 281 555', '+996555281555', '996555281555', '0555 281 555', '555 281 555', '555281555',
+      '00996555281555', '+9960555281555', '9960555281555']) x(p))
+  AND platform_private.person_phone_match_keys('+7 701 123 45 67') @> ARRAY['+77011234567', '77011234567', '0077011234567']
+  AND platform_private.person_phone_match_keys('+7 701 123 45 67') <@ ARRAY['+77011234567', '77011234567', '0077011234567']
+  AND platform_private.person_phone_match_keys('8 701 123 45 67') = ARRAY['87011234567']
+  AND platform_private.person_phone_match_keys('009960555281555') @> ARRAY['009960555281555', '+996555281555', '555281555']
+  AND platform_private.person_phone_match_keys(NULL) = ARRAY[]::TEXT[]
+  AND platform_private.person_phone_match_keys('  ') = ARRAY[]::TEXT[],
+  'D5: every typed spelling of a Kyrgyz number has the keys of its E.164 form; another number keeps its own');
 SET LOCAL request.jwt.claims TO :'n281_manager';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.n281_assert((SELECT array_agg(pg_temp.n281_create((5120 + x.i)::INTEGER, jsonb_build_object('student',
@@ -553,6 +615,14 @@ SELECT pg_temp.n281_assert(pg_temp.n281_error_detail(format('SELECT platform.cre
     pg_temp.n281_id(1), pg_temp.n281_id(5126), jsonb_build_object('student',
       jsonb_build_object('name', 'N281 Spelling Local', 'phone', '+996 555 281 666'), 'route', jsonb_build_object('country', 'MY'))::TEXT))
   = :'n281_local_sales_lead', 'D1: a sales lead stored as 0555281666 is found from +996 555 281 666');
+SELECT pg_temp.n281_assert(pg_temp.n281_error_detail(format('SELECT platform.create_admissions_student_case_v1(%L, %L, %L::JSONB)',
+    pg_temp.n281_id(1), pg_temp.n281_id(5133), jsonb_build_object('student',
+      jsonb_build_object('name', 'N281 Spelling Bare Lead', 'phone', '+996 555 281 555'), 'route', jsonb_build_object('country', 'MY'))::TEXT))
+  = :'n281_bare_sales_lead'
+  AND pg_temp.n281_create(5134, jsonb_build_object('student',
+    jsonb_build_object('name', 'N281 Spelling Bare Local', 'phone', '0555 281 555'), 'route', jsonb_build_object('country', 'MY')))
+  = 'PT409:admissions_direct_lead_exists',
+  'D1: a sales lead stored as the bare 9 digits 555281555 is found from +996 555 281 555 and from 0555 281 555');
 SELECT pg_temp.n281_assert(pg_temp.n281_create(5127, jsonb_build_object('student',
     jsonb_build_object('name', 'N281 Spelling Case', 'phone', '0555 281 001'), 'route', jsonb_build_object('country', 'MY')))
   = 'PT409:admissions_direct_case_exists', 'D1: the case on +996555281001 is found from 0555 281 001');
@@ -575,9 +645,9 @@ SELECT platform.create_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n2
 RESET ROLE;
 SELECT pg_temp.n281_assert(NOT EXISTS (SELECT 1 FROM platform.clients c WHERE c.organization_id = pg_temp.n281_id(1)
     AND c.display_name LIKE 'N281 Spelling%')
-  AND (SELECT count(*) = 2 FROM platform.leads l WHERE l.organization_id = pg_temp.n281_id(1) AND l.lifecycle_state = 'open'
-    AND l.id IN (:'n281_sales_lead'::UUID, :'n281_local_sales_lead'::UUID)),
-  'D1: the refused spellings created nothing; both sales leads stay open');
+  AND (SELECT count(*) = 3 FROM platform.leads l WHERE l.organization_id = pg_temp.n281_id(1) AND l.lifecycle_state = 'open'
+    AND l.id IN (:'n281_sales_lead'::UUID, :'n281_local_sales_lead'::UUID, :'n281_bare_sales_lead'::UUID)),
+  'D1: the refused spellings created nothing; the three sales leads stay open');
 SELECT pg_temp.n281_assert((SELECT cl.phone = '+996700281301' AND cl.normalized_phone = '+996700281301'
   FROM platform.clients cl WHERE cl.id = (:'n281_local_created'::JSONB ->> 'client_id')::UUID),
   'D1: the client is stored as +996… (the WhatsApp form)');
@@ -753,6 +823,20 @@ SELECT pg_temp.n281_assert(pg_temp.n281_import(302, 'amo-3', pg_temp.n281_payloa
   = '42501:admissions_direct_forbidden', 'a Sales Manager membership cannot be the import actor');
 SELECT pg_temp.n281_assert(pg_temp.n281_import(305, 'amo-4', pg_temp.n281_payload('N281 Via student', NULL))
   = '42501:admissions_direct_forbidden', 'a Student membership cannot be the import actor');
+-- D6: the import refuses a phone with letters or other signs; before the fix
+-- «+7 701 123 45 67 доб. 2» was created as +770112345672 and «0555 281 999
+-- (мама)» was read as the sales lead's number.
+SELECT pg_temp.n281_assert((SELECT array_agg(pg_temp.n281_import(301, x.ref, jsonb_build_object('student',
+      jsonb_build_object('name', 'N281 Imported Letters ' || x.n) || x.student, 'route', jsonb_build_object('country', 'MY')) || x.extra)
+      ORDER BY x.n)
+    FROM (VALUES (1, 'amo-12', jsonb_build_object('phone', '+7 701 123 45 67 доб. 2'), '{}'::JSONB),
+      (2, 'amo-13', jsonb_build_object('phone', '0555 281 999 (мама)'), '{}'::JSONB),
+      (3, 'amo-14', jsonb_build_object('phone', 'тел. 0555281999'), '{}'::JSONB),
+      (4, 'amo-15', '{}'::JSONB, jsonb_build_object('parent', jsonb_build_object('relation', 'mother', 'phone', 'тел. 0700 281 401'))))
+      AS x(n, ref, student, extra))
+  = ARRAY['22023:admissions_direct_invalid:phone', '22023:admissions_direct_invalid:phone', '22023:admissions_direct_invalid:phone',
+    '22023:admissions_direct_invalid:parentPhone'],
+  'D6: the import refuses a phone or parent phone with letters or other signs');
 -- R1: a person already in work is reported, not created.
 SELECT platform.import_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(301), 'n281-amocrm-test', 'amo-6',
   jsonb_build_object('student', jsonb_build_object('name', 'N281 Imported Sales', 'phone', '+996 555 281 999'),
@@ -772,14 +856,17 @@ RESET ROLE;
 SELECT pg_temp.n281_assert((SELECT array_agg((platform.import_admissions_student_case_v1(pg_temp.n281_id(1), pg_temp.n281_id(301),
       'n281-amocrm-test', x.ref, jsonb_build_object('student', jsonb_build_object('name', 'N281 Imported Spelling', 'phone', x.p),
         'route', jsonb_build_object('country', 'MY')), 'Импорт клиентов из amoCRM по поручению владельца')) ->> 'lead_id' ORDER BY x.n)
-    FROM (VALUES (1, 'amo-8', '996 555 281 999'), (2, 'amo-9', '0555281999'), (3, 'amo-10', '+996 555 281 666')) AS x(n, ref, p))
-  = ARRAY[:'n281_sales_lead', :'n281_sales_lead', :'n281_local_sales_lead'],
-  'D1: the import reports lead_exists for 996…, 0… and for a lead stored in the national spelling');
+    FROM (VALUES (1, 'amo-8', '996 555 281 999'), (2, 'amo-9', '0555281999'), (3, 'amo-10', '+996 555 281 666'),
+      (4, 'amo-11', '+996 555 281 555')) AS x(n, ref, p))
+  = ARRAY[:'n281_sales_lead', :'n281_sales_lead', :'n281_local_sales_lead', :'n281_bare_sales_lead'],
+  'D1: the import reports lead_exists for 996…, 0…, a lead stored in the national spelling and one stored as 9 digits');
 SELECT pg_temp.n281_assert(NOT EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_receipts r
-    WHERE r.import_source = 'n281-amocrm-test' AND r.external_ref IN ('amo-6', 'amo-7', 'amo-8', 'amo-9', 'amo-10'))
+    WHERE r.import_source = 'n281-amocrm-test'
+      AND r.external_ref IN ('amo-6', 'amo-7', 'amo-8', 'amo-9', 'amo-10', 'amo-11', 'amo-12', 'amo-13', 'amo-14', 'amo-15'))
   AND NOT EXISTS (SELECT 1 FROM platform.clients c WHERE c.organization_id = pg_temp.n281_id(1)
-    AND c.display_name IN ('N281 Imported Sales', 'N281 Imported Twin', 'N281 Imported Spelling')),
-  'R1: the reported rows created nothing');
+    AND (c.display_name IN ('N281 Imported Sales', 'N281 Imported Twin', 'N281 Imported Spelling')
+      OR c.display_name LIKE 'N281 Imported Letters %')),
+  'R1, D6: the reported and the refused rows created nothing');
 SELECT pg_temp.n281_assert((SELECT count(*) = 2 AND bool_and(p.evidence_type = 'imported' AND p.source_ref = 'amo-1'
     AND p.imported_at IS NOT NULL)
   FROM platform.subject_provenance p WHERE p.organization_id = pg_temp.n281_id(1) AND p.source_system = 'evo_admissions'
@@ -919,6 +1006,61 @@ SELECT pg_temp.n281_assert(pg_temp.n281_error(format('UPDATE platform_private.ad
     pg_temp.n281_id(5001))) <> 'ok'
   AND (SELECT external_ref IS NULL FROM platform_private.admissions_direct_case_receipts WHERE request_id = pg_temp.n281_id(5001)),
   'receipts are append-only');
+
+-- ---------------------------------------------------------------------------
+-- 7. D5 The other order: sales and the website after a direct case or an
+-- import (after section 6: the website may open a sales lead here).
+-- ---------------------------------------------------------------------------
+SET LOCAL request.jwt.claims TO :'n281_sales_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n281_assert((SELECT array_agg(platform.create_manual_sales_lead(pg_temp.n281_id(1), pg_temp.n281_id(5910 + x.i::INTEGER),
+      'N281 Manual After Case ' || x.i, x.p, NULL, 'office', pg_temp.n281_id(302)) ->> 'status' ORDER BY x.i)
+    FROM unnest(ARRAY['0555 281 001', '996 555 281 001', '555 281 001', '00996 555 281 001', '+996 0555 281 001', '+996 555 281 001'])
+      WITH ORDINALITY AS x(p, i))
+  = ARRAY['duplicate', 'duplicate', 'duplicate', 'duplicate', 'duplicate', 'duplicate'],
+  'D5: after a direct case on +996555281001 a manual sales lead in any spelling of the number is a duplicate');
+SELECT pg_temp.n281_assert((SELECT array_agg(platform.create_manual_sales_lead(pg_temp.n281_id(1), pg_temp.n281_id(5920 + x.i::INTEGER),
+      'N281 Manual After Import ' || x.i, x.p, NULL, 'office', pg_temp.n281_id(302)) ->> 'status' ORDER BY x.i)
+    FROM unnest(ARRAY['0700 281 201', '996700281201', '700 281 201']) WITH ORDINALITY AS x(p, i))
+  = ARRAY['duplicate', 'duplicate', 'duplicate'],
+  'D5: after an imported case on +996700281201 too');
+SELECT platform.create_manual_sales_lead(pg_temp.n281_id(1), pg_temp.n281_id(5930), 'N281 Manual New Number', '0555 281 002', NULL,
+  'office', pg_temp.n281_id(302)) AS n281_manual_new \gset
+RESET ROLE;
+SELECT pg_temp.n281_assert(NOT EXISTS (SELECT 1 FROM platform.clients c WHERE c.organization_id = pg_temp.n281_id(1)
+    AND c.display_name LIKE 'N281 Manual After %')
+  AND NOT EXISTS (SELECT 1 FROM platform_private.manual_lead_receipts r WHERE r.request_id IN (SELECT pg_temp.n281_id(n)
+    FROM generate_series(5911, 5923) n))
+  AND :'n281_manual_new'::JSONB ->> 'status' = 'saved'
+  AND (SELECT c.normalized_phone = '0555281002' AND l.lifecycle_state = 'open'
+    FROM platform.leads l JOIN platform.clients c ON c.id = l.client_id WHERE l.id = (:'n281_manual_new'::JSONB ->> 'lead_id')::UUID),
+  'D5: the duplicates created nothing; a new number is still saved, in the spelling typed');
+-- The website, as the site route calls it (spaces and ( ) . - already removed).
+SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
+SET LOCAL ROLE service_role;
+SELECT platform.receive_website_lead(pg_temp.n281_id(1), pg_temp.n281_id(302), pg_temp.n281_id(5940), 'N281 Website Join',
+  '+996555281666', NULL, NULL, 'Malaysia', TRUE, repeat('a', 64)) ->> 'status' AS n281_web_join \gset
+SELECT platform.receive_website_lead(pg_temp.n281_id(1), pg_temp.n281_id(302), pg_temp.n281_id(5941), 'N281 Website After Case',
+  '0555281001', NULL, NULL, 'Malaysia', TRUE, repeat('b', 64)) ->> 'status' AS n281_web_case \gset
+SELECT platform.receive_website_lead(pg_temp.n281_id(1), pg_temp.n281_id(302), pg_temp.n281_id(5942), 'N281 Website Two',
+  '996555281444', NULL, NULL, 'Malaysia', TRUE, repeat('c', 64)) ->> 'status' AS n281_web_two \gset
+RESET ROLE;
+SELECT pg_temp.n281_assert(:'n281_web_join' = 'accepted' AND :'n281_web_case' = 'accepted' AND :'n281_web_two' = 'accepted',
+  'D5: the website accepts all three enquiries');
+SELECT pg_temp.n281_assert((SELECT r.lead_id = :'n281_local_sales_lead'::UUID FROM platform_private.website_lead_receipts r
+    WHERE r.request_id = pg_temp.n281_id(5940))
+  AND NOT EXISTS (SELECT 1 FROM platform.clients c WHERE c.organization_id = pg_temp.n281_id(1) AND c.display_name LIKE 'N281 Website%'
+    AND c.normalized_phone IN ('+996555281666', '0555281001')),
+  'D5: +996555281666 from the website joins the open sales lead stored as 0555281666; no second client');
+SELECT pg_temp.n281_assert((SELECT l.client_id = (:'n281_a_receipt'::JSONB ->> 'client_id')::UUID AND l.lifecycle_state = 'open'
+    AND l.source_key = 'website'
+  FROM platform_private.website_lead_receipts r JOIN platform.leads l ON l.id = r.lead_id WHERE r.request_id = pg_temp.n281_id(5941)),
+  'D5: 0555281001 from the website lands on the client of the direct case on +996555281001, not on a second client');
+SELECT pg_temp.n281_assert((SELECT c.normalized_phone = '996555281444' AND c.id NOT IN (:'n281_old_local_client'::UUID,
+      (:'n281_new_local'::JSONB ->> 'client_id')::UUID)
+  FROM platform_private.website_lead_receipts r JOIN platform.leads l ON l.id = r.lead_id JOIN platform.clients c ON c.id = l.client_id
+  WHERE r.request_id = pg_temp.n281_id(5942)),
+  'D5: with two clients in other spellings the website creates a new client, as before');
 
 SELECT 'N281_ADMISSIONS_DIRECT_STUDENT_SUITE_PASSED' AS n281_suite_marker;
 ROLLBACK;

@@ -193,6 +193,8 @@ test("migration 281: one permission, two commands, grants and the import guard",
     "platform_private.admissions_attention_flags(uuid)",
     "platform_private.assign_student_case_curator_authorized_e1(uuid,uuid,uuid,text,uuid,uuid,uuid,uuid)",
     "platform_private.marketing_cohort(uuid,date,date)",
+    "platform.create_manual_sales_lead(uuid,uuid,text,text,text,text,uuid,text,text,date)",
+    "platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)",
   ]) {
     assert.ok(migration.includes(`('${signature}', '`), `${signature} is md5-anchored`);
   }
@@ -320,4 +322,39 @@ test("delta review #1194 (5): 281 is still the next free number on main", () => 
   // Re-checked before every push (git ls-tree origin/main supabase/migrations); issue #1195 plans its own
   // migration «281»: whichever lands second takes the next free number (docs/PLAN_CHANGES.md).
   assert.match(source("docs/PLAN_CHANGES.md"), /#1195[\s\S]{0,400}следующий\s+свободный\s+номер/u);
+});
+
+// --- Delta review #1194, round 2 ----------------------------------------------
+
+test("delta review #1194 r2 (1, 3): 9-digit key, and a phone with other signs is refused, as in the form", () => {
+  assert.match(migration, /'9960' \|\| substr\(p_canonical, 5\), substr\(p_canonical, 5\)\]/u,
+    "a Kyrgyz number's keys include the bare 9 digits a manual or website lead stores");
+  assert.match(migration, /IF p_value IS NULL OR p_value !~ '\^\[\[:space:\]\]\*\\\+\?\[0-9\[:space:\]\(\)\.-\]\+\$' THEN RETURN NULL; END IF;/u,
+    "admissions_direct_phone refuses anything but digits, one leading «+», spaces and ( ) . -");
+  for (const input of ["+7 701 123 45 67 доб. 2", "0555 281 999 (мама)", "тел. 0555281999", "0555/281/999", "+996+555281999"]) {
+    assert.equal(admissionsDirectPhone(input), null, input);
+  }
+  assert.equal(admissionsDirectPhone(" +996 (555) 28-19.99 "), "+996555281999");
+  assert.equal(admissionsDirectPhone("0555\u00a0281\u00a0999"), "+996555281999", "a no-break space is a space, as [[:space:]] in 281");
+});
+
+test("delta review #1194 r2 (2): manual sales leads and website enquiries match every spelling, body-only", () => {
+  assert.match(migration, /CREATE FUNCTION platform_private\.person_phone_match_keys\(p_value TEXT\)\nRETURNS TEXT\[\] LANGUAGE SQL IMMUTABLE SET search_path = ''/u);
+  assert.match(migration, /platform_private\.person_phone_match_keys\(TEXT\),\n  platform_private\.admissions_direct_object/u,
+    "the helper is revoked from every client role with the other helpers");
+  const replaced = (signature) => [...migration.matchAll(/SELECT pg_temp\.a281_replace\(\n  '([^']+)',/gu)]
+    .filter((m) => m[1] === signature).length;
+  assert.equal(replaced("platform.create_manual_sales_lead(uuid,uuid,text,text,text,text,uuid,text,text,date)"), 2);
+  assert.equal(replaced("platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)"), 2);
+  assert.match(migration, /unnest\(platform_private\.person_phone_match_keys\(contact_phone\)\|\|ARRAY\[contact_email\]\) value/u,
+    "the manual contact locks cover every spelling");
+  assert.match(migration, /c\.normalized_phone=ANY\(platform_private\.person_phone_match_keys\(contact_phone\)\)\)\$new\$, 2\);/u,
+    "both manual matches (the duplicate check and its lead) use the keys");
+  assert.match(migration, /IF matching_clients<>1 THEN matching_clients:=0; resolved_client:=NULL; END IF;/u,
+    "the website joins only one client in another spelling and never answers unavailable for it");
+  assert.doesNotMatch(migration, /CREATE (?:OR REPLACE )?FUNCTION platform\.(?:create_manual_sales_lead|receive_website_lead)\b/u,
+    "no signature, grant or return shape is redefined");
+  assert.match(suite, /'D5: after a direct case on \+996555281001 a manual sales lead in any spelling of the number is a duplicate'/u);
+  assert.match(suite, /'D1: a sales lead stored as the bare 9 digits 555281555 is found from \+996 555 281 555 and from 0555 281 555'/u);
+  assert.match(suite, /'D6: the import refuses a phone or parent phone with letters or other signs'/u);
 });

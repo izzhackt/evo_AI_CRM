@@ -1,8 +1,9 @@
 import Foundation
 
 /// Один адрес фото в порядке попытки. `sized`: вариант нужного размера
-/// через Image Transformations Supabase; его отказ (тариф без трансформаций,
-/// локальный стек) переводит загрузчик на оригинал.
+/// через Image Transformations Supabase; если он отказал, а оригинал того же
+/// объекта загрузился (тариф без трансформаций, локальный стек), загрузчик
+/// до конца запуска берёт сразу оригиналы.
 struct AtlasPhotoCandidate: Equatable, Hashable {
     let url: URL
     let sized: Bool
@@ -69,11 +70,12 @@ enum AtlasPhotoURL {
         return AtlasPhotoSource(candidates: candidates)
     }
 
-    /// Фото вуза: управляемая копия в бакете (запись манифеста переноса
-    /// verified и migrated, то же правило, что `resolveUniversityPhotoUrl`
-    /// веба), сначала вариант размера, затем оригинал; прямая ссылка
-    /// библиотеки остаётся последним запасным адресом. Неизвестный ключ: фото
-    /// нет.
+    /// Фото вуза по тому же правилу, что `resolveUniversityPhotoUrl` веба:
+    /// перенесённое фото (запись манифеста verified и migrated) грузится
+    /// только из бакета, сначала вариант размера, затем оригинал того же
+    /// объекта; прямой ссылки на сайт вуза у него нет (план 5.3, приёмка
+    /// 7.6, п. 5). Прямая ссылка библиотеки остаётся только у фото, которое
+    /// ещё не перенесено. Неизвестный ключ: фото нет.
     static func university(
         photoKey: String?,
         library: [String: UniversityPhoto],
@@ -82,13 +84,15 @@ enum AtlasPhotoURL {
         width: Int
     ) -> AtlasPhotoSource {
         guard let photoKey, let photo = library[photoKey] else { return AtlasPhotoSource(candidates: []) }
-        var candidates: [AtlasPhotoCandidate] = []
         if let objectPath = UniversityPhotoManifest.managedObjectPath(photoKey: photoKey, entries: manifest) {
-            if let url = sized(base: base, path: objectPath, width: width) { candidates.append(.init(url: url, sized: true)) }
-            if let url = original(base: base, path: objectPath) { candidates.append(.init(url: url, sized: false)) }
+            let candidates = [
+                sized(base: base, path: objectPath, width: width).map { AtlasPhotoCandidate(url: $0, sized: true) },
+                original(base: base, path: objectPath).map { AtlasPhotoCandidate(url: $0, sized: false) },
+            ].compactMap { $0 }
+            return AtlasPhotoSource(candidates: candidates)
         }
-        if let hotlink = AtlasValue.httpsURL(photo.path) { candidates.append(.init(url: hotlink, sized: false)) }
-        return AtlasPhotoSource(candidates: candidates)
+        guard let hotlink = AtlasValue.httpsURL(photo.path) else { return AtlasPhotoSource(candidates: []) }
+        return AtlasPhotoSource(candidates: [.init(url: hotlink, sized: false)])
     }
 }
 

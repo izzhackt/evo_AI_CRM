@@ -8471,7 +8471,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кызыктуу факт: %@"
           }
         },
@@ -8483,12 +8483,29 @@
         }
       }
     },
+    "catalog_city_fact_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кызыктуу факт"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Интересный факт"
+          }
+        }
+      }
+    },
     "catalog_city_missing" : {
       "extractionState" : "manual",
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Шаар каталогдон табылган жок"
           }
         },
@@ -8505,7 +8522,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Шаардын университеттери"
           }
         },
@@ -8522,7 +8539,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Жатакана"
           }
         },
@@ -8539,14 +8556,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Арыз берүү же каттоо төлөмү"
+            "state" : "needs_review",
+            "value" : "Арыз берүү төлөмдөрү"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сбор за подачу или регистрацию"
+            "value" : "Сборы при подаче"
           }
         }
       }
@@ -8556,7 +8573,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Камсыздандыруу"
           }
         },
@@ -8573,14 +8590,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Башка чыгымдар"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Прочее"
+            "value" : "Другие расходы"
           }
         }
       }
@@ -8590,7 +8607,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Окуу"
           }
         },
@@ -8602,19 +8619,155 @@
         }
       }
     },
-    "catalog_cost_language" : {
+    "catalog_cost_language_ar" : {
       "extractionState" : "manual",
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Тили: %@"
+            "state" : "needs_review",
+            "value" : "араб тилинде"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Язык: %@"
+            "value" : "на арабском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_cs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "чех тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на чешском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_en" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "англис тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на английском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_it" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "италия тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на итальянском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_ms" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "малай тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на малайском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "окутуу тили: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "язык обучения: %@"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_ru" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "орус тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на русском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_tr" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "түрк тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на турецком"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_zh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "кытай тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на китайском"
           }
         }
       }
@@ -8624,7 +8777,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "күнүнө"
           }
         },
@@ -8641,7 +8794,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "айына"
           }
         },
@@ -8658,7 +8811,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "бир жолу"
           }
         },
@@ -8675,7 +8828,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "бүт программага"
           }
         },
@@ -8692,8 +8845,8 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "семестрине"
+            "state" : "needs_review",
+            "value" : "семестрге"
           }
         },
         "ru" : {
@@ -8709,7 +8862,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "жумасына"
           }
         },
@@ -8726,7 +8879,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "жылына"
           }
         },
@@ -8743,7 +8896,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%1$@ … %2$@"
           }
         },
@@ -8760,14 +8913,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "≈ %@ USD"
+            "state" : "needs_review",
+            "value" : "≈ %@ USD"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "≈ %@ USD"
+            "value" : "≈ %@ USD"
           }
         }
       }
@@ -8777,7 +8930,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "болжол менен %@ АКШ доллары"
           }
         },
@@ -8794,7 +8947,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Акыркы сумманы университет көрсөтөт."
           }
         },
@@ -8811,7 +8964,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Баасы"
           }
         },
@@ -8823,12 +8976,29 @@
         }
       }
     },
+    "catalog_costs_join" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " жана "
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " и "
+          }
+        }
+      }
+    },
     "catalog_costs_official_link" : {
       "extractionState" : "manual",
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Университеттин сайтындагы баасы"
           }
         },
@@ -8840,19 +9010,36 @@
         }
       }
     },
-    "catalog_costs_rate" : {
+    "catalog_costs_rate_item" : {
       "extractionState" : "manual",
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Курс: 1 USD = %1$@ %2$@ (%3$@, %4$@)."
+            "state" : "needs_review",
+            "value" : "1 USD = %1$@ %2$@ (%3$@, %4$@)"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Курс: 1 USD = %1$@ %2$@ (%3$@, %4$@)."
+            "value" : "1 USD = %1$@ %2$@ (%3$@, %4$@)"
+          }
+        }
+      }
+    },
+    "catalog_costs_rates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Курс: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Курс: %@."
           }
         }
       }
@@ -8862,8 +9049,8 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Булак: %1$@, текшерилген күнү: %2$@."
+            "state" : "needs_review",
+            "value" : "Булагы: %1$@, текшерилди: %2$@."
           }
         },
         "ru" : {
@@ -8879,7 +9066,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "билим берүү агенттиктеринин ачык маалыматтары"
           }
         },
@@ -8896,7 +9083,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "EVO материалдары"
           }
         },
@@ -8913,7 +9100,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "университеттин сайты"
           }
         },
@@ -8930,7 +9117,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Болжолдуу баа: %@."
           }
         },
@@ -8947,7 +9134,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%lld шаар"
           }
         },
@@ -8964,7 +9151,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%lld шаар"
           }
         },
@@ -8981,7 +9168,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%lld шаар"
           }
         },
@@ -8998,7 +9185,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%lld университет"
           }
         },
@@ -9015,7 +9202,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%lld университет"
           }
         },
@@ -9032,7 +9219,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%lld университет"
           }
         },
@@ -9049,7 +9236,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Өлкө каталогдон табылган жок"
           }
         },
@@ -9066,7 +9253,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Бул өлкөдө азырынча жарыяланган университеттер жок."
           }
         },
@@ -9083,7 +9270,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Азырынча университет жок"
           }
         },
@@ -9100,8 +9287,8 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Булак, текшерилген күнү: %@"
+            "state" : "needs_review",
+            "value" : "Булагы, текшерилди: %@"
           }
         },
         "ru" : {
@@ -9117,14 +9304,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "БАЭнин Борбордук банкы"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Центральный банк ОАЭ"
+            "value" : "ЦБ ОАЭ"
           }
         }
       }
@@ -9134,14 +9321,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Европа борбордук банкы"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Европейский центральный банк"
+            "value" : "ЕЦБ"
           }
         }
       }
@@ -9151,7 +9338,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Тапшыруу мөөнөтү: %@"
           }
         },
@@ -9168,7 +9355,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Башталышы: %@"
           }
         },
@@ -9185,7 +9372,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Каталог жүктөлгөн жок"
           }
         },
@@ -9202,7 +9389,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Интернетти текшерип, кайра аракет кылыңыз."
           }
         },
@@ -9214,12 +9401,29 @@
         }
       }
     },
+    "catalog_load_failed_unavailable_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бир аздан кийин кайра аракет кылыңыз. Бул жарыяланган университеттер жок дегенди билдирбейт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Попробуйте ещё раз позже. Это не означает, что опубликованных университетов нет."
+          }
+        }
+      }
+    },
     "catalog_loading" : {
       "extractionState" : "manual",
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Каталог жүктөлүүдө"
           }
         },
@@ -9236,7 +9440,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Бул чекиттеги университеттердин тизмесин ачат"
           }
         },
@@ -9253,7 +9457,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Бул чекитте: %lld"
           }
         },
@@ -9270,7 +9474,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Картада чекити жоктор: %lld"
           }
         },
@@ -9287,7 +9491,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Өлкөнүн башка ЖОЖдору"
           }
         },
@@ -9299,12 +9503,29 @@
         }
       }
     },
+    "catalog_other_universities_lead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бул ЖОЖдор үчүн шаардын карточкасы азырынча даяр эмес."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этих вузов карточка города пока не готова."
+          }
+        }
+      }
+    },
     "catalog_photo_credit" : {
       "extractionState" : "manual",
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Сүрөттүн автору жана лицензиясы"
           }
         },
@@ -9321,7 +9542,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Сүрөт жүктөлгөн жок"
           }
         },
@@ -9338,7 +9559,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Лицензия: %@"
           }
         },
@@ -9355,7 +9576,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Булак: %@"
           }
         },
@@ -9372,7 +9593,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Каталог жаңыртылган жок. Сакталган нускасы көрсөтүлүүдө."
           }
         },
@@ -9389,7 +9610,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Табылды: %lld"
           }
         },
@@ -9406,7 +9627,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Эч нерсе табылган жок"
           }
         },
@@ -9423,14 +9644,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Жазылышын текшериңиз же аталыштын бир бөлүгүн жазыңыз."
+            "state" : "needs_review",
+            "value" : "Жазылышын текшериңиз же аталыштын бир бөлүгүн латын тамгалары менен жазыңыз."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Проверьте написание или введите часть названия."
+            "value" : "Проверьте написание или введите часть названия латиницей."
           }
         }
       }
@@ -9440,7 +9661,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Университеттин аталышы"
           }
         },
@@ -9457,7 +9678,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Шаарлар"
           }
         },

@@ -102,6 +102,31 @@ final class UniversityIndexDecodingTests: XCTestCase {
     }
 
     /// Фото агентств не берём (план 4.4): ни адреса, ни имени EDUPRCHINA.
+    /// Невидимые символы форматирования (Cf) база принимает:
+    /// `catalog_text_ok(U&'Ино\00ADстранные', 300)` на демо-базе даёт `t`, и
+    /// веб их тоже принимает. Один такой символ, вставленный из Word в
+    /// редакторе CRM, не должен выключать весь каталог на iPhone.
+    func testAcceptsFormatCharactersThatTheDatabaseAccepts() throws {
+        let softHyphen = "Ино\u{00AD}странные студенты"
+        let data = try AtlasFixtures.mutated(AtlasFixtures.index) { value in
+            value.update(["cities", 0, "summary"]) { $0["ru"] = softHyphen }
+            value.update(["universities", 0]) { $0["name"] = "Asia\u{200B}Pacific\u{200D}University\u{FEFF}" }
+            value.update(["cities", 0, "fact"]) { $0["ky"] = "Факт\u{2060} бар" }
+        }
+        let index = try full(data)
+        XCTAssertEqual(index.cities[0].summary.ru, softHyphen)
+        XCTAssertEqual(index.universities[0].name, "Asia\u{200B}Pacific\u{200D}University\u{FEFF}")
+    }
+
+    /// Управляющие символы (те же, что отвергают `[[:cntrl:]]` и веб)
+    /// остаются ошибкой.
+    func testRejectsControlCharacters() throws {
+        for character in ["\u{0000}", "\u{0007}", "\n", "\u{001F}", "\u{007F}"] {
+            try assertRejected { $0.update(["cities", 0, "summary"]) { $0["ru"] = "Шанхай\(character)город" } }
+            try assertRejected { $0.update(["universities", 0]) { $0["name"] = "Tongji\(character)University" } }
+        }
+    }
+
     func testRejectsAgencyPhotos() throws {
         try assertRejected { $0.update(["cities", 0, "photo"]) { $0["sourceUrl"] = "https://www.eduprchina.com/photo/1" } }
         try assertRejected { $0.update(["countries", 0, "photo"]) { $0["author"] = "EDUPRCHINA" } }

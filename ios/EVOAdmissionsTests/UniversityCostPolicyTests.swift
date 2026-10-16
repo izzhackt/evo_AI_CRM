@@ -19,7 +19,7 @@ final class UniversityCostPolicyTests: XCTestCase {
 
     func testPlanForUsdAndLiraRows() throws {
         let plan = try XCTUnwrap(UniversityCostPolicy.plan(costs(AtlasFixtures.bilkent)))
-        // Виды подряд в порядке сервера: обучение, общежитие, сбор.
+        // Виды в порядке продукта: обучение, общежитие, сбор.
         XCTAssertEqual(plan.groups.map(\.kind), [.tuition, .accommodation, .applicationFee])
         XCTAssertEqual(plan.groups.map(\.rows.count), [1, 4, 1])
         // Хотя бы у одной строки есть ориентир: колонка USD есть.
@@ -63,10 +63,104 @@ final class UniversityCostPolicyTests: XCTestCase {
         XCTAssertEqual(digits(UniversityCostPolicy.whole(3510, locale: ru)), "3510")
     }
 
-    func testRateShowsUpToFourDecimals() {
+    /// Пять значащих цифр, как `formatUnitsPerUsd` веба. Ожидаемые строки
+    /// получены `Intl.NumberFormat("ru", { maximumSignificantDigits: 5 })`.
+    func testRateShowsFiveSignificantDigitsLikeTheWeb() {
         XCTAssertEqual(UniversityCostPolicy.rate(6.6910242684, locale: ru), "6,691")
+        XCTAssertEqual(UniversityCostPolicy.rate(49.4176481085, locale: ru), "49,418")
         XCTAssertEqual(UniversityCostPolicy.rate(3.6725, locale: ru), "3,6725")
-        XCTAssertEqual(digits(UniversityCostPolicy.rate(49.4176481085, locale: ru)), "49,4176")
+        XCTAssertEqual(UniversityCostPolicy.rate(21.7282, locale: ru), "21,728")
+        XCTAssertEqual(UniversityCostPolicy.rate(0.8922154, locale: ru), "0,89222")
+        XCTAssertEqual(UniversityCostPolicy.rate(4, locale: ru), "4")
+        XCTAssertEqual(digits(UniversityCostPolicy.rate(1234.5678, locale: ru)), "1234,6")
+    }
+
+    /// Учебные годы новые первыми, курс только валют строк и не USD, адреса
+    /// только официальных строк (`summarizeCosts` веба).
+    func testSummaryLikeTheWeb() throws {
+        let data = try AtlasFixtures.mutated(AtlasFixtures.bilkent) { value in
+            value.update(["costs", "rows", 1]) { $0["academicYear"] = "2025/26" }
+            value.update(["costs", "rows", 2]) { $0["academicYear"] = "2027" }
+        }
+        let plan = try XCTUnwrap(UniversityCostPolicy.plan(DetailUnderTest.decode(data).costs))
+        XCTAssertEqual(plan.academicYears, ["2027", "2026/27", "2025/26"])
+        XCTAssertEqual(plan.rates.map(\.currency), ["TRY"])
+    }
+
+    /// Виды в порядке продукта, внутри вида строка без уровня первой, затем
+    /// уровни, программа, язык, период и сумма (`groupCostRows` веба), даже
+    /// если сервер отдал строки в другом порядке.
+    func testRowsAreGroupedAndOrderedLikeTheWeb() throws {
+        let data = try AtlasFixtures.mutated(AtlasFixtures.tongji) { value in
+            var costs = value["costs"] as! [String: Any]
+            costs["rows"] = Array((costs["rows"] as! [[String: Any]]).reversed())
+            value["costs"] = costs
+        }
+        let shuffled = try XCTUnwrap(UniversityCostPolicy.plan(DetailUnderTest.decode(data).costs))
+        let original = try XCTUnwrap(UniversityCostPolicy.plan(costs(AtlasFixtures.tongji)))
+        XCTAssertEqual(shuffled.groups.map(\.kind), [.tuition, .applicationFee, .insurance])
+        XCTAssertEqual(shuffled.groups[0].rows.map(\.studyLevel), [
+            "language", "foundation", "foundation", "bachelor", "bachelor", "master", "master", "doctorate", "doctorate",
+        ])
+        XCTAssertEqual(shuffled.groups[0].rows.map(\.amountMinMinor), original.groups[0].rows.map(\.amountMinMinor))
+    }
+
+    private let texts = UniversityCostPolicy.Texts(
+        level: { "level:\($0)" },
+        language: { "lang:\($0)" },
+        kind: { "kind:\($0.rawValue)" }
+    )
+
+    /// Подпись строки как `rowLabel` в `CostTable.tsx`: у обучения уровень
+    /// (или программа) и язык, пояснение в уточнениях через « · »; у
+    /// других видов первая часть пояснения это подпись.
+    func testRowLabelsLikeTheWeb() throws {
+        let tongji = try costs(AtlasFixtures.tongji)
+        let bachelor = try XCTUnwrap(tongji.rows.first { $0.studyLevel == "bachelor" })
+        XCTAssertEqual(UniversityCostPolicy.rowLabel(bachelor, programTitles: [:], kyrgyz: false, texts: texts),
+                       .init(label: "level:bachelor", details: "Обучение на китайском языке · Сумма зависит от программы"))
+        XCTAssertEqual(UniversityCostPolicy.rowLabel(bachelor, programTitles: [:], kyrgyz: true, texts: texts).details,
+                       "Окутуу кытай тилинде · Сумма программага жараша")
+
+        let bilkent = try costs(AtlasFixtures.bilkent)
+        let room = try XCTUnwrap(bilkent.rows.first { $0.amountMaxMinor != nil && $0.kind == .accommodation })
+        XCTAssertEqual(UniversityCostPolicy.rowLabel(room, programTitles: [:], kyrgyz: false, texts: texts),
+                       .init(label: "Двухместная комната", details: "Цена зависит от типа комнаты и корпуса"))
+        let single = try XCTUnwrap(bilkent.rows.first { $0.note?.ru == "Одноместная комната" })
+        XCTAssertEqual(UniversityCostPolicy.rowLabel(single, programTitles: [:], kyrgyz: false, texts: texts),
+                       .init(label: "Одноместная комната", details: nil))
+
+        // Программа строки и язык обучения; строка без пояснения.
+        let data = try AtlasFixtures.mutated(AtlasFixtures.bilkent) { value in
+            value.update(["costs", "rows", 0]) {
+                $0["programId"] = "computer-engineering"
+                $0["teachingLanguage"] = "en"
+            }
+            value.update(["costs", "rows", 5]) { $0["note"] = NSNull() }
+        }
+        let mutated = try XCTUnwrap(DetailUnderTest.decode(data).costs)
+        XCTAssertEqual(UniversityCostPolicy.rowLabel(mutated.rows[0], programTitles: ["computer-engineering": "Computer Engineering"],
+                                                     kyrgyz: false, texts: texts),
+                       .init(label: "Computer Engineering, lang:en", details: nil))
+        XCTAssertEqual(UniversityCostPolicy.rowLabel(mutated.rows[0], programTitles: [:], kyrgyz: false, texts: texts).label,
+                       "level:bachelor, lang:en")
+        XCTAssertEqual(UniversityCostPolicy.rowLabel(mutated.rows[5], programTitles: [:], kyrgyz: false, texts: texts),
+                       .init(label: "kind:application_fee", details: nil))
+    }
+
+    func testSplitNote() {
+        XCTAssertEqual(UniversityCostPolicy.splitNote("Двухместная комната; Цена за одного человека"),
+                       ["Двухместная комната", "Цена за одного человека"])
+        XCTAssertEqual(UniversityCostPolicy.splitNote("Одно;;  два ;"), ["Одно", "два"])
+    }
+
+    /// «16 октября 2026 г.» с неразрывным пробелом перед «г.»; в конце
+    /// предложения одна точка.
+    func testDatesLikeTheWeb() {
+        XCTAssertEqual(UniversityCostPolicy.dateLabel("2026-10-16", locale: ru), "16 октября 2026\u{00A0}г.")
+        XCTAssertEqual(UniversityCostPolicy.sentenceEnd("проверено 16 октября 2026\u{00A0}г.."), "проверено 16 октября 2026\u{00A0}г.")
+        XCTAssertEqual(UniversityCostPolicy.sentenceEnd("Источник: сайт."), "Источник: сайт.")
+        XCTAssertEqual(UniversityCostPolicy.dateLabel("not-a-day", locale: ru), "not-a-day")
     }
 
     func testRateSourceShortNames() {

@@ -20,18 +20,30 @@ final class UniversityCardViewModel: ObservableObject {
         self.service = service
     }
 
+    /// Номер последнего запроса: ответ прежнего запроса (его отменил
+    /// перезапуск `.task(id:)` или его обогнал pull-to-refresh) не
+    /// показывается и не считается сбоем.
+    private var generation = 0
+
     func load(institutionId: UUID) async {
-        if isLoading { return }
+        generation += 1
+        let request = generation
         isLoading = true
         refreshFailed = false
         cardMissing = false
         do {
             let data = try await service.studentUniversityDetailData(institutionId: institutionId)
             let fresh = try UniversityDetail.decode(data)
+            guard request == generation else { return }
             guard fresh.university.id == institutionId else { throw UniversityDetailFailure.failed }
             detail = fresh
             item = fresh.university
         } catch {
+            guard request == generation else { return }
+            if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
+                isLoading = false
+                return
+            }
             // 42501: вуз снят с публикации или недоступен (сервер не
             // различает), как прежнее «карточки нет».
             if UniversityDetailFailure.classify(error) == .unavailable {
@@ -45,10 +57,18 @@ final class UniversityCardViewModel: ObservableObject {
 
     /// Подготовки этого вуза из того же ответа, если он свежий и про это
     /// дело; иначе nil, и экран читает подготовки отдельно, как раньше.
+    /// Те же проверки, что у отдельного чтения (`CatalogPreparationList`):
+    /// строки этого дела и этого вуза, без повторов. Не прошли: отдельное
+    /// чтение, а не чужие или задвоенные подготовки на экране.
     func preparations(for context: ProgramPreparationContext) -> [CatalogPreparation]? {
-        guard !refreshFailed, !cardMissing, let prepared = detail?.preparations,
+        guard !refreshFailed, !cardMissing, let detail, let prepared = detail.preparations,
               prepared.studentCaseId == context.scope.caseId else { return nil }
-        return prepared.items
+        let items = prepared.items
+        guard items.allSatisfy({ $0.selection.studentCaseId == prepared.studentCaseId
+                                 && $0.selection.institutionId == detail.university.id }),
+              Set(items.map(\.id)).count == items.count,
+              Set(items.map { "\($0.selection.programId)/\($0.selection.intakeId)" }).count == items.count else { return nil }
+        return items
     }
 }
 
@@ -115,10 +135,17 @@ struct UniversityDetailView: View {
         }
     }
 
-    /// «Страна › Город» из ответа 283; до ответа прежняя строка карточки.
-    private func placeLine(for item: UniversityCatalogItem) -> String {
-        guard let detail = model.detail, detail.university.id == item.id else { return universityPlaceLine(item.content) }
-        return UniversityAtlasPolicy.placeLine(country: detail.country, city: detail.city, kyrgyz: AppLocale.isKyrgyz)
+    /// «Страна › Город» из ответа 283 ссылками на экраны страны и города
+    /// (план 7.3, как путь по каталогу на вебе); до ответа прежняя строка
+    /// карточки текстом.
+    @ViewBuilder
+    private func placeView(for item: UniversityCatalogItem) -> some View {
+        if let detail = model.detail, detail.university.id == item.id {
+            UniversityPlaceLinks(country: detail.country, city: detail.city)
+        } else {
+            Text(universityPlaceLine(item.content))
+                .font(.subheadline)
+        }
     }
 
     private func honestState(_ key: LocalizedStringKey) -> some View {
@@ -143,8 +170,7 @@ struct UniversityDetailView: View {
                         Text(item.content.name)
                             .font(.title2.bold())
                             .accessibilityAddTraits(.isHeader)
-                        Text(placeLine(for: item))
-                            .font(.subheadline)
+                        placeView(for: item)
                         if !item.content.programs.isEmpty {
                             Button {
                                 proxy.scrollTo("university-programs", anchor: .top)
@@ -181,12 +207,6 @@ struct UniversityDetailView: View {
                     Text(item.content.overview)
                         .font(.body)
 
-                    // Блок «Стоимость» только при опубликованных строках (283):
-                    // нет данных, нет блока.
-                    if let plan = UniversityCostPolicy.plan(model.detail?.costs) {
-                        UniversityCostSection(plan: plan)
-                    }
-
                     // Запрос консультации из карточки вуза (миграция 197).
                     Button {
                         showsConsultationSheet = true
@@ -196,6 +216,16 @@ struct UniversityDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .buttonStyle(.borderedProminent)
+
+                    // Блок «Стоимость» только при опубликованных строках (283):
+                    // нет данных, нет блока. Порядок как на вебе: описание,
+                    // консультация, стоимость, программы.
+                    if let plan = UniversityCostPolicy.plan(model.detail?.costs) {
+                        UniversityCostSection(
+                            plan: plan,
+                            programTitles: Dictionary(item.content.programs.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+                        )
+                    }
 
                     Text("university_programs_heading")
                         .font(.title3.bold())

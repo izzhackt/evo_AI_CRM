@@ -43,7 +43,7 @@ struct CountryAtlasView: View {
     }
 
     private func cities(_ country: AtlasCountry, index: UniversityIndex) -> some View {
-        let cities = UniversityAtlasPolicy.cities(of: code, in: index)
+        let cities = UniversityAtlasPolicy.cities(of: code, in: index, kyrgyz: AtlasText.kyrgyz)
         let others = UniversityAtlasPolicy.otherUniversities(of: code, in: index)
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -58,7 +58,7 @@ struct CountryAtlasView: View {
                         .foregroundStyle(AtlasStyle.secondaryText)
                 }
                 ForEach(cities) { city in
-                    NavigationLink(value: AtlasRoute.city(city.key)) {
+                    AtlasLink(route: .city(city.key)) {
                         CityAtlasCard(city: city)
                     }
                     .buttonStyle(.pressable)
@@ -70,6 +70,10 @@ struct CountryAtlasView: View {
                             .font(.title3.bold())
                             .accessibilityAddTraits(.isHeader)
                             .padding(.top, cities.isEmpty ? 0 : 8)
+                        Text("catalog_other_universities_lead")
+                            .font(.subheadline)
+                            .foregroundStyle(AtlasStyle.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
                         ForEach(others) { university in
                             UniversityIndexRow(
                                 university: university,
@@ -89,47 +93,67 @@ struct CountryAtlasView: View {
     }
 }
 
-/// Карточка города: фото, название, число вузов, короткий текст.
+/// Карточка города (решение Р2, план 7.3, как `CityCards` веба): фото,
+/// название, число вузов, короткий текст целиком и самый интересный факт с
+/// подписью «Интересный факт». Абзацы рисует `AtlasParagraph`: SwiftUI
+/// `Text` на iOS 26 обрезал длинный русский абзац многоточием.
 private struct CityAtlasCard: View {
     let city: AtlasCity
+
+    private var name: String { city.name.text(kyrgyz: AtlasText.kyrgyz) }
+    private var count: String { AtlasText.universities(city.universityCount ?? 0) }
+    private var summary: String { city.summary.text(kyrgyz: AtlasText.kyrgyz) }
+    private var fact: String { city.fact.text.text(kyrgyz: AtlasText.kyrgyz) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             AtlasPhotoView(subject: .geography(city.photo), aspectRatio: 16 / 9)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        name
+                        nameText
                         Spacer(minLength: 8)
-                        count
+                        countText
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        name
-                        count
+                        nameText
+                        countText
                     }
                 }
-                Text(city.summary.text(kyrgyz: AtlasText.kyrgyz))
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
+                AtlasParagraph(text: summary, style: .subheadline)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("catalog_city_fact_label")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AtlasStyle.secondaryText)
+                    AtlasParagraph(text: fact, style: .subheadline)
+                }
+                .padding(.leading, 12)
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(AtlasStyle.secondaryText.opacity(0.35))
+                        .frame(width: 3)
+                }
+                .padding(.top, 2)
             }
             .padding(.horizontal, 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
+        // Абзацы на `UILabel` VoiceOver не собирает в одну кнопку сам:
+        // подпись карточки собрана явно, название первым.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: "\(name), \(count). \(summary) "
+            + String(format: String(localized: "catalog_city_fact_a11y"), fact)))
     }
 
-    private var name: some View {
-        Text(city.name.text(kyrgyz: AtlasText.kyrgyz))
+    private var nameText: some View {
+        Text(name)
             .font(.title3.weight(.semibold))
             .foregroundStyle(.primary)
     }
 
-    private var count: some View {
-        Text(AtlasText.universities(city.universityCount ?? 0))
+    private var countText: some View {
+        Text(count)
             .font(.subheadline)
             .foregroundStyle(AtlasStyle.secondaryText)
     }

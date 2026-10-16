@@ -159,7 +159,7 @@ private struct CountryAtlasMapCanvas: View {
                     .foregroundStyle(AtlasStyle.secondaryText)
             }
             HStack {
-                NavigationLink(value: pin.id) {
+                AtlasLink(route: .university(pin.id)) {
                     Text("universities_map_open_card")
                         .frame(minHeight: 30)
                 }
@@ -209,7 +209,7 @@ private struct CountryAtlasMapCanvas: View {
     private func clusterList(_ cluster: UniversityMapCluster) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(cluster.pins) { pin in
-                NavigationLink(value: pin.id) {
+                AtlasLink(route: .university(pin.id)) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(pin.name)

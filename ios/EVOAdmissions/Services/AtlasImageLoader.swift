@@ -5,7 +5,8 @@ import UIKit
 /// уменьшение до размера карточки при декодировании (ImageIO) и кэш готовых
 /// картинок в памяти. Адреса пробуются по порядку `AtlasPhotoSource`: если
 /// сервер не отдаёт варианты размера (тариф без Image Transformations,
-/// локальный стек), до конца запуска запрашивается сразу оригинал.
+/// локальный стек), а оригинал того же объекта отдаёт, до конца запуска
+/// запрашивается сразу оригинал.
 actor AtlasImageLoader {
     static let shared = AtlasImageLoader()
 
@@ -15,7 +16,14 @@ actor AtlasImageLoader {
     private var failedURLs: Set<URL> = []
     private var inFlight: [String: Task<UIImage?, Never>] = [:]
 
-    init() {
+    /// - Parameter configuration: сеть загрузчика; тесты подставляют свою
+    ///   (заглушка `URLProtocol`, без кэша на диске).
+    init(configuration: URLSessionConfiguration = AtlasImageLoader.standardConfiguration()) {
+        session = URLSession(configuration: configuration)
+        memory.totalCostLimit = 48 * 1024 * 1024
+    }
+
+    static func standardConfiguration() -> URLSessionConfiguration {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         let cache = URLCache(
             memoryCapacity: 16 * 1024 * 1024,
@@ -28,9 +36,11 @@ actor AtlasImageLoader {
         // библиотеки сборки): сохранённый ответ годится без повторной сверки.
         configuration.requestCachePolicy = .returnCacheDataElseLoad
         configuration.timeoutIntervalForRequest = 30
-        session = URLSession(configuration: configuration)
-        memory.totalCostLimit = 48 * 1024 * 1024
+        return configuration
     }
+
+    /// Варианты размера выключены до конца запуска.
+    var transformationsUnavailable: Bool { sizedUnavailable }
 
     /// Картинка не больше `maxPixel` по длинной стороне или nil (все адреса
     /// не ответили).
@@ -50,6 +60,11 @@ actor AtlasImageLoader {
     }
 
     private func load(_ source: AtlasPhotoSource, maxPixel: Int) async -> UIImage? {
+        // Вариант размера этого фото ответил 4xx. Это говорит о недоступных
+        // трансформациях, только если оригинал того же объекта затем
+        // загрузится: 404 одного недозагруженного объекта (фото стран и
+        // городов загружает отдельный шаг выпуска) варианты не выключает.
+        var sizedRejected = false
         for candidate in source.candidates {
             if candidate.sized, sizedUnavailable { continue }
             if failedURLs.contains(candidate.url) { continue }
@@ -60,12 +75,14 @@ actor AtlasImageLoader {
                 guard (200..<300).contains(status) else {
                     // Отказ не остаётся в кэше: иначе он пережил бы запуск.
                     session.configuration.urlCache?.removeCachedResponse(for: request)
-                    // 400/403/404 у варианта размера: трансформации недоступны.
-                    if candidate.sized, (400..<500).contains(status) { sizedUnavailable = true }
+                    if candidate.sized, (400..<500).contains(status) { sizedRejected = true }
                     failedURLs.insert(candidate.url)
                     continue
                 }
-                if let image = Self.downsample(data, maxPixel: maxPixel) { return image }
+                if let image = Self.downsample(data, maxPixel: maxPixel) {
+                    if sizedRejected, !candidate.sized { sizedUnavailable = true }
+                    return image
+                }
                 failedURLs.insert(candidate.url)
             } catch {
                 if Task.isCancelled { return nil }

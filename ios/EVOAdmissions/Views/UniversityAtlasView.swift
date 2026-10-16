@@ -32,12 +32,7 @@ struct UniversityAtlasView: View {
                         }
                     }
                 }
-                .navigationDestination(for: AtlasRoute.self) { route in
-                    switch route {
-                    case .country(let code): CountryAtlasView(code: code)
-                    case .city(let key): CityAtlasView(cityKey: key)
-                    }
-                }
+                // Строки «Избранного» открывают вуз по `UUID`.
                 .navigationDestination(for: UUID.self) { institutionId in
                     UniversityDetailView(institutionId: institutionId, initialItem: nil)
                 }
@@ -64,9 +59,18 @@ struct UniversityAtlasView: View {
             } else {
                 searchResults(index)
             }
-        } else if store.phase == .failed {
-            AtlasMessageView(title: "catalog_load_failed", message: "catalog_load_failed_hint", systemImage: "wifi.exclamationmark") {
-                await store.refresh()
+        } else if case .failed(let failure) = store.phase {
+            // Сеть не ответила: подсказка про интернет. Ответ пришёл, но его
+            // нельзя показать: нейтральная подсказка, сеть ни при чём.
+            switch failure {
+            case .connection:
+                AtlasMessageView(title: "catalog_load_failed", message: "catalog_load_failed_hint", systemImage: "wifi.exclamationmark") {
+                    await store.refresh()
+                }
+            case .unavailable:
+                AtlasMessageView(title: "catalog_load_failed", message: "catalog_load_failed_unavailable_hint", systemImage: "building.columns") {
+                    await store.refresh()
+                }
             }
         } else {
             skeleton
@@ -86,7 +90,7 @@ struct UniversityAtlasView: View {
                 if store.refreshFailed { AtlasStaleNotice() }
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                     ForEach(index.countries) { country in
-                        NavigationLink(value: AtlasRoute.country(country.code)) {
+                        AtlasLink(route: .country(country.code)) {
                             CountryAtlasCard(country: country)
                         }
                         .buttonStyle(.pressable)

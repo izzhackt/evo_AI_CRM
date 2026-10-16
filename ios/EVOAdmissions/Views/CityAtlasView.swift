@@ -61,6 +61,11 @@ private struct CityFactView: View {
                 .frame(width: 28)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 6) {
+                // Подпись видна, как на вебе («Интересный факт»).
+                Text("catalog_city_fact_label")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AtlasStyle.secondaryText)
+                    .accessibilityHidden(true)
                 Text(fact.text.text(kyrgyz: AtlasText.kyrgyz))
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)

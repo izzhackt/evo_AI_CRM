@@ -2,13 +2,20 @@ import SwiftUI
 
 /// Блок «Стоимость» на странице вуза (план 4.5, 7.3, контракт 2.2). Есть
 /// только при опубликованных строках (`UniversityCostPolicy.plan` не nil):
-/// нет данных, нет блока. Сумма в валюте вуза, ориентир «≈ USD» уже
-/// округлён сервером; под строками учебный год, источник, дата проверки и
-/// курс с источником и датой.
+/// нет данных, нет блока. Содержание то же, что у `CostTable.tsx` веба:
+/// подпись строки и уточнения, сумма в валюте вуза и период, ориентир
+/// «≈ USD» (уже округлён сервером); под строками учебный год, источник и
+/// дата проверки, курс с источником и датой. Раскладка своя: на телефоне
+/// строки идут столбиком, как в узкой раскладке веба.
 struct UniversityCostSection: View {
     let plan: UniversityCostPlan
+    /// Названия программ вуза по id: строка обучения программы подписана
+    /// её названием, как на вебе.
+    var programTitles: [String: String] = [:]
 
     private var locale: Locale { AppLocale.current }
+    private var kyrgyz: Bool { AppLocale.isKyrgyz }
+    private var nbsp: String { UniversityCostPolicy.nbsp }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -25,7 +32,7 @@ struct UniversityCostSection: View {
                         .padding(.bottom, 6)
                     ForEach(Array(group.rows.enumerated()), id: \.element.id) { rowPosition, row in
                         if rowPosition > 0 { Divider().padding(.vertical, 8) }
-                        rowView(row)
+                        rowView(row, group: group.kind)
                     }
                 }
             }
@@ -33,10 +40,14 @@ struct UniversityCostSection: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AtlasStyle.surface, in: RoundedRectangle(cornerRadius: AtlasStyle.cardRadius, style: .continuous))
 
-            Text(footer)
-                .font(.footnote)
-                .foregroundStyle(AtlasStyle.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(notes, id: \.self) { note in
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(AtlasStyle.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
 
             ForEach(plan.officialSources, id: \.self) { url in
                 Link(destination: url) {
@@ -58,10 +69,17 @@ struct UniversityCostSection: View {
 
     // MARK: - Строка
 
-    private func rowView(_ row: UniversityCostRow) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            if let qualifiers = qualifiers(row) {
-                Text(qualifiers)
+    private var texts: UniversityCostPolicy.Texts {
+        .init(level: universityLevelLabel, language: languageLabel, kind: kindLabel)
+    }
+
+    private func rowView(_ row: UniversityCostRow, group: UniversityCostKind) -> some View {
+        let label = UniversityCostPolicy.rowLabel(row, programTitles: programTitles, kyrgyz: kyrgyz, texts: texts)
+        return VStack(alignment: .leading, spacing: 3) {
+            // Подпись, совпавшая с заголовком вида («Страховка» под
+            // «Страховкой»), не повторяется.
+            if label.label != kindLabel(group) || label.details != nil {
+                Text(label.label)
                     .font(.subheadline)
                     .foregroundStyle(.primary)
             }
@@ -76,8 +94,8 @@ struct UniversityCostSection: View {
                     .foregroundStyle(AtlasStyle.secondaryText)
                     .accessibilityLabel(Text(String(format: String(localized: "catalog_cost_usd_a11y"), usd)))
             }
-            if let note = row.note {
-                Text(note.text(kyrgyz: AtlasText.kyrgyz))
+            if let details = label.details {
+                Text(details)
                     .font(.footnote)
                     .foregroundStyle(AtlasStyle.secondaryText)
                     .padding(.top, 1)
@@ -88,18 +106,7 @@ struct UniversityCostSection: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// «Бакалавриат · язык: английский». Программа (`programId`) уточняет
-    /// строку только для сервера: названия программы в строке нет.
-    private func qualifiers(_ row: UniversityCostRow) -> String? {
-        var parts: [String] = []
-        if let level = row.studyLevel { parts.append(universityLevelLabel(level)) }
-        if let language = row.teachingLanguage {
-            let name = locale.localizedString(forLanguageCode: language) ?? language
-            parts.append(String(format: String(localized: "catalog_cost_language"), name))
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
+    /// «от 25 000 до 35 000 CNY в год»: валюта не отрывается от суммы.
     private func amountLine(_ row: UniversityCostRow) -> String {
         let min = UniversityCostPolicy.amount(minor: row.amountMinMinor, exponent: row.exponent, locale: locale)
         let value: String
@@ -109,7 +116,7 @@ struct UniversityCostSection: View {
         } else {
             value = min
         }
-        return "\(value) \(row.currency) \(periodLabel(row.period))"
+        return "\(value)\(nbsp)\(row.currency) \(periodLabel(row.period))"
     }
 
     private func usdValue(_ row: UniversityCostRow) -> String? {
@@ -120,32 +127,34 @@ struct UniversityCostSection: View {
         return String(format: String(localized: "catalog_cost_range"), min, max)
     }
 
-    // MARK: - Строка под таблицей
+    // MARK: - Строки под таблицей
 
-    private var footer: String {
-        var parts: [String] = []
+    /// Три абзаца, как под таблицей веба: год и источник, курс, оговорка.
+    private var notes: [String] {
+        var result: [String] = []
+        let join = String(localized: "catalog_costs_join")
+        let sources = plan.sourceKinds.map(sourceLabel).joined(separator: join)
+        var first = String(format: String(localized: "catalog_costs_source"), sources,
+                           UniversityCostPolicy.dateLabel(plan.latestVerifiedOn, locale: locale))
+        first = UniversityCostPolicy.sentenceEnd(first)
         if !plan.academicYears.isEmpty {
-            parts.append(String(format: String(localized: "catalog_costs_year"), list(plan.academicYears)))
+            first = String(format: String(localized: "catalog_costs_year"), plan.academicYears.joined(separator: join)) + " " + first
         }
-        let sources = list(plan.sourceKinds.map(sourceLabel))
-        parts.append(String(format: String(localized: "catalog_costs_source"), sources, AtlasText.numericDay(plan.latestVerifiedOn)))
-        for rate in plan.rates {
-            parts.append(String(
-                format: String(localized: "catalog_costs_rate"),
-                UniversityCostPolicy.rate(rate.unitsPerUsd, locale: locale),
-                rate.currency,
-                rateSourceLabel(rate.sourceName),
-                AtlasText.numericDay(rate.asOf)
-            ))
+        result.append(first)
+        if !plan.rates.isEmpty {
+            let rates = plan.rates.map { rate in
+                String(
+                    format: String(localized: "catalog_costs_rate_item"),
+                    UniversityCostPolicy.rate(rate.unitsPerUsd, locale: locale),
+                    rate.currency,
+                    rateSourceLabel(rate.sourceName),
+                    UniversityCostPolicy.dateLabel(rate.asOf, locale: locale)
+                )
+            }
+            result.append(String(format: String(localized: "catalog_costs_rates"), rates.joined(separator: "; ")))
         }
-        parts.append(String(localized: "catalog_costs_closing"))
-        return parts.joined(separator: " ")
-    }
-
-    private func list(_ items: [String]) -> String {
-        let formatter = ListFormatter()
-        formatter.locale = locale
-        return formatter.string(from: items) ?? items.joined(separator: ", ")
+        result.append(String(localized: "catalog_costs_closing"))
+        return result
     }
 
     private func officialLinkTitle(_ url: URL) -> String {
@@ -175,6 +184,22 @@ struct UniversityCostSection: View {
         case .day: return String(localized: "catalog_cost_period_day")
         case .once: return String(localized: "catalog_cost_period_once")
         case .program: return String(localized: "catalog_cost_period_program")
+        }
+    }
+
+    /// «на английском» (словарь веба `costLanguage.*`); другой код:
+    /// «язык обучения: XX».
+    private func languageLabel(_ code: String) -> String {
+        switch code {
+        case "en": return String(localized: "catalog_cost_language_en")
+        case "zh": return String(localized: "catalog_cost_language_zh")
+        case "cs": return String(localized: "catalog_cost_language_cs")
+        case "it": return String(localized: "catalog_cost_language_it")
+        case "tr": return String(localized: "catalog_cost_language_tr")
+        case "ms": return String(localized: "catalog_cost_language_ms")
+        case "ar": return String(localized: "catalog_cost_language_ar")
+        case "ru": return String(localized: "catalog_cost_language_ru")
+        default: return String(format: String(localized: "catalog_cost_language_other"), code.uppercased())
         }
     }
 

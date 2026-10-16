@@ -55,10 +55,19 @@ enum AtlasValue {
     }
 
     /// Текст для людей: непустой после обрезки, без управляющих символов.
+    /// Управляющие здесь ровно те, что отвергает веб (`/[\u0000-\u001f\u007f]/`)
+    /// и CHECK `catalog_text_ok` (`[[:cntrl:]]`): U+0000…U+001F и U+007F.
+    /// Невидимые символы форматирования (мягкий перенос U+00AD, U+200B,
+    /// U+200D, U+FEFF) база и веб принимают, поэтому и здесь они не ошибка:
+    /// иначе один такой символ, вставленный из Word, выключил бы весь
+    /// каталог на iPhone, а веб продолжал бы работать.
     static func isText(_ value: String, max: Int) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && value.count <= max
-            && value.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
+        return !trimmed.isEmpty && value.count <= max && !hasControlCharacter(value)
+    }
+
+    static func hasControlCharacter(_ value: String) -> Bool {
+        value.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F }
     }
 
     /// Публичный адрес https с хостом (как `university_public_url` в SQL).
@@ -70,13 +79,19 @@ enum AtlasValue {
     /// Календарная дата `YYYY-MM-DD`, которая действительно существует.
     static func isDay(_ value: String) -> Bool {
         guard matches(value, "[0-9]{4}-[0-9]{2}-[0-9]{2}") else { return false }
+        guard let date = dayFormatter.date(from: value) else { return false }
+        return dayFormatter.string(from: date) == value
+    }
+
+    /// Один форматтер на процесс: индекс содержит сотни дат.
+    /// `DateFormatter` потокобезопасен с iOS 7.
+    private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(identifier: "UTC")
         formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: value) else { return false }
-        return formatter.string(from: date) == value
-    }
+        return formatter
+    }()
 
     static func isMonth(_ value: String) -> Bool {
         matches(value, "[0-9]{4}-(0[1-9]|1[0-2])")

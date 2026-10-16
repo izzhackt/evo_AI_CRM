@@ -32,6 +32,15 @@ extension SupabaseService {
     }
 }
 
+extension UniversityIndexStore {
+    /// Хранилище индекса приложения: тело ответа читает `SupabaseService`,
+    /// 42501 (студент больше не активен в организации) снимает копию.
+    static let shared = UniversityIndexStore(
+        isForbidden: { ($0 as? PostgrestError)?.code == "42501" },
+        fetch: { try await SupabaseService.shared.studentUniversityIndexData(knownVersion: $0) }
+    )
+}
+
 /// Страница вуза в приложении: подготовки в форме `CatalogPreparation`.
 typealias UniversityDetail = UniversityDetailPayload<CatalogPreparation>
 

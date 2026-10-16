@@ -46,8 +46,7 @@ struct UniversityIndex: Decodable, Equatable {
     /// равенство; граница та же, что у входа RPC (до 100 знаков, без
     /// управляющих символов).
     static func isVersion(_ value: String) -> Bool {
-        !value.isEmpty && value.count <= 100
-            && value.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
+        !value.isEmpty && value.count <= 100 && !AtlasValue.hasControlCharacter(value)
     }
 
     init(version: String, countries: [AtlasCountry], cities: [AtlasCity], universities: [UniversityIndexEntry]) {

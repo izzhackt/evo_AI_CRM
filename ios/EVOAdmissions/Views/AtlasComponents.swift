@@ -33,9 +33,81 @@ enum AtlasStyle {
     static let elementRadius: CGFloat = 12
 }
 
+/// Экран каталога, на который ведёт ссылка.
 enum AtlasRoute: Hashable {
     case country(String)
     case city(String)
+    case university(UUID)
+}
+
+/// Экран маршрута каталога.
+struct AtlasRouteView: View {
+    let route: AtlasRoute
+
+    var body: some View {
+        switch route {
+        case .country(let code): CountryAtlasView(code: code)
+        case .city(let key): CityAtlasView(cityKey: key)
+        case .university(let id): UniversityDetailView(institutionId: id, initialItem: nil)
+        }
+    }
+}
+
+/// Переход внутри каталога ссылкой с экраном (`NavigationLink { … }`), а не
+/// по значению. Страницу вуза открывают и стеки «Главной» и «Профессий»
+/// ссылкой с экраном; переход по значению из такого экрана SwiftUI ставит
+/// под него (аудит UX/UI 2026-10, PR #1172), и «Страна › Город» с вуза из
+/// «Избранного» на «Главной» не открывались (прогон 16.10.2026). Ссылка с
+/// экраном работает в любом стеке и не требует регистрации экранов.
+struct AtlasLink<Label: View>: View {
+    let route: AtlasRoute
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        NavigationLink {
+            AtlasRouteView(route: route)
+        } label: {
+            label()
+        }
+    }
+}
+
+/// «Страна › Город» на странице вуза: страна и город ссылками на свои
+/// экраны каталога (план 7.3). Без опубликованного города только страна.
+struct UniversityPlaceLinks: View {
+    let country: AtlasCountryRef
+    let city: AtlasCity?
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) { links }
+            VStack(alignment: .leading, spacing: 0) { links }
+        }
+        .font(.subheadline)
+    }
+
+    @ViewBuilder
+    private var links: some View {
+        link(country.name.text(kyrgyz: AtlasText.kyrgyz), route: .country(country.code))
+        if let city {
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasStyle.secondaryText)
+                .accessibilityHidden(true)
+            link(city.name.text(kyrgyz: AtlasText.kyrgyz), route: .city(city.key))
+        }
+    }
+
+    private func link(_ title: String, route: AtlasRoute) -> some View {
+        AtlasLink(route: route) {
+            Text(title)
+                .foregroundStyle(AtlasStyle.linkText)
+                .underline()
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // MARK: - Тексты
@@ -193,8 +265,11 @@ struct AtlasPhotoView: View {
             .task(id: size.width > 0 ? LoadKey(subject: subject, width: widthStep) : nil) {
                 guard size.width > 0 else { return }
                 let source = subject.source(width: widthStep)
+                // Адресов нет (ключ фото неизвестен библиотеке этой сборки):
+                // фото просто нет, как на вебе, а не «фото не загрузилось».
                 guard !source.candidates.isEmpty else {
-                    failed = true
+                    image = nil
+                    failed = false
                     return
                 }
                 let loaded = await AtlasImageLoader.shared.image(for: source, maxPixel: widthStep)
@@ -359,7 +434,7 @@ struct UniversityIndexRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            NavigationLink(value: university.id) {
+            AtlasLink(route: .university(university.id)) {
                 HStack(alignment: .center, spacing: 12) {
                     AtlasPhotoView(subject: .university(photoKey: university.photoKey), aspectRatio: 1, cornerRadius: AtlasStyle.elementRadius)
                         .frame(width: 64, height: 64)
@@ -399,7 +474,7 @@ struct UniversityAtlasCard: View {
     @ObservedObject var favorites: FavoritesStore
 
     var body: some View {
-        NavigationLink(value: university.id) {
+        AtlasLink(route: .university(university.id)) {
             VStack(alignment: .leading, spacing: 10) {
                 AtlasPhotoView(subject: .university(photoKey: university.photoKey), aspectRatio: 16 / 9)
                     .accessibilityHidden(true)
@@ -488,10 +563,14 @@ struct UniversityDetailPhoto: View {
 
     var body: some View {
         if let credit = AtlasPhotoCredit(universityPhotoKey: photoKey) {
+            let caption = credit.caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            // Без подписи фото для VoiceOver оформление: пустая метка
+            // давала фокус на изображении без описания.
             AtlasPhotoView(subject: .university(photoKey: photoKey), aspectRatio: 16 / 9, cornerRadius: 14)
                 .accessibilityElement()
-                .accessibilityLabel(Text(credit.caption ?? ""))
+                .accessibilityLabel(Text(caption))
                 .accessibilityAddTraits(.isImage)
+                .accessibilityHidden(caption.isEmpty)
                 .overlay(alignment: .bottomTrailing) {
                     AtlasPhotoCreditButton(credit: credit)
                         .padding(6)

@@ -96,8 +96,11 @@ targets:
       - path: EVOAdmissions/Services/UniversityCatalogFilterPolicy.swift
       - path: EVOAdmissions/Services/StudyCountries.swift
       # Университеты v2 (283): строгий разбор индекса и страницы вуза,
-      # правила экранов, адреса фото и копия индекса на диске.
+      # правила экранов, адреса фото, копия индекса на диске и хранилище
+      # индекса (загрузка передаётся функцией), загрузчик фото (сеть
+      # подменяется заглушкой URLProtocol).
       - path: EVOAdmissions/Services/UniversityAtlas
+      - path: EVOAdmissions/Services/AtlasImageLoader.swift
       - path: EVOAdmissions/Services/UniversityMapPolicy.swift
       - path: EVOAdmissions/Services/SingleFlightReloadGate.swift
       - path: EVOAdmissions/Services/PostgresTimestamp.swift

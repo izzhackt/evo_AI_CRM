@@ -9,53 +9,91 @@ enum UniversityAtlasPolicy {
     /// Граница запроса та же, что у веб-поиска каталога (100 знаков).
     static let queryLimit = 100
 
-    /// Нормализация для поиска: без регистра и диакритики, типографские
-    /// апострофы как обычный, пробелы схлопнуты («Xi’an» находится по
-    /// «xian» и «xi'an»).
+    /// Нормализация для поиска, шаг в шаг как `normalizeUniversitySearch` веба
+    /// (`src/lib/portal/university-search.ts`): NFKD, без знаков диакритики,
+    /// нижний регистр, отдельные буквы без диакритики по правилам веба
+    /// (`ı→i`, `ł→l`, `ø`/`œ→o`, `ß→ss`), типографские апострофы как
+    /// обычный, всё кроме букв, цифр, апострофа и `&` как пробел. Так
+    /// «sabanci» находит «Sabancı», «itu» находит «İTÜ», «bogazici» находит
+    /// «Boğaziçi», «xi'an» находит «Xi’an».
     static func normalize(_ value: String) -> String {
-        let folded = value.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-        let unified = folded
-            .replacingOccurrences(of: "’", with: "'")
-            .replacingOccurrences(of: "‘", with: "'")
-            .replacingOccurrences(of: "`", with: "'")
-        return unified.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-    }
-
-    private static func compact(_ value: String) -> String {
-        value.filter { $0.isLetter || $0.isNumber }
-    }
-
-    /// Вузы всех шести стран, в названии которых есть каждое слово запроса.
-    /// Пустой запрос не ищет (на экране остаются страны). Порядок: сначала
-    /// названия, которые начинаются с запроса, затем остальные; внутри
-    /// порядок индекса (по названию).
-    static func search(_ query: String, in universities: [UniversityIndexEntry]) -> [UniversityIndexEntry] {
-        let normalized = normalize(String(query.prefix(queryLimit)))
-        let tokens = normalized.split(separator: " ").map(String.init).filter { !$0.isEmpty }
-        guard !tokens.isEmpty else { return [] }
-        let compactQuery = compact(normalized)
-        var prefixed: [UniversityIndexEntry] = []
-        var rest: [UniversityIndexEntry] = []
-        for university in universities {
-            let name = normalize(university.name)
-            let compactName = compact(name)
-            let matches = tokens.allSatisfy { name.contains($0) || compactName.contains(compact($0)) }
-                || (!compactQuery.isEmpty && compactName.contains(compactQuery))
-            guard matches else { continue }
-            if name.hasPrefix(normalized) || compactName.hasPrefix(compactQuery) {
-                prefixed.append(university)
-            } else {
-                rest.append(university)
+        var scalars = String.UnicodeScalarView()
+        for scalar in value.decomposedStringWithCompatibilityMapping.unicodeScalars where !isMark(scalar) {
+            scalars.append(scalar)
+        }
+        var result = ""
+        var pendingSpace = false
+        for character in String(scalars).lowercased().unicodeScalars {
+            let replacement: String
+            switch character {
+            case "ı": replacement = "i"
+            case "ł": replacement = "l"
+            case "ø", "œ": replacement = "o"
+            case "ß": replacement = "ss"
+            case "’", "‘", "ʼ", "`", "´": replacement = "'"
+            default: replacement = String(character)
+            }
+            for kept in replacement.unicodeScalars {
+                if isWordScalar(kept) {
+                    if pendingSpace, !result.isEmpty { result.append(" ") }
+                    pendingSpace = false
+                    result.unicodeScalars.append(kept)
+                } else {
+                    pendingSpace = true
+                }
             }
         }
-        return prefixed + rest
+        return result
+    }
+
+    /// `\p{M}`: знаки, которые снимает веб.
+    private static func isMark(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.properties.generalCategory {
+        case .nonspacingMark, .spacingMark, .enclosingMark: return true
+        default: return false
+        }
+    }
+
+    /// `[\p{L}\p{N}'&]`: что веб оставляет в нормализованной строке.
+    private static func isWordScalar(_ scalar: Unicode.Scalar) -> Bool {
+        if scalar == "'" || scalar == "&" { return true }
+        switch scalar.properties.generalCategory {
+        case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter,
+             .decimalNumber, .letterNumber, .otherNumber:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Вузы всех шести стран, в названии которых есть каждое слово запроса
+    /// (то же правило, что `searchUniversities` веба). Пустой запрос не ищет
+    /// (на экране остаются страны). Порядок индекса сохраняется, поэтому
+    /// выдача на iPhone и на вебе одна и та же.
+    static func search(_ query: String, in universities: [UniversityIndexEntry]) -> [UniversityIndexEntry] {
+        let words = normalize(String(query.prefix(queryLimit))).split(separator: " ").map(String.init)
+        guard !words.isEmpty else { return [] }
+        return universities.filter { university in
+            let name = normalize(university.name)
+            return words.allSatisfy { name.contains($0) }
+        }
     }
 
     // MARK: - Группы
 
-    /// Города страны в порядке выдачи (страна, больше вузов, название RU).
-    static func cities(of country: String, in index: UniversityIndex) -> [AtlasCity] {
-        index.cities.filter { $0.country == country }
+    /// Города страны: больше вузов выше, затем по названию на языке
+    /// интерфейса (`countryCities` веба). Сервер отдаёт порядок по названию
+    /// RU, поэтому в кыргызском интерфейсе порядок пересчитывается здесь.
+    static func cities(of country: String, in index: UniversityIndex, kyrgyz: Bool = false) -> [AtlasCity] {
+        let locale = Locale(identifier: kyrgyz ? "ky" : "ru")
+        return index.cities.filter { $0.country == country }.enumerated().sorted { left, right in
+            let a = left.element, b = right.element
+            let countA = a.universityCount ?? 0, countB = b.universityCount ?? 0
+            if countA != countB { return countA > countB }
+            let order = a.name.text(kyrgyz: kyrgyz).compare(b.name.text(kyrgyz: kyrgyz), locale: locale)
+            if order != .orderedSame { return order == .orderedAscending }
+            return left.offset < right.offset
+        }.map(\.element)
     }
 
     /// Вузы опубликованного города в порядке выдачи (по названию).
